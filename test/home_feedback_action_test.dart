@@ -87,7 +87,7 @@ void main() {
     final welcomeStrip = find.byKey(const Key('home-welcome-strip'));
     expect(welcomeStrip, findsOneWidget);
     expect(tester.getSize(welcomeStrip).height, lessThan(90));
-    expect(find.text('Trang chủ vận hành'), findsOneWidget);
+    expect(find.textContaining('Chào buổi'), findsOneWidget);
     expect(find.text('2 showroom: CP75, CP62'), findsOneWidget);
     expect(find.byType(AppFeatureTile), findsNothing);
     expect(find.text('Không gian làm việc'), findsNothing);
@@ -153,6 +153,17 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Loa đang bật'), findsOneWidget);
+      expect(
+        tester
+            .getTopLeft(find.byKey(const Key('home-speaker-status-toggle')))
+            .dy,
+        closeTo(
+          tester
+              .getTopLeft(find.byKey(const Key('home-summary-date-range')))
+              .dy,
+          12,
+        ),
+      );
       expect(find.text('Đọc loa tiền vào'), findsNothing);
       expect(find.byType(SwitchListTile), findsNothing);
       expect(find.byKey(const Key('payment-speaker-warning')), findsNothing);

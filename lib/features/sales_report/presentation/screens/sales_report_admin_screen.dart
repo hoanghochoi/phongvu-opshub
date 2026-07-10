@@ -8,10 +8,15 @@ import '../../../../app/theme/app_text_styles.dart';
 import '../../../../app/widgets/app_buttons.dart';
 import '../../../../app/widgets/app_cards.dart';
 import '../../../../app/widgets/app_chips.dart';
+import '../../../../app/widgets/app_combobox.dart';
 import '../../../../app/widgets/app_filter_dropdowns.dart';
 import '../../../../app/widgets/app_layout.dart';
+import '../../../../app/widgets/app_pagination.dart';
 import '../../../../app/widgets/app_state_widgets.dart';
 import '../../../../core/formatting/money_formatters.dart';
+import '../../../../core/logging/app_logger.dart';
+import '../../../../core/network/api_client.dart';
+import '../../../auth/data/repositories/auth_repository.dart';
 import '../../../auth/domain/entities/store_branch.dart';
 import '../../../auth/domain/entities/user.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
@@ -21,16 +26,24 @@ import '../widgets/sales_report_export_menu.dart';
 import '../widgets/sales_report_workspace_header.dart';
 
 class SalesReportAdminScreen extends StatefulWidget {
-  const SalesReportAdminScreen({super.key});
+  final AuthRepository? authRepository;
+
+  const SalesReportAdminScreen({super.key, this.authRepository});
 
   @override
   State<SalesReportAdminScreen> createState() => _SalesReportAdminScreenState();
 }
 
 class _SalesReportAdminScreenState extends State<SalesReportAdminScreen> {
+  late final AuthRepository _authRepository =
+      widget.authRepository ?? AuthRepository(ApiClient());
+  final List<StoreBranch> _superAdminStores = [];
   bool _initialized = false;
+  bool _isLoadingStoreOptions = false;
   String _reportType = 'ALL';
   String? _storeCode;
+  String? _storeOptionsSessionKey;
+  String? _storeOptionsErrorMessage;
   DateTime? _startDate;
   DateTime? _endDate;
 
@@ -86,12 +99,85 @@ class _SalesReportAdminScreenState extends State<SalesReportAdminScreen> {
     unawaited(_reload());
   }
 
+  void _scheduleSuperAdminStoreOptionsLoad(User? user) {
+    if (user?.isSuperAdmin != true) return;
+    final key = user?.id?.trim().isNotEmpty == true
+        ? user!.id!.trim()
+        : user?.email.trim() ?? 'super-admin';
+    if (_storeOptionsSessionKey == key || _isLoadingStoreOptions) return;
+    _storeOptionsSessionKey = key;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      unawaited(_loadSuperAdminStoreOptions(user));
+    });
+  }
+
+  Future<void> _loadSuperAdminStoreOptions(User? user) async {
+    if (user?.isSuperAdmin != true) return;
+    setState(() {
+      _isLoadingStoreOptions = true;
+      _storeOptionsErrorMessage = null;
+    });
+    final startedAt = DateTime.now();
+    try {
+      await AppLogger.instance.info(
+        'SalesReport',
+        'Sales report admin SR filter load started',
+        context: {
+          'userId': user?.id,
+          'role': user?.role,
+          'assignedStoreCount': user?.assignedStores.length,
+        },
+      );
+      final stores = await _authRepository.getStores();
+      if (!mounted) return;
+      setState(() {
+        _superAdminStores
+          ..clear()
+          ..addAll(stores);
+        _isLoadingStoreOptions = false;
+      });
+      await AppLogger.instance.info(
+        'SalesReport',
+        'Sales report admin SR filter load succeeded',
+        context: {
+          'loadedStoreCount': stores.length,
+          'durationMs': DateTime.now().difference(startedAt).inMilliseconds,
+        },
+      );
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _isLoadingStoreOptions = false;
+        _storeOptionsErrorMessage =
+            'Chưa tải được danh sách showroom. Vui lòng tải lại.';
+      });
+      await AppLogger.instance.error(
+        'SalesReport',
+        'Sales report admin SR filter load failed',
+        error: error,
+        context: {
+          'role': user?.role,
+          'durationMs': DateTime.now().difference(startedAt).inMilliseconds,
+        },
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<SalesReportProvider>();
     final user = context.watch<AuthProvider>().user;
-    final storeOptions = _adminStoreOptionsFor(user);
-    final showStoreFilter = storeOptions.length > 1;
+    _scheduleSuperAdminStoreOptionsLoad(user);
+    final storeOptions = _adminStoreOptionsFor(
+      user,
+      user?.isSuperAdmin == true ? _superAdminStores : const <StoreBranch>[],
+    );
+    final showStoreFilter =
+        storeOptions.isNotEmpty ||
+        user?.isSuperAdmin == true ||
+        _isLoadingStoreOptions ||
+        _storeOptionsErrorMessage != null;
     return AppResponsiveContent(
       maxWidth: AppLayoutTokens.pageMaxWidth,
       onRefresh: () => _reload(page: provider.adminPage),
@@ -139,7 +225,9 @@ class _SalesReportAdminScreenState extends State<SalesReportAdminScreen> {
             storeOptions: storeOptions,
             showStoreFilter: showStoreFilter,
             isLoading: provider.isLoadingAdminList,
+            isLoadingStores: _isLoadingStoreOptions,
             isExporting: provider.isExporting,
+            storeOptionsErrorMessage: _storeOptionsErrorMessage,
             startDate: _startDate,
             endDate: _endDate,
             now: () => provider.currentDate,
@@ -150,6 +238,7 @@ class _SalesReportAdminScreenState extends State<SalesReportAdminScreen> {
             onStoreChanged: _setStoreCode,
             onDateRangeChanged: _setDateRange,
             onReload: () => _reload(),
+            onReloadStores: () => _loadSuperAdminStoreOptions(user),
             onExport: _export,
           ),
           const SizedBox(height: AppLayoutTokens.cardGap),
@@ -191,23 +280,18 @@ class _SalesReportAdminScreenState extends State<SalesReportAdminScreen> {
           const SizedBox(height: AppLayoutTokens.formInlineGap),
           SafeArea(
             top: false,
-            child: AppActionRow(
-              children: [
-                AppSecondaryButton(
-                  onPressed: provider.canGoPrevious
-                      ? () => _reload(page: provider.adminPage - 1)
-                      : null,
-                  icon: Icons.chevron_left_rounded,
-                  label: 'Trang trước',
-                ),
-                AppSecondaryButton(
-                  onPressed: provider.canGoNext
-                      ? () => _reload(page: provider.adminPage + 1)
-                      : null,
-                  icon: Icons.chevron_right_rounded,
-                  label: 'Trang sau',
-                ),
-              ],
+            child: AppPaginationControls(
+              pageIndex: provider.adminPage,
+              totalItems: provider.adminTotal,
+              itemLabel: 'báo cáo',
+              onPrevious: provider.canGoPrevious
+                  ? () => _reload(page: provider.adminPage - 1)
+                  : null,
+              onNext: provider.canGoNext
+                  ? () => _reload(page: provider.adminPage + 1)
+                  : null,
+              onRefresh: () => _reload(page: provider.adminPage),
+              isRefreshing: provider.isLoadingAdminList,
             ),
           ),
         ],
@@ -219,10 +303,12 @@ class _SalesReportAdminScreenState extends State<SalesReportAdminScreen> {
 class _SalesReportAdminToolbar extends StatelessWidget {
   final String reportType;
   final String? selectedStoreCode;
-  final List<AppFilterOption<String>> storeOptions;
+  final List<AppComboboxOption<String>> storeOptions;
   final bool showStoreFilter;
   final bool isLoading;
+  final bool isLoadingStores;
   final bool isExporting;
+  final String? storeOptionsErrorMessage;
   final DateTime? startDate;
   final DateTime? endDate;
   final DateTime Function() now;
@@ -230,6 +316,7 @@ class _SalesReportAdminToolbar extends StatelessWidget {
   final ValueChanged<String?> onStoreChanged;
   final void Function(DateTime? start, DateTime? end) onDateRangeChanged;
   final Future<void> Function() onReload;
+  final Future<void> Function() onReloadStores;
   final SalesReportExportCallback onExport;
 
   const _SalesReportAdminToolbar({
@@ -238,7 +325,9 @@ class _SalesReportAdminToolbar extends StatelessWidget {
     required this.storeOptions,
     required this.showStoreFilter,
     required this.isLoading,
+    required this.isLoadingStores,
     required this.isExporting,
+    required this.storeOptionsErrorMessage,
     required this.startDate,
     required this.endDate,
     required this.now,
@@ -246,6 +335,7 @@ class _SalesReportAdminToolbar extends StatelessWidget {
     required this.onStoreChanged,
     required this.onDateRangeChanged,
     required this.onReload,
+    required this.onReloadStores,
     required this.onExport,
   });
 
@@ -273,9 +363,13 @@ class _SalesReportAdminToolbar extends StatelessWidget {
                 expand: compact,
                 child: _StoreFilter(
                   value: selectedStoreCode,
-                  enabled: !isLoading,
+                  enabled:
+                      !isLoading && !isLoadingStores && storeOptions.isNotEmpty,
+                  isLoading: isLoadingStores,
+                  errorMessage: storeOptionsErrorMessage,
                   options: storeOptions,
                   onChanged: onStoreChanged,
+                  onRetry: onReloadStores,
                 ),
               ),
             _ToolbarSlot(
@@ -394,14 +488,14 @@ class _ReportTypeFilter extends StatelessWidget {
       absorbing: !enabled,
       child: Opacity(
         opacity: enabled ? 1 : 0.55,
-        child: AppFilterDropdown<String>(
+        child: AppCombobox<String>.single(
           label: 'Loại',
           value: value == 'ALL' ? null : value,
-          allLabel: 'Tất cả',
+          emptyLabel: 'Tất cả',
           icon: Icons.tune_rounded,
           options: const [
-            AppFilterOption(value: 'PURCHASED', label: 'Mua hàng'),
-            AppFilterOption(value: 'NOT_PURCHASED', label: 'Chưa mua hàng'),
+            AppComboboxOption(value: 'PURCHASED', label: 'Mua hàng'),
+            AppComboboxOption(value: 'NOT_PURCHASED', label: 'Chưa mua hàng'),
           ],
           onChanged: (next) => onChanged(next ?? 'ALL'),
         ),
@@ -413,38 +507,60 @@ class _ReportTypeFilter extends StatelessWidget {
 class _StoreFilter extends StatelessWidget {
   final String? value;
   final bool enabled;
-  final List<AppFilterOption<String>> options;
+  final bool isLoading;
+  final String? errorMessage;
+  final List<AppComboboxOption<String>> options;
   final ValueChanged<String?> onChanged;
+  final Future<void> Function() onRetry;
 
   const _StoreFilter({
     required this.value,
     required this.enabled,
+    required this.isLoading,
+    required this.errorMessage,
     required this.options,
     required this.onChanged,
+    required this.onRetry,
   });
 
   @override
   Widget build(BuildContext context) {
-    return AbsorbPointer(
-      absorbing: !enabled,
-      child: Opacity(
-        opacity: enabled ? 1 : 0.55,
-        child: AppSearchableFilterDropdown<String>(
-          label: 'Showroom',
-          value: value,
-          allLabel: 'Tất cả showroom',
-          icon: Icons.storefront_outlined,
-          options: options,
-          onChanged: onChanged,
+    final helperText =
+        errorMessage ?? (isLoading ? 'Đang tải danh sách showroom' : null);
+    final field = AppCombobox<String>.single(
+      label: 'Showroom',
+      value: value,
+      emptyLabel: isLoading ? 'Đang tải showroom' : 'Tất cả showroom',
+      icon: Icons.storefront_outlined,
+      helperText: helperText,
+      enabled: enabled,
+      options: options,
+      onChanged: onChanged,
+    );
+    if (errorMessage == null) return field;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(child: field),
+        const SizedBox(width: 8),
+        Tooltip(
+          message: 'Tải lại danh sách showroom',
+          child: IconButton.outlined(
+            onPressed: isLoading ? null : () => unawaited(onRetry()),
+            icon: const Icon(Icons.refresh_rounded),
+          ),
         ),
-      ),
+      ],
     );
   }
 }
 
-List<AppFilterOption<String>> _adminStoreOptionsFor(User? user) {
+List<AppComboboxOption<String>> _adminStoreOptionsFor(
+  User? user,
+  List<StoreBranch> remoteStores,
+) {
   final seen = <String>{};
-  final options = <AppFilterOption<String>>[];
+  final options = <AppComboboxOption<String>>[];
 
   void addStore(String? rawCode, String? rawName) {
     final storeCode = _normalizeStoreCode(rawCode);
@@ -452,17 +568,21 @@ List<AppFilterOption<String>> _adminStoreOptionsFor(User? user) {
     seen.add(storeCode);
     final storeName = rawName?.trim() ?? '';
     options.add(
-      AppFilterOption<String>(
+      AppComboboxOption<String>(
         value: storeCode,
-        label: storeCode,
+        label: _storeOptionLabel(storeCode, storeName),
         subtitle: storeName.isEmpty || storeName.toUpperCase() == storeCode
             ? null
             : storeName,
+        searchKeywords: [storeCode, storeName],
       ),
     );
   }
 
   for (final store in user?.assignedStores ?? const <StoreBranch>[]) {
+    addStore(store.storeId, store.storeName);
+  }
+  for (final store in remoteStores) {
     addStore(store.storeId, store.storeName);
   }
   addStore(user?.storeId, user?.storeName);
@@ -475,12 +595,19 @@ String? _normalizeStoreCode(String? value) {
   return text == null || text.isEmpty ? null : text;
 }
 
+String _storeOptionLabel(String storeCode, String storeName) {
+  if (storeName.isEmpty || storeName.toUpperCase() == storeCode) {
+    return storeCode;
+  }
+  return '$storeCode - $storeName';
+}
+
 String _storeFilterLabel(
   String? selectedStoreCode,
-  List<AppFilterOption<String>> options,
+  List<AppComboboxOption<String>> options,
 ) {
   final selected = _normalizeStoreCode(selectedStoreCode);
-  if (selected == null) return 'Tất cả SR';
+  if (selected == null) return 'Tất cả showroom';
   for (final option in options) {
     if (option.value == selected) return option.label;
   }

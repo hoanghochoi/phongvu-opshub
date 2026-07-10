@@ -83,8 +83,8 @@ kê trên cùng Trang chủ, theo đúng một ngày và một phạm vi đang c
   hiện tại để xem card cá nhân của SA đó; danh sách chọn không vượt ngoài các
   showroom thuộc Miền/Vùng/Cửa hàng đang xem. Backend định danh SA bằng email;
   tiến độ SA chỉ cộng đơn ERP đã hoàn thành từ báo cáo mua hàng, không lấy doanh
-  số cache. Khi danh sách SA lớn hơn 10, UI chuyển sang picker có ô tìm kiếm
-  theo tên hoặc email.
+  số cache. Danh sách SA dùng combobox chung có search realtime theo tên hoặc
+  email.
 - Trên mobile, người dùng kéo mạnh xuống ở Trang chủ để tải lại dashboard theo
   bộ lọc hiện tại; thao tác này dùng cùng luồng refresh/log với nút tải lại.
 - Tài chính đọc `MapVietinTransaction` theo cùng ngày Việt Nam và scope

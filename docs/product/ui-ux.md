@@ -172,7 +172,11 @@ visual systems that make the app feel assembled from unrelated screens.
 - List, report, and admin-index filters must use dropdowns or anchored menus.
   Do not open dialogs for ordinary single-select filters; the shared date-range
   control may open one dedicated range picker so both dates are confirmed once.
-- Rút gọn toàn bộ các selector showroom riêng lẻ. Mọi luồng cần chọn Showroom trong app (VietQR, Tiền vào, Sao kê, Cấn trừ) bắt buộc phải tái sử dụng component duy nhất `ShowroomPicker` có hỗ trợ tìm kiếm nội bộ và giới hạn chiều cao hiển thị để đảm bảo nhất quán trải nghiệm.
+- Rút gọn toàn bộ selector riêng lẻ thành `AppCombobox`: mọi luồng cần chọn
+  Showroom hoặc filter danh sách phải dùng cùng component search-box realtime,
+  mở dropdown ngay khi focus/click và lọc kết quả theo nội dung nhập. Showroom
+  phải hiển thị theo dạng `CPxx - <Tên SR>` thay vì label chung chung như
+  `Showroom: CPxx`.
 - Date range filters must use one shared dropdown component with common presets,
   one `Chọn khoảng ngày` action that selects both start/end in a single range
   picker, and inline custom start/end inputs for exact manual entry. Do not use
@@ -182,11 +186,10 @@ visual systems that make the app feel assembled from unrelated screens.
 - Any staff-facing manual date input, including filters and form fields, uses
   visible format `dd/mm/yyyy` and auto-inserts `/` separators while typing. Do
   not show internal formats such as `yyyy-mm-dd` in normal UI.
-- Single-select filters use one dropdown field. Multi-select filters use an
-  anchored dropdown with checkbox rows and selected-value chips or a compact
-  selected summary.
-- Any filter dropdown with more than 10 selectable items must include search
-  inside the dropdown panel before the list.
+- Single-select filters use one combobox field. Multi-select filters use the
+  same anchored combobox with checkbox rows and compact selected summary.
+- Filter dropdowns search realtime from the input field itself; do not add a
+  second search field inside the dropdown panel.
 - Filter panels must keep actions close to the control: apply, clear, and
   close behavior should be visible in the dropdown instead of requiring a modal
   workflow.
@@ -200,6 +203,9 @@ visual systems that make the app feel assembled from unrelated screens.
   size, select-all/selected count when supported, page arrows, and refresh in
   the filter card footer. Page headers should stay focused on title/status
   chips, not own pagination controls.
+- Page navigation must use `AppPaginationControls`: previous/next icon buttons,
+  one centered page summary, and optional refresh action. Do not create
+  screen-local `Trang trước`/`Trang sau` buttons.
 - Dialogs are reserved for confirmations, detail views, and large editors. If a
   UI only narrows or sorts a list, it is a filter and must stay dropdown-based.
 

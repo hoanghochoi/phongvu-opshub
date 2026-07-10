@@ -79,7 +79,7 @@ describe('PasswordResetService', () => {
       expiresAt: expect.any(Date),
     });
     const emailText = mailService.sendMail.mock.calls[0][0].text;
-    expect(emailText).toContain('Mã đổi mật khẩu OpsHub');
+    expect(emailText).toContain('Mã đổi mật khẩu PhongVu OpsHub');
     expect(emailText).toContain('10 phút');
     expect(emailText).not.toContain('/reset-password?token=');
     expect(emailText).not.toContain(createData.codeHash);

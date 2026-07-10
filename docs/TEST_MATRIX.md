@@ -45,6 +45,25 @@ This file maps product behavior to proof. Existing flows are marked
 
 Recent focused evidence:
 
+- `PAYMENT-MONITOR-001`/`PAYMENT-STATEMENT-001`, 2026-07-10: eFAST sync
+  tách khỏi nhịp MAP, chạy scheduler riêng random 50-60 giây/lần từ
+  08:00-22:00 UTC+7 và 30 phút/lần từ 22:01-07:59 ngày hôm sau. Runtime giới
+  hạn `VIETIN_EFAST_SYNC_MAX_PAGES=1`, page size 150 và tối đa một page cho
+  mỗi account để giữ 2 account dưới giới hạn 20 truy vấn/5 phút của provider.
+  Validation: focused MAP/eFAST service Jest, env validation Jest, Nest build,
+  và `git diff --check`.
+- `UI-UX-001`, `HOME-DASHBOARD-002`, `SALES-REPORT-001`,
+  `PAYMENT-STATEMENT-001`, `OFFSET-ADJUSTMENT-001`, `PAYMENT-MONITOR-001`,
+  2026-07-10: runtime filter dropdowns dùng chung `AppCombobox` search-box
+  realtime cho single/multi select; showroom hiển thị dạng `CPxx - <Tên SR>`.
+  Các primitive dropdown/select cũ bị gỡ khỏi runtime và guard chặn dùng lại.
+  Trang chủ giữ cố định header dashboard, chỉ vùng KPI/công cụ bên dưới cuộn.
+  Pagination dùng chung `AppPaginationControls` theo kiểu `Sao kê`/`Tiền vào`
+  cho Báo cáo bán hàng, Sao kê, Cấn trừ và Tiền vào; guard chặn tạo nút
+  `Trang trước`/`Trang sau` riêng trong feature UI. Validation:
+  `flutter analyze --no-pub`, focused Flutter widget tests cho App form
+  controls, VietQR, User Admin, Home dashboard, Sales Report hub, Design System
+  guard, và `git diff --check`.
 - `HOME-DASHBOARD-002`, `PAYMENT-STATEMENT-001`, `OFFSET-ADJUSTMENT-001`,
   2026-07-09: Home thêm card `Báo cáo đã mua` trong `Hành vi then chốt`; user
   có `ADMIN_SALES_REPORTS` bấm chữ để mở `/admin/sales-reports`. Card

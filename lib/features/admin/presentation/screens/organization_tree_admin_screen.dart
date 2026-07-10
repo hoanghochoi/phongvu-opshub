@@ -8,6 +8,7 @@ import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_text_styles.dart';
 import '../../../../app/widgets/app_buttons.dart';
 import '../../../../app/widgets/app_cards.dart';
+import '../../../../app/widgets/app_combobox.dart';
 import '../../../../app/widgets/app_inputs.dart';
 import '../../../../app/widgets/app_layout.dart';
 import '../../../../app/widgets/app_state_widgets.dart';
@@ -1110,38 +1111,41 @@ class _OrganizationNodeEditorDialogState
                   label: 'Mô tả',
                   enabled: canEditStructure,
                 ),
-              AppSelectField<String>(
+              AppCombobox<String>.single(
                 value: _type,
                 label: 'Loại đơn vị',
-                items: AdminOrganizationNodeTypes.definitions
+                options: AdminOrganizationNodeTypes.definitions
                     .map(
-                      (definition) => DropdownMenuItem(
+                      (definition) => AppComboboxOption(
                         value: definition.$1,
-                        child: Text(definition.$2),
+                        label: definition.$2,
                       ),
                     )
                     .toList(),
+                allowClear: false,
                 onChanged: !canEditStructure || widget.node?.isSystem == true
                     ? null
                     : (value) => setState(() => _setType(value ?? 'LV4_STORE')),
               ),
-              AppSelectField<String?>(
+              AppCombobox<String>.single(
                 key: ValueKey('parent-$_type-${parentValue ?? 'none'}'),
                 value: parentValue,
                 label: 'Đơn vị cha',
-                items: [
-                  if (_allowsEmptyParent(_type))
-                    const DropdownMenuItem<String?>(
-                      value: null,
-                      child: Text('Không có'),
-                    ),
-                  ...parentOptions.map(
-                    (node) => DropdownMenuItem<String?>(
-                      value: node.id,
-                      child: Text(node.title),
-                    ),
-                  ),
-                ],
+                emptyLabel: 'Không có',
+                allowClear: _allowsEmptyParent(_type),
+                options: parentOptions
+                    .map(
+                      (node) => AppComboboxOption(
+                        value: node.id,
+                        label: node.title,
+                        searchKeywords: [
+                          node.code,
+                          node.businessCode ?? '',
+                          node.storeId ?? '',
+                        ],
+                      ),
+                    )
+                    .toList(),
                 onChanged: !canEditStructure || widget.node?.isSystem == true
                     ? null
                     : (value) => setState(() => _parentId = value),

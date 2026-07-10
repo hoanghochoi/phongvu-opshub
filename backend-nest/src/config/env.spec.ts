@@ -143,6 +143,63 @@ describe('env validation', () => {
       }),
     ).toThrow('Missing required environment variable: PUBLIC_BASE_URL');
   });
+
+  it('requires eFAST credential and bank accounts only when eFAST sync is enabled', () => {
+    expect(() =>
+      validateRuntimeEnv({
+        ...baseEnv,
+        VIETIN_EFAST_SYNC_ENABLED: 'false',
+      }),
+    ).not.toThrow();
+
+    expect(() =>
+      validateRuntimeEnv({
+        ...baseEnv,
+        VIETIN_EFAST_SYNC_ENABLED: 'true',
+        VIETIN_EFAST_USERNAME: 'efast-user',
+        VIETIN_EFAST_PASSWORD: 'efast-pass',
+      }),
+    ).toThrow(
+      'Incomplete VietinBank eFAST configuration. Missing: VIETIN_EFAST_BANK_ACCOUNTS',
+    );
+
+    expect(() =>
+      validateRuntimeEnv({
+        ...baseEnv,
+        VIETIN_EFAST_SYNC_ENABLED: 'true',
+        VIETIN_EFAST_USERNAME: 'efast-user',
+        VIETIN_EFAST_PASSWORD: 'efast-pass',
+        VIETIN_EFAST_BANK_ACCOUNTS: '1234567890, 0987654321',
+        VIETIN_EFAST_CIFNO: 'enterprise-cifno',
+        VIETIN_EFAST_PAGE_SIZE: '150',
+        VIETIN_EFAST_SYNC_MAX_PAGES: '1',
+        VIETIN_EFAST_SESSION_TTL_SECONDS: '600',
+      }),
+    ).not.toThrow();
+
+    expect(() =>
+      validateRuntimeEnv({
+        ...baseEnv,
+        VIETIN_EFAST_SYNC_ENABLED: 'true',
+        VIETIN_EFAST_USERNAME: 'efast-user',
+        VIETIN_EFAST_PASSWORD: 'efast-pass',
+        VIETIN_EFAST_BANK_ACCOUNTS: '1234567890',
+        VIETIN_EFAST_PAGE_SIZE: '151',
+      }),
+    ).toThrow('Invalid VIETIN_EFAST_PAGE_SIZE value: 151');
+
+    expect(() =>
+      validateRuntimeEnv({
+        ...baseEnv,
+        VIETIN_EFAST_SYNC_ENABLED: 'true',
+        VIETIN_EFAST_USERNAME: 'efast-user',
+        VIETIN_EFAST_PASSWORD: 'efast-pass',
+        VIETIN_EFAST_BANK_ACCOUNTS: '1234567890',
+        VIETIN_EFAST_SYNC_MAX_PAGES: '2',
+      }),
+    ).toThrow('Invalid VIETIN_EFAST_SYNC_MAX_PAGES value: 2');
+  });
+
   it('checks CORS origins against the configured allowlist', () => {
     expect(
       isCorsOriginAllowed('https://opshub.example.com', {

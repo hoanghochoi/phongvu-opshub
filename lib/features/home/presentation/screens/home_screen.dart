@@ -47,52 +47,45 @@ class _HomeScreenState extends State<HomeScreen> {
       hasSummaryProvider: homeSummaryProvider != null,
     );
 
+    if (homeSummaryProvider != null) {
+      return AppResponsiveContent(
+        onRefresh: homeSummaryProvider.canRefresh
+            ? homeSummaryProvider.refreshNow
+            : AppRefreshCallbacks.noop,
+        refreshIndicatorKey: const Key('home-summary-pull-refresh'),
+        refreshLogSource: 'Home',
+        refreshLogContext: () => {
+          'hasSummaryProvider': true,
+          'canRefreshSummary': homeSummaryProvider.canRefresh,
+        },
+        child: HomeSummaryPage(
+          provider: homeSummaryProvider,
+          greetingName: _homeUserGreetingName(user),
+          headerAction: canUsePaymentSpeaker
+              ? const _HomeSpeakerStatusButton()
+              : null,
+          footer: workspaceCount > 0
+              ? HomeOperationsShortcutCard(
+                  actions: _quickToolsFor(context, user, workspaceCount),
+                )
+              : null,
+        ),
+      );
+    }
+
     final content = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (homeSummaryProvider == null) ...[
-          _HomeCommandPanel(user: user),
-          const SizedBox(height: AppLayoutTokens.sectionGap),
-        ],
-        if (homeSummaryProvider != null)
-          HomeSummaryPage(
-            provider: homeSummaryProvider,
-            headerAction: canUsePaymentSpeaker
-                ? const _HomeSpeakerStatusButton()
-                : null,
-          )
-        else
-          _LegacyHomeBody(
-            workspaceCount: workspaceCount,
-            onOpenOperations: () => _openOperations(context, workspaceCount),
-          ),
-        if (homeSummaryProvider != null && workspaceCount > 0) ...[
-          const SizedBox(height: AppLayoutTokens.cardGap),
-          HomeOperationsShortcutCard(
-            actions: _quickToolsFor(context, user, workspaceCount),
-          ),
-        ],
+        _HomeCommandPanel(user: user),
+        const SizedBox(height: AppLayoutTokens.sectionGap),
+        _LegacyHomeBody(
+          workspaceCount: workspaceCount,
+          onOpenOperations: () => _openOperations(context, workspaceCount),
+        ),
         const SizedBox(height: 20),
       ],
     );
-    final scrollView = AppResponsiveScrollView(
-      physics: homeSummaryProvider == null
-          ? null
-          : const AlwaysScrollableScrollPhysics(),
-      onRefresh: homeSummaryProvider == null
-          ? null
-          : homeSummaryProvider.canRefresh
-          ? homeSummaryProvider.refreshNow
-          : AppRefreshCallbacks.noop,
-      refreshIndicatorKey: const Key('home-summary-pull-refresh'),
-      refreshLogSource: 'Home',
-      refreshLogContext: () => {
-        'hasSummaryProvider': homeSummaryProvider != null,
-        'canRefreshSummary': homeSummaryProvider?.canRefresh == true,
-      },
-      child: content,
-    );
-    return scrollView;
+    return AppResponsiveScrollView(child: content);
   }
 
   void _openOperations(BuildContext context, int workspaceCount) {
@@ -288,6 +281,7 @@ class _HomeCommandPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final userName = user?.name ?? user?.email ?? 'Nhân viên OpsHub';
+    final greetingLabel = homeGreetingLabel(_homeUserGreetingName(user));
     final storeInfo = user?.assignedStoreHeaderInfo ?? 'Chưa được gán Showroom';
     final avatarUrl = user?.avatarUrl?.trim();
     final hasRemoteAvatar =
@@ -351,7 +345,7 @@ class _HomeCommandPanel extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Trang chủ vận hành',
+                    greetingLabel,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: AppTextStyles.headingS.copyWith(
@@ -397,6 +391,16 @@ class _HomeCommandPanel extends StatelessWidget {
       ),
     );
   }
+}
+
+String _homeUserGreetingName(User? user) {
+  final fullName = [user?.lastName, user?.name]
+      .whereType<String>()
+      .map((value) => value.trim())
+      .where((value) => value.isNotEmpty)
+      .join(' ');
+  if (fullName.isNotEmpty) return fullName;
+  return user?.email ?? '';
 }
 
 class _AvatarInitials extends StatelessWidget {

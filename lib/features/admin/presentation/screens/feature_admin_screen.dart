@@ -6,6 +6,7 @@ import '../../../../app/theme/app_radius.dart';
 import '../../../../app/theme/app_text_styles.dart';
 import '../../../../app/widgets/app_buttons.dart';
 import '../../../../app/widgets/app_cards.dart';
+import '../../../../app/widgets/app_combobox.dart';
 import '../../../../app/widgets/app_inputs.dart';
 import '../../../../app/widgets/app_layout.dart';
 import '../../../../app/widgets/app_state_widgets.dart';
@@ -651,21 +652,19 @@ class _NodeAssignmentList extends StatelessWidget {
             child: Row(
               children: [
                 Expanded(
-                  child: AppSelectField<String?>(
+                  child: AppCombobox<String>.single(
                     value: featureFilter,
                     label: 'Lọc theo tính năng',
-                    items: [
-                      const DropdownMenuItem<String?>(
-                        value: null,
-                        child: Text('Tất cả'),
-                      ),
-                      ...features.map(
-                        (feature) => DropdownMenuItem<String?>(
-                          value: feature.code,
-                          child: Text(feature.title),
-                        ),
-                      ),
-                    ],
+                    emptyLabel: 'Tất cả',
+                    options: features
+                        .map(
+                          (feature) => AppComboboxOption(
+                            value: feature.code,
+                            label: feature.title,
+                            searchKeywords: [feature.code],
+                          ),
+                        )
+                        .toList(),
                     onChanged: onFilterChanged,
                   ),
                 ),
@@ -837,21 +836,19 @@ class _RuleList extends StatelessWidget {
             padding: AppLayoutTokens.pagePaddingFor(
               MediaQuery.sizeOf(context).width,
             ).copyWith(bottom: 0),
-            child: AppSelectField<String?>(
+            child: AppCombobox<String>.single(
               value: featureFilter,
               label: 'Lọc theo tính năng',
-              items: [
-                const DropdownMenuItem<String?>(
-                  value: null,
-                  child: Text('Tất cả'),
-                ),
-                ...features.map(
-                  (feature) => DropdownMenuItem<String?>(
-                    value: feature.code,
-                    child: Text(feature.title),
-                  ),
-                ),
-              ],
+              emptyLabel: 'Tất cả',
+              options: features
+                  .map(
+                    (feature) => AppComboboxOption(
+                      value: feature.code,
+                      label: feature.title,
+                      searchKeywords: [feature.code],
+                    ),
+                  )
+                  .toList(),
               onChanged: onFilterChanged,
             ),
           ),
@@ -1349,17 +1346,19 @@ class _FeatureRuleEditorDialogState extends State<_FeatureRuleEditorDialog> {
         child: SingleChildScrollView(
           child: AppFormColumn(
             children: [
-              AppSelectField<String>(
+              AppCombobox<String>.single(
                 value: _featureCode.isEmpty ? null : _featureCode,
                 label: 'Tính năng',
-                items: widget.features
+                options: widget.features
                     .map(
-                      (feature) => DropdownMenuItem(
+                      (feature) => AppComboboxOption(
                         value: feature.code,
-                        child: Text(feature.title),
+                        label: feature.title,
+                        searchKeywords: [feature.code],
                       ),
                     )
                     .toList(),
+                allowClear: false,
                 onChanged: (value) =>
                     setState(() => _featureCode = value ?? ''),
               ),
@@ -1538,19 +1537,13 @@ class _FeatureRuleEditorDialogState extends State<_FeatureRuleEditorDialog> {
     required List<(String, String)> items,
     required ValueChanged<String?> onChanged,
   }) {
-    return AppSelectField<String?>(
+    return AppCombobox<String>.single(
       value: value,
       label: label,
-      items: [
-        const DropdownMenuItem<String?>(
-          value: null,
-          child: Text('Không áp dụng'),
-        ),
-        ...items.map(
-          (item) =>
-              DropdownMenuItem<String?>(value: item.$1, child: Text(item.$2)),
-        ),
-      ],
+      emptyLabel: 'Không áp dụng',
+      options: items
+          .map((item) => AppComboboxOption(value: item.$1, label: item.$2))
+          .toList(),
       onChanged: onChanged,
     );
   }

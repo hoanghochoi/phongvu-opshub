@@ -5,6 +5,7 @@ import 'package:phongvu_opshub/app/widgets/app_toast.dart';
 
 import '../../../../app/theme/app_radius.dart';
 import '../../../../app/widgets/app_buttons.dart';
+import '../../../../app/widgets/app_combobox.dart';
 import '../../../../app/widgets/app_inputs.dart';
 import '../../../../app/widgets/app_layout.dart';
 import '../../../../core/logging/app_logger.dart';
@@ -446,21 +447,23 @@ class _NodeFeatureAssignmentDialogState
           child: AppFormColumn(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              AppSelectField<String>(
+              AppCombobox<String>.single(
                 value: _selectedNodeId,
                 label: 'Đơn vị áp dụng',
-                items: nodes
+                options: nodes
                     .map(
-                      (node) => DropdownMenuItem(
+                      (node) => AppComboboxOption(
                         value: node.id,
-                        child: Text(
-                          _nodeLabel(node),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
+                        label: _nodeLabel(node),
+                        searchKeywords: [
+                          node.code,
+                          node.businessCode ?? '',
+                          node.storeId ?? '',
+                        ],
                       ),
                     )
                     .toList(),
+                allowClear: false,
                 onChanged: _saving ? null : _selectNode,
               ),
               if (selectedNode != null)

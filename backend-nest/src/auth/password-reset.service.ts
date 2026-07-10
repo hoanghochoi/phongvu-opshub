@@ -51,7 +51,7 @@ export class PasswordResetService {
     if (!user) {
       this.logger.warn(`Password reset requested for missing email=${email}`);
       throw new NotFoundException(
-        'Email này chưa có tài khoản OpsHub. Vui lòng đăng ký tài khoản trước.',
+        'Email này chưa có tài khoản PhongVu OpsHub. Vui lòng đăng ký tài khoản trước.',
       );
     }
 
@@ -325,14 +325,14 @@ export class PasswordResetService {
 
     await this.mailService.sendMail({
       to: user.email,
-      subject: 'Mã đổi mật khẩu OpsHub',
+      subject: 'Mã đổi mật khẩu PhongVu OpsHub',
       text:
         `Xin chào ${user.firstName || user.email},\n\n` +
-        `Mã đổi mật khẩu OpsHub của bạn là ${code}. Mã hết hạn sau ${RESET_CODE_TTL_MINUTES} phút.\n\n` +
+        `Mã đổi mật khẩu PhongVu OpsHub của bạn là ${code}. Mã hết hạn sau ${RESET_CODE_TTL_MINUTES} phút.\n\n` +
         'Nếu bạn không yêu cầu đổi mật khẩu, vui lòng bỏ qua email này.',
       html:
         `<p>Xin chào ${this.escapeHtml(user.firstName || user.email)},</p>` +
-        `<p>Mã đổi mật khẩu OpsHub của bạn là <strong>${code}</strong>. Mã hết hạn sau ${RESET_CODE_TTL_MINUTES} phút.</p>` +
+        `<p>Mã đổi mật khẩu PhongVu OpsHub của bạn là <strong>${code}</strong>. Mã hết hạn sau ${RESET_CODE_TTL_MINUTES} phút.</p>` +
         '<p>Nếu bạn không yêu cầu đổi mật khẩu, vui lòng bỏ qua email này.</p>',
     });
 

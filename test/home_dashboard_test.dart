@@ -18,6 +18,30 @@ import 'package:provider/provider.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
+  test('Home greeting uses Vietnam local time buckets', () {
+    expect(
+      homeGreetingLabel(
+        'Dashboard Staff',
+        now: () => DateTime.utc(2026, 7, 10, 2),
+      ),
+      'Chào buổi sáng Dashboard Staff',
+    );
+    expect(
+      homeGreetingLabel(
+        'staff@phongvu.vn',
+        now: () => DateTime.utc(2026, 7, 10, 7),
+      ),
+      'Chào buổi chiều staff',
+    );
+    expect(
+      homeGreetingLabel(
+        'Dashboard Staff',
+        now: () => DateTime.utc(2026, 7, 10, 13),
+      ),
+      'Chào buổi tối Dashboard Staff',
+    );
+  });
+
   test('Home summary parses sales target status and over-target progress', () {
     final summary = HomeSummary.fromJson({
       'date': '2026-07-05',
@@ -386,7 +410,8 @@ void main() {
       expect(find.text('Tổng sao kê chưa có đơn hàng'), findsOneWidget);
       expect(find.text('Tỉ lệ sao kê có đơn hàng'), findsOneWidget);
       expect(find.text('98M VND'), findsOneWidget);
-      expect(find.text('Trang chủ vận hành'), findsOneWidget);
+      expect(find.textContaining('Chào buổi'), findsOneWidget);
+      expect(find.textContaining('Dashboard Staff'), findsOneWidget);
       expect(find.text('Doanh số trong ngày'), findsNothing);
       expect(find.text('125M VND'), findsOneWidget);
       expect(find.text('100M VND'), findsOneWidget);
@@ -507,6 +532,23 @@ void main() {
         ),
         const Size.square(68),
       );
+      final rangeDonutTop = tester
+          .getTopLeft(find.byKey(const Key('home-sales-progress-range-donut')))
+          .dy;
+      expect(
+        tester
+            .getTopLeft(find.byKey(const Key('home-sales-progress-week-donut')))
+            .dy,
+        closeTo(rangeDonutTop, 0.1),
+      );
+      expect(
+        tester
+            .getTopLeft(
+              find.byKey(const Key('home-sales-progress-month-donut')),
+            )
+            .dy,
+        closeTo(rangeDonutTop, 0.1),
+      );
       expect(find.textContaining('Đã đạt:'), findsWidgets);
       expect(find.textContaining('Chỉ tiêu:'), findsWidgets);
       expect(find.text('Đã đạt: 1,2B VND'), findsOneWidget);
@@ -547,7 +589,30 @@ void main() {
           of: find.byKey(const Key('home-summary-page')),
           matching: find.byKey(const Key('home-operations-shortcut')),
         ),
-        findsNothing,
+        findsOneWidget,
+      );
+      final headerTopBefore = tester
+          .getTopLeft(find.byKey(const Key('home-summary-header')))
+          .dy;
+      final progressTopBefore = tester
+          .getTopLeft(find.byKey(const Key('home-summary-progress-panel')))
+          .dy;
+
+      await tester.drag(
+        find.byKey(const Key('home-summary-scroll-body')),
+        const Offset(0, -420),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        tester.getTopLeft(find.byKey(const Key('home-summary-header'))).dy,
+        closeTo(headerTopBefore, 0.1),
+      );
+      expect(
+        tester
+            .getTopLeft(find.byKey(const Key('home-summary-progress-panel')))
+            .dy,
+        lessThan(progressTopBefore),
       );
     },
   );
@@ -714,7 +779,7 @@ void main() {
       find.byKey(const Key('home-installment-need-details-table')),
       findsOneWidget,
     );
-    expect(find.text('SR'), findsOneWidget);
+    expect(find.text('Mã showroom'), findsOneWidget);
     expect(find.text('Đối tác trả góp'), findsOneWidget);
     expect(find.text('Thành công'), findsOneWidget);
     expect(find.text('Ghi chú'), findsOneWidget);
@@ -1679,33 +1744,22 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Chưa chọn SA'), findsOneWidget);
-    await tester.tap(
-      find.byKey(const Key('home-sales-progress-assignee-dropdown')),
+    final assigneeDropdown = find.byKey(
+      const Key('home-sales-progress-assignee-dropdown'),
     );
+    await tester.tap(assigneeDropdown);
     await tester.pumpAndSettle();
 
-    expect(
-      find.byKey(const Key('home-sales-progress-assignee-search-dialog')),
-      findsOneWidget,
-    );
     await tester.enterText(
-      find.byKey(const Key('home-sales-progress-assignee-search-input')),
+      find.descendant(of: assigneeDropdown, matching: find.byType(TextField)),
       '12',
     );
     await tester.pumpAndSettle();
 
-    expect(
-      find.byKey(const Key('home-sales-progress-assignee-option-sa-12')),
-      findsOneWidget,
-    );
-    expect(
-      find.byKey(const Key('home-sales-progress-assignee-option-sa-01')),
-      findsNothing,
-    );
+    expect(find.text('SA 12 - CP75'), findsOneWidget);
+    expect(find.text('SA 01 - CP75'), findsNothing);
 
-    await tester.tap(
-      find.byKey(const Key('home-sales-progress-assignee-option-sa-12')),
-    );
+    await tester.tap(find.text('SA 12 - CP75').last);
     await tester.pumpAndSettle();
 
     expect(repository.requestedSalesProgressUserIds, contains('sa-12'));

@@ -33,8 +33,8 @@ export class EmailVerificationService {
 
     await this.mailService.sendMail({
       to: email,
-      subject: 'Mã xác thực đăng ký OpsHub',
-      text: `Mã xác thực OpsHub của bạn là ${code}. Mã hết hạn sau ${CODE_TTL_MINUTES} phút.`,
+      subject: 'Mã xác thực đăng ký PhongVu OpsHub',
+      text: `Mã xác thực PhongVu OpsHub của bạn là ${code}. Mã hết hạn sau ${CODE_TTL_MINUTES} phút.`,
     });
     this.logger.log(`Registration verification email sent to ${email}`);
     return {

@@ -11,15 +11,24 @@ import '../../../../app/theme/app_text_styles.dart';
 import '../../../../app/widgets/app_buttons.dart';
 import '../../../../app/widgets/app_cards.dart';
 import '../../../../app/widgets/app_chips.dart';
+import '../../../../app/widgets/app_combobox.dart';
 import '../../../../app/widgets/app_filter_dropdowns.dart';
 import '../../../../app/widgets/app_inputs.dart';
 import '../../../../app/widgets/app_layout.dart';
+import '../../../../app/widgets/app_pagination.dart';
 import '../../../../app/widgets/app_state_widgets.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../domain/offset_adjustment.dart';
 import '../providers/offset_adjustment_provider.dart';
 
 const _breakpoint = 720.0;
+
+String _storeOptionLabel(String storeId, String storeName) {
+  final code = storeId.trim().toUpperCase();
+  final name = storeName.trim();
+  if (name.isEmpty || name.toUpperCase() == code) return code;
+  return '$code - $name';
+}
 
 class OffsetAdjustmentScreen extends StatefulWidget {
   const OffsetAdjustmentScreen({super.key});
@@ -527,24 +536,24 @@ class _FilterPanelState extends State<_FilterPanel> {
         ),
       );
     }
-    return AppMultiSelectFilterDropdown<String>(
+    return AppCombobox<String>.multi(
       label: 'Showroom',
       icon: Icons.storefront_outlined,
       values: widget.provider.selectedStoreIds,
       emptyLabel: widget.provider.canReview
           ? 'Tất cả showroom'
           : 'Tất cả showroom được gán',
-      forceSearch: true,
       options: widget.provider.stores
           .map(
-            (store) => AppFilterOption<String>(
+            (store) => AppComboboxOption<String>(
               value: store.storeId,
-              label: store.storeId,
-              subtitle: store.storeName,
+              label: _storeOptionLabel(store.storeId, store.storeName),
+              subtitle: store.storeName.trim().isEmpty ? null : store.storeName,
+              searchKeywords: [store.storeId, store.storeName],
             ),
           )
           .toList(growable: false),
-      onChanged: (ids) => widget.provider.setStoreSelection(
+      onMultiChanged: (ids) => widget.provider.setStoreSelection(
         allStores: widget.provider.canReview && ids.isEmpty,
         ids: ids,
       ),
@@ -552,53 +561,55 @@ class _FilterPanelState extends State<_FilterPanel> {
   }
 
   Widget _typeFilter() {
-    return AppSelectField<String>(
+    return AppCombobox<String>.single(
       value: widget.provider.type,
       label: 'Loại',
       icon: Icons.category_outlined,
-      items: const [
-        DropdownMenuItem(value: 'ALL', child: Text('Tất cả loại')),
-        DropdownMenuItem(
+      options: const [
+        AppComboboxOption(value: 'ALL', label: 'Tất cả loại'),
+        AppComboboxOption(
           value: OffsetAdjustmentType.singleOrder,
-          child: Text('Cấn trừ đơn'),
+          label: 'Cấn trừ đơn',
         ),
-        DropdownMenuItem(
+        AppComboboxOption(
           value: OffsetAdjustmentType.vnpayQroff,
-          child: Text('VNPAY QROFF'),
+          label: 'VNPAY QROFF',
         ),
-        DropdownMenuItem(
+        AppComboboxOption(
           value: OffsetAdjustmentType.zaloPay,
-          child: Text('Zalo Pay'),
+          label: 'Zalo Pay',
         ),
-        DropdownMenuItem(
+        AppComboboxOption(
           value: OffsetAdjustmentType.shopeePay,
-          child: Text('Shopee Pay'),
+          label: 'Shopee Pay',
         ),
       ],
+      allowClear: false,
       onChanged: (value) => widget.provider.setType(value ?? 'ALL'),
     );
   }
 
   Widget _statusFilter() {
-    return AppSelectField<String>(
+    return AppCombobox<String>.single(
       value: widget.provider.status,
       label: 'Trạng thái',
       icon: Icons.flag_outlined,
-      items: const [
-        DropdownMenuItem(value: 'ALL', child: Text('Tất cả trạng thái')),
-        DropdownMenuItem(
+      options: const [
+        AppComboboxOption(value: 'ALL', label: 'Tất cả trạng thái'),
+        AppComboboxOption(
           value: OffsetAdjustmentStatus.pending,
-          child: Text('Chờ Kế toán xác nhận'),
+          label: 'Chờ Kế toán xác nhận',
         ),
-        DropdownMenuItem(
+        AppComboboxOption(
           value: OffsetAdjustmentStatus.approved,
-          child: Text('Kế toán đã xác nhận'),
+          label: 'Kế toán đã xác nhận',
         ),
-        DropdownMenuItem(
+        AppComboboxOption(
           value: OffsetAdjustmentStatus.rejected,
-          child: Text('Kế toán từ chối chờ sửa'),
+          label: 'Kế toán từ chối chờ sửa',
         ),
       ],
+      allowClear: false,
       onChanged: (value) => widget.provider.setStatus(value ?? 'ALL'),
     );
   }
@@ -631,16 +642,14 @@ class _OffsetLimitDropdown extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AppSelectField<int>(
+    return AppCombobox<int>.single(
       value: provider.limit,
       label: 'Số dòng',
       icon: Icons.format_list_numbered_rounded,
-      items: const [10, 20, 50, 100]
-          .map(
-            (value) =>
-                DropdownMenuItem(value: value, child: Text('$value dòng')),
-          )
+      options: const [10, 20, 50, 100]
+          .map((value) => AppComboboxOption(value: value, label: '$value dòng'))
           .toList(),
+      allowClear: false,
       onChanged: (value) {
         if (value != null) provider.setLimit(value);
       },
@@ -655,41 +664,18 @@ class _OffsetListControls extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        IconButton(
-          tooltip: 'Trang trước',
-          onPressed: !provider.isLoading && provider.canGoPrevious
-              ? provider.previousPage
-              : null,
-          icon: const Icon(Icons.chevron_left_rounded),
-        ),
-        Expanded(
-          child: Center(
-            child: Text(
-              'Trang ${provider.page + 1} - ${provider.total} hồ sơ',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              softWrap: false,
-              style: AppTextStyles.labelM,
-            ),
-          ),
-        ),
-        IconButton(
-          tooltip: 'Trang sau',
-          onPressed: !provider.isLoading && provider.canGoNext
-              ? provider.nextPage
-              : null,
-          icon: const Icon(Icons.chevron_right_rounded),
-        ),
-        IconButton(
-          tooltip: 'Làm mới',
-          onPressed: provider.isLoading
-              ? null
-              : () => provider.search(page: provider.page),
-          icon: const Icon(Icons.refresh_rounded),
-        ),
-      ],
+    return AppPaginationControls(
+      pageIndex: provider.page,
+      totalItems: provider.total,
+      itemLabel: 'hồ sơ',
+      onPrevious: !provider.isLoading && provider.canGoPrevious
+          ? provider.previousPage
+          : null,
+      onNext: !provider.isLoading && provider.canGoNext
+          ? provider.nextPage
+          : null,
+      onRefresh: () => provider.search(page: provider.page),
+      isRefreshing: provider.isLoading,
     );
   }
 }
@@ -1078,18 +1064,19 @@ class _OffsetInputDialogState extends State<_OffsetInputDialog> {
                 ),
                 _dialogField(
                   width: useTwoColumns ? halfWidth : dialogWidth,
-                  child: AppSelectField<String>(
+                  child: AppCombobox<String>.single(
                     value: _editContentKind,
                     label: 'Nội dung cần sửa',
                     icon: Icons.edit_note_rounded,
-                    items: OffsetEditContentKind.values
+                    options: OffsetEditContentKind.values
                         .map(
-                          (kind) => DropdownMenuItem(
+                          (kind) => AppComboboxOption(
                             value: kind,
-                            child: Text(OffsetEditContentKind.label(kind)),
+                            label: OffsetEditContentKind.label(kind),
                           ),
                         )
                         .toList(),
+                    allowClear: false,
                     onChanged: (value) {
                       if (value != null) {
                         setState(() => _editContentKind = value);

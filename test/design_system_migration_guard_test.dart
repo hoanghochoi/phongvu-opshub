@@ -15,7 +15,12 @@ void main() {
         RegExp(r'\b(?:Filled|Outlined|Elevated|Text)Button(?:\.icon)?\('),
         'raw button',
       ),
-      (RegExp(r'\bDropdownButtonFormField'), 'raw dropdown'),
+      (
+        RegExp(
+          r'\b(?:DropdownButtonFormField|DropdownButton|DropdownMenuItem)',
+        ),
+        'raw dropdown',
+      ),
       (RegExp(r'\bInputDecoration\('), 'raw input decoration'),
       (RegExp(r'\bRadius\.circular\([0-9]'), 'raw radius'),
     ];
@@ -41,6 +46,62 @@ void main() {
     }
 
     expect(violations, isEmpty, reason: violations.join('\n'));
+  });
+
+  test('runtime does not keep retired local dropdown primitives', () {
+    final retiredDropdownPattern = RegExp(
+      r'\b(?:AppFilterDropdown|AppSearchableFilterDropdown|'
+      r'AppMultiSelectFilterDropdown|AppSelectField|'
+      r'DropdownButtonFormField|DropdownButton|DropdownMenuItem)\b',
+    );
+    final hits = <String>[];
+    final files = Directory('lib')
+        .listSync(recursive: true)
+        .whereType<File>()
+        .where((file) => file.path.endsWith('.dart'));
+
+    for (final file in files) {
+      final normalizedPath = file.path.replaceAll(r'\', '/');
+      final lines = file.readAsLinesSync();
+      for (var index = 0; index < lines.length; index += 1) {
+        if (retiredDropdownPattern.hasMatch(lines[index])) {
+          hits.add('$normalizedPath:${index + 1}');
+        }
+      }
+    }
+
+    expect(
+      hits,
+      isEmpty,
+      reason:
+          'Use AppCombobox/AppDateRangeDropdown instead.\n${hits.join('\n')}',
+    );
+  });
+
+  test('feature pagination uses the shared pagination control', () {
+    final directPaginationPattern = RegExp(r"""["']Trang (?:trước|sau)["']""");
+    final hits = <String>[];
+    final files = Directory('lib/features')
+        .listSync(recursive: true)
+        .whereType<File>()
+        .where((file) => file.path.endsWith('.dart'));
+
+    for (final file in files) {
+      final normalizedPath = file.path.replaceAll(r'\', '/');
+      final lines = file.readAsLinesSync();
+      for (var index = 0; index < lines.length; index += 1) {
+        if (directPaginationPattern.hasMatch(lines[index])) {
+          hits.add('$normalizedPath:${index + 1}');
+        }
+      }
+    }
+
+    expect(
+      hits,
+      isEmpty,
+      reason:
+          'Use AppPaginationControls for page navigation.\n${hits.join('\n')}',
+    );
   });
 
   test('legacy chat namespace stays retired in favor of fifo_check', () {

@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:phongvu_opshub/app/widgets/app_cards.dart';
+import 'package:phongvu_opshub/app/widgets/app_combobox.dart';
 import 'package:phongvu_opshub/app/widgets/app_inputs.dart';
+import 'package:phongvu_opshub/app/widgets/app_pagination.dart';
 import 'package:phongvu_opshub/app/widgets/app_state_widgets.dart';
 
 void main() {
@@ -57,9 +59,7 @@ void main() {
     expect(find.text('Vui lòng nhập SĐT'), findsOneWidget);
   });
 
-  testWidgets('AppSelectField changes selected value from shared dropdown', (
-    tester,
-  ) async {
+  testWidgets('AppCombobox filters and changes selected value', (tester) async {
     String value = 'ALL';
 
     await tester.pumpWidget(
@@ -67,14 +67,15 @@ void main() {
         builder: (context, setState) {
           return MaterialApp(
             home: Scaffold(
-              body: AppSelectField<String>(
+              body: AppCombobox<String>.single(
                 label: 'Trạng thái',
                 icon: Icons.flag_outlined,
                 value: value,
-                items: const [
-                  DropdownMenuItem(value: 'ALL', child: Text('Tất cả')),
-                  DropdownMenuItem(value: 'PENDING', child: Text('Chờ xử lý')),
+                options: const [
+                  AppComboboxOption(value: 'ALL', label: 'Tất cả'),
+                  AppComboboxOption(value: 'PENDING', label: 'Chờ xử lý'),
                 ],
+                allowClear: false,
                 onChanged: (next) => setState(() => value = next ?? 'ALL'),
               ),
             ),
@@ -83,12 +84,87 @@ void main() {
       ),
     );
 
-    await tester.tap(find.text('Tất cả'));
+    await tester.tap(find.byType(TextField));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField), 'cho');
     await tester.pumpAndSettle();
     await tester.tap(find.text('Chờ xử lý').last);
     await tester.pumpAndSettle();
 
     expect(value, 'PENDING');
+  });
+
+  testWidgets(
+    'AppCombobox multi-select keeps menu open while checking values',
+    (tester) async {
+      var values = <String>{};
+
+      await tester.pumpWidget(
+        StatefulBuilder(
+          builder: (context, setState) {
+            return MaterialApp(
+              home: Scaffold(
+                body: AppCombobox<String>.multi(
+                  label: 'Showroom',
+                  icon: Icons.store_outlined,
+                  values: values,
+                  emptyLabel: 'Showroom được gán',
+                  options: const [
+                    AppComboboxOption(value: 'CP62', label: 'CP62 - Quận 1'),
+                    AppComboboxOption(value: 'CP75', label: 'CP75 - Quận 3'),
+                  ],
+                  onMultiChanged: (next) => setState(() => values = next),
+                ),
+              ),
+            );
+          },
+        ),
+      );
+
+      await tester.tap(find.byType(TextField));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField), 'quan 3');
+      await tester.pumpAndSettle();
+      expect(find.text('CP62 - Quận 1'), findsNothing);
+      await tester.tap(find.text('CP75 - Quận 3'));
+      await tester.pumpAndSettle();
+
+      expect(values, {'CP75'});
+      expect(find.text('Áp dụng'), findsOneWidget);
+    },
+  );
+
+  testWidgets('AppPaginationControls renders shared page navigation', (
+    tester,
+  ) async {
+    var previousTapped = false;
+    var nextTapped = false;
+    var refreshTapped = false;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: AppPaginationControls(
+            pageIndex: 1,
+            totalItems: 187,
+            itemLabel: 'báo cáo',
+            onPrevious: () => previousTapped = true,
+            onNext: () => nextTapped = true,
+            onRefresh: () => refreshTapped = true,
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('Trang 2 - 187 báo cáo'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Trang trước'));
+    await tester.tap(find.byTooltip('Trang sau'));
+    await tester.tap(find.byTooltip('Làm mới'));
+
+    expect(previousTapped, isTrue);
+    expect(nextTapped, isTrue);
+    expect(refreshTapped, isTrue);
   });
 
   testWidgets('AppReadOnlyField shows a disabled tokenized value', (

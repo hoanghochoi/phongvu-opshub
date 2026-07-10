@@ -109,6 +109,7 @@ export function validateRuntimeEnv(env: EnvMap = process.env): void {
   validateFifoDateTolerance(env);
   validateAllowedOrigins(env);
   validatePublicBaseUrl(env);
+  validateVietinEfastEnv(env);
   validateBigQueryEnv(env);
   validateProductionPlaceholders(env);
 }
@@ -216,6 +217,69 @@ function validatePublicBaseUrl(env: EnvMap): void {
     throw new Error(`Invalid PUBLIC_BASE_URL value: ${value}`);
   }
 }
+
+function validateVietinEfastEnv(env: EnvMap): void {
+  if (getEnvValue(env, 'VIETIN_EFAST_SYNC_ENABLED') !== 'true') {
+    return;
+  }
+
+  const required = [
+    'VIETIN_EFAST_USERNAME',
+    'VIETIN_EFAST_PASSWORD',
+    'VIETIN_EFAST_BANK_ACCOUNTS',
+  ];
+  const missing = required.filter((key) => !getEnvValue(env, key));
+  if (missing.length > 0) {
+    throw new Error(
+      `Incomplete VietinBank eFAST configuration. Missing: ${missing.join(', ')}`,
+    );
+  }
+
+  const accounts = parseVietinEfastBankAccounts(
+    getEnvValue(env, 'VIETIN_EFAST_BANK_ACCOUNTS') || '',
+  );
+  if (accounts.length === 0) {
+    throw new Error(
+      'VIETIN_EFAST_BANK_ACCOUNTS must include at least one account',
+    );
+  }
+
+  validatePositiveIntegerEnv(env, 'VIETIN_EFAST_SYNC_MAX_PAGES', 1);
+  validatePositiveIntegerEnv(env, 'VIETIN_EFAST_SESSION_TTL_SECONDS', 86400);
+  validatePositiveIntegerEnv(env, 'VIETIN_EFAST_PAGE_SIZE', 150);
+  const baseUrl = getEnvValue(env, 'VIETIN_EFAST_BASE_URL');
+  if (baseUrl) {
+    try {
+      const parsed = new URL(baseUrl);
+      if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
+        throw new Error('invalid protocol');
+      }
+    } catch {
+      throw new Error(`Invalid VIETIN_EFAST_BASE_URL value: ${baseUrl}`);
+    }
+  }
+}
+
+function parseVietinEfastBankAccounts(value: string): string[] {
+  return value
+    .split(',')
+    .map((item) => item.trim().replace(/[^A-Z0-9]/gi, ''))
+    .filter(Boolean);
+}
+
+function validatePositiveIntegerEnv(
+  env: EnvMap,
+  key: string,
+  maxValue: number,
+): void {
+  const raw = getEnvValue(env, key);
+  if (!raw) return;
+  const value = Number(raw);
+  if (!Number.isInteger(value) || value <= 0 || value > maxValue) {
+    throw new Error(`Invalid ${key} value: ${raw}`);
+  }
+}
+
 function validateProductionPlaceholders(env: EnvMap): void {
   if (env.NODE_ENV !== 'production') {
     return;

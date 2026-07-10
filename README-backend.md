@@ -105,6 +105,28 @@ Expected responses:
   per page, and defaults to `MAP_VIETIN_GLOBAL_SYNC_MAX_PAGES=2`. The global
   MAP session is cached for `MAP_VIETIN_GLOBAL_SESSION_TTL_SECONDS` seconds,
   defaulting to 600, and refreshes automatically after MAP auth errors.
+- VietinBank eFAST account-detail sync is an optional secondary source behind
+  `VIETIN_EFAST_SYNC_ENABLED=false` by default. Configure
+  `VIETIN_EFAST_USERNAME`, `VIETIN_EFAST_PASSWORD`, and
+  `VIETIN_EFAST_BANK_ACCOUNTS` as a comma-separated list such as
+  `account-1,account-2` in the server `.env`; never commit real credentials.
+  If the eFAST login account can choose more than one enterprise, also set
+  `VIETIN_EFAST_CIFNO`. The adapter logs in through `/api/v1/account/login`,
+  reads `/api/v1/account/history` for credit rows only, uses each row `pmtId`
+  as the showroom virtual account to match `Store.transferAccountNumber`, and
+  keeps the configured bank account only as the eFAST history source/audit
+  field. Rows with missing `pmtId` are still stored with `storeCode=null` so
+  Super Admin, Finance-node users, and `phongvu.vn` users can review them; a
+  user who finds that row by statement number, order, amount, or transfer
+  content can update the order code, and the row is then assigned to that
+  user's showroom. Rows with an unmapped or ambiguous `pmtId` are quarantined
+  without creating payment audio. eFAST runs on its own scheduler: random
+  50-60 seconds between 08:00 and 22:00 Vietnam time (UTC+7), then every
+  30 minutes from 22:01 through 07:59 the next day. Keep
+  `VIETIN_EFAST_PAGE_SIZE=150` and `VIETIN_EFAST_SYNC_MAX_PAGES=1`; the
+  runtime caps eFAST at one page per configured bank account to stay below the
+  provider's 20-query/5-minute limit. `VIETIN_EFAST_SESSION_TTL_SECONDS`
+  defaults to 600 seconds.
 - Set `UPLOAD_BASE_DIR` to a persistent VPS directory, for example `/data/app_images`.
 - Set `IMAGE_BASE_URL` to the public image domain that serves `UPLOAD_BASE_DIR`.
 - `UPLOAD_MAX_BYTES` limits each warranty/feedback image and defaults to 10 MiB.

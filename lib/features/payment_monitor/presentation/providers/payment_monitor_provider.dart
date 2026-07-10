@@ -113,6 +113,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
   String? _realtimeKey;
   DateTime? _notificationCheckpointAt;
   bool _isActive = false;
+  bool _isDisposed = false;
   bool _isLoading = false;
   String? _errorMessage;
   DateTime? _lastCheckedAt;
@@ -1155,6 +1156,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
     bool drainReadyNotifications = false,
     String reason = 'unknown',
   }) async {
+    if (_isDisposed) return;
     if (!_canMonitorOnThisDevice || !_hasMonitorScope) return;
     if (_isLoading) {
       if (force) {
@@ -1185,7 +1187,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
     final startedAt = DateTime.now();
     _isLoading = true;
     _errorMessage = null;
-    notifyListeners();
+    _notifyListenersIfActive();
 
     var phase = 'stored_transactions';
     try {
@@ -1227,6 +1229,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
         phase = 'ready_notifications';
         await _drainReadyNotificationsWithLock(clientId!, reason: reason);
       }
+      if (_isDisposed) return;
 
       _lastCheckedAt = DateTime.now();
       _pollFailureCount = 0;
@@ -1292,26 +1295,33 @@ class PaymentMonitorProvider extends ChangeNotifier {
         _stop(reason: 'auth_failed', clearError: false);
       }
     } finally {
-      _isLoading = false;
-      notifyListeners();
-      if (_refreshQueuedWhileLoading &&
-          _canMonitorOnThisDevice &&
-          _hasMonitorScope) {
-        final queuedIncludeTotal = _queuedRefreshIncludeTotal;
-        final queuedDrainReadyNotifications =
-            _queuedRefreshDrainReadyNotifications;
+      if (_isDisposed) {
+        _isLoading = false;
         _refreshQueuedWhileLoading = false;
         _queuedRefreshIncludeTotal = false;
         _queuedRefreshDrainReadyNotifications = false;
-        unawaited(
-          _poll(
-            force: true,
-            bypassBackoff: false,
-            includeTotal: queuedIncludeTotal,
-            drainReadyNotifications: queuedDrainReadyNotifications,
-            reason: 'queued_after_loading',
-          ),
-        );
+      } else {
+        _isLoading = false;
+        _notifyListenersIfActive();
+        if (_refreshQueuedWhileLoading &&
+            _canMonitorOnThisDevice &&
+            _hasMonitorScope) {
+          final queuedIncludeTotal = _queuedRefreshIncludeTotal;
+          final queuedDrainReadyNotifications =
+              _queuedRefreshDrainReadyNotifications;
+          _refreshQueuedWhileLoading = false;
+          _queuedRefreshIncludeTotal = false;
+          _queuedRefreshDrainReadyNotifications = false;
+          unawaited(
+            _poll(
+              force: true,
+              bypassBackoff: false,
+              includeTotal: queuedIncludeTotal,
+              drainReadyNotifications: queuedDrainReadyNotifications,
+              reason: 'queued_after_loading',
+            ),
+          );
+        }
       }
     }
   }
@@ -1821,6 +1831,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
 
   @override
   void dispose() {
+    _isDisposed = true;
     _realtimeRefreshTimer?.cancel();
     _realtimeReconnectTimer?.cancel();
     _speakerReadyFallbackTimer?.cancel();
@@ -1828,6 +1839,11 @@ class PaymentMonitorProvider extends ChangeNotifier {
     unawaited(_realtimeSubscription?.cancel());
     unawaited(_realtimeChannel?.sink.close());
     super.dispose();
+  }
+
+  void _notifyListenersIfActive() {
+    if (_isDisposed) return;
+    notifyListeners();
   }
 
   Future<String> _ensureClientId() async {

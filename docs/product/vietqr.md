@@ -405,3 +405,30 @@ Optional MAP endpoint overrides are available through:
 - `MAP_VIETIN_NO_AUTH_BASE_URL`
 - `MAP_VIETIN_TRANSACTION_BASE_URL`
 - `MAP_VIETIN_LOGIN_IP`
+- `VIETIN_EFAST_SYNC_ENABLED` (default `false`; optional secondary eFAST source)
+- `VIETIN_EFAST_USERNAME`
+- `VIETIN_EFAST_PASSWORD`
+- `VIETIN_EFAST_BANK_ACCOUNTS` (comma-separated account numbers, currently two)
+- `VIETIN_EFAST_CIFNO` (optional when the login can choose multiple enterprises)
+- `VIETIN_EFAST_DEVICE_ID` (optional stable device id for eFAST login)
+- `VIETIN_EFAST_BASE_URL`
+- `VIETIN_EFAST_ACCOUNT_DETAIL_PATH`
+- `VIETIN_EFAST_PAGE_SIZE` (default `150`)
+- `VIETIN_EFAST_SYNC_MAX_PAGES` (default and maximum `1`)
+- `VIETIN_EFAST_SESSION_TTL_SECONDS` (default `600`)
+
+When enabled, the eFAST adapter logs in through `/api/v1/account/login`, reads
+`/api/v1/account/history` for credit rows only, and maps each row `pmtId` to
+`Store.transferAccountNumber`. The configured eFAST bank accounts are only the
+history-query sources and are preserved in raw data for audit. Rows with a
+missing `pmtId` are stored with `storeCode=null` instead of being quarantined;
+Super Admin, Finance-node users, and `phongvu.vn` users can review them. A
+scoped user who finds one of these rows by statement number, order, amount, or
+transfer content can update the order code, and the backend assigns that
+transaction to the user's showroom. Rows with an unmapped or ambiguous `pmtId`
+stay in the unmapped-transaction quarantine and do not trigger payment audio.
+The eFAST scheduler is separate from the MAP scheduler: it runs once every
+random 50-60 seconds from 08:00 through 22:00 Vietnam time (UTC+7), and every
+30 minutes from 22:01 through 07:59 the next day. Production should keep two
+configured eFAST bank accounts, `VIETIN_EFAST_PAGE_SIZE=150`, and
+`VIETIN_EFAST_SYNC_MAX_PAGES=1`.

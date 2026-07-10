@@ -9,6 +9,7 @@ import '../../../../app/theme/app_text_styles.dart';
 import '../../../../app/widgets/app_buttons.dart';
 import '../../../../app/widgets/app_cards.dart';
 import '../../../../app/widgets/app_chips.dart';
+import '../../../../app/widgets/app_combobox.dart';
 import '../../../../app/widgets/app_inputs.dart';
 import '../../../../app/widgets/app_layout.dart';
 import '../../../../app/widgets/app_state_widgets.dart';
@@ -330,21 +331,19 @@ class _PolicyAdminScreenState extends State<PolicyAdminScreen> {
       children: [
         AppSurfaceCard(
           padding: const EdgeInsets.all(12),
-          child: AppSelectField<String?>(
+          child: AppCombobox<String>.single(
             value: _rulePolicyFilter,
             label: 'Lọc theo chính sách',
-            items: [
-              const DropdownMenuItem<String?>(
-                value: null,
-                child: Text('Tất cả'),
-              ),
-              ..._policies.map(
-                (policy) => DropdownMenuItem<String?>(
-                  value: policy.code,
-                  child: Text(policy.title),
-                ),
-              ),
-            ],
+            emptyLabel: 'Tất cả',
+            options: _policies
+                .map(
+                  (policy) => AppComboboxOption(
+                    value: policy.code,
+                    label: policy.title,
+                    searchKeywords: [policy.code],
+                  ),
+                )
+                .toList(),
             onChanged: (value) async {
               setState(() => _rulePolicyFilter = value);
               await _load();
@@ -1166,17 +1165,19 @@ class _PolicyRuleEditorDialogState extends State<_PolicyRuleEditorDialog> {
       content: SingleChildScrollView(
         child: AppFormColumn(
           children: [
-            AppSelectField<String>(
+            AppCombobox<String>.single(
               value: _policyCode,
               label: 'Chính sách',
-              items: widget.policies
+              options: widget.policies
                   .map(
-                    (policy) => DropdownMenuItem(
+                    (policy) => AppComboboxOption(
                       value: policy.code,
-                      child: Text(policy.title),
+                      label: policy.title,
+                      searchKeywords: [policy.code],
                     ),
                   )
                   .toList(),
+              allowClear: false,
               onChanged: (value) =>
                   setState(() => _policyCode = value ?? _policyCode),
             ),

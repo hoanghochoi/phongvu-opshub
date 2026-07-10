@@ -11,6 +11,7 @@ import '../../../../app/theme/app_text_styles.dart';
 import '../../../../app/widgets/app_buttons.dart';
 import '../../../../app/widgets/app_cards.dart';
 import '../../../../app/widgets/app_chips.dart';
+import '../../../../app/widgets/app_combobox.dart';
 import '../../../../app/widgets/app_inputs.dart';
 import '../../../../app/widgets/app_layout.dart';
 import '../../../../app/widgets/app_state_widgets.dart';
@@ -1093,33 +1094,29 @@ class _HelpContentEditorCard extends StatelessWidget {
                 );
               },
             ),
-            AppSelectField<String?>(
+            AppCombobox<String>.single(
               label: 'Trang cha',
               value: selectedParentKey,
               onChanged: onParentChanged,
-              items: [
-                const DropdownMenuItem<String?>(
-                  value: null,
-                  child: Text('Không có, hiển thị ở cấp gốc'),
-                ),
+              emptyLabel: 'Không có, hiển thị ở cấp gốc',
+              options: [
                 for (final page in availableParents)
-                  DropdownMenuItem<String?>(
+                  AppComboboxOption(
                     value: page.key,
-                    child: Text('${page.title} (${page.key})'),
+                    label: '${page.title} (${page.key})',
+                    searchKeywords: [page.key, page.title],
                   ),
               ],
             ),
-            AppSelectField<HelpPageVisibility>(
+            AppCombobox<HelpPageVisibility>.single(
               label: 'Chế độ hiển thị',
               value: visibility,
               onChanged: onVisibilityChanged,
-              items: [
+              options: [
                 for (final value in HelpPageVisibility.values)
-                  DropdownMenuItem<HelpPageVisibility>(
-                    value: value,
-                    child: Text(value.label),
-                  ),
+                  AppComboboxOption(value: value, label: value.label),
               ],
+              allowClear: false,
             ),
             Text(
               visibility.description,

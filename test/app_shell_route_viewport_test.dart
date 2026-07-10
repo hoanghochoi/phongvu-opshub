@@ -109,7 +109,7 @@ void main() {
 
     expect(router.routeInformationProvider.value.uri.path, '/home');
     expect(find.byKey(const ValueKey('route-/home')), findsOneWidget);
-    expect(find.text('Trang chủ vận hành'), findsOneWidget);
+    expect(find.textContaining('Chào buổi'), findsOneWidget);
     expect(find.text('Tác vụ của bạn'), findsNothing);
     expect(tester.takeException(), isNull);
   });
@@ -401,14 +401,14 @@ void main() {
     );
     await tester.pump();
 
-    expect(find.text('Trang chủ vận hành'), findsOneWidget);
+    expect(find.textContaining('Chào buổi'), findsOneWidget);
     expect(find.byKey(const ValueKey('route-/home')), findsOneWidget);
 
     router.go('/warranty-main');
     await tester.pump();
 
     expect(find.byKey(const ValueKey('route-/home')), findsNothing);
-    expect(find.text('Trang chủ vận hành'), findsNothing);
+    expect(find.textContaining('Chào buổi'), findsNothing);
     expect(find.byKey(const ValueKey('route-/warranty-main')), findsOneWidget);
     expect(find.byKey(const Key('warranty-main-header')), findsNothing);
     expect(find.text('Tác vụ bảo hành'), findsOneWidget);

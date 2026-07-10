@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:phongvu_opshub/app/widgets/app_filter_dropdowns.dart';
+import 'package:phongvu_opshub/app/widgets/app_combobox.dart';
 import 'package:phongvu_opshub/core/network/api_client.dart';
 import 'package:phongvu_opshub/features/admin/domain/admin_feature_definition.dart';
 import 'package:phongvu_opshub/features/admin/domain/admin_organization_node.dart';
@@ -71,8 +71,7 @@ void main() {
     expect(find.text('minh.anh@phongvu.vn'), findsOneWidget);
     expect(find.text('hoang.nam@phongvu.vn'), findsOneWidget);
     expect(find.text('Đã khóa'), findsOneWidget);
-    expect(find.byType(AppFilterDropdown<String>), findsNWidgets(3));
-    expect(find.byType(AppSearchableFilterDropdown<String>), findsNWidgets(2));
+    expect(find.byType(AppCombobox<String>), findsNWidgets(5));
     expect(tester.takeException(), isNull);
   });
 

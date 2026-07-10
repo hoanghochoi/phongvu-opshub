@@ -10,9 +10,11 @@ import '../../../../app/theme/app_text_styles.dart';
 import '../../../../app/widgets/app_buttons.dart';
 import '../../../../app/widgets/app_cards.dart';
 import '../../../../app/widgets/app_chips.dart';
+import '../../../../app/widgets/app_combobox.dart';
 import '../../../../app/widgets/app_filter_dropdowns.dart';
 import '../../../../app/widgets/app_inputs.dart';
 import '../../../../app/widgets/app_layout.dart';
+import '../../../../app/widgets/app_pagination.dart';
 import '../../../../app/widgets/app_state_widgets.dart';
 import '../../../../core/formatting/money_formatters.dart';
 import '../../../../core/logging/app_logger.dart';
@@ -654,16 +656,17 @@ class _QuickFilterBar extends StatelessWidget {
           now: () => provider.currentDate,
         );
         final storeFilter = isManagedScope
-            ? AppFilterDropdown<String>(
+            ? AppCombobox<String>.single(
                 label: 'Showroom',
                 value: provider.ordersStoreCode,
-                allLabel: 'Tất cả',
+                emptyLabel: 'Tất cả',
                 icon: Icons.store_outlined,
                 options: provider.orderStoreOptions
                     .map(
-                      (option) => AppFilterOption<String>(
+                      (option) => AppComboboxOption<String>(
                         value: option.value,
                         label: option.label,
+                        searchKeywords: [option.value, option.label],
                       ),
                     )
                     .toList(growable: false),
@@ -820,16 +823,17 @@ class _AdvancedFilterSheet extends StatelessWidget {
               ),
               const SizedBox(height: AppLayoutTokens.formInlineGap),
               if (managedScope)
-                AppFilterDropdown<String>(
+                AppCombobox<String>.single(
                   label: 'Showroom',
                   value: provider.ordersStoreCode,
-                  allLabel: 'Tất cả',
+                  emptyLabel: 'Tất cả',
                   icon: Icons.store_outlined,
                   options: provider.orderStoreOptions
                       .map(
-                        (option) => AppFilterOption<String>(
+                        (option) => AppComboboxOption<String>(
                           value: option.value,
                           label: option.label,
+                          searchKeywords: [option.value, option.label],
                         ),
                       )
                       .toList(growable: false),
@@ -847,16 +851,17 @@ class _AdvancedFilterSheet extends StatelessWidget {
                 ),
               if (managedScope) ...[
                 const SizedBox(height: AppLayoutTokens.formInlineGap),
-                AppSearchableFilterDropdown<String>(
+                AppCombobox<String>.single(
                   label: 'Nhân viên',
                   value: provider.ordersUserEmail,
-                  allLabel: 'Tất cả',
+                  emptyLabel: 'Tất cả',
                   icon: Icons.person_outline_rounded,
                   options: provider.orderUserOptions
                       .map(
-                        (option) => AppFilterOption<String>(
+                        (option) => AppComboboxOption<String>(
                           value: option.value,
                           label: option.label,
+                          searchKeywords: [option.value, option.label],
                         ),
                       )
                       .toList(growable: false),
@@ -1108,77 +1113,13 @@ class _OrdersPageControls extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        _OrdersPageArrow(
-          tooltip: 'Trang trước',
-          icon: Icons.chevron_left_rounded,
-          onPressed: onPreviousPage,
-        ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          child: Text(
-            'Trang ${page + 1}/$pageCount',
-            textAlign: TextAlign.center,
-            style: AppTextStyles.bodyS.copyWith(
-              color: AppColors.textSecondaryOf(context),
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ),
-        _OrdersPageArrow(
-          tooltip: 'Trang sau',
-          icon: Icons.chevron_right_rounded,
-          onPressed: onNextPage,
-        ),
-      ],
-    );
-  }
-}
-
-class _OrdersPageArrow extends StatelessWidget {
-  final String tooltip;
-  final IconData icon;
-  final VoidCallback? onPressed;
-
-  const _OrdersPageArrow({
-    required this.tooltip,
-    required this.icon,
-    required this.onPressed,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final enabled = onPressed != null;
-    final color = enabled
-        ? AppColors.primaryOf(context)
-        : AppColors.textMutedOf(context);
-    return SizedBox.square(
-      dimension: 44,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: enabled
-              ? AppColors.primarySurfaceOf(context)
-              : AppColors.raisedOf(context),
-          borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
-          border: Border.all(
-            color: enabled
-                ? AppColors.primaryOf(context)
-                : AppColors.borderOf(context),
-          ),
-        ),
-        child: IconButton(
-          tooltip: tooltip,
-          visualDensity: VisualDensity.compact,
-          padding: EdgeInsets.zero,
-          onPressed: onPressed,
-          color: color,
-          disabledColor: color,
-          icon: Icon(icon, size: 24),
-        ),
-      ),
+    return AppPaginationControls(
+      pageIndex: page,
+      totalItems: pageCount,
+      itemLabel: 'trang',
+      label: 'Trang ${page + 1}/$pageCount',
+      onPrevious: onPreviousPage,
+      onNext: onNextPage,
     );
   }
 }

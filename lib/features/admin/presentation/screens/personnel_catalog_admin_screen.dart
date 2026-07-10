@@ -6,6 +6,7 @@ import '../../../../app/theme/app_radius.dart';
 import '../../../../app/theme/app_text_styles.dart';
 import '../../../../app/widgets/app_buttons.dart';
 import '../../../../app/widgets/app_cards.dart';
+import '../../../../app/widgets/app_combobox.dart';
 import '../../../../app/widgets/app_inputs.dart';
 import '../../../../app/widgets/app_layout.dart';
 import '../../../../app/widgets/app_state_widgets.dart';
@@ -610,21 +611,19 @@ class _PersonnelEditorDialogState extends State<_PersonnelEditorDialog> {
               ),
               AppTextInput(controller: _titleController, label: 'Tên $label'),
               if (widget.type == _CatalogType.jobRole)
-                AppSelectField<String?>(
+                AppCombobox<String>.single(
                   value: _departmentCode,
                   label: 'Phòng ban',
-                  items: [
-                    const DropdownMenuItem<String?>(
-                      value: null,
-                      child: Text('Chưa gán'),
-                    ),
-                    ...widget.departments.map(
-                      (department) => DropdownMenuItem<String?>(
-                        value: department.code,
-                        child: Text(department.title),
-                      ),
-                    ),
-                  ],
+                  emptyLabel: 'Chưa gán',
+                  options: widget.departments
+                      .map(
+                        (department) => AppComboboxOption(
+                          value: department.code,
+                          label: department.title,
+                          searchKeywords: [department.code],
+                        ),
+                      )
+                      .toList(),
                   onChanged: (value) => setState(() => _departmentCode = value),
                 ),
               AppTextInput(

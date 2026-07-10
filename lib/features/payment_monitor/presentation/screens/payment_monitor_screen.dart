@@ -7,10 +7,14 @@ import '../../../../app/theme/app_text_styles.dart';
 import '../../../../app/widgets/app_buttons.dart';
 import '../../../../app/widgets/app_cards.dart';
 import '../../../../app/widgets/app_chips.dart';
+import '../../../../app/widgets/app_combobox.dart';
 import '../../../../app/widgets/app_filter_dropdowns.dart';
-import '../../../../app/widgets/app_inputs.dart';
 import '../../../../app/widgets/app_layout.dart';
+import '../../../../app/widgets/app_pagination.dart';
 import '../../../../app/widgets/app_state_widgets.dart';
+import '../../../../core/network/api_client.dart';
+import '../../../auth/data/repositories/auth_repository.dart';
+import '../../../auth/domain/entities/store_branch.dart';
 import '../../../auth/domain/entities/user.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../providers/payment_monitor_provider.dart';
@@ -24,20 +28,20 @@ class PaymentMonitorScreen extends StatefulWidget {
 }
 
 class _PaymentMonitorScreenState extends State<PaymentMonitorScreen> {
-  final _storeController = TextEditingController();
   final _currencyFormatter = NumberFormat.decimalPattern('vi_VN');
-
-  @override
-  void dispose() {
-    _storeController.dispose();
-    super.dispose();
-  }
+  late final AuthRepository _authRepository = AuthRepository(ApiClient());
+  List<StoreBranch> _superAdminStores = [];
+  String? _storeOptionsSessionKey;
+  String? _storeOptionsError;
+  bool _isLoadingStoreOptions = false;
 
   @override
   Widget build(BuildContext context) {
     final user = context.watch<AuthProvider>().user;
     final monitor = context.watch<PaymentMonitorProvider>();
     final requiresStoreInput = user?.role == 'SUPER_ADMIN';
+    if (requiresStoreInput) _scheduleSuperAdminStoreLoad(user);
+    final storeOptions = _storeOptionsFor(user);
     final canUsePaymentSpeaker = monitor.canUsePaymentSpeaker;
     final speakerSelectionNotice = monitor.speakerSelectionNotice;
 
@@ -139,18 +143,12 @@ class _PaymentMonitorScreenState extends State<PaymentMonitorScreen> {
                   if (requiresStoreInput) ...[
                     if (canUsePaymentSpeaker || speakerSelectionNotice != null)
                       const SizedBox(height: AppLayoutTokens.formFieldGap),
-                    AppTextInput(
-                      controller: _storeController,
-                      label: 'Mã showroom cần xem',
-                      icon: Icons.store_outlined,
-                      textCapitalization: TextCapitalization.characters,
-                      onSubmitted: (_) => _applyStoreOverride(context),
-                    ),
-                    const SizedBox(height: AppLayoutTokens.formInlineGap),
-                    AppSecondaryButton(
-                      onPressed: () => _applyStoreOverride(context),
-                      icon: Icons.check_rounded,
-                      label: 'Xem showroom này',
+                    _SuperAdminStoreSelector(
+                      monitor: monitor,
+                      options: storeOptions,
+                      isLoading: _isLoadingStoreOptions,
+                      errorMessage: _storeOptionsError,
+                      onRetry: () => _reloadSuperAdminStores(user),
                     ),
                   ],
                 ],
@@ -177,7 +175,7 @@ class _PaymentMonitorScreenState extends State<PaymentMonitorScreen> {
             ),
           ],
           const SizedBox(height: 14),
-          _TransactionFilters(monitor: monitor, user: user),
+          _TransactionFilters(monitor: monitor, storeOptions: storeOptions),
           const SizedBox(height: 16),
           Text(
             'Giao dịch tiền vào',
@@ -252,9 +250,112 @@ class _PaymentMonitorScreenState extends State<PaymentMonitorScreen> {
     );
   }
 
-  void _applyStoreOverride(BuildContext context) {
-    context.read<PaymentMonitorProvider>().setStoreOverride(
-      _storeController.text,
+  List<AppComboboxOption<String>> _storeOptionsFor(User? user) {
+    final stores = user?.role == 'SUPER_ADMIN'
+        ? _superAdminStores
+        : user?.assignedStores ?? const <StoreBranch>[];
+    return stores
+        .where((store) => store.storeId.trim().isNotEmpty)
+        .map(
+          (store) => AppComboboxOption(
+            value: store.storeId.trim().toUpperCase(),
+            label: _storeLabel(store),
+            subtitle: store.regionAreaLabel,
+            searchKeywords: [store.storeId, store.storeName],
+          ),
+        )
+        .toList(growable: false);
+  }
+
+  void _scheduleSuperAdminStoreLoad(User? user) {
+    final key = user?.id?.trim().isNotEmpty == true
+        ? user!.id!.trim()
+        : user?.email.trim() ?? 'super-admin';
+    if (_storeOptionsSessionKey == key || _isLoadingStoreOptions) return;
+    _storeOptionsSessionKey = key;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _reloadSuperAdminStores(user);
+    });
+  }
+
+  Future<void> _reloadSuperAdminStores(User? user) async {
+    if (user?.role != 'SUPER_ADMIN') return;
+    setState(() {
+      _isLoadingStoreOptions = true;
+      _storeOptionsError = null;
+    });
+    try {
+      final stores = await _authRepository.getStores();
+      if (!mounted) return;
+      setState(() {
+        _superAdminStores = stores;
+        _isLoadingStoreOptions = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _isLoadingStoreOptions = false;
+        _storeOptionsError =
+            'Chưa tải được danh sách showroom. Vui lòng thử lại.';
+      });
+    }
+  }
+}
+
+class _SuperAdminStoreSelector extends StatelessWidget {
+  final PaymentMonitorProvider monitor;
+  final List<AppComboboxOption<String>> options;
+  final bool isLoading;
+  final String? errorMessage;
+  final VoidCallback onRetry;
+
+  const _SuperAdminStoreSelector({
+    required this.monitor,
+    required this.options,
+    required this.isLoading,
+    required this.errorMessage,
+    required this.onRetry,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (isLoading && options.isEmpty) {
+      return const AppStatePanel.loading(
+        title: 'Đang tải danh sách showroom',
+        message: 'Đang lấy danh sách showroom để chọn nơi theo dõi.',
+        compact: true,
+      );
+    }
+    if (errorMessage != null && options.isEmpty) {
+      return AppStatePanel.error(
+        title: 'Chưa tải được danh sách showroom',
+        message: errorMessage,
+        actionLabel: 'Thử lại',
+        actionIcon: Icons.refresh_rounded,
+        onAction: onRetry,
+        compact: true,
+      );
+    }
+    if (options.isEmpty) {
+      return const AppStatePanel.empty(
+        title: 'Chưa có showroom khả dụng',
+        message: 'Tài khoản này chưa có showroom để theo dõi.',
+        compact: true,
+      );
+    }
+    return AppCombobox<String>.single(
+      label: 'Showroom cần xem',
+      icon: Icons.store_outlined,
+      value: monitor.storeOverride,
+      options: options,
+      emptyLabel: 'Chọn showroom cần xem',
+      allowClear: false,
+      textCapitalization: TextCapitalization.characters,
+      onChanged: (value) {
+        if (value == null) return;
+        context.read<PaymentMonitorProvider>().setStoreOverride(value);
+      },
     );
   }
 }
@@ -331,9 +432,12 @@ class _SpeakerPowerWarning extends StatelessWidget {
 
 class _TransactionFilters extends StatelessWidget {
   final PaymentMonitorProvider monitor;
-  final User? user;
+  final List<AppComboboxOption<String>> storeOptions;
 
-  const _TransactionFilters({required this.monitor, required this.user});
+  const _TransactionFilters({
+    required this.monitor,
+    required this.storeOptions,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -346,13 +450,13 @@ class _TransactionFilters extends StatelessWidget {
           return AppSurfaceCard(
             child: Column(
               children: [
-                if (_storeOptions.isNotEmpty) ...[
-                  AppMultiSelectFilterDropdown<String>(
+                if (storeOptions.isNotEmpty) ...[
+                  AppCombobox<String>.multi(
                     label: 'Showroom',
                     values: monitor.selectedStoreIds,
-                    options: _storeOptions,
+                    options: storeOptions,
                     emptyLabel: 'Showroom được gán',
-                    onChanged: context
+                    onMultiChanged: context
                         .read<PaymentMonitorProvider>()
                         .setSelectedStoreIds,
                   ),
@@ -373,57 +477,34 @@ class _TransactionFilters extends StatelessWidget {
                   },
                 ),
                 const SizedBox(height: 10),
-                AppSelectField<int>(
+                AppCombobox<int>.single(
                   label: 'Số dòng hiển thị',
                   value: monitor.pageSize,
                   icon: Icons.format_list_numbered_rounded,
                   dense: true,
-                  items: _pageSizeItems,
+                  options: _pageSizeOptions,
+                  allowClear: false,
                   onChanged: (value) {
                     if (value == null) return;
                     context.read<PaymentMonitorProvider>().setPageSize(value);
                   },
                 ),
                 const SizedBox(height: AppLayoutTokens.formInlineGap),
-                Row(
-                  children: [
-                    IconButton(
-                      onPressed: monitor.canGoPreviousPage
-                          ? () => context
-                                .read<PaymentMonitorProvider>()
-                                .previousPage()
-                          : null,
-                      icon: const Icon(Icons.chevron_left_rounded),
-                    ),
-                    Expanded(
-                      child: Center(
-                        child: Text(
-                          'Trang ${monitor.pageIndex + 1} - ${monitor.totalTransactions} GD',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          softWrap: false,
-                          style: AppTextStyles.labelM,
-                        ),
-                      ),
-                    ),
-                    IconButton(
-                      onPressed: monitor.canGoNextPage
-                          ? () => context
-                                .read<PaymentMonitorProvider>()
-                                .nextPage()
-                          : null,
-                      icon: const Icon(Icons.chevron_right_rounded),
-                    ),
-                    IconButton(
-                      tooltip: 'Làm mới',
-                      onPressed: monitor.isLoading
-                          ? null
-                          : () => context
-                                .read<PaymentMonitorProvider>()
-                                .refreshNow(),
-                      icon: const Icon(Icons.refresh_rounded),
-                    ),
-                  ],
+                AppPaginationControls(
+                  pageIndex: monitor.pageIndex,
+                  totalItems: monitor.totalTransactions,
+                  itemLabel: 'GD',
+                  onPrevious: monitor.canGoPreviousPage
+                      ? () => context
+                            .read<PaymentMonitorProvider>()
+                            .previousPage()
+                      : null,
+                  onNext: monitor.canGoNextPage
+                      ? () => context.read<PaymentMonitorProvider>().nextPage()
+                      : null,
+                  onRefresh: () =>
+                      context.read<PaymentMonitorProvider>().refreshNow(),
+                  isRefreshing: monitor.isLoading,
                 ),
               ],
             ),
@@ -435,14 +516,14 @@ class _TransactionFilters extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  if (_storeOptions.isNotEmpty) ...[
+                  if (storeOptions.isNotEmpty) ...[
                     Expanded(
-                      child: AppMultiSelectFilterDropdown<String>(
+                      child: AppCombobox<String>.multi(
                         label: 'Showroom',
                         values: monitor.selectedStoreIds,
-                        options: _storeOptions,
+                        options: storeOptions,
                         emptyLabel: 'Showroom được gán',
-                        onChanged: context
+                        onMultiChanged: context
                             .read<PaymentMonitorProvider>()
                             .setSelectedStoreIds,
                       ),
@@ -468,11 +549,12 @@ class _TransactionFilters extends StatelessWidget {
                   const SizedBox(width: 8),
                   SizedBox(
                     width: 150,
-                    child: AppSelectField<int>(
+                    child: AppCombobox<int>.single(
                       label: 'Số dòng',
                       value: monitor.pageSize,
                       dense: true,
-                      items: _pageSizeItems,
+                      options: _pageSizeOptions,
+                      allowClear: false,
                       onChanged: (value) {
                         if (value == null) return;
                         context.read<PaymentMonitorProvider>().setPageSize(
@@ -484,44 +566,20 @@ class _TransactionFilters extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: AppLayoutTokens.formInlineGap),
-              Row(
-                children: [
-                  IconButton(
-                    onPressed: monitor.canGoPreviousPage
-                        ? () => context
-                              .read<PaymentMonitorProvider>()
-                              .previousPage()
-                        : null,
-                    icon: const Icon(Icons.chevron_left_rounded),
-                  ),
-                  Expanded(
-                    child: Center(
-                      child: Text(
-                        'Trang ${monitor.pageIndex + 1} - ${monitor.totalTransactions} giao dịch',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        softWrap: false,
-                        style: AppTextStyles.labelM,
-                      ),
-                    ),
-                  ),
-                  IconButton(
-                    onPressed: monitor.canGoNextPage
-                        ? () =>
-                              context.read<PaymentMonitorProvider>().nextPage()
-                        : null,
-                    icon: const Icon(Icons.chevron_right_rounded),
-                  ),
-                  IconButton(
-                    tooltip: 'Làm mới',
-                    onPressed: monitor.isLoading
-                        ? null
-                        : () => context
-                              .read<PaymentMonitorProvider>()
-                              .refreshNow(),
-                    icon: const Icon(Icons.refresh_rounded),
-                  ),
-                ],
+              AppPaginationControls(
+                pageIndex: monitor.pageIndex,
+                totalItems: monitor.totalTransactions,
+                itemLabel: 'giao dịch',
+                onPrevious: monitor.canGoPreviousPage
+                    ? () =>
+                          context.read<PaymentMonitorProvider>().previousPage()
+                    : null,
+                onNext: monitor.canGoNextPage
+                    ? () => context.read<PaymentMonitorProvider>().nextPage()
+                    : null,
+                onRefresh: () =>
+                    context.read<PaymentMonitorProvider>().refreshNow(),
+                isRefreshing: monitor.isLoading,
               ),
             ],
           ),
@@ -530,34 +588,20 @@ class _TransactionFilters extends StatelessWidget {
     );
   }
 
-  List<DropdownMenuItem<int>> get _pageSizeItems {
+  List<AppComboboxOption<int>> get _pageSizeOptions {
     return const [10, 20, 50, 100]
         .map(
-          (value) => DropdownMenuItem<int>(
-            value: value,
-            child: Text(
-              '$value dòng',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              softWrap: false,
-            ),
-          ),
+          (value) => AppComboboxOption<int>(value: value, label: '$value dòng'),
         )
         .toList(growable: false);
   }
+}
 
-  List<AppFilterOption<String>> get _storeOptions {
-    final stores = user?.assignedStores ?? const [];
-    return stores
-        .where((store) => store.storeId.trim().isNotEmpty)
-        .map(
-          (store) => AppFilterOption(
-            value: store.storeId.trim().toUpperCase(),
-            label: store.displayName,
-          ),
-        )
-        .toList(growable: false);
-  }
+String _storeLabel(StoreBranch store) {
+  final code = store.storeId.trim().toUpperCase();
+  final name = store.storeName.trim();
+  if (name.isEmpty || name.toUpperCase() == code) return code;
+  return '$code - $name';
 }
 
 class _StatusCard extends StatelessWidget {

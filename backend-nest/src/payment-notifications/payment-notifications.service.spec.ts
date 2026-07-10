@@ -1334,6 +1334,50 @@ describe('PaymentNotificationsService', () => {
     ).not.toHaveBeenCalled();
   });
 
+  it('lists stream-pending notifications for ready recovery when streaming is enabled', async () => {
+    process.env.PAYMENT_SPEAKER_STREAMING_ENABLED = 'true';
+    const createdAt = new Date('2026-06-27T01:00:00.000Z');
+    prisma.store.findUnique.mockResolvedValue({ storeId: 'CP01' });
+    prisma.paymentNotification.findMany.mockResolvedValue([
+      {
+        id: 'note-stream-pending',
+        transactionId: 'txn-stream-pending',
+        storeCode: 'CP01',
+        amount: 1250000,
+        audioStatus: 'PENDING',
+        audioPath: null,
+        createdAt,
+      },
+    ]);
+
+    await expect(
+      service.listReadyForClient(speakerUser(), { clientId: 'pc-1' }),
+    ).resolves.toEqual({
+      list: [
+        {
+          notificationId: 'note-stream-pending',
+          transactionId: 'txn-stream-pending',
+          storeCode: 'CP01',
+          amount: 1250000,
+          audioStatus: 'PENDING',
+          audioUrl: '/payment-notifications/note-stream-pending/audio',
+          streamUrl: '/payment-notifications/note-stream-pending/stream',
+          createdAt: createdAt.toISOString(),
+        },
+      ],
+    });
+    expect(prisma.paymentNotification.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          OR: expect.arrayContaining([
+            { audioStatus: 'READY', audioPath: { not: null } },
+            { audioStatus: 'PENDING' },
+          ]),
+        }),
+      }),
+    );
+  });
+
   it('does not let an old failed notification hide a newer ready notification', async () => {
     const newer = new Date('2026-05-21T10:05:00.000Z');
     prisma.store.findUnique.mockResolvedValue({ storeId: 'CP67' });

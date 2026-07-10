@@ -165,8 +165,8 @@ cho Google Form, đồng thời lưu dữ liệu đủ chuẩn để dashboard d
   user trong cùng SR và không đổi khi dropdown SA thay đổi. Store
   manager/tài khoản quản lý theo node chỉ được chọn SA thuộc scope đang xem để
   xem card cá nhân; tiến độ SA chỉ cộng đơn ERP đã hoàn thành từ báo cáo mua
-  hàng, không lấy doanh số cache. Nếu danh sách SA lớn hơn 10, picker có ô tìm
-  kiếm theo tên hoặc email. Trên mobile, kéo mạnh xuống ở Trang chủ tải
+  hàng, không lấy doanh số cache. Danh sách SA dùng combobox chung có search
+  realtime theo tên hoặc email. Trên mobile, kéo mạnh xuống ở Trang chủ tải
   lại dashboard theo bộ lọc hiện tại. Menu `Quản trị` có `Quản lý doanh số` theo
   feature `ADMIN_SALES_TARGETS`; chỉ tiêu lưu theo SR/tháng ở giá trị trước VAT.
 - ERP/Listing chỉ được tự điền ngành hàng khi map được về nhóm ngành OpsHub:

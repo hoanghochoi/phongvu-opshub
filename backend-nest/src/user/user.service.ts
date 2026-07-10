@@ -1342,7 +1342,7 @@ export class UserService implements OnModuleInit {
   ) {
     const email = this.normalizeAccountEmail(user?.email);
     if (!this.mailService) {
-      const error = 'Chưa cấu hình dịch vụ gửi email OpsHub.';
+      const error = 'Chưa cấu hình dịch vụ gửi email PhongVu OpsHub.';
       this.logger.error(
         `Welcome email failed: source=${context.source} email=${email} reason=missing_mail_service`,
       );
@@ -1354,10 +1354,13 @@ export class UserService implements OnModuleInit {
     try {
       await this.mailService.sendMail({
         to: email,
-        subject: 'Chào mừng bạn đến với OpsHub',
+        subject: 'Chào mừng bạn đến với PhongVu OpsHub',
         text:
           `Chào ${displayName},\n\n` +
-          'Tài khoản OpsHub của bạn đã được tạo. Để đặt mật khẩu lần đầu, vui lòng mở ứng dụng OpsHub và dùng chức năng Quên mật khẩu với email này.\n\n' +
+          'Tài khoản PhongVu OpsHub của bạn đã được tạo.\n' +
+          'Để đặt mật khẩu lần đầu, vui lòng mở ứng dụng và dùng chức năng Quên mật khẩu với email này theo hướng dẫn bên dưới:\n' +
+          'Windows và Android tải tại: https://opshub.hoanghochoi.com/download\n' +
+          'iOS: Mở trang https://opshub.hoanghochoi.com bằng trình duyệt Safari -> Share -> Add to Home Screen\n\n' +
           'Nếu bạn không yêu cầu tài khoản này, vui lòng liên hệ quản trị viên.',
       });
       this.logger.log(

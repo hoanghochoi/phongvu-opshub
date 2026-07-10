@@ -14,6 +14,7 @@ import '../../../../app/theme/app_radius.dart';
 import '../../../../app/theme/app_text_styles.dart';
 import '../../../../app/widgets/app_buttons.dart';
 import '../../../../app/widgets/app_cards.dart';
+import '../../../../app/widgets/app_combobox.dart';
 import '../../../../app/widgets/app_inputs.dart';
 import '../../../../app/widgets/app_layout.dart';
 import '../../../../app/widgets/app_state_widgets.dart';
@@ -1442,7 +1443,7 @@ class _VietQrScreenState extends State<VietQrScreen> {
     }
 
     if (storeOptions.length > 1) {
-      return AppSelectField<String>(
+      return AppCombobox<String>.single(
         key: ValueKey(
           'vietqr-store-${allowedStoreIds.join(',')}-$selectedStoreCode',
         ),
@@ -1450,17 +1451,17 @@ class _VietQrScreenState extends State<VietQrScreen> {
         value: selectedStoreCode,
         hintText: 'Chọn showroom tạo QR',
         icon: Icons.store_outlined,
-        items: storeOptions
+        options: storeOptions
             .map(
-              (store) => DropdownMenuItem<String>(
+              (store) => AppComboboxOption<String>(
                 value: store.storeId.trim().toUpperCase(),
-                child: Text(
-                  _storeOptionLabel(store),
-                  overflow: TextOverflow.ellipsis,
-                ),
+                label: _storeOptionLabel(store),
+                searchKeywords: [store.storeId, store.storeName],
               ),
             )
             .toList(growable: false),
+        allowClear: false,
+        textCapitalization: TextCapitalization.characters,
         onChanged: _isLoading ? null : _selectStoreCode,
         validator: (value) {
           if (value == null || value.trim().isEmpty) {

@@ -263,6 +263,7 @@ export class PaymentNotificationsService {
     const claimCutoff = new Date(
       Date.now() - this.deliveryClaimTtlSeconds() * 1000,
     );
+    const includeStreamPending = this.paymentSpeakerStreamingEnabled();
     const candidates = await this.prisma.$transaction(async (tx) => {
       await this.lockReadyNotificationClient(tx, clientId, storeCode);
       const blockedDeliveries =
@@ -289,8 +290,10 @@ export class PaymentNotificationsService {
       const readyNotifications = await tx.paymentNotification.findMany({
         where: {
           storeCode,
-          audioStatus: 'READY',
-          audioPath: { not: null },
+          OR: [
+            { audioStatus: 'READY', audioPath: { not: null } },
+            ...(includeStreamPending ? [{ audioStatus: 'PENDING' }] : []),
+          ],
           expiresAt: { gt: new Date() },
           ...(afterCreatedAt ? { createdAt: { gt: afterCreatedAt } } : {}),
           ...(blockedNotificationIds.length > 0
@@ -310,6 +313,14 @@ export class PaymentNotificationsService {
     if (candidates.blockedCount >= limit * 3) {
       this.logger.debug(
         `Payment ready query excluded ${candidates.blockedCount} delivered or terminal notifications for store=${storeCode} client=${this.safeClientLabel(clientId)}`,
+      );
+    }
+    const streamPendingCount = candidates.readyNotifications.filter(
+      (notification) => notification.audioStatus === 'PENDING',
+    ).length;
+    if (streamPendingCount > 0) {
+      this.logger.debug(
+        `Payment ready query returned ${streamPendingCount} stream-pending notifications for recovery store=${storeCode} client=${this.safeClientLabel(clientId)}`,
       );
     }
 

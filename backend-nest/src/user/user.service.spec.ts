@@ -2234,7 +2234,20 @@ describe('UserService admin store management', () => {
     expect(updateCall.data).toEqual(expect.objectContaining({ status: 'no' }));
     expect(mailService.sendMail).toHaveBeenCalledTimes(1);
     expect(mailService.sendMail).toHaveBeenCalledWith(
-      expect.objectContaining({ to: 'new@phongvu.vn' }),
+      expect.objectContaining({
+        to: 'new@phongvu.vn',
+        subject: 'Chào mừng bạn đến với PhongVu OpsHub',
+        text: expect.stringContaining(
+          'Tài khoản PhongVu OpsHub của bạn đã được tạo.',
+        ),
+      }),
+    );
+    const welcomeEmailText = mailService.sendMail.mock.calls[0][0].text;
+    expect(welcomeEmailText).toContain(
+      'Windows và Android tải tại: https://opshub.hoanghochoi.com/download',
+    );
+    expect(welcomeEmailText).toContain(
+      'iOS: Mở trang https://opshub.hoanghochoi.com bằng trình duyệt Safari -> Share -> Add to Home Screen',
     );
   });
 

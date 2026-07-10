@@ -66,7 +66,7 @@ model VietQrPaymentIntent {
 
 model MapVietinTransaction {
   id                   String    @id @default(uuid())
-  storeCode            String
+  storeCode            String?
   transactionKey       String    @unique
   transactionNumber    String?
   amount               Int
@@ -98,7 +98,7 @@ model MapVietinTransactionOrderAudit {
   id              String               @id @default(uuid())
   transactionId   String
   transaction     MapVietinTransaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
-  storeCode       String
+  storeCode       String?
   oldOrders       String[]             @default([])
   newOrders       String[]             @default([])
   changedByUserId String?

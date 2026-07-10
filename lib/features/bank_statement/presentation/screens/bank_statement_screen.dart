@@ -11,9 +11,11 @@ import '../../../../app/theme/app_text_styles.dart';
 import '../../../../app/widgets/app_buttons.dart';
 import '../../../../app/widgets/app_cards.dart';
 import '../../../../app/widgets/app_chips.dart';
+import '../../../../app/widgets/app_combobox.dart';
 import '../../../../app/widgets/app_filter_dropdowns.dart';
 import '../../../../app/widgets/app_inputs.dart';
 import '../../../../app/widgets/app_layout.dart';
+import '../../../../app/widgets/app_pagination.dart';
 import '../../../../app/widgets/app_state_widgets.dart';
 import '../../../../core/logging/app_logger.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
@@ -24,12 +26,12 @@ import '../widgets/bank_statement_transaction_details.dart';
 
 const double _localBreakpoint = 800;
 const double _filterGap = AppLayoutTokens.formInlineGap;
-const List<DropdownMenuItem<String>> _orderStatusItems = [
-  DropdownMenuItem(value: 'ALL', child: Text('Tất cả giao dịch')),
-  DropdownMenuItem(value: 'HAS_ORDER', child: Text('Đã có đơn hàng')),
-  DropdownMenuItem(value: 'MISSING_ORDER', child: Text('Chưa có đơn hàng')),
-  DropdownMenuItem(value: 'OFFSET_CONFIRMED', child: Text('Giao dịch cấn trừ')),
-  DropdownMenuItem(value: 'OFFSET_PENDING', child: Text('Chờ xác nhận')),
+const List<AppComboboxOption<String>> _orderStatusOptions = [
+  AppComboboxOption(value: 'ALL', label: 'Tất cả giao dịch'),
+  AppComboboxOption(value: 'HAS_ORDER', label: 'Đã có đơn hàng'),
+  AppComboboxOption(value: 'MISSING_ORDER', label: 'Chưa có đơn hàng'),
+  AppComboboxOption(value: 'OFFSET_CONFIRMED', label: 'Giao dịch cấn trừ'),
+  AppComboboxOption(value: 'OFFSET_PENDING', label: 'Chờ xác nhận'),
 ];
 
 String _formatStatementDateTime(DateTime? value) {
@@ -76,7 +78,7 @@ class _BankStatementScreenState extends State<BankStatementScreen> {
     await provider.initialize(user);
     final initialOrderStatus = widget.initialOrderStatus?.trim().toUpperCase();
     if (initialOrderStatus == null ||
-        !_orderStatusItems.any((item) => item.value == initialOrderStatus)) {
+        !_orderStatusOptions.any((item) => item.value == initialOrderStatus)) {
       return;
     }
     provider.setOrderStatus(initialOrderStatus);
@@ -345,11 +347,12 @@ class _FilterPanelState extends State<_FilterPanel> {
                     onSubmitted: (_) => widget.provider.search(),
                   ),
                   const SizedBox(height: _filterGap),
-                  AppSelectField<String>(
+                  AppCombobox<String>.single(
                     value: widget.provider.orderStatus,
                     label: 'Trạng thái',
                     icon: Icons.flag_outlined,
-                    items: _orderStatusItems,
+                    options: _orderStatusOptions,
+                    allowClear: false,
                     onChanged: (value) {
                       if (value != null) {
                         widget.provider.setOrderStatus(value);
@@ -435,11 +438,12 @@ class _FilterPanelState extends State<_FilterPanel> {
                   ),
                   const SizedBox(width: _filterGap),
                   Expanded(
-                    child: AppSelectField<String>(
+                    child: AppCombobox<String>.single(
                       value: widget.provider.orderStatus,
                       label: 'Trạng thái',
                       icon: Icons.flag_outlined,
-                      items: _orderStatusItems,
+                      options: _orderStatusOptions,
+                      allowClear: false,
                       onChanged: (value) {
                         if (value != null) {
                           widget.provider.setOrderStatus(value);
@@ -515,38 +519,16 @@ class _StatementListControls extends StatelessWidget {
         ),
       ],
     );
-    final pageControls = Row(
-      children: [
-        IconButton(
-          tooltip: 'Trang trước',
-          onPressed: provider.canGoPrevious ? provider.previousPage : null,
-          icon: const Icon(Icons.chevron_left_rounded),
-        ),
-        Expanded(
-          child: Center(
-            child: Text(
-              'Trang ${provider.page + 1} - ${provider.total} giao dịch',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              softWrap: false,
-              style: AppTextStyles.labelM,
-            ),
-          ),
-        ),
-        IconButton(
-          tooltip: 'Trang sau',
-          onPressed: provider.canGoNext ? provider.nextPage : null,
-          icon: const Icon(Icons.chevron_right_rounded),
-        ),
-        IconButton(
-          tooltip: 'Làm mới',
-          onPressed:
-              provider.hasSearched && provider.canSearch && !provider.isLoading
-              ? provider.refreshCurrentPage
-              : null,
-          icon: const Icon(Icons.refresh_rounded),
-        ),
-      ],
+    final pageControls = AppPaginationControls(
+      pageIndex: provider.page,
+      totalItems: provider.total,
+      itemLabel: 'giao dịch',
+      onPrevious: provider.canGoPrevious ? provider.previousPage : null,
+      onNext: provider.canGoNext ? provider.nextPage : null,
+      onRefresh: provider.hasSearched && provider.canSearch
+          ? provider.refreshCurrentPage
+          : null,
+      isRefreshing: provider.isLoading,
     );
 
     return LayoutBuilder(
@@ -582,27 +564,28 @@ class _StoreFilterButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final options = [
       if (provider.canUseAllStores)
-        const AppFilterOption<String>(
+        const AppComboboxOption<String>(
           value: _allStoresValue,
           label: 'Tất cả showroom',
         ),
       ...provider.stores.map(
-        (store) => AppFilterOption<String>(
+        (store) => AppComboboxOption<String>(
           value: store.storeId,
           label: store.displayName,
+          searchKeywords: [store.storeId, store.storeName],
         ),
       ),
     ];
     final values = provider.allStores
         ? {_allStoresValue}
         : provider.selectedStoreIds;
-    return AppMultiSelectFilterDropdown<String>(
+    return AppCombobox<String>.multi(
       label: 'Showroom',
       values: values,
       options: options,
       emptyLabel: 'Showroom được gán',
       icon: Icons.store_outlined,
-      onChanged: (selected) {
+      onMultiChanged: (selected) {
         if (selected.contains(_allStoresValue)) {
           provider.setStoreSelection(allStores: true, ids: const {});
           return;
@@ -643,16 +626,14 @@ class _LimitDropdown extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AppSelectField<int>(
+    return AppCombobox<int>.single(
       value: provider.limit,
       label: 'Số dòng',
       icon: Icons.format_list_numbered_rounded,
-      items: const [10, 20, 50, 100]
-          .map(
-            (value) =>
-                DropdownMenuItem(value: value, child: Text('$value dòng')),
-          )
+      options: const [10, 20, 50, 100]
+          .map((value) => AppComboboxOption(value: value, label: '$value dòng'))
           .toList(),
+      allowClear: false,
       onChanged: (value) {
         if (value != null) provider.setLimit(value);
       },

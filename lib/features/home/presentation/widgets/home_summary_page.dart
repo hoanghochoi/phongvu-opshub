@@ -9,8 +9,8 @@ import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_radius.dart';
 import '../../../../app/theme/app_text_styles.dart';
 import '../../../../app/widgets/app_cards.dart';
+import '../../../../app/widgets/app_combobox.dart';
 import '../../../../app/widgets/app_filter_dropdowns.dart';
-import '../../../../app/widgets/app_inputs.dart';
 import '../../../../app/widgets/app_layout.dart';
 import '../../../../app/widgets/app_state_widgets.dart';
 import '../../../../core/formatting/money_formatters.dart';
@@ -18,26 +18,43 @@ import '../../../../core/logging/app_logger.dart';
 import '../../domain/home_summary.dart';
 import '../providers/home_summary_provider.dart';
 
-const _unselectedSalesProgressAssigneeValue =
-    '__home_summary_unselected_sales_assignee__';
-
 class HomeSummaryPage extends StatelessWidget {
-  const HomeSummaryPage({super.key, required this.provider, this.headerAction});
+  const HomeSummaryPage({
+    super.key,
+    required this.provider,
+    this.headerAction,
+    this.footer,
+    this.greetingName,
+    this.greetingNow,
+  });
 
   final HomeSummaryProvider provider;
   final Widget? headerAction;
+  final Widget? footer;
+  final String? greetingName;
+  final DateTime Function()? greetingNow;
 
   @override
   Widget build(BuildContext context) {
     final summary = provider.summary;
     final content = _buildSummaryContent(summary);
 
-    return Column(
-      key: const Key('home-summary-page'),
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        HomeSummaryHeader(
+    final scrollableContent = <Widget>[
+      // Keep the metrics dashboard tree stable: overview, KPI grids, footer.
+      ...content,
+      if (footer != null) ...[
+        const SizedBox(height: AppLayoutTokens.cardGap),
+        footer!,
+      ],
+      const SizedBox(height: 20),
+    ];
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final header = HomeSummaryHeader(
           summary: summary,
+          greetingName: greetingName,
+          greetingNow: greetingNow,
           selectedScope: provider.selectedScope,
           selectedScopeLabel: provider.selectedScopeLabel,
           scopeOptions: provider.scopeOptions,
@@ -56,11 +73,33 @@ class HomeSummaryPage extends StatelessWidget {
               ? provider.errorMessage
               : null,
           action: headerAction,
-        ),
-        const SizedBox(height: AppLayoutTokens.cardGap),
-        // Keep the metrics dashboard tree stable: header, overview, KPI grids.
-        ...content,
-      ],
+        );
+        final canOwnScroll =
+            constraints.hasBoundedHeight && constraints.maxHeight.isFinite;
+        final body = canOwnScroll
+            ? SingleChildScrollView(
+                key: const Key('home-summary-scroll-body'),
+                physics: const AlwaysScrollableScrollPhysics(),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: scrollableContent,
+                ),
+              )
+            : Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: scrollableContent,
+              );
+
+        return Column(
+          key: const Key('home-summary-page'),
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            header,
+            const SizedBox(height: AppLayoutTokens.cardGap),
+            if (canOwnScroll) Expanded(child: body) else body,
+          ],
+        );
+      },
     );
   }
 
@@ -228,10 +267,32 @@ class _SummarySubsectionHeader extends StatelessWidget {
   }
 }
 
+String homeGreetingLabel(String? rawName, {DateTime Function()? now}) {
+  final name = _homeGreetingName(rawName);
+  final vietnamNow = (now ?? DateTime.now)().toUtc().add(
+    const Duration(hours: 7),
+  );
+  final prefix = switch (vietnamNow.hour) {
+    >= 5 && < 12 => 'Chào buổi sáng',
+    >= 12 && < 18 => 'Chào buổi chiều',
+    _ => 'Chào buổi tối',
+  };
+  return '$prefix $name';
+}
+
+String _homeGreetingName(String? rawName) {
+  final trimmed = rawName?.trim();
+  if (trimmed == null || trimmed.isEmpty) return 'bạn';
+  if (trimmed.contains('@')) return trimmed.split('@').first;
+  return trimmed;
+}
+
 class HomeSummaryHeader extends StatelessWidget {
   const HomeSummaryHeader({
     super.key,
     required this.summary,
+    this.greetingName,
+    this.greetingNow,
     required this.selectedScope,
     required this.selectedScopeLabel,
     required this.scopeOptions,
@@ -246,6 +307,8 @@ class HomeSummaryHeader extends StatelessWidget {
   });
 
   final HomeSummary? summary;
+  final String? greetingName;
+  final DateTime Function()? greetingNow;
   final String selectedScope;
   final String selectedScopeLabel;
   final List<HomeSummaryScopeOption> scopeOptions;
@@ -260,6 +323,7 @@ class HomeSummaryHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final greetingLabel = homeGreetingLabel(greetingName, now: greetingNow);
     final scopeLabel = summary?.resolvedScopeLabel ?? 'Đang đồng bộ phạm vi';
     final scopeColor = summary?.isUnavailable == true
         ? AppColors.warning
@@ -274,57 +338,83 @@ class HomeSummaryHeader extends StatelessWidget {
       child: LayoutBuilder(
         builder: (context, constraints) {
           final compact = constraints.maxWidth < 760;
+          final stackControls = constraints.maxWidth < 560;
           final titleBlock = Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Trang chủ vận hành',
+                greetingLabel,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
                 style: AppTextStyles.headingM.copyWith(
                   color: AppColors.textPrimaryOf(context),
                 ),
               ),
             ],
           );
-          final controls = Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            alignment: compact ? WrapAlignment.start : WrapAlignment.end,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              _ScopeSelectorPill(
-                label: selectedScopeLabel.isEmpty
-                    ? scopeLabel
-                    : selectedScopeLabel,
-                selectedScope: selectedScope,
-                options: scopeOptions,
-                compact: false,
-                dense: true,
-                color: scopeColor,
-                onSelected: onScopeChanged,
+          final controlChildren = [
+            _ScopeSelectorPill(
+              label: selectedScopeLabel.isEmpty
+                  ? scopeLabel
+                  : selectedScopeLabel,
+              selectedScope: selectedScope,
+              options: scopeOptions,
+              compact: false,
+              dense: true,
+              color: scopeColor,
+              onSelected: onScopeChanged,
+            ),
+            SizedBox(
+              key: const Key('home-summary-date-range'),
+              width: stackControls ? double.infinity : 244,
+              child: AppDateRangeDropdown(
+                label: 'Ngày',
+                start: selectedStartDate,
+                end: selectedEndDate,
+                onChanged: onDateRangeChanged,
+                showEmptyRangeHelperText: stackControls,
+                now: () => DateTime.now(),
               ),
-              SizedBox(
-                key: const Key('home-summary-date-range'),
-                width: compact ? double.infinity : 244,
-                child: AppDateRangeDropdown(
-                  label: 'Ngày',
-                  start: selectedStartDate,
-                  end: selectedEndDate,
-                  onChanged: onDateRangeChanged,
-                  showEmptyRangeHelperText: compact,
-                  now: () => DateTime.now(),
-                ),
-              ),
-              _HeaderActionPill(
-                key: const Key('home-summary-refresh-button'),
-                icon: Icons.schedule_outlined,
-                label: updatedLabel,
-                tooltip: 'Làm mới dashboard',
-                isLoading: isRefreshing,
-                onTap: onRefresh,
-              ),
-              if (action != null) action!,
-            ],
-          );
+            ),
+            _HeaderActionPill(
+              key: const Key('home-summary-refresh-button'),
+              icon: Icons.schedule_outlined,
+              label: updatedLabel,
+              tooltip: 'Làm mới dashboard',
+              isLoading: isRefreshing,
+              onTap: onRefresh,
+            ),
+            if (action != null) action!,
+          ];
+          final controls = stackControls
+              ? Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  alignment: WrapAlignment.start,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: controlChildren,
+                )
+              : Align(
+                  alignment: compact
+                      ? Alignment.centerLeft
+                      : Alignment.centerRight,
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        for (
+                          var index = 0;
+                          index < controlChildren.length;
+                          index++
+                        ) ...[
+                          if (index > 0) const SizedBox(width: 8),
+                          controlChildren[index],
+                        ],
+                      ],
+                    ),
+                  ),
+                );
 
           final headerRow = compact
               ? Column(
@@ -334,9 +424,9 @@ class HomeSummaryHeader extends StatelessWidget {
               : Row(
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    Expanded(child: titleBlock),
+                    Expanded(flex: 2, child: titleBlock),
                     const SizedBox(width: 20),
-                    Flexible(child: controls),
+                    Expanded(flex: 5, child: controls),
                   ],
                 );
 
@@ -1700,7 +1790,7 @@ class _InstallmentNeedDetailsDataTable extends StatelessWidget {
         color: AppColors.textPrimaryOf(context),
       ),
       columns: const [
-        DataColumn(label: Text('SR')),
+        DataColumn(label: Text('Mã showroom')),
         DataColumn(label: Text('Tên SA')),
         DataColumn(label: Text('Đối tác trả góp')),
         DataColumn(label: Text('Thành công')),
@@ -1928,7 +2018,7 @@ class ReportProgressPanel extends StatelessWidget {
 
     return AppSurfaceCard(
       key: const Key('home-summary-progress-panel'),
-      padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
+      padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1938,7 +2028,7 @@ class ReportProgressPanel extends StatelessWidget {
               color: AppColors.textPrimaryOf(context),
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 12),
           LayoutBuilder(
             builder: (context, constraints) {
               if (panels.isEmpty) return const SizedBox.shrink();
@@ -1949,7 +2039,7 @@ class ReportProgressPanel extends StatelessWidget {
                   personalPanel != null &&
                   scopePanel != null) {
                 return SizedBox(
-                  height: 330,
+                  height: 292,
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
@@ -1989,10 +2079,10 @@ class ReportProgressPanel extends StatelessWidget {
                   (constraints.maxWidth - gap * math.max(0, columns - 1)) /
                   math.max(1, columns);
               final height = constraints.maxWidth >= 980
-                  ? 300.0
+                  ? 286.0
                   : constraints.maxWidth >= 620
-                  ? 292.0
-                  : 300.0;
+                  ? 278.0
+                  : 292.0;
               return Wrap(
                 spacing: gap,
                 runSpacing: gap,
@@ -2026,6 +2116,11 @@ class ReportProgressPanel extends StatelessWidget {
   }
 }
 
+const double _salesProgressControlSlotHeight = 42;
+const double _salesProgressDonutSlotHeight = 72;
+const double _salesProgressLabelSlotHeight = 18;
+const double _salesProgressMetricSlotHeight = 34;
+
 class _ProgressDonutPanel extends StatelessWidget {
   const _ProgressDonutPanel({
     required this.panelKey,
@@ -2045,7 +2140,7 @@ class _ProgressDonutPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       key: panelKey,
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.04),
         border: Border.all(color: color.withValues(alpha: 0.16)),
@@ -2055,7 +2150,7 @@ class _ProgressDonutPanel extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Text(title, style: AppTextStyles.labelM),
-          const SizedBox(height: 10),
+          const SizedBox(height: 8),
           _ProgressDonut(
             key: title == 'Tiến độ báo cáo'
                 ? const Key('home-summary-progress-donut')
@@ -2064,7 +2159,7 @@ class _ProgressDonutPanel extends StatelessWidget {
             color: color,
             dimension: 92,
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
           legend,
         ],
       ),
@@ -2142,7 +2237,7 @@ class _SalesProgressPanel extends StatelessWidget {
         resolvedEmptyMessage.isNotEmpty;
     return Container(
       key: panelKey,
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.04),
         border: Border.all(color: color.withValues(alpha: 0.16)),
@@ -2153,15 +2248,23 @@ class _SalesProgressPanel extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Text(title, textAlign: TextAlign.center, style: AppTextStyles.labelM),
-          if (assignees.isNotEmpty) ...[
-            const SizedBox(height: 8),
-            _SalesProgressAssigneeDropdown(
-              assignees: assignees,
-              selectedAssigneeId: selectedAssigneeId,
-              onChanged: onAssigneeChanged,
-            ),
-          ],
-          const SizedBox(height: 10),
+          SizedBox(
+            height: _salesProgressControlSlotHeight,
+            child: assignees.isEmpty
+                ? const SizedBox.shrink()
+                : Align(
+                    alignment: Alignment.topCenter,
+                    child: Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: _SalesProgressAssigneeDropdown(
+                        assignees: assignees,
+                        selectedAssigneeId: selectedAssigneeId,
+                        onChanged: onAssigneeChanged,
+                      ),
+                    ),
+                  ),
+          ),
+          const SizedBox(height: 8),
           if (showEmptyPrompt)
             Expanded(
               child: Center(
@@ -2247,87 +2350,36 @@ class _SalesProgressAssigneeDropdown extends StatelessWidget {
     required this.onChanged,
   });
 
-  static const int searchThreshold = 10;
-
   final List<HomeSalesProgressAssignee> assignees;
   final String? selectedAssigneeId;
   final ValueChanged<String?>? onChanged;
 
   @override
   Widget build(BuildContext context) {
-    final selected = selectedAssigneeId == null
-        ? null
-        : assignees
-              .where((assignee) => assignee.userId == selectedAssigneeId)
-              .firstOrNull;
-    final value = selected?.userId ?? _unselectedSalesProgressAssigneeValue;
-    if (assignees.length > searchThreshold) {
-      return _SalesProgressAssigneeSearchButton(
-        assignees: assignees,
-        selectedAssignee: selected,
-        onChanged: onChanged,
-      );
-    }
-    return Container(
+    return SizedBox(
       key: const Key('home-sales-progress-assignee-dropdown'),
-      height: 34,
-      padding: const EdgeInsets.symmetric(horizontal: 10),
-      decoration: BoxDecoration(
-        color: AppColors.cardOf(context).withValues(alpha: 0.7),
-        border: Border.all(color: AppColors.borderOf(context)),
-        borderRadius: AppRadius.allSm,
-      ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<String>(
-          value: value,
-          isExpanded: true,
-          icon: const Icon(Icons.expand_more_rounded, size: 18),
-          dropdownColor: AppColors.overlayOf(context),
-          borderRadius: AppRadius.allMd,
-          style: AppTextStyles.labelS.copyWith(
-            color: AppColors.textPrimaryOf(context),
-          ),
-          onChanged: onChanged == null
-              ? null
-              : (value) => onChanged!(
-                  value == _unselectedSalesProgressAssigneeValue ? null : value,
-                ),
-          items: [
-            DropdownMenuItem<String>(
-              value: _unselectedSalesProgressAssigneeValue,
-              child: Row(
-                children: [
-                  const Icon(Icons.person_off_outlined, size: 16),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'Chưa chọn SA',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
+      width: 260,
+      child: AppCombobox<String>.single(
+        label: 'Nhân viên',
+        value: selectedAssigneeId,
+        icon: Icons.person_search_rounded,
+        dense: true,
+        emptyLabel: 'Chưa chọn SA',
+        options: assignees
+            .map(
+              (assignee) => AppComboboxOption(
+                value: assignee.userId,
+                label: _assigneeLabel(assignee),
+                subtitle: _assigneeSubtitle(assignee),
+                searchKeywords: [
+                  assignee.label,
+                  assignee.email ?? '',
+                  assignee.storeCodes.join(' '),
                 ],
               ),
-            ),
-            for (final assignee in assignees)
-              DropdownMenuItem<String>(
-                value: assignee.userId,
-                child: Row(
-                  children: [
-                    const Icon(Icons.person_search_rounded, size: 16),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        _assigneeLabel(assignee),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-          ],
-        ),
+            )
+            .toList(growable: false),
+        onChanged: onChanged,
       ),
     );
   }
@@ -2337,252 +2389,6 @@ class _SalesProgressAssigneeDropdown extends StatelessWidget {
     if (stores.isEmpty) return assignee.label;
     return '${assignee.label} - $stores';
   }
-}
-
-class _SalesProgressAssigneeSearchButton extends StatelessWidget {
-  const _SalesProgressAssigneeSearchButton({
-    required this.assignees,
-    required this.selectedAssignee,
-    required this.onChanged,
-  });
-
-  final List<HomeSalesProgressAssignee> assignees;
-  final HomeSalesProgressAssignee? selectedAssignee;
-  final ValueChanged<String?>? onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      key: const Key('home-sales-progress-assignee-dropdown'),
-      color: AppColors.cardOf(context).withValues(alpha: 0.7),
-      borderRadius: AppRadius.allSm,
-      child: InkWell(
-        onTap: onChanged == null ? null : () => _openSearch(context),
-        borderRadius: AppRadius.allSm,
-        child: Container(
-          height: 34,
-          padding: const EdgeInsets.symmetric(horizontal: 10),
-          decoration: BoxDecoration(
-            border: Border.all(color: AppColors.borderOf(context)),
-            borderRadius: AppRadius.allSm,
-          ),
-          child: Row(
-            children: [
-              const Icon(Icons.person_search_rounded, size: 16),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  selectedAssignee == null
-                      ? 'Chưa chọn SA'
-                      : _SalesProgressAssigneeDropdown._assigneeLabel(
-                          selectedAssignee!,
-                        ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppTextStyles.labelS.copyWith(
-                    color: AppColors.textPrimaryOf(context),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              const Icon(Icons.search_rounded, size: 17),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Future<void> _openSearch(BuildContext context) async {
-    final selectedUserId = await showDialog<String>(
-      context: context,
-      barrierColor: AppColors.shadow.withValues(alpha: 0.48),
-      builder: (context) {
-        return _SalesProgressAssigneeSearchDialog(
-          assignees: assignees,
-          selectedAssigneeId: selectedAssignee?.userId,
-        );
-      },
-    );
-    if (selectedUserId == null) return;
-    final nextUserId = selectedUserId == _unselectedSalesProgressAssigneeValue
-        ? null
-        : selectedUserId;
-    if (nextUserId == selectedAssignee?.userId ||
-        (nextUserId == null && selectedAssignee == null)) {
-      return;
-    }
-    onChanged?.call(nextUserId);
-  }
-}
-
-class _SalesProgressAssigneeSearchDialog extends StatefulWidget {
-  const _SalesProgressAssigneeSearchDialog({
-    required this.assignees,
-    required this.selectedAssigneeId,
-  });
-
-  final List<HomeSalesProgressAssignee> assignees;
-  final String? selectedAssigneeId;
-
-  @override
-  State<_SalesProgressAssigneeSearchDialog> createState() =>
-      _SalesProgressAssigneeSearchDialogState();
-}
-
-class _SalesProgressAssigneeSearchDialogState
-    extends State<_SalesProgressAssigneeSearchDialog> {
-  final TextEditingController _controller = TextEditingController();
-  String _query = '';
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final filtered = _filteredAssignees();
-    final noAssigneeSelected = widget.selectedAssigneeId == null;
-    return Dialog(
-      key: const Key('home-sales-progress-assignee-search-dialog'),
-      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-      backgroundColor: AppColors.cardOf(context),
-      shape: RoundedRectangleBorder(borderRadius: AppRadius.allMd),
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 420, maxHeight: 560),
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      'Chọn SA',
-                      style: AppTextStyles.labelM.copyWith(
-                        color: AppColors.textPrimaryOf(context),
-                      ),
-                    ),
-                  ),
-                  IconButton(
-                    tooltip: 'Đóng',
-                    onPressed: () => Navigator.of(context).pop(),
-                    icon: const Icon(Icons.close_rounded, size: 20),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              AppTextInput(
-                key: const Key('home-sales-progress-assignee-search-input'),
-                controller: _controller,
-                label: 'Tìm nhân viên',
-                icon: Icons.search_rounded,
-                autofocus: true,
-                textInputAction: TextInputAction.search,
-                dense: true,
-                hintText: 'Tìm theo tên hoặc email',
-                onChanged: (value) => setState(() => _query = value),
-              ),
-              const SizedBox(height: 12),
-              ListTile(
-                key: const Key('home-sales-progress-assignee-option-none'),
-                dense: true,
-                leading: Icon(
-                  noAssigneeSelected
-                      ? Icons.check_circle_rounded
-                      : Icons.person_off_outlined,
-                  color: noAssigneeSelected
-                      ? AppColors.success
-                      : AppColors.textMutedOf(context),
-                ),
-                title: const Text('Chưa chọn SA'),
-                subtitle: const Text('Chọn SA để hiển thị chỉ số'),
-                onTap: () => Navigator.of(
-                  context,
-                ).pop(_unselectedSalesProgressAssigneeValue),
-              ),
-              Divider(height: 1, color: AppColors.subtleBorderOf(context)),
-              const SizedBox(height: 4),
-              Flexible(
-                child: filtered.isEmpty
-                    ? Center(
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 24),
-                          child: Text(
-                            'Không tìm thấy SA phù hợp.',
-                            style: AppTextStyles.bodyS.copyWith(
-                              color: AppColors.textMutedOf(context),
-                            ),
-                          ),
-                        ),
-                      )
-                    : ListView.separated(
-                        shrinkWrap: true,
-                        itemCount: filtered.length,
-                        separatorBuilder: (_, _) => Divider(
-                          height: 1,
-                          color: AppColors.subtleBorderOf(context),
-                        ),
-                        itemBuilder: (context, index) {
-                          final assignee = filtered[index];
-                          final selected =
-                              assignee.userId == widget.selectedAssigneeId;
-                          return ListTile(
-                            key: Key(
-                              'home-sales-progress-assignee-option-${assignee.userId}',
-                            ),
-                            dense: true,
-                            leading: Icon(
-                              selected
-                                  ? Icons.check_circle_rounded
-                                  : Icons.person_outline_rounded,
-                              color: selected
-                                  ? AppColors.success
-                                  : AppColors.textMutedOf(context),
-                            ),
-                            title: Text(
-                              assignee.label,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            subtitle: Text(
-                              _assigneeSubtitle(assignee),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            onTap: () =>
-                                Navigator.of(context).pop(assignee.userId),
-                          );
-                        },
-                      ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  List<HomeSalesProgressAssignee> _filteredAssignees() {
-    final query = _normalize(_query);
-    if (query.isEmpty) return widget.assignees;
-    return widget.assignees
-        .where((assignee) {
-          final haystack = _normalize(
-            [
-              assignee.label,
-              assignee.email,
-              assignee.storeCodes.join(' '),
-            ].whereType<String>().join(' '),
-          );
-          return haystack.contains(query);
-        })
-        .toList(growable: false);
-  }
 
   static String _assigneeSubtitle(HomeSalesProgressAssignee assignee) {
     final parts = [
@@ -2590,10 +2396,6 @@ class _SalesProgressAssigneeSearchDialogState
       if (assignee.email?.isNotEmpty == true) assignee.email!,
     ];
     return parts.join(' - ');
-  }
-
-  static String _normalize(String value) {
-    return value.trim().toLowerCase();
   }
 }
 
@@ -2617,41 +2419,61 @@ class _SalesProgressPeriodView extends StatelessWidget {
     return SizedBox(
       key: Key('$keyPrefix-$keySuffix'),
       child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisAlignment: MainAxisAlignment.start,
         children: [
-          _ProgressDonut(
-            key: Key('$keyPrefix-$keySuffix-donut'),
-            percentage: period.percentage,
-            color: color,
-            dimension: 68,
-          ),
-          const SizedBox(height: 6),
-          Text(
-            label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            textAlign: TextAlign.center,
-            style: AppTextStyles.labelS,
-          ),
-          const SizedBox(height: 2),
-          Text(
-            key: Key('$keyPrefix-$keySuffix-actual-label'),
-            'Đã đạt: ${formatCompactVndAmount(period.actual)}',
-            maxLines: 2,
-            textAlign: TextAlign.center,
-            style: AppTextStyles.caption.copyWith(
-              color: AppColors.textMutedOf(context),
+          SizedBox(
+            height: _salesProgressDonutSlotHeight,
+            child: Center(
+              child: _ProgressDonut(
+                key: Key('$keyPrefix-$keySuffix-donut'),
+                percentage: period.percentage,
+                color: color,
+                dimension: 68,
+              ),
             ),
           ),
-          Text(
-            key: Key('$keyPrefix-$keySuffix-target-label'),
-            period.target == null
-                ? 'Chỉ tiêu: Chưa thiết lập'
-                : 'Chỉ tiêu: ${formatCompactVndAmount(period.target!)}',
-            maxLines: 2,
-            textAlign: TextAlign.center,
-            style: AppTextStyles.caption.copyWith(
-              color: AppColors.textMutedOf(context),
+          const SizedBox(height: 6),
+          SizedBox(
+            height: _salesProgressLabelSlotHeight,
+            child: Center(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: AppTextStyles.labelS,
+              ),
+            ),
+          ),
+          const SizedBox(height: 2),
+          SizedBox(
+            height: _salesProgressMetricSlotHeight,
+            child: Center(
+              child: Text(
+                key: Key('$keyPrefix-$keySuffix-actual-label'),
+                'Đã đạt: ${formatCompactVndAmount(period.actual)}',
+                maxLines: 2,
+                textAlign: TextAlign.center,
+                style: AppTextStyles.caption.copyWith(
+                  color: AppColors.textMutedOf(context),
+                ),
+              ),
+            ),
+          ),
+          SizedBox(
+            height: _salesProgressMetricSlotHeight,
+            child: Center(
+              child: Text(
+                key: Key('$keyPrefix-$keySuffix-target-label'),
+                period.target == null
+                    ? 'Chỉ tiêu: Chưa thiết lập'
+                    : 'Chỉ tiêu: ${formatCompactVndAmount(period.target!)}',
+                maxLines: 2,
+                textAlign: TextAlign.center,
+                style: AppTextStyles.caption.copyWith(
+                  color: AppColors.textMutedOf(context),
+                ),
+              ),
             ),
           ),
         ],
@@ -2699,14 +2521,6 @@ class ReportCoverageDonut extends StatelessWidget {
         ),
       ),
     );
-  }
-}
-
-extension _FirstOrNullHomeSummaryWidgets<T> on Iterable<T> {
-  T? get firstOrNull {
-    final iterator = this.iterator;
-    if (!iterator.moveNext()) return null;
-    return iterator.current;
   }
 }
 

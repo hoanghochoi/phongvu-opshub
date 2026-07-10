@@ -10,7 +10,11 @@
   UnauthorizedException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
-import { createHash } from 'crypto';
+import {
+  constants as cryptoConstants,
+  createHash,
+  publicEncrypt,
+} from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { decryptSecret } from '../common/secret-cipher';
 import { PaymentNotificationsService } from '../payment-notifications/payment-notifications.service';
@@ -45,6 +49,22 @@ const MAP_NO_AUTH_BASE_URL =
 const MAP_TRANSACTION_BASE_URL =
   'https://map.vietinbank.vn/vtb/public/map/api/rpt-txnmng/api';
 const GLOBAL_SYNC_STATE_CODE = '__GLOBAL__';
+const EFAST_SYNC_STATE_CODE = '__EFAST__';
+const EFAST_BASE_URL = 'https://efast.vietinbank.vn';
+const EFAST_API_PREFIX = '/api/v1';
+const EFAST_SUCCESS_CODE = '1';
+const EFAST_SHARED_USER_CODE = '88';
+const EFAST_INVALID_SESSION_CODE = '-1';
+const EFAST_DEFAULT_PAGE_SIZE = 150;
+const EFAST_DEFAULT_MAX_PAGES = 1;
+const EFAST_DEFAULT_SESSION_TTL_SECONDS = 10 * 60;
+const EFAST_PUBLIC_KEY =
+  'MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQCz1zqQHtHvKczHh58ePiRNgOyiHEx6lZDPlvwBTaHmkNlQyyJ06SIlMU1pmGKxILjT7n06nxG7LlFVUN5MkW/jwF39/+drkHM5B0kh+hPQygFjRq81yxvLwolt+Vq7h+CTU0Z1wkFABcTeQQldZkJlTpyx0c3+jq0o47wIFjq5fwIDAQAB';
+const EFAST_SYNC_START_HOUR_VN = 8;
+const EFAST_SYNC_END_HOUR_VN = 22;
+const EFAST_FAST_SYNC_DELAY_MIN_MS = 50 * 1000;
+const EFAST_FAST_SYNC_DELAY_MAX_MS = 60 * 1000;
+const EFAST_NIGHT_SYNC_DELAY_MS = 30 * 60 * 1000;
 const MAP_SYNC_PAGE_SIZE = 100;
 const MAP_SYNC_START_HOUR_VN = 7;
 const MAP_SYNC_END_HOUR_VN = 22;
@@ -109,6 +129,41 @@ type MapSession = {
   merchantId: string;
 };
 
+type EfastStatus = {
+  code?: string;
+  message?: string;
+  subCode?: string;
+};
+
+type EfastLoginResponse = {
+  status?: EfastStatus;
+  sessionId?: string;
+  corpUser?: {
+    username?: string;
+    cifno?: string;
+    enterpriseid?: string;
+    enterpriseId?: string;
+  };
+  listCifShared?: Array<{
+    cifno?: string;
+    enterpriseid?: string;
+    enterpriseId?: string;
+  }>;
+};
+
+type EfastHistoryResponse = {
+  status?: EfastStatus;
+  transactions?: unknown[];
+  currentPage?: number;
+  nextPage?: number;
+};
+
+type EfastSession = {
+  username: string;
+  cifno: string;
+  sessionId: string;
+};
+
 type StoreAccountRow = {
   storeId: string;
   transferAccountNumber?: string | null;
@@ -123,12 +178,22 @@ type UnmappedReason =
 export class MapVietinService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(MapVietinService.name);
   private syncInProgress = false;
+  private efastSyncInProgress = false;
   private lastSyncWindowOpen?: boolean;
+  private lastEfastSyncWindowOpen?: boolean;
   private mapHistorySyncTimer?: NodeJS.Timeout;
+  private efastSyncTimer?: NodeJS.Timeout;
   private mapHistorySyncStopped = false;
+  private efastSyncStopped = false;
   private globalSessionCache?: {
     username: string;
     session: MapSession;
+    expiresAt: number;
+  };
+  private efastSessionCache?: {
+    username: string;
+    cifno: string;
+    session: EfastSession;
     expiresAt: number;
   };
   private readonly amountKeys = [
@@ -172,11 +237,14 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
     'tranNumber',
     'transactionNo',
     'txnNo',
+    'trxId',
+    'trxRefNo',
     'id',
   ];
-  private readonly transactionReferenceKeys = ['txnReference'];
+  private readonly transactionReferenceKeys = ['txnReference', 'trxRefNo'];
   private readonly transactionTimeKeys = [
     'tranTime',
+    'tranDate',
     'txnDate',
     'transactionDate',
     'transactionTime',
@@ -192,6 +260,7 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
     'senderFullName',
     'fromAccountName',
     'debitAccountName',
+    'corresponsiveName',
     'customerName',
     'buyerName',
   ];
@@ -206,6 +275,7 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
     'fromAccountNo',
     'debitAccount',
     'debitAccountNo',
+    'corresponsiveAccount',
   ];
   private readonly virtualAccountKeys = [
     'virtualAccount',
@@ -217,6 +287,13 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
     'receiveAccountNo',
     'beneficiaryAccount',
     'beneficiaryAccountNo',
+  ];
+  private readonly efastVirtualAccountKeys = [
+    'pmtId',
+    'pmtID',
+    'pmtid',
+    'paymentId',
+    'paymentID',
   ];
 
   constructor(
@@ -233,20 +310,27 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
 
   onModuleInit() {
     this.mapHistorySyncStopped = false;
+    this.efastSyncStopped = false;
     if (this.isMapHistorySyncDisabled()) {
       this.logger.log(
         'MAP history sync scheduler disabled by MAP_VIETIN_SYNC_ENABLED=false',
       );
-      return;
+    } else {
+      this.scheduleNextMapHistorySync();
     }
-    this.scheduleNextMapHistorySync();
+    this.scheduleNextEfastSync();
   }
 
   onModuleDestroy() {
     this.mapHistorySyncStopped = true;
+    this.efastSyncStopped = true;
     if (this.mapHistorySyncTimer) {
       clearTimeout(this.mapHistorySyncTimer);
       this.mapHistorySyncTimer = undefined;
+    }
+    if (this.efastSyncTimer) {
+      clearTimeout(this.efastSyncTimer);
+      this.efastSyncTimer = undefined;
     }
   }
 
@@ -386,7 +470,9 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
         const canUseStatementActions =
           !actionScope ||
           actionScope.allStores ||
-          actionScope.storeCodes.includes(row.storeCode) ||
+          (row.storeCode
+            ? actionScope.storeCodes.includes(row.storeCode)
+            : actionScope.includeUnassigned) ||
           verifiedOrderLookupEdit;
         return this.toStoredTransactionDto(row, {
           canEditProtectedOrders:
@@ -517,10 +603,14 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
     const canEditThisProtectedOrder =
       canEditProtectedOrders || verifiedOrderLookupEdit;
     this.assertStatementOrderEditAllowed(existing, canEditThisProtectedOrder);
+    const assignedStoreCode = existing.storeCode
+      ? existing.storeCode
+      : (await this.resolveUserStore(user)).storeId;
     const now = new Date();
     const updated = await this.prisma.mapVietinTransaction.update({
       where: { id: resolvedId },
       data: {
+        storeCode: assignedStoreCode,
         orders,
         orderSource: ORDER_SOURCE_MANUAL,
         orderUpdatedAt: now,
@@ -533,7 +623,7 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
       await this.prisma.mapVietinTransactionOrderAudit.create({
         data: {
           transactionId: resolvedId,
-          storeCode: existing.storeCode,
+          storeCode: assignedStoreCode,
           oldOrders,
           newOrders: orders,
           changedByUserId: user.id || null,
@@ -544,7 +634,7 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
     }
 
     this.logger.log(
-      `Statement orders updated: user=${this.safeUserLabel(user)} transaction=${resolvedId} requestedTransaction=${id} store=${existing.storeCode} oldCount=${oldOrders.length} newCount=${orders.length} changed=${changed} protected=${oldOrders.length > 0} finAcc=${canEditProtectedOrders} resolvedByTransactionKey=${resolvedByTransactionKey} crossStoreVerified=${!canReadStore && verifiedOrderLookupEdit}`,
+      `Statement orders updated: user=${this.safeUserLabel(user)} transaction=${resolvedId} requestedTransaction=${id} store=${assignedStoreCode} oldStore=${existing.storeCode || 'null'} oldCount=${oldOrders.length} newCount=${orders.length} changed=${changed} protected=${oldOrders.length > 0} finAcc=${canEditProtectedOrders} resolvedByTransactionKey=${resolvedByTransactionKey} crossStoreVerified=${!canReadStore && verifiedOrderLookupEdit}`,
     );
     return this.toStoredTransactionDto(updated, {
       canEditProtectedOrders: canEditThisProtectedOrder,
@@ -569,6 +659,11 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
       where: { id },
     });
     if (!existing) throw new BadRequestException('Giao dịch không hợp lệ');
+    if (!existing.storeCode) {
+      throw new BadRequestException(
+        'Giao dịch chưa có showroom nên không tạo yêu cầu cấn trừ.',
+      );
+    }
     await this.assertCanReadStatementStore(user, existing.storeCode);
     this.assertStatementOrderTransferWindow(existing);
     const oldOrders = this.normalizeOrderCodes(existing.orders || []);
@@ -730,10 +825,57 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
+  private scheduleNextEfastSync() {
+    if (this.efastSyncStopped || !this.isEfastSyncEnabled()) return;
+    const delayMs = this.nextEfastSyncDelayMs();
+    if (this.efastSyncTimer) {
+      clearTimeout(this.efastSyncTimer);
+    }
+    this.efastSyncTimer = setTimeout(() => {
+      void this.runScheduledEfastSync();
+    }, delayMs);
+    this.efastSyncTimer.unref?.();
+    this.logger.debug(`Next VietinBank eFAST sync scheduled in ${delayMs}ms`);
+  }
+
+  private async runScheduledEfastSync() {
+    try {
+      const inFastWindow = this.isWithinEfastFastSyncWindow();
+      if (this.lastEfastSyncWindowOpen !== inFastWindow) {
+        this.logger.log(
+          inFastWindow
+            ? 'VietinBank eFAST sync fast cadence active'
+            : 'VietinBank eFAST sync night cadence active',
+        );
+      }
+      this.lastEfastSyncWindowOpen = inFastWindow;
+      if (this.efastSyncInProgress) return;
+      this.efastSyncInProgress = true;
+      try {
+        await this.syncEfastTransactions();
+      } finally {
+        this.efastSyncInProgress = false;
+      }
+    } catch (error) {
+      this.logger.warn(
+        `Scheduled VietinBank eFAST sync failed: ${this.safeError(error).slice(0, 500)}`,
+      );
+    } finally {
+      this.scheduleNextEfastSync();
+    }
+  }
+
   private randomMapHistorySyncDelayMs() {
     const span = MAP_HISTORY_SYNC_DELAY_MAX_MS - MAP_HISTORY_SYNC_DELAY_MIN_MS;
     return (
       MAP_HISTORY_SYNC_DELAY_MIN_MS + Math.floor(Math.random() * (span + 1))
+    );
+  }
+
+  private randomEfastFastSyncDelayMs() {
+    const span = EFAST_FAST_SYNC_DELAY_MAX_MS - EFAST_FAST_SYNC_DELAY_MIN_MS;
+    return (
+      EFAST_FAST_SYNC_DELAY_MIN_MS + Math.floor(Math.random() * (span + 1))
     );
   }
 
@@ -744,6 +886,20 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
     return Math.min(
       MAP_HISTORY_SYNC_NIGHT_DELAY_MS,
       this.msUntilNextMapFastWindowStart(value),
+    );
+  }
+
+  private nextEfastSyncDelayMs(value = new Date(Date.now())) {
+    if (this.isWithinEfastFastSyncWindow(value)) {
+      const fastDelay = this.randomEfastFastSyncDelayMs();
+      const msUntilNight = this.msUntilEfastNightWindowStart(value);
+      return msUntilNight <= fastDelay
+        ? msUntilNight + EFAST_NIGHT_SYNC_DELAY_MS
+        : fastDelay;
+    }
+    return Math.min(
+      EFAST_NIGHT_SYNC_DELAY_MS,
+      this.msUntilNextEfastFastWindowStart(value),
     );
   }
 
@@ -765,6 +921,40 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
         ? startTodayVietnamMs
         : startTodayVietnamMs + ONE_DAY_MS;
     return Math.max(1, nextStartVietnamMs - vietnamTimeMs);
+  }
+
+  private msUntilNextEfastFastWindowStart(value: Date) {
+    const vietnamTimeMs = this.vietnamTimeMs(value);
+    const vietnamDate = new Date(vietnamTimeMs);
+    const startTodayVietnamMs = Date.UTC(
+      vietnamDate.getUTCFullYear(),
+      vietnamDate.getUTCMonth(),
+      vietnamDate.getUTCDate(),
+      EFAST_SYNC_START_HOUR_VN,
+      0,
+      0,
+      0,
+    );
+    const nextStartVietnamMs =
+      vietnamTimeMs < startTodayVietnamMs
+        ? startTodayVietnamMs
+        : startTodayVietnamMs + ONE_DAY_MS;
+    return Math.max(1, nextStartVietnamMs - vietnamTimeMs);
+  }
+
+  private msUntilEfastNightWindowStart(value: Date) {
+    const vietnamTimeMs = this.vietnamTimeMs(value);
+    const vietnamDate = new Date(vietnamTimeMs);
+    const nightStartVietnamMs = Date.UTC(
+      vietnamDate.getUTCFullYear(),
+      vietnamDate.getUTCMonth(),
+      vietnamDate.getUTCDate(),
+      EFAST_SYNC_END_HOUR_VN,
+      1,
+      0,
+      0,
+    );
+    return Math.max(1, nightStartVietnamMs - vietnamTimeMs);
   }
 
   private isMapHistorySyncDisabled() {
@@ -906,6 +1096,263 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
       });
       return { created: 0, quarantined: 0 };
     }
+  }
+
+  async syncEfastTransactions() {
+    const now = new Date();
+    const startedAt = Date.now();
+    try {
+      const username = this.efastUsername();
+      const password = this.efastPassword();
+      const accounts = this.efastBankAccounts();
+      if (!username || !password || accounts.length === 0) {
+        throw new BadRequestException(
+          'VietinBank eFAST credential is not configured',
+        );
+      }
+
+      const today = this.formatMapDate(now);
+      let session = await this.getEfastSession(username, password);
+      const storeAccountIndex = await this.loadStoreAccountIndex();
+      const pageSize = this.efastPageSize();
+      const maxPages = this.efastSyncMaxPages();
+      let fetched = 0;
+      let creditRows = 0;
+      let created = 0;
+      let quarantined = 0;
+
+      this.logger.log(
+        `VietinBank eFAST sync started: accounts=${accounts
+          .map((account) => this.maskAccount(account))
+          .join(',')} pageSize=${pageSize} maxPages=${maxPages}`,
+      );
+
+      for (const accountNo of accounts) {
+        let page = 0;
+        while (page < maxPages) {
+          let result: EfastHistoryResponse;
+          try {
+            result = await this.searchEfastHistory(session, {
+              accountNo,
+              fromDate: today,
+              toDate: today,
+              page,
+              pageSize,
+            });
+          } catch (error) {
+            if (!this.isProviderAuthError(error)) throw error;
+            this.logger.warn(
+              `VietinBank eFAST session was rejected; refreshing session and retrying account=${this.maskAccount(accountNo)} page=${page}`,
+            );
+            session = await this.getEfastSession(username, password, true);
+            result = await this.searchEfastHistory(session, {
+              accountNo,
+              fromDate: today,
+              toDate: today,
+              page,
+              pageSize,
+            });
+          }
+
+          const rows = result.transactions || [];
+          fetched += rows.length;
+          const mappedRows = rows
+            .filter((row): row is MapTransactionRow => {
+              return Boolean(
+                row &&
+                typeof row === 'object' &&
+                this.isEfastCreditRow(row as MapTransactionRow),
+              );
+            })
+            .map((row) => this.toEfastMapTransactionRow(accountNo, row));
+          creditRows += mappedRows.length;
+          const persisted = await this.persistGlobalTransactions(
+            mappedRows,
+            storeAccountIndex,
+          );
+          created += persisted.created;
+          quarantined += persisted.quarantined;
+
+          if (!this.hasNextEfastPage(result, page, rows.length, pageSize)) {
+            break;
+          }
+          page += 1;
+        }
+      }
+
+      await this.prisma.mapVietinSyncState.upsert({
+        where: { storeCode: EFAST_SYNC_STATE_CODE },
+        create: {
+          storeCode: EFAST_SYNC_STATE_CODE,
+          lastSyncedAt: now,
+          lastSuccessAt: now,
+          lastError: null,
+        },
+        update: {
+          lastSyncedAt: now,
+          lastSuccessAt: now,
+          lastError: null,
+        },
+      });
+      this.logger.log(
+        `VietinBank eFAST sync finished: fetched=${fetched} creditRows=${creditRows} created=${created} quarantined=${quarantined} durationMs=${Date.now() - startedAt}`,
+      );
+      return { created, quarantined, fetched, creditRows };
+    } catch (error) {
+      const message = this.safeError(error).slice(0, 500);
+      this.logger.warn(
+        `VietinBank eFAST sync failed: ${message} durationMs=${Date.now() - startedAt}`,
+      );
+      await this.prisma.mapVietinSyncState.upsert({
+        where: { storeCode: EFAST_SYNC_STATE_CODE },
+        create: {
+          storeCode: EFAST_SYNC_STATE_CODE,
+          lastSyncedAt: now,
+          lastError: message,
+        },
+        update: {
+          lastSyncedAt: now,
+          lastError: message,
+        },
+      });
+      return { created: 0, quarantined: 0, fetched: 0, creditRows: 0 };
+    }
+  }
+
+  private async getEfastSession(
+    username: string,
+    password: string,
+    forceRefresh = false,
+  ) {
+    const now = Date.now();
+    const configuredCifno = this.efastCifno();
+    if (
+      !forceRefresh &&
+      this.efastSessionCache?.username === username &&
+      this.efastSessionCache.cifno === configuredCifno &&
+      this.efastSessionCache.expiresAt > now
+    ) {
+      return this.efastSessionCache.session;
+    }
+
+    const session = await this.loginEfast(username, password, configuredCifno);
+    this.efastSessionCache = {
+      username,
+      cifno: configuredCifno,
+      session,
+      expiresAt: now + this.efastSessionTtlSeconds() * 1000,
+    };
+    return session;
+  }
+
+  private async loginEfast(
+    username: string,
+    password: string,
+    configuredCifno: string,
+  ): Promise<EfastSession> {
+    const response = await this.postJson<EfastLoginResponse>(
+      this.efastApiUrl('account/login'),
+      {
+        requestId: this.newEfastRequestId(),
+        language: 'vi',
+        version: '1.0',
+        username: this.encryptEfastText(username),
+        channel: 'eFAST',
+        newCore: 'Y',
+        password: this.encryptEfastText(password),
+        cifno: configuredCifno ? this.encryptEfastText(configuredCifno) : false,
+        deviceID: this.efastDeviceId(username),
+        abc: '123',
+      },
+      this.efastHeaders(),
+      'VietinBank eFAST',
+    );
+
+    if (!this.isEfastSuccess(response.status)) {
+      const code = String(response.status?.code || '');
+      if (code === EFAST_SHARED_USER_CODE) {
+        throw new BadGatewayException(
+          'VietinBank eFAST account requires VIETIN_EFAST_CIFNO because it has multiple enterprises',
+        );
+      }
+      throw new BadGatewayException(
+        `VietinBank eFAST login failed: ${this.safeProviderMessage(response)}`,
+      );
+    }
+
+    const cifno =
+      configuredCifno ||
+      this.firstNonEmptyText(
+        response.corpUser?.cifno,
+        response.corpUser?.enterpriseid,
+        response.corpUser?.enterpriseId,
+      );
+    const sessionId = this.firstNonEmptyText(response.sessionId);
+    if (!cifno || !sessionId) {
+      throw new BadGatewayException(
+        'VietinBank eFAST login response is missing cifno or sessionId',
+      );
+    }
+    this.logger.log(
+      `VietinBank eFAST login succeeded: cifno=${this.maskAccount(cifno)} sessionIdLength=${sessionId.length}`,
+    );
+    return { username, cifno, sessionId };
+  }
+
+  private async searchEfastHistory(
+    session: EfastSession,
+    input: {
+      accountNo: string;
+      fromDate: string;
+      toDate: string;
+      page: number;
+      pageSize: number;
+    },
+  ) {
+    const response = await this.postJson<EfastHistoryResponse>(
+      this.efastApiUrl('account/history'),
+      {
+        requestId: this.newEfastRequestId(),
+        language: 'vi',
+        version: '1.0',
+        username: this.encryptEfastText(session.username),
+        channel: 'eFAST',
+        newCore: '',
+        cifno: this.encryptEfastText(session.cifno),
+        accountNo: input.accountNo,
+        accountType: 'D',
+        currency: 'VND',
+        fromDate: input.fromDate,
+        toDate: input.toDate,
+        pageSize: input.pageSize,
+        pageIndex: input.page,
+        lastRecord: '',
+        cardNo: '',
+        fromAmount: '',
+        toAmount: '',
+        searchKey: '',
+        startTime: '00:00:00',
+        endTime: '23:59:59',
+        queryType: 'NORMAL',
+        dorcC: 'Credit',
+        dorcD: '',
+        sessionId: session.sessionId,
+        screenResolution: '',
+      },
+      this.efastHeaders(),
+      'VietinBank eFAST',
+    );
+
+    if (!this.isEfastSuccess(response.status)) {
+      const code = String(response.status?.code || '');
+      if (code === EFAST_INVALID_SESSION_CODE) {
+        throw new UnauthorizedException('VietinBank eFAST session is invalid');
+      }
+      throw new BadGatewayException(
+        `VietinBank eFAST history failed: ${this.safeProviderMessage(response)}`,
+      );
+    }
+    return response;
   }
 
   async syncStoreTransactions(store: {
@@ -1180,6 +1627,10 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
       if (requestedAllStores || storeIds.length === 0) return {};
       return { storeCode: { in: storeIds } };
     }
+    const includeUnassigned =
+      storeIds.length === 0 &&
+      !requestedAllStores &&
+      (await this.canReadUnassignedStatementTransactions(user));
 
     const allowedStores = await this.resolveUserStores(user);
     const allowedStoreCodes = allowedStores.map((store) => store.storeId);
@@ -1194,7 +1645,10 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
     if (invalidStore) {
       throw new ForbiddenException('Chỉ được xem giao dịch showroom được gán');
     }
-    return { storeCode: this.storeCodeWhere(selectedStoreCodes) };
+    const storeWhere = { storeCode: this.storeCodeWhere(selectedStoreCodes) };
+    return includeUnassigned
+      ? { OR: [storeWhere, { storeCode: null }] }
+      : storeWhere;
   }
 
   private statementScopeWhereForTransferRequests(
@@ -1368,28 +1822,47 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
     return { AND: compact };
   }
 
-  private async assertCanReadStatementStore(user: any, storeCode: string) {
+  private async assertCanReadStatementStore(
+    user: any,
+    storeCode?: string | null,
+  ) {
     if (!(await this.canReadStatementStore(user, storeCode))) {
       throw new ForbiddenException('Chỉ được xem giao dịch showroom được gán');
     }
   }
 
-  private async canReadStatementStore(user: any, storeCode: string) {
+  private async canReadStatementStore(user: any, storeCode?: string | null) {
     await this.assertCanUseStatements(user);
+    if (!storeCode) return this.canReadUnassignedStatementTransactions(user);
     if (await this.hasNationalStatementScope(user)) return true;
     const stores = await this.resolveUserStores(user);
     return stores.some((store) => store.storeId === storeCode);
   }
 
+  private async canReadUnassignedStatementTransactions(user: any) {
+    await this.assertCanUseStatements(user);
+    if (String(user?.role || '').toUpperCase() === 'SUPER_ADMIN') return true;
+    if (this.isPhongVuEmail(user?.email)) return true;
+    return this.userMatchesStatementAccessCodes(user, [
+      FIN_ACC_DEPARTMENT_CODE,
+    ]);
+  }
+
   private async resolveStatementActionScope(user: any) {
     await this.assertCanUseStatements(user);
     if (await this.hasNationalStatementScope(user)) {
-      return { allStores: true, storeCodes: [] as string[] };
+      return {
+        allStores: true,
+        storeCodes: [] as string[],
+        includeUnassigned: true,
+      };
     }
     const stores = await this.resolveUserStores(user);
     return {
       allStores: false,
       storeCodes: stores.map((store) => store.storeId),
+      includeUnassigned:
+        await this.canReadUnassignedStatementTransactions(user),
     };
   }
 
@@ -1537,14 +2010,12 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
       orders?: string[] | null;
       content?: string | null;
     },
-    lookup:
-      | {
-          statementNumber?: string | null;
-          order?: string | null;
-          amount?: number | null;
-          content?: string | null;
-        }
-      | null,
+    lookup: {
+      statementNumber?: string | null;
+      order?: string | null;
+      amount?: number | null;
+      content?: string | null;
+    } | null,
   ) {
     if (!lookup) return false;
     if (lookup.statementNumber) {
@@ -2025,7 +2496,7 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
     if (missing) throw new BadRequestException('Showroom không hợp lệ');
   }
 
-  private async persistTransactions(storeCode: string, rows: unknown[]) {
+  private async persistTransactions(storeCode: string | null, rows: unknown[]) {
     let created = 0;
     let withOrders = 0;
     let withoutOrders = 0;
@@ -2067,9 +2538,15 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
           rawData: normalized.rawData,
         },
       });
-      if (!existing && stored?.id && this.paymentNotifications) {
+      if (
+        !existing &&
+        stored?.id &&
+        stored.storeCode &&
+        this.paymentNotifications
+      ) {
+        const storedWithStore = stored as typeof stored & { storeCode: string };
         void this.paymentNotifications
-          .createForTransaction(stored)
+          .createForTransaction(storedWithStore)
           .catch((error) => {
             this.logger.warn(
               `Payment notification failed for ${stored.id}: ${this.safeError(error)}`,
@@ -2078,8 +2555,9 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
       }
     }
     if (created > 0) {
+      const storeLabel = storeCode || 'null';
       this.logger.log(
-        `MAP sync order extraction: store=${storeCode} created=${created} withOrders=${withOrders} withoutOrders=${withoutOrders} manualProtected=${manualProtected}`,
+        `MAP sync order extraction: store=${storeLabel} created=${created} withOrders=${withOrders} withoutOrders=${withoutOrders} manualProtected=${manualProtected}`,
       );
     }
     return created;
@@ -2098,13 +2576,17 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
       if (!amount || amount <= 0) continue;
       if (!this.isSuccessfulTransaction(row)) continue;
 
-      const virtualAccount = this.readFirstText(row, this.virtualAccountKeys);
+      const virtualAccount = this.resolveGlobalVirtualAccount(row);
       const accountKey = this.normalizeAccountNumber(virtualAccount);
       const storeCodes = accountKey
         ? storeAccountIndex.get(accountKey) || []
         : [];
 
       if (!accountKey) {
+        if (this.isEfastMapTransactionRow(row)) {
+          created += await this.persistTransactions(null, [row]);
+          continue;
+        }
         await this.quarantineGlobalTransaction(
           row,
           'MISSING_VIRTUAL_ACCOUNT',
@@ -2197,6 +2679,89 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
     );
   }
 
+  private isEfastCreditRow(row: MapTransactionRow) {
+    const dorc = this.normalizeMatchText(this.readText(row, 'dorc'));
+    if (dorc) return dorc === 'C' || dorc.includes('CREDIT');
+    const amount = this.readAmount(row);
+    return Boolean(amount && amount > 0);
+  }
+
+  private toEfastMapTransactionRow(
+    accountNo: string,
+    row: MapTransactionRow,
+  ): MapTransactionRow {
+    const virtualAccount = this.readFirstText(
+      row,
+      this.efastVirtualAccountKeys,
+    );
+    const transactionNumber = this.firstNonEmptyText(
+      row.trxId,
+      row.trxRefNo,
+      row.numberOrder,
+    );
+    const transactionReference = this.firstNonEmptyText(
+      row.trxRefNo,
+      row.trxId,
+    );
+    const content = this.firstNonEmptyText(row.remark);
+    const paidAt = this.normalizeEfastTransactionDate(
+      this.firstNonEmptyText(row.tranDate),
+    );
+    return {
+      ...row,
+      source: 'VIETIN_EFAST',
+      virtualAccount,
+      efastCreditAccountNo: accountNo,
+      efastBankAccountNo: accountNo,
+      transactionNumber,
+      txnReference: transactionReference,
+      transactionDescription: content,
+      tranTime: paidAt,
+      status: 'SUCCESS',
+      transactionStatus: 'SUCCESS',
+      reqCardNo: this.firstNonEmptyText(row.corresponsiveAccount),
+      reqCardName: this.firstNonEmptyText(row.corresponsiveName),
+    };
+  }
+
+  private resolveGlobalVirtualAccount(row: MapTransactionRow) {
+    if (this.isEfastMapTransactionRow(row)) {
+      return this.readFirstText(row, this.efastVirtualAccountKeys);
+    }
+    return this.readFirstText(row, this.virtualAccountKeys);
+  }
+
+  private isEfastMapTransactionRow(row: MapTransactionRow) {
+    return this.readText(row, 'source') === 'VIETIN_EFAST';
+  }
+
+  private normalizeEfastTransactionDate(value: string) {
+    const text = this.cleanText(value);
+    if (!text) return '';
+    const isoMatch =
+      /^(\d{4})-(\d{2})-(\d{2})(?:\s+(\d{2}):(\d{2})(?::(\d{2}))?)?$/.exec(
+        text,
+      );
+    if (isoMatch) {
+      const time = isoMatch[4]
+        ? ` ${isoMatch[4]}:${isoMatch[5] || '00'}:${isoMatch[6] || '00'}`
+        : '';
+      return `${isoMatch[3]}/${isoMatch[2]}/${isoMatch[1]}${time}`;
+    }
+    return text;
+  }
+
+  private hasNextEfastPage(
+    response: EfastHistoryResponse,
+    currentPage: number,
+    rowCount: number,
+    pageSize: number,
+  ) {
+    const nextPage = Number(response.nextPage);
+    if (Number.isFinite(nextPage) && nextPage > currentPage) return true;
+    return rowCount >= pageSize;
+  }
+
   private async loadStoreAccountIndex() {
     const stores = (await this.prisma.store.findMany({
       where: { transferAccountNumber: { not: null } },
@@ -2215,7 +2780,10 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
     return index;
   }
 
-  private normalizeTransaction(storeCode: string, row: MapTransactionRow) {
+  private normalizeTransaction(
+    storeCode: string | null,
+    row: MapTransactionRow,
+  ) {
     const amount = this.readAmount(row);
     if (!amount || amount <= 0) return null;
     if (!this.isSuccessfulTransaction(row)) return null;
@@ -2235,13 +2803,14 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
       paidAt?.toISOString() ?? '',
       content,
     ].join('|');
+    const storeKey = storeCode || '__NO_STORE__';
     const hash = createHash('sha256')
-      .update(`${storeCode}|${fallback}`)
+      .update(`${storeKey}|${fallback}`)
       .digest('hex');
 
     return {
       storeCode,
-      transactionKey: `${storeCode}:${hash}`,
+      transactionKey: `${storeKey}:${hash}`,
       transactionNumber: transactionNumber || null,
       amount,
       content,
@@ -2311,7 +2880,7 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
   private toStoredTransactionDto(
     row: {
       id: string;
-      storeCode: string;
+      storeCode: string | null;
       transactionKey: string;
       transactionNumber: string | null;
       amount: number;
@@ -2347,6 +2916,7 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
     const pendingTransferRequest = row.orderTransferRequests?.[0] || null;
     const canUseStatements = options.canUseStatements !== false;
     const transferWindowOpen = this.isStatementOrderTransferWindowOpen(row);
+    const hasStoreCode = Boolean(row.storeCode);
     const canEditOrders =
       canUseStatements &&
       !pendingTransferRequest &&
@@ -2360,14 +2930,19 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
           : ORDER_EDIT_FORBIDDEN_MESSAGE;
     }
     const canRequestOrderTransfer =
-      canUseStatements && !pendingTransferRequest && transferWindowOpen;
+      canUseStatements &&
+      hasStoreCode &&
+      !pendingTransferRequest &&
+      transferWindowOpen;
     let orderTransferBlockedReason: string | null = null;
     if (!canRequestOrderTransfer) {
       orderTransferBlockedReason = pendingTransferRequest
         ? 'Giao dịch đang chờ Kế toán xác nhận.'
-        : !canUseStatements
-          ? ORDER_ACTION_REQUIRES_STATEMENT_PERMISSION_MESSAGE
-          : ORDER_TRANSFER_WINDOW_FORBIDDEN_MESSAGE;
+        : !hasStoreCode
+          ? 'Giao dịch chưa có showroom nên không tạo yêu cầu cấn trừ.'
+          : !canUseStatements
+            ? ORDER_ACTION_REQUIRES_STATEMENT_PERMISSION_MESSAGE
+            : ORDER_TRANSFER_WINDOW_FORBIDDEN_MESSAGE;
     }
     return {
       id: row.id,
@@ -2843,10 +3418,25 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
     );
   }
 
+  private isWithinEfastFastSyncWindow(value = new Date(Date.now())) {
+    const vietnamDate = new Date(this.vietnamTimeMs(value));
+    const minutes =
+      vietnamDate.getUTCHours() * 60 + vietnamDate.getUTCMinutes();
+    return (
+      minutes >= EFAST_SYNC_START_HOUR_VN * 60 &&
+      minutes <= EFAST_SYNC_END_HOUR_VN * 60
+    );
+  }
+
+  private vietnamTimeMs(value: Date) {
+    return value.getTime() + VIETNAM_UTC_OFFSET_HOURS * 60 * 60 * 1000;
+  }
+
   private async postJson<T>(
     url: string,
     body: Record<string, unknown>,
     headers: Record<string, string>,
+    providerLabel = 'MAP',
   ): Promise<T> {
     const response = await fetch(url, {
       method: 'POST',
@@ -2857,29 +3447,40 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
       body: JSON.stringify(body),
     });
     const text = await response.text();
-    const json = text ? this.parseJson(text) : {};
+    const json = text ? this.parseJson(text, providerLabel) : {};
 
     if (!response.ok) {
       throw new BadGatewayException(
-        `MAP trả lỗi ${response.status}: ${this.safeProviderMessage(json)}`,
+        `${providerLabel} trả lỗi ${response.status}: ${this.safeProviderMessage(json)}`,
       );
     }
     return json as T;
   }
 
-  private parseJson(text: string) {
+  private parseJson(text: string, providerLabel = 'MAP') {
     try {
       return JSON.parse(text) as unknown;
     } catch {
-      throw new BadGatewayException('MAP trả dữ liệu không phải JSON');
+      throw new BadGatewayException(
+        `${providerLabel} trả dữ liệu không phải JSON`,
+      );
     }
   }
 
   private safeProviderMessage(value: unknown) {
     if (!value || typeof value !== 'object') return 'Không rõ lỗi';
     const record = value as Record<string, unknown>;
+    const status =
+      record.status && typeof record.status === 'object'
+        ? (record.status as Record<string, unknown>)
+        : {};
     return String(
-      record.message || record.error_desc || record.error || 'Không rõ lỗi',
+      status.message ||
+        status.subCode ||
+        record.message ||
+        record.error_desc ||
+        record.error ||
+        'Không rõ lỗi',
     ).slice(0, 180);
   }
 
@@ -2909,6 +3510,96 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
     return (
       process.env.MAP_VIETIN_TRANSACTION_BASE_URL || MAP_TRANSACTION_BASE_URL
     );
+  }
+
+  private isEfastSyncEnabled() {
+    return process.env.VIETIN_EFAST_SYNC_ENABLED === 'true';
+  }
+
+  private efastUsername() {
+    return String(process.env.VIETIN_EFAST_USERNAME || '').trim();
+  }
+
+  private efastPassword() {
+    return String(process.env.VIETIN_EFAST_PASSWORD || '').trim();
+  }
+
+  private efastCifno() {
+    return this.normalizeAccountNumber(process.env.VIETIN_EFAST_CIFNO || '');
+  }
+
+  private efastBankAccounts() {
+    return String(process.env.VIETIN_EFAST_BANK_ACCOUNTS || '')
+      .split(',')
+      .map((account) => this.normalizeAccountNumber(account))
+      .filter(Boolean);
+  }
+
+  private efastBaseUrl() {
+    return (process.env.VIETIN_EFAST_BASE_URL || EFAST_BASE_URL).replace(
+      /\/+$/,
+      '',
+    );
+  }
+
+  private efastApiUrl(path: string) {
+    const normalizedPath = path.replace(/^\/+/, '');
+    return `${this.efastBaseUrl()}${EFAST_API_PREFIX}/${normalizedPath}`;
+  }
+
+  private efastHeaders() {
+    return { 'x-lang': 'vi' };
+  }
+
+  private efastPageSize() {
+    const parsed = Number(process.env.VIETIN_EFAST_PAGE_SIZE);
+    return Number.isFinite(parsed) && parsed > 0
+      ? Math.min(Math.trunc(parsed), EFAST_DEFAULT_PAGE_SIZE)
+      : EFAST_DEFAULT_PAGE_SIZE;
+  }
+
+  private efastSyncMaxPages() {
+    const parsed = Number(process.env.VIETIN_EFAST_SYNC_MAX_PAGES);
+    return Number.isFinite(parsed) && parsed > 0
+      ? Math.min(Math.trunc(parsed), EFAST_DEFAULT_MAX_PAGES)
+      : EFAST_DEFAULT_MAX_PAGES;
+  }
+
+  private efastSessionTtlSeconds() {
+    const parsed = Number(process.env.VIETIN_EFAST_SESSION_TTL_SECONDS);
+    return Number.isFinite(parsed) && parsed > 0
+      ? Math.trunc(parsed)
+      : EFAST_DEFAULT_SESSION_TTL_SECONDS;
+  }
+
+  private efastDeviceId(username: string) {
+    const configured = String(process.env.VIETIN_EFAST_DEVICE_ID || '').trim();
+    if (configured) return configured;
+    return this.sha256(`opshub-efast:${username}`).slice(0, 32);
+  }
+
+  private newEfastRequestId() {
+    return `${Date.now().toString(36)}${Math.random().toString(36).slice(2)}`;
+  }
+
+  private encryptEfastText(value: string) {
+    const publicKey = [
+      '-----BEGIN PUBLIC KEY-----',
+      EFAST_PUBLIC_KEY.match(/.{1,64}/g)?.join('\n') || EFAST_PUBLIC_KEY,
+      '-----END PUBLIC KEY-----',
+    ].join('\n');
+    return publicEncrypt(
+      {
+        key: publicKey,
+        padding: cryptoConstants.RSA_PKCS1_PADDING,
+      },
+      Buffer.from(value, 'utf8'),
+    ).toString('base64');
+  }
+
+  private isEfastSuccess(status?: EfastStatus) {
+    const code = String(status?.code || '').trim();
+    return code === EFAST_SUCCESS_CODE || code === '00';
   }
 
   private shouldUseGlobalSync() {
@@ -3047,9 +3738,21 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
     return email || null;
   }
 
+  private isPhongVuEmail(value: unknown) {
+    const email = String(value || '')
+      .trim()
+      .toLowerCase();
+    return email.endsWith('@phongvu.vn');
+  }
+
   private isProviderAuthError(error: unknown) {
     const message = this.safeError(error);
-    return message.includes('401') || message.includes('403');
+    return (
+      message.includes('401') ||
+      message.includes('403') ||
+      message.includes(EFAST_INVALID_SESSION_CODE) ||
+      message.toLowerCase().includes('session is invalid')
+    );
   }
 
   private safeError(error: unknown) {

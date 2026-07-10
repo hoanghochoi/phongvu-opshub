@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:phongvu_opshub/app/navigation/app_router.dart';
+import 'package:phongvu_opshub/app/widgets/app_combobox.dart';
 import 'helpers/legacy_widget_finders.dart';
 import 'package:go_router/go_router.dart';
 import 'package:phongvu_opshub/core/logging/app_logger.dart';
@@ -258,7 +259,8 @@ void main() {
       ),
       findsNothing,
     );
-    expect(find.text('Showroom: Tất cả'), findsOneWidget);
+    expect(find.text('Showroom'), findsOneWidget);
+    expect(find.text('Tất cả'), findsWidgets);
     expect(find.text('Nhân viên: Tất cả'), findsNothing);
     expect(find.text('Lọc'), findsOneWidget);
     expect(repository.lastOrdersQuery?.startDate, DateTime(2026, 7, 1));
@@ -276,12 +278,13 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Bộ lọc nâng cao'), findsOneWidget);
-    expect(find.text('Nhân viên: Tất cả'), findsOneWidget);
+    expect(find.text('Nhân viên'), findsOneWidget);
+    expect(find.text('Tất cả'), findsWidgets);
 
     await tester.tap(find.byTooltip('Đóng bộ lọc'));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Showroom: Tất cả'));
+    await tester.tap(find.byType(AppCombobox<String>).first);
     await tester.pumpAndSettle();
     await tester.tap(find.text('CP01 - Phong Vu CP01'));
     await tester.pumpAndSettle();
@@ -658,7 +661,8 @@ void main() {
       ),
       findsNothing,
     );
-    expect(find.text('Loại: Tất cả'), findsOneWidget);
+    expect(find.text('Loại'), findsOneWidget);
+    expect(find.text('Tất cả'), findsWidgets);
     expect(find.text('Xuất file'), findsOneWidget);
     expect(repository.lastListQuery?.startDate, DateTime(2026, 7, 4));
     expect(repository.lastListQuery?.endDate, DateTime(2026, 7, 4));
@@ -713,24 +717,73 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(repository.lastListQuery?.storeIds, isEmpty);
-    expect(
-      find.widgetWithText(OutlinedButton, 'Showroom: Tất cả showroom'),
-      findsOneWidget,
-    );
+    expect(find.text('Showroom'), findsWidgets);
+    expect(find.text('Tất cả showroom'), findsWidgets);
 
-    await tester.tap(
-      find.widgetWithText(OutlinedButton, 'Showroom: Tất cả showroom'),
-    );
+    final storeFilter = find.byType(AppCombobox<String>).at(1);
+    await tester.tap(storeFilter);
     await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(ListTile, 'CP02'));
+    await tester.tap(find.text('CP02 - PV CP02').last);
     await tester.pumpAndSettle();
 
     expect(repository.fetchListCount, 2);
     expect(repository.lastListQuery?.storeIds, ['CP02']);
-    expect(
-      find.widgetWithText(OutlinedButton, 'Showroom: CP02'),
-      findsOneWidget,
+    expect(find.text('CP02 - PV CP02'), findsWidgets);
+  });
+
+  testWidgets('Báo cáo bán hàng admin loads SR filter for super admin', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(1200, 900));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    final authProvider = _FakeAuthProvider(
+      const User(
+        id: 'super-admin-1',
+        email: 'admin@phongvu.vn',
+        role: 'SUPER_ADMIN',
+        featureAccess: {'ADMIN_SALES_REPORTS': true},
+      ),
     );
+    final repository = _FakeSalesReportRepository();
+    final authRepository = _FakeStoreAuthRepository(const [
+      StoreBranch(id: 'store-1', storeId: 'CP01', storeName: 'PV CP01'),
+      StoreBranch(id: 'store-2', storeId: 'CP02', storeName: 'PV CP02'),
+    ]);
+
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider<AuthProvider>.value(value: authProvider),
+          ChangeNotifierProvider<SalesReportProvider>(
+            create: (_) => SalesReportProvider(
+              repository,
+              now: () => DateTime(2026, 7, 4, 9),
+            ),
+          ),
+        ],
+        child: MaterialApp(
+          home: Scaffold(
+            body: SalesReportAdminScreen(authRepository: authRepository),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(authRepository.getStoresCount, 1);
+    expect(repository.lastListQuery?.storeIds, isEmpty);
+    expect(find.text('Showroom'), findsWidgets);
+    expect(find.text('Tất cả showroom'), findsWidgets);
+
+    final storeFilter = find.byType(AppCombobox<String>).at(1);
+    await tester.tap(storeFilter);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('CP02 - PV CP02').last);
+    await tester.pumpAndSettle();
+
+    expect(repository.fetchListCount, 2);
+    expect(repository.lastListQuery?.storeIds, ['CP02']);
   });
 
   testWidgets('Sales report export menu emits selected export type', (
@@ -986,6 +1039,19 @@ class _FakeAuthProvider extends AuthProvider {
 
   @override
   User? get user => currentUser;
+}
+
+class _FakeStoreAuthRepository extends AuthRepository {
+  final List<StoreBranch> stores;
+  int getStoresCount = 0;
+
+  _FakeStoreAuthRepository(this.stores) : super(ApiClient());
+
+  @override
+  Future<List<StoreBranch>> getStores({String? query}) async {
+    getStoresCount += 1;
+    return stores;
+  }
 }
 
 class _FakeSalesReportRepository extends SalesReportRepository {

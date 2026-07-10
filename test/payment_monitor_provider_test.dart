@@ -732,6 +732,7 @@ void main() {
       provider.syncAuth(_storeUser(), isInitialized: true);
       await _waitUntil(
         () =>
+            repository.transactionFetchCount >= 1 &&
             repository.readyFetchCount >= 2 &&
             repository.ackEvents.contains('PLAYED'),
       );

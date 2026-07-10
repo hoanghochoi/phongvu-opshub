@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:phongvu_opshub/app/widgets/app_combobox.dart';
 import 'helpers/legacy_widget_finders.dart';
 import 'package:phongvu_opshub/core/logging/app_logger.dart';
 import 'package:phongvu_opshub/core/network/api_client.dart';
@@ -66,10 +67,17 @@ void main() {
       expect(find.byKey(const Key('vietqr-workspace-header')), findsNothing);
       expect(find.byType(Scaffold), findsNothing);
       expect(findsLegacyGradientHeader(), findsNothing);
-      expect(find.byType(DropdownButtonFormField<String>), findsOneWidget);
+      expect(find.byType(AppCombobox<String>), findsOneWidget);
       expect(find.text('CP62 - SR CP62'), findsOneWidget);
 
-      await tester.tap(find.byType(DropdownButtonFormField<String>));
+      final showroomCombobox = find.byType(AppCombobox<String>);
+      final showroomInput = find.descendant(
+        of: showroomCombobox,
+        matching: find.byType(TextField),
+      );
+      await tester.tap(showroomInput);
+      await tester.pumpAndSettle();
+      await tester.enterText(showroomInput, 'CP75');
       await tester.pumpAndSettle();
 
       expect(find.text('CP75 - SR CP75'), findsOneWidget);

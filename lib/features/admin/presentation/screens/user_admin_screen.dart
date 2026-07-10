@@ -11,7 +11,7 @@ import '../../../../app/theme/app_text_styles.dart';
 import '../../../../app/widgets/app_buttons.dart';
 import '../../../../app/widgets/app_cards.dart';
 import '../../../../app/widgets/app_chips.dart';
-import '../../../../app/widgets/app_filter_dropdowns.dart';
+import '../../../../app/widgets/app_combobox.dart';
 import '../../../../app/widgets/app_inputs.dart';
 import '../../../../app/widgets/app_layout.dart';
 import '../../../../app/widgets/app_state_widgets.dart';
@@ -527,11 +527,11 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
     final controls = <({double width, Widget child})>[
       (
         width: 180,
-        child: AppFilterDropdown<String>(
+        child: AppCombobox<String>.single(
           label: 'Miền email',
           value: _domainFilter,
           options: _domainOptions
-              .map((domain) => AppFilterOption(value: domain, label: domain))
+              .map((domain) => AppComboboxOption(value: domain, label: domain))
               .toList(growable: false),
           onChanged: (value) {
             setState(() => _domainFilter = value);
@@ -541,11 +541,21 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
       ),
       (
         width: 220,
-        child: AppSearchableFilterDropdown<String>(
+        child: AppCombobox<String>.single(
           label: 'Cơ cấu',
           value: _orgNodeFilter,
           options: _orgNodes
-              .map((node) => AppFilterOption(value: node.id, label: node.title))
+              .map(
+                (node) => AppComboboxOption(
+                  value: node.id,
+                  label: node.title,
+                  searchKeywords: [
+                    node.code,
+                    node.businessCode ?? '',
+                    node.storeId ?? '',
+                  ],
+                ),
+              )
               .toList(growable: false),
           onChanged: (value) {
             setState(() => _orgNodeFilter = value);
@@ -555,13 +565,16 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
       ),
       (
         width: 220,
-        child: AppSearchableFilterDropdown<String>(
+        child: AppCombobox<String>.single(
           label: 'Tính năng',
           value: _featureFilter,
           options: _features
               .map(
-                (feature) =>
-                    AppFilterOption(value: feature.code, label: feature.title),
+                (feature) => AppComboboxOption(
+                  value: feature.code,
+                  label: feature.title,
+                  searchKeywords: [feature.code],
+                ),
               )
               .toList(growable: false),
           onChanged: (value) {
@@ -572,12 +585,16 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
       ),
       (
         width: 180,
-        child: AppFilterDropdown<String>(
+        child: AppCombobox<String>.single(
           label: 'Vai trò',
           value: _roleFilter,
           options: _roles
               .map(
-                (role) => AppFilterOption(value: role.value, label: role.title),
+                (role) => AppComboboxOption(
+                  value: role.value,
+                  label: role.title,
+                  searchKeywords: [role.value],
+                ),
               )
               .toList(growable: false),
           onChanged: (value) {
@@ -588,12 +605,12 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
       ),
       (
         width: 170,
-        child: AppFilterDropdown<String>(
+        child: AppCombobox<String>.single(
           label: 'Trạng thái',
           value: _statusFilter,
           options: const [
-            AppFilterOption(value: 'yes', label: 'Hoạt động'),
-            AppFilterOption(value: 'no', label: 'Đã khóa'),
+            AppComboboxOption(value: 'yes', label: 'Hoạt động'),
+            AppComboboxOption(value: 'no', label: 'Đã khóa'),
           ],
           onChanged: (value) {
             setState(() => _statusFilter = value);
@@ -1515,21 +1532,18 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
                       onChanged: (value) => setDialogState(() => query = value),
                     ),
                     const SizedBox(height: AppLayoutTokens.formInlineGap),
-                    AppSelectField<String?>(
+                    AppCombobox<String>.single(
                       value: type,
                       label: 'Loại đơn vị',
-                      items: [
-                        const DropdownMenuItem(
-                          value: null,
-                          child: Text('Tất cả'),
-                        ),
-                        ...AdminOrganizationNodeTypes.definitions.map(
-                          (item) => DropdownMenuItem(
-                            value: item.$1,
-                            child: Text(item.$2),
-                          ),
-                        ),
-                      ],
+                      emptyLabel: 'Tất cả',
+                      options: AdminOrganizationNodeTypes.definitions
+                          .map(
+                            (item) => AppComboboxOption(
+                              value: item.$1,
+                              label: item.$2,
+                            ),
+                          )
+                          .toList(),
                       onChanged: (value) => setDialogState(() => type = value),
                     ),
                     const SizedBox(height: AppLayoutTokens.formInlineGap),
@@ -1719,17 +1733,19 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
               AppTextInput(controller: _firstNameController, label: 'Tên'),
               AppTextInput(controller: _lastNameController, label: 'Họ'),
               if (widget.canEditRole)
-                AppSelectField<String>(
+                AppCombobox<String>.single(
                   value: _role,
                   label: 'Quyền hệ thống',
-                  items: widget.roles
+                  options: widget.roles
                       .map(
-                        (role) => DropdownMenuItem(
+                        (role) => AppComboboxOption(
                           value: role.value,
-                          child: Text(role.title),
+                          label: role.title,
+                          searchKeywords: [role.value],
                         ),
                       )
                       .toList(),
+                  allowClear: false,
                   onChanged: (value) => _setRole(value ?? 'USER'),
                 )
               else
@@ -1754,13 +1770,14 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
                 value: _previewPersonnelCode(_jobRoleCode, _workScopeType),
                 label: 'Mã nhân sự',
               ),
-              AppSelectField<String>(
+              AppCombobox<String>.single(
                 value: _status,
                 label: 'Trạng thái',
-                items: const [
-                  DropdownMenuItem(value: 'yes', child: Text('Hoạt động')),
-                  DropdownMenuItem(value: 'no', child: Text('Khóa')),
+                options: const [
+                  AppComboboxOption(value: 'yes', label: 'Hoạt động'),
+                  AppComboboxOption(value: 'no', label: 'Khóa'),
                 ],
+                allowClear: false,
                 onChanged: (value) => setState(() => _status = value ?? 'yes'),
               ),
             ],

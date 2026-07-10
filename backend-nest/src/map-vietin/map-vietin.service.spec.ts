@@ -502,6 +502,201 @@ describe('MapVietinService', () => {
     expect(prisma.mapVietinUnmappedTransaction.upsert).not.toHaveBeenCalled();
   });
 
+  it('syncs eFAST transactions with the browser-compatible login payload', async () => {
+    jest.spyOn(Math, 'random').mockReturnValue(0.5);
+    process.env.VIETIN_EFAST_USERNAME = 'efast-user';
+    process.env.VIETIN_EFAST_PASSWORD = 'efast-pass';
+    process.env.VIETIN_EFAST_BANK_ACCOUNTS = '123456789012';
+    prisma.store.findMany.mockResolvedValue([
+      { storeId: 'CP01', transferAccountNumber: '18PVICU' },
+    ]);
+    fetchMock
+      .mockResolvedValueOnce(
+        jsonResponse({
+          status: { code: '1', message: 'LOGON_SUCCESS' },
+          sessionId: 'efast-session-id',
+          corpUser: { cifno: '1234561361' },
+        }),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({
+          status: { code: '1', message: 'SUCCESS' },
+          currentPage: 0,
+          nextPage: 0,
+          transactions: [
+            {
+              trxId: 'TRX-001',
+              trxRefNo: 'REF-001',
+              pmtId: '18PVICU',
+              amount: 1250000,
+              remark: 'Khach chuyen tien 26052112345678',
+              tranDate: '21/05/2026 10:00:00',
+              dorc: 'C',
+              corresponsiveName: 'NGUYEN VAN A',
+              corresponsiveAccount: '9704361234567890',
+            },
+          ],
+        }),
+      );
+    prisma.mapVietinTransaction.findUnique.mockResolvedValue(null);
+    prisma.mapVietinTransaction.upsert.mockResolvedValue({
+      id: 'stored-efast-1',
+      storeCode: 'CP01',
+      amount: 1250000,
+    });
+    prisma.mapVietinSyncState.upsert.mockResolvedValue({});
+    paymentNotifications.createForTransaction.mockResolvedValue({});
+
+    await expect(service.syncEfastTransactions()).resolves.toEqual({
+      created: 1,
+      quarantined: 0,
+      fetched: 1,
+      creditRows: 1,
+    });
+
+    const loginBody = JSON.parse(fetchMock.mock.calls[0][1].body);
+    const expectedRequestPrefix = new Date('2026-05-21T03:00:00.000Z')
+      .getTime()
+      .toString(36);
+    expect(loginBody.requestId).toBe(`${expectedRequestPrefix}i`);
+    expect(loginBody.username).not.toBe('efast-user');
+    expect(loginBody.password).not.toBe('efast-pass');
+    expect(loginBody.cifno).toBe(false);
+    expect(loginBody.sessionId).toBeUndefined();
+
+    const historyBody = JSON.parse(fetchMock.mock.calls[1][1].body);
+    expect(historyBody.accountNo).toBe('123456789012');
+    expect(historyBody.sessionId).toBe('efast-session-id');
+    expect(historyBody.cifno).not.toBe('1234561361');
+    expect(historyBody.dorcC).toBe('Credit');
+    expect(prisma.mapVietinTransaction.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        create: expect.objectContaining({
+          storeCode: 'CP01',
+          transactionNumber: 'TRX-001',
+          amount: 1250000,
+          payerName: 'NGUYEN VAN A',
+          payerAccount: '9704361234567890',
+          rawData: expect.objectContaining({
+            virtualAccount: '18PVICU',
+            efastCreditAccountNo: '123456789012',
+          }),
+        }),
+      }),
+    );
+  });
+
+  it('stores eFAST credit rows with null store when pmtId is missing', async () => {
+    process.env.VIETIN_EFAST_USERNAME = 'efast-user';
+    process.env.VIETIN_EFAST_PASSWORD = 'efast-pass';
+    process.env.VIETIN_EFAST_BANK_ACCOUNTS = '123456789012';
+    prisma.store.findMany.mockResolvedValue([
+      { storeId: 'CP01', transferAccountNumber: '123456789012' },
+    ]);
+    fetchMock
+      .mockResolvedValueOnce(
+        jsonResponse({
+          status: { code: '1', message: 'LOGON_SUCCESS' },
+          sessionId: 'efast-session-id',
+          corpUser: { cifno: '1234561361' },
+        }),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({
+          status: { code: '1', message: 'SUCCESS' },
+          currentPage: 0,
+          nextPage: 0,
+          transactions: [
+            {
+              trxId: 'TRX-001',
+              amount: 1250000,
+              remark: 'Khach chuyen tien',
+              tranDate: '21/05/2026 10:00:00',
+              dorc: 'C',
+            },
+          ],
+        }),
+      );
+    prisma.mapVietinTransaction.findUnique.mockResolvedValue(null);
+    prisma.mapVietinTransaction.upsert.mockResolvedValue({
+      id: 'stored-efast-null-store',
+      storeCode: null,
+      amount: 1250000,
+    });
+    prisma.mapVietinSyncState.upsert.mockResolvedValue({});
+
+    await expect(service.syncEfastTransactions()).resolves.toEqual({
+      created: 1,
+      quarantined: 0,
+      fetched: 1,
+      creditRows: 1,
+    });
+
+    expect(prisma.mapVietinUnmappedTransaction.upsert).not.toHaveBeenCalled();
+    expect(paymentNotifications.createForTransaction).not.toHaveBeenCalled();
+    expect(prisma.mapVietinTransaction.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        create: expect.objectContaining({
+          storeCode: null,
+          transactionNumber: 'TRX-001',
+          transactionKey: expect.stringMatching(/^__NO_STORE__:/),
+          rawData: expect.objectContaining({
+            virtualAccount: '',
+            efastCreditAccountNo: '123456789012',
+          }),
+        }),
+      }),
+    );
+  });
+
+  it('caps eFAST history sync to one page per configured account', async () => {
+    process.env.VIETIN_EFAST_USERNAME = 'efast-user';
+    process.env.VIETIN_EFAST_PASSWORD = 'efast-pass';
+    process.env.VIETIN_EFAST_BANK_ACCOUNTS = '123456789012';
+    process.env.VIETIN_EFAST_SYNC_MAX_PAGES = '2';
+    prisma.store.findMany.mockResolvedValue([]);
+    fetchMock
+      .mockResolvedValueOnce(
+        jsonResponse({
+          status: { code: '1', message: 'LOGON_SUCCESS' },
+          sessionId: 'efast-session-id',
+          corpUser: { cifno: '1234561361' },
+        }),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({
+          status: { code: '1', message: 'SUCCESS' },
+          currentPage: 0,
+          nextPage: 1,
+          transactions: Array.from({ length: 150 }, (_, index) => ({
+            trxId: `TRX-${index}`,
+            amount: 1000 + index,
+            remark: 'Khach chuyen tien',
+            tranDate: '21/05/2026 10:00:00',
+            dorc: 'C',
+          })),
+        }),
+      );
+    prisma.mapVietinTransaction.findUnique.mockResolvedValue(null);
+    prisma.mapVietinTransaction.upsert.mockResolvedValue({
+      id: 'stored-efast-null-store',
+      storeCode: null,
+      amount: 1000,
+    });
+    prisma.mapVietinSyncState.upsert.mockResolvedValue({});
+
+    await expect(service.syncEfastTransactions()).resolves.toEqual({
+      created: 150,
+      quarantined: 0,
+      fetched: 150,
+      creditRows: 150,
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(String(fetchMock.mock.calls[1][0])).toContain('/account/history');
+    expect(prisma.mapVietinTransaction.upsert).toHaveBeenCalledTimes(150);
+  });
+
   it('runs configured MAP sync before the Vietnam fast window', async () => {
     (Date.now as jest.Mock).mockReturnValue(
       new Date('2026-05-20T23:59:59.000Z').getTime(),
@@ -530,7 +725,7 @@ describe('MapVietinService', () => {
     jest
       .spyOn(Math, 'random')
       .mockReturnValueOnce(0)
-      .mockReturnValueOnce(0.9999);
+      .mockReturnValueOnce(0.99999);
 
     expect((service as any).randomMapHistorySyncDelayMs()).toBe(3000);
     expect((service as any).randomMapHistorySyncDelayMs()).toBe(5000);
@@ -567,6 +762,57 @@ describe('MapVietinService', () => {
     ).toBe(3000);
   });
 
+  it('uses a 50000-60000ms random delay for fast eFAST sync', () => {
+    jest
+      .spyOn(Math, 'random')
+      .mockReturnValueOnce(0)
+      .mockReturnValueOnce(0.99999);
+
+    expect((service as any).randomEfastFastSyncDelayMs()).toBe(50000);
+    expect((service as any).randomEfastFastSyncDelayMs()).toBe(60000);
+  });
+
+  it('schedules eFAST at 08:00 Vietnam time when the fast window is about to open', () => {
+    expect(
+      (service as any).nextEfastSyncDelayMs(
+        new Date('2026-05-21T00:59:30.000Z'),
+      ),
+    ).toBe(30 * 1000);
+    expect(
+      (service as any).nextEfastSyncDelayMs(
+        new Date('2026-05-21T00:59:59.000Z'),
+      ),
+    ).toBe(1000);
+  });
+
+  it('uses the fast eFAST cadence from 08:00 through 22:00 Vietnam time', () => {
+    jest.spyOn(Math, 'random').mockReturnValue(0);
+
+    expect(
+      (service as any).nextEfastSyncDelayMs(
+        new Date('2026-05-21T01:00:00.000Z'),
+      ),
+    ).toBe(50000);
+    expect(
+      (service as any).nextEfastSyncDelayMs(
+        new Date('2026-05-21T15:00:00.000Z'),
+      ),
+    ).toBe(50000);
+  });
+
+  it('uses the eFAST night cadence from 22:01 through 07:59 Vietnam time', () => {
+    expect(
+      (service as any).nextEfastSyncDelayMs(
+        new Date('2026-05-21T15:01:00.000Z'),
+      ),
+    ).toBe(30 * 60 * 1000);
+    expect(
+      (service as any).nextEfastSyncDelayMs(
+        new Date('2026-05-21T23:30:00.000Z'),
+      ),
+    ).toBe(30 * 60 * 1000);
+  });
+
   it('does not start the MAP history scheduler when MAP sync is disabled', () => {
     process.env.MAP_VIETIN_SYNC_ENABLED = 'false';
     const setTimeoutSpy = jest.spyOn(global, 'setTimeout');
@@ -581,6 +827,25 @@ describe('MapVietinService', () => {
     disabledService.onModuleInit();
 
     expect(setTimeoutSpy).not.toHaveBeenCalled();
+  });
+
+  it('starts the eFAST scheduler independently when MAP sync is disabled', () => {
+    process.env.MAP_VIETIN_SYNC_ENABLED = 'false';
+    process.env.VIETIN_EFAST_SYNC_ENABLED = 'true';
+    jest.spyOn(Math, 'random').mockReturnValue(0);
+    const setTimeoutSpy = jest.spyOn(global, 'setTimeout');
+    const efastOnlyService = new MapVietinService(
+      prisma,
+      policyService as any,
+      featureService as any,
+      paymentNotifications as any,
+      redisService as any,
+    );
+
+    efastOnlyService.onModuleInit();
+
+    expect(setTimeoutSpy).toHaveBeenCalledWith(expect.any(Function), 50000);
+    efastOnlyService.onModuleDestroy();
   });
 
   it('schedules the next MAP history sync only after the current run finishes', async () => {
@@ -1391,6 +1656,82 @@ describe('MapVietinService', () => {
     });
   });
 
+  it('includes null-store statements for phongvu.vn users in their default statement scope', async () => {
+    prisma.store.findUnique.mockResolvedValue({
+      id: 'store-uuid-1',
+      storeId: 'CP01',
+    });
+    prisma.mapVietinTransaction.findMany.mockResolvedValue([
+      {
+        id: 'null-store',
+        storeCode: null,
+        transactionKey: '__NO_STORE__:key',
+        transactionNumber: 'TRX-NO-PMT',
+        amount: 1250000,
+        content: 'No pmtId',
+        orders: [],
+        orderSource: null,
+        orderUpdatedAt: null,
+        orderUpdatedByUserId: null,
+        orderUpdatedByEmail: null,
+        status: 'SUCCESS',
+        paidAt: null,
+        payerName: null,
+        payerAccount: null,
+        firstSeenAt: new Date('2026-05-21T03:00:05.000Z'),
+      },
+    ]);
+    prisma.mapVietinTransaction.count.mockResolvedValue(1);
+
+    await expect(
+      service.listStatements(
+        {
+          role: 'STAFF',
+          email: 'staff@phongvu.vn',
+          storeId: 'store-uuid-1',
+        },
+        { orderStatus: 'MISSING_ORDER', page: 0, limit: 20 },
+      ),
+    ).resolves.toMatchObject({
+      total: 1,
+      list: [
+        {
+          id: 'null-store',
+          storeId: null,
+          canEditOrders: true,
+          canRequestOrderTransfer: false,
+        },
+      ],
+    });
+
+    const where = prisma.mapVietinTransaction.findMany.mock.calls[0][0].where;
+    expect(JSON.stringify(where)).toContain('"storeCode":null');
+  });
+
+  it('includes null-store statements for users under the finance node', async () => {
+    prisma.store.findUnique.mockResolvedValue({
+      id: 'store-uuid-1',
+      storeId: 'CP01',
+    });
+    prisma.mapVietinTransaction.findMany.mockResolvedValue([]);
+    prisma.mapVietinTransaction.count.mockResolvedValue(0);
+
+    await expect(
+      service.listStatements(
+        {
+          id: 'fin-node-user',
+          role: 'STAFF',
+          email: 'fin-node@example.com',
+          storeId: 'store-uuid-1',
+        },
+        { orderStatus: 'MISSING_ORDER', page: 0, limit: 20 },
+      ),
+    ).resolves.toMatchObject({ total: 0, list: [] });
+
+    const where = prisma.mapVietinTransaction.findMany.mock.calls[0][0].where;
+    expect(JSON.stringify(where)).toContain('"storeCode":null');
+  });
+
   it('filters statements by selected SR codes for super admin', async () => {
     prisma.mapVietinTransaction.findMany.mockResolvedValue([]);
     prisma.mapVietinTransaction.count.mockResolvedValue(0);
@@ -1414,7 +1755,11 @@ describe('MapVietinService', () => {
     ['statement number', { statementNumber: 'MAP-CROSS' }, 'MAP-CROSS'],
     ['order', { order: '26052912345678' }, '26052912345678'],
     ['amount', { amount: '1250000' }, '1250000'],
-    ['transfer content', { content: 'Cross SR order fix' }, 'Cross SR order fix'],
+    [
+      'transfer content',
+      { content: 'Cross SR order fix' },
+      'Cross SR order fix',
+    ],
   ])(
     'allows exact %s lookup across SR and marks the row editable',
     async (_name, input, marker) => {
@@ -1998,6 +2343,142 @@ describe('MapVietinService', () => {
           newOrders: ['26052287654321'],
           changedByEmail: 'finance@example.com',
         }),
+      }),
+    );
+  });
+
+  it('updates statement orders for null-store eFAST rows for phongvu.vn users', async () => {
+    prisma.store.findUnique.mockResolvedValue({
+      id: 'store-uuid-1',
+      storeId: 'CP01',
+    });
+    prisma.mapVietinTransaction.findUnique.mockResolvedValue({
+      id: 'stored-null-store',
+      storeCode: null,
+      transactionKey: '__NO_STORE__:key',
+      transactionNumber: 'TRX-NO-PMT',
+      amount: 1250000,
+      content: 'No pmtId',
+      orders: [],
+      orderSource: null,
+      rawData: { source: 'VIETIN_EFAST' },
+      firstSeenAt: new Date('2026-05-21T03:00:05.000Z'),
+    });
+    prisma.mapVietinTransaction.update.mockResolvedValue({
+      id: 'stored-null-store',
+      storeCode: 'CP01',
+      transactionKey: '__NO_STORE__:key',
+      transactionNumber: 'TRX-NO-PMT',
+      amount: 1250000,
+      content: 'No pmtId',
+      orders: ['26052287654321'],
+      orderSource: 'MANUAL',
+      orderUpdatedAt: new Date('2026-05-21T03:00:00.000Z'),
+      orderUpdatedByUserId: 'user-1',
+      orderUpdatedByEmail: 'staff@phongvu.vn',
+      status: 'SUCCESS',
+      paidAt: null,
+      payerName: null,
+      payerAccount: null,
+      rawData: { source: 'VIETIN_EFAST' },
+      firstSeenAt: new Date('2026-05-21T03:00:05.000Z'),
+    });
+    prisma.mapVietinTransactionOrderAudit.create.mockResolvedValue({});
+
+    await expect(
+      service.updateStatementOrders(
+        {
+          id: 'user-1',
+          email: 'staff@phongvu.vn',
+          role: 'STAFF',
+          storeId: 'store-uuid-1',
+        },
+        'stored-null-store',
+        { orders: ['26052287654321'] },
+      ),
+    ).resolves.toMatchObject({
+      storeId: 'CP01',
+      orders: ['26052287654321'],
+      canEditOrders: false,
+    });
+
+    expect(prisma.mapVietinTransactionOrderAudit.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          transactionId: 'stored-null-store',
+          storeCode: 'CP01',
+          newOrders: ['26052287654321'],
+          changedByEmail: 'staff@phongvu.vn',
+        }),
+      }),
+    );
+    expect(prisma.mapVietinTransaction.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ storeCode: 'CP01' }),
+      }),
+    );
+  });
+
+  it('assigns null-store statements to the updater store after an exact statement lookup', async () => {
+    prisma.store.findUnique.mockResolvedValue({
+      id: 'store-uuid-2',
+      storeId: 'CP02',
+    });
+    prisma.mapVietinTransaction.findUnique.mockResolvedValue({
+      id: 'stored-null-store',
+      storeCode: null,
+      transactionKey: '__NO_STORE__:key',
+      transactionNumber: 'TRX-NO-PMT',
+      amount: 1250000,
+      content: 'No pmtId',
+      orders: [],
+      orderSource: null,
+      rawData: { source: 'VIETIN_EFAST' },
+      firstSeenAt: new Date('2026-05-21T03:00:05.000Z'),
+    });
+    prisma.mapVietinTransaction.update.mockResolvedValue({
+      id: 'stored-null-store',
+      storeCode: 'CP02',
+      transactionKey: '__NO_STORE__:key',
+      transactionNumber: 'TRX-NO-PMT',
+      amount: 1250000,
+      content: 'No pmtId',
+      orders: ['26052287654321'],
+      orderSource: 'MANUAL',
+      orderUpdatedAt: new Date('2026-05-21T03:00:00.000Z'),
+      orderUpdatedByUserId: 'user-2',
+      orderUpdatedByEmail: 'staff@example.com',
+      status: 'SUCCESS',
+      paidAt: null,
+      payerName: null,
+      payerAccount: null,
+      rawData: { source: 'VIETIN_EFAST' },
+      firstSeenAt: new Date('2026-05-21T03:00:05.000Z'),
+    });
+    prisma.mapVietinTransactionOrderAudit.create.mockResolvedValue({});
+
+    await expect(
+      service.updateStatementOrders(
+        {
+          id: 'user-2',
+          email: 'staff@example.com',
+          role: 'STAFF',
+          storeId: 'store-uuid-2',
+        },
+        'stored-null-store',
+        {
+          statementNumber: 'TRX-NO-PMT',
+          orders: ['26052287654321'],
+        },
+      ),
+    ).resolves.toMatchObject({
+      storeId: 'CP02',
+      orders: ['26052287654321'],
+    });
+
+    expect(prisma.mapVietinTransaction.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ storeCode: 'CP02' }),
       }),
     );
   });
