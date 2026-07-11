@@ -179,11 +179,15 @@ Expected responses:
   `notificationId + clientId`; a second in-flight request for the same pair
   returns HTTP `409` so the client can suppress duplicate same-machine
   playback. Ready polling is limited to speaker-enabled startup/manual recovery
-  and `PAYMENT_NOTIFICATION` realtime events; speaker backlog playback still
-  goes through `/stream`, not `/audio`. The `Tiền vào` transaction list loads
-  once on entry and after explicit filter/page/refresh actions, then refreshes
-  from payment WebSocket events. It does not poll transactions on a fixed
-  interval or merely because the socket reconnects. Set
+  and `PAYMENT_NOTIFICATION` realtime events; it only recovers stream-pending
+  notifications newer than `PAYMENT_STREAM_PENDING_RECOVERY_WINDOW_SECONDS`
+  (default `30`). Older stream-pending notifications are logged as `SILENCED`
+  with `stream_recovery_window_expired`, and `/stream` rejects them so no client
+  plays stale audio after reconnect. Speaker backlog playback still goes
+  through `/stream`, not `/audio`. The `Tiền vào` transaction list loads once on
+  entry and after explicit filter/page/refresh actions, then refreshes from
+  payment WebSocket events. It does not poll transactions on a fixed interval
+  or merely because the socket reconnects. Set
   `PAYMENT_TTS_CONCURRENCY=2` to match the recommended two Piper workers on
   `hoang-n8n`.
 - Keep placeholder values out of production; the Nest API validates env values on startup.

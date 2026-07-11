@@ -39,6 +39,7 @@ describe('PaymentNotificationsService', () => {
     delete process.env.PAYMENT_SPEAKER_STREAMING_ENABLED;
     delete process.env.PAYMENT_STREAM_EVENT_REPEAT_COUNT;
     delete process.env.PAYMENT_STREAM_EVENT_REPEAT_GAP_MS;
+    delete process.env.PAYMENT_STREAM_PENDING_RECOVERY_WINDOW_SECONDS;
     delete process.env.PAYMENT_TTS_CONCURRENCY;
     prisma = {
       paymentNotification: {
@@ -1336,19 +1337,21 @@ describe('PaymentNotificationsService', () => {
 
   it('lists stream-pending notifications for ready recovery when streaming is enabled', async () => {
     process.env.PAYMENT_SPEAKER_STREAMING_ENABLED = 'true';
-    const createdAt = new Date('2026-06-27T01:00:00.000Z');
+    const createdAt = new Date();
     prisma.store.findUnique.mockResolvedValue({ storeId: 'CP01' });
-    prisma.paymentNotification.findMany.mockResolvedValue([
-      {
-        id: 'note-stream-pending',
-        transactionId: 'txn-stream-pending',
-        storeCode: 'CP01',
-        amount: 1250000,
-        audioStatus: 'PENDING',
-        audioPath: null,
-        createdAt,
-      },
-    ]);
+    prisma.paymentNotification.findMany
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([
+        {
+          id: 'note-stream-pending',
+          transactionId: 'txn-stream-pending',
+          storeCode: 'CP01',
+          amount: 1250000,
+          audioStatus: 'PENDING',
+          audioPath: null,
+          createdAt,
+        },
+      ]);
 
     await expect(
       service.listReadyForClient(speakerUser(), { clientId: 'pc-1' }),
@@ -1371,9 +1374,117 @@ describe('PaymentNotificationsService', () => {
         where: expect.objectContaining({
           OR: expect.arrayContaining([
             { audioStatus: 'READY', audioPath: { not: null } },
-            { audioStatus: 'PENDING' },
+            {
+              audioStatus: 'PENDING',
+              createdAt: { gte: expect.any(Date) },
+            },
           ]),
         }),
+      }),
+    );
+    expect(
+      prisma.paymentNotificationDeliveryLog.createMany,
+    ).not.toHaveBeenCalled();
+  });
+
+  it('silences old stream-pending notifications instead of recovering them late', async () => {
+    process.env.PAYMENT_SPEAKER_STREAMING_ENABLED = 'true';
+    process.env.PAYMENT_STREAM_PENDING_RECOVERY_WINDOW_SECONDS = '30';
+    const oldCreatedAt = new Date(Date.now() - 60_000);
+    prisma.store.findUnique.mockResolvedValue({ storeId: 'CP01' });
+    prisma.paymentNotification.findMany
+      .mockResolvedValueOnce([
+        {
+          id: 'note-old-pending',
+          transactionId: 'txn-old-pending',
+          storeCode: 'CP01',
+        },
+      ])
+      .mockResolvedValueOnce([]);
+    prisma.paymentNotificationDeliveryLog.findMany
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([]);
+
+    await expect(
+      service.listReadyForClient(speakerUser(), { clientId: 'pc-1' }),
+    ).resolves.toEqual({ list: [] });
+
+    expect(prisma.paymentNotification.findMany).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        where: expect.objectContaining({
+          storeCode: 'CP01',
+          audioStatus: 'PENDING',
+          createdAt: { lt: expect.any(Date) },
+        }),
+        take: 100,
+      }),
+    );
+    expect(prisma.paymentNotification.findMany).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        where: expect.objectContaining({
+          OR: expect.arrayContaining([
+            {
+              audioStatus: 'PENDING',
+              createdAt: { gte: expect.any(Date) },
+            },
+          ]),
+        }),
+      }),
+    );
+    expect(
+      prisma.paymentNotificationDeliveryLog.createMany,
+    ).toHaveBeenCalledWith({
+      data: [
+        expect.objectContaining({
+          notificationId: 'note-old-pending',
+          transactionId: 'txn-old-pending',
+          storeCode: 'CP01',
+          clientId: 'pc-1',
+          event: 'SILENCED',
+          error: 'stream_recovery_window_expired',
+        }),
+      ],
+    });
+    expect(oldCreatedAt.getTime()).toBeLessThan(Date.now());
+  });
+
+  it('suppresses a stale stream request before generating audio', async () => {
+    process.env.PAYMENT_SPEAKER_STREAMING_ENABLED = 'true';
+    process.env.PAYMENT_STREAM_PENDING_RECOVERY_WINDOW_SECONDS = '30';
+    prisma.paymentNotification.findUnique.mockResolvedValue({
+      id: 'note-old-pending',
+      transactionId: 'txn-old-pending',
+      storeCode: 'CP01',
+      audioStatus: 'PENDING',
+      createdAt: new Date(Date.now() - 60_000),
+    });
+    prisma.store.findUnique.mockResolvedValue({ storeId: 'CP01' });
+    prisma.paymentNotificationDeliveryLog.findFirst.mockResolvedValue(null);
+
+    await expect(
+      service.getStreamForUser(speakerUser(), 'note-old-pending', {
+        clientId: 'pc-1',
+        rawAmount: true,
+      }),
+    ).rejects.toThrow(ConflictException);
+
+    expect(prisma.paymentNotificationDeliveryLog.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        notificationId: 'note-old-pending',
+        transactionId: 'txn-old-pending',
+        storeCode: 'CP01',
+        clientId: 'pc-1',
+        event: 'SILENCED',
+        error: 'stream_recovery_window_expired',
+      }),
+    });
+    expect(
+      prisma.paymentNotificationDeliveryLog.create,
+    ).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ event: 'DELIVERED' }),
       }),
     );
   });

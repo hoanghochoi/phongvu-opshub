@@ -45,6 +45,17 @@ This file maps product behavior to proof. Existing flows are marked
 
 Recent focused evidence:
 
+- `PAYMENT-MONITOR-001`, 2026-07-11: đọc loa realtime không còn phát muộn khi
+  client reconnect. `/ready` chỉ recover stream-pending notification trong
+  `PAYMENT_STREAM_PENDING_RECOVERY_WINDOW_SECONDS` (mặc định 30 giây);
+  notification quá window được ghi delivery log `SILENCED` với lý do
+  `stream_recovery_window_expired`, và `/stream`/`/audio` cũng chặn lại để app
+  cũ hoặc request muộn không phát âm thanh. Flutter upload log
+  `PaymentMonitorRealtime` lên `/app-logs` cho connect/ready/reconnect/event
+  để soi lỗi WebSocket client-side. Validation: focused backend
+  `payment-notifications.service.spec.ts` (37 tests), backend `npm run build`,
+  focused Flutter `payment_monitor_provider_test.dart` (30 tests), and
+  `flutter analyze --no-pub`.
 - `PAYMENT-MONITOR-001`/`PAYMENT-STATEMENT-001`, 2026-07-11: eFAST sync dùng
   ngày nghiệp vụ UTC+7 khi gọi history, parse chắc `DD-MM-YYYY`/`DD/MM/YYYY`
   theo giờ Việt Nam, và bỏ qua row eFAST nếu `trxId`/`trxRefNo` đã tồn tại

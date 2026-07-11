@@ -645,6 +645,46 @@ void main() {
   );
 
   test(
+    'expired stream response is treated as a no-op without retrying stale audio',
+    () async {
+      final repository = _FakePaymentMonitorRepository(
+        notifications: const [],
+        rawAmountAudioError: ApiException('Thông báo đọc loa đã quá hạn.', 409),
+      );
+      final speaker = _FakePaymentSpeaker();
+      final provider = PaymentMonitorProvider(
+        repository,
+        speaker,
+        null,
+        retryDelay,
+      );
+
+      await Future<void>.delayed(Duration.zero);
+      provider.syncAuth(_storeUser(storeId: 'CP01'), isInitialized: true);
+      await _waitUntil(
+        () => repository.transactionFetchCount > 0 && !provider.isLoading,
+      );
+
+      await provider.handleRealtimeMessageForTesting(
+        jsonEncode({
+          'type': 'PAYMENT_SPEAKER_STREAM',
+          'payload': _streamPayload('note-expired'),
+        }),
+      );
+      await _waitUntil(() => repository.streamDownloadCount == 1);
+
+      expect(speaker.playCount, 0);
+      expect(provider.speakerError, isNull);
+      expect(repository.requestedRawAmounts, [true]);
+      expect(repository.ackEvents, isNot(contains('FAILED')));
+      expect(repository.ackEvents, isNot(contains('PLAYED')));
+      expect(repository.ackEvents, isNot(contains('STREAM_STARTED')));
+
+      provider.dispose();
+    },
+  );
+
+  test(
     'drains ready notification backlog without waiting for fallback tick',
     () async {
       final repository = _FakePaymentMonitorRepository(
