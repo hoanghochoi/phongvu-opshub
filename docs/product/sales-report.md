@@ -22,9 +22,9 @@ cho Google Form, đồng thời lưu dữ liệu đủ chuẩn để dashboard d
   code để lọc; `Tổng quan Cửa hàng` và `Tài chính` vẫn giữ theo
   showroom/node đang chọn ở header. Khu vực `Bán hàng` chia thành nhóm
   `Doanh số`, `KPI chính` và `Hành vi then chốt`. Nhóm `Doanh số` hiển thị
-  doanh số tổng từ cache đơn hàng sau khi loại đơn 0 VND, đơn hủy/trả toàn bộ
-  và trừ giá trị trả một phần, số đơn bán, trung bình đơn hàng, doanh số hoàn
-  thành, pending và
+  doanh số tổng từ cache đơn hàng theo ngày bán ERP (`orderCreatedAt`) sau khi
+  loại đơn 0 VND, đơn hủy/trả toàn bộ và trừ giá trị trả một phần, số đơn bán,
+  trung bình đơn hàng, doanh số hoàn thành, pending và
   `Tỉ lệ chuyển đổi = tổng số đơn / tổng số báo cáo`. Nhóm `KPI chính`
   hiển thị doanh số khách hàng doanh nghiệp, doanh số khách hàng cá nhân,
   số lượng CTKM đổi điểm thi, CTKM học sinh - sinh viên, nhu cầu trả góp,
@@ -154,7 +154,7 @@ cho Google Form, đồng thời lưu dữ liệu đủ chuẩn để dashboard d
   chỉ re-check pending sau khoảng cấu hình mặc định 5 phút; lỗi một đơn chỉ
   tăng failure count và thử lại ở lượt sau.
 - Doanh số tổng trên dashboard lấy `grandTotal` từ cache đơn hàng theo
-  ngày/scope, bỏ đơn 0 VND, đơn hủy/trả toàn bộ và trừ
+  ngày bán ERP (`orderCreatedAt`)/scope, bỏ đơn 0 VND, đơn hủy/trả toàn bộ và trừ
   `returnedAfterTaxAmount` khi có trả một phần. Doanh số hoàn thành chỉ cộng báo
   cáo mua hàng có trạng thái ERP hoàn thành, cũng trừ `returnedAfterTaxAmount`
   khi có trả một phần. Riêng tiến độ chỉ tiêu dùng giá trị trước VAT theo công thức
@@ -311,7 +311,13 @@ phí`.
   `[CH1001] ...`,
   `creator.email` từ `data.orders.creator.email`, người tư vấn/người bán nếu
   ERP trả về, tổng tiền, phương thức thanh toán, metadata lần sync nền và
-  snapshot đã sanitize. Nếu ERP xác nhận order hủy, trả toàn bộ, hoặc có
+  snapshot đã sanitize. `fetchedAt` chỉ là thời điểm đồng bộ; các bộ lọc ngày,
+  Home dashboard và cockpit không dùng `fetchedAt` làm ngày bán. Nếu cache cũ
+  thiếu `orderCreatedAt` nhưng snapshot còn `createdAt`, backend backfill lại
+  ngày bán trước khi tính dashboard/cockpit. Chi tiết `Đơn chưa báo cáo` chỉ
+  hiển thị `Tên SA` khi email tư vấn/người bán map được nhân viên SA đang active
+  trong showroom tương ứng; người sync cache hoặc consultant ERP chưa map không
+  được dùng làm tên SA. Nếu ERP xác nhận order hủy, trả toàn bộ, hoặc có
   `grandTotal <= 0`, cache row được gắn `excludedAt`/`exclusionReason`
   tương ứng (`ERP_ORDER_CANCELLED`, `ERP_ORDER_RETURNED_FULL`,
   `ERP_ORDER_ZERO_VALUE_INTERNAL`); mọi report mua hàng cùng `orderCode` cũng

@@ -736,12 +736,68 @@ describe('SalesReportsService', () => {
           where: { orderCode: '2607010002' },
           create: expect.objectContaining({
             orderCode: '2607010002',
+            orderCreatedAt: new Date('2026-07-01T01:00:00Z'),
             sourceUserEmail: null,
             storeCode: 'CP62',
           }),
         }),
       );
       expect(result).toMatchObject({ skipped: false, count: 1 });
+    } finally {
+      if (oldEnabled === undefined) {
+        delete process.env.ERP_ORDER_CACHE_SYNC_ENABLED;
+      } else {
+        process.env.ERP_ORDER_CACHE_SYNC_ENABLED = oldEnabled;
+      }
+      if (oldLookback === undefined) {
+        delete process.env.ERP_ORDER_CACHE_SYNC_LOOKBACK_DAYS;
+      } else {
+        process.env.ERP_ORDER_CACHE_SYNC_LOOKBACK_DAYS = oldLookback;
+      }
+    }
+  });
+
+  it('backfills cached order date from ERP snapshot instead of using fetch time', async () => {
+    const { service, prisma, erp } = createHarness();
+    const oldEnabled = process.env.ERP_ORDER_CACHE_SYNC_ENABLED;
+    const oldLookback = process.env.ERP_ORDER_CACHE_SYNC_LOOKBACK_DAYS;
+    delete process.env.ERP_ORDER_CACHE_SYNC_ENABLED;
+    process.env.ERP_ORDER_CACHE_SYNC_LOOKBACK_DAYS = '1';
+    erp.listRecentOrders.mockResolvedValueOnce([
+      {
+        ...erpListOrderFixture(),
+        orderCode: '26070337539840',
+        orderCreatedAt: null,
+        fetchedAt: new Date('2026-07-11T12:55:08Z'),
+        storeCode: 'CP75',
+        storeName: null,
+        grandTotal: 60400000,
+        sanitizedSnapshot: {
+          orderCode: '26070337539840',
+          createdAt: '2026-07-03T09:43:34Z',
+          createdFromSiteDisplayName:
+            '[CP75] ĐỊA ĐIỂM KINH DOANH 63 - CÔNG TY CỔ PHẦN THƯƠNG MẠI - DỊCH VỤ PHONG VŨ',
+        },
+      },
+    ]);
+    prisma.salesReportErpOrderCache.findMany.mockResolvedValueOnce([]);
+
+    try {
+      await service.syncScheduledErpOrderCache('test-snapshot-date');
+
+      expect(prisma.salesReportErpOrderCache.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { orderCode: '26070337539840' },
+          create: expect.objectContaining({
+            orderCreatedAt: new Date('2026-07-03T09:43:34Z'),
+            fetchedAt: new Date('2026-07-11T12:55:08Z'),
+            storeCode: 'CP75',
+          }),
+          update: expect.objectContaining({
+            orderCreatedAt: new Date('2026-07-03T09:43:34Z'),
+          }),
+        }),
+      );
     } finally {
       if (oldEnabled === undefined) {
         delete process.env.ERP_ORDER_CACHE_SYNC_ENABLED;

@@ -1290,7 +1290,9 @@ export class SalesReportsService implements OnApplicationBootstrap {
         order.storeCode,
     );
     const storeName = this.optionalText(order.storeName, 120);
+    const orderCreatedAt = this.cacheOrderCreatedAt(order, null);
     const cacheData = {
+      ...(orderCreatedAt ? { orderCreatedAt } : {}),
       paymentStatus: this.optionalText(order.paymentStatus, 80),
       confirmationStatus: this.optionalText(order.confirmationStatus, 80),
       fulfillmentStatus: this.optionalText(order.fulfillmentStatus, 80),
@@ -1330,6 +1332,7 @@ export class SalesReportsService implements OnApplicationBootstrap {
           erpLifecycleStatus: order.lifecycleStatus,
           erpHasReturnedFullItems: order.hasReturnedFullItems,
           erpReturnedAfterTaxAmount: cacheData.returnedAfterTaxAmount,
+          ...(orderCreatedAt ? { erpOrderCreatedAt: orderCreatedAt } : {}),
           erpStatusCheckedAt: order.statusCheckedAt,
           erpStatusCheckFailureCount: 0,
           erpFetchedAt: order.fetchedAt,
@@ -2017,6 +2020,7 @@ export class SalesReportsService implements OnApplicationBootstrap {
             lifecycleStatus: true,
             hasReturnedFullItems: true,
             returnedAfterTaxAmount: true,
+            orderCreatedAt: true,
             statusCheckedAt: true,
             statusCheckAttemptedAt: true,
             statusCheckFailureCount: true,
@@ -2417,10 +2421,14 @@ export class SalesReportsService implements OnApplicationBootstrap {
         context.storeCode,
     );
     const store = storeCode ? storeByCode.get(storeCode) : null;
+    const orderCreatedAt = this.cacheOrderCreatedAt(
+      order,
+      options.existingCacheRow,
+    );
     const data = {
       erpOrderId: this.optionalText(order.erpOrderId, 80),
       erpExternalOrderRef: this.optionalText(order.erpExternalOrderRef, 120),
-      orderCreatedAt: order.orderCreatedAt,
+      orderCreatedAt,
       paymentStatus: preserveVerifiedLifecycle
         ? this.optionalText(options.existingCacheRow?.paymentStatus, 80)
         : this.optionalText(order.paymentStatus, 80),
@@ -2486,6 +2494,7 @@ export class SalesReportsService implements OnApplicationBootstrap {
     ]) {
       if (updateData[key] === null) delete updateData[key];
     }
+    if (updateData.orderCreatedAt === null) delete updateData.orderCreatedAt;
     if (!exclusion.excludedAt) {
       delete updateData.excludedAt;
       delete updateData.exclusionReason;
@@ -2504,6 +2513,7 @@ export class SalesReportsService implements OnApplicationBootstrap {
         erpLifecycleStatus: lifecycleStatus,
         erpHasReturnedFullItems: hasReturnedFullItems,
         erpReturnedAfterTaxAmount: returnedAfterTaxAmount,
+        ...(orderCreatedAt ? { erpOrderCreatedAt: orderCreatedAt } : {}),
         erpStatusCheckedAt: statusCheckedAt,
         erpStatusCheckFailureCount: statusCheckFailureCount,
         erpFetchedAt: order.fetchedAt,
@@ -2723,25 +2733,10 @@ export class SalesReportsService implements OnApplicationBootstrap {
     end: Date;
   }): Prisma.SalesReportErpOrderCacheWhereInput {
     return {
-      OR: [
-        {
-          orderCreatedAt: {
-            gte: dateRange.start,
-            lt: dateRange.end,
-          },
-        },
-        {
-          AND: [
-            { orderCreatedAt: null },
-            {
-              fetchedAt: {
-                gte: dateRange.start,
-                lt: dateRange.end,
-              },
-            },
-          ],
-        },
-      ],
+      orderCreatedAt: {
+        gte: dateRange.start,
+        lt: dateRange.end,
+      },
     };
   }
 
@@ -4535,6 +4530,50 @@ export class SalesReportsService implements OnApplicationBootstrap {
     if (bracketMatch) return this.normalizeStoreCode(bracketMatch[1]);
     const leadingMatch = text.match(/^([A-Z]{2,3}\d{1,4})(?=$|[^A-Z0-9])/);
     return leadingMatch ? this.normalizeStoreCode(leadingMatch[1]) : null;
+  }
+
+  private cacheOrderCreatedAt(
+    order: Pick<
+      SalesReportErpOrderListItem,
+      'orderCreatedAt' | 'sanitizedSnapshot'
+    >,
+    existingCacheRow?: {
+      orderCreatedAt?: Date | string | null;
+      sanitizedSnapshot?: unknown;
+    } | null,
+  ) {
+    return (
+      this.dateValue(order.orderCreatedAt) ??
+      this.createdAtFromSnapshot(order.sanitizedSnapshot) ??
+      this.dateValue(existingCacheRow?.orderCreatedAt) ??
+      this.createdAtFromSnapshot(existingCacheRow?.sanitizedSnapshot) ??
+      null
+    );
+  }
+
+  private createdAtFromSnapshot(snapshot: unknown) {
+    if (!snapshot || typeof snapshot !== 'object' || Array.isArray(snapshot)) {
+      return null;
+    }
+    const record = snapshot as Record<string, unknown>;
+    return this.dateValue(
+      record.createdAt ??
+        record.orderCreatedAt ??
+        record.createdDate ??
+        record.createdDateTime ??
+        record.orderedAt ??
+        record.orderDate,
+    );
+  }
+
+  private dateValue(value: unknown) {
+    if (value instanceof Date) {
+      return Number.isNaN(value.getTime()) ? null : value;
+    }
+    const text = this.optionalText(value, 80);
+    if (!text) return null;
+    const date = new Date(text);
+    return Number.isNaN(date.getTime()) ? null : date;
   }
 
   private storeCodeWhere(storeCodes: string[]) {

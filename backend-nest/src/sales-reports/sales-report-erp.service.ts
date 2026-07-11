@@ -468,7 +468,8 @@ export class SalesReportErpService {
       order?.receiverPhone,
       order?.shippingAddress?.phone,
     );
-    const orderCreatedAt = this.parseDate(order?.createdAt);
+    const orderCreatedAtText = this.orderCreatedAtText(order, row);
+    const orderCreatedAt = this.parseDate(orderCreatedAtText);
     const billingCustomerType = this.billingCustomerType(order);
     const billingTaxCode = this.billingTaxCode(order);
     const customerType = this.detectCustomerType(
@@ -507,7 +508,7 @@ export class SalesReportErpService {
       sanitizedSnapshot: {
         orderId: this.firstText(order?.orderId, order?.id),
         orderCode,
-        createdAt: this.optionalText(order?.createdAt),
+        createdAt: orderCreatedAtText,
         paymentStatus: this.optionalText(order?.paymentStatus),
         confirmationStatus: this.optionalText(order?.confirmationStatus),
         fulfillmentStatus: this.optionalText(order?.fulfillmentStatus),
@@ -1037,11 +1038,12 @@ export class SalesReportErpService {
           .filter((value): value is string => Boolean(value)),
       ),
     );
+    const orderCreatedAtText = this.orderCreatedAtText(order);
     return {
       orderCode,
       erpOrderId: this.optionalText(order?.orderId),
       erpExternalOrderRef: this.optionalText(order?.externalOrderRef),
-      erpOrderCreatedAt: this.parseDate(order?.createdAt),
+      erpOrderCreatedAt: this.parseDate(orderCreatedAtText),
       erpPaymentStatus: this.optionalText(order?.paymentStatus),
       erpConfirmationStatus: this.optionalText(order?.confirmationStatus),
       erpFulfillmentStatus: this.optionalText(order?.fulfillmentStatus),
@@ -1068,7 +1070,7 @@ export class SalesReportErpService {
       paymentMethods,
       sanitizedSnapshot: {
         orderId: this.optionalText(order?.orderId),
-        createdAt: this.optionalText(order?.createdAt),
+        createdAt: orderCreatedAtText,
         customerType: erpCustomerType,
         billingInfo: {
           customerType: erpCustomerType,
@@ -1463,6 +1465,26 @@ export class SalesReportErpService {
     if (!text) return null;
     const date = new Date(text);
     return Number.isNaN(date.getTime()) ? null : date;
+  }
+
+  private orderCreatedAtText(order: any, row?: any) {
+    return this.firstText(
+      order?.createdAt,
+      order?.orderCreatedAt,
+      order?.createdDate,
+      order?.createdDateTime,
+      order?.createdAtUtc,
+      order?.createdAtUTC,
+      order?.orderedAt,
+      order?.orderDate,
+      order?.placedAt,
+      row?.createdAt,
+      row?.orderCreatedAt,
+      row?.createdDate,
+      row?.createdDateTime,
+      row?.orderedAt,
+      row?.orderDate,
+    );
   }
 
   private toInt(value: unknown) {

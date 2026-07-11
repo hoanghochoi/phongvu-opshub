@@ -472,6 +472,7 @@ describe('SalesReportErpService', () => {
     expect(result).toHaveLength(1);
     expect(result[0]).toMatchObject({
       orderCode: '2607010002',
+      orderCreatedAt: new Date('2026-07-01T01:00:00Z'),
       storeCode: 'CH1001',
       terminalName: 'Kho DDKD37 - 40-42 Thai Nguyen, P. Phuong Sai',
       grandTotal: 2500000,
@@ -486,6 +487,60 @@ describe('SalesReportErpService', () => {
     expect(result[0].sanitizedSnapshot.createdFromSiteDisplayName).toBe(
       '[CH1001] CHI NHANH 30 - CONG TY CO PHAN THUONG MAI - DICH VU PHONG VU',
     );
+  });
+
+  it('parses cached order created time from alternate ERP date fields', async () => {
+    process.env.ERP_ACCESS_TOKEN = 'static-access-token';
+    const fetchMock = jest.fn(async (input: string | URL) => {
+      const url = input.toString();
+      if (
+        url.startsWith(
+          'https://staff-bff.tekoapis.com/api/v2/staff-admin/orders?',
+        )
+      ) {
+        return jsonResponse({
+          data: {
+            orders: [
+              {
+                orderId: '26070337539840',
+                orderCreatedAt: '2026-07-03T09:43:34Z',
+                paymentStatus: 'fully_paid',
+                confirmationStatus: 'active',
+                fulfillmentStatus: 'DELIVERED',
+                createdFromSiteDisplayName:
+                  '[CP75] ĐỊA ĐIỂM KINH DOANH 63 - CÔNG TY CỔ PHẦN THƯƠNG MẠI - DỊCH VỤ PHONG VŨ',
+                grandTotal: 60400000,
+                billingInfo: {
+                  customerType: 'BUSINESS',
+                  taxCode: '0301485534',
+                },
+                consultant: {
+                  customId: '7792',
+                  name: 'Bùi Đức Hưng',
+                  email: 'hung.bd@phongvu-mna.vn',
+                },
+              },
+            ],
+          },
+        });
+      }
+      throw new Error(`Unexpected fetch: ${url}`);
+    }) as jest.MockedFunction<typeof fetch>;
+    global.fetch = fetchMock;
+
+    const service = new SalesReportErpService();
+    const result = await service.listRecentOrders({
+      date: '2026-07-03',
+    });
+
+    expect(result).toHaveLength(1);
+    expect(result[0]).toMatchObject({
+      orderCode: '26070337539840',
+      orderCreatedAt: new Date('2026-07-03T09:43:34Z'),
+      storeCode: 'CP75',
+      consultantName: 'Bùi Đức Hưng',
+    });
+    expect(result[0].sanitizedSnapshot.createdAt).toBe('2026-07-03T09:43:34Z');
   });
 
   it('uses data.orders.creator.email as the cached order owner email', async () => {

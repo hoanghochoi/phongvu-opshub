@@ -185,6 +185,13 @@ Recent focused evidence:
   cắt mép phải. Validation: focused Home Summary Jest, focused Home
   dashboard Flutter widget test, Nest build, `flutter analyze --no-pub`,
   `flutter test --no-pub`, `git diff --check`.
+- `HOME-DASHBOARD-002`, 2026-07-11: Home/Sales report cache không còn dùng
+  `fetchedAt` làm ngày bán. Backend parse `orderCreatedAt` từ các field ngày ERP
+  hoặc `sanitizedSnapshot.createdAt`, backfill cache/fact cũ bằng migration, date
+  filter dashboard/cockpit chỉ dùng ngày bán ERP và detail `Đơn chưa báo cáo`
+  không hiển thị giờ sync thay cho giờ bán. Validation: focused Home Summary,
+  Sales Report ERP và Sales Reports Jest, `npx prisma validate`,
+  `npm run build`, `git diff --check`.
 - `HOME-DASHBOARD-002`, 2026-07-08: Card `Số khách chưa mua` và
   `Số đơn chưa báo cáo` trong nhóm `Hành vi then chốt` mở modal chi tiết khi
   bấm phần chữ. Modal dùng cùng ngày/scope/SA đang chọn, có bảng cuộn dọc và
@@ -1361,8 +1368,10 @@ FIFO Menu` now has bottom nav active on `Tác vụ`, `Mobile v2 / Profile` has
   This keeps unrelated Laptop/PC labels on a Logitech B100 mouse from selecting
   extra groups. It
   reuses the existing purchased `check-order` flow when a user opens an
-  unreported order dialog. Cockpit filters by date, SR, and user, with exports
-  sharing the selected cockpit filters. Flutter reads the DB cache on open or
+  unreported order dialog. Cockpit filters by ERP order creation date, SR, and
+  user, with exports sharing the selected cockpit filters; `fetchedAt` is sync
+  metadata only and must not pull old orders into the current day. Flutter reads
+  the DB cache on open or
   manual reload, then refreshes from the same scoped API when the Go WebSocket
   forwards `SALES_REPORT_ORDERS_UPDATED` for a relevant user/SR/date; the
   event also fires when scheduled sync backfills missing store/node mapping for

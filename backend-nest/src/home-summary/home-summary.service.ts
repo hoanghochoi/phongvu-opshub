@@ -678,6 +678,8 @@ export class HomeSummaryService {
               notPurchasedOtherReason: true,
             },
           });
+    const validUnreportedSalesNames =
+      await this.validUnreportedSalesNamesByEmail(unreportedOrders);
 
     const response: HomeSummaryBehaviorDetailsResponse = {
       startDate: range.startDate,
@@ -693,7 +695,7 @@ export class HomeSummaryService {
         this.toHomeNotPurchasedDetail(row),
       ),
       unreportedOrders: unreportedOrders.map((row: any) =>
-        this.toHomeUnreportedOrderDetail(row),
+        this.toHomeUnreportedOrderDetail(row, validUnreportedSalesNames),
       ),
       installmentNeedReports: installmentNeedReports.map((row: any) =>
         this.toHomeInstallmentNeedDetail(row),
@@ -2046,25 +2048,10 @@ export class HomeSummaryService {
 
   private orderCacheDateWhere(dateRange: DateRange) {
     return {
-      OR: [
-        {
-          orderCreatedAt: {
-            gte: dateRange.start,
-            lt: dateRange.end,
-          },
-        },
-        {
-          AND: [
-            { orderCreatedAt: null },
-            {
-              fetchedAt: {
-                gte: dateRange.start,
-                lt: dateRange.end,
-              },
-            },
-          ],
-        },
-      ],
+      orderCreatedAt: {
+        gte: dateRange.start,
+        lt: dateRange.end,
+      },
     };
   }
 
@@ -2247,16 +2234,136 @@ export class HomeSummaryService {
 
   private toHomeUnreportedOrderDetail(
     row: any,
+    validSalesNamesByKey: Map<string, string>,
   ): HomeSummaryUnreportedOrderDetail {
+    const storeCode = this.normalizeStoreCode(row.storeCode);
     return {
       orderCode: this.normalizeOrderCode(row.orderCode) ?? '',
-      soldAt: row.orderCreatedAt ?? row.fetchedAt ?? null,
-      storeCode: this.normalizeStoreCode(row.storeCode),
-      salesName: this.displayPersonName(
-        row.consultantName ?? row.sellerName,
-        row.consultantEmail ?? row.sellerEmail ?? row.sourceUserEmail,
-      ),
+      soldAt: row.orderCreatedAt ?? null,
+      storeCode,
+      salesName:
+        this.validSalesNameForStore(
+          validSalesNamesByKey,
+          row.consultantEmail,
+          storeCode,
+        ) ??
+        this.validSalesNameForStore(
+          validSalesNamesByKey,
+          row.sellerEmail,
+          storeCode,
+        ),
     };
+  }
+
+  private async validUnreportedSalesNamesByEmail(rows: any[]) {
+    const candidates = rows
+      .flatMap((row) => [
+        {
+          email: this.normalizeEmail(row.consultantEmail),
+          storeCode: this.normalizeStoreCode(row.storeCode),
+        },
+        {
+          email: this.normalizeEmail(row.sellerEmail),
+          storeCode: this.normalizeStoreCode(row.storeCode),
+        },
+      ])
+      .filter((candidate): candidate is { email: string; storeCode: string } =>
+        Boolean(candidate.email && candidate.storeCode),
+      );
+    if (candidates.length === 0) return new Map<string, string>();
+    const emails = Array.from(
+      new Set(candidates.map((candidate) => candidate.email)),
+    );
+    const users = await this.prisma.user.findMany({
+      where: {
+        status: 'yes',
+        email: { in: emails, mode: 'insensitive' },
+      },
+      include: {
+        jobRole: true,
+        store: true,
+        organizationNode: {
+          include: organizationNodeStoreTreeInclude(),
+        },
+        organizationAssignments: {
+          where: { isActive: true },
+          include: {
+            organizationNode: {
+              include: organizationNodeStoreTreeInclude(),
+            },
+          },
+        },
+      },
+    });
+    const usersByEmail = new Map<string, any>();
+    for (const user of users) {
+      const email = this.normalizeEmail(user.email);
+      if (email && this.isSaUser(user)) usersByEmail.set(email, user);
+    }
+    const result = new Map<string, string>();
+    for (const candidate of candidates) {
+      const user = usersByEmail.get(candidate.email);
+      if (!user || !this.userHasStore(user, candidate.storeCode)) continue;
+      const label = this.displayPersonName(
+        [user.firstName, user.lastName].filter(Boolean).join(' ').trim(),
+        user.email,
+      );
+      if (label) {
+        result.set(
+          this.salesPersonStoreKey(candidate.email, candidate.storeCode),
+          label,
+        );
+      }
+    }
+    return result;
+  }
+
+  private validSalesNameForStore(
+    validSalesNamesByKey: Map<string, string>,
+    emailValue: unknown,
+    storeCode: string | null,
+  ) {
+    const email = this.normalizeEmail(emailValue);
+    if (!email || !storeCode) return null;
+    return (
+      validSalesNamesByKey.get(this.salesPersonStoreKey(email, storeCode)) ??
+      null
+    );
+  }
+
+  private salesPersonStoreKey(email: string, storeCode: string) {
+    return `${email.toLowerCase()}|${storeCode.toUpperCase()}`;
+  }
+
+  private isSaUser(user: any) {
+    return [user?.jobRoleCode, user?.jobRole?.code, user?.jobRole?.businessCode]
+      .map((value) =>
+        String(value || '')
+          .trim()
+          .toUpperCase(),
+      )
+      .some((code) => code === 'SA' || code.endsWith('_SA'));
+  }
+
+  private userHasStore(user: any, storeCode: string) {
+    const normalized = this.normalizeStoreCode(storeCode);
+    if (!normalized) return false;
+    const stores = new Set<string>();
+    const ownStore = this.normalizeStoreCode(user?.store?.storeId);
+    if (ownStore) stores.add(ownStore);
+    for (const store of storesForOrganizationNodeTree(user?.organizationNode)) {
+      const code = this.normalizeStoreCode(store.storeId);
+      if (code) stores.add(code);
+    }
+    for (const assignment of user?.organizationAssignments ?? []) {
+      for (const store of storesForOrganizationNodeTree(
+        assignment.organizationNode,
+      )) {
+        const code = this.normalizeStoreCode(store.storeId);
+        if (code) stores.add(code);
+      }
+    }
+    return stores.has(normalized);
   }
 
   private toHomeInstallmentNeedDetail(

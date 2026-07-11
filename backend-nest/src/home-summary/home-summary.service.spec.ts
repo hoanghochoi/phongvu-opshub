@@ -277,6 +277,20 @@ describe('HomeSummaryService', () => {
       where: expect.objectContaining({ reportType: 'NOT_PURCHASED' }),
     });
     expect(prisma.homeSummaryOrderFact.upsert).toHaveBeenCalledTimes(2);
+    const syncOrderCacheQuery =
+      prisma.salesReportErpOrderCache.findMany.mock.calls.find(
+        ([args]: any[]) => args.select?.orderCreatedAt,
+      )?.[0];
+    expect(syncOrderCacheQuery?.where).toEqual({
+      excludedAt: null,
+      orderCreatedAt: {
+        gte: expect.any(Date),
+        lt: expect.any(Date),
+      },
+    });
+    expect(JSON.stringify(syncOrderCacheQuery?.where)).not.toContain(
+      'fetchedAt',
+    );
     expect(prisma.salesReportErpOrderCache.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         select: expect.objectContaining({
@@ -322,6 +336,18 @@ describe('HomeSummaryService', () => {
         sellerName: null,
         sellerEmail: null,
         sourceUserEmail: 'sa2@phongvu.vn',
+      },
+    ]);
+    prisma.user.findMany.mockResolvedValueOnce([
+      {
+        email: 'sa2@phongvu.vn',
+        firstName: 'SA',
+        lastName: 'Hai',
+        jobRoleCode: 'SA',
+        jobRole: null,
+        store: { storeId: 'CP62' },
+        organizationNode: null,
+        organizationAssignments: [],
       },
     ]);
     prisma.salesReport.count.mockResolvedValueOnce(2);
@@ -439,6 +465,45 @@ describe('HomeSummaryService', () => {
         select: expect.objectContaining({ storeCode: true }),
       }),
     );
+  });
+
+  it('does not present fetchedAt as the sold time for unreported orders', async () => {
+    const { service, prisma } = createHarness();
+    prisma.homeSummaryReportFact.findMany
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([]);
+    prisma.homeSummaryReportFact.count.mockResolvedValue(0);
+    prisma.homeSummaryOrderFact.count.mockReset();
+    prisma.homeSummaryOrderFact.count.mockResolvedValue(1);
+    prisma.homeSummaryOrderFact.findMany.mockResolvedValue([
+      {
+        orderCode: '26070337539840',
+        orderCreatedAt: null,
+        fetchedAt: new Date('2026-07-11T12:55:08Z'),
+        storeCode: 'CP75',
+        consultantName: 'Việt Nguyễn Quang',
+        consultantEmail: 'viet.nq01@phongvu.vn',
+        sellerName: null,
+        sellerEmail: null,
+        sourceUserEmail: null,
+      },
+    ]);
+    prisma.user.findMany.mockResolvedValueOnce([]);
+    prisma.salesReport.count.mockResolvedValue(0);
+    prisma.salesReport.findMany.mockResolvedValue([]);
+
+    const result = await service.getBehaviorDetails(
+      { id: 'manager-1', email: 'manager@phongvu.vn' },
+      { startDate: '2026-07-11', endDate: '2026-07-11', limit: 50 },
+    );
+
+    expect(result.unreportedOrders).toEqual([
+      expect.objectContaining({
+        orderCode: '26070337539840',
+        soldAt: null,
+        salesName: null,
+      }),
+    ]);
   });
 
   it('calculates SA progress from completed reports instead of order cache revenue', async () => {
