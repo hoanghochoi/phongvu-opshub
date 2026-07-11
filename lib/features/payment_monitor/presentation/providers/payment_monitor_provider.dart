@@ -535,6 +535,90 @@ class PaymentMonitorProvider extends ChangeNotifier {
     );
   }
 
+  Future<void> _logRealtimeInfo(
+    String message, {
+    required Map<String, Object?> context,
+    String? storeCode,
+  }) async {
+    await AppLogger.instance.info(
+      'PaymentMonitorRealtime',
+      message,
+      context: context,
+    );
+    await _uploadRealtimeLog(
+      'info',
+      message,
+      context: context,
+      storeCode: storeCode,
+    );
+  }
+
+  Future<void> _logRealtimeWarn(
+    String message, {
+    required Map<String, Object?> context,
+    String? storeCode,
+  }) async {
+    await AppLogger.instance.warn(
+      'PaymentMonitorRealtime',
+      message,
+      context: context,
+    );
+    await _uploadRealtimeLog(
+      'warn',
+      message,
+      context: context,
+      storeCode: storeCode,
+    );
+  }
+
+  Future<void> _logRealtimeError(
+    String message, {
+    Object? error,
+    StackTrace? stackTrace,
+    required Map<String, Object?> context,
+    String? storeCode,
+  }) async {
+    final uploadContext = {
+      ...context,
+      if (error != null) 'error': error.toString(),
+      if (stackTrace != null)
+        'stackTrace': stackTrace.toString().split('\n').take(6).join('\n'),
+    };
+    await AppLogger.instance.error(
+      'PaymentMonitorRealtime',
+      message,
+      error: error,
+      stackTrace: stackTrace,
+      context: context,
+    );
+    await _uploadRealtimeLog(
+      'error',
+      message,
+      context: uploadContext,
+      storeCode: storeCode,
+    );
+  }
+
+  Future<void> _uploadRealtimeLog(
+    String level,
+    String message, {
+    required Map<String, Object?> context,
+    String? storeCode,
+  }) {
+    final resolvedStoreCode =
+        storeCode ??
+        context['storeId']?.toString() ??
+        _requestStoreId ??
+        _user?.storeId;
+    return AppLogger.instance.uploadLog(
+      level,
+      'PaymentMonitorRealtime',
+      message,
+      context: context,
+      storeCode: resolvedStoreCode,
+    );
+  }
+
   void _reconcile() {
     if (!_canMonitorOnThisDevice) {
       _stop(reason: 'unsupported_device');
@@ -683,43 +767,43 @@ class PaymentMonitorProvider extends ChangeNotifier {
         _handleRealtimeMessage,
         onError: (Object error, StackTrace stackTrace) {
           unawaited(
-            AppLogger.instance.error(
-              'PaymentMonitorRealtime',
+            _logRealtimeError(
               'Payment monitor realtime error',
               error: error,
               stackTrace: stackTrace,
               context: {'storeId': storeCode},
+              storeCode: storeCode,
             ),
           );
           _handleRealtimeClosed('error');
         },
         onDone: () {
           unawaited(
-            AppLogger.instance.info(
-              'PaymentMonitorRealtime',
+            _logRealtimeInfo(
               'Payment monitor realtime disconnected',
               context: {'storeId': storeCode},
+              storeCode: storeCode,
             ),
           );
           _handleRealtimeClosed('done');
         },
       );
       unawaited(
-        AppLogger.instance.info(
-          'PaymentMonitorRealtime',
+        _logRealtimeInfo(
           'Payment monitor realtime connection started',
           context: {'storeId': storeCode, 'attempt': _realtimeReconnectAttempt},
+          storeCode: storeCode,
         ),
       );
       unawaited(_confirmRealtimeReady(channel, nextKey, storeCode));
     } catch (error, stackTrace) {
       unawaited(
-        AppLogger.instance.error(
-          'PaymentMonitorRealtime',
+        _logRealtimeError(
           'Payment monitor realtime connect failed',
           error: error,
           stackTrace: stackTrace,
           context: {'storeId': storeCode},
+          storeCode: storeCode,
         ),
       );
       _disconnectRealtime('connect_failed');
@@ -738,8 +822,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
     _realtimeKey = null;
     if (hadConnection) {
       unawaited(
-        AppLogger.instance.info(
-          'PaymentMonitorRealtime',
+        _logRealtimeInfo(
           'Payment monitor realtime disconnected',
           context: {
             'reason': reason,
@@ -761,13 +844,13 @@ class PaymentMonitorProvider extends ChangeNotifier {
         return;
       }
       _realtimeReconnectAttempt = 0;
-      await AppLogger.instance.info(
-        'PaymentMonitorRealtime',
+      await _logRealtimeInfo(
         'Payment monitor realtime ready',
         context: {
           'storeId': storeCode,
           'speakerPlaybackEnabled': _shouldReadPaymentSpeaker,
         },
+        storeCode: storeCode,
       );
       if (_shouldReadPaymentSpeaker) {
         await _drainReadyNotificationsOnly(reason: 'realtime_ready');
@@ -776,12 +859,12 @@ class PaymentMonitorProvider extends ChangeNotifier {
       if (_realtimeChannel != channel || _realtimeKey != connectionKey) {
         return;
       }
-      await AppLogger.instance.error(
-        'PaymentMonitorRealtime',
+      await _logRealtimeError(
         'Payment monitor realtime handshake failed',
         error: error,
         stackTrace: stackTrace,
         context: {'storeId': storeCode, 'attempt': _realtimeReconnectAttempt},
+        storeCode: storeCode,
       );
       _handleRealtimeClosed('ready_failed');
     }
@@ -805,8 +888,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
       }
     });
     unawaited(
-      AppLogger.instance.info(
-        'PaymentMonitorRealtime',
+      _logRealtimeInfo(
         'Payment monitor realtime reconnect scheduled',
         context: {
           'reason': reason,
@@ -924,8 +1006,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
       final shouldReadSpeaker = _shouldReadPaymentSpeaker;
       final drainsReadyNotifications =
           eventType == 'PAYMENT_NOTIFICATION' && shouldReadSpeaker;
-      await AppLogger.instance.info(
-        'PaymentMonitorRealtime',
+      await _logRealtimeInfo(
         eventType == 'PAYMENT_SPEAKER_STREAM'
             ? 'Payment speaker stream realtime event received'
             : 'Payment notification realtime event received',
@@ -945,6 +1026,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
               ? 'refresh_and_ready_audio'
               : 'refresh_only',
         },
+        storeCode: eventStore,
       );
       _scheduleRealtimeRefresh(
         drainReadyNotifications: drainsReadyNotifications,
@@ -953,8 +1035,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
         await _handleStreamNotificationPayload(payload);
       }
     } catch (error, stackTrace) {
-      await AppLogger.instance.warn(
-        'PaymentMonitorRealtime',
+      await _logRealtimeWarn(
         'Payment notification realtime event ignored',
         context: {
           'error': error.toString(),
@@ -991,20 +1072,19 @@ class PaymentMonitorProvider extends ChangeNotifier {
         : 'STREAMING';
     final notification = PaymentNotification.fromJson(notificationPayload);
     if (!notification.isValid) {
-      await AppLogger.instance.warn(
-        'PaymentMonitorRealtime',
+      await _logRealtimeWarn(
         'Payment speaker stream event ignored because payload is invalid',
         context: {
           'notificationId': payload['notificationId']?.toString(),
           'storeCode': payload['storeCode']?.toString(),
         },
+        storeCode: payload['storeCode']?.toString(),
       );
       return;
     }
     _advanceNotificationCheckpoint([notification]);
     if (!_canUsePaymentSpeaker) {
-      await AppLogger.instance.info(
-        'PaymentMonitorRealtime',
+      await _logRealtimeInfo(
         'Payment speaker stream event ignored because speaker is unavailable',
         context: {
           'notificationId': notification.notificationId,
@@ -1014,6 +1094,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
           'hasPaymentSpeakerFeature': _userCanUsePaymentSpeakerFeature(_user),
           'supportsPaymentSpeaker': _canUseSpeakerOnThisDevice,
         },
+        storeCode: notification.storeCode,
       );
       return;
     }
@@ -2443,7 +2524,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
           error is api.ApiException &&
           error.statusCode == 409) {
         throw _PaymentNotificationDeliverySuppressedException(
-          'duplicate_suppressed',
+          _streamSuppressedReason(error),
           _safeSpeakerError(error),
         );
       }
@@ -2518,7 +2599,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
           error is api.ApiException &&
           error.statusCode == 409) {
         throw _PaymentNotificationDeliverySuppressedException(
-          'duplicate_suppressed',
+          _streamSuppressedReason(error),
           _safeSpeakerError(error),
         );
       }
@@ -2811,4 +2892,12 @@ class _PaymentNotificationDeliverySuppressedException implements Exception {
 
   @override
   String toString() => message;
+}
+
+String _streamSuppressedReason(api.ApiException error) {
+  final message = error.message.toLowerCase();
+  if (message.contains('quá hạn') || message.contains('qua han')) {
+    return 'stream_recovery_window_expired';
+  }
+  return 'duplicate_suppressed';
 }

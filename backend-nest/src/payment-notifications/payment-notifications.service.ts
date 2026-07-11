@@ -61,6 +61,7 @@ const MIN_DELIVERY_HISTORY_LIMIT = 10;
 const MAX_DELIVERY_HISTORY_LIMIT = 20;
 const DEFAULT_STREAM_EVENT_REPEAT_COUNT = 3;
 const DEFAULT_STREAM_EVENT_REPEAT_GAP_MS = 1000;
+const DEFAULT_STREAM_PENDING_RECOVERY_WINDOW_SECONDS = 30;
 const DEFAULT_TTS_CONCURRENCY = 2;
 const DELIVERY_CLAIM_EVENT = 'DELIVERED';
 const STREAM_STARTED_EVENT = 'STREAM_STARTED';
@@ -70,6 +71,8 @@ const PAYMENT_SPEAKER_FORBIDDEN_MESSAGE = 'Không có quyền Đọc loa tiền 
 const PAYMENT_TTS_PREFIX_TEXT = 'Phong Vũ đã nhận:';
 const PAYMENT_STREAM_DUPLICATE_MESSAGE =
   'Giao dịch này đang được xử lý trên máy hiện tại.';
+const PAYMENT_STREAM_EXPIRED_MESSAGE = 'Thông báo đọc loa đã quá hạn.';
+const PAYMENT_STREAM_EXPIRED_REASON = 'stream_recovery_window_expired';
 
 type PaymentTtsAudioMode = 'full_text' | 'amount_only_with_prefix';
 
@@ -260,10 +263,16 @@ export class PaymentNotificationsService {
     const afterCreatedAt = query.afterCreatedAt
       ? this.parseDate(query.afterCreatedAt, 'afterCreatedAt')
       : null;
+    const now = new Date();
     const claimCutoff = new Date(
       Date.now() - this.deliveryClaimTtlSeconds() * 1000,
     );
     const includeStreamPending = this.paymentSpeakerStreamingEnabled();
+    const streamPendingRecoveryCutoff = includeStreamPending
+      ? new Date(
+          now.getTime() - this.streamPendingRecoveryWindowSeconds() * 1000,
+        )
+      : null;
     const candidates = await this.prisma.$transaction(async (tx) => {
       await this.lockReadyNotificationClient(tx, clientId, storeCode);
       const blockedDeliveries =
@@ -286,15 +295,32 @@ export class PaymentNotificationsService {
       const blockedNotificationIds = blockedDeliveries
         .map((row) => row.notificationId)
         .filter(Boolean);
+      const expiredStreamPendingCount =
+        streamPendingRecoveryCutoff != null
+          ? await this.markExpiredStreamPendingNotifications(tx, {
+              storeCode,
+              cutoff: streamPendingRecoveryCutoff,
+              now,
+              userId: user?.id,
+              clientId,
+            })
+          : 0;
 
       const readyNotifications = await tx.paymentNotification.findMany({
         where: {
           storeCode,
           OR: [
             { audioStatus: 'READY', audioPath: { not: null } },
-            ...(includeStreamPending ? [{ audioStatus: 'PENDING' }] : []),
+            ...(streamPendingRecoveryCutoff != null
+              ? [
+                  {
+                    audioStatus: 'PENDING',
+                    createdAt: { gte: streamPendingRecoveryCutoff },
+                  },
+                ]
+              : []),
           ],
-          expiresAt: { gt: new Date() },
+          expiresAt: { gt: now },
           ...(afterCreatedAt ? { createdAt: { gt: afterCreatedAt } } : {}),
           ...(blockedNotificationIds.length > 0
             ? { id: { notIn: blockedNotificationIds } }
@@ -307,6 +333,7 @@ export class PaymentNotificationsService {
       return {
         readyNotifications,
         blockedCount: blockedNotificationIds.length,
+        expiredStreamPendingCount,
       };
     });
 
@@ -321,6 +348,11 @@ export class PaymentNotificationsService {
     if (streamPendingCount > 0) {
       this.logger.debug(
         `Payment ready query returned ${streamPendingCount} stream-pending notifications for recovery store=${storeCode} client=${this.safeClientLabel(clientId)}`,
+      );
+    }
+    if (candidates.expiredStreamPendingCount > 0) {
+      this.logger.warn(
+        `Payment ready query silenced ${candidates.expiredStreamPendingCount} expired stream-pending notifications store=${storeCode} client=${this.safeClientLabel(clientId)} windowSeconds=${this.streamPendingRecoveryWindowSeconds()}`,
       );
     }
 
@@ -351,6 +383,15 @@ export class PaymentNotificationsService {
     if (!notification) throw new NotFoundException('Không tìm thấy thông báo');
     await this.assertUserCanUsePaymentSpeaker(user, 'audio');
     await this.assertUserCanAccessStore(user, notification.storeCode);
+    if (this.streamPendingRecoveryExpired(notification, new Date())) {
+      await this.markSingleStreamPendingExpired(notification, {
+        userId: user?.id,
+      });
+      this.logger.warn(
+        `Payment notification audio expired before client pickup notification=${notificationId} user=${this.safeUserLabel(user)} windowSeconds=${this.streamPendingRecoveryWindowSeconds()}`,
+      );
+      throw new ConflictException(PAYMENT_STREAM_EXPIRED_MESSAGE);
+    }
 
     if (notification.audioStatus !== 'READY' || !notification.audioPath) {
       if (notification.audioStatus !== 'PENDING') {
@@ -451,13 +492,29 @@ export class PaymentNotificationsService {
     if (!normalizedClientId) return null;
     const notification = await this.prisma.paymentNotification.findUnique({
       where: { id: notificationId },
-      select: { id: true, transactionId: true, storeCode: true },
+      select: {
+        id: true,
+        transactionId: true,
+        storeCode: true,
+        audioStatus: true,
+        createdAt: true,
+      },
     });
     if (!notification) {
       throw new NotFoundException('Không tìm thấy thông báo');
     }
     await this.assertUserCanUsePaymentSpeaker(user, 'stream');
     await this.assertUserCanAccessStore(user, notification.storeCode);
+    if (this.streamPendingRecoveryExpired(notification, new Date())) {
+      await this.markSingleStreamPendingExpired(notification, {
+        userId: user?.id,
+        clientId: normalizedClientId,
+      });
+      this.logger.warn(
+        `Payment speaker stream expired before client pickup notification=${notificationId} user=${this.safeUserLabel(user)} client=${this.safeClientLabel(normalizedClientId)} windowSeconds=${this.streamPendingRecoveryWindowSeconds()}`,
+      );
+      throw new ConflictException(PAYMENT_STREAM_EXPIRED_MESSAGE);
+    }
     const claimCutoff = new Date(
       Date.now() - this.deliveryClaimTtlSeconds() * 1000,
     );
@@ -513,6 +570,107 @@ export class PaymentNotificationsService {
         `Payment speaker stream claim rollback failed notification=${notificationId} user=${this.safeUserLabel(user)} client=${claim.clientId ? this.safeClientLabel(claim.clientId) : 'unknown'}: ${this.safeError(error)}`,
       );
     }
+  }
+
+  private async markExpiredStreamPendingNotifications(
+    tx: Prisma.TransactionClient,
+    input: {
+      storeCode: string;
+      cutoff: Date;
+      now: Date;
+      userId?: string;
+      clientId?: string;
+    },
+  ) {
+    const staleNotifications = await tx.paymentNotification.findMany({
+      where: {
+        storeCode: input.storeCode,
+        audioStatus: 'PENDING',
+        createdAt: { lt: input.cutoff },
+        expiresAt: { gt: input.now },
+      },
+      select: { id: true, transactionId: true, storeCode: true },
+      orderBy: { createdAt: 'asc' },
+      take: 100,
+    });
+    if (staleNotifications.length === 0) return 0;
+
+    const ids = staleNotifications.map((notification) => notification.id);
+    const terminalLogs = await tx.paymentNotificationDeliveryLog.findMany({
+      where: {
+        notificationId: { in: ids },
+        event: { in: TERMINAL_DELIVERY_EVENTS },
+      },
+      select: { notificationId: true },
+      distinct: ['notificationId'],
+    });
+    const terminalIds = new Set(
+      terminalLogs
+        .map((row) => row.notificationId)
+        .filter((id): id is string => Boolean(id)),
+    );
+    const expired = staleNotifications.filter(
+      (notification) => !terminalIds.has(notification.id),
+    );
+    if (expired.length === 0) return 0;
+
+    await tx.paymentNotificationDeliveryLog.createMany({
+      data: expired.map((notification) => ({
+        notificationId: notification.id,
+        transactionId: notification.transactionId,
+        storeCode: notification.storeCode,
+        userId: input.userId,
+        clientId: input.clientId,
+        event: 'SILENCED',
+        error: PAYMENT_STREAM_EXPIRED_REASON,
+      })),
+    });
+    return expired.length;
+  }
+
+  private async markSingleStreamPendingExpired(
+    notification: {
+      id: string;
+      transactionId?: string | null;
+      storeCode: string;
+    },
+    input: { userId?: string; clientId?: string },
+  ) {
+    const existingTerminal =
+      await this.prisma.paymentNotificationDeliveryLog.findFirst({
+        where: {
+          notificationId: notification.id,
+          event: { in: TERMINAL_DELIVERY_EVENTS },
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+    if (existingTerminal) return;
+    await this.logDeliveryEvent({
+      notificationId: notification.id,
+      transactionId: notification.transactionId ?? undefined,
+      storeCode: notification.storeCode,
+      userId: input.userId,
+      clientId: input.clientId,
+      event: 'SILENCED',
+      error: PAYMENT_STREAM_EXPIRED_REASON,
+    });
+  }
+
+  private streamPendingRecoveryExpired(
+    notification: {
+      audioStatus?: string | null;
+      createdAt?: Date | string | null;
+    },
+    now: Date,
+  ) {
+    if (notification.audioStatus !== 'PENDING') return false;
+    const createdAt =
+      notification.createdAt instanceof Date
+        ? notification.createdAt
+        : new Date(String(notification.createdAt ?? ''));
+    if (Number.isNaN(createdAt.getTime())) return false;
+    const ageMs = now.getTime() - createdAt.getTime();
+    return ageMs > this.streamPendingRecoveryWindowSeconds() * 1000;
   }
 
   async acknowledge(
@@ -1902,6 +2060,13 @@ export class PaymentNotificationsService {
     return this.readPositiveInt(
       'PAYMENT_STREAM_EVENT_REPEAT_GAP_MS',
       DEFAULT_STREAM_EVENT_REPEAT_GAP_MS,
+    );
+  }
+
+  private streamPendingRecoveryWindowSeconds() {
+    return this.readPositiveInt(
+      'PAYMENT_STREAM_PENDING_RECOVERY_WINDOW_SECONDS',
+      DEFAULT_STREAM_PENDING_RECOVERY_WINDOW_SECONDS,
     );
   }
 

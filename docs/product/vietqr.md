@@ -115,8 +115,9 @@ a customer to scan and pay manually.
   transactions when a new notification arrives. The app reconnects the
   realtime socket after disconnects. On Windows speaker-capable clients, a
   lightweight ready-notification fallback drains only the speaker backlog after
-  realtime silence, so audio can recover from missed socket events without
-  restoring full-list background polling.
+  realtime silence, but only for notifications still inside the short recovery
+  window. Stream-pending notifications older than 30 seconds are recorded as
+  not read and are never played later as delayed speaker backlog.
 - Failed transaction refreshes apply bounded backoff. Realtime/fallback refresh
   cannot bypass that backoff; only an explicit user refresh or filter/page
   action may retry immediately. This prevents socket bursts from amplifying
@@ -199,8 +200,12 @@ a customer to scan and pay manually.
   can treat the duplicate as a no-op instead of playing over itself. Normal
   ready polling remains only as backlog fallback on startup, manual refresh,
   realtime readiness, or realtime silence; it no longer downloads speaker audio
-  through `/audio` directly. The Windows client advances a local notification checkpoint and
-  skips locally terminal, queued, or in-flight notification ids before
+  through `/audio` directly. `/ready` recovers stream-pending notifications only
+  while they are newer than `PAYMENT_STREAM_PENDING_RECOVERY_WINDOW_SECONDS`
+  (default `30`); older stream-pending notifications are marked `SILENCED` with
+  `stream_recovery_window_expired`, and `/stream` also rejects them so they
+  cannot play late. The Windows client advances a local notification checkpoint
+  and skips locally terminal, queued, or in-flight notification ids before
   playback, so repeated stream events and fallback ready checks cannot overlap
   the same transaction audio on one machine.
 - When a speaker attempt fails, the client uploads `PaymentSpeaker` started /
