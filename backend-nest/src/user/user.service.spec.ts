@@ -383,6 +383,20 @@ describe('UserService admin store management', () => {
         nodesByCode.delete(current.code);
         return saveNode({ ...current, ...data, id: current.id });
       }),
+      updateMany: jest.fn(async ({ where, data }: any) => {
+        const allowedIds = where?.id?.in ? new Set<string>(where.id.in) : null;
+        const activeValue = where?.isActive;
+        let count = 0;
+        for (const node of Array.from(nodesById.values())) {
+          if (allowedIds && !allowedIds.has(node.id)) continue;
+          if (activeValue !== undefined && node.isActive !== activeValue) {
+            continue;
+          }
+          saveNode({ ...node, ...data });
+          count += 1;
+        }
+        return { count };
+      }),
       findMany: jest.fn(async (args?: any) => {
         const clauses = [
           args?.where,
@@ -1997,6 +2011,176 @@ describe('UserService admin store management', () => {
       'Nhân viên Thu ngân',
       'Nhân viên Kho',
     ]);
+  });
+
+  it('keeps manually inactive showroom organization nodes inactive during store sync', async () => {
+    const org = installOrganizationNodeMock();
+    org.saveNode({
+      id: 'org-store-cp62',
+      code: 'STORE_CP62',
+      displayName: 'CP62',
+      businessCode: 'CP62',
+      type: 'LV4_STORE',
+      parentId: 'org-domain-phongvu-vn',
+      isSystem: false,
+      isActive: false,
+      sortOrder: 10300,
+    });
+    prisma.store.findMany.mockResolvedValueOnce([
+      {
+        ...store,
+        organizationNodeId: 'org-store-cp62',
+        _count: { users: 0 },
+      },
+    ]);
+
+    const nodes = await service.adminListOrganizationTree(superAdmin);
+
+    expect(org.nodesById.get('org-store-cp62')).toMatchObject({
+      isActive: false,
+      parentId: 'org-domain-phongvu-vn',
+    });
+    expect(nodes).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ code: 'STORE_CP62' }),
+      ]),
+    );
+    expect(prisma.organizationNode.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'org-store-cp62' },
+        data: expect.objectContaining({ isActive: false }),
+      }),
+    );
+    expect(prisma.user.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('cascades inactive organization status to descendant nodes', async () => {
+    const org = installUserScopeTreeMock();
+    org.saveNode({
+      id: 'org-store-cp62-pos-sa',
+      code: 'STORE_CP62_POS_SA',
+      businessCode: 'SA',
+      displayName: 'Nhân viên Bán hàng',
+      type: 'JOB_ROLE',
+      parentId: 'org-store-cp62',
+      isSystem: true,
+      isActive: true,
+      sortOrder: 20,
+    });
+
+    await expect(
+      service.adminUpdateOrganizationNode(superAdmin, 'org-area-hcm', {
+        displayName: 'Ho Chi Minh',
+        code: 'AREA_PHONGVU_HCM',
+        businessCode: area.code,
+        type: 'AREA',
+        parentId: 'org-region-mien-nam',
+        isActive: false,
+        sortOrder: 200,
+      }),
+    ).resolves.toMatchObject({
+      id: 'org-area-hcm',
+      isActive: false,
+    });
+
+    expect(org.nodesById.get('org-area-hcm')).toMatchObject({
+      isActive: false,
+    });
+    expect(org.nodesById.get('org-store-cp62')).toMatchObject({
+      isActive: false,
+    });
+    expect(org.nodesById.get('org-store-cp01')).toMatchObject({
+      isActive: false,
+    });
+    expect(org.nodesById.get('org-store-cp62-pos-sa')).toMatchObject({
+      isActive: false,
+    });
+    expect(prisma.organizationNode.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          id: expect.objectContaining({
+            in: expect.arrayContaining([
+              'org-store-cp62',
+              'org-store-cp01',
+              'org-store-cp62-pos-sa',
+            ]),
+          }),
+          isActive: true,
+        }),
+        data: { isActive: false },
+      }),
+    );
+    expect(prisma.areaDefinition.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { code: area.code },
+        update: expect.objectContaining({ isActive: false }),
+      }),
+    );
+    expect(prisma.jobRoleDefinition.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { code: 'SA' },
+        update: expect.objectContaining({ isActive: false }),
+      }),
+    );
+  });
+
+  it('does not reactivate inactive default root domains during seed', async () => {
+    const org = installOrganizationNodeMock();
+    org.saveNode({
+      id: 'org-domain-phongvu-vn',
+      code: 'DOMAIN_PHONGVU_VN',
+      displayName: 'phongvu.vn',
+      type: 'ROOT_DOMAIN',
+      parentId: null,
+      emailDomain: 'phongvu.vn',
+      isSystem: true,
+      isActive: false,
+      sortOrder: 10,
+    });
+
+    await (service as any).seedDefaultOrganizationTree();
+
+    expect(org.nodesById.get('org-domain-phongvu-vn')).toMatchObject({
+      isActive: false,
+    });
+  });
+
+  it('does not reactivate inactive default store position nodes during store sync', async () => {
+    const org = installOrganizationNodeMock();
+    const storeNode = org.saveNode({
+      id: 'org-store-cp62',
+      code: 'STORE_CP62',
+      displayName: 'CP62',
+      businessCode: 'CP62',
+      type: 'LV4_STORE',
+      parentId: 'org-domain-phongvu-vn',
+      isSystem: false,
+      isActive: true,
+      sortOrder: 10300,
+    });
+    org.saveNode({
+      id: 'org-store-cp62-pos-cash',
+      code: 'STORE_CP62_POS_CASH',
+      businessCode: 'CASH',
+      displayName: 'Nhân viên Thu ngân',
+      type: 'LV5_POSITION',
+      parentId: 'org-store-cp62',
+      isSystem: true,
+      isActive: false,
+      sortOrder: 40,
+    });
+
+    await (service as any).ensureDefaultStorePositionNodes(prisma, storeNode);
+
+    expect(org.nodesById.get('org-store-cp62-pos-cash')).toMatchObject({
+      isActive: false,
+    });
+    expect(prisma.jobRoleDefinition.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { code: 'CASH' },
+        update: expect.objectContaining({ isActive: false }),
+      }),
+    );
   });
 
   it('keeps the selected Lv5 position as the user organization node', async () => {

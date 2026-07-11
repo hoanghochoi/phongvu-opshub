@@ -976,6 +976,8 @@ class _OrganizationNodeEditorDialogState
   }
 
   Future<void> _save() async {
+    final confirmed = await _confirmDeactivateIfNeeded();
+    if (!confirmed || !mounted) return;
     setState(() => _saving = true);
     final effectiveParentId = _effectiveParentId();
     final node = AdminOrganizationNode(
@@ -1066,6 +1068,34 @@ class _OrganizationNodeEditorDialogState
     } finally {
       if (mounted) setState(() => _saving = false);
     }
+  }
+
+  Future<bool> _confirmDeactivateIfNeeded() async {
+    final current = widget.node;
+    if (current == null || current.isActive == false || _isActive) {
+      return true;
+    }
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Tắt đơn vị?'),
+        content: const Text(
+          'Nếu tắt đơn vị này thì các đơn vị con cũng sẽ tắt!',
+        ),
+        actions: [
+          AppDialogCancelButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+          ),
+          AppDialogConfirmButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            label: 'Tắt đơn vị',
+            backgroundColor: AppColors.warning,
+            foregroundColor: AppColors.surface,
+          ),
+        ],
+      ),
+    );
+    return confirmed == true;
   }
 
   @override

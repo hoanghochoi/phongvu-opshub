@@ -77,7 +77,11 @@ Preset and Clear actions only change draft state. `Áp dụng` commits it.
 
 ## Desktop behavior
 
-- Dialog with preset navigation on the left and two calendars on the right.
+- Compact anchored popover attached to the trigger button, with no dimmed
+  full-screen modal/dialog backdrop. The popover should stay visually connected
+  to the trigger, fit inside the viewport, and close on outside click without
+  committing draft changes.
+- Preset navigation stays on the left and two calendars stay on the right.
 - Header always shows the draft range; endpoints use the primary token and
   inner range days use the primary-surface token.
 - Month/year navigation, min/max and disabled dates apply to both calendars.

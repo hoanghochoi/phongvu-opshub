@@ -401,21 +401,18 @@ export class OpshubFifoInventoryService implements OnModuleDestroy {
 
       let deactivatedRows = 0;
       if (deactivateMissingBigQueryRows) {
-        for (const srCode of srCodes) {
-          const result = await client.query(
-            `
-            UPDATE ${config.table}
-            SET ${config.columns.opshub_active} = false,
-                ${config.columns.opshub_updated_at} = now()
-            WHERE UPPER(${config.columns.Branch_ID}) = UPPER($1)
-              AND ${config.columns.opshub_source} = 'bigquery'
-              AND NOT (${config.columns.opshub_item_key}::text = ANY($2::text[]))
-              AND COALESCE(${config.columns.opshub_active}, true) = true
-            `,
-            [srCode, importedIds],
-          );
-          deactivatedRows += result.rowCount ?? 0;
-        }
+        const result = await client.query(
+          `
+          UPDATE ${config.table}
+          SET ${config.columns.opshub_active} = false,
+              ${config.columns.opshub_updated_at} = now()
+          WHERE ${config.columns.opshub_source} = 'bigquery'
+            AND NOT (${config.columns.opshub_item_key}::text = ANY($1::text[]))
+            AND COALESCE(${config.columns.opshub_active}, true) = true
+          `,
+          [importedIds],
+        );
+        deactivatedRows = result.rowCount ?? 0;
       }
 
       await client.query('COMMIT');

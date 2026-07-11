@@ -1618,10 +1618,21 @@ export class UserService implements OnModuleInit {
         where: { id },
         data,
       });
+      const cascade = updated.isActive === false
+        ? await this.cascadeDeactivateOrganizationDescendants(tx, updated.id)
+        : { deactivatedCount: 0 };
       if (this.isStoreNodeType(updated.type)) {
         await this.syncShowroomStoreFromNode(tx, updated, body, current);
-      } else if (this.isLegacyPositionNodeType(updated.type)) {
+      } else if (this.isLegacyCatalogNodeType(updated.type)) {
         await this.syncLegacyCatalogFromOrganizationNode(tx, updated);
+      }
+      if (cascade.deactivatedCount > 0) {
+        this.logger.log(
+          'Organization node descendants deactivated: nodeId=' +
+            id +
+            ' descendants=' +
+            cascade.deactivatedCount,
+        );
       }
       return this.findOrganizationNodeForDto(tx, id);
     });
@@ -1803,6 +1814,15 @@ export class UserService implements OnModuleInit {
 
   private isLegacyPositionNodeType(type: string) {
     return this.normalizeOrganizationNodeType(type) === ORG_TYPE_LV5_POSITION;
+  }
+
+  private isLegacyCatalogNodeType(type: string) {
+    return (
+      this.isLegacyDepartmentNodeType(type) ||
+      this.isLegacyPositionNodeType(type) ||
+      this.isLegacyRegionNodeType(type) ||
+      this.isLegacyAreaNodeType(type)
+    );
   }
 
   private normalizeOrganizationNodeCode(value: unknown) {
@@ -2124,6 +2144,47 @@ export class UserService implements OnModuleInit {
     return this.toOrganizationNodeDto(node);
   }
 
+  private async cascadeDeactivateOrganizationDescendants(
+    client: any,
+    rootId: string,
+  ) {
+    const organizationNode = client.organizationNode;
+    if (!organizationNode?.findMany || !organizationNode?.updateMany) {
+      return { deactivatedCount: 0 };
+    }
+    const ids = await this.organizationDescendantIdsForClient(client, rootId);
+    const descendantIds = ids.filter((id) => id !== rootId);
+    if (descendantIds.length === 0) return { deactivatedCount: 0 };
+
+    const descendants = await organizationNode.findMany({
+      where: { id: { in: descendantIds } },
+      select: {
+        id: true,
+        code: true,
+        displayName: true,
+        businessCode: true,
+        abbreviation: true,
+        description: true,
+        type: true,
+        parentId: true,
+        isSystem: true,
+      },
+    });
+    const result = await organizationNode.updateMany({
+      where: { id: { in: descendantIds }, isActive: true },
+      data: { isActive: false },
+    });
+
+    for (const node of descendants) {
+      const inactiveNode = { ...node, isActive: false };
+      if (this.isLegacyCatalogNodeType(inactiveNode.type)) {
+        await this.syncLegacyCatalogFromOrganizationNode(client, inactiveNode);
+      }
+    }
+
+    return { deactivatedCount: result.count ?? 0 };
+  }
+
   private async syncShowroomStoreFromNode(
     client: any,
     node: any,
@@ -2378,7 +2439,11 @@ export class UserService implements OnModuleInit {
       const node = existing?.id
         ? await organizationNode.update({
             where: { id: existing.id },
-            data,
+            data: {
+              ...data,
+              isActive:
+                existing.isActive !== false && storeNode.isActive !== false,
+            },
           })
         : await organizationNode.upsert({
             where: { code },
@@ -4620,6 +4685,7 @@ export class UserService implements OnModuleInit {
     let syncedCount = 0;
     let locationSyncedUserCount = 0;
     let relinkedUserCount = 0;
+    let inactivePreservedCount = 0;
 
     try {
       for (const store of stores) {
@@ -4629,7 +4695,8 @@ export class UserService implements OnModuleInit {
             store,
             source,
           );
-          if (syncResult.nodeId) {
+          if (syncResult.inactivePreserved) inactivePreservedCount += 1;
+          if (syncResult.nodeId && syncResult.nodeIsActive !== false) {
             const storeSubtreeIds =
               await this.organizationDescendantIdsForClient(
                 tx,
@@ -4674,6 +4741,8 @@ export class UserService implements OnModuleInit {
           locationSyncedUserCount +
           ' userRelinked=' +
           relinkedUserCount +
+          ' inactivePreserved=' +
+          inactivePreservedCount +
           ' durationMs=' +
           (Date.now() - startedAt),
       );
@@ -4703,6 +4772,8 @@ export class UserService implements OnModuleInit {
         nodeId: null,
         defaultUserNodeId: null,
         parentId: null,
+        nodeIsActive: false,
+        inactivePreserved: false,
         linked: false,
         moved: false,
         location: {
@@ -4719,7 +4790,13 @@ export class UserService implements OnModuleInit {
     if (store.organizationNodeId && organizationNode.findUnique) {
       existingNode = await organizationNode.findUnique({
         where: { id: store.organizationNodeId },
-        select: { id: true, parentId: true, type: true, isSystem: true },
+        select: {
+          id: true,
+          parentId: true,
+          type: true,
+          isSystem: true,
+          isActive: true,
+        },
       });
       if (
         existingNode &&
@@ -4731,7 +4808,13 @@ export class UserService implements OnModuleInit {
     if (!existingNode && organizationNode.findUnique) {
       existingNode = await organizationNode.findUnique({
         where: { code: nodeCode },
-        select: { id: true, parentId: true, type: true, isSystem: true },
+        select: {
+          id: true,
+          parentId: true,
+          type: true,
+          isSystem: true,
+          isActive: true,
+        },
       });
       if (
         existingNode &&
@@ -4757,7 +4840,7 @@ export class UserService implements OnModuleInit {
       emailDomain: null,
       loginAllowed: false,
       isSystem: false,
-      isActive: true,
+      isActive: existingNode ? existingNode.isActive !== false : true,
       sortOrder: domain.sortBase + 300,
     };
 
@@ -4810,6 +4893,8 @@ export class UserService implements OnModuleInit {
       nodeId: node.id,
       defaultUserNodeId,
       parentId,
+      nodeIsActive: node.isActive !== false,
+      inactivePreserved: existingNode?.isActive === false,
       linked,
       moved: existingNode?.parentId !== parentId,
       location: await this.organizationLocationForShowroomNode(client, node),
@@ -4852,7 +4937,6 @@ export class UserService implements OnModuleInit {
         emailDomain: 'phongvu.vn',
         loginAllowed: true,
         isSystem: true,
-        isActive: true,
         sortOrder: 10,
       },
       create: {
@@ -4881,7 +4965,6 @@ export class UserService implements OnModuleInit {
         emailDomain: 'acare.vn',
         loginAllowed: true,
         isSystem: true,
-        isActive: true,
         sortOrder: 20,
       },
       create: {

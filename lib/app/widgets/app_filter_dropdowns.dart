@@ -45,15 +45,17 @@ class AppDateRangeDropdown extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        OutlinedButton.icon(
-          key: const Key('open-date-range-picker'),
-          icon: const Icon(Icons.date_range_rounded, size: 18),
-          style: _filterButtonStyle(),
-          label: Text(
-            '$label: ${_rangeLabel(start, end)}',
-            overflow: TextOverflow.ellipsis,
+        Builder(
+          builder: (buttonContext) => OutlinedButton.icon(
+            key: const Key('open-date-range-picker'),
+            icon: const Icon(Icons.date_range_rounded, size: 18),
+            style: _filterButtonStyle(),
+            label: Text(
+              '$label: ${_rangeLabel(start, end)}',
+              overflow: TextOverflow.ellipsis,
+            ),
+            onPressed: () => _openPicker(buttonContext),
           ),
-          onPressed: () => _openPicker(context),
         ),
         if (helperText != null) ...[
           const SizedBox(height: 4),

@@ -98,10 +98,17 @@ and basic administration for privileged roles.
   Subdomain nodes are retired from the active tree instead of hard-deleted.
   Nodes with children, users, SRs, or other references are blocked from
   deletion and the API returns the blocking counts/reasons.
+- When an admin deactivates any organization node, default seeding and legacy
+  sync jobs must preserve that inactive state. Deactivating a parent cascades
+  inactive status to every descendant node, and the edit dialog warns
+  `Nếu tắt node này thì các node con cũng sẽ tắt!` before saving.
 - Lv4 store nodes are the admin surface for SR/store metadata. Tree saves sync
   the related `Store` row without overwriting existing SR identity, payment,
   transfer, or MAP fields unless those fields are explicitly edited in the Lv4
-  store editor.
+  store editor. Legacy store sync must preserve a manually inactive Lv4 store
+  node and must not reactivate it just because the linked `Store` row still
+  exists; default Lv5 store positions also stay inactive when an admin has
+  turned them off.
 - Each active Lv4 store has five fixed Lv5 position children: `STORE_MANAGER`
   (`Quản lý Cửa hàng`), `SA` (`Nhân viên Bán hàng`), `TECHNICIAN` (`Kỹ thuật
   viên`), `CASH` (`Nhân viên Thu ngân`), and `WAREHOUSE` (`Nhân viên Kho`).

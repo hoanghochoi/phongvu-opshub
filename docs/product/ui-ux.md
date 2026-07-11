@@ -171,15 +171,18 @@ visual systems that make the app feel assembled from unrelated screens.
 
 - List, report, and admin-index filters must use dropdowns or anchored menus.
   Do not open dialogs for ordinary single-select filters; the shared date-range
-  control may open one dedicated range picker so both dates are confirmed once.
+  control opens one anchored desktop range popover so both dates are confirmed
+  once without covering the page.
 - Rút gọn toàn bộ selector riêng lẻ thành `AppCombobox`: mọi luồng cần chọn
   Showroom hoặc filter danh sách phải dùng cùng component search-box realtime,
   mở dropdown ngay khi focus/click và lọc kết quả theo nội dung nhập. Showroom
   phải hiển thị theo dạng `CPxx - <Tên SR>` thay vì label chung chung như
   `Showroom: CPxx`.
 - All date range filters must reuse the canonical shared DateRangePicker. Do not create feature-local implementations.
-  The shared trigger opens one draft-state picker: desktop uses the preset
-  sidebar and two calendars; mobile uses a one-month bottom sheet.
+  The shared trigger opens one draft-state picker: desktop uses a compact
+  anchored popover attached to the trigger button, with the preset sidebar and
+  two calendars, and must not dim the whole screen with a full modal/dialog
+  backdrop; mobile uses a one-month bottom sheet.
   Preset/date/Clear changes are committed only after `Áp dụng`; Cancel, close,
   and outside dismissal preserve the previous filter. Feature/page code must
   not import calendar libraries or call `showDateRangePicker` directly.

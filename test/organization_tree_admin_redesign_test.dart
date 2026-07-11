@@ -184,6 +184,53 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+
+  testWidgets('Organization tree warns before deactivating a node', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1280, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final repository = _FakeOrganizationRepository(nodes: [_domainNode]);
+
+    await tester.pumpWidget(
+      ChangeNotifierProvider<AuthProvider>.value(
+        value: _FakeAuthProvider(_superAdmin),
+        child: MaterialApp(
+          home: Scaffold(
+            body: SizedBox.expand(
+              child: OrganizationTreeAdminScreen(repository: repository),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Sửa'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byType(SwitchListTile));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Lưu'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Tắt đơn vị?'), findsOneWidget);
+    expect(
+      find.text('Nếu tắt đơn vị này thì các đơn vị con cũng sẽ tắt!'),
+      findsOneWidget,
+    );
+    expect(repository.lastUpdateBody, isNull);
+
+    await tester.tap(find.text('Tắt đơn vị'));
+    await tester.pumpAndSettle();
+
+    expect(repository.lastUpdateBody?['isActive'], isFalse);
+    expect(repository.lastUpdatedId, _domainNode.id);
+    expect(tester.takeException(), isNull);
+  });
 }
 
 const _superAdmin = User(
@@ -282,6 +329,8 @@ class _FakeOrganizationRepository extends AuthRepository {
   final List<AdminOrganizationNode> nodes;
   final int failCount;
   int loadCount = 0;
+  String? lastUpdatedId;
+  Map<String, dynamic>? lastUpdateBody;
 
   @override
   Future<List<AdminOrganizationNode>> listAdminOrganizationTree() async {
@@ -290,5 +339,15 @@ class _FakeOrganizationRepository extends AuthRepository {
       throw Exception('Không tải được dữ liệu kiểm thử');
     }
     return nodes;
+  }
+
+  @override
+  Future<AdminOrganizationNode> updateAdminOrganizationNodeBody(
+    String id,
+    Map<String, dynamic> body,
+  ) async {
+    lastUpdatedId = id;
+    lastUpdateBody = Map<String, dynamic>.of(body);
+    return nodes.firstWhere((node) => node.id == id, orElse: () => nodes.first);
   }
 }

@@ -32,9 +32,9 @@ history where permitted.
   the signed-in user's SR. Sort queries try exact SKU first, then BIN.
 - FIFO inventory is refreshed from BigQuery into `fifo_inventory` every day at
   08:00 Asia/Ho_Chi_Minh. BigQuery-sourced rows are the primary stock source.
-  A refresh upserts current rows and deactivates missing rows only when those
-  existing rows are `opshub_source='bigquery'` for SR codes present in the
-  refresh.
+  A refresh upserts current rows and deactivates any existing
+  `opshub_source='bigquery'` row that is missing from the latest valid BigQuery
+  snapshot, including rows for an SR that no longer appears in the snapshot.
 - Users with `FIFO_IMPORT` access can manually import an Excel inventory export from the FIFO menu
   with the physical serial inventory format as a supplemental path. Manual
   imports map their Vietnamese headers into the canonical BigQuery shape,

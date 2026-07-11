@@ -4,17 +4,17 @@ This file maps product behavior to proof. Existing flows are marked
 `existing_unverified` until fresh validation evidence is attached.
 
 - `UI-DATE-RANGE-001`, 2026-07-11: replaced the Material range dialog with the
-  canonical token-based `DateRangePicker`: desktop preset sidebar plus dual
-  calendars, mobile one-month bottom sheet, draft Apply/Cancel/Clear, inclusive
-  standard presets, range highlighting, min/max/disabled dates and keyboard
-  navigation. Existing Home, sales-report, payment-monitor, bank-statement and
-  offset-adjustment filters continue through `AppDateRangeDropdown`; API
-  date-only `yyyy-MM-dd` and local-day semantics are unchanged. Validation:
-  8 focused picker widget tests and Sales Report integration suite passed;
+  canonical token-based `DateRangePicker`: desktop compact anchored popover
+  attached to the trigger button with preset sidebar plus dual calendars, mobile
+  one-month bottom sheet, draft Apply/Cancel/Clear, inclusive standard presets,
+  range highlighting, min/max/disabled dates and keyboard navigation. Existing
+  Home, sales-report, payment-monitor, bank-statement and offset-adjustment
+  filters continue through `AppDateRangeDropdown`; API date-only `yyyy-MM-dd`
+  and local-day semantics are unchanged. Validation:
+  9 focused picker widget tests and Sales Report integration suite passed;
   canonical date-range guard passed; `flutter analyze --no-pub`,
-  `flutter test --no-pub` passed 408 tests with 1 skipped test and 0 failures,
-  and `git diff --check` passed. Windows release build is rerun before staging
-  push.
+  `flutter test --no-pub` passed 493 tests with 0 failures/errors, Windows
+  release build passed, and `git diff --check` passed.
 
 ## Status Values
 
@@ -58,6 +58,18 @@ This file maps product behavior to proof. Existing flows are marked
 
 Recent focused evidence:
 
+- `FIFO-001`/`PROFILE-ADMIN-001`, 2026-07-11: FIFO BigQuery refresh now treats
+  the latest valid BigQuery read as the full snapshot for BigQuery-sourced rows;
+  rows missing from that snapshot are deactivated even when their SR is absent
+  from the batch. Organization tree sync/seed preserves manually inactive
+  nodes, legacy store sync does not reactivate manually disabled Lv4 stores,
+  default Lv5 store positions stay inactive when manually disabled, and
+  deactivating a parent node cascades inactive status to descendants. The
+  organization-tree edit form now warns before saving an inactive node:
+  `Nếu tắt đơn vị này thì các đơn vị con cũng sẽ tắt!`. Validation: focused FIFO
+  inventory Jest and UserService Jest (`57` tests), backend `npm run build`,
+  focused Flutter organization-tree widget test (`4` tests), and
+  `git diff --check`.
 - `PAYMENT-MONITOR-001`, 2026-07-11: đọc loa realtime không còn phát muộn khi
   client reconnect. `/ready` chỉ recover stream-pending notification trong
   `PAYMENT_STREAM_PENDING_RECOVERY_WINDOW_SECONDS` (mặc định 30 giây);

@@ -60,6 +60,9 @@ before acting. Never claim done before verification.
 ## Shared Date Range Requirement
 
 - All date range filters must reuse the canonical shared DateRangePicker. Do not create feature-local implementations.
+- Desktop date range filters must open a compact anchored popover attached to
+  the trigger button, without a dimmed full-screen modal/dialog backdrop.
+  Mobile keeps the canonical bottom sheet/fullscreen-friendly surface.
 - Feature/page code must not import calendar libraries or call
   `showDateRangePicker` directly. Extend the canonical shared component when a
   new date-range behavior is required.

@@ -29,7 +29,7 @@ class _DateRangePickerDemoState extends State<DateRangePickerDemo> {
             Text('Canonical shared component', style: AppTextStyles.headingL),
             const SizedBox(height: AppLayoutTokens.cardGap),
             Text(
-              'Thu nhỏ cửa sổ dưới 600 px để xem bottom sheet một tháng.',
+              'Desktop mở popover nhỏ gắn với nút; thu nhỏ cửa sổ dưới 600 px để xem bottom sheet một tháng.',
               style: AppTextStyles.bodyM.copyWith(
                 color: AppColors.textSecondaryOf(context),
               ),

@@ -72,7 +72,7 @@ describe('OpshubFifoInventoryService', () => {
     expect(client.release).toHaveBeenCalled();
   });
 
-  it('upserts BigQuery rows and deactivates missing BigQuery rows for synced SRs', async () => {
+  it('upserts BigQuery rows and deactivates any BigQuery row missing from the latest snapshot', async () => {
     const service = new OpshubFifoInventoryService();
     const client = {
       query: jest.fn().mockResolvedValue({ rowCount: 2 }),
@@ -95,6 +95,11 @@ describe('OpshubFifoInventoryService', () => {
     expect(sql.match(/"exported" =/g)).toHaveLength(1);
     expect(sql).toContain('"opshub_source" = \'bigquery\'');
     expect(sql).toContain('AND NOT ("opshub_item_key"::text = ANY');
+    const deactivateCall = client.query.mock.calls.find(([query]) =>
+      String(query).includes('SET "opshub_active" = false'),
+    );
+    expect(String(deactivateCall?.[0])).not.toContain('UPPER("Branch_ID")');
+    expect(deactivateCall?.[1]).toEqual([['CP62:225ABC967']]);
   });
 
   it('filters SKU queries using active canonical BigQuery columns', async () => {

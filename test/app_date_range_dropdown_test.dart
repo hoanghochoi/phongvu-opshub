@@ -152,6 +152,56 @@ void main() {
     expect(selectedEnd, DateTime(2026, 7, 11));
   });
 
+  testWidgets('desktop trigger opens compact anchored popover', (tester) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 900);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Align(
+            alignment: Alignment.topCenter,
+            child: Padding(
+              padding: const EdgeInsets.only(top: 120),
+              child: SizedBox(
+                width: 260,
+                child: AppDateRangeDropdown(
+                  label: 'Ngày',
+                  start: DateTime(2026, 7, 4),
+                  end: DateTime(2026, 7, 4),
+                  now: () => DateTime(2026, 7, 11),
+                  onChanged: (_, _) {},
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final trigger = find.byKey(const Key('open-date-range-picker'));
+    final triggerBottom = tester.getBottomLeft(trigger).dy;
+    await tester.tap(trigger);
+    await tester.pumpAndSettle();
+
+    final popover = find.byKey(const Key('date-range-popover'));
+    expect(popover, findsOneWidget);
+    expect(find.byType(Dialog), findsNothing);
+    expect(find.byKey(const Key('date-range-desktop')), findsOneWidget);
+    expect(find.byKey(const Key('from-calendar')), findsOneWidget);
+    expect(find.byKey(const Key('to-calendar')), findsOneWidget);
+
+    final popoverTopLeft = tester.getTopLeft(popover);
+    final popoverSize = tester.getSize(popover);
+    expect(popoverSize.width, lessThan(900));
+    expect(popoverSize.height, lessThan(580));
+    expect(popoverTopLeft.dy, greaterThanOrEqualTo(triggerBottom));
+    expect(popoverTopLeft.dy - triggerBottom, lessThanOrEqualTo(12));
+    expect(popoverTopLeft.dx, greaterThanOrEqualTo(12));
+  });
+
   testWidgets('outside dismiss and close do not update filter', (tester) async {
     tester.view.devicePixelRatio = 1;
     tester.view.physicalSize = const Size(1200, 900);

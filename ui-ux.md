@@ -3,9 +3,10 @@
 ## Shared Date Range Picker
 
 - All date range filters must reuse the canonical shared DateRangePicker. Do not create feature-local implementations.
-- Desktop uses the canonical preset-sidebar and dual-calendar dialog; mobile
-  uses the canonical one-month bottom sheet. Draft changes only reach a feature
-  after `Áp dụng`.
+- Desktop uses a compact anchored popover attached to the trigger button, with
+  the canonical preset-sidebar and dual-calendar layout. It must not open a
+  dimmed full-screen modal/dialog backdrop. Mobile uses the canonical one-month
+  bottom sheet. Draft changes only reach a feature after `Áp dụng`.
 - Feature/page code must not import calendar libraries or create date-range
   picker widgets locally.
 

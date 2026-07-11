@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -10,6 +11,13 @@ import '../../theme/app_text_styles.dart';
 import '../app_layout.dart';
 
 typedef AppSelectableDayPredicate = bool Function(DateTime day);
+
+const double _desktopPickerWidth = 820;
+const double _desktopPickerHeight = 536;
+const double _desktopPresetWidth = 180;
+const double _desktopPopoverGap = 8;
+const double _desktopPopoverMargin = 12;
+const double _desktopPopoverArrowSize = 12;
 
 class DateRangePickerResult {
   final DateTime? start;
@@ -88,6 +96,7 @@ class DateRangePicker extends StatefulWidget {
         'Date range picker opened',
         context: {
           'layout': mobile ? 'mobile' : 'desktop',
+          'surface': mobile ? 'bottom_sheet' : 'anchored_popover',
           'hasStartDate': initialStart != null,
           'hasEndDate': initialEnd != null,
           'allowClear': allowClear,
@@ -131,24 +140,33 @@ class DateRangePicker extends StatefulWidget {
           ),
         );
       } else {
-        result = await showDialog<DateRangePickerResult>(
+        final anchorRect = _anchorRectFor(context);
+        result = await showGeneralDialog<DateRangePickerResult>(
           context: context,
           barrierDismissible: true,
-          barrierColor: AppColors.shadow.withValues(alpha: 0.48),
-          builder: (dialogContext) => Dialog(
-            backgroundColor: AppColors.overlayOf(dialogContext),
-            surfaceTintColor: AppColors.transparent,
-            insetPadding: const EdgeInsets.all(32),
-            shape: RoundedRectangleBorder(
-              borderRadius: AppRadius.allXxl,
-              side: BorderSide(color: AppColors.borderOf(dialogContext)),
-            ),
-            clipBehavior: Clip.antiAlias,
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 980, maxHeight: 640),
-              child: buildPicker(dialogContext),
-            ),
+          barrierLabel: MaterialLocalizations.of(
+            context,
+          ).modalBarrierDismissLabel,
+          barrierColor: AppColors.transparent,
+          transitionDuration: const Duration(milliseconds: 120),
+          pageBuilder: (dialogContext, _, _) => _DateRangePickerPopover(
+            anchorRect: anchorRect,
+            child: buildPicker(dialogContext),
           ),
+          transitionBuilder: (context, animation, _, child) {
+            final curved = CurvedAnimation(
+              parent: animation,
+              curve: Curves.easeOutCubic,
+            );
+            return FadeTransition(
+              opacity: curved,
+              child: ScaleTransition(
+                scale: Tween<double>(begin: 0.98, end: 1).animate(curved),
+                alignment: Alignment.topCenter,
+                child: child,
+              ),
+            );
+          },
         );
       }
 
@@ -159,6 +177,7 @@ class DateRangePicker extends StatefulWidget {
             : 'Date range picker applied',
         context: {
           'layout': mobile ? 'mobile' : 'desktop',
+          'surface': mobile ? 'bottom_sheet' : 'anchored_popover',
           'outcome': result == null
               ? 'cancelled'
               : result.isEmpty
@@ -176,6 +195,7 @@ class DateRangePicker extends StatefulWidget {
         stackTrace: stackTrace,
         context: {
           'layout': mobile ? 'mobile' : 'desktop',
+          'surface': mobile ? 'bottom_sheet' : 'anchored_popover',
           'durationMs': DateTime.now().difference(startedAt).inMilliseconds,
         },
       );
@@ -185,6 +205,198 @@ class DateRangePicker extends StatefulWidget {
 
   @override
   State<DateRangePicker> createState() => _DateRangePickerState();
+}
+
+class _DateRangePickerPopover extends StatelessWidget {
+  const _DateRangePickerPopover({
+    required this.anchorRect,
+    required this.child,
+  });
+
+  final Rect anchorRect;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final viewport = Size(
+          constraints.hasBoundedWidth
+              ? constraints.maxWidth
+              : MediaQuery.sizeOf(context).width,
+          constraints.hasBoundedHeight
+              ? constraints.maxHeight
+              : MediaQuery.sizeOf(context).height,
+        );
+        final placement = _resolvePopoverPlacement(
+          anchorRect,
+          viewport,
+          Directionality.of(context),
+        );
+
+        return SizedBox.expand(
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Positioned(
+                left: placement.left,
+                top: placement.top,
+                width: placement.width,
+                height: placement.height,
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    Positioned(
+                      left: placement.arrowLeft,
+                      top: placement.opensBelow
+                          ? -_desktopPopoverArrowSize / 2
+                          : null,
+                      bottom: placement.opensBelow
+                          ? null
+                          : -_desktopPopoverArrowSize / 2,
+                      child: _PopoverArrow(opensBelow: placement.opensBelow),
+                    ),
+                    Material(
+                      key: const Key('date-range-popover'),
+                      elevation: 14,
+                      shadowColor: AppColors.shadow.withValues(alpha: 0.22),
+                      color: AppColors.overlayOf(context),
+                      surfaceTintColor: AppColors.transparent,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: AppRadius.allXl,
+                        side: BorderSide(color: AppColors.borderOf(context)),
+                      ),
+                      clipBehavior: Clip.antiAlias,
+                      child: child,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _PopoverArrow extends StatelessWidget {
+  const _PopoverArrow({required this.opensBelow});
+
+  final bool opensBelow;
+
+  @override
+  Widget build(BuildContext context) {
+    return Transform.rotate(
+      angle: math.pi / 4,
+      child: Container(
+        width: _desktopPopoverArrowSize,
+        height: _desktopPopoverArrowSize,
+        decoration: BoxDecoration(
+          color: AppColors.overlayOf(context),
+          border: Border(
+            left: opensBelow
+                ? BorderSide(color: AppColors.borderOf(context))
+                : BorderSide.none,
+            top: opensBelow
+                ? BorderSide(color: AppColors.borderOf(context))
+                : BorderSide.none,
+            right: opensBelow
+                ? BorderSide.none
+                : BorderSide(color: AppColors.borderOf(context)),
+            bottom: opensBelow
+                ? BorderSide.none
+                : BorderSide(color: AppColors.borderOf(context)),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PopoverPlacement {
+  const _PopoverPlacement({
+    required this.left,
+    required this.top,
+    required this.width,
+    required this.height,
+    required this.arrowLeft,
+    required this.opensBelow,
+  });
+
+  final double left;
+  final double top;
+  final double width;
+  final double height;
+  final double arrowLeft;
+  final bool opensBelow;
+}
+
+Rect _anchorRectFor(BuildContext context) {
+  final renderObject = context.findRenderObject();
+  final overlayObject = Overlay.maybeOf(
+    context,
+    rootOverlay: true,
+  )?.context.findRenderObject();
+  if (renderObject is RenderBox) {
+    final topLeft = overlayObject is RenderBox
+        ? renderObject.localToGlobal(Offset.zero, ancestor: overlayObject)
+        : renderObject.localToGlobal(Offset.zero);
+    return topLeft & renderObject.size;
+  }
+  final size = MediaQuery.sizeOf(context);
+  return Rect.fromLTWH(size.width / 2, size.height / 2, 0, 0);
+}
+
+_PopoverPlacement _resolvePopoverPlacement(
+  Rect anchor,
+  Size viewport,
+  TextDirection textDirection,
+) {
+  final width = math
+      .min(
+        _desktopPickerWidth,
+        math.max(0, viewport.width - _desktopPopoverMargin * 2),
+      )
+      .toDouble();
+  final height = math
+      .min(
+        _desktopPickerHeight,
+        math.max(0, viewport.height - _desktopPopoverMargin * 2),
+      )
+      .toDouble();
+  final maxLeft = math.max(
+    _desktopPopoverMargin,
+    viewport.width - _desktopPopoverMargin - width,
+  );
+  final preferredLeft = textDirection == TextDirection.rtl
+      ? anchor.right - width
+      : anchor.left;
+  final left = preferredLeft.clamp(_desktopPopoverMargin, maxLeft).toDouble();
+  final belowTop = anchor.bottom + _desktopPopoverGap;
+  final aboveTop = anchor.top - _desktopPopoverGap - height;
+  final spaceBelow = viewport.height - _desktopPopoverMargin - belowTop;
+  final spaceAbove = anchor.top - _desktopPopoverGap - _desktopPopoverMargin;
+  final opensBelow = spaceBelow >= height || spaceBelow >= spaceAbove;
+  final maxTop = math.max(
+    _desktopPopoverMargin,
+    viewport.height - _desktopPopoverMargin - height,
+  );
+  final top = (opensBelow ? belowTop : aboveTop)
+      .clamp(_desktopPopoverMargin, maxTop)
+      .toDouble();
+  final arrowCenter = anchor.center.dx
+      .clamp(left + 18, left + width - 18)
+      .toDouble();
+
+  return _PopoverPlacement(
+    left: left,
+    top: top,
+    width: width,
+    height: height,
+    arrowLeft: arrowCenter - left - _desktopPopoverArrowSize / 2,
+    opensBelow: opensBelow,
+  );
 }
 
 class _DateRangePickerState extends State<DateRangePicker> {
@@ -220,13 +432,13 @@ class _DateRangePickerState extends State<DateRangePicker> {
   Widget _buildDesktop(BuildContext context) {
     return SizedBox(
       key: const Key('date-range-desktop'),
-      width: 980,
-      height: 610,
+      width: _desktopPickerWidth,
+      height: _desktopPickerHeight,
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           SizedBox(
-            width: 210,
+            width: _desktopPresetWidth,
             child: DecoratedBox(
               decoration: BoxDecoration(
                 color: AppColors.canvasOf(context),
@@ -235,7 +447,7 @@ class _DateRangePickerState extends State<DateRangePicker> {
                 ),
               ),
               child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 20),
+                padding: const EdgeInsets.symmetric(vertical: 16),
                 child: _buildDesktopPresets(context),
               ),
             ),
@@ -246,7 +458,7 @@ class _DateRangePickerState extends State<DateRangePicker> {
                 _buildHeader(context),
                 Expanded(
                   child: Padding(
-                    padding: const EdgeInsets.fromLTRB(20, 18, 20, 12),
+                    padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -269,7 +481,7 @@ class _DateRangePickerState extends State<DateRangePicker> {
                             onDateSelected: _selectDate,
                           ),
                         ),
-                        const SizedBox(width: 20),
+                        const SizedBox(width: 14),
                         Expanded(
                           child: _MonthCalendar(
                             key: const Key('to-calendar'),
@@ -360,9 +572,9 @@ class _DateRangePickerState extends State<DateRangePicker> {
     return Container(
       padding: EdgeInsets.fromLTRB(
         widget.mobile ? 16 : 20,
-        widget.mobile ? 14 : 18,
+        widget.mobile ? 14 : 14,
         widget.mobile ? 8 : 16,
-        widget.mobile ? 12 : 16,
+        widget.mobile ? 12 : 12,
       ),
       decoration: BoxDecoration(
         border: Border(
