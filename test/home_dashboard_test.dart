@@ -660,6 +660,7 @@ void main() {
         HomeNotPurchasedReportDetail(
           id: 'report-2',
           submittedAt: DateTime(2026, 7, 4, 9),
+          storeCode: 'CP75',
           salesName: 'SA Một',
           customerName: 'Nguyễn Văn A',
           customerTypeLabel: 'Doanh nghiệp',
@@ -671,6 +672,7 @@ void main() {
         HomeUnreportedOrderDetail(
           orderCode: '2607040002',
           soldAt: DateTime(2026, 7, 4, 10, 30),
+          storeCode: 'CP62',
           salesName: 'SA Hai',
         ),
       ],
@@ -735,6 +737,7 @@ void main() {
       find.byKey(const Key('home-not-purchased-details-table')),
       findsOneWidget,
     );
+    expect(find.text('Mã SR'), findsOneWidget);
     expect(find.text('Tên SA'), findsOneWidget);
     expect(find.text('Tên khách hàng'), findsOneWidget);
     expect(find.text('Loại khách hàng'), findsOneWidget);
@@ -745,6 +748,7 @@ void main() {
     expect(find.text('Doanh nghiệp'), findsOneWidget);
     expect(find.text('Linh kiện máy tính'), findsOneWidget);
     expect(find.text('Phân vân giá'), findsOneWidget);
+    expect(find.text('CP75'), findsOneWidget);
 
     await tester.tap(find.byTooltip('Đóng'));
     await tester.pumpAndSettle();
@@ -762,8 +766,10 @@ void main() {
     );
     expect(find.text('Mã đơn hàng'), findsOneWidget);
     expect(find.text('Thời gian bán'), findsOneWidget);
+    expect(find.text('Mã SR'), findsOneWidget);
     expect(find.text('SA Hai'), findsOneWidget);
     expect(find.text('2607040002'), findsOneWidget);
+    expect(find.text('CP62'), findsOneWidget);
     expect(find.text('04/07/2026 10:30'), findsOneWidget);
 
     await tester.tap(find.byTooltip('Đóng'));

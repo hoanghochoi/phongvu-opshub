@@ -1566,7 +1566,7 @@ class _SalesBehaviorDetailsTable extends StatelessWidget {
                   scrollDirection: Axis.horizontal,
                   child: ConstrainedBox(
                     constraints: BoxConstraints(
-                      minWidth: isNotPurchased ? 860 : 560,
+                      minWidth: isNotPurchased ? 940 : 660,
                     ),
                     child: isNotPurchased
                         ? _NotPurchasedDetailsDataTable(
@@ -1603,6 +1603,7 @@ class _NotPurchasedDetailsDataTable extends StatelessWidget {
         color: AppColors.textPrimaryOf(context),
       ),
       columns: const [
+        DataColumn(label: Text('Mã SR')),
         DataColumn(label: Text('Tên SA')),
         DataColumn(label: Text('Tên khách hàng')),
         DataColumn(label: Text('Loại khách hàng')),
@@ -1613,6 +1614,7 @@ class _NotPurchasedDetailsDataTable extends StatelessWidget {
         for (final row in rows)
           DataRow(
             cells: [
+              DataCell(Text(_valueOrEmpty(row.storeCode))),
               DataCell(Text(_valueOrEmpty(row.salesName))),
               DataCell(Text(_valueOrEmpty(row.customerName))),
               DataCell(Text(_valueOrEmpty(row.customerTypeLabel))),
@@ -1642,6 +1644,7 @@ class _UnreportedOrdersDetailsDataTable extends StatelessWidget {
         color: AppColors.textPrimaryOf(context),
       ),
       columns: const [
+        DataColumn(label: Text('Mã SR')),
         DataColumn(label: Text('Tên SA')),
         DataColumn(label: Text('Mã đơn hàng')),
         DataColumn(label: Text('Thời gian bán')),
@@ -1650,6 +1653,7 @@ class _UnreportedOrdersDetailsDataTable extends StatelessWidget {
         for (final row in rows)
           DataRow(
             cells: [
+              DataCell(Text(_valueOrEmpty(row.storeCode))),
               DataCell(Text(_valueOrEmpty(row.salesName))),
               DataCell(Text(row.orderCode)),
               DataCell(Text(_dateTimeLabel(row.soldAt))),

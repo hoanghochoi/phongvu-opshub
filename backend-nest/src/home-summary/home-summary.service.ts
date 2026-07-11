@@ -165,6 +165,7 @@ type HomeSummaryScopeOptionResponse = {
 type HomeSummaryNotPurchasedDetail = {
   id: string;
   submittedAt: Date;
+  storeCode: string | null;
   salesName: string | null;
   customerName: string | null;
   customerType: string | null;
@@ -177,6 +178,7 @@ type HomeSummaryNotPurchasedDetail = {
 type HomeSummaryUnreportedOrderDetail = {
   orderCode: string;
   soldAt: Date | null;
+  storeCode: string | null;
   salesName: string | null;
 };
 
@@ -623,6 +625,7 @@ export class HomeSummaryService {
           orderCode: true,
           orderCreatedAt: true,
           fetchedAt: true,
+          storeCode: true,
           consultantName: true,
           consultantEmail: true,
           sellerName: true,
@@ -664,6 +667,7 @@ export class HomeSummaryService {
             select: {
               id: true,
               submittedAt: true,
+              storeCode: true,
               createdByName: true,
               createdByEmail: true,
               customerName: true,
@@ -2223,6 +2227,7 @@ export class HomeSummaryService {
     return {
       id: String(row.id),
       submittedAt: row.submittedAt,
+      storeCode: this.normalizeStoreCode(row.storeCode),
       salesName: this.displayPersonName(row.createdByName, row.createdByEmail),
       customerName: this.optionalText(row.customerName, 160),
       customerType,
@@ -2246,6 +2251,7 @@ export class HomeSummaryService {
     return {
       orderCode: this.normalizeOrderCode(row.orderCode) ?? '',
       soldAt: row.orderCreatedAt ?? row.fetchedAt ?? null,
+      storeCode: this.normalizeStoreCode(row.storeCode),
       salesName: this.displayPersonName(
         row.consultantName ?? row.sellerName,
         row.consultantEmail ?? row.sellerEmail ?? row.sourceUserEmail,

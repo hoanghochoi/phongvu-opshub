@@ -447,6 +447,7 @@ class HomeNotPurchasedReportDetail {
   const HomeNotPurchasedReportDetail({
     required this.id,
     required this.submittedAt,
+    required this.storeCode,
     required this.salesName,
     required this.customerName,
     required this.customerTypeLabel,
@@ -456,6 +457,7 @@ class HomeNotPurchasedReportDetail {
 
   final String id;
   final DateTime? submittedAt;
+  final String? storeCode;
   final String? salesName;
   final String? customerName;
   final String? customerTypeLabel;
@@ -466,6 +468,7 @@ class HomeNotPurchasedReportDetail {
     return HomeNotPurchasedReportDetail(
       id: HomeSummary._stringOf(json['id']),
       submittedAt: HomeSummary._dateTimeOf(json['submittedAt']),
+      storeCode: HomeSummary._nullableStringOf(json['storeCode']),
       salesName: HomeSummary._nullableStringOf(json['salesName']),
       customerName: HomeSummary._nullableStringOf(json['customerName']),
       customerTypeLabel: HomeSummary._nullableStringOf(
@@ -483,17 +486,20 @@ class HomeUnreportedOrderDetail {
   const HomeUnreportedOrderDetail({
     required this.orderCode,
     required this.soldAt,
+    required this.storeCode,
     required this.salesName,
   });
 
   final String orderCode;
   final DateTime? soldAt;
+  final String? storeCode;
   final String? salesName;
 
   factory HomeUnreportedOrderDetail.fromJson(Map<String, dynamic> json) {
     return HomeUnreportedOrderDetail(
       orderCode: HomeSummary._stringOf(json['orderCode']),
       soldAt: HomeSummary._dateTimeOf(json['soldAt']),
+      storeCode: HomeSummary._nullableStringOf(json['storeCode']),
       salesName: HomeSummary._nullableStringOf(json['salesName']),
     );
   }

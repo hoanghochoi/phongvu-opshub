@@ -316,6 +316,7 @@ describe('HomeSummaryService', () => {
         orderCode: '2607040002',
         orderCreatedAt: new Date('2026-07-04T05:00:00Z'),
         fetchedAt: new Date('2026-07-04T05:10:00Z'),
+        storeCode: 'CP62',
         consultantName: 'SA Hai',
         consultantEmail: 'sa2@phongvu.vn',
         sellerName: null,
@@ -359,6 +360,7 @@ describe('HomeSummaryService', () => {
         {
           id: 'report-2',
           submittedAt: new Date('2026-07-04T03:00:00Z'),
+          storeCode: 'CP75',
           createdByName: 'SA Một',
           createdByEmail: 'sa1@phongvu.vn',
           customerName: 'Nguyễn Văn A',
@@ -384,6 +386,7 @@ describe('HomeSummaryService', () => {
       installmentNeedTotal: 2,
       notPurchasedReports: [
         {
+          storeCode: 'CP75',
           salesName: 'SA Một',
           customerName: 'Nguyễn Văn A',
           customerTypeLabel: 'Doanh nghiệp',
@@ -394,6 +397,7 @@ describe('HomeSummaryService', () => {
       unreportedOrders: [
         {
           orderCode: '2607040002',
+          storeCode: 'CP62',
           salesName: 'SA Hai',
           soldAt: new Date('2026-07-04T05:00:00Z'),
         },
@@ -426,11 +430,13 @@ describe('HomeSummaryService', () => {
           ]),
         }),
         take: 50,
+        select: expect.objectContaining({ storeCode: true }),
       }),
     );
     expect(prisma.salesReport.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { id: { in: ['report-2'] } },
+        select: expect.objectContaining({ storeCode: true }),
       }),
     );
   });

@@ -103,6 +103,12 @@ Recent focused evidence:
   Validation: focused Home Summary/Sales Reports Jest (66 tests), focused Home
   dashboard Flutter widget test, backend `npm run build`,
   `flutter analyze --no-pub`, và `git diff --check`.
+- `HOME-DASHBOARD-002`, 2026-07-11: Modal chi tiết `Hành vi then chốt` thêm
+  cột `Mã SR` cho bảng khách chưa mua và đơn chưa báo cáo để user được gán
+  nhiều SR nhận biết rõ showroom của từng dòng. Backend trả `storeCode` trong
+  `GET /home/summary/details`, Flutter parse và hiển thị theo cùng response
+  detail hiện có. Validation: focused Home Summary Jest, focused Home dashboard
+  Flutter widget test, Nest build, `flutter analyze --no-pub`, `git diff --check`.
 - `HOME-DASHBOARD-002`, 2026-07-08: Card `Số khách chưa mua` và
   `Số đơn chưa báo cáo` trong nhóm `Hành vi then chốt` mở modal chi tiết khi
   bấm phần chữ. Modal dùng cùng ngày/scope/SA đang chọn, có bảng cuộn dọc và
