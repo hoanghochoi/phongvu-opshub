@@ -182,20 +182,20 @@ class _SortCommandCard extends StatelessWidget {
               const SizedBox(width: AppLayoutTokens.formInlineGap),
               AppIconAction(
                 onPressed: isLoading ? null : onSubmit,
-                icon: Icons.send_rounded,
-                tooltip: 'Gửi yêu cầu sắp xếp',
+                icon: Icons.search_rounded,
+                tooltip: 'Tìm hàng để sắp xếp',
                 filled: true,
               ),
             ],
           );
 
           if (compact) {
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                input,
-                const SizedBox(height: AppLayoutTokens.formFieldGap),
-                Align(alignment: Alignment.centerRight, child: actions),
+                Expanded(child: input),
+                const SizedBox(width: AppLayoutTokens.formInlineGap),
+                actions,
               ],
             );
           }
@@ -256,42 +256,53 @@ class _SortResultPanel extends StatelessWidget {
       );
     }
 
-    return Column(
+    final totalItems = groups.fold<int>(
+      0,
+      (total, group) => total + group.totalItems,
+    );
+
+    return AppSurfaceCard(
       key: const Key('sort-fifo-results'),
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Row(
-          children: [
-            const Icon(Icons.inventory_2, color: AppColors.info, size: 20),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                'Kết quả sắp xếp',
-                style: AppTextStyles.labelL.copyWith(color: AppColors.info),
+      padding: EdgeInsets.zero,
+      child: ListView.builder(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+        itemCount: groups.length + 1,
+        itemBuilder: (context, index) {
+          if (index == 0) {
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Kết quả sắp xếp • $totalItems sản phẩm',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTextStyles.titleEmphasis.copyWith(
+                        color: Theme.of(context).colorScheme.onSurface,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  AppStatusChip(
+                    label: '${groups.length} nhóm',
+                    color: AppColors.info,
+                    backgroundColor: AppColors.infoSurface,
+                  ),
+                ],
               ),
-            ),
-            AppStatusChip(
-              label: '${groups.length} nhóm',
-              color: AppColors.info,
-              backgroundColor: AppColors.infoSurface,
-            ),
-          ],
-        ),
-        const SizedBox(height: AppLayoutTokens.cardGap),
-        Expanded(
-          child: ListView.builder(
-            physics: const AlwaysScrollableScrollPhysics(),
-            itemCount: groups.length,
-            itemBuilder: (context, index) {
-              final group = groups[index];
-              return SortSKUGroupWidget(
-                group: group,
-                onItemCheckChanged: provider.updateSKUItem,
-              );
-            },
-          ),
-        ),
-      ],
+            );
+          }
+
+          final group = groups[index - 1];
+          return SortSKUGroupWidget(
+            group: group,
+            onItemCheckChanged: provider.updateSKUItem,
+          );
+        },
+      ),
     );
   }
 }

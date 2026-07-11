@@ -27,6 +27,10 @@ class SalesReportOrderCheck {
   final String? customerNeed;
   final String? customerType;
   final String? customerTypeLabel;
+  final bool customerIsStudent;
+  final List<String> promotionCodes;
+  final bool installmentNeed;
+  final int? installmentLoanAmount;
   final SalesReportCategoryGroup? categoryGroup;
   final List<SalesReportCategoryGroup> categoryGroups;
   final Map<String, dynamic> order;
@@ -40,6 +44,10 @@ class SalesReportOrderCheck {
     required this.customerNeed,
     required this.customerType,
     required this.customerTypeLabel,
+    required this.customerIsStudent,
+    required this.promotionCodes,
+    required this.installmentNeed,
+    required this.installmentLoanAmount,
     required this.categoryGroup,
     required this.categoryGroups,
     required this.order,
@@ -80,6 +88,18 @@ class SalesReportOrderCheck {
       customerNeed: json['customerNeed']?.toString(),
       customerType: json['customerType']?.toString(),
       customerTypeLabel: json['customerTypeLabel']?.toString(),
+      customerIsStudent: json['customerIsStudent'] == true,
+      promotionCodes:
+          (json['promotionCodes'] is List
+                  ? json['promotionCodes'] as List
+                  : const [])
+              .map((value) => value.toString().trim())
+              .where((value) => value.isNotEmpty)
+              .toList(),
+      installmentNeed: json['installmentNeed'] == true,
+      installmentLoanAmount: int.tryParse(
+        json['installmentLoanAmount']?.toString() ?? '',
+      ),
       categoryGroup: legacyCategory,
       categoryGroups: categoryList.isNotEmpty
           ? categoryList

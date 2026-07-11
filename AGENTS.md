@@ -67,6 +67,23 @@ before acting. Never claim done before verification.
   `showDateRangePicker` directly. Extend the canonical shared component when a
   new date-range behavior is required.
 
+## Command Input Layout Requirement
+
+- Search/scan/submit command bars must keep the input box and its primary
+  action buttons in the same horizontal row on mobile and desktop. QR scan,
+  search, and submit buttons should sit directly beside the input for one-hand
+  operation; only secondary filters/options move to the next row.
+
+## Related Flow Modal Consistency Requirement
+
+- Closely related actions launched from the same workspace must use the same
+  presentation model. Do not mix a modal for one report/editor flow with a new
+  page for its peer flows unless a documented product constraint requires it.
+- Long modal editors must keep their context header card fixed outside the
+  scrollable body so users always know which task and state they are editing.
+  Only the form body scrolls; close/back behavior remains visible in the fixed
+  header.
+
 ## Source Of Truth
 
 Read in this order:

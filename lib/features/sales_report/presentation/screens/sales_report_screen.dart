@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:phongvu_opshub/app/widgets/app_toast.dart';
 
@@ -165,24 +164,72 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
     );
   }
 
-  Future<void> _openReport(String route, String reportType) async {
+  Future<bool?> _openReportDialog({
+    required String reportType,
+    String? initialOrderCode,
+    String? entrySource,
+  }) async {
     final user = context.read<AuthProvider>().user;
-    final entrySource = reportType == _typePurchased
-        ? salesReportEntrySourceManual
+    final provider = context.read<SalesReportProvider>();
+    final resolvedEntrySource = reportType == _typePurchased
+        ? (entrySource ?? salesReportEntrySourceManual)
         : null;
     await AppLogger.instance.info(
       'SalesReport',
-      'Sales report hub action selected',
+      'Sales report form dialog opened',
       context: {
-        'route': route,
         'reportType': reportType,
-        if (entrySource != null) 'entrySource': entrySource,
+        if (resolvedEntrySource != null) 'entrySource': resolvedEntrySource,
+        'hasInitialOrder': (initialOrderCode ?? '').trim().isNotEmpty,
         'userId': user?.id,
         'storeId': user?.storeId,
       },
     );
-    if (!mounted) return;
-    context.push(route);
+    if (!mounted) return null;
+    final submitted = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        final size = MediaQuery.sizeOf(context);
+        final form = reportType == _typePurchased
+            ? SalesReportFormScreen.purchased(
+                initialOrderCode: initialOrderCode,
+                entrySource: resolvedEntrySource,
+                closeOnSuccess: true,
+                stickyHeader: true,
+              )
+            : const SalesReportFormScreen.notPurchased(
+                closeOnSuccess: true,
+                stickyHeader: true,
+              );
+        return Dialog(
+          insetPadding: const EdgeInsets.all(16),
+          child: SizedBox(
+            width: size.width >= 960 ? 900 : size.width * 0.94,
+            height: size.height * 0.90,
+            child: ChangeNotifierProvider<SalesReportProvider>.value(
+              value: provider,
+              child: form,
+            ),
+          ),
+        );
+      },
+    );
+    await AppLogger.instance.info(
+      'SalesReport',
+      'Sales report form dialog closed',
+      context: {
+        'reportType': reportType,
+        if (resolvedEntrySource != null) 'entrySource': resolvedEntrySource,
+        'submitted': submitted == true,
+        'userId': user?.id,
+        'storeId': user?.storeId,
+      },
+    );
+    if (submitted == true && mounted) {
+      unawaited(context.read<SalesReportProvider>().loadOrderCockpit());
+    }
+    return submitted;
   }
 
   Future<void> _setOrdersDateRange(DateTime? start, DateTime? end) async {
@@ -209,7 +256,6 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
 
   Future<void> _openPurchasedDialog(SalesReportOrderCockpitItem order) async {
     final user = context.read<AuthProvider>().user;
-    final provider = context.read<SalesReportProvider>();
     await AppLogger.instance.info(
       'SalesReport',
       'Sales report order selected from cockpit',
@@ -221,31 +267,11 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
       },
     );
     if (!mounted) return;
-    final submitted = await showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) {
-        final size = MediaQuery.sizeOf(context);
-        return Dialog(
-          insetPadding: const EdgeInsets.all(16),
-          child: SizedBox(
-            width: size.width >= 960 ? 900 : size.width * 0.94,
-            height: size.height * 0.90,
-            child: ChangeNotifierProvider<SalesReportProvider>.value(
-              value: provider,
-              child: SalesReportFormScreen.purchased(
-                initialOrderCode: order.orderCode,
-                entrySource: salesReportEntrySourceSyncList,
-                closeOnSuccess: true,
-              ),
-            ),
-          ),
-        );
-      },
+    await _openReportDialog(
+      reportType: _typePurchased,
+      initialOrderCode: order.orderCode,
+      entrySource: salesReportEntrySourceSyncList,
     );
-    if (submitted == true && mounted) {
-      unawaited(context.read<SalesReportProvider>().loadOrderCockpit());
-    }
   }
 
   @override
@@ -270,14 +296,10 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
               provider: provider,
               canSubmitReports: canSubmitReports,
               onPurchased: canSubmitReports
-                  ? () =>
-                        _openReport('/sales-reports/purchased', _typePurchased)
+                  ? () => _openReportDialog(reportType: _typePurchased)
                   : null,
               onNotPurchased: canSubmitReports
-                  ? () => _openReport(
-                      '/sales-reports/not-purchased',
-                      _typeNotPurchased,
-                    )
+                  ? () => _openReportDialog(reportType: _typeNotPurchased)
                   : null,
               onReload: () => provider.loadOrderCockpit(),
               onSelectDateRange: _setOrdersDateRange,
@@ -1270,17 +1292,20 @@ class SalesReportFormScreen extends StatefulWidget {
   final String? initialOrderCode;
   final String? entrySource;
   final bool closeOnSuccess;
+  final bool stickyHeader;
 
   const SalesReportFormScreen.purchased({
     super.key,
     this.initialOrderCode,
     this.entrySource = salesReportEntrySourceManual,
     this.closeOnSuccess = false,
+    this.stickyHeader = false,
   }) : reportType = _typePurchased;
 
   const SalesReportFormScreen.notPurchased({
     super.key,
     this.closeOnSuccess = false,
+    this.stickyHeader = false,
   }) : reportType = _typeNotPurchased,
        initialOrderCode = null,
        entrySource = null;
@@ -1461,9 +1486,18 @@ class _SalesReportFormScreenState extends State<SalesReportFormScreen> {
       final nextCustomerType = result.customerType == 'BUSINESS'
           ? 'BUSINESS'
           : 'PERSONAL';
-      _customerType = nextCustomerType;
-      if (nextCustomerType != 'PERSONAL') {
-        _customerIsStudent = false;
+      _customerType = result.customerIsStudent ? 'PERSONAL' : nextCustomerType;
+      _customerIsStudent = result.customerIsStudent;
+      _promotionCodes
+        ..clear()
+        ..addAll(result.promotionCodes);
+      _installmentSelected = result.installmentNeed;
+      if (result.installmentLoanAmount != null) {
+        _installmentLoanController.text = vietnameseMoneyNumberFormat.format(
+          result.installmentLoanAmount,
+        );
+      } else {
+        _installmentLoanController.clear();
       }
       _categoryGroupIds
         ..clear()
@@ -1677,174 +1711,202 @@ class _SalesReportFormScreenState extends State<SalesReportFormScreen> {
     final provider = context.watch<SalesReportProvider>();
     final canEditReportBody = !_isPurchased || provider.checkedOrder != null;
     final title = _isPurchased ? 'Báo cáo mua hàng' : 'Báo cáo chưa mua hàng';
-
-    return Form(
-      key: _formKey,
-      child: AppResponsiveScrollView(
-        controller: _scrollController,
-        maxWidth: AppLayoutTokens.formMaxWidth,
-        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-        onRefresh: AppRefreshCallbacks.noop,
-        refreshLogSource: 'SalesReport',
-        refreshLogContext: () => {
-          'reportType': _reportType,
-          'isSubmitting': provider.isSubmitting,
-          'hasCheckedOrder': provider.checkedOrder != null,
-        },
-        child: AppFormColumn(
-          spacing: AppLayoutTokens.formSectionGap,
-          children: [
-            SalesReportWorkspaceHeader(
-              key: const Key('sales-report-form-header'),
-              title: title,
-              subtitle: '',
-              icon: _isPurchased
-                  ? Icons.receipt_long_outlined
-                  : Icons.person_search_outlined,
-              chips: [
-                AppStatusChip(
-                  label: _isPurchased ? 'Mua hàng' : 'Chưa mua hàng',
-                  color: _isPurchased ? AppColors.success : AppColors.warning,
-                ),
-                AppStatusChip(
-                  label: canEditReportBody
-                      ? 'Sẵn sàng nhập'
-                      : 'Cần kiểm tra đơn',
-                  color: canEditReportBody
-                      ? AppColors.primary
-                      : AppColors.neutral600,
-                ),
-              ],
-            ),
-            if (_isPurchased)
-              _OrderCheckCard(
-                onCheck: _checkOrder,
-                onScan: _scanOrderCode,
-                onCheckAnother: _checkAnotherOrder,
-              ),
-            if (provider.errorMessage != null)
-              AppStatusBanner(
-                icon: Icons.error_outline_rounded,
-                title: 'Chưa thực hiện được',
-                message: provider.errorMessage!,
-                tone: AppStateTone.error,
-              ),
-            if (_isPurchased && provider.checkedOrder != null)
-              _OrderSummaryCard(check: provider.checkedOrder!),
-            AbsorbPointer(
-              absorbing: !canEditReportBody || provider.isSubmitting,
-              child: Opacity(
-                opacity: canEditReportBody ? 1 : 0.55,
-                child: Column(
-                  children: [
-                    _CustomerSection(
-                      nameController: _nameController,
-                      phoneController: _phoneController,
-                      needController: _needController,
-                      customerType: _customerType,
-                      customerIsStudent: _customerIsStudent,
-                      promotionCodes: _promotionCodes,
-                      categories: provider.categories,
-                      categoryGroupIds: _categoryGroupIds,
-                      loadingCategories: provider.isLoadingCategories,
-                      onCustomerTypeChanged: _setCustomerType,
-                      onStudentChanged: _setCustomerIsStudent,
-                      onPromotionsChanged: (value) {
-                        setState(() {
-                          _promotionCodes
-                            ..clear()
-                            ..addAll(value);
-                        });
-                      },
-                      onCategoryChanged: (value) {
-                        setState(() {
-                          _categoryGroupIds
-                            ..clear()
-                            ..addAll(value);
-                        });
-                      },
-                    ),
-                    const SizedBox(height: AppLayoutTokens.formSectionGap),
-                    _InstallmentSection(
-                      isPurchased: _isPurchased,
-                      selected: _installmentSelected,
-                      approved: _installmentApproved,
-                      noInstallmentReason: _installmentNoInstallmentReason,
-                      selectedPartnerCodes: _installmentPartnerCodes,
-                      loanController: _installmentLoanController,
-                      onChanged: (value) {
-                        setState(() {
-                          _installmentSelected = value ?? false;
-                          if (!_installmentSelected) {
-                            _installmentLoanController.clear();
-                            _installmentApproved = null;
-                            _installmentNoInstallmentReason = null;
-                            _installmentPartnerCodes.clear();
-                          }
-                        });
-                      },
-                      onPartnersChanged: (value) {
-                        setState(() {
-                          _installmentPartnerCodes
-                            ..clear()
-                            ..addAll(value);
-                        });
-                      },
-                      onApprovedChanged: (value) =>
-                          setState(() => _installmentApproved = value),
-                      onNoInstallmentReasonChanged: (value) => setState(
-                        () => _installmentNoInstallmentReason = value,
-                      ),
-                    ),
-                    const SizedBox(height: AppLayoutTokens.formSectionGap),
-                    _BehaviorSection(
-                      consultedAnswer: _consultedAnswer,
-                      experiencedAnswer: _experiencedAnswer,
-                      zaloAnswer: _zaloAnswer,
-                      appDownloadAnswer: _appDownloadAnswer,
-                      consultedOtherController: _consultedOtherController,
-                      experiencedOtherController: _experiencedOtherController,
-                      zaloOtherController: _zaloOtherController,
-                      appOtherController: _appOtherController,
-                      onConsultedChanged: (value) =>
-                          setState(() => _consultedAnswer = value),
-                      onExperiencedChanged: (value) =>
-                          setState(() => _experiencedAnswer = value),
-                      onZaloChanged: (value) =>
-                          setState(() => _zaloAnswer = value),
-                      onAppChanged: (value) =>
-                          setState(() => _appDownloadAnswer = value),
-                    ),
-                    if (!_isPurchased) ...[
-                      const SizedBox(height: AppLayoutTokens.formSectionGap),
-                      _NotPurchasedSection(
-                        reason: _notPurchasedReason,
-                        otherController: _notPurchasedOtherController,
-                        onChanged: (value) =>
-                            setState(() => _notPurchasedReason = value),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-            ),
-            AppPrimaryButton(
-              onPressed:
-                  provider.isSubmitting ||
-                      provider.isCheckingOrder ||
-                      !canEditReportBody
-                  ? null
-                  : _submit,
-              icon: Icons.send_rounded,
-              label: 'Gửi báo cáo',
-              isLoading: provider.isSubmitting,
-              loadingLabel: 'Đang gửi...',
-            ),
-            const SizedBox(height: AppLayoutTokens.formInlineGap),
-          ],
+    final header = SalesReportWorkspaceHeader(
+      key: const Key('sales-report-form-header'),
+      title: title,
+      subtitle: '',
+      icon: _isPurchased
+          ? Icons.receipt_long_outlined
+          : Icons.person_search_outlined,
+      chips: [
+        AppStatusChip(
+          label: _isPurchased ? 'Mua hàng' : 'Chưa mua hàng',
+          color: _isPurchased ? AppColors.success : AppColors.warning,
         ),
+        AppStatusChip(
+          label: canEditReportBody ? 'Sẵn sàng nhập' : 'Cần kiểm tra đơn',
+          color: canEditReportBody ? AppColors.primary : AppColors.neutral600,
+        ),
+      ],
+    );
+    final scrollable = AppResponsiveScrollView(
+      controller: _scrollController,
+      maxWidth: AppLayoutTokens.formMaxWidth,
+      padding: widget.stickyHeader
+          ? const EdgeInsets.fromLTRB(16, 12, 16, 16)
+          : null,
+      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+      onRefresh: AppRefreshCallbacks.noop,
+      refreshLogSource: 'SalesReport',
+      refreshLogContext: () => {
+        'reportType': _reportType,
+        'isSubmitting': provider.isSubmitting,
+        'hasCheckedOrder': provider.checkedOrder != null,
+      },
+      child: AppFormColumn(
+        spacing: AppLayoutTokens.formSectionGap,
+        children: [
+          if (!widget.stickyHeader) header,
+          if (_isPurchased)
+            _OrderCheckCard(
+              onCheck: _checkOrder,
+              onScan: _scanOrderCode,
+              onCheckAnother: _checkAnotherOrder,
+            ),
+          if (provider.errorMessage != null)
+            AppStatusBanner(
+              icon: Icons.error_outline_rounded,
+              title: 'Chưa thực hiện được',
+              message: provider.errorMessage!,
+              tone: AppStateTone.error,
+            ),
+          if (_isPurchased && provider.checkedOrder != null)
+            _OrderSummaryCard(check: provider.checkedOrder!),
+          AbsorbPointer(
+            absorbing: !canEditReportBody || provider.isSubmitting,
+            child: Opacity(
+              opacity: canEditReportBody ? 1 : 0.55,
+              child: Column(
+                children: [
+                  _CustomerSection(
+                    nameController: _nameController,
+                    phoneController: _phoneController,
+                    needController: _needController,
+                    customerType: _customerType,
+                    customerIsStudent: _customerIsStudent,
+                    promotionCodes: _promotionCodes,
+                    promotionRequired: _isPurchased,
+                    categories: provider.categories,
+                    categoryGroupIds: _categoryGroupIds,
+                    loadingCategories: provider.isLoadingCategories,
+                    onCustomerTypeChanged: _setCustomerType,
+                    onStudentChanged: _setCustomerIsStudent,
+                    onPromotionsChanged: (value) {
+                      setState(() {
+                        _promotionCodes
+                          ..clear()
+                          ..addAll(value);
+                      });
+                    },
+                    onCategoryChanged: (value) {
+                      setState(() {
+                        _categoryGroupIds
+                          ..clear()
+                          ..addAll(value);
+                      });
+                    },
+                  ),
+                  const SizedBox(height: AppLayoutTokens.formSectionGap),
+                  _InstallmentSection(
+                    isPurchased: _isPurchased,
+                    selected: _installmentSelected,
+                    approved: _installmentApproved,
+                    noInstallmentReason: _installmentNoInstallmentReason,
+                    selectedPartnerCodes: _installmentPartnerCodes,
+                    loanController: _installmentLoanController,
+                    onChanged: (value) {
+                      setState(() {
+                        _installmentSelected = value ?? false;
+                        if (!_installmentSelected) {
+                          _installmentLoanController.clear();
+                          _installmentApproved = null;
+                          _installmentNoInstallmentReason = null;
+                          _installmentPartnerCodes.clear();
+                        }
+                      });
+                    },
+                    onPartnersChanged: (value) {
+                      setState(() {
+                        _installmentPartnerCodes
+                          ..clear()
+                          ..addAll(value);
+                      });
+                    },
+                    onApprovedChanged: (value) =>
+                        setState(() => _installmentApproved = value),
+                    onNoInstallmentReasonChanged: (value) =>
+                        setState(() => _installmentNoInstallmentReason = value),
+                  ),
+                  const SizedBox(height: AppLayoutTokens.formSectionGap),
+                  _BehaviorSection(
+                    consultedAnswer: _consultedAnswer,
+                    experiencedAnswer: _experiencedAnswer,
+                    zaloAnswer: _zaloAnswer,
+                    appDownloadAnswer: _appDownloadAnswer,
+                    consultedOtherController: _consultedOtherController,
+                    experiencedOtherController: _experiencedOtherController,
+                    zaloOtherController: _zaloOtherController,
+                    appOtherController: _appOtherController,
+                    onConsultedChanged: (value) =>
+                        setState(() => _consultedAnswer = value),
+                    onExperiencedChanged: (value) =>
+                        setState(() => _experiencedAnswer = value),
+                    onZaloChanged: (value) =>
+                        setState(() => _zaloAnswer = value),
+                    onAppChanged: (value) =>
+                        setState(() => _appDownloadAnswer = value),
+                  ),
+                  if (!_isPurchased) ...[
+                    const SizedBox(height: AppLayoutTokens.formSectionGap),
+                    _NotPurchasedSection(
+                      reason: _notPurchasedReason,
+                      otherController: _notPurchasedOtherController,
+                      onChanged: (value) =>
+                          setState(() => _notPurchasedReason = value),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+          AppPrimaryButton(
+            onPressed:
+                provider.isSubmitting ||
+                    provider.isCheckingOrder ||
+                    !canEditReportBody
+                ? null
+                : _submit,
+            icon: Icons.send_rounded,
+            label: 'Gửi báo cáo',
+            isLoading: provider.isSubmitting,
+            loadingLabel: 'Đang gửi...',
+          ),
+          const SizedBox(height: AppLayoutTokens.formInlineGap),
+        ],
       ),
     );
+    final formChild = widget.stickyHeader
+        ? LayoutBuilder(
+            builder: (context, constraints) {
+              final horizontalPadding = constraints.maxWidth >= 900
+                  ? 32.0
+                  : 16.0;
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Padding(
+                    padding: EdgeInsets.fromLTRB(
+                      horizontalPadding,
+                      16,
+                      horizontalPadding,
+                      0,
+                    ),
+                    child: Center(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(
+                          maxWidth: AppLayoutTokens.formMaxWidth,
+                        ),
+                        child: SizedBox(width: double.infinity, child: header),
+                      ),
+                    ),
+                  ),
+                  Expanded(child: scrollable),
+                ],
+              );
+            },
+          )
+        : scrollable;
+    return Form(key: _formKey, child: formChild);
   }
 }
 
@@ -1970,6 +2032,7 @@ class _CustomerSection extends StatelessWidget {
   final String? customerType;
   final bool customerIsStudent;
   final List<String> promotionCodes;
+  final bool promotionRequired;
   final List<SalesReportCategoryGroup> categories;
   final List<String> categoryGroupIds;
   final bool loadingCategories;
@@ -1985,6 +2048,7 @@ class _CustomerSection extends StatelessWidget {
     required this.customerType,
     required this.customerIsStudent,
     required this.promotionCodes,
+    required this.promotionRequired,
     required this.categories,
     required this.categoryGroupIds,
     required this.loadingCategories,
@@ -2030,6 +2094,7 @@ class _CustomerSection extends StatelessWidget {
           const SizedBox(height: AppLayoutTokens.formInlineGap),
           _PromotionPicker(
             selectedCodes: promotionCodes,
+            isRequired: promotionRequired,
             onChanged: onPromotionsChanged,
           ),
           const SizedBox(height: AppLayoutTokens.formInlineGap),
@@ -2145,40 +2210,51 @@ class _CustomerTypePicker extends StatelessWidget {
 
 class _PromotionPicker extends StatelessWidget {
   final List<String> selectedCodes;
+  final bool isRequired;
   final ValueChanged<List<String>> onChanged;
 
   const _PromotionPicker({
     required this.selectedCodes,
+    required this.isRequired,
     required this.onChanged,
   });
 
   @override
   Widget build(BuildContext context) {
-    return InputDecorator(
-      decoration: appInputDecoration(
-        label: 'CTKM áp dụng',
-        icon: Icons.local_offer_outlined,
-      ).copyWith(alignLabelWithHint: true),
-      child: Column(
-        children: [
-          for (final entry in _promotionOptions.entries)
-            CheckboxListTile(
-              key: ValueKey('sales-report-promotion-${entry.key}'),
-              value: selectedCodes.contains(entry.key),
-              onChanged: (checked) {
-                final next = [...selectedCodes];
-                if (checked == true) {
-                  if (!next.contains(entry.key)) next.add(entry.key);
-                } else {
-                  next.remove(entry.key);
-                }
-                onChanged(next);
-              },
-              contentPadding: EdgeInsets.zero,
-              controlAffinity: ListTileControlAffinity.leading,
-              title: Text(entry.value),
-            ),
-        ],
+    return FormField<List<String>>(
+      key: ValueKey('sales-report-promotions-${selectedCodes.join(',')}'),
+      initialValue: selectedCodes,
+      validator: (_) => isRequired && selectedCodes.isEmpty
+          ? 'Vui lòng chọn CTKM áp dụng'
+          : null,
+      builder: (field) => InputDecorator(
+        decoration: appInputDecoration(
+          label: isRequired ? 'CTKM áp dụng *' : 'CTKM áp dụng',
+          icon: Icons.local_offer_outlined,
+          errorText: field.errorText,
+        ).copyWith(alignLabelWithHint: true),
+        child: Column(
+          children: [
+            for (final entry in _promotionOptions.entries)
+              CheckboxListTile(
+                key: ValueKey('sales-report-promotion-${entry.key}'),
+                value: selectedCodes.contains(entry.key),
+                onChanged: (checked) {
+                  final next = [...selectedCodes];
+                  if (checked == true) {
+                    if (!next.contains(entry.key)) next.add(entry.key);
+                  } else {
+                    next.remove(entry.key);
+                  }
+                  field.didChange(next);
+                  onChanged(next);
+                },
+                contentPadding: EdgeInsets.zero,
+                controlAffinity: ListTileControlAffinity.leading,
+                title: Text(entry.value),
+              ),
+          ],
+        ),
       ),
     );
   }

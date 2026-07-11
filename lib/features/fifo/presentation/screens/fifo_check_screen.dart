@@ -8,6 +8,7 @@ import 'package:phongvu_opshub/app/widgets/app_toast.dart';
 
 import '../../../../core/logging/app_logger.dart';
 import '../../../../core/storage/app_storage_keys.dart';
+import '../../../../core/utils/date_formatter.dart';
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_radius.dart';
 import '../../../../app/theme/app_text_styles.dart';
@@ -350,15 +351,20 @@ class _FifoCommandCard extends StatelessWidget {
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                input,
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Expanded(child: input),
+                    const SizedBox(width: AppLayoutTokens.formInlineGap),
+                    actions,
+                  ],
+                ),
                 if (showRecentSearches && recentSearches.isNotEmpty) ...[
                   const SizedBox(height: AppLayoutTokens.formFieldGap),
                   recentSearchBar,
                 ],
                 const SizedBox(height: AppLayoutTokens.formFieldGap),
                 includeExportedToggle,
-                const SizedBox(height: AppLayoutTokens.formFieldGap),
-                Align(alignment: Alignment.centerRight, child: actions),
               ],
             );
           }
@@ -728,6 +734,7 @@ class _FifoItemCard extends StatelessWidget {
     final color = item.exported
         ? AppColors.neutral500
         : _fifoColor(rank, total);
+    final ageLabel = DateFormatter.inventoryAgeLabel(item.importDate);
     return AppSurfaceCard(
       margin: const EdgeInsets.only(bottom: 10),
       padding: EdgeInsets.zero,
@@ -794,6 +801,8 @@ class _FifoItemCard extends StatelessWidget {
                           Icons.calendar_today_outlined,
                           item.importDate,
                         ),
+                        if (ageLabel != null)
+                          AppInfoChip(Icons.timelapse_rounded, ageLabel),
                         if (item.bin.isNotEmpty)
                           AppInfoChip(
                             Icons.location_on_outlined,

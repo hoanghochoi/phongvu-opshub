@@ -5,6 +5,7 @@ import 'helpers/legacy_widget_finders.dart';
 import 'package:phongvu_opshub/core/logging/app_logger.dart';
 import 'package:phongvu_opshub/core/network/api_client.dart';
 import 'package:phongvu_opshub/core/storage/app_storage_keys.dart';
+import 'package:phongvu_opshub/core/utils/date_formatter.dart';
 import 'package:phongvu_opshub/features/fifo/data/repositories/fifo_repository.dart';
 import 'package:phongvu_opshub/features/fifo/domain/entities/fifo_check_result.dart';
 import 'package:phongvu_opshub/features/fifo/domain/entities/fifo_inventory_item.dart';
@@ -60,6 +61,27 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('FIFO check keeps mobile scan and search beside input', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(_wrapFifoCheck(_FakeFifoRepository()));
+
+    final inputRect = tester.getRect(find.byType(TextField));
+    final scanRect = tester.getRect(find.byTooltip('Quét mã'));
+    final searchRect = tester.getRect(find.byTooltip('Tìm FIFO'));
+
+    expect(scanRect.left, greaterThan(inputRect.right));
+    expect(searchRect.left, greaterThan(scanRect.right));
+    expect((scanRect.center.dy - inputRect.center.dy).abs(), lessThan(10));
+    expect((searchRect.center.dy - inputRect.center.dy).abs(), lessThan(10));
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('FIFO check submits serial and renders runtime result', (
     tester,
   ) async {
@@ -85,6 +107,10 @@ void main() {
     expect(find.text('SN001'), findsWidgets);
     expect(find.text('250403171'), findsOneWidget);
     expect(find.text('LK.04-A-03-a'), findsOneWidget);
+    expect(
+      find.text(DateFormatter.inventoryAgeLabel('2026-07-01')!),
+      findsOneWidget,
+    );
     expect(find.text('Đánh dấu xuất kho'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });

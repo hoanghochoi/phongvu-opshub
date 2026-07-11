@@ -55,8 +55,11 @@ export type SalesReportErpOrder = {
   erpConsultantName: string | null;
   customerName: string | null;
   customerType: string;
+  customerIsStudent: boolean;
   customerNeed: string | null;
-  categoryCandidates: string[];
+  promotionCodes: string[];
+  installmentNeed: boolean;
+  installmentLoanAmount: number | null;
   items: SalesReportErpOrderItem[];
   payments: SalesReportErpPayment[];
   paymentMethods: string[];
@@ -186,7 +189,7 @@ export class SalesReportErpService {
       );
       const customerTaxCode = this.billingTaxCode(order);
       this.logger.log(
-        `Sales report ERP lookup succeeded: orderLength=${orderCode.length} itemCount=${items.length} paymentCount=${payments.length} levelOneCategoryCount=${result.categoryCandidates.length} customerType=${result.customerType} billingCustomerType=${result.erpCustomerType || 'none'} hasBillingTaxCode=${Boolean(customerTaxCode)} durationMs=${Date.now() - startedAt}`,
+        `Sales report ERP lookup succeeded: orderLength=${orderCode.length} itemCount=${items.length} listingCategoryItemCount=${result.items.filter((item) => item.listingCategories.length > 0).length} paymentCount=${payments.length} customerType=${result.customerType} billingCustomerType=${result.erpCustomerType || 'none'} hasBillingTaxCode=${Boolean(customerTaxCode)} promotionCodes=${result.promotionCodes.join(',')} customerIsStudent=${result.customerIsStudent} installmentNeed=${result.installmentNeed} installmentLoanAmount=${result.installmentLoanAmount ?? 0} durationMs=${Date.now() - startedAt}`,
       );
       return result;
     } catch (error) {
@@ -986,18 +989,31 @@ export class SalesReportErpService {
       .filter((name): name is string => Boolean(name))
       .slice(0, 5)
       .join('; ');
-    const categoryCandidates = Array.from(
-      new Set(
-        items.flatMap((item) =>
-          this.listingLevelOneCategoryCodes(item.listingCategories),
-        ),
-      ),
-    );
     const erpCustomerType = this.billingCustomerType(order);
     const billingTaxCode = this.billingTaxCode(order);
-    const customerType = this.detectCustomerType(
+    const detectedCustomerType = this.detectCustomerType(
       erpCustomerType,
       billingTaxCode,
+    );
+    const priceSummaryTags = this.priceSummaryTags(order?.priceSummary);
+    const hasExamScorePromotion = payments.some((payment) =>
+      this.hasCodePrefix(payment.partnerTransactionCode, 'PVDD'),
+    );
+    const hasStudentPromotion = priceSummaryTags.some((tag) =>
+      this.hasCodePrefix(tag, 'PVHSSV'),
+    );
+    const customerIsStudent = hasExamScorePromotion || hasStudentPromotion;
+    const customerType = customerIsStudent ? 'PERSONAL' : detectedCustomerType;
+    const promotionCodes: string[] = [];
+    if (hasExamScorePromotion) promotionCodes.push('EXAM_SCORE_EXCHANGE');
+    if (hasStudentPromotion) promotionCodes.push('STUDENT');
+    if (promotionCodes.length === 0) promotionCodes.push('OTHER');
+    const installmentPayments = payments.filter((payment) =>
+      this.isInstallmentPaymentMethod(payment.paymentMethod),
+    );
+    const installmentLoanAmount = installmentPayments.reduce(
+      (total, payment) => total + Math.max(payment.amount ?? 0, 0),
+      0,
     );
     const customerName = this.firstText(
       order?.customerName,
@@ -1041,8 +1057,12 @@ export class SalesReportErpService {
       erpConsultantName: this.optionalText(order?.consultant?.name),
       customerName,
       customerType,
+      customerIsStudent,
       customerNeed: customerNeed || null,
-      categoryCandidates,
+      promotionCodes,
+      installmentNeed: installmentPayments.length > 0,
+      installmentLoanAmount:
+        installmentLoanAmount > 0 ? installmentLoanAmount : null,
       items,
       payments,
       paymentMethods,
@@ -1054,6 +1074,11 @@ export class SalesReportErpService {
           customerType: erpCustomerType,
           hasTaxCode: Boolean(billingTaxCode),
         },
+        promotionCodes,
+        customerIsStudent,
+        installmentNeed: installmentPayments.length > 0,
+        installmentLoanAmount:
+          installmentLoanAmount > 0 ? installmentLoanAmount : null,
         paymentStatus: this.optionalText(order?.paymentStatus),
         confirmationStatus: this.optionalText(order?.confirmationStatus),
         fulfillmentStatus: this.optionalText(order?.fulfillmentStatus),
@@ -1091,6 +1116,7 @@ export class SalesReportErpService {
           paymentMethod: payment.paymentMethod,
           amount: payment.amount,
           paidAt: payment.paidAt?.toISOString() ?? null,
+          partnerTransactionCode: payment.partnerTransactionCode,
         })),
       },
       fetchedAt,
@@ -1368,8 +1394,7 @@ export class SalesReportErpService {
         record.lvl ??
         record.categoryLevel ??
         record.depth ??
-        record.displayLevel ??
-        record.priority,
+        record.displayLevel,
     );
     return {
       id: this.optionalText(record.id ?? record.categoryId),
@@ -1378,16 +1403,6 @@ export class SalesReportErpService {
       displayName: this.optionalText(record.displayName),
       level,
     };
-  }
-
-  private listingLevelOneCategoryCodes(categories: unknown[]) {
-    return categories.flatMap((category) => {
-      if (!category || typeof category !== 'object') return [];
-      const record = category as Record<string, unknown>;
-      if (this.toInt(record.level) !== 1) return [];
-      const code = this.optionalText(record.code ?? record.categoryCode);
-      return code ? [code] : [];
-    });
   }
 
   private billingCustomerType(order: any) {
@@ -1405,6 +1420,42 @@ export class SalesReportErpService {
     return billingCustomerType?.toUpperCase() === 'BUSINESS' || billingTaxCode
       ? 'BUSINESS'
       : 'PERSONAL';
+  }
+
+  private priceSummaryTags(value: unknown) {
+    const rows = Array.isArray(value) ? value : [];
+    return Array.from(
+      new Set(
+        rows.flatMap((row) => {
+          const tags = Array.isArray((row as any)?.tags)
+            ? (row as any).tags
+            : [];
+          return tags
+            .map((tag: unknown) =>
+              typeof tag === 'object' && tag !== null
+                ? this.firstText(
+                    (tag as any).code,
+                    (tag as any).value,
+                    (tag as any).name,
+                    (tag as any).tag,
+                    (tag as any).label,
+                  )
+                : this.optionalText(tag),
+            )
+            .filter((tag: string | null): tag is string => Boolean(tag));
+        }),
+      ),
+    ).slice(0, 50);
+  }
+
+  private hasCodePrefix(value: unknown, prefix: string) {
+    const text = this.optionalText(value)?.toUpperCase();
+    return Boolean(text?.startsWith(prefix));
+  }
+
+  private isInstallmentPaymentMethod(value: unknown) {
+    const text = this.optionalText(value)?.toUpperCase();
+    return Boolean(text?.includes('INSTALLMENT'));
   }
 
   private parseDate(value: unknown) {

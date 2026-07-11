@@ -135,7 +135,10 @@ describe('SalesReportErpService', () => {
         expect.objectContaining({ code: 'NH08-01-01-01', level: 3 }),
       ]),
     );
-    expect(result.categoryCandidates).toEqual(expect.arrayContaining(['NH08']));
+    expect(result.promotionCodes).toEqual(['OTHER']);
+    expect(result.customerIsStudent).toBe(false);
+    expect(result.installmentNeed).toBe(false);
+    expect(result.installmentLoanAmount).toBeNull();
     expect(
       fetchMock.mock.calls.some(([input]) =>
         input.toString().includes('login_verifier=verifier-123'),
@@ -152,7 +155,7 @@ describe('SalesReportErpService', () => {
     ).toBe(true);
   });
 
-  it('uses Listing category codes as auto-fill category candidates', async () => {
+  it('keeps the Listing hierarchy for downstream deepest-category matching', async () => {
     process.env.ERP_ACCESS_TOKEN = 'static-access-token';
     const fetchMock = jest.fn(async (input: string | URL) => {
       const url = input.toString();
@@ -213,10 +216,15 @@ describe('SalesReportErpService', () => {
     const service = new SalesReportErpService();
     const result = await service.lookupOrder('26070132780090', 'CP62');
 
-    expect(result.categoryCandidates).toEqual(['NH08']);
+    expect(result.items[0].listingCategories).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ code: 'NH08', level: 1 }),
+        expect.objectContaining({ code: 'NH08-01-99-02', level: 3 }),
+      ]),
+    );
   });
 
-  it('uses only Listing level-1 codes for a Logitech B100 order', async () => {
+  it('keeps Listing categories separate from product group and type labels', async () => {
     process.env.ERP_ACCESS_TOKEN = 'static-access-token';
     const fetchMock = jest.fn(async (input: string | URL) => {
       const url = input.toString();
@@ -294,9 +302,18 @@ describe('SalesReportErpService', () => {
     const result = await service.lookupOrder('26070133166730', 'CP62');
 
     expect(result.customerNeed).toBe('Chuột máy tính Logitech B100');
-    expect(result.categoryCandidates).toEqual(['NH06']);
-    expect(result.categoryCandidates).not.toContain('NH01');
-    expect(result.categoryCandidates).not.toContain('NH02');
+    expect(result.items[0].listingCategories).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ code: 'NH06', level: 1 }),
+        expect.objectContaining({ code: 'NH06-03-01-01', level: 3 }),
+      ]),
+    );
+    expect(result.items[0].listingCategories).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ code: 'NH01-FAKE' }),
+        expect.objectContaining({ code: 'NH02-FAKE' }),
+      ]),
+    );
   });
 
   it.each([
@@ -343,7 +360,7 @@ describe('SalesReportErpService', () => {
     ).toBe(false);
   });
 
-  it('defaults blank ERP billingInfo to personal customer type', async () => {
+  it('maps INDIVIDUAL and auto-detects ERP promotions and installment payment', async () => {
     process.env.ERP_ACCESS_TOKEN = 'static-access-token';
     const fetchMock = jest.fn(async (input: string | URL) => {
       const url = input.toString();
@@ -356,12 +373,17 @@ describe('SalesReportErpService', () => {
             order: {
               orderId: '2606290003',
               customerType: 'BUSINESS',
-              billingInfo: { customerType: '', taxCode: '' },
+              billingInfo: { customerType: 'INDIVIDUAL', taxCode: '' },
               confirmationStatus: 'active',
               fulfillmentStatus: 'PROCESSING',
               orderCaptureLineItems: [],
+              priceSummary: [{ name: 'Khuyến mãi', tags: ['PVHSSV2607300'] }],
               payments: [
-                { paymentMethodName: 'Ví điện tử', amount: '1,230,000' },
+                {
+                  paymentMethodName: 'installment',
+                  amount: '1,230,000',
+                  partnerTransactionCode: 'PVDDLTASUS2000',
+                },
               ],
             },
           },
@@ -378,9 +400,13 @@ describe('SalesReportErpService', () => {
     const result = await service.lookupOrder('2606290003', 'CP62');
 
     expect(result.customerType).toBe('PERSONAL');
-    expect(result.erpCustomerType).toBeNull();
-    expect(result.paymentMethods).toEqual(['Ví điện tử']);
+    expect(result.erpCustomerType).toBe('INDIVIDUAL');
+    expect(result.customerIsStudent).toBe(true);
+    expect(result.promotionCodes).toEqual(['EXAM_SCORE_EXCHANGE', 'STUDENT']);
+    expect(result.paymentMethods).toEqual(['installment']);
     expect(result.payments[0].amount).toBe(1230000);
+    expect(result.installmentNeed).toBe(true);
+    expect(result.installmentLoanAmount).toBe(1230000);
   });
 
   it('fetches recent ERP orders for the sales report cockpit cache', async () => {

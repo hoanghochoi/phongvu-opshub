@@ -68,8 +68,15 @@ describe('SalesReportsService', () => {
           })),
         ),
       ),
-      matchCategoriesFromErp: jest.fn(),
-      matchTypeFromListingCategories: jest.fn().mockResolvedValue('memory'),
+      matchDeepestListingCategory: jest.fn().mockResolvedValue({
+        categoryType: 'memory',
+        categoryGroup: {
+          id: 'NH03',
+          catGroupName: 'Computer components',
+          catGroupNameVi: 'Linh kiện máy tính',
+        },
+        sourceLevel: 4,
+      }),
     };
     const erp = {
       lookupOrder: jest.fn().mockResolvedValue(erpOrderFixture()),
@@ -234,6 +241,91 @@ describe('SalesReportsService', () => {
     );
   });
 
+  it('returns ERP autofill hints when checking a purchased order', async () => {
+    const { service, erp } = createHarness();
+    erp.lookupOrder.mockResolvedValueOnce({
+      ...erpOrderFixture(),
+      customerType: 'PERSONAL',
+      customerIsStudent: true,
+      promotionCodes: ['EXAM_SCORE_EXCHANGE', 'STUDENT'],
+      installmentNeed: true,
+      installmentLoanAmount: 5000000,
+    });
+
+    await expect(
+      service.checkOrder(userFixture(), '2606290001'),
+    ).resolves.toMatchObject({
+      customerType: 'PERSONAL',
+      customerIsStudent: true,
+      promotionCodes: ['EXAM_SCORE_EXCHANGE', 'STUDENT'],
+      installmentNeed: true,
+      installmentLoanAmount: 5000000,
+    });
+  });
+
+  it('does not autofill the parent Accessories group for a gift item', async () => {
+    const { service, categories, erp } = createHarness();
+    const baseOrder = erpOrderFixture();
+    const laptopItem = {
+      ...baseOrder.items[0],
+      sku: 'LAPTOP-1',
+      sellerSku: 'LAPTOP-1',
+      name: 'Laptop HP',
+      listingCategories: [
+        { code: 'NH01', name: 'Laptop', level: 1 },
+        { code: 'NH01-01-01-01', name: 'Laptop', level: 4 },
+      ],
+    };
+    const giftItem = {
+      ...baseOrder.items[0],
+      sku: '231000787',
+      sellerSku: '231000787',
+      name: 'Túi dệt PP Phong Vũ (55x18x40)',
+      listingCategories: [
+        { code: 'NH11', name: 'Accessories', level: 1 },
+        {
+          code: 'NH11-01-98-01',
+          name: 'Linh kiện (Quà tặng phụ kiện máy tính)',
+          level: 4,
+        },
+      ],
+    };
+    categories.matchDeepestListingCategory.mockImplementation(
+      async (listingCategories: Array<{ code?: string }>) => {
+        const gift = listingCategories.some((category) =>
+          category.code?.startsWith('NH11-01-98'),
+        );
+        return {
+          categoryType: gift ? 'gift' : 'laptop',
+          categoryGroup: {
+            id: gift ? 'NH11' : 'NH01',
+            catGroupName: gift ? 'Accessories' : 'Laptop',
+            catGroupNameVi: gift ? 'Phụ kiện' : 'Laptop',
+          },
+          sourceLevel: 4,
+        };
+      },
+    );
+    erp.lookupOrder.mockResolvedValueOnce({
+      ...baseOrder,
+      orderCode: '26071137825630',
+      erpOrderId: '26071137825630',
+      items: [laptopItem, giftItem],
+    });
+
+    const result = await service.checkOrder(userFixture(), '26071137825630');
+
+    expect(categories.matchDeepestListingCategory).toHaveBeenCalledTimes(2);
+    expect(result.categoryGroups).toEqual([
+      expect.objectContaining({ id: 'NH01' }),
+    ]);
+    expect(result.items).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ sku: '231000787', categoryType: 'gift' }),
+      ]),
+    );
+  });
+
   it('persists canceled exclusions when ERP lookup confirms the order was canceled', async () => {
     const { service, prisma, erp } = createHarness();
     erp.lookupOrder.mockRejectedValueOnce(
@@ -300,7 +392,7 @@ describe('SalesReportsService', () => {
   });
 
   it('uses ERP createdFromSiteDisplayName as the cache store source when checking an order', async () => {
-    const { service, prisma, categories, erp } = createHarness();
+    const { service, prisma, erp } = createHarness();
     const noStoreUser = {
       id: 'admin-user',
       email: 'admin@hoanghochoi.com',
@@ -312,7 +404,6 @@ describe('SalesReportsService', () => {
       organizationAssignments: [],
     };
     prisma.user.findUnique.mockResolvedValueOnce(noStoreUser);
-    categories.matchCategoriesFromErp.mockResolvedValueOnce([]);
     erp.lookupOrder.mockResolvedValueOnce({
       ...erpOrderFixture(),
       orderCode: '26070732198240',
@@ -1789,6 +1880,36 @@ describe('SalesReportsService', () => {
     );
   });
 
+  it('uses ERP promotion and student autofill over stale purchased payload', async () => {
+    const { service, prisma, erp } = createHarness();
+    erp.lookupOrder.mockResolvedValueOnce({
+      ...erpOrderFixture(),
+      customerType: 'PERSONAL',
+      customerIsStudent: true,
+      promotionCodes: ['EXAM_SCORE_EXCHANGE'],
+    });
+
+    await service.create(userFixture(), {
+      ...baseInput(),
+      reportType: 'PURCHASED',
+      orderCode: '26061334475421',
+      customerType: 'BUSINESS',
+      customerIsStudent: false,
+      promotionCodes: ['OTHER'],
+    });
+
+    expect(prisma.salesReport.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          orderCode: '26061334475421',
+          customerType: 'PERSONAL',
+          customerIsStudent: true,
+          promotionCodes: ['EXAM_SCORE_EXCHANGE'],
+        }),
+      }),
+    );
+  });
+
   it('stores multiple selected category groups with the first one as primary', async () => {
     const { service, prisma, categories } = createHarness();
 
@@ -2583,8 +2704,11 @@ function erpOrderFixture() {
     erpConsultantName: 'Sale CP62',
     customerName: 'Nguyen Van A',
     customerType: 'BUSINESS',
+    customerIsStudent: false,
     customerNeed: 'RAM DDR5',
-    categoryCandidates: ['Computer components'],
+    promotionCodes: ['OTHER'],
+    installmentNeed: false,
+    installmentLoanAmount: null,
     items: [
       {
         sku: 'SKU-1',

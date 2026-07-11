@@ -102,6 +102,11 @@ visual systems that make the app feel assembled from unrelated screens.
 - Primary actions use `AppPrimaryButton`; secondary actions use
   `AppSecondaryButton`; icon-only actions should use a stable square touch
   target and a tooltip.
+- Command inputs that trigger scan/search/submit must keep the input field and
+  its primary icon actions in the same horizontal row on mobile and desktop.
+  Do not move QR/scan, search, or submit buttons below the input unless the
+  viewport is too narrow to preserve a usable text field; auxiliary filters may
+  sit on the next row.
 - Paired actions must use `AppActionRow` plus shared button components and
   `AppButtonMetrics` so height, radius, padding, icon size, and text weight
   match. Mobile actions stack full-width; desktop actions are capped and aligned
@@ -211,6 +216,12 @@ visual systems that make the app feel assembled from unrelated screens.
   screen-local `Trang trước`/`Trang sau` buttons.
 - Dialogs are reserved for confirmations, detail views, and large editors. If a
   UI only narrows or sorts a list, it is a filter and must stay dropdown-based.
+- Peer editor/report actions launched from one workspace must use a consistent
+  presentation surface. Do not open one flow in a modal and route its sibling
+  flows to separate pages without an explicit product reason.
+- A long modal editor keeps its context header card fixed above the scrollable
+  body. The header must retain the task title, status, and close/back action
+  while only the form content scrolls, on both mobile and desktop.
 
 ## Content And Microcopy
 

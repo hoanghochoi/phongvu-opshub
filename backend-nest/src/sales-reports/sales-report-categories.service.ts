@@ -17,6 +17,12 @@ export type SalesReportCategoryGroupDto = {
   sortOrder: number;
 };
 
+export type SalesReportDeepestCategoryMatchDto = {
+  categoryType: string;
+  categoryGroup: SalesReportCategoryGroupDto;
+  sourceLevel: number;
+};
+
 const CATEGORY_TRANSLATIONS: Record<string, string> = {
   Laptop: 'Laptop',
   PC: 'Máy tính bộ',
@@ -42,8 +48,10 @@ export class SalesReportCategoriesService {
   private readonly syncTtlMs = 60_000;
   private lastSyncedAt = 0;
   private cachedCategories: SalesReportCategoryGroupDto[] = [];
-  private cachedCategoryAliases = new Map<string, string[]>();
-  private cachedCategoryTypeByKey = new Map<string, string>();
+  private cachedDeepestCategoryByKey = new Map<
+    string,
+    { categoryType: string; categoryGroupId: string }
+  >();
 
   constructor(private readonly prisma: PrismaService) {}
 
@@ -83,69 +91,44 @@ export class SalesReportCategoriesService {
     return categories;
   }
 
-  async matchCategoryFromErp(values: Array<string | null | undefined>) {
-    const categories = await this.matchCategoriesFromErp(values);
-    return categories[0] ?? null;
+  async matchTypeFromListingCategories(categories: unknown) {
+    const match = await this.matchDeepestListingCategory(categories);
+    return match?.categoryType ?? null;
   }
 
-  async matchCategoriesFromErp(values: Array<string | null | undefined>) {
-    await this.ensureSynced();
-    const normalizedValues = this.normalizeErpValues(values);
-    this.logger.log(
-      `Sales report category match started: valueCount=${normalizedValues.length} categoryCount=${this.cachedCategories.length}`,
-    );
-    const matched: SalesReportCategoryGroupDto[] = [];
-    for (const category of this.cachedCategories) {
-      const exactCandidates = [
-        this.normalizeComparable(category.catGroupName),
-      ];
-      const fuzzyCandidates = [
-        this.normalizeComparable(category.id),
-        this.normalizeComparable(category.catGroupNameVi),
-        ...(this.cachedCategoryAliases.get(category.id) || []),
-      ];
-      if (
-        exactCandidates.some((candidate) =>
-          this.matchesExactCandidate(candidate, normalizedValues),
-        ) ||
-        fuzzyCandidates.some((candidate) =>
-          this.matchesCandidate(candidate, normalizedValues),
-        )
-      ) {
-        matched.push(category);
-      }
-    }
-    if (matched.length > 0) {
-      this.logger.log(
-        `Sales report category matched from ERP: categories=${matched
-          .map((category) => category.id)
-          .join(',')}`,
-      );
-      return matched;
-    }
-    this.logger.warn(
-      `Sales report category not matched from ERP: valueCount=${normalizedValues.length}`,
-    );
-    return [];
-  }
-
-  async matchTypeFromListingCategories(
+  async matchDeepestListingCategory(
     categories: unknown,
-    fallbackValues: Array<string | null | undefined> = [],
-  ) {
+  ): Promise<SalesReportDeepestCategoryMatchDto | null> {
     await this.ensureSynced();
-    const candidates = [
-      ...this.listingCategoryCandidates(categories),
-      ...fallbackValues
-        .map((value) => ({ value: this.rawText(value), rank: 0 }))
-        .filter((candidate) => Boolean(candidate.value)),
-    ].sort((left, right) => right.rank - left.rank);
-    for (const candidate of candidates) {
-      const type = this.cachedCategoryTypeByKey.get(
+    const candidates = this.listingCategoryCandidates(categories);
+    if (candidates.length === 0) return null;
+    const deepestLevel = Math.max(
+      ...candidates.map((candidate) => candidate.rank),
+    );
+    const deepestCandidates = candidates.filter(
+      (candidate) => candidate.rank === deepestLevel,
+    );
+    for (const candidate of deepestCandidates) {
+      const match = this.cachedDeepestCategoryByKey.get(
         this.normalizeTypeLookupKey(candidate.value),
       );
-      if (type) return type;
+      if (!match) continue;
+      const categoryGroup = this.cachedCategories.find(
+        (category) => category.id === match.categoryGroupId,
+      );
+      if (!categoryGroup) continue;
+      this.logger.log(
+        `Sales report deepest Listing category matched: sourceLevel=${deepestLevel} categoryType=${match.categoryType} categoryGroup=${categoryGroup.id}`,
+      );
+      return {
+        categoryType: match.categoryType,
+        categoryGroup,
+        sourceLevel: deepestLevel,
+      };
     }
+    this.logger.warn(
+      `Sales report deepest Listing category not matched: sourceLevel=${deepestLevel} candidateCount=${deepestCandidates.length}`,
+    );
     return null;
   }
 
@@ -182,8 +165,7 @@ export class SalesReportCategoriesService {
       ),
     );
     this.cachedCategories = groups;
-    this.cachedCategoryAliases = this.buildCategoryAliases(rows);
-    this.cachedCategoryTypeByKey = this.buildCategoryTypeMap(rows);
+    this.cachedDeepestCategoryByKey = this.buildDeepestCategoryMap(rows);
     this.lastSyncedAt = now;
     this.logger.log(`Sales report categories synced: count=${groups.length}`);
   }
@@ -254,57 +236,37 @@ export class SalesReportCategoriesService {
     }));
   }
 
-  private buildCategoryAliases(rows: Array<Record<string, string>>) {
-    const aliases = new Map<string, Set<string>>();
+  private buildDeepestCategoryMap(rows: Array<Record<string, string>>) {
+    const candidatesByKey = new Map<
+      string,
+      Map<string, { categoryType: string; categoryGroupId: string }>
+    >();
     for (const row of rows) {
-      const id = this.normalizeCategoryId(row['Cat group ID']);
-      if (!id) continue;
-      const current = aliases.get(id) ?? new Set<string>();
-      for (const key of ['Subcat 2 name', 'Subcat name lowest level']) {
-        const value = this.normalizeComparable(row[key]);
-        if (value) current.add(value);
-      }
-      aliases.set(id, current);
-    }
-    return new Map(
-      Array.from(aliases.entries()).map(([id, values]) => [
-        id,
-        Array.from(values.values()),
-      ]),
-    );
-  }
-
-  private buildCategoryTypeMap(rows: Array<Record<string, string>>) {
-    const byKey = new Map<string, string>();
-    const typesByGroupId = new Map<string, Set<string>>();
-    for (const row of rows) {
-      const groupId = this.normalizeCategoryId(row['Cat group ID']);
-      const type = this.normalizeCategoryType(row.Type);
-      if (!groupId || !type) continue;
-      const types = typesByGroupId.get(groupId) ?? new Set<string>();
-      types.add(type);
-      typesByGroupId.set(groupId, types);
-    }
-    for (const row of rows) {
-      const type = this.normalizeCategoryType(row.Type);
-      if (!type) continue;
-      const groupId = this.normalizeCategoryId(row['Cat group ID']);
-      const groupHasSingleType = (typesByGroupId.get(groupId)?.size ?? 0) === 1;
+      const categoryType = this.normalizeCategoryType(row.Type);
+      const categoryGroupId = this.normalizeCategoryId(row['Cat group ID']);
+      if (!categoryType || !categoryGroupId) continue;
       const lookupKeys = [
         'Subcat ID lowest level',
         'Subcat name lowest level',
         'Subcat 2 ID',
         'Subcat 2 name',
-        ...(groupHasSingleType ? ['Cat group ID', 'Cat group name'] : []),
       ];
       for (const key of lookupKeys) {
         const lookupKey = this.normalizeTypeLookupKey(row[key]);
-        if (lookupKey && !byKey.has(lookupKey)) {
-          byKey.set(lookupKey, type);
-        }
+        if (!lookupKey) continue;
+        const matches = candidatesByKey.get(lookupKey) ?? new Map();
+        matches.set(`${categoryGroupId}:${categoryType}`, {
+          categoryType,
+          categoryGroupId,
+        });
+        candidatesByKey.set(lookupKey, matches);
       }
     }
-    return byKey;
+    return new Map(
+      Array.from(candidatesByKey.entries()).flatMap(([key, matches]) =>
+        matches.size === 1 ? [[key, Array.from(matches.values())[0]]] : [],
+      ),
+    );
   }
 
   private listingCategoryCandidates(categories: unknown) {
@@ -313,21 +275,17 @@ export class SalesReportCategoriesService {
       : categories && typeof categories === 'object'
         ? Object.values(categories as Record<string, unknown>)
         : [];
-    return source.flatMap((item, index) => {
-      if (typeof item === 'string') {
-        return [{ value: item, rank: index + 1 }];
-      }
+    return source.flatMap((item) => {
       if (!item || typeof item !== 'object') return [];
       const record = item as Record<string, unknown>;
-      const rank =
-        this.firstNumber(
-          record.level,
-          record.lvl,
-          record.categoryLevel,
-          record.depth,
-          record.displayLevel,
-          record.priority,
-        ) ?? index + 1;
+      const rank = this.firstNumber(
+        record.level,
+        record.lvl,
+        record.categoryLevel,
+        record.depth,
+        record.displayLevel,
+      );
+      if (rank === null) return [];
       return [
         record.code,
         record.id,
@@ -416,16 +374,6 @@ export class SalesReportCategoriesService {
       .replace(/[^a-z0-9]+/g, '');
   }
 
-  private normalizeComparable(value: unknown) {
-    return String(value || '')
-      .trim()
-      .toLowerCase()
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .replace(/[^a-z0-9]+/g, ' ')
-      .trim();
-  }
-
   private rawText(value: unknown) {
     const text = String(value ?? '').trim();
     return text || null;
@@ -446,39 +394,5 @@ export class SalesReportCategoriesService {
           rightCount - leftCount || leftType.localeCompare(rightType),
       )[0]?.[0] ?? null
     );
-  }
-
-  private normalizeErpValues(values: Array<string | null | undefined>) {
-    const normalized = new Set<string>();
-    for (const value of values) {
-      const raw = String(value || '').trim();
-      if (!raw) continue;
-      const full = this.normalizeComparable(raw);
-      if (full) normalized.add(full);
-      for (const fragment of raw.split(/[/>|]+/g)) {
-        const text = this.normalizeComparable(fragment);
-        if (text) normalized.add(text);
-      }
-    }
-    return Array.from(normalized.values());
-  }
-
-  private matchesCandidate(candidate: string, values: string[]) {
-    if (!candidate) return false;
-    return values.some(
-      (value) =>
-        value === candidate ||
-        value.includes(candidate) ||
-        (this.canUseReverseMatch(value) && candidate.includes(value)),
-    );
-  }
-
-  private matchesExactCandidate(candidate: string, values: string[]) {
-    if (!candidate) return false;
-    return values.some((value) => value === candidate);
-  }
-
-  private canUseReverseMatch(value: string) {
-    return value.length >= 10 && value.split(/\s+/g).length >= 3;
   }
 }

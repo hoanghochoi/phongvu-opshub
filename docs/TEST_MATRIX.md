@@ -58,6 +58,34 @@ This file maps product behavior to proof. Existing flows are marked
 
 Recent focused evidence:
 
+- `SALES-REPORT-001`/`UI-UX-001`, 2026-07-11: báo cáo mua hàng bắt buộc
+  `CTKM áp dụng`; ERP tự fill `Đổi điểm thi` từ
+  `payments[].partnerTransactionCode = PVDD*`, HSSV từ
+  `priceSummary[].tags = PVHSSV*`, fallback `CTKM khác`, đồng thời map
+  `INDIVIDUAL` về cá nhân và tự fill nhu cầu/số tiền trả góp từ payment method
+  `installment`. Ba lối vào báo cáo trong cockpit cùng mở modal và header card
+  của form giữ cố định ngoài vùng cuộn. Validation: focused Flutter sales-report
+  widget/domain/provider tests (`21` tests), focused NestJS ERP/service tests
+  (`67` tests), `flutter analyze --no-pub`, và `npm run build`.
+- `SALES-REPORT-001`, 2026-07-11: auto-fill ngành hàng và `categoryType` chỉ
+  exact-match node Listing có level sâu nhất với dòng tương ứng trong
+  `data/categories.csv`; không dùng `NHxx` level 1, category cha,
+  `productGroup`, `productType` hoặc tên sản phẩm làm fallback. Node sâu nhất
+  không có level rõ ràng hoặc không map được thì để sale chọn tay; item `type=gift` vẫn lưu
+  `categoryType=gift` nhưng không tự chọn ngành. Regression case
+  `26071137825630` giữ Laptop và loại `NH11` Phụ kiện do SKU `231000787` là
+  `NH11-01-98-01` (`gift`). Validation: focused category/service tests, toàn bộ
+  sales-report tests (74 tests), backend build, focused Flutter sales-report
+  tests (21 tests), and `git diff --check`.
+- `UI-UX-001`/`FIFO-001`, 2026-07-11: mobile command cards for `Kiểm tra FIFO`
+  and `Sắp xếp FIFO` keep the input, QR scan, and search/submit action in the
+  same row for faster one-hand operation; the shared UI contract now records
+  this rule. FIFO result cards and Sort FIFO cards also show inventory age as
+  `Tồn X ngày` from the import date, and Sort FIFO result cards now match FIFO
+  Check's white card, left FIFO status strip, metadata chips, copyable
+  serial/location behavior, and sanitized `AppLogger` copy logs. Validation:
+  focused FIFO/Sort Flutter widget tests (`8` tests, including 390x844 mobile
+  geometry guards) and `flutter analyze --no-pub`.
 - `FIFO-001`/`PROFILE-ADMIN-001`, 2026-07-11: FIFO BigQuery refresh now treats
   the latest valid BigQuery read as the full snapshot for BigQuery-sourced rows;
   rows missing from that snapshot are deactivated even when their SR is absent
@@ -1307,9 +1335,11 @@ FIFO Menu` now has bottom nav active on `Tác vụ`, `Mobile v2 / Profile` has
   manager roles, maps the ERP creator to the internal user and assigned
   store/node during the scheduled upsert without erasing an existing mapping
   when a later payload is incomplete, and gives Super Admin the full saved
-  cache/report scope. Purchased-order category auto-fill accepts only Listing
-  `result.products[].categories[].code` values whose `level = 1`, so lower
-  Laptop/PC labels on a Logitech B100 mouse cannot select extra groups. It
+  cache/report scope. Purchased-order category auto-fill only exact-matches the
+  deepest Listing category node against `data/categories.csv`; level-1 `NHxx`,
+  category cha and product group/type/name fallbacks are not auto-fill signals.
+  This keeps unrelated Laptop/PC labels on a Logitech B100 mouse from selecting
+  extra groups. It
   reuses the existing purchased `check-order` flow when a user opens an
   unreported order dialog. Cockpit filters by date, SR, and user, with exports
   sharing the selected cockpit filters. Flutter reads the DB cache on open or
@@ -1561,16 +1591,16 @@ windows --debug --no-pub`, and `flutter build apk --debug --no-pub`. Gap:
   `data.order.billingInfo.taxCode`; top-level `order.customerType` is ignored.
   Validation: `npm test -- --runInBand src/sales-reports` (26 tests),
   `npm run build`, and `git diff --check`.
-- `SALES-REPORT-001`, 2026-07-01: Category auto-detect keeps canonical group
-  names such as `PC` exact-only, while IDs/Vietnamese labels/subcategory aliases
-  remain fallback candidates. This prevents service item names containing `PC`
-  from auto-selecting `Máy tính bộ`; the reported VGA/PSU/network-card/service
-  example maps to `NH03`, `NH08`, and `NH95` only. Validation:
+- `SALES-REPORT-001`, 2026-07-01: The former group-name/ID/subcategory-alias
+  matcher prevented a service item name containing `PC` from auto-selecting
+  `Máy tính bộ`. That fuzzy/fallback matcher was removed on 2026-07-11; runtime
+  now follows only the deepest exact Listing node contract recorded above.
+  Historical validation:
   `npm test -- --runInBand src/sales-reports/sales-report-categories.service.spec.ts`.
-- `SALES-REPORT-001`, 2026-07-01: Purchased-order category candidates now
-  include `result.products[].categories[].code/id/name` from Listing before the
-  product name fallback, so level-1 codes like `NH08` are used directly for
-  auto-ticking ngành hàng even when `productGroup` is missing. Validation:
+- `SALES-REPORT-001`, 2026-07-01: ERP preserves sanitized
+  `result.products[].categories[].code/id/name/level` per item for downstream
+  category mapping. The former level-1 direct auto-tick behavior was superseded
+  on 2026-07-11 by the deepest-node-only contract recorded above. Validation:
   `npm test -- --runInBand src/sales-reports/sales-report-erp.service.spec.ts`.
 - `SALES-REPORT-001`, 2026-06-30: Customer type UI makes
   `Học sinh - Sinh viên` a child checkbox of `Cá nhân`, auto-selects `Cá nhân`
@@ -1583,9 +1613,10 @@ windows --debug --no-pub`, and `flutter build apk --debug --no-pub`. Gap:
   and `git diff --check`. Full `flutter analyze --no-pub` is blocked by the
   unrelated dirty VietQR `_historyLoaded` errors in
   `lib/features/vietqr/presentation/screens/vietqr_screen.dart`.
-- `SALES-REPORT-001`, 2026-06-29: Listing `productGroup.code` is included in
-  category candidates and matched directly to `Cat group ID` from
-  `data/categories.csv`; category aliases remain fallback. Sales report forms
+- `SALES-REPORT-001`, 2026-06-29: The initial implementation matched Listing
+  `productGroup.code` and category aliases to `Cat group ID`; this behavior was
+  superseded and removed on 2026-07-11 in favor of deepest exact category-only
+  matching. Sales report forms
   require customer need, category, not-purchased reason when applicable, and
   explicit behavior answers instead of defaulting to `Có`. Validation:
   `npm test -- --runInBand src/sales-reports` (9 tests), `npm run build`,

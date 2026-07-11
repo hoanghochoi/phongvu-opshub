@@ -218,6 +218,10 @@ class SalesReportProvider extends ChangeNotifier {
           'categoryCount': result.categoryGroups.length,
           'itemCount': result.items.length,
           'paymentCount': result.payments.length,
+          'promotionCount': result.promotionCodes.length,
+          'customerIsStudent': result.customerIsStudent,
+          'installmentAutoFilled': result.installmentNeed,
+          'hasInstallmentLoanAmount': result.installmentLoanAmount != null,
           'durationMs': DateTime.now().difference(startedAt).inMilliseconds,
         },
       );

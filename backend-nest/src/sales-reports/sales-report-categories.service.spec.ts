@@ -13,68 +13,7 @@ describe('SalesReportCategoriesService', () => {
     return new SalesReportCategoriesService(prisma as any);
   }
 
-  it('matches the Listing product group code to the OpsHub category group', async () => {
-    const service = createService();
-
-    const category = await service.matchCategoryFromErp(['NH08', '80283']);
-
-    expect(category).toEqual(
-      expect.objectContaining({
-        id: 'NH08',
-        catGroupName: 'Network and Security equipment',
-        catGroupNameVi: 'Thiết bị mạng và an ninh',
-      }),
-    );
-  });
-
-  it('matches multiple Listing product group codes to OpsHub category groups', async () => {
-    const service = createService();
-
-    const categories = await service.matchCategoriesFromErp([
-      'NH03',
-      'NH08',
-      'RAM DDR5',
-      'Thiết bị mạng/ Router TPLink Archer C54',
-    ]);
-
-    expect(categories.map((category) => category.id)).toEqual(
-      expect.arrayContaining(['NH03', 'NH08']),
-    );
-  });
-
-  it('does not map service item names containing PC to the PC category', async () => {
-    const service = createService();
-
-    const categories = await service.matchCategoriesFromErp([
-      'Card màn hình/ VGA MSI GeForce RTX 3050 VENTUS 2X 6G OC',
-      'Nguồn máy tính/ PSU MIK C650B (SP006078)',
-      'Card mạng PCIe WiFi AX1800 + Bluetooth 5.2 TP-Link Archer TX20E',
-      'Dịch vụ lắp ráp VGA PC miễn phí',
-      'Dịch vụ lắp ráp Nguồn PC miễn phí',
-    ]);
-    const categoryIds = categories.map((category) => category.id);
-
-    expect(categoryIds).toEqual(
-      expect.arrayContaining(['NH03', 'NH08', 'NH95']),
-    );
-    expect(categoryIds).not.toContain('NH02');
-  });
-
-  it('still matches the PC category when ERP sends the exact group name', async () => {
-    const service = createService();
-
-    const category = await service.matchCategoryFromErp(['PC']);
-
-    expect(category).toEqual(
-      expect.objectContaining({
-        id: 'NH02',
-        catGroupName: 'PC',
-        catGroupNameVi: 'Máy tính bộ',
-      }),
-    );
-  });
-
-  it('maps product type from the highest Listing category level', async () => {
+  it('maps product type from the deepest Listing category level', async () => {
     const service = createService();
 
     const type = await service.matchTypeFromListingCategories([
@@ -86,37 +25,78 @@ describe('SalesReportCategoriesService', () => {
     expect(type).toBe('apple');
   });
 
-  it('does not infer a type from an ambiguous category group only', async () => {
+  it('maps the NH11 gift leaf to gift instead of accessories', async () => {
     const service = createService();
 
-    const type = await service.matchTypeFromListingCategories([], ['NH03']);
+    const match = await service.matchDeepestListingCategory([
+      { code: 'NH11', name: 'Accessories', level: 1 },
+      {
+        code: 'NH11-01-98',
+        name: 'Quà tặng phụ kiện máy tính',
+        level: 3,
+      },
+      {
+        code: 'NH11-01-98-01',
+        name: 'Linh kiện (Quà tặng phụ kiện máy tính)',
+        level: 4,
+      },
+    ]);
+
+    expect(match).toMatchObject({
+      categoryType: 'gift',
+      categoryGroup: { id: 'NH11' },
+      sourceLevel: 4,
+    });
+  });
+
+  it('does not use a level-1 NHxx category as an autofill signal', async () => {
+    const service = createService();
+
+    const type = await service.matchTypeFromListingCategories([
+      { code: 'NH03', name: 'Computer components', level: 1 },
+    ]);
 
     expect(type).toBeNull();
   });
 
-  it('falls back to network router listing names when code is missing', async () => {
+  it('does not fall back to a known parent when the deepest node is unknown', async () => {
     const service = createService();
 
-    const category = await service.matchCategoryFromErp([
-      '80283',
-      'Thiết bị mạng/ Router TPLink Archer C54',
-      'Sản phẩm có thể lưu trữ',
+    const match = await service.matchDeepestListingCategory([
+      { code: 'NH11', name: 'Accessories', level: 1 },
+      { code: 'UNKNOWN-LEAF', name: 'Nhóm chưa có trong CSV', level: 4 },
     ]);
 
-    expect(category).toEqual(
-      expect.objectContaining({
-        id: 'NH08',
-        catGroupName: 'Network and Security equipment',
-        catGroupNameVi: 'Thiết bị mạng và an ninh',
-      }),
-    );
+    expect(match).toBeNull();
   });
 
-  it('does not force a category when listing values are unrelated', async () => {
+  it('does not infer category level from array order when level is missing', async () => {
     const service = createService();
 
-    await expect(
-      service.matchCategoryFromErp(['Mã nhóm lạ', 'Sản phẩm không khớp']),
-    ).resolves.toBeNull();
+    const match = await service.matchDeepestListingCategory([
+      { code: 'NH01', name: 'Laptop' },
+      { code: 'NH01-01-01-01', name: 'Laptop' },
+    ]);
+
+    expect(match).toBeNull();
+  });
+
+  it('uses the deepest exact row even when Listing categories are out of order', async () => {
+    const service = createService();
+
+    const match = await service.matchDeepestListingCategory([
+      {
+        code: 'NH05-96-01-01',
+        name: 'Củ sạc Apple',
+        level: 4,
+      },
+      { code: 'NH05', name: 'Apple', level: 1 },
+    ]);
+
+    expect(match).toMatchObject({
+      categoryType: 'accessories',
+      categoryGroup: { id: 'NH05' },
+      sourceLevel: 4,
+    });
   });
 });

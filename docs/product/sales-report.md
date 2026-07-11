@@ -70,9 +70,13 @@ cho Google Form, đồng thời lưu dữ liệu đủ chuẩn để dashboard d
   được gán, gồm các showroom/node con; Super Admin xem toàn bộ cache/report
   trong DB.
 - Cockpit dùng daterange chung `Ngày` cùng `SR`/`Nhân viên`/`Tải lại` và giữ hai
-  thao tác nghiệp vụ nằm ngang nhau: `Báo cáo mua thủ công` mở form mua hàng để
-  sale tự nhập/quét mã đơn, còn `Báo cáo chưa mua` mở form khách chưa mua; không
-  lặp lại nút xuất file hay lối vào danh sách. Khi mở cockpit, bộ lọc `Ngày` mặc
+  thao tác nghiệp vụ nằm ngang nhau: `Báo cáo mua thủ công` mở modal form mua
+  hàng để sale tự nhập/quét mã đơn, còn `Báo cáo chưa mua` mở modal form khách
+  chưa mua; bấm đơn chưa báo cáo cũng mở cùng modal form mua hàng. Cả ba luồng
+  dùng chung presentation model, không điều hướng sang trang riêng. Modal dài
+  cố định header card chứa tên báo cáo, trạng thái và nút quay lại; chỉ phần
+  thân form cuộn. Cockpit không lặp lại nút xuất file hay lối vào danh sách. Khi
+  mở cockpit, bộ lọc `Ngày` mặc
   định chọn ngày hiện tại và request đầu tiên gửi cùng ngày bắt đầu/kết thúc,
   đồng bộ với Trang chủ. Bộ lọc `SR`/`Nhân viên` chỉ hiện với scope quản lý,
   lấy option từ cache/report trong phạm vi user được phép xem.
@@ -171,10 +175,14 @@ cho Google Form, đồng thời lưu dữ liệu đủ chuẩn để dashboard d
   lại dashboard theo bộ lọc hiện tại. Menu `Quản trị` có `Quản lý doanh số` theo
   feature `ADMIN_SALES_TARGETS`; chỉ tiêu lưu theo SR/tháng ở giá trị trước VAT.
 - ERP/Listing chỉ được tự điền ngành hàng khi map được về nhóm ngành OpsHub:
-  chỉ lấy `result.products[].categories[]` có `level = 1` và dùng đúng `code`
-  khớp `Cat group ID` trong `data/categories.csv`. Không dùng category level
-  2/3, `productGroup`, `productType` hoặc tên sản phẩm để suy đoán ngành hàng;
-  nếu Listing không có code level 1 thì sale phải chọn tay. Một báo cáo có thể
+  với từng sản phẩm, chỉ lấy node có `level` lớn nhất trong
+  `result.products[].categories[]`, exact-match `code`/`name` của node đó với
+  dòng `Subcat ID lowest level` hoặc `Subcat 2 ID` tương ứng trong
+  `data/categories.csv`, rồi dùng `Cat group ID` và `Type` từ chính dòng đã
+  match. Không dùng Listing category `NHxx` level 1, không tụt về category cha,
+  và không fallback qua `productGroup`, `productType` hoặc tên sản phẩm. Nếu
+  Listing không trả level rõ ràng hoặc node sâu nhất không map được thì sale
+  phải chọn tay; sản phẩm có `Type = gift` không tự chọn ngành hàng. Một báo cáo có thể
   chọn nhiều ngành hàng vì một đơn/khách có thể có
   nhiều nhu cầu; ngành đầu tiên được lưu làm ngành chính để filter/list cũ còn
   tương thích, toàn bộ ngành được lưu trong bảng selection và xuất Excel. Nếu
@@ -197,11 +205,18 @@ phí`.
   `Học sinh - Sinh viên`. Với báo cáo mua hàng, app tự fill `Doanh nghiệp` khi
   ERP trả `billingInfo.customerType = BUSINESS` hoặc
   `billingInfo.taxCode` có giá trị; nếu cả hai không thể hiện doanh nghiệp thì
-  xem là `Cá nhân`.
+  xem là `Cá nhân`, gồm cả payload ERP
+  `billingInfo.customerType = INDIVIDUAL`.
   Với báo cáo chưa mua, sale chọn loại khách thủ công. DB lưu bằng
   `customerType` và flag riêng `customerIsStudent`.
 - `CTKM áp dụng` là nhóm checkbox gồm `Đổi điểm thi`,
-  `Học sinh - Sinh viên`, và `CTKM khác`.
+  `Học sinh - Sinh viên`, và `CTKM khác`; đây là trường bắt buộc của báo cáo
+  mua hàng. Backend re-check ERP và tự fill theo thứ tự nguồn: mọi
+  `payments[].partnerTransactionCode` bắt đầu bằng `PVDD` thêm `Đổi điểm thi`;
+  mọi `priceSummary[].tags` bắt đầu bằng `PVHSSV` thêm
+  `Học sinh - Sinh viên`; nếu không khớp hai nhóm trên thì fill `CTKM khác`.
+  Khi khớp `PVDD` hoặc `PVHSSV`, loại khách được fill `Cá nhân` cùng cờ
+  `Học sinh - Sinh viên`, kể cả payload loại khách ERP trước đó khác.
 - Cả `Mua hàng` và `Chưa mua hàng` có tick `Có nhu cầu trả góp`. Khi tick, sale
   chọn một hoặc nhiều đối tác trong danh sách cố định: `VNPAY - POS`,
   `PAYOO - POS`, `HomeCredit - CTTC`, `Shinhan - CTTC`, `HDSaison - CTTC`,
@@ -216,6 +231,11 @@ phí`.
   `Khách từ chối: Không đủ điều kiện giấy tờ/thẻ`,
   `Khách từ chối: Giá cao/So sánh đối thủ (TGDĐ, FPT, CPS...)`,
   `Khách từ chối: Chỉ tham khảo/Hẹn quay lại`.
+- Với báo cáo mua hàng, nếu bất kỳ `payments[].paymentMethod` nào chứa
+  `installment` không phân biệt hoa/thường, app tự tick `Có nhu cầu trả góp`.
+  Tổng các `amount` dương của các payment installment được tự điền vào
+  `Số tiền vay`; sale vẫn hoàn tất đối tác, kết quả duyệt và lý do theo contract
+  trả góp hiện tại trước khi gửi.
 - Mọi số tiền hiển thị/nhập trong UI sales-report dùng dấu phân cách hàng ngàn
   theo chuẩn `vi_VN`, ví dụ `5.000.000 VND`; payload gửi backend vẫn là số
   nguyên không có dấu phân cách.
@@ -225,9 +245,11 @@ phí`.
 - Khi lấy đơn hàng từ ERP, backend lưu loại khách hàng, phương thức thanh toán,
   snapshot đơn hàng đã sanitize, và từng sản phẩm trong bảng
   `SalesReportOrderItem`. Với từng sản phẩm, backend đọc `categories` trong
-  payload Listing, ưu tiên level cao nhất để map `Type` trong
+  payload Listing, chỉ dùng level sâu nhất để map `Type` trong
   `data/categories.csv`, rồi lưu `categoryType` để file Doanh số tính laptop,
-  PC, PC ráp, Apple, màn hình, máy in, phụ kiện và dịch vụ bảo hiểm.
+  PC, PC ráp, Apple, màn hình, máy in, phụ kiện và dịch vụ bảo hiểm. Item
+  `categoryType = gift` vẫn được lưu để đối soát nhưng không tự chọn ngành hàng
+  theo category cha của quà tặng.
 - File `HVTC` xuất một dòng cho mỗi báo cáo với các cột tiếng Việt: ngày báo
   cáo, email người báo cáo, mã nhân viên tư vấn ERP, tên/số điện thoại/nhu cầu
   khách hàng, các câu trả lời hành vi, loại báo cáo, lý do chưa mua và showroom.

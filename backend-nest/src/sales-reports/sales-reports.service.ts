@@ -1562,22 +1562,23 @@ export class SalesReportsService implements OnApplicationBootstrap {
       context,
       orderCode ?? '',
     );
-    await this.attachCategoryTypes(erpOrder);
+    const matchedCategories = await this.attachCategoryTypes(erpOrder);
     const cacheResult = await this.upsertErpOrderCacheFromOrder(
       user,
       context,
       erpOrder,
     );
     this.assertOrderCachePersistResultReportable(cacheResult);
-    const matchedCategories = await this.categories.matchCategoriesFromErp(
-      erpOrder.categoryCandidates,
-    );
     return {
       orderCode,
       customerName: erpOrder.customerName,
       customerNeed: erpOrder.customerNeed,
       customerType: erpOrder.customerType,
       customerTypeLabel: this.customerTypeLabel(erpOrder.customerType),
+      customerIsStudent: erpOrder.customerIsStudent,
+      promotionCodes: erpOrder.promotionCodes,
+      installmentNeed: erpOrder.installmentNeed,
+      installmentLoanAmount: erpOrder.installmentLoanAmount,
       categoryGroup: matchedCategories[0] ?? null,
       categoryGroups: matchedCategories,
       order: this.toOrderDto(erpOrder),
@@ -1597,7 +1598,6 @@ export class SalesReportsService implements OnApplicationBootstrap {
     const entrySource = this.normalizeEntrySource(reportType, body.entrySource);
     this.validateCreateBody(reportType, orderCode, body);
     const categoryIds = this.normalizeCategoryGroupIds(body);
-    const promotionCodes = this.normalizePromotionCodes(body.promotionCodes);
     const categories = await this.categories.requireCategories(categoryIds);
     const primaryCategory = categories[0]!;
     const context = await this.resolveUserSnapshot(user);
@@ -1613,10 +1613,15 @@ export class SalesReportsService implements OnApplicationBootstrap {
       );
       await this.attachCategoryTypes(erpOrder);
     }
+    const promotionCodes = erpOrder
+      ? this.normalizePromotionCodes(erpOrder.promotionCodes)
+      : this.normalizePromotionCodes(body.promotionCodes);
     const customerType = this.normalizeCustomerType(
       erpOrder?.customerType ?? this.optionalText(body.customerType, 20),
     );
-    const customerIsStudent = body.customerIsStudent === true;
+    const customerIsStudent = erpOrder
+      ? erpOrder.customerIsStudent
+      : body.customerIsStudent === true;
     this.assertCustomerTypeStudentConsistency(customerType, customerIsStudent);
     const installment = this.normalizeInstallmentSelection(body);
 
@@ -3678,20 +3683,13 @@ export class SalesReportsService implements OnApplicationBootstrap {
   }
 
   private async attachCategoryTypes(erpOrder: SalesReportErpOrder) {
-    await Promise.all(
+    const deepestMatches = await Promise.all(
       erpOrder.items.map(async (item) => {
-        item.categoryType =
-          await this.categories.matchTypeFromListingCategories(
-            item.listingCategories,
-            [
-              item.productTypeCode,
-              item.productTypeName,
-              item.productGroupCode,
-              item.productGroupId,
-              item.productGroupName,
-              item.name,
-            ],
-          );
+        const match = await this.categories.matchDeepestListingCategory(
+          item.listingCategories,
+        );
+        item.categoryType = match?.categoryType ?? null;
+        return match;
       }),
     );
     const snapshotItems = (erpOrder.sanitizedSnapshot as any)?.items;
@@ -3700,6 +3698,23 @@ export class SalesReportsService implements OnApplicationBootstrap {
         snapshotItem.categoryType = erpOrder.items[index]?.categoryType ?? null;
       });
     }
+    const matchedCategories = [];
+    const matchedCategoryIds = new Set<string>();
+    let excludedGiftItemCount = 0;
+    for (const match of deepestMatches) {
+      if (!match) continue;
+      if (this.normalizeSalesCategoryType(match.categoryType) === 'gift') {
+        excludedGiftItemCount += 1;
+        continue;
+      }
+      if (matchedCategoryIds.has(match.categoryGroup.id)) continue;
+      matchedCategoryIds.add(match.categoryGroup.id);
+      matchedCategories.push(match.categoryGroup);
+    }
+    this.logger.log(
+      `Sales report deepest category autofill completed: ${this.orderLogPart(erpOrder.orderCode)} itemCount=${erpOrder.items.length} deepestMatchCount=${deepestMatches.filter(Boolean).length} unmatchedItemCount=${deepestMatches.filter((match) => !match).length} excludedGiftItemCount=${excludedGiftItemCount} categoryCount=${matchedCategories.length}`,
+    );
+    return matchedCategories;
   }
 
   private erpCreateData(erpOrder: SalesReportErpOrder) {

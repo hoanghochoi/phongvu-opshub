@@ -117,16 +117,20 @@ void main() {
     await tester.tap(find.text('Báo cáo mua thủ công'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Purchased form'), findsOneWidget);
+    expect(find.byType(Dialog), findsOneWidget);
+    expect(find.text('Báo cáo mua hàng'), findsOneWidget);
+    expect(router.routeInformationProvider.value.uri.path, '/');
 
-    router.pop();
+    await tester.tap(find.byTooltip('Quay lại'));
     await tester.pumpAndSettle();
 
     await tester.ensureVisible(find.text('Báo cáo chưa mua'));
     await tester.tap(find.text('Báo cáo chưa mua'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Not purchased form'), findsOneWidget);
+    expect(find.byType(Dialog), findsOneWidget);
+    expect(find.text('Báo cáo chưa mua hàng'), findsOneWidget);
+    expect(router.routeInformationProvider.value.uri.path, '/');
   });
 
   testWidgets('Báo cáo mobile uses compact hero, tabs and filter sheet', (
@@ -300,6 +304,12 @@ void main() {
   testWidgets('Báo cáo opens purchased dialog from unreported order', (
     tester,
   ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
     final authProvider = _FakeAuthProvider(
       const User(
         id: 'user-1',
@@ -309,7 +319,15 @@ void main() {
         featureAccess: {'SALES_REPORT': true},
       ),
     );
-    final repository = _FakeSalesReportRepository();
+    final repository = _FakeSalesReportRepository(
+      orderCheckOverrides: const {
+        'customerType': 'PERSONAL',
+        'customerIsStudent': true,
+        'promotionCodes': ['EXAM_SCORE_EXCHANGE', 'STUDENT'],
+        'installmentNeed': true,
+        'installmentLoanAmount': 5000000,
+      },
+    );
 
     await tester.pumpWidget(
       MultiProvider(
@@ -331,6 +349,57 @@ void main() {
     expect(repository.checkOrderCount, 1);
     expect(find.text('Báo cáo mua hàng'), findsOneWidget);
     expect(find.text('Đơn hàng đã kiểm tra'), findsOneWidget);
+    expect(
+      tester
+          .widget<CheckboxListTile>(
+            _checkboxTileByKey('sales-report-customer-type-PERSONAL'),
+          )
+          .value,
+      isTrue,
+    );
+    expect(
+      tester
+          .widget<CheckboxListTile>(
+            _checkboxTileByKey('sales-report-customer-student'),
+          )
+          .value,
+      isTrue,
+    );
+    expect(
+      tester
+          .widget<CheckboxListTile>(
+            _checkboxTileByKey('sales-report-promotion-EXAM_SCORE_EXCHANGE'),
+          )
+          .value,
+      isTrue,
+    );
+    expect(
+      tester
+          .widget<CheckboxListTile>(
+            _checkboxTileByKey('sales-report-promotion-STUDENT'),
+          )
+          .value,
+      isTrue,
+    );
+    expect(
+      tester
+          .widget<CheckboxListTile>(
+            _checkboxTileByKey('sales-report-installment-checkbox'),
+          )
+          .value,
+      isTrue,
+    );
+    expect(find.text('5.000.000'), findsOneWidget);
+
+    final header = find.byKey(const Key('sales-report-form-header'));
+    final headerTop = tester.getTopLeft(header).dy;
+    final dialogScroll = find.descendant(
+      of: find.byType(Dialog),
+      matching: find.byType(SingleChildScrollView),
+    );
+    await tester.drag(dialogScroll, const Offset(0, -700));
+    await tester.pumpAndSettle();
+    expect(tester.getTopLeft(header).dy, headerTop);
   });
 
   testWidgets('Báo cáo hub omits duplicate export and list actions', (
@@ -427,6 +496,45 @@ void main() {
     expect(find.text('Vui lòng nhập nhu cầu khách hàng'), findsOneWidget);
     expect(find.text('Vui lòng chọn loại khách hàng'), findsOneWidget);
     expect(find.text('Vui lòng chọn Tư vấn 3 giải pháp'), findsOneWidget);
+    expect(repository.createCalled, isFalse);
+  });
+
+  testWidgets('Báo cáo mua hàng requires CTKM áp dụng', (tester) async {
+    final authProvider = _FakeAuthProvider(
+      const User(
+        id: 'user-1',
+        email: 'sale@phongvu.vn',
+        role: 'USER',
+        organizationNodeId: 'org-store-cp01',
+        featureAccess: {'SALES_REPORT': true},
+      ),
+    );
+    final repository = _FakeSalesReportRepository();
+
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider<AuthProvider>.value(value: authProvider),
+          ChangeNotifierProvider<SalesReportProvider>(
+            create: (_) => SalesReportProvider(repository),
+          ),
+        ],
+        child: const MaterialApp(
+          home: Scaffold(
+            body: SalesReportFormScreen.purchased(
+              initialOrderCode: '2607010002',
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.ensureVisible(find.text('Gửi báo cáo'));
+    await tester.tap(find.text('Gửi báo cáo'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Vui lòng chọn CTKM áp dụng'), findsOneWidget);
     expect(repository.createCalled, isFalse);
   });
 
@@ -1059,6 +1167,7 @@ class _FakeStoreAuthRepository extends AuthRepository {
 class _FakeSalesReportRepository extends SalesReportRepository {
   final bool managedScope;
   final int unreportedTotal;
+  final Map<String, dynamic> orderCheckOverrides;
   bool createCalled = false;
   int fetchListCount = 0;
   int fetchOrdersCount = 0;
@@ -1070,6 +1179,7 @@ class _FakeSalesReportRepository extends SalesReportRepository {
   _FakeSalesReportRepository({
     this.managedScope = false,
     this.unreportedTotal = 21,
+    this.orderCheckOverrides = const {},
   }) : super(ApiClient());
 
   @override
@@ -1132,6 +1242,7 @@ class _FakeSalesReportRepository extends SalesReportRepository {
         'paymentStatus': 'PAID',
         'terminalName': 'CP62',
       },
+      ...orderCheckOverrides,
     });
   }
 

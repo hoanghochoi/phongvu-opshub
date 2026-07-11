@@ -71,4 +71,22 @@ class DateFormatter {
 
     return null;
   }
+
+  static int? daysSince(String? dateString, {DateTime? now}) {
+    if (dateString == null || dateString.isEmpty) return null;
+    final parsed = tryParse(dateString);
+    if (parsed == null) return null;
+
+    final today = now ?? DateTime.now();
+    final startDate = DateTime(parsed.year, parsed.month, parsed.day);
+    final todayDate = DateTime(today.year, today.month, today.day);
+    final days = todayDate.difference(startDate).inDays;
+    return days < 0 ? 0 : days;
+  }
+
+  static String? inventoryAgeLabel(String? dateString, {DateTime? now}) {
+    final days = daysSince(dateString, now: now);
+    if (days == null) return null;
+    return 'Tồn $days ngày';
+  }
 }
