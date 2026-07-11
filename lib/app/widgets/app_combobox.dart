@@ -1,9 +1,11 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 
+import '../../core/logging/app_logger.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_radius.dart';
 import '../theme/app_text_styles.dart';
@@ -111,6 +113,7 @@ class _AppComboboxState<T> extends State<AppCombobox<T>> {
   double _menuHeight = 320;
   int _highlightedIndex = 0;
   ValueChanged<T?>? _formDidChange;
+  bool? _suffixWasOpenOnPointerDown;
 
   @override
   void initState() {
@@ -205,27 +208,39 @@ class _AppComboboxState<T> extends State<AppCombobox<T>> {
             widget.onChanged?.call(null);
             _notifyFormValueChanged(null, didChange);
           }
+          _logSelectionChanged(action: 'cleared_from_suffix');
+          _closeOverlay();
+          _focusNode.unfocus();
           _syncDisplayText();
         },
       );
     }
-    return IconButton(
-      tooltip: _isOpen ? 'Đóng danh sách' : 'Mở danh sách',
-      icon: Icon(
-        _isOpen ? Icons.keyboard_arrow_up_rounded : Icons.search_rounded,
-        size: 20,
+    return Listener(
+      onPointerDown: (_) => _suffixWasOpenOnPointerDown = _isOpen,
+      onPointerCancel: (_) => _suffixWasOpenOnPointerDown = null,
+      child: IconButton(
+        tooltip: _isOpen ? 'Đóng danh sách' : 'Mở danh sách',
+        icon: Icon(
+          _isOpen ? Icons.keyboard_arrow_up_rounded : Icons.search_rounded,
+          size: 20,
+        ),
+        onPressed: widget.enabled ? _toggleOverlayFromSuffix : null,
       ),
-      onPressed: widget.enabled
-          ? () {
-              if (_isOpen) {
-                _closeOverlay();
-              } else {
-                _focusNode.requestFocus();
-                _openOverlay();
-              }
-            }
-          : null,
     );
+  }
+
+  void _toggleOverlayFromSuffix() {
+    // The TextField can gain focus and open the overlay before IconButton's
+    // onPressed runs. Use the pointer-down state so that the same click does
+    // not immediately close the menu it just opened.
+    final wasOpen = _suffixWasOpenOnPointerDown ?? _isOpen;
+    _suffixWasOpenOnPointerDown = null;
+    if (wasOpen) {
+      _closeOverlay();
+      return;
+    }
+    _focusNode.requestFocus();
+    _openOverlay(trigger: 'suffix_icon');
   }
 
   KeyEventResult _handleKeyEvent(FocusNode node, KeyEvent event) {
@@ -268,18 +283,48 @@ class _AppComboboxState<T> extends State<AppCombobox<T>> {
     _selectOption(options[_highlightedIndex], didChange);
   }
 
-  void _openOverlay() {
+  void _openOverlay({String trigger = 'field_or_focus'}) {
     if (!widget.enabled || _isOpen) return;
-    _calculateMenuGeometry();
-    _controller
-      ..text = ''
-      ..selection = const TextSelection.collapsed(offset: 0);
-    setState(() {
-      _isOpen = true;
-      _highlightedIndex = 0;
-    });
-    _overlayEntry = OverlayEntry(builder: _buildOverlay);
-    Overlay.of(context).insert(_overlayEntry!);
+    unawaited(
+      AppLogger.instance.info(
+        'AppCombobox',
+        'Filter dropdown open started',
+        context: _logContext(trigger: trigger),
+      ),
+    );
+    try {
+      _calculateMenuGeometry();
+      _controller
+        ..text = ''
+        ..selection = const TextSelection.collapsed(offset: 0);
+      setState(() {
+        _isOpen = true;
+        _highlightedIndex = 0;
+      });
+      _overlayEntry = OverlayEntry(builder: _buildOverlay);
+      Overlay.of(context).insert(_overlayEntry!);
+      unawaited(
+        AppLogger.instance.info(
+          'AppCombobox',
+          'Filter dropdown open succeeded',
+          context: _logContext(trigger: trigger),
+        ),
+      );
+    } catch (error, stackTrace) {
+      _overlayEntry?.remove();
+      _overlayEntry = null;
+      if (mounted) setState(() => _isOpen = false);
+      unawaited(
+        AppLogger.instance.error(
+          'AppCombobox',
+          'Filter dropdown open failed',
+          error: error,
+          stackTrace: stackTrace,
+          context: _logContext(trigger: trigger),
+        ),
+      );
+      rethrow;
+    }
   }
 
   void _closeOverlay({bool updateState = true}) {
@@ -367,10 +412,12 @@ class _AppComboboxState<T> extends State<AppCombobox<T>> {
             onTap: () {
               if (widget.multiSelect) {
                 widget.onMultiChanged?.call(<T>{});
+                _logSelectionChanged(action: 'cleared_from_menu');
                 _markOverlayNeedsBuild();
               } else {
                 widget.onChanged?.call(null);
                 _notifyFormValueChanged(null);
+                _logSelectionChanged(action: 'cleared_from_menu');
                 _closeOverlay();
               }
             },
@@ -478,6 +525,7 @@ class _AppComboboxState<T> extends State<AppCombobox<T>> {
     }
     widget.onChanged?.call(option.value);
     _notifyFormValueChanged(option.value, didChange);
+    _logSelectionChanged(action: 'single_selected', selectedCount: 1);
     _closeOverlay();
   }
 
@@ -493,7 +541,38 @@ class _AppComboboxState<T> extends State<AppCombobox<T>> {
       next.add(option.value);
     }
     widget.onMultiChanged?.call(next);
+    _logSelectionChanged(
+      action: next.contains(option.value)
+          ? 'multi_option_selected'
+          : 'multi_option_removed',
+      selectedCount: next.length,
+    );
     _markOverlayNeedsBuild();
+  }
+
+  void _logSelectionChanged({required String action, int? selectedCount}) {
+    unawaited(
+      AppLogger.instance.info(
+        'AppCombobox',
+        'Filter dropdown selection changed',
+        context: _logContext(action: action, selectedCount: selectedCount ?? 0),
+      ),
+    );
+  }
+
+  Map<String, Object?> _logContext({
+    String? trigger,
+    String? action,
+    int? selectedCount,
+  }) {
+    return {
+      'label': widget.label,
+      'multiSelect': widget.multiSelect,
+      'optionCount': widget.options.length,
+      if (trigger != null) 'trigger': trigger,
+      if (action != null) 'action': action,
+      if (selectedCount != null) 'selectedCount': selectedCount,
+    };
   }
 
   void _markOverlayNeedsBuild() {

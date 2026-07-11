@@ -58,6 +58,16 @@ This file maps product behavior to proof. Existing flows are marked
 
 Recent focused evidence:
 
+- `UI-UX-001`, 2026-07-11: sửa race của `AppCombobox` khi người dùng bấm
+  trực tiếp icon kính lúp/mũi tên ở cuối filter. `TextField` có thể nhận focus
+  và mở overlay trước callback của icon; icon cũ đọc trạng thái mới rồi đóng
+  lại ngay trong cùng một cú click. Component dùng trạng thái tại pointer-down
+  để phân biệt mở/đóng, giữ thao tác xóa filter không làm menu bật ngoài ý
+  muốn, và ghi `AppLogger` cho nhánh mở/chọn/xóa/thất bại. Đã tái hiện trực
+  tiếp trên Windows ở Home và Báo cáo bán hàng. Validation: regression test
+  bấm suffix icon, 80 Flutter tests cho shared controls, Home, Sales Report,
+  Sao kê, Cấn trừ, Tiền vào, VietQR, User Admin và design-system guard;
+  `flutter analyze --no-pub`.
 - `SALES-REPORT-001`/`UI-UX-001`, 2026-07-11: báo cáo mua hàng bắt buộc
   `CTKM áp dụng`; ERP tự fill `Đổi điểm thi` từ
   `payments[].partnerTransactionCode = PVDD*`, HSSV từ

@@ -95,6 +95,38 @@ void main() {
   });
 
   testWidgets(
+    'AppCombobox suffix icon opens and closes the dropdown without racing focus',
+    (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: AppCombobox<String>.single(
+              label: 'Trạng thái',
+              value: null,
+              options: const [
+                AppComboboxOption(value: 'PENDING', label: 'Chờ xử lý'),
+              ],
+              onChanged: (_) {},
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.byTooltip('Mở danh sách'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Chờ xử lý'), findsOneWidget);
+      expect(find.byTooltip('Đóng danh sách'), findsOneWidget);
+
+      await tester.tap(find.byTooltip('Đóng danh sách'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Chờ xử lý'), findsNothing);
+      expect(find.byTooltip('Mở danh sách'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
     'AppCombobox multi-select keeps menu open while checking values',
     (tester) async {
       var values = <String>{};
