@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:phongvu_opshub/app/widgets/app_cards.dart';
@@ -127,6 +128,85 @@ void main() {
   );
 
   testWidgets(
+    'AppCombobox keeps the menu open through a desktop mouse click on an option',
+    (tester) async {
+      String? value;
+
+      await tester.pumpWidget(
+        StatefulBuilder(
+          builder: (context, setState) {
+            return MaterialApp(
+              home: Scaffold(
+                body: AppCombobox<String>.single(
+                  label: 'Trạng thái',
+                  value: value,
+                  options: const [
+                    AppComboboxOption(value: 'PENDING', label: 'Chờ xử lý'),
+                  ],
+                  onChanged: (next) => setState(() => value = next),
+                ),
+              ),
+            );
+          },
+        ),
+      );
+
+      await tester.tap(find.byTooltip('Mở danh sách'));
+      await tester.pumpAndSettle();
+
+      final option = find.text('Chờ xử lý');
+      final mouse = await tester.startGesture(
+        tester.getCenter(option),
+        kind: PointerDeviceKind.mouse,
+      );
+      await tester.pump(const Duration(milliseconds: 180));
+
+      expect(option, findsOneWidget);
+
+      await mouse.up();
+      await tester.pumpAndSettle();
+
+      expect(value, 'PENDING');
+      expect(find.byTooltip('Xóa lựa chọn'), findsOneWidget);
+    },
+  );
+
+  testWidgets('AppCombobox closes when desktop mouse clicks outside', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Column(
+            children: [
+              AppCombobox<String>.single(
+                label: 'Trạng thái',
+                value: null,
+                options: const [
+                  AppComboboxOption(value: 'PENDING', label: 'Chờ xử lý'),
+                ],
+                onChanged: (_) {},
+              ),
+              const SizedBox(height: 40),
+              const Text('Bên ngoài dropdown'),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.byTooltip('Mở danh sách'));
+    await tester.pumpAndSettle();
+    expect(find.text('Chờ xử lý'), findsOneWidget);
+
+    await tester.tapAt(const Offset(760, 560), kind: PointerDeviceKind.mouse);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Chờ xử lý'), findsNothing);
+    expect(find.byTooltip('Mở danh sách'), findsOneWidget);
+  });
+
+  testWidgets(
     'AppCombobox multi-select keeps menu open while checking values',
     (tester) async {
       var values = <String>{};
@@ -158,7 +238,14 @@ void main() {
       await tester.enterText(find.byType(TextField), 'quan 3');
       await tester.pumpAndSettle();
       expect(find.text('CP62 - Quận 1'), findsNothing);
-      await tester.tap(find.text('CP75 - Quận 3'));
+      final option = find.text('CP75 - Quận 3');
+      final mouse = await tester.startGesture(
+        tester.getCenter(option),
+        kind: PointerDeviceKind.mouse,
+      );
+      await tester.pump(const Duration(milliseconds: 180));
+      expect(option, findsOneWidget);
+      await mouse.up();
       await tester.pumpAndSettle();
 
       expect(values, {'CP75'});

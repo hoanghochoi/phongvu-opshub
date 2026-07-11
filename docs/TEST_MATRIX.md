@@ -58,6 +58,16 @@ This file maps product behavior to proof. Existing flows are marked
 
 Recent focused evidence:
 
+- `UI-UX-001`, 2026-07-11: sửa race thứ hai của `AppCombobox` trên
+  desktop/Windows: khi bấm chuột chọn option, `TextField` mất focus ở
+  mouse-down và timer đóng overlay cũ có thể đóng menu trước mouse-up/onTap,
+  khiến dropdown chỉ chọn được bằng search rồi Enter. Component giữ field và
+  overlay trong cùng `TapRegion`, chỉ đóng khi click thật sự ra ngoài hoặc
+  nhấn Escape/Tab, đồng thời ghi `AppLogger` cho outside dismiss. Validation:
+  regression test giữ mouse-down 180ms trước mouse-up cho single-select và
+  multi-select, outside-click test, 82 Flutter tests cho shared controls, Home,
+  Sales Report, Sao kê, Cấn trừ, Tiền vào, VietQR, User Admin,
+  design-system guard; `flutter analyze --no-pub`.
 - `UI-UX-001`, 2026-07-11: sửa race của `AppCombobox` khi người dùng bấm
   trực tiếp icon kính lúp/mũi tên ở cuối filter. `TextField` có thể nhận focus
   và mở overlay trước callback của icon; icon cũ đọc trạng thái mới rồi đóng

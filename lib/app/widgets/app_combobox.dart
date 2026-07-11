@@ -104,6 +104,7 @@ class AppCombobox<T> extends StatefulWidget {
 
 class _AppComboboxState<T> extends State<AppCombobox<T>> {
   final _layerLink = LayerLink();
+  final _tapRegionGroup = Object();
   final _fieldKey = GlobalKey();
   final _controller = TextEditingController();
   final _focusNode = FocusNode();
@@ -164,29 +165,33 @@ class _AppComboboxState<T> extends State<AppCombobox<T>> {
     ValueChanged<T?>? didChange,
   ) {
     _formDidChange = didChange;
-    return CompositedTransformTarget(
-      link: _layerLink,
-      child: Focus(
-        onKeyEvent: _handleKeyEvent,
-        child: TextField(
-          key: _fieldKey,
-          controller: _controller,
-          focusNode: _focusNode,
-          enabled: widget.enabled,
-          readOnly: false,
-          textCapitalization: widget.textCapitalization,
-          textInputAction: TextInputAction.search,
-          style: AppTextStyles.bodyM,
-          onTap: _openOverlay,
-          onSubmitted: (_) => _chooseHighlighted(didChange),
-          decoration: appInputDecoration(
-            label: widget.label,
-            icon: widget.icon,
-            hintText: _isOpen ? widget.hintText : widget.hintText,
-            helperText: widget.helperText,
-            errorText: errorText,
-            dense: widget.dense,
-            suffixIcon: _suffixIcon(didChange),
+    return TapRegion(
+      groupId: _tapRegionGroup,
+      onTapOutside: _handleTapOutside,
+      child: CompositedTransformTarget(
+        link: _layerLink,
+        child: Focus(
+          onKeyEvent: _handleKeyEvent,
+          child: TextField(
+            key: _fieldKey,
+            controller: _controller,
+            focusNode: _focusNode,
+            enabled: widget.enabled,
+            readOnly: false,
+            textCapitalization: widget.textCapitalization,
+            textInputAction: TextInputAction.search,
+            style: AppTextStyles.bodyM,
+            onTap: _openOverlay,
+            onSubmitted: (_) => _chooseHighlighted(didChange),
+            decoration: appInputDecoration(
+              label: widget.label,
+              icon: widget.icon,
+              hintText: _isOpen ? widget.hintText : widget.hintText,
+              helperText: widget.helperText,
+              errorText: errorText,
+              dense: widget.dense,
+              suffixIcon: _suffixIcon(didChange),
+            ),
           ),
         ),
       ),
@@ -256,6 +261,10 @@ class _AppComboboxState<T> extends State<AppCombobox<T>> {
     if (event.logicalKey == LogicalKeyboardKey.escape) {
       _closeOverlay();
       return KeyEventResult.handled;
+    }
+    if (event.logicalKey == LogicalKeyboardKey.tab) {
+      _closeOverlay();
+      return KeyEventResult.ignored;
     }
     if (event.logicalKey == LogicalKeyboardKey.arrowDown &&
         options.isNotEmpty) {
@@ -340,14 +349,19 @@ class _AppComboboxState<T> extends State<AppCombobox<T>> {
   }
 
   void _onFocusChanged() {
-    if (_focusNode.hasFocus) {
-      _openOverlay();
-    } else {
-      Future<void>.delayed(const Duration(milliseconds: 120), () {
-        if (!mounted || _focusNode.hasFocus) return;
-        _closeOverlay();
-      });
-    }
+    if (_focusNode.hasFocus) _openOverlay();
+  }
+
+  void _handleTapOutside(PointerDownEvent event) {
+    if (!_isOpen) return;
+    unawaited(
+      AppLogger.instance.info(
+        'AppCombobox',
+        'Filter dropdown dismissed outside',
+        context: _logContext(action: 'outside_tap'),
+      ),
+    );
+    _closeOverlay();
   }
 
   void _onSearchChanged() {
@@ -374,22 +388,25 @@ class _AppComboboxState<T> extends State<AppCombobox<T>> {
                     ? -_menuHeight - AppLayoutTokens.formInlineGap / 2
                     : fieldSize.height + AppLayoutTokens.formInlineGap / 2,
               ),
-              child: Material(
-                color: AppColors.overlayOf(context),
-                elevation: 12,
-                shadowColor: AppColors.shadow.withValues(alpha: 0.22),
-                surfaceTintColor: AppColors.transparent,
-                shape: RoundedRectangleBorder(
-                  borderRadius: AppRadius.allLg,
-                  side: BorderSide(color: AppColors.borderOf(context)),
-                ),
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(
-                    minWidth: fieldSize.width,
-                    maxWidth: width,
-                    maxHeight: _menuHeight,
+              child: TapRegion(
+                groupId: _tapRegionGroup,
+                child: Material(
+                  color: AppColors.overlayOf(context),
+                  elevation: 12,
+                  shadowColor: AppColors.shadow.withValues(alpha: 0.22),
+                  surfaceTintColor: AppColors.transparent,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: AppRadius.allLg,
+                    side: BorderSide(color: AppColors.borderOf(context)),
                   ),
-                  child: _buildMenuContent(filtered),
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      minWidth: fieldSize.width,
+                      maxWidth: width,
+                      maxHeight: _menuHeight,
+                    ),
+                    child: _buildMenuContent(filtered),
+                  ),
                 ),
               ),
             ),
