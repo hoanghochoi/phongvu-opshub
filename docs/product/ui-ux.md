@@ -177,12 +177,12 @@ visual systems that make the app feel assembled from unrelated screens.
   mở dropdown ngay khi focus/click và lọc kết quả theo nội dung nhập. Showroom
   phải hiển thị theo dạng `CPxx - <Tên SR>` thay vì label chung chung như
   `Showroom: CPxx`.
-- Date range filters must use one shared dropdown component with common presets,
-  one `Chọn khoảng ngày` action that selects both start/end in a single range
-  picker, and inline custom start/end inputs for exact manual entry. Do not use
-  two separate single-date picker dialogs that force users to reopen a filter.
-  When a screen already defaults to today, the first quick preset should be
-  `Hôm qua` instead of repeating `Hôm nay`.
+- All date range filters must reuse the canonical shared DateRangePicker. Do not create feature-local implementations.
+  The shared trigger opens one draft-state picker: desktop uses the preset
+  sidebar and two calendars; mobile uses a one-month bottom sheet.
+  Preset/date/Clear changes are committed only after `Áp dụng`; Cancel, close,
+  and outside dismissal preserve the previous filter. Feature/page code must
+  not import calendar libraries or call `showDateRangePicker` directly.
 - Any staff-facing manual date input, including filters and form fields, uses
   visible format `dd/mm/yyyy` and auto-inserts `/` separators while typing. Do
   not show internal formats such as `yyyy-mm-dd` in normal UI.

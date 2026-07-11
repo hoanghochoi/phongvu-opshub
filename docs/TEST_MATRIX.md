@@ -3,6 +3,19 @@
 This file maps product behavior to proof. Existing flows are marked
 `existing_unverified` until fresh validation evidence is attached.
 
+- `UI-DATE-RANGE-001`, 2026-07-11: replaced the Material range dialog with the
+  canonical token-based `DateRangePicker`: desktop preset sidebar plus dual
+  calendars, mobile one-month bottom sheet, draft Apply/Cancel/Clear, inclusive
+  standard presets, range highlighting, min/max/disabled dates and keyboard
+  navigation. Existing Home, sales-report, payment-monitor, bank-statement and
+  offset-adjustment filters continue through `AppDateRangeDropdown`; API
+  date-only `yyyy-MM-dd` and local-day semantics are unchanged. Validation:
+  8 focused picker widget tests and Sales Report integration suite passed;
+  canonical date-range guard passed; `flutter analyze --no-pub`,
+  `flutter test --no-pub` passed 408 tests with 1 skipped test and 0 failures,
+  and `git diff --check` passed. Windows release build is rerun before staging
+  push.
+
 ## Status Values
 
 | Status              | Meaning                                                                    |
@@ -104,11 +117,14 @@ Recent focused evidence:
   dashboard Flutter widget test, backend `npm run build`,
   `flutter analyze --no-pub`, và `git diff --check`.
 - `HOME-DASHBOARD-002`, 2026-07-11: Modal chi tiết `Hành vi then chốt` thêm
-  cột `Mã SR` cho bảng khách chưa mua và đơn chưa báo cáo để user được gán
+  cột `Mã showroom` cho bảng khách chưa mua và đơn chưa báo cáo để user được gán
   nhiều SR nhận biết rõ showroom của từng dòng. Backend trả `storeCode` trong
   `GET /home/summary/details`, Flutter parse và hiển thị theo cùng response
-  detail hiện có. Validation: focused Home Summary Jest, focused Home dashboard
-  Flutter widget test, Nest build, `flutter analyze --no-pub`, `git diff --check`.
+  detail hiện có. Follow-up đổi nhãn visible sang `Mã showroom` để khớp guard UI
+  copy, đồng thời co cụm filter header Home ở viewport hẹp để nút loa không bị
+  cắt mép phải. Validation: focused Home Summary Jest, focused Home
+  dashboard Flutter widget test, Nest build, `flutter analyze --no-pub`,
+  `flutter test --no-pub`, `git diff --check`.
 - `HOME-DASHBOARD-002`, 2026-07-08: Card `Số khách chưa mua` và
   `Số đơn chưa báo cáo` trong nhóm `Hành vi then chốt` mở modal chi tiết khi
   bấm phần chữ. Modal dùng cùng ngày/scope/SA đang chọn, có bảng cuộn dọc và

@@ -58,7 +58,12 @@ void main() {
     final files = Directory('lib')
         .listSync(recursive: true)
         .whereType<File>()
-        .where((file) => file.path.endsWith('.dart'));
+        .where((file) => file.path.endsWith('.dart'))
+        .where(
+          (file) => !file.path
+              .replaceAll(r'\', '/')
+              .contains('/app/widgets/date_range_picker/'),
+        );
 
     for (final file in files) {
       final normalizedPath = file.path.replaceAll(r'\', '/');
@@ -75,6 +80,45 @@ void main() {
       isEmpty,
       reason:
           'Use AppCombobox/AppDateRangeDropdown instead.\n${hits.join('\n')}',
+    );
+  });
+
+  test('date range filters only use the canonical shared picker', () {
+    final violations = <String>[];
+    final forbiddenPattern = RegExp(
+      r'\b(?:showDateRangePicker|DateRangePickerDialog|SfDateRangePicker|'
+      r'CalendarDatePicker2|TableCalendar)\b',
+    );
+    final calendarImportPattern = RegExp(
+      r'''^import ['"][^'"]*(?:table_calendar|syncfusion_flutter_datepicker|calendar_date_picker2)[^'"]*['"]''',
+    );
+    final files = Directory('lib')
+        .listSync(recursive: true)
+        .whereType<File>()
+        .where((file) => file.path.endsWith('.dart'))
+        .where(
+          (file) => !file.path
+              .replaceAll(r'\', '/')
+              .contains('/app/widgets/date_range_picker/'),
+        );
+
+    for (final file in files) {
+      final normalizedPath = file.path.replaceAll(r'\', '/');
+      final lines = file.readAsLinesSync();
+      for (var index = 0; index < lines.length; index += 1) {
+        if (forbiddenPattern.hasMatch(lines[index]) ||
+            calendarImportPattern.hasMatch(lines[index])) {
+          violations.add('$normalizedPath:${index + 1}');
+        }
+      }
+    }
+
+    expect(
+      violations,
+      isEmpty,
+      reason:
+          'All date range filters must reuse DateRangePicker.\n'
+          '${violations.join('\n')}',
     );
   });
 

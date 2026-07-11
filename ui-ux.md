@@ -1,5 +1,14 @@
 # UI/UX Notes
 
+## Shared Date Range Picker
+
+- All date range filters must reuse the canonical shared DateRangePicker. Do not create feature-local implementations.
+- Desktop uses the canonical preset-sidebar and dual-calendar dialog; mobile
+  uses the canonical one-month bottom sheet. Draft changes only reach a feature
+  after `Áp dụng`.
+- Feature/page code must not import calendar libraries or create date-range
+  picker widgets locally.
+
 ## Home Dashboard KPI
 
 - Dropdown chọn SR/phạm vi trên Home phải dùng chung component lọc của hệ thống, ưu tiên `AppCombobox` như các màn hình báo cáo/admin. Không tự vẽ dropdown riêng bằng popup/pill nếu không có lý do sản phẩm rõ ràng.

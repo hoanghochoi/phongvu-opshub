@@ -268,7 +268,8 @@ void main() {
 
     await tester.tap(find.text('Ngày: 01/07/2026'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('7 ngày'));
+    await tester.tap(find.text('7 ngày gần nhất'));
+    await tester.tap(find.byKey(const Key('date-range-apply')));
     await tester.pumpAndSettle();
 
     expect(repository.lastOrdersQuery?.startDate, DateTime(2026, 6, 25));
@@ -675,8 +676,9 @@ void main() {
 
     await tester.tap(find.text('Ngày: 04/07/2026'));
     await tester.pumpAndSettle();
-    expect(find.text('Chọn khoảng ngày'), findsOneWidget);
-    expect(find.byTooltip('Chọn ngày'), findsNothing);
+    expect(find.byKey(const Key('date-range-desktop')), findsOneWidget);
+    expect(find.byKey(const Key('from-calendar')), findsOneWidget);
+    expect(find.byKey(const Key('to-calendar')), findsOneWidget);
   });
 
   testWidgets('Báo cáo bán hàng admin filters by assigned SR', (tester) async {

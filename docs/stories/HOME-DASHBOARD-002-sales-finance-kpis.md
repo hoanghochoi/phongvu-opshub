@@ -35,8 +35,8 @@ kê trên cùng Trang chủ, theo đúng một ngày và một phạm vi đang c
 - Bấm vào phần chữ của card `Số khách chưa mua` hoặc `Số đơn chưa báo cáo` mở
   modal chi tiết theo cùng ngày/scope/SA đang chọn. Modal phù hợp desktop,
   tablet, mobile và cho phép cuộn dọc/ngang khi màn hình nhỏ. Bảng khách chưa
-  mua có Mã SR, Tên SA, Tên khách hàng, Loại khách hàng, Ngành hàng, Lý do
-  không mua; bảng đơn chưa báo cáo có Mã SR, Tên SA, Mã đơn hàng, Thời gian bán.
+  mua có Mã showroom, Tên SA, Tên khách hàng, Loại khách hàng, Ngành hàng, Lý do
+  không mua; bảng đơn chưa báo cáo có Mã showroom, Tên SA, Mã đơn hàng, Thời gian bán.
 - Store Manager trở lên có quyền `ADMIN_SALES_REPORTS` bấm phần chữ của card
   `Báo cáo đã mua` để mở `Quản trị/Báo cáo bán hàng`; user không có quyền này
   chỉ xem số liệu.

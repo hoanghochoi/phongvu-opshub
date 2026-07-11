@@ -737,7 +737,7 @@ void main() {
       find.byKey(const Key('home-not-purchased-details-table')),
       findsOneWidget,
     );
-    expect(find.text('Mã SR'), findsOneWidget);
+    expect(find.text('Mã showroom'), findsOneWidget);
     expect(find.text('Tên SA'), findsOneWidget);
     expect(find.text('Tên khách hàng'), findsOneWidget);
     expect(find.text('Loại khách hàng'), findsOneWidget);
@@ -766,7 +766,7 @@ void main() {
     );
     expect(find.text('Mã đơn hàng'), findsOneWidget);
     expect(find.text('Thời gian bán'), findsOneWidget);
-    expect(find.text('Mã SR'), findsOneWidget);
+    expect(find.text('Mã showroom'), findsOneWidget);
     expect(find.text('SA Hai'), findsOneWidget);
     expect(find.text('2607040002'), findsOneWidget);
     expect(find.text('CP62'), findsOneWidget);

@@ -1,18 +1,17 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../core/utils/date_range_defaults.dart';
-import '../theme/app_colors.dart';
-import '../theme/app_radius.dart';
 import '../theme/app_text_styles.dart';
 import 'app_inputs.dart';
 import 'app_layout.dart';
+import 'date_range_picker/date_range_picker.dart';
 
 const double _filterButtonHeight = AppLayoutTokens.mobileActionHeight;
 
-class AppDateRangeDropdown extends StatefulWidget {
+/// Shared trigger used by filter bars. The selection surface itself is the
+/// canonical [DateRangePicker].
+class AppDateRangeDropdown extends StatelessWidget {
   final String label;
   final DateTime? start;
   final DateTime? end;
@@ -21,6 +20,9 @@ class AppDateRangeDropdown extends StatefulWidget {
   final String? emptyRangeHelperText;
   final bool showEmptyRangeHelperText;
   final DateTime Function()? now;
+  final DateTime? firstDate;
+  final DateTime? lastDate;
+  final AppSelectableDayPredicate? selectableDayPredicate;
 
   const AppDateRangeDropdown({
     super.key,
@@ -32,58 +34,26 @@ class AppDateRangeDropdown extends StatefulWidget {
     this.emptyRangeHelperText,
     this.showEmptyRangeHelperText = true,
     this.now,
+    this.firstDate,
+    this.lastDate,
+    this.selectableDayPredicate,
   });
 
   @override
-  State<AppDateRangeDropdown> createState() => _AppDateRangeDropdownState();
-}
-
-class _AppDateRangeDropdownState extends State<AppDateRangeDropdown> {
-  final _startController = TextEditingController();
-  final _endController = TextEditingController();
-  String? _errorText;
-
-  @override
-  void didUpdateWidget(covariant AppDateRangeDropdown oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.start != widget.start || oldWidget.end != widget.end) {
-      _syncControllers();
-    }
-  }
-
-  @override
-  void dispose() {
-    _startController.dispose();
-    _endController.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    _syncControllers();
     final helperText = _emptyRangeHelperText();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        MenuAnchor(
-          menuChildren: [_buildMenu(context)],
-          builder: (context, controller, child) {
-            return OutlinedButton.icon(
-              icon: const Icon(Icons.date_range, size: 18),
-              style: _filterButtonStyle(),
-              label: Text(
-                '${widget.label}: ${_rangeLabel(widget.start, widget.end)}',
-                overflow: TextOverflow.ellipsis,
-              ),
-              onPressed: () {
-                if (controller.isOpen) {
-                  controller.close();
-                } else {
-                  controller.open();
-                }
-              },
-            );
-          },
+        OutlinedButton.icon(
+          key: const Key('open-date-range-picker'),
+          icon: const Icon(Icons.date_range_rounded, size: 18),
+          style: _filterButtonStyle(),
+          label: Text(
+            '$label: ${_rangeLabel(start, end)}',
+            overflow: TextOverflow.ellipsis,
+          ),
+          onPressed: () => _openPicker(context),
         ),
         if (helperText != null) ...[
           const SizedBox(height: 4),
@@ -103,248 +73,27 @@ class _AppDateRangeDropdownState extends State<AppDateRangeDropdown> {
     );
   }
 
-  Widget _buildMenu(BuildContext context) {
-    return SizedBox(
-      width: 320,
-      child: StatefulBuilder(
-        builder: (context, setMenuState) {
-          void choose(DateTime? start, DateTime? end) {
-            widget.onChanged(start, end);
-            setState(() => _errorText = null);
-            MenuController.maybeOf(context)?.close();
-          }
-
-          return Padding(
-            padding: const EdgeInsets.all(12),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                _DatePresetTile(
-                  label: 'Hôm qua',
-                  onTap: () {
-                    final yesterday = _today().subtract(
-                      const Duration(days: 1),
-                    );
-                    choose(yesterday, yesterday);
-                  },
-                ),
-                _DatePresetTile(
-                  label: '7 ngày',
-                  onTap: () {
-                    final today = _today();
-                    choose(today.subtract(const Duration(days: 6)), today);
-                  },
-                ),
-                _DatePresetTile(
-                  label: '30 ngày',
-                  onTap: () {
-                    final today = _today();
-                    choose(today.subtract(const Duration(days: 29)), today);
-                  },
-                ),
-                _DatePresetTile(
-                  label: 'Tháng này',
-                  onTap: () {
-                    final today = _today();
-                    choose(DateTime(today.year, today.month), today);
-                  },
-                ),
-                if (widget.allowEmptyRange)
-                  _DatePresetTile(
-                    label: 'Tất cả ngày',
-                    onTap: () => choose(null, null),
-                  ),
-                const Divider(),
-                OutlinedButton.icon(
-                  onPressed: () => _pickDateRange(context),
-                  icon: const Icon(Icons.date_range_rounded),
-                  label: const Text('Chọn khoảng ngày'),
-                ),
-                const SizedBox(height: 12),
-                AppDateTextField(
-                  controller: _startController,
-                  label: 'Từ ngày',
-                  dense: true,
-                ),
-                const SizedBox(height: 8),
-                AppDateTextField(
-                  controller: _endController,
-                  label: 'Đến ngày',
-                  dense: true,
-                ),
-                if (_errorText != null) ...[
-                  const SizedBox(height: 8),
-                  Text(
-                    _errorText!,
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.error,
-                    ),
-                  ),
-                ],
-                const SizedBox(height: 12),
-                FilledButton(
-                  style: FilledButton.styleFrom(
-                    textStyle: AppTextStyles.labelM,
-                  ),
-                  onPressed: () {
-                    final start = appParseDateInput(_startController.text);
-                    final end = appParseDateInput(_endController.text);
-                    if (_startController.text.trim().isNotEmpty &&
-                        start == null) {
-                      setMenuState(() => _errorText = 'Ngày bắt đầu chưa đúng');
-                      return;
-                    }
-                    if (_endController.text.trim().isNotEmpty && end == null) {
-                      setMenuState(
-                        () => _errorText = 'Ngày kết thúc chưa đúng',
-                      );
-                      return;
-                    }
-                    if (start != null && end != null && end.isBefore(start)) {
-                      setMenuState(
-                        () =>
-                            _errorText = 'Ngày kết thúc phải sau ngày bắt đầu',
-                      );
-                      return;
-                    }
-                    choose(start, end);
-                  },
-                  child: const Text('Áp dụng ngày tùy chỉnh'),
-                ),
-              ],
-            ),
-          );
-        },
-      ),
+  Future<void> _openPicker(BuildContext context) async {
+    final result = await DateRangePicker.show(
+      context,
+      initialStart: start,
+      initialEnd: end,
+      currentDate: _dateOnly((now ?? DateTime.now)()),
+      firstDate: firstDate,
+      lastDate: lastDate,
+      allowClear: allowEmptyRange,
+      selectableDayPredicate: selectableDayPredicate,
     );
-  }
-
-  DateTime _today() => _dateOnly((widget.now ?? DateTime.now)());
-
-  void _syncControllers() {
-    final nextStart = appFormatDateInput(widget.start);
-    final nextEnd = appFormatDateInput(widget.end);
-    if (_startController.text != nextStart) _startController.text = nextStart;
-    if (_endController.text != nextEnd) _endController.text = nextEnd;
+    if (result == null || !context.mounted) return;
+    onChanged(result.start, result.end);
   }
 
   String? _emptyRangeHelperText() {
-    if (!widget.showEmptyRangeHelperText) return null;
-    if (!widget.allowEmptyRange || widget.start != null || widget.end != null) {
-      return null;
-    }
-    final text = widget.emptyRangeHelperText?.trim();
+    if (!showEmptyRangeHelperText) return null;
+    if (!allowEmptyRange || start != null || end != null) return null;
+    final text = emptyRangeHelperText?.trim();
     if (text != null && text.isNotEmpty) return text;
     return appImplicitDateRangeHelperText();
-  }
-
-  Future<void> _pickDateRange(BuildContext context) async {
-    final today = _today();
-    final typedStart = appParseDateInput(_startController.text);
-    final typedEnd = appParseDateInput(_endController.text);
-    final initialStart = typedStart ?? widget.start ?? widget.end ?? today;
-    final candidateEnd = typedEnd ?? widget.end ?? widget.start ?? initialStart;
-    final initialEnd = candidateEnd.isBefore(initialStart)
-        ? initialStart
-        : candidateEnd;
-    final picked = await showDateRangePicker(
-      context: context,
-      initialDateRange: DateTimeRange(start: initialStart, end: initialEnd),
-      firstDate: DateTime(2020),
-      lastDate: DateTime(2100),
-      currentDate: today,
-      helpText: 'Chọn khoảng ngày',
-      cancelText: 'Hủy',
-      confirmText: 'Áp dụng',
-      saveText: 'Áp dụng',
-      fieldStartLabelText: 'Từ ngày',
-      fieldEndLabelText: 'Đến ngày',
-      errorInvalidRangeText: 'Ngày kết thúc phải sau ngày bắt đầu',
-      barrierColor: AppColors.shadow.withValues(alpha: 0.48),
-      builder: (dialogContext, child) {
-        final mediaQuery = MediaQuery.of(dialogContext);
-        final compactSize = _compactDateRangePickerSize(mediaQuery.size);
-        final theme = Theme.of(dialogContext);
-        final pickerTheme = theme.datePickerTheme.copyWith(
-          rangePickerBackgroundColor: AppColors.overlayOf(dialogContext),
-          rangePickerElevation: 24,
-          rangePickerShadowColor: AppColors.shadow.withValues(alpha: 0.28),
-          rangePickerSurfaceTintColor: AppColors.transparent,
-          rangePickerShape: RoundedRectangleBorder(
-            borderRadius: AppRadius.allXxl,
-            side: BorderSide(color: AppColors.borderOf(dialogContext)),
-          ),
-          rangePickerHeaderBackgroundColor: AppColors.primarySurfaceOf(
-            dialogContext,
-          ),
-          rangePickerHeaderForegroundColor: AppColors.textPrimaryOf(
-            dialogContext,
-          ),
-          rangePickerHeaderHeadlineStyle: AppTextStyles.headingS,
-          rangePickerHeaderHelpStyle: AppTextStyles.labelS,
-          rangeSelectionBackgroundColor: AppColors.primaryOf(
-            dialogContext,
-          ).withValues(alpha: 0.18),
-          todayBorder: BorderSide(
-            color: AppColors.primaryOf(dialogContext),
-            width: 1.4,
-          ),
-          cancelButtonStyle: TextButton.styleFrom(
-            foregroundColor: AppColors.textSecondaryOf(dialogContext),
-            textStyle: AppTextStyles.labelM,
-          ),
-          confirmButtonStyle: TextButton.styleFrom(
-            foregroundColor: AppColors.primaryOf(dialogContext),
-            textStyle: AppTextStyles.labelM,
-          ),
-        );
-
-        return MediaQuery(
-          data: mediaQuery.copyWith(size: compactSize),
-          child: Theme(
-            data: theme.copyWith(datePickerTheme: pickerTheme),
-            child: child!,
-          ),
-        );
-      },
-    );
-    if (picked == null || !mounted) return;
-    final start = _dateOnly(picked.start);
-    final end = _dateOnly(picked.end);
-    _startController.text = appFormatDateInput(start);
-    _endController.text = appFormatDateInput(end);
-    setState(() => _errorText = null);
-    widget.onChanged(start, end);
-  }
-}
-
-Size _compactDateRangePickerSize(Size viewport) {
-  final horizontalMargin = viewport.width < 600 ? 16.0 : 48.0;
-  final verticalMargin = viewport.height < 700 ? 24.0 : 48.0;
-  final availableWidth = math.max(0.0, viewport.width - horizontalMargin);
-  final availableHeight = math.max(0.0, viewport.height - verticalMargin);
-  final maxWidth = viewport.width < 600 ? viewport.width : 620.0;
-  final width = math.min(
-    viewport.width,
-    math.max(304.0, math.min(maxWidth, availableWidth)),
-  );
-  final height = math.min(
-    viewport.height,
-    math.max(520.0, math.min(680.0, availableHeight)),
-  );
-  return Size(width, height);
-}
-
-class _DatePresetTile extends StatelessWidget {
-  final String label;
-  final VoidCallback onTap;
-
-  const _DatePresetTile({required this.label, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return ListTile(dense: true, title: Text(label), onTap: onTap);
   }
 }
 

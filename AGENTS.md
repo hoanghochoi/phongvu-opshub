@@ -25,6 +25,9 @@ before acting. Never claim done before verification.
 - Prefer reversible changes and small patches.
 - Before implementation, create a concrete plan and establish a checkpoint:
   current branch, current HEAD, and dirty worktree state.
+- Work only on `staging` or `main` by default. Do not create, switch to, or
+  work on any other branch unless Đại Ca explicitly asks for that branch or
+  branch workflow.
 - Protect existing user work. Do not revert unrelated changes.
 - Before pushing code, re-check the exact diff and run the relevant validation.
 
@@ -53,6 +56,13 @@ before acting. Never claim done before verification.
 - Keep technical identifiers in logs, tests, docs, and admin-only configuration
   inputs when they are required, but map them to plain labels before showing a
   status, blocker reason, or permission message to staff.
+
+## Shared Date Range Requirement
+
+- All date range filters must reuse the canonical shared DateRangePicker. Do not create feature-local implementations.
+- Feature/page code must not import calendar libraries or call
+  `showDateRangePicker` directly. Extend the canonical shared component when a
+  new date-range behavior is required.
 
 ## Source Of Truth
 

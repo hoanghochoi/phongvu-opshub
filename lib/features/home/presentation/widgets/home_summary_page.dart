@@ -336,6 +336,9 @@ class HomeSummaryHeader extends StatelessWidget {
         builder: (context, constraints) {
           final compact = constraints.maxWidth < 760;
           final stackControls = constraints.maxWidth < 560;
+          final denseControls = constraints.maxWidth < 900;
+          final filterWidth = denseControls ? 180.0 : 232.0;
+          final dateRangeWidth = denseControls ? 200.0 : 244.0;
           final titleBlock = Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -357,11 +360,12 @@ class HomeSummaryHeader extends StatelessWidget {
               selectedScope: selectedScope,
               options: scopeOptions,
               fillWidth: stackControls,
+              width: filterWidth,
               onSelected: onScopeChanged,
             ),
             SizedBox(
               key: const Key('home-summary-date-range'),
-              width: stackControls ? double.infinity : 244,
+              width: stackControls ? double.infinity : dateRangeWidth,
               child: AppDateRangeDropdown(
                 label: 'Ngày',
                 start: selectedStartDate,
@@ -452,6 +456,7 @@ class _ScopeSelectorField extends StatelessWidget {
     required this.selectedScope,
     required this.options,
     required this.fillWidth,
+    required this.width,
     required this.onSelected,
   });
 
@@ -459,6 +464,7 @@ class _ScopeSelectorField extends StatelessWidget {
   final String selectedScope;
   final List<HomeSummaryScopeOption> options;
   final bool fillWidth;
+  final double width;
   final ValueChanged<String>? onSelected;
 
   @override
@@ -469,7 +475,7 @@ class _ScopeSelectorField extends StatelessWidget {
         : null;
     return SizedBox(
       key: const Key('home-summary-scope-pill'),
-      width: fillWidth ? double.infinity : 232,
+      width: fillWidth ? double.infinity : width,
       child: AppCombobox<String>.single(
         label: 'Phạm vi',
         value: selectedValue,
@@ -1603,7 +1609,7 @@ class _NotPurchasedDetailsDataTable extends StatelessWidget {
         color: AppColors.textPrimaryOf(context),
       ),
       columns: const [
-        DataColumn(label: Text('Mã SR')),
+        DataColumn(label: Text('Mã showroom')),
         DataColumn(label: Text('Tên SA')),
         DataColumn(label: Text('Tên khách hàng')),
         DataColumn(label: Text('Loại khách hàng')),
@@ -1644,7 +1650,7 @@ class _UnreportedOrdersDetailsDataTable extends StatelessWidget {
         color: AppColors.textPrimaryOf(context),
       ),
       columns: const [
-        DataColumn(label: Text('Mã SR')),
+        DataColumn(label: Text('Mã showroom')),
         DataColumn(label: Text('Tên SA')),
         DataColumn(label: Text('Mã đơn hàng')),
         DataColumn(label: Text('Thời gian bán')),
