@@ -1155,6 +1155,103 @@ describe('SalesReportsService', () => {
     }
   });
 
+  it('uses ERP siteDisplayName store over mapped owner store during scheduled sync', async () => {
+    const { service, prisma, erp } = createHarness();
+    const oldEnabled = process.env.ERP_ORDER_CACHE_SYNC_ENABLED;
+    const oldLookback = process.env.ERP_ORDER_CACHE_SYNC_LOOKBACK_DAYS;
+    delete process.env.ERP_ORDER_CACHE_SYNC_ENABLED;
+    process.env.ERP_ORDER_CACHE_SYNC_LOOKBACK_DAYS = '1';
+    erp.listRecentOrders.mockResolvedValueOnce([
+      {
+        ...erpListOrderFixture(),
+        orderCode: '26071132604790',
+        storeCode: null,
+        storeName: null,
+        consultantEmail: 'hoang.nv1@phongvu-mna.vn',
+        sellerEmail: 'hoang.nv1@phongvu-mna.vn',
+        sanitizedSnapshot: {
+          orderCode: '26071132604790',
+          createdFromSiteDisplayName: null,
+          siteDisplayName:
+            '[CP72] ĐỊA ĐIỂM KINH DOANH 60 - CÔNG TY CỔ PHẦN THƯƠNG MẠI - DỊCH VỤ PHONG VŨ',
+        },
+      },
+    ]);
+    prisma.user.findMany.mockResolvedValueOnce([
+      {
+        id: 'manager-cp75',
+        email: 'hoang.nv1@phongvu-mna.vn',
+        store: {
+          storeId: 'CP75',
+          storeName: 'Phong Vu CP75',
+          organizationNodeId: 'node-cp75',
+        },
+        organizationNode: null,
+        organizationAssignments: [],
+      },
+    ]);
+    prisma.store.findMany.mockResolvedValueOnce([
+      {
+        storeId: 'CP72',
+        storeName: 'Phong Vu CP72',
+        organizationNodeId: 'node-cp72',
+      },
+      {
+        storeId: 'CP75',
+        storeName: 'Phong Vu CP75',
+        organizationNodeId: 'node-cp75',
+      },
+    ]);
+
+    try {
+      await service.syncScheduledErpOrderCache('test-site-display-store');
+
+      expect(prisma.store.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            storeId: {
+              in: expect.arrayContaining(['CP72', 'CP75']),
+            },
+          },
+        }),
+      );
+      expect(prisma.salesReportErpOrderCache.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { orderCode: '26071132604790' },
+          create: expect.objectContaining({
+            sourceUserId: 'manager-cp75',
+            sourceUserEmail: 'hoang.nv1@phongvu-mna.vn',
+            storeCode: 'CP72',
+            storeName: 'Phong Vu CP72',
+            organizationNodeId: 'node-cp72',
+          }),
+          update: expect.objectContaining({
+            sourceUserId: 'manager-cp75',
+            sourceUserEmail: 'hoang.nv1@phongvu-mna.vn',
+            storeCode: 'CP72',
+            storeName: 'Phong Vu CP72',
+            organizationNodeId: 'node-cp72',
+          }),
+        }),
+      );
+      expect(
+        prisma.salesReportErpOrderCache.upsert.mock.calls[0][0].create
+          .storeCode,
+      ).not.toBe('CP75');
+    } finally {
+      if (oldEnabled === undefined) {
+        delete process.env.ERP_ORDER_CACHE_SYNC_ENABLED;
+      } else {
+        process.env.ERP_ORDER_CACHE_SYNC_ENABLED = oldEnabled;
+      }
+      if (oldLookback === undefined) {
+        delete process.env.ERP_ORDER_CACHE_SYNC_LOOKBACK_DAYS;
+      } else {
+        process.env.ERP_ORDER_CACHE_SYNC_LOOKBACK_DAYS = oldLookback;
+      }
+    }
+  });
+
   it('backfills missing store scope from an existing mapped user during scheduled sync', async () => {
     const redis = {
       publishMessage: jest.fn().mockResolvedValue(undefined),
@@ -1813,6 +1910,13 @@ describe('SalesReportsService', () => {
           '[CP58] ĐỊA ĐIỂM KINH DOANH 52 - CÔNG TY CỔ PHẦN THƯƠNG MẠI - DỊCH VỤ PHONG VŨ',
       },
     });
+    prisma.store.findMany.mockResolvedValueOnce([
+      {
+        storeId: 'CP58',
+        storeName: 'Phong Vu CP58',
+        organizationNodeId: 'node-cp58',
+      },
+    ]);
 
     try {
       await expect(service.syncErpOrderStatuses('test')).resolves.toEqual({
@@ -1827,9 +1931,13 @@ describe('SalesReportsService', () => {
           create: expect.objectContaining({
             orderCode: '26070732198240',
             storeCode: 'CP58',
+            storeName: 'Phong Vu CP58',
+            organizationNodeId: 'node-cp58',
           }),
           update: expect.objectContaining({
             storeCode: 'CP58',
+            storeName: 'Phong Vu CP58',
+            organizationNodeId: 'node-cp58',
           }),
         }),
       );

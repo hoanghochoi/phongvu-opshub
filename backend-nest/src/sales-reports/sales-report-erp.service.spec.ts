@@ -543,6 +543,61 @@ describe('SalesReportErpService', () => {
     expect(result[0].sanitizedSnapshot.createdAt).toBe('2026-07-03T09:43:34Z');
   });
 
+  it('uses ERP siteDisplayName as the store source when createdFromSiteDisplayName is missing', async () => {
+    process.env.ERP_ACCESS_TOKEN = 'static-access-token';
+    const fetchMock = jest.fn(async (input: string | URL) => {
+      const url = input.toString();
+      if (
+        url.startsWith(
+          'https://staff-bff.tekoapis.com/api/v2/staff-admin/orders?',
+        )
+      ) {
+        return jsonResponse({
+          data: {
+            orders: [
+              {
+                orderId: '26071132604790',
+                createdAt: '2026-07-11T13:25:05Z',
+                paymentStatus: 'fully_paid',
+                confirmationStatus: 'active',
+                fulfillmentStatus: 'PROCESSING',
+                terminalName:
+                  'ĐỊA ĐIỂM KINH DOANH 51 - CÔNG TY CỔ PHẦN THƯƠNG MẠI - DỊCH VỤ PHONG VŨ',
+                siteDisplayName:
+                  '[CP72] ĐỊA ĐIỂM KINH DOANH 60 - CÔNG TY CỔ PHẦN THƯƠNG MẠI - DỊCH VỤ PHONG VŨ',
+                grandTotal: 158100000,
+                consultant: {
+                  name: 'Việt Nguyễn Quang',
+                  email: 'viet.nq01@phongvu.vn',
+                },
+              },
+            ],
+          },
+        });
+      }
+      throw new Error(`Unexpected fetch: ${url}`);
+    }) as jest.MockedFunction<typeof fetch>;
+    global.fetch = fetchMock;
+
+    const service = new SalesReportErpService();
+    const result = await service.listRecentOrders({
+      date: '2026-07-11',
+    });
+
+    expect(result).toHaveLength(1);
+    expect(result[0]).toMatchObject({
+      orderCode: '26071132604790',
+      orderCreatedAt: new Date('2026-07-11T13:25:05Z'),
+      storeCode: 'CP72',
+      consultantEmail: 'viet.nq01@phongvu.vn',
+    });
+    expect(result[0].sanitizedSnapshot).toMatchObject({
+      createdFromSiteDisplayName: null,
+      siteDisplayName:
+        '[CP72] ĐỊA ĐIỂM KINH DOANH 60 - CÔNG TY CỔ PHẦN THƯƠNG MẠI - DỊCH VỤ PHONG VŨ',
+    });
+  });
+
   it('uses data.orders.creator.email as the cached order owner email', async () => {
     process.env.ERP_ACCESS_TOKEN = 'static-access-token';
     const fetchMock = jest.fn(async (input: string | URL) => {

@@ -139,6 +139,8 @@ type ErpOrderStatusSyncSelection = {
 type ErpOrderCachePersistResult = {
   excluded: boolean;
   exclusionReason: string | null;
+  storeCode?: string | null;
+  orderCreatedAt?: Date | null;
 };
 
 export type SalesReportOperatingSummaryScope =
@@ -899,9 +901,14 @@ export class SalesReportsService implements OnApplicationBootstrap {
               persistResult.excluded
             ) {
               changed += 1;
-              if (row.storeCode) changedStores.add(row.storeCode);
-              if (row.orderCreatedAt) {
-                changedDates.add(this.formatVietnamDate(row.orderCreatedAt));
+              const changedStoreCode = this.normalizeStoreCode(
+                persistResult.storeCode ?? row.storeCode,
+              );
+              if (changedStoreCode) changedStores.add(changedStoreCode);
+              const changedOrderCreatedAt =
+                persistResult.orderCreatedAt ?? row.orderCreatedAt;
+              if (changedOrderCreatedAt) {
+                changedDates.add(this.formatVietnamDate(changedOrderCreatedAt));
               }
             }
           } catch (error) {
@@ -1289,7 +1296,13 @@ export class SalesReportsService implements OnApplicationBootstrap {
       this.authoritativeStoreCodeForCache(order.sanitizedSnapshot) ??
         order.storeCode,
     );
-    const storeName = this.optionalText(order.storeName, 120);
+    const storeByCode = storeCode
+      ? await this.storesByCode([storeCode])
+      : new Map<string, any>();
+    const store = storeCode ? storeByCode.get(storeCode) : null;
+    const storeName =
+      this.optionalText(order.storeName, 120) ??
+      this.optionalText(store?.storeName, 120);
     const orderCreatedAt = this.cacheOrderCreatedAt(order, null);
     const cacheData = {
       ...(orderCreatedAt ? { orderCreatedAt } : {}),
@@ -1307,6 +1320,9 @@ export class SalesReportsService implements OnApplicationBootstrap {
       ...(grandTotal === null ? {} : { grandTotal }),
       ...(storeCode ? { storeCode } : {}),
       ...(storeName ? { storeName } : {}),
+      ...(store?.organizationNodeId
+        ? { organizationNodeId: store.organizationNodeId }
+        : {}),
       ...(exclusion.excludedAt
         ? {
             excludedAt: exclusion.excludedAt,
@@ -1353,6 +1369,8 @@ export class SalesReportsService implements OnApplicationBootstrap {
     return {
       excluded: Boolean(exclusion.excludedAt),
       exclusionReason: exclusion.exclusionReason,
+      storeCode,
+      orderCreatedAt,
     };
   }
 
@@ -2054,10 +2072,17 @@ export class SalesReportsService implements OnApplicationBootstrap {
     );
     const storeByCode = await this.storesByCode(
       [
-        ...orders.map(
-          (order: SalesReportErpOrderListItem) =>
+        ...orders.flatMap((order: SalesReportErpOrderListItem) => {
+          const orderCode = this.normalizeOrderCode(order.orderCode);
+          const existingRow = orderCode ? existingByCode.get(orderCode) : null;
+          return [
+            this.authoritativeStoreCodeForCache(
+              order.sanitizedSnapshot,
+              existingRow?.sanitizedSnapshot,
+            ),
             order.storeCode ?? context.storeCode,
-        ),
+          ];
+        }),
         ...Array.from(ownerByEmail.values()).map((owner) => owner.storeCode),
       ].filter((code: string | null): code is string => Boolean(code)),
     );
@@ -2313,7 +2338,7 @@ export class SalesReportsService implements OnApplicationBootstrap {
   ): Promise<ErpOrderCachePersistResult> {
     const orderCache = (this.prisma as any).salesReportErpOrderCache;
     if (!orderCache?.upsert) {
-      return { excluded: false, exclusionReason: null };
+      return { excluded: false, exclusionReason: null, storeCode: null };
     }
     const item: SalesReportErpOrderListItem = {
       orderCode: erpOrder.orderCode,
@@ -2532,6 +2557,8 @@ export class SalesReportsService implements OnApplicationBootstrap {
     return {
       excluded: Boolean(exclusion.excludedAt),
       exclusionReason: exclusion.exclusionReason,
+      storeCode,
+      orderCreatedAt,
     };
   }
 
@@ -4512,24 +4539,38 @@ export class SalesReportsService implements OnApplicationBootstrap {
     existingSnapshot?: unknown,
   ) {
     return (
-      this.storeCodeFromCreatedFromSiteDisplayName(snapshot) ??
-      this.storeCodeFromCreatedFromSiteDisplayName(existingSnapshot)
+      this.storeCodeFromSiteDisplaySnapshot(snapshot) ??
+      this.storeCodeFromSiteDisplaySnapshot(existingSnapshot)
     );
   }
 
-  private storeCodeFromCreatedFromSiteDisplayName(snapshot: unknown) {
-    const value =
-      snapshot && typeof snapshot === 'object'
-        ? (snapshot as Record<string, unknown>).createdFromSiteDisplayName
-        : null;
-    const text = String(value || '')
-      .trim()
-      .toUpperCase();
-    if (!text) return null;
-    const bracketMatch = text.match(/^\[([^\]]+)\]/);
-    if (bracketMatch) return this.normalizeStoreCode(bracketMatch[1]);
-    const leadingMatch = text.match(/^([A-Z]{2,3}\d{1,4})(?=$|[^A-Z0-9])/);
-    return leadingMatch ? this.normalizeStoreCode(leadingMatch[1]) : null;
+  private storeCodeFromSiteDisplaySnapshot(snapshot: unknown) {
+    if (!snapshot || typeof snapshot !== 'object') return null;
+    const record = snapshot as Record<string, unknown>;
+    return this.storeCodeFromDisplayName(
+      record.createdFromSiteDisplayName,
+      record.siteDisplayName,
+    );
+  }
+
+  private storeCodeFromDisplayName(...values: unknown[]) {
+    for (const value of values) {
+      const text = String(value || '')
+        .trim()
+        .toUpperCase();
+      if (!text) continue;
+      const bracketMatch = text.match(/^\[([^\]]+)\]/);
+      if (bracketMatch) {
+        const storeCode = this.normalizeStoreCode(bracketMatch[1]);
+        if (storeCode) return storeCode;
+      }
+      const leadingMatch = text.match(/^([A-Z]{2,3}\d{1,4})(?=$|[^A-Z0-9])/);
+      if (leadingMatch) {
+        const storeCode = this.normalizeStoreCode(leadingMatch[1]);
+        if (storeCode) return storeCode;
+      }
+    }
+    return null;
   }
 
   private cacheOrderCreatedAt(

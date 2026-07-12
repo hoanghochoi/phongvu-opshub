@@ -220,9 +220,9 @@ Recent focused evidence:
   truy vết report nhập tay so với report mở từ danh sách sync. Validation:
   focused SalesReportsService Jest và focused Sales Report widget test.
 - `SALES-REPORT-001`, 2026-07-07: ERP order cache dùng
-  `createdFromSiteDisplayName` dạng `[CP58] ...` làm source of truth cho
-  `storeCode` ngay từ list-sync/check-order/status-sync; các sync sau không
-  được ghi đè showroom này bằng context user/owner yếu hơn. Default
+  `createdFromSiteDisplayName` hoặc `siteDisplayName` dạng `[CP58] ...` làm
+  source of truth cho `storeCode` ngay từ list-sync/check-order/status-sync; các
+  sync sau không được ghi đè showroom này bằng context user/owner yếu hơn. Default
   `ERP_ORDER_CACHE_SYNC_LIMIT` đặt về 50 đơn/ngày/lượt sync theo giới hạn hiện
   tại của ERP list để tránh HTTP 400. Validation: focused SalesReportsService
   Jest, Nest build, `git diff --check`.

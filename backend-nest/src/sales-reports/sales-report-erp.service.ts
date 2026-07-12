@@ -344,9 +344,15 @@ export class SalesReportErpService {
     const createdFromSiteDisplayName = this.firstText(
       order?.createdFromSiteDisplayName,
     );
+    const siteDisplayName = this.firstText(
+      order?.siteDisplayName,
+      order?.site?.displayName,
+      order?.createdFromSite?.displayName,
+    );
     const terminalName = this.firstText(
       order?.terminalName,
       createdFromSiteDisplayName,
+      siteDisplayName,
       order?.terminal?.name,
       order?.storeName,
       order?.store?.storeName,
@@ -355,11 +361,13 @@ export class SalesReportErpService {
     const createdFromSiteStoreCode = this.extractStoreCodeFromDisplayName(
       createdFromSiteDisplayName,
     );
+    const siteStoreCode = this.extractStoreCodeFromDisplayName(siteDisplayName);
     const terminalStoreCode =
       this.extractStoreCodeFromDisplayName(terminalName);
     const storeCode = this.normalizeStoreCode(
       this.firstText(
         createdFromSiteStoreCode,
+        siteStoreCode,
         order?.storeCode,
         order?.terminalCode,
         order?.terminal?.code,
@@ -517,6 +525,7 @@ export class SalesReportErpService {
         returnedAfterTaxAmount: lifecycle.returnedAfterTaxAmount,
         terminalName,
         createdFromSiteDisplayName,
+        siteDisplayName,
         grandTotal: this.toInt(order?.grandTotal ?? order?.totalAmount),
         customerName,
         customerType,
@@ -1090,6 +1099,11 @@ export class SalesReportErpService {
         terminalName: this.optionalText(order?.terminalName),
         createdFromSiteDisplayName: this.optionalText(
           order?.createdFromSiteDisplayName,
+        ),
+        siteDisplayName: this.firstText(
+          order?.siteDisplayName,
+          order?.site?.displayName,
+          order?.createdFromSite?.displayName,
         ),
         externalOrderRef: this.optionalText(order?.externalOrderRef),
         customerName,
