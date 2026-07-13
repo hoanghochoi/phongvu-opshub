@@ -56,8 +56,8 @@ foreach ($item in $Path) {
   }
 
   $signature = Get-AuthenticodeSignature -FilePath $resolvedPath
-  if ($signature.Status -ne 'Valid' -or $null -eq $signature.SignerCertificate) {
-    throw "Windows artifact signature is not valid after signing: $resolvedPath"
+  if ($null -eq $signature.SignerCertificate) {
+    throw "Windows artifact signer certificate is missing after signing: $resolvedPath"
   }
   $algorithm = [System.Security.Cryptography.HashAlgorithmName]::SHA256
   $actualPin = $signature.SignerCertificate.GetCertHashString($algorithm).ToUpperInvariant()
@@ -65,5 +65,18 @@ foreach ($item in $Path) {
     throw "Windows artifact signer does not match the pinned publisher: $resolvedPath"
   }
 
-  Write-Host ('Signature status for {0}: {1}' -f $resolvedPath, $signature.Status)
+  $statusName = [string]$signature.Status
+  $statusMessage = [string]$signature.StatusMessage
+  $isPinnedUntrustedRoot = $statusName -eq 'NotTrusted' -or (
+    $statusName -eq 'UnknownError' -and
+    $statusMessage -match '(?i)(0x800B0109|root certificate.+not trusted|terminated in a root certificate)'
+  )
+  if ($statusName -ne 'Valid' -and -not $isPinnedUntrustedRoot) {
+    throw "Windows artifact signature verification failed with status ${statusName}: $resolvedPath"
+  }
+  if ($isPinnedUntrustedRoot) {
+    Write-Warning "Windows signing certificate chain is not trusted by this ephemeral runner; exact pinned signer verification succeeded for: $resolvedPath"
+  }
+
+  Write-Host ('Signature status for {0}: {1}' -f $resolvedPath, $statusName)
 }
