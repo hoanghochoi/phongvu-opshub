@@ -426,15 +426,24 @@ When enabled, the eFAST adapter logs in through `/api/v1/account/login`, reads
 `/api/v1/account/history` for credit rows only, and maps each row `pmtId` to
 `Store.transferAccountNumber`. The configured eFAST bank accounts are only the
 history-query sources and are preserved in raw data for audit. eFAST history
-queries use the Vietnam business date (UTC+7), and rows whose `trxId` or
-`trxRefNo` already exists as a stored MAP statement/reference are skipped before
-creating a transaction or payment notification. Rows with a
+queries use the Vietnam business date (UTC+7). MAP and eFAST derive the same
+source-agnostic transaction key from the bank statement reference, and both
+ingestion directions check all stored statement identifiers before inserting.
+The database transaction-key constraint therefore prevents duplicate rows and
+payment notifications whether MAP or eFAST arrives first, including
+near-simultaneous responses. Rows with a
 missing `pmtId` are stored with `storeCode=null` instead of being quarantined;
 Super Admin, Finance-node users, and `phongvu.vn` users can review them. A
 scoped user who finds one of these rows by statement number, order, amount, or
 transfer content can update the order code, and the backend assigns that
 transaction to the user's showroom. Rows with an unmapped or ambiguous `pmtId`
 stay in the unmapped-transaction quarantine and do not trigger payment audio.
+
+The one-time production cleanup for rows created before the symmetric de-dupe
+keeps the transaction that has order codes when only one side has orders. If
+both sides have orders or both are empty, it keeps MAP and removes eFAST. Before
+deleting the duplicate transaction, the migration reattaches VietQR matches,
+order audits, transfer requests, and any sole notification to the retained row.
 The eFAST scheduler is separate from the MAP scheduler: it runs once every
 random 50-60 seconds from 08:00 through 22:00 Vietnam time (UTC+7), and every
 30 minutes from 22:01 through 07:59 the next day. Production should keep two

@@ -123,9 +123,11 @@ Expected responses:
   as the showroom virtual account to match `Store.transferAccountNumber`, and
   keeps the configured bank account only as the eFAST history source/audit
   field. eFAST sync uses the Vietnam business date (UTC+7) for provider
-  history queries and skips rows whose `trxId`/`trxRefNo` statement reference
-  already exists in stored MAP data, so it does not create duplicate statement
-  rows or payment notifications. Rows with missing `pmtId` are still stored
+  history queries. MAP and eFAST derive the same source-agnostic transaction
+  key from the bank statement reference, and both ingestion directions check
+  all stored statement identifiers before insert. This prevents duplicate rows
+  and payment notifications whether MAP or eFAST arrives first, including
+  near-simultaneous provider responses. Rows with missing `pmtId` are still stored
   with `storeCode=null` so
   Super Admin, Finance-node users, and `phongvu.vn` users can review them; a
   user who finds that row by statement number, order, amount, or transfer

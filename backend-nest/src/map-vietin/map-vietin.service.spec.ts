@@ -1,4 +1,5 @@
 import { BadRequestException, ForbiddenException } from '@nestjs/common';
+import { createHash } from 'crypto';
 import { encryptSecret } from '../common/secret-cipher';
 import { FEATURE_KEYS } from '../feature/feature.constants';
 import { ADMIN_POLICY_CODES } from '../policy/policy.constants';
@@ -652,8 +653,126 @@ describe('MapVietinService', () => {
         }),
       }),
     );
-    expect(prisma.mapVietinTransaction.findUnique).not.toHaveBeenCalled();
+    expect(prisma.mapVietinTransaction.findUnique).toHaveBeenCalledTimes(2);
     expect(prisma.mapVietinTransaction.upsert).not.toHaveBeenCalled();
+    expect(paymentNotifications.createForTransaction).not.toHaveBeenCalled();
+  });
+
+  it('derives the same transaction key for matching eFAST and MAP rows', () => {
+    const normalizeTransaction = (service as any).normalizeTransaction.bind(
+      service,
+    );
+    const efast = normalizeTransaction('CP75', {
+      source: 'VIETIN_EFAST',
+      trxId: '904T2670LCEG5P9N',
+      trxRefNo: '331029',
+      transactionNumber: '904T2670LCEG5P9N',
+      txnReference: '331029',
+      amount: 1390000,
+      transactionDescription: '26071336553080 CP75',
+      tranTime: '13/07/2026 16:07:42',
+      status: 'SUCCESS',
+    });
+    const map = normalizeTransaction('CP75', {
+      transactionNumber: '2026194045053',
+      txnReference: '904T2670LCEG5P9N',
+      amount: 1390000,
+      transactionDescription: '26071336553080 CP75',
+      tranTime: '13/07/2026 16:07:42',
+      status: 'SUCCESS',
+    });
+
+    expect(efast).not.toBeNull();
+    expect(map).not.toBeNull();
+    expect(efast.transactionKey).toBe(map.transactionKey);
+  });
+
+  it('skips a MAP row when the matching eFAST statement already exists', async () => {
+    prisma.mapVietinTransaction.findFirst.mockResolvedValue({
+      id: 'existing-efast-transaction',
+      transactionKey: 'CP75:legacy-efast-key',
+      storeCode: 'CP75',
+    });
+
+    await expect(
+      (service as any).persistTransactions('CP75', [
+        {
+          transactionNumber: '2026194045053',
+          txnReference: '904T2670LCEG5P9N',
+          amount: 1390000,
+          transactionDescription: '26071336553080 CP75',
+          tranTime: '13/07/2026 16:07:42',
+          status: 'SUCCESS',
+        },
+      ]),
+    ).resolves.toBe(0);
+
+    expect(prisma.mapVietinTransaction.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          OR: expect.arrayContaining([
+            { transactionNumber: '904T2670LCEG5P9N' },
+            {
+              rawData: {
+                path: ['txnReference'],
+                equals: '904T2670LCEG5P9N',
+              },
+            },
+          ]),
+        }),
+      }),
+    );
+    expect(prisma.mapVietinTransaction.findUnique).toHaveBeenCalledTimes(2);
+    expect(prisma.mapVietinTransaction.upsert).not.toHaveBeenCalled();
+    expect(paymentNotifications.createForTransaction).not.toHaveBeenCalled();
+  });
+
+  it('reuses a legacy transaction key before running statement JSON lookup', async () => {
+    const fallback = [
+      '2026194045053',
+      1390000,
+      '2026-07-13T09:07:42.000Z',
+      '26071336553080 CP75',
+    ].join('|');
+    const legacyTransactionKey = `CP75:${createHash('sha256')
+      .update(`CP75|${fallback}`)
+      .digest('hex')}`;
+    const legacy = {
+      id: 'existing-legacy-map',
+      transactionKey: legacyTransactionKey,
+      storeCode: 'CP75',
+      orderSource: 'AUTO',
+    };
+    prisma.mapVietinTransaction.findUnique
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(legacy);
+    prisma.mapVietinTransaction.upsert.mockResolvedValue({
+      ...legacy,
+      amount: 1390000,
+    });
+
+    await expect(
+      (service as any).persistTransactions('CP75', [
+        {
+          transactionNumber: '2026194045053',
+          txnReference: '904T2670LCEG5P9N',
+          amount: 1390000,
+          transactionDescription: '26071336553080 CP75',
+          tranTime: '13/07/2026 16:07:42',
+          status: 'SUCCESS',
+        },
+      ]),
+    ).resolves.toBe(0);
+
+    expect(prisma.mapVietinTransaction.findFirst).not.toHaveBeenCalled();
+    expect(prisma.mapVietinTransaction.findUnique).toHaveBeenNthCalledWith(2, {
+      where: { transactionKey: legacyTransactionKey },
+    });
+    expect(prisma.mapVietinTransaction.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { transactionKey: legacyTransactionKey },
+      }),
+    );
     expect(paymentNotifications.createForTransaction).not.toHaveBeenCalled();
   });
 

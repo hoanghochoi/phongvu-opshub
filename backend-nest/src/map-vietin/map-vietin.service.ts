@@ -2517,30 +2517,43 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
       const row = raw as MapTransactionRow;
       const normalized = this.normalizeTransaction(storeCode, row);
       if (!normalized) continue;
-      const existingStatement = this.isEfastMapTransactionRow(row)
-        ? await this.findExistingTransactionByStatement(
-            normalized.transactionKey,
-            row,
-          )
-        : null;
-      if (existingStatement) {
-        duplicateStatementSkipped += 1;
-        continue;
+      let existing = await this.prisma.mapVietinTransaction.findUnique({
+        where: { transactionKey: normalized.transactionKey },
+      });
+      if (!existing) {
+        const legacyTransactionKey = this.legacyTransactionKeyForRow(
+          storeCode,
+          row,
+        );
+        if (legacyTransactionKey !== normalized.transactionKey) {
+          existing = await this.prisma.mapVietinTransaction.findUnique({
+            where: { transactionKey: legacyTransactionKey },
+          });
+        }
+      }
+      if (!existing) {
+        const existingStatement = await this.findExistingTransactionByStatement(
+          normalized.transactionKey,
+          row,
+        );
+        if (existingStatement) {
+          duplicateStatementSkipped += 1;
+          continue;
+        }
       }
       if (normalized.orders.length > 0) {
         withOrders += 1;
       } else {
         withoutOrders += 1;
       }
-      const existing = await this.prisma.mapVietinTransaction.findUnique({
-        where: { transactionKey: normalized.transactionKey },
-      });
       if (!existing) created += 1;
       const preservesManualOrders =
         existing?.orderSource === ORDER_SOURCE_MANUAL;
       if (preservesManualOrders) manualProtected += 1;
       const stored = await this.prisma.mapVietinTransaction.upsert({
-        where: { transactionKey: normalized.transactionKey },
+        where: {
+          transactionKey: existing?.transactionKey ?? normalized.transactionKey,
+        },
         create: normalized,
         update: {
           transactionNumber: normalized.transactionNumber,
@@ -2811,6 +2824,62 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
     return output;
   }
 
+  private canonicalStatementIdentifierForRow(row: MapTransactionRow) {
+    const candidates = this.isEfastMapTransactionRow(row)
+      ? [
+          this.readText(row, 'trxId'),
+          this.readFirstText(row, this.transactionNumberKeys),
+          this.readText(row, 'trxRefNo'),
+          this.readFirstText(row, this.transactionReferenceKeys),
+        ]
+      : [
+          this.readText(row, 'txnReference'),
+          this.readText(row, 'trxId'),
+          this.readText(row, 'trxRefNo'),
+          this.readFirstText(row, this.transactionNumberKeys),
+        ];
+    for (const candidate of candidates) {
+      const value = this.cleanText(candidate).toUpperCase();
+      if (value) return value;
+    }
+    return '';
+  }
+
+  private legacyTransactionKeyForRow(
+    storeCode: string | null,
+    row: MapTransactionRow,
+  ) {
+    const transactionNumber = this.readFirstText(
+      row,
+      this.transactionNumberKeys,
+    );
+    const amount = this.readAmount(row) ?? 0;
+    const paidAt = this.readTransactionTime(row);
+    const content = this.readFirstText(row, this.contentKeys);
+    const fallback = [
+      transactionNumber,
+      amount,
+      paidAt?.toISOString() ?? '',
+      content,
+    ].join('|');
+    const storeKey = storeCode || '__NO_STORE__';
+    const hash = createHash('sha256')
+      .update(`${storeKey}|${fallback}`)
+      .digest('hex');
+    return `${storeKey}:${hash}`;
+  }
+
+  private transactionKeyForIdentity(
+    storeCode: string | null,
+    identity: string,
+  ) {
+    const storeKey = storeCode || '__NO_STORE__';
+    const hash = createHash('sha256')
+      .update(`${storeKey}|${identity}`)
+      .digest('hex');
+    return `${storeKey}:${hash}`;
+  }
+
   private normalizeEfastTransactionDate(value: string) {
     const text = this.cleanText(value);
     if (!text) return '';
@@ -2883,20 +2952,21 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
     const payerName = this.readFirstText(row, this.payerNameKeys);
     const payerAccount = this.readFirstText(row, this.payerAccountKeys);
     const orders = this.extractOrderCodesFromContent(content);
+    const canonicalStatementIdentifier =
+      this.canonicalStatementIdentifierForRow(row);
     const fallback = [
       transactionNumber,
       amount,
       paidAt?.toISOString() ?? '',
       content,
     ].join('|');
-    const storeKey = storeCode || '__NO_STORE__';
-    const hash = createHash('sha256')
-      .update(`${storeKey}|${fallback}`)
-      .digest('hex');
+    const identity = canonicalStatementIdentifier
+      ? `STATEMENT|${canonicalStatementIdentifier}`
+      : `FALLBACK|${fallback}`;
 
     return {
       storeCode,
-      transactionKey: `${storeKey}:${hash}`,
+      transactionKey: this.transactionKeyForIdentity(storeCode, identity),
       transactionNumber: transactionNumber || null,
       amount,
       content,

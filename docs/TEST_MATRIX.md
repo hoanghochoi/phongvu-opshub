@@ -129,6 +129,17 @@ Recent focused evidence:
   `payment-notifications.service.spec.ts` (37 tests), backend `npm run build`,
   focused Flutter `payment_monitor_provider_test.dart` (30 tests), and
   `flutter analyze --no-pub`.
+- `PAYMENT-MONITOR-001`/`PAYMENT-STATEMENT-001`, 2026-07-13: MAP và eFAST dùng
+  chung transaction key chuẩn hóa từ mã sao kê ngân hàng, đồng thời cả hai
+  chiều ingest đều dò các statement identifier đã lưu. Unique transaction key
+  chặn race khi hai nguồn trả gần đồng thời; dữ liệu key legacy vẫn được bảo vệ
+  bằng lookup hai chiều trước insert. Validation: focused MAP/eFAST service
+  Jest, Nest build, Prisma validate, và `git diff --check`.
+- `PAYMENT-MONITOR-001`/`PAYMENT-STATEMENT-001`, 2026-07-13: migration cleanup
+  một lần ưu tiên giữ giao dịch có mã đơn khi chỉ một bản có đơn; nếu cả hai
+  cùng có đơn hoặc cùng trống thì giữ MAP, xóa eFAST. VietQR match, order audit,
+  transfer request và notification đơn lẻ được chuyển sang bản giữ lại trước
+  khi xóa. Migration dừng nếu pairing không còn one-to-one.
 - `PAYMENT-MONITOR-001`/`PAYMENT-STATEMENT-001`, 2026-07-11: eFAST sync dùng
   ngày nghiệp vụ UTC+7 khi gọi history, parse chắc `DD-MM-YYYY`/`DD/MM/YYYY`
   theo giờ Việt Nam, và bỏ qua row eFAST nếu `trxId`/`trxRefNo` đã tồn tại
