@@ -2622,6 +2622,19 @@ src/map-vietin/map-vietin.service.spec.ts` (26 tests), `npm run build`, full
   No runtime fallback was restored. Manual gates and exact commands are in
   `app-security-manual-actions-12072026.md`.
 
+## QUICK-ACTIONS-001 — Thao tác nhanh v1 (2026-07-13)
+
+- Backend unit: chức danh quản lý bắt buộc dù feature bị gán nhầm, URL chỉ
+  http/https, showroom ngoài scope bị từ chối, upsert/xóa bốn link trong một
+  transaction.
+- Flutter widget/unit: đủ bảy action đúng thứ tự, child shortcut kết hợp quyền
+  gốc, route quản lý mã kết hợp chức danh + feature, regression shell giữ bốn
+  mobile destinations.
+- Static/build: `npx prisma validate`, Nest build, `flutter analyze --no-pub`,
+  full Nest/Flutter tests và `git diff --check`.
+- Manual pending: Windows Home placement/focus/Escape/USB scanner và điện thoại
+  thật camera/horizontal scroll/customer QR scan.
+
 ## Evidence Rules
 
 - Unit proof covers pure validators, service rules, and focused repositories.

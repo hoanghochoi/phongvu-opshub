@@ -328,6 +328,7 @@ class AppNavModel {
         user?.canUseFeature('ADMIN_FEATURES') == true ||
         user?.canUseFeature('ADMIN_PERSONNEL') == true ||
         user?.canUseFeature('ADMIN_SALES_TARGETS') == true ||
+        user?.canUseFeature('ADMIN_QUICK_ACTION_CODES') == true ||
         user?.canUseFeature('ADMIN_SALES_REPORTS') == true ||
         user?.canUseFeature('ADMIN_FEEDBACK') == true ||
         user?.canUseFeature('FIFO') == true ||

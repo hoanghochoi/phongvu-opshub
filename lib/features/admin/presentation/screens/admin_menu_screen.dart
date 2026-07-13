@@ -20,6 +20,12 @@ class AdminMenuScreen extends StatelessWidget {
     final user = context.select<AuthProvider, User?>((auth) => auth.user);
     bool canUse(String featureCode) => user?.canUseFeature(featureCode) == true;
     final isSuperAdmin = user?.role == 'SUPER_ADMIN';
+    final managerRole = {
+      'STORE_MANAGER',
+      'AREA_MANAGER',
+      'REGION_MANAGER',
+      'REGIONAL_MANAGER',
+    }.contains(user?.jobRoleCode?.trim().toUpperCase());
 
     final administrationActions = [
       if (canUse('ADMIN_USERS'))
@@ -77,6 +83,14 @@ class AdminMenuScreen extends StatelessWidget {
           description: 'Chỉ tiêu theo tháng và showroom',
           color: AppColors.teal600,
           onTap: () => context.push('/admin/sales-targets'),
+        ),
+      if (canUse('ADMIN_QUICK_ACTION_CODES') && (isSuperAdmin || managerRole))
+        AppFeatureAction(
+          icon: Icons.qr_code_2_rounded,
+          title: 'Quản lý mã',
+          description: 'Liên kết QR theo showroom',
+          color: AppColors.primary,
+          onTap: () => context.push('/admin/quick-action-links'),
         ),
       if (canUse('ADMIN_SALES_REPORTS'))
         AppFeatureAction(

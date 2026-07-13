@@ -828,7 +828,7 @@ void main() {
               pendingSmokeRoutes.length +
               authenticatedSmokeRoutes.length) *
           2,
-      80,
+      82,
       reason: 'Default smoke should stay at 40 routes across 2 viewports.',
     );
     expect(smokeSource, contains('readPngVisualStats'));

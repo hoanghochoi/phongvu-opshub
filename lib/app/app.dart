@@ -21,6 +21,8 @@ import '../features/payment_monitor/presentation/providers/payment_monitor_provi
 import '../features/fifo/data/repositories/fifo_repository.dart';
 import '../features/fifo/presentation/providers/fifo_provider.dart';
 import '../features/offset_adjustment/data/offset_adjustment_repository.dart';
+import '../features/quick_actions/data/quick_actions_repository.dart';
+import '../features/quick_actions/presentation/quick_actions_provider.dart';
 import '../features/sort/data/repositories/sort_repository.dart';
 import '../features/sort/presentation/providers/sort_provider.dart';
 import 'theme/app_theme.dart';
@@ -120,6 +122,18 @@ class App extends StatelessWidget {
                 isInitialized: auth.isInitialized,
               ),
             );
+            return provider;
+          },
+        ),
+        ChangeNotifierProxyProvider<AuthProvider, QuickActionsProvider>(
+          lazy: false,
+          create: (_) =>
+              QuickActionsProvider(QuickActionsRepository(ApiClient())),
+          update: (_, auth, quickActions) {
+            final provider =
+                quickActions ??
+                QuickActionsProvider(QuickActionsRepository(ApiClient()));
+            Future.microtask(() => provider.syncUser(auth.user));
             return provider;
           },
         ),

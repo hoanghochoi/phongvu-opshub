@@ -11,6 +11,7 @@ export const FEATURE_KEYS = {
   ADMIN_FEEDBACK: 'ADMIN_FEEDBACK',
   ADMIN_SALES_REPORTS: 'ADMIN_SALES_REPORTS',
   ADMIN_SALES_TARGETS: 'ADMIN_SALES_TARGETS',
+  ADMIN_QUICK_ACTION_CODES: 'ADMIN_QUICK_ACTION_CODES',
   HOME_DASHBOARD: 'HOME_DASHBOARD',
   HOME_DASHBOARD_SALES: 'HOME_DASHBOARD_SALES',
   HOME_DASHBOARD_FINANCE: 'HOME_DASHBOARD_FINANCE',
@@ -24,6 +25,14 @@ export const FEATURE_KEYS = {
   PAYMENT_SPEAKER: 'PAYMENT_SPEAKER',
   FEEDBACK: 'FEEDBACK',
   SALES_REPORT: 'SALES_REPORT',
+  QUICK_ACTIONS: 'QUICK_ACTIONS',
+  QUICK_ACTION_FIFO: 'QUICK_ACTION_FIFO',
+  QUICK_ACTION_VIETQR: 'QUICK_ACTION_VIETQR',
+  QUICK_ACTION_SALES_REPORT: 'QUICK_ACTION_SALES_REPORT',
+  QUICK_ACTION_APP_DOWNLOAD: 'QUICK_ACTION_APP_DOWNLOAD',
+  QUICK_ACTION_CHECK_IN: 'QUICK_ACTION_CHECK_IN',
+  QUICK_ACTION_ZALO_OA: 'QUICK_ACTION_ZALO_OA',
+  QUICK_ACTION_GOOGLE_MAP: 'QUICK_ACTION_GOOGLE_MAP',
 } as const;
 
 export const DEFAULT_FEATURE_DEFINITIONS = [
@@ -114,6 +123,13 @@ export const DEFAULT_FEATURE_DEFINITIONS = [
     sortOrder: 96,
   },
   {
+    code: FEATURE_KEYS.ADMIN_QUICK_ACTION_CODES,
+    displayName: 'Quản lý mã thao tác nhanh',
+    description: 'Cấu hình liên kết QR theo showroom',
+    parentCode: FEATURE_KEYS.ADMIN,
+    sortOrder: 97,
+  },
+  {
     code: FEATURE_KEYS.HOME_DASHBOARD,
     displayName: 'Dashboard',
     description: 'Nhóm quyền xem các khu vực trên Trang chủ',
@@ -194,6 +210,61 @@ export const DEFAULT_FEATURE_DEFINITIONS = [
     displayName: 'Báo cáo',
     description: 'Gửi báo cáo bán hàng mua hàng và chưa mua hàng',
     sortOrder: 620,
+  },
+  {
+    code: FEATURE_KEYS.QUICK_ACTIONS,
+    displayName: 'Thao tác nhanh',
+    description: 'Nhóm thao tác nhanh trên thanh điều hướng và Trang chủ',
+    sortOrder: 700,
+  },
+  {
+    code: FEATURE_KEYS.QUICK_ACTION_FIFO,
+    displayName: 'Thao tác nhanh - Kiểm tra FIFO',
+    description: 'Hiện lối tắt Kiểm tra FIFO',
+    parentCode: FEATURE_KEYS.QUICK_ACTIONS,
+    sortOrder: 710,
+  },
+  {
+    code: FEATURE_KEYS.QUICK_ACTION_VIETQR,
+    displayName: 'Thao tác nhanh - VietQR',
+    description: 'Hiện lối tắt VietQR',
+    parentCode: FEATURE_KEYS.QUICK_ACTIONS,
+    sortOrder: 720,
+  },
+  {
+    code: FEATURE_KEYS.QUICK_ACTION_SALES_REPORT,
+    displayName: 'Thao tác nhanh - Báo cáo bán hàng',
+    description: 'Hiện lối tắt Báo cáo bán hàng',
+    parentCode: FEATURE_KEYS.QUICK_ACTIONS,
+    sortOrder: 730,
+  },
+  {
+    code: FEATURE_KEYS.QUICK_ACTION_APP_DOWNLOAD,
+    displayName: 'Thao tác nhanh - Tải app',
+    description: 'Hiện mã QR tải ứng dụng của showroom',
+    parentCode: FEATURE_KEYS.QUICK_ACTIONS,
+    sortOrder: 740,
+  },
+  {
+    code: FEATURE_KEYS.QUICK_ACTION_CHECK_IN,
+    displayName: 'Thao tác nhanh - Check-in',
+    description: 'Hiện mã QR check-in của showroom',
+    parentCode: FEATURE_KEYS.QUICK_ACTIONS,
+    sortOrder: 750,
+  },
+  {
+    code: FEATURE_KEYS.QUICK_ACTION_ZALO_OA,
+    displayName: 'Thao tác nhanh - Zalo OA',
+    description: 'Hiện mã QR Zalo OA của showroom',
+    parentCode: FEATURE_KEYS.QUICK_ACTIONS,
+    sortOrder: 760,
+  },
+  {
+    code: FEATURE_KEYS.QUICK_ACTION_GOOGLE_MAP,
+    displayName: 'Thao tác nhanh - GG Map',
+    description: 'Hiện mã QR Google Map của showroom',
+    parentCode: FEATURE_KEYS.QUICK_ACTIONS,
+    sortOrder: 770,
   },
 ] as const;
 

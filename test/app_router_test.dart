@@ -85,6 +85,35 @@ void main() {
     );
   });
 
+  test('quick action code route requires both manager title and feature', () {
+    const manager = User(
+      email: 'manager@phongvu.vn',
+      role: 'USER',
+      jobRoleCode: 'STORE_MANAGER',
+      organizationNodeId: 'org-store',
+      featureAccess: {'ADMIN_QUICK_ACTION_CODES': true},
+    );
+    const regularStaff = User(
+      email: 'staff@phongvu.vn',
+      role: 'USER',
+      jobRoleCode: 'SALES_STAFF',
+      organizationNodeId: 'org-store',
+      featureAccess: {'ADMIN_QUICK_ACTION_CODES': true},
+    );
+
+    expect(
+      AppRouter.canUseRouteForTesting(manager, '/admin/quick-action-links'),
+      isTrue,
+    );
+    expect(
+      AppRouter.canUseRouteForTesting(
+        regularStaff,
+        '/admin/quick-action-links',
+      ),
+      isFalse,
+    );
+  });
+
   test('sales report routes separate staff and admin permissions', () {
     const salesUser = User(
       email: 'sales@phongvu.vn',

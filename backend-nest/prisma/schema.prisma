@@ -30,6 +30,7 @@ model Store {
   updatedAt               DateTime          @updatedAt
 
   users User[]
+  quickActionLinks QuickActionLink[]
 
   featureAccessRules FeatureAccessRule[]
 
@@ -330,6 +331,7 @@ model User {
   organizationAssignments        UserOrganizationAssignment[]
   nodeFeatureAssignmentsAssigned OrganizationNodeFeatureAssignment[] @relation("NodeFeatureAssignedBy")
   notificationReadReceipts       AppNotificationReadReceipt[]
+  quickActionLinksUpdated         QuickActionLink[]                    @relation("QuickActionLinkUpdatedBy")
 
   @@index([departmentCode])
   @@index([jobRoleCode])
@@ -337,6 +339,22 @@ model User {
   @@index([regionCode])
   @@index([areaCode])
   @@index([organizationNodeId])
+}
+
+model QuickActionLink {
+  id          String   @id @default(uuid())
+  storeCode   String
+  store       Store    @relation(fields: [storeCode], references: [storeId], onDelete: Cascade, onUpdate: Cascade)
+  actionCode  String
+  url         String   @db.VarChar(2048)
+  updatedById String?
+  updatedBy   User?    @relation("QuickActionLinkUpdatedBy", fields: [updatedById], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([storeCode, actionCode])
+  @@index([actionCode])
+  @@index([updatedById])
 }
 
 model UserOrganizationAssignment {

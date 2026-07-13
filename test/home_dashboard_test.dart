@@ -586,15 +586,15 @@ void main() {
         ),
         findsOneWidget,
       );
-      expect(find.byKey(const Key('home-operations-shortcut')), findsOneWidget);
-      expect(find.text('Công cụ nhanh'), findsOneWidget);
-      expect(find.text('Đối soát'), findsOneWidget);
+      expect(find.byKey(const Key('home-operations-shortcut')), findsNothing);
+      expect(find.text('Công cụ nhanh'), findsNothing);
+      expect(find.text('Đối soát'), findsNothing);
       expect(
         find.descendant(
           of: find.byKey(const Key('home-summary-page')),
           matching: find.byKey(const Key('home-operations-shortcut')),
         ),
-        findsOneWidget,
+        findsNothing,
       );
       final headerTopBefore = tester
           .getTopLeft(find.byKey(const Key('home-summary-header')))

@@ -28,6 +28,7 @@ import { HelpContentModule } from './help-content/help-content.module';
 import { SalesReportsModule } from './sales-reports/sales-reports.module';
 import { UserAwareThrottlerGuard } from './common/user-aware-throttler.guard';
 import { SalesTargetsModule } from './sales-targets/sales-targets.module';
+import { QuickActionsModule } from './quick-actions/quick-actions.module';
 
 @Module({
   imports: [
@@ -70,6 +71,7 @@ import { SalesTargetsModule } from './sales-targets/sales-targets.module';
     OffsetAdjustmentsModule,
     SalesReportsModule,
     SalesTargetsModule,
+    QuickActionsModule,
     FifoModule,
   ],
   controllers: [AppController],

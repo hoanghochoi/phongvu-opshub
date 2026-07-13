@@ -17,6 +17,7 @@ import '../../features/notifications/presentation/providers/app_notifications_pr
 import '../../features/notifications/presentation/widgets/app_notifications_bell.dart';
 import '../../features/payment_monitor/presentation/providers/payment_delivery_metrics_provider.dart';
 import '../../features/payment_monitor/presentation/widgets/payment_delivery_metrics_chip.dart';
+import '../../features/quick_actions/presentation/quick_actions_launcher.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_radius.dart';
 import '../theme/app_text_styles.dart';
@@ -135,30 +136,45 @@ class _AppShellState extends State<AppShell> {
           }
         }
       },
-      child: width >= AppLayoutTokens.tabletBreakpoint
-          ? _WideShell(
-              layout: layout,
-              location: widget.location,
-              destinations: sidebarDestinations,
-              activeDestination: activeDestination,
-              user: user,
-              version: _version,
-              onNavigate: _navigate,
-              onSupport: () => _showSupportDialog(context),
-              onLogout: () => _logout(context),
-              onAppInfo: () => _showAppInfoDialog(context),
-              child: widget.child,
-            )
-          : _MobileShell(
-              location: widget.location,
-              drawerDestinations: sidebarDestinations,
-              destinations: mobileDestinations,
-              activeDestination: activeDestination,
-              version: _version,
-              onNavigate: _navigate,
-              onSupport: () => _showSupportDialog(context),
-              child: widget.child,
+      child: Stack(
+        children: [
+          width >= AppLayoutTokens.tabletBreakpoint
+              ? _WideShell(
+                  layout: layout,
+                  location: widget.location,
+                  destinations: sidebarDestinations,
+                  activeDestination: activeDestination,
+                  user: user,
+                  version: _version,
+                  onNavigate: _navigate,
+                  onSupport: () => _showSupportDialog(context),
+                  onLogout: () => _logout(context),
+                  onAppInfo: () => _showAppInfoDialog(context),
+                  child: widget.child,
+                )
+              : _MobileShell(
+                  location: widget.location,
+                  drawerDestinations: sidebarDestinations,
+                  destinations: mobileDestinations,
+                  activeDestination: activeDestination,
+                  version: _version,
+                  onNavigate: _navigate,
+                  onSupport: () => _showSupportDialog(context),
+                  child: widget.child,
+                ),
+          if (!kIsWeb &&
+              defaultTargetPlatform == TargetPlatform.windows &&
+              widget.location == '/home')
+            Positioned(
+              right: 24,
+              bottom: 24,
+              child: QuickActionsLauncher(
+                menuAxis: Axis.vertical,
+                location: widget.location,
+              ),
             ),
+        ],
+      ),
     );
   }
 
@@ -620,23 +636,37 @@ class _MobileShell extends StatelessWidget {
         ],
       ),
       body: _RouteViewport(location: location, child: child),
-      bottomNavigationBar: NavigationBar(
-        height: AppLayoutTokens.mobileBottomNavHeight,
-        selectedIndex: selectedIndex,
-        destinations: [
-          for (final destination in destinations)
-            NavigationDestination(
-              icon: destination.id == 'notifications'
-                  ? const _MobileNotificationDestinationIcon()
-                  : Icon(destination.icon),
-              label: destination.label,
-              tooltip: destination.description,
+      bottomNavigationBar: Stack(
+        clipBehavior: Clip.none,
+        alignment: Alignment.topCenter,
+        children: [
+          NavigationBar(
+            height: AppLayoutTokens.mobileBottomNavHeight,
+            selectedIndex: selectedIndex,
+            destinations: [
+              for (final destination in destinations)
+                NavigationDestination(
+                  icon: destination.id == 'notifications'
+                      ? const _MobileNotificationDestinationIcon()
+                      : Icon(destination.icon),
+                  label: destination.label,
+                  tooltip: destination.description,
+                ),
+            ],
+            onDestinationSelected: (index) {
+              final destination = destinations[index];
+              onNavigate(destination);
+            },
+          ),
+          if (kIsWeb || defaultTargetPlatform != TargetPlatform.windows)
+            Positioned(
+              top: -24,
+              child: QuickActionsLauncher(
+                menuAxis: Axis.horizontal,
+                location: location,
+              ),
             ),
         ],
-        onDestinationSelected: (index) {
-          final destination = destinations[index];
-          onNavigate(destination);
-        },
       ),
     );
   }

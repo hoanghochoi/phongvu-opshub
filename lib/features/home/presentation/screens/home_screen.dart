@@ -65,11 +65,7 @@ class _HomeScreenState extends State<HomeScreen> {
           headerAction: canUsePaymentSpeaker
               ? const _HomeSpeakerStatusButton()
               : null,
-          footer: workspaceCount > 0
-              ? HomeOperationsShortcutCard(
-                  actions: _quickToolsFor(context, user, workspaceCount),
-                )
-              : null,
+          footer: null,
         ),
       );
     }
@@ -100,7 +96,7 @@ class _HomeScreenState extends State<HomeScreen> {
     context.go('/operations');
   }
 
-  List<HomeQuickToolAction> _quickToolsFor(
+  List<HomeQuickToolAction> quickToolsForLegacy(
     BuildContext context,
     User? user,
     int workspaceCount,
