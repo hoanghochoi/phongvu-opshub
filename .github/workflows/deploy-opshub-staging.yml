@@ -893,7 +893,9 @@ jobs:
           retry_curl "${OPSHUB_PUBLIC_BASE_URL}/download" >/dev/null
           download_redirect_headers="$(curl -fsSI "${OPSHUB_DOWNLOAD_PUBLIC_BASE_URL}")"
           printf '%s\n' "$download_redirect_headers" |
-            grep -qi "^location: ${OPSHUB_PUBLIC_BASE_URL}/download"
+            grep -qi '^www-authenticate: Cloudflare-Access '
+          printf '%s\n' "$download_redirect_headers" |
+            grep -Eqi '^location: https://[^/]+\.cloudflareaccess\.com/cdn-cgi/access/login/.*redirect_url=%2Fdownload'
           retry_curl "${OPSHUB_PUBLIC_BASE_URL}/help" >/dev/null
           help_json="$(retry_curl "${OPSHUB_API_BASE_URL}/help-content/public")"
           manifest_json="$(retry_curl "${OPSHUB_DOWNLOAD_PUBLIC_BASE_URL}/downloads/latest.json")"
