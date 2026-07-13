@@ -2595,7 +2595,10 @@ src/map-vietin/map-vietin.service.spec.ts` (26 tests), `npm run build`, full
 
 - Realtime: one-time Redis ticket, session revocation, server audience,
   backpressure/deadline/ping-pong/readiness and no JWT query. Nest/Go/Flutter
-  focused tests pass; live replay/revocation/load smoke remains staging-only.
+  focused tests pass. Staging live smoke on 2026-07-13 proved first-use ticket
+  acceptance, replay rejection, logout revocation closing active sockets,
+  rejected ticket issuance after logout, and cross-store event isolation; all
+  temporary sessions were removed. A live slow-client/load soak remains pending.
 - Private media: opaque metadata, JWT + owner/feature/showroom authorization,
   traversal/size/checksum enforcement, decode/re-encode/pixel/aggregate upload
   limits, client credential-origin policy and migration/rollback tools. Focused
@@ -2608,7 +2611,10 @@ src/map-vietin/map-vietin.service.spec.ts` (26 tests), `npm run build`, full
   digests, Go 1.25.12 + quic-go 0.59.1, Redis auth, non-root/read-only/cap-drop,
   encrypted backup fail-closed, signed updater pin and allowlisted runtime
   artifact. Config/syntax/security contract checks pass; Docker/live/signing/
-  restore proof remains manual.
+  restore proof remains manual. Staging inspection on 2026-07-13 confirmed API
+  and realtime are non-root with read-only rootfs, `CapDrop=ALL`,
+  `no-new-privileges`, and bounded Docker logs; Caddy non-root remediation is
+  tracked in the Compose runtime configuration and requires post-deploy proof.
 - Local validation: Flutter analyze, full test (515 pass, 1 skipped) and Web
   release/Android staging debug/Windows debug builds pass. Nest build passes;
   the 13/07/2026 follow-up full Jest run passes 59/59 suites and 586/586 tests

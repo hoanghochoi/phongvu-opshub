@@ -29,7 +29,7 @@ Target layout:
 
 ```bash
 sudo mkdir -p /srv/opshub/{postgres,redis,uploads,private-media,downloads,web,import,payment-audio,caddy/data,caddy/config}
-sudo chown -R 1000:1000 /srv/opshub/{uploads,private-media,payment-audio}
+sudo chown -R 1000:1000 /srv/opshub/{uploads,private-media,payment-audio,caddy/data,caddy/config}
 sudo chmod 755 /srv/opshub/uploads
 sudo chmod 700 /srv/opshub/{private-media,payment-audio}
 sudo mkdir -p /mnt/truenas/opshub-backups
