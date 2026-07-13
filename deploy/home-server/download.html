@@ -682,10 +682,24 @@
     function sanitizeDownloadUrl(value) {
       try {
         const url = new URL(String(value ?? ''), window.location.origin);
-        const allowedPathPrefix = `${downloadsBasePath}/`;
+        const allowedLocations = [
+          {
+            origin: window.location.origin,
+            pathPrefix: `${downloadsBasePath}/`,
+          },
+        ];
+        if (window.location.hostname === 'opshub-staging.hoanghochoi.com') {
+          allowedLocations.push({
+            origin: 'https://opshub.hoanghochoi.com',
+            pathPrefix: '/staging-download/downloads/',
+          });
+        }
+        const isAllowedLocation = allowedLocations.some(
+          ({ origin, pathPrefix }) =>
+            url.origin === origin && url.pathname.startsWith(pathPrefix),
+        );
         if (url.protocol !== 'https:' ||
-            url.origin !== window.location.origin ||
-            !url.pathname.startsWith(allowedPathPrefix) ||
+            !isAllowedLocation ||
             url.username ||
             url.password ||
             url.hash) {

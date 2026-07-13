@@ -58,13 +58,21 @@ class AppRouter {
   static final GlobalKey<NavigatorState> navigatorKey =
       GlobalKey<NavigatorState>();
 
+  static String initialLocationForUri(Uri uri) {
+    final fragment = uri.fragment.trim();
+    if (fragment.startsWith('/')) return fragment;
+    if (uri.path == '/help') return '/help';
+    return '/home';
+  }
+
   static GoRouter createRouter(
     AuthProvider authProvider, {
     Widget? helpScreen,
   }) {
     return GoRouter(
       navigatorKey: navigatorKey,
-      initialLocation: '/home',
+      initialLocation: initialLocationForUri(Uri.base),
+      overridePlatformDefaultLocation: true,
       refreshListenable: authProvider,
       debugLogDiagnostics: true,
       redirect: (context, state) {

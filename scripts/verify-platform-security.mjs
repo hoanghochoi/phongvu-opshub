@@ -122,7 +122,12 @@ contains(robotoLicense, 'Apache License', 'Roboto license attribution');
 contains(help, 'isSafeHelpDocFile', 'Help document allowlist');
 contains(help, "raw.startsWith('//')", 'Help protocol-relative URL rejection');
 contains(download, 'sanitizeDownloadUrl', 'Download URL allowlist');
-contains(download, 'url.origin !== window.location.origin', 'Download same-origin policy');
+contains(download, 'allowedLocations.some', 'Download origin and path allowlist');
+contains(
+  download,
+  "hostname === 'opshub-staging.hoanghochoi.com'",
+  'Download staging host restriction',
+);
 
 const helpUrlPolicy = extractFunction(help, 'sanitizeUrl');
 const helpUrlSandbox = {
@@ -150,12 +155,19 @@ assert.equal(safeHelpDoc('../secret.md'), false);
 assert.equal(safeHelpDoc('/absolute.md'), false);
 
 const downloadUrlPolicy = extractFunction(download, 'sanitizeDownloadUrl');
-const sanitizeDownloadUrl = (input, downloadsBasePath = '/downloads') =>
+const sanitizeDownloadUrl = (
+  input,
+  {
+    downloadsBasePath = '/downloads',
+    origin = 'https://opshub.hoanghochoi.com',
+    hostname = 'opshub.hoanghochoi.com',
+  } = {},
+) =>
   vm.runInNewContext(`${downloadUrlPolicy}; sanitizeDownloadUrl(input)`, {
     input,
     downloadsBasePath,
     URL,
-    window: { location: { origin: 'https://opshub.hoanghochoi.com' } },
+    window: { location: { origin, hostname } },
   });
 assert.equal(sanitizeDownloadUrl('javascript:alert(1)'), '');
 assert.equal(sanitizeDownloadUrl('https://evil.test/downloads/a.apk'), '');
@@ -167,9 +179,39 @@ assert.equal(
 assert.equal(
   sanitizeDownloadUrl(
     '/staging-download/downloads/a.apk',
-    '/staging-download/downloads',
+    { downloadsBasePath: '/staging-download/downloads' },
   ),
   'https://opshub.hoanghochoi.com/staging-download/downloads/a.apk',
+);
+assert.equal(
+  sanitizeDownloadUrl(
+    'https://opshub.hoanghochoi.com/staging-download/downloads/a.apk',
+    {
+      origin: 'https://opshub-staging.hoanghochoi.com',
+      hostname: 'opshub-staging.hoanghochoi.com',
+    },
+  ),
+  'https://opshub.hoanghochoi.com/staging-download/downloads/a.apk',
+);
+assert.equal(
+  sanitizeDownloadUrl(
+    'https://opshub.hoanghochoi.com/downloads/a.apk',
+    {
+      origin: 'https://opshub-staging.hoanghochoi.com',
+      hostname: 'opshub-staging.hoanghochoi.com',
+    },
+  ),
+  '',
+);
+assert.equal(
+  sanitizeDownloadUrl(
+    'https://opshub.hoanghochoi.com/staging-download/downloads/a.apk#bad',
+    {
+      origin: 'https://opshub-staging.hoanghochoi.com',
+      hostname: 'opshub-staging.hoanghochoi.com',
+    },
+  ),
+  '',
 );
 
 const packageJson = JSON.parse(packageJsonText);
