@@ -60,9 +60,16 @@ const [
 ]);
 
 contains(caddy, '@insecure_edge_request header X-Forwarded-Proto http', 'Caddy HTTPS redirect');
-contains(caddy, 'Content-Security-Policy-Report-Only', 'Caddy CSP rollout');
+contains(caddy, 'Content-Security-Policy "', 'Caddy enforced CSP');
+contains(caddy, "object-src 'none'", 'Caddy CSP object restriction');
+contains(caddy, "frame-ancestors 'self'", 'Caddy CSP frame restriction');
+excludes(caddy, 'Content-Security-Policy-Report-Only', 'Caddy report-only CSP');
 contains(caddy, 'X-Content-Type-Options "nosniff"', 'Caddy static headers');
-excludes(caddy, 'Strict-Transport-Security', 'HSTS must stay edge-controlled until approved');
+contains(
+  caddy,
+  'Strict-Transport-Security "max-age=31536000; includeSubDomains"',
+  'Caddy HSTS',
+);
 
 for (const value of ['max-size:', 'max-file:', 'no-new-privileges:true', 'cap_drop:', 'read_only: true']) {
   contains(productionCompose, value, 'production Compose hardening');

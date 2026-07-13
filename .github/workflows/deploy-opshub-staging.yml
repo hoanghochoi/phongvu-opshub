@@ -837,11 +837,29 @@ jobs:
             echo "Staging verification did not receive a 2xx response from ${url}." >&2
             return 1
           }
+          verify_security_headers() {
+            local headers="$1"
+            local header
+            for header in \
+              'content-security-policy:' \
+              'strict-transport-security:.*max-age=31536000' \
+              'x-content-type-options:.*nosniff' \
+              'x-frame-options:.*sameorigin' \
+              'referrer-policy:.*no-referrer' \
+              'permissions-policy:'; do
+              printf '%s\n' "$headers" | grep -Eqi "^${header}"
+            done
+            if printf '%s\n' "$headers" | grep -qi '^content-security-policy-report-only:'; then
+              echo 'Staging still serves a report-only CSP.' >&2
+              return 1
+            fi
+          }
 
           retry_curl "${OPSHUB_PUBLIC_BASE_URL}/health"
           retry_curl "${OPSHUB_PUBLIC_BASE_URL}/" >/dev/null
           main_headers="$(access_curl "${OPSHUB_PUBLIC_BASE_URL}/main.dart.js?v=${GITHUB_SHA}" -fsSI)"
           printf '%s\n' "$main_headers" | grep -qi 'cache-control:.*no-cache'
+          verify_security_headers "$main_headers"
           android_json="$(retry_curl "${OPSHUB_API_BASE_URL}/app-version?platform=android")"
           windows_json="$(retry_curl "${OPSHUB_API_BASE_URL}/app-version?platform=windows")"
           web_json="$(retry_curl "${OPSHUB_API_BASE_URL}/app-version?platform=web")"

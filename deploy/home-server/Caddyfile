@@ -12,11 +12,12 @@ http://{$OPSHUB_DOMAIN} {
     X-Content-Type-Options "nosniff"
     Referrer-Policy "no-referrer"
     X-Frame-Options "SAMEORIGIN"
+    Strict-Transport-Security "max-age=31536000; includeSubDomains"
     Permissions-Policy "camera=(self), clipboard-read=(self), clipboard-write=(self), fullscreen=(self), geolocation=(), microphone=(), payment=(), usb=()"
-    # Report-only first: Flutter Web still needs inline/eval/wasm allowances.
-    # Promote to an enforced policy only after production/staging CSP reports
-    # and the login, scanner, Help and Download smoke flows are clean.
-    Content-Security-Policy-Report-Only "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self'; form-action 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https: wss:; worker-src 'self' blob:; child-src 'self' blob:; manifest-src 'self'; media-src 'self' data: blob:"
+    # Enforced after staging Home/Help/Download and WebSocket report-only smoke
+    # completed without CSP violations. Keep unsafe-eval/wasm allowances until
+    # the Flutter web renderer no longer requires them.
+    Content-Security-Policy "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'self'; form-action 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' blob:; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https: wss:; worker-src 'self' blob:; child-src 'self' blob:; manifest-src 'self'; media-src 'self' data: blob:"
   }
 
   handle_path /api/* {
