@@ -80,6 +80,7 @@ class AppRouter {
         if (location == '/tasks') return '/home';
 
         if (!authProvider.isInitialized) {
+          if (location == '/help') return null;
           return location == '/loading' ? null : '/loading';
         }
 
