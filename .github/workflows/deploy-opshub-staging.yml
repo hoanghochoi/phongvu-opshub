@@ -730,7 +730,49 @@ jobs:
               npx prisma migrate resolve --rolled-back "$migration_name"
           }
 
+          resolve_failed_quick_actions_migration() {
+            local migration_name="20260713210000_quick_actions_v1"
+            local failed_count
+            local link_count
+
+            compose_cmd up -d --no-recreate --wait postgres >/dev/null
+
+            failed_count="$(
+              compose_cmd \
+                exec -T postgres sh -lc \
+                'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -tAc "SELECT COUNT(*) FROM _prisma_migrations WHERE migration_name = '\''20260713210000_quick_actions_v1'\'' AND finished_at IS NULL AND rolled_back_at IS NULL;"'
+            )"
+            failed_count="$(printf '%s' "$failed_count" | tr -d '[:space:]')"
+            if [ "${failed_count:-0}" = "0" ]; then
+              return 0
+            fi
+            if [ "$failed_count" != "1" ]; then
+              echo "Refusing to auto-resolve $migration_name because failed row count is $failed_count." >&2
+              exit 1
+            fi
+
+            link_count="$(
+              compose_cmd \
+                exec -T postgres sh -lc \
+                'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -tAc "SELECT COUNT(*) FROM \"QuickActionLink\";"'
+            )"
+            link_count="$(printf '%s' "$link_count" | tr -d '[:space:]')"
+            if [ "${link_count:-0}" != "0" ]; then
+              echo "Refusing to auto-resolve $migration_name because QuickActionLink contains $link_count rows." >&2
+              exit 1
+            fi
+
+            echo "Resetting the empty partial QuickActionLink table for failed migration $migration_name."
+            compose_cmd \
+              exec -T postgres sh -lc \
+              'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c '\''DROP TABLE IF EXISTS "QuickActionLink";'\'''
+            compose_cmd \
+              --profile migrate run --rm -T --build migrate \
+              npx prisma migrate resolve --rolled-back "$migration_name"
+          }
+
           resolve_failed_node_feature_migration
+          resolve_failed_quick_actions_migration
 
           compose_cmd --profile migrate run --rm -T --build migrate
 

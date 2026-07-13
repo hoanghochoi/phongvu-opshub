@@ -1,3 +1,5 @@
+BEGIN;
+
 CREATE TABLE "QuickActionLink" (
     "id" TEXT NOT NULL,
     "storeCode" TEXT NOT NULL,
@@ -19,18 +21,18 @@ ALTER TABLE "QuickActionLink" ADD CONSTRAINT "QuickActionLink_updatedById_fkey"
   FOREIGN KEY ("updatedById") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 INSERT INTO "FeatureDefinition" (
-  "code", "displayName", "description", "parentCode", "sortOrder",
+  "id", "code", "displayName", "description", "parentCode", "sortOrder",
   "visibleInUserPicker", "isSystem", "isActive", "createdAt", "updatedAt"
 ) VALUES
-  ('QUICK_ACTIONS', 'Thao tác nhanh', 'Nhóm thao tác nhanh trên thanh điều hướng và Trang chủ', NULL, 700, TRUE, TRUE, TRUE, NOW(), NOW()),
-  ('QUICK_ACTION_FIFO', 'Thao tác nhanh - Kiểm tra FIFO', 'Hiện lối tắt Kiểm tra FIFO', 'QUICK_ACTIONS', 710, TRUE, TRUE, TRUE, NOW(), NOW()),
-  ('QUICK_ACTION_VIETQR', 'Thao tác nhanh - VietQR', 'Hiện lối tắt VietQR', 'QUICK_ACTIONS', 720, TRUE, TRUE, TRUE, NOW(), NOW()),
-  ('QUICK_ACTION_SALES_REPORT', 'Thao tác nhanh - Báo cáo bán hàng', 'Hiện lối tắt Báo cáo bán hàng', 'QUICK_ACTIONS', 730, TRUE, TRUE, TRUE, NOW(), NOW()),
-  ('QUICK_ACTION_APP_DOWNLOAD', 'Thao tác nhanh - Tải app', 'Hiện mã QR tải ứng dụng của showroom', 'QUICK_ACTIONS', 740, TRUE, TRUE, TRUE, NOW(), NOW()),
-  ('QUICK_ACTION_CHECK_IN', 'Thao tác nhanh - Check-in', 'Hiện mã QR check-in của showroom', 'QUICK_ACTIONS', 750, TRUE, TRUE, TRUE, NOW(), NOW()),
-  ('QUICK_ACTION_ZALO_OA', 'Thao tác nhanh - Zalo OA', 'Hiện mã QR Zalo OA của showroom', 'QUICK_ACTIONS', 760, TRUE, TRUE, TRUE, NOW(), NOW()),
-  ('QUICK_ACTION_GOOGLE_MAP', 'Thao tác nhanh - GG Map', 'Hiện mã QR Google Map của showroom', 'QUICK_ACTIONS', 770, TRUE, TRUE, TRUE, NOW(), NOW()),
-  ('ADMIN_QUICK_ACTION_CODES', 'Quản lý mã thao tác nhanh', 'Cấu hình liên kết QR theo showroom', 'ADMIN', 97, TRUE, TRUE, TRUE, NOW(), NOW())
+  ('feature-quick-actions', 'QUICK_ACTIONS', 'Thao tác nhanh', 'Nhóm thao tác nhanh trên thanh điều hướng và Trang chủ', NULL, 700, TRUE, TRUE, TRUE, NOW(), NOW()),
+  ('feature-quick-action-fifo', 'QUICK_ACTION_FIFO', 'Thao tác nhanh - Kiểm tra FIFO', 'Hiện lối tắt Kiểm tra FIFO', 'QUICK_ACTIONS', 710, TRUE, TRUE, TRUE, NOW(), NOW()),
+  ('feature-quick-action-vietqr', 'QUICK_ACTION_VIETQR', 'Thao tác nhanh - VietQR', 'Hiện lối tắt VietQR', 'QUICK_ACTIONS', 720, TRUE, TRUE, TRUE, NOW(), NOW()),
+  ('feature-quick-action-sales-report', 'QUICK_ACTION_SALES_REPORT', 'Thao tác nhanh - Báo cáo bán hàng', 'Hiện lối tắt Báo cáo bán hàng', 'QUICK_ACTIONS', 730, TRUE, TRUE, TRUE, NOW(), NOW()),
+  ('feature-quick-action-app-download', 'QUICK_ACTION_APP_DOWNLOAD', 'Thao tác nhanh - Tải app', 'Hiện mã QR tải ứng dụng của showroom', 'QUICK_ACTIONS', 740, TRUE, TRUE, TRUE, NOW(), NOW()),
+  ('feature-quick-action-check-in', 'QUICK_ACTION_CHECK_IN', 'Thao tác nhanh - Check-in', 'Hiện mã QR check-in của showroom', 'QUICK_ACTIONS', 750, TRUE, TRUE, TRUE, NOW(), NOW()),
+  ('feature-quick-action-zalo-oa', 'QUICK_ACTION_ZALO_OA', 'Thao tác nhanh - Zalo OA', 'Hiện mã QR Zalo OA của showroom', 'QUICK_ACTIONS', 760, TRUE, TRUE, TRUE, NOW(), NOW()),
+  ('feature-quick-action-google-map', 'QUICK_ACTION_GOOGLE_MAP', 'Thao tác nhanh - GG Map', 'Hiện mã QR Google Map của showroom', 'QUICK_ACTIONS', 770, TRUE, TRUE, TRUE, NOW(), NOW()),
+  ('feature-admin-quick-action-codes', 'ADMIN_QUICK_ACTION_CODES', 'Quản lý mã thao tác nhanh', 'Cấu hình liên kết QR theo showroom', 'ADMIN', 97, TRUE, TRUE, TRUE, NOW(), NOW())
 ON CONFLICT ("code") DO UPDATE SET
   "displayName" = EXCLUDED."displayName",
   "description" = EXCLUDED."description",
@@ -89,3 +91,5 @@ JOIN (VALUES
   ('SALES_REPORT', 'QUICK_ACTION_SALES_REPORT')
 ) AS m("sourceCode", "childCode") ON a."featureCode" = m."sourceCode"
 ON CONFLICT ("userId", "featureCode") DO NOTHING;
+
+COMMIT;
