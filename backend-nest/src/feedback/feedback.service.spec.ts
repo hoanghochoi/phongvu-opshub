@@ -10,7 +10,10 @@ describe('FeedbackService', () => {
       findMany: jest.Mock;
     };
   };
-  let uploadService: { saveFeedbackImages: jest.Mock };
+  let uploadService: {
+    saveFeedbackImages: jest.Mock;
+    discardPrivateMedia: jest.Mock;
+  };
 
   beforeEach(() => {
     prisma = {
@@ -20,7 +23,10 @@ describe('FeedbackService', () => {
         findMany: jest.fn(),
       },
     };
-    uploadService = { saveFeedbackImages: jest.fn() };
+    uploadService = {
+      saveFeedbackImages: jest.fn(),
+      discardPrivateMedia: jest.fn(),
+    };
     service = new FeedbackService(prisma as any, uploadService as any);
   });
 
@@ -66,6 +72,7 @@ describe('FeedbackService', () => {
     expect(uploadService.saveFeedbackImages).toHaveBeenCalledWith(
       'feedback-1',
       [file],
+      'user-1',
     );
     expect(prisma.feedback.update).toHaveBeenCalledWith({
       where: { id: 'feedback-1' },

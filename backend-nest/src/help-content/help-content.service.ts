@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { HelpContentPage } from '@prisma/client';
 import { isSuperAdminRole } from '../common/system-role';
+import { logFingerprint } from '../common/log-sanitizer';
 import { PrismaService } from '../prisma/prisma.service';
 import { UploadService } from '../upload/upload.service';
 import {
@@ -89,7 +90,7 @@ export class HelpContentService {
       await this.ensureSeeded();
       const payload = await this.buildCreatePayload(dto);
       this.logger.log(
-        `Help content save started: mode=create user=${this.safeUserLabel(user)} key=${payload.key} parentKey=${payload.parentKey || 'root'} visibility=${payload.isPublished ? payload.isAuthenticatedOnly ? 'PRIVATE' : 'PUBLIC' : 'DRAFT'} markdownLength=${payload.markdown.length}`,
+        `Help content save started: mode=create user=${this.safeUserLabel(user)} key=${payload.key} parentKey=${payload.parentKey || 'root'} visibility=${payload.isPublished ? (payload.isAuthenticatedOnly ? 'PRIVATE' : 'PUBLIC') : 'DRAFT'} markdownLength=${payload.markdown.length}`,
       );
       const created = await this.prisma.helpContentPage.create({
         data: {
@@ -125,7 +126,7 @@ export class HelpContentService {
 
       const payload = await this.buildUpdatePayload(existing, dto);
       this.logger.log(
-        `Help content save started: mode=update user=${this.safeUserLabel(user)} key=${existing.key} parentKey=${payload.parentKey || 'root'} visibility=${payload.isPublished ? payload.isAuthenticatedOnly ? 'PRIVATE' : 'PUBLIC' : 'DRAFT'} markdownLength=${payload.markdown.length}`,
+        `Help content save started: mode=update user=${this.safeUserLabel(user)} key=${existing.key} parentKey=${payload.parentKey || 'root'} visibility=${payload.isPublished ? (payload.isAuthenticatedOnly ? 'PRIVATE' : 'PUBLIC') : 'DRAFT'} markdownLength=${payload.markdown.length}`,
       );
       const updated = await this.prisma.helpContentPage.update({
         where: { key: existing.key },
@@ -192,7 +193,7 @@ export class HelpContentService {
     const pageKey = dto.pageKey ? this.normalizeKey(dto.pageKey) : null;
     const startedAt = Date.now();
     this.logger.log(
-      `Help content asset upload started: user=${this.safeUserLabel(user)} pageKey=${pageKey || 'general'} fileName=${this.optionalText(file.originalname, 160) || 'unknown'} size=${file.size}`,
+      `Help content asset upload started: user=${this.safeUserLabel(user)} pageKey=${pageKey || 'general'} fileNameHash=${logFingerprint(file.originalname || 'unknown')} size=${file.size}`,
     );
 
     try {
@@ -584,7 +585,11 @@ export class HelpContentService {
     const normalized = String(visibility ?? '')
       .trim()
       .toUpperCase();
-    if (normalized == 'DRAFT' || normalized == 'PUBLIC' || normalized == 'PRIVATE') {
+    if (
+      normalized == 'DRAFT' ||
+      normalized == 'PUBLIC' ||
+      normalized == 'PRIVATE'
+    ) {
       return normalized;
     }
     if (isPublished === false) {
@@ -596,7 +601,9 @@ export class HelpContentService {
     return fallback;
   }
 
-  private visibilityFromPage(page: Pick<HelpContentPage, 'isPublished' | 'isAuthenticatedOnly'>): HelpContentVisibility {
+  private visibilityFromPage(
+    page: Pick<HelpContentPage, 'isPublished' | 'isAuthenticatedOnly'>,
+  ): HelpContentVisibility {
     if (!page.isPublished) return 'DRAFT';
     return page.isAuthenticatedOnly ? 'PRIVATE' : 'PUBLIC';
   }
@@ -618,11 +625,10 @@ export class HelpContentService {
   }
 
   private safeUserLabel(user: any) {
-    return (
-      this.normalizeEmail(user?.email) ||
-      this.optionalText(user?.id, 80) ||
-      'missing'
-    );
+    const userId = this.optionalText(user?.id, 80);
+    if (userId) return `userId:${userId}`;
+    const email = this.normalizeEmail(user?.email);
+    return email ? `emailHash:${logFingerprint(email)}` : 'missing';
   }
 
   private errorMessage(error: unknown) {

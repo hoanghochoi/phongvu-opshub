@@ -14,6 +14,7 @@ import {
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { Throttle } from '@nestjs/throttler';
 import { avatarUploadOptions } from '../upload/image-upload.options';
 import { userImportFileUploadOptions } from './user-import-file-upload.options';
 import { FEATURE_KEYS } from '../feature/feature.constants';
@@ -59,6 +60,10 @@ export class UserController {
   }
 
   @Post('users/me/avatar')
+  @Throttle({
+    ip: { ttl: 60_000, limit: 20 },
+    principal: { ttl: 60_000, limit: 10 },
+  })
   @UseInterceptors(FileInterceptor('avatar', avatarUploadOptions))
   updateAvatar(
     @Request() req: any,

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -19,6 +20,7 @@ import '../../../../app/widgets/app_chips.dart';
 import '../../../../app/widgets/app_layout.dart';
 import '../../../../app/widgets/app_state_widgets.dart';
 import '../../../../core/logging/app_logger.dart';
+import '../../../../core/network/private_media_headers.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
 import '../providers/warranty_provider.dart';
 
@@ -920,6 +922,7 @@ class _ImageContent extends StatelessWidget {
     if (_isUrl(imageSource)) {
       return CachedNetworkImage(
         imageUrl: imageSource,
+        httpHeaders: privateMediaHeaders(imageSource),
         fit: BoxFit.cover,
         memCacheWidth: 800,
         memCacheHeight: 800,
@@ -927,8 +930,21 @@ class _ImageContent extends StatelessWidget {
         maxHeightDiskCache: 1000,
         placeholder: (context, url) =>
             const Center(child: CircularProgressIndicator()),
-        errorWidget: (context, url, error) =>
-            _BrokenImagePlaceholder(index: index),
+        errorWidget: (context, url, error) {
+          unawaited(
+            AppLogger.instance.warn(
+              'WarrantyDetails',
+              'Warranty image load failed',
+              context: {
+                'imageIndex': index,
+                'protectedMedia': isProtectedPrivateMediaUrl(url),
+                'urlLength': url.length,
+                'errorType': error.runtimeType.toString(),
+              },
+            ),
+          );
+          return _BrokenImagePlaceholder(index: index);
+        },
       );
     }
 

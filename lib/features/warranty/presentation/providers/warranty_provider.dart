@@ -5,9 +5,9 @@ import 'package:flutter/foundation.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
 import '../../data/repositories/warranty_repository.dart';
-import '../../../../core/constants/api_constants.dart';
 import '../../../../core/network/api_client.dart';
 import '../../../../core/network/api_exception.dart';
+import '../../../../core/network/realtime_ticket_client.dart';
 import '../../../../core/logging/app_logger.dart';
 import '../../../auth/domain/entities/user.dart';
 
@@ -36,10 +36,10 @@ class WarrantyProvider extends ChangeNotifier {
       _disconnectRealtime('auth_or_feature_unavailable');
       return;
     }
-    _connectRealtime(user);
+    unawaited(_connectRealtime(user));
   }
 
-  void _connectRealtime(User user) {
+  Future<void> _connectRealtime(User user) async {
     final token = ApiClient().authToken;
     if (token == null || token.trim().isEmpty) {
       _disconnectRealtime('missing_token');
@@ -49,12 +49,12 @@ class WarrantyProvider extends ChangeNotifier {
     if (_realtimeKey == nextKey && _realtimeChannel != null) return;
     _disconnectRealtime('reconnect');
 
-    final url = ApiConstants.realtimeWsUrl(
-      storeId: user.storeId,
-      accessToken: token,
-    );
     try {
-      final channel = WebSocketChannel.connect(Uri.parse(url));
+      final uri = await RealtimeTicketClient.instance.issueConnectionUri(
+        storeCode: user.storeId,
+      );
+      if (_user != user || ApiClient().authToken != token) return;
+      final channel = WebSocketChannel.connect(uri);
       _realtimeChannel = channel;
       _realtimeKey = nextKey;
       _realtimeSubscription = channel.stream.listen(

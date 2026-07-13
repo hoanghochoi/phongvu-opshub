@@ -3,6 +3,7 @@ import { BigQuery } from '@google-cloud/bigquery';
 import { PrismaService } from '../prisma/prisma.service';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { getDataSyncSource } from '../config/env';
+import { safeLogError } from '../common/log-sanitizer';
 
 @Injectable()
 export class InventoryService implements OnModuleInit {
@@ -112,7 +113,7 @@ export class InventoryService implements OnModuleInit {
         this.logger.warn('No valid rows found in BigQuery table');
       }
     } catch (error) {
-      this.logger.error('BigQuery sync failed:', error);
+      this.logger.error(`BigQuery sync failed: ${safeLogError(error)}`);
     }
   }
 

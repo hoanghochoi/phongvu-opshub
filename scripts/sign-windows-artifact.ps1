@@ -3,7 +3,8 @@ param(
   [string[]]$Path,
 
   [string]$PfxPath = $env:WINDOWS_SIGNING_PFX_PATH,
-  [string]$PfxPassword = $env:WINDOWS_SIGNING_PFX_PASSWORD
+  [string]$PfxPassword = $env:WINDOWS_SIGNING_PFX_PASSWORD,
+  [string]$TrustedSignerSha256 = $env:WINDOWS_UPDATE_SIGNER_SHA256
 )
 
 $ErrorActionPreference = 'Stop'
@@ -36,6 +37,13 @@ if ([string]::IsNullOrWhiteSpace($PfxPassword)) {
   throw 'Windows signing PFX password is missing.'
 }
 
+$trustedPins = @($TrustedSignerSha256 -split '[,;\s]+' |
+  ForEach-Object { $_.Replace(':', '').ToUpperInvariant() } |
+  Where-Object { $_ })
+if ($trustedPins.Count -eq 0 -or @($trustedPins | Where-Object { $_ -notmatch '^[0-9A-F]{64}$' }).Count -gt 0) {
+  throw 'WINDOWS_UPDATE_SIGNER_SHA256 must contain valid SHA-256 certificate fingerprints.'
+}
+
 $signTool = Get-SignToolPath
 
 foreach ($item in $Path) {
@@ -44,17 +52,17 @@ foreach ($item in $Path) {
 
   & $signTool sign /fd SHA256 /f $PfxPath /p $PfxPassword /tr http://timestamp.digicert.com /td SHA256 $resolvedPath
   if ($LASTEXITCODE -ne 0) {
-    Write-Warning 'Timestamped signing failed; retrying without timestamp for internal distribution.'
-    & $signTool sign /fd SHA256 /f $PfxPath /p $PfxPassword $resolvedPath
-  }
-
-  if ($LASTEXITCODE -ne 0) {
-    throw "signtool failed for $resolvedPath with exit code $LASTEXITCODE."
+    throw "Timestamped signtool failed for $resolvedPath with exit code $LASTEXITCODE."
   }
 
   $signature = Get-AuthenticodeSignature -FilePath $resolvedPath
-  if ($signature.Status -eq 'NotSigned') {
-    throw "Windows artifact is still unsigned after signtool completed: $resolvedPath"
+  if ($signature.Status -ne 'Valid' -or $null -eq $signature.SignerCertificate) {
+    throw "Windows artifact signature is not valid after signing: $resolvedPath"
+  }
+  $algorithm = [System.Security.Cryptography.HashAlgorithmName]::SHA256
+  $actualPin = $signature.SignerCertificate.GetCertHashString($algorithm).ToUpperInvariant()
+  if ($actualPin -notin $trustedPins) {
+    throw "Windows artifact signer does not match the pinned publisher: $resolvedPath"
   }
 
   Write-Host ('Signature status for {0}: {1}' -f $resolvedPath, $signature.Status)

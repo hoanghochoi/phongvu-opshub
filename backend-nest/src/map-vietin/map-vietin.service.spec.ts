@@ -2896,11 +2896,11 @@ describe('MapVietinService', () => {
     expect(csv).toContain('5190000');
     expect(csv).toContain('03/06/2026 16:39:41');
     expect(csv).not.toContain('2026-06-03T09:39:41.000Z');
-    expect(csv).toContain('"=""00020300000000004567"""');
-    expect(csv).toContain('"=""26052912345678\n26053087654321"""');
+    expect(csv).toContain("'00020300000000004567");
+    expect(csv).toContain('"\'26052912345678\n26053087654321"');
     expect(csv).not.toContain('26052912345678 | 26053087654321');
     expect(csv).toContain('Nguyễn Văn A');
-    expect(csv).toContain('"=""9704361234567890"""');
+    expect(csv).toContain("'9704361234567890");
     expect(prisma.mapVietinTransaction.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({ id: { in: ['stored-1'] } }),

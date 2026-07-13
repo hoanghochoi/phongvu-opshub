@@ -800,6 +800,9 @@ void main() {
         return channel;
       },
       const Duration(milliseconds: 1),
+      const Duration(seconds: 15),
+      ({storeCode}) async =>
+          Uri.parse('wss://opshub.hoanghochoi.com/ws?ticket=test-ticket'),
     );
 
     await Future<void>.delayed(Duration.zero);

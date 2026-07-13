@@ -43,7 +43,7 @@ async function bootstrap() {
   app.use(json({ limit: getRequestBodyLimit() }));
   app.use(urlencoded({ extended: true, limit: getRequestBodyLimit() }));
   app.enableCors({
-    credentials: true,
+    credentials: false,
     origin: (
       origin: string | undefined,
       callback: (error: Error | null, allow?: boolean) => void,
@@ -52,7 +52,7 @@ async function bootstrap() {
         callback(null, true);
         return;
       }
-      callback(new Error('CORS origin not allowed'), false);
+      callback(null, false);
     },
   });
   app.useGlobalPipes(

@@ -18,6 +18,7 @@ import {
   imageUploadOptions,
 } from './image-upload.options';
 import { UploadWarrantyImagesDto } from './upload.dto';
+import { Throttle } from '@nestjs/throttler';
 
 @Controller('upload')
 @UseGuards(AuthGuard('jwt'), FeatureGuard)
@@ -30,6 +31,10 @@ export class UploadController {
   // The creator is always resolved from the authenticated JWT user.
   @Post('warranty')
   @RequireFeature(FEATURE_KEYS.WARRANTY)
+  @Throttle({
+    ip: { ttl: 60_000, limit: 12 },
+    principal: { ttl: 60_000, limit: 6 },
+  })
   @UseInterceptors(
     FilesInterceptor('images', IMAGE_UPLOAD_MAX_FILES, imageUploadOptions),
   )
@@ -41,10 +46,6 @@ export class UploadController {
     const links = await this.uploadService.saveWarrantyImages(
       body.receipt,
       files || [],
-    );
-    await this.uploadService.upsertWarrantyRecord(
-      body.receipt,
-      links,
       req.user.id,
     );
     return {

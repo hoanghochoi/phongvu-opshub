@@ -4,9 +4,9 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
-import '../../../../core/constants/api_constants.dart';
 import '../../../../core/logging/app_logger.dart';
 import '../../../../core/network/api_client.dart';
+import '../../../../core/network/realtime_ticket_client.dart';
 import '../../../auth/domain/entities/user.dart';
 import '../../../bank_statement/data/bank_statement_repository.dart';
 import '../../../bank_statement/domain/bank_statement_transaction.dart';
@@ -92,7 +92,7 @@ class AppNotificationsProvider extends ChangeNotifier {
             _offsetAdjustmentRequests.isEmpty)) {
       await load(silent: true);
     }
-    _connectRealtime();
+    unawaited(_connectRealtime());
   }
 
   Future<void> load({bool silent = false}) async {
@@ -354,20 +354,24 @@ class AppNotificationsProvider extends ChangeNotifier {
     }
   }
 
-  void _connectRealtime() {
+  Future<void> _connectRealtime() async {
     if (_disposed) return;
     final token = ApiClient().authToken?.trim();
     if (!isEnabled || token == null || token.isEmpty) {
       _closeRealtime();
       return;
     }
-    final url = ApiConstants.realtimeWsUrl(accessToken: token);
-    if (_realtimeUrl == url && _realtimeChannel != null) return;
+    final connectionKey = token;
+    if (_realtimeUrl == connectionKey && _realtimeChannel != null) return;
     _closeRealtime();
     try {
-      final channel = _realtimeConnector(Uri.parse(url));
+      final uri = await RealtimeTicketClient.instance.issueConnectionUri();
+      if (_disposed || !isEnabled || ApiClient().authToken?.trim() != token) {
+        return;
+      }
+      final channel = _realtimeConnector(uri);
       _realtimeChannel = channel;
-      _realtimeUrl = url;
+      _realtimeUrl = connectionKey;
       _realtimeSubscription = channel.stream.listen(
         _handleRealtimeMessage,
         onError: (error, stackTrace) {

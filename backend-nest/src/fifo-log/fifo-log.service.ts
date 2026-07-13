@@ -4,6 +4,7 @@ import { ADMIN_POLICY_CODES } from '../policy/policy.constants';
 import { PolicyService } from '../policy/policy.service';
 import { FifoLogType } from '@prisma/client';
 import { isAdminRole } from '../common/system-role';
+import { logFingerprint, safeLogError } from '../common/log-sanitizer';
 
 @Injectable()
 export class FifoLogService {
@@ -30,7 +31,9 @@ export class FifoLogService {
       });
 
       if (!user) {
-        this.logger.warn(`User not found for logging: ${userEmail}`);
+        this.logger.warn(
+          `FIFO log skipped: emailHash=${logFingerprint(userEmail)} reason=user_not_found`,
+        );
         return null;
       }
 
@@ -44,10 +47,12 @@ export class FifoLogService {
         },
       });
 
-      this.logger.log(`FIFO log created: ${type} by ${userEmail} — "${query}"`);
+      this.logger.log(
+        `FIFO log created: type=${type} userId=${user.id} queryHash=${logFingerprint(query)} queryLength=${query.length}`,
+      );
       return log;
     } catch (error) {
-      this.logger.error(`Failed to create FIFO log: ${error}`);
+      this.logger.error(`FIFO log creation failed: ${safeLogError(error)}`);
       return null; // Don't break the main flow
     }
   }

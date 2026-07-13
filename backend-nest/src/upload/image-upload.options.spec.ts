@@ -1,6 +1,7 @@
 import {
   avatarUploadOptions,
   getAvatarUploadMaxBytes,
+  getImageUploadAggregateMaxBytes,
   getImageUploadMaxBytes,
   IMAGE_UPLOAD_MAX_FILES,
   imageUploadOptions,
@@ -20,6 +21,20 @@ describe('imageUploadOptions', () => {
 
   it('defaults avatars to two MiB per file', () => {
     expect(getAvatarUploadMaxBytes({})).toBe(2 * megabyte);
+  });
+
+  it('caps the aggregate image request at thirty MiB', () => {
+    expect(getImageUploadAggregateMaxBytes({})).toBe(30 * megabyte);
+  });
+
+  it('spools image bodies to bounded disk storage instead of process memory', () => {
+    expect(imageUploadOptions.storage?.constructor.name).toBe('DiskStorage');
+    expect(avatarUploadOptions.storage?.constructor.name).toBe('DiskStorage');
+    expect(imageUploadOptions.limits).toMatchObject({
+      fields: 8,
+      files: IMAGE_UPLOAD_MAX_FILES,
+      parts: 28,
+    });
   });
 
   it('wires upload options to their current environment limits', () => {

@@ -1,101 +1,124 @@
-import { BadRequestException, Injectable, Logger } from '@nestjs/common';
-import * as fs from 'fs';
-import * as path from 'path';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  Logger,
+} from '@nestjs/common';
+import { isSuperAdminRole } from '../common/system-role';
 import { PrismaService } from '../prisma/prisma.service';
+import { getAvatarUploadMaxBytes } from './image-upload.options';
+import {
+  PRIVATE_MEDIA_OWNER,
+  PrivateMediaService,
+} from './private-media.service';
 
 @Injectable()
 export class UploadService {
   private readonly logger = new Logger(UploadService.name);
 
-  // Base directory for images.
-  private readonly baseDir = process.env.UPLOAD_BASE_DIR || '/data/app_images';
-  private readonly baseUrl =
-    process.env.IMAGE_BASE_URL || 'https://img.example.com';
-
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly privateMediaService: PrivateMediaService,
+  ) {}
 
   async saveWarrantyImages(
     receipt: string,
     files: Express.Multer.File[],
+    userId: string,
   ): Promise<string[]> {
-    const safeReceipt = this.getSafePathSegment(receipt, 'receipt');
-    const receiptDir = this.getPathInsideBase(safeReceipt);
+    const startedAt = Date.now();
+    const safeReceipt = this.getSafePathSegment(receipt, 'Mã biên nhận');
+    this.logger.log(
+      `Warranty image upload started: userId=${userId} receiptLength=${safeReceipt.length} fileCount=${files.length}`,
+    );
 
-    await fs.promises.mkdir(receiptDir, { recursive: true });
-
-    const links: string[] = [];
-
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i];
-      const ext = this.getSafeImageExtension(file.originalname);
-      const filename = `${safeReceipt}-${i}${ext}`;
-      const filePath = path.join(receiptDir, filename);
-
-      await fs.promises.writeFile(filePath, file.buffer);
-      links.push(`${this.baseUrl}/${safeReceipt}/${filename}`);
-
-      this.logger.log(`Saved image: ${filePath}`);
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, storeId: true, role: true },
+    });
+    if (!user) {
+      throw new ForbiddenException('Phiên làm việc không còn hợp lệ.');
     }
 
-    return links;
-  }
-
-  async upsertWarrantyRecord(receipt: string, links: string[], userId: string) {
-    const linksStr = this.getLinksString(links);
-
-    return this.prisma.warranty.upsert({
-      where: { receipt },
-      update: {
-        imageLinks: linksStr,
-      },
-      create: {
-        receipt,
-        imageLinks: linksStr,
-        createdById: userId,
+    const warranty = await this.prisma.warranty.upsert({
+      where: { receipt: safeReceipt },
+      update: {},
+      create: { receipt: safeReceipt, createdById: userId },
+      select: {
+        id: true,
+        createdById: true,
+        imageLinks: true,
+        createdBy: { select: { storeId: true } },
       },
     });
+    if (
+      !isSuperAdminRole(user.role) &&
+      (!user.storeId || warranty.createdBy.storeId !== user.storeId)
+    ) {
+      this.logger.warn(
+        `Warranty image upload denied: userId=${userId} warrantyId=${warranty.id} reason=store_scope`,
+      );
+      throw new ForbiddenException(
+        'Bạn không có quyền cập nhật ảnh cho biên nhận này.',
+      );
+    }
+
+    const urls = await this.privateMediaService.saveImages({
+      ownerFeature: PRIVATE_MEDIA_OWNER.WARRANTY,
+      ownerRecordId: warranty.id,
+      uploaderId: userId,
+      files,
+    });
+    try {
+      await this.prisma.warranty.update({
+        where: { id: warranty.id },
+        data: { imageLinks: this.getLinksString(urls) },
+      });
+    } catch (error) {
+      await this.privateMediaService.discardUrls(urls);
+      throw error;
+    }
+    const previousUrls = this.parseLinksString(warranty.imageLinks || '').filter(
+      (url) => !urls.includes(url),
+    );
+    await this.privateMediaService.discardUrls(previousUrls);
+
+    this.logger.log(
+      `Warranty image upload succeeded: userId=${userId} warrantyId=${warranty.id} fileCount=${urls.length} durationMs=${Date.now() - startedAt}`,
+    );
+    return urls;
   }
 
   async saveFeedbackImages(
     feedbackId: string,
     files: Express.Multer.File[],
+    uploaderId: string,
   ): Promise<string[]> {
-    const safeFeedbackId = this.getSafePathSegment(feedbackId, 'feedbackId');
-    const feedbackDir = this.getPathInsideBase('feedback', safeFeedbackId);
-
-    await fs.promises.mkdir(feedbackDir, { recursive: true });
-
-    const links: string[] = [];
-
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i];
-      const ext = this.getSafeImageExtension(file.originalname);
-      const filename = `${safeFeedbackId}-${i}${ext}`;
-      const filePath = path.join(feedbackDir, filename);
-
-      await fs.promises.writeFile(filePath, file.buffer);
-      links.push(`${this.baseUrl}/feedback/${safeFeedbackId}/${filename}`);
-
-      this.logger.log(`Saved feedback image: ${filePath}`);
-    }
-
-    return links;
+    const safeFeedbackId = this.getSafePathSegment(feedbackId, 'Mã góp ý');
+    return this.privateMediaService.saveImages({
+      ownerFeature: PRIVATE_MEDIA_OWNER.FEEDBACK,
+      ownerRecordId: safeFeedbackId,
+      uploaderId,
+      files,
+    });
   }
 
-  async saveUserAvatar(userId: string, file: Express.Multer.File): Promise<string> {
-    const safeUserId = this.getSafePathSegment(userId, 'userId');
-    const avatarDir = this.getPathInsideBase('avatars', safeUserId);
-
-    await fs.promises.mkdir(avatarDir, { recursive: true });
-
-    const ext = this.getSafeImageExtension(file.originalname);
-    const filename = `avatar-${Date.now()}${ext}`;
-    const filePath = path.join(avatarDir, filename);
-
-    await fs.promises.writeFile(filePath, file.buffer);
-    this.logger.log(`Saved avatar image: ${filePath}`);
-
-    return `${this.baseUrl}/avatars/${safeUserId}/${filename}`;
+  async saveUserAvatar(
+    userId: string,
+    file: Express.Multer.File,
+  ): Promise<string> {
+    const safeUserId = this.getSafePathSegment(userId, 'Mã người dùng');
+    const [url] = await this.privateMediaService.saveImages({
+      ownerFeature: PRIVATE_MEDIA_OWNER.AVATAR,
+      ownerRecordId: safeUserId,
+      uploaderId: safeUserId,
+      files: [file],
+      maxBytesPerFile: getAvatarUploadMaxBytes(),
+    });
+    if (!url) {
+      throw new BadRequestException('Vui lòng chọn ảnh đại diện.');
+    }
+    return url;
   }
 
   async saveHelpContentImage(
@@ -104,20 +127,9 @@ export class UploadService {
   ): Promise<string> {
     const safePageKey = this.getSafePathSegment(
       pageKey?.trim() || 'general',
-      'pageKey',
+      'Mã trang hướng dẫn',
     );
-    const helpDir = this.getPathInsideBase('help-content', safePageKey);
-
-    await fs.promises.mkdir(helpDir, { recursive: true });
-
-    const ext = this.getSafeImageExtension(file.originalname);
-    const filename = `${safePageKey}-${Date.now()}${ext}`;
-    const filePath = path.join(helpDir, filename);
-
-    await fs.promises.writeFile(filePath, file.buffer);
-    this.logger.log(`Saved help content image: ${filePath}`);
-
-    return `${this.baseUrl}/help-content/${safePageKey}/${filename}`;
+    return this.privateMediaService.savePublicHelpImage(safePageKey, file);
   }
 
   getLinksString(links: string[]): string {
@@ -132,37 +144,15 @@ export class UploadService {
       .filter((link) => link.length > 0);
   }
 
-  private getSafePathSegment(value: string, fieldName: string): string {
+  async discardPrivateMedia(urls: string[]) {
+    await this.privateMediaService.discardUrls(urls);
+  }
+
+  private getSafePathSegment(value: string, fieldLabel: string): string {
     const trimmed = value?.trim();
     if (!trimmed || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(trimmed)) {
-      throw new BadRequestException(`${fieldName} không hợp lệ`);
+      throw new BadRequestException(`${fieldLabel} không hợp lệ.`);
     }
     return trimmed;
-  }
-
-  private getPathInsideBase(...segments: string[]): string {
-    const basePath = path.resolve(this.baseDir);
-    const targetPath = path.resolve(basePath, ...segments);
-
-    if (
-      targetPath !== basePath &&
-      !targetPath.startsWith(basePath + path.sep)
-    ) {
-      throw new BadRequestException('Đường dẫn upload không hợp lệ');
-    }
-    return targetPath;
-  }
-
-  private getSafeImageExtension(filename: string): string {
-    const ext = path.extname(filename).toLowerCase();
-    const allowedExtensions = new Set([
-      '.jpg',
-      '.jpeg',
-      '.png',
-      '.webp',
-      '.heic',
-      '.heif',
-    ]);
-    return allowedExtensions.has(ext) ? ext : '.jpg';
   }
 }

@@ -470,10 +470,12 @@
       const pages = [];
       for (const item of Array.isArray(items) ? items : fallbackNavigation) {
         if (!item?.key || !item?.title || !item?.file) continue;
+        const file = String(item.file);
+        if (!isSafeHelpDocFile(file)) continue;
         pages.push({
           key: String(item.key),
           title: String(item.title),
-          file: String(item.file),
+          file,
           parentKey,
         });
         if (Array.isArray(item.children)) {
@@ -481,6 +483,12 @@
         }
       }
       return pages.length > 0 ? pages : flattenNavigation(fallbackNavigation);
+    }
+
+    function isSafeHelpDocFile(value) {
+      return /^[a-z0-9][a-z0-9._/-]*\.md$/i.test(value) &&
+        !value.startsWith('/') &&
+        !value.split('/').some((segment) => segment === '.' || segment === '..');
     }
 
     async function loadDoc(key, options = {}) {
@@ -620,8 +628,21 @@
     }
 
     function sanitizeUrl(value) {
-      const raw = value.replace(/&amp;/g, '&').trim();
-      if (/^(https?:|mailto:|tel:|\/|#)/i.test(raw)) return escapeAttribute(raw);
+      const raw = String(value ?? '').replace(/&amp;/g, '&').trim();
+      if (!raw || /[\u0000-\u001f\u007f]/.test(raw) || raw.startsWith('//')) return '#';
+      if (raw.startsWith('#')) return escapeAttribute(raw);
+      if (raw.startsWith('/')) return escapeAttribute(raw);
+      if (/^[a-z][a-z0-9+.-]*:/i.test(raw)) {
+        try {
+          const url = new URL(raw, window.location.origin);
+          if (url.protocol === 'https:' && url.origin === window.location.origin) {
+            return escapeAttribute(url.href);
+          }
+        } catch (_) {
+          return '#';
+        }
+        return '#';
+      }
       if (/^[a-z0-9._~!$&'()*+,;=:@/-]+$/i.test(raw)) {
         return escapeAttribute(`${helpBasePath}/${raw.replace(/^\.?\//, '')}`);
       }

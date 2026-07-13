@@ -4,14 +4,12 @@ describe('UploadController', () => {
   let controller: UploadController;
   let uploadService: {
     saveWarrantyImages: jest.Mock;
-    upsertWarrantyRecord: jest.Mock;
     getLinksString: jest.Mock;
   };
 
   beforeEach(() => {
     uploadService = {
       saveWarrantyImages: jest.fn(),
-      upsertWarrantyRecord: jest.fn(),
       getLinksString: jest.fn(),
     };
     controller = new UploadController(uploadService as any);
@@ -27,7 +25,6 @@ describe('UploadController', () => {
       'https://img.example.com/receipt/1.png',
     ];
     uploadService.saveWarrantyImages.mockResolvedValue(links);
-    uploadService.upsertWarrantyRecord.mockResolvedValue({ id: 'warranty-1' });
     uploadService.getLinksString.mockReturnValue(links.join(';'));
 
     await expect(
@@ -45,10 +42,6 @@ describe('UploadController', () => {
     expect(uploadService.saveWarrantyImages).toHaveBeenCalledWith(
       'CP01-J12345678',
       files,
-    );
-    expect(uploadService.upsertWarrantyRecord).toHaveBeenCalledWith(
-      'CP01-J12345678',
-      links,
       'user-1',
     );
   });

@@ -5,7 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
-import { createHash, randomBytes } from 'crypto';
+import { createHash, randomBytes, randomInt } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { OpshubMailService } from './opshub-mail.service';
 import { assertPasswordPolicy } from './password-policy';
@@ -49,10 +49,10 @@ export class PasswordResetService {
     });
 
     if (!user) {
-      this.logger.warn(`Password reset requested for missing email=${email}`);
-      throw new NotFoundException(
-        'Email này chưa có tài khoản PhongVu OpsHub. Vui lòng đăng ký tài khoản trước.',
+      this.logger.warn(
+        `Password reset request accepted without delivery: emailHash=${this.emailLogId(email)} reason=account_not_found`,
       );
+      return this.genericCodeResponse();
     }
 
     await this.sendResetCodeForUser(user);
@@ -63,7 +63,10 @@ export class PasswordResetService {
     email: string,
     code: string,
   ): Promise<{ ok: true; resetToken: string; expiresInMinutes: number }> {
-    this.logger.log(`Password reset code verification started: email=${email}`);
+    const emailHash = this.emailLogId(email);
+    this.logger.log(
+      `Password reset code verification started: emailHash=${emailHash}`,
+    );
     const record = await this.prisma.emailVerificationCode.findFirst({
       where: {
         email,
@@ -75,21 +78,21 @@ export class PasswordResetService {
 
     if (!record) {
       this.logger.warn(
-        `Password reset code verification failed: email=${email} reason=missing_code`,
+        `Password reset code verification failed: emailHash=${emailHash} reason=missing_code`,
       );
       throw new BadRequestException('Vui lòng gửi mã xác thực trước.');
     }
 
     if (record.expiresAt.getTime() < Date.now()) {
       this.logger.warn(
-        `Password reset code verification failed: email=${email} reason=expired`,
+        `Password reset code verification failed: emailHash=${emailHash} reason=expired`,
       );
       throw new BadRequestException('Mã xác thực đã hết hạn.');
     }
 
     if (record.attempts >= RESET_CODE_MAX_ATTEMPTS) {
       this.logger.warn(
-        `Password reset code verification failed: email=${email} reason=max_attempts attempts=${record.attempts}`,
+        `Password reset code verification failed: emailHash=${emailHash} reason=max_attempts attempts=${record.attempts}`,
       );
       throw new BadRequestException(
         'Mã xác thực đã bị khóa do nhập sai quá nhiều lần.',
@@ -103,7 +106,7 @@ export class PasswordResetService {
         data: { attempts: { increment: 1 } },
       });
       this.logger.warn(
-        `Password reset code verification failed: email=${email} reason=invalid_code attempts=${record.attempts + 1}`,
+        `Password reset code verification failed: emailHash=${emailHash} reason=invalid_code attempts=${record.attempts + 1}`,
       );
       throw new BadRequestException('Mã xác thực không đúng.');
     }
@@ -114,7 +117,7 @@ export class PasswordResetService {
     });
     if (!user) {
       this.logger.warn(
-        `Password reset code verification failed: email=${email} reason=missing_user_after_code`,
+        `Password reset code verification failed: emailHash=${emailHash} reason=missing_user_after_code`,
       );
       throw new BadRequestException('Không thể đổi mật khẩu cho email này.');
     }
@@ -150,7 +153,7 @@ export class PasswordResetService {
     });
 
     this.logger.log(
-      `Password reset code verified: userId=${user.id} email=${email}`,
+      `Password reset code verified: userId=${user.id} emailHash=${emailHash}`,
     );
     return {
       ok: true,
@@ -230,7 +233,7 @@ export class PasswordResetService {
     });
 
     this.logger.log(
-      `Password reset completed: userId=${record.userId} email=${record.email} source=${record.source}`,
+      `Password reset completed: userId=${record.userId} emailHash=${this.emailLogId(record.email)} source=${record.source}`,
     );
     return { ok: true };
   }
@@ -241,7 +244,7 @@ export class PasswordResetService {
     actor: ResetActor,
   ): Promise<{ ok: true }> {
     this.logger.log(
-      `Admin password reset started: actor=${actor.email || actor.id || 'unknown'} targetUserId=${userId}`,
+      `Admin password reset started: actor=${this.actorLogId(actor)} targetUserId=${userId}`,
     );
     assertPasswordPolicy(newPassword);
 
@@ -285,7 +288,7 @@ export class PasswordResetService {
     });
 
     this.logger.log(
-      `Admin password reset completed: actor=${actor.email || actor.id || 'unknown'} targetUserId=${user.id} email=${user.email} status=${user.status}`,
+      `Admin password reset completed: actor=${this.actorLogId(actor)} targetUserId=${user.id} emailHash=${this.emailLogId(user.email)} status=${user.status}`,
     );
     return { ok: true };
   }
@@ -337,7 +340,7 @@ export class PasswordResetService {
     });
 
     this.logger.log(
-      `Password reset code sent: userId=${user.id} email=${user.email}`,
+      `Password reset code sent: userId=${user.id} emailHash=${this.emailLogId(user.email)}`,
     );
   }
 
@@ -354,11 +357,21 @@ export class PasswordResetService {
   }
 
   private generateCode() {
-    return Math.floor(100000 + Math.random() * 900000).toString();
+    return randomInt(100000, 1_000_000).toString();
   }
 
   private hashToken(token: string) {
     return createHash('sha256').update(token).digest('hex');
+  }
+
+  private emailLogId(email: string) {
+    return createHash('sha256').update(email).digest('hex').slice(0, 12);
+  }
+
+  private actorLogId(actor: ResetActor) {
+    if (actor.id) return `userId:${actor.id}`;
+    if (actor.email) return `emailHash:${this.emailLogId(actor.email)}`;
+    return 'unknown';
   }
 
   private invalidTokenError() {

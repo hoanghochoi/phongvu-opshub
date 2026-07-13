@@ -8,14 +8,13 @@
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
+import { FEATURE_KEYS } from '../feature/feature.constants';
 import { ADMIN_POLICY_CODES } from '../policy/policy.constants';
 import { PolicyService } from '../policy/policy.service';
 
 const SUPER_ADMIN_ROLE = 'SUPER_ADMIN';
 
-type WarrantyReadScope =
-  | { kind: 'ALL' }
-  | { kind: 'STORE'; storeId: string };
+type WarrantyReadScope = { kind: 'ALL' } | { kind: 'STORE'; storeId: string };
 
 @Injectable()
 export class WarrantyService {
@@ -102,7 +101,9 @@ export class WarrantyService {
     );
 
     const warranty = await this.prisma.warranty.findFirst({
-      where: this.mergeWhere(this.scopeWhere(scope), { receipt: normalizedReceipt }),
+      where: this.mergeWhere(this.scopeWhere(scope), {
+        receipt: normalizedReceipt,
+      }),
       include: {
         createdBy: { select: { firstName: true } },
         handledBy: { select: { firstName: true } },
@@ -148,7 +149,12 @@ export class WarrantyService {
     return warranty;
   }
 
-  async updateWarrantyStatus(user: any, id: string, userId: string, status: any) {
+  async updateWarrantyStatus(
+    user: any,
+    id: string,
+    userId: string,
+    status: any,
+  ) {
     const scope = await this.resolveReadScope(user, 'updateStatus');
     this.logger.log(
       `Warranty status update started: warrantyId=${id} userId=${userId} scope=${this.scopeLogValue(scope)} status=${status}`,
@@ -156,7 +162,11 @@ export class WarrantyService {
 
     const existing = await this.prisma.warranty.findFirst({
       where: this.mergeWhere(this.scopeWhere(scope), { id }),
-      select: { id: true },
+      select: {
+        id: true,
+        createdById: true,
+        createdBy: { select: { store: { select: { storeId: true } } } },
+      },
     });
     if (!existing) {
       this.logger.warn(
@@ -170,11 +180,27 @@ export class WarrantyService {
       data: { status, handledById: userId },
     });
 
+    const occurredAt = new Date().toISOString();
+    const storeCode = existing.createdBy?.store?.storeId?.trim().toUpperCase();
     await this.redisService.publishMessage('WARRANTY_STATUS_UPDATED', {
-      warrantyId: id,
-      newStatus: status,
-      handledBy: userId,
-      timestamp: new Date().toISOString(),
+      schemaVersion: 1,
+      type: 'WARRANTY_EVENT',
+      eventId: 'warranty:' + id + ':' + occurredAt,
+      occurredAt,
+      audience: {
+        storeCodes: storeCode ? [storeCode] : [],
+        recipientUserIds: Array.from(
+          new Set([existing.createdById, userId].filter(Boolean)),
+        ),
+        roles: ['SUPER_ADMIN'],
+        featureCodes: [FEATURE_KEYS.WARRANTY],
+      },
+      payload: {
+        warrantyId: id,
+        newStatus: status,
+        handledBy: userId,
+        timestamp: occurredAt,
+      },
     });
 
     this.logger.log(
@@ -183,7 +209,10 @@ export class WarrantyService {
     return updated;
   }
 
-  private async resolveReadScope(user: any, source: string): Promise<WarrantyReadScope> {
+  private async resolveReadScope(
+    user: any,
+    source: string,
+  ): Promise<WarrantyReadScope> {
     if (user?.role === SUPER_ADMIN_ROLE) {
       return { kind: 'ALL' };
     }

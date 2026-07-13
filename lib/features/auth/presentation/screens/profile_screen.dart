@@ -14,6 +14,7 @@ import '../../../../app/widgets/app_inputs.dart';
 import '../../../../app/widgets/app_layout.dart';
 import '../../../../app/widgets/app_logout_confirmation_dialog.dart';
 import '../../../../core/logging/app_logger.dart';
+import '../../../../core/network/private_media_headers.dart';
 import '../../../../core/utils/validators.dart';
 import '../../domain/entities/user.dart';
 import '../providers/auth_provider.dart';
@@ -329,6 +330,9 @@ class _ProfileHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final hasRemoteAvatar =
+        avatarUrl != null &&
+        (avatarUrl!.startsWith('http://') || avatarUrl!.startsWith('https://'));
     return AppSurfaceCard(
       key: const Key('profile-header'),
       backgroundColor: AppColors.primarySurfaceOf(context),
@@ -341,11 +345,30 @@ class _ProfileHeader extends StatelessWidget {
             children: [
               CircleAvatar(
                 radius: 44,
-                backgroundImage:
-                    avatarUrl != null && avatarUrl!.startsWith('http')
-                    ? NetworkImage(avatarUrl!)
+                backgroundImage: hasRemoteAvatar
+                    ? NetworkImage(
+                        avatarUrl!,
+                        headers: privateMediaHeaders(avatarUrl!),
+                      )
                     : null,
-                child: avatarUrl == null
+                onBackgroundImageError: hasRemoteAvatar
+                    ? (error, stackTrace) {
+                        unawaited(
+                          AppLogger.instance.warn(
+                            'Profile',
+                            'Profile avatar image load failed',
+                            context: {
+                              'protectedMedia': isProtectedPrivateMediaUrl(
+                                avatarUrl!,
+                              ),
+                              'urlLength': avatarUrl!.length,
+                              'errorType': error.runtimeType.toString(),
+                            },
+                          ),
+                        );
+                      }
+                    : null,
+                child: !hasRemoteAvatar
                     ? Text(
                         _profileInitial(user),
                         style: AppTextStyles.headingM.copyWith(

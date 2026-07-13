@@ -21,4 +21,18 @@ void main() {
     expect(context['environment'], isA<String>());
     expect(context['reason'], 'websocket-close');
   });
+
+  test('app log upload payload removes personal data and URL queries', () {
+    final body = AppLogger.instance.buildUploadBodyForTesting(
+      'warn',
+      'Auth',
+      'Request failed https://api.example.test/login?email=staff@example.com',
+      context: {'email': 'staff@example.com', 'customerPhone': '0900000000'},
+    );
+
+    expect(body['message'], contains('?[redacted-query]'));
+    final context = body['context'] as Map<String, Object?>;
+    expect(context['email'], '[redacted-pii]');
+    expect(context['customerPhone'], '[redacted-pii]');
+  });
 }

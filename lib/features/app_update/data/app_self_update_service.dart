@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:crypto/crypto.dart';
@@ -13,21 +14,38 @@ import 'app_update_service.dart';
 
 typedef AppUpdatePackageInstaller =
     Future<void> Function(AppUpdateInstallRequest request);
+typedef AppUpdatePackageVerifier =
+    Future<void> Function(AppUpdateInstallRequest request);
 typedef AppUpdateTempDirectoryProvider = Future<Directory> Function();
 
 class AppSelfUpdateService {
   AppSelfUpdateService({
     http.Client? httpClient,
     AppUpdatePackageInstaller? installer,
+    AppUpdatePackageVerifier? packageVerifier,
     AppUpdateTempDirectoryProvider? tempDirectoryProvider,
+    int maxPackageBytes = 512 * 1024 * 1024,
+    Duration overallDownloadTimeout = const Duration(minutes: 15),
   }) : _httpClient = httpClient ?? http.Client(),
        _installer = installer ?? _installPackage,
-       _tempDirectoryProvider = tempDirectoryProvider ?? getTemporaryDirectory;
+       _packageVerifier = packageVerifier ?? _verifyPlatformPackage,
+       _tempDirectoryProvider = tempDirectoryProvider ?? getTemporaryDirectory,
+       _maxPackageBytes = maxPackageBytes,
+       _overallDownloadTimeout = overallDownloadTimeout;
 
   static const _androidChannel = MethodChannel('phongvu_opshub/app_update');
   static const _connectTimeout = Duration(seconds: 30);
   static const _chunkTimeout = Duration(minutes: 5);
+  static const _signatureCheckTimeout = Duration(seconds: 30);
+  static const _trustedPackageHost = 'opshub.hoanghochoi.com';
+  static const _trustedPackagePathPrefixes = <String>[
+    '/downloads/',
+    '/staging-download/downloads/',
+  ];
   static const _windowsRelaunchArg = '/OPSHUBRELAUNCH=1';
+  static const _windowsUpdateSignerSha256 = String.fromEnvironment(
+    'WINDOWS_UPDATE_SIGNER_SHA256',
+  );
   static const _defaultWindowsInstallerArgs = [
     '/VERYSILENT',
     '/SUPPRESSMSGBOXES',
@@ -38,7 +56,10 @@ class AppSelfUpdateService {
 
   final http.Client _httpClient;
   final AppUpdatePackageInstaller _installer;
+  final AppUpdatePackageVerifier _packageVerifier;
   final AppUpdateTempDirectoryProvider _tempDirectoryProvider;
+  final int _maxPackageBytes;
+  final Duration _overallDownloadTimeout;
 
   Future<void> downloadAndInstall(
     AppUpdateCheckResult result, {
@@ -57,10 +78,20 @@ class AppSelfUpdateService {
     }
 
     final packageUri = Uri.tryParse(info.packageUrl);
-    if (packageUri == null ||
-        (packageUri.scheme != 'https' && packageUri.scheme != 'http')) {
+    if (packageUri == null || !_isTrustedPackageUri(packageUri)) {
       throw const AppSelfUpdateException(
-        'Đường dẫn gói cập nhật không hợp lệ. Vui lòng báo quản trị viên.',
+        'Gói cập nhật không đến từ máy chủ tin cậy. Vui lòng báo quản trị viên.',
+      );
+    }
+    _validatePackageContract(info, packageUri);
+    if (_maxPackageBytes <= 0) {
+      throw const AppSelfUpdateException(
+        'Giới hạn tải bản cập nhật chưa được cấu hình an toàn.',
+      );
+    }
+    if (info.packageSizeBytes > _maxPackageBytes) {
+      throw const AppSelfUpdateException(
+        'Gói cập nhật vượt quá dung lượng an toàn. Vui lòng báo quản trị viên.',
       );
     }
 
@@ -81,6 +112,13 @@ class AppSelfUpdateService {
       );
       final file = await _downloadPackage(info, packageUri, onProgress);
       await _verifyPackage(info, file, onProgress);
+      final installRequest = AppUpdateInstallRequest(
+        platform: info.platform,
+        packageType: info.packageType,
+        filePath: file.path,
+        installerArgs: _installerArgsFor(info),
+      );
+      await _packageVerifier(installRequest);
       _emit(
         onProgress,
         const AppSelfUpdateProgress(
@@ -88,14 +126,7 @@ class AppSelfUpdateService {
           message: 'Đang mở trình cài đặt...',
         ),
       );
-      await _installer(
-        AppUpdateInstallRequest(
-          platform: info.platform,
-          packageType: info.packageType,
-          filePath: file.path,
-          installerArgs: _installerArgsFor(info),
-        ),
-      );
+      await _installer(installRequest);
       await AppLogger.instance.info(
         'AppSelfUpdate',
         'Self-update installer launched',
@@ -154,6 +185,7 @@ class AppSelfUpdateService {
     if (await file.exists()) await file.delete();
 
     final request = http.Request('GET', packageUri);
+    request.followRedirects = false;
     final response = await _httpClient.send(request).timeout(_connectTimeout);
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw AppSelfUpdateException(
@@ -162,14 +194,35 @@ class AppSelfUpdateService {
     }
 
     final responseLength = response.contentLength ?? 0;
+    if (responseLength > _maxPackageBytes) {
+      throw const AppSelfUpdateException(
+        'Gói cập nhật vượt quá dung lượng an toàn. Đã dừng tải xuống.',
+      );
+    }
+    if (info.packageSizeBytes > 0 &&
+        responseLength > 0 &&
+        responseLength != info.packageSizeBytes) {
+      throw const AppSelfUpdateException(
+        'Dung lượng gói cập nhật không khớp thông tin phát hành.',
+      );
+    }
     final totalBytes = info.packageSizeBytes > 0
         ? info.packageSizeBytes
         : responseLength;
     var receivedBytes = 0;
+    final downloadStartedAt = DateTime.now();
     final output = await file.open(mode: FileMode.write);
+    var downloadCompleted = false;
     try {
       await for (final chunk in response.stream.timeout(_chunkTimeout)) {
         receivedBytes += chunk.length;
+        if (receivedBytes > _maxPackageBytes ||
+            DateTime.now().difference(downloadStartedAt) >
+                _overallDownloadTimeout) {
+          throw const AppSelfUpdateException(
+            'Gói cập nhật tải quá lâu hoặc vượt dung lượng an toàn. Đã dừng tải xuống.',
+          );
+        }
         await output.writeFrom(chunk);
         _emit(
           onProgress,
@@ -181,8 +234,10 @@ class AppSelfUpdateService {
           ),
         );
       }
+      downloadCompleted = true;
     } finally {
       await output.close();
+      if (!downloadCompleted && await file.exists()) await file.delete();
     }
 
     if (info.packageSizeBytes > 0 && receivedBytes != info.packageSizeBytes) {
@@ -269,6 +324,75 @@ class AppSelfUpdateService {
     );
   }
 
+  static Future<void> _verifyPlatformPackage(
+    AppUpdateInstallRequest request,
+  ) async {
+    if (request.platform.toLowerCase() != 'windows') return;
+    if (!Platform.isWindows) {
+      throw const AppSelfUpdateException(
+        'Không thể xác minh chữ ký gói Windows trên thiết bị này.',
+      );
+    }
+    final trustedSigners = _windowsUpdateSignerSha256
+        .split(RegExp(r'[,;\s]+'))
+        .map(
+          (value) =>
+              value.replaceAll(RegExp(r'[^0-9A-Fa-f]'), '').toUpperCase(),
+        )
+        .where((value) => value.length == 64)
+        .toSet();
+    if (trustedSigners.isEmpty) {
+      throw const AppSelfUpdateException(
+        'Ứng dụng chưa có chứng thư tin cậy để tự cập nhật Windows. Vui lòng báo quản trị viên.',
+      );
+    }
+
+    const script = r'''
+$ErrorActionPreference = 'Stop'
+$signature = Get-AuthenticodeSignature -LiteralPath $args[0]
+if ($signature.Status -ne 'Valid' -or $null -eq $signature.SignerCertificate) { exit 11 }
+$algorithm = [System.Security.Cryptography.HashAlgorithmName]::SHA256
+[Console]::Out.Write($signature.SignerCertificate.GetCertHashString($algorithm))
+''';
+    Process? process;
+    try {
+      process = await Process.start('powershell.exe', [
+        '-NoLogo',
+        '-NoProfile',
+        '-NonInteractive',
+        '-ExecutionPolicy',
+        'Bypass',
+        '-Command',
+        script,
+        request.filePath,
+      ]);
+      final stdoutFuture = process.stdout.transform(utf8.decoder).join();
+      final stderrFuture = process.stderr.drain<void>();
+      final exitCode = await process.exitCode.timeout(_signatureCheckTimeout);
+      final signer = (await stdoutFuture)
+          .replaceAll(RegExp(r'[^0-9A-Fa-f]'), '')
+          .toUpperCase();
+      await stderrFuture;
+      if (exitCode != 0 || !trustedSigners.contains(signer)) {
+        throw const AppSelfUpdateException(
+          'Chữ ký gói cập nhật Windows không đúng nhà phát hành tin cậy. Đã dừng cài đặt.',
+        );
+      }
+    } on AppSelfUpdateException {
+      rethrow;
+    } on TimeoutException {
+      process?.kill();
+      throw const AppSelfUpdateException(
+        'Kiểm tra chữ ký gói cập nhật quá thời gian. Đã dừng cài đặt.',
+      );
+    } catch (_) {
+      process?.kill();
+      throw const AppSelfUpdateException(
+        'Chưa xác minh được chữ ký gói cập nhật Windows. Đã dừng cài đặt.',
+      );
+    }
+  }
+
   static String _messageForNativeInstaller(PlatformException error) {
     if (error.code == 'INSTALL_PERMISSION_REQUIRED') {
       return 'Vui lòng cho phép OpsHub cài bản cập nhật, rồi quay lại bấm Cập nhật lần nữa.';
@@ -294,6 +418,36 @@ class AppSelfUpdateService {
       return 'opshub-update-${info.latestBuild}.${info.platform == 'android' ? 'apk' : 'exe'}';
     }
     return sanitized;
+  }
+
+  static void _validatePackageContract(AppUpdateInfo info, Uri packageUri) {
+    final platform = info.platform.trim().toLowerCase();
+    final packageType = info.packageType.trim().toLowerCase();
+    final path = packageUri.path.toLowerCase();
+    if (platform == 'windows' &&
+        (packageType != 'windowsinstaller' || !path.endsWith('.exe'))) {
+      throw const AppSelfUpdateException(
+        'Gói cập nhật Windows không đúng định dạng được phép.',
+      );
+    }
+    if (platform == 'android' &&
+        (packageType != 'apk' || !path.endsWith('.apk'))) {
+      throw const AppSelfUpdateException(
+        'Gói cập nhật Android không đúng định dạng được phép.',
+      );
+    }
+  }
+
+  static bool _isTrustedPackageUri(Uri uri) {
+    if (uri.scheme.toLowerCase() != 'https' ||
+        uri.host.toLowerCase() != _trustedPackageHost ||
+        uri.port != 443 ||
+        uri.userInfo.isNotEmpty ||
+        uri.fragment.isNotEmpty ||
+        uri.pathSegments.any((segment) => segment == '.' || segment == '..')) {
+      return false;
+    }
+    return _trustedPackagePathPrefixes.any(uri.path.startsWith);
   }
 
   static Map<String, Object?> _logContext(AppUpdateCheckResult result) {

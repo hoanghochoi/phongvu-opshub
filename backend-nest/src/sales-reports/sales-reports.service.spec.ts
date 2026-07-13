@@ -721,6 +721,17 @@ describe('SalesReportsService', () => {
     const oldLookback = process.env.ERP_ORDER_CACHE_SYNC_LOOKBACK_DAYS;
     delete process.env.ERP_ORDER_CACHE_SYNC_ENABLED;
     process.env.ERP_ORDER_CACHE_SYNC_LOOKBACK_DAYS = '1';
+    const order = erpListOrderFixture();
+    erp.listRecentOrders.mockResolvedValueOnce([
+      {
+        ...order,
+        sanitizedSnapshot: {
+          ...order.sanitizedSnapshot,
+          createdFromSiteDisplayName:
+            '[CP62] ĐỊA ĐIỂM KINH DOANH 02 - CÔNG TY CỔ PHẦN THƯƠNG MẠI - DỊCH VỤ PHONG VŨ',
+        },
+      },
+    ]);
 
     try {
       const result = await service.syncScheduledErpOrderCache('test');
@@ -1070,7 +1081,7 @@ describe('SalesReportsService', () => {
     }
   });
 
-  it('maps the ERP creator to the assigned user and store during scheduled sync', async () => {
+  it('maps the ERP creator to the source user without using the owner store during scheduled sync', async () => {
     const { service, prisma, erp } = createHarness();
     const oldEnabled = process.env.ERP_ORDER_CACHE_SYNC_ENABLED;
     const oldLookback = process.env.ERP_ORDER_CACHE_SYNC_LOOKBACK_DAYS;
@@ -1129,15 +1140,16 @@ describe('SalesReportsService', () => {
           create: expect.objectContaining({
             sourceUserId: 'sale-cp01',
             sourceUserEmail: 'sale.cp01@phongvu.vn',
-            storeCode: 'CP01',
-            storeName: 'Phong Vu CP01',
-            organizationNodeId: 'node-cp01',
+            storeCode: null,
+            storeName: null,
+            organizationNodeId: null,
           }),
           update: expect.objectContaining({
             sourceUserId: 'sale-cp01',
             sourceUserEmail: 'sale.cp01@phongvu.vn',
-            storeCode: 'CP01',
-            organizationNodeId: 'node-cp01',
+            storeCode: null,
+            storeName: null,
+            organizationNodeId: null,
           }),
         }),
       );
@@ -1155,7 +1167,7 @@ describe('SalesReportsService', () => {
     }
   });
 
-  it('uses ERP siteDisplayName store over mapped owner store during scheduled sync', async () => {
+  it('does not map a store from siteDisplayName or owner during scheduled sync', async () => {
     const { service, prisma, erp } = createHarness();
     const oldEnabled = process.env.ERP_ORDER_CACHE_SYNC_ENABLED;
     const oldLookback = process.env.ERP_ORDER_CACHE_SYNC_LOOKBACK_DAYS;
@@ -1190,54 +1202,33 @@ describe('SalesReportsService', () => {
         organizationAssignments: [],
       },
     ]);
-    prisma.store.findMany.mockResolvedValueOnce([
-      {
-        storeId: 'CP72',
-        storeName: 'Phong Vu CP72',
-        organizationNodeId: 'node-cp72',
-      },
-      {
-        storeId: 'CP75',
-        storeName: 'Phong Vu CP75',
-        organizationNodeId: 'node-cp75',
-      },
-    ]);
-
     try {
       await service.syncScheduledErpOrderCache('test-site-display-store');
 
-      expect(prisma.store.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: {
-            storeId: {
-              in: expect.arrayContaining(['CP72', 'CP75']),
-            },
-          },
-        }),
-      );
+      expect(prisma.store.findMany).not.toHaveBeenCalled();
       expect(prisma.salesReportErpOrderCache.upsert).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { orderCode: '26071132604790' },
           create: expect.objectContaining({
             sourceUserId: 'manager-cp75',
             sourceUserEmail: 'hoang.nv1@phongvu-mna.vn',
-            storeCode: 'CP72',
-            storeName: 'Phong Vu CP72',
-            organizationNodeId: 'node-cp72',
+            storeCode: null,
+            storeName: null,
+            organizationNodeId: null,
           }),
           update: expect.objectContaining({
             sourceUserId: 'manager-cp75',
             sourceUserEmail: 'hoang.nv1@phongvu-mna.vn',
-            storeCode: 'CP72',
-            storeName: 'Phong Vu CP72',
-            organizationNodeId: 'node-cp72',
+            storeCode: null,
+            storeName: null,
+            organizationNodeId: null,
           }),
         }),
       );
       expect(
         prisma.salesReportErpOrderCache.upsert.mock.calls[0][0].create
           .storeCode,
-      ).not.toBe('CP75');
+      ).toBeNull();
     } finally {
       if (oldEnabled === undefined) {
         delete process.env.ERP_ORDER_CACHE_SYNC_ENABLED;
@@ -1252,7 +1243,7 @@ describe('SalesReportsService', () => {
     }
   });
 
-  it('backfills missing store scope from an existing mapped user during scheduled sync', async () => {
+  it('does not backfill store scope from an existing mapped user during scheduled sync', async () => {
     const redis = {
       publishMessage: jest.fn().mockResolvedValue(undefined),
     };
@@ -1314,7 +1305,7 @@ describe('SalesReportsService', () => {
         skipped: false,
         count: 1,
         newOrderCount: 0,
-        mappedOrderCount: 1,
+        mappedOrderCount: 0,
       });
       expect(prisma.user.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -1332,21 +1323,13 @@ describe('SalesReportsService', () => {
           update: expect.objectContaining({
             sourceUserId: 'sale-cp01',
             sourceUserEmail: 'sale.cp01@phongvu.vn',
-            storeCode: 'CP01',
-            storeName: 'Phong Vu CP01',
-            organizationNodeId: 'node-cp01',
+            storeCode: null,
+            storeName: null,
+            organizationNodeId: null,
           }),
         }),
       );
-      expect(redis.publishMessage).toHaveBeenCalledWith(
-        'SALES_REPORT_ORDERS_UPDATED',
-        expect.objectContaining({
-          newOrderCount: 0,
-          mappedOrderCount: 1,
-          storeCodes: ['CP01'],
-          recipientUserIds: ['sale-cp01'],
-        }),
-      );
+      expect(redis.publishMessage).not.toHaveBeenCalled();
     } finally {
       if (oldEnabled === undefined) {
         delete process.env.ERP_ORDER_CACHE_SYNC_ENABLED;
@@ -1361,7 +1344,7 @@ describe('SalesReportsService', () => {
     }
   });
 
-  it('does not erase an existing cache owner or store when ERP mapping is missing', async () => {
+  it('clears cache store mapping when createdFromSiteDisplayName is missing', async () => {
     const { service, prisma, erp } = createHarness();
     const oldEnabled = process.env.ERP_ORDER_CACHE_SYNC_ENABLED;
     const oldLookback = process.env.ERP_ORDER_CACHE_SYNC_LOOKBACK_DAYS;
@@ -1388,8 +1371,13 @@ describe('SalesReportsService', () => {
       expect(upsert.create).toEqual(
         expect.objectContaining({ storeCode: null, sourceUserEmail: null }),
       );
-      expect(upsert.update).not.toHaveProperty('storeCode');
-      expect(upsert.update).not.toHaveProperty('organizationNodeId');
+      expect(upsert.update).toEqual(
+        expect.objectContaining({
+          storeCode: null,
+          storeName: null,
+          organizationNodeId: null,
+        }),
+      );
       expect(upsert.update).not.toHaveProperty('sourceUserEmail');
       expect(upsert.update).not.toHaveProperty('consultantEmail');
     } finally {

@@ -3,6 +3,7 @@
   IsObject,
   IsOptional,
   IsString,
+  Matches,
   MaxLength,
 } from 'class-validator';
 
@@ -68,6 +69,9 @@ export class CreateAppLogDto {
 
   @IsString()
   @MaxLength(80)
+  @Matches(/^[A-Za-z][A-Za-z0-9_.:-]*$/, {
+    message: 'Nguồn log không hợp lệ. Vui lòng cập nhật ứng dụng và thử lại.',
+  })
   source!: string;
 
   @IsString()

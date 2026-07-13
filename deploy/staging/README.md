@@ -21,7 +21,10 @@ production `/download` page.
    bash deploy/staging/bootstrap.sh
    ```
 
-3. Edit `/srv/opshub-staging/env`; replace every placeholder and keep secrets staging-only.
+3. Edit `/srv/opshub-staging/env`; replace every placeholder and keep secrets
+   staging-only. Keep the file owned by `root:<operator-group>` with mode `0640`.
+   Store `STAGING_TEST_PASSWORD` only in this protected env file (or an approved
+   secret manager), never in a command line, shell history, issue or document.
 
 4. In Cloudflare, create a dedicated tunnel named `opshub-staging`, then install
    the tunnel service on `mementoamoris`. If `~/.cloudflared/cert.pem` is
@@ -90,15 +93,25 @@ Refreshing staging from production is manual and destructive to staging only.
 It streams the production dump through SSH without writing the raw dump to disk
 on the Windows machine.
 
+First rotate `STAGING_TEST_PASSWORD` in `/srv/opshub-staging/env`, then run:
+
 ```bash
-STAGING_TEST_PASSWORD='<known staging password>' \
-  bash deploy/staging/refresh-sanitized-db.sh --confirm-staging-refresh
+bash deploy/staging/refresh-sanitized-db.sh --confirm-staging-refresh
 ```
+
+The refresh script reads the secret inside the API container through the
+protected runtime env file. It deliberately does not accept or forward the
+password on the local command line.
 
 The sanitizer creates these known users with the password above:
 
 - `staging.admin@phongvu.vn`
 - `staging.staff@phongvu.vn`
 - `staging.acare@acare.vn`
+
+Rotate the staging password and revoke test sessions after every shared test
+window. Before exposing this environment, place the hostname behind Cloudflare
+Access, VPN or an equivalent identity-aware allowlist; DNS plus a tunnel alone
+is not an access-control boundary.
 
 After deploy or refresh, run `deploy/staging/smoke-checklist.md`.

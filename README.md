@@ -25,6 +25,8 @@ If `API_BASE_URL` is not provided, the app falls back to the LAN development URL
 ## Backend
 
 ```bash
+copy .env.example .env
+# Replace both local password placeholders in .env before continuing.
 docker compose up -d
 
 cd backend-nest
@@ -33,6 +35,11 @@ npm install
 npm run build
 npm run start:dev
 ```
+
+The local database and Redis ports bind only to `127.0.0.1`. Keep the
+PostgreSQL/Redis passwords in the ignored local `.env` files synchronized with
+the values used by the Nest and Go processes; never reuse staging or production
+credentials.
 
 The NestJS service needs PostgreSQL, Redis, auth, and BigQuery environment variables. Do not commit real `.env` files or service-account JSON.
 

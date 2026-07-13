@@ -13,6 +13,9 @@ describe('AuthController', () => {
     logout: jest.Mock;
     getUserData: jest.Mock;
   };
+  let realtimeTicketService: {
+    issueTicket: jest.Mock;
+  };
 
   const loginDevice = {
     platform: 'windows',
@@ -31,7 +34,13 @@ describe('AuthController', () => {
       logout: jest.fn(),
       getUserData: jest.fn(),
     };
-    controller = new AuthController(authService as any);
+    realtimeTicketService = {
+      issueTicket: jest.fn(),
+    };
+    controller = new AuthController(
+      authService as any,
+      realtimeTicketService as any,
+    );
   });
 
   it('delegates password login with submitted credentials', async () => {
@@ -169,6 +178,28 @@ describe('AuthController', () => {
       id: 'user-1',
       authSession: { sessionId: 'session-1' },
     });
+  });
+
+  it('issues a realtime ticket for the authenticated session and requested store', async () => {
+    realtimeTicketService.issueTicket.mockResolvedValue({
+      ticket: 'one-time-ticket',
+      expiresInSeconds: 45,
+    });
+    const user = {
+      id: 'user-1',
+      authSession: { sessionId: 'session-1' },
+    };
+
+    await expect(
+      controller.issueRealtimeTicket({ user }, { storeCode: 'CP01' }),
+    ).resolves.toEqual({
+      ticket: 'one-time-ticket',
+      expiresInSeconds: 45,
+    });
+    expect(realtimeTicketService.issueTicket).toHaveBeenCalledWith(
+      user,
+      'CP01',
+    );
   });
 
   it('loads the current JWT user by email', async () => {

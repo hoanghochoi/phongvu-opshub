@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
+import { createHash, randomInt } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { OpshubMailService } from './opshub-mail.service';
 
@@ -36,7 +37,13 @@ export class EmailVerificationService {
       subject: 'Mã xác thực đăng ký PhongVu OpsHub',
       text: `Mã xác thực PhongVu OpsHub của bạn là ${code}. Mã hết hạn sau ${CODE_TTL_MINUTES} phút.`,
     });
-    this.logger.log(`Registration verification email sent to ${email}`);
+    this.logger.log(
+      `Registration verification email sent: emailHash=${this.emailLogId(email)}`,
+    );
+    return this.registrationCodeResponse();
+  }
+
+  registrationCodeResponse() {
     return {
       ok: true,
       expiresInMinutes: CODE_TTL_MINUTES,
@@ -83,6 +90,10 @@ export class EmailVerificationService {
   }
 
   private generateCode() {
-    return Math.floor(100000 + Math.random() * 900000).toString();
+    return randomInt(100000, 1_000_000).toString();
+  }
+
+  private emailLogId(email: string) {
+    return createHash('sha256').update(email).digest('hex').slice(0, 12);
   }
 }

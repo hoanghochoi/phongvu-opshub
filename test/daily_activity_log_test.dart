@@ -26,7 +26,7 @@ void main() {
 
     test('redacts sensitive values before building upload context', () {
       final summary = buildDailyActivityLogSummary(const [
-        '{"ts":"2026-05-29T10:00:00.000","level":"error","source":"Auth","message":"Login crashed for staff@example.com Bearer abc.def","context":{"password":"secret","token":"abc","path":"C:\\\\Users\\\\Alice\\\\AppData\\\\Local"}}',
+        '{"ts":"2026-05-29T10:00:00.000","level":"error","source":"Auth","message":"Login crashed for staff@example.com Bearer abc.def https://api.example.test/path?token=abc","context":{"password":"secret","token":"abc","email":"staff@example.com","customerPhone":"0900000000","path":"C:\\\\Users\\\\Alice\\\\AppData\\\\Local"}}',
       ], targetDate: DateTime(2026, 5, 29));
 
       final context = summary.toContext(platform: 'windows');
@@ -36,8 +36,11 @@ void main() {
 
       expect(sample['message'], contains('[redacted-email]'));
       expect(sample['message'], contains('Bearer [redacted]'));
+      expect(sample['message'], contains('?[redacted-query]'));
       expect(sampleContext['password'], '[redacted]');
       expect(sampleContext['token'], '[redacted]');
+      expect(sampleContext['email'], '[redacted-pii]');
+      expect(sampleContext['customerPhone'], '[redacted-pii]');
       expect(sampleContext['path'], r'C:\Users\[user]\AppData\Local');
       expect(context['rawLogIncluded'], isFalse);
     });

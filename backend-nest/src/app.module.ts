@@ -34,6 +34,12 @@ import { SalesTargetsModule } from './sales-targets/sales-targets.module';
     ThrottlerModule.forRoot({
       throttlers: [
         {
+          name: 'ip',
+          ttl: 60_000,
+          limit: 120,
+        },
+        {
+          name: 'principal',
           ttl: 60_000,
           limit: 120,
         },

@@ -14,6 +14,7 @@ import {
   organizationNodeStoreTreeInclude,
   storesForOrganizationNodeTree,
 } from '../common/organization-store-scope';
+import { logFingerprint } from '../common/log-sanitizer';
 import { isSuperAdminRole } from '../common/system-role';
 import { FEATURE_KEYS } from '../feature/feature.constants';
 import { FeatureService } from '../feature/feature.service';
@@ -1293,8 +1294,7 @@ export class SalesReportsService implements OnApplicationBootstrap {
       grandTotal,
     );
     const storeCode = this.normalizeStoreCode(
-      this.authoritativeStoreCodeForCache(order.sanitizedSnapshot) ??
-        order.storeCode,
+      this.authoritativeStoreCodeForCache(order.sanitizedSnapshot),
     );
     const storeByCode = storeCode
       ? await this.storesByCode([storeCode])
@@ -1318,11 +1318,9 @@ export class SalesReportsService implements OnApplicationBootstrap {
       fetchedAt: order.fetchedAt,
       sanitizedSnapshot: order.sanitizedSnapshot as Prisma.InputJsonValue,
       ...(grandTotal === null ? {} : { grandTotal }),
-      ...(storeCode ? { storeCode } : {}),
-      ...(storeName ? { storeName } : {}),
-      ...(store?.organizationNodeId
-        ? { organizationNodeId: store.organizationNodeId }
-        : {}),
+      storeCode,
+      storeName,
+      organizationNodeId: store?.organizationNodeId ?? null,
       ...(exclusion.excludedAt
         ? {
             excludedAt: exclusion.excludedAt,
@@ -2080,10 +2078,8 @@ export class SalesReportsService implements OnApplicationBootstrap {
               order.sanitizedSnapshot,
               existingRow?.sanitizedSnapshot,
             ),
-            order.storeCode ?? context.storeCode,
           ];
         }),
-        ...Array.from(ownerByEmail.values()).map((owner) => owner.storeCode),
       ].filter((code: string | null): code is string => Boolean(code)),
     );
     let ownerMappedCount = 0;
@@ -2112,25 +2108,22 @@ export class SalesReportsService implements OnApplicationBootstrap {
         this.authoritativeStoreCodeForCache(
           order.sanitizedSnapshot,
           existingRow?.sanitizedSnapshot,
-        ) ??
-          order.storeCode ??
-          owner?.storeCode,
+        ),
       );
       if (mappedStoreCode) storeMappedCount += 1;
       const mappedStore = mappedStoreCode
         ? storeByCode.get(mappedStoreCode)
         : null;
-      const mappedOrganizationNodeId =
-        mappedStore?.organizationNodeId ??
-        (mappedStoreCode === owner?.storeCode
-          ? owner.organizationNodeId
-          : null) ??
-        context.organizationNodeId;
+      const mappedOrganizationNodeId = mappedStore?.organizationNodeId ?? null;
+      const storeMappingChanged =
+        existingRow &&
+        (this.normalizeStoreCode(existingRow.storeCode) !== mappedStoreCode ||
+          (existingRow.organizationNodeId ?? null) !==
+            mappedOrganizationNodeId);
       const mappingBackfilled =
         !isNew &&
         Boolean(
-          (!existingRow?.storeCode && mappedStoreCode) ||
-          (!existingRow?.organizationNodeId && mappedOrganizationNodeId) ||
+          storeMappingChanged ||
           (!existingRow?.sourceUserId && owner?.id) ||
           (!existingRow?.sourceUserEmail && owner?.email),
         );
@@ -2366,9 +2359,8 @@ export class SalesReportsService implements OnApplicationBootstrap {
       sellerName: null,
       sellerEmail: null,
       storeCode:
-        this.authoritativeStoreCodeForCache(erpOrder.sanitizedSnapshot) ??
-        context.storeCode,
-      storeName: context.storeName,
+        this.authoritativeStoreCodeForCache(erpOrder.sanitizedSnapshot) ?? null,
+      storeName: null,
       sanitizedSnapshot: erpOrder.sanitizedSnapshot,
       fetchedAt: erpOrder.fetchedAt,
     };
@@ -2439,12 +2431,7 @@ export class SalesReportsService implements OnApplicationBootstrap {
       order.sanitizedSnapshot,
       options.existingCacheRow?.sanitizedSnapshot,
     );
-    const storeCode = this.normalizeStoreCode(
-      sourceOfTruthStoreCode ??
-        order.storeCode ??
-        syncOwner?.storeCode ??
-        context.storeCode,
-    );
+    const storeCode = this.normalizeStoreCode(sourceOfTruthStoreCode);
     const store = storeCode ? storeByCode.get(storeCode) : null;
     const orderCreatedAt = this.cacheOrderCreatedAt(
       order,
@@ -2485,17 +2472,11 @@ export class SalesReportsService implements OnApplicationBootstrap {
       sellerName: this.optionalText(order.sellerName, 120),
       sellerEmail: this.normalizeEmail(order.sellerEmail),
       storeCode,
-      storeName:
-        this.optionalText(order.storeName, 120) ??
-        this.optionalText(store?.storeName, 120) ??
-        (storeCode === syncOwner?.storeCode ? syncOwner.storeName : null) ??
-        context.storeName,
-      organizationNodeId:
-        store?.organizationNodeId ??
-        (storeCode === syncOwner?.storeCode
-          ? syncOwner.organizationNodeId
-          : null) ??
-        context.organizationNodeId,
+      storeName: storeCode
+        ? (this.optionalText(order.storeName, 120) ??
+          this.optionalText(store?.storeName, 120))
+        : null,
+      organizationNodeId: store?.organizationNodeId ?? null,
       sourceUserId: this.optionalText(syncOwner?.id ?? user?.id, 80),
       sourceUserEmail: this.normalizeEmail(
         syncOwner?.email ?? context.createdByEmail ?? user?.email,
@@ -2511,9 +2492,6 @@ export class SalesReportsService implements OnApplicationBootstrap {
       'sellerId',
       'sellerName',
       'sellerEmail',
-      'storeCode',
-      'storeName',
-      'organizationNodeId',
       'sourceUserId',
       'sourceUserEmail',
     ]) {
@@ -4539,18 +4517,15 @@ export class SalesReportsService implements OnApplicationBootstrap {
     existingSnapshot?: unknown,
   ) {
     return (
-      this.storeCodeFromSiteDisplaySnapshot(snapshot) ??
-      this.storeCodeFromSiteDisplaySnapshot(existingSnapshot)
+      this.storeCodeFromCreatedFromSiteDisplayName(snapshot) ??
+      this.storeCodeFromCreatedFromSiteDisplayName(existingSnapshot)
     );
   }
 
-  private storeCodeFromSiteDisplaySnapshot(snapshot: unknown) {
+  private storeCodeFromCreatedFromSiteDisplayName(snapshot: unknown) {
     if (!snapshot || typeof snapshot !== 'object') return null;
     const record = snapshot as Record<string, unknown>;
-    return this.storeCodeFromDisplayName(
-      record.createdFromSiteDisplayName,
-      record.siteDisplayName,
-    );
+    return this.storeCodeFromDisplayName(record.createdFromSiteDisplayName);
   }
 
   private storeCodeFromDisplayName(...values: unknown[]) {
@@ -4843,6 +4818,11 @@ export class SalesReportsService implements OnApplicationBootstrap {
   }
 
   private safeUserLabel(user: any) {
-    return user?.email || user?.id || 'unknown';
+    const userId = String(user?.id || '').trim();
+    if (userId) return `userId:${userId.slice(0, 80)}`;
+    const email = String(user?.email || '')
+      .trim()
+      .toLowerCase();
+    return email ? `emailHash:${logFingerprint(email)}` : 'unknown';
   }
 }

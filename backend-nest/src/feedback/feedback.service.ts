@@ -31,13 +31,19 @@ export class FeedbackService {
     const links = await this.uploadService.saveFeedbackImages(
       feedback.id,
       files,
+      userId,
     );
-    return this.prisma.feedback.update({
-      where: { id: feedback.id },
-      data: {
-        content: `${baseContent}\nHình ảnh: ${links.join(';')}`,
-      },
-    });
+    try {
+      return await this.prisma.feedback.update({
+        where: { id: feedback.id },
+        data: {
+          content: `${baseContent}\nHình ảnh: ${links.join(';')}`,
+        },
+      });
+    } catch (error) {
+      await this.uploadService.discardPrivateMedia(links);
+      throw error;
+    }
   }
 
   async getAll(admin: any) {

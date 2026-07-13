@@ -6,6 +6,7 @@ import {
   InjectThrottlerOptions,
   InjectThrottlerStorage,
   ThrottlerGuard,
+  ThrottlerRequest,
   ThrottlerStorage,
 } from '@nestjs/throttler';
 import type { ThrottlerModuleOptions } from '@nestjs/throttler';
@@ -32,6 +33,26 @@ export class UserAwareThrottlerGuard extends ThrottlerGuard {
   }
 
   protected async getTracker(req: RateLimitRequest): Promise<string> {
+    return this.getPrincipalTracker(req);
+  }
+
+  protected async handleRequest(
+    requestProps: ThrottlerRequest,
+  ): Promise<boolean> {
+    const getTracker =
+      requestProps.throttler.name === 'ip'
+        ? (req: RateLimitRequest) => this.getIpTracker(req)
+        : (req: RateLimitRequest) => this.getPrincipalTracker(req);
+    return super.handleRequest({ ...requestProps, getTracker });
+  }
+
+  protected async getIpTracker(req: RateLimitRequest): Promise<string> {
+    return `ip:${await super.getTracker(req)}`;
+  }
+
+  protected async getPrincipalTracker(
+    req: RateLimitRequest,
+  ): Promise<string> {
     const authorization = this.valueFromRecord(req.headers, 'authorization');
     const token = this.bearerToken(authorization);
     if (token) {
@@ -39,31 +60,18 @@ export class UserAwareThrottlerGuard extends ThrottlerGuard {
         const claims =
           await this.jwtService.verifyAsync<RateLimitJwtClaims>(token);
         const userId = this.stringClaim(claims.sub);
-        if (userId) return `user:${userId}`;
+        if (userId) return `principal:user:${userId}`;
       } catch {
         // Invalid or expired tokens continue through the non-JWT trackers.
       }
     }
 
-    const clientId = this.clientIdentifier(req);
-    if (clientId) return `client:${this.hashTrackerValue(clientId)}`;
-
     const email = this.emailIdentifier(req);
-    if (email) return `user-email:${this.hashTrackerValue(email)}`;
+    if (email) {
+      return `principal:email:${this.hashTrackerValue(email)}`;
+    }
 
-    return `ip:${await super.getTracker(req)}`;
-  }
-
-  private clientIdentifier(req: RateLimitRequest): string | null {
-    return this.firstUsableValue([
-      this.valueFromRecord(req.headers, 'x-opshub-client-id'),
-      this.valueFromRecord(req.headers, 'x-client-id'),
-      this.valueFromRecord(req.headers, 'x-device-id'),
-      this.valueFromRecord(req.query, 'clientId'),
-      this.valueFromRecord(req.query, 'deviceId'),
-      this.valueFromRecord(this.bodyRecord(req.body), 'clientId'),
-      this.valueFromRecord(this.bodyRecord(req.body), 'deviceId'),
-    ]);
+    return `principal:${await this.getIpTracker(req)}`;
   }
 
   private emailIdentifier(req: RateLimitRequest): string | null {

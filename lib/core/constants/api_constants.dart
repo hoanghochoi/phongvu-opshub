@@ -29,6 +29,7 @@ class ApiConstants {
   static const String resetPasswordEndpoint = '/auth/reset-password';
   static const String changePasswordEndpoint = '/auth/change-password';
   static const String logoutEndpoint = '/auth/logout';
+  static const String realtimeTicketEndpoint = '/auth/realtime-ticket';
   static const String getUserEndpoint = '/auth/get-user';
   static const String storesEndpoint = '/stores';
   static const String profileEndpoint = '/users/me';
@@ -133,22 +134,15 @@ class ApiConstants {
       '/payment-notifications/ready';
   static const String notificationsReadEndpoint = '/notifications/read';
   static const String appLogsEndpoint = '/app-logs';
-  static String realtimeWsUrl({String? storeId, String? accessToken}) {
+  static Uri realtimeWsUri({String? storeId, required String ticket}) {
     final base = Uri.parse(baseUrl);
     final scheme = base.scheme == 'https' ? 'wss' : 'ws';
     final query = {
       if (storeId != null && storeId.trim().isNotEmpty)
         'store_id': storeId.trim().toUpperCase(),
-      if (accessToken != null && accessToken.trim().isNotEmpty)
-        'access_token': accessToken.trim(),
+      'ticket': ticket.trim(),
     };
-    return base
-        .replace(
-          scheme: scheme,
-          path: '/ws',
-          queryParameters: query.isEmpty ? null : query,
-        )
-        .toString();
+    return base.replace(scheme: scheme, path: '/ws', queryParameters: query);
   }
 
   static String get appUpdateRealtimeWsUrl {

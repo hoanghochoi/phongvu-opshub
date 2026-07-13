@@ -182,31 +182,53 @@ jobs:
 
       - name: Build Windows release
         shell: pwsh
+        env:
+          WINDOWS_UPDATE_SIGNER_SHA256: ${{ vars.WINDOWS_UPDATE_SIGNER_SHA256 }}
         run: |
+          $pins = @($env:WINDOWS_UPDATE_SIGNER_SHA256 -split '[,;\s]+' | Where-Object { $_ })
+          if ($pins.Count -eq 0 -or @($pins | Where-Object { $_ -notmatch '^[0-9A-Fa-f]{64}$' }).Count -gt 0) {
+            throw 'WINDOWS_UPDATE_SIGNER_SHA256 must contain one or more SHA-256 certificate fingerprints.'
+          }
           flutter pub get
           flutter build windows --release `
             --build-name "${{ needs.prepare.outputs.windows_build_name }}" `
             --build-number "${{ needs.prepare.outputs.version_code }}" `
-            --dart-define "API_BASE_URL=${env:OPSHUB_API_BASE_URL}"
+            --dart-define "API_BASE_URL=${env:OPSHUB_API_BASE_URL}" `
+            --dart-define "WINDOWS_UPDATE_SIGNER_SHA256=${env:WINDOWS_UPDATE_SIGNER_SHA256}"
 
       - name: Configure Windows internal signing certificate
         shell: pwsh
         env:
           WINDOWS_SIGNING_PFX_BASE64: ${{ secrets.WINDOWS_SIGNING_PFX_BASE64 }}
           WINDOWS_SIGNING_PFX_PASSWORD: ${{ secrets.WINDOWS_SIGNING_PFX_PASSWORD }}
+          WINDOWS_UPDATE_SIGNER_SHA256: ${{ vars.WINDOWS_UPDATE_SIGNER_SHA256 }}
         run: |
           if ([string]::IsNullOrWhiteSpace($env:WINDOWS_SIGNING_PFX_BASE64)) {
-            Write-Warning 'WINDOWS_SIGNING_PFX_BASE64 is not configured; Windows artifacts will stay unsigned.'
-            'WINDOWS_SIGNING_ENABLED=false' | Out-File -FilePath $env:GITHUB_ENV -Append
-            return
+            throw 'WINDOWS_SIGNING_PFX_BASE64 is required; unsigned Windows release artifacts are forbidden.'
           }
           if ([string]::IsNullOrWhiteSpace($env:WINDOWS_SIGNING_PFX_PASSWORD)) {
             throw 'WINDOWS_SIGNING_PFX_PASSWORD is required when WINDOWS_SIGNING_PFX_BASE64 is configured.'
           }
           $certPath = Join-Path $env:RUNNER_TEMP 'opshub-windows-signing.pfx'
           [IO.File]::WriteAllBytes($certPath, [Convert]::FromBase64String($env:WINDOWS_SIGNING_PFX_BASE64))
+          $cert = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new(
+            $certPath,
+            $env:WINDOWS_SIGNING_PFX_PASSWORD,
+            [System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::EphemeralKeySet
+          )
+          try {
+            $algorithm = [System.Security.Cryptography.HashAlgorithmName]::SHA256
+            $actualPin = $cert.GetCertHashString($algorithm).ToUpperInvariant()
+            $trustedPins = @($env:WINDOWS_UPDATE_SIGNER_SHA256 -split '[,;\s]+' | ForEach-Object { $_.ToUpperInvariant() } | Where-Object { $_ })
+            if ($actualPin -notin $trustedPins) {
+              throw 'Windows signing certificate does not match WINDOWS_UPDATE_SIGNER_SHA256.'
+            }
+          } finally {
+            $cert.Dispose()
+          }
           'WINDOWS_SIGNING_ENABLED=true' | Out-File -FilePath $env:GITHUB_ENV -Append
           "WINDOWS_SIGNING_PFX_PATH=$certPath" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "WINDOWS_UPDATE_SIGNER_SHA256=$env:WINDOWS_UPDATE_SIGNER_SHA256" | Out-File -FilePath $env:GITHUB_ENV -Append
 
       - name: Sign Windows app executable
         if: env.WINDOWS_SIGNING_ENABLED == 'true'
@@ -502,15 +524,11 @@ jobs:
           else
             echo "origin/${OPSHUB_HELP_CONTENT_BRANCH} not found; using docs/help from ${GITHUB_REF_NAME}."
           fi
-          node scripts/build-help-site.mjs
+          node scripts/build-runtime-release.mjs
           remote_release_dir="${OPSHUB_REMOTE_APP_DIR}/releases/${GITHUB_SHA}"
           ssh opshub-vps "mkdir -p '$remote_release_dir' /srv/opshub/downloads /srv/opshub/web"
-          rsync -az --delete \
-            --exclude '.git/' \
-            --exclude '.dart_tool/' \
-            --exclude 'build/' \
-            --exclude 'dist/' \
-            ./ "opshub-vps:${remote_release_dir}/"
+          rsync -az --delete 'dist/runtime-release/' \
+            "opshub-vps:${remote_release_dir}/"
           rsync -az --delete 'build/web/' \
             'opshub-vps:/srv/opshub/web/'
           scp 'dist/downloads/latest.json' \
@@ -519,8 +537,8 @@ jobs:
             'opshub-vps:/srv/opshub/downloads/download.html'
           scp 'web/icons/Icon-192.png' \
             'opshub-vps:/srv/opshub/downloads/opshub-icon-192.png'
-          rsync -az --delete 'dist/help/' \
-            'opshub-vps:/srv/opshub/downloads/help/'
+          rsync -az --delete 'docs/help/assets/' \
+            'opshub-vps:/srv/opshub/downloads/help/assets/'
 
       - name: Deploy backend and publish version metadata
         shell: bash
@@ -942,7 +960,6 @@ jobs:
             git checkout FETCH_HEAD -- docs/help
             echo "Loaded docs/help from origin/${OPSHUB_HELP_CONTENT_BRANCH}."
           fi
-          node scripts/build-help-site.mjs
           caddy_tmp="/tmp/opshub-Caddyfile-${GITHUB_SHA}"
           ssh opshub-vps "mkdir -p /srv/opshub/downloads"
           ssh opshub-vps "mkdir -p '${OPSHUB_REMOTE_APP_DIR}/current/docs/help'"
@@ -954,8 +971,8 @@ jobs:
             'opshub-vps:/srv/opshub/downloads/opshub-icon-192.png'
           rsync -az --delete 'docs/help/' \
             "opshub-vps:${OPSHUB_REMOTE_APP_DIR}/current/docs/help/"
-          rsync -az --delete 'dist/help/' \
-            'opshub-vps:/srv/opshub/downloads/help/'
+          rsync -az --delete 'docs/help/assets/' \
+            'opshub-vps:/srv/opshub/downloads/help/assets/'
           scp 'deploy/home-server/Caddyfile' "opshub-vps:${caddy_tmp}"
 
           ssh opshub-vps \

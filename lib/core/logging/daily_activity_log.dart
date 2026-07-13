@@ -142,6 +142,8 @@ Object? sanitizeLogValue(Object? value, {int depth = 0}) {
       final key = sanitizeLogText(entry.key.toString(), maxLength: 80);
       if (_isSensitiveKey(key)) {
         result[key] = '[redacted]';
+      } else if (_isPersonalDataKey(key)) {
+        result[key] = '[redacted-pii]';
       } else {
         result[key] = sanitizeLogValue(entry.value, depth: depth + 1);
       }
@@ -185,6 +187,10 @@ String sanitizeLogText(String value, {int maxLength = 500}) {
     RegExp(r'C:\\Users\\[^\\]+\\', caseSensitive: false),
     r'C:\Users\[user]\',
   );
+  sanitized = sanitized.replaceAllMapped(
+    RegExp(r'(https?://[^\s?#]+)\?[^\s#]*', caseSensitive: false),
+    (match) => '${match.group(1)}?[redacted-query]',
+  );
   if (sanitized.length <= maxLength) return sanitized;
   return '${sanitized.substring(0, maxLength)}...[truncated]';
 }
@@ -208,6 +214,13 @@ String _normalizedText(Object? value, {required String fallback}) {
 bool _isSensitiveKey(String key) {
   return RegExp(
     'token|password|secret|authorization',
+    caseSensitive: false,
+  ).hasMatch(key);
+}
+
+bool _isPersonalDataKey(String key) {
+  return RegExp(
+    r'(^|_)(email|phone|customerName)(_|$)|email|phone',
     caseSensitive: false,
   ).hasMatch(key);
 }

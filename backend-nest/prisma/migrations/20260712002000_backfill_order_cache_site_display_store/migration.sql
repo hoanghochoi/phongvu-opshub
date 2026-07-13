@@ -2,10 +2,7 @@ WITH display_source AS (
   SELECT
     cache."id",
     cache."orderCode",
-    COALESCE(
-      NULLIF(cache."sanitizedSnapshot"->>'createdFromSiteDisplayName', ''),
-      NULLIF(cache."sanitizedSnapshot"->>'siteDisplayName', '')
-    ) AS "displayName"
+    NULLIF(cache."sanitizedSnapshot"->>'createdFromSiteDisplayName', '') AS "displayName"
   FROM "SalesReportErpOrderCache" cache
   WHERE jsonb_typeof(cache."sanitizedSnapshot") = 'object'
 ),
@@ -47,6 +44,19 @@ WHERE cache."id" = store_match."id"
     OR cache."organizationNodeId" IS DISTINCT FROM store_match."organizationNodeId"
   );
 
+UPDATE "SalesReportErpOrderCache" cache
+SET
+  "storeCode" = NULL,
+  "storeName" = NULL,
+  "organizationNodeId" = NULL
+WHERE jsonb_typeof(cache."sanitizedSnapshot") = 'object'
+  AND NULLIF(cache."sanitizedSnapshot"->>'createdFromSiteDisplayName', '') IS NULL
+  AND (
+    cache."storeCode" IS NOT NULL
+    OR cache."storeName" IS NOT NULL
+    OR cache."organizationNodeId" IS NOT NULL
+  );
+
 UPDATE "HomeSummaryOrderFact" fact
 SET
   "storeCode" = cache."storeCode",
@@ -54,7 +64,6 @@ SET
   "organizationNodeId" = cache."organizationNodeId"
 FROM "SalesReportErpOrderCache" cache
 WHERE fact."orderCode" = cache."orderCode"
-  AND cache."storeCode" IS NOT NULL
   AND (
     fact."storeCode" IS DISTINCT FROM cache."storeCode"
     OR fact."storeName" IS DISTINCT FROM cache."storeName"

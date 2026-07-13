@@ -29,6 +29,7 @@ void main() {
       final service = AppSelfUpdateService(
         httpClient: MockClient((_) async => http.Response.bytes(bytes, 200)),
         tempDirectoryProvider: () async => tempDir,
+        packageVerifier: (_) async {},
         installer: (request) async => installRequest = request,
       );
 
@@ -59,6 +60,7 @@ void main() {
         final service = AppSelfUpdateService(
           httpClient: MockClient((_) async => http.Response.bytes(bytes, 200)),
           tempDirectoryProvider: () async => tempDir,
+          packageVerifier: (_) async {},
           installer: (request) async => installRequest = request,
         );
 
@@ -83,6 +85,7 @@ void main() {
       final service = AppSelfUpdateService(
         httpClient: MockClient((_) async => http.Response.bytes(bytes, 200)),
         tempDirectoryProvider: () async => tempDir,
+        packageVerifier: (_) async {},
         installer: (_) async => installerCalled = true,
       );
 
@@ -106,6 +109,135 @@ void main() {
         isTrue,
       );
     });
+
+    test('rejects an HTTP package URL before making a request', () async {
+      final bytes = 'fake installer bytes'.codeUnits;
+      var requestCount = 0;
+      final service = AppSelfUpdateService(
+        httpClient: MockClient((_) async {
+          requestCount += 1;
+          return http.Response.bytes(bytes, 200);
+        }),
+        tempDirectoryProvider: () async => tempDir,
+        packageVerifier: (_) async {},
+        installer: (_) async {},
+      );
+
+      await expectLater(
+        service.downloadAndInstall(
+          _resultFor(
+            bytes,
+            packageUrlOverride:
+                'http://opshub.hoanghochoi.com/downloads/opshub.exe',
+          ),
+        ),
+        throwsA(isA<AppSelfUpdateException>()),
+      );
+      expect(requestCount, 0);
+    });
+
+    test('rejects a package URL outside the trusted host and path', () async {
+      final bytes = 'fake installer bytes'.codeUnits;
+      final service = AppSelfUpdateService(
+        httpClient: MockClient((_) async => http.Response.bytes(bytes, 200)),
+        tempDirectoryProvider: () async => tempDir,
+        packageVerifier: (_) async {},
+        installer: (_) async {},
+      );
+
+      for (final packageUrl in <String>[
+        'https://downloads.example.com/downloads/opshub.exe',
+        'https://opshub.hoanghochoi.com/untrusted/opshub.exe',
+        'https://opshub.hoanghochoi.com/downloads/../untrusted/opshub.exe',
+      ]) {
+        await expectLater(
+          service.downloadAndInstall(
+            _resultFor(bytes, packageUrlOverride: packageUrl),
+          ),
+          throwsA(isA<AppSelfUpdateException>()),
+          reason: packageUrl,
+        );
+      }
+    });
+
+    test('does not follow package download redirects', () async {
+      final bytes = 'fake installer bytes'.codeUnits;
+      final service = AppSelfUpdateService(
+        httpClient: MockClient((request) async {
+          expect(request.followRedirects, isFalse);
+          return http.Response(
+            '',
+            302,
+            headers: {'location': 'https://evil.test'},
+          );
+        }),
+        tempDirectoryProvider: () async => tempDir,
+        packageVerifier: (_) async {},
+        installer: (_) async {},
+      );
+
+      await expectLater(
+        service.downloadAndInstall(_resultFor(bytes)),
+        throwsA(isA<AppSelfUpdateException>()),
+      );
+    });
+
+    test(
+      'checks the platform signature before launching the installer',
+      () async {
+        final bytes = 'fake installer bytes'.codeUnits;
+        final calls = <String>[];
+        final service = AppSelfUpdateService(
+          httpClient: MockClient((_) async => http.Response.bytes(bytes, 200)),
+          tempDirectoryProvider: () async => tempDir,
+          packageVerifier: (_) async => calls.add('verify-signature'),
+          installer: (_) async => calls.add('launch-installer'),
+        );
+
+        await service.downloadAndInstall(_resultFor(bytes));
+
+        expect(calls, ['verify-signature', 'launch-installer']);
+      },
+    );
+
+    test(
+      'does not launch when platform signature verification fails',
+      () async {
+        final bytes = 'fake installer bytes'.codeUnits;
+        var installerCalled = false;
+        final service = AppSelfUpdateService(
+          httpClient: MockClient((_) async => http.Response.bytes(bytes, 200)),
+          tempDirectoryProvider: () async => tempDir,
+          packageVerifier: (_) async =>
+              throw const AppSelfUpdateException('Chữ ký không hợp lệ.'),
+          installer: (_) async => installerCalled = true,
+        );
+
+        await expectLater(
+          service.downloadAndInstall(_resultFor(bytes)),
+          throwsA(isA<AppSelfUpdateException>()),
+        );
+        expect(installerCalled, isFalse);
+      },
+    );
+
+    test('stops streaming when package exceeds the local hard cap', () async {
+      final bytes = 'fake installer bytes'.codeUnits;
+      var installerCalled = false;
+      final service = AppSelfUpdateService(
+        httpClient: MockClient((_) async => http.Response.bytes(bytes, 200)),
+        tempDirectoryProvider: () async => tempDir,
+        packageVerifier: (_) async {},
+        installer: (_) async => installerCalled = true,
+        maxPackageBytes: bytes.length - 1,
+      );
+
+      await expectLater(
+        service.downloadAndInstall(_resultFor(bytes)),
+        throwsA(isA<AppSelfUpdateException>()),
+      );
+      expect(installerCalled, isFalse);
+    });
   });
 }
 
@@ -113,6 +245,7 @@ AppUpdateCheckResult _resultFor(
   List<int> bytes, {
   String? sha256Override,
   List<String>? installerArgs,
+  String? packageUrlOverride,
 }) {
   final digest = sha256.convert(bytes).toString();
   return AppUpdateCheckResult(
@@ -124,7 +257,9 @@ AppUpdateCheckResult _resultFor(
       latestBuild: 100002,
       minSupportedBuild: 100001,
       updateUrl: 'https://opshub.hoanghochoi.com/downloads/opshub.exe',
-      packageUrl: 'https://opshub.hoanghochoi.com/downloads/opshub.exe',
+      packageUrl:
+          packageUrlOverride ??
+          'https://opshub.hoanghochoi.com/downloads/opshub.exe',
       packageSha256: sha256Override ?? digest,
       packageSizeBytes: bytes.length,
       packageType: 'windowsInstaller',

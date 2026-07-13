@@ -4,6 +4,7 @@ import { AuthSessionService } from './auth-session.service';
 describe('AuthSessionService', () => {
   let service: AuthSessionService;
   let prisma: any;
+  let redisService: any;
 
   beforeEach(() => {
     prisma = {
@@ -13,7 +14,10 @@ describe('AuthSessionService', () => {
         updateMany: jest.fn(),
       },
     };
-    service = new AuthSessionService(prisma);
+    redisService = {
+      publishMessageOrThrow: jest.fn().mockResolvedValue(undefined),
+    };
+    service = new AuthSessionService(prisma, redisService);
   });
 
   it('creates a platform session for the first login', async () => {
@@ -48,6 +52,15 @@ describe('AuthSessionService', () => {
         }),
       }),
     );
+    expect(redisService.publishMessageOrThrow).toHaveBeenCalledWith(
+      'AUTH_SESSION_REVOKED',
+      expect.objectContaining({
+        schemaVersion: 1,
+        userId: 'user-1',
+        platform: 'windows',
+        reason: 'SESSION_REPLACED',
+      }),
+    );
   });
 
   it('replaces an existing session on the same platform', async () => {
@@ -79,6 +92,24 @@ describe('AuthSessionService', () => {
         }),
       }),
     );
+  });
+
+  it('fails closed when same-platform realtime revocation cannot publish', async () => {
+    prisma.userPlatformSession.upsert.mockResolvedValue({
+      id: 'session-1',
+      platform: 'windows',
+      sessionVersion: 2,
+    });
+    redisService.publishMessageOrThrow.mockRejectedValue(
+      new Error('redis unavailable'),
+    );
+
+    await expect(
+      service.replacePlatformSession(
+        { id: 'user-1', email: 'staff@phongvu.vn' },
+        { platform: 'windows', deviceId: 'device-123456' },
+      ),
+    ).rejects.toThrow('redis unavailable');
   });
 
   it('accepts a JWT session only when active claims match the row', async () => {
@@ -163,5 +194,47 @@ describe('AuthSessionService', () => {
       }),
     ).toThrow(BadRequestException);
     expect(prisma.userPlatformSession.findUnique).not.toHaveBeenCalled();
+  });
+
+  it('publishes a session-scoped revocation on logout', async () => {
+    prisma.userPlatformSession.updateMany.mockResolvedValue({ count: 1 });
+
+    await expect(
+      service.revokeCurrentSession('user-1', {
+        sessionId: 'session-1',
+        platform: 'windows',
+        sessionVersion: 3,
+      }),
+    ).resolves.toEqual({ ok: true });
+
+    expect(redisService.publishMessageOrThrow).toHaveBeenCalledWith(
+      'AUTH_SESSION_REVOKED',
+      expect.objectContaining({
+        schemaVersion: 1,
+        userId: 'user-1',
+        sessionId: 'session-1',
+        platform: 'windows',
+        reason: 'LOGOUT',
+        occurredAt: expect.any(String),
+      }),
+    );
+  });
+
+  it('publishes a user-wide revocation after administrative reset', async () => {
+    prisma.userPlatformSession.updateMany.mockResolvedValue({ count: 2 });
+
+    await service.revokeAllUserSessions('user-1', 'PASSWORD_RESET');
+
+    expect(redisService.publishMessageOrThrow).toHaveBeenCalledWith(
+      'AUTH_SESSION_REVOKED',
+      expect.objectContaining({
+        schemaVersion: 1,
+        userId: 'user-1',
+        reason: 'PASSWORD_RESET',
+      }),
+    );
+    const payload = redisService.publishMessageOrThrow.mock.calls[0][1];
+    expect(payload).not.toHaveProperty('sessionId');
+    expect(payload).not.toHaveProperty('platform');
   });
 });

@@ -92,9 +92,9 @@ describe('WarrantyService', () => {
   it('throws when receipt is not found in the readable scope', async () => {
     prisma.warranty.findFirst.mockResolvedValue(null);
 
-    await expect(service.getByReceipt(storeUser, 'missing')).rejects.toBeInstanceOf(
-      NotFoundException,
-    );
+    await expect(
+      service.getByReceipt(storeUser, 'missing'),
+    ).rejects.toBeInstanceOf(NotFoundException);
   });
 
   it('rejects missing receipt details before querying', async () => {
@@ -113,7 +113,11 @@ describe('WarrantyService', () => {
 
   it('publishes warranty status updates after scope check', async () => {
     const updated = { id: 'warranty-1', status: 'DONE' };
-    prisma.warranty.findFirst.mockResolvedValue({ id: 'warranty-1' });
+    prisma.warranty.findFirst.mockResolvedValue({
+      id: 'warranty-1',
+      createdById: 'creator-1',
+      createdBy: { store: { storeId: 'CP01' } },
+    });
     prisma.warranty.update.mockResolvedValue(updated);
     redisService.publishMessage.mockResolvedValue(undefined);
 
@@ -131,9 +135,19 @@ describe('WarrantyService', () => {
     expect(redisService.publishMessage).toHaveBeenCalledWith(
       'WARRANTY_STATUS_UPDATED',
       expect.objectContaining({
-        warrantyId: 'warranty-1',
-        newStatus: 'DONE',
-        handledBy: 'user-1',
+        schemaVersion: 1,
+        type: 'WARRANTY_EVENT',
+        audience: {
+          storeCodes: ['CP01'],
+          recipientUserIds: ['creator-1', 'user-1'],
+          roles: ['SUPER_ADMIN'],
+          featureCodes: ['WARRANTY'],
+        },
+        payload: expect.objectContaining({
+          warrantyId: 'warranty-1',
+          newStatus: 'DONE',
+          handledBy: 'user-1',
+        }),
       }),
     );
   });

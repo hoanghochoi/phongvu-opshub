@@ -195,7 +195,7 @@ class AuthProvider extends ChangeNotifier {
           );
         }
 
-        if (kDebugMode) debugPrint('✅ [AuthProvider] Loaded session: $email');
+        if (kDebugMode) debugPrint('✅ [AuthProvider] Loaded cached session');
       }
     } catch (e, stackTrace) {
       if (kDebugMode) debugPrint('❌ [AuthProvider] Error loading session: $e');

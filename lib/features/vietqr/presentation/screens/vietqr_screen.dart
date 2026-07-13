@@ -19,9 +19,9 @@ import '../../../../app/widgets/app_inputs.dart';
 import '../../../../app/widgets/app_layout.dart';
 import '../../../../app/widgets/app_state_widgets.dart';
 import '../../../../app/widgets/info_row.dart';
-import '../../../../core/constants/api_constants.dart';
 import '../../../../core/logging/app_logger.dart';
 import '../../../../core/network/api_client.dart';
+import '../../../../core/network/realtime_ticket_client.dart';
 import '../../../auth/data/repositories/auth_repository.dart';
 import '../../../auth/domain/entities/store_branch.dart';
 import '../../../auth/domain/entities/user.dart';
@@ -123,7 +123,7 @@ class _VietQrScreenState extends State<VietQrScreen> {
     _syncStoreSelection(user);
     _syncAccessibleStoreOptions(user);
     _syncHistoryScope(user);
-    _syncRealtimeConnection(user);
+    unawaited(_syncRealtimeConnection(user));
   }
 
   @override
@@ -399,7 +399,7 @@ class _VietQrScreenState extends State<VietQrScreen> {
         context: {'storeCode': storeCode},
       ),
     );
-    _syncRealtimeConnection(context.read<AuthProvider>().user);
+    unawaited(_syncRealtimeConnection(context.read<AuthProvider>().user));
   }
 
   Future<void> _createQr() async {
@@ -443,7 +443,7 @@ class _VietQrScreenState extends State<VietQrScreen> {
           confirmation: null,
           insertAtTop: true,
         );
-        _syncRealtimeConnection(authUser);
+        unawaited(_syncRealtimeConnection(authUser));
         await AppLogger.instance.info(
           'VietQR',
           'Create QR succeeded',
@@ -598,7 +598,7 @@ class _VietQrScreenState extends State<VietQrScreen> {
     }
 
     _stopPaymentPolling();
-    _syncRealtimeConnection(context.read<AuthProvider>().user);
+    unawaited(_syncRealtimeConnection(context.read<AuthProvider>().user));
     setState(() {
       _transfer = entry.transfer;
       _paymentConfirmation = entry.confirmation;
@@ -849,7 +849,7 @@ class _VietQrScreenState extends State<VietQrScreen> {
     }
   }
 
-  void _syncRealtimeConnection(User? user) {
+  Future<void> _syncRealtimeConnection(User? user) async {
     final token = ApiClient().authToken?.trim() ?? '';
     final storeCode = _storeCodeController.text.trim().toUpperCase();
     final userKey = user?.id?.trim().isNotEmpty == true
@@ -866,12 +866,16 @@ class _VietQrScreenState extends State<VietQrScreen> {
     _realtimeReconnectTimer = null;
     _disconnectRealtime('reconnect');
 
-    final url = ApiConstants.realtimeWsUrl(
-      storeId: storeCode,
-      accessToken: token,
-    );
     try {
-      final channel = _realtimeConnector(Uri.parse(url));
+      final uri = await RealtimeTicketClient.instance.issueConnectionUri(
+        storeCode: storeCode,
+      );
+      if (!mounted ||
+          ApiClient().authToken?.trim() != token ||
+          _storeCodeController.text.trim().toUpperCase() != storeCode) {
+        return;
+      }
+      final channel = _realtimeConnector(uri);
       _realtimeChannel = channel;
       _realtimeKey = nextKey;
       _realtimeReconnectAttempt = 0;
@@ -958,7 +962,7 @@ class _VietQrScreenState extends State<VietQrScreen> {
     _realtimeReconnectTimer = Timer(delay, () {
       _realtimeReconnectTimer = null;
       if (!mounted) return;
-      _syncRealtimeConnection(context.read<AuthProvider>().user);
+      unawaited(_syncRealtimeConnection(context.read<AuthProvider>().user));
     });
     unawaited(
       AppLogger.instance.info(

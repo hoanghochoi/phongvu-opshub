@@ -18,6 +18,11 @@ import {
   storesForOrganizationNodeTree,
 } from '../common/organization-store-scope';
 import {
+  csvCell as safeCsvCell,
+  csvExcelTextCell as safeCsvExcelTextCell,
+} from '../common/csv-export';
+import { logFingerprint } from '../common/log-sanitizer';
+import {
   CompleteOffsetAdjustmentDto,
   CreateOffsetAdjustmentDto,
   OFFSET_ADJUSTMENT_NOTIFICATION_STATUS,
@@ -1052,16 +1057,11 @@ export class OffsetAdjustmentsService {
   }
 
   private csvCell(value: unknown) {
-    const text = this.csvText(value);
-    if (!/[",\r\n]/.test(text)) return text;
-    return `"${text.replace(/"/g, '""')}"`;
+    return safeCsvCell(value);
   }
 
   private csvExcelTextCell(value: unknown) {
-    const text = this.csvText(value).replace(/[\r\n]+/g, ' ');
-    if (!text) return '';
-    const formulaText = text.replace(/"/g, '""');
-    return this.csvCell(`="${formulaText}"`);
+    return safeCsvExcelTextCell(value);
   }
 
   private csvAmountCell(value: unknown) {
@@ -1093,7 +1093,10 @@ export class OffsetAdjustmentsService {
   }
 
   private safeUserLabel(user: any) {
-    return this.safeUserEmail(user) || String(user?.id || 'unknown');
+    const userId = String(user?.id || '').trim();
+    if (userId) return `userId:${userId}`;
+    const email = this.safeUserEmail(user);
+    return email ? `emailHash:${logFingerprint(email)}` : 'unknown';
   }
 
   private safeError(error: unknown) {

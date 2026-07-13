@@ -29,14 +29,10 @@ import {
   storesForOrganizationNodeTree,
 } from '../common/organization-store-scope';
 import {
-  BREAK_GLASS_SUPER_ADMIN_EMAIL,
-  BREAK_GLASS_SUPER_ADMIN_PASSWORD_HASH,
-  LEGACY_SUPER_ADMIN_EMAIL,
-} from '../auth/break-glass-admin.constants';
-import {
   AdminUserImportParseResult,
   AdminUserImportRow,
 } from './user-import-parser.service';
+import { logFingerprint, safeLogError } from '../common/log-sanitizer';
 
 const SUPER_ADMIN_ROLE = 'SUPER_ADMIN';
 const ADMIN_ROLE = 'ADMIN';
@@ -400,7 +396,6 @@ export class UserService implements OnModuleInit {
     await this.seedDefaultPersonnelCatalog();
     await this.seedDefaultOrganizationTree();
     await this.syncStoreOrganizationNodes('module-init');
-    await this.bootstrapBreakGlassSuperAdmin();
 
     if (getDataSyncSource() !== 'bigquery') {
       this.logger.log('DATA_SYNC_SOURCE=local, skipping BigQuery user sync');
@@ -536,7 +531,9 @@ export class UserService implements OnModuleInit {
         await this.syncStoreOrganizationNodes('bigquery-user-sync');
       }
     } catch (error) {
-      this.logger.error('User sync from BigQuery failed:', error);
+      this.logger.error(
+        `User sync from BigQuery failed: ${safeLogError(error)}`,
+      );
     }
   }
 
@@ -589,12 +586,25 @@ export class UserService implements OnModuleInit {
     if (!file) {
       throw new BadRequestException('Vui lòng chọn ảnh đại diện');
     }
-    const avatarUrl = await this.uploadService.saveUserAvatar(userId, file);
-    const user = await this.prisma.user.update({
+    const previous = await this.prisma.user.findUnique({
       where: { id: userId },
-      data: { avatarUrl },
-      include: this.userDtoInclude(),
+      select: { avatarUrl: true },
     });
+    const avatarUrl = await this.uploadService.saveUserAvatar(userId, file);
+    let user: any;
+    try {
+      user = await this.prisma.user.update({
+        where: { id: userId },
+        data: { avatarUrl },
+        include: this.userDtoInclude(),
+      });
+    } catch (error) {
+      await this.uploadService.discardPrivateMedia([avatarUrl]);
+      throw error;
+    }
+    if (previous?.avatarUrl && previous.avatarUrl !== avatarUrl) {
+      await this.uploadService.discardPrivateMedia([previous.avatarUrl]);
+    }
     return this.toUserDto(user);
   }
 
@@ -615,13 +625,15 @@ export class UserService implements OnModuleInit {
     const where = await this.adminUserWhere(scope, filters, query);
     this.logger.log(
       'Admin user list started: admin=' +
-        (admin.email || admin.id || 'unknown') +
+        this.userLogId(admin) +
         ' role=' +
         admin.role +
         ' domainScope=' +
         this.adminDomainScopeLabel(admin) +
-        ' query=' +
-        (query || 'none') +
+        ' queryHash=' +
+        logFingerprint(query) +
+        ' queryLength=' +
+        query.length +
         ' feature=' +
         (filters.featureCode || 'none') +
         ' orgNodeId=' +
@@ -636,7 +648,7 @@ export class UserService implements OnModuleInit {
       });
       this.logger.log(
         'Admin user list completed: admin=' +
-          (admin.email || admin.id || 'unknown') +
+          this.userLogId(admin) +
           ' role=' +
           admin.role +
           ' count=' +
@@ -648,12 +660,12 @@ export class UserService implements OnModuleInit {
     } catch (error) {
       this.logger.error(
         'Admin user list failed: admin=' +
-          (admin.email || admin.id || 'unknown') +
+          this.userLogId(admin) +
           ' role=' +
           admin.role +
           ' domainScope=' +
           this.adminDomainScopeLabel(admin),
-        error,
+        safeLogError(error),
       );
       throw error;
     }
@@ -678,7 +690,7 @@ export class UserService implements OnModuleInit {
       include: this.userDtoInclude(),
     });
     this.logger.log(
-      `Admin user created: email=${prepared.email} role=${prepared.role} scope=${prepared.workScopeType} personnelCode=${this.personnelCodeFor(user) ?? 'none'}`,
+      `Admin user created: emailHash=${logFingerprint(prepared.email)} role=${prepared.role} scope=${prepared.workScopeType} personnelCode=${this.personnelCodeFor(user) ?? 'none'}`,
     );
     const welcomeEmail = await this.sendWelcomeEmail(saved ?? user, {
       source: 'admin-create',
@@ -755,7 +767,7 @@ export class UserService implements OnModuleInit {
     const blockers = await this.userDeleteBlockers(current.id);
     if (blockers.length > 0) {
       this.logger.warn(
-        `Admin user delete blocked: admin=${admin.email || admin.id || 'unknown'} target=${current.email} blockers=${blockers.join(',')}`,
+        `Admin user delete blocked: admin=${this.userLogId(admin)} targetUserId=${current.id} blockers=${blockers.join(',')}`,
       );
       throw new BadRequestException(
         'Tài khoản đang có dữ liệu lịch sử, không thể xóa hoàn toàn: ' +
@@ -780,7 +792,7 @@ export class UserService implements OnModuleInit {
     });
 
     this.logger.warn(
-      `Admin user deleted: admin=${admin.email || admin.id || 'unknown'} target=${current.email} userId=${current.id}`,
+      `Admin user deleted: admin=${this.userLogId(admin)} targetUserId=${current.id}`,
     );
     return { deleted: true, id: current.id, email: current.email };
   }
@@ -791,7 +803,7 @@ export class UserService implements OnModuleInit {
     const startedAt = Date.now();
     this.logger.log(
       'Admin user import started: admin=' +
-        (admin.email || admin.id || 'unknown') +
+        this.userLogId(admin) +
         ' role=' +
         admin.role +
         ' rows=' +
@@ -870,7 +882,7 @@ export class UserService implements OnModuleInit {
 
       this.logger.log(
         'Admin user import completed: admin=' +
-          (admin.email || admin.id || 'unknown') +
+          this.userLogId(admin) +
           ' created=' +
           createdRows +
           ' updated=' +
@@ -896,12 +908,12 @@ export class UserService implements OnModuleInit {
     } catch (error) {
       this.logger.error(
         'Admin user import failed: admin=' +
-          (admin.email || admin.id || 'unknown') +
+          this.userLogId(admin) +
           ' rows=' +
           parsed.rows.length +
           ' durationMs=' +
           (Date.now() - startedAt),
-        error,
+        safeLogError(error),
       );
       throw error;
     }
@@ -1032,13 +1044,13 @@ export class UserService implements OnModuleInit {
     ) {
       this.logger.warn(
         'Admin user update blocked by scope: admin=' +
-          (admin.email || admin.id || 'unknown') +
+          this.userLogId(admin) +
           ' role=' +
           admin.role +
           ' targetUserId=' +
           userId +
-          ' targetEmail=' +
-          current.email,
+          ' targetEmailHash=' +
+          logFingerprint(current.email),
       );
       throw new ForbiddenException(
         'Khong co quyen sua user ngoai pham vi quan ly',
@@ -1344,7 +1356,7 @@ export class UserService implements OnModuleInit {
     if (!this.mailService) {
       const error = 'Chưa cấu hình dịch vụ gửi email PhongVu OpsHub.';
       this.logger.error(
-        `Welcome email failed: source=${context.source} email=${email} reason=missing_mail_service`,
+        `Welcome email failed: source=${context.source} emailHash=${logFingerprint(email)} reason=missing_mail_service`,
       );
       return { sent: false, error };
     }
@@ -1364,13 +1376,13 @@ export class UserService implements OnModuleInit {
           'Nếu bạn không yêu cầu tài khoản này, vui lòng liên hệ quản trị viên.',
       });
       this.logger.log(
-        `Welcome email sent: source=${context.source} email=${email} admin=${context.admin?.email || context.admin?.id || 'unknown'} row=${context.rowNumber ?? 'none'}`,
+        `Welcome email sent: source=${context.source} emailHash=${logFingerprint(email)} admin=${this.userLogId(context.admin)} row=${context.rowNumber ?? 'none'}`,
       );
       return { sent: true, error: null };
     } catch (error) {
       const message = this.errorMessageForImport(error);
       this.logger.error(
-        `Welcome email failed: source=${context.source} email=${email} admin=${context.admin?.email || context.admin?.id || 'unknown'} row=${context.rowNumber ?? 'none'} error=${message}`,
+        `Welcome email failed: source=${context.source} emailHash=${logFingerprint(email)} admin=${this.userLogId(context.admin)} row=${context.rowNumber ?? 'none'} error=${safeLogError(message)}`,
       );
       return { sent: false, error: message };
     }
@@ -1471,7 +1483,7 @@ export class UserService implements OnModuleInit {
 
     this.logger.log(
       'Admin password reset started: admin=' +
-        (admin.email || admin.id || 'unknown') +
+        this.userLogId(admin) +
         ' role=' +
         admin.role +
         ' targetUserId=' +
@@ -1486,7 +1498,7 @@ export class UserService implements OnModuleInit {
     );
     this.logger.log(
       'Admin password reset completed: admin=' +
-        (admin.email || admin.id || 'unknown') +
+        this.userLogId(admin) +
         ' role=' +
         admin.role +
         ' targetUserId=' +
@@ -1583,7 +1595,7 @@ export class UserService implements OnModuleInit {
       return this.findOrganizationNodeForDto(tx, created.id);
     });
     this.logger.log(
-      `Organization node created: admin=${admin?.email || admin?.id || 'unknown'} nodeId=${node.id} type=${node.type} code=${node.code}`,
+      `Organization node created: admin=${this.userLogId(admin)} nodeId=${node.id} type=${node.type} code=${node.code}`,
     );
     return node;
   }
@@ -1618,9 +1630,10 @@ export class UserService implements OnModuleInit {
         where: { id },
         data,
       });
-      const cascade = updated.isActive === false
-        ? await this.cascadeDeactivateOrganizationDescendants(tx, updated.id)
-        : { deactivatedCount: 0 };
+      const cascade =
+        updated.isActive === false
+          ? await this.cascadeDeactivateOrganizationDescendants(tx, updated.id)
+          : { deactivatedCount: 0 };
       if (this.isStoreNodeType(updated.type)) {
         await this.syncShowroomStoreFromNode(tx, updated, body, current);
       } else if (this.isLegacyCatalogNodeType(updated.type)) {
@@ -1637,7 +1650,7 @@ export class UserService implements OnModuleInit {
       return this.findOrganizationNodeForDto(tx, id);
     });
     this.logger.log(
-      `Organization node updated: admin=${admin?.email || admin?.id || 'unknown'} nodeId=${id} type=${node.type} code=${node.code}`,
+      `Organization node updated: admin=${this.userLogId(admin)} nodeId=${id} type=${node.type} code=${node.code}`,
     );
     return node;
   }
@@ -1681,7 +1694,7 @@ export class UserService implements OnModuleInit {
     if (blockers.length > 0) {
       this.logger.warn(
         'Organization node delete blocked: admin=' +
-          (admin?.email || admin?.id || 'unknown') +
+          this.userLogId(admin) +
           ' nodeId=' +
           id +
           ' blockers=' +
@@ -1694,7 +1707,7 @@ export class UserService implements OnModuleInit {
     await this.prisma.organizationNode.delete({ where: { id } });
     this.logger.warn(
       'Organization node deleted: admin=' +
-        (admin?.email || admin?.id || 'unknown') +
+        this.userLogId(admin) +
         ' nodeId=' +
         id,
     );
@@ -1720,11 +1733,6 @@ export class UserService implements OnModuleInit {
           input.emailDomain ?? current?.emailDomain ?? displayName,
         )
       : null;
-    if (emailDomain === 'hoanghochoi.com') {
-      throw new BadRequestException(
-        'Domain break-glass không thuộc cây tổ chức',
-      );
-    }
     const parentId = await this.resolveOrganizationParentId(
       type,
       input.parentId,
@@ -2581,7 +2589,7 @@ export class UserService implements OnModuleInit {
     }
     this.logger.log(
       'Showroom MAP credential updated from tree: admin=' +
-        (admin.email || admin.id || 'unknown') +
+        this.userLogId(admin) +
         ' role=' +
         admin.role +
         ' nodeId=' +
@@ -2908,7 +2916,7 @@ export class UserService implements OnModuleInit {
     if (parent) {
       this.logger.debug(
         'Admin management scope lifted from Lv5 to parent subtree: admin=' +
-          (admin?.email || admin?.id || 'unknown') +
+          this.userLogId(admin) +
           ' nodeId=' +
           organizationNodeId +
           ' scopeRootId=' +
@@ -3591,8 +3599,8 @@ export class UserService implements OnModuleInit {
     this.logger.warn(
       'Retired admin tree API hit: route=' +
         route +
-        ' admin=' +
-        (admin?.email || admin?.id || 'unknown') +
+        ' adminId=' +
+        (admin?.id || 'unknown') +
         ' role=' +
         (admin?.role || 'unknown'),
     );
@@ -3611,7 +3619,7 @@ export class UserService implements OnModuleInit {
     }
     this.logger.warn(
       'Deprecated admin regions route used: deprecatedRoute=true admin=' +
-        (admin?.email || admin?.id || 'unknown'),
+        this.userLogId(admin),
     );
     const scopeWhere = await this.adminOrganizationNodeScopeWhere(admin);
     const nodes = await this.prisma.organizationNode.findMany({
@@ -3631,7 +3639,7 @@ export class UserService implements OnModuleInit {
     }
     this.logger.warn(
       'Deprecated admin areas route used: deprecatedRoute=true admin=' +
-        (admin?.email || admin?.id || 'unknown'),
+        this.userLogId(admin),
     );
     const regionCode = regionCodeInput
       ? this.normalizePersonnelCode(regionCodeInput, 'Mã Miền không hợp lệ')
@@ -3715,7 +3723,7 @@ export class UserService implements OnModuleInit {
     );
     this.logger.warn(
       'Deprecated admin region create route used: deprecatedRoute=true admin=' +
-        (admin?.email || admin?.id || 'unknown'),
+        this.userLogId(admin),
     );
     const code = this.normalizePersonnelCode(
       body.code || body.abbreviation,
@@ -3778,7 +3786,7 @@ export class UserService implements OnModuleInit {
     if (!currentCode) throw new BadRequestException('Mã Miền không hợp lệ');
     this.logger.warn(
       'Deprecated admin region update route used: deprecatedRoute=true admin=' +
-        (admin?.email || admin?.id || 'unknown') +
+        this.userLogId(admin) +
         ' region=' +
         currentCode,
     );
@@ -3831,7 +3839,7 @@ export class UserService implements OnModuleInit {
     if (!code) throw new BadRequestException('Mã Miền không hợp lệ');
     this.logger.warn(
       'Deprecated admin region delete route used: deprecatedRoute=true admin=' +
-        (admin?.email || admin?.id || 'unknown') +
+        this.userLogId(admin) +
         ' region=' +
         code,
     );
@@ -3870,7 +3878,7 @@ export class UserService implements OnModuleInit {
     if (!code) throw new BadRequestException('Mã Vùng không được để trống');
     this.logger.warn(
       'Deprecated admin area create route used: deprecatedRoute=true admin=' +
-        (admin?.email || admin?.id || 'unknown') +
+        this.userLogId(admin) +
         ' area=' +
         code,
     );
@@ -3913,7 +3921,7 @@ export class UserService implements OnModuleInit {
     if (!currentCode) throw new BadRequestException('Mã Vùng không hợp lệ');
     this.logger.warn(
       'Deprecated admin area update route used: deprecatedRoute=true admin=' +
-        (admin?.email || admin?.id || 'unknown') +
+        this.userLogId(admin) +
         ' area=' +
         currentCode,
     );
@@ -3972,7 +3980,7 @@ export class UserService implements OnModuleInit {
     if (!code) throw new BadRequestException('Mã Vùng không hợp lệ');
     this.logger.warn(
       'Deprecated admin area delete route used: deprecatedRoute=true admin=' +
-        (admin?.email || admin?.id || 'unknown') +
+        this.userLogId(admin) +
         ' area=' +
         code,
     );
@@ -4259,7 +4267,7 @@ export class UserService implements OnModuleInit {
     await this.assertAdmin(admin);
     this.logger.warn(
       'Deprecated admin stores route used: deprecatedRoute=true admin=' +
-        (admin?.email || admin?.id || 'unknown'),
+        this.userLogId(admin),
     );
     const query = q?.trim();
     const stores = await this.prisma.store.findMany({
@@ -4282,7 +4290,7 @@ export class UserService implements OnModuleInit {
     const storeId = this.normalizeStoreCode(body.storeId);
     this.logger.warn(
       'Deprecated admin store create route used: deprecatedRoute=true admin=' +
-        (admin?.email || admin?.id || 'unknown') +
+        this.userLogId(admin) +
         ' store=' +
         storeId,
     );
@@ -4322,7 +4330,7 @@ export class UserService implements OnModuleInit {
     });
     this.logger.log(
       'Store created: admin=' +
-        (admin.email || admin.id || 'unknown') +
+        this.userLogId(admin) +
         ' role=' +
         admin.role +
         ' store=' +
@@ -4335,7 +4343,7 @@ export class UserService implements OnModuleInit {
     const currentCode = this.normalizeStoreCode(currentStoreId);
     this.logger.warn(
       'Deprecated admin store update route used: deprecatedRoute=true admin=' +
-        (admin?.email || admin?.id || 'unknown') +
+        this.userLogId(admin) +
         ' store=' +
         currentCode,
     );
@@ -4385,7 +4393,7 @@ export class UserService implements OnModuleInit {
       });
       this.logger.log(
         'Store MAP credential updated: admin=' +
-          (admin.email || admin.id || 'unknown') +
+          this.userLogId(admin) +
           ' role=' +
           admin.role +
           ' store=' +
@@ -4499,7 +4507,7 @@ export class UserService implements OnModuleInit {
 
     this.logger.log(
       'Store updated: admin=' +
-        (admin.email || admin.id || 'unknown') +
+        this.userLogId(admin) +
         ' role=' +
         admin.role +
         ' store=' +
@@ -4517,7 +4525,7 @@ export class UserService implements OnModuleInit {
     const storeId = this.normalizeStoreCode(storeIdInput);
     this.logger.warn(
       'Deprecated admin store delete route used: deprecatedRoute=true admin=' +
-        (admin?.email || admin?.id || 'unknown') +
+        this.userLogId(admin) +
         ' store=' +
         storeId,
     );
@@ -4754,7 +4762,7 @@ export class UserService implements OnModuleInit {
           stores.length +
           ' synced=' +
           syncedCount,
-        error instanceof Error ? error.stack : String(error),
+        safeLogError(error),
       );
       throw error;
     }
@@ -4983,133 +4991,6 @@ export class UserService implements OnModuleInit {
       },
     });
     this.logger.log('Organization root domains seeded');
-  }
-
-  private async bootstrapBreakGlassSuperAdmin() {
-    await this.ensureRoleExists(SUPER_ADMIN_ROLE);
-    const current = await this.prisma.user.findUnique({
-      where: { email: BREAK_GLASS_SUPER_ADMIN_EMAIL },
-      select: { id: true, password: true },
-    });
-
-    if (current) {
-      await this.prisma.user.update({
-        where: { id: current.id },
-        data: {
-          role: SUPER_ADMIN_ROLE,
-          status: 'yes',
-          workScopeType: NATIONAL_SCOPE,
-          ...this.userRelationMutationData(
-            {
-              storeUuid: null,
-              regionCode: null,
-              areaCode: null,
-              organizationNodeId: null,
-            },
-            { disconnectNulls: true },
-          ),
-          ...(current.password
-            ? {}
-            : { password: BREAK_GLASS_SUPER_ADMIN_PASSWORD_HASH }),
-        },
-      });
-      this.logger.log(
-        `Break-glass super admin verified: email=${BREAK_GLASS_SUPER_ADMIN_EMAIL} passwordSeeded=${!current.password}`,
-      );
-    } else {
-      await this.prisma.user.create({
-        data: {
-          email: BREAK_GLASS_SUPER_ADMIN_EMAIL,
-          password: BREAK_GLASS_SUPER_ADMIN_PASSWORD_HASH,
-          firstName: 'Admin',
-          lastName: 'Hoanghochoi',
-          role: SUPER_ADMIN_ROLE,
-          status: 'yes',
-          workScopeType: NATIONAL_SCOPE,
-          profileCompletedAt: new Date(),
-        },
-      });
-      this.logger.log(
-        `Break-glass super admin created: email=${BREAK_GLASS_SUPER_ADMIN_EMAIL}`,
-      );
-    }
-
-    await this.retireLegacySuperAdmin();
-  }
-
-  private async retireLegacySuperAdmin() {
-    const legacy = await this.prisma.user.findUnique({
-      where: { email: LEGACY_SUPER_ADMIN_EMAIL },
-      select: { id: true, email: true },
-    });
-    if (!legacy) return;
-
-    const [warrantyCount, feedbackCount, fifoLogCount, vietQrCount] =
-      await Promise.all([
-        this.prisma.warranty.count({
-          where: {
-            OR: [{ createdById: legacy.id }, { handledById: legacy.id }],
-          },
-        }),
-        this.prisma.feedback.count({ where: { userId: legacy.id } }),
-        this.prisma.fifoLog.count({ where: { userId: legacy.id } }),
-        this.prisma.vietQrPaymentIntent.count({
-          where: { createdById: legacy.id },
-        }),
-      ]);
-    const blockerCount =
-      warrantyCount + feedbackCount + fifoLogCount + vietQrCount;
-    const now = new Date();
-
-    await this.prisma.$transaction(async (tx) => {
-      await tx.userPlatformSession.updateMany({
-        where: { userId: legacy.id, revokedAt: null },
-        data: { revokedAt: now, revokedReason: 'LEGACY_SUPER_ADMIN_RETIRED' },
-      });
-      await tx.passwordResetToken.updateMany({
-        where: { userId: legacy.id, consumedAt: null },
-        data: { consumedAt: now },
-      });
-      await tx.emailVerificationCode.updateMany({
-        where: { email: legacy.email, consumedAt: null },
-        data: { consumedAt: now },
-      });
-      await tx.adminPolicyRule.deleteMany({ where: { userId: legacy.id } });
-      await tx.featureAccessRule.deleteMany({ where: { userId: legacy.id } });
-      await tx.userFeatureAssignment.deleteMany({
-        where: { userId: legacy.id },
-      });
-
-      if (blockerCount === 0) {
-        await tx.user.delete({ where: { id: legacy.id } });
-        return;
-      }
-
-      await tx.user.update({
-        where: { id: legacy.id },
-        data: {
-          email: `deleted-${legacy.id}@legacy-super-admin.local`,
-          password: '',
-          role: USER_ROLE,
-          status: 'no',
-          tokenVersion: { increment: 1 },
-          workScopeType: NATIONAL_SCOPE,
-          ...this.userRelationMutationData(
-            {
-              storeUuid: null,
-              regionCode: null,
-              areaCode: null,
-              organizationNodeId: null,
-            },
-            { disconnectNulls: true },
-          ),
-        },
-      });
-    });
-
-    this.logger.warn(
-      `Legacy super admin retired: email=${LEGACY_SUPER_ADMIN_EMAIL} mode=${blockerCount === 0 ? 'deleted' : 'tombstoned'} blockers=${blockerCount}`,
-    );
   }
 
   private async resolveUserAssignmentStoreUuid(
@@ -5503,7 +5384,7 @@ export class UserService implements OnModuleInit {
     if (organizationNodeIds.includes(nodeId)) return;
     this.logger.warn(
       'Admin user scope assignment blocked by domain: admin=' +
-        (admin?.email || admin?.id || 'unknown') +
+        this.userLogId(admin) +
         ' role=' +
         admin?.role +
         ' nodeId=' +
@@ -6027,7 +5908,7 @@ export class UserService implements OnModuleInit {
     const scopeLabel = this.adminDomainScopeLabel(admin);
     this.logger.warn(
       'Admin user create blocked by email domain: admin=' +
-        (admin.email || admin.id || 'unknown') +
+        this.userLogId(admin) +
         ' role=' +
         admin.role +
         ' targetDomain=' +
@@ -6048,6 +5929,12 @@ export class UserService implements OnModuleInit {
       throw new BadRequestException('Mã store phải có 2-40 ký tự chữ hoặc số');
     }
     return code;
+  }
+
+  private userLogId(user: any) {
+    if (user?.id) return `userId:${user.id}`;
+    if (user?.email) return `emailHash:${logFingerprint(user.email)}`;
+    return 'unknown';
   }
 
   private normalizeRequiredText(

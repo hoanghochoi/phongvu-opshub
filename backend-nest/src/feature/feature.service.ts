@@ -15,6 +15,7 @@ import {
   normalizeSystemRoleCode,
   isSuperAdminRole,
 } from '../common/system-role';
+import { logFingerprint } from '../common/log-sanitizer';
 
 const SUPER_ADMIN_ROLE = SYSTEM_ROLE_SUPER_ADMIN;
 const ADMIN_ROLE = SYSTEM_ROLE_ADMIN;
@@ -442,7 +443,7 @@ export class FeatureService implements OnModuleInit {
     });
 
     this.logger.log(
-      `Node feature assignments saved: admin=${admin?.email || admin?.id || 'unknown'} nodes=${nodeIds.length} groups=${targets.length} features=${featureCodes.length} replaceExisting=${replaceExisting}`,
+      `Node feature assignments saved: admin=${this.adminLogId(admin)} nodes=${nodeIds.length} groups=${targets.length} features=${featureCodes.length} replaceExisting=${replaceExisting}`,
     );
     return this.adminListNodeAssignments(admin);
   }
@@ -479,7 +480,7 @@ export class FeatureService implements OnModuleInit {
       },
     });
     this.logger.log(
-      `Node feature assignment updated: admin=${admin?.email || admin?.id || 'unknown'} id=${id} feature=${updated.featureCode} enabled=${updated.enabled}`,
+      `Node feature assignment updated: admin=${this.adminLogId(admin)} id=${id} feature=${updated.featureCode} enabled=${updated.enabled}`,
     );
     return this.toNodeFeatureAssignmentDto(updated);
   }
@@ -495,7 +496,7 @@ export class FeatureService implements OnModuleInit {
       where: { id },
     });
     this.logger.warn(
-      `Node feature assignment deleted: admin=${admin?.email || admin?.id || 'unknown'} id=${id} feature=${current.featureCode}`,
+      `Node feature assignment deleted: admin=${this.adminLogId(admin)} id=${id} feature=${current.featureCode}`,
     );
     return { deleted: true, id };
   }
@@ -1337,8 +1338,7 @@ export class FeatureService implements OnModuleInit {
         departmentCode: source.departmentCode ?? null,
         jobRoleCode: source.jobRoleCode ?? null,
         workScopeType: this.effectiveScope(source),
-        regionCode:
-          organizationContext.regionCode ?? source.regionCode ?? null,
+        regionCode: organizationContext.regionCode ?? source.regionCode ?? null,
         areaCode: organizationContext.areaCode ?? source.areaCode ?? null,
         organizationNodeId: organizationContext.organizationNodeId,
         organizationNodeIds: organizationContext.organizationNodeIds,
@@ -1552,6 +1552,15 @@ export class FeatureService implements OnModuleInit {
     return /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$/.test(
       domain,
     );
+  }
+
+  private adminLogId(admin: any) {
+    const userId = this.optionalText(admin?.id, 80);
+    if (userId) return `userId:${userId}`;
+    const email = String(admin?.email || '')
+      .trim()
+      .toLowerCase();
+    return email ? `emailHash:${logFingerprint(email)}` : 'unknown';
   }
 
   private assertSuperAdmin(user: any) {

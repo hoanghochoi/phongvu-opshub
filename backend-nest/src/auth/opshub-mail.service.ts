@@ -4,6 +4,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import nodemailer from 'nodemailer';
+import { logFingerprint, safeLogError } from '../common/log-sanitizer';
 
 @Injectable()
 export class OpshubMailService {
@@ -44,7 +45,9 @@ export class OpshubMailService {
         html: input.html,
       });
     } catch (error) {
-      this.logger.error(`Failed to send OpsHub email to ${input.to}`, error);
+      this.logger.error(
+        `OpsHub email delivery failed: recipientHash=${logFingerprint(input.to)} error=${safeLogError(error)}`,
+      );
       throw new InternalServerErrorException(
         'Không gửi được email PhongVu OpsHub.',
       );

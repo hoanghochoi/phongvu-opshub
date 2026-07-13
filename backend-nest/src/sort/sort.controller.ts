@@ -14,6 +14,7 @@ import { RequireFeature } from '../feature/feature.decorator';
 import { FeatureGuard } from '../feature/feature.guard';
 import { FifoCheckDto, SortCompletionReportDto, SortTextDto } from './sort.dto';
 import { FifoService } from '../fifo/fifo.service';
+import { logFingerprint } from '../common/log-sanitizer';
 
 @Controller('sort')
 @UseGuards(AuthGuard('jwt'), FeatureGuard)
@@ -31,7 +32,9 @@ export class SortController {
   @RequireFeature(FEATURE_KEYS.FIFO)
   async sort(@Req() req: any, @Body() body: SortTextDto) {
     const userEmail = req.user?.email || '';
-    this.logger.log(`[SORT] text="${body.text}" user="${userEmail}"`);
+    this.logger.log(
+      `Sort request started: userId=${req.user?.id ?? 'unknown'} emailHash=${logFingerprint(userEmail)} inputHash=${logFingerprint(body.text)} inputLength=${body.text.length}`,
+    );
     if (this.fifoService) {
       return this.fifoService.sort(req.user, { text: body.text });
     }
@@ -46,7 +49,7 @@ export class SortController {
   async fifoCheck(@Req() req: any, @Body() body: FifoCheckDto) {
     const userEmail = req.user?.email || '';
     this.logger.log(
-      `[FIFO-CHECK] text="${body.text}" qty=${body.qty} user="${userEmail}"`,
+      `FIFO check started: userId=${req.user?.id ?? 'unknown'} emailHash=${logFingerprint(userEmail)} inputHash=${logFingerprint(body.text)} inputLength=${body.text.length} qty=${body.qty}`,
     );
     if (this.fifoService) {
       return this.fifoService.check(req.user, {
@@ -71,7 +74,7 @@ export class SortController {
   ) {
     const userEmail = req.user?.email || '';
     this.logger.log(
-      `[SORT-COMPLETION] user="${userEmail}" count=${body.sortedSKUs?.length ?? 0}`,
+      `Sort completion started: userId=${req.user?.id ?? 'unknown'} emailHash=${logFingerprint(userEmail)} count=${body.sortedSKUs?.length ?? 0}`,
     );
     return this.sortService.completionReport(
       body.sortedSKUs ?? [],

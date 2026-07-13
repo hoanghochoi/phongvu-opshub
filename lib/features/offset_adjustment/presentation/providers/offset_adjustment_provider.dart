@@ -5,10 +5,10 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
-import '../../../../core/constants/api_constants.dart';
 import '../../../../core/logging/app_logger.dart';
 import '../../../../core/network/api_client.dart';
 import '../../../../core/network/api_exception.dart';
+import '../../../../core/network/realtime_ticket_client.dart';
 import '../../../../core/utils/date_range_defaults.dart';
 import '../../../auth/domain/entities/store_branch.dart';
 import '../../../auth/domain/entities/user.dart';
@@ -101,7 +101,7 @@ class OffsetAdjustmentProvider extends ChangeNotifier {
     if (!_storesLoaded) await loadStores();
     await search();
     await loadPendingTotal();
-    _connectRealtime();
+    unawaited(_connectRealtime());
   }
 
   Future<void> loadStores() async {
@@ -149,7 +149,7 @@ class OffsetAdjustmentProvider extends ChangeNotifier {
     _selectedStoreIds = ids.map((id) => id.toUpperCase()).toSet();
     _resetPaging();
     notifyListeners();
-    _connectRealtime();
+    unawaited(_connectRealtime());
   }
 
   void setType(String value) {
@@ -455,19 +455,21 @@ class OffsetAdjustmentProvider extends ChangeNotifier {
     );
   }
 
-  void _connectRealtime() {
+  Future<void> _connectRealtime() async {
     final token = ApiClient().authToken?.trim();
     if (token == null || token.isEmpty) return;
-    final url = ApiConstants.realtimeWsUrl(
-      storeId: _realtimeStoreId(),
-      accessToken: token,
-    );
-    if (_realtimeUrl == url && _realtimeChannel != null) return;
+    final storeCode = _realtimeStoreId();
+    final connectionKey = '$storeCode|$token';
+    if (_realtimeUrl == connectionKey && _realtimeChannel != null) return;
     _closeRealtime();
     try {
-      final channel = _realtimeConnector(Uri.parse(url));
+      final uri = await RealtimeTicketClient.instance.issueConnectionUri(
+        storeCode: storeCode,
+      );
+      if (ApiClient().authToken?.trim() != token) return;
+      final channel = _realtimeConnector(uri);
       _realtimeChannel = channel;
-      _realtimeUrl = url;
+      _realtimeUrl = connectionKey;
       _realtimeSubscription = channel.stream.listen(
         _handleRealtimeMessage,
         onError: (error, stackTrace) {

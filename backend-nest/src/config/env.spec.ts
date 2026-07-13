@@ -11,9 +11,12 @@ const baseEnv = {
   JWT_SECRET: 'local-secret',
   REDIS_HOST: 'localhost',
   REDIS_PORT: '6379',
+  REDIS_PASSWORD: 'test-redis-password',
   UPLOAD_BASE_DIR: '/data/app_images',
   IMAGE_BASE_URL: 'https://img.example.com',
-  PUBLIC_BASE_URL: 'http://localhost:3000',
+  PUBLIC_BASE_URL: 'https://opshub.example.com',
+  PRIVATE_MEDIA_BASE_DIR: '/data/private-media',
+  PRIVATE_MEDIA_PUBLIC_BASE_URL: 'https://opshub.example.com/api',
 };
 
 describe('env validation', () => {
@@ -142,6 +145,104 @@ describe('env validation', () => {
         IMAGE_BASE_URL: 'https://img.phongvu.example',
       }),
     ).toThrow('Missing required environment variable: PUBLIC_BASE_URL');
+  });
+
+  it('rejects placeholder credentials embedded inside production URLs', () => {
+    expect(() =>
+      validateRuntimeEnv({
+        ...baseEnv,
+        NODE_ENV: 'production',
+        ALLOWED_ORIGINS: 'https://opshub.example.com',
+        IMAGE_BASE_URL: 'https://img.phongvu.example',
+        DATABASE_URL:
+          'postgresql://user:replace-with-long-random-db-password@postgres:5432/opshub',
+      }),
+    ).toThrow(
+      'Unsafe placeholder environment values in production: DATABASE_URL',
+    );
+  });
+
+  it('requires Redis authentication in production', () => {
+    const { REDIS_PASSWORD, ...env } = baseEnv;
+    expect(() =>
+      validateRuntimeEnv({
+        ...env,
+        NODE_ENV: 'production',
+        ALLOWED_ORIGINS: 'https://opshub.example.com',
+        IMAGE_BASE_URL: 'https://img.phongvu.example',
+      }),
+    ).toThrow('Missing required environment variable: REDIS_PASSWORD');
+  });
+
+  it('requires private media configuration to be isolated in production', () => {
+    expect(() =>
+      validateRuntimeEnv({
+        ...baseEnv,
+        NODE_ENV: 'production',
+        ALLOWED_ORIGINS: 'https://opshub.example.com',
+        IMAGE_BASE_URL: 'https://img.phongvu.example',
+        PRIVATE_MEDIA_BASE_DIR: '',
+      }),
+    ).toThrow('Missing required environment variable: PRIVATE_MEDIA_BASE_DIR');
+
+    expect(() =>
+      validateRuntimeEnv({
+        ...baseEnv,
+        NODE_ENV: 'production',
+        ALLOWED_ORIGINS: 'https://opshub.example.com',
+        IMAGE_BASE_URL: 'https://img.phongvu.example',
+        PRIVATE_MEDIA_BASE_DIR: '/data/app_images/private',
+      }),
+    ).toThrow('must be separate from UPLOAD_BASE_DIR');
+
+    expect(() =>
+      validateRuntimeEnv({
+        ...baseEnv,
+        NODE_ENV: 'production',
+        ALLOWED_ORIGINS: 'https://opshub.example.com',
+        IMAGE_BASE_URL: 'https://img.phongvu.example',
+        PRIVATE_MEDIA_PUBLIC_BASE_URL: 'http://opshub.example.com/api',
+      }),
+    ).toThrow('must be an HTTPS URL');
+  });
+
+  it('validates Redis TLS settings without exposing credential values', () => {
+    expect(() =>
+      validateRuntimeEnv({ ...baseEnv, REDIS_TLS: 'sometimes' }),
+    ).toThrow('Invalid boolean environment variable: REDIS_TLS');
+    expect(() =>
+      validateRuntimeEnv({
+        ...baseEnv,
+        REDIS_TLS_CA_FILE: '/run/secrets/redis-ca.pem',
+      }),
+    ).toThrow('REDIS_TLS_CA_FILE requires REDIS_TLS=true');
+  });
+
+  it('enforces HTTPS and exact known integration hosts in production', () => {
+    const production = {
+      ...baseEnv,
+      NODE_ENV: 'production',
+      ALLOWED_ORIGINS: 'https://opshub.example.com',
+      IMAGE_BASE_URL: 'https://img.phongvu.example',
+    };
+    expect(() =>
+      validateRuntimeEnv({
+        ...production,
+        MAP_VIETIN_TRANSACTION_BASE_URL: 'http://map.vietinbank.vn/api',
+      }),
+    ).toThrow('must be an HTTPS URL');
+    expect(() =>
+      validateRuntimeEnv({
+        ...production,
+        ERP_OAUTH_BASE_URL: 'https://evil.example/oauth',
+      }),
+    ).toThrow('host is not allowed in production');
+    expect(() =>
+      validateRuntimeEnv({
+        ...production,
+        TTS_SERVICE_URL: 'http://172.20.0.1:18081',
+      }),
+    ).not.toThrow();
   });
 
   it('requires eFAST credential and bank accounts only when eFAST sync is enabled', () => {

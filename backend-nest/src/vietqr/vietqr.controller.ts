@@ -10,7 +10,10 @@ import {
   ServiceUnavailableException,
   UnauthorizedException,
   UseGuards,
+  Logger,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
+import { createHash, timingSafeEqual } from 'crypto';
 import { AuthGuard } from '@nestjs/passport';
 import type { Response } from 'express';
 import { FEATURE_KEYS } from '../feature/feature.constants';
@@ -19,7 +22,13 @@ import { FeatureGuard } from '../feature/feature.guard';
 import { VietQrService } from './vietqr.service';
 
 @Controller('vietqr')
+@Throttle({
+  ip: { ttl: 60_000, limit: 60 },
+  principal: { ttl: 60_000, limit: 30 },
+})
 export class VietQrController {
+  private readonly logger = new Logger(VietQrController.name);
+
   constructor(private readonly vietQrService: VietQrService) {}
 
   @Post()
@@ -58,7 +67,7 @@ export class VietQrController {
 
   @Get('n8n')
   async createExternalFromQuery(@Request() req: any, @Query() query: any) {
-    this.assertExternalAccess(req, query);
+    this.assertExternalAccess(req);
     return this.stripBinary(
       await this.vietQrService.createExternal(this.toExternalInput(query)),
     );
@@ -66,7 +75,7 @@ export class VietQrController {
 
   @Post('n8n')
   async createExternalFromBody(@Request() req: any, @Body() body: any) {
-    this.assertExternalAccess(req, body);
+    this.assertExternalAccess(req);
     return this.stripBinary(
       await this.vietQrService.createExternal(this.toExternalInput(body)),
     );
@@ -74,13 +83,13 @@ export class VietQrController {
 
   @Get('n8n/status')
   async externalStatusFromQuery(@Request() req: any, @Query() query: any) {
-    this.assertExternalAccess(req, query);
+    this.assertExternalAccess(req);
     return this.externalStatus(query);
   }
 
   @Post('n8n/status')
   async externalStatusFromBody(@Request() req: any, @Body() body: any) {
-    this.assertExternalAccess(req, body);
+    this.assertExternalAccess(req);
     return this.externalStatus(body);
   }
 
@@ -90,7 +99,7 @@ export class VietQrController {
     @Query() query: any,
     @Res() res: Response,
   ) {
-    this.assertExternalAccess(req, query);
+    this.assertExternalAccess(req);
     const result = await this.vietQrService.createExternal(
       this.toExternalInput(query),
     );
@@ -111,7 +120,7 @@ export class VietQrController {
     res.send(result.imageBuffer);
   }
 
-  private assertExternalAccess(req: any, raw: Record<string, unknown>) {
+  private assertExternalAccess(req: any) {
     const expected = process.env.VIETQR_EXTERNAL_API_KEY?.trim();
     if (!expected) {
       throw new ServiceUnavailableException(
@@ -123,11 +132,16 @@ export class VietQrController {
     const bearerToken = authorization?.match(/^Bearer\s+(.+)$/i)?.[1]?.trim();
     const provided =
       this.firstHeader(req, 'x-opshub-vietqr-key') ||
-      bearerToken ||
-      this.firstText(raw.apiKey) ||
-      this.firstText(raw.key);
+      bearerToken;
 
-    if (provided !== expected) {
+    const providedHash = createHash('sha256')
+      .update(provided ?? '')
+      .digest();
+    const expectedHash = createHash('sha256').update(expected).digest();
+    if (!provided || !timingSafeEqual(providedHash, expectedHash)) {
+      this.logger.warn(
+        'External VietQR access denied: reason=invalid_or_missing_api_key',
+      );
       throw new UnauthorizedException('API key VietQR không hợp lệ');
     }
   }

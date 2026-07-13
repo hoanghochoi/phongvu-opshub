@@ -315,6 +315,25 @@ describe('UserService admin store management', () => {
     );
   });
 
+  it('does not create, update or elevate any user during module initialization', async () => {
+    jest.spyOn(service as any, 'seedDefaultRoles').mockResolvedValue(undefined);
+    jest
+      .spyOn(service as any, 'seedDefaultPersonnelCatalog')
+      .mockResolvedValue(undefined);
+    jest
+      .spyOn(service as any, 'seedDefaultOrganizationTree')
+      .mockResolvedValue(undefined);
+    jest
+      .spyOn(service as any, 'syncStoreOrganizationNodes')
+      .mockResolvedValue(undefined);
+
+    await service.onModuleInit();
+
+    expect(prisma.user.create).not.toHaveBeenCalled();
+    expect(prisma.user.update).not.toHaveBeenCalled();
+    expect(prisma.user.updateMany).not.toHaveBeenCalled();
+  });
+
   function installOrganizationNodeMock() {
     const nodesByCode = new Map<string, any>();
     const nodesById = new Map<string, any>();
@@ -2041,9 +2060,7 @@ describe('UserService admin store management', () => {
       parentId: 'org-domain-phongvu-vn',
     });
     expect(nodes).not.toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ code: 'STORE_CP62' }),
-      ]),
+      expect.arrayContaining([expect.objectContaining({ code: 'STORE_CP62' })]),
     );
     expect(prisma.organizationNode.update).toHaveBeenCalledWith(
       expect.objectContaining({

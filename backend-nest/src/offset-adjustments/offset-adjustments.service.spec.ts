@@ -297,6 +297,7 @@ describe('OffsetAdjustmentsService', () => {
         editContentKind: null,
         transactionCode: null,
         amount: 1500000,
+        note: '=HYPERLINK("https://invalid.example")',
       }),
     ]);
 
@@ -317,7 +318,9 @@ describe('OffsetAdjustmentsService', () => {
     expect(csv.charCodeAt(0)).toBe(0xfeff);
     expect(csv).toContain('Cấn trừ đơn');
     expect(csv).toContain('Chờ Kế toán xác nhận');
-    expect(csv).toContain('=""26062500000001""');
+    expect(csv).toContain("'26062500000001");
+    expect(csv).toContain("'=HYPERLINK");
+    expect(csv).not.toContain(',=HYPERLINK');
   });
 });
 

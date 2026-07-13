@@ -11,6 +11,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
+import { Throttle } from '@nestjs/throttler';
 import type { Response } from 'express';
 import { FEATURE_KEYS } from '../feature/feature.constants';
 import { RequireFeature } from '../feature/feature.decorator';
@@ -121,6 +122,10 @@ export class PaymentNotificationsController {
   }
 
   @Post('app-logs')
+  @Throttle({
+    ip: { ttl: 60_000, limit: 30 },
+    principal: { ttl: 60_000, limit: 20 },
+  })
   createAppLog(@Request() req: any, @Body() body: CreateAppLogDto) {
     return this.service.createAppLog(req.user, body);
   }

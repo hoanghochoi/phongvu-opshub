@@ -543,7 +543,7 @@ describe('SalesReportErpService', () => {
     expect(result[0].sanitizedSnapshot.createdAt).toBe('2026-07-03T09:43:34Z');
   });
 
-  it('uses ERP siteDisplayName as the store source when createdFromSiteDisplayName is missing', async () => {
+  it('does not map a store from siteDisplayName when createdFromSiteDisplayName is missing', async () => {
     process.env.ERP_ACCESS_TOKEN = 'static-access-token';
     const fetchMock = jest.fn(async (input: string | URL) => {
       const url = input.toString();
@@ -588,13 +588,11 @@ describe('SalesReportErpService', () => {
     expect(result[0]).toMatchObject({
       orderCode: '26071132604790',
       orderCreatedAt: new Date('2026-07-11T13:25:05Z'),
-      storeCode: 'CP72',
+      storeCode: null,
       consultantEmail: 'viet.nq01@phongvu.vn',
     });
     expect(result[0].sanitizedSnapshot).toMatchObject({
       createdFromSiteDisplayName: null,
-      siteDisplayName:
-        '[CP72] ĐỊA ĐIỂM KINH DOANH 60 - CÔNG TY CỔ PHẦN THƯƠNG MẠI - DỊCH VỤ PHONG VŨ',
     });
   });
 
@@ -617,6 +615,8 @@ describe('SalesReportErpService', () => {
                 confirmationStatus: 'active',
                 fulfillmentStatus: 'PROCESSING',
                 terminalName: 'CP01',
+                createdFromSiteDisplayName:
+                  '[CP01] ĐỊA ĐIỂM KINH DOANH 01 - CÔNG TY CỔ PHẦN THƯƠNG MẠI - DỊCH VỤ PHONG VŨ',
                 grandTotal: 3500000,
                 customerName: 'Le Van C',
                 creator: {

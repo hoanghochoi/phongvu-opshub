@@ -19,6 +19,7 @@ describe('AuthService', () => {
   let emailVerificationService: {
     consumeRegistrationCode: jest.Mock;
     sendRegistrationCode: jest.Mock;
+    registrationCodeResponse: jest.Mock;
   };
   let passwordResetService: {
     sendResetCodeForEmail: jest.Mock;
@@ -53,6 +54,10 @@ describe('AuthService', () => {
     emailVerificationService = {
       consumeRegistrationCode: jest.fn().mockResolvedValue(undefined),
       sendRegistrationCode: jest.fn().mockResolvedValue({
+        ok: true,
+        expiresInMinutes: 10,
+      }),
+      registrationCodeResponse: jest.fn().mockReturnValue({
         ok: true,
         expiresInMinutes: 10,
       }),
@@ -242,19 +247,24 @@ describe('AuthService', () => {
     );
   });
 
-  it('allows the break-glass super admin email outside the organization domain tree', async () => {
+  it('does not bypass the organization domain policy for a special email', async () => {
     prisma.user.findUnique.mockResolvedValue(null);
 
     await expect(
-      service.sendRegistrationVerificationCode(' admin@hoanghochoi.com '),
-    ).resolves.toEqual({
-      ok: true,
-      expiresInMinutes: 10,
-    });
-    expect(policyService.getAllowedEmailDomains).not.toHaveBeenCalled();
-    expect(emailVerificationService.sendRegistrationCode).toHaveBeenCalledWith(
-      'admin@hoanghochoi.com',
-    );
+      service.sendRegistrationVerificationCode(' admin@outside.example '),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(policyService.getAllowedEmailDomains).toHaveBeenCalled();
+    expect(emailVerificationService.sendRegistrationCode).not.toHaveBeenCalled();
+  });
+
+  it('returns the same public response without sending a code for a registered account', async () => {
+    prisma.user.findUnique.mockResolvedValue({ password: 'existing-hash' });
+
+    await expect(
+      service.sendRegistrationVerificationCode('staff@phongvu-shop.vn'),
+    ).resolves.toEqual({ ok: true, expiresInMinutes: 10 });
+    expect(emailVerificationService.registrationCodeResponse).toHaveBeenCalled();
+    expect(emailVerificationService.sendRegistrationCode).not.toHaveBeenCalled();
   });
 
   it('rejects login when the account is not registered yet', async () => {
@@ -262,7 +272,11 @@ describe('AuthService', () => {
 
     await expect(
       service.passwordLogin('staff@phongvu-shop.vn', 'Password1!', loginDevice),
-    ).rejects.toBeInstanceOf(UnauthorizedException);
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({
+        message: 'Email hoặc mật khẩu không đúng',
+      }),
+    });
     expect(prisma.user.create).not.toHaveBeenCalled();
   });
 
@@ -397,7 +411,11 @@ describe('AuthService', () => {
         'WrongPassword1!',
         loginDevice,
       ),
-    ).rejects.toBeInstanceOf(UnauthorizedException);
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({
+        message: 'Email hoặc mật khẩu không đúng',
+      }),
+    });
   });
 
   it('changes password and issues a JWT with the next token version', async () => {

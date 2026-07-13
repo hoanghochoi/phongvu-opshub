@@ -17,6 +17,7 @@ import '../../../../app/widgets/app_state_widgets.dart';
 import '../../../../core/constants/api_constants.dart';
 import '../../../../core/logging/app_logger.dart';
 import '../../../../core/network/api_client.dart';
+import '../../../../core/network/private_media_headers.dart';
 import '../../data/feedback_display_content.dart';
 
 typedef FeedbackAdminLoader = Future<List<Map<String, dynamic>>> Function();
@@ -490,6 +491,7 @@ class _FeedbackImageThumbnail extends StatelessWidget {
             height: 92,
             child: CachedNetworkImage(
               imageUrl: imageUrl,
+              httpHeaders: privateMediaHeaders(imageUrl),
               fit: BoxFit.cover,
               memCacheWidth: 360,
               memCacheHeight: 360,
@@ -510,7 +512,8 @@ class _FeedbackImageThumbnail extends StatelessWidget {
                     context: {
                       'imageIndex': imageIndex,
                       'urlLength': url.length,
-                      'error': error.toString(),
+                      'protectedMedia': isProtectedPrivateMediaUrl(url),
+                      'errorType': error.runtimeType.toString(),
                     },
                   ),
                 );
@@ -573,11 +576,25 @@ Future<void> _showFeedbackImagePreview(
                   maxScale: 4,
                   child: CachedNetworkImage(
                     imageUrl: imageUrl,
+                    httpHeaders: privateMediaHeaders(imageUrl),
                     fit: BoxFit.contain,
                     placeholder: (context, url) =>
                         const Center(child: CircularProgressIndicator()),
-                    errorWidget: (context, url, error) =>
-                        const _FeedbackImageErrorPlaceholder(),
+                    errorWidget: (context, url, error) {
+                      unawaited(
+                        AppLogger.instance.warn(
+                          'FeedbackAdmin',
+                          'Feedback admin image preview load failed',
+                          context: {
+                            'imageIndex': imageIndex,
+                            'urlLength': url.length,
+                            'protectedMedia': isProtectedPrivateMediaUrl(url),
+                            'errorType': error.runtimeType.toString(),
+                          },
+                        ),
+                      );
+                      return const _FeedbackImageErrorPlaceholder();
+                    },
                   ),
                 ),
               ),

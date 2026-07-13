@@ -19,6 +19,7 @@ import { FEATURE_KEYS } from '../feature/feature.constants';
 import { RequireFeature } from '../feature/feature.decorator';
 import { FeatureGuard } from '../feature/feature.guard';
 import { CreateFeedbackDto } from './feedback.dto';
+import { Throttle } from '@nestjs/throttler';
 
 @Controller('feedback')
 @UseGuards(AuthGuard('jwt'), FeatureGuard)
@@ -27,6 +28,10 @@ export class FeedbackController {
 
   @Post()
   @RequireFeature(FEATURE_KEYS.FEEDBACK)
+  @Throttle({
+    ip: { ttl: 60_000, limit: 12 },
+    principal: { ttl: 60_000, limit: 6 },
+  })
   @UseInterceptors(
     FilesInterceptor('images', IMAGE_UPLOAD_MAX_FILES, imageUploadOptions),
   )

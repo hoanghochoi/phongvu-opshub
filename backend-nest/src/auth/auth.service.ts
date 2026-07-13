@@ -6,6 +6,7 @@
   UnauthorizedException,
 } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
+import { createHash, randomBytes } from 'crypto';
 import { JwtService } from '@nestjs/jwt';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
@@ -23,7 +24,6 @@ import {
   allowedEmailDomainMessage,
   getAllowedEmailDomains,
 } from './email-domain-policy';
-import { BREAK_GLASS_SUPER_ADMIN_EMAIL } from './break-glass-admin.constants';
 import {
   SYSTEM_ROLE_ADMIN,
   SYSTEM_ROLE_SUPER_ADMIN,
@@ -36,6 +36,7 @@ import {
 } from '../common/organization-store-scope';
 
 const PASSWORD_SALT_ROUNDS = 12;
+const INVALID_CREDENTIALS_MESSAGE = 'Email hoặc mật khẩu không đúng';
 const STORE_SCOPE = 'STORE';
 const AREA_SCOPE = 'AREA';
 const REGION_SCOPE = 'REGION';
@@ -53,6 +54,10 @@ const WORK_SCOPE_TYPES = new Set([
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
+  private readonly dummyPasswordHash = bcrypt.hash(
+    randomBytes(32).toString('hex'),
+    PASSWORD_SALT_ROUNDS,
+  );
 
   constructor(
     private prisma: PrismaService,
@@ -71,8 +76,9 @@ export class AuthService {
     const email = this.normalizeEmail(emailInput);
     await this.assertAllowedDomain(email);
     const normalizedDevice = this.authSessionService.normalizeDevice(device);
+    const emailHash = this.emailLogId(email);
     this.logger.log(
-      `Password login started: email=${email} platform=${normalizedDevice.platform}`,
+      `Password login started: emailHash=${emailHash} platform=${normalizedDevice.platform}`,
     );
 
     const user = await this.prisma.user.findUnique({
@@ -80,24 +86,20 @@ export class AuthService {
       include: this.userDtoInclude(),
     });
 
-    if (!user) {
-      throw new UnauthorizedException(
-        'Tài khoản chưa tồn tại. Vui lòng tạo tài khoản trước.',
+    if (!user?.password) {
+      await bcrypt.compare(password, await this.dummyPasswordHash);
+      this.logger.warn(
+        `Password login failed: emailHash=${emailHash} platform=${normalizedDevice.platform} reason=invalid_credentials`,
       );
-    }
-
-    if (!user.password) {
-      throw new UnauthorizedException(
-        'Tài khoản chưa có mật khẩu. Vui lòng dùng Quên mật khẩu để tạo mật khẩu lần đầu.',
-      );
+      throw new UnauthorizedException(INVALID_CREDENTIALS_MESSAGE);
     }
 
     const isPasswordValid = await bcrypt.compare(password, user.password);
     if (!isPasswordValid) {
       this.logger.warn(
-        `Password login failed: email=${email} platform=${normalizedDevice.platform} reason=invalid_password`,
+        `Password login failed: emailHash=${emailHash} platform=${normalizedDevice.platform} reason=invalid_credentials`,
       );
-      throw new UnauthorizedException('Email hoặc mật khẩu không đúng');
+      throw new UnauthorizedException(INVALID_CREDENTIALS_MESSAGE);
     }
 
     if (user.status === 'no') {
@@ -109,7 +111,7 @@ export class AuthService {
       normalizedDevice,
     );
     this.logger.log(
-      `Password login succeeded: userId=${user.id} email=${email} platform=${session.platform} sessionVersion=${session.sessionVersion}`,
+      `Password login succeeded: userId=${user.id} emailHash=${emailHash} platform=${session.platform} sessionVersion=${session.sessionVersion}`,
     );
 
     return this.buildLoginResponse(user, session);
@@ -158,7 +160,7 @@ export class AuthService {
       input,
     );
     this.logger.log(
-      `Registration login session issued: userId=${user.id} email=${email} platform=${session.platform} sessionVersion=${session.sessionVersion}`,
+      `Registration login session issued: userId=${user.id} emailHash=${this.emailLogId(email)} platform=${session.platform} sessionVersion=${session.sessionVersion}`,
     );
 
     return this.buildLoginResponse(user, session);
@@ -173,9 +175,10 @@ export class AuthService {
       select: { password: true },
     });
     if (existingUser?.password) {
-      throw new BadRequestException(
-        'Email này đã được đăng ký. Vui lòng đăng nhập.',
+      this.logger.warn(
+        `Registration verification request ignored: emailHash=${this.emailLogId(email)} reason=account_already_registered`,
       );
+      return this.emailVerificationService.registrationCodeResponse();
     }
 
     return this.emailVerificationService.sendRegistrationCode(email);
@@ -300,9 +303,11 @@ export class AuthService {
     return email;
   }
 
-  private async assertAllowedDomain(email: string) {
-    if (email === BREAK_GLASS_SUPER_ADMIN_EMAIL) return;
+  private emailLogId(email: string) {
+    return createHash('sha256').update(email).digest('hex').slice(0, 12);
+  }
 
+  private async assertAllowedDomain(email: string) {
     const fallbackDomains = getAllowedEmailDomains();
     const allowedDomains =
       await this.policyService.getAllowedEmailDomains(fallbackDomains);

@@ -28,7 +28,10 @@ Target layout:
 1. Create folders on the home server:
 
 ```bash
-sudo mkdir -p /srv/opshub/{postgres,redis,uploads,downloads,web,import,caddy/data,caddy/config}
+sudo mkdir -p /srv/opshub/{postgres,redis,uploads,private-media,downloads,web,import,payment-audio,caddy/data,caddy/config}
+sudo chown -R 1000:1000 /srv/opshub/{uploads,private-media,payment-audio}
+sudo chmod 755 /srv/opshub/uploads
+sudo chmod 700 /srv/opshub/{private-media,payment-audio}
 sudo mkdir -p /mnt/truenas/opshub-backups
 ```
 
@@ -46,6 +49,13 @@ OPSHUB_ENV_FILE=./env docker compose --env-file deploy/home-server/env -f deploy
 OPSHUB_ENV_FILE=./env docker compose --env-file deploy/home-server/env -f deploy/home-server/docker-compose.home.yml up -d --build
 ```
 
+Before `up`, verify the non-root API UID can write only its runtime data
+directories:
+
+```bash
+OPSHUB_ENV_FILE=./env docker compose --env-file deploy/home-server/env -f deploy/home-server/docker-compose.home.yml --profile maintenance run --rm --no-deps maintenance sh -eu -c 'for d in /data/app_images /data/private-media /data/payment-audio; do f="$d/.write-test-$$"; : > "$f"; rm -f "$f"; done'
+```
+
 `OPSHUB_ENV_FILE` is required for every runtime compose command. Do not rely on
 `--env-file` alone: the compose services also read the same file through
 `env_file`, and missing `OPSHUB_ENV_FILE` should stop the command immediately
@@ -53,6 +63,11 @@ instead of silently falling back to `deploy/home-server/env.example`.
 Only the API container reads the full runtime env file. Infrastructure services
 use explicit environment keys so changing app-version metadata does not recreate
 Postgres, Redis, realtime, or Caddy by accident.
+
+The long-running API uses the Dockerfile `runtime` target (production
+dependencies only, non-root); migration/admin jobs use the separate `ops`
+target. Before the first recreate, complete the UID/volume, Redis rotation and
+rollback checklist in `SECURITY_HARDENING_RUNBOOK.md`.
 
 4. Build Flutter clients for production with the home-server API:
 
@@ -88,7 +103,10 @@ APP_FORCE_UPDATE=true
 bash deploy/home-server/backup.sh deploy/home-server/env
 ```
 
-Add that backup command to cron after the first manual restore test succeeds.
+The backup command fails closed until `BACKUP_AGE_RECIPIENT` is configured and
+the host has `age`. Keep the private identity outside the server and backup
+destination. Add the command to cron only after checksum verification and the
+first isolated restore test succeed; see `SECURITY_HARDENING_RUNBOOK.md`.
 
 ## Local Data
 
@@ -104,8 +122,8 @@ CSV import from the running API container:
 
 ```bash
 sudo cp inventory.csv users.csv /srv/opshub/import/
-OPSHUB_ENV_FILE=./env docker compose --env-file deploy/home-server/env -f deploy/home-server/docker-compose.home.yml exec api npm run import:inventory -- /data/import/inventory.csv --replace
-OPSHUB_ENV_FILE=./env docker compose --env-file deploy/home-server/env -f deploy/home-server/docker-compose.home.yml exec api npm run import:users -- /data/import/users.csv
+OPSHUB_ENV_FILE=./env docker compose --env-file deploy/home-server/env -f deploy/home-server/docker-compose.home.yml --profile maintenance run --rm maintenance npm run import:inventory -- /data/import/inventory.csv --replace
+OPSHUB_ENV_FILE=./env docker compose --env-file deploy/home-server/env -f deploy/home-server/docker-compose.home.yml --profile maintenance run --rm maintenance npm run import:users -- /data/import/users.csv
 ```
 
 Useful CSV headers:
@@ -116,11 +134,16 @@ Useful CSV headers:
 
 ## Network
 
-Expose only `80` and `443` to the LAN/internet. Postgres and Redis stay inside the Docker network. If this server is reachable from outside, keep Caddy HTTPS enabled and set `ALLOWED_ORIGINS` to the exact public origin.
+Expose only `80` and `443` to the LAN/internet. Postgres and Redis stay inside
+the Docker network and Redis requires the shared runtime password. Set
+`ALLOWED_ORIGINS` to exact HTTPS origins.
 
 On a VPS that already has host Nginx or Cloudflare Tunnel, set
 `OPSHUB_HTTP_BIND=127.0.0.1:8090` and point the tunnel at
 `http://127.0.0.1:8090` instead of binding Caddy directly to public `80`.
+TLS is terminated at Cloudflare in this layout. Enable Always Use HTTPS at the
+edge; Caddy also redirects only requests forwarded with
+`X-Forwarded-Proto: http` so HTTPS tunnel traffic does not loop.
 
 ## GitHub Deploy
 

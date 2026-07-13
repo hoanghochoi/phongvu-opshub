@@ -57,6 +57,7 @@ describe('PaymentNotificationsService', () => {
       },
       appLog: {
         create: jest.fn(),
+        count: jest.fn().mockResolvedValue(0),
         deleteMany: jest.fn(),
       },
       user: {
@@ -1599,6 +1600,84 @@ describe('PaymentNotificationsService', () => {
     await expect(
       service.getAudioForUser(speakerUser(), 'note-1'),
     ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('accepts a bounded app log and redacts sensitive context fields', async () => {
+    await expect(
+      service.createAppLog(speakerUser(), {
+        level: 'error',
+        source: 'PaymentMonitor',
+        message: 'Request failed token=raw-secret',
+        context: {
+          feature: 'payment-monitor',
+          authorization: 'Bearer raw-secret',
+        },
+      }),
+    ).resolves.toEqual({ ok: true, accepted: true });
+
+    expect(prisma.appLog.count).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ userId: 'user-speaker' }),
+      }),
+    );
+    expect(prisma.appLog.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        source: 'PaymentMonitor',
+        message: 'Request failed token=[redacted]',
+        context: {
+          feature: 'payment-monitor',
+          authorization: '[redacted]',
+        },
+      }),
+    });
+  });
+
+  it('rejects oversized app-log context and per-user daily quota overflow', async () => {
+    await expect(
+      service.createAppLog(speakerUser(), {
+        level: 'error',
+        source: 'PaymentMonitor',
+        message: 'Request failed',
+        context: { payload: 'x'.repeat(2_001) },
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(prisma.appLog.create).not.toHaveBeenCalled();
+
+    prisma.appLog.count.mockResolvedValue(200);
+    await expect(
+      service.createAppLog(speakerUser(), {
+        level: 'warn',
+        source: 'PaymentMonitor',
+        message: 'Retry delayed',
+      }),
+    ).rejects.toMatchObject({ status: 429 });
+    expect(prisma.appLog.create).not.toHaveBeenCalled();
+  });
+
+  it('rejects unrecognized app-log sources before quota or storage work', async () => {
+    await expect(
+      service.createAppLog(speakerUser(), {
+        level: 'error',
+        source: 'AttackerCardinalitySource',
+        message: 'noise',
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(prisma.appLog.count).not.toHaveBeenCalled();
+    expect(prisma.appLog.create).not.toHaveBeenCalled();
+  });
+
+  it('drops debug app logs in production without writing to the database', async () => {
+    process.env.NODE_ENV = 'production';
+
+    await expect(
+      service.createAppLog(speakerUser(), {
+        level: 'debug',
+        source: 'PaymentMonitor',
+        message: 'Local trace',
+      }),
+    ).resolves.toEqual({ ok: true, accepted: false, reason: 'debug_disabled' });
+    expect(prisma.appLog.count).not.toHaveBeenCalled();
+    expect(prisma.appLog.create).not.toHaveBeenCalled();
   });
 });
 

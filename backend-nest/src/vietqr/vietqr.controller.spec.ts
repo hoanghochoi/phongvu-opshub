@@ -126,6 +126,31 @@ describe('VietQrController', () => {
     }
   });
 
+  it('rejects API keys supplied through query or body fields', async () => {
+    const originalKey = process.env.VIETQR_EXTERNAL_API_KEY;
+    process.env.VIETQR_EXTERNAL_API_KEY = 'external-secret';
+    const controller = new VietQrController({
+      createExternal: jest.fn(),
+    } as any);
+
+    try {
+      await expect(
+        controller.createExternalFromQuery(
+          { headers: {} },
+          { apiKey: 'external-secret', storeCode: 'HCM02' },
+        ),
+      ).rejects.toMatchObject({ status: 401 });
+      await expect(
+        controller.createExternalFromBody(
+          { headers: {} },
+          { key: 'external-secret', storeCode: 'HCM02' },
+        ),
+      ).rejects.toMatchObject({ status: 401 });
+    } finally {
+      restoreExternalApiKey(originalKey);
+    }
+  });
+
   it('returns n8n image bytes with transfer headers', async () => {
     const originalKey = process.env.VIETQR_EXTERNAL_API_KEY;
     process.env.VIETQR_EXTERNAL_API_KEY = 'external-secret';

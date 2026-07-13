@@ -7,9 +7,9 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
-import '../../../../core/constants/api_constants.dart';
 import '../../../../core/logging/app_logger.dart';
 import '../../../../core/network/api_client.dart';
+import '../../../../core/network/realtime_ticket_client.dart';
 import '../../../../core/platform/app_platform_capabilities.dart';
 import '../../../../core/network/api_exception.dart' as api;
 import '../../../../core/platform/app_restart_service.dart';
@@ -61,6 +61,7 @@ class _DownloadedPaymentAudio {
 }
 
 typedef PaymentRealtimeConnector = WebSocketChannel Function(Uri uri);
+typedef PaymentRealtimeUriIssuer = Future<Uri> Function({String? storeCode});
 
 class PaymentMonitorProvider extends ChangeNotifier {
   static const _realtimeRefreshDebounce = Duration(milliseconds: 500);
@@ -92,6 +93,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
   final Duration _realtimeReconnectDelay;
   final Duration _speakerReadyFallbackInterval;
   final PaymentRealtimeConnector _realtimeConnector;
+  final PaymentRealtimeUriIssuer _realtimeUriIssuer;
   final Set<String> _deliveryInFlightNotificationIds = {};
   final Set<String> _terminalNotificationIds = {};
   final Set<String> _queuedStreamNotificationIds = {};
@@ -148,12 +150,18 @@ class PaymentMonitorProvider extends ChangeNotifier {
     Duration realtimeReconnectDelay = _defaultRealtimeReconnectDelay,
     Duration speakerReadyFallbackInterval =
         _defaultSpeakerReadyFallbackInterval,
+    PaymentRealtimeUriIssuer? realtimeUriIssuer,
   ]) : _restartService = restartService ?? AppRestartService(),
        _playbackRetryDelay = playbackRetryDelay,
        _realtimeReconnectDelay = realtimeReconnectDelay,
        _speakerReadyFallbackInterval = speakerReadyFallbackInterval,
        _realtimeConnector =
-           realtimeConnector ?? ((uri) => WebSocketChannel.connect(uri)) {
+           realtimeConnector ?? ((uri) => WebSocketChannel.connect(uri)),
+       _realtimeUriIssuer =
+           realtimeUriIssuer ??
+           (({storeCode}) => RealtimeTicketClient.instance.issueConnectionUri(
+             storeCode: storeCode,
+           )) {
     _loadEnabledPreference();
   }
 
@@ -634,7 +642,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
       eligible: speakerEligible,
       reason: _speakerEligibilityReason(),
     );
-    _connectRealtime();
+    unawaited(_connectRealtime());
     if (_isActive) {
       if (speakerPlaybackEnabled) {
         _notificationCheckpointAt ??= DateTime.now().toUtc().subtract(
@@ -733,7 +741,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  void _connectRealtime() {
+  Future<void> _connectRealtime() async {
     final user = _user;
     if (user == null || !_hasMonitorScope) {
       _disconnectRealtime('missing_scope');
@@ -755,12 +763,13 @@ class PaymentMonitorProvider extends ChangeNotifier {
     _realtimeReconnectTimer = null;
     _disconnectRealtime('reconnect');
 
-    final url = ApiConstants.realtimeWsUrl(
-      storeId: storeCode,
-      accessToken: token,
-    );
     try {
-      final channel = _realtimeConnector(Uri.parse(url));
+      final uri = await _realtimeUriIssuer(storeCode: storeCode);
+      if (ApiClient().authToken != token ||
+          _requestStoreId?.trim().toUpperCase() != storeCode.toUpperCase()) {
+        return;
+      }
+      final channel = _realtimeConnector(uri);
       _realtimeChannel = channel;
       _realtimeKey = nextKey;
       _realtimeSubscription = channel.stream.listen(
@@ -884,7 +893,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
     _realtimeReconnectTimer = Timer(delay, () {
       _realtimeReconnectTimer = null;
       if (_isActive && _canMonitorOnThisDevice && _hasMonitorScope) {
-        _connectRealtime();
+        unawaited(_connectRealtime());
       }
     });
     unawaited(

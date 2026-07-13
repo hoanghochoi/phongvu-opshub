@@ -5,10 +5,10 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
-import '../../../../core/constants/api_constants.dart';
 import '../../../../core/logging/app_logger.dart';
 import '../../../../core/network/api_client.dart';
 import '../../../../core/network/api_exception.dart';
+import '../../../../core/network/realtime_ticket_client.dart';
 import '../../../../core/utils/date_range_defaults.dart';
 import '../../../auth/domain/entities/store_branch.dart';
 import '../../../auth/domain/entities/user.dart';
@@ -150,7 +150,7 @@ class BankStatementProvider extends ChangeNotifier {
       await loadStores();
     }
     await loadPendingOrderTransferRequests(silent: true);
-    _connectOrderTransferRealtime();
+    unawaited(_connectOrderTransferRealtime());
   }
 
   Future<void> loadStores() async {
@@ -227,7 +227,7 @@ class BankStatementProvider extends ChangeNotifier {
     _resetPagingAndSelection();
     notifyListeners();
     unawaited(loadPendingOrderTransferRequests(silent: true));
-    _connectOrderTransferRealtime();
+    unawaited(_connectOrderTransferRealtime());
   }
 
   void setOrder(String value) {
@@ -1034,26 +1034,28 @@ class BankStatementProvider extends ChangeNotifier {
     }
   }
 
-  void _connectOrderTransferRealtime() {
+  Future<void> _connectOrderTransferRealtime() async {
     if (!hasOrderTransferNotifications) {
       _closeOrderTransferRealtime();
       return;
     }
     final token = ApiClient().authToken?.trim();
     if (token == null || token.isEmpty) return;
-    final url = ApiConstants.realtimeWsUrl(
-      storeId: _orderTransferRealtimeStoreId(),
-      accessToken: token,
-    );
-    if (_orderTransferRealtimeUrl == url &&
+    final storeCode = _orderTransferRealtimeStoreId();
+    final connectionKey = '$storeCode|$token';
+    if (_orderTransferRealtimeUrl == connectionKey &&
         _orderTransferRealtimeChannel != null) {
       return;
     }
     _closeOrderTransferRealtime();
     try {
-      final channel = _realtimeConnector(Uri.parse(url));
+      final uri = await RealtimeTicketClient.instance.issueConnectionUri(
+        storeCode: storeCode,
+      );
+      if (ApiClient().authToken?.trim() != token) return;
+      final channel = _realtimeConnector(uri);
       _orderTransferRealtimeChannel = channel;
-      _orderTransferRealtimeUrl = url;
+      _orderTransferRealtimeUrl = connectionKey;
       _orderTransferRealtimeSubscription = channel.stream.listen(
         _handleOrderTransferRealtimeMessage,
         onError: (error, stackTrace) {

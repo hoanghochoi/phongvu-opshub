@@ -5,6 +5,7 @@ import {
   Optional,
 } from '@nestjs/common';
 import { RedisService } from '../redis/redis.service';
+import { safeLogError } from '../common/log-sanitizer';
 
 const APP_VERSION_UPDATED_CHANNEL = 'APP_VERSION_UPDATED';
 
@@ -69,8 +70,7 @@ export class AppVersionService implements OnApplicationBootstrap {
       return true;
     } catch (error) {
       this.logger.error(
-        `App version realtime publish failed: androidBuild=${android.latestBuild} windowsBuild=${windows.latestBuild} webBuild=${web.latestBuild} durationMs=${Date.now() - startedAt}`,
-        error instanceof Error ? error.stack : String(error),
+        `App version realtime publish failed: androidBuild=${android.latestBuild} windowsBuild=${windows.latestBuild} webBuild=${web.latestBuild} durationMs=${Date.now() - startedAt} error=${safeLogError(error)}`,
       );
       return false;
     }

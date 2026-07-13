@@ -13,6 +13,7 @@ import '../../../../app/widgets/app_cards.dart';
 import '../../../../app/widgets/app_layout.dart';
 import '../../../../app/widgets/app_state_widgets.dart';
 import '../../../../core/logging/app_logger.dart';
+import '../../../../core/network/private_media_headers.dart';
 import '../../../../core/platform/app_platform_capabilities.dart';
 import '../../../auth/domain/entities/user.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
@@ -326,6 +327,7 @@ class _HomeCommandPanel extends StatelessWidget {
                   ? Image.network(
                       avatarUrl,
                       key: ValueKey(avatarUrl),
+                      headers: privateMediaHeaders(avatarUrl),
                       width: avatarSize,
                       height: avatarSize,
                       fit: BoxFit.cover,
@@ -335,7 +337,22 @@ class _HomeCommandPanel extends StatelessWidget {
                         }
                         return child;
                       },
-                      errorBuilder: (_, _, _) => _AvatarInitials(initials),
+                      errorBuilder: (_, error, _) {
+                        unawaited(
+                          AppLogger.instance.warn(
+                            'Home',
+                            'Home avatar image load failed',
+                            context: {
+                              'protectedMedia': isProtectedPrivateMediaUrl(
+                                avatarUrl,
+                              ),
+                              'urlLength': avatarUrl.length,
+                              'errorType': error.runtimeType.toString(),
+                            },
+                          ),
+                        );
+                        return _AvatarInitials(initials);
+                      },
                     )
                   : _AvatarInitials(initials),
             ),

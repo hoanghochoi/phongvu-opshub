@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { createHash } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
+import { RedisService } from '../redis/redis.service';
 
 export const AUTH_PLATFORMS = [
   'windows',
@@ -42,7 +43,10 @@ const SESSION_REPLACED_MESSAGE =
 export class AuthSessionService {
   private readonly logger = new Logger(AuthSessionService.name);
 
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private readonly redisService: RedisService,
+  ) {}
 
   async replacePlatformSession(
     user: { id: string; email?: string | null },
@@ -82,14 +86,25 @@ export class AuthSessionService {
     });
 
     this.logger.log(
-      `Auth platform session issued: userId=${user.id} email=${user.email || 'unknown'} platform=${session.platform} sessionVersion=${session.sessionVersion} deviceHashPrefix=${deviceIdHash.slice(0, 10)}`,
+      `Auth platform session issued: userId=${user.id} emailHash=${this.emailLogId(user.email)} platform=${session.platform} sessionVersion=${session.sessionVersion} deviceHashPrefix=${deviceIdHash.slice(0, 10)}`,
     );
+
+    await this.publishSessionRevocation({
+      userId: user.id,
+      platform: session.platform,
+      reason: 'SESSION_REPLACED',
+    });
 
     return {
       sessionId: session.id,
       platform: session.platform as AuthPlatform,
       sessionVersion: session.sessionVersion,
     };
+  }
+
+  private emailLogId(email: string | null | undefined) {
+    if (!email) return 'unknown';
+    return createHash('sha256').update(email).digest('hex').slice(0, 12);
   }
 
   async validateJwtSession(
@@ -155,6 +170,12 @@ export class AuthSessionService {
     this.logger.log(
       `Auth session revoked: userId=${userId} platform=${claims.platform} sessionVersion=${claims.sessionVersion} reason=${reason}`,
     );
+    await this.publishSessionRevocation({
+      userId,
+      sessionId: claims.sessionId,
+      platform: claims.platform,
+      reason,
+    });
     return { ok: true };
   }
 
@@ -167,7 +188,24 @@ export class AuthSessionService {
       where: { userId, revokedAt: null },
       data: { revokedAt: now, revokedReason: reason },
     });
+    await this.publishSessionRevocation({ userId, reason });
     this.logger.log(`Auth sessions revoked: userId=${userId} reason=${reason}`);
+  }
+
+  private async publishSessionRevocation(input: {
+    userId: string;
+    sessionId?: string;
+    platform?: string;
+    reason: string;
+  }) {
+    await this.redisService.publishMessageOrThrow('AUTH_SESSION_REVOKED', {
+      schemaVersion: 1,
+      userId: input.userId,
+      ...(input.sessionId ? { sessionId: input.sessionId } : {}),
+      ...(input.platform ? { platform: input.platform } : {}),
+      reason: input.reason,
+      occurredAt: new Date().toISOString(),
+    });
   }
 
   normalizeDevice(device: AuthDeviceContext): Required<AuthDeviceContext> & {

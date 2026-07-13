@@ -647,8 +647,9 @@
     }
 
     function renderCard(item, file) {
-      const disabled = !file || !file.url;
-      const safeUrl = disabled ? '#' : escapeAttr(file.url);
+      const trustedUrl = file?.url ? sanitizeDownloadUrl(file.url) : '';
+      const disabled = !trustedUrl;
+      const safeUrl = disabled ? '#' : escapeAttr(trustedUrl);
       const buttonClass = item.primary ? 'download-button' : 'download-button secondary';
       const fileMeta = disabled
         ? 'Link tải chưa sẵn sàng.'
@@ -668,13 +669,32 @@
     }
 
     function renderChecksum(file) {
-      if (!file || !file.url) {
+      const trustedUrl = file?.url ? sanitizeDownloadUrl(file.url) : '';
+      if (!trustedUrl) {
         checksumRow.hidden = true;
         checksumRow.innerHTML = '';
         return;
       }
       checksumRow.hidden = false;
-      checksumRow.innerHTML = `Mã kiểm tra file Windows: <a href="${escapeAttr(file.url)}" download>${escapeHtml(file.fileName || 'checksum')}</a>`;
+      checksumRow.innerHTML = `Mã kiểm tra file Windows: <a href="${escapeAttr(trustedUrl)}" download>${escapeHtml(file.fileName || 'checksum')}</a>`;
+    }
+
+    function sanitizeDownloadUrl(value) {
+      try {
+        const url = new URL(String(value ?? ''), window.location.origin);
+        const allowedPathPrefix = `${downloadsBasePath}/`;
+        if (url.protocol !== 'https:' ||
+            url.origin !== window.location.origin ||
+            !url.pathname.startsWith(allowedPathPrefix) ||
+            url.username ||
+            url.password ||
+            url.hash) {
+          return '';
+        }
+        return url.href;
+      } catch (_) {
+        return '';
+      }
     }
 
     function renderError(error) {

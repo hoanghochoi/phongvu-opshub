@@ -2,6 +2,8 @@
   BadRequestException,
   ConflictException,
   ForbiddenException,
+  HttpException,
+  HttpStatus,
   Injectable,
   Logger,
   NotFoundException,
@@ -35,6 +37,8 @@ import {
   storesForOrganizationNodeTree,
 } from '../common/organization-store-scope';
 import { isSuperAdminRole } from '../common/system-role';
+import { inspectAppLogContext } from '../common/app-log-context-policy';
+import { readBoundedHttpResponse } from '../common/bounded-http-response';
 import {
   CreateAppLogDto,
   ListPaymentNotificationsQueryDto,
@@ -49,6 +53,7 @@ const PAYMENT_SPEAKER_STREAM_CHANNEL = 'PAYMENT_SPEAKER_STREAM';
 const DEFAULT_AUDIO_RETENTION_DAYS = 7;
 const DEFAULT_LOG_RETENTION_DAYS = 30;
 const DEFAULT_TRANSACTION_RETENTION_DAYS = 90;
+const DEFAULT_APP_LOG_DAILY_QUOTA = 200;
 const DEFAULT_TTS_VOICE_ID = 'piper:vi-vais1000';
 const DEFAULT_TTS_SPEED = 0.9;
 const DEFAULT_TTS_PITCH = 1.0;
@@ -63,6 +68,7 @@ const DEFAULT_STREAM_EVENT_REPEAT_COUNT = 3;
 const DEFAULT_STREAM_EVENT_REPEAT_GAP_MS = 1000;
 const DEFAULT_STREAM_PENDING_RECOVERY_WINDOW_SECONDS = 30;
 const DEFAULT_TTS_CONCURRENCY = 2;
+const DEFAULT_TTS_RESPONSE_MAX_BYTES = 20 * 1024 * 1024;
 const DELIVERY_CLAIM_EVENT = 'DELIVERED';
 const STREAM_STARTED_EVENT = 'STREAM_STARTED';
 const TERMINAL_DELIVERY_EVENTS = ['PLAYED', 'SILENCED', 'FAILED'];
@@ -73,6 +79,52 @@ const PAYMENT_STREAM_DUPLICATE_MESSAGE =
   'Giao dịch này đang được xử lý trên máy hiện tại.';
 const PAYMENT_STREAM_EXPIRED_MESSAGE = 'Thông báo đọc loa đã quá hạn.';
 const PAYMENT_STREAM_EXPIRED_REASON = 'stream_recovery_window_expired';
+const ALLOWED_APP_LOG_SOURCES = new Set([
+  'Admin',
+  'AdminFeatures',
+  'AdminOrganization',
+  'AdminPersonnel',
+  'AdminPolicies',
+  'AppCombobox',
+  'AppLogger',
+  'AppNotifications',
+  'AppShellSupport',
+  'AppSelfUpdate',
+  'AppUpdate',
+  'AppUpdateRealtime',
+  'Auth',
+  'BankStatement',
+  'BarcodeScanner',
+  'ClientDailyActivity',
+  'DateRangePicker',
+  'Feedback',
+  'FeedbackAdmin',
+  'FIFO',
+  'FifoHistory',
+  'FlutterError',
+  'HelpContentAdmin',
+  'HelpScreen',
+  'HomeSummary',
+  'InventoryImport',
+  'OffsetAdjustment',
+  'PaymentMonitor',
+  'PaymentMonitorRealtime',
+  'PaymentSpeaker',
+  'Profile',
+  'RealtimeAuth',
+  'SalesReport',
+  'SalesReportRealtime',
+  'SalesTargetAdmin',
+  'SettingsScreen',
+  'Sort',
+  'Startup',
+  'Theme',
+  'VietQR',
+  'VietQRRealtime',
+  'WarrantyRealtime',
+  'WarrantyUpload',
+  'Zone',
+]);
 
 type PaymentTtsAudioMode = 'full_text' | 'amount_only_with_prefix';
 
@@ -812,6 +864,50 @@ export class PaymentNotificationsService {
   }
 
   async createAppLog(user: any, input: CreateAppLogDto) {
+    const startedAt = Date.now();
+    if (process.env.NODE_ENV === 'production' && input.level === 'debug') {
+      return { ok: true, accepted: false, reason: 'debug_disabled' };
+    }
+    if (!ALLOWED_APP_LOG_SOURCES.has(input.source)) {
+      this.logger.warn(
+        `App log rejected: user=${this.safeUserLabel(user)} sourceHash=${createHash('sha256').update(input.source).digest('hex').slice(0, 12)} reason=source_not_allowed`,
+      );
+      throw new BadRequestException(
+        'Nguồn chẩn đoán chưa được hỗ trợ. Vui lòng cập nhật ứng dụng rồi thử lại.',
+      );
+    }
+
+    let contextBytes = 0;
+    if (input.context) {
+      try {
+        contextBytes = inspectAppLogContext(input.context).bytes;
+      } catch {
+        this.logger.warn(
+          `App log rejected: user=${this.safeUserLabel(user)} source=${input.source} reason=invalid_context`,
+        );
+        throw new BadRequestException(
+          'Thông tin chẩn đoán quá lớn hoặc không hợp lệ. Vui lòng cập nhật ứng dụng rồi thử lại.',
+        );
+      }
+    }
+
+    const dailyQuota = this.appLogDailyQuota();
+    const submittedInLastDay = await this.prisma.appLog.count({
+      where: {
+        userId: user?.id,
+        createdAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) },
+      },
+    });
+    if (submittedInLastDay >= dailyQuota) {
+      this.logger.warn(
+        `App log rejected: user=${this.safeUserLabel(user)} source=${input.source} reason=daily_quota quota=${dailyQuota}`,
+      );
+      throw new HttpException(
+        'Đã đạt giới hạn gửi chẩn đoán trong ngày. Vui lòng thử lại sau.',
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    }
+
     const storeCode = await this.resolveAllowedLogStore(user, input.storeCode);
     await this.prisma.appLog.create({
       data: {
@@ -826,7 +922,10 @@ export class PaymentNotificationsService {
           : undefined,
       },
     });
-    return { ok: true };
+    this.logger.log(
+      `App log accepted: user=${this.safeUserLabel(user)} source=${input.source} level=${input.level} contextBytes=${contextBytes} durationMs=${Date.now() - startedAt}`,
+    );
+    return { ok: true, accepted: true };
   }
 
   @Interval(60 * 60 * 1000)
@@ -931,9 +1030,9 @@ export class PaymentNotificationsService {
 
     const startedAt = Date.now();
     const requestedFormat = 'mp3';
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), this.ttsTimeoutMs());
     try {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), this.ttsTimeoutMs());
       const response = await this.withTtsSlot(
         `notification=${notificationId} mode=${audioMode}`,
         () =>
@@ -947,9 +1046,17 @@ export class PaymentNotificationsService {
               speed: this.ttsSpeed(),
               pitch: this.ttsPitch(),
             }),
+            redirect: 'manual',
             signal: controller.signal,
           }),
-      ).finally(() => clearTimeout(timeout));
+      );
+
+      if (response.status >= 300 && response.status < 400) {
+        return this.markAudioFailed(
+          notificationId,
+          'TTS returned an unexpected redirect',
+        );
+      }
 
       if (!response.ok) {
         return this.markAudioFailed(
@@ -965,7 +1072,13 @@ export class PaymentNotificationsService {
         this.audioDir,
         `${notificationId}-full-${randomUUID()}.${extension}`,
       );
-      const buffer = Buffer.from(await response.arrayBuffer());
+      const buffer = await readBoundedHttpResponse(
+        response,
+        this.ttsResponseMaxBytes(),
+      );
+      if (buffer.length === 0) {
+        return this.markAudioFailed(notificationId, 'TTS returned empty audio');
+      }
       await writeFile(audioPath, buffer);
       this.logger.log(
         `Payment notification TTS generated notification=${notificationId} mode=${audioMode} chars=${text.length} bytes=${buffer.length} durationMs=${Date.now() - startedAt} mime=${mimeType}`,
@@ -985,6 +1098,8 @@ export class PaymentNotificationsService {
         `Payment notification TTS request failed notification=${notificationId} mode=${audioMode} durationMs=${Date.now() - startedAt}: ${this.safeError(error)}`,
       );
       return this.markAudioFailed(notificationId, this.safeError(error));
+    } finally {
+      clearTimeout(timeout);
     }
   }
 
@@ -1055,37 +1170,50 @@ export class PaymentNotificationsService {
     const startedAt = Date.now();
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), this.ttsTimeoutMs());
-    const response = await this.withTtsSlot(
-      `amount-cache=${descriptor.cacheKey.slice(0, 12)}`,
-      () =>
-        fetch(`${serviceUrl.replace(/\/$/, '')}/synthesize`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            text,
-            format: descriptor.format,
-            voice_id: descriptor.voiceId,
-            speed: descriptor.speed,
-            pitch: descriptor.pitch,
+    let buffer: Buffer;
+    let mimeType: string;
+    try {
+      const response = await this.withTtsSlot(
+        `amount-cache=${descriptor.cacheKey.slice(0, 12)}`,
+        () =>
+          fetch(`${serviceUrl.replace(/\/$/, '')}/synthesize`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              text,
+              format: descriptor.format,
+              voice_id: descriptor.voiceId,
+              speed: descriptor.speed,
+              pitch: descriptor.pitch,
+            }),
+            redirect: 'manual',
+            signal: controller.signal,
           }),
-          signal: controller.signal,
-        }),
-    ).finally(() => clearTimeout(timeout));
-
-    if (!response.ok) {
-      throw new Error(`TTS returned HTTP ${response.status}`);
-    }
-
-    const mimeType = response.headers.get('content-type') || 'audio/wav';
-    if (!mimeType.includes('wav')) {
-      throw new Error(
-        'PAYMENT_TTS_AUDIO_MODE=amount_only_with_prefix requires audio/wav from TTS',
       );
-    }
 
-    const buffer = Buffer.from(await response.arrayBuffer());
-    if (buffer.length === 0) {
-      throw new Error('TTS returned empty audio');
+      if (response.status >= 300 && response.status < 400) {
+        throw new Error('TTS returned an unexpected redirect');
+      }
+      if (!response.ok) {
+        throw new Error(`TTS returned HTTP ${response.status}`);
+      }
+
+      mimeType = response.headers.get('content-type') || 'audio/wav';
+      if (!mimeType.includes('wav')) {
+        throw new Error(
+          'PAYMENT_TTS_AUDIO_MODE=amount_only_with_prefix requires audio/wav from TTS',
+        );
+      }
+
+      buffer = await readBoundedHttpResponse(
+        response,
+        this.ttsResponseMaxBytes(),
+      );
+      if (buffer.length === 0) {
+        throw new Error('TTS returned empty audio');
+      }
+    } finally {
+      clearTimeout(timeout);
     }
 
     await mkdir(this.amountAudioCacheDir, { recursive: true });
@@ -2032,6 +2160,13 @@ export class PaymentNotificationsService {
     return this.readPositiveInt('TTS_TIMEOUT_MS', 20_000);
   }
 
+  private ttsResponseMaxBytes() {
+    return this.readPositiveInt(
+      'TTS_RESPONSE_MAX_BYTES',
+      DEFAULT_TTS_RESPONSE_MAX_BYTES,
+    );
+  }
+
   private ttsConcurrency() {
     return this.readPositiveInt(
       'PAYMENT_TTS_CONCURRENCY',
@@ -2229,14 +2364,28 @@ export class PaymentNotificationsService {
   }
 
   private scrub(value: string) {
-    return String(value).replace(
-      /(Bearer\s+)[A-Za-z0-9._-]+|("?(?:password|token|secret|authorization)"?\s*[:=]\s*)("[^"]+"|[^\s,}]+)/gi,
-      '$1[redacted]',
-    );
+    return String(value)
+      .replace(/(Bearer\s+)[A-Za-z0-9._-]+/gi, '$1[redacted]')
+      .replace(
+        /"?(?:password|secret|authorization)"?\s*[:=]\s*("[^"]*"|'[^']*'|[^\s,}]+)/gi,
+        '[redacted]',
+      )
+      .replace(
+        /("?token"?\s*[:=]\s*)("[^"]*"|'[^']*'|[^\s,}]+)/gi,
+        '$1[redacted]',
+      );
   }
 
   private safeError(error: unknown) {
     return error instanceof Error ? error.message : String(error);
+  }
+
+  private appLogDailyQuota() {
+    const parsed = Number(process.env.APP_LOG_DAILY_QUOTA);
+    if (!Number.isInteger(parsed) || parsed < 1 || parsed > 5_000) {
+      return DEFAULT_APP_LOG_DAILY_QUOTA;
+    }
+    return parsed;
   }
 
   private safeClientLabel(clientId: string) {
@@ -2246,8 +2395,13 @@ export class PaymentNotificationsService {
   }
 
   private safeUserLabel(user: any) {
-    const raw = String(user?.id || user?.email || 'unknown').trim();
-    if (raw.length <= 16) return raw;
-    return `${raw.slice(0, 8)}...${raw.slice(-4)}`;
+    const userId = String(user?.id || '').trim();
+    if (userId) return `userId:${userId.slice(0, 80)}`;
+    const email = String(user?.email || '')
+      .trim()
+      .toLowerCase();
+    return email
+      ? `emailHash:${createHash('sha256').update(email).digest('hex').slice(0, 12)}`
+      : 'unknown';
   }
 }

@@ -16,8 +16,15 @@ Backend-native architecture for the OpsHub mobile app. The Flutter app talks to 
 Start infrastructure from the repository root:
 
 ```bash
+copy .env.example .env
+# Replace both local password placeholders in .env before continuing.
 docker compose up -d
 ```
+
+PostgreSQL and Redis bind to `127.0.0.1` only. Copy the same local PostgreSQL
+password into `backend-nest/.env`'s `DATABASE_URL`, and the same Redis password
+into `REDIS_PASSWORD` for both Nest and Go local env files. Do not reuse a
+staging or production secret.
 
 Run the Nest API:
 

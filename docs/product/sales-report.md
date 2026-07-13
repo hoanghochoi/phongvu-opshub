@@ -82,9 +82,10 @@ cho Google Form, đồng thời lưu dữ liệu đủ chuẩn để dashboard d
   lấy option từ cache/report trong phạm vi user được phép xem.
 - Backend tự đồng bộ danh sách đơn từ staff-bff ERP mỗi 1 phút và khi service
   khởi động, mặc định lấy 50 đơn/ngày gần nhất theo giới hạn hiện tại của ERP list. `createdFromSiteDisplayName`
-  hoặc `siteDisplayName` trong payload ERP dạng `[CP58] ...` là nguồn showroom
-  ưu tiên để ghi `storeCode` ngay trong lần sync/list hoặc lookup đầu tiên; các sync phía sau
-  không được ghi đè showroom này bằng context user/owner yếu hơn. Backend vẫn
+  trong payload ERP dạng `[CP58] ...` là nguồn showroom duy nhất để ghi
+  `storeCode` ngay trong lần sync/list hoặc lookup đầu tiên; nếu field này rỗng
+  thì đơn không được map vào SR nào, dù payload còn `siteDisplayName`, terminal,
+  context user hay owner. Backend vẫn
   map `creator.email` sang user nội bộ cùng showroom/node tổ chức được gán, rồi
   upsert snapshot rút gọn vào bảng cache riêng. Mapping này diễn ra ngay trong
   sync nền, không phụ thuộc sale bấm kiểm tra đơn; lần sync thiếu dữ liệu cũng
@@ -307,8 +308,8 @@ phí`.
 - `SalesReportErpOrderCache` lưu snapshot rút gọn của đơn ERP trong ngày để
   cockpit tách đơn chưa/đã báo cáo mà không phụ thuộc sale nhớ tự mở form. Dữ
   liệu gồm mã đơn, ngày tạo, trạng thái, showroom/node, mã SR ưu tiên tách từ
-  `data.orders.createdFromSiteDisplayName` hoặc `data.orders.siteDisplayName`
-  dạng `[CP01] ...` hoặc `[CH1001] ...`,
+  `data.orders.createdFromSiteDisplayName` dạng `[CP01] ...` hoặc
+  `[CH1001] ...`,
   `creator.email` từ `data.orders.creator.email`, người tư vấn/người bán nếu
   ERP trả về, tổng tiền, phương thức thanh toán, metadata lần sync nền và
   snapshot đã sanitize. `fetchedAt` chỉ là thời điểm đồng bộ; các bộ lọc ngày,

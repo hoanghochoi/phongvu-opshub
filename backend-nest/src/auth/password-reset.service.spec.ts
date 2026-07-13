@@ -85,12 +85,12 @@ describe('PasswordResetService', () => {
     expect(emailText).not.toContain(createData.codeHash);
   });
 
-  it('rejects missing forgot-password accounts without sending mail', async () => {
+  it('returns the generic response for a missing account without sending mail', async () => {
     prisma.user.findUnique.mockResolvedValue(null);
 
     await expect(
       service.sendResetCodeForEmail('missing@phongvu-shop.vn'),
-    ).rejects.toBeInstanceOf(NotFoundException);
+    ).resolves.toEqual({ ok: true, expiresInMinutes: 10 });
     expect(mailService.sendMail).not.toHaveBeenCalled();
   });
 

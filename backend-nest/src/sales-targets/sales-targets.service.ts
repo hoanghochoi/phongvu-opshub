@@ -5,6 +5,7 @@ import {
   storesForOrganizationNodeTree,
 } from '../common/organization-store-scope';
 import { isSuperAdminRole } from '../common/system-role';
+import { logFingerprint } from '../common/log-sanitizer';
 import { PrismaService } from '../prisma/prisma.service';
 import { UpdateSalesTargetsDto } from './sales-targets.dto';
 
@@ -165,6 +166,11 @@ export class SalesTargetsService {
   }
 
   private safeUser(user: any) {
-    return user?.id || user?.email || 'unknown';
+    const userId = String(user?.id || '').trim();
+    if (userId) return `userId:${userId}`;
+    const email = String(user?.email || '')
+      .trim()
+      .toLowerCase();
+    return email ? `emailHash:${logFingerprint(email)}` : 'unknown';
   }
 }

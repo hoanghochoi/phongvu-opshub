@@ -736,6 +736,31 @@ model Warranty {
   updatedAt DateTime @updatedAt
 }
 
+// Private user-generated media. `storageKey` is always an opaque server-side
+// key below PRIVATE_MEDIA_BASE_DIR; clients receive only /media/:id URLs.
+model MediaObject {
+  id                  String    @id @default(uuid())
+  storageKey          String    @unique
+  ownerFeature        String
+  ownerRecordId       String
+  uploaderId          String
+  originalName        String?
+  contentTypeVerified String
+  sizeBytes           Int
+  checksumSha256      String
+  visibility          String    @default("PRIVATE")
+  legacyUrl           String?
+  expiresAt           DateTime?
+  deletedAt           DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  @@unique([legacyUrl, ownerFeature, ownerRecordId])
+  @@index([ownerFeature, ownerRecordId, deletedAt])
+  @@index([uploaderId, createdAt])
+  @@index([checksumSha256])
+}
+
 enum WarrantyStatus {
   RECEIVED // Đã tiếp nhận
   PROCESSING // Đang xử lý

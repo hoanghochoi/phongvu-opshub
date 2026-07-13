@@ -203,7 +203,7 @@ Recent focused evidence:
 - `HOME-DASHBOARD-002`, 2026-07-08: `Tổng quan` desktop giữ đủ 4 card trên
   một hàng khi đủ rộng, với `Tiến độ báo cáo` + `Tiến độ sao kê` gộp bằng một
   phần ba chiều ngang và hai card doanh số mỗi card một phần ba. `Tổng quan cá
-  nhân` mặc định `Chưa chọn SA`, hiển thị hướng dẫn chọn SA và không tự lọc KPI
+nhân` mặc định `Chưa chọn SA`, hiển thị hướng dẫn chọn SA và không tự lọc KPI
   `Bán hàng` khỏi scope showroom/node; chỉ khi chọn SA thì backend nhận
   `salesProgressUserId` và toàn bộ KPI bán hàng/hành vi chuyển sang scope cá
   nhân có guard theo showroom của SA. Scope cá nhân định danh SA bằng email,
@@ -220,9 +220,10 @@ Recent focused evidence:
   truy vết report nhập tay so với report mở từ danh sách sync. Validation:
   focused SalesReportsService Jest và focused Sales Report widget test.
 - `SALES-REPORT-001`, 2026-07-07: ERP order cache dùng
-  `createdFromSiteDisplayName` hoặc `siteDisplayName` dạng `[CP58] ...` làm
-  source of truth cho `storeCode` ngay từ list-sync/check-order/status-sync; các
-  sync sau không được ghi đè showroom này bằng context user/owner yếu hơn. Default
+  `createdFromSiteDisplayName` dạng `[CP58] ...` làm source of truth duy nhất
+  cho `storeCode` ngay từ list-sync/check-order/status-sync; nếu field này rỗng
+  thì đơn không được map vào SR nào, dù còn `siteDisplayName`, context user hay
+  owner. Default
   `ERP_ORDER_CACHE_SYNC_LIMIT` đặt về 50 đơn/ngày/lượt sync theo giới hạn hiện
   tại của ERP list để tránh HTTP 400. Validation: focused SalesReportsService
   Jest, Nest build, `git diff --check`.
@@ -2578,6 +2579,31 @@ Windows (#1377)`), then re-ran `flutter clean`, `flutter pub get`, and a
 src/map-vietin/map-vietin.service.spec.ts` (26 tests), `npm run build`, full
   `npm test -- --runInBand` (29 suites, 171 tests), `git diff --check`.
   Gap: live VPS deploy/smoke pending.
+
+## SECURITY-001 hardening evidence (2026-07-12)
+
+- Realtime: one-time Redis ticket, session revocation, server audience,
+  backpressure/deadline/ping-pong/readiness and no JWT query. Nest/Go/Flutter
+  focused tests pass; live replay/revocation/load smoke remains staging-only.
+- Private media: opaque metadata, JWT + owner/feature/showroom authorization,
+  traversal/size/checksum enforcement, decode/re-encode/pixel/aggregate upload
+  limits, client credential-origin policy and migration/rollback tools. Focused
+  tests pass; live backfill/public-route cutover remains manual.
+- Auth/input/log: break-glass startup removed, emergency CLI audited, crypto OTP,
+  compound throttling, enumeration-safe responses, CSV formula neutralization,
+  app-log bounds/source/quota and PII/query redaction. Focused Nest/Flutter tests
+  pass.
+- Platform/supply chain: production npm audit 0, SheetJS CE 0.20.3, pinned image
+  digests, Go 1.25.12 + quic-go 0.59.1, Redis auth, non-root/read-only/cap-drop,
+  encrypted backup fail-closed, signed updater pin and allowlisted runtime
+  artifact. Config/syntax/security contract checks pass; Docker/live/signing/
+  restore proof remains manual.
+- Local validation: Flutter analyze, full test (515 pass, 1 skipped) and Web
+  release/Android staging debug/Windows debug builds pass. Nest build passes;
+  the 13/07/2026 follow-up full Jest run passes 59/59 suites and 586/586 tests
+  after correcting two Sales Report fixtures to the strict-showroom contract.
+  No runtime fallback was restored. Manual gates and exact commands are in
+  `app-security-manual-actions-12072026.md`.
 
 ## Evidence Rules
 

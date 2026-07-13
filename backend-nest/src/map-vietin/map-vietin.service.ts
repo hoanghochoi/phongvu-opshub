@@ -32,6 +32,14 @@ import {
   storesForOrganizationNodeTree,
 } from '../common/organization-store-scope';
 import {
+  csvCell as safeCsvCell,
+  csvExcelTextCell as safeCsvExcelTextCell,
+} from '../common/csv-export';
+import {
+  HttpResponseTooLargeError,
+  readBoundedHttpResponse,
+} from '../common/bounded-http-response';
+import {
   CreateMapVietinStatementOrderTransferRequestDto,
   ExportMapVietinStatementsDto,
   ListMapVietinStatementOrderTransferRequestsDto,
@@ -98,6 +106,8 @@ const STATEMENT_ORDER_TRANSFER_REQUEST_STATUS_EXPIRED = 'EXPIRED';
 const STATEMENT_ORDER_TRANSFER_NOTIFICATION_STATUS = 'NOTIFICATION';
 const STATEMENT_ORDER_TRANSFER_CHANNEL = 'STATEMENT_ORDER_TRANSFER_REQUESTED';
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
+const DEFAULT_PROVIDER_TIMEOUT_MS = 30_000;
+const DEFAULT_PROVIDER_RESPONSE_MAX_BYTES = 10 * 1024 * 1024;
 
 type MapLoginResponse = {
   error_code?: string;
@@ -3239,9 +3249,7 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
       });
     }
     const isoMatch =
-      /^(\d{4})-(\d{2})-(\d{2})(?:\s+(\d{2}):(\d{2})(?::(\d{2}))?)?$/.exec(
-        raw,
-      );
+      /^(\d{4})-(\d{2})-(\d{2})(?:\s+(\d{2}):(\d{2})(?::(\d{2}))?)?$/.exec(raw);
     if (isoMatch) {
       return this.vietnamDatePartsToUtc({
         year: Number(isoMatch[1]),
@@ -3547,23 +3555,74 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
     headers: Record<string, string>,
     providerLabel = 'MAP',
   ): Promise<T> {
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...headers,
-      },
-      body: JSON.stringify(body),
-    });
-    const text = await response.text();
-    const json = text ? this.parseJson(text, providerLabel) : {};
+    const controller = new AbortController();
+    const timeout = setTimeout(
+      () => controller.abort(),
+      this.providerTimeoutMs(),
+    );
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...headers,
+        },
+        body: JSON.stringify(body),
+        redirect: 'manual',
+        signal: controller.signal,
+      });
 
-    if (!response.ok) {
-      throw new BadGatewayException(
-        `${providerLabel} trả lỗi ${response.status}: ${this.safeProviderMessage(json)}`,
-      );
+      if (response.status >= 300 && response.status < 400) {
+        throw new BadGatewayException(
+          `${providerLabel} chuyển hướng ngoài dự kiến`,
+        );
+      }
+
+      let responseBuffer: Buffer;
+      try {
+        responseBuffer = await readBoundedHttpResponse(
+          response,
+          this.providerResponseMaxBytes(),
+        );
+      } catch (error) {
+        if (error instanceof HttpResponseTooLargeError) {
+          throw new BadGatewayException(
+            `${providerLabel} trả dữ liệu vượt giới hạn an toàn`,
+          );
+        }
+        throw error;
+      }
+      const text = responseBuffer.toString('utf8');
+      const json = text ? this.parseJson(text, providerLabel) : {};
+
+      if (!response.ok) {
+        throw new BadGatewayException(
+          `${providerLabel} trả lỗi ${response.status}: ${this.safeProviderMessage(json)}`,
+        );
+      }
+      return json as T;
+    } finally {
+      clearTimeout(timeout);
     }
-    return json as T;
+  }
+
+  private providerTimeoutMs() {
+    return this.readPositiveInt(
+      'BANK_PROVIDER_TIMEOUT_MS',
+      DEFAULT_PROVIDER_TIMEOUT_MS,
+    );
+  }
+
+  private providerResponseMaxBytes() {
+    return this.readPositiveInt(
+      'BANK_PROVIDER_RESPONSE_MAX_BYTES',
+      DEFAULT_PROVIDER_RESPONSE_MAX_BYTES,
+    );
+  }
+
+  private readPositiveInt(name: string, fallback: number) {
+    const parsed = Number(process.env[name]);
+    return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : fallback;
   }
 
   private parseJson(text: string, providerLabel = 'MAP') {
@@ -3794,22 +3853,14 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
   }
 
   private csvCell(value: unknown) {
-    const text = this.csvText(value);
-    if (!/[",\r\n]/.test(text)) return text;
-    return `"${text.replace(/"/g, '""')}"`;
+    return safeCsvCell(value);
   }
 
   private csvExcelTextCell(
     value: unknown,
     options: { preserveLineBreaks?: boolean } = {},
   ) {
-    const text = this.csvText(value);
-    if (!text) return '';
-    const normalizedText = options.preserveLineBreaks
-      ? text.replace(/\r\n?/g, '\n')
-      : text.replace(/[\r\n]+/g, ' ');
-    const formulaText = normalizedText.replace(/"/g, '""');
-    return this.csvCell(`="${formulaText}"`);
+    return safeCsvExcelTextCell(value, options);
   }
 
   private csvAmountCell(value: unknown) {
@@ -3837,7 +3888,10 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
   }
 
   private safeUserLabel(user: any) {
-    return this.safeUserEmail(user) || user.id || 'unknown';
+    const userId = String(user?.id || '').trim();
+    if (userId) return `userId:${userId.slice(0, 80)}`;
+    const email = this.safeUserEmail(user);
+    return email ? `emailHash:${this.sha256(email).slice(0, 12)}` : 'unknown';
   }
 
   private safeUserEmail(user: any) {

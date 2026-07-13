@@ -1,37 +1,74 @@
-version: '3.8'
-
 services:
   # -------------------------------------------------------------------
   # PostgreSQL Database (Shared between NestJS and Golang)
   # -------------------------------------------------------------------
   postgres:
-    image: postgres:15-alpine
+    image: postgres:15-alpine@sha256:3d0f7584ed7d04e27fa050d6683a74746608faf21f202be78460d679cc56461f
     container_name: opshub_postgres
     environment:
       POSTGRES_USER: opshub_user
-      POSTGRES_PASSWORD: opshub_password
+      POSTGRES_PASSWORD: ${OPSHUB_LOCAL_POSTGRES_PASSWORD:?Copy .env.example to .env and set OPSHUB_LOCAL_POSTGRES_PASSWORD}
       POSTGRES_DB: opshub_db
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     restart: unless-stopped
     networks:
       - opshub_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U opshub_user -d opshub_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   # -------------------------------------------------------------------
   # Redis (Used for Caching and Pub/Sub between services)
   # -------------------------------------------------------------------
   redis:
-    image: redis:7-alpine
+    image: redis:7-alpine@sha256:6ab0b6e7381779332f97b8ca76193e45b0756f38d4c0dcda72dbb3c32061ab99
     container_name: opshub_redis
+    environment:
+      REDIS_PASSWORD: ${OPSHUB_LOCAL_REDIS_PASSWORD:?Copy .env.example to .env and set OPSHUB_LOCAL_REDIS_PASSWORD}
+    command:
+      [
+        "redis-server",
+        "--appendonly",
+        "yes",
+        "--requirepass",
+        "${OPSHUB_LOCAL_REDIS_PASSWORD:?Copy .env.example to .env and set OPSHUB_LOCAL_REDIS_PASSWORD}",
+      ]
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     volumes:
       - redis_data:/data
     restart: unless-stopped
     networks:
       - opshub_network
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "REDISCLI_AUTH=\"$$REDIS_PASSWORD\" redis-cli ping | grep -q '^PONG$'",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=32m,mode=1777
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
 volumes:
   postgres_data:

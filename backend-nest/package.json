@@ -18,6 +18,11 @@
     "sanitize:staging": "node scripts/sanitize-staging-db.mjs",
     "audit:runtime-org-tree": "node scripts/audit-runtime-org-tree-code.mjs",
     "audit:node-features": "node scripts/audit-node-feature-permissions.mjs",
+    "security:disable-account-access": "node scripts/disable-account-access.mjs",
+    "security:issue-emergency-admin-reset": "node scripts/issue-emergency-admin-reset.mjs",
+    "security:audit-private-media": "node scripts/audit-private-media.mjs",
+    "security:migrate-private-media": "node scripts/migrate-private-media.mjs",
+    "security:rollback-private-media": "node scripts/rollback-private-media-references.mjs",
     "migrate:n8n-warranty": "node scripts/migrate-n8n-warranty-metadata.mjs",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
     "test": "jest",
@@ -32,7 +37,7 @@
     "@nestjs/core": "^11.0.1",
     "@nestjs/jwt": "^11.0.2",
     "@nestjs/passport": "^11.0.5",
-    "@nestjs/platform-express": "^11.0.1",
+    "@nestjs/platform-express": "^11.1.28",
     "@nestjs/schedule": "^6.1.1",
     "@nestjs/throttler": "^6.5.0",
     "@prisma/adapter-pg": "^7.8.0",
@@ -43,7 +48,7 @@
     "dotenv": "^16.6.1",
     "helmet": "^8.1.0",
     "ioredis": "^5.10.0",
-    "nodemailer": "^8.0.7",
+    "nodemailer": "^9.0.3",
     "passport": "^0.7.0",
     "passport-jwt": "^4.0.1",
     "pg": "^8.20.0",
@@ -51,7 +56,7 @@
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
     "sharp": "^0.34.5",
-    "xlsx": "^0.18.5"
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.2.0",
@@ -89,7 +94,9 @@
     "typescript-eslint": "^8.20.0"
   },
   "overrides": {
-    "@hono/node-server": "1.19.13"
+    "@hono/node-server": "1.19.13",
+    "hono": "4.12.29",
+    "qs": "6.15.3"
   },
   "jest": {
     "moduleFileExtensions": [

@@ -12,6 +12,7 @@ import {
   organizationNodeStoreTreeInclude,
   storesForOrganizationNodeTree,
 } from '../common/organization-store-scope';
+import { logFingerprint } from '../common/log-sanitizer';
 import {
   SalesReportOperatingSummary,
   SalesReportSummaryScopeDescriptor,
@@ -2438,10 +2439,9 @@ export class HomeSummaryService {
   }
 
   private safeUserLabel(user: any) {
-    return (
-      this.normalizeEmail(user?.email) ||
-      this.optionalText(user?.id, 80) ||
-      'missing'
-    );
+    const userId = this.optionalText(user?.id, 80);
+    if (userId) return `userId:${userId}`;
+    const email = this.normalizeEmail(user?.email);
+    return email ? `emailHash:${logFingerprint(email)}` : 'missing';
   }
 }

@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { RedisService } from './redis.service';
+import { RedisService, redisConnectionOptions } from './redis.service';
 
 describe('RedisService', () => {
   let service: RedisService;
@@ -14,5 +14,48 @@ describe('RedisService', () => {
 
   it('should be defined', () => {
     expect(service).toBeDefined();
+  });
+
+  it('builds authenticated TLS options without logging credentials', () => {
+    expect(
+      redisConnectionOptions({
+        REDIS_HOST: 'redis.internal',
+        REDIS_PORT: '6380',
+        REDIS_USERNAME: 'opshub-api',
+        REDIS_PASSWORD: 'test-password-not-a-real-secret',
+        REDIS_TLS: 'true',
+        REDIS_TLS_SERVERNAME: 'redis.internal',
+      }),
+    ).toEqual({
+      host: 'redis.internal',
+      port: 6380,
+      username: 'opshub-api',
+      password: 'test-password-not-a-real-secret',
+      tls: {
+        rejectUnauthorized: true,
+        servername: 'redis.internal',
+      },
+    });
+  });
+
+  it('stores JSON with a bounded Redis TTL', async () => {
+    const set = jest.fn().mockResolvedValue('OK');
+    (service as any).redisClient = { set };
+
+    await service.setJsonWithTtl(
+      'realtime:ticket:hash',
+      { userId: 'user-1' },
+      45,
+    );
+
+    expect(set).toHaveBeenCalledWith(
+      'realtime:ticket:hash',
+      JSON.stringify({ userId: 'user-1' }),
+      'EX',
+      45,
+    );
+    await expect(service.setJsonWithTtl('key', {}, 0)).rejects.toThrow(
+      'Redis TTL',
+    );
   });
 });

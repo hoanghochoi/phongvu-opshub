@@ -1,111 +1,120 @@
-import * as fs from 'fs';
-import * as os from 'os';
-import * as path from 'path';
+import { ForbiddenException } from '@nestjs/common';
 import { UploadService } from './upload.service';
 
 describe('UploadService', () => {
   let service: UploadService;
-  let prisma: { warranty: { upsert: jest.Mock } };
+  let prisma: any;
+  let privateMediaService: any;
 
   beforeEach(() => {
-    prisma = { warranty: { upsert: jest.fn() } };
-    service = new UploadService(prisma as any);
+    prisma = {
+      user: { findUnique: jest.fn() },
+      warranty: {
+        upsert: jest.fn(),
+        update: jest.fn(),
+      },
+    };
+    privateMediaService = {
+      saveImages: jest.fn(),
+      discardUrls: jest.fn(),
+      savePublicHelpImage: jest.fn(),
+    };
+    service = new UploadService(prisma, privateMediaService);
   });
 
   it('joins and parses semicolon-separated image links', () => {
     const links = [
-      'https://img.example.com/a.jpg',
-      'https://img.example.com/b.jpg',
+      'https://api.example.com/api/media/media-1',
+      'https://api.example.com/api/media/media-2',
     ];
 
-    expect(service.getLinksString(links)).toBe(
-      'https://img.example.com/a.jpg;https://img.example.com/b.jpg',
-    );
+    expect(service.getLinksString(links)).toBe(links.join(';'));
     expect(service.parseLinksString('a.jpg;; b.jpg ;')).toEqual([
       'a.jpg',
       'b.jpg',
     ]);
   });
 
-  it('upserts warranty records after image upload', async () => {
-    prisma.warranty.upsert.mockResolvedValue({ id: 'warranty-1' });
+  it('stores warranty images as private opaque media', async () => {
+    const files = [{ originalname: 'receipt.jpg' }] as Express.Multer.File[];
+    const links = ['https://api.example.com/api/media/media-1'];
+    prisma.user.findUnique.mockResolvedValue({
+      id: 'user-1',
+      storeId: 'store-1',
+      role: 'USER',
+    });
+    prisma.warranty.upsert.mockResolvedValue({
+      id: 'warranty-1',
+      createdById: 'user-1',
+      imageLinks: 'https://api.example.com/api/media/media-old',
+      createdBy: { storeId: 'store-1' },
+    });
+    prisma.warranty.update.mockResolvedValue({ id: 'warranty-1' });
+    privateMediaService.saveImages.mockResolvedValue(links);
 
     await expect(
-      service.upsertWarrantyRecord(
-        'CP01-J12345678',
-        ['https://img.example.com/receipt/0.jpg'],
-        'user-1',
-      ),
-    ).resolves.toEqual({ id: 'warranty-1' });
+      service.saveWarrantyImages('CP01-J12345678', files, 'user-1'),
+    ).resolves.toEqual(links);
 
-    expect(prisma.warranty.upsert).toHaveBeenCalledWith({
-      where: { receipt: 'CP01-J12345678' },
-      update: {
-        imageLinks: 'https://img.example.com/receipt/0.jpg',
-      },
-      create: {
-        receipt: 'CP01-J12345678',
-        imageLinks: 'https://img.example.com/receipt/0.jpg',
-        createdById: 'user-1',
-      },
+    expect(privateMediaService.saveImages).toHaveBeenCalledWith({
+      ownerFeature: 'WARRANTY',
+      ownerRecordId: 'warranty-1',
+      uploaderId: 'user-1',
+      files,
     });
+    expect(prisma.warranty.update).toHaveBeenCalledWith({
+      where: { id: 'warranty-1' },
+      data: { imageLinks: links[0] },
+    });
+    expect(privateMediaService.discardUrls).toHaveBeenCalledWith([
+      'https://api.example.com/api/media/media-old',
+    ]);
   });
 
-  it('saves multiple warranty images under the same receipt', async () => {
-    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opshub-upload-'));
-    const previousBaseDir = process.env.UPLOAD_BASE_DIR;
-    const previousBaseUrl = process.env.IMAGE_BASE_URL;
-    process.env.UPLOAD_BASE_DIR = tempDir;
-    process.env.IMAGE_BASE_URL = 'https://img.example.com/uploads';
-    service = new UploadService(prisma as any);
+  it('blocks replacing warranty images across showroom scope', async () => {
+    prisma.user.findUnique.mockResolvedValue({
+      id: 'user-2',
+      storeId: 'store-2',
+      role: 'USER',
+    });
+    prisma.warranty.upsert.mockResolvedValue({
+      id: 'warranty-1',
+      createdById: 'user-1',
+      imageLinks: null,
+      createdBy: { storeId: 'store-1' },
+    });
 
-    try {
-      const files = [
-        {
-          originalname: 'first.jpg',
-          buffer: Buffer.from([1, 2, 3]),
-        },
-        {
-          originalname: 'second.png',
-          buffer: Buffer.from([4, 5, 6]),
-        },
-      ] as Express.Multer.File[];
-
-      await expect(
-        service.saveWarrantyImages('CP01-J12345678', files),
-      ).resolves.toEqual([
-        'https://img.example.com/uploads/CP01-J12345678/CP01-J12345678-0.jpg',
-        'https://img.example.com/uploads/CP01-J12345678/CP01-J12345678-1.png',
-      ]);
-
-      expect(
-        fs.readFileSync(
-          path.join(tempDir, 'CP01-J12345678', 'CP01-J12345678-0.jpg'),
-        ),
-      ).toEqual(Buffer.from([1, 2, 3]));
-      expect(
-        fs.readFileSync(
-          path.join(tempDir, 'CP01-J12345678', 'CP01-J12345678-1.png'),
-        ),
-      ).toEqual(Buffer.from([4, 5, 6]));
-    } finally {
-      if (previousBaseDir === undefined) {
-        delete process.env.UPLOAD_BASE_DIR;
-      } else {
-        process.env.UPLOAD_BASE_DIR = previousBaseDir;
-      }
-      if (previousBaseUrl === undefined) {
-        delete process.env.IMAGE_BASE_URL;
-      } else {
-        process.env.IMAGE_BASE_URL = previousBaseUrl;
-      }
-      fs.rmSync(tempDir, { recursive: true, force: true });
-    }
+    await expect(
+      service.saveWarrantyImages('CP01-J12345678', [], 'user-2'),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(privateMediaService.saveImages).not.toHaveBeenCalled();
   });
 
-  it('rejects unsafe receipt path segments', async () => {
-    await expect(service.saveWarrantyImages('../outside', [])).rejects.toThrow(
-      'receipt không hợp lệ',
-    );
+  it('rolls private media back when the warranty metadata update fails', async () => {
+    const links = ['https://api.example.com/api/media/media-1'];
+    prisma.user.findUnique.mockResolvedValue({
+      id: 'user-1',
+      storeId: 'store-1',
+      role: 'USER',
+    });
+    prisma.warranty.upsert.mockResolvedValue({
+      id: 'warranty-1',
+      imageLinks: null,
+      createdBy: { storeId: 'store-1' },
+    });
+    privateMediaService.saveImages.mockResolvedValue(links);
+    prisma.warranty.update.mockRejectedValue(new Error('database unavailable'));
+
+    await expect(
+      service.saveWarrantyImages('CP01-J12345678', [], 'user-1'),
+    ).rejects.toThrow('database unavailable');
+    expect(privateMediaService.discardUrls).toHaveBeenCalledWith(links);
+  });
+
+  it('rejects unsafe receipt values before database access', async () => {
+    await expect(
+      service.saveWarrantyImages('../outside', [], 'user-1'),
+    ).rejects.toThrow('Mã biên nhận không hợp lệ');
+    expect(prisma.user.findUnique).not.toHaveBeenCalled();
   });
 });

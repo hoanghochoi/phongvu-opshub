@@ -16,7 +16,7 @@ void main() {
       final decoded = jsonDecode(lines.single) as Map<String, dynamic>;
       final context = decoded['context'] as Map<String, dynamic>;
       expect(decoded['message'], contains('[redacted-email]'));
-      expect(context['email'], '[redacted-email]');
+      expect(context['email'], '[redacted-pii]');
       expect(context['token'], '[redacted]');
       expect(context['path'], r'C:\Users\[user]\AppData\Roaming');
     });

@@ -6,10 +6,10 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
-import '../../../../core/constants/api_constants.dart';
 import '../../../../core/logging/app_logger.dart';
 import '../../../../core/network/api_client.dart';
 import '../../../../core/network/api_exception.dart';
+import '../../../../core/network/realtime_ticket_client.dart';
 import '../../../../core/utils/date_range_defaults.dart';
 import '../../../auth/domain/entities/user.dart';
 import '../../data/sales_report_repository.dart';
@@ -148,7 +148,7 @@ class SalesReportProvider extends ChangeNotifier {
     if (admin) await loadAdminList(query: adminQuery);
     if (orders) {
       await loadOrderCockpit();
-      _connectRealtime();
+      unawaited(_connectRealtime());
     }
   }
 
@@ -672,7 +672,7 @@ class SalesReportProvider extends ChangeNotifier {
     return text == null || text.isEmpty ? null : text;
   }
 
-  void _connectRealtime() {
+  Future<void> _connectRealtime() async {
     if (_disposed || _user == null) return;
     final token = ApiClient().authToken?.trim();
     if (token == null || token.isEmpty) {
@@ -687,9 +687,9 @@ class SalesReportProvider extends ChangeNotifier {
     }
     _closeRealtime('reconnect');
     try {
-      final channel = _realtimeConnector(
-        Uri.parse(ApiConstants.realtimeWsUrl(accessToken: token)),
-      );
+      final uri = await RealtimeTicketClient.instance.issueConnectionUri();
+      if (_disposed || ApiClient().authToken?.trim() != token) return;
+      final channel = _realtimeConnector(uri);
       _realtimeChannel = channel;
       _realtimeReconnectAttempt = 0;
       _realtimeSubscription = channel.stream.listen(
@@ -824,7 +824,7 @@ class SalesReportProvider extends ChangeNotifier {
     );
     _realtimeReconnectTimer = Timer(delay, () {
       _realtimeReconnectTimer = null;
-      _connectRealtime();
+      unawaited(_connectRealtime());
     });
     unawaited(
       AppLogger.instance.info(

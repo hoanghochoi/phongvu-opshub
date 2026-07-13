@@ -184,12 +184,19 @@ jobs:
 
       - name: Build Windows staging release
         shell: pwsh
+        env:
+          WINDOWS_UPDATE_SIGNER_SHA256: ${{ vars.WINDOWS_STAGING_UPDATE_SIGNER_SHA256 }}
         run: |
+          $pins = @($env:WINDOWS_UPDATE_SIGNER_SHA256 -split '[,;\s]+' | Where-Object { $_ })
+          if ($pins.Count -eq 0 -or @($pins | Where-Object { $_ -notmatch '^[0-9A-Fa-f]{64}$' }).Count -gt 0) {
+            throw 'WINDOWS_STAGING_UPDATE_SIGNER_SHA256 must contain one or more SHA-256 certificate fingerprints.'
+          }
           flutter pub get
           flutter build windows --release `
             --build-name "${{ needs.prepare.outputs.windows_build_name }}" `
             --build-number "${{ needs.prepare.outputs.version_code }}" `
             --dart-define "API_BASE_URL=${env:OPSHUB_API_BASE_URL}" `
+            --dart-define "WINDOWS_UPDATE_SIGNER_SHA256=${env:WINDOWS_UPDATE_SIGNER_SHA256}" `
             --dart-define "APP_ENV=staging"
 
       - name: Configure Windows staging signing certificate
@@ -197,19 +204,34 @@ jobs:
         env:
           WINDOWS_SIGNING_PFX_BASE64: ${{ secrets.WINDOWS_STAGING_SIGNING_PFX_BASE64 }}
           WINDOWS_SIGNING_PFX_PASSWORD: ${{ secrets.WINDOWS_STAGING_SIGNING_PFX_PASSWORD }}
+          WINDOWS_UPDATE_SIGNER_SHA256: ${{ vars.WINDOWS_STAGING_UPDATE_SIGNER_SHA256 }}
         run: |
           if ([string]::IsNullOrWhiteSpace($env:WINDOWS_SIGNING_PFX_BASE64)) {
-            Write-Warning 'WINDOWS_STAGING_SIGNING_PFX_BASE64 is not configured; Windows staging artifacts will stay unsigned.'
-            'WINDOWS_SIGNING_ENABLED=false' | Out-File -FilePath $env:GITHUB_ENV -Append
-            return
+            throw 'WINDOWS_STAGING_SIGNING_PFX_BASE64 is required; unsigned Windows staging artifacts are forbidden.'
           }
           if ([string]::IsNullOrWhiteSpace($env:WINDOWS_SIGNING_PFX_PASSWORD)) {
             throw 'WINDOWS_STAGING_SIGNING_PFX_PASSWORD is required when WINDOWS_STAGING_SIGNING_PFX_BASE64 is configured.'
           }
           $certPath = Join-Path $env:RUNNER_TEMP 'opshub-staging-windows-signing.pfx'
           [IO.File]::WriteAllBytes($certPath, [Convert]::FromBase64String($env:WINDOWS_SIGNING_PFX_BASE64))
+          $cert = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new(
+            $certPath,
+            $env:WINDOWS_SIGNING_PFX_PASSWORD,
+            [System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::EphemeralKeySet
+          )
+          try {
+            $algorithm = [System.Security.Cryptography.HashAlgorithmName]::SHA256
+            $actualPin = $cert.GetCertHashString($algorithm).ToUpperInvariant()
+            $trustedPins = @($env:WINDOWS_UPDATE_SIGNER_SHA256 -split '[,;\s]+' | ForEach-Object { $_.ToUpperInvariant() } | Where-Object { $_ })
+            if ($actualPin -notin $trustedPins) {
+              throw 'Windows staging signing certificate does not match WINDOWS_STAGING_UPDATE_SIGNER_SHA256.'
+            }
+          } finally {
+            $cert.Dispose()
+          }
           'WINDOWS_SIGNING_ENABLED=true' | Out-File -FilePath $env:GITHUB_ENV -Append
           "WINDOWS_SIGNING_PFX_PATH=$certPath" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "WINDOWS_UPDATE_SIGNER_SHA256=$env:WINDOWS_UPDATE_SIGNER_SHA256" | Out-File -FilePath $env:GITHUB_ENV -Append
 
       - name: Sign Windows staging executable
         if: env.WINDOWS_SIGNING_ENABLED == 'true'
@@ -514,24 +536,20 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          node scripts/build-help-site.mjs
-          tar -C dist -czf dist/help.tar.gz help
+          node scripts/build-runtime-release.mjs
+          tar -C docs/help -czf dist/help-assets.tar.gz assets
           tar -C build/web -czf dist/web.tar.gz .
           remote_release_dir="${OPSHUB_REMOTE_APP_DIR}/releases/${GITHUB_SHA}"
           downloads_dir="${OPSHUB_SSD_ROOT}/downloads"
           web_dir="${OPSHUB_SSD_ROOT}/web"
           tmp_dir="${OPSHUB_REMOTE_APP_DIR}/tmp/${GITHUB_RUN_ID}"
           ssh opshub-staging "mkdir -p '$remote_release_dir' '$tmp_dir'"
-          rsync -az --delete \
-            --exclude '.git/' \
-            --exclude '.dart_tool/' \
-            --exclude 'build/' \
-            --exclude 'dist/' \
-            ./ "opshub-staging:${remote_release_dir}/"
+          rsync -az --delete 'dist/runtime-release/' \
+            "opshub-staging:${remote_release_dir}/"
           scp 'dist/downloads/latest.json' "opshub-staging:${tmp_dir}/latest.json"
           scp 'deploy/home-server/download.html' "opshub-staging:${tmp_dir}/download.html"
           scp 'web/icons/Icon-192.png' "opshub-staging:${tmp_dir}/opshub-icon-192.png"
-          scp 'dist/help.tar.gz' "opshub-staging:${tmp_dir}/help.tar.gz"
+          scp 'dist/help-assets.tar.gz' "opshub-staging:${tmp_dir}/help-assets.tar.gz"
           scp 'dist/web.tar.gz' "opshub-staging:${tmp_dir}/web.tar.gz"
           ssh opshub-staging \
             "DOWNLOADS_DIR='$downloads_dir' WEB_DIR='$web_dir' TMP_DIR='$tmp_dir' bash -s" <<'REMOTE'
@@ -542,10 +560,11 @@ jobs:
           sudo install -m 0644 "$TMP_DIR/opshub-icon-192.png" "$DOWNLOADS_DIR/opshub-icon-192.png"
           case "$DOWNLOADS_DIR" in
             */downloads) ;;
-            *) echo "Refusing to replace help outside a downloads directory: $DOWNLOADS_DIR" >&2; exit 1 ;;
+            *) echo "Refusing to replace Help assets outside a downloads directory: $DOWNLOADS_DIR" >&2; exit 1 ;;
           esac
-          sudo rm -rf "$DOWNLOADS_DIR/help"
-          sudo tar -xzf "$TMP_DIR/help.tar.gz" -C "$DOWNLOADS_DIR"
+          sudo rm -rf "$DOWNLOADS_DIR/help/assets"
+          sudo mkdir -p "$DOWNLOADS_DIR/help"
+          sudo tar -xzf "$TMP_DIR/help-assets.tar.gz" -C "$DOWNLOADS_DIR/help"
           case "$WEB_DIR" in
             */web) ;;
             *) echo "Refusing to replace web bundle outside a web directory: $WEB_DIR" >&2; exit 1 ;;
