@@ -39,6 +39,8 @@ const [
   packageJsonText,
   productionWorkflow,
   stagingWorkflow,
+  pubspec,
+  robotoLicense,
 ] = await Promise.all([
   text('deploy/home-server/Caddyfile'),
   text('deploy/home-server/docker-compose.home.yml'),
@@ -53,6 +55,8 @@ const [
   text('backend-nest/package.json'),
   text('.github/workflows/deploy-opshub.yml'),
   text('.github/workflows/deploy-opshub-staging.yml'),
+  text('pubspec.yaml'),
+  text('fonts/Roboto-LICENSE.txt'),
 ]);
 
 contains(caddy, '@insecure_edge_request header X-Forwarded-Proto http', 'Caddy HTTPS redirect');
@@ -104,6 +108,13 @@ contains(updater, '_maxPackageBytes', 'updater package hard cap');
 
 contains(productionWorkflow, '--no-web-resources-cdn', 'production local Flutter web resources');
 contains(stagingWorkflow, '--no-web-resources-cdn', 'staging local Flutter web resources');
+contains(stagingWorkflow, 'secrets.CF_ACCESS_CLIENT_ID', 'staging Access client ID secret');
+contains(stagingWorkflow, 'secrets.CF_ACCESS_CLIENT_SECRET', 'staging Access client secret');
+contains(stagingWorkflow, 'CF-Access-Client-Id:', 'staging Access client ID header');
+contains(stagingWorkflow, 'CF-Access-Client-Secret:', 'staging Access client secret header');
+contains(pubspec, '- family: Roboto', 'local Flutter Roboto fallback');
+contains(pubspec, 'fonts/Roboto-Regular.ttf', 'local Flutter Roboto asset');
+contains(robotoLicense, 'Apache License', 'Roboto license attribution');
 
 contains(help, 'isSafeHelpDocFile', 'Help document allowlist');
 contains(help, "raw.startsWith('//')", 'Help protocol-relative URL rejection');

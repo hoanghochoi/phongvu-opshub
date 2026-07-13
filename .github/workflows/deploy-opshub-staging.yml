@@ -796,23 +796,42 @@ jobs:
 
       - name: Verify staging public health and version metadata
         shell: bash
+        env:
+          CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+          CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
         run: |
           set -euo pipefail
+          if [[ -z "${CF_ACCESS_CLIENT_ID}" || -z "${CF_ACCESS_CLIENT_SECRET}" ]]; then
+            echo "Cloudflare Access service credentials are required for staging verification." >&2
+            exit 1
+          fi
+          access_curl() {
+            local url="$1"
+            shift
+            if [[ "$url" == "${OPSHUB_PUBLIC_BASE_URL}"* ]]; then
+              curl "$@" \
+                -H "CF-Access-Client-Id: ${CF_ACCESS_CLIENT_ID}" \
+                -H "CF-Access-Client-Secret: ${CF_ACCESS_CLIENT_SECRET}" \
+                "$url"
+              return
+            fi
+            curl "$@" "$url"
+          }
           retry_curl() {
             local url="$1"
             local attempt
             for attempt in {1..12}; do
-              if curl -fsS "$url"; then
+              if access_curl "$url" -fsS; then
                 return 0
               fi
               sleep 5
             done
-            curl -fsS "$url"
+            access_curl "$url" -fsS
           }
 
           retry_curl "${OPSHUB_PUBLIC_BASE_URL}/health"
           retry_curl "${OPSHUB_PUBLIC_BASE_URL}/" >/dev/null
-          main_headers="$(curl -fsSI "${OPSHUB_PUBLIC_BASE_URL}/main.dart.js?v=${GITHUB_SHA}")"
+          main_headers="$(access_curl "${OPSHUB_PUBLIC_BASE_URL}/main.dart.js?v=${GITHUB_SHA}" -fsSI)"
           printf '%s\n' "$main_headers" | grep -qi 'cache-control:.*no-cache'
           android_json="$(retry_curl "${OPSHUB_API_BASE_URL}/app-version?platform=android")"
           windows_json="$(retry_curl "${OPSHUB_API_BASE_URL}/app-version?platform=windows")"

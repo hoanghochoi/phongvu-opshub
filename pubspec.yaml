@@ -166,6 +166,11 @@ flutter:
   # see https://flutter.dev/to/font-from-package
 
   fonts:
+    # Flutter Web requests Roboto from fonts.gstatic.com when this family is
+    # absent from FontManifest.json. Keep the engine fallback same-origin.
+    - family: Roboto
+      fonts:
+        - asset: fonts/Roboto-Regular.ttf
     - family: SF Pro Display
       fonts:
         - asset: fonts/SF-Pro-Display-Regular.otf
