@@ -131,6 +131,8 @@ không được waive: phải tách batch hoặc dừng deploy.
 - Public certificate production/staging có hạn đến 22/06/2029. Fingerprint:
   - production: `505BFCE24E474483D4956102AC4EEF842D3E643C663A1A200B4705E7490BCF16`
   - staging: `1BE124CCBD3CB609F1CD0F9DADE5F53ECAAD2B3978914F4E295E4AF9CEE43BF7`
+- Bước 1 đã được đóng trên staging ngày 13/07/2026 theo waiver
+  `SEC-WIN-SELF-SIGNED-20260713`; phạm vi và bằng chứng nằm tại mục 1.6.
 - `checksums-sha256.csv` hiện stale ở `finalize-opshub-secret-permissions.ps1`
   và hai `*-secrets.generated.json` do các file này được cập nhật sau lúc tạo
   manifest. PFX/CER/JKS/deploy key cốt lõi vẫn khớp checksum đã ghi. Không xóa
@@ -230,8 +232,46 @@ if ($ActualPin -ne '1BE124CCBD3CB609F1CD0F9DADE5F53ECAAD2B3978914F4E295E4AF9CEE4
 
 Rotation về sau: thêm **old + new pin** -> deploy client tin cả hai -> đổi PFX
 sang cert mới -> xác nhận artifact mới -> release bắt buộc -> hết support client
-cũ mới bỏ old pin. Workflow phải fail khi thiếu PFX/password/pin, signature không
-`Valid`, timestamp lỗi hoặc cert không khớp pin.
+cũ mới bỏ old pin. Workflow phải fail khi thiếu PFX/password/pin, timestamp lỗi,
+cert không khớp pin, hoặc signature không `Valid` và cũng không phải đúng trường
+hợp private root chưa được runner tạm trust đã nêu trong waiver mục 1.6.
+
+### 1.6 Waiver tạm thời và bằng chứng đóng Bước 1
+
+- Waiver ID: `SEC-WIN-SELF-SIGNED-20260713`.
+- Người chấp nhận/owner: Đại Ca, xác nhận ngày 13/07/2026.
+- Lý do: hiện chưa có ngân sách mua public CA code-signing certificate.
+- Phạm vi ngoại lệ: tạm chấp nhận certificate tự quản lý chưa có public CA trust
+  trên mọi máy Windows. Waiver **không** cho phép artifact unsigned, sai signer pin,
+  sai checksum, hết hạn, thiếu timestamp, bỏ Defender scan hoặc phát hành ngoài
+  HTTPS/exact download host đã duyệt.
+- Compensating controls: PFX/password trong GitHub Environment secret; signer
+  SHA-256 pin riêng cho staging/production; updater kiểm exact host/path, checksum,
+  kích thước và signer pin; private key nằm trong VeraCrypt offline; CI ký cả EXE
+  và installer, timestamp, quét Defender và fail-closed khi pin không khớp.
+- Ngày rà soát lại: 13/10/2026, hoặc sớm hơn nếu có ngân sách, đổi certificate,
+  xảy ra sự cố key/signing, Windows/SmartScreen chặn diện rộng hoặc control bù bị lỗi.
+
+Bằng chứng staging dùng để đóng Bước 1:
+
+- GitHub Actions `Deploy OpsHub Staging` run
+  `29240025639`, attempt 3, kết luận success, source SHA
+  `af32413074c6fd71cc4afe7b15f647877ce2c5b4`.
+- Manifest version `2026.07.13.132`, build `200132`, commit khớp source SHA trên.
+- Installer `phongvu-opshub-staging-windows-setup-v2026.07.13.132+200132.exe`,
+  51,275,272 byte, SHA-256
+  `17704EEA40204ACDD4ED50590A7D43CF586AFF235FD224DEF775FD9E8FC9B657`;
+  checksum công khai khớp file đã tải.
+- Trên máy kiểm thử của Đại Ca, `Get-AuthenticodeSignature` trả `Valid`; signer
+  SHA-256 là `1BE124CCBD3CB609F1CD0F9DADE5F53ECAAD2B3978914F4E295E4AF9CEE43BF7`,
+  certificate còn hạn đến 22/06/2029.
+- Runner CI tạm không trust private root nên báo `UnknownError`; workflow chỉ chấp
+  nhận trường hợp chain kết thúc ở untrusted root khi exact signer pin đã khớp.
+- Microsoft Defender scan pass cho ZIP và installer; đăng nhập staging bằng tài
+  khoản admin cá nhân đã pass sau deploy.
+
+Kết luận: **Bước 1 đóng có waiver trên staging**. Waiver không tự cấp quyền deploy
+production; production vẫn phải qua gate riêng và dùng đúng production signer pin.
 
 ## 2. Cloudflare HTTPS, Access, CSP và HSTS
 

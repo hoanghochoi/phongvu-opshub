@@ -70,7 +70,7 @@ func loadConfig() (serviceConfig, error) {
 	if err != nil {
 		return serviceConfig{}, err
 	}
-	maxPerUser, err := positiveIntEnv("WS_MAX_CONNECTIONS_PER_USER", 5)
+	maxPerUser, err := positiveIntEnv("WS_MAX_CONNECTIONS_PER_USER", 12)
 	if err != nil {
 		return serviceConfig{}, err
 	}

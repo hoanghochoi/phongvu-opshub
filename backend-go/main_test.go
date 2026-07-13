@@ -529,6 +529,28 @@ func TestConfigSupportsRedisAuthenticationAndSecureJWTDefault(t *testing.T) {
 	}
 }
 
+func TestConfigDefaultsSupportCurrentFlutterRealtimeConsumers(t *testing.T) {
+	t.Setenv("WS_MAX_CONNECTIONS_PER_USER", "")
+	config, err := loadConfig()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if config.connectionLimits.maxPerUser != 12 {
+		t.Fatalf("expected 12 concurrent connections per user, got %d", config.connectionLimits.maxPerUser)
+	}
+}
+
+func TestConfigAllowsExplicitPerUserConnectionLimit(t *testing.T) {
+	t.Setenv("WS_MAX_CONNECTIONS_PER_USER", "18")
+	config, err := loadConfig()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if config.connectionLimits.maxPerUser != 18 {
+		t.Fatalf("expected explicit per-user limit 18, got %d", config.connectionLimits.maxPerUser)
+	}
+}
+
 type memoryTicketConsumer struct {
 	mu     sync.Mutex
 	values map[string][]byte

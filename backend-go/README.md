@@ -21,7 +21,10 @@ The service reads environment variables from the process:
   and heartbeat limits.
 - `WS_MAX_CONNECTIONS`, `WS_MAX_CONNECTIONS_PER_IP`,
   `WS_MAX_CONNECTIONS_PER_USER`, `WS_MAX_HANDSHAKES_PER_IP_MINUTE`: minimum
-  connection and handshake abuse controls. Tune them from staging load proof.
+  connection and handshake abuse controls. The per-user default is 12 because
+  the current Flutter client can keep seven authenticated feature sockets open
+  concurrently; this leaves bounded reconnect overlap without weakening the
+  independent per-IP and handshake limits. Tune them from staging load proof.
 
 `.env.example` is a template for deployment tools or process managers. `go run .` does not load `.env` automatically.
 

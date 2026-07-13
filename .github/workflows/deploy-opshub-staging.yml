@@ -434,6 +434,7 @@ jobs:
           pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/apply-staging-icons.ps1 -Platform web
           flutter pub get
           flutter build web --release \
+            --no-web-resources-cdn \
             --build-name "${{ needs.prepare.outputs.version_name }}" \
             --build-number "${{ needs.prepare.outputs.version_code }}" \
             --dart-define "API_BASE_URL=${OPSHUB_API_BASE_URL}" \

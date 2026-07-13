@@ -37,6 +37,8 @@ const [
   help,
   download,
   packageJsonText,
+  productionWorkflow,
+  stagingWorkflow,
 ] = await Promise.all([
   text('deploy/home-server/Caddyfile'),
   text('deploy/home-server/docker-compose.home.yml'),
@@ -49,6 +51,8 @@ const [
   text('deploy/home-server/help.html'),
   text('deploy/home-server/download.html'),
   text('backend-nest/package.json'),
+  text('.github/workflows/deploy-opshub.yml'),
+  text('.github/workflows/deploy-opshub-staging.yml'),
 ]);
 
 contains(caddy, '@insecure_edge_request header X-Forwarded-Proto http', 'Caddy HTTPS redirect');
@@ -64,6 +68,7 @@ contains(productionCompose, 'target: ops', 'one-shot ops image');
 contains(productionCompose, 'maintenance:', 'maintenance service');
 contains(productionCompose, 'REDIS_PASSWORD:', 'production Redis authentication');
 contains(productionCompose, 'WS_ALLOW_LEGACY_JWT:', 'realtime legacy JWT gate');
+contains(productionCompose, 'WS_MAX_CONNECTIONS_PER_USER: ${WS_MAX_CONNECTIONS_PER_USER:-12}', 'realtime per-user connection budget');
 contains(productionCompose, 'REALTIME_LEGACY_JWT_SECRET', 'isolated realtime rollback secret');
 contains(productionCompose, 'explicit loopback binding', 'origin loopback gate');
 contains(productionCompose, '/private-media:/data/private-media', 'private media API volume');
@@ -96,6 +101,9 @@ contains(updater, "_trustedPackageHost = 'opshub.hoanghochoi.com'", 'updater hos
 contains(updater, 'request.followRedirects = false', 'updater redirect policy');
 contains(updater, 'WINDOWS_UPDATE_SIGNER_SHA256', 'Windows signer pin');
 contains(updater, '_maxPackageBytes', 'updater package hard cap');
+
+contains(productionWorkflow, '--no-web-resources-cdn', 'production local Flutter web resources');
+contains(stagingWorkflow, '--no-web-resources-cdn', 'staging local Flutter web resources');
 
 contains(help, 'isSafeHelpDocFile', 'Help document allowlist');
 contains(help, "raw.startsWith('//')", 'Help protocol-relative URL rejection');

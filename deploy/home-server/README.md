@@ -73,7 +73,7 @@ rollback checklist in `SECURITY_HARDENING_RUNBOOK.md`.
 
 ```bash
 flutter build apk --release --dart-define=API_BASE_URL=https://opshub.hoanghochoi.com/api
-flutter build web --release --dart-define=API_BASE_URL=https://opshub.hoanghochoi.com/api
+flutter build web --release --no-web-resources-cdn --dart-define=API_BASE_URL=https://opshub.hoanghochoi.com/api
 ```
 
 5. Publish the APK and app-version metadata:

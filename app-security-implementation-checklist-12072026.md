@@ -3,7 +3,7 @@
 > Story: `SECURITY-001`
 > Nguồn: `app-improve-implement-plan-12072026.md`
 > Checkpoint: `main` tại `4e1ced4b8ecfce8ea33ff3c1440fdb5e5676a25b`
-> Quy ước: `[x]` đã có bằng chứng local; `[ ]` chưa đóng; `[M]` cần quyền/secret/runtime của Đại Ca; `[D]` tách follow-up có lý do.
+> Quy ước: `[x]` đã có bằng chứng local; `[ ]` chưa đóng; `[M]` cần quyền/secret/runtime của Đại Ca; `[D]` tách follow-up có lý do; `[W]` đã đóng bằng waiver tạm thời có owner, control bù và ngày rà soát.
 
 ## A. Checkpoint và phạm vi
 
@@ -76,12 +76,16 @@
 - [x] Windows workflow bắt PFX + password + signer SHA-256; timestamp/signature/pin mismatch đều fail.
 - [x] GitHub Environment production/staging đã có Windows signing secret; hai signer
   SHA-256 variable đã được cấu hình và đọc lại khớp public certificate.
+- [x] Installer staging của SHA `af32413074c6fd71cc4afe7b15f647877ce2c5b4`
+  khớp checksum công khai, Authenticode `Valid`, signer pin staging khớp và Defender pass.
+- [W] Tạm dùng certificate tự quản lý do chưa có ngân sách public CA code-signing;
+  waiver `SEC-WIN-SELF-SIGNED-20260713`, owner Đại Ca, rà soát lại 13/10/2026.
 - [x] Age identity nằm offline trong VeraCrypt; encrypted backup, checksum và restore
   drill cô lập đã pass.
 - [x] TrueNAS off-host đã mount qua Tailscale/NFSv4.2; job app-aware hằng ngày đã chạy
   thử thành công, publish nguyên tử và không còn staging/`.incoming`.
-- [M] Sau deploy vẫn phải kiểm UID/GID/ACL thật, proof installer staging đã ký, xử lý
-  backup plaintext cũ và phê duyệt retention/ZFS snapshot trước khi đóng SEC-12.
+- [M] Sau deploy vẫn phải kiểm UID/GID/ACL thật, xử lý backup plaintext cũ và phê
+  duyệt retention/ZFS snapshot trước khi đóng SEC-12.
 
 ## G. Runtime artifact và cleanup
 
@@ -96,13 +100,17 @@
 
 - [x] `flutter analyze --no-pub` pass; focused security/payment tests pass.
 - [x] Full Flutter pass: 515 test, 1 skipped, 0 error.
-- [x] Web release, Android staging debug và Windows debug compile pass; signed release vẫn là manual CI gate.
+- [x] Web release, Android staging debug và Windows debug compile pass; signed Windows
+  staging release đã qua CI, checksum/signer-pin/Defender và máy kiểm thử thực.
 - [x] Prisma format/generate và Nest build pass.
 - [x] Nest focused security: 171/171; outbound: 124/124; log/scope: 215/215.
 - [x] Full Nest: 59/59 suite, 586/586 test. Hai fixture Sales Report đã được bổ sung `createdFromSiteDisplayName` theo strict showroom contract; không khôi phục runtime fallback.
 - [x] Go test/vet/govulncheck, npm production audit, platform contract, YAML, shell, PowerShell và Compose config pass.
 - [x] `git diff --check` và invariant grep (JWT query/RawQuery/break-glass/full-repo rsync/raw email log) pass.
 - [x] Exact changed-file review cuối: 112 file tracked thay đổi + 44 mục untracked, đều nằm trong phạm vi bảo mật/tài liệu hoặc baseline Sales Report đã ghi nhận; không có build artifact/secret/signing key lọt vào worktree.
-- [M] Build container thật, deploy staging cùng SHA/digest, migration/backfill và live smoke.
+- [x] Deploy staging đúng SHA `af32413074c6fd71cc4afe7b15f647877ce2c5b4`;
+  public health, version metadata và đăng nhập admin cá nhân pass.
+- [M] Vẫn cần đóng các proof runtime còn lại: container UID/GID/ACL, migration/backfill
+  private media, realtime replay/session-revoke/load smoke và Cloudflare policy.
 - [M] Promote production chỉ sau khi mọi stop condition manual đã đóng.
 - [x] Hướng dẫn manual được ghi trong `app-security-manual-actions-12072026.md` và runbook liên quan.
