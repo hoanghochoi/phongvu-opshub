@@ -129,10 +129,10 @@ class AppNavModel {
     ),
     AppNavDestination(
       id: 'notPurchasedCustomers',
-      label: 'Khách hàng chưa mua',
+      label: 'Chăm sóc lại',
       description: 'Theo dõi và chăm sóc lại khách hàng',
       route: '/sales-reports/follow-up-cases',
-      icon: Icons.person_search_outlined,
+      icon: Icons.support_agent_rounded,
       color: AppColors.warning,
       group: AppNavGroup.sales,
     ),

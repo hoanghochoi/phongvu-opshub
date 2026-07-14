@@ -10,7 +10,7 @@ import 'package:phongvu_opshub/features/quick_actions/presentation/quick_actions
 import 'package:provider/provider.dart';
 
 void main() {
-  testWidgets('quick actions menu keeps the approved seven-action order', (
+  testWidgets('quick actions menu keeps the approved eight-action order', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(390, 844);
@@ -26,6 +26,7 @@ void main() {
         'QUICK_ACTIONS': true,
         'QUICK_ACTION_FIFO': true,
         'QUICK_ACTION_VIETQR': true,
+        'QUICK_ACTION_FOLLOW_UP': true,
         'QUICK_ACTION_SALES_REPORT': true,
         'QUICK_ACTION_APP_DOWNLOAD': true,
         'QUICK_ACTION_CHECK_IN': true,
@@ -79,6 +80,7 @@ void main() {
     final labels = [
       'Kiểm tra FIFO',
       'VietQR',
+      'Chăm sóc lại',
       'Báo cáo bán hàng',
       'Tải app',
       'Check-in',

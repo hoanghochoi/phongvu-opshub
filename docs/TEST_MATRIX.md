@@ -2649,7 +2649,7 @@ src/map-vietin/map-vietin.service.spec.ts` (26 tests), `npm run build`, full
 - Backend unit: chức danh quản lý bắt buộc dù feature bị gán nhầm, URL chỉ
   http/https, showroom ngoài scope bị từ chối, upsert/xóa bốn link trong một
   transaction.
-- Flutter widget/unit: đủ bảy action đúng thứ tự, child shortcut kết hợp quyền
+- Flutter widget/unit: đủ tám action đúng thứ tự, child shortcut kết hợp quyền
   gốc, route quản lý mã kết hợp chức danh + feature, regression shell giữ bốn
   mobile destinations.
 - Static/build: `npx prisma validate`, Nest build, `flutter analyze --no-pub`,
@@ -2658,6 +2658,13 @@ src/map-vietin/map-vietin.service.spec.ts` (26 tests), `npm run build`, full
   thật camera/horizontal scroll/customer QR scan.
 - Regression 2026-07-14: scanner trả focus về đúng trường link; launcher refresh
   API trước khi mở và sau khi lưu để Super Admin/user nhận QR action mới ngay.
+- Regression 2026-07-14: đổi chức năng `Khách hàng chưa mua` thành `Chăm sóc lại`
+  với icon `support_agent_rounded`; thêm `QUICK_ACTION_FOLLOW_UP` ngay sau VietQR.
+  Shortcut chỉ hiện khi child bật và user có `SALES_REPORT` hoặc
+  `ADMIN_SALES_REPORTS`; migration backfill quyền node/user hiện hữu nhưng không
+  ghi đè cấu hình shortcut đã có. Validation: `npx prisma validate`, 24 focused
+  feature tests, Nest build, 16 focused Flutter tests, `flutter analyze --no-pub`
+  và `git diff --check` đều pass.
 - Desktop data cards dùng `AppTwoAxisScrollView` với controller riêng từng trục,
   thumb/track hiện và interactive trên Windows. Home HVTC đổi nhãn thành
   `Tên nhân viên`; backend resolve mọi nhân viên active đúng showroom, không lọc
@@ -2697,7 +2704,7 @@ src/map-vietin/map-vietin.service.spec.ts` (26 tests), `npm run build`, full
 - Platform proof covers mobile runtime, Docker services, deployment, health
   checks, and WebSocket behavior.
 
-# Khách hàng chưa mua
+# Chăm sóc lại
 
 | Luồng | Proof tự động | Proof staging/manual |
 | --- | --- | --- |

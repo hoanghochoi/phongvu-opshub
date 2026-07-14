@@ -382,7 +382,7 @@ class _PageHeader extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('Khách hàng chưa mua', style: AppTextStyles.headingM),
+              const Text('Chăm sóc lại', style: AppTextStyles.headingM),
               Text(
                 'Theo dõi và chăm sóc lại khách có thông tin liên hệ • $total hồ sơ',
                 style: AppTextStyles.bodyM.copyWith(

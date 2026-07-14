@@ -24,7 +24,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Khách hàng chưa mua'), findsOneWidget);
+    expect(find.text('Chăm sóc lại'), findsOneWidget);
     expect(find.text('Nguyễn Văn A'), findsOneWidget);
     expect(find.text('zalo-khach-a'), findsOneWidget);
 

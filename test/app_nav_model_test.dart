@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:phongvu_opshub/app/navigation/app_nav_model.dart';
 import 'package:phongvu_opshub/core/platform/app_platform_capabilities.dart';
@@ -206,9 +207,13 @@ void main() {
     expect(sections[0].destinations.map((item) => item.label), [
       'VietQR',
       'Báo cáo bán hàng',
-      'Khách hàng chưa mua',
+      'Chăm sóc lại',
       if (AppPlatformCapabilities.isPaymentMonitorSupported()) 'Tiền vào',
     ]);
+    final followUp = sections[0].destinations.singleWhere(
+      (item) => item.id == 'notPurchasedCustomers',
+    );
+    expect(followUp.icon, Icons.support_agent_rounded);
     expect(sections[1].destinations.map((item) => item.label), [
       'Kiểm tra FIFO',
       'Sắp xếp FIFO',

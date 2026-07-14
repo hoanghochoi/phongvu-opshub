@@ -68,6 +68,15 @@ class QuickActionsLauncher extends StatefulWidget {
           Icons.qr_code_2_rounded,
           route: '/vietqr',
         ),
+      if (user?.canUseFeature('QUICK_ACTION_FOLLOW_UP') == true &&
+          (user?.canUseFeature('SALES_REPORT') == true ||
+              user?.canUseFeature('ADMIN_SALES_REPORTS') == true))
+        const _QuickAction(
+          'FOLLOW_UP',
+          'Chăm sóc lại',
+          Icons.support_agent_rounded,
+          route: '/sales-reports/follow-up-cases',
+        ),
       if (can('QUICK_ACTION_SALES_REPORT', 'SALES_REPORT'))
         const _QuickAction(
           'SALES_REPORT',

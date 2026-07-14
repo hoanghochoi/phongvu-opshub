@@ -1,4 +1,4 @@
-# SALES-REPORT-002 - Khách hàng chưa mua
+# SALES-REPORT-002 - Chăm sóc lại
 
 ## Intake
 
@@ -11,7 +11,7 @@
 
 ## Acceptance criteria
 
-1. Menu Bán hàng có chức năng chính thức `Khách hàng chưa mua`.
+1. Menu Bán hàng có chức năng chính thức `Chăm sóc lại`.
 2. Chỉ card có số điện thoại hoặc Zalo cá nhân được hiển thị; mỗi báo cáo
    `NOT_PURCHASED` là một hồ sơ riêng.
 3. Scope nhân viên/quản lý theo đúng assignee và showroom/node; quản lý phân
