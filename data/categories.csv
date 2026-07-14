@@ -1,221 +1,221 @@
-﻿Cat group ID,Cat group name,Subcat 2 ID,Subcat 2 name,Subcat ID lowest level,Subcat name lowest level,Type
-NH01,Laptop,NH01-01-01,Laptop - Máy tính xách tay,NH01-01-01-02,Laptop - Máy tính xách tay non-gaming,laptop
-NH01,Laptop,NH01-01-01,Laptop - Máy tính xách tay,NH01-01-01-03,Laptop - Máy tính xách tay doanh nghiệp,laptop
-NH01,Laptop,NH01-01-01,Laptop - Máy tính xách tay,NH01-01-01-01,Laptop - Máy tính xách tay gaming,laptop
-NH01,Laptop,NH01-01-01,Laptop - Máy tính xách tay,NH01-01-01-97,Laptop - Máy tính xách tay đã qua sử dụng,laptop
-NH01,Laptop,NH01-01-98,Quà tặng Laptop - Máy tính xách tay,NH01-01-98-02,Thiết bị ngoại vi (Quà tặng Laptop - Máy tính xách tay),gift
-NH01,Laptop,NH01-01-98,Quà tặng Laptop - Máy tính xách tay,NH01-01-98-05,"Thời trang, lưu trữ, số sách (Quà tặng Laptop - Máy tính xách tay)",gift
-NH01,Laptop,NH01-01-98,Quà tặng Laptop - Máy tính xách tay,NH01-01-98-03,"Điện tử, điện máy (Quà tặng Laptop - Máy tính xách tay)",gift
-NH02,PC,NH02-01-01,Máy tính bộ Phong Vũ văn phòng,NH02-01-01-01,Máy tính bộ Phong Vũ văn phòng,pc
-NH02,PC,NH02-01-01,Máy tính bộ Phong Vũ văn phòng,NH02-01-01-97,Máy tính bộ Phong Vũ đã qua sử dụng,pc
-NH02,PC,NH02-01-02,Máy tính bộ Phong Vũ gaming,NH02-01-02-01,Máy tính bộ Phong Vũ gaming,pc
-NH02,PC,NH02-01-03,Máy tính bộ Hãng văn phòng,NH02-01-03-01,Máy tính bộ Hãng văn phòng,pc
-NH02,PC,NH02-01-03,Máy tính bộ Hãng văn phòng,NH02-01-03-02,Máy tính bộ Hãng văn phòng AIO,pc
-NH02,PC,NH02-01-98,Quà tặng máy tính bộ,NH02-01-98-99,Quà tặng máy tính bộ khác,gift
-NH02,PC,NH02-01-98,Quà tặng máy tính bộ,NH02-01-98-02,Thiết bị ngoại vi (Quà tặng máy tính bộ),gift
-NH02,PC,NH02-01-98,Quà tặng máy tính bộ,NH02-01-98-97,Quà tặng máy tính bộ đã qua sử dụng,gift
-NH03,Computer components,NH03-01-01,Bộ vi xử lý (CPU),NH03-01-01-01,Bộ vi xử lý (CPU),cpu
-NH03,Computer components,NH03-01-02,Bo mạch chủ (Mainboard),NH03-01-02-01,Bo mạch chủ (Mainboard),mainboard
-NH03,Computer components,NH03-01-02,Bo mạch chủ (Mainboard),NH03-01-02-97,Bo mạch chủ (Mainboard) đã qua sử dụng,mainboard
-NH03,Computer components,NH03-01-03,Card màn hình (VGA),NH03-01-03-01,Card màn hình (VGA),graphicCard
-NH03,Computer components,NH03-01-04,Bộ nhớ trong (RAM),NH03-01-04-01,Bộ nhớ trong (RAM),memory
-NH03,Computer components,NH03-01-05,Ổ cứng gắn trong,NH03-01-05-01,Ổ cứng gắn trong SSD,storage
-NH03,Computer components,NH03-01-05,Ổ cứng gắn trong,NH03-01-05-02,Ổ cứng gắn trong HDD,storage
-NH03,Computer components,NH03-01-06,Thùng máy (Case),NH03-01-06-01,Thùng máy (Case),case
-NH03,Computer components,NH03-01-06,Thùng máy (Case),NH03-01-06-97,Thùng máy (Case) đã qua sử dụng,case
-NH03,Computer components,NH03-01-07,Nguồn máy tính (PSU),NH03-01-07-01,Nguồn máy tính (PSU),psu
-NH03,Computer components,NH03-01-08,Tản nhiệt CPU,NH03-01-08-02,Tản nhiệt khí,orther
-NH03,Computer components,NH03-01-08,Tản nhiệt CPU,NH03-01-08-01,Tản nhiệt nước,orther
-NH03,Computer components,NH03-01-09,Tản nhiệt khác,NH03-01-09-01,Quạt thùng máy,orther
-NH03,Computer components,NH03-01-12,Ổ cứng gắn ngoài,NH03-01-12-01,Ổ cứng gắn ngoài HDD,orther
-NH03,Computer components,NH03-01-12,Ổ cứng gắn ngoài,NH03-01-12-02,Ổ cứng gắn ngoài SSD,orther
-NH03,Computer components,NH03-01-98,Quà tặng linh kiện máy tính để bàn,NH03-01-98-05,"Thời trang, lưu trữ, số sách (Quà tặng linh kiện máy tính để bàn)",gift
-NH03,Computer components,NH03-01-98,Quà tặng linh kiện máy tính để bàn,NH03-01-98-01,Linh kiện (Quà tặng linh kiện máy tính để bàn),gift
-NH03,Computer components,NH03-03-01,Bộ nhớ trong (RAM) laptop,NH03-03-01-01,Bộ nhớ trong (RAM) laptop,orther
-NH03,Computer components,NH03-03-02,Bàn phím laptop,NH03-03-02-01,Bàn phím laptop,orther
-NH03,Computer components,NH03-03-03,Màn hình laptop,NH03-03-03-01,Màn hình laptop,orther
-NH03,Computer components,NH03-03-04,Pin laptop,NH03-03-04-01,Pin laptop,orther
-NH03,Computer components,NH03-03-05,Bộ cấp nguồn laptop,NH03-03-05-01,Bộ cấp nguồn laptop,orther
-NH05,Apple,NH05-01-01,Macbook,NH05-01-01-01,Macbook,apple
-NH05,Apple,NH05-01-02,Máy tính bộ Apple,NH05-01-02-02,Mac mini,apple
-NH05,Apple,NH05-02-01,Iphone,NH05-02-01-01,Iphone,apple
-NH05,Apple,NH05-02-02,Ipad,NH05-02-02-01,Ipad,apple
-NH05,Apple,NH05-02-02,Ipad,NH05-02-02-97,Ipad đã qua sử dụng,apple
-NH05,Apple,NH05-03-01,Chuột Apple,NH05-03-01-01,Chuột Apple,accessories
-NH05,Apple,NH05-03-03,Tai nghe Apple,NH05-03-03-01,Tai nghe Apple,accessories
-NH05,Apple,NH05-03-05,Apple watch,NH05-03-05-01,Apple watch,apple
-NH05,Apple,NH05-96-01,Thiết bị sạc Apple,NH05-96-01-02,Cáp sạc Apple,accessories
-NH05,Apple,NH05-96-01,Thiết bị sạc Apple,NH05-96-01-01,Củ sạc Apple,accessories
-NH05,Apple,NH05-96-02,Phụ kiện Apple khác,NH05-96-02-01,Phụ kiện Apple khác,accessories
-NH05,Apple,NH05-96-98,Quà tặng Apple,NH05-96-98-99,Quà tặng Apple khác,gift
-NH05,Apple,NH05-96-98,Quà tặng Apple,NH05-96-98-04,Phụ kiện (Quà tặng Apple),gift
-NH06,Peripherals,NH06-01-01,Màn hình cố định,NH06-01-01-02,Màn hình non-gaming,monitor
-NH06,Peripherals,NH06-01-01,Màn hình cố định,NH06-01-01-01,Màn hình gaming,monitor
-NH06,Peripherals,NH06-01-01,Màn hình cố định,NH06-01-01-03,Màn hình doanh nghiệp,monitor
-NH06,Peripherals,NH06-01-01,Màn hình cố định,NH06-01-01-97,Màn hình cố định đã qua sử dụng,monitor
-NH06,Peripherals,NH06-01-01,Màn hình cố định,NH06-01-01-04,Màn hình đồ họa,monitor
-NH06,Peripherals,NH06-01-02,Màn hình di động,NH06-01-02-97,Màn hình di động đã qua sử dụng,monitor
-NH06,Peripherals,NH06-01-02,Màn hình di động,NH06-01-02-01,Màn hình di động,monitor
-NH06,Peripherals,NH06-01-98,Quà tặng màn hình,NH06-01-98-04,Phụ kiện (Quà tặng màn hình),gift
-NH06,Peripherals,NH06-01-98,Quà tặng màn hình,NH06-01-98-02,Thiết bị ngoại vi (Quà tặng màn hình),gift
-NH06,Peripherals,NH06-02-01,Combo phím chuột,NH06-02-01-02,Combo phím chuột không dây,orther
-NH06,Peripherals,NH06-02-01,Combo phím chuột,NH06-02-01-01,Combo phím chuột có dây,orther
-NH06,Peripherals,NH06-02-02,Bàn phím,NH06-02-02-02,Bàn phím có dây,orther
-NH06,Peripherals,NH06-02-02,Bàn phím,NH06-02-02-01,Bàn phím không dây,orther
-NH06,Peripherals,NH06-02-02,Bàn phím,NH06-02-02-97,Bàn phím đã qua sử dụng,orther
-NH06,Peripherals,NH06-02-03,Chuột máy tính,NH06-02-03-01,Chuột máy tính không dây,orther
-NH06,Peripherals,NH06-02-03,Chuột máy tính,NH06-02-03-02,Chuột máy tính có dây,orther
-NH06,Peripherals,NH06-02-03,Chuột máy tính,NH06-02-03-97,Chuột máy tính đã qua sử dụng,orther
-NH06,Peripherals,NH06-03-01,Loa,NH06-03-01-02,Loa di động,orther
-NH06,Peripherals,NH06-03-01,Loa,NH06-03-01-97,Loa đã qua sử dụng,orther
-NH06,Peripherals,NH06-03-01,Loa,NH06-03-01-01,Loa vi tính,orther
-NH06,Peripherals,NH06-03-02,Tai nghe,NH06-03-02-01-01,Tai nghe có dây over-ear và on-ear,orther
-NH06,Peripherals,NH06-03-02,Tai nghe,NH06-03-02-02-02,Tai nghe không dây earbud và in-ear,orther
-NH06,Peripherals,NH06-03-02,Tai nghe,NH06-03-02-02-01,Tai nghe không dây over-ear và on-ear,orther
-NH06,Peripherals,NH06-03-02,Tai nghe,NH06-03-02-01-02,Tai nghe có dây earbud và in-ear,orther
-NH06,Peripherals,NH06-96-01,Lót chuột,NH06-96-01-01,Lót chuột,orther
-NH06,Peripherals,NH06-96-02,Giá treo,NH06-96-02-01,Giá treo màn hình,orther
-NH06,Peripherals,NH06-96-99,Phụ kiện thiết bị ngoại vi khác,NH06-96-99-01,Phụ kiện thiết bị ngoại vi khác,accessories
-NH07,Office equipment,NH07-01-01,Máy in,NH07-01-01-02-02,Máy in phun đa năng,printer
-NH07,Office equipment,NH07-01-01,Máy in,NH07-01-01-01-01,Máy in laser đơn năng,printer
-NH07,Office equipment,NH07-01-01,Máy in,NH07-01-01-01-02,Máy in laser đa năng,printer
-NH07,Office equipment,NH07-01-01,Máy in,NH07-01-01-02-01,Máy in phun đơn năng,printer
-NH07,Office equipment,NH07-01-01,Máy in,NH07-01-01-97,Máy in đã qua sử dụng,printer
-NH07,Office equipment,NH07-01-01,Máy in,NH07-01-01-99-02,"Máy in nhãn, mã vạch",printer
-NH07,Office equipment,NH07-01-01,Máy in,NH07-01-01-99-03,Máy in kim,printer
-NH07,Office equipment,NH07-01-02,Máy scan,NH07-01-02-01,Máy scan,orther
-NH07,Office equipment,NH07-01-98,Quà tặng thiết bị in ấn và sao chép,NH07-01-98-99,Quà tặng thiết bị in ấn và sao chép khác,gift
-NH07,Office equipment,NH07-02-01,Máy chiếu văn phòng,NH07-02-01-02,Máy chiếu DLP,orther
-NH07,Office equipment,NH07-02-03,"Webcam, camera hội nghị",NH07-02-03-01,Webcam,orther
-NH07,Office equipment,NH07-96-01,Giấy,NH07-96-01-01,Giấy in/ photocopy thông thường,orther
-NH07,Office equipment,NH07-96-01,Giấy,NH07-96-01-03,Giấy in nhãn,orther
-NH07,Office equipment,NH07-96-02,Mực,NH07-96-02-02,Mực in phun,orther
-NH07,Office equipment,NH07-96-02,Mực,NH07-96-02-01,Mực in laser,orther
-NH07,Office equipment,NH07-96-02,Mực,NH07-96-02-99-02,Drum,orther
-NH07,Office equipment,NH07-96-02,Mực,NH07-96-02-99-03,Dây ruy băng,orther
-NH07,Office equipment,NH07-96-03,Phụ kiện máy chiếu,NH07-96-03-01,Màn chiếu và giá treo,orther
-NH07,Office equipment,NH07-96-03,Phụ kiện máy chiếu,NH07-96-03-02,Bút trình chiếu,orther
-NH07,Office equipment,NH07-96-99,Phụ kiện thiết bị văn phòng khác,NH07-96-99-99,Phụ kiện thiết bị văn phòng khác,orther
-NH07,Office equipment,NH07-99-01,Bộ lưu điện (UPS),NH07-99-01-01,Bộ lưu điện,orther
-NH07,Office equipment,NH07-99-02,"Điện thoại bàn, tổng đài",NH07-99-02-01,Điện thoại Analog,orther
-NH07,Office equipment,NH07-99-04,Máy đếm tiền,NH07-99-04-01,Máy đếm tiền,orther
-NH07,Office equipment,NH07-99-05,Máy hủy giấy,NH07-99-05-01,Máy hủy giấy,orther
-NH07,Office equipment,NH07-99-98,Quà tặng thiết bị văn phòng khác,NH07-99-98-04,Phụ kiện (Quà tặng thiết bị văn phòng khác),gift
-NH07,Office equipment,NH07-99-98,Quà tặng thiết bị văn phòng khác,NH07-99-98-99,Quà tặng thiết bị văn phòng khác khác,gift
-NH08,Network and Security equipment,NH08-01-01,Router Wifi,NH08-01-01-01,Router Wifi,orther
-NH08,Network and Security equipment,NH08-01-01,Router Wifi,NH08-01-01-02,Router Wifi Mesh,orther
-NH08,Network and Security equipment,NH08-01-01,Router Wifi,NH08-01-01-97,Router Wifi đã qua sử dụng,orther
-NH08,Network and Security equipment,NH08-01-02,Switch,NH08-01-02-01,Switch,orther
-NH08,Network and Security equipment,NH08-01-96,Phụ kiện thiết bị mạng,NH08-01-96-01,Phụ kiện thiết bị mạng,accessories
-NH08,Network and Security equipment,NH08-01-98,Quà tặng thiết bị mạng,NH08-01-98-99,Quà tặng thiết bị mạng khác,gift
-NH08,Network and Security equipment,NH08-01-99,Thiết bị mạng khác,NH08-01-99-99,Thiết bị mạng khác,orther
-NH08,Network and Security equipment,NH08-01-99,Thiết bị mạng khác,NH08-01-99-02,Card mạng,orther
-NH08,Network and Security equipment,NH08-02-01,Camera an ninh,NH08-02-01-01-02,Camera IP wifi,orther
-NH08,Network and Security equipment,NH08-02-01,Camera an ninh,NH08-02-01-97,Camera an ninh đã qua sử dụng,orther
-NH08,Network and Security equipment,NH08-02-98,Quà tặng thiết bị an ninh,NH08-02-98-99,Quà tặng thiết bị an ninh khác,gift
-NH09,Software,NH09-01-01,Phần mềm diệt vi rút,NH09-01-01-01,Phần mềm diệt vi rút,orther
-NH09,Software,NH09-02-01,Phần mềm Microsoft,NH09-02-01-01-02,Phần mềm Windows vật lý,orther
-NH09,Software,NH09-02-01,Phần mềm Microsoft,NH09-02-01-01-01,Phần mềm Windows online,orther
-NH09,Software,NH09-02-01,Phần mềm Microsoft,NH09-02-01-02-01,Phần mềm Office online,orther
-NH10,Entertainment and Digital devices,NH10-01-01,Điện thoại di động,NH10-01-01-97,Điện thoại di động đã qua sử dụng,orther
-NH10,Entertainment and Digital devices,NH10-01-01,Điện thoại di động,NH10-01-01-01,Điện thoại phổ thông,orther
-NH10,Entertainment and Digital devices,NH10-01-02,Máy tính bảng,NH10-01-02-01,Máy tính bảng,orther
-NH10,Entertainment and Digital devices,NH10-01-98,Quà tặng điện thoại và máy tính bảng,NH10-01-98-04,Phụ kiện (Quà tặng điện thoại và máy tính bảng),gift
-NH10,Entertainment and Digital devices,NH10-01-98,Quà tặng điện thoại và máy tính bảng,NH10-01-98-99,Quà tặng điện thoại và máy tính bảng khác,gift
-NH10,Entertainment and Digital devices,NH10-02-03,Phụ kiện máy chơi game,NH10-02-03-01,Tay cầm chơi game,orther
-NH10,Entertainment and Digital devices,NH10-03-01,Đồng hồ thông minh,NH10-03-01-97,Đồng hồ thông minh đã qua sử dụng,orther
-NH10,Entertainment and Digital devices,NH10-03-01,Đồng hồ thông minh,NH10-03-01-01,Đồng hồ thông minh,orther
-NH11,Accessories,NH11-01-01,Phụ kiện lưu trữ,NH11-01-01-03,Đầu đọc thẻ nhớ,orther
-NH11,Accessories,NH11-01-01,Phụ kiện lưu trữ,NH11-01-01-01,USB,accessories
-NH11,Accessories,NH11-01-01,Phụ kiện lưu trữ,NH11-01-01-02,Thẻ nhớ,accessories
-NH11,Accessories,NH11-01-02,Túi và balo,NH11-01-02-01,Túi,accessories
-NH11,Accessories,NH11-01-02,Túi và balo,NH11-01-02-02,Balo,accessories
-NH11,Accessories,NH11-01-03,"Phụ kiện trang trí, bảo vệ",NH11-01-03-99,"Phụ kiện trang trí, bảo vệ khác",accessories
-NH11,Accessories,NH11-01-03,"Phụ kiện trang trí, bảo vệ",NH11-01-03-01,Bảo vệ ổ cứng,accessories
-NH11,Accessories,NH11-01-04,Phụ kiện kết nối,NH11-01-04-01,Dây cáp,accessories
-NH11,Accessories,NH11-01-04,Phụ kiện kết nối,NH11-01-04-02,Bộ chia,accessories
-NH11,Accessories,NH11-01-04,Phụ kiện kết nối,NH11-01-04-03,"Đầu chuyển, bộ chuyển",accessories
-NH11,Accessories,NH11-01-05,Bàn ghế,NH11-01-05-03,Ghế gaming,accessories
-NH11,Accessories,NH11-01-05,Bàn ghế,NH11-01-05-02,Ghế công thái học,accessories
-NH11,Accessories,NH11-01-06,Giá đỡ và tản nhiệt,NH11-01-06-02,Giá đỡ laptop,accessories
-NH11,Accessories,NH11-01-06,Giá đỡ và tản nhiệt,NH11-01-06-01,Tản nhiệt laptop,accessories
-NH11,Accessories,NH11-01-07,Ổ cứng gắn ngoài,NH11-01-07-01,Ổ cứng gắn ngoài HDD,accessories
-NH11,Accessories,NH11-01-07,Ổ cứng gắn ngoài,NH11-01-07-02,Ổ cứng gắn ngoài SSD,accessories
-NH11,Accessories,NH11-01-07,Ổ cứng gắn ngoài,NH11-01-07-97,Ổ cứng gắn ngoài đã qua sử dụng,accessories
-NH11,Accessories,NH11-01-08,Bộ cấp nguồn laptop,NH11-01-08-01,Bộ cấp nguồn laptop,accessories
-NH11,Accessories,NH11-01-98,Quà tặng phụ kiện máy tính,NH11-01-98-01,Linh kiện (Quà tặng phụ kiện máy tính),gift
-NH11,Accessories,NH11-01-98,Quà tặng phụ kiện máy tính,NH11-01-98-05,"Thời trang, lưu trữ, số sách (Quà tặng phụ kiện máy tính)",gift
-NH11,Accessories,NH11-02-01,Phụ kiện bảo vệ,NH11-02-01-02,Miếng dán bảo vệ màn hình,accessories
-NH11,Accessories,NH11-02-02,"Thiết bị sạc, pin",NH11-02-02-01,"Sạc điện thoại, tablet",accessories
-NH11,Accessories,NH11-02-02,"Thiết bị sạc, pin",NH11-02-02-02,"Pin sạc, sạc dự phòng điện thoại, tablet",accessories
-NH11,Accessories,NH11-02-02,"Thiết bị sạc, pin",NH11-02-02-03,"Cáp sạc điện thoại, tablet",accessories
-NH11,Accessories,NH11-02-02,"Thiết bị sạc, pin",NH11-02-02-97,"Thiết bị sạc, pin đã qua sử dụng",accessories
-NH11,Accessories,NH11-02-03,Phụ kiện Samsung,NH11-02-03-02,Thiết bị sạc Samsung,accessories
-NH11,Accessories,NH11-02-04,Phụ kiện dùng cho Apple,NH11-02-04-99,Phụ kiện dùng cho Apple khác,accessories
-NH11,Accessories,NH11-02-04,Phụ kiện dùng cho Apple,NH11-02-04-02,Thiết bị sạc dùng cho Apple,accessories
-NH11,Accessories,NH11-02-04,Phụ kiện dùng cho Apple,NH11-02-04-01,Phụ kiện bảo vệ dùng cho Apple,accessories
-NH11,Accessories,NH11-02-99,"Phụ kiện điện thoại, tablet khác",NH11-02-99-01,"Đế giữ điện thoại, tablet",accessories
-NH11,Accessories,NH11-02-99,"Phụ kiện điện thoại, tablet khác",NH11-02-99-99,"Phụ kiện điện thoại, tablet khác",accessories
-NH11,Accessories,NH11-99-01,Thiết bị streaming,NH11-99-01-01,Microphone,accessories
-NH11,Accessories,NH11-99-01,Thiết bị streaming,NH11-99-01-97,Phụ kiệm streaming đã qua sử dụng,accessories
-NH11,Accessories,NH11-99-02,Ổ cắm,NH11-99-02-01,Ổ cắm,accessories
-NH11,Accessories,NH11-99-99,Phụ kiện khác,NH11-99-99-99,Phụ kiện khác,accessories
-NH12,Electric,NH12-01-01,Tivi,NH12-01-01-01,Tivi,orther
-NH12,Electric,NH12-01-02,Thiết bị âm thanh gia đình,NH12-01-02-03,Loa thanh,orther
-NH12,Electric,NH12-01-02,Thiết bị âm thanh gia đình,NH12-01-02-02,"Loa tháp, thùng",orther
-NH12,Electric,NH12-01-02,Thiết bị âm thanh gia đình,NH12-01-02-04,"Loa tháp, thùng",orther
-NH12,Electric,NH12-01-98,Quà tặng điện tử,NH12-01-98-01,Linh kiện (Quà tặng điện tử),gift
-NH12,Electric,NH12-02-01,Máy lạnh,NH12-02-01-01,Máy lạnh,orther
-NH12,Electric,NH12-02-02,"Máy giặt, sấy",NH12-02-02-01,"Máy giặt, sấy",orther
-NH12,Electric,NH12-02-02,"Máy giặt, sấy",NH12-02-02-97,"Máy giặt, sấy đã qua sử dụng",orther
-NH12,Electric,NH12-02-03,"Tủ lạnh, tủ mát, tủ đông, tủ rượu",NH12-02-03-01,Tủ lạnh,orther
-NH12,Electric,NH12-02-04,Máy nước nóng,NH12-02-04-97,Máy nước nóng đã qua sử dụng,orther
-NH12,Electric,NH12-02-04,Máy nước nóng,NH12-02-04-01,Máy nước nóng,orther
-NH14,Small Domestic Appliances,NH14-01-01,Điện gia dụng nhà bếp,NH14-01-01-04,"Máy xay sinh tố, máy ép, máy trộn, máy xay thịt",orther
-NH14,Small Domestic Appliances,NH14-01-01,Điện gia dụng nhà bếp,NH14-01-01-01,"Bình đun, bình thủy điện",orther
-NH14,Small Domestic Appliances,NH14-01-01,Điện gia dụng nhà bếp,NH14-01-01-06,"Nồi chiên không dâu, nồi lẩu, nồi áp suất",orther
-NH14,Small Domestic Appliances,NH14-01-01,Điện gia dụng nhà bếp,NH14-01-01-02,Nồi cơm điện,orther
-NH14,Small Domestic Appliances,NH14-01-01,Điện gia dụng nhà bếp,NH14-01-01-97,Điện gia dụng nhà bếp đã qua sử dụng,orther
-NH14,Small Domestic Appliances,NH14-01-01,Điện gia dụng nhà bếp,NH14-01-01-03,"Lò nướng, vỉ nướng, lò vi sóng",orther
-NH14,Small Domestic Appliances,NH14-01-02,"Quạt, thiết bị làm mát",NH14-01-02-01,"Quạt bàn, quạt đứng, quạt sàn",orther
-NH14,Small Domestic Appliances,NH14-01-02,"Quạt, thiết bị làm mát",NH14-01-02-97,"Quạt, thiết bị làm mát đã qua sử dụng",orther
-NH14,Small Domestic Appliances,NH14-01-02,"Quạt, thiết bị làm mát",NH14-01-02-02,"Thiết bị làm mát, quạt hơi nước",orther
-NH14,Small Domestic Appliances,NH14-01-02,"Quạt, thiết bị làm mát",NH14-01-02-03,"Máy lọc không khí, máy hút ẩm, tạo ẩm",orther
-NH14,Small Domestic Appliances,NH14-01-03,"Máy hút bụi, robot hút bụi",NH14-01-03-01,"Máy hút bụi cầm tay, hút bụi cây",orther
-NH14,Small Domestic Appliances,NH14-01-03,"Máy hút bụi, robot hút bụi",NH14-01-03-97,"Máy hút bụi, robot hút bụi đã qua sử dụng",orther
-NH14,Small Domestic Appliances,NH14-01-04,Thiết bị làm đẹp,NH14-01-04-03,"Chăm sóc tóc (máy sấy tóc, duỗi tóc, uốn tóc, tông đơ...)",orther
-NH14,Small Domestic Appliances,NH14-01-04,Thiết bị làm đẹp,NH14-01-04-97,Thiết bị làm đẹp đã qua sử dụng,orther
-NH14,Small Domestic Appliances,NH14-01-04,Thiết bị làm đẹp,NH14-01-04-02,"Chăm sóc cơ thể (máy triệt lông, máy cạo râu, tỉa lông mũi,...)",orther
-NH14,Small Domestic Appliances,NH14-01-04,Thiết bị làm đẹp,NH14-01-04-01,"Chăm sóc da mặt (máy rửa mặt, mặt nạ, máy nâng cơ,...)",orther
-NH14,Small Domestic Appliances,NH14-01-04,"Thiết bị làm đẹp, chăm sóc cá nhân",NH14-01-04-02,Thiết bị chăm sóc cá nhân,orther
-NH14,Small Domestic Appliances,NH14-01-05,Thiết bị chăm sóc cá nhân,NH14-01-05-02,Máy massage,orther
-NH14,Small Domestic Appliances,NH14-01-05,Thiết bị chăm sóc cá nhân,NH14-01-05-01,"Chăm sóc răng miệng (bàn chải, tăm nước,...)",orther
-NH14,Small Domestic Appliances,NH14-01-06,"Máy lọc không khí, máy hút ẩm, tạo ẩm",NH14-01-06-01,Máy lọc không khí,orther
-NH14,Small Domestic Appliances,NH14-01-06,"Máy lọc không khí, máy hút ẩm, tạo ẩm",NH14-01-06-03,Máy tạo ẩm,orther
-NH14,Small Domestic Appliances,NH14-01-98,Quà tặng điện gia dụng,NH14-01-98-01,Quà tặng điện gia dụng,gift
-NH14,Small Domestic Appliances,NH14-01-99,Điện gia dụng nhỏ khác,NH14-01-99-01-02,"Bàn ủi cầm tay, bàn ủi đứng",orther
-NH14,Small Domestic Appliances,NH14-01-99,Điện gia dụng nhỏ khác,NH14-01-99-97,Điện gia dụng nhỏ khác đã qua sử dụng,orther
-NH14,Small Domestic Appliances,NH14-01-99,Điện gia dụng nhỏ khác,NH14-01-99-01-01,"Bàn ủi khô, hơi nước",orther
-NH93,Spare parts,NH93-01-02,Bàn phím laptop sửa chữa,NH93-01-02-01,Bàn phím laptop sửa chữa,orther
-NH93,Spare parts,NH93-01-03,Màn hình laptop sửa chữa,NH93-01-03-01,Màn hình laptop sửa chữa,orther
-NH93,Spare parts,NH93-01-04,Pin laptop sửa chữa,NH93-01-04-01,Pin laptop sửa chữa,orther
-NH94,Value added service,NH94-04-01,Hỗ trợ MKT - Chung,NH94-04-01,Hỗ trợ MKT - Chung,orther
-NH94,Value added service,NH94-01,Dịch vụ bảo hiểm,NH94-01-01,Dịch vụ bảo hiểm rơi vỡ,extendedInsurance
-NH94,Value added service,NH94-01,Dịch vụ bảo hiểm,NH94-01-02,Dịch vụ bảo hiểm mở rộng,extendedInsurance
-NH95,Service,NH95-01-01,Dịch vụ cài đặt và nâng cấp,NH95-01-01-01-01,Dịch vụ nâng cấp sản phẩm Phong Vũ,orther
-NH95,Service,NH95-01-01,Dịch vụ cài đặt và nâng cấp,NH95-01-01-01-02,Dịch vụ nâng cấp sản phẩm ngoài Phong Vũ,orther
-NH95,Service,NH95-01-02,Dịch vụ lắp ráp máy,NH95-01-02,Dịch vụ lắp ráp máy,orther
-NH95,Service,NH95-01-03,Dịch vụ vệ sinh & bảo trì,NH95-01-03,Dịch vụ vệ sinh & bảo trì,orther
-NH95,Service,NH95-01-04,Dịch vụ sửa chữa và thay thế linh kiện,NH95-01-04-01,Dịch vụ tự sửa chữa và thay thế linh kiện,orther
-NH95,Service,NH95-01-04,Dịch vụ sửa chữa và thay thế linh kiện,NH95-01-04-02,Dịch vụ sửa chữa thuê ngoài,orther
-NH95,Service,NH95-01-05,Dịch vụ bảo hành,NH95-01-05,Dịch vụ bảo hành,orther
-NH95,Service,NH95-02-03,"Dịch vụ thi công, lắp đặt",NH95-02-03-99,"Dịch vụ thi công, lắp đặt khác",orther
-NH95,Service,NH95-02-03,"Dịch vụ thi công, lắp đặt",NH95-02-03-01,"Dịch vụ thi công, lắp đặt camera",orther
-NH95,Service,NH95-02-03,"Dịch vụ thi công, lắp đặt",NH95-02-03-03,"Dịch vụ thi công, lắp đặt hàng điện máy",orther
-NH95,Service,NH95-02-03,"Dịch vụ thi công, lắp đặt",NH95-02-03-02,"Dịch vụ thi công, lắp đặt thiết bị văn phòng",orther
-NH95,Service,NH95-02-05,"Dịch vụ bảo hành, bảo trì tận nơi",NH95-02-05,"Dịch vụ bảo hành, bảo trì tận nơi",orther
-NH95,Service,NH95-02-99,Dịch vụ tại điểm khác,NH95-02-99,Dịch vụ tại điểm khác,orther
-NH95,Service,NH95-03,Dịch vụ bảo hiểm,NH95-03-02,Dịch vụ bảo hiểm mở rộng,extendedInsurance
-NH99,Others,NH99-98-01,Quà tặng chung,NH99-98-01-05,"Thời trang, lưu trữ, số sách (Quà tặng chung)",gift
-NH99,Others,NH99-98-01,Quà tặng chung,NH99-98-01-99,Quà tặng chung khác,gift
-NH99,Others,NH99-98-01,Quà tặng chung,NH99-98-01-01,Linh kiện (Quà tặng chung),gift
+﻿Cat group ID,Cat group name,Subcat 2 ID,Subcat 2 name,Subcat ID lowest level,Subcat name lowest level,Type,clearance
+NH01,Laptop,NH01-01-01,Laptop - Máy tính xách tay,NH01-01-01-02,Laptop - Máy tính xách tay non-gaming,laptop,no
+NH01,Laptop,NH01-01-01,Laptop - Máy tính xách tay,NH01-01-01-03,Laptop - Máy tính xách tay doanh nghiệp,laptop,no
+NH01,Laptop,NH01-01-01,Laptop - Máy tính xách tay,NH01-01-01-01,Laptop - Máy tính xách tay gaming,laptop,no
+NH01,Laptop,NH01-01-01,Laptop - Máy tính xách tay,NH01-01-01-97,Laptop - Máy tính xách tay đã qua sử dụng,laptop,yes
+NH01,Laptop,NH01-01-98,Quà tặng Laptop - Máy tính xách tay,NH01-01-98-02,Thiết bị ngoại vi (Quà tặng Laptop - Máy tính xách tay),gift,no
+NH01,Laptop,NH01-01-98,Quà tặng Laptop - Máy tính xách tay,NH01-01-98-05,"Thời trang, lưu trữ, số sách (Quà tặng Laptop - Máy tính xách tay)",gift,no
+NH01,Laptop,NH01-01-98,Quà tặng Laptop - Máy tính xách tay,NH01-01-98-03,"Điện tử, điện máy (Quà tặng Laptop - Máy tính xách tay)",gift,no
+NH02,PC,NH02-01-01,Máy tính bộ Phong Vũ văn phòng,NH02-01-01-01,Máy tính bộ Phong Vũ văn phòng,pc,no
+NH02,PC,NH02-01-01,Máy tính bộ Phong Vũ văn phòng,NH02-01-01-97,Máy tính bộ Phong Vũ đã qua sử dụng,pc,yes
+NH02,PC,NH02-01-02,Máy tính bộ Phong Vũ gaming,NH02-01-02-01,Máy tính bộ Phong Vũ gaming,pc,
+NH02,PC,NH02-01-03,Máy tính bộ Hãng văn phòng,NH02-01-03-01,Máy tính bộ Hãng văn phòng,pc,
+NH02,PC,NH02-01-03,Máy tính bộ Hãng văn phòng,NH02-01-03-02,Máy tính bộ Hãng văn phòng AIO,pc,
+NH02,PC,NH02-01-98,Quà tặng máy tính bộ,NH02-01-98-99,Quà tặng máy tính bộ khác,gift,
+NH02,PC,NH02-01-98,Quà tặng máy tính bộ,NH02-01-98-02,Thiết bị ngoại vi (Quà tặng máy tính bộ),gift,
+NH02,PC,NH02-01-98,Quà tặng máy tính bộ,NH02-01-98-97,Quà tặng máy tính bộ đã qua sử dụng,gift,
+NH03,Computer components,NH03-01-01,Bộ vi xử lý (CPU),NH03-01-01-01,Bộ vi xử lý (CPU),cpu,
+NH03,Computer components,NH03-01-02,Bo mạch chủ (Mainboard),NH03-01-02-01,Bo mạch chủ (Mainboard),mainboard,
+NH03,Computer components,NH03-01-02,Bo mạch chủ (Mainboard),NH03-01-02-97,Bo mạch chủ (Mainboard) đã qua sử dụng,mainboard,
+NH03,Computer components,NH03-01-03,Card màn hình (VGA),NH03-01-03-01,Card màn hình (VGA),graphicCard,
+NH03,Computer components,NH03-01-04,Bộ nhớ trong (RAM),NH03-01-04-01,Bộ nhớ trong (RAM),memory,
+NH03,Computer components,NH03-01-05,Ổ cứng gắn trong,NH03-01-05-01,Ổ cứng gắn trong SSD,storage,
+NH03,Computer components,NH03-01-05,Ổ cứng gắn trong,NH03-01-05-02,Ổ cứng gắn trong HDD,storage,
+NH03,Computer components,NH03-01-06,Thùng máy (Case),NH03-01-06-01,Thùng máy (Case),case,
+NH03,Computer components,NH03-01-06,Thùng máy (Case),NH03-01-06-97,Thùng máy (Case) đã qua sử dụng,case,
+NH03,Computer components,NH03-01-07,Nguồn máy tính (PSU),NH03-01-07-01,Nguồn máy tính (PSU),psu,
+NH03,Computer components,NH03-01-08,Tản nhiệt CPU,NH03-01-08-02,Tản nhiệt khí,orther,
+NH03,Computer components,NH03-01-08,Tản nhiệt CPU,NH03-01-08-01,Tản nhiệt nước,orther,
+NH03,Computer components,NH03-01-09,Tản nhiệt khác,NH03-01-09-01,Quạt thùng máy,orther,
+NH03,Computer components,NH03-01-12,Ổ cứng gắn ngoài,NH03-01-12-01,Ổ cứng gắn ngoài HDD,orther,
+NH03,Computer components,NH03-01-12,Ổ cứng gắn ngoài,NH03-01-12-02,Ổ cứng gắn ngoài SSD,orther,
+NH03,Computer components,NH03-01-98,Quà tặng linh kiện máy tính để bàn,NH03-01-98-05,"Thời trang, lưu trữ, số sách (Quà tặng linh kiện máy tính để bàn)",gift,
+NH03,Computer components,NH03-01-98,Quà tặng linh kiện máy tính để bàn,NH03-01-98-01,Linh kiện (Quà tặng linh kiện máy tính để bàn),gift,
+NH03,Computer components,NH03-03-01,Bộ nhớ trong (RAM) laptop,NH03-03-01-01,Bộ nhớ trong (RAM) laptop,orther,
+NH03,Computer components,NH03-03-02,Bàn phím laptop,NH03-03-02-01,Bàn phím laptop,orther,
+NH03,Computer components,NH03-03-03,Màn hình laptop,NH03-03-03-01,Màn hình laptop,orther,
+NH03,Computer components,NH03-03-04,Pin laptop,NH03-03-04-01,Pin laptop,orther,
+NH03,Computer components,NH03-03-05,Bộ cấp nguồn laptop,NH03-03-05-01,Bộ cấp nguồn laptop,orther,
+NH05,Apple,NH05-01-01,Macbook,NH05-01-01-01,Macbook,apple,
+NH05,Apple,NH05-01-02,Máy tính bộ Apple,NH05-01-02-02,Mac mini,apple,
+NH05,Apple,NH05-02-01,Iphone,NH05-02-01-01,Iphone,apple,
+NH05,Apple,NH05-02-02,Ipad,NH05-02-02-01,Ipad,apple,
+NH05,Apple,NH05-02-02,Ipad,NH05-02-02-97,Ipad đã qua sử dụng,apple,
+NH05,Apple,NH05-03-01,Chuột Apple,NH05-03-01-01,Chuột Apple,accessories,
+NH05,Apple,NH05-03-03,Tai nghe Apple,NH05-03-03-01,Tai nghe Apple,accessories,
+NH05,Apple,NH05-03-05,Apple watch,NH05-03-05-01,Apple watch,apple,
+NH05,Apple,NH05-96-01,Thiết bị sạc Apple,NH05-96-01-02,Cáp sạc Apple,accessories,
+NH05,Apple,NH05-96-01,Thiết bị sạc Apple,NH05-96-01-01,Củ sạc Apple,accessories,
+NH05,Apple,NH05-96-02,Phụ kiện Apple khác,NH05-96-02-01,Phụ kiện Apple khác,accessories,
+NH05,Apple,NH05-96-98,Quà tặng Apple,NH05-96-98-99,Quà tặng Apple khác,gift,
+NH05,Apple,NH05-96-98,Quà tặng Apple,NH05-96-98-04,Phụ kiện (Quà tặng Apple),gift,
+NH06,Peripherals,NH06-01-01,Màn hình cố định,NH06-01-01-02,Màn hình non-gaming,monitor,
+NH06,Peripherals,NH06-01-01,Màn hình cố định,NH06-01-01-01,Màn hình gaming,monitor,
+NH06,Peripherals,NH06-01-01,Màn hình cố định,NH06-01-01-03,Màn hình doanh nghiệp,monitor,
+NH06,Peripherals,NH06-01-01,Màn hình cố định,NH06-01-01-97,Màn hình cố định đã qua sử dụng,monitor,
+NH06,Peripherals,NH06-01-01,Màn hình cố định,NH06-01-01-04,Màn hình đồ họa,monitor,
+NH06,Peripherals,NH06-01-02,Màn hình di động,NH06-01-02-97,Màn hình di động đã qua sử dụng,monitor,
+NH06,Peripherals,NH06-01-02,Màn hình di động,NH06-01-02-01,Màn hình di động,monitor,
+NH06,Peripherals,NH06-01-98,Quà tặng màn hình,NH06-01-98-04,Phụ kiện (Quà tặng màn hình),gift,
+NH06,Peripherals,NH06-01-98,Quà tặng màn hình,NH06-01-98-02,Thiết bị ngoại vi (Quà tặng màn hình),gift,
+NH06,Peripherals,NH06-02-01,Combo phím chuột,NH06-02-01-02,Combo phím chuột không dây,orther,
+NH06,Peripherals,NH06-02-01,Combo phím chuột,NH06-02-01-01,Combo phím chuột có dây,orther,
+NH06,Peripherals,NH06-02-02,Bàn phím,NH06-02-02-02,Bàn phím có dây,orther,
+NH06,Peripherals,NH06-02-02,Bàn phím,NH06-02-02-01,Bàn phím không dây,orther,
+NH06,Peripherals,NH06-02-02,Bàn phím,NH06-02-02-97,Bàn phím đã qua sử dụng,orther,
+NH06,Peripherals,NH06-02-03,Chuột máy tính,NH06-02-03-01,Chuột máy tính không dây,orther,
+NH06,Peripherals,NH06-02-03,Chuột máy tính,NH06-02-03-02,Chuột máy tính có dây,orther,
+NH06,Peripherals,NH06-02-03,Chuột máy tính,NH06-02-03-97,Chuột máy tính đã qua sử dụng,orther,
+NH06,Peripherals,NH06-03-01,Loa,NH06-03-01-02,Loa di động,orther,
+NH06,Peripherals,NH06-03-01,Loa,NH06-03-01-97,Loa đã qua sử dụng,orther,
+NH06,Peripherals,NH06-03-01,Loa,NH06-03-01-01,Loa vi tính,orther,
+NH06,Peripherals,NH06-03-02,Tai nghe,NH06-03-02-01-01,Tai nghe có dây over-ear và on-ear,orther,
+NH06,Peripherals,NH06-03-02,Tai nghe,NH06-03-02-02-02,Tai nghe không dây earbud và in-ear,orther,
+NH06,Peripherals,NH06-03-02,Tai nghe,NH06-03-02-02-01,Tai nghe không dây over-ear và on-ear,orther,
+NH06,Peripherals,NH06-03-02,Tai nghe,NH06-03-02-01-02,Tai nghe có dây earbud và in-ear,orther,
+NH06,Peripherals,NH06-96-01,Lót chuột,NH06-96-01-01,Lót chuột,orther,
+NH06,Peripherals,NH06-96-02,Giá treo,NH06-96-02-01,Giá treo màn hình,orther,
+NH06,Peripherals,NH06-96-99,Phụ kiện thiết bị ngoại vi khác,NH06-96-99-01,Phụ kiện thiết bị ngoại vi khác,accessories,
+NH07,Office equipment,NH07-01-01,Máy in,NH07-01-01-02-02,Máy in phun đa năng,printer,
+NH07,Office equipment,NH07-01-01,Máy in,NH07-01-01-01-01,Máy in laser đơn năng,printer,
+NH07,Office equipment,NH07-01-01,Máy in,NH07-01-01-01-02,Máy in laser đa năng,printer,
+NH07,Office equipment,NH07-01-01,Máy in,NH07-01-01-02-01,Máy in phun đơn năng,printer,
+NH07,Office equipment,NH07-01-01,Máy in,NH07-01-01-97,Máy in đã qua sử dụng,printer,
+NH07,Office equipment,NH07-01-01,Máy in,NH07-01-01-99-02,"Máy in nhãn, mã vạch",printer,
+NH07,Office equipment,NH07-01-01,Máy in,NH07-01-01-99-03,Máy in kim,printer,
+NH07,Office equipment,NH07-01-02,Máy scan,NH07-01-02-01,Máy scan,orther,
+NH07,Office equipment,NH07-01-98,Quà tặng thiết bị in ấn và sao chép,NH07-01-98-99,Quà tặng thiết bị in ấn và sao chép khác,gift,
+NH07,Office equipment,NH07-02-01,Máy chiếu văn phòng,NH07-02-01-02,Máy chiếu DLP,orther,
+NH07,Office equipment,NH07-02-03,"Webcam, camera hội nghị",NH07-02-03-01,Webcam,orther,
+NH07,Office equipment,NH07-96-01,Giấy,NH07-96-01-01,Giấy in/ photocopy thông thường,orther,
+NH07,Office equipment,NH07-96-01,Giấy,NH07-96-01-03,Giấy in nhãn,orther,
+NH07,Office equipment,NH07-96-02,Mực,NH07-96-02-02,Mực in phun,orther,
+NH07,Office equipment,NH07-96-02,Mực,NH07-96-02-01,Mực in laser,orther,
+NH07,Office equipment,NH07-96-02,Mực,NH07-96-02-99-02,Drum,orther,
+NH07,Office equipment,NH07-96-02,Mực,NH07-96-02-99-03,Dây ruy băng,orther,
+NH07,Office equipment,NH07-96-03,Phụ kiện máy chiếu,NH07-96-03-01,Màn chiếu và giá treo,accessories,
+NH07,Office equipment,NH07-96-03,Phụ kiện máy chiếu,NH07-96-03-02,Bút trình chiếu,accessories,
+NH07,Office equipment,NH07-96-99,Phụ kiện thiết bị văn phòng khác,NH07-96-99-99,Phụ kiện thiết bị văn phòng khác,accessories,
+NH07,Office equipment,NH07-99-01,Bộ lưu điện (UPS),NH07-99-01-01,Bộ lưu điện,orther,
+NH07,Office equipment,NH07-99-02,"Điện thoại bàn, tổng đài",NH07-99-02-01,Điện thoại Analog,orther,
+NH07,Office equipment,NH07-99-04,Máy đếm tiền,NH07-99-04-01,Máy đếm tiền,orther,
+NH07,Office equipment,NH07-99-05,Máy hủy giấy,NH07-99-05-01,Máy hủy giấy,orther,
+NH07,Office equipment,NH07-99-98,Quà tặng thiết bị văn phòng khác,NH07-99-98-04,Phụ kiện (Quà tặng thiết bị văn phòng khác),gift,
+NH07,Office equipment,NH07-99-98,Quà tặng thiết bị văn phòng khác,NH07-99-98-99,Quà tặng thiết bị văn phòng khác khác,gift,
+NH08,Network and Security equipment,NH08-01-01,Router Wifi,NH08-01-01-01,Router Wifi,orther,
+NH08,Network and Security equipment,NH08-01-01,Router Wifi,NH08-01-01-02,Router Wifi Mesh,orther,
+NH08,Network and Security equipment,NH08-01-01,Router Wifi,NH08-01-01-97,Router Wifi đã qua sử dụng,orther,
+NH08,Network and Security equipment,NH08-01-02,Switch,NH08-01-02-01,Switch,orther,
+NH08,Network and Security equipment,NH08-01-96,Phụ kiện thiết bị mạng,NH08-01-96-01,Phụ kiện thiết bị mạng,accessories,
+NH08,Network and Security equipment,NH08-01-98,Quà tặng thiết bị mạng,NH08-01-98-99,Quà tặng thiết bị mạng khác,gift,
+NH08,Network and Security equipment,NH08-01-99,Thiết bị mạng khác,NH08-01-99-99,Thiết bị mạng khác,orther,
+NH08,Network and Security equipment,NH08-01-99,Thiết bị mạng khác,NH08-01-99-02,Card mạng,orther,
+NH08,Network and Security equipment,NH08-02-01,Camera an ninh,NH08-02-01-01-02,Camera IP wifi,orther,
+NH08,Network and Security equipment,NH08-02-01,Camera an ninh,NH08-02-01-97,Camera an ninh đã qua sử dụng,orther,
+NH08,Network and Security equipment,NH08-02-98,Quà tặng thiết bị an ninh,NH08-02-98-99,Quà tặng thiết bị an ninh khác,gift,
+NH09,Software,NH09-01-01,Phần mềm diệt vi rút,NH09-01-01-01,Phần mềm diệt vi rút,orther,
+NH09,Software,NH09-02-01,Phần mềm Microsoft,NH09-02-01-01-02,Phần mềm Windows vật lý,orther,
+NH09,Software,NH09-02-01,Phần mềm Microsoft,NH09-02-01-01-01,Phần mềm Windows online,orther,
+NH09,Software,NH09-02-01,Phần mềm Microsoft,NH09-02-01-02-01,Phần mềm Office online,orther,
+NH10,Entertainment and Digital devices,NH10-01-01,Điện thoại di động,NH10-01-01-97,Điện thoại di động đã qua sử dụng,orther,
+NH10,Entertainment and Digital devices,NH10-01-01,Điện thoại di động,NH10-01-01-01,Điện thoại phổ thông,orther,
+NH10,Entertainment and Digital devices,NH10-01-02,Máy tính bảng,NH10-01-02-01,Máy tính bảng,orther,
+NH10,Entertainment and Digital devices,NH10-01-98,Quà tặng điện thoại và máy tính bảng,NH10-01-98-04,Phụ kiện (Quà tặng điện thoại và máy tính bảng),gift,
+NH10,Entertainment and Digital devices,NH10-01-98,Quà tặng điện thoại và máy tính bảng,NH10-01-98-99,Quà tặng điện thoại và máy tính bảng khác,gift,
+NH10,Entertainment and Digital devices,NH10-02-03,Phụ kiện máy chơi game,NH10-02-03-01,Tay cầm chơi game,orther,
+NH10,Entertainment and Digital devices,NH10-03-01,Đồng hồ thông minh,NH10-03-01-97,Đồng hồ thông minh đã qua sử dụng,orther,
+NH10,Entertainment and Digital devices,NH10-03-01,Đồng hồ thông minh,NH10-03-01-01,Đồng hồ thông minh,orther,
+NH11,Accessories,NH11-01-01,Phụ kiện lưu trữ,NH11-01-01-03,Đầu đọc thẻ nhớ,accessories,
+NH11,Accessories,NH11-01-01,Phụ kiện lưu trữ,NH11-01-01-01,USB,accessories,
+NH11,Accessories,NH11-01-01,Phụ kiện lưu trữ,NH11-01-01-02,Thẻ nhớ,accessories,
+NH11,Accessories,NH11-01-02,Túi và balo,NH11-01-02-01,Túi,accessories,
+NH11,Accessories,NH11-01-02,Túi và balo,NH11-01-02-02,Balo,accessories,
+NH11,Accessories,NH11-01-03,"Phụ kiện trang trí, bảo vệ",NH11-01-03-99,"Phụ kiện trang trí, bảo vệ khác",accessories,
+NH11,Accessories,NH11-01-03,"Phụ kiện trang trí, bảo vệ",NH11-01-03-01,Bảo vệ ổ cứng,accessories,
+NH11,Accessories,NH11-01-04,Phụ kiện kết nối,NH11-01-04-01,Dây cáp,accessories,
+NH11,Accessories,NH11-01-04,Phụ kiện kết nối,NH11-01-04-02,Bộ chia,accessories,
+NH11,Accessories,NH11-01-04,Phụ kiện kết nối,NH11-01-04-03,"Đầu chuyển, bộ chuyển",accessories,
+NH11,Accessories,NH11-01-05,Bàn ghế,NH11-01-05-03,Ghế gaming,accessories,
+NH11,Accessories,NH11-01-05,Bàn ghế,NH11-01-05-02,Ghế công thái học,accessories,
+NH11,Accessories,NH11-01-06,Giá đỡ và tản nhiệt,NH11-01-06-02,Giá đỡ laptop,accessories,
+NH11,Accessories,NH11-01-06,Giá đỡ và tản nhiệt,NH11-01-06-01,Tản nhiệt laptop,accessories,
+NH11,Accessories,NH11-01-07,Ổ cứng gắn ngoài,NH11-01-07-01,Ổ cứng gắn ngoài HDD,accessories,
+NH11,Accessories,NH11-01-07,Ổ cứng gắn ngoài,NH11-01-07-02,Ổ cứng gắn ngoài SSD,accessories,
+NH11,Accessories,NH11-01-07,Ổ cứng gắn ngoài,NH11-01-07-97,Ổ cứng gắn ngoài đã qua sử dụng,accessories,
+NH11,Accessories,NH11-01-08,Bộ cấp nguồn laptop,NH11-01-08-01,Bộ cấp nguồn laptop,accessories,
+NH11,Accessories,NH11-01-98,Quà tặng phụ kiện máy tính,NH11-01-98-01,Linh kiện (Quà tặng phụ kiện máy tính),gift,
+NH11,Accessories,NH11-01-98,Quà tặng phụ kiện máy tính,NH11-01-98-05,"Thời trang, lưu trữ, số sách (Quà tặng phụ kiện máy tính)",gift,
+NH11,Accessories,NH11-02-01,Phụ kiện bảo vệ,NH11-02-01-02,Miếng dán bảo vệ màn hình,accessories,
+NH11,Accessories,NH11-02-02,"Thiết bị sạc, pin",NH11-02-02-01,"Sạc điện thoại, tablet",accessories,
+NH11,Accessories,NH11-02-02,"Thiết bị sạc, pin",NH11-02-02-02,"Pin sạc, sạc dự phòng điện thoại, tablet",accessories,
+NH11,Accessories,NH11-02-02,"Thiết bị sạc, pin",NH11-02-02-03,"Cáp sạc điện thoại, tablet",accessories,
+NH11,Accessories,NH11-02-02,"Thiết bị sạc, pin",NH11-02-02-97,"Thiết bị sạc, pin đã qua sử dụng",accessories,
+NH11,Accessories,NH11-02-03,Phụ kiện Samsung,NH11-02-03-02,Thiết bị sạc Samsung,accessories,
+NH11,Accessories,NH11-02-04,Phụ kiện dùng cho Apple,NH11-02-04-99,Phụ kiện dùng cho Apple khác,accessories,
+NH11,Accessories,NH11-02-04,Phụ kiện dùng cho Apple,NH11-02-04-02,Thiết bị sạc dùng cho Apple,accessories,
+NH11,Accessories,NH11-02-04,Phụ kiện dùng cho Apple,NH11-02-04-01,Phụ kiện bảo vệ dùng cho Apple,accessories,
+NH11,Accessories,NH11-02-99,"Phụ kiện điện thoại, tablet khác",NH11-02-99-01,"Đế giữ điện thoại, tablet",accessories,
+NH11,Accessories,NH11-02-99,"Phụ kiện điện thoại, tablet khác",NH11-02-99-99,"Phụ kiện điện thoại, tablet khác",accessories,
+NH11,Accessories,NH11-99-01,Thiết bị streaming,NH11-99-01-01,Microphone,accessories,
+NH11,Accessories,NH11-99-01,Thiết bị streaming,NH11-99-01-97,Phụ kiệm streaming đã qua sử dụng,accessories,
+NH11,Accessories,NH11-99-02,Ổ cắm,NH11-99-02-01,Ổ cắm,accessories,
+NH11,Accessories,NH11-99-99,Phụ kiện khác,NH11-99-99-99,Phụ kiện khác,accessories,
+NH12,Electric,NH12-01-01,Tivi,NH12-01-01-01,Tivi,orther,
+NH12,Electric,NH12-01-02,Thiết bị âm thanh gia đình,NH12-01-02-03,Loa thanh,orther,
+NH12,Electric,NH12-01-02,Thiết bị âm thanh gia đình,NH12-01-02-02,"Loa tháp, thùng",orther,
+NH12,Electric,NH12-01-02,Thiết bị âm thanh gia đình,NH12-01-02-04,"Loa tháp, thùng",orther,
+NH12,Electric,NH12-01-98,Quà tặng điện tử,NH12-01-98-01,Linh kiện (Quà tặng điện tử),gift,
+NH12,Electric,NH12-02-01,Máy lạnh,NH12-02-01-01,Máy lạnh,orther,
+NH12,Electric,NH12-02-02,"Máy giặt, sấy",NH12-02-02-01,"Máy giặt, sấy",orther,
+NH12,Electric,NH12-02-02,"Máy giặt, sấy",NH12-02-02-97,"Máy giặt, sấy đã qua sử dụng",orther,
+NH12,Electric,NH12-02-03,"Tủ lạnh, tủ mát, tủ đông, tủ rượu",NH12-02-03-01,Tủ lạnh,orther,
+NH12,Electric,NH12-02-04,Máy nước nóng,NH12-02-04-97,Máy nước nóng đã qua sử dụng,orther,
+NH12,Electric,NH12-02-04,Máy nước nóng,NH12-02-04-01,Máy nước nóng,orther,
+NH14,Small Domestic Appliances,NH14-01-01,Điện gia dụng nhà bếp,NH14-01-01-04,"Máy xay sinh tố, máy ép, máy trộn, máy xay thịt",orther,
+NH14,Small Domestic Appliances,NH14-01-01,Điện gia dụng nhà bếp,NH14-01-01-01,"Bình đun, bình thủy điện",orther,
+NH14,Small Domestic Appliances,NH14-01-01,Điện gia dụng nhà bếp,NH14-01-01-06,"Nồi chiên không dâu, nồi lẩu, nồi áp suất",orther,
+NH14,Small Domestic Appliances,NH14-01-01,Điện gia dụng nhà bếp,NH14-01-01-02,Nồi cơm điện,orther,
+NH14,Small Domestic Appliances,NH14-01-01,Điện gia dụng nhà bếp,NH14-01-01-97,Điện gia dụng nhà bếp đã qua sử dụng,orther,
+NH14,Small Domestic Appliances,NH14-01-01,Điện gia dụng nhà bếp,NH14-01-01-03,"Lò nướng, vỉ nướng, lò vi sóng",orther,
+NH14,Small Domestic Appliances,NH14-01-02,"Quạt, thiết bị làm mát",NH14-01-02-01,"Quạt bàn, quạt đứng, quạt sàn",orther,
+NH14,Small Domestic Appliances,NH14-01-02,"Quạt, thiết bị làm mát",NH14-01-02-97,"Quạt, thiết bị làm mát đã qua sử dụng",orther,
+NH14,Small Domestic Appliances,NH14-01-02,"Quạt, thiết bị làm mát",NH14-01-02-02,"Thiết bị làm mát, quạt hơi nước",orther,
+NH14,Small Domestic Appliances,NH14-01-02,"Quạt, thiết bị làm mát",NH14-01-02-03,"Máy lọc không khí, máy hút ẩm, tạo ẩm",orther,
+NH14,Small Domestic Appliances,NH14-01-03,"Máy hút bụi, robot hút bụi",NH14-01-03-01,"Máy hút bụi cầm tay, hút bụi cây",orther,
+NH14,Small Domestic Appliances,NH14-01-03,"Máy hút bụi, robot hút bụi",NH14-01-03-97,"Máy hút bụi, robot hút bụi đã qua sử dụng",orther,
+NH14,Small Domestic Appliances,NH14-01-04,Thiết bị làm đẹp,NH14-01-04-03,"Chăm sóc tóc (máy sấy tóc, duỗi tóc, uốn tóc, tông đơ...)",orther,
+NH14,Small Domestic Appliances,NH14-01-04,Thiết bị làm đẹp,NH14-01-04-97,Thiết bị làm đẹp đã qua sử dụng,orther,
+NH14,Small Domestic Appliances,NH14-01-04,Thiết bị làm đẹp,NH14-01-04-02,"Chăm sóc cơ thể (máy triệt lông, máy cạo râu, tỉa lông mũi,...)",orther,
+NH14,Small Domestic Appliances,NH14-01-04,Thiết bị làm đẹp,NH14-01-04-01,"Chăm sóc da mặt (máy rửa mặt, mặt nạ, máy nâng cơ,...)",orther,
+NH14,Small Domestic Appliances,NH14-01-04,"Thiết bị làm đẹp, chăm sóc cá nhân",NH14-01-04-02,Thiết bị chăm sóc cá nhân,orther,
+NH14,Small Domestic Appliances,NH14-01-05,Thiết bị chăm sóc cá nhân,NH14-01-05-02,Máy massage,orther,
+NH14,Small Domestic Appliances,NH14-01-05,Thiết bị chăm sóc cá nhân,NH14-01-05-01,"Chăm sóc răng miệng (bàn chải, tăm nước,...)",orther,
+NH14,Small Domestic Appliances,NH14-01-06,"Máy lọc không khí, máy hút ẩm, tạo ẩm",NH14-01-06-01,Máy lọc không khí,orther,
+NH14,Small Domestic Appliances,NH14-01-06,"Máy lọc không khí, máy hút ẩm, tạo ẩm",NH14-01-06-03,Máy tạo ẩm,orther,
+NH14,Small Domestic Appliances,NH14-01-98,Quà tặng điện gia dụng,NH14-01-98-01,Quà tặng điện gia dụng,gift,
+NH14,Small Domestic Appliances,NH14-01-99,Điện gia dụng nhỏ khác,NH14-01-99-01-02,"Bàn ủi cầm tay, bàn ủi đứng",orther,
+NH14,Small Domestic Appliances,NH14-01-99,Điện gia dụng nhỏ khác,NH14-01-99-97,Điện gia dụng nhỏ khác đã qua sử dụng,orther,
+NH14,Small Domestic Appliances,NH14-01-99,Điện gia dụng nhỏ khác,NH14-01-99-01-01,"Bàn ủi khô, hơi nước",orther,
+NH93,Spare parts,NH93-01-02,Bàn phím laptop sửa chữa,NH93-01-02-01,Bàn phím laptop sửa chữa,orther,
+NH93,Spare parts,NH93-01-03,Màn hình laptop sửa chữa,NH93-01-03-01,Màn hình laptop sửa chữa,orther,
+NH93,Spare parts,NH93-01-04,Pin laptop sửa chữa,NH93-01-04-01,Pin laptop sửa chữa,orther,
+NH94,Value added service,NH94-04-01,Hỗ trợ MKT - Chung,NH94-04-01,Hỗ trợ MKT - Chung,orther,
+NH94,Value added service,NH94-01,Dịch vụ bảo hiểm,NH94-01-01,Dịch vụ bảo hiểm rơi vỡ,extendedInsurance,
+NH94,Value added service,NH94-01,Dịch vụ bảo hiểm,NH94-01-02,Dịch vụ bảo hiểm mở rộng,extendedInsurance,
+NH95,Service,NH95-01-01,Dịch vụ cài đặt và nâng cấp,NH95-01-01-01-01,Dịch vụ nâng cấp sản phẩm Phong Vũ,orther,
+NH95,Service,NH95-01-01,Dịch vụ cài đặt và nâng cấp,NH95-01-01-01-02,Dịch vụ nâng cấp sản phẩm ngoài Phong Vũ,orther,
+NH95,Service,NH95-01-02,Dịch vụ lắp ráp máy,NH95-01-02,Dịch vụ lắp ráp máy,orther,
+NH95,Service,NH95-01-03,Dịch vụ vệ sinh & bảo trì,NH95-01-03,Dịch vụ vệ sinh & bảo trì,orther,
+NH95,Service,NH95-01-04,Dịch vụ sửa chữa và thay thế linh kiện,NH95-01-04-01,Dịch vụ tự sửa chữa và thay thế linh kiện,orther,
+NH95,Service,NH95-01-04,Dịch vụ sửa chữa và thay thế linh kiện,NH95-01-04-02,Dịch vụ sửa chữa thuê ngoài,orther,
+NH95,Service,NH95-01-05,Dịch vụ bảo hành,NH95-01-05,Dịch vụ bảo hành,orther,
+NH95,Service,NH95-02-03,"Dịch vụ thi công, lắp đặt",NH95-02-03-99,"Dịch vụ thi công, lắp đặt khác",orther,
+NH95,Service,NH95-02-03,"Dịch vụ thi công, lắp đặt",NH95-02-03-01,"Dịch vụ thi công, lắp đặt camera",orther,
+NH95,Service,NH95-02-03,"Dịch vụ thi công, lắp đặt",NH95-02-03-03,"Dịch vụ thi công, lắp đặt hàng điện máy",orther,
+NH95,Service,NH95-02-03,"Dịch vụ thi công, lắp đặt",NH95-02-03-02,"Dịch vụ thi công, lắp đặt thiết bị văn phòng",orther,
+NH95,Service,NH95-02-05,"Dịch vụ bảo hành, bảo trì tận nơi",NH95-02-05,"Dịch vụ bảo hành, bảo trì tận nơi",orther,
+NH95,Service,NH95-02-99,Dịch vụ tại điểm khác,NH95-02-99,Dịch vụ tại điểm khác,orther,
+NH95,Service,NH95-03,Dịch vụ bảo hiểm,NH95-03-02,Dịch vụ bảo hiểm mở rộng,extendedInsurance,
+NH99,Others,NH99-98-01,Quà tặng chung,NH99-98-01-05,"Thời trang, lưu trữ, số sách (Quà tặng chung)",gift,
+NH99,Others,NH99-98-01,Quà tặng chung,NH99-98-01-99,Quà tặng chung khác,gift,
+NH99,Others,NH99-98-01,Quà tặng chung,NH99-98-01-01,Linh kiện (Quà tặng chung),gift,
