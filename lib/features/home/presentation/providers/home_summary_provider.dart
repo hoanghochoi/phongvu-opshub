@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 
 import '../../../../core/logging/app_logger.dart';
 import '../../../../core/network/api_exception.dart';
+import '../../../../core/network/realtime_connection_manager.dart';
 import '../../../../core/utils/date_range_defaults.dart';
 import '../../../auth/domain/entities/user.dart';
 import '../../data/repositories/home_summary_repository.dart';
@@ -54,15 +55,37 @@ class HomeSummaryScopeOption {
 }
 
 class HomeSummaryProvider extends ChangeNotifier {
-  HomeSummaryProvider(this._repository, {DateTime Function()? now})
-    : _now = now ?? DateTime.now {
+  HomeSummaryProvider(
+    this._repository, {
+    DateTime Function()? now,
+    RealtimeClient? realtimeClient,
+  }) : _now = now ?? DateTime.now,
+       _realtimeClient = realtimeClient {
     _resetSelectedDateRangeToToday();
+    if (realtimeClient != null) {
+      _realtimeEventSubscription = realtimeClient.events.listen(
+        _handleRealtimeEnvelope,
+      );
+      _realtimeSyncSubscription = realtimeClient.syncRequests.listen(
+        _handleRealtimeSyncRequest,
+      );
+    }
   }
 
   static final DateFormat _queryDateFormat = DateFormat('yyyy-MM-dd');
+  static const Duration _realtimeRefreshDebounce = Duration(milliseconds: 500);
 
   final HomeSummaryRepository _repository;
   final DateTime Function() _now;
+  final RealtimeClient? _realtimeClient;
+
+  StreamSubscription<RealtimeEnvelope>? _realtimeEventSubscription;
+  StreamSubscription<RealtimeSyncReason>? _realtimeSyncSubscription;
+  Timer? _realtimeRefreshTimer;
+  final Set<String> _pendingAffectedDates = <String>{};
+  String? _pendingRealtimeReason;
+  int? _pendingProjectionVersion;
+  int? _lastAppliedProjectionVersion;
 
   User? _user;
   HomeSummary? _summary;
@@ -173,6 +196,18 @@ class HomeSummaryProvider extends ChangeNotifier {
         : null;
     final sessionChanged = _syncedSessionKey != nextSessionKey;
     _syncedSessionKey = nextSessionKey;
+    if (sessionChanged) {
+      _realtimeRefreshTimer?.cancel();
+      _realtimeRefreshTimer = null;
+      _pendingAffectedDates.clear();
+      _pendingRealtimeReason = null;
+      _pendingProjectionVersion = null;
+      _lastAppliedProjectionVersion = null;
+      final realtimeClient = _realtimeClient;
+      if (realtimeClient != null) {
+        unawaited(realtimeClient.syncSession(nextSessionKey));
+      }
+    }
 
     if (!isInitialized || user == null) {
       if (_summary != null ||
@@ -445,8 +480,12 @@ class HomeSummaryProvider extends ChangeNotifier {
   }
 
   Future<void> loadSummary({required String reason}) async {
+    await _loadSummary(reason: reason);
+  }
+
+  Future<bool> _loadSummary({required String reason}) async {
     final user = _user;
-    if (user == null) return;
+    if (user == null) return false;
 
     final requestToken = ++_requestToken;
     final hadCachedSummary = _summary != null;
@@ -482,9 +521,14 @@ class HomeSummaryProvider extends ChangeNotifier {
         organizationNodeId: _organizationNodeIdForSelectedScope,
         salesProgressUserId: _selectedSalesProgressUserId,
       );
-      if (requestToken != _requestToken) return;
+      if (requestToken != _requestToken) return false;
 
       _summary = summary;
+      final responseProjectionVersion = summary.freshness?.projectionVersion;
+      if (responseProjectionVersion != null &&
+          responseProjectionVersion > (_lastAppliedProjectionVersion ?? -1)) {
+        _lastAppliedProjectionVersion = responseProjectionVersion;
+      }
       _selectedSalesProgressUserId = summary.selectedSalesProgressUserId;
       _errorMessage = null;
       await AppLogger.instance.info(
@@ -538,10 +582,16 @@ class HomeSummaryProvider extends ChangeNotifier {
           'totalStatementsWithOrder': summary.totalStatementsWithOrder,
           'totalStatementsWithoutOrder': summary.totalStatementsWithoutOrder,
           'statementOrderRate': summary.statementOrderRate,
+          'projectionGeneratedAt': summary.freshness?.projectionGeneratedAt
+              ?.toIso8601String(),
+          'projectionLagSeconds': summary.freshness?.projectionLagSeconds,
+          'projectionVersion': summary.freshness?.projectionVersion,
+          'isStale': summary.isStale,
         },
       );
+      return true;
     } on ApiException catch (error) {
-      if (requestToken != _requestToken) return;
+      if (requestToken != _requestToken) return false;
       _errorMessage = error.message;
       await AppLogger.instance.warn(
         'HomeSummary',
@@ -560,7 +610,7 @@ class HomeSummaryProvider extends ChangeNotifier {
         },
       );
     } catch (error, stackTrace) {
-      if (requestToken != _requestToken) return;
+      if (requestToken != _requestToken) return false;
       _errorMessage = 'Chưa tải được dashboard. Vui lòng thử lại.';
       await AppLogger.instance.error(
         'HomeSummary',
@@ -587,6 +637,173 @@ class HomeSummaryProvider extends ChangeNotifier {
         notifyListeners();
       }
     }
+    return false;
+  }
+
+  void _handleRealtimeEnvelope(RealtimeEnvelope envelope) {
+    if (envelope.kind != 'HOME_SUMMARY_UPDATED' ||
+        envelope.topic != 'home.summary' ||
+        _user == null) {
+      return;
+    }
+    final affectedDates = (envelope.data['affectedDates'] as List? ?? const [])
+        .map((value) => value.toString().trim())
+        .where((value) => value.isNotEmpty)
+        .toSet();
+    final projectionVersion = _intOf(envelope.data['projectionVersion']);
+    if (affectedDates.isEmpty || projectionVersion == null) {
+      unawaited(
+        AppLogger.instance.warn(
+          'HomeSummaryRealtime',
+          'Home realtime event ignored',
+          context: {
+            'eventId': envelope.id,
+            'reason': 'invalid_home_payload',
+            'affectedDateCount': affectedDates.length,
+            'hasProjectionVersion': projectionVersion != null,
+          },
+        ),
+      );
+      return;
+    }
+    if (!_overlapsSelectedRange(affectedDates)) {
+      unawaited(
+        AppLogger.instance.info(
+          'HomeSummaryRealtime',
+          'Home realtime event ignored',
+          context: {
+            'eventId': envelope.id,
+            'reason': 'date_range_not_affected',
+            'affectedDateCount': affectedDates.length,
+            'projectionVersion': projectionVersion,
+          },
+        ),
+      );
+      return;
+    }
+    final appliedVersion = _lastAppliedProjectionVersion ?? -1;
+    if (projectionVersion <= appliedVersion) {
+      unawaited(
+        AppLogger.instance.info(
+          'HomeSummaryRealtime',
+          'Home realtime projection deduplicated',
+          context: {
+            'eventId': envelope.id,
+            'projectionVersion': projectionVersion,
+            'appliedProjectionVersion': appliedVersion,
+          },
+        ),
+      );
+      return;
+    }
+    final pendingVersion = _pendingProjectionVersion;
+    if (pendingVersion != null && projectionVersion < pendingVersion) {
+      unawaited(
+        AppLogger.instance.info(
+          'HomeSummaryRealtime',
+          'Home realtime projection superseded',
+          context: {
+            'eventId': envelope.id,
+            'projectionVersion': projectionVersion,
+            'pendingProjectionVersion': pendingVersion,
+          },
+        ),
+      );
+      return;
+    }
+    _pendingAffectedDates.addAll(affectedDates);
+    if (pendingVersion == null || projectionVersion > pendingVersion) {
+      _pendingProjectionVersion = projectionVersion;
+    }
+    _scheduleRealtimeRefresh(reason: 'realtime_event');
+  }
+
+  void _handleRealtimeSyncRequest(RealtimeSyncReason reason) {
+    if (_user == null) return;
+    _scheduleRealtimeRefresh(
+      reason: switch (reason) {
+        RealtimeSyncReason.reconnected => 'realtime_reconnected',
+        RealtimeSyncReason.appResumed => 'app_resumed',
+      },
+      force: true,
+    );
+  }
+
+  void _scheduleRealtimeRefresh({required String reason, bool force = false}) {
+    _pendingRealtimeReason = force ? reason : _pendingRealtimeReason ?? reason;
+    if (force) _pendingAffectedDates.clear();
+    _realtimeRefreshTimer?.cancel();
+    _realtimeRefreshTimer = Timer(
+      _realtimeRefreshDebounce,
+      _refreshFromRealtime,
+    );
+  }
+
+  Future<void> _refreshFromRealtime() async {
+    _realtimeRefreshTimer = null;
+    if (_user == null) return;
+    final reason = _pendingRealtimeReason ?? 'realtime_sync';
+    final projectionVersion = _pendingProjectionVersion;
+    final affectedDates = Set<String>.from(_pendingAffectedDates);
+    _pendingRealtimeReason = null;
+    _pendingProjectionVersion = null;
+    _pendingAffectedDates.clear();
+    if (affectedDates.isNotEmpty && !_overlapsSelectedRange(affectedDates)) {
+      await AppLogger.instance.info(
+        'HomeSummaryRealtime',
+        'Home realtime refresh skipped',
+        context: {
+          'reason': 'date_range_changed',
+          'projectionVersion': projectionVersion,
+        },
+      );
+      return;
+    }
+
+    await AppLogger.instance.info(
+      'HomeSummaryRealtime',
+      'Home realtime refresh started',
+      context: {
+        'reason': reason,
+        'projectionVersion': projectionVersion,
+        'startDate': formattedSelectedStartDate,
+        'endDate': formattedSelectedEndDate,
+      },
+    );
+    final succeeded = await _loadSummary(reason: reason);
+    if (succeeded && projectionVersion != null) {
+      _lastAppliedProjectionVersion = projectionVersion;
+    }
+    if (succeeded) {
+      await AppLogger.instance.info(
+        'HomeSummaryRealtime',
+        'Home realtime refresh succeeded',
+        context: {'reason': reason, 'projectionVersion': projectionVersion},
+      );
+    } else {
+      await AppLogger.instance.warn(
+        'HomeSummaryRealtime',
+        'Home realtime refresh failed',
+        context: {'reason': reason, 'projectionVersion': projectionVersion},
+      );
+    }
+  }
+
+  bool _overlapsSelectedRange(Set<String> affectedDates) {
+    final start = resolvedStartDate;
+    final end = resolvedEndDate;
+    for (final value in affectedDates) {
+      final parsed = DateTime.tryParse(value);
+      if (parsed == null) continue;
+      final date = _normalizeDate(parsed);
+      if (!date.isBefore(start) && !date.isAfter(end)) return true;
+    }
+    return false;
+  }
+
+  static int? _intOf(Object? value) {
+    if (value is num) return value.toInt();
+    return int.tryParse(value?.toString() ?? '');
   }
 
   bool get hasExplicitDateRange =>
@@ -698,6 +915,17 @@ class HomeSummaryProvider extends ChangeNotifier {
 
   static String _sessionKey(User user) =>
       '${user.id ?? user.email}|${user.role ?? ''}|${user.organizationNodeId ?? ''}|${user.organizationNodeIds.join(',')}';
+
+  @override
+  void dispose() {
+    _realtimeRefreshTimer?.cancel();
+    _realtimeRefreshTimer = null;
+    unawaited(_realtimeEventSubscription?.cancel());
+    unawaited(_realtimeSyncSubscription?.cancel());
+    _realtimeEventSubscription = null;
+    _realtimeSyncSubscription = null;
+    super.dispose();
+  }
 }
 
 extension _FirstOrNullExtension<T> on Iterable<T> {

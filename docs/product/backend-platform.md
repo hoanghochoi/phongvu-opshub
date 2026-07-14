@@ -12,6 +12,16 @@ development services for OpsHub.
 - PostgreSQL and Redis are started with `docker-compose.yml`.
 - Prisma owns the database schema.
 - BigQuery configuration is required for inventory-related backend behavior.
+- Home Summary near-realtime uses a PostgreSQL outbox plus daily projection.
+  Source transactions only persist source data and durable work; a worker
+  rebuilds additive `GLOBAL`, `STORE`, and `USER_STORE` grains asynchronously.
+  PostgreSQL `NOTIFY` is a wake-up hint and one-second outbox polling is the
+  loss-safe fallback. Redis carries only the post-commit realtime signal.
+- The authenticated `/ws/v2` endpoint carries versioned topic events. Home uses
+  `HOME_SUMMARY_UPDATED` on `home.summary`; its payload has affected dates and
+  a projection version but never KPI values. Flutter re-reads
+  `GET /home/summary` after a relevant event. Existing `/ws` feature clients
+  remain compatible during the Phase 2 migration window.
 - Client update metadata is exposed by `GET /app-version` and remains the source
   of truth for update availability, force/minimum-build rules, legacy download
   URL, and in-app self-update package metadata.
@@ -109,3 +119,7 @@ curl http://localhost:3000/app-version
 - `npm run build` and Jest tests for NestJS.
 - `go test ./...` for realtime service.
 - Docker and health check smoke when deployment or env behavior changes.
+- Home projection changes additionally require migration up/down proof,
+  outbox/retry/reconciliation tests, KPI parity for 1/7/30/90-day ranges,
+  freshness/stale behavior, and separate latency measurements for source commit
+  to projection, projection to event, and event to repaint.

@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../core/config/app_brand.dart';
 import '../core/logging/app_logger.dart';
 import '../core/network/api_client.dart';
+import '../core/network/realtime_connection_manager.dart';
 import '../features/auth/data/repositories/auth_repository.dart';
 import '../features/auth/presentation/providers/auth_provider.dart';
 import '../features/app_update/presentation/app_update_gate.dart';
@@ -111,12 +112,17 @@ class App extends StatelessWidget {
         ),
         ChangeNotifierProxyProvider<AuthProvider, HomeSummaryProvider>(
           lazy: false,
-          create: (_) =>
-              HomeSummaryProvider(HomeSummaryRepository(ApiClient())),
+          create: (_) => HomeSummaryProvider(
+            HomeSummaryRepository(ApiClient()),
+            realtimeClient: RealtimeConnectionManager.instance,
+          ),
           update: (_, auth, homeSummary) {
             final provider =
                 homeSummary ??
-                HomeSummaryProvider(HomeSummaryRepository(ApiClient()));
+                HomeSummaryProvider(
+                  HomeSummaryRepository(ApiClient()),
+                  realtimeClient: RealtimeConnectionManager.instance,
+                );
             Future.microtask(
               () => provider.syncAuth(
                 auth.user,

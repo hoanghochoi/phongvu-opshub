@@ -26,4 +26,20 @@ describe('HomeSummaryController', () => {
     await expect(controller.details(req, query)).resolves.toEqual({ ok: true });
     expect(service.getBehaviorDetails).toHaveBeenCalledWith(req.user, query);
   });
+
+  it('forwards cursor detail v2 requests to the service', async () => {
+    const service = {
+      getSummary: jest.fn(),
+      getBehaviorDetails: jest.fn(),
+      getBehaviorDetailsV2: jest.fn().mockResolvedValue({ items: [] }),
+    };
+    const controller = new HomeSummaryController(service as any);
+    const req = { user: { id: 'user-1' } };
+    const query = { kind: 'UNREPORTED_ORDER' as const, limit: 50 };
+
+    await expect(controller.detailsV2(req, query)).resolves.toEqual({
+      items: [],
+    });
+    expect(service.getBehaviorDetailsV2).toHaveBeenCalledWith(req.user, query);
+  });
 });

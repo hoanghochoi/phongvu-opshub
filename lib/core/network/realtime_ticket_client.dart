@@ -13,6 +13,13 @@ class RealtimeTicketClient {
 
   final ApiClient _apiClient;
 
+  /// Issues the same one-time ticket as the legacy socket while targeting the
+  /// versioned application gateway. Existing feature sockets keep using /ws.
+  Future<Uri> issueV2ConnectionUri({String? storeCode}) async {
+    final uri = await issueConnectionUri(storeCode: storeCode);
+    return uri.replace(path: '/ws/v2');
+  }
+
   Future<Uri> issueConnectionUri({String? storeCode}) async {
     final startedAt = DateTime.now();
     final normalizedStoreCode = storeCode?.trim().toUpperCase();

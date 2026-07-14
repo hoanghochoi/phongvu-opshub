@@ -6,8 +6,8 @@ Backend-native architecture for the OpsHub mobile app. The Flutter app talks to 
 
 - `backend-nest/`: NestJS API with Prisma, JWT auth, first-use password login, inventory sync, FIFO check/sort, FIFO logs, warranty uploads, and feedback.
 - `backend-go/`: Go realtime service that subscribes to Redis, broadcasts
-  authenticated workflow events on `/ws`, and isolates public update signals on
-  `/ws/app-updates`.
+  legacy authenticated workflow events on `/ws`, shared versioned signals on
+  `/ws/v2`, and isolates public update signals on `/ws/app-updates`.
 - `docker-compose.yml`: Local PostgreSQL and Redis only.
 - `n8n/`: Legacy workflow exports kept as reference, not used by runtime app code.
 
@@ -218,6 +218,15 @@ Expected responses:
   share Caddy's container IP.
 - Run `npx prisma migrate deploy` before starting the Nest API.
 - Start the Go service with the same Redis connection as NestJS.
+- Home near-realtime is projection-first. Source-table triggers write a durable
+  outbox plus a coalesced daily queue in the same PostgreSQL transaction;
+  `NOTIFY` only wakes the worker, which still polls every second. Keep
+  `HOME_SUMMARY_PROJECTION_ENABLED=true` and
+  `HOME_SUMMARY_PROJECTION_WORKER_ENABLED=true`. The legacy synchronous GET
+  refresh remains available for one release through
+  `HOME_SUMMARY_LEGACY_SYNC_FALLBACK_ENABLED`, default `false`. Enable
+  `HOME_SUMMARY_ERP_BACKFILL_ENABLED` only for the checkpointed one-time
+  90-day ERP cache backfill.
 
 ## Verification
 

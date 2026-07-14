@@ -746,7 +746,7 @@ export class SalesReportsService implements OnApplicationBootstrap {
       const storeCodes = new Set<string>();
       const recipientUserIds = new Set<string>();
       for (const date of dates) {
-        const result = await this.syncErpOrderCache({
+        const result = await this.syncErpOrderCachePage({
           date,
           limit,
           source,
@@ -2183,15 +2183,17 @@ export class SalesReportsService implements OnApplicationBootstrap {
     return { stores: toOptions(stores), users: toOptions(users) };
   }
 
-  private async syncErpOrderCache(input: {
+  async syncErpOrderCachePage(input: {
     date: string;
     limit: number;
     source: string;
+    offset?: number;
   }) {
     const orders: SalesReportErpOrderListItem[] =
       await this.erp.listRecentOrders({
         date: input.date,
         limit: input.limit,
+        offset: input.offset,
       });
     const orderCodes = orders
       .map((order) => this.normalizeOrderCode(order.orderCode))
@@ -2338,6 +2340,7 @@ export class SalesReportsService implements OnApplicationBootstrap {
       newOrderCount,
       mappedOrderCount,
       excludedOrderCount,
+      orderCodes,
       storeCodes: Array.from(storeCodes),
       recipientUserIds: Array.from(recipientUserIds),
     };

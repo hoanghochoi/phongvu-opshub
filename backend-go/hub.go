@@ -11,19 +11,28 @@ import (
 )
 
 type Client struct {
-	conn        *websocket.Conn
-	auth        *ClientAuth
-	updatesOnly bool
-	send        chan []byte
-	socket      socketConfig
-	logger      *log.Logger
-	release     func()
+	conn            *websocket.Conn
+	auth            *ClientAuth
+	updatesOnly     bool
+	protocolVersion int
+	send            chan []byte
+	socket          socketConfig
+	logger          *log.Logger
+	release         func()
+	closeCode       int
+	closeReason     string
+}
+
+type protocolResync struct {
+	version int
+	reason  string
 }
 
 type Hub struct {
 	clients       map[*Client]struct{}
 	broadcast     chan RoutedEvent
 	revoke        chan SessionRevocation
+	resync        chan protocolResync
 	register      chan *Client
 	unregister    chan *Client
 	clientCount   atomic.Int64
@@ -42,6 +51,7 @@ func newHub(logger *log.Logger, queueSizes ...int) *Hub {
 	return &Hub{
 		broadcast:     make(chan RoutedEvent),
 		revoke:        make(chan SessionRevocation, 64),
+		resync:        make(chan protocolResync, 1),
 		register:      make(chan *Client, 64),
 		unregister:    make(chan *Client, 256),
 		clients:       make(map[*Client]struct{}),
@@ -65,10 +75,11 @@ func (hub *Hub) run(ctx context.Context) {
 				hub.logger.Printf("Public app-update client connected total=%d", hub.clientCount.Load())
 			} else {
 				hub.logger.Printf(
-					"Realtime client connected user=%s role=%s authMethod=%s total=%d",
+					"Realtime client connected user=%s role=%s authMethod=%s protocolVersion=%d total=%d",
 					client.auth.UserID,
 					client.auth.Role,
 					client.auth.Method,
+					client.effectiveProtocolVersion(),
 					hub.clientCount.Load(),
 				)
 			}
@@ -91,16 +102,42 @@ func (hub *Hub) run(ctx context.Context) {
 					hub.remove(client, "session_revoked")
 				}
 			}
+		case resync := <-hub.resync:
+			disconnected := 0
+			for client := range hub.clients {
+				if client.effectiveProtocolVersion() != resync.version {
+					continue
+				}
+				hub.removeWithClose(
+					client,
+					resync.reason,
+					websocket.CloseServiceRestart,
+					"resync_required",
+				)
+				disconnected++
+			}
+			hub.logger.Printf(
+				"Realtime protocol resync requested protocolVersion=%d reason=%s disconnected=%d",
+				resync.version,
+				resync.reason,
+				disconnected,
+			)
 		}
 	}
 }
 
 func (hub *Hub) remove(client *Client, reason string) {
+	hub.removeWithClose(client, reason, 0, "")
+}
+
+func (hub *Hub) removeWithClose(client *Client, reason string, closeCode int, closeReason string) {
 	if _, exists := hub.clients[client]; !exists {
 		return
 	}
 	delete(hub.clients, client)
 	hub.clientCount.Add(-1)
+	client.closeCode = closeCode
+	client.closeReason = closeReason
 	close(client.send)
 	if client.release != nil {
 		client.release()
@@ -111,11 +148,21 @@ func (hub *Hub) remove(client *Client, reason string) {
 		return
 	}
 	hub.logger.Printf(
-		"Realtime client disconnected user=%s reason=%s total=%d",
+		"Realtime client disconnected user=%s protocolVersion=%d reason=%s total=%d",
 		client.auth.UserID,
+		client.effectiveProtocolVersion(),
 		reason,
 		hub.clientCount.Load(),
 	)
+}
+
+func (hub *Hub) requestProtocolResync(version int, reason string) {
+	select {
+	case hub.resync <- protocolResync{version: version, reason: reason}:
+	default:
+		// Một yêu cầu đang chờ sẽ đóng toàn bộ client của protocol này; không
+		// chặn Redis listener hoặc xếp thêm tín hiệu trùng lặp.
+	}
 }
 
 func (client *Client) canReceive(event RoutedEvent) bool {
@@ -125,10 +172,27 @@ func (client *Client) canReceive(event RoutedEvent) bool {
 	if client.auth == nil {
 		return false
 	}
+	eventVersion := event.ProtocolVersion
+	if eventVersion == 0 {
+		eventVersion = webSocketProtocolV1
+	}
+	if client.effectiveProtocolVersion() != eventVersion {
+		return false
+	}
+	if event.AuthenticatedOnly {
+		return client.auth != nil
+	}
 	if event.Public {
 		return event.Type == appUpdateEventType
 	}
 	return event.Audience.matches(client.auth)
+}
+
+func (client *Client) effectiveProtocolVersion() int {
+	if client.protocolVersion <= 0 {
+		return webSocketProtocolV1
+	}
+	return client.protocolVersion
 }
 
 func (client *Client) matchesRevocation(revocation SessionRevocation) bool {
@@ -185,7 +249,15 @@ func (client *Client) writePump() {
 				return
 			}
 			if !ok {
-				_ = client.conn.WriteMessage(websocket.CloseMessage, []byte{})
+				if client.closeCode == 0 {
+					_ = client.conn.WriteMessage(websocket.CloseMessage, []byte{})
+					return
+				}
+				_ = client.conn.WriteControl(
+					websocket.CloseMessage,
+					websocket.FormatCloseMessage(client.closeCode, client.closeReason),
+					time.Now().Add(client.socket.writeWait),
+				)
 				return
 			}
 			if err := client.conn.WriteMessage(websocket.TextMessage, message); err != nil {

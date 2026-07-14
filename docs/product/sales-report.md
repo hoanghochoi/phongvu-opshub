@@ -342,6 +342,14 @@ phí`.
   hoặc cache cũ vừa được backfill user/showroom/node; payload chỉ chứa ngày,
   số lượng, user/SR liên quan để client tự lọc và gọi lại API scoped, không đẩy
   chi tiết đơn hàng qua websocket.
+- Home Summary không rebuild fact đồng bộ trong request khi projection
+  near-realtime được bật. Thay đổi ERP cache, Sales Report và MAP/eFAST tạo
+  durable outbox cùng transaction nguồn; worker coalesce theo ngày/grain rồi
+  cập nhật daily aggregate. Sau commit, backend phát `HOME_SUMMARY_UPDATED`
+  không chứa KPI để app chỉ tải lại ngày/scope đang xem. `GET /home/summary`
+  giữ DTO KPI hiện tại, thêm freshness metadata và trả last complete projection
+  khi stale; không có projection hoàn chỉnh thì trả 503 bằng thông báo tiếng
+  Việt. Legacy fact/read path còn sau feature flag trong một release để rollback.
 - `SalesReportCategoryGroup` đồng bộ từ `data/categories.csv`, dùng `Cat group
 ID` làm code, `Cat group name` làm tên gốc và `catGroupNameVi` làm nhãn tiếng
   Việt.

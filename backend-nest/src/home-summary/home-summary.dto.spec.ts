@@ -1,6 +1,7 @@
 import { ValidationPipe } from '@nestjs/common';
 import {
   GetHomeSummaryDetailsQueryDto,
+  GetHomeSummaryDetailsV2QueryDto,
   GetHomeSummaryQueryDto,
 } from './home-summary.dto';
 
@@ -77,6 +78,52 @@ describe('GetHomeSummaryQueryDto', () => {
     ).rejects.toMatchObject({
       response: {
         message: expect.arrayContaining(['limit must not be greater than 500']),
+        statusCode: 400,
+      },
+    });
+  });
+
+  it('accepts bounded cursor detail v2 queries', async () => {
+    const pipe = createPipe();
+
+    await expect(
+      pipe.transform(
+        {
+          kind: 'NOT_PURCHASED',
+          cursor: 'cursor-value',
+          limit: '100',
+        },
+        {
+          type: 'query',
+          metatype: GetHomeSummaryDetailsV2QueryDto,
+          data: '',
+        },
+      ),
+    ).resolves.toMatchObject({
+      kind: 'NOT_PURCHASED',
+      cursor: 'cursor-value',
+      limit: 100,
+    });
+  });
+
+  it('rejects unknown detail v2 kinds and limits above 100', async () => {
+    const pipe = createPipe();
+
+    await expect(
+      pipe.transform(
+        { kind: 'RAW_DATABASE_ROWS', limit: '101' },
+        {
+          type: 'query',
+          metatype: GetHomeSummaryDetailsV2QueryDto,
+          data: '',
+        },
+      ),
+    ).rejects.toMatchObject({
+      response: {
+        message: expect.arrayContaining([
+          expect.stringContaining('kind must be one of'),
+          'limit must not be greater than 100',
+        ]),
         statusCode: 400,
       },
     });

@@ -216,16 +216,23 @@ export class SalesReportErpService {
     date: string;
     storeCode?: string | null;
     limit?: number;
+    offset?: number;
   }) {
     const startedAt = Date.now();
     const date = this.normalizeDateOnly(input.date);
     const limit = Math.max(1, Math.min(50, Number(input.limit ?? 50)));
+    const offset = Math.max(0, Math.floor(Number(input.offset ?? 0)));
     this.logger.log(
-      `Sales report ERP order list sync started: date=${date} limit=${limit} store=${input.storeCode || 'none'}`,
+      `Sales report ERP order list sync started: date=${date} limit=${limit} offset=${offset} store=${input.storeCode || 'none'}`,
     );
     try {
       const accessToken = await this.getAccessToken();
-      const rows: any[] = await this.fetchOrderList(date, accessToken, limit);
+      const rows: any[] = await this.fetchOrderList(
+        date,
+        accessToken,
+        limit,
+        offset,
+      );
       const fetchedAt = new Date();
       const orders = rows
         .map((row: any) =>
@@ -243,7 +250,7 @@ export class SalesReportErpService {
         (order) => order.customerType === 'PERSONAL',
       ).length;
       this.logger.log(
-        `Sales report ERP order list sync succeeded: date=${date} count=${orders.length} businessCount=${businessCount} personalCount=${personalCount} durationMs=${Date.now() - startedAt}`,
+        `Sales report ERP order list sync succeeded: date=${date} count=${orders.length} offset=${offset} businessCount=${businessCount} personalCount=${personalCount} durationMs=${Date.now() - startedAt}`,
       );
       return orders;
     } catch (error) {
@@ -261,6 +268,7 @@ export class SalesReportErpService {
     date: string,
     accessToken: string,
     limit: number,
+    offset: number,
   ) {
     const baseUrl = this.env(
       'ERP_STAFF_BFF_BASE_URL',
@@ -281,6 +289,7 @@ export class SalesReportErpService {
       url.searchParams.set('platformId', platformId);
     }
     url.searchParams.set('limit', String(limit));
+    if (offset > 0) url.searchParams.set('offset', String(offset));
     url.searchParams.set('sort', this.env('ERP_ORDER_LIST_SORT', '-createdAt'));
     const response = await this.fetchWithTimeout(url.toString(), {
       headers: {

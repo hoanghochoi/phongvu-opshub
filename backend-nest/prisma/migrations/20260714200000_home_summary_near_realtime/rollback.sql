@@ -1,0 +1,13 @@
+DROP TRIGGER IF EXISTS "MapVietinTransaction_home_summary_projection" ON "MapVietinTransaction";
+DROP TRIGGER IF EXISTS "SalesReportErpOrderCache_home_summary_projection" ON "SalesReportErpOrderCache";
+DROP TRIGGER IF EXISTS "SalesReport_home_summary_projection" ON "SalesReport";
+DROP FUNCTION IF EXISTS opshub_home_summary_map_vietin_trigger();
+DROP FUNCTION IF EXISTS opshub_home_summary_erp_cache_trigger();
+DROP FUNCTION IF EXISTS opshub_home_summary_sales_report_trigger();
+DROP FUNCTION IF EXISTS opshub_enqueue_home_summary_projection(DATE, TEXT);
+DROP TABLE IF EXISTS "ErpOrderCacheBackfillCheckpoint";
+DROP TABLE IF EXISTS "DomainOutboxEvent";
+DROP TABLE IF EXISTS "HomeSummaryProjectionQueue";
+DROP TABLE IF EXISTS "HomeSummaryProjectionState";
+DROP TABLE IF EXISTS "HomeSummaryDailyAggregate";
+DROP SEQUENCE IF EXISTS "home_summary_projection_version_seq";

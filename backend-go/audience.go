@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"strings"
+	"time"
 )
 
 const (
@@ -13,6 +14,7 @@ const (
 	statementOrderTransferRedisChannel = "STATEMENT_ORDER_TRANSFER_REQUESTED"
 	offsetAdjustmentRedisChannel       = "OFFSET_ADJUSTMENT_UPDATED"
 	salesReportOrdersRedisChannel      = "SALES_REPORT_ORDERS_UPDATED"
+	homeSummaryRedisChannel            = "HOME_SUMMARY_UPDATED"
 
 	warrantyEventType               = "WARRANTY_EVENT"
 	paymentEventType                = "PAYMENT_NOTIFICATION"
@@ -21,6 +23,13 @@ const (
 	statementOrderTransferEventType = "STATEMENT_ORDER_TRANSFER_REQUEST"
 	offsetAdjustmentEventType       = "OFFSET_ADJUSTMENT_NOTIFICATION"
 	salesReportOrdersEventType      = "SALES_REPORT_ORDERS_UPDATED"
+	homeSummaryEventType            = "HOME_SUMMARY_UPDATED"
+	homeSummaryTopic                = "home.summary"
+
+	webSocketProtocolV1 = 1
+	webSocketProtocolV2 = 2
+
+	maxHomeSummaryAffectedDates = 366
 )
 
 type EventAudience struct {
@@ -33,10 +42,12 @@ type EventAudience struct {
 }
 
 type RoutedEvent struct {
-	Type     string
-	Message  []byte
-	Audience EventAudience
-	Public   bool
+	Type              string
+	Message           []byte
+	Audience          EventAudience
+	Public            bool
+	AuthenticatedOnly bool
+	ProtocolVersion   int
 }
 
 type redisEventEnvelope struct {
@@ -48,7 +59,38 @@ type redisEventEnvelope struct {
 	Payload       json.RawMessage `json:"payload"`
 }
 
+type homeSummaryRedisEnvelope struct {
+	SchemaVersion int                      `json:"schemaVersion"`
+	Type          string                   `json:"type"`
+	EventID       string                   `json:"eventId"`
+	OccurredAt    string                   `json:"occurredAt"`
+	Audience      homeSummaryEventAudience `json:"audience"`
+	Payload       homeSummaryUpdatePayload `json:"payload"`
+}
+
+type homeSummaryEventAudience struct {
+	Kind string `json:"kind"`
+}
+
+type homeSummaryUpdatePayload struct {
+	AffectedDates     []string `json:"affectedDates"`
+	ProjectionVersion int64    `json:"projectionVersion"`
+}
+
+type realtimeV2Envelope struct {
+	Version int                      `json:"v"`
+	Kind    string                   `json:"kind"`
+	ID      string                   `json:"id"`
+	Topic   string                   `json:"topic"`
+	Seq     int64                    `json:"seq"`
+	TS      string                   `json:"ts"`
+	Data    homeSummaryUpdatePayload `json:"data"`
+}
+
 func formatRedisEvent(channel string, payload string) (RoutedEvent, bool) {
+	if channel == homeSummaryRedisChannel {
+		return formatHomeSummaryEvent(payload)
+	}
 	eventType, ok := eventTypeForChannel(channel)
 	if !ok || !json.Valid([]byte(payload)) {
 		return RoutedEvent{}, false
@@ -103,6 +145,64 @@ func formatRedisEvent(channel string, payload string) (RoutedEvent, bool) {
 	}, true
 }
 
+func formatHomeSummaryEvent(payload string) (RoutedEvent, bool) {
+	if !json.Valid([]byte(payload)) {
+		return RoutedEvent{}, false
+	}
+	var envelope homeSummaryRedisEnvelope
+	decoder := json.NewDecoder(strings.NewReader(payload))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&envelope); err != nil {
+		return RoutedEvent{}, false
+	}
+
+	eventID := strings.TrimSpace(envelope.EventID)
+	occurredAt := strings.TrimSpace(envelope.OccurredAt)
+	if envelope.SchemaVersion != webSocketProtocolV2 ||
+		envelope.Type != homeSummaryEventType ||
+		eventID == "" || len(eventID) > 128 ||
+		envelope.Audience.Kind != "AUTHENTICATED" ||
+		envelope.Payload.ProjectionVersion <= 0 ||
+		len(envelope.Payload.AffectedDates) == 0 ||
+		len(envelope.Payload.AffectedDates) > maxHomeSummaryAffectedDates {
+		return RoutedEvent{}, false
+	}
+	if _, err := time.Parse(time.RFC3339Nano, occurredAt); err != nil {
+		return RoutedEvent{}, false
+	}
+
+	seenDates := make(map[string]struct{}, len(envelope.Payload.AffectedDates))
+	for _, affectedDate := range envelope.Payload.AffectedDates {
+		parsedDate, err := time.Parse("2006-01-02", affectedDate)
+		if err != nil || parsedDate.Format("2006-01-02") != affectedDate {
+			return RoutedEvent{}, false
+		}
+		if _, duplicated := seenDates[affectedDate]; duplicated {
+			return RoutedEvent{}, false
+		}
+		seenDates[affectedDate] = struct{}{}
+	}
+
+	message, err := json.Marshal(realtimeV2Envelope{
+		Version: webSocketProtocolV2,
+		Kind:    homeSummaryEventType,
+		ID:      eventID,
+		Topic:   homeSummaryTopic,
+		Seq:     envelope.Payload.ProjectionVersion,
+		TS:      occurredAt,
+		Data:    envelope.Payload,
+	})
+	if err != nil {
+		return RoutedEvent{}, false
+	}
+	return RoutedEvent{
+		Type:              homeSummaryEventType,
+		Message:           message,
+		AuthenticatedOnly: true,
+		ProtocolVersion:   webSocketProtocolV2,
+	}, true
+}
+
 func eventTypeForChannel(channel string) (string, bool) {
 	switch channel {
 	case warrantyRedisChannel:
@@ -119,6 +219,8 @@ func eventTypeForChannel(channel string) (string, bool) {
 		return offsetAdjustmentEventType, true
 	case salesReportOrdersRedisChannel:
 		return salesReportOrdersEventType, true
+	case homeSummaryRedisChannel:
+		return homeSummaryEventType, true
 	default:
 		return "", false
 	}

@@ -89,7 +89,27 @@ func registerRoutes(router *gin.Engine, dependencies serverDependencies) {
 			c.AbortWithStatus(http.StatusUnauthorized)
 			return
 		}
-		serveWebSocket(c, dependencies, auth, false, clientIP)
+		serveWebSocket(c, dependencies, auth, false, clientIP, webSocketProtocolV1)
+	})
+
+	router.GET("/ws/v2", func(c *gin.Context) {
+		clientIP := requestClientIP(c.Request)
+		if !dependencies.limiter.allowHandshake(clientIP, time.Now()) {
+			c.AbortWithStatus(http.StatusTooManyRequests)
+			return
+		}
+		if dependencies.readiness == nil || dependencies.readiness.Ready(c.Request.Context()) != nil {
+			dependencies.logger.Printf("Realtime v2 rejected because Redis subscription is unavailable clientIp=%s", clientIP)
+			c.AbortWithStatus(http.StatusServiceUnavailable)
+			return
+		}
+		auth, err := dependencies.authenticator.Authenticate(c.Request)
+		if err != nil {
+			dependencies.logger.Printf("Realtime v2 authentication rejected clientIp=%s", clientIP)
+			c.AbortWithStatus(http.StatusUnauthorized)
+			return
+		}
+		serveWebSocket(c, dependencies, auth, false, clientIP, webSocketProtocolV2)
 	})
 
 	router.GET("/ws/app-updates", func(c *gin.Context) {
@@ -98,7 +118,7 @@ func registerRoutes(router *gin.Engine, dependencies serverDependencies) {
 			c.AbortWithStatus(http.StatusTooManyRequests)
 			return
 		}
-		serveWebSocket(c, dependencies, nil, true, clientIP)
+		serveWebSocket(c, dependencies, nil, true, clientIP, webSocketProtocolV1)
 	})
 }
 
@@ -108,6 +128,7 @@ func serveWebSocket(
 	auth *ClientAuth,
 	updatesOnly bool,
 	clientIP string,
+	protocolVersion int,
 ) {
 	userID := ""
 	if auth != nil {
@@ -126,13 +147,14 @@ func serveWebSocket(
 		return
 	}
 	client := &Client{
-		conn:        connection,
-		auth:        auth,
-		updatesOnly: updatesOnly,
-		send:        make(chan []byte, dependencies.hub.sendQueueSize),
-		socket:      dependencies.socket,
-		logger:      dependencies.logger,
-		release:     release,
+		conn:            connection,
+		auth:            auth,
+		updatesOnly:     updatesOnly,
+		protocolVersion: protocolVersion,
+		send:            make(chan []byte, dependencies.hub.sendQueueSize),
+		socket:          dependencies.socket,
+		logger:          dependencies.logger,
+		release:         release,
 	}
 	dependencies.hub.register <- client
 	go client.writePump()

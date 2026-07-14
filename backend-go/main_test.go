@@ -441,6 +441,93 @@ func TestRedisEventFormattingAndPublicClassification(t *testing.T) {
 	}
 }
 
+func TestHomeSummaryV2EnvelopeIsValidatedAndProtocolScoped(t *testing.T) {
+	payload := `{
+		"schemaVersion":2,
+		"type":"HOME_SUMMARY_UPDATED",
+		"eventId":"event-home-42",
+		"occurredAt":"2026-07-14T10:30:05Z",
+		"audience":{"kind":"AUTHENTICATED"},
+		"payload":{"affectedDates":["2026-07-14"],"projectionVersion":42}
+	}`
+	event, ok := formatRedisEvent(homeSummaryRedisChannel, payload)
+	if !ok {
+		t.Fatal("expected valid Home Summary v2 event")
+	}
+	expected := `{"v":2,"kind":"HOME_SUMMARY_UPDATED","id":"event-home-42","topic":"home.summary","seq":42,"ts":"2026-07-14T10:30:05Z","data":{"affectedDates":["2026-07-14"],"projectionVersion":42}}`
+	if string(event.Message) != expected {
+		t.Fatalf("unexpected Home Summary client envelope: %s", event.Message)
+	}
+	if event.ProtocolVersion != webSocketProtocolV2 || !event.AuthenticatedOnly {
+		t.Fatalf("unexpected Home Summary route metadata: %+v", event)
+	}
+	if (&Client{auth: &ClientAuth{UserID: "user-1"}, protocolVersion: webSocketProtocolV1}).canReceive(event) {
+		t.Fatal("legacy socket must not receive v2 Home Summary events")
+	}
+	if !(&Client{auth: &ClientAuth{UserID: "user-1"}, protocolVersion: webSocketProtocolV2}).canReceive(event) {
+		t.Fatal("authenticated v2 socket should receive Home Summary events")
+	}
+	if (&Client{protocolVersion: webSocketProtocolV2}).canReceive(event) {
+		t.Fatal("unauthenticated v2 client must not receive Home Summary events")
+	}
+
+	invalidPayloads := []string{
+		strings.Replace(payload, `"kind":"AUTHENTICATED"`, `"kind":"PUBLIC"`, 1),
+		strings.Replace(payload, `"projectionVersion":42`, `"projectionVersion":0`, 1),
+		strings.Replace(payload, `["2026-07-14"]`, `["2026-07-14","2026-07-14"]`, 1),
+		strings.Replace(payload, `"2026-07-14"`, `"14-07-2026"`, 1),
+	}
+	for _, invalid := range invalidPayloads {
+		if _, ok := formatRedisEvent(homeSummaryRedisChannel, invalid); ok {
+			t.Fatalf("expected invalid Home Summary event to be rejected: %s", invalid)
+		}
+	}
+}
+
+func TestV2RouteFailsClosedWhenRedisIsUnavailable(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	dependencies := testDependencies(t)
+	dependencies.readiness = staticReadiness{err: errors.New("redis unavailable")}
+	notReady := performRequest(newRouter(dependencies), "/ws/v2")
+	if notReady.Code != http.StatusServiceUnavailable {
+		t.Fatalf("expected v2 route to fail with 503, got %d", notReady.Code)
+	}
+
+	dependencies.readiness = staticReadiness{}
+	unauthorized := performRequest(newRouter(dependencies), "/ws/v2")
+	if unauthorized.Code != http.StatusUnauthorized {
+		t.Fatalf("expected one-time ticket auth on v2 route, got %d", unauthorized.Code)
+	}
+}
+
+func TestProtocolResyncDisconnectsOnlyV2Clients(t *testing.T) {
+	hub := newHub(testLogger(), 2)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go hub.run(ctx)
+	v1 := &Client{
+		auth:            &ClientAuth{UserID: "legacy-user"},
+		protocolVersion: webSocketProtocolV1,
+		send:            make(chan []byte, 1),
+	}
+	v2 := &Client{
+		auth:            &ClientAuth{UserID: "v2-user"},
+		protocolVersion: webSocketProtocolV2,
+		send:            make(chan []byte, 1),
+	}
+	hub.register <- v1
+	hub.register <- v2
+	waitForClientCount(t, hub, 2)
+	hub.requestProtocolResync(webSocketProtocolV2, "redis_unavailable")
+	waitForClientCount(t, hub, 1)
+	if v2.closeCode != websocket.CloseServiceRestart || v2.closeReason != "resync_required" {
+		t.Fatalf("unexpected v2 resync close metadata code=%d reason=%q", v2.closeCode, v2.closeReason)
+	}
+	if v1.closeCode != 0 {
+		t.Fatalf("legacy socket was unexpectedly closed with code %d", v1.closeCode)
+	}
+}
+
 func TestSlowClientQueueCannotBlockHubBroadcast(t *testing.T) {
 	hub := newHub(testLogger(), 1)
 	ctx, cancel := context.WithCancel(context.Background())

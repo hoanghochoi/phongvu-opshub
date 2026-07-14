@@ -58,6 +58,14 @@ This file maps product behavior to proof. Existing flows are marked
 
 Recent focused evidence:
 
+- `HOME-DASHBOARD-003`, 2026-07-15: Home projection/outbox, `/ws/v2` and
+  Flutter reconnect/resume path passed Prisma validation, scratch-database
+  migration up/down (`90/90/90` seed), Nest build, 42 focused Jest tests, 31 Go
+  tests, 24 focused Flutter tests, the 458-test Flutter suite and
+  `flutter analyze`. Staging load/SLO and 1/7/30/90-day runtime parity remain
+  rollout gates. Full Nest currently has one unrelated ERP status quota
+  expectation failure (`processed` 45 vs 50); the other 628 tests pass.
+
 - `PAYMENT-MONITOR-001`/`PAYMENT-MONITOR-002`, 2026-07-14: production runtime
   diagnosis found the displayed 24-hour average `139.206s` was inflated by a
   stale `READY` notification replayed on another client about 17.4 hours later;

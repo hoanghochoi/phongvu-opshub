@@ -2,6 +2,7 @@ import { Controller, Get, Query, Request, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import {
   GetHomeSummaryDetailsQueryDto,
+  GetHomeSummaryDetailsV2QueryDto,
   GetHomeSummaryQueryDto,
 } from './home-summary.dto';
 import { HomeSummaryService } from './home-summary.service';
@@ -19,6 +20,14 @@ export class HomeSummaryController {
   @Get('summary/details')
   details(@Request() req: any, @Query() query: GetHomeSummaryDetailsQueryDto) {
     return this.service.getBehaviorDetails(req.user, query);
+  }
+
+  @Get('summary/details/v2')
+  detailsV2(
+    @Request() req: any,
+    @Query() query: GetHomeSummaryDetailsV2QueryDto,
+  ) {
+    return this.service.getBehaviorDetailsV2(req.user, query);
   }
 
   @Get('summary/scopes')

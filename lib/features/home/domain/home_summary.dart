@@ -1,5 +1,51 @@
 import 'dart:math' as math;
 
+class HomeSummaryFreshness {
+  const HomeSummaryFreshness({
+    this.projectionGeneratedAt,
+    this.projectionLagSeconds,
+    this.sourceUpdatedAtBySource = const {},
+    this.isStale = false,
+    this.projectionVersion,
+  });
+
+  final DateTime? projectionGeneratedAt;
+  final int? projectionLagSeconds;
+  final Map<String, DateTime> sourceUpdatedAtBySource;
+  final bool isStale;
+  final int? projectionVersion;
+
+  static HomeSummaryFreshness? fromJson(Object? value) {
+    if (value is! Map) return null;
+    final json = Map<String, dynamic>.from(value);
+    final rawSources = json['sourceUpdatedAtBySource'];
+    final sourceUpdates = <String, DateTime>{};
+    if (rawSources is Map) {
+      for (final entry in rawSources.entries) {
+        final source = entry.key.toString().trim();
+        final updatedAt = DateTime.tryParse(entry.value?.toString() ?? '');
+        if (source.isNotEmpty && updatedAt != null) {
+          sourceUpdates[source] = updatedAt;
+        }
+      }
+    }
+    return HomeSummaryFreshness(
+      projectionGeneratedAt: DateTime.tryParse(
+        json['projectionGeneratedAt']?.toString() ?? '',
+      ),
+      projectionLagSeconds: _nullableIntOf(json['projectionLagSeconds']),
+      sourceUpdatedAtBySource: Map.unmodifiable(sourceUpdates),
+      isStale: json['isStale'] == true || json['isStale'] == 'true',
+      projectionVersion: _nullableIntOf(json['projectionVersion']),
+    );
+  }
+
+  static int? _nullableIntOf(Object? value) {
+    if (value is num) return value.toInt();
+    return int.tryParse(value?.toString() ?? '');
+  }
+}
+
 class HomeSummary {
   final String date;
   final String startDate;
@@ -52,6 +98,7 @@ class HomeSummary {
   final String? selectedSalesProgressUserId;
   final DateTime? refreshedAt;
   final String? unavailableMessage;
+  final HomeSummaryFreshness? freshness;
 
   const HomeSummary({
     required this.date,
@@ -105,6 +152,7 @@ class HomeSummary {
     this.selectedSalesProgressUserId,
     required this.refreshedAt,
     this.unavailableMessage,
+    this.freshness,
   }) : startDate = startDate ?? date,
        endDate = endDate ?? date,
        personalSalesProgress = personalSalesProgress ?? salesProgress;
@@ -181,7 +229,15 @@ class HomeSummary {
       ),
       refreshedAt: _dateTimeOf(json['refreshedAt']),
       unavailableMessage: _nullableStringOf(json['unavailableMessage']),
+      freshness: HomeSummaryFreshness.fromJson(json['freshness']),
     );
+  }
+
+  bool get isStale => freshness?.isStale == true;
+
+  String? get resolvedFreshnessWarning {
+    if (!isStale) return null;
+    return 'Dữ liệu đang chậm cập nhật. OpsHub sẽ tự làm mới khi dữ liệu mới sẵn sàng.';
   }
 
   bool get isUnavailable =>

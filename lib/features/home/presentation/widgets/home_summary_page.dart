@@ -71,7 +71,7 @@ class HomeSummaryPage extends StatelessWidget {
               : null,
           warningMessage: provider.errorMessage != null && summary != null
               ? provider.errorMessage
-              : null,
+              : summary?.resolvedFreshnessWarning,
           action: headerAction,
         );
         final canOwnScroll =

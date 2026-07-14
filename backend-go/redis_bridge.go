@@ -20,10 +20,16 @@ var redisChannels = []string{
 	statementOrderTransferRedisChannel,
 	offsetAdjustmentRedisChannel,
 	salesReportOrdersRedisChannel,
+	homeSummaryRedisChannel,
 	authSessionRevokedRedisChannel,
 }
 
 const authSessionRevokedRedisChannel = "AUTH_SESSION_REVOKED"
+
+const (
+	redisSubscriptionHealthInterval = time.Second
+	redisSubscriptionPingTimeout    = 500 * time.Millisecond
+)
 
 type SessionRevocation struct {
 	SchemaVersion int
@@ -91,74 +97,133 @@ func listenToRedis(
 	for ctx.Err() == nil {
 		state.subscriptionReady.Store(false)
 		pubsub := client.Subscribe(ctx, redisChannels...)
-		if _, err := pubsub.Receive(ctx); err != nil {
-			_ = pubsub.Close()
-			if ctx.Err() != nil {
-				return
-			}
-			logger.Printf("Redis subscription failed; retrying delay=%s error=%q", backoff, err)
-			waitForRetry(ctx, backoff)
-			backoff = min(backoff*2, 30*time.Second)
-			continue
-		}
-
-		state.subscriptionReady.Store(true)
-		backoff = time.Second
-		logger.Printf("Redis subscription ready channelCount=%d", len(redisChannels))
-		messages := pubsub.Channel()
+		messages := pubsub.ChannelWithSubscriptions(
+			redis.WithChannelSize(256),
+			redis.WithChannelHealthCheckInterval(redisSubscriptionHealthInterval),
+		)
+		healthTicker := time.NewTicker(redisSubscriptionHealthInterval)
+		generationReady := false
+		reconnecting := false
 		for {
 			select {
 			case <-ctx.Done():
+				healthTicker.Stop()
 				state.subscriptionReady.Store(false)
 				_ = pubsub.Close()
 				return
-			case message, open := <-messages:
+			case rawMessage, open := <-messages:
 				if !open {
-					state.subscriptionReady.Store(false)
+					healthTicker.Stop()
+					markRedisSubscriptionLost(state, hub, logger, "redis_subscription_closed")
 					_ = pubsub.Close()
 					logger.Print("Redis subscription closed; reconnecting")
 					waitForRetry(ctx, backoff)
 					backoff = min(backoff*2, 30*time.Second)
 					goto reconnect
 				}
-				if message.Channel == authSessionRevokedRedisChannel {
-					revocation, valid := parseSessionRevocation(message.Payload)
-					if !valid {
-						logger.Printf(
-							"Redis session revocation rejected payloadBytes=%d",
-							len(message.Payload),
-						)
+				switch message := rawMessage.(type) {
+				case *redis.Subscription:
+					if strings.ToLower(strings.TrimSpace(message.Kind)) != "subscribe" {
 						continue
 					}
-					select {
-					case hub.revoke <- revocation:
-					case <-ctx.Done():
-						state.subscriptionReady.Store(false)
-						_ = pubsub.Close()
+					if generationReady && !reconnecting {
+						markRedisSubscriptionLost(state, hub, logger, "redis_subscription_reconnected")
+						generationReady = false
+						reconnecting = true
+					}
+					if message.Count >= len(redisChannels) {
+						state.subscriptionReady.Store(true)
+						generationReady = true
+						reconnecting = false
+						backoff = time.Second
+						logger.Printf("Redis subscription ready channelCount=%d", len(redisChannels))
+					}
+				case *redis.Message:
+					if !handleRedisMessage(ctx, state, pubsub, hub, logger, message) {
+						healthTicker.Stop()
 						return
 					}
+				}
+			case <-healthTicker.C:
+				pingContext, cancel := context.WithTimeout(ctx, redisSubscriptionPingTimeout)
+				err := client.Ping(pingContext).Err()
+				cancel()
+				if err == nil {
 					continue
 				}
-				event, ok := formatRedisEvent(message.Channel, message.Payload)
-				if !ok {
-					logger.Printf(
-						"Redis event rejected channel=%s reason=invalid_or_missing_audience payloadBytes=%d",
-						message.Channel,
-						len(message.Payload),
-					)
-					continue
-				}
-				select {
-				case hub.broadcast <- event:
-				case <-ctx.Done():
-					state.subscriptionReady.Store(false)
-					_ = pubsub.Close()
+				healthTicker.Stop()
+				markRedisSubscriptionLost(state, hub, logger, "redis_unavailable")
+				_ = pubsub.Close()
+				if ctx.Err() != nil {
 					return
 				}
+				logger.Printf("Redis health check failed; retrying delay=%s error=%q", backoff, err)
+				waitForRetry(ctx, backoff)
+				backoff = min(backoff*2, 30*time.Second)
+				goto reconnect
 			}
 		}
 	reconnect:
 	}
+}
+
+func handleRedisMessage(
+	ctx context.Context,
+	state *redisReadiness,
+	pubsub *redis.PubSub,
+	hub *Hub,
+	logger *log.Logger,
+	message *redis.Message,
+) bool {
+	if message.Channel == authSessionRevokedRedisChannel {
+		revocation, valid := parseSessionRevocation(message.Payload)
+		if !valid {
+			logger.Printf(
+				"Redis session revocation rejected payloadBytes=%d",
+				len(message.Payload),
+			)
+			return true
+		}
+		select {
+		case hub.revoke <- revocation:
+			return true
+		case <-ctx.Done():
+			state.subscriptionReady.Store(false)
+			_ = pubsub.Close()
+			return false
+		}
+	}
+
+	event, ok := formatRedisEvent(message.Channel, message.Payload)
+	if !ok {
+		logger.Printf(
+			"Redis event rejected channel=%s reason=invalid_or_missing_audience payloadBytes=%d",
+			message.Channel,
+			len(message.Payload),
+		)
+		return true
+	}
+	select {
+	case hub.broadcast <- event:
+		return true
+	case <-ctx.Done():
+		state.subscriptionReady.Store(false)
+		_ = pubsub.Close()
+		return false
+	}
+}
+
+func markRedisSubscriptionLost(
+	state *redisReadiness,
+	hub *Hub,
+	logger *log.Logger,
+	reason string,
+) {
+	if !state.subscriptionReady.Swap(false) {
+		return
+	}
+	hub.requestProtocolResync(webSocketProtocolV2, reason)
+	logger.Printf("Redis subscription lost; realtime v2 resync required reason=%s", reason)
 }
 
 func waitForRetry(ctx context.Context, delay time.Duration) {

@@ -35,10 +35,18 @@ go test ./...
 go run .
 ```
 
-The authenticated WebSocket endpoint is `/ws`. The normal client flow requests
-a one-time 256-bit ticket from NestJS, then connects with
-`/ws?ticket=<raw-ticket>`. The service never logs the query string and consumes
-the ticket atomically before upgrading the connection.
+The authenticated WebSocket endpoints are `/ws` (legacy features) and `/ws/v2`
+(shared versioned platform signals). Both request a one-time 256-bit ticket from
+NestJS and consume it atomically before upgrading the connection. The service
+never logs the query string. A ticket is single-use, so each endpoint needs its
+own ticket.
+
+`/ws/v2` currently accepts `HOME_SUMMARY_UPDATED`. It emits only
+`affectedDates` and `projectionVersion`; KPI values remain behind the
+authenticated Home API. Redis loss closes only v2 sockets with retryable code
+`1012` and reason `resync_required`, forcing clients to reconnect and re-read
+HTTP state. Legacy `/ws` clients remain connected during the two-release
+migration window.
 
 Legacy `Authorization: Bearer <jwt>` and `access_token` query authentication are
 accepted only when `WS_ALLOW_LEGACY_JWT=true`. The flag is a temporary rollout
@@ -112,7 +120,28 @@ APP_VERSION_UPDATED
 STATEMENT_ORDER_TRANSFER_REQUESTED
 OFFSET_ADJUSTMENT_UPDATED
 SALES_REPORT_ORDERS_UPDATED
+HOME_SUMMARY_UPDATED
 ```
+
+Home uses the strict v2 Redis envelope below. `audience.kind` must be
+`AUTHENTICATED`, and payload dates must be unique ISO calendar dates:
+
+```json
+{
+  "schemaVersion": 2,
+  "type": "HOME_SUMMARY_UPDATED",
+  "eventId": "event-id",
+  "occurredAt": "2026-07-14T10:30:05Z",
+  "audience": { "kind": "AUTHENTICATED" },
+  "payload": {
+    "affectedDates": ["2026-07-14"],
+    "projectionVersion": 42
+  }
+}
+```
+
+Clients receive `{v, kind, id, topic, seq, ts, data}` with
+`topic=home.summary`; the gateway does not forward the Redis audience object.
 
 Sensitive events use a versioned Redis envelope. Audience data is used only by
 the Go router and is not forwarded to clients:

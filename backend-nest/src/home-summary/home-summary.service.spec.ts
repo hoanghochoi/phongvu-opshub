@@ -156,6 +156,9 @@ describe('HomeSummaryService', () => {
             { orderCode: '2607040002' },
           ]),
       },
+      homeSummaryProjectionState: {
+        findMany: jest.fn().mockResolvedValue([]),
+      },
       mapVietinTransaction: {
         count: jest
           .fn()
@@ -316,6 +319,91 @@ describe('HomeSummaryService', () => {
         }),
       }),
     );
+  });
+
+  it('reads complete projection freshness without rebuilding facts in GET', async () => {
+    const previousProjectionFlag = process.env.HOME_SUMMARY_PROJECTION_ENABLED;
+    const previousFallbackFlag =
+      process.env.HOME_SUMMARY_LEGACY_SYNC_FALLBACK_ENABLED;
+    process.env.HOME_SUMMARY_PROJECTION_ENABLED = 'true';
+    process.env.HOME_SUMMARY_LEGACY_SYNC_FALLBACK_ENABLED = 'false';
+    try {
+      const { service, prisma } = createHarness();
+      prisma.homeSummaryProjectionState.findMany.mockResolvedValue([
+        {
+          summaryDate: new Date('2026-07-04T00:00:00.000Z'),
+          status: 'COMPLETE',
+          projectionVersion: BigInt(42),
+          sourceUpdatedAt: new Date('2026-07-04T03:00:00.000Z'),
+          salesReportSourceUpdatedAt: new Date('2026-07-04T03:00:00.000Z'),
+          erpOrderCacheSourceUpdatedAt: new Date('2026-07-04T02:59:59.000Z'),
+          mapVietinSourceUpdatedAt: null,
+          generatedAt: new Date('2026-07-04T03:00:04.000Z'),
+        },
+      ]);
+
+      const response = await service.getSummary(
+        { id: 'user-1', email: 'staff@phongvu.vn' },
+        { date: '2026-07-04' },
+      );
+
+      expect(response.freshness).toMatchObject({
+        projectionVersion: 42,
+        projectionLagSeconds: 4,
+        isStale: false,
+      });
+      expect(response.freshness?.sourceUpdatedAtBySource).toEqual(
+        expect.objectContaining({
+          SALES_REPORT: new Date('2026-07-04T03:00:00.000Z'),
+          ERP_ORDER_CACHE: new Date('2026-07-04T02:59:59.000Z'),
+        }),
+      );
+      expect(prisma.homeSummaryReportFact.upsert).not.toHaveBeenCalled();
+      expect(prisma.homeSummaryOrderFact.upsert).not.toHaveBeenCalled();
+    } finally {
+      if (previousProjectionFlag === undefined) {
+        delete process.env.HOME_SUMMARY_PROJECTION_ENABLED;
+      } else {
+        process.env.HOME_SUMMARY_PROJECTION_ENABLED = previousProjectionFlag;
+      }
+      if (previousFallbackFlag === undefined) {
+        delete process.env.HOME_SUMMARY_LEGACY_SYNC_FALLBACK_ENABLED;
+      } else {
+        process.env.HOME_SUMMARY_LEGACY_SYNC_FALLBACK_ENABLED =
+          previousFallbackFlag;
+      }
+    }
+  });
+
+  it('returns Vietnamese 503 when no complete projection exists', async () => {
+    const previousProjectionFlag = process.env.HOME_SUMMARY_PROJECTION_ENABLED;
+    const previousFallbackFlag =
+      process.env.HOME_SUMMARY_LEGACY_SYNC_FALLBACK_ENABLED;
+    process.env.HOME_SUMMARY_PROJECTION_ENABLED = 'true';
+    process.env.HOME_SUMMARY_LEGACY_SYNC_FALLBACK_ENABLED = 'false';
+    try {
+      const { service } = createHarness();
+      await expect(
+        service.getSummary(
+          { id: 'user-1', email: 'staff@phongvu.vn' },
+          { date: '2026-07-04' },
+        ),
+      ).rejects.toThrow(
+        'Dữ liệu Trang chủ đang được chuẩn bị. Vui lòng thử lại sau ít phút.',
+      );
+    } finally {
+      if (previousProjectionFlag === undefined) {
+        delete process.env.HOME_SUMMARY_PROJECTION_ENABLED;
+      } else {
+        process.env.HOME_SUMMARY_PROJECTION_ENABLED = previousProjectionFlag;
+      }
+      if (previousFallbackFlag === undefined) {
+        delete process.env.HOME_SUMMARY_LEGACY_SYNC_FALLBACK_ENABLED;
+      } else {
+        process.env.HOME_SUMMARY_LEGACY_SYNC_FALLBACK_ENABLED =
+          previousFallbackFlag;
+      }
+    }
   });
 
   it('returns behavior detail rows for home dashboard cards', async () => {

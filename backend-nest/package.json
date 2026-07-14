@@ -17,6 +17,7 @@
     "import:store-accounts": "node scripts/import-store-accounts-csv.mjs",
     "sanitize:staging": "node scripts/sanitize-staging-db.mjs",
     "audit:runtime-org-tree": "node scripts/audit-runtime-org-tree-code.mjs",
+    "verify:migration:home-summary": "node scripts/verify-home-summary-migration.mjs",
     "audit:node-features": "node scripts/audit-node-feature-permissions.mjs",
     "security:disable-account-access": "node scripts/disable-account-access.mjs",
     "security:issue-emergency-admin-reset": "node scripts/issue-emergency-admin-reset.mjs",

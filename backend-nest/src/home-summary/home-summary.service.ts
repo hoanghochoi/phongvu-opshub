@@ -3,6 +3,7 @@ import {
   ForbiddenException,
   Injectable,
   Logger,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { FEATURE_KEYS } from '../feature/feature.constants';
@@ -20,6 +21,7 @@ import {
 } from '../sales-reports/sales-reports.service';
 import {
   GetHomeSummaryDetailsQueryDto,
+  GetHomeSummaryDetailsV2QueryDto,
   GetHomeSummaryQueryDto,
 } from './home-summary.dto';
 
@@ -111,6 +113,15 @@ type HomeSummaryResponse = SalesReportOperatingSummary & {
   experiencedRate: number;
   zaloRate: number;
   appDownloadRate: number;
+  freshness: HomeSummaryFreshnessResponse | null;
+};
+
+type HomeSummaryFreshnessResponse = {
+  projectionGeneratedAt: Date;
+  projectionLagSeconds: number;
+  projectionVersion: number;
+  sourceUpdatedAtBySource: Record<string, Date>;
+  isStale: boolean;
 };
 
 type SalesProgressPeriod = {
@@ -314,7 +325,19 @@ export class HomeSummaryService {
     }
 
     let refreshedAt = new Date();
-    if (salesAvailable || (financeAvailable && scope.scope === 'OWN')) {
+    let freshness: HomeSummaryFreshnessResponse | null = null;
+    if (this.projectionEnabled()) {
+      try {
+        freshness = await this.loadProjectionFreshness(range);
+        refreshedAt = freshness.projectionGeneratedAt;
+      } catch (error) {
+        if (!this.legacySyncFallbackEnabled()) throw error;
+        this.logger.warn(
+          `Home summary projection unavailable; legacy sync fallback started: user=${this.safeUserLabel(user)} startDate=${range.startDate} endDate=${range.endDate}`,
+        );
+        refreshedAt = await this.syncFactsForRange(range);
+      }
+    } else if (salesAvailable || (financeAvailable && scope.scope === 'OWN')) {
       refreshedAt = await this.syncFactsForRange(range);
     }
     const salesProgressBundle = salesAvailable
@@ -508,10 +531,11 @@ export class HomeSummaryService {
       salesProgressAssignees: salesProgressBundle.assignees,
       selectedSalesProgressUserId: salesProgressBundle.selectedUserId,
       refreshedAt,
+      freshness,
       unavailableMessage: null,
     };
     this.logger.log(
-      `Home summary load succeeded: user=${this.safeUserLabel(user)} startDate=${range.startDate} endDate=${range.endDate} scopeFilter=${requestedScope} scope=${scope.scope} salesMetricsScope=${salesMetricsScope.scope} selectedSalesProgressUserId=${salesProgressBundle.selectedUserId || 'none'} salesProgressAssignees=${salesProgressBundle.assignees.length} salesAvailable=${salesAvailable} financeAvailable=${financeAvailable} totalRevenue=${totalRevenue} completedRevenue=${completedRevenue} pendingRevenue=${pendingRevenue} businessCustomerRevenue=${mainKpis.businessCustomerRevenue} personalCustomerRevenue=${mainKpis.personalCustomerRevenue} installmentNeedCount=${mainKpis.installmentNeedCount} successfulInstallmentCount=${mainKpis.successfulInstallmentCount} laptopQuantity=${mainKpis.laptopQuantity} pcQuantity=${mainKpis.pcQuantity} assembledPcQuantity=${mainKpis.assembledPcQuantity} appleQuantity=${mainKpis.appleQuantity} totalOrders=${totalOrders} averageOrderValue=${averageOrderValue} totalReports=${totalReports} reportedOrders=${reportedOrders} notPurchasedReports=${notPurchasedReports} consultedYes=${behaviorYesCounts.consultedSolution} experiencedYes=${behaviorYesCounts.experienced} zaloYes=${behaviorYesCounts.zalo} appDownloadYes=${behaviorYesCounts.appDownload} totalStatements=${totalStatements} statementsWithOrder=${totalStatementsWithOrder} durationMs=${Date.now() - startedAt}`,
+      `Home summary load succeeded: user=${this.safeUserLabel(user)} startDate=${range.startDate} endDate=${range.endDate} scopeFilter=${requestedScope} scope=${scope.scope} salesMetricsScope=${salesMetricsScope.scope} selectedSalesProgressUserId=${salesProgressBundle.selectedUserId || 'none'} salesProgressAssignees=${salesProgressBundle.assignees.length} salesAvailable=${salesAvailable} financeAvailable=${financeAvailable} totalRevenue=${totalRevenue} completedRevenue=${completedRevenue} pendingRevenue=${pendingRevenue} businessCustomerRevenue=${mainKpis.businessCustomerRevenue} personalCustomerRevenue=${mainKpis.personalCustomerRevenue} installmentNeedCount=${mainKpis.installmentNeedCount} successfulInstallmentCount=${mainKpis.successfulInstallmentCount} laptopQuantity=${mainKpis.laptopQuantity} pcQuantity=${mainKpis.pcQuantity} assembledPcQuantity=${mainKpis.assembledPcQuantity} appleQuantity=${mainKpis.appleQuantity} totalOrders=${totalOrders} averageOrderValue=${averageOrderValue} totalReports=${totalReports} reportedOrders=${reportedOrders} notPurchasedReports=${notPurchasedReports} consultedYes=${behaviorYesCounts.consultedSolution} experiencedYes=${behaviorYesCounts.experienced} zaloYes=${behaviorYesCounts.zalo} appDownloadYes=${behaviorYesCounts.appDownload} totalStatements=${totalStatements} statementsWithOrder=${totalStatementsWithOrder} projectionVersion=${freshness?.projectionVersion ?? 'legacy'} projectionLagSeconds=${freshness?.projectionLagSeconds ?? 'legacy'} isStale=${freshness?.isStale ?? false} durationMs=${Date.now() - startedAt}`,
     );
     return response;
   }
@@ -718,6 +742,247 @@ export class HomeSummaryService {
     return this.salesReports.listHomeSummaryScopeOptions(user, {
       allowOwnScope: salesAvailable || financeAvailable,
     });
+  }
+
+  async getBehaviorDetailsV2(
+    user: any,
+    query: GetHomeSummaryDetailsV2QueryDto,
+  ) {
+    const startedAt = Date.now();
+    const range = this.parseSummaryRange(query);
+    const requestedScope = this.parseScopeParam(query.scope);
+    const limit = Math.min(100, Math.max(1, Number(query.limit ?? 50)));
+    const cursorId = this.decodeDetailsV2Cursor(query.cursor, query.kind);
+    const requestedSalesProgressUserId = this.optionalText(
+      query.salesProgressUserId,
+      80,
+    );
+    this.logger.log(
+      `Home summary details v2 load started: user=${this.safeUserLabel(user)} kind=${query.kind} startDate=${range.startDate} endDate=${range.endDate} limit=${limit} hasCursor=${Boolean(cursorId)}`,
+    );
+    const { salesAvailable } = await this.resolveSectionAccess(user);
+    if (!salesAvailable) {
+      throw new ForbiddenException(
+        'Bạn chưa có quyền xem chi tiết bán hàng trên dashboard.',
+      );
+    }
+    const scope = await this.salesReports.describeHomeSummaryScope(
+      user,
+      requestedScope,
+      this.optionalText(query.organizationNodeId, 80),
+      { allowOwnScope: true },
+    );
+    if (!scope.available) {
+      throw new ForbiddenException(
+        scope.unavailableMessage ||
+          'Tài khoản hiện chưa có phạm vi dữ liệu để xem chi tiết.',
+      );
+    }
+    const selectedSalesScope = await this.resolveSelectedSalesMetricsScope(
+      user,
+      scope,
+      requestedSalesProgressUserId,
+    );
+    const salesMetricsScope = selectedSalesScope.scope;
+    const base = {
+      kind: query.kind,
+      startDate: range.startDate,
+      endDate: range.endDate,
+      scope: salesMetricsScope.scope,
+      scopeLabel: salesMetricsScope.scopeLabel,
+      selectedSalesProgressUserId: selectedSalesScope.selectedUserId,
+      limit,
+    };
+
+    if (query.kind === 'NOT_PURCHASED') {
+      const where = {
+        ...this.reportScopeWhere(salesMetricsScope, range),
+        reportType: REPORT_TYPE_NOT_PURCHASED,
+      };
+      const [total, facts] = await this.prisma.$transaction([
+        this.homeSummaryReportFact.count({ where }),
+        this.homeSummaryReportFact.findMany({
+          where,
+          orderBy: { salesReportId: 'asc' },
+          take: limit + 1,
+          ...(cursorId ? { cursor: { salesReportId: cursorId }, skip: 1 } : {}),
+          select: { salesReportId: true },
+        }),
+      ]);
+      const page = facts.slice(0, limit);
+      const ids = page.map(
+        (row: { salesReportId: string }) => row.salesReportId,
+      );
+      const reports = ids.length
+        ? await this.prisma.salesReport.findMany({
+            where: { id: { in: ids } },
+            select: {
+              id: true,
+              submittedAt: true,
+              storeCode: true,
+              createdByName: true,
+              createdByEmail: true,
+              customerName: true,
+              customerType: true,
+              categoryGroupName: true,
+              categoryGroupNameVi: true,
+              notPurchasedReason: true,
+              notPurchasedOtherReason: true,
+            },
+          })
+        : [];
+      const byId = new Map(reports.map((row) => [row.id, row]));
+      return this.detailsV2Response(
+        base,
+        page
+          .map((fact: { salesReportId: string }) =>
+            byId.get(fact.salesReportId),
+          )
+          .filter(Boolean)
+          .map((row: any) => this.toHomeNotPurchasedDetail(row)),
+        total,
+        facts.length > limit ? (ids.at(-1) ?? null) : null,
+        startedAt,
+      );
+    }
+
+    if (query.kind === 'UNREPORTED_ORDER') {
+      const salesOrderWhere = this.orderScopeWhere(salesMetricsScope, range);
+      const reportedCodeRows = await this.homeSummaryReportFact.findMany({
+        where: {
+          ...this.reportScopeWhere(salesMetricsScope, range),
+          reportType: REPORT_TYPE_PURCHASED,
+          orderCode: { not: null },
+        },
+        select: { orderCode: true },
+      });
+      const reportedCodes = reportedCodeRows
+        .map((row: { orderCode: string | null }) =>
+          this.normalizeOrderCode(row.orderCode),
+        )
+        .filter((value: string | null): value is string => Boolean(value));
+      const where = reportedCodes.length
+        ? { AND: [salesOrderWhere, { orderCode: { notIn: reportedCodes } }] }
+        : salesOrderWhere;
+      const [total, rows] = await this.prisma.$transaction([
+        this.homeSummaryOrderFact.count({ where }),
+        this.homeSummaryOrderFact.findMany({
+          where,
+          orderBy: { orderCode: 'asc' },
+          take: limit + 1,
+          ...(cursorId ? { cursor: { orderCode: cursorId }, skip: 1 } : {}),
+          select: {
+            orderCode: true,
+            orderCreatedAt: true,
+            fetchedAt: true,
+            storeCode: true,
+            consultantName: true,
+            consultantEmail: true,
+            sellerName: true,
+            sellerEmail: true,
+            sourceUserEmail: true,
+          },
+        }),
+      ]);
+      const page = rows.slice(0, limit);
+      const employeeNames = await this.unreportedEmployeeNamesByEmail(page);
+      return this.detailsV2Response(
+        base,
+        page.map((row: any) =>
+          this.toHomeUnreportedOrderDetail(row, employeeNames),
+        ),
+        total,
+        rows.length > limit ? (page.at(-1)?.orderCode ?? null) : null,
+        startedAt,
+      );
+    }
+
+    const where: Prisma.SalesReportWhereInput = {
+      AND: [
+        this.salesReportMainKpiWhere(salesMetricsScope, range),
+        { installmentNeed: true },
+      ],
+    };
+    const [total, rows] = await this.prisma.$transaction([
+      this.prisma.salesReport.count({ where }),
+      this.prisma.salesReport.findMany({
+        where,
+        orderBy: { id: 'asc' },
+        take: limit + 1,
+        ...(cursorId ? { cursor: { id: cursorId }, skip: 1 } : {}),
+        select: {
+          id: true,
+          submittedAt: true,
+          storeCode: true,
+          createdByName: true,
+          createdByEmail: true,
+          orderCode: true,
+          erpOrderId: true,
+          installmentStatus: true,
+          installmentFailureReason: true,
+          installmentNoInstallmentReason: true,
+          installmentPartnerCodes: true,
+        },
+      }),
+    ]);
+    const page = rows.slice(0, limit);
+    return this.detailsV2Response(
+      base,
+      page.map((row) => this.toHomeInstallmentNeedDetail(row)),
+      total,
+      rows.length > limit ? (page.at(-1)?.id ?? null) : null,
+      startedAt,
+    );
+  }
+
+  private detailsV2Response(
+    base: Record<string, unknown>,
+    items: unknown[],
+    total: number,
+    nextId: string | null,
+    startedAt: number,
+  ) {
+    const kind = String(base.kind);
+    const response = {
+      ...base,
+      total,
+      items,
+      nextCursor: nextId ? this.encodeDetailsV2Cursor(kind, nextId) : null,
+    };
+    this.logger.log(
+      `Home summary details v2 load succeeded: kind=${kind} count=${items.length}/${total} hasNext=${Boolean(nextId)} durationMs=${Date.now() - startedAt}`,
+    );
+    return response;
+  }
+
+  private encodeDetailsV2Cursor(kind: string, id: string) {
+    return Buffer.from(JSON.stringify({ v: 1, kind, id }), 'utf8').toString(
+      'base64url',
+    );
+  }
+
+  private decodeDetailsV2Cursor(cursor: string | undefined, kind: string) {
+    if (!cursor) return null;
+    try {
+      const decoded = JSON.parse(
+        Buffer.from(cursor, 'base64url').toString('utf8'),
+      );
+      const id = this.optionalText(decoded?.id, 120);
+      if (decoded?.v !== 1 || decoded?.kind !== kind || !id) throw new Error();
+      return id;
+    } catch {
+      throw new BadRequestException(
+        'Vị trí tải tiếp không hợp lệ. Vui lòng tải lại danh sách.',
+      );
+    }
+  }
+
+  async rebuildProjectionDate(date: string) {
+    const summaryDate = this.parseDateOnly(date);
+    if (!summaryDate) {
+      throw new Error('Projection date must use yyyy-MM-dd');
+    }
+    return this.syncFacts(date, summaryDate);
   }
 
   private parseScopeParam(value?: string | null): HomeSummaryScopeRequest {
@@ -2101,8 +2366,125 @@ export class HomeSummaryService {
       salesProgressAssignees: [],
       selectedSalesProgressUserId: null,
       refreshedAt,
+      freshness: null,
       unavailableMessage,
     };
+  }
+
+  private async loadProjectionFreshness(
+    range: SummaryDateRange,
+  ): Promise<HomeSummaryFreshnessResponse> {
+    const startDate = this.dateOnlyUtc(range.startDate);
+    const endDate = this.dateOnlyUtc(range.endDate);
+    const states = await this.prisma.homeSummaryProjectionState.findMany({
+      where: { summaryDate: { gte: startDate, lte: endDate } },
+      orderBy: { summaryDate: 'asc' },
+    });
+    const stateByDate = new Map(
+      states.map((state) => [this.dateOnlyKey(state.summaryDate), state]),
+    );
+    const expectedDates = this.rangeDateKeys(range.startDate, range.endDate);
+    const missingDates = expectedDates.filter((date) => {
+      const state = stateByDate.get(date);
+      return !state?.generatedAt;
+    });
+    if (missingDates.length > 0) {
+      this.logger.warn(
+        `Home summary projection unavailable: startDate=${range.startDate} endDate=${range.endDate} missingCompleteDates=${missingDates.length}`,
+      );
+      throw new ServiceUnavailableException(
+        'Dữ liệu Trang chủ đang được chuẩn bị. Vui lòng thử lại sau ít phút.',
+      );
+    }
+
+    const nowMs = Date.now();
+    let projectionGeneratedAt = new Date(nowMs);
+    let projectionVersion = 0;
+    let projectionLagSeconds = 0;
+    let isStale = false;
+    const sourceUpdatedAtBySource: Record<string, Date> = {};
+    const setLatest = (source: string, value: Date | null) => {
+      if (!value) return;
+      const current = sourceUpdatedAtBySource[source];
+      if (!current || value > current) sourceUpdatedAtBySource[source] = value;
+    };
+    for (const date of expectedDates) {
+      const state = stateByDate.get(date)!;
+      const generatedAt = state.generatedAt!;
+      if (generatedAt < projectionGeneratedAt) {
+        projectionGeneratedAt = generatedAt;
+      }
+      projectionVersion = Math.max(
+        projectionVersion,
+        Number(state.projectionVersion),
+      );
+      setLatest('SALES_REPORT', state.salesReportSourceUpdatedAt);
+      setLatest('ERP_ORDER_CACHE', state.erpOrderCacheSourceUpdatedAt);
+      setLatest('MAP_VIETIN', state.mapVietinSourceUpdatedAt);
+      const sourceUpdatedAt = state.sourceUpdatedAt;
+      if (!sourceUpdatedAt) continue;
+      const projectedAfterSourceMs =
+        generatedAt.getTime() - sourceUpdatedAt.getTime();
+      const pendingMs =
+        sourceUpdatedAt > generatedAt ? nowMs - sourceUpdatedAt.getTime() : 0;
+      projectionLagSeconds = Math.max(
+        projectionLagSeconds,
+        Math.ceil(Math.max(projectedAfterSourceMs, pendingMs, 0) / 1000),
+      );
+      if (sourceUpdatedAt > generatedAt && pendingMs > 15_000) {
+        isStale = true;
+      }
+    }
+    return {
+      projectionGeneratedAt,
+      projectionLagSeconds,
+      projectionVersion,
+      sourceUpdatedAtBySource,
+      isStale,
+    };
+  }
+
+  private rangeDateKeys(startDate: string, endDate: string) {
+    const start = this.dateOnlyUtc(startDate);
+    const end = this.dateOnlyUtc(endDate);
+    const dates: string[] = [];
+    for (
+      const cursor = new Date(start);
+      cursor <= end;
+      cursor.setUTCDate(cursor.getUTCDate() + 1)
+    ) {
+      dates.push(this.dateOnlyKey(cursor));
+      if (dates.length > 366) {
+        throw new BadRequestException('Khoảng ngày chỉ được tối đa 366 ngày.');
+      }
+    }
+    return dates;
+  }
+
+  private dateOnlyUtc(value: string) {
+    return new Date(`${value}T00:00:00.000Z`);
+  }
+
+  private dateOnlyKey(value: Date) {
+    return value.toISOString().slice(0, 10);
+  }
+
+  private projectionEnabled() {
+    const raw = process.env.HOME_SUMMARY_PROJECTION_ENABLED;
+    if (raw === undefined && process.env.NODE_ENV === 'test') return false;
+    return (
+      String(raw ?? 'true')
+        .trim()
+        .toLowerCase() !== 'false'
+    );
+  }
+
+  private legacySyncFallbackEnabled() {
+    return (
+      String(process.env.HOME_SUMMARY_LEGACY_SYNC_FALLBACK_ENABLED ?? 'false')
+        .trim()
+        .toLowerCase() === 'true'
+    );
   }
 
   private dateRangeFor(summaryDate: Date): DateRange {
@@ -2339,8 +2721,7 @@ export class HomeSummaryService {
     const email = this.normalizeEmail(emailValue);
     if (!email || !storeCode) return null;
     return (
-      employeeNamesByKey.get(this.salesPersonStoreKey(email, storeCode)) ??
-      null
+      employeeNamesByKey.get(this.salesPersonStoreKey(email, storeCode)) ?? null
     );
   }
 

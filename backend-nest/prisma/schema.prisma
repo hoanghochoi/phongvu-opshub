@@ -29,7 +29,7 @@ model Store {
   createdAt               DateTime          @default(now())
   updatedAt               DateTime          @updatedAt
 
-  users User[]
+  users            User[]
   quickActionLinks QuickActionLink[]
 
   featureAccessRules FeatureAccessRule[]
@@ -331,7 +331,7 @@ model User {
   organizationAssignments        UserOrganizationAssignment[]
   nodeFeatureAssignmentsAssigned OrganizationNodeFeatureAssignment[] @relation("NodeFeatureAssignedBy")
   notificationReadReceipts       AppNotificationReadReceipt[]
-  quickActionLinksUpdated         QuickActionLink[]                    @relation("QuickActionLinkUpdatedBy")
+  quickActionLinksUpdated        QuickActionLink[]                   @relation("QuickActionLinkUpdatedBy")
 
   @@index([departmentCode])
   @@index([jobRoleCode])
@@ -1208,6 +1208,106 @@ model HomeSummaryReportFact {
   @@index([summaryDate, createdByUserId])
   @@index([summaryDate, createdByEmail])
   @@index([summaryDate, createdByPersonnelCode])
+}
+
+// Projection cộng dồn theo ngày để Home có thể mở rộng tới nhiều nghìn người dùng.
+// dimensionType hiện nhận GLOBAL, STORE hoặc USER_STORE; chuỗi rỗng là khóa
+// chuẩn cho các chiều không áp dụng, tránh unique key bị lọt do giá trị NULL.
+model HomeSummaryDailyAggregate {
+  id                  String    @id @default(uuid())
+  summaryDate         DateTime  @db.Date
+  dimensionType       String
+  dimensionKey        String    @default("")
+  storeCode           String    @default("")
+  totalOrders         Int       @default(0)
+  reportedOrders      Int       @default(0)
+  totalReports        Int       @default(0)
+  notPurchasedReports Int       @default(0)
+  orderRevenueAmount  BigInt    @default(0)
+  reportRevenueAmount BigInt    @default(0)
+  projectionVersion   BigInt
+  sourceUpdatedAt     DateTime?
+  generatedAt         DateTime
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  @@unique([summaryDate, dimensionType, dimensionKey, storeCode])
+  @@index([dimensionType, dimensionKey, summaryDate])
+  @@index([dimensionType, storeCode, summaryDate])
+}
+
+model HomeSummaryProjectionState {
+  summaryDate                  DateTime  @id @db.Date
+  status                       String
+  projectionVersion            BigInt    @default(0)
+  sourceUpdatedAt              DateTime?
+  salesReportSourceUpdatedAt   DateTime?
+  erpOrderCacheSourceUpdatedAt DateTime?
+  mapVietinSourceUpdatedAt     DateTime?
+  generatedAt                  DateTime?
+  lastError                    String?
+  createdAt                    DateTime  @default(now())
+  updatedAt                    DateTime  @updatedAt
+
+  @@index([status, updatedAt])
+}
+
+// Queue bền vững kiêm coalescing key cho mỗi ngày. Worker chỉ xóa row khi
+// sourceUpdatedAt chưa đổi trong lúc rebuild, nhờ đó không làm rơi event mới.
+// Partial ready-claim index nằm trong migration vì Prisma chưa biểu diễn được.
+model HomeSummaryProjectionQueue {
+  id              String    @id @default(uuid())
+  summaryDate     DateTime  @db.Date
+  dimensionType   String    @default("GLOBAL")
+  dimensionKey    String    @default("")
+  storeCode       String    @default("")
+  sourceUpdatedAt DateTime
+  firstEnqueuedAt DateTime  @default(now())
+  availableAt     DateTime
+  claimedAt       DateTime?
+  attempts        Int       @default(0)
+  lastError       String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@unique([summaryDate, dimensionType, dimensionKey, storeCode])
+  @@index([availableAt, claimedAt])
+}
+
+model DomainOutboxEvent {
+  id            String    @id @default(uuid())
+  eventType     String
+  aggregateType String
+  aggregateId   String
+  dedupeKey     String?   @unique
+  schemaVersion Int       @default(1)
+  payload       Json
+  occurredAt    DateTime  @default(now())
+  availableAt   DateTime  @default(now())
+  publishedAt   DateTime?
+  attempts      Int       @default(0)
+  lastError     String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([publishedAt, availableAt])
+  @@index([eventType, occurredAt])
+}
+
+model ErpOrderCacheBackfillCheckpoint {
+  jobKey         String   @id
+  startDate      DateTime @db.Date
+  endDate        DateTime @db.Date
+  currentDate    DateTime @db.Date
+  nextOffset     Int      @default(0)
+  status         String   @default("PENDING")
+  pagesProcessed Int      @default(0)
+  rowsProcessed  Int      @default(0)
+  lastError      String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([status, updatedAt])
 }
 
 model HelpContentPage {

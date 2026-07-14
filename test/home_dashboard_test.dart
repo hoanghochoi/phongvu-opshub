@@ -1,9 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:phongvu_opshub/core/formatting/money_formatters.dart';
 import 'package:phongvu_opshub/core/logging/app_logger.dart';
 import 'package:phongvu_opshub/core/network/api_client.dart';
+import 'package:phongvu_opshub/core/network/realtime_connection_manager.dart';
 import 'package:phongvu_opshub/features/auth/data/repositories/auth_repository.dart';
 import 'package:phongvu_opshub/features/auth/domain/entities/store_branch.dart';
 import 'package:phongvu_opshub/features/auth/domain/entities/user.dart';
@@ -131,6 +134,110 @@ void main() {
     expect(summary.zaloRate, 25);
     expect(summary.appDownloadRate, 100);
   });
+
+  test('Home summary parses projection freshness and stale warning', () {
+    final summary = HomeSummary.fromJson({
+      'date': '2026-07-14',
+      'available': true,
+      'scope': 'OWN',
+      'scopeLabel': 'Phạm vi cá nhân',
+      'coverageLabel': 'Tỉ lệ báo cáo',
+      'freshness': {
+        'projectionGeneratedAt': '2026-07-14T10:30:05Z',
+        'projectionLagSeconds': 18,
+        'projectionVersion': 42,
+        'sourceUpdatedAtBySource': {'ERP_ORDER_CACHE': '2026-07-14T10:29:50Z'},
+        'isStale': true,
+      },
+    });
+
+    expect(summary.freshness?.projectionVersion, 42);
+    expect(summary.freshness?.projectionLagSeconds, 18);
+    expect(
+      summary.freshness?.sourceUpdatedAtBySource['ERP_ORDER_CACHE'],
+      DateTime.parse('2026-07-14T10:29:50Z'),
+    );
+    expect(summary.isStale, isTrue);
+    expect(summary.resolvedFreshnessWarning, contains('chậm cập nhật'));
+  });
+
+  testWidgets(
+    'Home realtime debounces relevant dates and resyncs once on resume',
+    (tester) async {
+      final realtime = _FakeRealtimeClient();
+      final repository = _FakeHomeSummaryRepository(summary: _homeSummary());
+      final provider = HomeSummaryProvider(
+        repository,
+        now: () => DateTime(2026, 7, 14, 10),
+        realtimeClient: realtime,
+      );
+      addTearDown(provider.dispose);
+      addTearDown(realtime.dispose);
+
+      provider.syncAuth(_staffUser(), isInitialized: true);
+      await tester.pump();
+      await tester.pump();
+      final initialRequests = repository.requestedScopes.length;
+      expect(initialRequests, greaterThan(0));
+      expect(realtime.sessionKeys.single, contains('user-1'));
+
+      realtime.addEvent(
+        RealtimeEnvelope(
+          version: 2,
+          kind: 'HOME_SUMMARY_UPDATED',
+          id: 'event-42',
+          topic: 'home.summary',
+          sequence: 42,
+          timestamp: DateTime.utc(2026, 7, 14, 10, 30, 5),
+          data: const {
+            'affectedDates': ['2026-07-14'],
+            'projectionVersion': 42,
+          },
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 499));
+      expect(repository.requestedScopes.length, initialRequests);
+      await tester.pump(const Duration(milliseconds: 1));
+      await tester.pump();
+      expect(repository.requestedScopes.length, initialRequests + 1);
+
+      realtime.addEvent(
+        RealtimeEnvelope(
+          version: 2,
+          kind: 'HOME_SUMMARY_UPDATED',
+          id: 'event-older',
+          topic: 'home.summary',
+          sequence: 41,
+          timestamp: DateTime.utc(2026, 7, 14, 10, 30, 6),
+          data: const {
+            'affectedDates': ['2026-07-14'],
+            'projectionVersion': 41,
+          },
+        ),
+      );
+      realtime.addEvent(
+        RealtimeEnvelope(
+          version: 2,
+          kind: 'HOME_SUMMARY_UPDATED',
+          id: 'event-other-date',
+          topic: 'home.summary',
+          sequence: 43,
+          timestamp: DateTime.utc(2026, 7, 14, 10, 30, 7),
+          data: const {
+            'affectedDates': ['2026-07-13'],
+            'projectionVersion': 43,
+          },
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 600));
+      expect(repository.requestedScopes.length, initialRequests + 1);
+
+      realtime.requestSync(RealtimeSyncReason.appResumed);
+      await tester.pump(const Duration(milliseconds: 500));
+      await tester.pump();
+      expect(repository.requestedScopes.length, initialRequests + 2);
+    },
+  );
 
   test('Compact VND formatter keeps long dashboard amounts short', () {
     expect(formatCompactVndAmount(365741), '365.741 VND');
@@ -1916,6 +2023,32 @@ class _FakeHomeSummaryRepository extends HomeSummaryRepository {
           unreportedOrders: const [],
           installmentNeedReports: const [],
         );
+  }
+}
+
+class _FakeRealtimeClient implements RealtimeClient {
+  final _events = StreamController<RealtimeEnvelope>.broadcast();
+  final _syncRequests = StreamController<RealtimeSyncReason>.broadcast();
+  final List<String?> sessionKeys = [];
+
+  @override
+  Stream<RealtimeEnvelope> get events => _events.stream;
+
+  @override
+  Stream<RealtimeSyncReason> get syncRequests => _syncRequests.stream;
+
+  @override
+  Future<void> syncSession(String? sessionKey) async {
+    sessionKeys.add(sessionKey);
+  }
+
+  void addEvent(RealtimeEnvelope event) => _events.add(event);
+
+  void requestSync(RealtimeSyncReason reason) => _syncRequests.add(reason);
+
+  Future<void> dispose() async {
+    await _events.close();
+    await _syncRequests.close();
   }
 }
 

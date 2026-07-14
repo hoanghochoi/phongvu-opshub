@@ -51,8 +51,9 @@ go test ./...
 go run .
 ```
 
-The Go service listens for Redis events, exposes authenticated workflow events
-on `/ws`, and exposes public app-update-only signals on `/ws/app-updates`.
+The Go service listens for Redis events, exposes legacy authenticated workflow
+events on `/ws`, shared versioned signals such as Home refresh on `/ws/v2`, and
+public app-update-only signals on `/ws/app-updates`.
 
 ## Current Backend Status
 
