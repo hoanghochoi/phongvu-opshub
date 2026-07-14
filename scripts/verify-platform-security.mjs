@@ -77,6 +77,7 @@ const [
   productionWorkflow,
   stagingWorkflow,
   codeqlWorkflow,
+  windowsMsixWorkflow,
   pubspec,
   robotoLicense,
 ] = await Promise.all([
@@ -97,6 +98,7 @@ const [
   text('.github/workflows/deploy-opshub.yml'),
   text('.github/workflows/deploy-opshub-staging.yml'),
   text('.github/workflows/codeql.yml'),
+  text('.github/workflows/build-windows-msix.yml'),
   text('pubspec.yaml'),
   text('fonts/Roboto-LICENSE.txt'),
 ]);
@@ -224,6 +226,17 @@ for (const expected of [
 }
 excludes(codeqlWorkflow, 'github/codeql-action/init@v', 'unpinned CodeQL init');
 excludes(codeqlWorkflow, 'github/codeql-action/analyze@v', 'unpinned CodeQL analyze');
+const checkoutSha = '9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0';
+for (const [workflow, label] of [
+  [productionWorkflow, 'production workflow'],
+  [stagingWorkflow, 'staging workflow'],
+  [codeqlWorkflow, 'CodeQL workflow'],
+  [windowsMsixWorkflow, 'Windows MSIX workflow'],
+]) {
+  contains(workflow, `actions/checkout@${checkoutSha}`, `${label} checkout pin`);
+  excludes(workflow, 'actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5', `${label} deprecated checkout pin`);
+  excludes(workflow, 'actions/checkout@v', `${label} floating checkout version`);
+}
 contains(stagingWorkflow, '[[ "$status" == 2* ]]', 'staging Access 2xx verification gate');
 contains(stagingWorkflow, "^www-authenticate: Cloudflare-Access ", 'staging Access challenge verification');
 contains(stagingWorkflow, 'redirect_url=%2Fdownload', 'staging Access download redirect verification');

@@ -72,7 +72,7 @@ jobs:
     environment: production
     steps:
       - name: Check out repository
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
 
       - name: Set up Flutter
         uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
@@ -172,7 +172,7 @@ jobs:
     environment: production
     steps:
       - name: Check out repository
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
 
       - name: Set up Flutter
         uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
@@ -404,7 +404,7 @@ jobs:
     environment: production
     steps:
       - name: Check out repository
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
 
       - name: Set up Flutter
         uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
@@ -868,7 +868,10 @@ jobs:
               'x-frame-options:.*sameorigin' \
               'referrer-policy:.*no-referrer' \
               'permissions-policy:'; do
-              printf '%s\n' "$headers" | grep -Eqi "^${header}"
+              if ! printf '%s\n' "$headers" | grep -Eqi "^${header}"; then
+                echo "Production response is missing required security header pattern: ${header}" >&2
+                return 1
+              fi
             done
             if printf '%s\n' "$headers" | grep -qi '^content-security-policy-report-only:'; then
               echo 'Production still serves a report-only CSP.' >&2
@@ -879,7 +882,10 @@ jobs:
           retry_curl "${OPSHUB_PUBLIC_BASE_URL}/health"
           retry_curl "${OPSHUB_PUBLIC_BASE_URL}/" >/dev/null
           main_headers="$(curl -fsSI "${OPSHUB_PUBLIC_BASE_URL}/main.dart.js?v=${GITHUB_SHA}")"
-          printf '%s\n' "$main_headers" | grep -qi 'cache-control:.*no-cache'
+          if ! printf '%s\n' "$main_headers" | grep -qi 'cache-control:.*no-cache'; then
+            echo 'Production main.dart.js is missing the required no-cache policy.' >&2
+            exit 1
+          fi
           verify_security_headers "$main_headers"
           android_json="$(retry_curl "${OPSHUB_API_BASE_URL}/app-version?platform=android")"
           windows_json="$(retry_curl "${OPSHUB_API_BASE_URL}/app-version?platform=windows")"
@@ -973,7 +979,7 @@ jobs:
     environment: production
     steps:
       - name: Check out repository
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
 
       - name: Confirm static-only deploy
         shell: bash
