@@ -64,15 +64,25 @@ export class PrivateMediaService implements OnModuleInit {
     maxBytesPerFile?: number;
   }): Promise<string[]> {
     const startedAt = Date.now();
-    const files = input.files || [];
+    const files = this.requireFileArray(input.files);
     if (files.length === 0) return [];
 
-    const aggregateBytes = await this.aggregateInputBytes(files);
+    const ownerFeature = this.ownerFeatureLogValue(input.ownerFeature);
+    const ownerRecordIdHash = this.mediaLogId(input.ownerRecordId);
+    const uploaderIdHash = this.mediaLogId(input.uploaderId);
+
+    let aggregateBytes: number;
+    try {
+      aggregateBytes = await this.aggregateInputBytes(files);
+    } catch (error) {
+      await this.cleanupManagedTemporaryFiles(files);
+      throw error;
+    }
     const aggregateLimit = getImageUploadAggregateMaxBytes();
     if (aggregateBytes > aggregateLimit) {
       await this.cleanupManagedTemporaryFiles(files);
       this.logger.warn(
-        `Private media upload rejected: ownerFeature=${input.ownerFeature} uploaderId=${input.uploaderId} fileCount=${files.length} aggregateBytes=${aggregateBytes} reason=aggregate_limit`,
+        `Private media upload rejected: ownerFeature=${ownerFeature} uploaderIdHash=${uploaderIdHash} fileCount=${files.length} aggregateBytes=${aggregateBytes} reason=aggregate_limit`,
       );
       throw new BadRequestException(
         'Tổng dung lượng ảnh quá lớn. Vui lòng giảm số lượng hoặc kích thước ảnh.',
@@ -93,13 +103,13 @@ export class PrivateMediaService implements OnModuleInit {
         saved.push(media);
       }
       this.logger.log(
-        `Private media upload succeeded: ownerFeature=${input.ownerFeature} ownerRecordId=${input.ownerRecordId} uploaderId=${input.uploaderId} fileCount=${saved.length} aggregateBytes=${aggregateBytes} durationMs=${Date.now() - startedAt}`,
+        `Private media upload succeeded: ownerFeature=${ownerFeature} ownerRecordIdHash=${ownerRecordIdHash} uploaderIdHash=${uploaderIdHash} fileCount=${saved.length} aggregateBytes=${aggregateBytes} durationMs=${Date.now() - startedAt}`,
       );
       return saved.map((item) => item.url);
     } catch (error) {
       await this.discardSavedMedia(saved);
       this.logger.warn(
-        `Private media upload failed: ownerFeature=${input.ownerFeature} ownerRecordId=${input.ownerRecordId} uploaderId=${input.uploaderId} fileCount=${files.length} savedCount=${saved.length} durationMs=${Date.now() - startedAt} error=${this.safeError(error)}`,
+        `Private media upload failed: ownerFeature=${ownerFeature} ownerRecordIdHash=${ownerRecordIdHash} uploaderIdHash=${uploaderIdHash} fileCount=${files.length} savedCount=${saved.length} durationMs=${Date.now() - startedAt} error=${this.safeError(error)}`,
       );
       if (error instanceof BadRequestException) throw error;
       throw new BadRequestException(
@@ -167,7 +177,7 @@ export class PrivateMediaService implements OnModuleInit {
       stat = await fs.promises.stat(filePath);
     } catch {
       this.logger.error(
-        `Private media file missing: mediaId=${this.mediaLogId(mediaId)} ownerFeature=${media.ownerFeature}`,
+        `Private media file missing: mediaId=${this.mediaLogId(mediaId)} ownerFeature=${this.ownerFeatureLogValue(media.ownerFeature)}`,
       );
       throw this.mediaNotFound();
     }
@@ -186,7 +196,7 @@ export class PrivateMediaService implements OnModuleInit {
     }
 
     this.logger.log(
-      `Private media access allowed: mediaId=${this.mediaLogId(mediaId)} ownerFeature=${media.ownerFeature} userId=${user?.id ?? 'unknown'} bytes=${stat.size}`,
+      `Private media access allowed: mediaId=${this.mediaLogId(mediaId)} ownerFeature=${this.ownerFeatureLogValue(media.ownerFeature)} userIdHash=${this.mediaLogId(user?.id)} bytes=${stat.size}`,
     );
     return { media, filePath, size: stat.size };
   }
@@ -256,7 +266,9 @@ export class PrivateMediaService implements OnModuleInit {
     file: Express.Multer.File,
     maxBytes: number,
   ): Promise<NormalizedImage> {
-    const source = file.path?.trim() || file.buffer;
+    const source =
+      this.managedTemporaryPath(file) ||
+      (Buffer.isBuffer(file.buffer) ? file.buffer : null);
     if (!source) {
       throw new BadRequestException('Không đọc được tệp ảnh đã chọn.');
     }
@@ -399,22 +411,41 @@ export class PrivateMediaService implements OnModuleInit {
   }
 
   private async inputSize(file: Express.Multer.File) {
-    if (Number.isSafeInteger(file.size) && file.size >= 0) return file.size;
-    if (file.buffer) return file.buffer.length;
-    if (file.path) return (await fs.promises.stat(file.path)).size;
-    return 0;
+    if (
+      typeof file.size === 'number' &&
+      Number.isSafeInteger(file.size) &&
+      file.size >= 0
+    ) {
+      return file.size;
+    }
+    if (Buffer.isBuffer(file.buffer)) return file.buffer.length;
+    throw new BadRequestException('Không đọc được kích thước tệp ảnh đã chọn.');
   }
 
   private async cleanupManagedTemporaryFiles(files: Express.Multer.File[]) {
-    const tempBase = getPrivateUploadTempDir();
     await Promise.all(
       files.map(async (file) => {
-        if (!file.path) return;
-        const resolved = path.resolve(file.path);
-        if (!this.isInside(tempBase, resolved)) return;
-        await fs.promises.unlink(resolved).catch(() => undefined);
+        const temporaryPath = this.managedTemporaryPath(file);
+        if (!temporaryPath) return;
+        await fs.promises.unlink(temporaryPath).catch(() => undefined);
       }),
     );
+  }
+
+  private managedTemporaryPath(file: Express.Multer.File): string | null {
+    const suppliedPath = typeof file.path === 'string' ? file.path.trim() : '';
+    if (!suppliedPath) return null;
+
+    const filename = path.basename(suppliedPath);
+    if (
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+        filename,
+      )
+    ) {
+      return null;
+    }
+    const managedPath = this.pathInside(getPrivateUploadTempDir(), filename);
+    return path.resolve(suppliedPath) === managedPath ? managedPath : null;
   }
 
   private async cleanupAbandonedTemporaryUploads() {
@@ -541,12 +572,30 @@ export class PrivateMediaService implements OnModuleInit {
 
   private logAccessDenied(mediaId: string, user: any, reason: string) {
     this.logger.warn(
-      `Private media access denied: mediaId=${this.mediaLogId(mediaId)} userId=${user?.id ?? 'unknown'} reason=${reason}`,
+      `Private media access denied: mediaId=${this.mediaLogId(mediaId)} userIdHash=${this.mediaLogId(user?.id)} reason=${reason}`,
     );
   }
 
-  private mediaLogId(value: string) {
-    return createHash('sha256').update(value).digest('hex').slice(0, 12);
+  private requireFileArray(value: unknown): Express.Multer.File[] {
+    if (
+      !Array.isArray(value) ||
+      value.some((file) => !file || typeof file !== 'object')
+    ) {
+      throw new BadRequestException('Danh sách ảnh tải lên không hợp lệ.');
+    }
+    return value as Express.Multer.File[];
+  }
+
+  private ownerFeatureLogValue(value: unknown): string {
+    if (value === PRIVATE_MEDIA_OWNER.WARRANTY) return 'WARRANTY';
+    if (value === PRIVATE_MEDIA_OWNER.FEEDBACK) return 'FEEDBACK';
+    if (value === PRIVATE_MEDIA_OWNER.AVATAR) return 'AVATAR';
+    return 'UNKNOWN';
+  }
+
+  private mediaLogId(value: unknown) {
+    const safeValue = typeof value === 'string' ? value : 'unknown';
+    return createHash('sha256').update(safeValue).digest('hex').slice(0, 12);
   }
 
   private mediaNotFound() {

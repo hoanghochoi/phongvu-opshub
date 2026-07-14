@@ -55,6 +55,7 @@ func TestAccessAndRecoveryLogsNeverIncludeQueryCredentials(t *testing.T) {
 
 	secretQuery := "access_token=jwt-super-secret&ticket=ticket-super-secret"
 	request := httptest.NewRequest(http.MethodGet, "/ok?"+secretQuery, nil)
+	request.RemoteAddr = "203.0.113.9:12345"
 	request.Header.Set("Authorization", "Bearer header-super-secret")
 	recorder := httptest.NewRecorder()
 	router.ServeHTTP(recorder, request)
@@ -79,6 +80,38 @@ func TestAccessAndRecoveryLogsNeverIncludeQueryCredentials(t *testing.T) {
 	}
 	if panicRecorder.Code != http.StatusInternalServerError {
 		t.Fatalf("expected panic recovery status 500, got %d", panicRecorder.Code)
+	}
+}
+
+func TestClientIPLogIDIsStableAndNeverContainsRawAddress(t *testing.T) {
+	raw := "203.0.113.9"
+	first := clientIPLogID(raw)
+	second := clientIPLogID(raw)
+	if first != second || len(first) != 12 {
+		t.Fatalf("expected stable 12-character client IP log ID, got %q and %q", first, second)
+	}
+	if strings.Contains(first, raw) {
+		t.Fatalf("client IP log ID leaked raw address: %q", first)
+	}
+}
+
+func TestAccessLoggerUsesRouteTemplateForUnmatchedUserPath(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	var output bytes.Buffer
+	router := gin.New()
+	router.Use(accessLogger(log.New(&output, "", 0)))
+	router.GET("/known/:id", func(c *gin.Context) { c.Status(http.StatusNoContent) })
+
+	request := httptest.NewRequest(http.MethodGet, "/unknown%0Aforged-log-line", nil)
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, request)
+
+	logs := output.String()
+	if !strings.Contains(logs, "path=<unmatched>") {
+		t.Fatalf("expected unmatched route marker, got %s", logs)
+	}
+	if strings.Contains(logs, "forged-log-line") {
+		t.Fatalf("access log included user-controlled path: %s", logs)
 	}
 }
 

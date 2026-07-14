@@ -11,16 +11,21 @@ if (!token) {
 const indexPath = 'build/web/index.html';
 const bootstrapPath = 'build/web/flutter_bootstrap.js';
 
-function patchFile(path, patcher) {
-  if (!fs.existsSync(path)) {
-    throw new Error(`Missing Flutter web build file: ${path}`);
+function patchFile(filePath, patcher) {
+  let before;
+  try {
+    before = fs.readFileSync(filePath, 'utf8');
+  } catch (error) {
+    if (error?.code === 'ENOENT') {
+      throw new Error(`Missing Flutter web build file: ${filePath}`);
+    }
+    throw error;
   }
-  const before = fs.readFileSync(path, 'utf8');
   const after = patcher(before);
   if (after === before) {
-    throw new Error(`No cache-busting replacement made in ${path}`);
+    throw new Error(`No cache-busting replacement made in ${filePath}`);
   }
-  fs.writeFileSync(path, after);
+  fs.writeFileSync(filePath, after);
 }
 
 patchFile(indexPath, (content) =>

@@ -117,4 +117,15 @@ describe('UploadService', () => {
     ).rejects.toThrow('Mã biên nhận không hợp lệ');
     expect(prisma.user.findUnique).not.toHaveBeenCalled();
   });
+
+  it('rejects a non-array warranty image value before database access', async () => {
+    await expect(
+      service.saveWarrantyImages(
+        'CP01-J12345678',
+        'not-an-array' as any,
+        'user-1',
+      ),
+    ).rejects.toThrow('Danh sách ảnh tải lên không hợp lệ');
+    expect(prisma.user.findUnique).not.toHaveBeenCalled();
+  });
 });

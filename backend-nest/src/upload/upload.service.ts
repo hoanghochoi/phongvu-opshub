@@ -4,6 +4,7 @@ import {
   Injectable,
   Logger,
 } from '@nestjs/common';
+import { createHash } from 'crypto';
 import { isSuperAdminRole } from '../common/system-role';
 import { PrismaService } from '../prisma/prisma.service';
 import { getAvatarUploadMaxBytes } from './image-upload.options';
@@ -28,8 +29,9 @@ export class UploadService {
   ): Promise<string[]> {
     const startedAt = Date.now();
     const safeReceipt = this.getSafePathSegment(receipt, 'Mã biên nhận');
+    const safeFiles = this.requireFileArray(files);
     this.logger.log(
-      `Warranty image upload started: userId=${userId} receiptLength=${safeReceipt.length} fileCount=${files.length}`,
+      `Warranty image upload started: userIdHash=${this.logId(userId)} receiptLength=${safeReceipt.length} fileCount=${safeFiles.length}`,
     );
 
     const user = await this.prisma.user.findUnique({
@@ -56,7 +58,7 @@ export class UploadService {
       (!user.storeId || warranty.createdBy.storeId !== user.storeId)
     ) {
       this.logger.warn(
-        `Warranty image upload denied: userId=${userId} warrantyId=${warranty.id} reason=store_scope`,
+        `Warranty image upload denied: userIdHash=${this.logId(userId)} warrantyIdHash=${this.logId(warranty.id)} reason=store_scope`,
       );
       throw new ForbiddenException(
         'Bạn không có quyền cập nhật ảnh cho biên nhận này.',
@@ -67,7 +69,7 @@ export class UploadService {
       ownerFeature: PRIVATE_MEDIA_OWNER.WARRANTY,
       ownerRecordId: warranty.id,
       uploaderId: userId,
-      files,
+      files: safeFiles,
     });
     try {
       await this.prisma.warranty.update({
@@ -84,7 +86,7 @@ export class UploadService {
     await this.privateMediaService.discardUrls(previousUrls);
 
     this.logger.log(
-      `Warranty image upload succeeded: userId=${userId} warrantyId=${warranty.id} fileCount=${urls.length} durationMs=${Date.now() - startedAt}`,
+      `Warranty image upload succeeded: userIdHash=${this.logId(userId)} warrantyIdHash=${this.logId(warranty.id)} fileCount=${urls.length} durationMs=${Date.now() - startedAt}`,
     );
     return urls;
   }
@@ -148,11 +150,23 @@ export class UploadService {
     await this.privateMediaService.discardUrls(urls);
   }
 
-  private getSafePathSegment(value: string, fieldLabel: string): string {
-    const trimmed = value?.trim();
+  private getSafePathSegment(value: unknown, fieldLabel: string): string {
+    const trimmed = typeof value === 'string' ? value.trim() : '';
     if (!trimmed || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(trimmed)) {
       throw new BadRequestException(`${fieldLabel} không hợp lệ.`);
     }
     return trimmed;
+  }
+
+  private requireFileArray(value: unknown): Express.Multer.File[] {
+    if (!Array.isArray(value)) {
+      throw new BadRequestException('Danh sách ảnh tải lên không hợp lệ.');
+    }
+    return value;
+  }
+
+  private logId(value: unknown): string {
+    const safeValue = typeof value === 'string' ? value : 'unknown';
+    return createHash('sha256').update(safeValue).digest('hex').slice(0, 12);
   }
 }

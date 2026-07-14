@@ -174,8 +174,22 @@ function assertStagingTarget() {
     fail('Refusing to run. OPSHUB_STAGING must be true.');
   }
   const publicBaseUrl = process.env.PUBLIC_BASE_URL || '';
-  if (!publicBaseUrl.includes('opshub-staging.hoanghochoi.com')) {
-    fail('Refusing to run. PUBLIC_BASE_URL must point to opshub-staging.hoanghochoi.com.');
+  let parsedPublicBaseUrl;
+  try {
+    parsedPublicBaseUrl = new URL(publicBaseUrl);
+  } catch {
+    fail('Refusing to run. PUBLIC_BASE_URL must be a valid URL.');
+  }
+  if (
+    parsedPublicBaseUrl.protocol !== 'https:' ||
+    parsedPublicBaseUrl.hostname !== 'opshub-staging.hoanghochoi.com' ||
+    parsedPublicBaseUrl.port !== '' ||
+    parsedPublicBaseUrl.username !== '' ||
+    parsedPublicBaseUrl.password !== ''
+  ) {
+    fail(
+      'Refusing to run. PUBLIC_BASE_URL must point to opshub-staging.hoanghochoi.com.',
+    );
   }
 }
 

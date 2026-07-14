@@ -135,10 +135,25 @@ describe('PrivateMediaService', () => {
     ).rejects.toThrow('Tổng dung lượng ảnh quá lớn');
   });
 
+  it('rejects a non-array multipart file value before processing', async () => {
+    await expect(
+      service.saveImages({
+        ownerFeature: PRIVATE_MEDIA_OWNER.AVATAR,
+        ownerRecordId: 'user-1',
+        uploaderId: 'user-1',
+        files: 'not-an-array',
+      } as any),
+    ).rejects.toThrow('Danh sách ảnh tải lên không hợp lệ');
+    expect(prisma.mediaObject.create).not.toHaveBeenCalled();
+  });
+
   it('removes the managed temporary upload after decoding fails', async () => {
     const tempDir = process.env.PRIVATE_UPLOAD_TEMP_DIR!;
     fs.mkdirSync(tempDir, { recursive: true });
-    const tempPath = path.join(tempDir, 'upload-1');
+    const tempPath = path.join(
+      tempDir,
+      '123e4567-e89b-42d3-a456-426614174000',
+    );
     fs.writeFileSync(tempPath, 'not-an-image');
     const file = multerFile({
       path: tempPath,
@@ -156,6 +171,33 @@ describe('PrivateMediaService', () => {
       }),
     ).rejects.toThrow();
     expect(fs.existsSync(tempPath)).toBe(false);
+  });
+
+  it('never reads or deletes a supplied file path outside the managed temp directory', async () => {
+    const outsideDir = path.join(root, 'outside');
+    fs.mkdirSync(outsideDir, { recursive: true });
+    const outsidePath = path.join(
+      outsideDir,
+      '123e4567-e89b-12d3-a456-426614174000',
+    );
+    fs.writeFileSync(outsidePath, 'not-an-image');
+    const file = multerFile({
+      path: outsidePath,
+      size: fs.statSync(outsidePath).size,
+      buffer: undefined,
+      originalname: 'outside.png',
+      mimetype: 'image/png',
+    });
+
+    await expect(
+      service.saveImages({
+        ownerFeature: PRIVATE_MEDIA_OWNER.FEEDBACK,
+        ownerRecordId: 'feedback-1',
+        uploaderId: 'user-1',
+        files: [file],
+      }),
+    ).rejects.toThrow('Không đọc được tệp ảnh đã chọn');
+    expect(fs.existsSync(outsidePath)).toBe(true);
   });
 
   it('allows only the avatar owner and hides denial as not found', async () => {

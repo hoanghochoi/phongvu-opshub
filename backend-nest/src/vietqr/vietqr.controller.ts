@@ -13,7 +13,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
-import { createHash, timingSafeEqual } from 'crypto';
+import { timingSafeEqual } from 'crypto';
 import { AuthGuard } from '@nestjs/passport';
 import type { Response } from 'express';
 import { FEATURE_KEYS } from '../feature/feature.constants';
@@ -131,14 +131,15 @@ export class VietQrController {
     const authorization = this.firstHeader(req, 'authorization');
     const bearerToken = authorization?.match(/^Bearer\s+(.+)$/i)?.[1]?.trim();
     const provided =
-      this.firstHeader(req, 'x-opshub-vietqr-key') ||
-      bearerToken;
+      this.firstHeader(req, 'x-opshub-vietqr-key') || bearerToken;
 
-    const providedHash = createHash('sha256')
-      .update(provided ?? '')
-      .digest();
-    const expectedHash = createHash('sha256').update(expected).digest();
-    if (!provided || !timingSafeEqual(providedHash, expectedHash)) {
+    const providedBytes = Buffer.from(provided ?? '', 'utf8');
+    const expectedBytes = Buffer.from(expected, 'utf8');
+    const matches =
+      Boolean(provided) &&
+      providedBytes.length === expectedBytes.length &&
+      timingSafeEqual(providedBytes, expectedBytes);
+    if (!matches) {
       this.logger.warn(
         'External VietQR access denied: reason=invalid_or_missing_api_key',
       );

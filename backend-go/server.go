@@ -2,6 +2,8 @@ package main
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"log"
 	"net"
 	"net/http"
@@ -85,7 +87,7 @@ func registerRoutes(router *gin.Engine, dependencies serverDependencies) {
 		}
 		auth, err := dependencies.authenticator.Authenticate(c.Request)
 		if err != nil {
-			dependencies.logger.Printf("Realtime authentication rejected clientIp=%s", clientIP)
+			dependencies.logger.Printf("Realtime authentication rejected clientIpHash=%s", clientIPLogID(clientIP))
 			c.AbortWithStatus(http.StatusUnauthorized)
 			return
 		}
@@ -99,13 +101,13 @@ func registerRoutes(router *gin.Engine, dependencies serverDependencies) {
 			return
 		}
 		if dependencies.readiness == nil || dependencies.readiness.Ready(c.Request.Context()) != nil {
-			dependencies.logger.Printf("Realtime v2 rejected because Redis subscription is unavailable clientIp=%s", clientIP)
+			dependencies.logger.Printf("Realtime v2 rejected because Redis subscription is unavailable clientIpHash=%s", clientIPLogID(clientIP))
 			c.AbortWithStatus(http.StatusServiceUnavailable)
 			return
 		}
 		auth, err := dependencies.authenticator.Authenticate(c.Request)
 		if err != nil {
-			dependencies.logger.Printf("Realtime v2 authentication rejected clientIp=%s", clientIP)
+			dependencies.logger.Printf("Realtime v2 authentication rejected clientIpHash=%s", clientIPLogID(clientIP))
 			c.AbortWithStatus(http.StatusUnauthorized)
 			return
 		}
@@ -143,7 +145,7 @@ func serveWebSocket(
 	connection, err := upgrader.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
 		release()
-		dependencies.logger.Printf("Realtime websocket upgrade failed clientIp=%s", clientIP)
+		dependencies.logger.Printf("Realtime websocket upgrade failed clientIpHash=%s", clientIPLogID(clientIP))
 		return
 	}
 	client := &Client{
@@ -250,6 +252,11 @@ func requestClientIP(request *http.Request) string {
 	return remoteIP
 }
 
+func clientIPLogID(clientIP string) string {
+	digest := sha256.Sum256([]byte(clientIP))
+	return hex.EncodeToString(digest[:])[:12]
+}
+
 func isOriginAllowed(r *http.Request) bool {
 	origin := r.Header.Get("Origin")
 	if origin == "" {
@@ -279,10 +286,14 @@ func accessLogger(logger *log.Logger) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		startedAt := time.Now()
 		c.Next()
+		route := c.FullPath()
+		if route == "" {
+			route = "<unmatched>"
+		}
 		logger.Printf(
 			"HTTP request method=%s path=%s status=%d durationMs=%d",
 			c.Request.Method,
-			c.Request.URL.EscapedPath(),
+			route,
 			c.Writer.Status(),
 			time.Since(startedAt).Milliseconds(),
 		)
