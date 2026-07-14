@@ -602,80 +602,114 @@ class _MobileShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final selectedIndex = _selectedMobileIndex();
-    return Scaffold(
-      backgroundColor: AppColors.canvasOf(context),
-      drawer: _MobileNavigationDrawer(
-        location: location,
-        destinations: drawerDestinations,
-        version: version,
-        onNavigate: onNavigate,
-      ),
-      appBar: AppBar(
-        centerTitle: true,
-        leading: Builder(
-          builder: (context) => IconButton(
-            tooltip: 'Mở menu',
-            onPressed: () => Scaffold.of(context).openDrawer(),
-            icon: const Icon(Icons.menu_rounded),
-          ),
+    final mediaQuery = MediaQuery.of(context);
+    final compactMobile =
+        mediaQuery.size.width < AppLayoutTokens.compactBreakpoint;
+    final bottomNavHeight = compactMobile
+        ? AppLayoutTokens.compactMobileBottomNavHeight
+        : AppLayoutTokens.mobileBottomNavHeight;
+    final showQuickActions =
+        (kIsWeb || defaultTargetPlatform != TargetPlatform.windows) &&
+        QuickActionsLauncher.isAvailable(context);
+    final quickActionsIndex = destinations.length ~/ 2;
+    final selectedIndex = _selectedMobileIndex(
+      quickActionsIndex: showQuickActions ? quickActionsIndex : null,
+    );
+    final mobileTheme = Theme.of(context).copyWith(
+      navigationBarTheme: compactMobile
+          ? NavigationBarThemeData(
+              height: bottomNavHeight,
+              iconTheme: const WidgetStatePropertyAll(IconThemeData(size: 22)),
+              labelTextStyle: const WidgetStatePropertyAll(
+                AppTextStyles.caption,
+              ),
+            )
+          : NavigationBarThemeData(height: bottomNavHeight),
+    );
+    return Theme(
+      data: mobileTheme,
+      child: Scaffold(
+        backgroundColor: AppColors.canvasOf(context),
+        drawer: _MobileNavigationDrawer(
+          location: location,
+          destinations: drawerDestinations,
+          version: version,
+          onNavigate: onNavigate,
         ),
-        title: Text(
-          activeDestination.label,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
-        actions: [
-          const _ShellMetricsPill(),
-          IconButton(
-            tooltip: 'Hỗ trợ',
-            onPressed: onSupport,
-            icon: const Icon(Icons.support_agent_rounded),
+        appBar: AppBar(
+          centerTitle: true,
+          leading: Builder(
+            builder: (context) => IconButton(
+              tooltip: 'Mở menu',
+              onPressed: () => Scaffold.of(context).openDrawer(),
+              icon: const Icon(Icons.menu_rounded),
+            ),
           ),
-          const SizedBox(width: 4),
-        ],
-      ),
-      body: _RouteViewport(location: location, child: child),
-      bottomNavigationBar: Stack(
-        clipBehavior: Clip.none,
-        alignment: Alignment.topCenter,
-        children: [
-          NavigationBar(
-            height: AppLayoutTokens.mobileBottomNavHeight,
-            selectedIndex: selectedIndex,
-            destinations: [
-              for (final destination in destinations)
+          title: Text(
+            activeDestination.label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          actions: [
+            const _ShellMetricsPill(),
+            IconButton(
+              tooltip: 'Hỗ trợ',
+              onPressed: onSupport,
+              icon: const Icon(Icons.support_agent_rounded),
+            ),
+            const SizedBox(width: 4),
+          ],
+        ),
+        body: _RouteViewport(location: location, child: child),
+        bottomNavigationBar: NavigationBar(
+          key: const Key('mobile-bottom-navigation'),
+          height: bottomNavHeight,
+          selectedIndex: selectedIndex,
+          destinations: [
+            for (var index = 0; index <= destinations.length; index++) ...[
+              if (showQuickActions && index == quickActionsIndex)
                 NavigationDestination(
-                  icon: destination.id == 'notifications'
+                  icon: QuickActionsLauncher(
+                    menuAxis: Axis.horizontal,
+                    location: location,
+                    buttonSize: compactMobile ? 46 : 52,
+                    elevation: compactMobile ? 3 : 4,
+                  ),
+                  label: '',
+                  tooltip: 'Thao tác nhanh',
+                ),
+              if (index < destinations.length)
+                NavigationDestination(
+                  icon: destinations[index].id == 'notifications'
                       ? const _MobileNotificationDestinationIcon()
-                      : Icon(destination.icon),
-                  label: destination.label,
-                  tooltip: destination.description,
+                      : Icon(destinations[index].icon),
+                  label: destinations[index].label,
+                  tooltip: destinations[index].description,
                 ),
             ],
-            onDestinationSelected: (index) {
-              final destination = destinations[index];
-              onNavigate(destination);
-            },
-          ),
-          if (kIsWeb || defaultTargetPlatform != TargetPlatform.windows)
-            Positioned(
-              top: -24,
-              child: QuickActionsLauncher(
-                menuAxis: Axis.horizontal,
-                location: location,
-              ),
-            ),
-        ],
+          ],
+          onDestinationSelected: (index) {
+            if (showQuickActions && index == quickActionsIndex) return;
+            final destinationIndex =
+                showQuickActions && index > quickActionsIndex
+                ? index - 1
+                : index;
+            onNavigate(destinations[destinationIndex]);
+          },
+        ),
       ),
     );
   }
 
-  int _selectedMobileIndex() {
+  int _selectedMobileIndex({int? quickActionsIndex}) {
     final directIndex = destinations.indexWhere(
       (destination) => AppNavModel.isSelected(destination, location),
     );
-    if (directIndex >= 0) return directIndex;
+    if (directIndex >= 0) {
+      return quickActionsIndex != null && directIndex >= quickActionsIndex
+          ? directIndex + 1
+          : directIndex;
+    }
     return 0;
   }
 }

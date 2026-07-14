@@ -6,6 +6,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:phongvu_opshub/app/navigation/app_router.dart';
 import 'package:phongvu_opshub/app/navigation/app_shell.dart';
 import 'package:phongvu_opshub/app/theme/app_colors.dart';
+import 'package:phongvu_opshub/app/widgets/app_layout.dart';
 import 'package:phongvu_opshub/core/logging/app_logger.dart';
 import 'package:phongvu_opshub/core/network/api_client.dart';
 import 'package:phongvu_opshub/features/auth/data/repositories/auth_repository.dart';
@@ -17,6 +18,8 @@ import 'package:phongvu_opshub/features/notifications/presentation/providers/app
 import 'package:phongvu_opshub/features/notifications/presentation/widgets/app_notifications_bell.dart';
 import 'package:phongvu_opshub/features/offset_adjustment/data/offset_adjustment_repository.dart';
 import 'package:phongvu_opshub/features/offset_adjustment/domain/offset_adjustment.dart';
+import 'package:phongvu_opshub/features/quick_actions/data/quick_actions_repository.dart';
+import 'package:phongvu_opshub/features/quick_actions/presentation/quick_actions_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -232,6 +235,86 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+
+  testWidgets('mobile navbar gives quick actions its own compact fifth slot', (
+    tester,
+  ) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.android;
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    try {
+      final authProvider = _FakeAuthProvider(_quickActionsUser);
+      final quickActionsProvider = _FakeQuickActionsProvider(
+        _quickActionsPayload,
+      );
+      Widget buildShell(String location) => MultiProvider(
+        providers: [
+          ChangeNotifierProvider<AuthProvider>.value(value: authProvider),
+          ChangeNotifierProvider<QuickActionsProvider>.value(
+            value: quickActionsProvider,
+          ),
+        ],
+        child: MaterialApp(
+          home: AppMobileTypographyDensity(
+            child: AppShell(
+              location: location,
+              child: const _RouteMarker(label: 'home-route-marker'),
+            ),
+          ),
+        ),
+      );
+
+      await tester.pumpWidget(buildShell('/home'));
+      await tester.pumpAndSettle();
+
+      final navFinder = find.byKey(const Key('mobile-bottom-navigation'));
+      final destinationFinder = find.descendant(
+        of: navFinder,
+        matching: find.byType(NavigationDestination),
+      );
+      final quickActionsFinder = find.byKey(
+        const Key('quick-actions-launcher'),
+      );
+
+      expect(destinationFinder, findsNWidgets(5));
+      expect(tester.getSize(navFinder).height, 68);
+      expect(quickActionsFinder, findsOneWidget);
+      expect(tester.widget<NavigationBar>(navFinder).selectedIndex, 0);
+
+      final navRect = tester.getRect(navFinder);
+      final quickActionsRect = tester.getRect(quickActionsFinder);
+      expect(navRect.contains(quickActionsRect.topLeft), isTrue);
+      expect(navRect.contains(quickActionsRect.bottomRight), isTrue);
+      expect(quickActionsRect.size, const Size.square(46));
+
+      final destinationCenters = tester
+          .widgetList<NavigationDestination>(destinationFinder)
+          .map((destination) => tester.getCenter(find.byWidget(destination)).dx)
+          .toList();
+      for (var index = 1; index < destinationCenters.length; index++) {
+        expect(
+          destinationCenters[index] - destinationCenters[index - 1],
+          closeTo(390 / 5, 0.5),
+        );
+      }
+
+      final routeContext = tester.element(find.text('home-route-marker'));
+      expect(
+        MediaQuery.textScalerOf(routeContext).scale(16),
+        closeTo(16 * AppMobileTypographyDensity.scale, 0.01),
+      );
+
+      await tester.pumpWidget(buildShell('/notifications'));
+      await tester.pumpAndSettle();
+      expect(tester.widget<NavigationBar>(navFinder).selectedIndex, 3);
+      expect(tester.takeException(), isNull);
+    } finally {
+      debugDefaultTargetPlatformOverride = null;
+    }
+  });
 
   testWidgets('mobile drawer shows app metadata footer', (tester) async {
     tester.view.physicalSize = const Size(390, 844);
@@ -618,6 +701,29 @@ const _shellUser = User(
   },
 );
 
+const _quickActionsUser = User(
+  id: 'shell-user-quick-actions',
+  email: 'quick-actions@example.com',
+  role: 'USER',
+  organizationNodeId: 'org-store-cp01',
+  featureAccess: {
+    'FIFO': true,
+    'WARRANTY': true,
+    'VIETQR': true,
+    'BANK_STATEMENTS': true,
+    'FEEDBACK': true,
+    'QUICK_ACTIONS': true,
+    'QUICK_ACTION_FIFO': true,
+  },
+);
+
+const _quickActionsPayload = QuickActionsPayload(
+  stores: [QuickActionStore(storeCode: 'CP01', storeName: 'Showroom CP01')],
+  selectedStoreCode: null,
+  availableActionCodes: {},
+  links: {},
+);
+
 class _FakeAuthProvider extends AuthProvider {
   final User currentUser;
   int logoutCalls = 0;
@@ -640,6 +746,16 @@ class _FakeAuthProvider extends AuthProvider {
     _loggedOut = true;
     notifyListeners();
   }
+}
+
+class _FakeQuickActionsProvider extends QuickActionsProvider {
+  final QuickActionsPayload currentPayload;
+
+  _FakeQuickActionsProvider(this.currentPayload)
+    : super(QuickActionsRepository(ApiClient()));
+
+  @override
+  QuickActionsPayload get payload => currentPayload;
 }
 
 class _LoggedOutAuthProvider extends AuthProvider {

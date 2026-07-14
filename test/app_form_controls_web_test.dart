@@ -8,49 +8,102 @@ import 'package:phongvu_opshub/core/platform/text_input_context_menu_bootstrap.d
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  testWidgets(
-    'web AppTextInput shows Flutter paste toolbar inside SelectionArea',
-    (tester) async {
-      final contextMenuCalls = <String>[];
+  testWidgets('desktop web AppTextInput shows only Flutter paste toolbar', (
+    tester,
+  ) async {
+    final contextMenuCalls = <String>[];
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(SystemChannels.contextMenu, (call) async {
+          contextMenuCalls.add(call.method);
+          return null;
+        });
+    addTearDown(() {
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-          .setMockMethodCallHandler(SystemChannels.contextMenu, (call) async {
-            contextMenuCalls.add(call.method);
-            return null;
-          });
-      addTearDown(() {
-        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-            .setMockMethodCallHandler(SystemChannels.contextMenu, null);
-      });
-      addTearDown(BrowserContextMenu.enableContextMenu);
+          .setMockMethodCallHandler(SystemChannels.contextMenu, null);
+    });
+    addTearDown(BrowserContextMenu.enableContextMenu);
 
-      await initializeTextInputContextMenu();
+    await initializeTextInputContextMenu(
+      targetPlatformOverride: TargetPlatform.windows,
+    );
 
-      final controller = TextEditingController();
-      addTearDown(controller.dispose);
+    final controller = TextEditingController();
+    addTearDown(controller.dispose);
 
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: SelectionArea(
-              child: AppTextInput(controller: controller, label: 'Mã đơn hàng'),
-            ),
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SelectionArea(
+            child: AppTextInput(controller: controller, label: 'Mã đơn hàng'),
           ),
         ),
-      );
+      ),
+    );
 
-      final editableTextState = tester.state<EditableTextState>(
-        find.byType(EditableText),
-      );
-      editableTextState.renderEditable.selectWordsInRange(
-        from: Offset.zero,
-        cause: SelectionChangedCause.tap,
-      );
-      await tester.pump();
+    final editableTextState = tester.state<EditableTextState>(
+      find.byType(EditableText),
+    );
+    editableTextState.renderEditable.selectWordsInRange(
+      from: Offset.zero,
+      cause: SelectionChangedCause.tap,
+    );
+    await tester.pump();
 
-      expect(contextMenuCalls, contains('disableContextMenu'));
-      expect(editableTextState.showToolbar(), isTrue);
-      await tester.pumpAndSettle();
-      expect(find.text('Paste'), findsOneWidget);
+    expect(contextMenuCalls, contains('disableContextMenu'));
+    expect(editableTextState.showToolbar(), isTrue);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.text('Paste'), findsOneWidget);
+  }, skip: !kIsWeb);
+
+  testWidgets(
+    'mobile web AppTextInput keeps browser paste and suppresses Flutter toolbar',
+    (tester) async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+      try {
+        final contextMenuCalls = <String>[];
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(SystemChannels.contextMenu, (call) async {
+              contextMenuCalls.add(call.method);
+              return null;
+            });
+        addTearDown(() {
+          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+              .setMockMethodCallHandler(SystemChannels.contextMenu, null);
+        });
+
+        await initializeTextInputContextMenu(
+          targetPlatformOverride: TargetPlatform.iOS,
+        );
+
+        final controller = TextEditingController();
+        addTearDown(controller.dispose);
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: SelectionArea(
+                child: AppTextInput(controller: controller, label: 'Email'),
+              ),
+            ),
+          ),
+        );
+
+        final editableTextState = tester.state<EditableTextState>(
+          find.byType(EditableText),
+        );
+        editableTextState.renderEditable.selectWordsInRange(
+          from: Offset.zero,
+          cause: SelectionChangedCause.longPress,
+        );
+        editableTextState.showToolbar();
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 300));
+
+        expect(contextMenuCalls, contains('enableContextMenu'));
+        expect(find.text('Paste'), findsNothing);
+      } finally {
+        debugDefaultTargetPlatformOverride = null;
+      }
     },
     skip: !kIsWeb,
   );

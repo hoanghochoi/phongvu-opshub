@@ -28,6 +28,7 @@ import '../features/sort/presentation/providers/sort_provider.dart';
 import 'theme/app_theme.dart';
 import 'theme/theme_provider.dart';
 import 'navigation/app_router.dart';
+import 'widgets/app_layout.dart';
 
 class App extends StatelessWidget {
   const App({super.key});
@@ -199,9 +200,11 @@ class _AppRouterGatewayState extends State<AppRouterGateway> {
       ],
       supportedLocales: const [Locale('vi', ''), Locale('en', '')],
       builder: (context, child) {
-        return _SessionExpiredDialogGate(
-          router: _router,
-          child: AppUpdateGate(child: child ?? const SizedBox()),
+        return AppMobileTypographyDensity(
+          child: _SessionExpiredDialogGate(
+            router: _router,
+            child: AppUpdateGate(child: child ?? const SizedBox()),
+          ),
         );
       },
     );

@@ -1,4 +1,5 @@
 import 'package:flutter/gestures.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:phongvu_opshub/app/widgets/app_cards.dart';
@@ -8,6 +9,37 @@ import 'package:phongvu_opshub/app/widgets/app_pagination.dart';
 import 'package:phongvu_opshub/app/widgets/app_state_widgets.dart';
 
 void main() {
+  test('context menu policy suppresses only Flutter mobile-web toolbar', () {
+    expect(
+      appTextInputContextMenuBuilder(
+        isWebOverride: true,
+        targetPlatformOverride: TargetPlatform.iOS,
+      ),
+      isNotNull,
+    );
+    expect(
+      appTextInputContextMenuBuilder(
+        isWebOverride: true,
+        targetPlatformOverride: TargetPlatform.android,
+      ),
+      isNotNull,
+    );
+    expect(
+      appTextInputContextMenuBuilder(
+        isWebOverride: true,
+        targetPlatformOverride: TargetPlatform.windows,
+      ),
+      isNull,
+    );
+    expect(
+      appTextInputContextMenuBuilder(
+        isWebOverride: false,
+        targetPlatformOverride: TargetPlatform.android,
+      ),
+      isNull,
+    );
+  });
+
   testWidgets('AppTextInput renders tokenized label, icon, and input text', (
     tester,
   ) async {
@@ -30,6 +62,36 @@ void main() {
     expect(find.byIcon(Icons.tag_rounded), findsOneWidget);
     expect(find.text('26062512345678'), findsOneWidget);
   });
+
+  testWidgets(
+    'Android AppTextInput is isolated from ancestor SelectionArea ownership',
+    (tester) async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.android;
+      try {
+        final controller = TextEditingController();
+        addTearDown(controller.dispose);
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: SelectionArea(
+                child: AppTextInput(controller: controller, label: 'Email'),
+              ),
+            ),
+          ),
+        );
+
+        final editableTextContext = tester.element(find.byType(EditableText));
+        expect(
+          SelectionContainer.maybeOf(editableTextContext),
+          isNull,
+          reason:
+              'The outer SelectionArea must not compete with EditableText long-press selection.',
+        );
+      } finally {
+        debugDefaultTargetPlatformOverride = null;
+      }
+    },
+  );
 
   testWidgets('AppFormTextInput keeps form validation on shared input', (
     tester,

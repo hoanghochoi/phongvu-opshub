@@ -1,8 +1,22 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../core/platform/text_input_context_menu_bootstrap.dart';
 import '../theme/app_text_styles.dart';
 import 'app_layout.dart';
+
+EditableTextContextMenuBuilder? appTextInputContextMenuBuilder({
+  bool? isWebOverride,
+  TargetPlatform? targetPlatformOverride,
+}) {
+  final suppressFlutterMenu = shouldSuppressFlutterTextInputContextMenu(
+    isWeb: isWebOverride ?? kIsWeb,
+    targetPlatform: targetPlatformOverride ?? defaultTargetPlatform,
+  );
+  if (!suppressFlutterMenu) return null;
+  return (context, editableTextState) => const SizedBox.shrink();
+}
 
 class AppInputMetrics {
   AppInputMetrics._();
@@ -103,33 +117,36 @@ class AppTextInput extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return TextField(
-      controller: controller,
-      focusNode: focusNode,
-      keyboardType: keyboardType,
-      textCapitalization: textCapitalization,
-      inputFormatters: inputFormatters,
-      onChanged: onChanged,
-      onSubmitted: onSubmitted,
-      autofocus: autofocus,
-      enabled: enabled,
-      readOnly: readOnly,
-      obscureText: obscureText,
-      autocorrect: autocorrect,
-      autofillHints: autofillHints,
-      maxLines: maxLines,
-      minLines: minLines,
-      textInputAction: textInputAction,
-      style: AppTextStyles.bodyM,
-      decoration: appInputDecoration(
-        label: label,
-        icon: icon,
-        hintText: hintText,
-        helperText: helperText,
-        suffixText: suffixText,
-        errorText: errorText,
-        dense: dense,
-        suffixIcon: suffixIcon,
+    return SelectionContainer.disabled(
+      child: TextField(
+        controller: controller,
+        focusNode: focusNode,
+        keyboardType: keyboardType,
+        textCapitalization: textCapitalization,
+        inputFormatters: inputFormatters,
+        onChanged: onChanged,
+        onSubmitted: onSubmitted,
+        autofocus: autofocus,
+        enabled: enabled,
+        readOnly: readOnly,
+        obscureText: obscureText,
+        autocorrect: autocorrect,
+        autofillHints: autofillHints,
+        maxLines: maxLines,
+        minLines: minLines,
+        textInputAction: textInputAction,
+        contextMenuBuilder: appTextInputContextMenuBuilder(),
+        style: AppTextStyles.bodyM,
+        decoration: appInputDecoration(
+          label: label,
+          icon: icon,
+          hintText: hintText,
+          helperText: helperText,
+          suffixText: suffixText,
+          errorText: errorText,
+          dense: dense,
+          suffixIcon: suffixIcon,
+        ),
       ),
     );
   }
@@ -199,40 +216,43 @@ class AppFormTextInput extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return TextFormField(
-      controller: controller,
-      focusNode: focusNode,
-      keyboardType: keyboardType,
-      textCapitalization: textCapitalization,
-      inputFormatters: inputFormatters,
-      onChanged: onChanged,
-      onFieldSubmitted: onFieldSubmitted,
-      validator: validator,
-      autofocus: autofocus,
-      enabled: enabled,
-      readOnly: readOnly,
-      obscureText: obscureText,
-      autocorrect: autocorrect,
-      autofillHints: autofillHints,
-      maxLines: maxLines,
-      minLines: minLines,
-      maxLength: maxLength,
-      textInputAction: textInputAction,
-      style: AppTextStyles.bodyM,
-      decoration:
-          appInputDecoration(
-            label: label,
-            icon: icon,
-            hintText: hintText,
-            helperText: helperText,
-            suffixText: suffixText,
-            errorText: errorText,
-            dense: dense,
-            suffixIcon: suffixIcon,
-          ).copyWith(
-            alignLabelWithHint: alignLabelWithHint,
-            counterText: counterText,
-          ),
+    return SelectionContainer.disabled(
+      child: TextFormField(
+        controller: controller,
+        focusNode: focusNode,
+        keyboardType: keyboardType,
+        textCapitalization: textCapitalization,
+        inputFormatters: inputFormatters,
+        onChanged: onChanged,
+        onFieldSubmitted: onFieldSubmitted,
+        validator: validator,
+        autofocus: autofocus,
+        enabled: enabled,
+        readOnly: readOnly,
+        obscureText: obscureText,
+        autocorrect: autocorrect,
+        autofillHints: autofillHints,
+        maxLines: maxLines,
+        minLines: minLines,
+        maxLength: maxLength,
+        textInputAction: textInputAction,
+        contextMenuBuilder: appTextInputContextMenuBuilder(),
+        style: AppTextStyles.bodyM,
+        decoration:
+            appInputDecoration(
+              label: label,
+              icon: icon,
+              hintText: hintText,
+              helperText: helperText,
+              suffixText: suffixText,
+              errorText: errorText,
+              dense: dense,
+              suffixIcon: suffixIcon,
+            ).copyWith(
+              alignLabelWithHint: alignLabelWithHint,
+              counterText: counterText,
+            ),
+      ),
     );
   }
 }

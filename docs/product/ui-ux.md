@@ -50,6 +50,11 @@ visual systems that make the app feel assembled from unrelated screens.
   shell own global notification, support, account, and route navigation entry
   points. On mobile, the app bar places the delivery metrics pill on the left,
   the active destination title in the center, and support on the right.
+  When quick actions are available, their launcher occupies the fifth, centered
+  bottom-navigation slot instead of floating over the four route destinations.
+  Phone layouts below 600 px use a compact 68 px navigation bar and a global
+  0.92 typography density factor, including pre-auth screens; tablet and desktop
+  typography and navigation dimensions are unchanged.
   Notification entry belongs only to the bottom `Thông báo` destination on
   mobile; do not render a second notification bell in the mobile app bar.
   Account/profile entry belongs to the bottom `Tài khoản` destination; do not
@@ -284,6 +289,11 @@ visual systems that make the app feel assembled from unrelated screens.
 ## Platform Contracts
 
 - Android and Windows are the primary UI proof targets for current OpsHub work.
+- Text inputs have exactly one context-menu owner per platform: mobile web uses
+  the browser-native selection/paste menu, desktop web uses Flutter's toolbar,
+  and native Android/iOS uses the platform Flutter toolbar. Shared text inputs
+  must isolate editable selection from an ancestor `SelectionArea`; do not
+  enable both browser and Flutter paste menus on mobile web.
 - Trên các thiết bị di động (Mobile), các thành phần điều khiển hành động quan trọng ở chân trang (như sticky action bar, submit button) bắt buộc phải chèn một khoảng đệm an toàn tối thiểu `80px` (bằng chiều cao Bottom Navigation Bar cộng thêm khoảng cách an toàn) để tránh bị che đè bởi thanh điều hướng hệ thống hoặc navigation chrome của ứng dụng.
 - Flutter web is an additional staff operations surface served from the domain
   root in production and staging. The SPA fallback must preserve `/api`, `/ws`,

@@ -8,6 +8,33 @@ import 'package:phongvu_opshub/app/widgets/app_buttons.dart';
 import 'package:phongvu_opshub/app/widgets/app_layout.dart';
 
 void main() {
+  testWidgets('mobile typography density leaves tablet and desktop unchanged', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    const markerKey = Key('responsive-typography-marker');
+    const app = MaterialApp(
+      home: AppMobileTypographyDensity(child: SizedBox(key: markerKey)),
+    );
+
+    tester.view.physicalSize = const Size(390, 844);
+    await tester.pumpWidget(app);
+    expect(
+      MediaQuery.textScalerOf(tester.element(find.byKey(markerKey))).scale(16),
+      closeTo(16 * AppMobileTypographyDensity.scale, 0.01),
+    );
+
+    tester.view.physicalSize = const Size(834, 1112);
+    await tester.pumpWidget(app);
+    expect(
+      MediaQuery.textScalerOf(tester.element(find.byKey(markerKey))).scale(16),
+      16,
+    );
+  });
+
   test('AppTheme maps Figma Foundation tokens into the light theme', () {
     final theme = AppTheme.lightTheme;
 
@@ -58,7 +85,9 @@ void main() {
     expect(AppLayoutTokens.compactActionHeight, 44);
     expect(AppLayoutTokens.iconTouchTarget, 48);
     expect(AppLayoutTokens.listItemTouchTarget, 56);
-    expect(AppLayoutTokens.mobileStickyActionBottomInset, 80);
+    expect(AppLayoutTokens.mobileBottomNavHeight, 76);
+    expect(AppLayoutTokens.compactMobileBottomNavHeight, 68);
+    expect(AppLayoutTokens.mobileStickyActionBottomInset, 72);
     expect(AppButtonMetrics.radius, AppRadius.lg);
     expect(AppButtonMetrics.height, 52);
     expect(AppButtonMetrics.mobileActionHeight, 48);

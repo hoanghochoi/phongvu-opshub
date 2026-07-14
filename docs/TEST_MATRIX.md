@@ -58,6 +58,14 @@ This file maps product behavior to proof. Existing flows are marked
 
 Recent focused evidence:
 
+- `UI-UX-001`, 2026-07-14: mobile quick actions now occupy a real centered fifth
+  `NavigationBar` slot, with five equal-width columns instead of an absolute
+  button overlapping four destinations. Phone-only density below 600 px uses a
+  68 px bar, 22 px destination icons, compact labels, a 46 px quick-action
+  launcher, and a global 0.92 typography factor; tablet and desktop remain
+  unchanged. Validation covers equal
+  column spacing, launcher bounds, route-index mapping, mobile text scaling,
+  focused shell/quick-action/theme tests, Flutter analyze, and diff check.
 - `PAYMENT-MONITOR-001`/`PAYMENT-STATEMENT-001`/`VIETQR-001`, 2026-07-14:
   user-facing eFAST statement fields now use `trxId`, matching the MAP statement
   reference, instead of exposing numeric provider `trxRefNo` values. The shared
@@ -2643,6 +2651,22 @@ src/map-vietin/map-vietin.service.spec.ts` (26 tests), `npm run build`, full
   thật camera/horizontal scroll/customer QR scan.
 
 ## Evidence Rules
+
+## TEXT-INPUT-CONTEXT-MENU-001 — Paste menu theo nền tảng (2026-07-14)
+
+- Mobile web keeps the browser-native context menu enabled and suppresses the
+  Flutter editable toolbar, preventing duplicate `Paste` actions.
+- Desktop web keeps one Flutter toolbar with the browser context menu disabled.
+- Native Android/iOS keeps the Flutter platform toolbar and shared inputs are
+  isolated from ancestor `SelectionArea` ownership so the paste menu does not
+  dismiss immediately.
+- Automated proof covers policy resolution, browser channel ownership and
+  Android isolation from ancestor selection; the Chrome mobile-web regression
+  test is added but the local Chrome harness opened without reconnecting and
+  timed out. Validation passed: focused tests (18), full Flutter tests (444
+  passed, 2 existing platform skips), `flutter analyze --no-pub`, web debug
+  build, Android staging debug APK build, and `git diff --check`. Physical iOS
+  Safari and Android device smoke remain required after staging deployment.
 
 - Unit proof covers pure validators, service rules, and focused repositories.
 - Integration proof covers API behavior, database persistence, Redis, BigQuery,

@@ -27,7 +27,8 @@ class AppLayoutTokens {
   static const double tabletRailWidth = 88;
   static const double shellTopBarHeight = 72;
   static const double mobileBottomNavHeight = 76;
-  static const double mobileStickyActionBottomInset = 80;
+  static const double compactMobileBottomNavHeight = 68;
+  static const double mobileStickyActionBottomInset = 72;
   static const double formMaxWidth = 720;
   static const double actionBarMaxWidth = 560;
   static const double authMaxWidth = 460;
@@ -61,6 +62,28 @@ class AppLayoutTokens {
   }
 
   static int formColumnsFor(double width) => width >= tabletBreakpoint ? 2 : 1;
+}
+
+class AppMobileTypographyDensity extends StatelessWidget {
+  static const double scale = 0.92;
+
+  final Widget child;
+
+  const AppMobileTypographyDensity({super.key, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    final mediaQuery = MediaQuery.of(context);
+    if (mediaQuery.size.width >= AppLayoutTokens.compactBreakpoint) {
+      return child;
+    }
+    return MediaQuery(
+      data: mediaQuery.copyWith(
+        textScaler: TextScaler.linear(mediaQuery.textScaler.scale(1) * scale),
+      ),
+      child: child,
+    );
+  }
 }
 
 class AppShadowTokens {

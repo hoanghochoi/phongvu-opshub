@@ -19,91 +19,34 @@ import 'quick_actions_provider.dart';
 class QuickActionsLauncher extends StatefulWidget {
   final Axis menuAxis;
   final String location;
+  final double buttonSize;
+  final double elevation;
 
   const QuickActionsLauncher({
     super.key,
     required this.menuAxis,
     required this.location,
+    this.buttonSize = 64,
+    this.elevation = 8,
   });
 
-  @override
-  State<QuickActionsLauncher> createState() => _QuickActionsLauncherState();
-}
-
-class _QuickActionsLauncherState extends State<QuickActionsLauncher>
-    with WidgetsBindingObserver {
-  final LayerLink _link = LayerLink();
-  final FocusNode _buttonFocus = FocusNode(debugLabel: 'quick-actions-button');
-  OverlayEntry? _overlay;
-
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addObserver(this);
+  static bool isAvailable(BuildContext context) {
+    return _actionsForContext(context).isNotEmpty;
   }
 
-  @override
-  void didUpdateWidget(covariant QuickActionsLauncher oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.location != widget.location) _closeMenu(returnFocus: false);
-  }
-
-  @override
-  void didChangeMetrics() => _closeMenu(returnFocus: false);
-
-  @override
-  void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
-    _overlay?.remove();
-    _overlay = null;
-    _buttonFocus.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
+  static List<_QuickAction> _actionsForContext(BuildContext context) {
     final user = context.watch<AuthProvider>().user;
     QuickActionsPayload? payload;
     try {
       payload = context.watch<QuickActionsProvider>().payload;
     } on ProviderNotFoundException {
-      return const SizedBox.shrink();
+      return const [];
     }
-    final actions = _availableActions(user, payload);
-    if (user?.canUseFeature('QUICK_ACTIONS') != true || actions.isEmpty) {
-      return const SizedBox.shrink();
-    }
-    return CompositedTransformTarget(
-      link: _link,
-      child: Semantics(
-        button: true,
-        label: 'Mở Thao tác nhanh',
-        child: Focus(
-          focusNode: _buttonFocus,
-          child: Material(
-            color: AppColors.primary,
-            elevation: 8,
-            borderRadius: AppRadius.allLg,
-            child: InkWell(
-              key: const Key('quick-actions-launcher'),
-              borderRadius: AppRadius.allLg,
-              onTap: () => _toggleMenu(actions),
-              child: const SizedBox.square(
-                dimension: 64,
-                child: Icon(
-                  Icons.bolt_rounded,
-                  color: AppColors.surface,
-                  size: 34,
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
+    if (user?.canUseFeature('QUICK_ACTIONS') != true) return const [];
+    return _availableActions(user, payload);
   }
 
-  List<_QuickAction> _availableActions(
+  static List<_QuickAction> _availableActions(
     dynamic user,
     QuickActionsPayload? data,
   ) {
@@ -149,6 +92,74 @@ class _QuickActionsLauncherState extends State<QuickActionsLauncher>
           qr.contains('GOOGLE_MAP'))
         const _QuickAction('GOOGLE_MAP', 'GG Map', Icons.location_on_outlined),
     ];
+  }
+
+  @override
+  State<QuickActionsLauncher> createState() => _QuickActionsLauncherState();
+}
+
+class _QuickActionsLauncherState extends State<QuickActionsLauncher>
+    with WidgetsBindingObserver {
+  final LayerLink _link = LayerLink();
+  final FocusNode _buttonFocus = FocusNode(debugLabel: 'quick-actions-button');
+  OverlayEntry? _overlay;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void didUpdateWidget(covariant QuickActionsLauncher oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.location != widget.location) _closeMenu(returnFocus: false);
+  }
+
+  @override
+  void didChangeMetrics() => _closeMenu(returnFocus: false);
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _overlay?.remove();
+    _overlay = null;
+    _buttonFocus.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final actions = QuickActionsLauncher._actionsForContext(context);
+    if (actions.isEmpty) return const SizedBox.shrink();
+    return CompositedTransformTarget(
+      link: _link,
+      child: Semantics(
+        button: true,
+        label: 'Mở Thao tác nhanh',
+        child: Focus(
+          focusNode: _buttonFocus,
+          child: Material(
+            color: AppColors.primary,
+            elevation: widget.elevation,
+            borderRadius: AppRadius.allLg,
+            child: InkWell(
+              key: const Key('quick-actions-launcher'),
+              borderRadius: AppRadius.allLg,
+              onTap: () => _toggleMenu(actions),
+              child: SizedBox.square(
+                dimension: widget.buttonSize,
+                child: Icon(
+                  Icons.bolt_rounded,
+                  color: AppColors.surface,
+                  size: widget.buttonSize >= 64 ? 34 : 30,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   void _toggleMenu(List<_QuickAction> actions) {
