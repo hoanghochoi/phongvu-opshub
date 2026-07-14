@@ -703,8 +703,8 @@ lệnh cleanup này trên production.
 - [x] Staging: API/realtime/Caddy có `ReadonlyRootfs=true`, `CapDrop=ALL`,
   `no-new-privileges`; API UID `1000`, realtime UID `100`, Caddy UID `1000`.
 - [x] Staging: Docker log `max-size=10m`, `max-file=5`.
-- [x] Staging: workflow `29275293780` deploy SHA `300dcd22...` thành công và
-  public manifest/version khớp build `2026.07.13.144+200144`.
+- [x] Staging: workflow `29299619536` deploy SHA `6fe62997...` thành công và
+  public manifest/version khớp build `2026.07.14.145+200145`.
 - [ ] Production: API/Caddy vẫn chạy root trên image legacy, rootfs ghi được và
   chưa drop capabilities. Chỉ đóng sau promotion đúng SHA và inspect lại.
 

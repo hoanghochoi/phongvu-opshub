@@ -3,9 +3,8 @@
 > Story: `SECURITY-001`
 > Nguồn: `app-improve-implement-plan-12072026.md`
 > Checkpoint audit ban đầu: `main` tại `4e1ced4b8ecfce8ea33ff3c1440fdb5e5676a25b`
-> Checkpoint xác minh lại 14/07/2026: `staging` tại
-> `300dcd2278c1b713a9f49b59f557d1df070ec720`, sạch và trùng
-> `origin/staging`.
+> Checkpoint trước re-audit 14/07/2026: `staging` tại `300dcd22...`, sạch và
+> trùng `origin/staging`. Proof runtime cuối của re-audit: `6fe62997...`.
 > Quy ước: `[x]` đã có bằng chứng local; `[ ]` chưa đóng; `[M]` cần quyền/secret/runtime của Đại Ca; `[D]` tách follow-up có lý do; `[W]` đã đóng bằng waiver tạm thời có owner, control bù và ngày rà soát.
 
 ## A. Checkpoint và phạm vi
@@ -128,9 +127,9 @@
 - [x] Go test/vet/govulncheck, npm production audit, platform contract, YAML, shell, PowerShell và Compose config pass.
 - [x] `git diff --check` và invariant grep (JWT query/RawQuery/break-glass/full-repo rsync/raw email log) pass.
 - [x] Exact changed-file review cuối: 112 file tracked thay đổi + 44 mục untracked, đều nằm trong phạm vi bảo mật/tài liệu hoặc baseline Sales Report đã ghi nhận; không có build artifact/secret/signing key lọt vào worktree.
-- [x] Deploy staging mới nhất đúng SHA
-  `300dcd2278c1b713a9f49b59f557d1df070ec720`; workflow
-  `29275293780` pass, health/version/Home/Help/Download và đăng nhập admin cá
+- [x] Deploy staging proof cuối đúng SHA
+  `6fe62997eb76efc473c60f7998e9219fe7e69b20`; workflow
+  `29299619536` pass, health/version/Home/Help/Download và đăng nhập admin cá
   nhân pass.
 - [x] Live edge/CORS/anonymous smoke ngày 14/07/2026: HTTP `308`; CSP/HSTS
   enforce; origin lạ không có ACAO; origin staging được phép; anonymous

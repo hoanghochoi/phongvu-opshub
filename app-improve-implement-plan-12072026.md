@@ -2,8 +2,8 @@
 
 > Ngày lập: 12/07/2026
 > Nguồn phát hiện: app-audit-21072026.md
-> Trạng thái xác minh 14/07/2026: hardening đã commit/push và deploy staging đến
-> SHA `300dcd2278c1b713a9f49b59f557d1df070ec720`; Cloudflare HTTPS/CSP/HSTS,
+> Trạng thái xác minh 14/07/2026: hardening và audit proof đã commit/push, deploy
+> staging đến SHA `6fe62997eb76efc473c60f7998e9219fe7e69b20`; Cloudflare HTTPS/CSP/HSTS,
 > staging container/ACL và TrueNAS backup đã có proof. Production chưa promote;
 > private-media cutover, credential rotation, MFA và realtime destructive smoke
 > vẫn là gate riêng.
@@ -652,8 +652,8 @@ Kế hoạch chỉ được coi là hoàn tất khi:
 
 ### Đã đóng bằng bằng chứng hiện tại
 
-- `staging` sạch và trùng `origin/staging` tại `300dcd22...`; deploy workflow
-  `29275293780` thành công.
+- Checkpoint trước re-audit sạch và trùng `origin/staging` tại `300dcd22...`;
+  proof cuối deploy SHA `6fe62997...` qua workflow `29299619536` thành công.
 - Edge live: HTTP -> HTTPS `308`; HSTS một năm có `includeSubDomains`; CSP
   enforce; staging Access response cũng có HSTS.
 - API live: CORS chỉ trả ACAO cho origin staging; anonymous media/admin trả
