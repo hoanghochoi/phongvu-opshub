@@ -369,7 +369,21 @@ Sau mỗi batch chạy audit, smoke đúng owner/showroom/admin và anonymous 40
 
 ### 4.3 Cutover
 
-1. Theo dõi access log `/uploads/*` theo app version cho đến khi client legacy về 0 hoặc đã force-update.
+1. Sau khi Caddy privacy telemetry đã deploy, tổng hợp cửa sổ quan sát mà không
+   in path/IP/header/query:
+
+   ```bash
+   caddy_id="$("${compose[@]}" ps -q caddy)"
+   test -n "$caddy_id"
+   docker logs --since 168h "$caddy_id" 2>&1 | \
+     "${compose[@]}" --profile maintenance run --rm -T --no-deps maintenance \
+       npm run security:audit-legacy-upload-access -- --strict
+   ```
+
+   Kết quả hợp lệ phải có `malformedAccessLines=0`. `totalHits` và
+   `uniquePathHashes` là số aggregate; script không xuất filename hay client IP.
+   Khi chuẩn bị cutover, chạy lại với `--strict --fail-on-hits`; exit `3` nghĩa
+   vẫn còn traffic legacy và phải dừng.
 2. Xóa `handle_path /uploads/*` khỏi Caddy ở một change riêng, validate/reload, purge đúng cache prefix.
 3. Kiểm anonymous `/uploads/...` và `/api/media/:id` đều không trả ảnh; đúng scope `/api/media/:id` vẫn pass.
 4. Chỉ dọn orphan sau retention + backup + approval; không dùng lệnh xóa tay không manifest.

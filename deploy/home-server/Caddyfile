@@ -1,6 +1,32 @@
 http://{$OPSHUB_DOMAIN} {
   encode gzip zstd
 
+  # Privacy-minimized telemetry for the legacy public upload route only. The
+  # path is hashed and request URI/IP/headers are removed before the entry is
+  # written to Docker's already bounded log driver. Do not enable a site-wide
+  # access log: auth/reset routes may legitimately carry sensitive query data.
+  log legacy_uploads {
+    no_hostname
+    output stdout
+    format filter {
+      request>uri delete
+      request>remote_ip delete
+      request>client_ip delete
+      request>remote_port delete
+      request>headers delete
+      request>host delete
+      request>proto delete
+      resp_headers delete
+      user_id delete
+      legacy_path hash
+      wrap json
+    }
+  }
+
+  @legacy_upload_request path /uploads/*
+  log_name @legacy_upload_request legacy_uploads
+  log_append @legacy_upload_request legacy_path {http.request.uri.path}
+
   # Cloudflare Tunnel terminates TLS before forwarding to this HTTP origin.
   # Redirect only requests that Cloudflare marked as originally HTTP; an
   # unconditional origin redirect would loop for HTTPS visitors.

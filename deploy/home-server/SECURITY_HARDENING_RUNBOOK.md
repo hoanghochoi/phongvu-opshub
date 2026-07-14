@@ -155,6 +155,32 @@ hoặc giữ private identity.
   dưới prefix tương ứng tạo được nút tải.
 - [ ] Chạy `node scripts/verify-platform-security.mjs` trong CI/release gate.
 
+### 7.1 Telemetry tối thiểu cho `/uploads` legacy
+
+- [ ] Chỉ bật named access logger `legacy_uploads`; `no_hostname` bảo đảm request
+  khác không bị ghi. Không bật site-wide access log vì reset/auth URL có thể
+  chứa query nhạy cảm.
+- [ ] Entry phải xóa URI, IP, headers, response headers và user id; chỉ giữ path
+  hash, thời gian, method/status/duration/size. Docker log tiếp tục giới hạn
+  `10m x 5`.
+- [ ] Sau deploy, tạo đúng một probe `/uploads/*?token=...`; chạy
+  `security:audit-legacy-upload-access -- --strict` và xác nhận một hit, một
+  hash, không có raw path/query/IP.
+- [ ] Dùng cửa sổ tối thiểu 7 ngày trước media cutover. `--fail-on-hits` phải
+  trả 0; nếu exit `3` thì dừng cutover, không xóa route/file/cache.
+
+### 7.2 GitHub repository security
+
+- [ ] Secret scanning và push protection ở trạng thái enabled; query alert chỉ
+  lấy count/metadata, tuyệt đối không in trường `secret`.
+- [ ] Dependabot alerts/security updates enabled; không auto-merge PR bảo mật,
+  vẫn phải chạy regression và staging gate.
+- [ ] CodeQL advanced workflow scan `javascript-typescript` và `go`, dùng
+  `security-extended`, action pin SHA và quyền tối thiểu
+  `contents: read`/`security-events: write`.
+- [ ] Chỉ đóng control sau khi hai CodeQL matrix job success và open alert count
+  đã review; không dismiss alert chỉ để làm xanh workflow.
+
 ## 8. Stop conditions
 
 Dừng promotion nếu có một trong các điều kiện:

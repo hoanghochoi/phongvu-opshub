@@ -21,6 +21,7 @@
     "audit:node-features": "node scripts/audit-node-feature-permissions.mjs",
     "security:disable-account-access": "node scripts/disable-account-access.mjs",
     "security:issue-emergency-admin-reset": "node scripts/issue-emergency-admin-reset.mjs",
+    "security:audit-legacy-upload-access": "node scripts/audit-legacy-upload-access.mjs",
     "security:audit-private-media": "node scripts/audit-private-media.mjs",
     "security:migrate-private-media": "node scripts/migrate-private-media.mjs",
     "security:rollback-private-media": "node scripts/rollback-private-media-references.mjs",

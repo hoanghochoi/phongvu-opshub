@@ -30,6 +30,28 @@ function excludes(source, forbidden, label) {
   assert.ok(!source.includes(forbidden), `${label}: still contains ${forbidden}`);
 }
 
+function assertVersionAtLeast(actual, minimum, label) {
+  const parse = (value) => String(value).replace(/^v/, '').split('.').slice(0, 3).map(Number);
+  const actualParts = parse(actual);
+  const minimumParts = parse(minimum);
+  assert.equal(actualParts.length, 3, `${label}: invalid version ${actual}`);
+  assert.ok(actualParts.every(Number.isInteger), `${label}: invalid version ${actual}`);
+  const comparison = actualParts.findIndex((part, index) => part !== minimumParts[index]);
+  assert.ok(
+    comparison === -1 || actualParts[comparison] > minimumParts[comparison],
+    `${label}: ${actual} is below ${minimum}`,
+  );
+}
+
+function goModuleVersion(goMod, moduleName) {
+  const line = goMod
+    .split(/\r?\n/)
+    .map((value) => value.trim())
+    .find((value) => value.startsWith(`${moduleName} `));
+  assert.ok(line, `Go module version missing: ${moduleName}`);
+  return line.split(/\s+/)[1];
+}
+
 function extractFunction(source, functionName) {
   const start = source.indexOf(`function ${functionName}(`);
   assert.notEqual(start, -1, `missing function ${functionName}`);
@@ -49,8 +71,12 @@ const [
   help,
   download,
   packageJsonText,
+  packageLockText,
+  goMod,
+  goDockerfile,
   productionWorkflow,
   stagingWorkflow,
+  codeqlWorkflow,
   pubspec,
   robotoLicense,
 ] = await Promise.all([
@@ -65,8 +91,12 @@ const [
   text('deploy/home-server/help.html'),
   text('deploy/home-server/download.html'),
   text('backend-nest/package.json'),
+  text('backend-nest/package-lock.json'),
+  text('backend-go/go.mod'),
+  text('backend-go/Dockerfile'),
   text('.github/workflows/deploy-opshub.yml'),
   text('.github/workflows/deploy-opshub-staging.yml'),
+  text('.github/workflows/codeql.yml'),
   text('pubspec.yaml'),
   text('fonts/Roboto-LICENSE.txt'),
 ]);
@@ -82,6 +112,18 @@ contains(
   'Strict-Transport-Security "max-age=31536000; includeSubDomains"',
   'Caddy HSTS',
 );
+for (const [expected, label] of [
+  ['log legacy_uploads {', 'legacy upload named access logger'],
+  ['no_hostname', 'legacy upload route-only logger'],
+  ['request>uri delete', 'legacy upload query redaction'],
+  ['request>remote_ip delete', 'legacy upload remote IP redaction'],
+  ['request>client_ip delete', 'legacy upload client IP redaction'],
+  ['request>headers delete', 'legacy upload header redaction'],
+  ['legacy_path hash', 'legacy upload path hashing'],
+  ['log_name @legacy_upload_request legacy_uploads', 'legacy upload log routing'],
+]) {
+  contains(caddy, expected, label);
+}
 
 for (const value of ['max-size:', 'max-file:', 'no-new-privileges:true', 'cap_drop:', 'read_only: true']) {
   contains(productionCompose, value, 'production Compose hardening');
@@ -169,6 +211,19 @@ contains(stagingWorkflow, 'secrets.CF_ACCESS_CLIENT_ID', 'staging Access client 
 contains(stagingWorkflow, 'secrets.CF_ACCESS_CLIENT_SECRET', 'staging Access client secret');
 contains(stagingWorkflow, 'CF-Access-Client-Id:', 'staging Access client ID header');
 contains(stagingWorkflow, 'CF-Access-Client-Secret:', 'staging Access client secret header');
+for (const expected of [
+  'javascript-typescript',
+  '- go',
+  'security-events: write',
+  'queries: security-extended',
+  'github/codeql-action/init@1ad29ea4a422cce9a242a9fae469541dcd08addc',
+  'github/codeql-action/autobuild@1ad29ea4a422cce9a242a9fae469541dcd08addc',
+  'github/codeql-action/analyze@1ad29ea4a422cce9a242a9fae469541dcd08addc',
+]) {
+  contains(codeqlWorkflow, expected, 'CodeQL security workflow');
+}
+excludes(codeqlWorkflow, 'github/codeql-action/init@v', 'unpinned CodeQL init');
+excludes(codeqlWorkflow, 'github/codeql-action/analyze@v', 'unpinned CodeQL analyze');
 contains(stagingWorkflow, '[[ "$status" == 2* ]]', 'staging Access 2xx verification gate');
 contains(stagingWorkflow, "^www-authenticate: Cloudflare-Access ", 'staging Access challenge verification');
 contains(stagingWorkflow, 'redirect_url=%2Fdownload', 'staging Access download redirect verification');
@@ -291,10 +346,36 @@ assert.equal(
 );
 
 const packageJson = JSON.parse(packageJsonText);
+const packageLock = JSON.parse(packageLockText);
+assert.equal(
+  packageJson.scripts['security:audit-legacy-upload-access'],
+  'node scripts/audit-legacy-upload-access.mjs',
+);
 assert.equal(packageJson.dependencies['@nestjs/platform-express'], '^11.1.28');
 assert.equal(packageJson.dependencies.nodemailer, '^9.0.3');
 assert.equal(packageJson.overrides.hono, '4.12.29');
 assert.equal(packageJson.overrides.qs, '6.15.3');
+for (const [lockPath, minimum, label] of [
+  ['node_modules/@babel/core', '7.29.6', '@babel/core security patch'],
+  ['node_modules/form-data', '4.0.6', 'form-data security patch'],
+  ['node_modules/js-yaml', '4.2.0', 'js-yaml v4 security patch'],
+  ['node_modules/@istanbuljs/load-nyc-config/node_modules/js-yaml', '3.15.0', 'js-yaml v3 security patch'],
+  ['node_modules/@typescript-eslint/typescript-estree/node_modules/brace-expansion', '5.0.7', 'brace-expansion TypeScript security patch'],
+  ['node_modules/glob/node_modules/brace-expansion', '5.0.7', 'brace-expansion glob security patch'],
+]) {
+  assertVersionAtLeast(packageLock.packages[lockPath]?.version, minimum, label);
+}
+assertVersionAtLeast(
+  goModuleVersion(goMod, 'golang.org/x/crypto'),
+  '0.52.0',
+  'golang.org/x/crypto security patch',
+);
+assertVersionAtLeast(
+  goModuleVersion(goMod, 'golang.org/x/net'),
+  '0.55.0',
+  'golang.org/x/net security patch',
+);
+contains(goDockerfile, 'FROM golang:1.25.12-alpine3.24@sha256:', 'patched pinned Go build toolchain');
 assert.equal(
   packageJson.dependencies.xlsx,
   'https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz',

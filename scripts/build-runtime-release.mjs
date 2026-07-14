@@ -33,6 +33,7 @@ const REQUIRED_FILES = [
   "backend-nest/src/upload/private-media.service.ts",
   "backend-nest/prisma/migrations/20260712010000_add_private_media_objects/migration.sql",
   "backend-nest/scripts/migrate-private-media.mjs",
+  "backend-nest/scripts/audit-legacy-upload-access.mjs",
   "backend-go/Dockerfile",
   "backend-go/go.mod",
   "backend-go/main.go",
