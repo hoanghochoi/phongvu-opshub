@@ -881,7 +881,21 @@ jobs:
 
           retry_curl "${OPSHUB_PUBLIC_BASE_URL}/health"
           retry_curl "${OPSHUB_PUBLIC_BASE_URL}/" >/dev/null
-          main_headers="$(curl -fsSI "${OPSHUB_PUBLIC_BASE_URL}/main.dart.js?v=${GITHUB_SHA}")"
+          main_headers_file="$(mktemp)"
+          if ! main_status="$(
+            curl -sS -D "$main_headers_file" -o /dev/null -w '%{http_code}' \
+              "${OPSHUB_PUBLIC_BASE_URL}/main.dart.js?v=${GITHUB_SHA}"
+          )"; then
+            rm -f "$main_headers_file"
+            echo 'Production main.dart.js request failed before receiving an HTTP response.' >&2
+            exit 1
+          fi
+          main_headers="$(cat "$main_headers_file")"
+          rm -f "$main_headers_file"
+          if [[ "$main_status" != 2* ]]; then
+            echo "Production main.dart.js returned HTTP ${main_status}; expected 2xx." >&2
+            exit 1
+          fi
           if ! printf '%s\n' "$main_headers" | grep -qi 'cache-control:.*no-cache'; then
             echo 'Production main.dart.js is missing the required no-cache policy.' >&2
             exit 1

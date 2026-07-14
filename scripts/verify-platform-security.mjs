@@ -238,6 +238,11 @@ for (const [workflow, label] of [
   excludes(workflow, 'actions/checkout@v', `${label} floating checkout version`);
 }
 contains(stagingWorkflow, '[[ "$status" == 2* ]]', 'staging Access 2xx verification gate');
+contains(stagingWorkflow, '-D "$main_headers_file" -o /dev/null', 'staging real GET header verification');
+contains(stagingWorkflow, 'main.dart.js returned HTTP ${main_status}', 'staging asset status diagnostics');
+contains(productionWorkflow, '-D "$main_headers_file" -o /dev/null', 'production real GET header verification');
+contains(productionWorkflow, 'main.dart.js returned HTTP ${main_status}', 'production asset status diagnostics');
+excludes(stagingWorkflow, 'main.dart.js?v=${GITHUB_SHA}" -fsSI', 'staging Access HEAD-only asset verification');
 contains(stagingWorkflow, "^www-authenticate: Cloudflare-Access ", 'staging Access challenge verification');
 contains(stagingWorkflow, 'redirect_url=%2Fdownload', 'staging Access download redirect verification');
 contains(pubspec, '- family: Roboto', 'local Flutter Roboto fallback');
