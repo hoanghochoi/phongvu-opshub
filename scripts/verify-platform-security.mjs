@@ -114,6 +114,31 @@ contains(updater, 'WINDOWS_UPDATE_SIGNER_SHA256', 'Windows signer pin');
 contains(updater, '_maxPackageBytes', 'updater package hard cap');
 
 contains(productionWorkflow, '--no-web-resources-cdn', 'production local Flutter web resources');
+contains(
+  productionWorkflow,
+  'required_runtime_env_keys=(',
+  'production required runtime env gate',
+);
+contains(
+  productionWorkflow,
+  'REDIS_PASSWORD must contain at least 32 characters.',
+  'production Redis password strength gate',
+);
+contains(
+  productionWorkflow,
+  'sudo install -d -o "$runtime_uid" -g "$runtime_gid" -m 0770',
+  'production writable volume ownership gate',
+);
+contains(
+  productionWorkflow,
+  'compose_cmd up -d --force-recreate --wait --wait-timeout 120 redis',
+  'production coordinated Redis authentication rollout',
+);
+contains(
+  productionWorkflow,
+  'redis api realtime caddy',
+  'production rollback includes Redis configuration',
+);
 contains(stagingWorkflow, '--no-web-resources-cdn', 'staging local Flutter web resources');
 contains(stagingWorkflow, 'secrets.CF_ACCESS_CLIENT_ID', 'staging Access client ID secret');
 contains(stagingWorkflow, 'secrets.CF_ACCESS_CLIENT_SECRET', 'staging Access client secret');

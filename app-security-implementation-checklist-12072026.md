@@ -101,8 +101,13 @@
 - [x] Staging runtime đã kiểm trực tiếp: API `1000:1000`, realtime `app`, Caddy
   `1000:1000`; cả ba `ReadonlyRootfs=true`, `CapDrop=ALL`,
   `no-new-privileges`; `private-media` mode `0770`; Docker log `10m x 5`.
+- [x] Re-audit production ngày 14/07 phát hiện trước promotion rằng env live còn
+  thiếu `OPSHUB_RUNTIME_UID/GID` và `REDIS_PASSWORD`; workflow đã được sửa để
+  fail-closed, kiểm password tối thiểu 32 ký tự, chuẩn bị writable volume bằng
+  UID/GID non-root, recreate Redis cùng API/realtime/Caddy và rollback cả Redis.
 - [M] Production vẫn dùng image legacy: API/Caddy chạy root, rootfs ghi được và
-  chưa drop capabilities. Cần promote đúng SHA rồi kiểm lại UID/GID/ACL;
+  chưa drop capabilities. Env/volume live phải qua preflight mới trước khi
+  promote đúng SHA rồi kiểm lại UID/GID/ACL;
   đồng thời inventory/xử lý backup plaintext cũ và phê duyệt retention/ZFS
   snapshot trước khi đóng SEC-12 production.
 

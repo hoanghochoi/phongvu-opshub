@@ -749,3 +749,11 @@ Runbook infra chi tiết bổ sung: `deploy/home-server/SECURITY_HARDENING_RUNBO
 5. **Backup governance:** job TrueNAS đã pass và timer hoạt động, nhưng backup
    plaintext lịch sử, retention và ZFS snapshot/immutability vẫn cần inventory
    và phê duyệt trước thao tác phá huỷ.
+6. **Production deploy preflight:** kiểm tra trực tiếp ngày 14/07/2026 xác nhận
+   production còn thiếu `OPSHUB_RUNTIME_UID`, `OPSHUB_RUNTIME_GID` và
+   `REDIS_PASSWORD`; API/Caddy vẫn root, writable rootfs, Docker log chưa giới
+   hạn. Không push `main` cho đến khi workflow có gate fail-closed đã pass trên
+   staging, một encrypted backup mới đã verify, các key trên được tạo trực tiếp
+   trong `/srv/opshub/env` mà không in secret ra terminal, và rollback đã bao gồm
+   Redis. Không chạy riêng bước bật Redis password vì API/realtime cũ sẽ mất kết
+   nối ngay.

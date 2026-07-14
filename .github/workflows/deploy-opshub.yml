@@ -574,9 +574,53 @@ jobs:
           set -euo pipefail
 
           sudo mkdir -p "$(dirname "$OPSHUB_ENV_FILE")"
-          sudo touch "$OPSHUB_ENV_FILE"
+          if [ ! -s "$OPSHUB_ENV_FILE" ]; then
+            echo "Missing non-empty production env file: $OPSHUB_ENV_FILE" >&2
+            exit 1
+          fi
           sudo chown root:"$(id -gn)" "$OPSHUB_ENV_FILE"
           sudo chmod 640 "$OPSHUB_ENV_FILE"
+
+          required_runtime_env_keys=(
+            POSTGRES_USER
+            POSTGRES_PASSWORD
+            POSTGRES_DB
+            DATABASE_URL
+            JWT_SECRET
+            OPSHUB_DOMAIN
+            OPSHUB_HTTP_BIND
+            OPSHUB_RUNTIME_UID
+            OPSHUB_RUNTIME_GID
+            REDIS_PASSWORD
+            BACKUP_AGE_RECIPIENT
+          )
+          for key in "${required_runtime_env_keys[@]}"; do
+            value="$(sudo sed -n "s/^${key}=//p" "$OPSHUB_ENV_FILE" | head -n 1)"
+            if [ -z "$value" ]; then
+              echo "Missing required production env key: $key" >&2
+              exit 1
+            fi
+          done
+
+          runtime_uid="$(sudo sed -n 's/^OPSHUB_RUNTIME_UID=//p' "$OPSHUB_ENV_FILE" | head -n 1)"
+          runtime_gid="$(sudo sed -n 's/^OPSHUB_RUNTIME_GID=//p' "$OPSHUB_ENV_FILE" | head -n 1)"
+          redis_password="$(sudo sed -n 's/^REDIS_PASSWORD=//p' "$OPSHUB_ENV_FILE" | head -n 1)"
+          if ! [[ "$runtime_uid" =~ ^[1-9][0-9]*$ && "$runtime_gid" =~ ^[1-9][0-9]*$ ]]; then
+            echo 'OPSHUB_RUNTIME_UID/GID must be non-root numeric IDs.' >&2
+            exit 1
+          fi
+          if [ "${#redis_password}" -lt 32 ]; then
+            echo 'REDIS_PASSWORD must contain at least 32 characters.' >&2
+            exit 1
+          fi
+          unset redis_password
+
+          sudo install -d -o "$runtime_uid" -g "$runtime_gid" -m 0770 \
+            /srv/opshub/uploads \
+            /srv/opshub/private-media \
+            /srv/opshub/payment-audio \
+            /srv/opshub/caddy/data \
+            /srv/opshub/caddy/config
 
           upsert_env() {
             key="$1"
@@ -668,7 +712,7 @@ jobs:
             mv -Tf "${CURRENT_DIR}.rollback" "$CURRENT_DIR"
             cd "$CURRENT_DIR"
             compose=(docker compose --env-file "$OPSHUB_ENV_FILE" -f deploy/home-server/docker-compose.home.yml)
-            if compose_cmd up -d --build --force-recreate --wait --wait-timeout 240 api realtime caddy; then
+            if compose_cmd up -d --build --force-recreate --wait --wait-timeout 240 redis api realtime caddy; then
               echo "Rollback release is healthy: $candidate"
               compose_cmd ps
               return 0
@@ -679,6 +723,7 @@ jobs:
 
           rollback_on_error() {
             status="$1"
+            trap - ERR
             echo "Deploy failed with status $status" >&2
             dump_deploy_diagnostics
 
@@ -718,6 +763,13 @@ jobs:
 
           compose_cmd config >/dev/null
 
+          # The first hardened production rollout enables Redis authentication.
+          # Recreate Redis in the same guarded maintenance transaction so API and
+          # realtime never start with credentials that the running Redis ignores.
+          trap 'rollback_on_error $?' ERR
+          compose_cmd stop api realtime caddy || true
+          compose_cmd up -d --force-recreate --wait --wait-timeout 120 redis
+
           compose_cmd --profile migrate run --rm -T --build migrate \
             node scripts/recover-failed-prisma-migration.mjs \
               20260614130000_flatten_store_cash_org_tree
@@ -731,6 +783,7 @@ jobs:
           if [ "$deploy_status" -ne 0 ]; then
             rollback_on_error "$deploy_status"
           fi
+          trap - ERR
 
           expected_app_env="${APP_VERSION}|${APP_BUILD_NUMBER}|${APP_VERSION}|${APP_BUILD_NUMBER}|${APP_VERSION}|${APP_BUILD_NUMBER}|1|false"
           for attempt in {1..12}; do

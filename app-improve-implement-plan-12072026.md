@@ -681,3 +681,26 @@ Kế hoạch chỉ được coi là hoàn tất khi:
   replay/session-revoke/authenticated-load smoke bằng tài khoản test riêng.
 - Backup plaintext lịch sử, retention và ZFS snapshot/immutability cần inventory
   cùng phê duyệt trước mọi cleanup phá huỷ.
+
+## 16. Production promotion preflight phát hiện ngày 14/07/2026
+
+Không promote trực tiếp `origin/staging` sang `main` ở trạng thái kiểm tra ban
+đầu. Production live thiếu `OPSHUB_RUNTIME_UID/GID` và `REDIS_PASSWORD`; các
+volume `private-media` chưa tồn tại, `payment-audio`/Caddy data chưa có ownership
+cho runtime UID. Workflow cũ không recreate Redis cùng API nên không bảo đảm
+chuyển đổi auth nguyên tử.
+
+Thứ tự mới bắt buộc:
+
+1. Merge/push deploy-safety gate lên staging và chờ toàn bộ CI pass.
+2. Chạy encrypted backup on-demand sang TrueNAS, verify `SHA256SUMS` và giữ
+   rollback release `4e1ced4b...`.
+3. Tạo `REDIS_PASSWORD` tối thiểu 32 byte trực tiếp trên production host, đặt
+   `OPSHUB_RUNTIME_UID/GID=1000` theo volume uploads hiện hữu; không in secret.
+4. Preflight env/volume/Compose; workflow dừng API/realtime/Caddy, recreate Redis
+   có auth, migrate, rồi recreate hardened services trong cùng rollback trap.
+5. Sau production deploy, inspect UID/rootfs/capabilities/log rotation, smoke
+   health/auth/realtime/static headers và chạy private-media audit `--strict`
+   trước mọi backfill/cutover.
+6. Nếu bất kỳ stop condition nào fail, rollback cả release và Redis config;
+   không để API cũ chạy với Redis đã bật auth.
