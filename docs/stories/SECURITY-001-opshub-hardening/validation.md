@@ -79,3 +79,13 @@
 - Required release proof: focused updater tests, Flutter analyze, Windows
   release build, signed staging installer, then an installed-build in-app
   update from the previous staging build to the new build.
+- 2026-07-14: commit `3d3334ef2874c08a9dff8a1e68720962b5cac0e2`
+  passed full Flutter (439 passed, 1 skipped), NestJS (60 suites, 596 tests),
+  platform-security, Windows release-build and staging run `29302684759`.
+  Public build `200146` matched checksum, Authenticode was `Valid`, and signer
+  SHA-256 matched the staging pin.
+- Installed staging build `200146` then received realtime build `200147` from
+  run `29303262807`, downloaded and hash-verified the installer, logged
+  `Windows package signature verification succeeded` with signer prefix
+  `1BE124CCBD3C`, installed it, and relaunched as build `200147`. The relaunched
+  app reported `currentBuild=200147` and `latestBuild=200147`.
