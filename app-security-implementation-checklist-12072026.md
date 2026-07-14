@@ -105,6 +105,11 @@
   thiếu `OPSHUB_RUNTIME_UID/GID` và `REDIS_PASSWORD`; workflow đã được sửa để
   fail-closed, kiểm password tối thiểu 32 ký tự, chuẩn bị writable volume bằng
   UID/GID non-root, recreate Redis cùng API/realtime/Caddy và rollback cả Redis.
+- [x] Preflight production đã chuẩn bị trực tiếp không lộ secret:
+  `OPSHUB_RUNTIME_UID/GID=1000`, Redis password 64 ký tự; Compose + Caddy config
+  của SHA `962257a9...` pass với env live. Encrypted backup on-demand
+  `20260714-121022` publish xong, 6/6 checksum pass, không còn `.incoming` hay
+  local staging directory và toàn bộ container production vẫn healthy.
 - [M] Production vẫn dùng image legacy: API/Caddy chạy root, rootfs ghi được và
   chưa drop capabilities. Env/volume live phải qua preflight mới trước khi
   promote đúng SHA rồi kiểm lại UID/GID/ACL;
@@ -133,9 +138,10 @@
 - [x] `git diff --check` và invariant grep (JWT query/RawQuery/break-glass/full-repo rsync/raw email log) pass.
 - [x] Exact changed-file review cuối: 112 file tracked thay đổi + 44 mục untracked, đều nằm trong phạm vi bảo mật/tài liệu hoặc baseline Sales Report đã ghi nhận; không có build artifact/secret/signing key lọt vào worktree.
 - [x] Deploy staging proof cuối đúng SHA
-  `6fe62997eb76efc473c60f7998e9219fe7e69b20`; workflow
-  `29299619536` pass, health/version/Home/Help/Download và đăng nhập admin cá
-  nhân pass.
+  `962257a96310e6d56b13bba4e25d0ad5ff0a8b17`; workflow
+  `29307636667` pass. SSH proof xác nhận API/realtime/Caddy non-root,
+  read-only, `CapDrop=ALL`, log `10m x 5`; origin health `200` và CSP/HSTS/static
+  security headers enforce.
 - [x] Live edge/CORS/anonymous smoke ngày 14/07/2026: HTTP `308`; CSP/HSTS
   enforce; origin lạ không có ACAO; origin staging được phép; anonymous
   `/api/media/:id` và `/api/admin/quick-action-links` trả `401`.

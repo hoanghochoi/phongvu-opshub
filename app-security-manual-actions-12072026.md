@@ -757,3 +757,17 @@ Runbook infra chi tiết bổ sung: `deploy/home-server/SECURITY_HARDENING_RUNBO
    trong `/srv/opshub/env` mà không in secret ra terminal, và rollback đã bao gồm
    Redis. Không chạy riêng bước bật Redis password vì API/realtime cũ sẽ mất kết
    nối ngay.
+
+### 8.1 Trạng thái preflight mới nhất
+
+- Staging SHA `962257a96310e6d56b13bba4e25d0ad5ff0a8b17` deploy thành công qua
+  workflow `29307636667`; container/header/health proof pass.
+- Production đã được bổ sung UID/GID non-root và Redis password sinh trực tiếp
+  trên host; chỉ ghi nhận độ dài 64, không đọc/chép secret ra ngoài.
+- Exact Compose và Caddy config của SHA trên đã validate bằng env production.
+- Backup on-demand `20260714-121022` hoàn tất sau 16 phút 20 giây do NFS qua
+  Tailscale userspace; 6/6 checksum pass, publish nguyên tử, không còn
+  `.incoming`/local staging và container vẫn healthy.
+- Bước còn cần xác nhận của Đại Ca là **maintenance window production** vì
+  workflow sẽ dừng API/realtime/Caddy, recreate Redis có auth, migrate rồi mới
+  bật hardened runtime. Đây không còn là bước audit read-only.

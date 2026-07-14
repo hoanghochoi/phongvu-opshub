@@ -704,3 +704,14 @@ Thứ tự mới bắt buộc:
    trước mọi backfill/cutover.
 6. Nếu bất kỳ stop condition nào fail, rollback cả release và Redis config;
    không để API cũ chạy với Redis đã bật auth.
+
+### Trạng thái thực hiện preflight
+
+- Bước 1 pass: staging SHA `962257a9...`, workflow `29307636667`; runtime/header
+  smoke pass.
+- Bước 2 pass: encrypted backup `20260714-121022`, 6/6 checksum, atomic publish,
+  cleanup staging pass và container healthy.
+- Bước 3 pass phần chuẩn bị: UID/GID `1000:1000`, Redis password 64 ký tự sinh
+  và lưu trực tiếp trên host, không exfiltrate; Compose/Caddy preflight pass.
+- Bước 4–5 chưa chạy vì đây là maintenance production có downtime. Cần xác nhận
+  thời điểm trước khi fast-forward `main` và theo dõi workflow đến terminal.
