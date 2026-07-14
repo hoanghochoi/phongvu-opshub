@@ -738,7 +738,7 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('Mã showroom'), findsOneWidget);
-    expect(find.text('Tên SA'), findsOneWidget);
+    expect(find.text('Tên nhân viên'), findsOneWidget);
     expect(find.text('Tên khách hàng'), findsOneWidget);
     expect(find.text('Loại khách hàng'), findsOneWidget);
     expect(find.text('Ngành hàng'), findsOneWidget);

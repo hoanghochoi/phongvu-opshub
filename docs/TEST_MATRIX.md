@@ -2649,6 +2649,21 @@ src/map-vietin/map-vietin.service.spec.ts` (26 tests), `npm run build`, full
   full Nest/Flutter tests và `git diff --check`.
 - Manual pending: Windows Home placement/focus/Escape/USB scanner và điện thoại
   thật camera/horizontal scroll/customer QR scan.
+- Regression 2026-07-14: scanner trả focus về đúng trường link; launcher refresh
+  API trước khi mở và sau khi lưu để Super Admin/user nhận QR action mới ngay.
+- Desktop data cards dùng `AppTwoAxisScrollView` với controller riêng từng trục,
+  thumb/track hiện và interactive trên Windows. Home HVTC đổi nhãn thành
+  `Tên nhân viên`; backend resolve mọi nhân viên active đúng showroom, không lọc
+  chức danh SA, đồng thời fallback sang tên/email ERP của đơn hàng.
+- Global UI regression 2026-07-14: `MaterialApp.builder` bọc route và overlay
+  bằng `AppGlobalSelectionScope` để text tại screen/card/modal/dialog có thể
+  chọn/copy; editable input tự cô lập vùng chọn. Dialog sạch đóng khi click ngoài,
+  Back hoặc Escape; editor đã sửa dùng `AppDirtyFormGuard` để hỏi xác nhận hủy.
+  Guard test cấm `barrierDismissible: false`; widget tests bao phủ đóng sạch,
+  tiếp tục sửa, hủy bản nháp và lưu thành công không hỏi hủy. Validation toàn
+  repo: `flutter analyze --no-pub` sạch, `flutter test --no-pub` pass 452 test
+  với 2 platform skip có chủ đích; Nest focused pass 18 test và `npm run build`
+  pass.
 
 ## Evidence Rules
 

@@ -14,6 +14,7 @@ import '../../../../app/widgets/app_chips.dart';
 import '../../../../app/widgets/app_combobox.dart';
 import '../../../../app/widgets/app_filter_dropdowns.dart';
 import '../../../../app/widgets/app_inputs.dart';
+import '../../../../app/widgets/app_dialogs.dart';
 import '../../../../app/widgets/app_layout.dart';
 import '../../../../app/widgets/app_pagination.dart';
 import '../../../../app/widgets/app_state_widgets.dart';
@@ -204,16 +205,19 @@ class _OffsetAdjustmentScreenState extends State<OffsetAdjustmentScreen> {
     OffsetAdjustment? initial,
   }) async {
     final provider = context.read<OffsetAdjustmentProvider>();
-    await showDialog<void>(
+    await showDialog<bool>(
       context: context,
-      builder: (dialogContext) => _OffsetInputDialog(
-        type: type,
-        initial: initial,
-        money: _money,
-        onSubmit: (input) {
-          if (initial == null) return provider.create(input);
-          return provider.resubmit(initial.id, input);
-        },
+      builder: (dialogContext) => AppDirtyFormGuard(
+        source: 'offset_adjustment.editor',
+        child: _OffsetInputDialog(
+          type: type,
+          initial: initial,
+          money: _money,
+          onSubmit: (input) {
+            if (initial == null) return provider.create(input);
+            return provider.resubmit(initial.id, input);
+          },
+        ),
       ),
     );
   }
@@ -279,34 +283,37 @@ class _OffsetAdjustmentScreenState extends State<OffsetAdjustmentScreen> {
     final controller = TextEditingController();
     return showDialog<String>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text(title),
-        content: SizedBox(
-          width: math.max(
-            240.0,
-            math.min(MediaQuery.sizeOf(context).width - 48, 520.0),
+      builder: (context) => AppDirtyFormGuard(
+        source: 'offset_adjustment.prompt',
+        child: AlertDialog(
+          title: Text(title),
+          content: SizedBox(
+            width: math.max(
+              240.0,
+              math.min(MediaQuery.sizeOf(context).width - 48, 520.0),
+            ),
+            child: AppTextInput(
+              controller: controller,
+              label: label,
+              autofocus: true,
+              maxLines: maxLines,
+            ),
           ),
-          child: AppTextInput(
-            controller: controller,
-            label: label,
-            autofocus: true,
-            maxLines: maxLines,
-          ),
+          actions: [
+            AppDialogCancelButton(onPressed: () => Navigator.of(context).pop()),
+            AppDialogConfirmButton(
+              onPressed: () {
+                final text = controller.text.trim();
+                if (text.isEmpty) {
+                  _showSnack(context, emptyMessage);
+                  return;
+                }
+                Navigator.of(context).pop(text);
+              },
+              label: 'Xác nhận',
+            ),
+          ],
         ),
-        actions: [
-          AppDialogCancelButton(onPressed: () => Navigator.of(context).pop()),
-          AppDialogConfirmButton(
-            onPressed: () {
-              final text = controller.text.trim();
-              if (text.isEmpty) {
-                _showSnack(context, emptyMessage);
-                return;
-              }
-              Navigator.of(context).pop(text);
-            },
-            label: 'Xác nhận',
-          ),
-        ],
       ),
     );
   }
@@ -1205,7 +1212,7 @@ class _OffsetInputDialogState extends State<_OffsetInputDialog> {
     if (!mounted) return;
     setState(() => _saving = false);
     if (error == null) {
-      Navigator.of(context).pop();
+      Navigator.of(context).pop(true);
     } else {
       _showSnack(error);
     }

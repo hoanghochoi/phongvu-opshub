@@ -10,6 +10,7 @@ import '../../../../app/widgets/app_buttons.dart';
 import '../../../../app/widgets/app_cards.dart';
 import '../../../../app/widgets/app_chips.dart';
 import '../../../../app/widgets/app_combobox.dart';
+import '../../../../app/widgets/app_dialogs.dart';
 import '../../../../app/widgets/app_filter_dropdowns.dart';
 import '../../../../app/widgets/app_inputs.dart';
 import '../../../../app/widgets/app_layout.dart';
@@ -188,7 +189,7 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
     if (!mounted) return null;
     final submitted = await showDialog<bool>(
       context: context,
-      barrierDismissible: false,
+      barrierDismissible: true,
       builder: (context) {
         final size = MediaQuery.sizeOf(context);
         final form = reportType == _typePurchased
@@ -202,14 +203,17 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
                 closeOnSuccess: true,
                 stickyHeader: true,
               );
-        return Dialog(
-          insetPadding: const EdgeInsets.all(16),
-          child: SizedBox(
-            width: size.width >= 960 ? 900 : size.width * 0.94,
-            height: size.height * 0.90,
-            child: ChangeNotifierProvider<SalesReportProvider>.value(
-              value: provider,
-              child: form,
+        return AppDirtyFormGuard(
+          source: 'SalesReport',
+          child: Dialog(
+            insetPadding: const EdgeInsets.all(16),
+            child: SizedBox(
+              width: size.width >= 960 ? 900 : size.width * 0.94,
+              height: size.height * 0.90,
+              child: ChangeNotifierProvider<SalesReportProvider>.value(
+                value: provider,
+                child: form,
+              ),
             ),
           ),
         );

@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 
 import '../../core/platform/text_input_context_menu_bootstrap.dart';
 import '../theme/app_text_styles.dart';
+import 'app_dialogs.dart';
 import 'app_layout.dart';
 
 EditableTextContextMenuBuilder? appTextInputContextMenuBuilder({
@@ -124,7 +125,10 @@ class AppTextInput extends StatelessWidget {
         keyboardType: keyboardType,
         textCapitalization: textCapitalization,
         inputFormatters: inputFormatters,
-        onChanged: onChanged,
+        onChanged: (value) {
+          notifyAppFormChanged(context);
+          onChanged?.call(value);
+        },
         onSubmitted: onSubmitted,
         autofocus: autofocus,
         enabled: enabled,
@@ -223,7 +227,10 @@ class AppFormTextInput extends StatelessWidget {
         keyboardType: keyboardType,
         textCapitalization: textCapitalization,
         inputFormatters: inputFormatters,
-        onChanged: onChanged,
+        onChanged: (value) {
+          notifyAppFormChanged(context);
+          onChanged?.call(value);
+        },
         onFieldSubmitted: onFieldSubmitted,
         validator: validator,
         autofocus: autofocus,

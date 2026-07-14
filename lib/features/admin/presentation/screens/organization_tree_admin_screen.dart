@@ -9,6 +9,7 @@ import '../../../../app/theme/app_text_styles.dart';
 import '../../../../app/widgets/app_buttons.dart';
 import '../../../../app/widgets/app_cards.dart';
 import '../../../../app/widgets/app_combobox.dart';
+import '../../../../app/widgets/app_dialogs.dart';
 import '../../../../app/widgets/app_inputs.dart';
 import '../../../../app/widgets/app_layout.dart';
 import '../../../../app/widgets/app_state_widgets.dart';
@@ -177,13 +178,16 @@ class _OrganizationTreeAdminScreenState
   }) async {
     final saved = await showDialog<bool>(
       context: context,
-      builder: (context) => _OrganizationNodeEditorDialog(
-        repository: _repository,
-        nodes: _nodes,
-        node: node,
-        parentId: parentId,
-        canEditStructure:
-            context.read<AuthProvider>().user?.role == 'SUPER_ADMIN',
+      builder: (context) => AppDirtyFormGuard(
+        source: 'OrganizationAdmin',
+        child: _OrganizationNodeEditorDialog(
+          repository: _repository,
+          nodes: _nodes,
+          node: node,
+          parentId: parentId,
+          canEditStructure:
+              context.read<AuthProvider>().user?.role == 'SUPER_ADMIN',
+        ),
       ),
     );
     if (saved == true) await _load();
@@ -206,12 +210,15 @@ class _OrganizationTreeAdminScreenState
       if (!mounted) return;
       final updated = await showDialog<bool>(
         context: context,
-        builder: (context) => NodeFeatureAssignmentDialog(
-          repository: _repository,
-          nodes: _nodes,
-          features: results[0] as List<AdminFeatureDefinition>,
-          assignments: results[1] as List<AdminNodeFeatureAssignment>,
-          initialNode: node,
+        builder: (context) => AppDirtyFormGuard(
+          source: 'OrganizationAdmin',
+          child: NodeFeatureAssignmentDialog(
+            repository: _repository,
+            nodes: _nodes,
+            features: results[0] as List<AdminFeatureDefinition>,
+            assignments: results[1] as List<AdminNodeFeatureAssignment>,
+            initialNode: node,
+          ),
         ),
       );
       await AppLogger.instance.info(
@@ -1232,7 +1239,10 @@ class _OrganizationNodeEditorDialogState
                 value: _isActive,
                 title: const Text('Đang hoạt động'),
                 onChanged: canEditStructure
-                    ? (value) => setState(() => _isActive = value)
+                    ? (value) {
+                        notifyAppFormChanged(context);
+                        setState(() => _isActive = value);
+                      }
                     : null,
               ),
             ],

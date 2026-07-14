@@ -12,6 +12,7 @@ import '../../../../app/widgets/app_buttons.dart';
 import '../../../../app/widgets/app_cards.dart';
 import '../../../../app/widgets/app_chips.dart';
 import '../../../../app/widgets/app_combobox.dart';
+import '../../../../app/widgets/app_dialogs.dart';
 import '../../../../app/widgets/app_inputs.dart';
 import '../../../../app/widgets/app_layout.dart';
 import '../../../../app/widgets/app_state_widgets.dart';
@@ -459,14 +460,17 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
         context.read<AuthProvider>().user?.role == 'SUPER_ADMIN';
     final updated = await showDialog<bool>(
       context: context,
-      builder: (context) => _UserEditorDialog(
-        repository: _repository,
-        roles: _roles,
-        regions: _regions,
-        areas: _areas,
-        orgNodes: _orgNodes,
-        user: user,
-        canEditRole: canEditRole,
+      builder: (context) => AppDirtyFormGuard(
+        source: 'UserAdmin',
+        child: _UserEditorDialog(
+          repository: _repository,
+          roles: _roles,
+          regions: _regions,
+          areas: _areas,
+          orgNodes: _orgNodes,
+          user: user,
+          canEditRole: canEditRole,
+        ),
       ),
     );
     if (updated == true) await _load();
@@ -1746,7 +1750,10 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
                       )
                       .toList(),
                   allowClear: false,
-                  onChanged: (value) => _setRole(value ?? 'USER'),
+                  onChanged: (value) {
+                    notifyAppFormChanged(context);
+                    _setRole(value ?? 'USER');
+                  },
                 )
               else
                 AppReadOnlyField(
@@ -1778,7 +1785,10 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
                   AppComboboxOption(value: 'no', label: 'Khóa'),
                 ],
                 allowClear: false,
-                onChanged: (value) => setState(() => _status = value ?? 'yes'),
+                onChanged: (value) {
+                  notifyAppFormChanged(context);
+                  setState(() => _status = value ?? 'yes');
+                },
               ),
             ],
           ),

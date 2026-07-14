@@ -10,6 +10,7 @@ class QuickActionsProvider extends ChangeNotifier {
   final QuickActionsRepository _repository;
   QuickActionsPayload? _payload;
   bool _loading = false;
+  Future<QuickActionsPayload?>? _refreshInFlight;
   Object? _error;
   String? _userId;
 
@@ -31,8 +32,26 @@ class QuickActionsProvider extends ChangeNotifier {
     await refresh();
   }
 
-  Future<QuickActionsPayload?> refresh({String? storeCode}) async {
-    if (_loading) return _payload;
+  Future<QuickActionsPayload?> refresh({
+    String? storeCode,
+    bool force = false,
+  }) async {
+    final running = _refreshInFlight;
+    if (running != null) {
+      if (!force) return running;
+      await running;
+      return refresh(storeCode: storeCode);
+    }
+    final request = _load(storeCode: storeCode);
+    _refreshInFlight = request;
+    try {
+      return await request;
+    } finally {
+      if (identical(_refreshInFlight, request)) _refreshInFlight = null;
+    }
+  }
+
+  Future<QuickActionsPayload?> _load({String? storeCode}) async {
     final startedAt = DateTime.now();
     _loading = true;
     _error = null;

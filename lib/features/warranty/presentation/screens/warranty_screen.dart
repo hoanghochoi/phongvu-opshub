@@ -257,7 +257,7 @@ class _WarrantyScreenState extends State<WarrantyScreen> {
       if (success) {
         await showDialog(
           context: context,
-          barrierDismissible: false,
+          barrierDismissible: true,
           builder: (context) => AlertDialog(
             icon: const Icon(
               Icons.check_circle,
@@ -284,7 +284,7 @@ class _WarrantyScreenState extends State<WarrantyScreen> {
       } else {
         await showDialog(
           context: context,
-          barrierDismissible: false,
+          barrierDismissible: true,
           builder: (context) => AlertDialog(
             icon: const Icon(Icons.error, color: AppColors.error, size: 64),
             title: const Text('Chưa lưu được biên nhận'),

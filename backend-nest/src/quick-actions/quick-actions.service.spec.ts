@@ -100,4 +100,48 @@ describe('QuickActionsService', () => {
       service.updateAdminLinks(manager, 'HN99', {}),
     ).rejects.toBeInstanceOf(ForbiddenException);
   });
+
+  it('returns configured QR actions for a super admin on a fresh load', async () => {
+    const superAdmin = {
+      id: 'super-admin-1',
+      role: 'SUPER_ADMIN',
+      email: 'super.admin@example.com',
+    };
+    const store = {
+      storeId: 'CP75',
+      storeName: 'Showroom 75',
+      organizationNodeId: 'node-75',
+    };
+    const configured = [
+      { actionCode: 'APP_DOWNLOAD' },
+      { actionCode: 'CHECK_IN' },
+      { actionCode: 'ZALO_OA' },
+      { actionCode: 'GOOGLE_MAP' },
+    ];
+    const { prisma, service } = createService();
+    prisma.store.findMany.mockResolvedValue([store]);
+    prisma.quickActionLink.findMany
+      .mockResolvedValueOnce(configured)
+      .mockResolvedValueOnce(
+        configured.map((item) => ({
+          ...item,
+          storeCode: 'CP75',
+          url: `https://example.com/${item.actionCode.toLowerCase()}`,
+        })),
+      );
+
+    const result = await service.getQuickActions(superAdmin, 'CP75');
+
+    expect(result.availableActionCodes).toEqual(
+      expect.arrayContaining([
+        'APP_DOWNLOAD',
+        'CHECK_IN',
+        'ZALO_OA',
+        'GOOGLE_MAP',
+      ]),
+    );
+    expect(result.links.APP_DOWNLOAD).toBe(
+      'https://example.com/app_download',
+    );
+  });
 });

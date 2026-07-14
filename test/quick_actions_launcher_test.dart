@@ -93,6 +93,67 @@ void main() {
         .toList();
     expect(xPositions, orderedEquals([...xPositions]..sort()));
   });
+
+  testWidgets('refreshes configured QR actions before opening the menu', (
+    tester,
+  ) async {
+    const user = User(
+      email: 'super.admin@phongvu.vn',
+      role: 'SUPER_ADMIN',
+      featureAccess: {'QUICK_ACTIONS': true},
+    );
+    const stalePayload = QuickActionsPayload(
+      stores: [QuickActionStore(storeCode: 'CP75', storeName: 'Showroom 75')],
+      selectedStoreCode: null,
+      availableActionCodes: {},
+      links: {},
+    );
+    const refreshedPayload = QuickActionsPayload(
+      stores: [QuickActionStore(storeCode: 'CP75', storeName: 'Showroom 75')],
+      selectedStoreCode: null,
+      availableActionCodes: {
+        'APP_DOWNLOAD',
+        'CHECK_IN',
+        'ZALO_OA',
+        'GOOGLE_MAP',
+      },
+      links: {},
+    );
+    final quickActions = _FakeQuickActionsProvider(
+      stalePayload,
+      refreshedPayload: refreshedPayload,
+    );
+
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider<AuthProvider>.value(
+            value: _FakeAuthProvider(user),
+          ),
+          ChangeNotifierProvider<QuickActionsProvider>.value(
+            value: quickActions,
+          ),
+        ],
+        child: const MaterialApp(
+          home: Scaffold(
+            body: QuickActionsLauncher(
+              menuAxis: Axis.horizontal,
+              location: '/home',
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.byKey(const Key('quick-actions-launcher')));
+    await tester.pumpAndSettle();
+
+    expect(quickActions.refreshCount, 1);
+    expect(find.text('Tải app'), findsOneWidget);
+    expect(find.text('Check-in'), findsOneWidget);
+    expect(find.text('Zalo OA'), findsOneWidget);
+    expect(find.text('GG Map'), findsOneWidget);
+  });
 }
 
 class _FakeAuthProvider extends AuthProvider {
@@ -103,9 +164,23 @@ class _FakeAuthProvider extends AuthProvider {
 }
 
 class _FakeQuickActionsProvider extends QuickActionsProvider {
-  final QuickActionsPayload _payload;
-  _FakeQuickActionsProvider(this._payload)
+  QuickActionsPayload _payload;
+  final QuickActionsPayload? refreshedPayload;
+  int refreshCount = 0;
+
+  _FakeQuickActionsProvider(this._payload, {this.refreshedPayload})
     : super(QuickActionsRepository(ApiClient()));
   @override
   QuickActionsPayload get payload => _payload;
+
+  @override
+  Future<QuickActionsPayload?> refresh({
+    String? storeCode,
+    bool force = false,
+  }) async {
+    refreshCount += 1;
+    _payload = refreshedPayload ?? _payload;
+    notifyListeners();
+    return _payload;
+  }
 }

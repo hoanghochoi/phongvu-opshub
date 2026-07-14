@@ -1563,27 +1563,16 @@ class _SalesBehaviorDetailsTable extends StatelessWidget {
         ),
         const SizedBox(height: 8),
         Expanded(
-          child: Scrollbar(
-            child: SingleChildScrollView(
-              child: Scrollbar(
-                notificationPredicate: (notification) =>
-                    notification.metrics.axis == Axis.horizontal,
-                child: SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: ConstrainedBox(
-                    constraints: BoxConstraints(
-                      minWidth: isNotPurchased ? 940 : 660,
+          child: AppTwoAxisScrollView(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minWidth: isNotPurchased ? 940 : 660),
+              child: isNotPurchased
+                  ? _NotPurchasedDetailsDataTable(
+                      rows: details.notPurchasedReports,
+                    )
+                  : _UnreportedOrdersDetailsDataTable(
+                      rows: details.unreportedOrders,
                     ),
-                    child: isNotPurchased
-                        ? _NotPurchasedDetailsDataTable(
-                            rows: details.notPurchasedReports,
-                          )
-                        : _UnreportedOrdersDetailsDataTable(
-                            rows: details.unreportedOrders,
-                          ),
-                  ),
-                ),
-              ),
             ),
           ),
         ),
@@ -1610,7 +1599,7 @@ class _NotPurchasedDetailsDataTable extends StatelessWidget {
       ),
       columns: const [
         DataColumn(label: Text('Mã showroom')),
-        DataColumn(label: Text('Tên SA')),
+        DataColumn(label: Text('Tên nhân viên')),
         DataColumn(label: Text('Tên khách hàng')),
         DataColumn(label: Text('Loại khách hàng')),
         DataColumn(label: Text('Ngành hàng')),
@@ -1651,7 +1640,7 @@ class _UnreportedOrdersDetailsDataTable extends StatelessWidget {
       ),
       columns: const [
         DataColumn(label: Text('Mã showroom')),
-        DataColumn(label: Text('Tên SA')),
+        DataColumn(label: Text('Tên nhân viên')),
         DataColumn(label: Text('Mã đơn hàng')),
         DataColumn(label: Text('Thời gian bán')),
       ],
@@ -1696,19 +1685,10 @@ class _InstallmentNeedDetailsTable extends StatelessWidget {
         ),
         const SizedBox(height: 8),
         Expanded(
-          child: Scrollbar(
-            child: SingleChildScrollView(
-              child: Scrollbar(
-                notificationPredicate: (notification) =>
-                    notification.metrics.axis == Axis.horizontal,
-                child: SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(minWidth: 820),
-                    child: _InstallmentNeedDetailsDataTable(rows: rows),
-                  ),
-                ),
-              ),
+          child: AppTwoAxisScrollView(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minWidth: 820),
+              child: _InstallmentNeedDetailsDataTable(rows: rows),
             ),
           ),
         ),
@@ -1735,7 +1715,7 @@ class _InstallmentNeedDetailsDataTable extends StatelessWidget {
       ),
       columns: const [
         DataColumn(label: Text('Mã showroom')),
-        DataColumn(label: Text('Tên SA')),
+        DataColumn(label: Text('Tên nhân viên')),
         DataColumn(label: Text('Đối tác trả góp')),
         DataColumn(label: Text('Thành công')),
         DataColumn(label: Text('Ghi chú')),

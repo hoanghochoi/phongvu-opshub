@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
 
 import '../../../app/theme/app_colors.dart';
 import '../../../app/theme/app_text_styles.dart';
@@ -15,6 +16,7 @@ import '../../../app/widgets/app_toast.dart';
 import '../../../core/logging/app_logger.dart';
 import '../../fifo_check/presentation/widgets/barcode_scanner_screen.dart';
 import '../data/quick_actions_repository.dart';
+import 'quick_actions_provider.dart';
 
 const _adminActionFields = <String, String>{
   'APP_DOWNLOAD': 'Tải app',
@@ -23,10 +25,20 @@ const _adminActionFields = <String, String>{
   'GOOGLE_MAP': 'GG Map',
 };
 
+typedef QuickActionLinkScanner =
+    Future<String?> Function(BuildContext context, String code, String label);
+
 class QuickActionLinksAdminScreen extends StatefulWidget {
   final QuickActionsRepository repository;
+  final QuickActionLinkScanner? scanner;
+  final bool? cameraScannerSupported;
 
-  const QuickActionLinksAdminScreen({super.key, required this.repository});
+  const QuickActionLinksAdminScreen({
+    super.key,
+    required this.repository,
+    this.scanner,
+    this.cameraScannerSupported,
+  });
 
   @override
   State<QuickActionLinksAdminScreen> createState() =>
@@ -138,10 +150,12 @@ class _QuickActionLinksAdminScreenState
   }
 
   Future<void> _scan(String code) async {
-    final cameraSupported = barcodeCameraScannerSupported(
-      isWeb: kIsWeb,
-      platform: defaultTargetPlatform,
-    );
+    final cameraSupported =
+        widget.cameraScannerSupported ??
+        barcodeCameraScannerSupported(
+          isWeb: kIsWeb,
+          platform: defaultTargetPlatform,
+        );
     await AppLogger.instance.info(
       'QuickActionAdmin',
       'Quick action link scan started',
@@ -165,25 +179,53 @@ class _QuickActionLinksAdminScreenState
       );
       return;
     }
-    final value = await showBarcodeScanner(
-      context,
-      title: 'Quét liên kết ${_adminActionFields[code]}',
-      instruction: 'Đưa mã QR liên kết vào giữa khung',
-      helperText: 'Mã cần chứa liên kết bắt đầu bằng http:// hoặc https://',
-      parsePhongVuSku: false,
-    );
-    if (value == null || !mounted) return;
-    _controllers[code]!.text = value.trim();
+    FocusManager.instance.primaryFocus?.unfocus();
+    final label = _adminActionFields[code]!;
+    final value =
+        await (widget.scanner?.call(context, code, label) ??
+            showBarcodeScanner(
+              context,
+              title: 'Quét liên kết $label',
+              instruction: 'Đưa mã QR liên kết vào giữa khung',
+              helperText:
+                  'Mã cần chứa liên kết bắt đầu bằng http:// hoặc https://',
+              parsePhongVuSku: false,
+            ));
+    if (!mounted) return;
+    _restoreLinkFocus(code);
+    if (value == null) {
+      await AppLogger.instance.info(
+        'QuickActionAdmin',
+        'Quick action link scan cancelled',
+        context: {'actionCode': code, 'storeCode': _storeCode},
+      );
+      return;
+    }
+    final normalized = value.trim();
+    _controllers[code]!
+      ..text = normalized
+      ..selection = TextSelection.collapsed(offset: normalized.length);
     await AppLogger.instance.info(
       'QuickActionAdmin',
       'Quick action link scan succeeded',
       context: {
         'actionCode': code,
         'storeCode': _storeCode,
-        'urlLength': value.trim().length,
+        'urlLength': normalized.length,
       },
     );
     setState(() {});
+  }
+
+  void _restoreLinkFocus(String code) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final controller = _controllers[code]!;
+      controller.selection = TextSelection.collapsed(
+        offset: controller.text.length,
+      );
+      _focusNodes[code]!.requestFocus();
+    });
   }
 
   Future<void> _save() async {
@@ -200,6 +242,7 @@ class _QuickActionLinksAdminScreenState
           entry.key: entry.value.text.trim(),
       };
       await widget.repository.saveAdminLinks(storeCode, links);
+      await _refreshQuickActionsAfterSave(storeCode);
       await AppLogger.instance.info(
         'QuickActionAdmin',
         'Quick action links save succeeded',
@@ -239,6 +282,30 @@ class _QuickActionLinksAdminScreenState
       }
     } finally {
       if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _refreshQuickActionsAfterSave(String storeCode) async {
+    try {
+      final payload = await context.read<QuickActionsProvider>().refresh(
+        storeCode: storeCode,
+        force: true,
+      );
+      await AppLogger.instance.info(
+        'QuickActionAdmin',
+        'Quick actions refreshed after link save',
+        context: {
+          'storeCode': storeCode,
+          'status': payload == null ? 'failed' : 'succeeded',
+          'availableCount': payload?.availableActionCodes.length ?? 0,
+        },
+      );
+    } on ProviderNotFoundException {
+      await AppLogger.instance.info(
+        'QuickActionAdmin',
+        'Quick actions refresh skipped after link save',
+        context: {'storeCode': storeCode, 'reason': 'provider_unavailable'},
+      );
     }
   }
 

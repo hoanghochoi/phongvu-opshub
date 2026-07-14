@@ -7,6 +7,7 @@ import '../../../../app/theme/app_text_styles.dart';
 import '../../../../app/widgets/app_buttons.dart';
 import '../../../../app/widgets/app_cards.dart';
 import '../../../../app/widgets/app_combobox.dart';
+import '../../../../app/widgets/app_dialogs.dart';
 import '../../../../app/widgets/app_inputs.dart';
 import '../../../../app/widgets/app_layout.dart';
 import '../../../../app/widgets/app_state_widgets.dart';
@@ -90,11 +91,14 @@ class _PersonnelCatalogAdminScreenState
   Future<void> _openDepartmentEditor([AdminPersonnelDefinition? item]) async {
     final updated = await showDialog<bool>(
       context: context,
-      builder: (context) => _PersonnelEditorDialog(
-        repository: _repository,
-        type: _CatalogType.department,
-        item: item,
-        departments: _departments,
+      builder: (context) => AppDirtyFormGuard(
+        source: 'PersonnelAdmin',
+        child: _PersonnelEditorDialog(
+          repository: _repository,
+          type: _CatalogType.department,
+          item: item,
+          departments: _departments,
+        ),
       ),
     );
     if (updated == true) await _load();
@@ -103,11 +107,14 @@ class _PersonnelCatalogAdminScreenState
   Future<void> _openJobRoleEditor([AdminPersonnelDefinition? item]) async {
     final updated = await showDialog<bool>(
       context: context,
-      builder: (context) => _PersonnelEditorDialog(
-        repository: _repository,
-        type: _CatalogType.jobRole,
-        item: item,
-        departments: _departments,
+      builder: (context) => AppDirtyFormGuard(
+        source: 'PersonnelAdmin',
+        child: _PersonnelEditorDialog(
+          repository: _repository,
+          type: _CatalogType.jobRole,
+          item: item,
+          departments: _departments,
+        ),
       ),
     );
     if (updated == true) await _load();
@@ -634,7 +641,10 @@ class _PersonnelEditorDialogState extends State<_PersonnelEditorDialog> {
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
                 value: _isActive,
-                onChanged: (value) => setState(() => _isActive = value),
+                onChanged: (value) {
+                  notifyAppFormChanged(context);
+                  setState(() => _isActive = value);
+                },
                 title: const Text('Đang bật'),
               ),
             ],

@@ -679,8 +679,8 @@ export class HomeSummaryService {
               notPurchasedOtherReason: true,
             },
           });
-    const validUnreportedSalesNames =
-      await this.validUnreportedSalesNamesByEmail(unreportedOrders);
+    const unreportedEmployeeNames =
+      await this.unreportedEmployeeNamesByEmail(unreportedOrders);
 
     const response: HomeSummaryBehaviorDetailsResponse = {
       startDate: range.startDate,
@@ -696,14 +696,14 @@ export class HomeSummaryService {
         this.toHomeNotPurchasedDetail(row),
       ),
       unreportedOrders: unreportedOrders.map((row: any) =>
-        this.toHomeUnreportedOrderDetail(row, validUnreportedSalesNames),
+        this.toHomeUnreportedOrderDetail(row, unreportedEmployeeNames),
       ),
       installmentNeedReports: installmentNeedReports.map((row: any) =>
         this.toHomeInstallmentNeedDetail(row),
       ),
     };
     this.logger.log(
-      `Home summary behavior details load succeeded: user=${this.safeUserLabel(user)} startDate=${range.startDate} endDate=${range.endDate} scope=${salesMetricsScope.scope} selectedSalesProgressUserId=${selectedSalesScope.selectedUserId || 'none'} notPurchased=${response.notPurchasedReports.length}/${notPurchasedTotal} unreported=${response.unreportedOrders.length}/${unreportedTotal} installmentNeed=${response.installmentNeedReports.length}/${installmentNeedTotal} limit=${limit} durationMs=${Date.now() - startedAt}`,
+      `Home summary behavior details load succeeded: user=${this.safeUserLabel(user)} startDate=${range.startDate} endDate=${range.endDate} scope=${salesMetricsScope.scope} selectedSalesProgressUserId=${selectedSalesScope.selectedUserId || 'none'} notPurchased=${response.notPurchasedReports.length}/${notPurchasedTotal} unreported=${response.unreportedOrders.length}/${unreportedTotal} resolvedEmployeeNames=${response.unreportedOrders.filter((row) => Boolean(row.salesName)).length} unresolvedEmployeeNames=${response.unreportedOrders.filter((row) => !row.salesName).length} installmentNeed=${response.installmentNeedReports.length}/${installmentNeedTotal} limit=${limit} durationMs=${Date.now() - startedAt}`,
     );
     return response;
   }
@@ -2235,7 +2235,7 @@ export class HomeSummaryService {
 
   private toHomeUnreportedOrderDetail(
     row: any,
-    validSalesNamesByKey: Map<string, string>,
+    employeeNamesByKey: Map<string, string>,
   ): HomeSummaryUnreportedOrderDetail {
     const storeCode = this.normalizeStoreCode(row.storeCode);
     return {
@@ -2243,20 +2243,28 @@ export class HomeSummaryService {
       soldAt: row.orderCreatedAt ?? null,
       storeCode,
       salesName:
-        this.validSalesNameForStore(
-          validSalesNamesByKey,
+        this.employeeNameForStore(
+          employeeNamesByKey,
           row.consultantEmail,
           storeCode,
         ) ??
-        this.validSalesNameForStore(
-          validSalesNamesByKey,
+        this.displayPersonName(row.consultantName, row.consultantEmail) ??
+        this.employeeNameForStore(
+          employeeNamesByKey,
           row.sellerEmail,
           storeCode,
-        ),
+        ) ??
+        this.displayPersonName(row.sellerName, row.sellerEmail) ??
+        this.employeeNameForStore(
+          employeeNamesByKey,
+          row.sourceUserEmail,
+          storeCode,
+        ) ??
+        this.normalizeEmail(row.sourceUserEmail),
     };
   }
 
-  private async validUnreportedSalesNamesByEmail(rows: any[]) {
+  private async unreportedEmployeeNamesByEmail(rows: any[]) {
     const candidates = rows
       .flatMap((row) => [
         {
@@ -2265,6 +2273,10 @@ export class HomeSummaryService {
         },
         {
           email: this.normalizeEmail(row.sellerEmail),
+          storeCode: this.normalizeStoreCode(row.storeCode),
+        },
+        {
+          email: this.normalizeEmail(row.sourceUserEmail),
           storeCode: this.normalizeStoreCode(row.storeCode),
         },
       ])
@@ -2299,7 +2311,7 @@ export class HomeSummaryService {
     const usersByEmail = new Map<string, any>();
     for (const user of users) {
       const email = this.normalizeEmail(user.email);
-      if (email && this.isSaUser(user)) usersByEmail.set(email, user);
+      if (email) usersByEmail.set(email, user);
     }
     const result = new Map<string, string>();
     for (const candidate of candidates) {
@@ -2319,31 +2331,21 @@ export class HomeSummaryService {
     return result;
   }
 
-  private validSalesNameForStore(
-    validSalesNamesByKey: Map<string, string>,
+  private employeeNameForStore(
+    employeeNamesByKey: Map<string, string>,
     emailValue: unknown,
     storeCode: string | null,
   ) {
     const email = this.normalizeEmail(emailValue);
     if (!email || !storeCode) return null;
     return (
-      validSalesNamesByKey.get(this.salesPersonStoreKey(email, storeCode)) ??
+      employeeNamesByKey.get(this.salesPersonStoreKey(email, storeCode)) ??
       null
     );
   }
 
   private salesPersonStoreKey(email: string, storeCode: string) {
     return `${email.toLowerCase()}|${storeCode.toUpperCase()}`;
-  }
-
-  private isSaUser(user: any) {
-    return [user?.jobRoleCode, user?.jobRole?.code, user?.jobRole?.businessCode]
-      .map((value) =>
-        String(value || '')
-          .trim()
-          .toUpperCase(),
-      )
-      .some((code) => code === 'SA' || code.endsWith('_SA'));
   }
 
   private userHasStore(user: any, storeCode: string) {

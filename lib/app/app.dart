@@ -200,10 +200,12 @@ class _AppRouterGatewayState extends State<AppRouterGateway> {
       ],
       supportedLocales: const [Locale('vi', ''), Locale('en', '')],
       builder: (context, child) {
-        return AppMobileTypographyDensity(
-          child: _SessionExpiredDialogGate(
-            router: _router,
-            child: AppUpdateGate(child: child ?? const SizedBox()),
+        return AppGlobalSelectionScope(
+          child: AppMobileTypographyDensity(
+            child: _SessionExpiredDialogGate(
+              router: _router,
+              child: AppUpdateGate(child: child ?? const SizedBox()),
+            ),
           ),
         );
       },
@@ -289,7 +291,7 @@ class _SessionExpiredDialogGateState extends State<_SessionExpiredDialogGate> {
         }
         await showDialog<void>(
           context: navigatorContext,
-          barrierDismissible: false,
+          barrierDismissible: true,
           builder: (dialogContext) => AlertDialog(
             title: const Text('Phiên đăng nhập đã hết hạn'),
             content: Text(currentMessage),

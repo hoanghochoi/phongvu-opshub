@@ -341,9 +341,9 @@ describe('HomeSummaryService', () => {
     prisma.user.findMany.mockResolvedValueOnce([
       {
         email: 'sa2@phongvu.vn',
-        firstName: 'SA',
-        lastName: 'Hai',
-        jobRoleCode: 'SA',
+        firstName: 'Nhân viên',
+        lastName: 'Kho',
+        jobRoleCode: 'WAREHOUSE_STAFF',
         jobRole: null,
         store: { storeId: 'CP62' },
         organizationNode: null,
@@ -424,7 +424,7 @@ describe('HomeSummaryService', () => {
         {
           orderCode: '2607040002',
           storeCode: 'CP62',
-          salesName: 'SA Hai',
+          salesName: 'Nhân viên Kho',
           soldAt: new Date('2026-07-04T05:00:00Z'),
         },
       ],
@@ -501,7 +501,7 @@ describe('HomeSummaryService', () => {
       expect.objectContaining({
         orderCode: '26070337539840',
         soldAt: null,
-        salesName: null,
+        salesName: 'Việt Nguyễn Quang',
       }),
     ]);
   });

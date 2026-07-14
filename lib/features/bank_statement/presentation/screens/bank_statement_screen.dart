@@ -14,6 +14,7 @@ import '../../../../app/widgets/app_chips.dart';
 import '../../../../app/widgets/app_combobox.dart';
 import '../../../../app/widgets/app_filter_dropdowns.dart';
 import '../../../../app/widgets/app_inputs.dart';
+import '../../../../app/widgets/app_dialogs.dart';
 import '../../../../app/widgets/app_layout.dart';
 import '../../../../app/widgets/app_pagination.dart';
 import '../../../../app/widgets/app_state_widgets.dart';
@@ -688,7 +689,7 @@ class _ExportButton extends StatelessWidget {
 
   Future<void> _handleExport(BuildContext context) async {
     if (provider.hasExportDateRangeLimitViolation) {
-      await showDialog<void>(
+      await showDialog<bool>(
         context: context,
         builder: (dialogContext) => AlertDialog(
           title: const Text('Không thể xuất file'),
@@ -999,55 +1000,58 @@ class _StatementCardState extends State<_StatementCard> {
         context: context,
         builder: (dialogContext) {
           var saving = false;
-          return StatefulBuilder(
-            builder: (context, setDialogState) {
-              return AlertDialog(
-                title: const Text('Cập nhật mã đơn'),
-                content: SizedBox(
-                  width: MediaQuery.of(context).size.width < 560
-                      ? double.maxFinite
-                      : 420,
-                  child: AppTextInput(
-                    controller: requestController,
-                    label: 'Mã đơn hàng mới',
-                    hintText: 'Nhập mỗi mã một dòng, hoặc cách bằng dấu phẩy',
-                    autofocus: true,
-                    keyboardType: TextInputType.multiline,
-                    textInputAction: TextInputAction.newline,
-                    minLines: 3,
-                    maxLines: 6,
+          return AppDirtyFormGuard(
+            source: 'bank_statement.order_transfer_request',
+            child: StatefulBuilder(
+              builder: (context, setDialogState) {
+                return AlertDialog(
+                  title: const Text('Cập nhật mã đơn'),
+                  content: SizedBox(
+                    width: MediaQuery.of(context).size.width < 560
+                        ? double.maxFinite
+                        : 420,
+                    child: AppTextInput(
+                      controller: requestController,
+                      label: 'Mã đơn hàng mới',
+                      hintText: 'Nhập mỗi mã một dòng, hoặc cách bằng dấu phẩy',
+                      autofocus: true,
+                      keyboardType: TextInputType.multiline,
+                      textInputAction: TextInputAction.newline,
+                      minLines: 3,
+                      maxLines: 6,
+                    ),
                   ),
-                ),
-                actions: [
-                  AppDialogCancelButton(
-                    onPressed: saving
-                        ? null
-                        : () => Navigator.of(dialogContext).pop(),
-                  ),
-                  AppDialogConfirmButton(
-                    onPressed: saving
-                        ? null
-                        : () async {
-                            setDialogState(() => saving = true);
-                            final ok = await provider.requestOrderTransfer(
-                              transaction.id,
-                              requestController.text,
-                            );
-                            if (ok && dialogContext.mounted) {
-                              await _reloadGlobalNotifications();
-                              if (!dialogContext.mounted) return;
-                              Navigator.of(dialogContext).pop();
-                            } else if (dialogContext.mounted) {
-                              setDialogState(() => saving = false);
-                            }
-                          },
-                    icon: Icons.send_rounded,
-                    label: 'Gửi Kế toán',
-                    isLoading: saving,
-                  ),
-                ],
-              );
-            },
+                  actions: [
+                    AppDialogCancelButton(
+                      onPressed: saving
+                          ? null
+                          : () => Navigator.of(dialogContext).pop(),
+                    ),
+                    AppDialogConfirmButton(
+                      onPressed: saving
+                          ? null
+                          : () async {
+                              setDialogState(() => saving = true);
+                              final ok = await provider.requestOrderTransfer(
+                                transaction.id,
+                                requestController.text,
+                              );
+                              if (ok && dialogContext.mounted) {
+                                await _reloadGlobalNotifications();
+                                if (!dialogContext.mounted) return;
+                                Navigator.of(dialogContext).pop(true);
+                              } else if (dialogContext.mounted) {
+                                setDialogState(() => saving = false);
+                              }
+                            },
+                      icon: Icons.send_rounded,
+                      label: 'Gửi Kế toán',
+                      isLoading: saving,
+                    ),
+                  ],
+                );
+              },
+            ),
           );
         },
       );
@@ -1071,118 +1075,125 @@ class _StatementCardState extends State<_StatementCard> {
     }
     final rejectNoteController = TextEditingController();
     try {
-      await showDialog<void>(
+      await showDialog<bool>(
         context: context,
         builder: (dialogContext) {
           var saving = false;
-          return StatefulBuilder(
-            builder: (context, setDialogState) {
-              Future<void> review({required bool approved}) async {
-                setDialogState(() => saving = true);
-                try {
-                  if (approved) {
-                    await provider.approveOrderTransferRequest(requestId);
-                  } else {
-                    await provider.rejectOrderTransferRequest(
-                      requestId,
-                      note: rejectNoteController.text,
-                    );
-                  }
-                  await _reloadGlobalNotifications();
-                  if (dialogContext.mounted) Navigator.of(dialogContext).pop();
-                } catch (_) {
-                  if (dialogContext.mounted) {
-                    AppToast.show(
-                      dialogContext,
-                      SnackBar(
-                        content: Text(
-                          approved
-                              ? 'Chưa xác nhận được yêu cầu.'
-                              : 'Chưa từ chối được yêu cầu.',
+          return AppDirtyFormGuard(
+            source: 'bank_statement.order_transfer_review',
+            child: StatefulBuilder(
+              builder: (context, setDialogState) {
+                Future<void> review({required bool approved}) async {
+                  setDialogState(() => saving = true);
+                  try {
+                    if (approved) {
+                      await provider.approveOrderTransferRequest(requestId);
+                    } else {
+                      await provider.rejectOrderTransferRequest(
+                        requestId,
+                        note: rejectNoteController.text,
+                      );
+                    }
+                    await _reloadGlobalNotifications();
+                    if (dialogContext.mounted) {
+                      Navigator.of(dialogContext).pop(true);
+                    }
+                  } catch (_) {
+                    if (dialogContext.mounted) {
+                      AppToast.show(
+                        dialogContext,
+                        SnackBar(
+                          content: Text(
+                            approved
+                                ? 'Chưa xác nhận được yêu cầu.'
+                                : 'Chưa từ chối được yêu cầu.',
+                          ),
                         ),
-                      ),
-                    );
-                    setDialogState(() => saving = false);
+                      );
+                      setDialogState(() => saving = false);
+                    }
                   }
                 }
-              }
 
-              return AlertDialog(
-                title: const Text('Phê duyệt cập nhật mã đơn'),
-                content: SelectionArea(
-                  child: SizedBox(
-                    width: MediaQuery.of(context).size.width < 560
-                        ? double.maxFinite
-                        : 460,
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        _reviewLine('Showroom', transaction.storeId),
-                        _reviewLine('Mã sao kê', transaction.statementNumber),
-                        _reviewLine(
-                          'Số tiền',
-                          widget.money.format(transaction.amount),
-                        ),
-                        _reviewLine(
-                          'Đơn hiện tại',
-                          _ordersText(transaction.orders),
-                        ),
-                        _reviewLine(
-                          'Đơn đề nghị',
-                          _ordersText(transaction.orderTransferRequestedOrders),
-                        ),
-                        _reviewLine(
-                          'Thời gian GD',
-                          _formatStatementDateTime(
-                            transaction.paidAt ?? transaction.firstSeenAt,
-                          ),
-                        ),
-                        _reviewLine(
-                          'Thời gian yêu cầu',
-                          _formatStatementDateTime(
-                            transaction.orderTransferRequestedAt,
-                          ),
-                        ),
-                        if ((transaction.orderTransferRequestedByEmail ?? '')
-                            .isNotEmpty)
+                return AlertDialog(
+                  title: const Text('Phê duyệt cập nhật mã đơn'),
+                  content: SelectionArea(
+                    child: SizedBox(
+                      width: MediaQuery.of(context).size.width < 560
+                          ? double.maxFinite
+                          : 460,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          _reviewLine('Showroom', transaction.storeId),
+                          _reviewLine('Mã sao kê', transaction.statementNumber),
                           _reviewLine(
-                            'Người gửi',
-                            transaction.orderTransferRequestedByEmail!,
+                            'Số tiền',
+                            widget.money.format(transaction.amount),
                           ),
-                        const SizedBox(height: 8),
-                        AppTextInput(
-                          controller: rejectNoteController,
-                          label: 'Ghi chú khi từ chối (không bắt buộc)',
-                          hintText:
-                              'Ví dụ: Mã đơn chưa đúng, vui lòng kiểm tra lại.',
-                          maxLines: 3,
-                        ),
-                      ],
+                          _reviewLine(
+                            'Đơn hiện tại',
+                            _ordersText(transaction.orders),
+                          ),
+                          _reviewLine(
+                            'Đơn đề nghị',
+                            _ordersText(
+                              transaction.orderTransferRequestedOrders,
+                            ),
+                          ),
+                          _reviewLine(
+                            'Thời gian GD',
+                            _formatStatementDateTime(
+                              transaction.paidAt ?? transaction.firstSeenAt,
+                            ),
+                          ),
+                          _reviewLine(
+                            'Thời gian yêu cầu',
+                            _formatStatementDateTime(
+                              transaction.orderTransferRequestedAt,
+                            ),
+                          ),
+                          if ((transaction.orderTransferRequestedByEmail ?? '')
+                              .isNotEmpty)
+                            _reviewLine(
+                              'Người gửi',
+                              transaction.orderTransferRequestedByEmail!,
+                            ),
+                          const SizedBox(height: 8),
+                          AppTextInput(
+                            controller: rejectNoteController,
+                            label: 'Ghi chú khi từ chối (không bắt buộc)',
+                            hintText:
+                                'Ví dụ: Mã đơn chưa đúng, vui lòng kiểm tra lại.',
+                            maxLines: 3,
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-                ),
-                actions: [
-                  AppDialogCancelButton(
-                    onPressed: saving
-                        ? null
-                        : () => Navigator.of(dialogContext).pop(),
-                    label: 'Đóng',
-                  ),
-                  AppDialogSecondaryButton(
-                    onPressed: saving ? null : () => review(approved: false),
-                    icon: Icons.close_rounded,
-                    label: 'Từ chối',
-                  ),
-                  AppDialogConfirmButton(
-                    onPressed: saving ? null : () => review(approved: true),
-                    icon: Icons.check_rounded,
-                    label: 'Xác nhận',
-                    isLoading: saving,
-                  ),
-                ],
-              );
-            },
+                  actions: [
+                    AppDialogCancelButton(
+                      onPressed: saving
+                          ? null
+                          : () => Navigator.of(dialogContext).pop(),
+                      label: 'Đóng',
+                    ),
+                    AppDialogSecondaryButton(
+                      onPressed: saving ? null : () => review(approved: false),
+                      icon: Icons.close_rounded,
+                      label: 'Từ chối',
+                    ),
+                    AppDialogConfirmButton(
+                      onPressed: saving ? null : () => review(approved: true),
+                      icon: Icons.check_rounded,
+                      label: 'Xác nhận',
+                      isLoading: saving,
+                    ),
+                  ],
+                );
+              },
+            ),
           );
         },
       );

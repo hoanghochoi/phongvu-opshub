@@ -10,6 +10,7 @@ import '../theme/app_colors.dart';
 import '../theme/app_radius.dart';
 import '../theme/app_text_styles.dart';
 import 'app_inputs.dart';
+import 'app_dialogs.dart';
 import 'app_layout.dart';
 
 class AppComboboxOption<T> {
@@ -547,6 +548,7 @@ class _AppComboboxState<T> extends State<AppCombobox<T>> {
   }
 
   void _notifyFormValueChanged(T? value, [ValueChanged<T?>? didChange]) {
+    notifyAppFormChanged(context);
     (didChange ?? _formDidChange)?.call(value);
   }
 

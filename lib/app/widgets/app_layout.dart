@@ -86,6 +86,24 @@ class AppMobileTypographyDensity extends StatelessWidget {
   }
 }
 
+class AppGlobalSelectionScope extends StatelessWidget {
+  final Widget child;
+
+  const AppGlobalSelectionScope({super.key, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    // MaterialApp.builder sits above the router Navigator, while SelectionArea
+    // needs an Overlay ancestor. This outer overlay keeps one selection owner
+    // around both the navigator and every route/dialog overlay it renders.
+    return Overlay(
+      initialEntries: [
+        OverlayEntry(builder: (_) => SelectionArea(child: child)),
+      ],
+    );
+  }
+}
+
 class AppShadowTokens {
   AppShadowTokens._();
 
@@ -220,6 +238,69 @@ class AppResponsiveScrollView extends StatelessWidget {
           child: scrollView,
         );
       },
+    );
+  }
+}
+
+/// Scrolls oversized desktop content on both axes with independently draggable
+/// scrollbar thumbs. Use this for tables and card/dialog bodies that can
+/// overflow vertically and horizontally.
+class AppTwoAxisScrollView extends StatefulWidget {
+  final Widget child;
+
+  const AppTwoAxisScrollView({super.key, required this.child});
+
+  @override
+  State<AppTwoAxisScrollView> createState() => _AppTwoAxisScrollViewState();
+}
+
+class _AppTwoAxisScrollViewState extends State<AppTwoAxisScrollView> {
+  final ScrollController _verticalController = ScrollController();
+  final ScrollController _horizontalController = ScrollController();
+
+  @override
+  void dispose() {
+    _verticalController.dispose();
+    _horizontalController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final platform = Theme.of(context).platform;
+    final persistentThumbs =
+        platform == TargetPlatform.windows ||
+        platform == TargetPlatform.linux ||
+        platform == TargetPlatform.macOS;
+    return Scrollbar(
+      key: const Key('app-two-axis-horizontal-scrollbar'),
+      controller: _horizontalController,
+      thumbVisibility: persistentThumbs,
+      trackVisibility: persistentThumbs,
+      interactive: true,
+      scrollbarOrientation: ScrollbarOrientation.bottom,
+      notificationPredicate: (notification) =>
+          notification.metrics.axis == Axis.horizontal,
+      child: Scrollbar(
+        key: const Key('app-two-axis-vertical-scrollbar'),
+        controller: _verticalController,
+        thumbVisibility: persistentThumbs,
+        trackVisibility: persistentThumbs,
+        interactive: true,
+        scrollbarOrientation: ScrollbarOrientation.right,
+        notificationPredicate: (notification) =>
+            notification.metrics.axis == Axis.vertical,
+        child: SingleChildScrollView(
+          controller: _verticalController,
+          primary: false,
+          child: SingleChildScrollView(
+            controller: _horizontalController,
+            primary: false,
+            scrollDirection: Axis.horizontal,
+            child: widget.child,
+          ),
+        ),
+      ),
     );
   }
 }

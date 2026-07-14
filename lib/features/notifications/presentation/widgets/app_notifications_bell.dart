@@ -10,6 +10,7 @@ import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_text_styles.dart';
 import '../../../../app/widgets/app_buttons.dart';
 import '../../../../app/widgets/app_inputs.dart';
+import '../../../../app/widgets/app_dialogs.dart';
 import '../../../../app/widgets/app_layout.dart';
 import '../../../../app/widgets/app_notification_action.dart';
 import '../../../../app/widgets/app_state_widgets.dart';
@@ -276,32 +277,35 @@ class AppNotificationsContent extends StatelessWidget {
     try {
       return showDialog<String?>(
         context: context,
-        builder: (dialogContext) => AlertDialog(
-          title: const Text('Từ chối yêu cầu'),
-          content: SelectionArea(
-            child: SizedBox(
-              width: MediaQuery.of(dialogContext).size.width < 560
-                  ? double.maxFinite
-                  : 420,
-              child: AppTextInput(
-                controller: controller,
-                label: 'Ghi chú cho người gửi (không bắt buộc)',
-                hintText: 'Ví dụ: Mã đơn chưa đúng, vui lòng kiểm tra lại.',
-                maxLines: 4,
+        builder: (dialogContext) => AppDirtyFormGuard(
+          source: 'notifications.reject_request',
+          child: AlertDialog(
+            title: const Text('Từ chối yêu cầu'),
+            content: SelectionArea(
+              child: SizedBox(
+                width: MediaQuery.of(dialogContext).size.width < 560
+                    ? double.maxFinite
+                    : 420,
+                child: AppTextInput(
+                  controller: controller,
+                  label: 'Ghi chú cho người gửi (không bắt buộc)',
+                  hintText: 'Ví dụ: Mã đơn chưa đúng, vui lòng kiểm tra lại.',
+                  maxLines: 4,
+                ),
               ),
             ),
+            actions: [
+              AppDialogCancelButton(
+                onPressed: () => Navigator.of(dialogContext).pop(null),
+              ),
+              AppDialogConfirmButton(
+                onPressed: () =>
+                    Navigator.of(dialogContext).pop(controller.text.trim()),
+                icon: Icons.close_rounded,
+                label: 'Từ chối',
+              ),
+            ],
           ),
-          actions: [
-            AppDialogCancelButton(
-              onPressed: () => Navigator.of(dialogContext).pop(null),
-            ),
-            AppDialogConfirmButton(
-              onPressed: () =>
-                  Navigator.of(dialogContext).pop(controller.text.trim()),
-              icon: Icons.close_rounded,
-              label: 'Từ chối',
-            ),
-          ],
         ),
       );
     } finally {

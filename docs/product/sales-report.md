@@ -315,10 +315,11 @@ phí`.
   snapshot đã sanitize. `fetchedAt` chỉ là thời điểm đồng bộ; các bộ lọc ngày,
   Home dashboard và cockpit không dùng `fetchedAt` làm ngày bán. Nếu cache cũ
   thiếu `orderCreatedAt` nhưng snapshot còn `createdAt`, backend backfill lại
-  ngày bán trước khi tính dashboard/cockpit. Chi tiết `Đơn chưa báo cáo` chỉ
-  hiển thị `Tên SA` khi email tư vấn/người bán map được nhân viên SA đang active
-  trong showroom tương ứng; người sync cache hoặc consultant ERP chưa map không
-  được dùng làm tên SA. Nếu ERP xác nhận order hủy, trả toàn bộ, hoặc có
+  ngày bán trước khi tính dashboard/cockpit. Chi tiết `Đơn chưa báo cáo` hiển
+  thị `Tên nhân viên` cho mọi bộ phận có phát sinh bán hàng, không giới hạn chức
+  danh SA. Backend ưu tiên tên của nhân viên active map đúng email/showroom, rồi
+  fallback sang tên/email tư vấn, người bán hoặc người tạo từ ERP để không làm
+  mất danh tính trên báo cáo HVTC. Nếu ERP xác nhận order hủy, trả toàn bộ, hoặc có
   `grandTotal <= 0`, cache row được gắn `excludedAt`/`exclusionReason`
   tương ứng (`ERP_ORDER_CANCELLED`, `ERP_ORDER_RETURNED_FULL`,
   `ERP_ORDER_ZERO_VALUE_INTERNAL`); mọi report mua hàng cùng `orderCode` cũng

@@ -3,6 +3,39 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('app text selection and dialog dismissal contracts stay global', () {
+    final appSource = File('lib/app/app.dart').readAsStringSync();
+    expect(
+      appSource,
+      contains('AppGlobalSelectionScope('),
+      reason: 'MaterialApp.builder must keep route and overlay text selectable.',
+    );
+
+    final blockedDismissal = <String>[];
+    final files = Directory('lib')
+        .listSync(recursive: true)
+        .whereType<File>()
+        .where((file) => file.path.endsWith('.dart'));
+    final pattern = RegExp(r'barrierDismissible\s*:\s*false');
+    for (final file in files) {
+      final normalizedPath = file.path.replaceAll(r'\', '/');
+      final lines = file.readAsLinesSync();
+      for (var index = 0; index < lines.length; index += 1) {
+        if (pattern.hasMatch(lines[index])) {
+          blockedDismissal.add('$normalizedPath:${index + 1}');
+        }
+      }
+    }
+
+    expect(
+      blockedDismissal,
+      isEmpty,
+      reason:
+          'Dialogs must dismiss outside; dirty editors use AppDirtyFormGuard.\n'
+          '${blockedDismissal.join('\n')}',
+    );
+  });
+
   test('feature UI only uses shared Design System primitives', () {
     final violations = <String>[];
     final checks = <(RegExp, String)>[

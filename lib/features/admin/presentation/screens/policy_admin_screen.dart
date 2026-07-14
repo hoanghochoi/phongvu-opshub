@@ -10,6 +10,7 @@ import '../../../../app/widgets/app_buttons.dart';
 import '../../../../app/widgets/app_cards.dart';
 import '../../../../app/widgets/app_chips.dart';
 import '../../../../app/widgets/app_combobox.dart';
+import '../../../../app/widgets/app_dialogs.dart';
 import '../../../../app/widgets/app_inputs.dart';
 import '../../../../app/widgets/app_layout.dart';
 import '../../../../app/widgets/app_state_widgets.dart';
@@ -106,8 +107,10 @@ class _PolicyAdminScreenState extends State<PolicyAdminScreen> {
   Future<void> _openPolicyEditor([AdminPolicyDefinition? policy]) async {
     final updated = await showDialog<bool>(
       context: context,
-      builder: (context) =>
-          _PolicyEditorDialog(repository: _repository, policy: policy),
+      builder: (context) => AppDirtyFormGuard(
+        source: 'PolicyAdmin',
+        child: _PolicyEditorDialog(repository: _repository, policy: policy),
+      ),
     );
     if (updated == true) await _load();
   }
@@ -115,11 +118,14 @@ class _PolicyAdminScreenState extends State<PolicyAdminScreen> {
   Future<void> _openRuleEditor([AdminPolicyRule? rule]) async {
     final updated = await showDialog<bool>(
       context: context,
-      builder: (context) => _PolicyRuleEditorDialog(
-        repository: _repository,
-        rule: rule,
-        policies: _policies,
-        organizationNodes: _organizationNodes,
+      builder: (context) => AppDirtyFormGuard(
+        source: 'PolicyAdmin',
+        child: _PolicyRuleEditorDialog(
+          repository: _repository,
+          rule: rule,
+          policies: _policies,
+          organizationNodes: _organizationNodes,
+        ),
       ),
     );
     if (updated == true) await _load();
@@ -128,8 +134,10 @@ class _PolicyAdminScreenState extends State<PolicyAdminScreen> {
   Future<void> _openSettingEditor([AdminSettingDefinition? setting]) async {
     final updated = await showDialog<bool>(
       context: context,
-      builder: (context) =>
-          _SettingEditorDialog(repository: _repository, setting: setting),
+      builder: (context) => AppDirtyFormGuard(
+        source: 'PolicyAdmin',
+        child: _SettingEditorDialog(repository: _repository, setting: setting),
+      ),
     );
     if (updated == true) await _load();
   }
@@ -982,12 +990,18 @@ class _PolicyEditorDialogState extends State<_PolicyEditorDialog> {
             AppTextInput(controller: _category, label: 'Nhóm'),
             SwitchListTile(
               value: _defaultAllowed,
-              onChanged: (value) => setState(() => _defaultAllowed = value),
+              onChanged: (value) {
+                notifyAppFormChanged(context);
+                setState(() => _defaultAllowed = value);
+              },
               title: const Text('Mặc định bật khi không có quy tắc'),
             ),
             SwitchListTile(
               value: _isActive,
-              onChanged: (value) => setState(() => _isActive = value),
+              onChanged: (value) {
+                notifyAppFormChanged(context);
+                setState(() => _isActive = value);
+              },
               title: const Text('Đang hoạt động'),
             ),
           ],
@@ -1183,7 +1197,10 @@ class _PolicyRuleEditorDialogState extends State<_PolicyRuleEditorDialog> {
             ),
             SwitchListTile(
               value: _allowed,
-              onChanged: (value) => setState(() => _allowed = value),
+              onChanged: (value) {
+                notifyAppFormChanged(context);
+                setState(() => _allowed = value);
+              },
               title: Text(_allowed ? 'Cho phép' : 'Chặn'),
             ),
             _csvField(_emailDomains, 'Tên miền email'),
@@ -1227,10 +1244,13 @@ class _PolicyRuleEditorDialogState extends State<_PolicyRuleEditorDialog> {
           : () async {
               final values = await showDialog<Set<String>>(
                 context: context,
-                builder: (context) => _PolicyNodeSelectDialog(
-                  allowMultiple: !isEditing,
-                  items: items,
-                  selectedValues: _organizationNodeIds,
+                builder: (context) => AppDirtyFormGuard(
+                  source: 'PolicyAdmin',
+                  child: _PolicyNodeSelectDialog(
+                    allowMultiple: !isEditing,
+                    items: items,
+                    selectedValues: _organizationNodeIds,
+                  ),
                 ),
               );
               if (values == null) return;
@@ -1362,14 +1382,17 @@ class _PolicyNodeSelectDialogState extends State<_PolicyNodeSelectDialog> {
                           ),
                           subtitle: Text(item.$1),
                           controlAffinity: ListTileControlAffinity.leading,
-                          onChanged: (value) => setState(() {
-                            if (value == true) {
-                              if (!widget.allowMultiple) _selected.clear();
-                              _selected.add(item.$1);
-                            } else {
-                              _selected.remove(item.$1);
-                            }
-                          }),
+                          onChanged: (value) {
+                            notifyAppFormChanged(context);
+                            setState(() {
+                              if (value == true) {
+                                if (!widget.allowMultiple) _selected.clear();
+                                _selected.add(item.$1);
+                              } else {
+                                _selected.remove(item.$1);
+                              }
+                            });
+                          },
                         );
                       },
                     ),

@@ -6,6 +6,7 @@ import 'package:phongvu_opshub/app/widgets/app_toast.dart';
 import '../../../../app/theme/app_radius.dart';
 import '../../../../app/widgets/app_buttons.dart';
 import '../../../../app/widgets/app_combobox.dart';
+import '../../../../app/widgets/app_dialogs.dart';
 import '../../../../app/widgets/app_inputs.dart';
 import '../../../../app/widgets/app_layout.dart';
 import '../../../../core/logging/app_logger.dart';
@@ -219,6 +220,7 @@ class _NodeFeatureAssignmentDialogState
   }
 
   void _toggleFeature(AdminFeatureDefinition feature, bool selected) {
+    notifyAppFormChanged(context);
     setState(() {
       if (selected) {
         _selectedCodes.add(feature.code);

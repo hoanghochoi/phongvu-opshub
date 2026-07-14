@@ -289,6 +289,11 @@ visual systems that make the app feel assembled from unrelated screens.
 ## Platform Contracts
 
 - Android and Windows are the primary UI proof targets for current OpsHub work.
+- Bảng hoặc card/modal có nội dung tràn hai chiều phải dùng
+  `AppTwoAxisScrollView`. Mỗi trục có `ScrollController` riêng; trên Windows,
+  Linux và macOS thumb/track luôn hiện và phải kéo được bằng chuột. Không lồng
+  các `Scrollbar` không controller vì sẽ tranh `PrimaryScrollController` và
+  làm mất thao tác drag trên desktop.
 - Text inputs have exactly one context-menu owner per platform: mobile web uses
   the browser-native selection/paste menu, desktop web uses Flutter's toolbar,
   and native Android/iOS uses the platform Flutter toolbar. Shared text inputs
@@ -315,6 +320,23 @@ visual systems that make the app feel assembled from unrelated screens.
   unsupported platforms must not run that sub-feature flow. It must render a
   shared unsupported state or hide the unsupported control and log the branch
   through `AppLogger`.
+
+## Global Text Selection And Dialog Dismissal
+
+- Tất cả nội dung chữ hiển thị trong route, card, modal, dialog và overlay phải
+  có thể chọn/copy bằng chuột hoặc thao tác chọn văn bản của nền tảng. Contract
+  được đặt tại `MaterialApp.builder` bằng `AppGlobalSelectionScope`; feature
+  không được dựa vào `SelectionArea` cục bộ để vá riêng từng màn hình.
+- Text input vẫn là chủ sở hữu vùng chọn riêng qua `SelectionContainer.disabled`
+  để chọn/copy/paste trong ô nhập không xung đột với vùng chọn toàn app.
+- Dialog/modal sạch phải đóng khi click/chạm vùng ngoài, nhấn Back hoặc Escape.
+  Không được thêm `barrierDismissible: false` vào runtime UI.
+- Dialog/modal có dữ liệu đã sửa nhưng chưa lưu phải dùng `AppDirtyFormGuard`.
+  Click ngoài, Back, Escape hoặc nút đóng đều phải hỏi xác nhận bằng tiếng Việt;
+  chỉ hủy toàn bộ bản nháp sau khi user chọn `Thoát và hủy`. Lưu thành công phải
+  đóng trực tiếp, không hiện cảnh báo hủy.
+- Input, combobox, checkbox/switch tùy biến trong editor phải phát
+  `AppFormChangedNotification` để shared guard nhận biết trạng thái dirty.
 
 ## Logging And Proof
 

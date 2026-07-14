@@ -103,6 +103,7 @@ class _QuickActionsLauncherState extends State<QuickActionsLauncher>
   final LayerLink _link = LayerLink();
   final FocusNode _buttonFocus = FocusNode(debugLabel: 'quick-actions-button');
   OverlayEntry? _overlay;
+  bool _refreshing = false;
 
   @override
   void initState() {
@@ -146,7 +147,7 @@ class _QuickActionsLauncherState extends State<QuickActionsLauncher>
             child: InkWell(
               key: const Key('quick-actions-launcher'),
               borderRadius: AppRadius.allLg,
-              onTap: () => _toggleMenu(actions),
+              onTap: _toggleMenu,
               child: SizedBox.square(
                 dimension: widget.buttonSize,
                 child: Icon(
@@ -162,9 +163,50 @@ class _QuickActionsLauncherState extends State<QuickActionsLauncher>
     );
   }
 
-  void _toggleMenu(List<_QuickAction> actions) {
+  Future<void> _toggleMenu() async {
     if (_overlay != null) {
       _closeMenu();
+      return;
+    }
+    if (_refreshing) return;
+    _refreshing = true;
+    final startedAt = DateTime.now();
+    final provider = context.read<QuickActionsProvider>();
+    final authProvider = context.read<AuthProvider>();
+    await AppLogger.instance.info(
+      'QuickActions',
+      'Quick actions menu refresh started',
+      context: {'location': widget.location},
+    );
+    final loaded = await provider.refresh();
+    if (!mounted) return;
+    _refreshing = false;
+    final user = authProvider.user;
+    final actions = QuickActionsLauncher._availableActions(
+      user,
+      loaded ?? provider.payload,
+    );
+    await AppLogger.instance.info(
+      'QuickActions',
+      'Quick actions menu refresh completed',
+      context: {
+        'location': widget.location,
+        'status': loaded == null ? 'failed' : 'succeeded',
+        'actionCount': actions.length,
+        'durationMs': DateTime.now().difference(startedAt).inMilliseconds,
+      },
+    );
+    if (!mounted) return;
+    if (actions.isEmpty) {
+      setState(() {});
+      AppToast.show(
+        context,
+        const SnackBar(
+          content: Text(
+            'Chưa có Thao tác nhanh khả dụng. Vui lòng kiểm tra lại quyền hoặc cấu hình showroom.',
+          ),
+        ),
+      );
       return;
     }
     unawaited(

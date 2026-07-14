@@ -7,6 +7,7 @@ import '../../../../app/theme/app_text_styles.dart';
 import '../../../../app/widgets/app_buttons.dart';
 import '../../../../app/widgets/app_cards.dart';
 import '../../../../app/widgets/app_combobox.dart';
+import '../../../../app/widgets/app_dialogs.dart';
 import '../../../../app/widgets/app_inputs.dart';
 import '../../../../app/widgets/app_layout.dart';
 import '../../../../app/widgets/app_state_widgets.dart';
@@ -110,8 +111,10 @@ class _FeatureAdminScreenState extends State<FeatureAdminScreen> {
   Future<void> _openFeatureEditor([AdminFeatureDefinition? feature]) async {
     final updated = await showDialog<bool>(
       context: context,
-      builder: (context) =>
-          _FeatureEditorDialog(repository: _repository, feature: feature),
+      builder: (context) => AppDirtyFormGuard(
+        source: 'FeatureAdmin',
+        child: _FeatureEditorDialog(repository: _repository, feature: feature),
+      ),
     );
     if (updated == true) await _load();
   }
@@ -119,15 +122,18 @@ class _FeatureAdminScreenState extends State<FeatureAdminScreen> {
   Future<void> _openRuleEditor([AdminFeatureRule? rule]) async {
     final updated = await showDialog<bool>(
       context: context,
-      builder: (context) => _FeatureRuleEditorDialog(
-        repository: _repository,
-        rule: rule,
-        features: _features,
-        roles: _roles,
-        departments: _departments,
-        jobRoles: _jobRoles,
-        organizationNodes: _organizationNodes,
-        users: _users,
+      builder: (context) => AppDirtyFormGuard(
+        source: 'FeatureAdmin',
+        child: _FeatureRuleEditorDialog(
+          repository: _repository,
+          rule: rule,
+          features: _features,
+          roles: _roles,
+          departments: _departments,
+          jobRoles: _jobRoles,
+          organizationNodes: _organizationNodes,
+          users: _users,
+        ),
       ),
     );
     if (updated == true) await _load();
@@ -136,12 +142,15 @@ class _FeatureAdminScreenState extends State<FeatureAdminScreen> {
   Future<void> _openNodeAssignmentEditor({AdminOrganizationNode? node}) async {
     final updated = await showDialog<bool>(
       context: context,
-      builder: (context) => NodeFeatureAssignmentDialog(
-        repository: _repository,
-        nodes: _organizationNodes,
-        features: _features,
-        assignments: _nodeAssignments,
-        initialNode: node,
+      builder: (context) => AppDirtyFormGuard(
+        source: 'FeatureAdmin',
+        child: NodeFeatureAssignmentDialog(
+          repository: _repository,
+          nodes: _organizationNodes,
+          features: _features,
+          assignments: _nodeAssignments,
+          initialNode: node,
+        ),
       ),
     );
     if (updated == true) await _load();
@@ -1111,7 +1120,10 @@ class _FeatureEditorDialogState extends State<_FeatureEditorDialog> {
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
                 value: _isActive,
-                onChanged: (value) => setState(() => _isActive = value),
+                onChanged: (value) {
+                  notifyAppFormChanged(context);
+                  setState(() => _isActive = value);
+                },
                 title: const Text('Đang bật'),
               ),
             ],
@@ -1365,7 +1377,10 @@ class _FeatureRuleEditorDialogState extends State<_FeatureRuleEditorDialog> {
               SwitchListTile(
                 contentPadding: EdgeInsets.zero,
                 value: _enabled,
-                onChanged: (value) => setState(() => _enabled = value),
+                onChanged: (value) {
+                  notifyAppFormChanged(context);
+                  setState(() => _enabled = value);
+                },
                 title: Text(_enabled ? 'Bật tính năng' : 'Tắt tính năng'),
               ),
               AppTextInput(
@@ -1618,10 +1633,13 @@ class _FeatureRuleEditorDialogState extends State<_FeatureRuleEditorDialog> {
           : () async {
               final values = await showDialog<Set<String>>(
                 context: context,
-                builder: (context) => _MultiSelectDialog(
-                  title: label,
-                  items: items,
-                  selectedValues: selectedValues,
+                builder: (context) => AppDirtyFormGuard(
+                  source: 'FeatureAdmin',
+                  child: _MultiSelectDialog(
+                    title: label,
+                    items: items,
+                    selectedValues: selectedValues,
+                  ),
                 ),
               );
               if (values != null) onChanged(values);
@@ -1715,13 +1733,16 @@ class _MultiSelectDialogState extends State<_MultiSelectDialog> {
                           ),
                           subtitle: Text(item.$1),
                           controlAffinity: ListTileControlAffinity.leading,
-                          onChanged: (value) => setState(() {
-                            if (value == true) {
-                              _selected.add(item.$1);
-                            } else {
-                              _selected.remove(item.$1);
-                            }
-                          }),
+                          onChanged: (value) {
+                            notifyAppFormChanged(context);
+                            setState(() {
+                              if (value == true) {
+                                _selected.add(item.$1);
+                              } else {
+                                _selected.remove(item.$1);
+                              }
+                            });
+                          },
                         );
                       },
                     ),

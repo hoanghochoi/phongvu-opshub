@@ -10,6 +10,7 @@ import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_text_styles.dart';
 import '../../../../app/widgets/app_buttons.dart';
 import '../../../../app/widgets/app_cards.dart';
+import '../../../../app/widgets/app_dialogs.dart';
 import '../../../../app/widgets/app_inputs.dart';
 import '../../../../app/widgets/app_layout.dart';
 import '../../../../app/widgets/app_logout_confirmation_dialog.dart';
@@ -146,7 +147,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
     final changed = await showDialog<bool>(
       context: context,
-      builder: (context) => const _ChangePasswordDialog(),
+      builder: (context) => const AppDirtyFormGuard(
+        source: 'Profile',
+        child: _ChangePasswordDialog(),
+      ),
     );
     if (!mounted) return;
     if (changed != true) {
