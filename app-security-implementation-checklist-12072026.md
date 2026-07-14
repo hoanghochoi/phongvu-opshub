@@ -147,5 +147,9 @@
   `/api/media/:id` và `/api/admin/quick-action-links` trả `401`.
 - [M] Proof runtime còn lại chỉ gồm ticket replay/session-revoke/authenticated
   load, hai-admin/MFA, credential rotation và các gate production đã ghi nợ.
-- [M] Promote production chỉ sau khi mọi stop condition manual đã đóng.
+- [x] Đại Ca phê duyệt maintenance production ngày 14/07/2026 sau khi preflight
+  env, encrypted backup, checksum, restore/rollback path và staging runtime proof
+  đã đạt. Lượt promotion phải gom toàn bộ `origin/staging`, chỉ fast-forward đúng
+  một SHA sau khi CI staging của SHA đó pass; các gate cần tài khoản/MFA vẫn được
+  giữ riêng, không coi là đã xác minh bằng deployment.
 - [x] Hướng dẫn manual được ghi trong `app-security-manual-actions-12072026.md` và runbook liên quan.
