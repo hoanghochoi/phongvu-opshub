@@ -16,7 +16,7 @@ concurrency:
 env:
   OPSHUB_PUBLIC_BASE_URL: https://opshub-staging.hoanghochoi.com
   OPSHUB_API_BASE_URL: https://opshub-staging.hoanghochoi.com/api
-  OPSHUB_DOWNLOAD_PUBLIC_BASE_URL: https://opshub.hoanghochoi.com/staging-download
+  OPSHUB_DOWNLOAD_PUBLIC_BASE_URL: https://opshub-staging.hoanghochoi.com
   OPSHUB_REMOTE_APP_DIR: /home/hhh/phongvu-opshub-staging
   OPSHUB_ENV_FILE: /srv/opshub-staging/env
   OPSHUB_SSD_ROOT: /srv/opshub-staging
@@ -971,7 +971,7 @@ jobs:
           curl -fIs "$(node -e "console.log(JSON.parse(process.argv[1]).packageUrl)" "$android_json")" >/dev/null
           curl -fIs "$(node -e "console.log(JSON.parse(process.argv[1]).packageUrl)" "$windows_json")" >/dev/null
           retry_curl "${OPSHUB_PUBLIC_BASE_URL}/download" >/dev/null
-          download_redirect_headers="$(curl -fsSI "${OPSHUB_DOWNLOAD_PUBLIC_BASE_URL}")"
+          download_redirect_headers="$(curl -fsSI "${OPSHUB_PUBLIC_BASE_URL}/download")"
           printf '%s\n' "$download_redirect_headers" |
             grep -qi '^www-authenticate: Cloudflare-Access '
           printf '%s\n' "$download_redirect_headers" |

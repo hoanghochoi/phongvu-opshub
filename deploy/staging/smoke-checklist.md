@@ -9,9 +9,9 @@ Use this checklist after the manual staging workflow succeeds.
 - `systemctl is-active cloudflared-opshub-staging` returns `active`.
 - `curl -fsS https://opshub-staging.hoanghochoi.com/health` returns `ok`.
 - `curl -fsS https://opshub-staging.hoanghochoi.com/api/health` returns backend health JSON.
-- `curl -fsS https://opshub-staging.hoanghochoi.com/api/app-version?platform=android` points to `https://opshub.hoanghochoi.com/staging-download/downloads/`.
-- `curl -fsS https://opshub.hoanghochoi.com/staging-download` renders the staging download page.
-- `curl -fsS https://opshub.hoanghochoi.com/staging-download/downloads/latest.json` contains only staging URLs.
+- `curl -fsS https://opshub-staging.hoanghochoi.com/api/app-version?platform=android` points to `https://opshub-staging.hoanghochoi.com/downloads/`.
+- `curl -fsS https://opshub-staging.hoanghochoi.com/download` reaches the Cloudflare Access-protected staging download page.
+- `curl -fsS https://opshub-staging.hoanghochoi.com/downloads/latest.json` contains only staging URLs.
 
 ## Client checks
 

@@ -109,7 +109,7 @@ PowerShell helper to create base64 text from a PFX:
    curl.exe -fsS https://opshub-staging.hoanghochoi.com/api/health
    curl.exe -fsS "https://opshub-staging.hoanghochoi.com/api/app-version?platform=android"
    curl.exe -fsS "https://opshub-staging.hoanghochoi.com/api/app-version?platform=windows"
-   curl.exe -fsS https://opshub.hoanghochoi.com/staging-download/downloads/latest.json
+   curl.exe -fsS https://opshub-staging.hoanghochoi.com/downloads/latest.json
    ```
 
 3. Enable production workflow and run `workflow_dispatch` with

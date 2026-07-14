@@ -8,6 +8,7 @@ import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 
+import '../../../core/config/app_brand.dart';
 import '../../../core/logging/app_logger.dart';
 import '../domain/app_update_info.dart';
 import 'app_update_service.dart';
@@ -37,11 +38,8 @@ class AppSelfUpdateService {
   static const _connectTimeout = Duration(seconds: 30);
   static const _chunkTimeout = Duration(minutes: 5);
   static const _signatureCheckTimeout = Duration(seconds: 30);
-  static const _trustedPackageHost = 'opshub.hoanghochoi.com';
-  static const _trustedPackagePathPrefixes = <String>[
-    '/downloads/',
-    '/staging-download/downloads/',
-  ];
+  static const _productionPackageHost = 'opshub.hoanghochoi.com';
+  static const _stagingPackageHost = 'opshub-staging.hoanghochoi.com';
   static const _windowsRelaunchArg = '/OPSHUBRELAUNCH=1';
   static const _windowsUpdateSignerSha256 = String.fromEnvironment(
     'WINDOWS_UPDATE_SIGNER_SHA256',
@@ -79,6 +77,15 @@ class AppSelfUpdateService {
 
     final packageUri = Uri.tryParse(info.packageUrl);
     if (packageUri == null || !_isTrustedPackageUri(packageUri)) {
+      await AppLogger.instance.warn(
+        'AppSelfUpdate',
+        'Self-update package source rejected',
+        context: {
+          'platform': info.platform,
+          'packageHost': packageUri?.host.toLowerCase() ?? 'invalid',
+          'stagingBuild': AppBrand.isStaging,
+        },
+      );
       throw const AppSelfUpdateException(
         'Gói cập nhật không đến từ máy chủ tin cậy. Vui lòng báo quản trị viên.',
       );
@@ -508,16 +515,29 @@ $algorithm = [System.Security.Cryptography.HashAlgorithmName]::SHA256
     }
   }
 
-  static bool _isTrustedPackageUri(Uri uri) {
+  static bool _isTrustedPackageUri(Uri uri) =>
+      isTrustedPackageUriForTesting(uri, isStaging: AppBrand.isStaging);
+
+  @visibleForTesting
+  static bool isTrustedPackageUriForTesting(
+    Uri uri, {
+    required bool isStaging,
+  }) {
     if (uri.scheme.toLowerCase() != 'https' ||
-        uri.host.toLowerCase() != _trustedPackageHost ||
         uri.port != 443 ||
         uri.userInfo.isNotEmpty ||
         uri.fragment.isNotEmpty ||
         uri.pathSegments.any((segment) => segment == '.' || segment == '..')) {
       return false;
     }
-    return _trustedPackagePathPrefixes.any(uri.path.startsWith);
+    final host = uri.host.toLowerCase();
+    if (isStaging) {
+      return (host == _stagingPackageHost &&
+              uri.path.startsWith('/downloads/')) ||
+          (host == _productionPackageHost &&
+              uri.path.startsWith('/staging-download/downloads/'));
+    }
+    return host == _productionPackageHost && uri.path.startsWith('/downloads/');
   }
 
   static Map<String, Object?> _logContext(AppUpdateCheckResult result) {
@@ -527,6 +547,8 @@ $algorithm = [System.Security.Cryptography.HashAlgorithmName]::SHA256
       'currentBuild': result.currentBuild,
       'latestBuild': updateInfo.latestBuild,
       'packageType': updateInfo.packageType,
+      'packageHost': Uri.tryParse(updateInfo.packageUrl)?.host.toLowerCase(),
+      'stagingBuild': AppBrand.isStaging,
       'packageSizeBytes': updateInfo.packageSizeBytes,
       'hasSha256': updateInfo.packageSha256.isNotEmpty,
       'windowsRelaunchRequested': updateInfo.platform.toLowerCase() == 'windows'

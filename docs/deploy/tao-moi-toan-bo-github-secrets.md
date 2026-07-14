@@ -719,14 +719,14 @@ curl.exe -fsS `
   'https://opshub-staging.hoanghochoi.com/api/app-version?platform=windows'
 
 curl.exe -fsS `
-  https://opshub.hoanghochoi.com/staging-download/downloads/latest.json
+  https://opshub-staging.hoanghochoi.com/downloads/latest.json
 ```
 
 Tải staging APK và kiểm tra signer:
 
 ```powershell
 $StagingManifest = Invoke-RestMethod `
-  'https://opshub.hoanghochoi.com/staging-download/downloads/latest.json'
+  'https://opshub-staging.hoanghochoi.com/downloads/latest.json'
 
 $StagingApkPath = Join-Path $SecretDir 'staging-built-by-actions.apk'
 

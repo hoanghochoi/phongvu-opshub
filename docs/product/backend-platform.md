@@ -109,8 +109,11 @@ curl http://localhost:3000/app-version
   `API_BASE_URL=https://opshub-staging.hoanghochoi.com/api`, publish it under
   `/srv/opshub-staging/web/`, publish downloads under
   `/srv/opshub-staging/downloads/`, expose those downloads through
-  `https://opshub.hoanghochoi.com/staging-download`, and build staging client
-  packages with separate Android and Windows app identities.
+  `https://opshub-staging.hoanghochoi.com/downloads/`, expose the protected
+  download page at `https://opshub-staging.hoanghochoi.com/download`, and build
+  staging client packages with separate Android and Windows app identities. The
+  production `/staging-download` route is compatibility-only and must not be
+  published in new app-version metadata.
   Staging DB refresh is a separate manual sanitized-clone operation and is not
   part of the normal staging deploy workflow.
 

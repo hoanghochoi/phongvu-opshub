@@ -2,9 +2,9 @@
 
 Staging uses `mementoamoris` through Tailscale and exposes the staging API at
 `opshub-staging.hoanghochoi.com` through a dedicated Cloudflare Tunnel. Staging
-client downloads are linked from the production domain under
-`https://opshub.hoanghochoi.com/staging-download` so they stay separate from the
-production `/download` page.
+client downloads and manifests are served directly from
+`https://opshub-staging.hoanghochoi.com/downloads/`; the protected download page
+is `https://opshub-staging.hoanghochoi.com/download`.
 
 ## One-time server setup
 
@@ -71,7 +71,7 @@ operator-controlled reruns.
 
 The workflow builds staging Android and Windows packages, uploads them to
 `/srv/opshub-staging/downloads`, publishes manifest URLs under
-`https://opshub.hoanghochoi.com/staging-download`, updates app-version metadata
+`https://opshub-staging.hoanghochoi.com/downloads/`, updates app-version metadata
 in `/srv/opshub-staging/env`, runs migrations, and recreates only the staging
 Docker services.
 

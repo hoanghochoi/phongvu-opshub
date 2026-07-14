@@ -167,7 +167,9 @@ contains(gradle, 'releaseTaskRequested && !hasReleaseSigning', 'Android release 
 excludes(gradle, 'signingConfigs.getByName("debug")', 'Android debug-signing fallback');
 
 contains(updater, "uri.scheme.toLowerCase() != 'https'", 'updater HTTPS policy');
-contains(updater, "_trustedPackageHost = 'opshub.hoanghochoi.com'", 'updater host allowlist');
+contains(updater, "_productionPackageHost = 'opshub.hoanghochoi.com'", 'production updater host allowlist');
+contains(updater, "_stagingPackageHost = 'opshub-staging.hoanghochoi.com'", 'staging updater host allowlist');
+contains(updater, 'isTrustedPackageUriForTesting(uri, isStaging: AppBrand.isStaging)', 'build-scoped updater host policy');
 contains(updater, 'request.followRedirects = false', 'updater redirect policy');
 contains(updater, 'WINDOWS_UPDATE_SIGNER_SHA256', 'Windows signer pin');
 contains(updater, '_maxPackageBytes', 'updater package hard cap');
@@ -238,6 +240,16 @@ for (const [workflow, label] of [
   excludes(workflow, 'actions/checkout@v', `${label} floating checkout version`);
 }
 contains(stagingWorkflow, '[[ "$status" == 2* ]]', 'staging Access 2xx verification gate');
+contains(
+  stagingWorkflow,
+  'OPSHUB_DOWNLOAD_PUBLIC_BASE_URL: https://opshub-staging.hoanghochoi.com',
+  'staging artifact host',
+);
+excludes(
+  stagingWorkflow,
+  'OPSHUB_DOWNLOAD_PUBLIC_BASE_URL: https://opshub.hoanghochoi.com/staging-download',
+  'retired cross-host staging artifact base',
+);
 contains(stagingWorkflow, '-D "$main_headers_file" -o /dev/null', 'staging real GET header verification');
 contains(stagingWorkflow, 'main.dart.js returned HTTP ${main_status}', 'staging asset status diagnostics');
 contains(productionWorkflow, '-D "$main_headers_file" -o /dev/null', 'production real GET header verification');

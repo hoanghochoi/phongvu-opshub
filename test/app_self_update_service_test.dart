@@ -160,6 +160,47 @@ void main() {
       }
     });
 
+    test('scopes trusted package hosts to the build environment', () {
+      final productionPackage = Uri.parse(
+        'https://opshub.hoanghochoi.com/downloads/opshub.exe',
+      );
+      final stagingPackage = Uri.parse(
+        'https://opshub-staging.hoanghochoi.com/downloads/opshub.exe',
+      );
+      final legacyStagingPackage = Uri.parse(
+        'https://opshub.hoanghochoi.com/staging-download/downloads/opshub.exe',
+      );
+
+      expect(
+        AppSelfUpdateService.isTrustedPackageUriForTesting(
+          productionPackage,
+          isStaging: false,
+        ),
+        isTrue,
+      );
+      expect(
+        AppSelfUpdateService.isTrustedPackageUriForTesting(
+          stagingPackage,
+          isStaging: false,
+        ),
+        isFalse,
+      );
+      expect(
+        AppSelfUpdateService.isTrustedPackageUriForTesting(
+          stagingPackage,
+          isStaging: true,
+        ),
+        isTrue,
+      );
+      expect(
+        AppSelfUpdateService.isTrustedPackageUriForTesting(
+          legacyStagingPackage,
+          isStaging: true,
+        ),
+        isTrue,
+      );
+    });
+
     test('does not follow package download redirects', () async {
       final bytes = 'fake installer bytes'.codeUnits;
       final service = AppSelfUpdateService(

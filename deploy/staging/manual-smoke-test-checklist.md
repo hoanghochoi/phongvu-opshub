@@ -2,7 +2,7 @@
 
 Dùng checklist này cho bản staging tải tại:
 
-- Trang tải: https://opshub.hoanghochoi.com/staging-download
+- Trang tải: https://opshub-staging.hoanghochoi.com/download
 - API staging: https://opshub-staging.hoanghochoi.com/api
 
 Tài khoản staging có sẵn:
@@ -33,7 +33,7 @@ rõ ràng.
 
 ## 1. Cài Đặt Và Định Danh App
 
-- [x] Mở `https://opshub.hoanghochoi.com/staging-download`.
+- [x] Mở `https://opshub-staging.hoanghochoi.com/download`.
 - [x] Trang tải hiển thị rõ `PhongVu OpsHub Staging`.
 - [x] Tải được bộ cài Windows.
 - [x] Cài Windows staging cạnh production, không ghi đè production.
@@ -47,13 +47,13 @@ rõ ràng.
 ## 2. Endpoint Và Thông Tin Cập Nhật
 
 - [x] App mở được, không báo lỗi kết nối API.
-- [x] Nếu có prompt cập nhật, link cập nhật trỏ về `/staging-download/downloads/...`.
+- [x] Nếu có prompt cập nhật, link cập nhật trỏ về `https://opshub-staging.hoanghochoi.com/downloads/...`.
 - [x] Không có link tải/cập nhật nào trỏ về `/download` production.
 - [x] `https://opshub-staging.hoanghochoi.com/health` trả `ok`.
 - [x] `https://opshub-staging.hoanghochoi.com/api/health` trả JSON health của backend.
-- [x] `https://opshub-staging.hoanghochoi.com/api/app-version?platform=android` trỏ về `/staging-download/downloads/`.
-- [x] `https://opshub-staging.hoanghochoi.com/api/app-version?platform=windows` trỏ về `/staging-download/downloads/`.
-- [x] `https://opshub.hoanghochoi.com/staging-download/downloads/latest.json` chỉ chứa URL artifact staging.
+- [x] `https://opshub-staging.hoanghochoi.com/api/app-version?platform=android` trỏ về `https://opshub-staging.hoanghochoi.com/downloads/`.
+- [x] `https://opshub-staging.hoanghochoi.com/api/app-version?platform=windows` trỏ về `https://opshub-staging.hoanghochoi.com/downloads/`.
+- [x] `https://opshub-staging.hoanghochoi.com/downloads/latest.json` chỉ chứa URL artifact staging.
 
 ## 3. Đăng Nhập, Session Và Đăng Xuất
 
@@ -186,6 +186,6 @@ rõ ràng.
 - [ ] Gửi phản hồi hoạt động.
 - [ ] Luồng upload bảo hành hoạt động hoặc lỗi validation staging rõ ràng.
 - [ ] FIFO/sort không crash khi staging thiếu dữ liệu.
-- [ ] App-version và download manifest trỏ về `/staging-download/downloads/`.
+- [ ] App-version và download manifest trỏ về `https://opshub-staging.hoanghochoi.com/downloads/`.
 - [ ] Không đụng endpoint hoặc storage production trong lúc smoke test.
 - [ ] Mọi lỗi được ghi lại kèm ảnh chụp, thời điểm, user, nền tảng và bước tái hiện.

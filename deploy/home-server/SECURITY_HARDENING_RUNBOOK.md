@@ -132,10 +132,12 @@ hoặc giữ private identity.
   production trước.
 - [ ] Test backup/device-transfer: SharedPreferences/database/token OpsHub không
   được restore sang thiết bị khác.
-- [ ] Self-update production/staging chỉ tải URL HTTPS trên
-  `opshub.hoanghochoi.com` dưới `/downloads/` hoặc
-  `/staging-download/downloads/`; redirect/cross-host phải bị từ chối, checksum
-  và chữ ký package vẫn phải pass.
+- [ ] Self-update production chỉ tải URL HTTPS trên
+  `opshub.hoanghochoi.com/downloads/`; staging chỉ tải URL chuẩn trên
+  `opshub-staging.hoanghochoi.com/downloads/`. Staging build tạm chấp nhận URL
+  legacy `opshub.hoanghochoi.com/staging-download/downloads/` trong giai đoạn
+  chuyển tiếp; redirect/cross-host khác phải bị từ chối, checksum và chữ ký
+  package vẫn phải pass.
 - [ ] Cấu hình GitHub Environment production với variable
   `WINDOWS_UPDATE_SIGNER_SHA256`, secrets `WINDOWS_SIGNING_PFX_BASE64` và
   `WINDOWS_SIGNING_PFX_PASSWORD`.
