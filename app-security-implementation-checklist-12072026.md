@@ -3,8 +3,9 @@
 > Story: `SECURITY-001`
 > Nguồn: `app-improve-implement-plan-12072026.md`
 > Checkpoint audit ban đầu: `main` tại `4e1ced4b8ecfce8ea33ff3c1440fdb5e5676a25b`
-> Checkpoint trước re-audit 14/07/2026: `staging` tại `300dcd22...`, sạch và
-> trùng `origin/staging`. Proof runtime cuối của re-audit: `6fe62997...`.
+> Checkpoint cuối 15/07/2026: worktree `staging` sạch; `origin/staging` và
+> `origin/main` cùng SHA `0a949268...`. Staging run `29356202412` và production
+> run `29358234827` đều thành công.
 > Quy ước: `[x]` đã có bằng chứng local; `[ ]` chưa đóng; `[M]` cần quyền/secret/runtime của Đại Ca; `[D]` tách follow-up có lý do; `[W]` đã đóng bằng waiver tạm thời có owner, control bù và ngày rà soát.
 
 ## A. Checkpoint và phạm vi
@@ -47,9 +48,11 @@
 - [x] Staging client thật kết nối WebSocket thành công; runtime xác nhận
   `WS_ALLOW_LEGACY_JWT=false`, `WS_MAX_CONNECTIONS_PER_USER=12`, realtime
   healthy và log 8 giờ không có `access_token=`/`ticket=`.
-- [M] Ticket replay, close-session và authenticated load smoke vẫn cần một
-  phiên test có credential riêng; unit/race/slow-client test không thay thế
-  hoàn toàn proof live này.
+- [x] Staging live smoke đã chứng minh first-use ticket, replay rejection,
+  logout đóng socket, ticket issuance sau logout bị chặn và cross-store event
+  isolation; temporary session đã cleanup.
+- [D] Sustained authenticated load soak vẫn cần tài khoản test/cửa sổ tải riêng;
+  race/slow-client unit test không thay thế hoàn toàn long-running live proof.
 
 ## D. Private media và upload
 
@@ -61,10 +64,14 @@
 - [x] Flutter chỉ gắn bearer cho đúng API origin + `/media/`; từ chối external, userinfo và `/uploads` legacy.
 - [x] Có audit, dry-run/apply migration và rollback-reference scripts; apply bắt ticket/approver/confirmation.
 - [x] Backup gồm `private-media`; Caddy không mount thư mục private.
-- [D] Staging dry-run không có dữ liệu nên không chứng minh được migration.
-  Theo quyết định của Đại Ca, access-log `/uploads/*`, backfill, retention,
-  purge cache và orphan cleanup được ghi nợ để chạy khi promote production;
-  không dùng staging rỗng làm proof giả.
+- [x] Production strict audit pass: 0 `MediaObject`, 0 missing/orphan/size
+  mismatch; inventory legacy có 13 avatar, 81 warranty và 1 feedback record.
+- [x] Production strict migration dry-run pass: 750 reference/candidate,
+  0 missing/rejected/error. Không chạy `--apply` trong release train này.
+- [D] Host còn 764 file `/uploads` (~1,5 GB), private-media chưa có file và
+  Caddy chưa bật access log; số hit Docker log bằng 0 không chứng minh traffic
+  bằng 0. Backfill, retention, cache purge, route cutover và orphan cleanup là
+  work item dữ liệu riêng có backup/rollback.
 
 ## E. Input, log và outbound integration
 
@@ -110,16 +117,19 @@
   của SHA `962257a9...` pass với env live. Encrypted backup on-demand
   `20260714-121022` publish xong, 6/6 checksum pass, không còn `.incoming` hay
   local staging directory và toàn bộ container production vẫn healthy.
-- [M] Production vẫn dùng image legacy: API/Caddy chạy root, rootfs ghi được và
-  chưa drop capabilities. Env/volume live phải qua preflight mới trước khi
-  promote đúng SHA rồi kiểm lại UID/GID/ACL;
-  đồng thời inventory/xử lý backup plaintext cũ và phê duyệt retention/ZFS
-  snapshot trước khi đóng SEC-12 production.
+- [x] Production SHA `0a949268...` đã inspect: API `1000:1000`, realtime `app`,
+  Caddy `1000:1000`; ba service read-only, `CapDrop=ALL`,
+  `no-new-privileges`, log `10m x 5`; Redis bắt auth và container healthy.
+- [x] Encrypted backup `20260715-012644` publish sang TrueNAS với 6/6 checksum,
+  không `.incoming`; timer vẫn enabled/active.
+- [D] Inventory/xử lý backup plaintext cũ và phê duyệt retention/ZFS snapshot
+  vẫn là governance work item; không tự xóa hoặc prune trong audit.
 
 ## G. Runtime artifact và cleanup
 
 - [x] Workflow dùng `scripts/build-runtime-release.mjs`, không rsync toàn repository.
-- [x] Artifact CI chỉ lấy tracked allowlist và từ chối dirty runtime file; local reviewed-untracked preview sinh manifest SHA-256: 234 file, 11,093,245 byte, 0 test/env/xlsx/keystore.
+- [x] Artifact CI chỉ lấy tracked allowlist và từ chối dirty runtime file; gate
+  cuối sinh 250 file, 11.257.350 byte, 0 test/env/xlsx/keystore.
 - [x] Chỉ publish `docs/help/assets`; không publish lại HTML/content Help tĩnh như runtime song song.
 - [x] Runtime artifact chỉ mang 3 font + 2 logo thật sự được backend dùng; không mang `data/user_temp.xlsx` hoặc import mẫu.
 - [D] Xóa dead Dart subtree/asset khỏi app bundle: tách batch sau reachability + platform build proof để không trộn security hotfix.
@@ -128,12 +138,14 @@
 ## H. Validation và release
 
 - [x] `flutter analyze --no-pub` pass; focused security/payment tests pass.
-- [x] Full Flutter pass: 515 test, 1 skipped, 0 error.
+- [x] Full Flutter gate cuối: 458 test pass, 2 skipped, 0 error.
 - [x] Web release, Android staging debug và Windows debug compile pass; signed Windows
   staging release đã qua CI, checksum/signer-pin/Defender và máy kiểm thử thực.
 - [x] Prisma format/generate và Nest build pass.
 - [x] Nest focused security: 171/171; outbound: 124/124; log/scope: 215/215.
-- [x] Full Nest: 59/59 suite, 586/586 test. Hai fixture Sales Report đã được bổ sung `createdFromSiteDisplayName` theo strict showroom contract; không khôi phục runtime fallback.
+- [x] Full Nest gate cuối: 64/64 suite, 629/629 test. Fixture Sales Report dùng
+  ngày tương đối để giữ strict showroom/quota contract; không đổi runtime
+  fallback.
 - [x] Go test/vet/govulncheck, npm production audit, platform contract, YAML, shell, PowerShell và Compose config pass.
 - [x] `git diff --check` và invariant grep (JWT query/RawQuery/break-glass/full-repo rsync/raw email log) pass.
 - [x] Exact changed-file review cuối: 112 file tracked thay đổi + 44 mục untracked, đều nằm trong phạm vi bảo mật/tài liệu hoặc baseline Sales Report đã ghi nhận; không có build artifact/secret/signing key lọt vào worktree.
@@ -152,10 +164,14 @@
   `PRIVATE_MEDIA_BASE_DIR`; rollback trap trả về `4e1ced4b...`, năm container
   healthy. Env đã được chuẩn bị và workflow local fail-closed kiểm đủ bốn biến
   upload/private-media trước khi dừng service.
-- [M] Production vẫn đang ở release legacy sau rollback; phải chờ SHA sửa mới
-  pass staging rồi promote lại và inspect runtime trước khi đóng hardening.
-- [M] Proof runtime còn lại chỉ gồm ticket replay/session-revoke/authenticated
-  load, hai-admin/MFA, credential rotation và các gate production đã ghi nợ.
+- [x] Release cuối `0a949268...` pass staging run `29356202412` và production
+  run `29358234827`; public manifest/version, release manifest và runtime cùng
+  source SHA. API/realtime/Postgres/Redis healthy, Caddy up; 58 migration up to
+  date; HTTP `308`, HSTS/CSP, WS `101`, media anonymous `401`, Redis auth và
+  30-minute credential-query/fatal log smoke pass.
+- [M] Proof cần owner/quyền còn lại: hai-admin/MFA/recovery và credential
+  rotation. Sustained authenticated load soak, media apply/cutover và backup
+  retention/ZFS được tách thành follow-up; không làm giả bằng unit test/deploy.
 - [x] Đại Ca phê duyệt maintenance production ngày 14/07/2026 sau khi preflight
   env, encrypted backup, checksum, restore/rollback path và staging runtime proof
   đã đạt. Lượt promotion phải gom toàn bộ `origin/staging`, chỉ fast-forward đúng

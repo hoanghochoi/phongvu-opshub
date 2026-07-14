@@ -2,11 +2,11 @@
 
 > Ngày lập: 12/07/2026
 > Nguồn phát hiện: app-audit-21072026.md
-> Trạng thái xác minh 14/07/2026: hardening và audit proof đã commit/push, deploy
-> staging đến SHA `6fe62997eb76efc473c60f7998e9219fe7e69b20`; Cloudflare HTTPS/CSP/HSTS,
-> staging container/ACL và TrueNAS backup đã có proof. Production chưa promote;
-> private-media cutover, credential rotation, MFA và realtime destructive smoke
-> vẫn là gate riêng.
+> Trạng thái xác minh 15/07/2026: release hardening
+> `0a949268865afcfb120c8b521bd2c1733ca7ea3a` đã qua staging và production;
+> HTTPS/CSP/HSTS, container/Redis/log, encrypted TrueNAS backup và private-media
+> audit/dry-run đều có proof. Cutover media legacy, MFA/credential rotation,
+> retention/ZFS và sustained load soak được giữ thành gate riêng có owner.
 > Mục tiêu: đóng rủi ro Critical/High trước, sau đó giảm bề mặt runtime và nợ bảo trì mà không làm gãy nghiệp vụ
 
 ## 1. Mục tiêu và nguyên tắc
@@ -751,3 +751,35 @@ Thứ tự mới bắt buộc:
 5. Sau deploy, inspect UID/rootfs/cap/log, header/anonymous media/realtime log,
    rồi chạy private-media audit + migration dry-run. Không apply, purge, rotate
    secret hay xóa backup trong lượt này.
+
+## 19. Trạng thái thực hiện cuối và kế hoạch residual risk
+
+### 19.1 Release train đã đóng
+
+1. Local gate pass: Flutter analyze/458 test; Nest build/64 suite/629 test;
+   Prisma validate + migration scratch; exact Go builder test/vet/govulncheck/
+   race; npm audit; runtime artifact/platform/YAML/Bash/diff checks.
+2. Staging workflow `29356202412` deploy thành công SHA `0a949268...`; health,
+   headers, anonymous media, WebSocket và hardened container smoke pass.
+3. Backup `20260715-012644` sang TrueNAS có 6/6 checksum, atomic publication,
+   timer enabled/active và không còn `.incoming`.
+4. `origin/main` được fast-forward đúng staging SHA; production workflow
+   `29358234827` pass. Runtime non-root/read-only/cap-drop, Redis auth, migration
+   status, HSTS/CSP, API/private media/WebSocket và log-redaction smoke đều đạt.
+5. Private-media strict audit và strict dry-run pass với 750 candidate, không có
+   missing/rejected/error. Không apply hay xóa dữ liệu trong release train này.
+
+### 19.2 Backlog bắt buộc, không chặn kết luận audit
+
+| Ưu tiên | Work item | Điều kiện bắt đầu | Done evidence |
+| --- | --- | --- | --- |
+| P0-data | Media legacy cutover | Maintenance ticket + encrypted backup + owner | Access telemetry; batch `--apply`; post-audit 0 lỗi; client dual-read; rollback manifest; route public đóng sau retention |
+| P1-identity | Admin/MFA/secret rotation | Hai admin cá nhân và recovery owner | Account dùng chung disabled; MFA/recovery drill; session cũ fail; services healthy |
+| P1-backup | Retention/ZFS/legacy plaintext | Inventory và phê duyệt thao tác phá hủy | Policy/versioning/snapshot proof; restore drill định kỳ; không xóa ngoài policy |
+| P1-realtime | Sustained authenticated load soak | Tài khoản test + cửa sổ tải | Connection/replay/revoke/cross-scope metric; không queue leak/DoS |
+| P2-signing | Public CA code signing | Có ngân sách/provider | Artifact CA-trusted; signer pin cập nhật; waiver đóng trước 13/10/2026 |
+| P2-cleanup | Dead source/table cleanup | Reachability + telemetry 30 ngày + backup owner | Platform build/test pass; migration rollback; không giảm support matrix |
+
+Kế hoạch implementation chính đã hoàn thành. Các work item trên không được gộp
+ngầm vào maintenance thông thường: mỗi mục cần intake, checkpoint, backup/
+rollback và bằng chứng riêng trước khi đổi trạng thái.

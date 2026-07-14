@@ -1,9 +1,10 @@
 # Việc bảo mật Đại Ca cần tự thực hiện
 
-> Tài liệu này giữ các gate cần quyền/secret/dữ liệu live. Tính đến 14/07/2026,
-> Culi đã tự kiểm Cloudflare, staging runtime và backup trong phạm vi được cấp;
-> không vì vậy mà tự rotate secret, sửa dữ liệu hoặc promote production. Không
-> dán password/token/PFX/age private key vào Git, chat, ticket, ảnh chụp hoặc
+> Tài liệu này giữ các gate cần quyền/secret/dữ liệu live. Tính đến 15/07/2026,
+> release `0a949268...` đã qua staging/production và Culi đã kiểm Cloudflare,
+> runtime, backup, private-media audit/dry-run trong phạm vi được cấp. Không vì
+> vậy mà tự rotate secret, apply migration, purge dữ liệu hoặc đặt retention.
+> Không dán password/token/PFX/age private key vào Git, chat, ticket, ảnh chụp hoặc
 > command history.
 
 ## 0. Checkpoint và stop condition
@@ -696,7 +697,7 @@ Ghi RPO (khoảng cách `created_at` đến lúc sự cố giả định), RTO t
 xóa container test cô lập bằng `docker rm -f opshub-restore-drill`; không chạy
 lệnh cleanup này trên production.
 
-## 6. Host/container ACL và deploy staging
+## 6. Host/container ACL và deploy runtime
 
 - [x] Staging: `OPSHUB_RUNTIME_UID/GID` khớp runtime; không có `chmod 777`.
 - [x] Staging: `private-media` mode `0770` và không mount vào Caddy.
@@ -705,8 +706,9 @@ lệnh cleanup này trên production.
 - [x] Staging: Docker log `max-size=10m`, `max-file=5`.
 - [x] Staging: workflow `29299619536` deploy SHA `6fe62997...` thành công và
   public manifest/version khớp build `2026.07.14.145+200145`.
-- [ ] Production: API/Caddy vẫn chạy root trên image legacy, rootfs ghi được và
-  chưa drop capabilities. Chỉ đóng sau promotion đúng SHA và inspect lại.
+- [x] Production SHA `0a949268...`: API `1000:1000`, realtime `app`, Caddy
+  `1000:1000`; read-only rootfs, `CapDrop=ALL`, `no-new-privileges`, log
+  `10m x 5`; services healthy.
 
 ```bash
 docker inspect opshub-api-1 --format '{{.Config.User}} {{.HostConfig.ReadonlyRootfs}} {{json .HostConfig.CapDrop}}'
@@ -727,17 +729,20 @@ Smoke bắt buộc: login đúng/sai/enumeration, reset OTP attempt, ticket repl
 | Media backfill/cutover | Sửa dữ liệu/cache/client live | Dry-run, backup, batch audit, legacy hit=0 |
 | age key/restore drill | Hoàn tất manual ngày 13/07/2026; private key vẫn ngoài repo/host | Encrypted backup + off-host checksum + restore proof đã pass |
 | Windows/Android signing | Cần PFX/keystore và quyền GitHub Environment | Signed artifact + fingerprint/pin proof |
-| Container build/deploy | Staging đã đóng; production write vẫn cần promotion riêng | production cùng SHA/digest + smoke |
+| Container build/deploy | Đã đóng 15/07/2026 bằng staging + production cùng SHA và runtime inspect | giữ exact-SHA promotion/rollback contract |
 | CSP/HSTS enforce | Đã đóng 14/07/2026 sau Home/Help/Download/WS smoke | tiếp tục theo dõi CSP regression |
 | MFA implementation | Chưa chốt provider/UX/recovery | product decision + threat-model riêng |
 
 Runbook infra chi tiết bổ sung: `deploy/home-server/SECURITY_HARDENING_RUNBOOK.md`.
 
-## 8. Nợ bảo mật còn mở sau xác minh 14/07/2026
+## 8. Snapshot nợ bảo mật trước promotion ngày 14/07/2026
 
-1. **Production promotion:** production đang chạy release/image legacy; API và
-   Caddy còn root, rootfs ghi được, không drop capabilities. Không tự promote
-   trong audit; cần maintenance window, backup và rollback digest.
+Mục này được giữ làm audit trail. Production promotion/preflight ở mục 1 và 6
+đã đóng ngày 15/07; residual risk thực tế được thay bằng danh sách mục 9.
+
+1. **Production promotion (đã đóng 15/07):** tại snapshot này production còn
+   chạy release/image legacy; API/Caddy root và rootfs ghi được. Mục 9 ghi
+   runtime proof sau promotion.
 2. **Private media production:** staging không có dữ liệu. Khi production được
    promote phải đo access log `/uploads/*`, chạy dry-run/backfill, giữ qua
    retention/backup, rồi mới đóng route public và purge cache.
@@ -768,6 +773,42 @@ Runbook infra chi tiết bổ sung: `deploy/home-server/SECURITY_HARDENING_RUNBO
 - Backup on-demand `20260714-121022` hoàn tất sau 16 phút 20 giây do NFS qua
   Tailscale userspace; 6/6 checksum pass, publish nguyên tử, không còn
   `.incoming`/local staging và container vẫn healthy.
-- Bước còn cần xác nhận của Đại Ca là **maintenance window production** vì
-  workflow sẽ dừng API/realtime/Caddy, recreate Redis có auth, migrate rồi mới
-  bật hardened runtime. Đây không còn là bước audit read-only.
+- Maintenance window sau đó đã được phê duyệt và workflow production
+  `29358234827` hoàn tất. Phần preflight này được giữ như audit trail, không còn
+  là gate đang mở.
+
+## 9. Trạng thái cuối sau production release 15/07/2026
+
+Các bước promotion ở mục 6–8 đã hoàn tất cho SHA `0a949268...`:
+
+- staging run `29356202412` và production run `29358234827` đều thành công;
+- API/realtime/Caddy non-root, read-only, cap-drop, no-new-privileges; Redis
+  bắt auth; database 58 migration up to date;
+- HTTP `308`, HSTS/CSP enforce, WebSocket `101`, anonymous media `401`, log
+  token/ticket sạch;
+- backup TrueNAS `20260715-012644` có 6/6 checksum và timer active;
+- private-media audit strict + migration dry-run strict đạt, 750 candidate và
+  không có missing/rejected/error.
+
+Vì vậy không rerun production chỉ để “đóng checklist”. Các việc Đại Ca còn cần
+quyết định/thực hiện được thu gọn còn:
+
+1. **Media legacy:** mở ticket maintenance riêng; bật access telemetry hoặc
+   chốt observation window; backup; chạy batch `--apply`; post-audit; dual-read;
+   giữ rollback/reference qua retention rồi mới đóng `/uploads` và purge cache.
+   Hiện còn 764 file (~1,5 GB). Không xóa file trước các bước trên.
+2. **Identity:** xác nhận hai admin cá nhân, provider MFA, recovery owner;
+   disable account dùng chung và rotate JWT/shared credential trong cửa sổ có
+   session-revoke + health proof. Không gửi secret cho Culi.
+3. **Backup governance:** phê duyệt retention/ZFS snapshot/immutability và xử lý
+   plaintext lịch sử theo inventory. Không chạy lệnh prune/xóa khi chưa có
+   ticket và checksum.
+4. **Realtime:** nếu cần mức assurance cao hơn, cấp tài khoản test và cửa sổ cho
+   sustained authenticated load soak. Replay/logout/cross-store đã có staging
+   live proof; mục còn lại là tải kéo dài, không phải sửa contract mới.
+5. **Windows signing:** waiver `SEC-WIN-SELF-SIGNED-20260713` còn hiệu lực đến
+   ngày rà soát 13/10/2026; giữ signer pin, checksum, timestamp, Defender và
+   HTTPS cho đến khi có public CA certificate.
+
+Mỗi mục trên là follow-up độc lập. Không mục nào được đánh dấu hoàn tất chỉ vì
+production deploy hiện tại xanh.

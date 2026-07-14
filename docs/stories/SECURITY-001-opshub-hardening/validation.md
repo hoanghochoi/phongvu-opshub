@@ -4,15 +4,15 @@
 
 | Area | Required evidence | Current state |
 | --- | --- | --- |
-| Flutter | format, analyze, full test, web/APK/Windows build | pass; signed staging installer verified |
-| NestJS | Prisma validate/generate, focused security tests, build, full Jest | pass; full Jest 59/59 suites, 586/586 tests |
+| Flutter | format, analyze, full test, web/APK/Windows build | pass; final full 458 pass, 2 skip; signed artifacts verified |
+| NestJS | Prisma validate/generate, focused security tests, build, full Jest | pass; final full Jest 64/64 suites, 629/629 tests |
 | Go | gofmt, test, vet, govulncheck, slow-client/audience tests | pass with Go 1.25.12 |
-| Web edge | HTTP redirect, HTTPS headers, CSP report, CORS matrix | manual after deploy |
-| Media | owner/admin/scope matrix, traversal/checksum/dual-read | focused pass; live backfill/cutover manual |
-| Container | build, non-root uid, read-only write check, health | config contract pass; image/live checks manual |
-| Backup | permission/encryption/restore drill | encrypted backup and isolated restore drill pass; host ACL/retention follow-up remains |
+| Web edge | HTTP redirect, HTTPS headers, CSP report, CORS matrix | production HTTP 308, HSTS/CSP enforce, origin/API/WS smoke pass |
+| Media | owner/admin/scope matrix, traversal/checksum/dual-read | focused + strict production audit/dry-run pass; apply/cutover follow-up |
+| Container | build, non-root uid, read-only write check, health | staging/production live inspect pass on `0a949268...` |
+| Backup | permission/encryption/restore drill | encrypted restore proof + TrueNAS `20260715-012644` 6/6 pass; retention follow-up |
 | Dependency | npm audit, govulncheck, package/source contract | npm production 0; govulncheck pass |
-| Data | migration validation, row/checksum/backfill dry-run, rollback manifest | pending/manual runtime |
+| Data | migration validation, row/checksum/backfill dry-run, rollback manifest | 58 migrations current; 750-candidate strict dry-run pass; apply intentionally deferred |
 
 ## Baseline
 
@@ -106,7 +106,8 @@
 - Current local proof after the fix: Prisma validate, Nest build, platform
   security contract, workflow YAML parse, focused 138/138 tests, full Nest
   62/62 suites with 609/609 tests, focused Flutter 30/30 and `flutter analyze`.
-  Runtime proof remains pending a new staging SHA.
+  Tại checkpoint này runtime proof còn chờ staging SHA mới; mục final bên dưới
+  ghi bằng chứng đã đóng sau staging/production.
 - Pre-production backup regression: runtime dotenv release notes contained
   spaces, while the installed NAS job sourced the whole file as Bash. The job is
   hardened to parse only backup keys as dotenv data. Backup `20260714-234003`
@@ -119,3 +120,27 @@
   `go test -race` also passes after client removal publishes the lower count
   only once close metadata and limiter release are complete. The host-only Go
   1.26.0 scan is intentionally not used as runtime evidence.
+
+## Final staging/production proof 15/07/2026
+
+- Release SHA `0a949268865afcfb120c8b521bd2c1733ca7ea3a` passed staging run
+  `29356202412` and production run `29358234827`; both remote branches and live
+  release/manifest matched the same source commit at verification time.
+- Production API/realtime/Postgres/Redis were healthy and Caddy up. API ran
+  `1000:1000`, realtime `app`, Caddy `1000:1000`; runtime services had
+  read-only rootfs, `CapDrop=ALL`, `no-new-privileges` and bounded logs.
+- Edge/origin smoke: HTTP `308`; HSTS one year + CSP enforce; API health/root
+  `200`; public WebSocket `101`; anonymous `/api/media/:id` `401`; Redis
+  unauthenticated `NOAUTH` and internal authenticated `PONG`.
+- API/realtime logs in the 30-minute post-deploy window had 0
+  `access_token=`/`ticket=` hits and 0 fatal-pattern hits. Prisma reported all
+  58 migrations applied.
+- TrueNAS backup `20260715-012644` atomically published six verified artifacts;
+  timer remained enabled/active and `.incoming` count was zero.
+- Production private-media strict audit reported 0 missing/orphan/size mismatch.
+  Strict migration dry-run scanned 750 references and produced 750 candidates,
+  with 0 missing/rejected/error. No `--apply`, purge or deletion was performed.
+- Residual: 764 legacy files (~1.5 GB) remain under public `/uploads`; Caddy has
+  no access-log directive, so 0 Docker-log hits is inconclusive. Media cutover,
+  two-admin/MFA/secret rotation, retention/ZFS, sustained live load soak and
+  Windows self-signed waiver review remain explicit follow-up controls.

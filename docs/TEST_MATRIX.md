@@ -2681,6 +2681,18 @@ src/map-vietin/map-vietin.service.spec.ts` (26 tests), `npm run build`, full
   after correcting two Sales Report fixtures to the strict-showroom contract.
   No runtime fallback was restored. Manual gates and exact commands are in
   `app-security-manual-actions-12072026.md`.
+- Final proof 2026-07-15: local gate refreshed to Flutter 458 pass/2 skip,
+  Nest 64/64 suites and 629/629 tests, Prisma Home scratch `90/90/90`, exact
+  Go 1.25.12 builder test/vet/govulncheck/race, npm audit 0 and runtime artifact
+  250 files/11,257,350 bytes. SHA `0a949268...` passed staging run
+  `29356202412` and production run `29358234827`. Production runtime inspect
+  confirmed non-root/read-only/cap-drop/log limits, Redis auth, 58 current
+  migrations, HTTP 308 + HSTS/CSP, WS 101, anonymous media 401 and clean
+  token/ticket log smoke. TrueNAS backup `20260715-012644` passed 6/6 checksum.
+  Private-media strict audit and strict dry-run passed with 750 candidates and
+  0 missing/rejected/error; apply/cutover remains a separate data-maintenance
+  follow-up because 764 legacy upload files remain and Caddy has no access-log
+  proof.
 
 ## QUICK-ACTIONS-001 — Thao tác nhanh v1 (2026-07-13)
 
