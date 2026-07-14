@@ -150,10 +150,19 @@ cho Google Form, đồng thời lưu dữ liệu đủ chuẩn để dashboard d
 - Job trạng thái chạy mỗi 5 phút, mặc định tối đa 80 đơn/lượt với concurrency
   2 và Redis lease. Job rà cả đơn `PENDING` trong cache chưa báo cáo lẫn đơn
   `Mua hàng` đã báo cáo, ưu tiên pending, vẫn dành quota xoay vòng cho đơn hoàn
-  thành 30 ngày gần nhất để bắt hoàn trả muộn. Để không gây tải quá nhiều lên
-  ERP, job có backoff theo failure count, giới hạn số đơn mỗi showroom/lượt và
-  chỉ re-check pending sau khoảng cấu hình mặc định 5 phút; lỗi một đơn chỉ
-  tăng failure count và thử lại ở lượt sau.
+  thành để bắt hoàn trả muộn. Theo ngày Việt Nam, background sync gọi tối đa 5
+  lần cho mỗi đơn `PENDING` và tối đa 1 lần cho mỗi đơn `COMPLETED` hoặc
+  `COMPLETED_PARTIAL_RETURN`; đơn hoàn thành quá 10 ngày kể từ ngày bán ERP
+  không được gọi lại. Nếu pending chuyển sang completed ở bất kỳ lượt nào thì
+  lượt đó đồng thời dùng quota completed của ngày và background không gọi lại
+  trong cùng ngày. Job vẫn có backoff pending mặc định 5 phút và quota theo
+  showroom; gọi lỗi cũng tiêu một lượt trong ngày nhưng không khóa đơn ở ngày
+  kế tiếp.
+- Quota trên chỉ áp dụng cho background sync. Mỗi lần sale kiểm tra đơn hoặc
+  submit báo cáo, backend vẫn gọi ERP detail; nếu kết quả mới là hủy, trả toàn
+  bộ hoặc trả một phần thì cache/report phải lưu trạng thái mới nhất. Kết quả
+  completed/hủy/trả từ thao tác user được đánh dấu là đã kiểm tra trong ngày để
+  background không gọi lại vô ích cùng ngày.
 - Doanh số tổng trên dashboard lấy `grandTotal` từ cache đơn hàng theo
   ngày bán ERP (`orderCreatedAt`)/scope, bỏ đơn 0 VND, đơn hủy/trả toàn bộ và trừ
   `returnedAfterTaxAmount` khi có trả một phần. Doanh số hoàn thành chỉ cộng báo

@@ -82,9 +82,13 @@ nằm rời ở Google Form và có thể dùng cho dashboard sau này.
   loại; trả một phần trừ giá trị trả trước khi bỏ VAT 8%.
 - Backend rà trạng thái mỗi 5 phút, mặc định tối đa 80 đơn với concurrency 2:
   rà cả pending trong cache chưa báo cáo và pending đã báo cáo, vẫn dành quota
-  cho đơn completed 30 ngày gần nhất để bắt hoàn trả muộn. Redis lease ngăn
-  nhiều replica chạy trùng; quota theo showroom, backoff theo failure count và
-  khoảng re-check pending mặc định 5 phút giúp tránh dồn tải lên ERP.
+  cho đơn completed để bắt hoàn trả muộn. Mỗi ngày Việt Nam, background gọi tối
+  đa 5 lần/đơn pending và 1 lần/đơn completed; completed quá 10 ngày từ ngày
+  bán không gọi lại. Pending chuyển completed ở lượt nào thì lượt đó đã dùng
+  quota completed trong ngày. Redis lease ngăn nhiều replica chạy trùng; quota
+  theo showroom và backoff pending mặc định 5 phút giúp tránh dồn tải lên ERP.
+  Check/submit do user chủ động không bị quota background chặn và luôn persist
+  trạng thái hủy/trả/hoàn thành mới nhất từ ERP.
 - Form `Chưa mua hàng` không gọi ERP, bắt buộc ngành hàng và lý do chưa mua.
 - Cả 2 form có tick `Có nhu cầu trả góp`. Khi tick, sale phải chọn một hoặc
   nhiều đối tác trong list: `VNPAY - POS`, `PAYOO - POS`,

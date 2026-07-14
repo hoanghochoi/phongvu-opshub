@@ -67,6 +67,9 @@ const ERP_ORDER_CANCELED_EXCLUSION_REASON = 'ERP_ORDER_CANCELLED';
 const ERP_ORDER_RETURNED_EXCLUSION_REASON = 'ERP_ORDER_RETURNED_FULL';
 const ERP_ORDER_ZERO_VALUE_EXCLUSION_REASON = 'ERP_ORDER_ZERO_VALUE_INTERNAL';
 const ERP_STATUS_SYNC_LOCK_KEY = 'opshub:sales-report:erp-status-sync';
+const ERP_STATUS_PENDING_DAILY_LIMIT = 5;
+const ERP_STATUS_COMPLETED_DAILY_LIMIT = 1;
+const ERP_STATUS_COMPLETED_MAX_AGE_DAYS = 10;
 const MANAGED_SALES_REPORT_JOB_ROLE_CODES = new Set([
   'STORE_MANAGER',
   'AREA_MANAGER',
@@ -122,6 +125,8 @@ type ErpOrderStatusSyncCandidate = {
   lifecycleStatus: string;
   statusCheckedAt: Date | null;
   statusCheckAttemptedAt: Date | null;
+  statusCheckAttemptDate: Date | null;
+  statusCheckAttemptCount: number;
   statusCheckFailureCount: number;
   orderCreatedAt: Date | null;
   source: ErpOrderStatusSyncCandidateSource;
@@ -134,6 +139,8 @@ type ErpOrderStatusSyncSelection = {
   reportedPending: number;
   reportedCompleted: number;
   skippedBackoff: number;
+  skippedDailyLimit: number;
+  skippedCompletedAge: number;
   skippedStoreQuota: number;
 };
 
@@ -802,12 +809,6 @@ export class SalesReportsService implements OnApplicationBootstrap {
       1,
       5,
     );
-    const lookbackDays = this.envInt(
-      'ERP_ORDER_STATUS_COMPLETED_LOOKBACK_DAYS',
-      30,
-      1,
-      180,
-    );
     const cacheSyncEnabled = this.envFlag(
       'ERP_ORDER_STATUS_CACHE_SYNC_ENABLED',
       true,
@@ -824,23 +825,11 @@ export class SalesReportsService implements OnApplicationBootstrap {
       1,
       1440,
     );
-    const completedRecheckHours = this.envInt(
-      'ERP_ORDER_STATUS_COMPLETED_RECHECK_HOURS',
-      24,
-      1,
-      168,
-    );
     const storeLimit = this.envInt(
       'ERP_ORDER_STATUS_SYNC_STORE_LIMIT',
       20,
       1,
       200,
-    );
-    const maxFailureCount = this.envInt(
-      'ERP_ORDER_STATUS_MAX_FAILURE_COUNT',
-      5,
-      1,
-      50,
     );
     let leaseToken: string | null = null;
     if (this.redisService) {
@@ -866,17 +855,17 @@ export class SalesReportsService implements OnApplicationBootstrap {
     const startedAt = Date.now();
     try {
       this.logger.log(
-        `ERP order status sync started: source=${source} cacheEnabled=${cacheSyncEnabled} batchSize=${batchSize} concurrency=${concurrency} storeLimit=${storeLimit} pendingRecheckMinutes=${pendingRecheckMinutes} completedRecheckHours=${completedRecheckHours} maxFailureCount=${maxFailureCount}`,
+        `ERP order status sync started: source=${source} cacheEnabled=${cacheSyncEnabled} batchSize=${batchSize} concurrency=${concurrency} storeLimit=${storeLimit} pendingRecheckMinutes=${pendingRecheckMinutes} pendingDailyLimit=${ERP_STATUS_PENDING_DAILY_LIMIT} completedDailyLimit=${ERP_STATUS_COMPLETED_DAILY_LIMIT} completedMaxAgeDays=${ERP_STATUS_COMPLETED_MAX_AGE_DAYS}`,
       );
       const selection = await this.selectErpStatusSyncCandidates({
         batchSize,
         cacheSyncEnabled,
         cacheLookbackDays,
-        completedLookbackDays: lookbackDays,
+        completedMaxAgeDays: ERP_STATUS_COMPLETED_MAX_AGE_DAYS,
         pendingRecheckMinutes,
-        completedRecheckHours,
+        pendingDailyLimit: ERP_STATUS_PENDING_DAILY_LIMIT,
+        completedDailyLimit: ERP_STATUS_COMPLETED_DAILY_LIMIT,
         storeLimit,
-        maxFailureCount,
       });
       const selected = selection.selected;
       let cursor = 0;
@@ -888,12 +877,17 @@ export class SalesReportsService implements OnApplicationBootstrap {
       const worker = async () => {
         while (cursor < selected.length) {
           const row = selected[cursor++];
+          const attemptedAt = new Date();
           try {
             const next = await this.erp.lookupOrderStatus(
               row.orderCode,
               row.storeCode,
             );
-            const persistResult = await this.persistScheduledErpStatus(next);
+            const persistResult = await this.persistScheduledErpStatus(
+              next,
+              row,
+              attemptedAt,
+            );
             if (persistResult.excluded) {
               excluded += 1;
             }
@@ -914,7 +908,7 @@ export class SalesReportsService implements OnApplicationBootstrap {
             }
           } catch (error) {
             failed += 1;
-            await this.recordErpStatusSyncFailure(row.orderCode);
+            await this.recordErpStatusSyncFailure(row, attemptedAt);
             this.logger.warn(
               `ERP order status refresh failed: orderLength=${row.orderCode.length} sourceBucket=${row.source} errorType=${this.errorType(error)}`,
             );
@@ -938,7 +932,7 @@ export class SalesReportsService implements OnApplicationBootstrap {
         });
       }
       this.logger.log(
-        `ERP order status sync succeeded: source=${source} cacheEnabled=${cacheSyncEnabled} selected=${selected.length} cachePending=${selection.cachePending} reportedPending=${selection.reportedPending} cacheCompleted=${selection.cacheCompleted} reportedCompleted=${selection.reportedCompleted} skippedBackoff=${selection.skippedBackoff} skippedStoreQuota=${selection.skippedStoreQuota} changed=${changed} excluded=${excluded} failed=${failed} concurrency=${concurrency} durationMs=${Date.now() - startedAt}`,
+        `ERP order status sync succeeded: source=${source} cacheEnabled=${cacheSyncEnabled} selected=${selected.length} cachePending=${selection.cachePending} reportedPending=${selection.reportedPending} cacheCompleted=${selection.cacheCompleted} reportedCompleted=${selection.reportedCompleted} skippedBackoff=${selection.skippedBackoff} skippedDailyLimit=${selection.skippedDailyLimit} skippedCompletedAge=${selection.skippedCompletedAge} skippedStoreQuota=${selection.skippedStoreQuota} pendingDailyLimit=${ERP_STATUS_PENDING_DAILY_LIMIT} completedDailyLimit=${ERP_STATUS_COMPLETED_DAILY_LIMIT} completedMaxAgeDays=${ERP_STATUS_COMPLETED_MAX_AGE_DAYS} changed=${changed} excluded=${excluded} failed=${failed} concurrency=${concurrency} durationMs=${Date.now() - startedAt}`,
       );
       return {
         skipped: false,
@@ -967,11 +961,11 @@ export class SalesReportsService implements OnApplicationBootstrap {
     batchSize: number;
     cacheSyncEnabled: boolean;
     cacheLookbackDays: number;
-    completedLookbackDays: number;
+    completedMaxAgeDays: number;
     pendingRecheckMinutes: number;
-    completedRecheckHours: number;
+    pendingDailyLimit: number;
+    completedDailyLimit: number;
     storeLimit: number;
-    maxFailureCount: number;
   }): Promise<ErpOrderStatusSyncSelection> {
     const now = new Date();
     const pendingLimit = Math.max(1, Math.floor(input.batchSize * 0.8));
@@ -979,8 +973,9 @@ export class SalesReportsService implements OnApplicationBootstrap {
     const cacheCutoff = new Date(
       now.getTime() - input.cacheLookbackDays * 24 * 60 * 60 * 1000,
     );
-    const completedCutoff = new Date(
-      now.getTime() - input.completedLookbackDays * 24 * 60 * 60 * 1000,
+    const completedCutoff = this.vietnamDayStart(now);
+    completedCutoff.setUTCDate(
+      completedCutoff.getUTCDate() - input.completedMaxAgeDays,
     );
     const selection: ErpOrderStatusSyncSelection = {
       selected: [],
@@ -989,6 +984,8 @@ export class SalesReportsService implements OnApplicationBootstrap {
       reportedPending: 0,
       reportedCompleted: 0,
       skippedBackoff: 0,
+      skippedDailyLimit: 0,
+      skippedCompletedAge: 0,
       skippedStoreQuota: 0,
     };
     const seenOrderCodes = new Set<string>();
@@ -1002,10 +999,11 @@ export class SalesReportsService implements OnApplicationBootstrap {
           where: {
             excludedAt: null,
             lifecycleStatus: 'PENDING',
-            statusCheckFailureCount: { lt: input.maxFailureCount },
             ...this.orderCacheStatusSyncDateWhere(cacheCutoff),
           },
           orderBy: [
+            { statusCheckAttemptDate: 'asc' },
+            { statusCheckAttemptCount: 'asc' },
             { statusCheckAttemptedAt: 'asc' },
             { statusCheckedAt: 'asc' },
             { orderCreatedAt: 'desc' },
@@ -1017,8 +1015,11 @@ export class SalesReportsService implements OnApplicationBootstrap {
             lifecycleStatus: true,
             statusCheckedAt: true,
             statusCheckAttemptedAt: true,
+            statusCheckAttemptDate: true,
+            statusCheckAttemptCount: true,
             statusCheckFailureCount: true,
             orderCreatedAt: true,
+            fetchedAt: true,
           },
         });
       for (const row of cachePendingRows) {
@@ -1032,15 +1033,22 @@ export class SalesReportsService implements OnApplicationBootstrap {
         reportType: REPORT_TYPE_PURCHASED,
         orderCode: { not: null },
         erpLifecycleStatus: 'PENDING',
-        erpStatusCheckFailureCount: { lt: input.maxFailureCount },
       },
-      orderBy: [{ erpStatusCheckedAt: 'asc' }, { submittedAt: 'asc' }],
+      orderBy: [
+        { erpStatusCheckAttemptDate: 'asc' },
+        { erpStatusCheckAttemptCount: 'asc' },
+        { erpStatusCheckedAt: 'asc' },
+        { submittedAt: 'asc' },
+      ],
       take: input.batchSize,
       select: {
         orderCode: true,
         storeCode: true,
         erpLifecycleStatus: true,
         erpStatusCheckedAt: true,
+        erpStatusCheckAttemptedAt: true,
+        erpStatusCheckAttemptDate: true,
+        erpStatusCheckAttemptCount: true,
         erpStatusCheckFailureCount: true,
         erpOrderCreatedAt: true,
       },
@@ -1059,10 +1067,11 @@ export class SalesReportsService implements OnApplicationBootstrap {
           where: {
             excludedAt: null,
             lifecycleStatus: { in: ['COMPLETED', 'COMPLETED_PARTIAL_RETURN'] },
-            statusCheckFailureCount: { lt: input.maxFailureCount },
             ...this.orderCacheStatusSyncDateWhere(completedCutoff),
           },
           orderBy: [
+            { statusCheckAttemptDate: 'asc' },
+            { statusCheckAttemptCount: 'asc' },
             { statusCheckAttemptedAt: 'asc' },
             { statusCheckedAt: 'asc' },
             { orderCreatedAt: 'desc' },
@@ -1074,8 +1083,11 @@ export class SalesReportsService implements OnApplicationBootstrap {
             lifecycleStatus: true,
             statusCheckedAt: true,
             statusCheckAttemptedAt: true,
+            statusCheckAttemptDate: true,
+            statusCheckAttemptCount: true,
             statusCheckFailureCount: true,
             orderCreatedAt: true,
+            fetchedAt: true,
           },
         });
       for (const row of cacheCompletedRows) {
@@ -1092,15 +1104,22 @@ export class SalesReportsService implements OnApplicationBootstrap {
           in: ['COMPLETED', 'COMPLETED_PARTIAL_RETURN'],
         },
         erpOrderCreatedAt: { gte: completedCutoff },
-        erpStatusCheckFailureCount: { lt: input.maxFailureCount },
       },
-      orderBy: [{ erpStatusCheckedAt: 'asc' }, { submittedAt: 'asc' }],
+      orderBy: [
+        { erpStatusCheckAttemptDate: 'asc' },
+        { erpStatusCheckAttemptCount: 'asc' },
+        { erpStatusCheckedAt: 'asc' },
+        { submittedAt: 'asc' },
+      ],
       take: input.batchSize,
       select: {
         orderCode: true,
         storeCode: true,
         erpLifecycleStatus: true,
         erpStatusCheckedAt: true,
+        erpStatusCheckAttemptedAt: true,
+        erpStatusCheckAttemptDate: true,
+        erpStatusCheckAttemptCount: true,
         erpStatusCheckFailureCount: true,
         erpOrderCreatedAt: true,
       },
@@ -1117,15 +1136,20 @@ export class SalesReportsService implements OnApplicationBootstrap {
       if (selection.selected.length >= input.batchSize) return false;
       const orderCode = this.normalizeOrderCode(candidate.orderCode);
       if (!orderCode || seenOrderCodes.has(orderCode)) return false;
-      if (
-        !this.isErpStatusSyncCandidateDue(candidate, {
-          now,
-          pendingRecheckMinutes: input.pendingRecheckMinutes,
-          completedRecheckHours: input.completedRecheckHours,
-          maxFailureCount: input.maxFailureCount,
-        })
-      ) {
-        selection.skippedBackoff += 1;
+      seenOrderCodes.add(orderCode);
+      const skipReason = this.erpStatusSyncCandidateSkipReason(candidate, {
+        now,
+        completedCutoff,
+        pendingRecheckMinutes: input.pendingRecheckMinutes,
+        pendingDailyLimit: input.pendingDailyLimit,
+        completedDailyLimit: input.completedDailyLimit,
+      });
+      if (skipReason) {
+        if (skipReason === 'backoff') selection.skippedBackoff += 1;
+        if (skipReason === 'daily_limit') selection.skippedDailyLimit += 1;
+        if (skipReason === 'completed_age') {
+          selection.skippedCompletedAge += 1;
+        }
         return false;
       }
       const storeKey =
@@ -1137,7 +1161,6 @@ export class SalesReportsService implements OnApplicationBootstrap {
       }
       const normalized = { ...candidate, orderCode };
       selection.selected.push(normalized);
-      seenOrderCodes.add(orderCode);
       storeCounts.set(storeKey, storeCount + 1);
       if (normalized.source === 'cache_pending') selection.cachePending += 1;
       if (normalized.source === 'cache_completed') {
@@ -1192,8 +1215,11 @@ export class SalesReportsService implements OnApplicationBootstrap {
       lifecycleStatus: string;
       statusCheckedAt: Date | null;
       statusCheckAttemptedAt: Date | null;
+      statusCheckAttemptDate: Date | null;
+      statusCheckAttemptCount: number | null;
       statusCheckFailureCount: number | null;
       orderCreatedAt: Date | null;
+      fetchedAt: Date;
     },
     source: Extract<
       ErpOrderStatusSyncCandidateSource,
@@ -1210,10 +1236,14 @@ export class SalesReportsService implements OnApplicationBootstrap {
         'PENDING',
       statusCheckedAt: row.statusCheckedAt,
       statusCheckAttemptedAt: row.statusCheckAttemptedAt,
+      statusCheckAttemptDate: row.statusCheckAttemptDate,
+      statusCheckAttemptCount: this.toNonNegativeInt(
+        row.statusCheckAttemptCount,
+      ),
       statusCheckFailureCount: this.toNonNegativeInt(
         row.statusCheckFailureCount,
       ),
-      orderCreatedAt: row.orderCreatedAt,
+      orderCreatedAt: row.orderCreatedAt ?? row.fetchedAt,
       source,
     };
   }
@@ -1224,6 +1254,9 @@ export class SalesReportsService implements OnApplicationBootstrap {
       storeCode: string | null;
       erpLifecycleStatus: string;
       erpStatusCheckedAt: Date | null;
+      erpStatusCheckAttemptedAt: Date | null;
+      erpStatusCheckAttemptDate: Date | null;
+      erpStatusCheckAttemptCount?: number | null;
       erpStatusCheckFailureCount?: number | null;
       erpOrderCreatedAt: Date | null;
     },
@@ -1239,7 +1272,11 @@ export class SalesReportsService implements OnApplicationBootstrap {
       storeCode: this.normalizeStoreCode(row.storeCode),
       lifecycleStatus: row.erpLifecycleStatus,
       statusCheckedAt: row.erpStatusCheckedAt,
-      statusCheckAttemptedAt: row.erpStatusCheckedAt,
+      statusCheckAttemptedAt: row.erpStatusCheckAttemptedAt,
+      statusCheckAttemptDate: row.erpStatusCheckAttemptDate,
+      statusCheckAttemptCount: this.toNonNegativeInt(
+        row.erpStatusCheckAttemptCount,
+      ),
       statusCheckFailureCount: this.toNonNegativeInt(
         row.erpStatusCheckFailureCount,
       ),
@@ -1259,34 +1296,57 @@ export class SalesReportsService implements OnApplicationBootstrap {
     };
   }
 
-  private isErpStatusSyncCandidateDue(
+  private erpStatusSyncCandidateSkipReason(
     candidate: ErpOrderStatusSyncCandidate,
     input: {
       now: Date;
+      completedCutoff: Date;
       pendingRecheckMinutes: number;
-      completedRecheckHours: number;
-      maxFailureCount: number;
+      pendingDailyLimit: number;
+      completedDailyLimit: number;
     },
-  ) {
+  ): 'backoff' | 'daily_limit' | 'completed_age' | null {
+    const completed = candidate.source.includes('completed');
+    if (
+      completed &&
+      (!candidate.orderCreatedAt ||
+        candidate.orderCreatedAt.getTime() < input.completedCutoff.getTime())
+    ) {
+      return 'completed_age';
+    }
+    const attemptedToday = this.isVietnamAttemptDate(
+      candidate.statusCheckAttemptDate,
+      input.now,
+    );
+    const dailyAttemptCount = attemptedToday
+      ? this.toNonNegativeInt(candidate.statusCheckAttemptCount)
+      : 0;
+    const dailyLimit = completed
+      ? input.completedDailyLimit
+      : input.pendingDailyLimit;
+    if (dailyAttemptCount >= dailyLimit) return 'daily_limit';
+    if (completed || !attemptedToday || !candidate.statusCheckAttemptedAt) {
+      return null;
+    }
     const failureCount = this.toNonNegativeInt(
       candidate.statusCheckFailureCount,
     );
-    if (failureCount >= input.maxFailureCount) return false;
-    if (!candidate.statusCheckAttemptedAt) return true;
-    const baseMinutes = candidate.source.includes('completed')
-      ? input.completedRecheckHours * 60
-      : input.pendingRecheckMinutes;
     const backoffMultiplier =
       failureCount > 0 ? Math.min(64, 2 ** (failureCount - 1)) : 1;
-    const dueAfterMinutes = Math.min(24 * 60, baseMinutes * backoffMultiplier);
-    return (
-      input.now.getTime() - candidate.statusCheckAttemptedAt.getTime() >=
-      dueAfterMinutes * 60 * 1000
+    const dueAfterMinutes = Math.min(
+      24 * 60,
+      input.pendingRecheckMinutes * backoffMultiplier,
     );
+    return input.now.getTime() - candidate.statusCheckAttemptedAt.getTime() <
+      dueAfterMinutes * 60 * 1000
+      ? 'backoff'
+      : null;
   }
 
   private async persistScheduledErpStatus(
     order: SalesReportErpOrderListItem,
+    candidate: ErpOrderStatusSyncCandidate,
+    attemptedAt: Date,
   ): Promise<ErpOrderCachePersistResult> {
     const grandTotal = this.numberValue(order.grandTotal);
     const exclusion = this.orderExclusionState(
@@ -1304,6 +1364,7 @@ export class SalesReportsService implements OnApplicationBootstrap {
       this.optionalText(order.storeName, 120) ??
       this.optionalText(store?.storeName, 120);
     const orderCreatedAt = this.cacheOrderCreatedAt(order, null);
+    const attempt = this.nextErpStatusAttempt(candidate, attemptedAt);
     const cacheData = {
       ...(orderCreatedAt ? { orderCreatedAt } : {}),
       paymentStatus: this.optionalText(order.paymentStatus, 80),
@@ -1313,7 +1374,9 @@ export class SalesReportsService implements OnApplicationBootstrap {
       hasReturnedFullItems: order.hasReturnedFullItems,
       returnedAfterTaxAmount: Math.max(0, order.returnedAfterTaxAmount),
       statusCheckedAt: order.statusCheckedAt,
-      statusCheckAttemptedAt: order.statusCheckedAt,
+      statusCheckAttemptedAt: attemptedAt,
+      statusCheckAttemptDate: attempt.date,
+      statusCheckAttemptCount: attempt.count,
       statusCheckFailureCount: 0,
       fetchedAt: order.fetchedAt,
       sanitizedSnapshot: order.sanitizedSnapshot as Prisma.InputJsonValue,
@@ -1348,6 +1411,9 @@ export class SalesReportsService implements OnApplicationBootstrap {
           erpReturnedAfterTaxAmount: cacheData.returnedAfterTaxAmount,
           ...(orderCreatedAt ? { erpOrderCreatedAt: orderCreatedAt } : {}),
           erpStatusCheckedAt: order.statusCheckedAt,
+          erpStatusCheckAttemptedAt: attemptedAt,
+          erpStatusCheckAttemptDate: attempt.date,
+          erpStatusCheckAttemptCount: attempt.count,
           erpStatusCheckFailureCount: 0,
           erpFetchedAt: order.fetchedAt,
           ...(exclusion.excludedAt
@@ -1372,24 +1438,43 @@ export class SalesReportsService implements OnApplicationBootstrap {
     };
   }
 
-  private async recordErpStatusSyncFailure(orderCode: string) {
-    const attemptedAt = new Date();
+  private async recordErpStatusSyncFailure(
+    candidate: ErpOrderStatusSyncCandidate,
+    attemptedAt: Date,
+  ) {
+    const attempt = this.nextErpStatusAttempt(candidate, attemptedAt);
+    const failureCount = this.isVietnamAttemptDate(
+      candidate.statusCheckAttemptDate,
+      attemptedAt,
+    )
+      ? this.toNonNegativeInt(candidate.statusCheckFailureCount) + 1
+      : 1;
     const [cacheResult] = await this.prisma.$transaction([
       this.prisma.salesReportErpOrderCache.updateMany({
-        where: { orderCode },
+        where: { orderCode: candidate.orderCode },
         data: {
           statusCheckAttemptedAt: attemptedAt,
-          statusCheckFailureCount: { increment: 1 },
+          statusCheckAttemptDate: attempt.date,
+          statusCheckAttemptCount: attempt.count,
+          statusCheckFailureCount: failureCount,
         },
       }),
       this.prisma.salesReport.updateMany({
-        where: { orderCode, reportType: REPORT_TYPE_PURCHASED },
-        data: { erpStatusCheckFailureCount: { increment: 1 } },
+        where: {
+          orderCode: candidate.orderCode,
+          reportType: REPORT_TYPE_PURCHASED,
+        },
+        data: {
+          erpStatusCheckAttemptedAt: attemptedAt,
+          erpStatusCheckAttemptDate: attempt.date,
+          erpStatusCheckAttemptCount: attempt.count,
+          erpStatusCheckFailureCount: failureCount,
+        },
       }),
     ]);
     if (cacheResult.count === 0) {
       this.logger.warn(
-        `ERP order status failure recorded without cache row: orderLength=${orderCode.length}`,
+        `ERP order status failure recorded without cache row: orderLength=${candidate.orderCode.length}`,
       );
     }
   }
@@ -2039,6 +2124,8 @@ export class SalesReportsService implements OnApplicationBootstrap {
             orderCreatedAt: true,
             statusCheckedAt: true,
             statusCheckAttemptedAt: true,
+            statusCheckAttemptDate: true,
+            statusCheckAttemptCount: true,
             statusCheckFailureCount: true,
             excludedAt: true,
             exclusionReason: true,
@@ -2364,7 +2451,9 @@ export class SalesReportsService implements OnApplicationBootstrap {
       sanitizedSnapshot: erpOrder.sanitizedSnapshot,
       fetchedAt: erpOrder.fetchedAt,
     };
-    return this.upsertErpOrderCacheItem(user, context, item, new Map());
+    return this.upsertErpOrderCacheItem(user, context, item, new Map(), null, {
+      userInitiatedStatusCheck: true,
+    });
   }
 
   private async upsertErpOrderCacheItem(
@@ -2376,13 +2465,35 @@ export class SalesReportsService implements OnApplicationBootstrap {
     options: {
       existingCacheRow?: any | null;
       preserveVerifiedLifecycle?: boolean;
+      userInitiatedStatusCheck?: boolean;
     } = {},
   ): Promise<ErpOrderCachePersistResult> {
     const orderCode = this.normalizeOrderCode(order.orderCode);
     if (!orderCode) return { excluded: false, exclusionReason: null };
+    const existingCacheRow =
+      options.existingCacheRow ??
+      (options.userInitiatedStatusCheck
+        ? await this.prisma.salesReportErpOrderCache.findUnique({
+            where: { orderCode },
+            select: {
+              lifecycleStatus: true,
+              hasReturnedFullItems: true,
+              returnedAfterTaxAmount: true,
+              paymentStatus: true,
+              confirmationStatus: true,
+              fulfillmentStatus: true,
+              statusCheckedAt: true,
+              statusCheckAttemptedAt: true,
+              statusCheckAttemptDate: true,
+              statusCheckAttemptCount: true,
+              statusCheckFailureCount: true,
+              sanitizedSnapshot: true,
+            },
+          })
+        : null);
     const incomingLifecycleStatus = this.normalizedErpLifecycleStatus(order);
     const existingLifecycleStatus = this.normalizePersistedErpLifecycleStatus(
-      options.existingCacheRow?.lifecycleStatus,
+      existingCacheRow?.lifecycleStatus,
     );
     const preserveVerifiedLifecycle =
       options.preserveVerifiedLifecycle === true &&
@@ -2393,15 +2504,22 @@ export class SalesReportsService implements OnApplicationBootstrap {
       options.preserveVerifiedLifecycle === true &&
       incomingLifecycleStatus === 'PENDING' &&
       !preserveVerifiedLifecycle;
+    const preserveUserPendingStatusAttempt =
+      options.userInitiatedStatusCheck === true &&
+      incomingLifecycleStatus === 'PENDING';
     const lifecycleStatus = preserveVerifiedLifecycle
       ? existingLifecycleStatus
       : incomingLifecycleStatus;
+    const userVerifiedStatusCheck =
+      options.userInitiatedStatusCheck === true &&
+      lifecycleStatus !== 'PENDING';
+    const userAttemptedAt = new Date();
     const existingReturnedAfterTaxAmount = this.toNonNegativeInt(
-      options.existingCacheRow?.returnedAfterTaxAmount,
+      existingCacheRow?.returnedAfterTaxAmount,
     );
     const hasReturnedFullItems =
       (preserveVerifiedLifecycle
-        ? options.existingCacheRow?.hasReturnedFullItems === true
+        ? existingCacheRow?.hasReturnedFullItems === true
         : order.hasReturnedFullItems === true) ||
       lifecycleStatus === 'RETURNED_FULL';
     const rawReturnedAmount = Number(order.returnedAfterTaxAmount ?? 0);
@@ -2412,49 +2530,65 @@ export class SalesReportsService implements OnApplicationBootstrap {
         : 0;
     const incomingStatusCheckedAt = order.statusCheckedAt ?? order.fetchedAt;
     const statusCheckedAt = preserveVerifiedLifecycle
-      ? (options.existingCacheRow?.statusCheckedAt ?? incomingStatusCheckedAt)
+      ? (existingCacheRow?.statusCheckedAt ?? incomingStatusCheckedAt)
       : incomingStatusCheckedAt;
-    const statusCheckAttemptedAt = preserveVerifiedLifecycle
-      ? (options.existingCacheRow?.statusCheckAttemptedAt ?? statusCheckedAt)
-      : preservePendingStatusAttempt
-        ? (options.existingCacheRow?.statusCheckAttemptedAt ?? null)
-        : statusCheckedAt;
+    const statusCheckAttemptedAt = userVerifiedStatusCheck
+      ? userAttemptedAt
+      : preserveVerifiedLifecycle
+        ? (existingCacheRow?.statusCheckAttemptedAt ?? statusCheckedAt)
+        : preservePendingStatusAttempt || preserveUserPendingStatusAttempt
+          ? (existingCacheRow?.statusCheckAttemptedAt ?? null)
+          : statusCheckedAt;
     const statusCheckFailureCount =
-      preserveVerifiedLifecycle || preservePendingStatusAttempt
-        ? this.toNonNegativeInt(
-            options.existingCacheRow?.statusCheckFailureCount,
-          )
+      preserveVerifiedLifecycle ||
+      preservePendingStatusAttempt ||
+      preserveUserPendingStatusAttempt
+        ? this.toNonNegativeInt(existingCacheRow?.statusCheckFailureCount)
         : 0;
+    const existingAttemptIsToday = this.isVietnamAttemptDate(
+      existingCacheRow?.statusCheckAttemptDate ?? null,
+      userAttemptedAt,
+    );
+    const statusCheckAttemptDate = userVerifiedStatusCheck
+      ? this.vietnamAttemptDate(userAttemptedAt)
+      : (existingCacheRow?.statusCheckAttemptDate ?? null);
+    const statusCheckAttemptCount = userVerifiedStatusCheck
+      ? existingAttemptIsToday
+        ? Math.max(
+            1,
+            this.toNonNegativeInt(existingCacheRow?.statusCheckAttemptCount),
+          )
+        : 1
+      : this.toNonNegativeInt(existingCacheRow?.statusCheckAttemptCount);
     const grandTotal = this.numberValue(order.grandTotal);
     const exclusion = this.orderExclusionState(lifecycleStatus, grandTotal);
     const sourceOfTruthStoreCode = this.authoritativeStoreCodeForCache(
       order.sanitizedSnapshot,
-      options.existingCacheRow?.sanitizedSnapshot,
+      existingCacheRow?.sanitizedSnapshot,
     );
     const storeCode = this.normalizeStoreCode(sourceOfTruthStoreCode);
     const store = storeCode ? storeByCode.get(storeCode) : null;
-    const orderCreatedAt = this.cacheOrderCreatedAt(
-      order,
-      options.existingCacheRow,
-    );
+    const orderCreatedAt = this.cacheOrderCreatedAt(order, existingCacheRow);
     const data = {
       erpOrderId: this.optionalText(order.erpOrderId, 80),
       erpExternalOrderRef: this.optionalText(order.erpExternalOrderRef, 120),
       orderCreatedAt,
       paymentStatus: preserveVerifiedLifecycle
-        ? this.optionalText(options.existingCacheRow?.paymentStatus, 80)
+        ? this.optionalText(existingCacheRow?.paymentStatus, 80)
         : this.optionalText(order.paymentStatus, 80),
       confirmationStatus: preserveVerifiedLifecycle
-        ? this.optionalText(options.existingCacheRow?.confirmationStatus, 80)
+        ? this.optionalText(existingCacheRow?.confirmationStatus, 80)
         : this.optionalText(order.confirmationStatus, 80),
       fulfillmentStatus: preserveVerifiedLifecycle
-        ? this.optionalText(options.existingCacheRow?.fulfillmentStatus, 80)
+        ? this.optionalText(existingCacheRow?.fulfillmentStatus, 80)
         : this.optionalText(order.fulfillmentStatus, 80),
       lifecycleStatus,
       hasReturnedFullItems,
       returnedAfterTaxAmount,
       statusCheckedAt,
       statusCheckAttemptedAt,
+      statusCheckAttemptDate,
+      statusCheckAttemptCount,
       statusCheckFailureCount,
       excludedAt: exclusion.excludedAt,
       exclusionReason: exclusion.exclusionReason,
@@ -2518,6 +2652,9 @@ export class SalesReportsService implements OnApplicationBootstrap {
         erpReturnedAfterTaxAmount: returnedAfterTaxAmount,
         ...(orderCreatedAt ? { erpOrderCreatedAt: orderCreatedAt } : {}),
         erpStatusCheckedAt: statusCheckedAt,
+        erpStatusCheckAttemptedAt: statusCheckAttemptedAt,
+        erpStatusCheckAttemptDate: statusCheckAttemptDate,
+        erpStatusCheckAttemptCount: statusCheckAttemptCount,
         erpStatusCheckFailureCount: statusCheckFailureCount,
         erpFetchedAt: order.fetchedAt,
       },
@@ -2530,6 +2667,11 @@ export class SalesReportsService implements OnApplicationBootstrap {
       );
       this.logger.warn(
         `Sales report excluded order persisted: orderLength=${orderCode.length} lifecycleStatus=${lifecycleStatus} reason=${exclusion.exclusionReason}`,
+      );
+    }
+    if (options.userInitiatedStatusCheck) {
+      this.logger.log(
+        `Sales report user ERP status persisted: orderLength=${orderCode.length} lifecycleStatus=${lifecycleStatus} dailyAttemptStamped=${userVerifiedStatusCheck} excluded=${Boolean(exclusion.excludedAt)}`,
       );
     }
     return {
@@ -3217,8 +3359,16 @@ export class SalesReportsService implements OnApplicationBootstrap {
     context: Awaited<ReturnType<SalesReportsService['resolveUserSnapshot']>>,
     orderCode: string,
   ) {
+    const startedAt = Date.now();
+    this.logger.log(
+      `Sales report user ERP lookup started: orderLength=${orderCode.length} hasStore=${Boolean(context.storeCode)}`,
+    );
     try {
-      return await this.erp.lookupOrder(orderCode, context.storeCode);
+      const order = await this.erp.lookupOrder(orderCode, context.storeCode);
+      this.logger.log(
+        `Sales report user ERP lookup succeeded: orderLength=${orderCode.length} lifecycleStatus=${order.erpLifecycleStatus} durationMs=${Date.now() - startedAt}`,
+      );
+      return order;
     } catch (error) {
       if (
         error instanceof SalesReportErpCanceledOrderException ||
@@ -3226,6 +3376,9 @@ export class SalesReportsService implements OnApplicationBootstrap {
       ) {
         await this.persistExcludedOrder(user, context, error.cacheItem);
       }
+      this.logger.warn(
+        `Sales report user ERP lookup failed: orderLength=${orderCode.length} errorType=${this.errorType(error)} durationMs=${Date.now() - startedAt}`,
+      );
       throw error;
     }
   }
@@ -3241,6 +3394,8 @@ export class SalesReportsService implements OnApplicationBootstrap {
         context,
         cacheItem,
         new Map<string, any>(),
+        null,
+        { userInitiatedStatusCheck: true },
       );
     } catch (error) {
       this.logger.error(
@@ -3718,6 +3873,10 @@ export class SalesReportsService implements OnApplicationBootstrap {
   }
 
   private erpCreateData(erpOrder: SalesReportErpOrder) {
+    const userVerifiedStatusCheck = this.isVerifiedErpLifecycleStatus(
+      erpOrder.erpLifecycleStatus,
+    );
+    const statusCheckAttemptedAt = userVerifiedStatusCheck ? new Date() : null;
     return {
       erpOrderId: erpOrder.erpOrderId,
       erpExternalOrderRef: erpOrder.erpExternalOrderRef,
@@ -3729,6 +3888,11 @@ export class SalesReportsService implements OnApplicationBootstrap {
       erpHasReturnedFullItems: erpOrder.erpHasReturnedFullItems,
       erpReturnedAfterTaxAmount: erpOrder.erpReturnedAfterTaxAmount,
       erpStatusCheckedAt: erpOrder.erpStatusCheckedAt,
+      erpStatusCheckAttemptedAt: statusCheckAttemptedAt,
+      erpStatusCheckAttemptDate: statusCheckAttemptedAt
+        ? this.vietnamAttemptDate(statusCheckAttemptedAt)
+        : null,
+      erpStatusCheckAttemptCount: statusCheckAttemptedAt ? 1 : 0,
       erpStatusCheckFailureCount: 0,
       erpTerminalName: erpOrder.erpTerminalName,
       erpGrandTotal: erpOrder.erpGrandTotal,
@@ -4372,6 +4536,36 @@ export class SalesReportsService implements OnApplicationBootstrap {
     const vnDate = new Date(value.getTime() + 7 * 60 * 60 * 1000);
     const two = (part: number) => String(part).padStart(2, '0');
     return `${vnDate.getUTCFullYear()}-${two(vnDate.getUTCMonth() + 1)}-${two(vnDate.getUTCDate())}`;
+  }
+
+  private vietnamDayStart(value: Date) {
+    return new Date(`${this.formatVietnamDate(value)}T00:00:00.000+07:00`);
+  }
+
+  private vietnamAttemptDate(value: Date) {
+    return new Date(`${this.formatVietnamDate(value)}T00:00:00.000Z`);
+  }
+
+  private isVietnamAttemptDate(attemptDate: Date | null, value: Date) {
+    return (
+      attemptDate?.toISOString().slice(0, 10) === this.formatVietnamDate(value)
+    );
+  }
+
+  private nextErpStatusAttempt(
+    candidate: ErpOrderStatusSyncCandidate,
+    attemptedAt: Date,
+  ) {
+    const previousCount = this.isVietnamAttemptDate(
+      candidate.statusCheckAttemptDate,
+      attemptedAt,
+    )
+      ? this.toNonNegativeInt(candidate.statusCheckAttemptCount)
+      : 0;
+    return {
+      date: this.vietnamAttemptDate(attemptedAt),
+      count: previousCount + 1,
+    };
   }
 
   private envFlag(name: string, defaultValue: boolean) {

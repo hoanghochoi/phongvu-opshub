@@ -263,6 +263,65 @@ describe('SalesReportsService', () => {
     });
   });
 
+  it('lets a user ERP detail check persist a partial return after background quota is exhausted', async () => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date('2026-07-14T02:00:00Z'));
+    const { service, prisma, erp } = createHarness();
+    prisma.salesReportErpOrderCache.findUnique
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({
+        lifecycleStatus: 'PENDING',
+        hasReturnedFullItems: false,
+        returnedAfterTaxAmount: 0,
+        paymentStatus: 'fully_paid',
+        confirmationStatus: 'active',
+        fulfillmentStatus: 'PROCESSING',
+        statusCheckedAt: new Date('2026-07-14T01:00:00Z'),
+        statusCheckAttemptedAt: new Date('2026-07-14T01:30:00Z'),
+        statusCheckAttemptDate: new Date('2026-07-14T00:00:00Z'),
+        statusCheckAttemptCount: 5,
+        statusCheckFailureCount: 0,
+        sanitizedSnapshot: { orderId: '2606290001' },
+      });
+    erp.lookupOrder.mockResolvedValueOnce({
+      ...erpOrderFixture(),
+      erpLifecycleStatus: 'COMPLETED_PARTIAL_RETURN',
+      erpHasReturnedFullItems: false,
+      erpReturnedAfterTaxAmount: 250000,
+      erpStatusCheckedAt: new Date('2026-07-14T02:00:00Z'),
+    });
+
+    try {
+      await expect(
+        service.checkOrder(userFixture(), '2606290001'),
+      ).resolves.toMatchObject({ orderCode: '2606290001' });
+      expect(erp.lookupOrder).toHaveBeenCalledTimes(1);
+      expect(erp.lookupOrderStatus).not.toHaveBeenCalled();
+      expect(prisma.salesReportErpOrderCache.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { orderCode: '2606290001' },
+          update: expect.objectContaining({
+            lifecycleStatus: 'COMPLETED_PARTIAL_RETURN',
+            returnedAfterTaxAmount: 250000,
+            statusCheckAttemptDate: new Date('2026-07-14T00:00:00Z'),
+            statusCheckAttemptCount: 5,
+          }),
+        }),
+      );
+      expect(prisma.salesReport.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { orderCode: '2606290001', reportType: 'PURCHASED' },
+          data: expect.objectContaining({
+            erpLifecycleStatus: 'COMPLETED_PARTIAL_RETURN',
+            erpReturnedAfterTaxAmount: 250000,
+          }),
+        }),
+      );
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
   it('does not autofill the parent Accessories group for a gift item', async () => {
     const { service, categories, erp } = createHarness();
     const baseOrder = erpOrderFixture();
@@ -345,6 +404,8 @@ describe('SalesReportsService', () => {
           orderCode: '2606290002',
           exclusionReason: 'ERP_ORDER_CANCELLED',
           excludedAt: expect.any(Date),
+          statusCheckAttemptDate: expect.any(Date),
+          statusCheckAttemptCount: 1,
         }),
       }),
     );
@@ -927,6 +988,8 @@ describe('SalesReportsService', () => {
         returnedAfterTaxAmount: 0,
         statusCheckedAt: new Date('2026-07-07T01:00:00Z'),
         statusCheckAttemptedAt: attemptedAt,
+        statusCheckAttemptDate: new Date('2026-07-07T00:00:00Z'),
+        statusCheckAttemptCount: 2,
         statusCheckFailureCount: 2,
         excludedAt: null,
         exclusionReason: null,
@@ -949,6 +1012,8 @@ describe('SalesReportsService', () => {
             lifecycleStatus: 'PENDING',
             statusCheckedAt: listCheckedAt,
             statusCheckAttemptedAt: attemptedAt,
+            statusCheckAttemptDate: new Date('2026-07-07T00:00:00Z'),
+            statusCheckAttemptCount: 2,
             statusCheckFailureCount: 2,
           }),
         }),
@@ -958,6 +1023,9 @@ describe('SalesReportsService', () => {
         data: expect.objectContaining({
           erpLifecycleStatus: 'PENDING',
           erpStatusCheckedAt: listCheckedAt,
+          erpStatusCheckAttemptedAt: attemptedAt,
+          erpStatusCheckAttemptDate: new Date('2026-07-07T00:00:00Z'),
+          erpStatusCheckAttemptCount: 2,
           erpStatusCheckFailureCount: 2,
         }),
       });
@@ -1645,7 +1713,6 @@ describe('SalesReportsService', () => {
         expect.objectContaining({
           where: expect.objectContaining({
             lifecycleStatus: 'PENDING',
-            statusCheckFailureCount: { lt: 5 },
           }),
           take: 20,
         }),
@@ -1717,6 +1784,219 @@ describe('SalesReportsService', () => {
     }
   });
 
+  it('caps pending background checks at five per Vietnam day and resets next day', async () => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date('2026-07-07T02:00:00Z'));
+    const { service, prisma, erp } = createHarness();
+    const previous = {
+      enabled: process.env.ERP_ORDER_STATUS_SYNC_ENABLED,
+      cache: process.env.ERP_ORDER_STATUS_CACHE_SYNC_ENABLED,
+      batch: process.env.ERP_ORDER_STATUS_SYNC_BATCH_SIZE,
+      storeLimit: process.env.ERP_ORDER_STATUS_SYNC_STORE_LIMIT,
+    };
+    process.env.ERP_ORDER_STATUS_SYNC_ENABLED = 'true';
+    process.env.ERP_ORDER_STATUS_CACHE_SYNC_ENABLED = 'true';
+    process.env.ERP_ORDER_STATUS_SYNC_BATCH_SIZE = '5';
+    process.env.ERP_ORDER_STATUS_SYNC_STORE_LIMIT = '5';
+    const exhaustedPending = {
+      orderCode: '2607071101',
+      storeCode: 'CP62',
+      lifecycleStatus: 'PENDING',
+      statusCheckedAt: new Date('2026-07-07T01:00:00Z'),
+      statusCheckAttemptedAt: new Date('2026-07-07T01:50:00Z'),
+      statusCheckAttemptDate: new Date('2026-07-07T00:00:00Z'),
+      statusCheckAttemptCount: 5,
+      statusCheckFailureCount: 0,
+      orderCreatedAt: new Date('2026-07-07T00:30:00Z'),
+      fetchedAt: new Date('2026-07-07T00:30:00Z'),
+    };
+    prisma.salesReportErpOrderCache.findMany
+      .mockResolvedValueOnce([exhaustedPending])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([exhaustedPending])
+      .mockResolvedValueOnce([]);
+    prisma.salesReport.findMany
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([]);
+    erp.lookupOrderStatus.mockImplementation(async (orderCode: string) => ({
+      ...erpListOrderFixture(),
+      orderCode,
+      lifecycleStatus: 'COMPLETED',
+      hasReturnedFullItems: false,
+      returnedAfterTaxAmount: 0,
+      statusCheckedAt: new Date(),
+    }));
+
+    try {
+      await expect(service.syncErpOrderStatuses('same-day')).resolves.toEqual({
+        skipped: false,
+        processed: 0,
+        changed: 0,
+        failed: 0,
+      });
+      expect(erp.lookupOrderStatus).not.toHaveBeenCalled();
+
+      jest.setSystemTime(new Date('2026-07-07T17:01:00Z'));
+      await expect(service.syncErpOrderStatuses('next-day')).resolves.toEqual({
+        skipped: false,
+        processed: 1,
+        changed: 1,
+        failed: 0,
+      });
+      expect(erp.lookupOrderStatus).toHaveBeenCalledTimes(1);
+      expect(prisma.salesReportErpOrderCache.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { orderCode: '2607071101' },
+          update: expect.objectContaining({
+            statusCheckAttemptDate: new Date('2026-07-08T00:00:00Z'),
+            statusCheckAttemptCount: 1,
+          }),
+        }),
+      );
+    } finally {
+      jest.useRealTimers();
+      restoreEnv('ERP_ORDER_STATUS_SYNC_ENABLED', previous.enabled);
+      restoreEnv('ERP_ORDER_STATUS_CACHE_SYNC_ENABLED', previous.cache);
+      restoreEnv('ERP_ORDER_STATUS_SYNC_BATCH_SIZE', previous.batch);
+      restoreEnv('ERP_ORDER_STATUS_SYNC_STORE_LIMIT', previous.storeLimit);
+    }
+  });
+
+  it('uses a pending-to-completed lookup as the completed check for that day', async () => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date('2026-07-07T02:00:00Z'));
+    const { service, prisma, erp } = createHarness();
+    const previous = {
+      enabled: process.env.ERP_ORDER_STATUS_SYNC_ENABLED,
+      cache: process.env.ERP_ORDER_STATUS_CACHE_SYNC_ENABLED,
+      batch: process.env.ERP_ORDER_STATUS_SYNC_BATCH_SIZE,
+      storeLimit: process.env.ERP_ORDER_STATUS_SYNC_STORE_LIMIT,
+    };
+    process.env.ERP_ORDER_STATUS_SYNC_ENABLED = 'true';
+    process.env.ERP_ORDER_STATUS_CACHE_SYNC_ENABLED = 'true';
+    process.env.ERP_ORDER_STATUS_SYNC_BATCH_SIZE = '5';
+    process.env.ERP_ORDER_STATUS_SYNC_STORE_LIMIT = '5';
+    const pendingRow = {
+      orderCode: '2607071102',
+      storeCode: 'CP62',
+      lifecycleStatus: 'PENDING',
+      statusCheckedAt: new Date('2026-07-07T00:30:00Z'),
+      statusCheckAttemptedAt: new Date('2026-07-07T01:00:00Z'),
+      statusCheckAttemptDate: new Date('2026-07-07T00:00:00Z'),
+      statusCheckAttemptCount: 1,
+      statusCheckFailureCount: 0,
+      orderCreatedAt: new Date('2026-07-07T00:30:00Z'),
+      fetchedAt: new Date('2026-07-07T00:30:00Z'),
+    };
+    const completedRow = {
+      ...pendingRow,
+      lifecycleStatus: 'COMPLETED',
+      statusCheckAttemptedAt: new Date('2026-07-07T02:00:00Z'),
+      statusCheckAttemptCount: 2,
+    };
+    prisma.salesReportErpOrderCache.findMany
+      .mockResolvedValueOnce([pendingRow])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([completedRow]);
+    prisma.salesReport.findMany
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([]);
+    erp.lookupOrderStatus.mockResolvedValueOnce({
+      ...erpListOrderFixture(),
+      orderCode: '2607071102',
+      lifecycleStatus: 'COMPLETED',
+      hasReturnedFullItems: false,
+      returnedAfterTaxAmount: 0,
+      statusCheckedAt: new Date('2026-07-07T02:00:00Z'),
+    });
+
+    try {
+      await expect(service.syncErpOrderStatuses('transition')).resolves.toEqual(
+        {
+          skipped: false,
+          processed: 1,
+          changed: 1,
+          failed: 0,
+        },
+      );
+      expect(prisma.salesReportErpOrderCache.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          update: expect.objectContaining({
+            lifecycleStatus: 'COMPLETED',
+            statusCheckAttemptDate: new Date('2026-07-07T00:00:00Z'),
+            statusCheckAttemptCount: 2,
+          }),
+        }),
+      );
+
+      await expect(service.syncErpOrderStatuses('same-day')).resolves.toEqual({
+        skipped: false,
+        processed: 0,
+        changed: 0,
+        failed: 0,
+      });
+      expect(erp.lookupOrderStatus).toHaveBeenCalledTimes(1);
+    } finally {
+      jest.useRealTimers();
+      restoreEnv('ERP_ORDER_STATUS_SYNC_ENABLED', previous.enabled);
+      restoreEnv('ERP_ORDER_STATUS_CACHE_SYNC_ENABLED', previous.cache);
+      restoreEnv('ERP_ORDER_STATUS_SYNC_BATCH_SIZE', previous.batch);
+      restoreEnv('ERP_ORDER_STATUS_SYNC_STORE_LIMIT', previous.storeLimit);
+    }
+  });
+
+  it('does not refresh completed orders older than ten sale days', async () => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date('2026-07-14T02:00:00Z'));
+    const { service, prisma, erp } = createHarness();
+    const previous = {
+      enabled: process.env.ERP_ORDER_STATUS_SYNC_ENABLED,
+      cache: process.env.ERP_ORDER_STATUS_CACHE_SYNC_ENABLED,
+    };
+    process.env.ERP_ORDER_STATUS_SYNC_ENABLED = 'true';
+    process.env.ERP_ORDER_STATUS_CACHE_SYNC_ENABLED = 'true';
+    prisma.salesReportErpOrderCache.findMany
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([
+        {
+          orderCode: '2607031103',
+          storeCode: 'CP62',
+          lifecycleStatus: 'COMPLETED',
+          statusCheckedAt: new Date('2026-07-03T01:00:00Z'),
+          statusCheckAttemptedAt: new Date('2026-07-03T01:00:00Z'),
+          statusCheckAttemptDate: new Date('2026-07-03T00:00:00Z'),
+          statusCheckAttemptCount: 1,
+          statusCheckFailureCount: 0,
+          orderCreatedAt: new Date('2026-07-03T00:00:00Z'),
+          fetchedAt: new Date('2026-07-03T00:00:00Z'),
+        },
+      ]);
+    prisma.salesReport.findMany
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([]);
+
+    try {
+      await expect(
+        service.syncErpOrderStatuses('old-completed'),
+      ).resolves.toEqual({
+        skipped: false,
+        processed: 0,
+        changed: 0,
+        failed: 0,
+      });
+      expect(erp.lookupOrderStatus).not.toHaveBeenCalled();
+    } finally {
+      jest.useRealTimers();
+      restoreEnv('ERP_ORDER_STATUS_SYNC_ENABLED', previous.enabled);
+      restoreEnv('ERP_ORDER_STATUS_CACHE_SYNC_ENABLED', previous.cache);
+    }
+  });
+
   it('runs scheduled ERP order status sync with the 5-minute source label', async () => {
     const { service } = createHarness();
     const syncSpy = jest
@@ -1783,7 +2063,8 @@ describe('SalesReportsService', () => {
         expect.objectContaining({
           where: { orderCode: '2607013001' },
           data: expect.objectContaining({
-            statusCheckFailureCount: { increment: 1 },
+            statusCheckAttemptCount: 1,
+            statusCheckFailureCount: 1,
           }),
         }),
       );
@@ -1849,7 +2130,10 @@ describe('SalesReportsService', () => {
       expect(prisma.salesReport.updateMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { orderCode: '2607013001', reportType: 'PURCHASED' },
-          data: { erpStatusCheckFailureCount: { increment: 1 } },
+          data: expect.objectContaining({
+            erpStatusCheckAttemptCount: 1,
+            erpStatusCheckFailureCount: 1,
+          }),
         }),
       );
       expect(prisma.salesReportErpOrderCache.upsert).toHaveBeenCalledWith(

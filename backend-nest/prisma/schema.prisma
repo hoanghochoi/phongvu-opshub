@@ -891,6 +891,9 @@ model SalesReport {
   erpHasReturnedFullItems        Boolean                  @default(false)
   erpReturnedAfterTaxAmount      Int                      @default(0)
   erpStatusCheckedAt             DateTime?
+  erpStatusCheckAttemptedAt      DateTime?
+  erpStatusCheckAttemptDate      DateTime?                @db.Date
+  erpStatusCheckAttemptCount     Int                      @default(0)
   erpStatusCheckFailureCount     Int                      @default(0)
   erpTerminalName                String?
   erpGrandTotal                  Int?
@@ -925,6 +928,7 @@ model SalesReport {
   @@index([organizationNodeId, submittedAt])
   @@index([erpExcludedAt, submittedAt])
   @@index([erpLifecycleStatus, erpStatusCheckedAt])
+  @@index([erpLifecycleStatus, erpStatusCheckAttemptDate])
 }
 
 model SalesReportCategorySelection {
@@ -1004,6 +1008,8 @@ model SalesReportErpOrderCache {
   returnedAfterTaxAmount  Int       @default(0)
   statusCheckedAt         DateTime?
   statusCheckAttemptedAt  DateTime?
+  statusCheckAttemptDate  DateTime? @db.Date
+  statusCheckAttemptCount Int       @default(0)
   statusCheckFailureCount Int       @default(0)
   excludedAt              DateTime?
   exclusionReason         String?
@@ -1040,6 +1046,7 @@ model SalesReportErpOrderCache {
   @@index([sellerId, orderCreatedAt])
   @@index([excludedAt, orderCreatedAt])
   @@index([lifecycleStatus, statusCheckedAt])
+  @@index([lifecycleStatus, statusCheckAttemptDate])
   @@index([orderCreatedAt, lifecycleStatus, statusCheckedAt])
 }
 
