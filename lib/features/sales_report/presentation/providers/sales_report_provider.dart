@@ -189,6 +189,7 @@ class SalesReportProvider extends ChangeNotifier {
   Future<SalesReportOrderCheck?> checkOrder(
     String orderCode, {
     String? entrySource,
+    String? followUpCaseId,
   }) async {
     if (_isCheckingOrder) return null;
     _isCheckingOrder = true;
@@ -205,7 +206,10 @@ class SalesReportProvider extends ChangeNotifier {
           'orderLength': orderCode.trim().length,
         },
       );
-      final result = await _repository.checkOrder(orderCode);
+      final result = await _repository.checkOrder(
+        orderCode,
+        followUpCaseId: followUpCaseId,
+      );
       _checkedOrder = result;
       _successMessage = 'Đã kiểm tra đơn hàng.';
       await AppLogger.instance.info(
@@ -214,6 +218,7 @@ class SalesReportProvider extends ChangeNotifier {
         context: {
           'orderLength': result.orderCode.length,
           if (entrySource != null) 'entrySource': entrySource,
+          if (followUpCaseId != null) 'followUpCaseId': followUpCaseId,
           'hasCategory': result.categoryGroup != null,
           'categoryCount': result.categoryGroups.length,
           'itemCount': result.items.length,
@@ -347,7 +352,11 @@ class SalesReportProvider extends ChangeNotifier {
     await loadOrderCockpit();
   }
 
-  Future<bool> submit(SalesReportInput input, User? user) async {
+  Future<bool> submit(
+    SalesReportInput input,
+    User? user, {
+    String? followUpCaseId,
+  }) async {
     if (_isSubmitting) return false;
     _isSubmitting = true;
     _errorMessage = null;
@@ -368,6 +377,8 @@ class SalesReportProvider extends ChangeNotifier {
           'entrySource': input.entrySource,
           'hasCustomerName': (input.customerName ?? '').trim().isNotEmpty,
           'hasPhone': (input.customerPhone ?? '').trim().isNotEmpty,
+          'hasZaloContact': (input.customerZaloContact ?? '').trim().isNotEmpty,
+          if (followUpCaseId != null) 'followUpCaseId': followUpCaseId,
           'customerType': input.customerType,
           'customerIsStudent': input.customerIsStudent,
           'promotionCount': input.promotionCodes.length,
@@ -378,7 +389,7 @@ class SalesReportProvider extends ChangeNotifier {
           'storeId': user?.storeId,
         },
       );
-      await _repository.create(input);
+      await _repository.create(input, followUpCaseId: followUpCaseId);
       _successMessage = 'Đã gửi báo cáo.';
       await AppLogger.instance.info(
         'SalesReport',
@@ -386,6 +397,7 @@ class SalesReportProvider extends ChangeNotifier {
         context: {
           'type': input.reportType,
           'entrySource': input.entrySource,
+          if (followUpCaseId != null) 'followUpCaseId': followUpCaseId,
           'orderLength': (input.orderCode ?? '').trim().length,
           'orderSuffix': _orderSuffix(input.orderCode),
           'categoryGroupId': input.categoryGroupId,
@@ -410,6 +422,7 @@ class SalesReportProvider extends ChangeNotifier {
         context: {
           'type': input.reportType,
           'entrySource': input.entrySource,
+          if (followUpCaseId != null) 'followUpCaseId': followUpCaseId,
           'orderLength': (input.orderCode ?? '').trim().length,
           'orderSuffix': _orderSuffix(input.orderCode),
           'categoryGroupId': input.categoryGroupId,

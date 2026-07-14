@@ -845,6 +845,7 @@ model SalesReport {
   orderCode                      String?                  @unique
   customerName                   String?
   customerPhone                  String?
+  customerZaloContact            String?
   customerNeed                   String?
   categoryGroupId                String
   categoryGroup                  SalesReportCategoryGroup @relation(fields: [categoryGroupId], references: [id], onUpdate: Cascade)
@@ -908,13 +909,20 @@ model SalesReport {
   erpExcludedAt                  DateTime?
   erpExclusionReason             String?
   rawResponses                   Json?
+  entrySource                    String?
+  submittedByUserId              String?
+  submittedByEmail               String?
+  submittedByName                String?
   submittedAt                    DateTime                 @default(now())
   createdAt                      DateTime                 @default(now())
   updatedAt                      DateTime                 @updatedAt
 
-  items              SalesReportOrderItem[]
-  payments           SalesReportPayment[]
-  categorySelections SalesReportCategorySelection[]
+  items                    SalesReportOrderItem[]
+  payments                 SalesReportPayment[]
+  categorySelections       SalesReportCategorySelection[]
+  sourceFollowUpCase       SalesReportFollowUpCase?       @relation("SalesReportFollowUpSource")
+  convertedFollowUpCase    SalesReportFollowUpCase?       @relation("SalesReportFollowUpConverted")
+  purchasedFollowUpEntries SalesReportFollowUpEntry[]     @relation("SalesReportFollowUpPurchase")
 
   @@index([reportType, submittedAt])
   @@index([storeCode, submittedAt])
@@ -929,6 +937,76 @@ model SalesReport {
   @@index([erpExcludedAt, submittedAt])
   @@index([erpLifecycleStatus, erpStatusCheckedAt])
   @@index([erpLifecycleStatus, erpStatusCheckAttemptDate])
+  @@index([entrySource, submittedAt])
+}
+
+model SalesReportFollowUpCase {
+  id                    String       @id @default(uuid())
+  sourceReportId        String       @unique
+  sourceReport          SalesReport  @relation("SalesReportFollowUpSource", fields: [sourceReportId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  status                String       @default("OPEN")
+  assigneeUserId        String?
+  assigneeEmail         String?
+  assigneeName          String?
+  assigneePersonnelCode String?
+  assignedAt            DateTime?
+  lastFollowUpAt        DateTime?
+  lastFollowUpByUserId  String?
+  lastFollowUpByEmail   String?
+  lastFollowUpByName    String?
+  followUpCount         Int          @default(0)
+  priorityAt            DateTime
+  convertedReportId     String?      @unique
+  convertedReport       SalesReport? @relation("SalesReportFollowUpConverted", fields: [convertedReportId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  closedAt              DateTime?
+  createdAt             DateTime     @default(now())
+  updatedAt             DateTime     @updatedAt
+
+  entries SalesReportFollowUpEntry[]
+  events  SalesReportFollowUpEvent[]
+
+  @@index([status, priorityAt])
+  @@index([assigneeUserId, status, priorityAt])
+  @@index([assigneeEmail, status, priorityAt])
+}
+
+model SalesReportFollowUpEntry {
+  id                      String                  @id @default(uuid())
+  caseId                  String
+  case                    SalesReportFollowUpCase @relation(fields: [caseId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  sequenceNumber          Int
+  outcome                 String
+  notPurchasedReason      String?
+  notPurchasedOtherReason String?
+  actorUserId             String?
+  actorEmail              String?
+  actorName               String?
+  purchasedReportId       String?                 @unique
+  purchasedReport         SalesReport?            @relation("SalesReportFollowUpPurchase", fields: [purchasedReportId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  contactedAt             DateTime                @default(now())
+  createdAt               DateTime                @default(now())
+
+  @@unique([caseId, sequenceNumber])
+  @@index([caseId, contactedAt])
+  @@index([outcome, contactedAt])
+}
+
+model SalesReportFollowUpEvent {
+  id                 String                  @id @default(uuid())
+  caseId             String
+  case               SalesReportFollowUpCase @relation(fields: [caseId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  eventType          String
+  actorUserId        String?
+  actorEmail         String?
+  actorName          String?
+  fromAssigneeUserId String?
+  toAssigneeUserId   String?
+  fromStatus         String?
+  toStatus           String?
+  createdAt          DateTime                @default(now())
+
+  @@index([caseId, createdAt])
+  @@index([eventType, createdAt])
 }
 
 model SalesReportCategorySelection {

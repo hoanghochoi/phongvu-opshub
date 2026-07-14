@@ -927,6 +927,7 @@ void main() {
   test('SalesReportOrderCheck parses multiple category groups', () {
     final check = SalesReportOrderCheck.fromJson({
       'orderCode': '2606290001',
+      'customerPhone': '0901234567',
       'customerType': 'BUSINESS',
       'customerTypeLabel': 'Doanh nghiệp',
       'paymentMethods': ['cash', 'bank_transfer'],
@@ -950,6 +951,7 @@ void main() {
     ]);
     expect(check.categoryGroup?.id, isNull);
     expect(check.customerType, 'BUSINESS');
+    expect(check.customerPhone, '0901234567');
     expect(check.paymentMethods, ['cash', 'bank_transfer']);
   });
 
@@ -1196,7 +1198,10 @@ class _FakeSalesReportRepository extends SalesReportRepository {
   }
 
   @override
-  Future<Map<String, dynamic>> create(SalesReportInput input) async {
+  Future<Map<String, dynamic>> create(
+    SalesReportInput input, {
+    String? followUpCaseId,
+  }) async {
     createCalled = true;
     lastInput = input;
     return const {};
@@ -1215,7 +1220,10 @@ class _FakeSalesReportRepository extends SalesReportRepository {
   }
 
   @override
-  Future<SalesReportOrderCheck> checkOrder(String orderCode) async {
+  Future<SalesReportOrderCheck> checkOrder(
+    String orderCode, {
+    String? followUpCaseId,
+  }) async {
     checkOrderCount += 1;
     return SalesReportOrderCheck.fromJson({
       'orderCode': orderCode,

@@ -2696,3 +2696,13 @@ src/map-vietin/map-vietin.service.spec.ts` (26 tests), `npm run build`, full
 - E2E proof covers user-visible app flows.
 - Platform proof covers mobile runtime, Docker services, deployment, health
   checks, and WebSocket behavior.
+
+# Khách hàng chưa mua
+
+| Luồng | Proof tự động | Proof staging/manual |
+| --- | --- | --- |
+| Chỉ hiện hồ sơ có điện thoại hoặc Zalo | `sales-report-follow-ups.service.spec.ts`, `not_purchased_customers_test.dart` | Đối chiếu backfill với báo cáo thiếu cả hai trường |
+| Scope và phân công cùng showroom | NestJS service test + build | Đăng nhập SA, Store Manager và quản lý node |
+| Chăm sóc chưa mua/terminal/mở lại | Flutter widget + API service test | Thử đồng thời hai thiết bị và kiểm tra conflict |
+| Comeback mua hàng | sales report service test + Flutter form test | Kiểm tra ERP `order.creator.email`, báo cáo gốc và báo cáo mua liên kết |
+| Realtime | provider/channel test | Mở hai client và xác nhận danh sách tự tải lại |

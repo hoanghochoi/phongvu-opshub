@@ -13,6 +13,7 @@ import '../../features/offset_adjustment/presentation/screens/offset_adjustment_
 import '../../features/sales_report/data/sales_report_repository.dart';
 import '../../features/sales_report/presentation/providers/sales_report_provider.dart';
 import '../../features/sales_report/presentation/screens/sales_report_admin_screen.dart';
+import '../../features/sales_report/presentation/screens/not_purchased_customers_screen.dart';
 import '../../features/sales_report/presentation/screens/sales_report_screen.dart';
 import '../../features/auth/presentation/providers/auth_provider.dart';
 import '../../features/auth/presentation/screens/assignment_pending_screen.dart';
@@ -428,6 +429,13 @@ class AppRouter {
               ),
             ),
             GoRoute(
+              path: '/sales-reports/follow-up-cases',
+              pageBuilder: (context, state) => _noTransitionPage(
+                state,
+                _selectable(const NotPurchasedCustomersScreen()),
+              ),
+            ),
+            GoRoute(
               path: '/settings',
               pageBuilder: (context, state) =>
                   _noTransitionPage(state, const SettingsScreen()),
@@ -469,11 +477,16 @@ class AppRouter {
       '/sales-reports' => 'SALES_REPORT',
       '/sales-reports/purchased' => 'SALES_REPORT',
       '/sales-reports/not-purchased' => 'SALES_REPORT',
+      '/sales-reports/follow-up-cases' => 'SALES_REPORT_FOLLOW_UP',
       _ => null,
     };
   }
 
   static bool _canUseRouteFeature(User? user, String featureCode) {
+    if (featureCode == 'SALES_REPORT_FOLLOW_UP') {
+      return user?.canUseFeature('SALES_REPORT') == true ||
+          user?.canUseFeature('ADMIN_SALES_REPORTS') == true;
+    }
     if (featureCode == 'ADMIN_QUICK_ACTION_CODES') {
       final managerRole = {
         'STORE_MANAGER',

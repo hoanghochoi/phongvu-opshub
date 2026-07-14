@@ -112,6 +112,18 @@ class ApiConstants {
   static const String salesReportsCheckOrderEndpoint =
       '/sales-reports/check-order';
   static const String salesReportsExportEndpoint = '/sales-reports/export';
+  static const String salesReportFollowUpCasesEndpoint =
+      '/sales-reports/follow-up-cases';
+  static String salesReportFollowUpCaseEndpoint(String id) =>
+      '$salesReportFollowUpCasesEndpoint/$id';
+  static String salesReportFollowUpCaseEntriesEndpoint(String id) =>
+      '${salesReportFollowUpCaseEndpoint(id)}/entries';
+  static String salesReportFollowUpCaseCheckOrderEndpoint(String id) =>
+      '${salesReportFollowUpCaseEndpoint(id)}/check-order';
+  static String salesReportFollowUpCaseAssigneeEndpoint(String id) =>
+      '${salesReportFollowUpCaseEndpoint(id)}/assignee';
+  static String salesReportFollowUpCaseReopenEndpoint(String id) =>
+      '${salesReportFollowUpCaseEndpoint(id)}/reopen';
   static String offsetAdjustmentEndpoint(String id) =>
       '/offset-adjustments/$id';
   static String offsetAdjustmentResubmitEndpoint(String id) =>

@@ -54,6 +54,10 @@ export type SalesReportErpOrder = {
   erpConsultantCustomId: string | null;
   erpConsultantName: string | null;
   customerName: string | null;
+  customerPhone: string | null;
+  creatorEmail: string | null;
+  creatorName: string | null;
+  storeCode: string | null;
   customerType: string;
   customerIsStudent: boolean;
   customerNeed: string | null;
@@ -1018,6 +1022,24 @@ export class SalesReportErpService {
       order?.billingAddress?.fullName,
       order?.billingAddress?.name,
     );
+    const customerPhone = this.firstText(
+      order?.customerPhone,
+      order?.customer?.phone,
+      order?.customerInfo?.phone,
+      order?.buyerPhone,
+      order?.receiverPhone,
+      order?.shippingAddress?.phone,
+      order?.billingAddress?.phone,
+    );
+    const creatorEmail = this.optionalText(order?.creator?.email);
+    const creatorName = this.firstText(
+      order?.creator?.name,
+      order?.creator?.fullName,
+      order?.creator?.displayName,
+    );
+    const storeCode = this.normalizeStoreCode(
+      this.extractStoreCodeFromDisplayName(order?.createdFromSiteDisplayName),
+    );
     const paymentMethods = Array.from(
       new Set(
         payments
@@ -1045,6 +1067,10 @@ export class SalesReportErpService {
       erpConsultantCustomId: this.optionalText(order?.consultant?.customId),
       erpConsultantName: this.optionalText(order?.consultant?.name),
       customerName,
+      customerPhone,
+      creatorEmail,
+      creatorName,
+      storeCode,
       customerType,
       customerIsStudent,
       customerNeed: customerNeed || null,
@@ -1080,6 +1106,11 @@ export class SalesReportErpService {
         ),
         externalOrderRef: this.optionalText(order?.externalOrderRef),
         customerName,
+        hasCustomerPhone: Boolean(customerPhone),
+        creator: {
+          email: creatorEmail,
+          name: creatorName,
+        },
         grandTotal: this.toInt(order?.grandTotal),
         paymentMethods,
         platformId: this.toInt(order?.platformId),

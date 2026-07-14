@@ -861,8 +861,8 @@ void main() {
               pendingSmokeRoutes.length +
               authenticatedSmokeRoutes.length) *
           2,
-      82,
-      reason: 'Default smoke should stay at 40 routes across 2 viewports.',
+      84,
+      reason: 'Default smoke should stay at 42 routes across 2 viewports.',
     );
     expect(smokeSource, contains('readPngVisualStats'));
     expect(smokeSource, contains('uniqueSampledColors < 16'));

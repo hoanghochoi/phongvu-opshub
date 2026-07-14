@@ -241,6 +241,49 @@ describe('SalesReportsService', () => {
     );
   });
 
+  it('blocks comeback credit when ERP has no creator email', async () => {
+    const { service, prisma } = createHarness();
+
+    await expect(
+      service.create(userFixture(), {
+        ...baseInput(),
+        reportType: 'PURCHASED',
+        orderCode: '2606290001',
+        entrySource: 'COMEBACK',
+      }),
+    ).rejects.toThrow('Đơn hàng chưa có email nhân viên bán hàng trên ERP.');
+
+    expect(prisma.salesReport.create).not.toHaveBeenCalled();
+  });
+
+  it('credits comeback to ERP creator and audits the actual submitter', async () => {
+    const { service, prisma, erp } = createHarness();
+    erp.lookupOrder.mockResolvedValueOnce({
+      ...erpOrderFixture(),
+      creatorEmail: 'erp.owner@phongvu.vn',
+      creatorName: 'ERP Owner',
+    });
+
+    await service.create(userFixture(), {
+      ...baseInput(),
+      reportType: 'PURCHASED',
+      orderCode: '2606290001',
+      entrySource: 'COMEBACK',
+    });
+
+    expect(prisma.salesReport.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          createdByEmail: 'erp.owner@phongvu.vn',
+          createdByName: 'ERP Owner',
+          submittedByUserId: 'user-1',
+          submittedByEmail: 'sale@phongvu.vn',
+          entrySource: 'COMEBACK',
+        }),
+      }),
+    );
+  });
+
   it('returns ERP autofill hints when checking a purchased order', async () => {
     const { service, erp } = createHarness();
     erp.lookupOrder.mockResolvedValueOnce({
@@ -2462,6 +2505,7 @@ describe('SalesReportsService', () => {
       'Mã nhân viên tư vấn ERP',
       'Tên khách hàng',
       'Số điện thoại khách hàng',
+      'Zalo cá nhân khách hàng',
       'Nhu cầu khách hàng',
       'Kết quả tư vấn giải pháp',
       'Lý do khác khi không tư vấn',

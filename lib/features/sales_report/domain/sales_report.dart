@@ -24,6 +24,7 @@ class SalesReportCategoryGroup {
 class SalesReportOrderCheck {
   final String orderCode;
   final String? customerName;
+  final String? customerPhone;
   final String? customerNeed;
   final String? customerType;
   final String? customerTypeLabel;
@@ -41,6 +42,7 @@ class SalesReportOrderCheck {
   const SalesReportOrderCheck({
     required this.orderCode,
     required this.customerName,
+    required this.customerPhone,
     required this.customerNeed,
     required this.customerType,
     required this.customerTypeLabel,
@@ -85,6 +87,7 @@ class SalesReportOrderCheck {
     return SalesReportOrderCheck(
       orderCode: json['orderCode']?.toString() ?? '',
       customerName: json['customerName']?.toString(),
+      customerPhone: json['customerPhone']?.toString(),
       customerNeed: json['customerNeed']?.toString(),
       customerType: json['customerType']?.toString(),
       customerTypeLabel: json['customerTypeLabel']?.toString(),
@@ -337,6 +340,7 @@ class SalesReportInput {
   final String? entrySource;
   final String? customerName;
   final String? customerPhone;
+  final String? customerZaloContact;
   final String categoryGroupId;
   final List<String> categoryGroupIds;
   final String? customerNeed;
@@ -367,6 +371,7 @@ class SalesReportInput {
     required this.entrySource,
     required this.customerName,
     required this.customerPhone,
+    this.customerZaloContact,
     required this.categoryGroupId,
     required this.categoryGroupIds,
     required this.customerNeed,
@@ -404,6 +409,8 @@ class SalesReportInput {
       if (clean(entrySource) != null) 'entrySource': clean(entrySource),
       if (clean(customerName) != null) 'customerName': clean(customerName),
       if (clean(customerPhone) != null) 'customerPhone': clean(customerPhone),
+      if (clean(customerZaloContact) != null)
+        'customerZaloContact': clean(customerZaloContact),
       'categoryGroupId': categoryGroupId,
       'categoryGroupIds': categoryGroupIds
           .map((value) => value.trim())
@@ -450,6 +457,222 @@ class SalesReportInput {
             .where((value) => value.isNotEmpty)
             .toList(),
     };
+  }
+}
+
+class SalesReportFollowUpEntry {
+  final String id;
+  final int sequenceNumber;
+  final String outcome;
+  final String outcomeLabel;
+  final String? reasonLabel;
+  final String? otherReason;
+  final String? actorName;
+  final String? actorEmail;
+  final DateTime? contactedAt;
+
+  const SalesReportFollowUpEntry({
+    required this.id,
+    required this.sequenceNumber,
+    required this.outcome,
+    required this.outcomeLabel,
+    required this.reasonLabel,
+    required this.otherReason,
+    required this.actorName,
+    required this.actorEmail,
+    required this.contactedAt,
+  });
+
+  factory SalesReportFollowUpEntry.fromJson(Map<String, dynamic> json) =>
+      SalesReportFollowUpEntry(
+        id: json['id']?.toString() ?? '',
+        sequenceNumber: int.tryParse('${json['sequenceNumber'] ?? 0}') ?? 0,
+        outcome: json['outcome']?.toString() ?? '',
+        outcomeLabel: json['outcomeLabel']?.toString() ?? '',
+        reasonLabel: json['notPurchasedReasonLabel']?.toString(),
+        otherReason: json['notPurchasedOtherReason']?.toString(),
+        actorName: json['actorName']?.toString(),
+        actorEmail: json['actorEmail']?.toString(),
+        contactedAt: DateTime.tryParse(json['contactedAt']?.toString() ?? ''),
+      );
+}
+
+class SalesReportFollowUpAssignee {
+  final String id;
+  final String email;
+  final String name;
+  final String? personnelCode;
+
+  const SalesReportFollowUpAssignee({
+    required this.id,
+    required this.email,
+    required this.name,
+    this.personnelCode,
+  });
+
+  factory SalesReportFollowUpAssignee.fromJson(Map<String, dynamic> json) =>
+      SalesReportFollowUpAssignee(
+        id: json['id']?.toString() ?? '',
+        email: json['email']?.toString() ?? '',
+        name: json['name']?.toString() ?? '',
+        personnelCode: json['personnelCode']?.toString(),
+      );
+}
+
+class SalesReportFollowUpCase {
+  final String id;
+  final String status;
+  final String? customerName;
+  final String? customerPhone;
+  final String? customerZaloContact;
+  final List<String> categoryNames;
+  final String? storeCode;
+  final String? storeName;
+  final DateTime? firstContactAt;
+  final String? firstContactByName;
+  final String? firstContactByEmail;
+  final String? firstReasonLabel;
+  final String? firstOtherReason;
+  final String? assigneeUserId;
+  final String? assigneeName;
+  final DateTime? lastFollowUpAt;
+  final String? lastFollowUpByName;
+  final int followUpCount;
+  final int nextSequenceNumber;
+  final int careAgeDays;
+  final bool canWrite;
+  final bool canReassign;
+  final bool canReopen;
+  final List<SalesReportFollowUpEntry> entries;
+  final List<SalesReportFollowUpAssignee> assignmentCandidates;
+
+  const SalesReportFollowUpCase({
+    required this.id,
+    required this.status,
+    required this.customerName,
+    required this.customerPhone,
+    required this.customerZaloContact,
+    required this.categoryNames,
+    required this.storeCode,
+    required this.storeName,
+    required this.firstContactAt,
+    required this.firstContactByName,
+    required this.firstContactByEmail,
+    required this.firstReasonLabel,
+    required this.firstOtherReason,
+    required this.assigneeUserId,
+    required this.assigneeName,
+    required this.lastFollowUpAt,
+    required this.lastFollowUpByName,
+    required this.followUpCount,
+    required this.nextSequenceNumber,
+    required this.careAgeDays,
+    required this.canWrite,
+    required this.canReassign,
+    required this.canReopen,
+    required this.entries,
+    required this.assignmentCandidates,
+  });
+
+  factory SalesReportFollowUpCase.fromJson(Map<String, dynamic> json) {
+    final categories = json['categories'] is List
+        ? (json['categories'] as List)
+              .whereType<Map>()
+              .map((item) => item['name']?.toString() ?? '')
+              .where((value) => value.trim().isNotEmpty)
+              .toList(growable: false)
+        : const <String>[];
+    final entries = json['entries'] is List
+        ? (json['entries'] as List)
+              .whereType<Map>()
+              .map(
+                (item) => SalesReportFollowUpEntry.fromJson(
+                  item.map((key, value) => MapEntry(key.toString(), value)),
+                ),
+              )
+              .toList(growable: false)
+        : const <SalesReportFollowUpEntry>[];
+    final candidates = json['assignmentCandidates'] is List
+        ? (json['assignmentCandidates'] as List)
+              .whereType<Map>()
+              .map(
+                (item) => SalesReportFollowUpAssignee.fromJson(
+                  item.map((key, value) => MapEntry(key.toString(), value)),
+                ),
+              )
+              .toList(growable: false)
+        : const <SalesReportFollowUpAssignee>[];
+    return SalesReportFollowUpCase(
+      id: json['id']?.toString() ?? '',
+      status: json['status']?.toString() ?? 'OPEN',
+      customerName: json['customerName']?.toString(),
+      customerPhone: json['customerPhone']?.toString(),
+      customerZaloContact: json['customerZaloContact']?.toString(),
+      categoryNames: categories,
+      storeCode: json['storeCode']?.toString(),
+      storeName: json['storeName']?.toString(),
+      firstContactAt: DateTime.tryParse(
+        json['firstContactAt']?.toString() ?? '',
+      ),
+      firstContactByName: json['firstContactByName']?.toString(),
+      firstContactByEmail: json['firstContactByEmail']?.toString(),
+      firstReasonLabel: json['firstNotPurchasedReasonLabel']?.toString(),
+      firstOtherReason: json['firstNotPurchasedOtherReason']?.toString(),
+      assigneeUserId: json['assigneeUserId']?.toString(),
+      assigneeName: json['assigneeName']?.toString(),
+      lastFollowUpAt: DateTime.tryParse(
+        json['lastFollowUpAt']?.toString() ?? '',
+      ),
+      lastFollowUpByName: json['lastFollowUpByName']?.toString(),
+      followUpCount: int.tryParse('${json['followUpCount'] ?? 0}') ?? 0,
+      nextSequenceNumber:
+          int.tryParse('${json['nextSequenceNumber'] ?? 1}') ?? 1,
+      careAgeDays: int.tryParse('${json['careAgeDays'] ?? 0}') ?? 0,
+      canWrite: json['canWrite'] == true,
+      canReassign: json['canReassign'] == true,
+      canReopen: json['canReopen'] == true,
+      entries: entries,
+      assignmentCandidates: candidates,
+    );
+  }
+}
+
+class SalesReportFollowUpPage {
+  final List<SalesReportFollowUpCase> items;
+  final int page;
+  final int limit;
+  final int total;
+  final bool hasMore;
+  final bool managedScope;
+
+  const SalesReportFollowUpPage({
+    required this.items,
+    required this.page,
+    required this.limit,
+    required this.total,
+    required this.hasMore,
+    required this.managedScope,
+  });
+
+  factory SalesReportFollowUpPage.fromJson(Map<String, dynamic> json) {
+    final items = json['items'] is List
+        ? (json['items'] as List)
+              .whereType<Map>()
+              .map(
+                (item) => SalesReportFollowUpCase.fromJson(
+                  item.map((key, value) => MapEntry(key.toString(), value)),
+                ),
+              )
+              .toList(growable: false)
+        : const <SalesReportFollowUpCase>[];
+    return SalesReportFollowUpPage(
+      items: items,
+      page: int.tryParse('${json['page'] ?? 0}') ?? 0,
+      limit: int.tryParse('${json['limit'] ?? 20}') ?? 20,
+      total: int.tryParse('${json['total'] ?? 0}') ?? 0,
+      hasMore: json['hasMore'] == true,
+      managedScope: json['managedScope'] == true,
+    );
   }
 }
 

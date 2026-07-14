@@ -82,6 +82,7 @@ const defaultAuthenticatedRoutes = parseRoutes(
       '/sales-reports',
       '/sales-reports/purchased',
       '/sales-reports/not-purchased',
+      '/sales-reports/follow-up-cases',
       '/settings',
     ].join(','),
 );

@@ -10,6 +10,7 @@ import {
   Max,
   MaxLength,
   Min,
+  ValidateNested,
 } from 'class-validator';
 
 export const SALES_REPORT_TYPES = ['PURCHASED', 'NOT_PURCHASED'] as const;
@@ -17,6 +18,21 @@ export const SALES_REPORT_TYPES = ['PURCHASED', 'NOT_PURCHASED'] as const;
 export const SALES_REPORT_ENTRY_SOURCES = [
   'MANUAL_ENTRY',
   'SYNC_LIST',
+  'COMEBACK',
+] as const;
+
+export const SALES_REPORT_FOLLOW_UP_STATUSES = [
+  'OPEN',
+  'PURCHASED',
+  'PURCHASED_ELSEWHERE',
+  'NO_LONGER_INTERESTED',
+] as const;
+
+export const SALES_REPORT_FOLLOW_UP_OUTCOMES = [
+  'NOT_PURCHASED',
+  'PURCHASED',
+  'PURCHASED_ELSEWHERE',
+  'NO_LONGER_INTERESTED',
 ] as const;
 
 export const SALES_REPORT_EXPORT_TYPES = [
@@ -134,6 +150,11 @@ export class CreateSalesReportDto {
   @IsString()
   @MaxLength(30)
   customerPhone?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  customerZaloContact?: string;
 
   @IsOptional()
   @IsString()
@@ -384,4 +405,66 @@ export class ListSalesReportOrdersDto {
   @IsInt()
   @Min(0)
   unreportedPage?: number;
+}
+
+export class ListSalesReportFollowUpCasesDto {
+  @IsOptional()
+  @IsString()
+  @IsIn(['OPEN', 'HIDDEN'])
+  status?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  search?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  storeCode?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  assigneeUserId?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  page?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  limit?: number;
+}
+
+export class CreateSalesReportFollowUpEntryDto {
+  @IsString()
+  @IsIn(SALES_REPORT_FOLLOW_UP_OUTCOMES)
+  outcome!: string;
+
+  @IsOptional()
+  @IsString()
+  @IsIn(NOT_PURCHASED_REASON_CODES)
+  notPurchasedReason?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  notPurchasedOtherReason?: string;
+
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => CreateSalesReportDto)
+  purchasedReport?: CreateSalesReportDto;
+}
+
+export class AssignSalesReportFollowUpCaseDto {
+  @IsString()
+  @MaxLength(80)
+  userId!: string;
 }

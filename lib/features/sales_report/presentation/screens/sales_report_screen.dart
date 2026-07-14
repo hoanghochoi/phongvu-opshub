@@ -1295,6 +1295,10 @@ class SalesReportFormScreen extends StatefulWidget {
   final String reportType;
   final String? initialOrderCode;
   final String? entrySource;
+  final String? followUpCaseId;
+  final String? initialCustomerName;
+  final String? initialCustomerPhone;
+  final String? initialCustomerZaloContact;
   final bool closeOnSuccess;
   final bool stickyHeader;
 
@@ -1302,6 +1306,10 @@ class SalesReportFormScreen extends StatefulWidget {
     super.key,
     this.initialOrderCode,
     this.entrySource = salesReportEntrySourceManual,
+    this.followUpCaseId,
+    this.initialCustomerName,
+    this.initialCustomerPhone,
+    this.initialCustomerZaloContact,
     this.closeOnSuccess = false,
     this.stickyHeader = false,
   }) : reportType = _typePurchased;
@@ -1312,7 +1320,11 @@ class SalesReportFormScreen extends StatefulWidget {
     this.stickyHeader = false,
   }) : reportType = _typeNotPurchased,
        initialOrderCode = null,
-       entrySource = null;
+       entrySource = null,
+       followUpCaseId = null,
+       initialCustomerName = null,
+       initialCustomerPhone = null,
+       initialCustomerZaloContact = null;
 
   @override
   State<SalesReportFormScreen> createState() => _SalesReportFormScreenState();
@@ -1324,6 +1336,7 @@ class _SalesReportFormScreenState extends State<SalesReportFormScreen> {
   final _orderController = TextEditingController();
   final _nameController = TextEditingController();
   final _phoneController = TextEditingController();
+  final _zaloContactController = TextEditingController();
   final _needController = TextEditingController();
   final _consultedOtherController = TextEditingController();
   final _experiencedOtherController = TextEditingController();
@@ -1355,6 +1368,10 @@ class _SalesReportFormScreenState extends State<SalesReportFormScreen> {
     _reportType = widget.reportType == _typeNotPurchased
         ? _typeNotPurchased
         : _typePurchased;
+    _nameController.text = widget.initialCustomerName?.trim() ?? '';
+    _phoneController.text = widget.initialCustomerPhone?.trim() ?? '';
+    _zaloContactController.text =
+        widget.initialCustomerZaloContact?.trim() ?? '';
     final initialOrderCode = _normalizeOrderCode(widget.initialOrderCode ?? '');
     if (_reportType == _typePurchased && initialOrderCode.isNotEmpty) {
       _orderController.text = initialOrderCode;
@@ -1381,6 +1398,7 @@ class _SalesReportFormScreenState extends State<SalesReportFormScreen> {
     _orderController.dispose();
     _nameController.dispose();
     _phoneController.dispose();
+    _zaloContactController.dispose();
     _needController.dispose();
     _consultedOtherController.dispose();
     _experiencedOtherController.dispose();
@@ -1477,12 +1495,16 @@ class _SalesReportFormScreenState extends State<SalesReportFormScreen> {
     final result = await context.read<SalesReportProvider>().checkOrder(
       orderCode,
       entrySource: widget.entrySource,
+      followUpCaseId: widget.followUpCaseId,
     );
     if (!mounted || result == null) return;
     setState(() {
       _orderController.text = result.orderCode;
       if ((result.customerName ?? '').trim().isNotEmpty) {
         _nameController.text = result.customerName!.trim();
+      }
+      if ((result.customerPhone ?? '').trim().isNotEmpty) {
+        _phoneController.text = result.customerPhone!.trim();
       }
       if ((result.customerNeed ?? '').trim().isNotEmpty) {
         _needController.text = result.customerNeed!.trim();
@@ -1517,6 +1539,7 @@ class _SalesReportFormScreenState extends State<SalesReportFormScreen> {
       _orderController.clear();
       _nameController.clear();
       _phoneController.clear();
+      _zaloContactController.clear();
       _needController.clear();
       _consultedOtherController.clear();
       _experiencedOtherController.clear();
@@ -1593,6 +1616,7 @@ class _SalesReportFormScreenState extends State<SalesReportFormScreen> {
       entrySource: _isPurchased ? widget.entrySource : null,
       customerName: _nameController.text,
       customerPhone: _phoneController.text,
+      customerZaloContact: _zaloContactController.text,
       categoryGroupId: _primaryCategoryGroupId,
       categoryGroupIds: List.unmodifiable(_categoryGroupIds),
       customerNeed: _needController.text,
@@ -1627,7 +1651,11 @@ class _SalesReportFormScreenState extends State<SalesReportFormScreen> {
           ? List.unmodifiable(_installmentPartnerCodes)
           : const [],
     );
-    final ok = await provider.submit(input, context.read<AuthProvider>().user);
+    final ok = await provider.submit(
+      input,
+      context.read<AuthProvider>().user,
+      followUpCaseId: widget.followUpCaseId,
+    );
     if (!mounted) return;
     if (ok) {
       _showSnack('Đã gửi báo cáo.', AppColors.success);
@@ -1651,6 +1679,7 @@ class _SalesReportFormScreenState extends State<SalesReportFormScreen> {
       _orderController.clear();
       _nameController.clear();
       _phoneController.clear();
+      _zaloContactController.clear();
       _needController.clear();
       _consultedOtherController.clear();
       _experiencedOtherController.clear();
@@ -1775,6 +1804,7 @@ class _SalesReportFormScreenState extends State<SalesReportFormScreen> {
                   _CustomerSection(
                     nameController: _nameController,
                     phoneController: _phoneController,
+                    zaloContactController: _zaloContactController,
                     needController: _needController,
                     customerType: _customerType,
                     customerIsStudent: _customerIsStudent,
@@ -2032,6 +2062,7 @@ class _OrderSummaryCard extends StatelessWidget {
 class _CustomerSection extends StatelessWidget {
   final TextEditingController nameController;
   final TextEditingController phoneController;
+  final TextEditingController zaloContactController;
   final TextEditingController needController;
   final String? customerType;
   final bool customerIsStudent;
@@ -2048,6 +2079,7 @@ class _CustomerSection extends StatelessWidget {
   const _CustomerSection({
     required this.nameController,
     required this.phoneController,
+    required this.zaloContactController,
     required this.needController,
     required this.customerType,
     required this.customerIsStudent,
@@ -2087,6 +2119,16 @@ class _CustomerSection extends StatelessWidget {
             keyboardType: TextInputType.phone,
             maxLength: 30,
             counterText: '',
+          ),
+          const SizedBox(height: AppLayoutTokens.formInlineGap),
+          AppFormTextInput(
+            controller: zaloContactController,
+            label: 'Zalo cá nhân của khách hàng',
+            icon: Icons.chat_bubble_outline_rounded,
+            maxLength: 120,
+            counterText: '',
+            helperText:
+                'Nhập số Zalo hoặc tên/liên kết liên hệ. Không phải Zalo OA.',
           ),
           const SizedBox(height: AppLayoutTokens.formInlineGap),
           _CustomerTypePicker(

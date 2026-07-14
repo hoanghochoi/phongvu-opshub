@@ -113,6 +113,20 @@ type SalesReportOrderSyncOwner = {
   organizationNodeId: string | null;
 };
 
+type SalesReportComebackScope = {
+  storeCode: string | null;
+  storeName: string | null;
+  organizationNodeId: string | null;
+  organizationNodeName: string | null;
+  regionCode: string | null;
+  areaCode: string | null;
+};
+
+type SalesReportCreateOptions = {
+  comebackScope?: SalesReportComebackScope;
+  persist?: (data: any, include: any) => Promise<any>;
+};
+
 type ErpOrderStatusSyncCandidateSource =
   | 'cache_pending'
   | 'cache_completed'
@@ -1656,11 +1670,18 @@ export class SalesReportsService implements OnApplicationBootstrap {
     };
   }
 
-  async checkOrder(user: any, orderCodeInput: string) {
+  async checkOrder(
+    user: any,
+    orderCodeInput: string,
+    scopeOverride?: SalesReportComebackScope,
+  ) {
     const orderCode = this.normalizeOrderCode(orderCodeInput);
     await this.assertOrderNotReported(orderCode);
     await this.assertOrderNotExcluded(orderCode);
-    const context = await this.resolveUserSnapshot(user);
+    const actorContext = await this.resolveUserSnapshot(user);
+    const context = scopeOverride
+      ? { ...actorContext, ...scopeOverride }
+      : actorContext;
     const erpOrder = await this.lookupErpOrderForReport(
       user,
       context,
@@ -1676,6 +1697,7 @@ export class SalesReportsService implements OnApplicationBootstrap {
     return {
       orderCode,
       customerName: erpOrder.customerName,
+      customerPhone: erpOrder.customerPhone,
       customerNeed: erpOrder.customerNeed,
       customerType: erpOrder.customerType,
       customerTypeLabel: this.customerTypeLabel(erpOrder.customerType),
@@ -1692,7 +1714,11 @@ export class SalesReportsService implements OnApplicationBootstrap {
     };
   }
 
-  async create(user: any, body: CreateSalesReportDto) {
+  async create(
+    user: any,
+    body: CreateSalesReportDto,
+    options: SalesReportCreateOptions = {},
+  ) {
     const startedAt = Date.now();
     const reportType = this.normalizeEnum(body.reportType, SALES_REPORT_TYPES);
     const orderCode =
@@ -1704,7 +1730,10 @@ export class SalesReportsService implements OnApplicationBootstrap {
     const categoryIds = this.normalizeCategoryGroupIds(body);
     const categories = await this.categories.requireCategories(categoryIds);
     const primaryCategory = categories[0]!;
-    const context = await this.resolveUserSnapshot(user);
+    const actorContext = await this.resolveUserSnapshot(user);
+    const context = options.comebackScope
+      ? { ...actorContext, ...options.comebackScope }
+      : actorContext;
     const customerName = this.requireCustomerName(body.customerName);
     let erpOrder: SalesReportErpOrder | null = null;
     if (reportType === REPORT_TYPE_PURCHASED) {
@@ -1716,6 +1745,32 @@ export class SalesReportsService implements OnApplicationBootstrap {
         orderCode ?? '',
       );
       await this.attachCategoryTypes(erpOrder);
+    }
+    let reportOwnerContext = context;
+    if (entrySource === 'COMEBACK') {
+      const creatorEmail = this.normalizeEmail(erpOrder?.creatorEmail);
+      if (!creatorEmail) {
+        throw new BadRequestException(
+          'Đơn hàng chưa có email nhân viên bán hàng trên ERP. Vui lòng kiểm tra lại dữ liệu đơn hàng.',
+        );
+      }
+      const owner = await this.prisma.user.findUnique({
+        where: { email: creatorEmail },
+        include: { store: true },
+      });
+      reportOwnerContext = {
+        ...context,
+        createdByUserId: owner?.id ?? null,
+        createdByEmail: creatorEmail,
+        createdByName:
+          this.optionalText(erpOrder?.creatorName, 120) ??
+          (owner
+            ? [owner.firstName, owner.lastName].filter(Boolean).join(' ').trim()
+            : null),
+        createdByPersonnelCode: owner
+          ? this.personnelCodeFor(owner, owner.store)
+          : null,
+      };
     }
     const promotionCodes = erpOrder
       ? this.normalizePromotionCodes(erpOrder.promotionCodes)
@@ -1741,138 +1796,170 @@ export class SalesReportsService implements OnApplicationBootstrap {
         );
         this.assertOrderCachePersistResultReportable(cacheResult);
       }
-      const report = await this.prisma.salesReport.create({
-        data: {
+      const reportData = {
+        reportType,
+        orderCode,
+        customerName,
+        customerPhone: this.optionalText(body.customerPhone, 30),
+        customerZaloContact: this.optionalText(body.customerZaloContact, 120),
+        customerNeed:
+          this.optionalText(body.customerNeed, 500) ??
+          erpOrder?.customerNeed ??
+          null,
+        categoryGroupId: primaryCategory.id,
+        categoryGroupName: primaryCategory.catGroupName,
+        categoryGroupNameVi: primaryCategory.catGroupNameVi,
+        consultedSolutionAnswer: body.consultedSolutionAnswer,
+        consultedSolutionOtherReason: this.optionalText(
+          body.consultedSolutionOtherReason,
+          500,
+        ),
+        experiencedAnswer: body.experiencedAnswer,
+        experiencedOtherReason: this.optionalText(
+          body.experiencedOtherReason,
+          500,
+        ),
+        zaloAnswer: body.zaloAnswer,
+        zaloOtherReason: this.optionalText(body.zaloOtherReason, 500),
+        appDownloadAnswer: body.appDownloadAnswer,
+        appDownloadOtherReason: this.optionalText(
+          body.appDownloadOtherReason,
+          500,
+        ),
+        notPurchasedReason:
+          reportType === REPORT_TYPE_NOT_PURCHASED
+            ? this.normalizeEnum(
+                body.notPurchasedReason,
+                NOT_PURCHASED_REASON_CODES,
+              )
+            : null,
+        notPurchasedOtherReason: this.optionalText(
+          body.notPurchasedOtherReason,
+          500,
+        ),
+        customerType,
+        customerIsStudent,
+        promotionCodes,
+        installmentNeed: installment.need,
+        installmentApproved: installment.approved,
+        installmentLoanAmount: installment.loanAmount,
+        installmentNoInstallmentReason: installment.noInstallmentReason,
+        installmentStatus: installment.status,
+        installmentFailureReason: installment.failureReason,
+        installmentPartnerCodes: installment.partnerCodes,
+        ...this.salesReportUserSnapshotCreateData(reportOwnerContext),
+        entrySource,
+        submittedByUserId: actorContext.createdByUserId,
+        submittedByEmail: actorContext.createdByEmail,
+        submittedByName: actorContext.createdByName,
+        sourceFollowUpCase:
+          reportType === REPORT_TYPE_NOT_PURCHASED
+            ? {
+                create: {
+                  status: 'OPEN',
+                  assigneeUserId: reportOwnerContext.createdByUserId,
+                  assigneeEmail: reportOwnerContext.createdByEmail,
+                  assigneeName: reportOwnerContext.createdByName,
+                  assigneePersonnelCode:
+                    reportOwnerContext.createdByPersonnelCode,
+                  assignedAt: new Date(),
+                  priorityAt: new Date(),
+                  events: {
+                    create: {
+                      eventType: 'CREATED',
+                      actorUserId: actorContext.createdByUserId,
+                      actorEmail: actorContext.createdByEmail,
+                      actorName: actorContext.createdByName,
+                      toAssigneeUserId: reportOwnerContext.createdByUserId,
+                      toStatus: 'OPEN',
+                    },
+                  },
+                },
+              }
+            : undefined,
+        ...(erpOrder ? this.erpCreateData(erpOrder) : {}),
+        rawResponses: {
           reportType,
-          orderCode,
-          customerName,
-          customerPhone: this.optionalText(body.customerPhone, 30),
-          customerNeed:
-            this.optionalText(body.customerNeed, 500) ??
-            erpOrder?.customerNeed ??
-            null,
-          categoryGroupId: primaryCategory.id,
-          categoryGroupName: primaryCategory.catGroupName,
-          categoryGroupNameVi: primaryCategory.catGroupNameVi,
-          consultedSolutionAnswer: body.consultedSolutionAnswer,
-          consultedSolutionOtherReason: this.optionalText(
-            body.consultedSolutionOtherReason,
-            500,
-          ),
-          experiencedAnswer: body.experiencedAnswer,
-          experiencedOtherReason: this.optionalText(
-            body.experiencedOtherReason,
-            500,
-          ),
-          zaloAnswer: body.zaloAnswer,
-          zaloOtherReason: this.optionalText(body.zaloOtherReason, 500),
-          appDownloadAnswer: body.appDownloadAnswer,
-          appDownloadOtherReason: this.optionalText(
-            body.appDownloadOtherReason,
-            500,
-          ),
-          notPurchasedReason:
-            reportType === REPORT_TYPE_NOT_PURCHASED
-              ? this.normalizeEnum(
-                  body.notPurchasedReason,
-                  NOT_PURCHASED_REASON_CODES,
+          entrySource,
+          answerLabels: {
+            consultedSolution: this.answerLabel(body.consultedSolutionAnswer),
+            experienced: this.answerLabel(body.experiencedAnswer),
+            zalo: this.answerLabel(body.zaloAnswer),
+            appDownload: this.answerLabel(body.appDownloadAnswer),
+            notPurchased: body.notPurchasedReason
+              ? this.notPurchasedLabel(body.notPurchasedReason)
+              : null,
+            installment: installment.status
+              ? this.installmentLabel(installment.status)
+              : null,
+            installmentPartners: installment.partnerCodes.map((code) =>
+              this.installmentPartnerLabel(code),
+            ),
+            customerType: this.customerTypeLabel(customerType),
+            customerIsStudent,
+            promotions: promotionCodes.map((code) => this.promotionLabel(code)),
+            installmentApproved: installment.approved,
+            installmentNoInstallmentReason: installment.noInstallmentReason
+              ? this.installmentNoInstallmentReasonLabel(
+                  installment.noInstallmentReason,
                 )
               : null,
-          notPurchasedOtherReason: this.optionalText(
-            body.notPurchasedOtherReason,
-            500,
-          ),
-          customerType,
-          customerIsStudent,
-          promotionCodes,
-          installmentNeed: installment.need,
-          installmentApproved: installment.approved,
-          installmentLoanAmount: installment.loanAmount,
-          installmentNoInstallmentReason: installment.noInstallmentReason,
-          installmentStatus: installment.status,
-          installmentFailureReason: installment.failureReason,
-          installmentPartnerCodes: installment.partnerCodes,
-          ...this.salesReportUserSnapshotCreateData(context),
-          ...(erpOrder ? this.erpCreateData(erpOrder) : {}),
-          rawResponses: {
-            reportType,
-            entrySource,
-            answerLabels: {
-              consultedSolution: this.answerLabel(body.consultedSolutionAnswer),
-              experienced: this.answerLabel(body.experiencedAnswer),
-              zalo: this.answerLabel(body.zaloAnswer),
-              appDownload: this.answerLabel(body.appDownloadAnswer),
-              notPurchased: body.notPurchasedReason
-                ? this.notPurchasedLabel(body.notPurchasedReason)
-                : null,
-              installment: installment.status
-                ? this.installmentLabel(installment.status)
-                : null,
-              installmentPartners: installment.partnerCodes.map((code) =>
-                this.installmentPartnerLabel(code),
-              ),
-              customerType: this.customerTypeLabel(customerType),
-              customerIsStudent,
-              promotions: promotionCodes.map((code) =>
-                this.promotionLabel(code),
-              ),
-              installmentApproved: installment.approved,
-              installmentNoInstallmentReason: installment.noInstallmentReason
-                ? this.installmentNoInstallmentReasonLabel(
-                    installment.noInstallmentReason,
-                  )
-                : null,
-            },
           },
-          categorySelections: {
-            create: categories.map((category, index) => ({
-              categoryGroupId: category.id,
-              categoryGroupName: category.catGroupName,
-              categoryGroupNameVi: category.catGroupNameVi,
-              sortOrder: index,
-            })),
-          },
-          items: erpOrder
-            ? {
-                create: erpOrder.items.map((item) => ({
-                  sku: item.sku,
-                  sellerSku: item.sellerSku,
-                  name: item.name,
-                  brandCode: item.brandCode,
-                  brandName: item.brandName,
-                  productTypeCode: item.productTypeCode,
-                  productTypeName: item.productTypeName,
-                  productGroupId: item.productGroupId,
-                  productGroupCode: item.productGroupCode,
-                  productGroupName: item.productGroupName,
-                  categoryType: item.categoryType,
-                  quantity: item.quantity,
-                  sellPrice: item.sellPrice,
-                  finalSellPrice: item.finalSellPrice,
-                  rowTotal: item.rowTotal,
-                  raw: item.raw as Prisma.InputJsonValue,
-                })),
-              }
-            : undefined,
-          payments: erpOrder
-            ? {
-                create: erpOrder.payments.map((payment) => ({
-                  paymentMethod: payment.paymentMethod,
-                  amount: payment.amount,
-                  paidAt: payment.paidAt,
-                  transactionCode: payment.transactionCode,
-                  partnerTransactionCode: payment.partnerTransactionCode,
-                  raw: payment.raw as Prisma.InputJsonValue,
-                })),
-              }
-            : undefined,
         },
-        include: {
-          categorySelections: true,
-          items: true,
-          payments: true,
+        categorySelections: {
+          create: categories.map((category, index) => ({
+            categoryGroupId: category.id,
+            categoryGroupName: category.catGroupName,
+            categoryGroupNameVi: category.catGroupNameVi,
+            sortOrder: index,
+          })),
         },
-      });
+        items: erpOrder
+          ? {
+              create: erpOrder.items.map((item) => ({
+                sku: item.sku,
+                sellerSku: item.sellerSku,
+                name: item.name,
+                brandCode: item.brandCode,
+                brandName: item.brandName,
+                productTypeCode: item.productTypeCode,
+                productTypeName: item.productTypeName,
+                productGroupId: item.productGroupId,
+                productGroupCode: item.productGroupCode,
+                productGroupName: item.productGroupName,
+                categoryType: item.categoryType,
+                quantity: item.quantity,
+                sellPrice: item.sellPrice,
+                finalSellPrice: item.finalSellPrice,
+                rowTotal: item.rowTotal,
+                raw: item.raw as Prisma.InputJsonValue,
+              })),
+            }
+          : undefined,
+        payments: erpOrder
+          ? {
+              create: erpOrder.payments.map((payment) => ({
+                paymentMethod: payment.paymentMethod,
+                amount: payment.amount,
+                paidAt: payment.paidAt,
+                transactionCode: payment.transactionCode,
+                partnerTransactionCode: payment.partnerTransactionCode,
+                raw: payment.raw as Prisma.InputJsonValue,
+              })),
+            }
+          : undefined,
+      };
+      const reportInclude = {
+        categorySelections: true,
+        items: true,
+        payments: true,
+      };
+      const report = options.persist
+        ? await options.persist(reportData, reportInclude)
+        : await this.prisma.salesReport.create({
+            data: reportData,
+            include: reportInclude,
+          });
       this.logger.log(
         `Sales report create succeeded: id=${report.id} user=${this.safeUserLabel(user)} type=${reportType} entrySource=${entrySource} store=${report.storeCode || 'none'} ${this.orderLogPart(orderCode)} durationMs=${Date.now() - startedAt}`,
       );
@@ -2901,6 +2988,7 @@ export class SalesReportsService implements OnApplicationBootstrap {
       grandTotal: row.grandTotal,
       customerName: row.customerName,
       customerPhone: row.customerPhone,
+      customerZaloContact: row.customerZaloContact,
       customerType: row.customerType,
       customerTypeLabel: row.customerType
         ? this.customerTypeLabel(row.customerType)
@@ -3937,6 +4025,7 @@ export class SalesReportsService implements OnApplicationBootstrap {
       orderCode: row.orderCode,
       customerName: row.customerName,
       customerPhone: row.customerPhone,
+      customerZaloContact: row.customerZaloContact,
       customerNeed: row.customerNeed,
       categoryGroupId: row.categoryGroupId,
       categoryGroupName: row.categoryGroupName,
@@ -3989,6 +4078,18 @@ export class SalesReportsService implements OnApplicationBootstrap {
       createdByEmail: row.createdByEmail,
       createdByName: row.createdByName,
       createdByPersonnelCode: row.createdByPersonnelCode,
+      submittedByUserId: row.submittedByUserId,
+      submittedByEmail: row.submittedByEmail,
+      submittedByName: row.submittedByName,
+      entrySource: row.entrySource,
+      entrySourceLabel:
+        row.entrySource === 'COMEBACK'
+          ? 'Khách quay lại'
+          : row.entrySource === 'SYNC_LIST'
+            ? 'Danh sách đồng bộ'
+            : row.entrySource === 'MANUAL_ENTRY'
+              ? 'Nhập thủ công'
+              : null,
       storeCode: row.storeCode,
       storeName: row.storeName,
       organizationNodeName: row.organizationNodeName,
@@ -4015,6 +4116,7 @@ export class SalesReportsService implements OnApplicationBootstrap {
       'Mã nhân viên tư vấn ERP',
       'Tên khách hàng',
       'Số điện thoại khách hàng',
+      'Zalo cá nhân khách hàng',
       'Nhu cầu khách hàng',
       'Kết quả tư vấn giải pháp',
       'Lý do khác khi không tư vấn',
@@ -4039,6 +4141,7 @@ export class SalesReportsService implements OnApplicationBootstrap {
         ),
         this.workbookText(row.customerName),
         this.workbookText(row.customerPhone),
+        this.workbookText(row.customerZaloContact),
         this.workbookText(row.customerNeed),
         this.workbookText(this.answerLabel(row.consultedSolutionAnswer)),
         this.workbookText(row.consultedSolutionOtherReason),

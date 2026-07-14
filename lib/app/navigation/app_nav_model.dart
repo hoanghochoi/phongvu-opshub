@@ -128,6 +128,15 @@ class AppNavModel {
       group: AppNavGroup.sales,
     ),
     AppNavDestination(
+      id: 'notPurchasedCustomers',
+      label: 'Khách hàng chưa mua',
+      description: 'Theo dõi và chăm sóc lại khách hàng',
+      route: '/sales-reports/follow-up-cases',
+      icon: Icons.person_search_outlined,
+      color: AppColors.warning,
+      group: AppNavGroup.sales,
+    ),
+    AppNavDestination(
       id: 'payment',
       label: 'Tiền vào',
       description: 'Theo dõi giao dịch thanh toán',
@@ -290,7 +299,9 @@ class AppNavModel {
       'warranty' =>
         location == '/warranty' || location.startsWith('/check-warranty'),
       'sales' =>
-        location == '/reports' || location.startsWith('/sales-reports'),
+        location == '/reports' ||
+            (location.startsWith('/sales-reports') &&
+                !location.startsWith('/sales-reports/follow-up-cases')),
       _ => false,
     };
   }
@@ -313,6 +324,9 @@ class AppNavModel {
       'statement' => user?.canUseBankStatements == true,
       'offset' => user?.canUseOffsetAdjustments == true,
       'sales' => user?.canUseFeature('SALES_REPORT') == true,
+      'notPurchasedCustomers' =>
+        user?.canUseFeature('SALES_REPORT') == true ||
+            user?.canUseFeature('ADMIN_SALES_REPORTS') == true,
       'feedback' => user?.canUseFeature('FEEDBACK') == true,
       _ => false,
     };

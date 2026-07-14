@@ -139,11 +139,29 @@ void main() {
       AppRouter.canUseRouteForTesting(salesUser, '/sales-reports'),
       isTrue,
     );
+    expect(
+      AppRouter.canUseRouteForTesting(
+        salesUser,
+        '/sales-reports/follow-up-cases',
+      ),
+      isTrue,
+    );
     expect(AppRouter.canUseRouteForTesting(salesAdmin, '/reports'), isFalse);
     expect(AppRouter.canUseRouteForTesting(salesAdmin, '/admin'), isTrue);
     expect(
       AppRouter.canUseRouteForTesting(salesAdmin, '/admin/sales-reports'),
       isTrue,
+    );
+    expect(
+      AppRouter.canUseRouteForTesting(
+        salesAdmin,
+        '/sales-reports/follow-up-cases',
+      ),
+      isTrue,
+    );
+    expect(
+      AppRouter.canUseRouteForTesting(staff, '/sales-reports/follow-up-cases'),
+      isFalse,
     );
     expect(AppRouter.canUseRouteForTesting(staff, '/reports'), isFalse);
   });

@@ -206,6 +206,7 @@ void main() {
     expect(sections[0].destinations.map((item) => item.label), [
       'VietQR',
       'Báo cáo bán hàng',
+      'Khách hàng chưa mua',
       if (AppPlatformCapabilities.isPaymentMonitorSupported()) 'Tiền vào',
     ]);
     expect(sections[1].destinations.map((item) => item.label), [
