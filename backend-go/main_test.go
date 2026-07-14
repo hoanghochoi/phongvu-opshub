@@ -50,17 +50,17 @@ func TestAccessAndRecoveryLogsNeverIncludeQueryCredentials(t *testing.T) {
 	logger := log.New(&output, "", 0)
 	router := gin.New()
 	router.Use(accessLogger(logger), safeRecovery(logger))
-	router.GET("/ok", func(c *gin.Context) { c.Status(http.StatusNoContent) })
-	router.GET("/panic", func(*gin.Context) { panic("panic-secret-must-not-be-logged") })
+	router.GET("/health", func(c *gin.Context) { c.Status(http.StatusNoContent) })
+	router.GET("/ready", func(*gin.Context) { panic("panic-secret-must-not-be-logged") })
 
 	secretQuery := "access_token=jwt-super-secret&ticket=ticket-super-secret"
-	request := httptest.NewRequest(http.MethodGet, "/ok?"+secretQuery, nil)
+	request := httptest.NewRequest(http.MethodGet, "/health?"+secretQuery, nil)
 	request.RemoteAddr = "203.0.113.9:12345"
 	request.Header.Set("Authorization", "Bearer header-super-secret")
 	recorder := httptest.NewRecorder()
 	router.ServeHTTP(recorder, request)
 	panicRecorder := httptest.NewRecorder()
-	router.ServeHTTP(panicRecorder, httptest.NewRequest(http.MethodGet, "/panic?"+secretQuery, nil))
+	router.ServeHTTP(panicRecorder, httptest.NewRequest(http.MethodGet, "/ready?"+secretQuery, nil))
 
 	logs := output.String()
 	for _, forbidden := range []string{
@@ -75,7 +75,7 @@ func TestAccessAndRecoveryLogsNeverIncludeQueryCredentials(t *testing.T) {
 			t.Fatalf("logs leaked %q: %s", forbidden, logs)
 		}
 	}
-	if !strings.Contains(logs, "path=/ok") || !strings.Contains(logs, "path=/panic") {
+	if !strings.Contains(logs, "path=/health") || !strings.Contains(logs, "path=/ready") {
 		t.Fatalf("expected redacted path-only access logs, got %s", logs)
 	}
 	if panicRecorder.Code != http.StatusInternalServerError {

@@ -286,17 +286,30 @@ func accessLogger(logger *log.Logger) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		startedAt := time.Now()
 		c.Next()
-		route := c.FullPath()
-		if route == "" {
-			route = "<unmatched>"
-		}
 		logger.Printf(
 			"HTTP request method=%s path=%s status=%d durationMs=%d",
 			safeHTTPMethod(c.Request.Method),
-			route,
+			safeRouteLogValue(c.FullPath()),
 			c.Writer.Status(),
 			time.Since(startedAt).Milliseconds(),
 		)
+	}
+}
+
+func safeRouteLogValue(route string) string {
+	switch route {
+	case "/health":
+		return "/health"
+	case "/ready":
+		return "/ready"
+	case "/ws":
+		return "/ws"
+	case "/ws/v2":
+		return "/ws/v2"
+	case "/ws/app-updates":
+		return "/ws/app-updates"
+	default:
+		return "<unmatched>"
 	}
 }
 
