@@ -115,6 +115,27 @@ func TestAccessLoggerUsesRouteTemplateForUnmatchedUserPath(t *testing.T) {
 	}
 }
 
+func TestAccessLoggerUsesAllowlistedHTTPMethod(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	var output bytes.Buffer
+	router := gin.New()
+	router.Use(accessLogger(log.New(&output, "", 0)))
+	router.Any("/known", func(c *gin.Context) { c.Status(http.StatusNoContent) })
+
+	request := httptest.NewRequest(http.MethodGet, "/known", nil)
+	request.Method = "CUSTOM\nforged-log-line"
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, request)
+
+	logs := output.String()
+	if !strings.Contains(logs, "method=<other>") {
+		t.Fatalf("expected sanitized method marker, got %s", logs)
+	}
+	if strings.Contains(logs, "forged-log-line") {
+		t.Fatalf("access log included user-controlled method: %s", logs)
+	}
+}
+
 func TestOriginCheckUsesExactConfiguredOrigin(t *testing.T) {
 	t.Setenv("ALLOWED_ORIGINS", "https://ops.example.com,https://admin.example.com")
 	allowed := httptest.NewRequest(http.MethodGet, "/ws", nil)

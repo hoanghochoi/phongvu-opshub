@@ -292,11 +292,36 @@ func accessLogger(logger *log.Logger) gin.HandlerFunc {
 		}
 		logger.Printf(
 			"HTTP request method=%s path=%s status=%d durationMs=%d",
-			c.Request.Method,
+			safeHTTPMethod(c.Request.Method),
 			route,
 			c.Writer.Status(),
 			time.Since(startedAt).Milliseconds(),
 		)
+	}
+}
+
+func safeHTTPMethod(method string) string {
+	switch method {
+	case http.MethodGet:
+		return "GET"
+	case http.MethodHead:
+		return "HEAD"
+	case http.MethodPost:
+		return "POST"
+	case http.MethodPut:
+		return "PUT"
+	case http.MethodPatch:
+		return "PATCH"
+	case http.MethodDelete:
+		return "DELETE"
+	case http.MethodConnect:
+		return "CONNECT"
+	case http.MethodOptions:
+		return "OPTIONS"
+	case http.MethodTrace:
+		return "TRACE"
+	default:
+		return "<other>"
 	}
 }
 
