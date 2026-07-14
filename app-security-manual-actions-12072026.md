@@ -1,6 +1,10 @@
 # Việc bảo mật Đại Ca cần tự thực hiện
 
-> Code local đã chuẩn bị nhưng Culi **không** tự đổi Cloudflare, secret, dữ liệu hay runtime. Không dán password/token/PFX/age private key vào Git, chat, ticket, ảnh chụp hoặc command history. Thực hiện staging trước, ghi ticket/người duyệt/thời gian/SHA cho từng bước.
+> Tài liệu này giữ các gate cần quyền/secret/dữ liệu live. Tính đến 14/07/2026,
+> Culi đã tự kiểm Cloudflare, staging runtime và backup trong phạm vi được cấp;
+> không vì vậy mà tự rotate secret, sửa dữ liệu hoặc promote production. Không
+> dán password/token/PFX/age private key vào Git, chat, ticket, ảnh chụp hoặc
+> command history.
 
 ## 0. Checkpoint và stop condition
 
@@ -694,11 +698,15 @@ lệnh cleanup này trên production.
 
 ## 6. Host/container ACL và deploy staging
 
-- [ ] Đặt `OPSHUB_RUNTIME_UID/GID` đúng owner ba volume; không `chmod 777`.
-- [ ] `private-media` mode `0770` hoặc hẹp hơn và không mount Caddy.
-- [ ] API/realtime/Caddy có `ReadonlyRootfs=true`, `CapDrop=ALL`, `no-new-privileges`; API UID khác 0.
-- [ ] Docker log có `max-size/max-file`, disk không tăng vô hạn.
-- [ ] Runtime release có `release-manifest.json`, SHA và image digest trùng CI.
+- [x] Staging: `OPSHUB_RUNTIME_UID/GID` khớp runtime; không có `chmod 777`.
+- [x] Staging: `private-media` mode `0770` và không mount vào Caddy.
+- [x] Staging: API/realtime/Caddy có `ReadonlyRootfs=true`, `CapDrop=ALL`,
+  `no-new-privileges`; API UID `1000`, realtime UID `100`, Caddy UID `1000`.
+- [x] Staging: Docker log `max-size=10m`, `max-file=5`.
+- [x] Staging: workflow `29275293780` deploy SHA `300dcd22...` thành công và
+  public manifest/version khớp build `2026.07.13.144+200144`.
+- [ ] Production: API/Caddy vẫn chạy root trên image legacy, rootfs ghi được và
+  chưa drop capabilities. Chỉ đóng sau promotion đúng SHA và inspect lại.
 
 ```bash
 docker inspect opshub-api-1 --format '{{.Config.User}} {{.HostConfig.ReadonlyRootfs}} {{json .HostConfig.CapDrop}}'
@@ -713,14 +721,31 @@ Smoke bắt buộc: login đúng/sai/enumeration, reset OTP attempt, ticket repl
 
 | Việc | Vì sao cần Đại Ca | Điều kiện đóng |
 | --- | --- | --- |
-| Cloudflare HTTPS/Access/CSP/HSTS | Cần quyền zone và quyết định policy | Header/live smoke + rollback export |
+| Cloudflare HTTPS/Access/CSP/HSTS | Đã đóng 14/07/2026 bằng rule hostname-scoped và live smoke | Giữ rule export/ảnh cấu hình làm rollback proof |
 | Rotate JWT/Redis/staging credential | Culi không được biết hoặc phát tán secret | Session cũ fail, service khỏe, log sạch |
 | Disable break-glass/MFA | Cần xác minh admin thay thế và provider | 2 admin cá nhân + audit + MFA |
 | Media backfill/cutover | Sửa dữ liệu/cache/client live | Dry-run, backup, batch audit, legacy hit=0 |
 | age key/restore drill | Hoàn tất manual ngày 13/07/2026; private key vẫn ngoài repo/host | Encrypted backup + off-host checksum + restore proof đã pass |
 | Windows/Android signing | Cần PFX/keystore và quyền GitHub Environment | Signed artifact + fingerprint/pin proof |
-| Container build/deploy | Docker daemon local hiện không dùng được; production write cần lệnh riêng | staging cùng SHA/digest + smoke |
-| CSP/HSTS enforce | Có thể làm hỏng Flutter/subdomain | report window sạch + owner phê duyệt |
+| Container build/deploy | Staging đã đóng; production write vẫn cần promotion riêng | production cùng SHA/digest + smoke |
+| CSP/HSTS enforce | Đã đóng 14/07/2026 sau Home/Help/Download/WS smoke | tiếp tục theo dõi CSP regression |
 | MFA implementation | Chưa chốt provider/UX/recovery | product decision + threat-model riêng |
 
 Runbook infra chi tiết bổ sung: `deploy/home-server/SECURITY_HARDENING_RUNBOOK.md`.
+
+## 8. Nợ bảo mật còn mở sau xác minh 14/07/2026
+
+1. **Production promotion:** production đang chạy release/image legacy; API và
+   Caddy còn root, rootfs ghi được, không drop capabilities. Không tự promote
+   trong audit; cần maintenance window, backup và rollback digest.
+2. **Private media production:** staging không có dữ liệu. Khi production được
+   promote phải đo access log `/uploads/*`, chạy dry-run/backfill, giữ qua
+   retention/backup, rồi mới đóng route public và purge cache.
+3. **Identity/secret:** cần xác nhận hai admin cá nhân, chốt MFA/recovery và
+   rotate JWT/Redis/shared credentials mà không đưa secret cho Culi.
+4. **Realtime live destructive smoke:** ticket replay, logout đóng socket và
+   authenticated load cần tài khoản test riêng; không dùng tài khoản thật hoặc
+   tạo credential ngầm trong audit.
+5. **Backup governance:** job TrueNAS đã pass và timer hoạt động, nhưng backup
+   plaintext lịch sử, retention và ZFS snapshot/immutability vẫn cần inventory
+   và phê duyệt trước thao tác phá huỷ.

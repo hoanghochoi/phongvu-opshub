@@ -2,7 +2,10 @@
 
 > Story: `SECURITY-001`
 > Nguồn: `app-improve-implement-plan-12072026.md`
-> Checkpoint: `main` tại `4e1ced4b8ecfce8ea33ff3c1440fdb5e5676a25b`
+> Checkpoint audit ban đầu: `main` tại `4e1ced4b8ecfce8ea33ff3c1440fdb5e5676a25b`
+> Checkpoint xác minh lại 14/07/2026: `staging` tại
+> `300dcd2278c1b713a9f49b59f557d1df070ec720`, sạch và trùng
+> `origin/staging`.
 > Quy ước: `[x]` đã có bằng chứng local; `[ ]` chưa đóng; `[M]` cần quyền/secret/runtime của Đại Ca; `[D]` tách follow-up có lý do; `[W]` đã đóng bằng waiver tạm thời có owner, control bù và ngày rà soát.
 
 ## A. Checkpoint và phạm vi
@@ -10,7 +13,8 @@
 - [x] Ghi branch, HEAD, upstream và dirty-worktree trước khi sửa.
 - [x] Ghi Harness intake `54`, lane high-risk, story `SECURITY-001`.
 - [x] Bảo vệ batch Sales Report/migration/docs có trước; không sửa contract showroom của batch đó.
-- [x] Không tạo branch, commit, push hoặc deploy.
+- [x] Nhịp audit ban đầu không tạo branch, commit, push hoặc deploy; các nhịp
+  remediation sau đó đã commit/push/deploy `staging` theo từng checkpoint.
 - [x] Mỗi workstream có test/contract và đường rollback tương ứng.
 - [x] Exact diff audit cuối cùng và `git diff --check` sau khi mọi tài liệu đã chốt.
 
@@ -18,8 +22,11 @@
 
 - [x] Caddy có redirect dựa trên `X-Forwarded-Proto`, `nosniff`, Referrer/Frame/Permissions Policy và CSP report-only.
 - [x] CORS production fail sạch, không dùng credential cookie, trust-proxy được giới hạn.
-- [M] Bật Cloudflare Always Use HTTPS và đặt staging sau Access/VPN.
-- [M] Chỉ chuyển CSP/HSTS sang enforce sau live smoke và quan sát report.
+- [x] Cloudflare có redirect HTTP -> HTTPS `308` chỉ cho hai hostname OpsHub;
+  staging vẫn nằm sau Cloudflare Access.
+- [x] CSP đã chuyển sang enforce sau smoke Home/Help/Download/WebSocket; HSTS
+  `max-age=31536000; includeSubDomains` có trên staging, production và cả
+  response Cloudflare Access.
 - [x] Xóa startup break-glass hard-code; restart không tự tạo/mở khóa/nâng quyền admin.
 - [x] CLI reset admin khẩn cấp dùng token 256-bit, lưu hash, TTL tối đa 15 phút và audit; CLI disable khóa account + revoke session.
 - [M] Xác nhận hai admin cá nhân thay thế, disable account dùng chung cũ và kích hoạt MFA khi provider được chốt.
@@ -38,7 +45,12 @@
 - [x] Queue bounded, deadline, ping/pong, idle/read limit, handshake/connection cap.
 - [x] `/ready` phụ thuộc Redis; log query được redaction.
 - [x] Go `test`, `vet`, race/slow-client/audience tests và `govulncheck` bằng toolchain `go1.25.12` pass.
-- [M] Staging replay/close-session/load smoke với Redis và client thật.
+- [x] Staging client thật kết nối WebSocket thành công; runtime xác nhận
+  `WS_ALLOW_LEGACY_JWT=false`, `WS_MAX_CONNECTIONS_PER_USER=12`, realtime
+  healthy và log 8 giờ không có `access_token=`/`ticket=`.
+- [M] Ticket replay, close-session và authenticated load smoke vẫn cần một
+  phiên test có credential riêng; unit/race/slow-client test không thay thế
+  hoàn toàn proof live này.
 
 ## D. Private media và upload
 
@@ -50,7 +62,10 @@
 - [x] Flutter chỉ gắn bearer cho đúng API origin + `/media/`; từ chối external, userinfo và `/uploads` legacy.
 - [x] Có audit, dry-run/apply migration và rollback-reference scripts; apply bắt ticket/approver/confirmation.
 - [x] Backup gồm `private-media`; Caddy không mount thư mục private.
-- [M] Chạy dry-run/backfill live, theo dõi legacy hit, đóng `/uploads`, purge cache và orphan cleanup sau retention.
+- [D] Staging dry-run không có dữ liệu nên không chứng minh được migration.
+  Theo quyết định của Đại Ca, access-log `/uploads/*`, backfill, retention,
+  purge cache và orphan cleanup được ghi nợ để chạy khi promote production;
+  không dùng staging rỗng làm proof giả.
 
 ## E. Input, log và outbound integration
 
@@ -84,8 +99,13 @@
   drill cô lập đã pass.
 - [x] TrueNAS off-host đã mount qua Tailscale/NFSv4.2; job app-aware hằng ngày đã chạy
   thử thành công, publish nguyên tử và không còn staging/`.incoming`.
-- [M] Sau deploy vẫn phải kiểm UID/GID/ACL thật, xử lý backup plaintext cũ và phê
-  duyệt retention/ZFS snapshot trước khi đóng SEC-12.
+- [x] Staging runtime đã kiểm trực tiếp: API `1000:1000`, realtime `app`, Caddy
+  `1000:1000`; cả ba `ReadonlyRootfs=true`, `CapDrop=ALL`,
+  `no-new-privileges`; `private-media` mode `0770`; Docker log `10m x 5`.
+- [M] Production vẫn dùng image legacy: API/Caddy chạy root, rootfs ghi được và
+  chưa drop capabilities. Cần promote đúng SHA rồi kiểm lại UID/GID/ACL;
+  đồng thời inventory/xử lý backup plaintext cũ và phê duyệt retention/ZFS
+  snapshot trước khi đóng SEC-12 production.
 
 ## G. Runtime artifact và cleanup
 
@@ -108,9 +128,14 @@
 - [x] Go test/vet/govulncheck, npm production audit, platform contract, YAML, shell, PowerShell và Compose config pass.
 - [x] `git diff --check` và invariant grep (JWT query/RawQuery/break-glass/full-repo rsync/raw email log) pass.
 - [x] Exact changed-file review cuối: 112 file tracked thay đổi + 44 mục untracked, đều nằm trong phạm vi bảo mật/tài liệu hoặc baseline Sales Report đã ghi nhận; không có build artifact/secret/signing key lọt vào worktree.
-- [x] Deploy staging đúng SHA `af32413074c6fd71cc4afe7b15f647877ce2c5b4`;
-  public health, version metadata và đăng nhập admin cá nhân pass.
-- [M] Vẫn cần đóng các proof runtime còn lại: container UID/GID/ACL, migration/backfill
-  private media, realtime replay/session-revoke/load smoke và Cloudflare policy.
+- [x] Deploy staging mới nhất đúng SHA
+  `300dcd2278c1b713a9f49b59f557d1df070ec720`; workflow
+  `29275293780` pass, health/version/Home/Help/Download và đăng nhập admin cá
+  nhân pass.
+- [x] Live edge/CORS/anonymous smoke ngày 14/07/2026: HTTP `308`; CSP/HSTS
+  enforce; origin lạ không có ACAO; origin staging được phép; anonymous
+  `/api/media/:id` và `/api/admin/quick-action-links` trả `401`.
+- [M] Proof runtime còn lại chỉ gồm ticket replay/session-revoke/authenticated
+  load, hai-admin/MFA, credential rotation và các gate production đã ghi nợ.
 - [M] Promote production chỉ sau khi mọi stop condition manual đã đóng.
 - [x] Hướng dẫn manual được ghi trong `app-security-manual-actions-12072026.md` và runbook liên quan.

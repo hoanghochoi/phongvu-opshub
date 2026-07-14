@@ -2,8 +2,11 @@
 
 > Ngày lập: 12/07/2026
 > Nguồn phát hiện: app-audit-21072026.md
-> Trạng thái cập nhật 12/07/2026: hardening local đã triển khai; chưa commit,
-> chưa push, chưa đổi dữ liệu/Cloudflare và chưa deploy staging/production.
+> Trạng thái xác minh 14/07/2026: hardening đã commit/push và deploy staging đến
+> SHA `300dcd2278c1b713a9f49b59f557d1df070ec720`; Cloudflare HTTPS/CSP/HSTS,
+> staging container/ACL và TrueNAS backup đã có proof. Production chưa promote;
+> private-media cutover, credential rotation, MFA và realtime destructive smoke
+> vẫn là gate riêng.
 > Mục tiêu: đóng rủi ro Critical/High trước, sau đó giảm bề mặt runtime và nợ bảo trì mà không làm gãy nghiệp vụ
 
 ## 1. Mục tiêu và nguyên tắc
@@ -644,3 +647,37 @@ Kế hoạch chỉ được coi là hoàn tất khi:
   strict showroom contract, không thay đổi runtime Sales Report. Với regression
   tương lai, chỉ phát hành waiver tối đa 7 ngày khi có release cụ thể, owner phê
   duyệt, ticket xử lý và bằng chứng runtime không bị thay đổi.
+
+## 15. Re-baseline ngày 14/07/2026
+
+### Đã đóng bằng bằng chứng hiện tại
+
+- `staging` sạch và trùng `origin/staging` tại `300dcd22...`; deploy workflow
+  `29275293780` thành công.
+- Edge live: HTTP -> HTTPS `308`; HSTS một năm có `includeSubDomains`; CSP
+  enforce; staging Access response cũng có HSTS.
+- API live: CORS chỉ trả ACAO cho origin staging; anonymous media/admin trả
+  `401`; health trả `200`.
+- Runtime staging: API/realtime/Caddy non-root, read-only rootfs, drop toàn bộ
+  capability (Caddy chỉ add lại `CAP_NET_BIND_SERVICE`),
+  `no-new-privileges`; private media `0770`; log rotation `10m x 5`.
+- Realtime: legacy JWT tắt, 12 connection/user, container healthy, authenticated
+  browser smoke pass và log tám giờ không có token/ticket query.
+- Supply chain 14/07: `npm audit --omit=dev` có 0 finding; `govulncheck` có 0
+  vulnerability được gọi; tracked tree không có private key thật (chuỗi PEM
+  duy nhất là placeholder trong tài liệu).
+- Validation HEAD: Nest build pass, 60/60 suite và 596/596 test; Go test/vet
+  pass; platform security contract pass; Flutter analyze không có issue.
+- Backup TrueNAS timer enabled/active; lần gần nhất `Result=success`, checksum
+  các artifact mã hóa pass và publish hoàn tất.
+
+### Gate còn mở, không được tự suy diễn là đã đóng
+
+- Production vẫn chạy image legacy: API/Caddy root, rootfs ghi được, chưa drop
+  capabilities. Cần promotion có maintenance window và rollback digest.
+- Production private media/access-log/retention/backfill được ghi nợ theo quyết
+  định của Đại Ca vì staging không có dữ liệu.
+- Cần hai admin cá nhân + MFA/recovery, secret rotation và realtime
+  replay/session-revoke/authenticated-load smoke bằng tài khoản test riêng.
+- Backup plaintext lịch sử, retention và ZFS snapshot/immutability cần inventory
+  cùng phê duyệt trước mọi cleanup phá huỷ.
