@@ -221,6 +221,64 @@ void main() {
       },
     );
 
+    test(
+      'Windows signature verifier handles a signed path with shell metacharacters',
+      () async {
+        if (!Platform.isWindows) return;
+        final windowsRoot = Platform.environment['WINDIR'];
+        expect(windowsRoot, isNotNull);
+        final signedSource = File(
+          '$windowsRoot${Platform.pathSeparator}System32'
+          '${Platform.pathSeparator}WindowsPowerShell'
+          '${Platform.pathSeparator}v1.0'
+          '${Platform.pathSeparator}powershell.exe',
+        );
+        expect(await signedSource.exists(), isTrue);
+        final signedDirectory = Directory(
+          '${tempDir.path}${Platform.pathSeparator}signed package test',
+        );
+        await signedDirectory.create(recursive: true);
+        final signedCopy = await signedSource.copy(
+          '${signedDirectory.path}${Platform.pathSeparator}'
+          "signed package ' + ; test.exe",
+        );
+
+        final signer =
+            await AppSelfUpdateService.readWindowsSignerSha256ForTesting(
+              signedCopy.path,
+            );
+
+        expect(signer, matches(RegExp(r'^[0-9A-F]{64}$')));
+      },
+    );
+
+    test('Windows signature verifier rejects an unsigned executable', () async {
+      if (!Platform.isWindows) return;
+      final unsignedFile = File(
+        '${tempDir.path}${Platform.pathSeparator}unsigned.exe',
+      );
+      await unsignedFile.writeAsString('not a signed executable');
+
+      await expectLater(
+        AppSelfUpdateService.readWindowsSignerSha256ForTesting(
+          unsignedFile.path,
+        ),
+        throwsA(
+          isA<AppSelfUpdateException>()
+              .having(
+                (error) => error.code,
+                'code',
+                'WINDOWS_SIGNATURE_NOT_VALID',
+              )
+              .having(
+                (error) => error.message,
+                'message',
+                contains('Windows chưa xác nhận được chữ ký'),
+              ),
+        ),
+      );
+    });
+
     test('stops streaming when package exceeds the local hard cap', () async {
       final bytes = 'fake installer bytes'.codeUnits;
       var installerCalled = false;

@@ -950,6 +950,15 @@ export class VietQrService {
     rawData?: Prisma.JsonValue | null;
   }) {
     const rawData = this.rawDataAsMapTransaction(row.rawData);
+    if (rawData && this.readText(rawData, 'source') === 'VIETIN_EFAST') {
+      return (
+        this.readText(rawData, 'trxId') ||
+        row.transactionNumber?.trim() ||
+        this.readText(rawData, 'trxRefNo') ||
+        this.readText(rawData, 'txnReference') ||
+        null
+      );
+    }
     const reference = rawData
       ? this.readFirstText(rawData, this.mapTransactionReferenceKeys)
       : '';

@@ -127,7 +127,10 @@ Expected responses:
   key from the bank statement reference, and both ingestion directions check
   all stored statement identifiers before insert. This prevents duplicate rows
   and payment notifications whether MAP or eFAST arrives first, including
-  near-simultaneous provider responses. Rows with missing `pmtId` are still stored
+  near-simultaneous provider responses. Product-facing `Mã sao kê` values use
+  eFAST `trxId`, which matches the MAP statement reference; eFAST `trxRefNo`
+  remains a provider-side technical reference in raw audit data. Rows with
+  missing `pmtId` are still stored
   with `storeCode=null` so
   Super Admin, Finance-node users, and `phongvu.vn` users can review them; a
   user who finds that row by statement number, order, amount, or transfer

@@ -431,7 +431,9 @@ source-agnostic transaction key from the bank statement reference, and both
 ingestion directions check all stored statement identifiers before inserting.
 The database transaction-key constraint therefore prevents duplicate rows and
 payment notifications whether MAP or eFAST arrives first, including
-near-simultaneous responses. Rows with a
+near-simultaneous responses. For user-facing `Mã sao kê` fields, API responses,
+CSV exports, and stored VietQR confirmations use eFAST `trxId`; the numeric
+eFAST `trxRefNo` remains technical raw/audit data. Rows with a
 missing `pmtId` are stored with `storeCode=null` instead of being quarantined;
 Super Admin, Finance-node users, and `phongvu.vn` users can review them. A
 scoped user who finds one of these rows by statement number, order, amount, or

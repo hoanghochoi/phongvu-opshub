@@ -3258,12 +3258,27 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
   }
 
   private resolveStoredTransactionReference(row: {
+    transactionNumber?: string | null;
     rawData?: Prisma.JsonValue | null;
   }) {
     const rawData = this.rawDataAsMapRow(row.rawData);
-    return rawData
-      ? this.readFirstText(rawData, this.transactionReferenceKeys) || null
-      : null;
+    if (!rawData) return row.transactionNumber?.trim() || null;
+    if (this.isEfastMapTransactionRow(rawData)) {
+      return (
+        this.firstNonEmptyText(
+          this.readText(rawData, 'trxId'),
+          row.transactionNumber,
+          this.readText(rawData, 'transactionNumber'),
+          this.readText(rawData, 'trxRefNo'),
+          this.readText(rawData, 'txnReference'),
+        ) || null
+      );
+    }
+    return (
+      this.readFirstText(rawData, this.transactionReferenceKeys) ||
+      row.transactionNumber?.trim() ||
+      null
+    );
   }
 
   private rawDataAsMapRow(value?: Prisma.JsonValue | null) {

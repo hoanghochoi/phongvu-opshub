@@ -13,6 +13,9 @@
 
 ## Evidence
 
+- 2026-07-14: eFAST statement display/export and stored VietQR confirmation
+  prefer `trxId` over numeric `trxRefNo`. Focused MAP/VietQR Jest passed 110
+  tests and `npm run build` passed.
 - 2026-05-29: `npx prisma validate` passed.
 - 2026-05-29: `npx prisma generate` passed and generated Prisma Client
   v7.8.0.

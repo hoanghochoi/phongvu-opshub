@@ -135,7 +135,16 @@ class AppSelfUpdateService {
           'durationMs': DateTime.now().difference(startedAt).inMilliseconds,
         },
       );
-    } on AppSelfUpdateException {
+    } on AppSelfUpdateException catch (error) {
+      await AppLogger.instance.warn(
+        'AppSelfUpdate',
+        'Self-update stopped safely',
+        context: {
+          ..._logContext(result),
+          'code': error.code ?? 'SELF_UPDATE_REJECTED',
+          'durationMs': DateTime.now().difference(startedAt).inMilliseconds,
+        },
+      );
       rethrow;
     } on PlatformException catch (error, stackTrace) {
       await AppLogger.instance.error(
@@ -347,48 +356,109 @@ class AppSelfUpdateService {
       );
     }
 
+    await AppLogger.instance.info(
+      'AppSelfUpdate',
+      'Windows package signature verification started',
+      context: {'trustedSignerCount': trustedSigners.length},
+    );
+    try {
+      final signer = await _readWindowsSignerSha256(request.filePath);
+      if (!trustedSigners.contains(signer)) {
+        await AppLogger.instance.warn(
+          'AppSelfUpdate',
+          'Windows package signer pin mismatch',
+          context: {'signerHashPrefix': signer.substring(0, 12)},
+        );
+        throw const AppSelfUpdateException(
+          'Chữ ký gói cập nhật Windows không đúng nhà phát hành tin cậy. Đã dừng cài đặt.',
+          code: 'WINDOWS_SIGNER_PIN_MISMATCH',
+        );
+      }
+      await AppLogger.instance.info(
+        'AppSelfUpdate',
+        'Windows package signature verification succeeded',
+        context: {'signerHashPrefix': signer.substring(0, 12)},
+      );
+    } on AppSelfUpdateException catch (error) {
+      await AppLogger.instance.warn(
+        'AppSelfUpdate',
+        'Windows package signature verification stopped',
+        context: {'code': error.code ?? 'WINDOWS_SIGNATURE_REJECTED'},
+      );
+      rethrow;
+    }
+  }
+
+  @visibleForTesting
+  static Future<String> readWindowsSignerSha256ForTesting(String filePath) {
+    return _readWindowsSignerSha256(filePath);
+  }
+
+  static Future<String> _readWindowsSignerSha256(String filePath) async {
+    const packagePathEnvironmentKey = 'OPSHUB_UPDATE_PACKAGE_PATH';
     const script = r'''
 $ErrorActionPreference = 'Stop'
-$signature = Get-AuthenticodeSignature -LiteralPath $args[0]
+$packagePath = [Environment]::GetEnvironmentVariable('OPSHUB_UPDATE_PACKAGE_PATH', 'Process')
+if ([string]::IsNullOrWhiteSpace($packagePath)) { exit 12 }
+$securityModule = Join-Path $PSHOME 'Modules\Microsoft.PowerShell.Security\Microsoft.PowerShell.Security.psd1'
+Import-Module -Name $securityModule -Force -ErrorAction Stop
+$signature = Get-AuthenticodeSignature -LiteralPath $packagePath
 if ($signature.Status -ne 'Valid' -or $null -eq $signature.SignerCertificate) { exit 11 }
 $algorithm = [System.Security.Cryptography.HashAlgorithmName]::SHA256
 [Console]::Out.Write($signature.SignerCertificate.GetCertHashString($algorithm))
 ''';
-    Process? process;
+    late Process process;
     try {
-      process = await Process.start('powershell.exe', [
-        '-NoLogo',
-        '-NoProfile',
-        '-NonInteractive',
-        '-ExecutionPolicy',
-        'Bypass',
-        '-Command',
-        script,
-        request.filePath,
-      ]);
+      process = await Process.start(
+        'powershell.exe',
+        [
+          '-NoLogo',
+          '-NoProfile',
+          '-NonInteractive',
+          '-ExecutionPolicy',
+          'Bypass',
+          '-Command',
+          script,
+        ],
+        environment: {packagePathEnvironmentKey: filePath},
+      );
       final stdoutFuture = process.stdout.transform(utf8.decoder).join();
-      final stderrFuture = process.stderr.drain<void>();
-      final exitCode = await process.exitCode.timeout(_signatureCheckTimeout);
+      final stderrFuture = process.stderr.transform(utf8.decoder).join();
+      late int exitCode;
+      try {
+        exitCode = await process.exitCode.timeout(_signatureCheckTimeout);
+      } on TimeoutException {
+        process.kill();
+        throw const AppSelfUpdateException(
+          'Kiểm tra chữ ký gói cập nhật quá thời gian. Đã dừng cài đặt.',
+          code: 'WINDOWS_SIGNATURE_CHECK_TIMEOUT',
+        );
+      }
       final signer = (await stdoutFuture)
           .replaceAll(RegExp(r'[^0-9A-Fa-f]'), '')
           .toUpperCase();
-      await stderrFuture;
-      if (exitCode != 0 || !trustedSigners.contains(signer)) {
+      final stderr = await stderrFuture;
+      if (exitCode == 11) {
         throw const AppSelfUpdateException(
-          'Chữ ký gói cập nhật Windows không đúng nhà phát hành tin cậy. Đã dừng cài đặt.',
+          'Windows chưa xác nhận được chữ ký của gói cập nhật. Đã dừng cài đặt.',
+          code: 'WINDOWS_SIGNATURE_NOT_VALID',
         );
       }
+      if (exitCode != 0 || signer.length != 64) {
+        throw AppSelfUpdateException(
+          'Chưa xác minh được chữ ký gói cập nhật Windows. Đã dừng cài đặt.',
+          code: stderr.trim().isEmpty
+              ? 'WINDOWS_SIGNATURE_CHECK_FAILED'
+              : 'WINDOWS_SIGNATURE_CHECK_PROCESS_FAILED',
+        );
+      }
+      return signer;
     } on AppSelfUpdateException {
       rethrow;
-    } on TimeoutException {
-      process?.kill();
-      throw const AppSelfUpdateException(
-        'Kiểm tra chữ ký gói cập nhật quá thời gian. Đã dừng cài đặt.',
-      );
     } catch (_) {
-      process?.kill();
       throw const AppSelfUpdateException(
         'Chưa xác minh được chữ ký gói cập nhật Windows. Đã dừng cài đặt.',
+        code: 'WINDOWS_SIGNATURE_CHECK_FAILED',
       );
     }
   }

@@ -81,6 +81,24 @@ describe('VietQrService', () => {
     process.env = originalEnv;
   });
 
+  it('uses the eFAST trxId for stored VietQR confirmation details', () => {
+    const readStoredStatementNumber = (
+      service as any
+    ).readStoredStatementNumber.bind(service);
+
+    expect(
+      readStoredStatementNumber({
+        transactionNumber: '904D60713M9LLR5M',
+        rawData: {
+          source: 'VIETIN_EFAST',
+          trxId: '904D60713M9LLR5M',
+          trxRefNo: '331225',
+          txnReference: '331225',
+        },
+      }),
+    ).toBe('904D60713M9LLR5M');
+  });
+
   it('creates a VietQR EMV payload with transfer content and crc', async () => {
     const result = await service.create({
       amount: 150000,

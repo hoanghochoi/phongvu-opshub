@@ -63,3 +63,19 @@
 - Manual/unverified: Docker image build/runtime inspection, Cloudflare,
   credential rotation, private-media live migration, remaining realtime smoke,
   host ACL/retention and production smoke.
+
+## Windows in-app updater regression 14/07/2026
+
+- Root cause: the Authenticode verifier passed the installer path after
+  `powershell.exe -Command`; Windows PowerShell parsed that path as additional
+  command text instead of exposing it through `$args[0]`. The workstation also
+  exposes PowerShell 7 modules before Windows PowerShell modules, so automatic
+  discovery can select an incompatible `Microsoft.PowerShell.Security` module.
+- Fix contract: pass the path only through the child process environment and
+  keep the PowerShell command text constant; import the Security module from
+  the child process `$PSHOME`. A signed file whose path contains spaces, a
+  quote, plus and semicolon must verify successfully; an unsigned executable
+  must fail closed with `WINDOWS_SIGNATURE_NOT_VALID`.
+- Required release proof: focused updater tests, Flutter analyze, Windows
+  release build, signed staging installer, then an installed-build in-app
+  update from the previous staging build to the new build.

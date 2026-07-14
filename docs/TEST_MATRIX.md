@@ -58,6 +58,13 @@ This file maps product behavior to proof. Existing flows are marked
 
 Recent focused evidence:
 
+- `PAYMENT-MONITOR-001`/`PAYMENT-STATEMENT-001`/`VIETQR-001`, 2026-07-14:
+  user-facing eFAST statement fields now use `trxId`, matching the MAP statement
+  reference, instead of exposing numeric provider `trxRefNo` values. The shared
+  backend resolver covers statement API responses, CSV export, transfer-request
+  details, and stored VietQR confirmations; MAP behavior is unchanged.
+  Validation: focused MAP/VietQR Jest passed 110 tests, Nest build passed, and
+  `git diff --check` passed.
 - `UI-UX-001`, 2026-07-11: sửa race thứ hai của `AppCombobox` trên
   desktop/Windows: khi bấm chuột chọn option, `TextField` mất focus ở
   mouse-down và timer đóng overlay cũ có thể đóng menu trước mouse-up/onTap,

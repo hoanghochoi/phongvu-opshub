@@ -1464,6 +1464,24 @@ describe('MapVietinService', () => {
     );
   });
 
+  it('exposes the eFAST trxId as the product-facing statement number', () => {
+    const resolveStoredTransactionReference = (
+      service as any
+    ).resolveStoredTransactionReference.bind(service);
+
+    expect(
+      resolveStoredTransactionReference({
+        transactionNumber: '904D60713M9LLR5M',
+        rawData: {
+          source: 'VIETIN_EFAST',
+          trxId: '904D60713M9LLR5M',
+          trxRefNo: '331225',
+          txnReference: '331225',
+        },
+      }),
+    ).toBe('904D60713M9LLR5M');
+  });
+
   it('lists stored transactions across a Vietnam-local date range', async () => {
     prisma.store.findUnique.mockResolvedValue({
       id: 'store-uuid-1',
@@ -3025,6 +3043,38 @@ describe('MapVietinService', () => {
         where: expect.objectContaining({ id: { in: ['stored-1'] } }),
       }),
     );
+  });
+
+  it('exports the eFAST trxId instead of its numeric trxRefNo', async () => {
+    prisma.mapVietinTransaction.findMany.mockResolvedValue([
+      {
+        storeCode: 'CH1001',
+        transactionNumber: '904D60713M9LLR5M',
+        amount: 15000000,
+        content: '26070839000000',
+        orders: ['26070839000000'],
+        status: 'SUCCESS',
+        paidAt: new Date('2026-07-13T12:05:30.000Z'),
+        payerName: null,
+        payerAccount: null,
+        rawData: {
+          source: 'VIETIN_EFAST',
+          trxId: '904D60713M9LLR5M',
+          trxRefNo: '331225',
+          txnReference: '331225',
+        },
+        firstSeenAt: new Date('2026-07-13T12:05:35.000Z'),
+        orderSource: 'AUTO',
+      },
+    ]);
+
+    const csv = await service.exportStatementsCsv(
+      { role: 'SUPER_ADMIN' },
+      { transactionIds: ['stored-efast-1'] },
+    );
+
+    expect(csv).toContain('904D60713M9LLR5M');
+    expect(csv).not.toContain('331225');
   });
 
   it('exports selected global-lookup statement rows without assigned-store scope', async () => {

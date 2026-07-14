@@ -16,6 +16,8 @@ Add a `Sao ke` workflow for MAP transactions where the transfer content may not
 contain an order code. The feature stores every valid extracted order code,
 allows manual inline order correction with audit history, supports scoped search
 and CSV export, and marks transactions visually by whether an order is present.
+User-facing statement numbers use the MAP statement reference; stored eFAST rows
+must expose their matching `trxId`, while `trxRefNo` stays technical audit data.
 
 ## Affected Areas
 
