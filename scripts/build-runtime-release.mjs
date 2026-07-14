@@ -15,6 +15,14 @@ const includeReviewedUntracked = process.argv.includes(
   "--include-untracked-reviewed",
 );
 
+// These tracked files are mounted read-only at /app/data for backend runtime
+// lookups. Client-only assets and manual import sources stay outside the
+// server artifact allowlist.
+const RUNTIME_DATA_FILES = [
+  "data/categories.csv",
+  "data/email_domain.txt",
+];
+
 const REQUIRED_FILES = [
   "backend-nest/Dockerfile",
   "backend-nest/package.json",
@@ -34,7 +42,7 @@ const REQUIRED_FILES = [
   "deploy/home-server/Caddyfile",
   "deploy/home-server/docker-compose.home.yml",
   "docs/help/navigation.json",
-  "data/email_domain.txt",
+  ...RUNTIME_DATA_FILES,
   "assets/icon/source/app_icon_master.png",
   "assets/icon/acare_logo.png",
   "fonts/SF-Pro-Display-Regular.otf",
@@ -58,7 +66,7 @@ const EXACT_FILES = new Set([
   "deploy/home-server/docker-compose.home.yml",
   "deploy/home-server/download.html",
   "deploy/home-server/backup.sh",
-  "data/email_domain.txt",
+  ...RUNTIME_DATA_FILES,
   "assets/icon/source/app_icon_master.png",
   "assets/icon/acare_logo.png",
   "fonts/SF-Pro-Display-Regular.otf",

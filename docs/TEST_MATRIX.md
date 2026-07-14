@@ -150,6 +150,14 @@ Recent focused evidence:
   `NH11-01-98-01` (`gift`). Validation: focused category/service tests, toàn bộ
   sales-report tests (74 tests), backend build, focused Flutter sales-report
   tests (21 tests), and `git diff --check`.
+- `SALES-REPORT-001`, 2026-07-15: production runtime artifact phải chứa đủ
+  hai backend input được mount read-only tại `/app/data` là
+  `data/categories.csv` và `data/email_domain.txt`. Runtime builder gom hai
+  file vào một allowlist bắt buộc để thiếu file nào thì fail trước khi rsync;
+  asset ảnh/âm thanh của Flutter vẫn được đóng vào client, còn file import thủ
+  công và credential tiếp tục nằm ngoài server artifact. Validation: Node
+  syntax check, runtime release build/manifest inspection, focused category
+  tests, backend build và `git diff --check`.
 - `UI-UX-001`/`FIFO-001`, 2026-07-11: mobile command cards for `Kiểm tra FIFO`
   and `Sắp xếp FIFO` keep the input, QR scan, and search/submit action in the
   same row for faster one-hand operation; the shared UI contract now records
