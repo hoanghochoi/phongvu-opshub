@@ -71,6 +71,17 @@ Recent focused evidence:
   Flutter tests, Nest build and Flutter analyze passed; `git diff --check` is
   clean. A fresh live window after deployment is still required to verify the
   `<5s` target.
+- `PAYMENT-MONITOR-001`/`PAYMENT-STATEMENT-001`/`VIETQR-001`, 2026-07-14:
+  MAP fast-window polling now fetches page 1 only every 1-2 seconds. A bounded
+  deep sweep fetches up to the configured 2-page cap at backend startup, after
+  MAP session refresh, and every random 30-60 seconds so backfill remains
+  covered without doubling every fast loop. HTTP 429 applies exponential
+  30/60/120-second backoff plus jitter; a persistent HTTP 403 after one session
+  refresh pauses for 5 minutes. Logs include mode, page count, duration,
+  provider status, backoff attempt and retry time. Validation: focused MAP Jest
+  passed 96 tests, the full backend Jest command and Nest build completed
+  successfully, and `git diff --check` passed. Live provider cadence and `<5s`
+  speaker latency remain post-deploy measurements.
 - `UI-UX-001`, 2026-07-14: mobile quick actions now occupy a real centered fifth
   `NavigationBar` slot, with five equal-width columns instead of an absolute
   button overlapping four destinations. Phone-only density below 600 px uses a

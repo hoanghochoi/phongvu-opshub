@@ -37,9 +37,16 @@ optional amount, optional transfer content, and the signed-in user's store code.
   content, and Vietnam-local transaction time after QR creation.
 - Missing amount/content, no match, or multiple matches remain unconfirmed and
   require manual review.
+- MAP payment monitoring fetches page 1 every 1-2 seconds in the fast window;
+  page 2 is recovered by a 30-60-second deep sweep and immediately after backend
+  startup or MAP session refresh.
+- MAP HTTP 429 responses use bounded exponential backoff; a persistent HTTP 403
+  after one session refresh pauses polling for 5 minutes before retrying.
 
 ## Validation
 
 - Flutter: `flutter analyze`, `flutter test`.
 - NestJS: `npm run build`, `npm test -- --runInBand`.
 - Focused n8n API proof: `npm test -- --runInBand src/vietqr/vietqr.controller.spec.ts src/vietqr/vietqr.service.spec.ts`.
+- Scheduler proof covers page-1 fast loops, startup/session-recovery deep sweeps,
+  and 429/403 backoff timers.

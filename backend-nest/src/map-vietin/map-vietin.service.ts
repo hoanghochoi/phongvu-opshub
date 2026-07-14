@@ -79,6 +79,13 @@ const MAP_SYNC_END_HOUR_VN = 22;
 const DEFAULT_MAP_HISTORY_SYNC_DELAY_MIN_MS = 1000;
 const DEFAULT_MAP_HISTORY_SYNC_DELAY_MAX_MS = 2000;
 const MIN_MAP_HISTORY_SYNC_DELAY_MS = 500;
+const DEFAULT_MAP_DEEP_SWEEP_DELAY_MIN_MS = 30 * 1000;
+const DEFAULT_MAP_DEEP_SWEEP_DELAY_MAX_MS = 60 * 1000;
+const MIN_MAP_DEEP_SWEEP_DELAY_MS = 30 * 1000;
+const DEFAULT_MAP_RATE_LIMIT_BACKOFF_BASE_MS = 30 * 1000;
+const DEFAULT_MAP_RATE_LIMIT_BACKOFF_MAX_MS = 2 * 60 * 1000;
+const DEFAULT_MAP_FORBIDDEN_BACKOFF_MS = 5 * 60 * 1000;
+const MAP_PROVIDER_BACKOFF_JITTER_MAX_MS = 5 * 1000;
 const MAP_HISTORY_SYNC_NIGHT_DELAY_MS = 30 * 60 * 1000;
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 const DEFAULT_GLOBAL_SYNC_MAX_PAGES = 2;
@@ -140,6 +147,27 @@ type MapSession = {
   merchantId: string;
 };
 
+type MapGlobalSyncMode =
+  | 'fast_page'
+  | 'deep_sweep'
+  | 'session_recovery'
+  | 'manual';
+
+type MapGlobalSyncOptions = {
+  mode?: MapGlobalSyncMode;
+  maxPages?: number;
+};
+
+class BankProviderHttpException extends BadGatewayException {
+  constructor(
+    readonly providerStatus: number,
+    providerLabel: string,
+    providerMessage: string,
+  ) {
+    super(`${providerLabel} trả lỗi ${providerStatus}: ${providerMessage}`);
+  }
+}
+
 type EfastStatus = {
   code?: string;
   message?: string;
@@ -196,6 +224,9 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
   private efastSyncTimer?: NodeJS.Timeout;
   private mapHistorySyncStopped = false;
   private efastSyncStopped = false;
+  private mapHistoryDeepSweepDueAt = 0;
+  private mapProviderBackoffUntil = 0;
+  private mapProviderBackoffAttempt = 0;
   private globalSessionCache?: {
     username: string;
     session: MapSession;
@@ -322,12 +353,15 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
   onModuleInit() {
     this.mapHistorySyncStopped = false;
     this.efastSyncStopped = false;
+    this.mapHistoryDeepSweepDueAt = 0;
+    this.mapProviderBackoffUntil = 0;
+    this.mapProviderBackoffAttempt = 0;
     if (this.isMapHistorySyncDisabled()) {
       this.logger.log(
         'MAP history sync scheduler disabled by MAP_VIETIN_SYNC_ENABLED=false',
       );
     } else {
-      this.scheduleNextMapHistorySync();
+      this.scheduleNextMapHistorySync(0);
     }
     this.scheduleNextEfastSync();
   }
@@ -811,9 +845,13 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
     };
   }
 
-  private scheduleNextMapHistorySync() {
+  private scheduleNextMapHistorySync(delayOverrideMs?: number) {
     if (this.mapHistorySyncStopped || this.isMapHistorySyncDisabled()) return;
-    const delayMs = this.nextMapHistorySyncDelayMs();
+    const now = Date.now();
+    const normalDelayMs =
+      delayOverrideMs ?? this.nextMapHistorySyncDelayMs(new Date(now));
+    const backoffDelayMs = Math.max(0, this.mapProviderBackoffUntil - now);
+    const delayMs = Math.max(normalDelayMs, backoffDelayMs);
     if (this.mapHistorySyncTimer) {
       clearTimeout(this.mapHistorySyncTimer);
     }
@@ -821,12 +859,18 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
       void this.runScheduledMapHistorySync();
     }, delayMs);
     this.mapHistorySyncTimer.unref?.();
-    this.logger.debug(`Next MAP history sync scheduled in ${delayMs}ms`);
+    this.logger.debug(
+      `Next MAP history sync scheduled in ${delayMs}ms mode=${this.mapHistoryDeepSweepDueAt <= now ? 'deep_sweep' : 'fast_page'} backoffMs=${backoffDelayMs}`,
+    );
   }
 
   private async runScheduledMapHistorySync() {
     try {
-      await this.syncConfiguredStores();
+      const deepSweep = this.mapHistoryDeepSweepDueAt <= Date.now();
+      await this.syncConfiguredStores({
+        mode: deepSweep ? 'deep_sweep' : 'fast_page',
+        maxPages: deepSweep ? this.globalSyncMaxPages() : 1,
+      });
     } catch (error) {
       this.logger.warn(
         `Scheduled MAP history sync failed: ${this.safeError(error).slice(0, 500)}`,
@@ -889,6 +933,20 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
     const max = Math.max(min, configuredMax);
     const span = max - min;
     return min + Math.floor(Math.random() * (span + 1));
+  }
+
+  private randomMapDeepSweepDelayMs() {
+    const configuredMin = this.readPositiveInt(
+      'MAP_VIETIN_DEEP_SWEEP_DELAY_MIN_MS',
+      DEFAULT_MAP_DEEP_SWEEP_DELAY_MIN_MS,
+    );
+    const configuredMax = this.readPositiveInt(
+      'MAP_VIETIN_DEEP_SWEEP_DELAY_MAX_MS',
+      DEFAULT_MAP_DEEP_SWEEP_DELAY_MAX_MS,
+    );
+    const min = Math.max(MIN_MAP_DEEP_SWEEP_DELAY_MS, configuredMin);
+    const max = Math.max(min, configuredMax);
+    return min + Math.floor(Math.random() * (max - min + 1));
   }
 
   private randomEfastFastSyncDelayMs() {
@@ -980,7 +1038,7 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
     return process.env.MAP_VIETIN_SYNC_ENABLED === 'false';
   }
 
-  async syncConfiguredStores() {
+  async syncConfiguredStores(options: MapGlobalSyncOptions = {}) {
     if (this.isMapHistorySyncDisabled()) return;
     const inFastWindow = this.isWithinMapSyncWindow();
     if (this.lastSyncWindowOpen !== inFastWindow) {
@@ -995,7 +1053,7 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
     this.syncInProgress = true;
     try {
       if (this.shouldUseGlobalSync()) {
-        await this.syncGlobalTransactions();
+        await this.syncGlobalTransactions(options);
       } else {
         await this.syncPerStoreTransactions();
       }
@@ -1016,8 +1074,10 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  async syncGlobalTransactions() {
+  async syncGlobalTransactions(options: MapGlobalSyncOptions = {}) {
     const now = new Date();
+    const startedAt = Date.now();
+    let mode = options.mode ?? 'manual';
     try {
       const username = this.globalUsername();
       const password = this.globalPassword();
@@ -1033,10 +1093,17 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
       let created = 0;
       let quarantined = 0;
       let page = 0;
+      let pagesFetched = 0;
       const size = MAP_SYNC_PAGE_SIZE;
-      const maxPages = this.globalSyncMaxPages();
+      const configuredMaxPages = this.globalSyncMaxPages();
+      let maxPages = Math.max(
+        1,
+        Math.min(options.maxPages ?? configuredMaxPages, configuredMaxPages),
+      );
 
-      this.logger.log('Global MAP sync started');
+      this.logger.debug(
+        `Global MAP sync started mode=${mode} maxPages=${maxPages}`,
+      );
       while (page < maxPages) {
         const input = {
           startDate: today,
@@ -1055,8 +1122,10 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
           );
         } catch (error) {
           if (!this.isProviderAuthError(error)) throw error;
+          mode = 'session_recovery';
+          maxPages = configuredMaxPages;
           this.logger.warn(
-            'Global MAP session was rejected; refreshing token and retrying current page',
+            `Global MAP session was rejected; refreshing token and enabling deep sweep page=${page} maxPages=${maxPages}`,
           );
           session = await this.getGlobalSession(username, password, true);
           result = await this.searchTransactionsWithSession(
@@ -1065,6 +1134,7 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
             input,
           );
         }
+        pagesFetched += 1;
         const persisted = await this.persistGlobalTransactions(
           result.list,
           storeAccountIndex,
@@ -1092,15 +1162,31 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
           lastError: null,
         },
       });
-      if (created > 0 || quarantined > 0) {
+      const deepSweepCompleted = mode !== 'fast_page' || maxPages > 1;
+      let nextDeepSweepInMs = Math.max(
+        0,
+        this.mapHistoryDeepSweepDueAt - Date.now(),
+      );
+      if (deepSweepCompleted) {
+        nextDeepSweepInMs = this.randomMapDeepSweepDelayMs();
+        this.mapHistoryDeepSweepDueAt = Date.now() + nextDeepSweepInMs;
+      }
+      this.clearMapProviderBackoff();
+      if (created > 0 || quarantined > 0 || deepSweepCompleted) {
         this.logger.log(
-          `Global MAP sync stored ${created} transactions and quarantined ${quarantined}`,
+          `Global MAP sync succeeded mode=${mode} pagesFetched=${pagesFetched} created=${created} quarantined=${quarantined} durationMs=${Date.now() - startedAt} nextDeepSweepInMs=${nextDeepSweepInMs}`,
         );
       }
       return { created, quarantined };
     } catch (error) {
       const message = this.safeError(error).slice(0, 500);
-      this.logger.warn(`Global MAP sync failed: ${message}`);
+      const providerStatus = this.providerHttpStatus(error);
+      if (providerStatus === 429 || providerStatus === 403) {
+        this.registerMapProviderBackoff(providerStatus);
+      }
+      this.logger.warn(
+        `Global MAP sync failed mode=${mode} providerStatus=${providerStatus ?? 'unknown'} durationMs=${Date.now() - startedAt}: ${message}`,
+      );
       await this.prisma.mapVietinSyncState.upsert({
         where: { storeCode: GLOBAL_SYNC_STATE_CODE },
         create: {
@@ -3690,8 +3776,10 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
       const json = text ? this.parseJson(text, providerLabel) : {};
 
       if (!response.ok) {
-        throw new BadGatewayException(
-          `${providerLabel} trả lỗi ${response.status}: ${this.safeProviderMessage(json)}`,
+        throw new BankProviderHttpException(
+          response.status,
+          providerLabel,
+          this.safeProviderMessage(json),
         );
       }
       return json as T;
@@ -3717,6 +3805,55 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
   private readPositiveInt(name: string, fallback: number) {
     const parsed = Number(process.env[name]);
     return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : fallback;
+  }
+
+  private registerMapProviderBackoff(providerStatus: 403 | 429) {
+    this.mapProviderBackoffAttempt += 1;
+    const jitterMs = Math.floor(
+      Math.random() * (MAP_PROVIDER_BACKOFF_JITTER_MAX_MS + 1),
+    );
+    let delayMs: number;
+    if (providerStatus === 403) {
+      delayMs =
+        Math.max(
+          DEFAULT_MAP_FORBIDDEN_BACKOFF_MS,
+          this.readPositiveInt(
+            'MAP_VIETIN_FORBIDDEN_BACKOFF_MS',
+            DEFAULT_MAP_FORBIDDEN_BACKOFF_MS,
+          ),
+        ) + jitterMs;
+    } else {
+      const baseMs = Math.max(
+        DEFAULT_MAP_RATE_LIMIT_BACKOFF_BASE_MS,
+        this.readPositiveInt(
+          'MAP_VIETIN_RATE_LIMIT_BACKOFF_BASE_MS',
+          DEFAULT_MAP_RATE_LIMIT_BACKOFF_BASE_MS,
+        ),
+      );
+      const maxMs = Math.max(
+        baseMs,
+        this.readPositiveInt(
+          'MAP_VIETIN_RATE_LIMIT_BACKOFF_MAX_MS',
+          DEFAULT_MAP_RATE_LIMIT_BACKOFF_MAX_MS,
+        ),
+      );
+      const exponent = Math.min(this.mapProviderBackoffAttempt - 1, 10);
+      delayMs = Math.min(maxMs, baseMs * 2 ** exponent) + jitterMs;
+    }
+    this.mapProviderBackoffUntil = Date.now() + delayMs;
+    this.logger.warn(
+      `MAP provider backoff activated status=${providerStatus} attempt=${this.mapProviderBackoffAttempt} delayMs=${delayMs} retryAt=${new Date(this.mapProviderBackoffUntil).toISOString()}`,
+    );
+  }
+
+  private clearMapProviderBackoff() {
+    if (this.mapProviderBackoffAttempt > 0) {
+      this.logger.log(
+        `MAP provider recovered after backoff attempts=${this.mapProviderBackoffAttempt}`,
+      );
+    }
+    this.mapProviderBackoffAttempt = 0;
+    this.mapProviderBackoffUntil = 0;
   }
 
   private parseJson(text: string, providerLabel = 'MAP') {
@@ -4004,12 +4141,23 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
 
   private isProviderAuthError(error: unknown) {
     const message = this.safeError(error);
+    const providerStatus = this.providerHttpStatus(error);
     return (
-      message.includes('401') ||
-      message.includes('403') ||
+      providerStatus === 401 ||
+      providerStatus === 403 ||
       message.includes(EFAST_INVALID_SESSION_CODE) ||
       message.toLowerCase().includes('session is invalid')
     );
+  }
+
+  private providerHttpStatus(error: unknown) {
+    if (error instanceof BankProviderHttpException) {
+      return error.providerStatus;
+    }
+    const match = this.safeError(error).match(
+      /(?:trả lỗi|returned)\s+(\d{3})/i,
+    );
+    return match ? Number(match[1]) : null;
   }
 
   private safeError(error: unknown) {

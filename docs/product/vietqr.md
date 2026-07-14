@@ -88,12 +88,16 @@ a customer to scan and pay manually.
   primary payment sync source, maps each MAP `virtualAccount` to
   `Store.transferAccountNumber`, and stores the transaction under the matched
   showroom. Per-showroom MAP credentials remain a fallback when global sync is
-  disabled or not configured. Global sync reads 100 MAP rows per page and
-  defaults to 2 pages per sync loop. After each backend MAP-history fetch
-  finishes, the backend waits a random 1000-2000ms before starting the next
-  scheduled fetch during the 07:00-to-before-22:00 Vietnam-time fast window.
+  disabled or not configured. Global sync reads 100 MAP rows per page. During
+  the 07:00-to-before-22:00 Vietnam-time fast window, each 1000-2000ms fast loop
+  fetches page 1 only. Page 2 is part of a deep sweep at startup, after a MAP
+  session refresh, and every random 30000-60000ms; the deep sweep page cap is
+  controlled by `MAP_VIETIN_GLOBAL_SYNC_MAX_PAGES` and defaults to 2.
   `MAP_VIETIN_SYNC_DELAY_MIN_MS` and `MAP_VIETIN_SYNC_DELAY_MAX_MS` can tune
   this range, with a 500ms safety floor.
+  HTTP 429 activates exponential 30/60/120-second backoff with jitter. A 403
+  refreshes the cached session once; a persistent 403 then pauses MAP sync for
+  5 minutes. Successful recovery clears the backoff counter.
   From 22:00 to before 07:00, MAP sync still runs but uses a 30-minute cadence.
   `MAP_VIETIN_SYNC_ENABLED=false` remains the full off switch.
 - Successful global MAP rows that cannot be mapped to exactly one showroom are
@@ -410,10 +414,15 @@ Optional MAP endpoint overrides are available through:
 - `MAP_VIETIN_GLOBAL_USERNAME`
 - `MAP_VIETIN_GLOBAL_PASSWORD`
 - `MAP_VIETIN_GLOBAL_SYNC_ENABLED`
-- `MAP_VIETIN_GLOBAL_SYNC_MAX_PAGES` (default `2`)
+- `MAP_VIETIN_GLOBAL_SYNC_MAX_PAGES` (deep-sweep cap, default `2`)
 - `MAP_VIETIN_GLOBAL_SESSION_TTL_SECONDS`
 - `MAP_VIETIN_SYNC_DELAY_MIN_MS` (default `1000`, minimum `500`)
 - `MAP_VIETIN_SYNC_DELAY_MAX_MS` (default `2000`, clamped to the minimum)
+- `MAP_VIETIN_DEEP_SWEEP_DELAY_MIN_MS` (default/minimum `30000`)
+- `MAP_VIETIN_DEEP_SWEEP_DELAY_MAX_MS` (default `60000`)
+- `MAP_VIETIN_RATE_LIMIT_BACKOFF_BASE_MS` (default/minimum `30000`)
+- `MAP_VIETIN_RATE_LIMIT_BACKOFF_MAX_MS` (default `120000`, at least the base)
+- `MAP_VIETIN_FORBIDDEN_BACKOFF_MS` (default/minimum `300000`)
 - `MAP_VIETIN_CLIENT_ID`
 - `MAP_VIETIN_SIGNATURE_KEY`
 - `MAP_VIETIN_NO_AUTH_BASE_URL`

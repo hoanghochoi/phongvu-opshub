@@ -108,13 +108,15 @@ Expected responses:
   `Store.transferAccountNumber`; unmapped rows are quarantined and do not play
   payment audio. Per-store MAP credentials remain a fallback when the global
   account is not configured or `MAP_VIETIN_GLOBAL_SYNC_ENABLED=false`. The
-  global MAP sync runs from 07:00 to before 22:00 Vietnam time, reads 100 rows
-  per page, and defaults to `MAP_VIETIN_GLOBAL_SYNC_MAX_PAGES=2`. During that
-  window it waits a random 1000-2000 ms after a completed fetch; tune the safe
-  range with `MAP_VIETIN_SYNC_DELAY_MIN_MS` and
-  `MAP_VIETIN_SYNC_DELAY_MAX_MS` (minimum accepted value: 500 ms). The global
-  MAP session is cached for `MAP_VIETIN_GLOBAL_SESSION_TTL_SECONDS` seconds,
-  defaulting to 600, and refreshes automatically after MAP auth errors.
+  global MAP sync runs from 07:00 to before 22:00 Vietnam time and reads 100 rows
+  per page. The fast lane fetches page 1 only, then waits a random 1000-2000 ms;
+  tune that range with `MAP_VIETIN_SYNC_DELAY_MIN_MS` and
+  `MAP_VIETIN_SYNC_DELAY_MAX_MS` (minimum accepted value: 500 ms). A deep sweep
+  uses up to `MAP_VIETIN_GLOBAL_SYNC_MAX_PAGES=2` at startup, after a MAP session
+  refresh, and every random 30000-60000 ms. Persistent HTTP 429 responses back
+  off for 30, 60, then 120 seconds plus jitter; a persistent HTTP 403 after the
+  one-time session refresh backs off for 5 minutes. The global MAP session is
+  cached for `MAP_VIETIN_GLOBAL_SESSION_TTL_SECONDS` seconds, defaulting to 600.
 - VietinBank eFAST account-detail sync is an optional secondary source behind
   `VIETIN_EFAST_SYNC_ENABLED=false` by default. Configure
   `VIETIN_EFAST_USERNAME`, `VIETIN_EFAST_PASSWORD`, and

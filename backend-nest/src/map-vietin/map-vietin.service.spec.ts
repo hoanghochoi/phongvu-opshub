@@ -106,6 +106,11 @@ describe('MapVietinService', () => {
     delete process.env.MAP_VIETIN_GLOBAL_SYNC_ENABLED;
     delete process.env.MAP_VIETIN_GLOBAL_SYNC_MAX_PAGES;
     delete process.env.MAP_VIETIN_GLOBAL_SESSION_TTL_SECONDS;
+    delete process.env.MAP_VIETIN_DEEP_SWEEP_DELAY_MIN_MS;
+    delete process.env.MAP_VIETIN_DEEP_SWEEP_DELAY_MAX_MS;
+    delete process.env.MAP_VIETIN_RATE_LIMIT_BACKOFF_BASE_MS;
+    delete process.env.MAP_VIETIN_RATE_LIMIT_BACKOFF_MAX_MS;
+    delete process.env.MAP_VIETIN_FORBIDDEN_BACKOFF_MS;
     delete process.env.MAP_VIETIN_SYNC_ENABLED;
     paymentNotifications = { createForTransaction: jest.fn() };
     redisService = { publishMessage: jest.fn().mockResolvedValue(undefined) };
@@ -947,6 +952,25 @@ describe('MapVietinService', () => {
     expect((service as any).randomMapHistorySyncDelayMs()).toBe(500);
   });
 
+  it('uses a 30000-60000ms random delay for MAP page-2 deep sweeps', () => {
+    jest
+      .spyOn(Math, 'random')
+      .mockReturnValueOnce(0)
+      .mockReturnValueOnce(0.99999);
+
+    expect((service as any).randomMapDeepSweepDelayMs()).toBe(30000);
+    expect((service as any).randomMapDeepSweepDelayMs()).toBe(60000);
+  });
+
+  it('schedules an immediate MAP deep sweep on module startup', () => {
+    const setTimeoutSpy = jest.spyOn(global, 'setTimeout');
+
+    service.onModuleInit();
+
+    expect(setTimeoutSpy).toHaveBeenCalledWith(expect.any(Function), 0);
+    service.onModuleDestroy();
+  });
+
   it('schedules the next MAP history sync at the 07:00 Vietnam fast-window start', () => {
     expect(
       (service as any).nextMapHistorySyncDelayMs(
@@ -1087,6 +1111,34 @@ describe('MapVietinService', () => {
     service.onModuleDestroy();
   });
 
+  it('uses page 1 for fast MAP loops between deep sweeps', async () => {
+    jest.spyOn(Math, 'random').mockReturnValue(0);
+    (service as any).mapHistoryDeepSweepDueAt = Date.now() + 60_000;
+    jest.spyOn(service, 'syncConfiguredStores').mockResolvedValue(undefined);
+
+    await (service as any).runScheduledMapHistorySync();
+
+    expect(service.syncConfiguredStores).toHaveBeenCalledWith({
+      mode: 'fast_page',
+      maxPages: 1,
+    });
+    service.onModuleDestroy();
+  });
+
+  it('uses the configured page cap when a MAP deep sweep is due', async () => {
+    jest.spyOn(Math, 'random').mockReturnValue(0);
+    (service as any).mapHistoryDeepSweepDueAt = 0;
+    jest.spyOn(service, 'syncConfiguredStores').mockResolvedValue(undefined);
+
+    await (service as any).runScheduledMapHistorySync();
+
+    expect(service.syncConfiguredStores).toHaveBeenCalledWith({
+      mode: 'deep_sweep',
+      maxPages: 2,
+    });
+    service.onModuleDestroy();
+  });
+
   it('reuses cached global MAP session across sync loops', async () => {
     process.env.MAP_VIETIN_GLOBAL_USERNAME = 'global-user';
     process.env.MAP_VIETIN_GLOBAL_PASSWORD = 'global-pass';
@@ -1186,6 +1238,175 @@ describe('MapVietinService', () => {
     expect(fetchMock.mock.calls[4][1].headers).toEqual(
       expect.objectContaining({ Authorization: 'Bearer new-token' }),
     );
+  });
+
+  it('keeps scheduled fast MAP sync on page 1', async () => {
+    process.env.MAP_VIETIN_GLOBAL_USERNAME = 'global-user';
+    process.env.MAP_VIETIN_GLOBAL_PASSWORD = 'global-pass';
+    prisma.store.findMany.mockResolvedValue([
+      { storeId: 'CP01', transferAccountNumber: '18PVICU' },
+    ]);
+    fetchMock
+      .mockResolvedValueOnce(
+        jsonResponse({
+          access_token: 'access-token',
+          merchant_info: [{ merchant_id: 'merchant-default' }],
+        }),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({
+          data: {
+            list: [globalTransaction('TXN-FAST-001')],
+            pageIndex: 0,
+            pageSize: 100,
+            total: 301,
+          },
+        }),
+      );
+    prisma.mapVietinTransaction.findUnique.mockResolvedValue(null);
+    prisma.mapVietinTransaction.upsert.mockResolvedValue({});
+    prisma.mapVietinSyncState.upsert.mockResolvedValue({});
+
+    await expect(
+      service.syncGlobalTransactions({ mode: 'fast_page', maxPages: 1 }),
+    ).resolves.toEqual({ created: 1, quarantined: 0 });
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[1][0]).toContain('page=0&size=100');
+  });
+
+  it('runs a deep sweep after refreshing a rejected MAP session', async () => {
+    process.env.MAP_VIETIN_GLOBAL_USERNAME = 'global-user';
+    process.env.MAP_VIETIN_GLOBAL_PASSWORD = 'global-pass';
+    prisma.store.findMany.mockResolvedValue([
+      { storeId: 'CP01', transferAccountNumber: '18PVICU' },
+    ]);
+    fetchMock
+      .mockResolvedValueOnce(
+        jsonResponse({
+          access_token: 'old-token',
+          merchant_info: [{ merchant_id: 'merchant-default' }],
+        }),
+      )
+      .mockResolvedValueOnce(httpResponse(403, { message: 'Forbidden' }))
+      .mockResolvedValueOnce(
+        jsonResponse({
+          access_token: 'new-token',
+          merchant_info: [{ merchant_id: 'merchant-default' }],
+        }),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({
+          data: {
+            list: [globalTransaction('TXN-RECOVERY-001')],
+            pageIndex: 0,
+            pageSize: 100,
+            total: 301,
+          },
+        }),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({
+          data: {
+            list: [globalTransaction('TXN-RECOVERY-002')],
+            pageIndex: 1,
+            pageSize: 100,
+            total: 301,
+          },
+        }),
+      );
+    prisma.mapVietinTransaction.findUnique.mockResolvedValue(null);
+    prisma.mapVietinTransaction.upsert.mockResolvedValue({});
+    prisma.mapVietinSyncState.upsert.mockResolvedValue({});
+
+    await expect(
+      service.syncGlobalTransactions({ mode: 'fast_page', maxPages: 1 }),
+    ).resolves.toEqual({ created: 2, quarantined: 0 });
+
+    expect(fetchMock).toHaveBeenCalledTimes(5);
+    expect(fetchMock.mock.calls[4][0]).toContain('page=1&size=100');
+    expect((service as any).mapProviderBackoffAttempt).toBe(0);
+  });
+
+  it('backs scheduled MAP sync off for 30 seconds after HTTP 429', async () => {
+    jest.spyOn(Math, 'random').mockReturnValue(0);
+    const setTimeoutSpy = jest.spyOn(global, 'setTimeout');
+    process.env.MAP_VIETIN_GLOBAL_USERNAME = 'global-user';
+    process.env.MAP_VIETIN_GLOBAL_PASSWORD = 'global-pass';
+    prisma.store.findMany.mockResolvedValue([
+      { storeId: 'CP01', transferAccountNumber: '18PVICU' },
+    ]);
+    fetchMock
+      .mockResolvedValueOnce(
+        jsonResponse({
+          access_token: 'access-token',
+          merchant_info: [{ merchant_id: 'merchant-default' }],
+        }),
+      )
+      .mockResolvedValueOnce(
+        httpResponse(429, { message: 'Too Many Requests' }),
+      );
+    prisma.mapVietinSyncState.upsert.mockResolvedValue({});
+
+    await expect(
+      service.syncGlobalTransactions({ mode: 'fast_page', maxPages: 1 }),
+    ).resolves.toEqual({ created: 0, quarantined: 0 });
+    (service as any).scheduleNextMapHistorySync();
+
+    expect((service as any).mapProviderBackoffAttempt).toBe(1);
+    expect(setTimeoutSpy).toHaveBeenLastCalledWith(expect.any(Function), 30000);
+    service.onModuleDestroy();
+  });
+
+  it('caps repeated MAP HTTP 429 backoff at 2 minutes before jitter', () => {
+    jest.spyOn(Math, 'random').mockReturnValue(0);
+
+    (service as any).registerMapProviderBackoff(429);
+    expect((service as any).mapProviderBackoffUntil - Date.now()).toBe(30000);
+    (service as any).registerMapProviderBackoff(429);
+    expect((service as any).mapProviderBackoffUntil - Date.now()).toBe(60000);
+    (service as any).registerMapProviderBackoff(429);
+    expect((service as any).mapProviderBackoffUntil - Date.now()).toBe(120000);
+    (service as any).registerMapProviderBackoff(429);
+    expect((service as any).mapProviderBackoffUntil - Date.now()).toBe(120000);
+  });
+
+  it('backs scheduled MAP sync off for 5 minutes after persistent HTTP 403', async () => {
+    jest.spyOn(Math, 'random').mockReturnValue(0);
+    const setTimeoutSpy = jest.spyOn(global, 'setTimeout');
+    process.env.MAP_VIETIN_GLOBAL_USERNAME = 'global-user';
+    process.env.MAP_VIETIN_GLOBAL_PASSWORD = 'global-pass';
+    prisma.store.findMany.mockResolvedValue([
+      { storeId: 'CP01', transferAccountNumber: '18PVICU' },
+    ]);
+    fetchMock
+      .mockResolvedValueOnce(
+        jsonResponse({
+          access_token: 'old-token',
+          merchant_info: [{ merchant_id: 'merchant-default' }],
+        }),
+      )
+      .mockResolvedValueOnce(httpResponse(403, { message: 'Forbidden' }))
+      .mockResolvedValueOnce(
+        jsonResponse({
+          access_token: 'new-token',
+          merchant_info: [{ merchant_id: 'merchant-default' }],
+        }),
+      )
+      .mockResolvedValueOnce(httpResponse(403, { message: 'Forbidden' }));
+    prisma.mapVietinSyncState.upsert.mockResolvedValue({});
+
+    await expect(
+      service.syncGlobalTransactions({ mode: 'fast_page', maxPages: 1 }),
+    ).resolves.toEqual({ created: 0, quarantined: 0 });
+    (service as any).scheduleNextMapHistorySync();
+
+    expect((service as any).mapProviderBackoffAttempt).toBe(1);
+    expect(setTimeoutSpy).toHaveBeenLastCalledWith(
+      expect.any(Function),
+      5 * 60 * 1000,
+    );
+    service.onModuleDestroy();
   });
 
   it('uses 100-row pages and stops global MAP sync at the default page cap', async () => {
