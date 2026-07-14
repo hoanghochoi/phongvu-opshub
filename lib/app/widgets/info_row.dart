@@ -33,7 +33,8 @@ class AppInfoRow extends StatelessWidget {
             width: labelWidth,
             child: Text(
               label,
-              style: labelStyle ??
+              style:
+                  labelStyle ??
                   TextStyle(
                     fontSize: 14,
                     color: AppColors.neutral500,
@@ -45,11 +46,9 @@ class AppInfoRow extends StatelessWidget {
           Expanded(
             child: Text(
               value.isEmpty ? 'Chưa có' : value,
-              style: valueStyle ??
-                  const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                  ),
+              style:
+                  valueStyle ??
+                  const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
             ),
           ),
         ],

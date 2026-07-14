@@ -13,7 +13,8 @@ class WarrantyRecord {
     return WarrantyRecord(
       receiptNumber: json['receipt_number'] as String? ?? '',
       driveFolderLink: json['drive_link'] as String? ?? '',
-      imageUrls: (json['images'] as List<dynamic>?)
+      imageUrls:
+          (json['images'] as List<dynamic>?)
               ?.map((e) => e.toString())
               .toList() ??
           [],

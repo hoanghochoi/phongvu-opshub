@@ -199,10 +199,7 @@ class PaymentWavTools {
 
     final prefixFrames = prefix.frameCount;
     final voiceFrames = voice.frameCount;
-    final prefixLastActiveFrame = _lastNonZeroFrame(
-      prefixData,
-      prefix,
-    );
+    final prefixLastActiveFrame = _lastNonZeroFrame(prefixData, prefix);
     final voiceFirstActiveFrame = _firstNonZeroFrame(voiceData, voice);
     if (prefixLastActiveFrame < 0 || voiceFirstActiveFrame >= voiceFrames) {
       throw const PaymentWavException(
@@ -307,11 +304,7 @@ class PaymentWavTools {
     return -1;
   }
 
-  static bool _frameIsNonZero(
-    Uint8List bytes,
-    PaymentWavInfo info,
-    int frame,
-  ) {
+  static bool _frameIsNonZero(Uint8List bytes, PaymentWavInfo info, int frame) {
     final offset = info.dataOffset + frame * info.blockAlign;
     for (var byte = 0; byte < info.blockAlign; byte += 1) {
       if (bytes[offset + byte] != 0) return true;
@@ -385,10 +378,7 @@ class PaymentWavTools {
     return bytes;
   }
 
-  static Uint8List _writePcm16Wav(
-    Uint8List pcmData,
-    PaymentWavInfo format,
-  ) {
+  static Uint8List _writePcm16Wav(Uint8List pcmData, PaymentWavInfo format) {
     final bytes = Uint8List(44 + pcmData.length);
     _writeAscii(bytes, 0, 'RIFF');
     _writeUint32(bytes, 4, 36 + pcmData.length);

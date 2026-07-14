@@ -24,8 +24,6 @@ class CheckWarrantyRequest {
   CheckWarrantyRequest({required this.receiptNumber});
 
   Map<String, dynamic> toJson() {
-    return {
-      'receipt_number': receiptNumber,
-    };
+    return {'receipt_number': receiptNumber};
   }
 }
