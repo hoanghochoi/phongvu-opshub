@@ -783,3 +783,52 @@ Thứ tự mới bắt buộc:
 Kế hoạch implementation chính đã hoàn thành. Các work item trên không được gộp
 ngầm vào maintenance thông thường: mỗi mục cần intake, checkpoint, backup/
 rollback và bằng chứng riêng trước khi đổi trạng thái.
+
+## 20. CodeQL closure và release security cuối ngày 15/07/2026
+
+### 20.1 Batch đã thực hiện
+
+1. Commit `98fd4787` sửa log injection/clear-text log, exact staging URL,
+   VietQR key compare, multipart runtime type, private temp-path injection và
+   cache-busting TOCTOU; bổ sung regression test tương ứng.
+2. Commit `9adcaa41` allowlist HTTP method trong realtime log; commit
+   `9044e9c3` thay route template bằng exact route allowlist để đóng follow-on
+   CodeQL taint path.
+3. Local gate pass: focused Nest 45/45; full Nest 64 suite/632 test + build; Go
+   test/vet; npm full/production audit 0; platform security, Node syntax,
+   cache-busting smoke và diff check.
+4. Staging CodeQL `29370837815` và deploy `29370837924` pass đúng final SHA.
+   Encrypted NAS backup `20260715-050417` pass 6/6 checksum, atomic publication,
+   không còn incoming/staging.
+5. Main CodeQL `29372025481` và production deploy `29372025447` pass. Runtime
+   SHA `9044e9c3d819aa49dcd035099e20a522a8f15cc4` đạt container, Redis auth,
+   origin/edge header, private-media auth, VietQR invalid-key, download,
+   WebSocket và redacted-log smoke.
+
+### 20.2 Quy tắc xử lý security finding đã áp dụng
+
+- Finding có remediation không đổi protocol/nghiệp vụ phải sửa bằng code và có
+  regression test; không dismiss để làm sạch dashboard.
+- Waiver chỉ dùng khi protocol hoặc luồng đã được owner chấp nhận: MAP/Vietin
+  SHA-256/MD5 provider contract, hai TTS-to-private-audio flow và CI fixed
+  manifest output. Mỗi waiver có comment nêu scope/control; TTS speaker flow
+  không bị sửa trong security batch.
+- Dependabot stale alert chỉ dismiss `inaccurate` sau khi default-branch file,
+  GitHub SBOM, first-patched range và local audit cùng chứng minh bản đang dùng
+  đã vá. Không dùng `tolerable_risk` cho dependency đã fixed.
+- Trạng thái cuối: CodeQL `0 open`, Dependabot `0 open`, Secret Scanning
+  `0 open`; production vẫn healthy sau độc lập smoke.
+
+### 20.3 Việc tiếp theo không thuộc release security này
+
+| Work item | Cách thực hiện an toàn | Bằng chứng để đóng |
+| --- | --- | --- |
+| Private-media legacy cutover | Maintenance riêng, backup mới, access telemetry, batch `--apply`, dual-read rồi mới đóng `/uploads` | Post-audit 0 lỗi, rollback manifest, retention đạt |
+| Identity/MFA/rotation | Hai admin cá nhân, recovery owner, rotate theo service | MFA/recovery drill, session cũ fail, service healthy |
+| Realtime sustained load | Tài khoản test và cửa sổ tải riêng | Không cross-scope/replay/queue leak/DoS |
+| Backup retention/ZFS | Inventory trước mọi cleanup phá hủy | Snapshot/versioning policy và restore drill định kỳ |
+| Windows public CA | Mua certificate khi có ngân sách | CA-trusted artifact và đóng waiver trước 13/10/2026 |
+
+Không build/deploy thêm chỉ để cập nhật hai tài liệu này; runtime production đã
+được chứng minh ở SHA `9044e9c3...`. Commit tài liệu phải dùng CI-skip và ghi rõ
+deployed runtime SHA để không tạo một release binary khác không cần thiết.
