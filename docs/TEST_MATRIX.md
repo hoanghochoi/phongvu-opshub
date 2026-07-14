@@ -63,8 +63,9 @@ Recent focused evidence:
   migration up/down (`90/90/90` seed), Nest build, 42 focused Jest tests, 31 Go
   tests, 24 focused Flutter tests, the 458-test Flutter suite and
   `flutter analyze`. Staging load/SLO and 1/7/30/90-day runtime parity remain
-  rollout gates. Full Nest currently has one unrelated ERP status quota
-  expectation failure (`processed` 45 vs 50); the other 628 tests pass.
+  rollout gates. The date-sensitive ERP 40/10 quota fixture now derives a
+  recent order date instead of expiring after the calendar advances; focused
+  Sales Report passed 65/65 and full Nest passed 64/64 suites, 629/629 tests.
 
 - `PAYMENT-MONITOR-001`/`PAYMENT-MONITOR-002`, 2026-07-14: production runtime
   diagnosis found the displayed 24-hour average `139.206s` was inflated by a
@@ -79,6 +80,11 @@ Recent focused evidence:
   Flutter tests, Nest build and Flutter analyze passed; `git diff --check` is
   clean. A fresh live window after deployment is still required to verify the
   `<5s` target.
+- `SECURITY-001`, 2026-07-14: NAS backup regression found release-note values
+  with spaces in the Docker dotenv file. Backup scripts now read only an explicit
+  dotenv allowlist instead of sourcing the full runtime env as shell code. Proof:
+  Bash syntax, fixture with unquoted release notes, encrypted backup publication,
+  6/6 destination checksum and no `.incoming` directory.
 - `PAYMENT-MONITOR-001`/`PAYMENT-STATEMENT-001`/`VIETQR-001`, 2026-07-14:
   MAP fast-window polling now fetches page 1 only every 1-2 seconds. A bounded
   deep sweep fetches up to the configured 2-page cap at backend startup, after

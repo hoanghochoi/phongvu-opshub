@@ -110,6 +110,9 @@ contains(backup, 'Refusing to create an unencrypted backup.', 'backup fail-close
 contains(backup, 'chmod 0600', 'backup file mode');
 contains(backup, 'flock -n', 'backup overlap lock');
 contains(backup, '.partial', 'backup atomic staging directory');
+contains(backup, 'read_env_value()', 'backup dotenv allowlist parser');
+excludes(backup, '. "$ENV_FILE"', 'backup shell-sourced dotenv');
+excludes(backup, 'source "$ENV_FILE"', 'backup shell-sourced dotenv');
 
 excludes(stagingRefresh, 'STAGING_TEST_PASSWORD=$(sq', 'staging secret command-line forwarding');
 contains(stagingRefresh, 'chmod 0600 "$backup_file"', 'staging pre-refresh backup mode');

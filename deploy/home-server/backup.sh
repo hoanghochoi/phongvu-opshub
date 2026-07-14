@@ -10,17 +10,47 @@ if [[ ! -f "$ENV_FILE" ]]; then
   exit 1
 fi
 
-set -a
-# shellcheck source=/dev/null
-source "$ENV_FILE"
-set +a
+read_env_value() {
+  local key="$1"
+  local default_value="${2:-}"
+  local line value first last
+  if [[ ! "$key" =~ ^[A-Z0-9_]+$ ]]; then
+    echo "Invalid env key requested." >&2
+    return 2
+  fi
+  line=$(grep -m1 "^${key}=" "$ENV_FILE" || true)
+  if [[ -z "$line" ]]; then
+    printf '%s' "$default_value"
+    return
+  fi
+  value=${line#*=}
+  value=${value%$'\r'}
+  first=${value:0:1}
+  last=${value: -1}
+  if [[ "$first" == "'" || "$first" == '"' ]]; then
+    if [[ ${#value} -lt 2 || "$last" != "$first" ]]; then
+      echo "Invalid quoted dotenv value for $key." >&2
+      return 2
+    fi
+    value=${value:1:${#value}-2}
+  fi
+  if [[ "$value" == *$'\n'* || "$value" == *$'\r'* ]]; then
+    echo "Invalid multiline dotenv value for $key." >&2
+    return 2
+  fi
+  printf '%s' "$value"
+}
 
 COMPOSE_FILE="$SCRIPT_DIR/docker-compose.home.yml"
 export OPSHUB_ENV_FILE="$ENV_FILE"
-SSD_ROOT="${OPSHUB_SSD_ROOT:-/srv/opshub}"
-BACKUP_ROOT="${OPSHUB_BACKUP_ROOT:-/mnt/truenas/opshub-backups}"
-BACKUP_AGE_RECIPIENT="${BACKUP_AGE_RECIPIENT:-}"
-BACKUP_ALLOW_UNENCRYPTED="${BACKUP_ALLOW_UNENCRYPTED:-false}"
+SSD_ROOT="$(read_env_value OPSHUB_SSD_ROOT /srv/opshub)"
+BACKUP_ROOT="$(read_env_value OPSHUB_BACKUP_ROOT /mnt/truenas/opshub-backups)"
+BACKUP_AGE_RECIPIENT="$(read_env_value BACKUP_AGE_RECIPIENT)"
+BACKUP_ALLOW_UNENCRYPTED="$(read_env_value BACKUP_ALLOW_UNENCRYPTED false)"
+POSTGRES_USER="$(read_env_value POSTGRES_USER opshub)"
+POSTGRES_DB="$(read_env_value POSTGRES_DB opshub)"
+BACKUP_PRUNE="$(read_env_value BACKUP_PRUNE false)"
+BACKUP_RETENTION_DAYS="$(read_env_value BACKUP_RETENTION_DAYS 30)"
 STAMP="$(date +%Y%m%d-%H%M%S)"
 DEST="$BACKUP_ROOT/$STAMP"
 PARTIAL_DEST="$BACKUP_ROOT/.${STAMP}.partial"
@@ -132,7 +162,7 @@ chmod 0600 "$PARTIAL_DEST/.opshub-backup"
 mv -- "$PARTIAL_DEST" "$DEST"
 trap - EXIT
 
-if [[ "${BACKUP_PRUNE:-false}" == "true" ]]; then
+if [[ "$BACKUP_PRUNE" == "true" ]]; then
   while IFS= read -r -d '' candidate; do
     [[ -f "$candidate/.opshub-backup" ]] || continue
     case "$(basename "$candidate")" in
@@ -143,7 +173,7 @@ if [[ "${BACKUP_PRUNE:-false}" == "true" ]]; then
     rm -rf -- "$candidate"
   done < <(
     find "$BACKUP_ROOT" -mindepth 1 -maxdepth 1 -type d \
-      -name '20??????-??????' -mtime "+${BACKUP_RETENTION_DAYS:-30}" -print0
+      -name '20??????-??????' -mtime "+${BACKUP_RETENTION_DAYS}" -print0
   )
 fi
 

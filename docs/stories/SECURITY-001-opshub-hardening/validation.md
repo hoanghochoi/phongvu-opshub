@@ -107,3 +107,15 @@
   security contract, workflow YAML parse, focused 138/138 tests, full Nest
   62/62 suites with 609/609 tests, focused Flutter 30/30 and `flutter analyze`.
   Runtime proof remains pending a new staging SHA.
+- Pre-production backup regression: runtime dotenv release notes contained
+  spaces, while the installed NAS job sourced the whole file as Bash. The job is
+  hardened to parse only backup keys as dotenv data. Backup `20260714-234003`
+  then published atomically with 6/6 destination checksum and no `.incoming`.
+- 2026-07-15 pre-release refresh: Flutter analyze and full 458-test suite pass;
+  Nest build, focused Sales Report 65/65 and full 64/64 suites with 629/629
+  tests pass; Prisma migration scratch drill remains `90/90/90`; npm production
+  audit reports 0 vulnerability. Go test/vet/govulncheck on the exact pinned
+  production builder `go1.25.12 linux/arm64` reports 0 called vulnerability;
+  `go test -race` also passes after client removal publishes the lower count
+  only once close metadata and limiter release are complete. The host-only Go
+  1.26.0 scan is intentionally not used as runtime evidence.

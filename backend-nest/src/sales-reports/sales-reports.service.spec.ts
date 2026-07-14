@@ -1617,14 +1617,13 @@ describe('SalesReportsService', () => {
     process.env.ERP_ORDER_STATUS_SYNC_BATCH_SIZE = '50';
     process.env.ERP_ORDER_STATUS_SYNC_CONCURRENCY = '2';
     process.env.ERP_ORDER_STATUS_SYNC_STORE_LIMIT = '50';
+    const recentOrderDate = new Date(Date.now() - 24 * 60 * 60 * 1000);
     const row = (index: number, lifecycleStatus: string) => ({
       orderCode: String(2607012000 + index),
       storeCode: 'CP62',
       erpLifecycleStatus: lifecycleStatus,
-      erpStatusCheckedAt: new Date(
-        `2026-07-04T${String(index % 24).padStart(2, '0')}:00:00Z`,
-      ),
-      erpOrderCreatedAt: new Date('2026-07-04T00:00:00Z'),
+      erpStatusCheckedAt: new Date(recentOrderDate),
+      erpOrderCreatedAt: new Date(recentOrderDate),
     });
     prisma.salesReport.findMany
       .mockResolvedValueOnce(

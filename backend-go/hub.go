@@ -135,7 +135,6 @@ func (hub *Hub) removeWithClose(client *Client, reason string, closeCode int, cl
 		return
 	}
 	delete(hub.clients, client)
-	hub.clientCount.Add(-1)
 	client.closeCode = closeCode
 	client.closeReason = closeReason
 	close(client.send)
@@ -143,6 +142,10 @@ func (hub *Hub) removeWithClose(client *Client, reason string, closeCode int, cl
 		client.release()
 		client.release = nil
 	}
+	// Publish the lower count only after the client close state and limiter
+	// release are complete. Observers that use clientCount as the completion
+	// barrier must not see a half-removed client.
+	hub.clientCount.Add(-1)
 	if client.updatesOnly {
 		hub.logger.Printf("Public app-update client disconnected reason=%s total=%d", reason, hub.clientCount.Load())
 		return

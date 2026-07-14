@@ -732,3 +732,22 @@ Thứ tự mới bắt buộc:
 6. Chỉ sau production health + container hardening proof mới chạy private-media
    audit và migration dry-run; không `--apply`, purge hay xóa backup trong lượt
    này.
+7. Backup job phải đọc dotenv theo allowlist key và tuyệt đối không `source`
+   toàn bộ runtime env; kiểm bằng fixture release notes có khoảng trắng trước khi
+   cài lại systemd script.
+
+## 18. Release train cuối ngày 15/07/2026
+
+1. Gộp hai commit MAP/Home realtime hiện có với hardening backup, test fixture
+   ERP không phụ thuộc ngày và completion ordering của Go hub.
+2. Gate local bắt buộc: Flutter analyze/full test; Nest build/full test; Prisma
+   scratch migration; exact `go1.25.12 linux/arm64` test/vet/govulncheck/race;
+   npm audit, runtime artifact, platform-security, YAML/Bash và diff check.
+3. Chỉ push `staging` khi toàn bộ gate xanh; workflow staging phải build đủ APK,
+   Windows signed/Defender và runtime deploy cùng SHA.
+4. Trước main, tạo encrypted backup mới và verify checksum; fast-forward đúng
+   staging SHA, theo dõi production workflow đến terminal và rollback nếu health
+   hoặc migration lệch.
+5. Sau deploy, inspect UID/rootfs/cap/log, header/anonymous media/realtime log,
+   rồi chạy private-media audit + migration dry-run. Không apply, purge, rotate
+   secret hay xóa backup trong lượt này.
