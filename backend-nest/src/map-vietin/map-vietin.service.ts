@@ -76,8 +76,9 @@ const EFAST_NIGHT_SYNC_DELAY_MS = 30 * 60 * 1000;
 const MAP_SYNC_PAGE_SIZE = 100;
 const MAP_SYNC_START_HOUR_VN = 7;
 const MAP_SYNC_END_HOUR_VN = 22;
-const MAP_HISTORY_SYNC_DELAY_MIN_MS = 3000;
-const MAP_HISTORY_SYNC_DELAY_MAX_MS = 5000;
+const DEFAULT_MAP_HISTORY_SYNC_DELAY_MIN_MS = 1000;
+const DEFAULT_MAP_HISTORY_SYNC_DELAY_MAX_MS = 2000;
+const MIN_MAP_HISTORY_SYNC_DELAY_MS = 500;
 const MAP_HISTORY_SYNC_NIGHT_DELAY_MS = 30 * 60 * 1000;
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 const DEFAULT_GLOBAL_SYNC_MAX_PAGES = 2;
@@ -876,10 +877,18 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
   }
 
   private randomMapHistorySyncDelayMs() {
-    const span = MAP_HISTORY_SYNC_DELAY_MAX_MS - MAP_HISTORY_SYNC_DELAY_MIN_MS;
-    return (
-      MAP_HISTORY_SYNC_DELAY_MIN_MS + Math.floor(Math.random() * (span + 1))
+    const configuredMin = this.readPositiveInt(
+      'MAP_VIETIN_SYNC_DELAY_MIN_MS',
+      DEFAULT_MAP_HISTORY_SYNC_DELAY_MIN_MS,
     );
+    const configuredMax = this.readPositiveInt(
+      'MAP_VIETIN_SYNC_DELAY_MAX_MS',
+      DEFAULT_MAP_HISTORY_SYNC_DELAY_MAX_MS,
+    );
+    const min = Math.max(MIN_MAP_HISTORY_SYNC_DELAY_MS, configuredMin);
+    const max = Math.max(min, configuredMax);
+    const span = max - min;
+    return min + Math.floor(Math.random() * (span + 1));
   }
 
   private randomEfastFastSyncDelayMs() {

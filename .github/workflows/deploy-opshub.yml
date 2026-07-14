@@ -593,6 +593,10 @@ jobs:
             OPSHUB_RUNTIME_GID
             REDIS_PASSWORD
             BACKUP_AGE_RECIPIENT
+            UPLOAD_BASE_DIR
+            IMAGE_BASE_URL
+            PRIVATE_MEDIA_BASE_DIR
+            PRIVATE_MEDIA_PUBLIC_BASE_URL
           )
           for key in "${required_runtime_env_keys[@]}"; do
             value="$(sudo sed -n "s/^${key}=//p" "$OPSHUB_ENV_FILE" | head -n 1)"

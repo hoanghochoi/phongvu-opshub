@@ -145,6 +145,15 @@
 - [x] Live edge/CORS/anonymous smoke ngày 14/07/2026: HTTP `308`; CSP/HSTS
   enforce; origin lạ không có ACAO; origin staging được phép; anonymous
   `/api/media/:id` và `/api/admin/quick-action-links` trả `401`.
+- [x] Regression local `Chăm sóc lại`: controller bắt buộc JWT + feature guard;
+  Super Admin không gán showroom nhận scope toàn hệ thống. Batch focused cuối
+  pass 5/5 suite, 138/138 test; full Nest pass 62/62 suite, 609/609 test.
+- [x] Lượt production đầu tiên của SHA `5fccce89...` fail health vì thiếu
+  `PRIVATE_MEDIA_BASE_DIR`; rollback trap trả về `4e1ced4b...`, năm container
+  healthy. Env đã được chuẩn bị và workflow local fail-closed kiểm đủ bốn biến
+  upload/private-media trước khi dừng service.
+- [M] Production vẫn đang ở release legacy sau rollback; phải chờ SHA sửa mới
+  pass staging rồi promote lại và inspect runtime trước khi đóng hardening.
 - [M] Proof runtime còn lại chỉ gồm ticket replay/session-revoke/authenticated
   load, hai-admin/MFA, credential rotation và các gate production đã ghi nợ.
 - [x] Đại Ca phê duyệt maintenance production ngày 14/07/2026 sau khi preflight

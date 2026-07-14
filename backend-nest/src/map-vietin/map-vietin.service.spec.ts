@@ -917,14 +917,34 @@ describe('MapVietinService', () => {
     ).toBe('11/07/2026');
   });
 
-  it('uses a 3000-5000ms random delay for scheduled MAP history sync', () => {
+  it('uses a 1000-2000ms random delay for scheduled MAP history sync', () => {
     jest
       .spyOn(Math, 'random')
       .mockReturnValueOnce(0)
       .mockReturnValueOnce(0.99999);
 
-    expect((service as any).randomMapHistorySyncDelayMs()).toBe(3000);
-    expect((service as any).randomMapHistorySyncDelayMs()).toBe(5000);
+    expect((service as any).randomMapHistorySyncDelayMs()).toBe(1000);
+    expect((service as any).randomMapHistorySyncDelayMs()).toBe(2000);
+  });
+
+  it('supports a bounded MAP sync delay override', () => {
+    process.env.MAP_VIETIN_SYNC_DELAY_MIN_MS = '750';
+    process.env.MAP_VIETIN_SYNC_DELAY_MAX_MS = '1250';
+    jest
+      .spyOn(Math, 'random')
+      .mockReturnValueOnce(0)
+      .mockReturnValueOnce(0.99999);
+
+    expect((service as any).randomMapHistorySyncDelayMs()).toBe(750);
+    expect((service as any).randomMapHistorySyncDelayMs()).toBe(1250);
+  });
+
+  it('clamps unsafe MAP sync delay overrides to 500ms', () => {
+    process.env.MAP_VIETIN_SYNC_DELAY_MIN_MS = '1';
+    process.env.MAP_VIETIN_SYNC_DELAY_MAX_MS = '2';
+    jest.spyOn(Math, 'random').mockReturnValue(0);
+
+    expect((service as any).randomMapHistorySyncDelayMs()).toBe(500);
   });
 
   it('schedules the next MAP history sync at the 07:00 Vietnam fast-window start', () => {
@@ -955,7 +975,7 @@ describe('MapVietinService', () => {
       (service as any).nextMapHistorySyncDelayMs(
         new Date('2026-05-21T00:00:00.000Z'),
       ),
-    ).toBe(3000);
+    ).toBe(1000);
   });
 
   it('uses a 50000-60000ms random delay for fast eFAST sync', () => {
@@ -1063,7 +1083,7 @@ describe('MapVietinService', () => {
     resolveSync();
     await runPromise;
 
-    expect(setTimeoutSpy).toHaveBeenCalledWith(expect.any(Function), 4000);
+    expect(setTimeoutSpy).toHaveBeenCalledWith(expect.any(Function), 1500);
     service.onModuleDestroy();
   });
 

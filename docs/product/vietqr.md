@@ -90,8 +90,10 @@ a customer to scan and pay manually.
   showroom. Per-showroom MAP credentials remain a fallback when global sync is
   disabled or not configured. Global sync reads 100 MAP rows per page and
   defaults to 2 pages per sync loop. After each backend MAP-history fetch
-  finishes, the backend waits a random 3000-5000ms before starting the next
+  finishes, the backend waits a random 1000-2000ms before starting the next
   scheduled fetch during the 07:00-to-before-22:00 Vietnam-time fast window.
+  `MAP_VIETIN_SYNC_DELAY_MIN_MS` and `MAP_VIETIN_SYNC_DELAY_MAX_MS` can tune
+  this range, with a 500ms safety floor.
   From 22:00 to before 07:00, MAP sync still runs but uses a 30-minute cadence.
   `MAP_VIETIN_SYNC_ENABLED=false` remains the full off switch.
 - Successful global MAP rows that cannot be mapped to exactly one showroom are
@@ -199,12 +201,17 @@ a customer to scan and pay manually.
   `DELIVERED`/`STREAM_STARTED` claim, the backend returns `409` so the client
   can treat the duplicate as a no-op instead of playing over itself. Normal
   ready polling remains only as backlog fallback on startup, manual refresh,
-  realtime readiness, or realtime silence; it no longer downloads speaker audio
-  through `/audio` directly. `/ready` recovers stream-pending notifications only
-  while they are newer than `PAYMENT_STREAM_PENDING_RECOVERY_WINDOW_SECONDS`
-  (default `30`); older stream-pending notifications are marked `SILENCED` with
+  realtime readiness, or realtime silence; while realtime stays silent the
+  client checks every 5 seconds. It no longer downloads speaker audio through
+  `/audio` directly. `/ready` recovers notifications only while they are newer
+  than `PAYMENT_STREAM_PENDING_RECOVERY_WINDOW_SECONDS` (default `30`), whether
+  their audio is `PENDING` or was already generated as `READY` by another
+  client. Older pickup attempts are marked `SILENCED` with
   `stream_recovery_window_expired`, and `/stream` also rejects them so they
-  cannot play late. The Windows client advances a local notification checkpoint
+  cannot play late. Delivery metrics assign a notification to the time bucket
+  containing its first-ever `STREAM_STARTED`; later clients cannot move the
+  same notification into a newer bucket. The Windows client advances a local
+  notification checkpoint
   and skips locally terminal, queued, or in-flight notification ids before
   playback, so repeated stream events and fallback ready checks cannot overlap
   the same transaction audio on one machine.
@@ -405,6 +412,8 @@ Optional MAP endpoint overrides are available through:
 - `MAP_VIETIN_GLOBAL_SYNC_ENABLED`
 - `MAP_VIETIN_GLOBAL_SYNC_MAX_PAGES` (default `2`)
 - `MAP_VIETIN_GLOBAL_SESSION_TTL_SECONDS`
+- `MAP_VIETIN_SYNC_DELAY_MIN_MS` (default `1000`, minimum `500`)
+- `MAP_VIETIN_SYNC_DELAY_MAX_MS` (default `2000`, clamped to the minimum)
 - `MAP_VIETIN_CLIENT_ID`
 - `MAP_VIETIN_SIGNATURE_KEY`
 - `MAP_VIETIN_NO_AUTH_BASE_URL`

@@ -1,6 +1,18 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, Request } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+  Request,
+  UseGuards,
+} from '@nestjs/common';
+import { AuthGuard } from '@nestjs/passport';
 import { RequireFeature } from '../feature/feature.decorator';
 import { FEATURE_KEYS } from '../feature/feature.constants';
+import { FeatureGuard } from '../feature/feature.guard';
 import {
   AssignSalesReportFollowUpCaseDto,
   CheckSalesReportOrderDto,
@@ -10,6 +22,7 @@ import {
 import { SalesReportFollowUpsService } from './sales-report-follow-ups.service';
 
 @Controller('sales-reports/follow-up-cases')
+@UseGuards(AuthGuard('jwt'), FeatureGuard)
 @RequireFeature([FEATURE_KEYS.SALES_REPORT, FEATURE_KEYS.ADMIN_SALES_REPORTS])
 export class SalesReportFollowUpsController {
   constructor(private readonly service: SalesReportFollowUpsService) {}

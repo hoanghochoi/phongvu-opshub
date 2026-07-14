@@ -19,8 +19,9 @@ Cho phép nhân viên bán hàng theo dõi và chăm sóc lại từng lượt b
 ## Phạm vi và phân công
 
 - Nhân viên xem và cập nhật hồ sơ đang được phân công cho mình.
-- Store/Area/Region Manager và Super Admin xem các hồ sơ trong showroom/node
-  được gán và có thể chăm sóc thay.
+- Store/Area/Region Manager xem các hồ sơ trong showroom/node được gán và có thể
+  chăm sóc thay. Super Admin xem toàn bộ hồ sơ, không phụ thuộc showroom/node
+  được gán.
 - Quản lý chỉ được phân công cho nhân viên bán hàng đang hoạt động trong cùng
   showroom.
 - Sau khi phân công, người nhận mới là người phụ trách hồ sơ.

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
+import { readFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
@@ -8,6 +8,18 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 async function text(relativePath) {
   return readFile(path.join(root, relativePath), 'utf8');
+}
+
+async function filesBelow(relativeDirectory) {
+  const directory = path.join(root, relativeDirectory);
+  const entries = await readdir(directory, { withFileTypes: true });
+  const nested = await Promise.all(
+    entries.map(async (entry) => {
+      const relativePath = path.join(relativeDirectory, entry.name);
+      return entry.isDirectory() ? filesBelow(relativePath) : [relativePath];
+    }),
+  );
+  return nested.flat();
 }
 
 function contains(source, expected, label) {
@@ -121,6 +133,16 @@ contains(
 );
 contains(
   productionWorkflow,
+  'PRIVATE_MEDIA_BASE_DIR',
+  'production private media storage env gate',
+);
+contains(
+  productionWorkflow,
+  'PRIVATE_MEDIA_PUBLIC_BASE_URL',
+  'production private media public URL env gate',
+);
+contains(
+  productionWorkflow,
   'REDIS_PASSWORD must contain at least 32 characters.',
   'production Redis password strength gate',
 );
@@ -150,6 +172,25 @@ contains(stagingWorkflow, 'redirect_url=%2Fdownload', 'staging Access download r
 contains(pubspec, '- family: Roboto', 'local Flutter Roboto fallback');
 contains(pubspec, 'fonts/Roboto-Regular.ttf', 'local Flutter Roboto asset');
 contains(robotoLicense, 'Apache License', 'Roboto license attribution');
+
+const controllerPaths = (await filesBelow('backend-nest/src')).filter((file) =>
+  file.endsWith('.controller.ts'),
+);
+for (const controllerPath of controllerPaths) {
+  const controller = await text(controllerPath);
+  if (controller.includes('@RequireFeature')) {
+    contains(controller, '@UseGuards(', `${controllerPath} guard declaration`);
+    contains(controller, "AuthGuard('jwt')", `${controllerPath} JWT guard`);
+    contains(controller, 'FeatureGuard', `${controllerPath} feature guard`);
+  }
+  if (/req(?:uest)?\.user/.test(controller)) {
+    assert.ok(
+      controller.includes("AuthGuard('jwt')") ||
+        controller.includes('OptionalJwtAuthGuard'),
+      `${controllerPath}: req.user is used without a JWT guard`,
+    );
+  }
+}
 
 contains(help, 'isSafeHelpDocFile', 'Help document allowlist');
 contains(help, "raw.startsWith('//')", 'Help protocol-relative URL rejection');

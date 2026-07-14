@@ -1032,6 +1032,13 @@ describe('PaymentNotificationsService', () => {
       }),
     );
     expect(prisma.$queryRaw).toHaveBeenCalledTimes(2);
+    const currentQuery = prisma.$queryRaw.mock.calls[0][0]
+      .join(' ')
+      .replace(/\s+/g, ' ');
+    expect(currentQuery).toContain('NOT EXISTS');
+    expect(currentQuery).toContain(
+      'earlier_start."notificationId" = current_start."notificationId"',
+    );
   });
 
   it('returns SUPER_ADMIN delivery history with latency and sanitized errors', async () => {
@@ -1377,9 +1384,9 @@ describe('PaymentNotificationsService', () => {
             { audioStatus: 'READY', audioPath: { not: null } },
             {
               audioStatus: 'PENDING',
-              createdAt: { gte: expect.any(Date) },
             },
           ]),
+          createdAt: { gte: expect.any(Date) },
         }),
       }),
     );
@@ -1388,7 +1395,7 @@ describe('PaymentNotificationsService', () => {
     ).not.toHaveBeenCalled();
   });
 
-  it('silences old stream-pending notifications instead of recovering them late', async () => {
+  it('silences old speaker notifications instead of recovering them late', async () => {
     process.env.PAYMENT_SPEAKER_STREAMING_ENABLED = 'true';
     process.env.PAYMENT_STREAM_PENDING_RECOVERY_WINDOW_SECONDS = '30';
     const oldCreatedAt = new Date(Date.now() - 60_000);
@@ -1428,9 +1435,9 @@ describe('PaymentNotificationsService', () => {
           OR: expect.arrayContaining([
             {
               audioStatus: 'PENDING',
-              createdAt: { gte: expect.any(Date) },
             },
           ]),
+          createdAt: { gte: expect.any(Date) },
         }),
       }),
     );
@@ -1600,6 +1607,68 @@ describe('PaymentNotificationsService', () => {
     await expect(
       service.getAudioForUser(speakerUser(), 'note-1'),
     ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('does not reclassify an old failed notification as recovery-expired', async () => {
+    process.env.PAYMENT_SPEAKER_STREAMING_ENABLED = 'true';
+    process.env.PAYMENT_STREAM_PENDING_RECOVERY_WINDOW_SECONDS = '30';
+    prisma.paymentNotification.findUnique.mockResolvedValue({
+      id: 'note-old-failed',
+      transactionId: 'txn-old-failed',
+      storeCode: 'CP74',
+      audioStatus: 'FAILED',
+      audioPath: null,
+      createdAt: new Date(Date.now() - 60_000),
+    });
+    prisma.store.findUnique.mockResolvedValue({ storeId: 'CP74' });
+
+    await expect(
+      service.getAudioForUser(speakerUser(), 'note-old-failed'),
+    ).rejects.toBeInstanceOf(NotFoundException);
+
+    expect(
+      prisma.paymentNotificationDeliveryLog.create,
+    ).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          event: 'SILENCED',
+          error: 'stream_recovery_window_expired',
+        }),
+      }),
+    );
+  });
+
+  it('suppresses stale READY audio before another client can replay it', async () => {
+    process.env.PAYMENT_SPEAKER_STREAMING_ENABLED = 'true';
+    process.env.PAYMENT_STREAM_PENDING_RECOVERY_WINDOW_SECONDS = '30';
+    prisma.paymentNotification.findUnique.mockResolvedValue({
+      id: 'note-old-ready',
+      transactionId: 'txn-old-ready',
+      storeCode: 'CP74',
+      audioStatus: 'READY',
+      audioPath: 'old-ready.wav',
+      createdAt: new Date(Date.now() - 60_000),
+    });
+    prisma.store.findUnique.mockResolvedValue({ storeId: 'CP74' });
+    prisma.paymentNotificationDeliveryLog.findFirst.mockResolvedValue({
+      id: 'played-by-another-client',
+      event: 'PLAYED',
+    });
+
+    await expect(
+      service.getStreamForUser(speakerUser(), 'note-old-ready', {
+        clientId: 'pc-new-client',
+        rawAmount: true,
+      }),
+    ).rejects.toThrow(ConflictException);
+
+    expect(
+      prisma.paymentNotificationDeliveryLog.create,
+    ).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ event: 'DELIVERED' }),
+      }),
+    );
   });
 
   it('accepts a bounded app log and redacts sensitive context fields', async () => {

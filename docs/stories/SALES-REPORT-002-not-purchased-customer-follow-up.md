@@ -15,7 +15,8 @@
 2. Chỉ card có số điện thoại hoặc Zalo cá nhân được hiển thị; mỗi báo cáo
    `NOT_PURCHASED` là một hồ sơ riêng.
 3. Scope nhân viên/quản lý theo đúng assignee và showroom/node; quản lý phân
-   công được cho SA hoạt động trong cùng showroom.
+   công được cho SA hoạt động trong cùng showroom; `SUPER_ADMIN` xem toàn bộ hồ
+   sơ kể cả khi không có showroom/node được gán.
 4. Card có tên, liên hệ, ngành hàng, mã SR, tiếp xúc đầu, lần chăm sóc gần nhất
    và pill số ngày đúng màu/thứ tự.
 5. Modal giữ header khách hàng cố định, hiển thị lịch sử, tự mở lần chăm sóc kế

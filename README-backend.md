@@ -109,7 +109,10 @@ Expected responses:
   payment audio. Per-store MAP credentials remain a fallback when the global
   account is not configured or `MAP_VIETIN_GLOBAL_SYNC_ENABLED=false`. The
   global MAP sync runs from 07:00 to before 22:00 Vietnam time, reads 100 rows
-  per page, and defaults to `MAP_VIETIN_GLOBAL_SYNC_MAX_PAGES=2`. The global
+  per page, and defaults to `MAP_VIETIN_GLOBAL_SYNC_MAX_PAGES=2`. During that
+  window it waits a random 1000-2000 ms after a completed fetch; tune the safe
+  range with `MAP_VIETIN_SYNC_DELAY_MIN_MS` and
+  `MAP_VIETIN_SYNC_DELAY_MAX_MS` (minimum accepted value: 500 ms). The global
   MAP session is cached for `MAP_VIETIN_GLOBAL_SESSION_TTL_SECONDS` seconds,
   defaulting to 600, and refreshes automatically after MAP auth errors.
 - VietinBank eFAST account-detail sync is an optional secondary source behind
@@ -191,11 +194,14 @@ Expected responses:
   `notificationId + clientId`; a second in-flight request for the same pair
   returns HTTP `409` so the client can suppress duplicate same-machine
   playback. Ready polling is limited to speaker-enabled startup/manual recovery
-  and `PAYMENT_NOTIFICATION` realtime events; it only recovers stream-pending
-  notifications newer than `PAYMENT_STREAM_PENDING_RECOVERY_WINDOW_SECONDS`
-  (default `30`). Older stream-pending notifications are logged as `SILENCED`
-  with `stream_recovery_window_expired`, and `/stream` rejects them so no client
-  plays stale audio after reconnect. Speaker backlog playback still goes
+  and realtime fallback; after realtime has been silent it checks metadata every
+  5 seconds. It only recovers notifications newer than
+  `PAYMENT_STREAM_PENDING_RECOVERY_WINDOW_SECONDS` (default `30`), whether the
+  audio is `PENDING` or already `READY`. Expired pickup attempts are logged as
+  `SILENCED` with `stream_recovery_window_expired`, and `/stream` rejects them
+  so another client cannot replay stale audio. Delivery metrics use the
+  first-ever `STREAM_STARTED` event per notification, preventing a later client
+  from inflating a newer time bucket. Speaker backlog playback still goes
   through `/stream`, not `/audio`. The `Tiền vào` transaction list loads once on
   entry and after explicit filter/page/refresh actions, then refreshes from
   payment WebSocket events. It does not poll transactions on a fixed interval

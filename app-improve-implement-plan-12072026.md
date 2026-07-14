@@ -715,3 +715,20 @@ Thứ tự mới bắt buộc:
   và lưu trực tiếp trên host, không exfiltrate; Compose/Caddy preflight pass.
 - Bước 4–5 chưa chạy vì đây là maintenance production có downtime. Cần xác nhận
   thời điểm trước khi fast-forward `main` và theo dõi workflow đến terminal.
+
+## 17. Điều chỉnh kế hoạch sau rollback và smoke authorization
+
+1. Giữ production tại release rollback `4e1ced4b...` cho đến khi batch sửa mới
+   qua staging; không rerun production từ SHA đã biết còn lỗi route guard.
+2. Fail-closed production workflow nếu thiếu `UPLOAD_BASE_DIR`, `IMAGE_BASE_URL`,
+   `PRIVATE_MEDIA_BASE_DIR` hoặc `PRIVATE_MEDIA_PUBLIC_BASE_URL` trước khi dừng
+   container.
+3. Mọi controller dùng `@RequireFeature` phải đồng thời có JWT + `FeatureGuard`;
+   có regression test metadata ở controller mới hoặc controller vừa sửa.
+4. `SUPER_ADMIN` của Chăm sóc lại nhận scope toàn hệ thống, không phụ thuộc
+   showroom/node; Store/Area/Region Manager vẫn bị giới hạn theo node được gán.
+5. Push toàn bộ batch lên `staging`, chờ cùng SHA pass CI/runtime smoke, sau đó
+   fast-forward `main` và theo dõi production deploy đến terminal.
+6. Chỉ sau production health + container hardening proof mới chạy private-media
+   audit và migration dry-run; không `--apply`, purge hay xóa backup trong lượt
+   này.

@@ -58,6 +58,19 @@ This file maps product behavior to proof. Existing flows are marked
 
 Recent focused evidence:
 
+- `PAYMENT-MONITOR-001`/`PAYMENT-MONITOR-002`, 2026-07-14: production runtime
+  diagnosis found the displayed 24-hour average `139.206s` was inflated by a
+  stale `READY` notification replayed on another client about 17.4 hours later;
+  the first-ever stream-start average was `6.794s` with median `5.954s`.
+  The MAP fast-window delay is now configurable and defaults to `1000-2000ms`
+  with a `500ms` safety floor, the lightweight `/ready` fallback checks every
+  5 seconds after realtime silence, and `/ready` plus `/stream` reject both
+  `PENDING` and `READY` notifications older than the 30-second recovery window.
+  Delivery metrics now assign each notification only to its first-ever
+  `STREAM_STARTED` bucket. Validation: 138 focused backend tests, 30 focused
+  Flutter tests, Nest build and Flutter analyze passed; `git diff --check` is
+  clean. A fresh live window after deployment is still required to verify the
+  `<5s` target.
 - `UI-UX-001`, 2026-07-14: mobile quick actions now occupy a real centered fifth
   `NavigationBar` slot, with five equal-width columns instead of an absolute
   button overlapping four destinations. Phone-only density below 600 px uses a
@@ -2665,6 +2678,8 @@ src/map-vietin/map-vietin.service.spec.ts` (26 tests), `npm run build`, full
   ghi đè cấu hình shortcut đã có. Validation: `npx prisma validate`, 24 focused
   feature tests, Nest build, 16 focused Flutter tests, `flutter analyze --no-pub`
   và `git diff --check` đều pass.
+- Regression 2026-07-14: `categories.csv` hoàn thiện `Type`/`clearance`; các dòng
+  RAM dùng thống nhất canonical type `memory` để tham gia đúng phép tính PC ráp.
 - Desktop data cards dùng `AppTwoAxisScrollView` với controller riêng từng trục,
   thumb/track hiện và interactive trên Windows. Home HVTC đổi nhãn thành
   `Tên nhân viên`; backend resolve mọi nhân viên active đúng showroom, không lọc
@@ -2709,7 +2724,7 @@ src/map-vietin/map-vietin.service.spec.ts` (26 tests), `npm run build`, full
 | Luồng | Proof tự động | Proof staging/manual |
 | --- | --- | --- |
 | Chỉ hiện hồ sơ có điện thoại hoặc Zalo | `sales-report-follow-ups.service.spec.ts`, `not_purchased_customers_test.dart` | Đối chiếu backfill với báo cáo thiếu cả hai trường |
-| Scope và phân công cùng showroom | NestJS service test + build | Đăng nhập SA, Store Manager và quản lý node |
+| Scope và phân công cùng showroom | NestJS service/controller guard test + build; `SUPER_ADMIN` không có showroom vẫn nhận scope toàn hệ thống | Đăng nhập Super Admin không gán showroom, Store Manager và quản lý node |
 | Chăm sóc chưa mua/terminal/mở lại | Flutter widget + API service test | Thử đồng thời hai thiết bị và kiểm tra conflict |
 | Comeback mua hàng | sales report service test + Flutter form test | Kiểm tra ERP `order.creator.email`, báo cáo gốc và báo cáo mua liên kết |
 | Realtime | provider/channel test | Mở hai client và xác nhận danh sách tự tải lại |

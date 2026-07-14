@@ -89,3 +89,21 @@
   `Windows package signature verification succeeded` with signer prefix
   `1BE124CCBD3C`, installed it, and relaunched as build `200147`. The relaunched
   app reported `currentBuild=200147` and `latestBuild=200147`.
+
+## Production maintenance regression 14/07/2026
+
+- Production run `29345053379` rolled back to `4e1ced4b...` after the new API
+  failed health because `PRIVATE_MEDIA_BASE_DIR` was absent. All five primary
+  containers recovered healthy; the old compose remains root/writable and is
+  not accepted as hardening proof.
+- Production env now contains the required private-media directory/public URL;
+  a one-shot new-image env validation passed. Workflow preflight now checks all
+  upload/private-media variables before stopping services.
+- Staging smoke exposed a missing controller guard on
+  `/sales-reports/follow-up-cases`: the database principal was `SUPER_ADMIN`, but
+  the service received no authenticated user. The local fix adds JWT and
+  `FeatureGuard`; metadata and unscoped Super Admin tests pass.
+- Current local proof after the fix: Prisma validate, Nest build, platform
+  security contract, workflow YAML parse, focused 138/138 tests, full Nest
+  62/62 suites with 609/609 tests, focused Flutter 30/30 and `flutter analyze`.
+  Runtime proof remains pending a new staging SHA.

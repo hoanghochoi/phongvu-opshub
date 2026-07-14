@@ -61,8 +61,11 @@ describe('SalesReportFollowUpsService', () => {
 
     expect(result.items).toHaveLength(1);
     expect(result.items[0].customerZaloContact).toBe('zalo-khach-a');
+    expect(result.managedScope).toBe(true);
     const where = findMany.mock.calls[0][0].where;
     expect(JSON.stringify(where)).toContain('customerPhone');
     expect(JSON.stringify(where)).toContain('customerZaloContact');
+    expect(JSON.stringify(where)).not.toContain('assigneeUserId');
+    expect(JSON.stringify(where)).not.toContain('storeCode');
   });
 });

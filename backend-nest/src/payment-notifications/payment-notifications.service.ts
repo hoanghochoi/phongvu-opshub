@@ -319,12 +319,22 @@ export class PaymentNotificationsService {
     const claimCutoff = new Date(
       Date.now() - this.deliveryClaimTtlSeconds() * 1000,
     );
-    const includeStreamPending = this.paymentSpeakerStreamingEnabled();
-    const streamPendingRecoveryCutoff = includeStreamPending
+    const streamingEnabled = this.paymentSpeakerStreamingEnabled();
+    const speakerRecoveryCutoff = streamingEnabled
       ? new Date(
           now.getTime() - this.streamPendingRecoveryWindowSeconds() * 1000,
         )
       : null;
+    const readyCreatedAtFilter =
+      afterCreatedAt && speakerRecoveryCutoff
+        ? afterCreatedAt > speakerRecoveryCutoff
+          ? { gt: afterCreatedAt }
+          : { gte: speakerRecoveryCutoff }
+        : afterCreatedAt
+          ? { gt: afterCreatedAt }
+          : speakerRecoveryCutoff
+            ? { gte: speakerRecoveryCutoff }
+            : null;
     const candidates = await this.prisma.$transaction(async (tx) => {
       await this.lockReadyNotificationClient(tx, clientId, storeCode);
       const blockedDeliveries =
@@ -347,11 +357,11 @@ export class PaymentNotificationsService {
       const blockedNotificationIds = blockedDeliveries
         .map((row) => row.notificationId)
         .filter(Boolean);
-      const expiredStreamPendingCount =
-        streamPendingRecoveryCutoff != null
-          ? await this.markExpiredStreamPendingNotifications(tx, {
+      const expiredSpeakerNotificationCount =
+        speakerRecoveryCutoff != null
+          ? await this.markExpiredSpeakerNotifications(tx, {
               storeCode,
-              cutoff: streamPendingRecoveryCutoff,
+              cutoff: speakerRecoveryCutoff,
               now,
               userId: user?.id,
               clientId,
@@ -363,17 +373,16 @@ export class PaymentNotificationsService {
           storeCode,
           OR: [
             { audioStatus: 'READY', audioPath: { not: null } },
-            ...(streamPendingRecoveryCutoff != null
+            ...(speakerRecoveryCutoff != null
               ? [
                   {
                     audioStatus: 'PENDING',
-                    createdAt: { gte: streamPendingRecoveryCutoff },
                   },
                 ]
               : []),
           ],
           expiresAt: { gt: now },
-          ...(afterCreatedAt ? { createdAt: { gt: afterCreatedAt } } : {}),
+          ...(readyCreatedAtFilter ? { createdAt: readyCreatedAtFilter } : {}),
           ...(blockedNotificationIds.length > 0
             ? { id: { notIn: blockedNotificationIds } }
             : {}),
@@ -385,7 +394,7 @@ export class PaymentNotificationsService {
       return {
         readyNotifications,
         blockedCount: blockedNotificationIds.length,
-        expiredStreamPendingCount,
+        expiredSpeakerNotificationCount,
       };
     });
 
@@ -402,9 +411,9 @@ export class PaymentNotificationsService {
         `Payment ready query returned ${streamPendingCount} stream-pending notifications for recovery store=${storeCode} client=${this.safeClientLabel(clientId)}`,
       );
     }
-    if (candidates.expiredStreamPendingCount > 0) {
+    if (candidates.expiredSpeakerNotificationCount > 0) {
       this.logger.warn(
-        `Payment ready query silenced ${candidates.expiredStreamPendingCount} expired stream-pending notifications store=${storeCode} client=${this.safeClientLabel(clientId)} windowSeconds=${this.streamPendingRecoveryWindowSeconds()}`,
+        `Payment ready query silenced ${candidates.expiredSpeakerNotificationCount} expired speaker notifications store=${storeCode} client=${this.safeClientLabel(clientId)} windowSeconds=${this.streamPendingRecoveryWindowSeconds()}`,
       );
     }
 
@@ -435,8 +444,8 @@ export class PaymentNotificationsService {
     if (!notification) throw new NotFoundException('Không tìm thấy thông báo');
     await this.assertUserCanUsePaymentSpeaker(user, 'audio');
     await this.assertUserCanAccessStore(user, notification.storeCode);
-    if (this.streamPendingRecoveryExpired(notification, new Date())) {
-      await this.markSingleStreamPendingExpired(notification, {
+    if (this.speakerRecoveryExpired(notification, new Date())) {
+      await this.markSingleSpeakerNotificationExpired(notification, {
         userId: user?.id,
       });
       this.logger.warn(
@@ -557,8 +566,8 @@ export class PaymentNotificationsService {
     }
     await this.assertUserCanUsePaymentSpeaker(user, 'stream');
     await this.assertUserCanAccessStore(user, notification.storeCode);
-    if (this.streamPendingRecoveryExpired(notification, new Date())) {
-      await this.markSingleStreamPendingExpired(notification, {
+    if (this.speakerRecoveryExpired(notification, new Date())) {
+      await this.markSingleSpeakerNotificationExpired(notification, {
         userId: user?.id,
         clientId: normalizedClientId,
       });
@@ -624,7 +633,7 @@ export class PaymentNotificationsService {
     }
   }
 
-  private async markExpiredStreamPendingNotifications(
+  private async markExpiredSpeakerNotifications(
     tx: Prisma.TransactionClient,
     input: {
       storeCode: string;
@@ -680,7 +689,7 @@ export class PaymentNotificationsService {
     return expired.length;
   }
 
-  private async markSingleStreamPendingExpired(
+  private async markSingleSpeakerNotificationExpired(
     notification: {
       id: string;
       transactionId?: string | null;
@@ -708,14 +717,19 @@ export class PaymentNotificationsService {
     });
   }
 
-  private streamPendingRecoveryExpired(
+  private speakerRecoveryExpired(
     notification: {
       audioStatus?: string | null;
       createdAt?: Date | string | null;
     },
     now: Date,
   ) {
-    if (notification.audioStatus !== 'PENDING') return false;
+    if (!this.paymentSpeakerStreamingEnabled()) return false;
+    if (
+      !['PENDING', 'READY'].includes(String(notification.audioStatus ?? ''))
+    ) {
+      return false;
+    }
     const createdAt =
       notification.createdAt instanceof Date
         ? notification.createdAt
@@ -1741,12 +1755,19 @@ export class PaymentNotificationsService {
         COUNT(*)::int AS "count",
         AVG(EXTRACT(EPOCH FROM (started."streamStartedAt" - txn."paidAt")) * 1000)::float AS "averageMs"
       FROM (
-        SELECT "notificationId", MIN("createdAt") AS "streamStartedAt"
-        FROM "PaymentNotificationDeliveryLog"
-        WHERE "event" = 'STREAM_STARTED'
-          AND "createdAt" >= ${from}
-          AND "createdAt" < ${to}
-        GROUP BY "notificationId"
+        SELECT current_start."notificationId", MIN(current_start."createdAt") AS "streamStartedAt"
+        FROM "PaymentNotificationDeliveryLog" current_start
+        WHERE current_start."event" = 'STREAM_STARTED'
+          AND current_start."createdAt" >= ${from}
+          AND current_start."createdAt" < ${to}
+          AND NOT EXISTS (
+            SELECT 1
+            FROM "PaymentNotificationDeliveryLog" earlier_start
+            WHERE earlier_start."notificationId" = current_start."notificationId"
+              AND earlier_start."event" = 'STREAM_STARTED'
+              AND earlier_start."createdAt" < ${from}
+          )
+        GROUP BY current_start."notificationId"
       ) started
       JOIN "PaymentNotification" note ON note."id" = started."notificationId"
       JOIN "MapVietinTransaction" txn ON txn."id" = note."transactionId"
