@@ -218,6 +218,28 @@ describe('HomeSummaryService', () => {
     return { service, prisma, salesReports, featureService };
   }
 
+  it('caches repeated summary loads for the same user and query for the Home TTL', async () => {
+    const previousCacheFlag = process.env.HOME_SUMMARY_RESPONSE_CACHE_ENABLED;
+    process.env.HOME_SUMMARY_RESPONSE_CACHE_ENABLED = 'true';
+    try {
+      const { service, salesReports } = createHarness();
+      const user = { id: 'user-1', email: 'staff@phongvu.vn' };
+      const query = { startDate: '2026-07-04', endDate: '2026-07-04' };
+
+      const first = await service.getSummary(user, query);
+      const second = await service.getSummary(user, query);
+
+      expect(second).toBe(first);
+      expect(salesReports.describeHomeSummaryScope).toHaveBeenCalledTimes(1);
+    } finally {
+      if (previousCacheFlag === undefined) {
+        delete process.env.HOME_SUMMARY_RESPONSE_CACHE_ENABLED;
+      } else {
+        process.env.HOME_SUMMARY_RESPONSE_CACHE_ENABLED = previousCacheFlag;
+      }
+    }
+  });
+
   it('returns scoped summary metrics from dedicated home summary facts', async () => {
     const { service, prisma, salesReports } = createHarness();
 

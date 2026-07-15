@@ -30,6 +30,8 @@ const REPORT_TYPE_NOT_PURCHASED = 'NOT_PURCHASED';
 const COVERAGE_LABEL = 'Tỉ lệ báo cáo';
 const DEFAULT_HOME_SUMMARY_RANGE_DAYS = 30;
 const DEFAULT_HOME_SUMMARY_DETAIL_LIMIT = 200;
+const HOME_SUMMARY_RESPONSE_CACHE_TTL_MS = 60_000;
+const MAX_HOME_SUMMARY_RESPONSE_CACHE_ENTRIES = 1000;
 const INSTALLMENT_SUCCESS = 'SUCCESS';
 const INSTALLMENT_FAILED = 'FAILED';
 
@@ -122,6 +124,11 @@ type HomeSummaryFreshnessResponse = {
   projectionVersion: number;
   sourceUpdatedAtBySource: Record<string, Date>;
   isStale: boolean;
+};
+
+type HomeSummaryResponseCacheEntry = {
+  expiresAt: number;
+  response: HomeSummaryResponse;
 };
 
 type SalesProgressPeriod = {
@@ -247,6 +254,14 @@ type HomeSalesMainKpiSummary = {
 @Injectable()
 export class HomeSummaryService {
   private readonly logger = new Logger(HomeSummaryService.name);
+  private readonly summaryResponseCache = new Map<
+    string,
+    HomeSummaryResponseCacheEntry
+  >();
+  private readonly summaryInFlight = new Map<
+    string,
+    Promise<HomeSummaryResponse>
+  >();
 
   constructor(
     private readonly prisma: PrismaService,
@@ -263,6 +278,59 @@ export class HomeSummaryService {
   }
 
   async getSummary(
+    user: any,
+    query: GetHomeSummaryQueryDto,
+  ): Promise<HomeSummaryResponse> {
+    if (!this.summaryResponseCacheEnabled()) {
+      return this.computeSummary(user, query);
+    }
+    const cacheKey = this.summaryResponseCacheKey(user, query);
+    const cacheLabel = logFingerprint(cacheKey);
+    const cached = this.summaryResponseCache.get(cacheKey);
+    const now = Date.now();
+    if (cached && cached.expiresAt > now) {
+      this.logger.log(
+        `Home summary cache hit: key=${cacheLabel} ttlMs=${cached.expiresAt - now}`,
+      );
+      return cached.response;
+    }
+    if (cached) {
+      this.summaryResponseCache.delete(cacheKey);
+      this.logger.log(`Home summary cache expired: key=${cacheLabel}`);
+    }
+    const pending = this.summaryInFlight.get(cacheKey);
+    if (pending) {
+      this.logger.log(`Home summary cache joined in-flight: key=${cacheLabel}`);
+      return pending;
+    }
+
+    this.logger.log(`Home summary cache miss: key=${cacheLabel}`);
+    const pendingLoad = this.computeSummary(user, query)
+      .then((response) => {
+        this.storeSummaryResponseCache(cacheKey, response);
+        this.logger.log(
+          `Home summary cache stored: key=${cacheLabel} ttlMs=${HOME_SUMMARY_RESPONSE_CACHE_TTL_MS}`,
+        );
+        return response;
+      })
+      .finally(() => {
+        this.summaryInFlight.delete(cacheKey);
+      });
+    this.summaryInFlight.set(cacheKey, pendingLoad);
+    return pendingLoad;
+  }
+
+  clearSummaryResponseCache(source = 'manual') {
+    const cached = this.summaryResponseCache.size;
+    const inFlight = this.summaryInFlight.size;
+    this.summaryResponseCache.clear();
+    this.summaryInFlight.clear();
+    this.logger.log(
+      `Home summary cache cleared: source=${source} cached=${cached} inFlight=${inFlight}`,
+    );
+  }
+
+  private async computeSummary(
     user: any,
     query: GetHomeSummaryQueryDto,
   ): Promise<HomeSummaryResponse> {
@@ -2477,6 +2545,51 @@ export class HomeSummaryService {
         .trim()
         .toLowerCase() !== 'false'
     );
+  }
+
+  private summaryResponseCacheEnabled() {
+    const raw = process.env.HOME_SUMMARY_RESPONSE_CACHE_ENABLED;
+    if (raw === undefined && process.env.NODE_ENV === 'test') return false;
+    return (
+      String(raw ?? 'true')
+        .trim()
+        .toLowerCase() !== 'false'
+    );
+  }
+
+  private summaryResponseCacheKey(user: any, query: GetHomeSummaryQueryDto) {
+    const range = this.parseSummaryRange(query);
+    const userKey =
+      this.optionalText(user?.id, 120) ||
+      this.optionalText(user?.email, 160) ||
+      this.optionalText(user?.personnelCode, 80) ||
+      'anonymous';
+    return [
+      'v1',
+      logFingerprint(userKey),
+      range.startDate,
+      range.endDate,
+      this.parseScopeParam(query.scope),
+      this.optionalText(query.organizationNodeId, 80) || '',
+      this.optionalText(query.salesProgressUserId, 80) || '',
+    ].join('|');
+  }
+
+  private storeSummaryResponseCache(
+    cacheKey: string,
+    response: HomeSummaryResponse,
+  ) {
+    while (
+      this.summaryResponseCache.size >= MAX_HOME_SUMMARY_RESPONSE_CACHE_ENTRIES
+    ) {
+      const oldestKey = this.summaryResponseCache.keys().next().value;
+      if (!oldestKey) break;
+      this.summaryResponseCache.delete(oldestKey);
+    }
+    this.summaryResponseCache.set(cacheKey, {
+      expiresAt: Date.now() + HOME_SUMMARY_RESPONSE_CACHE_TTL_MS,
+      response,
+    });
   }
 
   private legacySyncFallbackEnabled() {

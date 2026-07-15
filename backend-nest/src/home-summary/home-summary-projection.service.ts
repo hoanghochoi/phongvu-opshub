@@ -498,6 +498,7 @@ export class HomeSummaryProjectionService
         : [];
       const projectionVersion = Number(payload.projectionVersion);
       try {
+        this.homeSummary.clearSummaryResponseCache('projection_event');
         await this.redis.publishMessageOrThrow(HOME_SUMMARY_UPDATED_CHANNEL, {
           schemaVersion: 2,
           type: HOME_SUMMARY_UPDATED_EVENT,

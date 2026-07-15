@@ -21,6 +21,7 @@ describe('HomeSummaryProjectionService', () => {
     };
     const homeSummary = {
       rebuildProjectionDate: jest.fn().mockResolvedValue(new Date()),
+      clearSummaryResponseCache: jest.fn(),
     };
     const redis = {
       publishMessageOrThrow: jest.fn().mockResolvedValue(undefined),
@@ -34,7 +35,7 @@ describe('HomeSummaryProjectionService', () => {
   }
 
   it('publishes only the versioned Home signal and marks durable outbox complete', async () => {
-    const { service, prisma, redis } = createHarness();
+    const { service, prisma, homeSummary, redis } = createHarness();
     prisma.domainOutboxEvent.findMany.mockResolvedValue([
       {
         id: 'event-42',
@@ -51,6 +52,9 @@ describe('HomeSummaryProjectionService', () => {
     const published = await (service as any).publishPendingEvents();
 
     expect(published).toBe(1);
+    expect(homeSummary.clearSummaryResponseCache).toHaveBeenCalledWith(
+      'projection_event',
+    );
     expect(redis.publishMessageOrThrow).toHaveBeenCalledWith(
       'HOME_SUMMARY_UPDATED',
       {
