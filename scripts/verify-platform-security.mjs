@@ -300,6 +300,9 @@ for (const expected of [
   'process.env.OPSHUB_STAGING_LOAD_MAINTENANCE_ENABLED,',
   'PUBLIC_BASE_URL must equal ${REQUIRED_PUBLIC_URL}',
   "SOURCE_EMAIL = 'staging.staff@phongvu.vn'",
+  "LOAD_FEATURE_CODES = [",
+  "'HOME_DASHBOARD_SALES'",
+  "'HOME_DASHBOARD_FINANCE'",
   "status: 'COMPLETE'",
   "dimensionType: 'GLOBAL'",
   "tokenFileMode: '0600'",
@@ -312,6 +315,8 @@ for (const expected of [
   'featureRules !== 0',
   'policyRules !== 0',
   'minimal store-only Home/auth/realtime scope',
+  'tx.userFeatureAssignment.createMany',
+  'note: `staging-load:${runId}`',
 ]) {
   contains(stagingLoadUsers, expected, 'staging synthetic-user safety gate');
 }

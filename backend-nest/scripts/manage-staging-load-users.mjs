@@ -10,6 +10,10 @@ const SOURCE_EMAIL = 'staging.staff@phongvu.vn';
 const OUTPUT_ROOT = path.resolve('/output');
 const USER_COUNT = 60;
 const RANGE_DAYS = 90;
+const LOAD_FEATURE_CODES = [
+  'HOME_DASHBOARD_SALES',
+  'HOME_DASHBOARD_FINANCE',
+];
 const ALLOWED_DELETE_REFERENCE_TABLES = new Set([
   'FeatureAccessRule',
   'UserFeatureAssignment',
@@ -315,11 +319,24 @@ async function createUsers(prisma, runId, passwordHash) {
   if (collisions > 0) {
     throw new Error('Run id already has staging load accounts; cleanup first');
   }
+  const features = await prisma.featureDefinition.findMany({
+    where: { code: { in: LOAD_FEATURE_CODES } },
+    select: { code: true },
+  });
+  const availableFeatures = new Set(features.map((feature) => feature.code));
+  const missingFeatures = LOAD_FEATURE_CODES.filter(
+    (featureCode) => !availableFeatures.has(featureCode),
+  );
+  if (missingFeatures.length > 0) {
+    throw new Error(
+      `Required Home load feature definitions are missing: ${missingFeatures.join(', ')}`,
+    );
+  }
 
   await prisma.$transaction(
     async (tx) => {
       for (let index = 1; index <= USER_COUNT; index += 1) {
-        await tx.user.create({
+        const user = await tx.user.create({
           data: {
             email: emailFor(runId, index),
             password: passwordHash,
@@ -333,6 +350,15 @@ async function createUsers(prisma, runId, passwordHash) {
             branchLockedAt: source.branchLockedAt,
             storeId: source.storeId,
           },
+          select: { id: true },
+        });
+        await tx.userFeatureAssignment.createMany({
+          data: LOAD_FEATURE_CODES.map((featureCode) => ({
+            userId: user.id,
+            featureCode,
+            enabled: true,
+            note: `staging-load:${runId}`,
+          })),
         });
       }
     },

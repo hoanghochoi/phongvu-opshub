@@ -34,9 +34,12 @@ maintenance flag, then creates exactly 60 `STAFF` users with prefix
 `STAFF`, completed and branch-locked profile, one store, no broader scalar
 scope, no active organization assignment, and no direct feature or policy
 grant. Synthetic users copy only the source store, profile-completion and branch
-lock fields; organization assignments and feature/policy rules are never
-cloned. Any source-account drift stops the run before the first user is created.
-The command never sends email.
+lock fields; organization assignments, broad feature rules and policy rules are
+never cloned. The wrapper grants only the two Home section features required for
+the proof (`HOME_DASHBOARD_SALES` and `HOME_DASHBOARD_FINANCE`) directly to the
+temporary users and tags those rows with the run id so cleanup can prove zero
+remaining records. Any source-account drift stops the run before the first user
+is created. The command never sends email.
 
 ```bash
 RUN_ID=release-yyyymmdd-nnn
