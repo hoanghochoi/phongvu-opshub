@@ -21,38 +21,17 @@ function Invoke-SignTool {
   )
 
   $timer = [System.Diagnostics.Stopwatch]::StartNew()
-  $stdout = [System.Collections.Concurrent.ConcurrentQueue[string]]::new()
-  $stderr = [System.Collections.Concurrent.ConcurrentQueue[string]]::new()
   $process = [System.Diagnostics.Process]::new()
 
   try {
     $process.StartInfo.FileName = $ToolPath
     $process.StartInfo.UseShellExecute = $false
     $process.StartInfo.CreateNoWindow = $true
-    $process.StartInfo.RedirectStandardOutput = $true
-    $process.StartInfo.RedirectStandardError = $true
     foreach ($argument in $ArgumentList) {
       [void]$process.StartInfo.ArgumentList.Add($argument)
     }
 
-    $stdoutHandler = [System.Diagnostics.DataReceivedEventHandler]{
-      param($sender, $eventArgs)
-      if ($null -ne $eventArgs.Data) {
-        $stdout.Enqueue($eventArgs.Data)
-      }
-    }
-    $stderrHandler = [System.Diagnostics.DataReceivedEventHandler]{
-      param($sender, $eventArgs)
-      if ($null -ne $eventArgs.Data) {
-        $stderr.Enqueue($eventArgs.Data)
-      }
-    }
-    $process.add_OutputDataReceived($stdoutHandler)
-    $process.add_ErrorDataReceived($stderrHandler)
-
     [void]$process.Start()
-    $process.BeginOutputReadLine()
-    $process.BeginErrorReadLine()
 
     if (-not $process.WaitForExit($TimeoutSeconds * 1000)) {
       try {
@@ -65,13 +44,6 @@ function Invoke-SignTool {
     $process.WaitForExit()
 
     $timer.Stop()
-    [string]$line = $null
-    while ($stdout.TryDequeue([ref]$line)) {
-      Write-Host $line
-    }
-    while ($stderr.TryDequeue([ref]$line)) {
-      Write-Host "signtool stderr: $line"
-    }
     Write-Host ('signtool completed: exitCode={0}, durationMs={1}' -f $process.ExitCode, $timer.ElapsedMilliseconds)
     return $process.ExitCode
   } finally {
