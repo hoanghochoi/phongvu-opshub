@@ -334,6 +334,7 @@ async function createUsers(prisma, runId, passwordHash) {
       regionCode: true,
       areaCode: true,
       organizationNodeId: true,
+      store: { select: { storeId: true, organizationNodeId: true } },
     },
   });
   if (
@@ -399,11 +400,8 @@ async function createUsers(prisma, runId, passwordHash) {
       `Required Home load feature definitions are missing: ${missingFeatures.join(', ')}`,
     );
   }
-  const store = await prisma.store.findUnique({
-    where: { storeId: source.storeId },
-    select: { organizationNodeId: true },
-  });
-  if (!store?.organizationNodeId) {
+  const sourceStoreOrganizationNodeId = source.store?.organizationNodeId;
+  if (!sourceStoreOrganizationNodeId) {
     throw new Error('The staging source store has no organization node');
   }
   const organizationNodes = await prisma.organizationNode.findMany({
@@ -418,7 +416,7 @@ async function createUsers(prisma, runId, passwordHash) {
   });
   const nodeTargets = nodeFeatureTargetsForAccess(
     organizationNodes,
-    store.organizationNodeId,
+    sourceStoreOrganizationNodeId,
   );
   if (nodeTargets.length === 0) {
     throw new Error('The staging source store has no usable feature node chain');
