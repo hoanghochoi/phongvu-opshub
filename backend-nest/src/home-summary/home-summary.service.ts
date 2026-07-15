@@ -32,6 +32,8 @@ const DEFAULT_HOME_SUMMARY_RANGE_DAYS = 30;
 const DEFAULT_HOME_SUMMARY_DETAIL_LIMIT = 200;
 const HOME_SUMMARY_RESPONSE_CACHE_TTL_MS = 60_000;
 const MAX_HOME_SUMMARY_RESPONSE_CACHE_ENTRIES = 1000;
+const HOME_SUMMARY_SCOPE_OPTIONS_CACHE_TTL_MS = 60_000;
+const MAX_HOME_SUMMARY_SCOPE_OPTIONS_CACHE_ENTRIES = 1000;
 const INSTALLMENT_SUCCESS = 'SUCCESS';
 const INSTALLMENT_FAILED = 'FAILED';
 
@@ -129,6 +131,11 @@ type HomeSummaryFreshnessResponse = {
 type HomeSummaryResponseCacheEntry = {
   expiresAt: number;
   response: HomeSummaryResponse;
+};
+
+type HomeSummaryScopeOptionsCacheEntry = {
+  expiresAt: number;
+  response: HomeSummaryScopeOptionResponse[];
 };
 
 type SalesProgressPeriod = {
@@ -261,6 +268,14 @@ export class HomeSummaryService {
   private readonly summaryInFlight = new Map<
     string,
     Promise<HomeSummaryResponse>
+  >();
+  private readonly scopeOptionsCache = new Map<
+    string,
+    HomeSummaryScopeOptionsCacheEntry
+  >();
+  private readonly scopeOptionsInFlight = new Map<
+    string,
+    Promise<HomeSummaryScopeOptionResponse[]>
   >();
 
   constructor(
@@ -801,15 +816,46 @@ export class HomeSummaryService {
   }
 
   async listScopeOptions(user: any): Promise<HomeSummaryScopeOptionResponse[]> {
+    const cacheKey = this.scopeOptionsCacheKey(user);
+    const cacheLabel = logFingerprint(cacheKey);
+    const now = Date.now();
+    const cached = this.scopeOptionsCache.get(cacheKey);
+    if (cached && cached.expiresAt > now) {
+      this.logger.log(
+        `Home summary scope options cache hit: key=${cacheLabel} ttlMs=${cached.expiresAt - now}`,
+      );
+      return cached.response;
+    }
+    if (cached) {
+      this.scopeOptionsCache.delete(cacheKey);
+      this.logger.log(
+        `Home summary scope options cache expired: key=${cacheLabel}`,
+      );
+    }
+    const pending = this.scopeOptionsInFlight.get(cacheKey);
+    if (pending) {
+      this.logger.log(
+        `Home summary scope options cache joined in-flight: key=${cacheLabel}`,
+      );
+      return pending;
+    }
+
     this.logger.log(
-      `Home summary scope options requested: user=${this.safeUserLabel(user)}`,
+      `Home summary scope options cache miss: key=${cacheLabel} user=${this.safeUserLabel(user)}`,
     );
-    const { salesAvailable, financeAvailable } =
-      await this.resolveSectionAccess(user);
-    if (!salesAvailable && !financeAvailable) return [];
-    return this.salesReports.listHomeSummaryScopeOptions(user, {
-      allowOwnScope: salesAvailable || financeAvailable,
-    });
+    const pendingLoad = this.computeScopeOptions(user)
+      .then((response) => {
+        this.storeScopeOptionsCache(cacheKey, response);
+        this.logger.log(
+          `Home summary scope options cache stored: key=${cacheLabel} ttlMs=${HOME_SUMMARY_SCOPE_OPTIONS_CACHE_TTL_MS}`,
+        );
+        return response;
+      })
+      .finally(() => {
+        this.scopeOptionsInFlight.delete(cacheKey);
+      });
+    this.scopeOptionsInFlight.set(cacheKey, pendingLoad);
+    return pendingLoad;
   }
 
   async getBehaviorDetailsV2(
@@ -2588,6 +2634,43 @@ export class HomeSummaryService {
     }
     this.summaryResponseCache.set(cacheKey, {
       expiresAt: Date.now() + HOME_SUMMARY_RESPONSE_CACHE_TTL_MS,
+      response,
+    });
+  }
+
+  private async computeScopeOptions(
+    user: any,
+  ): Promise<HomeSummaryScopeOptionResponse[]> {
+    const { salesAvailable, financeAvailable } =
+      await this.resolveSectionAccess(user);
+    if (!salesAvailable && !financeAvailable) return [];
+    return this.salesReports.listHomeSummaryScopeOptions(user, {
+      allowOwnScope: salesAvailable || financeAvailable,
+    });
+  }
+
+  private scopeOptionsCacheKey(user: any) {
+    const userKey =
+      this.optionalText(user?.id, 120) ||
+      this.optionalText(user?.email, 160) ||
+      this.optionalText(user?.personnelCode, 80) ||
+      'anonymous';
+    return ['v1', logFingerprint(userKey)].join('|');
+  }
+
+  private storeScopeOptionsCache(
+    cacheKey: string,
+    response: HomeSummaryScopeOptionResponse[],
+  ) {
+    while (
+      this.scopeOptionsCache.size >= MAX_HOME_SUMMARY_SCOPE_OPTIONS_CACHE_ENTRIES
+    ) {
+      const oldestKey = this.scopeOptionsCache.keys().next().value;
+      if (!oldestKey) break;
+      this.scopeOptionsCache.delete(oldestKey);
+    }
+    this.scopeOptionsCache.set(cacheKey, {
+      expiresAt: Date.now() + HOME_SUMMARY_SCOPE_OPTIONS_CACHE_TTL_MS,
       response,
     });
   }

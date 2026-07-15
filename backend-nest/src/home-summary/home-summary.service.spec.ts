@@ -206,6 +206,13 @@ describe('HomeSummaryService', () => {
         accessoriesQuantity: 4,
         extendedInsuranceQuantity: 1,
       }),
+      listHomeSummaryScopeOptions: jest.fn().mockResolvedValue([
+        {
+          label: 'Cửa hàng được phân quyền',
+          scope: 'MANAGED_SCOPE',
+          organizationNodeId: 'node-1',
+        },
+      ]),
     };
     const featureService = {
       canAccessFeature: jest.fn().mockResolvedValue(true),
@@ -238,6 +245,18 @@ describe('HomeSummaryService', () => {
         process.env.HOME_SUMMARY_RESPONSE_CACHE_ENABLED = previousCacheFlag;
       }
     }
+  });
+
+  it('caches repeated Home scope option loads for the same user for the Home TTL', async () => {
+    const { service, salesReports, featureService } = createHarness();
+    const user = { id: 'user-1', email: 'staff@phongvu.vn' };
+
+    const first = await service.listScopeOptions(user);
+    const second = await service.listScopeOptions(user);
+
+    expect(second).toBe(first);
+    expect(featureService.canAccessFeature).toHaveBeenCalledTimes(2);
+    expect(salesReports.listHomeSummaryScopeOptions).toHaveBeenCalledTimes(1);
   });
 
   it('returns scoped summary metrics from dedicated home summary facts', async () => {
