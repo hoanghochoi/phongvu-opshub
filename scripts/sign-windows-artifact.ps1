@@ -20,36 +20,57 @@ function Invoke-SignTool {
     [int]$TimeoutSeconds = 180
   )
 
-  $tempRoot = if ([string]::IsNullOrWhiteSpace($env:RUNNER_TEMP)) {
-    [System.IO.Path]::GetTempPath()
-  } else {
-    $env:RUNNER_TEMP
-  }
-  $runId = [System.Guid]::NewGuid().ToString('N')
-  $stdoutPath = Join-Path $tempRoot "opshub-signtool-${runId}.out.log"
-  $stderrPath = Join-Path $tempRoot "opshub-signtool-${runId}.err.log"
   $timer = [System.Diagnostics.Stopwatch]::StartNew()
+  $stdout = [System.Collections.Concurrent.ConcurrentQueue[string]]::new()
+  $stderr = [System.Collections.Concurrent.ConcurrentQueue[string]]::new()
+  $process = [System.Diagnostics.Process]::new()
 
   try {
-    $process = Start-Process `
-      -FilePath $ToolPath `
-      -ArgumentList $ArgumentList `
-      -RedirectStandardOutput $stdoutPath `
-      -RedirectStandardError $stderrPath `
-      -WindowStyle Hidden `
-      -PassThru
+    $process.StartInfo.FileName = $ToolPath
+    $process.StartInfo.UseShellExecute = $false
+    $process.StartInfo.CreateNoWindow = $true
+    $process.StartInfo.RedirectStandardOutput = $true
+    $process.StartInfo.RedirectStandardError = $true
+    foreach ($argument in $ArgumentList) {
+      [void]$process.StartInfo.ArgumentList.Add($argument)
+    }
+
+    $stdoutHandler = [System.Diagnostics.DataReceivedEventHandler]{
+      param($sender, $eventArgs)
+      if ($null -ne $eventArgs.Data) {
+        $stdout.Enqueue($eventArgs.Data)
+      }
+    }
+    $stderrHandler = [System.Diagnostics.DataReceivedEventHandler]{
+      param($sender, $eventArgs)
+      if ($null -ne $eventArgs.Data) {
+        $stderr.Enqueue($eventArgs.Data)
+      }
+    }
+    $process.add_OutputDataReceived($stdoutHandler)
+    $process.add_ErrorDataReceived($stderrHandler)
+
+    [void]$process.Start()
+    $process.BeginOutputReadLine()
+    $process.BeginErrorReadLine()
 
     if (-not $process.WaitForExit($TimeoutSeconds * 1000)) {
-      Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+      try {
+        $process.Kill($true)
+      } catch {
+        $process.Kill()
+      }
       throw "signtool timed out after ${TimeoutSeconds}s."
     }
+    $process.WaitForExit()
 
     $timer.Stop()
-    if (Test-Path $stdoutPath) {
-      Get-Content -LiteralPath $stdoutPath | ForEach-Object { Write-Host $_ }
+    [string]$line = $null
+    while ($stdout.TryDequeue([ref]$line)) {
+      Write-Host $line
     }
-    if (Test-Path $stderrPath) {
-      Get-Content -LiteralPath $stderrPath | ForEach-Object { Write-Host "signtool stderr: $_" }
+    while ($stderr.TryDequeue([ref]$line)) {
+      Write-Host "signtool stderr: $line"
     }
     Write-Host ('signtool completed: exitCode={0}, durationMs={1}' -f $process.ExitCode, $timer.ElapsedMilliseconds)
     return $process.ExitCode
@@ -57,7 +78,9 @@ function Invoke-SignTool {
     if ($timer.IsRunning) {
       $timer.Stop()
     }
-    Remove-Item -LiteralPath $stdoutPath, $stderrPath -Force -ErrorAction SilentlyContinue
+    if ($null -ne $process) {
+      $process.Dispose()
+    }
   }
 }
 

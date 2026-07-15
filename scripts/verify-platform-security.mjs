@@ -244,6 +244,7 @@ contains(
   "WaitForExit($TimeoutSeconds * 1000)",
   "Windows signtool timeout",
 );
+contains(windowsSigner, '$process.Kill($true)', 'Windows signtool timeout kills process tree');
 contains(windowsSigner, 'TimeStamperCertificate', 'Windows timestamp verification');
 contains(windowsSigner, 'actualPin -notin $trustedPins', 'Windows CI signer pin');
 contains(windowsSigner, 'Install-EphemeralSigningTrust', 'Windows ephemeral public trust setup');
