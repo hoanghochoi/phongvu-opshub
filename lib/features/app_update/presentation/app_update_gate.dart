@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../app/theme/app_colors.dart';
 import '../../../app/theme/app_text_styles.dart';
@@ -22,6 +23,7 @@ typedef AppUpdateInstaller =
       ValueChanged<AppSelfUpdateProgress> onProgress,
     );
 typedef AppUpdatePageReloader = Future<void> Function();
+typedef AppUpdateManualLauncher = Future<bool> Function(Uri uri);
 
 class AppUpdateGate extends StatefulWidget {
   const AppUpdateGate({
@@ -30,6 +32,7 @@ class AppUpdateGate extends StatefulWidget {
     this.checkForUpdate,
     this.installUpdate,
     this.reloadPage,
+    this.openManualUpdate,
     this.requiredUpdateOverride,
     this.realtimeConnector,
     this.realtimeEnabled = true,
@@ -40,6 +43,7 @@ class AppUpdateGate extends StatefulWidget {
   final AppUpdateChecker? checkForUpdate;
   final AppUpdateInstaller? installUpdate;
   final AppUpdatePageReloader? reloadPage;
+  final AppUpdateManualLauncher? openManualUpdate;
   final bool? requiredUpdateOverride;
   final AppUpdateRealtimeConnector? realtimeConnector;
   final bool realtimeEnabled;
@@ -545,7 +549,10 @@ class _AppUpdateGateState extends State<AppUpdateGate>
         context: {..._logContext(result), 'reason': error.code ?? 'error'},
       );
       if (mounted) {
-        setState(() => _updateActionError = error.message);
+        setState(() {
+          _updateActionError = error.message;
+          _selfUpdateProgress = null;
+        });
       }
     } catch (error, stackTrace) {
       await AppLogger.instance.error(
@@ -556,13 +563,56 @@ class _AppUpdateGateState extends State<AppUpdateGate>
         context: _logContext(result),
       );
       if (mounted) {
-        setState(
-          () => _updateActionError =
-              'Chưa cập nhật được. Vui lòng thử lại sau ít phút.',
-        );
+        setState(() {
+          _updateActionError =
+              'Chưa cập nhật được. Vui lòng thử lại sau ít phút.';
+          _selfUpdateProgress = null;
+        });
       }
     } finally {
       if (mounted) setState(() => _runningUpdateAction = false);
+    }
+  }
+
+  Future<void> _openManualUpdatePage(AppUpdateCheckResult result) async {
+    final uri = ApiConstants.publicBaseUri.replace(path: '/download');
+    final context = {
+      ..._logContext(result),
+      'manualUpdateHost': uri.host,
+      'manualUpdatePath': uri.path,
+    };
+    await AppLogger.instance.info(
+      'AppUpdate',
+      'Manual update page launch started',
+      context: context,
+    );
+    try {
+      final opened =
+          await (widget.openManualUpdate?.call(uri) ??
+              launchUrl(uri, mode: LaunchMode.externalApplication));
+      if (!opened) {
+        throw StateError('Manual update page launcher returned false');
+      }
+      await AppLogger.instance.info(
+        'AppUpdate',
+        'Manual update page launch succeeded',
+        context: context,
+      );
+    } catch (error, stackTrace) {
+      if (mounted) {
+        setState(
+          () => _updateActionError =
+              'Không mở được trang tải bản cập nhật. Hãy mở $uri trên trình duyệt.',
+        );
+      }
+      await AppLogger.instance.error(
+        'AppUpdate',
+        'Manual update page launch failed',
+        error: error,
+        stackTrace: stackTrace,
+        context: context,
+        upload: true,
+      );
     }
   }
 
@@ -605,6 +655,9 @@ class _AppUpdateGateState extends State<AppUpdateGate>
               onUpdate: shouldReload
                   ? () => _reloadForUpdate(result)
                   : () => _installUpdate(result),
+              onManualUpdate: shouldReload
+                  ? null
+                  : () => unawaited(_openManualUpdatePage(result)),
             ),
         ],
       ),
@@ -622,6 +675,7 @@ class _UpdatePromptOverlay extends StatelessWidget {
     required this.errorMessage,
     required this.onDismiss,
     required this.onUpdate,
+    required this.onManualUpdate,
   });
 
   final AppUpdateCheckResult result;
@@ -632,10 +686,13 @@ class _UpdatePromptOverlay extends StatelessWidget {
   final String? errorMessage;
   final Future<void> Function() onDismiss;
   final VoidCallback? onUpdate;
+  final VoidCallback? onManualUpdate;
 
   @override
   Widget build(BuildContext context) {
     final updateInfo = result.updateInfo;
+    final hasError = errorMessage != null && errorMessage!.trim().isNotEmpty;
+    final showManualUpdate = hasError && !shouldReload;
     return Positioned.fill(
       child: Material(
         color: AppColors.shadow.withValues(alpha: 0.54),
@@ -687,15 +744,20 @@ class _UpdatePromptOverlay extends StatelessWidget {
                         const SizedBox(height: 8),
                         Text(progress!.displayMessage),
                       ],
-                      if (errorMessage != null &&
-                          errorMessage!.trim().isNotEmpty) ...[
+                      if (hasError) ...[
                         const SizedBox(height: 14),
                         Text(
-                          errorMessage!,
+                          'Không thể cài bản cập nhật tự động.',
                           style: AppTextStyles.labelM.copyWith(
                             color: Theme.of(context).colorScheme.error,
                             fontWeight: FontWeight.w600,
                           ),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(errorMessage!),
+                        const SizedBox(height: 6),
+                        const Text(
+                          'Hãy thử lại. Nếu vẫn lỗi, hãy cập nhật thủ công để tiếp tục sử dụng OpsHub.',
                         ),
                       ],
                     ],
@@ -707,12 +769,24 @@ class _UpdatePromptOverlay extends StatelessWidget {
                       onPressed: runningUpdateAction ? null : onDismiss,
                       label: 'Để sau',
                     ),
+                  if (showManualUpdate)
+                    AppDialogSecondaryButton(
+                      onPressed: runningUpdateAction ? null : onManualUpdate,
+                      icon: Icons.open_in_new_rounded,
+                      label: 'Cập nhật thủ công',
+                    ),
                   AppDialogConfirmButton(
                     onPressed: runningUpdateAction ? null : onUpdate,
-                    icon: shouldReload
+                    icon: hasError
+                        ? Icons.refresh_rounded
+                        : shouldReload
                         ? Icons.refresh_rounded
                         : Icons.system_update_alt_rounded,
-                    label: shouldReload ? 'Tải lại' : 'Cập nhật',
+                    label: hasError
+                        ? 'Thử lại'
+                        : shouldReload
+                        ? 'Tải lại'
+                        : 'Cập nhật',
                     isLoading: runningUpdateAction,
                   ),
                 ],

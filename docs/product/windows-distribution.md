@@ -9,6 +9,10 @@
   EXE from `/app-version.packageUrl`, verifies `packageSha256` and
   `packageSizeBytes`, launches the Inno installer with the published silent
   args, then exits so Setup can replace the running app.
+- If automatic installation fails, the blocking update prompt clears stale
+  progress, explains that the automatic install did not finish, offers `Thử
+  lại`, and provides `Cập nhật thủ công` as a browser fallback to `/download`.
+  The technical failure reason remains in `AppLogger` for support diagnosis.
 - Microsoft Store/MSIX packaging is a separate submission track. The manual
   `Build Windows MSIX Store Package` workflow may build a Store MSIX artifact,
   but it must not publish to `/download`, change `/app-version`, or replace the

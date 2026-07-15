@@ -173,17 +173,31 @@ void main() {
     expect(installedResult, isNull);
   });
 
-  testWidgets('shows automatic in-app update error without opening browser', (
+  testWidgets('offers retry and manual download after in-app update fails', (
     tester,
   ) async {
+    var installCalls = 0;
+    Uri? manualUpdateUri;
+
     await tester.pumpWidget(
       MaterialApp(
         home: _UpdateGateHarness(
           checkForUpdate: () async => _requiredUpdateResult,
           requiredUpdateOverride: true,
           autoStartUpdates: true,
-          installUpdate: (_, _) async {
+          installUpdate: (_, onProgress) async {
+            installCalls += 1;
+            onProgress(
+              const AppSelfUpdateProgress(
+                stage: AppSelfUpdateStage.verifying,
+                message: 'Đang kiểm tra gói cập nhật...',
+              ),
+            );
             throw const AppSelfUpdateException('Không tải được gói cập nhật.');
+          },
+          openManualUpdate: (uri) async {
+            manualUpdateUri = uri;
+            return true;
           },
         ),
       ),
@@ -192,8 +206,32 @@ void main() {
     await tester.pump();
     await tester.pump();
 
+    expect(installCalls, 1);
+    expect(find.text('Không thể cài bản cập nhật tự động.'), findsOneWidget);
     expect(find.text('Không tải được gói cập nhật.'), findsOneWidget);
+    expect(
+      find.text(
+        'Hãy thử lại. Nếu vẫn lỗi, hãy cập nhật thủ công để tiếp tục sử dụng OpsHub.',
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('Đang kiểm tra gói cập nhật...'), findsNothing);
+    expect(find.text('Thử lại'), findsOneWidget);
+    expect(find.text('Cập nhật thủ công'), findsOneWidget);
     expect(find.text('Cần cập nhật ứng dụng'), findsOneWidget);
+
+    await tester.tap(find.text('Cập nhật thủ công'));
+    await tester.pump();
+
+    expect(manualUpdateUri?.scheme, 'https');
+    expect(manualUpdateUri?.host, 'opshub.hoanghochoi.com');
+    expect(manualUpdateUri?.path, '/download');
+
+    await tester.tap(find.text('Thử lại'));
+    await tester.pump();
+    await tester.pump();
+
+    expect(installCalls, 2);
   });
 
   testWidgets('keeps manual prompt when package metadata is incomplete', (
@@ -462,6 +500,7 @@ class _UpdateGateHarness extends StatefulWidget {
     required this.checkForUpdate,
     this.installUpdate,
     this.reloadPage,
+    this.openManualUpdate,
     this.requiredUpdateOverride,
     this.realtimeConnector,
     this.realtimeEnabled = false,
@@ -471,6 +510,7 @@ class _UpdateGateHarness extends StatefulWidget {
   final AppUpdateChecker checkForUpdate;
   final AppUpdateInstaller? installUpdate;
   final AppUpdatePageReloader? reloadPage;
+  final AppUpdateManualLauncher? openManualUpdate;
   final bool? requiredUpdateOverride;
   final AppUpdateRealtimeConnector? realtimeConnector;
   final bool realtimeEnabled;
@@ -493,6 +533,7 @@ class _UpdateGateHarnessState extends State<_UpdateGateHarness> {
       checkForUpdate: widget.checkForUpdate,
       installUpdate: widget.installUpdate,
       reloadPage: widget.reloadPage,
+      openManualUpdate: widget.openManualUpdate,
       requiredUpdateOverride: widget.requiredUpdateOverride,
       realtimeConnector: widget.realtimeConnector,
       realtimeEnabled: widget.realtimeEnabled,
