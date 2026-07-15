@@ -271,6 +271,7 @@ for (const [workflow, label] of [
   );
   contains(workflow, 'WINDOWS_SIGNING_PFX_BASE64', `${label} signing PFX gate`);
   contains(workflow, 'WINDOWS_SIGNING_PFX_PASSWORD', `${label} signing password gate`);
+  contains(workflow, 'timeout-minutes: 6', `${label} Windows signing timeout`);
   contains(workflow, 'WINDOWS_UPDATE_SIGNER_SHA256', `${label} CI signer pin`);
   contains(workflow, 'scan-windows-artifact-defender.ps1', `${label} Defender gate`);
 }

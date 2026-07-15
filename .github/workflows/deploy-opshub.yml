@@ -225,6 +225,7 @@ jobs:
 
       - name: Sign Windows app executable
         if: env.WINDOWS_SIGNING_ENABLED == 'true'
+        timeout-minutes: 6
         shell: pwsh
         env:
           WINDOWS_SIGNING_PFX_PASSWORD: ${{ secrets.WINDOWS_SIGNING_PFX_PASSWORD }}
@@ -311,6 +312,7 @@ jobs:
 
       - name: Sign Windows installer
         if: env.WINDOWS_SIGNING_ENABLED == 'true'
+        timeout-minutes: 6
         shell: pwsh
         env:
           WINDOWS_SIGNING_PFX_PASSWORD: ${{ secrets.WINDOWS_SIGNING_PFX_PASSWORD }}

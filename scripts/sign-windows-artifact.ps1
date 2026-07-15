@@ -190,8 +190,11 @@ if ($trustedPins.Count -eq 0 -or @($trustedPins | Where-Object { $_ -notmatch '^
   throw 'WINDOWS_UPDATE_SIGNER_SHA256 must contain valid SHA-256 certificate fingerprints.'
 }
 
+Write-Host 'Resolving Windows signtool.'
 $signTool = Get-SignToolPath
+Write-Host 'Installing ephemeral Windows signing trust.'
 Install-EphemeralSigningTrust -CertificatePath $PfxPath -CertificatePassword $PfxPassword
+Write-Host 'Ephemeral Windows signing trust installed.'
 
 foreach ($item in $Path) {
   $resolvedPath = (Resolve-Path $item).Path
