@@ -9,7 +9,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
-function Invoke-SignTool {
+function Invoke-WindowsProcess {
   param(
     [Parameter(Mandatory = $true)]
     [string]$ToolPath,
@@ -39,12 +39,13 @@ function Invoke-SignTool {
       } catch {
         $process.Kill()
       }
-      throw "signtool timed out after ${TimeoutSeconds}s."
+      $toolName = [System.IO.Path]::GetFileName($ToolPath)
+      throw "$toolName timed out after ${TimeoutSeconds}s."
     }
     $process.WaitForExit()
 
     $timer.Stop()
-    Write-Host ('signtool completed: exitCode={0}, durationMs={1}' -f $process.ExitCode, $timer.ElapsedMilliseconds)
+    Write-Host ('{0} completed: exitCode={1}, durationMs={2}' -f [System.IO.Path]::GetFileName($ToolPath), $process.ExitCode, $timer.ElapsedMilliseconds)
     return $process.ExitCode
   } finally {
     if ($timer.IsRunning) {
@@ -128,9 +129,19 @@ function Install-EphemeralSigningTrust {
 
     if ($signer.Subject -eq $signer.Issuer) {
       Write-Host 'Installing self-signed Windows signing root trust.'
-      Add-PublicCertificateToStore `
-        -Certificate $signer `
-        -StoreName ([System.Security.Cryptography.X509Certificates.StoreName]::Root)
+      $rootCertificatePath = Join-Path $env:RUNNER_TEMP 'opshub-windows-signing-root.cer'
+      [System.IO.File]::WriteAllBytes(
+        $rootCertificatePath,
+        $signer.Export([System.Security.Cryptography.X509Certificates.X509ContentType]::Cert)
+      )
+      $certUtil = (Get-Command certutil.exe -ErrorAction Stop).Source
+      $rootExitCode = Invoke-WindowsProcess `
+        -ToolPath $certUtil `
+        -ArgumentList @('-user', '-addstore', 'Root', $rootCertificatePath) `
+        -TimeoutSeconds 30
+      if ($rootExitCode -ne 0) {
+        throw "certutil failed to install the self-signed Windows signing root with exit code $rootExitCode."
+      }
     }
   } finally {
     $signer.Dispose()
@@ -162,7 +173,7 @@ foreach ($item in $Path) {
   $resolvedPath = (Resolve-Path $item).Path
   Write-Host "Signing Windows artifact: $resolvedPath"
 
-  $signExitCode = Invoke-SignTool `
+  $signExitCode = Invoke-WindowsProcess `
     -ToolPath $signTool `
     -ArgumentList @('sign', '/fd', 'SHA256', '/f', $PfxPath, '/p', $PfxPassword, '/tr', 'http://timestamp.digicert.com', '/td', 'SHA256', $resolvedPath)
   if ($signExitCode -ne 0) {
@@ -187,7 +198,7 @@ foreach ($item in $Path) {
     throw "Windows artifact signature verification failed with status ${statusName}: $resolvedPath"
   }
 
-  $verifyExitCode = Invoke-SignTool `
+  $verifyExitCode = Invoke-WindowsProcess `
     -ToolPath $signTool `
     -ArgumentList @('verify', '/pa', '/all', '/v', $resolvedPath)
   if ($verifyExitCode -ne 0) {
