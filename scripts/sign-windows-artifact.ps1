@@ -140,38 +140,21 @@ function Install-EphemeralSigningTrust {
     [string]$CertificatePassword
   )
 
-  $collection = [System.Security.Cryptography.X509Certificates.X509Certificate2Collection]::new()
-  $collection.Import(
+  $signer = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new(
     $CertificatePath,
     $CertificatePassword,
     [System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::EphemeralKeySet
   )
   try {
-    $signingCertificates = @($collection | Where-Object { $_.HasPrivateKey })
-    if ($signingCertificates.Count -ne 1) {
-      throw 'Windows signing PFX must contain exactly one certificate with a private key.'
+    if (-not $signer.HasPrivateKey) {
+      throw 'Windows signing PFX must contain a certificate with a private key.'
     }
 
-    $signer = $signingCertificates[0]
     Add-PublicCertificateToStore `
       -Certificate $signer `
       -StoreName ([System.Security.Cryptography.X509Certificates.StoreName]::TrustedPublisher)
-
-    foreach ($certificate in $collection) {
-      if ($certificate.Subject -eq $certificate.Issuer) {
-        Add-PublicCertificateToStore `
-          -Certificate $certificate `
-          -StoreName ([System.Security.Cryptography.X509Certificates.StoreName]::Root)
-      } elseif ($certificate.Thumbprint -ne $signer.Thumbprint) {
-        Add-PublicCertificateToStore `
-          -Certificate $certificate `
-          -StoreName ([System.Security.Cryptography.X509Certificates.StoreName]::CertificateAuthority)
-      }
-    }
   } finally {
-    foreach ($certificate in $collection) {
-      $certificate.Dispose()
-    }
+    $signer.Dispose()
   }
 }
 
