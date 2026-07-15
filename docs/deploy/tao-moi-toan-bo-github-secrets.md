@@ -547,6 +547,15 @@ Nhập vào production:
 | `WINDOWS_SIGNING_PFX_BASE64` | `$ProductionPfxBase64` |
 | `WINDOWS_SIGNING_PFX_PASSWORD` | Mật khẩu PFX production |
 
+Tính SHA-256 certificate fingerprint và nhập nó dưới dạng GitHub Environment
+**variable** `WINDOWS_UPDATE_SIGNER_SHA256` (không phải secret):
+
+```powershell
+$ProductionWindowsCert.GetCertHashString(
+  [System.Security.Cryptography.HashAlgorithmName]::SHA256
+).ToLowerInvariant()
+```
+
 ### Staging certificate
 
 Tạo mật khẩu riêng:
@@ -609,6 +618,15 @@ Nhập vào staging:
 | `WINDOWS_STAGING_SIGNING_PFX_BASE64` | `$StagingPfxBase64` |
 | `WINDOWS_STAGING_SIGNING_PFX_PASSWORD` | Mật khẩu PFX staging |
 
+Tính fingerprint tương ứng và nhập GitHub Environment **variable**
+`WINDOWS_STAGING_UPDATE_SIGNER_SHA256`:
+
+```powershell
+$StagingWindowsCert.GetCertHashString(
+  [System.Security.Cryptography.HashAlgorithmName]::SHA256
+).ToLowerInvariant()
+```
+
 ### Cài public certificate trên máy Windows thử nghiệm
 
 Mở PowerShell bằng quyền Administrator:
@@ -650,6 +668,9 @@ WINDOWS_STAGING_SIGNING_PFX_BASE64
 WINDOWS_STAGING_SIGNING_PFX_PASSWORD
 ```
 
+7. Thêm Environment variable bắt buộc
+   `WINDOWS_STAGING_UPDATE_SIGNER_SHA256` bằng fingerprint SHA-256 ở bước 8.
+
 ### Production
 
 1. Chọn hoặc tạo `production`.
@@ -672,6 +693,9 @@ TS_OAUTH_SECRET
 WINDOWS_SIGNING_PFX_BASE64
 WINDOWS_SIGNING_PFX_PASSWORD
 ```
+
+6. Thêm Environment variable bắt buộc `WINDOWS_UPDATE_SIGNER_SHA256` bằng
+   fingerprint SHA-256 ở bước 8.
 
 Không xóa repository secrets cũ tại bước này. Environment secrets cùng tên sẽ
 được dùng bởi các jobs đã khai báo `environment: production` hoặc

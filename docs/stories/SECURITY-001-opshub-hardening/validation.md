@@ -2,17 +2,17 @@
 
 ## Required proof
 
-| Area | Required evidence | Current state |
-| --- | --- | --- |
-| Flutter | format, analyze, full test, web/APK/Windows build | pass; final full 458 pass, 2 skip; signed artifacts verified |
-| NestJS | Prisma validate/generate, focused security tests, build, full Jest | pass; final full Jest 64/64 suites, 629/629 tests |
-| Go | gofmt, test, vet, govulncheck, slow-client/audience tests | pass with Go 1.25.12 |
-| Web edge | HTTP redirect, HTTPS headers, CSP report, CORS matrix | production HTTP 308, HSTS/CSP enforce, origin/API/WS smoke pass |
-| Media | owner/admin/scope matrix, traversal/checksum/dual-read | focused + strict production audit/dry-run pass; apply/cutover follow-up |
-| Container | build, non-root uid, read-only write check, health | staging/production live inspect pass on `0a949268...` |
-| Backup | permission/encryption/restore drill | encrypted restore proof + TrueNAS `20260715-012644` 6/6 pass; retention follow-up |
-| Dependency | npm audit, govulncheck, package/source contract | npm production 0; govulncheck pass |
-| Data | migration validation, row/checksum/backfill dry-run, rollback manifest | 58 migrations current; 750-candidate strict dry-run pass; apply intentionally deferred |
+| Area       | Required evidence                                                      | Current state                                                                          |
+| ---------- | ---------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| Flutter    | format, analyze, full test, web/APK/Windows build                      | pass; final full 458 pass, 2 skip; signed artifacts verified                           |
+| NestJS     | Prisma validate/generate, focused security tests, build, full Jest     | pass; final full Jest 64/64 suites, 629/629 tests                                      |
+| Go         | gofmt, test, vet, govulncheck, slow-client/audience tests              | pass with Go 1.25.12                                                                   |
+| Web edge   | HTTP redirect, HTTPS headers, CSP report, CORS matrix                  | production HTTP 308, HSTS/CSP enforce, origin/API/WS smoke pass                        |
+| Media      | owner/admin/scope matrix, traversal/checksum/dual-read                 | focused + strict production audit/dry-run pass; apply/cutover follow-up                |
+| Container  | build, non-root uid, read-only write check, health                     | staging/production live inspect pass on `0a949268...`                                  |
+| Backup     | permission/encryption/restore drill                                    | encrypted restore proof + TrueNAS `20260715-012644` 6/6 pass; retention follow-up      |
+| Dependency | npm audit, govulncheck, package/source contract                        | npm production 0; govulncheck pass                                                     |
+| Data       | migration validation, row/checksum/backfill dry-run, rollback manifest | 58 migrations current; 750-candidate strict dry-run pass; apply intentionally deferred |
 
 ## Baseline
 
@@ -65,6 +65,11 @@
   host ACL/retention and production smoke.
 
 ## Windows in-app updater regression 14/07/2026
+
+> Historical proof only. Decision 0012 superseded the runtime Authenticode
+> signer-pin contract on 15/07/2026; signer, timestamp and Defender validation
+> remain mandatory CI release gates, while runtime now verifies the exact
+> same-origin package SHA-256.
 
 - Root cause: the Authenticode verifier passed the installer path after
   `powershell.exe -Command`; Windows PowerShell parsed that path as additional

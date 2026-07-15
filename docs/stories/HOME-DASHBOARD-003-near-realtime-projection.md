@@ -35,8 +35,16 @@ WebSocket và Flutter lifecycle trên nhiều runtime.
 - Flutter dùng một `RealtimeConnectionManager` tối thiểu cho Home, loại event
   trùng/out-of-order, debounce 500 ms và chỉ gọi lại API khi ngày đang xem giao
   với `affectedDates`.
+- `HomeSummaryRepository.summaryFreshTtl` là nguồn TTL duy nhất, cố định 60
+  giây cho cả repository cache và route revalidation. Quay lại Home trước 60
+  giây không gọi HTTP; tại hoặc sau 60 giây chỉ có một revalidation được
+  deduplicate.
 - Mất kết nối không làm Home polling liên tục. Reconnect và app resume chỉ
-  refresh một lần để tự chữa missed event.
+  force-network một lần để tự chữa missed event. Realtime invalidation vẫn là
+  cơ chế chính; không thêm timer polling.
+- Nếu revalidation lỗi, Home giữ snapshot stale cùng `fetchedAt` gốc. Lần route
+  activation đủ điều kiện kế tiếp phải thử lại, không được kéo dài tuổi cache
+  giả bằng thời điểm lỗi.
 - API 429 trả `Retry-After` chuẩn; Flutter giữ cooldown theo method/endpoint,
   còn MAP server tôn trọng `Retry-After` của provider nên request đang bị giới
   hạn không tiếp tục tạo tải mạng.
@@ -81,7 +89,8 @@ WebSocket và Flutter lifecycle trên nhiều runtime.
 - Go test cho `/ws/v2`, auth ticket, audience, event envelope và Redis-loss
   close/resync behavior.
 - Flutter analyze/test cho manager lifecycle, reconnect/resume, dedupe,
-  out-of-order, date overlap, debounce và freshness parse/render.
+  out-of-order, date overlap, debounce, TTL 59/60 giây, stale fallback giữ
+  `fetchedAt` gốc, realtime ưu tiên và freshness parse/render.
 - Load proof riêng sau staging: 250 request đồng thời/2.000 request tổng, burst
   5.000 source row, KPI parity 1/7/30/90 ngày và RAM host dưới 20 GB.
 

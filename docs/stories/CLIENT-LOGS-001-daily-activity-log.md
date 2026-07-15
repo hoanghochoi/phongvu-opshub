@@ -18,9 +18,17 @@ receiving one sanitized activity summary from each authenticated client per day.
   addresses, and local Windows user profile names before upload.
 - The upload uses the existing authenticated `/app-logs` pipeline so backend log
   retention and store authorization remain unchanged.
+- Self-update network, HTTP, timeout and incomplete-download failures remain
+  local warnings and are eligible for this daily summary. Contract/integrity,
+  native-install and unexpected update failures use the existing immediate
+  authenticated error-upload path instead. Both paths keep only stable
+  code/stage, duration, platform/build, sanitized host and byte counts; they do
+  not include URL query, token, payload or local file path.
 
 ## Validation
 
 - Unit test the daily summary filter and sanitizer.
 - Run Flutter static analysis and tests.
 - Verify no raw log file upload or secret-bearing payload is introduced.
+- Verify self-update warning classes enter the daily summary while critical
+  classes follow the immediate authenticated upload policy exactly once.

@@ -80,17 +80,19 @@ Repository secrets that were present before public preparation:
   `OPSHUB_STAGING_VPS_USER`, `OPSHUB_STAGING_SSH_KEY`.
 - Shared Tailscale deploy: `TS_OAUTH_CLIENT_ID`, `TS_OAUTH_SECRET`.
 - Production Windows signing: `WINDOWS_SIGNING_PFX_BASE64`,
-  `WINDOWS_SIGNING_PFX_PASSWORD`.
+  `WINDOWS_SIGNING_PFX_PASSWORD`; production Environment variable
+  `WINDOWS_UPDATE_SIGNER_SHA256`.
 
 Missing before public preparation:
 
 - `WINDOWS_STAGING_SIGNING_PFX_BASE64`
 - `WINDOWS_STAGING_SIGNING_PFX_PASSWORD`
+- staging Environment variable `WINDOWS_STAGING_UPDATE_SIGNER_SHA256`
 
-If staging Windows builds should be signed, create or reuse an internal staging
-PFX, then add the two missing secrets to the `staging` environment. If unsigned
-staging Windows artifacts are acceptable, leave both unset; the staging workflow
-will build unsigned artifacts and log that signing is disabled.
+Create or reuse an internal staging PFX, then add all required values to the
+`staging` environment. Unsigned staging artifacts are not acceptable: missing
+PFX/password/pin, invalid Authenticode/timestamp, pin mismatch or a failed
+Defender scan must stop the workflow before publication.
 
 PowerShell helper to create base64 text from a PFX:
 

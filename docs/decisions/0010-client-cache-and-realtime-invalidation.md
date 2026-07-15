@@ -34,6 +34,11 @@ visible as missing or blank UI.
   remains server-authorized, so a stale visible menu cannot grant data access.
 - Use route and foreground lifecycle as request eligibility. Inactive features
   retain snapshots but do not fetch, poll or retry.
+- Home uses `HomeSummaryRepository.summaryFreshTtl` as its only freshness
+  source, fixed at 60 seconds. Route activation before 60 seconds reuses cache;
+  at or after 60 seconds it deduplicates one revalidation. A failed
+  revalidation retains the original snapshot timestamp so a later activation
+  can retry rather than treating stale data as newly fetched.
 - Consolidate authenticated invalidation and low-latency feature signals onto
   `/ws/v2`. WebSocket messages are not the data source; they carry typed,
   audience-filtered invalidation/version data and clients re-read HTTP when a
@@ -54,6 +59,8 @@ visible as missing or blank UI.
 - Concurrent widgets sharing a query key cannot create duplicate requests.
 - Most feature traffic becomes route-driven or event-driven; timer polling is a
   bounded recovery mechanism rather than the primary refresh strategy.
+- Home has no timer polling. Its realtime event is the primary invalidation;
+  reconnect and app resume each permit one forced network recovery read.
 - A single authenticated socket reduces ticket issuance and connection count,
   but every new topic needs explicit audience and fail-closed tests.
 - Access grant/revoke invalidation disconnects the affected socket after event
@@ -78,7 +85,10 @@ visible as missing or blank UI.
 
 ## Validation Impact
 
-- Test cache TTL/dedupe/304/stale/backoff and user/environment isolation.
+- Test cache TTL/dedupe/304/stale/backoff and user/environment isolation. Home
+  specifically proves no HTTP at 59 seconds, exactly one revalidation at 60
+  seconds, stale fallback with the original timestamp, and realtime invalidation
+  taking precedence over TTL.
 - Test bootstrap `200`, `304`, unsupported-server fallback, non-401 stale
   fallback and `401` session removal.
 - Test route/background eligibility and one-shot resume refresh.

@@ -173,18 +173,22 @@ The installer also performs a non-blocking Windows audio preflight; missing
 Windows Audio services or playback devices are logged and shown as an interactive
 warning, but setup continues because audio devices can be fixed after install.
 
-For internal-only Windows rollout, configure optional Windows signing secrets so
-the workflow signs `phongvu_opshub.exe` before packaging and signs the final Inno
-installer after compilation. Target PCs must trust the matching public
+For every internal Windows release, configure the required PFX, password and
+expected signer fingerprint so the workflow signs `phongvu_opshub.exe` before
+packaging and signs the final Inno installer after compilation. It must also
+validate the Authenticode timestamp and signer pin, then pass a fail-closed
+Microsoft Defender scan before checksums or upload. Missing signing inputs,
+unsigned artifacts or any failed gate stop the release. Target PCs must trust
+the matching public
 certificate in both `Trusted Root Certification Authorities` and `Trusted
 Publishers`; otherwise a self-signed signature will still look untrusted. When
-signing is enabled, the workflow also exports the public certificate and bundles
-it into the Inno installer for current-user trust import on first run. That import
-helps later updates, but it cannot prevent the very first browser or SmartScreen
-prompt on a PC that has not already trusted the certificate. When signing secrets
-are missing, the workflow keeps producing unsigned artifacts and logs that state
-instead of failing. It also publishes a `.sha256` file beside the direct Windows
-downloads so operators can verify the ZIP and installer hash.
+signing succeeds, the workflow still does not bundle or import a trust
+certificate. Operators export the public `.cer` separately from the approved
+certificate source and IT provisions it through a managed channel. A
+self-signed publisher cannot prevent the first browser or SmartScreen prompt on
+a PC where IT has not already provisioned that certificate. The workflow
+publishes a `.sha256` file beside the direct Windows downloads so operators and
+the runtime updater can verify the final signed bytes.
 
 The Android and Windows build jobs upload the finished client packages directly
 to a per-run staging directory on the VPS instead of storing them as GitHub
@@ -202,9 +206,10 @@ runtime/static routes `/api`, `/ws`, `/download`, `/help`, `/uploads`,
 `/downloads`, `/staging-download`, and `/health` ahead of the SPA fallback.
 Staging deploys build the web app with
 `API_BASE_URL=https://opshub-staging.hoanghochoi.com/api` and publish it under
-`/srv/opshub-staging/web/`; phase 1 client artifacts still use
-`https://opshub.hoanghochoi.com/staging-download` for Android/Windows update
-links.
+`/srv/opshub-staging/web/`. Android/Windows metadata and downloads use only the
+same staging origin under
+`https://opshub-staging.hoanghochoi.com/downloads/`; production and the legacy
+cross-origin staging-download path are not valid release targets.
 
 The public staff download page is served at `/download`. Full deploys publish
 `/srv/opshub/downloads/latest.json` beside the APK, Windows installer, Windows
@@ -227,6 +232,12 @@ self-update launches OpsHub again after the silent installer completes. Android
 still uses the system Package Installer confirmation screen for self-hosted
 APKs.
 
+The Windows runtime intentionally does not receive or enforce
+`WINDOWS_UPDATE_SIGNER_SHA256`; it also verifies HTTPS same-origin/source,
+redirect, package type and size before SHA-256. The configured signer pin stays
+inside CI as a mandatory release gate together with Authenticode timestamp and
+Defender checks.
+
 Required GitHub repository secrets:
 
 - `OPSHUB_VPS_HOST` - VPS IP or DNS name.
@@ -237,10 +248,11 @@ Required GitHub repository secrets:
 - `ANDROID_KEYSTORE_PASSWORD` - Android release keystore password.
 - `ANDROID_KEY_ALIAS` - Android release key alias.
 - `ANDROID_KEY_PASSWORD` - Android release key password.
-- `WINDOWS_SIGNING_PFX_BASE64` - optional base64 text of the internal Windows
+- `WINDOWS_SIGNING_PFX_BASE64` - required base64 text of the internal Windows
   code-signing PFX.
-- `WINDOWS_SIGNING_PFX_PASSWORD` - optional password for that PFX; required when
-  `WINDOWS_SIGNING_PFX_BASE64` is set.
+- `WINDOWS_SIGNING_PFX_PASSWORD` - required password for that PFX.
+- GitHub Environment variable `WINDOWS_UPDATE_SIGNER_SHA256` - required
+  SHA-256 certificate fingerprint used only by the CI signing gate.
 
 The Android signing secrets must stay stable across releases. If the APK is
 signed with a different key, Android will reject in-place updates with

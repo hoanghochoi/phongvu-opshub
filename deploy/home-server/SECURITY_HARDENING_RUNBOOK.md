@@ -27,6 +27,15 @@ Cloudflare, runtime, credential hay dữ liệu production/staging**.
 - [ ] Giữ Cloudflare Tunnel chuyển tiếp tới origin HTTP loopback. Caddy chỉ
   redirect khi Cloudflare gửi `X-Forwarded-Proto: http`; không đổi site block
   thành HTTPS origin nếu Tunnel chưa được thiết kế lại.
+- [ ] Caddy chỉ trust hop private/local của Cloudflare Tunnel, lấy IP gốc từ
+  `CF-Connecting-IP`, rồi chuẩn hóa `X-Forwarded-For` và `X-Real-IP` về đúng
+  `{client_ip}` trước khi chuyển vào API/realtime. Nest tiếp tục trust đúng một
+  hop Caddy; không tăng rate limit để che lỗi nhận sai IP.
+- [ ] Sau reload Caddy, xác minh bucket global duy nhất là `principal`. Cùng
+  user+cùng trusted IP phải chung bucket; cùng user+khác IP và hai user chung
+  NAT phải tách bucket. 429 phải có `Retry-After`; không được có header/bucket
+  `Ip` riêng hoặc raw IP trong storage/log. Theo dõi 429, p95, CPU/RAM, DB và
+  container restart ít nhất 5 phút trước khi bỏ backup rollback.
 - [ ] Kiểm tra ít nhất các đường dẫn `/`, `/help`, `/download`, `/api/health`:
 
   ```bash
@@ -36,8 +45,12 @@ Cloudflare, runtime, credential hay dữ liệu production/staging**.
 
   Kỳ vọng `301` hoặc `308`, `Location` là đúng hostname HTTPS, không có redirect
   loop. HTTPS phải có `X-Content-Type-Options`, `Referrer-Policy`,
-  `X-Frame-Options`, `Permissions-Policy` và
-  `Content-Security-Policy-Report-Only`.
+  `X-Frame-Options`, `Permissions-Policy` và enforced
+  `Content-Security-Policy`.
+- [ ] Kiểm tra path normalization trực tiếp tại origin, tách khỏi Cloudflare
+  Access. Với đúng `Host` header, `/download/` phải trả 308 và
+  `Location: /download`; `/help/` phải trả 308 và `Location: /help`; hai URL
+  canonical phải trả nội dung 200, không loop.
 
 ### 2.2 Staging Access
 
@@ -48,17 +61,31 @@ Cloudflare, runtime, credential hay dữ liệu production/staging**.
 - [ ] Rotate `STAGING_TEST_PASSWORD`, JWT/Redis secret staging và thu hồi session
   test cũ. Secret chỉ nằm trong `/srv/opshub-staging/env` mode `0640` hoặc secret
   manager; không truyền qua CLI/shell history.
+- [ ] Deploy staging phải ghi lại symlink `current` trước khi migrate/recreate.
+  Lỗi migration, recreate hoặc health check phải tự khôi phục symlink và
+  recreate service cũ; workflow vẫn kết luận fail. Batch 2026-07-15 không có
+  migration DB nên runtime rollback không lệch schema.
+- [ ] Xác minh staging ép
+  `ERP_ORDER_CACHE_SYNC_ENABLED=false`,
+  `ERP_ORDER_STATUS_SYNC_ENABLED=false`,
+  `VIETQR_AUTO_RECONCILE_ENABLED=false`,
+  `MAP_VIETIN_GLOBAL_SYNC_ENABLED=false`,
+  `HOME_SUMMARY_ERP_BACKFILL_ENABLED=false` và xóa mọi `SMTP_*` trước load.
+- [ ] Load proof chỉ dùng CLI/runbook staging đã hard-gate tại
+  `deploy/staging/load-proof-runbook.md`; mọi kết quả đều phải revoke/delete đủ
+  60 user và xóa token/k6 tạm. Cleanup không chứng minh được thì chưa sẵn sàng.
 
-### 2.3 CSP report-only
+### 2.3 CSP enforced
 
 - [ ] Trong staging, mở DevTools Console và chạy login, navigation, scanner,
-  Help, Download, tải font/icon, WebSocket và self-update manifest.
-- [ ] Ghi từng CSP violation theo directive/resource. Header hiện chỉ report-only
-  nên không chặn người dùng.
+  Help, Download, tải font/icon, WebSocket và self-update manifest. CSP hiện
+  enforced nên bất kỳ violation làm hỏng luồng nào cũng chặn release.
+- [ ] Ghi từng CSP violation theo directive/resource; không nới policy chỉ để
+  làm smoke xanh khi chưa xác định đúng dependency bị chặn.
 - [ ] Không thêm collector bên thứ ba khi chưa được duyệt vì report có thể chứa
   URL/path nội bộ. Nếu cần collector, dùng endpoint nội bộ có retention/redaction.
-- [ ] Chỉ đổi sang `Content-Security-Policy` enforce khi cửa sổ quan sát đã sạch.
-  HSTS `includeSubDomains`/preload cần review toàn zone riêng, không bật tự động.
+- [ ] Giữ `Content-Security-Policy` enforced. HSTS `includeSubDomains`/preload
+  cần review toàn zone riêng, không bật tự động.
 
 ## 3. Redis password: triển khai phối hợp, không bật nửa vời
 
@@ -134,10 +161,10 @@ hoặc giữ private identity.
   được restore sang thiết bị khác.
 - [ ] Self-update production chỉ tải URL HTTPS trên
   `opshub.hoanghochoi.com/downloads/`; staging chỉ tải URL chuẩn trên
-  `opshub-staging.hoanghochoi.com/downloads/`. Staging build tạm chấp nhận URL
-  legacy `opshub.hoanghochoi.com/staging-download/downloads/` trong giai đoạn
-  chuyển tiếp; redirect/cross-host khác phải bị từ chối, checksum và chữ ký
-  package vẫn phải pass.
+  `opshub-staging.hoanghochoi.com/downloads/`. Redirect, cross-host và đường dẫn
+  legacy phải bị từ chối; type/size và checksum runtime phải pass. Chữ ký
+  Authenticode, timestamp, signer pin và Defender scan vẫn là release gate bắt
+  buộc của CI, không còn là client runtime gate.
 - [ ] Cấu hình GitHub Environment production với variable
   `WINDOWS_UPDATE_SIGNER_SHA256`, secrets `WINDOWS_SIGNING_PFX_BASE64` và
   `WINDOWS_SIGNING_PFX_PASSWORD`.

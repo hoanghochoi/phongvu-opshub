@@ -268,11 +268,16 @@ Expected responses:
   `PAYMENT_TTS_CONCURRENCY=2` to match the recommended two Piper workers on
   `hoang-n8n`.
 - Keep placeholder values out of production; the Nest API validates env values on startup.
-- Keep the API behind exactly one trusted Caddy hop. Authenticated rate limits
-  use only the verified JWT user id; there is no second global IP bucket for
-  signed-in requests. Public auth requests use a hashed email when available,
-  then the resolved client IP only as the last-resort principal when no trusted
-  identity exists.
+- Keep the API behind exactly one trusted Caddy hop. The sole global bucket is
+  `principal` at 120 requests per 60 seconds; Nest adds HTTP method and endpoint
+  to the storage key. A valid JWT uses
+  `principal:user:<userId>:ip:<sha256(trustedIp)>`; public auth uses
+  `principal:email:<sha256(normalizedEmail)>` when possible, then
+  `principal:ip:<sha256(trustedIp)>`. There is deliberately no second global IP
+  bucket. Raw IP addresses must not enter throttler keys or logs, and every 429
+  must include `Retry-After`. The accepted residual risk is that anonymous
+  callers can rotate email and signed-in users can change IP to receive a new
+  bucket; expensive routes keep their existing endpoint-specific quotas.
 - Run `npx prisma migrate deploy` before starting the Nest API.
 - Start the Go service with the same Redis connection as NestJS.
 - Home near-realtime is projection-first. Source-table triggers write a durable
@@ -284,6 +289,13 @@ Expected responses:
   `HOME_SUMMARY_LEGACY_SYNC_FALLBACK_ENABLED`, default `false`. Enable
   `HOME_SUMMARY_ERP_BACKFILL_ENABLED` only for the checkpointed one-time
   90-day ERP cache backfill.
+- Flutter Home uses `HomeSummaryRepository.summaryFreshTtl` as the only cache
+  freshness source, fixed at 60 seconds. Route activation before 60 seconds
+  reuses the snapshot; at or after 60 seconds it deduplicates one revalidation.
+  Realtime invalidation, reconnect and app resume may force one network read,
+  but there is no Home polling timer. A failed revalidation keeps the stale
+  snapshot and its original `fetchedAt`, so the next eligible activation retries
+  instead of extending freshness artificially.
 
 ## Verification
 

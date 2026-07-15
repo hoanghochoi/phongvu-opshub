@@ -58,7 +58,10 @@ is `https://opshub-staging.hoanghochoi.com/download`.
    - `ANDROID_STAGING_KEYSTORE_PASSWORD`
    - `ANDROID_STAGING_KEY_ALIAS`
    - `ANDROID_STAGING_KEY_PASSWORD`
-   - optional: `WINDOWS_STAGING_SIGNING_PFX_BASE64`, `WINDOWS_STAGING_SIGNING_PFX_PASSWORD`
+   - required: `WINDOWS_STAGING_SIGNING_PFX_BASE64`,
+     `WINDOWS_STAGING_SIGNING_PFX_PASSWORD`
+   - required staging Environment variable:
+     `WINDOWS_STAGING_UPDATE_SIGNER_SHA256`
    - shared Tailscale CI secrets: `TS_OAUTH_CLIENT_ID`, `TS_OAUTH_SECRET`
 
 ## Deploy
@@ -74,6 +77,50 @@ The workflow builds staging Android and Windows packages, uploads them to
 `https://opshub-staging.hoanghochoi.com/downloads/`, updates app-version metadata
 in `/srv/opshub-staging/env`, runs migrations, and recreates only the staging
 Docker services.
+
+The Windows staging job is fail-closed: PFX/password/pin, valid Authenticode
+signatures and timestamps, a matching signer fingerprint and a clean Defender
+scan are mandatory. The signer pin is a CI-only release input; it is not passed
+to the Flutter runtime. The signing helper installs only public certificates
+from the protected PFX chain into the ephemeral runner's current-user trust
+stores, so `Get-AuthenticodeSignature` must return exactly `Valid`; an untrusted
+chain is not accepted as a pin-only exception.
+
+Before recreating services, the workflow records the previous `current`
+release, a protected copy of the old env, and an exact snapshot of shared
+staging publication state: web bundle, Help assets, download page/icon/manifest,
+and any versioned client file whose target name already existed. New client and
+static files remain under run/attempt-scoped staging paths until this checkpoint
+is complete; release directories are also run/attempt-scoped so rerunning the
+same SHA cannot mutate the active release in place. Migration, recreate, health
+check, direct-origin routes, public API/metadata, Cloudflare Access, or `/ws/v2`
+route proof failure restores the env, symlink/services and every shared file;
+only target-version files that did not exist before promotion are removed. The
+protected metadata remains on the server until every public gate is green and
+is deleted only by the final success step. A failure before `deploy_runtime`
+does not invoke runtime rollback because it has not written an active shared
+path. The deploy must still be reported failed; a successful rollback is
+containment, not release proof. This batch has no database migration, so runtime
+rollback does not create a schema-version mismatch.
+
+If a runner is lost after a checkpoint is created, the same GitHub run is
+deliberately blocked from overwriting that checkpoint on rerun. Recover or
+roll back the retained checkpoint first; clean reruns still use a distinct
+run/attempt release directory and cannot mutate an existing release in place.
+
+Every staging deploy also fixes side-effect controls to these values before
+startup:
+
+```dotenv
+ERP_ORDER_CACHE_SYNC_ENABLED=false
+ERP_ORDER_STATUS_SYNC_ENABLED=false
+VIETQR_AUTO_RECONCILE_ENABLED=false
+MAP_VIETIN_GLOBAL_SYNC_ENABLED=false
+HOME_SUMMARY_ERP_BACKFILL_ENABLED=false
+```
+
+All `SMTP_*` values are removed. Do not enable a sync/reconcile/backfill or
+production SMTP credential for capacity proof.
 
 Every manual `docker compose` command against the runtime stack must export
 `OPSHUB_ENV_FILE` to the same file passed through `--env-file`. The compose
@@ -115,3 +162,8 @@ Access, VPN or an equivalent identity-aware allowlist; DNS plus a tunnel alone
 is not an access-control boundary.
 
 After deploy or refresh, run `deploy/staging/smoke-checklist.md`.
+
+For the bounded 100-QPS Home/realtime release proof, follow
+`deploy/staging/load-proof-runbook.md`. It is staging-only, seeds temporary
+accounts without SMTP, and requires revoke/delete/token cleanup even when the
+test fails.

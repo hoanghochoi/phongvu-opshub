@@ -59,8 +59,8 @@ if (-not $KeyTool) {
 | `OPSHUB_VPS_SSH_KEY` | Co | Dedicated private SSH deploy key |
 | `TS_OAUTH_CLIENT_ID` | Co | Tailscale OAuth client |
 | `TS_OAUTH_SECRET` | Co | Tailscale OAuth client secret |
-| `WINDOWS_SIGNING_PFX_BASE64` | Tuy chon | Base64 cua PFX code-signing |
-| `WINDOWS_SIGNING_PFX_PASSWORD` | Co neu co PFX | Mat khau PFX |
+| `WINDOWS_SIGNING_PFX_BASE64` | Co | Base64 cua PFX code-signing |
+| `WINDOWS_SIGNING_PFX_PASSWORD` | Co | Mat khau PFX |
 
 ### Staging
 
@@ -76,8 +76,17 @@ if (-not $KeyTool) {
 | `OPSHUB_STAGING_SSH_KEY` | Co | Dedicated private SSH deploy key |
 | `TS_OAUTH_CLIENT_ID` | Co | Cung OAuth client hoac client rieng cho staging |
 | `TS_OAUTH_SECRET` | Co | Client secret tuong ung |
-| `WINDOWS_STAGING_SIGNING_PFX_BASE64` | Tuy chon | Base64 cua staging PFX |
-| `WINDOWS_STAGING_SIGNING_PFX_PASSWORD` | Co neu co PFX | Mat khau staging PFX |
+| `WINDOWS_STAGING_SIGNING_PFX_BASE64` | Co | Base64 cua staging PFX |
+| `WINDOWS_STAGING_SIGNING_PFX_PASSWORD` | Co | Mat khau staging PFX |
+
+Ngoai secrets, dat GitHub Environment variables bat buoc:
+
+- production: `WINDOWS_UPDATE_SIGNER_SHA256`
+- staging: `WINDOWS_STAGING_UPDATE_SIGNER_SHA256`
+
+Day la signer pin chi dung trong CI. Khong truyen hai bien nay vao Flutter
+runtime. Thieu PFX/password/pin, signature/timestamp khong hop le, pin sai hoac
+Defender fail deu phai dung release truoc upload.
 
 ## 1. Tao GitHub Environments
 
@@ -348,14 +357,18 @@ Production:
 
 - `WINDOWS_SIGNING_PFX_BASE64` = `$PfxBase64`
 - `WINDOWS_SIGNING_PFX_PASSWORD` = mat khau PFX
+- Environment variable `WINDOWS_UPDATE_SIGNER_SHA256` = SHA-256 fingerprint
+  cua certificate production
 
 Staging:
 
 - `WINDOWS_STAGING_SIGNING_PFX_BASE64` = `$PfxBase64`
 - `WINDOWS_STAGING_SIGNING_PFX_PASSWORD` = mat khau PFX
+- Environment variable `WINDOWS_STAGING_UPDATE_SIGNER_SHA256` = SHA-256
+  fingerprint cua certificate staging
 
-Nen dung certificate khac nhau cho production va staging. Hai secret Windows co
-the bo trong; workflow se tao artifact unsigned va ghi ro signing bi tat.
+Nen dung certificate khac nhau cho production va staging. Cac gia tri signing
+khong duoc bo trong; workflow phai fail closed thay vi tao artifact unsigned.
 
 ## 8. Thu tu cutover an toan
 

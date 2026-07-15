@@ -24,6 +24,19 @@
   loa tắt/không khả dụng, app chỉ tải lại giao dịch và không poll hàng đợi ready.
 - Mọi nhánh nhận event, refresh thành công/thất bại và quyết định xử lý loa phải
   có `AppLogger` với context đã sanitize.
+- Cooldown 429 được quản lý theo `HTTP method + path`, bỏ query string. Mỗi chu
+  kỳ cooldown có đúng một ticket bypass cho thao tác trực tiếp: tải lại, đổi
+  ngày/showroom/filter/page, mở lịch sử hoặc thao tác đơn hàng. Background,
+  polling và realtime không bao giờ bypass.
+- Nếu request bypass tiếp tục nhận 429, ticket vẫn được xem là đã dùng và
+  `Retry-After` mới thay thời hạn cũ. Request thành công hoặc cooldown hết hạn
+  mới reset chu kỳ. Nhiều thao tác khi request đang chạy được coalesce thành
+  một request nhưng vẫn giữ nguồn user-initiated; đổi showroom không được biến
+  lại thành `initial_load`.
+- Option `allowRateLimitCooldownBypass` đi từ `ApiClient` qua repository tới
+  provider và mặc định `false`, nên mọi call site chưa opt-in vẫn an toàn. Log
+  chỉ ghi `activated`, `deferred`, `bypassed`, `expired`, `recovered` cùng
+  method/path an toàn; không ghi query, token hay payload.
 
 ## Proof
 
@@ -35,6 +48,12 @@
   số lần fetch danh sách, nhưng vẫn drain được ready backlog cho loa.
 - Test freshness/metric: notification `READY` cũ không được client khác phát lại;
   latency trung bình chỉ dùng lần `STREAM_STARTED` đầu tiên của notification.
+- Test cooldown: chỉ bypass một lần, 429 sau bypass không cấp ticket mới,
+  success/expiry reset, endpoint isolation, queued user action giữ quyền bypass,
+  background/realtime không bypass và đổi showroom vẫn giữ nguồn user action.
+- Staging manual: làm đầy bucket cùng staging staff/IP, để app nhận 429 rồi bấm
+  tải lại hai lần; API log đã sanitize phải thấy đúng một bypass request và lần
+  hai bị chặn local. Tắt loa để không chạy đường ready/audio trong proof này.
 - Chạy focused Flutter tests, `flutter analyze --no-pub`, `git diff --check`.
 
 ## Ghi chú vận hành

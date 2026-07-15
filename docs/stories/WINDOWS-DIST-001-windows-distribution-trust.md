@@ -8,15 +8,18 @@ using Microsoft Store or buying a public code-signing certificate.
 ## Contract
 
 - GitHub Actions keeps building the existing Windows ZIP and Inno installer.
-- If `WINDOWS_SIGNING_PFX_BASE64` and `WINDOWS_SIGNING_PFX_PASSWORD` are set,
-  the workflow signs `phongvu_opshub.exe` before packaging and signs the final
-  installer EXE after Inno compilation.
-- If signing secrets are missing, the workflow continues unsigned and logs the
-  unsigned state instead of failing release builds.
+- Production requires `WINDOWS_SIGNING_PFX_BASE64`,
+  `WINDOWS_SIGNING_PFX_PASSWORD` and the configured signer fingerprint;
+  staging requires the corresponding `WINDOWS_STAGING_*` values. The workflow
+  signs `phongvu_opshub.exe` before packaging and the final installer after Inno
+  compilation.
+- Missing PFX/password/pin, an unsigned or invalid Authenticode signature, an
+  invalid timestamp, or a signer-pin mismatch fails the release before upload.
 - The installer never bundles, imports, or trusts its own signing certificate.
   The public `.cer` is provisioned separately through GPO, Intune, device
   management, or a documented administrator step.
-- After signing, CI updates Microsoft Defender security intelligence and scans
+- CI validates Authenticode, timestamp and signer pin, then updates Microsoft
+  Defender security intelligence and scans
   the final installer and portable ZIP. Any unavailable scanner, failed update,
   detection, quarantine, or non-zero scan exit blocks publication.
 - Direct Windows downloads publish a SHA256 checksum file beside the ZIP and
@@ -43,7 +46,7 @@ using Microsoft Store or buying a public code-signing certificate.
   Microsoft Defender, and upload the MSIX plus checksum as workflow artifacts.
 - Run `git diff --check`.
 - Signed CI proof must show the final Defender gate passing before checksums and
-  upload. Target-PC trust still requires a managed PC with the public `.cer`
-  installed separately.
+  upload, plus valid Authenticode/timestamp and a matching signer pin. Target-PC
+  trust still requires a managed PC with the public `.cer` installed separately.
 - Store/MSIX proof must also show Partner Center identity acceptance and a clean
   Store install/update smoke before replacing any EXE update path.
