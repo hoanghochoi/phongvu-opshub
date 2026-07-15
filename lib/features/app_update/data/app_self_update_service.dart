@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:crypto/crypto.dart';
@@ -10,12 +9,11 @@ import 'package:path_provider/path_provider.dart';
 
 import '../../../core/config/app_brand.dart';
 import '../../../core/logging/app_logger.dart';
+import '../../../core/network/api_client.dart';
 import '../domain/app_update_info.dart';
 import 'app_update_service.dart';
 
 typedef AppUpdatePackageInstaller =
-    Future<void> Function(AppUpdateInstallRequest request);
-typedef AppUpdatePackageVerifier =
     Future<void> Function(AppUpdateInstallRequest request);
 typedef AppUpdateTempDirectoryProvider = Future<Directory> Function();
 
@@ -23,13 +21,11 @@ class AppSelfUpdateService {
   AppSelfUpdateService({
     http.Client? httpClient,
     AppUpdatePackageInstaller? installer,
-    AppUpdatePackageVerifier? packageVerifier,
     AppUpdateTempDirectoryProvider? tempDirectoryProvider,
     int maxPackageBytes = 512 * 1024 * 1024,
     Duration overallDownloadTimeout = const Duration(minutes: 15),
   }) : _httpClient = httpClient ?? http.Client(),
        _installer = installer ?? _installPackage,
-       _packageVerifier = packageVerifier ?? _verifyPlatformPackage,
        _tempDirectoryProvider = tempDirectoryProvider ?? getTemporaryDirectory,
        _maxPackageBytes = maxPackageBytes,
        _overallDownloadTimeout = overallDownloadTimeout;
@@ -37,13 +33,9 @@ class AppSelfUpdateService {
   static const _androidChannel = MethodChannel('phongvu_opshub/app_update');
   static const _connectTimeout = Duration(seconds: 30);
   static const _chunkTimeout = Duration(minutes: 5);
-  static const _signatureCheckTimeout = Duration(seconds: 30);
   static const _productionPackageHost = 'opshub.hoanghochoi.com';
   static const _stagingPackageHost = 'opshub-staging.hoanghochoi.com';
   static const _windowsRelaunchArg = '/OPSHUBRELAUNCH=1';
-  static const _windowsUpdateSignerSha256 = String.fromEnvironment(
-    'WINDOWS_UPDATE_SIGNER_SHA256',
-  );
   static const _defaultWindowsInstallerArgs = [
     '/VERYSILENT',
     '/SUPPRESSMSGBOXES',
@@ -54,7 +46,6 @@ class AppSelfUpdateService {
 
   final http.Client _httpClient;
   final AppUpdatePackageInstaller _installer;
-  final AppUpdatePackageVerifier _packageVerifier;
   final AppUpdateTempDirectoryProvider _tempDirectoryProvider;
   final int _maxPackageBytes;
   final Duration _overallDownloadTimeout;
@@ -64,44 +55,6 @@ class AppSelfUpdateService {
     ValueChanged<AppSelfUpdateProgress>? onProgress,
   }) async {
     final info = result.updateInfo;
-    if (kIsWeb || info.platform == 'web') {
-      throw const AppSelfUpdateException(
-        'Bản web sẽ được tải lại trực tiếp, không cần gói cài đặt.',
-      );
-    }
-    if (!info.hasSelfUpdatePackage) {
-      throw const AppSelfUpdateException(
-        'Bản cập nhật chưa có đủ thông tin kiểm tra an toàn. Vui lòng báo quản trị viên.',
-      );
-    }
-
-    final packageUri = Uri.tryParse(info.packageUrl);
-    if (packageUri == null || !_isTrustedPackageUri(packageUri)) {
-      await AppLogger.instance.warn(
-        'AppSelfUpdate',
-        'Self-update package source rejected',
-        context: {
-          'platform': info.platform,
-          'packageHost': packageUri?.host.toLowerCase() ?? 'invalid',
-          'stagingBuild': AppBrand.isStaging,
-        },
-      );
-      throw const AppSelfUpdateException(
-        'Gói cập nhật không đến từ máy chủ tin cậy. Vui lòng báo quản trị viên.',
-      );
-    }
-    _validatePackageContract(info, packageUri);
-    if (_maxPackageBytes <= 0) {
-      throw const AppSelfUpdateException(
-        'Giới hạn tải bản cập nhật chưa được cấu hình an toàn.',
-      );
-    }
-    if (info.packageSizeBytes > _maxPackageBytes) {
-      throw const AppSelfUpdateException(
-        'Gói cập nhật vượt quá dung lượng an toàn. Vui lòng báo quản trị viên.',
-      );
-    }
-
     final startedAt = DateTime.now();
     await AppLogger.instance.info(
       'AppSelfUpdate',
@@ -117,15 +70,54 @@ class AppSelfUpdateService {
           message: 'Đang chuẩn bị gói cập nhật...',
         ),
       );
+      if (kIsWeb || info.platform.trim().toLowerCase() == 'web') {
+        throw const AppSelfUpdateException(
+          'Bản web sẽ được tải lại trực tiếp, không cần gói cài đặt.',
+          code: 'PREPARING_WEB_PACKAGE_UNSUPPORTED',
+          stage: AppSelfUpdateStage.preparing,
+        );
+      }
+      if (!info.hasSelfUpdatePackage) {
+        throw const AppSelfUpdateException(
+          'Bản cập nhật chưa có đủ thông tin kiểm tra an toàn. Vui lòng báo quản trị viên.',
+          code: 'PREPARING_METADATA_INCOMPLETE',
+          stage: AppSelfUpdateStage.preparing,
+        );
+      }
+
+      final packageUri = Uri.tryParse(info.packageUrl);
+      if (packageUri == null || !_isTrustedPackageUri(packageUri)) {
+        throw const AppSelfUpdateException(
+          'Gói cập nhật không đến từ máy chủ tin cậy. Vui lòng báo quản trị viên.',
+          code: 'PREPARING_SOURCE_REJECTED',
+          stage: AppSelfUpdateStage.preparing,
+        );
+      }
+      _validatePackageContract(info, packageUri);
+      if (_maxPackageBytes <= 0) {
+        throw const AppSelfUpdateException(
+          'Giới hạn tải bản cập nhật chưa được cấu hình an toàn.',
+          code: 'PREPARING_LIMIT_INVALID',
+          stage: AppSelfUpdateStage.preparing,
+        );
+      }
+      if (info.packageSizeBytes > _maxPackageBytes) {
+        throw AppSelfUpdateException(
+          'Gói cập nhật vượt quá dung lượng an toàn. Vui lòng báo quản trị viên.',
+          code: 'PREPARING_PACKAGE_TOO_LARGE',
+          stage: AppSelfUpdateStage.preparing,
+          expectedBytes: info.packageSizeBytes,
+        );
+      }
+
       final file = await _downloadPackage(info, packageUri, onProgress);
       await _verifyPackage(info, file, onProgress);
       final installRequest = AppUpdateInstallRequest(
-        platform: info.platform,
+        platform: info.platform.trim().toLowerCase(),
         packageType: info.packageType,
         filePath: file.path,
         installerArgs: _installerArgsFor(info),
       );
-      await _packageVerifier(installRequest);
       _emit(
         onProgress,
         const AppSelfUpdateProgress(
@@ -143,46 +135,26 @@ class AppSelfUpdateService {
         },
       );
     } on AppSelfUpdateException catch (error) {
-      await AppLogger.instance.warn(
-        'AppSelfUpdate',
-        'Self-update stopped safely',
-        context: {
-          ..._logContext(result),
-          'code': error.code ?? 'SELF_UPDATE_REJECTED',
-          'durationMs': DateTime.now().difference(startedAt).inMilliseconds,
-        },
-      );
+      await _logFailure(result, error, startedAt);
       rethrow;
-    } on PlatformException catch (error, stackTrace) {
-      await AppLogger.instance.error(
-        'AppSelfUpdate',
-        'Self-update native installer failed',
-        error: error,
-        stackTrace: stackTrace,
-        context: {
-          ..._logContext(result),
-          'code': error.code,
-          'durationMs': DateTime.now().difference(startedAt).inMilliseconds,
-        },
-      );
-      throw AppSelfUpdateException(
+    } on PlatformException catch (error) {
+      final failure = AppSelfUpdateException(
         _messageForNativeInstaller(error),
-        code: error.code,
+        code: error.code.trim().isEmpty
+            ? 'INSTALLING_NATIVE_FAILURE'
+            : error.code,
+        stage: AppSelfUpdateStage.installing,
       );
-    } catch (error, stackTrace) {
-      await AppLogger.instance.error(
-        'AppSelfUpdate',
-        'Self-update failed',
-        error: error,
-        stackTrace: stackTrace,
-        context: {
-          ..._logContext(result),
-          'durationMs': DateTime.now().difference(startedAt).inMilliseconds,
-        },
+      await _logFailure(result, failure, startedAt);
+      throw failure;
+    } catch (_) {
+      const failure = AppSelfUpdateException(
+        'Chưa cập nhật được. Vui lòng thử lại sau ít phút.',
+        code: 'UNEXPECTED_SELF_UPDATE_FAILURE',
+        stage: AppSelfUpdateStage.unexpected,
       );
-      throw const AppSelfUpdateException(
-        'Chưa cập nhật được. Vui lòng thử lại khi mạng ổn định.',
-      );
+      await _logFailure(result, failure, startedAt);
+      throw failure;
     }
   }
 
@@ -202,24 +174,55 @@ class AppSelfUpdateService {
 
     final request = http.Request('GET', packageUri);
     request.followRedirects = false;
-    final response = await _httpClient.send(request).timeout(_connectTimeout);
+    late http.StreamedResponse response;
+    try {
+      response = await _httpClient.send(request).timeout(_connectTimeout);
+    } on TimeoutException {
+      throw const AppSelfUpdateException(
+        'Kết nối tải bản cập nhật quá thời gian. Vui lòng thử lại.',
+        code: 'DOWNLOADING_CONNECT_TIMEOUT',
+        stage: AppSelfUpdateStage.downloading,
+      );
+    } on http.ClientException {
+      throw const AppSelfUpdateException(
+        'Chưa kết nối được máy chủ cập nhật. Vui lòng kiểm tra mạng và thử lại.',
+        code: 'DOWNLOADING_NETWORK_FAILED',
+        stage: AppSelfUpdateStage.downloading,
+      );
+    } on SocketException {
+      throw const AppSelfUpdateException(
+        'Chưa kết nối được máy chủ cập nhật. Vui lòng kiểm tra mạng và thử lại.',
+        code: 'DOWNLOADING_NETWORK_FAILED',
+        stage: AppSelfUpdateStage.downloading,
+      );
+    }
     if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw AppSelfUpdateException(
-        'Không tải được gói cập nhật. Máy chủ trả về ${response.statusCode}.',
+      throw const AppSelfUpdateException(
+        'Máy chủ cập nhật chưa sẵn sàng. Vui lòng thử lại sau.',
+        code: 'DOWNLOADING_HTTP_FAILED',
+        stage: AppSelfUpdateStage.downloading,
       );
     }
 
     final responseLength = response.contentLength ?? 0;
     if (responseLength > _maxPackageBytes) {
-      throw const AppSelfUpdateException(
+      throw AppSelfUpdateException(
         'Gói cập nhật vượt quá dung lượng an toàn. Đã dừng tải xuống.',
+        code: 'DOWNLOADING_PACKAGE_TOO_LARGE',
+        stage: AppSelfUpdateStage.downloading,
+        receivedBytes: responseLength,
+        expectedBytes: info.packageSizeBytes,
       );
     }
     if (info.packageSizeBytes > 0 &&
         responseLength > 0 &&
         responseLength != info.packageSizeBytes) {
-      throw const AppSelfUpdateException(
+      throw AppSelfUpdateException(
         'Dung lượng gói cập nhật không khớp thông tin phát hành.',
+        code: 'DOWNLOADING_SIZE_MISMATCH',
+        stage: AppSelfUpdateStage.downloading,
+        receivedBytes: responseLength,
+        expectedBytes: info.packageSizeBytes,
       );
     }
     final totalBytes = info.packageSizeBytes > 0
@@ -230,24 +233,62 @@ class AppSelfUpdateService {
     final output = await file.open(mode: FileMode.write);
     var downloadCompleted = false;
     try {
-      await for (final chunk in response.stream.timeout(_chunkTimeout)) {
-        receivedBytes += chunk.length;
-        if (receivedBytes > _maxPackageBytes ||
-            DateTime.now().difference(downloadStartedAt) >
-                _overallDownloadTimeout) {
-          throw const AppSelfUpdateException(
-            'Gói cập nhật tải quá lâu hoặc vượt dung lượng an toàn. Đã dừng tải xuống.',
+      try {
+        await for (final chunk in response.stream.timeout(_chunkTimeout)) {
+          receivedBytes += chunk.length;
+          if (receivedBytes > _maxPackageBytes) {
+            throw AppSelfUpdateException(
+              'Gói cập nhật vượt quá dung lượng an toàn. Đã dừng tải xuống.',
+              code: 'DOWNLOADING_PACKAGE_TOO_LARGE',
+              stage: AppSelfUpdateStage.downloading,
+              receivedBytes: receivedBytes,
+              expectedBytes: info.packageSizeBytes,
+            );
+          }
+          if (DateTime.now().difference(downloadStartedAt) >
+              _overallDownloadTimeout) {
+            throw AppSelfUpdateException(
+              'Gói cập nhật tải quá thời gian. Vui lòng thử lại.',
+              code: 'DOWNLOADING_OVERALL_TIMEOUT',
+              stage: AppSelfUpdateStage.downloading,
+              receivedBytes: receivedBytes,
+              expectedBytes: info.packageSizeBytes,
+            );
+          }
+          await output.writeFrom(chunk);
+          _emit(
+            onProgress,
+            AppSelfUpdateProgress(
+              stage: AppSelfUpdateStage.downloading,
+              receivedBytes: receivedBytes,
+              totalBytes: totalBytes > 0 ? totalBytes : null,
+              message: 'Đang tải gói cập nhật...',
+            ),
           );
         }
-        await output.writeFrom(chunk);
-        _emit(
-          onProgress,
-          AppSelfUpdateProgress(
-            stage: AppSelfUpdateStage.downloading,
-            receivedBytes: receivedBytes,
-            totalBytes: totalBytes > 0 ? totalBytes : null,
-            message: 'Đang tải gói cập nhật...',
-          ),
+      } on TimeoutException {
+        throw AppSelfUpdateException(
+          'Gói cập nhật tải quá thời gian. Vui lòng thử lại.',
+          code: 'DOWNLOADING_STREAM_TIMEOUT',
+          stage: AppSelfUpdateStage.downloading,
+          receivedBytes: receivedBytes,
+          expectedBytes: info.packageSizeBytes,
+        );
+      } on http.ClientException {
+        throw AppSelfUpdateException(
+          'Kết nối tải bản cập nhật bị gián đoạn. Vui lòng thử lại.',
+          code: 'DOWNLOADING_NETWORK_FAILED',
+          stage: AppSelfUpdateStage.downloading,
+          receivedBytes: receivedBytes,
+          expectedBytes: info.packageSizeBytes,
+        );
+      } on SocketException {
+        throw AppSelfUpdateException(
+          'Kết nối tải bản cập nhật bị gián đoạn. Vui lòng thử lại.',
+          code: 'DOWNLOADING_NETWORK_FAILED',
+          stage: AppSelfUpdateStage.downloading,
+          receivedBytes: receivedBytes,
+          expectedBytes: info.packageSizeBytes,
         );
       }
       downloadCompleted = true;
@@ -258,8 +299,12 @@ class AppSelfUpdateService {
 
     if (info.packageSizeBytes > 0 && receivedBytes != info.packageSizeBytes) {
       if (await file.exists()) await file.delete();
-      throw const AppSelfUpdateException(
+      throw AppSelfUpdateException(
         'Gói cập nhật tải chưa đủ dữ liệu. Vui lòng thử lại.',
+        code: 'DOWNLOADING_INCOMPLETE',
+        stage: AppSelfUpdateStage.downloading,
+        receivedBytes: receivedBytes,
+        expectedBytes: info.packageSizeBytes,
       );
     }
 
@@ -294,11 +339,13 @@ class AppSelfUpdateService {
       if (await file.exists()) await file.delete();
       throw const AppSelfUpdateException(
         'Gói cập nhật không khớp mã kiểm tra. Đã dừng để bảo vệ máy.',
+        code: 'VERIFYING_SHA256_MISMATCH',
+        stage: AppSelfUpdateStage.verifying,
       );
     }
     await AppLogger.instance.info(
       'AppSelfUpdate',
-      'Self-update package verified',
+      'Self-update package SHA-256 verified',
       context: {
         'platform': info.platform,
         'latestBuild': info.latestBuild,
@@ -318,156 +365,36 @@ class AppSelfUpdateService {
   }
 
   static Future<void> _installPackage(AppUpdateInstallRequest request) async {
-    if (request.platform == 'android' || Platform.isAndroid) {
+    if (request.platform == 'android' && Platform.isAndroid) {
       await _androidChannel.invokeMethod<void>('installApk', {
         'path': request.filePath,
       });
       return;
     }
-    if (request.platform == 'windows' || Platform.isWindows) {
+    if (request.platform == 'windows' && Platform.isWindows) {
       final args = request.installerArgs.isNotEmpty
           ? request.installerArgs
           : _defaultWindowsInstallerArgs;
-      await Process.start(
-        request.filePath,
-        args,
-        mode: ProcessStartMode.detached,
-      );
+      try {
+        await Process.start(
+          request.filePath,
+          args,
+          mode: ProcessStartMode.detached,
+        );
+      } on ProcessException {
+        throw const AppSelfUpdateException(
+          'Chưa mở được trình cài đặt. Vui lòng thử lại.',
+          code: 'INSTALLING_LAUNCH_FAILED',
+          stage: AppSelfUpdateStage.installing,
+        );
+      }
       exit(0);
     }
     throw const AppSelfUpdateException(
       'Nền tảng này chưa hỗ trợ tự cập nhật trong ứng dụng.',
+      code: 'INSTALLING_UNSUPPORTED_PLATFORM',
+      stage: AppSelfUpdateStage.installing,
     );
-  }
-
-  static Future<void> _verifyPlatformPackage(
-    AppUpdateInstallRequest request,
-  ) async {
-    if (request.platform.toLowerCase() != 'windows') return;
-    if (!Platform.isWindows) {
-      throw const AppSelfUpdateException(
-        'Không thể xác minh chữ ký gói Windows trên thiết bị này.',
-      );
-    }
-    final trustedSigners = _windowsUpdateSignerSha256
-        .split(RegExp(r'[,;\s]+'))
-        .map(
-          (value) =>
-              value.replaceAll(RegExp(r'[^0-9A-Fa-f]'), '').toUpperCase(),
-        )
-        .where((value) => value.length == 64)
-        .toSet();
-    if (trustedSigners.isEmpty) {
-      throw const AppSelfUpdateException(
-        'Ứng dụng chưa có chứng thư tin cậy để tự cập nhật Windows. Vui lòng báo quản trị viên.',
-      );
-    }
-
-    await AppLogger.instance.info(
-      'AppSelfUpdate',
-      'Windows package signature verification started',
-      context: {'trustedSignerCount': trustedSigners.length},
-    );
-    try {
-      final signer = await _readWindowsSignerSha256(request.filePath);
-      if (!trustedSigners.contains(signer)) {
-        await AppLogger.instance.warn(
-          'AppSelfUpdate',
-          'Windows package signer pin mismatch',
-          context: {'signerHashPrefix': signer.substring(0, 12)},
-        );
-        throw const AppSelfUpdateException(
-          'Chữ ký gói cập nhật Windows không đúng nhà phát hành tin cậy. Đã dừng cài đặt.',
-          code: 'WINDOWS_SIGNER_PIN_MISMATCH',
-        );
-      }
-      await AppLogger.instance.info(
-        'AppSelfUpdate',
-        'Windows package signature verification succeeded',
-        context: {'signerHashPrefix': signer.substring(0, 12)},
-      );
-    } on AppSelfUpdateException catch (error) {
-      await AppLogger.instance.warn(
-        'AppSelfUpdate',
-        'Windows package signature verification stopped',
-        context: {'code': error.code ?? 'WINDOWS_SIGNATURE_REJECTED'},
-      );
-      rethrow;
-    }
-  }
-
-  @visibleForTesting
-  static Future<String> readWindowsSignerSha256ForTesting(String filePath) {
-    return _readWindowsSignerSha256(filePath);
-  }
-
-  static Future<String> _readWindowsSignerSha256(String filePath) async {
-    const packagePathEnvironmentKey = 'OPSHUB_UPDATE_PACKAGE_PATH';
-    const script = r'''
-$ErrorActionPreference = 'Stop'
-$packagePath = [Environment]::GetEnvironmentVariable('OPSHUB_UPDATE_PACKAGE_PATH', 'Process')
-if ([string]::IsNullOrWhiteSpace($packagePath)) { exit 12 }
-$securityModule = Join-Path $PSHOME 'Modules\Microsoft.PowerShell.Security\Microsoft.PowerShell.Security.psd1'
-Import-Module -Name $securityModule -Force -ErrorAction Stop
-$signature = Get-AuthenticodeSignature -LiteralPath $packagePath
-if ($signature.Status -ne 'Valid' -or $null -eq $signature.SignerCertificate) { exit 11 }
-$algorithm = [System.Security.Cryptography.HashAlgorithmName]::SHA256
-[Console]::Out.Write($signature.SignerCertificate.GetCertHashString($algorithm))
-''';
-    late Process process;
-    try {
-      process = await Process.start(
-        'powershell.exe',
-        [
-          '-NoLogo',
-          '-NoProfile',
-          '-NonInteractive',
-          '-ExecutionPolicy',
-          'Bypass',
-          '-Command',
-          script,
-        ],
-        environment: {packagePathEnvironmentKey: filePath},
-      );
-      final stdoutFuture = process.stdout.transform(utf8.decoder).join();
-      final stderrFuture = process.stderr.transform(utf8.decoder).join();
-      late int exitCode;
-      try {
-        exitCode = await process.exitCode.timeout(_signatureCheckTimeout);
-      } on TimeoutException {
-        process.kill();
-        throw const AppSelfUpdateException(
-          'Kiểm tra chữ ký gói cập nhật quá thời gian. Đã dừng cài đặt.',
-          code: 'WINDOWS_SIGNATURE_CHECK_TIMEOUT',
-        );
-      }
-      final signer = (await stdoutFuture)
-          .replaceAll(RegExp(r'[^0-9A-Fa-f]'), '')
-          .toUpperCase();
-      final stderr = await stderrFuture;
-      if (exitCode == 11) {
-        throw const AppSelfUpdateException(
-          'Windows chưa xác nhận được chữ ký của gói cập nhật. Đã dừng cài đặt.',
-          code: 'WINDOWS_SIGNATURE_NOT_VALID',
-        );
-      }
-      if (exitCode != 0 || signer.length != 64) {
-        throw AppSelfUpdateException(
-          'Chưa xác minh được chữ ký gói cập nhật Windows. Đã dừng cài đặt.',
-          code: stderr.trim().isEmpty
-              ? 'WINDOWS_SIGNATURE_CHECK_FAILED'
-              : 'WINDOWS_SIGNATURE_CHECK_PROCESS_FAILED',
-        );
-      }
-      return signer;
-    } on AppSelfUpdateException {
-      rethrow;
-    } catch (_) {
-      throw const AppSelfUpdateException(
-        'Chưa xác minh được chữ ký gói cập nhật Windows. Đã dừng cài đặt.',
-        code: 'WINDOWS_SIGNATURE_CHECK_FAILED',
-      );
-    }
   }
 
   static String _messageForNativeInstaller(PlatformException error) {
@@ -505,12 +432,23 @@ $algorithm = [System.Security.Cryptography.HashAlgorithmName]::SHA256
         (packageType != 'windowsinstaller' || !path.endsWith('.exe'))) {
       throw const AppSelfUpdateException(
         'Gói cập nhật Windows không đúng định dạng được phép.',
+        code: 'PREPARING_PACKAGE_TYPE_INVALID',
+        stage: AppSelfUpdateStage.preparing,
       );
     }
     if (platform == 'android' &&
         (packageType != 'apk' || !path.endsWith('.apk'))) {
       throw const AppSelfUpdateException(
         'Gói cập nhật Android không đúng định dạng được phép.',
+        code: 'PREPARING_PACKAGE_TYPE_INVALID',
+        stage: AppSelfUpdateStage.preparing,
+      );
+    }
+    if (!RegExp(r'^[0-9a-fA-F]{64}$').hasMatch(info.packageSha256.trim())) {
+      throw const AppSelfUpdateException(
+        'Thông tin kiểm tra gói cập nhật không đúng định dạng.',
+        code: 'PREPARING_PACKAGE_CONTRACT_INVALID',
+        stage: AppSelfUpdateStage.preparing,
       );
     }
   }
@@ -532,10 +470,7 @@ $algorithm = [System.Security.Cryptography.HashAlgorithmName]::SHA256
     }
     final host = uri.host.toLowerCase();
     if (isStaging) {
-      return (host == _stagingPackageHost &&
-              uri.path.startsWith('/downloads/')) ||
-          (host == _productionPackageHost &&
-              uri.path.startsWith('/staging-download/downloads/'));
+      return host == _stagingPackageHost && uri.path.startsWith('/downloads/');
     }
     return host == _productionPackageHost && uri.path.startsWith('/downloads/');
   }
@@ -546,15 +481,38 @@ $algorithm = [System.Security.Cryptography.HashAlgorithmName]::SHA256
       'platform': updateInfo.platform,
       'currentBuild': result.currentBuild,
       'latestBuild': updateInfo.latestBuild,
-      'packageType': updateInfo.packageType,
       'packageHost': Uri.tryParse(updateInfo.packageUrl)?.host.toLowerCase(),
-      'stagingBuild': AppBrand.isStaging,
       'packageSizeBytes': updateInfo.packageSizeBytes,
-      'hasSha256': updateInfo.packageSha256.isNotEmpty,
-      'windowsRelaunchRequested': updateInfo.platform.toLowerCase() == 'windows'
-          ? _hasWindowsRelaunchArg(_installerArgsFor(updateInfo))
-          : null,
     };
+  }
+
+  static Future<void> _logFailure(
+    AppUpdateCheckResult result,
+    AppSelfUpdateException failure,
+    DateTime startedAt,
+  ) async {
+    final context = <String, Object?>{
+      ..._logContext(result),
+      'code': failure.code,
+      'stage': failure.stage.name,
+      'durationMs': DateTime.now().difference(startedAt).inMilliseconds,
+      if (failure.receivedBytes != null) 'receivedBytes': failure.receivedBytes,
+      if (failure.expectedBytes != null) 'expectedBytes': failure.expectedBytes,
+    };
+    if (failure.severity == AppSelfUpdateFailureSeverity.warning) {
+      await AppLogger.instance.warn(
+        'AppSelfUpdate',
+        'Self-update transient failure',
+        context: context,
+      );
+      return;
+    }
+    await AppLogger.instance.error(
+      'AppSelfUpdate',
+      'Self-update safety failure',
+      context: context,
+      upload: ApiClient().authToken != null,
+    );
   }
 
   static List<String> _installerArgsFor(AppUpdateInfo info) {
@@ -562,14 +520,6 @@ $algorithm = [System.Security.Cryptography.HashAlgorithmName]::SHA256
     return info.installerArgs.isNotEmpty
         ? info.installerArgs
         : _defaultWindowsInstallerArgs;
-  }
-
-  static bool _hasWindowsRelaunchArg(List<String> args) {
-    return args.any((arg) {
-      final normalized = arg.trim().toUpperCase();
-      return normalized == '/OPSHUBRELAUNCH' ||
-          normalized == _windowsRelaunchArg;
-    });
   }
 
   static void _emit(
@@ -622,13 +572,43 @@ class AppSelfUpdateProgress {
   }
 }
 
-enum AppSelfUpdateStage { preparing, downloading, verifying, installing }
+enum AppSelfUpdateStage {
+  preparing,
+  downloading,
+  verifying,
+  installing,
+  unexpected,
+}
+
+enum AppSelfUpdateFailureSeverity { warning, error }
 
 class AppSelfUpdateException implements Exception {
-  const AppSelfUpdateException(this.message, {this.code});
+  const AppSelfUpdateException(
+    this.message, {
+    required this.code,
+    required this.stage,
+    this.receivedBytes,
+    this.expectedBytes,
+  });
+
+  static const _warningCodes = <String>{
+    'DOWNLOADING_CONNECT_TIMEOUT',
+    'DOWNLOADING_NETWORK_FAILED',
+    'DOWNLOADING_HTTP_FAILED',
+    'DOWNLOADING_OVERALL_TIMEOUT',
+    'DOWNLOADING_STREAM_TIMEOUT',
+    'DOWNLOADING_INCOMPLETE',
+  };
 
   final String message;
-  final String? code;
+  final String code;
+  final AppSelfUpdateStage stage;
+  final int? receivedBytes;
+  final int? expectedBytes;
+
+  AppSelfUpdateFailureSeverity get severity => _warningCodes.contains(code)
+      ? AppSelfUpdateFailureSeverity.warning
+      : AppSelfUpdateFailureSeverity.error;
 
   @override
   String toString() => message;

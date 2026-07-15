@@ -76,7 +76,6 @@ class HomeSummaryProvider extends ChangeNotifier {
   static final DateFormat _updatedAtFormat = DateFormat('HH:mm dd/MM/yyyy');
   static const Duration _realtimeRefreshDebounce = Duration(seconds: 2);
   static const Duration _realtimeRefreshMaxWait = Duration(seconds: 5);
-  static const Duration _routeRevalidationTtl = Duration(minutes: 5);
 
   final HomeSummaryRepository _repository;
   final DateTime Function() _now;
@@ -152,7 +151,8 @@ class HomeSummaryProvider extends ChangeNotifier {
     }
     final lastLoadedAt = _lastSuccessfulLoadAt;
     if (lastLoadedAt == null ||
-        _now().difference(lastLoadedAt) >= _routeRevalidationTtl) {
+        _now().difference(lastLoadedAt) >=
+            HomeSummaryRepository.summaryFreshTtl) {
       unawaited(loadSummary(reason: 'route_revalidation'));
       return;
     }
@@ -162,7 +162,7 @@ class HomeSummaryProvider extends ChangeNotifier {
         'Home summary route activation reused cached data',
         context: {
           'ageSeconds': _now().difference(lastLoadedAt).inSeconds,
-          'ttlSeconds': _routeRevalidationTtl.inSeconds,
+          'ttlSeconds': HomeSummaryRepository.summaryFreshTtl.inSeconds,
         },
       ),
     );

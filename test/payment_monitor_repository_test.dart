@@ -4,10 +4,46 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:phongvu_opshub/core/network/api_client.dart';
+import 'package:phongvu_opshub/core/network/api_exception.dart';
 import 'package:phongvu_opshub/features/payment_monitor/data/repositories/payment_monitor_repository.dart';
 import 'package:phongvu_opshub/features/payment_monitor/domain/payment_delivery_metrics.dart';
 
 void main() {
+  test('stored transaction user action forwards the cooldown bypass', () async {
+    var requests = 0;
+    final repository = PaymentMonitorRepository(
+      ApiClient.test(
+        MockClient((_) async {
+          requests += 1;
+          if (requests == 1) {
+            return http.Response('', 429, headers: {'retry-after': '30'});
+          }
+          return http.Response(
+            jsonEncode({
+              'list': const [],
+              'page': 0,
+              'limit': 10,
+              'total': 0,
+              'canReviewOrderTransfers': false,
+            }),
+            200,
+          );
+        }),
+      ),
+    );
+
+    await expectLater(
+      repository.fetchStoredTransactions(),
+      throwsA(isA<RateLimitedException>()),
+    );
+    final page = await repository.fetchStoredTransactions(
+      allowRateLimitCooldownBypass: true,
+    );
+
+    expect(requests, 2);
+    expect(page.transactions, isEmpty);
+  });
+
   test(
     'downloadNotificationAudio requests server-combined cue when enabled',
     () async {

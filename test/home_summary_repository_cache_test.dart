@@ -8,6 +8,55 @@ import 'package:phongvu_opshub/core/network/api_client.dart';
 import 'package:phongvu_opshub/features/home/data/repositories/home_summary_repository.dart';
 
 void main() {
+  test('Home summary revalidates at the exact 60-second boundary', () async {
+    final fetchedAt = DateTime.utc(2026, 7, 15, 8);
+    var now = fetchedAt;
+    var requests = 0;
+    final repository = HomeSummaryRepository(
+      ApiClient.test(
+        MockClient((_) async {
+          requests += 1;
+          return http.Response(
+            jsonEncode(_summaryJson(totalOrders: requests)),
+            200,
+            headers: {'content-type': 'application/json'},
+          );
+        }),
+      ),
+      queryCache: AppQueryCache(now: () => now),
+    );
+
+    await repository.fetchSummary(
+      startDate: '2026-07-15',
+      endDate: '2026-07-15',
+      cacheIdentity: 'user-ttl',
+    );
+    now = fetchedAt.add(const Duration(seconds: 59));
+    final fresh = await repository.fetchSummary(
+      startDate: '2026-07-15',
+      endDate: '2026-07-15',
+      cacheIdentity: 'user-ttl',
+    );
+    expect(fresh.totalOrders, 1);
+    expect(requests, 1);
+
+    now = fetchedAt.add(HomeSummaryRepository.summaryFreshTtl);
+    final refreshed = await Future.wait([
+      repository.fetchSummary(
+        startDate: '2026-07-15',
+        endDate: '2026-07-15',
+        cacheIdentity: 'user-ttl',
+      ),
+      repository.fetchSummary(
+        startDate: '2026-07-15',
+        endDate: '2026-07-15',
+        cacheIdentity: 'user-ttl',
+      ),
+    ]);
+    expect(refreshed.map((summary) => summary.totalOrders), everyElement(2));
+    expect(requests, 2);
+  });
+
   test(
     'Home summary reuses a fresh keyed snapshot and supports invalidation',
     () async {
@@ -86,7 +135,8 @@ void main() {
       endDate: '2026-07-15',
       cacheIdentity: 'user-1',
     );
-    now = now.add(const Duration(minutes: 2));
+    final originalFetchedAt = repository.lastSummaryFetchedAt;
+    now = now.add(HomeSummaryRepository.summaryFreshTtl);
     offline = true;
     final stale = await repository.fetchSummary(
       startDate: '2026-07-15',
@@ -97,6 +147,16 @@ void main() {
     expect(stale.totalOrders, 7);
     expect(requests, 2);
     expect(repository.lastSummaryWasStale, isTrue);
+    expect(repository.lastSummaryFetchedAt, originalFetchedAt);
+
+    now = now.add(const Duration(seconds: 1));
+    await repository.fetchSummary(
+      startDate: '2026-07-15',
+      endDate: '2026-07-15',
+      cacheIdentity: 'user-1',
+    );
+    expect(requests, 3);
+    expect(repository.lastSummaryFetchedAt, originalFetchedAt);
   });
 }
 

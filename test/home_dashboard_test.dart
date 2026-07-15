@@ -200,6 +200,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 1));
       await tester.pump();
       expect(repository.requestedScopes.length, initialRequests + 1);
+      expect(repository.requestedForceRefreshes.last, isTrue);
 
       realtime.addEvent(
         RealtimeEnvelope(
@@ -236,8 +237,37 @@ void main() {
       await tester.pump(const Duration(seconds: 2));
       await tester.pump();
       expect(repository.requestedScopes.length, initialRequests + 2);
+      expect(repository.requestedForceRefreshes.last, isTrue);
     },
   );
+
+  testWidgets('Home route reuses at 59 seconds and revalidates at 60', (
+    tester,
+  ) async {
+    var now = DateTime(2026, 7, 14, 10);
+    final repository = _FakeHomeSummaryRepository(summary: _homeSummary());
+    final provider = HomeSummaryProvider(repository, now: () => now);
+    addTearDown(provider.dispose);
+
+    provider.syncAuth(_staffUser(), isInitialized: true);
+    await tester.pump();
+    await tester.pump();
+    final initialRequests = repository.requestedScopes.length;
+
+    now = now.add(const Duration(seconds: 59));
+    provider.syncRuntime(isRouteActive: false, isForeground: true);
+    provider.syncRuntime(isRouteActive: true, isForeground: true);
+    await tester.pump();
+    expect(repository.requestedScopes.length, initialRequests);
+
+    now = now.add(const Duration(seconds: 1));
+    provider.syncRuntime(isRouteActive: false, isForeground: true);
+    provider.syncRuntime(isRouteActive: true, isForeground: true);
+    await tester.pump();
+    await tester.pump();
+    expect(repository.requestedScopes.length, initialRequests + 1);
+    expect(repository.requestedForceRefreshes.last, isFalse);
+  });
 
   testWidgets(
     'Home defers bootstrap and realtime refresh while its route is inactive',
@@ -2057,6 +2087,7 @@ class _FakeHomeSummaryRepository extends HomeSummaryRepository {
   final List<String?> requestedNodeIds = [];
   final List<String?> requestedSalesProgressUserIds = [];
   final List<int?> requestedDetailLimits = [];
+  final List<bool> requestedForceRefreshes = [];
 
   _FakeHomeSummaryRepository({
     required this.summary,
@@ -2081,6 +2112,7 @@ class _FakeHomeSummaryRepository extends HomeSummaryRepository {
     requestedScopes.add(scope);
     requestedNodeIds.add(organizationNodeId);
     requestedSalesProgressUserIds.add(salesProgressUserId);
+    requestedForceRefreshes.add(forceRefresh);
     if (salesProgressUserId != null &&
         salesProgressUserSummaries.containsKey(salesProgressUserId)) {
       return salesProgressUserSummaries[salesProgressUserId]!;

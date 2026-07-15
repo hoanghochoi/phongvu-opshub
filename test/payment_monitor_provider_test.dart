@@ -308,6 +308,7 @@ void main() {
     );
 
     expect(provider.hasMonitorScope, isTrue);
+    expect(repository.requestedRateLimitCooldownBypasses.last, isTrue);
     expect(repository.readyFetchCount, greaterThan(0));
     expect(repository.downloadCount, 0);
     expect(repository.streamDownloadCount, 1);
@@ -869,6 +870,7 @@ void main() {
 
       expect(provider.isActive, isTrue);
       expect(repository.requestedIncludeTotals.last, isFalse);
+      expect(repository.requestedRateLimitCooldownBypasses.last, isFalse);
 
       provider.dispose();
       await realtime.dispose();
@@ -895,9 +897,52 @@ void main() {
     await _waitUntil(() => !provider.isLoading);
 
     expect(repository.requestedIncludeTotals, contains(true));
+    expect(repository.requestedRateLimitCooldownBypasses.last, isTrue);
 
     provider.dispose();
   });
+
+  test(
+    'queued manual refresh preserves its user-initiated bypass flag',
+    () async {
+      final pendingPage = Completer<StoredPaymentTransactionsPage>();
+      final repository = _FakePaymentMonitorRepository(
+        notifications: const [],
+        pendingTransactionPage: pendingPage,
+      );
+      final provider = PaymentMonitorProvider(
+        repository,
+        _FakePaymentSpeaker(),
+        null,
+        retryDelay,
+      );
+
+      await Future<void>.delayed(Duration.zero);
+      provider.syncAuth(_storeUser(), isInitialized: true);
+      await _waitUntil(
+        () => repository.transactionFetchCount == 1 && provider.isLoading,
+      );
+
+      await provider.refreshNow();
+      await provider.refreshNow();
+      expect(repository.transactionFetchCount, 1);
+      pendingPage.complete(
+        const StoredPaymentTransactionsPage(
+          transactions: [],
+          page: 0,
+          limit: 10,
+          total: 0,
+          canReviewOrderTransfers: false,
+        ),
+      );
+      await _waitUntil(
+        () => repository.transactionFetchCount == 2 && !provider.isLoading,
+      );
+
+      expect(repository.requestedRateLimitCooldownBypasses, [false, true]);
+      provider.dispose();
+    },
+  );
 
   test('realtime refresh respects poll backoff after throttling', () async {
     final repository = _FakePaymentMonitorRepository(
@@ -1342,6 +1387,7 @@ class _FakePaymentMonitorRepository extends PaymentMonitorRepository {
   final List<List<String>> savedOrderInputs = [];
   final List<String?> savedOrderTransactionKeys = [];
   final List<List<String>> requestedOrderTransfers = [];
+  final List<bool> requestedRateLimitCooldownBypasses = [];
   final List<String> approvedRequestIds = [];
   final List<String> rejectedRequestIds = [];
   int transactionFetchCount = 0;
@@ -1373,8 +1419,10 @@ class _FakePaymentMonitorRepository extends PaymentMonitorRepository {
     int page = 0,
     int limit = 10,
     bool includeTotal = true,
+    bool allowRateLimitCooldownBypass = false,
   }) async {
     transactionFetchCount += 1;
+    requestedRateLimitCooldownBypasses.add(allowRateLimitCooldownBypass);
     final pending = pendingTransactionPage;
     if (pending != null) return pending.future;
     final error = transactionError;
@@ -1397,6 +1445,7 @@ class _FakePaymentMonitorRepository extends PaymentMonitorRepository {
     String transactionId,
     List<String> orders, {
     String? transactionKey,
+    bool allowRateLimitCooldownBypass = false,
   }) async {
     savedOrderInputs.add(orders);
     savedOrderTransactionKeys.add(transactionKey);
@@ -1416,15 +1465,17 @@ class _FakePaymentMonitorRepository extends PaymentMonitorRepository {
   @override
   Future<void> createOrderTransferRequest(
     String transactionId,
-    List<String> orders,
-  ) async {
+    List<String> orders, {
+    bool allowRateLimitCooldownBypass = false,
+  }) async {
     requestedOrderTransfers.add(orders);
   }
 
   @override
   Future<MapPaymentTransaction?> approveOrderTransferRequest(
-    String requestId,
-  ) async {
+    String requestId, {
+    bool allowRateLimitCooldownBypass = false,
+  }) async {
     approvedRequestIds.add(requestId);
     return updatedTransaction;
   }
@@ -1433,6 +1484,7 @@ class _FakePaymentMonitorRepository extends PaymentMonitorRepository {
   Future<MapPaymentTransaction?> rejectOrderTransferRequest(
     String requestId, {
     String? note,
+    bool allowRateLimitCooldownBypass = false,
   }) async {
     rejectedRequestIds.add(requestId);
     return updatedTransaction;

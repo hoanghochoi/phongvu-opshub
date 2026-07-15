@@ -22,20 +22,17 @@ void main() {
         'retryAt': event.retryAt?.toIso8601String(),
         'source': event.source,
       };
+      final message = switch (event.action) {
+        'activated' => 'API endpoint backoff activated',
+        'bypassed' => 'API endpoint backoff bypassed by user action',
+        'expired' => 'API endpoint backoff expired',
+        'recovered' => 'API endpoint backoff recovered',
+        _ => 'API request deferred by endpoint backoff',
+      };
       unawaited(
         event.action == 'activated'
-            ? AppLogger.instance.warn(
-                'ApiClient',
-                'API endpoint backoff activated',
-                context: context,
-              )
-            : AppLogger.instance.info(
-                'ApiClient',
-                event.action == 'recovered'
-                    ? 'API endpoint backoff recovered'
-                    : 'API request deferred by endpoint backoff',
-                context: context,
-              ),
+            ? AppLogger.instance.warn('ApiClient', message, context: context)
+            : AppLogger.instance.info('ApiClient', message, context: context),
       );
     });
     initializeMobileScannerWeb();

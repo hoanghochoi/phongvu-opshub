@@ -46,9 +46,14 @@ class ApiRateLimitEvent {
 class _EndpointRateLimitState {
   final int attempt;
   final DateTime retryAt;
+  bool cooldownBypassConsumed;
   DateTime? lastDeferredEventAt;
 
-  _EndpointRateLimitState({required this.attempt, required this.retryAt});
+  _EndpointRateLimitState({
+    required this.attempt,
+    required this.retryAt,
+    this.cooldownBypassConsumed = false,
+  });
 }
 
 class ApiClient {
@@ -201,12 +206,38 @@ class ApiClient {
   String _rateLimitKey(String method, String endpoint) =>
       '${method.toUpperCase()} ${endpoint.split('?').first}';
 
-  void _ensureRequestAllowed(String method, String endpoint) {
+  void _ensureRequestAllowed(
+    String method,
+    String endpoint, {
+    required bool allowRateLimitCooldownBypass,
+  }) {
     final key = _rateLimitKey(method, endpoint);
     final state = _rateLimits[key];
     if (state == null) return;
     final now = _now();
-    if (!now.isBefore(state.retryAt)) return;
+    if (!now.isBefore(state.retryAt)) {
+      _rateLimits.remove(key);
+      _emitRateLimitEvent(
+        action: 'expired',
+        method: method,
+        endpoint: endpoint,
+        state: state,
+        source: 'client_cooldown',
+      );
+      return;
+    }
+
+    if (allowRateLimitCooldownBypass && !state.cooldownBypassConsumed) {
+      state.cooldownBypassConsumed = true;
+      _emitRateLimitEvent(
+        action: 'bypassed',
+        method: method,
+        endpoint: endpoint,
+        state: state,
+        source: 'user_initiated',
+      );
+      return;
+    }
 
     final lastDeferredAt = state.lastDeferredEventAt;
     if (lastDeferredAt == null ||
@@ -241,12 +272,13 @@ class ApiClient {
       ),
     );
     final serverDelay = _retryAfterFromHeaders(headers);
-    final effectiveDelay = serverDelay != null && serverDelay > fallback
-        ? serverDelay
-        : fallback;
+    // Retry-After is authoritative for each new 429 response. The exponential
+    // fallback is only used when the server omits a usable value.
+    final effectiveDelay = serverDelay ?? fallback;
     final state = _EndpointRateLimitState(
       attempt: attempt,
       retryAt: _now().add(effectiveDelay),
+      cooldownBypassConsumed: previous?.cooldownBypassConsumed ?? false,
     );
     _rateLimits[key] = state;
     _emitRateLimitEvent(
@@ -332,9 +364,14 @@ class ApiClient {
   Future<http.Response> get(
     String endpoint, {
     Map<String, String>? queryParameters,
+    bool allowRateLimitCooldownBypass = false,
   }) async {
     try {
-      _ensureRequestAllowed('GET', endpoint);
+      _ensureRequestAllowed(
+        'GET',
+        endpoint,
+        allowRateLimitCooldownBypass: allowRateLimitCooldownBypass,
+      );
       final requestAuthToken = _authToken;
       final uri = Uri.parse('${ApiConstants.baseUrl}$endpoint');
       final url = queryParameters != null
@@ -375,9 +412,14 @@ class ApiClient {
     String endpoint, {
     Map<String, String>? queryParameters,
     String? ifNoneMatch,
+    bool allowRateLimitCooldownBypass = false,
   }) async {
     try {
-      _ensureRequestAllowed('GET', endpoint);
+      _ensureRequestAllowed(
+        'GET',
+        endpoint,
+        allowRateLimitCooldownBypass: allowRateLimitCooldownBypass,
+      );
       final requestAuthToken = _authToken;
       final uri = Uri.parse('${ApiConstants.baseUrl}$endpoint');
       final url = queryParameters != null
@@ -423,9 +465,14 @@ class ApiClient {
     String endpoint, {
     Map<String, String>? queryParameters,
     Duration? timeout,
+    bool allowRateLimitCooldownBypass = false,
   }) async {
     try {
-      _ensureRequestAllowed('GET', endpoint);
+      _ensureRequestAllowed(
+        'GET',
+        endpoint,
+        allowRateLimitCooldownBypass: allowRateLimitCooldownBypass,
+      );
       final requestAuthToken = _authToken;
       final uri = Uri.parse('${ApiConstants.baseUrl}$endpoint');
       final url = queryParameters != null
@@ -462,9 +509,14 @@ class ApiClient {
     String endpoint, {
     required Map<String, dynamic> body,
     Duration? timeout,
+    bool allowRateLimitCooldownBypass = false,
   }) async {
     try {
-      _ensureRequestAllowed('POST', endpoint);
+      _ensureRequestAllowed(
+        'POST',
+        endpoint,
+        allowRateLimitCooldownBypass: allowRateLimitCooldownBypass,
+      );
       final requestAuthToken = _authToken;
       final url = Uri.parse('${ApiConstants.baseUrl}$endpoint');
 
@@ -509,9 +561,14 @@ class ApiClient {
     String endpoint, {
     required Map<String, dynamic> body,
     Duration? timeout,
+    bool allowRateLimitCooldownBypass = false,
   }) async {
     try {
-      _ensureRequestAllowed('PATCH', endpoint);
+      _ensureRequestAllowed(
+        'PATCH',
+        endpoint,
+        allowRateLimitCooldownBypass: allowRateLimitCooldownBypass,
+      );
       final requestAuthToken = _authToken;
       final url = Uri.parse('${ApiConstants.baseUrl}$endpoint');
       final response = await _client
@@ -545,9 +602,14 @@ class ApiClient {
     String endpoint, {
     required Map<String, dynamic> body,
     Duration? timeout,
+    bool allowRateLimitCooldownBypass = false,
   }) async {
     try {
-      _ensureRequestAllowed('PUT', endpoint);
+      _ensureRequestAllowed(
+        'PUT',
+        endpoint,
+        allowRateLimitCooldownBypass: allowRateLimitCooldownBypass,
+      );
       final requestAuthToken = _authToken;
       final url = Uri.parse('${ApiConstants.baseUrl}$endpoint');
       final response = await _client
@@ -576,9 +638,17 @@ class ApiClient {
     }
   }
 
-  Future<http.Response> delete(String endpoint, {Duration? timeout}) async {
+  Future<http.Response> delete(
+    String endpoint, {
+    Duration? timeout,
+    bool allowRateLimitCooldownBypass = false,
+  }) async {
     try {
-      _ensureRequestAllowed('DELETE', endpoint);
+      _ensureRequestAllowed(
+        'DELETE',
+        endpoint,
+        allowRateLimitCooldownBypass: allowRateLimitCooldownBypass,
+      );
       final requestAuthToken = _authToken;
       final url = Uri.parse('${ApiConstants.baseUrl}$endpoint');
       final response = await _client
@@ -610,9 +680,14 @@ class ApiClient {
     required Map<String, String> fields,
     required List<http.MultipartFile> files,
     Duration? timeout,
+    bool allowRateLimitCooldownBypass = false,
   }) async {
     try {
-      _ensureRequestAllowed('POST', endpoint);
+      _ensureRequestAllowed(
+        'POST',
+        endpoint,
+        allowRateLimitCooldownBypass: allowRateLimitCooldownBypass,
+      );
       final requestAuthToken = _authToken;
       final url = Uri.parse('${ApiConstants.baseUrl}$endpoint');
 

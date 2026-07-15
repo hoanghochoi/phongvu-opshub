@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:crypto/crypto.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -22,35 +23,37 @@ void main() {
       }
     });
 
-    test('downloads, verifies, and launches installer', () async {
-      final bytes = 'fake installer bytes'.codeUnits;
-      AppUpdateInstallRequest? installRequest;
-      final progress = <AppSelfUpdateProgress>[];
-      final service = AppSelfUpdateService(
-        httpClient: MockClient((_) async => http.Response.bytes(bytes, 200)),
-        tempDirectoryProvider: () async => tempDir,
-        packageVerifier: (_) async {},
-        installer: (request) async => installRequest = request,
-      );
+    test(
+      'downloads, verifies SHA-256, and launches without Authenticode trust',
+      () async {
+        final bytes = 'fake installer bytes'.codeUnits;
+        AppUpdateInstallRequest? installRequest;
+        final progress = <AppSelfUpdateProgress>[];
+        final service = AppSelfUpdateService(
+          httpClient: MockClient((_) async => http.Response.bytes(bytes, 200)),
+          tempDirectoryProvider: () async => tempDir,
+          installer: (request) async => installRequest = request,
+        );
 
-      await service.downloadAndInstall(
-        _resultFor(bytes),
-        onProgress: progress.add,
-      );
+        await service.downloadAndInstall(
+          _resultFor(bytes),
+          onProgress: progress.add,
+        );
 
-      expect(installRequest, isNotNull);
-      expect(installRequest!.filePath, endsWith('opshub.exe'));
-      expect(installRequest!.installerArgs, [
-        '/VERYSILENT',
-        '/OPSHUBRELAUNCH=1',
-      ]);
-      expect(
-        progress.map((item) => item.stage),
-        contains(AppSelfUpdateStage.downloading),
-      );
-      expect(progress.last.stage, AppSelfUpdateStage.installing);
-      expect(await File(installRequest!.filePath).readAsBytes(), bytes);
-    });
+        expect(installRequest, isNotNull);
+        expect(installRequest!.filePath, endsWith('opshub.exe'));
+        expect(installRequest!.installerArgs, [
+          '/VERYSILENT',
+          '/OPSHUBRELAUNCH=1',
+        ]);
+        expect(
+          progress.map((item) => item.stage),
+          contains(AppSelfUpdateStage.downloading),
+        );
+        expect(progress.last.stage, AppSelfUpdateStage.installing);
+        expect(await File(installRequest!.filePath).readAsBytes(), bytes);
+      },
+    );
 
     test(
       'uses relaunch default when Windows installer args are absent',
@@ -60,7 +63,6 @@ void main() {
         final service = AppSelfUpdateService(
           httpClient: MockClient((_) async => http.Response.bytes(bytes, 200)),
           tempDirectoryProvider: () async => tempDir,
-          packageVerifier: (_) async {},
           installer: (request) async => installRequest = request,
         );
 
@@ -85,7 +87,6 @@ void main() {
       final service = AppSelfUpdateService(
         httpClient: MockClient((_) async => http.Response.bytes(bytes, 200)),
         tempDirectoryProvider: () async => tempDir,
-        packageVerifier: (_) async {},
         installer: (_) async => installerCalled = true,
       );
 
@@ -97,7 +98,24 @@ void main() {
                 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
           ),
         ),
-        throwsA(isA<AppSelfUpdateException>()),
+        throwsA(
+          isA<AppSelfUpdateException>()
+              .having(
+                (error) => error.code,
+                'code',
+                'VERIFYING_SHA256_MISMATCH',
+              )
+              .having(
+                (error) => error.stage,
+                'stage',
+                AppSelfUpdateStage.verifying,
+              )
+              .having(
+                (error) => error.severity,
+                'severity',
+                AppSelfUpdateFailureSeverity.error,
+              ),
+        ),
       );
 
       expect(installerCalled, isFalse);
@@ -119,7 +137,6 @@ void main() {
           return http.Response.bytes(bytes, 200);
         }),
         tempDirectoryProvider: () async => tempDir,
-        packageVerifier: (_) async {},
         installer: (_) async {},
       );
 
@@ -131,7 +148,19 @@ void main() {
                 'http://opshub.hoanghochoi.com/downloads/opshub.exe',
           ),
         ),
-        throwsA(isA<AppSelfUpdateException>()),
+        throwsA(
+          isA<AppSelfUpdateException>()
+              .having(
+                (error) => error.code,
+                'code',
+                'PREPARING_SOURCE_REJECTED',
+              )
+              .having(
+                (error) => error.stage,
+                'stage',
+                AppSelfUpdateStage.preparing,
+              ),
+        ),
       );
       expect(requestCount, 0);
     });
@@ -141,7 +170,6 @@ void main() {
       final service = AppSelfUpdateService(
         httpClient: MockClient((_) async => http.Response.bytes(bytes, 200)),
         tempDirectoryProvider: () async => tempDir,
-        packageVerifier: (_) async {},
         installer: (_) async {},
       );
 
@@ -167,7 +195,7 @@ void main() {
       final stagingPackage = Uri.parse(
         'https://opshub-staging.hoanghochoi.com/downloads/opshub.exe',
       );
-      final legacyStagingPackage = Uri.parse(
+      final crossOriginLegacyStagingPackage = Uri.parse(
         'https://opshub.hoanghochoi.com/staging-download/downloads/opshub.exe',
       );
 
@@ -194,10 +222,10 @@ void main() {
       );
       expect(
         AppSelfUpdateService.isTrustedPackageUriForTesting(
-          legacyStagingPackage,
+          crossOriginLegacyStagingPackage,
           isStaging: true,
         ),
-        isTrue,
+        isFalse,
       );
     });
 
@@ -213,108 +241,207 @@ void main() {
           );
         }),
         tempDirectoryProvider: () async => tempDir,
-        packageVerifier: (_) async {},
         installer: (_) async {},
       );
 
       await expectLater(
         service.downloadAndInstall(_resultFor(bytes)),
-        throwsA(isA<AppSelfUpdateException>()),
+        throwsA(
+          isA<AppSelfUpdateException>()
+              .having((error) => error.code, 'code', 'DOWNLOADING_HTTP_FAILED')
+              .having(
+                (error) => error.stage,
+                'stage',
+                AppSelfUpdateStage.downloading,
+              )
+              .having(
+                (error) => error.severity,
+                'severity',
+                AppSelfUpdateFailureSeverity.warning,
+              )
+              .having(
+                (error) => error.message,
+                'message',
+                isNot(contains('302')),
+              ),
+        ),
+      );
+    });
+
+    test('classifies a network failure as a local warning', () async {
+      final bytes = 'fake installer bytes'.codeUnits;
+      final service = AppSelfUpdateService(
+        httpClient: MockClient((_) async {
+          throw http.ClientException('test network failure');
+        }),
+        tempDirectoryProvider: () async => tempDir,
+        installer: (_) async {},
+      );
+
+      await expectLater(
+        service.downloadAndInstall(_resultFor(bytes)),
+        throwsA(
+          isA<AppSelfUpdateException>()
+              .having(
+                (error) => error.code,
+                'code',
+                'DOWNLOADING_NETWORK_FAILED',
+              )
+              .having(
+                (error) => error.stage,
+                'stage',
+                AppSelfUpdateStage.downloading,
+              )
+              .having(
+                (error) => error.severity,
+                'severity',
+                AppSelfUpdateFailureSeverity.warning,
+              ),
+        ),
       );
     });
 
     test(
-      'checks the platform signature before launching the installer',
+      'deletes an incomplete download and classifies it as warning',
       () async {
-        final bytes = 'fake installer bytes'.codeUnits;
-        final calls = <String>[];
+        final expectedBytes = 'complete installer bytes'.codeUnits;
+        final partialBytes = expectedBytes.take(7).toList(growable: false);
         final service = AppSelfUpdateService(
-          httpClient: MockClient((_) async => http.Response.bytes(bytes, 200)),
+          httpClient: _StreamedClient(
+            (_) async => http.StreamedResponse(
+              Stream<List<int>>.value(partialBytes),
+              200,
+            ),
+          ),
           tempDirectoryProvider: () async => tempDir,
-          packageVerifier: (_) async => calls.add('verify-signature'),
-          installer: (_) async => calls.add('launch-installer'),
-        );
-
-        await service.downloadAndInstall(_resultFor(bytes));
-
-        expect(calls, ['verify-signature', 'launch-installer']);
-      },
-    );
-
-    test(
-      'does not launch when platform signature verification fails',
-      () async {
-        final bytes = 'fake installer bytes'.codeUnits;
-        var installerCalled = false;
-        final service = AppSelfUpdateService(
-          httpClient: MockClient((_) async => http.Response.bytes(bytes, 200)),
-          tempDirectoryProvider: () async => tempDir,
-          packageVerifier: (_) async =>
-              throw const AppSelfUpdateException('Chữ ký không hợp lệ.'),
-          installer: (_) async => installerCalled = true,
+          installer: (_) async {},
         );
 
         await expectLater(
-          service.downloadAndInstall(_resultFor(bytes)),
-          throwsA(isA<AppSelfUpdateException>()),
+          service.downloadAndInstall(_resultFor(expectedBytes)),
+          throwsA(
+            isA<AppSelfUpdateException>()
+                .having((error) => error.code, 'code', 'DOWNLOADING_INCOMPLETE')
+                .having(
+                  (error) => error.stage,
+                  'stage',
+                  AppSelfUpdateStage.downloading,
+                )
+                .having(
+                  (error) => error.severity,
+                  'severity',
+                  AppSelfUpdateFailureSeverity.warning,
+                )
+                .having(
+                  (error) => error.receivedBytes,
+                  'receivedBytes',
+                  partialBytes.length,
+                ),
+          ),
         );
-        expect(installerCalled, isFalse);
+        expect(
+          await tempDir
+              .list(recursive: true)
+              .where((entity) => entity is File)
+              .isEmpty,
+          isTrue,
+        );
       },
     );
 
-    test(
-      'Windows signature verifier handles a signed path with shell metacharacters',
-      () async {
-        if (!Platform.isWindows) return;
-        final windowsRoot = Platform.environment['WINDIR'];
-        expect(windowsRoot, isNotNull);
-        final signedSource = File(
-          '$windowsRoot${Platform.pathSeparator}System32'
-          '${Platform.pathSeparator}WindowsPowerShell'
-          '${Platform.pathSeparator}v1.0'
-          '${Platform.pathSeparator}powershell.exe',
-        );
-        expect(await signedSource.exists(), isTrue);
-        final signedDirectory = Directory(
-          '${tempDir.path}${Platform.pathSeparator}signed package test',
-        );
-        await signedDirectory.create(recursive: true);
-        final signedCopy = await signedSource.copy(
-          '${signedDirectory.path}${Platform.pathSeparator}'
-          "signed package ' + ; test.exe",
-        );
-
-        final signer =
-            await AppSelfUpdateService.readWindowsSignerSha256ForTesting(
-              signedCopy.path,
-            );
-
-        expect(signer, matches(RegExp(r'^[0-9A-F]{64}$')));
-      },
-    );
-
-    test('Windows signature verifier rejects an unsigned executable', () async {
-      if (!Platform.isWindows) return;
-      final unsignedFile = File(
-        '${tempDir.path}${Platform.pathSeparator}unsigned.exe',
+    test('classifies an invalid package type as a preparing error', () async {
+      final bytes = 'fake installer bytes'.codeUnits;
+      var requestCount = 0;
+      final service = AppSelfUpdateService(
+        httpClient: MockClient((_) async {
+          requestCount += 1;
+          return http.Response.bytes(bytes, 200);
+        }),
+        tempDirectoryProvider: () async => tempDir,
+        installer: (_) async {},
       );
-      await unsignedFile.writeAsString('not a signed executable');
 
       await expectLater(
-        AppSelfUpdateService.readWindowsSignerSha256ForTesting(
-          unsignedFile.path,
+        service.downloadAndInstall(
+          _resultFor(bytes, packageTypeOverride: 'zip'),
         ),
         throwsA(
           isA<AppSelfUpdateException>()
               .having(
                 (error) => error.code,
                 'code',
-                'WINDOWS_SIGNATURE_NOT_VALID',
+                'PREPARING_PACKAGE_TYPE_INVALID',
               )
               .having(
-                (error) => error.message,
-                'message',
-                contains('Windows chưa xác nhận được chữ ký'),
+                (error) => error.stage,
+                'stage',
+                AppSelfUpdateStage.preparing,
+              )
+              .having(
+                (error) => error.severity,
+                'severity',
+                AppSelfUpdateFailureSeverity.error,
+              ),
+        ),
+      );
+      expect(requestCount, 0);
+    });
+
+    test('preserves native installer code at the installing stage', () async {
+      final bytes = 'fake installer bytes'.codeUnits;
+      final service = AppSelfUpdateService(
+        httpClient: MockClient((_) async => http.Response.bytes(bytes, 200)),
+        tempDirectoryProvider: () async => tempDir,
+        installer: (_) async {
+          throw PlatformException(code: 'PACKAGE_MISMATCH');
+        },
+      );
+
+      await expectLater(
+        service.downloadAndInstall(_resultFor(bytes)),
+        throwsA(
+          isA<AppSelfUpdateException>()
+              .having((error) => error.code, 'code', 'PACKAGE_MISMATCH')
+              .having(
+                (error) => error.stage,
+                'stage',
+                AppSelfUpdateStage.installing,
+              )
+              .having(
+                (error) => error.severity,
+                'severity',
+                AppSelfUpdateFailureSeverity.error,
+              ),
+        ),
+      );
+    });
+
+    test('maps an unclassified failure to the unexpected stage', () async {
+      final bytes = 'fake installer bytes'.codeUnits;
+      final service = AppSelfUpdateService(
+        httpClient: MockClient((_) async => http.Response.bytes(bytes, 200)),
+        tempDirectoryProvider: () async => tempDir,
+        installer: (_) async => throw StateError('test-only failure'),
+      );
+
+      await expectLater(
+        service.downloadAndInstall(_resultFor(bytes)),
+        throwsA(
+          isA<AppSelfUpdateException>()
+              .having(
+                (error) => error.code,
+                'code',
+                'UNEXPECTED_SELF_UPDATE_FAILURE',
+              )
+              .having(
+                (error) => error.stage,
+                'stage',
+                AppSelfUpdateStage.unexpected,
+              )
+              .having(
+                (error) => error.severity,
+                'severity',
+                AppSelfUpdateFailureSeverity.error,
               ),
         ),
       );
@@ -326,7 +453,6 @@ void main() {
       final service = AppSelfUpdateService(
         httpClient: MockClient((_) async => http.Response.bytes(bytes, 200)),
         tempDirectoryProvider: () async => tempDir,
-        packageVerifier: (_) async {},
         installer: (_) async => installerCalled = true,
         maxPackageBytes: bytes.length - 1,
       );
@@ -340,11 +466,22 @@ void main() {
   });
 }
 
+class _StreamedClient extends http.BaseClient {
+  _StreamedClient(this._send);
+
+  final Future<http.StreamedResponse> Function(http.BaseRequest request) _send;
+
+  @override
+  Future<http.StreamedResponse> send(http.BaseRequest request) =>
+      _send(request);
+}
+
 AppUpdateCheckResult _resultFor(
   List<int> bytes, {
   String? sha256Override,
   List<String>? installerArgs,
   String? packageUrlOverride,
+  String? packageTypeOverride,
 }) {
   final digest = sha256.convert(bytes).toString();
   return AppUpdateCheckResult(
@@ -361,7 +498,7 @@ AppUpdateCheckResult _resultFor(
           'https://opshub.hoanghochoi.com/downloads/opshub.exe',
       packageSha256: sha256Override ?? digest,
       packageSizeBytes: bytes.length,
-      packageType: 'windowsInstaller',
+      packageType: packageTypeOverride ?? 'windowsInstaller',
       installerArgs: installerArgs ?? ['/VERYSILENT', '/OPSHUBRELAUNCH=1'],
       releaseNotes: 'Test build',
       forceUpdate: false,

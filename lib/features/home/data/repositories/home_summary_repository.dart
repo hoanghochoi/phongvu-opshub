@@ -43,6 +43,8 @@ class HomeSummaryScopeOptionDto {
 }
 
 class HomeSummaryRepository {
+  static const Duration summaryFreshTtl = Duration(seconds: 60);
+
   final ApiClient _apiClient;
   final AppQueryCache _queryCache;
 
@@ -89,7 +91,7 @@ class HomeSummaryRepository {
     );
     final snapshot = await _queryCache.getOrLoad<Map<String, dynamic>>(
       key: key,
-      policy: const AppQueryPolicy(ttl: Duration(seconds: 60)),
+      policy: const AppQueryPolicy(ttl: summaryFreshTtl),
       codec: const AppQueryCodec(
         encode: _encodeJsonMap,
         decode: _decodeJsonMap,

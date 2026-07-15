@@ -38,9 +38,11 @@ class PaymentMonitorRepository {
     int page = 0,
     int limit = 10,
     bool includeTotal = true,
+    bool allowRateLimitCooldownBypass = false,
   }) async {
     final response = await _apiClient.get(
       ApiConstants.adminMapVietinStoredTransactionsEndpoint,
+      allowRateLimitCooldownBypass: allowRateLimitCooldownBypass,
       queryParameters: {
         if (storeId != null && storeId.trim().isNotEmpty)
           'storeId': storeId.trim().toUpperCase(),
@@ -83,10 +85,12 @@ class PaymentMonitorRepository {
     String transactionId,
     List<String> orders, {
     String? transactionKey,
+    bool allowRateLimitCooldownBypass = false,
   }) async {
     final cleanTransactionKey = transactionKey?.trim() ?? '';
     final response = await _apiClient.patch(
       ApiConstants.adminMapVietinStatementOrdersEndpoint(transactionId),
+      allowRateLimitCooldownBypass: allowRateLimitCooldownBypass,
       body: {
         'orders': orders,
         if (cleanTransactionKey.isNotEmpty)
@@ -100,43 +104,53 @@ class PaymentMonitorRepository {
 
   Future<void> createOrderTransferRequest(
     String transactionId,
-    List<String> orders,
-  ) async {
+    List<String> orders, {
+    bool allowRateLimitCooldownBypass = false,
+  }) async {
     await _apiClient.post(
       ApiConstants.adminMapVietinStatementOrderTransferRequestsEndpoint(
         transactionId,
       ),
+      allowRateLimitCooldownBypass: allowRateLimitCooldownBypass,
       body: {'orders': orders},
     );
   }
 
-  Future<MapPaymentTransaction?> approveOrderTransferRequest(String requestId) {
+  Future<MapPaymentTransaction?> approveOrderTransferRequest(
+    String requestId, {
+    bool allowRateLimitCooldownBypass = false,
+  }) {
     return _reviewOrderTransferRequest(
       ApiConstants.adminMapVietinStatementOrderTransferApproveEndpoint(
         requestId,
       ),
+      allowRateLimitCooldownBypass: allowRateLimitCooldownBypass,
     );
   }
 
   Future<MapPaymentTransaction?> rejectOrderTransferRequest(
     String requestId, {
     String? note,
+    bool allowRateLimitCooldownBypass = false,
   }) {
     return _reviewOrderTransferRequest(
       ApiConstants.adminMapVietinStatementOrderTransferRejectEndpoint(
         requestId,
       ),
       note: note,
+      allowRateLimitCooldownBypass: allowRateLimitCooldownBypass,
     );
   }
 
   Future<MapPaymentTransaction?> _reviewOrderTransferRequest(
     String endpoint, {
     String? note,
+    bool allowRateLimitCooldownBypass = false,
   }) async {
     final cleanNote = note?.trim() ?? '';
     final response = await _apiClient.post(
       endpoint,
+      allowRateLimitCooldownBypass: allowRateLimitCooldownBypass,
       body: {if (cleanNote.isNotEmpty) 'note': cleanNote},
     );
     final data = jsonDecode(response.body) as Map<String, dynamic>;
@@ -148,10 +162,12 @@ class PaymentMonitorRepository {
   }
 
   Future<List<BankStatementOrderHistoryEntry>> fetchOrderHistory(
-    String transactionId,
-  ) async {
+    String transactionId, {
+    bool allowRateLimitCooldownBypass = false,
+  }) async {
     final response = await _apiClient.get(
       ApiConstants.adminMapVietinStatementOrderHistoryEndpoint(transactionId),
+      allowRateLimitCooldownBypass: allowRateLimitCooldownBypass,
     );
     final data = jsonDecode(response.body) as Map<String, dynamic>;
     final rows = data['list'] is List ? data['list'] as List : const [];

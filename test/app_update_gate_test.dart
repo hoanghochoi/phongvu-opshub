@@ -193,7 +193,11 @@ void main() {
                 message: 'Đang kiểm tra gói cập nhật...',
               ),
             );
-            throw const AppSelfUpdateException('Không tải được gói cập nhật.');
+            throw const AppSelfUpdateException(
+              'Không tải được gói cập nhật.',
+              code: 'DOWNLOADING_NETWORK_FAILED',
+              stage: AppSelfUpdateStage.downloading,
+            );
           },
           openManualUpdate: (uri) async {
             manualUpdateUri = uri;

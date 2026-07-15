@@ -523,6 +523,7 @@ class _AppUpdateGateState extends State<AppUpdateGate>
   }
 
   Future<void> _installUpdate(AppUpdateCheckResult result) async {
+    final startedAt = DateTime.now();
     setState(() {
       _runningUpdateAction = true;
       _updateActionError = null;
@@ -543,24 +544,25 @@ class _AppUpdateGateState extends State<AppUpdateGate>
         setState(() => _selfUpdateProgress = progress);
       });
     } on AppSelfUpdateException catch (error) {
-      await AppLogger.instance.warn(
-        'AppUpdate',
-        'In-app update stopped',
-        context: {..._logContext(result), 'reason': error.code ?? 'error'},
-      );
+      // AppSelfUpdateService owns the typed failure log. Keeping presentation
+      // handling UI-only prevents one failed attempt from being uploaded twice.
       if (mounted) {
         setState(() {
           _updateActionError = error.message;
           _selfUpdateProgress = null;
         });
       }
-    } catch (error, stackTrace) {
+    } catch (_) {
       await AppLogger.instance.error(
         'AppUpdate',
-        'In-app update failed',
-        error: error,
-        stackTrace: stackTrace,
-        context: _logContext(result),
+        'In-app update unexpected failure shown to user',
+        context: {
+          ..._safeUpdateFailureContext(result),
+          'code': 'UNEXPECTED_SELF_UPDATE_FAILURE',
+          'stage': AppSelfUpdateStage.unexpected.name,
+          'durationMs': DateTime.now().difference(startedAt).inMilliseconds,
+        },
+        upload: ApiClient().authToken != null,
       );
       if (mounted) {
         setState(() {
@@ -572,6 +574,17 @@ class _AppUpdateGateState extends State<AppUpdateGate>
     } finally {
       if (mounted) setState(() => _runningUpdateAction = false);
     }
+  }
+
+  Map<String, Object?> _safeUpdateFailureContext(AppUpdateCheckResult result) {
+    final info = result.updateInfo;
+    return {
+      'platform': info.platform,
+      'currentBuild': result.currentBuild,
+      'latestBuild': info.latestBuild,
+      'packageHost': Uri.tryParse(info.packageUrl)?.host.toLowerCase(),
+      'packageSizeBytes': info.packageSizeBytes,
+    };
   }
 
   Future<void> _openManualUpdatePage(AppUpdateCheckResult result) async {

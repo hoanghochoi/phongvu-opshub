@@ -121,6 +121,8 @@ class PaymentMonitorProvider extends ChangeNotifier {
   bool _refreshQueuedWhileLoading = false;
   bool _queuedRefreshIncludeTotal = false;
   bool _queuedRefreshDrainReadyNotifications = false;
+  bool _queuedRefreshAllowRateLimitCooldownBypass = false;
+  String? _queuedUserRefreshReason;
   bool _isDrainingStreamNotifications = false;
   bool _isDrainingReadyNotifications = false;
   bool _canReviewOrderTransfers = false;
@@ -309,6 +311,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
     await _poll(
       force: true,
       bypassBackoff: true,
+      allowRateLimitCooldownBypass: true,
       includeTotal: true,
       drainReadyNotifications: _shouldReadPaymentSpeaker,
       reason: 'manual_refresh',
@@ -323,7 +326,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
       ..clear()
       ..addAll([if (_storeOverride?.isNotEmpty == true) _storeOverride!]);
     _pageIndex = 0;
-    _restart();
+    _restart(reason: 'store_override', userInitiated: true);
   }
 
   void setSelectedStoreIds(Set<String> values) {
@@ -337,7 +340,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
       ..addAll(normalized);
     _storeOverride = normalized.length == 1 ? normalized.first : null;
     _pageIndex = 0;
-    _restart();
+    _restart(reason: 'store_selection', userInitiated: true);
   }
 
   void setSelectedDate(DateTime value) {
@@ -373,6 +376,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
     _poll(
       force: true,
       bypassBackoff: true,
+      allowRateLimitCooldownBypass: true,
       includeTotal: true,
       reason: 'date_range',
     );
@@ -395,6 +399,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
     _poll(
       force: true,
       bypassBackoff: true,
+      allowRateLimitCooldownBypass: true,
       includeTotal: true,
       reason: 'page_size',
     );
@@ -407,6 +412,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
     _poll(
       force: true,
       bypassBackoff: true,
+      allowRateLimitCooldownBypass: true,
       includeTotal: true,
       reason: 'next_page',
     );
@@ -419,6 +425,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
     _poll(
       force: true,
       bypassBackoff: true,
+      allowRateLimitCooldownBypass: true,
       includeTotal: true,
       reason: 'previous_page',
     );
@@ -645,7 +652,10 @@ class PaymentMonitorProvider extends ChangeNotifier {
     );
   }
 
-  void _reconcile() {
+  void _reconcile({
+    String initialPollReason = 'initial_load',
+    bool initialPollIsUserInitiated = false,
+  }) {
     if (!_canMonitorOnThisDevice) {
       _stop(reason: 'unsupported_device');
       return;
@@ -699,8 +709,10 @@ class PaymentMonitorProvider extends ChangeNotifier {
     if (_isListViewActive) {
       _poll(
         force: true,
+        bypassBackoff: initialPollIsUserInitiated,
+        allowRateLimitCooldownBypass: initialPollIsUserInitiated,
         includeTotal: true,
-        reason: 'initial_load',
+        reason: initialPollReason,
         drainReadyNotifications: speakerPlaybackEnabled,
       );
     } else if (speakerPlaybackEnabled) {
@@ -709,9 +721,12 @@ class PaymentMonitorProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  void _restart() {
-    _stop(reason: 'restart');
-    _reconcile();
+  void _restart({required String reason, bool userInitiated = false}) {
+    _stop(reason: reason);
+    _reconcile(
+      initialPollReason: reason,
+      initialPollIsUserInitiated: userInitiated,
+    );
   }
 
   void _stop({required String reason, bool clearError = true}) {
@@ -739,6 +754,8 @@ class PaymentMonitorProvider extends ChangeNotifier {
     _refreshQueuedWhileLoading = false;
     _queuedRefreshIncludeTotal = false;
     _queuedRefreshDrainReadyNotifications = false;
+    _queuedRefreshAllowRateLimitCooldownBypass = false;
+    _queuedUserRefreshReason = null;
     _deliveryInFlightNotificationIds.clear();
     _terminalNotificationIds.clear();
     _queuedStreamNotificationIds.clear();
@@ -1122,6 +1139,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
   Future<void> _poll({
     bool force = false,
     bool bypassBackoff = false,
+    bool allowRateLimitCooldownBypass = false,
     bool includeTotal = true,
     bool drainReadyNotifications = false,
     String reason = 'unknown',
@@ -1134,6 +1152,12 @@ class PaymentMonitorProvider extends ChangeNotifier {
         _queuedRefreshIncludeTotal = _queuedRefreshIncludeTotal || includeTotal;
         _queuedRefreshDrainReadyNotifications =
             _queuedRefreshDrainReadyNotifications || drainReadyNotifications;
+        _queuedRefreshAllowRateLimitCooldownBypass =
+            _queuedRefreshAllowRateLimitCooldownBypass ||
+            allowRateLimitCooldownBypass;
+        if (allowRateLimitCooldownBypass) {
+          _queuedUserRefreshReason = reason;
+        }
       }
       return;
     }
@@ -1200,6 +1224,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
         page: _pageIndex,
         limit: _pageSize,
         includeTotal: includeTotal,
+        allowRateLimitCooldownBypass: allowRateLimitCooldownBypass,
       );
       if (!_isCurrentPollRequest(authGeneration, requestToken, sessionKey)) {
         return;
@@ -1285,6 +1310,8 @@ class PaymentMonitorProvider extends ChangeNotifier {
         _refreshQueuedWhileLoading = false;
         _queuedRefreshIncludeTotal = false;
         _queuedRefreshDrainReadyNotifications = false;
+        _queuedRefreshAllowRateLimitCooldownBypass = false;
+        _queuedUserRefreshReason = null;
       } else if (_isCurrentPollRequest(
         authGeneration,
         requestToken,
@@ -1298,16 +1325,22 @@ class PaymentMonitorProvider extends ChangeNotifier {
           final queuedIncludeTotal = _queuedRefreshIncludeTotal;
           final queuedDrainReadyNotifications =
               _queuedRefreshDrainReadyNotifications;
+          final queuedAllowRateLimitCooldownBypass =
+              _queuedRefreshAllowRateLimitCooldownBypass;
+          final queuedReason = _queuedUserRefreshReason;
           _refreshQueuedWhileLoading = false;
           _queuedRefreshIncludeTotal = false;
           _queuedRefreshDrainReadyNotifications = false;
+          _queuedRefreshAllowRateLimitCooldownBypass = false;
+          _queuedUserRefreshReason = null;
           unawaited(
             _poll(
               force: true,
-              bypassBackoff: false,
+              bypassBackoff: queuedAllowRateLimitCooldownBypass,
+              allowRateLimitCooldownBypass: queuedAllowRateLimitCooldownBypass,
               includeTotal: queuedIncludeTotal,
               drainReadyNotifications: queuedDrainReadyNotifications,
-              reason: 'queued_after_loading',
+              reason: queuedReason ?? 'queued_after_loading',
             ),
           );
         }
@@ -1491,6 +1524,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
         transactionId,
         orders,
         transactionKey: transactionKey,
+        allowRateLimitCooldownBypass: true,
       );
       _replaceTransaction(updated, previousId: transactionId);
       _showRowMessage(updated.id, 'Đã cập nhật mã đơn hàng.', true);
@@ -1548,7 +1582,11 @@ class PaymentMonitorProvider extends ChangeNotifier {
         'Payment monitor order transfer request started',
         context: {'transactionId': transactionId, 'orderCount': orders.length},
       );
-      await _repository.createOrderTransferRequest(transactionId, orders);
+      await _repository.createOrderTransferRequest(
+        transactionId,
+        orders,
+        allowRateLimitCooldownBypass: true,
+      );
       await _refreshCurrentPageAfterOrderAction(
         reason: 'order_transfer_request',
       );
@@ -1587,7 +1625,10 @@ class PaymentMonitorProvider extends ChangeNotifier {
         'Payment monitor order history load started',
         context: {'transactionId': transactionId},
       );
-      final rows = await _repository.fetchOrderHistory(transactionId);
+      final rows = await _repository.fetchOrderHistory(
+        transactionId,
+        allowRateLimitCooldownBypass: true,
+      );
       await AppLogger.instance.info(
         'PaymentMonitor',
         'Payment monitor order history load succeeded',
@@ -1648,8 +1689,15 @@ class PaymentMonitorProvider extends ChangeNotifier {
         },
       );
       final updated = approved
-          ? await _repository.approveOrderTransferRequest(requestId)
-          : await _repository.rejectOrderTransferRequest(requestId, note: note);
+          ? await _repository.approveOrderTransferRequest(
+              requestId,
+              allowRateLimitCooldownBypass: true,
+            )
+          : await _repository.rejectOrderTransferRequest(
+              requestId,
+              note: note,
+              allowRateLimitCooldownBypass: true,
+            );
       if (updated != null) {
         _replaceTransaction(updated);
       } else {
@@ -1694,6 +1742,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
     await _poll(
       force: true,
       bypassBackoff: true,
+      allowRateLimitCooldownBypass: true,
       includeTotal: true,
       reason: reason,
     );
@@ -1764,6 +1813,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
         refreshed.id,
         orders,
         transactionKey: refreshed.transactionKey,
+        allowRateLimitCooldownBypass: true,
       );
       _replaceTransaction(updated, previousId: originalTransactionId);
       _showRowMessage(updated.id, 'Đã cập nhật mã đơn hàng.', true);

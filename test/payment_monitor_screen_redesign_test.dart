@@ -126,6 +126,7 @@ class _WidgetPaymentMonitorRepository extends PaymentMonitorRepository {
     int page = 0,
     int limit = 10,
     bool includeTotal = true,
+    bool allowRateLimitCooldownBypass = false,
   }) async {
     fetchCount += 1;
     requestedStoreIds.add(storeIds ?? storeId);

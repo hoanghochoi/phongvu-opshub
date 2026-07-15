@@ -401,6 +401,7 @@ class _FakePaymentMonitorRepository extends PaymentMonitorRepository {
     int page = 0,
     int limit = 10,
     bool includeTotal = true,
+    bool allowRateLimitCooldownBypass = false,
   }) async {
     return StoredPaymentTransactionsPage(
       transactions: const [],

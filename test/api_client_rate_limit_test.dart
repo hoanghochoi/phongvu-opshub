@@ -54,6 +54,118 @@ void main() {
         throwsA(isA<RateLimitedException>()),
       );
       expect(calls, 3);
+      expect(events.map((event) => event.action), [
+        'activated',
+        'deferred',
+        'expired',
+        'activated',
+      ]);
+    },
+  );
+
+  test(
+    'user action consumes one bypass ticket and a second 429 keeps it consumed',
+    () async {
+      final now = DateTime.utc(2026, 7, 15, 4);
+      var calls = 0;
+      final events = <ApiRateLimitEvent>[];
+      final client = ApiClient.test(
+        MockClient((request) async {
+          calls += 1;
+          if (request.method == 'GET' &&
+              request.url.path.endsWith('/admin/map-vietin/transactions')) {
+            return http.Response(
+              '',
+              429,
+              headers: {'retry-after': calls == 1 ? '30' : '2'},
+            );
+          }
+          return http.Response('{}', 200);
+        }),
+        now: () => now,
+      )..setRateLimitObserver(events.add);
+
+      await expectLater(
+        client.get('/admin/map-vietin/transactions?storeId=CP01'),
+        throwsA(isA<RateLimitedException>()),
+      );
+      await expectLater(
+        client.get(
+          '/admin/map-vietin/transactions?storeId=CP02',
+          allowRateLimitCooldownBypass: true,
+        ),
+        throwsA(
+          isA<RateLimitedException>().having(
+            (error) => error.retryAt,
+            'retryAt',
+            now.add(const Duration(seconds: 2)),
+          ),
+        ),
+      );
+      await expectLater(
+        client.get(
+          '/admin/map-vietin/transactions?storeId=CP03',
+          allowRateLimitCooldownBypass: true,
+        ),
+        throwsA(isA<RateLimitedException>()),
+      );
+      await expectLater(
+        client.get('/admin/map-vietin/transactions?storeId=CP04'),
+        throwsA(isA<RateLimitedException>()),
+      );
+
+      expect(calls, 2);
+      expect(events.map((event) => event.action), [
+        'activated',
+        'bypassed',
+        'activated',
+        'deferred',
+      ]);
+      expect(events.map((event) => event.endpoint).toSet(), {
+        '/admin/map-vietin/transactions',
+      });
+
+      await client.get('/admin/map-vietin/history');
+      await client.post('/admin/map-vietin/transactions', body: const {});
+      expect(calls, 4);
+    },
+  );
+
+  test(
+    'successful bypass recovers and resets the next cooldown ticket',
+    () async {
+      var calls = 0;
+      final events = <ApiRateLimitEvent>[];
+      final client = ApiClient.test(
+        MockClient((_) async {
+          calls += 1;
+          if (calls == 1 || calls == 3) {
+            return http.Response('', 429, headers: {'retry-after': '30'});
+          }
+          return http.Response('{}', 200);
+        }),
+      )..setRateLimitObserver(events.add);
+
+      await expectLater(
+        client.get('/payment'),
+        throwsA(isA<RateLimitedException>()),
+      );
+      await client.get('/payment', allowRateLimitCooldownBypass: true);
+      await expectLater(
+        client.get('/payment'),
+        throwsA(isA<RateLimitedException>()),
+      );
+      await client.get('/payment', allowRateLimitCooldownBypass: true);
+
+      expect(calls, 4);
+      expect(events.map((event) => event.action), [
+        'activated',
+        'bypassed',
+        'recovered',
+        'activated',
+        'bypassed',
+        'recovered',
+      ]);
     },
   );
 
@@ -80,7 +192,7 @@ void main() {
     await client.get('/home/summary');
 
     expect(calls, 3);
-    expect(events.map((event) => event.action), ['activated', 'recovered']);
+    expect(events.map((event) => event.action), ['activated', 'expired']);
   });
 
   test('429 without Retry-After uses exponential endpoint fallback', () async {
@@ -102,10 +214,12 @@ void main() {
     }
     expect(first?.retryAt, now.add(const Duration(seconds: 5)));
 
-    now = now.add(const Duration(seconds: 6));
     RateLimitedException? second;
     try {
-      await client.get('/payment-notifications/ready');
+      await client.get(
+        '/payment-notifications/ready',
+        allowRateLimitCooldownBypass: true,
+      );
     } on RateLimitedException catch (error) {
       second = error;
     }
