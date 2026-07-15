@@ -195,7 +195,7 @@ void main() {
           },
         ),
       );
-      await tester.pump(const Duration(milliseconds: 499));
+      await tester.pump(const Duration(milliseconds: 1999));
       expect(repository.requestedScopes.length, initialRequests);
       await tester.pump(const Duration(milliseconds: 1));
       await tester.pump();
@@ -229,13 +229,114 @@ void main() {
           },
         ),
       );
-      await tester.pump(const Duration(milliseconds: 600));
+      await tester.pump(const Duration(milliseconds: 2100));
       expect(repository.requestedScopes.length, initialRequests + 1);
 
       realtime.requestSync(RealtimeSyncReason.appResumed);
-      await tester.pump(const Duration(milliseconds: 500));
+      await tester.pump(const Duration(seconds: 2));
       await tester.pump();
       expect(repository.requestedScopes.length, initialRequests + 2);
+    },
+  );
+
+  testWidgets(
+    'Home defers bootstrap and realtime refresh while its route is inactive',
+    (tester) async {
+      final realtime = _FakeRealtimeClient();
+      final repository = _FakeHomeSummaryRepository(summary: _homeSummary());
+      final provider = HomeSummaryProvider(
+        repository,
+        now: () => DateTime(2026, 7, 14, 10),
+        realtimeClient: realtime,
+      );
+      addTearDown(provider.dispose);
+      addTearDown(realtime.dispose);
+
+      provider.syncRuntime(isRouteActive: false, isForeground: true);
+      provider.syncAuth(_staffUser(), isInitialized: true);
+      await tester.pump();
+      expect(repository.requestedScopes, isEmpty);
+
+      provider.syncRuntime(isRouteActive: true, isForeground: true);
+      await tester.pump(const Duration(milliseconds: 1));
+      await tester.pump();
+      expect(repository.requestedScopes, hasLength(1));
+
+      provider.syncRuntime(isRouteActive: false, isForeground: true);
+      realtime.addEvent(
+        RealtimeEnvelope(
+          version: 2,
+          kind: 'HOME_SUMMARY_UPDATED',
+          id: 'event-deferred',
+          topic: 'home.summary',
+          sequence: 43,
+          timestamp: DateTime.utc(2026, 7, 14, 10, 31),
+          data: const {
+            'affectedDates': ['2026-07-14'],
+            'projectionVersion': 43,
+          },
+        ),
+      );
+      await tester.pump(const Duration(seconds: 6));
+      expect(repository.requestedScopes, hasLength(1));
+
+      provider.syncRuntime(isRouteActive: true, isForeground: true);
+      await tester.pump(const Duration(milliseconds: 1));
+      await tester.pump();
+      expect(repository.requestedScopes, hasLength(2));
+
+      provider.syncRuntime(isRouteActive: false, isForeground: true);
+      provider.syncRuntime(isRouteActive: true, isForeground: true);
+      await tester.pump();
+      expect(repository.requestedScopes, hasLength(2));
+    },
+  );
+
+  testWidgets(
+    'Home discards scope options returned for an obsolete access identity',
+    (tester) async {
+      final repository = _DeferredScopeHomeSummaryRepository(
+        summary: _homeSummary(),
+      );
+      final provider = HomeSummaryProvider(
+        repository,
+        now: () => DateTime(2026, 7, 14, 10),
+      );
+      addTearDown(provider.dispose);
+      final user = _staffUser();
+
+      provider.syncAuth(user, isInitialized: true, accessIdentity: 'access-v1');
+      await _pumpUntil(tester, () => repository.scopeRequests.length == 1);
+
+      provider.syncAuth(user, isInitialized: true, accessIdentity: 'access-v2');
+      await _pumpUntil(tester, () => repository.scopeRequests.length == 2);
+
+      repository.scopeRequests[1].complete(const [
+        HomeSummaryScopeOptionDto(
+          value: 'OWN',
+          label: 'Phạm vi mới',
+          scope: 'OWN',
+          isDefault: true,
+        ),
+      ]);
+      await _pumpUntil(tester, () => repository.requestedScopes.length == 1);
+      expect(provider.scopeOptions.single.label, 'Phạm vi mới');
+      expect(provider.selectedScope, 'OWN');
+
+      repository.scopeRequests[0].complete(const [
+        HomeSummaryScopeOptionDto(
+          value: 'ALL',
+          label: 'Phạm vi cũ',
+          scope: 'ALL',
+          isDefault: true,
+        ),
+      ]);
+      await tester.pump();
+      await tester.pump();
+
+      expect(provider.scopeOptions.single.label, 'Phạm vi mới');
+      expect(provider.selectedScope, 'OWN');
+      expect(repository.requestedScopes, hasLength(1));
     },
   );
 
@@ -1974,6 +2075,8 @@ class _FakeHomeSummaryRepository extends HomeSummaryRepository {
     String? scope,
     String? organizationNodeId,
     String? salesProgressUserId,
+    String? cacheIdentity,
+    bool forceRefresh = false,
   }) async {
     requestedScopes.add(scope);
     requestedNodeIds.add(organizationNodeId);
@@ -1990,7 +2093,10 @@ class _FakeHomeSummaryRepository extends HomeSummaryRepository {
   }
 
   @override
-  Future<List<HomeSummaryScopeOptionDto>> fetchScopeOptions() async {
+  Future<List<HomeSummaryScopeOptionDto>> fetchScopeOptions({
+    String? cacheIdentity,
+    bool forceRefresh = false,
+  }) async {
     return scopeOptions;
   }
 
@@ -2024,6 +2130,30 @@ class _FakeHomeSummaryRepository extends HomeSummaryRepository {
           installmentNeedReports: const [],
         );
   }
+}
+
+class _DeferredScopeHomeSummaryRepository extends _FakeHomeSummaryRepository {
+  final List<Completer<List<HomeSummaryScopeOptionDto>>> scopeRequests = [];
+
+  _DeferredScopeHomeSummaryRepository({required super.summary});
+
+  @override
+  Future<List<HomeSummaryScopeOptionDto>> fetchScopeOptions({
+    String? cacheIdentity,
+    bool forceRefresh = false,
+  }) {
+    final request = Completer<List<HomeSummaryScopeOptionDto>>();
+    scopeRequests.add(request);
+    return request.future;
+  }
+}
+
+Future<void> _pumpUntil(WidgetTester tester, bool Function() condition) async {
+  for (var attempt = 0; attempt < 40; attempt += 1) {
+    if (condition()) return;
+    await tester.pump();
+  }
+  fail('Condition was not reached before timeout.');
 }
 
 class _FakeRealtimeClient implements RealtimeClient {

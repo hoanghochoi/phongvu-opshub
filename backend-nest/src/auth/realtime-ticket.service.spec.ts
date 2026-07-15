@@ -51,14 +51,20 @@ describe('RealtimeTicketService', () => {
         .fn()
         .mockResolvedValue({ WARRANTY: true, FEEDBACK: false }),
     };
+    const policyService = {
+      resolvePolicyAccessMap: jest.fn().mockResolvedValue({}),
+    };
     return {
       service: new RealtimeTicketService(
         prisma as any,
         redis as any,
         featureService as any,
+        policyService as any,
       ),
       prisma,
       redis,
+      featureService,
+      policyService,
     };
   }
 
@@ -79,6 +85,7 @@ describe('RealtimeTicketService', () => {
       userId: 'user-1',
       storeCode: 'CP01',
       organizationAccessCodes: ['CP01', 'ORG_PV', 'SALES', 'STORE_CP01'],
+      policyCodes: [],
       featureCodes: ['WARRANTY'],
       sessionId: 'session-1',
       sessionVersion: 2,
@@ -97,6 +104,77 @@ describe('RealtimeTicketService', () => {
     expect(redis.setJsonWithTtl).not.toHaveBeenCalled();
   });
 
+  it('maps policy-only access to effective realtime feature entitlements', async () => {
+    const { service, redis, featureService, policyService } = setup();
+    featureService.resolveFeatureAccessMap.mockResolvedValue({
+      BANK_STATEMENTS: false,
+      OFFSET_ADJUSTMENTS: false,
+    });
+    policyService.resolvePolicyAccessMap.mockResolvedValue({
+      BANK_STATEMENT_ALL_SCOPE: true,
+      OFFSET_ADJUSTMENTS: true,
+    });
+
+    await service.issueTicket(authenticatedUser, 'CP01');
+
+    expect(redis.setJsonWithTtl.mock.calls[0][1].featureCodes).toEqual([
+      'BANK_STATEMENTS',
+      'OFFSET_ADJUSTMENTS',
+    ]);
+    expect(redis.setJsonWithTtl.mock.calls[0][1].policyCodes).not.toContain(
+      'BANK_STATEMENT_ALL_SCOPE',
+    );
+  });
+
+  it('adds only granted finance and payment all-scope markers to the ticket', async () => {
+    const { service, redis, policyService } = setup();
+    policyService.resolvePolicyAccessMap.mockResolvedValue({
+      PAYMENT_MONITOR_ALL_SCOPE: true,
+      BANK_STATEMENT_ALL_SCOPE: false,
+    });
+
+    await service.issueTicket(authenticatedUser);
+
+    expect(redis.setJsonWithTtl.mock.calls[0][1]).toMatchObject({
+      organizationAccessCodes: ['CP01', 'ORG_PV', 'SALES', 'STORE_CP01'],
+      policyCodes: ['PAYMENT_MONITOR_ALL_SCOPE'],
+    });
+    expect(redis.setJsonWithTtl.mock.calls[0][1].featureCodes).toEqual([
+      'WARRANTY',
+    ]);
+  });
+
+  it('keeps an explicitly selected store narrow for an all-scope user', async () => {
+    const { service, redis, policyService } = setup();
+    policyService.resolvePolicyAccessMap.mockResolvedValue({
+      PAYMENT_MONITOR_ALL_SCOPE: true,
+      BANK_STATEMENT_ALL_SCOPE: true,
+    });
+
+    await service.issueTicket(authenticatedUser, 'CP01');
+
+    expect(redis.setJsonWithTtl.mock.calls[0][1]).toMatchObject({
+      storeCode: 'CP01',
+      organizationAccessCodes: ['CP01', 'ORG_PV', 'SALES', 'STORE_CP01'],
+      policyCodes: [],
+    });
+  });
+
+  it('does not turn a colliding organization code into an all-scope policy', async () => {
+    const { service, prisma, redis } = setup();
+    prisma.user.findUnique.mockResolvedValue({
+      ...user,
+      departmentCode: 'PAYMENT_MONITOR_ALL_SCOPE',
+    });
+
+    await service.issueTicket(authenticatedUser);
+
+    expect(
+      redis.setJsonWithTtl.mock.calls[0][1].organizationAccessCodes,
+    ).toContain('PAYMENT_MONITOR_ALL_SCOPE');
+    expect(redis.setJsonWithTtl.mock.calls[0][1].policyCodes).toEqual([]);
+  });
+
   it('allows a super administrator to request an explicit store without expanding normal users', async () => {
     const { service, prisma, redis } = setup();
     prisma.user.findUnique.mockResolvedValue({
@@ -111,5 +189,17 @@ describe('RealtimeTicketService', () => {
 
     expect(result.ticket).toBeTruthy();
     expect(redis.setJsonWithTtl.mock.calls[0][1].storeCode).toBe('CP99');
+  });
+
+  it('keeps a super administrator ticket unscoped unless a store is requested', async () => {
+    const { service, prisma, redis } = setup();
+    prisma.user.findUnique.mockResolvedValue({
+      ...user,
+      role: 'SUPER_ADMIN',
+    });
+
+    await service.issueTicket(authenticatedUser);
+
+    expect(redis.setJsonWithTtl.mock.calls[0][1].storeCode).toBeNull();
   });
 });

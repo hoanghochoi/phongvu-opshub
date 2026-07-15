@@ -126,6 +126,17 @@ visual systems that make the app feel assembled from unrelated screens.
   centered spinner. Refreshing an already populated list may use a thin progress
   indicator, but it must not block reading the existing rows.
 - Status messages use `AppStatusBanner` when they explain a page-level state.
+- A failed background refresh must not replace usable cached content with a
+  full-page error. Keep the last-known-good rows/cards visible and add a warning
+  `AppStatusBanner` that states the data is old, includes the last successful
+  time when known, and offers `Thử lại`. While retry is running, keep content
+  readable, disable duplicate retries, and label the action `Đang thử lại…`.
+- When cached access cannot be refreshed, the authenticated shell uses the
+  title `Quyền truy cập chưa được cập nhật`, the message `Đang dùng quyền đã
+  lưu. Chưa đồng bộ được thay đổi mới.`, the last successful sync time (or the
+  explicit no-success-yet message), and `Thử lại`. Home stale data uses
+  `Đang hiển thị dữ liệu gần nhất` with the same non-blocking retry pattern.
+  A `401` must use the session-expired/re-login flow instead of a stale banner.
 - Metadata and status tags use `AppInfoChip`, `AppStatusChip`, or
   `AppStatusPill`. Metadata cần sao chép dùng chế độ tương tác của
   `AppInfoChip` để có cùng click/touch, keyboard focus, tooltip, semantics và
@@ -313,11 +324,23 @@ visual systems that make the app feel assembled from unrelated screens.
   the user has `PAYMENT_MONITOR`. The speaker path is Windows-only because it
   depends on desktop audio behavior. Home tiles, speaker controls, and provider
   logic must not conflate those platform capabilities.
-- `Tiền vào` loads transactions on entry and after explicit user actions, then
-  refreshes when the payment WebSocket reports a new transaction. It must not
-  poll the transaction list on a fixed timer or when the socket merely
-  reconnects. A realtime event refreshes the list on every supported platform;
-  only an eligible Windows client with `Đọc loa` enabled also handles audio.
+- `Tiền vào` loads transactions only while the foreground route is active:
+  initially, after explicit filter/page/manual-refresh actions, after a typed
+  `payment.transactions` invalidation, and once after shared realtime
+  reconnect/resume requests HTTP resync. It must not poll the transaction list
+  on a fixed timer, and inactive routes must not fetch transaction rows.
+- Payment speaker is a route-independent Windows service. When the device and
+  feature are eligible, the user enabled `Đọc loa`, and exactly one showroom is
+  selected, `payment.speaker` metadata and the bounded ready fallback continue
+  outside the `Tiền vào` route; this must not reactivate transaction-list
+  refreshes. The fallback checks at most once per minute after realtime silence.
+  Disabling speaker or losing its scope stops the audio path and rejects stale
+  in-flight responses from the previous authorization generation.
+- The Super Admin delivery-metrics surface is global to the authenticated
+  foreground shell, not tied to `Tiền vào`. Typed
+  `payment.delivery-metrics` invalidations use a 30-second trailing debounce;
+  the safety refresh cadence is 15 minutes. Background/inactive shell state
+  cancels both timers, and the previous one-minute polling contract is retired.
 - Web must not start payment audio handling or show speaker controls. The
   `Tiền vào` entry opens the transaction list on web, while the `Đọc loa`
   controls remain hidden or disabled outside supported Windows clients.

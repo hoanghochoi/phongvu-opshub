@@ -5,7 +5,11 @@ import {
   UseGuards,
   Request,
   Get,
+  Headers,
+  HttpStatus,
+  Response,
 } from '@nestjs/common';
+import type { Response as ExpressResponse } from 'express';
 import { AuthService } from './auth.service';
 import { AuthGuard } from '@nestjs/passport';
 import { Throttle } from '@nestjs/throttler';
@@ -21,17 +25,18 @@ import {
 } from './auth.dto';
 import { RealtimeTicketRequestDto } from './realtime-ticket.dto';
 import { RealtimeTicketService } from './realtime-ticket.service';
+import { AuthBootstrapService } from './auth-bootstrap.service';
 
 @Controller('auth')
 export class AuthController {
   constructor(
     private authService: AuthService,
     private readonly realtimeTicketService: RealtimeTicketService,
+    private readonly authBootstrapService: AuthBootstrapService,
   ) {}
 
   @Post('login')
   @Throttle({
-    ip: { ttl: 60_000, limit: 20 },
     principal: { ttl: 60_000, limit: 8 },
   })
   async login(@Body() body: PasswordLoginDto) {
@@ -40,7 +45,6 @@ export class AuthController {
 
   @Post('register')
   @Throttle({
-    ip: { ttl: 60_000, limit: 10 },
     principal: { ttl: 60_000, limit: 5 },
   })
   async register(@Body() body: RegisterDto) {
@@ -49,7 +53,6 @@ export class AuthController {
 
   @Post('verification-code')
   @Throttle({
-    ip: { ttl: 60_000, limit: 10 },
     principal: { ttl: 60_000, limit: 5 },
   })
   async sendVerificationCode(@Body() body: SendEmailVerificationDto) {
@@ -58,7 +61,6 @@ export class AuthController {
 
   @Post('forgot-password')
   @Throttle({
-    ip: { ttl: 60_000, limit: 10 },
     principal: { ttl: 60_000, limit: 5 },
   })
   async forgotPassword(@Body() body: ForgotPasswordDto) {
@@ -67,7 +69,6 @@ export class AuthController {
 
   @Post('forgot-password/verify-code')
   @Throttle({
-    ip: { ttl: 60_000, limit: 20 },
     principal: { ttl: 60_000, limit: 10 },
   })
   async verifyForgotPasswordCode(@Body() body: VerifyForgotPasswordCodeDto) {
@@ -76,7 +77,6 @@ export class AuthController {
 
   @Post('reset-password')
   @Throttle({
-    ip: { ttl: 60_000, limit: 20 },
     principal: { ttl: 60_000, limit: 10 },
   })
   async resetPassword(@Body() body: ResetPasswordDto) {
@@ -103,7 +103,6 @@ export class AuthController {
   @Post('realtime-ticket')
   @UseGuards(AuthGuard('jwt'))
   @Throttle({
-    ip: { ttl: 60_000, limit: 120 },
     principal: { ttl: 60_000, limit: 30 },
   })
   async issueRealtimeTicket(
@@ -125,5 +124,22 @@ export class AuthController {
   @UseGuards(AuthGuard('jwt'))
   async getMe(@Request() req: any) {
     return this.authService.getUserData(req.user.email);
+  }
+
+  @Get('bootstrap')
+  @UseGuards(AuthGuard('jwt'))
+  async getBootstrap(
+    @Request() req: any,
+    @Headers('if-none-match') ifNoneMatch: string | undefined,
+    @Response({ passthrough: true }) response: ExpressResponse,
+  ) {
+    const result = await this.authBootstrapService.resolve(req.user);
+    response.setHeader('Cache-Control', 'private, no-cache');
+    response.setHeader('ETag', result.etag);
+    if (this.authBootstrapService.matchesEtag(ifNoneMatch, result.etag)) {
+      response.status(HttpStatus.NOT_MODIFIED);
+      return undefined;
+    }
+    return result.body;
   }
 }

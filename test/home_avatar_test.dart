@@ -27,7 +27,7 @@ void main() {
       AppStorageKeys.shared('user_storeName'): 'PV Test',
       AppStorageKeys.shared('user_workScopeType'): 'STORE',
     });
-    FlutterSecureStorage.setMockInitialValues({});
+    _seedSecureToken();
     PackageInfo.setMockInitialValues(
       appName: 'PhongVu OpsHub',
       packageName: 'com.example.phongvu_opshub',
@@ -58,7 +58,7 @@ void main() {
       AppStorageKeys.shared('user_storeName'): 'PV Test',
       AppStorageKeys.shared('user_workScopeType'): 'STORE',
     });
-    FlutterSecureStorage.setMockInitialValues({});
+    _seedSecureToken();
     PackageInfo.setMockInitialValues(
       appName: 'PhongVu OpsHub',
       packageName: 'com.example.phongvu_opshub',
@@ -103,7 +103,7 @@ void main() {
       AppStorageKeys.shared('user_storeName'): 'PV Test',
       AppStorageKeys.shared('user_workScopeType'): 'STORE',
     });
-    FlutterSecureStorage.setMockInitialValues({});
+    _seedSecureToken();
     PackageInfo.setMockInitialValues(
       appName: 'PhongVu OpsHub',
       packageName: 'com.example.phongvu_opshub',
@@ -137,7 +137,7 @@ void main() {
       AppStorageKeys.shared('user_storeName'): 'PV Test',
       AppStorageKeys.shared('user_workScopeType'): 'STORE',
     });
-    FlutterSecureStorage.setMockInitialValues({});
+    _seedSecureToken();
     PackageInfo.setMockInitialValues(
       appName: 'PhongVu OpsHub',
       packageName: 'com.example.phongvu_opshub',
@@ -172,7 +172,7 @@ void main() {
       AppStorageKeys.shared('user_storeName'): 'PV Test',
       AppStorageKeys.shared('user_workScopeType'): 'STORE',
     });
-    FlutterSecureStorage.setMockInitialValues({});
+    _seedSecureToken();
     PackageInfo.setMockInitialValues(
       appName: 'PhongVu OpsHub',
       packageName: 'com.example.phongvu_opshub',
@@ -210,7 +210,7 @@ void main() {
       AppStorageKeys.shared('user_storeName'): 'PV Test',
       AppStorageKeys.shared('user_workScopeType'): 'STORE',
     });
-    FlutterSecureStorage.setMockInitialValues({});
+    _seedSecureToken();
     PackageInfo.setMockInitialValues(
       appName: 'PhongVu OpsHub',
       packageName: 'com.example.phongvu_opshub',
@@ -233,6 +233,12 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.widgetWithText(ListTile, 'Hướng dẫn'), findsNothing);
+  });
+}
+
+void _seedSecureToken() {
+  FlutterSecureStorage.setMockInitialValues({
+    AppStorageKeys.secure('user_jwt_token'): 'widget-test-token',
   });
 }
 

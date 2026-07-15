@@ -33,6 +33,7 @@ import {
   AdminUserImportRow,
 } from './user-import-parser.service';
 import { logFingerprint, safeLogError } from '../common/log-sanitizer';
+import { AccessChangeService } from '../auth/access-change.service';
 
 const SUPER_ADMIN_ROLE = 'SUPER_ADMIN';
 const ADMIN_ROLE = 'ADMIN';
@@ -375,6 +376,7 @@ export class UserService implements OnModuleInit {
     private uploadService: UploadService,
     private passwordResetService: PasswordResetService,
     private policyService: PolicyService,
+    private readonly accessChangeService: AccessChangeService,
     @Optional()
     private mailService?: OpshubMailService,
   ) {
@@ -438,6 +440,35 @@ export class UserService implements OnModuleInit {
         return;
       }
 
+      const accessProjection = {
+        id: true,
+        email: true,
+        role: true,
+        status: true,
+        workScopeType: true,
+        storeId: true,
+        regionCode: true,
+        areaCode: true,
+      } as const;
+      const sourceEmails = Array.from(
+        new Set(
+          rows
+            .map((row: any) =>
+              String(row.email || '')
+                .trim()
+                .toLowerCase(),
+            )
+            .filter(Boolean),
+        ),
+      );
+      const existingUsers = await this.prisma.user.findMany({
+        where: { email: { in: sourceEmails } },
+        select: accessProjection,
+      });
+      const existingByEmail = new Map(
+        existingUsers.map((user) => [String(user.email).toLowerCase(), user]),
+      );
+      const accessChangedUserIds = new Set<string>();
       let syncedCount = 0;
       let storeCreatedCount = 0;
 
@@ -497,7 +528,7 @@ export class UserService implements OnModuleInit {
           areaCode: storeUuid ? DEFAULT_REGION_CODE : null,
         };
 
-        await this.prisma.user.upsert({
+        const saved = await this.prisma.user.upsert({
           where: { email },
           update: {
             firstName: firstName || undefined,
@@ -519,7 +550,16 @@ export class UserService implements OnModuleInit {
             workScopeType: this.defaultWorkScopeForRole(role),
             ...this.userRelationMutationData(relationData),
           },
+          select: accessProjection,
         });
+        const existing = existingByEmail.get(email);
+        if (
+          existing &&
+          this.bigQueryUserAccessFingerprint(existing) !==
+            this.bigQueryUserAccessFingerprint(saved)
+        ) {
+          accessChangedUserIds.add(saved.id);
+        }
 
         syncedCount++;
       }
@@ -530,6 +570,10 @@ export class UserService implements OnModuleInit {
       if (storeCreatedCount > 0) {
         await this.syncStoreOrganizationNodes('bigquery-user-sync');
       }
+      await this.accessChangeService.publishForUserIds(
+        Array.from(accessChangedUserIds),
+        'user-access-bigquery-updated',
+      );
     } catch (error) {
       this.logger.error(
         `User sync from BigQuery failed: ${safeLogError(error)}`,
@@ -731,6 +775,15 @@ export class UserService implements OnModuleInit {
     this.logger.log(
       `Admin user updated: id=${userId} role=${prepared.role} scope=${prepared.workScopeType} personnelCode=${this.personnelCodeFor(updated) ?? 'none'}`,
     );
+    if (
+      this.userAccessFingerprint(current) !==
+      this.userAccessFingerprint(saved ?? updated)
+    ) {
+      await this.accessChangeService.publishForUserIds(
+        [userId],
+        'user-access-updated',
+      );
+    }
     return this.toUserDto(saved ?? updated);
   }
 
@@ -794,6 +847,10 @@ export class UserService implements OnModuleInit {
     this.logger.warn(
       `Admin user deleted: admin=${this.userLogId(admin)} targetUserId=${current.id}`,
     );
+    await this.accessChangeService.publishForUserIds(
+      [current.id],
+      'user-access-deleted',
+    );
     return { deleted: true, id: current.id, email: current.email };
   }
 
@@ -847,6 +904,12 @@ export class UserService implements OnModuleInit {
           admin,
         );
       }
+      await this.accessChangeService.publishForUserIds(
+        prepared
+          .filter((item) => item.action === 'updated')
+          .map((item) => savedByEmail.get(item.email)?.id),
+        'user-access-import-updated',
+      );
       const welcomeEmailSummary = await this.sendWelcomeEmailsForImport(
         admin,
         prepared,
@@ -1022,6 +1085,69 @@ export class UserService implements OnModuleInit {
       createData,
       updateData,
     };
+  }
+
+  private userAccessFingerprint(user: any) {
+    const organizationNodeIds = Array.from(
+      new Set(
+        [
+          user?.organizationNodeId,
+          ...(Array.isArray(user?.organizationAssignments)
+            ? user.organizationAssignments
+                .filter((assignment: any) => assignment?.isActive !== false)
+                .map((assignment: any) => assignment?.organizationNodeId)
+            : []),
+        ]
+          .map((value) => String(value ?? '').trim())
+          .filter(Boolean),
+      ),
+    ).sort();
+    return JSON.stringify({
+      role: String(user?.role ?? '')
+        .trim()
+        .toUpperCase(),
+      status: String(user?.status ?? '')
+        .trim()
+        .toLowerCase(),
+      workScopeType: String(user?.workScopeType ?? '')
+        .trim()
+        .toUpperCase(),
+      storeId: String(user?.storeId ?? user?.store?.id ?? '').trim(),
+      departmentCode: String(user?.departmentCode ?? '')
+        .trim()
+        .toUpperCase(),
+      jobRoleCode: String(user?.jobRoleCode ?? '')
+        .trim()
+        .toUpperCase(),
+      regionCode: String(user?.regionCode ?? '')
+        .trim()
+        .toUpperCase(),
+      areaCode: String(user?.areaCode ?? '')
+        .trim()
+        .toUpperCase(),
+      organizationNodeIds,
+    });
+  }
+
+  private bigQueryUserAccessFingerprint(user: any) {
+    return JSON.stringify({
+      role: String(user?.role ?? '')
+        .trim()
+        .toUpperCase(),
+      status: String(user?.status ?? '')
+        .trim()
+        .toLowerCase(),
+      workScopeType: String(user?.workScopeType ?? '')
+        .trim()
+        .toUpperCase(),
+      storeId: String(user?.storeId ?? '').trim(),
+      regionCode: String(user?.regionCode ?? '')
+        .trim()
+        .toUpperCase(),
+      areaCode: String(user?.areaCode ?? '')
+        .trim()
+        .toUpperCase(),
+    });
   }
 
   private async assertAdminCanUpdateUser(
@@ -1597,6 +1723,9 @@ export class UserService implements OnModuleInit {
     this.logger.log(
       `Organization node created: admin=${this.userLogId(admin)} nodeId=${node.id} type=${node.type} code=${node.code}`,
     );
+    await this.accessChangeService.publishForAllUsers(
+      'organization-node-created',
+    );
     return node;
   }
 
@@ -1651,6 +1780,9 @@ export class UserService implements OnModuleInit {
     });
     this.logger.log(
       `Organization node updated: admin=${this.userLogId(admin)} nodeId=${id} type=${node.type} code=${node.code}`,
+    );
+    await this.accessChangeService.publishForAllUsers(
+      'organization-node-updated',
     );
     return node;
   }
@@ -1710,6 +1842,9 @@ export class UserService implements OnModuleInit {
         this.userLogId(admin) +
         ' nodeId=' +
         id,
+    );
+    await this.accessChangeService.publishForAllUsers(
+      'organization-node-deleted',
     );
     return { deleted: true, id };
   }
@@ -2412,11 +2547,12 @@ export class UserService implements OnModuleInit {
 
   private async ensureDefaultStorePositionNodes(client: any, storeNode: any) {
     const organizationNode = client.organizationNode;
-    if (!organizationNode?.upsert) return;
+    if (!organizationNode?.upsert) return false;
     const storeCode = this.normalizeStoreCode(
       storeNode.businessCode ||
         this.legacyCodeFromOrganizationCode(storeNode.code),
     );
+    let topologyChanged = false;
     for (const position of DEFAULT_STORE_POSITION_DEFINITIONS) {
       const code = this.normalizeOrganizationNodeCode(
         `STORE_${storeCode}_POS_${position.suffix}`,
@@ -2444,6 +2580,16 @@ export class UserService implements OnModuleInit {
             },
           })
         : null;
+      const nextActive =
+        existing?.isActive !== false && storeNode.isActive !== false;
+      if (
+        !existing ||
+        existing.code !== code ||
+        existing.parentId !== storeNode.id ||
+        (existing.isActive !== false) !== nextActive
+      ) {
+        topologyChanged = true;
+      }
       const node = existing?.id
         ? await organizationNode.update({
             where: { id: existing.id },
@@ -2460,6 +2606,7 @@ export class UserService implements OnModuleInit {
           });
       await this.syncLegacyCatalogFromOrganizationNode(client, node);
     }
+    return topologyChanged;
   }
 
   private async defaultStoreCashNodeIdForClient(
@@ -4022,7 +4169,7 @@ export class UserService implements OnModuleInit {
       where: { code },
     });
     if (existing) throw new BadRequestException('Phòng ban đã tồn tại');
-    return this.prisma.departmentDefinition.create({
+    const created = await this.prisma.departmentDefinition.create({
       data: {
         code,
         displayName: this.normalizeRequiredText(
@@ -4035,6 +4182,10 @@ export class UserService implements OnModuleInit {
         isActive: body.isActive !== false,
       },
     });
+    await this.accessChangeService.publishForAllUsers(
+      'personnel-department-created',
+    );
+    return created;
   }
 
   async adminUpdateDepartment(admin: any, currentCodeInput: string, body: any) {
@@ -4060,7 +4211,7 @@ export class UserService implements OnModuleInit {
     if (current.isSystem && nextCode !== current.code) {
       throw new BadRequestException('Không được đổi mã phòng ban hệ thống');
     }
-    return this.prisma.departmentDefinition.update({
+    const updated = await this.prisma.departmentDefinition.update({
       where: { code: current.code },
       data: {
         code: nextCode,
@@ -4082,6 +4233,10 @@ export class UserService implements OnModuleInit {
             : body.isActive === true,
       },
     });
+    await this.accessChangeService.publishForAllUsers(
+      'personnel-department-updated',
+    );
+    return updated;
   }
 
   async adminDeleteDepartment(admin: any, codeInput: string) {
@@ -4113,6 +4268,9 @@ export class UserService implements OnModuleInit {
       );
     }
     await this.prisma.departmentDefinition.delete({ where: { code } });
+    await this.accessChangeService.publishForAllUsers(
+      'personnel-department-deleted',
+    );
     return { deleted: true, code };
   }
 
@@ -4136,7 +4294,7 @@ export class UserService implements OnModuleInit {
       body.departmentCode,
       null,
     );
-    return this.prisma.jobRoleDefinition.create({
+    const created = await this.prisma.jobRoleDefinition.create({
       data: {
         code,
         displayName: this.normalizeRequiredText(
@@ -4150,6 +4308,10 @@ export class UserService implements OnModuleInit {
         isActive: body.isActive !== false,
       },
     });
+    await this.accessChangeService.publishForAllUsers(
+      'personnel-job-role-created',
+    );
+    return created;
   }
 
   async adminUpdateJobRole(admin: any, currentCodeInput: string, body: any) {
@@ -4182,7 +4344,7 @@ export class UserService implements OnModuleInit {
             body.departmentCode,
             current.departmentCode,
           );
-    return this.prisma.jobRoleDefinition.update({
+    const updated = await this.prisma.jobRoleDefinition.update({
       where: { code: current.code },
       data: {
         code: nextCode,
@@ -4205,6 +4367,10 @@ export class UserService implements OnModuleInit {
             : body.isActive === true,
       },
     });
+    await this.accessChangeService.publishForAllUsers(
+      'personnel-job-role-updated',
+    );
+    return updated;
   }
 
   async adminDeleteJobRole(admin: any, codeInput: string) {
@@ -4233,6 +4399,9 @@ export class UserService implements OnModuleInit {
       );
     }
     await this.prisma.jobRoleDefinition.delete({ where: { code } });
+    await this.accessChangeService.publishForAllUsers(
+      'personnel-job-role-deleted',
+    );
     return { deleted: true, code };
   }
 
@@ -4307,7 +4476,7 @@ export class UserService implements OnModuleInit {
 
     const areaCode = await this.resolveAreaCodeForStore(body.areaCode);
 
-    const store = await this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       const createdStore = await tx.store.create({
         data: {
           storeId,
@@ -4326,8 +4495,9 @@ export class UserService implements OnModuleInit {
         createdStore,
         'admin-create-store',
       );
-      return syncResult.store;
+      return syncResult;
     });
+    const store = result.store;
     this.logger.log(
       'Store created: admin=' +
         this.userLogId(admin) +
@@ -4336,6 +4506,11 @@ export class UserService implements OnModuleInit {
         ' store=' +
         store.storeId,
     );
+    if (result.accessTopologyChanged) {
+      await this.accessChangeService.publishForAllUsers(
+        'store-organization-created',
+      );
+    }
     return this.toStoreDto(store);
   }
 
@@ -4477,6 +4652,7 @@ export class UserService implements OnModuleInit {
         },
         'admin-update-store',
       );
+      let relinkedUserCount = 0;
       if (organizationSync.nodeId) {
         const defaultUserNodeId =
           organizationSync.defaultUserNodeId ?? organizationSync.nodeId;
@@ -4484,7 +4660,7 @@ export class UserService implements OnModuleInit {
           tx,
           organizationSync.nodeId,
         );
-        await tx.user.updateMany({
+        const relinkResult = await tx.user.updateMany({
           where: {
             storeId: current.id,
             workScopeType: STORE_SCOPE,
@@ -4500,8 +4676,13 @@ export class UserService implements OnModuleInit {
             regionCode: organizationSync.location.regionCode,
           },
         });
+        relinkedUserCount = relinkResult.count;
       }
-      return { store: organizationSync.store, organizationSync };
+      return {
+        store: organizationSync.store,
+        organizationSync,
+        relinkedUserCount,
+      };
     });
     const store = result.store;
 
@@ -4513,6 +4694,16 @@ export class UserService implements OnModuleInit {
         ' store=' +
         store.storeId,
     );
+    if (
+      nextCode !== current.storeId ||
+      nextAreaCode !== current.areaCode ||
+      result.organizationSync.accessTopologyChanged ||
+      result.relinkedUserCount > 0
+    ) {
+      await this.accessChangeService.publishForAllUsers(
+        'store-organization-updated',
+      );
+    }
     return this.toStoreDto(store);
   }
 
@@ -4548,6 +4739,9 @@ export class UserService implements OnModuleInit {
     }
 
     await this.prisma.store.delete({ where: { storeId } });
+    await this.accessChangeService.publishForAllUsers(
+      'store-organization-deleted',
+    );
     return { deleted: true, storeId };
   }
 
@@ -4694,6 +4888,7 @@ export class UserService implements OnModuleInit {
     let locationSyncedUserCount = 0;
     let relinkedUserCount = 0;
     let inactivePreservedCount = 0;
+    let accessTopologyChangedCount = 0;
 
     try {
       for (const store of stores) {
@@ -4704,6 +4899,9 @@ export class UserService implements OnModuleInit {
             source,
           );
           if (syncResult.inactivePreserved) inactivePreservedCount += 1;
+          if (syncResult.accessTopologyChanged) {
+            accessTopologyChangedCount += 1;
+          }
           if (syncResult.nodeId && syncResult.nodeIsActive !== false) {
             const storeSubtreeIds =
               await this.organizationDescendantIdsForClient(
@@ -4711,7 +4909,28 @@ export class UserService implements OnModuleInit {
                 syncResult.nodeId,
               );
             const locationSync = await tx.user.updateMany({
-              where: { storeId: store.id, workScopeType: STORE_SCOPE },
+              where: {
+                storeId: store.id,
+                workScopeType: STORE_SCOPE,
+                OR: [
+                  ...(syncResult.location.areaCode
+                    ? [
+                        { areaCode: null },
+                        { areaCode: { not: syncResult.location.areaCode } },
+                      ]
+                    : [{ areaCode: { not: null } }]),
+                  ...(syncResult.location.regionCode
+                    ? [
+                        { regionCode: null },
+                        {
+                          regionCode: {
+                            not: syncResult.location.regionCode,
+                          },
+                        },
+                      ]
+                    : [{ regionCode: { not: null } }]),
+                ],
+              },
               data: {
                 areaCode: syncResult.location.areaCode,
                 regionCode: syncResult.location.regionCode,
@@ -4751,9 +4970,20 @@ export class UserService implements OnModuleInit {
           relinkedUserCount +
           ' inactivePreserved=' +
           inactivePreservedCount +
+          ' topologyChanged=' +
+          accessTopologyChangedCount +
           ' durationMs=' +
           (Date.now() - startedAt),
       );
+      if (
+        accessTopologyChangedCount > 0 ||
+        locationSyncedUserCount > 0 ||
+        relinkedUserCount > 0
+      ) {
+        await this.accessChangeService.publishForAllUsers(
+          'store-organization-sync-updated',
+        );
+      }
     } catch (error) {
       this.logger.error(
         'Store organization sync failed: source=' +
@@ -4784,6 +5014,7 @@ export class UserService implements OnModuleInit {
         inactivePreserved: false,
         linked: false,
         moved: false,
+        accessTopologyChanged: false,
         location: {
           areaCode: null as string | null,
           regionCode: null as string | null,
@@ -4870,7 +5101,10 @@ export class UserService implements OnModuleInit {
         data: { organizationNodeId: node.id },
       });
     }
-    await this.ensureDefaultStorePositionNodes(client, node);
+    const positionTopologyChanged = await this.ensureDefaultStorePositionNodes(
+      client,
+      node,
+    );
     const defaultUserNodeId = await this.defaultStoreCashNodeIdForClient(
       client,
       node.id,
@@ -4905,6 +5139,10 @@ export class UserService implements OnModuleInit {
       inactivePreserved: existingNode?.isActive === false,
       linked,
       moved: existingNode?.parentId !== parentId,
+      accessTopologyChanged:
+        linked ||
+        existingNode?.parentId !== parentId ||
+        positionTopologyChanged,
       location: await this.organizationLocationForShowroomNode(client, node),
     };
   }

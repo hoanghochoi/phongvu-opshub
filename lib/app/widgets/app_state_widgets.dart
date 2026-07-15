@@ -161,6 +161,9 @@ class AppStatusBanner extends StatelessWidget {
   final String title;
   final String message;
   final AppStateTone tone;
+  final String? actionLabel;
+  final VoidCallback? onAction;
+  final bool actionBusy;
 
   const AppStatusBanner({
     super.key,
@@ -168,6 +171,9 @@ class AppStatusBanner extends StatelessWidget {
     required this.title,
     required this.message,
     this.tone = AppStateTone.info,
+    this.actionLabel,
+    this.onAction,
+    this.actionBusy = false,
   });
 
   @override
@@ -206,6 +212,24 @@ class AppStatusBanner extends StatelessWidget {
                           : AppColors.neutral800,
                     ),
                   ),
+                  if (actionLabel != null) ...[
+                    const SizedBox(height: 8),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: TextButton.icon(
+                        onPressed: actionBusy ? null : onAction,
+                        icon: actionBusy
+                            ? const SizedBox.square(
+                                dimension: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Icon(Icons.refresh_rounded, size: 18),
+                        label: Text(actionLabel!),
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),

@@ -14,6 +14,7 @@ import 'package:phongvu_opshub/features/bank_statement/domain/bank_statement_tra
 import 'package:phongvu_opshub/features/bank_statement/presentation/providers/bank_statement_provider.dart';
 import 'package:phongvu_opshub/features/bank_statement/presentation/screens/bank_statement_screen.dart';
 import 'package:phongvu_opshub/features/notifications/data/app_notification_read_store.dart';
+import 'package:phongvu_opshub/features/notifications/data/app_notifications_feed_repository.dart';
 import 'package:phongvu_opshub/features/notifications/presentation/providers/app_notifications_provider.dart';
 import 'package:phongvu_opshub/features/offset_adjustment/data/offset_adjustment_repository.dart';
 import 'package:provider/provider.dart';
@@ -47,11 +48,16 @@ void main() {
     final appNotificationsProvider = AppNotificationsProvider(
       repository,
       offsetAdjustmentRepository: _FakeOffsetAdjustmentRepository(),
+      feedRepository: _FakeAppNotificationsFeedRepository(repository),
       notificationReadStore: _FakeNotificationReadStore(),
     );
     await provider.initialize(_accUser);
     provider.setOrder('26062512345678');
     await provider.search();
+    await appNotificationsProvider.syncRuntime(
+      isForeground: true,
+      isSurfaceActive: true,
+    );
     await appNotificationsProvider.syncAuth(_accUser, isInitialized: true);
 
     await tester.pumpWidget(
@@ -138,11 +144,16 @@ void main() {
     final appNotificationsProvider = AppNotificationsProvider(
       repository,
       offsetAdjustmentRepository: _FakeOffsetAdjustmentRepository(),
+      feedRepository: _FakeAppNotificationsFeedRepository(repository),
       notificationReadStore: _FakeNotificationReadStore(),
     );
     await provider.initialize(_accUser);
     provider.setOrder('26062512345678');
     await provider.search();
+    await appNotificationsProvider.syncRuntime(
+      isForeground: true,
+      isSurfaceActive: true,
+    );
     await appNotificationsProvider.syncAuth(_accUser, isInitialized: true);
 
     await tester.pumpWidget(
@@ -369,6 +380,33 @@ class _FakeOffsetAdjustmentRepository extends OffsetAdjustmentRepository {
       limit: query.limit,
       total: 0,
       canReview: false,
+    );
+  }
+}
+
+class _FakeAppNotificationsFeedRepository
+    extends AppNotificationsFeedRepository {
+  final BankStatementRepository _bankStatementRepository;
+
+  _FakeAppNotificationsFeedRepository(this._bankStatementRepository)
+    : super(ApiClient());
+
+  @override
+  Future<AppNotificationsFeed> fetchFeed() async {
+    return AppNotificationsFeed(
+      schemaVersion: 1,
+      generatedAt: DateTime.utc(2026, 7, 15),
+      statementOrderTransfersEnabled: true,
+      offsetAdjustmentsEnabled: false,
+      statementOrderTransfers: await _bankStatementRepository
+          .fetchOrderTransferRequests(status: 'NOTIFICATION', limit: 20),
+      offsetAdjustments: const OffsetAdjustmentPage(
+        items: [],
+        page: 0,
+        limit: 20,
+        total: 0,
+        canReview: false,
+      ),
     );
   }
 }

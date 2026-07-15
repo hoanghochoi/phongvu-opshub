@@ -22,6 +22,8 @@ import {
   csvExcelTextCell as safeCsvExcelTextCell,
 } from '../common/csv-export';
 import { logFingerprint } from '../common/log-sanitizer';
+import { buildRealtimeRedisEnvelope } from '../common/realtime-event';
+import { FEATURE_KEYS } from '../feature/feature.constants';
 import {
   CompleteOffsetAdjustmentDto,
   CreateOffsetAdjustmentDto,
@@ -737,13 +739,30 @@ export class OffsetAdjustmentsService {
       );
       return;
     }
-    await this.redisService.publishMessage(OFFSET_ADJUSTMENT_CHANNEL, {
-      adjustmentId: row.id,
-      storeCode: row.storeCode,
-      type: row.type,
-      status: row.status,
-      updatedAt: row.updatedAt.toISOString(),
-    });
+    await this.redisService.publishMessage(
+      OFFSET_ADJUSTMENT_CHANNEL,
+      buildRealtimeRedisEnvelope({
+        type: 'OFFSET_ADJUSTMENT_NOTIFICATION',
+        occurredAt: row.updatedAt,
+        audience: {
+          storeCodes: [row.storeCode],
+          roles: [SUPER_ADMIN_ROLE],
+          departmentCodes: [ACC_DEPARTMENT_CODE, FIN_ACC_DEPARTMENT_CODE],
+          organizationAccessCodes: [
+            ACC_DEPARTMENT_CODE,
+            FIN_ACC_DEPARTMENT_CODE,
+          ],
+          featureCodes: [FEATURE_KEYS.OFFSET_ADJUSTMENTS],
+        },
+        payload: {
+          adjustmentId: row.id,
+          storeCode: row.storeCode,
+          type: row.type,
+          status: row.status,
+          updatedAt: row.updatedAt.toISOString(),
+        },
+      }),
+    );
   }
 
   private toDto(

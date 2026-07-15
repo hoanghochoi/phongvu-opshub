@@ -5,8 +5,25 @@ import 'package:http/http.dart' as http;
 import 'api_exception.dart';
 import '../constants/api_constants.dart';
 
-typedef AuthFailureHandler = Future<void> Function(ApiException exception);
+typedef AuthFailureHandler =
+    Future<void> Function(ApiException exception, String failedAuthToken);
 typedef ApiRateLimitObserver = void Function(ApiRateLimitEvent event);
+
+class ConditionalGetResponse {
+  final int statusCode;
+  final String body;
+  final Map<String, String> headers;
+
+  const ConditionalGetResponse({
+    required this.statusCode,
+    required this.body,
+    required this.headers,
+  });
+
+  bool get isNotModified => statusCode == HttpStatus.notModified;
+
+  String? get etag => headers['etag'];
+}
 
 class ApiRateLimitEvent {
   final String action;
@@ -48,7 +65,7 @@ class ApiClient {
   String? _authToken;
   AuthFailureHandler? _authFailureHandler;
   ApiRateLimitObserver? _rateLimitObserver;
-  bool _handlingAuthFailure = false;
+  String? _handlingAuthFailureToken;
   final Map<String, _EndpointRateLimitState> _rateLimits = {};
 
   static const _rateLimitFallbackBase = Duration(seconds: 5);
@@ -76,9 +93,9 @@ class ApiClient {
     _rateLimitObserver = observer;
   }
 
-  Map<String, String> get _authHeaders => {
+  Map<String, String> _authHeadersFor(String? authToken) => {
     'Content-Type': 'application/json',
-    if (_authToken != null) 'Authorization': 'Bearer $_authToken',
+    if (authToken != null) 'Authorization': 'Bearer $authToken',
   };
 
   String _messageForStatus(int statusCode) {
@@ -137,14 +154,24 @@ class ApiClient {
     return null;
   }
 
-  Future<void> _notifyAuthFailure(ApiException exception) async {
+  Future<void> _notifyAuthFailure(
+    ApiException exception,
+    String? requestAuthToken,
+  ) async {
     final handler = _authFailureHandler;
-    if (handler == null || _authToken == null || _handlingAuthFailure) return;
-    _handlingAuthFailure = true;
+    if (handler == null ||
+        requestAuthToken == null ||
+        _authToken != requestAuthToken ||
+        _handlingAuthFailureToken == requestAuthToken) {
+      return;
+    }
+    _handlingAuthFailureToken = requestAuthToken;
     try {
-      await handler(exception);
+      await handler(exception, requestAuthToken);
     } finally {
-      _handlingAuthFailure = false;
+      if (_handlingAuthFailureToken == requestAuthToken) {
+        _handlingAuthFailureToken = null;
+      }
     }
   }
 
@@ -152,6 +179,7 @@ class ApiClient {
     http.Response response, {
     required String method,
     required String endpoint,
+    required String? requestAuthToken,
   }) async {
     if (response.statusCode == 429) {
       final state = _registerRateLimit(method, endpoint, response.headers);
@@ -165,7 +193,7 @@ class ApiClient {
       if (kDebugMode) {
         debugPrint('🔒 [ApiClient] Auth error ${response.statusCode}');
       }
-      await _notifyAuthFailure(exception);
+      await _notifyAuthFailure(exception, requestAuthToken);
     }
     throw exception;
   }
@@ -307,6 +335,7 @@ class ApiClient {
   }) async {
     try {
       _ensureRequestAllowed('GET', endpoint);
+      final requestAuthToken = _authToken;
       final uri = Uri.parse('${ApiConstants.baseUrl}$endpoint');
       final url = queryParameters != null
           ? uri.replace(queryParameters: queryParameters)
@@ -315,8 +344,8 @@ class ApiClient {
       final response = await _client
           .get(
             url,
-            headers: _authToken != null
-                ? {'Authorization': 'Bearer $_authToken'}
+            headers: requestAuthToken != null
+                ? {'Authorization': 'Bearer $requestAuthToken'}
                 : null,
           )
           .timeout(ApiConstants.defaultTimeout);
@@ -325,7 +354,62 @@ class ApiClient {
         _recordRequestSuccess('GET', endpoint);
         return response;
       }
-      await _throwForResponse(response, method: 'GET', endpoint: endpoint);
+      await _throwForResponse(
+        response,
+        method: 'GET',
+        endpoint: endpoint,
+        requestAuthToken: requestAuthToken,
+      );
+    } on SocketException {
+      throw NetworkException();
+    } on ApiException {
+      rethrow;
+    } catch (e) {
+      throw _unexpectedException(e);
+    }
+  }
+
+  /// Performs a backward-compatible conditional GET. Unlike [get], a 304 is
+  /// returned to the caller so it can reuse its last-known-good snapshot.
+  Future<ConditionalGetResponse> getConditional(
+    String endpoint, {
+    Map<String, String>? queryParameters,
+    String? ifNoneMatch,
+  }) async {
+    try {
+      _ensureRequestAllowed('GET', endpoint);
+      final requestAuthToken = _authToken;
+      final uri = Uri.parse('${ApiConstants.baseUrl}$endpoint');
+      final url = queryParameters != null
+          ? uri.replace(queryParameters: queryParameters)
+          : uri;
+      final response = await _client
+          .get(
+            url,
+            headers: {
+              if (requestAuthToken != null)
+                'Authorization': 'Bearer $requestAuthToken',
+              if (ifNoneMatch != null && ifNoneMatch.trim().isNotEmpty)
+                'If-None-Match': ifNoneMatch.trim(),
+            },
+          )
+          .timeout(ApiConstants.defaultTimeout);
+
+      if ((response.statusCode >= 200 && response.statusCode < 300) ||
+          response.statusCode == HttpStatus.notModified) {
+        _recordRequestSuccess('GET', endpoint);
+        return ConditionalGetResponse(
+          statusCode: response.statusCode,
+          body: response.body,
+          headers: response.headers,
+        );
+      }
+      await _throwForResponse(
+        response,
+        method: 'GET',
+        endpoint: endpoint,
+        requestAuthToken: requestAuthToken,
+      );
     } on SocketException {
       throw NetworkException();
     } on ApiException {
@@ -342,6 +426,7 @@ class ApiClient {
   }) async {
     try {
       _ensureRequestAllowed('GET', endpoint);
+      final requestAuthToken = _authToken;
       final uri = Uri.parse('${ApiConstants.baseUrl}$endpoint');
       final url = queryParameters != null
           ? uri.replace(queryParameters: queryParameters)
@@ -349,8 +434,8 @@ class ApiClient {
       final response = await _client
           .get(
             url,
-            headers: _authToken != null
-                ? {'Authorization': 'Bearer $_authToken'}
+            headers: requestAuthToken != null
+                ? {'Authorization': 'Bearer $requestAuthToken'}
                 : null,
           )
           .timeout(timeout ?? ApiConstants.defaultTimeout);
@@ -358,7 +443,12 @@ class ApiClient {
         _recordRequestSuccess('GET', endpoint);
         return response.bodyBytes;
       }
-      await _throwForResponse(response, method: 'GET', endpoint: endpoint);
+      await _throwForResponse(
+        response,
+        method: 'GET',
+        endpoint: endpoint,
+        requestAuthToken: requestAuthToken,
+      );
     } on SocketException {
       throw NetworkException();
     } on ApiException {
@@ -375,6 +465,7 @@ class ApiClient {
   }) async {
     try {
       _ensureRequestAllowed('POST', endpoint);
+      final requestAuthToken = _authToken;
       final url = Uri.parse('${ApiConstants.baseUrl}$endpoint');
 
       if (kDebugMode) {
@@ -382,7 +473,11 @@ class ApiClient {
       }
 
       final response = await _client
-          .post(url, headers: _authHeaders, body: jsonEncode(body))
+          .post(
+            url,
+            headers: _authHeadersFor(requestAuthToken),
+            body: jsonEncode(body),
+          )
           .timeout(timeout ?? ApiConstants.defaultTimeout);
 
       if (kDebugMode) {
@@ -393,7 +488,12 @@ class ApiClient {
         _recordRequestSuccess('POST', endpoint);
         return response;
       }
-      await _throwForResponse(response, method: 'POST', endpoint: endpoint);
+      await _throwForResponse(
+        response,
+        method: 'POST',
+        endpoint: endpoint,
+        requestAuthToken: requestAuthToken,
+      );
     } on SocketException catch (e) {
       if (kDebugMode) debugPrint('❌ SocketException: $e');
       throw NetworkException();
@@ -412,16 +512,26 @@ class ApiClient {
   }) async {
     try {
       _ensureRequestAllowed('PATCH', endpoint);
+      final requestAuthToken = _authToken;
       final url = Uri.parse('${ApiConstants.baseUrl}$endpoint');
       final response = await _client
-          .patch(url, headers: _authHeaders, body: jsonEncode(body))
+          .patch(
+            url,
+            headers: _authHeadersFor(requestAuthToken),
+            body: jsonEncode(body),
+          )
           .timeout(timeout ?? ApiConstants.defaultTimeout);
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
         _recordRequestSuccess('PATCH', endpoint);
         return response;
       }
-      await _throwForResponse(response, method: 'PATCH', endpoint: endpoint);
+      await _throwForResponse(
+        response,
+        method: 'PATCH',
+        endpoint: endpoint,
+        requestAuthToken: requestAuthToken,
+      );
     } on SocketException {
       throw NetworkException();
     } on ApiException {
@@ -438,15 +548,25 @@ class ApiClient {
   }) async {
     try {
       _ensureRequestAllowed('PUT', endpoint);
+      final requestAuthToken = _authToken;
       final url = Uri.parse('${ApiConstants.baseUrl}$endpoint');
       final response = await _client
-          .put(url, headers: _authHeaders, body: jsonEncode(body))
+          .put(
+            url,
+            headers: _authHeadersFor(requestAuthToken),
+            body: jsonEncode(body),
+          )
           .timeout(timeout ?? ApiConstants.defaultTimeout);
       if (response.statusCode >= 200 && response.statusCode < 300) {
         _recordRequestSuccess('PUT', endpoint);
         return response;
       }
-      await _throwForResponse(response, method: 'PUT', endpoint: endpoint);
+      await _throwForResponse(
+        response,
+        method: 'PUT',
+        endpoint: endpoint,
+        requestAuthToken: requestAuthToken,
+      );
     } on SocketException {
       throw NetworkException();
     } on ApiException {
@@ -459,16 +579,22 @@ class ApiClient {
   Future<http.Response> delete(String endpoint, {Duration? timeout}) async {
     try {
       _ensureRequestAllowed('DELETE', endpoint);
+      final requestAuthToken = _authToken;
       final url = Uri.parse('${ApiConstants.baseUrl}$endpoint');
       final response = await _client
-          .delete(url, headers: _authHeaders)
+          .delete(url, headers: _authHeadersFor(requestAuthToken))
           .timeout(timeout ?? ApiConstants.defaultTimeout);
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
         _recordRequestSuccess('DELETE', endpoint);
         return response;
       }
-      await _throwForResponse(response, method: 'DELETE', endpoint: endpoint);
+      await _throwForResponse(
+        response,
+        method: 'DELETE',
+        endpoint: endpoint,
+        requestAuthToken: requestAuthToken,
+      );
     } on SocketException {
       throw NetworkException();
     } on ApiException {
@@ -487,6 +613,7 @@ class ApiClient {
   }) async {
     try {
       _ensureRequestAllowed('POST', endpoint);
+      final requestAuthToken = _authToken;
       final url = Uri.parse('${ApiConstants.baseUrl}$endpoint');
 
       if (kDebugMode) {
@@ -498,8 +625,8 @@ class ApiClient {
       final request = http.MultipartRequest('POST', url);
 
       // Add JWT auth header
-      if (_authToken != null) {
-        request.headers['Authorization'] = 'Bearer $_authToken';
+      if (requestAuthToken != null) {
+        request.headers['Authorization'] = 'Bearer $requestAuthToken';
       }
 
       // Add fields
@@ -524,7 +651,12 @@ class ApiClient {
         _recordRequestSuccess('POST', endpoint);
         return response;
       }
-      await _throwForResponse(response, method: 'POST', endpoint: endpoint);
+      await _throwForResponse(
+        response,
+        method: 'POST',
+        endpoint: endpoint,
+        requestAuthToken: requestAuthToken,
+      );
     } on SocketException catch (e) {
       if (kDebugMode) debugPrint('❌ SocketException: $e');
       throw NetworkException();

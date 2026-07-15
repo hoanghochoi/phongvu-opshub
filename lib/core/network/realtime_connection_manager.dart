@@ -145,13 +145,14 @@ class RealtimeConnectionManager
   final StreamController<RealtimeSyncReason> _syncController =
       StreamController<RealtimeSyncReason>.broadcast();
   final LinkedHashSet<String> _seenEventIds = LinkedHashSet<String>();
+  final Map<String, int> _lastSequenceByTopic = <String, int>{};
 
   String? _sessionKey;
   RealtimeConnection? _connection;
   StreamSubscription<dynamic>? _subscription;
   Timer? _reconnectTimer;
   bool _active = false;
-  bool _connecting = false;
+  int? _connectingGeneration;
   bool _hasConnected = false;
   bool _observingLifecycle = false;
   bool _isShutdown = false;
@@ -164,7 +165,7 @@ class RealtimeConnectionManager
   @override
   Stream<RealtimeSyncReason> get syncRequests => _syncController.stream;
 
-  bool get isConnected => _connection != null && !_connecting;
+  bool get isConnected => _connection != null && _connectingGeneration == null;
 
   @override
   Future<void> syncSession(String? sessionKey) async {
@@ -181,11 +182,16 @@ class RealtimeConnectionManager
 
     _generation += 1;
     final generation = _generation;
+    // A ticket/socket attempt from the previous session may still be awaiting
+    // I/O. Release only that generation's ownership so the new session can
+    // connect immediately; the old attempt will fail its generation checks.
+    _connectingGeneration = null;
     _active = nextSessionKey != null;
     _sessionKey = nextSessionKey;
     _hasConnected = false;
     _reconnectAttempt = 0;
     _seenEventIds.clear();
+    _lastSequenceByTopic.clear();
     _reconnectTimer?.cancel();
     _reconnectTimer = null;
     await _disconnectCurrent('session_changed');
@@ -208,11 +214,11 @@ class RealtimeConnectionManager
     if (!_active ||
         _isShutdown ||
         generation != _generation ||
-        _connecting ||
+        _connectingGeneration != null ||
         _connection != null) {
       return;
     }
-    _connecting = true;
+    _connectingGeneration = generation;
     final startedAt = DateTime.now();
     await AppLogger.instance.info(
       'RealtimeV2',
@@ -306,13 +312,39 @@ class RealtimeConnectionManager
         _scheduleReconnect(generation);
       }
     } finally {
-      if (generation == _generation) _connecting = false;
+      if (_connectingGeneration == generation) {
+        _connectingGeneration = null;
+      }
     }
   }
 
   void _handleMessage(dynamic rawMessage) {
     try {
       final envelope = RealtimeEnvelope.parse(rawMessage);
+      final hasDurableSequence = envelope.topic == 'home.summary';
+      final lastSequence = hasDurableSequence
+          ? _lastSequenceByTopic[envelope.topic]
+          : null;
+      if (lastSequence != null && envelope.sequence < lastSequence) {
+        unawaited(
+          AppLogger.instance.info(
+            'RealtimeV2',
+            'Realtime event ignored out of order',
+            context: {
+              'eventId': envelope.id,
+              'kind': envelope.kind,
+              'topic': envelope.topic,
+              'sequence': envelope.sequence,
+              'lastSequence': lastSequence,
+            },
+          ),
+        );
+        return;
+      }
+      if (hasDurableSequence &&
+          (lastSequence == null || envelope.sequence > lastSequence)) {
+        _lastSequenceByTopic[envelope.topic] = envelope.sequence;
+      }
       if (!_seenEventIds.add(envelope.id)) {
         unawaited(
           AppLogger.instance.info(
@@ -422,7 +454,7 @@ class RealtimeConnectionManager
     if (!_syncController.isClosed) {
       _syncController.add(RealtimeSyncReason.appResumed);
     }
-    if (_connection == null && !_connecting) {
+    if (_connection == null && _connectingGeneration == null) {
       _reconnectTimer?.cancel();
       _reconnectTimer = null;
       unawaited(_connect(_generation, isReconnect: true));
@@ -451,6 +483,7 @@ class RealtimeConnectionManager
     _isShutdown = true;
     _active = false;
     _generation += 1;
+    _connectingGeneration = null;
     _reconnectTimer?.cancel();
     _reconnectTimer = null;
     _stopObservingLifecycle();

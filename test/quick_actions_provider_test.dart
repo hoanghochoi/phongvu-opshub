@@ -161,6 +161,26 @@ void main() {
       expect(repository.loadCount, 2);
     },
   );
+
+  test(
+    'defers initial API load until the launcher surface is active',
+    () async {
+      final repository = _FakeQuickActionsRepository(singleStore: false);
+      final provider = QuickActionsProvider(
+        repository,
+        localCache: _FakeQuickActionsCacheStore(),
+      );
+
+      await provider.syncUser(user, isSurfaceActive: false);
+      await provider.syncUser(user, isSurfaceActive: false);
+      expect(repository.loadCount, 0);
+      expect(provider.payload, isNull);
+
+      await provider.syncUser(user, isSurfaceActive: true);
+      await provider.syncUser(user, isSurfaceActive: true);
+      expect(repository.loadCount, 1);
+    },
+  );
 }
 
 class _FakeQuickActionsRepository extends QuickActionsRepository {

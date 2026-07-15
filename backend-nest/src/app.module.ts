@@ -29,6 +29,7 @@ import { SalesReportsModule } from './sales-reports/sales-reports.module';
 import { UserAwareThrottlerGuard } from './common/user-aware-throttler.guard';
 import { SalesTargetsModule } from './sales-targets/sales-targets.module';
 import { QuickActionsModule } from './quick-actions/quick-actions.module';
+import { NotificationFeedModule } from './notification-feed/notification-feed.module';
 
 @Module({
   imports: [
@@ -65,6 +66,7 @@ import { QuickActionsModule } from './quick-actions/quick-actions.module';
     FeatureModule,
     PaymentNotificationsModule,
     NotificationsModule,
+    NotificationFeedModule,
     HomeSummaryModule,
     HelpContentModule,
     MapVietinModule,

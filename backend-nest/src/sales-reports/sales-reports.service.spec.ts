@@ -99,6 +99,36 @@ describe('SalesReportsService', () => {
     return { service, prisma, categories, erp };
   }
 
+  it('publishes order cache changes with a strict server-derived audience', async () => {
+    const redis = { publishMessage: jest.fn().mockResolvedValue(undefined) };
+    const { service } = createHarness({ redis });
+    const payload = {
+      source: 'erp_status_sync',
+      dates: ['2026-07-15'],
+      newOrderCount: 0,
+      mappedOrderCount: 2,
+      storeCodes: ['CP01'],
+      recipientUserIds: ['user-1'],
+    };
+
+    await (service as any).publishOrderCacheUpdated(payload);
+
+    expect(redis.publishMessage).toHaveBeenCalledWith(
+      'SALES_REPORT_ORDERS_UPDATED',
+      expect.objectContaining({
+        schemaVersion: 1,
+        type: 'SALES_REPORT_ORDERS_UPDATED',
+        audience: expect.objectContaining({
+          storeCodes: ['CP01'],
+          recipientUserIds: ['user-1'],
+          roles: ['SUPER_ADMIN'],
+          featureCodes: ['SALES_REPORT'],
+        }),
+        payload,
+      }),
+    );
+  });
+
   it('requires order code for purchased report', async () => {
     const { service, erp } = createHarness();
 

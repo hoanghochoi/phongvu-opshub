@@ -58,6 +58,29 @@ This file maps product behavior to proof. Existing flows are marked
 
 Recent focused evidence:
 
+- `APP-PERF-001`, 2026-07-15: status `implemented`, proof scope
+  `local_verified`. Saved-session auth now hydrates last-known-good access,
+  conditionally refreshes `GET /auth/bootstrap` with ETag/`304`, uses the legacy
+  three-call refresh only for `404/501`, retains access on network/`5xx`, and
+  clears session plus persisted query cache on `401`. The app owns one shared
+  authenticated `/ws/v2`; route/lifecycle gating separates Home, warranty,
+  notification, sales-report and payment-list reads from the global Windows
+  speaker. Notification rows load through one `GET /notifications/feed`, with
+  old endpoint fallback only when unsupported. Delivery metrics use typed
+  invalidation with 30-second trailing debounce and a 15-minute foreground
+  fallback instead of one-minute polling. Authorization hardening separates
+  `policyCodes` from organization codes, invalidates access after relevant
+  user/org/store topology mutations, and rejects stale in-flight provider
+  responses after same-user scope revocation. Local proof: changed Dart files
+  passed formatter check, full-project `flutter analyze --no-pub` passed, and
+  full `flutter test --no-pub --reporter compact` passed 520 tests with 2
+  intentional skips. Changed Nest files passed Prettier check, `npm run build`
+  passed, and full Jest passed 69/69 suites with 672/672 tests. Go
+  `go test -count=1 ./...` and `go vet ./...` passed. `git diff --check` passed.
+  No staging or production request-count, runtime, compatibility, Windows/
+  Android/Web UI smoke proof has been run; those remain rollout gates before
+  claiming the request-reduction targets.
+
 - `HOME-DASHBOARD-003`, 2026-07-15: Home projection/outbox, `/ws/v2` and
   Flutter reconnect/resume path passed Prisma validation, scratch-database
   migration up/down (`90/90/90` seed), Nest build, 42 focused Jest tests, 31 Go

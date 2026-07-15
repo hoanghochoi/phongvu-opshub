@@ -1,139 +1,104 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
-import 'package:web_socket_channel/web_socket_channel.dart';
 
 import '../../data/repositories/warranty_repository.dart';
-import '../../../../core/network/api_client.dart';
 import '../../../../core/network/api_exception.dart';
-import '../../../../core/network/realtime_ticket_client.dart';
+import '../../../../core/network/realtime_connection_manager.dart';
 import '../../../../core/logging/app_logger.dart';
 import '../../../auth/domain/entities/user.dart';
 
 class WarrantyProvider extends ChangeNotifier {
   final WarrantyRepository _repository;
+  final RealtimeClient _realtimeClient;
+  final Duration _realtimeRefreshDebounce;
+  final Duration _realtimeRefreshMaxWait;
 
   bool _isLoading = false;
   String? _errorMessage;
   List<Map<String, dynamic>> _receipts = [];
   Map<String, dynamic>? _currentDetails;
-  StreamSubscription<dynamic>? _realtimeSubscription;
-  WebSocketChannel? _realtimeChannel;
+  StreamSubscription<RealtimeEnvelope>? _realtimeEventSubscription;
+  StreamSubscription<RealtimeSyncReason>? _realtimeSyncSubscription;
   User? _user;
-  String? _realtimeKey;
+  bool _isInitialized = false;
+  bool _isRouteActive = true;
+  bool _isForeground = true;
+  Timer? _realtimeRefreshTimer;
+  DateTime? _realtimeRefreshFirstQueuedAt;
+  String? _pendingRealtimeRefreshReason;
+  int _pendingRealtimeRefreshEvents = 0;
+  bool _realtimeRefreshInFlight = false;
+  bool _realtimeRefreshDirty = false;
+  String? _authorizationSignature;
+  int _authGeneration = 0;
+  int _listRequestToken = 0;
+  int _detailsRequestToken = 0;
 
-  WarrantyProvider(this._repository);
+  WarrantyProvider(
+    this._repository, {
+    RealtimeClient? realtimeClient,
+    Duration realtimeRefreshDebounce = const Duration(seconds: 2),
+    Duration realtimeRefreshMaxWait = const Duration(seconds: 5),
+  }) : _realtimeClient = realtimeClient ?? RealtimeConnectionManager.instance,
+       _realtimeRefreshDebounce = realtimeRefreshDebounce,
+       _realtimeRefreshMaxWait = realtimeRefreshMaxWait {
+    _realtimeEventSubscription = _realtimeClient.events.listen(
+      _handleRealtimeEnvelope,
+    );
+    _realtimeSyncSubscription = _realtimeClient.syncRequests.listen(
+      _handleRealtimeSyncRequest,
+    );
+  }
 
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
   List<Map<String, dynamic>> get receipts => _receipts;
   Map<String, dynamic>? get currentDetails => _currentDetails;
 
+  void syncRuntime({required bool isRouteActive, required bool isForeground}) {
+    _isRouteActive = isRouteActive;
+    _isForeground = isForeground;
+  }
+
   void syncAuth(User? user, {required bool isInitialized}) {
+    final nextSignature = _authSignature(user, isInitialized);
+    final authorizationChanged = _authorizationSignature != nextSignature;
     _user = user;
-    if (!isInitialized || user == null || !user.canUseFeature('WARRANTY')) {
-      _disconnectRealtime('auth_or_feature_unavailable');
+    _isInitialized = isInitialized;
+    _authorizationSignature = nextSignature;
+    if (!authorizationChanged) return;
+
+    _authGeneration += 1;
+    _listRequestToken += 1;
+    _detailsRequestToken += 1;
+    _isLoading = false;
+    _cancelScheduledRealtimeRefresh();
+    _receipts = [];
+    _currentDetails = null;
+    _errorMessage = null;
+    unawaited(
+      AppLogger.instance.info(
+        'Warranty',
+        'Warranty authorization scope changed; local state cleared',
+        context: {
+          'authenticated': user != null,
+          'initialized': isInitialized,
+          'warrantyEnabled': user?.canUseFeature('WARRANTY') == true,
+        },
+      ),
+    );
+    notifyListeners();
+  }
+
+  Future<void> _handleRealtimeEnvelope(RealtimeEnvelope envelope) async {
+    if (envelope.kind != 'WARRANTY_EVENT' ||
+        envelope.topic != 'warranty' ||
+        !_canConsumeRealtime) {
       return;
     }
-    unawaited(_connectRealtime(user));
-  }
-
-  Future<void> _connectRealtime(User user) async {
-    final token = ApiClient().authToken;
-    if (token == null || token.trim().isEmpty) {
-      _disconnectRealtime('missing_token');
-      return;
-    }
-    final nextKey = '${user.email}|${user.storeId ?? ''}|$token';
-    if (_realtimeKey == nextKey && _realtimeChannel != null) return;
-    _disconnectRealtime('reconnect');
-
     try {
-      final uri = await RealtimeTicketClient.instance.issueConnectionUri(
-        storeCode: user.storeId,
-      );
-      if (_user != user || ApiClient().authToken != token) return;
-      final channel = WebSocketChannel.connect(uri);
-      _realtimeChannel = channel;
-      _realtimeKey = nextKey;
-      _realtimeSubscription = channel.stream.listen(
-        _handleRealtimeMessage,
-        onError: (Object error, StackTrace stackTrace) {
-          unawaited(
-            AppLogger.instance.error(
-              'WarrantyRealtime',
-              'Warranty realtime error',
-              error: error,
-              stackTrace: stackTrace,
-              context: {'storeId': user.storeId},
-            ),
-          );
-        },
-        onDone: () {
-          unawaited(
-            AppLogger.instance.info(
-              'WarrantyRealtime',
-              'Warranty realtime disconnected',
-              context: {'storeId': user.storeId},
-            ),
-          );
-          _realtimeSubscription = null;
-          _realtimeChannel = null;
-          _realtimeKey = null;
-        },
-      );
-      unawaited(
-        AppLogger.instance.info(
-          'WarrantyRealtime',
-          'Warranty realtime connected',
-          context: {'storeId': user.storeId},
-        ),
-      );
-    } catch (error, stackTrace) {
-      unawaited(
-        AppLogger.instance.error(
-          'WarrantyRealtime',
-          'Warranty realtime connect failed',
-          error: error,
-          stackTrace: stackTrace,
-          context: {'storeId': user.storeId},
-        ),
-      );
-      _disconnectRealtime('connect_failed');
-    }
-  }
-
-  void _disconnectRealtime(String reason) {
-    final hadConnection = _realtimeChannel != null || _realtimeKey != null;
-    unawaited(_realtimeSubscription?.cancel());
-    _realtimeSubscription = null;
-    unawaited(_realtimeChannel?.sink.close());
-    _realtimeChannel = null;
-    _realtimeKey = null;
-    if (hadConnection) {
-      unawaited(
-        AppLogger.instance.info(
-          'WarrantyRealtime',
-          'Warranty realtime disconnected',
-          context: {'reason': reason},
-        ),
-      );
-    }
-  }
-
-  Future<void> _handleRealtimeMessage(dynamic message) async {
-    try {
-      final decoded = jsonDecode(message.toString());
-      if (decoded is! Map<String, dynamic>) return;
-      if (decoded['type']?.toString() != 'WARRANTY_EVENT') return;
-      final rawPayload = decoded['payload'];
-      final payload = rawPayload is String
-          ? jsonDecode(rawPayload) as Map<String, dynamic>
-          : rawPayload is Map<String, dynamic>
-          ? rawPayload
-          : null;
-      if (payload == null) return;
+      final payload = envelope.data;
       final warrantyId = payload['warrantyId']?.toString();
       final newStatus = payload['newStatus']?.toString();
       if (warrantyId == null || warrantyId.isEmpty || newStatus == null) {
@@ -142,12 +107,16 @@ class WarrantyProvider extends ChangeNotifier {
       await AppLogger.instance.info(
         'WarrantyRealtime',
         'Warranty realtime event received',
-        context: {'warrantyId': warrantyId, 'status': newStatus},
+        context: {
+          'eventId': envelope.id,
+          'warrantyId': warrantyId,
+          'status': newStatus,
+        },
       );
       final changed = _applyRealtimeStatus(warrantyId, newStatus);
       if (changed) notifyListeners();
       if (_receipts.isNotEmpty && _user != null) {
-        unawaited(_refreshListFromRealtime(warrantyId));
+        _scheduleRealtimeRefresh(warrantyId);
       }
     } catch (error, stackTrace) {
       await AppLogger.instance.error(
@@ -157,6 +126,24 @@ class WarrantyProvider extends ChangeNotifier {
         stackTrace: stackTrace,
       );
     }
+  }
+
+  bool get _canConsumeRealtime =>
+      _isInitialized &&
+      _isRouteActive &&
+      _isForeground &&
+      _user?.canUseFeature('WARRANTY') == true;
+
+  void _handleRealtimeSyncRequest(RealtimeSyncReason reason) {
+    if (!_canConsumeRealtime || _receipts.isEmpty) return;
+    unawaited(
+      AppLogger.instance.info(
+        'WarrantyRealtime',
+        'Warranty realtime sync requested',
+        context: {'reason': reason.name},
+      ),
+    );
+    _scheduleRealtimeRefresh('sync_${reason.name}');
   }
 
   bool _applyRealtimeStatus(String warrantyId, String newStatus) {
@@ -186,17 +173,63 @@ class WarrantyProvider extends ChangeNotifier {
     return false;
   }
 
-  Future<void> _refreshListFromRealtime(String warrantyId) async {
+  void _scheduleRealtimeRefresh(String reason) {
+    if (!_canConsumeRealtime || _receipts.isEmpty || _user == null) return;
+    final now = DateTime.now();
+    _realtimeRefreshFirstQueuedAt ??= now;
+    _pendingRealtimeRefreshReason = reason;
+    _pendingRealtimeRefreshEvents += 1;
+
+    final elapsed = now.difference(_realtimeRefreshFirstQueuedAt!);
+    final remaining = _realtimeRefreshMaxWait - elapsed;
+    if (remaining <= Duration.zero) {
+      _realtimeRefreshTimer?.cancel();
+      _realtimeRefreshTimer = null;
+      unawaited(_flushRealtimeRefresh());
+      return;
+    }
+
+    _realtimeRefreshTimer?.cancel();
+    final delay = remaining < _realtimeRefreshDebounce
+        ? remaining
+        : _realtimeRefreshDebounce;
+    _realtimeRefreshTimer = Timer(delay, () {
+      _realtimeRefreshTimer = null;
+      unawaited(_flushRealtimeRefresh());
+    });
+  }
+
+  Future<void> _flushRealtimeRefresh() async {
+    if (_realtimeRefreshInFlight) {
+      _realtimeRefreshDirty = true;
+      return;
+    }
     final user = _user;
-    if (user == null) return;
+    final authGeneration = _authGeneration;
+    final requestToken = ++_listRequestToken;
+    final reason = _pendingRealtimeRefreshReason ?? 'realtime';
+    final coalescedEvents = _pendingRealtimeRefreshEvents;
+    _realtimeRefreshFirstQueuedAt = null;
+    _pendingRealtimeRefreshReason = null;
+    _pendingRealtimeRefreshEvents = 0;
+    if (user == null || !_canConsumeRealtime || _receipts.isEmpty) return;
+
+    _realtimeRefreshInFlight = true;
     try {
       final receipts = await _repository.showAllWarranty(user.email);
+      if (!_isCurrentListRequest(authGeneration, requestToken, user.email)) {
+        return;
+      }
       _receipts = receipts;
       notifyListeners();
       await AppLogger.instance.info(
         'WarrantyRealtime',
         'Warranty realtime list refresh succeeded',
-        context: {'warrantyId': warrantyId, 'count': receipts.length},
+        context: {
+          'reason': reason,
+          'count': receipts.length,
+          'coalescedEvents': coalescedEvents,
+        },
       );
     } catch (error, stackTrace) {
       await AppLogger.instance.error(
@@ -204,9 +237,24 @@ class WarrantyProvider extends ChangeNotifier {
         'Warranty realtime list refresh failed',
         error: error,
         stackTrace: stackTrace,
-        context: {'warrantyId': warrantyId},
+        context: {'reason': reason, 'coalescedEvents': coalescedEvents},
       );
+    } finally {
+      _realtimeRefreshInFlight = false;
+      if (_realtimeRefreshDirty) {
+        _realtimeRefreshDirty = false;
+        _scheduleRealtimeRefresh('dirty_after_$reason');
+      }
     }
+  }
+
+  void _cancelScheduledRealtimeRefresh() {
+    _realtimeRefreshTimer?.cancel();
+    _realtimeRefreshTimer = null;
+    _realtimeRefreshFirstQueuedAt = null;
+    _pendingRealtimeRefreshReason = null;
+    _pendingRealtimeRefreshEvents = 0;
+    _realtimeRefreshDirty = false;
   }
 
   Future<bool> saveWarranty({
@@ -267,6 +315,9 @@ class WarrantyProvider extends ChangeNotifier {
   }
 
   Future<bool> showAllWarranty(String userEmail) async {
+    _cancelScheduledRealtimeRefresh();
+    final authGeneration = _authGeneration;
+    final requestToken = ++_listRequestToken;
     await AppLogger.instance.info(
       'Warranty',
       'Warranty list started',
@@ -277,7 +328,11 @@ class WarrantyProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      _receipts = await _repository.showAllWarranty(userEmail);
+      final receipts = await _repository.showAllWarranty(userEmail);
+      if (!_isCurrentListRequest(authGeneration, requestToken, userEmail)) {
+        return false;
+      }
+      _receipts = receipts;
       await AppLogger.instance.info(
         'Warranty',
         'Warranty list succeeded',
@@ -287,6 +342,9 @@ class WarrantyProvider extends ChangeNotifier {
       notifyListeners();
       return true;
     } on ApiException catch (e) {
+      if (!_isCurrentListRequest(authGeneration, requestToken, userEmail)) {
+        return false;
+      }
       await AppLogger.instance.warn(
         'Warranty',
         'Warranty list failed',
@@ -297,6 +355,9 @@ class WarrantyProvider extends ChangeNotifier {
       notifyListeners();
       return false;
     } catch (e) {
+      if (!_isCurrentListRequest(authGeneration, requestToken, userEmail)) {
+        return false;
+      }
       _errorMessage = 'Chưa tải được danh sách biên nhận. Vui lòng thử lại.';
       _isLoading = false;
       notifyListeners();
@@ -308,6 +369,8 @@ class WarrantyProvider extends ChangeNotifier {
     required String userEmail,
     required String receiptNumber,
   }) async {
+    final authGeneration = _authGeneration;
+    final requestToken = ++_listRequestToken;
     await AppLogger.instance.info(
       'Warranty',
       'Warranty search started',
@@ -318,10 +381,14 @@ class WarrantyProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      _receipts = await _repository.searchWarranty(
+      final receipts = await _repository.searchWarranty(
         userEmail: userEmail,
         receiptNumber: receiptNumber,
       );
+      if (!_isCurrentListRequest(authGeneration, requestToken, userEmail)) {
+        return false;
+      }
+      _receipts = receipts;
       await AppLogger.instance.info(
         'Warranty',
         'Warranty search succeeded',
@@ -331,6 +398,9 @@ class WarrantyProvider extends ChangeNotifier {
       notifyListeners();
       return true;
     } on ApiException catch (e) {
+      if (!_isCurrentListRequest(authGeneration, requestToken, userEmail)) {
+        return false;
+      }
       await AppLogger.instance.warn(
         'Warranty',
         'Warranty search failed',
@@ -341,6 +411,9 @@ class WarrantyProvider extends ChangeNotifier {
       notifyListeners();
       return false;
     } catch (e) {
+      if (!_isCurrentListRequest(authGeneration, requestToken, userEmail)) {
+        return false;
+      }
       _errorMessage = 'Chưa tìm được biên nhận. Vui lòng thử lại.';
       _isLoading = false;
       notifyListeners();
@@ -352,6 +425,8 @@ class WarrantyProvider extends ChangeNotifier {
     required String userEmail,
     required String receiptNumber,
   }) async {
+    final authGeneration = _authGeneration;
+    final requestToken = ++_detailsRequestToken;
     await AppLogger.instance.info(
       'Warranty',
       'Warranty detail started',
@@ -363,10 +438,14 @@ class WarrantyProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      _currentDetails = await _repository.getWarrantyDetails(
+      final details = await _repository.getWarrantyDetails(
         userEmail: userEmail,
         receiptNumber: receiptNumber,
       );
+      if (!_isCurrentDetailsRequest(authGeneration, requestToken, userEmail)) {
+        return false;
+      }
+      _currentDetails = details;
       await AppLogger.instance.info(
         'Warranty',
         'Warranty detail succeeded',
@@ -376,6 +455,9 @@ class WarrantyProvider extends ChangeNotifier {
       notifyListeners();
       return true;
     } on ApiException catch (e) {
+      if (!_isCurrentDetailsRequest(authGeneration, requestToken, userEmail)) {
+        return false;
+      }
       await AppLogger.instance.warn(
         'Warranty',
         'Warranty detail failed',
@@ -386,6 +468,9 @@ class WarrantyProvider extends ChangeNotifier {
       notifyListeners();
       return false;
     } catch (e) {
+      if (!_isCurrentDetailsRequest(authGeneration, requestToken, userEmail)) {
+        return false;
+      }
       _errorMessage = 'Chưa mở được chi tiết biên nhận. Vui lòng thử lại.';
       _isLoading = false;
       notifyListeners();
@@ -408,9 +493,41 @@ class WarrantyProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  String? _authSignature(User? user, bool isInitialized) {
+    if (!isInitialized || user == null) return null;
+    return [
+      user.id ?? user.email.toLowerCase(),
+      user.canUseFeature('WARRANTY') ? '1' : '0',
+    ].join('|');
+  }
+
+  bool _isCurrentListRequest(
+    int authGeneration,
+    int requestToken,
+    String userEmail,
+  ) {
+    return authGeneration == _authGeneration &&
+        requestToken == _listRequestToken &&
+        _user?.email == userEmail &&
+        _user?.canUseFeature('WARRANTY') == true;
+  }
+
+  bool _isCurrentDetailsRequest(
+    int authGeneration,
+    int requestToken,
+    String userEmail,
+  ) {
+    return authGeneration == _authGeneration &&
+        requestToken == _detailsRequestToken &&
+        _user?.email == userEmail &&
+        _user?.canUseFeature('WARRANTY') == true;
+  }
+
   @override
   void dispose() {
-    _disconnectRealtime('provider_disposed');
+    _cancelScheduledRealtimeRefresh();
+    unawaited(_realtimeEventSubscription?.cancel());
+    unawaited(_realtimeSyncSubscription?.cancel());
     super.dispose();
   }
 }

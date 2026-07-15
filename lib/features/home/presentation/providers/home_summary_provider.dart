@@ -73,7 +73,10 @@ class HomeSummaryProvider extends ChangeNotifier {
   }
 
   static final DateFormat _queryDateFormat = DateFormat('yyyy-MM-dd');
-  static const Duration _realtimeRefreshDebounce = Duration(milliseconds: 500);
+  static final DateFormat _updatedAtFormat = DateFormat('HH:mm dd/MM/yyyy');
+  static const Duration _realtimeRefreshDebounce = Duration(seconds: 2);
+  static const Duration _realtimeRefreshMaxWait = Duration(seconds: 5);
+  static const Duration _routeRevalidationTtl = Duration(minutes: 5);
 
   final HomeSummaryRepository _repository;
   final DateTime Function() _now;
@@ -82,10 +85,12 @@ class HomeSummaryProvider extends ChangeNotifier {
   StreamSubscription<RealtimeEnvelope>? _realtimeEventSubscription;
   StreamSubscription<RealtimeSyncReason>? _realtimeSyncSubscription;
   Timer? _realtimeRefreshTimer;
+  Timer? _realtimeRefreshMaxTimer;
   final Set<String> _pendingAffectedDates = <String>{};
   String? _pendingRealtimeReason;
   int? _pendingProjectionVersion;
   int? _lastAppliedProjectionVersion;
+  DateTime? _lastSuccessfulLoadAt;
 
   User? _user;
   HomeSummary? _summary;
@@ -96,6 +101,9 @@ class HomeSummaryProvider extends ChangeNotifier {
   List<HomeSummaryScopeOption> _scopeOptions = const [];
   bool _isLoading = false;
   bool _isRefreshing = false;
+  bool _isRouteActive = true;
+  bool _isForeground = true;
+  bool _sessionBootstrapPending = false;
   String? _errorMessage;
   String? _syncedSessionKey;
   int _requestToken = 0;
@@ -110,6 +118,7 @@ class HomeSummaryProvider extends ChangeNotifier {
   bool get isRefreshing => _isRefreshing;
   bool get isInitialLoading => _isLoading && _summary == null;
   bool get canRefresh => !_isLoading && !_isRefreshing && _user != null;
+  DateTime? get lastSuccessfulLoadAt => _lastSuccessfulLoadAt;
   bool get canOpenSalesReportAdmin =>
       _user?.canUseFeature('ADMIN_SALES_REPORTS') == true;
   bool get canOpenBankStatement => _user?.canUseBankStatements == true;
@@ -119,6 +128,44 @@ class HomeSummaryProvider extends ChangeNotifier {
   List<HomeSummaryScopeOption> get scopeOptions {
     if (_scopeOptions.isNotEmpty) return _scopeOptions;
     return _fallbackScopeOptions(_user, _summary);
+  }
+
+  void syncRuntime({required bool isRouteActive, required bool isForeground}) {
+    final wasEligible = _isRouteActive && _isForeground;
+    _isRouteActive = isRouteActive;
+    _isForeground = isForeground;
+    final isEligible = isRouteActive && isForeground;
+    if (!isEligible) {
+      _cancelRealtimeRefreshTimers();
+      return;
+    }
+    final becameActive = !wasEligible;
+    if (!becameActive || _user == null) return;
+    if (_sessionBootstrapPending || _summary == null) {
+      _sessionBootstrapPending = false;
+      unawaited(_bootstrapSessionSummary(_user!));
+      return;
+    }
+    if (_hasPendingRealtimeRefresh) {
+      _scheduleRealtimeRefresh(reason: 'route_activated', immediate: true);
+      return;
+    }
+    final lastLoadedAt = _lastSuccessfulLoadAt;
+    if (lastLoadedAt == null ||
+        _now().difference(lastLoadedAt) >= _routeRevalidationTtl) {
+      unawaited(loadSummary(reason: 'route_revalidation'));
+      return;
+    }
+    unawaited(
+      AppLogger.instance.info(
+        'HomeSummary',
+        'Home summary route activation reused cached data',
+        context: {
+          'ageSeconds': _now().difference(lastLoadedAt).inSeconds,
+          'ttlSeconds': _routeRevalidationTtl.inSeconds,
+        },
+      ),
+    );
   }
 
   static List<HomeSummaryScopeOption> _fallbackScopeOptions(
@@ -188,28 +235,34 @@ class HomeSummaryProvider extends ChangeNotifier {
     return _summary?.resolvedScopeLabel ?? 'Theo quyền hiện tại';
   }
 
-  void syncAuth(User? user, {required bool isInitialized}) {
-    _requestToken += 1;
-    _user = user;
-    final nextSessionKey = isInitialized && user != null
-        ? _sessionKey(user)
+  void syncAuth(
+    User? user, {
+    required bool isInitialized,
+    bool isAccessReady = true,
+    String? accessIdentity,
+  }) {
+    final effectiveUser = isAccessReady ? user : null;
+    _user = effectiveUser;
+    final nextSessionKey = isInitialized && effectiveUser != null
+        ? _sessionKey(effectiveUser, accessIdentity: accessIdentity)
         : null;
     final sessionChanged = _syncedSessionKey != nextSessionKey;
     _syncedSessionKey = nextSessionKey;
     if (sessionChanged) {
-      _realtimeRefreshTimer?.cancel();
-      _realtimeRefreshTimer = null;
+      _requestToken += 1;
+      _cancelRealtimeRefreshTimers();
       _pendingAffectedDates.clear();
       _pendingRealtimeReason = null;
       _pendingProjectionVersion = null;
       _lastAppliedProjectionVersion = null;
+      _lastSuccessfulLoadAt = null;
       final realtimeClient = _realtimeClient;
       if (realtimeClient != null) {
         unawaited(realtimeClient.syncSession(nextSessionKey));
       }
     }
 
-    if (!isInitialized || user == null) {
+    if (!isInitialized || effectiveUser == null) {
       if (_summary != null ||
           _scopeOptions.isNotEmpty ||
           _errorMessage != null ||
@@ -221,6 +274,7 @@ class HomeSummaryProvider extends ChangeNotifier {
         _errorMessage = null;
         _isLoading = false;
         _isRefreshing = false;
+        _sessionBootstrapPending = false;
         notifyListeners();
       }
       return;
@@ -229,32 +283,51 @@ class HomeSummaryProvider extends ChangeNotifier {
     if (sessionChanged) {
       _resetSelectedDateRangeToToday();
       _scopeOptions = const [];
-      _selectedScope = _defaultScopeFor(user, const []);
+      _selectedScope = _defaultScopeFor(effectiveUser, const []);
       _selectedSalesProgressUserId = null;
       _summary = null;
       _errorMessage = null;
       _isLoading = true;
       _isRefreshing = false;
+      _sessionBootstrapPending = !_isRouteActive || !_isForeground;
+      if (_sessionBootstrapPending) _isLoading = false;
       notifyListeners();
-      unawaited(_bootstrapSessionSummary(user));
+      if (!_sessionBootstrapPending) {
+        unawaited(_bootstrapSessionSummary(effectiveUser));
+      }
     }
   }
 
   Future<void> _bootstrapSessionSummary(User user) async {
-    await _loadScopeOptions(user, reason: 'auth_sync');
+    final expectedSessionKey = _syncedSessionKey;
+    if (expectedSessionKey == null) return;
+    final scopeIsCurrent = await _loadScopeOptions(
+      user,
+      reason: 'auth_sync',
+      expectedSessionKey: expectedSessionKey,
+    );
+    if (!scopeIsCurrent || _syncedSessionKey != expectedSessionKey) return;
     await loadSummary(reason: 'auth_sync');
   }
 
-  Future<void> _loadScopeOptions(User user, {required String reason}) async {
+  Future<bool> _loadScopeOptions(
+    User user, {
+    required String reason,
+    required String expectedSessionKey,
+  }) async {
     await AppLogger.instance.info(
       'HomeSummary',
       'Home summary scope options load started',
       context: {'userId': user.id, 'role': user.role, 'reason': reason},
     );
     try {
-      final options = (await _repository.fetchScopeOptions())
-          .map(HomeSummaryScopeOption.fromDto)
-          .toList(growable: false);
+      final options = (await _repository.fetchScopeOptions(
+        cacheIdentity: _cacheIdentity(user),
+      )).map(HomeSummaryScopeOption.fromDto).toList(growable: false);
+      if (_syncedSessionKey != expectedSessionKey) {
+        await _logDiscardedScopeOptions(user, reason);
+        return false;
+      }
       final fallbackOptions = _fallbackScopeOptions(user, _summary);
       _scopeOptions = options.isNotEmpty ? options : fallbackOptions;
       _selectedScope = _defaultScopeFor(user, _scopeOptions);
@@ -271,7 +344,12 @@ class HomeSummaryProvider extends ChangeNotifier {
           'selectedScope': _selectedScope,
         },
       );
+      return true;
     } on ApiException catch (error) {
+      if (_syncedSessionKey != expectedSessionKey) {
+        await _logDiscardedScopeOptions(user, reason);
+        return false;
+      }
       _scopeOptions = _fallbackScopeOptions(user, _summary);
       _selectedScope = _defaultScopeFor(user, _scopeOptions);
       notifyListeners();
@@ -285,7 +363,12 @@ class HomeSummaryProvider extends ChangeNotifier {
           'fallbackCount': _scopeOptions.length,
         },
       );
+      return true;
     } catch (error, stackTrace) {
+      if (_syncedSessionKey != expectedSessionKey) {
+        await _logDiscardedScopeOptions(user, reason);
+        return false;
+      }
       _scopeOptions = _fallbackScopeOptions(user, _summary);
       _selectedScope = _defaultScopeFor(user, _scopeOptions);
       notifyListeners();
@@ -301,7 +384,16 @@ class HomeSummaryProvider extends ChangeNotifier {
         },
         upload: true,
       );
+      return true;
     }
+  }
+
+  Future<void> _logDiscardedScopeOptions(User user, String reason) {
+    return AppLogger.instance.info(
+      'HomeSummary',
+      'Home summary scope options discarded for stale session',
+      context: {'userId': user.id, 'reason': reason},
+    );
   }
 
   Future<void> refreshNow() async {
@@ -520,17 +612,22 @@ class HomeSummaryProvider extends ChangeNotifier {
         scope: _requestScopeForSelectedScope,
         organizationNodeId: _organizationNodeIdForSelectedScope,
         salesProgressUserId: _selectedSalesProgressUserId,
+        cacheIdentity: _cacheIdentity(user),
+        forceRefresh: _shouldForceNetworkForReason(reason),
       );
       if (requestToken != _requestToken) return false;
 
       _summary = summary;
+      _lastSuccessfulLoadAt = _repository.lastSummaryFetchedAt ?? _now();
       final responseProjectionVersion = summary.freshness?.projectionVersion;
       if (responseProjectionVersion != null &&
           responseProjectionVersion > (_lastAppliedProjectionVersion ?? -1)) {
         _lastAppliedProjectionVersion = responseProjectionVersion;
       }
       _selectedSalesProgressUserId = summary.selectedSalesProgressUserId;
-      _errorMessage = null;
+      _errorMessage = _repository.lastSummaryWasStale
+          ? _staleCacheMessage(_lastSuccessfulLoadAt)
+          : null;
       await AppLogger.instance.info(
         'HomeSummary',
         'Home summary load succeeded',
@@ -729,19 +826,48 @@ class HomeSummaryProvider extends ChangeNotifier {
     );
   }
 
-  void _scheduleRealtimeRefresh({required String reason, bool force = false}) {
+  void _scheduleRealtimeRefresh({
+    required String reason,
+    bool force = false,
+    bool immediate = false,
+  }) {
     _pendingRealtimeReason = force ? reason : _pendingRealtimeReason ?? reason;
     if (force) _pendingAffectedDates.clear();
+    if (!_isRouteActive || !_isForeground) {
+      _cancelRealtimeRefreshTimers();
+      unawaited(
+        AppLogger.instance.info(
+          'HomeSummaryRealtime',
+          'Home realtime refresh deferred',
+          context: {
+            'reason': reason,
+            'routeActive': _isRouteActive,
+            'foreground': _isForeground,
+          },
+        ),
+      );
+      return;
+    }
+    if (immediate) {
+      _cancelRealtimeRefreshTimers();
+      _realtimeRefreshTimer = Timer(Duration.zero, _refreshFromRealtime);
+      return;
+    }
     _realtimeRefreshTimer?.cancel();
     _realtimeRefreshTimer = Timer(
       _realtimeRefreshDebounce,
       _refreshFromRealtime,
     );
+    _realtimeRefreshMaxTimer ??= Timer(
+      _realtimeRefreshMaxWait,
+      _refreshFromRealtime,
+    );
   }
 
   Future<void> _refreshFromRealtime() async {
-    _realtimeRefreshTimer = null;
+    _cancelRealtimeRefreshTimers();
     if (_user == null) return;
+    if (!_isRouteActive || !_isForeground) return;
     final reason = _pendingRealtimeReason ?? 'realtime_sync';
     final projectionVersion = _pendingProjectionVersion;
     final affectedDates = Set<String>.from(_pendingAffectedDates);
@@ -913,18 +1039,57 @@ class HomeSummaryProvider extends ChangeNotifier {
     return HomeSummaryScopeFilters.own;
   }
 
-  static String _sessionKey(User user) =>
-      '${user.id ?? user.email}|${user.role ?? ''}|${user.organizationNodeId ?? ''}|${user.organizationNodeIds.join(',')}';
+  String _cacheIdentity(User user) => _syncedSessionKey ?? _sessionKey(user);
+
+  static String _sessionKey(User user, {String? accessIdentity}) {
+    final assignedStores = user.assignedStoreIds.toList()..sort();
+    final features = user.featureAccess.entries.toList()
+      ..sort((left, right) => left.key.compareTo(right.key));
+    final policies = user.policyAccess.entries.toList()
+      ..sort((left, right) => left.key.compareTo(right.key));
+    final accessSignature = accessIdentity?.trim().isNotEmpty == true
+        ? accessIdentity!.trim()
+        : [
+            ...features.map((entry) => '${entry.key}:${entry.value}'),
+            ...policies.map((entry) => '${entry.key}:${entry.value}'),
+          ].join(',');
+    return '${user.id ?? user.email}|${user.role ?? ''}|'
+        '${user.organizationNodeId ?? ''}|${user.organizationNodeIds.join(',')}|'
+        '${assignedStores.join(',')}|$accessSignature';
+  }
+
+  static bool _shouldForceNetworkForReason(String reason) =>
+      reason == 'manual_refresh' ||
+      reason == 'app_resumed' ||
+      reason.startsWith('realtime_');
+
+  static String _staleCacheMessage(DateTime? updatedAt) {
+    final timestamp = updatedAt == null
+        ? ''
+        : ' lúc ${_updatedAtFormat.format(updatedAt.toLocal())}';
+    return 'Đang hiển thị dữ liệu đã lưu$timestamp vì chưa kết nối được hệ thống.';
+  }
 
   @override
   void dispose() {
-    _realtimeRefreshTimer?.cancel();
-    _realtimeRefreshTimer = null;
+    _cancelRealtimeRefreshTimers();
     unawaited(_realtimeEventSubscription?.cancel());
     unawaited(_realtimeSyncSubscription?.cancel());
     _realtimeEventSubscription = null;
     _realtimeSyncSubscription = null;
     super.dispose();
+  }
+
+  bool get _hasPendingRealtimeRefresh =>
+      _pendingRealtimeReason != null ||
+      _pendingProjectionVersion != null ||
+      _pendingAffectedDates.isNotEmpty;
+
+  void _cancelRealtimeRefreshTimers() {
+    _realtimeRefreshTimer?.cancel();
+    _realtimeRefreshMaxTimer?.cancel();
+    _realtimeRefreshTimer = null;
+    _realtimeRefreshMaxTimer = null;
   }
 }
 

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -115,4 +117,27 @@ void main() {
     );
     expect(calls, 2);
   });
+
+  test(
+    'late 401 from an old token cannot invalidate the current token',
+    () async {
+      final response = Completer<http.Response>();
+      final client = ApiClient.test(MockClient((_) => response.future));
+      var authFailureCalls = 0;
+      client
+        ..setAuthToken('old-token')
+        ..setAuthFailureHandler((exception, failedAuthToken) async {
+          authFailureCalls += 1;
+        });
+
+      final request = client.get('/protected');
+      await Future<void>.delayed(Duration.zero);
+      client.setAuthToken('new-token');
+      response.complete(http.Response('', 401));
+
+      await expectLater(request, throwsA(isA<ApiException>()));
+      expect(authFailureCalls, 0);
+      expect(client.authToken, 'new-token');
+    },
+  );
 }

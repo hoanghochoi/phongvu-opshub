@@ -11,6 +11,7 @@ import { RedisService } from '../redis/redis.service';
 import { FEATURE_KEYS } from '../feature/feature.constants';
 import { ADMIN_POLICY_CODES } from '../policy/policy.constants';
 import { PolicyService } from '../policy/policy.service';
+import { buildRealtimeRedisEnvelope } from '../common/realtime-event';
 
 const SUPER_ADMIN_ROLE = 'SUPER_ADMIN';
 
@@ -182,26 +183,25 @@ export class WarrantyService {
 
     const occurredAt = new Date().toISOString();
     const storeCode = existing.createdBy?.store?.storeId?.trim().toUpperCase();
-    await this.redisService.publishMessage('WARRANTY_STATUS_UPDATED', {
-      schemaVersion: 1,
-      type: 'WARRANTY_EVENT',
-      eventId: 'warranty:' + id + ':' + occurredAt,
-      occurredAt,
-      audience: {
-        storeCodes: storeCode ? [storeCode] : [],
-        recipientUserIds: Array.from(
-          new Set([existing.createdById, userId].filter(Boolean)),
-        ),
-        roles: ['SUPER_ADMIN'],
-        featureCodes: [FEATURE_KEYS.WARRANTY],
-      },
-      payload: {
-        warrantyId: id,
-        newStatus: status,
-        handledBy: userId,
-        timestamp: occurredAt,
-      },
-    });
+    await this.redisService.publishMessage(
+      'WARRANTY_STATUS_UPDATED',
+      buildRealtimeRedisEnvelope({
+        type: 'WARRANTY_EVENT',
+        occurredAt,
+        audience: {
+          storeCodes: storeCode ? [storeCode] : [],
+          recipientUserIds: [existing.createdById, userId],
+          roles: ['SUPER_ADMIN'],
+          featureCodes: [FEATURE_KEYS.WARRANTY],
+        },
+        payload: {
+          warrantyId: id,
+          newStatus: status,
+          handledBy: userId,
+          timestamp: occurredAt,
+        },
+      }),
+    );
 
     this.logger.log(
       `Warranty status updated: warrantyId=${id} userId=${userId} scope=${this.scopeLogValue(scope)} status=${status}`,

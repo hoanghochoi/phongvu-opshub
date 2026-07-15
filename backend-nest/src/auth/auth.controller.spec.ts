@@ -1,4 +1,6 @@
 import { AuthController } from './auth.controller';
+import { GUARDS_METADATA } from '@nestjs/common/constants';
+import { AuthGuard } from '@nestjs/passport';
 
 describe('AuthController', () => {
   let controller: AuthController;
@@ -15,6 +17,10 @@ describe('AuthController', () => {
   };
   let realtimeTicketService: {
     issueTicket: jest.Mock;
+  };
+  let authBootstrapService: {
+    resolve: jest.Mock;
+    matchesEtag: jest.Mock;
   };
 
   const loginDevice = {
@@ -37,9 +43,14 @@ describe('AuthController', () => {
     realtimeTicketService = {
       issueTicket: jest.fn(),
     };
+    authBootstrapService = {
+      resolve: jest.fn(),
+      matchesEtag: jest.fn(),
+    };
     controller = new AuthController(
       authService as any,
       realtimeTicketService as any,
+      authBootstrapService as any,
     );
   });
 
@@ -226,5 +237,85 @@ describe('AuthController', () => {
     expect(authService.getUserData).toHaveBeenCalledWith(
       'staff@phongvu-shop.vn',
     );
+  });
+
+  it('returns the authenticated bootstrap contract with conditional cache headers', async () => {
+    const body = {
+      schemaVersion: 1,
+      generatedAt: '2026-07-15T02:00:00.000Z',
+      version: 'version-1',
+      user: { firstName: 'An' },
+      featureAccess: { HOME_DASHBOARD: true },
+      policyAccess: { ADMIN_SETTINGS: false },
+      capabilities: {
+        conditionalGet: true,
+        realtimeV2Topics: [
+          'access.changed',
+          'home.summary',
+          'warranty',
+          'payment.transactions',
+          'payment.speaker',
+          'payment.delivery-metrics',
+          'notifications.statement-transfer',
+          'notifications.offset-adjustment',
+          'sales-report.orders',
+        ],
+      },
+    };
+    const response = {
+      setHeader: jest.fn(),
+      status: jest.fn(),
+    };
+    const user = { id: 'user-1', email: 'staff@phongvu-shop.vn' };
+    authBootstrapService.resolve.mockResolvedValue({
+      body,
+      etag: '"version-1"',
+    });
+    authBootstrapService.matchesEtag.mockReturnValue(false);
+
+    await expect(
+      controller.getBootstrap({ user }, undefined, response as any),
+    ).resolves.toEqual(body);
+    expect(authBootstrapService.resolve).toHaveBeenCalledWith(user);
+    expect(response.setHeader).toHaveBeenCalledWith(
+      'Cache-Control',
+      'private, no-cache',
+    );
+    expect(response.setHeader).toHaveBeenCalledWith('ETag', '"version-1"');
+    expect(response.status).not.toHaveBeenCalled();
+  });
+
+  it('returns 304 without a response body when If-None-Match is current', async () => {
+    const response = {
+      setHeader: jest.fn(),
+      status: jest.fn(),
+    };
+    authBootstrapService.resolve.mockResolvedValue({
+      body: { version: 'version-1' },
+      etag: '"version-1"',
+    });
+    authBootstrapService.matchesEtag.mockReturnValue(true);
+
+    await expect(
+      controller.getBootstrap(
+        { user: { id: 'user-1', email: 'staff@phongvu-shop.vn' } },
+        'W/"version-1"',
+        response as any,
+      ),
+    ).resolves.toBeUndefined();
+    expect(authBootstrapService.matchesEtag).toHaveBeenCalledWith(
+      'W/"version-1"',
+      '"version-1"',
+    );
+    expect(response.status).toHaveBeenCalledWith(304);
+  });
+
+  it('protects the bootstrap route with the JWT guard', () => {
+    const guards = Reflect.getMetadata(
+      GUARDS_METADATA,
+      AuthController.prototype.getBootstrap,
+    );
+
+    expect(guards).toEqual(expect.arrayContaining([AuthGuard('jwt')]));
   });
 });

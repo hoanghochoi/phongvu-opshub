@@ -7,6 +7,7 @@ describe('PolicyService', () => {
   let policies: Record<string, any>;
   let rules: any[];
   let settings: Record<string, any>;
+  let accessChangeService: any;
 
   const context = {
     id: 'user-1',
@@ -118,7 +119,17 @@ describe('PolicyService', () => {
         Promise.all(operations),
       ),
     };
-    service = new PolicyService(prisma);
+    accessChangeService = {
+      publishForAllUsers: jest.fn().mockResolvedValue({
+        recipientCount: 1,
+        eventCount: 1,
+      }),
+      publishForOrganizationNodeIds: jest.fn().mockResolvedValue({
+        recipientCount: 1,
+        eventCount: 1,
+      }),
+    };
+    service = new PolicyService(prisma, accessChangeService);
   });
 
   it('falls back to policy default when no rule matches', async () => {
@@ -194,6 +205,23 @@ describe('PolicyService', () => {
         ADMIN_POLICY_CODES.FIFO,
       ),
     ).resolves.toBe(true);
+  });
+
+  it('resolves runtime policy access without seeding defaults on the read path', async () => {
+    prisma.user.findUnique.mockResolvedValueOnce(context);
+
+    await expect(
+      service.resolvePolicyAccessMap({ id: context.id }),
+    ).resolves.toEqual({
+      [ADMIN_POLICY_CODES.FIFO]: false,
+      [ADMIN_POLICY_CODES.FEEDBACK]: true,
+      [ADMIN_POLICY_CODES.ADMIN_POLICIES]: false,
+      [ADMIN_POLICY_CODES.ADMIN_USERS]: false,
+    });
+    expect(prisma.adminPolicyDefinition.upsert).not.toHaveBeenCalled();
+    expect(prisma.adminSetting.upsert).not.toHaveBeenCalled();
+    expect(prisma.adminPolicyRule.findFirst).not.toHaveBeenCalled();
+    expect(prisma.adminPolicyRule.create).not.toHaveBeenCalled();
   });
 
   it('matches scopeContains against the resolved SR scope', async () => {
@@ -272,6 +300,9 @@ describe('PolicyService', () => {
         note: 'temporary policy block',
       }),
     });
+    expect(
+      accessChangeService.publishForOrganizationNodeIds,
+    ).toHaveBeenCalledWith(['org-store-cp62'], 'policy-rule-created');
   });
 
   it('rejects legacy selectors when managing policy rules', async () => {

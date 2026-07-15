@@ -68,4 +68,44 @@ describe('SalesReportFollowUpsService', () => {
     expect(JSON.stringify(where)).not.toContain('assigneeUserId');
     expect(JSON.stringify(where)).not.toContain('storeCode');
   });
+
+  it('publishes follow-up changes with a strict server-derived audience', async () => {
+    const redis = { publishMessage: jest.fn().mockResolvedValue(undefined) };
+    const service = new SalesReportFollowUpsService(
+      {} as any,
+      {} as any,
+      redis as any,
+    );
+
+    await (service as any).publish(
+      {
+        id: 'case-1',
+        assigneeUserId: 'assignee-1',
+        sourceReport: { storeCode: 'CP01' },
+      },
+      { id: 'actor-1' },
+      'follow_up_reassigned',
+      ['target-1'],
+    );
+
+    expect(redis.publishMessage).toHaveBeenCalledWith(
+      'SALES_REPORT_ORDERS_UPDATED',
+      expect.objectContaining({
+        schemaVersion: 1,
+        type: 'SALES_REPORT_ORDERS_UPDATED',
+        eventId: expect.any(String),
+        occurredAt: expect.any(String),
+        audience: expect.objectContaining({
+          storeCodes: ['CP01'],
+          recipientUserIds: ['assignee-1', 'actor-1', 'target-1'],
+          roles: ['SUPER_ADMIN'],
+          featureCodes: ['SALES_REPORT'],
+        }),
+        payload: expect.objectContaining({
+          source: 'follow_up_reassigned',
+          caseId: 'case-1',
+        }),
+      }),
+    );
+  });
 });

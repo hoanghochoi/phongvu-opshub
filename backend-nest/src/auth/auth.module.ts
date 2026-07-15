@@ -12,6 +12,7 @@ import { AuthSessionService } from './auth-session.service';
 import { FeatureModule } from '../feature/feature.module';
 import { RedisModule } from '../redis/redis.module';
 import { RealtimeTicketService } from './realtime-ticket.service';
+import { AuthBootstrapService } from './auth-bootstrap.service';
 
 @Module({
   imports: [
@@ -33,6 +34,7 @@ import { RealtimeTicketService } from './realtime-ticket.service';
     PasswordResetService,
     AuthSessionService,
     RealtimeTicketService,
+    AuthBootstrapService,
   ],
   exports: [JwtModule, OpshubMailService, PasswordResetService],
 })

@@ -39,6 +39,43 @@ Only authorized Phong Vũ and ACareTek staff should access OpsHub workflows.
   domain.
 - Backend configuration includes `JWT_SECRET`.
 - Persistent login on the client stores JWTs in secure storage.
+- A saved user snapshot without its matching secure token (or a token without a
+  user snapshot) is incomplete and must be discarded; it must never hydrate an
+  authenticated shell or permission menu.
+- Saved-session startup restores an environment-scoped last-known-good access
+  snapshot before waiting for the network. The snapshot contains the user,
+  resolved feature/policy access, bootstrap metadata, and advertised realtime
+  v2 topics; it never contains the JWT, which remains in secure storage.
+- `GET /auth/bootstrap` is the primary saved-session refresh contract. It
+  returns `schemaVersion`, `generatedAt`, a stable content `version`, the full
+  user, resolved feature/policy access, and capabilities. The backend returns
+  that stable version as `ETag`, sends `Cache-Control: private, no-cache`,
+  accepts `If-None-Match`, and answers `304` without a response body when the
+  snapshot is unchanged.
+- Flutter replaces the last-known-good snapshot only after a complete valid
+  bootstrap response. A `304` keeps the current snapshot and marks access
+  fresh. Only `404` or `501` may use the temporary three-request compatibility
+  path (`/auth/get-user`, `/features/me`, `/policies/me`); network, parse, rate
+  limit, or `5xx` failures must not fan out to those endpoints.
+- A non-`401` refresh failure keeps the cached user/menu and marks access stale
+  when last-known-good access exists. Access revalidation runs only for an
+  authenticated foreground shell, uses a 15-minute freshness window, dedupes
+  an in-flight refresh, and backs failures off at 1, 2, 5, then 15 minutes.
+  Staff can trigger the same deduped refresh explicitly with `Thử lại`.
+- A strict realtime v2 `ACCESS_CHANGED` / `access.changed` event invalidates the
+  snapshot immediately. The gateway then disconnects the affected socket so the
+  client must obtain a new ticket and claims before receiving more events.
+- All-scope realtime claims use `policyCodes`, separate from organization,
+  department, business, and store codes. Equal text across those namespaces
+  must not grant an all-scope subscription.
+- Access mutations and organization/store topology changes publish access
+  invalidation for every potentially affected active user. Publisher lookup or
+  Redis failure is logged and remains best-effort; the authorization database
+  and protected HTTP guards stay authoritative.
+- A bootstrap or protected-request `401` is not a stale-data condition. Flutter
+  clears the saved user/access snapshot, secure token, persisted query cache,
+  and API token, then uses the existing session-expired dialog and re-login
+  flow. Cached permissions never override a backend authorization decision.
 - Each user can keep only one active session per OS platform: `windows`,
   `android`, `ios`, `macos`, `linux`, and `web`. A newer login on the same
   platform replaces the older platform session; different platforms can stay

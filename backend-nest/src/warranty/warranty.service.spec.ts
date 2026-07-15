@@ -137,12 +137,12 @@ describe('WarrantyService', () => {
       expect.objectContaining({
         schemaVersion: 1,
         type: 'WARRANTY_EVENT',
-        audience: {
+        audience: expect.objectContaining({
           storeCodes: ['CP01'],
           recipientUserIds: ['creator-1', 'user-1'],
           roles: ['SUPER_ADMIN'],
           featureCodes: ['WARRANTY'],
-        },
+        }),
         payload: expect.objectContaining({
           warrantyId: 'warranty-1',
           newStatus: 'DONE',

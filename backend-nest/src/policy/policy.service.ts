@@ -15,6 +15,7 @@ import {
   DEFAULT_ADMIN_POLICY_RULES,
   DEFAULT_ADMIN_SETTINGS,
 } from './policy.constants';
+import { AccessChangeService } from '../auth/access-change.service';
 import {
   SYSTEM_ROLE_ADMIN,
   SYSTEM_ROLE_SUPER_ADMIN,
@@ -83,7 +84,10 @@ type NormalizedRuleInput = {
 export class PolicyService implements OnModuleInit {
   private readonly logger = new Logger(PolicyService.name);
 
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private readonly accessChangeService: AccessChangeService,
+  ) {}
 
   async onModuleInit() {
     await this.seedDefaultPolicies();
@@ -167,7 +171,6 @@ export class PolicyService implements OnModuleInit {
   }
 
   async resolvePolicyAccessMap(user: any) {
-    await this.seedDefaultPolicies();
     const policies = await this.prisma.adminPolicyDefinition.findMany({
       where: { isActive: true },
       orderBy: { code: 'asc' },
@@ -239,7 +242,7 @@ export class PolicyService implements OnModuleInit {
       where: { code },
     });
     if (existing) throw new BadRequestException('Policy da ton tai');
-    return this.prisma.adminPolicyDefinition.create({
+    const created = await this.prisma.adminPolicyDefinition.create({
       data: {
         code,
         displayName: this.requiredText(
@@ -254,6 +257,10 @@ export class PolicyService implements OnModuleInit {
         isActive: body.isActive !== false,
       },
     });
+    await this.accessChangeService.publishForAllUsers(
+      'policy-definition-created',
+    );
+    return created;
   }
 
   async adminUpdatePolicy(admin: any, codeInput: string, body: any) {
@@ -269,7 +276,7 @@ export class PolicyService implements OnModuleInit {
     if (current.isSystem && nextCode !== current.code) {
       throw new BadRequestException('Khong duoc doi ma policy he thong');
     }
-    return this.prisma.adminPolicyDefinition.update({
+    const updated = await this.prisma.adminPolicyDefinition.update({
       where: { code: current.code },
       data: {
         code: nextCode,
@@ -299,6 +306,16 @@ export class PolicyService implements OnModuleInit {
             : body.isActive === true,
       },
     });
+    const accessContractChanged =
+      updated.code !== current.code ||
+      updated.defaultAllowed !== current.defaultAllowed ||
+      updated.isActive !== current.isActive;
+    if (accessContractChanged) {
+      await this.accessChangeService.publishForAllUsers(
+        'policy-definition-updated',
+      );
+    }
+    return updated;
   }
 
   async adminDeletePolicy(admin: any, codeInput: string) {
@@ -316,6 +333,9 @@ export class PolicyService implements OnModuleInit {
       throw new BadRequestException('Policy dang co rule, khong the xoa');
     }
     await this.prisma.adminPolicyDefinition.delete({ where: { code } });
+    await this.accessChangeService.publishForAllUsers(
+      'policy-definition-deleted',
+    );
     return { deleted: true, code };
   }
 
@@ -335,16 +355,26 @@ export class PolicyService implements OnModuleInit {
     await this.assertCanManagePolicies(admin);
     this.assertNoLegacyRuleSelectors(body);
     const data = await this.normalizeRuleInput(body);
-    return this.prisma.adminPolicyRule.create({ data });
+    const created = await this.prisma.adminPolicyRule.create({ data });
+    await this.accessChangeService.publishForOrganizationNodeIds(
+      [data.organizationNodeId],
+      'policy-rule-created',
+    );
+    return created;
   }
 
   async adminCreateRules(admin: any, body: any) {
     await this.assertCanManagePolicies(admin);
     this.assertNoLegacyRuleSelectors(body);
     const dataList = await this.normalizeRuleBatchInput(body);
-    return this.prisma.$transaction(
+    const created = await this.prisma.$transaction(
       dataList.map((data) => this.prisma.adminPolicyRule.create({ data })),
     );
+    await this.accessChangeService.publishForOrganizationNodeIds(
+      dataList.map((data) => data.organizationNodeId),
+      'policy-rule-created',
+    );
+    return created;
   }
 
   async adminUpdateRule(admin: any, id: string, body: any) {
@@ -358,12 +388,28 @@ export class PolicyService implements OnModuleInit {
       { ...current, ...body },
       current,
     );
-    return this.prisma.adminPolicyRule.update({ where: { id }, data });
+    const updated = await this.prisma.adminPolicyRule.update({
+      where: { id },
+      data,
+    });
+    await this.accessChangeService.publishForOrganizationNodeIds(
+      [current.organizationNodeId, data.organizationNodeId],
+      'policy-rule-updated',
+    );
+    return updated;
   }
 
   async adminDeleteRule(admin: any, id: string) {
     await this.assertCanManagePolicies(admin);
+    const current = await this.prisma.adminPolicyRule.findUnique({
+      where: { id },
+    });
+    if (!current) throw new NotFoundException('Khong tim thay policy rule');
     await this.prisma.adminPolicyRule.delete({ where: { id } });
+    await this.accessChangeService.publishForOrganizationNodeIds(
+      [current.organizationNodeId],
+      'policy-rule-deleted',
+    );
     return { deleted: true, id };
   }
 
@@ -845,8 +891,7 @@ export class PolicyService implements OnModuleInit {
         departmentCode: source.departmentCode ?? null,
         jobRoleCode: source.jobRoleCode ?? null,
         workScopeType: this.effectiveScope(source),
-        regionCode:
-          organizationContext.regionCode ?? source.regionCode ?? null,
+        regionCode: organizationContext.regionCode ?? source.regionCode ?? null,
         areaCode: organizationContext.areaCode ?? source.areaCode ?? null,
         organizationNodeId: organizationContext.organizationNodeId,
         organizationNodeIds: organizationContext.organizationNodeIds,

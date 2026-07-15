@@ -6,6 +6,9 @@ import {
 } from '@nestjs/common';
 import { createHash, randomBytes } from 'node:crypto';
 import { FeatureService } from '../feature/feature.service';
+import { FEATURE_KEYS } from '../feature/feature.constants';
+import { ADMIN_POLICY_CODES } from '../policy/policy.constants';
+import { PolicyService } from '../policy/policy.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
 
@@ -33,6 +36,7 @@ export class RealtimeTicketService {
     private readonly prisma: PrismaService,
     private readonly redis: RedisService,
     private readonly featureService: FeatureService,
+    private readonly policyService: PolicyService,
   ) {}
 
   async issueTicket(
@@ -103,19 +107,42 @@ export class RealtimeTicketService {
       );
     }
 
-    const featureAccess =
-      await this.featureService.resolveFeatureAccessMap(user);
-    const featureCodes = Object.entries(featureAccess)
-      .filter(([, enabled]) => enabled === true)
-      .map(([code]) => code)
-      .sort();
+    const [featureAccess, policyAccess] = await Promise.all([
+      this.featureService.resolveFeatureAccessMap(user),
+      this.policyService.resolvePolicyAccessMap(user),
+    ]);
+    const featureCodes = new Set(
+      Object.entries(featureAccess)
+        .filter(([, enabled]) => enabled === true)
+        .map(([code]) => code),
+    );
+    if (
+      policyAccess[ADMIN_POLICY_CODES.BANK_STATEMENTS] === true ||
+      policyAccess[ADMIN_POLICY_CODES.BANK_STATEMENT_ALL_SCOPE] === true
+    ) {
+      featureCodes.add(FEATURE_KEYS.BANK_STATEMENTS);
+    }
+    if (policyAccess[ADMIN_POLICY_CODES.OFFSET_ADJUSTMENTS] === true) {
+      featureCodes.add(FEATURE_KEYS.OFFSET_ADJUSTMENTS);
+    }
+    organizationAccessCodes.sort();
+    const policyCodes = !requestedStore
+      ? [
+          ADMIN_POLICY_CODES.BANK_STATEMENT_ALL_SCOPE,
+          ADMIN_POLICY_CODES.PAYMENT_MONITOR_ALL_SCOPE,
+        ].filter((code) => policyAccess[code] === true)
+      : [];
+    const effectiveFeatureCodes = Array.from(featureCodes).sort();
     const now = new Date();
     const ttlSeconds = this.ticketTtlSeconds();
     const expiresAt = new Date(now.getTime() + ttlSeconds * 1000);
     const rawTicket = randomBytes(32).toString('base64url');
     const ticketHash = createHash('sha256').update(rawTicket).digest('hex');
     const primaryStoreCode =
-      requestedStore ?? this.normalizeCode(user.store?.storeId) ?? null;
+      requestedStore ??
+      (user.role === SUPER_ADMIN_ROLE
+        ? null
+        : (this.normalizeCode(user.store?.storeId) ?? null));
     const session = authenticatedUser.authSession;
     const payload = {
       version: 1,
@@ -131,7 +158,8 @@ export class RealtimeTicketService {
       departmentCode: this.normalizeCode(user.departmentCode),
       organizationNodeId: user.organizationNodeId ?? null,
       organizationAccessCodes,
-      featureCodes,
+      policyCodes,
+      featureCodes: effectiveFeatureCodes,
       sessionId: String(session.sessionId || ''),
       sessionVersion: Number(session.sessionVersion),
       platform: String(session.platform || ''),
@@ -153,7 +181,7 @@ export class RealtimeTicketService {
         ' organizationCodeCount=' +
         organizationAccessCodes.length +
         ' featureCount=' +
-        featureCodes.length +
+        effectiveFeatureCodes.length +
         ' ttlSeconds=' +
         ttlSeconds +
         ' durationMs=' +

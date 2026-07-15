@@ -1,7 +1,9 @@
 package main
 
 import (
+	"crypto/sha256"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"time"
 )
@@ -10,21 +12,33 @@ const (
 	warrantyRedisChannel               = "WARRANTY_STATUS_UPDATED"
 	paymentRedisChannel                = "PAYMENT_NOTIFICATION_READY"
 	paymentStreamRedisChannel          = "PAYMENT_SPEAKER_STREAM"
+	paymentDeliveryMetricsRedisChannel = "PAYMENT_DELIVERY_METRICS_UPDATED"
 	appVersionRedisChannel             = "APP_VERSION_UPDATED"
 	statementOrderTransferRedisChannel = "STATEMENT_ORDER_TRANSFER_REQUESTED"
 	offsetAdjustmentRedisChannel       = "OFFSET_ADJUSTMENT_UPDATED"
 	salesReportOrdersRedisChannel      = "SALES_REPORT_ORDERS_UPDATED"
 	homeSummaryRedisChannel            = "HOME_SUMMARY_UPDATED"
+	accessChangedRedisChannel          = "ACCESS_CHANGED"
 
 	warrantyEventType               = "WARRANTY_EVENT"
 	paymentEventType                = "PAYMENT_NOTIFICATION"
 	paymentStreamEventType          = "PAYMENT_SPEAKER_STREAM"
+	paymentDeliveryMetricsEventType = "PAYMENT_DELIVERY_METRICS_UPDATED"
 	appUpdateEventType              = "APP_UPDATE"
 	statementOrderTransferEventType = "STATEMENT_ORDER_TRANSFER_REQUEST"
 	offsetAdjustmentEventType       = "OFFSET_ADJUSTMENT_NOTIFICATION"
 	salesReportOrdersEventType      = "SALES_REPORT_ORDERS_UPDATED"
 	homeSummaryEventType            = "HOME_SUMMARY_UPDATED"
+	accessChangedEventType          = "ACCESS_CHANGED"
+	warrantyTopic                   = "warranty"
+	paymentTopic                    = "payment.transactions"
+	paymentStreamTopic              = "payment.speaker"
+	paymentDeliveryMetricsTopic     = "payment.delivery-metrics"
+	statementOrderTransferTopic     = "notifications.statement-transfer"
+	offsetAdjustmentTopic           = "notifications.offset-adjustment"
+	salesReportOrdersTopic          = "sales-report.orders"
 	homeSummaryTopic                = "home.summary"
+	accessChangedTopic              = "access.changed"
 
 	webSocketProtocolV1 = 1
 	webSocketProtocolV2 = 2
@@ -38,6 +52,7 @@ type EventAudience struct {
 	Roles                   []string `json:"roles,omitempty"`
 	DepartmentCodes         []string `json:"departmentCodes,omitempty"`
 	OrganizationAccessCodes []string `json:"organizationAccessCodes,omitempty"`
+	PolicyCodes             []string `json:"policyCodes,omitempty"`
 	FeatureCodes            []string `json:"featureCodes,omitempty"`
 }
 
@@ -78,71 +93,222 @@ type homeSummaryUpdatePayload struct {
 }
 
 type realtimeV2Envelope struct {
-	Version int                      `json:"v"`
-	Kind    string                   `json:"kind"`
-	ID      string                   `json:"id"`
-	Topic   string                   `json:"topic"`
-	Seq     int64                    `json:"seq"`
-	TS      string                   `json:"ts"`
-	Data    homeSummaryUpdatePayload `json:"data"`
+	Version int             `json:"v"`
+	Kind    string          `json:"kind"`
+	ID      string          `json:"id"`
+	Topic   string          `json:"topic"`
+	Seq     int64           `json:"seq"`
+	TS      string          `json:"ts"`
+	Data    json.RawMessage `json:"data"`
 }
 
 func formatRedisEvent(channel string, payload string) (RoutedEvent, bool) {
+	events, ok := formatRedisEvents(channel, payload)
+	if !ok || len(events) == 0 {
+		return RoutedEvent{}, false
+	}
+	return events[0], true
+}
+
+func formatRedisEvents(channel string, payload string) ([]RoutedEvent, bool) {
 	if channel == homeSummaryRedisChannel {
-		return formatHomeSummaryEvent(payload)
+		event, ok := formatHomeSummaryEvent(payload)
+		if !ok {
+			return nil, false
+		}
+		return []RoutedEvent{event}, true
 	}
 	eventType, ok := eventTypeForChannel(channel)
-	if !ok || !json.Valid([]byte(payload)) {
-		return RoutedEvent{}, false
+	if !ok || !validJSONObject(json.RawMessage(payload)) {
+		return nil, false
 	}
 
 	rawPayload := json.RawMessage(payload)
-	audience := EventAudience{}
-	if eventType != appUpdateEventType {
-		var envelope redisEventEnvelope
-		if err := json.Unmarshal(rawPayload, &envelope); err != nil {
-			return RoutedEvent{}, false
+	if eventType == appUpdateEventType {
+		message, ok := formatLegacyClientMessage(eventType, rawPayload)
+		if !ok {
+			return nil, false
 		}
-		if envelope.Audience != nil || len(envelope.Payload) > 0 {
-			if envelope.SchemaVersion != 1 ||
-				strings.TrimSpace(envelope.EventID) == "" ||
-				strings.TrimSpace(envelope.OccurredAt) == "" ||
-				envelope.Audience == nil ||
-				!json.Valid(envelope.Payload) {
-				return RoutedEvent{}, false
-			}
-			if envelope.Type != "" && envelope.Type != eventType {
-				return RoutedEvent{}, false
-			}
-			rawPayload = envelope.Payload
-			audience = normalizeAudience(*envelope.Audience)
-		} else {
-			audience, ok = inferLegacyAudience(eventType, rawPayload)
-			if !ok {
-				return RoutedEvent{}, false
-			}
-		}
-		if !audience.valid() {
-			return RoutedEvent{}, false
-		}
+		return []RoutedEvent{{
+			Type:            eventType,
+			Message:         message,
+			Public:          true,
+			ProtocolVersion: webSocketProtocolV1,
+		}}, true
 	}
 
+	topic, ok := topicForChannel(channel)
+	if !ok {
+		return nil, false
+	}
+	parsed, ok := parseAuthenticatedRedisEvent(channel, eventType, rawPayload)
+	if !ok {
+		return nil, false
+	}
+
+	legacyMessage, ok := formatLegacyClientMessage(eventType, parsed.payload)
+	if !ok {
+		return nil, false
+	}
+	v2Message, ok := formatRealtimeV2ClientMessage(
+		eventType,
+		topic,
+		parsed.eventID,
+		parsed.occurredAt,
+		parsed.payload,
+	)
+	if !ok {
+		return nil, false
+	}
+
+	return []RoutedEvent{
+		{
+			Type:            eventType,
+			Message:         legacyMessage,
+			Audience:        parsed.audience,
+			ProtocolVersion: webSocketProtocolV1,
+		},
+		{
+			Type:            eventType,
+			Message:         v2Message,
+			Audience:        parsed.audience,
+			ProtocolVersion: webSocketProtocolV2,
+		},
+	}, true
+}
+
+type parsedAuthenticatedRedisEvent struct {
+	eventID    string
+	occurredAt string
+	payload    json.RawMessage
+	audience   EventAudience
+}
+
+func parseAuthenticatedRedisEvent(
+	channel string,
+	eventType string,
+	rawPayload json.RawMessage,
+) (parsedAuthenticatedRedisEvent, bool) {
+	var probe map[string]json.RawMessage
+	if err := json.Unmarshal(rawPayload, &probe); err != nil || probe == nil {
+		return parsedAuthenticatedRedisEvent{}, false
+	}
+	_, hasSchemaVersion := probe["schemaVersion"]
+	_, hasEventID := probe["eventId"]
+	_, hasOccurredAt := probe["occurredAt"]
+	_, hasAudience := probe["audience"]
+	_, hasPayload := probe["payload"]
+	looksVersioned := hasSchemaVersion || hasEventID || hasOccurredAt || hasAudience || hasPayload
+
+	if looksVersioned {
+		var envelope redisEventEnvelope
+		decoder := json.NewDecoder(strings.NewReader(string(rawPayload)))
+		decoder.DisallowUnknownFields()
+		if err := decoder.Decode(&envelope); err != nil {
+			return parsedAuthenticatedRedisEvent{}, false
+		}
+		eventID := strings.TrimSpace(envelope.EventID)
+		occurredAt := strings.TrimSpace(envelope.OccurredAt)
+		audience := EventAudience{}
+		if envelope.Audience != nil {
+			audience = normalizeAudience(*envelope.Audience)
+		}
+		if envelope.SchemaVersion != webSocketProtocolV1 ||
+			envelope.Type != eventType ||
+			eventID == "" || len(eventID) > 128 ||
+			envelope.Audience == nil || !audience.valid() ||
+			!validJSONObject(envelope.Payload) {
+			return parsedAuthenticatedRedisEvent{}, false
+		}
+		if _, err := time.Parse(time.RFC3339Nano, occurredAt); err != nil {
+			return parsedAuthenticatedRedisEvent{}, false
+		}
+		return parsedAuthenticatedRedisEvent{
+			eventID:    eventID,
+			occurredAt: occurredAt,
+			payload:    envelope.Payload,
+			audience:   audience,
+		}, true
+	}
+
+	audience, ok := inferLegacyAudience(eventType, rawPayload)
+	if !ok || !audience.valid() {
+		return parsedAuthenticatedRedisEvent{}, false
+	}
+	return parsedAuthenticatedRedisEvent{
+		eventID:    legacyEventID(channel, rawPayload),
+		occurredAt: legacyOccurredAt(rawPayload),
+		payload:    rawPayload,
+		audience:   audience,
+	}, true
+}
+
+func formatLegacyClientMessage(eventType string, payload json.RawMessage) ([]byte, bool) {
 	message, err := json.Marshal(struct {
 		Type    string          `json:"type"`
 		Payload json.RawMessage `json:"payload"`
 	}{
 		Type:    eventType,
-		Payload: rawPayload,
+		Payload: payload,
 	})
-	if err != nil {
-		return RoutedEvent{}, false
+	return message, err == nil
+}
+
+func formatRealtimeV2ClientMessage(
+	eventType string,
+	topic string,
+	eventID string,
+	occurredAt string,
+	payload json.RawMessage,
+) ([]byte, bool) {
+	parsedTime, err := time.Parse(time.RFC3339Nano, occurredAt)
+	if err != nil || strings.TrimSpace(eventID) == "" || !validJSONObject(payload) {
+		return nil, false
 	}
-	return RoutedEvent{
-		Type:     eventType,
-		Message:  message,
-		Audience: audience,
-		Public:   eventType == appUpdateEventType,
-	}, true
+	sequence := parsedTime.UnixMilli()
+	if sequence <= 0 {
+		sequence = 1
+	}
+	message, err := json.Marshal(realtimeV2Envelope{
+		Version: webSocketProtocolV2,
+		Kind:    eventType,
+		ID:      eventID,
+		Topic:   topic,
+		Seq:     sequence,
+		TS:      occurredAt,
+		Data:    payload,
+	})
+	return message, err == nil
+}
+
+func legacyEventID(channel string, payload json.RawMessage) string {
+	digest := sha256.Sum256(payload)
+	return fmt.Sprintf("legacy:%s:%x", strings.ToLower(channel), digest[:16])
+}
+
+func legacyOccurredAt(payload json.RawMessage) string {
+	var values map[string]json.RawMessage
+	if err := json.Unmarshal(payload, &values); err == nil {
+		for _, field := range []string{"timestamp", "updatedAt", "createdAt", "paidAt", "firstSeenAt"} {
+			var candidate string
+			if err := json.Unmarshal(values[field], &candidate); err != nil {
+				continue
+			}
+			parsed, err := time.Parse(time.RFC3339Nano, strings.TrimSpace(candidate))
+			if err == nil {
+				return parsed.UTC().Format(time.RFC3339Nano)
+			}
+		}
+	}
+	return time.Now().UTC().Format(time.RFC3339Nano)
+}
+
+func validJSONObject(value json.RawMessage) bool {
+	if !json.Valid(value) {
+		return false
+	}
+	var object map[string]json.RawMessage
+	return json.Unmarshal(value, &object) == nil && object != nil
 }
 
 func formatHomeSummaryEvent(payload string) (RoutedEvent, bool) {
@@ -183,6 +349,10 @@ func formatHomeSummaryEvent(payload string) (RoutedEvent, bool) {
 		seenDates[affectedDate] = struct{}{}
 	}
 
+	data, err := json.Marshal(envelope.Payload)
+	if err != nil {
+		return RoutedEvent{}, false
+	}
 	message, err := json.Marshal(realtimeV2Envelope{
 		Version: webSocketProtocolV2,
 		Kind:    homeSummaryEventType,
@@ -190,7 +360,7 @@ func formatHomeSummaryEvent(payload string) (RoutedEvent, bool) {
 		Topic:   homeSummaryTopic,
 		Seq:     envelope.Payload.ProjectionVersion,
 		TS:      occurredAt,
-		Data:    envelope.Payload,
+		Data:    data,
 	})
 	if err != nil {
 		return RoutedEvent{}, false
@@ -211,6 +381,8 @@ func eventTypeForChannel(channel string) (string, bool) {
 		return paymentEventType, true
 	case paymentStreamRedisChannel:
 		return paymentStreamEventType, true
+	case paymentDeliveryMetricsRedisChannel:
+		return paymentDeliveryMetricsEventType, true
 	case appVersionRedisChannel:
 		return appUpdateEventType, true
 	case statementOrderTransferRedisChannel:
@@ -221,6 +393,33 @@ func eventTypeForChannel(channel string) (string, bool) {
 		return salesReportOrdersEventType, true
 	case homeSummaryRedisChannel:
 		return homeSummaryEventType, true
+	case accessChangedRedisChannel:
+		return accessChangedEventType, true
+	default:
+		return "", false
+	}
+}
+
+func topicForChannel(channel string) (string, bool) {
+	switch channel {
+	case warrantyRedisChannel:
+		return warrantyTopic, true
+	case paymentRedisChannel:
+		return paymentTopic, true
+	case paymentStreamRedisChannel:
+		return paymentStreamTopic, true
+	case paymentDeliveryMetricsRedisChannel:
+		return paymentDeliveryMetricsTopic, true
+	case statementOrderTransferRedisChannel:
+		return statementOrderTransferTopic, true
+	case offsetAdjustmentRedisChannel:
+		return offsetAdjustmentTopic, true
+	case salesReportOrdersRedisChannel:
+		return salesReportOrdersTopic, true
+	case homeSummaryRedisChannel:
+		return homeSummaryTopic, true
+	case accessChangedRedisChannel:
+		return accessChangedTopic, true
 	default:
 		return "", false
 	}
@@ -270,6 +469,7 @@ func normalizeAudience(audience EventAudience) EventAudience {
 	audience.Roles = normalizeCodes(audience.Roles)
 	audience.DepartmentCodes = normalizeCodes(audience.DepartmentCodes)
 	audience.OrganizationAccessCodes = normalizeCodes(audience.OrganizationAccessCodes)
+	audience.PolicyCodes = normalizeCodes(audience.PolicyCodes)
 	audience.FeatureCodes = normalizeCodes(audience.FeatureCodes)
 	return audience
 }
@@ -297,11 +497,20 @@ func (audience EventAudience) valid() bool {
 		len(audience.Roles) > 0 ||
 		len(audience.DepartmentCodes) > 0 ||
 		len(audience.OrganizationAccessCodes) > 0 ||
-		len(audience.FeatureCodes) > 0
+		len(audience.PolicyCodes) > 0
 }
 
 func (audience EventAudience) matches(auth *ClientAuth) bool {
 	if auth == nil || !audience.valid() {
+		return false
+	}
+	// A store-selected connection is a strict subscription filter for every
+	// authenticated role. The ticket issuer already proves that the selected
+	// store is inside the user's server-derived scope; the gateway must not let
+	// another audience selector widen that connection again.
+	if auth.SelectedStore != "" &&
+		len(audience.StoreCodes) > 0 &&
+		!containsExact(audience.StoreCodes, auth.SelectedStore) {
 		return false
 	}
 	if len(audience.FeatureCodes) > 0 && !intersects(audience.FeatureCodes, auth.FeatureCodes) {
@@ -316,11 +525,6 @@ func (audience EventAudience) matches(auth *ClientAuth) bool {
 		return true
 	}
 
-	// A selected store narrows a SUPER_ADMIN subscription. Role-level access
-	// must not silently widen it back to all stores.
-	if auth.Role == "SUPER_ADMIN" && auth.SelectedStore != "" && len(audience.StoreCodes) > 0 {
-		return false
-	}
 	if containsExact(audience.Roles, auth.Role) {
 		return true
 	}
@@ -330,12 +534,10 @@ func (audience EventAudience) matches(auth *ClientAuth) bool {
 	if intersects(audience.OrganizationAccessCodes, auth.OrganizationAccessCodes) {
 		return true
 	}
-	return len(audience.FeatureCodes) > 0 &&
-		len(audience.StoreCodes) == 0 &&
-		len(audience.RecipientUserIDs) == 0 &&
-		len(audience.Roles) == 0 &&
-		len(audience.DepartmentCodes) == 0 &&
-		len(audience.OrganizationAccessCodes) == 0
+	if intersects(audience.PolicyCodes, auth.PolicyCodes) {
+		return true
+	}
+	return false
 }
 
 func (auth *ClientAuth) hasStoreAccess(storeCode string) bool {
@@ -353,8 +555,11 @@ func (auth *ClientAuth) matchesAnyStore(storeCodes []string) bool {
 	if auth == nil || len(storeCodes) == 0 {
 		return false
 	}
+	if auth.SelectedStore != "" {
+		return containsExact(storeCodes, auth.SelectedStore)
+	}
 	if auth.Role == "SUPER_ADMIN" {
-		return auth.SelectedStore != "" && containsExact(storeCodes, auth.SelectedStore)
+		return true
 	}
 	for _, storeCode := range storeCodes {
 		if auth.hasStoreAccess(storeCode) {

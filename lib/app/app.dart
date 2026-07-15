@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -6,8 +9,10 @@ import '../core/config/app_brand.dart';
 import '../core/logging/app_logger.dart';
 import '../core/network/api_client.dart';
 import '../core/network/realtime_connection_manager.dart';
+import '../core/runtime/app_runtime_coordinator.dart';
 import '../features/auth/data/repositories/auth_repository.dart';
 import '../features/auth/presentation/providers/auth_provider.dart';
+import '../features/auth/presentation/providers/auth_access_refresh_coordinator.dart';
 import '../features/app_update/presentation/app_update_gate.dart';
 import '../features/bank_statement/data/bank_statement_repository.dart';
 import '../features/home/data/repositories/home_summary_repository.dart';
@@ -40,36 +45,83 @@ class App extends StatelessWidget {
       providers: [
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
         ChangeNotifierProvider(
+          lazy: false,
+          create: (_) => AppRuntimeCoordinator(),
+        ),
+        ChangeNotifierProvider(
           create: (_) => AuthProvider(AuthRepository(ApiClient())),
+        ),
+        ProxyProvider2<
+          AuthProvider,
+          AppRuntimeCoordinator,
+          AuthAccessRefreshCoordinator
+        >(
+          lazy: false,
+          create: (_) => AuthAccessRefreshCoordinator(
+            realtimeClient: RealtimeConnectionManager.instance,
+          ),
+          update: (_, auth, runtime, coordinator) {
+            final value =
+                coordinator ??
+                AuthAccessRefreshCoordinator(
+                  realtimeClient: RealtimeConnectionManager.instance,
+                );
+            value.sync(auth, runtime);
+            return value;
+          },
+          dispose: (_, coordinator) => coordinator.dispose(),
         ),
         ChangeNotifierProvider(
           create: (_) => FifoProvider(FifoRepository(ApiClient())),
         ),
-        ChangeNotifierProxyProvider<AuthProvider, WarrantyProvider>(
+        ChangeNotifierProxyProvider2<
+          AuthProvider,
+          AppRuntimeCoordinator,
+          WarrantyProvider
+        >(
           lazy: false,
-          create: (_) => WarrantyProvider(WarrantyRepository(ApiClient())),
-          update: (_, auth, warranty) {
+          create: (_) {
+            final provider = WarrantyProvider(WarrantyRepository(ApiClient()));
+            provider.syncRuntime(isRouteActive: false, isForeground: false);
+            return provider;
+          },
+          update: (_, auth, runtime, warranty) {
             final provider =
                 warranty ?? WarrantyProvider(WarrantyRepository(ApiClient()));
-            Future.microtask(
-              () => provider.syncAuth(
-                auth.user,
-                isInitialized: auth.isInitialized,
-              ),
-            );
+            Future.microtask(() {
+              provider.syncRuntime(
+                isRouteActive:
+                    runtime.routeStartsWith('/warranty') ||
+                    runtime.routeStartsWith('/check-warranty'),
+                isForeground: runtime.isForeground,
+              );
+              provider.syncAuth(auth.user, isInitialized: auth.isInitialized);
+            });
             return provider;
           },
         ),
         ChangeNotifierProvider(
           create: (_) => SortProvider(SortRepository(ApiClient())),
         ),
-        ChangeNotifierProxyProvider<AuthProvider, AppNotificationsProvider>(
+        ChangeNotifierProxyProvider2<
+          AuthProvider,
+          AppRuntimeCoordinator,
+          AppNotificationsProvider
+        >(
           lazy: false,
-          create: (_) => AppNotificationsProvider(
-            BankStatementRepository(ApiClient()),
-            offsetAdjustmentRepository: OffsetAdjustmentRepository(ApiClient()),
-          ),
-          update: (_, auth, notifications) {
+          create: (_) {
+            final provider = AppNotificationsProvider(
+              BankStatementRepository(ApiClient()),
+              offsetAdjustmentRepository: OffsetAdjustmentRepository(
+                ApiClient(),
+              ),
+            );
+            unawaited(
+              provider.syncRuntime(isForeground: false, isSurfaceActive: false),
+            );
+            return provider;
+          },
+          update: (_, auth, runtime, notifications) {
             final provider =
                 notifications ??
                 AppNotificationsProvider(
@@ -78,91 +130,142 @@ class App extends StatelessWidget {
                     ApiClient(),
                   ),
                 );
-            Future.microtask(
-              () => provider.syncAuth(
+            Future.microtask(() async {
+              await provider.syncRuntime(
+                isForeground: runtime.isForeground,
+                isSurfaceActive: runtime.hasAuthenticatedRoute,
+              );
+              await provider.syncAuth(
                 auth.user,
                 isInitialized: auth.isInitialized,
-              ),
-            );
+              );
+            });
             return provider;
           },
         ),
-        ChangeNotifierProxyProvider<
+        ChangeNotifierProxyProvider2<
           AuthProvider,
+          AppRuntimeCoordinator,
           PaymentDeliveryMetricsProvider
         >(
           lazy: false,
-          create: (_) => PaymentDeliveryMetricsProvider(
-            PaymentMonitorRepository(ApiClient()),
-          ),
-          update: (_, auth, metrics) {
+          create: (_) {
+            final provider = PaymentDeliveryMetricsProvider(
+              PaymentMonitorRepository(ApiClient()),
+            );
+            unawaited(
+              provider.syncRuntime(isForeground: false, isSurfaceActive: false),
+            );
+            return provider;
+          },
+          update: (_, auth, runtime, metrics) {
             final provider =
                 metrics ??
                 PaymentDeliveryMetricsProvider(
                   PaymentMonitorRepository(ApiClient()),
                 );
-            Future.microtask(
-              () => provider.syncAuth(
+            Future.microtask(() async {
+              await provider.syncRuntime(
+                isForeground: runtime.isForeground,
+                isSurfaceActive: runtime.hasAuthenticatedRoute,
+              );
+              await provider.syncAuth(
                 auth.user,
                 isInitialized: auth.isInitialized,
-              ),
-            );
+              );
+            });
             return provider;
           },
         ),
-        ChangeNotifierProxyProvider<AuthProvider, HomeSummaryProvider>(
+        ChangeNotifierProxyProvider2<
+          AuthProvider,
+          AppRuntimeCoordinator,
+          HomeSummaryProvider
+        >(
           lazy: false,
-          create: (_) => HomeSummaryProvider(
-            HomeSummaryRepository(ApiClient()),
-            realtimeClient: RealtimeConnectionManager.instance,
-          ),
-          update: (_, auth, homeSummary) {
+          create: (_) {
+            final provider = HomeSummaryProvider(
+              HomeSummaryRepository(ApiClient()),
+              realtimeClient: RealtimeConnectionManager.instance,
+            );
+            provider.syncRuntime(isRouteActive: false, isForeground: false);
+            return provider;
+          },
+          update: (_, auth, runtime, homeSummary) {
             final provider =
                 homeSummary ??
                 HomeSummaryProvider(
                   HomeSummaryRepository(ApiClient()),
                   realtimeClient: RealtimeConnectionManager.instance,
                 );
-            Future.microtask(
-              () => provider.syncAuth(
+            Future.microtask(() {
+              provider.syncRuntime(
+                isRouteActive: runtime.routeIs('/home'),
+                isForeground: runtime.isForeground,
+              );
+              provider.syncAuth(
                 auth.user,
                 isInitialized: auth.isInitialized,
+                isAccessReady: auth.hasUsableAccessSnapshot,
+                accessIdentity: auth.accessIdentity,
+              );
+            });
+            return provider;
+          },
+        ),
+        ChangeNotifierProxyProvider2<
+          AuthProvider,
+          AppRuntimeCoordinator,
+          QuickActionsProvider
+        >(
+          lazy: false,
+          create: (_) =>
+              QuickActionsProvider(QuickActionsRepository(ApiClient())),
+          update: (_, auth, runtime, quickActions) {
+            final provider =
+                quickActions ??
+                QuickActionsProvider(QuickActionsRepository(ApiClient()));
+            final isSurfaceActive =
+                kIsWeb ||
+                defaultTargetPlatform != TargetPlatform.windows ||
+                runtime.routeIs('/home');
+            Future.microtask(
+              () => provider.syncUser(
+                auth.user,
+                isSurfaceActive: isSurfaceActive,
               ),
             );
             return provider;
           },
         ),
-        ChangeNotifierProxyProvider<AuthProvider, QuickActionsProvider>(
+        ChangeNotifierProxyProvider2<
+          AuthProvider,
+          AppRuntimeCoordinator,
+          PaymentMonitorProvider
+        >(
           lazy: false,
-          create: (_) =>
-              QuickActionsProvider(QuickActionsRepository(ApiClient())),
-          update: (_, auth, quickActions) {
-            final provider =
-                quickActions ??
-                QuickActionsProvider(QuickActionsRepository(ApiClient()));
-            Future.microtask(() => provider.syncUser(auth.user));
+          create: (_) {
+            final provider = PaymentMonitorProvider(
+              PaymentMonitorRepository(ApiClient()),
+              PaymentSpeaker(),
+            );
+            provider.syncRuntime(isForeground: false, isListViewActive: false);
             return provider;
           },
-        ),
-        ChangeNotifierProxyProvider<AuthProvider, PaymentMonitorProvider>(
-          lazy: false,
-          create: (_) => PaymentMonitorProvider(
-            PaymentMonitorRepository(ApiClient()),
-            PaymentSpeaker(),
-          ),
-          update: (_, auth, monitor) {
+          update: (_, auth, runtime, monitor) {
             final provider =
                 monitor ??
                 PaymentMonitorProvider(
                   PaymentMonitorRepository(ApiClient()),
                   PaymentSpeaker(),
                 );
-            Future.microtask(
-              () => provider.syncAuth(
-                auth.user,
-                isInitialized: auth.isInitialized,
-              ),
-            );
+            Future.microtask(() {
+              provider.syncRuntime(
+                isForeground: runtime.isForeground,
+                isListViewActive: runtime.routeIs('/payment-monitor'),
+              );
+              provider.syncAuth(auth.user, isInitialized: auth.isInitialized);
+            });
             return provider;
           },
         ),

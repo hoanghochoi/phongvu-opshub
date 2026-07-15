@@ -1,14 +1,11 @@
 import 'dart:async';
-import 'dart:convert';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
-import 'package:web_socket_channel/web_socket_channel.dart';
 
 import '../../../../core/logging/app_logger.dart';
-import '../../../../core/network/api_client.dart';
 import '../../../../core/network/api_exception.dart';
-import '../../../../core/network/realtime_ticket_client.dart';
+import '../../../../core/network/realtime_connection_manager.dart';
 import '../../../../core/utils/date_range_defaults.dart';
 import '../../../auth/domain/entities/store_branch.dart';
 import '../../../auth/domain/entities/user.dart';
@@ -21,9 +18,8 @@ const int _vietnamUtcOffsetHours = 7;
 const int _maxExportDateSpanDays = 31;
 const String _orderTransferRealtimeEventType =
     'STATEMENT_ORDER_TRANSFER_REQUEST';
+const String _orderTransferRealtimeTopic = 'notifications.statement-transfer';
 const String _orderTransferNotificationSource = 'statement_order_transfer';
-
-typedef BankStatementRealtimeConnector = WebSocketChannel Function(Uri uri);
 
 class BankStatementRowMessage {
   final String text;
@@ -35,7 +31,9 @@ class BankStatementRowMessage {
 class BankStatementProvider extends ChangeNotifier {
   final BankStatementRepository _repository;
   final DateTime Function() _now;
-  final BankStatementRealtimeConnector _realtimeConnector;
+  final RealtimeClient _realtimeClient;
+  final Duration _realtimeDebounce;
+  final Duration _realtimeMaxWait;
   final AppNotificationReadStore _notificationReadStore;
   final List<BankStatementTransaction> _transactions = [];
   final List<BankStatementOrderTransferRequest> _pendingOrderTransferRequests =
@@ -45,9 +43,10 @@ class BankStatementProvider extends ChangeNotifier {
   final Set<String> _seenOrderTransferNotificationIds = {};
   final Map<String, BankStatementRowMessage> _rowMessages = {};
   final Map<String, Timer> _messageTimers = {};
-  StreamSubscription<dynamic>? _orderTransferRealtimeSubscription;
-  WebSocketChannel? _orderTransferRealtimeChannel;
-  String? _orderTransferRealtimeUrl;
+  StreamSubscription<RealtimeEnvelope>? _orderTransferRealtimeSubscription;
+  StreamSubscription<RealtimeSyncReason>? _orderTransferSyncSubscription;
+  Timer? _orderTransferRealtimeDebounceTimer;
+  Timer? _orderTransferRealtimeMaxWaitTimer;
   String? _notificationReadUserKey;
 
   User? _user;
@@ -58,7 +57,11 @@ class BankStatementProvider extends ChangeNotifier {
   bool _isLoadingOrderTransferRequests = false;
   bool _canReviewOrderTransfers = false;
   bool _hasSearched = false;
+  bool _isInitialized = false;
   bool _disposed = false;
+  bool _orderTransferRealtimeDirty = false;
+  bool _orderTransferRealtimeRefreshInFlight = false;
+  bool _orderTransferRealtimeImmediatePending = false;
   String? _errorMessage;
   String? _exportMessage;
   String _orderStatus = 'ALL';
@@ -77,13 +80,23 @@ class BankStatementProvider extends ChangeNotifier {
   BankStatementProvider(
     this._repository, {
     DateTime Function()? now,
-    BankStatementRealtimeConnector? realtimeConnector,
+    RealtimeClient? realtimeClient,
+    Duration realtimeDebounce = const Duration(seconds: 2),
+    Duration realtimeMaxWait = const Duration(seconds: 5),
     AppNotificationReadStore? notificationReadStore,
   }) : _now = now ?? DateTime.now,
-       _realtimeConnector =
-           realtimeConnector ?? ((uri) => WebSocketChannel.connect(uri)),
+       _realtimeClient = realtimeClient ?? RealtimeConnectionManager.instance,
+       _realtimeDebounce = realtimeDebounce,
+       _realtimeMaxWait = realtimeMaxWait,
        _notificationReadStore =
-           notificationReadStore ?? const AppNotificationReadStore();
+           notificationReadStore ?? const AppNotificationReadStore() {
+    _orderTransferRealtimeSubscription = _realtimeClient.events.listen(
+      _handleOrderTransferRealtimeEnvelope,
+    );
+    _orderTransferSyncSubscription = _realtimeClient.syncRequests.listen(
+      _handleOrderTransferRealtimeSyncRequest,
+    );
+  }
 
   List<BankStatementTransaction> get transactions =>
       List.unmodifiable(_transactions);
@@ -150,7 +163,13 @@ class BankStatementProvider extends ChangeNotifier {
       await loadStores();
     }
     await loadPendingOrderTransferRequests(silent: true);
-    unawaited(_connectOrderTransferRealtime());
+    _isInitialized = true;
+    if (_orderTransferRealtimeDirty) {
+      _queueOrderTransferRealtimeRefresh(
+        reason: 'provider_activated',
+        immediate: true,
+      );
+    }
   }
 
   Future<void> loadStores() async {
@@ -227,7 +246,6 @@ class BankStatementProvider extends ChangeNotifier {
     _resetPagingAndSelection();
     notifyListeners();
     unawaited(loadPendingOrderTransferRequests(silent: true));
-    unawaited(_connectOrderTransferRealtime());
   }
 
   void setOrder(String value) {
@@ -655,7 +673,6 @@ class BankStatementProvider extends ChangeNotifier {
         _canReviewOrderTransfers = false;
         _pendingOrderTransferRequests.clear();
         _pendingOrderTransferTotal = 0;
-        _closeOrderTransferRealtime();
       }
       if (reviewUnavailable) {
         await AppLogger.instance.info(
@@ -800,7 +817,9 @@ class BankStatementProvider extends ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
-    _closeOrderTransferRealtime();
+    _cancelOrderTransferRealtimeRefresh();
+    unawaited(_orderTransferRealtimeSubscription?.cancel());
+    unawaited(_orderTransferSyncSubscription?.cancel());
     for (final timer in _messageTimers.values) {
       timer.cancel();
     }
@@ -1034,135 +1053,165 @@ class BankStatementProvider extends ChangeNotifier {
     }
   }
 
-  Future<void> _connectOrderTransferRealtime() async {
-    if (!hasOrderTransferNotifications) {
-      _closeOrderTransferRealtime();
+  void _handleOrderTransferRealtimeEnvelope(RealtimeEnvelope envelope) {
+    if (envelope.kind != _orderTransferRealtimeEventType ||
+        envelope.topic != _orderTransferRealtimeTopic) {
       return;
     }
-    final token = ApiClient().authToken?.trim();
-    if (token == null || token.isEmpty) return;
-    final storeCode = _orderTransferRealtimeStoreId();
-    final connectionKey = '$storeCode|$token';
-    if (_orderTransferRealtimeUrl == connectionKey &&
-        _orderTransferRealtimeChannel != null) {
+    final transactionId = envelope.data['transactionId']?.toString().trim();
+    final storeCode = envelope.data['storeCode']?.toString().trim();
+    if (transactionId == null ||
+        transactionId.isEmpty ||
+        storeCode == null ||
+        storeCode.isEmpty) {
       return;
     }
-    _closeOrderTransferRealtime();
-    try {
-      final uri = await RealtimeTicketClient.instance.issueConnectionUri(
-        storeCode: storeCode,
-      );
-      if (ApiClient().authToken?.trim() != token) return;
-      final channel = _realtimeConnector(uri);
-      _orderTransferRealtimeChannel = channel;
-      _orderTransferRealtimeUrl = connectionKey;
-      _orderTransferRealtimeSubscription = channel.stream.listen(
-        _handleOrderTransferRealtimeMessage,
-        onError: (error, stackTrace) {
-          unawaited(
-            AppLogger.instance.warn(
-              'BankStatement',
-              'Bank statement order transfer realtime failed',
-              context: {
-                ..._orderTransferLogContext(),
-                'error': error.toString(),
-                'stackTrace': stackTrace.toString(),
-              },
-            ),
-          );
+    unawaited(
+      AppLogger.instance.info(
+        'BankStatement',
+        'Bank statement order transfer realtime received',
+        context: {
+          ..._orderTransferLogContext(),
+          'eventId': envelope.id,
+          'hasTransactionId': true,
         },
-        onDone: () {
-          _orderTransferRealtimeChannel = null;
-          _orderTransferRealtimeSubscription = null;
-          _orderTransferRealtimeUrl = null;
-        },
-      );
+      ),
+    );
+    _queueOrderTransferRealtimeRefresh(reason: 'event');
+  }
+
+  void _handleOrderTransferRealtimeSyncRequest(RealtimeSyncReason reason) {
+    if (_disposed) return;
+    _orderTransferRealtimeDirty = true;
+    if (!_canConsumeOrderTransferRealtime) {
       unawaited(
         AppLogger.instance.info(
           'BankStatement',
-          'Bank statement order transfer realtime connected',
-          context: _orderTransferLogContext(),
+          'Bank statement realtime sync deferred',
+          context: {'reason': reason.name},
         ),
       );
-    } catch (error, stackTrace) {
-      unawaited(
-        AppLogger.instance.warn(
-          'BankStatement',
-          'Bank statement order transfer realtime connect failed',
-          context: {
-            ..._orderTransferLogContext(),
-            'error': error.toString(),
-            'stackTrace': stackTrace.toString(),
-          },
-        ),
-      );
+      return;
     }
+    unawaited(
+      AppLogger.instance.info(
+        'BankStatement',
+        'Bank statement realtime sync requested',
+        context: {'reason': reason.name},
+      ),
+    );
+    _queueOrderTransferRealtimeRefresh(
+      reason: 'sync_${reason.name}',
+      immediate: true,
+    );
   }
 
-  void _closeOrderTransferRealtime() {
-    final subscription = _orderTransferRealtimeSubscription;
-    if (subscription != null) {
-      unawaited(subscription.cancel());
+  void _queueOrderTransferRealtimeRefresh({
+    required String reason,
+    bool immediate = false,
+  }) {
+    if (_disposed) return;
+    _orderTransferRealtimeDirty = true;
+    if (immediate) _orderTransferRealtimeImmediatePending = true;
+    if (!_canConsumeOrderTransferRealtime) return;
+    if (immediate) {
+      _orderTransferRealtimeDebounceTimer?.cancel();
+      _orderTransferRealtimeDebounceTimer = null;
+      _orderTransferRealtimeMaxWaitTimer?.cancel();
+      _orderTransferRealtimeMaxWaitTimer = null;
+      unawaited(_flushOrderTransferRealtimeRefresh(reason));
+      return;
     }
-    _orderTransferRealtimeSubscription = null;
-    final channel = _orderTransferRealtimeChannel;
-    if (channel != null) {
-      unawaited(channel.sink.close());
+    _orderTransferRealtimeDebounceTimer?.cancel();
+    if (_realtimeDebounce <= Duration.zero) {
+      unawaited(_flushOrderTransferRealtimeRefresh(reason));
+      return;
     }
-    _orderTransferRealtimeChannel = null;
-    _orderTransferRealtimeUrl = null;
+    _orderTransferRealtimeDebounceTimer = Timer(_realtimeDebounce, () {
+      _orderTransferRealtimeDebounceTimer = null;
+      unawaited(_flushOrderTransferRealtimeRefresh('debounce'));
+    });
+    if (_orderTransferRealtimeMaxWaitTimer == null &&
+        _realtimeMaxWait > Duration.zero) {
+      _orderTransferRealtimeMaxWaitTimer = Timer(_realtimeMaxWait, () {
+        _orderTransferRealtimeMaxWaitTimer = null;
+        unawaited(_flushOrderTransferRealtimeRefresh('max_wait'));
+      });
+    }
+    unawaited(
+      AppLogger.instance.info(
+        'BankStatement',
+        'Bank statement realtime refresh queued',
+        context: {
+          'reason': reason,
+          'debounceMs': _realtimeDebounce.inMilliseconds,
+          'maxWaitMs': _realtimeMaxWait.inMilliseconds,
+        },
+      ),
+    );
   }
 
-  void _handleOrderTransferRealtimeMessage(dynamic message) {
+  Future<void> _flushOrderTransferRealtimeRefresh(String reason) async {
+    _orderTransferRealtimeDebounceTimer?.cancel();
+    _orderTransferRealtimeDebounceTimer = null;
+    _orderTransferRealtimeMaxWaitTimer?.cancel();
+    _orderTransferRealtimeMaxWaitTimer = null;
+    if (_disposed || !_canConsumeOrderTransferRealtime) return;
+    if (_orderTransferRealtimeRefreshInFlight) return;
+    if (!_orderTransferRealtimeDirty) return;
+    _orderTransferRealtimeDirty = false;
+    _orderTransferRealtimeImmediatePending = false;
+    _orderTransferRealtimeRefreshInFlight = true;
+    final startedAt = DateTime.now();
     try {
-      final text = switch (message) {
-        String value => value,
-        List<int> value => utf8.decode(value),
-        _ => '',
-      };
-      if (text.isEmpty) return;
-      final decoded = jsonDecode(text);
-      if (decoded is! Map ||
-          decoded['type']?.toString() != _orderTransferRealtimeEventType) {
-        return;
-      }
-      final payload = decoded['payload'];
-      final transactionId = payload is Map
-          ? payload['transactionId']?.toString()
-          : null;
-      unawaited(
-        AppLogger.instance.info(
-          'BankStatement',
-          'Bank statement order transfer realtime received',
-          context: {
-            ..._orderTransferLogContext(),
-            'hasTransactionId': transactionId?.isNotEmpty == true,
-          },
-        ),
+      await AppLogger.instance.info(
+        'BankStatement',
+        'Bank statement realtime refresh started',
+        context: {'reason': reason},
       );
-      unawaited(loadPendingOrderTransferRequests(silent: true));
-      if (_hasSearched) {
-        unawaited(_fetchPage(_page));
-      }
+      await loadPendingOrderTransferRequests(silent: true);
+      if (_hasSearched) await _fetchPage(_page);
+      await AppLogger.instance.info(
+        'BankStatement',
+        'Bank statement realtime refresh succeeded',
+        context: {
+          'reason': reason,
+          'durationMs': DateTime.now().difference(startedAt).inMilliseconds,
+        },
+      );
     } catch (error, stackTrace) {
-      unawaited(
-        AppLogger.instance.warn(
-          'BankStatement',
-          'Bank statement order transfer realtime parse failed',
-          context: {
-            ..._orderTransferLogContext(),
-            'error': error.toString(),
-            'stackTrace': stackTrace.toString(),
-          },
-        ),
+      await AppLogger.instance.error(
+        'BankStatement',
+        'Bank statement realtime refresh failed',
+        error: error,
+        stackTrace: stackTrace,
+        context: {'reason': reason},
       );
+    } finally {
+      _orderTransferRealtimeRefreshInFlight = false;
+      if (!_disposed && _orderTransferRealtimeDirty) {
+        if (_orderTransferRealtimeImmediatePending) {
+          unawaited(_flushOrderTransferRealtimeRefresh('pending_sync'));
+        } else {
+          _queueOrderTransferRealtimeRefresh(reason: 'event_during_refresh');
+        }
+      }
     }
   }
 
-  String? _orderTransferRealtimeStoreId() {
-    if (_selectedStoreIds.length == 1) return _selectedStoreIds.single;
-    if (!canUseAllStores) return _user?.storeId;
-    return null;
+  bool get _canConsumeOrderTransferRealtime =>
+      !_disposed &&
+      _isInitialized &&
+      _user != null &&
+      hasOrderTransferNotifications;
+
+  void _cancelOrderTransferRealtimeRefresh() {
+    _orderTransferRealtimeDebounceTimer?.cancel();
+    _orderTransferRealtimeDebounceTimer = null;
+    _orderTransferRealtimeMaxWaitTimer?.cancel();
+    _orderTransferRealtimeMaxWaitTimer = null;
+    _orderTransferRealtimeDirty = false;
+    _orderTransferRealtimeImmediatePending = false;
   }
 
   DateTime _effectiveStartDate() => _startDate ?? _defaultRecentStartDate();

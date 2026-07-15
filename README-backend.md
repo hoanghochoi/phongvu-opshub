@@ -11,6 +11,59 @@ Backend-native architecture for the OpsHub mobile app. The Flutter app talks to 
 - `docker-compose.yml`: Local PostgreSQL and Redis only.
 - `n8n/`: Legacy workflow exports kept as reference, not used by runtime app code.
 
+## Client Bootstrap, Notification Feed, And Realtime V2
+
+All HTTP paths below are relative to the Nest API base (`/api` in the default
+deployment):
+
+- `GET /auth/bootstrap` returns one authenticated access snapshot containing
+  `schemaVersion`, `generatedAt`, stable SHA-256 `version`, `user`,
+  `featureAccess`, `policyAccess`, and `capabilities`. The capability object
+  advertises `conditionalGet=true` and the supported realtime v2 topics. The
+  API sends `Cache-Control: private, no-cache` plus `ETag: "<version>"`, accepts
+  `If-None-Match`, and returns `304` when the stable snapshot is unchanged.
+- `GET /notifications/feed` returns one `schemaVersion=1` aggregate with
+  `generatedAt`, `statementOrderTransfers`, and `offsetAdjustments`. Each
+  section contains `enabled`, `page`, `limit`, `total`, `canReview`, and `list`.
+  This lets the authenticated shell load both notification sources with one
+  HTTP request; compatibility clients may use the older list endpoints only
+  when this aggregate route is unavailable (`404`/`501`).
+
+Authenticated clients share one `/ws/v2` connection per session. Every message
+uses `{v, kind, id, topic, seq, ts, data}`; gateway audience metadata is checked
+server-side and is not forwarded. HTTP remains the source of complete state,
+so reconnect/resume requests a bounded HTTP resync.
+
+`ACCESS_CHANGED` is recipient-scoped. The gateway delivers it to the affected
+socket, then closes that socket with a retryable resync reason so claims issued
+before a grant/revoke cannot keep receiving later events. Sensitive events with
+only a feature filter and no user/store/role/organization routing selector are
+rejected fail-closed.
+
+All-scope authorization travels in a dedicated `policyCodes` claim/audience
+field. The gateway never compares policy codes with organization, department,
+business, or store codes, so equal text in different namespaces cannot widen a
+subscription.
+
+| v2 topic | v2 kind | Purpose |
+| --- | --- | --- |
+| `access.changed` | `ACCESS_CHANGED` | User-scoped access snapshot invalidation |
+| `home.summary` | `HOME_SUMMARY_UPDATED` | Home projection invalidation |
+| `warranty` | `WARRANTY_EVENT` | Warranty status invalidation |
+| `payment.transactions` | `PAYMENT_NOTIFICATION` | Payment-list invalidation |
+| `payment.speaker` | `PAYMENT_SPEAKER_STREAM` | Minimal speaker metadata |
+| `payment.delivery-metrics` | `PAYMENT_DELIVERY_METRICS_UPDATED` | Delivery-metrics invalidation |
+| `notifications.statement-transfer` | `STATEMENT_ORDER_TRANSFER_REQUEST` | Statement-transfer notification |
+| `notifications.offset-adjustment` | `OFFSET_ADJUSTMENT_NOTIFICATION` | Offset-adjustment notification |
+| `sales-report.orders` | `SALES_REPORT_ORDERS_UPDATED` | Sales-report order invalidation |
+
+Legacy authenticated `/ws` continues to emit `{type, payload}` during the
+two-release client migration window. It is compatibility-only and must not gain
+new feature contracts. Public `/ws/app-updates` remains separate so update
+discovery works before login. One-time ticket authentication remains the normal
+contract for both authenticated endpoints; legacy JWT WebSocket authentication
+is available only behind `WS_ALLOW_LEGACY_JWT` during the measured migration.
+
 ## Local Quick Start
 
 Start infrastructure from the repository root:
@@ -200,8 +253,8 @@ Expected responses:
   `notificationId + clientId`; a second in-flight request for the same pair
   returns HTTP `409` so the client can suppress duplicate same-machine
   playback. Ready polling is limited to speaker-enabled startup/manual recovery
-  and realtime fallback; after realtime has been silent it checks metadata every
-  5 seconds. It only recovers notifications newer than
+  and realtime fallback; after realtime has been silent it checks metadata once
+  per minute. It only recovers notifications newer than
   `PAYMENT_STREAM_PENDING_RECOVERY_WINDOW_SECONDS` (default `30`), whether the
   audio is `PENDING` or already `READY`. Expired pickup attempts are logged as
   `SILENCED` with `stream_recovery_window_expired`, and `/stream` rejects them
@@ -215,11 +268,11 @@ Expected responses:
   `PAYMENT_TTS_CONCURRENCY=2` to match the recommended two Piper workers on
   `hoang-n8n`.
 - Keep placeholder values out of production; the Nest API validates env values on startup.
-- Keep the API behind exactly one trusted Caddy hop. Rate limits use the
-  verified JWT user id first, then stable request identifiers such as
-  `clientId`/`deviceId`, then a hashed auth email for public auth requests. The
-  resolved client IP is only a last-resort bucket, so normal clients do not
-  share Caddy's container IP.
+- Keep the API behind exactly one trusted Caddy hop. Authenticated rate limits
+  use only the verified JWT user id; there is no second global IP bucket for
+  signed-in requests. Public auth requests use a hashed email when available,
+  then the resolved client IP only as the last-resort principal when no trusted
+  identity exists.
 - Run `npx prisma migrate deploy` before starting the Nest API.
 - Start the Go service with the same Redis connection as NestJS.
 - Home near-realtime is projection-first. Source-table triggers write a durable

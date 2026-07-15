@@ -11,6 +11,7 @@ describe('UserService admin store management', () => {
   let prisma: any;
   let passwordResetService: { setPasswordForUserId: jest.Mock };
   let policyService: any;
+  let accessChangeService: any;
   let mailService: { sendMail: jest.Mock };
 
   const superAdmin = {
@@ -157,6 +158,9 @@ describe('UserService admin store management', () => {
       },
       departmentDefinition: {
         upsert: jest.fn(),
+        create: jest.fn(async ({ data }: any) => data),
+        update: jest.fn(async ({ data }: any) => data),
+        delete: jest.fn(),
         findUnique: jest.fn(async ({ where }: any) => ({
           code: where.code,
           isActive: true,
@@ -164,6 +168,9 @@ describe('UserService admin store management', () => {
       },
       jobRoleDefinition: {
         upsert: jest.fn(),
+        create: jest.fn(async ({ data }: any) => data),
+        update: jest.fn(async ({ data }: any) => data),
+        delete: jest.fn(),
         findUnique: jest.fn(async ({ where }: any) => ({
           code: where.code,
           isActive: true,
@@ -279,6 +286,7 @@ describe('UserService admin store management', () => {
             : null,
         })),
         update: jest.fn(),
+        upsert: jest.fn(),
         updateMany: jest.fn(async () => ({ count: 0 })),
         delete: jest.fn(async ({ where }: any) => ({ id: where.id })),
       },
@@ -306,11 +314,29 @@ describe('UserService admin store management', () => {
         return false;
       }),
     };
+    accessChangeService = {
+      publishForUserIds: jest.fn().mockResolvedValue({
+        recipientCount: 1,
+        eventCount: 1,
+        failedEventCount: 0,
+      }),
+      publishForOrganizationNodeIds: jest.fn().mockResolvedValue({
+        recipientCount: 1,
+        eventCount: 1,
+        failedEventCount: 0,
+      }),
+      publishForAllUsers: jest.fn().mockResolvedValue({
+        recipientCount: 1,
+        eventCount: 1,
+        failedEventCount: 0,
+      }),
+    };
     service = new UserService(
       prisma,
       {} as any,
       passwordResetService as any,
       policyService,
+      accessChangeService,
       mailService as any,
     );
   });
@@ -332,6 +358,91 @@ describe('UserService admin store management', () => {
     expect(prisma.user.create).not.toHaveBeenCalled();
     expect(prisma.user.update).not.toHaveBeenCalled();
     expect(prisma.user.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('invalidates access only for existing users changed by BigQuery sync', async () => {
+    const previousEnv = {
+      source: process.env.DATA_SYNC_SOURCE,
+      project: process.env.BIGQUERY_PROJECT_ID,
+      dataset: process.env.BIGQUERY_USER_DATASET_ID,
+      table: process.env.BIGQUERY_USER_TABLE_ID,
+    };
+    process.env.DATA_SYNC_SOURCE = 'bigquery';
+    process.env.BIGQUERY_PROJECT_ID = 'project';
+    process.env.BIGQUERY_USER_DATASET_ID = 'dataset';
+    process.env.BIGQUERY_USER_TABLE_ID = 'users';
+    (service as any).bigquery = {
+      query: jest.fn().mockResolvedValue([
+        [
+          {
+            email: 'staff@phongvu.vn',
+            first_name: 'Staff',
+            role: 'ADMIN',
+            status: 'yes',
+          },
+          {
+            email: 'new@phongvu.vn',
+            first_name: 'New',
+            role: 'USER',
+            status: 'yes',
+          },
+        ],
+      ]),
+    };
+    prisma.user.findMany.mockResolvedValue([
+      {
+        id: 'user-1',
+        email: 'staff@phongvu.vn',
+        role: 'USER',
+        status: 'yes',
+        workScopeType: 'STORE',
+        storeId: 'store-1',
+        regionCode: 'MIEN_NAM',
+        areaCode: 'HCM',
+      },
+    ]);
+    prisma.user.upsert
+      .mockResolvedValueOnce({
+        id: 'user-1',
+        email: 'staff@phongvu.vn',
+        role: 'ADMIN',
+        status: 'yes',
+        workScopeType: 'NATIONAL',
+        storeId: null,
+        regionCode: null,
+        areaCode: null,
+      })
+      .mockResolvedValueOnce({
+        id: 'user-new',
+        email: 'new@phongvu.vn',
+        role: 'USER',
+        status: 'yes',
+        workScopeType: 'STORE',
+        storeId: null,
+        regionCode: null,
+        areaCode: null,
+      });
+
+    try {
+      await service.syncUsersFromBigQuery();
+    } finally {
+      if (previousEnv.source === undefined) delete process.env.DATA_SYNC_SOURCE;
+      else process.env.DATA_SYNC_SOURCE = previousEnv.source;
+      if (previousEnv.project === undefined)
+        delete process.env.BIGQUERY_PROJECT_ID;
+      else process.env.BIGQUERY_PROJECT_ID = previousEnv.project;
+      if (previousEnv.dataset === undefined)
+        delete process.env.BIGQUERY_USER_DATASET_ID;
+      else process.env.BIGQUERY_USER_DATASET_ID = previousEnv.dataset;
+      if (previousEnv.table === undefined)
+        delete process.env.BIGQUERY_USER_TABLE_ID;
+      else process.env.BIGQUERY_USER_TABLE_ID = previousEnv.table;
+    }
+
+    expect(accessChangeService.publishForUserIds).toHaveBeenCalledWith(
+      ['user-1'],
+      'user-access-bigquery-updated',
+    );
   });
 
   function installOrganizationNodeMock() {
@@ -560,6 +671,7 @@ describe('UserService admin store management', () => {
   });
 
   it('creates a store with normalized payment fields and default area', async () => {
+    installOrganizationNodeMock();
     prisma.store.findUnique.mockImplementationOnce(async () => null);
 
     await expect(
@@ -584,6 +696,9 @@ describe('UserService admin store management', () => {
       hasMapVietinPassword: true,
       userCount: 0,
     });
+    expect(accessChangeService.publishForAllUsers).toHaveBeenCalledWith(
+      'store-organization-created',
+    );
   });
 
   it('lets a manager update only their own store MAP credentials', async () => {
@@ -1136,6 +1251,12 @@ describe('UserService admin store management', () => {
       where: {
         storeId: 'store-62',
         workScopeType: 'STORE',
+        OR: [
+          { areaCode: null },
+          { areaCode: { not: 'HCM' } },
+          { regionCode: null },
+          { regionCode: { not: 'MIEN_NAM' } },
+        ],
       },
       data: {
         areaCode: 'HCM',
@@ -1244,6 +1365,19 @@ describe('UserService admin store management', () => {
     expect(prisma.areaDefinition.upsert).not.toHaveBeenCalled();
     expect(prisma.departmentDefinition.upsert).not.toHaveBeenCalled();
     expect(prisma.jobRoleDefinition.upsert).not.toHaveBeenCalled();
+    expect(accessChangeService.publishForAllUsers).toHaveBeenCalledTimes(3);
+    expect(accessChangeService.publishForAllUsers).toHaveBeenNthCalledWith(
+      1,
+      'organization-node-created',
+    );
+    expect(accessChangeService.publishForAllUsers).toHaveBeenNthCalledWith(
+      2,
+      'organization-node-created',
+    );
+    expect(accessChangeService.publishForAllUsers).toHaveBeenNthCalledWith(
+      3,
+      'organization-node-created',
+    );
   });
 
   it('syncs UI-created Lv5 positions and assigns their parent area scope', async () => {
@@ -1397,6 +1531,9 @@ describe('UserService admin store management', () => {
         update: expect.objectContaining({ regionCode: 'HCM_BD' }),
       }),
     );
+    expect(accessChangeService.publishForAllUsers).toHaveBeenCalledWith(
+      'organization-node-updated',
+    );
     expect(
       prisma.areaDefinition.upsert.mock.invocationCallOrder[0],
     ).toBeLessThan(prisma.store.update.mock.invocationCallOrder[0]);
@@ -1415,6 +1552,115 @@ describe('UserService admin store management', () => {
           regionCode: 'HCM_BD',
         }),
       }),
+    );
+  });
+
+  it('invalidates cached access after deleting an organization node', async () => {
+    prisma.organizationNode = {
+      findUnique: jest.fn().mockResolvedValue({
+        id: 'custom-node',
+        isSystem: false,
+        _count: { children: 0 },
+      }),
+      delete: jest.fn().mockResolvedValue({ id: 'custom-node' }),
+    };
+    jest
+      .spyOn(service as any, 'organizationNodeReferenceCounts')
+      .mockResolvedValue({
+        users: 0,
+        stores: 0,
+        departments: 0,
+        jobRoles: 0,
+        regions: 0,
+        areas: 0,
+        featureRules: 0,
+        nodeFeatureAssignments: 0,
+        policyRules: 0,
+      });
+
+    await expect(
+      service.adminDeleteOrganizationNode(superAdmin, 'custom-node'),
+    ).resolves.toEqual({ deleted: true, id: 'custom-node' });
+
+    expect(accessChangeService.publishForAllUsers).toHaveBeenCalledWith(
+      'organization-node-deleted',
+    );
+  });
+
+  it('invalidates access after department catalog mutations', async () => {
+    const department = {
+      code: 'CUSTOM_DEPARTMENT',
+      displayName: 'Custom department',
+      description: null,
+      isSystem: false,
+      isActive: true,
+    };
+    prisma.departmentDefinition.findUnique
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(department)
+      .mockResolvedValueOnce({
+        ...department,
+        _count: { users: 0, featureAccessRules: 0 },
+      });
+    prisma.departmentDefinition.create.mockResolvedValue(department);
+    prisma.departmentDefinition.update.mockResolvedValue({
+      ...department,
+      displayName: 'Updated department',
+    });
+
+    await service.adminCreateDepartment(superAdmin, department);
+    await service.adminUpdateDepartment(superAdmin, department.code, {
+      displayName: 'Updated department',
+    });
+    await service.adminDeleteDepartment(superAdmin, department.code);
+
+    expect(accessChangeService.publishForAllUsers).toHaveBeenCalledWith(
+      'personnel-department-created',
+    );
+    expect(accessChangeService.publishForAllUsers).toHaveBeenCalledWith(
+      'personnel-department-updated',
+    );
+    expect(accessChangeService.publishForAllUsers).toHaveBeenCalledWith(
+      'personnel-department-deleted',
+    );
+  });
+
+  it('invalidates access after job-role catalog mutations', async () => {
+    const jobRole = {
+      code: 'CUSTOM_JOB_ROLE',
+      displayName: 'Custom job role',
+      description: null,
+      departmentCode: null,
+      isSystem: false,
+      isActive: true,
+    };
+    prisma.jobRoleDefinition.findUnique
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(jobRole)
+      .mockResolvedValueOnce({
+        ...jobRole,
+        _count: { users: 0, featureAccessRules: 0 },
+      });
+    prisma.jobRoleDefinition.create.mockResolvedValue(jobRole);
+    prisma.jobRoleDefinition.update.mockResolvedValue({
+      ...jobRole,
+      displayName: 'Updated job role',
+    });
+
+    await service.adminCreateJobRole(superAdmin, jobRole);
+    await service.adminUpdateJobRole(superAdmin, jobRole.code, {
+      displayName: 'Updated job role',
+    });
+    await service.adminDeleteJobRole(superAdmin, jobRole.code);
+
+    expect(accessChangeService.publishForAllUsers).toHaveBeenCalledWith(
+      'personnel-job-role-created',
+    );
+    expect(accessChangeService.publishForAllUsers).toHaveBeenCalledWith(
+      'personnel-job-role-updated',
+    );
+    expect(accessChangeService.publishForAllUsers).toHaveBeenCalledWith(
+      'personnel-job-role-deleted',
     );
   });
 
@@ -1921,6 +2167,57 @@ describe('UserService admin store management', () => {
     expect(prisma.user.delete).toHaveBeenCalledWith({
       where: { id: 'locked-user' },
     });
+    expect(accessChangeService.publishForUserIds).toHaveBeenCalledWith(
+      ['locked-user'],
+      'user-access-deleted',
+    );
+  });
+
+  it('invalidates access when an admin update changes effective scope', async () => {
+    const current = {
+      id: 'user-1',
+      email: 'staff@phongvu.vn',
+      role: 'USER',
+      status: 'yes',
+      workScopeType: 'STORE',
+      organizationNodeId: 'org-store-cp62',
+      organizationAssignments: [],
+    };
+    const updated = {
+      ...current,
+      workScopeType: 'NATIONAL',
+      organizationNodeId: null,
+    };
+    jest.spyOn(service as any, 'assertAdmin').mockResolvedValue(undefined);
+    jest
+      .spyOn(service as any, 'assertAdminCanUpdateUser')
+      .mockResolvedValue(undefined);
+    jest.spyOn(service as any, 'prepareAdminUserMutation').mockResolvedValue({
+      updateData: {
+        workScopeType: 'NATIONAL',
+        organizationNode: { disconnect: true },
+      },
+      organizationNodeIds: [],
+      role: 'USER',
+      workScopeType: 'NATIONAL',
+    });
+    jest
+      .spyOn(service as any, 'syncUserOrganizationAssignments')
+      .mockResolvedValue(undefined);
+    jest.spyOn(service as any, 'toUserDto').mockImplementation((user) => user);
+    prisma.user.findUnique
+      .mockResolvedValueOnce(current)
+      .mockResolvedValueOnce(updated);
+    prisma.user.update.mockResolvedValue(updated);
+
+    await service.adminUpdateUser(superAdmin, 'user-1', {
+      workScopeType: 'NATIONAL',
+    });
+
+    expect(accessChangeService.publishForUserIds).toHaveBeenCalledWith(
+      ['user-1'],
+      'user-access-updated',
+    );
   });
 
   it('blocks deleting active, super-admin, self, or history-backed users', async () => {
@@ -2315,6 +2612,48 @@ describe('UserService admin store management', () => {
         regionCode: null,
       },
     });
+    expect(accessChangeService.publishForAllUsers).toHaveBeenCalledWith(
+      'store-organization-updated',
+    );
+  });
+
+  it('invalidates access when store organization sync creates a missing topology', async () => {
+    installOrganizationNodeMock();
+    prisma.store.findMany.mockResolvedValueOnce([
+      {
+        id: 'store-99',
+        storeId: 'CP99',
+        storeName: 'CP99',
+        areaCode: defaultArea.code,
+        area: defaultArea,
+        organizationNodeId: null,
+      },
+    ]);
+
+    await (service as any).syncStoreOrganizationNodes('test-sync');
+
+    expect(accessChangeService.publishForAllUsers).toHaveBeenCalledWith(
+      'store-organization-sync-updated',
+    );
+  });
+
+  it('invalidates access after deleting an unused store', async () => {
+    prisma.store.findUnique.mockResolvedValueOnce({
+      id: 'store-99',
+      storeId: 'CP99',
+      _count: { users: 0, featureAccessRules: 0 },
+    });
+
+    await expect(service.adminDeleteStore(superAdmin, 'CP99')).resolves.toEqual(
+      { deleted: true, storeId: 'CP99' },
+    );
+
+    expect(prisma.store.delete).toHaveBeenCalledWith({
+      where: { storeId: 'CP99' },
+    });
+    expect(accessChangeService.publishForAllUsers).toHaveBeenCalledWith(
+      'store-organization-deleted',
+    );
   });
 
   it('imports passwordless users and upserts existing users from tree-code Excel rows', async () => {
@@ -2434,6 +2773,10 @@ describe('UserService admin store management', () => {
     );
     expect(updateCall.data).toEqual(expect.objectContaining({ status: 'no' }));
     expect(mailService.sendMail).toHaveBeenCalledTimes(1);
+    expect(accessChangeService.publishForUserIds).toHaveBeenCalledWith(
+      ['existing-user'],
+      'user-access-import-updated',
+    );
     expect(mailService.sendMail).toHaveBeenCalledWith(
       expect.objectContaining({
         to: 'new@phongvu.vn',

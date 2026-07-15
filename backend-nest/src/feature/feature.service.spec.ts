@@ -7,6 +7,7 @@ describe('FeatureService', () => {
   let rules: any[];
   let nodeAssignments: Record<string, boolean>;
   let directNodeActive: boolean;
+  let accessChangeService: any;
 
   const area = {
     code: 'HCM',
@@ -104,8 +105,8 @@ describe('FeatureService', () => {
       },
     ];
     prisma = {
-      $transaction: jest.fn(async (operations: Promise<any>[]) =>
-        Promise.all(operations),
+      $transaction: jest.fn(async (input: any) =>
+        typeof input === 'function' ? input(prisma) : Promise.all(input),
       ),
       featureDefinition: {
         upsert: jest.fn(),
@@ -222,7 +223,17 @@ describe('FeatureService', () => {
         }),
       },
     };
-    service = new FeatureService(prisma);
+    accessChangeService = {
+      publishForAllUsers: jest.fn().mockResolvedValue({
+        recipientCount: 1,
+        eventCount: 1,
+      }),
+      publishForOrganizationNodeIds: jest.fn().mockResolvedValue({
+        recipientCount: 1,
+        eventCount: 1,
+      }),
+    };
+    service = new FeatureService(prisma, accessChangeService);
   });
 
   it('allows only features assigned to the direct node group and parent chain', async () => {
@@ -331,6 +342,7 @@ describe('FeatureService', () => {
     expect(
       prisma.organizationNodeFeatureAssignment.findMany,
     ).toHaveBeenCalledTimes(1);
+    expect(prisma.featureDefinition.upsert).not.toHaveBeenCalled();
     expect(
       prisma.organizationNodeFeatureAssignment.findMany,
     ).toHaveBeenCalledWith(
@@ -443,6 +455,25 @@ describe('FeatureService', () => {
     ).resolves.toBe(true);
   });
 
+  it('invalidates access for users under a changed node assignment', async () => {
+    prisma.featureDefinition.findMany.mockResolvedValue([
+      { code: 'FIFO', parentCode: null },
+    ]);
+
+    await service.adminCreateNodeAssignments(
+      { id: 'admin-1', role: 'SUPER_ADMIN' },
+      {
+        organizationNodeIds: ['org-store-cp62'],
+        featureTreeCodes: ['FIFO'],
+        enabled: false,
+      },
+    );
+
+    expect(
+      accessChangeService.publishForOrganizationNodeIds,
+    ).toHaveBeenCalledWith(['org-store-cp62'], 'feature-assignment-updated');
+  });
+
   it('creates feature rules in one batch from multiple selected targets', async () => {
     const result = await service.adminCreateRules(
       { role: 'SUPER_ADMIN' },
@@ -470,6 +501,9 @@ describe('FeatureService', () => {
         note: 'temporary block',
       }),
     });
+    expect(accessChangeService.publishForAllUsers).toHaveBeenCalledWith(
+      'feature-rule-created',
+    );
   });
   it('creates feature rules in one batch from multiple email domains', async () => {
     const result = await service.adminCreateRules(

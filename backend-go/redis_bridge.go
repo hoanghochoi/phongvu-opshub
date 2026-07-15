@@ -16,11 +16,13 @@ var redisChannels = []string{
 	warrantyRedisChannel,
 	paymentRedisChannel,
 	paymentStreamRedisChannel,
+	paymentDeliveryMetricsRedisChannel,
 	appVersionRedisChannel,
 	statementOrderTransferRedisChannel,
 	offsetAdjustmentRedisChannel,
 	salesReportOrdersRedisChannel,
 	homeSummaryRedisChannel,
+	accessChangedRedisChannel,
 	authSessionRevokedRedisChannel,
 }
 
@@ -194,7 +196,7 @@ func handleRedisMessage(
 		}
 	}
 
-	event, ok := formatRedisEvent(message.Channel, message.Payload)
+	events, ok := formatRedisEvents(message.Channel, message.Payload)
 	if !ok {
 		logger.Printf(
 			"Redis event rejected channel=%s reason=invalid_or_missing_audience payloadBytes=%d",
@@ -203,14 +205,16 @@ func handleRedisMessage(
 		)
 		return true
 	}
-	select {
-	case hub.broadcast <- event:
-		return true
-	case <-ctx.Done():
-		state.subscriptionReady.Store(false)
-		_ = pubsub.Close()
-		return false
+	for _, event := range events {
+		select {
+		case hub.broadcast <- event:
+		case <-ctx.Done():
+			state.subscriptionReady.Store(false)
+			_ = pubsub.Close()
+			return false
+		}
 	}
+	return true
 }
 
 func markRedisSubscriptionLost(

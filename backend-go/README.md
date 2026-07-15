@@ -22,9 +22,10 @@ The service reads environment variables from the process:
 - `WS_MAX_CONNECTIONS`, `WS_MAX_CONNECTIONS_PER_IP`,
   `WS_MAX_CONNECTIONS_PER_USER`, `WS_MAX_HANDSHAKES_PER_IP_MINUTE`: minimum
   connection and handshake abuse controls. The per-user default is 12 because
-  the current Flutter client can keep seven authenticated feature sockets open
-  concurrently; this leaves bounded reconnect overlap without weakening the
-  independent per-IP and handshake limits. Tune them from staging load proof.
+  the legacy Flutter client can keep several authenticated feature sockets open
+  concurrently during migration; this leaves bounded reconnect overlap without
+  weakening the independent per-IP and handshake limits. Tune it down after the
+  shared v2 connection is proven in staging.
 
 `.env.example` is a template for deployment tools or process managers. `go run .` does not load `.env` automatically.
 
@@ -41,12 +42,35 @@ NestJS and consume it atomically before upgrading the connection. The service
 never logs the query string. A ticket is single-use, so each endpoint needs its
 own ticket.
 
-`/ws/v2` currently accepts `HOME_SUMMARY_UPDATED`. It emits only
-`affectedDates` and `projectionVersion`; KPI values remain behind the
-authenticated Home API. Redis loss closes only v2 sockets with retryable code
-`1012` and reason `resync_required`, forcing clients to reconnect and re-read
-HTTP state. Legacy `/ws` clients remain connected during the two-release
-migration window.
+`/ws/v2` emits shared authenticated platform signals for Home, warranty,
+payments, staff notifications, and sales reports. Every message uses the strict
+client envelope `{v, kind, id, topic, seq, ts, data}`. Redis audience metadata
+is evaluated by the gateway and is never forwarded. Redis loss closes only v2
+sockets with retryable code `1012` and reason `resync_required`, forcing clients
+to reconnect and re-read HTTP state. Legacy `/ws` clients receive their existing
+`{type, payload}` messages during the two-release migration window.
+
+`ACCESS_CHANGED` is delivered only to its explicit recipients, then those
+connections are closed with code `1012` and reason `resync_required` so the
+replacement ticket carries fresh authorization claims. An audience containing
+only `featureCodes` is rejected: feature codes may narrow an already routable
+audience, but may not select recipients by themselves.
+
+Policy selectors use the dedicated `policyCodes` claim and audience field.
+They are never compared with department, organization, business, or store
+codes, preventing a same-text code collision from widening realtime scope.
+
+| Redis channel | v2 topic | v2 kind |
+| --- | --- | --- |
+| `ACCESS_CHANGED` | `access.changed` | `ACCESS_CHANGED` |
+| `HOME_SUMMARY_UPDATED` | `home.summary` | `HOME_SUMMARY_UPDATED` |
+| `WARRANTY_STATUS_UPDATED` | `warranty` | `WARRANTY_EVENT` |
+| `PAYMENT_NOTIFICATION_READY` | `payment.transactions` | `PAYMENT_NOTIFICATION` |
+| `PAYMENT_SPEAKER_STREAM` | `payment.speaker` | `PAYMENT_SPEAKER_STREAM` |
+| `PAYMENT_DELIVERY_METRICS_UPDATED` | `payment.delivery-metrics` | `PAYMENT_DELIVERY_METRICS_UPDATED` |
+| `STATEMENT_ORDER_TRANSFER_REQUESTED` | `notifications.statement-transfer` | `STATEMENT_ORDER_TRANSFER_REQUEST` |
+| `OFFSET_ADJUSTMENT_UPDATED` | `notifications.offset-adjustment` | `OFFSET_ADJUSTMENT_NOTIFICATION` |
+| `SALES_REPORT_ORDERS_UPDATED` | `sales-report.orders` | `SALES_REPORT_ORDERS_UPDATED` |
 
 Legacy `Authorization: Bearer <jwt>` and `access_token` query authentication are
 accepted only when `WS_ALLOW_LEGACY_JWT=true`. The flag is a temporary rollout
@@ -77,6 +101,7 @@ wrong audience all fail closed.
   "departmentCode": "SALES",
   "organizationNodeId": "node-id",
   "organizationAccessCodes": ["CP01"],
+  "policyCodes": ["PAYMENT_MONITOR_ALL_SCOPE"],
   "featureCodes": ["WARRANTY"],
   "sessionId": "session-id",
   "platform": "web",
@@ -95,8 +120,9 @@ by `storeCode`, `organizationAccessCodes`, or the `SUPER_ADMIN` role; it never
 adds scope.
 
 The public `/ws/app-updates` endpoint broadcasts only `APP_UPDATE` signals. It
-does not accept or expose warranty and payment events; clients verify the signal
-against the public `/api/app-version` HTTP contract before showing an update.
+does not accept or expose authenticated feature events, and `APP_UPDATE` is not
+forwarded to authenticated v2 sockets. Clients verify the signal against the
+public `/api/app-version` HTTP contract before showing an update.
 
 The liveness and readiness endpoints are:
 
@@ -113,9 +139,11 @@ subscription is active and Redis responds to `PING`.
 The service subscribes to:
 
 ```text
+ACCESS_CHANGED
 WARRANTY_STATUS_UPDATED
 PAYMENT_NOTIFICATION_READY
 PAYMENT_SPEAKER_STREAM
+PAYMENT_DELIVERY_METRICS_UPDATED
 APP_VERSION_UPDATED
 STATEMENT_ORDER_TRANSFER_REQUESTED
 OFFSET_ADJUSTMENT_UPDATED
@@ -144,7 +172,8 @@ Clients receive `{v, kind, id, topic, seq, ts, data}` with
 `topic=home.summary`; the gateway does not forward the Redis audience object.
 
 Sensitive events use a versioned Redis envelope. Audience data is used only by
-the Go router and is not forwarded to clients:
+the Go router and is not forwarded to clients. The payload is emitted as the v2
+`data` object without adding audience fields:
 
 ```json
 {
@@ -158,6 +187,7 @@ the Go router and is not forwarded to clients:
     "roles": [],
     "departmentCodes": [],
     "organizationAccessCodes": [],
+    "policyCodes": [],
     "featureCodes": ["WARRANTY"]
   },
   "payload": {
@@ -171,10 +201,10 @@ At least one audience selector is required. All sensitive event types are
 server-filtered. During the publisher migration, payment, payment stream,
 statement transfer, offset adjustment, and sales-report events can infer a
 restricted audience from their existing `storeCode`, `storeCodes`,
-`recipientUserId`, or `recipientUserIds` fields. A sensitive event with no
-routable audience is dropped. In particular, the historical warranty payload
-has no safe scope and must be upgraded to the versioned envelope before this
-service is promoted.
+`recipientUserId`, or `recipientUserIds` fields. Those legacy events get a
+deterministic event id and a valid bridge timestamp for the v2 envelope.
+Warranty and payment-delivery-metrics events require the versioned Redis
+envelope. Any sensitive event without a routable audience is dropped.
 
 Each client has a bounded send queue and a dedicated writer goroutine. A full
 queue disconnects only that slow client; it cannot block the hub or other

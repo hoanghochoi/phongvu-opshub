@@ -145,6 +145,7 @@ class ApiConstants {
   static const String paymentNotificationsReadyEndpoint =
       '/payment-notifications/ready';
   static const String notificationsReadEndpoint = '/notifications/read';
+  static const String notificationsFeedEndpoint = '/notifications/feed';
   static const String appLogsEndpoint = '/app-logs';
   static Uri realtimeWsUri({String? storeId, required String ticket}) {
     final base = Uri.parse(baseUrl);

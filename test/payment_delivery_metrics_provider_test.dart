@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:phongvu_opshub/core/logging/app_logger.dart';
 import 'package:phongvu_opshub/core/network/api_client.dart';
+import 'package:phongvu_opshub/core/network/realtime_connection_manager.dart';
 import 'package:phongvu_opshub/features/auth/domain/entities/user.dart';
 import 'package:phongvu_opshub/features/payment_monitor/data/repositories/payment_monitor_repository.dart';
 import 'package:phongvu_opshub/features/payment_monitor/domain/payment_delivery_metrics.dart';
@@ -68,6 +71,72 @@ void main() {
 
     provider.dispose();
   });
+
+  test('debounces only the typed delivery-metrics realtime topic', () async {
+    final repository = _FakePaymentMonitorRepository(_metrics(), _history());
+    final realtime = _FakeRealtimeClient();
+    final provider = PaymentDeliveryMetricsProvider(
+      repository,
+      refreshInterval: Duration.zero,
+      realtimeDebounce: const Duration(milliseconds: 20),
+      realtimeClient: realtime,
+    );
+
+    await provider.syncAuth(_user(role: 'SUPER_ADMIN'), isInitialized: true);
+    expect(repository.fetchCount, 1);
+
+    realtime.addEvent(
+      _envelope(
+        kind: 'PAYMENT_DELIVERY_METRICS_UPDATED',
+        topic: 'payment.transactions',
+      ),
+    );
+    for (var index = 0; index < 3; index += 1) {
+      realtime.addEvent(
+        _envelope(
+          kind: 'PAYMENT_DELIVERY_METRICS_UPDATED',
+          topic: 'payment.delivery-metrics',
+          sequence: index + 2,
+        ),
+      );
+    }
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    expect(repository.fetchCount, 2);
+
+    realtime.addSync(RealtimeSyncReason.reconnected);
+    await Future<void>.delayed(const Duration(milliseconds: 10));
+    expect(repository.fetchCount, 3);
+
+    await provider.syncRuntime(isForeground: false, isSurfaceActive: false);
+    realtime.addEvent(
+      _envelope(
+        kind: 'PAYMENT_DELIVERY_METRICS_UPDATED',
+        topic: 'payment.delivery-metrics',
+        sequence: 10,
+      ),
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 40));
+    expect(repository.fetchCount, 3);
+
+    provider.dispose();
+    await realtime.dispose();
+  });
+}
+
+RealtimeEnvelope _envelope({
+  required String kind,
+  required String topic,
+  int sequence = 1,
+}) {
+  return RealtimeEnvelope(
+    version: 2,
+    kind: kind,
+    id: 'event-$sequence',
+    topic: topic,
+    sequence: sequence,
+    timestamp: DateTime.utc(2026, 7, 15),
+    data: const {},
+  );
 }
 
 User _user({required String role}) {
@@ -142,5 +211,28 @@ class _FakePaymentMonitorRepository extends PaymentMonitorRepository {
   Future<PaymentDeliveryHistory> fetchDeliveryHistory({int limit = 20}) async {
     historyFetchCount += 1;
     return historyResult;
+  }
+}
+
+class _FakeRealtimeClient implements RealtimeClient {
+  final _events = StreamController<RealtimeEnvelope>.broadcast();
+  final _syncRequests = StreamController<RealtimeSyncReason>.broadcast();
+
+  @override
+  Stream<RealtimeEnvelope> get events => _events.stream;
+
+  @override
+  Stream<RealtimeSyncReason> get syncRequests => _syncRequests.stream;
+
+  void addEvent(RealtimeEnvelope envelope) => _events.add(envelope);
+
+  void addSync(RealtimeSyncReason reason) => _syncRequests.add(reason);
+
+  @override
+  Future<void> syncSession(String? sessionKey) async {}
+
+  Future<void> dispose() async {
+    await _events.close();
+    await _syncRequests.close();
   }
 }

@@ -220,6 +220,9 @@ func TestTicketIsHashedConsumedOnceAndValidatesSessionClaims(t *testing.T) {
 	if auth.SelectedStore != "CP01" {
 		t.Fatalf("expected selected store CP01, got %q", auth.SelectedStore)
 	}
+	if !containsExact(auth.PolicyCodes, "PAYMENT_MONITOR_ALL_SCOPE") {
+		t.Fatalf("expected policy codes from ticket, got %v", auth.PolicyCodes)
+	}
 	if _, err := authenticator.Authenticate(request); err == nil {
 		t.Fatal("expected consumed ticket reuse to be rejected")
 	}
@@ -380,9 +383,90 @@ func TestSensitiveEventsAreRoutedByServerSideAudience(t *testing.T) {
 	if wrongFeature.canReceive(event) {
 		t.Fatal("expected missing feature entitlement to be rejected")
 	}
+	allScope := RoutedEvent{
+		Type: paymentEventType,
+		Audience: EventAudience{
+			PolicyCodes:  []string{"PAYMENT_MONITOR_ALL_SCOPE"},
+			FeatureCodes: []string{"PAYMENT_MONITOR"},
+		},
+	}
+	policyAllowed := &Client{auth: &ClientAuth{
+		PolicyCodes:  []string{"PAYMENT_MONITOR_ALL_SCOPE"},
+		FeatureCodes: []string{"PAYMENT_MONITOR"},
+	}}
+	if !policyAllowed.canReceive(allScope) {
+		t.Fatal("expected matching all-scope policy to receive event")
+	}
+	organizationCollision := &Client{auth: &ClientAuth{
+		OrganizationAccessCodes: []string{"PAYMENT_MONITOR_ALL_SCOPE"},
+		FeatureCodes:            []string{"PAYMENT_MONITOR"},
+	}}
+	if organizationCollision.canReceive(allScope) {
+		t.Fatal("expected organization code collision not to satisfy policy audience")
+	}
 	unauthenticated := &Client{}
 	if unauthenticated.canReceive(event) {
 		t.Fatal("expected unauthenticated client to be rejected")
+	}
+}
+
+func TestUnscopedSuperAdminReceivesStoreEventsWhileSelectedStoreNarrows(t *testing.T) {
+	event := RoutedEvent{
+		Type: paymentEventType,
+		Audience: EventAudience{
+			StoreCodes:   []string{"CP01"},
+			FeatureCodes: []string{"PAYMENT_MONITOR"},
+		},
+	}
+	unscoped := &Client{auth: &ClientAuth{
+		Role:         "SUPER_ADMIN",
+		FeatureCodes: []string{"PAYMENT_MONITOR"},
+	}}
+	if !unscoped.canReceive(event) {
+		t.Fatal("expected unscoped super admin to receive store event")
+	}
+	matchingStore := &Client{auth: &ClientAuth{
+		Role:          "SUPER_ADMIN",
+		SelectedStore: "CP01",
+		FeatureCodes:  []string{"PAYMENT_MONITOR"},
+	}}
+	if !matchingStore.canReceive(event) {
+		t.Fatal("expected selected-store super admin to receive matching event")
+	}
+	otherStore := &Client{auth: &ClientAuth{
+		Role:          "SUPER_ADMIN",
+		SelectedStore: "CP02",
+		FeatureCodes:  []string{"PAYMENT_MONITOR"},
+	}}
+	if otherStore.canReceive(event) {
+		t.Fatal("expected selected-store super admin to reject another store")
+	}
+}
+
+func TestSelectedStoreNarrowsOrdinaryMultiStoreAudience(t *testing.T) {
+	auth := &ClientAuth{
+		Role:                    "MANAGER",
+		StoreCode:               "CP01",
+		OrganizationAccessCodes: []string{"CP01", "CP02"},
+		FeatureCodes:            []string{"PAYMENT_MONITOR"},
+		SelectedStore:           "CP01",
+	}
+	matchingStore := RoutedEvent{
+		Type: paymentEventType,
+		Audience: EventAudience{
+			StoreCodes:   []string{"CP01"},
+			Roles:        []string{"MANAGER"},
+			FeatureCodes: []string{"PAYMENT_MONITOR"},
+		},
+	}
+	if !(&Client{auth: auth}).canReceive(matchingStore) {
+		t.Fatal("expected selected-store user to receive matching store event")
+	}
+
+	otherStore := matchingStore
+	otherStore.Audience.StoreCodes = []string{"CP02"}
+	if (&Client{auth: auth}).canReceive(otherStore) {
+		t.Fatal("expected selected store to reject another assigned store even when role matches")
 	}
 }
 
@@ -731,6 +815,7 @@ func ticketPayload(t *testing.T, expiresAt time.Time, override map[string]any) [
 		"departmentCode":          "SALES",
 		"organizationNodeId":      "node-1",
 		"organizationAccessCodes": []string{"CP01"},
+		"policyCodes":             []string{"PAYMENT_MONITOR_ALL_SCOPE"},
 		"featureCodes":            []string{"WARRANTY", "PAYMENT_MONITOR"},
 		"sessionId":               "session-1",
 		"platform":                "web",

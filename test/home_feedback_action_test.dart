@@ -449,12 +449,17 @@ class _FakeHomeSummaryRepository extends HomeSummaryRepository {
     String? scope,
     String? organizationNodeId,
     String? salesProgressUserId,
+    String? cacheIdentity,
+    bool forceRefresh = false,
   }) async {
     return summary;
   }
 
   @override
-  Future<List<HomeSummaryScopeOptionDto>> fetchScopeOptions() async {
+  Future<List<HomeSummaryScopeOptionDto>> fetchScopeOptions({
+    String? cacheIdentity,
+    bool forceRefresh = false,
+  }) async {
     return const [];
   }
 }

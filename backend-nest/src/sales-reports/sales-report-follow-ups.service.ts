@@ -14,6 +14,8 @@ import {
 import { isSuperAdminRole } from '../common/system-role';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
+import { buildRealtimeRedisEnvelope } from '../common/realtime-event';
+import { FEATURE_KEYS } from '../feature/feature.constants';
 import {
   AssignSalesReportFollowUpCaseDto,
   CreateSalesReportFollowUpEntryDto,
@@ -74,8 +76,7 @@ export class SalesReportFollowUpsService {
     const parts: Prisma.SalesReportFollowUpCaseWhereInput[] = [
       scopeWhere,
       {
-        status:
-          status === 'OPEN' ? 'OPEN' : { in: HIDDEN_STATUSES },
+        status: status === 'OPEN' ? 'OPEN' : { in: HIDDEN_STATUSES },
         sourceReport: {
           reportType: 'NOT_PURCHASED',
           OR: [
@@ -184,13 +185,16 @@ export class SalesReportFollowUpsService {
         entrySource: 'COMEBACK',
         customerName:
           this.text(body.purchasedReport.customerName, 120) ??
-          row.sourceReport.customerName ?? undefined,
+          row.sourceReport.customerName ??
+          undefined,
         customerPhone:
           this.text(body.purchasedReport.customerPhone, 30) ??
-          row.sourceReport.customerPhone ?? undefined,
+          row.sourceReport.customerPhone ??
+          undefined,
         customerZaloContact:
           this.text(body.purchasedReport.customerZaloContact, 120) ??
-          row.sourceReport.customerZaloContact ?? undefined,
+          row.sourceReport.customerZaloContact ??
+          undefined,
       };
       const report = await this.salesReports.create(user, purchasedBody, {
         comebackScope: this.caseScope(row),
@@ -255,8 +259,7 @@ export class SalesReportFollowUpsService {
         throw new BadRequestException('Vui lòng nhập lý do khác.');
       }
     }
-    const nextStatus =
-      body.outcome === 'NOT_PURCHASED' ? 'OPEN' : body.outcome;
+    const nextStatus = body.outcome === 'NOT_PURCHASED' ? 'OPEN' : body.outcome;
     await this.prisma.$transaction(async (tx) => {
       const claimed = await tx.salesReportFollowUpCase.updateMany({
         where: {
@@ -443,7 +446,11 @@ export class SalesReportFollowUpsService {
   private isManager(user: any, principal: any) {
     if (isSuperAdminRole(user?.role ?? principal?.role)) return true;
     const codes = [principal?.jobRoleCode, principal?.jobRole?.code]
-      .map((value) => String(value || '').trim().toUpperCase())
+      .map((value) =>
+        String(value || '')
+          .trim()
+          .toUpperCase(),
+      )
       .filter(Boolean);
     return codes.some(
       (code) =>
@@ -486,7 +493,11 @@ export class SalesReportFollowUpsService {
     row: any,
   ) {
     if (manager) {
-      await this.assertStoreAllowed(user, principal, row.sourceReport.storeCode);
+      await this.assertStoreAllowed(
+        user,
+        principal,
+        row.sourceReport.storeCode,
+      );
       return;
     }
     if (!this.isAssignee(user, principal, row)) {
@@ -511,7 +522,10 @@ export class SalesReportFollowUpsService {
   private async assertStoreAllowed(user: any, principal: any, value: unknown) {
     if (isSuperAdminRole(user?.role ?? principal?.role)) return;
     const storeCode = this.storeCode(value);
-    if (!storeCode || !this.principalStoreCodes(principal).includes(storeCode)) {
+    if (
+      !storeCode ||
+      !this.principalStoreCodes(principal).includes(storeCode)
+    ) {
       throw new ForbiddenException(
         'Hồ sơ không thuộc showroom hoặc node bạn được phân công.',
       );
@@ -684,21 +698,35 @@ export class SalesReportFollowUpsService {
     source: string,
     additionalRecipientUserIds: unknown[] = [],
   ) {
-    await this.redis.publishMessage(REALTIME_CHANNEL, {
-      source,
-      dates: [],
-      newOrderCount: 0,
-      mappedOrderCount: 0,
-      storeCodes: row.sourceReport.storeCode
-        ? [row.sourceReport.storeCode]
-        : [],
-      recipientUserIds: [
-        row.assigneeUserId,
-        user?.id,
-        ...additionalRecipientUserIds,
-      ].filter(Boolean),
-      caseId: row.id,
-    });
+    const storeCodes = row.sourceReport.storeCode
+      ? [row.sourceReport.storeCode]
+      : [];
+    const recipientUserIds = [
+      row.assigneeUserId,
+      user?.id,
+      ...additionalRecipientUserIds,
+    ];
+    await this.redis.publishMessage(
+      REALTIME_CHANNEL,
+      buildRealtimeRedisEnvelope({
+        type: 'SALES_REPORT_ORDERS_UPDATED',
+        audience: {
+          storeCodes,
+          recipientUserIds,
+          roles: ['SUPER_ADMIN'],
+          featureCodes: [FEATURE_KEYS.SALES_REPORT],
+        },
+        payload: {
+          source,
+          dates: [],
+          newOrderCount: 0,
+          mappedOrderCount: 0,
+          storeCodes,
+          recipientUserIds: recipientUserIds.filter(Boolean),
+          caseId: row.id,
+        },
+      }),
+    );
   }
 
   private outcomeLabel(value: string) {

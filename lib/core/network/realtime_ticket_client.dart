@@ -13,8 +13,8 @@ class RealtimeTicketClient {
 
   final ApiClient _apiClient;
 
-  /// Issues the same one-time ticket as the legacy socket while targeting the
-  /// versioned application gateway. Existing feature sockets keep using /ws.
+  /// Issues a one-time ticket for the shared authenticated v2 gateway. The
+  /// legacy `/ws` URI remains available only for the measured migration window.
   Future<Uri> issueV2ConnectionUri({String? storeCode}) async {
     final uri = await issueConnectionUri(storeCode: storeCode);
     return uri.replace(path: '/ws/v2');

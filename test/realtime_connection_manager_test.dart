@@ -84,8 +84,42 @@ void main() {
       });
       connections.first.add(message);
       connections.first.add(message);
+      connections.first.add(
+        jsonEncode({
+          'v': 2,
+          'kind': 'HOME_SUMMARY_UPDATED',
+          'id': 'event-41-late',
+          'topic': 'home.summary',
+          'seq': 41,
+          'ts': '2026-07-14T10:30:04Z',
+          'data': {
+            'affectedDates': ['2026-07-14'],
+            'projectionVersion': 41,
+          },
+        }),
+      );
       await tester.pump();
       expect(events.map((event) => event.id), ['event-42']);
+
+      for (final sequence in [50, 49]) {
+        connections.first.add(
+          jsonEncode({
+            'v': 2,
+            'kind': 'PAYMENT_NOTIFICATION',
+            'id': 'payment-$sequence',
+            'topic': 'payment.transactions',
+            'seq': sequence,
+            'ts': '2026-07-14T10:30:05Z',
+            'data': {'storeCode': 'CP01'},
+          }),
+        );
+      }
+      await tester.pump();
+      expect(events.map((event) => event.id), [
+        'event-42',
+        'payment-50',
+        'payment-49',
+      ]);
 
       await connections.first.closeFromServer();
       await tester.pump();
@@ -97,6 +131,51 @@ void main() {
       manager.handleAppResumed();
       await tester.pump();
       expect(syncReasons.last, RealtimeSyncReason.appResumed);
+    },
+  );
+
+  testWidgets(
+    'session change while ticket is pending does not block the new connection',
+    (tester) async {
+      final firstTicket = Completer<Uri>();
+      final connections = <_FakeRealtimeConnection>[];
+      var issuedUris = 0;
+      final manager = RealtimeConnectionManager(
+        issueConnectionUri: () {
+          issuedUris += 1;
+          if (issuedUris == 1) return firstTicket.future;
+          return Future.value(
+            Uri.parse('ws://localhost/ws/v2?ticket=session-2'),
+          );
+        },
+        connector: (uri) {
+          final connection = _FakeRealtimeConnection();
+          connections.add(connection);
+          return connection;
+        },
+      );
+      addTearDown(manager.shutdown);
+
+      await manager.syncSession('session-1');
+      await tester.pump();
+      expect(issuedUris, 1);
+
+      await manager.syncSession(null);
+      await manager.syncSession('session-2');
+      await tester.pump();
+      await tester.pump();
+
+      expect(issuedUris, 2);
+      expect(connections, hasLength(1));
+      expect(manager.isConnected, isTrue);
+
+      firstTicket.complete(
+        Uri.parse('ws://localhost/ws/v2?ticket=obsolete-session'),
+      );
+      await tester.pump();
+
+      expect(connections, hasLength(1));
+      expect(manager.isConnected, isTrue);
     },
   );
 }

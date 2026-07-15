@@ -25,6 +25,7 @@ class QuickActionsProvider extends ChangeNotifier {
   String? _userKey;
   String? _ownerId;
   int _userGeneration = 0;
+  bool _needsInitialSync = false;
 
   QuickActionsProvider(
     this._repository, {
@@ -39,24 +40,35 @@ class QuickActionsProvider extends ChangeNotifier {
   bool get isLoading => _loading;
   Object? get error => _error;
 
-  Future<void> syncUser(User? user) async {
+  Future<void> syncUser(User? user, {bool isSurfaceActive = true}) async {
     final nextUserKey = _cacheIdentityFor(user);
-    if (_userKey == nextUserKey) return;
-    _userKey = nextUserKey;
-    _ownerId = user == null ? null : (user.id ?? user.email.toLowerCase());
-    _userGeneration += 1;
-    final generation = _userGeneration;
-    _payload = null;
-    _loading = false;
-    _error = null;
-    _cache.clear();
-    _refreshInFlight.clear();
-    if (user?.canUseFeature('QUICK_ACTIONS') != true ||
-        nextUserKey == null ||
-        _ownerId == null) {
+    final userChanged = _userKey != nextUserKey;
+    if (userChanged) {
+      _userKey = nextUserKey;
+      _ownerId = user == null ? null : (user.id ?? user.email.toLowerCase());
+      _userGeneration += 1;
+      _payload = null;
+      _loading = false;
+      _error = null;
+      _cache.clear();
+      _refreshInFlight.clear();
+      _needsInitialSync =
+          user?.canUseFeature('QUICK_ACTIONS') == true &&
+          nextUserKey != null &&
+          _ownerId != null;
       notifyListeners();
-      return;
+      if (_needsInitialSync && !isSurfaceActive) {
+        unawaited(
+          AppLogger.instance.info(
+            'QuickActions',
+            'Quick actions initial load deferred until surface is active',
+          ),
+        );
+      }
     }
+    if (!_needsInitialSync || !isSurfaceActive) return;
+    _needsInitialSync = false;
+    final generation = _userGeneration;
 
     final persisted = await _readPersistent(_scopeCacheKey);
     if (generation != _userGeneration) return;

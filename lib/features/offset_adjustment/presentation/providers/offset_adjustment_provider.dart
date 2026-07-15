@@ -1,14 +1,11 @@
 import 'dart:async';
-import 'dart:convert';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
-import 'package:web_socket_channel/web_socket_channel.dart';
 
 import '../../../../core/logging/app_logger.dart';
-import '../../../../core/network/api_client.dart';
 import '../../../../core/network/api_exception.dart';
-import '../../../../core/network/realtime_ticket_client.dart';
+import '../../../../core/network/realtime_connection_manager.dart';
 import '../../../../core/utils/date_range_defaults.dart';
 import '../../../auth/domain/entities/store_branch.dart';
 import '../../../auth/domain/entities/user.dart';
@@ -16,19 +13,21 @@ import '../../data/offset_adjustment_repository.dart';
 import '../../domain/offset_adjustment.dart';
 
 const _offsetRealtimeEventType = 'OFFSET_ADJUSTMENT_NOTIFICATION';
-
-typedef OffsetRealtimeConnector = WebSocketChannel Function(Uri uri);
+const _offsetRealtimeTopic = 'notifications.offset-adjustment';
 
 class OffsetAdjustmentProvider extends ChangeNotifier {
   final OffsetAdjustmentRepository _repository;
   final DateTime Function() _now;
-  final OffsetRealtimeConnector _realtimeConnector;
+  final RealtimeClient _realtimeClient;
+  final Duration _realtimeDebounce;
+  final Duration _realtimeMaxWait;
   final List<OffsetAdjustment> _items = [];
   final List<OffsetAdjustment> _pendingItems = [];
   final List<StoreBranch> _stores = [];
-  StreamSubscription<dynamic>? _realtimeSubscription;
-  WebSocketChannel? _realtimeChannel;
-  String? _realtimeUrl;
+  StreamSubscription<RealtimeEnvelope>? _realtimeSubscription;
+  StreamSubscription<RealtimeSyncReason>? _realtimeSyncSubscription;
+  Timer? _realtimeDebounceTimer;
+  Timer? _realtimeMaxWaitTimer;
   User? _user;
 
   bool _storesLoaded = false;
@@ -39,6 +38,11 @@ class OffsetAdjustmentProvider extends ChangeNotifier {
   bool _isExporting = false;
   bool _hasSearched = false;
   bool _canReview = false;
+  bool _isInitialized = false;
+  bool _disposed = false;
+  bool _realtimeDirty = false;
+  bool _realtimeRefreshInFlight = false;
+  bool _realtimeImmediatePending = false;
   String _type = 'ALL';
   String _status = 'ALL';
   String? _order;
@@ -56,10 +60,20 @@ class OffsetAdjustmentProvider extends ChangeNotifier {
   OffsetAdjustmentProvider(
     this._repository, {
     DateTime Function()? now,
-    OffsetRealtimeConnector? realtimeConnector,
+    RealtimeClient? realtimeClient,
+    Duration realtimeDebounce = const Duration(seconds: 2),
+    Duration realtimeMaxWait = const Duration(seconds: 5),
   }) : _now = now ?? DateTime.now,
-       _realtimeConnector =
-           realtimeConnector ?? ((uri) => WebSocketChannel.connect(uri));
+       _realtimeClient = realtimeClient ?? RealtimeConnectionManager.instance,
+       _realtimeDebounce = realtimeDebounce,
+       _realtimeMaxWait = realtimeMaxWait {
+    _realtimeSubscription = _realtimeClient.events.listen(
+      _handleRealtimeEnvelope,
+    );
+    _realtimeSyncSubscription = _realtimeClient.syncRequests.listen(
+      _handleRealtimeSyncRequest,
+    );
+  }
 
   List<OffsetAdjustment> get items => List.unmodifiable(_items);
   List<OffsetAdjustment> get pendingItems => List.unmodifiable(_pendingItems);
@@ -101,7 +115,10 @@ class OffsetAdjustmentProvider extends ChangeNotifier {
     if (!_storesLoaded) await loadStores();
     await search();
     await loadPendingTotal();
-    unawaited(_connectRealtime());
+    _isInitialized = true;
+    if (_realtimeDirty) {
+      _queueRealtimeRefresh(reason: 'provider_activated', immediate: true);
+    }
   }
 
   Future<void> loadStores() async {
@@ -149,7 +166,6 @@ class OffsetAdjustmentProvider extends ChangeNotifier {
     _selectedStoreIds = ids.map((id) => id.toUpperCase()).toSet();
     _resetPaging();
     notifyListeners();
-    unawaited(_connectRealtime());
   }
 
   void setType(String value) {
@@ -455,112 +471,157 @@ class OffsetAdjustmentProvider extends ChangeNotifier {
     );
   }
 
-  Future<void> _connectRealtime() async {
-    final token = ApiClient().authToken?.trim();
-    if (token == null || token.isEmpty) return;
-    final storeCode = _realtimeStoreId();
-    final connectionKey = '$storeCode|$token';
-    if (_realtimeUrl == connectionKey && _realtimeChannel != null) return;
-    _closeRealtime();
-    try {
-      final uri = await RealtimeTicketClient.instance.issueConnectionUri(
-        storeCode: storeCode,
-      );
-      if (ApiClient().authToken?.trim() != token) return;
-      final channel = _realtimeConnector(uri);
-      _realtimeChannel = channel;
-      _realtimeUrl = connectionKey;
-      _realtimeSubscription = channel.stream.listen(
-        _handleRealtimeMessage,
-        onError: (error, stackTrace) {
-          unawaited(
-            AppLogger.instance.warn(
-              'OffsetAdjustment',
-              'Offset adjustment realtime failed',
-              context: {
-                'error': error.toString(),
-                'stackTrace': stackTrace.toString(),
-              },
-            ),
-          );
+  void _handleRealtimeEnvelope(RealtimeEnvelope envelope) {
+    if (envelope.kind != _offsetRealtimeEventType ||
+        envelope.topic != _offsetRealtimeTopic) {
+      return;
+    }
+    final adjustmentId = envelope.data['adjustmentId']?.toString().trim();
+    final storeCode = envelope.data['storeCode']?.toString().trim();
+    if (adjustmentId == null ||
+        adjustmentId.isEmpty ||
+        storeCode == null ||
+        storeCode.isEmpty ||
+        !_isRealtimeStoreRelevant(storeCode)) {
+      return;
+    }
+    unawaited(
+      AppLogger.instance.info(
+        'OffsetAdjustment',
+        'Offset adjustment realtime received',
+        context: {
+          'eventId': envelope.id,
+          'storeCode': storeCode,
+          'canReview': _canReview,
         },
-        onDone: () {
-          _realtimeChannel = null;
-          _realtimeSubscription = null;
-          _realtimeUrl = null;
-        },
-      );
+      ),
+    );
+    _queueRealtimeRefresh(reason: 'event');
+  }
+
+  void _handleRealtimeSyncRequest(RealtimeSyncReason reason) {
+    if (_disposed) return;
+    _realtimeDirty = true;
+    if (!_canConsumeRealtime) {
       unawaited(
         AppLogger.instance.info(
           'OffsetAdjustment',
-          'Offset adjustment realtime connected',
-          context: {'storeId': _realtimeStoreId(), 'canReview': _canReview},
+          'Offset adjustment realtime sync deferred',
+          context: {'reason': reason.name},
         ),
       );
-    } catch (error, stackTrace) {
-      unawaited(
-        AppLogger.instance.warn(
-          'OffsetAdjustment',
-          'Offset adjustment realtime connect failed',
-          context: {
-            'error': error.toString(),
-            'stackTrace': stackTrace.toString(),
-          },
-        ),
-      );
+      return;
     }
+    unawaited(
+      AppLogger.instance.info(
+        'OffsetAdjustment',
+        'Offset adjustment realtime sync requested',
+        context: {'reason': reason.name},
+      ),
+    );
+    _queueRealtimeRefresh(reason: 'sync_${reason.name}', immediate: true);
   }
 
-  void _handleRealtimeMessage(dynamic message) {
+  void _queueRealtimeRefresh({required String reason, bool immediate = false}) {
+    if (_disposed) return;
+    _realtimeDirty = true;
+    if (immediate) _realtimeImmediatePending = true;
+    if (!_canConsumeRealtime) return;
+    if (immediate) {
+      _realtimeDebounceTimer?.cancel();
+      _realtimeDebounceTimer = null;
+      _realtimeMaxWaitTimer?.cancel();
+      _realtimeMaxWaitTimer = null;
+      unawaited(_flushRealtimeRefresh(reason));
+      return;
+    }
+    _realtimeDebounceTimer?.cancel();
+    if (_realtimeDebounce <= Duration.zero) {
+      unawaited(_flushRealtimeRefresh(reason));
+      return;
+    }
+    _realtimeDebounceTimer = Timer(_realtimeDebounce, () {
+      _realtimeDebounceTimer = null;
+      unawaited(_flushRealtimeRefresh('debounce'));
+    });
+    if (_realtimeMaxWaitTimer == null && _realtimeMaxWait > Duration.zero) {
+      _realtimeMaxWaitTimer = Timer(_realtimeMaxWait, () {
+        _realtimeMaxWaitTimer = null;
+        unawaited(_flushRealtimeRefresh('max_wait'));
+      });
+    }
+    unawaited(
+      AppLogger.instance.info(
+        'OffsetAdjustment',
+        'Offset adjustment realtime refresh queued',
+        context: {
+          'reason': reason,
+          'debounceMs': _realtimeDebounce.inMilliseconds,
+          'maxWaitMs': _realtimeMaxWait.inMilliseconds,
+        },
+      ),
+    );
+  }
+
+  Future<void> _flushRealtimeRefresh(String reason) async {
+    _realtimeDebounceTimer?.cancel();
+    _realtimeDebounceTimer = null;
+    _realtimeMaxWaitTimer?.cancel();
+    _realtimeMaxWaitTimer = null;
+    if (_disposed || !_canConsumeRealtime) return;
+    if (_realtimeRefreshInFlight) return;
+    if (!_realtimeDirty) return;
+    _realtimeDirty = false;
+    _realtimeImmediatePending = false;
+    _realtimeRefreshInFlight = true;
+    final startedAt = DateTime.now();
     try {
-      final text = switch (message) {
-        String value => value,
-        List<int> value => utf8.decode(value),
-        _ => '',
-      };
-      if (text.isEmpty) return;
-      final decoded = jsonDecode(text);
-      if (decoded is! Map ||
-          decoded['type']?.toString() != _offsetRealtimeEventType) {
-        return;
-      }
-      final payload = decoded['payload'];
-      final storeCode = payload is Map
-          ? payload['storeCode']?.toString()
-          : null;
-      if (!_canReview &&
-          (storeCode ?? '').toUpperCase() !=
-              (_user?.storeId ?? '').toUpperCase()) {
-        return;
-      }
-      unawaited(
-        AppLogger.instance.info(
-          'OffsetAdjustment',
-          'Offset adjustment realtime received',
-          context: {'storeCode': storeCode, 'canReview': _canReview},
-        ),
+      await AppLogger.instance.info(
+        'OffsetAdjustment',
+        'Offset adjustment realtime refresh started',
+        context: {'reason': reason},
       );
-      unawaited(loadPendingTotal());
-      if (_pendingItems.isNotEmpty) unawaited(loadPendingItems());
-      if (_hasSearched) unawaited(search(page: _page));
+      await loadPendingTotal();
+      if (_pendingItems.isNotEmpty) await loadPendingItems();
+      if (_hasSearched) await search(page: _page);
+      await AppLogger.instance.info(
+        'OffsetAdjustment',
+        'Offset adjustment realtime refresh succeeded',
+        context: {
+          'reason': reason,
+          'durationMs': DateTime.now().difference(startedAt).inMilliseconds,
+        },
+      );
     } catch (error, stackTrace) {
-      unawaited(
-        AppLogger.instance.warn(
-          'OffsetAdjustment',
-          'Offset adjustment realtime parse failed',
-          context: {
-            'error': error.toString(),
-            'stackTrace': stackTrace.toString(),
-          },
-        ),
+      await AppLogger.instance.error(
+        'OffsetAdjustment',
+        'Offset adjustment realtime refresh failed',
+        error: error,
+        stackTrace: stackTrace,
+        context: {'reason': reason},
       );
+    } finally {
+      _realtimeRefreshInFlight = false;
+      if (!_disposed && _realtimeDirty) {
+        if (_realtimeImmediatePending) {
+          unawaited(_flushRealtimeRefresh('pending_sync'));
+        } else {
+          _queueRealtimeRefresh(reason: 'event_during_refresh');
+        }
+      }
     }
   }
 
-  String? _realtimeStoreId() {
-    if (_selectedStoreIds.length == 1) return _selectedStoreIds.single;
-    if (!_canReview) return _user?.storeId;
-    return null;
+  bool get _canConsumeRealtime =>
+      !_disposed &&
+      _isInitialized &&
+      _user != null &&
+      _user?.canUseOffsetAdjustments == true;
+
+  bool _isRealtimeStoreRelevant(String storeCode) {
+    if (_canReview) return true;
+    return storeCode.trim().toUpperCase() ==
+        (_user?.storeId ?? '').trim().toUpperCase();
   }
 
   static Set<String> _assignedStoreIdsFor(User? user) {
@@ -635,19 +696,21 @@ class OffsetAdjustmentProvider extends ChangeNotifier {
     return normalized.toLowerCase();
   }
 
-  void _closeRealtime() {
-    final subscription = _realtimeSubscription;
-    if (subscription != null) unawaited(subscription.cancel());
-    _realtimeSubscription = null;
-    final channel = _realtimeChannel;
-    if (channel != null) unawaited(channel.sink.close());
-    _realtimeChannel = null;
-    _realtimeUrl = null;
+  void _cancelRealtimeRefresh() {
+    _realtimeDebounceTimer?.cancel();
+    _realtimeDebounceTimer = null;
+    _realtimeMaxWaitTimer?.cancel();
+    _realtimeMaxWaitTimer = null;
+    _realtimeDirty = false;
+    _realtimeImmediatePending = false;
   }
 
   @override
   void dispose() {
-    _closeRealtime();
+    _disposed = true;
+    _cancelRealtimeRefresh();
+    unawaited(_realtimeSubscription?.cancel());
+    unawaited(_realtimeSyncSubscription?.cancel());
     super.dispose();
   }
 }

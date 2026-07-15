@@ -47,7 +47,7 @@ void main() {
           {'id': 'store-75', 'storeId': 'CP75', 'storeName': 'Phan Đăng Lưu 2'},
         ]),
       });
-      FlutterSecureStorage.setMockInitialValues({});
+      _seedSecureToken();
 
       await tester.pumpWidget(
         ChangeNotifierProvider<AuthProvider>(
@@ -99,7 +99,7 @@ void main() {
       AppStorageKeys.shared('user_storeId'): 'CP62',
       AppStorageKeys.shared('user_storeName'): 'Phan Đăng Lưu',
     });
-    FlutterSecureStorage.setMockInitialValues({});
+    _seedSecureToken();
 
     await tester.pumpWidget(
       ChangeNotifierProvider<AuthProvider>(
@@ -126,5 +126,11 @@ void main() {
     expect(find.text('Xác nhận đăng xuất'), findsNothing);
     expect(find.byKey(const Key('profile-session-card')), findsOneWidget);
     expect(tester.takeException(), isNull);
+  });
+}
+
+void _seedSecureToken() {
+  FlutterSecureStorage.setMockInitialValues({
+    AppStorageKeys.secure('user_jwt_token'): 'widget-test-token',
   });
 }

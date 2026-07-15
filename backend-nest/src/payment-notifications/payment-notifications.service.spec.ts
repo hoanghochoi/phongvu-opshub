@@ -174,18 +174,29 @@ describe('PaymentNotificationsService', () => {
     expect(redis.publishMessage).toHaveBeenCalledWith(
       'PAYMENT_NOTIFICATION_READY',
       expect.objectContaining({
-        notificationId: 'note-1',
-        storeCode: 'CP01',
-        amount: 1250000,
-        transactionContent: 'DH001 CP01 BOT',
-        transferContent: 'DH001 CP01 BOT',
-        transactionNumber: 'STMT-1',
-        payerName: 'NGUYEN VAN A',
-        payerAccount: '123456',
-        paidAt: '2026-06-27T01:00:00.000Z',
-        firstSeenAt: '2026-06-27T01:00:01.000Z',
-        audioStatus: 'FAILED',
-        audioUrl: null,
+        schemaVersion: 1,
+        type: 'PAYMENT_NOTIFICATION',
+        eventId: expect.any(String),
+        occurredAt: expect.any(String),
+        audience: expect.objectContaining({
+          storeCodes: ['CP01'],
+          policyCodes: ['PAYMENT_MONITOR_ALL_SCOPE'],
+          featureCodes: ['PAYMENT_MONITOR'],
+        }),
+        payload: expect.objectContaining({
+          notificationId: 'note-1',
+          storeCode: 'CP01',
+          amount: 1250000,
+          transactionContent: 'DH001 CP01 BOT',
+          transferContent: 'DH001 CP01 BOT',
+          transactionNumber: 'STMT-1',
+          payerName: 'NGUYEN VAN A',
+          payerAccount: '123456',
+          paidAt: '2026-06-27T01:00:00.000Z',
+          firstSeenAt: '2026-06-27T01:00:01.000Z',
+          audioStatus: 'FAILED',
+          audioUrl: null,
+        }),
       }),
     );
   });
@@ -225,19 +236,30 @@ describe('PaymentNotificationsService', () => {
     expect(redis.publishMessage).toHaveBeenCalledWith(
       'PAYMENT_SPEAKER_STREAM',
       expect.objectContaining({
-        notificationId: 'note-stream',
-        transactionId: 'txn-stream',
-        storeCode: 'CP01',
-        amount: 1250000,
-        transactionContent: 'DH002 CP01 BOT',
-        transferContent: 'DH002 CP01 BOT',
-        transactionNumber: 'STMT-2',
-        payerName: 'NGUYEN VAN B',
-        payerAccount: '987654',
-        paidAt: '2026-06-27T00:59:58.000Z',
-        firstSeenAt: '2026-06-27T01:00:00.000Z',
-        streamUrl: '/payment-notifications/note-stream/stream',
-        attempt: 1,
+        schemaVersion: 1,
+        type: 'PAYMENT_SPEAKER_STREAM',
+        eventId: expect.any(String),
+        occurredAt: expect.any(String),
+        audience: expect.objectContaining({
+          storeCodes: ['CP01'],
+          policyCodes: ['PAYMENT_MONITOR_ALL_SCOPE'],
+          featureCodes: ['PAYMENT_SPEAKER'],
+        }),
+        payload: expect.objectContaining({
+          notificationId: 'note-stream',
+          transactionId: 'txn-stream',
+          storeCode: 'CP01',
+          amount: 1250000,
+          transactionContent: 'DH002 CP01 BOT',
+          transferContent: 'DH002 CP01 BOT',
+          transactionNumber: 'STMT-2',
+          payerName: 'NGUYEN VAN B',
+          payerAccount: '987654',
+          paidAt: '2026-06-27T00:59:58.000Z',
+          firstSeenAt: '2026-06-27T01:00:00.000Z',
+          streamUrl: '/payment-notifications/note-stream/stream',
+          attempt: 1,
+        }),
       }),
     );
     expect(prisma.paymentNotificationDeliveryLog.create).toHaveBeenCalledWith({
@@ -1002,6 +1024,19 @@ describe('PaymentNotificationsService', () => {
     });
     expect(loggerSpy).toHaveBeenCalledWith(
       expect.stringContaining('bankToStreamStartLatencyMs=3245'),
+    );
+    expect(redis.publishMessage).toHaveBeenCalledWith(
+      'PAYMENT_DELIVERY_METRICS_UPDATED',
+      expect.objectContaining({
+        schemaVersion: 1,
+        type: 'PAYMENT_DELIVERY_METRICS_UPDATED',
+        audience: expect.objectContaining({ roles: ['SUPER_ADMIN'] }),
+        payload: {
+          version: new Date('2026-06-27T01:00:03.245Z').getTime(),
+          reason: 'delivery-state-changed',
+          affectedStoreCodes: ['CP01'],
+        },
+      }),
     );
   });
 

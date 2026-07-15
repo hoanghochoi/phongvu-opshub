@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:phongvu_opshub/app/navigation/app_router.dart';
@@ -6,6 +8,7 @@ import 'helpers/legacy_widget_finders.dart';
 import 'package:go_router/go_router.dart';
 import 'package:phongvu_opshub/core/logging/app_logger.dart';
 import 'package:phongvu_opshub/core/network/api_client.dart';
+import 'package:phongvu_opshub/core/network/realtime_connection_manager.dart';
 import 'package:phongvu_opshub/features/auth/data/repositories/auth_repository.dart';
 import 'package:phongvu_opshub/features/auth/domain/entities/store_branch.dart';
 import 'package:phongvu_opshub/features/auth/domain/entities/user.dart';
@@ -1054,13 +1057,16 @@ void main() {
   });
 
   test(
-    'SalesReportProvider refreshes orders from relevant realtime events',
+    'SalesReportProvider filters and coalesces shared realtime v2 events',
     () async {
       final repository = _FakeSalesReportRepository(managedScope: true);
+      final realtime = _FakeRealtimeClient();
       final provider = SalesReportProvider(
         repository,
         now: () => DateTime(2026, 7, 1, 9),
-        realtimeDebounce: Duration.zero,
+        realtimeClient: realtime,
+        realtimeDebounce: const Duration(milliseconds: 15),
+        realtimeMaxWait: const Duration(milliseconds: 80),
       );
 
       await provider.initialize(
@@ -1077,20 +1083,60 @@ void main() {
       );
       expect(repository.fetchOrdersCount, 1);
 
-      provider.handleRealtimeMessageForTesting(
-        '{"type":"SALES_REPORT_ORDERS_UPDATED","payload":{"dates":["2026-07-01"],"newOrderCount":1,"mappedOrderCount":0,"storeCodes":["CP01"],"recipientUserIds":["manager-1"]}}',
+      realtime.addEvent(
+        _salesReportEnvelope(
+          id: 'wrong-topic',
+          topic: 'home.summary',
+          dates: const ['2026-07-01'],
+        ),
       );
-      await Future<void>.delayed(const Duration(milliseconds: 1));
+      realtime.addEvent(
+        _salesReportEnvelope(id: 'relevant-1', dates: const ['2026-07-01']),
+      );
+      realtime.addEvent(
+        _salesReportEnvelope(id: 'relevant-2', dates: const ['2026-07-01']),
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 5));
+      expect(repository.fetchOrdersCount, 1);
+      await Future<void>.delayed(const Duration(milliseconds: 30));
 
       expect(repository.fetchOrdersCount, 2);
 
-      provider.handleRealtimeMessageForTesting(
-        '{"type":"SALES_REPORT_ORDERS_UPDATED","payload":{"dates":["2026-07-02"],"newOrderCount":1,"mappedOrderCount":0,"storeCodes":["CP01"],"recipientUserIds":["manager-1"]}}',
+      realtime.addEvent(
+        _salesReportEnvelope(id: 'outside-date', dates: const ['2026-07-02']),
       );
-      await Future<void>.delayed(const Duration(milliseconds: 1));
+      await Future<void>.delayed(const Duration(milliseconds: 30));
 
       expect(repository.fetchOrdersCount, 2);
+
+      realtime.requestSync(RealtimeSyncReason.reconnected);
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+      expect(repository.fetchOrdersCount, 3);
+
       provider.dispose();
+      await realtime.dispose();
+    },
+  );
+}
+
+RealtimeEnvelope _salesReportEnvelope({
+  required String id,
+  String topic = 'sales-report.orders',
+  List<String> dates = const [],
+}) {
+  return RealtimeEnvelope(
+    version: 2,
+    kind: 'SALES_REPORT_ORDERS_UPDATED',
+    id: id,
+    topic: topic,
+    sequence: id.hashCode.abs(),
+    timestamp: DateTime(2026, 7, 1, 9),
+    data: {
+      'dates': dates,
+      'newOrderCount': 1,
+      'mappedOrderCount': 0,
+      'storeCodes': ['CP01'],
+      'recipientUserIds': ['manager-1'],
     },
   );
 }
@@ -1312,5 +1358,28 @@ class _FakeSalesReportRepository extends SalesReportRepository {
         },
       ],
     });
+  }
+}
+
+class _FakeRealtimeClient implements RealtimeClient {
+  final _events = StreamController<RealtimeEnvelope>.broadcast();
+  final _syncRequests = StreamController<RealtimeSyncReason>.broadcast();
+
+  @override
+  Stream<RealtimeEnvelope> get events => _events.stream;
+
+  @override
+  Stream<RealtimeSyncReason> get syncRequests => _syncRequests.stream;
+
+  void addEvent(RealtimeEnvelope event) => _events.add(event);
+
+  void requestSync(RealtimeSyncReason reason) => _syncRequests.add(reason);
+
+  @override
+  Future<void> syncSession(String? sessionKey) async {}
+
+  Future<void> dispose() async {
+    await _events.close();
+    await _syncRequests.close();
   }
 }

@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -7,7 +6,6 @@ import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:web_socket_channel/web_socket_channel.dart';
 
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_text_styles.dart';
@@ -22,7 +20,7 @@ import '../../../../app/widgets/app_state_widgets.dart';
 import '../../../../app/widgets/app_toast.dart';
 import '../../../../core/logging/app_logger.dart';
 import '../../../../core/network/api_client.dart';
-import '../../../../core/network/realtime_ticket_client.dart';
+import '../../../../core/network/realtime_connection_manager.dart';
 import '../../data/sales_report_repository.dart';
 import '../../domain/sales_report.dart';
 import '../providers/sales_report_provider.dart';
@@ -47,8 +45,17 @@ const _reasonOptions = <String, String>{
 
 class NotPurchasedCustomersScreen extends StatefulWidget {
   final SalesReportRepository? repository;
+  final RealtimeClient? realtimeClient;
+  final Duration realtimeDebounce;
+  final Duration realtimeMaxWait;
 
-  const NotPurchasedCustomersScreen({super.key, this.repository});
+  const NotPurchasedCustomersScreen({
+    super.key,
+    this.repository,
+    this.realtimeClient,
+    this.realtimeDebounce = const Duration(seconds: 2),
+    this.realtimeMaxWait = const Duration(seconds: 5),
+  });
 
   @override
   State<NotPurchasedCustomersScreen> createState() =>
@@ -57,7 +64,11 @@ class NotPurchasedCustomersScreen extends StatefulWidget {
 
 class _NotPurchasedCustomersScreenState
     extends State<NotPurchasedCustomersScreen> {
+  static const String _realtimeTopic = 'sales-report.orders';
+  static const String _realtimeKind = 'SALES_REPORT_ORDERS_UPDATED';
+
   late final SalesReportRepository _repository;
+  late final RealtimeClient _realtimeClient;
   final _searchController = TextEditingController();
   SalesReportFollowUpPage? _data;
   Timer? _searchDebounce;
@@ -65,96 +76,127 @@ class _NotPurchasedCustomersScreenState
   int _page = 0;
   bool _loading = false;
   String? _error;
-  WebSocketChannel? _realtimeChannel;
-  StreamSubscription<dynamic>? _realtimeSubscription;
-  Timer? _realtimeDebounce;
+  StreamSubscription<RealtimeEnvelope>? _realtimeEventSubscription;
+  StreamSubscription<RealtimeSyncReason>? _realtimeSyncSubscription;
+  Timer? _realtimeDebounceTimer;
+  Timer? _realtimeMaxWaitTimer;
+  bool _realtimeRefreshDirty = false;
+  bool _realtimeRefreshInFlight = false;
 
   @override
   void initState() {
     super.initState();
     _repository = widget.repository ?? SalesReportRepository(ApiClient());
+    _realtimeClient =
+        widget.realtimeClient ?? RealtimeConnectionManager.instance;
+    _realtimeEventSubscription = _realtimeClient.events.listen(
+      _handleRealtimeEnvelope,
+    );
+    _realtimeSyncSubscription = _realtimeClient.syncRequests.listen(
+      _handleRealtimeSyncRequest,
+    );
     WidgetsBinding.instance.addPostFrameCallback((_) {
       unawaited(_load());
-      unawaited(_connectRealtime());
     });
   }
 
   @override
   void dispose() {
     _searchDebounce?.cancel();
-    _realtimeDebounce?.cancel();
-    unawaited(_realtimeSubscription?.cancel());
-    unawaited(_realtimeChannel?.sink.close());
+    _cancelRealtimeTimers();
+    unawaited(_realtimeEventSubscription?.cancel());
+    unawaited(_realtimeSyncSubscription?.cancel());
     _searchController.dispose();
     super.dispose();
   }
 
-  Future<void> _connectRealtime() async {
-    if ((ApiClient().authToken ?? '').trim().isEmpty) return;
-    try {
-      final uri = await RealtimeTicketClient.instance.issueConnectionUri();
-      if (!mounted) return;
-      final channel = WebSocketChannel.connect(uri);
-      _realtimeChannel = channel;
-      _realtimeSubscription = channel.stream.listen(
-        _handleRealtime,
-        onError: (Object error, StackTrace stackTrace) {
-          unawaited(
-            AppLogger.instance.error(
-              'SalesReportFollowUp',
-              'Follow-up realtime connection failed',
-              error: error,
-              stackTrace: stackTrace,
-            ),
-          );
+  void _handleRealtimeEnvelope(RealtimeEnvelope envelope) {
+    if (!mounted ||
+        envelope.topic != _realtimeTopic ||
+        envelope.kind != _realtimeKind ||
+        !envelope.data['source'].toString().startsWith('follow_up_')) {
+      return;
+    }
+    _scheduleRealtimeRefresh();
+    unawaited(
+      AppLogger.instance.info(
+        'SalesReportFollowUp',
+        'Follow-up realtime invalidation received',
+        context: {
+          'eventId': envelope.id,
+          'sequence': envelope.sequence,
+          'source': envelope.data['source'],
         },
-      );
+      ),
+    );
+  }
+
+  void _handleRealtimeSyncRequest(RealtimeSyncReason reason) {
+    if (!mounted) return;
+    unawaited(
+      AppLogger.instance.info(
+        'SalesReportFollowUp',
+        'Follow-up realtime sync requested',
+        context: {'reason': reason.name},
+      ),
+    );
+    _scheduleRealtimeRefresh(immediate: true);
+  }
+
+  void _scheduleRealtimeRefresh({bool immediate = false}) {
+    if (!mounted) return;
+    _realtimeRefreshDirty = true;
+    if (immediate) {
+      _cancelRealtimeTimers();
+      unawaited(_refreshFromRealtime());
+      return;
+    }
+    _realtimeDebounceTimer?.cancel();
+    _realtimeDebounceTimer = Timer(
+      widget.realtimeDebounce,
+      () => unawaited(_refreshFromRealtime()),
+    );
+    _realtimeMaxWaitTimer ??= Timer(
+      widget.realtimeMaxWait,
+      () => unawaited(_refreshFromRealtime()),
+    );
+  }
+
+  Future<void> _refreshFromRealtime() async {
+    _cancelRealtimeTimers();
+    if (!mounted || !_realtimeRefreshDirty) return;
+    if (_loading) return;
+    if (_realtimeRefreshInFlight) return;
+    _realtimeRefreshDirty = false;
+    _realtimeRefreshInFlight = true;
+    final startedAt = DateTime.now();
+    try {
       await AppLogger.instance.info(
         'SalesReportFollowUp',
-        'Follow-up realtime connected',
+        'Follow-up realtime refresh started',
       );
-    } catch (error, stackTrace) {
-      await AppLogger.instance.error(
+      await _load();
+      await AppLogger.instance.info(
         'SalesReportFollowUp',
-        'Follow-up realtime connect failed',
-        error: error,
-        stackTrace: stackTrace,
+        'Follow-up realtime refresh completed',
+        context: {
+          'succeeded': _error == null,
+          'durationMs': DateTime.now().difference(startedAt).inMilliseconds,
+        },
       );
+    } finally {
+      _realtimeRefreshInFlight = false;
+      if (_realtimeRefreshDirty && mounted) {
+        _scheduleRealtimeRefresh(immediate: true);
+      }
     }
   }
 
-  void _handleRealtime(dynamic message) {
-    try {
-      final decoded = jsonDecode(message.toString());
-      if (decoded is! Map ||
-          decoded['type']?.toString() != 'SALES_REPORT_ORDERS_UPDATED') {
-        return;
-      }
-      final payload = decoded['payload'];
-      if (payload is! Map ||
-          !payload['source'].toString().startsWith('follow_up_')) {
-        return;
-      }
-      _realtimeDebounce?.cancel();
-      _realtimeDebounce = Timer(const Duration(milliseconds: 350), () {
-        if (mounted) unawaited(_load());
-      });
-      unawaited(
-        AppLogger.instance.info(
-          'SalesReportFollowUp',
-          'Follow-up realtime update received',
-          context: {'source': payload['source']},
-        ),
-      );
-    } catch (error) {
-      unawaited(
-        AppLogger.instance.warn(
-          'SalesReportFollowUp',
-          'Follow-up realtime event ignored',
-          context: {'error': error.toString()},
-        ),
-      );
-    }
+  void _cancelRealtimeTimers() {
+    _realtimeDebounceTimer?.cancel();
+    _realtimeDebounceTimer = null;
+    _realtimeMaxWaitTimer?.cancel();
+    _realtimeMaxWaitTimer = null;
   }
 
   Future<void> _load({int? page}) async {
@@ -213,7 +255,12 @@ class _NotPurchasedCustomersScreenState
         },
       );
     } finally {
-      if (mounted) setState(() => _loading = false);
+      if (mounted) {
+        setState(() => _loading = false);
+        if (_realtimeRefreshDirty && !_realtimeRefreshInFlight) {
+          _scheduleRealtimeRefresh(immediate: true);
+        }
+      }
     }
   }
 

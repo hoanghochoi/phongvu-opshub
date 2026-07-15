@@ -27,6 +27,7 @@ type ClientAuth struct {
 	DepartmentCode          string
 	OrganizationNodeID      string
 	OrganizationAccessCodes []string
+	PolicyCodes             []string
 	FeatureCodes            []string
 	SessionID               string
 	Platform                string
@@ -63,6 +64,7 @@ type ticketClaims struct {
 	DepartmentCode          string          `json:"departmentCode"`
 	OrganizationNodeID      string          `json:"organizationNodeId"`
 	OrganizationAccessCodes []string        `json:"organizationAccessCodes"`
+	PolicyCodes             []string        `json:"policyCodes"`
 	FeatureCodes            []string        `json:"featureCodes"`
 	SessionID               string          `json:"sessionId"`
 	Platform                string          `json:"platform"`
@@ -162,6 +164,7 @@ func (authenticator *webSocketAuthenticator) authenticateTicket(
 		DepartmentCode:          normalizeCode(claims.DepartmentCode),
 		OrganizationNodeID:      strings.TrimSpace(claims.OrganizationNodeID),
 		OrganizationAccessCodes: normalizeCodes(claims.OrganizationAccessCodes),
+		PolicyCodes:             normalizeCodes(claims.PolicyCodes),
 		FeatureCodes:            normalizeCodes(claims.FeatureCodes),
 		SessionID:               strings.TrimSpace(claims.SessionID),
 		Platform:                strings.ToLower(strings.TrimSpace(claims.Platform)),
@@ -211,6 +214,7 @@ func (authenticator *webSocketAuthenticator) authenticateLegacyJWT(r *http.Reque
 		DepartmentCode:          normalizeCode(readClaimString(claims, "departmentCode")),
 		OrganizationNodeID:      strings.TrimSpace(readClaimString(claims, "organizationNodeId")),
 		OrganizationAccessCodes: normalizeCodes(readClaimStringList(claims, "organizationAccessCodes")),
+		PolicyCodes:             normalizeCodes(readClaimStringList(claims, "policyCodes")),
 		FeatureCodes:            normalizeCodes(readClaimStringList(claims, "featureCodes")),
 		SessionID:               strings.TrimSpace(readClaimString(claims, "sessionId")),
 		Platform:                strings.ToLower(strings.TrimSpace(readClaimString(claims, "platform"))),

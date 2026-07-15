@@ -95,9 +95,20 @@ describe('OffsetAdjustmentsService', () => {
     expect(redis.publishMessage).toHaveBeenCalledWith(
       'OFFSET_ADJUSTMENT_UPDATED',
       expect.objectContaining({
-        adjustmentId: 'offset-1',
-        storeCode: 'CP01',
-        status: 'PENDING_ACC',
+        schemaVersion: 1,
+        type: 'OFFSET_ADJUSTMENT_NOTIFICATION',
+        audience: expect.objectContaining({
+          storeCodes: ['CP01'],
+          roles: ['SUPER_ADMIN'],
+          departmentCodes: ['ACC', 'FIN_ACC'],
+          organizationAccessCodes: ['ACC', 'FIN_ACC'],
+          featureCodes: ['OFFSET_ADJUSTMENTS'],
+        }),
+        payload: expect.objectContaining({
+          adjustmentId: 'offset-1',
+          storeCode: 'CP01',
+          status: 'PENDING_ACC',
+        }),
       }),
     );
     expect(redis.publishMessage).not.toHaveBeenCalledWith(
@@ -199,8 +210,12 @@ describe('OffsetAdjustmentsService', () => {
     expect(redis.publishMessage).toHaveBeenCalledWith(
       'OFFSET_ADJUSTMENT_UPDATED',
       expect.objectContaining({
-        adjustmentId: 'offset-1',
-        status: 'PENDING_ACC',
+        schemaVersion: 1,
+        type: 'OFFSET_ADJUSTMENT_NOTIFICATION',
+        payload: expect.objectContaining({
+          adjustmentId: 'offset-1',
+          status: 'PENDING_ACC',
+        }),
       }),
     );
   });

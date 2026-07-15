@@ -1,13 +1,11 @@
 import 'dart:async';
-import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:stream_channel/stream_channel.dart';
-import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:phongvu_opshub/core/logging/app_logger.dart';
 import 'package:phongvu_opshub/core/network/api_client.dart';
 import 'package:phongvu_opshub/core/network/api_exception.dart';
+import 'package:phongvu_opshub/core/network/realtime_connection_manager.dart';
 import 'package:phongvu_opshub/core/platform/app_restart_service.dart';
 import 'package:phongvu_opshub/core/storage/app_storage_keys.dart';
 import 'package:phongvu_opshub/features/auth/domain/entities/store_branch.dart';
@@ -80,9 +78,50 @@ void main() {
   );
 
   test(
+    'same-user monitor revoke rejects the in-flight poll response',
+    () async {
+      final pending = Completer<StoredPaymentTransactionsPage>();
+      final repository = _FakePaymentMonitorRepository(
+        notifications: const [],
+        pendingTransactionPage: pending,
+      );
+      final provider = PaymentMonitorProvider(
+        repository,
+        _FakePaymentSpeaker(),
+        null,
+        retryDelay,
+      );
+      addTearDown(provider.dispose);
+
+      await Future<void>.delayed(Duration.zero);
+      provider.syncAuth(_storeUser(), isInitialized: true);
+      await _waitUntil(() => repository.transactionFetchCount == 1);
+
+      provider.syncAuth(_storeUser(canMonitor: false), isInitialized: true);
+      pending.complete(
+        StoredPaymentTransactionsPage(
+          transactions: [_paymentTransaction(id: 'stale-transaction')],
+          page: 0,
+          limit: 10,
+          total: 1,
+          canReviewOrderTransfers: true,
+        ),
+      );
+      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(provider.hasMonitorScope, isFalse);
+      expect(provider.isActive, isFalse);
+      expect(provider.latestTransactions, isEmpty);
+      expect(provider.canReviewOrderTransfers, isFalse);
+    },
+  );
+
+  test(
     'creates a speaker-ready fallback timer without extra list polling',
     () async {
       var periodicTimerCount = 0;
+      final periodicDurations = <Duration>[];
       late PaymentMonitorProvider provider;
       final repository = _FakePaymentMonitorRepository(notifications: const []);
 
@@ -103,12 +142,14 @@ void main() {
         zoneSpecification: ZoneSpecification(
           createPeriodicTimer: (self, parent, zone, duration, callback) {
             periodicTimerCount += 1;
+            periodicDurations.add(duration);
             return parent.createPeriodicTimer(zone, duration, callback);
           },
         ),
       );
 
       expect(periodicTimerCount, 1);
+      expect(periodicDurations, [const Duration(minutes: 1)]);
       expect(repository.transactionFetchCount, 1);
       provider.dispose();
     },
@@ -441,16 +482,17 @@ void main() {
       final initialFetchCount = repository.transactionFetchCount;
 
       await provider.handleRealtimeMessageForTesting(
-        jsonEncode({
-          'type': 'PAYMENT_NOTIFICATION',
-          'payload': {
+        _realtimeEnvelope(
+          kind: 'PAYMENT_NOTIFICATION',
+          topic: 'payment.transactions',
+          data: {
             'notificationId': 'note-1',
             'transactionId': 'txn-1',
             'storeCode': 'CP01',
             'amount': 1250000,
             'audioStatus': 'READY',
           },
-        }),
+        ),
       );
       await _waitUntil(
         () =>
@@ -489,10 +531,11 @@ void main() {
     final initialFetchCount = repository.transactionFetchCount;
 
     await provider.handleRealtimeMessageForTesting(
-      jsonEncode({
-        'type': 'PAYMENT_SPEAKER_STREAM',
-        'payload': _streamPayload('note-disabled'),
-      }),
+      _realtimeEnvelope(
+        kind: 'PAYMENT_SPEAKER_STREAM',
+        topic: 'payment.speaker',
+        data: _streamPayload('note-disabled'),
+      ),
     );
     await _waitUntil(
       () =>
@@ -529,10 +572,11 @@ void main() {
       );
 
       await provider.handleRealtimeMessageForTesting(
-        jsonEncode({
-          'type': 'PAYMENT_SPEAKER_STREAM',
-          'payload': _streamPayload('note-retry'),
-        }),
+        _realtimeEnvelope(
+          kind: 'PAYMENT_SPEAKER_STREAM',
+          topic: 'payment.speaker',
+          data: _streamPayload('note-retry'),
+        ),
       );
       await _waitUntil(
         () => repository.ackEvents.contains('PLAYED') && speaker.playCount == 2,
@@ -571,16 +615,18 @@ void main() {
       );
 
       await provider.handleRealtimeMessageForTesting(
-        jsonEncode({
-          'type': 'PAYMENT_SPEAKER_STREAM',
-          'payload': _streamPayload('note-race'),
-        }),
+        _realtimeEnvelope(
+          kind: 'PAYMENT_SPEAKER_STREAM',
+          topic: 'payment.speaker',
+          data: _streamPayload('note-race'),
+        ),
       );
       await provider.handleRealtimeMessageForTesting(
-        jsonEncode({
-          'type': 'PAYMENT_SPEAKER_STREAM',
-          'payload': _streamPayload('note-race'),
-        }),
+        _realtimeEnvelope(
+          kind: 'PAYMENT_SPEAKER_STREAM',
+          topic: 'payment.speaker',
+          data: _streamPayload('note-race'),
+        ),
       );
       await _waitUntil(() => repository.ackEvents.contains('PLAYED'));
 
@@ -627,10 +673,11 @@ void main() {
       );
 
       await provider.handleRealtimeMessageForTesting(
-        jsonEncode({
-          'type': 'PAYMENT_SPEAKER_STREAM',
-          'payload': _streamPayload('note-suppressed'),
-        }),
+        _realtimeEnvelope(
+          kind: 'PAYMENT_SPEAKER_STREAM',
+          topic: 'payment.speaker',
+          data: _streamPayload('note-suppressed'),
+        ),
       );
       await _waitUntil(() => repository.streamDownloadCount == 1);
 
@@ -666,10 +713,11 @@ void main() {
       );
 
       await provider.handleRealtimeMessageForTesting(
-        jsonEncode({
-          'type': 'PAYMENT_SPEAKER_STREAM',
-          'payload': _streamPayload('note-expired'),
-        }),
+        _realtimeEnvelope(
+          kind: 'PAYMENT_SPEAKER_STREAM',
+          topic: 'payment.speaker',
+          data: _streamPayload('note-expired'),
+        ),
       );
       await _waitUntil(() => repository.streamDownloadCount == 1);
 
@@ -765,7 +813,6 @@ void main() {
         retryDelay,
         null,
         retryDelay,
-        retryDelay,
       );
 
       await Future<void>.delayed(Duration.zero);
@@ -785,45 +832,48 @@ void main() {
     },
   );
 
-  test('reconnects realtime after socket closes', () async {
-    ApiClient().setAuthToken('test-token');
-    final repository = _FakePaymentMonitorRepository(notifications: const []);
-    final channels = <_FakeWebSocketChannel>[];
-    final provider = PaymentMonitorProvider(
-      repository,
-      _FakePaymentSpeaker(),
-      null,
-      retryDelay,
-      (uri) {
-        final channel = _FakeWebSocketChannel();
-        channels.add(channel);
-        return channel;
-      },
-      const Duration(milliseconds: 1),
-      const Duration(seconds: 15),
-      ({storeCode}) async =>
-          Uri.parse('wss://opshub.hoanghochoi.com/ws?ticket=test-ticket'),
-    );
+  test(
+    'uses shared realtime sync requests without opening a feature socket',
+    () async {
+      final repository = _FakePaymentMonitorRepository(notifications: const []);
+      final realtime = _FakeRealtimeClient();
+      final provider = PaymentMonitorProvider(
+        repository,
+        _FakePaymentSpeaker(),
+        null,
+        retryDelay,
+        realtime,
+      );
 
-    await Future<void>.delayed(Duration.zero);
-    provider.syncAuth(_storeUser(storeId: 'CP01'), isInitialized: true);
-    await _waitUntil(() => channels.length == 1);
-    await _waitUntil(
-      () => repository.transactionFetchCount > 0 && !provider.isLoading,
-    );
-    final initialFetchCount = repository.transactionFetchCount;
+      await Future<void>.delayed(Duration.zero);
+      provider.syncAuth(_storeUser(storeId: 'CP01'), isInitialized: true);
+      await _waitUntil(
+        () => repository.transactionFetchCount > 0 && !provider.isLoading,
+      );
+      final initialFetchCount = repository.transactionFetchCount;
 
-    await channels.single.closeFromServer();
-    await _waitUntil(() => channels.length == 2);
-    await Future<void>.delayed(const Duration(milliseconds: 50));
+      realtime.addEvent(
+        _realtimeEnvelope(
+          kind: 'PAYMENT_NOTIFICATION',
+          topic: 'payment.speaker',
+          data: const {'storeCode': 'CP01'},
+        ),
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 600));
+      expect(repository.transactionFetchCount, initialFetchCount);
 
-    expect(provider.isActive, isTrue);
-    expect(channels.length, 2);
-    expect(repository.transactionFetchCount, initialFetchCount);
+      realtime.addSync(RealtimeSyncReason.reconnected);
+      await _waitUntil(
+        () => repository.transactionFetchCount > initialFetchCount,
+      );
 
-    provider.dispose();
-    ApiClient().setAuthToken(null);
-  });
+      expect(provider.isActive, isTrue);
+      expect(repository.requestedIncludeTotals.last, isFalse);
+
+      provider.dispose();
+      await realtime.dispose();
+    },
+  );
 
   test('manual refresh requests total count for pagination', () async {
     final repository = _FakePaymentMonitorRepository(notifications: const []);
@@ -868,16 +918,17 @@ void main() {
     );
 
     await provider.handleRealtimeMessageForTesting(
-      jsonEncode({
-        'type': 'PAYMENT_NOTIFICATION',
-        'payload': {
+      _realtimeEnvelope(
+        kind: 'PAYMENT_NOTIFICATION',
+        topic: 'payment.transactions',
+        data: {
           'notificationId': 'note-throttled',
           'transactionId': 'txn-throttled',
           'storeCode': 'CP01',
           'amount': 1250000,
           'audioStatus': 'READY',
         },
-      }),
+      ),
     );
     await Future<void>.delayed(const Duration(milliseconds: 700));
 
@@ -1240,7 +1291,24 @@ MapPaymentTransaction _paymentTransaction({
   });
 }
 
-Map<String, Object?> _streamPayload(String notificationId) {
+RealtimeEnvelope _realtimeEnvelope({
+  required String kind,
+  required String topic,
+  required Map<String, dynamic> data,
+  int sequence = 1,
+}) {
+  return RealtimeEnvelope(
+    version: 2,
+    kind: kind,
+    id: 'event-$kind-$sequence',
+    topic: topic,
+    sequence: sequence,
+    timestamp: DateTime.utc(2026, 7, 15),
+    data: data,
+  );
+}
+
+Map<String, dynamic> _streamPayload(String notificationId) {
   return {
     'notificationId': notificationId,
     'transactionId': 'txn-$notificationId',
@@ -1261,6 +1329,7 @@ class _FakePaymentMonitorRepository extends PaymentMonitorRepository {
   final Object? transactionError;
   final Object? rawAmountAudioError;
   final Object? combinedAudioError;
+  final Completer<StoredPaymentTransactionsPage>? pendingTransactionPage;
   final List<String> ackEvents = [];
   final List<String> ackErrors = [];
   final List<String?> requestedStartDates = [];
@@ -1290,6 +1359,7 @@ class _FakePaymentMonitorRepository extends PaymentMonitorRepository {
     this.transactionError,
     this.rawAmountAudioError,
     this.combinedAudioError,
+    this.pendingTransactionPage,
   }) : super(ApiClient());
 
   @override
@@ -1305,6 +1375,8 @@ class _FakePaymentMonitorRepository extends PaymentMonitorRepository {
     bool includeTotal = true,
   }) async {
     transactionFetchCount += 1;
+    final pending = pendingTransactionPage;
+    if (pending != null) return pending.future;
     final error = transactionError;
     if (error != null) throw error;
     requestedStoreIds.add(storeIds ?? storeId);
@@ -1484,57 +1556,26 @@ class _FakePaymentSpeaker extends PaymentSpeaker {
   }
 }
 
-class _FakeWebSocketChannel
-    with StreamChannelMixin<dynamic>
-    implements WebSocketChannel {
-  final StreamController<dynamic> _incoming = StreamController<dynamic>();
-  final _FakeWebSocketSink _sink = _FakeWebSocketSink();
+class _FakeRealtimeClient implements RealtimeClient {
+  final _events = StreamController<RealtimeEnvelope>.broadcast();
+  final _syncRequests = StreamController<RealtimeSyncReason>.broadcast();
 
   @override
-  String? get protocol => null;
+  Stream<RealtimeEnvelope> get events => _events.stream;
 
   @override
-  int? get closeCode => null;
+  Stream<RealtimeSyncReason> get syncRequests => _syncRequests.stream;
+
+  void addEvent(RealtimeEnvelope envelope) => _events.add(envelope);
+
+  void addSync(RealtimeSyncReason reason) => _syncRequests.add(reason);
 
   @override
-  String? get closeReason => null;
+  Future<void> syncSession(String? sessionKey) async {}
 
-  @override
-  Future<void> get ready => Future<void>.value();
-
-  @override
-  Stream<dynamic> get stream => _incoming.stream;
-
-  @override
-  WebSocketSink get sink => _sink;
-
-  Future<void> closeFromServer() => _incoming.close();
-}
-
-class _FakeWebSocketSink implements WebSocketSink {
-  final StreamController<dynamic> _outgoing = StreamController<dynamic>();
-
-  @override
-  Future<dynamic> get done => _outgoing.done;
-
-  @override
-  void add(dynamic data) {
-    _outgoing.add(data);
-  }
-
-  @override
-  void addError(Object error, [StackTrace? stackTrace]) {
-    _outgoing.addError(error, stackTrace);
-  }
-
-  @override
-  Future<dynamic> addStream(Stream<dynamic> stream) {
-    return _outgoing.addStream(stream);
-  }
-
-  @override
-  Future<dynamic> close([int? closeCode, String? closeReason]) {
-    return _outgoing.close();
+  Future<void> dispose() async {
+    await _events.close();
+    await _syncRequests.close();
   }
 }
 

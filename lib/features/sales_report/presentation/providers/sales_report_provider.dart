@@ -1,30 +1,26 @@
 import 'dart:async';
-import 'dart:convert';
-import 'dart:math' as math;
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
-import 'package:web_socket_channel/web_socket_channel.dart';
 
 import '../../../../core/logging/app_logger.dart';
-import '../../../../core/network/api_client.dart';
 import '../../../../core/network/api_exception.dart';
-import '../../../../core/network/realtime_ticket_client.dart';
+import '../../../../core/network/realtime_connection_manager.dart';
 import '../../../../core/utils/date_range_defaults.dart';
 import '../../../auth/domain/entities/user.dart';
 import '../../data/sales_report_repository.dart';
 import '../../domain/sales_report.dart';
 
-typedef SalesReportRealtimeConnector = WebSocketChannel Function(Uri uri);
-
 class SalesReportProvider extends ChangeNotifier {
   static const int _defaultOrdersLimit = 20;
+  static const String _realtimeTopic = 'sales-report.orders';
+  static const String _realtimeKind = 'SALES_REPORT_ORDERS_UPDATED';
 
   final SalesReportRepository _repository;
   final DateTime Function() _now;
-  final SalesReportRealtimeConnector _realtimeConnector;
+  final RealtimeClient _realtimeClient;
   final Duration _realtimeDebounce;
-  final Duration _realtimeReconnectBaseDelay;
+  final Duration _realtimeMaxWait;
 
   final List<SalesReportCategoryGroup> _categories = [];
   final List<Map<String, dynamic>> _adminItems = [];
@@ -49,26 +45,32 @@ class SalesReportProvider extends ChangeNotifier {
   String? _ordersStoreCode;
   String? _ordersUserEmail;
   User? _user;
-  WebSocketChannel? _realtimeChannel;
-  StreamSubscription<dynamic>? _realtimeSubscription;
+  StreamSubscription<RealtimeEnvelope>? _realtimeEventSubscription;
+  StreamSubscription<RealtimeSyncReason>? _realtimeSyncSubscription;
   Timer? _realtimeDebounceTimer;
-  Timer? _realtimeReconnectTimer;
-  int _realtimeReconnectAttempt = 0;
-  bool _realtimeConnectedOnce = false;
+  Timer? _realtimeMaxWaitTimer;
+  bool _ordersRealtimeActive = false;
+  bool _realtimeRefreshDirty = false;
+  bool _realtimeRefreshInFlight = false;
   bool _disposed = false;
 
   SalesReportProvider(
     this._repository, {
     DateTime Function()? now,
-    SalesReportRealtimeConnector? realtimeConnector,
-    Duration realtimeDebounce = const Duration(milliseconds: 350),
-    Duration realtimeReconnectBaseDelay = const Duration(seconds: 2),
+    RealtimeClient? realtimeClient,
+    Duration realtimeDebounce = const Duration(seconds: 2),
+    Duration realtimeMaxWait = const Duration(seconds: 5),
   }) : _now = now ?? DateTime.now,
-       _realtimeConnector =
-           realtimeConnector ?? ((uri) => WebSocketChannel.connect(uri)),
+       _realtimeClient = realtimeClient ?? RealtimeConnectionManager.instance,
        _realtimeDebounce = realtimeDebounce,
-       _realtimeReconnectBaseDelay = realtimeReconnectBaseDelay {
+       _realtimeMaxWait = realtimeMaxWait {
     _resetOrdersDateRangeToToday();
+    _realtimeEventSubscription = _realtimeClient.events.listen(
+      _handleRealtimeEnvelope,
+    );
+    _realtimeSyncSubscription = _realtimeClient.syncRequests.listen(
+      _handleRealtimeSyncRequest,
+    );
   }
 
   List<SalesReportCategoryGroup> get categories =>
@@ -130,6 +132,7 @@ class SalesReportProvider extends ChangeNotifier {
     SalesReportQuery? adminQuery,
   }) async {
     _user = user;
+    _ordersRealtimeActive = orders && user != null;
     await AppLogger.instance.info(
       'SalesReport',
       admin ? 'Sales report admin screen opened' : 'Sales report screen opened',
@@ -148,7 +151,6 @@ class SalesReportProvider extends ChangeNotifier {
     if (admin) await loadAdminList(query: adminQuery);
     if (orders) {
       await loadOrderCockpit();
-      unawaited(_connectRealtime());
     }
   }
 
@@ -300,6 +302,12 @@ class SalesReportProvider extends ChangeNotifier {
     } finally {
       _isLoadingOrders = false;
       notifyListeners();
+      if (_realtimeRefreshDirty &&
+          !_realtimeRefreshInFlight &&
+          _ordersRealtimeActive &&
+          !_disposed) {
+        _scheduleRealtimeRefresh(immediate: true);
+      }
     }
   }
 
@@ -685,100 +693,102 @@ class SalesReportProvider extends ChangeNotifier {
     return text == null || text.isEmpty ? null : text;
   }
 
-  Future<void> _connectRealtime() async {
-    if (_disposed || _user == null) return;
-    final token = ApiClient().authToken?.trim();
-    if (token == null || token.isEmpty) {
-      unawaited(
-        AppLogger.instance.warn(
-          'SalesReportRealtime',
-          'Sales report realtime connection skipped',
-          context: {'reason': 'missing_token'},
-        ),
-      );
+  void _handleRealtimeEnvelope(RealtimeEnvelope envelope) {
+    if (_disposed ||
+        !_ordersRealtimeActive ||
+        envelope.topic != _realtimeTopic ||
+        envelope.kind != _realtimeKind ||
+        !_isRelevantRealtimePayload(envelope.data)) {
       return;
     }
-    _closeRealtime('reconnect');
-    try {
-      final uri = await RealtimeTicketClient.instance.issueConnectionUri();
-      if (_disposed || ApiClient().authToken?.trim() != token) return;
-      final channel = _realtimeConnector(uri);
-      _realtimeChannel = channel;
-      _realtimeReconnectAttempt = 0;
-      _realtimeSubscription = channel.stream.listen(
-        _handleRealtimeMessage,
-        onError: (Object error, StackTrace stackTrace) {
-          unawaited(
-            AppLogger.instance.error(
-              'SalesReportRealtime',
-              'Sales report realtime connection failed',
-              error: error,
-              stackTrace: stackTrace,
-            ),
-          );
-          _handleRealtimeClosed('error');
+    _scheduleRealtimeRefresh();
+    unawaited(
+      AppLogger.instance.info(
+        'SalesReportRealtime',
+        'Sales report realtime invalidation received',
+        context: {
+          'eventId': envelope.id,
+          'sequence': envelope.sequence,
+          'newOrderCount': envelope.data['newOrderCount'],
+          'dateCount': envelope.data['dates'] is List
+              ? (envelope.data['dates'] as List).length
+              : 0,
         },
-        onDone: () => _handleRealtimeClosed('done'),
+      ),
+    );
+  }
+
+  void _handleRealtimeSyncRequest(RealtimeSyncReason reason) {
+    if (_disposed || !_ordersRealtimeActive) return;
+    unawaited(
+      AppLogger.instance.info(
+        'SalesReportRealtime',
+        'Sales report realtime sync requested',
+        context: {'reason': reason.name},
+      ),
+    );
+    _scheduleRealtimeRefresh(immediate: true);
+  }
+
+  void _scheduleRealtimeRefresh({bool immediate = false}) {
+    if (_disposed || !_ordersRealtimeActive) return;
+    _realtimeRefreshDirty = true;
+    if (immediate) {
+      _cancelRealtimeTimers();
+      unawaited(_refreshFromRealtime());
+      return;
+    }
+    _realtimeDebounceTimer?.cancel();
+    _realtimeDebounceTimer = Timer(
+      _realtimeDebounce,
+      () => unawaited(_refreshFromRealtime()),
+    );
+    _realtimeMaxWaitTimer ??= Timer(
+      _realtimeMaxWait,
+      () => unawaited(_refreshFromRealtime()),
+    );
+  }
+
+  Future<void> _refreshFromRealtime() async {
+    _cancelRealtimeTimers();
+    if (_disposed || !_ordersRealtimeActive || !_realtimeRefreshDirty) return;
+    if (_isLoadingOrders) return;
+    if (_realtimeRefreshInFlight) return;
+    _realtimeRefreshDirty = false;
+    _realtimeRefreshInFlight = true;
+    final startedAt = DateTime.now();
+    try {
+      await AppLogger.instance.info(
+        'SalesReportRealtime',
+        'Sales report realtime refresh started',
       );
-      if (_realtimeConnectedOnce) unawaited(loadOrderCockpit());
-      _realtimeConnectedOnce = true;
-      unawaited(
-        AppLogger.instance.info(
-          'SalesReportRealtime',
-          'Sales report realtime connected',
-          context: {'userId': _user?.id},
-        ),
+      await loadOrderCockpit();
+      await AppLogger.instance.info(
+        'SalesReportRealtime',
+        'Sales report realtime refresh succeeded',
+        context: {
+          'durationMs': DateTime.now().difference(startedAt).inMilliseconds,
+        },
       );
     } catch (error, stackTrace) {
-      unawaited(
-        AppLogger.instance.error(
-          'SalesReportRealtime',
-          'Sales report realtime connect failed',
-          error: error,
-          stackTrace: stackTrace,
-        ),
+      await AppLogger.instance.error(
+        'SalesReportRealtime',
+        'Sales report realtime refresh failed',
+        error: error,
+        stackTrace: stackTrace,
+        context: {
+          'durationMs': DateTime.now().difference(startedAt).inMilliseconds,
+        },
       );
-      _scheduleRealtimeReconnect('connect_failed');
-    }
-  }
-
-  void _handleRealtimeMessage(dynamic message) {
-    try {
-      final decoded = jsonDecode(message.toString());
-      if (decoded is! Map ||
-          decoded['type']?.toString() != 'SALES_REPORT_ORDERS_UPDATED') {
-        return;
+    } finally {
+      _realtimeRefreshInFlight = false;
+      if (_realtimeRefreshDirty && !_disposed && _ordersRealtimeActive) {
+        _scheduleRealtimeRefresh(immediate: true);
       }
-      final payload = decoded['payload'];
-      if (payload is! Map || !_isRelevantRealtimePayload(payload)) return;
-      _realtimeDebounceTimer?.cancel();
-      _realtimeDebounceTimer = Timer(_realtimeDebounce, () {
-        if (!_disposed) unawaited(loadOrderCockpit());
-      });
-      unawaited(
-        AppLogger.instance.info(
-          'SalesReportRealtime',
-          'Sales report realtime update received',
-          context: {
-            'newOrderCount': payload['newOrderCount'],
-            'dateCount': payload['dates'] is List
-                ? (payload['dates'] as List).length
-                : 0,
-          },
-        ),
-      );
-    } catch (error) {
-      unawaited(
-        AppLogger.instance.warn(
-          'SalesReportRealtime',
-          'Sales report realtime event ignored',
-          context: {'error': error.toString()},
-        ),
-      );
     }
   }
 
-  bool _isRelevantRealtimePayload(Map<dynamic, dynamic> payload) {
+  bool _isRelevantRealtimePayload(Map<String, dynamic> payload) {
     final dates =
         (payload['dates'] is List ? payload['dates'] as List : const [])
             .map((value) => value.toString())
@@ -819,64 +829,25 @@ class SalesReportProvider extends ChangeNotifier {
     return recipientIds.isEmpty && eventStores.isEmpty;
   }
 
-  void _handleRealtimeClosed(String reason) {
-    _realtimeSubscription = null;
-    _realtimeChannel = null;
-    _scheduleRealtimeReconnect(reason);
-  }
-
-  void _scheduleRealtimeReconnect(String reason) {
-    if (_disposed || _realtimeReconnectTimer != null) return;
-    final multiplier = 1 << math.min(_realtimeReconnectAttempt, 4);
-    _realtimeReconnectAttempt += 1;
-    final delay = Duration(
-      milliseconds: math.min(
-        _realtimeReconnectBaseDelay.inMilliseconds * multiplier,
-        const Duration(seconds: 30).inMilliseconds,
-      ),
-    );
-    _realtimeReconnectTimer = Timer(delay, () {
-      _realtimeReconnectTimer = null;
-      unawaited(_connectRealtime());
-    });
-    unawaited(
-      AppLogger.instance.info(
-        'SalesReportRealtime',
-        'Sales report realtime reconnect scheduled',
-        context: {'reason': reason, 'delayMs': delay.inMilliseconds},
-      ),
-    );
-  }
-
-  void _closeRealtime(String reason) {
-    _realtimeReconnectTimer?.cancel();
-    _realtimeReconnectTimer = null;
+  void _cancelRealtimeTimers() {
     _realtimeDebounceTimer?.cancel();
     _realtimeDebounceTimer = null;
-    unawaited(_realtimeSubscription?.cancel());
-    _realtimeSubscription = null;
-    unawaited(_realtimeChannel?.sink.close());
-    _realtimeChannel = null;
-    if (reason != 'reconnect') {
-      unawaited(
-        AppLogger.instance.info(
-          'SalesReportRealtime',
-          'Sales report realtime disconnected',
-          context: {'reason': reason},
-        ),
-      );
-    }
+    _realtimeMaxWaitTimer?.cancel();
+    _realtimeMaxWaitTimer = null;
   }
 
   @visibleForTesting
-  void handleRealtimeMessageForTesting(dynamic message) {
-    _handleRealtimeMessage(message);
+  void handleRealtimeMessageForTesting(RealtimeEnvelope envelope) {
+    _handleRealtimeEnvelope(envelope);
   }
 
   @override
   void dispose() {
     _disposed = true;
-    _closeRealtime('dispose');
+    _ordersRealtimeActive = false;
+    _cancelRealtimeTimers();
+    unawaited(_realtimeEventSubscription?.cancel());
+    unawaited(_realtimeSyncSubscription?.cancel());
     super.dispose();
   }
 

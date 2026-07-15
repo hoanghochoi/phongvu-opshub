@@ -90,6 +90,40 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets(
+    'AppShell keeps cached access visible and offers a retry action',
+    (tester) async {
+      tester.view.physicalSize = const Size(1200, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final authProvider = _StaleAuthProvider(_shellUser);
+      await tester.pumpWidget(
+        ChangeNotifierProvider<AuthProvider>.value(
+          value: authProvider,
+          child: const MaterialApp(
+            home: AppShell(
+              location: '/home',
+              child: _RouteMarker(label: 'home-route-marker'),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Quyền truy cập chưa được cập nhật'), findsOneWidget);
+      expect(find.textContaining('Đang dùng quyền đã lưu'), findsOneWidget);
+      expect(find.textContaining('09:30 15/07/2026'), findsOneWidget);
+      expect(find.text('home-route-marker'), findsOneWidget);
+
+      await tester.tap(find.text('Thử lại'));
+      await tester.pump();
+      expect(authProvider.retryCalls, 1);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   testWidgets('legacy tasks route redirects to home', (tester) async {
     tester.view.physicalSize = const Size(1200, 900);
     tester.view.devicePixelRatio = 1;
@@ -745,6 +779,28 @@ class _FakeAuthProvider extends AuthProvider {
     logoutCalls += 1;
     _loggedOut = true;
     notifyListeners();
+  }
+}
+
+class _StaleAuthProvider extends _FakeAuthProvider {
+  _StaleAuthProvider(super.currentUser);
+
+  int retryCalls = 0;
+
+  @override
+  String? get accessSyncWarning =>
+      'Đang dùng quyền đã lưu. Chưa đồng bộ được thay đổi mới.';
+
+  @override
+  DateTime? get accessLastSyncedAt => DateTime(2026, 7, 15, 9, 30);
+
+  @override
+  bool get isAccessSyncing => false;
+
+  @override
+  Future<bool> retryAccessSync() async {
+    retryCalls += 1;
+    return true;
   }
 }
 

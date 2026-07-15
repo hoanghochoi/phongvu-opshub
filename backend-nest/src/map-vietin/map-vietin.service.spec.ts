@@ -2418,9 +2418,19 @@ describe('MapVietinService', () => {
     expect(redisService.publishMessage).toHaveBeenCalledWith(
       'STATEMENT_ORDER_TRANSFER_REQUESTED',
       expect.objectContaining({
-        requestId: 'request-1',
-        transactionId: 'stored-1',
-        storeCode: 'CP01',
+        schemaVersion: 1,
+        type: 'STATEMENT_ORDER_TRANSFER_REQUEST',
+        audience: expect.objectContaining({
+          storeCodes: ['CP01'],
+          roles: ['SUPER_ADMIN'],
+          policyCodes: ['BANK_STATEMENT_ALL_SCOPE'],
+          featureCodes: ['BANK_STATEMENTS'],
+        }),
+        payload: expect.objectContaining({
+          requestId: 'request-1',
+          transactionId: 'stored-1',
+          storeCode: 'CP01',
+        }),
       }),
     );
   });
@@ -2659,9 +2669,18 @@ describe('MapVietinService', () => {
     expect(redisService.publishMessage).toHaveBeenCalledWith(
       'STATEMENT_ORDER_TRANSFER_REQUESTED',
       expect.objectContaining({
-        requestId: 'request-1',
-        status: 'REJECTED',
-        recipientUserId: 'staff-1',
+        schemaVersion: 1,
+        type: 'STATEMENT_ORDER_TRANSFER_REQUEST',
+        audience: expect.objectContaining({
+          recipientUserIds: ['staff-1'],
+          policyCodes: ['BANK_STATEMENT_ALL_SCOPE'],
+          featureCodes: ['BANK_STATEMENTS'],
+        }),
+        payload: expect.objectContaining({
+          requestId: 'request-1',
+          status: 'REJECTED',
+          recipientUserId: 'staff-1',
+        }),
       }),
     );
   });

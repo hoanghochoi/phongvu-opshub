@@ -16,6 +16,7 @@ import {
   isSuperAdminRole,
 } from '../common/system-role';
 import { logFingerprint } from '../common/log-sanitizer';
+import { AccessChangeService } from '../auth/access-change.service';
 
 const SUPER_ADMIN_ROLE = SYSTEM_ROLE_SUPER_ADMIN;
 const ADMIN_ROLE = SYSTEM_ROLE_ADMIN;
@@ -54,7 +55,10 @@ type FeatureContext = {
 export class FeatureService implements OnModuleInit {
   private readonly logger = new Logger(FeatureService.name);
 
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private readonly accessChangeService: AccessChangeService,
+  ) {}
 
   async onModuleInit() {
     await this.seedDefaultFeatures();
@@ -89,7 +93,6 @@ export class FeatureService implements OnModuleInit {
   }
 
   async resolveFeatureAccessMap(user: any) {
-    await this.seedDefaultFeatures();
     const features = await this.prisma.featureDefinition.findMany({
       where: { isActive: true },
       orderBy: { code: 'asc' },
@@ -164,7 +167,7 @@ export class FeatureService implements OnModuleInit {
       where: { code },
     });
     if (existing) throw new BadRequestException('Tính năng đã tồn tại');
-    return this.prisma.featureDefinition.create({
+    const created = await this.prisma.featureDefinition.create({
       data: {
         code,
         displayName: this.requiredText(
@@ -180,6 +183,10 @@ export class FeatureService implements OnModuleInit {
         isActive: body.isActive !== false,
       },
     });
+    await this.accessChangeService.publishForAllUsers(
+      'feature-definition-created',
+    );
+    return created;
   }
 
   async adminUpdateFeature(admin: any, codeInput: string, body: any) {
@@ -197,7 +204,7 @@ export class FeatureService implements OnModuleInit {
       throw new BadRequestException('Không được đổi mã tính năng hệ thống');
     }
 
-    return this.prisma.featureDefinition.update({
+    const updated = await this.prisma.featureDefinition.update({
       where: { code: current.code },
       data: {
         code: nextCode,
@@ -231,6 +238,16 @@ export class FeatureService implements OnModuleInit {
             : body.isActive === true,
       },
     });
+    const accessContractChanged =
+      updated.code !== current.code ||
+      updated.parentCode !== current.parentCode ||
+      updated.isActive !== current.isActive;
+    if (accessContractChanged) {
+      await this.accessChangeService.publishForAllUsers(
+        'feature-definition-updated',
+      );
+    }
+    return updated;
   }
 
   async adminDeleteFeature(admin: any, codeInput: string) {
@@ -266,6 +283,9 @@ export class FeatureService implements OnModuleInit {
       );
     }
     await this.prisma.featureDefinition.delete({ where: { code } });
+    await this.accessChangeService.publishForAllUsers(
+      'feature-definition-deleted',
+    );
     return { deleted: true, code };
   }
 
@@ -297,15 +317,19 @@ export class FeatureService implements OnModuleInit {
   async adminCreateRule(admin: any, body: any) {
     this.assertSuperAdmin(admin);
     const data = await this.normalizeRuleInput(body);
-    return this.prisma.featureAccessRule.create({ data });
+    const created = await this.prisma.featureAccessRule.create({ data });
+    await this.accessChangeService.publishForAllUsers('feature-rule-created');
+    return created;
   }
 
   async adminCreateRules(admin: any, body: any) {
     this.assertSuperAdmin(admin);
     const dataList = await this.normalizeRuleBatchInput(body);
-    return this.prisma.$transaction(
+    const created = await this.prisma.$transaction(
       dataList.map((data) => this.prisma.featureAccessRule.create({ data })),
     );
+    await this.accessChangeService.publishForAllUsers('feature-rule-created');
+    return created;
   }
 
   async adminUpdateRule(admin: any, id: string, body: any) {
@@ -318,12 +342,18 @@ export class FeatureService implements OnModuleInit {
       { ...current, ...body },
       current,
     );
-    return this.prisma.featureAccessRule.update({ where: { id }, data });
+    const updated = await this.prisma.featureAccessRule.update({
+      where: { id },
+      data,
+    });
+    await this.accessChangeService.publishForAllUsers('feature-rule-updated');
+    return updated;
   }
 
   async adminDeleteRule(admin: any, id: string) {
     this.assertSuperAdmin(admin);
     await this.prisma.featureAccessRule.delete({ where: { id } });
+    await this.accessChangeService.publishForAllUsers('feature-rule-deleted');
     return { deleted: true, id };
   }
 
@@ -442,6 +472,11 @@ export class FeatureService implements OnModuleInit {
       }
     });
 
+    await this.accessChangeService.publishForOrganizationNodeIds(
+      targets.flatMap((target) => target.organizationNodeIds),
+      'feature-assignment-updated',
+    );
+
     this.logger.log(
       `Node feature assignments saved: admin=${this.adminLogId(admin)} nodes=${nodeIds.length} groups=${targets.length} features=${featureCodes.length} replaceExisting=${replaceExisting}`,
     );
@@ -482,6 +517,14 @@ export class FeatureService implements OnModuleInit {
     this.logger.log(
       `Node feature assignment updated: admin=${this.adminLogId(admin)} id=${id} feature=${updated.featureCode} enabled=${updated.enabled}`,
     );
+    await this.accessChangeService.publishForOrganizationNodeIds(
+      await this.organizationNodeIdsForFeatureGroup(
+        current.scopeRootNodeId,
+        current.nodeType,
+        current.nodeKey,
+      ),
+      'feature-assignment-updated',
+    );
     return this.toNodeFeatureAssignmentDto(updated);
   }
 
@@ -495,6 +538,14 @@ export class FeatureService implements OnModuleInit {
     await this.prisma.organizationNodeFeatureAssignment.delete({
       where: { id },
     });
+    await this.accessChangeService.publishForOrganizationNodeIds(
+      await this.organizationNodeIdsForFeatureGroup(
+        current.scopeRootNodeId,
+        current.nodeType,
+        current.nodeKey,
+      ),
+      'feature-assignment-deleted',
+    );
     this.logger.warn(
       `Node feature assignment deleted: admin=${this.adminLogId(admin)} id=${id} feature=${current.featureCode}`,
     );

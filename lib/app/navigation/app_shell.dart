@@ -11,6 +11,7 @@ import 'package:phongvu_opshub/app/widgets/app_toast.dart';
 
 import '../../core/config/app_brand.dart';
 import '../../core/logging/app_logger.dart';
+import '../../core/runtime/app_runtime_coordinator.dart';
 import '../../features/auth/domain/entities/user.dart';
 import '../../features/auth/presentation/providers/auth_provider.dart';
 import '../../features/notifications/presentation/providers/app_notifications_provider.dart';
@@ -25,6 +26,7 @@ import '../widgets/app_buttons.dart';
 import '../widgets/app_layout.dart';
 import '../widgets/app_logout_confirmation_dialog.dart';
 import '../widgets/app_logo.dart';
+import '../widgets/app_state_widgets.dart';
 import 'app_nav_model.dart';
 
 const _supportQrAssetPath = 'data/group_invitation.jpg';
@@ -48,11 +50,13 @@ class _AppShellState extends State<AppShell> {
   String _version = '';
   final List<String> _routeHistory = [];
   bool _suppressNextHistoryPush = false;
+  AppRuntimeCoordinator? _runtimeCoordinator;
 
   @override
   void initState() {
     super.initState();
     _loadVersion();
+    _scheduleRuntimeRouteSync();
   }
 
   Future<void> _loadVersion() async {
@@ -86,6 +90,7 @@ class _AppShellState extends State<AppShell> {
   void didUpdateWidget(covariant AppShell oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.location == widget.location) return;
+    _scheduleRuntimeRouteSync();
     if (_suppressNextHistoryPush) {
       _suppressNextHistoryPush = false;
       return;
@@ -94,6 +99,27 @@ class _AppShellState extends State<AppShell> {
       _routeHistory.add(oldWidget.location);
       if (_routeHistory.length > 12) _routeHistory.removeAt(0);
     }
+  }
+
+  void _scheduleRuntimeRouteSync() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      try {
+        final runtime = context.read<AppRuntimeCoordinator>();
+        _runtimeCoordinator = runtime;
+        runtime.setActiveRoute(widget.location);
+      } on ProviderNotFoundException {
+        // Lightweight widget tests may render AppShell without the app root.
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    final runtime = _runtimeCoordinator;
+    final route = widget.location;
+    Future.microtask(() => runtime?.clearActiveRoute(route));
+    super.dispose();
   }
 
   @override
@@ -568,7 +594,9 @@ class _WideShell extends StatelessWidget {
                   onAppInfo: onAppInfo,
                 ),
                 Expanded(
-                  child: _RouteViewport(location: location, child: child),
+                  child: _ShellAccessSyncSurface(
+                    child: _RouteViewport(location: location, child: child),
+                  ),
                 ),
               ],
             ),
@@ -660,7 +688,9 @@ class _MobileShell extends StatelessWidget {
             const SizedBox(width: 4),
           ],
         ),
-        body: _RouteViewport(location: location, child: child),
+        body: _ShellAccessSyncSurface(
+          child: _RouteViewport(location: location, child: child),
+        ),
         bottomNavigationBar: NavigationBar(
           key: const Key('mobile-bottom-navigation'),
           height: bottomNavHeight,
@@ -712,6 +742,62 @@ class _MobileShell extends StatelessWidget {
     }
     return 0;
   }
+}
+
+class _ShellAccessSyncSurface extends StatelessWidget {
+  const _ShellAccessSyncSurface({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final auth = context.watch<AuthProvider>();
+    if (!auth.hasUsableAccessSnapshot) {
+      if (auth.isAccessSyncing) {
+        return const AppStatePanel.loading(
+          title: 'Đang đồng bộ quyền truy cập',
+          message: 'Ứng dụng đang cập nhật chức năng dành cho tài khoản này.',
+        );
+      }
+      return AppStatePanel.error(
+        title: 'Chưa tải được quyền truy cập',
+        message:
+            'Vui lòng thử lại để ứng dụng hiển thị đúng các chức năng của bạn.',
+        actionLabel: 'Thử lại',
+        onAction: () => unawaited(auth.retryAccessSync()),
+      );
+    }
+    final warning = auth.accessSyncWarning;
+    if (warning == null) return child;
+    final lastSyncedAt = auth.accessLastSyncedAt?.toLocal();
+    final lastSyncedText = lastSyncedAt == null
+        ? 'Chưa có lần đồng bộ quyền thành công trên thiết bị này.'
+        : 'Lần đồng bộ gần nhất: ${_formatAccessSyncTime(lastSyncedAt)}.';
+
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+          child: AppStatusBanner(
+            icon: Icons.cloud_off_rounded,
+            title: 'Quyền truy cập chưa được cập nhật',
+            message: '$warning $lastSyncedText',
+            tone: AppStateTone.warning,
+            actionLabel: auth.isAccessSyncing ? 'Đang thử lại…' : 'Thử lại',
+            actionBusy: auth.isAccessSyncing,
+            onAction: () => unawaited(auth.retryAccessSync()),
+          ),
+        ),
+        Expanded(child: child),
+      ],
+    );
+  }
+}
+
+String _formatAccessSyncTime(DateTime value) {
+  String two(int number) => number.toString().padLeft(2, '0');
+  return '${two(value.hour)}:${two(value.minute)} '
+      '${two(value.day)}/${two(value.month)}/${value.year}';
 }
 
 class _MobileNotificationDestinationIcon extends StatelessWidget {

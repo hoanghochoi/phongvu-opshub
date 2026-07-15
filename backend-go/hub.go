@@ -92,6 +92,18 @@ func (hub *Hub) run(ctx context.Context) {
 				}
 				select {
 				case client.send <- event.Message:
+					if event.Type == accessChangedEventType {
+						// Access claims are captured when the one-time ticket is
+						// consumed. Deliver the invalidation signal, then force this
+						// recipient to reconnect so stale grants cannot authorize any
+						// later realtime event even if a client ignores the signal.
+						hub.removeWithClose(
+							client,
+							"access_changed",
+							websocket.CloseServiceRestart,
+							"resync_required",
+						)
+					}
 				default:
 					hub.remove(client, "send_queue_full")
 				}
@@ -175,6 +187,12 @@ func (client *Client) canReceive(event RoutedEvent) bool {
 	if client.auth == nil {
 		return false
 	}
+	// Public update signals have a dedicated unauthenticated socket. Keeping
+	// them off authenticated protocols prevents the shared v2 stream (and the
+	// legacy feature stream) from becoming a second app-update transport.
+	if event.Public {
+		return false
+	}
 	eventVersion := event.ProtocolVersion
 	if eventVersion == 0 {
 		eventVersion = webSocketProtocolV1
@@ -184,9 +202,6 @@ func (client *Client) canReceive(event RoutedEvent) bool {
 	}
 	if event.AuthenticatedOnly {
 		return client.auth != nil
-	}
-	if event.Public {
-		return event.Type == appUpdateEventType
 	}
 	return event.Audience.matches(client.auth)
 }

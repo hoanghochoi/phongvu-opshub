@@ -39,6 +39,7 @@ import {
 import { isSuperAdminRole } from '../common/system-role';
 import { inspectAppLogContext } from '../common/app-log-context-policy';
 import { readBoundedHttpResponse } from '../common/bounded-http-response';
+import { buildRealtimeRedisEnvelope } from '../common/realtime-event';
 import {
   CreateAppLogDto,
   ListPaymentNotificationsQueryDto,
@@ -50,6 +51,7 @@ import { vietnameseAmountWords } from './vietnamese-amount-words';
 
 const PAYMENT_NOTIFICATION_CHANNEL = 'PAYMENT_NOTIFICATION_READY';
 const PAYMENT_SPEAKER_STREAM_CHANNEL = 'PAYMENT_SPEAKER_STREAM';
+const PAYMENT_DELIVERY_METRICS_CHANNEL = 'PAYMENT_DELIVERY_METRICS_UPDATED';
 const DEFAULT_AUDIO_RETENTION_DAYS = 7;
 const DEFAULT_LOG_RETENTION_DAYS = 30;
 const DEFAULT_TRANSACTION_RETENTION_DAYS = 90;
@@ -73,6 +75,13 @@ const DELIVERY_CLAIM_EVENT = 'DELIVERED';
 const STREAM_STARTED_EVENT = 'STREAM_STARTED';
 const TERMINAL_DELIVERY_EVENTS = ['PLAYED', 'SILENCED', 'FAILED'];
 const IN_FLIGHT_DELIVERY_EVENTS = [DELIVERY_CLAIM_EVENT, STREAM_STARTED_EVENT];
+const DELIVERY_METRIC_INVALIDATION_EVENTS = new Set([
+  STREAM_STARTED_EVENT,
+  'PLAYED',
+  'FAILED',
+  'SILENCED',
+  'PLAYBACK_FAILED',
+]);
 const PAYMENT_SPEAKER_FORBIDDEN_MESSAGE = 'Không có quyền Đọc loa tiền vào';
 const PAYMENT_TTS_PREFIX_TEXT = 'Phong Vũ đã nhận:';
 const PAYMENT_STREAM_DUPLICATE_MESSAGE =
@@ -415,6 +424,7 @@ export class PaymentNotificationsService {
       this.logger.warn(
         `Payment ready query silenced ${candidates.expiredSpeakerNotificationCount} expired speaker notifications store=${storeCode} client=${this.safeClientLabel(clientId)} windowSeconds=${this.streamPendingRecoveryWindowSeconds()}`,
       );
+      await this.publishDeliveryMetricsUpdated([storeCode]);
     }
 
     const ready: Array<Record<string, unknown>> =
@@ -1692,22 +1702,35 @@ export class PaymentNotificationsService {
       notification.audioStatus === 'READY'
         ? `/payment-notifications/${notification.id}/audio`
         : null;
-    await this.redisService.publishMessage(PAYMENT_NOTIFICATION_CHANNEL, {
-      notificationId: notification.id,
-      transactionId: notification.transactionId,
-      storeCode: notification.storeCode,
-      amount: notification.amount,
-      transactionContent: transaction.content || '',
-      transferContent: transaction.content || '',
-      transactionNumber: transaction.transactionNumber || null,
-      payerName: transaction.payerName || null,
-      payerAccount: transaction.payerAccount || null,
-      paidAt: this.isoFromUnknown(transaction.paidAt),
-      firstSeenAt: this.isoFromUnknown(transaction.firstSeenAt),
-      audioStatus: notification.audioStatus,
-      audioUrl,
-      createdAt: new Date().toISOString(),
-    });
+    const occurredAt = new Date();
+    await this.redisService.publishMessage(
+      PAYMENT_NOTIFICATION_CHANNEL,
+      buildRealtimeRedisEnvelope({
+        type: 'PAYMENT_NOTIFICATION',
+        occurredAt,
+        audience: {
+          storeCodes: [notification.storeCode],
+          policyCodes: [ADMIN_POLICY_CODES.PAYMENT_MONITOR_ALL_SCOPE],
+          featureCodes: [FEATURE_KEYS.PAYMENT_MONITOR],
+        },
+        payload: {
+          notificationId: notification.id,
+          transactionId: notification.transactionId,
+          storeCode: notification.storeCode,
+          amount: notification.amount,
+          transactionContent: transaction.content || '',
+          transferContent: transaction.content || '',
+          transactionNumber: transaction.transactionNumber || null,
+          payerName: transaction.payerName || null,
+          payerAccount: transaction.payerAccount || null,
+          paidAt: this.isoFromUnknown(transaction.paidAt),
+          firstSeenAt: this.isoFromUnknown(transaction.firstSeenAt),
+          audioStatus: notification.audioStatus,
+          audioUrl,
+          createdAt: occurredAt.toISOString(),
+        },
+      }),
+    );
   }
 
   private async publishStreamEvent(
@@ -1715,23 +1738,36 @@ export class PaymentNotificationsService {
     transaction: StoredTransaction,
     attempt: number,
   ) {
-    await this.redisService.publishMessage(PAYMENT_SPEAKER_STREAM_CHANNEL, {
-      notificationId: notification.id,
-      transactionId: notification.transactionId,
-      storeCode: notification.storeCode,
-      amount: notification.amount,
-      transactionContent: transaction.content || '',
-      transferContent: transaction.content || '',
-      transactionNumber: transaction.transactionNumber || null,
-      payerName: transaction.payerName || null,
-      payerAccount: transaction.payerAccount || null,
-      paidAt: this.isoFromUnknown(transaction.paidAt),
-      firstSeenAt: this.isoFromUnknown(transaction.firstSeenAt),
-      streamUrl: `/payment-notifications/${notification.id}/stream`,
-      expiresAt: this.isoFromUnknown(notification.expiresAt),
-      createdAt: new Date().toISOString(),
-      attempt,
-    });
+    const occurredAt = new Date();
+    await this.redisService.publishMessage(
+      PAYMENT_SPEAKER_STREAM_CHANNEL,
+      buildRealtimeRedisEnvelope({
+        type: 'PAYMENT_SPEAKER_STREAM',
+        occurredAt,
+        audience: {
+          storeCodes: [notification.storeCode],
+          policyCodes: [ADMIN_POLICY_CODES.PAYMENT_MONITOR_ALL_SCOPE],
+          featureCodes: [FEATURE_KEYS.PAYMENT_SPEAKER],
+        },
+        payload: {
+          notificationId: notification.id,
+          transactionId: notification.transactionId,
+          storeCode: notification.storeCode,
+          amount: notification.amount,
+          transactionContent: transaction.content || '',
+          transferContent: transaction.content || '',
+          transactionNumber: transaction.transactionNumber || null,
+          payerName: transaction.payerName || null,
+          payerAccount: transaction.payerAccount || null,
+          paidAt: this.isoFromUnknown(transaction.paidAt),
+          firstSeenAt: this.isoFromUnknown(transaction.firstSeenAt),
+          streamUrl: `/payment-notifications/${notification.id}/stream`,
+          expiresAt: this.isoFromUnknown(notification.expiresAt),
+          createdAt: occurredAt.toISOString(),
+          attempt,
+        },
+      }),
+    );
     this.logger.log(
       `Payment speaker stream event published notification=${notification.id} transaction=${notification.transactionId} store=${notification.storeCode} attempt=${attempt}`,
     );
@@ -2003,7 +2039,7 @@ export class PaymentNotificationsService {
     event: string;
     error?: string;
   }) {
-    return this.prisma.paymentNotificationDeliveryLog.create({
+    const created = await this.prisma.paymentNotificationDeliveryLog.create({
       data: {
         notificationId: input.notificationId,
         transactionId: input.transactionId,
@@ -2014,6 +2050,31 @@ export class PaymentNotificationsService {
         error: input.error ? this.scrub(input.error).slice(0, 500) : undefined,
       },
     });
+    if (DELIVERY_METRIC_INVALIDATION_EVENTS.has(input.event)) {
+      const occurredAt =
+        created?.createdAt instanceof Date ? created.createdAt : new Date();
+      await this.publishDeliveryMetricsUpdated([input.storeCode], occurredAt);
+    }
+    return created;
+  }
+
+  private async publishDeliveryMetricsUpdated(
+    affectedStoreCodes: string[],
+    occurredAt: Date = new Date(),
+  ) {
+    await this.redisService.publishMessage(
+      PAYMENT_DELIVERY_METRICS_CHANNEL,
+      buildRealtimeRedisEnvelope({
+        type: 'PAYMENT_DELIVERY_METRICS_UPDATED',
+        occurredAt,
+        audience: { roles: ['SUPER_ADMIN'] },
+        payload: {
+          version: occurredAt.getTime(),
+          reason: 'delivery-state-changed',
+          affectedStoreCodes,
+        },
+      }),
+    );
   }
 
   private assertSuperAdmin(user: any, source: string) {

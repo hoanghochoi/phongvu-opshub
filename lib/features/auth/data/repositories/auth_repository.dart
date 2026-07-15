@@ -107,6 +107,114 @@ int _toInt(Object? value) {
   return int.tryParse(value?.toString() ?? '') ?? 0;
 }
 
+class AuthBootstrapCapabilities {
+  final bool conditionalGet;
+  final List<String> realtimeV2Topics;
+
+  const AuthBootstrapCapabilities({
+    required this.conditionalGet,
+    required this.realtimeV2Topics,
+  });
+
+  factory AuthBootstrapCapabilities.fromJson(Map<String, dynamic> json) {
+    final topics = json['realtimeV2Topics'];
+    return AuthBootstrapCapabilities(
+      conditionalGet: json['conditionalGet'] == true,
+      realtimeV2Topics: topics is List
+          ? topics
+                .map((value) => value?.toString().trim() ?? '')
+                .where((value) => value.isNotEmpty)
+                .toList(growable: false)
+          : const [],
+    );
+  }
+}
+
+class AuthBootstrapData {
+  final int schemaVersion;
+  final DateTime generatedAt;
+  final String version;
+  final User user;
+  final Map<String, bool> featureAccess;
+  final Map<String, bool> policyAccess;
+  final AuthBootstrapCapabilities capabilities;
+
+  const AuthBootstrapData({
+    required this.schemaVersion,
+    required this.generatedAt,
+    required this.version,
+    required this.user,
+    required this.featureAccess,
+    required this.policyAccess,
+    required this.capabilities,
+  });
+
+  factory AuthBootstrapData.fromJson(Map<String, dynamic> json) {
+    final userValue = json['user'];
+    final featureValue = json['featureAccess'];
+    final policyValue = json['policyAccess'];
+    final capabilitiesValue = json['capabilities'];
+    final generatedAt = DateTime.tryParse(
+      json['generatedAt']?.toString() ?? '',
+    );
+    final version = json['version']?.toString().trim() ?? '';
+    final schemaVersion = _toInt(json['schemaVersion']);
+    if (schemaVersion <= 0 ||
+        generatedAt == null ||
+        version.isEmpty ||
+        userValue is! Map ||
+        featureValue is! Map ||
+        policyValue is! Map ||
+        capabilitiesValue is! Map) {
+      throw ApiException(
+        'Dữ liệu đồng bộ tài khoản chưa hợp lệ. Vui lòng thử lại.',
+      );
+    }
+    final userJson = Map<String, dynamic>.from(userValue);
+    final user = User.fromJson(userJson);
+    if (user.email.trim().isEmpty) {
+      throw ApiException(
+        'Dữ liệu đồng bộ tài khoản chưa hợp lệ. Vui lòng thử lại.',
+      );
+    }
+    return AuthBootstrapData(
+      schemaVersion: schemaVersion,
+      generatedAt: generatedAt,
+      version: version,
+      user: user,
+      featureAccess: _boolAccessMapFromJson(featureValue),
+      policyAccess: _boolAccessMapFromJson(policyValue),
+      capabilities: AuthBootstrapCapabilities.fromJson(
+        Map<String, dynamic>.from(capabilitiesValue),
+      ),
+    );
+  }
+}
+
+class AuthBootstrapResult {
+  final AuthBootstrapData? data;
+  final String? etag;
+  final bool isNotModified;
+
+  const AuthBootstrapResult.data({
+    required AuthBootstrapData this.data,
+    this.etag,
+  }) : isNotModified = false;
+
+  const AuthBootstrapResult.notModified({this.etag})
+    : data = null,
+      isNotModified = true;
+}
+
+Map<String, bool> _boolAccessMapFromJson(Map<dynamic, dynamic> data) {
+  return data.map(
+    (key, value) => MapEntry(
+      key.toString(),
+      value == true || value.toString().toLowerCase() == 'true',
+    ),
+  );
+}
+
 class AuthRepository {
   final ApiClient _apiClient;
   final AuthDeviceInfoProvider _deviceInfoProvider;
@@ -361,6 +469,39 @@ class AuthRepository {
     }
   }
 
+  Future<AuthBootstrapResult> getBootstrap({String? ifNoneMatch}) async {
+    final response = await _apiClient.getConditional(
+      '/auth/bootstrap',
+      ifNoneMatch: ifNoneMatch,
+    );
+    if (response.isNotModified) {
+      return AuthBootstrapResult.notModified(
+        etag: response.etag ?? ifNoneMatch,
+      );
+    }
+    try {
+      final decoded = jsonDecode(response.body);
+      if (decoded is! Map) {
+        throw ApiException(
+          'Dữ liệu đồng bộ tài khoản chưa hợp lệ. Vui lòng thử lại.',
+        );
+      }
+      final data = AuthBootstrapData.fromJson(
+        Map<String, dynamic>.from(decoded),
+      );
+      return AuthBootstrapResult.data(
+        data: data,
+        etag: response.etag ?? data.version,
+      );
+    } on ApiException {
+      rethrow;
+    } catch (_) {
+      throw ApiException(
+        'Dữ liệu đồng bộ tài khoản chưa hợp lệ. Vui lòng thử lại.',
+      );
+    }
+  }
+
   Future<List<StoreBranch>> getStores({String? query}) async {
     final response = await _apiClient.get(
       ApiConstants.storesEndpoint,
@@ -387,12 +528,7 @@ class AuthRepository {
   }
 
   Map<String, bool> _boolMapFromJson(Map<String, dynamic> data) {
-    return data.map(
-      (key, value) => MapEntry(
-        key,
-        value == true || value.toString().toLowerCase() == 'true',
-      ),
-    );
+    return _boolAccessMapFromJson(data);
   }
 
   Future<User> updateProfile({

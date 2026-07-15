@@ -39,6 +39,7 @@ import {
   HttpResponseTooLargeError,
   readBoundedHttpResponse,
 } from '../common/bounded-http-response';
+import { buildRealtimeRedisEnvelope } from '../common/realtime-event';
 import {
   CreateMapVietinStatementOrderTransferRequestDto,
   ExportMapVietinStatementsDto,
@@ -3556,14 +3557,32 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
       );
       return;
     }
-    await this.redisService.publishMessage(STATEMENT_ORDER_TRANSFER_CHANNEL, {
-      requestId: row.id,
-      transactionId: row.transactionId,
-      storeCode: row.storeCode,
-      status: row.status,
-      createdAt: row.createdAt.toISOString(),
-      ...(row.recipientUserId ? { recipientUserId: row.recipientUserId } : {}),
-    });
+    const occurredAt = new Date();
+    const storeCodes = row.storeCode === '__all__' ? [] : [row.storeCode];
+    await this.redisService.publishMessage(
+      STATEMENT_ORDER_TRANSFER_CHANNEL,
+      buildRealtimeRedisEnvelope({
+        type: 'STATEMENT_ORDER_TRANSFER_REQUEST',
+        occurredAt,
+        audience: {
+          storeCodes,
+          recipientUserIds: row.recipientUserId ? [row.recipientUserId] : [],
+          roles: ['SUPER_ADMIN'],
+          policyCodes: [ADMIN_POLICY_CODES.BANK_STATEMENT_ALL_SCOPE],
+          featureCodes: [FEATURE_KEYS.BANK_STATEMENTS],
+        },
+        payload: {
+          requestId: row.id,
+          transactionId: row.transactionId,
+          storeCode: row.storeCode,
+          status: row.status,
+          createdAt: row.createdAt.toISOString(),
+          ...(row.recipientUserId
+            ? { recipientUserId: row.recipientUserId }
+            : {}),
+        },
+      }),
+    );
   }
 
   private resolveStoredPayer(row: {

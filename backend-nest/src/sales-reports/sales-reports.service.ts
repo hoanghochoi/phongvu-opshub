@@ -15,6 +15,7 @@ import {
   storesForOrganizationNodeTree,
 } from '../common/organization-store-scope';
 import { logFingerprint } from '../common/log-sanitizer';
+import { buildRealtimeRedisEnvelope } from '../common/realtime-event';
 import { isSuperAdminRole } from '../common/system-role';
 import { FEATURE_KEYS } from '../feature/feature.constants';
 import { FeatureService } from '../feature/feature.service';
@@ -2362,7 +2363,16 @@ export class SalesReportsService implements OnApplicationBootstrap {
     }
     await this.redisService.publishMessage(
       SALES_REPORT_ORDERS_UPDATED_CHANNEL,
-      payload,
+      buildRealtimeRedisEnvelope({
+        type: 'SALES_REPORT_ORDERS_UPDATED',
+        audience: {
+          storeCodes: payload.storeCodes,
+          recipientUserIds: payload.recipientUserIds,
+          roles: ['SUPER_ADMIN'],
+          featureCodes: [FEATURE_KEYS.SALES_REPORT],
+        },
+        payload,
+      }),
     );
     this.logger.log(
       `Sales report realtime update published: source=${payload.source} dateCount=${payload.dates.length} newOrderCount=${payload.newOrderCount} mappedOrderCount=${payload.mappedOrderCount} storeCount=${payload.storeCodes.length} recipientCount=${payload.recipientUserIds.length}`,
