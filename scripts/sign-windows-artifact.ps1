@@ -125,6 +125,13 @@ function Install-EphemeralSigningTrust {
     Add-PublicCertificateToStore `
       -Certificate $signer `
       -StoreName ([System.Security.Cryptography.X509Certificates.StoreName]::TrustedPublisher)
+
+    if ($signer.Subject -eq $signer.Issuer) {
+      Write-Host 'Installing self-signed Windows signing root trust.'
+      Add-PublicCertificateToStore `
+        -Certificate $signer `
+        -StoreName ([System.Security.Cryptography.X509Certificates.StoreName]::Root)
+    }
   } finally {
     $signer.Dispose()
   }

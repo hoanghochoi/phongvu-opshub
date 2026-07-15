@@ -251,7 +251,7 @@ contains(windowsSigner, '*\\x64\\signtool.exe', 'Windows targeted signtool looku
 excludes(windowsSigner, '-Recurse', 'Windows recursive signtool lookup');
 contains(windowsSigner, 'Install-EphemeralSigningTrust', 'Windows ephemeral public trust setup');
 contains(windowsSigner, 'StoreName]::TrustedPublisher', 'Windows ephemeral publisher trust');
-excludes(windowsSigner, 'StoreName]::Root', 'Windows ephemeral root trust');
+contains(windowsSigner, 'StoreName]::Root', 'Windows self-signed root trust');
 excludes(windowsSigner, 'StoreName]::CertificateAuthority', 'Windows ephemeral CA trust');
 contains(windowsSigner, "if ($statusName -ne 'Valid')", 'Windows strict Authenticode status');
 contains(
