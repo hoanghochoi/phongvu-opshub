@@ -14,6 +14,8 @@ class BarcodeScanCapture {
 }
 
 abstract interface class BarcodeScannerControllerHandle {
+  Future<void> start();
+
   Future<void> toggleTorch();
 
   Future<void> switchCamera();

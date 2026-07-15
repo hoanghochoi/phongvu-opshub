@@ -1841,6 +1841,19 @@ test\app_nav_model_test.dart test\admin_menu_screen_test.dart` (22 tests),
   verified iOS Safari/PWA camera permission, live preview, and successful scan,
   plus QR, Code 128, and small Data Matrix callbacks across FIFO, Sort, BH/SC,
   VietQR, and Sales Report; VietQR/Sales Report preserved raw-code mode.
+- UI-UX-001/QUICK-ACTIONS-001/FIFO-001/SALES-REPORT-001, 2026-07-15:
+  customer QR now stays black on a pure-white square in dark mode. The shared
+  camera scanner loads pinned ZXing `0.21.3` from the app origin so production
+  CSP `script-src 'self'` cannot block camera initialization, exposes an
+  explicit camera retry action, and reduces manual entry to one horizontal
+  input plus a filled check icon with the accessible label `Hoàn thành`.
+  Validation: focused scanner/Quick Actions widget suite (19 tests), focused
+  design-system guard, full Flutter suite (471 passed, 2 skipped),
+  `flutter analyze --no-pub`, `flutter build web --no-pub
+  --dart-define=APP_ENV=smoke`, packaged ZXing SHA-256
+  `d7cc8f69dd70bdcf3ac00c9ae572bf2acb9f4132ba379c72df842e4db918652d`,
+  and `git diff --check`. Gap: repeat camera permission, live preview, and scan
+  smoke on physical iOS Safari/PWA after deploying this build.
 - UI-UX-001/FIFO-001/VIETQR-001/SALES-REPORT-001/WARRANTY-001, 2026-07-03:
   shared QR/barcode scanner no longer blocks web camera use. The scanner now
   treats web/mobile browsers as camera-capable through `mobile_scanner`, hides

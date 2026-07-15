@@ -136,8 +136,13 @@ visual systems that make the app feel assembled from unrelated screens.
   Data Matrix product labels. Android uses auto-zoom and requests a sharper
   analyzer stream; Android/iOS allow tap-to-focus. Web/mobile browser scanning
   must still open the camera when browser support is available, with
-  browser-managed focus and zoom. Scanner open/success/failure branches must log
-  through `AppLogger` without storing raw scanned values.
+  browser-managed focus and zoom. The web barcode runtime must be served from
+  the app origin so the production `script-src 'self'` policy does not block
+  camera initialization. Manual entry inside the camera screen is one compact
+  horizontal row: one input plus a filled check icon with the accessible label
+  `Hoàn thành`; do not repeat the instruction/helper block in the bottom panel.
+  Scanner open/success/failure/retry branches must log through `AppLogger`
+  without storing raw scanned values.
 - Feature entry screens use `AppFeatureSection` and `AppFeatureGrid` so mobile
   and desktop tiles stay consistent.
 - User-facing notification entry points must use the shared global notification

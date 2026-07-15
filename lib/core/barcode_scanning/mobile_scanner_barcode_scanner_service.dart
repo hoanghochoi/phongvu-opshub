@@ -118,6 +118,9 @@ class MobileScannerControllerAdapter implements BarcodeScannerControllerHandle {
   final MobileScannerController inner;
 
   @override
+  Future<void> start() => inner.start();
+
+  @override
   Future<void> toggleTorch() => inner.toggleTorch();
 
   @override

@@ -319,37 +319,87 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
     Navigator.of(context).pop(code);
   }
 
+  Future<void> _retryCamera() async {
+    final controller = _controller;
+    if (controller == null) return;
+
+    await AppLogger.instance.info(
+      'BarcodeScanner',
+      'Scanner camera retry requested',
+      context: {
+        'scannerBackend': widget.scannerService.backendName,
+        'isWeb': kIsWeb,
+        'platform': defaultTargetPlatform.name,
+      },
+    );
+    try {
+      await controller.start();
+    } catch (error, stackTrace) {
+      await AppLogger.instance.error(
+        'BarcodeScanner',
+        'Scanner camera retry failed',
+        error: error,
+        stackTrace: stackTrace,
+      );
+    }
+  }
+
   Widget _buildScannerError(BuildContext context) {
     return ColoredBox(
       color: AppColors.shadow,
       child: Center(
         child: Padding(
           padding: const EdgeInsets.all(24),
-          child: Text(
-            'Chưa mở được camera. Vui lòng kiểm tra quyền camera hoặc nhập mã thủ công bên dưới.',
-            style: AppTextStyles.bodyL.copyWith(color: AppColors.surface),
-            textAlign: TextAlign.center,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Chưa mở được camera. Hãy cho phép camera cho trang này rồi thử lại.',
+                style: AppTextStyles.bodyL.copyWith(color: AppColors.surface),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 12),
+              AppSecondaryButton(
+                onPressed: () => unawaited(_retryCamera()),
+                icon: Icons.refresh_rounded,
+                label: 'Thử lại camera',
+                foregroundColor: AppColors.surface,
+                borderColor: AppColors.surface,
+                expand: false,
+                height: AppButtonMetrics.compactActionHeight,
+              ),
+            ],
           ),
         ),
       ),
     );
   }
 
-  List<Widget> _manualEntryFields({bool autofocus = false}) {
-    return [
-      AppTextInput(
-        controller: _manualController,
-        label: 'Mã',
-        autofocus: autofocus,
-        textInputAction: TextInputAction.done,
-        onSubmitted: (_) => unawaited(_submitManualCode()),
-      ),
-      AppPrimaryButton(
-        onPressed: () => unawaited(_submitManualCode()),
-        icon: Icons.check_rounded,
-        label: 'Dùng mã',
-      ),
-    ];
+  Widget _buildManualEntryBar({bool autofocus = false}) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Expanded(
+          child: AppTextInput(
+            key: const Key('barcode-manual-input'),
+            controller: _manualController,
+            label: 'Nhập mã',
+            dense: true,
+            autofocus: autofocus,
+            textInputAction: TextInputAction.done,
+            onSubmitted: (_) => unawaited(_submitManualCode()),
+          ),
+        ),
+        const SizedBox(width: 8),
+        AppIconAction(
+          key: const Key('barcode-manual-submit'),
+          onPressed: () => unawaited(_submitManualCode()),
+          icon: Icons.check_rounded,
+          tooltip: 'Hoàn thành',
+          filled: true,
+        ),
+      ],
+    );
   }
 
   Widget _buildBottomPanel(BuildContext context) {
@@ -368,29 +418,8 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
             elevation: 8,
             shadowColor: AppColors.shadow.withValues(alpha: 0.20),
             child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: AppFormColumn(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                spacing: 12,
-                children: [
-                  Text(
-                    widget.instruction,
-                    style: AppTextStyles.bodyL.copyWith(
-                      color: AppColors.neutral900,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                  if (widget.helperText.isNotEmpty)
-                    Text(
-                      widget.helperText,
-                      style: AppTextStyles.bodyS.copyWith(
-                        color: AppColors.neutral600,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                  ..._manualEntryFields(),
-                ],
-              ),
+              padding: const EdgeInsets.all(10),
+              child: _buildManualEntryBar(),
             ),
           ),
         ),
@@ -426,7 +455,7 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
                 'Thiết bị này chưa hỗ trợ quét bằng camera. Vui lòng nhập mã thủ công.',
                 textAlign: TextAlign.center,
               ),
-              ..._manualEntryFields(autofocus: true),
+              _buildManualEntryBar(autofocus: true),
             ],
           ),
         ),
