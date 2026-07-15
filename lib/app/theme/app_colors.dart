@@ -80,6 +80,8 @@ class AppColors {
   static const Color onSurfaceVariant = Color(0xFF64748B);
   static const Color textSecondary = Color(0xFF4B5563);
   static const Color textMuted = Color(0xFF64748B);
+  static const Color customerQrBackground = surface;
+  static const Color customerQrForeground = shadow;
 
   // ── Navigation ──────────────────────────────────────────────────
   static const Color sidebarSurface = Color(0xFF101828);

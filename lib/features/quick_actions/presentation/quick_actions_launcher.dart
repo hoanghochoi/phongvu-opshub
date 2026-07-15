@@ -112,7 +112,6 @@ class _QuickActionsLauncherState extends State<QuickActionsLauncher>
   final LayerLink _link = LayerLink();
   final FocusNode _buttonFocus = FocusNode(debugLabel: 'quick-actions-button');
   OverlayEntry? _overlay;
-  bool _refreshing = false;
 
   @override
   void initState() {
@@ -177,35 +176,14 @@ class _QuickActionsLauncherState extends State<QuickActionsLauncher>
       _closeMenu();
       return;
     }
-    if (_refreshing) return;
-    _refreshing = true;
-    final startedAt = DateTime.now();
     final provider = context.read<QuickActionsProvider>();
     final authProvider = context.read<AuthProvider>();
-    await AppLogger.instance.info(
-      'QuickActions',
-      'Quick actions menu refresh started',
-      context: {'location': widget.location},
-    );
-    final loaded = await provider.refresh();
-    if (!mounted) return;
-    _refreshing = false;
+    provider.revalidateScopeIfStale();
     final user = authProvider.user;
     final actions = QuickActionsLauncher._availableActions(
       user,
-      loaded ?? provider.payload,
+      provider.payload,
     );
-    await AppLogger.instance.info(
-      'QuickActions',
-      'Quick actions menu refresh completed',
-      context: {
-        'location': widget.location,
-        'status': loaded == null ? 'failed' : 'succeeded',
-        'actionCount': actions.length,
-        'durationMs': DateTime.now().difference(startedAt).inMilliseconds,
-      },
-    );
-    if (!mounted) return;
     if (actions.isEmpty) {
       setState(() {});
       AppToast.show(
@@ -385,7 +363,21 @@ class _QuickActionsLauncherState extends State<QuickActionsLauncher>
               Semantics(
                 label: 'Mã QR ${action.label} của ${store.storeName}',
                 image: true,
-                child: QrImageView(data: url, size: 260),
+                child: SizedBox.square(
+                  dimension: 260,
+                  child: QrImageView(
+                    key: const Key('quick-action-qr-code'),
+                    data: url,
+                    size: 260,
+                    backgroundColor: AppColors.customerQrBackground,
+                    eyeStyle: const QrEyeStyle(
+                      color: AppColors.customerQrForeground,
+                    ),
+                    dataModuleStyle: const QrDataModuleStyle(
+                      color: AppColors.customerQrForeground,
+                    ),
+                  ),
+                ),
               ),
               const SizedBox(height: 12),
               Text(

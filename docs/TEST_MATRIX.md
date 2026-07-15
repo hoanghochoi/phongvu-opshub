@@ -2714,8 +2714,14 @@ src/map-vietin/map-vietin.service.spec.ts` (26 tests), `npm run build`, full
   full Nest/Flutter tests và `git diff --check`.
 - Manual pending: Windows Home placement/focus/Escape/USB scanner và điện thoại
   thật camera/horizontal scroll/customer QR scan.
-- Regression 2026-07-14: scanner trả focus về đúng trường link; launcher refresh
-  API trước khi mở và sau khi lưu để Super Admin/user nhận QR action mới ngay.
+- Regression 2026-07-14: scanner trả focus về đúng trường link; sau khi lưu,
+  launcher force-refresh để Super Admin/user nhận QR action mới ngay.
+- Performance regression 2026-07-15: launcher không gọi API mỗi lần mở. Client
+  lưu persistent scope/danh sách QR 24 giờ và link từng showroom 7 ngày, seed
+  showroom đơn từ bootstrap, dedupe request đang chạy, force-refresh sau lưu và
+  cô lập cache theo user + scope + tập quyền. Cache sống qua lần khởi động app;
+  API lỗi sau TTL fallback mã local. Unit/widget proof kiểm tra số lần repository,
+  disk cache, TTL showroom, đổi quyền và mở menu từ cache.
 - Regression 2026-07-14: đổi chức năng `Khách hàng chưa mua` thành `Chăm sóc lại`
   với icon `support_agent_rounded`; thêm `QUICK_ACTION_FOLLOW_UP` ngay sau VietQR.
   Shortcut chỉ hiện khi child bật và user có `SALES_REPORT` hoặc

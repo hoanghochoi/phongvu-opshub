@@ -15,11 +15,14 @@ Contract: [quick-actions.md](../product/quick-actions.md)
 - Windows native chỉ có launcher tại Home, padding 24px, menu dọc có keyboard,
   Escape và trả focus.
 - Đủ bảy action đúng thứ tự; ba action nghiệp vụ kiểm tra cả child + quyền gốc.
-- Bốn QR theo showroom, không fallback; multi-store chọn showroom trước.
+- Bốn QR theo showroom, không fallback; multi-store chọn showroom trước; vùng
+  mã luôn trắng thuần với nét đen trong light mode và dark mode.
 - Store Manager trở lên + feature + scope mới sửa được bốn link; lưu/xóa atomic,
   chỉ URL http/https tối đa 2.048 ký tự.
 - Feature tree/backfill cho phép tắt từng child ở từng level và không tự bật lại
   khi sửa link.
+- Client lưu QR bền vững theo user + showroom, không gọi API mỗi lần mở launcher;
+  cache quyền/scope cũ không được dùng khi scope hoặc tập quyền thay đổi.
 - Có log đã sanitize, unit/widget proof và tài liệu/test matrix đồng bộ.
 
 ## Proof plan

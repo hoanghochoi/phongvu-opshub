@@ -13,6 +13,11 @@ class QuickActionStore {
         storeCode: json['storeCode']?.toString() ?? '',
         storeName: json['storeName']?.toString() ?? '',
       );
+
+  Map<String, dynamic> toJson() => {
+    'storeCode': storeCode,
+    'storeName': storeName,
+  };
 }
 
 class QuickActionsPayload {
@@ -43,6 +48,13 @@ class QuickActionsPayload {
       links: linksJson.map((key, value) => MapEntry(key, value?.toString())),
     );
   }
+
+  Map<String, dynamic> toJson() => {
+    'stores': stores.map((store) => store.toJson()).toList(growable: false),
+    'selectedStoreCode': selectedStoreCode,
+    'availableActionCodes': availableActionCodes.toList(growable: false),
+    'links': links,
+  };
 }
 
 class QuickActionsRepository {
