@@ -186,6 +186,73 @@ function expectedRunEmails(runId) {
   );
 }
 
+function normalizeNodeType(value) {
+  const type = String(value || '').trim().toUpperCase();
+  switch (type) {
+    case 'ROOT_DOMAIN':
+      return 'LV0_DOMAIN';
+    case 'BLOCK':
+      return 'LV1_BLOCK';
+    case 'DEPARTMENT':
+      return 'LV2_DEPARTMENT';
+    case 'REGION':
+      return 'LV2_REGION';
+    case 'AREA':
+      return 'LV3_AREA';
+    case 'VIRTUAL_SCOPE':
+      return 'LV3_UNIT';
+    case 'SHOWROOM':
+      return 'LV4_STORE';
+    case 'JOB_ROLE':
+      return 'LV5_POSITION';
+    default:
+      return type;
+  }
+}
+
+function nodeFeatureKey(node) {
+  return String(node.businessCode || node.code || '').trim().toUpperCase();
+}
+
+function rootNodeIdForNode(nodes, nodeId) {
+  const byId = new Map(nodes.map((node) => [node.id, node]));
+  let cursor = byId.get(nodeId) ?? null;
+  let rootId = null;
+  for (let guard = 0; cursor && guard < 50; guard += 1) {
+    if (cursor.isActive === false) return null;
+    rootId = cursor.id;
+    if (!cursor.parentId || normalizeNodeType(cursor.type) === 'LV0_DOMAIN') {
+      return cursor.id;
+    }
+    cursor = byId.get(cursor.parentId) ?? null;
+  }
+  return rootId;
+}
+
+function nodeFeatureTargetsForAccess(nodes, nodeId) {
+  const byId = new Map(nodes.map((node) => [node.id, node]));
+  const ancestors = [];
+  let cursor = byId.get(nodeId) ?? null;
+  for (let guard = 0; cursor && guard < 50; guard += 1) {
+    ancestors.push(cursor);
+    cursor = cursor.parentId ? (byId.get(cursor.parentId) ?? null) : null;
+  }
+  const scopeRootNodeId = rootNodeIdForNode(nodes, nodeId);
+  if (!scopeRootNodeId) return [];
+  return ancestors
+    .filter((node, index) => {
+      const nodeType = normalizeNodeType(node.type);
+      return index === 0 || nodeType !== 'LV0_DOMAIN';
+    })
+    .map((node) => ({
+      scopeRootNodeId,
+      nodeType: normalizeNodeType(node.type),
+      nodeKey: nodeFeatureKey(node),
+      organizationNodeId: node.id,
+    }))
+    .filter((target) => target.nodeKey);
+}
+
 function assertExactRunUsers(users, runId) {
   if (users.length !== USER_COUNT) {
     throw new Error(
@@ -332,11 +399,88 @@ async function createUsers(prisma, runId, passwordHash) {
       `Required Home load feature definitions are missing: ${missingFeatures.join(', ')}`,
     );
   }
+  const store = await prisma.store.findUnique({
+    where: { storeId: source.storeId },
+    select: { organizationNodeId: true },
+  });
+  if (!store?.organizationNodeId) {
+    throw new Error('The staging source store has no organization node');
+  }
+  const organizationNodes = await prisma.organizationNode.findMany({
+    select: {
+      id: true,
+      parentId: true,
+      type: true,
+      code: true,
+      businessCode: true,
+      isActive: true,
+    },
+  });
+  const nodeTargets = nodeFeatureTargetsForAccess(
+    organizationNodes,
+    store.organizationNodeId,
+  );
+  if (nodeTargets.length === 0) {
+    throw new Error('The staging source store has no usable feature node chain');
+  }
+  const targetFilters = nodeTargets.flatMap((target) =>
+    LOAD_FEATURE_CODES.map((featureCode) => ({
+      scopeRootNodeId: target.scopeRootNodeId,
+      nodeType: target.nodeType,
+      nodeKey: target.nodeKey,
+      featureCode,
+    })),
+  );
+  const existingNodeAssignments =
+    await prisma.organizationNodeFeatureAssignment.findMany({
+      where: { OR: targetFilters },
+      select: {
+        scopeRootNodeId: true,
+        nodeType: true,
+        nodeKey: true,
+        featureCode: true,
+        enabled: true,
+        note: true,
+      },
+    });
+  const assignmentKey = (value) =>
+    [
+      value.scopeRootNodeId,
+      value.nodeType,
+      String(value.nodeKey).toUpperCase(),
+      value.featureCode,
+    ].join('|');
+  const existingByKey = new Map(
+    existingNodeAssignments.map((assignment) => [
+      assignmentKey(assignment),
+      assignment,
+    ]),
+  );
+  for (const assignment of existingNodeAssignments) {
+    if (assignment.enabled !== true) {
+      throw new Error(
+        `Required staging Home node feature is disabled: ${assignment.featureCode}`,
+      );
+    }
+  }
+  const note = `staging-load:${runId}`;
+  const nodeAssignmentsToCreate = targetFilters.filter(
+    (target) => !existingByKey.has(assignmentKey(target)),
+  );
 
   await prisma.$transaction(
     async (tx) => {
+      if (nodeAssignmentsToCreate.length > 0) {
+        await tx.organizationNodeFeatureAssignment.createMany({
+          data: nodeAssignmentsToCreate.map((target) => ({
+            ...target,
+            enabled: true,
+            note,
+          })),
+        });
+      }
       for (let index = 1; index <= USER_COUNT; index += 1) {
-        const user = await tx.user.create({
+        await tx.user.create({
           data: {
             email: emailFor(runId, index),
             password: passwordHash,
@@ -350,15 +494,6 @@ async function createUsers(prisma, runId, passwordHash) {
             branchLockedAt: source.branchLockedAt,
             storeId: source.storeId,
           },
-          select: { id: true },
-        });
-        await tx.userFeatureAssignment.createMany({
-          data: LOAD_FEATURE_CODES.map((featureCode) => ({
-            userId: user.id,
-            featureCode,
-            enabled: true,
-            note: `staging-load:${runId}`,
-          })),
         });
       }
     },

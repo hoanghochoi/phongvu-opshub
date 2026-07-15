@@ -36,10 +36,12 @@ scope, no active organization assignment, and no direct feature or policy
 grant. Synthetic users copy only the source store, profile-completion and branch
 lock fields; organization assignments, broad feature rules and policy rules are
 never cloned. The wrapper grants only the two Home section features required for
-the proof (`HOME_DASHBOARD_SALES` and `HOME_DASHBOARD_FINANCE`) directly to the
-temporary users and tags those rows with the run id so cleanup can prove zero
-remaining records. Any source-account drift stops the run before the first user
-is created. The command never sends email.
+the proof (`HOME_DASHBOARD_SALES` and `HOME_DASHBOARD_FINANCE`) on the staging
+source store's organization node chain, never in production. Existing enabled
+node assignments are reused; existing disabled conflicts stop the run instead
+of being overwritten. Newly created rows are tagged with the run id so cleanup
+can prove zero remaining records. Any source-account drift stops the run before
+the first user is created. The command never sends email.
 
 ```bash
 RUN_ID=release-yyyymmdd-nnn

@@ -332,8 +332,10 @@ for (const expected of [
   'featureRules !== 0',
   'policyRules !== 0',
   'minimal store-only Home/auth/realtime scope',
-  'tx.userFeatureAssignment.createMany',
-  'note: `staging-load:${runId}`',
+  'tx.organizationNodeFeatureAssignment.createMany',
+  'const note = `staging-load:${runId}`',
+  'note,',
+  'Required staging Home node feature is disabled',
 ]) {
   contains(stagingLoadUsers, expected, 'staging synthetic-user safety gate');
 }
