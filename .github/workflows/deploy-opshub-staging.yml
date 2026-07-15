@@ -540,19 +540,27 @@ jobs:
       - name: Deploy staging backend and publish version metadata
         id: deploy_runtime
         shell: bash
+        env:
+          APK_NAME: ${{ needs.prepare.outputs.apk_name }}
+          WINDOWS_ZIP_NAME: ${{ needs.prepare.outputs.windows_zip_name }}
+          WINDOWS_INSTALLER_NAME: ${{ needs.prepare.outputs.windows_installer_name }}
+          WINDOWS_CHECKSUM_NAME: ${{ needs.prepare.outputs.windows_checksum_name }}
+          APP_VERSION: ${{ needs.prepare.outputs.version_name }}
+          APP_BUILD_NUMBER: ${{ needs.prepare.outputs.version_code }}
+          APP_RELEASE_NOTES: ${{ needs.prepare.outputs.release_notes }}
         run: |
           set -euo pipefail
           remote_release_dir="${OPSHUB_REMOTE_APP_DIR}/releases/${GITHUB_SHA}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           client_staging_dir="${OPSHUB_REMOTE_APP_DIR}/action-staging/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
-          android_update_url="${OPSHUB_DOWNLOAD_PUBLIC_BASE_URL}/downloads/${{ needs.prepare.outputs.apk_name }}"
-          windows_update_url="${OPSHUB_DOWNLOAD_PUBLIC_BASE_URL}/downloads/${{ needs.prepare.outputs.windows_installer_name }}"
+          android_update_url="${OPSHUB_DOWNLOAD_PUBLIC_BASE_URL}/downloads/${APK_NAME}"
+          windows_update_url="${OPSHUB_DOWNLOAD_PUBLIC_BASE_URL}/downloads/${WINDOWS_INSTALLER_NAME}"
           downloads_dir="${OPSHUB_SSD_ROOT}/downloads"
           web_dir="${OPSHUB_SSD_ROOT}/web"
           tmp_dir="${OPSHUB_REMOTE_APP_DIR}/tmp/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
-          android_package_sha256="$(ssh opshub-staging "sha256sum '$client_staging_dir/android/${{ needs.prepare.outputs.apk_name }}' | awk '{print \$1}'")"
-          windows_package_sha256="$(ssh opshub-staging "sha256sum '$client_staging_dir/windows/${{ needs.prepare.outputs.windows_installer_name }}' | awk '{print \$1}'")"
-          android_package_size_bytes="$(ssh opshub-staging "stat -c%s '$client_staging_dir/android/${{ needs.prepare.outputs.apk_name }}'")"
-          windows_package_size_bytes="$(ssh opshub-staging "stat -c%s '$client_staging_dir/windows/${{ needs.prepare.outputs.windows_installer_name }}'")"
+          android_package_sha256="$(ssh opshub-staging "sha256sum '$client_staging_dir/android/$APK_NAME' | awk '{print \$1}'")"
+          windows_package_sha256="$(ssh opshub-staging "sha256sum '$client_staging_dir/windows/$WINDOWS_INSTALLER_NAME' | awk '{print \$1}'")"
+          android_package_size_bytes="$(ssh opshub-staging "stat -c%s '$client_staging_dir/android/$APK_NAME'")"
+          windows_package_size_bytes="$(ssh opshub-staging "stat -c%s '$client_staging_dir/windows/$WINDOWS_INSTALLER_NAME'")"
           windows_installer_args="/VERYSILENT,/SUPPRESSMSGBOXES,/NORESTART,/CLOSEAPPLICATIONS,/OPSHUBRELAUNCH=1"
           ssh opshub-staging \
             "REMOTE_RELEASE_DIR='$remote_release_dir' \
@@ -560,10 +568,10 @@ jobs:
              TMP_DIR='$tmp_dir' \
              DOWNLOADS_DIR='$downloads_dir' \
              WEB_DIR='$web_dir' \
-             APK_NAME='${{ needs.prepare.outputs.apk_name }}' \
-             WINDOWS_ZIP_NAME='${{ needs.prepare.outputs.windows_zip_name }}' \
-             WINDOWS_INSTALLER_NAME='${{ needs.prepare.outputs.windows_installer_name }}' \
-             WINDOWS_CHECKSUM_NAME='${{ needs.prepare.outputs.windows_checksum_name }}' \
+             APK_NAME='$APK_NAME' \
+             WINDOWS_ZIP_NAME='$WINDOWS_ZIP_NAME' \
+             WINDOWS_INSTALLER_NAME='$WINDOWS_INSTALLER_NAME' \
+             WINDOWS_CHECKSUM_NAME='$WINDOWS_CHECKSUM_NAME' \
              OPSHUB_REMOTE_APP_DIR='${OPSHUB_REMOTE_APP_DIR}' \
              CURRENT_DIR='${OPSHUB_REMOTE_APP_DIR}/current' \
              DEPLOY_RUN_ID='$GITHUB_RUN_ID' \
@@ -571,8 +579,8 @@ jobs:
              OPSHUB_SSD_ROOT='$OPSHUB_SSD_ROOT' \
              COMPOSE_PROJECT_NAME='$COMPOSE_PROJECT_NAME' \
              OPSHUB_PUBLIC_BASE_URL='$OPSHUB_PUBLIC_BASE_URL' \
-             APP_VERSION='${{ needs.prepare.outputs.version_name }}' \
-             APP_BUILD_NUMBER='${{ needs.prepare.outputs.version_code }}' \
+             APP_VERSION='$APP_VERSION' \
+             APP_BUILD_NUMBER='$APP_BUILD_NUMBER' \
              ANDROID_UPDATE_URL='$android_update_url' \
              WINDOWS_UPDATE_URL='$windows_update_url' \
              ANDROID_PACKAGE_SHA256='$android_package_sha256' \
@@ -580,7 +588,7 @@ jobs:
              ANDROID_PACKAGE_SIZE_BYTES='$android_package_size_bytes' \
              WINDOWS_PACKAGE_SIZE_BYTES='$windows_package_size_bytes' \
              WINDOWS_INSTALLER_ARGS='$windows_installer_args' \
-             APP_RELEASE_NOTES='${{ needs.prepare.outputs.release_notes }}' \
+             APP_RELEASE_NOTES='$APP_RELEASE_NOTES' \
              bash -s" <<'REMOTE'
           set -euo pipefail
 

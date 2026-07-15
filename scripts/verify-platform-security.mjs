@@ -59,6 +59,30 @@ function extractFunction(source, functionName) {
   return source.slice(start, next === -1 ? source.length : next);
 }
 
+function assertWorkflowRunExpressionLengths(source, label) {
+  const lines = source.split(/\r?\n/);
+  for (let index = 0; index < lines.length; index += 1) {
+    const runMatch = lines[index].match(/^(\s*)run:\s*\|[+-]?\s*$/);
+    if (!runMatch) continue;
+
+    const runIndent = runMatch[1].length;
+    const body = [];
+    for (let cursor = index + 1; cursor < lines.length; cursor += 1) {
+      const line = lines[cursor];
+      const indentation = line.match(/^(\s*)/)[1].length;
+      if (line.trim() && indentation <= runIndent) break;
+      body.push(line);
+    }
+
+    const runSource = body.join('\n');
+    if (!runSource.includes('${{')) continue;
+    assert.ok(
+      runSource.length <= 20000,
+      `${label}: interpolated run block at line ${index + 1} is ${runSource.length} characters`,
+    );
+  }
+}
+
 const [
   caddy,
   productionCompose,
@@ -110,6 +134,9 @@ const [
   text('pubspec.yaml'),
   text('fonts/Roboto-LICENSE.txt'),
 ]);
+
+assertWorkflowRunExpressionLengths(productionWorkflow, 'production workflow');
+assertWorkflowRunExpressionLengths(stagingWorkflow, 'staging workflow');
 
 contains(
   throttlerGuard,
