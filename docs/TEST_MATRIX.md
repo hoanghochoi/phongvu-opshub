@@ -2735,6 +2735,9 @@ src/map-vietin/map-vietin.service.spec.ts` (26 tests), `npm run build`, full
   cô lập cache theo user + scope + tập quyền. Cache sống qua lần khởi động app;
   API lỗi sau TTL fallback mã local. Unit/widget proof kiểm tra số lần repository,
   disk cache, TTL showroom, đổi quyền và mở menu từ cache.
+- Mobile layout regression 2026-07-15: menu Thao tác nhanh dùng lưới tự xuống
+  hàng thay cho một hàng cuộn ngang; widget proof kiểm tra đủ tám action, đúng
+  hai hàng trên viewport 390px và không còn horizontal scroll view.
 - Regression 2026-07-14: đổi chức năng `Khách hàng chưa mua` thành `Chăm sóc lại`
   với icon `support_agent_rounded`; thêm `QUICK_ACTION_FOLLOW_UP` ngay sau VietQR.
   Shortcut chỉ hiện khi child bật và user có `SALES_REPORT` hoặc

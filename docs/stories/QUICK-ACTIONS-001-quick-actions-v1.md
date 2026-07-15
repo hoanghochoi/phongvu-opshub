@@ -10,8 +10,8 @@ Contract: [quick-actions.md](../product/quick-actions.md)
 ## Acceptance
 
 - Mobile compact giữ đúng bốn destination và có launcher tia sét ở chính giữa;
-  menu ngang cuộn được và tự đóng khi bấm lại, chạm ngoài, back, đổi route hoặc
-  đổi kích thước.
+  menu lưới tự xuống hàng, không cuộn ngang và tự đóng khi bấm lại, chạm ngoài,
+  back, đổi route hoặc đổi kích thước.
 - Windows native chỉ có launcher tại Home, padding 24px, menu dọc có keyboard,
   Escape và trả focus.
 - Đủ bảy action đúng thứ tự; ba action nghiệp vụ kiểm tra cả child + quyền gốc.

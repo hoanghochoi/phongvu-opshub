@@ -12,7 +12,7 @@ import 'package:provider/provider.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
 void main() {
-  testWidgets('quick actions menu keeps the approved eight-action order', (
+  testWidgets('quick actions menu wraps eight actions into visible rows', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(390, 844);
@@ -92,10 +92,42 @@ void main() {
     for (final label in labels) {
       expect(find.text(label), findsOneWidget);
     }
-    final xPositions = labels
-        .map((label) => tester.getTopLeft(find.text(label)).dx)
+    final actionCodes = [
+      'FIFO',
+      'VIETQR',
+      'FOLLOW_UP',
+      'SALES_REPORT',
+      'APP_DOWNLOAD',
+      'CHECK_IN',
+      'ZALO_OA',
+      'GOOGLE_MAP',
+    ];
+    final positions = actionCodes
+        .map(
+          (code) => tester.getTopLeft(
+            find.byKey(Key('quick-action-grid-item-$code')),
+          ),
+        )
         .toList();
-    expect(xPositions, orderedEquals([...xPositions]..sort()));
+    final rowTops = positions.map((position) => position.dy.round()).toSet();
+    expect(rowTops, hasLength(2));
+    expect(positions.take(4).map((position) => position.dy.round()).toSet(), {
+      positions.first.dy.round(),
+    });
+    expect(positions.skip(4).map((position) => position.dy.round()).toSet(), {
+      positions[4].dy.round(),
+    });
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('quick-actions-menu')),
+        matching: find.byWidgetPredicate(
+          (widget) =>
+              widget is SingleChildScrollView &&
+              widget.scrollDirection == Axis.horizontal,
+        ),
+      ),
+      findsNothing,
+    );
   });
 
   testWidgets('opens from cached QR actions without refreshing the API', (

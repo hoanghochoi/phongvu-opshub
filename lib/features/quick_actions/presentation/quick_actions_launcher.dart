@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -414,14 +415,12 @@ class _QuickActionsMenu extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final children = [
-      for (final action in actions)
-        _QuickActionTile(
-          action: action,
-          horizontal: axis == Axis.horizontal,
-          onTap: () => onSelected(action),
-        ),
-    ];
+    final mediaSize = MediaQuery.sizeOf(context);
+    final horizontalMenuWidth = math.max(
+      0.0,
+      math.min(mediaSize.width - 24, 420.0),
+    );
+    final maxMenuHeight = math.max(0.0, mediaSize.height - 120);
     return Material(
       key: const Key('quick-actions-menu'),
       color: AppColors.cardOf(context),
@@ -431,29 +430,67 @@ class _QuickActionsMenu extends StatelessWidget {
       child: ConstrainedBox(
         constraints: axis == Axis.horizontal
             ? BoxConstraints(
-                maxWidth: MediaQuery.sizeOf(context).width - 24,
-                maxHeight: 92,
+                minWidth: horizontalMenuWidth,
+                maxWidth: horizontalMenuWidth,
+                maxHeight: maxMenuHeight,
               )
-            : BoxConstraints(
-                maxWidth: 280,
-                maxHeight: MediaQuery.sizeOf(context).height - 120,
-              ),
+            : BoxConstraints(maxWidth: 280, maxHeight: maxMenuHeight),
         child: axis == Axis.horizontal
-            ? SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: 8),
-                child: Row(mainAxisSize: MainAxisSize.min, children: children),
-              )
+            ? _QuickActionsGrid(actions: actions, onSelected: onSelected)
             : SingleChildScrollView(
                 padding: const EdgeInsets.symmetric(vertical: 8),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
-                  children: children,
+                  children: [
+                    for (final action in actions)
+                      _QuickActionTile(
+                        action: action,
+                        horizontal: false,
+                        onTap: () => onSelected(action),
+                      ),
+                  ],
                 ),
               ),
       ),
     );
   }
+}
+
+class _QuickActionsGrid extends StatelessWidget {
+  final List<_QuickAction> actions;
+  final ValueChanged<_QuickAction> onSelected;
+
+  const _QuickActionsGrid({required this.actions, required this.onSelected});
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      final columnCount = constraints.maxWidth >= 344
+          ? 4
+          : constraints.maxWidth >= 252
+          ? 3
+          : 2;
+      final tileWidth = (constraints.maxWidth - 16) / columnCount;
+      return SingleChildScrollView(
+        key: const Key('quick-actions-grid'),
+        padding: const EdgeInsets.all(8),
+        child: Wrap(
+          children: [
+            for (final action in actions)
+              SizedBox(
+                key: Key('quick-action-grid-item-${action.code}'),
+                width: tileWidth,
+                child: _QuickActionTile(
+                  action: action,
+                  horizontal: true,
+                  onTap: () => onSelected(action),
+                ),
+              ),
+          ],
+        ),
+      );
+    },
+  );
 }
 
 class _QuickActionTile extends StatelessWidget {
@@ -470,7 +507,7 @@ class _QuickActionTile extends StatelessWidget {
   Widget build(BuildContext context) => InkWell(
     onTap: onTap,
     child: SizedBox(
-      width: horizontal ? 96 : 264,
+      width: horizontal ? null : 264,
       height: horizontal ? 84 : 52,
       child: horizontal
           ? Column(

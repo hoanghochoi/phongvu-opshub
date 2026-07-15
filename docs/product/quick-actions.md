@@ -4,7 +4,8 @@
 
 Thao tác nhanh cung cấp một launcher nhất quán cho các tác vụ thường dùng mà
 không thay đổi quyền truy cập các màn hình gốc. Mobile compact hiển thị nút tia
-sét ở giữa thanh điều hướng và menu ngang; Windows native chỉ hiển thị tại
+sét ở giữa thanh điều hướng và menu dạng lưới tự xuống hàng, không cuộn ngang;
+Windows native chỉ hiển thị tại
 `/home`, cách mép phải và dưới 24px, với menu dọc bung lên.
 
 Thứ tự cố định: Kiểm tra FIFO, VietQR, Chăm sóc lại, Báo cáo bán hàng, Tải app,
