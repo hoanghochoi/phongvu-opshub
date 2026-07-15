@@ -87,17 +87,19 @@ function Invoke-SignTool {
 function Get-SignToolPath {
   $kitsRoot = Join-Path ${env:ProgramFiles(x86)} 'Windows Kits\10\bin'
   if (Test-Path $kitsRoot) {
-    $candidate = Get-ChildItem -Path $kitsRoot -Filter signtool.exe -Recurse |
-      Where-Object { $_.FullName -match '\\x64\\signtool\.exe$' } |
+    $candidatePath = Join-Path $kitsRoot '*\x64\signtool.exe'
+    $candidate = Get-ChildItem -Path $candidatePath -File -ErrorAction SilentlyContinue |
       Sort-Object FullName -Descending |
       Select-Object -First 1
     if ($candidate) {
+      Write-Host "Using Windows SDK signtool: $($candidate.FullName)"
       return $candidate.FullName
     }
   }
 
   $command = Get-Command signtool.exe -ErrorAction SilentlyContinue
   if ($command) {
+    Write-Host "Using PATH signtool: $($command.Source)"
     return $command.Source
   }
 
