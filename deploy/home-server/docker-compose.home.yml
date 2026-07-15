@@ -140,6 +140,7 @@ services:
       redis:
         condition: service_healthy
     volumes:
+      - ${OPSHUB_STAGING_LOAD_OUTPUT_DIR:-/srv/opshub/load-output}:/output
       - ${OPSHUB_SSD_ROOT:-/srv/opshub}/uploads:/data/app_images
       - ${OPSHUB_SSD_ROOT:-/srv/opshub}/private-media:/data/private-media
       - ${OPSHUB_SSD_ROOT:-/srv/opshub}/payment-audio:/data/payment-audio

@@ -68,6 +68,10 @@ const [
   manifest,
   gradle,
   updater,
+  windowsSigner,
+  throttlerGuard,
+  stagingLoadUsers,
+  stagingLoadProfile,
   help,
   download,
   packageJsonText,
@@ -89,6 +93,10 @@ const [
   text('android/app/src/main/AndroidManifest.xml'),
   text('android/app/build.gradle.kts'),
   text('lib/features/app_update/data/app_self_update_service.dart'),
+  text('scripts/sign-windows-artifact.ps1'),
+  text('backend-nest/src/common/user-aware-throttler.guard.ts'),
+  text('backend-nest/scripts/manage-staging-load-users.mjs'),
+  text('scripts/load/opshub-staging-home-100qps.js'),
   text('deploy/home-server/help.html'),
   text('deploy/home-server/download.html'),
   text('backend-nest/package.json'),
@@ -103,7 +111,31 @@ const [
   text('fonts/Roboto-LICENSE.txt'),
 ]);
 
+contains(
+  throttlerGuard,
+  '`${name}:${method}:${routePath}:${suffix}`',
+  'principal storage key method/path isolation',
+);
+const throttlerBodyEmailIndex = throttlerGuard.indexOf(
+  "this.valueFromRecord(this.bodyRecord(req.body), 'email')",
+);
+const throttlerQueryEmailIndex = throttlerGuard.indexOf(
+  "this.valueFromRecord(req.query, 'email')",
+);
+assert.ok(
+  throttlerBodyEmailIndex >= 0 &&
+    throttlerQueryEmailIndex > throttlerBodyEmailIndex,
+  'operation body email must take precedence over a rotatable query email',
+);
+
 contains(caddy, '@insecure_edge_request header X-Forwarded-Proto http', 'Caddy HTTPS redirect');
+contains(caddy, 'trusted_proxies static private_ranges', 'Caddy trusted Cloudflare Tunnel hop');
+contains(caddy, 'trusted_proxies_strict', 'Caddy strict trusted proxy parsing');
+contains(caddy, 'client_ip_headers CF-Connecting-IP', 'Caddy Cloudflare client IP source');
+contains(caddy, 'header_up X-Forwarded-For {client_ip}', 'Caddy normalized forwarded client IP');
+contains(caddy, 'header_up X-Real-IP {client_ip}', 'Caddy normalized real client IP');
+contains(caddy, 'redir * /download 308', 'Caddy canonical download redirect');
+contains(caddy, 'redir * /help 308', 'Caddy canonical help redirect');
 contains(caddy, 'Content-Security-Policy "', 'Caddy enforced CSP');
 contains(caddy, "object-src 'none'", 'Caddy CSP object restriction');
 contains(caddy, "frame-ancestors 'self'", 'Caddy CSP frame restriction');
@@ -171,8 +203,111 @@ contains(updater, "_productionPackageHost = 'opshub.hoanghochoi.com'", 'producti
 contains(updater, "_stagingPackageHost = 'opshub-staging.hoanghochoi.com'", 'staging updater host allowlist');
 contains(updater, 'isTrustedPackageUriForTesting(uri, isStaging: AppBrand.isStaging)', 'build-scoped updater host policy');
 contains(updater, 'request.followRedirects = false', 'updater redirect policy');
-contains(updater, 'WINDOWS_UPDATE_SIGNER_SHA256', 'Windows signer pin');
+contains(updater, 'final actual = await _sha256Of(file);', 'updater SHA-256 verification');
+excludes(updater, 'Get-AuthenticodeSignature', 'runtime Authenticode verification');
+excludes(updater, 'WINDOWS_UPDATE_SIGNER_SHA256', 'runtime Windows signer pin');
 contains(updater, '_maxPackageBytes', 'updater package hard cap');
+contains(windowsSigner, '/tr http://timestamp.digicert.com', 'Windows RFC 3161 signing timestamp');
+contains(windowsSigner, 'TimeStamperCertificate', 'Windows timestamp verification');
+contains(windowsSigner, 'actualPin -notin $trustedPins', 'Windows CI signer pin');
+contains(windowsSigner, 'Install-EphemeralSigningTrust', 'Windows ephemeral public trust setup');
+contains(windowsSigner, 'StoreName]::TrustedPublisher', 'Windows ephemeral publisher trust');
+contains(windowsSigner, 'StoreName]::Root', 'Windows ephemeral root trust');
+contains(windowsSigner, "if ($statusName -ne 'Valid')", 'Windows strict Authenticode status');
+contains(windowsSigner, '& $signTool verify /pa /all /v', 'Windows timestamped signature verification');
+excludes(windowsSigner, '$isPinnedUntrustedRoot', 'Windows untrusted pinned signer bypass');
+
+for (const [workflow, label] of [
+  [productionWorkflow, 'production workflow'],
+  [stagingWorkflow, 'staging workflow'],
+]) {
+  excludes(
+    workflow,
+    '--dart-define "WINDOWS_UPDATE_SIGNER_SHA256=',
+    `${label} runtime signer build define`,
+  );
+  contains(workflow, 'WINDOWS_SIGNING_PFX_BASE64', `${label} signing PFX gate`);
+  contains(workflow, 'WINDOWS_SIGNING_PFX_PASSWORD', `${label} signing password gate`);
+  contains(workflow, 'WINDOWS_UPDATE_SIGNER_SHA256', `${label} CI signer pin`);
+  contains(workflow, 'scan-windows-artifact-defender.ps1', `${label} Defender gate`);
+}
+
+for (const expected of [
+  "OPSHUB_STAGING).toLowerCase() !== 'true'",
+  'process.env.OPSHUB_STAGING_LOAD_MAINTENANCE_ENABLED,',
+  'PUBLIC_BASE_URL must equal ${REQUIRED_PUBLIC_URL}',
+  "SOURCE_EMAIL = 'staging.staff@phongvu.vn'",
+  "status: 'COMPLETE'",
+  "dimensionType: 'GLOBAL'",
+  "tokenFileMode: '0600'",
+  'assertNoBusinessReferences',
+  "revokedReason: 'STAGING_LOAD_COMPLETE'",
+  "source.role !== 'STAFF'",
+  'broadScalarScope',
+  'activeOrganizationAssignments !== 0',
+  'enabledUserFeatures !== 0',
+  'featureRules !== 0',
+  'policyRules !== 0',
+  'minimal store-only Home/auth/realtime scope',
+]) {
+  contains(stagingLoadUsers, expected, 'staging synthetic-user safety gate');
+}
+for (const forbidden of [
+  'cloneFeatureRule(',
+  'clonePolicyRule(',
+  'source.organizationAssignments',
+  'source.userFeatureAssignments',
+  'departmentCode: source.departmentCode',
+  'jobRoleCode: source.jobRoleCode',
+  'workScopeType: source.workScopeType',
+  'regionCode: source.regionCode',
+  'areaCode: source.areaCode',
+  'organizationNodeId: source.organizationNodeId',
+]) {
+  excludes(stagingLoadUsers, forbidden, 'staging synthetic-user scope cloning');
+}
+for (const copiedScalar of [
+  'profileCompletedAt: source.profileCompletedAt',
+  'branchLockedAt: source.branchLockedAt',
+  'storeId: source.storeId',
+]) {
+  contains(
+    stagingLoadUsers,
+    copiedScalar,
+    'staging synthetic-user minimal scalar clone',
+  );
+}
+const stagingSourceScopeGateIndex = stagingLoadUsers.indexOf(
+  'const broadScalarScope',
+);
+const stagingFirstSyntheticCreateIndex = stagingLoadUsers.indexOf(
+  'await tx.user.create',
+);
+assert.ok(
+  stagingSourceScopeGateIndex >= 0 &&
+    stagingFirstSyntheticCreateIndex > stagingSourceScopeGateIndex,
+  'staging source scope gate must run before the first synthetic user create',
+);
+for (const expected of [
+  'https://opshub-staging.hoanghochoi.com/api',
+  'wss://opshub-staging.hoanghochoi.com/ws/v2',
+  'targetRps !== 100 || targetSockets !== 60',
+  '__ENV.PUBLIC_WS_ENABLED',
+  '__ENV.LEGACY_WS_ENABLED',
+  'if (slot < 70)',
+  'opshub_unexpected_429:',
+  'count==0',
+  'opshub_http_success:',
+  'rate>=0.999',
+  'p(95)<=500',
+  'p(99)<=1000',
+  'http_req_duration{scenario:realtime_v2}',
+]) {
+  contains(stagingLoadProfile, expected, 'staging Home load-profile safety gate');
+}
+for (const forbidden of ['http.put(', 'http.patch(', 'http.del(']) {
+  excludes(stagingLoadProfile, forbidden, 'staging capacity write request');
+}
 
 contains(productionWorkflow, '--no-web-resources-cdn', 'production local Flutter web resources');
 contains(
@@ -215,6 +350,173 @@ contains(stagingWorkflow, 'secrets.CF_ACCESS_CLIENT_ID', 'staging Access client 
 contains(stagingWorkflow, 'secrets.CF_ACCESS_CLIENT_SECRET', 'staging Access client secret');
 contains(stagingWorkflow, 'CF-Access-Client-Id:', 'staging Access client ID header');
 contains(stagingWorkflow, 'CF-Access-Client-Secret:', 'staging Access client secret header');
+contains(stagingWorkflow, 'rollback_on_error()', 'staging automatic rollback trap');
+contains(
+  stagingWorkflow,
+  'redis api realtime caddy',
+  'staging rollback recreates the previous runtime',
+);
+contains(
+  stagingWorkflow,
+  "trap 'rollback_on_error $?' ERR",
+  'staging deploy failure trap activation',
+);
+contains(
+  stagingWorkflow,
+  'cp --preserve=mode,ownership,timestamps -- "$OPSHUB_ENV_FILE" "$env_snapshot"',
+  'staging protected env rollback snapshot',
+);
+contains(stagingWorkflow, 'restore_env_snapshot()', 'staging env rollback restore');
+contains(stagingWorkflow, 'id: deploy_runtime', 'staging runtime deploy checkpoint');
+contains(
+  stagingWorkflow,
+  "if: ${{ (failure() || cancelled()) && steps.deploy_runtime.outcome == 'success' }}",
+  'staging post-deploy verification rollback guard',
+);
+contains(
+  stagingWorkflow,
+  'Protected staging rollback env or release metadata is missing; manual recovery is required.',
+  'staging fail-closed public verification rollback',
+);
+contains(
+  stagingWorkflow,
+  "if: ${{ success() && steps.deploy_runtime.outcome == 'success' }}",
+  'staging rollback checkpoint success cleanup',
+);
+contains(
+  stagingWorkflow,
+  'Staging /ws/v2 without a one-time ticket returned ${ws_status}; expected 401',
+  'staging public realtime route smoke',
+);
+const stagingRuntimeCheckpointIndex = stagingWorkflow.indexOf(
+  'id: deploy_runtime',
+);
+const stagingPublicVerificationIndex = stagingWorkflow.indexOf(
+  'name: Verify staging public health and version metadata',
+);
+const stagingVerificationRollbackIndex = stagingWorkflow.indexOf(
+  'name: Roll back staging after failed release verification',
+);
+const stagingCheckpointCleanupIndex = stagingWorkflow.indexOf(
+  'name: Finalize successful staging rollback checkpoint',
+);
+assert.ok(
+  stagingRuntimeCheckpointIndex >= 0 &&
+    stagingRuntimeCheckpointIndex < stagingPublicVerificationIndex &&
+    stagingPublicVerificationIndex < stagingVerificationRollbackIndex &&
+    stagingVerificationRollbackIndex < stagingCheckpointCleanupIndex,
+  'staging rollback checkpoint must span every public verification gate',
+);
+const stagingBeforeRuntimeCheckpoint = stagingWorkflow.slice(
+  0,
+  stagingRuntimeCheckpointIndex,
+);
+for (const forbidden of [
+  'sudo install -m 0644 "$android_artifact" "$DOWNLOADS_DIR/$APK_NAME"',
+  'sudo install -m 0644 "$TMP_DIR/latest.json" "$DOWNLOADS_DIR/latest.json"',
+  'sudo rm -rf "$WEB_DIR"',
+]) {
+  excludes(
+    stagingBeforeRuntimeCheckpoint,
+    forbidden,
+    'staging shared publication before rollback checkpoint',
+  );
+}
+for (const expected of [
+  '${GITHUB_SHA}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}',
+  'snapshot_and_promote_shared_publication()',
+  'snapshot_and_promote_shared_publication\n          cd "$REMOTE_RELEASE_DIR"',
+  'shared_snapshot_dir="${rollback_state_dir}/deploy-${DEPLOY_RUN_ID}.shared"',
+  'shared_stage_dir="${rollback_state_dir}/deploy-${DEPLOY_RUN_ID}.stage"',
+  'SNAPSHOT_READY',
+  'PROMOTION_STARTED',
+  'PROMOTED',
+  'DOWNLOADS_DIR_PRESENT',
+  'restore_shared_publication()',
+  'Staging release, env, web, Help, manifest and client files were rolled back',
+  '[ "$dir_real" = "$previous_real" ]',
+]) {
+  contains(
+    stagingWorkflow,
+    expected,
+    'staging shared publication rollback state',
+  );
+}
+excludes(
+  stagingWorkflow,
+  'Refusing to remove unexpected staging directory: $CLIENT_STAGING_DIR',
+  'staging explicit-exit rollback bypass',
+);
+const stagingPreSwitchTrapIndex = stagingWorkflow.indexOf(
+  "trap 'rollback_env_before_runtime_switch $?' ERR",
+);
+const stagingRuntimeTrapIndex = stagingWorkflow.indexOf(
+  "trap 'rollback_on_error $?' ERR",
+);
+const stagingRuntimeTrapEndIndex = stagingWorkflow.indexOf(
+  'trap - ERR',
+  stagingRuntimeTrapIndex,
+);
+assert.ok(
+  stagingPreSwitchTrapIndex > stagingRuntimeCheckpointIndex &&
+    stagingRuntimeTrapIndex > stagingPreSwitchTrapIndex &&
+    stagingRuntimeTrapEndIndex > stagingRuntimeTrapIndex,
+  'staging transaction traps must cover shared promotion and runtime switch',
+);
+excludes(
+  stagingWorkflow.slice(stagingPreSwitchTrapIndex, stagingRuntimeTrapIndex),
+  'exit 1',
+  'staging pre-switch explicit-exit rollback bypass',
+);
+excludes(
+  stagingWorkflow.slice(stagingRuntimeTrapIndex, stagingRuntimeTrapEndIndex),
+  'exit 1',
+  'staging post-switch explicit-exit rollback bypass',
+);
+for (const sideEffectFlag of [
+  'ERP_ORDER_CACHE_SYNC_ENABLED false',
+  'ERP_ORDER_STATUS_SYNC_ENABLED false',
+  'VIETQR_AUTO_RECONCILE_ENABLED false',
+  'MAP_VIETIN_GLOBAL_SYNC_ENABLED false',
+  'HOME_SUMMARY_ERP_BACKFILL_ENABLED false',
+]) {
+  contains(stagingWorkflow, sideEffectFlag, 'staging side-effect isolation');
+}
+contains(
+  stagingWorkflow,
+  'OPSHUB_STAGING_LOAD_MAINTENANCE_ENABLED true',
+  'staging load maintenance gate',
+);
+contains(
+  stagingWorkflow,
+  'OPSHUB_STAGING_LOAD_OUTPUT_DIR /srv/opshub-staging/load-output',
+  'staging load output isolation',
+);
+contains(
+  stagingWorkflow,
+  'for smtp_key in SMTP_HOST SMTP_PORT SMTP_SECURE SMTP_USER SMTP_PASS SMTP_FROM',
+  'staging SMTP isolation',
+);
+contains(
+  stagingWorkflow,
+  "verify_canonical_route '/download/' '/download'",
+  'staging direct-origin download smoke',
+);
+contains(
+  stagingWorkflow,
+  "verify_canonical_route '/help/' '/help'",
+  'staging direct-origin help smoke',
+);
+contains(
+  stagingWorkflow,
+  "verify_direct_origin_route '/download/' '/download'",
+  'guarded staging direct-origin download smoke',
+);
+contains(
+  stagingWorkflow,
+  "verify_direct_origin_route '/help/' '/help'",
+  'guarded staging direct-origin help smoke',
+);
 for (const expected of [
   'javascript-typescript',
   '- go',

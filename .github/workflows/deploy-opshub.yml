@@ -182,19 +182,12 @@ jobs:
 
       - name: Build Windows release
         shell: pwsh
-        env:
-          WINDOWS_UPDATE_SIGNER_SHA256: ${{ vars.WINDOWS_UPDATE_SIGNER_SHA256 }}
         run: |
-          $pins = @($env:WINDOWS_UPDATE_SIGNER_SHA256 -split '[,;\s]+' | Where-Object { $_ })
-          if ($pins.Count -eq 0 -or @($pins | Where-Object { $_ -notmatch '^[0-9A-Fa-f]{64}$' }).Count -gt 0) {
-            throw 'WINDOWS_UPDATE_SIGNER_SHA256 must contain one or more SHA-256 certificate fingerprints.'
-          }
           flutter pub get
           flutter build windows --release `
             --build-name "${{ needs.prepare.outputs.windows_build_name }}" `
             --build-number "${{ needs.prepare.outputs.version_code }}" `
-            --dart-define "API_BASE_URL=${env:OPSHUB_API_BASE_URL}" `
-            --dart-define "WINDOWS_UPDATE_SIGNER_SHA256=${env:WINDOWS_UPDATE_SIGNER_SHA256}"
+            --dart-define "API_BASE_URL=${env:OPSHUB_API_BASE_URL}"
 
       - name: Configure Windows internal signing certificate
         shell: pwsh

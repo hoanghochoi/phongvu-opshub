@@ -16,6 +16,7 @@
     "import:users": "node scripts/import-users-csv.mjs",
     "import:store-accounts": "node scripts/import-store-accounts-csv.mjs",
     "sanitize:staging": "node scripts/sanitize-staging-db.mjs",
+    "load-users:staging": "node scripts/manage-staging-load-users.mjs",
     "audit:runtime-org-tree": "node scripts/audit-runtime-org-tree-code.mjs",
     "verify:migration:home-summary": "node scripts/verify-home-summary-migration.mjs",
     "audit:node-features": "node scripts/audit-node-feature-permissions.mjs",

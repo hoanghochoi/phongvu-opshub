@@ -1,7 +1,10 @@
 import { Module } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { ScheduleModule } from '@nestjs/schedule';
-import { ThrottlerModule } from '@nestjs/throttler';
+import {
+  ThrottlerModule,
+  type ThrottlerModuleOptions,
+} from '@nestjs/throttler';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { PrismaModule } from './prisma/prisma.module';
@@ -31,24 +34,21 @@ import { SalesTargetsModule } from './sales-targets/sales-targets.module';
 import { QuickActionsModule } from './quick-actions/quick-actions.module';
 import { NotificationFeedModule } from './notification-feed/notification-feed.module';
 
+export const GLOBAL_API_THROTTLER_OPTIONS = {
+  throttlers: [
+    {
+      name: 'principal',
+      ttl: 60_000,
+      limit: 120,
+    },
+  ],
+  errorMessage:
+    'Bạn đang thao tác quá nhanh. Vui lòng chờ một chút rồi thử lại.',
+} satisfies ThrottlerModuleOptions;
+
 @Module({
   imports: [
-    ThrottlerModule.forRoot({
-      throttlers: [
-        {
-          name: 'ip',
-          ttl: 60_000,
-          limit: 120,
-        },
-        {
-          name: 'principal',
-          ttl: 60_000,
-          limit: 120,
-        },
-      ],
-      errorMessage:
-        'Bạn đang thao tác quá nhanh. Vui lòng chờ một chút rồi thử lại.',
-    }),
+    ThrottlerModule.forRoot(GLOBAL_API_THROTTLER_OPTIONS),
     ScheduleModule.forRoot(),
     PrismaModule,
     AuthModule,

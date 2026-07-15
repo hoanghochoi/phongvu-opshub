@@ -159,7 +159,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          staging_dir="${OPSHUB_REMOTE_APP_DIR}/action-staging/${GITHUB_RUN_ID}/android"
+          staging_dir="${OPSHUB_REMOTE_APP_DIR}/action-staging/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}/android"
           ssh opshub-staging "mkdir -p '$staging_dir'"
           scp 'build/app/outputs/flutter-apk/app-staging-release.apk' \
             "opshub-staging:${staging_dir}/${{ needs.prepare.outputs.apk_name }}"
@@ -184,19 +184,12 @@ jobs:
 
       - name: Build Windows staging release
         shell: pwsh
-        env:
-          WINDOWS_UPDATE_SIGNER_SHA256: ${{ vars.WINDOWS_STAGING_UPDATE_SIGNER_SHA256 }}
         run: |
-          $pins = @($env:WINDOWS_UPDATE_SIGNER_SHA256 -split '[,;\s]+' | Where-Object { $_ })
-          if ($pins.Count -eq 0 -or @($pins | Where-Object { $_ -notmatch '^[0-9A-Fa-f]{64}$' }).Count -gt 0) {
-            throw 'WINDOWS_STAGING_UPDATE_SIGNER_SHA256 must contain one or more SHA-256 certificate fingerprints.'
-          }
           flutter pub get
           flutter build windows --release `
             --build-name "${{ needs.prepare.outputs.windows_build_name }}" `
             --build-number "${{ needs.prepare.outputs.version_code }}" `
             --dart-define "API_BASE_URL=${env:OPSHUB_API_BASE_URL}" `
-            --dart-define "WINDOWS_UPDATE_SIGNER_SHA256=${env:WINDOWS_UPDATE_SIGNER_SHA256}" `
             --dart-define "APP_ENV=staging"
 
       - name: Configure Windows staging signing certificate
@@ -402,7 +395,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          staging_dir="${OPSHUB_REMOTE_APP_DIR}/action-staging/${GITHUB_RUN_ID}/windows"
+          staging_dir="${OPSHUB_REMOTE_APP_DIR}/action-staging/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}/windows"
           ssh opshub-staging "mkdir -p '$staging_dir'"
           scp \
             'build/windows/x64/runner/${{ needs.prepare.outputs.windows_zip_name }}' \
@@ -476,15 +469,13 @@ jobs:
             echo "  IdentitiesOnly yes"
           } >> ~/.ssh/config
 
-      - name: Promote staged client artifacts
+      - name: Verify staged client artifacts
         shell: bash
         run: |
           set -euo pipefail
-          downloads_dir="${OPSHUB_SSD_ROOT}/downloads"
-          client_staging_dir="${OPSHUB_REMOTE_APP_DIR}/action-staging/${GITHUB_RUN_ID}"
+          client_staging_dir="${OPSHUB_REMOTE_APP_DIR}/action-staging/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           ssh opshub-staging \
             "CLIENT_STAGING_DIR='$client_staging_dir' \
-             DOWNLOADS_DIR='$downloads_dir' \
              APK_NAME='${{ needs.prepare.outputs.apk_name }}' \
              WINDOWS_ZIP_NAME='${{ needs.prepare.outputs.windows_zip_name }}' \
              WINDOWS_INSTALLER_NAME='${{ needs.prepare.outputs.windows_installer_name }}' \
@@ -504,11 +495,6 @@ jobs:
             fi
           done
 
-          sudo mkdir -p "$DOWNLOADS_DIR"
-          sudo install -m 0644 "$android_artifact" "$DOWNLOADS_DIR/$APK_NAME"
-          sudo install -m 0644 "$windows_zip" "$DOWNLOADS_DIR/$WINDOWS_ZIP_NAME"
-          sudo install -m 0644 "$windows_installer" "$DOWNLOADS_DIR/$WINDOWS_INSTALLER_NAME"
-          sudo install -m 0644 "$windows_checksum" "$DOWNLOADS_DIR/$WINDOWS_CHECKSUM_NAME"
           REMOTE
 
       - name: Write staging download manifest
@@ -525,25 +511,23 @@ jobs:
           WINDOWS_CHECKSUM_FILE_NAME: ${{ needs.prepare.outputs.windows_checksum_name }}
         run: |
           set -euo pipefail
-          downloads_dir="${OPSHUB_SSD_ROOT}/downloads"
-          APK_FILE_SIZE_BYTES="$(ssh opshub-staging "sudo stat -c%s '$downloads_dir/${{ needs.prepare.outputs.apk_name }}'")"
-          WINDOWS_INSTALLER_FILE_SIZE_BYTES="$(ssh opshub-staging "sudo stat -c%s '$downloads_dir/${{ needs.prepare.outputs.windows_installer_name }}'")"
-          WINDOWS_ZIP_FILE_SIZE_BYTES="$(ssh opshub-staging "sudo stat -c%s '$downloads_dir/${{ needs.prepare.outputs.windows_zip_name }}'")"
-          WINDOWS_CHECKSUM_FILE_SIZE_BYTES="$(ssh opshub-staging "sudo stat -c%s '$downloads_dir/${{ needs.prepare.outputs.windows_checksum_name }}'")"
+          client_staging_dir="${OPSHUB_REMOTE_APP_DIR}/action-staging/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          APK_FILE_SIZE_BYTES="$(ssh opshub-staging "stat -c%s '$client_staging_dir/android/${{ needs.prepare.outputs.apk_name }}'")"
+          WINDOWS_INSTALLER_FILE_SIZE_BYTES="$(ssh opshub-staging "stat -c%s '$client_staging_dir/windows/${{ needs.prepare.outputs.windows_installer_name }}'")"
+          WINDOWS_ZIP_FILE_SIZE_BYTES="$(ssh opshub-staging "stat -c%s '$client_staging_dir/windows/${{ needs.prepare.outputs.windows_zip_name }}'")"
+          WINDOWS_CHECKSUM_FILE_SIZE_BYTES="$(ssh opshub-staging "stat -c%s '$client_staging_dir/windows/${{ needs.prepare.outputs.windows_checksum_name }}'")"
           export APK_FILE_SIZE_BYTES WINDOWS_INSTALLER_FILE_SIZE_BYTES WINDOWS_ZIP_FILE_SIZE_BYTES WINDOWS_CHECKSUM_FILE_SIZE_BYTES
           node scripts/download-manifest.mjs from-published
 
-      - name: Upload app bundle and staging download metadata
+      - name: Stage app bundle and download metadata
         shell: bash
         run: |
           set -euo pipefail
           node scripts/build-runtime-release.mjs
           tar -C docs/help -czf dist/help-assets.tar.gz assets
           tar -C build/web -czf dist/web.tar.gz .
-          remote_release_dir="${OPSHUB_REMOTE_APP_DIR}/releases/${GITHUB_SHA}"
-          downloads_dir="${OPSHUB_SSD_ROOT}/downloads"
-          web_dir="${OPSHUB_SSD_ROOT}/web"
-          tmp_dir="${OPSHUB_REMOTE_APP_DIR}/tmp/${GITHUB_RUN_ID}"
+          remote_release_dir="${OPSHUB_REMOTE_APP_DIR}/releases/${GITHUB_SHA}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          tmp_dir="${OPSHUB_REMOTE_APP_DIR}/tmp/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           ssh opshub-staging "mkdir -p '$remote_release_dir' '$tmp_dir'"
           rsync -az --delete 'dist/runtime-release/' \
             "opshub-staging:${remote_release_dir}/"
@@ -552,49 +536,37 @@ jobs:
           scp 'web/icons/Icon-192.png' "opshub-staging:${tmp_dir}/opshub-icon-192.png"
           scp 'dist/help-assets.tar.gz' "opshub-staging:${tmp_dir}/help-assets.tar.gz"
           scp 'dist/web.tar.gz' "opshub-staging:${tmp_dir}/web.tar.gz"
-          ssh opshub-staging \
-            "DOWNLOADS_DIR='$downloads_dir' WEB_DIR='$web_dir' TMP_DIR='$tmp_dir' bash -s" <<'REMOTE'
-          set -euo pipefail
-          sudo mkdir -p "$DOWNLOADS_DIR"
-          sudo install -m 0644 "$TMP_DIR/latest.json" "$DOWNLOADS_DIR/latest.json"
-          sudo install -m 0644 "$TMP_DIR/download.html" "$DOWNLOADS_DIR/download.html"
-          sudo install -m 0644 "$TMP_DIR/opshub-icon-192.png" "$DOWNLOADS_DIR/opshub-icon-192.png"
-          case "$DOWNLOADS_DIR" in
-            */downloads) ;;
-            *) echo "Refusing to replace Help assets outside a downloads directory: $DOWNLOADS_DIR" >&2; exit 1 ;;
-          esac
-          sudo rm -rf "$DOWNLOADS_DIR/help/assets"
-          sudo mkdir -p "$DOWNLOADS_DIR/help"
-          sudo tar -xzf "$TMP_DIR/help-assets.tar.gz" -C "$DOWNLOADS_DIR/help"
-          case "$WEB_DIR" in
-            */web) ;;
-            *) echo "Refusing to replace web bundle outside a web directory: $WEB_DIR" >&2; exit 1 ;;
-          esac
-          sudo rm -rf "$WEB_DIR"
-          sudo mkdir -p "$WEB_DIR"
-          sudo tar -xzf "$TMP_DIR/web.tar.gz" -C "$WEB_DIR"
-          rm -rf "$TMP_DIR"
-          REMOTE
 
       - name: Deploy staging backend and publish version metadata
+        id: deploy_runtime
         shell: bash
         run: |
           set -euo pipefail
-          remote_release_dir="${OPSHUB_REMOTE_APP_DIR}/releases/${GITHUB_SHA}"
-          client_staging_dir="${OPSHUB_REMOTE_APP_DIR}/action-staging/${GITHUB_RUN_ID}"
+          remote_release_dir="${OPSHUB_REMOTE_APP_DIR}/releases/${GITHUB_SHA}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          client_staging_dir="${OPSHUB_REMOTE_APP_DIR}/action-staging/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           android_update_url="${OPSHUB_DOWNLOAD_PUBLIC_BASE_URL}/downloads/${{ needs.prepare.outputs.apk_name }}"
           windows_update_url="${OPSHUB_DOWNLOAD_PUBLIC_BASE_URL}/downloads/${{ needs.prepare.outputs.windows_installer_name }}"
           downloads_dir="${OPSHUB_SSD_ROOT}/downloads"
-          android_package_sha256="$(ssh opshub-staging "sha256sum '$downloads_dir/${{ needs.prepare.outputs.apk_name }}' | awk '{print \$1}'")"
-          windows_package_sha256="$(ssh opshub-staging "sha256sum '$downloads_dir/${{ needs.prepare.outputs.windows_installer_name }}' | awk '{print \$1}'")"
-          android_package_size_bytes="$(ssh opshub-staging "stat -c%s '$downloads_dir/${{ needs.prepare.outputs.apk_name }}'")"
-          windows_package_size_bytes="$(ssh opshub-staging "stat -c%s '$downloads_dir/${{ needs.prepare.outputs.windows_installer_name }}'")"
+          web_dir="${OPSHUB_SSD_ROOT}/web"
+          tmp_dir="${OPSHUB_REMOTE_APP_DIR}/tmp/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          android_package_sha256="$(ssh opshub-staging "sha256sum '$client_staging_dir/android/${{ needs.prepare.outputs.apk_name }}' | awk '{print \$1}'")"
+          windows_package_sha256="$(ssh opshub-staging "sha256sum '$client_staging_dir/windows/${{ needs.prepare.outputs.windows_installer_name }}' | awk '{print \$1}'")"
+          android_package_size_bytes="$(ssh opshub-staging "stat -c%s '$client_staging_dir/android/${{ needs.prepare.outputs.apk_name }}'")"
+          windows_package_size_bytes="$(ssh opshub-staging "stat -c%s '$client_staging_dir/windows/${{ needs.prepare.outputs.windows_installer_name }}'")"
           windows_installer_args="/VERYSILENT,/SUPPRESSMSGBOXES,/NORESTART,/CLOSEAPPLICATIONS,/OPSHUBRELAUNCH=1"
           ssh opshub-staging \
             "REMOTE_RELEASE_DIR='$remote_release_dir' \
              CLIENT_STAGING_DIR='$client_staging_dir' \
+             TMP_DIR='$tmp_dir' \
+             DOWNLOADS_DIR='$downloads_dir' \
+             WEB_DIR='$web_dir' \
+             APK_NAME='${{ needs.prepare.outputs.apk_name }}' \
+             WINDOWS_ZIP_NAME='${{ needs.prepare.outputs.windows_zip_name }}' \
+             WINDOWS_INSTALLER_NAME='${{ needs.prepare.outputs.windows_installer_name }}' \
+             WINDOWS_CHECKSUM_NAME='${{ needs.prepare.outputs.windows_checksum_name }}' \
              OPSHUB_REMOTE_APP_DIR='${OPSHUB_REMOTE_APP_DIR}' \
              CURRENT_DIR='${OPSHUB_REMOTE_APP_DIR}/current' \
+             DEPLOY_RUN_ID='$GITHUB_RUN_ID' \
              OPSHUB_ENV_FILE='$OPSHUB_ENV_FILE' \
              OPSHUB_SSD_ROOT='$OPSHUB_SSD_ROOT' \
              COMPOSE_PROJECT_NAME='$COMPOSE_PROJECT_NAME' \
@@ -618,6 +590,278 @@ jobs:
             exit 1
           fi
 
+          case "$DEPLOY_RUN_ID" in
+            ''|*[!0-9]*)
+              echo "Invalid staging deploy run id." >&2
+              exit 1
+              ;;
+          esac
+
+          previous_current="$(readlink -f "$CURRENT_DIR" || true)"
+          remote_release_real="$(readlink -f "$REMOTE_RELEASE_DIR" || true)"
+          releases_dir="$(readlink -f "$(dirname "$REMOTE_RELEASE_DIR")" || true)"
+          if [ -z "$previous_current" ] || [ ! -d "$previous_current" ]; then
+            echo "A healthy previous staging release is required before deploy." >&2
+            exit 1
+          fi
+          case "$previous_current" in
+            "$releases_dir"/*) ;;
+            *)
+              echo "Previous staging release is outside the protected releases directory." >&2
+              exit 1
+              ;;
+          esac
+          if [ -z "$remote_release_real" ]; then
+            echo "The uploaded staging release is unavailable." >&2
+            exit 1
+          fi
+
+          if [ "$DOWNLOADS_DIR" != "${OPSHUB_SSD_ROOT}/downloads" ] || \
+             [ "$WEB_DIR" != "${OPSHUB_SSD_ROOT}/web" ]; then
+            echo "Shared staging publication paths are outside OPSHUB_SSD_ROOT." >&2
+            exit 1
+          fi
+          case "$CLIENT_STAGING_DIR" in
+            "$OPSHUB_REMOTE_APP_DIR"/action-staging/*) ;;
+            *) echo "Invalid staged client directory." >&2; exit 1 ;;
+          esac
+          case "$TMP_DIR" in
+            "$OPSHUB_REMOTE_APP_DIR"/tmp/*) ;;
+            *) echo "Invalid staged static directory." >&2; exit 1 ;;
+          esac
+          for artifact_name in "$APK_NAME" "$WINDOWS_ZIP_NAME" "$WINDOWS_INSTALLER_NAME" "$WINDOWS_CHECKSUM_NAME"; do
+            if [ -z "$artifact_name" ] || [ "$(basename -- "$artifact_name")" != "$artifact_name" ]; then
+              echo "Invalid staged client artifact name." >&2
+              exit 1
+            fi
+          done
+
+          android_artifact="$CLIENT_STAGING_DIR/android/$APK_NAME"
+          windows_zip="$CLIENT_STAGING_DIR/windows/$WINDOWS_ZIP_NAME"
+          windows_installer="$CLIENT_STAGING_DIR/windows/$WINDOWS_INSTALLER_NAME"
+          windows_checksum="$CLIENT_STAGING_DIR/windows/$WINDOWS_CHECKSUM_NAME"
+          for staged_file in \
+            "$android_artifact" \
+            "$windows_zip" \
+            "$windows_installer" \
+            "$windows_checksum" \
+            "$TMP_DIR/latest.json" \
+            "$TMP_DIR/download.html" \
+            "$TMP_DIR/opshub-icon-192.png" \
+            "$TMP_DIR/help-assets.tar.gz" \
+            "$TMP_DIR/web.tar.gz"; do
+            if [ ! -s "$staged_file" ]; then
+              echo "Missing staged release input: $staged_file" >&2
+              exit 1
+            fi
+          done
+
+          env_snapshot="${OPSHUB_ENV_FILE}.rollback.${DEPLOY_RUN_ID}"
+          rollback_state_dir="${OPSHUB_SSD_ROOT}/rollback"
+          rollback_state="${rollback_state_dir}/deploy-${DEPLOY_RUN_ID}.state"
+          rollback_state_tmp="${rollback_state}.tmp"
+          shared_snapshot_dir="${rollback_state_dir}/deploy-${DEPLOY_RUN_ID}.shared"
+          shared_stage_dir="${rollback_state_dir}/deploy-${DEPLOY_RUN_ID}.stage"
+          if sudo test -e "$env_snapshot"; then
+            echo "Refusing to overwrite an existing staging env rollback snapshot." >&2
+            exit 1
+          fi
+          if sudo test -e "$rollback_state" || \
+             sudo test -e "$rollback_state_tmp" || \
+             sudo test -e "$shared_snapshot_dir" || \
+             sudo test -e "$shared_stage_dir"; then
+            echo "Refusing to overwrite existing staging rollback metadata." >&2
+            exit 1
+          fi
+          sudo cp --preserve=mode,ownership,timestamps -- "$OPSHUB_ENV_FILE" "$env_snapshot"
+
+          restore_env_snapshot() {
+            local restore_tmp
+            if [ -z "${env_snapshot:-}" ] || ! sudo test -s "$env_snapshot"; then
+              echo "Staging env rollback snapshot is unavailable; refusing a partial rollback." >&2
+              return 1
+            fi
+            restore_tmp="${OPSHUB_ENV_FILE}.restore.${DEPLOY_RUN_ID}"
+            sudo cp --preserve=mode,ownership,timestamps -- "$env_snapshot" "$restore_tmp" || return 1
+            sudo mv -Tf -- "$restore_tmp" "$OPSHUB_ENV_FILE" || return 1
+          }
+
+          rollback_shared_publication() {
+            local backup_path live_path name
+            if ! sudo test -e "$shared_snapshot_dir" && ! sudo test -e "$shared_stage_dir"; then
+              return 0
+            fi
+
+            if sudo test -e "$shared_snapshot_dir/PROMOTION_STARTED"; then
+              if ! sudo test -e "$shared_snapshot_dir/SNAPSHOT_READY"; then
+                echo "Shared staging publication started without a complete snapshot; refusing partial restore." >&2
+                return 1
+              fi
+
+              sudo rm -rf -- "$WEB_DIR" || return 1
+              if sudo test -e "$shared_snapshot_dir/web"; then
+                sudo cp -a --reflink=auto -- "$shared_snapshot_dir/web" "$WEB_DIR" || return 1
+              fi
+
+              sudo rm -rf -- "$DOWNLOADS_DIR/help" || return 1
+              if sudo test -e "$shared_snapshot_dir/downloads/help"; then
+                sudo cp -a --reflink=auto -- "$shared_snapshot_dir/downloads/help" "$DOWNLOADS_DIR/help" || return 1
+              fi
+
+              for name in latest.json download.html opshub-icon-192.png; do
+                live_path="$DOWNLOADS_DIR/$name"
+                backup_path="$shared_snapshot_dir/downloads/$name"
+                sudo rm -f -- "$live_path" || return 1
+                if sudo test -e "$backup_path"; then
+                  sudo cp -a --reflink=auto -- "$backup_path" "$live_path" || return 1
+                fi
+              done
+
+              for name in "$APK_NAME" "$WINDOWS_ZIP_NAME" "$WINDOWS_INSTALLER_NAME" "$WINDOWS_CHECKSUM_NAME"; do
+                live_path="$DOWNLOADS_DIR/$name"
+                backup_path="$shared_snapshot_dir/versioned/$name"
+                sudo rm -f -- "$live_path" || return 1
+                if sudo test -e "$backup_path"; then
+                  sudo cp -a --reflink=auto -- "$backup_path" "$live_path" || return 1
+                fi
+              done
+              if ! sudo test -e "$shared_snapshot_dir/DOWNLOADS_DIR_PRESENT"; then
+                sudo rmdir -- "$DOWNLOADS_DIR" || return 1
+              fi
+            fi
+          }
+
+          cleanup_rollback_metadata() {
+            sudo rm -f -- "$rollback_state_tmp" "$rollback_state" "$env_snapshot"
+            sudo rm -rf -- "$shared_stage_dir" "$shared_snapshot_dir"
+            env_snapshot=""
+          }
+
+          rollback_env_before_runtime_switch() {
+            local status="$1"
+            local env_restored=false
+            local shared_restored=false
+            trap - ERR
+            echo "Staging publication failed before runtime switch; restoring protected env and shared state." >&2
+            if restore_env_snapshot; then
+              env_restored=true
+            else
+              echo "Staging env restore failed before runtime switch; manual recovery is required." >&2
+            fi
+            if rollback_shared_publication; then
+              shared_restored=true
+            else
+              echo "Shared staging publication restore failed before runtime switch; manual recovery is required." >&2
+            fi
+            if [ "$env_restored" = true ] && [ "$shared_restored" = true ]; then
+              cleanup_rollback_metadata
+            else
+              echo "Rollback evidence was retained under $rollback_state_dir." >&2
+            fi
+            exit "$status"
+          }
+
+          trap 'rollback_env_before_runtime_switch $?' ERR
+
+          sudo install -d -m 0700 "$rollback_state_dir"
+          printf '%s\n%s\n' "$previous_current" "$remote_release_real" |
+            sudo tee "$rollback_state_tmp" >/dev/null
+          sudo chmod 0600 "$rollback_state_tmp"
+          sudo mv -Tf -- "$rollback_state_tmp" "$rollback_state"
+
+          snapshot_and_promote_shared_publication() {
+            local backup_path live_path name staged_path
+            sudo install -d -m 0700 \
+              "$shared_snapshot_dir" \
+              "$shared_snapshot_dir/downloads" \
+              "$shared_snapshot_dir/versioned" \
+              "$shared_stage_dir" \
+              "$shared_stage_dir/downloads"
+            sudo install -d -m 0755 "$shared_stage_dir/web" "$shared_stage_dir/help"
+
+            sudo tar --no-same-owner -xzf "$TMP_DIR/web.tar.gz" -C "$shared_stage_dir/web"
+            sudo tar --no-same-owner -xzf "$TMP_DIR/help-assets.tar.gz" -C "$shared_stage_dir/help"
+            if ! sudo test -s "$shared_stage_dir/web/index.html" || \
+               ! sudo test -d "$shared_stage_dir/help/assets"; then
+              echo "Staged web or Help bundle is incomplete." >&2
+              return 1
+            fi
+
+            sudo install -m 0644 "$TMP_DIR/latest.json" "$shared_stage_dir/downloads/latest.json"
+            sudo install -m 0644 "$TMP_DIR/download.html" "$shared_stage_dir/downloads/download.html"
+            sudo install -m 0644 "$TMP_DIR/opshub-icon-192.png" "$shared_stage_dir/downloads/opshub-icon-192.png"
+            sudo install -m 0644 "$android_artifact" "$shared_stage_dir/downloads/$APK_NAME"
+            sudo install -m 0644 "$windows_zip" "$shared_stage_dir/downloads/$WINDOWS_ZIP_NAME"
+            sudo install -m 0644 "$windows_installer" "$shared_stage_dir/downloads/$WINDOWS_INSTALLER_NAME"
+            sudo install -m 0644 "$windows_checksum" "$shared_stage_dir/downloads/$WINDOWS_CHECKSUM_NAME"
+
+            if sudo test -e "$DOWNLOADS_DIR"; then
+              if ! sudo test -d "$DOWNLOADS_DIR" || sudo test -L "$DOWNLOADS_DIR"; then
+                echo "Existing staging downloads path is not a real directory." >&2
+                return 1
+              fi
+              sudo install -m 0600 /dev/null "$shared_snapshot_dir/DOWNLOADS_DIR_PRESENT"
+            fi
+            if sudo test -e "$WEB_DIR"; then
+              if ! sudo test -d "$WEB_DIR" || sudo test -L "$WEB_DIR"; then
+                echo "Existing staging web path is not a real directory." >&2
+                return 1
+              fi
+              sudo cp -a --reflink=auto -- "$WEB_DIR" "$shared_snapshot_dir/web"
+            fi
+            if sudo test -e "$DOWNLOADS_DIR/help"; then
+              if ! sudo test -d "$DOWNLOADS_DIR/help" || sudo test -L "$DOWNLOADS_DIR/help"; then
+                echo "Existing staging Help path is not a real directory." >&2
+                return 1
+              fi
+              sudo cp -a --reflink=auto -- "$DOWNLOADS_DIR/help" "$shared_snapshot_dir/downloads/help"
+            fi
+
+            for name in latest.json download.html opshub-icon-192.png; do
+              live_path="$DOWNLOADS_DIR/$name"
+              backup_path="$shared_snapshot_dir/downloads/$name"
+              if sudo test -e "$live_path"; then
+                if ! sudo test -f "$live_path" || sudo test -L "$live_path"; then
+                  echo "Existing staging shared file has an unexpected type: $live_path" >&2
+                  return 1
+                fi
+                sudo cp -a --reflink=auto -- "$live_path" "$backup_path"
+              fi
+            done
+            for name in "$APK_NAME" "$WINDOWS_ZIP_NAME" "$WINDOWS_INSTALLER_NAME" "$WINDOWS_CHECKSUM_NAME"; do
+              live_path="$DOWNLOADS_DIR/$name"
+              backup_path="$shared_snapshot_dir/versioned/$name"
+              if sudo test -e "$live_path"; then
+                if ! sudo test -f "$live_path" || sudo test -L "$live_path"; then
+                  echo "Existing staging versioned file has an unexpected type: $live_path" >&2
+                  return 1
+                fi
+                sudo cp -a --reflink=auto -- "$live_path" "$backup_path"
+              fi
+            done
+
+            sudo install -m 0600 /dev/null "$shared_snapshot_dir/SNAPSHOT_READY"
+            sudo install -m 0600 /dev/null "$shared_snapshot_dir/PROMOTION_STARTED"
+            if ! sudo test -e "$shared_snapshot_dir/DOWNLOADS_DIR_PRESENT"; then
+              sudo install -d -m 0755 "$DOWNLOADS_DIR"
+            fi
+
+            sudo rm -rf -- "$WEB_DIR"
+            sudo mv -T -- "$shared_stage_dir/web" "$WEB_DIR"
+            sudo rm -rf -- "$DOWNLOADS_DIR/help"
+            sudo mv -T -- "$shared_stage_dir/help" "$DOWNLOADS_DIR/help"
+
+            for name in latest.json download.html opshub-icon-192.png; do
+              staged_path="$shared_stage_dir/downloads/$name"
+              sudo mv -Tf -- "$staged_path" "$DOWNLOADS_DIR/$name"
+            done
+            for name in "$APK_NAME" "$WINDOWS_ZIP_NAME" "$WINDOWS_INSTALLER_NAME" "$WINDOWS_CHECKSUM_NAME"; do
+              staged_path="$shared_stage_dir/downloads/$name"
+              sudo mv -Tf -- "$staged_path" "$DOWNLOADS_DIR/$name"
+            done
+            sudo install -m 0600 /dev/null "$shared_snapshot_dir/PROMOTED"
+          }
+
           upsert_env() {
             key="$1"
             value="$2"
@@ -629,6 +873,11 @@ jobs:
             fi
           }
 
+          unset_env() {
+            key="$1"
+            sudo sed -i "/^${key}=/d" "$OPSHUB_ENV_FILE"
+          }
+
           upsert_env OPSHUB_STAGING true
           upsert_env COMPOSE_PROJECT_NAME "$COMPOSE_PROJECT_NAME"
           upsert_env OPSHUB_DOMAIN "opshub-staging.hoanghochoi.com"
@@ -638,6 +887,16 @@ jobs:
           upsert_env OPSHUB_HTTPS_BIND "127.0.0.1:8443"
           upsert_env IMAGE_BASE_URL "${OPSHUB_PUBLIC_BASE_URL}/uploads"
           upsert_env ALLOWED_ORIGINS "$OPSHUB_PUBLIC_BASE_URL"
+          upsert_env OPSHUB_STAGING_LOAD_MAINTENANCE_ENABLED true
+          upsert_env OPSHUB_STAGING_LOAD_OUTPUT_DIR /srv/opshub-staging/load-output
+          upsert_env ERP_ORDER_CACHE_SYNC_ENABLED false
+          upsert_env ERP_ORDER_STATUS_SYNC_ENABLED false
+          upsert_env VIETQR_AUTO_RECONCILE_ENABLED false
+          upsert_env MAP_VIETIN_GLOBAL_SYNC_ENABLED false
+          upsert_env HOME_SUMMARY_ERP_BACKFILL_ENABLED false
+          for smtp_key in SMTP_HOST SMTP_PORT SMTP_SECURE SMTP_USER SMTP_PASS SMTP_FROM; do
+            unset_env "$smtp_key"
+          done
 
           upsert_env APP_VERSION "$APP_VERSION"
           upsert_env APP_BUILD_NUMBER "$APP_BUILD_NUMBER"
@@ -685,15 +944,110 @@ jobs:
             -v "$REMOTE_RELEASE_DIR/deploy/home-server/Caddyfile:/etc/caddy/Caddyfile:ro" \
             caddy:2-alpine caddy validate --config /etc/caddy/Caddyfile < /dev/null
 
-          ln -sfn "$REMOTE_RELEASE_DIR" "${CURRENT_DIR}.next"
-          mv -Tf "${CURRENT_DIR}.next" "$CURRENT_DIR"
-          cd "$CURRENT_DIR"
+          snapshot_and_promote_shared_publication
+          cd "$REMOTE_RELEASE_DIR"
           export COMPOSE_PROJECT_NAME OPSHUB_ENV_FILE
           compose=(docker compose --env-file "$OPSHUB_ENV_FILE" -f deploy/home-server/docker-compose.home.yml)
           compose_cmd() {
             "${compose[@]}" "$@" < /dev/null
           }
 
+          dump_deploy_diagnostics() {
+            set +e
+            echo "::group::Staging Docker deployment diagnostics"
+            compose_cmd ps
+            compose_cmd logs --tail=200 api
+            compose_cmd logs --tail=120 realtime
+            compose_cmd logs --tail=120 caddy
+            echo "::endgroup::"
+            set -e
+          }
+
+          rollback_to_release() {
+            candidate="$1"
+            if [ ! -d "$candidate" ]; then
+              return 1
+            fi
+            echo "Attempting staging rollback to release: $candidate"
+            ln -sfn "$candidate" "${CURRENT_DIR}.rollback"
+            mv -Tf "${CURRENT_DIR}.rollback" "$CURRENT_DIR"
+            cd "$CURRENT_DIR"
+            compose=(docker compose --env-file "$OPSHUB_ENV_FILE" -f deploy/home-server/docker-compose.home.yml)
+            if compose_cmd up -d --build --force-recreate --wait --wait-timeout 240 redis api realtime caddy; then
+              echo "Staging rollback release is healthy: $candidate"
+              compose_cmd ps
+              return 0
+            fi
+            dump_deploy_diagnostics
+            return 1
+          }
+
+          rollback_on_error() {
+            local status="$1"
+            local env_restored=false
+            local shared_restored=false
+            trap - ERR
+            echo "Staging deploy failed with status $status" >&2
+            dump_deploy_diagnostics
+
+            if restore_env_snapshot; then
+              env_restored=true
+            else
+              echo "Staging runtime env restore failed; rollback evidence was retained." >&2
+            fi
+            if rollback_shared_publication; then
+              shared_restored=true
+            else
+              echo "Staging shared publication restore failed; rollback evidence was retained." >&2
+            fi
+            if [ "$env_restored" != true ]; then
+              echo "Staging runtime rollback cannot recreate the prior release without its protected env." >&2
+              exit "$status"
+            fi
+
+            rollback_candidates=()
+            if [ -n "${previous_current:-}" ] && [ -d "$previous_current" ]; then
+              rollback_candidates+=("$previous_current")
+            fi
+
+            releases_dir="$(dirname "$REMOTE_RELEASE_DIR")"
+            while IFS= read -r dir; do
+              dir_real="$(readlink -f "$dir" || true)"
+              if [ -z "$dir_real" ] || [ "$dir_real" = "$remote_release_real" ]; then
+                continue
+              fi
+              already_added=false
+              for existing in "${rollback_candidates[@]}"; do
+                existing_real="$(readlink -f "$existing" || true)"
+                if [ "$existing_real" = "$dir_real" ]; then
+                  already_added=true
+                  break
+                fi
+              done
+              if [ "$already_added" = false ]; then
+                rollback_candidates+=("$dir_real")
+              fi
+            done < <(find "$releases_dir" -mindepth 1 -maxdepth 1 -type d -printf '%T@ %p\n' | sort -rn | awk '{print $2}')
+
+            for candidate in "${rollback_candidates[@]}"; do
+              if rollback_to_release "$candidate"; then
+                if [ "$shared_restored" = true ]; then
+                  cleanup_rollback_metadata
+                else
+                  echo "Prior runtime is healthy but shared-state rollback needs manual recovery." >&2
+                fi
+                exit "$status"
+              fi
+            done
+
+            echo "Staging rollback did not find a healthy release" >&2
+            exit "$status"
+          }
+
+          trap 'rollback_on_error $?' ERR
+          ln -sfn "$REMOTE_RELEASE_DIR" "${CURRENT_DIR}.next"
+          mv -Tf "${CURRENT_DIR}.next" "$CURRENT_DIR"
+          cd "$CURRENT_DIR"
           compose_cmd config >/dev/null
 
           resolve_failed_node_feature_migration() {
@@ -721,7 +1075,7 @@ jobs:
             table_exists="$(printf '%s' "$table_exists" | tr -d '[:space:]')"
             if [ "$table_exists" != "f" ]; then
               echo "Refusing to auto-resolve $migration_name because OrganizationNodeFeatureAssignment already exists." >&2
-              exit 1
+              return 1
             fi
 
             echo "Resolving stale failed migration state for $migration_name before rerun."
@@ -748,7 +1102,7 @@ jobs:
             fi
             if [ "$failed_count" != "1" ]; then
               echo "Refusing to auto-resolve $migration_name because failed row count is $failed_count." >&2
-              exit 1
+              return 1
             fi
 
             link_count="$(
@@ -759,7 +1113,7 @@ jobs:
             link_count="$(printf '%s' "$link_count" | tr -d '[:space:]')"
             if [ "${link_count:-0}" != "0" ]; then
               echo "Refusing to auto-resolve $migration_name because QuickActionLink contains $link_count rows." >&2
-              exit 1
+              return 1
             fi
 
             echo "Resetting the empty partial QuickActionLink table for failed migration $migration_name."
@@ -779,9 +1133,10 @@ jobs:
           compose_cmd stop api realtime caddy || true
           compose_cmd rm -f api realtime caddy || true
 
-          compose_cmd up -d --build --force-recreate --wait api realtime caddy
+          compose_cmd up -d --build --force-recreate --wait --wait-timeout 240 api realtime caddy
 
           expected_app_env="${APP_VERSION}|${APP_BUILD_NUMBER}|${APP_VERSION}|${APP_BUILD_NUMBER}|${APP_VERSION}|${APP_BUILD_NUMBER}|1|false"
+          expected_side_effect_env='false|false|false|false|false||||||'
           for attempt in {1..12}; do
             current_app_env="$(
               compose_cmd \
@@ -789,51 +1144,140 @@ jobs:
                 'printf "%s|%s|%s|%s|%s|%s|%s|%s" "$APP_ANDROID_APP_VERSION" "$APP_ANDROID_APP_BUILD_NUMBER" "$APP_WINDOWS_APP_VERSION" "$APP_WINDOWS_APP_BUILD_NUMBER" "$APP_WEB_APP_VERSION" "$APP_WEB_APP_BUILD_NUMBER" "$APP_WEB_APP_MIN_SUPPORTED_BUILD" "$APP_WEB_APP_FORCE_UPDATE"' \
                 2>/dev/null || true
             )"
-            if [ "$current_app_env" = "$expected_app_env" ]; then
+            current_side_effect_env="$(
+              compose_cmd \
+                exec -T api sh -lc \
+                'printf "%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s" "$ERP_ORDER_CACHE_SYNC_ENABLED" "$ERP_ORDER_STATUS_SYNC_ENABLED" "$VIETQR_AUTO_RECONCILE_ENABLED" "$MAP_VIETIN_GLOBAL_SYNC_ENABLED" "$HOME_SUMMARY_ERP_BACKFILL_ENABLED" "${SMTP_HOST:+configured}" "${SMTP_PORT:+configured}" "${SMTP_SECURE:+configured}" "${SMTP_USER:+configured}" "${SMTP_PASS:+configured}" "${SMTP_FROM:+configured}"' \
+                2>/dev/null || true
+            )"
+            if [ "$current_app_env" = "$expected_app_env" ] && \
+               [ "$current_side_effect_env" = "$expected_side_effect_env" ]; then
               break
             fi
             if [ "$attempt" -eq 12 ]; then
-              echo "API container app-version env mismatch after recreate: expected $expected_app_env got ${current_app_env:-<empty>}" >&2
-              exit 1
+              echo "API container env mismatch after recreate: appVersionMatch=$([ "$current_app_env" = "$expected_app_env" ] && printf true || printf false) sideEffectIsolationMatch=$([ "$current_side_effect_env" = "$expected_side_effect_env" ] && printf true || printf false)" >&2
+              false
             fi
             sleep 5
           done
 
+          verify_direct_origin_route() {
+            local slash_path="$1"
+            local canonical_path="$2"
+            local origin='http://127.0.0.1:8090'
+            local host='opshub-staging.hoanghochoi.com'
+            local slash_headers canonical_headers canonical_body
+            local slash_status canonical_status location
+            slash_headers="$(mktemp)"
+            canonical_headers="$(mktemp)"
+            canonical_body="$(mktemp)"
+
+            if ! slash_status="$(
+              curl -sS -D "$slash_headers" -o /dev/null -w '%{http_code}' \
+                -H "Host: $host" -H 'X-Forwarded-Proto: https' \
+                "${origin}${slash_path}"
+            )"; then
+              rm -f "$slash_headers" "$canonical_headers" "$canonical_body"
+              echo "Direct origin ${slash_path} did not return an HTTP response." >&2
+              return 1
+            fi
+            if [ "$slash_status" != '308' ]; then
+              rm -f "$slash_headers" "$canonical_headers" "$canonical_body"
+              echo "Direct origin ${slash_path} returned ${slash_status}; expected 308." >&2
+              return 1
+            fi
+            location="$(
+              awk 'tolower($1) == "location:" { $1=""; sub(/^[[:space:]]+/, ""); sub(/\r$/, ""); print; exit }' \
+                "$slash_headers"
+            )"
+            if [ "$location" != "$canonical_path" ]; then
+              rm -f "$slash_headers" "$canonical_headers" "$canonical_body"
+              echo "Direct origin ${slash_path} Location was ${location:-<missing>}; expected ${canonical_path}." >&2
+              return 1
+            fi
+
+            if ! canonical_status="$(
+              curl -sS -D "$canonical_headers" -o "$canonical_body" -w '%{http_code}' \
+                -H "Host: $host" -H 'X-Forwarded-Proto: https' \
+                "${origin}${canonical_path}"
+            )"; then
+              rm -f "$slash_headers" "$canonical_headers" "$canonical_body"
+              echo "Direct origin ${canonical_path} did not return an HTTP response." >&2
+              return 1
+            fi
+            if [[ "$canonical_status" != 2* ]] || \
+               grep -qi '^Location:' "$canonical_headers" || \
+               [ ! -s "$canonical_body" ]; then
+              rm -f "$slash_headers" "$canonical_headers" "$canonical_body"
+              echo "Direct origin ${canonical_path} failed the canonical content/no-loop contract." >&2
+              return 1
+            fi
+
+            rm -f "$slash_headers" "$canonical_headers" "$canonical_body"
+          }
+
+          verify_direct_origin_route '/download/' '/download'
+          verify_direct_origin_route '/help/' '/help'
           compose_cmd ps
+          trap - ERR
+          REMOTE
 
-          releases_dir="$(dirname "$REMOTE_RELEASE_DIR")"
-          current_real="$(readlink -f "$CURRENT_DIR" || true)"
-          mapfile -t release_dirs < <(find "$releases_dir" -mindepth 1 -maxdepth 1 -type d -printf '%T@ %p\n' | sort -rn | awk '{print $2}')
-          kept=0
-          for dir in "${release_dirs[@]}"; do
-            dir_real="$(readlink -f "$dir")"
-            if [ "$dir_real" = "$current_real" ] || [ "$kept" -lt 5 ]; then
-              kept=$((kept + 1))
-              continue
+      - name: Verify staging direct-origin canonical routes
+        shell: bash
+        run: |
+          set -euo pipefail
+          ssh opshub-staging 'bash -s' <<'REMOTE'
+          set -euo pipefail
+          origin='http://127.0.0.1:8090'
+          host='opshub-staging.hoanghochoi.com'
+
+          verify_canonical_route() {
+            slash_path="$1"
+            canonical_path="$2"
+            slash_headers="$(mktemp)"
+            canonical_headers="$(mktemp)"
+            canonical_body="$(mktemp)"
+            trap 'rm -f "$slash_headers" "$canonical_headers" "$canonical_body"' RETURN
+
+            slash_status="$(
+              curl -sS -D "$slash_headers" -o /dev/null -w '%{http_code}' \
+                -H "Host: $host" -H 'X-Forwarded-Proto: https' \
+                "${origin}${slash_path}"
+            )"
+            if [ "$slash_status" != '308' ]; then
+              echo "Direct origin ${slash_path} returned ${slash_status}; expected 308." >&2
+              return 1
             fi
-            rm -rf "$dir"
-          done
-
-          downloads_dir="$OPSHUB_SSD_ROOT/downloads"
-          mapfile -t client_files < <(sudo find "$downloads_dir" -maxdepth 1 -type f \( -name 'phongvu-opshub-staging-v*.apk' -o -name 'phongvu-opshub-staging-windows-v*.zip' -o -name 'phongvu-opshub-staging-windows-setup-v*.exe' -o -name 'phongvu-opshub-staging-windows-v*.sha256' \) -printf '%T@ %p\n' | sort -rn | awk '{print $2}')
-          kept=0
-          for file in "${client_files[@]}"; do
-            if [ "$kept" -lt 20 ]; then
-              kept=$((kept + 1))
-              continue
+            location="$(
+              awk 'tolower($1) == "location:" { $1=""; sub(/^[[:space:]]+/, ""); sub(/\r$/, ""); print; exit }' \
+                "$slash_headers"
+            )"
+            if [ "$location" != "$canonical_path" ]; then
+              echo "Direct origin ${slash_path} Location was ${location:-<missing>}; expected ${canonical_path}." >&2
+              return 1
             fi
-            sudo rm -f "$file"
-          done
 
-          case "$CLIENT_STAGING_DIR" in
-            "$OPSHUB_REMOTE_APP_DIR"/action-staging/*)
-              rm -rf "$CLIENT_STAGING_DIR"
-              ;;
-            *)
-              echo "Refusing to remove unexpected staging directory: $CLIENT_STAGING_DIR" >&2
-              exit 1
-              ;;
-          esac
+            canonical_status="$(
+              curl -sS -D "$canonical_headers" -o "$canonical_body" -w '%{http_code}' \
+                -H "Host: $host" -H 'X-Forwarded-Proto: https' \
+                "${origin}${canonical_path}"
+            )"
+            if [[ "$canonical_status" != 2* ]]; then
+              echo "Direct origin ${canonical_path} returned ${canonical_status}; expected 2xx content." >&2
+              return 1
+            fi
+            if grep -qi '^Location:' "$canonical_headers"; then
+              echo "Direct origin ${canonical_path} unexpectedly redirects." >&2
+              return 1
+            fi
+            if [ ! -s "$canonical_body" ]; then
+              echo "Direct origin ${canonical_path} returned an empty body." >&2
+              return 1
+            fi
+          }
+
+          verify_canonical_route '/download/' '/download'
+          verify_canonical_route '/help/' '/help'
           REMOTE
 
       - name: Verify staging public health and version metadata
@@ -1008,3 +1452,271 @@ jobs:
           " "$manifest_json" | while IFS= read -r url; do
             curl -fIs "$url" >/dev/null
           done
+
+          ws_headers_file="$(mktemp)"
+          if ! ws_status="$(
+            access_curl "${OPSHUB_PUBLIC_BASE_URL}/ws/v2" \
+              --http1.1 -sS -D "$ws_headers_file" -o /dev/null -w '%{http_code}' \
+              -H 'Connection: Upgrade' \
+              -H 'Upgrade: websocket' \
+              -H 'Sec-WebSocket-Version: 13' \
+              -H 'Sec-WebSocket-Key: b3BzaHViLXN0YWdpbmctc21va2U='
+          )"; then
+            rm -f "$ws_headers_file"
+            echo 'Staging /ws/v2 smoke failed before receiving an HTTP response.' >&2
+            exit 1
+          fi
+          rm -f "$ws_headers_file"
+          if [ "$ws_status" != '401' ]; then
+            echo "Staging /ws/v2 without a one-time ticket returned ${ws_status}; expected 401 from the realtime gateway." >&2
+            exit 1
+          fi
+
+      - name: Roll back staging after failed release verification
+        if: ${{ (failure() || cancelled()) && steps.deploy_runtime.outcome == 'success' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          remote_release_dir="${OPSHUB_REMOTE_APP_DIR}/releases/${GITHUB_SHA}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          client_staging_dir="${OPSHUB_REMOTE_APP_DIR}/action-staging/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          tmp_dir="${OPSHUB_REMOTE_APP_DIR}/tmp/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          ssh opshub-staging \
+            "REMOTE_RELEASE_DIR='$remote_release_dir' \
+             CURRENT_DIR='${OPSHUB_REMOTE_APP_DIR}/current' \
+             CLIENT_STAGING_DIR='$client_staging_dir' \
+             TMP_DIR='$tmp_dir' \
+             OPSHUB_REMOTE_APP_DIR='${OPSHUB_REMOTE_APP_DIR}' \
+             DEPLOY_RUN_ID='$GITHUB_RUN_ID' \
+             OPSHUB_ENV_FILE='$OPSHUB_ENV_FILE' \
+             OPSHUB_SSD_ROOT='$OPSHUB_SSD_ROOT' \
+             DOWNLOADS_DIR='${OPSHUB_SSD_ROOT}/downloads' \
+             WEB_DIR='${OPSHUB_SSD_ROOT}/web' \
+             APK_NAME='${{ needs.prepare.outputs.apk_name }}' \
+             WINDOWS_ZIP_NAME='${{ needs.prepare.outputs.windows_zip_name }}' \
+             WINDOWS_INSTALLER_NAME='${{ needs.prepare.outputs.windows_installer_name }}' \
+             WINDOWS_CHECKSUM_NAME='${{ needs.prepare.outputs.windows_checksum_name }}' \
+             COMPOSE_PROJECT_NAME='$COMPOSE_PROJECT_NAME' \
+             bash -s" <<'REMOTE'
+          set -euo pipefail
+
+          case "$DEPLOY_RUN_ID" in
+            ''|*[!0-9]*)
+              echo "Invalid staging rollback run id." >&2
+              exit 1
+              ;;
+          esac
+
+          env_snapshot="${OPSHUB_ENV_FILE}.rollback.${DEPLOY_RUN_ID}"
+          rollback_state="${OPSHUB_SSD_ROOT}/rollback/deploy-${DEPLOY_RUN_ID}.state"
+          shared_snapshot_dir="${OPSHUB_SSD_ROOT}/rollback/deploy-${DEPLOY_RUN_ID}.shared"
+          shared_stage_dir="${OPSHUB_SSD_ROOT}/rollback/deploy-${DEPLOY_RUN_ID}.stage"
+          if ! sudo test -s "$env_snapshot" || ! sudo test -s "$rollback_state"; then
+            echo "Protected staging rollback env or release metadata is missing; manual recovery is required." >&2
+            exit 1
+          fi
+          if ! sudo test -e "$shared_snapshot_dir/SNAPSHOT_READY" || \
+             ! sudo test -e "$shared_snapshot_dir/PROMOTION_STARTED" || \
+             ! sudo test -e "$shared_snapshot_dir/PROMOTED"; then
+            echo "Protected staging shared-state snapshot is incomplete; refusing partial rollback." >&2
+            exit 1
+          fi
+          rollback_state_lines="$(sudo wc -l "$rollback_state" | awk '{print $1}')"
+          if [ "$rollback_state_lines" != '2' ]; then
+            echo "Protected staging rollback metadata is malformed; refusing rollback." >&2
+            exit 1
+          fi
+
+          previous_release="$(sudo sed -n '1p' "$rollback_state")"
+          expected_release="$(sudo sed -n '2p' "$rollback_state")"
+          releases_dir="$(readlink -f "$(dirname "$REMOTE_RELEASE_DIR")" || true)"
+          expected_release_real="$(readlink -f "$REMOTE_RELEASE_DIR" || true)"
+          current_real="$(readlink -f "$CURRENT_DIR" || true)"
+          previous_real="$(readlink -f "$previous_release" || true)"
+
+          case "$previous_real" in
+            "$releases_dir"/*) ;;
+            *)
+              echo "Rollback release is outside the protected releases directory." >&2
+              exit 1
+              ;;
+          esac
+          if [ ! -d "$previous_real" ] || \
+             [ "$expected_release" != "$expected_release_real" ] || \
+             [ "$current_real" != "$expected_release_real" ]; then
+            echo "Staging rollback metadata no longer matches the active release; refusing to change runtime state." >&2
+            exit 1
+          fi
+
+          if [ "$DOWNLOADS_DIR" != "${OPSHUB_SSD_ROOT}/downloads" ] || \
+             [ "$WEB_DIR" != "${OPSHUB_SSD_ROOT}/web" ]; then
+            echo "Shared rollback paths are outside OPSHUB_SSD_ROOT." >&2
+            exit 1
+          fi
+          for artifact_name in "$APK_NAME" "$WINDOWS_ZIP_NAME" "$WINDOWS_INSTALLER_NAME" "$WINDOWS_CHECKSUM_NAME"; do
+            if [ -z "$artifact_name" ] || [ "$(basename -- "$artifact_name")" != "$artifact_name" ]; then
+              echo "Invalid rollback artifact name." >&2
+              exit 1
+            fi
+          done
+
+          restore_shared_publication() {
+            local backup_path live_path name
+            sudo rm -rf -- "$WEB_DIR" || return 1
+            if sudo test -e "$shared_snapshot_dir/web"; then
+              sudo cp -a --reflink=auto -- "$shared_snapshot_dir/web" "$WEB_DIR" || return 1
+            fi
+
+            sudo rm -rf -- "$DOWNLOADS_DIR/help" || return 1
+            if sudo test -e "$shared_snapshot_dir/downloads/help"; then
+              sudo cp -a --reflink=auto -- "$shared_snapshot_dir/downloads/help" "$DOWNLOADS_DIR/help" || return 1
+            fi
+
+            for name in latest.json download.html opshub-icon-192.png; do
+              live_path="$DOWNLOADS_DIR/$name"
+              backup_path="$shared_snapshot_dir/downloads/$name"
+              sudo rm -f -- "$live_path" || return 1
+              if sudo test -e "$backup_path"; then
+                sudo cp -a --reflink=auto -- "$backup_path" "$live_path" || return 1
+              fi
+            done
+            for name in "$APK_NAME" "$WINDOWS_ZIP_NAME" "$WINDOWS_INSTALLER_NAME" "$WINDOWS_CHECKSUM_NAME"; do
+              live_path="$DOWNLOADS_DIR/$name"
+              backup_path="$shared_snapshot_dir/versioned/$name"
+              sudo rm -f -- "$live_path" || return 1
+              if sudo test -e "$backup_path"; then
+                sudo cp -a --reflink=auto -- "$backup_path" "$live_path" || return 1
+              fi
+            done
+            if ! sudo test -e "$shared_snapshot_dir/DOWNLOADS_DIR_PRESENT"; then
+              sudo rmdir -- "$DOWNLOADS_DIR" || return 1
+            fi
+          }
+
+          restore_tmp="${OPSHUB_ENV_FILE}.restore.${DEPLOY_RUN_ID}"
+          sudo cp --preserve=mode,ownership,timestamps -- "$env_snapshot" "$restore_tmp"
+          sudo mv -Tf -- "$restore_tmp" "$OPSHUB_ENV_FILE"
+
+          shared_restored=false
+          if restore_shared_publication; then
+            shared_restored=true
+          else
+            echo "Staging shared-state restore failed; continuing runtime rollback and retaining all checkpoints." >&2
+          fi
+
+          ln -sfn "$previous_real" "${CURRENT_DIR}.rollback"
+          mv -Tf "${CURRENT_DIR}.rollback" "$CURRENT_DIR"
+          cd "$CURRENT_DIR"
+          export COMPOSE_PROJECT_NAME OPSHUB_ENV_FILE
+          compose=(docker compose --env-file "$OPSHUB_ENV_FILE" -f deploy/home-server/docker-compose.home.yml)
+          compose_cmd() {
+            "${compose[@]}" "$@" < /dev/null
+          }
+          if ! compose_cmd up -d --build --force-recreate --wait --wait-timeout 240 redis api realtime caddy; then
+            compose_cmd ps || true
+            compose_cmd logs --tail=200 api || true
+            compose_cmd logs --tail=120 realtime || true
+            compose_cmd logs --tail=120 caddy || true
+            echo "Staging rollback runtime did not become healthy; snapshot and metadata were retained." >&2
+            exit 1
+          fi
+          curl -fsS \
+            -H 'Host: opshub-staging.hoanghochoi.com' \
+            -H 'X-Forwarded-Proto: https' \
+            'http://127.0.0.1:8090/health' >/dev/null
+          if [ "$shared_restored" != true ]; then
+            echo "Prior runtime is healthy, but shared-state rollback requires manual recovery." >&2
+            exit 1
+          fi
+          case "$CLIENT_STAGING_DIR" in
+            "$OPSHUB_REMOTE_APP_DIR"/action-staging/*) rm -rf -- "$CLIENT_STAGING_DIR" ;;
+            *) echo "Refusing to remove unexpected staged client directory." >&2; false ;;
+          esac
+          case "$TMP_DIR" in
+            "$OPSHUB_REMOTE_APP_DIR"/tmp/*) rm -rf -- "$TMP_DIR" ;;
+            *) echo "Refusing to remove unexpected staged static directory." >&2; false ;;
+          esac
+          sudo rm -f -- "$env_snapshot" "$rollback_state"
+          sudo rm -rf -- "$shared_stage_dir" "$shared_snapshot_dir"
+          echo "Staging release, env, web, Help, manifest and client files were rolled back after failed public verification." >&2
+          REMOTE
+
+      - name: Finalize successful staging rollback checkpoint
+        if: ${{ success() && steps.deploy_runtime.outcome == 'success' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          remote_release_dir="${OPSHUB_REMOTE_APP_DIR}/releases/${GITHUB_SHA}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          client_staging_dir="${OPSHUB_REMOTE_APP_DIR}/action-staging/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          tmp_dir="${OPSHUB_REMOTE_APP_DIR}/tmp/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          ssh opshub-staging \
+            "REMOTE_RELEASE_DIR='$remote_release_dir' \
+             CURRENT_DIR='${OPSHUB_REMOTE_APP_DIR}/current' \
+             CLIENT_STAGING_DIR='$client_staging_dir' \
+             TMP_DIR='$tmp_dir' \
+             OPSHUB_REMOTE_APP_DIR='${OPSHUB_REMOTE_APP_DIR}' \
+             DEPLOY_RUN_ID='$GITHUB_RUN_ID' \
+             OPSHUB_ENV_FILE='$OPSHUB_ENV_FILE' \
+             OPSHUB_SSD_ROOT='$OPSHUB_SSD_ROOT' \
+             bash -s" <<'REMOTE'
+          set -euo pipefail
+          env_snapshot="${OPSHUB_ENV_FILE}.rollback.${DEPLOY_RUN_ID}"
+          rollback_state="${OPSHUB_SSD_ROOT}/rollback/deploy-${DEPLOY_RUN_ID}.state"
+          shared_snapshot_dir="${OPSHUB_SSD_ROOT}/rollback/deploy-${DEPLOY_RUN_ID}.shared"
+          shared_stage_dir="${OPSHUB_SSD_ROOT}/rollback/deploy-${DEPLOY_RUN_ID}.stage"
+          expected_release="$(sudo sed -n '2p' "$rollback_state")"
+          previous_release="$(sudo sed -n '1p' "$rollback_state")"
+          current_real="$(readlink -f "$CURRENT_DIR" || true)"
+          remote_release_real="$(readlink -f "$REMOTE_RELEASE_DIR" || true)"
+          previous_real="$(readlink -f "$previous_release" || true)"
+          if ! sudo test -s "$env_snapshot" || \
+             ! sudo test -s "$rollback_state" || \
+             ! sudo test -e "$shared_snapshot_dir/SNAPSHOT_READY" || \
+             ! sudo test -e "$shared_snapshot_dir/PROMOTION_STARTED" || \
+             ! sudo test -e "$shared_snapshot_dir/PROMOTED" || \
+             [ "$expected_release" != "$remote_release_real" ] || \
+             [ "$current_real" != "$remote_release_real" ]; then
+            echo "Staging rollback checkpoint is incomplete or does not match the verified release." >&2
+            exit 1
+          fi
+
+          case "$CLIENT_STAGING_DIR" in
+            "$OPSHUB_REMOTE_APP_DIR"/action-staging/*) rm -rf -- "$CLIENT_STAGING_DIR" ;;
+            *) echo "Refusing to remove unexpected staged client directory." >&2; false ;;
+          esac
+          case "$TMP_DIR" in
+            "$OPSHUB_REMOTE_APP_DIR"/tmp/*) rm -rf -- "$TMP_DIR" ;;
+            *) echo "Refusing to remove unexpected staged static directory." >&2; false ;;
+          esac
+
+          releases_dir="$(dirname "$REMOTE_RELEASE_DIR")"
+          case "$previous_real" in
+            "$releases_dir"/*) ;;
+            *) echo "Previous staging release is outside the protected releases directory." >&2; exit 1 ;;
+          esac
+          mapfile -t release_dirs < <(find "$releases_dir" -mindepth 1 -maxdepth 1 -type d -printf '%T@ %p\n' | sort -rn | awk '{print $2}')
+          kept=0
+          for dir in "${release_dirs[@]}"; do
+            dir_real="$(readlink -f "$dir")"
+            if [ "$dir_real" = "$current_real" ] || \
+               [ "$dir_real" = "$previous_real" ] || \
+               [ "$kept" -lt 5 ]; then
+              kept=$((kept + 1))
+              continue
+            fi
+            rm -rf -- "$dir"
+          done
+
+          downloads_dir="$OPSHUB_SSD_ROOT/downloads"
+          mapfile -t client_files < <(sudo find "$downloads_dir" -maxdepth 1 -type f \( -name 'phongvu-opshub-staging-v*.apk' -o -name 'phongvu-opshub-staging-windows-v*.zip' -o -name 'phongvu-opshub-staging-windows-setup-v*.exe' -o -name 'phongvu-opshub-staging-windows-v*.sha256' \) -printf '%T@ %p\n' | sort -rn | awk '{print $2}')
+          kept=0
+          for file in "${client_files[@]}"; do
+            if [ "$kept" -lt 20 ]; then
+              kept=$((kept + 1))
+              continue
+            fi
+            sudo rm -f -- "$file"
+          done
+
+          sudo rm -f -- "$rollback_state" "$env_snapshot"
+          sudo rm -rf -- "$shared_stage_dir" "$shared_snapshot_dir"
+          REMOTE

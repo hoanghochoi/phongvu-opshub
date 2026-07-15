@@ -29,6 +29,75 @@ function Get-SignToolPath {
   throw 'signtool.exe was not found. Install the Windows SDK on the runner.'
 }
 
+function Add-PublicCertificateToStore {
+  param(
+    [Parameter(Mandatory = $true)]
+    [System.Security.Cryptography.X509Certificates.X509Certificate2]$Certificate,
+
+    [Parameter(Mandatory = $true)]
+    [System.Security.Cryptography.X509Certificates.StoreName]$StoreName
+  )
+
+  $publicCertificate = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new(
+    $Certificate.Export([System.Security.Cryptography.X509Certificates.X509ContentType]::Cert)
+  )
+  $store = [System.Security.Cryptography.X509Certificates.X509Store]::new(
+    $StoreName,
+    [System.Security.Cryptography.X509Certificates.StoreLocation]::CurrentUser
+  )
+  try {
+    $store.Open([System.Security.Cryptography.X509Certificates.OpenFlags]::ReadWrite)
+    $store.Add($publicCertificate)
+  } finally {
+    $store.Dispose()
+    $publicCertificate.Dispose()
+  }
+}
+
+function Install-EphemeralSigningTrust {
+  param(
+    [Parameter(Mandatory = $true)]
+    [string]$CertificatePath,
+
+    [Parameter(Mandatory = $true)]
+    [string]$CertificatePassword
+  )
+
+  $collection = [System.Security.Cryptography.X509Certificates.X509Certificate2Collection]::new()
+  $collection.Import(
+    $CertificatePath,
+    $CertificatePassword,
+    [System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::EphemeralKeySet
+  )
+  try {
+    $signingCertificates = @($collection | Where-Object { $_.HasPrivateKey })
+    if ($signingCertificates.Count -ne 1) {
+      throw 'Windows signing PFX must contain exactly one certificate with a private key.'
+    }
+
+    $signer = $signingCertificates[0]
+    Add-PublicCertificateToStore `
+      -Certificate $signer `
+      -StoreName ([System.Security.Cryptography.X509Certificates.StoreName]::TrustedPublisher)
+
+    foreach ($certificate in $collection) {
+      if ($certificate.Subject -eq $certificate.Issuer) {
+        Add-PublicCertificateToStore `
+          -Certificate $certificate `
+          -StoreName ([System.Security.Cryptography.X509Certificates.StoreName]::Root)
+      } elseif ($certificate.Thumbprint -ne $signer.Thumbprint) {
+        Add-PublicCertificateToStore `
+          -Certificate $certificate `
+          -StoreName ([System.Security.Cryptography.X509Certificates.StoreName]::CertificateAuthority)
+      }
+    }
+  } finally {
+    foreach ($certificate in $collection) {
+      $certificate.Dispose()
+    }
+  }
+}
+
 if ([string]::IsNullOrWhiteSpace($PfxPath) -or -not (Test-Path $PfxPath)) {
   throw 'Windows signing PFX path is missing or does not exist.'
 }
@@ -45,6 +114,7 @@ if ($trustedPins.Count -eq 0 -or @($trustedPins | Where-Object { $_ -notmatch '^
 }
 
 $signTool = Get-SignToolPath
+Install-EphemeralSigningTrust -CertificatePath $PfxPath -CertificatePassword $PfxPassword
 
 foreach ($item in $Path) {
   $resolvedPath = (Resolve-Path $item).Path
@@ -59,6 +129,9 @@ foreach ($item in $Path) {
   if ($null -eq $signature.SignerCertificate) {
     throw "Windows artifact signer certificate is missing after signing: $resolvedPath"
   }
+  if ($null -eq $signature.TimeStamperCertificate) {
+    throw "Windows artifact RFC 3161 timestamp is missing after signing: $resolvedPath"
+  }
   $algorithm = [System.Security.Cryptography.HashAlgorithmName]::SHA256
   $actualPin = $signature.SignerCertificate.GetCertHashString($algorithm).ToUpperInvariant()
   if ($actualPin -notin $trustedPins) {
@@ -66,16 +139,13 @@ foreach ($item in $Path) {
   }
 
   $statusName = [string]$signature.Status
-  $statusMessage = [string]$signature.StatusMessage
-  $isPinnedUntrustedRoot = $statusName -eq 'NotTrusted' -or (
-    $statusName -eq 'UnknownError' -and
-    $statusMessage -match '(?i)(0x800B0109|root certificate.+not trusted|terminated in a root certificate)'
-  )
-  if ($statusName -ne 'Valid' -and -not $isPinnedUntrustedRoot) {
+  if ($statusName -ne 'Valid') {
     throw "Windows artifact signature verification failed with status ${statusName}: $resolvedPath"
   }
-  if ($isPinnedUntrustedRoot) {
-    Write-Warning "Windows signing certificate chain is not trusted by this ephemeral runner; exact pinned signer verification succeeded for: $resolvedPath"
+
+  & $signTool verify /pa /all /v $resolvedPath
+  if ($LASTEXITCODE -ne 0) {
+    throw "Timestamped Authenticode verification failed for $resolvedPath with exit code $LASTEXITCODE."
   }
 
   Write-Host ('Signature status for {0}: {1}' -f $resolvedPath, $statusName)

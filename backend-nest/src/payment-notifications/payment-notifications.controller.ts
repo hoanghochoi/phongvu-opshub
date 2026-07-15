@@ -123,7 +123,6 @@ export class PaymentNotificationsController {
 
   @Post('app-logs')
   @Throttle({
-    ip: { ttl: 60_000, limit: 30 },
     principal: { ttl: 60_000, limit: 20 },
   })
   createAppLog(@Request() req: any, @Body() body: CreateAppLogDto) {

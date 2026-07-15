@@ -61,7 +61,6 @@ export class UserController {
 
   @Post('users/me/avatar')
   @Throttle({
-    ip: { ttl: 60_000, limit: 20 },
     principal: { ttl: 60_000, limit: 10 },
   })
   @UseInterceptors(FileInterceptor('avatar', avatarUploadOptions))

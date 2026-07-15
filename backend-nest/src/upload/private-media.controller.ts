@@ -21,7 +21,6 @@ export class PrivateMediaController {
 
   @Get(':id')
   @Throttle({
-    ip: { ttl: 60_000, limit: 300 },
     principal: { ttl: 60_000, limit: 180 },
   })
   async read(

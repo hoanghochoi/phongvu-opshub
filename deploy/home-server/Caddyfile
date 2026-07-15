@@ -1,3 +1,14 @@
+{
+  # Cloudflare Tunnel reaches this loopback-only origin from a private/local
+  # address. Trust that hop, read the client IP from Cloudflare's protected
+  # header, then normalize what downstream services receive.
+  servers {
+    trusted_proxies static private_ranges
+    trusted_proxies_strict
+    client_ip_headers CF-Connecting-IP
+  }
+}
+
 http://{$OPSHUB_DOMAIN} {
   encode gzip zstd
 
@@ -47,19 +58,28 @@ http://{$OPSHUB_DOMAIN} {
   }
 
   handle_path /api/* {
-    reverse_proxy api:3000
+    reverse_proxy api:3000 {
+      header_up X-Forwarded-For {client_ip}
+      header_up X-Real-IP {client_ip}
+    }
   }
 
   handle /ws* {
-    reverse_proxy realtime:8080
+    reverse_proxy realtime:8080 {
+      header_up X-Forwarded-For {client_ip}
+      header_up X-Real-IP {client_ip}
+    }
   }
 
   handle /reset-password* {
-    reverse_proxy api:3000
+    reverse_proxy api:3000 {
+      header_up X-Forwarded-For {client_ip}
+      header_up X-Real-IP {client_ip}
+    }
   }
 
   handle /download/ {
-    redir /download 308
+    redir * /download 308
   }
 
   handle /download {
@@ -69,7 +89,7 @@ http://{$OPSHUB_DOMAIN} {
   }
 
   handle /help/ {
-    redir /help 308
+    redir * /help 308
   }
 
   handle_path /help/assets/* {

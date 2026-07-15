@@ -7,7 +7,6 @@ import {
   InjectThrottlerStorage,
   ThrottlerGuard,
   ThrottlerLimitDetail,
-  ThrottlerRequest,
   ThrottlerStorage,
 } from '@nestjs/throttler';
 import type { ThrottlerModuleOptions } from '@nestjs/throttler';
@@ -20,6 +19,10 @@ type RateLimitRequest = Record<string, any> & {
   headers?: Record<string, unknown>;
   query?: Record<string, unknown>;
   body?: unknown;
+  method?: unknown;
+  route?: { path?: unknown };
+  path?: unknown;
+  originalUrl?: unknown;
 };
 
 @Injectable()
@@ -40,14 +43,18 @@ export class UserAwareThrottlerGuard extends ThrottlerGuard {
     return this.getPrincipalTracker(req);
   }
 
-  protected async handleRequest(
-    requestProps: ThrottlerRequest,
-  ): Promise<boolean> {
-    const getTracker =
-      requestProps.throttler.name === 'ip'
-        ? (req: RateLimitRequest) => this.getIpTracker(req)
-        : (req: RateLimitRequest) => this.getPrincipalTracker(req);
-    return super.handleRequest({ ...requestProps, getTracker });
+  protected generateKey(
+    context: ExecutionContext,
+    suffix: string,
+    name: string,
+  ): string {
+    const { req } = this.getRequestResponse(context);
+    const method = (this.stringClaim(req?.method) || 'UNKNOWN').toUpperCase();
+    const routePath = this.routePath(req);
+    // Keep endpoint isolation literal and durable instead of depending on
+    // controller/handler names. Hash the complete value before storage so the
+    // verified user id and trusted-IP digest are never stored as plain text.
+    return this.hashTrackerValue(`${name}:${method}:${routePath}:${suffix}`);
   }
 
   protected async throwThrottlingException(
@@ -84,11 +91,8 @@ export class UserAwareThrottlerGuard extends ThrottlerGuard {
     return super.throwThrottlingException(context, throttlerLimitDetail);
   }
 
-  protected async getIpTracker(req: RateLimitRequest): Promise<string> {
-    return `ip:${await super.getTracker(req)}`;
-  }
-
   protected async getPrincipalTracker(req: RateLimitRequest): Promise<string> {
+    const trustedIpHash = await this.trustedIpHash(req);
     const authorization = this.valueFromRecord(req.headers, 'authorization');
     const token = this.bearerToken(authorization);
     if (token) {
@@ -96,7 +100,9 @@ export class UserAwareThrottlerGuard extends ThrottlerGuard {
         const claims =
           await this.jwtService.verifyAsync<RateLimitJwtClaims>(token);
         const userId = this.stringClaim(claims.sub);
-        if (userId) return `principal:user:${userId}`;
+        if (userId) {
+          return `principal:user:${userId}:ip:${trustedIpHash}`;
+        }
       } catch {
         // Invalid or expired tokens continue through the non-JWT trackers.
       }
@@ -107,15 +113,29 @@ export class UserAwareThrottlerGuard extends ThrottlerGuard {
       return `principal:email:${this.hashTrackerValue(email)}`;
     }
 
-    return `principal:${await this.getIpTracker(req)}`;
+    return `principal:ip:${trustedIpHash}`;
+  }
+
+  private async trustedIpHash(req: RateLimitRequest): Promise<string> {
+    // Express resolves req.ip from the single trusted Caddy hop configured in
+    // main.ts. Hash it before it enters a throttler key so Redis and logs never
+    // receive a raw client address.
+    return this.hashTrackerValue(await super.getTracker(req));
   }
 
   private emailIdentifier(req: RateLimitRequest): string | null {
     const email = this.firstUsableValue([
-      this.valueFromRecord(req.query, 'email'),
       this.valueFromRecord(this.bodyRecord(req.body), 'email'),
+      this.valueFromRecord(req.query, 'email'),
     ]);
     return email?.toLowerCase() ?? null;
+  }
+
+  private routePath(req: RateLimitRequest): string {
+    const routeTemplate = this.stringClaim(req?.route?.path);
+    if (routeTemplate) return routeTemplate.split('?')[0];
+    const requestPath = this.firstUsableValue([req?.path, req?.originalUrl]);
+    return requestPath?.split('?')[0] || 'unknown';
   }
 
   private valueFromRecord(
@@ -155,6 +175,6 @@ export class UserAwareThrottlerGuard extends ThrottlerGuard {
   }
 
   private hashTrackerValue(value: string) {
-    return createHash('sha256').update(value).digest('hex').slice(0, 32);
+    return createHash('sha256').update(value).digest('hex');
   }
 }

@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "name": "opshub-staging-home-100qps",
+  "targetRps": 100,
+  "targetSockets": 60,
+  "routeMix": [
+    { "name": "home_1d", "method": "GET", "weight": 0.35 },
+    { "name": "home_7d", "method": "GET", "weight": 0.2 },
+    { "name": "home_30d", "method": "GET", "weight": 0.1 },
+    { "name": "home_90d", "method": "GET", "weight": 0.05 },
+    { "name": "home_scopes", "method": "GET", "weight": 0.1 },
+    { "name": "auth_bootstrap", "method": "GET", "weight": 0.1 },
+    { "name": "auth_me", "method": "GET", "weight": 0.1 }
+  ],
+  "disabledSurfaces": [
+    "public websocket",
+    "legacy websocket",
+    "payment ready polling",
+    "write endpoints"
+  ]
+}

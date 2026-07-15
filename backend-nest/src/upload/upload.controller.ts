@@ -32,7 +32,6 @@ export class UploadController {
   @Post('warranty')
   @RequireFeature(FEATURE_KEYS.WARRANTY)
   @Throttle({
-    ip: { ttl: 60_000, limit: 12 },
     principal: { ttl: 60_000, limit: 6 },
   })
   @UseInterceptors(

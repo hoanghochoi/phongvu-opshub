@@ -23,7 +23,6 @@ import { VietQrService } from './vietqr.service';
 
 @Controller('vietqr')
 @Throttle({
-  ip: { ttl: 60_000, limit: 60 },
   principal: { ttl: 60_000, limit: 30 },
 })
 export class VietQrController {
