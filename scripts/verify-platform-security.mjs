@@ -234,14 +234,27 @@ contains(updater, 'final actual = await _sha256Of(file);', 'updater SHA-256 veri
 excludes(updater, 'Get-AuthenticodeSignature', 'runtime Authenticode verification');
 excludes(updater, 'WINDOWS_UPDATE_SIGNER_SHA256', 'runtime Windows signer pin');
 contains(updater, '_maxPackageBytes', 'updater package hard cap');
-contains(windowsSigner, '/tr http://timestamp.digicert.com', 'Windows RFC 3161 signing timestamp');
+contains(
+  windowsSigner,
+  "'/tr', 'http://timestamp.digicert.com'",
+  "Windows RFC 3161 signing timestamp",
+);
+contains(
+  windowsSigner,
+  "WaitForExit($TimeoutSeconds * 1000)",
+  "Windows signtool timeout",
+);
 contains(windowsSigner, 'TimeStamperCertificate', 'Windows timestamp verification');
 contains(windowsSigner, 'actualPin -notin $trustedPins', 'Windows CI signer pin');
 contains(windowsSigner, 'Install-EphemeralSigningTrust', 'Windows ephemeral public trust setup');
 contains(windowsSigner, 'StoreName]::TrustedPublisher', 'Windows ephemeral publisher trust');
 contains(windowsSigner, 'StoreName]::Root', 'Windows ephemeral root trust');
 contains(windowsSigner, "if ($statusName -ne 'Valid')", 'Windows strict Authenticode status');
-contains(windowsSigner, '& $signTool verify /pa /all /v', 'Windows timestamped signature verification');
+contains(
+  windowsSigner,
+  "'verify', '/pa', '/all', '/v'",
+  "Windows timestamped signature verification",
+);
 excludes(windowsSigner, '$isPinnedUntrustedRoot', 'Windows untrusted pinned signer bypass');
 
 for (const [workflow, label] of [

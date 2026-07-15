@@ -9,6 +9,58 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
+function Invoke-SignTool {
+  param(
+    [Parameter(Mandatory = $true)]
+    [string]$ToolPath,
+
+    [Parameter(Mandatory = $true)]
+    [string[]]$ArgumentList,
+
+    [int]$TimeoutSeconds = 180
+  )
+
+  $tempRoot = if ([string]::IsNullOrWhiteSpace($env:RUNNER_TEMP)) {
+    [System.IO.Path]::GetTempPath()
+  } else {
+    $env:RUNNER_TEMP
+  }
+  $runId = [System.Guid]::NewGuid().ToString('N')
+  $stdoutPath = Join-Path $tempRoot "opshub-signtool-${runId}.out.log"
+  $stderrPath = Join-Path $tempRoot "opshub-signtool-${runId}.err.log"
+  $timer = [System.Diagnostics.Stopwatch]::StartNew()
+
+  try {
+    $process = Start-Process `
+      -FilePath $ToolPath `
+      -ArgumentList $ArgumentList `
+      -RedirectStandardOutput $stdoutPath `
+      -RedirectStandardError $stderrPath `
+      -WindowStyle Hidden `
+      -PassThru
+
+    if (-not $process.WaitForExit($TimeoutSeconds * 1000)) {
+      Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+      throw "signtool timed out after ${TimeoutSeconds}s."
+    }
+
+    $timer.Stop()
+    if (Test-Path $stdoutPath) {
+      Get-Content -LiteralPath $stdoutPath | ForEach-Object { Write-Host $_ }
+    }
+    if (Test-Path $stderrPath) {
+      Get-Content -LiteralPath $stderrPath | ForEach-Object { Write-Host "signtool stderr: $_" }
+    }
+    Write-Host ('signtool completed: exitCode={0}, durationMs={1}' -f $process.ExitCode, $timer.ElapsedMilliseconds)
+    return $process.ExitCode
+  } finally {
+    if ($timer.IsRunning) {
+      $timer.Stop()
+    }
+    Remove-Item -LiteralPath $stdoutPath, $stderrPath -Force -ErrorAction SilentlyContinue
+  }
+}
+
 function Get-SignToolPath {
   $kitsRoot = Join-Path ${env:ProgramFiles(x86)} 'Windows Kits\10\bin'
   if (Test-Path $kitsRoot) {
@@ -120,9 +172,11 @@ foreach ($item in $Path) {
   $resolvedPath = (Resolve-Path $item).Path
   Write-Host "Signing Windows artifact: $resolvedPath"
 
-  & $signTool sign /fd SHA256 /f $PfxPath /p $PfxPassword /tr http://timestamp.digicert.com /td SHA256 $resolvedPath
-  if ($LASTEXITCODE -ne 0) {
-    throw "Timestamped signtool failed for $resolvedPath with exit code $LASTEXITCODE."
+  $signExitCode = Invoke-SignTool `
+    -ToolPath $signTool `
+    -ArgumentList @('sign', '/fd', 'SHA256', '/f', $PfxPath, '/p', $PfxPassword, '/tr', 'http://timestamp.digicert.com', '/td', 'SHA256', $resolvedPath)
+  if ($signExitCode -ne 0) {
+    throw "Timestamped signtool failed for $resolvedPath with exit code $signExitCode."
   }
 
   $signature = Get-AuthenticodeSignature -FilePath $resolvedPath
@@ -143,9 +197,11 @@ foreach ($item in $Path) {
     throw "Windows artifact signature verification failed with status ${statusName}: $resolvedPath"
   }
 
-  & $signTool verify /pa /all /v $resolvedPath
-  if ($LASTEXITCODE -ne 0) {
-    throw "Timestamped Authenticode verification failed for $resolvedPath with exit code $LASTEXITCODE."
+  $verifyExitCode = Invoke-SignTool `
+    -ToolPath $signTool `
+    -ArgumentList @('verify', '/pa', '/all', '/v', $resolvedPath)
+  if ($verifyExitCode -ne 0) {
+    throw "Timestamped Authenticode verification failed for $resolvedPath with exit code $verifyExitCode."
   }
 
   Write-Host ('Signature status for {0}: {1}' -f $resolvedPath, $statusName)
