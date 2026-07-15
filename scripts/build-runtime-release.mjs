@@ -14,6 +14,9 @@ const expectedOutputDir = path.join(
 const includeReviewedUntracked = process.argv.includes(
   "--include-untracked-reviewed",
 );
+const includeStagingLoadTools =
+  String(process.env.OPSHUB_INCLUDE_STAGING_LOAD_TOOLS ?? "").toLowerCase() ===
+  "true";
 
 // These tracked files are mounted read-only at /app/data for backend runtime
 // lookups. Client-only assets and manual import sources stay outside the
@@ -22,6 +25,7 @@ const RUNTIME_DATA_FILES = [
   "data/categories.csv",
   "data/email_domain.txt",
 ];
+const STAGING_LOAD_TOOL_FILES = ["deploy/staging/manage-load-users.sh"];
 
 const REQUIRED_FILES = [
   "backend-nest/Dockerfile",
@@ -42,7 +46,7 @@ const REQUIRED_FILES = [
   "backend-go/server.go",
   "deploy/home-server/Caddyfile",
   "deploy/home-server/docker-compose.home.yml",
-  "deploy/staging/manage-load-users.sh",
+  ...(includeStagingLoadTools ? STAGING_LOAD_TOOL_FILES : []),
   "docs/help/navigation.json",
   ...RUNTIME_DATA_FILES,
   "assets/icon/source/app_icon_master.png",
@@ -68,7 +72,7 @@ const EXACT_FILES = new Set([
   "deploy/home-server/docker-compose.home.yml",
   "deploy/home-server/download.html",
   "deploy/home-server/backup.sh",
-  "deploy/staging/manage-load-users.sh",
+  ...(includeStagingLoadTools ? STAGING_LOAD_TOOL_FILES : []),
   ...RUNTIME_DATA_FILES,
   "assets/icon/source/app_icon_master.png",
   "assets/icon/acare_logo.png",

@@ -96,6 +96,7 @@ const [
   throttlerGuard,
   stagingLoadUsers,
   stagingLoadWrapper,
+  runtimeReleaseBuilder,
   stagingLoadProfile,
   help,
   download,
@@ -122,6 +123,7 @@ const [
   text('backend-nest/src/common/user-aware-throttler.guard.ts'),
   text('backend-nest/scripts/manage-staging-load-users.mjs'),
   text('deploy/staging/manage-load-users.sh'),
+  text('scripts/build-runtime-release.mjs'),
   text('scripts/load/opshub-staging-home-100qps.js'),
   text('deploy/home-server/help.html'),
   text('deploy/home-server/download.html'),
@@ -139,6 +141,21 @@ const [
 
 assertWorkflowRunExpressionLengths(productionWorkflow, 'production workflow');
 assertWorkflowRunExpressionLengths(stagingWorkflow, 'staging workflow');
+contains(
+  runtimeReleaseBuilder,
+  'OPSHUB_INCLUDE_STAGING_LOAD_TOOLS',
+  'runtime release staging load tool opt-in',
+);
+contains(
+  stagingWorkflow,
+  'OPSHUB_INCLUDE_STAGING_LOAD_TOOLS: "true"',
+  'staging workflow opts into staging load tools',
+);
+excludes(
+  productionWorkflow,
+  'OPSHUB_INCLUDE_STAGING_LOAD_TOOLS',
+  'production workflow staging load tool opt-in',
+);
 
 contains(
   throttlerGuard,

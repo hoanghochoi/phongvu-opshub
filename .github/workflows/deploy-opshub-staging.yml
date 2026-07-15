@@ -523,6 +523,8 @@ jobs:
 
       - name: Stage app bundle and download metadata
         shell: bash
+        env:
+          OPSHUB_INCLUDE_STAGING_LOAD_TOOLS: "true"
         run: |
           set -euo pipefail
           node scripts/build-runtime-release.mjs
