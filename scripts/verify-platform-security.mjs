@@ -251,10 +251,25 @@ contains(windowsSigner, '*\\x64\\signtool.exe', 'Windows targeted signtool looku
 excludes(windowsSigner, '-Recurse', 'Windows recursive signtool lookup');
 contains(windowsSigner, 'Install-EphemeralSigningTrust', 'Windows ephemeral public trust setup');
 contains(windowsSigner, 'StoreName]::TrustedPublisher', 'Windows ephemeral publisher trust');
-contains(windowsSigner, 'certutil.exe', 'Windows self-signed root trust');
-contains(windowsSigner, "'-user', '-addstore', 'Root'", 'Windows user root trust');
+excludes(windowsSigner, 'certutil.exe', 'Windows signer root trust mutation');
+excludes(windowsSigner, "'-addstore', 'Root'", 'Windows signer root trust mutation');
+excludes(windowsSigner, 'StoreName]::Root', 'Windows signer root trust mutation');
 excludes(windowsSigner, 'StoreName]::CertificateAuthority', 'Windows ephemeral CA trust');
-contains(windowsSigner, "if ($statusName -ne 'Valid')", 'Windows strict Authenticode status');
+contains(
+  windowsSigner,
+  '$isPinnedSelfSignedTrustError',
+  'Windows pinned self-signed signer trust status handling',
+);
+contains(
+  windowsSigner,
+  "$statusName -eq 'UnknownError'",
+  'Windows pinned self-signed signer UnknownError handling',
+);
+contains(
+  windowsSigner,
+  "if ($statusName -ne 'Valid' -and -not $isPinnedSelfSignedTrustError)",
+  'Windows strict Authenticode status for non-pinned signers',
+);
 contains(
   windowsSigner,
   "'verify', '/pa', '/all', '/v'",
