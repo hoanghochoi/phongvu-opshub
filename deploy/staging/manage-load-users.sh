@@ -35,6 +35,12 @@ sudo install -d -m 0700 -o "$RUNTIME_UID" -g "$RUNTIME_GID" "$OUTPUT_DIR"
 export OPSHUB_ENV_FILE="$ENV_FILE"
 export OPSHUB_STAGING_LOAD_OUTPUT_DIR="$OUTPUT_DIR"
 
+docker compose \
+  --env-file "$ENV_FILE" \
+  -f "$COMPOSE_FILE" \
+  --profile maintenance \
+  build maintenance
+
 ARGS=(
   --action "$ACTION"
   --run-id "$RUN_ID"

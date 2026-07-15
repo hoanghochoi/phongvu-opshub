@@ -95,6 +95,7 @@ const [
   windowsSigner,
   throttlerGuard,
   stagingLoadUsers,
+  stagingLoadWrapper,
   stagingLoadProfile,
   help,
   download,
@@ -120,6 +121,7 @@ const [
   text('scripts/sign-windows-artifact.ps1'),
   text('backend-nest/src/common/user-aware-throttler.guard.ts'),
   text('backend-nest/scripts/manage-staging-load-users.mjs'),
+  text('deploy/staging/manage-load-users.sh'),
   text('scripts/load/opshub-staging-home-100qps.js'),
   text('deploy/home-server/help.html'),
   text('deploy/home-server/download.html'),
@@ -312,6 +314,13 @@ for (const expected of [
   'minimal store-only Home/auth/realtime scope',
 ]) {
   contains(stagingLoadUsers, expected, 'staging synthetic-user safety gate');
+}
+for (const expected of [
+  '--profile maintenance \\',
+  'build maintenance',
+  'run --rm -T maintenance',
+]) {
+  contains(stagingLoadWrapper, expected, 'staging load-user wrapper maintenance image freshness');
 }
 for (const forbidden of [
   'cloneFeatureRule(',
