@@ -95,9 +95,15 @@ a customer to scan and pay manually.
   controlled by `MAP_VIETIN_GLOBAL_SYNC_MAX_PAGES` and defaults to 2.
   `MAP_VIETIN_SYNC_DELAY_MIN_MS` and `MAP_VIETIN_SYNC_DELAY_MAX_MS` can tune
   this range, with a 500ms safety floor.
-  HTTP 429 activates exponential 30/60/120-second backoff with jitter. A 403
-  refreshes the cached session once; a persistent 403 then pauses MAP sync for
-  5 minutes. Successful recovery clears the backoff counter.
+  HTTP 429 activates exponential 30/60/120-second backoff with jitter and a
+  longer provider `Retry-After` is respected. While the cooldown is active,
+  scheduled/direct sync calls stop before sending another provider request. A
+  403 refreshes the cached session once; a persistent 403 then pauses MAP sync
+  for 5 minutes. Successful recovery clears the backoff counter.
+  Identical rows are filtered first by a bounded RAM fingerprint cache (default
+  TTL 5 minutes, 20,000 entries), then by a DB no-op comparison on cache miss.
+  New rows are still committed before payment notification publication; the
+  cache is only a load-shedding layer, never the source of truth.
   From 22:00 to before 07:00, MAP sync still runs but uses a 30-minute cadence.
   `MAP_VIETIN_SYNC_ENABLED=false` remains the full off switch.
 - Successful global MAP rows that cannot be mapped to exactly one showroom are
@@ -423,6 +429,8 @@ Optional MAP endpoint overrides are available through:
 - `MAP_VIETIN_RATE_LIMIT_BACKOFF_BASE_MS` (default/minimum `30000`)
 - `MAP_VIETIN_RATE_LIMIT_BACKOFF_MAX_MS` (default `120000`, at least the base)
 - `MAP_VIETIN_FORBIDDEN_BACKOFF_MS` (default/minimum `300000`)
+- `MAP_VIETIN_SYNC_FINGERPRINT_CACHE_TTL_MS` (default `300000`)
+- `MAP_VIETIN_SYNC_FINGERPRINT_CACHE_MAX_ENTRIES` (default `20000`, max `100000`)
 - `MAP_VIETIN_CLIENT_ID`
 - `MAP_VIETIN_SIGNATURE_KEY`
 - `MAP_VIETIN_NO_AUTH_BASE_URL`

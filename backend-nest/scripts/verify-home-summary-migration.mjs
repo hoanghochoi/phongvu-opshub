@@ -100,6 +100,24 @@ try {
     );
   }
 
+  const optimizedFunctions = await scratch.query(
+    `SELECT
+       pg_get_functiondef('opshub_enqueue_home_summary_projection(date,text)'::regprocedure) AS enqueue_definition,
+       pg_get_functiondef('opshub_home_summary_map_vietin_trigger()'::regprocedure) AS map_trigger_definition`,
+  );
+  const enqueueDefinition = optimizedFunctions.rows[0]?.enqueue_definition || '';
+  const mapTriggerDefinition =
+    optimizedFunctions.rows[0]?.map_trigger_definition || '';
+  if (
+    !enqueueDefinition.includes("p_source = 'MAP_VIETIN'") ||
+    !enqueueDefinition.includes('v_max_wait') ||
+    !mapTriggerDefinition.includes('IS NOT DISTINCT FROM')
+  ) {
+    throw new Error(
+      'Home projection migration did not install MAP load-shedding functions',
+    );
+  }
+
   const hotIndexes = await scratch.query(
     `SELECT COUNT(*)::int AS count
        FROM pg_indexes

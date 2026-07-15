@@ -6,22 +6,59 @@ import 'api_exception.dart';
 import '../constants/api_constants.dart';
 
 typedef AuthFailureHandler = Future<void> Function(ApiException exception);
+typedef ApiRateLimitObserver = void Function(ApiRateLimitEvent event);
+
+class ApiRateLimitEvent {
+  final String action;
+  final String method;
+  final String endpoint;
+  final int attempt;
+  final DateTime? retryAt;
+  final String source;
+
+  const ApiRateLimitEvent({
+    required this.action,
+    required this.method,
+    required this.endpoint,
+    required this.attempt,
+    required this.retryAt,
+    required this.source,
+  });
+}
+
+class _EndpointRateLimitState {
+  final int attempt;
+  final DateTime retryAt;
+  DateTime? lastDeferredEventAt;
+
+  _EndpointRateLimitState({required this.attempt, required this.retryAt});
+}
 
 class ApiClient {
   static final ApiClient _instance = ApiClient._internal();
   factory ApiClient() => _instance;
-  ApiClient._internal() : _client = http.Client();
+  ApiClient._internal() : _client = http.Client(), _now = DateTime.now;
 
   @visibleForTesting
-  ApiClient.test(this._client);
+  ApiClient.test(this._client, {DateTime Function()? now})
+    : _now = now ?? DateTime.now;
 
   final http.Client _client;
+  final DateTime Function() _now;
   String? _authToken;
   AuthFailureHandler? _authFailureHandler;
+  ApiRateLimitObserver? _rateLimitObserver;
   bool _handlingAuthFailure = false;
+  final Map<String, _EndpointRateLimitState> _rateLimits = {};
+
+  static const _rateLimitFallbackBase = Duration(seconds: 5);
+  static const _rateLimitFallbackMax = Duration(minutes: 2);
+  static const _deferredEventInterval = Duration(seconds: 15);
 
   void setAuthToken(String? token) {
+    final changed = _authToken != token;
     _authToken = token;
+    if (changed) _rateLimits.clear();
     if (kDebugMode) {
       debugPrint(
         '[ApiClient] Auth token ${token == null ? "cleared" : "updated"}',
@@ -35,6 +72,10 @@ class ApiClient {
     _authFailureHandler = handler;
   }
 
+  void setRateLimitObserver(ApiRateLimitObserver? observer) {
+    _rateLimitObserver = observer;
+  }
+
   Map<String, String> get _authHeaders => {
     'Content-Type': 'application/json',
     if (_authToken != null) 'Authorization': 'Bearer $_authToken',
@@ -46,6 +87,9 @@ class ApiClient {
     }
     if (statusCode == 403) return 'Bạn không có quyền thực hiện thao tác này.';
     if (statusCode == 404) return 'Không tìm thấy dữ liệu phù hợp.';
+    if (statusCode == 429) {
+      return 'Hệ thống đang giới hạn tần suất. Vui lòng chờ một chút rồi thử lại.';
+    }
     if (statusCode >= 500) {
       return 'Hệ thống đang bận. Vui lòng thử lại sau ít phút.';
     }
@@ -104,7 +148,18 @@ class ApiClient {
     }
   }
 
-  Future<Never> _throwForResponse(http.Response response) async {
+  Future<Never> _throwForResponse(
+    http.Response response, {
+    required String method,
+    required String endpoint,
+  }) async {
+    if (response.statusCode == 429) {
+      final state = _registerRateLimit(method, endpoint, response.headers);
+      throw RateLimitedException(
+        retryAt: state.retryAt,
+        message: _messageFromBody(response.body) ?? _messageForStatus(429),
+      );
+    }
     final exception = _exceptionForResponse(response.statusCode, response.body);
     if (response.statusCode == 401) {
       if (kDebugMode) {
@@ -113,6 +168,130 @@ class ApiClient {
       await _notifyAuthFailure(exception);
     }
     throw exception;
+  }
+
+  String _rateLimitKey(String method, String endpoint) =>
+      '${method.toUpperCase()} ${endpoint.split('?').first}';
+
+  void _ensureRequestAllowed(String method, String endpoint) {
+    final key = _rateLimitKey(method, endpoint);
+    final state = _rateLimits[key];
+    if (state == null) return;
+    final now = _now();
+    if (!now.isBefore(state.retryAt)) return;
+
+    final lastDeferredAt = state.lastDeferredEventAt;
+    if (lastDeferredAt == null ||
+        now.difference(lastDeferredAt) >= _deferredEventInterval) {
+      state.lastDeferredEventAt = now;
+      _emitRateLimitEvent(
+        action: 'deferred',
+        method: method,
+        endpoint: endpoint,
+        state: state,
+        source: 'client_cooldown',
+      );
+    }
+    throw RateLimitedException(retryAt: state.retryAt);
+  }
+
+  _EndpointRateLimitState _registerRateLimit(
+    String method,
+    String endpoint,
+    Map<String, String> headers,
+  ) {
+    final key = _rateLimitKey(method, endpoint);
+    final previous = _rateLimits[key];
+    final attempt = (previous?.attempt ?? 0) + 1;
+    final exponent = (attempt - 1).clamp(0, 10);
+    final fallbackMilliseconds =
+        _rateLimitFallbackBase.inMilliseconds * (1 << exponent);
+    final fallback = Duration(
+      milliseconds: fallbackMilliseconds.clamp(
+        _rateLimitFallbackBase.inMilliseconds,
+        _rateLimitFallbackMax.inMilliseconds,
+      ),
+    );
+    final serverDelay = _retryAfterFromHeaders(headers);
+    final effectiveDelay = serverDelay != null && serverDelay > fallback
+        ? serverDelay
+        : fallback;
+    final state = _EndpointRateLimitState(
+      attempt: attempt,
+      retryAt: _now().add(effectiveDelay),
+    );
+    _rateLimits[key] = state;
+    _emitRateLimitEvent(
+      action: 'activated',
+      method: method,
+      endpoint: endpoint,
+      state: state,
+      source: serverDelay == null ? 'client_fallback' : 'server_retry_after',
+    );
+    return state;
+  }
+
+  Duration? _retryAfterFromHeaders(Map<String, String> headers) {
+    final standard = headers['retry-after']?.trim();
+    if (standard != null && standard.isNotEmpty) {
+      final seconds = int.tryParse(standard);
+      if (seconds != null && seconds >= 0) {
+        return Duration(seconds: seconds);
+      }
+      DateTime? retryAt;
+      try {
+        retryAt = HttpDate.parse(standard).toUtc();
+      } catch (_) {
+        retryAt = DateTime.tryParse(standard)?.toUtc();
+      }
+      if (retryAt != null) {
+        final delay = retryAt.difference(_now().toUtc());
+        return delay.isNegative ? Duration.zero : delay;
+      }
+    }
+
+    // Nest Throttler giữ các bucket có hậu tố và trả giá trị theo milliseconds.
+    final suffixedDelays = headers.entries
+        .where((entry) => entry.key.toLowerCase().startsWith('retry-after-'))
+        .map((entry) => int.tryParse(entry.value.trim()))
+        .whereType<int>()
+        .where((value) => value >= 0)
+        .toList();
+    if (suffixedDelays.isEmpty) return null;
+    return Duration(
+      milliseconds: suffixedDelays.reduce((a, b) => a > b ? a : b),
+    );
+  }
+
+  void _recordRequestSuccess(String method, String endpoint) {
+    final state = _rateLimits.remove(_rateLimitKey(method, endpoint));
+    if (state == null) return;
+    _emitRateLimitEvent(
+      action: 'recovered',
+      method: method,
+      endpoint: endpoint,
+      state: state,
+      source: 'http_success',
+    );
+  }
+
+  void _emitRateLimitEvent({
+    required String action,
+    required String method,
+    required String endpoint,
+    required _EndpointRateLimitState state,
+    required String source,
+  }) {
+    _rateLimitObserver?.call(
+      ApiRateLimitEvent(
+        action: action,
+        method: method.toUpperCase(),
+        endpoint: endpoint.split('?').first,
+        attempt: state.attempt,
+        retryAt: state.retryAt,
+        source: source,
+      ),
+    );
   }
 
   ApiException _unexpectedException(Object error) {
@@ -127,6 +306,7 @@ class ApiClient {
     Map<String, String>? queryParameters,
   }) async {
     try {
+      _ensureRequestAllowed('GET', endpoint);
       final uri = Uri.parse('${ApiConstants.baseUrl}$endpoint');
       final url = queryParameters != null
           ? uri.replace(queryParameters: queryParameters)
@@ -142,9 +322,10 @@ class ApiClient {
           .timeout(ApiConstants.defaultTimeout);
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
+        _recordRequestSuccess('GET', endpoint);
         return response;
       }
-      await _throwForResponse(response);
+      await _throwForResponse(response, method: 'GET', endpoint: endpoint);
     } on SocketException {
       throw NetworkException();
     } on ApiException {
@@ -160,6 +341,7 @@ class ApiClient {
     Duration? timeout,
   }) async {
     try {
+      _ensureRequestAllowed('GET', endpoint);
       final uri = Uri.parse('${ApiConstants.baseUrl}$endpoint');
       final url = queryParameters != null
           ? uri.replace(queryParameters: queryParameters)
@@ -173,9 +355,10 @@ class ApiClient {
           )
           .timeout(timeout ?? ApiConstants.defaultTimeout);
       if (response.statusCode >= 200 && response.statusCode < 300) {
+        _recordRequestSuccess('GET', endpoint);
         return response.bodyBytes;
       }
-      await _throwForResponse(response);
+      await _throwForResponse(response, method: 'GET', endpoint: endpoint);
     } on SocketException {
       throw NetworkException();
     } on ApiException {
@@ -191,6 +374,7 @@ class ApiClient {
     Duration? timeout,
   }) async {
     try {
+      _ensureRequestAllowed('POST', endpoint);
       final url = Uri.parse('${ApiConstants.baseUrl}$endpoint');
 
       if (kDebugMode) {
@@ -206,9 +390,10 @@ class ApiClient {
       }
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
+        _recordRequestSuccess('POST', endpoint);
         return response;
       }
-      await _throwForResponse(response);
+      await _throwForResponse(response, method: 'POST', endpoint: endpoint);
     } on SocketException catch (e) {
       if (kDebugMode) debugPrint('❌ SocketException: $e');
       throw NetworkException();
@@ -226,15 +411,17 @@ class ApiClient {
     Duration? timeout,
   }) async {
     try {
+      _ensureRequestAllowed('PATCH', endpoint);
       final url = Uri.parse('${ApiConstants.baseUrl}$endpoint');
       final response = await _client
           .patch(url, headers: _authHeaders, body: jsonEncode(body))
           .timeout(timeout ?? ApiConstants.defaultTimeout);
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
+        _recordRequestSuccess('PATCH', endpoint);
         return response;
       }
-      await _throwForResponse(response);
+      await _throwForResponse(response, method: 'PATCH', endpoint: endpoint);
     } on SocketException {
       throw NetworkException();
     } on ApiException {
@@ -250,14 +437,16 @@ class ApiClient {
     Duration? timeout,
   }) async {
     try {
+      _ensureRequestAllowed('PUT', endpoint);
       final url = Uri.parse('${ApiConstants.baseUrl}$endpoint');
       final response = await _client
           .put(url, headers: _authHeaders, body: jsonEncode(body))
           .timeout(timeout ?? ApiConstants.defaultTimeout);
       if (response.statusCode >= 200 && response.statusCode < 300) {
+        _recordRequestSuccess('PUT', endpoint);
         return response;
       }
-      await _throwForResponse(response);
+      await _throwForResponse(response, method: 'PUT', endpoint: endpoint);
     } on SocketException {
       throw NetworkException();
     } on ApiException {
@@ -269,15 +458,17 @@ class ApiClient {
 
   Future<http.Response> delete(String endpoint, {Duration? timeout}) async {
     try {
+      _ensureRequestAllowed('DELETE', endpoint);
       final url = Uri.parse('${ApiConstants.baseUrl}$endpoint');
       final response = await _client
           .delete(url, headers: _authHeaders)
           .timeout(timeout ?? ApiConstants.defaultTimeout);
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
+        _recordRequestSuccess('DELETE', endpoint);
         return response;
       }
-      await _throwForResponse(response);
+      await _throwForResponse(response, method: 'DELETE', endpoint: endpoint);
     } on SocketException {
       throw NetworkException();
     } on ApiException {
@@ -295,6 +486,7 @@ class ApiClient {
     Duration? timeout,
   }) async {
     try {
+      _ensureRequestAllowed('POST', endpoint);
       final url = Uri.parse('${ApiConstants.baseUrl}$endpoint');
 
       if (kDebugMode) {
@@ -329,9 +521,10 @@ class ApiClient {
       }
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
+        _recordRequestSuccess('POST', endpoint);
         return response;
       }
-      await _throwForResponse(response);
+      await _throwForResponse(response, method: 'POST', endpoint: endpoint);
     } on SocketException catch (e) {
       if (kDebugMode) debugPrint('❌ SocketException: $e');
       throw NetworkException();

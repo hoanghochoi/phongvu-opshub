@@ -25,6 +25,21 @@ class ServerException extends ApiException {
   ]);
 }
 
+class RateLimitedException extends ApiException {
+  final DateTime retryAt;
+
+  RateLimitedException({
+    required this.retryAt,
+    String message =
+        'Hệ thống đang giới hạn tần suất. Vui lòng chờ một chút rồi thử lại.',
+  }) : super(message, 429);
+
+  Duration retryAfter(DateTime now) {
+    final remaining = retryAt.difference(now);
+    return remaining.isNegative ? Duration.zero : remaining;
+  }
+}
+
 class ParseException extends ApiException {
   ParseException([
     super.message = 'Chưa xử lý được dữ liệu. Vui lòng thử lại.',

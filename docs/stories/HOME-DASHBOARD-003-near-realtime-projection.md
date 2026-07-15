@@ -16,7 +16,11 @@ WebSocket và Flutter lifecycle trên nhiều runtime.
 - Dữ liệu nguồn và outbox được ghi cùng transaction hoặc cùng transaction của
   từng chunk; projection không chạy đồng bộ trong transaction nguồn.
 - Worker poll outbox mỗi giây, dùng `NOTIFY` làm wake-up hint, coalesce cùng
-  grain trong 500 ms/tối đa hai giây và không rebuild cùng grain song song.
+  grain trong 500 ms/tối đa hai giây; riêng burst MAP debounce hai giây/tối đa
+  năm giây và không rebuild cùng grain song song.
+- MAP sync dùng fingerprint cache RAM có TTL/LRU giới hạn để loại payload lặp
+  trước DB; cache miss vẫn so sánh no-op trước `upsert`. Trigger projection bỏ
+  qua UPDATE không đổi ngày/showroom/số tiền/danh sách đơn.
 - Daily aggregate có grain `GLOBAL`, `STORE`, `USER_STORE`; chỉ lưu metric cộng
   dồn. Phần trăm/rate được tính khi đọc.
 - `GET /home/summary` giữ toàn bộ DTO KPI hiện tại và thêm `freshness` gồm
@@ -33,6 +37,9 @@ WebSocket và Flutter lifecycle trên nhiều runtime.
   với `affectedDates`.
 - Mất kết nối không làm Home polling liên tục. Reconnect và app resume chỉ
   refresh một lần để tự chữa missed event.
+- API 429 trả `Retry-After` chuẩn; Flutter giữ cooldown theo method/endpoint,
+  còn MAP server tôn trọng `Retry-After` của provider nên request đang bị giới
+  hạn không tiếp tục tạo tải mạng.
 - Backfill ERP tối đa 90 ngày có checkpoint/resume, page size 50, một worker,
   delay một giây, retry 2/4/8/16/30 giây và upsert idempotent.
 - Reconciliation rà hôm nay mỗi phút, bảy ngày gần nhất mỗi giờ và chín mươi

@@ -86,6 +86,10 @@ const DEFAULT_MAP_RATE_LIMIT_BACKOFF_BASE_MS = 30 * 1000;
 const DEFAULT_MAP_RATE_LIMIT_BACKOFF_MAX_MS = 2 * 60 * 1000;
 const DEFAULT_MAP_FORBIDDEN_BACKOFF_MS = 5 * 60 * 1000;
 const MAP_PROVIDER_BACKOFF_JITTER_MAX_MS = 5 * 1000;
+const MAP_PROVIDER_RETRY_AFTER_MAX_MS = 15 * 60 * 1000;
+const DEFAULT_MAP_SYNC_FINGERPRINT_CACHE_TTL_MS = 5 * 60 * 1000;
+const DEFAULT_MAP_SYNC_FINGERPRINT_CACHE_MAX_ENTRIES = 20_000;
+const MAX_MAP_SYNC_FINGERPRINT_CACHE_ENTRIES = 100_000;
 const MAP_HISTORY_SYNC_NIGHT_DELAY_MS = 30 * 60 * 1000;
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 const DEFAULT_GLOBAL_SYNC_MAX_PAGES = 2;
@@ -163,10 +167,22 @@ class BankProviderHttpException extends BadGatewayException {
     readonly providerStatus: number,
     providerLabel: string,
     providerMessage: string,
+    readonly retryAfterMs?: number,
   ) {
     super(`${providerLabel} trả lỗi ${providerStatus}: ${providerMessage}`);
   }
 }
+
+type MapPersistStats = {
+  updated: number;
+  unchanged: number;
+  cacheHits: number;
+};
+
+type MapSyncFingerprintCacheEntry = {
+  fingerprint: string;
+  expiresAt: number;
+};
 
 type EfastStatus = {
   code?: string;
@@ -227,6 +243,10 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
   private mapHistoryDeepSweepDueAt = 0;
   private mapProviderBackoffUntil = 0;
   private mapProviderBackoffAttempt = 0;
+  private readonly mapSyncFingerprintCache = new Map<
+    string,
+    MapSyncFingerprintCacheEntry
+  >();
   private globalSessionCache?: {
     username: string;
     session: MapSession;
@@ -377,6 +397,7 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
       clearTimeout(this.efastSyncTimer);
       this.efastSyncTimer = undefined;
     }
+    this.mapSyncFingerprintCache.clear();
   }
 
   async searchTransactions(admin: any, input: SearchMapVietinTransactionsDto) {
@@ -1040,6 +1061,12 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
 
   async syncConfiguredStores(options: MapGlobalSyncOptions = {}) {
     if (this.isMapHistorySyncDisabled()) return;
+    if (this.mapProviderBackoffUntil > Date.now()) {
+      this.logger.debug(
+        `MAP sync skipped by provider backoff retryAt=${new Date(this.mapProviderBackoffUntil).toISOString()}`,
+      );
+      return;
+    }
     const inFastWindow = this.isWithinMapSyncWindow();
     if (this.lastSyncWindowOpen !== inFastWindow) {
       this.logger.log(
@@ -1070,11 +1097,23 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
       },
     });
     for (const store of stores) {
+      if (this.mapProviderBackoffUntil > Date.now()) {
+        this.logger.debug(
+          `Per-store MAP sync batch stopped by provider backoff retryAt=${new Date(this.mapProviderBackoffUntil).toISOString()}`,
+        );
+        break;
+      }
       await this.syncStoreTransactions(store);
     }
   }
 
   async syncGlobalTransactions(options: MapGlobalSyncOptions = {}) {
+    if (this.mapProviderBackoffUntil > Date.now()) {
+      this.logger.debug(
+        `Global MAP sync skipped by provider backoff retryAt=${new Date(this.mapProviderBackoffUntil).toISOString()}`,
+      );
+      return { created: 0, quarantined: 0 };
+    }
     const now = new Date();
     const startedAt = Date.now();
     let mode = options.mode ?? 'manual';
@@ -1091,6 +1130,9 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
       let session = await this.getGlobalSession(username, password);
       const storeAccountIndex = await this.loadStoreAccountIndex();
       let created = 0;
+      let updated = 0;
+      let unchanged = 0;
+      let cacheHits = 0;
       let quarantined = 0;
       let page = 0;
       let pagesFetched = 0;
@@ -1140,6 +1182,9 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
           storeAccountIndex,
         );
         created += persisted.created;
+        updated += persisted.updated;
+        unchanged += persisted.unchanged;
+        cacheHits += persisted.cacheHits;
         quarantined += persisted.quarantined;
 
         const listLength = result.list.length;
@@ -1172,9 +1217,13 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
         this.mapHistoryDeepSweepDueAt = Date.now() + nextDeepSweepInMs;
       }
       this.clearMapProviderBackoff();
-      if (created > 0 || quarantined > 0 || deepSweepCompleted) {
+      if (created > 0 || updated > 0 || quarantined > 0 || deepSweepCompleted) {
         this.logger.log(
-          `Global MAP sync succeeded mode=${mode} pagesFetched=${pagesFetched} created=${created} quarantined=${quarantined} durationMs=${Date.now() - startedAt} nextDeepSweepInMs=${nextDeepSweepInMs}`,
+          `Global MAP sync succeeded mode=${mode} pagesFetched=${pagesFetched} created=${created} updated=${updated} unchanged=${unchanged} cacheHits=${cacheHits} quarantined=${quarantined} durationMs=${Date.now() - startedAt} nextDeepSweepInMs=${nextDeepSweepInMs}`,
+        );
+      } else if (unchanged > 0) {
+        this.logger.debug(
+          `Global MAP sync no-op mode=${mode} pagesFetched=${pagesFetched} unchanged=${unchanged} cacheHits=${cacheHits} durationMs=${Date.now() - startedAt}`,
         );
       }
       return { created, quarantined };
@@ -1182,7 +1231,12 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
       const message = this.safeError(error).slice(0, 500);
       const providerStatus = this.providerHttpStatus(error);
       if (providerStatus === 429 || providerStatus === 403) {
-        this.registerMapProviderBackoff(providerStatus);
+        this.registerMapProviderBackoff(
+          providerStatus,
+          error instanceof BankProviderHttpException
+            ? error.retryAfterMs
+            : undefined,
+        );
       }
       this.logger.warn(
         `Global MAP sync failed mode=${mode} providerStatus=${providerStatus ?? 'unknown'} durationMs=${Date.now() - startedAt}: ${message}`,
@@ -1224,6 +1278,9 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
       let fetched = 0;
       let creditRows = 0;
       let created = 0;
+      let updated = 0;
+      let unchanged = 0;
+      let cacheHits = 0;
       let quarantined = 0;
 
       this.logger.log(
@@ -1276,6 +1333,9 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
             storeAccountIndex,
           );
           created += persisted.created;
+          updated += persisted.updated;
+          unchanged += persisted.unchanged;
+          cacheHits += persisted.cacheHits;
           quarantined += persisted.quarantined;
 
           if (!this.hasNextEfastPage(result, page, rows.length, pageSize)) {
@@ -1300,7 +1360,7 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
         },
       });
       this.logger.log(
-        `VietinBank eFAST sync finished: fetched=${fetched} creditRows=${creditRows} created=${created} quarantined=${quarantined} durationMs=${Date.now() - startedAt}`,
+        `VietinBank eFAST sync finished: fetched=${fetched} creditRows=${creditRows} created=${created} updated=${updated} unchanged=${unchanged} cacheHits=${cacheHits} quarantined=${quarantined} durationMs=${Date.now() - startedAt}`,
       );
       return { created, quarantined, fetched, creditRows };
     } catch (error) {
@@ -1465,6 +1525,12 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
     mapVietinUsername?: string | null;
     mapVietinPasswordCipher?: string | null;
   }) {
+    if (this.mapProviderBackoffUntil > Date.now()) {
+      this.logger.debug(
+        `MAP store sync skipped by provider backoff store=${store.storeId} retryAt=${new Date(this.mapProviderBackoffUntil).toISOString()}`,
+      );
+      return 0;
+    }
     const now = new Date();
     try {
       const today = this.formatMapDate(now);
@@ -1474,9 +1540,15 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
         page: 0,
         size: MAP_SYNC_PAGE_SIZE,
       });
+      const persistStats: MapPersistStats = {
+        updated: 0,
+        unchanged: 0,
+        cacheHits: 0,
+      };
       const created = await this.persistTransactions(
         store.storeId,
         result.list,
+        persistStats,
       );
       await this.prisma.mapVietinSyncState.upsert({
         where: { storeCode: store.storeId },
@@ -1492,15 +1564,30 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
           lastError: null,
         },
       });
-      if (created > 0) {
+      if (created > 0 || persistStats.updated > 0) {
         this.logger.log(
-          `MAP sync stored ${created} new transactions for ${store.storeId}`,
+          `MAP sync persisted store=${store.storeId} created=${created} updated=${persistStats.updated} unchanged=${persistStats.unchanged} cacheHits=${persistStats.cacheHits}`,
+        );
+      } else if (persistStats.unchanged > 0) {
+        this.logger.debug(
+          `MAP sync no-op store=${store.storeId} unchanged=${persistStats.unchanged} cacheHits=${persistStats.cacheHits}`,
         );
       }
       return created;
     } catch (error) {
       const message = this.safeError(error).slice(0, 500);
-      this.logger.warn(`MAP sync failed for ${store.storeId}: ${message}`);
+      const providerStatus = this.providerHttpStatus(error);
+      if (providerStatus === 429 || providerStatus === 403) {
+        this.registerMapProviderBackoff(
+          providerStatus,
+          error instanceof BankProviderHttpException
+            ? error.retryAfterMs
+            : undefined,
+        );
+      }
+      this.logger.warn(
+        `MAP sync failed for ${store.storeId} providerStatus=${providerStatus ?? 'unknown'}: ${message}`,
+      );
       await this.prisma.mapVietinSyncState.upsert({
         where: { storeCode: store.storeId },
         create: {
@@ -2601,7 +2688,11 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
     if (missing) throw new BadRequestException('Showroom không hợp lệ');
   }
 
-  private async persistTransactions(storeCode: string | null, rows: unknown[]) {
+  private async persistTransactions(
+    storeCode: string | null,
+    rows: unknown[],
+    stats: MapPersistStats = { updated: 0, unchanged: 0, cacheHits: 0 },
+  ) {
     let created = 0;
     let withOrders = 0;
     let withoutOrders = 0;
@@ -2612,6 +2703,17 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
       const row = raw as MapTransactionRow;
       const normalized = this.normalizeTransaction(storeCode, row);
       if (!normalized) continue;
+      const syncFingerprint = this.mapSyncFingerprint(normalized);
+      if (
+        this.mapSyncFingerprintCacheHit(
+          normalized.transactionKey,
+          syncFingerprint,
+        )
+      ) {
+        stats.unchanged += 1;
+        stats.cacheHits += 1;
+        continue;
+      }
       let existing = await this.prisma.mapVietinTransaction.findUnique({
         where: { transactionKey: normalized.transactionKey },
       });
@@ -2633,6 +2735,10 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
         );
         if (existingStatement) {
           duplicateStatementSkipped += 1;
+          this.rememberMapSyncFingerprint(
+            normalized.transactionKey,
+            syncFingerprint,
+          );
           continue;
         }
       }
@@ -2645,28 +2751,43 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
       const preservesManualOrders =
         existing?.orderSource === ORDER_SOURCE_MANUAL;
       if (preservesManualOrders) manualProtected += 1;
-      const stored = await this.prisma.mapVietinTransaction.upsert({
-        where: {
-          transactionKey: existing?.transactionKey ?? normalized.transactionKey,
-        },
-        create: normalized,
-        update: {
-          transactionNumber: normalized.transactionNumber,
-          amount: normalized.amount,
-          content: normalized.content,
-          ...(preservesManualOrders
-            ? {}
-            : {
-                orders: normalized.orders,
-                orderSource: ORDER_SOURCE_AUTO,
-              }),
-          status: normalized.status,
-          paidAt: normalized.paidAt,
-          payerName: normalized.payerName,
-          payerAccount: normalized.payerAccount,
-          rawData: normalized.rawData,
-        },
-      });
+      const updateData = {
+        transactionNumber: normalized.transactionNumber,
+        amount: normalized.amount,
+        content: normalized.content,
+        ...(preservesManualOrders
+          ? {}
+          : {
+              orders: normalized.orders,
+              orderSource: ORDER_SOURCE_AUTO,
+            }),
+        status: normalized.status,
+        paidAt: normalized.paidAt,
+        payerName: normalized.payerName,
+        payerAccount: normalized.payerAccount,
+        rawData: normalized.rawData,
+      };
+      const isNoOp =
+        existing && this.mapTransactionSyncIsNoOp(existing, updateData);
+      const stored = isNoOp
+        ? existing
+        : await this.prisma.mapVietinTransaction.upsert({
+            where: {
+              transactionKey:
+                existing?.transactionKey ?? normalized.transactionKey,
+            },
+            create: normalized,
+            update: updateData,
+          });
+      if (isNoOp) {
+        stats.unchanged += 1;
+      } else if (existing) {
+        stats.updated += 1;
+      }
+      this.rememberMapSyncFingerprint(
+        normalized.transactionKey,
+        syncFingerprint,
+      );
       if (
         !existing &&
         stored?.id &&
@@ -2683,13 +2804,105 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
           });
       }
     }
-    if (created > 0 || duplicateStatementSkipped > 0) {
+    if (created > 0 || stats.updated > 0 || duplicateStatementSkipped > 0) {
       const storeLabel = storeCode || 'null';
       this.logger.log(
-        `MAP sync order extraction: store=${storeLabel} created=${created} withOrders=${withOrders} withoutOrders=${withoutOrders} manualProtected=${manualProtected} duplicateStatementSkipped=${duplicateStatementSkipped}`,
+        `MAP sync order extraction: store=${storeLabel} created=${created} updated=${stats.updated} unchanged=${stats.unchanged} withOrders=${withOrders} withoutOrders=${withoutOrders} manualProtected=${manualProtected} duplicateStatementSkipped=${duplicateStatementSkipped}`,
       );
     }
     return created;
+  }
+
+  private mapTransactionSyncIsNoOp(
+    existing: Record<string, unknown>,
+    updateData: Record<string, unknown>,
+  ) {
+    return Object.entries(updateData).every(([key, value]) =>
+      this.mapSyncValueEquals(existing[key], value),
+    );
+  }
+
+  private mapSyncValueEquals(left: unknown, right: unknown): boolean {
+    if (left instanceof Date || right instanceof Date) {
+      if (!(left instanceof Date) || !(right instanceof Date)) return false;
+      return left.getTime() === right.getTime();
+    }
+    if (Array.isArray(left) || Array.isArray(right)) {
+      if (!Array.isArray(left) || !Array.isArray(right)) return false;
+      if (left.length !== right.length) return false;
+      return left.every((value, index) =>
+        this.mapSyncValueEquals(value, right[index]),
+      );
+    }
+    if (
+      left !== null &&
+      right !== null &&
+      typeof left === 'object' &&
+      typeof right === 'object'
+    ) {
+      return this.stableJson(left) === this.stableJson(right);
+    }
+    return left === right;
+  }
+
+  private stableJson(value: unknown): string {
+    const normalize = (input: unknown): unknown => {
+      if (Array.isArray(input)) return input.map(normalize);
+      if (input && typeof input === 'object') {
+        return Object.fromEntries(
+          Object.entries(input as Record<string, unknown>)
+            .sort(([left], [right]) => left.localeCompare(right))
+            .map(([key, nested]) => [key, normalize(nested)]),
+        );
+      }
+      return input;
+    };
+    return JSON.stringify(normalize(value));
+  }
+
+  private mapSyncFingerprint(normalized: Record<string, unknown>) {
+    return createHash('sha256')
+      .update(this.stableJson(normalized))
+      .digest('hex');
+  }
+
+  private mapSyncFingerprintCacheHit(key: string, fingerprint: string) {
+    const cached = this.mapSyncFingerprintCache.get(key);
+    if (!cached) return false;
+    if (cached.expiresAt <= Date.now() || cached.fingerprint !== fingerprint) {
+      this.mapSyncFingerprintCache.delete(key);
+      return false;
+    }
+    // Map giữ thứ tự chèn; đưa entry vừa dùng xuống cuối để có LRU giới hạn.
+    this.mapSyncFingerprintCache.delete(key);
+    this.mapSyncFingerprintCache.set(key, cached);
+    return true;
+  }
+
+  private rememberMapSyncFingerprint(key: string, fingerprint: string) {
+    const maxEntries = Math.min(
+      MAX_MAP_SYNC_FINGERPRINT_CACHE_ENTRIES,
+      this.readPositiveInt(
+        'MAP_VIETIN_SYNC_FINGERPRINT_CACHE_MAX_ENTRIES',
+        DEFAULT_MAP_SYNC_FINGERPRINT_CACHE_MAX_ENTRIES,
+      ),
+    );
+    while (this.mapSyncFingerprintCache.size >= maxEntries) {
+      const oldestKey = this.mapSyncFingerprintCache.keys().next().value as
+        | string
+        | undefined;
+      if (!oldestKey) break;
+      this.mapSyncFingerprintCache.delete(oldestKey);
+    }
+    this.mapSyncFingerprintCache.set(key, {
+      fingerprint,
+      expiresAt:
+        Date.now() +
+        this.readPositiveInt(
+          'MAP_VIETIN_SYNC_FINGERPRINT_CACHE_TTL_MS',
+          DEFAULT_MAP_SYNC_FINGERPRINT_CACHE_TTL_MS,
+        ),
+    });
   }
 
   private async findExistingTransactionByStatement(
@@ -2733,6 +2946,9 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
     storeAccountIndex: Map<string, string[]>,
   ) {
     let created = 0;
+    let updated = 0;
+    let unchanged = 0;
+    let cacheHits = 0;
     let quarantined = 0;
     for (const raw of rows) {
       if (!raw || typeof raw !== 'object') continue;
@@ -2749,7 +2965,15 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
 
       if (!accountKey) {
         if (this.isEfastMapTransactionRow(row)) {
-          created += await this.persistTransactions(null, [row]);
+          const stats: MapPersistStats = {
+            updated: 0,
+            unchanged: 0,
+            cacheHits: 0,
+          };
+          created += await this.persistTransactions(null, [row], stats);
+          updated += stats.updated;
+          unchanged += stats.unchanged;
+          cacheHits += stats.cacheHits;
           continue;
         }
         await this.quarantineGlobalTransaction(
@@ -2779,9 +3003,17 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
         continue;
       }
 
-      created += await this.persistTransactions(storeCodes[0], [row]);
+      const stats: MapPersistStats = {
+        updated: 0,
+        unchanged: 0,
+        cacheHits: 0,
+      };
+      created += await this.persistTransactions(storeCodes[0], [row], stats);
+      updated += stats.updated;
+      unchanged += stats.unchanged;
+      cacheHits += stats.cacheHits;
     }
-    return { created, quarantined };
+    return { created, updated, unchanged, cacheHits, quarantined };
   }
 
   private async quarantineGlobalTransaction(
@@ -3780,6 +4012,7 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
           response.status,
           providerLabel,
           this.safeProviderMessage(json),
+          this.retryAfterMs(response.headers?.get?.('retry-after')),
         );
       }
       return json as T;
@@ -3807,7 +4040,10 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
     return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : fallback;
   }
 
-  private registerMapProviderBackoff(providerStatus: 403 | 429) {
+  private registerMapProviderBackoff(
+    providerStatus: 403 | 429,
+    providerRetryAfterMs?: number,
+  ) {
     this.mapProviderBackoffAttempt += 1;
     const jitterMs = Math.floor(
       Math.random() * (MAP_PROVIDER_BACKOFF_JITTER_MAX_MS + 1),
@@ -3840,6 +4076,11 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
       const exponent = Math.min(this.mapProviderBackoffAttempt - 1, 10);
       delayMs = Math.min(maxMs, baseMs * 2 ** exponent) + jitterMs;
     }
+    const safeProviderRetryAfterMs = Math.min(
+      MAP_PROVIDER_RETRY_AFTER_MAX_MS,
+      Math.max(0, providerRetryAfterMs ?? 0),
+    );
+    delayMs = Math.max(delayMs, safeProviderRetryAfterMs);
     this.mapProviderBackoffUntil = Date.now() + delayMs;
     this.logger.warn(
       `MAP provider backoff activated status=${providerStatus} attempt=${this.mapProviderBackoffAttempt} delayMs=${delayMs} retryAt=${new Date(this.mapProviderBackoffUntil).toISOString()}`,
@@ -3854,6 +4095,18 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
     }
     this.mapProviderBackoffAttempt = 0;
     this.mapProviderBackoffUntil = 0;
+  }
+
+  private retryAfterMs(value?: string | null) {
+    const normalized = String(value || '').trim();
+    if (!normalized) return undefined;
+    const seconds = Number(normalized);
+    if (Number.isFinite(seconds) && seconds >= 0) {
+      return Math.round(seconds * 1000);
+    }
+    const retryAt = Date.parse(normalized);
+    if (!Number.isFinite(retryAt)) return undefined;
+    return Math.max(0, retryAt - Date.now());
   }
 
   private parseJson(text: string, providerLabel = 'MAP') {

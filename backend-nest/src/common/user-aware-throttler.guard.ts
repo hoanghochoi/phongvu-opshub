@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { ExecutionContext, Injectable, Logger } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { JwtService } from '@nestjs/jwt';
 import { createHash } from 'crypto';
@@ -6,6 +6,7 @@ import {
   InjectThrottlerOptions,
   InjectThrottlerStorage,
   ThrottlerGuard,
+  ThrottlerLimitDetail,
   ThrottlerRequest,
   ThrottlerStorage,
 } from '@nestjs/throttler';
@@ -23,6 +24,9 @@ type RateLimitRequest = Record<string, any> & {
 
 @Injectable()
 export class UserAwareThrottlerGuard extends ThrottlerGuard {
+  private readonly logger = new Logger(UserAwareThrottlerGuard.name);
+  private readonly rateLimitLogAtByRoute = new Map<string, number>();
+
   constructor(
     @InjectThrottlerOptions() options: ThrottlerModuleOptions,
     @InjectThrottlerStorage() storageService: ThrottlerStorage,
@@ -46,13 +50,45 @@ export class UserAwareThrottlerGuard extends ThrottlerGuard {
     return super.handleRequest({ ...requestProps, getTracker });
   }
 
+  protected async throwThrottlingException(
+    context: ExecutionContext,
+    throttlerLimitDetail: ThrottlerLimitDetail,
+  ): Promise<void> {
+    const { req, res } = this.getRequestResponse(context);
+    const retryAfterSeconds = Math.max(
+      1,
+      Math.ceil(
+        Math.max(
+          throttlerLimitDetail.timeToBlockExpire,
+          throttlerLimitDetail.timeToExpire,
+        ) / 1000,
+      ),
+    );
+    // Header chuẩn giúp mọi client dùng chung một cooldown thay vì tiếp tục
+    // poll trong khi các bucket có hậu tố của Nest vẫn đang bị khóa.
+    res.header('Retry-After', String(retryAfterSeconds));
+    res.header('Cache-Control', 'no-store');
+
+    const method = this.stringClaim(req?.method) || 'UNKNOWN';
+    const route = this.stringClaim(req?.route?.path) || 'unknown';
+    const logKey = `${method}:${route}`;
+    const now = Date.now();
+    const lastLoggedAt = this.rateLimitLogAtByRoute.get(logKey) ?? 0;
+    if (now - lastLoggedAt >= 15_000) {
+      this.rateLimitLogAtByRoute.set(logKey, now);
+      this.logger.warn(
+        `API rate limit activated method=${method} route=${route} retryAfterSeconds=${retryAfterSeconds}`,
+      );
+    }
+
+    return super.throwThrottlingException(context, throttlerLimitDetail);
+  }
+
   protected async getIpTracker(req: RateLimitRequest): Promise<string> {
     return `ip:${await super.getTracker(req)}`;
   }
 
-  protected async getPrincipalTracker(
-    req: RateLimitRequest,
-  ): Promise<string> {
+  protected async getPrincipalTracker(req: RateLimitRequest): Promise<string> {
     const authorization = this.valueFromRecord(req.headers, 'authorization');
     const token = this.bearerToken(authorization);
     if (token) {

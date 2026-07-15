@@ -114,9 +114,13 @@ Expected responses:
   `MAP_VIETIN_SYNC_DELAY_MAX_MS` (minimum accepted value: 500 ms). A deep sweep
   uses up to `MAP_VIETIN_GLOBAL_SYNC_MAX_PAGES=2` at startup, after a MAP session
   refresh, and every random 30000-60000 ms. Persistent HTTP 429 responses back
-  off for 30, 60, then 120 seconds plus jitter; a persistent HTTP 403 after the
-  one-time session refresh backs off for 5 minutes. The global MAP session is
-  cached for `MAP_VIETIN_GLOBAL_SESSION_TTL_SECONDS` seconds, defaulting to 600.
+  off for 30, 60, then 120 seconds plus jitter and honor a longer provider
+  `Retry-After`; a persistent HTTP 403 after the one-time session refresh backs
+  off for 5 minutes. A bounded in-memory SHA-256 fingerprint cache skips DB
+  reads/writes for identical poll rows for five minutes (20,000 entries by
+  default), while cache miss/restart still falls back to the durable idempotent
+  DB path. The global MAP session is cached for
+  `MAP_VIETIN_GLOBAL_SESSION_TTL_SECONDS` seconds, defaulting to 600.
 - VietinBank eFAST account-detail sync is an optional secondary source behind
   `VIETIN_EFAST_SYNC_ENABLED=false` by default. Configure
   `VIETIN_EFAST_USERNAME`, `VIETIN_EFAST_PASSWORD`, and

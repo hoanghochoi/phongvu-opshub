@@ -24,9 +24,16 @@ Home inside a business write transaction would lengthen the source write path.
   transaction. PostgreSQL `NOTIFY` is only a wake-up hint; a worker still polls
   the durable outbox every second.
 - A `HomeSummaryProjectionQueue` coalesces work by summary date, dimension type,
-  dimension key, and store. It debounces for 500 ms, waits at most two seconds,
-  and claims work with `FOR UPDATE SKIP LOCKED` so the same grain is not rebuilt
-  concurrently.
+  dimension key, and store. It normally debounces for 500 ms and waits at most
+  two seconds; MAP bursts use a two-second trailing debounce with a five-second
+  maximum. Work is claimed with `FOR UPDATE SKIP LOCKED` so the same grain is
+  not rebuilt concurrently.
+- MAP polling uses a bounded TTL/LRU fingerprint cache as a read/write shedding
+  layer. Cache misses still use the database idempotency contract, and new
+  transactions are committed before payment notifications are published.
+- MAP transaction updates that do not change Home finance inputs are ignored by
+  the projection trigger. API clients apply per-endpoint cooldown after HTTP
+  429 and the server emits/obeys standard `Retry-After` hints.
 - The worker rebuilds additive daily aggregates for `GLOBAL`, `STORE`, and
   `USER_STORE` grains outside source transactions. Rates are calculated when
   reading rather than persisted.
@@ -49,6 +56,8 @@ Home inside a business write transaction would lengthen the source write path.
   fast-sync windows.
 - Outbox backlog, queue delay, projection duration, projection lag, and publish
   failures become operational signals that must be logged and monitored.
+- Cache hits, DB no-op rows, provider backoff and client endpoint cooldown are
+  logged as bounded operational counters rather than per-row payloads.
 - Reconciliation and checkpointed backfill are required because legacy rows
   may predate the outbox.
 - A missed Redis message or disconnected socket is safe: reconnect/app-resume

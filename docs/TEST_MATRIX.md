@@ -66,6 +66,18 @@ Recent focused evidence:
   rollout gates. The date-sensitive ERP 40/10 quota fixture now derives a
   recent order date instead of expiring after the calendar advances; focused
   Sales Report passed 65/65 and full Nest passed 64/64 suites, 629/629 tests.
+- `HOME-DASHBOARD-003`/`PAYMENT-MONITOR-001`, 2026-07-15: identical MAP rows
+  are discarded by a bounded TTL/LRU fingerprint cache before database access;
+  database comparison remains the fallback and new rows are committed before
+  asynchronous payment notification publication. MAP-only projection enqueue
+  now uses a 2-second trailing debounce with a 5-second maximum wait, while
+  irrelevant MAP updates do not enqueue projection work. Provider and app API
+  HTTP 429 responses now publish/honor `Retry-After` and suppress repeat calls
+  during endpoint-specific cooldowns. Validation: migration up/down with
+  `90/90/90` seed, Prisma validation, Nest build, 112 focused and 635 full Jest
+  tests, Flutter analyze, 3 focused and 474 full Flutter tests, web build, and
+  `git diff --check` passed. Live load, speaker latency and 429-rate reduction
+  remain post-deploy measurements.
 
 - `PAYMENT-MONITOR-001`/`PAYMENT-MONITOR-002`, 2026-07-14: production runtime
   diagnosis found the displayed 24-hour average `139.206s` was inflated by a

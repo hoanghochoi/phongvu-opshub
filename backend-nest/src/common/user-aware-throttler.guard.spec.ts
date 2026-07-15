@@ -1,3 +1,4 @@
+import { ExecutionContext } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { JwtService } from '@nestjs/jwt';
 import { ThrottlerModuleOptions, ThrottlerStorage } from '@nestjs/throttler';
@@ -11,6 +12,13 @@ class TestableUserAwareThrottlerGuard extends UserAwareThrottlerGuard {
 
   ipTrackerFor(req: Record<string, any>) {
     return this.getIpTracker(req);
+  }
+
+  throwRateLimitFor(
+    context: ExecutionContext,
+    detail: Record<string, unknown>,
+  ) {
+    return this.throwThrottlingException(context, detail as any);
   }
 }
 
@@ -167,5 +175,34 @@ describe('UserAwareThrottlerGuard', () => {
         body: { email: 'one@phongvu-shop.vn' },
       }),
     ).resolves.toBe('ip:203.0.113.14');
+  });
+
+  it('returns a standard Retry-After header so clients can stop polling', async () => {
+    const header = jest.fn();
+    const context = {
+      switchToHttp: () => ({
+        getRequest: () => ({
+          method: 'GET',
+          route: { path: '/home/summary' },
+        }),
+        getResponse: () => ({ header }),
+      }),
+    } as unknown as ExecutionContext;
+
+    await expect(
+      guard.throwRateLimitFor(context, {
+        limit: 120,
+        ttl: 60_000,
+        key: 'rate-key',
+        tracker: 'principal:user:user-1',
+        totalHits: 121,
+        timeToExpire: 2_500,
+        isBlocked: true,
+        timeToBlockExpire: 2_500,
+      }),
+    ).rejects.toMatchObject({ status: 429 });
+
+    expect(header).toHaveBeenCalledWith('Retry-After', '3');
+    expect(header).toHaveBeenCalledWith('Cache-Control', 'no-store');
   });
 });

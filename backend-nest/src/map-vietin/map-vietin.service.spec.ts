@@ -111,6 +111,8 @@ describe('MapVietinService', () => {
     delete process.env.MAP_VIETIN_RATE_LIMIT_BACKOFF_BASE_MS;
     delete process.env.MAP_VIETIN_RATE_LIMIT_BACKOFF_MAX_MS;
     delete process.env.MAP_VIETIN_FORBIDDEN_BACKOFF_MS;
+    delete process.env.MAP_VIETIN_SYNC_FINGERPRINT_CACHE_TTL_MS;
+    delete process.env.MAP_VIETIN_SYNC_FINGERPRINT_CACHE_MAX_ENTRIES;
     delete process.env.MAP_VIETIN_SYNC_ENABLED;
     paymentNotifications = { createForTransaction: jest.fn() };
     redisService = { publishMessage: jest.fn().mockResolvedValue(undefined) };
@@ -781,6 +783,28 @@ describe('MapVietinService', () => {
     expect(paymentNotifications.createForTransaction).not.toHaveBeenCalled();
   });
 
+  it('uses the bounded RAM fingerprint cache to skip repeated MAP DB reads', async () => {
+    const row = globalTransaction('TXN-CACHE-001');
+    const normalized = (service as any).normalizeTransaction('CP01', row);
+    prisma.mapVietinTransaction.findUnique.mockResolvedValue({
+      id: 'stored-cache-1',
+      ...normalized,
+      firstSeenAt: new Date('2026-05-21T03:00:00.000Z'),
+    });
+    const stats = { updated: 0, unchanged: 0, cacheHits: 0 };
+
+    await expect(
+      (service as any).persistTransactions('CP01', [row], stats),
+    ).resolves.toBe(0);
+    await expect(
+      (service as any).persistTransactions('CP01', [row], stats),
+    ).resolves.toBe(0);
+
+    expect(stats).toEqual({ updated: 0, unchanged: 2, cacheHits: 1 });
+    expect(prisma.mapVietinTransaction.findUnique).toHaveBeenCalledTimes(1);
+    expect(prisma.mapVietinTransaction.upsert).not.toHaveBeenCalled();
+  });
+
   it('stores eFAST credit rows with null store when pmtId is missing', async () => {
     process.env.VIETIN_EFAST_USERNAME = 'efast-user';
     process.env.VIETIN_EFAST_PASSWORD = 'efast-pass';
@@ -1369,6 +1393,40 @@ describe('MapVietinService', () => {
     expect((service as any).mapProviderBackoffUntil - Date.now()).toBe(120000);
     (service as any).registerMapProviderBackoff(429);
     expect((service as any).mapProviderBackoffUntil - Date.now()).toBe(120000);
+  });
+
+  it('honors provider Retry-After and suppresses direct MAP sync during cooldown', async () => {
+    jest.spyOn(Math, 'random').mockReturnValue(0);
+    process.env.MAP_VIETIN_GLOBAL_USERNAME = 'global-user';
+    process.env.MAP_VIETIN_GLOBAL_PASSWORD = 'global-pass';
+    prisma.store.findMany.mockResolvedValue([
+      { storeId: 'CP01', transferAccountNumber: '18PVICU' },
+    ]);
+    fetchMock
+      .mockResolvedValueOnce(
+        jsonResponse({
+          access_token: 'access-token',
+          merchant_info: [{ merchant_id: 'merchant-default' }],
+        }),
+      )
+      .mockResolvedValueOnce(
+        httpResponse(
+          429,
+          { message: 'Too Many Requests' },
+          { 'retry-after': '90' },
+        ),
+      );
+    prisma.mapVietinSyncState.upsert.mockResolvedValue({});
+
+    await expect(
+      service.syncGlobalTransactions({ mode: 'fast_page', maxPages: 1 }),
+    ).resolves.toEqual({ created: 0, quarantined: 0 });
+    await expect(
+      service.syncGlobalTransactions({ mode: 'fast_page', maxPages: 1 }),
+    ).resolves.toEqual({ created: 0, quarantined: 0 });
+
+    expect((service as any).mapProviderBackoffUntil - Date.now()).toBe(90_000);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it('backs scheduled MAP sync off for 5 minutes after persistent HTTP 403', async () => {
@@ -3358,10 +3416,17 @@ function jsonResponse(body: unknown) {
   };
 }
 
-function httpResponse(status: number, body: unknown) {
+function httpResponse(
+  status: number,
+  body: unknown,
+  headers: Record<string, string> = {},
+) {
   return {
     ok: status >= 200 && status < 300,
     status,
+    headers: {
+      get: (name: string) => headers[name.toLowerCase()] ?? null,
+    },
     text: jest.fn().mockResolvedValue(JSON.stringify(body)),
   };
 }
