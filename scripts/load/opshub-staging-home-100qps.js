@@ -26,6 +26,7 @@ const WS_MIN_HOLD_MS = WS_SESSION_MS - 5_000;
 // lag behind multi-second network outliers and otherwise report generator-side
 // dropped iterations even when the API accepts every dispatched request.
 const RAMP_PREALLOCATED_VUS = 300;
+const RAMP_DOWN_PREALLOCATED_VUS = 200;
 
 if (__ENV.LOAD_APPROVAL !== REQUIRED_APPROVAL) {
   throw new Error(`LOAD_APPROVAL must equal ${REQUIRED_APPROVAL}`);
@@ -135,7 +136,7 @@ export const options = {
       startTime: "23m30s",
       startRate: 100,
       timeUnit: "1s",
-      preAllocatedVUs: 100,
+      preAllocatedVUs: RAMP_DOWN_PREALLOCATED_VUS,
       maxVUs: 1000,
       stages: [{ target: 0, duration: "2m" }],
       gracefulStop: "30s",
