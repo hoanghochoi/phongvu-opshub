@@ -29,6 +29,10 @@ describe('RedisService', () => {
     ).toEqual({
       host: 'redis.internal',
       port: 6380,
+      connectTimeout: 2000,
+      commandTimeout: 1000,
+      maxRetriesPerRequest: 1,
+      enableOfflineQueue: false,
       username: 'opshub-api',
       password: 'test-password-not-a-real-secret',
       tls: {

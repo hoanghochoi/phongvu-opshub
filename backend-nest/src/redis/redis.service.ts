@@ -20,6 +20,13 @@ export function redisConnectionOptions(
   return {
     host: env.REDIS_HOST?.trim() || 'localhost',
     port: Number(env.REDIS_PORT) || 6379,
+    // Redis is an optimization for auth/scope reads, not a reason to stall
+    // PostgreSQL fallback. Keep reconnecting in the background, but reject
+    // each cache command quickly while the dependency is unavailable.
+    connectTimeout: 2_000,
+    commandTimeout: 1_000,
+    maxRetriesPerRequest: 1,
+    enableOfflineQueue: false,
     ...(env.REDIS_USERNAME?.trim()
       ? { username: env.REDIS_USERNAME.trim() }
       : {}),
