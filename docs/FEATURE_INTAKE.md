@@ -100,3 +100,8 @@ records.
   migration test, Redis outage and cross-replica cache proof, staging smoke,
   ladder `25 -> 50 -> 100 QPS`, Node/PostgreSQL profiling and mandatory
   synthetic-user cleanup before production promotion is considered.
+- Proof status, 2026-07-17: `staging_verified`. All minimum proof passed on the
+  staging release ending at `ad7efa03`; 60 synthetic users were revoked/deleted
+  with zero remaining records and all raw artifacts removed. Production
+  promotion still requires the normal deploy workflow and passive stability
+  observation.

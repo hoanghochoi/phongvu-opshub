@@ -37,6 +37,11 @@ deployment):
   bump, so a failed mutation cannot invalidate a still-valid cache entry.
   Context scope snapshots explicitly select non-secret profile/scope fields so
   passwords and token/session secrets never enter Redis.
+- Redis is an optimization for auth/scope reads, not a hard dependency for
+  correctness. Cache connections use a 2-second connect timeout; commands use
+  a 1-second timeout, at most one retry and no offline queue. Read, lease and
+  store failures hydrate from PostgreSQL without reusing an entry from another
+  version tuple; Redis continues reconnecting in the background.
 - `GET /home/summary/scopes` remains a separate payload and cache contract. It
   consumes the hydrated context and uses a shared Redis cache (L1 5 seconds,
   Redis 60 seconds) keyed by the same version tuple plus scope parameters.

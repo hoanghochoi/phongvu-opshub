@@ -154,8 +154,8 @@ Recent focused evidence:
   Android/Web UI smoke proof has been run; those remain rollout gates before
   claiming the request-reduction targets.
 
-- `AUTH-CONTEXT-001`, 2026-07-16: status `implemented`, proof scope
-  `local_verified`. Nest now hydrates one versioned `AuthContextService` for
+- `AUTH-CONTEXT-001`, 2026-07-17: status `implemented`, proof scope
+  `staging_verified`. Nest now hydrates one versioned `AuthContextService` for
   bootstrap/profile/feature/policy compatibility routes, realtime-ticket and
   Home scope options. Bootstrap performs ETag preflight before resolver work;
   policy definitions/rules are batch-loaded; organization tree reads use a
@@ -163,10 +163,16 @@ Recent focused evidence:
   process/distributed deduplication. `User.accessVersion` and its Prisma
   migration are included, and context scope snapshots explicitly exclude
   password/token/session secrets. Local proof: Prisma generate/validate, Nest
-  build, full Jest (73 suites, 717 tests), focused ETag/context/batch/Redis
-  tests, and `git diff --check` passed. Staging two-replica cache sharing,
-  Redis outage/invalidation, query/request reduction, Node/PostgreSQL profiles,
-  and the 25 → 50 → 100 QPS ladder remain rollout gates.
+  build, full Jest (73 suites, 718 tests), focused ETag/context/batch/Redis
+  tests, and `git diff --check` passed. Staging proof passed on head `ad7efa03`:
+  two-VU limiter semantics had zero unexpected failures; the 121,628-request
+  `25 → 50 → 100 QPS` ladder had 100% HTTP success, aggregate p95/p99
+  85.976/176.193 ms, zero dropped iterations and 60/60 WebSocket sessions;
+  two replicas shared/deduplicated cache entries and rejected an invalidated
+  version; controlled Redis loss returned bootstrap/scopes `200` through
+  PostgreSQL fallback and recovered healthy. Node/PostgreSQL profiles were
+  captured, staging profiling settings were reset, and 60 synthetic users plus
+  every raw token/profile artifact were removed with zero records remaining.
 
 - `HOME-DASHBOARD-003`, 2026-07-15: Home projection/outbox, `/ws/v2` and
   Flutter reconnect/resume path passed Prisma validation, scratch-database
@@ -2959,3 +2965,13 @@ organization-topology mutations. The trigger increments `User.accessVersion`
 in the source transaction; `ACCESS_CHANGED` publication is post-commit only. Required
 staging proof is migration smoke, cache invalidation, multi-replica sharing,
 Redis outage behavior, and cleanup evidence.
+
+Executed 2026-07-17: all required staging proof passed. The two-replica run
+showed shared-cache hits, distributed-lease deduplication, version invalidation
+and balanced public routing. With Redis stopped, bootstrap/scopes remained
+`200` and the changed version produced a new ETag; Redis and API returned
+healthy afterward. The `25 -> 50 -> 100 QPS` ladder completed 121,628 HTTP
+requests with 100% success, p95 85.976 ms, p99 176.193 ms, zero unexpected
+429/5xx/timeouts/dropped iterations and 60/60 WebSocket sessions. Cleanup
+revoked 60 sessions, deleted 60 users, verified zero remaining references and
+removed all raw artifacts.

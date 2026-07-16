@@ -2,8 +2,8 @@
 
 ## Status
 
-`local_verified`; staging migration, multi-replica/cache-failure proof and load
-profile are release gates.
+`staging_verified`; migration, cache-failure, two-replica and load/profile gates
+passed. Production promotion and passive post-deploy observation remain.
 
 ## Problem
 
@@ -35,23 +35,44 @@ PostgreSQL query count and Node CPU across replicas.
   direct-user, subtree, broad-rule, platform-session and rollback checks; the
   transaction was rolled back.
 - Prisma generate/validate and Nest build passed.
-- Nest full Jest passed: 73 suites, 717 tests.
+- Nest full Jest passed: 73 suites, 718 tests.
 - Flutter analyze passed; Flutter full test passed: 536 tests, 3 skipped.
 - Go test passed: 62 tests.
 - `git diff --check` passed.
 
 ## Staging release proof
 
-- Deploy the exact commit and confirm migration, release symlink, image and
-  disabled side-effect settings.
-- Smoke bootstrap `200`/`304`, profile, Home 1/7/30/90-day ranges, scopes and
-  one `/ws/v2` ticket/upgrade.
-- Prove shared Redis cache across replicas, version invalidation and Redis
-  outage fallback without cross-version reuse.
-- Run the fixed `25 -> 50 -> 100 QPS` ladder with 60 synthetic users/sockets;
-  capture Node CPU and PostgreSQL `pg_stat_statements`/query plans.
-- Revoke/delete synthetic users and verify zero remaining records before a
-  production promotion decision.
+- Exact staging head `ad7efa03` deployed successfully in workflow
+  `29539833066`. Migration, release symlink, public manifest, API health and
+  compatibility smokes passed.
+- Two-VU rate-limit semantics accepted 120 target and 42 control requests,
+  intentionally throttled 61 target requests, and produced zero control
+  failures, missing `Retry-After`, unexpected statuses, transport errors or
+  dropped iterations; p95 was 106 ms.
+- The fixed `25 -> 50 -> 100 QPS` ladder completed 121,628 HTTP requests with
+  100% success, zero 5xx/transport/unexpected-429 responses and zero dropped
+  iterations. Aggregate p95/p99 were 85.976/176.193 ms; the 100-QPS Home hold
+  p95/p99 were 77.582/106.854 ms. All 60 WebSocket tickets connected and
+  completed.
+- Final recovery sample was API CPU 0.22%/122 MiB and PostgreSQL CPU
+  3.11%/80.51 MiB, with 8 database connections, 1 active, no active wait,
+  deadlock, Redis eviction, container restart or OOM. Node profiling found no
+  dominant application-JavaScript hotspot.
+- `pg_stat_statements` showed individually cheap top queries but excessive
+  frequency as the remaining optimization target: User lookup 134,432 calls at
+  0.0453 ms mean, platform session 121,637 at 0.0285 ms, Store 258,062 at
+  0.0052 ms and OrganizationNode 44,455 at 0.0251 ms. Staging-only profiling
+  settings were reset after capture.
+- Two API replicas shared auth/scope Redis entries, deduplicated concurrent
+  misses through a lease, rejected the invalidated old version and received
+  public traffic evenly (21/21). Caddy dynamically discovered both replicas.
+- During a controlled Redis outage, bootstrap and scopes both returned `200`,
+  bootstrap ETag changed after `accessVersion` advanced, PostgreSQL fallback
+  hydrated locally, and Redis/API recovered healthy. The outage exposed and
+  fixed both long ioredis retries and an uncaught lease-acquisition failure.
+- All 60 synthetic users and sessions were revoked, exactly 60 records were
+  deleted, verification found zero tagged users/references, and server/local
+  token, k6, profile and temporary script artifacts were removed.
 
 ## Promotion criteria
 
