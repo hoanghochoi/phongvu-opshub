@@ -22,6 +22,10 @@ const targetSockets = Number(__ENV.TARGET_SOCKETS || 60);
 const HTTP_TIMEOUT = "10s";
 const WS_SESSION_MS = 25 * 60 * 1000;
 const WS_MIN_HOLD_MS = WS_SESSION_MS - 5_000;
+// Reserve the observed ramp concurrency up front. Dynamic VU allocation can
+// lag behind multi-second network outliers and otherwise report generator-side
+// dropped iterations even when the API accepts every dispatched request.
+const RAMP_PREALLOCATED_VUS = 300;
 
 if (__ENV.LOAD_APPROVAL !== REQUIRED_APPROVAL) {
   throw new Error(`LOAD_APPROVAL must equal ${REQUIRED_APPROVAL}`);
@@ -109,7 +113,7 @@ export const options = {
       startTime: "5m30s",
       startRate: 50,
       timeUnit: "1s",
-      preAllocatedVUs: 100,
+      preAllocatedVUs: RAMP_PREALLOCATED_VUS,
       maxVUs: 1000,
       stages: [{ target: 100, duration: "3m" }],
       gracefulStop: "30s",

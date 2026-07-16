@@ -400,6 +400,8 @@ for (const expected of [
   'p(99)<=1000',
   'opshub_home_summary_duration',
   'opshub_ws_session_held',
+  'const RAMP_PREALLOCATED_VUS = 300',
+  'preAllocatedVUs: RAMP_PREALLOCATED_VUS',
 ]) {
   contains(stagingLoadProfile, expected, 'staging Home load-profile safety gate');
 }
