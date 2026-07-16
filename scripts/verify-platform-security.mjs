@@ -98,6 +98,7 @@ const [
   stagingLoadWrapper,
   runtimeReleaseBuilder,
   stagingLoadProfile,
+  stagingRateLimitSemantics,
   help,
   download,
   packageJsonText,
@@ -125,6 +126,7 @@ const [
   text('deploy/staging/manage-load-users.sh'),
   text('scripts/build-runtime-release.mjs'),
   text('scripts/load/opshub-staging-home-100qps.js'),
+  text('scripts/load/opshub-staging-rate-limit-semantics.js'),
   text('deploy/home-server/help.html'),
   text('deploy/home-server/download.html'),
   text('backend-nest/package.json'),
@@ -402,6 +404,17 @@ for (const expected of [
 }
 for (const forbidden of ['http.put(', 'http.patch(', 'http.del(']) {
   excludes(stagingLoadProfile, forbidden, 'staging capacity write request');
+}
+for (const expected of [
+  'preAllocatedVUs: 2',
+  'maxVUs: 2',
+  'dropped_iterations{scenario:exceed_one_principal}',
+]) {
+  contains(
+    stagingRateLimitSemantics,
+    expected,
+    'staging rate-limit semantics generator capacity',
+  );
 }
 
 contains(productionWorkflow, '--no-web-resources-cdn', 'production local Flutter web resources');

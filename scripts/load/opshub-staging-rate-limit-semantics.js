@@ -58,8 +58,9 @@ export const options = {
       rate: 4,
       timeUnit: "1s",
       duration: "45s",
-      preAllocatedVUs: 1,
-      maxVUs: 1,
+      // Two VUs absorb one cold request without dropping the fixed arrival rate.
+      preAllocatedVUs: 2,
+      maxVUs: 2,
     },
     same_ip_control: {
       executor: "constant-vus",

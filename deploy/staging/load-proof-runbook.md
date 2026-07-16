@@ -116,6 +116,8 @@ run id and token manifest, plus
 `LOAD_APPROVAL=OPSHUB_STAGING_RATE_LIMIT_SEMANTICS_APPROVED`. One synthetic user
 must exceed 120 requests/minute on read-only `GET /auth/me` and receive 429 with
 `Retry-After`; the control user from the same source IP must remain 200.
+The fixed arrival-rate scenario reserves two VUs so one cold request cannot
+create a generator-side dropped iteration and falsely fail this semantics gate.
 Intentional 429 responses belong only to this semantics result and are excluded
 from the capacity result.
 
