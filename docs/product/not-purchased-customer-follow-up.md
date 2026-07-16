@@ -8,8 +8,10 @@ Cho phép nhân viên bán hàng theo dõi và chăm sóc lại từng lượt b
 
 ## Điều kiện hiển thị
 
-- Chỉ hiển thị hồ sơ có ít nhất một thông tin liên hệ: số điện thoại hoặc Zalo
-  cá nhân.
+- Chỉ hiển thị hồ sơ có ít nhất một thông tin liên hệ hợp lệ: số điện thoại
+  đúng 10 chữ số, marker `0zalo`, hoặc Zalo cá nhân không phải giá trị giả như
+  `0`/`Không cung cấp`. Các nội dung khác trong ô số điện thoại không làm hồ sơ
+  xuất hiện.
 - Báo cáo chưa mua vẫn được lưu bình thường khi thiếu cả hai thông tin, nhưng
   không xuất hiện trong màn hình này.
 - Zalo cá nhân là trường liên hệ độc lập với câu trả lời về Zalo OA.

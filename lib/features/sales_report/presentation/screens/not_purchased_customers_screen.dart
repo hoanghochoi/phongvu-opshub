@@ -20,6 +20,7 @@ import '../../../../app/widgets/app_state_widgets.dart';
 import '../../../../app/widgets/app_toast.dart';
 import '../../../../core/logging/app_logger.dart';
 import '../../../../core/network/api_client.dart';
+import '../../../../core/network/api_exception.dart';
 import '../../../../core/network/realtime_connection_manager.dart';
 import '../../data/sales_report_repository.dart';
 import '../../domain/sales_report.dart';
@@ -290,6 +291,11 @@ class _NotPurchasedCustomersScreenState
   @override
   Widget build(BuildContext context) {
     final data = _data;
+    final visibleItems =
+        data?.items
+            .where((item) => item.hasVisibleContact)
+            .toList(growable: false) ??
+        const <SalesReportFollowUpCase>[];
     return AppResponsiveScrollView(
       onRefresh: _load,
       refreshLogSource: 'SalesReportFollowUp',
@@ -353,7 +359,7 @@ class _NotPurchasedCustomersScreenState
               actionLabel: 'Thử lại',
               onAction: _load,
             )
-          else if (data == null || data.items.isEmpty)
+          else if (data == null || visibleItems.isEmpty)
             AppStatePanel.empty(
               title: _status == 'OPEN'
                   ? 'Không có khách hàng cần chăm sóc'
@@ -378,7 +384,7 @@ class _NotPurchasedCustomersScreenState
                   spacing: gap,
                   runSpacing: gap,
                   children: [
-                    for (final item in data.items)
+                    for (final item in visibleItems)
                       SizedBox(
                         width: width,
                         child: _FollowUpCard(
@@ -561,23 +567,89 @@ class _FollowUpCaseDialogState extends State<_FollowUpCaseDialog> {
   }
 
   Future<void> _loadDetail() async {
-    try {
-      final detail = await widget.repository.fetchFollowUpCase(_case.id);
-      if (mounted) setState(() => _case = detail);
-    } catch (error, stackTrace) {
-      if (mounted) {
-        setState(() => _error = 'Chưa tải được đầy đủ lịch sử chăm sóc.');
-      }
-      await AppLogger.instance.error(
-        'SalesReportFollowUp',
-        'Follow-up case detail load failed',
-        error: error,
-        stackTrace: stackTrace,
-        context: {'caseId': _case.id},
-      );
-    } finally {
-      if (mounted) setState(() => _loading = false);
+    if (mounted) {
+      setState(() {
+        _loading = true;
+        _error = null;
+      });
     }
+    final startedAt = DateTime.now();
+    const maxAttempts = 3;
+    Object? lastError;
+    StackTrace? lastStackTrace;
+    await AppLogger.instance.info(
+      'SalesReportFollowUp',
+      'Follow-up case detail load started',
+      context: {'caseId': _case.id, 'maxAttempts': maxAttempts},
+    );
+    for (var attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        final detail = await widget.repository.fetchFollowUpCase(_case.id);
+        if (mounted) {
+          setState(() {
+            _case = detail;
+            _error = null;
+            _loading = false;
+          });
+        }
+        await AppLogger.instance.info(
+          'SalesReportFollowUp',
+          'Follow-up case detail load succeeded',
+          context: {
+            'caseId': _case.id,
+            'attempt': attempt,
+            'historyCount': detail.entries.length,
+            'durationMs': DateTime.now().difference(startedAt).inMilliseconds,
+          },
+        );
+        return;
+      } catch (error, stackTrace) {
+        lastError = error;
+        lastStackTrace = stackTrace;
+        final retryable = _isRetryableDetailError(error);
+        if (!retryable || attempt >= maxAttempts) break;
+        final delay = Duration(milliseconds: 350 * attempt);
+        await AppLogger.instance.warn(
+          'SalesReportFollowUp',
+          'Follow-up case detail load retry scheduled',
+          context: {
+            'caseId': _case.id,
+            'attempt': attempt,
+            'nextAttempt': attempt + 1,
+            'delayMs': delay.inMilliseconds,
+            'retryable': retryable,
+          },
+        );
+        await Future<void>.delayed(delay);
+      }
+    }
+    if (mounted) {
+      setState(() {
+        _loading = false;
+        _error = 'Không tải được lịch sử chăm sóc. Vui lòng thử lại.';
+      });
+    }
+    await AppLogger.instance.error(
+      'SalesReportFollowUp',
+      'Follow-up case detail load failed',
+      error: lastError,
+      stackTrace: lastStackTrace,
+      context: {
+        'caseId': _case.id,
+        'attempts': maxAttempts,
+        'durationMs': DateTime.now().difference(startedAt).inMilliseconds,
+      },
+    );
+  }
+
+  bool _isRetryableDetailError(Object error) {
+    if (error is ApiException &&
+        (error.statusCode == 401 ||
+            error.statusCode == 403 ||
+            error.statusCode == 404)) {
+      return false;
+    }
+    return true;
   }
 
   Future<void> _save() async {
@@ -758,6 +830,10 @@ class _FollowUpCaseDialogState extends State<_FollowUpCaseDialog> {
                         AppStatePanel.error(
                           title: 'Chưa thực hiện được',
                           message: _error,
+                          actionLabel: _loading ? null : 'Tải lại lịch sử',
+                          onAction: _loading
+                              ? null
+                              : () => unawaited(_loadDetail()),
                           compact: true,
                         ),
                         const SizedBox(height: 12),

@@ -594,6 +594,25 @@ class SalesReportFollowUpCase {
     required this.assignmentCandidates,
   });
 
+  bool get hasVisibleContact {
+    final phone = customerPhone?.trim() ?? '';
+    final normalizedPhone = phone.toLowerCase();
+    final zalo = customerZaloContact?.trim().toLowerCase() ?? '';
+    const invalidContactValues = {
+      '0',
+      'không cung cấp',
+      'khong cung cap',
+      'không có',
+      'khong co',
+      'none',
+      'null',
+      'n/a',
+    };
+    return RegExp(r'^\d{10}$').hasMatch(phone) ||
+        normalizedPhone == '0zalo' ||
+        (zalo.isNotEmpty && !invalidContactValues.contains(zalo));
+  }
+
   factory SalesReportFollowUpCase.fromJson(Map<String, dynamic> json) {
     final categories = json['categories'] is List
         ? (json['categories'] as List)

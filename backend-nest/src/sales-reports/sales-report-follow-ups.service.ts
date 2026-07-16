@@ -32,6 +32,16 @@ const MANAGER_ROLE_CODES = new Set([
 ]);
 const HIDDEN_STATUSES = ['PURCHASED_ELSEWHERE', 'NO_LONGER_INTERESTED'];
 const REALTIME_CHANNEL = 'SALES_REPORT_ORDERS_UPDATED';
+const INVALID_CONTACT_VALUES = new Set([
+  '0',
+  'không cung cấp',
+  'khong cung cap',
+  'không có',
+  'khong co',
+  'none',
+  'null',
+  'n/a',
+]);
 
 const CASE_INCLUDE = {
   sourceReport: {
@@ -105,26 +115,48 @@ export class SalesReportFollowUpsService {
       });
     }
     const where: Prisma.SalesReportFollowUpCaseWhereInput = { AND: parts };
-    const [total, rows] = await this.prisma.$transaction([
-      this.prisma.salesReportFollowUpCase.count({ where }),
-      this.prisma.salesReportFollowUpCase.findMany({
+    const orderBy: Prisma.SalesReportFollowUpCaseOrderByWithRelationInput[] = [
+      {
+        lastFollowUpAt: {
+          sort: Prisma.SortOrder.asc,
+          nulls: Prisma.NullsOrder.first,
+        },
+      },
+      { priorityAt: Prisma.SortOrder.asc },
+    ];
+    const contactCandidates =
+      await this.prisma.salesReportFollowUpCase.findMany({
         where,
-        orderBy: [
-          {
-            lastFollowUpAt: {
-              sort: Prisma.SortOrder.asc,
-              nulls: Prisma.NullsOrder.first,
+        orderBy,
+        select: {
+          id: true,
+          sourceReport: {
+            select: {
+              customerPhone: true,
+              customerZaloContact: true,
             },
           },
-          { priorityAt: Prisma.SortOrder.asc },
-        ],
-        skip: page * limit,
-        take: limit,
-        include: CASE_INCLUDE,
-      }),
-    ]);
+        },
+      });
+    const validCaseIds = contactCandidates
+      .filter((row) =>
+        this.hasVisibleContact(
+          row.sourceReport.customerPhone,
+          row.sourceReport.customerZaloContact,
+        ),
+      )
+      .map((row) => row.id);
+    const total = validCaseIds.length;
+    const pageCaseIds = validCaseIds.slice(page * limit, (page + 1) * limit);
+    const rows = pageCaseIds.length
+      ? await this.prisma.salesReportFollowUpCase.findMany({
+          where: { AND: [where, { id: { in: pageCaseIds } }] },
+          orderBy,
+          include: CASE_INCLUDE,
+        })
+      : [];
     this.logger.log(
-      `Follow-up case list succeeded: user=${this.safeUser(user)} manager=${manager} status=${status} count=${rows.length}/${total} page=${page} durationMs=${Date.now() - startedAt}`,
+      `Follow-up case list succeeded: user=${this.safeUser(user)} manager=${manager} status=${status} count=${rows.length}/${total} excludedInvalidContact=${contactCandidates.length - total} page=${page} durationMs=${Date.now() - startedAt}`,
     );
     return {
       items: rows.map((row) => this.toCaseDto(row, user, principal, manager)),
@@ -137,17 +169,42 @@ export class SalesReportFollowUpsService {
   }
 
   async detail(user: any, caseId: string) {
-    const principal = await this.principal(user);
-    const manager = this.isManager(user, principal);
-    const row = await this.requireCase(caseId);
-    await this.assertCanView(user, principal, manager, row);
-    const candidates = manager
-      ? await this.assignmentCandidates(row.sourceReport.storeCode)
-      : [];
-    return {
-      ...this.toCaseDto(row, user, principal, manager),
-      assignmentCandidates: candidates,
-    };
+    const startedAt = Date.now();
+    this.logger.log(
+      `Follow-up case detail started: case=${this.text(caseId, 80) ?? 'invalid'} user=${this.safeUser(user)}`,
+    );
+    try {
+      const principal = await this.principal(user);
+      const manager = this.isManager(user, principal);
+      const row = await this.requireCase(caseId);
+      await this.assertCanView(user, principal, manager, row);
+      let candidates: Awaited<ReturnType<typeof this.assignmentCandidates>> =
+        [];
+      if (manager) {
+        try {
+          candidates = await this.assignmentCandidates(
+            row.sourceReport.storeCode,
+          );
+        } catch (error) {
+          this.logger.warn(
+            `Follow-up assignment candidates unavailable: case=${row.id} user=${this.safeUser(user)} store=${row.sourceReport.storeCode || 'none'} error=${this.safeError(error)}`,
+          );
+        }
+      }
+      const result = {
+        ...this.toCaseDto(row, user, principal, manager),
+        assignmentCandidates: candidates,
+      };
+      this.logger.log(
+        `Follow-up case detail succeeded: case=${row.id} user=${this.safeUser(user)} historyCount=${row.entries?.length ?? 0} assignmentCandidateCount=${candidates.length} durationMs=${Date.now() - startedAt}`,
+      );
+      return result;
+    } catch (error) {
+      this.logger.error(
+        `Follow-up case detail failed: case=${this.text(caseId, 80) ?? 'invalid'} user=${this.safeUser(user)} durationMs=${Date.now() - startedAt} error=${this.safeError(error)}`,
+      );
+      throw error;
+    }
   }
 
   async checkOrder(user: any, caseId: string, orderCode: string) {
@@ -768,6 +825,22 @@ export class SalesReportFollowUpsService {
 
   private storeCode(value: unknown) {
     return this.text(value, 40)?.toUpperCase() ?? null;
+  }
+
+  private hasVisibleContact(phoneValue: unknown, zaloValue: unknown) {
+    const phone = String(phoneValue ?? '').trim();
+    const normalizedPhone = phone.toLowerCase();
+    const zalo = String(zaloValue ?? '')
+      .trim()
+      .toLowerCase();
+    const hasPhone = /^\d{10}$/.test(phone) || normalizedPhone === '0zalo';
+    const hasZalo = Boolean(zalo) && !INVALID_CONTACT_VALUES.has(zalo);
+    return hasPhone || hasZalo;
+  }
+
+  private safeError(error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    return message.replace(/\s+/g, ' ').trim().slice(0, 240) || 'unknown';
   }
 
   private safeUser(user: any) {

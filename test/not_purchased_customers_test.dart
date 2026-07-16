@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:phongvu_opshub/core/network/api_client.dart';
+import 'package:phongvu_opshub/core/network/api_exception.dart';
 import 'package:phongvu_opshub/core/network/realtime_connection_manager.dart';
 import 'package:phongvu_opshub/features/sales_report/data/sales_report_repository.dart';
 import 'package:phongvu_opshub/features/sales_report/domain/sales_report.dart';
@@ -42,6 +43,48 @@ void main() {
     expect(find.text('Lần chăm sóc 1'), findsOneWidget);
     expect(repository.detailCalls, 1);
     await realtime.dispose();
+  });
+
+  testWidgets('không hiển thị hồ sơ có số điện thoại là nội dung khác', (
+    tester,
+  ) async {
+    final repository = _FakeFollowUpRepository(
+      _case(customerPhone: 'Không cung cấp', customerZaloContact: null),
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: NotPurchasedCustomersScreen(repository: repository),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Nguyễn Văn A'), findsNothing);
+    expect(find.text('Không có khách hàng cần chăm sóc'), findsOneWidget);
+  });
+
+  testWidgets('tự thử lại khi tải lịch sử chăm sóc bị chập chờn', (
+    tester,
+  ) async {
+    final item = _case(customerPhone: '0909000000', customerZaloContact: null);
+    final repository = _FakeFollowUpRepository(item, detailFailures: 2);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: NotPurchasedCustomersScreen(repository: repository),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Nguyễn Văn A'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Lần chăm sóc 1'), findsOneWidget);
+    expect(repository.detailCalls, 3);
   });
 
   testWidgets('realtime v2 follow-up filters, coalesces, and syncs once', (
@@ -177,10 +220,12 @@ SalesReportFollowUpCase _case({
 
 class _FakeFollowUpRepository extends SalesReportRepository {
   final SalesReportFollowUpCase item;
+  final int detailFailures;
   int detailCalls = 0;
   int listCalls = 0;
 
-  _FakeFollowUpRepository(this.item) : super(ApiClient());
+  _FakeFollowUpRepository(this.item, {this.detailFailures = 0})
+    : super(ApiClient());
 
   @override
   Future<SalesReportFollowUpPage> fetchFollowUpCases({
@@ -203,6 +248,9 @@ class _FakeFollowUpRepository extends SalesReportRepository {
   @override
   Future<SalesReportFollowUpCase> fetchFollowUpCase(String id) async {
     detailCalls += 1;
+    if (detailCalls <= detailFailures) {
+      throw ApiException('temporary detail failure');
+    }
     return item;
   }
 }
