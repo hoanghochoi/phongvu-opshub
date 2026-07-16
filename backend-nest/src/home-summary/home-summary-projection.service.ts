@@ -53,7 +53,7 @@ export class HomeSummaryProjectionService
       return;
     }
     void this.startListener();
-    void this.runCycle('startup');
+    void this.runStartupCycle();
   }
 
   async onModuleDestroy() {
@@ -140,6 +140,62 @@ export class HomeSummaryProjectionService
       this.listenerReconnectTimer = null;
       void this.startListener();
     }, 5_000);
+  }
+
+  private async runStartupCycle() {
+    const startedAt = Date.now();
+    this.logger.log(
+      'Home projection startup reconciliation started: reason=pending_payment_rollout',
+    );
+    try {
+      const affectedDates = await this.prisma.$queryRaw<
+        Array<{ dateKey: string }>
+      >(Prisma.sql`
+        WITH pending_dates AS (
+          SELECT DISTINCT ("summaryDate" + INTERVAL '7 hours')::date AS summary_date
+          FROM "HomeSummaryOrderFact"
+          WHERE "isPaymentPending"
+        ), expected AS (
+          SELECT pending.summary_date,
+            COUNT(*) FILTER (WHERE NOT fact."isPaymentPending")::int AS total_orders,
+            COUNT(*) FILTER (WHERE NOT fact."isPaymentPending" AND fact."hasValidReport")::int AS reported_orders,
+            COALESCE(
+              SUM(GREATEST(COALESCE(fact."grandTotal", 0), 0))
+                FILTER (WHERE NOT fact."isPaymentPending"),
+              0
+            ) AS order_revenue
+          FROM pending_dates AS pending
+          JOIN "HomeSummaryOrderFact" AS fact
+            ON (fact."summaryDate" + INTERVAL '7 hours')::date = pending.summary_date
+          GROUP BY pending.summary_date
+        )
+        SELECT expected.summary_date::text AS "dateKey"
+        FROM expected
+        LEFT JOIN "HomeSummaryDailyAggregate" AS aggregate
+          ON aggregate."summaryDate" = expected.summary_date
+          AND aggregate."dimensionType" = 'GLOBAL'
+          AND aggregate."dimensionKey" = ''
+          AND aggregate."storeCode" = ''
+        WHERE aggregate."id" IS NULL
+          OR aggregate."totalOrders" <> expected.total_orders
+          OR aggregate."reportedOrders" <> expected.reported_orders
+          OR aggregate."orderRevenueAmount" <> expected.order_revenue
+        ORDER BY expected.summary_date
+      `);
+      for (const affectedDate of affectedDates) {
+        await this.prisma.$executeRaw(
+          Prisma.sql`SELECT opshub_enqueue_home_summary_projection(CAST(${affectedDate.dateKey} AS date), 'RECONCILIATION')`,
+        );
+      }
+      this.logger.log(
+        `Home projection startup reconciliation succeeded: reason=pending_payment_rollout dates=${affectedDates.length} durationMs=${Date.now() - startedAt}`,
+      );
+    } catch (error) {
+      this.logger.error(
+        `Home projection startup reconciliation failed: reason=pending_payment_rollout durationMs=${Date.now() - startedAt} error=${safeLogError(error)}`,
+      );
+    }
+    await this.runCycle('startup');
   }
 
   private async runCycle(source: string) {

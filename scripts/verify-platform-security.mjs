@@ -395,7 +395,8 @@ for (const expected of [
   'rate>=0.999',
   'p(95)<=500',
   'p(99)<=1000',
-  'http_req_duration{scenario:realtime_v2}',
+  'opshub_home_summary_duration',
+  'opshub_ws_session_held',
 ]) {
   contains(stagingLoadProfile, expected, 'staging Home load-profile safety gate');
 }

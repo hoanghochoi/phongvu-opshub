@@ -19,6 +19,7 @@ describe('HomeSummaryProjectionService', () => {
         if (Array.isArray(input)) return Promise.all(input);
         throw new Error('Unexpected interactive transaction in unit harness');
       }),
+      $queryRaw: jest.fn().mockResolvedValue([]),
       $executeRaw: jest.fn().mockResolvedValue(1),
     };
     const homeSummary = {
@@ -35,6 +36,51 @@ describe('HomeSummaryProjectionService', () => {
     );
     return { service, prisma, homeSummary, redis };
   }
+
+  it('re-enqueues pending-payment dates before the startup cycle', async () => {
+    const { service, prisma } = createHarness();
+    prisma.$queryRaw.mockResolvedValue([
+      { dateKey: '2026-07-14' },
+      { dateKey: '2026-07-16' },
+    ]);
+    jest.spyOn(service as any, 'runCycle').mockResolvedValue(undefined);
+
+    await (service as any).runStartupCycle();
+
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
+    expect(prisma.$queryRaw.mock.calls[0][0].sql).toContain(
+      '"isPaymentPending"',
+    );
+    expect(prisma.$queryRaw.mock.calls[0][0].sql).toContain(
+      '"HomeSummaryDailyAggregate"',
+    );
+    expect(prisma.$queryRaw.mock.calls[0][0].sql).toContain(
+      "INTERVAL '7 hours'",
+    );
+    expect(prisma.$executeRaw).toHaveBeenCalledTimes(2);
+    expect(
+      prisma.$executeRaw.mock.calls.map(([statement]: any[]) =>
+        statement.values.at(0),
+      ),
+    ).toEqual(['2026-07-14', '2026-07-16']);
+    expect((service as any).runCycle).toHaveBeenCalledWith('startup');
+  });
+
+  it('keeps the normal startup cycle when targeted reconciliation fails', async () => {
+    const { service, prisma } = createHarness();
+    prisma.$queryRaw.mockRejectedValue(new Error('column unavailable'));
+    jest.spyOn(service as any, 'runCycle').mockResolvedValue(undefined);
+    jest.spyOn((service as any).logger, 'error').mockImplementation(() => {});
+
+    await (service as any).runStartupCycle();
+
+    expect((service as any).logger.error).toHaveBeenCalledWith(
+      expect.stringContaining(
+        'Home projection startup reconciliation failed: reason=pending_payment_rollout',
+      ),
+    );
+    expect((service as any).runCycle).toHaveBeenCalledWith('startup');
+  });
 
   it('publishes only the versioned Home signal and marks durable outbox complete', async () => {
     const { service, prisma, homeSummary, redis } = createHarness();

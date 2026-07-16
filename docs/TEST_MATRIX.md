@@ -2910,7 +2910,11 @@ src/map-vietin/map-vietin.service.spec.ts` (26 tests), `npm run build`, full
   `Giá trị bán`/`Đơn bán` and projection aggregates, while leaving the source
   cache row visible to the sales cockpit for later reporting. Canceled,
   returned-full, and zero-value rows remain excluded through the existing
-  durable cache exclusion. Focused Nest tests passed (4 suites, 117 tests:
+  durable cache exclusion. API startup compares only GLOBAL aggregates for
+  dates with pending-payment facts and requeues mismatches, closing the
+  deploy race where the previous worker could consume the migration queue
+  before the new aggregation logic starts without causing a restart-wide
+  cache miss wave. Focused Nest tests passed (4 suites, 119 tests:
   ERP status/cache, Home summary, Home projection, and ERP normalization),
   together with `npx prisma generate`, `npx prisma validate`, `npm run build`,
   and `git diff --check`.
