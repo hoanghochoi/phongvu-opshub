@@ -280,8 +280,9 @@ phí`.
   `Ngày báo cáo`, `Email người báo cáo`, `Số tiền vay trả góp`,
   `Đối tác trả góp`, `Kết quả duyệt hồ sơ`, `Loại báo cáo`,
   `Phương thức thanh toán cuối cùng`, `Lý do không trả góp`.
-  `Phương thức thanh toán cuối cùng` đọc từ `erpPaymentMethods`: có payment
-  method installment thì ghi `Trả góp`, không có thì ghi `Trả thẳng`.
+  `Phương thức thanh toán cuối cùng` đọc theo loại báo cáo: `NOT_PURCHASED`
+  ghi `Chưa mua hàng`; với `PURCHASED`, có payment method installment thì ghi
+  `Trả góp`, không có thì ghi `Trả thẳng`.
 - File xuất admin dùng định dạng Excel `.xlsx` để Excel/WPS đọc tiếng Việt ổn định;
   dấu phẩy trong nội dung được giữ nguyên trong cùng một ô.
 - `orderCode` là unique trên bảng `SalesReport`; một đơn mua hàng chỉ được báo

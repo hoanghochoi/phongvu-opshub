@@ -1,9 +1,10 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { createHash } from 'crypto';
 import { safeLogError } from '../common/log-sanitizer';
 import { FeatureService } from '../feature/feature.service';
 import { PolicyService } from '../policy/policy.service';
 import { AuthService } from './auth.service';
+import { AuthContextService } from './auth-context.service';
 
 const AUTH_BOOTSTRAP_SCHEMA_VERSION = 1 as const;
 const REALTIME_V2_TOPICS = [
@@ -50,6 +51,7 @@ export class AuthBootstrapService {
     private readonly authService: AuthService,
     private readonly featureService: FeatureService,
     private readonly policyService: PolicyService,
+    @Optional() private readonly authContextService?: AuthContextService,
   ) {}
 
   async resolve(user: AuthenticatedUser): Promise<AuthBootstrapResult> {
@@ -58,22 +60,29 @@ export class AuthBootstrapService {
     this.logger.log(`Auth bootstrap started: userId=${userId}`);
 
     try {
-      const [userData, featureAccess, policyAccess] = await Promise.all([
-        this.authService.getUserData(user.email),
-        this.featureService.resolveFeatureAccessMap(user),
-        this.policyService.resolvePolicyAccessMap(user),
-      ]);
+      const context = this.authContextService
+        ? await this.authContextService.getContext(user)
+        : null;
+      const [userData, featureAccess, policyAccess] = context
+        ? [context.profile, context.featureAccess, context.policyAccess]
+        : await Promise.all([
+            this.authService.getUserData(user.email),
+            this.featureService.resolveFeatureAccessMap(user),
+            this.policyService.resolvePolicyAccessMap(user),
+          ]);
       const capabilities = {
         conditionalGet: true as const,
         realtimeV2Topics: REALTIME_V2_TOPICS,
       };
-      const version = this.stableVersion({
-        schemaVersion: AUTH_BOOTSTRAP_SCHEMA_VERSION,
-        user: userData,
-        featureAccess,
-        policyAccess,
-        capabilities,
-      });
+      const version = context
+        ? this.authContextService!.etagForUser(user).replace(/^"|"$/g, '')
+        : this.stableVersion({
+            schemaVersion: AUTH_BOOTSTRAP_SCHEMA_VERSION,
+            user: userData,
+            featureAccess,
+            policyAccess,
+            capabilities,
+          });
       const body: AuthBootstrapPayload = {
         schemaVersion: AUTH_BOOTSTRAP_SCHEMA_VERSION,
         generatedAt: new Date().toISOString(),
@@ -94,6 +103,10 @@ export class AuthBootstrapService {
       );
       throw error;
     }
+  }
+
+  etagForUser(user: AuthenticatedUser) {
+    return this.authContextService?.etagForUser(user) ?? null;
   }
 
   matchesEtag(ifNoneMatch: string | undefined, etag: string) {

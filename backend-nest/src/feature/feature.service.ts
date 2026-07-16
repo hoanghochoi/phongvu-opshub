@@ -17,6 +17,7 @@ import {
 } from '../common/system-role';
 import { logFingerprint } from '../common/log-sanitizer';
 import { AccessChangeService } from '../auth/access-change.service';
+import { getOrganizationTree } from '../common/organization-tree-cache';
 
 const SUPER_ADMIN_ROLE = SYSTEM_ROLE_SUPER_ADMIN;
 const ADMIN_ROLE = SYSTEM_ROLE_ADMIN;
@@ -1296,34 +1297,36 @@ export class FeatureService implements OnModuleInit {
       };
     }
 
-    const full = await this.prisma.user.findUnique({
-      where: { id: user.id },
-      include: {
-        organizationNode: true,
-        store: {
-          include: {
-            area: { include: { region: true } },
-            organizationNode: true,
+    const full =
+      user?.__authScopeSnapshot ??
+      (await this.prisma.user.findUnique({
+        where: { id: user.id },
+        include: {
+          organizationNode: true,
+          store: {
+            include: {
+              area: { include: { region: true } },
+              organizationNode: true,
+            },
           },
-        },
-        region: true,
-        area: { include: { region: true } },
-        organizationAssignments: {
-          where: { isActive: true },
-          orderBy: [
-            { isPrimary: Prisma.SortOrder.desc },
-            { createdAt: Prisma.SortOrder.asc },
-          ],
-          include: {
-            organizationNode: {
-              include: {
-                stores: { orderBy: { storeId: Prisma.SortOrder.asc } },
+          region: true,
+          area: { include: { region: true } },
+          organizationAssignments: {
+            where: { isActive: true },
+            orderBy: [
+              { isPrimary: Prisma.SortOrder.desc },
+              { createdAt: Prisma.SortOrder.asc },
+            ],
+            include: {
+              organizationNode: {
+                include: {
+                  stores: { orderBy: { storeId: Prisma.SortOrder.asc } },
+                },
               },
             },
           },
         },
-      },
-    });
+      }));
     const source = full ?? user;
     const scopeNodeId =
       source.organizationNodeId ?? source.store?.organizationNodeId;
@@ -1425,23 +1428,7 @@ export class FeatureService implements OnModuleInit {
     if (!nodeId) return empty;
     const organizationNode = (this.prisma as any).organizationNode;
     if (!organizationNode?.findMany) return empty;
-    const nodes: Array<{
-      id: string;
-      parentId: string | null;
-      type: string;
-      code: string;
-      businessCode: string | null;
-      isActive: boolean;
-    }> = await organizationNode.findMany({
-      select: {
-        id: true,
-        parentId: true,
-        type: true,
-        code: true,
-        businessCode: true,
-        isActive: true,
-      },
-    });
+    const nodes = await getOrganizationTree(this.prisma);
     const byId = new Map(nodes.map((node) => [node.id, node]));
     const ancestors: typeof nodes = [];
     let cursor = byId.get(nodeId) ?? null;

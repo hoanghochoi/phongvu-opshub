@@ -154,6 +154,20 @@ Recent focused evidence:
   Android/Web UI smoke proof has been run; those remain rollout gates before
   claiming the request-reduction targets.
 
+- `AUTH-CONTEXT-001`, 2026-07-16: status `implemented`, proof scope
+  `local_verified`. Nest now hydrates one versioned `AuthContextService` for
+  bootstrap/profile/feature/policy compatibility routes, realtime-ticket and
+  Home scope options. Bootstrap performs ETag preflight before resolver work;
+  policy definitions/rules are batch-loaded; organization tree reads use a
+  bounded cache; scope-options use shared Redis with versioned keys and
+  process/distributed deduplication. `User.accessVersion` and its Prisma
+  migration are included, and context scope snapshots explicitly exclude
+  password/token/session secrets. Local proof: Prisma generate/validate, Nest
+  build, full Jest (73 suites, 717 tests), focused ETag/context/batch/Redis
+  tests, and `git diff --check` passed. Staging two-replica cache sharing,
+  Redis outage/invalidation, query/request reduction, Node/PostgreSQL profiles,
+  and the 25 → 50 → 100 QPS ladder remain rollout gates.
+
 - `HOME-DASHBOARD-003`, 2026-07-15: Home projection/outbox, `/ws/v2` and
   Flutter reconnect/resume path passed Prisma validation, scratch-database
   migration up/down (`90/90/90` seed), Nest build, 42 focused Jest tests, 31 Go
@@ -1573,7 +1587,8 @@ FIFO Menu` now has bottom nav active on `Tác vụ`, `Mobile v2 / Profile` has
   event also fires when scheduled sync backfills missing store/node mapping for
   older cache rows. The admin export surface also includes `Trả góp`, which
   filters `installmentNeed = true` and exports Vietnamese installment columns
-  plus the derived final payment method. Validation:
+  plus the derived final payment method (`Chưa mua hàng` for `NOT_PURCHASED`,
+  otherwise `Trả góp`/`Trả thẳng` from ERP methods). Validation:
   `npx prisma validate`, `npx prisma generate`,
   `npm test -- --runInBand src/sales-reports`
   (37 tests), `npm run build`, Go realtime `go test ./...`,
@@ -2935,3 +2950,12 @@ src/map-vietin/map-vietin.service.spec.ts` (26 tests), `npm run build`, full
 | Chăm sóc chưa mua/terminal/mở lại      | Flutter widget + API service test                                                                          | Thử đồng thời hai thiết bị và kiểm tra conflict                         |
 | Comeback mua hàng                      | sales report service test + Flutter form test                                                              | Kiểm tra ERP `order.creator.email`, báo cáo gốc và báo cáo mua liên kết |
 | Realtime                               | provider/channel test                                                                                      | Mở hai client và xác nhận danh sách tự tải lại                          |
+
+## AuthContext atomic-version proof
+
+The access-version migration installs PostgreSQL triggers for direct user,
+platform-session, assignment, policy/feature rule, personnel, store, and
+organization-topology mutations. The trigger increments `User.accessVersion`
+in the source transaction; `ACCESS_CHANGED` publication is post-commit only. Required
+staging proof is migration smoke, cache invalidation, multi-replica sharing,
+Redis outage behavior, and cleanup evidence.

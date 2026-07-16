@@ -8,7 +8,10 @@ describe('AccessChangeService', () => {
   beforeEach(() => {
     prisma = {
       organizationNode: { findMany: jest.fn().mockResolvedValue([]) },
-      user: { findMany: jest.fn().mockResolvedValue([]) },
+      user: {
+        findMany: jest.fn().mockResolvedValue([]),
+        updateMany: jest.fn().mockResolvedValue({ count: 0 }),
+      },
     };
     redis = {
       publishMessageOrThrow: jest.fn().mockResolvedValue(undefined),
@@ -41,6 +44,7 @@ describe('AccessChangeService', () => {
         payload: { reason: 'feature-assignment-updated' },
       }),
     );
+    expect(prisma.user.updateMany).not.toHaveBeenCalled();
   });
 
   it('resolves users from descendant and alternate organization assignments', async () => {

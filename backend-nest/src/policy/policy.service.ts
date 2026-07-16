@@ -16,6 +16,7 @@ import {
   DEFAULT_ADMIN_SETTINGS,
 } from './policy.constants';
 import { AccessChangeService } from '../auth/access-change.service';
+import { getOrganizationTree } from '../common/organization-tree-cache';
 import {
   SYSTEM_ROLE_ADMIN,
   SYSTEM_ROLE_SUPER_ADMIN,
@@ -171,16 +172,35 @@ export class PolicyService implements OnModuleInit {
   }
 
   async resolvePolicyAccessMap(user: any) {
+    const startedAt = Date.now();
     const policies = await this.prisma.adminPolicyDefinition.findMany({
       where: { isActive: true },
       orderBy: { code: 'asc' },
     });
     const context = await this.resolveContext(user);
-    const entries = await Promise.all(
-      policies.map(async (policy) => [
-        policy.code,
-        await this.canAccessPolicyWithContext(context, policy.code),
-      ]),
+    const policyCodes = policies.map((policy) => policy.code);
+    const rules = policyCodes.length
+      ? await this.prisma.adminPolicyRule.findMany({
+          where: { policyCode: { in: policyCodes } },
+        })
+      : [];
+    const rulesByPolicy = new Map<string, any[]>();
+    for (const rule of rules) {
+      const list = rulesByPolicy.get(rule.policyCode) ?? [];
+      list.push(rule);
+      rulesByPolicy.set(rule.policyCode, list);
+    }
+    const evaluationStartedAt = Date.now();
+    const entries = policies.map((policy) => [
+      policy.code,
+      this.evaluatePolicy(
+        context,
+        policy,
+        rulesByPolicy.get(policy.code) ?? [],
+      ),
+    ]);
+    this.logger.log(
+      `Policy access batch resolved: userId=${String(user?.id || 'unknown')} policies=${policies.length} rules=${rules.length} policyQueries=${1 + (policyCodes.length > 0 ? 1 : 0)} evaluationMs=${Date.now() - evaluationStartedAt} durationMs=${Date.now() - startedAt}`,
     );
     return Object.fromEntries(entries);
   }
@@ -210,6 +230,15 @@ export class PolicyService implements OnModuleInit {
     const rules = await this.prisma.adminPolicyRule.findMany({
       where: { policyCode },
     });
+    return this.evaluatePolicy(context, policy, rules);
+  }
+
+  private evaluatePolicy(
+    context: PolicyContext,
+    policy: { defaultAllowed: boolean; isActive: boolean },
+    rules: any[],
+  ) {
+    if (!policy.isActive) return false;
     const contexts = [context, ...(context.alternateContexts ?? [])];
     const matches = rules
       .filter((rule) =>
@@ -796,34 +825,36 @@ export class PolicyService implements OnModuleInit {
       };
     }
 
-    const full = await this.prisma.user.findUnique({
-      where: { id: user.id },
-      include: {
-        organizationNode: true,
-        store: {
-          include: {
-            area: { include: { region: true } },
-            organizationNode: true,
+    const full =
+      user?.__authScopeSnapshot ??
+      (await this.prisma.user.findUnique({
+        where: { id: user.id },
+        include: {
+          organizationNode: true,
+          store: {
+            include: {
+              area: { include: { region: true } },
+              organizationNode: true,
+            },
           },
-        },
-        region: true,
-        area: { include: { region: true } },
-        organizationAssignments: {
-          where: { isActive: true },
-          orderBy: [
-            { isPrimary: Prisma.SortOrder.desc },
-            { createdAt: Prisma.SortOrder.asc },
-          ],
-          include: {
-            organizationNode: {
-              include: {
-                stores: { orderBy: { storeId: Prisma.SortOrder.asc } },
+          region: true,
+          area: { include: { region: true } },
+          organizationAssignments: {
+            where: { isActive: true },
+            orderBy: [
+              { isPrimary: Prisma.SortOrder.desc },
+              { createdAt: Prisma.SortOrder.asc },
+            ],
+            include: {
+              organizationNode: {
+                include: {
+                  stores: { orderBy: { storeId: Prisma.SortOrder.asc } },
+                },
               },
             },
           },
         },
-      },
-    });
+      }));
     const source = full ?? user;
     const scopeNodeId =
       this.effectiveScope(source) === 'STORE'
@@ -919,25 +950,7 @@ export class PolicyService implements OnModuleInit {
     if (!nodeId) return empty;
     const organizationNode = (this.prisma as any).organizationNode;
     if (!organizationNode?.findMany) return empty;
-    const nodes: Array<{
-      id: string;
-      parentId: string | null;
-      type: string;
-      code: string;
-      businessCode: string | null;
-      displayName: string;
-      abbreviation: string | null;
-    }> = await organizationNode.findMany({
-      select: {
-        id: true,
-        parentId: true,
-        type: true,
-        code: true,
-        businessCode: true,
-        displayName: true,
-        abbreviation: true,
-      },
-    });
+    const nodes = await getOrganizationTree(this.prisma);
     const byId = new Map(nodes.map((node) => [node.id, node]));
     const ancestors: typeof nodes = [];
     let cursor = byId.get(nodeId) ?? null;

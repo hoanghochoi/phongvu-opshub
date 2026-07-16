@@ -2772,6 +2772,17 @@ describe('SalesReportsService', () => {
       },
       {
         ...exportReportFixture(),
+        id: 'report-not-purchased-installment',
+        reportType: 'NOT_PURCHASED',
+        orderCode: null,
+        erpPaymentMethods: [],
+        installmentApproved: false,
+        installmentLoanAmount: 1000000,
+        installmentPartnerCodes: ['PAYOO_POS'],
+        installmentNoInstallmentReason: 'HIGH_INTEREST_OR_FEE',
+      },
+      {
+        ...exportReportFixture(),
         id: 'report-no-installment',
         orderCode: '2606290888',
         installmentNeed: false,
@@ -2806,7 +2817,7 @@ describe('SalesReportsService', () => {
       'Phương thức thanh toán cuối cùng',
       'Lý do không trả góp',
     ]);
-    expect(rows).toHaveLength(3);
+    expect(rows).toHaveLength(4);
     expect(rows[1]).toEqual([
       '29/06/2026 08:00:00',
       'sale@phongvu.vn',
@@ -2821,6 +2832,8 @@ describe('SalesReportsService', () => {
     expect(rows[2][3]).toBe('PAYOO_POS');
     expect(rows[2][4]).toBe('Chưa duyệt');
     expect(rows[2][6]).toBe('Trả thẳng');
+    expect(rows[3][5]).toBe('Chưa mua hàng');
+    expect(rows[3][6]).toBe('Chưa mua hàng');
     expect(JSON.stringify(rows)).not.toContain('2606290888');
   });
 

@@ -62,7 +62,11 @@ describe('PolicyService', () => {
       adminPolicyRule: {
         findFirst: jest.fn(async () => null),
         findMany: jest.fn(async ({ where }: any) =>
-          rules.filter((rule) => rule.policyCode === where.policyCode),
+          rules.filter((rule) =>
+            Array.isArray(where?.policyCode?.in)
+              ? where.policyCode.in.includes(rule.policyCode)
+              : rule.policyCode === where.policyCode,
+          ),
         ),
         findUnique: jest.fn(),
         create: jest.fn(async ({ data }: any) => ({
@@ -222,6 +226,31 @@ describe('PolicyService', () => {
     expect(prisma.adminSetting.upsert).not.toHaveBeenCalled();
     expect(prisma.adminPolicyRule.findFirst).not.toHaveBeenCalled();
     expect(prisma.adminPolicyRule.create).not.toHaveBeenCalled();
+  });
+
+  it('loads all policy rules in one batch query for the access map', async () => {
+    rules = [
+      {
+        policyCode: ADMIN_POLICY_CODES.FIFO,
+        allowed: true,
+        systemRole: 'STAFF',
+      },
+    ];
+    prisma.user.findUnique.mockResolvedValueOnce(context);
+
+    await expect(
+      service.resolvePolicyAccessMap({ id: context.id }),
+    ).resolves.toMatchObject({
+      [ADMIN_POLICY_CODES.FIFO]: true,
+    });
+    expect(prisma.adminPolicyRule.findMany).toHaveBeenCalledWith({
+      where: {
+        policyCode: {
+          in: Object.keys(policies),
+        },
+      },
+    });
+    expect(prisma.adminPolicyDefinition.findUnique).not.toHaveBeenCalled();
   });
 
   it('matches scopeContains against the resolved SR scope', async () => {

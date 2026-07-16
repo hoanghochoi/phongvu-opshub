@@ -8,6 +8,7 @@ import {
   Post,
   Query,
   Request,
+  Optional,
   UseGuards,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
@@ -22,15 +23,23 @@ import {
   AdminNodeFeatureAssignmentUpdateDto,
 } from './feature.dto';
 import { FeatureService } from './feature.service';
+import { AuthContextService } from '../auth/auth-context.service';
 
 @Controller()
 @UseGuards(AuthGuard('jwt'), FeatureGuard)
 export class FeatureController {
-  constructor(private readonly featureService: FeatureService) {}
+  constructor(
+    private readonly featureService: FeatureService,
+    @Optional() private readonly authContextService?: AuthContextService,
+  ) {}
 
   @Get('features/me')
   getMyFeatures(@Request() req: any) {
-    return this.featureService.resolveFeatureAccessMap(req.user);
+    return this.authContextService
+      ? this.authContextService
+          .getContext(req.user)
+          .then((context) => context.featureAccess)
+      : this.featureService.resolveFeatureAccessMap(req.user);
   }
 
   @Get('admin/features')

@@ -254,7 +254,9 @@ describe('AuthService', () => {
       service.sendRegistrationVerificationCode(' admin@outside.example '),
     ).rejects.toBeInstanceOf(ForbiddenException);
     expect(policyService.getAllowedEmailDomains).toHaveBeenCalled();
-    expect(emailVerificationService.sendRegistrationCode).not.toHaveBeenCalled();
+    expect(
+      emailVerificationService.sendRegistrationCode,
+    ).not.toHaveBeenCalled();
   });
 
   it('returns the same public response without sending a code for a registered account', async () => {
@@ -263,8 +265,12 @@ describe('AuthService', () => {
     await expect(
       service.sendRegistrationVerificationCode('staff@phongvu-shop.vn'),
     ).resolves.toEqual({ ok: true, expiresInMinutes: 10 });
-    expect(emailVerificationService.registrationCodeResponse).toHaveBeenCalled();
-    expect(emailVerificationService.sendRegistrationCode).not.toHaveBeenCalled();
+    expect(
+      emailVerificationService.registrationCodeResponse,
+    ).toHaveBeenCalled();
+    expect(
+      emailVerificationService.sendRegistrationCode,
+    ).not.toHaveBeenCalled();
   });
 
   it('rejects login when the account is not registered yet', async () => {
@@ -316,6 +322,7 @@ describe('AuthService', () => {
       organizationNodeId: null,
       organizationAccessCodes: [],
       tokenVersion: 0,
+      accessVersion: 0,
       sessionId: 'session-1',
       platform: 'windows',
       sessionVersion: 1,

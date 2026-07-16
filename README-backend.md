@@ -22,6 +22,25 @@ deployment):
   advertises `conditionalGet=true` and the supported realtime v2 topics. The
   API sends `Cache-Control: private, no-cache` plus `ETag: "<version>"`, accepts
   `If-None-Match`, and returns `304` when the stable snapshot is unchanged.
+- Auth routes share one server-side `AuthContextService`. `GET /auth/me` and
+  `POST /auth/get-user` keep their existing profile response, while
+  `GET /features/me` and `GET /policies/me` remain compatibility projections
+  from the same hydrated context. `POST /auth/realtime-ticket` stays separate
+  because it mints a short-lived secret, but it reuses the context instead of
+  reloading the user and organization tree.
+- The context cache is versioned by `userId`, `tokenVersion`,
+  `sessionVersion`, and `accessVersion` (L1 5 seconds, Redis 30 seconds).
+  `User.accessVersion` is incremented by PostgreSQL triggers in the same
+  transaction as access/topology mutations (the Prisma migration must be
+  deployed before enabling the context feature). Realtime `ACCESS_CHANGED`
+  publication is deliberately post-commit and never performs a second version
+  bump, so a failed mutation cannot invalidate a still-valid cache entry.
+  Context scope snapshots explicitly select non-secret profile/scope fields so
+  passwords and token/session secrets never enter Redis.
+- `GET /home/summary/scopes` remains a separate payload and cache contract. It
+  consumes the hydrated context and uses a shared Redis cache (L1 5 seconds,
+  Redis 60 seconds) keyed by the same version tuple plus scope parameters.
+  `/home/summary` does not embed the full scope tree.
 - `GET /notifications/feed` returns one `schemaVersion=1` aggregate with
   `generatedAt`, `statementOrderTransfers`, and `offsetAdjustments`. Each
   section contains `enabled`, `page`, `limit`, `total`, `canReview`, and `list`.

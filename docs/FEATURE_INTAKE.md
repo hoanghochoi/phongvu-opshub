@@ -88,3 +88,15 @@ When the durable harness DB is initialized, record normal/high-risk work with
 instead of editing structured status by hand. Markdown product docs and story
 packets remain the readable contract; the DB stores queryable operational
 records.
+
+## Active high-risk intake: AUTH-CONTEXT-001
+
+- Type: maintenance/performance.
+- Domains: auth, authorization, PostgreSQL, Redis, realtime, Home scopes and
+  multi-replica deployment.
+- Risk flags: Auth, Authorization, Data model, Audit/security, External
+  systems, Public contracts, Existing behavior and Multi-domain.
+- Minimum proof: backward-compatible route tests, atomic access-version
+  migration test, Redis outage and cross-replica cache proof, staging smoke,
+  ladder `25 -> 50 -> 100 QPS`, Node/PostgreSQL profiling and mandatory
+  synthetic-user cleanup before production promotion is considered.

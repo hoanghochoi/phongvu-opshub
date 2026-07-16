@@ -310,6 +310,25 @@ describe('AuthController', () => {
     expect(response.status).toHaveBeenCalledWith(304);
   });
 
+  it('checks the version ETag before invoking the bootstrap resolver', async () => {
+    const response = {
+      setHeader: jest.fn(),
+      status: jest.fn(),
+    };
+    const user = { id: 'user-1', email: 'staff@phongvu-shop.vn' };
+    (authBootstrapService as any).etagForUser = jest
+      .fn()
+      .mockReturnValue('"version-2"');
+    authBootstrapService.matchesEtag.mockReturnValue(true);
+
+    await expect(
+      controller.getBootstrap({ user }, '"version-2"', response as any),
+    ).resolves.toBeUndefined();
+    expect(authBootstrapService.resolve).not.toHaveBeenCalled();
+    expect(response.setHeader).toHaveBeenCalledWith('ETag', '"version-2"');
+    expect(response.status).toHaveBeenCalledWith(304);
+  });
+
   it('protects the bootstrap route with the JWT guard', () => {
     const guards = Reflect.getMetadata(
       GUARDS_METADATA,

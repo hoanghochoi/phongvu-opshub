@@ -743,6 +743,9 @@ export class SalesReportsBigQuerySyncService implements OnApplicationBootstrap {
   }
 
   private finalPaymentMethodLabel(row: any) {
+    if (this.text(row?.reportType) === 'NOT_PURCHASED') {
+      return 'Chưa mua hàng';
+    }
     return this.hasInstallmentPayment(row) ? 'Trả góp' : 'Trả thẳng';
   }
 

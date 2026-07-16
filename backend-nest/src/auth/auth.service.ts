@@ -34,6 +34,7 @@ import {
   organizationNodeStoreTreeInclude,
   storesForOrganizationNodeTree,
 } from '../common/organization-store-scope';
+import { getOrganizationTree } from '../common/organization-tree-cache';
 
 const PASSWORD_SALT_ROUNDS = 12;
 const INVALID_CREDENTIALS_MESSAGE = 'Email hoặc mật khẩu không đúng';
@@ -254,6 +255,12 @@ export class AuthService {
 
     if (!user) throw new UnauthorizedException('User not found');
 
+    return this.projectUserData(user);
+  }
+
+  async projectUserData(user: any) {
+    if (!user) throw new UnauthorizedException('User not found');
+
     const role = this.normalizeRoleForOutput(user.role);
     const organizationProfile = this.organizationProfileFor(user);
     const scopedUser = this.userWithOrganizationProfile(
@@ -366,6 +373,7 @@ export class AuthService {
       branchLockedAt?: Date | null;
       storeId?: string | null;
       tokenVersion?: number | null;
+      accessVersion?: number | null;
       region?: any | null;
       area?: any | null;
       store?: {
@@ -394,6 +402,7 @@ export class AuthService {
       organizationNodeId: organizationProfile.organizationNodeId,
       organizationAccessCodes,
       tokenVersion: user.tokenVersion ?? 0,
+      accessVersion: user.accessVersion ?? 0,
       sessionId: session.sessionId,
       platform: session.platform,
       sessionVersion: session.sessionVersion,
@@ -547,14 +556,7 @@ export class AuthService {
     const organizationNode = (this.prisma as any).organizationNode;
     if (!organizationNode?.findMany) return Array.from(codes);
 
-    const nodes: Array<{
-      id: string;
-      parentId: string | null;
-      code: string;
-      businessCode: string | null;
-    }> = await organizationNode.findMany({
-      select: { id: true, parentId: true, code: true, businessCode: true },
-    });
+    const nodes = await getOrganizationTree(this.prisma);
     const byId = new Map(nodes.map((node) => [node.id, node]));
     const visited = new Set<string>();
     let cursor = byId.get(organizationNodeId);

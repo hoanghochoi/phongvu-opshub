@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Global, Module } from '@nestjs/common';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { JwtModule } from '@nestjs/jwt';
@@ -13,7 +13,9 @@ import { FeatureModule } from '../feature/feature.module';
 import { RedisModule } from '../redis/redis.module';
 import { RealtimeTicketService } from './realtime-ticket.service';
 import { AuthBootstrapService } from './auth-bootstrap.service';
+import { AuthContextService } from './auth-context.service';
 
+@Global()
 @Module({
   imports: [
     PrismaModule,
@@ -35,7 +37,13 @@ import { AuthBootstrapService } from './auth-bootstrap.service';
     AuthSessionService,
     RealtimeTicketService,
     AuthBootstrapService,
+    AuthContextService,
   ],
-  exports: [JwtModule, OpshubMailService, PasswordResetService],
+  exports: [
+    JwtModule,
+    OpshubMailService,
+    PasswordResetService,
+    AuthContextService,
+  ],
 })
 export class AuthModule {}

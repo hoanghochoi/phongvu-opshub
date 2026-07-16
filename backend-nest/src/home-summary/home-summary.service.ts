@@ -3,13 +3,16 @@ import {
   ForbiddenException,
   Injectable,
   Logger,
+  Optional,
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { createHash } from 'crypto';
 import { FEATURE_KEYS } from '../feature/feature.constants';
 import { FeatureService } from '../feature/feature.service';
+import { AuthContextService } from '../auth/auth-context.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { RedisService } from '../redis/redis.service';
 import {
   organizationNodeStoreTreeInclude,
   storesForOrganizationNodeTree,
@@ -36,7 +39,9 @@ const HOME_SUMMARY_RESPONSE_CACHE_TTL_MS = 60_000;
 const HOME_SUMMARY_RESPONSE_REFRESH_AHEAD_MIN_MS = 30_000;
 const HOME_SUMMARY_RESPONSE_REFRESH_AHEAD_SPREAD_MS = 20_000;
 const MAX_HOME_SUMMARY_RESPONSE_CACHE_ENTRIES = 1000;
-const HOME_SUMMARY_SCOPE_OPTIONS_CACHE_TTL_MS = 60_000;
+const HOME_SUMMARY_SCOPE_OPTIONS_L1_TTL_MS = 5_000;
+const HOME_SUMMARY_SCOPE_OPTIONS_REDIS_TTL_SECONDS = 60;
+const HOME_SUMMARY_SCOPE_OPTIONS_LEASE_TTL_MS = 5_000;
 const MAX_HOME_SUMMARY_SCOPE_OPTIONS_CACHE_ENTRIES = 1000;
 const INSTALLMENT_SUCCESS = 'SUCCESS';
 const INSTALLMENT_FAILED = 'FAILED';
@@ -314,6 +319,8 @@ export class HomeSummaryService {
     private readonly prisma: PrismaService,
     private readonly salesReports: SalesReportsService,
     private readonly featureService: FeatureService,
+    @Optional() private readonly authContextService?: AuthContextService,
+    @Optional() private readonly redis?: RedisService,
   ) {}
 
   private get homeSummaryOrderFact() {
@@ -1030,7 +1037,10 @@ export class HomeSummaryService {
   }
 
   async listScopeOptions(user: any): Promise<HomeSummaryScopeOptionResponse[]> {
-    const cacheKey = this.scopeOptionsCacheKey(user);
+    const contextUser = this.authContextService
+      ? await this.authContextService.withContext(user)
+      : user;
+    const cacheKey = this.scopeOptionsCacheKey(contextUser);
     const cacheLabel = logFingerprint(cacheKey);
     const now = Date.now();
     const cached = this.scopeOptionsCache.get(cacheKey);
@@ -1054,22 +1064,90 @@ export class HomeSummaryService {
       return pending;
     }
 
+    const pendingLoad = this.loadScopeOptionsFromSharedOrSource(
+      contextUser,
+      user,
+      cacheKey,
+      cacheLabel,
+    );
+    this.scopeOptionsInFlight.set(cacheKey, pendingLoad);
+    try {
+      return await pendingLoad;
+    } finally {
+      if (this.scopeOptionsInFlight.get(cacheKey) === pendingLoad) {
+        this.scopeOptionsInFlight.delete(cacheKey);
+      }
+    }
+  }
+
+  private async loadScopeOptionsFromSharedOrSource(
+    contextUser: any,
+    user: any,
+    cacheKey: string,
+    cacheLabel: string,
+  ): Promise<HomeSummaryScopeOptionResponse[]> {
+    const sharedCached = await this.readSharedScopeOptions(cacheKey);
+    if (sharedCached) {
+      this.storeScopeOptionsCache(cacheKey, sharedCached);
+      this.logger.log(
+        `Home summary scope options shared cache hit: key=${cacheLabel} count=${sharedCached.length}`,
+      );
+      return sharedCached;
+    }
+
+    const leaseKey = `opshub:home:scope-options:lease:${logFingerprint(cacheKey)}`;
+    let leaseToken: string | null = null;
+    if (this.redis?.tryAcquireLease) {
+      try {
+        leaseToken = await this.redis.tryAcquireLease(
+          leaseKey,
+          HOME_SUMMARY_SCOPE_OPTIONS_LEASE_TTL_MS,
+        );
+        if (!leaseToken) {
+          for (let attempt = 0; attempt < 10; attempt += 1) {
+            await new Promise((resolve) => setTimeout(resolve, 50));
+            const retry = await this.readSharedScopeOptions(cacheKey);
+            if (retry) {
+              this.storeScopeOptionsCache(cacheKey, retry);
+              this.logger.log(
+                `Home summary scope options distributed lease hit: key=${cacheLabel} attempt=${attempt + 1}`,
+              );
+              return retry;
+            }
+          }
+          this.logger.warn(
+            `Home summary scope options lease wait timed out: key=${cacheLabel}`,
+          );
+        }
+      } catch (error) {
+        this.logger.warn(
+          `Home summary scope options lease unavailable: key=${cacheLabel} error=${safeLogError(error)}`,
+        );
+      }
+    }
+
     this.logger.log(
       `Home summary scope options cache miss: key=${cacheLabel} user=${this.safeUserLabel(user)}`,
     );
-    const pendingLoad = this.computeScopeOptions(user)
-      .then((response) => {
-        this.storeScopeOptionsCache(cacheKey, response);
-        this.logger.log(
-          `Home summary scope options cache stored: key=${cacheLabel} ttlMs=${HOME_SUMMARY_SCOPE_OPTIONS_CACHE_TTL_MS}`,
-        );
-        return response;
-      })
-      .finally(() => {
-        this.scopeOptionsInFlight.delete(cacheKey);
-      });
-    this.scopeOptionsInFlight.set(cacheKey, pendingLoad);
-    return pendingLoad;
+    try {
+      const response = await this.computeScopeOptions(contextUser);
+      this.storeScopeOptionsCache(cacheKey, response);
+      await this.writeSharedScopeOptions(cacheKey, response);
+      this.logger.log(
+        `Home summary scope options cache stored: key=${cacheLabel} l1TtlMs=${HOME_SUMMARY_SCOPE_OPTIONS_L1_TTL_MS} sharedTtlSeconds=${HOME_SUMMARY_SCOPE_OPTIONS_REDIS_TTL_SECONDS}`,
+      );
+      return response;
+    } finally {
+      if (leaseToken && this.redis?.releaseLease) {
+        try {
+          await this.redis.releaseLease(leaseKey, leaseToken);
+        } catch (error) {
+          this.logger.warn(
+            `Home summary scope options lease release failed: key=${cacheLabel} error=${safeLogError(error)}`,
+          );
+        }
+      }
+    }
   }
 
   async getBehaviorDetailsV2(
@@ -2656,6 +2734,15 @@ export class HomeSummaryService {
   }
 
   private async resolveSectionAccess(user: any) {
+    const contextAccess = user?.__authContext?.featureAccess;
+    if (contextAccess && typeof contextAccess === 'object') {
+      return {
+        salesAvailable:
+          contextAccess[FEATURE_KEYS.HOME_DASHBOARD_SALES] === true,
+        financeAvailable:
+          contextAccess[FEATURE_KEYS.HOME_DASHBOARD_FINANCE] === true,
+      };
+    }
     const [salesAvailable, financeAvailable] = await Promise.all([
       this.featureService.canAccessFeature(
         user,
@@ -2951,7 +3038,49 @@ export class HomeSummaryService {
       this.optionalText(user?.email, 160) ||
       this.optionalText(user?.personnelCode, 80) ||
       'anonymous';
-    return ['v1', logFingerprint(userKey)].join('|');
+    const version = [
+      user?.tokenVersion ?? 0,
+      user?.authSession?.sessionVersion ?? 0,
+      user?.accessVersion ?? 0,
+    ].join('|');
+    return ['v2', logFingerprint(`${userKey}|${version}`)].join('|');
+  }
+
+  private sharedScopeOptionsKey(cacheKey: string) {
+    return `opshub:home:scope-options:${logFingerprint(cacheKey)}`;
+  }
+
+  private async readSharedScopeOptions(cacheKey: string) {
+    if (!this.redis) return null;
+    try {
+      const value = await this.redis.getJson<HomeSummaryScopeOptionResponse[]>(
+        this.sharedScopeOptionsKey(cacheKey),
+      );
+      return Array.isArray(value) ? value : null;
+    } catch (error) {
+      this.logger.warn(
+        `Home summary scope options shared cache read skipped: key=${logFingerprint(cacheKey)} error=${safeLogError(error)}`,
+      );
+      return null;
+    }
+  }
+
+  private async writeSharedScopeOptions(
+    cacheKey: string,
+    response: HomeSummaryScopeOptionResponse[],
+  ) {
+    if (!this.redis) return;
+    try {
+      await this.redis.setJsonWithTtl(
+        this.sharedScopeOptionsKey(cacheKey),
+        response,
+        HOME_SUMMARY_SCOPE_OPTIONS_REDIS_TTL_SECONDS,
+      );
+    } catch (error) {
+      this.logger.warn(
+        `Home summary scope options shared cache write skipped: key=${logFingerprint(cacheKey)} error=${safeLogError(error)}`,
+      );
+    }
   }
 
   private storeScopeOptionsCache(
@@ -2967,7 +3096,7 @@ export class HomeSummaryService {
       this.scopeOptionsCache.delete(oldestKey);
     }
     this.scopeOptionsCache.set(cacheKey, {
-      expiresAt: Date.now() + HOME_SUMMARY_SCOPE_OPTIONS_CACHE_TTL_MS,
+      expiresAt: Date.now() + HOME_SUMMARY_SCOPE_OPTIONS_L1_TTL_MS,
       response,
     });
   }

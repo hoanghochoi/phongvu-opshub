@@ -8,6 +8,7 @@ import {
   Headers,
   HttpStatus,
   Response,
+  Optional,
 } from '@nestjs/common';
 import type { Response as ExpressResponse } from 'express';
 import { AuthService } from './auth.service';
@@ -26,6 +27,7 @@ import {
 import { RealtimeTicketRequestDto } from './realtime-ticket.dto';
 import { RealtimeTicketService } from './realtime-ticket.service';
 import { AuthBootstrapService } from './auth-bootstrap.service';
+import { AuthContextService } from './auth-context.service';
 
 @Controller('auth')
 export class AuthController {
@@ -33,6 +35,7 @@ export class AuthController {
     private authService: AuthService,
     private readonly realtimeTicketService: RealtimeTicketService,
     private readonly authBootstrapService: AuthBootstrapService,
+    @Optional() private readonly authContextService?: AuthContextService,
   ) {}
 
   @Post('login')
@@ -116,14 +119,18 @@ export class AuthController {
   @Post('get-user')
   @UseGuards(AuthGuard('jwt'))
   async getUserData(@Request() req: any, @Body() _body: GetUserDto) {
-    return this.authService.getUserData(req.user.email);
+    return this.authContextService
+      ? this.authContextService.profile(req.user)
+      : this.authService.getUserData(req.user.email);
   }
 
   // GET /auth/me - convenience JWT-protected endpoint
   @Get('me')
   @UseGuards(AuthGuard('jwt'))
   async getMe(@Request() req: any) {
-    return this.authService.getUserData(req.user.email);
+    return this.authContextService
+      ? this.authContextService.profile(req.user)
+      : this.authService.getUserData(req.user.email);
   }
 
   @Get('bootstrap')
@@ -133,6 +140,16 @@ export class AuthController {
     @Headers('if-none-match') ifNoneMatch: string | undefined,
     @Response({ passthrough: true }) response: ExpressResponse,
   ) {
+    const preflightEtag = this.authBootstrapService.etagForUser?.(req.user);
+    if (
+      preflightEtag &&
+      this.authBootstrapService.matchesEtag(ifNoneMatch, preflightEtag)
+    ) {
+      response.setHeader('Cache-Control', 'private, no-cache');
+      response.setHeader('ETag', preflightEtag);
+      response.status(HttpStatus.NOT_MODIFIED);
+      return undefined;
+    }
     const result = await this.authBootstrapService.resolve(req.user);
     response.setHeader('Cache-Control', 'private, no-cache');
     response.setHeader('ETag', result.etag);

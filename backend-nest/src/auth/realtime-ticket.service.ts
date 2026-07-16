@@ -2,6 +2,7 @@ import {
   ForbiddenException,
   Injectable,
   Logger,
+  Optional,
   UnauthorizedException,
 } from '@nestjs/common';
 import { createHash, randomBytes } from 'node:crypto';
@@ -11,6 +12,8 @@ import { ADMIN_POLICY_CODES } from '../policy/policy.constants';
 import { PolicyService } from '../policy/policy.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
+import { AuthContextService } from './auth-context.service';
+import { getOrganizationTree } from '../common/organization-tree-cache';
 
 const REALTIME_TICKET_AUDIENCE = 'opshub-realtime';
 const REALTIME_TICKET_KEY_PREFIX = 'opshub:realtime:ticket:';
@@ -37,6 +40,7 @@ export class RealtimeTicketService {
     private readonly redis: RedisService,
     private readonly featureService: FeatureService,
     private readonly policyService: PolicyService,
+    @Optional() private readonly authContextService?: AuthContextService,
   ) {}
 
   async issueTicket(
@@ -58,16 +62,35 @@ export class RealtimeTicketService {
         Boolean(requestedStoreCode?.trim()),
     );
 
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-      include: {
-        store: { select: { storeId: true } },
-        organizationAssignments: {
-          where: { isActive: true },
-          select: { organizationNodeId: true },
-        },
-      },
-    });
+    const authContext = this.authContextService
+      ? await this.authContextService.getContext(authenticatedUser)
+      : null;
+    const user = authContext
+      ? {
+          id: userId,
+          email: authenticatedUser.email,
+          role: authContext.profile.role,
+          status: authContext.profile.status,
+          tokenVersion: authenticatedUser.tokenVersion ?? 0,
+          departmentCode: authContext.profile.departmentCode,
+          organizationNodeId: authContext.profile.organizationNodeId,
+          store: authContext.profile.storeId
+            ? { storeId: authContext.profile.storeId }
+            : null,
+          organizationAssignments: (
+            authContext.profile.organizationNodeIds ?? []
+          ).map((organizationNodeId: string) => ({ organizationNodeId })),
+        }
+      : await this.prisma.user.findUnique({
+          where: { id: userId },
+          include: {
+            store: { select: { storeId: true } },
+            organizationAssignments: {
+              where: { isActive: true },
+              select: { organizationNodeId: true },
+            },
+          },
+        });
     if (!user || user.status === 'no') {
       this.logger.warn(
         'Realtime ticket issue blocked: userId=' +
@@ -79,18 +102,12 @@ export class RealtimeTicketService {
       );
     }
 
-    const nodes: OrganizationNodeScope[] =
-      await this.prisma.organizationNode.findMany({
-        select: {
-          id: true,
-          parentId: true,
-          code: true,
-          businessCode: true,
-          isActive: true,
-          stores: { select: { storeId: true } },
-        },
-      });
-    const organizationAccessCodes = this.organizationAccessCodes(user, nodes);
+    const nodes: OrganizationNodeScope[] = authContext
+      ? []
+      : ((await getOrganizationTree(this.prisma)) as OrganizationNodeScope[]);
+    const organizationAccessCodes = authContext
+      ? [...authContext.orgScopeSlice.organizationAccessCodes]
+      : this.organizationAccessCodes(user, nodes);
     const requestedStore = this.normalizeCode(requestedStoreCode);
     if (
       requestedStore &&
@@ -107,10 +124,12 @@ export class RealtimeTicketService {
       );
     }
 
-    const [featureAccess, policyAccess] = await Promise.all([
-      this.featureService.resolveFeatureAccessMap(user),
-      this.policyService.resolvePolicyAccessMap(user),
-    ]);
+    const [featureAccess, policyAccess] = authContext
+      ? [authContext.featureAccess, authContext.policyAccess]
+      : await Promise.all([
+          this.featureService.resolveFeatureAccessMap(user),
+          this.policyService.resolvePolicyAccessMap(user),
+        ]);
     const featureCodes = new Set(
       Object.entries(featureAccess)
         .filter(([, enabled]) => enabled === true)

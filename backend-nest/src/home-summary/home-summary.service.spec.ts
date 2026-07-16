@@ -1,7 +1,9 @@
 import { HomeSummaryService } from './home-summary.service';
 
 describe('HomeSummaryService', () => {
-  function createHarness() {
+  function createHarness(
+    dependencies: { authContextService?: any; redis?: any } = {},
+  ) {
     const syncOrderRows = [
       {
         orderCode: '2607040001',
@@ -221,8 +223,16 @@ describe('HomeSummaryService', () => {
       prisma as any,
       salesReports as any,
       featureService as any,
+      dependencies.authContextService,
+      dependencies.redis,
     );
-    return { service, prisma, salesReports, featureService };
+    return {
+      service,
+      prisma,
+      salesReports,
+      featureService,
+      ...dependencies,
+    };
   }
 
   it('caches repeated summary loads for the same user and query for the Home TTL', async () => {
@@ -513,6 +523,51 @@ describe('HomeSummaryService', () => {
 
     expect(second).toBe(first);
     expect(featureService.canAccessFeature).toHaveBeenCalledTimes(2);
+    expect(salesReports.listHomeSummaryScopeOptions).toHaveBeenCalledTimes(1);
+  });
+
+  it('uses a 5 second L1 TTL and a 60 second shared TTL for Home scope options', async () => {
+    const nowSpy = jest.spyOn(Date, 'now').mockReturnValue(1_000_000);
+    const redis = {
+      getJson: jest.fn().mockResolvedValue(null),
+      setJsonWithTtl: jest.fn().mockResolvedValue(undefined),
+    };
+    try {
+      const { service } = createHarness({ redis });
+      const response = await service.listScopeOptions({
+        id: 'user-1',
+        email: 'staff@phongvu.vn',
+      });
+
+      const cacheEntry = Array.from(
+        (service as any).scopeOptionsCache.values(),
+      )[0] as { expiresAt: number };
+      expect(cacheEntry.expiresAt).toBe(1_005_000);
+      expect(redis.setJsonWithTtl).toHaveBeenCalledWith(
+        expect.stringMatching(/^opshub:home:scope-options:/),
+        response,
+        60,
+      );
+    } finally {
+      nowSpy.mockRestore();
+    }
+  });
+
+  it('deduplicates concurrent Home scope option loads before shared cache lookup', async () => {
+    const redis = {
+      getJson: jest.fn().mockResolvedValue(null),
+      setJsonWithTtl: jest.fn().mockResolvedValue(undefined),
+    };
+    const { service, salesReports } = createHarness({ redis });
+    const user = { id: 'user-1', email: 'staff@phongvu.vn' };
+
+    const [first, second] = await Promise.all([
+      service.listScopeOptions(user),
+      service.listScopeOptions(user),
+    ]);
+
+    expect(second).toBe(first);
+    expect(redis.getJson).toHaveBeenCalledTimes(1);
     expect(salesReports.listHomeSummaryScopeOptions).toHaveBeenCalledTimes(1);
   });
 

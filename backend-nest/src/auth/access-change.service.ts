@@ -1,6 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { buildRealtimeRedisEnvelope } from '../common/realtime-event';
 import { safeLogError } from '../common/log-sanitizer';
+import {
+  clearOrganizationTreeCache,
+  getOrganizationTree,
+} from '../common/organization-tree-cache';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
 
@@ -34,9 +38,12 @@ export class AccessChangeService {
     }
 
     try {
-      const nodes = await this.prisma.organizationNode.findMany({
-        select: { id: true, parentId: true },
-      });
+      // The source mutation has already committed when this method is called.
+      // The access-version increment is performed by the database trigger in
+      // that same source transaction; this step only resolves post-commit
+      // realtime recipients. Reuse the short-lived tree cache so an admin
+      // change does not scan the whole organization table on every event.
+      const nodes = await getOrganizationTree(this.prisma);
       const impactedNodeIds = this.descendantNodeIds(nodes, anchorIds);
       const users = await this.prisma.user.findMany({
         where: {
@@ -65,6 +72,10 @@ export class AccessChangeService {
 
   async publishForAllUsers(reason: string) {
     try {
+      // Organization topology consumers keep a process-local tree cache. The
+      // invalidation is deliberately after the source transaction has
+      // returned, so a failed mutation cannot evict a still-valid snapshot.
+      clearOrganizationTreeCache(this.prisma);
       const users = await this.prisma.user.findMany({
         where: { status: { not: 'no' } },
         select: { id: true },

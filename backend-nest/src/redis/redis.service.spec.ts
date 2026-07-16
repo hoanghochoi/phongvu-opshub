@@ -58,4 +58,16 @@ describe('RedisService', () => {
       'Redis TTL',
     );
   });
+
+  it('reads JSON values without exposing raw Redis payloads to callers', async () => {
+    const get = jest
+      .fn()
+      .mockResolvedValue(JSON.stringify({ userId: 'user-1' }));
+    (service as any).redisClient = { get };
+
+    await expect(service.getJson('auth-context:key')).resolves.toEqual({
+      userId: 'user-1',
+    });
+    expect(get).toHaveBeenCalledWith('auth-context:key');
+  });
 });

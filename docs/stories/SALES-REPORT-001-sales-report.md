@@ -121,7 +121,9 @@ nằm rời ở Google Form và có thể dùng cho dashboard sau này.
   `Trả góp` chỉ lấy các row có `installmentNeed = true`, gồm các cột tiếng Việt
   `Ngày báo cáo`, `Email người báo cáo`, `Số tiền vay trả góp`,
   `Đối tác trả góp`, `Kết quả duyệt hồ sơ`, `Loại báo cáo`,
-  `Phương thức thanh toán cuối cùng`, `Lý do không trả góp`.
+  `Phương thức thanh toán cuối cùng`, `Lý do không trả góp`. Với row
+  `NOT_PURCHASED`, phương thức thanh toán cuối cùng là `Chưa mua hàng`; chỉ
+  row `PURCHASED` mới phân loại `Trả góp` hoặc `Trả thẳng` theo ERP method.
 - Admin có `ADMIN_SALES_REPORTS` theo node tổ chức xem/query/export báo cáo
   trong phạm vi được gán; Super Admin thấy toàn app. Nếu admin được gán nhiều
   SR, danh sách quản trị có bộ lọc `SR` để xem từng showroom hoặc `Tất cả SR`;

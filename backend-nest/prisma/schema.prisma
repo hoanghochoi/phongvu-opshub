@@ -291,6 +291,7 @@ model User {
   email              String    @unique
   password           String
   tokenVersion       Int       @default(0)
+  accessVersion      Int       @default(0)
   firstName          String
   lastName           String?
   role               String    @default("USER")

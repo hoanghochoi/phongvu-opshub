@@ -8,6 +8,7 @@ import {
   Post,
   Query,
   Request,
+  Optional,
   UseGuards,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
@@ -18,15 +19,23 @@ import {
   AdminSettingDto,
 } from './policy.dto';
 import { PolicyService } from './policy.service';
+import { AuthContextService } from '../auth/auth-context.service';
 
 @Controller()
 @UseGuards(AuthGuard('jwt'))
 export class PolicyController {
-  constructor(private readonly policyService: PolicyService) {}
+  constructor(
+    private readonly policyService: PolicyService,
+    @Optional() private readonly authContextService?: AuthContextService,
+  ) {}
 
   @Get('policies/me')
   getMyPolicies(@Request() req: any) {
-    return this.policyService.resolvePolicyAccessMap(req.user);
+    return this.authContextService
+      ? this.authContextService
+          .getContext(req.user)
+          .then((context) => context.policyAccess)
+      : this.policyService.resolvePolicyAccessMap(req.user);
   }
 
   @Get('admin/policies')

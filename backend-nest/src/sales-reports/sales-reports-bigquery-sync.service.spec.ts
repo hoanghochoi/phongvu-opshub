@@ -49,6 +49,22 @@ describe('SalesReportsBigQuerySyncService', () => {
     expect(prisma.salesReport.findMany).not.toHaveBeenCalled();
   });
 
+  it('labels not-purchased reports separately from purchased payment methods', () => {
+    const service = new SalesReportsBigQuerySyncService({} as any);
+    const label = (row: any) =>
+      (service as any).finalPaymentMethodLabel(row);
+
+    expect(
+      label({ reportType: 'NOT_PURCHASED', erpPaymentMethods: [] }),
+    ).toBe('Chưa mua hàng');
+    expect(label({ reportType: 'PURCHASED', erpPaymentMethods: [] })).toBe(
+      'Trả thẳng',
+    );
+    expect(
+      label({ reportType: 'PURCHASED', erpPaymentMethods: ['installment'] }),
+    ).toBe('Trả góp');
+  });
+
   it('maps sales-report facts and full-refreshes all BigQuery tables', async () => {
     process.env.SALES_REPORT_BIGQUERY_PROJECT_ID = 'opshub-project';
     process.env.SALES_REPORT_BIGQUERY_DATASET_ID = 'opshub_reporting';

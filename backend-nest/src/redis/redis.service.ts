@@ -98,7 +98,26 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     );
   }
 
+  async getJson<T = unknown>(key: string): Promise<T | null> {
+    const normalizedKey = key.trim();
+    if (!normalizedKey || normalizedKey.length > 240) {
+      throw new Error('Redis key must contain between 1 and 240 characters');
+    }
+    if (!this.redisClient) return null;
+    const raw = await this.redisClient.get(normalizedKey);
+    if (!raw) return null;
+    try {
+      return JSON.parse(raw) as T;
+    } catch (error) {
+      this.logger.warn(
+        `Redis JSON parse failed: keyLength=${normalizedKey.length} error=${this.safeError(error)}`,
+      );
+      return null;
+    }
+  }
+
   async tryAcquireLease(key: string, ttlMs: number) {
+    if (!this.redisClient) return null;
     const token = randomUUID();
     const result = await this.redisClient.set(
       key,
@@ -111,6 +130,7 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
   }
 
   async releaseLease(key: string, token: string) {
+    if (!this.redisClient) return;
     await this.redisClient.eval(
       "if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end",
       1,

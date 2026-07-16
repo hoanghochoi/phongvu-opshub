@@ -3542,34 +3542,36 @@ export class SalesReportsService implements OnApplicationBootstrap {
   }
 
   private async resolveUserSnapshot(user: any) {
-    const savedUser = user?.id
-      ? await this.prisma.user.findUnique({
-          where: { id: user.id },
-          include: {
-            store: {
-              include: {
-                area: { include: { region: true } },
-                organizationNode: true,
+    const savedUser =
+      user?.__authContext?.scopeSnapshot ??
+      (user?.id
+        ? await this.prisma.user.findUnique({
+            where: { id: user.id },
+            include: {
+              store: {
+                include: {
+                  area: { include: { region: true } },
+                  organizationNode: true,
+                },
               },
-            },
-            region: true,
-            area: { include: { region: true } },
-            organizationNode: true,
-            organizationAssignments: {
-              where: { isActive: true },
-              orderBy: [
-                { isPrimary: Prisma.SortOrder.desc },
-                { createdAt: Prisma.SortOrder.asc },
-              ],
-              include: {
-                organizationNode: {
-                  include: organizationNodeStoreTreeInclude(),
+              region: true,
+              area: { include: { region: true } },
+              organizationNode: true,
+              organizationAssignments: {
+                where: { isActive: true },
+                orderBy: [
+                  { isPrimary: Prisma.SortOrder.desc },
+                  { createdAt: Prisma.SortOrder.asc },
+                ],
+                include: {
+                  organizationNode: {
+                    include: organizationNodeStoreTreeInclude(),
+                  },
                 },
               },
             },
-          },
-        })
-      : null;
+          })
+        : null);
     const source = savedUser ?? user ?? {};
     const primaryAssignment = source.organizationAssignments?.[0] ?? null;
     const assignedStore =
@@ -3645,24 +3647,26 @@ export class SalesReportsService implements OnApplicationBootstrap {
       }
     };
     if (user?.id) {
-      const savedUser = await this.prisma.user.findUnique({
-        where: { id: user.id },
-        include: {
-          store: true,
-          organizationAssignments: {
-            where: { isActive: true },
-            orderBy: [
-              { isPrimary: Prisma.SortOrder.desc },
-              { createdAt: Prisma.SortOrder.asc },
-            ],
-            include: {
-              organizationNode: {
-                include: organizationNodeStoreTreeInclude(),
+      const savedUser =
+        user?.__authContext?.scopeSnapshot ??
+        (await this.prisma.user.findUnique({
+          where: { id: user.id },
+          include: {
+            store: true,
+            organizationAssignments: {
+              where: { isActive: true },
+              orderBy: [
+                { isPrimary: Prisma.SortOrder.desc },
+                { createdAt: Prisma.SortOrder.asc },
+              ],
+              include: {
+                organizationNode: {
+                  include: organizationNodeStoreTreeInclude(),
+                },
               },
             },
           },
-        },
-      });
+        }));
       pushStore(savedUser?.store);
       for (const assignment of savedUser?.organizationAssignments ?? []) {
         for (const store of storesForOrganizationNodeTree(
@@ -3681,26 +3685,28 @@ export class SalesReportsService implements OnApplicationBootstrap {
 
   private async resolveHomeSummaryAssignments(user: any) {
     if (!user?.id || !(this.prisma as any).user?.findUnique) return [];
-    const savedUser = await this.prisma.user.findUnique({
-      where: { id: user.id },
-      include: {
-        organizationNode: {
-          include: organizationNodeStoreTreeInclude(),
-        },
-        organizationAssignments: {
-          where: { isActive: true },
-          orderBy: [
-            { isPrimary: Prisma.SortOrder.desc },
-            { createdAt: Prisma.SortOrder.asc },
-          ],
-          include: {
-            organizationNode: {
-              include: organizationNodeStoreTreeInclude(),
+    const savedUser =
+      user?.__authContext?.scopeSnapshot ??
+      (await this.prisma.user.findUnique({
+        where: { id: user.id },
+        include: {
+          organizationNode: {
+            include: organizationNodeStoreTreeInclude(),
+          },
+          organizationAssignments: {
+            where: { isActive: true },
+            orderBy: [
+              { isPrimary: Prisma.SortOrder.desc },
+              { createdAt: Prisma.SortOrder.asc },
+            ],
+            include: {
+              organizationNode: {
+                include: organizationNodeStoreTreeInclude(),
+              },
             },
           },
         },
-      },
-    });
+      }));
     const assignments: any[] = Array.isArray(savedUser?.organizationAssignments)
       ? [...(savedUser.organizationAssignments as any[])]
       : [];
@@ -4990,6 +4996,9 @@ export class SalesReportsService implements OnApplicationBootstrap {
   }
 
   private finalPaymentMethodLabel(row: any) {
+    if (row?.reportType === REPORT_TYPE_NOT_PURCHASED) {
+      return 'Chưa mua hàng';
+    }
     return this.hasInstallmentPayment(row) ? 'Trả góp' : 'Trả thẳng';
   }
 
