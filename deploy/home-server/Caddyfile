@@ -64,7 +64,12 @@ http://{$OPSHUB_DOMAIN} {
   }
 
   handle_path /api/* {
-    reverse_proxy api:3000 {
+    reverse_proxy {
+      dynamic a api 3000 {
+        refresh 5s
+        versions ipv4
+      }
+      lb_policy round_robin
       header_up X-Forwarded-For {client_ip}
       header_up X-Real-IP {client_ip}
     }
@@ -78,7 +83,12 @@ http://{$OPSHUB_DOMAIN} {
   }
 
   handle /reset-password* {
-    reverse_proxy api:3000 {
+    reverse_proxy {
+      dynamic a api 3000 {
+        refresh 5s
+        versions ipv4
+      }
+      lb_policy round_robin
       header_up X-Forwarded-For {client_ip}
       header_up X-Real-IP {client_ip}
     }

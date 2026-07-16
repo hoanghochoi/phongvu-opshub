@@ -207,6 +207,17 @@ for (const [expected, label] of [
 ]) {
   contains(caddy, expected, label);
 }
+assert.equal(
+  caddy.split('dynamic a api 3000').length - 1,
+  2,
+  'Caddy must discover every scaled API replica for both API routes',
+);
+assert.equal(
+  caddy.split('lb_policy round_robin').length - 1,
+  2,
+  'Caddy must distribute both API routes across discovered replicas',
+);
+excludes(caddy, 'reverse_proxy api:3000', 'single logical API upstream');
 
 for (const value of ['max-size:', 'max-file:', 'no-new-privileges:true', 'cap_drop:', 'read_only: true']) {
   contains(productionCompose, value, 'production Compose hardening');

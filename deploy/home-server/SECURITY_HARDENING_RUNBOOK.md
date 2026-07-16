@@ -200,7 +200,16 @@ hoặc giữ private identity.
 - [ ] Dùng cửa sổ tối thiểu 7 ngày trước media cutover. `--fail-on-hits` phải
   trả 0; nếu exit `3` thì dừng cutover, không xóa route/file/cache.
 
-### 7.2 GitHub repository security
+### 7.2 API multi-replica qua Docker DNS
+
+- [ ] `reverse_proxy` cho `/api/*` và `/reset-password*` phải dùng dynamic A
+  upstream `api:3000` với IPv4 và `round_robin`; một static logical upstream
+  không chứng minh traffic được chia giữa các container khi `--scale api=N`.
+- [ ] Sau khi scale, gửi read-only authenticated probes và xác nhận ít nhất hai
+  API container đều nhận request; đồng thời kiểm tra shared auth/scope cache,
+  distributed lease và version invalidation giữa hai replica.
+
+### 7.3 GitHub repository security
 
 - [ ] Secret scanning và push protection ở trạng thái enabled; query alert chỉ
   lấy count/metadata, tuyệt đối không in trường `secret`.
