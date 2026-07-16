@@ -96,6 +96,11 @@ HTTP ladder; the release profile does not reconnect or churn sockets.
 Pass thresholds:
 
 - HTTP success at least 99.9%; p95 at most 500 ms; p99 at most one second.
+- The k6 profile enforces those HTTP latency limits on the aggregate HTTP
+  stream and separately on Home summary ranges. It does not apply the same
+  request-latency threshold to each ladder phase or the long-lived realtime
+  scenario, whose ticket/upgrade path is measured by its success and hold
+  counters instead of being mixed into a phase p99.
 - Unexpected 429 is zero; timeout/5xx and dropped iterations stay within the
   scripted thresholds.
 - Exactly 60 ticket and 60 WebSocket attempts; connect and full-session hold

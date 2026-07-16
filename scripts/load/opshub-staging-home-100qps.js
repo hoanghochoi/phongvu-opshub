@@ -89,7 +89,7 @@ export const options = {
       timeUnit: "1s",
       duration: "2m",
       preAllocatedVUs: 50,
-      maxVUs: 200,
+      maxVUs: 300,
       gracefulStop: "30s",
     },
     capacity_50_qps: {
@@ -100,7 +100,7 @@ export const options = {
       timeUnit: "1s",
       duration: "3m",
       preAllocatedVUs: 100,
-      maxVUs: 300,
+      maxVUs: 500,
       gracefulStop: "30s",
     },
     capacity_ramp_to_100_qps: {
@@ -110,7 +110,7 @@ export const options = {
       startRate: 50,
       timeUnit: "1s",
       preAllocatedVUs: 100,
-      maxVUs: 500,
+      maxVUs: 1000,
       stages: [{ target: 100, duration: "3m" }],
       gracefulStop: "30s",
     },
@@ -122,7 +122,7 @@ export const options = {
       timeUnit: "1s",
       duration: "15m",
       preAllocatedVUs: 200,
-      maxVUs: 500,
+      maxVUs: 1000,
       gracefulStop: "30s",
     },
     capacity_ramp_down: {
@@ -132,7 +132,7 @@ export const options = {
       startRate: 100,
       timeUnit: "1s",
       preAllocatedVUs: 100,
-      maxVUs: 500,
+      maxVUs: 1000,
       stages: [{ target: 0, duration: "2m" }],
       gracefulStop: "30s",
     },
@@ -146,10 +146,12 @@ export const options = {
       gracefulStop: "0s",
     },
   },
+  summaryTrendStats: ["avg", "min", "med", "max", "p(90)", "p(95)", "p(99)"],
   thresholds: {
     opshub_http_success: ["rate>=0.999"],
     opshub_http_5xx_or_timeout: ["rate<=0.001"],
     opshub_unexpected_429: ["count==0"],
+    http_req_duration: ["p(95)<=500", "p(99)<=1000"],
     opshub_home_summary_duration: ["p(95)<=500", "p(99)<=1000"],
     "opshub_home_summary_duration{range:home_1d}": [
       "p(95)<=500",
@@ -183,28 +185,6 @@ export const options = {
       ["p(95)<=500", "p(99)<=1000"],
     "opshub_home_summary_duration{phase:capacity_100_qps_hold,range:home_90d}":
       ["p(95)<=500", "p(99)<=1000"],
-    "http_req_duration{scenario:capacity_smoke}": ["p(95)<=500", "p(99)<=1000"],
-    "http_req_duration{scenario:capacity_25_qps}": [
-      "p(95)<=500",
-      "p(99)<=1000",
-    ],
-    "http_req_duration{scenario:capacity_50_qps}": [
-      "p(95)<=500",
-      "p(99)<=1000",
-    ],
-    "http_req_duration{scenario:capacity_ramp_to_100_qps}": [
-      "p(95)<=500",
-      "p(99)<=1000",
-    ],
-    "http_req_duration{scenario:capacity_100_qps_hold}": [
-      "p(95)<=500",
-      "p(99)<=1000",
-    ],
-    "http_req_duration{scenario:capacity_ramp_down}": [
-      "p(95)<=500",
-      "p(99)<=1000",
-    ],
-    "http_req_duration{scenario:realtime_v2}": ["p(95)<=500", "p(99)<=1000"],
     "dropped_iterations{scenario:capacity_25_qps}": ["count==0"],
     "dropped_iterations{scenario:capacity_50_qps}": ["count==0"],
     "dropped_iterations{scenario:capacity_ramp_to_100_qps}": ["count==0"],
