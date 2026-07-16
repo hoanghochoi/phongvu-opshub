@@ -192,6 +192,27 @@ describe('SalesReportsService', () => {
     expect(erp.lookupOrder).not.toHaveBeenCalled();
   });
 
+  it('blocks a purchased report when ERP still marks the order unpaid', async () => {
+    const { service, prisma, erp } = createHarness();
+    erp.lookupOrder.mockResolvedValueOnce({
+      ...erpOrderFixture(),
+      erpPaymentStatus: 'pending_payment',
+    });
+
+    await expect(
+      service.create(userFixture(), {
+        ...baseInput(),
+        reportType: 'PURCHASED',
+        orderCode: '2606290001',
+      }),
+    ).rejects.toThrow(
+      'Đơn chưa thanh toán, vui lòng vào spos bấm Thanh toán lại hoặc Hủy đơn.',
+    );
+
+    expect(erp.lookupOrder).toHaveBeenCalledTimes(1);
+    expect(prisma.salesReport.create).not.toHaveBeenCalled();
+  });
+
   it('requires customer need and explicit behavior answers before lookup', async () => {
     const { service, categories, erp } = createHarness();
 
@@ -1802,7 +1823,7 @@ describe('SalesReportsService', () => {
     }
   });
 
-  it('uses the 5-minute default pending status re-check window', async () => {
+  it('uses the one-hour default pending status re-check window', async () => {
     jest.useFakeTimers();
     jest.setSystemTime(new Date('2026-07-07T01:06:00Z'));
     const { service, prisma, erp } = createHarness();
@@ -1818,32 +1839,44 @@ describe('SalesReportsService', () => {
     process.env.ERP_ORDER_STATUS_SYNC_BATCH_SIZE = '5';
     process.env.ERP_ORDER_STATUS_SYNC_STORE_LIMIT = '5';
     delete process.env.ERP_ORDER_STATUS_PENDING_RECHECK_MINUTES;
-    prisma.salesReportErpOrderCache.findMany
-      .mockResolvedValueOnce([
-        {
-          orderCode: '2607071001',
-          storeCode: 'CP62',
-          lifecycleStatus: 'PENDING',
-          statusCheckedAt: new Date('2026-07-07T01:00:00Z'),
-          statusCheckAttemptedAt: new Date('2026-07-07T01:00:30Z'),
-          statusCheckFailureCount: 0,
-          orderCreatedAt: new Date('2026-07-07T00:30:00Z'),
-        },
-      ])
-      .mockResolvedValueOnce([]);
-    prisma.salesReport.findMany
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([]);
-    erp.lookupOrderStatus.mockResolvedValueOnce({
+    const pendingRow = {
+      orderCode: '2607071001',
+      storeCode: 'CP62',
+      lifecycleStatus: 'PENDING',
+      statusCheckedAt: new Date('2026-07-07T01:00:00Z'),
+      statusCheckAttemptedAt: new Date('2026-07-07T01:00:30Z'),
+      statusCheckAttemptDate: new Date('2026-07-07T00:00:00Z'),
+      statusCheckAttemptCount: 1,
+      statusCheckFailureCount: 0,
+      orderCreatedAt: new Date('2026-07-07T00:30:00Z'),
+      fetchedAt: new Date('2026-07-07T00:30:00Z'),
+    };
+    prisma.salesReportErpOrderCache.findMany.mockImplementation(
+      async ({ where }: any) =>
+        where.lifecycleStatus === 'PENDING' ? [pendingRow] : [],
+    );
+    prisma.salesReport.findMany.mockResolvedValue([]);
+    erp.lookupOrderStatus.mockResolvedValue({
       ...erpListOrderFixture(),
       orderCode: '2607071001',
       lifecycleStatus: 'COMPLETED',
       hasReturnedFullItems: false,
       returnedAfterTaxAmount: 0,
-      statusCheckedAt: new Date('2026-07-07T01:06:00Z'),
+      statusCheckedAt: new Date('2026-07-07T02:01:00Z'),
     });
 
     try {
+      await expect(
+        service.syncErpOrderStatuses('before-one-hour'),
+      ).resolves.toEqual({
+        skipped: false,
+        processed: 0,
+        changed: 0,
+        failed: 0,
+      });
+      expect(erp.lookupOrderStatus).not.toHaveBeenCalled();
+
+      jest.setSystemTime(new Date('2026-07-07T02:01:00Z'));
       await expect(service.syncErpOrderStatuses('test')).resolves.toEqual({
         skipped: false,
         processed: 1,
@@ -1861,7 +1894,7 @@ describe('SalesReportsService', () => {
     }
   });
 
-  it('caps pending background checks at five per Vietnam day and resets next day', async () => {
+  it('caps pending background checks at three per Vietnam day and resets next day', async () => {
     jest.useFakeTimers();
     jest.setSystemTime(new Date('2026-07-07T02:00:00Z'));
     const { service, prisma, erp } = createHarness();
@@ -1882,7 +1915,7 @@ describe('SalesReportsService', () => {
       statusCheckedAt: new Date('2026-07-07T01:00:00Z'),
       statusCheckAttemptedAt: new Date('2026-07-07T01:50:00Z'),
       statusCheckAttemptDate: new Date('2026-07-07T00:00:00Z'),
-      statusCheckAttemptCount: 5,
+      statusCheckAttemptCount: 3,
       statusCheckFailureCount: 0,
       orderCreatedAt: new Date('2026-07-07T00:30:00Z'),
       fetchedAt: new Date('2026-07-07T00:30:00Z'),
@@ -1941,7 +1974,7 @@ describe('SalesReportsService', () => {
     }
   });
 
-  it('uses a pending-to-completed lookup as the completed check for that day', async () => {
+  it('uses a pending-to-completed lookup as the completed check for two days', async () => {
     jest.useFakeTimers();
     jest.setSystemTime(new Date('2026-07-07T02:00:00Z'));
     const { service, prisma, erp } = createHarness();
@@ -1973,24 +2006,19 @@ describe('SalesReportsService', () => {
       statusCheckAttemptedAt: new Date('2026-07-07T02:00:00Z'),
       statusCheckAttemptCount: 2,
     };
-    prisma.salesReportErpOrderCache.findMany
-      .mockResolvedValueOnce([pendingRow])
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([completedRow]);
-    prisma.salesReport.findMany
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([]);
-    erp.lookupOrderStatus.mockResolvedValueOnce({
-      ...erpListOrderFixture(),
-      orderCode: '2607071102',
-      lifecycleStatus: 'COMPLETED',
-      hasReturnedFullItems: false,
-      returnedAfterTaxAmount: 0,
-      statusCheckedAt: new Date('2026-07-07T02:00:00Z'),
-    });
+    let pendingAvailable = true;
+    let completedAvailable = false;
+    prisma.salesReportErpOrderCache.findMany.mockImplementation(
+      async ({ where }: any) => {
+        if (where.lifecycleStatus === 'PENDING') {
+          if (!pendingAvailable) return [];
+          pendingAvailable = false;
+          return [pendingRow];
+        }
+        return completedAvailable ? [completedRow] : [];
+      },
+    );
+    prisma.salesReport.findMany.mockResolvedValue([]);
 
     try {
       await expect(service.syncErpOrderStatuses('transition')).resolves.toEqual(
@@ -2010,6 +2038,7 @@ describe('SalesReportsService', () => {
           }),
         }),
       );
+      completedAvailable = true;
 
       await expect(service.syncErpOrderStatuses('same-day')).resolves.toEqual({
         skipped: false,
@@ -2018,6 +2047,120 @@ describe('SalesReportsService', () => {
         failed: 0,
       });
       expect(erp.lookupOrderStatus).toHaveBeenCalledTimes(1);
+
+      jest.setSystemTime(new Date('2026-07-08T02:00:00Z'));
+      await expect(service.syncErpOrderStatuses('next-day')).resolves.toEqual({
+        skipped: false,
+        processed: 0,
+        changed: 0,
+        failed: 0,
+      });
+      expect(erp.lookupOrderStatus).toHaveBeenCalledTimes(1);
+
+      jest.setSystemTime(new Date('2026-07-09T02:00:00Z'));
+      await expect(
+        service.syncErpOrderStatuses('two-days-later'),
+      ).resolves.toEqual({
+        skipped: false,
+        processed: 1,
+        changed: 0,
+        failed: 0,
+      });
+      expect(erp.lookupOrderStatus).toHaveBeenCalledTimes(2);
+    } finally {
+      jest.useRealTimers();
+      restoreEnv('ERP_ORDER_STATUS_SYNC_ENABLED', previous.enabled);
+      restoreEnv('ERP_ORDER_STATUS_CACHE_SYNC_ENABLED', previous.cache);
+      restoreEnv('ERP_ORDER_STATUS_SYNC_BATCH_SIZE', previous.batch);
+      restoreEnv('ERP_ORDER_STATUS_SYNC_STORE_LIMIT', previous.storeLimit);
+    }
+  });
+
+  it('prioritizes the newest sale date for pending and completed candidates', async () => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date('2026-07-10T02:00:00Z'));
+    const { service, prisma, erp } = createHarness();
+    const previous = {
+      enabled: process.env.ERP_ORDER_STATUS_SYNC_ENABLED,
+      cache: process.env.ERP_ORDER_STATUS_CACHE_SYNC_ENABLED,
+      batch: process.env.ERP_ORDER_STATUS_SYNC_BATCH_SIZE,
+      storeLimit: process.env.ERP_ORDER_STATUS_SYNC_STORE_LIMIT,
+    };
+    process.env.ERP_ORDER_STATUS_SYNC_ENABLED = 'true';
+    process.env.ERP_ORDER_STATUS_CACHE_SYNC_ENABLED = 'true';
+    process.env.ERP_ORDER_STATUS_SYNC_BATCH_SIZE = '4';
+    process.env.ERP_ORDER_STATUS_SYNC_STORE_LIMIT = '5';
+    const cacheRow = (
+      orderCode: string,
+      lifecycleStatus: string,
+      orderCreatedAt: string,
+    ) => ({
+      orderCode,
+      storeCode: 'CP62',
+      lifecycleStatus,
+      statusCheckedAt: null,
+      statusCheckAttemptedAt: null,
+      statusCheckAttemptDate: null,
+      statusCheckAttemptCount: 0,
+      statusCheckFailureCount: 0,
+      orderCreatedAt: new Date(orderCreatedAt),
+      fetchedAt: new Date(orderCreatedAt),
+    });
+    const pendingRecent = cacheRow(
+      '2607092001',
+      'PENDING',
+      '2026-07-09T04:00:00Z',
+    );
+    const pendingOld = cacheRow(
+      '2607082001',
+      'PENDING',
+      '2026-07-08T04:00:00Z',
+    );
+    const completedRecent = cacheRow(
+      '2607093001',
+      'COMPLETED',
+      '2026-07-09T03:00:00Z',
+    );
+    const completedOld = cacheRow(
+      '2607083001',
+      'COMPLETED',
+      '2026-07-08T03:00:00Z',
+    );
+    prisma.salesReportErpOrderCache.findMany
+      .mockResolvedValueOnce([pendingRecent, pendingOld])
+      .mockResolvedValueOnce([completedRecent, completedOld]);
+    prisma.salesReport.findMany.mockResolvedValue([]);
+    erp.lookupOrderStatus.mockImplementation(async (orderCode: string) => ({
+      ...erpListOrderFixture(),
+      orderCode,
+      lifecycleStatus: 'COMPLETED',
+      hasReturnedFullItems: false,
+      returnedAfterTaxAmount: 0,
+      statusCheckedAt: new Date('2026-07-10T02:00:00Z'),
+    }));
+
+    try {
+      await expect(service.syncErpOrderStatuses('priority')).resolves.toEqual({
+        skipped: false,
+        processed: 4,
+        changed: 2,
+        failed: 0,
+      });
+      expect(
+        erp.lookupOrderStatus.mock.calls.map(([orderCode]) => orderCode),
+      ).toEqual(['2607092001', '2607082001', '2607093001', '2607083001']);
+      expect(prisma.salesReportErpOrderCache.findMany).toHaveBeenNthCalledWith(
+        1,
+        expect.objectContaining({
+          orderBy: expect.arrayContaining([{ orderCreatedAt: 'desc' }]),
+        }),
+      );
+      expect(prisma.salesReportErpOrderCache.findMany).toHaveBeenNthCalledWith(
+        2,
+        expect.objectContaining({
+          orderBy: expect.arrayContaining([{ orderCreatedAt: 'desc' }]),
+        }),
+      );
     } finally {
       jest.useRealTimers();
       restoreEnv('ERP_ORDER_STATUS_SYNC_ENABLED', previous.enabled);

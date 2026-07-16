@@ -229,6 +229,8 @@ class SalesReportProvider extends ChangeNotifier {
           'customerIsStudent': result.customerIsStudent,
           'installmentAutoFilled': result.installmentNeed,
           'hasInstallmentLoanAmount': result.installmentLoanAmount != null,
+          'paymentStatus': result.order['paymentStatus']?.toString(),
+          'pendingPaymentBlocked': result.isPendingPayment,
           'durationMs': DateTime.now().difference(startedAt).inMilliseconds,
         },
       );

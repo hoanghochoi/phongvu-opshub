@@ -98,6 +98,12 @@ cho Google Form, đồng thời lưu dữ liệu đủ chuẩn để dashboard d
 - Khi sale bấm một đơn chưa báo cáo, app mở form báo cáo mua hàng trong dialog,
   tự kiểm tra lại mã đơn qua luồng `check-order` hiện tại rồi fill tên khách,
   nhu cầu, loại khách, ngành hàng và thông tin đơn cần thiết.
+- Sau khi `check-order` tải chi tiết, nếu `paymentStatus` vẫn là trạng thái chưa
+  thanh toán thì app giữ chi tiết đơn để đối chiếu nhưng khóa phần nhập và nút
+  `Gửi báo cáo`, đưa phần thân modal về đầu và hiện toast
+  `Đơn chưa thanh toán, vui lòng vào spos bấm Thanh toán lại hoặc Hủy đơn.`
+  Backend re-check cùng điều kiện khi submit và không tạo báo cáo nếu client cũ
+  hoặc request trực tiếp bỏ qua chốt UI.
 - Nếu sale dùng `Báo cáo mua thủ công` và nhập trùng `orderCode` đang nằm trong
   cache cockpit hiện tại, backend vẫn match theo mã đơn để chuyển đơn đó sang đã
   báo cáo, không phụ thuộc metadata ngày/showroom của report thủ công.
@@ -149,15 +155,14 @@ cho Google Form, đồng thời lưu dữ liệu đủ chuẩn để dashboard d
   thái chi tiết.
 - Job trạng thái chạy mỗi 5 phút, mặc định tối đa 80 đơn/lượt với concurrency
   2 và Redis lease. Job rà cả đơn `PENDING` trong cache chưa báo cáo lẫn đơn
-  `Mua hàng` đã báo cáo, ưu tiên pending, vẫn dành quota xoay vòng cho đơn hoàn
-  thành để bắt hoàn trả muộn. Theo ngày Việt Nam, background sync gọi tối đa 5
-  lần cho mỗi đơn `PENDING` và tối đa 1 lần cho mỗi đơn `COMPLETED` hoặc
-  `COMPLETED_PARTIAL_RETURN`; đơn hoàn thành quá 10 ngày kể từ ngày bán ERP
-  không được gọi lại. Nếu pending chuyển sang completed ở bất kỳ lượt nào thì
-  lượt đó đồng thời dùng quota completed của ngày và background không gọi lại
-  trong cùng ngày. Job vẫn có backoff pending mặc định 5 phút và quota theo
-  showroom; gọi lỗi cũng tiêu một lượt trong ngày nhưng không khóa đơn ở ngày
-  kế tiếp.
+  `Mua hàng` đã báo cáo; trong từng nhóm, ưu tiên ngày bán ERP gần nhất trước
+  rồi mới đến ngày xa hơn. Theo ngày Việt Nam, background sync gọi tối đa 3
+  lần cho mỗi đơn `PENDING`, mỗi lần cách nhau ít nhất 60 phút; gọi lỗi vẫn
+  tiêu một lượt trong ngày. Đơn `COMPLETED` hoặc
+  `COMPLETED_PARTIAL_RETURN` chỉ được gọi lại sau 2 ngày và quá 10 ngày kể từ
+  ngày bán ERP thì không gọi lại. Nếu pending chuyển sang completed ở bất kỳ
+  lượt nào thì lượt đó được tính là lần kiểm tra completed của chu kỳ 2 ngày.
+  Quota theo showroom vẫn được giữ để tránh dồn tải lên ERP.
 - Quota trên chỉ áp dụng cho background sync. Mỗi lần sale kiểm tra đơn hoặc
   submit báo cáo, backend vẫn gọi ERP detail; nếu kết quả mới là hủy, trả toàn
   bộ hoặc trả một phần thì cache/report phải lưu trạng thái mới nhất. Kết quả

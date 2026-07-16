@@ -26,6 +26,8 @@ import '../widgets/sales_report_workspace_header.dart';
 
 const _typePurchased = 'PURCHASED';
 const _typeNotPurchased = 'NOT_PURCHASED';
+const _pendingPaymentOrderMessage =
+    'Đơn chưa thanh toán, vui lòng vào spos bấm Thanh toán lại hoặc Hủy đơn.';
 
 String _countLabel(int value) => vietnameseMoneyNumberFormat.format(value);
 
@@ -1529,6 +1531,22 @@ class _SalesReportFormScreenState extends State<SalesReportFormScreen> {
         ..clear()
         ..addAll(result.categoryGroups.map((category) => category.id));
     });
+    if (result.isPendingPayment) {
+      _scrollToTopAfterOrderCheck();
+      unawaited(
+        AppLogger.instance.warn(
+          'SalesReport',
+          'Sales report submit blocked by pending payment',
+          context: {
+            'orderLength': result.orderCode.length,
+            'paymentStatus': result.order['paymentStatus']?.toString(),
+            'scrollToTopRequested': true,
+          },
+        ),
+      );
+      _showSnack(_pendingPaymentOrderMessage, AppColors.warning);
+      return;
+    }
     _showSnack('Đã kiểm tra đơn hàng.', AppColors.success);
   }
 
@@ -1577,6 +1595,11 @@ class _SalesReportFormScreenState extends State<SalesReportFormScreen> {
         'Vui lòng kiểm tra đơn hàng trước khi gửi.',
         AppColors.warning,
       );
+      return;
+    }
+    if (_isPurchased && provider.checkedOrder?.isPendingPayment == true) {
+      _scrollToTopAfterOrderCheck();
+      _showSnack(_pendingPaymentOrderMessage, AppColors.warning);
       return;
     }
     if (!_formKey.currentState!.validate()) {
@@ -1732,6 +1755,16 @@ class _SalesReportFormScreenState extends State<SalesReportFormScreen> {
     );
   }
 
+  void _scrollToTopAfterOrderCheck() {
+    void jumpToTop() {
+      if (!_scrollController.hasClients) return;
+      _scrollController.jumpTo(_scrollController.position.minScrollExtent);
+    }
+
+    jumpToTop();
+    WidgetsBinding.instance.addPostFrameCallback((_) => jumpToTop());
+  }
+
   void _showSnack(String message, Color color) {
     AppToast.show(
       context,
@@ -1742,7 +1775,11 @@ class _SalesReportFormScreenState extends State<SalesReportFormScreen> {
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<SalesReportProvider>();
-    final canEditReportBody = !_isPurchased || provider.checkedOrder != null;
+    final orderBlockedByPayment =
+        _isPurchased && provider.checkedOrder?.isPendingPayment == true;
+    final canEditReportBody =
+        !_isPurchased ||
+        (provider.checkedOrder != null && !orderBlockedByPayment);
     final title = _isPurchased ? 'Báo cáo mua hàng' : 'Báo cáo chưa mua hàng';
     final header = SalesReportWorkspaceHeader(
       key: const Key('sales-report-form-header'),
@@ -1757,8 +1794,16 @@ class _SalesReportFormScreenState extends State<SalesReportFormScreen> {
           color: _isPurchased ? AppColors.success : AppColors.warning,
         ),
         AppStatusChip(
-          label: canEditReportBody ? 'Sẵn sàng nhập' : 'Cần kiểm tra đơn',
-          color: canEditReportBody ? AppColors.primary : AppColors.neutral600,
+          label: orderBlockedByPayment
+              ? 'Chưa thanh toán'
+              : canEditReportBody
+              ? 'Sẵn sàng nhập'
+              : 'Cần kiểm tra đơn',
+          color: orderBlockedByPayment
+              ? AppColors.warning
+              : canEditReportBody
+              ? AppColors.primary
+              : AppColors.neutral600,
         ),
       ],
     );

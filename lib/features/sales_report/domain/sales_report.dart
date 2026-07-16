@@ -58,6 +58,26 @@ class SalesReportOrderCheck {
     required this.paymentMethods,
   });
 
+  bool get isPendingPayment {
+    final normalized = (order['paymentStatus'] ?? '')
+        .toString()
+        .trim()
+        .toUpperCase()
+        .replaceAll(RegExp(r'[^A-Z0-9]+'), '_')
+        .replaceAll(RegExp(r'^_+|_+$'), '');
+    return const {
+      'PENDING',
+      'PENDING_PAYMENT',
+      'PAYMENT_PENDING',
+      'WAITING_PAYMENT',
+      'WAITING_FOR_PAYMENT',
+      'AWAITING_PAYMENT',
+      'AWAITING_FOR_PAYMENT',
+      'UNPAID',
+      'NOT_PAID',
+    }.contains(normalized);
+  }
+
   factory SalesReportOrderCheck.fromJson(Map<String, dynamic> json) {
     Map<String, dynamic> cleanMap(Object? value) {
       if (value is Map) {

@@ -590,13 +590,21 @@ test\sales_report_hub_test.dart` (19 tests), `flutter analyze --no-pub`, và
   nhanh hơn, vẫn giữ batch/quota/concurrency và Redis lease hiện có. Validation:
   focused `sales-reports.service.spec.ts`, `npm run build`, và
   `git diff --check`.
-- `SALES-REPORT-001`, 2026-07-14: Background status sync giới hạn theo ngày
-  Việt Nam: pending tối đa 5 lượt/ngày, completed tối đa 1 lượt/ngày và chỉ
-  trong 10 ngày từ ngày bán. Lượt pending chuyển completed dùng luôn quota
-  completed cùng ngày; success/failure đều tiêu lượt. Check/submit do user vẫn
-  bypass quota và persist cancel/return/partial-return mới nhất. List sync không
-  reset metadata quota ngày. Validation: Prisma validate/generate, focused
+- `SALES-REPORT-001`, 2026-07-16: Background status sync giới hạn theo ngày
+  Việt Nam: pending tối đa 3 lượt/ngày, mỗi lượt cách nhau ít nhất 60 phút;
+  completed kiểm tra lại sau 2 ngày và chỉ trong 10 ngày từ ngày bán. Pending và
+  completed đều ưu tiên ngày bán gần nhất đến ngày xa nhất; pending chuyển
+  completed mở đầu chu kỳ kiểm tra completed 2 ngày. Success/failure của pending
+  đều tiêu lượt; check/submit do user vẫn bypass quota và persist
+  cancel/return/partial-return mới nhất. Validation: focused
   `sales-reports.service.spec.ts`, `npm run build`, và `git diff --check`.
+- `SALES-REPORT-001`, 2026-07-16: Sau `check-order`, đơn còn trạng thái chưa
+  thanh toán phải khóa phần nhập và nút `Gửi báo cáo`, hiện đúng toast hướng dẫn
+  vào SPOS thanh toán lại hoặc hủy đơn, đồng thời đưa phần thân modal về đầu.
+  Backend submit cũng re-check và từ chối tạo bản ghi nếu client bỏ qua chốt UI.
+  Validation: focused widget test `Báo cáo blocks unpaid order submission and
+  returns modal to top`, focused Nest test, `flutter analyze --no-pub`,
+  `npm run build`, và `git diff --check`.
 - `HOME-DASHBOARD-002`, 2026-07-05: Home tách KPI thành `Bán hàng` và
   `Tài chính` dùng chung ngày/scope. Bán hàng bỏ `Tổng số báo cáo hợp lệ`, đổi
   nhãn thành `Tỉ lệ báo cáo`, thêm tỉ lệ chuyển đổi theo tổng số đơn trên tổng

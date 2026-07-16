@@ -29,6 +29,7 @@ import {
   SalesReportErpReturnedOrderException,
   SalesReportErpService,
   isSalesReportErpOrderCanceledStatuses,
+  isSalesReportErpPendingPaymentStatus,
 } from './sales-report-erp.service';
 import {
   APP_DOWNLOAD_REASON_CODES,
@@ -68,8 +69,9 @@ const ERP_ORDER_CANCELED_EXCLUSION_REASON = 'ERP_ORDER_CANCELLED';
 const ERP_ORDER_RETURNED_EXCLUSION_REASON = 'ERP_ORDER_RETURNED_FULL';
 const ERP_ORDER_ZERO_VALUE_EXCLUSION_REASON = 'ERP_ORDER_ZERO_VALUE_INTERNAL';
 const ERP_STATUS_SYNC_LOCK_KEY = 'opshub:sales-report:erp-status-sync';
-const ERP_STATUS_PENDING_DAILY_LIMIT = 5;
-const ERP_STATUS_COMPLETED_DAILY_LIMIT = 1;
+const ERP_STATUS_PENDING_DAILY_LIMIT = 3;
+const ERP_STATUS_PENDING_RECHECK_MINUTES = 60;
+const ERP_STATUS_COMPLETED_RECHECK_DAYS = 2;
 const ERP_STATUS_COMPLETED_MAX_AGE_DAYS = 10;
 const MANAGED_SALES_REPORT_JOB_ROLE_CODES = new Set([
   'STORE_MANAGER',
@@ -155,6 +157,7 @@ type ErpOrderStatusSyncSelection = {
   reportedCompleted: number;
   skippedBackoff: number;
   skippedDailyLimit: number;
+  skippedCompletedInterval: number;
   skippedCompletedAge: number;
   skippedStoreQuota: number;
 };
@@ -836,8 +839,8 @@ export class SalesReportsService implements OnApplicationBootstrap {
     );
     const pendingRecheckMinutes = this.envInt(
       'ERP_ORDER_STATUS_PENDING_RECHECK_MINUTES',
-      5,
-      1,
+      ERP_STATUS_PENDING_RECHECK_MINUTES,
+      ERP_STATUS_PENDING_RECHECK_MINUTES,
       1440,
     );
     const storeLimit = this.envInt(
@@ -870,16 +873,16 @@ export class SalesReportsService implements OnApplicationBootstrap {
     const startedAt = Date.now();
     try {
       this.logger.log(
-        `ERP order status sync started: source=${source} cacheEnabled=${cacheSyncEnabled} batchSize=${batchSize} concurrency=${concurrency} storeLimit=${storeLimit} pendingRecheckMinutes=${pendingRecheckMinutes} pendingDailyLimit=${ERP_STATUS_PENDING_DAILY_LIMIT} completedDailyLimit=${ERP_STATUS_COMPLETED_DAILY_LIMIT} completedMaxAgeDays=${ERP_STATUS_COMPLETED_MAX_AGE_DAYS}`,
+        `ERP order status sync started: source=${source} cacheEnabled=${cacheSyncEnabled} batchSize=${batchSize} concurrency=${concurrency} storeLimit=${storeLimit} pendingRecheckMinutes=${pendingRecheckMinutes} pendingDailyLimit=${ERP_STATUS_PENDING_DAILY_LIMIT} completedRecheckDays=${ERP_STATUS_COMPLETED_RECHECK_DAYS} completedMaxAgeDays=${ERP_STATUS_COMPLETED_MAX_AGE_DAYS}`,
       );
       const selection = await this.selectErpStatusSyncCandidates({
         batchSize,
         cacheSyncEnabled,
         cacheLookbackDays,
         completedMaxAgeDays: ERP_STATUS_COMPLETED_MAX_AGE_DAYS,
+        completedRecheckDays: ERP_STATUS_COMPLETED_RECHECK_DAYS,
         pendingRecheckMinutes,
         pendingDailyLimit: ERP_STATUS_PENDING_DAILY_LIMIT,
-        completedDailyLimit: ERP_STATUS_COMPLETED_DAILY_LIMIT,
         storeLimit,
       });
       const selected = selection.selected;
@@ -947,7 +950,7 @@ export class SalesReportsService implements OnApplicationBootstrap {
         });
       }
       this.logger.log(
-        `ERP order status sync succeeded: source=${source} cacheEnabled=${cacheSyncEnabled} selected=${selected.length} cachePending=${selection.cachePending} reportedPending=${selection.reportedPending} cacheCompleted=${selection.cacheCompleted} reportedCompleted=${selection.reportedCompleted} skippedBackoff=${selection.skippedBackoff} skippedDailyLimit=${selection.skippedDailyLimit} skippedCompletedAge=${selection.skippedCompletedAge} skippedStoreQuota=${selection.skippedStoreQuota} pendingDailyLimit=${ERP_STATUS_PENDING_DAILY_LIMIT} completedDailyLimit=${ERP_STATUS_COMPLETED_DAILY_LIMIT} completedMaxAgeDays=${ERP_STATUS_COMPLETED_MAX_AGE_DAYS} changed=${changed} excluded=${excluded} failed=${failed} concurrency=${concurrency} durationMs=${Date.now() - startedAt}`,
+        `ERP order status sync succeeded: source=${source} cacheEnabled=${cacheSyncEnabled} selected=${selected.length} cachePending=${selection.cachePending} reportedPending=${selection.reportedPending} cacheCompleted=${selection.cacheCompleted} reportedCompleted=${selection.reportedCompleted} skippedBackoff=${selection.skippedBackoff} skippedDailyLimit=${selection.skippedDailyLimit} skippedCompletedInterval=${selection.skippedCompletedInterval} skippedCompletedAge=${selection.skippedCompletedAge} skippedStoreQuota=${selection.skippedStoreQuota} pendingDailyLimit=${ERP_STATUS_PENDING_DAILY_LIMIT} pendingRecheckMinutes=${pendingRecheckMinutes} completedRecheckDays=${ERP_STATUS_COMPLETED_RECHECK_DAYS} completedMaxAgeDays=${ERP_STATUS_COMPLETED_MAX_AGE_DAYS} changed=${changed} excluded=${excluded} failed=${failed} concurrency=${concurrency} durationMs=${Date.now() - startedAt}`,
       );
       return {
         skipped: false,
@@ -977,9 +980,9 @@ export class SalesReportsService implements OnApplicationBootstrap {
     cacheSyncEnabled: boolean;
     cacheLookbackDays: number;
     completedMaxAgeDays: number;
+    completedRecheckDays: number;
     pendingRecheckMinutes: number;
     pendingDailyLimit: number;
-    completedDailyLimit: number;
     storeLimit: number;
   }): Promise<ErpOrderStatusSyncSelection> {
     const now = new Date();
@@ -1000,6 +1003,7 @@ export class SalesReportsService implements OnApplicationBootstrap {
       reportedCompleted: 0,
       skippedBackoff: 0,
       skippedDailyLimit: 0,
+      skippedCompletedInterval: 0,
       skippedCompletedAge: 0,
       skippedStoreQuota: 0,
     };
@@ -1017,11 +1021,11 @@ export class SalesReportsService implements OnApplicationBootstrap {
             ...this.orderCacheStatusSyncDateWhere(cacheCutoff),
           },
           orderBy: [
+            { orderCreatedAt: 'desc' },
             { statusCheckAttemptDate: 'asc' },
             { statusCheckAttemptCount: 'asc' },
             { statusCheckAttemptedAt: 'asc' },
             { statusCheckedAt: 'asc' },
-            { orderCreatedAt: 'desc' },
           ],
           take: input.batchSize * 4,
           select: {
@@ -1050,6 +1054,7 @@ export class SalesReportsService implements OnApplicationBootstrap {
         erpLifecycleStatus: 'PENDING',
       },
       orderBy: [
+        { erpOrderCreatedAt: 'desc' },
         { erpStatusCheckAttemptDate: 'asc' },
         { erpStatusCheckAttemptCount: 'asc' },
         { erpStatusCheckedAt: 'asc' },
@@ -1085,11 +1090,11 @@ export class SalesReportsService implements OnApplicationBootstrap {
             ...this.orderCacheStatusSyncDateWhere(completedCutoff),
           },
           orderBy: [
+            { orderCreatedAt: 'desc' },
             { statusCheckAttemptDate: 'asc' },
             { statusCheckAttemptCount: 'asc' },
             { statusCheckAttemptedAt: 'asc' },
             { statusCheckedAt: 'asc' },
-            { orderCreatedAt: 'desc' },
           ],
           take: input.batchSize * 2,
           select: {
@@ -1121,6 +1126,7 @@ export class SalesReportsService implements OnApplicationBootstrap {
         erpOrderCreatedAt: { gte: completedCutoff },
       },
       orderBy: [
+        { erpOrderCreatedAt: 'desc' },
         { erpStatusCheckAttemptDate: 'asc' },
         { erpStatusCheckAttemptCount: 'asc' },
         { erpStatusCheckedAt: 'asc' },
@@ -1155,13 +1161,16 @@ export class SalesReportsService implements OnApplicationBootstrap {
       const skipReason = this.erpStatusSyncCandidateSkipReason(candidate, {
         now,
         completedCutoff,
+        completedRecheckDays: input.completedRecheckDays,
         pendingRecheckMinutes: input.pendingRecheckMinutes,
         pendingDailyLimit: input.pendingDailyLimit,
-        completedDailyLimit: input.completedDailyLimit,
       });
       if (skipReason) {
         if (skipReason === 'backoff') selection.skippedBackoff += 1;
         if (skipReason === 'daily_limit') selection.skippedDailyLimit += 1;
+        if (skipReason === 'completed_interval') {
+          selection.skippedCompletedInterval += 1;
+        }
         if (skipReason === 'completed_age') {
           selection.skippedCompletedAge += 1;
         }
@@ -1316,11 +1325,11 @@ export class SalesReportsService implements OnApplicationBootstrap {
     input: {
       now: Date;
       completedCutoff: Date;
+      completedRecheckDays: number;
       pendingRecheckMinutes: number;
       pendingDailyLimit: number;
-      completedDailyLimit: number;
     },
-  ): 'backoff' | 'daily_limit' | 'completed_age' | null {
+  ): 'backoff' | 'daily_limit' | 'completed_interval' | 'completed_age' | null {
     const completed = candidate.source.includes('completed');
     if (
       completed &&
@@ -1329,6 +1338,19 @@ export class SalesReportsService implements OnApplicationBootstrap {
     ) {
       return 'completed_age';
     }
+    if (completed && candidate.statusCheckAttemptDate) {
+      const attemptDate = new Date(
+        `${candidate.statusCheckAttemptDate.toISOString().slice(0, 10)}T00:00:00.000+07:00`,
+      );
+      const elapsedDays = Math.floor(
+        (this.vietnamDayStart(input.now).getTime() - attemptDate.getTime()) /
+          (24 * 60 * 60 * 1000),
+      );
+      if (elapsedDays < input.completedRecheckDays) {
+        return 'completed_interval';
+      }
+      return null;
+    }
     const attemptedToday = this.isVietnamAttemptDate(
       candidate.statusCheckAttemptDate,
       input.now,
@@ -1336,22 +1358,11 @@ export class SalesReportsService implements OnApplicationBootstrap {
     const dailyAttemptCount = attemptedToday
       ? this.toNonNegativeInt(candidate.statusCheckAttemptCount)
       : 0;
-    const dailyLimit = completed
-      ? input.completedDailyLimit
-      : input.pendingDailyLimit;
-    if (dailyAttemptCount >= dailyLimit) return 'daily_limit';
-    if (completed || !attemptedToday || !candidate.statusCheckAttemptedAt) {
+    if (dailyAttemptCount >= input.pendingDailyLimit) return 'daily_limit';
+    if (!attemptedToday || !candidate.statusCheckAttemptedAt) {
       return null;
     }
-    const failureCount = this.toNonNegativeInt(
-      candidate.statusCheckFailureCount,
-    );
-    const backoffMultiplier =
-      failureCount > 0 ? Math.min(64, 2 ** (failureCount - 1)) : 1;
-    const dueAfterMinutes = Math.min(
-      24 * 60,
-      input.pendingRecheckMinutes * backoffMultiplier,
-    );
+    const dueAfterMinutes = input.pendingRecheckMinutes;
     return input.now.getTime() - candidate.statusCheckAttemptedAt.getTime() <
       dueAfterMinutes * 60 * 1000
       ? 'backoff'
@@ -1745,6 +1756,14 @@ export class SalesReportsService implements OnApplicationBootstrap {
         context,
         orderCode ?? '',
       );
+      if (isSalesReportErpPendingPaymentStatus(erpOrder.erpPaymentStatus)) {
+        this.logger.warn(
+          `Sales report create blocked by pending payment: user=${this.safeUserLabel(user)} entrySource=${entrySource} ${this.orderLogPart(orderCode)}`,
+        );
+        throw new BadRequestException(
+          'Đơn chưa thanh toán, vui lòng vào spos bấm Thanh toán lại hoặc Hủy đơn.',
+        );
+      }
       await this.attachCategoryTypes(erpOrder);
     }
     let reportOwnerContext = context;

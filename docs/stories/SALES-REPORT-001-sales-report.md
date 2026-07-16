@@ -48,6 +48,10 @@ nằm rời ở Google Form và có thể dùng cho dashboard sau này.
   báo cáo/đã báo cáo và không tính vào KPI.
 - Form `Mua hàng` yêu cầu nhập hoặc quét QR/barcode mã đơn và check ERP trước
   khi nhập/gửi báo cáo; sau khi check có thể bấm `Kiểm tra đơn khác` để đổi đơn.
+- Nếu chi tiết ERP sau lần check do user chủ động vẫn có `paymentStatus` thuộc
+  nhóm chưa thanh toán, form phải khóa nút `Gửi báo cáo`, cuộn phần thân modal
+  về đầu và hiện toast `Đơn chưa thanh toán, vui lòng vào spos bấm Thanh toán
+  lại hoặc Hủy đơn.` Không tạo báo cáo cho đến khi đơn được thanh toán hoặc hủy.
 - Nếu ERP trả `confirmationStatus` hoặc `fulfillmentStatus` là `cancelled`
   không phân biệt hoa/thường, app báo `Đơn đã bị hủy.` và không load thông tin
   đơn hàng vào form.
@@ -76,17 +80,19 @@ nằm rời ở Google Form và có thể dùng cho dashboard sau này.
   `Học sinh - Sinh viên` từ `priceSummary[].tags` bắt đầu `PVHSSV`, và fill
   `CTKM khác` nếu không khớp. Hai nhóm đặc biệt đồng thời ép loại khách về
   `Cá nhân` + cờ `Học sinh - Sinh viên`.
-- Backend re-check ERP khi submit và chặn duplicate `orderCode`.
+- Backend re-check ERP khi submit, chặn đơn chưa thanh toán bằng cùng thông báo
+  hướng dẫn SPOS và chặn duplicate `orderCode`.
 - Check/submit lưu trạng thái vòng đời ERP và dữ liệu hoàn trả. Pending được
   giữ trong tiến độ nhưng chưa tính doanh số; đơn 0 VND, hủy/trả toàn bộ bị
   loại; trả một phần trừ giá trị trả trước khi bỏ VAT 8%.
 - Backend rà trạng thái mỗi 5 phút, mặc định tối đa 80 đơn với concurrency 2:
-  rà cả pending trong cache chưa báo cáo và pending đã báo cáo, vẫn dành quota
-  cho đơn completed để bắt hoàn trả muộn. Mỗi ngày Việt Nam, background gọi tối
-  đa 5 lần/đơn pending và 1 lần/đơn completed; completed quá 10 ngày từ ngày
-  bán không gọi lại. Pending chuyển completed ở lượt nào thì lượt đó đã dùng
-  quota completed trong ngày. Redis lease ngăn nhiều replica chạy trùng; quota
-  theo showroom và backoff pending mặc định 5 phút giúp tránh dồn tải lên ERP.
+  rà cả pending trong cache chưa báo cáo và pending đã báo cáo, ưu tiên ngày bán
+  gần nhất đến ngày xa nhất trong từng nhóm, đồng thời vẫn dành quota cho đơn
+  completed để bắt hoàn trả muộn. Mỗi ngày Việt Nam, background gọi tối đa 3
+  lần/đơn pending với khoảng cách ít nhất 60 phút; completed chỉ gọi lại sau 2
+  ngày và quá 10 ngày từ ngày bán thì không gọi lại. Pending chuyển completed ở
+  lượt nào thì lượt đó mở đầu chu kỳ kiểm tra completed 2 ngày. Redis lease ngăn
+  nhiều replica chạy trùng; quota theo showroom giúp tránh dồn tải lên ERP.
   Check/submit do user chủ động không bị quota background chặn và luôn persist
   trạng thái hủy/trả/hoàn thành mới nhất từ ERP.
 - Form `Chưa mua hàng` không gọi ERP, bắt buộc ngành hàng và lý do chưa mua.

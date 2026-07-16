@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:phongvu_opshub/app/navigation/app_router.dart';
+import 'package:phongvu_opshub/app/widgets/app_buttons.dart';
 import 'package:phongvu_opshub/app/widgets/app_combobox.dart';
 import 'helpers/legacy_widget_finders.dart';
 import 'package:go_router/go_router.dart';
@@ -403,6 +404,74 @@ void main() {
     await tester.drag(dialogScroll, const Offset(0, -700));
     await tester.pumpAndSettle();
     expect(tester.getTopLeft(header).dy, headerTop);
+  });
+
+  testWidgets('Báo cáo blocks unpaid order submission and returns modal to top', (
+    tester,
+  ) async {
+    final repository = _FakeSalesReportRepository(
+      orderCheckOverrides: const {
+        'order': {'paymentStatus': 'pending_payment'},
+      },
+    );
+
+    final authProvider = _FakeAuthProvider(
+      const User(
+        id: 'user-1',
+        email: 'sale@phongvu.vn',
+        role: 'USER',
+        organizationNodeId: 'org-store-cp01',
+        featureAccess: {'SALES_REPORT': true},
+      ),
+    );
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider<AuthProvider>.value(value: authProvider),
+          ChangeNotifierProvider<SalesReportProvider>(
+            create: (_) => SalesReportProvider(repository),
+          ),
+        ],
+        child: const MaterialApp(
+          home: Scaffold(
+            body: SalesReportFormScreen.purchased(),
+          ),
+        ),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      _textFormFieldByParentKey('sales-report-order-code-field'),
+      '2607010002',
+    );
+    final scrollable = find.byType(Scrollable).first;
+    final position = tester.state<ScrollableState>(scrollable).position;
+    position.jumpTo(position.maxScrollExtent);
+
+    final checkButton = tester.widget<AppSecondaryButton>(
+      find.widgetWithText(AppSecondaryButton, 'Kiểm tra đơn hàng'),
+    );
+    checkButton.onPressed!.call();
+    await tester.pump(const Duration(seconds: 1));
+    await tester.pump();
+
+    expect(
+      find.text(
+        'Đơn chưa thanh toán, vui lòng vào spos bấm Thanh toán lại hoặc Hủy đơn.',
+      ),
+      findsOneWidget,
+    );
+    expect(position.pixels, 0);
+    expect(
+      tester
+          .widget<AppPrimaryButton>(
+            find.widgetWithText(AppPrimaryButton, 'Gửi báo cáo'),
+          )
+          .onPressed,
+      isNull,
+    );
+    expect(repository.createCalled, isFalse);
   });
 
   testWidgets('Báo cáo hub omits duplicate export and list actions', (
