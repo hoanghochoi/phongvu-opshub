@@ -59,6 +59,55 @@ describe('AuthContextService', () => {
     expect(redis.setJsonWithTtl).toHaveBeenCalledTimes(1);
   });
 
+  it('hydrates from PostgreSQL when Redis cache and lease commands fail', async () => {
+    const authService = {
+      projectUserData: jest.fn().mockResolvedValue({ firstName: 'An' }),
+    };
+    const featureService = {
+      resolveFeatureAccessMap: jest.fn().mockResolvedValue({ HOME: true }),
+    };
+    const policyService = {
+      resolvePolicyAccessMap: jest.fn().mockResolvedValue({ REPORT: true }),
+    };
+    const redisError = new Error('Redis unavailable');
+    const redis = {
+      getJson: jest.fn().mockRejectedValue(redisError),
+      tryAcquireLease: jest.fn().mockRejectedValue(redisError),
+      releaseLease: jest.fn(),
+      setJsonWithTtl: jest.fn().mockRejectedValue(redisError),
+    };
+    const service = new AuthContextService(
+      authService as any,
+      featureService as any,
+      policyService as any,
+      {
+        user: {
+          findUnique: jest
+            .fn()
+            .mockResolvedValue({ id: 'user-1', organizationAssignments: [] }),
+        },
+      } as any,
+      redis as any,
+    );
+
+    await expect(
+      service.getContext({
+        id: 'user-1',
+        email: 'staff@phongvu.vn',
+        tokenVersion: 0,
+        accessVersion: 0,
+        authSession: { sessionVersion: 1 },
+      }),
+    ).resolves.toMatchObject({
+      profile: { firstName: 'An' },
+      featureAccess: { HOME: true },
+      policyAccess: { REPORT: true },
+    });
+    expect(redis.tryAcquireLease).toHaveBeenCalledTimes(1);
+    expect(redis.setJsonWithTtl).toHaveBeenCalledTimes(1);
+    expect(redis.releaseLease).not.toHaveBeenCalled();
+  });
+
   it('returns a stable ETag for the version tuple and projection identity', () => {
     const service = new AuthContextService(
       {} as any,

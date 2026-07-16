@@ -189,12 +189,20 @@ export class AuthContextService {
     const leaseKey =
       AUTH_CONTEXT_LEASE_PREFIX + key.slice(AUTH_CONTEXT_KEY_PREFIX.length);
     let leaseToken: string | null = null;
+    let leaseUnavailable = false;
     try {
-      leaseToken = await this.redis.tryAcquireLease(
-        leaseKey,
-        AUTH_CONTEXT_LEASE_TTL_MS,
-      );
-      if (!leaseToken) {
+      try {
+        leaseToken = await this.redis.tryAcquireLease(
+          leaseKey,
+          AUTH_CONTEXT_LEASE_TTL_MS,
+        );
+      } catch (error) {
+        leaseUnavailable = true;
+        this.logger.warn(
+          `Auth context lease unavailable; hydrating locally: userId=${version.userId} key=${label} error=${safeLogError(error)}`,
+        );
+      }
+      if (!leaseToken && !leaseUnavailable) {
         for (let attempt = 0; attempt < 5; attempt += 1) {
           await new Promise((resolve) => setTimeout(resolve, 25));
           const retry = await this.redisJson<AuthContext>(key);
