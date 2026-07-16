@@ -9,9 +9,11 @@ describe('HomeSummaryProjectionService', () => {
       },
       homeSummaryProjectionQueue: {
         updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+        findMany: jest.fn().mockResolvedValue([]),
       },
       homeSummaryProjectionState: {
         updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+        findMany: jest.fn().mockResolvedValue([]),
       },
       $transaction: jest.fn(async (input: unknown) => {
         if (Array.isArray(input)) return Promise.all(input);
@@ -21,7 +23,7 @@ describe('HomeSummaryProjectionService', () => {
     };
     const homeSummary = {
       rebuildProjectionDate: jest.fn().mockResolvedValue(new Date()),
-      clearSummaryResponseCache: jest.fn(),
+      invalidateSummaryResponseCache: jest.fn(),
     };
     const redis = {
       publishMessageOrThrow: jest.fn().mockResolvedValue(undefined),
@@ -52,8 +54,14 @@ describe('HomeSummaryProjectionService', () => {
     const published = await (service as any).publishPendingEvents();
 
     expect(published).toBe(1);
-    expect(homeSummary.clearSummaryResponseCache).toHaveBeenCalledWith(
-      'projection_event',
+    expect(homeSummary.invalidateSummaryResponseCache).toHaveBeenCalledWith(
+      [
+        {
+          affectedDates: ['2026-07-14'],
+          projectionVersion: 42,
+        },
+      ],
+      'projection_event_batch',
     );
     expect(redis.publishMessageOrThrow).toHaveBeenCalledWith(
       'HOME_SUMMARY_UPDATED',
@@ -183,6 +191,101 @@ describe('HomeSummaryProjectionService', () => {
     expect(prisma.$executeRaw).toHaveBeenCalledTimes(7);
     expect((service as any).runCycle).toHaveBeenCalledWith(
       'reconciliation_recent_7d_hourly',
+    );
+  });
+
+  it('skips the minute reconciliation when today is already complete and unchanged', async () => {
+    const { service, prisma } = createHarness();
+    jest.spyOn(service as any, 'runCycle').mockResolvedValue(undefined);
+    const generatedAt = new Date('2026-07-16T02:00:00.000Z');
+    prisma.homeSummaryProjectionState.findMany.mockResolvedValue([
+      {
+        summaryDate: new Date('2026-07-16T00:00:00.000Z'),
+        status: 'COMPLETE',
+        sourceUpdatedAt: new Date('2026-07-16T01:59:59.000Z'),
+        generatedAt,
+      },
+    ]);
+
+    jest.spyOn(service as any, 'vietnamDateKey').mockReturnValue('2026-07-16');
+    await (service as any).enqueueReconciliationDates(1, 'today_1m', false);
+
+    expect(prisma.$executeRaw).not.toHaveBeenCalled();
+    expect((service as any).runCycle).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    {
+      label: 'the source watermark is missing',
+      status: 'COMPLETE',
+      sourceUpdatedAt: null,
+      generatedAt: new Date('2026-07-16T02:00:00.000Z'),
+    },
+    {
+      label: 'the source is newer than the projection',
+      status: 'COMPLETE',
+      sourceUpdatedAt: new Date('2026-07-16T02:00:01.000Z'),
+      generatedAt: new Date('2026-07-16T02:00:00.000Z'),
+    },
+    {
+      label: 'the projection is incomplete without a queue row',
+      status: 'ERROR',
+      sourceUpdatedAt: new Date('2026-07-16T01:59:59.000Z'),
+      generatedAt: new Date('2026-07-16T02:00:00.000Z'),
+    },
+  ])('repairs minute reconciliation when $label', async (state) => {
+    const { service, prisma } = createHarness();
+    jest.spyOn(service as any, 'runCycle').mockResolvedValue(undefined);
+    prisma.homeSummaryProjectionState.findMany.mockResolvedValue([
+      {
+        summaryDate: new Date('2026-07-16T00:00:00.000Z'),
+        status: state.status,
+        sourceUpdatedAt: state.sourceUpdatedAt,
+        generatedAt: state.generatedAt,
+      },
+    ]);
+
+    jest.spyOn(service as any, 'vietnamDateKey').mockReturnValue('2026-07-16');
+    await (service as any).enqueueReconciliationDates(1, 'today_1m', false);
+
+    expect(prisma.$executeRaw).toHaveBeenCalledTimes(1);
+    expect((service as any).runCycle).toHaveBeenCalledWith(
+      'reconciliation_today_1m',
+    );
+  });
+
+  it('does not reset a minute reconciliation job that is already queued', async () => {
+    const { service, prisma } = createHarness();
+    jest.spyOn(service as any, 'runCycle').mockResolvedValue(undefined);
+    prisma.homeSummaryProjectionState.findMany.mockResolvedValue([
+      {
+        summaryDate: new Date('2026-07-16T00:00:00.000Z'),
+        status: 'PENDING',
+        sourceUpdatedAt: new Date('2026-07-16T02:00:01.000Z'),
+        generatedAt: new Date('2026-07-16T02:00:00.000Z'),
+      },
+    ]);
+    prisma.homeSummaryProjectionQueue.findMany.mockResolvedValue([
+      { summaryDate: new Date('2026-07-16T00:00:00.000Z') },
+    ]);
+
+    jest.spyOn(service as any, 'vietnamDateKey').mockReturnValue('2026-07-16');
+    await (service as any).enqueueReconciliationDates(1, 'today_1m', false);
+
+    expect(prisma.$executeRaw).not.toHaveBeenCalled();
+    expect((service as any).runCycle).not.toHaveBeenCalled();
+  });
+
+  it('repairs a missing minute projection state', async () => {
+    const { service, prisma } = createHarness();
+    jest.spyOn(service as any, 'runCycle').mockResolvedValue(undefined);
+    jest.spyOn(service as any, 'vietnamDateKey').mockReturnValue('2026-07-16');
+
+    await (service as any).enqueueReconciliationDates(1, 'today_1m', false);
+
+    expect(prisma.$executeRaw).toHaveBeenCalledTimes(1);
+    expect((service as any).runCycle).toHaveBeenCalledWith(
+      'reconciliation_today_1m',
     );
   });
 });

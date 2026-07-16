@@ -6,6 +6,7 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { createHash } from 'crypto';
 import { FEATURE_KEYS } from '../feature/feature.constants';
 import { FeatureService } from '../feature/feature.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -13,7 +14,7 @@ import {
   organizationNodeStoreTreeInclude,
   storesForOrganizationNodeTree,
 } from '../common/organization-store-scope';
-import { logFingerprint } from '../common/log-sanitizer';
+import { logFingerprint, safeLogError } from '../common/log-sanitizer';
 import {
   SalesReportOperatingSummary,
   SalesReportSummaryScopeDescriptor,
@@ -31,6 +32,8 @@ const COVERAGE_LABEL = 'Tỉ lệ báo cáo';
 const DEFAULT_HOME_SUMMARY_RANGE_DAYS = 30;
 const DEFAULT_HOME_SUMMARY_DETAIL_LIMIT = 200;
 const HOME_SUMMARY_RESPONSE_CACHE_TTL_MS = 60_000;
+const HOME_SUMMARY_RESPONSE_REFRESH_AHEAD_MIN_MS = 30_000;
+const HOME_SUMMARY_RESPONSE_REFRESH_AHEAD_SPREAD_MS = 20_000;
 const MAX_HOME_SUMMARY_RESPONSE_CACHE_ENTRIES = 1000;
 const HOME_SUMMARY_SCOPE_OPTIONS_CACHE_TTL_MS = 60_000;
 const MAX_HOME_SUMMARY_SCOPE_OPTIONS_CACHE_ENTRIES = 1000;
@@ -130,7 +133,30 @@ type HomeSummaryFreshnessResponse = {
 
 type HomeSummaryResponseCacheEntry = {
   expiresAt: number;
+  refreshAfter: number;
+  refreshAttempted: boolean;
+  startDate: string;
+  endDate: string;
+  projectionVersionsByDate: Map<string, number>;
   response: HomeSummaryResponse;
+};
+
+type HomeSummaryInFlightEntry = {
+  promise: Promise<HomeSummaryResponse>;
+  startDate: string;
+  endDate: string;
+  invalidated: boolean;
+  source: 'miss' | 'refresh_ahead';
+};
+
+export type HomeSummaryProjectionInvalidation = {
+  affectedDates: string[];
+  projectionVersion: number;
+};
+
+type HomeSummaryProjectionSnapshot = {
+  freshness: HomeSummaryFreshnessResponse;
+  versionsByDate: Map<string, number>;
 };
 
 type HomeSummaryScopeOptionsCacheEntry = {
@@ -267,8 +293,13 @@ export class HomeSummaryService {
   >();
   private readonly summaryInFlight = new Map<
     string,
-    Promise<HomeSummaryResponse>
+    HomeSummaryInFlightEntry
   >();
+  private readonly projectionVersionsByResponse = new WeakMap<
+    HomeSummaryResponse,
+    Map<string, number>
+  >();
+  private readonly latestProjectionVersionByDate = new Map<string, number>();
   private readonly scopeOptionsCache = new Map<
     string,
     HomeSummaryScopeOptionsCacheEntry
@@ -301,9 +332,19 @@ export class HomeSummaryService {
     }
     const cacheKey = this.summaryResponseCacheKey(user, query);
     const cacheLabel = logFingerprint(cacheKey);
+    const range = this.parseSummaryRange(query);
     const cached = this.summaryResponseCache.get(cacheKey);
     const now = Date.now();
     if (cached && cached.expiresAt > now) {
+      this.maybeStartSummaryRefreshAhead(
+        cacheKey,
+        cacheLabel,
+        cached,
+        user,
+        query,
+        range,
+        now,
+      );
       this.logger.log(
         `Home summary cache hit: key=${cacheLabel} ttlMs=${cached.expiresAt - now}`,
       );
@@ -314,35 +355,198 @@ export class HomeSummaryService {
       this.logger.log(`Home summary cache expired: key=${cacheLabel}`);
     }
     const pending = this.summaryInFlight.get(cacheKey);
-    if (pending) {
+    if (pending && !pending.invalidated) {
       this.logger.log(`Home summary cache joined in-flight: key=${cacheLabel}`);
-      return pending;
+      return pending.promise;
+    }
+    if (pending?.invalidated) {
+      this.logger.log(
+        `Home summary cache follow-up started: key=${cacheLabel} source=${pending.source}`,
+      );
     }
 
     this.logger.log(`Home summary cache miss: key=${cacheLabel}`);
-    const pendingLoad = this.computeSummary(user, query)
+    return this.startSummaryLoad(
+      cacheKey,
+      cacheLabel,
+      user,
+      query,
+      range,
+      'miss',
+    );
+  }
+
+  invalidateSummaryResponseCache(
+    updates: HomeSummaryProjectionInvalidation[],
+    source = 'projection_event',
+  ) {
+    const changedVersionsByDate = new Map<string, number | null>();
+    let ignoredUpdates = 0;
+    for (const update of updates) {
+      const version = Number(update.projectionVersion);
+      const validVersion = Number.isSafeInteger(version) && version > 0;
+      for (const rawDate of update.affectedDates ?? []) {
+        const date = String(rawDate).trim();
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+          ignoredUpdates += 1;
+          continue;
+        }
+        if (!validVersion) {
+          changedVersionsByDate.set(date, null);
+          continue;
+        }
+        const previous = changedVersionsByDate.get(date);
+        if (
+          previous === null ||
+          (previous !== undefined && version <= previous)
+        ) {
+          ignoredUpdates += 1;
+          continue;
+        }
+        changedVersionsByDate.set(date, version);
+      }
+    }
+    for (const [date, version] of changedVersionsByDate) {
+      if (version === null) continue;
+      const previous = this.latestProjectionVersionByDate.get(date) ?? 0;
+      if (version <= previous) {
+        changedVersionsByDate.delete(date);
+        ignoredUpdates += 1;
+        continue;
+      }
+      this.latestProjectionVersionByDate.set(date, version);
+    }
+
+    let invalidatedCacheEntries = 0;
+    let coveredCacheEntries = 0;
+    for (const [cacheKey, entry] of this.summaryResponseCache.entries()) {
+      if (!this.cacheEntryNeedsInvalidation(entry, changedVersionsByDate)) {
+        if (this.rangeOverlapsDates(entry, changedVersionsByDate.keys())) {
+          coveredCacheEntries += 1;
+        }
+        continue;
+      }
+      this.summaryResponseCache.delete(cacheKey);
+      invalidatedCacheEntries += 1;
+    }
+
+    let invalidatedInFlight = 0;
+    for (const [cacheKey, entry] of this.summaryInFlight) {
+      const cached = this.summaryResponseCache.get(cacheKey);
+      if (
+        entry.invalidated ||
+        (cached &&
+          !this.cacheEntryNeedsInvalidation(cached, changedVersionsByDate)) ||
+        !this.rangeOverlapsDates(entry, changedVersionsByDate.keys())
+      ) {
+        continue;
+      }
+      entry.invalidated = true;
+      invalidatedInFlight += 1;
+    }
+
+    this.logger.log(
+      `Home summary cache invalidated: source=${source} affectedDates=${changedVersionsByDate.size} cacheEntries=${invalidatedCacheEntries} coveredCacheEntries=${coveredCacheEntries} inFlightMarked=${invalidatedInFlight} ignoredUpdates=${ignoredUpdates}`,
+    );
+    return {
+      affectedDates: changedVersionsByDate.size,
+      invalidatedCacheEntries,
+      coveredCacheEntries,
+      invalidatedInFlight,
+      ignoredUpdates,
+    };
+  }
+
+  private maybeStartSummaryRefreshAhead(
+    cacheKey: string,
+    cacheLabel: string,
+    cached: HomeSummaryResponseCacheEntry,
+    user: any,
+    query: GetHomeSummaryQueryDto,
+    range: SummaryDateRange,
+    now: number,
+  ) {
+    if (cached.refreshAttempted || now < cached.refreshAfter) return;
+    cached.refreshAttempted = true;
+    const pending = this.summaryInFlight.get(cacheKey);
+    if (pending && !pending.invalidated) return;
+    this.logger.log(
+      `Home summary cache refresh-ahead started: key=${cacheLabel} ttlMs=${cached.expiresAt - now}`,
+    );
+    void this.startSummaryLoad(
+      cacheKey,
+      cacheLabel,
+      user,
+      query,
+      range,
+      'refresh_ahead',
+    ).catch((error) => {
+      this.logger.warn(
+        `Home summary cache refresh-ahead failed: key=${cacheLabel} error=${safeLogError(error)}`,
+      );
+    });
+  }
+
+  private startSummaryLoad(
+    cacheKey: string,
+    cacheLabel: string,
+    user: any,
+    query: GetHomeSummaryQueryDto,
+    range: SummaryDateRange,
+    source: HomeSummaryInFlightEntry['source'],
+  ) {
+    let inFlight: HomeSummaryInFlightEntry;
+    const promise = this.computeSummary(user, query)
       .then((response) => {
-        this.storeSummaryResponseCache(cacheKey, response);
+        if (inFlight.invalidated) {
+          this.logger.log(
+            `Home summary cache stale store skipped: key=${cacheLabel} source=${source}`,
+          );
+          return response;
+        }
+        this.storeSummaryResponseCache(cacheKey, response, range);
         this.logger.log(
-          `Home summary cache stored: key=${cacheLabel} ttlMs=${HOME_SUMMARY_RESPONSE_CACHE_TTL_MS}`,
+          `Home summary cache stored: key=${cacheLabel} source=${source} ttlMs=${HOME_SUMMARY_RESPONSE_CACHE_TTL_MS}`,
         );
         return response;
       })
       .finally(() => {
-        this.summaryInFlight.delete(cacheKey);
+        if (this.summaryInFlight.get(cacheKey) === inFlight) {
+          this.summaryInFlight.delete(cacheKey);
+        }
       });
-    this.summaryInFlight.set(cacheKey, pendingLoad);
-    return pendingLoad;
+    inFlight = {
+      promise,
+      startDate: range.startDate,
+      endDate: range.endDate,
+      invalidated: false,
+      source,
+    };
+    this.summaryInFlight.set(cacheKey, inFlight);
+    return promise;
   }
 
-  clearSummaryResponseCache(source = 'manual') {
-    const cached = this.summaryResponseCache.size;
-    const inFlight = this.summaryInFlight.size;
-    this.summaryResponseCache.clear();
-    this.summaryInFlight.clear();
-    this.logger.log(
-      `Home summary cache cleared: source=${source} cached=${cached} inFlight=${inFlight}`,
-    );
+  private cacheEntryNeedsInvalidation(
+    entry: HomeSummaryResponseCacheEntry,
+    changes: Map<string, number | null>,
+  ) {
+    for (const [date, version] of changes) {
+      if (date < entry.startDate || date > entry.endDate) continue;
+      if (version === null) return true;
+      const cachedVersion = entry.projectionVersionsByDate.get(date) ?? 0;
+      if (cachedVersion < version) return true;
+    }
+    return false;
+  }
+
+  private rangeOverlapsDates(
+    range: Pick<SummaryDateRange, 'startDate' | 'endDate'>,
+    dates: Iterable<string>,
+  ) {
+    for (const date of dates) {
+      if (date >= range.startDate && date <= range.endDate) return true;
+    }
+    return false;
   }
 
   private async computeSummary(
@@ -409,9 +613,12 @@ export class HomeSummaryService {
 
     let refreshedAt = new Date();
     let freshness: HomeSummaryFreshnessResponse | null = null;
+    let projectionVersionsByDate = new Map<string, number>();
     if (this.projectionEnabled()) {
       try {
-        freshness = await this.loadProjectionFreshness(range);
+        const projection = await this.loadProjectionFreshness(range);
+        freshness = projection.freshness;
+        projectionVersionsByDate = projection.versionsByDate;
         refreshedAt = freshness.projectionGeneratedAt;
       } catch (error) {
         if (!this.legacySyncFallbackEnabled()) throw error;
@@ -617,6 +824,7 @@ export class HomeSummaryService {
       freshness,
       unavailableMessage: null,
     };
+    this.projectionVersionsByResponse.set(response, projectionVersionsByDate);
     this.logger.log(
       `Home summary load succeeded: user=${this.safeUserLabel(user)} startDate=${range.startDate} endDate=${range.endDate} scopeFilter=${requestedScope} scope=${scope.scope} salesMetricsScope=${salesMetricsScope.scope} selectedSalesProgressUserId=${salesProgressBundle.selectedUserId || 'none'} salesProgressAssignees=${salesProgressBundle.assignees.length} salesAvailable=${salesAvailable} financeAvailable=${financeAvailable} totalRevenue=${totalRevenue} completedRevenue=${completedRevenue} pendingRevenue=${pendingRevenue} businessCustomerRevenue=${mainKpis.businessCustomerRevenue} personalCustomerRevenue=${mainKpis.personalCustomerRevenue} installmentNeedCount=${mainKpis.installmentNeedCount} successfulInstallmentCount=${mainKpis.successfulInstallmentCount} laptopQuantity=${mainKpis.laptopQuantity} pcQuantity=${mainKpis.pcQuantity} assembledPcQuantity=${mainKpis.assembledPcQuantity} appleQuantity=${mainKpis.appleQuantity} totalOrders=${totalOrders} averageOrderValue=${averageOrderValue} totalReports=${totalReports} reportedOrders=${reportedOrders} notPurchasedReports=${notPurchasedReports} consultedYes=${behaviorYesCounts.consultedSolution} experiencedYes=${behaviorYesCounts.experienced} zaloYes=${behaviorYesCounts.zalo} appDownloadYes=${behaviorYesCounts.appDownload} totalStatements=${totalStatements} statementsWithOrder=${totalStatementsWithOrder} projectionVersion=${freshness?.projectionVersion ?? 'legacy'} projectionLagSeconds=${freshness?.projectionLagSeconds ?? 'legacy'} isStale=${freshness?.isStale ?? false} durationMs=${Date.now() - startedAt}`,
     );
@@ -2487,7 +2695,7 @@ export class HomeSummaryService {
 
   private async loadProjectionFreshness(
     range: SummaryDateRange,
-  ): Promise<HomeSummaryFreshnessResponse> {
+  ): Promise<HomeSummaryProjectionSnapshot> {
     const startDate = this.dateOnlyUtc(range.startDate);
     const endDate = this.dateOnlyUtc(range.endDate);
     const states = await this.prisma.homeSummaryProjectionState.findMany({
@@ -2550,11 +2758,19 @@ export class HomeSummaryService {
       }
     }
     return {
-      projectionGeneratedAt,
-      projectionLagSeconds,
-      projectionVersion,
-      sourceUpdatedAtBySource,
-      isStale,
+      freshness: {
+        projectionGeneratedAt,
+        projectionLagSeconds,
+        projectionVersion,
+        sourceUpdatedAtBySource,
+        isStale,
+      },
+      versionsByDate: new Map(
+        expectedDates.map((date) => [
+          date,
+          Number(stateByDate.get(date)!.projectionVersion),
+        ]),
+      ),
     };
   }
 
@@ -2610,20 +2826,22 @@ export class HomeSummaryService {
       this.optionalText(user?.email, 160) ||
       this.optionalText(user?.personnelCode, 80) ||
       'anonymous';
-    return [
-      'v1',
-      logFingerprint(userKey),
+    const canonicalKey = JSON.stringify([
+      'v3',
+      userKey,
       range.startDate,
       range.endDate,
       this.parseScopeParam(query.scope),
       this.optionalText(query.organizationNodeId, 80) || '',
       this.optionalText(query.salesProgressUserId, 80) || '',
-    ].join('|');
+    ]);
+    return `v3:${createHash('sha256').update(canonicalKey).digest('hex')}`;
   }
 
   private storeSummaryResponseCache(
     cacheKey: string,
     response: HomeSummaryResponse,
+    range: Pick<SummaryDateRange, 'startDate' | 'endDate'>,
   ) {
     while (
       this.summaryResponseCache.size >= MAX_HOME_SUMMARY_RESPONSE_CACHE_ENTRIES
@@ -2632,8 +2850,27 @@ export class HomeSummaryService {
       if (!oldestKey) break;
       this.summaryResponseCache.delete(oldestKey);
     }
+    const storedAt = Date.now();
+    const refreshSpread =
+      Number.parseInt(logFingerprint(cacheKey).slice(0, 8), 16) %
+      HOME_SUMMARY_RESPONSE_REFRESH_AHEAD_SPREAD_MS;
+    const responseVersions = this.projectionVersionsByResponse.get(response);
+    const fallbackVersion = response.freshness?.projectionVersion ?? 0;
+    const projectionVersionsByDate = new Map<string, number>();
+    for (const date of this.rangeDateKeys(range.startDate, range.endDate)) {
+      projectionVersionsByDate.set(
+        date,
+        responseVersions?.get(date) ?? fallbackVersion,
+      );
+    }
     this.summaryResponseCache.set(cacheKey, {
-      expiresAt: Date.now() + HOME_SUMMARY_RESPONSE_CACHE_TTL_MS,
+      expiresAt: storedAt + HOME_SUMMARY_RESPONSE_CACHE_TTL_MS,
+      refreshAfter:
+        storedAt + HOME_SUMMARY_RESPONSE_REFRESH_AHEAD_MIN_MS + refreshSpread,
+      refreshAttempted: false,
+      startDate: range.startDate,
+      endDate: range.endDate,
+      projectionVersionsByDate,
       response,
     });
   }
@@ -2663,7 +2900,8 @@ export class HomeSummaryService {
     response: HomeSummaryScopeOptionResponse[],
   ) {
     while (
-      this.scopeOptionsCache.size >= MAX_HOME_SUMMARY_SCOPE_OPTIONS_CACHE_ENTRIES
+      this.scopeOptionsCache.size >=
+      MAX_HOME_SUMMARY_SCOPE_OPTIONS_CACHE_ENTRIES
     ) {
       const oldestKey = this.scopeOptionsCache.keys().next().value;
       if (!oldestKey) break;

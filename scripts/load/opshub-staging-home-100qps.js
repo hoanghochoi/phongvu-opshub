@@ -3,7 +3,7 @@ import ws from "k6/ws";
 import { check, sleep } from "k6";
 import exec from "k6/execution";
 import { SharedArray } from "k6/data";
-import { Counter, Rate } from "k6/metrics";
+import { Counter, Rate, Trend } from "k6/metrics";
 
 const REQUIRED_BASE_URL = "https://opshub-staging.hoanghochoi.com/api";
 const REQUIRED_WS_URL = "wss://opshub-staging.hoanghochoi.com/ws/v2";
@@ -68,6 +68,7 @@ const wsConnectionAttempts = new Counter("opshub_ws_connection_attempts");
 const wsConnectSuccess = new Rate("opshub_ws_connect_success");
 const wsSessionHeld = new Rate("opshub_ws_session_held");
 const wsInvalidEnvelope = new Counter("opshub_ws_invalid_envelope");
+const homeSummaryDuration = new Trend("opshub_home_summary_duration", true);
 
 export const options = {
   discardResponseBodies: true,
@@ -102,7 +103,7 @@ export const options = {
       maxVUs: 300,
       gracefulStop: "30s",
     },
-    capacity_ramp_hold: {
+    capacity_ramp_to_100_qps: {
       executor: "ramping-arrival-rate",
       exec: "capacityHttp",
       startTime: "5m30s",
@@ -110,11 +111,29 @@ export const options = {
       timeUnit: "1s",
       preAllocatedVUs: 100,
       maxVUs: 500,
-      stages: [
-        { target: 100, duration: "3m" },
-        { target: 100, duration: "15m" },
-        { target: 0, duration: "2m" },
-      ],
+      stages: [{ target: 100, duration: "3m" }],
+      gracefulStop: "30s",
+    },
+    capacity_100_qps_hold: {
+      executor: "constant-arrival-rate",
+      exec: "capacityHttp",
+      startTime: "8m30s",
+      rate: 100,
+      timeUnit: "1s",
+      duration: "15m",
+      preAllocatedVUs: 200,
+      maxVUs: 500,
+      gracefulStop: "30s",
+    },
+    capacity_ramp_down: {
+      executor: "ramping-arrival-rate",
+      exec: "capacityHttp",
+      startTime: "23m30s",
+      startRate: 100,
+      timeUnit: "1s",
+      preAllocatedVUs: 100,
+      maxVUs: 500,
+      stages: [{ target: 0, duration: "2m" }],
       gracefulStop: "30s",
     },
     realtime_v2: {
@@ -131,6 +150,39 @@ export const options = {
     opshub_http_success: ["rate>=0.999"],
     opshub_http_5xx_or_timeout: ["rate<=0.001"],
     opshub_unexpected_429: ["count==0"],
+    opshub_home_summary_duration: ["p(95)<=500", "p(99)<=1000"],
+    "opshub_home_summary_duration{range:home_1d}": [
+      "p(95)<=500",
+      "p(99)<=1000",
+    ],
+    "opshub_home_summary_duration{range:home_7d}": [
+      "p(95)<=500",
+      "p(99)<=1000",
+    ],
+    "opshub_home_summary_duration{range:home_30d}": [
+      "p(95)<=500",
+      "p(99)<=1000",
+    ],
+    "opshub_home_summary_duration{range:home_90d}": [
+      "p(95)<=500",
+      "p(99)<=1000",
+    ],
+    "opshub_home_summary_duration{phase:capacity_100_qps_hold}": [
+      "p(95)<=500",
+      "p(99)<=1000",
+    ],
+    "opshub_home_summary_duration{phase:capacity_100_qps_hold,range:home_1d}": [
+      "p(95)<=500",
+      "p(99)<=1000",
+    ],
+    "opshub_home_summary_duration{phase:capacity_100_qps_hold,range:home_7d}": [
+      "p(95)<=500",
+      "p(99)<=1000",
+    ],
+    "opshub_home_summary_duration{phase:capacity_100_qps_hold,range:home_30d}":
+      ["p(95)<=500", "p(99)<=1000"],
+    "opshub_home_summary_duration{phase:capacity_100_qps_hold,range:home_90d}":
+      ["p(95)<=500", "p(99)<=1000"],
     "http_req_duration{scenario:capacity_smoke}": ["p(95)<=500", "p(99)<=1000"],
     "http_req_duration{scenario:capacity_25_qps}": [
       "p(95)<=500",
@@ -140,14 +192,24 @@ export const options = {
       "p(95)<=500",
       "p(99)<=1000",
     ],
-    "http_req_duration{scenario:capacity_ramp_hold}": [
+    "http_req_duration{scenario:capacity_ramp_to_100_qps}": [
+      "p(95)<=500",
+      "p(99)<=1000",
+    ],
+    "http_req_duration{scenario:capacity_100_qps_hold}": [
+      "p(95)<=500",
+      "p(99)<=1000",
+    ],
+    "http_req_duration{scenario:capacity_ramp_down}": [
       "p(95)<=500",
       "p(99)<=1000",
     ],
     "http_req_duration{scenario:realtime_v2}": ["p(95)<=500", "p(99)<=1000"],
     "dropped_iterations{scenario:capacity_25_qps}": ["count==0"],
     "dropped_iterations{scenario:capacity_50_qps}": ["count==0"],
-    "dropped_iterations{scenario:capacity_ramp_hold}": ["count==0"],
+    "dropped_iterations{scenario:capacity_ramp_to_100_qps}": ["count==0"],
+    "dropped_iterations{scenario:capacity_100_qps_hold}": ["count==0"],
+    "dropped_iterations{scenario:capacity_ramp_down}": ["count==0"],
     opshub_ws_ticket_attempts: ["count==60"],
     opshub_ws_connection_attempts: ["count==60"],
     opshub_ws_connect_success: ["rate>=0.999"],
@@ -201,6 +263,17 @@ export function capacityHttp() {
   });
   const succeeded = response.status === 200;
   const transportFailure = response.status === 0 || response.status >= 500;
+  if (
+    route.name === "home_1d" ||
+    route.name === "home_7d" ||
+    route.name === "home_30d" ||
+    route.name === "home_90d"
+  ) {
+    homeSummaryDuration.add(response.timings.duration, {
+      phase: exec.scenario.name,
+      range: route.name,
+    });
+  }
   httpSuccess.add(succeeded);
   http5xxOrTimeout.add(transportFailure);
   if (response.status === 429) unexpected429.add(1);

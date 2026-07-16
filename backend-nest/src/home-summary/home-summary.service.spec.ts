@@ -247,6 +247,263 @@ describe('HomeSummaryService', () => {
     }
   });
 
+  it('uses a full canonical SHA-256 cache key without retaining the raw principal', () => {
+    const { service } = createHarness();
+    const key = (service as any).summaryResponseCacheKey(
+      { email: 'staff@phongvu.vn' },
+      { startDate: '2026-07-04', endDate: '2026-07-04' },
+    );
+
+    expect(key).toMatch(/^v3:[a-f0-9]{64}$/);
+    expect(key).not.toContain('staff@phongvu.vn');
+  });
+
+  it('invalidates only overlapping summary ranges and ignores duplicate projection versions', async () => {
+    const previousCacheFlag = process.env.HOME_SUMMARY_RESPONSE_CACHE_ENABLED;
+    process.env.HOME_SUMMARY_RESPONSE_CACHE_ENABLED = 'true';
+    try {
+      const { service } = createHarness();
+      const user = { id: 'user-1', email: 'staff@phongvu.vn' };
+      const query = { startDate: '2026-07-04', endDate: '2026-07-04' };
+      const firstResponse = { freshness: { projectionVersion: 40 } } as any;
+      const currentResponse = { freshness: { projectionVersion: 42 } } as any;
+      jest
+        .spyOn(service as any, 'computeSummary')
+        .mockResolvedValueOnce(firstResponse)
+        .mockResolvedValueOnce(currentResponse);
+
+      await service.getSummary(user, query);
+      service.invalidateSummaryResponseCache([
+        { affectedDates: ['2026-07-05'], projectionVersion: 41 },
+      ]);
+      await service.getSummary(user, query);
+      expect((service as any).computeSummary).toHaveBeenCalledTimes(1);
+
+      service.invalidateSummaryResponseCache([
+        { affectedDates: ['2026-07-04'], projectionVersion: 42 },
+      ]);
+      await service.getSummary(user, query);
+      expect((service as any).computeSummary).toHaveBeenCalledTimes(2);
+
+      const duplicate = service.invalidateSummaryResponseCache([
+        { affectedDates: ['2026-07-04'], projectionVersion: 42 },
+      ]);
+      await service.getSummary(user, query);
+      expect(duplicate.affectedDates).toBe(0);
+      expect(duplicate.invalidatedCacheEntries).toBe(0);
+      expect(duplicate.ignoredUpdates).toBe(1);
+      expect((service as any).computeSummary).toHaveBeenCalledTimes(2);
+    } finally {
+      if (previousCacheFlag === undefined) {
+        delete process.env.HOME_SUMMARY_RESPONSE_CACHE_ENABLED;
+      } else {
+        process.env.HOME_SUMMARY_RESPONSE_CACHE_ENABLED = previousCacheFlag;
+      }
+    }
+  });
+
+  it('compares projection versions per date instead of using only the range maximum', async () => {
+    const previousCacheFlag = process.env.HOME_SUMMARY_RESPONSE_CACHE_ENABLED;
+    process.env.HOME_SUMMARY_RESPONSE_CACHE_ENABLED = 'true';
+    try {
+      const { service } = createHarness();
+      const user = { id: 'user-1', email: 'staff@phongvu.vn' };
+      const query = { startDate: '2026-07-04', endDate: '2026-07-05' };
+      const staleForFirstDate = {
+        freshness: { projectionVersion: 100 },
+      } as any;
+      const current = { freshness: { projectionVersion: 101 } } as any;
+      (service as any).projectionVersionsByResponse.set(
+        staleForFirstDate,
+        new Map([
+          ['2026-07-04', 10],
+          ['2026-07-05', 100],
+        ]),
+      );
+      jest
+        .spyOn(service as any, 'computeSummary')
+        .mockResolvedValueOnce(staleForFirstDate)
+        .mockResolvedValueOnce(current);
+
+      await service.getSummary(user, query);
+      const invalidation = service.invalidateSummaryResponseCache([
+        { affectedDates: ['2026-07-04'], projectionVersion: 11 },
+      ]);
+      await expect(service.getSummary(user, query)).resolves.toBe(current);
+
+      expect(invalidation.invalidatedCacheEntries).toBe(1);
+      expect((service as any).computeSummary).toHaveBeenCalledTimes(2);
+    } finally {
+      if (previousCacheFlag === undefined) {
+        delete process.env.HOME_SUMMARY_RESPONSE_CACHE_ENABLED;
+      } else {
+        process.env.HOME_SUMMARY_RESPONSE_CACHE_ENABLED = previousCacheFlag;
+      }
+    }
+  });
+
+  it('keeps a cache computed from a newer projection when an older outbox event arrives', async () => {
+    const previousCacheFlag = process.env.HOME_SUMMARY_RESPONSE_CACHE_ENABLED;
+    process.env.HOME_SUMMARY_RESPONSE_CACHE_ENABLED = 'true';
+    try {
+      const { service } = createHarness();
+      const user = { id: 'user-1', email: 'staff@phongvu.vn' };
+      const query = { startDate: '2026-07-04', endDate: '2026-07-04' };
+      const current = { freshness: { projectionVersion: 50 } } as any;
+      jest.spyOn(service as any, 'computeSummary').mockResolvedValue(current);
+
+      await service.getSummary(user, query);
+      const staleEvent = service.invalidateSummaryResponseCache([
+        { affectedDates: ['2026-07-04'], projectionVersion: 49 },
+      ]);
+      await expect(service.getSummary(user, query)).resolves.toBe(current);
+
+      expect(staleEvent.invalidatedCacheEntries).toBe(0);
+      expect(staleEvent.coveredCacheEntries).toBe(1);
+      expect((service as any).computeSummary).toHaveBeenCalledTimes(1);
+    } finally {
+      if (previousCacheFlag === undefined) {
+        delete process.env.HOME_SUMMARY_RESPONSE_CACHE_ENABLED;
+      } else {
+        process.env.HOME_SUMMARY_RESPONSE_CACHE_ENABLED = previousCacheFlag;
+      }
+    }
+  });
+
+  it('keeps a newer in-flight generation when an invalidated load completes late', async () => {
+    const previousCacheFlag = process.env.HOME_SUMMARY_RESPONSE_CACHE_ENABLED;
+    process.env.HOME_SUMMARY_RESPONSE_CACHE_ENABLED = 'true';
+    try {
+      const { service } = createHarness();
+      const user = { id: 'user-1', email: 'staff@phongvu.vn' };
+      const query = { startDate: '2026-07-04', endDate: '2026-07-04' };
+      const oldResponse = { freshness: { projectionVersion: 41 } } as any;
+      const newResponse = { freshness: { projectionVersion: 42 } } as any;
+      let resolveOld!: (value: any) => void;
+      let resolveNew!: (value: any) => void;
+      const oldLoad = new Promise<any>((resolve) => {
+        resolveOld = resolve;
+      });
+      const newLoad = new Promise<any>((resolve) => {
+        resolveNew = resolve;
+      });
+      jest
+        .spyOn(service as any, 'computeSummary')
+        .mockReturnValueOnce(oldLoad)
+        .mockReturnValueOnce(newLoad);
+
+      const first = service.getSummary(user, query);
+      service.invalidateSummaryResponseCache([
+        { affectedDates: ['2026-07-04'], projectionVersion: 42 },
+      ]);
+      const second = service.getSummary(user, query);
+
+      resolveOld(oldResponse);
+      await expect(first).resolves.toBe(oldResponse);
+      expect((service as any).summaryInFlight.size).toBe(1);
+
+      resolveNew(newResponse);
+      await expect(second).resolves.toBe(newResponse);
+      await expect(service.getSummary(user, query)).resolves.toBe(newResponse);
+      expect((service as any).computeSummary).toHaveBeenCalledTimes(2);
+    } finally {
+      if (previousCacheFlag === undefined) {
+        delete process.env.HOME_SUMMARY_RESPONSE_CACHE_ENABLED;
+      } else {
+        process.env.HOME_SUMMARY_RESPONSE_CACHE_ENABLED = previousCacheFlag;
+      }
+    }
+  });
+
+  it('refreshes hot summary keys ahead of the hard TTL without blocking the hit', async () => {
+    const previousCacheFlag = process.env.HOME_SUMMARY_RESPONSE_CACHE_ENABLED;
+    process.env.HOME_SUMMARY_RESPONSE_CACHE_ENABLED = 'true';
+    const nowSpy = jest.spyOn(Date, 'now').mockReturnValue(1_000_000);
+    try {
+      const { service } = createHarness();
+      const user = { id: 'user-1', email: 'staff@phongvu.vn' };
+      const query = { startDate: '2026-07-04', endDate: '2026-07-04' };
+      const firstResponse = { freshness: { projectionVersion: 41 } } as any;
+      const refreshedResponse = { freshness: { projectionVersion: 41 } } as any;
+      let resolveRefresh!: (value: any) => void;
+      const refreshLoad = new Promise<any>((resolve) => {
+        resolveRefresh = resolve;
+      });
+      jest
+        .spyOn(service as any, 'computeSummary')
+        .mockResolvedValueOnce(firstResponse)
+        .mockReturnValueOnce(refreshLoad);
+
+      await service.getSummary(user, query);
+      nowSpy.mockReturnValue(1_051_000);
+      await expect(service.getSummary(user, query)).resolves.toBe(
+        firstResponse,
+      );
+      expect((service as any).computeSummary).toHaveBeenCalledTimes(2);
+
+      const refreshEntry = Array.from(
+        (service as any).summaryInFlight.values(),
+      )[0] as { promise: Promise<any> };
+      resolveRefresh(refreshedResponse);
+      await refreshEntry.promise;
+
+      await expect(service.getSummary(user, query)).resolves.toBe(
+        refreshedResponse,
+      );
+    } finally {
+      nowSpy.mockRestore();
+      if (previousCacheFlag === undefined) {
+        delete process.env.HOME_SUMMARY_RESPONSE_CACHE_ENABLED;
+      } else {
+        process.env.HOME_SUMMARY_RESPONSE_CACHE_ENABLED = previousCacheFlag;
+      }
+    }
+  });
+
+  it('keeps the original hard expiry when refresh-ahead fails', async () => {
+    const previousCacheFlag = process.env.HOME_SUMMARY_RESPONSE_CACHE_ENABLED;
+    process.env.HOME_SUMMARY_RESPONSE_CACHE_ENABLED = 'true';
+    const nowSpy = jest.spyOn(Date, 'now').mockReturnValue(1_000_000);
+    try {
+      const { service } = createHarness();
+      const user = { id: 'user-1', email: 'staff@phongvu.vn' };
+      const query = { startDate: '2026-07-04', endDate: '2026-07-04' };
+      const firstResponse = { freshness: { projectionVersion: 41 } } as any;
+      const afterExpiryResponse = {
+        freshness: { projectionVersion: 41 },
+      } as any;
+      jest
+        .spyOn(service as any, 'computeSummary')
+        .mockResolvedValueOnce(firstResponse)
+        .mockRejectedValueOnce(new Error('refresh failed'))
+        .mockResolvedValueOnce(afterExpiryResponse);
+
+      await service.getSummary(user, query);
+      nowSpy.mockReturnValue(1_051_000);
+      await expect(service.getSummary(user, query)).resolves.toBe(
+        firstResponse,
+      );
+      await new Promise((resolve) => setImmediate(resolve));
+      const cached = Array.from(
+        (service as any).summaryResponseCache.values(),
+      )[0] as { expiresAt: number };
+      expect(cached.expiresAt).toBe(1_060_000);
+
+      nowSpy.mockReturnValue(1_061_000);
+      await expect(service.getSummary(user, query)).resolves.toBe(
+        afterExpiryResponse,
+      );
+      expect((service as any).computeSummary).toHaveBeenCalledTimes(3);
+    } finally {
+      nowSpy.mockRestore();
+      if (previousCacheFlag === undefined) {
+        delete process.env.HOME_SUMMARY_RESPONSE_CACHE_ENABLED;
+      } else {
+        process.env.HOME_SUMMARY_RESPONSE_CACHE_ENABLED = previousCacheFlag;
+      }
+    }
+  });
+
   it('caches repeated Home scope option loads for the same user for the Home TTL', async () => {
     const { service, salesReports, featureService } = createHarness();
     const user = { id: 'user-1', email: 'staff@phongvu.vn' };

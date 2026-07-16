@@ -78,7 +78,7 @@ export class HomeSummaryProjectionService
   @Interval(60_000)
   async reconcileToday() {
     if (!this.workerEnabled()) return;
-    await this.enqueueReconciliationDates(1, 'today_1m');
+    await this.enqueueReconciliationDates(1, 'today_1m', false);
   }
 
   @Cron('0 0 * * * *')
@@ -491,6 +491,20 @@ export class HomeSummaryProjectionService
       take: OUTBOX_BATCH_SIZE,
     });
     let published = 0;
+    if (events.length > 0) {
+      this.homeSummary.invalidateSummaryResponseCache(
+        events.map((event) => {
+          const payload = event.payload as Record<string, unknown>;
+          return {
+            affectedDates: Array.isArray(payload.affectedDates)
+              ? payload.affectedDates.map(String).slice(0, 366)
+              : [],
+            projectionVersion: Number(payload.projectionVersion),
+          };
+        }),
+        'projection_event_batch',
+      );
+    }
     for (const event of events) {
       const payload = event.payload as Record<string, unknown>;
       const affectedDates = Array.isArray(payload.affectedDates)
@@ -498,7 +512,6 @@ export class HomeSummaryProjectionService
         : [];
       const projectionVersion = Number(payload.projectionVersion);
       try {
-        this.homeSummary.clearSummaryResponseCache('projection_event');
         await this.redis.publishMessageOrThrow(HOME_SUMMARY_UPDATED_CHANNEL, {
           schemaVersion: 2,
           type: HOME_SUMMARY_UPDATED_EVENT,
@@ -539,7 +552,11 @@ export class HomeSummaryProjectionService
     return published;
   }
 
-  private async enqueueReconciliationDates(days: number, source: string) {
+  private async enqueueReconciliationDates(
+    days: number,
+    source: string,
+    force = true,
+  ) {
     const startedAt = Date.now();
     const today = this.vietnamDateKey(new Date());
     const todayUtc = this.dateOnlyUtc(today);
@@ -550,17 +567,68 @@ export class HomeSummaryProjectionService
       dates.push(this.dateKey(date));
     }
     this.logger.log(
-      `Home projection reconciliation started: source=${source} dates=${dates.length}`,
+      `Home projection reconciliation started: source=${source} dates=${dates.length} force=${force}`,
     );
-    for (const dateKey of dates) {
+    let datesToEnqueue = dates;
+    let skippedStable = 0;
+    let skippedQueued = 0;
+    if (!force) {
+      const dateValues = dates.map((date) => this.dateOnlyUtc(date));
+      const [states, queuedRows] = await Promise.all([
+        this.prisma.homeSummaryProjectionState.findMany({
+          where: { summaryDate: { in: dateValues } },
+          select: {
+            summaryDate: true,
+            status: true,
+            sourceUpdatedAt: true,
+            generatedAt: true,
+          },
+        }),
+        this.prisma.homeSummaryProjectionQueue.findMany({
+          where: {
+            summaryDate: { in: dateValues },
+            dimensionType: 'GLOBAL',
+            dimensionKey: '',
+            storeCode: '',
+          },
+          select: { summaryDate: true },
+        }),
+      ]);
+      const stateByDate = new Map(
+        states.map((state) => [this.dateKey(state.summaryDate), state]),
+      );
+      const queuedDates = new Set(
+        queuedRows.map((row) => this.dateKey(row.summaryDate)),
+      );
+      datesToEnqueue = dates.filter((date) => {
+        if (queuedDates.has(date)) {
+          skippedQueued += 1;
+          return false;
+        }
+        const state = stateByDate.get(date);
+        const stable =
+          state?.status === 'COMPLETE' &&
+          state.generatedAt !== null &&
+          state.sourceUpdatedAt !== null &&
+          state.sourceUpdatedAt <= state.generatedAt;
+        if (stable) {
+          skippedStable += 1;
+          return false;
+        }
+        return true;
+      });
+    }
+    for (const dateKey of datesToEnqueue) {
       await this.prisma.$executeRaw(
         Prisma.sql`SELECT opshub_enqueue_home_summary_projection(CAST(${dateKey} AS date), 'RECONCILIATION')`,
       );
     }
     this.logger.log(
-      `Home projection reconciliation succeeded: source=${source} dates=${dates.length} durationMs=${Date.now() - startedAt}`,
+      `Home projection reconciliation succeeded: source=${source} requested=${dates.length} enqueued=${datesToEnqueue.length} skippedStable=${skippedStable} skippedQueued=${skippedQueued} durationMs=${Date.now() - startedAt}`,
     );
-    void this.runCycle(`reconciliation_${source}`);
+    if (datesToEnqueue.length > 0) {
+      void this.runCycle(`reconciliation_${source}`);
+    }
   }
 
   private retrySeconds(attempts: number) {

@@ -84,6 +84,21 @@ Recent focused evidence:
   polling timer. Staging capacity proof uses 70% Home traffic over a verified
   COMPLETE 1/7/30/90-day projection window.
 
+- `HOME-DASHBOARD-003`, 2026-07-16 tail-latency checkpoint: the minute
+  reconciliation skips only an unchanged COMPLETE date with a known source
+  watermark or an existing GLOBAL queue job; forced hourly/nightly windows
+  remain the repair path for a missed source trigger. Projection events
+  invalidate only overlapping response ranges whose exact per-date projection
+  version is older; duplicate/out-of-order outbox delivery is idempotent across
+  cache generations. Invalidated in-flight work cannot repopulate or remove a
+  newer generation. The 60-second hard TTL remains intact while a deterministic
+  30-50 second refresh-ahead window spreads hot-key renewal; failed refreshes
+  keep the original expiry. Focused Jest passed 34/34, full Jest passed 69/69
+  suites and 691/691 tests, and Nest build passed. The k6 proof now gates the
+  isolated 15-minute 100-QPS hold, both overall and per-range 1/7/30/90-day Home
+  latency, instead of relying on a percentile diluted by lighter ramp phases.
+  Active staging proof remains required before promotion.
+
 - `UPDATE-004`/`WINDOWS-DIST-001`, 2026-07-15 release gate: Windows runtime is
   HTTPS same-origin/type/size/SHA-256 only and has no signer build define.
   Release CI still requires PFX/password/pin, valid Authenticode plus timestamp,
