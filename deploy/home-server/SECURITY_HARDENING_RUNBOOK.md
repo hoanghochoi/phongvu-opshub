@@ -186,9 +186,11 @@ hoặc giữ private identity.
 
 ### 7.1 Telemetry tối thiểu cho `/uploads` legacy
 
-- [ ] Chỉ bật named access logger `legacy_uploads`; `no_hostname` bảo đảm request
-  khác không bị ghi. Không bật site-wide access log vì reset/auth URL có thể
-  chứa query nhạy cảm.
+- [ ] Route logger mặc định vào `output discard`; named access logger
+  `legacy_uploads` dùng `no_hostname` và chỉ nhận `/uploads/*`. Việc khai báo
+  named logger vẫn bật access-log handler cấp site, nên không được dựa riêng vào
+  `no_hostname`: reset/auth/ws URL có thể chứa query nhạy cảm nếu rơi về default
+  logger.
 - [ ] Entry phải xóa URI, IP, headers, response headers và user id; chỉ giữ path
   hash, thời gian, method/status/duration/size. Docker log tiếp tục giới hạn
   `10m x 5`.

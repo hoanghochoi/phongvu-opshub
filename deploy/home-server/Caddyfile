@@ -12,10 +12,16 @@
 http://{$OPSHUB_DOMAIN} {
   encode gzip zstd
 
+  # Declaring any named access logger enables Caddy's site-wide access-log
+  # handler. Route unmatched requests to a discard logger so auth/reset/ws
+  # query data never falls through to the default runtime logger.
+  log {
+    output discard
+  }
+
   # Privacy-minimized telemetry for the legacy public upload route only. The
   # path is hashed and request URI/IP/headers are removed before the entry is
-  # written to Docker's already bounded log driver. Do not enable a site-wide
-  # access log: auth/reset routes may legitimately carry sensitive query data.
+  # written to Docker's already bounded log driver.
   log legacy_uploads {
     no_hostname
     output stdout

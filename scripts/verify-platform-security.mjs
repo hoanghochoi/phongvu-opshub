@@ -195,6 +195,7 @@ contains(
   'Caddy HSTS',
 );
 for (const [expected, label] of [
+  ['log {\n    output discard\n  }', 'default access logger discard sink'],
   ['log legacy_uploads {', 'legacy upload named access logger'],
   ['no_hostname', 'legacy upload route-only logger'],
   ['request>uri delete', 'legacy upload query redaction'],
