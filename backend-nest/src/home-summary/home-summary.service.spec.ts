@@ -619,6 +619,86 @@ describe('HomeSummaryService', () => {
     );
   });
 
+  it('keeps pending-payment cache rows for reporting but excludes them from sales KPIs', async () => {
+    const { service, prisma } = createHarness();
+    const pendingOrder = {
+      orderCode: '2607040003',
+      orderCreatedAt: new Date('2026-07-04T06:00:00Z'),
+      fetchedAt: new Date('2026-07-04T06:05:00Z'),
+      storeCode: 'CP75',
+      storeName: 'CP75',
+      organizationNodeId: 'node-cp75',
+      sourceUserId: 'user-1',
+      sourceUserEmail: 'staff@phongvu.vn',
+      consultantCustomId: 'PV001',
+      consultantName: 'Staff',
+      consultantEmail: 'staff@phongvu.vn',
+      sellerId: 'PV001',
+      sellerName: 'Staff',
+      sellerEmail: 'staff@phongvu.vn',
+      paymentStatus: 'PENDING_PAYMENT',
+      grandTotal: 5000000,
+    };
+    const completedRevenueRow = {
+      grandTotal: 12500000,
+      paymentStatus: 'fully_paid',
+      lifecycleStatus: 'COMPLETED',
+      hasReturnedFullItems: false,
+      returnedAfterTaxAmount: 0,
+    };
+    prisma.salesReportErpOrderCache.findMany.mockImplementation(
+      ({ select }: any) =>
+        Promise.resolve(
+          select?.lifecycleStatus
+            ? [
+                completedRevenueRow,
+                {
+                  ...completedRevenueRow,
+                  grandTotal: pendingOrder.grandTotal,
+                  paymentStatus: pendingOrder.paymentStatus,
+                  lifecycleStatus: 'PENDING',
+                },
+              ]
+            : [
+                pendingOrder,
+                {
+                  ...pendingOrder,
+                  orderCode: '2607040001',
+                  paymentStatus: 'fully_paid',
+                  grandTotal: completedRevenueRow.grandTotal,
+                },
+              ],
+        ),
+    );
+    prisma.homeSummaryOrderFact.count.mockReset();
+    prisma.homeSummaryOrderFact.count.mockImplementation(({ where }: any) =>
+      Promise.resolve(
+        JSON.stringify(where).includes('isPaymentPending') ? 1 : 2,
+      ),
+    );
+
+    const result = await service.getSummary(
+      { id: 'user-1', email: 'staff@phongvu.vn' },
+      { date: '2026-07-04' },
+    );
+
+    expect(result.totalRevenue).toBe(12500000);
+    expect(result.totalOrders).toBe(1);
+    expect(prisma.homeSummaryOrderFact.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        create: expect.objectContaining({
+          orderCode: pendingOrder.orderCode,
+          isPaymentPending: true,
+        }),
+      }),
+    );
+    expect(prisma.salesReportErpOrderCache.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ excludedAt: null }),
+      }),
+    );
+  });
+
   it('reads complete projection freshness without rebuilding facts in GET', async () => {
     const previousProjectionFlag = process.env.HOME_SUMMARY_PROJECTION_ENABLED;
     const previousFallbackFlag =

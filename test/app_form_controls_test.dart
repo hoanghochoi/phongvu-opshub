@@ -93,6 +93,36 @@ void main() {
     },
   );
 
+  testWidgets(
+    'AppCombobox is isolated from ancestor SelectionArea ownership',
+    (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SelectionArea(
+              child: AppCombobox<String>.single(
+                label: 'Showroom',
+                value: null,
+                options: const [
+                  AppComboboxOption(value: 'CP01', label: 'Showroom CP01'),
+                ],
+                onChanged: (_) {},
+              ),
+            ),
+          ),
+        ),
+      );
+
+      final editableTextContext = tester.element(find.byType(EditableText));
+      expect(
+        SelectionContainer.maybeOf(editableTextContext),
+        isNull,
+        reason:
+            'The global SelectionArea must not compete with the combobox paste menu.',
+      );
+    },
+  );
+
   testWidgets('AppFormTextInput keeps form validation on shared input', (
     tester,
   ) async {

@@ -130,6 +130,32 @@ export function isSalesReportErpOrderCanceledStatuses(input: {
   );
 }
 
+const ERP_PENDING_PAYMENT_STATUSES = new Set([
+  'PENDING',
+  'PENDING_PAYMENT',
+  'PAYMENT_PENDING',
+  'WAITING_PAYMENT',
+  'WAITING_FOR_PAYMENT',
+  'AWAITING_PAYMENT',
+  'AWAITING_FOR_PAYMENT',
+  'UNPAID',
+  'NOT_PAID',
+]);
+
+/**
+ * ERP keeps payment state separate from the order lifecycle. Pending-payment
+ * rows must remain in the order cache so staff can report them later, but they
+ * are not paid sales for Home KPI totals.
+ */
+export function isSalesReportErpPendingPaymentStatus(value: unknown) {
+  const normalized = String(value ?? '')
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+  return ERP_PENDING_PAYMENT_STATUSES.has(normalized);
+}
+
 export class SalesReportErpCanceledOrderException extends BadRequestException {
   constructor(public readonly cacheItem: SalesReportErpOrderListItem) {
     super('Đơn đã bị hủy.');

@@ -20,6 +20,7 @@ import {
   SalesReportSummaryScopeDescriptor,
   SalesReportsService,
 } from '../sales-reports/sales-reports.service';
+import { isSalesReportErpPendingPaymentStatus } from '../sales-reports/sales-report-erp.service';
 import {
   GetHomeSummaryDetailsQueryDto,
   GetHomeSummaryDetailsV2QueryDto,
@@ -640,7 +641,12 @@ export class HomeSummaryService {
         )
       : this.emptySalesProgressBundle();
     const salesMetricsScope = salesProgressBundle.selectedScope ?? scope;
-    const salesOrderWhere = this.orderScopeWhere(salesMetricsScope, range);
+    // Pending-payment rows stay in the order cache/facts for reporting, but
+    // they are not paid sales and must not inflate the sales KPI denominator.
+    const salesOrderWhere = this.salesKpiOrderScopeWhere(
+      salesMetricsScope,
+      range,
+    );
 
     let totalRevenue = 0;
     let totalOrders = 0;
@@ -1358,6 +1364,7 @@ export class HomeSummaryService {
           storeName: true,
           organizationNodeId: true,
           erpGrandTotal: true,
+          erpPaymentStatus: true,
           erpConsultantCustomId: true,
           erpConsultantName: true,
           erpOrderCreatedAt: true,
@@ -1385,6 +1392,7 @@ export class HomeSummaryService {
           sellerId: true,
           sellerName: true,
           sellerEmail: true,
+          paymentStatus: true,
           grandTotal: true,
         },
       }),
@@ -1399,6 +1407,7 @@ export class HomeSummaryService {
         createdByEmail: string | null;
         createdByPersonnelCode: string | null;
         revenue: number | null;
+        paymentStatus: string | null;
         submittedAt: Date;
         storeCode: string | null;
         storeName: string | null;
@@ -1424,6 +1433,7 @@ export class HomeSummaryService {
           ),
           revenue:
             typeof row.erpGrandTotal === 'number' ? row.erpGrandTotal : null,
+          paymentStatus: this.optionalText(row.erpPaymentStatus, 80),
           submittedAt: row.submittedAt,
           storeCode: this.normalizeStoreCode(row.storeCode),
           storeName: this.optionalText(row.storeName, 120),
@@ -1511,6 +1521,9 @@ export class HomeSummaryService {
             sellerName: null,
             sellerEmail: null,
             grandTotal: report.revenue,
+            isPaymentPending: isSalesReportErpPendingPaymentStatus(
+              report.paymentStatus,
+            ),
             hasValidReport: true,
             reportId: report.id,
             reportSubmittedAt: report.submittedAt,
@@ -1536,6 +1549,9 @@ export class HomeSummaryService {
             sellerName: null,
             sellerEmail: null,
             grandTotal: report.revenue,
+            isPaymentPending: isSalesReportErpPendingPaymentStatus(
+              report.paymentStatus,
+            ),
             hasValidReport: true,
             reportId: report.id,
             reportSubmittedAt: report.submittedAt,
@@ -1593,6 +1609,7 @@ export class HomeSummaryService {
       sellerId: string | null;
       sellerName: string | null;
       sellerEmail: string | null;
+      paymentStatus: string | null;
       grandTotal: number | null;
     },
     report: {
@@ -1624,6 +1641,9 @@ export class HomeSummaryService {
         sellerName: this.optionalText(row.sellerName, 120),
         sellerEmail: this.normalizeEmail(row.sellerEmail),
         grandTotal: typeof row.grandTotal === 'number' ? row.grandTotal : null,
+        isPaymentPending: isSalesReportErpPendingPaymentStatus(
+          row.paymentStatus,
+        ),
         hasValidReport: Boolean(report),
         reportId: report?.id ?? null,
         reportSubmittedAt: report?.submittedAt ?? null,
@@ -1649,6 +1669,9 @@ export class HomeSummaryService {
         sellerName: this.optionalText(row.sellerName, 120),
         sellerEmail: this.normalizeEmail(row.sellerEmail),
         grandTotal: typeof row.grandTotal === 'number' ? row.grandTotal : null,
+        isPaymentPending: isSalesReportErpPendingPaymentStatus(
+          row.paymentStatus,
+        ),
         hasValidReport: Boolean(report),
         reportId: report?.id ?? null,
         reportSubmittedAt: report?.submittedAt ?? null,
@@ -1731,6 +1754,28 @@ export class HomeSummaryService {
     const storeGuard = this.personalStoreGuard(scope);
     if (storeGuard) filters.push(storeGuard);
     return { AND: filters };
+  }
+
+  private salesKpiOrderScopeWhere(
+    scope: SalesReportSummaryScopeDescriptor,
+    dateRange: DateRange,
+  ) {
+    const base = this.orderScopeWhere(scope, dateRange) as {
+      AND?: Record<string, unknown>[];
+    };
+    if (Array.isArray(base.AND)) {
+      return {
+        AND: [...base.AND, { isPaymentPending: false }],
+      };
+    }
+    return {
+      AND: [
+        base,
+        // Do not remove the row from cache/facts: it remains available to the
+        // reporting cockpit until ERP confirms payment or cancellation.
+        { isPaymentPending: false },
+      ],
+    };
   }
 
   private orderCacheRevenueWhere(
@@ -1990,20 +2035,34 @@ export class HomeSummaryService {
       where: this.orderCacheRevenueWhere(scope, range),
       select: {
         grandTotal: true,
+        paymentStatus: true,
         lifecycleStatus: true,
         hasReturnedFullItems: true,
         returnedAfterTaxAmount: true,
       },
     });
-    return rows.reduce((sum, row) => sum + this.netCacheRevenue(row), 0);
+    let skippedPendingPayment = 0;
+    const revenue = rows.reduce((sum, row) => {
+      if (isSalesReportErpPendingPaymentStatus(row.paymentStatus)) {
+        skippedPendingPayment += 1;
+        return sum;
+      }
+      return sum + this.netCacheRevenue(row);
+    }, 0);
+    this.logger.log(
+      `Home summary cache revenue calculated: scope=${scope.scope} rows=${rows.length} skippedPendingPayment=${skippedPendingPayment} revenue=${revenue}`,
+    );
+    return revenue;
   }
 
   private netCacheRevenue(row: {
     grandTotal: number | null;
+    paymentStatus?: string | null;
     lifecycleStatus: string;
     hasReturnedFullItems: boolean;
     returnedAfterTaxAmount: number;
   }) {
+    if (isSalesReportErpPendingPaymentStatus(row.paymentStatus)) return 0;
     const status = String(row.lifecycleStatus || '')
       .trim()
       .toUpperCase();

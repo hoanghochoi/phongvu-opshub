@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:phongvu_opshub/app/widgets/app_combobox.dart';
 import 'package:phongvu_opshub/app/widgets/app_inputs.dart';
 import 'package:phongvu_opshub/core/platform/text_input_context_menu_bootstrap.dart';
 
@@ -91,6 +92,74 @@ void main() {
         final editableTextState = tester.state<EditableTextState>(
           find.byType(EditableText),
         );
+        editableTextState.renderEditable.selectWordsInRange(
+          from: Offset.zero,
+          cause: SelectionChangedCause.longPress,
+        );
+        editableTextState.showToolbar();
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 300));
+
+        expect(contextMenuCalls, contains('enableContextMenu'));
+        expect(find.text('Paste'), findsNothing);
+      } finally {
+        debugDefaultTargetPlatformOverride = null;
+      }
+    },
+    skip: !kIsWeb,
+  );
+
+  testWidgets(
+    'mobile web AppCombobox uses only the browser paste menu',
+    (tester) async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+      try {
+        final contextMenuCalls = <String>[];
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(SystemChannels.contextMenu, (call) async {
+              contextMenuCalls.add(call.method);
+              return null;
+            });
+        addTearDown(() {
+          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+              .setMockMethodCallHandler(SystemChannels.contextMenu, null);
+        });
+
+        await initializeTextInputContextMenu(
+          targetPlatformOverride: TargetPlatform.iOS,
+        );
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: SelectionArea(
+                child: AppCombobox<String>.single(
+                  label: 'Showroom',
+                  value: null,
+                  options: const [
+                    AppComboboxOption(value: 'CP01', label: 'Showroom CP01'),
+                  ],
+                  onChanged: (_) {},
+                ),
+              ),
+            ),
+          ),
+        );
+
+        final editableTextState = tester.state<EditableTextState>(
+          find.byType(EditableText),
+        );
+        expect(
+          SelectionContainer.maybeOf(
+            tester.element(find.byType(EditableText)),
+          ),
+          isNull,
+        );
+        expect(
+          tester.widget<TextField>(find.byType(TextField)).contextMenuBuilder,
+          isNotNull,
+        );
+
         editableTextState.renderEditable.selectWordsInRange(
           from: Offset.zero,
           cause: SelectionChangedCause.longPress,

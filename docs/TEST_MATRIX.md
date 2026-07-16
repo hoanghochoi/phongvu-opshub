@@ -2887,6 +2887,25 @@ src/map-vietin/map-vietin.service.spec.ts` (26 tests), `npm run build`, full
   passed, 2 existing platform skips), `flutter analyze --no-pub`, web debug
   build, Android staging debug APK build, and `git diff --check`. Physical iOS
   Safari and Android device smoke remain required after staging deployment.
+- Hardening 2026-07-16 applies the same single-owner paste policy and ancestor
+  `SelectionArea` isolation to `AppCombobox`, which was the last runtime raw
+  editable field outside the shared text-input wrappers. A repository guard now
+  rejects future raw editable fields outside those shared primitives. Focused
+  tests (39), `flutter analyze --no-pub`, the release web build, and a Playwright
+  clipboard paste smoke on that build passed. The full Flutter run reached 532
+  passed and 3 intentional skips before one unrelated realtime timing test
+  failed; its isolated rerun passed. The Chrome widget-test harness still did
+  not reconnect, so a physical iOS Safari smoke remains required after staging.
+
+- `SALES-HOME-ORDERS-002`, 2026-07-16: Home sales KPI aggregation now marks
+  pending-payment cache rows in `HomeSummaryOrderFact` and excludes them from
+  `Giá trị bán`/`Đơn bán` and projection aggregates, while leaving the source
+  cache row visible to the sales cockpit for later reporting. Canceled,
+  returned-full, and zero-value rows remain excluded through the existing
+  durable cache exclusion. Focused Nest tests passed (4 suites, 117 tests:
+  ERP status/cache, Home summary, Home projection, and ERP normalization),
+  together with `npx prisma generate`, `npx prisma validate`, `npm run build`,
+  and `git diff --check`.
 
 - Unit proof covers pure validators, service rules, and focused repositories.
 - Integration proof covers API behavior, database persistence, Redis, BigQuery,

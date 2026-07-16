@@ -366,10 +366,12 @@ export class HomeSummaryProjectionService
       )
       SELECT gen_random_uuid()::text, CAST(${dateKey} AS date), 'GLOBAL', '', '',
         (SELECT COUNT(*)::int FROM "HomeSummaryOrderFact"
-          WHERE ("summaryDate" + INTERVAL '7 hours')::date = CAST(${dateKey} AS date)),
+          WHERE ("summaryDate" + INTERVAL '7 hours')::date = CAST(${dateKey} AS date)
+            AND NOT "isPaymentPending"),
         (SELECT COUNT(*) FILTER (WHERE "hasValidReport")::int
           FROM "HomeSummaryOrderFact"
-          WHERE ("summaryDate" + INTERVAL '7 hours')::date = CAST(${dateKey} AS date)),
+          WHERE ("summaryDate" + INTERVAL '7 hours')::date = CAST(${dateKey} AS date)
+            AND NOT "isPaymentPending"),
         (SELECT COUNT(*)::int FROM "HomeSummaryReportFact"
           WHERE ("summaryDate" + INTERVAL '7 hours')::date = CAST(${dateKey} AS date)),
         (SELECT COUNT(*) FILTER (WHERE "reportType" = 'NOT_PURCHASED')::int
@@ -377,7 +379,8 @@ export class HomeSummaryProjectionService
           WHERE ("summaryDate" + INTERVAL '7 hours')::date = CAST(${dateKey} AS date)),
         (SELECT COALESCE(SUM(GREATEST(COALESCE("grandTotal", 0), 0)), 0)
           FROM "HomeSummaryOrderFact"
-          WHERE ("summaryDate" + INTERVAL '7 hours')::date = CAST(${dateKey} AS date)),
+          WHERE ("summaryDate" + INTERVAL '7 hours')::date = CAST(${dateKey} AS date)
+            AND NOT "isPaymentPending"),
         (SELECT COALESCE(SUM(GREATEST(COALESCE("revenue", 0), 0)), 0)
           FROM "HomeSummaryReportFact"
           WHERE ("summaryDate" + INTERVAL '7 hours')::date = CAST(${dateKey} AS date)),
@@ -400,6 +403,7 @@ export class HomeSummaryProjectionService
           COALESCE(SUM(GREATEST(COALESCE("grandTotal", 0), 0)), 0) AS order_revenue
         FROM "HomeSummaryOrderFact"
         WHERE ("summaryDate" + INTERVAL '7 hours')::date = CAST(${dateKey} AS date)
+          AND NOT "isPaymentPending"
         GROUP BY UPPER(TRIM(COALESCE("storeCode", '')))
       ), report_metrics AS (
         SELECT UPPER(TRIM(COALESCE("storeCode", ''))) AS store_code,
@@ -447,6 +451,7 @@ export class HomeSummaryProjectionService
           COALESCE(SUM(GREATEST(COALESCE("grandTotal", 0), 0)), 0) AS order_revenue
         FROM "HomeSummaryOrderFact"
         WHERE ("summaryDate" + INTERVAL '7 hours')::date = CAST(${dateKey} AS date)
+          AND NOT "isPaymentPending"
         GROUP BY 1, 2
       ), report_metrics AS (
         SELECT

@@ -1162,6 +1162,7 @@ model HomeSummaryOrderFact {
   sellerName                   String?
   sellerEmail                  String?
   grandTotal                   Int?
+  isPaymentPending             Boolean   @default(false)
   hasValidReport               Boolean   @default(false)
   reportId                     String?
   reportSubmittedAt            DateTime?
@@ -1181,6 +1182,7 @@ model HomeSummaryOrderFact {
   @@index([summaryDate, consultantEmail])
   @@index([summaryDate, sellerId])
   @@index([summaryDate, sellerEmail])
+  @@index([summaryDate, isPaymentPending])
 }
 
 model HomeSummaryReportFact {

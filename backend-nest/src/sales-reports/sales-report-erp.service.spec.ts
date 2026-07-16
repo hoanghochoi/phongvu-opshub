@@ -1,4 +1,7 @@
-import { SalesReportErpService } from './sales-report-erp.service';
+import {
+  isSalesReportErpPendingPaymentStatus,
+  SalesReportErpService,
+} from './sales-report-erp.service';
 
 describe('SalesReportErpService', () => {
   const originalEnv = process.env;
@@ -22,6 +25,17 @@ describe('SalesReportErpService', () => {
     process.env = originalEnv;
     jest.restoreAllMocks();
   });
+
+  it.each(['PENDING', 'pending_payment', 'WAITING-FOR-PAYMENT', 'unpaid'])(
+    'recognizes %s as pending payment without treating paid states as pending',
+    (status) => {
+      expect(isSalesReportErpPendingPaymentStatus(status)).toBe(true);
+      expect(isSalesReportErpPendingPaymentStatus('fully_paid')).toBe(false);
+      expect(isSalesReportErpPendingPaymentStatus('partially_paid')).toBe(
+        false,
+      );
+    },
+  );
 
   it('uses ERP redirect_to login flow before fetching an order', async () => {
     const fetchMock = jest.fn(async (input: string | URL) => {

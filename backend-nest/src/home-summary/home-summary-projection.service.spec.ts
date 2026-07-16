@@ -177,6 +177,10 @@ describe('HomeSummaryProjectionService', () => {
     ).resolves.toBe(42n);
 
     expect(tx.$queryRaw.mock.calls[0][0].sql).toContain('FOR UPDATE');
+    expect(tx.$executeRaw).toHaveBeenCalledTimes(3);
+    for (const [statement] of tx.$executeRaw.mock.calls) {
+      expect(statement.sql).toContain('NOT "isPaymentPending"');
+    }
     expect(tx.homeSummaryProjectionQueue.delete).toHaveBeenCalledWith({
       where: { id: 'job-locked' },
     });

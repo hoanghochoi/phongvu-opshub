@@ -81,6 +81,76 @@ void main() {
     expect(violations, isEmpty, reason: violations.join('\n'));
   });
 
+  test('all runtime editable fields keep the shared paste policy', () {
+    const sharedInputFiles = <String>{
+      'lib/app/widgets/app_inputs.dart',
+      'lib/app/widgets/app_combobox.dart',
+    };
+    final rawInputPattern = RegExp(r'\b(?:TextField|TextFormField)\(');
+    final unexpectedRawInputs = <String>[];
+    final files = Directory('lib')
+        .listSync(recursive: true)
+        .whereType<File>()
+        .where((file) => file.path.endsWith('.dart'));
+
+    for (final file in files) {
+      final normalizedPath = file.path.replaceAll(r'\', '/');
+      if (sharedInputFiles.contains(normalizedPath)) continue;
+      final lines = file.readAsLinesSync();
+      for (var index = 0; index < lines.length; index += 1) {
+        if (rawInputPattern.hasMatch(lines[index])) {
+          unexpectedRawInputs.add('$normalizedPath:${index + 1}');
+        }
+      }
+    }
+
+    expect(
+      unexpectedRawInputs,
+      isEmpty,
+      reason:
+          'New editable fields must reuse the shared selection/paste policy.\n'
+          '${unexpectedRawInputs.join('\n')}',
+    );
+
+    final appInputsSource = File(
+      'lib/app/widgets/app_inputs.dart',
+    ).readAsStringSync();
+    final editableInputSource = appInputsSource.split(
+      'class AppReadOnlyField',
+    ).first;
+    expect(
+      RegExp(r'\b(?:TextField|TextFormField)\(')
+          .allMatches(editableInputSource)
+          .length,
+      2,
+    );
+    expect(
+      RegExp(r'SelectionContainer\.disabled\(')
+          .allMatches(editableInputSource)
+          .length,
+      2,
+    );
+    expect(
+      RegExp(r'contextMenuBuilder:\s*appTextInputContextMenuBuilder\(\)')
+          .allMatches(editableInputSource)
+          .length,
+      2,
+    );
+
+    final comboboxSource = File(
+      'lib/app/widgets/app_combobox.dart',
+    ).readAsStringSync();
+    expect(
+      RegExp(r'\bTextField\(').allMatches(comboboxSource).length,
+      1,
+    );
+    expect(comboboxSource, contains('SelectionContainer.disabled('));
+    expect(
+      comboboxSource,
+      contains('contextMenuBuilder: appTextInputContextMenuBuilder()'),
+    );
+  });
+
   test('runtime does not keep retired local dropdown primitives', () {
     final retiredDropdownPattern = RegExp(
       r'\b(?:AppFilterDropdown|AppSearchableFilterDropdown|'

@@ -1046,6 +1046,7 @@ describe('SalesReportsService', () => {
       {
         ...erpListOrderFixture(),
         lifecycleStatus: 'PENDING',
+        paymentStatus: 'pending_payment',
         statusCheckedAt: listCheckedAt,
         fetchedAt: listCheckedAt,
       },
@@ -1083,6 +1084,7 @@ describe('SalesReportsService', () => {
           where: { orderCode: '2607010002' },
           update: expect.objectContaining({
             lifecycleStatus: 'PENDING',
+            paymentStatus: 'pending_payment',
             statusCheckedAt: listCheckedAt,
             statusCheckAttemptedAt: attemptedAt,
             statusCheckAttemptDate: new Date('2026-07-07T00:00:00Z'),
@@ -1102,6 +1104,9 @@ describe('SalesReportsService', () => {
           erpStatusCheckFailureCount: 2,
         }),
       });
+      expect(
+        prisma.salesReportErpOrderCache.upsert.mock.calls[0][0].update,
+      ).not.toHaveProperty('excludedAt');
     } finally {
       if (oldEnabled === undefined) {
         delete process.env.ERP_ORDER_CACHE_SYNC_ENABLED;

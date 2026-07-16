@@ -23,8 +23,8 @@ cho Google Form, đồng thời lưu dữ liệu đủ chuẩn để dashboard d
   showroom/node đang chọn ở header. Khu vực `Bán hàng` chia thành nhóm
   `Doanh số`, `KPI chính` và `Hành vi then chốt`. Nhóm `Doanh số` hiển thị
   doanh số tổng từ cache đơn hàng theo ngày bán ERP (`orderCreatedAt`) sau khi
-  loại đơn 0 VND, đơn hủy/trả toàn bộ và trừ giá trị trả một phần, số đơn bán,
-  trung bình đơn hàng, doanh số hoàn thành, pending và
+  loại đơn 0 VND, đơn hủy/trả toàn bộ, đơn chờ thanh toán và trừ giá trị trả
+  một phần, số đơn bán, trung bình đơn hàng, doanh số hoàn thành, pending và
   `Tỉ lệ chuyển đổi = tổng số đơn / tổng số báo cáo`. Nhóm `KPI chính`
   hiển thị doanh số khách hàng doanh nghiệp, doanh số khách hàng cá nhân,
   số lượng CTKM đổi điểm thi, CTKM học sinh - sinh viên, nhu cầu trả góp,
@@ -164,8 +164,10 @@ cho Google Form, đồng thời lưu dữ liệu đủ chuẩn để dashboard d
   completed/hủy/trả từ thao tác user được đánh dấu là đã kiểm tra trong ngày để
   background không gọi lại vô ích cùng ngày.
 - Doanh số tổng trên dashboard lấy `grandTotal` từ cache đơn hàng theo
-  ngày bán ERP (`orderCreatedAt`)/scope, bỏ đơn 0 VND, đơn hủy/trả toàn bộ và trừ
-  `returnedAfterTaxAmount` khi có trả một phần. Doanh số hoàn thành chỉ cộng báo
+  ngày bán ERP (`orderCreatedAt`)/scope, bỏ đơn 0 VND, đơn hủy/trả toàn bộ,
+  đơn chờ thanh toán và trừ `returnedAfterTaxAmount` khi có trả một phần. Đơn
+  chờ thanh toán vẫn giữ trong cache/cockpit để không mất dữ liệu cần báo cáo.
+  Doanh số hoàn thành chỉ cộng báo
   cáo mua hàng có trạng thái ERP hoàn thành, cũng trừ `returnedAfterTaxAmount`
   khi có trả một phần. Riêng tiến độ chỉ tiêu dùng giá trị trước VAT theo công thức
   `round(max(grandTotal - returnedAfterTaxAmount, 0) / 1.08)`. Home hiển thị
@@ -334,6 +336,11 @@ phí`.
   `ERP_ORDER_ZERO_VALUE_INTERNAL`); mọi report mua hàng cùng `orderCode` cũng
   được gắn `erpExcludedAt`/`erpExclusionReason` để loại khỏi các query báo cáo
   phía sau mà không cần suy luận lại từ ERP theo từng màn.
+  Đơn có `paymentStatus` chờ thanh toán (`PENDING`, `PENDING_PAYMENT`,
+  `WAITING_PAYMENT`, `UNPAID`...) không bị xóa hoặc gắn loại trừ khỏi cache:
+  cockpit vẫn giữ chúng để sale tiếp tục báo cáo sau khi thanh toán. Tuy nhiên
+  Home KPI `Giá trị bán` và `Đơn bán` đánh dấu `isPaymentPending` và không tính
+  các row này cho đến khi trạng thái thanh toán hợp lệ.
   API cockpit đếm total chưa báo cáo trực tiếp trên cache DB, loại trừ các
   `orderCode` đã có báo cáo mua hàng hoặc được match từ report thủ công trong
   cache cockpit hiện tại, cùng các row đã bị exclude bền vững, rồi trả từng
