@@ -50,6 +50,7 @@ describe('RealtimeTicketService', () => {
       resolveFeatureAccessMap: jest
         .fn()
         .mockResolvedValue({ WARRANTY: true, FEEDBACK: false }),
+      canAccessFeature: jest.fn().mockResolvedValue(false),
     };
     const policyService = {
       resolvePolicyAccessMap: jest.fn().mockResolvedValue({}),
@@ -102,6 +103,41 @@ describe('RealtimeTicketService', () => {
       service.issueTicket(authenticatedUser, 'CP99'),
     ).rejects.toBeInstanceOf(ForbiddenException);
     expect(redis.setJsonWithTtl).not.toHaveBeenCalled();
+  });
+
+  it('reconciles PAYMENT_SPEAKER with the direct HTTP authorization predicate', async () => {
+    const { service, redis, featureService } = setup();
+    featureService.resolveFeatureAccessMap.mockResolvedValue({
+      WARRANTY: true,
+      PAYMENT_SPEAKER: false,
+    });
+    featureService.canAccessFeature.mockResolvedValue(true);
+
+    await service.issueTicket(authenticatedUser, 'CP01');
+
+    expect(featureService.canAccessFeature).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'user-1' }),
+      'PAYMENT_SPEAKER',
+    );
+    expect(redis.setJsonWithTtl.mock.calls[0][1].featureCodes).toEqual([
+      'PAYMENT_SPEAKER',
+      'WARRANTY',
+    ]);
+  });
+
+  it('removes a stale PAYMENT_SPEAKER claim when direct authorization denies it', async () => {
+    const { service, redis, featureService } = setup();
+    featureService.resolveFeatureAccessMap.mockResolvedValue({
+      PAYMENT_SPEAKER: true,
+      WARRANTY: true,
+    });
+    featureService.canAccessFeature.mockResolvedValue(false);
+
+    await service.issueTicket(authenticatedUser, 'CP01');
+
+    expect(redis.setJsonWithTtl.mock.calls[0][1].featureCodes).toEqual([
+      'WARRANTY',
+    ]);
   });
 
   it('maps policy-only access to effective realtime feature entitlements', async () => {

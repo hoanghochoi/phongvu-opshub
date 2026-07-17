@@ -61,7 +61,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
   static const _readyNotificationBatchLimit = 3;
   static const _readyNotificationMaxDrainBatches = 5;
   static const _startupNotificationLookback = Duration(minutes: 15);
-  static const _defaultSpeakerReadyFallbackInterval = Duration(minutes: 1);
+  static const _defaultSpeakerReadyFallbackInterval = Duration(seconds: 5);
   static const _speakerReadyFallbackSilenceWindow = Duration(seconds: 30);
   static const _speakerEnabledPreferenceKey = 'payment_monitor_enabled';
   static const _clientIdPreferenceKey = 'payment_monitor_client_id';

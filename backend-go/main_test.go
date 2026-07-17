@@ -410,6 +410,58 @@ func TestSensitiveEventsAreRoutedByServerSideAudience(t *testing.T) {
 	}
 }
 
+func TestPaymentSpeakerV2AudienceRequiresMatchingStoreAndFeature(t *testing.T) {
+	event := RoutedEvent{
+		Type:            paymentStreamEventType,
+		ProtocolVersion: webSocketProtocolV2,
+		Audience: EventAudience{
+			StoreCodes:   []string{"CP08"},
+			PolicyCodes:  []string{"PAYMENT_MONITOR_ALL_SCOPE"},
+			FeatureCodes: []string{"PAYMENT_SPEAKER"},
+		},
+	}
+	allowed := &Client{
+		protocolVersion: webSocketProtocolV2,
+		auth: &ClientAuth{
+			StoreCode:    "CP08",
+			FeatureCodes: []string{"PAYMENT_SPEAKER"},
+		},
+	}
+	if !allowed.canReceive(event) {
+		t.Fatal("expected v2 speaker client with matching store and feature to receive event")
+	}
+	missingFeature := &Client{
+		protocolVersion: webSocketProtocolV2,
+		auth: &ClientAuth{
+			StoreCode:    "CP08",
+			FeatureCodes: []string{"PAYMENT_MONITOR"},
+		},
+	}
+	if missingFeature.canReceive(event) {
+		t.Fatal("expected missing PAYMENT_SPEAKER claim to fail closed")
+	}
+	wrongStore := &Client{
+		protocolVersion: webSocketProtocolV2,
+		auth: &ClientAuth{
+			StoreCode:    "CP09",
+			FeatureCodes: []string{"PAYMENT_SPEAKER"},
+		},
+	}
+	if wrongStore.canReceive(event) {
+		t.Fatal("expected another store to be rejected")
+	}
+	legacyProtocol := &Client{
+		protocolVersion: webSocketProtocolV1,
+		auth: &ClientAuth{
+			StoreCode:    "CP08",
+			FeatureCodes: []string{"PAYMENT_SPEAKER"},
+		},
+	}
+	if legacyProtocol.canReceive(event) {
+		t.Fatal("expected v2 speaker event not to cross protocol versions")
+	}
+}
+
 func TestUnscopedSuperAdminReceivesStoreEventsWhileSelectedStoreNarrows(t *testing.T) {
 	event := RoutedEvent{
 		Type: paymentEventType,

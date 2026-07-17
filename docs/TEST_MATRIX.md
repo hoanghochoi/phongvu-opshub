@@ -3058,3 +3058,23 @@ requests with 100% success, p95 85.976 ms, p99 176.193 ms, zero unexpected
 429/5xx/timeouts/dropped iterations and 60/60 WebSocket sessions. Cleanup
 revoked 60 sessions, deleted 60 users, verified zero remaining references and
 removed all raw artifacts.
+
+## PAYMENT-SPEAKER realtime ticket parity proof
+
+- Runtime diagnosis on 2026-07-17 found speaker-authorized clients that kept a
+  healthy v2 socket and passed `/payment-notifications/ready`, but did not
+  receive same-showroom `PAYMENT_SPEAKER_STREAM` events. Ticket issuance now
+  reconciles `PAYMENT_SPEAKER` through the exact `canAccessFeature()` predicate
+  used by ready/stream/ack endpoints. A stale cached grant is removed and a
+  stale cached denial is repaired, so the gateway remains fail-closed without
+  silently dropping an HTTP-authorized speaker client.
+- Go audience regression proof requires v2 protocol, matching showroom, and
+  the `PAYMENT_SPEAKER` feature claim. Wrong store, missing feature, and legacy
+  protocol clients remain rejected. Flutter restores the metadata-only
+  `/ready` safety interval to 5 seconds after realtime silence.
+- Required local proof: focused realtime-ticket Jest, full Nest build/tests,
+  `go test ./...`, focused payment-monitor Flutter test, Flutter analyze/tests,
+  and `git diff --check`. Required runtime proof after release: at least 90% of
+  newly played notifications use `triggerSource=realtime_stream`, with median
+  `paidAt -> STREAM_STARTED` below 5 seconds; fallback traffic must remain the
+  minority safety path.

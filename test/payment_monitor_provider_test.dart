@@ -149,7 +149,7 @@ void main() {
       );
 
       expect(periodicTimerCount, 1);
-      expect(periodicDurations, [const Duration(minutes: 1)]);
+      expect(periodicDurations, [const Duration(seconds: 5)]);
       expect(repository.transactionFetchCount, 1);
       provider.dispose();
     },

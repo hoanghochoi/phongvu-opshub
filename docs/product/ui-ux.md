@@ -333,7 +333,7 @@ visual systems that make the app feel assembled from unrelated screens.
   feature are eligible, the user enabled `Đọc loa`, and exactly one showroom is
   selected, `payment.speaker` metadata and the bounded ready fallback continue
   outside the `Tiền vào` route; this must not reactivate transaction-list
-  refreshes. The fallback checks at most once per minute after realtime silence.
+  refreshes. The fallback checks every 5 seconds after realtime silence.
   Disabling speaker or losing its scope stops the audio path and rejects stale
   in-flight responses from the previous authorization generation.
 - The Super Admin delivery-metrics surface is global to the authenticated

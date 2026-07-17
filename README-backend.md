@@ -69,6 +69,13 @@ field. The gateway never compares policy codes with organization, department,
 business, or store codes, so equal text in different namespaces cannot widen a
 subscription.
 
+`PAYMENT_SPEAKER` is reconciled into every realtime ticket with the same
+`canAccessFeature()` predicate used by `/payment-notifications/ready`,
+`/:id/stream`, and acknowledgement routes. A stale cached feature-map value is
+never trusted to widen or drop this claim: the direct predicate adds it only
+when allowed and removes it when denied. The gateway still requires both the
+speaker feature and a matching store/policy audience.
+
 | v2 topic | v2 kind | Purpose |
 | --- | --- | --- |
 | `access.changed` | `ACCESS_CHANGED` | User-scoped access snapshot invalidation |
@@ -293,8 +300,8 @@ Expected responses:
   `notificationId + clientId`; a second in-flight request for the same pair
   returns HTTP `409` so the client can suppress duplicate same-machine
   playback. Ready polling is limited to speaker-enabled startup/manual recovery
-  and realtime fallback; after realtime has been silent it checks metadata once
-  per minute. It only recovers notifications newer than
+  and realtime fallback; after realtime has been silent it checks metadata every
+  5 seconds. It only recovers notifications newer than
   `PAYMENT_STREAM_PENDING_RECOVERY_WINDOW_SECONDS` (default `30`), whether the
   audio is `PENDING` or already `READY`. Expired pickup attempts are logged as
   `SILENCED` with `stream_recovery_window_expired`, and `/stream` rejects them

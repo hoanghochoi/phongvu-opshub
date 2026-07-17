@@ -135,6 +135,31 @@ export class RealtimeTicketService {
         .filter(([, enabled]) => enabled === true)
         .map(([code]) => code),
     );
+    // Keep the speaker claim aligned with the exact authorization predicate
+    // used by /ready, /stream and /ack. Auth context is intentionally cached,
+    // but a stale or incomplete feature map must not silently drop realtime
+    // speaker events while the same user is still authorized over HTTP.
+    const speakerFeatureFromMap =
+      featureAccess[FEATURE_KEYS.PAYMENT_SPEAKER] === true;
+    const speakerFeatureAllowed = await this.featureService.canAccessFeature(
+      user,
+      FEATURE_KEYS.PAYMENT_SPEAKER,
+    );
+    if (speakerFeatureAllowed) {
+      featureCodes.add(FEATURE_KEYS.PAYMENT_SPEAKER);
+    } else {
+      featureCodes.delete(FEATURE_KEYS.PAYMENT_SPEAKER);
+    }
+    if (speakerFeatureFromMap !== speakerFeatureAllowed) {
+      this.logger.warn(
+        'Realtime ticket speaker entitlement reconciled: userId=' +
+          userId +
+          ' cachedAllowed=' +
+          speakerFeatureFromMap +
+          ' effectiveAllowed=' +
+          speakerFeatureAllowed,
+      );
+    }
     if (
       policyAccess[ADMIN_POLICY_CODES.BANK_STATEMENTS] === true ||
       policyAccess[ADMIN_POLICY_CODES.BANK_STATEMENT_ALL_SCOPE] === true
@@ -201,6 +226,8 @@ export class RealtimeTicketService {
         organizationAccessCodes.length +
         ' featureCount=' +
         effectiveFeatureCodes.length +
+        ' speakerFeature=' +
+        speakerFeatureAllowed +
         ' ttlSeconds=' +
         ttlSeconds +
         ' durationMs=' +
