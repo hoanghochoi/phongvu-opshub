@@ -100,8 +100,15 @@ records.
   migration test, Redis outage and cross-replica cache proof, staging smoke,
   ladder `25 -> 50 -> 100 QPS`, Node/PostgreSQL profiling and mandatory
   synthetic-user cleanup before production promotion is considered.
-- Proof status, 2026-07-17: `staging_verified`. All minimum proof passed on the
-  staging release ending at `ad7efa03`; 60 synthetic users were revoked/deleted
+- Proof status, 2026-07-17: performance work `staging_verified`, production
+  hotfix `local_verified`. All minimum proof passed on the staging release
+  ending at `ad7efa03`; 60 synthetic users were revoked/deleted
   with zero remaining records and all raw artifacts removed. Production
-  promotion still requires the normal deploy workflow and passive stability
-  observation.
+  promotion was attempted at `62f204a` and rolled back application-first to
+  `1b174205` after build `100127` rejected the otherwise successful bootstrap
+  response because its user projection omitted authenticated identity. The
+  two-layer contract/session hotfix is `local_verified`: Flutter analyze, 545
+  tests with 3 skips, Nest build, 73 suites/720 tests, Go 62 tests/vet, Windows
+  debug build, Android staging debug build and diff check passed. A fresh
+  staging upgrade smoke and passive observation remain mandatory before
+  production is promoted again.

@@ -1,4 +1,9 @@
-import { Injectable, Logger, Optional } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  Optional,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { createHash } from 'crypto';
 import { safeLogError } from '../common/log-sanitizer';
 import { FeatureService } from '../feature/feature.service';
@@ -25,11 +30,16 @@ type AuthenticatedUser = {
   [key: string]: unknown;
 };
 
+type AuthBootstrapUser = Record<string, unknown> & {
+  id: string;
+  email: string;
+};
+
 export type AuthBootstrapPayload = {
   schemaVersion: typeof AUTH_BOOTSTRAP_SCHEMA_VERSION;
   generatedAt: string;
   version: string;
-  user: Awaited<ReturnType<AuthService['getUserData']>>;
+  user: AuthBootstrapUser;
   featureAccess: Record<string, boolean>;
   policyAccess: Record<string, boolean>;
   capabilities: {
@@ -60,16 +70,56 @@ export class AuthBootstrapService {
     this.logger.log(`Auth bootstrap started: userId=${userId}`);
 
     try {
+      const authenticatedUserId = String(user?.id || '').trim();
+      const authenticatedEmail = String(user?.email || '')
+        .trim()
+        .toLowerCase();
+      if (!authenticatedUserId || !authenticatedEmail) {
+        throw new UnauthorizedException(
+          'Phiên làm việc thiếu thông tin tài khoản. Vui lòng đăng nhập lại.',
+        );
+      }
       const context = this.authContextService
         ? await this.authContextService.getContext(user)
         : null;
-      const [userData, featureAccess, policyAccess] = context
-        ? [context.profile, context.featureAccess, context.policyAccess]
-        : await Promise.all([
-            this.authService.getUserData(user.email),
-            this.featureService.resolveFeatureAccessMap(user),
-            this.policyService.resolvePolicyAccessMap(user),
+      let userData: Record<string, unknown>;
+      let featureAccess: Record<string, boolean>;
+      let policyAccess: Record<string, boolean>;
+      if (context) {
+        userData = this.profileRecord(context.profile as unknown);
+        featureAccess = context.featureAccess;
+        policyAccess = context.policyAccess;
+      } else {
+        const userDataPromise = this.authService.getUserData(
+          user.email,
+        ) as Promise<unknown>;
+        const featureAccessPromise =
+          this.featureService.resolveFeatureAccessMap(user) as Promise<
+            Record<string, boolean>
+          >;
+        const policyAccessPromise = this.policyService.resolvePolicyAccessMap(
+          user,
+        ) as Promise<Record<string, boolean>>;
+        const [resolvedUserData, resolvedFeatureAccess, resolvedPolicyAccess] =
+          await Promise.all([
+            userDataPromise,
+            featureAccessPromise,
+            policyAccessPromise,
           ]);
+        userData = this.profileRecord(resolvedUserData);
+        featureAccess = resolvedFeatureAccess;
+        policyAccess = resolvedPolicyAccess;
+      }
+      // /auth/get-user receives the identity in its request body, so its
+      // compatibility profile intentionally omits id/email. Bootstrap is the
+      // canonical self-contained snapshot and must project authenticated
+      // identity explicitly. Write these fields last so profile data can
+      // never override the authenticated principal.
+      const bootstrapUser = {
+        ...userData,
+        id: authenticatedUserId,
+        email: authenticatedEmail,
+      };
       const capabilities = {
         conditionalGet: true as const,
         realtimeV2Topics: REALTIME_V2_TOPICS,
@@ -78,7 +128,7 @@ export class AuthBootstrapService {
         ? this.authContextService!.etagForUser(user).replace(/^"|"$/g, '')
         : this.stableVersion({
             schemaVersion: AUTH_BOOTSTRAP_SCHEMA_VERSION,
-            user: userData,
+            user: bootstrapUser,
             featureAccess,
             policyAccess,
             capabilities,
@@ -87,14 +137,14 @@ export class AuthBootstrapService {
         schemaVersion: AUTH_BOOTSTRAP_SCHEMA_VERSION,
         generatedAt: new Date().toISOString(),
         version,
-        user: userData,
+        user: bootstrapUser,
         featureAccess,
         policyAccess,
         capabilities,
       };
 
       this.logger.log(
-        `Auth bootstrap succeeded: userId=${userId} features=${Object.keys(featureAccess).length} policies=${Object.keys(policyAccess).length} version=${version.slice(0, 12)} durationMs=${Date.now() - startedAt}`,
+        `Auth bootstrap succeeded: userId=${userId} schemaVersion=${AUTH_BOOTSTRAP_SCHEMA_VERSION} identity=complete features=${Object.keys(featureAccess).length} policies=${Object.keys(policyAccess).length} version=${version.slice(0, 12)} durationMs=${Date.now() - startedAt}`,
       );
       return { body, etag: `"${version}"` };
     } catch (error) {
@@ -120,6 +170,11 @@ export class AuthBootstrapService {
 
   private stableVersion(value: unknown) {
     return createHash('sha256').update(this.canonicalJson(value)).digest('hex');
+  }
+
+  private profileRecord(value: unknown): Record<string, unknown> {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+    return value as Record<string, unknown>;
   }
 
   private canonicalJson(value: unknown): string {

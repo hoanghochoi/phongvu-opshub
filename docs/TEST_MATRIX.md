@@ -174,6 +174,20 @@ Recent focused evidence:
   captured, staging profiling settings were reset, and 60 synthetic users plus
   every raw token/profile artifact were removed with zero records remaining.
 
+- `AUTH-CONTEXT-001-HOTFIX`, 2026-07-17: status `local_verified`, release scope
+  `staging_pending`. Bootstrap now includes authenticated `id/email`; Flutter
+  shares the v1 contract fixture with Nest, tolerates a missing email only via
+  the current saved-session identity, rejects identity mismatch, classifies
+  contract failures with sanitized metadata, and falls back once only when no
+  usable snapshot exists. Pre-v2 upgrade, `200` missing-email, malformed JSON,
+  cached contract failure, `401`, `404/501`, `503`, `304` without usable cache,
+  logout race and AppShell fail-closed/retry regressions passed. Validation:
+  targeted Flutter 36 tests; Flutter analyze; full Flutter 545 tests/3 skips;
+  targeted Nest 21 tests; Nest build; full Nest 73 suites/720 tests; Go 62
+  tests/vet; Windows debug build; Android `staging` debug build;
+  `git diff --check`. Production remains application-rolled-back to `1b174205`
+  until exact-candidate staging upgrade smoke and passive observation pass.
+
 - `HOME-DASHBOARD-003`, 2026-07-15: Home projection/outbox, `/ws/v2` and
   Flutter reconnect/resume path passed Prisma validation, scratch-database
   migration up/down (`90/90/90` seed), Nest build, 42 focused Jest tests, 31 Go

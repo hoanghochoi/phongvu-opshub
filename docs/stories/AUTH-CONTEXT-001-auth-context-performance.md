@@ -2,8 +2,10 @@
 
 ## Status
 
-`staging_verified`; migration, cache-failure, two-replica and load/profile gates
-passed. Production promotion and passive post-deploy observation remain.
+`hotfix_local_verified`; migration, cache-failure, two-replica and load/profile
+gates passed earlier, but the first production promotion was rolled back after
+an app/bootstrap identity-contract mismatch. The hotfix now requires a fresh
+staging upgrade smoke and passive observation before production promotion.
 
 ## Problem
 
@@ -80,6 +82,47 @@ HTTP success is at least 99.9%, p95 at most 500 ms and p99 at most one second;
 unexpected 429/5xx/timeouts are zero, no container restarts/OOM occur, database
 headroom remains at least 80%, Redis has no evictions/blocked clients, and CPU
 does not remain above 85% for two consecutive minutes.
+
+## Production incident and access-bootstrap hotfix — 2026-07-17
+
+- Production build `100127` loaded a pre-v2 saved session with zero persisted
+  feature/policy entries, then called the canonical `/auth/bootstrap` route.
+  The API returned `200`, but its `user` projection came from
+  `AuthService.getUserData()` and omitted `id`/`email`. Flutter required a
+  non-empty email and converted the otherwise successful response into a local
+  contract exception, while legacy fallback was restricted to `404/501`.
+- The application was rolled back first to `1b174205`; compatibility routes
+  restored access hydration without reverting the additive database work.
+- The server hotfix makes bootstrap self-contained by projecting authenticated
+  `id` and normalized `email` after profile fields. Flutter also accepts a
+  missing bootstrap email only from the current saved-session identity and
+  rejects a conflicting response identity.
+- A typed, sanitized contract failure records reason, HTTP status, schema,
+  response size/duration, field-presence flags and top-level keys without
+  logging response bodies or tokens. Contract failure falls back once to the
+  compatibility routes only when no usable snapshot exists; network/5xx keeps
+  a last-known-good snapshot stale instead of multiplying backend load.
+- A `304` can mark access fresh only when a usable access snapshot exists. If
+  not, the client retries once without `If-None-Match`; a second invalid `304`
+  remains fail-closed.
+- One shared JSON contract fixture is consumed by Nest and Flutter tests.
+  Regression proof covers pre-v2 session upgrade, server-v1 missing-email
+  compatibility, identity mismatch, malformed JSON diagnostics, `401`,
+  `404/501`, cached `503`, unconditional `304` retry, late logout response and
+  the AppShell fail-closed/retry surface.
+
+## Hotfix local proof
+
+- Flutter targeted auth/AppShell proof passed 36 tests.
+- Flutter analyze passed; full Flutter passed 545 tests with 3 skips.
+- Nest targeted bootstrap/controller proof passed 21 tests; Nest build passed;
+  full Nest passed 73 suites and 720 tests.
+- Go test passed 62 tests; Go vet and `git diff --check` passed.
+- Windows debug build and Android `staging` debug build passed.
+- Remaining release proof: deploy the exact candidate to staging, upgrade a
+  real pre-v2/`100127` saved session, confirm bootstrap success and expected
+  access counts in client/server logs, observe 30–60 minutes, then promote with
+  `1b174205` kept as the application rollback target.
 
 ## Rollback
 

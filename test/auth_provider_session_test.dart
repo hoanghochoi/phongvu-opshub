@@ -344,6 +344,133 @@ void main() {
     },
   );
 
+  test('upgrades a pre-v2 saved session through bootstrap 200', () async {
+    _seedLegacySavedSession();
+    final repository = _FakeAuthRepository(
+      bootstrapResult: AuthBootstrapResult.data(
+        data: AuthBootstrapData(
+          schemaVersion: 1,
+          generatedAt: DateTime.utc(2026, 7, 17, 1, 28),
+          version: 'upgrade-access-v1',
+          user: _refreshedUser,
+          featureAccess: const {'PAYMENT_MONITOR': true},
+          policyAccess: const {'BANK_STATEMENT_ALL_SCOPE': false},
+          capabilities: const AuthBootstrapCapabilities(
+            conditionalGet: true,
+            realtimeV2Topics: ['access.changed'],
+          ),
+        ),
+        etag: '"upgrade-access-v1"',
+      ),
+    );
+
+    final provider = AuthProvider(repository);
+    await _waitForSync(provider, repository);
+
+    expect(repository.bootstrapCount, 1);
+    expect(repository.bootstrapFallbackEmails, ['staging.user0012@phongvu.vn']);
+    expect(repository.getUserDataCount, 0);
+    expect(provider.hasUsableAccessSnapshot, isTrue);
+    expect(provider.user?.canUseFeature('PAYMENT_MONITOR'), isTrue);
+    final prefs = await SharedPreferences.getInstance();
+    final snapshot =
+        jsonDecode(
+              prefs.getString(
+                AppStorageKeys.shared('auth_session_snapshot_v2'),
+              )!,
+            )
+            as Map<String, dynamic>;
+    expect(
+      (snapshot['bootstrap'] as Map<String, dynamic>)['accessResolved'],
+      isTrue,
+    );
+    provider.dispose();
+  });
+
+  test(
+    'contract failure without a usable snapshot falls back once to legacy',
+    () async {
+      _seedLegacySavedSession();
+      final repository = _FakeAuthRepository(
+        bootstrapError: _bootstrapContractError('missing_identity'),
+      );
+
+      final provider = AuthProvider(repository);
+      await _waitForSync(provider, repository);
+
+      expect(repository.bootstrapCount, 1);
+      expect(repository.getUserDataCount, 1);
+      expect(repository.featureAccessCount, 1);
+      expect(repository.policyAccessCount, 1);
+      expect(provider.accessSyncState, AuthAccessSyncState.fresh);
+      expect(provider.hasUsableAccessSnapshot, isTrue);
+      provider.dispose();
+    },
+  );
+
+  test('contract failure keeps an existing access snapshot stale', () async {
+    _seedSavedSnapshot(
+      featureAccess: const {'PAYMENT_MONITOR': true},
+      policyAccess: const {'BANK_STATEMENT_ALL_SCOPE': false},
+      etag: '"access-v1"',
+    );
+    final repository = _FakeAuthRepository(
+      bootstrapError: _bootstrapContractError('identity_mismatch'),
+    );
+
+    final provider = AuthProvider(repository);
+    await _waitForSync(provider, repository);
+
+    expect(repository.getUserDataCount, 0);
+    expect(repository.featureAccessCount, 0);
+    expect(repository.policyAccessCount, 0);
+    expect(provider.user?.canUseFeature('PAYMENT_MONITOR'), isTrue);
+    expect(provider.accessSyncState, AuthAccessSyncState.stale);
+    provider.dispose();
+  });
+
+  test(
+    '304 without usable access retries once without If-None-Match',
+    () async {
+      _seedSavedSnapshot(
+        featureAccess: const {},
+        policyAccess: const {},
+        etag: '"access-v1"',
+        accessResolved: false,
+      );
+      final repository = _FakeAuthRepository(
+        bootstrapResults: [
+          const AuthBootstrapResult.notModified(etag: '"access-v1"'),
+          AuthBootstrapResult.data(
+            data: AuthBootstrapData(
+              schemaVersion: 1,
+              generatedAt: DateTime.utc(2026, 7, 17, 1, 28),
+              version: 'access-v2',
+              user: _refreshedUser,
+              featureAccess: const {'PAYMENT_MONITOR': true},
+              policyAccess: const {},
+              capabilities: const AuthBootstrapCapabilities(
+                conditionalGet: true,
+                realtimeV2Topics: ['access.changed'],
+              ),
+            ),
+            etag: '"access-v2"',
+          ),
+        ],
+      );
+
+      final provider = AuthProvider(repository);
+      await _waitForSync(provider, repository);
+
+      expect(repository.bootstrapCount, 2);
+      expect(repository.bootstrapIfNoneMatches, ['"access-v1"', null]);
+      expect(provider.hasUsableAccessSnapshot, isTrue);
+      expect(provider.user?.canUseFeature('PAYMENT_MONITOR'), isTrue);
+      expect(provider.accessSyncState, AuthAccessSyncState.fresh);
+      provider.dispose();
+    },
+  );
+
   test('refreshes assigned store scope through legacy compatibility', () async {
     SharedPreferences.setMockInitialValues({
       AppStorageKeys.shared('user_email'): 'staging.user0012@phongvu.vn',
@@ -386,6 +513,7 @@ void _seedSavedSnapshot({
   required Map<String, bool> featureAccess,
   required Map<String, bool> policyAccess,
   String? etag,
+  bool accessResolved = true,
 }) {
   final user = {
     'id': 'cached-user',
@@ -406,6 +534,7 @@ void _seedSavedSnapshot({
       'schemaVersion': 2,
       'user': user,
       'bootstrap': {
+        'accessResolved': accessResolved,
         'etag': etag,
         'generatedAt': '2026-07-15T07:55:00.000Z',
         'lastSuccessAt': '2026-07-15T07:55:00.000Z',
@@ -419,6 +548,44 @@ void _seedSavedSnapshot({
   FlutterSecureStorage.setMockInitialValues({
     AppStorageKeys.secure('user_jwt_token'): 'jwt-token',
   });
+}
+
+void _seedLegacySavedSession() {
+  SharedPreferences.setMockInitialValues({
+    AppStorageKeys.shared('user_email'): 'staging.user0012@phongvu.vn',
+    AppStorageKeys.shared('user_name'): 'Staging',
+    AppStorageKeys.shared('user_role'): 'USER',
+    AppStorageKeys.shared('user_storeId'): 'CP75',
+    AppStorageKeys.shared('user_storeName'): 'CP75',
+    AppStorageKeys.shared('user_workScopeType'): 'STORE',
+    AppStorageKeys.shared('user_organizationNodeId'): 'node-cp75',
+    AppStorageKeys.shared('user_organizationNodeName'): 'Quản lý CP75',
+  });
+  FlutterSecureStorage.setMockInitialValues({
+    AppStorageKeys.secure('user_jwt_token'): 'jwt-token',
+  });
+}
+
+AuthBootstrapContractException _bootstrapContractError(String reason) {
+  return AuthBootstrapContractException(
+    reason: reason,
+    responseStatusCode: 200,
+    responseBodyBytes: 256,
+    durationMs: 25,
+    schemaVersion: 1,
+    hasUser: true,
+    hasUserId: true,
+    hasUserEmail: false,
+    topLevelKeys: const [
+      'capabilities',
+      'featureAccess',
+      'generatedAt',
+      'policyAccess',
+      'schemaVersion',
+      'user',
+      'version',
+    ],
+  );
 }
 
 Future<void> _waitForInitialization(AuthProvider provider) async {
@@ -477,25 +644,36 @@ class _FakeAuthRepository extends AuthRepository {
   AuthBootstrapResult? bootstrapResult;
   Object? bootstrapError;
   final Future<AuthBootstrapResult>? bootstrapFuture;
+  final List<AuthBootstrapResult> bootstrapResults;
   int bootstrapCount = 0;
   int getUserDataCount = 0;
   int featureAccessCount = 0;
   int policyAccessCount = 0;
   int logoutCount = 0;
   String? bootstrapIfNoneMatch;
+  final List<String?> bootstrapIfNoneMatches = [];
+  final List<String?> bootstrapFallbackEmails = [];
 
   _FakeAuthRepository({
     this.bootstrapResult,
     this.bootstrapError,
     this.bootstrapFuture,
-  }) : super(ApiClient());
+    List<AuthBootstrapResult>? bootstrapResults,
+  }) : bootstrapResults = [...?bootstrapResults],
+       super(ApiClient());
 
   @override
-  Future<AuthBootstrapResult> getBootstrap({String? ifNoneMatch}) async {
+  Future<AuthBootstrapResult> getBootstrap({
+    String? ifNoneMatch,
+    String? fallbackEmail,
+  }) async {
     bootstrapCount += 1;
     bootstrapIfNoneMatch = ifNoneMatch;
+    bootstrapIfNoneMatches.add(ifNoneMatch);
+    bootstrapFallbackEmails.add(fallbackEmail);
     if (bootstrapFuture != null) return bootstrapFuture!;
     if (bootstrapError != null) throw bootstrapError!;
+    if (bootstrapResults.isNotEmpty) return bootstrapResults.removeAt(0);
     return bootstrapResult!;
   }
 

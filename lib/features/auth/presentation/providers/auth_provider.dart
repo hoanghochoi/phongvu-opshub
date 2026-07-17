@@ -265,6 +265,13 @@ class AuthProvider extends ChangeNotifier {
         _bootstrapSchemaVersion = savedSnapshot.bootstrapSchemaVersion;
         _bootstrapConditionalGet = savedSnapshot.conditionalGet;
         _realtimeV2Topics = savedSnapshot.realtimeV2Topics;
+      } else {
+        // Older builds persisted profile/token keys but not the v2 snapshot.
+        // Only non-empty persisted access maps are last-known-good evidence;
+        // profile metadata or an ETag alone must never unlock the shell.
+        _hasUsableAccessSnapshot =
+            savedUser.featureAccess.isNotEmpty ||
+            savedUser.policyAccess.isNotEmpty;
       }
 
       if (_user != null) {
@@ -697,11 +704,7 @@ class AuthProvider extends ChangeNotifier {
       final bootstrapVersion = bootstrapValue['version']?.toString();
       return _SavedAuthSnapshot(
         user: user,
-        hasUsableAccess:
-            bootstrapValue['accessResolved'] == true ||
-            lastSuccessAt != null ||
-            (bootstrapEtag?.trim().isNotEmpty ?? false) ||
-            (bootstrapVersion?.trim().isNotEmpty ?? false),
+        hasUsableAccess: bootstrapValue['accessResolved'] == true,
         bootstrapEtag: bootstrapEtag,
         bootstrapGeneratedAt: DateTime.tryParse(
           bootstrapValue['generatedAt']?.toString() ?? '',
@@ -903,6 +906,32 @@ class AuthProvider extends ChangeNotifier {
     ].join('|');
   }
 
+  static Map<String, dynamic> _bootstrapFailureLogContext(ApiException error) {
+    final category = switch (error) {
+      AuthBootstrapContractException() => 'contract',
+      NetworkException() => 'network',
+      TimeoutException() => 'timeout',
+      RateLimitedException() => 'rate_limited',
+      ServerException() => 'server',
+      _ when error.statusCode != null => 'http',
+      _ => 'unexpected',
+    };
+    return {
+      'failureCategory': category,
+      'statusCode': error.statusCode,
+      if (error is AuthBootstrapContractException) ...{
+        'contractReason': error.reason,
+        'responseBodyBytes': error.responseBodyBytes,
+        'durationMs': error.durationMs,
+        'schemaVersion': error.schemaVersion,
+        'userObjectPresent': error.hasUser,
+        'identityIdPresent': error.hasUserId,
+        'identityLoginPresent': error.hasUserEmail,
+        'topLevelKeys': error.topLevelKeys,
+      },
+    };
+  }
+
   Future<bool> retryAccessSync() async {
     final current = _user;
     if (current == null || ApiClient().authToken == null) return false;
@@ -948,10 +977,40 @@ class AuthProvider extends ChangeNotifier {
     );
     try {
       try {
-        final result = await _repository.getBootstrap(
+        var result = await _repository.getBootstrap(
           ifNoneMatch: _bootstrapEtag,
+          fallbackEmail: cachedUser.email,
         );
         if (!_isCurrentAccessRequest(epoch, userKey)) return false;
+        if (result.isNotModified && !_hasUsableAccessSnapshot) {
+          await AppLogger.instance.warn(
+            'Auth',
+            'Bootstrap returned not modified without a usable snapshot; retrying unconditionally',
+            context: {
+              'email': cachedUser.email,
+              'hasEtag': _bootstrapEtag != null,
+              'cachedFeatureAccessCount': cachedUser.featureAccess.length,
+              'cachedPolicyAccessCount': cachedUser.policyAccess.length,
+            },
+          );
+          result = await _repository.getBootstrap(
+            fallbackEmail: cachedUser.email,
+          );
+          if (!_isCurrentAccessRequest(epoch, userKey)) return false;
+          if (result.isNotModified) {
+            throw AuthBootstrapContractException(
+              reason: 'not_modified_without_snapshot',
+              responseStatusCode: 304,
+              responseBodyBytes: 0,
+              durationMs: 0,
+              schemaVersion: null,
+              hasUser: false,
+              hasUserId: false,
+              hasUserEmail: false,
+              topLevelKeys: const [],
+            );
+          }
+        }
         if (result.isNotModified) {
           _bootstrapEtag = result.etag ?? _bootstrapEtag;
           _accessLastSyncedAt = DateTime.now();
@@ -1015,11 +1074,19 @@ class AuthProvider extends ChangeNotifier {
         notifyListeners();
         return true;
       } on ApiException catch (error) {
-        if (error.statusCode != 404 && error.statusCode != 501) rethrow;
+        final useLegacyCompatibility =
+            error.statusCode == 404 ||
+            error.statusCode == 501 ||
+            (error is AuthBootstrapContractException &&
+                !_hasUsableAccessSnapshot);
+        if (!useLegacyCompatibility) rethrow;
         await AppLogger.instance.warn(
           'Auth',
           'Auth bootstrap unavailable; using legacy refresh',
-          context: {'email': cachedUser.email, 'statusCode': error.statusCode},
+          context: {
+            'email': cachedUser.email,
+            ..._bootstrapFailureLogContext(error),
+          },
         );
         if (!_isCurrentAccessRequest(epoch, userKey)) return false;
         return await _refreshSavedSessionLegacy(cachedUser, epoch, userKey);
@@ -1042,7 +1109,7 @@ class AuthProvider extends ChangeNotifier {
         'Saved session bootstrap refresh failed; cache retained',
         context: {
           'email': cachedUser.email,
-          'statusCode': e.statusCode,
+          ..._bootstrapFailureLogContext(e),
           'cachedFeatureAccessCount': cachedUser.featureAccess.length,
           'cachedPolicyAccessCount': cachedUser.policyAccess.length,
         },

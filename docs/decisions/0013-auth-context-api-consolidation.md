@@ -49,3 +49,18 @@ khi kết luận đạt SLO.
 transaction as permission, platform-session or organization-topology mutations. Recipient
 lookup and `ACCESS_CHANGED` publication run only after commit; the publisher
 does not perform a second out-of-transaction bump.
+
+## Phụ lục contract bootstrap sau sự cố production 2026-07-17
+
+- `user` trong `/auth/bootstrap` là snapshot tự chứa và bắt buộc có `id` cùng
+  `email` lấy từ authenticated principal; profile compatibility không được ghi
+  đè hai trường identity này.
+- Client chỉ dùng email của saved session làm fallback khi response cũ thiếu
+  email. Nếu response trả một email khác session hiện tại, client từ chối vì
+  contract/identity mismatch.
+- `304 Not Modified` chỉ hợp lệ khi client đang có access snapshot đã được đánh
+  dấu `accessResolved=true`; nếu không, client retry một lần không có ETag.
+- Compatibility refresh được dùng cho `404/501` hoặc response bootstrap `2xx`
+  sai contract khi chưa có snapshot dùng được. `401` vẫn xóa session;
+  network/`5xx` với snapshot hợp lệ giữ bản cũ ở trạng thái stale để tránh
+  khuếch đại tải bằng ba request fallback.

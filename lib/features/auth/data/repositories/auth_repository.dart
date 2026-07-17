@@ -107,6 +107,38 @@ int _toInt(Object? value) {
   return int.tryParse(value?.toString() ?? '') ?? 0;
 }
 
+class AuthBootstrapContractException extends ApiException {
+  final String reason;
+  final int responseBodyBytes;
+  final int durationMs;
+  final int? schemaVersion;
+  final bool hasUser;
+  final bool hasUserId;
+  final bool hasUserEmail;
+  final List<String> topLevelKeys;
+
+  AuthBootstrapContractException({
+    required this.reason,
+    required int responseStatusCode,
+    required this.responseBodyBytes,
+    required this.durationMs,
+    required this.schemaVersion,
+    required this.hasUser,
+    required this.hasUserId,
+    required this.hasUserEmail,
+    required this.topLevelKeys,
+  }) : super(
+         'Dữ liệu đồng bộ tài khoản chưa hợp lệ. Vui lòng thử lại.',
+         responseStatusCode,
+       );
+}
+
+class _AuthBootstrapFormatException implements Exception {
+  final String reason;
+
+  const _AuthBootstrapFormatException(this.reason);
+}
+
 class AuthBootstrapCapabilities {
   final bool conditionalGet;
   final List<String> realtimeV2Topics;
@@ -149,7 +181,10 @@ class AuthBootstrapData {
     required this.capabilities,
   });
 
-  factory AuthBootstrapData.fromJson(Map<String, dynamic> json) {
+  factory AuthBootstrapData.fromJson(
+    Map<String, dynamic> json, {
+    String? fallbackEmail,
+  }) {
     final userValue = json['user'];
     final featureValue = json['featureAccess'];
     final policyValue = json['policyAccess'];
@@ -166,16 +201,24 @@ class AuthBootstrapData {
         featureValue is! Map ||
         policyValue is! Map ||
         capabilitiesValue is! Map) {
-      throw ApiException(
-        'Dữ liệu đồng bộ tài khoản chưa hợp lệ. Vui lòng thử lại.',
-      );
+      throw const _AuthBootstrapFormatException('invalid_required_fields');
     }
     final userJson = Map<String, dynamic>.from(userValue);
-    final user = User.fromJson(userJson);
+    final normalizedFallbackEmail = fallbackEmail?.trim().toLowerCase() ?? '';
+    final responseEmail = userJson['email']?.toString().trim() ?? '';
+    if (responseEmail.isNotEmpty &&
+        normalizedFallbackEmail.isNotEmpty &&
+        responseEmail.toLowerCase() != normalizedFallbackEmail) {
+      throw const _AuthBootstrapFormatException('identity_mismatch');
+    }
+    final user = User.fromJson(
+      userJson,
+      fallbackEmail: normalizedFallbackEmail.isEmpty
+          ? null
+          : normalizedFallbackEmail,
+    );
     if (user.email.trim().isEmpty) {
-      throw ApiException(
-        'Dữ liệu đồng bộ tài khoản chưa hợp lệ. Vui lòng thử lại.',
-      );
+      throw const _AuthBootstrapFormatException('missing_identity');
     }
     return AuthBootstrapData(
       schemaVersion: schemaVersion,
@@ -469,7 +512,11 @@ class AuthRepository {
     }
   }
 
-  Future<AuthBootstrapResult> getBootstrap({String? ifNoneMatch}) async {
+  Future<AuthBootstrapResult> getBootstrap({
+    String? ifNoneMatch,
+    String? fallbackEmail,
+  }) async {
+    final stopwatch = Stopwatch()..start();
     final response = await _apiClient.getConditional(
       '/auth/bootstrap',
       ifNoneMatch: ifNoneMatch,
@@ -479,27 +526,46 @@ class AuthRepository {
         etag: response.etag ?? ifNoneMatch,
       );
     }
+    Map<String, dynamic>? payload;
+    late final String failureReason;
     try {
       final decoded = jsonDecode(response.body);
       if (decoded is! Map) {
-        throw ApiException(
-          'Dữ liệu đồng bộ tài khoản chưa hợp lệ. Vui lòng thử lại.',
-        );
+        throw const _AuthBootstrapFormatException('invalid_envelope');
       }
+      payload = Map<String, dynamic>.from(decoded);
       final data = AuthBootstrapData.fromJson(
-        Map<String, dynamic>.from(decoded),
+        payload,
+        fallbackEmail: fallbackEmail,
       );
       return AuthBootstrapResult.data(
         data: data,
         etag: response.etag ?? data.version,
       );
-    } on ApiException {
-      rethrow;
+    } on _AuthBootstrapFormatException catch (error) {
+      failureReason = error.reason;
+    } on FormatException {
+      failureReason = 'invalid_json';
     } catch (_) {
-      throw ApiException(
-        'Dữ liệu đồng bộ tài khoản chưa hợp lệ. Vui lòng thử lại.',
-      );
+      failureReason = 'invalid_shape';
     }
+    final userValue = payload?['user'];
+    final userMap = userValue is Map
+        ? Map<String, dynamic>.from(userValue)
+        : const <String, dynamic>{};
+    final schemaVersion = _toInt(payload?['schemaVersion']);
+    final topLevelKeys = <String>[...?payload?.keys]..sort();
+    throw AuthBootstrapContractException(
+      reason: failureReason,
+      responseStatusCode: response.statusCode,
+      responseBodyBytes: utf8.encode(response.body).length,
+      durationMs: stopwatch.elapsedMilliseconds,
+      schemaVersion: schemaVersion > 0 ? schemaVersion : null,
+      hasUser: userValue is Map,
+      hasUserId: userMap['id']?.toString().trim().isNotEmpty == true,
+      hasUserEmail: userMap['email']?.toString().trim().isNotEmpty == true,
+      topLevelKeys: topLevelKeys,
+    );
   }
 
   Future<List<StoreBranch>> getStores({String? query}) async {

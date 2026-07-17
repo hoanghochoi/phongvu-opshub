@@ -1,4 +1,43 @@
+import { readFileSync } from 'fs';
+import { resolve } from 'path';
+import { FeatureService } from '../feature/feature.service';
+import { PolicyService } from '../policy/policy.service';
 import { AuthBootstrapService } from './auth-bootstrap.service';
+import { AuthService } from './auth.service';
+
+type AuthBootstrapV1Fixture = {
+  schemaVersion: number;
+  generatedAt: string;
+  version: string;
+  user: Record<string, unknown>;
+  featureAccess: Record<string, boolean>;
+  policyAccess: Record<string, boolean>;
+  capabilities: {
+    conditionalGet: boolean;
+    realtimeV2Topics: string[];
+  };
+};
+
+function loadAuthBootstrapV1Fixture(): AuthBootstrapV1Fixture {
+  const parsed: unknown = JSON.parse(
+    readFileSync(
+      resolve(
+        process.cwd(),
+        '..',
+        'test',
+        'fixtures',
+        'auth_bootstrap_v1.json',
+      ),
+      'utf8',
+    ),
+  );
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error('Shared auth bootstrap fixture must be a JSON object');
+  }
+  return parsed as AuthBootstrapV1Fixture;
+}
+
+const authBootstrapV1Fixture = loadAuthBootstrapV1Fixture();
 
 describe('AuthBootstrapService', () => {
   let service: AuthBootstrapService;
@@ -33,9 +72,9 @@ describe('AuthBootstrapService', () => {
       }),
     };
     service = new AuthBootstrapService(
-      authService as any,
-      featureService as any,
-      policyService as any,
+      authService as unknown as AuthService,
+      featureService as unknown as FeatureService,
+      policyService as unknown as PolicyService,
     );
   });
 
@@ -58,11 +97,13 @@ describe('AuthBootstrapService', () => {
     expect(result.body).toEqual({
       schemaVersion: 1,
       generatedAt: '2026-07-15T02:00:00.000Z',
-      version: expect.stringMatching(/^[a-f0-9]{64}$/),
+      version: result.body.version,
       user: {
         firstName: 'An',
         assignedStores: [{ storeId: 'CP01' }],
         profileCompletedAt: new Date('2026-07-01T01:02:03.000Z'),
+        id: 'user-1',
+        email: 'staff@phongvu-shop.vn',
       },
       featureAccess: {
         HOME_DASHBOARD: true,
@@ -84,7 +125,26 @@ describe('AuthBootstrapService', () => {
         ],
       },
     });
+    expect(result.body.version).toMatch(/^[a-f0-9]{64}$/);
     expect(result.etag).toBe(`"${result.body.version}"`);
+  });
+
+  it('rejects a bootstrap snapshot when authenticated identity is incomplete', async () => {
+    await expect(
+      service.resolve({ id: 'user-1', email: '   ' }),
+    ).rejects.toMatchObject({ status: 401 });
+  });
+
+  it('serializes the shared bootstrap v1 contract fixture', async () => {
+    const result = await service.resolve(authenticatedUser);
+    const serialized: unknown = JSON.parse(
+      JSON.stringify({
+        ...result.body,
+        version: authBootstrapV1Fixture.version,
+      }),
+    );
+
+    expect(serialized).toEqual(authBootstrapV1Fixture);
   });
 
   it('keeps the version stable when object key order and generated time change', async () => {

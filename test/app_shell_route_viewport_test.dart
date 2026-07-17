@@ -124,6 +124,38 @@ void main() {
     },
   );
 
+  testWidgets(
+    'AppShell fails closed and retries when no usable access snapshot exists',
+    (tester) async {
+      tester.view.physicalSize = const Size(1200, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final authProvider = _FailedAccessAuthProvider(_shellUser);
+      await tester.pumpWidget(
+        ChangeNotifierProvider<AuthProvider>.value(
+          value: authProvider,
+          child: const MaterialApp(
+            home: AppShell(
+              location: '/home',
+              child: _RouteMarker(label: 'protected-route-marker'),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Chưa tải được quyền truy cập'), findsOneWidget);
+      expect(find.text('protected-route-marker'), findsNothing);
+
+      await tester.tap(find.text('Thử lại'));
+      await tester.pump();
+      expect(authProvider.retryCalls, 1);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   testWidgets('legacy tasks route redirects to home', (tester) async {
     tester.view.physicalSize = const Size(1200, 900);
     tester.view.devicePixelRatio = 1;
@@ -793,6 +825,24 @@ class _StaleAuthProvider extends _FakeAuthProvider {
 
   @override
   DateTime? get accessLastSyncedAt => DateTime(2026, 7, 15, 9, 30);
+
+  @override
+  bool get isAccessSyncing => false;
+
+  @override
+  Future<bool> retryAccessSync() async {
+    retryCalls += 1;
+    return true;
+  }
+}
+
+class _FailedAccessAuthProvider extends _FakeAuthProvider {
+  _FailedAccessAuthProvider(super.currentUser);
+
+  int retryCalls = 0;
+
+  @override
+  bool get hasUsableAccessSnapshot => false;
 
   @override
   bool get isAccessSyncing => false;
