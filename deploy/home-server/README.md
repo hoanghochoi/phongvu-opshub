@@ -203,7 +203,9 @@ Full production deploys also build the Flutter web app with
 `API_BASE_URL=https://opshub.hoanghochoi.com/api`, sync it to
 `/srv/opshub/web/`, and serve it as the SPA root at `/`. Caddy must keep the
 runtime/static routes `/api`, `/ws`, `/download`, `/help`, `/uploads`,
-`/downloads`, `/staging-download`, and `/health` ahead of the SPA fallback.
+`/downloads`, `/staging-download`, `/seatalk-support`, and `/health` ahead of
+the SPA fallback. `/seatalk-support` is a short 302 redirect to the current
+Seatalk support-group invite URL.
 Staging deploys build the web app with
 `API_BASE_URL=https://opshub-staging.hoanghochoi.com/api` and publish it under
 `/srv/opshub-staging/web/`. Android/Windows metadata and downloads use only the

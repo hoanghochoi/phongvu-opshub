@@ -2278,7 +2278,12 @@ test\barcode_scanner_screen_test.dart test\design_system_migration_guard_test.da
   context. Validation: focused Home widget tests
   (`test\home_feedback_action_test.dart`, `test\home_avatar_test.dart`),
   `flutter analyze --no-pub`, and `git diff --check`. Gap: live Seatalk app
-  handoff remains manual.
+  handoff remains manual. 2026-07-17: Caddy now exposes the stable
+  `/seatalk-support` URL as a reversible 302 redirect while the client button
+  remains unchanged until the next app action. Validation: focused Home support
+  widget test, Caddyfile structure inspection, `flutter analyze --no-pub`, and
+  `git diff --check`. Gap: the public redirect remains pending the production
+  deploy action; the app-side short-link update is intentionally deferred.
 
 - UPDATE-003, 2026-06-24: added deploy-triggered realtime update discovery while
   keeping public `/app-version` as the authority. NestJS publishes sanitized
