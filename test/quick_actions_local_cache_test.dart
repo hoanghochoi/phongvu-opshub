@@ -42,6 +42,14 @@ void main() {
         'https://example.com/app',
       );
       expect(rejected, isNull);
+
+      await store.remove(ownerId: 'user-1', cacheKey: 'CP75');
+      final removed = await store.read(
+        ownerId: 'user-1',
+        cacheIdentity: 'permission-v1',
+        cacheKey: 'CP75',
+      );
+      expect(removed, isNull);
     },
   );
 }

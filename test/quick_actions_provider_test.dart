@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:phongvu_opshub/core/network/api_client.dart';
+import 'package:phongvu_opshub/core/network/realtime_connection_manager.dart';
 import 'package:phongvu_opshub/features/auth/domain/entities/user.dart';
 import 'package:phongvu_opshub/features/quick_actions/data/quick_actions_local_cache.dart';
 import 'package:phongvu_opshub/features/quick_actions/data/quick_actions_repository.dart';
@@ -181,6 +182,78 @@ void main() {
       expect(repository.loadCount, 1);
     },
   );
+
+  test(
+    'realtime store update invalidates scope and QR then reloads exactly once',
+    () async {
+      final repository = _FakeQuickActionsRepository(singleStore: false)
+        ..availableActionCodes = const {};
+      final localCache = _FakeQuickActionsCacheStore();
+      final realtime = _FakeRealtimeClient();
+      final provider = QuickActionsProvider(
+        repository,
+        localCache: localCache,
+        realtimeClient: realtime,
+      );
+      addTearDown(provider.dispose);
+      addTearDown(realtime.dispose);
+      await provider.syncUser(user);
+      expect(repository.loadCount, 1);
+
+      realtime.add(_quickActionLinksUpdated('CP99'));
+      await _flushAsyncWork();
+      expect(repository.loadCount, 1);
+      expect(localCache.removedKeys, isEmpty);
+
+      repository.availableActionCodes = const {'APP_DOWNLOAD'};
+      realtime.add(_quickActionLinksUpdated('CP75'));
+      await _flushAsyncWork();
+
+      expect(repository.loadCount, 2);
+      expect(provider.payload?.availableActionCodes, {'APP_DOWNLOAD'});
+      expect(localCache.removedKeys, {'user-1|__scope__', 'user-1|CP75'});
+    },
+  );
+
+  test(
+    'realtime update defers the single reload while surface is inactive',
+    () async {
+      final repository = _FakeQuickActionsRepository(singleStore: true);
+      final localCache = _FakeQuickActionsCacheStore();
+      final realtime = _FakeRealtimeClient();
+      final provider = QuickActionsProvider(
+        repository,
+        localCache: localCache,
+        realtimeClient: realtime,
+      );
+      addTearDown(provider.dispose);
+      addTearDown(realtime.dispose);
+
+      await provider.syncUser(user, isSurfaceActive: false);
+      realtime.add(_quickActionLinksUpdated('CP75'));
+      await _flushAsyncWork();
+      expect(repository.loadCount, 0);
+
+      await provider.syncUser(user, isSurfaceActive: true);
+      expect(repository.loadCount, 1);
+    },
+  );
+}
+
+RealtimeEnvelope _quickActionLinksUpdated(String storeCode) => RealtimeEnvelope(
+  version: 2,
+  kind: 'QUICK_ACTION_LINKS_UPDATED',
+  id: 'quick-action-$storeCode',
+  topic: 'quick-actions.links',
+  sequence: 1,
+  timestamp: DateTime.utc(2026, 7, 17),
+  data: {'storeCode': storeCode, 'configuredCount': 1},
+);
+
+Future<void> _flushAsyncWork() async {
+  for (var index = 0; index < 8; index += 1) {
+    await Future<void>.delayed(Duration.zero);
+  }
 }
 
 class _FakeQuickActionsRepository extends QuickActionsRepository {
@@ -188,6 +261,7 @@ class _FakeQuickActionsRepository extends QuickActionsRepository {
   int loadCount = 0;
   bool failLoads = false;
   Completer<void>? loadGate;
+  Set<String> availableActionCodes = const {'APP_DOWNLOAD'};
 
   _FakeQuickActionsRepository({required this.singleStore}) : super(ApiClient());
 
@@ -204,7 +278,7 @@ class _FakeQuickActionsRepository extends QuickActionsRepository {
         QuickActionStore(storeCode: 'CP01', storeName: 'Showroom 1'),
       ].take(singleStore ? 1 : 2).toList(growable: false),
       selectedStoreCode: selectedStoreCode,
-      availableActionCodes: const {'APP_DOWNLOAD'},
+      availableActionCodes: availableActionCodes,
       links: {
         'APP_DOWNLOAD': selectedStoreCode == null
             ? null
@@ -217,6 +291,7 @@ class _FakeQuickActionsRepository extends QuickActionsRepository {
 class _FakeQuickActionsCacheStore implements QuickActionsCacheStore {
   final Map<String, ({String identity, QuickActionsCacheRecord record})>
   _records = {};
+  final Set<String> removedKeys = {};
 
   @override
   Future<QuickActionsCacheRecord?> read({
@@ -237,4 +312,31 @@ class _FakeQuickActionsCacheStore implements QuickActionsCacheStore {
   }) async {
     _records['$ownerId|$cacheKey'] = (identity: cacheIdentity, record: record);
   }
+
+  @override
+  Future<void> remove({
+    required String ownerId,
+    required String cacheKey,
+  }) async {
+    removedKeys.add('$ownerId|$cacheKey');
+    _records.remove('$ownerId|$cacheKey');
+  }
+}
+
+class _FakeRealtimeClient implements RealtimeClient {
+  final StreamController<RealtimeEnvelope> _events =
+      StreamController<RealtimeEnvelope>.broadcast();
+
+  @override
+  Stream<RealtimeEnvelope> get events => _events.stream;
+
+  @override
+  Stream<RealtimeSyncReason> get syncRequests => const Stream.empty();
+
+  void add(RealtimeEnvelope event) => _events.add(event);
+
+  @override
+  Future<void> syncSession(String? sessionKey) async {}
+
+  Future<void> dispose() => _events.close();
 }

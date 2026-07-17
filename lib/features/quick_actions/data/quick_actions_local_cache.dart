@@ -29,6 +29,8 @@ abstract class QuickActionsCacheStore {
     required String cacheKey,
     required QuickActionsCacheRecord record,
   });
+
+  Future<void> remove({required String ownerId, required String cacheKey});
 }
 
 class SharedPreferencesQuickActionsCacheStore
@@ -79,6 +81,15 @@ class SharedPreferencesQuickActionsCacheStore
         'payload': record.payload.toJson(),
       }),
     );
+  }
+
+  @override
+  Future<void> remove({
+    required String ownerId,
+    required String cacheKey,
+  }) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_storageKey(ownerId, cacheKey));
   }
 
   String _storageKey(String ownerId, String cacheKey) {

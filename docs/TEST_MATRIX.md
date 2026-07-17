@@ -2899,6 +2899,14 @@ src/map-vietin/map-vietin.service.spec.ts` (26 tests), `npm run build`, full
   cô lập cache theo user + scope + tập quyền. Cache sống qua lần khởi động app;
   API lỗi sau TTL fallback mã local. Unit/widget proof kiểm tra số lần repository,
   disk cache, TTL showroom, đổi quyền và mở menu từ cache.
+- Cache invalidation regression 2026-07-17: lưu link phát v2-only
+  `QUICK_ACTION_LINKS_UPDATED` theo showroom và feature `QUICK_ACTIONS`; gateway
+  từ chối client ngoài scope. Client đúng scope xóa persistent cache scope + QR
+  rồi tải lại đúng một lần; Windows ngoài Home hoãn tải tới lần Home kế tiếp.
+  Event không chứa URL và luồng lưu không còn force-refresh lần hai trên máy
+  quản lý. Validation: focused Nest/Flutter pass, full Nest 73 suites/724 tests,
+  full Flutter pass, Go test pass, Prisma validate, Nest build, Flutter analyze
+  và `git diff --check` pass.
 - Mobile layout regression 2026-07-15: menu Thao tác nhanh dùng lưới tự xuống
   hàng thay cho một hàng cuộn ngang; widget proof kiểm tra đủ tám action, đúng
   hai hàng trên viewport 390px và không còn horizontal scroll view.

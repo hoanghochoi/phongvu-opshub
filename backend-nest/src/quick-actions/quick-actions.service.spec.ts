@@ -20,10 +20,12 @@ describe('QuickActionsService', () => {
       $transaction: jest.fn(async () => []),
     };
     const features: any = { canAccessFeature: jest.fn(async () => true) };
+    const redis: any = { publishMessageOrThrow: jest.fn(async () => undefined) };
     return {
       prisma,
       features,
-      service: new QuickActionsService(prisma, features),
+      redis,
+      service: new QuickActionsService(prisma, features, redis),
     };
   }
 
@@ -64,7 +66,7 @@ describe('QuickActionsService', () => {
   });
 
   it('upserts configured values and deletes blank values atomically', async () => {
-    const { prisma, service } = createService();
+    const { prisma, redis, service } = createService();
     prisma.user.findUnique
       .mockResolvedValueOnce(scopedUser())
       .mockResolvedValueOnce({ jobRoleCode: 'STORE_MANAGER' })
@@ -88,6 +90,29 @@ describe('QuickActionsService', () => {
     expect(
       writes.filter((write: any) => write.kind === 'deleteMany'),
     ).toHaveLength(2);
+    expect(redis.publishMessageOrThrow).toHaveBeenCalledTimes(1);
+    expect(redis.publishMessageOrThrow).toHaveBeenCalledWith(
+      'QUICK_ACTION_LINKS_UPDATED',
+      expect.objectContaining({
+        schemaVersion: 1,
+        type: 'QUICK_ACTION_LINKS_UPDATED',
+        audience: expect.objectContaining({
+          storeCodes: ['HCM01'],
+          featureCodes: ['QUICK_ACTIONS'],
+        }),
+        payload: {
+          storeCode: 'HCM01',
+          actionCodes: [
+            'APP_DOWNLOAD',
+            'CHECK_IN',
+            'ZALO_OA',
+            'GOOGLE_MAP',
+          ],
+          configuredActionCodes: ['APP_DOWNLOAD', 'GOOGLE_MAP'],
+          configuredCount: 2,
+        },
+      }),
+    );
   });
 
   it('rejects a showroom outside the assigned scope', async () => {
@@ -99,6 +124,30 @@ describe('QuickActionsService', () => {
     await expect(
       service.updateAdminLinks(manager, 'HN99', {}),
     ).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it('keeps the committed save successful when realtime is unavailable', async () => {
+    const { prisma, redis, service } = createService();
+    prisma.user.findUnique
+      .mockResolvedValueOnce(scopedUser())
+      .mockResolvedValueOnce({ jobRoleCode: 'STORE_MANAGER' })
+      .mockResolvedValueOnce(scopedUser())
+      .mockResolvedValueOnce({ jobRoleCode: 'STORE_MANAGER' });
+    prisma.quickActionLink.findMany.mockResolvedValue([]);
+    redis.publishMessageOrThrow.mockRejectedValueOnce(
+      new Error('redis unavailable'),
+    );
+
+    await expect(
+      service.updateAdminLinks(manager, 'HCM01', {
+        APP_DOWNLOAD: 'https://example.com/app',
+      }),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        store: expect.objectContaining({ storeCode: 'HCM01' }),
+      }),
+    );
+    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
   });
 
   it('returns configured QR actions for a super admin on a fresh load', async () => {

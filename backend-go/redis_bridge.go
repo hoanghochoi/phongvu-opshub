@@ -23,6 +23,7 @@ var redisChannels = []string{
 	salesReportOrdersRedisChannel,
 	homeSummaryRedisChannel,
 	accessChangedRedisChannel,
+	quickActionLinksRedisChannel,
 	authSessionRevokedRedisChannel,
 }
 

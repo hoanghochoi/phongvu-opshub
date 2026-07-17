@@ -19,6 +19,7 @@ const (
 	salesReportOrdersRedisChannel      = "SALES_REPORT_ORDERS_UPDATED"
 	homeSummaryRedisChannel            = "HOME_SUMMARY_UPDATED"
 	accessChangedRedisChannel          = "ACCESS_CHANGED"
+	quickActionLinksRedisChannel       = "QUICK_ACTION_LINKS_UPDATED"
 
 	warrantyEventType               = "WARRANTY_EVENT"
 	paymentEventType                = "PAYMENT_NOTIFICATION"
@@ -30,6 +31,7 @@ const (
 	salesReportOrdersEventType      = "SALES_REPORT_ORDERS_UPDATED"
 	homeSummaryEventType            = "HOME_SUMMARY_UPDATED"
 	accessChangedEventType          = "ACCESS_CHANGED"
+	quickActionLinksEventType       = "QUICK_ACTION_LINKS_UPDATED"
 	warrantyTopic                   = "warranty"
 	paymentTopic                    = "payment.transactions"
 	paymentStreamTopic              = "payment.speaker"
@@ -39,6 +41,7 @@ const (
 	salesReportOrdersTopic          = "sales-report.orders"
 	homeSummaryTopic                = "home.summary"
 	accessChangedTopic              = "access.changed"
+	quickActionLinksTopic           = "quick-actions.links"
 
 	webSocketProtocolV1 = 1
 	webSocketProtocolV2 = 2
@@ -159,6 +162,14 @@ func formatRedisEvents(channel string, payload string) ([]RoutedEvent, bool) {
 	)
 	if !ok {
 		return nil, false
+	}
+	if channel == quickActionLinksRedisChannel {
+		return []RoutedEvent{{
+			Type:            eventType,
+			Message:         v2Message,
+			Audience:        parsed.audience,
+			ProtocolVersion: webSocketProtocolV2,
+		}}, true
 	}
 
 	return []RoutedEvent{
@@ -395,6 +406,8 @@ func eventTypeForChannel(channel string) (string, bool) {
 		return homeSummaryEventType, true
 	case accessChangedRedisChannel:
 		return accessChangedEventType, true
+	case quickActionLinksRedisChannel:
+		return quickActionLinksEventType, true
 	default:
 		return "", false
 	}
@@ -420,6 +433,8 @@ func topicForChannel(channel string) (string, bool) {
 		return homeSummaryTopic, true
 	case accessChangedRedisChannel:
 		return accessChangedTopic, true
+	case quickActionLinksRedisChannel:
+		return quickActionLinksTopic, true
 	default:
 		return "", false
 	}

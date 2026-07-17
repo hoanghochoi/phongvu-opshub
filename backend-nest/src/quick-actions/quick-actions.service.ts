@@ -11,9 +11,11 @@ import {
   storesForOrganizationNodeTree,
 } from '../common/organization-store-scope';
 import { isSuperAdminRole } from '../common/system-role';
-import { logFingerprint } from '../common/log-sanitizer';
+import { logFingerprint, safeLogError } from '../common/log-sanitizer';
+import { buildRealtimeRedisEnvelope } from '../common/realtime-event';
 import { FeatureService } from '../feature/feature.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { RedisService } from '../redis/redis.service';
 import {
   QUICK_ACTION_LINK_CODES,
   QUICK_ACTION_LINK_FEATURES,
@@ -27,6 +29,7 @@ const MANAGER_ROLES = new Set([
   'REGION_MANAGER',
   'REGIONAL_MANAGER',
 ]);
+const QUICK_ACTION_LINKS_UPDATED_CHANNEL = 'QUICK_ACTION_LINKS_UPDATED';
 
 @Injectable()
 export class QuickActionsService {
@@ -35,6 +38,7 @@ export class QuickActionsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly features: FeatureService,
+    private readonly redis: RedisService,
   ) {}
 
   async getQuickActions(user: any, storeCodeInput?: string) {
@@ -154,8 +158,38 @@ export class QuickActionsService {
             }),
     );
     await this.prisma.$transaction(writes);
+    const configuredActionCodes = QUICK_ACTION_LINK_CODES.filter(
+      (code) => normalized[code] != null,
+    );
+    let realtimeStatus = 'published';
+    try {
+      await this.redis.publishMessageOrThrow(
+        QUICK_ACTION_LINKS_UPDATED_CHANNEL,
+        buildRealtimeRedisEnvelope({
+          type: QUICK_ACTION_LINKS_UPDATED_CHANNEL,
+          audience: {
+            storeCodes: [selected.storeId],
+            featureCodes: ['QUICK_ACTIONS'],
+          },
+          payload: {
+            storeCode: selected.storeId,
+            actionCodes: [...QUICK_ACTION_LINK_CODES],
+            configuredActionCodes,
+            configuredCount: configuredActionCodes.length,
+          },
+        }),
+      );
+    } catch (error) {
+      realtimeStatus = 'failed';
+      this.logger.error(
+        `Quick action links realtime update failed: store=${selected.storeId} actionCount=${QUICK_ACTION_LINK_CODES.length} error=${safeLogError(error)}`,
+      );
+    }
     this.logger.log(
       `Quick action admin update succeeded: user=${this.safeUser(user)} store=${selected.storeId} configuredCount=${Object.values(normalized).filter(Boolean).length} urlLengths=${QUICK_ACTION_LINK_CODES.map((code) => `${code}:${normalized[code]?.length ?? 0}`).join(',')} durationMs=${Date.now() - startedAt}`,
+    );
+    this.logger.log(
+      `Quick action links realtime update completed: store=${selected.storeId} actionCount=${QUICK_ACTION_LINK_CODES.length} configuredCount=${configuredActionCodes.length} status=${realtimeStatus}`,
     );
     return this.getAdminLinks(user, selected.storeId);
   }

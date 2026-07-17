@@ -14,10 +14,13 @@ Client lưu bền vững scope/danh sách QR và link QR trên máy theo user + 
 Mở menu dùng cache ngay, không chờ API; scope được đồng bộ nền tối đa một lần mỗi
 24 giờ. Link QR có TTL 7 ngày vì cấu hình từng showroom rất ít thay đổi: showroom
 đơn được lưu ngay từ bootstrap, showroom nhiều chỉ gọi API ở lần chọn đầu hoặc
-sau TTL rồi tiếp tục dùng qua các lần tắt/mở app. Sau khi quản lý lưu link, client
-force-refresh đúng một lần để action/mã QR mới xuất hiện ngay. Đổi user, scope tổ
-chức hoặc tập quyền không dùng lại cache của phiên quyền cũ. Nếu API tạm lỗi sau
-TTL, client fallback mã đã lưu thay vì hiển thị QR rỗng.
+sau TTL rồi tiếp tục dùng qua các lần tắt/mở app. Sau khi quản lý lưu link,
+backend phát `QUICK_ACTION_LINKS_UPDATED` qua topic v2 `quick-actions.links`, chỉ
+định tuyến tới client có showroom tương ứng và quyền `QUICK_ACTIONS`. Client xóa
+cache scope cùng cache QR của showroom rồi tải lại đúng một lần; Windows đang ở
+ngoài Home chỉ xóa cache và hoãn lần tải tới khi Home hoạt động. Đổi user, scope
+tổ chức hoặc tập quyền không dùng lại cache của phiên quyền cũ. Nếu API tạm lỗi
+sau TTL, client fallback mã đã lưu thay vì hiển thị QR rỗng.
 
 ## Quyền
 

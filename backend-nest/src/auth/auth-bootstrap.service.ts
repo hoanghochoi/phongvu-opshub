@@ -22,6 +22,7 @@ const REALTIME_V2_TOPICS = [
   'notifications.statement-transfer',
   'notifications.offset-adjustment',
   'sales-report.orders',
+  'quick-actions.links',
 ] as const;
 
 type AuthenticatedUser = {

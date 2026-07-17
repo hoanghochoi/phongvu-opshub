@@ -249,6 +249,7 @@ export class AuthContextService {
             'notifications.statement-transfer',
             'notifications.offset-adjustment',
             'sales-report.orders',
+            'quick-actions.links',
           ],
         },
         orgScopeSlice: {

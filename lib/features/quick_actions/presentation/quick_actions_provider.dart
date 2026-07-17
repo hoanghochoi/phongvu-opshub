@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import '../../../core/logging/app_logger.dart';
+import '../../../core/network/realtime_connection_manager.dart';
 import '../../auth/domain/entities/user.dart';
 import '../data/quick_actions_local_cache.dart';
 import '../data/quick_actions_repository.dart';
@@ -17,6 +18,7 @@ class QuickActionsProvider extends ChangeNotifier {
   final Duration scopeCacheTtl;
   final Duration qrCacheTtl;
   final DateTime Function() _now;
+  StreamSubscription<RealtimeEnvelope>? _realtimeSubscription;
   QuickActionsPayload? _payload;
   bool _loading = false;
   final Map<String, QuickActionsCacheRecord> _cache = {};
@@ -26,6 +28,7 @@ class QuickActionsProvider extends ChangeNotifier {
   String? _ownerId;
   int _userGeneration = 0;
   bool _needsInitialSync = false;
+  bool _isSurfaceActive = false;
 
   QuickActionsProvider(
     this._repository, {
@@ -33,14 +36,20 @@ class QuickActionsProvider extends ChangeNotifier {
     this.scopeCacheTtl = defaultScopeCacheTtl,
     this.qrCacheTtl = defaultQrCacheTtl,
     DateTime Function()? now,
+    RealtimeClient? realtimeClient,
   }) : _localCache = localCache ?? SharedPreferencesQuickActionsCacheStore(),
-       _now = now ?? DateTime.now;
+       _now = now ?? DateTime.now {
+    _realtimeSubscription = realtimeClient?.events.listen(
+      _handleRealtimeEnvelope,
+    );
+  }
 
   QuickActionsPayload? get payload => _payload;
   bool get isLoading => _loading;
   Object? get error => _error;
 
   Future<void> syncUser(User? user, {bool isSurfaceActive = true}) async {
+    _isSurfaceActive = isSurfaceActive;
     final nextUserKey = _cacheIdentityFor(user);
     final userChanged = _userKey != nextUserKey;
     if (userChanged) {
@@ -135,6 +144,84 @@ class QuickActionsProvider extends ChangeNotifier {
     final cached = _cache[_scopeCacheKey];
     if (cached != null && _isFresh(cached, scopeCacheTtl)) return;
     unawaited(refresh());
+  }
+
+  Future<void> _handleRealtimeEnvelope(RealtimeEnvelope envelope) async {
+    if (envelope.kind != 'QUICK_ACTION_LINKS_UPDATED' ||
+        envelope.topic != 'quick-actions.links' ||
+        _userKey == null ||
+        _ownerId == null) {
+      return;
+    }
+    final storeCode = _normalizeStoreCode(
+      envelope.data['storeCode']?.toString(),
+    );
+    if (storeCode == null) {
+      await AppLogger.instance.info(
+        'QuickActions',
+        'Quick action cache invalidation skipped',
+        context: {'reason': 'missing_store'},
+      );
+      return;
+    }
+    final currentPayload = _payload;
+    if (currentPayload != null &&
+        !currentPayload.stores.any((store) => store.storeCode == storeCode)) {
+      await AppLogger.instance.info(
+        'QuickActions',
+        'Quick action cache invalidation skipped',
+        context: {'storeCode': storeCode, 'reason': 'store_out_of_scope'},
+      );
+      return;
+    }
+
+    final startedAt = _now();
+    await _invalidateCache(_scopeCacheKey);
+    await _invalidateCache(storeCode);
+    if (!_isSurfaceActive) {
+      _needsInitialSync = true;
+      await AppLogger.instance.info(
+        'QuickActions',
+        'Quick action cache invalidated from realtime',
+        context: {
+          'storeCode': storeCode,
+          'status': 'refresh_deferred',
+          'durationMs': _now().difference(startedAt).inMilliseconds,
+        },
+      );
+      return;
+    }
+
+    final refreshed = await refresh(storeCode: storeCode, force: true);
+    await AppLogger.instance.info(
+      'QuickActions',
+      'Quick action cache invalidated from realtime',
+      context: {
+        'storeCode': storeCode,
+        'status': refreshed == null ? 'refresh_failed' : 'refreshed',
+        'availableCount': refreshed?.availableActionCodes.length ?? 0,
+        'durationMs': _now().difference(startedAt).inMilliseconds,
+      },
+    );
+  }
+
+  Future<void> _invalidateCache(String cacheKey) async {
+    _cache.remove(cacheKey);
+    final ownerId = _ownerId;
+    if (ownerId == null) return;
+    try {
+      await _localCache.remove(ownerId: ownerId, cacheKey: cacheKey);
+    } catch (error, stackTrace) {
+      await AppLogger.instance.error(
+        'QuickActions',
+        'Quick actions local cache invalidation failed',
+        error: error,
+        stackTrace: stackTrace,
+        context: {
+          'cacheType': cacheKey == _scopeCacheKey ? 'scope' : 'showroom',
+        },
+      );
+    }
   }
 
   Future<QuickActionsPayload?> _load({
@@ -306,5 +393,12 @@ class QuickActionsProvider extends ChangeNotifier {
           .map((entry) => '${entry.key}:${entry.value ? 1 : 0}')
           .join(','),
     ].join('|');
+  }
+
+  @override
+  void dispose() {
+    unawaited(_realtimeSubscription?.cancel());
+    _realtimeSubscription = null;
+    super.dispose();
   }
 }

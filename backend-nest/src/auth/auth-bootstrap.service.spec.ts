@@ -122,6 +122,7 @@ describe('AuthBootstrapService', () => {
           'notifications.statement-transfer',
           'notifications.offset-adjustment',
           'sales-report.orders',
+          'quick-actions.links',
         ],
       },
     });

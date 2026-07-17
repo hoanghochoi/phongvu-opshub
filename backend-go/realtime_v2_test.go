@@ -188,6 +188,53 @@ func TestAuthenticatedRedisChannelsProduceStrictV2Envelopes(t *testing.T) {
 	}
 }
 
+func TestQuickActionLinkUpdatesAreScopedAndV2Only(t *testing.T) {
+	payload := versionedTestEvent(
+		quickActionLinksEventType,
+		`{"storeCodes":["CP75"],"featureCodes":["QUICK_ACTIONS"]}`,
+		`{"storeCode":"CP75","actionCodes":["APP_DOWNLOAD"],"configuredCount":1}`,
+	)
+	events, ok := formatRedisEvents(quickActionLinksRedisChannel, payload)
+	if !ok || len(events) != 1 {
+		t.Fatalf("expected one v2-only route, ok=%t count=%d", ok, len(events))
+	}
+	event := events[0]
+	if event.ProtocolVersion != webSocketProtocolV2 || event.Type != quickActionLinksEventType {
+		t.Fatalf("unexpected route metadata: %+v", event)
+	}
+	matching := &Client{auth: &ClientAuth{
+		StoreCode:    "CP75",
+		FeatureCodes: []string{"QUICK_ACTIONS"},
+	}, protocolVersion: webSocketProtocolV2}
+	if !matching.canReceive(event) {
+		t.Fatal("matching Quick Actions client was rejected")
+	}
+	nonMatching := &Client{auth: &ClientAuth{
+		StoreCode:    "CP01",
+		FeatureCodes: []string{"QUICK_ACTIONS"},
+	}, protocolVersion: webSocketProtocolV2}
+	if nonMatching.canReceive(event) {
+		t.Fatal("out-of-scope Quick Actions client received the event")
+	}
+	superAdmin := &Client{auth: &ClientAuth{
+		Role:         "SUPER_ADMIN",
+		FeatureCodes: []string{"QUICK_ACTIONS"},
+	}, protocolVersion: webSocketProtocolV2}
+	if !superAdmin.canReceive(event) {
+		t.Fatal("Super Admin Quick Actions client was rejected")
+	}
+	missingFeature := &Client{auth: &ClientAuth{
+		StoreCode: "CP75",
+	}, protocolVersion: webSocketProtocolV2}
+	if missingFeature.canReceive(event) {
+		t.Fatal("client without QUICK_ACTIONS received the event")
+	}
+	if !strings.Contains(string(event.Message), `"topic":"quick-actions.links"`) ||
+		!strings.Contains(string(event.Message), `"storeCode":"CP75"`) {
+		t.Fatalf("unexpected Quick Actions v2 envelope: %s", event.Message)
+	}
+}
+
 func TestRedisBridgeBroadcastsLegacyAndV2Routes(t *testing.T) {
 	hub := newHub(testLogger(), 2)
 	ctx, cancel := context.WithCancel(context.Background())

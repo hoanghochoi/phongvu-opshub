@@ -80,6 +80,7 @@ subscription.
 | `notifications.statement-transfer` | `STATEMENT_ORDER_TRANSFER_REQUEST` | Statement-transfer notification |
 | `notifications.offset-adjustment` | `OFFSET_ADJUSTMENT_NOTIFICATION` | Offset-adjustment notification |
 | `sales-report.orders` | `SALES_REPORT_ORDERS_UPDATED` | Sales-report order invalidation |
+| `quick-actions.links` | `QUICK_ACTION_LINKS_UPDATED` | Showroom-scoped Quick Actions cache invalidation |
 
 Legacy authenticated `/ws` continues to emit `{type, payload}` during the
 two-release client migration window. It is compatibility-only and must not gain

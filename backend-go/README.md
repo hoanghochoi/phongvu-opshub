@@ -71,6 +71,7 @@ codes, preventing a same-text code collision from widening realtime scope.
 | `STATEMENT_ORDER_TRANSFER_REQUESTED` | `notifications.statement-transfer` | `STATEMENT_ORDER_TRANSFER_REQUEST` |
 | `OFFSET_ADJUSTMENT_UPDATED` | `notifications.offset-adjustment` | `OFFSET_ADJUSTMENT_NOTIFICATION` |
 | `SALES_REPORT_ORDERS_UPDATED` | `sales-report.orders` | `SALES_REPORT_ORDERS_UPDATED` |
+| `QUICK_ACTION_LINKS_UPDATED` | `quick-actions.links` | `QUICK_ACTION_LINKS_UPDATED` |
 
 Legacy `Authorization: Bearer <jwt>` and `access_token` query authentication are
 accepted only when `WS_ALLOW_LEGACY_JWT=true`. The flag is a temporary rollout
@@ -149,6 +150,7 @@ STATEMENT_ORDER_TRANSFER_REQUESTED
 OFFSET_ADJUSTMENT_UPDATED
 SALES_REPORT_ORDERS_UPDATED
 HOME_SUMMARY_UPDATED
+QUICK_ACTION_LINKS_UPDATED
 ```
 
 Home uses the strict v2 Redis envelope below. `audience.kind` must be

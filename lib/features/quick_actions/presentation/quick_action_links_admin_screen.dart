@@ -3,8 +3,6 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:provider/provider.dart';
-
 import '../../../app/theme/app_colors.dart';
 import '../../../app/theme/app_text_styles.dart';
 import '../../../app/widgets/app_buttons.dart';
@@ -16,7 +14,6 @@ import '../../../app/widgets/app_toast.dart';
 import '../../../core/logging/app_logger.dart';
 import '../../fifo_check/presentation/widgets/barcode_scanner_screen.dart';
 import '../data/quick_actions_repository.dart';
-import 'quick_actions_provider.dart';
 
 const _adminActionFields = <String, String>{
   'APP_DOWNLOAD': 'Tải app',
@@ -242,7 +239,6 @@ class _QuickActionLinksAdminScreenState
           entry.key: entry.value.text.trim(),
       };
       await widget.repository.saveAdminLinks(storeCode, links);
-      await _refreshQuickActionsAfterSave(storeCode);
       await AppLogger.instance.info(
         'QuickActionAdmin',
         'Quick action links save succeeded',
@@ -282,30 +278,6 @@ class _QuickActionLinksAdminScreenState
       }
     } finally {
       if (mounted) setState(() => _saving = false);
-    }
-  }
-
-  Future<void> _refreshQuickActionsAfterSave(String storeCode) async {
-    try {
-      final payload = await context.read<QuickActionsProvider>().refresh(
-        storeCode: storeCode,
-        force: true,
-      );
-      await AppLogger.instance.info(
-        'QuickActionAdmin',
-        'Quick actions refreshed after link save',
-        context: {
-          'storeCode': storeCode,
-          'status': payload == null ? 'failed' : 'succeeded',
-          'availableCount': payload?.availableActionCodes.length ?? 0,
-        },
-      );
-    } on ProviderNotFoundException {
-      await AppLogger.instance.info(
-        'QuickActionAdmin',
-        'Quick actions refresh skipped after link save',
-        context: {'storeCode': storeCode, 'reason': 'provider_unavailable'},
-      );
     }
   }
 

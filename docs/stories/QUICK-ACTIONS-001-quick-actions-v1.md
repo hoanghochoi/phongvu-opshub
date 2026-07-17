@@ -23,6 +23,8 @@ Contract: [quick-actions.md](../product/quick-actions.md)
   khi sửa link.
 - Client lưu QR bền vững theo user + showroom, không gọi API mỗi lần mở launcher;
   cache quyền/scope cũ không được dùng khi scope hoặc tập quyền thay đổi.
+- Lưu link phát sự kiện v2 theo showroom; client đúng scope xóa cache scope/QR
+  và tải lại một lần, còn Windows ngoài Home hoãn tải tới khi launcher hoạt động.
 - Có log đã sanitize, unit/widget proof và tài liệu/test matrix đồng bộ.
 
 ## Proof plan

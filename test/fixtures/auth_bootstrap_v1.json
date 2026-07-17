@@ -31,7 +31,8 @@
       "payment.delivery-metrics",
       "notifications.statement-transfer",
       "notifications.offset-adjustment",
-      "sales-report.orders"
+      "sales-report.orders",
+      "quick-actions.links"
     ]
   }
 }

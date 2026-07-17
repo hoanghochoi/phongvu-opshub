@@ -259,6 +259,7 @@ describe('AuthController', () => {
           'notifications.statement-transfer',
           'notifications.offset-adjustment',
           'sales-report.orders',
+          'quick-actions.links',
         ],
       },
     };

@@ -219,12 +219,17 @@ class App extends StatelessWidget {
           QuickActionsProvider
         >(
           lazy: false,
-          create: (_) =>
-              QuickActionsProvider(QuickActionsRepository(ApiClient())),
+          create: (_) => QuickActionsProvider(
+            QuickActionsRepository(ApiClient()),
+            realtimeClient: RealtimeConnectionManager.instance,
+          ),
           update: (_, auth, runtime, quickActions) {
             final provider =
                 quickActions ??
-                QuickActionsProvider(QuickActionsRepository(ApiClient()));
+                QuickActionsProvider(
+                  QuickActionsRepository(ApiClient()),
+                  realtimeClient: RealtimeConnectionManager.instance,
+                );
             final isSurfaceActive =
                 kIsWeb ||
                 defaultTargetPlatform != TargetPlatform.windows ||
