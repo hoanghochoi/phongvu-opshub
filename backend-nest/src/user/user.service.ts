@@ -2375,6 +2375,8 @@ export class UserService implements OnModuleInit {
       }
     }
 
+    const previousTransferAccountNumber =
+      currentStore?.transferAccountNumber ?? null;
     const data = {
       storeId: storeCode,
       storeName,
@@ -2389,6 +2391,13 @@ export class UserService implements OnModuleInit {
           data,
         })
       : await client.store.create({ data });
+
+    await this.reassignUnassignedEfastStatementsForStore(
+      client,
+      store.storeId,
+      previousTransferAccountNumber,
+      store.transferAccountNumber,
+    );
 
     await this.ensureDefaultStorePositionNodes(client, node);
     const defaultUserNodeId = await this.defaultStoreCashNodeIdForClient(
@@ -4490,6 +4499,12 @@ export class UserService implements OnModuleInit {
           _count: { select: { users: true } },
         },
       });
+      await this.reassignUnassignedEfastStatementsForStore(
+        tx,
+        createdStore.storeId,
+        null,
+        createdStore.transferAccountNumber,
+      );
       const syncResult = await this.syncStoreOrganizationNode(
         tx,
         createdStore,
@@ -4628,6 +4643,12 @@ export class UserService implements OnModuleInit {
           _count: { select: { users: true } },
         },
       });
+      await this.reassignUnassignedEfastStatementsForStore(
+        tx,
+        updatedStore.storeId,
+        current.transferAccountNumber,
+        updatedStore.transferAccountNumber,
+      );
 
       if (nextAreaCode !== current.areaCode) {
         const regionCode = updatedStore.area?.regionCode ?? DEFAULT_REGION_CODE;
@@ -6204,6 +6225,88 @@ export class UserService implements OnModuleInit {
       transferBankName: this.normalizeOptionalText(body.transferBankName, 80),
       transferBankBin: this.normalizeOptionalText(body.transferBankBin, 20),
     };
+  }
+
+  private async reassignUnassignedEfastStatementsForStore(
+    client: any,
+    storeId: string,
+    previousAccountNumber?: string | null,
+    nextAccountNumber?: string | null,
+  ) {
+    const previousAccountKey = this.normalizeTransferAccountKey(
+      previousAccountNumber,
+    );
+    const nextAccountKey = this.normalizeTransferAccountKey(nextAccountNumber);
+    if (!nextAccountKey || previousAccountKey === nextAccountKey) return 0;
+
+    const stores = ((await client.store.findMany({
+      where: { transferAccountNumber: { not: null } },
+      select: { storeId: true, transferAccountNumber: true },
+    })) || []) as Array<{
+      storeId: string;
+      transferAccountNumber?: string | null;
+    }>;
+    const owners = stores.filter(
+      (store) =>
+        this.normalizeTransferAccountKey(store.transferAccountNumber) ===
+        nextAccountKey,
+    );
+    if (owners.length !== 1 || owners[0].storeId !== storeId) {
+      this.logger.warn(
+        `Statement account remap skipped: store=${storeId} account=${this.maskTransferAccount(nextAccountKey)} ownerCount=${owners.length} reason=ambiguous_account`,
+      );
+      return 0;
+    }
+
+    const result = await client.mapVietinTransaction.updateMany({
+      where: {
+        storeCode: null,
+        AND: [
+          {
+            rawData: {
+              path: ['source'],
+              equals: 'VIETIN_EFAST',
+            },
+          },
+          {
+            OR: [
+              {
+                rawData: {
+                  path: ['efastCreditAccountNo'],
+                  equals: nextAccountKey,
+                },
+              },
+              {
+                rawData: {
+                  path: ['efastBankAccountNo'],
+                  equals: nextAccountKey,
+                },
+              },
+            ],
+          },
+        ],
+      },
+      data: { storeCode: storeId },
+    });
+    const remapped = Number(result?.count || 0);
+    this.logger.log(
+      `Statement account remap completed: store=${storeId} account=${this.maskTransferAccount(nextAccountKey)} remapped=${remapped}`,
+    );
+    return remapped;
+  }
+
+  private normalizeTransferAccountKey(value?: string | null) {
+    return String(value || '')
+      .toUpperCase()
+      .replace(/[^A-Z0-9]/g, '')
+      .trim();
+  }
+
+  private maskTransferAccount(value?: string | null) {
+    const normalized = this.normalizeTransferAccountKey(value);
+    if (!normalized) return 'missing';
+    if (normalized.length <= 4) return '****';
+    return `****${normalized.slice(-4)}`;
   }
 
   private normalizeMapVietinFields(body: any) {

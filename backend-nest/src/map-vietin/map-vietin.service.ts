@@ -1274,6 +1274,8 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
       const today = this.formatMapDate(now);
       let session = await this.getEfastSession(username, password);
       const storeAccountIndex = await this.loadStoreAccountIndex();
+      const accountRemapped =
+        await this.reassignUnassignedEfastTransactions(storeAccountIndex);
       const pageSize = this.efastPageSize();
       const maxPages = this.efastSyncMaxPages();
       let fetched = 0;
@@ -1283,6 +1285,7 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
       let unchanged = 0;
       let cacheHits = 0;
       let quarantined = 0;
+      let sourceAccountMapped = 0;
 
       this.logger.log(
         `VietinBank eFAST sync started: accounts=${accounts
@@ -1338,6 +1341,7 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
           unchanged += persisted.unchanged;
           cacheHits += persisted.cacheHits;
           quarantined += persisted.quarantined;
+          sourceAccountMapped += persisted.sourceAccountMapped;
 
           if (!this.hasNextEfastPage(result, page, rows.length, pageSize)) {
             break;
@@ -1361,7 +1365,7 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
         },
       });
       this.logger.log(
-        `VietinBank eFAST sync finished: fetched=${fetched} creditRows=${creditRows} created=${created} updated=${updated} unchanged=${unchanged} cacheHits=${cacheHits} quarantined=${quarantined} durationMs=${Date.now() - startedAt}`,
+        `VietinBank eFAST sync finished: fetched=${fetched} creditRows=${creditRows} created=${created} updated=${updated} unchanged=${unchanged} cacheHits=${cacheHits} sourceAccountMapped=${sourceAccountMapped} accountRemapped=${accountRemapped} quarantined=${quarantined} durationMs=${Date.now() - startedAt}`,
       );
       return { created, quarantined, fetched, creditRows };
     } catch (error) {
@@ -2951,6 +2955,7 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
     let unchanged = 0;
     let cacheHits = 0;
     let quarantined = 0;
+    let sourceAccountMapped = 0;
     for (const raw of rows) {
       if (!raw || typeof raw !== 'object') continue;
       const row = raw as MapTransactionRow;
@@ -2959,13 +2964,38 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
       if (!this.isSuccessfulTransaction(row)) continue;
 
       const virtualAccount = this.resolveGlobalVirtualAccount(row);
-      const accountKey = this.normalizeAccountNumber(virtualAccount);
-      const storeCodes = accountKey
-        ? storeAccountIndex.get(accountKey) || []
-        : [];
+      const sourceAccount = this.resolveEfastSourceAccount(row);
+      const accountCandidates = this.isEfastMapTransactionRow(row)
+        ? [
+            { value: virtualAccount, sourceAccount: false },
+            { value: sourceAccount, sourceAccount: true },
+          ]
+        : [{ value: virtualAccount, sourceAccount: false }];
+      let accountKey = '';
+      let accountValue = '';
+      let storeCodes: string[] = [];
+      let matchedBySourceAccount = false;
+      for (const candidate of accountCandidates) {
+        const candidateKey = this.normalizeAccountNumber(candidate.value);
+        if (!candidateKey) continue;
+        if (!accountKey) {
+          accountKey = candidateKey;
+          accountValue = candidate.value;
+        }
+        const candidateStoreCodes = storeAccountIndex.get(candidateKey) || [];
+        if (candidateStoreCodes.length === 0) continue;
+        accountKey = candidateKey;
+        accountValue = candidate.value;
+        storeCodes = candidateStoreCodes;
+        matchedBySourceAccount = candidate.sourceAccount;
+        break;
+      }
 
-      if (!accountKey) {
-        if (this.isEfastMapTransactionRow(row)) {
+      if (storeCodes.length === 0) {
+        if (
+          this.isEfastMapTransactionRow(row) &&
+          !this.normalizeAccountNumber(virtualAccount)
+        ) {
           const stats: MapPersistStats = {
             updated: 0,
             unchanged: 0,
@@ -2977,18 +3007,18 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
           cacheHits += stats.cacheHits;
           continue;
         }
+        if (accountKey) {
+          await this.quarantineGlobalTransaction(
+            row,
+            'UNMAPPED_ACCOUNT',
+            accountValue,
+          );
+          quarantined += 1;
+          continue;
+        }
         await this.quarantineGlobalTransaction(
           row,
           'MISSING_VIRTUAL_ACCOUNT',
-          virtualAccount,
-        );
-        quarantined += 1;
-        continue;
-      }
-      if (storeCodes.length === 0) {
-        await this.quarantineGlobalTransaction(
-          row,
-          'UNMAPPED_ACCOUNT',
           virtualAccount,
         );
         quarantined += 1;
@@ -2998,11 +3028,12 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
         await this.quarantineGlobalTransaction(
           row,
           'AMBIGUOUS_ACCOUNT',
-          virtualAccount,
+          accountValue,
         );
         quarantined += 1;
         continue;
       }
+      if (matchedBySourceAccount) sourceAccountMapped += 1;
 
       const stats: MapPersistStats = {
         updated: 0,
@@ -3014,7 +3045,14 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
       unchanged += stats.unchanged;
       cacheHits += stats.cacheHits;
     }
-    return { created, updated, unchanged, cacheHits, quarantined };
+    return {
+      created,
+      updated,
+      unchanged,
+      cacheHits,
+      quarantined,
+      sourceAccountMapped,
+    };
   }
 
   private async quarantineGlobalTransaction(
@@ -3127,6 +3165,14 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
       return this.readFirstText(row, this.efastVirtualAccountKeys);
     }
     return this.readFirstText(row, this.virtualAccountKeys);
+  }
+
+  private resolveEfastSourceAccount(row: MapTransactionRow) {
+    if (!this.isEfastMapTransactionRow(row)) return '';
+    return this.firstNonEmptyText(
+      this.readText(row, 'efastCreditAccountNo'),
+      this.readText(row, 'efastBankAccountNo'),
+    );
   }
 
   private isEfastMapTransactionRow(row: MapTransactionRow) {
@@ -3261,6 +3307,54 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
       index.set(accountKey, storeCodes);
     }
     return index;
+  }
+
+  private async reassignUnassignedEfastTransactions(
+    storeAccountIndex: Map<string, string[]>,
+  ) {
+    let remapped = 0;
+    let uniqueAccountCount = 0;
+    for (const [accountKey, storeCodes] of storeAccountIndex.entries()) {
+      if (storeCodes.length !== 1) continue;
+      uniqueAccountCount += 1;
+      const result = await this.prisma.mapVietinTransaction.updateMany({
+        where: {
+          storeCode: null,
+          AND: [
+            {
+              rawData: {
+                path: ['source'],
+                equals: 'VIETIN_EFAST',
+              },
+            },
+            {
+              OR: [
+                {
+                  rawData: {
+                    path: ['efastCreditAccountNo'],
+                    equals: accountKey,
+                  },
+                },
+                {
+                  rawData: {
+                    path: ['efastBankAccountNo'],
+                    equals: accountKey,
+                  },
+                },
+              ],
+            },
+          ],
+        },
+        data: { storeCode: storeCodes[0] },
+      });
+      remapped += result.count;
+    }
+    if (remapped > 0) {
+      this.logger.log(
+        `VietinBank eFAST account remap completed: uniqueAccounts=${uniqueAccountCount} remapped=${remapped}`,
+      );
+    }
+    return remapped;
   }
 
   private normalizeTransaction(

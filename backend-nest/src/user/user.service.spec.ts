@@ -94,7 +94,7 @@ describe('UserService admin store management', () => {
     prisma = {
       $transaction: jest.fn(async (handler: any) => handler(prisma)),
       store: {
-        findMany: jest.fn(),
+        findMany: jest.fn(async () => []),
         findFirst: jest.fn(async ({ where }: any) => {
           if (where.organizationNodeId === 'org-store-cp62') return store;
           if (where.organizationNodeId === 'org-store-cp01') {
@@ -250,6 +250,7 @@ describe('UserService admin store management', () => {
       },
       mapVietinTransaction: {
         count: jest.fn(async () => 0),
+        updateMany: jest.fn(async () => ({ count: 0 })),
       },
       mapVietinTransactionOrderAudit: {
         count: jest.fn(async () => 0),
@@ -699,6 +700,55 @@ describe('UserService admin store management', () => {
     expect(accessChangeService.publishForAllUsers).toHaveBeenCalledWith(
       'store-organization-created',
     );
+  });
+
+  it('remaps unassigned eFAST statements when a receiving account gets a unique owner', async () => {
+    prisma.store.findMany.mockResolvedValueOnce([
+      { storeId: 'LO', transferAccountNumber: '118002647006' },
+    ]);
+    prisma.mapVietinTransaction.updateMany.mockResolvedValueOnce({
+      count: 207,
+    });
+
+    await expect(
+      (service as any).reassignUnassignedEfastStatementsForStore(
+        prisma,
+        'LO',
+        null,
+        ' 1180-0264-7006 ',
+      ),
+    ).resolves.toBe(207);
+
+    expect(prisma.mapVietinTransaction.updateMany).toHaveBeenCalledWith({
+      where: {
+        storeCode: null,
+        AND: [
+          {
+            rawData: {
+              path: ['source'],
+              equals: 'VIETIN_EFAST',
+            },
+          },
+          {
+            OR: [
+              {
+                rawData: {
+                  path: ['efastCreditAccountNo'],
+                  equals: '118002647006',
+                },
+              },
+              {
+                rawData: {
+                  path: ['efastBankAccountNo'],
+                  equals: '118002647006',
+                },
+              },
+            ],
+          },
+        ],
+      },
+      data: { storeCode: 'LO' },
+    });
   });
 
   it('lets a manager update only their own store MAP credentials', async () => {
@@ -1474,6 +1524,33 @@ describe('UserService admin store management', () => {
 
     expect(prisma.organizationNode.update).not.toHaveBeenCalled();
     expect(prisma.store.update).not.toHaveBeenCalled();
+  });
+
+  it('applies statement account remapping from the organization tree store edit', async () => {
+    installUserScopeTreeMock();
+    const remapSpy = jest
+      .spyOn(service as any, 'reassignUnassignedEfastStatementsForStore')
+      .mockResolvedValue(207);
+
+    await expect(
+      service.adminUpdateOrganizationNode(superAdmin, 'org-store-cp01', {
+        displayName: 'Nguyen Thi Minh Khai',
+        code: 'STORE_CP01',
+        businessCode: 'CP01',
+        storeId: 'CP01',
+        storeName: 'Nguyen Thi Minh Khai',
+        type: 'LV4_STORE',
+        parentId: 'org-area-hcm',
+        transferAccountNumber: '118002647006',
+        isActive: true,
+        sortOrder: 10300,
+      }),
+    ).resolves.toMatchObject({
+      id: 'org-store-cp01',
+      type: 'LV4_STORE',
+    });
+
+    expect(remapSpy).toHaveBeenCalledWith(prisma, 'CP01', null, '118002647006');
   });
 
   it('syncs legacy region and area rows before moving a showroom under a new area node', async () => {

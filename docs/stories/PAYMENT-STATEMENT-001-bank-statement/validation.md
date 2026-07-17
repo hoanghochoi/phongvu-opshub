@@ -8,11 +8,26 @@
 | NestJS | `npx prisma validate`, `npx prisma generate`, focused MAP Jest tests, `npm run build` |
 | Go realtime | Not affected |
 | Integration | Statement API behavior covered by service tests with Prisma mocks |
-| Platform | Runtime smoke not required for this patch; Windows UI smoke remains manual |
+| Platform | Production API health, eFAST scheduler counters, and post-remap database counts |
 | Release | `git diff --check` and exact diff review before handoff |
 
 ## Evidence
 
+- 2026-07-17: runtime production diagnosis confirmed LO account
+  `118002647006` was uniquely configured but all 207 unassigned eFAST rows seen
+  after that assignment still had `storeCode=null` because ingestion only read
+  empty `pmtId`. Local regression coverage now proves source-account fallback,
+  sync-time repair, organization-tree account-change remap, and preservation of
+  the null-store review path when no account maps. Focused MAP/User Jest passed
+  162 tests.
+- 2026-07-17 production hotfix proof: the pre-change checkpoint captured 210
+  matching `storeCode=null` rows. The scheduler remapped all 210 to LO; the
+  post-change database count is `NULL=0`, `LO=210`, while the existing CP68 and
+  CP75 assignments remain one row each. The first live sync reported
+  `sourceAccountMapped=17`, `accountRemapped=210`, `quarantined=0`; the next
+  sync reported `accountRemapped=0`, `quarantined=0`. The API container is
+  healthy. The exact production-release patch passed 155 focused MAP/User Jest
+  tests and `npm run build` before deployment.
 - 2026-07-14: eFAST statement display/export and stored VietQR confirmation
   prefer `trxId` over numeric `trxRefNo`. Focused MAP/VietQR Jest passed 110
   tests and `npm run build` passed.

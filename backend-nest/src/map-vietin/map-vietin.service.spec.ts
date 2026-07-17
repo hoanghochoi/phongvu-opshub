@@ -80,6 +80,7 @@ describe('MapVietinService', () => {
         findUnique: jest.fn(),
         upsert: jest.fn(),
         update: jest.fn(),
+        updateMany: jest.fn(async () => ({ count: 0 })),
       },
       mapVietinTransactionOrderAudit: {
         create: jest.fn(),
@@ -805,7 +806,7 @@ describe('MapVietinService', () => {
     expect(prisma.mapVietinTransaction.upsert).not.toHaveBeenCalled();
   });
 
-  it('stores eFAST credit rows with null store when pmtId is missing', async () => {
+  it('maps eFAST rows by the receiving account when pmtId is missing', async () => {
     process.env.VIETIN_EFAST_USERNAME = 'efast-user';
     process.env.VIETIN_EFAST_PASSWORD = 'efast-pass';
     process.env.VIETIN_EFAST_BANK_ACCOUNTS = '123456789012';
@@ -838,11 +839,12 @@ describe('MapVietinService', () => {
       );
     prisma.mapVietinTransaction.findUnique.mockResolvedValue(null);
     prisma.mapVietinTransaction.upsert.mockResolvedValue({
-      id: 'stored-efast-null-store',
-      storeCode: null,
+      id: 'stored-efast-source-account',
+      storeCode: 'CP01',
       amount: 1250000,
     });
     prisma.mapVietinSyncState.upsert.mockResolvedValue({});
+    paymentNotifications.createForTransaction.mockResolvedValue({});
 
     await expect(service.syncEfastTransactions()).resolves.toEqual({
       created: 1,
@@ -851,18 +853,67 @@ describe('MapVietinService', () => {
       creditRows: 1,
     });
 
+    expect(prisma.mapVietinTransaction.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ storeCode: null }),
+        data: { storeCode: 'CP01' },
+      }),
+    );
     expect(prisma.mapVietinUnmappedTransaction.upsert).not.toHaveBeenCalled();
-    expect(paymentNotifications.createForTransaction).not.toHaveBeenCalled();
+    expect(paymentNotifications.createForTransaction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'stored-efast-source-account',
+        storeCode: 'CP01',
+      }),
+    );
     expect(prisma.mapVietinTransaction.upsert).toHaveBeenCalledWith(
       expect.objectContaining({
         create: expect.objectContaining({
-          storeCode: null,
+          storeCode: 'CP01',
           transactionNumber: 'TRX-001',
-          transactionKey: expect.stringMatching(/^__NO_STORE__:/),
+          transactionKey: expect.stringMatching(/^CP01:/),
           rawData: expect.objectContaining({
             virtualAccount: '',
             efastCreditAccountNo: '123456789012',
           }),
+        }),
+      }),
+    );
+  });
+
+  it('keeps eFAST rows unassigned when neither pmtId nor source account maps', async () => {
+    prisma.mapVietinTransaction.findUnique.mockResolvedValue(null);
+    prisma.mapVietinTransaction.upsert.mockResolvedValue({
+      id: 'stored-efast-null-store',
+      storeCode: null,
+      amount: 1250000,
+    });
+
+    await expect(
+      (service as any).persistGlobalTransactions(
+        [
+          {
+            source: 'VIETIN_EFAST',
+            trxId: 'TRX-UNASSIGNED',
+            transactionNumber: 'TRX-UNASSIGNED',
+            amount: 1250000,
+            transactionDescription: 'Khach chuyen tien',
+            tranTime: '21/05/2026 10:00:00',
+            transactionStatus: 'SUCCESS',
+            virtualAccount: '',
+            efastCreditAccountNo: '999999999999',
+            efastBankAccountNo: '999999999999',
+          },
+        ],
+        new Map(),
+      ),
+    ).resolves.toMatchObject({ created: 1, quarantined: 0 });
+
+    expect(prisma.mapVietinTransaction.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        create: expect.objectContaining({
+          storeCode: null,
+          transactionKey: expect.stringMatching(/^__NO_STORE__:/),
         }),
       }),
     );

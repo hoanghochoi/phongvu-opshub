@@ -206,10 +206,11 @@ Expected responses:
   `account-1,account-2` in the server `.env`; never commit real credentials.
   If the eFAST login account can choose more than one enterprise, also set
   `VIETIN_EFAST_CIFNO`. The adapter logs in through `/api/v1/account/login`,
-  reads `/api/v1/account/history` for credit rows only, uses each row `pmtId`
-  as the showroom virtual account to match `Store.transferAccountNumber`, and
-  keeps the configured bank account only as the eFAST history source/audit
-  field. eFAST sync uses the Vietnam business date (UTC+7) for provider
+  reads `/api/v1/account/history` for credit rows only, and matches
+  `Store.transferAccountNumber` first by the row `pmtId` virtual account. When
+  `pmtId` is missing or has no configured showroom, it falls back to the eFAST
+  history account (`efastCreditAccountNo`). eFAST sync uses the Vietnam
+  business date (UTC+7) for provider
   history queries. MAP and eFAST derive the same source-agnostic transaction
   key from the bank statement reference, and both ingestion directions check
   all stored statement identifiers before insert. This prevents duplicate rows
@@ -217,13 +218,17 @@ Expected responses:
   near-simultaneous provider responses. Product-facing `Mã sao kê` values use
   eFAST `trxId`, which matches the MAP statement reference; eFAST `trxRefNo`
   remains a provider-side technical reference in raw audit data. Rows with
-  missing `pmtId` are still stored
-  with `storeCode=null` so
+  missing `pmtId` are still stored with `storeCode=null` when neither account
+  identifies a unique showroom, so
   Super Admin, Finance-node users, and `phongvu.vn` users can review them; a
   user who finds that row by statement number, order, amount, or transfer
   content can update the order code, and the row is then assigned to that
-  user's showroom. Rows with an unmapped or ambiguous `pmtId` are quarantined
-  without creating payment audio. eFAST runs on its own scheduler: random
+  user's showroom. Saving a new receiving account immediately assigns existing
+  unassigned eFAST rows for that unique source account; already assigned rows
+  are not overwritten. Each eFAST sync also repairs remaining unassigned rows
+  and uses the latest store account index for new transactions. Rows with an
+  unmapped or ambiguous account are quarantined without creating payment audio.
+  eFAST runs on its own scheduler: random
   50-60 seconds between 08:00 and 22:00 Vietnam time (UTC+7), then every
   30 minutes from 22:01 through 07:59 the next day. Keep
   `VIETIN_EFAST_PAGE_SIZE=150` and `VIETIN_EFAST_SYNC_MAX_PAGES=1`; the

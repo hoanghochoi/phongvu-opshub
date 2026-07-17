@@ -450,8 +450,8 @@ Optional MAP endpoint overrides are available through:
 
 When enabled, the eFAST adapter logs in through `/api/v1/account/login`, reads
 `/api/v1/account/history` for credit rows only, and maps each row `pmtId` to
-`Store.transferAccountNumber`. The configured eFAST bank accounts are only the
-history-query sources and are preserved in raw data for audit. eFAST history
+`Store.transferAccountNumber`. If `pmtId` is missing or unmapped, the configured
+eFAST history account is the fallback receiving-account identity. eFAST history
 queries use the Vietnam business date (UTC+7). MAP and eFAST derive the same
 source-agnostic transaction key from the bank statement reference, and both
 ingestion directions check all stored statement identifiers before inserting.
@@ -460,12 +460,17 @@ payment notifications whether MAP or eFAST arrives first, including
 near-simultaneous responses. For user-facing `Mã sao kê` fields, API responses,
 CSV exports, and stored VietQR confirmations use eFAST `trxId`; the numeric
 eFAST `trxRefNo` remains technical raw/audit data. Rows with a
-missing `pmtId` are stored with `storeCode=null` instead of being quarantined;
+missing `pmtId` are stored with `storeCode=null` only when neither the virtual
+account nor source account identifies a unique showroom;
 Super Admin, Finance-node users, and `phongvu.vn` users can review them. A
 scoped user who finds one of these rows by statement number, order, amount, or
 transfer content can update the order code, and the backend assigns that
-transaction to the user's showroom. Rows with an unmapped or ambiguous `pmtId`
-stay in the unmapped-transaction quarantine and do not trigger payment audio.
+transaction to the user's showroom. Creating or changing a showroom receiving
+account immediately backfills matching unassigned eFAST rows without
+overwriting rows already assigned manually. Every eFAST sync reloads the store
+account index, repairs any remaining unassigned matches, and applies the same
+fallback to new transactions. Rows with an unmapped or ambiguous account stay
+in the unmapped-transaction quarantine and do not trigger payment audio.
 
 The one-time production cleanup for rows created before the symmetric de-dupe
 keeps the transaction that has order codes when only one side has orders. If

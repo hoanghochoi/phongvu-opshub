@@ -265,6 +265,19 @@ Recent focused evidence:
   details, and stored VietQR confirmations; MAP behavior is unchanged.
   Validation: focused MAP/VietQR Jest passed 110 tests, Nest build passed, and
   `git diff --check` passed.
+- `PAYMENT-STATEMENT-001`, 2026-07-17: eFAST mapping keeps `pmtId` as the
+  preferred showroom identity and falls back to the configured receiving
+  account when `pmtId` is missing or unmapped. Creating/changing a showroom
+  account immediately assigns only matching `storeCode=null` rows; scheduled
+  sync repairs remaining historical rows and maps new transactions using the
+  latest account index. Existing manual assignments are preserved. Runtime
+  diagnosis first found 207 post-assignment LO rows still null under the old
+  logic; the production checkpoint later captured 210. The hotfix remapped all
+  210 to LO (`NULL=0`) while preserving the one CP68 row and one CP75 row. Live
+  sync counters showed `sourceAccountMapped=17`, then `accountRemapped=0` on
+  the following run, both with `quarantined=0`. Focused MAP/User Jest passed
+  162 tests on staging and 155 tests on the exact production release; both Nest
+  builds passed.
 - `UI-UX-001`, 2026-07-11: sửa race thứ hai của `AppCombobox` trên
   desktop/Windows: khi bấm chuột chọn option, `TextField` mất focus ở
   mouse-down và timer đóng overlay cũ có thể đóng menu trước mouse-up/onTap,
