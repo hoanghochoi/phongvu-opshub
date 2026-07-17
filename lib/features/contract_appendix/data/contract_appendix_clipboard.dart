@@ -196,8 +196,9 @@ String _htmlColumn(String width) =>
 
 String _htmlHeader(String value, {required String width}) =>
     '<td width="$width" nowrap="nowrap" align="center" valign="middle" '
+    'dir="ltr" '
     'style="width:$width;${_cellStyle}background:#f4c7a8;'
-    'text-align:center;white-space:nowrap;">'
+    'text-align:center!important;text-justify:none;white-space:nowrap;">'
     '${_htmlBlock(value, align: 'center', bold: true, nowrap: true)}'
     '</td>';
 
@@ -208,7 +209,8 @@ String _htmlCell(
   bool nowrap = false,
 }) =>
     '<td width="$width"${nowrap ? ' nowrap="nowrap"' : ''} align="$align" '
-    'valign="middle" style="width:$width;${_cellStyle}text-align:$align;'
+    'valign="middle" dir="ltr" style="width:$width;$_cellStyle'
+    'text-align:$align!important;text-justify:none;'
     '${nowrap ? 'white-space:nowrap;' : ''}">'
     '${_htmlBlock(_html(value), align: align, nowrap: nowrap)}'
     '</td>';
@@ -219,10 +221,16 @@ String _htmlBlock(
   bool bold = false,
   bool nowrap = false,
 }) =>
-    '<div align="$align" style="margin:0;text-align:$align;line-height:1.2;'
+    // Word represents text inside table cells as paragraphs. A div-level
+    // alignment can be discarded when the destination document applies its
+    // Normal/Body Text paragraph style (for example, justified text). Keep the
+    // alignment and zero margins directly on a Word-compatible paragraph.
+    '<p align="$align" dir="ltr" style="margin:0cm;mso-para-margin:0cm;'
+    'mso-para-margin-left:0cm;mso-para-margin-right:0cm;'
+    'text-align:$align!important;text-justify:none;line-height:1.2;'
     '$_wordFontStyle${nowrap ? 'white-space:nowrap;' : ''}">'
     '${_htmlRun(value, bold: bold, nowrap: nowrap)}'
-    '</div>';
+    '</p>';
 
 String _htmlRun(String value, {bool bold = false, bool nowrap = false}) =>
     '<span style="$_wordFontStyle${bold ? 'font-weight:bold;' : ''}'

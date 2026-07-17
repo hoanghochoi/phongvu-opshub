@@ -93,6 +93,25 @@ void main() {
       expect(payload.html, contains('white-space:nowrap'));
       expect(payload.html, isNot(contains('<th')));
       expect(payload.html, contains('align="center" valign="middle"'));
+      expect(payload.html, contains('dir="ltr"'));
+      expect(payload.html, contains('text-align:center!important'));
+      expect(payload.html, contains('text-align:left!important'));
+      expect(payload.html, contains('text-justify:none'));
+      expect(
+        payload.html,
+        contains(
+          '<p align="center" dir="ltr" style="margin:0cm;'
+          'mso-para-margin:0cm;',
+        ),
+      );
+      expect(
+        payload.html,
+        contains(
+          '<p align="left" dir="ltr" style="margin:0cm;'
+          'mso-para-margin:0cm;',
+        ),
+      );
+      expect(payload.html, isNot(contains('<div align=')));
       expect(payload.html, contains('<font face="Times New Roman" size="3"'));
       expect(payload.html, contains("mso-ascii-font-family:'Times New Roman'"));
       final tableEnd = payload.html.indexOf('</table>');
