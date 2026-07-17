@@ -386,8 +386,16 @@ class SalesReportProvider extends ChangeNotifier {
           'orderSuffix': _orderSuffix(input.orderCode),
           'entrySource': input.entrySource,
           'hasCustomerName': (input.customerName ?? '').trim().isNotEmpty,
-          'hasPhone': (input.customerPhone ?? '').trim().isNotEmpty,
-          'hasZaloContact': (input.customerZaloContact ?? '').trim().isNotEmpty,
+          'contactNumberProvided': (input.customerPhone ?? '')
+              .trim()
+              .isNotEmpty,
+          'contactChannelCount': input.customerContactChannels.length,
+          'hasZaloPersonal': input.customerContactChannels.contains(
+            salesReportContactChannelZaloPersonal,
+          ),
+          'hasZaloOa': input.customerContactChannels.contains(
+            salesReportContactChannelZaloOa,
+          ),
           if (followUpCaseId != null) 'followUpCaseId': followUpCaseId,
           'customerType': input.customerType,
           'customerIsStudent': input.customerIsStudent,
@@ -413,6 +421,10 @@ class SalesReportProvider extends ChangeNotifier {
           'categoryGroupId': input.categoryGroupId,
           'categoryGroupCount': input.categoryGroupIds.length,
           'hasCustomerName': (input.customerName ?? '').trim().isNotEmpty,
+          'contactNumberProvided': (input.customerPhone ?? '')
+              .trim()
+              .isNotEmpty,
+          'contactChannelCount': input.customerContactChannels.length,
           'customerType': input.customerType,
           'customerIsStudent': input.customerIsStudent,
           'promotionCount': input.promotionCodes.length,
@@ -438,6 +450,10 @@ class SalesReportProvider extends ChangeNotifier {
           'categoryGroupId': input.categoryGroupId,
           'categoryGroupCount': input.categoryGroupIds.length,
           'hasCustomerName': (input.customerName ?? '').trim().isNotEmpty,
+          'contactNumberProvided': (input.customerPhone ?? '')
+              .trim()
+              .isNotEmpty,
+          'contactChannelCount': input.customerContactChannels.length,
           'customerType': input.customerType,
           'promotionCount': input.promotionCodes.length,
           'installmentSelected': input.installmentNeed,

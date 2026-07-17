@@ -213,6 +213,14 @@ phí`.
   báo cáo mua hàng app tự điền nếu ERP trả về tên khách, sale vẫn có thể nhập
   khi ERP không có dữ liệu. Các câu hỏi hành vi mặc định là chưa chọn, không tự
   mặc định `Có`.
+- Riêng form `Chưa mua hàng` không còn ô nhập Zalo dạng text. Số điện thoại là
+  tùy chọn nhưng khi có phải đúng `0` + 9 chữ số; UI chỉ nhận chữ số, giới hạn
+  10 ký tự và backend/DB kiểm tra lại cùng contract. Ngay dưới số điện thoại có
+  hai checkbox độc lập `Zalo cá nhân` và `Zalo OA`, không chọn sẵn và có thể
+  chọn đồng thời. DB lưu `customerContactChannels` bằng các mã `PHONE`,
+  `ZALO_PERSONAL`, `ZALO_OA`; mã `PHONE` được backend suy ra từ số hợp lệ.
+  `zaloAnswer` tiếp tục là câu trả lời hành vi quét OA, không được dùng thay cho
+  loại thông tin liên hệ.
 - Các lựa chọn dạng danh sách trên form báo cáo hiển thị bằng checkbox, không
   dùng dropdown. Những nhóm chỉ được chọn một đáp án vẫn dùng checkbox theo kiểu
   chọn độc quyền để nhân viên thao tác nhất quán.
@@ -268,8 +276,9 @@ phí`.
   `categoryType = gift` vẫn được lưu để đối soát nhưng không tự chọn ngành hàng
   theo category cha của quà tặng.
 - File `HVTC` xuất một dòng cho mỗi báo cáo với các cột tiếng Việt: ngày báo
-  cáo, email người báo cáo, mã nhân viên tư vấn ERP, tên/số điện thoại/nhu cầu
-  khách hàng, các câu trả lời hành vi, loại báo cáo, lý do chưa mua và showroom.
+  cáo, email người báo cáo, mã nhân viên tư vấn ERP, tên/số điện thoại/kênh liên
+  hệ/nhu cầu khách hàng, các câu trả lời hành vi, loại báo cáo, lý do chưa mua
+  và showroom.
 - File `Doanh số` xuất một dòng tổng hợp theo bộ lọc hiện tại: số đơn hàng duy
   nhất, doanh thu doanh nghiệp/cá nhân, tổng số báo cáo có tick
   `Có nhu cầu trả góp`, số đơn trả góp thành công theo `installmentStatus` của
@@ -299,7 +308,10 @@ phí`.
   fact và payment fact. Bảng doanh số BigQuery chỉ sync từng dòng theo cửa
   hàng/showroom, không sync một dòng tổng toàn hệ thống. Các bảng giữ label
   tiếng Việt tương ứng với export admin hiện tại, đồng thời giữ code gốc để
-  lọc/đối soát. Dataset BigQuery phải tồn tại sẵn và service
+  lọc/đối soát. Report fact lưu thêm code/label kênh liên hệ và ba cờ
+  `has_phone_contact`, `has_zalo_personal_contact`, `has_zalo_oa_contact` để báo
+  cáo sau này không phải suy luận lại từ nội dung tự do. Dataset BigQuery phải
+  tồn tại sẵn và service
   account cần quyền chạy load job/tạo hoặc replace bảng trong dataset đó. Khi
   bật sync, backend chạy lịch cố định 07:00 hằng ngày theo giờ Việt Nam (UTC+7).
   Admin có `ADMIN_SALES_REPORTS` có thể gọi
@@ -307,7 +319,8 @@ phí`.
 
 ## Data Contract
 
-- `SalesReport` lưu report type, tên/số điện thoại/nhu cầu khách hàng, hành vi
+- `SalesReport` lưu report type, tên/số điện thoại/nhu cầu khách hàng, danh sách
+  `customerContactChannels` chuẩn hóa cho điện thoại/Zalo cá nhân/Zalo OA, hành vi
   tư vấn/trải nghiệm/Zalo/App, lý do chưa mua, loại khách hàng, cờ học sinh -
   sinh viên, CTKM áp dụng, category
   snapshot chính, các ngành hàng đã chọn, reporter snapshot, showroom/org

@@ -250,6 +250,8 @@ describe('SalesReportsService', () => {
           reportType: 'NOT_PURCHASED',
           orderCode: null,
           customerName: 'Nguyen Van A',
+          customerPhone: null,
+          customerContactChannels: [],
           notPurchasedReason: 'PRICE_HESITATION',
           customerType: 'PERSONAL',
           customerIsStudent: false,
@@ -263,6 +265,56 @@ describe('SalesReportsService', () => {
               }),
             ],
           },
+        }),
+      }),
+    );
+  });
+
+  it('validates not-purchased phone and stores explicit contact channels', async () => {
+    const { service, prisma, erp } = createHarness();
+
+    await expect(
+      service.create(userFixture(), {
+        ...baseInput(),
+        customerPhone: '1900123456',
+      }),
+    ).rejects.toThrow(
+      'Số điện thoại phải gồm đúng 10 chữ số và bắt đầu bằng 0, hoặc để trống.',
+    );
+
+    await service.create(userFixture(), {
+      ...baseInput(),
+      customerPhone: '0901234567',
+      customerContactChannels: ['ZALO_PERSONAL', 'ZALO_OA'],
+    });
+
+    expect(erp.lookupOrder).not.toHaveBeenCalled();
+    expect(prisma.salesReport.create).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          customerPhone: '0901234567',
+          customerContactChannels: ['PHONE', 'ZALO_PERSONAL', 'ZALO_OA'],
+          customerZaloContact: null,
+        }),
+      }),
+    );
+  });
+
+  it('maps legacy Zalo text to the personal Zalo contact channel', async () => {
+    const { service, prisma } = createHarness();
+
+    await service.create(userFixture(), {
+      ...baseInput(),
+      customerPhone: '',
+      customerZaloContact: 'legacy-zalo-contact',
+    });
+
+    expect(prisma.salesReport.create).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          customerPhone: null,
+          customerContactChannels: ['ZALO_PERSONAL'],
+          customerZaloContact: 'legacy-zalo-contact',
         }),
       }),
     );
@@ -2682,7 +2734,7 @@ describe('SalesReportsService', () => {
       'Mã nhân viên tư vấn ERP',
       'Tên khách hàng',
       'Số điện thoại khách hàng',
-      'Zalo cá nhân khách hàng',
+      'Kênh liên hệ khách hàng',
       'Nhu cầu khách hàng',
       'Kết quả tư vấn giải pháp',
       'Lý do khác khi không tư vấn',
@@ -2700,6 +2752,7 @@ describe('SalesReportsService', () => {
     expect(rows).toHaveLength(2);
     expect(rows[1][3]).toBe('Nguyen, Van A');
     expect(rows[1][4]).toBe('0900000000');
+    expect(rows[1][5]).toBe('Điện thoại; Zalo cá nhân');
     expect(rows[1]).toContain('Mua hàng');
     expect(rows[1]).toContain('Có');
     expect(rows[0]).not.toContain('Report date');
@@ -3159,6 +3212,7 @@ function baseInput() {
     categoryGroupId: 'NH03',
     customerName: 'Nguyen Van A',
     customerPhone: '',
+    customerContactChannels: [],
     customerType: 'PERSONAL',
     customerIsStudent: false,
     promotionCodes: [],
@@ -3503,6 +3557,7 @@ function exportReportFixture() {
     orderCode: '2606290001',
     customerName: 'Nguyen, Van A',
     customerPhone: '0900000000',
+    customerContactChannels: ['PHONE', 'ZALO_PERSONAL'],
     customerNeed: 'RAM DDR5',
     categoryGroupId: 'NH03',
     categoryGroupName: 'Computer components',

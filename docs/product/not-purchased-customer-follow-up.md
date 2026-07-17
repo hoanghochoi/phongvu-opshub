@@ -15,12 +15,14 @@ Cho phép nhân viên bán hàng theo dõi và chăm sóc lại từng lượt b
   `SALES_REPORT_FOLLOW_UP_CONTACT_GRACE_UNTIL` một lần và không gia hạn khi
   backend restart hoặc có lần triển khai tiếp theo. Nếu mốc thiếu/không hợp lệ,
   hệ thống dùng ngay bộ lọc chặt để tránh mở rộng dữ liệu ngoài chủ đích.
-- Sau mốc trên, chỉ hiển thị hồ sơ có ô số điện thoại đúng 10 chữ số hoặc marker
-  `0zalo`. Zalo cá nhân riêng không thay thế điều kiện này; mọi nội dung khác
-  trong ô số điện thoại không làm hồ sơ xuất hiện.
+- Sau mốc trên, chỉ hiển thị hồ sơ có số điện thoại đúng `0` + 9 chữ số hoặc có
+  ít nhất một kênh liên hệ chuẩn trong `customerContactChannels`: `PHONE`,
+  `ZALO_PERSONAL`, `ZALO_OA`. Nội dung rác và marker `0zalo` cũ được migration
+  chuyển sang dữ liệu chuẩn rồi xóa khỏi cột số điện thoại.
 - Báo cáo chưa mua vẫn được lưu bình thường khi thiếu cả hai thông tin; hồ sơ
   chỉ bị ẩn khỏi màn hình này sau khi thời gian rà soát kết thúc.
-- Zalo cá nhân là trường liên hệ độc lập với câu trả lời về Zalo OA.
+- `ZALO_PERSONAL` và `ZALO_OA` là hai cờ liên hệ độc lập, có thể cùng được chọn;
+  chúng cũng độc lập với câu trả lời hành vi sale về việc khách quét Zalo OA.
 - Danh sách chính chỉ hiển thị hồ sơ `OPEN`; `PURCHASED_ELSEWHERE` và
   `NO_LONGER_INTERESTED` nằm trong mục `Đã ẩn`; hồ sơ `PURCHASED` không hiện lại.
 
@@ -58,7 +60,10 @@ Cho phép nhân viên bán hàng theo dõi và chăm sóc lại từng lượt b
 
 ## Liên hệ
 
-- Mobile: chạm số điện thoại để chọn gọi hoặc mở Zalo theo số đó.
-- Desktop/web: sao chép số điện thoại; nếu không có số thì sao chép Zalo cá nhân.
+- Mobile: chạm số điện thoại để gọi; chỉ hiện hành động mở Zalo theo số khi báo
+  cáo có kênh `ZALO_PERSONAL`. Kênh `ZALO_OA` hướng dẫn sale liên hệ qua OA của
+  showroom.
+- Desktop/web: sao chép số điện thoại hoặc dữ liệu Zalo cá nhân lịch sử. Nếu chỉ
+  có cờ kênh liên hệ, hiển thị hướng dẫn theo kênh thay vì sao chép chuỗi rỗng.
 - Không ghi số điện thoại/Zalo đầy đủ vào log; log chỉ ghi id, trạng thái và cờ
   có/không có thông tin liên hệ.

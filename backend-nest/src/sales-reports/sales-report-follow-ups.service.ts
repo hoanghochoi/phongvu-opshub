@@ -83,7 +83,10 @@ export class SalesReportFollowUpsService {
           ...(contactGracePeriod.active
             ? {}
             : {
-                customerPhone: { not: '' },
+                OR: [
+                  { customerPhone: { not: null } },
+                  { customerContactChannels: { isEmpty: false } },
+                ],
               }),
         },
       },
@@ -125,6 +128,7 @@ export class SalesReportFollowUpsService {
           sourceReport: {
             select: {
               customerPhone: true,
+              customerContactChannels: true,
               customerZaloContact: true,
             },
           },
@@ -134,7 +138,10 @@ export class SalesReportFollowUpsService {
       .filter((row) =>
         contactGracePeriod.active
           ? true
-          : this.hasVisibleContact(row.sourceReport.customerPhone),
+          : this.hasVisibleContact(
+              row.sourceReport.customerPhone,
+              row.sourceReport.customerContactChannels,
+            ),
       )
       .map((row) => row.id);
     const total = validCaseIds.length;
@@ -684,6 +691,9 @@ export class SalesReportFollowUpsService {
       status: row.status,
       customerName: report.customerName,
       customerPhone: report.customerPhone,
+      customerContactChannels: this.cleanContactChannels(
+        report.customerContactChannels,
+      ),
       customerZaloContact: report.customerZaloContact,
       categories,
       storeCode: report.storeCode,
@@ -820,10 +830,25 @@ export class SalesReportFollowUpsService {
     return this.text(value, 40)?.toUpperCase() ?? null;
   }
 
-  private hasVisibleContact(phoneValue: unknown) {
+  private hasVisibleContact(phoneValue: unknown, channelValue: unknown) {
     const phone = String(phoneValue ?? '').trim();
     const normalizedPhone = phone.toLowerCase();
-    return /^\d{10}$/.test(phone) || normalizedPhone === '0zalo';
+    return (
+      /^0\d{9}$/.test(phone) ||
+      this.cleanContactChannels(channelValue).length > 0 ||
+      normalizedPhone === '0zalo'
+    );
+  }
+
+  private cleanContactChannels(value: unknown) {
+    const allowed = new Set(['PHONE', 'ZALO_PERSONAL', 'ZALO_OA']);
+    return Array.from(
+      new Set(
+        (Array.isArray(value) ? value : [])
+          .map((item) => String(item ?? '').trim().toUpperCase())
+          .filter((code) => allowed.has(code)),
+      ),
+    );
   }
 
   private contactGracePeriod() {

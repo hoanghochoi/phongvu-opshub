@@ -1,5 +1,8 @@
 const salesReportEntrySourceManual = 'MANUAL_ENTRY';
 const salesReportEntrySourceSyncList = 'SYNC_LIST';
+const salesReportContactChannelPhone = 'PHONE';
+const salesReportContactChannelZaloPersonal = 'ZALO_PERSONAL';
+const salesReportContactChannelZaloOa = 'ZALO_OA';
 
 class SalesReportCategoryGroup {
   final String id;
@@ -360,6 +363,7 @@ class SalesReportInput {
   final String? entrySource;
   final String? customerName;
   final String? customerPhone;
+  final List<String> customerContactChannels;
   final String? customerZaloContact;
   final String categoryGroupId;
   final List<String> categoryGroupIds;
@@ -391,6 +395,7 @@ class SalesReportInput {
     required this.entrySource,
     required this.customerName,
     required this.customerPhone,
+    required this.customerContactChannels,
     this.customerZaloContact,
     required this.categoryGroupId,
     required this.categoryGroupIds,
@@ -429,6 +434,11 @@ class SalesReportInput {
       if (clean(entrySource) != null) 'entrySource': clean(entrySource),
       if (clean(customerName) != null) 'customerName': clean(customerName),
       if (clean(customerPhone) != null) 'customerPhone': clean(customerPhone),
+      'customerContactChannels': customerContactChannels
+          .map((value) => value.trim().toUpperCase())
+          .where((value) => value.isNotEmpty)
+          .toSet()
+          .toList(),
       if (clean(customerZaloContact) != null)
         'customerZaloContact': clean(customerZaloContact),
       'categoryGroupId': categoryGroupId,
@@ -544,6 +554,7 @@ class SalesReportFollowUpCase {
   final String status;
   final String? customerName;
   final String? customerPhone;
+  final List<String> customerContactChannels;
   final String? customerZaloContact;
   final List<String> categoryNames;
   final String? storeCode;
@@ -571,6 +582,7 @@ class SalesReportFollowUpCase {
     required this.status,
     required this.customerName,
     required this.customerPhone,
+    required this.customerContactChannels,
     required this.customerZaloContact,
     required this.categoryNames,
     required this.storeCode,
@@ -597,7 +609,38 @@ class SalesReportFollowUpCase {
   bool get hasVisibleContact {
     final phone = customerPhone?.trim() ?? '';
     final normalizedPhone = phone.toLowerCase();
-    return RegExp(r'^\d{10}$').hasMatch(phone) || normalizedPhone == '0zalo';
+    return RegExp(r'^0\d{9}$').hasMatch(phone) ||
+        customerContactChannels.any(
+          const {
+            salesReportContactChannelPhone,
+            salesReportContactChannelZaloPersonal,
+            salesReportContactChannelZaloOa,
+          }.contains,
+        ) ||
+        normalizedPhone == '0zalo';
+  }
+
+  bool get hasPersonalZalo =>
+      customerContactChannels.contains(salesReportContactChannelZaloPersonal);
+
+  bool get hasZaloOa =>
+      customerContactChannels.contains(salesReportContactChannelZaloOa);
+
+  List<String> get contactChannelLabels => [
+    if (customerContactChannels.contains(salesReportContactChannelPhone))
+      'Điện thoại',
+    if (hasPersonalZalo) 'Zalo cá nhân',
+    if (hasZaloOa) 'Zalo OA',
+  ];
+
+  String get contactSummary {
+    final phone = customerPhone?.trim() ?? '';
+    if (phone.isNotEmpty && phone.toLowerCase() != '0zalo') return phone;
+    final legacyZalo = customerZaloContact?.trim() ?? '';
+    if (legacyZalo.isNotEmpty) return legacyZalo;
+    return contactChannelLabels.isEmpty
+        ? 'Chưa có thông tin liên hệ'
+        : contactChannelLabels.join(' • ');
   }
 
   factory SalesReportFollowUpCase.fromJson(Map<String, dynamic> json) {
@@ -633,6 +676,13 @@ class SalesReportFollowUpCase {
       status: json['status']?.toString() ?? 'OPEN',
       customerName: json['customerName']?.toString(),
       customerPhone: json['customerPhone']?.toString(),
+      customerContactChannels:
+          (json['customerContactChannels'] is List
+                  ? json['customerContactChannels'] as List
+                  : const [])
+              .map((value) => value.toString().trim().toUpperCase())
+              .where((value) => value.isNotEmpty)
+              .toList(growable: false),
       customerZaloContact: json['customerZaloContact']?.toString(),
       categoryNames: categories,
       storeCode: json['storeCode']?.toString(),

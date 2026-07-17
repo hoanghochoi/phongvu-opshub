@@ -58,6 +58,18 @@ This file maps product behavior to proof. Existing flows are marked
 
 Recent focused evidence:
 
+- `SALES-REPORT-001` / `SALES-REPORT-002`, 2026-07-17: biểu mẫu khách chưa
+  mua đã bỏ ô Zalo tự do; số điện thoại chỉ nhận đúng 10 chữ số bắt đầu bằng
+  `0` hoặc để trống. Hai kênh `ZALO_PERSONAL` và `ZALO_OA` được chọn độc lập,
+  lưu cùng `PHONE` trong `customerContactChannels`, dùng lại ở follow-up,
+  HVTC export và BigQuery facts. Migration backfill dữ liệu cũ, dọn số điện
+  thoại rác và cài DB constraints cho dữ liệu mới. Validation passed: Prisma
+  validate/generate, focused Flutter (30 tests), focused NestJS (77 tests),
+  full Flutter (548 passed, 3 skipped), full NestJS (723 tests),
+  `flutter analyze --no-pub`, NestJS build và `git diff --check`. Chưa smoke
+  migration trên PostgreSQL thật do Docker local không chạy và compose secrets
+  chưa được cấu hình.
+
 - `AUTH-004`, 2026-07-15: passive production evidence showed healthy resource
   headroom while HTTP 429 reached 8,814/13,416 requests in 30 minutes;
   `/home/summary` alone returned 798/2,115 throttles. That evidence diagnoses
@@ -2966,7 +2978,7 @@ src/map-vietin/map-vietin.service.spec.ts` (26 tests), `npm run build`, full
 | Luồng                                  | Proof tự động                                                                                              | Proof staging/manual                                                    |
 | -------------------------------------- | ---------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
 | Grace 14 ngày hiển thị toàn bộ hồ sơ đúng scope | `sales-report-follow-ups.service.spec.ts`, `not_purchased_customers_test.dart` | Xác nhận mốc UTC được ghi một lần lúc deploy và không đổi sau restart/redeploy |
-| Sau grace chỉ hiện hồ sơ có liên hệ hợp lệ | `sales-report-follow-ups.service.spec.ts`, `not_purchased_customers_test.dart` | Đối chiếu số 10 chữ số, marker `0zalo`, Zalo cá nhân riêng và giá trị rác sau mốc kết thúc |
+| Sau grace chỉ hiện hồ sơ có liên hệ hợp lệ | `sales-report-follow-ups.service.spec.ts`, `not_purchased_customers_test.dart` | Đối chiếu số 10 chữ số bắt đầu bằng `0`, các mã `PHONE`/`ZALO_PERSONAL`/`ZALO_OA` và dữ liệu rác đã được migration đưa về `null` sau mốc kết thúc |
 | Scope và phân công cùng showroom       | NestJS service/controller guard test + build; `SUPER_ADMIN` không có showroom vẫn nhận scope toàn hệ thống | Đăng nhập Super Admin không gán showroom, Store Manager và quản lý node |
 | Chăm sóc chưa mua/terminal/mở lại      | Flutter widget + API service test                                                                          | Thử đồng thời hai thiết bị và kiểm tra conflict                         |
 | Comeback mua hàng                      | sales report service test + Flutter form test                                                              | Kiểm tra ERP `order.creator.email`, báo cáo gốc và báo cáo mua liên kết |

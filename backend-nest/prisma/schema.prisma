@@ -846,6 +846,7 @@ model SalesReport {
   orderCode                      String?                  @unique
   customerName                   String?
   customerPhone                  String?
+  customerContactChannels        String[]                 @default([])
   customerZaloContact            String?
   customerNeed                   String?
   categoryGroupId                String

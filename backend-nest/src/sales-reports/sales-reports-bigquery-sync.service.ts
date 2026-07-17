@@ -46,6 +46,12 @@ const CUSTOMER_TYPE_LABELS: Record<string, string> = {
   PERSONAL: 'Cá nhân',
 };
 
+const CUSTOMER_CONTACT_CHANNEL_LABELS: Record<string, string> = {
+  PHONE: 'Điện thoại',
+  ZALO_PERSONAL: 'Zalo cá nhân',
+  ZALO_OA: 'Zalo OA',
+};
+
 const PROMOTION_LABELS: Record<string, string> = {
   EXAM_SCORE_EXCHANGE: 'Đổi điểm thi',
   STUDENT: 'Học sinh - Sinh viên',
@@ -311,6 +317,7 @@ export class SalesReportsBigQuerySyncService implements OnApplicationBootstrap {
     const categoryGroups = this.categoryGroups(row);
     const promotionCodes = this.arrayText(row.promotionCodes);
     const partnerCodes = this.arrayText(row.installmentPartnerCodes);
+    const contactChannelCodes = this.arrayText(row.customerContactChannels);
     return {
       sales_report_id: this.text(row.id),
       report_type: this.text(row.reportType),
@@ -322,6 +329,14 @@ export class SalesReportsBigQuerySyncService implements OnApplicationBootstrap {
       customer_name: this.text(row.customerName),
       customer_phone: this.text(row.customerPhone),
       customer_zalo_contact: this.text(row.customerZaloContact),
+      customer_contact_channel_codes: contactChannelCodes.join('; '),
+      customer_contact_channel_labels: contactChannelCodes
+        .map((code) => this.customerContactChannelLabel(code))
+        .join('; '),
+      has_phone_contact: contactChannelCodes.includes('PHONE'),
+      has_zalo_personal_contact:
+        contactChannelCodes.includes('ZALO_PERSONAL'),
+      has_zalo_oa_contact: contactChannelCodes.includes('ZALO_OA'),
       customer_need: this.text(row.customerNeed),
       category_group_id: this.text(row.categoryGroupId),
       category_group_name: this.text(row.categoryGroupName),
@@ -749,6 +764,11 @@ export class SalesReportsBigQuerySyncService implements OnApplicationBootstrap {
     return this.hasInstallmentPayment(row) ? 'Trả góp' : 'Trả thẳng';
   }
 
+  private customerContactChannelLabel(code: unknown) {
+    const text = this.text(code);
+    return text ? (CUSTOMER_CONTACT_CHANNEL_LABELS[text] ?? text) : '';
+  }
+
   private isReportedInstallmentSuccess(row: any) {
     const status = this.text(row?.installmentStatus).toUpperCase();
     if (status === INSTALLMENT_SUCCESS) return true;
@@ -925,6 +945,11 @@ const REPORT_SCHEMA: BigQueryField[] = [
   { name: 'customer_name', type: 'STRING' },
   { name: 'customer_phone', type: 'STRING' },
   { name: 'customer_zalo_contact', type: 'STRING' },
+  { name: 'customer_contact_channel_codes', type: 'STRING' },
+  { name: 'customer_contact_channel_labels', type: 'STRING' },
+  { name: 'has_phone_contact', type: 'BOOLEAN' },
+  { name: 'has_zalo_personal_contact', type: 'BOOLEAN' },
+  { name: 'has_zalo_oa_contact', type: 'BOOLEAN' },
   { name: 'customer_need', type: 'STRING' },
   { name: 'category_group_id', type: 'STRING' },
   { name: 'category_group_name', type: 'STRING' },

@@ -97,6 +97,30 @@ void main() {
     );
   });
 
+  testWidgets('hiển thị hồ sơ có kênh Zalo OA dù không có số điện thoại', (
+    tester,
+  ) async {
+    final repository = _FakeFollowUpRepository(
+      _case(
+        customerPhone: null,
+        customerZaloContact: null,
+        customerContactChannels: const [salesReportContactChannelZaloOa],
+      ),
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: NotPurchasedCustomersScreen(repository: repository),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Nguyễn Văn A'), findsOneWidget);
+    expect(find.text('Zalo OA'), findsOneWidget);
+  });
+
   testWidgets('tự thử lại khi tải lịch sử chăm sóc bị chập chờn', (
     tester,
   ) async {
@@ -163,14 +187,18 @@ void main() {
     await realtime.dispose();
   });
 
-  test('payload báo cáo giữ Zalo cá nhân độc lập với câu trả lời Zalo OA', () {
+  test('payload lưu riêng hai kênh Zalo và câu trả lời hành vi Zalo OA', () {
     const input = SalesReportInput(
       reportType: 'NOT_PURCHASED',
       orderCode: null,
       entrySource: null,
       customerName: 'Nguyễn Văn A',
       customerPhone: null,
-      customerZaloContact: 'zalo-khach-a',
+      customerContactChannels: [
+        salesReportContactChannelZaloPersonal,
+        salesReportContactChannelZaloOa,
+      ],
+      customerZaloContact: null,
       categoryGroupId: 'NH01',
       categoryGroupIds: ['NH01'],
       customerNeed: 'Laptop',
@@ -196,7 +224,11 @@ void main() {
       installmentPartnerCodes: [],
     );
 
-    expect(input.toJson()['customerZaloContact'], 'zalo-khach-a');
+    expect(input.toJson()['customerContactChannels'], [
+      salesReportContactChannelZaloPersonal,
+      salesReportContactChannelZaloOa,
+    ]);
+    expect(input.toJson().containsKey('customerZaloContact'), isFalse);
     expect(input.toJson()['zaloAnswer'], 'ALREADY_FOLLOWED_ZALO');
     expect(input.toJson().containsKey('customerPhone'), isFalse);
   });
@@ -220,12 +252,14 @@ RealtimeEnvelope _followUpEnvelope(
 SalesReportFollowUpCase _case({
   required String? customerPhone,
   required String? customerZaloContact,
+  List<String> customerContactChannels = const [],
 }) {
   return SalesReportFollowUpCase(
     id: 'case-1',
     status: 'OPEN',
     customerName: 'Nguyễn Văn A',
     customerPhone: customerPhone,
+    customerContactChannels: customerContactChannels,
     customerZaloContact: customerZaloContact,
     categoryNames: const ['Laptop'],
     storeCode: 'CP01',

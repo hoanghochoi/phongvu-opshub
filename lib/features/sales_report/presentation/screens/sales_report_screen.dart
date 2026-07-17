@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:phongvu_opshub/app/widgets/app_toast.dart';
 
@@ -1352,6 +1353,7 @@ class _SalesReportFormScreenState extends State<SalesReportFormScreen> {
   String? _customerType;
   bool _customerIsStudent = false;
   final List<String> _promotionCodes = [];
+  final List<String> _customerContactChannels = [];
   String? _consultedAnswer;
   String? _experiencedAnswer;
   String? _zaloAnswer;
@@ -1569,6 +1571,7 @@ class _SalesReportFormScreenState extends State<SalesReportFormScreen> {
       _customerType = null;
       _customerIsStudent = false;
       _promotionCodes.clear();
+      _customerContactChannels.clear();
       _consultedAnswer = null;
       _experiencedAnswer = null;
       _zaloAnswer = null;
@@ -1620,6 +1623,10 @@ class _SalesReportFormScreenState extends State<SalesReportFormScreen> {
             'customerType': _customerType,
             'customerIsStudent': _customerIsStudent,
             'promotionCount': _promotionCodes.length,
+            'contactNumberProvided': _phoneController.text.trim().isNotEmpty,
+            'customerContactChannelCount':
+                _customerContactChannels.length +
+                (_phoneController.text.trim().isNotEmpty ? 1 : 0),
             'installmentSelected': _installmentSelected,
             'installmentApproved': _installmentApproved,
             'installmentPartnerCount': _installmentPartnerCodes.length,
@@ -1639,7 +1646,12 @@ class _SalesReportFormScreenState extends State<SalesReportFormScreen> {
       entrySource: _isPurchased ? widget.entrySource : null,
       customerName: _nameController.text,
       customerPhone: _phoneController.text,
-      customerZaloContact: _zaloContactController.text,
+      customerContactChannels: [
+        if (_phoneController.text.trim().isNotEmpty)
+          salesReportContactChannelPhone,
+        ..._customerContactChannels,
+      ],
+      customerZaloContact: _isPurchased ? _zaloContactController.text : null,
       categoryGroupId: _primaryCategoryGroupId,
       categoryGroupIds: List.unmodifiable(_categoryGroupIds),
       customerNeed: _needController.text,
@@ -1717,6 +1729,7 @@ class _SalesReportFormScreenState extends State<SalesReportFormScreen> {
       _customerType = null;
       _customerIsStudent = false;
       _promotionCodes.clear();
+      _customerContactChannels.clear();
       _consultedAnswer = null;
       _experiencedAnswer = null;
       _zaloAnswer = null;
@@ -1847,9 +1860,11 @@ class _SalesReportFormScreenState extends State<SalesReportFormScreen> {
               child: Column(
                 children: [
                   _CustomerSection(
+                    isPurchased: _isPurchased,
                     nameController: _nameController,
                     phoneController: _phoneController,
                     zaloContactController: _zaloContactController,
+                    customerContactChannels: _customerContactChannels,
                     needController: _needController,
                     customerType: _customerType,
                     customerIsStudent: _customerIsStudent,
@@ -1863,6 +1878,13 @@ class _SalesReportFormScreenState extends State<SalesReportFormScreen> {
                     onPromotionsChanged: (value) {
                       setState(() {
                         _promotionCodes
+                          ..clear()
+                          ..addAll(value);
+                      });
+                    },
+                    onCustomerContactChannelsChanged: (value) {
+                      setState(() {
+                        _customerContactChannels
                           ..clear()
                           ..addAll(value);
                       });
@@ -2105,9 +2127,11 @@ class _OrderSummaryCard extends StatelessWidget {
 }
 
 class _CustomerSection extends StatelessWidget {
+  final bool isPurchased;
   final TextEditingController nameController;
   final TextEditingController phoneController;
   final TextEditingController zaloContactController;
+  final List<String> customerContactChannels;
   final TextEditingController needController;
   final String? customerType;
   final bool customerIsStudent;
@@ -2119,12 +2143,15 @@ class _CustomerSection extends StatelessWidget {
   final ValueChanged<String?> onCustomerTypeChanged;
   final ValueChanged<bool> onStudentChanged;
   final ValueChanged<List<String>> onPromotionsChanged;
+  final ValueChanged<List<String>> onCustomerContactChannelsChanged;
   final ValueChanged<List<String>> onCategoryChanged;
 
   const _CustomerSection({
+    required this.isPurchased,
     required this.nameController,
     required this.phoneController,
     required this.zaloContactController,
+    required this.customerContactChannels,
     required this.needController,
     required this.customerType,
     required this.customerIsStudent,
@@ -2136,6 +2163,7 @@ class _CustomerSection extends StatelessWidget {
     required this.onCustomerTypeChanged,
     required this.onStudentChanged,
     required this.onPromotionsChanged,
+    required this.onCustomerContactChannelsChanged,
     required this.onCategoryChanged,
   });
 
@@ -2158,23 +2186,58 @@ class _CustomerSection extends StatelessWidget {
           ),
           const SizedBox(height: AppLayoutTokens.formInlineGap),
           AppFormTextInput(
+            key: const ValueKey('sales-report-customer-phone-field'),
             controller: phoneController,
             label: 'Số điện thoại khách hàng',
             icon: Icons.phone_outlined,
-            keyboardType: TextInputType.phone,
-            maxLength: 30,
+            keyboardType: isPurchased
+                ? TextInputType.phone
+                : TextInputType.number,
+            inputFormatters: isPurchased
+                ? null
+                : [
+                    FilteringTextInputFormatter.digitsOnly,
+                    LengthLimitingTextInputFormatter(10),
+                    TextInputFormatter.withFunction((oldValue, newValue) {
+                      if (newValue.text.isEmpty ||
+                          newValue.text.startsWith('0')) {
+                        return newValue;
+                      }
+                      return oldValue;
+                    }),
+                  ],
+            autofillHints: const [AutofillHints.telephoneNumber],
+            autocorrect: false,
+            maxLength: isPurchased ? 30 : 10,
             counterText: '',
+            helperText: isPurchased
+                ? null
+                : 'Nhập 10 chữ số bắt đầu bằng 0, hoặc để trống.',
+            validator: (value) {
+              if (isPurchased) return null;
+              final phone = (value ?? '').trim();
+              if (phone.isEmpty || RegExp(r'^0\d{9}$').hasMatch(phone)) {
+                return null;
+              }
+              return 'Số điện thoại phải gồm 10 chữ số và bắt đầu bằng 0';
+            },
           ),
           const SizedBox(height: AppLayoutTokens.formInlineGap),
-          AppFormTextInput(
-            controller: zaloContactController,
-            label: 'Zalo cá nhân của khách hàng',
-            icon: Icons.chat_bubble_outline_rounded,
-            maxLength: 120,
-            counterText: '',
-            helperText:
-                'Nhập số Zalo hoặc tên/liên kết liên hệ. Không phải Zalo OA.',
-          ),
+          if (isPurchased)
+            AppFormTextInput(
+              controller: zaloContactController,
+              label: 'Zalo cá nhân của khách hàng',
+              icon: Icons.chat_bubble_outline_rounded,
+              maxLength: 120,
+              counterText: '',
+              helperText:
+                  'Nhập số Zalo hoặc tên/liên kết liên hệ. Không phải Zalo OA.',
+            )
+          else
+            _CustomerContactChannelPicker(
+              selectedCodes: customerContactChannels,
+              onChanged: onCustomerContactChannelsChanged,
+            ),
           const SizedBox(height: AppLayoutTokens.formInlineGap),
           _CustomerTypePicker(
             value: customerType,
@@ -2209,6 +2272,52 @@ class _CustomerSection extends StatelessWidget {
                 ? 'Vui lòng nhập nhu cầu khách hàng'
                 : null,
           ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CustomerContactChannelPicker extends StatelessWidget {
+  final List<String> selectedCodes;
+  final ValueChanged<List<String>> onChanged;
+
+  const _CustomerContactChannelPicker({
+    required this.selectedCodes,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    const options = {
+      salesReportContactChannelZaloPersonal: 'Zalo cá nhân',
+      salesReportContactChannelZaloOa: 'Zalo OA',
+    };
+    return InputDecorator(
+      decoration: appInputDecoration(
+        label: 'Kênh liên hệ Zalo',
+        icon: Icons.chat_bubble_outline_rounded,
+        helperText: 'Có thể chọn một, cả hai hoặc để trống.',
+      ).copyWith(alignLabelWithHint: true),
+      child: Column(
+        children: [
+          for (final entry in options.entries)
+            CheckboxListTile(
+              key: ValueKey('sales-report-contact-channel-${entry.key}'),
+              value: selectedCodes.contains(entry.key),
+              onChanged: (checked) {
+                final next = [...selectedCodes];
+                if (checked == true) {
+                  if (!next.contains(entry.key)) next.add(entry.key);
+                } else {
+                  next.remove(entry.key);
+                }
+                onChanged(next);
+              },
+              contentPadding: EdgeInsets.zero,
+              controlAffinity: ListTileControlAffinity.leading,
+              title: Text(entry.value),
+            ),
         ],
       ),
     );

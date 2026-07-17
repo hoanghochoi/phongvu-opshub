@@ -34,6 +34,7 @@ import {
 import {
   APP_DOWNLOAD_REASON_CODES,
   CreateSalesReportDto,
+  CUSTOMER_CONTACT_CHANNEL_CODES,
   CUSTOMER_TYPE_CODES,
   ExportSalesReportsDto,
   EXPERIENCE_REASON_CODES,
@@ -262,6 +263,12 @@ const INSTALLMENT_LABELS: Record<string, string> = {
 const CUSTOMER_TYPE_LABELS: Record<string, string> = {
   BUSINESS: 'Doanh nghiệp',
   PERSONAL: 'Cá nhân',
+};
+
+const CUSTOMER_CONTACT_CHANNEL_LABELS: Record<string, string> = {
+  PHONE: 'Điện thoại',
+  ZALO_PERSONAL: 'Zalo cá nhân',
+  ZALO_OA: 'Zalo OA',
 };
 
 const PROMOTION_LABELS: Record<string, string> = {
@@ -1747,6 +1754,19 @@ export class SalesReportsService implements OnApplicationBootstrap {
       ? { ...actorContext, ...options.comebackScope }
       : actorContext;
     const customerName = this.requireCustomerName(body.customerName);
+    const customerPhone = this.normalizeCustomerPhone(
+      reportType,
+      body.customerPhone,
+    );
+    const legacyCustomerZaloContact = this.optionalText(
+      body.customerZaloContact,
+      120,
+    );
+    const customerContactChannels = this.normalizeCustomerContactChannels(
+      body.customerContactChannels,
+      customerPhone,
+      legacyCustomerZaloContact,
+    );
     let erpOrder: SalesReportErpOrder | null = null;
     if (reportType === REPORT_TYPE_PURCHASED) {
       await this.assertOrderNotReported(orderCode);
@@ -1805,7 +1825,7 @@ export class SalesReportsService implements OnApplicationBootstrap {
     const installment = this.normalizeInstallmentSelection(body);
 
     this.logger.log(
-      `Sales report create started: user=${this.safeUserLabel(user)} type=${reportType} entrySource=${entrySource} primaryCategory=${primaryCategory.id} categoryCount=${categories.length} hasOrder=${Boolean(orderCode)} ${this.orderLogPart(orderCode)} hasCustomerName=${Boolean(customerName)} customerType=${customerType} hasInstallmentNeed=${installment.need} promotionCount=${promotionCodes.length}`,
+      `Sales report create started: user=${this.safeUserLabel(user)} type=${reportType} entrySource=${entrySource} primaryCategory=${primaryCategory.id} categoryCount=${categories.length} hasOrder=${Boolean(orderCode)} ${this.orderLogPart(orderCode)} hasCustomerName=${Boolean(customerName)} hasCustomerPhone=${Boolean(customerPhone)} customerContactChannelCount=${customerContactChannels.length} customerType=${customerType} hasInstallmentNeed=${installment.need} promotionCount=${promotionCodes.length}`,
     );
     try {
       if (erpOrder) {
@@ -1820,8 +1840,9 @@ export class SalesReportsService implements OnApplicationBootstrap {
         reportType,
         orderCode,
         customerName,
-        customerPhone: this.optionalText(body.customerPhone, 30),
-        customerZaloContact: this.optionalText(body.customerZaloContact, 120),
+        customerPhone,
+        customerContactChannels,
+        customerZaloContact: legacyCustomerZaloContact,
         customerNeed:
           this.optionalText(body.customerNeed, 500) ??
           erpOrder?.customerNeed ??
@@ -1918,6 +1939,9 @@ export class SalesReportsService implements OnApplicationBootstrap {
             customerType: this.customerTypeLabel(customerType),
             customerIsStudent,
             promotions: promotionCodes.map((code) => this.promotionLabel(code)),
+            customerContactChannels: customerContactChannels.map((code) =>
+              this.customerContactChannelLabel(code),
+            ),
             installmentApproved: installment.approved,
             installmentNoInstallmentReason: installment.noInstallmentReason
               ? this.installmentNoInstallmentReasonLabel(
@@ -1981,7 +2005,7 @@ export class SalesReportsService implements OnApplicationBootstrap {
             include: reportInclude,
           });
       this.logger.log(
-        `Sales report create succeeded: id=${report.id} user=${this.safeUserLabel(user)} type=${reportType} entrySource=${entrySource} store=${report.storeCode || 'none'} ${this.orderLogPart(orderCode)} durationMs=${Date.now() - startedAt}`,
+        `Sales report create succeeded: id=${report.id} user=${this.safeUserLabel(user)} type=${reportType} entrySource=${entrySource} store=${report.storeCode || 'none'} ${this.orderLogPart(orderCode)} hasCustomerPhone=${Boolean(customerPhone)} customerContactChannelCount=${customerContactChannels.length} durationMs=${Date.now() - startedAt}`,
       );
       return this.toReportDto(report);
     } catch (error) {
@@ -3259,6 +3283,38 @@ export class SalesReportsService implements OnApplicationBootstrap {
     return normalized;
   }
 
+  private normalizeCustomerPhone(reportType: string, value: unknown) {
+    const phone = this.optionalText(value, 30);
+    if (
+      reportType === REPORT_TYPE_NOT_PURCHASED &&
+      phone &&
+      !/^0\d{9}$/.test(phone)
+    ) {
+      throw new BadRequestException(
+        'Số điện thoại phải gồm đúng 10 chữ số và bắt đầu bằng 0, hoặc để trống.',
+      );
+    }
+    return phone;
+  }
+
+  private normalizeCustomerContactChannels(
+    value: unknown,
+    customerPhone: string | null,
+    legacyCustomerZaloContact: string | null,
+  ) {
+    const requested = this.cleanCustomerContactChannelCodes(value).filter(
+      (code) => code !== 'PHONE',
+    );
+    const channels = [
+      ...(customerPhone ? ['PHONE'] : []),
+      ...requested,
+      ...(legacyCustomerZaloContact ? ['ZALO_PERSONAL'] : []),
+    ];
+    return CUSTOMER_CONTACT_CHANNEL_CODES.filter((code) =>
+      channels.includes(code),
+    );
+  }
+
   private requireCustomerName(value: unknown) {
     const customerName = this.optionalText(value, 120);
     if (!customerName) {
@@ -4063,6 +4119,12 @@ export class SalesReportsService implements OnApplicationBootstrap {
       orderCode: row.orderCode,
       customerName: row.customerName,
       customerPhone: row.customerPhone,
+      customerContactChannels: this.cleanCustomerContactChannelCodes(
+        row.customerContactChannels,
+      ),
+      customerContactChannelLabels: this.cleanCustomerContactChannelCodes(
+        row.customerContactChannels,
+      ).map((code) => this.customerContactChannelLabel(code)),
       customerZaloContact: row.customerZaloContact,
       customerNeed: row.customerNeed,
       categoryGroupId: row.categoryGroupId,
@@ -4154,7 +4216,7 @@ export class SalesReportsService implements OnApplicationBootstrap {
       'Mã nhân viên tư vấn ERP',
       'Tên khách hàng',
       'Số điện thoại khách hàng',
-      'Zalo cá nhân khách hàng',
+      'Kênh liên hệ khách hàng',
       'Nhu cầu khách hàng',
       'Kết quả tư vấn giải pháp',
       'Lý do khác khi không tư vấn',
@@ -4179,7 +4241,11 @@ export class SalesReportsService implements OnApplicationBootstrap {
         ),
         this.workbookText(row.customerName),
         this.workbookText(row.customerPhone),
-        this.workbookText(row.customerZaloContact),
+        this.workbookText(
+          this.cleanCustomerContactChannelCodes(row.customerContactChannels)
+            .map((code) => this.customerContactChannelLabel(code))
+            .join('; '),
+        ),
         this.workbookText(row.customerNeed),
         this.workbookText(this.answerLabel(row.consultedSolutionAnswer)),
         this.workbookText(row.consultedSolutionOtherReason),
@@ -4985,6 +5051,10 @@ export class SalesReportsService implements OnApplicationBootstrap {
     return PROMOTION_LABELS[code] ?? code;
   }
 
+  private customerContactChannelLabel(code: string) {
+    return CUSTOMER_CONTACT_CHANNEL_LABELS[code] ?? code;
+  }
+
   private installmentNoInstallmentReasonLabel(code: string) {
     return INSTALLMENT_NO_INSTALLMENT_REASON_LABELS[code] ?? code;
   }
@@ -5048,6 +5118,23 @@ export class SalesReportsService implements OnApplicationBootstrap {
           .toUpperCase(),
       )
       .filter((code) => PROMOTION_CODES.includes(code as any));
+  }
+
+  private cleanCustomerContactChannelCodes(value: unknown) {
+    const raw = Array.isArray(value) ? value : [];
+    return Array.from(
+      new Set(
+        raw
+          .map((item) =>
+            String(item || '')
+              .trim()
+              .toUpperCase(),
+          )
+          .filter((code) =>
+            CUSTOMER_CONTACT_CHANNEL_CODES.includes(code as any),
+          ),
+      ),
+    );
   }
 
   private categoryGroupsFor(row: any) {

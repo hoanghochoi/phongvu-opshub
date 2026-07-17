@@ -91,6 +91,12 @@ export const NOT_PURCHASED_REASON_CODES = [
 
 export const CUSTOMER_TYPE_CODES = ['BUSINESS', 'PERSONAL'] as const;
 
+export const CUSTOMER_CONTACT_CHANNEL_CODES = [
+  'PHONE',
+  'ZALO_PERSONAL',
+  'ZALO_OA',
+] as const;
+
 export const PROMOTION_CODES = [
   'EXAM_SCORE_EXCHANGE',
   'STUDENT',
@@ -151,6 +157,14 @@ export class CreateSalesReportDto {
   @MaxLength(30)
   customerPhone?: string;
 
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(3)
+  @IsString({ each: true })
+  @IsIn(CUSTOMER_CONTACT_CHANNEL_CODES, { each: true })
+  customerContactChannels?: string[];
+
+  /** @deprecated Chỉ giữ để nhận payload từ phiên bản ứng dụng cũ. */
   @IsOptional()
   @IsString()
   @MaxLength(120)

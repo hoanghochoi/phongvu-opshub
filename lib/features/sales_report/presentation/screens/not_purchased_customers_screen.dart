@@ -376,7 +376,7 @@ class _NotPurchasedCustomersScreenState
                   : 'Chưa có hồ sơ đã ẩn',
               message: data?.contactGracePeriodActive == true
                   ? 'Chưa có hồ sơ khách hàng chưa mua trong phạm vi được phân công.'
-                  : 'Màn hình chỉ hiển thị khách hàng có số điện thoại 10 số hoặc marker 0zalo.',
+                  : 'Màn hình chỉ hiển thị khách có số điện thoại hợp lệ hoặc đã lưu kênh Zalo cá nhân/Zalo OA.',
               actionLabel: 'Tải lại',
               onAction: _load,
             )
@@ -483,10 +483,7 @@ class _FollowUpCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tone = _careColor(item.careAgeDays);
-    final contact = _firstNonEmpty([
-      item.customerPhone,
-      item.customerZaloContact,
-    ]);
+    final contact = item.contactSummary;
     return AppSurfaceCard(
       onTap: onTap,
       borderColor: tone.withValues(alpha: 0.35),
@@ -959,7 +956,7 @@ class _DialogHeader extends StatelessWidget {
                 child: InkWell(
                   onTap: busy ? null : onContact,
                   child: Text(
-                    '${_firstNonEmpty([item.customerPhone, item.customerZaloContact])} • ${item.categoryNames.join(', ')}',
+                    '${item.contactSummary} • ${item.categoryNames.join(', ')}',
                     style: AppTextStyles.bodyS.copyWith(
                       color: AppColors.primary,
                       decoration: TextDecoration.underline,
@@ -1221,6 +1218,7 @@ Future<void> _contactCustomer(
 ) async {
   final phone = item.customerPhone?.trim() ?? '';
   final zalo = item.customerZaloContact?.trim() ?? '';
+  final channelLabels = item.contactChannelLabels;
   final mobile =
       !kIsWeb &&
       (defaultTargetPlatform == TargetPlatform.android ||
@@ -1242,24 +1240,44 @@ Future<void> _contactCustomer(
                   await launchUrl(Uri(scheme: 'tel', path: phone));
                 },
               ),
-              ListTile(
-                leading: const Icon(Icons.chat_bubble_outline_rounded),
-                title: const Text('Mở Zalo bằng số điện thoại'),
-                subtitle: Text(phone),
-                onTap: () async {
-                  Navigator.pop(sheetContext);
-                  final normalized = phone.replaceAll(RegExp(r'\D'), '');
-                  await launchUrl(
-                    Uri.parse('https://zalo.me/$normalized'),
-                    mode: LaunchMode.externalApplication,
-                  );
-                },
-              ),
+              if (item.hasPersonalZalo)
+                ListTile(
+                  leading: const Icon(Icons.chat_bubble_outline_rounded),
+                  title: const Text('Mở Zalo cá nhân'),
+                  subtitle: Text(phone),
+                  onTap: () async {
+                    Navigator.pop(sheetContext);
+                    final normalized = phone.replaceAll(RegExp(r'\D'), '');
+                    await launchUrl(
+                      Uri.parse('https://zalo.me/$normalized'),
+                      mode: LaunchMode.externalApplication,
+                    );
+                  },
+                ),
+              if (item.hasZaloOa)
+                ListTile(
+                  leading: const Icon(Icons.forum_outlined),
+                  title: const Text('Khách có kênh Zalo OA'),
+                  subtitle: const Text('Liên hệ qua Zalo OA của showroom'),
+                  onTap: () {
+                    Navigator.pop(sheetContext);
+                    if (context.mounted) {
+                      AppToast.show(
+                        context,
+                        const SnackBar(
+                          content: Text(
+                            'Vui lòng liên hệ khách qua Zalo OA của showroom.',
+                          ),
+                        ),
+                      );
+                    }
+                  },
+                ),
             ],
           ),
         ),
       );
-    } else {
+    } else if (phone.isNotEmpty || zalo.isNotEmpty) {
       final value = phone.isNotEmpty ? phone : zalo;
       await Clipboard.setData(ClipboardData(text: value));
       if (context.mounted) {
@@ -1268,6 +1286,20 @@ Future<void> _contactCustomer(
           const SnackBar(content: Text('Đã sao chép thông tin liên hệ.')),
         );
       }
+    } else if (channelLabels.isNotEmpty && context.mounted) {
+      AppToast.show(
+        context,
+        SnackBar(
+          content: Text(
+            'Kênh liên hệ đã lưu: ${channelLabels.join(', ')}. Vui lòng liên hệ qua kênh tương ứng.',
+          ),
+        ),
+      );
+    } else if (context.mounted) {
+      AppToast.show(
+        context,
+        const SnackBar(content: Text('Khách chưa có thông tin liên hệ.')),
+      );
     }
     await AppLogger.instance.info(
       'SalesReportFollowUp',
@@ -1276,7 +1308,10 @@ Future<void> _contactCustomer(
         'caseId': item.id,
         'mobile': mobile,
         'hasPhone': phone.isNotEmpty,
-        'hasZaloContact': zalo.isNotEmpty,
+        'hasLegacyZaloContact': zalo.isNotEmpty,
+        'contactChannelCount': item.customerContactChannels.length,
+        'hasZaloPersonal': item.hasPersonalZalo,
+        'hasZaloOa': item.hasZaloOa,
       },
     );
   } catch (error, stackTrace) {

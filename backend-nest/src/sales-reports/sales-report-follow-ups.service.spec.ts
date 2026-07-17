@@ -13,12 +13,13 @@ describe('SalesReportFollowUpsService', () => {
     else process.env[graceUntilEnv] = originalGraceUntil;
   });
 
-  it('sau grace chỉ hiển thị số điện thoại 10 chữ số hoặc marker 0zalo', async () => {
+  it('sau grace chỉ hiển thị số điện thoại hợp lệ hoặc kênh Zalo đã lưu', async () => {
     process.env[graceUntilEnv] = '2000-07-31T02:00:00.000Z';
     const makeRow = (
       id: string,
       customerPhone: string | null,
       customerZaloContact: string | null,
+      customerContactChannels: string[] = [],
     ) => ({
       id,
       status: 'OPEN',
@@ -33,6 +34,7 @@ describe('SalesReportFollowUpsService', () => {
         reportType: 'NOT_PURCHASED',
         customerName: 'Nguyễn Văn A',
         customerPhone,
+        customerContactChannels,
         customerZaloContact,
         categoryGroupId: 'NH01',
         categoryGroupNameVi: 'Laptop',
@@ -48,13 +50,13 @@ describe('SalesReportFollowUpsService', () => {
       entries: [],
     });
     const candidates = [
-      makeRow('valid-phone', '0909000000', null),
-      makeRow('valid-marker', '0zalo', null),
-      makeRow('valid-zalo', 'Không cung cấp', 'zalo-khach-a'),
+      makeRow('valid-phone', '0909000000', null, ['PHONE']),
+      makeRow('valid-zalo-personal', null, null, ['ZALO_PERSONAL']),
+      makeRow('valid-zalo-oa', null, null, ['ZALO_OA']),
       makeRow('invalid-zero', '0', null),
       makeRow('invalid-text', 'Không cung cấp', null),
     ];
-    const rows = candidates.slice(0, 2);
+    const rows = candidates.slice(0, 3);
     const findMany = jest
       .fn()
       .mockImplementation(({ select }: { select?: unknown }) =>
@@ -83,11 +85,12 @@ describe('SalesReportFollowUpsService', () => {
       { status: 'OPEN', page: 0, limit: 20 },
     );
 
-    expect(result.items).toHaveLength(2);
-    expect(result.total).toBe(2);
+    expect(result.items).toHaveLength(3);
+    expect(result.total).toBe(3);
     expect(result.items.map((item) => item.id)).toEqual([
       'valid-phone',
-      'valid-marker',
+      'valid-zalo-personal',
+      'valid-zalo-oa',
     ]);
     expect(result.managedScope).toBe(true);
     expect(result.contactGracePeriodActive).toBe(false);
@@ -96,6 +99,7 @@ describe('SalesReportFollowUpsService', () => {
     );
     const where = findMany.mock.calls[0][0].where;
     expect(JSON.stringify(where)).toContain('customerPhone');
+    expect(JSON.stringify(where)).toContain('customerContactChannels');
     expect(JSON.stringify(where)).not.toContain('customerZaloContact');
     expect(JSON.stringify(where)).not.toContain('assigneeUserId');
     expect(JSON.stringify(where)).not.toContain('storeCode');
@@ -107,6 +111,7 @@ describe('SalesReportFollowUpsService', () => {
       id: string,
       customerPhone: string | null,
       customerZaloContact: string | null,
+      customerContactChannels: string[] = [],
     ) => ({
       id,
       status: 'OPEN',
@@ -121,6 +126,7 @@ describe('SalesReportFollowUpsService', () => {
         reportType: 'NOT_PURCHASED',
         customerName: 'Nguyễn Văn A',
         customerPhone,
+        customerContactChannels,
         customerZaloContact,
         categoryGroupId: 'NH01',
         categoryGroupNameVi: 'Laptop',
@@ -191,6 +197,7 @@ describe('SalesReportFollowUpsService', () => {
         reportType: 'NOT_PURCHASED',
         customerName: 'Nguyễn Văn A',
         customerPhone: '0909000000',
+        customerContactChannels: ['PHONE'],
         customerZaloContact: null,
         categoryGroupId: 'NH01',
         categoryGroupNameVi: 'Laptop',

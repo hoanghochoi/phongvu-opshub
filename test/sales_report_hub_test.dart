@@ -433,9 +433,7 @@ void main() {
           ),
         ],
         child: const MaterialApp(
-          home: Scaffold(
-            body: SalesReportFormScreen.purchased(),
-          ),
+          home: Scaffold(body: SalesReportFormScreen.purchased()),
         ),
       ),
     );
@@ -559,6 +557,15 @@ void main() {
     expect(find.byType(CheckboxListTile), findsWidgets);
     expect(find.text('Loại khách hàng'), findsOneWidget);
     expect(find.text('Tên khách hàng'), findsOneWidget);
+    expect(find.text('Zalo cá nhân của khách hàng'), findsNothing);
+    expect(
+      _checkboxTileByKey('sales-report-contact-channel-ZALO_PERSONAL'),
+      findsOneWidget,
+    );
+    expect(
+      _checkboxTileByKey('sales-report-contact-channel-ZALO_OA'),
+      findsOneWidget,
+    );
 
     await tester.ensureVisible(find.text('Gửi báo cáo'));
     await tester.tap(find.text('Gửi báo cáo'));
@@ -568,8 +575,47 @@ void main() {
     expect(find.text('Vui lòng nhập nhu cầu khách hàng'), findsOneWidget);
     expect(find.text('Vui lòng chọn loại khách hàng'), findsOneWidget);
     expect(find.text('Vui lòng chọn Tư vấn 3 giải pháp'), findsOneWidget);
+    expect(
+      find.text('Số điện thoại phải gồm 10 chữ số và bắt đầu bằng 0'),
+      findsNothing,
+    );
     expect(repository.createCalled, isFalse);
   });
+
+  testWidgets(
+    'Số điện thoại chưa mua chỉ nhận tối đa 10 chữ số bắt đầu bằng 0',
+    (tester) async {
+      final repository = _FakeSalesReportRepository();
+      await _pumpNotPurchasedForm(tester, repository);
+      final phoneField = _textFormFieldByParentKey(
+        'sales-report-customer-phone-field',
+      );
+
+      await tester.ensureVisible(phoneField);
+      await tester.enterText(phoneField, 'abc0912-345-6789');
+      await tester.pump();
+
+      expect(
+        tester.widget<TextFormField>(phoneField).controller?.text,
+        '0912345678',
+      );
+
+      await tester.enterText(phoneField, '1912345678');
+      await tester.pump();
+      expect(
+        tester.widget<TextFormField>(phoneField).controller?.text,
+        '0912345678',
+      );
+
+      await tester.enterText(phoneField, '');
+      await tester.enterText(phoneField, '1912345678');
+      await tester.pump();
+      expect(
+        tester.widget<TextFormField>(phoneField).controller?.text,
+        isEmpty,
+      );
+    },
+  );
 
   testWidgets('Báo cáo mua hàng requires CTKM áp dụng', (tester) async {
     final authProvider = _FakeAuthProvider(
@@ -627,6 +673,21 @@ void main() {
       _textFormFieldByParentKey('sales-report-customer-name-field'),
       'Nguyễn Văn A',
     );
+    await tester.ensureVisible(
+      _textFormFieldByParentKey('sales-report-customer-phone-field'),
+    );
+    await tester.enterText(
+      _textFormFieldByParentKey('sales-report-customer-phone-field'),
+      '0901234567',
+    );
+    await _tapVisible(
+      tester,
+      _checkboxTileByKey('sales-report-contact-channel-ZALO_PERSONAL'),
+    );
+    await _tapVisible(
+      tester,
+      _checkboxTileByKey('sales-report-contact-channel-ZALO_OA'),
+    );
     await _tapVisible(
       tester,
       find.byKey(const ValueKey('sales-report-category-NH08')),
@@ -676,6 +737,12 @@ void main() {
 
     expect(repository.createCalled, isTrue);
     expect(repository.lastInput?.customerName, 'Nguyễn Văn A');
+    expect(repository.lastInput?.customerPhone, '0901234567');
+    expect(repository.lastInput?.customerContactChannels, [
+      salesReportContactChannelPhone,
+      salesReportContactChannelZaloPersonal,
+      salesReportContactChannelZaloOa,
+    ]);
     expect(repository.lastInput?.entrySource, isNull);
     expect(position.pixels, 0);
   });

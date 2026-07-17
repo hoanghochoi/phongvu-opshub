@@ -96,6 +96,10 @@ nằm rời ở Google Form và có thể dùng cho dashboard sau này.
   Check/submit do user chủ động không bị quota background chặn và luôn persist
   trạng thái hủy/trả/hoàn thành mới nhất từ ERP.
 - Form `Chưa mua hàng` không gọi ERP, bắt buộc ngành hàng và lý do chưa mua.
+  Form bỏ ô Zalo text tự do; số điện thoại chỉ được để trống hoặc nhập đúng
+  `0` + 9 chữ số. Hai checkbox `Zalo cá nhân` và `Zalo OA` được lưu độc lập
+  cùng kênh `PHONE` suy ra từ số hợp lệ trong `customerContactChannels` để các
+  chức năng và báo cáo sau dùng lại.
 - Cả 2 form có tick `Có nhu cầu trả góp`. Khi tick, sale phải chọn một hoặc
   nhiều đối tác trong list: `VNPAY - POS`, `PAYOO - POS`,
   `HomeCredit - CTTC`, `Shinhan - CTTC`, `HDSaison - CTTC`,
