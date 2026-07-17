@@ -920,6 +920,13 @@ jobs:
             sudo sed -i "/^${key}=/d" "$OPSHUB_ENV_FILE"
           }
 
+          contact_grace_until=$(sudo grep '^SALES_REPORT_FOLLOW_UP_CONTACT_GRACE_UNTIL=' "$OPSHUB_ENV_FILE" | tail -n 1 | cut -d= -f2- || true)
+          if [ -z "$contact_grace_until" ]; then
+            contact_grace_until=$(date -u -d '+14 days' '+%Y-%m-%dT%H:%M:%SZ')
+            upsert_env SALES_REPORT_FOLLOW_UP_CONTACT_GRACE_UNTIL "$contact_grace_until"
+          fi
+          echo "Follow-up contact grace ends at $contact_grace_until"
+
           upsert_env OPSHUB_STAGING true
           upsert_env COMPOSE_PROJECT_NAME "$COMPOSE_PROJECT_NAME"
           upsert_env OPSHUB_DOMAIN "opshub-staging.hoanghochoi.com"

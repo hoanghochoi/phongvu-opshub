@@ -10,14 +10,18 @@ import 'package:phongvu_opshub/features/sales_report/domain/sales_report.dart';
 import 'package:phongvu_opshub/features/sales_report/presentation/screens/not_purchased_customers_screen.dart';
 
 void main() {
-  testWidgets('hiển thị khách chỉ có Zalo và mở lịch sử chăm sóc', (
+  testWidgets('trong grace vẫn hiện khách chỉ có Zalo và mở lịch sử chăm sóc', (
     tester,
   ) async {
     final item = _case(
       customerPhone: null,
       customerZaloContact: 'zalo-khach-a',
     );
-    final repository = _FakeFollowUpRepository(item);
+    final repository = _FakeFollowUpRepository(
+      item,
+      contactGracePeriodActive: true,
+      contactGracePeriodEndsAt: DateTime(2026, 7, 31, 9),
+    );
     final realtime = _FakeRealtimeClient();
 
     await tester.pumpWidget(
@@ -49,7 +53,10 @@ void main() {
     tester,
   ) async {
     final repository = _FakeFollowUpRepository(
-      _case(customerPhone: 'Không cung cấp', customerZaloContact: null),
+      _case(
+        customerPhone: 'Không cung cấp',
+        customerZaloContact: 'zalo-khach-a',
+      ),
     );
 
     await tester.pumpWidget(
@@ -63,6 +70,31 @@ void main() {
 
     expect(find.text('Nguyễn Văn A'), findsNothing);
     expect(find.text('Không có khách hàng cần chăm sóc'), findsOneWidget);
+  });
+
+  testWidgets('tạm hiển thị mọi hồ sơ trong thời gian rà soát liên hệ', (
+    tester,
+  ) async {
+    final repository = _FakeFollowUpRepository(
+      _case(customerPhone: 'Không cung cấp', customerZaloContact: null),
+      contactGracePeriodActive: true,
+      contactGracePeriodEndsAt: DateTime(2026, 7, 31, 9),
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: NotPurchasedCustomersScreen(repository: repository),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Nguyễn Văn A'), findsOneWidget);
+    expect(
+      find.textContaining('Tạm hiển thị toàn bộ khách chưa mua'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('tự thử lại khi tải lịch sử chăm sóc bị chập chờn', (
@@ -221,11 +253,17 @@ SalesReportFollowUpCase _case({
 class _FakeFollowUpRepository extends SalesReportRepository {
   final SalesReportFollowUpCase item;
   final int detailFailures;
+  final bool contactGracePeriodActive;
+  final DateTime? contactGracePeriodEndsAt;
   int detailCalls = 0;
   int listCalls = 0;
 
-  _FakeFollowUpRepository(this.item, {this.detailFailures = 0})
-    : super(ApiClient());
+  _FakeFollowUpRepository(
+    this.item, {
+    this.detailFailures = 0,
+    this.contactGracePeriodActive = false,
+    this.contactGracePeriodEndsAt,
+  }) : super(ApiClient());
 
   @override
   Future<SalesReportFollowUpPage> fetchFollowUpCases({
@@ -242,6 +280,8 @@ class _FakeFollowUpRepository extends SalesReportRepository {
       total: 1,
       hasMore: false,
       managedScope: false,
+      contactGracePeriodActive: contactGracePeriodActive,
+      contactGracePeriodEndsAt: contactGracePeriodEndsAt,
     );
   }
 

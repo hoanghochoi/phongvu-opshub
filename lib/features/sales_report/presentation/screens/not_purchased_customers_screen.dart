@@ -234,6 +234,10 @@ class _NotPurchasedCustomersScreenState
           'count': result.items.length,
           'total': result.total,
           'managedScope': result.managedScope,
+          'contactGracePeriodActive': result.contactGracePeriodActive,
+          'contactGracePeriodEndsAt': result.contactGracePeriodEndsAt
+              ?.toUtc()
+              .toIso8601String(),
           'durationMs': DateTime.now().difference(startedAt).inMilliseconds,
         },
       );
@@ -293,7 +297,9 @@ class _NotPurchasedCustomersScreenState
     final data = _data;
     final visibleItems =
         data?.items
-            .where((item) => item.hasVisibleContact)
+            .where(
+              (item) => data.contactGracePeriodActive || item.hasVisibleContact,
+            )
             .toList(growable: false) ??
         const <SalesReportFollowUpCase>[];
     return AppResponsiveScrollView(
@@ -302,7 +308,11 @@ class _NotPurchasedCustomersScreenState
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _PageHeader(total: data?.total ?? 0),
+          _PageHeader(
+            total: data?.total ?? 0,
+            contactGracePeriodActive: data?.contactGracePeriodActive ?? false,
+            contactGracePeriodEndsAt: data?.contactGracePeriodEndsAt,
+          ),
           const SizedBox(height: 16),
           LayoutBuilder(
             builder: (context, constraints) {
@@ -364,8 +374,9 @@ class _NotPurchasedCustomersScreenState
               title: _status == 'OPEN'
                   ? 'Không có khách hàng cần chăm sóc'
                   : 'Chưa có hồ sơ đã ẩn',
-              message:
-                  'Màn hình chỉ hiển thị khách hàng có số điện thoại hoặc Zalo cá nhân.',
+              message: data?.contactGracePeriodActive == true
+                  ? 'Chưa có hồ sơ khách hàng chưa mua trong phạm vi được phân công.'
+                  : 'Màn hình chỉ hiển thị khách hàng có số điện thoại 10 số hoặc marker 0zalo.',
               actionLabel: 'Tải lại',
               onAction: _load,
             )
@@ -420,8 +431,14 @@ class _NotPurchasedCustomersScreenState
 
 class _PageHeader extends StatelessWidget {
   final int total;
+  final bool contactGracePeriodActive;
+  final DateTime? contactGracePeriodEndsAt;
 
-  const _PageHeader({required this.total});
+  const _PageHeader({
+    required this.total,
+    required this.contactGracePeriodActive,
+    required this.contactGracePeriodEndsAt,
+  });
 
   @override
   Widget build(BuildContext context) => AppSurfaceCard(
@@ -437,7 +454,9 @@ class _PageHeader extends StatelessWidget {
             children: [
               const Text('Chăm sóc lại', style: AppTextStyles.headingM),
               Text(
-                'Theo dõi và chăm sóc lại khách có thông tin liên hệ • $total hồ sơ',
+                contactGracePeriodActive
+                    ? 'Tạm hiển thị toàn bộ khách chưa mua${contactGracePeriodEndsAt == null ? '' : ' đến ${DateFormat('HH:mm dd/MM/yyyy').format(contactGracePeriodEndsAt!.toLocal())}'} • $total hồ sơ'
+                    : 'Theo dõi khách có liên hệ hợp lệ • $total hồ sơ',
                 style: AppTextStyles.bodyM.copyWith(
                   color: AppColors.neutral600,
                 ),

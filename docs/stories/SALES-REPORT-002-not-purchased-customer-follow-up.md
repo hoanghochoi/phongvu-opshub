@@ -12,9 +12,13 @@
 ## Acceptance criteria
 
 1. Menu Bán hàng có chức năng chính thức `Chăm sóc lại`.
-2. Chỉ card có số điện thoại đúng 10 chữ số, marker `0zalo`, hoặc Zalo cá nhân
-   hợp lệ được hiển thị; giá trị như `0`/`Không cung cấp` và nội dung khác
-   trong ô số điện thoại bị loại. Mỗi báo cáo `NOT_PURCHASED` là một hồ sơ riêng.
+2. Trong 14 ngày đầu từ lần triển khai đầu tiên trên từng môi trường, hiển thị
+   toàn bộ hồ sơ đúng scope để rà soát liên hệ. Mốc kết thúc được ghi một lần,
+   không gia hạn khi restart/redeploy. Sau mốc đó, chỉ card có ô số điện thoại
+   đúng 10 chữ số hoặc marker `0zalo` được hiển thị; Zalo cá nhân riêng không
+   thay thế điều kiện này, còn giá trị như `0`/`Không cung cấp` và nội dung khác
+   trong ô số điện thoại bị loại.
+   Mỗi báo cáo `NOT_PURCHASED` là một hồ sơ riêng.
 3. Scope nhân viên/quản lý theo đúng assignee và showroom/node; quản lý phân
    công được cho SA hoạt động trong cùng showroom; `SUPER_ADMIN` xem toàn bộ hồ
    sơ kể cả khi không có showroom/node được gán.

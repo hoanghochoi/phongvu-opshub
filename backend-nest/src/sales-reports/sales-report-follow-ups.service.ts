@@ -32,17 +32,7 @@ const MANAGER_ROLE_CODES = new Set([
 ]);
 const HIDDEN_STATUSES = ['PURCHASED_ELSEWHERE', 'NO_LONGER_INTERESTED'];
 const REALTIME_CHANNEL = 'SALES_REPORT_ORDERS_UPDATED';
-const INVALID_CONTACT_VALUES = new Set([
-  '0',
-  'không cung cấp',
-  'khong cung cap',
-  'không có',
-  'khong co',
-  'none',
-  'null',
-  'n/a',
-]);
-
+const CONTACT_GRACE_UNTIL_ENV = 'SALES_REPORT_FOLLOW_UP_CONTACT_GRACE_UNTIL';
 const CASE_INCLUDE = {
   sourceReport: {
     include: {
@@ -73,6 +63,7 @@ export class SalesReportFollowUpsService {
     const search = this.text(query.search, 120);
     const storeCode = this.storeCode(query.storeCode);
     const assigneeUserId = this.text(query.assigneeUserId, 80);
+    const contactGracePeriod = this.contactGracePeriod();
 
     if (!manager && (storeCode || assigneeUserId)) {
       throw new ForbiddenException(
@@ -89,10 +80,11 @@ export class SalesReportFollowUpsService {
         status: status === 'OPEN' ? 'OPEN' : { in: HIDDEN_STATUSES },
         sourceReport: {
           reportType: 'NOT_PURCHASED',
-          OR: [
-            { customerPhone: { not: '' } },
-            { customerZaloContact: { not: '' } },
-          ],
+          ...(contactGracePeriod.active
+            ? {}
+            : {
+                customerPhone: { not: '' },
+              }),
         },
       },
     ];
@@ -140,10 +132,9 @@ export class SalesReportFollowUpsService {
       });
     const validCaseIds = contactCandidates
       .filter((row) =>
-        this.hasVisibleContact(
-          row.sourceReport.customerPhone,
-          row.sourceReport.customerZaloContact,
-        ),
+        contactGracePeriod.active
+          ? true
+          : this.hasVisibleContact(row.sourceReport.customerPhone),
       )
       .map((row) => row.id);
     const total = validCaseIds.length;
@@ -156,7 +147,7 @@ export class SalesReportFollowUpsService {
         })
       : [];
     this.logger.log(
-      `Follow-up case list succeeded: user=${this.safeUser(user)} manager=${manager} status=${status} count=${rows.length}/${total} excludedInvalidContact=${contactCandidates.length - total} page=${page} durationMs=${Date.now() - startedAt}`,
+      `Follow-up case list succeeded: user=${this.safeUser(user)} manager=${manager} status=${status} contactGraceActive=${contactGracePeriod.active} contactGraceUntil=${contactGracePeriod.endsAt?.toISOString() ?? 'none'} count=${rows.length}/${total} excludedInvalidContact=${contactCandidates.length - total} page=${page} durationMs=${Date.now() - startedAt}`,
     );
     return {
       items: rows.map((row) => this.toCaseDto(row, user, principal, manager)),
@@ -165,6 +156,8 @@ export class SalesReportFollowUpsService {
       total,
       hasMore: (page + 1) * limit < total,
       managedScope: manager,
+      contactGracePeriodActive: contactGracePeriod.active,
+      contactGracePeriodEndsAt: contactGracePeriod.endsAt,
     };
   }
 
@@ -827,15 +820,23 @@ export class SalesReportFollowUpsService {
     return this.text(value, 40)?.toUpperCase() ?? null;
   }
 
-  private hasVisibleContact(phoneValue: unknown, zaloValue: unknown) {
+  private hasVisibleContact(phoneValue: unknown) {
     const phone = String(phoneValue ?? '').trim();
     const normalizedPhone = phone.toLowerCase();
-    const zalo = String(zaloValue ?? '')
-      .trim()
-      .toLowerCase();
-    const hasPhone = /^\d{10}$/.test(phone) || normalizedPhone === '0zalo';
-    const hasZalo = Boolean(zalo) && !INVALID_CONTACT_VALUES.has(zalo);
-    return hasPhone || hasZalo;
+    return /^\d{10}$/.test(phone) || normalizedPhone === '0zalo';
+  }
+
+  private contactGracePeriod() {
+    const raw = process.env[CONTACT_GRACE_UNTIL_ENV]?.trim();
+    if (!raw) return { active: false, endsAt: null as Date | null };
+    const endsAt = new Date(raw);
+    if (Number.isNaN(endsAt.getTime())) {
+      this.logger.warn(
+        `Follow-up contact grace ignored: config=${CONTACT_GRACE_UNTIL_ENV} reason=invalid_timestamp`,
+      );
+      return { active: false, endsAt: null as Date | null };
+    }
+    return { active: Date.now() < endsAt.getTime(), endsAt };
   }
 
   private safeError(error: unknown) {

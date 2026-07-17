@@ -597,20 +597,7 @@ class SalesReportFollowUpCase {
   bool get hasVisibleContact {
     final phone = customerPhone?.trim() ?? '';
     final normalizedPhone = phone.toLowerCase();
-    final zalo = customerZaloContact?.trim().toLowerCase() ?? '';
-    const invalidContactValues = {
-      '0',
-      'không cung cấp',
-      'khong cung cap',
-      'không có',
-      'khong co',
-      'none',
-      'null',
-      'n/a',
-    };
-    return RegExp(r'^\d{10}$').hasMatch(phone) ||
-        normalizedPhone == '0zalo' ||
-        (zalo.isNotEmpty && !invalidContactValues.contains(zalo));
+    return RegExp(r'^\d{10}$').hasMatch(phone) || normalizedPhone == '0zalo';
   }
 
   factory SalesReportFollowUpCase.fromJson(Map<String, dynamic> json) {
@@ -683,6 +670,8 @@ class SalesReportFollowUpPage {
   final int total;
   final bool hasMore;
   final bool managedScope;
+  final bool contactGracePeriodActive;
+  final DateTime? contactGracePeriodEndsAt;
 
   const SalesReportFollowUpPage({
     required this.items,
@@ -691,6 +680,8 @@ class SalesReportFollowUpPage {
     required this.total,
     required this.hasMore,
     required this.managedScope,
+    required this.contactGracePeriodActive,
+    required this.contactGracePeriodEndsAt,
   });
 
   factory SalesReportFollowUpPage.fromJson(Map<String, dynamic> json) {
@@ -711,6 +702,10 @@ class SalesReportFollowUpPage {
       total: int.tryParse('${json['total'] ?? 0}') ?? 0,
       hasMore: json['hasMore'] == true,
       managedScope: json['managedScope'] == true,
+      contactGracePeriodActive: json['contactGracePeriodActive'] == true,
+      contactGracePeriodEndsAt: DateTime.tryParse(
+        json['contactGracePeriodEndsAt']?.toString() ?? '',
+      ),
     );
   }
 }

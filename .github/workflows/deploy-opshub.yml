@@ -632,6 +632,13 @@ jobs:
             fi
           }
 
+          contact_grace_until=$(sudo grep '^SALES_REPORT_FOLLOW_UP_CONTACT_GRACE_UNTIL=' "$OPSHUB_ENV_FILE" | tail -n 1 | cut -d= -f2- || true)
+          if [ -z "$contact_grace_until" ]; then
+            contact_grace_until=$(date -u -d '+14 days' '+%Y-%m-%dT%H:%M:%SZ')
+            upsert_env SALES_REPORT_FOLLOW_UP_CONTACT_GRACE_UNTIL "$contact_grace_until"
+          fi
+          echo "Follow-up contact grace ends at $contact_grace_until"
+
           upsert_env APP_VERSION "$APP_VERSION"
           upsert_env APP_BUILD_NUMBER "$APP_BUILD_NUMBER"
           upsert_env APP_MIN_SUPPORTED_BUILD "$APP_BUILD_NUMBER"

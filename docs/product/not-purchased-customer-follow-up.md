@@ -8,12 +8,18 @@ Cho phép nhân viên bán hàng theo dõi và chăm sóc lại từng lượt b
 
 ## Điều kiện hiển thị
 
-- Chỉ hiển thị hồ sơ có ít nhất một thông tin liên hệ hợp lệ: số điện thoại
-  đúng 10 chữ số, marker `0zalo`, hoặc Zalo cá nhân không phải giá trị giả như
-  `0`/`Không cung cấp`. Các nội dung khác trong ô số điện thoại không làm hồ sơ
-  xuất hiện.
-- Báo cáo chưa mua vẫn được lưu bình thường khi thiếu cả hai thông tin, nhưng
-  không xuất hiện trong màn hình này.
+- Trong 14 ngày đầu kể từ lần triển khai đầu tiên có thay đổi này trên từng môi
+  trường, tạm hiển thị toàn bộ hồ sơ khách chưa mua trong đúng scope để nhân
+  viên rà soát và bổ sung thông tin liên hệ.
+- Workflow triển khai ghi mốc UTC
+  `SALES_REPORT_FOLLOW_UP_CONTACT_GRACE_UNTIL` một lần và không gia hạn khi
+  backend restart hoặc có lần triển khai tiếp theo. Nếu mốc thiếu/không hợp lệ,
+  hệ thống dùng ngay bộ lọc chặt để tránh mở rộng dữ liệu ngoài chủ đích.
+- Sau mốc trên, chỉ hiển thị hồ sơ có ô số điện thoại đúng 10 chữ số hoặc marker
+  `0zalo`. Zalo cá nhân riêng không thay thế điều kiện này; mọi nội dung khác
+  trong ô số điện thoại không làm hồ sơ xuất hiện.
+- Báo cáo chưa mua vẫn được lưu bình thường khi thiếu cả hai thông tin; hồ sơ
+  chỉ bị ẩn khỏi màn hình này sau khi thời gian rà soát kết thúc.
 - Zalo cá nhân là trường liên hệ độc lập với câu trả lời về Zalo OA.
 - Danh sách chính chỉ hiển thị hồ sơ `OPEN`; `PURCHASED_ELSEWHERE` và
   `NO_LONGER_INTERESTED` nằm trong mục `Đã ẩn`; hồ sơ `PURCHASED` không hiện lại.
