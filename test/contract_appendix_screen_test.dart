@@ -62,6 +62,52 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('desktop keeps editor and Word preview in one wide column', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1440, 1200);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final provider = ContractAppendixProvider(
+      _ScreenDataSource(),
+      clipboardWriter: _NoopClipboardWriter(),
+    );
+    await provider.lookupOrder('SO-DESKTOP');
+
+    await tester.pumpWidget(
+      ChangeNotifierProvider.value(
+        value: provider,
+        child: const MaterialApp(
+          home: Scaffold(body: ContractAppendixScreen()),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final editor = find.byKey(const Key('contract-appendix-desktop-editor'));
+    final preview = find.byKey(const Key('contract-appendix-preview-card'));
+    final table = find.byKey(const Key('contract-appendix-preview-table'));
+    final amount = find.byKey(const Key('contract-appendix-amount-in-words'));
+    expect(editor, findsOneWidget);
+    expect(preview, findsOneWidget);
+    expect(
+      tester.getTopLeft(preview).dy,
+      greaterThan(tester.getBottomLeft(editor).dy),
+    );
+    expect(
+      tester.getTopLeft(amount).dy,
+      greaterThan(tester.getBottomLeft(table).dy),
+    );
+    expect(
+      tester.getSize(editor).width,
+      closeTo(tester.getSize(preview).width, 1),
+    );
+    expect(tester.getSize(table).width, closeTo(960, 1));
+    expect(tester.takeException(), isNull);
+  });
+
   test('route and navigation fail closed without CONTRACT_APPENDIX', () {
     const allowed = User(
       email: 'allowed@phongvu.vn',

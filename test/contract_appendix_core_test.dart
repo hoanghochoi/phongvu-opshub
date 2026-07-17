@@ -69,6 +69,20 @@ void main() {
       expect(payload.html, isNot(contains('Laptop <Pro>')));
       expect(payload.html, contains('Tổng giá trị hợp đồng'));
       expect(payload.html, contains('Bằng chữ: Năm mươi lăm triệu'));
+      expect(
+        payload.html,
+        contains("font-family:'Times New Roman',serif;font-size:12pt"),
+      );
+      expect(payload.html, contains('<th align="center" valign="middle"'));
+      expect(payload.html, contains('<td align="center" valign="middle"'));
+      final tableEnd = payload.html.indexOf('</table>');
+      final amountInWords = payload.html.indexOf('Bằng chữ:');
+      expect(tableEnd, greaterThan(0));
+      expect(amountInWords, greaterThan(tableEnd));
+      expect(
+        payload.html.substring(payload.html.indexOf('<table'), tableEnd),
+        isNot(contains('Bằng chữ:')),
+      );
 
       final lines = payload.plainText.split('\n');
       expect(lines.first.split('\t'), hasLength(7));
@@ -76,6 +90,7 @@ void main() {
       expect(lines[1], contains('Laptop <Pro> & "Office" Dòng 2'));
       expect(lines[1], contains('Cái chiếc'));
       expect(payload.plainText, contains('Thuế GTGT'));
+      expect(payload.plainText, contains('\n\nBằng chữ:'));
     });
 
     test('rejects preview that has not been saved', () {

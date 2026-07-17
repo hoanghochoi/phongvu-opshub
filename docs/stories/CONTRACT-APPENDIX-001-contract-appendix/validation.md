@@ -24,6 +24,12 @@
   `Formats.plainText` khớp tài liệu package.
 - Đạt: live PPM CLI qua `SalesReportErpService` dùng credential capture hiện
   hữu; SKU `250902982` trả `8%` (`vatRateBps=800`) tại terminal đã chốt.
+- Đạt follow-up UI/Word: 29 focused core/screen/design-guard test khóa layout
+  một cột, preview desktop 960px, Times New Roman 12pt, cột tiền căn giữa,
+  căn lề ô và đoạn `Bằng chữ` ngoài bảng.
+- Đạt staging: workflow `29564482891` apply migration, deploy đúng SHA
+  `708ba564` và vượt public health/version/manifest checks. User đã xác nhận
+  rich table paste được vào Word Windows trước follow-up định dạng này.
 - Chưa xác minh: migration up/rollback trên database scratch vì Docker Desktop
   Linux engine chưa chạy trong phiên local này.
 
@@ -36,5 +42,6 @@
 - User khác không đọc được snapshot; bản hết hạn bị 404 và cron xóa idempotent.
 - Paste trên Word Windows giữ 7 cột, màu header, border, dòng tổng và tiền chữ.
 - Build Windows, web và Android trước staging proof.
-- Paste thật vào Word Windows, đơn ERP có quantity > 1 và staging API/UI smoke
-  vẫn là proof sau deploy; live PPM CLI hiện đã đạt ở local.
+- Cần recheck thủ công sau khi phát hành follow-up: Word Windows hiển thị đúng
+  Times New Roman 12pt, căn ô và đoạn `Bằng chữ` ngoài bảng. Đơn ERP có quantity
+  > 1 vẫn là fixture tích hợp cần bổ sung.

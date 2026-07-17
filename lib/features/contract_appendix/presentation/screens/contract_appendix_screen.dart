@@ -322,29 +322,13 @@ class _DocumentWorkspace extends StatelessWidget {
         ],
         LayoutBuilder(
           builder: (context, constraints) {
-            if (constraints.maxWidth >= 1080) {
-              return Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    flex: 11,
-                    child: _DesktopEditor(
-                      document: document,
-                      provider: provider,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    flex: 10,
-                    child: ContractAppendixPreviewCard(document: document),
-                  ),
-                ],
-              );
-            }
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                _MobileEditor(document: document, provider: provider),
+                if (constraints.maxWidth >= 760)
+                  _DesktopEditor(document: document, provider: provider)
+                else
+                  _MobileEditor(document: document, provider: provider),
                 const SizedBox(height: 12),
                 ContractAppendixPreviewCard(document: document),
               ],
@@ -445,6 +429,7 @@ class _DesktopEditor extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return AppSurfaceCard(
+      key: const Key('contract-appendix-desktop-editor'),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -860,6 +845,7 @@ class ContractAppendixPreviewCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return AppSurfaceCard(
+      key: const Key('contract-appendix-preview-card'),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -891,20 +877,21 @@ class ContractAppendixPreviewTable extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     const widths = <int, TableColumnWidth>{
-      0: FixedColumnWidth(48),
-      1: FixedColumnWidth(320),
+      0: FixedColumnWidth(56),
+      1: FixedColumnWidth(386),
       2: FixedColumnWidth(58),
       3: FixedColumnWidth(72),
-      4: FixedColumnWidth(140),
-      5: FixedColumnWidth(76),
+      4: FixedColumnWidth(160),
+      5: FixedColumnWidth(78),
       6: FixedColumnWidth(150),
     };
     return SizedBox(
-      width: 864,
+      width: 960,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           Table(
+            key: const Key('contract-appendix-preview-table'),
             columnWidths: widths,
             defaultVerticalAlignment: TableCellVerticalAlignment.middle,
             border: TableBorder.all(color: AppColors.neutral900),
@@ -930,10 +917,13 @@ class ContractAppendixPreviewTable extends StatelessWidget {
                     _PreviewCell(item.unit, center: true),
                     _PreviewCell(
                       _moneyOrDash(item.unitPriceBeforeVat),
-                      right: true,
+                      center: true,
                     ),
                     _PreviewCell(item.vatLabel, center: true),
-                    _PreviewCell(_moneyOrDash(item.lineBeforeVat), right: true),
+                    _PreviewCell(
+                      _moneyOrDash(item.lineBeforeVat),
+                      center: true,
+                    ),
                   ],
                 ),
             ],
@@ -951,20 +941,15 @@ class ContractAppendixPreviewTable extends StatelessWidget {
             value: _moneyOrDash(document.totalAfterVat),
             emphasized: true,
           ),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(9),
-            decoration: BoxDecoration(
-              border: Border.all(color: AppColors.neutral900),
-              borderRadius: const BorderRadius.vertical(
-                bottom: Radius.circular(AppRadius.xs),
-              ),
-            ),
+          const SizedBox(height: 12),
+          Align(
+            alignment: Alignment.centerLeft,
             child: Text(
+              key: const Key('contract-appendix-amount-in-words'),
               document.amountInWords == null
                   ? 'Bằng chữ: Chưa đủ dữ liệu để tính.'
                   : 'Bằng chữ: ${document.amountInWords}',
-              style: AppTextStyles.labelM,
+              style: _wordPreviewTextStyle(bold: true),
             ),
           ),
         ],
@@ -977,14 +962,8 @@ class _PreviewCell extends StatelessWidget {
   final String text;
   final bool header;
   final bool center;
-  final bool right;
 
-  const _PreviewCell(
-    this.text, {
-    this.header = false,
-    this.center = false,
-    this.right = false,
-  });
+  const _PreviewCell(this.text, {this.header = false, this.center = false});
 
   @override
   Widget build(BuildContext context) {
@@ -992,12 +971,8 @@ class _PreviewCell extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 9),
       child: Text(
         text,
-        textAlign: center
-            ? TextAlign.center
-            : right
-            ? TextAlign.right
-            : TextAlign.left,
-        style: header ? AppTextStyles.labelS : AppTextStyles.bodyS,
+        textAlign: center ? TextAlign.center : TextAlign.left,
+        style: _wordPreviewTextStyle(bold: header),
       ),
     );
   }
@@ -1035,7 +1010,7 @@ class _PreviewSummaryRow extends StatelessWidget {
               child: Text(
                 label,
                 textAlign: TextAlign.center,
-                style: AppTextStyles.labelM,
+                style: _wordPreviewTextStyle(bold: true),
               ),
             ),
           ),
@@ -1047,7 +1022,7 @@ class _PreviewSummaryRow extends StatelessWidget {
               child: Text(
                 value,
                 textAlign: TextAlign.center,
-                style: AppTextStyles.labelM,
+                style: _wordPreviewTextStyle(bold: true),
               ),
             ),
           ),
@@ -1349,3 +1324,12 @@ String _money(int value) => vietnameseMoneyNumberFormat.format(value);
 
 String _moneyOrDash(int? value) =>
     value == null ? '—' : vietnameseMoneyNumberFormat.format(value);
+
+TextStyle _wordPreviewTextStyle({bool bold = false}) =>
+    AppTextStyles.bodyL.copyWith(
+      fontFamily: 'Times New Roman',
+      fontFamilyFallback: const ['serif'],
+      fontSize: 16,
+      height: 1.25,
+      fontWeight: bold ? FontWeight.w700 : FontWeight.w400,
+    );

@@ -41,11 +41,16 @@ chữ được sinh phía server từ tổng đã VAT và kết thúc bằng `đ
 2. Nhập mã đơn và bấm `Lấy thông tin` trên cùng một hàng.
 3. App hiển thị SKU, số lượng và giá ERP ở trạng thái khóa; tên hàng và đơn vị
    tính được sửa. Thuế nhập tay chỉ xuất hiện ở dòng chưa có thuế ERP.
-4. Preview dùng bảng 7 cột, cột cuối là `Thành tiền (VNĐ) - Chưa VAT`.
+4. Editor và preview luôn xếp thành một cột để giữ đủ chiều rộng; desktop dùng
+   bảng editor, mobile dùng item card. Preview dùng bảng 7 cột, cột cuối là
+   `Thành tiền (VNĐ) - Chưa VAT`.
 5. `Lưu phụ lục` buộc backend refetch thuế, so `quoteVersion`, tính lại và lưu
    snapshot bất biến. Nếu nguồn đổi, user phải xem lại preview.
 6. `Sao chép bảng` chỉ dùng snapshot đã lưu, ghi HTML và plain-text TSV vào
-   clipboard; không gọi API trong clipboard handler.
+   clipboard; không gọi API trong clipboard handler. HTML Word đặt Times New
+   Roman 12pt trực tiếp trên từng ô, header, các cột định danh và cột tiền căn
+   giữa, tên hàng căn trái. Preview desktop dùng bề rộng 960px để bảng thoáng
+   hơn; `Bằng chữ` là đoạn riêng nằm ngoài bảng.
 
 ## History and Access
 

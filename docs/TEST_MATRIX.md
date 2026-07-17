@@ -68,10 +68,14 @@ Recent focused evidence:
   test. Flutter proof đạt `flutter pub get`, focused guard/core/screen (28 test),
   `flutter analyze --no-pub`, full Flutter (558 passed, 3 skipped), Windows
   release, web release và Android staging debug build. Live PPM CLI qua auth
-  dùng chung trả SKU `250902982` là `8%` (`vatRateBps=800`); migration scratch
-  chưa chạy vì Docker Desktop Linux engine chưa khởi động. Paste thật vào Word
-  Windows và staging UI/API smoke vẫn là proof sau deploy; bằng chứng UI ERP
-  trước implementation cũng xác nhận SKU hiển thị 8%.
+  dùng chung trả SKU `250902982` là `8%` (`vatRateBps=800`). Staging workflow
+  `29564482891` apply migration và public proof đúng SHA `708ba564`; local
+  migration rollback scratch chưa chạy vì Docker Desktop Linux engine chưa
+  khởi động. User đã xác nhận rich table paste được vào Word Windows. Follow-up
+  khóa layout editor/preview một cột, preview desktop 960px, Times New Roman
+  12pt trên từng ô, cột tiền căn giữa, căn lề theo mẫu và tách `Bằng chữ` khỏi
+  table; 29 focused core/screen/design-guard test đã đạt, còn recheck định dạng
+  thật trên Word sau khi phát hành follow-up.
 
 - `SALES-REPORT-001` / `SALES-REPORT-002`, 2026-07-17: biểu mẫu khách chưa
   mua đã bỏ ô Zalo tự do; số điện thoại chỉ nhận đúng 10 chữ số bắt đầu bằng

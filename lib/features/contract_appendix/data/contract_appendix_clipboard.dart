@@ -49,11 +49,21 @@ ContractAppendixClipboardPayload buildContractAppendixClipboardPayload(
 
   final html = StringBuffer()
     ..writeln('<!DOCTYPE html>')
-    ..writeln('<html><head><meta charset="utf-8"></head><body>')
+    ..writeln(
+      '<html><head><meta charset="utf-8"></head>'
+      '<body style="margin:0;font-family:\'Times New Roman\',serif;'
+      'font-size:12pt;">',
+    )
     ..writeln('<!--StartFragment-->')
     ..writeln(
-      '<table style="border-collapse:collapse;font-family:Times New Roman,'
-      'serif;font-size:12pt;width:100%;">',
+      '<table style="border-collapse:collapse;table-layout:fixed;width:100%;'
+      'font-family:\'Times New Roman\',serif;font-size:12pt;">',
+    )
+    ..writeln(
+      '<colgroup><col style="width:6%;"><col style="width:40%;">'
+      '<col style="width:6%;"><col style="width:7%;">'
+      '<col style="width:16%;"><col style="width:9%;">'
+      '<col style="width:16%;"></colgroup>',
     )
     ..writeln('<thead><tr>')
     ..write(_htmlHeader('STT'))
@@ -80,9 +90,9 @@ ContractAppendixClipboardPayload buildContractAppendixClipboardPayload(
       ..write(_htmlCell(item.productName))
       ..write(_htmlCell(item.quantity.toString(), align: 'center'))
       ..write(_htmlCell(item.unit, align: 'center'))
-      ..write(_htmlCell(unitBeforeVat, align: 'right'))
+      ..write(_htmlCell(unitBeforeVat, align: 'center'))
       ..write(_htmlCell(item.vatLabel, align: 'center'))
-      ..write(_htmlCell(lineBeforeVat, align: 'right'))
+      ..write(_htmlCell(lineBeforeVat, align: 'center'))
       ..writeln('</tr>');
     tsv.writeln(
       '${item.position}\t${_tsv(item.productName)}\t${item.quantity}\t'
@@ -99,11 +109,12 @@ ContractAppendixClipboardPayload buildContractAppendixClipboardPayload(
     emphasized: true,
   );
   html
-    ..writeln(
-      '<tr><td colspan="7" style="${_cellStyle}font-weight:bold;">'
-      'Bằng chữ: ${_html(document.amountInWords!)}</td></tr>',
-    )
     ..writeln('</tbody></table>')
+    ..writeln(
+      '<p style="margin:12pt 0 0 0;font-family:\'Times New Roman\',serif;'
+      'font-size:12pt;font-weight:bold;text-align:left;">'
+      'Bằng chữ: ${_html(document.amountInWords!)}</p>',
+    )
     ..writeln('<!--EndFragment-->')
     ..writeln('</body></html>');
 
@@ -114,6 +125,7 @@ ContractAppendixClipboardPayload buildContractAppendixClipboardPayload(
       'Tổng giá trị hợp đồng (đã bao gồm thuế GTGT)\t\t\t\t\t\t'
       '${_money(document.totalAfterVat)}',
     )
+    ..writeln()
     ..write('Bằng chữ: ${_tsv(document.amountInWords!)}');
 
   return ContractAppendixClipboardPayload(
@@ -123,14 +135,16 @@ ContractAppendixClipboardPayload buildContractAppendixClipboardPayload(
 }
 
 const _cellStyle =
+    "font-family:'Times New Roman',serif;font-size:12pt;line-height:1.2;"
     'border:1px solid #000;padding:5px 6px;vertical-align:middle;';
 
 String _htmlHeader(String value) =>
-    '<th style="${_cellStyle}background:#f4c7a8;text-align:center;'
-    'font-weight:bold;">$value</th>';
+    '<th align="center" valign="middle" style="${_cellStyle}background:'
+    '#f4c7a8;text-align:center;font-weight:bold;">$value</th>';
 
 String _htmlCell(String value, {String align = 'left'}) =>
-    '<td style="${_cellStyle}text-align:$align;">${_html(value)}</td>';
+    '<td align="$align" valign="middle" style="${_cellStyle}text-align:'
+    '$align;">${_html(value)}</td>';
 
 void _appendHtmlSummary(
   StringBuffer buffer,
@@ -140,9 +154,10 @@ void _appendHtmlSummary(
 }) {
   final background = emphasized ? 'background:#f4c7a8;' : '';
   buffer.writeln(
-    '<tr><td colspan="4" style="$_cellStyle${background}text-align:center;'
-    'font-weight:bold;">${_html(label)}</td><td colspan="3" '
-    'style="$_cellStyle${background}text-align:center;font-weight:bold;">'
+    '<tr><td colspan="4" align="center" valign="middle" style="$_cellStyle'
+    '${background}text-align:center;font-weight:bold;">${_html(label)}</td>'
+    '<td colspan="3" align="center" valign="middle" style="$_cellStyle'
+    '${background}text-align:center;font-weight:bold;">'
     '${_html(value)}</td></tr>',
   );
 }
