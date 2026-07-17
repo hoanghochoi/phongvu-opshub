@@ -27,6 +27,9 @@
 - Đạt follow-up UI/Word: 29 focused core/screen/design-guard test khóa layout
   một cột, preview desktop 960px, Times New Roman 12pt, cột tiền căn giữa,
   căn lề ô, số tiền không bẻ dòng và đoạn `Bằng chữ` ngoài bảng.
+- Follow-up CF_HTML khóa payload ở dạng fragment thuần, font trực tiếp trên
+  từng text run và tỷ lệ cột `6/40/6/7/16/9/16`; vẫn loại `thead/th` để Word
+  không đánh dấu hàng tiêu đề lặp lại.
 - Đạt staging: workflow `29564482891` apply migration, deploy đúng SHA
   `708ba564` và vượt public health/version/manifest checks. User đã xác nhận
   rich table paste được vào Word Windows trước follow-up định dạng này.
@@ -43,6 +46,7 @@
 - Paste trên Word Windows giữ 7 cột, màu header, border, dòng tổng và tiền chữ.
 - Build Windows, web và Android trước staging proof.
 - Cần recheck thủ công sau khi phát hành follow-up: Word Windows hiển thị đúng
-  Times New Roman 12pt, căn ô, không lặp header khi qua trang, số tiền không
-  bẻ dòng và đoạn `Bằng chữ` ngoài bảng. Đơn ERP có quantity > 1 vẫn là fixture
-  tích hợp cần bổ sung.
+  Times New Roman 12pt và cùng tỷ lệ cột trên cả tài liệu trắng lẫn file mẫu;
+  đồng thời không lặp header khi qua trang, số tiền không bẻ dòng và đoạn
+  `Bằng chữ` nằm ngoài bảng. Đơn ERP có quantity > 1 vẫn là fixture tích hợp
+  cần bổ sung.

@@ -61,10 +61,8 @@ void main() {
       );
 
       expect(
-        RegExp(
-          '<td align="center" valign="middle"',
-        ).allMatches(payload.html).length,
-        greaterThanOrEqualTo(7),
+        RegExp('<td width="').allMatches(payload.html).length,
+        greaterThanOrEqualTo(14),
       );
       expect(payload.html, contains('Thành tiền (VNĐ)<br>Chưa VAT'));
       expect(
@@ -74,18 +72,29 @@ void main() {
       expect(payload.html, isNot(contains('Laptop <Pro>')));
       expect(payload.html, contains('Tổng giá trị hợp đồng'));
       expect(payload.html, contains('Bằng chữ: Năm mươi lăm triệu'));
-      expect(
-        payload.html,
-        contains("font-family:'Times New Roman',serif;font-size:12pt"),
-      );
-      expect(payload.html, contains('table-layout:auto'));
-      expect(payload.html, isNot(contains('table-layout:fixed')));
-      expect(payload.html, isNot(contains('<colgroup>')));
+      expect(payload.html, contains("font-family:'Times New Roman'"));
+      expect(payload.html, contains('font-size:12pt'));
+      expect(payload.html.trimLeft(), startsWith('<table'));
+      expect(payload.html, isNot(contains('<!DOCTYPE')));
+      expect(payload.html, isNot(contains('<html')));
+      expect(payload.html, isNot(contains('<head')));
+      expect(payload.html, isNot(contains('<body')));
+      expect(payload.html, isNot(contains('StartFragment')));
+      expect(payload.html, isNot(contains('EndFragment')));
+      expect(payload.html, contains('table-layout:fixed'));
+      expect(payload.html, contains('mso-table-layout-alt:fixed'));
+      expect(payload.html, contains('<colgroup>'));
+      for (final width in ['6%', '40%', '6%', '7%', '16%', '9%', '16%']) {
+        expect(payload.html, contains('<col width="$width"'));
+      }
+      expect(payload.html, contains('<td width="40%"'));
       expect(payload.html, isNot(contains('<thead>')));
       expect(payload.html, isNot(contains('</thead>')));
       expect(payload.html, contains('white-space:nowrap'));
       expect(payload.html, isNot(contains('<th')));
-      expect(payload.html, contains('<td align="center" valign="middle"'));
+      expect(payload.html, contains('align="center" valign="middle"'));
+      expect(payload.html, contains('<font face="Times New Roman" size="3"'));
+      expect(payload.html, contains("mso-ascii-font-family:'Times New Roman'"));
       final tableEnd = payload.html.indexOf('</table>');
       final amountInWords = payload.html.indexOf('Bằng chữ:');
       expect(tableEnd, greaterThan(0));

@@ -48,11 +48,13 @@ chữ được sinh phía server từ tổng đã VAT và kết thúc bằng `đ
    snapshot bất biến. Nếu nguồn đổi, user phải xem lại preview.
 6. `Sao chép bảng` chỉ dùng snapshot đã lưu, ghi HTML và plain-text TSV vào
    clipboard; không gọi API trong clipboard handler. HTML Word đặt Times New
-   Roman 12pt trực tiếp trên từng ô, header, các cột định danh và cột tiền căn
-   giữa, tên hàng căn trái. Preview desktop dùng bề rộng 960px để bảng thoáng
-   hơn. HTML clipboard không đánh dấu hàng đầu bằng `thead`/`th`/fixed header
-   để Word không lặp tiêu đề khi bảng tràn sang trang mới; `Bằng chữ` là đoạn
-   riêng nằm ngoài bảng.
+   Roman 12pt trực tiếp trên từng text run, header, các cột định danh và cột
+   tiền căn giữa, tên hàng căn trái. Payload là HTML fragment thuần để
+   `super_clipboard` tự tạo đúng CF_HTML trên Windows; không lồng thêm
+   `html/body` hoặc fragment marker. Bảy cột được khóa theo tỷ lệ
+   `6/40/6/7/16/9/16`; hàng đầu vẫn là `tbody/tr/td`, không dùng `thead`/`th`,
+   nên không bị đánh dấu lặp tiêu đề khi qua trang. Preview desktop dùng bề
+   rộng 960px; `Bằng chữ` là đoạn riêng nằm ngoài bảng.
 
 ## History and Access
 
