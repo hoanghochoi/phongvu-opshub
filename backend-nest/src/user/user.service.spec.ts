@@ -1277,11 +1277,11 @@ describe('UserService admin store management', () => {
     );
   });
 
-  it('keeps Lv5 showroom assignments when user scope tree sync refreshes store nodes', async () => {
+  it('keeps Lv5 showroom assignments when the explicit store sync refreshes nodes', async () => {
     const org = installUserScopeTreeMock();
     prisma.store.findMany.mockResolvedValueOnce([store]);
 
-    await service.adminListUserScopeTree(superAdmin);
+    await (service as any).syncStoreOrganizationNodes('test-scope-tree');
 
     const storeSubtreeIds = Array.from(org.nodesById.values())
       .filter(
@@ -1342,16 +1342,26 @@ describe('UserService admin store management', () => {
       sortOrder: 20,
     });
     prisma.store.findMany.mockResolvedValueOnce([]);
-    prisma.user.count.mockImplementation(async ({ where }: any) => {
-      const directIds = new Set(where.OR?.[0]?.organizationNodeId?.in ?? []);
-      const storeFallbackIds = new Set(
-        where.OR?.[1]?.AND?.[1]?.store?.organizationNodeId?.in ?? [],
-      );
-      let count = 0;
-      if (directIds.has('org-store-cp62-pos-sa')) count += 1;
-      if (storeFallbackIds.has('org-store-cp62')) count += 1;
-      return count;
-    });
+    prisma.user.findMany.mockResolvedValue([
+      {
+        organizationNodeId: 'org-store-cp62-pos-sa',
+        store: null,
+        department: null,
+        jobRole: null,
+        region: null,
+        area: null,
+        organizationAssignments: [],
+      },
+      {
+        organizationNodeId: null,
+        store: { organizationNodeId: 'org-store-cp62' },
+        department: null,
+        jobRole: null,
+        region: null,
+        area: null,
+        organizationAssignments: [],
+      },
+    ]);
 
     const nodes = await service.adminListOrganizationTree(superAdmin);
 
@@ -2361,7 +2371,7 @@ describe('UserService admin store management', () => {
     expect(prisma.store.delete).not.toHaveBeenCalled();
   });
 
-  it('backfills missing SR organization nodes directly under the root domain when listing the tree', async () => {
+  it('backfills missing SR organization nodes only during explicit store sync', async () => {
     const org = installOrganizationNodeMock();
     prisma.store.findMany.mockResolvedValueOnce([
       {
@@ -2371,6 +2381,7 @@ describe('UserService admin store management', () => {
       },
     ]);
 
+    await (service as any).syncStoreOrganizationNodes('test-backfill');
     const nodes = await service.adminListOrganizationTree(superAdmin);
 
     const storeNode = org.nodesByCode.get('STORE_CP62');
@@ -2406,7 +2417,7 @@ describe('UserService admin store management', () => {
     ]);
   });
 
-  it('keeps manually inactive showroom organization nodes inactive during store sync', async () => {
+  it('keeps manually inactive showroom organization nodes inactive during explicit sync', async () => {
     const org = installOrganizationNodeMock();
     org.saveNode({
       id: 'org-store-cp62',
@@ -2427,6 +2438,7 @@ describe('UserService admin store management', () => {
       },
     ]);
 
+    await (service as any).syncStoreOrganizationNodes('test-inactive');
     const nodes = await service.adminListOrganizationTree(superAdmin);
 
     expect(org.nodesById.get('org-store-cp62')).toMatchObject({

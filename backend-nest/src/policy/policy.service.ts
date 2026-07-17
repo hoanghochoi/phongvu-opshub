@@ -257,7 +257,6 @@ export class PolicyService implements OnModuleInit {
 
   async adminListPolicies(admin: any) {
     await this.assertCanManagePolicies(admin);
-    await this.seedDefaultPolicies();
     return this.prisma.adminPolicyDefinition.findMany({
       orderBy: [{ isSystem: 'desc' }, { category: 'asc' }, { code: 'asc' }],
       include: { _count: { select: { rules: true } } },
@@ -444,7 +443,6 @@ export class PolicyService implements OnModuleInit {
 
   async adminListSettings(admin: any) {
     await this.assertCanManagePolicies(admin);
-    await this.seedDefaultPolicies();
     return this.prisma.adminSetting.findMany({
       orderBy: [{ isSystem: 'desc' }, { category: 'asc' }, { key: 'asc' }],
     });

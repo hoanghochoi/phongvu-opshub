@@ -61,6 +61,9 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
   bool _metadataLoaded = false;
   Timer? _searchDebounce;
   int _loadRequestSerial = 0;
+  bool _loadInFlight = false;
+  bool _loadQueued = false;
+  bool _queuedReloadMetadata = false;
 
   @override
   void initState() {
@@ -85,6 +88,12 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
   }
 
   Future<void> _load({bool reloadMetadata = false}) async {
+    if (_loadInFlight) {
+      _loadQueued = true;
+      _queuedReloadMetadata = _queuedReloadMetadata || reloadMetadata;
+      return;
+    }
+    _loadInFlight = true;
     final requestSerial = ++_loadRequestSerial;
     final query = _searchController.text.trim();
     setState(() => _loading = true);
@@ -180,6 +189,15 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
     } finally {
       if (mounted && requestSerial == _loadRequestSerial) {
         setState(() => _loading = false);
+      }
+      _loadInFlight = false;
+      if (_loadQueued && mounted) {
+        _loadQueued = false;
+        final queuedReloadMetadata = _queuedReloadMetadata;
+        _queuedReloadMetadata = false;
+        Future<void>.microtask(
+          () => _load(reloadMetadata: queuedReloadMetadata),
+        );
       }
     }
   }

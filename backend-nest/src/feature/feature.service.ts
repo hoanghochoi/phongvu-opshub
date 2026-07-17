@@ -136,7 +136,6 @@ export class FeatureService implements OnModuleInit {
 
   async adminListFeatures(admin: any) {
     this.assertSuperAdmin(admin);
-    await this.seedDefaultFeatures();
     return this.prisma.featureDefinition.findMany({
       orderBy: [{ isSystem: 'desc' }, { sortOrder: 'asc' }, { code: 'asc' }],
       include: { _count: { select: { rules: true, nodeAssignments: true } } },
@@ -145,7 +144,6 @@ export class FeatureService implements OnModuleInit {
 
   async adminListFeatureTree(admin: any) {
     this.assertSuperAdmin(admin);
-    await this.seedDefaultFeatures();
     return this.prisma.featureDefinition.findMany({
       where: { isActive: true, visibleInUserPicker: true },
       orderBy: [{ sortOrder: 'asc' }, { code: 'asc' }],
@@ -360,7 +358,6 @@ export class FeatureService implements OnModuleInit {
 
   async adminListNodeAssignments(admin: any, featureCode?: string) {
     this.assertSuperAdmin(admin);
-    await this.seedDefaultFeatures();
     const normalizedFeatureCode = featureCode
       ? this.normalizeCode(featureCode, 'Mã tính năng không hợp lệ')
       : undefined;
@@ -388,9 +385,10 @@ export class FeatureService implements OnModuleInit {
       },
     });
 
+    const batchContext = await this.buildNodeAssignmentBatchContext(rows);
     const result = [];
     for (const row of rows) {
-      result.push(await this.toNodeFeatureAssignmentDto(row));
+      result.push(await this.toNodeFeatureAssignmentDto(row, batchContext));
     }
     return result;
   }
@@ -553,21 +551,35 @@ export class FeatureService implements OnModuleInit {
     return { deleted: true, id };
   }
 
-  private async toNodeFeatureAssignmentDto(row: any) {
-    const organizationNodeIds = await this.organizationNodeIdsForFeatureGroup(
+  private async toNodeFeatureAssignmentDto(
+    row: any,
+    batchContext?: {
+      organizationNodeIdsByGroup: Map<string, string[]>;
+      impactedUserCountsByGroup: Map<string, number>;
+    },
+  ) {
+    const groupKey = this.nodeAssignmentGroupKey(
       row.scopeRootNodeId,
       row.nodeType,
       row.nodeKey,
     );
+    const organizationNodeIds =
+      batchContext?.organizationNodeIdsByGroup.get(groupKey) ??
+      (await this.organizationNodeIdsForFeatureGroup(
+        row.scopeRootNodeId,
+        row.nodeType,
+        row.nodeKey,
+      ));
     const impactedUserCount =
-      organizationNodeIds.length === 0
+      batchContext?.impactedUserCountsByGroup.get(groupKey) ??
+      (organizationNodeIds.length === 0
         ? 0
         : await this.prisma.user.count({
             where: {
               role: { not: SUPER_ADMIN_ROLE },
               organizationNodeId: { in: organizationNodeIds },
             },
-          });
+          }));
     return {
       id: row.id,
       scopeRootNodeId: row.scopeRootNodeId,
@@ -585,6 +597,85 @@ export class FeatureService implements OnModuleInit {
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
     };
+  }
+
+  private async buildNodeAssignmentBatchContext(rows: any[]) {
+    const organizationNodeIdsByGroup = new Map<string, string[]>();
+    const impactedUserCountsByGroup = new Map<string, number>();
+    if (rows.length === 0) {
+      return { organizationNodeIdsByGroup, impactedUserCountsByGroup };
+    }
+
+    const nodes = await this.prisma.organizationNode.findMany({
+      where: { isActive: true },
+      select: {
+        id: true,
+        parentId: true,
+        type: true,
+        code: true,
+        businessCode: true,
+        isActive: true,
+      },
+    });
+    const uniqueGroups = new Map<
+      string,
+      { scopeRootNodeId: string; nodeType: string; nodeKey: string }
+    >();
+    for (const row of rows) {
+      const group = {
+        scopeRootNodeId: row.scopeRootNodeId,
+        nodeType: this.normalizeNodeType(row.nodeType),
+        nodeKey: this.normalizeNodeKey(row.nodeKey),
+      };
+      uniqueGroups.set(
+        this.nodeAssignmentGroupKey(
+          group.scopeRootNodeId,
+          group.nodeType,
+          group.nodeKey,
+        ),
+        group,
+      );
+    }
+    for (const [groupKey, group] of uniqueGroups) {
+      organizationNodeIdsByGroup.set(
+        groupKey,
+        this.nodeIdsForFeatureGroupFromNodes(
+          nodes,
+          group.scopeRootNodeId,
+          group.nodeType,
+          group.nodeKey,
+        ),
+      );
+    }
+
+    const users = await this.prisma.user.findMany({
+      where: { role: { not: SUPER_ADMIN_ROLE } },
+      select: { organizationNodeId: true },
+    });
+    if (Array.isArray(users)) {
+      for (const [groupKey, nodeIds] of organizationNodeIdsByGroup) {
+        const ids = new Set(nodeIds);
+        impactedUserCountsByGroup.set(
+          groupKey,
+          users.filter(
+            (user: { organizationNodeId?: string | null }) =>
+              Boolean(user.organizationNodeId && ids.has(user.organizationNodeId)),
+          ).length,
+        );
+      }
+    }
+    this.logger.log(
+      `Node feature assignments batch context: rows=${rows.length} groups=${uniqueGroups.size} users=${Array.isArray(users) ? users.length : 0}`,
+    );
+    return { organizationNodeIdsByGroup, impactedUserCountsByGroup };
+  }
+
+  private nodeAssignmentGroupKey(
+    scopeRootNodeId: string,
+    nodeType: string,
+    nodeKey: string,
+  ) {
+    return `${scopeRootNodeId}|${this.normalizeNodeType(nodeType)}|${this.normalizeNodeKey(nodeKey)}`;
   }
 
   private async resolveNodeFeatureTarget(nodeId: string) {

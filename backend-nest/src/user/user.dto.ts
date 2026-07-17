@@ -106,6 +106,10 @@ export class AdminUserQueryDto {
   @IsOptional()
   @IsString()
   status?: string;
+
+  @IsOptional()
+  @IsString()
+  limit?: string;
 }
 
 export class AdminResetPasswordDto {

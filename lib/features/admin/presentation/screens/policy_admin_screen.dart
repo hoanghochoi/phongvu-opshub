@@ -63,14 +63,12 @@ class _PolicyAdminScreenState extends State<PolicyAdminScreen> {
         _repository.listAdminPolicies(),
         _repository.listAdminPolicyRules(policyCode: _rulePolicyFilter),
         _repository.listAdminSettings(),
-        _repository.listAdminPolicyScopeTree(),
       ]);
       if (!mounted) return;
       setState(() {
         _policies = results[0] as List<AdminPolicyDefinition>;
         _rules = results[1] as List<AdminPolicyRule>;
         _settings = results[2] as List<AdminSettingDefinition>;
-        _organizationNodes = results[3] as List<AdminOrganizationNode>;
         _errorMessage = null;
       });
       await AppLogger.instance.info(
@@ -104,6 +102,13 @@ class _PolicyAdminScreenState extends State<PolicyAdminScreen> {
     }
   }
 
+  Future<void> _ensurePolicyEditorData() async {
+    if (_organizationNodes.isNotEmpty) return;
+    final nodes = await _repository.listAdminPolicyScopeTree();
+    if (!mounted) return;
+    setState(() => _organizationNodes = nodes);
+  }
+
   Future<void> _openPolicyEditor([AdminPolicyDefinition? policy]) async {
     final updated = await showDialog<bool>(
       context: context,
@@ -116,6 +121,8 @@ class _PolicyAdminScreenState extends State<PolicyAdminScreen> {
   }
 
   Future<void> _openRuleEditor([AdminPolicyRule? rule]) async {
+    await _ensurePolicyEditorData();
+    if (!mounted) return;
     final updated = await showDialog<bool>(
       context: context,
       builder: (context) => AppDirtyFormGuard(

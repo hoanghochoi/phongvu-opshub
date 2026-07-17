@@ -28,8 +28,10 @@ class FeatureAdminScreen extends StatefulWidget {
   State<FeatureAdminScreen> createState() => _FeatureAdminScreenState();
 }
 
-class _FeatureAdminScreenState extends State<FeatureAdminScreen> {
+class _FeatureAdminScreenState extends State<FeatureAdminScreen>
+    with SingleTickerProviderStateMixin {
   final _repository = AuthRepository(ApiClient());
+  late final TabController _tabController;
   List<AdminFeatureDefinition> _features = [];
   List<AdminFeatureRule> _rules = [];
   List<AdminNodeFeatureAssignment> _nodeAssignments = [];
@@ -41,44 +43,72 @@ class _FeatureAdminScreenState extends State<FeatureAdminScreen> {
   String? _ruleFeatureFilter;
   String? _nodeFeatureFilter;
   bool _loading = true;
+  int _loadRequestSerial = 0;
 
   @override
   void initState() {
     super.initState();
-    _load();
+    _tabController = TabController(length: 3, vsync: this)
+      ..addListener(_onTabChanged);
+    _load(tab: 0);
   }
 
-  Future<void> _load() async {
+  @override
+  void dispose() {
+    _tabController
+      ..removeListener(_onTabChanged)
+      ..dispose();
+    super.dispose();
+  }
+
+  void _onTabChanged() {
+    if (!_tabController.indexIsChanging) {
+      _load(tab: _tabController.index);
+    }
+  }
+
+  Future<void> _load({int? tab, bool force = false}) async {
+    final selectedTab = tab ?? _tabController.index;
+    final requestSerial = ++_loadRequestSerial;
     setState(() => _loading = true);
     final startedAt = DateTime.now();
     try {
       await AppLogger.instance.info(
         'AdminFeatures',
         'Feature management load started',
-        context: {'featureFilter': _ruleFeatureFilter},
+        context: {
+          'tab': selectedTab,
+          'featureFilter': _ruleFeatureFilter,
+          'nodeFeatureFilter': _nodeFeatureFilter,
+          'force': force,
+        },
       );
-      final results = await Future.wait([
-        _repository.listAdminFeatures(),
-        _repository.listAdminFeatureRules(featureCode: _ruleFeatureFilter),
-        _repository.listAdminFeatureNodeAssignments(
-          featureCode: _nodeFeatureFilter,
-        ),
-        _repository.listAdminRoles(),
-        _repository.listAdminDepartments(),
-        _repository.listAdminJobRoles(),
-        _repository.listAdminOrganizationTree(),
-        _repository.listUsers(),
-      ]);
-      if (!mounted) return;
+      final futures = <Future<Object>>[_repository.listAdminFeatures()];
+      if (selectedTab == 1) {
+        futures.add(
+          _repository.listAdminFeatureNodeAssignments(
+            featureCode: _nodeFeatureFilter,
+          ),
+        );
+        futures.add(_repository.listAdminOrganizationTree());
+      } else if (selectedTab == 2) {
+        futures.add(
+          _repository.listAdminFeatureRules(featureCode: _ruleFeatureFilter),
+        );
+      }
+      final results = await Future.wait<Object>(futures);
+      if (!mounted || requestSerial != _loadRequestSerial) return;
+      var resultIndex = 0;
       setState(() {
-        _features = results[0] as List<AdminFeatureDefinition>;
-        _rules = results[1] as List<AdminFeatureRule>;
-        _nodeAssignments = results[2] as List<AdminNodeFeatureAssignment>;
-        _roles = results[3] as List<AdminRoleDefinition>;
-        _departments = results[4] as List<AdminPersonnelDefinition>;
-        _jobRoles = results[5] as List<AdminPersonnelDefinition>;
-        _organizationNodes = results[6] as List<AdminOrganizationNode>;
-        _users = results[7] as List<User>;
+        _features = results[resultIndex++] as List<AdminFeatureDefinition>;
+        if (selectedTab == 1) {
+          _nodeAssignments =
+              results[resultIndex++] as List<AdminNodeFeatureAssignment>;
+          _organizationNodes =
+              results[resultIndex++] as List<AdminOrganizationNode>;
+        } else if (selectedTab == 2) {
+          _rules = results[resultIndex++] as List<AdminFeatureRule>;
+        }
       });
       await AppLogger.instance.info(
         'AdminFeatures',
@@ -87,8 +117,8 @@ class _FeatureAdminScreenState extends State<FeatureAdminScreen> {
           'features': _features.length,
           'rules': _rules.length,
           'nodeAssignments': _nodeAssignments.length,
-          'users': _users.length,
           'organizationNodes': _organizationNodes.length,
+          'tab': selectedTab,
           'durationMs': DateTime.now().difference(startedAt).inMilliseconds,
         },
       );
@@ -104,8 +134,42 @@ class _FeatureAdminScreenState extends State<FeatureAdminScreen> {
         _showMessage('Chưa tải được quản lý tính năng. Vui lòng thử lại.');
       }
     } finally {
-      if (mounted) setState(() => _loading = false);
+      if (mounted && requestSerial == _loadRequestSerial) {
+        setState(() => _loading = false);
+      }
     }
+  }
+
+  Future<void> _ensureNodeEditorData() async {
+    final results = await Future.wait<Object>([
+      _repository.listAdminFeatures(),
+      _repository.listAdminOrganizationTree(),
+    ]);
+    if (!mounted) return;
+    setState(() {
+      _features = results[0] as List<AdminFeatureDefinition>;
+      _organizationNodes = results[1] as List<AdminOrganizationNode>;
+    });
+  }
+
+  Future<void> _ensureRuleEditorData() async {
+    final results = await Future.wait<Object>([
+      _repository.listAdminFeatures(),
+      _repository.listAdminRoles(),
+      _repository.listAdminDepartments(),
+      _repository.listAdminJobRoles(),
+      _repository.listAdminOrganizationTree(),
+      _repository.listUsers(),
+    ]);
+    if (!mounted) return;
+    setState(() {
+      _features = results[0] as List<AdminFeatureDefinition>;
+      _roles = results[1] as List<AdminRoleDefinition>;
+      _departments = results[2] as List<AdminPersonnelDefinition>;
+      _jobRoles = results[3] as List<AdminPersonnelDefinition>;
+      _organizationNodes = results[4] as List<AdminOrganizationNode>;
+      _users = results[5] as List<User>;
+    });
   }
 
   Future<void> _openFeatureEditor([AdminFeatureDefinition? feature]) async {
@@ -120,6 +184,8 @@ class _FeatureAdminScreenState extends State<FeatureAdminScreen> {
   }
 
   Future<void> _openRuleEditor([AdminFeatureRule? rule]) async {
+    await _ensureRuleEditorData();
+    if (!mounted) return;
     final updated = await showDialog<bool>(
       context: context,
       builder: (context) => AppDirtyFormGuard(
@@ -140,6 +206,8 @@ class _FeatureAdminScreenState extends State<FeatureAdminScreen> {
   }
 
   Future<void> _openNodeAssignmentEditor({AdminOrganizationNode? node}) async {
+    await _ensureNodeEditorData();
+    if (!mounted) return;
     final updated = await showDialog<bool>(
       context: context,
       builder: (context) => AppDirtyFormGuard(
@@ -377,9 +445,7 @@ class _FeatureAdminScreenState extends State<FeatureAdminScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return DefaultTabController(
-      length: 3,
-      child: Column(
+    return Column(
         children: [
           AppResponsiveContent(
             child: AppSurfaceCard(
@@ -424,6 +490,7 @@ class _FeatureAdminScreenState extends State<FeatureAdminScreen> {
             child: AppSurfaceCard(
               padding: EdgeInsets.zero,
               child: TabBar(
+                controller: _tabController,
                 labelColor: AppColors.primary,
                 unselectedLabelColor: Theme.of(
                   context,
@@ -444,6 +511,7 @@ class _FeatureAdminScreenState extends State<FeatureAdminScreen> {
                     child: AppListSkeleton(itemCount: 6, itemHeight: 76),
                   )
                 : TabBarView(
+                    controller: _tabController,
                     children: [
                       _FeatureList(
                         features: _features,
@@ -486,8 +554,7 @@ class _FeatureAdminScreenState extends State<FeatureAdminScreen> {
                   ),
           ),
         ],
-      ),
-    );
+      );
   }
 }
 

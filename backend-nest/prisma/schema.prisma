@@ -344,6 +344,8 @@ model User {
   @@index([regionCode])
   @@index([areaCode])
   @@index([organizationNodeId])
+  @@index([createdAt])
+  @@index([status, createdAt])
 }
 
 model QuickActionLink {
@@ -613,6 +615,7 @@ model OrganizationNodeFeatureAssignment {
   @@index([nodeType, nodeKey])
   @@index([featureCode])
   @@index([enabled])
+  @@index([featureCode, enabled, scopeRootNodeId])
   @@index([assignedById])
 }
 
@@ -703,6 +706,7 @@ model AdminPolicyRule {
   @@index([organizationNodeId])
   @@index([storeCode])
   @@index([userId])
+  @@index([policyCode, updatedAt])
 }
 
 model AdminSetting {

@@ -370,6 +370,7 @@ const DEFAULT_AREA_DEFINITIONS = DEFAULT_REGION_DEFINITIONS.map((region) => ({
 export class UserService implements OnModuleInit {
   private readonly logger = new Logger(UserService.name);
   private bigquery?: BigQuery;
+  private storeOrganizationSyncInFlight: Promise<void> | null = null;
 
   constructor(
     private prisma: PrismaService,
@@ -662,9 +663,11 @@ export class UserService implements OnModuleInit {
 
   async adminListUsers(admin: any, filters: any = {}) {
     await this.assertAdmin(admin);
-    await this.seedDefaultOrganizationTree();
-    await this.syncStoreOrganizationNodes('admin-list-users');
     const query = String(filters.q || '').trim();
+    const requestedLimit = Number(filters.limit);
+    const limit = Number.isInteger(requestedLimit)
+      ? Math.min(200, Math.max(1, requestedLimit))
+      : 200;
     const scope = await this.adminScope(admin);
     const where = await this.adminUserWhere(scope, filters, query);
     this.logger.log(
@@ -681,14 +684,16 @@ export class UserService implements OnModuleInit {
         ' feature=' +
         (filters.featureCode || 'none') +
         ' orgNodeId=' +
-        (filters.orgNodeId || 'none'),
+        (filters.orgNodeId || 'none') +
+        ' limit=' +
+        limit,
     );
     try {
       const users = await this.prisma.user.findMany({
         where,
-        include: this.userDtoInclude(),
+        select: this.adminUserListSelect(),
         orderBy: { createdAt: 'desc' },
-        take: 200,
+        take: limit,
       });
       this.logger.log(
         'Admin user list completed: admin=' +
@@ -697,6 +702,8 @@ export class UserService implements OnModuleInit {
           admin.role +
           ' count=' +
           users.length +
+          ' limit=' +
+          limit +
           ' domainScope=' +
           this.adminDomainScopeLabel(admin),
       );
@@ -1659,8 +1666,6 @@ export class UserService implements OnModuleInit {
 
   private async listOrganizationTreeForAdmin(admin: any, source: string) {
     const startedAt = Date.now();
-    await this.seedDefaultOrganizationTree();
-    await this.syncStoreOrganizationNodes(source);
     const where = await this.adminOrganizationNodeScopeWhere(admin);
     const nodes = await this.prisma.organizationNode.findMany({
       where: {
@@ -3418,6 +3423,134 @@ export class UserService implements OnModuleInit {
     nodes: Array<{ id: string; _count?: { users?: number } | null }>,
   ) {
     const counts = new Map<string, number>();
+    const organizationNode = (this.prisma as any).organizationNode;
+    const userModel = (this.prisma as any).user;
+    if (!organizationNode?.findMany || !userModel?.findMany) {
+      return this.organizationNodeUserCountsLegacy(nodes, counts);
+    }
+
+    const allNodes = await organizationNode.findMany({
+      select: { id: true, parentId: true },
+    });
+    const users = await userModel.findMany({
+      select: {
+        organizationNodeId: true,
+        store: { select: { organizationNodeId: true } },
+        department: { select: { organizationNodeId: true } },
+        jobRole: { select: { organizationNodeId: true } },
+        region: { select: { organizationNodeId: true } },
+        area: { select: { organizationNodeId: true } },
+        organizationAssignments: {
+          where: { isActive: true },
+          select: { organizationNodeId: true },
+        },
+      },
+    });
+    if (!Array.isArray(allNodes) || !Array.isArray(users)) {
+      return this.organizationNodeUserCountsLegacy(nodes, counts);
+    }
+
+    const childrenByParent = new Map<string, string[]>();
+    for (const node of allNodes) {
+      if (!node.parentId) continue;
+      const children = childrenByParent.get(node.parentId) ?? [];
+      children.push(node.id);
+      childrenByParent.set(node.parentId, children);
+    }
+    const descendantsByRoot = new Map<string, Set<string>>();
+    for (const node of nodes) {
+      const ids = new Set<string>([node.id]);
+      const queue = [node.id];
+      while (queue.length > 0) {
+        const current = queue.shift()!;
+        for (const childId of childrenByParent.get(current) ?? []) {
+          if (ids.has(childId)) continue;
+          ids.add(childId);
+          queue.push(childId);
+        }
+      }
+      descendantsByRoot.set(node.id, ids);
+    }
+
+    for (const node of nodes) {
+      const scopeIds = descendantsByRoot.get(node.id) ?? new Set([node.id]);
+      let count = 0;
+      for (const user of users) {
+        const directMatch =
+          user.organizationNodeId && scopeIds.has(user.organizationNodeId);
+        const fallbackIds = [
+          user.store?.organizationNodeId,
+          user.department?.organizationNodeId,
+          user.jobRole?.organizationNodeId,
+          user.region?.organizationNodeId,
+          user.area?.organizationNodeId,
+        ];
+        const fallbackMatch =
+          !user.organizationNodeId &&
+          fallbackIds.some((id) => id && scopeIds.has(id));
+        const assignmentMatch = (user.organizationAssignments ?? []).some(
+          (assignment: { organizationNodeId?: string }) =>
+            assignment.organizationNodeId &&
+            scopeIds.has(assignment.organizationNodeId),
+        );
+        if (directMatch || fallbackMatch || assignmentMatch) count += 1;
+      }
+      counts.set(node.id, count);
+    }
+    return counts;
+  }
+
+  private adminUserListSelect() {
+    return {
+      id: true,
+      email: true,
+      firstName: true,
+      lastName: true,
+      role: true,
+      status: true,
+      avatarUrl: true,
+      profileCompletedAt: true,
+      branchLockedAt: true,
+      departmentCode: true,
+      jobRoleCode: true,
+      workScopeType: true,
+      regionCode: true,
+      areaCode: true,
+      organizationNodeId: true,
+      storeId: true,
+      store: {
+        include: {
+          area: { include: { region: true } },
+          organizationNode: true,
+        },
+      },
+      region: true,
+      area: { include: { region: true } },
+      organizationNode: true,
+      organizationAssignments: {
+        where: { isActive: true },
+        orderBy: [
+          { isPrimary: Prisma.SortOrder.desc },
+          { createdAt: Prisma.SortOrder.asc },
+        ],
+        include: {
+          organizationNode: {
+            include: organizationNodeStoreTreeInclude(),
+          },
+        },
+      },
+      userFeatureAssignments: {
+        where: { enabled: true },
+        select: { featureCode: true },
+        orderBy: { featureCode: Prisma.SortOrder.asc },
+      },
+    };
+  }
+
+  private async organizationNodeUserCountsLegacy(
+    nodes: Array<{ id: string; _count?: { users?: number } | null }>,
+    counts: Map<string, number>,
+  ) {
     await Promise.all(
       nodes.map(async (node) => {
         const where = await this.userOrganizationAssignmentWhere(node.id);
@@ -3518,13 +3651,27 @@ export class UserService implements OnModuleInit {
       },
     });
     const matchingNodeIds = new Set<string>();
+    const childrenByParent = new Map<string, string[]>();
+    for (const node of nodes) {
+      if (!node.parentId) continue;
+      const children = childrenByParent.get(node.parentId) ?? [];
+      children.push(node.id);
+      childrenByParent.set(node.parentId, children);
+    }
     for (const assignment of assignments) {
-      const descendantIds = await this.organizationDescendantIds(
-        assignment.scopeRootNodeId,
-      );
+      const descendantIds = new Set<string>([assignment.scopeRootNodeId]);
+      const queue = [assignment.scopeRootNodeId];
+      while (queue.length > 0) {
+        const current = queue.shift()!;
+        for (const childId of childrenByParent.get(current) ?? []) {
+          if (descendantIds.has(childId)) continue;
+          descendantIds.add(childId);
+          queue.push(childId);
+        }
+      }
       for (const node of nodes) {
         if (
-          descendantIds.includes(node.id) &&
+          descendantIds.has(node.id) &&
           this.nodeFeatureType(node.type) ===
             this.nodeFeatureType(assignment.nodeType) &&
           this.nodeFeatureKey(node) === this.nodeFeatureKey(assignment.nodeKey)
@@ -3722,7 +3869,6 @@ export class UserService implements OnModuleInit {
 
   async adminListRoles(admin: any) {
     await this.assertAdmin(admin);
-    await this.seedDefaultRoles();
     return this.prisma.roleDefinition.findMany({
       where: { code: { in: [SUPER_ADMIN_ROLE, ADMIN_ROLE, USER_ROLE] } },
       orderBy: [{ isSystem: 'desc' }, { code: 'asc' }],
@@ -3731,7 +3877,6 @@ export class UserService implements OnModuleInit {
 
   async adminListDepartments(admin: any) {
     await this.assertAdmin(admin);
-    await this.seedDefaultPersonnelCatalog();
     return this.prisma.departmentDefinition.findMany({
       orderBy: [{ isSystem: 'desc' }, { code: 'asc' }],
       include: {
@@ -3742,7 +3887,6 @@ export class UserService implements OnModuleInit {
 
   async adminListJobRoles(admin: any) {
     await this.assertAdmin(admin);
-    await this.seedDefaultPersonnelCatalog();
     return this.prisma.jobRoleDefinition.findMany({
       orderBy: [{ isSystem: 'desc' }, { code: 'asc' }],
       include: {
@@ -3767,8 +3911,6 @@ export class UserService implements OnModuleInit {
 
   async adminListRegions(admin: any) {
     await this.assertAdmin(admin);
-    await this.seedDefaultPersonnelCatalog();
-    await this.seedDefaultOrganizationTree();
     const organizationNode = (this.prisma as any).organizationNode;
     if (!organizationNode?.findMany) {
       return this.adminListRegionsLegacy();
@@ -3787,8 +3929,6 @@ export class UserService implements OnModuleInit {
 
   async adminListAreas(admin: any, regionCodeInput?: string) {
     await this.assertAdmin(admin);
-    await this.seedDefaultPersonnelCatalog();
-    await this.seedDefaultOrganizationTree();
     const organizationNode = (this.prisma as any).organizationNode;
     if (!organizationNode?.findMany) {
       return this.adminListAreasLegacy(regionCodeInput);
@@ -4895,6 +5035,25 @@ export class UserService implements OnModuleInit {
   }
 
   private async syncStoreOrganizationNodes(source: string) {
+    if (this.storeOrganizationSyncInFlight) {
+      this.logger.debug(
+        `Store organization sync deduplicated: source=${source}`,
+      );
+      await this.storeOrganizationSyncInFlight;
+      return;
+    }
+    const pending = this.runStoreOrganizationNodesSync(source);
+    this.storeOrganizationSyncInFlight = pending;
+    try {
+      await pending;
+    } finally {
+      if (this.storeOrganizationSyncInFlight === pending) {
+        this.storeOrganizationSyncInFlight = null;
+      }
+    }
+  }
+
+  private async runStoreOrganizationNodesSync(source: string) {
     const organizationNode = (this.prisma as any).organizationNode;
     if (!organizationNode?.upsert || !this.prisma.store?.findMany) return;
 
