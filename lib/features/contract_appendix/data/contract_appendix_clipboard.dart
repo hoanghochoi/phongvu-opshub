@@ -56,16 +56,12 @@ ContractAppendixClipboardPayload buildContractAppendixClipboardPayload(
     )
     ..writeln('<!--StartFragment-->')
     ..writeln(
-      '<table style="border-collapse:collapse;table-layout:fixed;width:100%;'
+      '<table style="border-collapse:collapse;table-layout:auto;width:100%;'
       'font-family:\'Times New Roman\',serif;font-size:12pt;">',
     )
-    ..writeln(
-      '<colgroup><col style="width:6%;"><col style="width:40%;">'
-      '<col style="width:6%;"><col style="width:7%;">'
-      '<col style="width:16%;"><col style="width:9%;">'
-      '<col style="width:16%;"></colgroup>',
-    )
-    ..writeln('<thead><tr>')
+    // Keep the first row as ordinary tbody/td cells. Word can turn semantic
+    // thead/th markup into a repeating table header on page breaks.
+    ..writeln('<tbody><tr>')
     ..write(_htmlHeader('STT'))
     ..write(_htmlHeader('Tên hàng hóa'))
     ..write(_htmlHeader('SL'))
@@ -73,7 +69,7 @@ ContractAppendixClipboardPayload buildContractAppendixClipboardPayload(
     ..write(_htmlHeader('Đơn giá (VNĐ)<br>Chưa VAT'))
     ..write(_htmlHeader('GTGT'))
     ..write(_htmlHeader('Thành tiền (VNĐ)<br>Chưa VAT'))
-    ..writeln('</tr></thead><tbody>');
+    ..writeln('</tr>');
 
   final tsv = StringBuffer()
     ..writeln(
@@ -90,9 +86,9 @@ ContractAppendixClipboardPayload buildContractAppendixClipboardPayload(
       ..write(_htmlCell(item.productName))
       ..write(_htmlCell(item.quantity.toString(), align: 'center'))
       ..write(_htmlCell(item.unit, align: 'center'))
-      ..write(_htmlCell(unitBeforeVat, align: 'center'))
+      ..write(_htmlCell(unitBeforeVat, align: 'center', nowrap: true))
       ..write(_htmlCell(item.vatLabel, align: 'center'))
-      ..write(_htmlCell(lineBeforeVat, align: 'center'))
+      ..write(_htmlCell(lineBeforeVat, align: 'center', nowrap: true))
       ..writeln('</tr>');
     tsv.writeln(
       '${item.position}\t${_tsv(item.productName)}\t${item.quantity}\t'
@@ -139,12 +135,16 @@ const _cellStyle =
     'border:1px solid #000;padding:5px 6px;vertical-align:middle;';
 
 String _htmlHeader(String value) =>
-    '<th align="center" valign="middle" style="${_cellStyle}background:'
-    '#f4c7a8;text-align:center;font-weight:bold;">$value</th>';
+    '<td align="center" valign="middle" style="${_cellStyle}background:'
+    '#f4c7a8;text-align:center;font-weight:bold;">'
+    '<div align="center" style="text-align:center;font-weight:bold;">'
+    '$value</div></td>';
 
-String _htmlCell(String value, {String align = 'left'}) =>
+String _htmlCell(String value, {String align = 'left', bool nowrap = false}) =>
     '<td align="$align" valign="middle" style="${_cellStyle}text-align:'
-    '$align;">${_html(value)}</td>';
+    '$align;${nowrap ? 'white-space:nowrap;' : ''}">'
+    '<div align="$align" style="text-align:$align;${nowrap ? 'white-space:nowrap;' : ''}">'
+    '${_html(value)}</div></td>';
 
 void _appendHtmlSummary(
   StringBuffer buffer,

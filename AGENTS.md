@@ -14,6 +14,7 @@ Think and work in this order:
 2. Act in small, reversible steps.
 3. Verify what changed.
 4. Report the concise result and the next useful step.
+5. Spawn subagents when needed.
 
 If a request is ambiguous or underspecified, ask focused clarifying questions
 before acting. Never claim done before verification.

@@ -60,7 +60,12 @@ void main() {
         ),
       );
 
-      expect(RegExp('<th ').allMatches(payload.html), hasLength(7));
+      expect(
+        RegExp(
+          '<td align="center" valign="middle"',
+        ).allMatches(payload.html).length,
+        greaterThanOrEqualTo(7),
+      );
       expect(payload.html, contains('Thành tiền (VNĐ)<br>Chưa VAT'));
       expect(
         payload.html,
@@ -73,7 +78,13 @@ void main() {
         payload.html,
         contains("font-family:'Times New Roman',serif;font-size:12pt"),
       );
-      expect(payload.html, contains('<th align="center" valign="middle"'));
+      expect(payload.html, contains('table-layout:auto'));
+      expect(payload.html, isNot(contains('table-layout:fixed')));
+      expect(payload.html, isNot(contains('<colgroup>')));
+      expect(payload.html, isNot(contains('<thead>')));
+      expect(payload.html, isNot(contains('</thead>')));
+      expect(payload.html, contains('white-space:nowrap'));
+      expect(payload.html, isNot(contains('<th')));
       expect(payload.html, contains('<td align="center" valign="middle"'));
       final tableEnd = payload.html.indexOf('</table>');
       final amountInWords = payload.html.indexOf('Bằng chữ:');

@@ -74,8 +74,9 @@ Recent focused evidence:
   khởi động. User đã xác nhận rich table paste được vào Word Windows. Follow-up
   khóa layout editor/preview một cột, preview desktop 960px, Times New Roman
   12pt trên từng ô, cột tiền căn giữa, căn lề theo mẫu và tách `Bằng chữ` khỏi
-  table; 29 focused core/screen/design-guard test đã đạt, còn recheck định dạng
-  thật trên Word sau khi phát hành follow-up.
+  table; HTML không dùng fixed layout/thead để tránh Word bẻ cột và lặp header;
+  29 focused core/screen/design-guard test đã đạt, còn recheck định dạng thật
+  trên Word sau khi phát hành follow-up.
 
 - `SALES-REPORT-001` / `SALES-REPORT-002`, 2026-07-17: biểu mẫu khách chưa
   mua đã bỏ ô Zalo tự do; số điện thoại chỉ nhận đúng 10 chữ số bắt đầu bằng

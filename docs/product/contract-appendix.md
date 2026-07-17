@@ -50,7 +50,9 @@ chữ được sinh phía server từ tổng đã VAT và kết thúc bằng `đ
    clipboard; không gọi API trong clipboard handler. HTML Word đặt Times New
    Roman 12pt trực tiếp trên từng ô, header, các cột định danh và cột tiền căn
    giữa, tên hàng căn trái. Preview desktop dùng bề rộng 960px để bảng thoáng
-   hơn; `Bằng chữ` là đoạn riêng nằm ngoài bảng.
+   hơn. HTML clipboard không đánh dấu hàng đầu bằng `thead`/`th`/fixed header
+   để Word không lặp tiêu đề khi bảng tràn sang trang mới; `Bằng chữ` là đoạn
+   riêng nằm ngoài bảng.
 
 ## History and Access
 
