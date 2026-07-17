@@ -1091,7 +1091,9 @@ jobs:
             "${compose[@]}" "$@" < /dev/null
           }
 
-          compose_cmd up -d --no-deps caddy
+          # The Caddyfile is a file bind mount. Recreate Caddy so replacing
+          # the host file also refreshes the container's mounted inode.
+          compose_cmd up -d --no-deps --force-recreate caddy
           if ! compose_cmd exec -T caddy caddy reload --config /etc/caddy/Caddyfile; then
             compose_cmd restart caddy
           fi
