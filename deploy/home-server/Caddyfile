@@ -115,8 +115,7 @@ http://{$OPSHUB_DOMAIN} {
 
   # Keep the staff-facing Seatalk invite URL short and changeable without
   # shipping a new client when the invite token is rotated.
-  @seatalk_support path /seatalk-support /seatalk-support/
-  redir @seatalk_support https://link.seatalk.io/group/open?invite_id=IkaYSKrlQkImmkCfNj4aBdpd5cpcCWFPaaegCUhYXjgcfi1Tzn9E9Gbuac_qt8Jk5mruc0AJGqQLaQeSWG1e 302
+  redir /seatalk-support* https://link.seatalk.io/group/open?invite_id=IkaYSKrlQkImmkCfNj4aBdpd5cpcCWFPaaegCUhYXjgcfi1Tzn9E9Gbuac_qt8Jk5mruc0AJGqQLaQeSWG1e 302
 
   header /help Cache-Control "no-store, no-cache, must-revalidate"
 
