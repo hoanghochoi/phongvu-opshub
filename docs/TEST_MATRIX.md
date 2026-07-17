@@ -297,6 +297,15 @@ Recent focused evidence:
   the following run, both with `quarantined=0`. Focused MAP/User Jest passed
   162 tests on staging and 155 tests on the exact production release; both Nest
   builds passed.
+- `PAYMENT-STATEMENT-001`, 2026-07-17: Sao kê now persists `incomeType`,
+  classifies high-confidence partner/internal markers (`BC CN/CP/CTY/DKKD`,
+  `So GD goc`, VNSHOP, RECESS, ShopeePay, ZaloPay, VNPAY, Nhat Tin, GHTK and
+  EMB/KHDN), and keeps generic `CT DEN` as sales. SR users are constrained to
+  `SALES` even for global lookup and selected export; FIN_ACC/national scope can
+  see both. Export is XLSX with income type and receiving account columns, and
+  mobile Sao kê collapses filters after search. Validation: Prisma generate,
+  Nest build, focused MAP/income-type Jest, Flutter analyze, and focused bank
+  statement provider/screen tests including the mobile collapse regression.
 - `UI-UX-001`, 2026-07-11: sửa race thứ hai của `AppCombobox` trên
   desktop/Windows: khi bấm chuột chọn option, `TextField` mất focus ở
   mouse-down và timer đóng overlay cũ có thể đóng menu trước mouse-up/onTap,

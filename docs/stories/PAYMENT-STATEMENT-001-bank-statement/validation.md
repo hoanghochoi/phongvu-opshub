@@ -31,6 +31,12 @@
 - 2026-07-14: eFAST statement display/export and stored VietQR confirmation
   prefer `trxId` over numeric `trxRefNo`. Focused MAP/VietQR Jest passed 110
   tests and `npm run build` passed.
+- 2026-07-17: income-type classifier tests cover the supplied BC, So GD goc,
+  ShopeePay, Nhat Tin, GHTK, VNPAY and sales `CT DEN` examples. Focused MAP and
+  income-type Jest passed; XLSX export tests verify `Loại giao dịch`, `Tài khoản
+  nhận`, long identifiers and Vietnam-local timestamps. Flutter provider/screen
+  tests verify model parsing and mobile filter collapse after search; Flutter
+  analyze passed after removing compatibility deprecation notices.
 - 2026-05-29: `npx prisma validate` passed.
 - 2026-05-29: `npx prisma generate` passed and generated Prisma Client
   v7.8.0.
@@ -49,5 +55,7 @@
 
 - Live VietinBank MAP payload variants may include fields not covered by local
   fixtures.
+- The income migration and backfill have not been applied to production in this
+  turn; production rollout still requires the normal staging/migration proof.
 - Full desktop click-through smoke is still manual unless run against a local
   backend and migrated database.

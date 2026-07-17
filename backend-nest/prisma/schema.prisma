@@ -81,6 +81,7 @@ model MapVietinTransaction {
   paidAt               DateTime?
   payerName            String?
   payerAccount         String?
+  incomeType           String   @default("SALES")
   rawData              Json
   firstSeenAt          DateTime  @default(now())
   createdAt            DateTime  @default(now())
@@ -91,6 +92,8 @@ model MapVietinTransaction {
 
   @@index([storeCode, paidAt])
   @@index([storeCode, firstSeenAt])
+  @@index([storeCode, incomeType, paidAt])
+  @@index([incomeType, paidAt])
   @@index([amount])
   @@index([orders], type: Gin)
 }

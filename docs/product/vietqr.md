@@ -331,16 +331,16 @@ a customer to scan and pay manually.
 - Manual order edits write an audit row with old orders, new orders, editor id,
   editor email, source, and timestamp. The history icon opens these audit rows;
   automatic MAP extraction is not shown as a manual edit.
-- CSV export returns UTF-8 with BOM for Excel, exports MAP
-  `rawData.txnReference` under the `Sao kê` column, preserves long numeric
-  identifiers such as statement references, transaction numbers, order codes,
-  and payer accounts as text, and formats transaction timestamps in Vietnam
-  local time. When a transaction has multiple orders, the order-code CSV cell
-  exports one code per line. Statement
+- XLSX export exports MAP `rawData.txnReference` under the `Sao kê` column,
+  preserves long numeric identifiers such as statement references, transaction
+  numbers, order codes, and payer accounts as text, and formats transaction
+  timestamps in Vietnam local time. It includes `Loại giao dịch` and `Tài khoản
+  nhận`; when a transaction has multiple orders, the order-code cell exports
+  one code per line. Statement
   search uses server-side paging, while selected transaction ids stay selected
   when users move between pages and take precedence during export. If nothing is
   selected, export includes every row matching the current filter/date/status,
-  not just the visible page. CSV export is limited to a date span of 31 days; a
+  not just the visible page. XLSX export is limited to a date span of 31 days; a
   longer selected range is blocked before the export request is sent.
 - `Sao ke` keeps header, filters, selection bar, and export controls fixed while
   only the transaction list scrolls. The page allows selecting and copying text.
@@ -458,7 +458,7 @@ ingestion directions check all stored statement identifiers before inserting.
 The database transaction-key constraint therefore prevents duplicate rows and
 payment notifications whether MAP or eFAST arrives first, including
 near-simultaneous responses. For user-facing `Mã sao kê` fields, API responses,
-CSV exports, and stored VietQR confirmations use eFAST `trxId`; the numeric
+XLSX exports, and stored VietQR confirmations use eFAST `trxId`; the numeric
 eFAST `trxRefNo` remains technical raw/audit data. Rows with a
 missing `pmtId` are stored with `storeCode=null` only when neither the virtual
 account nor source account identifies a unique showroom;
@@ -482,3 +482,22 @@ random 50-60 seconds from 08:00 through 22:00 Vietnam time (UTC+7), and every
 30 minutes from 22:01 through 07:59 the next day. Production should keep two
 configured eFAST bank accounts, `VIETIN_EFAST_PAGE_SIZE=150`, and
 `VIETIN_EFAST_SYNC_MAX_PAGES=1`.
+
+## Sao kê income type
+
+Sao kê exports use `.xlsx` and include both `Loại giao dịch` and `Tài khoản
+nhận`. The backend stores `incomeType` as `SALES` (`Bán hàng`) or
+`PARTNER_INTERNAL` (`Đối tác/Nội bộ`). The classifier uses high-confidence
+content markers from the current MAP/eFAST data: internal reconciliation codes
+starting with `BC CN`, `BC CP`, `BC CTY`, or `BC DKKD`; `So GD goc`; and known
+partner/payment rails such as `VNSHOP`, `RECESS`, `ShopeePay`, `ZaloPay`,
+`VNPAY`, `Nhat Tin`, `GiaoHangTietKiem`, `Theo lo EMB`, and `KHDN`. Generic
+`CT DEN` and numeric-only content remain sales to avoid hiding customer
+payments. The migration backfills existing rows and each subsequent sync
+re-evaluates the content.
+
+The API applies the income-type restriction after every scope/global filter and
+before pagination or selected-row export: SR-scoped users see only `Bán hàng`,
+while FIN_ACC and national statement-scope users see both types. The card shows
+a Vietnamese pill for the income type. On mobile, a successful `Tìm` action
+closes the filter panel so the result list is visible.

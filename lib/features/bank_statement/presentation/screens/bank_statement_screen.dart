@@ -266,6 +266,17 @@ class _FilterPanel extends StatefulWidget {
 class _FilterPanelState extends State<_FilterPanel> {
   bool _isExpanded = false;
 
+  Future<void> _runSearch({required bool collapseOnMobile}) async {
+    await widget.provider.search();
+    if (!mounted || !_isExpanded || !collapseOnMobile) return;
+    setState(() => _isExpanded = false);
+    await AppLogger.instance.info(
+      'BankStatement',
+      'Bank statement mobile filters collapsed after search',
+      context: {'source': 'filter_panel'},
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
@@ -316,7 +327,7 @@ class _FilterPanelState extends State<_FilterPanel> {
                     label: 'Mã sao kê',
                     icon: Icons.receipt_long_outlined,
                     onChanged: widget.provider.setStatementNumber,
-                    onSubmitted: (_) => widget.provider.search(),
+                    onSubmitted: (_) => _runSearch(collapseOnMobile: isMobile),
                   ),
                   const SizedBox(height: _filterGap),
                   AppTextInput(
@@ -325,7 +336,7 @@ class _FilterPanelState extends State<_FilterPanel> {
                     label: 'Mã đơn hàng',
                     icon: Icons.tag_rounded,
                     onChanged: widget.provider.setOrder,
-                    onSubmitted: (_) => widget.provider.search(),
+                    onSubmitted: (_) => _runSearch(collapseOnMobile: isMobile),
                   ),
                   const SizedBox(height: _filterGap),
                   AppTextInput(
@@ -336,7 +347,7 @@ class _FilterPanelState extends State<_FilterPanel> {
                     label: 'Số tiền',
                     icon: Icons.payments_outlined,
                     onChanged: widget.provider.setAmount,
-                    onSubmitted: (_) => widget.provider.search(),
+                    onSubmitted: (_) => _runSearch(collapseOnMobile: isMobile),
                   ),
                   const SizedBox(height: _filterGap),
                   AppTextInput(
@@ -345,7 +356,7 @@ class _FilterPanelState extends State<_FilterPanel> {
                     label: 'Nội dung chuyển khoản',
                     icon: Icons.notes_rounded,
                     onChanged: widget.provider.setContent,
-                    onSubmitted: (_) => widget.provider.search(),
+                    onSubmitted: (_) => _runSearch(collapseOnMobile: isMobile),
                   ),
                   const SizedBox(height: _filterGap),
                   AppCombobox<String>.single(
@@ -369,7 +380,10 @@ class _FilterPanelState extends State<_FilterPanel> {
                   const SizedBox(height: _filterGap),
                   _LimitDropdown(provider: widget.provider),
                   const SizedBox(height: _filterGap),
-                  _FilterActionButtons(provider: widget.provider),
+                  _FilterActionButtons(
+                    provider: widget.provider,
+                    onSearch: () => _runSearch(collapseOnMobile: isMobile),
+                  ),
                 ],
                 const Divider(height: 22),
                 _StatementListControls(provider: widget.provider),
@@ -394,7 +408,8 @@ class _FilterPanelState extends State<_FilterPanel> {
                       label: 'Mã sao kê',
                       icon: Icons.receipt_long_outlined,
                       onChanged: widget.provider.setStatementNumber,
-                      onSubmitted: (_) => widget.provider.search(),
+                      onSubmitted: (_) =>
+                          _runSearch(collapseOnMobile: isMobile),
                     ),
                   ),
                   const SizedBox(width: _filterGap),
@@ -405,7 +420,8 @@ class _FilterPanelState extends State<_FilterPanel> {
                       label: 'Mã đơn hàng',
                       icon: Icons.tag_rounded,
                       onChanged: widget.provider.setOrder,
-                      onSubmitted: (_) => widget.provider.search(),
+                      onSubmitted: (_) =>
+                          _runSearch(collapseOnMobile: isMobile),
                     ),
                   ),
                   const SizedBox(width: _filterGap),
@@ -418,7 +434,8 @@ class _FilterPanelState extends State<_FilterPanel> {
                       label: 'Số tiền',
                       icon: Icons.payments_outlined,
                       onChanged: widget.provider.setAmount,
-                      onSubmitted: (_) => widget.provider.search(),
+                      onSubmitted: (_) =>
+                          _runSearch(collapseOnMobile: isMobile),
                     ),
                   ),
                 ],
@@ -434,7 +451,8 @@ class _FilterPanelState extends State<_FilterPanel> {
                       label: 'Nội dung chuyển khoản',
                       icon: Icons.notes_rounded,
                       onChanged: widget.provider.setContent,
-                      onSubmitted: (_) => widget.provider.search(),
+                      onSubmitted: (_) =>
+                          _runSearch(collapseOnMobile: isMobile),
                     ),
                   ),
                   const SizedBox(width: _filterGap),
@@ -472,7 +490,10 @@ class _FilterPanelState extends State<_FilterPanel> {
                   const SizedBox(width: _filterGap),
                   SizedBox(
                     width: 320,
-                    child: _FilterActionButtons(provider: widget.provider),
+                    child: _FilterActionButtons(
+                      provider: widget.provider,
+                      onSearch: () => _runSearch(collapseOnMobile: isMobile),
+                    ),
                   ),
                 ],
               ),
@@ -644,8 +665,9 @@ class _LimitDropdown extends StatelessWidget {
 
 class _FilterActionButtons extends StatelessWidget {
   final BankStatementProvider provider;
+  final Future<void> Function()? onSearch;
 
-  const _FilterActionButtons({required this.provider});
+  const _FilterActionButtons({required this.provider, this.onSearch});
 
   @override
   Widget build(BuildContext context) {
@@ -653,7 +675,9 @@ class _FilterActionButtons extends StatelessWidget {
       children: [
         Expanded(
           child: AppPrimaryButton(
-            onPressed: provider.canSearch ? provider.search : null,
+            onPressed: provider.canSearch
+                ? (onSearch ?? provider.search)
+                : null,
             icon: Icons.search_rounded,
             label: 'Tìm',
             isLoading: provider.isLoading,
@@ -704,7 +728,7 @@ class _ExportButton extends StatelessWidget {
       );
       return;
     }
-    await provider.exportCsv();
+    await provider.exportXlsx();
   }
 }
 
@@ -1250,6 +1274,11 @@ class _TransactionDetails extends StatelessWidget {
             _StatementPill(
               label: '${money.format(tx.amount)} VND',
               color: AppColors.success,
+              fontSize: pillFontSize,
+            ),
+            _StatementPill(
+              label: tx.incomeTypeLabel,
+              color: tx.isPartnerInternal ? AppColors.warning : AppColors.info,
               fontSize: pillFontSize,
             ),
             _StatementPill(

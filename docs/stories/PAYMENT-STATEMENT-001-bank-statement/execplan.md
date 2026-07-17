@@ -11,8 +11,9 @@
 
 1. Add Prisma order fields, audit table, indexes, migration, and generated
    client.
-2. Update MAP sync normalization, manual-preserve behavior, statement API,
-   export CSV, audit history, and focused backend tests.
+2. Update MAP sync normalization, income classification, manual-preserve
+   behavior, statement API, XLSX export, audit history, and focused backend
+   tests.
 3. Add Flutter bank statement repository/provider/screen, home route/tile,
    AppLogger events, and payment monitor order-border behavior.
 4. Update product docs, story packet, and test matrix.
@@ -24,7 +25,7 @@
 - Prisma migration or generated client fails.
 - Role/scope enforcement cannot be validated in tests.
 - Existing payment monitor behavior breaks at compile/test time.
-- CSV export cannot preserve selected-row vs filtered-result behavior.
+- XLSX export cannot preserve selected-row vs filtered-result behavior.
 
 ## Ownership
 

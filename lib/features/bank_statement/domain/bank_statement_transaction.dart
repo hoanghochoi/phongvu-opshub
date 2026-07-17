@@ -20,6 +20,8 @@ class BankStatementTransaction {
   final DateTime? firstSeenAt;
   final String? payerName;
   final String? payerAccount;
+  final String incomeType;
+  final String? receivingAccount;
   final bool canEditOrders;
   final String? orderEditBlockedReason;
   final bool canRequestOrderTransfer;
@@ -50,6 +52,8 @@ class BankStatementTransaction {
     required this.firstSeenAt,
     required this.payerName,
     required this.payerAccount,
+    this.incomeType = 'SALES',
+    this.receivingAccount,
     required this.canEditOrders,
     required this.orderEditBlockedReason,
     required this.canRequestOrderTransfer,
@@ -124,10 +128,23 @@ class BankStatementTransaction {
         'debitAccount',
         'debitAccountNo',
       ]),
+      incomeType:
+          json['incomeType']?.toString().trim().toUpperCase() ==
+              'PARTNER_INTERNAL'
+          ? 'PARTNER_INTERNAL'
+          : 'SALES',
+      receivingAccount: _readFirstText(json, const [
+        'receivingAccount',
+        'receiveAccount',
+        'receiveAccountNo',
+      ]),
     );
   }
 
   bool get hasOrders => orders.isNotEmpty;
+  bool get isPartnerInternal => incomeType == 'PARTNER_INTERNAL';
+  String get incomeTypeLabel =>
+      isPartnerInternal ? 'Đối tác/Nội bộ' : 'Bán hàng';
   String get statementNumber {
     final reference = transactionReference?.trim() ?? '';
     if (reference.isNotEmpty) return reference;
@@ -157,6 +174,8 @@ class BankStatementTransaction {
       firstSeenAt: firstSeenAt,
       payerName: payerName,
       payerAccount: payerAccount,
+      incomeType: incomeType,
+      receivingAccount: receivingAccount,
       canEditOrders: canEditOrders,
       orderEditBlockedReason: orderEditBlockedReason,
       canRequestOrderTransfer: canRequestOrderTransfer,

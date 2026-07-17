@@ -66,13 +66,19 @@ export class MapVietinController {
     @Body() body: ExportMapVietinStatementsDto,
     @Res({ passthrough: true }) res: Response,
   ) {
-    const csv = await this.mapVietinService.exportStatementsCsv(req.user, body);
-    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    const xlsx = await this.mapVietinService.exportStatementsXlsx(
+      req.user,
+      body,
+    );
+    res.setHeader(
+      'Content-Type',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    );
     res.setHeader(
       'Content-Disposition',
-      'attachment; filename="opshub-bank-statements.csv"',
+      'attachment; filename="opshub-bank-statements.xlsx"',
     );
-    return csv;
+    return xlsx;
   }
 
   @Patch('statements/:id/orders')

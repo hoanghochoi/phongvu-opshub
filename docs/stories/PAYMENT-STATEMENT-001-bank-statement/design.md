@@ -10,7 +10,7 @@
   `orderSource = MANUAL`.
 - Add an order audit table for manual edits only, linked to the transaction and
   scoped by store code.
-- Add statement endpoints under `/admin/map-vietin/statements` for list, CSV
+- Add statement endpoints under `/admin/map-vietin/statements` for list, XLSX
   export, inline order update, and order history.
 - Add an ACC-reviewed order-transfer request table and endpoints so visible
   statement users can request order replacement until the Vietnam-local day of
@@ -21,6 +21,9 @@
   layout, buttons, state panels, chips, and logging patterns, including a
   generic `Thông báo` bell for reviewer and requester order-transfer
   notifications.
+- Persist `incomeType` as `SALES` or `PARTNER_INTERNAL`, classify only
+  high-confidence partner/internal content markers, enforce the type at the
+  backend query/export boundary, and show a Vietnamese income-type pill.
 
 ## Alternatives Considered
 

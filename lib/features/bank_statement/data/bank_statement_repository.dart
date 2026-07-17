@@ -294,6 +294,13 @@ class BankStatementRepository {
         .toList();
   }
 
+  Future<Uint8List> exportXlsx(
+    BankStatementQuery query, {
+    List<String> transactionIds = const [],
+  }) async {
+    return exportCsv(query, transactionIds: transactionIds);
+  }
+
   Future<Uint8List> exportCsv(
     BankStatementQuery query, {
     List<String> transactionIds = const [],

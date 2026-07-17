@@ -1,5 +1,6 @@
 import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { createHash } from 'crypto';
+import * as XLSX from 'xlsx';
 import { encryptSecret } from '../common/secret-cipher';
 import { FEATURE_KEYS } from '../feature/feature.constants';
 import { ADMIN_POLICY_CODES } from '../policy/policy.constants';
@@ -322,6 +323,51 @@ describe('MapVietinService', () => {
       FEATURE_KEYS.BANK_STATEMENTS,
     );
     expect(prisma.mapVietinTransaction.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          AND: expect.arrayContaining([
+            { storeCode: 'CP01' },
+            { incomeType: 'SALES' },
+          ]),
+        },
+      }),
+    );
+  });
+
+  it('limits SR users to sales income even for global lookup', async () => {
+    prisma.mapVietinTransaction.findMany.mockResolvedValue([]);
+    prisma.mapVietinTransaction.count.mockResolvedValue(0);
+
+    await service.listStatements(
+      { role: 'MANAGER', storeId: 'store-uuid-1' },
+      { amount: '1250000' } as any,
+    );
+
+    const where = prisma.mapVietinTransaction.findMany.mock.calls[0][0].where;
+    expect(JSON.stringify(where)).toContain('incomeType');
+    expect(JSON.stringify(where)).toContain('SALES');
+  });
+
+  it('allows FIN_ACC users to see both income types in the same scope', async () => {
+    prisma.store.findUnique.mockResolvedValue({
+      id: 'store-uuid-1',
+      storeId: 'CP01',
+    });
+    prisma.mapVietinTransaction.findMany.mockResolvedValue([]);
+    prisma.mapVietinTransaction.count.mockResolvedValue(0);
+
+    await service.listStatements(
+      {
+        id: 'fin-node-user',
+        role: 'USER',
+        departmentCode: 'FIN_ACC',
+        storeId: 'store-uuid-1',
+        featureBankStatements: true,
+      },
+      { storeIds: 'CP01' } as any,
+    );
+
+    expect(prisma.mapVietinTransaction.findMany).toHaveBeenCalledWith(
       expect.objectContaining({ where: { storeCode: 'CP01' } }),
     );
   });
@@ -360,7 +406,14 @@ describe('MapVietinService', () => {
     });
 
     expect(prisma.mapVietinTransaction.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { storeCode: 'CP75' } }),
+      expect.objectContaining({
+        where: {
+          AND: expect.arrayContaining([
+            { storeCode: 'CP75' },
+            { incomeType: 'SALES' },
+          ]),
+        },
+      }),
     );
   });
 
@@ -3367,7 +3420,7 @@ describe('MapVietinService', () => {
     ).resolves.toMatchObject({ canEditOrders: true });
   });
 
-  it('exports selected statement rows as UTF-8 CSV', async () => {
+  it('exports selected statement rows as XLSX', async () => {
     prisma.mapVietinTransaction.findMany.mockResolvedValue([
       {
         storeCode: 'CP01',
@@ -3379,34 +3432,44 @@ describe('MapVietinService', () => {
         paidAt: new Date('2026-06-03T09:39:41.000Z'),
         payerName: null,
         payerAccount: null,
+        incomeType: 'PARTNER_INTERNAL',
         rawData: {
           reqCardName: 'Nguyễn Văn A',
           reqCardNo: '9704361234567890',
           txnReference: '00020300000000004567',
+          efastCreditAccountNo: '118002647006',
         },
         firstSeenAt: new Date('2026-06-03T09:40:05.000Z'),
         orderSource: 'AUTO',
       },
     ]);
 
-    const csv = await service.exportStatementsCsv(
+    const xlsx = await service.exportStatementsXlsx(
       { role: 'SUPER_ADMIN' },
       { transactionIds: ['stored-1'] },
     );
 
-    expect(csv.charCodeAt(0)).toBe(0xfeff);
-    expect(csv).toContain('Mã showroom');
-    expect(csv).toContain('Mã showroom,Mã sao kê,Số tiền');
-    expect(csv).toContain('Số tiền');
-    expect(csv).toContain('Khách chuyển tiền, cần giữ tiếng Việt');
-    expect(csv).toContain('5190000');
-    expect(csv).toContain('03/06/2026 16:39:41');
-    expect(csv).not.toContain('2026-06-03T09:39:41.000Z');
-    expect(csv).toContain("'00020300000000004567");
-    expect(csv).toContain('"\'26052912345678\n26053087654321"');
-    expect(csv).not.toContain('26052912345678 | 26053087654321');
-    expect(csv).toContain('Nguyễn Văn A');
-    expect(csv).toContain("'9704361234567890");
+    const workbook = XLSX.read(xlsx, { type: 'buffer' });
+    const rows = XLSX.utils.sheet_to_json(workbook.Sheets['Sao kê'], {
+      header: 1,
+      raw: false,
+    }) as unknown[][];
+    expect(rows[0]).toEqual(
+      expect.arrayContaining(['Loại giao dịch', 'Tài khoản nhận']),
+    );
+    expect(rows[1]).toEqual(
+      expect.arrayContaining([
+        'Đối tác/Nội bộ',
+        '118002647006',
+        'Khách chuyển tiền, cần giữ tiếng Việt',
+        '03/06/2026 16:39:41',
+        'Nguyễn Văn A',
+        '9704361234567890',
+      ]),
+    );
+    expect(rows[1]).toContain('5190000');
+    expect(rows[1]).toContain('00020300000000004567');
+    expect(rows[1]).toContain('26052912345678\n26053087654321');
     expect(prisma.mapVietinTransaction.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({ id: { in: ['stored-1'] } }),
@@ -3437,19 +3500,24 @@ describe('MapVietinService', () => {
       },
     ]);
 
-    const csv = await service.exportStatementsCsv(
+    const xlsx = await service.exportStatementsXlsx(
       { role: 'SUPER_ADMIN' },
       { transactionIds: ['stored-efast-1'] },
     );
 
-    expect(csv).toContain('904D60713M9LLR5M');
-    expect(csv).not.toContain('331225');
+    const workbook = XLSX.read(xlsx, { type: 'buffer' });
+    const rows = XLSX.utils.sheet_to_json(workbook.Sheets['Sao kê'], {
+      header: 1,
+      raw: false,
+    }) as unknown[][];
+    expect(rows[1]).toContain('904D60713M9LLR5M');
+    expect(rows[1]).not.toContain('331225');
   });
 
   it('exports selected global-lookup statement rows without assigned-store scope', async () => {
     prisma.mapVietinTransaction.findMany.mockResolvedValue([]);
 
-    await service.exportStatementsCsv(
+    await service.exportStatementsXlsx(
       { role: 'MANAGER', storeId: 'store-uuid-1' },
       { transactionIds: ['stored-1'], amount: '1250000' },
     );
@@ -3462,9 +3530,9 @@ describe('MapVietinService', () => {
     expect(serializedWhere).not.toContain('CP01');
   });
 
-  it('rejects statement CSV exports over one month', async () => {
+  it('rejects statement XLSX exports over one month', async () => {
     await expect(
-      service.exportStatementsCsv(
+      service.exportStatementsXlsx(
         { role: 'SUPER_ADMIN' },
         {
           allStores: 'true',

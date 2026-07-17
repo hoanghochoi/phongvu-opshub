@@ -416,7 +416,7 @@ class BankStatementProvider extends ChangeNotifier {
     }
   }
 
-  Future<void> exportCsv() async {
+  Future<void> exportXlsx() async {
     if (!canSearch || _isExporting) return;
     if (hasExportDateRangeLimitViolation) {
       _exportMessage = 'Không xuất file quá 1 tháng.';
@@ -446,16 +446,16 @@ class BankStatementProvider extends ChangeNotifier {
           'dateSpanDays': _exportDateSpanDays,
         },
       );
-      final csvBytes = await _repository.exportCsv(
+      final xlsxBytes = await _repository.exportXlsx(
         _query(),
         transactionIds: selected,
       );
       final path = await FilePicker.saveFile(
         dialogTitle: 'Lưu file sao kê',
-        fileName: 'opshub_sao_ke_${_timestampForFile()}.csv',
+        fileName: 'opshub_sao_ke_${_timestampForFile()}.xlsx',
         type: FileType.custom,
-        allowedExtensions: const ['csv'],
-        bytes: ensureUtf8BomForCsv(csvBytes),
+        allowedExtensions: const ['xlsx'],
+        bytes: xlsxBytes,
         lockParentWindow: true,
       );
       _exportMessage = path == null ? 'Đã hủy lưu file.' : 'Đã xuất file.';
@@ -481,6 +481,8 @@ class BankStatementProvider extends ChangeNotifier {
       notifyListeners();
     }
   }
+
+  Future<void> exportCsv() => exportXlsx();
 
   Future<void> _fetchPage(int page) async {
     _isLoading = true;

@@ -86,6 +86,7 @@ void main() {
     expect(find.textContaining('Tra cứu giao dịch VietinBank'), findsNothing);
     expect(find.text('Chờ Kế toán xác nhận'), findsOneWidget);
     expect(find.text('Đã cấn trừ'), findsOneWidget);
+    expect(find.text('Đối tác/Nội bộ'), findsOneWidget);
     expect(find.byTooltip('Giao dịch đang chờ Kế toán xác nhận'), findsWidgets);
 
     expect(provider.pendingOrderTransferTotal, 1);
@@ -128,6 +129,42 @@ void main() {
     expect(provider.hasSearched, isTrue);
     expect(repository.fetchStatementsCount, 1);
     expect(repository.lastQuery?.orderStatus, 'MISSING_ORDER');
+  });
+
+  testWidgets('collapses mobile filters after a search', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(390, 1600));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    final repository = _WidgetBankStatementRepository();
+    final provider = BankStatementProvider(
+      repository,
+      notificationReadStore: _FakeNotificationReadStore(),
+    );
+    provider.setOrder('26062512345678');
+
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider<AuthProvider>.value(
+            value: _FakeAuthProvider(_accUser),
+          ),
+          ChangeNotifierProvider<BankStatementProvider>.value(value: provider),
+        ],
+        child: const MaterialApp(home: BankStatementScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Bộ lọc tìm kiếm'));
+    await tester.pumpAndSettle();
+    expect(find.text('Mã sao kê'), findsOneWidget);
+
+    await tester.tap(find.text('Tìm'));
+    await tester.pumpAndSettle();
+
+    expect(provider.hasSearched, isTrue);
+    expect(find.text('Mã sao kê'), findsNothing);
+    expect(find.text('Bộ lọc tìm kiếm'), findsOneWidget);
   });
 
   testWidgets('shows accounting bell through AppShell', (tester) async {
@@ -432,6 +469,7 @@ final _offsetTransaction = _transaction(
   orders: const ['26062599999999'],
   orderSource: 'OFFSET',
   isOrderOffsetConfirmed: true,
+  incomeType: 'PARTNER_INTERNAL',
 );
 
 BankStatementTransaction _transaction({
@@ -451,6 +489,7 @@ BankStatementTransaction _transaction({
   String? orderTransferReviewNote,
   String? orderTransferStatus,
   bool isOrderOffsetConfirmed = false,
+  String incomeType = 'SALES',
 }) {
   return BankStatementTransaction(
     id: id,
@@ -469,6 +508,7 @@ BankStatementTransaction _transaction({
     firstSeenAt: DateTime.utc(2026, 6, 25, 2, 0, 5),
     payerName: null,
     payerAccount: null,
+    incomeType: incomeType,
     canEditOrders: canEditOrders,
     orderEditBlockedReason: orderEditBlockedReason,
     canRequestOrderTransfer: canRequestOrderTransfer,

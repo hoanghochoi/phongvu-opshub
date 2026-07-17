@@ -32,14 +32,11 @@ import {
   storesForOrganizationNodeTree,
 } from '../common/organization-store-scope';
 import {
-  csvCell as safeCsvCell,
-  csvExcelTextCell as safeCsvExcelTextCell,
-} from '../common/csv-export';
-import {
   HttpResponseTooLargeError,
   readBoundedHttpResponse,
 } from '../common/bounded-http-response';
 import { buildRealtimeRedisEnvelope } from '../common/realtime-event';
+import * as XLSX from 'xlsx';
 import {
   CreateMapVietinStatementOrderTransferRequestDto,
   ExportMapVietinStatementsDto,
@@ -50,6 +47,11 @@ import {
   SearchMapVietinTransactionsDto,
   UpdateMapVietinStatementOrdersDto,
 } from './map-vietin.dto';
+import {
+  classifyMapVietinIncomeType,
+  mapVietinIncomeTypeLabel,
+  MAP_VIETIN_INCOME_TYPE,
+} from './income-type';
 
 const MAP_CLIENT_ID = 'c4a59ac3630f6d8f1abe722eac7052b5';
 const MAP_SIGNATURE_KEY = '***REMOVED***';
@@ -550,7 +552,7 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
     };
   }
 
-  async exportStatementsCsv(user: any, input: ExportMapVietinStatementsDto) {
+  async exportStatementsXlsx(user: any, input: ExportMapVietinStatementsDto) {
     const selectedIds = this.normalizeTransactionIds(input.transactionIds);
     const mode = selectedIds.length ? 'selected' : 'filter';
     const startedAt = Date.now();
@@ -577,7 +579,18 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
       this.logger.log(
         `Statement export succeeded: user=${this.safeUserLabel(user)} mode=${mode} count=${rows.length} transactionReferenceCount=${transactionReferenceCount} durationMs=${Date.now() - startedAt}`,
       );
-      return this.toStatementsCsv(rows);
+      const incomeTypeCounts = rows.reduce(
+        (counts, row) => {
+          const incomeType = this.storedIncomeType(row);
+          counts[incomeType] = (counts[incomeType] || 0) + 1;
+          return counts;
+        },
+        {} as Record<string, number>,
+      );
+      this.logger.log(
+        `Statement export income types: user=${this.safeUserLabel(user)} sales=${incomeTypeCounts[MAP_VIETIN_INCOME_TYPE.SALES] || 0} partnerInternal=${incomeTypeCounts[MAP_VIETIN_INCOME_TYPE.PARTNER_INTERNAL] || 0}`,
+      );
+      return this.toStatementsXlsx(rows);
     } catch (error) {
       this.logger.error(
         `Statement export failed: user=${this.safeUserLabel(user)} mode=${mode} selectedCount=${selectedIds.length} durationMs=${Date.now() - startedAt} error=${this.safeError(error)}`,
@@ -1724,8 +1737,9 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
       ? {}
       : await this.buildStatementScopeWhere(user, filters);
     const filterWhere = this.buildStatementFilterWhere(filters);
+    const incomeTypeWhere = await this.buildStatementIncomeTypeWhere(user);
     return {
-      where: this.andWhere(scopeWhere, filterWhere),
+      where: this.andWhere(scopeWhere, filterWhere, incomeTypeWhere),
       page: input.page ?? 0,
       limit: input.limit ?? 20,
       filterSummary: filters.summary,
@@ -1745,7 +1759,21 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
     const filterWhere = filters.hasEffectiveFilter
       ? this.buildStatementFilterWhere(filters)
       : {};
-    return this.andWhere(scopeWhere, filterWhere, { id: { in: ids } });
+    const incomeTypeWhere = await this.buildStatementIncomeTypeWhere(user);
+    return this.andWhere(scopeWhere, filterWhere, incomeTypeWhere, {
+      id: { in: ids },
+    });
+  }
+
+  private async buildStatementIncomeTypeWhere(user: any) {
+    if (await this.hasNationalStatementScope(user)) return {};
+    const canReadPartnerInternal = await this.userMatchesStatementAccessCodes(
+      user,
+      [FIN_ACC_DEPARTMENT_CODE],
+    );
+    return canReadPartnerInternal
+      ? {}
+      : { incomeType: MAP_VIETIN_INCOME_TYPE.SALES };
   }
 
   private normalizeStatementFilters(input: ListMapVietinStatementsDto) {
@@ -2703,11 +2731,18 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
     let withoutOrders = 0;
     let manualProtected = 0;
     let duplicateStatementSkipped = 0;
+    let salesIncome = 0;
+    let partnerInternalIncome = 0;
     for (const raw of rows) {
       if (!raw || typeof raw !== 'object') continue;
       const row = raw as MapTransactionRow;
       const normalized = this.normalizeTransaction(storeCode, row);
       if (!normalized) continue;
+      if (normalized.incomeType === MAP_VIETIN_INCOME_TYPE.PARTNER_INTERNAL) {
+        partnerInternalIncome += 1;
+      } else {
+        salesIncome += 1;
+      }
       const syncFingerprint = this.mapSyncFingerprint(normalized);
       if (
         this.mapSyncFingerprintCacheHit(
@@ -2760,6 +2795,7 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
         transactionNumber: normalized.transactionNumber,
         amount: normalized.amount,
         content: normalized.content,
+        incomeType: normalized.incomeType,
         ...(preservesManualOrders
           ? {}
           : {
@@ -2812,7 +2848,7 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
     if (created > 0 || stats.updated > 0 || duplicateStatementSkipped > 0) {
       const storeLabel = storeCode || 'null';
       this.logger.log(
-        `MAP sync order extraction: store=${storeLabel} created=${created} updated=${stats.updated} unchanged=${stats.unchanged} withOrders=${withOrders} withoutOrders=${withoutOrders} manualProtected=${manualProtected} duplicateStatementSkipped=${duplicateStatementSkipped}`,
+        `MAP sync order extraction: store=${storeLabel} created=${created} updated=${stats.updated} unchanged=${stats.unchanged} withOrders=${withOrders} withoutOrders=${withoutOrders} salesIncome=${salesIncome} partnerInternalIncome=${partnerInternalIncome} manualProtected=${manualProtected} duplicateStatementSkipped=${duplicateStatementSkipped}`,
       );
     }
     return created;
@@ -3398,6 +3434,7 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
       paidAt,
       payerName: payerName || null,
       payerAccount: payerAccount || null,
+      incomeType: classifyMapVietinIncomeType(content),
       rawData: row as Prisma.InputJsonObject,
     };
   }
@@ -3472,6 +3509,7 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
       paidAt: Date | null;
       payerName: string | null;
       payerAccount: string | null;
+      incomeType?: string | null;
       rawData?: Prisma.JsonValue | null;
       firstSeenAt: Date;
       orderTransferRequests?: Array<{
@@ -3490,6 +3528,7 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
     } = {},
   ) {
     const payer = this.resolveStoredPayer(row);
+    const incomeType = this.storedIncomeType(row);
     const orders = row.orders || [];
     const pendingTransferRequest = row.orderTransferRequests?.[0] || null;
     const canUseStatements = options.canUseStatements !== false;
@@ -3559,6 +3598,9 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
       paidAt: row.paidAt,
       payerName: payer.name,
       payerAccount: payer.account,
+      receivingAccount: this.resolveStoredReceivingAccount(row),
+      incomeType,
+      incomeTypeLabel: mapVietinIncomeTypeLabel(incomeType),
       firstSeenAt: row.firstSeenAt,
     };
   }
@@ -3719,6 +3761,38 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
       row.transactionNumber?.trim() ||
       null
     );
+  }
+
+  private resolveStoredReceivingAccount(row: {
+    rawData?: Prisma.JsonValue | null;
+  }) {
+    const rawData = this.rawDataAsMapRow(row.rawData);
+    if (!rawData) return null;
+    return (
+      this.firstNonEmptyText(
+        this.readText(rawData, 'efastCreditAccountNo'),
+        this.readText(rawData, 'efastBankAccountNo'),
+        this.readFirstText(rawData, this.virtualAccountKeys),
+        this.readText(rawData, 'toAccount'),
+        this.readText(rawData, 'toAccountNo'),
+        this.readText(rawData, 'beneficiaryAccount'),
+        this.readText(rawData, 'beneficiaryAccountNo'),
+      ) || null
+    );
+  }
+
+  private storedIncomeType(row: {
+    content?: string | null;
+    incomeType?: string | null;
+  }) {
+    const value = String(row.incomeType || '').trim().toUpperCase();
+    if (
+      value === MAP_VIETIN_INCOME_TYPE.SALES ||
+      value === MAP_VIETIN_INCOME_TYPE.PARTNER_INTERNAL
+    ) {
+      return value;
+    }
+    return classifyMapVietinIncomeType(row.content);
   }
 
   private rawDataAsMapRow(value?: Prisma.JsonValue | null) {
@@ -4405,9 +4479,10 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
       : DEFAULT_GLOBAL_SESSION_TTL_SECONDS;
   }
 
-  private toStatementsCsv(rows: Array<Record<string, any>>) {
+  private toStatementsXlsx(rows: Array<Record<string, any>>) {
     const headers = [
       'Mã showroom',
+      'Loại giao dịch',
       'Mã sao kê',
       'Số tiền',
       'Nội dung chuyển khoản',
@@ -4416,54 +4491,62 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
       'Ngày giao dịch',
       'Người chuyển',
       'Tài khoản chuyển',
+      'Tài khoản nhận',
       'Lần đầu thấy',
       'Nguồn đơn hàng',
       'Người sửa đơn hàng',
       'Thời gian sửa đơn hàng',
     ];
-    const lines = [headers.map((value) => this.csvCell(value)).join(',')];
+    const values: unknown[][] = [headers];
     for (const row of rows) {
       const payer = this.resolveStoredPayer(row);
       const transactionReference = this.resolveStoredTransactionReference(row);
       const statementNumber = transactionReference || row.transactionNumber;
-      lines.push(
-        [
-          this.csvCell(row.storeCode),
-          this.csvExcelTextCell(statementNumber),
-          this.csvAmountCell(row.amount),
-          this.csvCell(row.content),
-          this.csvExcelTextCell((row.orders || []).join('\n'), {
-            preserveLineBreaks: true,
-          }),
-          this.csvCell(row.status),
-          this.csvCell(this.csvVietnamDate(row.paidAt)),
-          this.csvCell(payer.name),
-          this.csvExcelTextCell(payer.account),
-          this.csvCell(this.csvVietnamDate(row.firstSeenAt)),
-          this.csvCell(row.orderSource),
-          this.csvCell(row.orderUpdatedByEmail),
-          this.csvCell(this.csvVietnamDate(row.orderUpdatedAt)),
-        ].join(','),
-      );
+      const incomeType = this.storedIncomeType(row);
+      values.push([
+        this.csvText(row.storeCode),
+        mapVietinIncomeTypeLabel(incomeType),
+        this.csvText(statementNumber),
+        this.csvAmountValue(row.amount),
+        this.csvText(row.content),
+        this.csvText((row.orders || []).join('\n')),
+        this.csvText(row.status),
+        this.csvVietnamDate(row.paidAt),
+        this.csvText(payer.name),
+        this.csvText(payer.account),
+        this.csvText(this.resolveStoredReceivingAccount(row)),
+        this.csvVietnamDate(row.firstSeenAt),
+        this.csvText(row.orderSource),
+        this.csvText(row.orderUpdatedByEmail),
+        this.csvVietnamDate(row.orderUpdatedAt),
+      ]);
     }
-    return `${String.fromCharCode(0xfeff)}${lines.join('\r\n')}`;
+    const worksheet = XLSX.utils.aoa_to_sheet(values);
+    worksheet['!cols'] = [
+      { wch: 14 },
+      { wch: 18 },
+      { wch: 24 },
+      { wch: 16 },
+      { wch: 52 },
+      { wch: 30 },
+      { wch: 16 },
+      { wch: 22 },
+      { wch: 28 },
+      { wch: 24 },
+      { wch: 24 },
+      { wch: 22 },
+      { wch: 18 },
+      { wch: 28 },
+      { wch: 22 },
+    ];
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Sao kê');
+    return XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' });
   }
 
-  private csvCell(value: unknown) {
-    return safeCsvCell(value);
-  }
-
-  private csvExcelTextCell(
-    value: unknown,
-    options: { preserveLineBreaks?: boolean } = {},
-  ) {
-    return safeCsvExcelTextCell(value, options);
-  }
-
-  private csvAmountCell(value: unknown) {
+  private csvAmountValue(value: unknown) {
     const amount = Number(value);
-    if (!Number.isFinite(amount)) return '';
-    return String(Math.trunc(amount));
+    return Number.isFinite(amount) ? Math.trunc(amount) : null;
   }
 
   private csvVietnamDate(value: unknown) {
