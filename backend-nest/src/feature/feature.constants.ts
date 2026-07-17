@@ -25,6 +25,7 @@ export const FEATURE_KEYS = {
   PAYMENT_SPEAKER: 'PAYMENT_SPEAKER',
   FEEDBACK: 'FEEDBACK',
   SALES_REPORT: 'SALES_REPORT',
+  CONTRACT_APPENDIX: 'CONTRACT_APPENDIX',
   QUICK_ACTIONS: 'QUICK_ACTIONS',
   QUICK_ACTION_FIFO: 'QUICK_ACTION_FIFO',
   QUICK_ACTION_VIETQR: 'QUICK_ACTION_VIETQR',
@@ -211,6 +212,12 @@ export const DEFAULT_FEATURE_DEFINITIONS = [
     displayName: 'Báo cáo',
     description: 'Gửi báo cáo bán hàng mua hàng và chưa mua hàng',
     sortOrder: 620,
+  },
+  {
+    code: FEATURE_KEYS.CONTRACT_APPENDIX,
+    displayName: 'Phụ lục hợp đồng',
+    description: 'Tạo và sao chép bảng hàng hóa phụ lục hợp đồng',
+    sortOrder: 625,
   },
   {
     code: FEATURE_KEYS.QUICK_ACTIONS,

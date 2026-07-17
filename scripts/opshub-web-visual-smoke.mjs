@@ -80,6 +80,7 @@ const defaultAuthenticatedRoutes = parseRoutes(
       '/feedback',
       '/reports',
       '/sales-reports',
+      '/contract-appendix',
       '/sales-reports/purchased',
       '/sales-reports/not-purchased',
       '/sales-reports/follow-up-cases',

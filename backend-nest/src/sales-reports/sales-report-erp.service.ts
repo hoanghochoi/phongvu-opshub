@@ -180,6 +180,37 @@ const DEFAULT_ERP_SCOPE =
 export class SalesReportErpService {
   private readonly logger = new Logger(SalesReportErpService.name);
   private cachedToken: CachedToken | null = null;
+  private tokenLoginPromise: Promise<CachedToken> | null = null;
+
+  /**
+   * Runs an authenticated request against a configured ERP API origin.
+   *
+   * Contract Appendix uses this helper for PPM so the app keeps one ERP token
+   * cache and one login flow. A rejected token is refreshed at most once.
+   */
+  async authorizedRequest(
+    urlInput: string,
+    init: RequestInit = {},
+  ): Promise<Response> {
+    const url = this.requireAllowedApiUrl(urlInput);
+    const accessToken = await this.getAccessToken();
+    let response = await this.fetchWithTimeout(
+      url,
+      this.withAuthorization(init, accessToken),
+    );
+    if (response.status !== 401) return response;
+
+    this.logger.warn(
+      `ERP authorized request rejected token; refreshing once: host=${new URL(url).hostname}`,
+    );
+    this.invalidateCachedToken(accessToken);
+    const refreshedToken = await this.getAccessToken();
+    response = await this.fetchWithTimeout(
+      url,
+      this.withAuthorization(init, refreshedToken),
+    );
+    return response;
+  }
 
   async lookupOrder(orderCodeInput: string, storeCode?: string | null) {
     const orderCode = this.normalizeOrderCode(orderCodeInput);
@@ -1192,9 +1223,21 @@ export class SalesReportErpService {
         'Chưa cấu hình tài khoản ERP để kiểm tra đơn hàng.',
       );
     }
-    const token = await this.loginWithPassword(username, password);
-    this.cachedToken = token;
-    return token.accessToken;
+    if (this.tokenLoginPromise) {
+      return (await this.tokenLoginPromise).accessToken;
+    }
+
+    const loginPromise = this.loginWithPassword(username, password);
+    this.tokenLoginPromise = loginPromise;
+    try {
+      const token = await loginPromise;
+      this.cachedToken = token;
+      return token.accessToken;
+    } finally {
+      if (this.tokenLoginPromise === loginPromise) {
+        this.tokenLoginPromise = null;
+      }
+    }
   }
 
   private async loginWithPassword(
@@ -1637,6 +1680,53 @@ export class SalesReportErpService {
 
   private env(key: string, fallback: string) {
     return process.env[key]?.trim() || fallback;
+  }
+
+  private withAuthorization(init: RequestInit, accessToken: string) {
+    const headers = new Headers(init.headers);
+    headers.set('Authorization', `Bearer ${accessToken}`);
+    return {
+      ...init,
+      headers,
+    } satisfies RequestInit;
+  }
+
+  private invalidateCachedToken(accessToken: string) {
+    if (this.cachedToken?.accessToken === accessToken) {
+      this.cachedToken = null;
+    }
+  }
+
+  private requireAllowedApiUrl(urlInput: string) {
+    let url: URL;
+    try {
+      url = new URL(urlInput);
+    } catch {
+      throw new ServiceUnavailableException(
+        'Địa chỉ kết nối ERP chưa được cấu hình hợp lệ.',
+      );
+    }
+
+    const allowedOrigins = [
+      this.env('ERP_STAFF_BFF_BASE_URL', 'https://staff-bff.tekoapis.com'),
+      this.env('ERP_LISTING_BASE_URL', 'https://listing.tekoapis.com'),
+      this.env('ERP_PPM_BASE_URL', 'https://ppm.tekoapis.com/api'),
+    ].flatMap((value) => {
+      try {
+        return [new URL(value).origin];
+      } catch {
+        return [];
+      }
+    });
+    if (!allowedOrigins.includes(url.origin)) {
+      this.logger.warn(
+        `ERP authorized request blocked unexpected origin: host=${url.hostname || 'invalid'}`,
+      );
+      throw new ServiceUnavailableException(
+        'Địa chỉ kết nối ERP chưa được cấu hình hợp lệ.',
+      );
+    }
+    return url.toString();
   }
 
   private base64Url(buffer: Buffer) {

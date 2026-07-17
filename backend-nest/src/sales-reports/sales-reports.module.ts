@@ -19,6 +19,10 @@ import { SalesReportFollowUpsService } from './sales-report-follow-ups.service';
     SalesReportsService,
     SalesReportFollowUpsService,
   ],
-  exports: [SalesReportsService, SalesReportsBigQuerySyncService],
+  exports: [
+    SalesReportErpService,
+    SalesReportsService,
+    SalesReportsBigQuerySyncService,
+  ],
 })
 export class SalesReportsModule {}

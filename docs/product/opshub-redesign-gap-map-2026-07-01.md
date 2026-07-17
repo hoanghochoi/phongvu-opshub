@@ -394,11 +394,11 @@ test\design_system_migration_guard_test.dart` (7 tests),
   biến môi trường. Script seed session web an toàn, rồi chụp screenshot ignored
   cho desktop `1440x900` và mobile `390x844`. Smoke live mặc định kiểm 3
   public routes (`/login`, `/register`, `/forgot-password`), 1 pending auth
-  route bằng tokenless cached session (`/assignment-pending`) và 36
+  route bằng tokenless cached session (`/assignment-pending`) và 39
   authenticated shell routes trong `AppRouter`
   (`/home`, `/operations`, `/profile`, các admin workspaces, FIFO, BH/SC, VietQR,
   Payment Monitor web fallback, Sao kê, Cấn trừ, Góp ý, Report/Sales Report,
-  Help Content admin và Settings), tổng 80 route/viewport checks: không redirect sai route, không
+  Help Content admin, Phụ lục hợp đồng và Settings), tổng 86 route/viewport checks: không redirect sai route, không
   console/page error, không visible horizontal overflow. Script bỏ qua các node
   semantics nội bộ của Flutter như `flt-announcement-*` và paragraph
   accessibility khổng lồ vì chúng không tạo lỗi layout nhìn thấy.

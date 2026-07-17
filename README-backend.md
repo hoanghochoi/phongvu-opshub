@@ -171,6 +171,16 @@ Expected responses:
   per day at 07:00 Vietnam time (UTC+7) when sync is enabled.
   Admins with `ADMIN_SALES_REPORTS` can manually trigger the same sync with
   `POST /api/sales-reports/admin/bigquery-sync`.
+- Phụ lục hợp đồng tái sử dụng `ERP_USERNAME`/`ERP_PASSWORD`, token cache và
+  order lookup hiện có của báo cáo bán hàng; không cấu hình tài khoản hoặc token
+  ERP thứ hai. Cấu hình PPM chỉ bổ sung endpoint thuế:
+  `ERP_PPM_BASE_URL=https://ppm.tekoapis.com/api`,
+  `ERP_PPM_SELLER_ID=1`,
+  `ERP_PPM_TERMINAL_CODE=49180_PRICE_0001`. API gồm
+  `POST /contract-appendices/preview`, `POST /contract-appendices`,
+  `GET /contract-appendices` và `GET /contract-appendices/:id`; mọi route cần
+  feature `CONTRACT_APPENDIX`. Snapshot là cá nhân, bất biến và tự hết hạn sau
+  30 ngày.
 - For n8n VietQR image/status integration, set `VIETQR_EXTERNAL_API_KEY` and
   send it from n8n with `x-opshub-vietqr-key` or `Authorization: Bearer <key>`.
   `GET/POST /vietqr/n8n/status` accepts `paymentId`/`id`; `check=true` compares

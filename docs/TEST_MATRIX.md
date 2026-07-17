@@ -58,6 +58,21 @@ This file maps product behavior to proof. Existing flows are marked
 
 Recent focused evidence:
 
+- `CONTRACT-APPENDIX-001`, 2026-07-17: triển khai source-of-truth từ
+  `SalesReportErpService.lookupOrder`, chỉ dùng item `finalSellPrice`; adapter
+  PPM dùng cùng tài khoản/token cache ERP, terminal `49180_PRICE_0001`, batch
+  50 SKU, Redis cache 5 phút và miss cache 30 giây. Backend tính integer VND,
+  phân biệt VAT 0% với KCT qua tax metadata, hỗ trợ thuế nhập tay có cờ, quote
+  conflict, snapshot cá nhân 30 ngày và tiền bằng chữ. Proof đạt: Prisma
+  format/validate/generate, Nest build, 33 test trọng tâm và full 79 suite / 760
+  test. Flutter proof đạt `flutter pub get`, focused guard/core/screen (28 test),
+  `flutter analyze --no-pub`, full Flutter (558 passed, 3 skipped), Windows
+  release, web release và Android staging debug build. Live PPM CLI qua auth
+  dùng chung trả SKU `250902982` là `8%` (`vatRateBps=800`); migration scratch
+  chưa chạy vì Docker Desktop Linux engine chưa khởi động. Paste thật vào Word
+  Windows và staging UI/API smoke vẫn là proof sau deploy; bằng chứng UI ERP
+  trước implementation cũng xác nhận SKU hiển thị 8%.
+
 - `SALES-REPORT-001` / `SALES-REPORT-002`, 2026-07-17: biểu mẫu khách chưa
   mua đã bỏ ô Zalo tự do; số điện thoại chỉ nhận đúng 10 chữ số bắt đầu bằng
   `0` hoặc để trống. Hai kênh `ZALO_PERSONAL` và `ZALO_OA` được chọn độc lập,
@@ -1551,11 +1566,11 @@ FIFO Menu` now has bottom nav active on `Tác vụ`, `Mobile v2 / Profile` has
   credentials, seeds the web session without committing secrets, captures
   ignored screenshots, and checks route hash, console/page errors, rendered
   Flutter viewport size, and visible horizontal overflow while ignoring Flutter
-  semantics-only overflow nodes. The default live staging smoke now runs 80
+  semantics-only overflow nodes. The default live staging smoke now runs 86
   checks across desktop `1440x900` and mobile `390x844`: 3 public routes
   (`/login`, `/register`, `/forgot-password`), 1 pending auth route
   (`/assignment-pending`) rendered from a tokenless cached pending session, plus
-  all 36 authenticated shell routes in `AppRouter`, including Home,
+  all 39 authenticated shell routes in `AppRouter`, including Home,
   Operations, Profile, Admin, FIFO, BH/SC, VietQR, Payment Monitor web
   fallback, Sao kê, Cấn trừ, Góp ý, Report/Sales Report, Help Content admin,
   and Settings.

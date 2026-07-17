@@ -14,6 +14,7 @@ update them when behavior changes.
 | `feedback.md` | Staff suggestions and issue reports |
 | `help.md` | Public staff help page, Markdown content, images, and roadmap |
 | `vietqr.md` | Manual bank-transfer QR, payment monitor, and MAP bank statement reconciliation |
+| `contract-appendix.md` | ERP-backed contract appendix, VAT calculation, 30-day history, and Word clipboard |
 | `profile-admin.md` | Profile, admin-assigned organization nodes, and user administration |
 | `backend-platform.md` | Backend services, infra, deployment contracts |
 | `windows-distribution.md` | Internal Windows signing, trusted certificate deployment, and download checklist |

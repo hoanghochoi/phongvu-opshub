@@ -104,6 +104,11 @@ class ApiConstants {
   static const String offsetAdjustmentsExportEndpoint =
       '/offset-adjustments/export';
   static const String salesReportsEndpoint = '/sales-reports';
+  static const String contractAppendicesEndpoint = '/contract-appendices';
+  static const String contractAppendicesPreviewEndpoint =
+      '/contract-appendices/preview';
+  static String contractAppendixEndpoint(String id) =>
+      '/contract-appendices/$id';
   static const String salesReportsCategoriesEndpoint =
       '/sales-reports/categories';
   static const String salesReportsAdminCategoriesEndpoint =

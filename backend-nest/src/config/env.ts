@@ -55,6 +55,7 @@ const PRODUCTION_EXTERNAL_HOSTS: Record<string, Set<string>> = {
   ERP_OAUTH_BASE_URL: new Set(['oauth-merchant.phongvu.vn']),
   ERP_STAFF_BFF_BASE_URL: new Set(['staff-bff.tekoapis.com']),
   ERP_LISTING_BASE_URL: new Set(['listing.tekoapis.com']),
+  ERP_PPM_BASE_URL: new Set(['ppm.tekoapis.com']),
 };
 
 const LOCAL_ORIGIN_HOSTS = new Set(['localhost', '127.0.0.1', '::1']);

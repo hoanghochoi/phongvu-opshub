@@ -333,6 +333,7 @@ model User {
   nodeFeatureAssignmentsAssigned OrganizationNodeFeatureAssignment[] @relation("NodeFeatureAssignedBy")
   notificationReadReceipts       AppNotificationReadReceipt[]
   quickActionLinksUpdated        QuickActionLink[]                   @relation("QuickActionLinkUpdatedBy")
+  contractAppendices             ContractAppendix[]
 
   @@index([departmentCode])
   @@index([jobRoleCode])
@@ -1356,4 +1357,58 @@ model FifoLog {
 enum FifoLogType {
   FIFO_CHECK
   FIFO_SORT
+}
+
+// ============================================================
+// CONTRACT APPENDIX (Phụ lục hợp đồng - lịch sử cá nhân 30 ngày)
+// ============================================================
+model ContractAppendix {
+  id                   String                 @id @default(uuid())
+  userId               String
+  user                 User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orderCode            String
+  terminalCode         String
+  totalBeforeVat       BigInt
+  totalVatAmount       BigInt
+  totalAfterVat        BigInt
+  amountInWords        String
+  manualTaxItemCount   Int                    @default(0)
+  sourceOrderFetchedAt DateTime
+  quoteFingerprint     String
+  createdAt            DateTime               @default(now())
+  expiresAt            DateTime
+  items                ContractAppendixItem[]
+
+  @@index([userId, createdAt])
+  @@index([userId, orderCode, createdAt])
+  @@index([expiresAt])
+  @@map("contract_appendices")
+}
+
+model ContractAppendixItem {
+  id                 String           @id @default(uuid())
+  contractAppendixId String
+  contractAppendix   ContractAppendix @relation(fields: [contractAppendixId], references: [id], onDelete: Cascade)
+  position           Int
+  sourceLineKey      String
+  sku                String
+  sellerSku          String?
+  productName        String
+  quantity           Int
+  unit               String
+  finalSellPrice     BigInt
+  unitPriceBeforeVat BigInt
+  vatRateBps         Int
+  taxCode            String?
+  taxLabel           String?
+  taxSource          String
+  taxFetchedAt       DateTime?
+  lineBeforeVat      BigInt
+  lineVatAmount      BigInt
+  lineAfterVat       BigInt
+
+  @@unique([contractAppendixId, position])
+  @@index([contractAppendixId])
+  @@index([sku])
+  @@map("contract_appendix_items")
 }

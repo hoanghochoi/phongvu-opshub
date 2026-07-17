@@ -7,6 +7,10 @@ import '../../features/auth/domain/entities/user.dart';
 import '../../features/bank_statement/data/bank_statement_repository.dart';
 import '../../features/bank_statement/presentation/providers/bank_statement_provider.dart';
 import '../../features/bank_statement/presentation/screens/bank_statement_screen.dart';
+import '../../features/contract_appendix/data/contract_appendix_clipboard.dart';
+import '../../features/contract_appendix/data/contract_appendix_repository.dart';
+import '../../features/contract_appendix/presentation/providers/contract_appendix_provider.dart';
+import '../../features/contract_appendix/presentation/screens/contract_appendix_screen.dart';
 import '../../features/offset_adjustment/data/offset_adjustment_repository.dart';
 import '../../features/offset_adjustment/presentation/providers/offset_adjustment_provider.dart';
 import '../../features/offset_adjustment/presentation/screens/offset_adjustment_screen.dart';
@@ -407,6 +411,11 @@ class AppRouter {
                   _noTransitionPage(state, buildSalesReportHubRoute()),
             ),
             GoRoute(
+              path: '/contract-appendix',
+              pageBuilder: (context, state) =>
+                  _noTransitionPage(state, buildContractAppendixRoute()),
+            ),
+            GoRoute(
               path: '/sales-reports/purchased',
               pageBuilder: (context, state) => _noTransitionPage(
                 state,
@@ -475,6 +484,7 @@ class AppRouter {
       '/feedback' => 'FEEDBACK',
       '/reports' => 'SALES_REPORT',
       '/sales-reports' => 'SALES_REPORT',
+      '/contract-appendix' => 'CONTRACT_APPENDIX',
       '/sales-reports/purchased' => 'SALES_REPORT',
       '/sales-reports/not-purchased' => 'SALES_REPORT',
       '/sales-reports/follow-up-cases' => 'SALES_REPORT_FOLLOW_UP',
@@ -533,6 +543,21 @@ class AppRouter {
       create: (_) =>
           SalesReportProvider(repository ?? SalesReportRepository(ApiClient())),
       child: _selectable(const SalesReportScreen()),
+    );
+  }
+
+  @visibleForTesting
+  static Widget buildContractAppendixRoute({
+    ContractAppendixDataSource? dataSource,
+    ContractAppendixClipboardWriter? clipboardWriter,
+  }) {
+    return ChangeNotifierProvider(
+      create: (_) => ContractAppendixProvider(
+        dataSource ?? ContractAppendixRepository(ApiClient()),
+        clipboardWriter:
+            clipboardWriter ?? const SuperClipboardContractAppendixWriter(),
+      ),
+      child: _selectable(const ContractAppendixScreen()),
     );
   }
 

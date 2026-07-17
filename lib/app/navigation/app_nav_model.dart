@@ -128,6 +128,15 @@ class AppNavModel {
       group: AppNavGroup.sales,
     ),
     AppNavDestination(
+      id: 'contractAppendix',
+      label: 'Phụ lục hợp đồng',
+      description: 'Tạo và sao chép bảng hàng hóa hợp đồng',
+      route: '/contract-appendix',
+      icon: Icons.receipt_long_outlined,
+      color: AppColors.indigo600,
+      group: AppNavGroup.sales,
+    ),
+    AppNavDestination(
       id: 'notPurchasedCustomers',
       label: 'Chăm sóc lại',
       description: 'Theo dõi và chăm sóc lại khách hàng',
@@ -324,6 +333,7 @@ class AppNavModel {
       'statement' => user?.canUseBankStatements == true,
       'offset' => user?.canUseOffsetAdjustments == true,
       'sales' => user?.canUseFeature('SALES_REPORT') == true,
+      'contractAppendix' => user?.canUseFeature('CONTRACT_APPENDIX') == true,
       'notPurchasedCustomers' =>
         user?.canUseFeature('SALES_REPORT') == true ||
             user?.canUseFeature('ADMIN_SALES_REPORTS') == true,

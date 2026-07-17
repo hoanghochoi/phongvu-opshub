@@ -8,7 +8,8 @@ void main() {
     expect(
       appSource,
       contains('AppGlobalSelectionScope('),
-      reason: 'MaterialApp.builder must keep route and overlay text selectable.',
+      reason:
+          'MaterialApp.builder must keep route and overlay text selectable.',
     );
 
     final blockedDismissal = <String>[];
@@ -115,35 +116,32 @@ void main() {
     final appInputsSource = File(
       'lib/app/widgets/app_inputs.dart',
     ).readAsStringSync();
-    final editableInputSource = appInputsSource.split(
-      'class AppReadOnlyField',
-    ).first;
+    final editableInputSource = appInputsSource
+        .split('class AppReadOnlyField')
+        .first;
     expect(
-      RegExp(r'\b(?:TextField|TextFormField)\(')
-          .allMatches(editableInputSource)
-          .length,
+      RegExp(
+        r'\b(?:TextField|TextFormField)\(',
+      ).allMatches(editableInputSource).length,
       2,
     );
     expect(
-      RegExp(r'SelectionContainer\.disabled\(')
-          .allMatches(editableInputSource)
-          .length,
+      RegExp(
+        r'SelectionContainer\.disabled\(',
+      ).allMatches(editableInputSource).length,
       2,
     );
     expect(
-      RegExp(r'contextMenuBuilder:\s*appTextInputContextMenuBuilder\(\)')
-          .allMatches(editableInputSource)
-          .length,
+      RegExp(
+        r'contextMenuBuilder:\s*appTextInputContextMenuBuilder\(\)',
+      ).allMatches(editableInputSource).length,
       2,
     );
 
     final comboboxSource = File(
       'lib/app/widgets/app_combobox.dart',
     ).readAsStringSync();
-    expect(
-      RegExp(r'\bTextField\(').allMatches(comboboxSource).length,
-      1,
-    );
+    expect(RegExp(r'\bTextField\(').allMatches(comboboxSource).length, 1);
     expect(comboboxSource, contains('SelectionContainer.disabled('));
     expect(
       comboboxSource,
@@ -931,8 +929,8 @@ void main() {
               pendingSmokeRoutes.length +
               authenticatedSmokeRoutes.length) *
           2,
-      84,
-      reason: 'Default smoke should stay at 42 routes across 2 viewports.',
+      86,
+      reason: 'Default smoke should stay at 43 routes across 2 viewports.',
     );
     expect(smokeSource, contains('readPngVisualStats'));
     expect(smokeSource, contains('uniqueSampledColors < 16'));
@@ -949,10 +947,10 @@ void main() {
     expect(smokeSource, contains('OPSHUB_VISUAL_SMOKE_WARRANTY_RECEIPT'));
     expect(smokeSource, contains('GET /warranties'));
     expect(smokeSource, contains('skippedRoutes'));
-    expect(gapMap, contains('tổng 80 route/viewport checks'));
-    expect(gapMap, contains('36\n  authenticated shell routes'));
-    expect(testMatrix, contains('default live staging smoke now runs 80'));
-    expect(testMatrix, contains('all 36 authenticated shell routes'));
+    expect(gapMap, contains('tổng 86 route/viewport checks'));
+    expect(gapMap, contains('39\n  authenticated shell routes'));
+    expect(testMatrix, contains('default live staging smoke now runs 86'));
+    expect(testMatrix, contains('all 39 authenticated shell routes'));
   });
 }
 

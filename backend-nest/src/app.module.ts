@@ -33,6 +33,7 @@ import { UserAwareThrottlerGuard } from './common/user-aware-throttler.guard';
 import { SalesTargetsModule } from './sales-targets/sales-targets.module';
 import { QuickActionsModule } from './quick-actions/quick-actions.module';
 import { NotificationFeedModule } from './notification-feed/notification-feed.module';
+import { ContractAppendicesModule } from './contract-appendices/contract-appendices.module';
 
 export const GLOBAL_API_THROTTLER_OPTIONS = {
   throttlers: [
@@ -74,6 +75,7 @@ export const GLOBAL_API_THROTTLER_OPTIONS = {
     SalesReportsModule,
     SalesTargetsModule,
     QuickActionsModule,
+    ContractAppendicesModule,
     FifoModule,
   ],
   controllers: [AppController],
