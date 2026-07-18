@@ -395,6 +395,15 @@ void main() {
     );
     expect(find.text('5.000.000'), findsOneWidget);
 
+    final customerNeedField = _textFormFieldByParentKey(
+      'sales-report-customer-need-field',
+    );
+    await tester.enterText(customerNeedField, List.filled(1001, 'N').join());
+    expect(
+      tester.widget<TextFormField>(customerNeedField).controller?.text.length,
+      1000,
+    );
+
     final header = find.byKey(const Key('sales-report-form-header'));
     final headerTop = tester.getTopLeft(header).dy;
     final dialogScroll = find.descendant(

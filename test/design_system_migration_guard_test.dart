@@ -948,7 +948,7 @@ void main() {
     expect(smokeSource, contains('GET /warranties'));
     expect(smokeSource, contains('skippedRoutes'));
     expect(gapMap, contains('tổng 86 route/viewport checks'));
-    expect(gapMap, contains('39\n  authenticated shell routes'));
+    expect(gapMap, contains(RegExp(r'39\r?\n  authenticated shell routes')));
     expect(testMatrix, contains('default live staging smoke now runs 86'));
     expect(testMatrix, contains('all 39 authenticated shell routes'));
   });

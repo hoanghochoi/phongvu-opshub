@@ -101,6 +101,8 @@ nằm rời ở Google Form và có thể dùng cho dashboard sau này.
   `0` + 9 chữ số. Hai checkbox `Zalo cá nhân` và `Zalo OA` được lưu độc lập
   cùng kênh `PHONE` suy ra từ số hợp lệ trong `customerContactChannels` để các
   chức năng và báo cáo sau dùng lại.
+- Ô `Khách hàng tìm sản phẩm gì?` trên modal báo cáo nhận tối đa 1000 ký tự và
+  backend giữ nguyên toàn bộ nội dung trong giới hạn này.
 - Cả 2 form có tick `Có nhu cầu trả góp`. Khi tick, sale phải chọn một hoặc
   nhiều đối tác trong list: `VNPAY - POS`, `PAYOO - POS`,
   `HomeCredit - CTTC`, `Shinhan - CTTC`, `HDSaison - CTTC`,
@@ -124,8 +126,8 @@ nằm rời ở Google Form và có thể dùng cho dashboard sau này.
   lượng theo type laptop/PC/PC ráp/Apple/màn hình/máy in/phụ kiện/bảo hiểm mở
   rộng; lý do trả góp nằm ở cột cuối cùng của file `Doanh số`;
   `Trả góp` chỉ lấy các row có `installmentNeed = true`, gồm các cột tiếng Việt
-  `Ngày báo cáo`, `Email người báo cáo`, `Số tiền vay trả góp`,
-  `Đối tác trả góp`, `Kết quả duyệt hồ sơ`, `Loại báo cáo`,
+  `Ngày báo cáo`, `Email người báo cáo`, `Đơn hàng`, `Giá trị đơn hàng`,
+  `Số tiền vay trả góp`, `Đối tác trả góp`, `Kết quả duyệt hồ sơ`, `Loại báo cáo`,
   `Phương thức thanh toán cuối cùng`, `Lý do không trả góp`. Với row
   `NOT_PURCHASED`, phương thức thanh toán cuối cùng là `Chưa mua hàng`; chỉ
   row `PURCHASED` mới phân loại `Trả góp` hoặc `Trả thẳng` theo ERP method.

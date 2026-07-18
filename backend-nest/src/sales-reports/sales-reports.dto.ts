@@ -97,6 +97,8 @@ export const CUSTOMER_CONTACT_CHANNEL_CODES = [
   'ZALO_OA',
 ] as const;
 
+export const CUSTOMER_NEED_MAX_LENGTH = 1000;
+
 export const PROMOTION_CODES = [
   'EXAM_SCORE_EXCHANGE',
   'STUDENT',
@@ -184,7 +186,7 @@ export class CreateSalesReportDto {
 
   @IsOptional()
   @IsString()
-  @MaxLength(500)
+  @MaxLength(CUSTOMER_NEED_MAX_LENGTH)
   customerNeed?: string;
 
   @IsString()

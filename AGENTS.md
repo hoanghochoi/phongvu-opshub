@@ -96,8 +96,22 @@ Read in this order:
 5. `docs/TEST_MATRIX.md` for required proof and known gaps.
 6. `docs/decisions/` for durable tradeoffs.
 7. `scripts/harness query matrix` for the structured durable-layer view when
-   `harness.db` has been initialized. On Windows PowerShell, run it as
-   `bash scripts/harness query matrix`.
+   `harness.db` has been initialized. On Windows PowerShell, define the Git for
+   Windows login shell once and use it for every Harness command in this guide;
+   do not rely on whichever `bash.exe` happens to be first on `PATH`:
+
+   ```powershell
+   $gitBash = "${env:ProgramFiles}\Git\bin\bash.exe"
+   & $gitBash --login scripts/harness query matrix
+   ```
+
+   Codex `Agent environment = Windows native` keeps this Git Bash entrypoint
+   even when the integrated terminal shell is WSL. From a manually opened WSL
+   terminal, read-only `doctor`, `query`, and `audit` commands may use
+   `bash scripts/harness ...` from the mounted repo. Stored proof commands are
+   not automatically WSL-safe; keep mutation and proof gates on the
+   Windows-native Git Bash route unless their commands use a cross-platform
+   wrapper such as `bash scripts/validate ...`.
 8. Runtime code under `lib/`, `backend-nest/`, `backend-go/`, and `deploy/`.
 
 ## Project Surfaces
@@ -128,9 +142,54 @@ Every implementation request goes through intake first:
    `scripts/harness backlog add --kind phase_followup|product_followup|tech_debt`
    before reporting done.
 8. Keep harness framework files and runtime state local-only unless the user
-   explicitly asks otherwise; do not stage or push ignored harness paths such as
-   `docs/HARNESS*.md`, `docs/CONTEXT_RULES.md`, `docs/TRACE_SPEC.md`,
-   `scripts/harness`, `scripts/schema/`, `harness.db`, or `.harness-backup/`.
+   explicitly asks otherwise. Treat `.gitignore` as the canonical boundary and
+   run `git check-ignore -v <path>` before staging a Harness artifact. Tracked
+   policy files such as this guide, `docs/FEATURE_INTAKE.md`, and accepted ADRs
+   remain separate from the ignored local Harness framework and state.
+
+## Existing Runtime Regression Gate
+
+For normal or high-risk work that changes runtime or verification code, protect
+existing consumers before implementing the new behavior:
+
+1. Record the intake checkpoint before editing. It captures branch, HEAD, paths,
+   worktree blobs, staged/index state, Git-normalized file modes, and deletions
+   twice before publication. If the two snapshots differ, no intake checkpoint
+   is kept.
+2. Give the affected story repo-relative `path_contracts` and an
+   `affected_verify_command`. A shared producer must map to every old consumer
+   whose behavior can change, even when that consumer's files are untouched.
+3. Before editing on Windows PowerShell, run
+   `& $gitBash --login scripts/harness story verify-affected --intake <id> --strict`
+   to inspect the path-to-contract plan. Treat an unmatched runtime or
+   verification path as a missing contract, not as permission to skip proof.
+   Deleting or weakening an existing regression test is itself
+   verification-sensitive. A rename is evaluated as delete plus add, so both
+   the old and new paths must map to protected contracts.
+4. Before reporting done, run
+   `& $gitBash --login scripts/harness story verify-affected --intake <id> --run --record --strict`,
+   then `& $gitBash --login scripts/harness story verify-affected --intake <id> --check --strict`.
+   The final check must happen after every source, test, documentation, contract,
+   and Harness edit that participates in the fingerprint.
+   Do not switch the execution backend between checkpoint and final check. In
+   particular, a manual WSL shell is not equivalent for arbitrary stored
+   `flutter`, `npm`, `npx`, or `go` commands; run those gates through the
+   Windows-native agent/Git Bash or a reviewed cross-platform wrapper.
+5. Never reuse a pass from a different changeset fingerprint. If HEAD or the
+   captured worktree/index state, guard source, path contracts, verification
+   commands, story status, or intake checkpoint changes while proof is running,
+   the result is stale and must not be recorded; re-inspect and rerun.
+
+The final report must name the protected existing consumers that were actually
+tested; a generic “tests passed” statement is not affected-runtime evidence.
+If another task advances HEAD or edits the same workspace, pause new mutations
+until the affected plan has been recomputed from the updated state.
+
+For shared auth/session contracts, route/security policy, throttling, shared UI
+shells, organization scope, migrations, background workers, timezone logic, and
+runtime artifacts, focused old-consumer proof is mandatory in addition to tests
+for the new module. Do not reset, clean, or overwrite another task's dirty files
+to obtain a clean gate.
 
 ## Validation Ladder
 

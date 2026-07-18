@@ -27,6 +27,7 @@ import '../widgets/sales_report_workspace_header.dart';
 
 const _typePurchased = 'PURCHASED';
 const _typeNotPurchased = 'NOT_PURCHASED';
+const _customerNeedMaxLength = 1000;
 const _pendingPaymentOrderMessage =
     'Đơn chưa thanh toán, vui lòng vào spos bấm Thanh toán lại hoặc Hủy đơn.';
 
@@ -2266,7 +2267,7 @@ class _CustomerSection extends StatelessWidget {
             icon: Icons.search_outlined,
             minLines: 2,
             maxLines: 4,
-            maxLength: 500,
+            maxLength: _customerNeedMaxLength,
             alignLabelWithHint: true,
             validator: (value) => (value ?? '').trim().isEmpty
                 ? 'Vui lòng nhập nhu cầu khách hàng'

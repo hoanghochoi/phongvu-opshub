@@ -35,6 +35,7 @@ import {
   APP_DOWNLOAD_REASON_CODES,
   CreateSalesReportDto,
   CUSTOMER_CONTACT_CHANNEL_CODES,
+  CUSTOMER_NEED_MAX_LENGTH,
   CUSTOMER_TYPE_CODES,
   ExportSalesReportsDto,
   EXPERIENCE_REASON_CODES,
@@ -1874,7 +1875,7 @@ export class SalesReportsService implements OnApplicationBootstrap {
         customerContactChannels,
         customerZaloContact: legacyCustomerZaloContact,
         customerNeed:
-          this.optionalText(body.customerNeed, 500) ??
+          this.optionalText(body.customerNeed, CUSTOMER_NEED_MAX_LENGTH) ??
           erpOrder?.customerNeed ??
           null,
         categoryGroupId: primaryCategory.id,
@@ -3142,7 +3143,7 @@ export class SalesReportsService implements OnApplicationBootstrap {
     if (!this.optionalText(body.customerName, 120)) {
       throw new BadRequestException('Vui lòng nhập tên khách hàng.');
     }
-    if (!this.optionalText(body.customerNeed, 500)) {
+    if (!this.optionalText(body.customerNeed, CUSTOMER_NEED_MAX_LENGTH)) {
       throw new BadRequestException('Vui lòng nhập nhu cầu khách hàng.');
     }
     this.requireAnswer(
@@ -4345,6 +4346,8 @@ export class SalesReportsService implements OnApplicationBootstrap {
     const headers = [
       'Ngày báo cáo',
       'Email người báo cáo',
+      'Đơn hàng',
+      'Giá trị đơn hàng',
       'Số tiền vay trả góp',
       'Đối tác trả góp',
       'Kết quả duyệt hồ sơ',
@@ -4360,6 +4363,8 @@ export class SalesReportsService implements OnApplicationBootstrap {
       data.push([
         this.workbookText(this.csvVietnamDateTime(row.submittedAt)),
         this.workbookText(row.createdByEmail),
+        this.workbookText(row.orderCode),
+        this.workbookNumber(row.erpGrandTotal),
         this.workbookNumber(row.installmentLoanAmount),
         this.workbookText(partnerCodes.join('; ')),
         this.workbookText(

@@ -213,7 +213,8 @@ phí`.
   trường bắt buộc. `Tên khách hàng` là trường bắt buộc trên cả 2 báo cáo; với
   báo cáo mua hàng app tự điền nếu ERP trả về tên khách, sale vẫn có thể nhập
   khi ERP không có dữ liệu. Các câu hỏi hành vi mặc định là chưa chọn, không tự
-  mặc định `Có`.
+  mặc định `Có`. Ô `Khách hàng tìm sản phẩm gì?` nhận tối đa 1000 ký tự; UI và
+  backend cùng áp dụng giới hạn này để không cắt nội dung hợp lệ khi lưu.
 - Riêng form `Chưa mua hàng` không còn ô nhập Zalo dạng text. Số điện thoại là
   tùy chọn nhưng khi có phải đúng `0` + 9 chữ số; UI chỉ nhận chữ số, giới hạn
   10 ký tự và backend/DB kiểm tra lại cùng contract. Ngay dưới số điện thoại có
@@ -287,9 +288,11 @@ phí`.
   PC, PC ráp, Apple chỉ tính Macbook/iPhone/iPad, màn hình, máy in, phụ kiện,
   dịch vụ bảo hiểm; các lý do khách không trả góp nằm ở cột cuối cùng.
 - File `Trả góp` xuất một dòng cho mỗi báo cáo có nhu cầu trả góp, gồm:
-  `Ngày báo cáo`, `Email người báo cáo`, `Số tiền vay trả góp`,
-  `Đối tác trả góp`, `Kết quả duyệt hồ sơ`, `Loại báo cáo`,
+  `Ngày báo cáo`, `Email người báo cáo`, `Đơn hàng`, `Giá trị đơn hàng`,
+  `Số tiền vay trả góp`, `Đối tác trả góp`, `Kết quả duyệt hồ sơ`, `Loại báo cáo`,
   `Phương thức thanh toán cuối cùng`, `Lý do không trả góp`.
+  `Đơn hàng` lấy `orderCode`, `Giá trị đơn hàng` lấy tổng giá trị đơn ERP; báo
+  cáo chưa mua để trống hai cột này.
   `Phương thức thanh toán cuối cùng` đọc theo loại báo cáo: `NOT_PURCHASED`
   ghi `Chưa mua hàng`; với `PURCHASED`, có payment method installment thì ghi
   `Trả góp`, không có thì ghi `Trả thẳng`.

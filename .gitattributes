@@ -3,3 +3,7 @@
 *.yaml text eol=lf
 *.mjs text eol=lf
 Dockerfile text eol=lf
+/scripts/harness text eol=lf
+/scripts/validate text eol=lf
+/scripts/harness-upstream-version text eol=lf
+/scripts/schema/*.sql text eol=lf

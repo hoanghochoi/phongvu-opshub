@@ -58,6 +58,15 @@ This file maps product behavior to proof. Existing flows are marked
 
 Recent focused evidence:
 
+- `SALES-REPORT-001`, 2026-07-19: export `Trả góp` chèn `Đơn hàng` và
+  `Giá trị đơn hàng` ngay sau `Email người báo cáo`, lấy lần lượt từ
+  `orderCode` và tổng tiền ERP; báo cáo chưa mua để trống hai cột này. Trường
+  `Khách hàng tìm sản phẩm gì?` dùng chung giới hạn 1.000 ký tự ở Flutter,
+  DTO và service backend. Validation: focused SalesReportsService Jest (72
+  tests), focused Sales Report Flutter (23 tests), Design System migration
+  guard đa nền tảng LF/CRLF (20 tests), full NestJS (80 suites/782 tests),
+  full Flutter (563 passed/3 skipped), `flutter analyze --no-pub`, Prisma
+  validate/generate, Nest build, Go realtime 64 tests và `go vet ./...`.
 - `CONTRACT-APPENDIX-001`, 2026-07-17: triển khai source-of-truth từ
   `SalesReportErpService.lookupOrder`, chỉ dùng item `finalSellPrice`; adapter
   PPM dùng cùng tài khoản/token cache ERP, terminal `49180_PRICE_0001`, batch

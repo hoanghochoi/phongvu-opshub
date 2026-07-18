@@ -233,6 +233,22 @@ describe('SalesReportsService', () => {
     expect(erp.lookupOrder).not.toHaveBeenCalled();
   });
 
+  it('persists customer need content up to 1000 characters', async () => {
+    const { service, prisma } = createHarness();
+    const customerNeed = 'N'.repeat(1000);
+
+    await service.create(userFixture(), {
+      ...baseInput(),
+      customerNeed,
+    });
+
+    expect(prisma.salesReport.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ customerNeed }),
+      }),
+    );
+  });
+
   it('creates not-purchased report without ERP lookup', async () => {
     const { service, prisma, erp } = createHarness();
 
@@ -2912,6 +2928,7 @@ describe('SalesReportsService', () => {
         ...exportReportFixture(),
         id: 'report-installment-cash',
         orderCode: '2606290999',
+        erpGrandTotal: 3250000,
         erpPaymentMethods: ['cash'],
         installmentApproved: false,
         installmentLoanAmount: 2500000,
@@ -2923,6 +2940,7 @@ describe('SalesReportsService', () => {
         id: 'report-not-purchased-installment',
         reportType: 'NOT_PURCHASED',
         orderCode: null,
+        erpGrandTotal: null,
         erpPaymentMethods: [],
         installmentApproved: false,
         installmentLoanAmount: 1000000,
@@ -2958,6 +2976,8 @@ describe('SalesReportsService', () => {
     expect(rows[0]).toEqual([
       'Ngày báo cáo',
       'Email người báo cáo',
+      'Đơn hàng',
+      'Giá trị đơn hàng',
       'Số tiền vay trả góp',
       'Đối tác trả góp',
       'Kết quả duyệt hồ sơ',
@@ -2969,6 +2989,8 @@ describe('SalesReportsService', () => {
     expect(rows[1]).toEqual([
       '29/06/2026 08:00:00',
       'sale@phongvu.vn',
+      '2606290001',
+      1500000,
       5000000,
       'VNPAY_POS; MPOS',
       'Đã duyệt',
@@ -2976,12 +2998,16 @@ describe('SalesReportsService', () => {
       'Trả góp',
       'Khách chốt trả góp bình thường (Không có lý do)',
     ]);
-    expect(rows[2][2]).toBe(2500000);
-    expect(rows[2][3]).toBe('PAYOO_POS');
-    expect(rows[2][4]).toBe('Chưa duyệt');
-    expect(rows[2][6]).toBe('Trả thẳng');
-    expect(rows[3][5]).toBe('Chưa mua hàng');
-    expect(rows[3][6]).toBe('Chưa mua hàng');
+    expect(rows[2][2]).toBe('2606290999');
+    expect(rows[2][3]).toBe(3250000);
+    expect(rows[2][4]).toBe(2500000);
+    expect(rows[2][5]).toBe('PAYOO_POS');
+    expect(rows[2][6]).toBe('Chưa duyệt');
+    expect(rows[2][8]).toBe('Trả thẳng');
+    expect(rows[3][2]).toBe('');
+    expect(rows[3][3]).toBe('');
+    expect(rows[3][7]).toBe('Chưa mua hàng');
+    expect(rows[3][8]).toBe('Chưa mua hàng');
     expect(JSON.stringify(rows)).not.toContain('2606290888');
   });
 
