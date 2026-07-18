@@ -88,7 +88,8 @@ nằm rời ở Google Form và có thể dùng cho dashboard sau này.
 - Backend rà trạng thái mỗi 5 phút, mặc định tối đa 80 đơn với concurrency 2:
   rà cả pending trong cache chưa báo cáo và pending đã báo cáo, ưu tiên ngày bán
   gần nhất đến ngày xa nhất trong từng nhóm, đồng thời vẫn dành quota cho đơn
-  completed để bắt hoàn trả muộn. Mỗi ngày Việt Nam, background gọi tối đa 3
+  completed để bắt hoàn trả muộn. Pending chỉ bắt đầu được background sync sau
+  3 giờ kể từ ngày giờ bán ERP. Mỗi ngày Việt Nam, background gọi tối đa 3
   lần/đơn pending với khoảng cách ít nhất 60 phút; completed chỉ gọi lại sau 2
   ngày và quá 10 ngày từ ngày bán thì không gọi lại. Pending chuyển completed ở
   lượt nào thì lượt đó mở đầu chu kỳ kiểm tra completed 2 ngày. Redis lease ngăn

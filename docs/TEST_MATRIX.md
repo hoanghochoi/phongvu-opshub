@@ -703,6 +703,11 @@ test\sales_report_hub_test.dart` (19 tests), `flutter analyze --no-pub`, và
   đều tiêu lượt; check/submit do user vẫn bypass quota và persist
   cancel/return/partial-return mới nhất. Validation: focused
   `sales-reports.service.spec.ts`, `npm run build`, và `git diff --check`.
+- `SALES-REPORT-001`, 2026-07-18: Background status sync chỉ chọn đơn pending
+  sau ít nhất 3 giờ kể từ `orderCreatedAt`; query loại đơn mới khỏi batch và
+  service giữ guard `pending_age` để không gọi ERP khi timestamp thiếu hoặc chưa
+  đủ tuổi. Log sync ghi `pendingMinAgeHours` và `skippedPendingAge`. Validation:
+  focused `sales-reports.service.spec.ts`, `npm run build`, và `git diff --check`.
 - `SALES-REPORT-001`, 2026-07-16: Sau `check-order`, đơn còn trạng thái chưa
   thanh toán phải khóa phần nhập và nút `Gửi báo cáo`, hiện đúng toast hướng dẫn
   vào SPOS thanh toán lại hoặc hủy đơn, đồng thời đưa phần thân modal về đầu.
