@@ -75,7 +75,7 @@ describe('MapVietinService', () => {
         findMany: jest.fn(),
       },
       mapVietinTransaction: {
-        findMany: jest.fn(),
+        findMany: jest.fn(async () => []),
         count: jest.fn(),
         findFirst: jest.fn(),
         findUnique: jest.fn(),
@@ -338,10 +338,9 @@ describe('MapVietinService', () => {
     prisma.mapVietinTransaction.findMany.mockResolvedValue([]);
     prisma.mapVietinTransaction.count.mockResolvedValue(0);
 
-    await service.listStatements(
-      { role: 'MANAGER', storeId: 'store-uuid-1' },
-      { amount: '1250000' } as any,
-    );
+    await service.listStatements({ role: 'MANAGER', storeId: 'store-uuid-1' }, {
+      amount: '1250000',
+    } as any);
 
     const where = prisma.mapVietinTransaction.findMany.mock.calls[0][0].where;
     expect(JSON.stringify(where)).toContain('incomeType');
@@ -857,6 +856,147 @@ describe('MapVietinService', () => {
     expect(stats).toEqual({ updated: 0, unchanged: 2, cacheHits: 1 });
     expect(prisma.mapVietinTransaction.findUnique).toHaveBeenCalledTimes(1);
     expect(prisma.mapVietinTransaction.upsert).not.toHaveBeenCalled();
+  });
+
+  it.each(['MANUAL', 'OFFSET'])(
+    'preserves %s orders when a source sync refreshes the transaction',
+    async (orderSource) => {
+      const row = globalTransaction(`TXN-PROTECTED-${orderSource}`);
+      const normalized = (service as any).normalizeTransaction('CP01', row);
+      const existing = {
+        id: `stored-${orderSource.toLowerCase()}`,
+        ...normalized,
+        content: 'Older transfer content',
+        orders: ['26071712345678'],
+        orderSource,
+        firstSeenAt: new Date('2026-07-17T03:00:00.000Z'),
+      };
+      prisma.mapVietinTransaction.findUnique.mockResolvedValue(existing);
+      prisma.mapVietinTransaction.upsert.mockResolvedValue({
+        ...existing,
+        content: normalized.content,
+      });
+
+      await expect(
+        (service as any).persistTransactions('CP01', [row]),
+      ).resolves.toBe(0);
+
+      const update =
+        prisma.mapVietinTransaction.upsert.mock.calls.at(-1)[0].update;
+      expect(update).not.toHaveProperty('orders');
+      expect(update).not.toHaveProperty('orderSource');
+      expect(update.content).toBe(normalized.content);
+    },
+  );
+
+  it.each([
+    {
+      label: 'eFAST arrives after MAP',
+      incomingSource: 'VIETIN_EFAST',
+      candidateRawData: { transactionNumber: '2026198056714' },
+    },
+    {
+      label: 'MAP arrives after eFAST',
+      incomingSource: 'MAP',
+      candidateRawData: { source: 'VIETIN_EFAST', trxId: '333985' },
+    },
+  ])(
+    'skips a cross-source duplicate by exact bank fingerprint when $label',
+    async ({ incomingSource, candidateRawData }) => {
+      const row = {
+        ...(incomingSource === 'VIETIN_EFAST'
+          ? { source: 'VIETIN_EFAST' }
+          : {}),
+        transactionNumber:
+          incomingSource === 'VIETIN_EFAST' ? '333985' : '2026198056714',
+        trxId: incomingSource === 'VIETIN_EFAST' ? '333985' : undefined,
+        amount: 9146000,
+        transactionDescription: 'XNLD CAO THE TT TIEN CAMERA HD 2807',
+        tranTime: '17/07/2026 17:25:40',
+        status: 'SUCCESS',
+      };
+      prisma.mapVietinTransaction.findUnique.mockResolvedValue(null);
+      prisma.mapVietinTransaction.findFirst.mockResolvedValue(null);
+      prisma.mapVietinTransaction.findMany.mockResolvedValue([
+        {
+          id: 'stored-cross-source',
+          transactionKey: 'CP61:existing-cross-source',
+          storeCode: 'CP61',
+          rawData: candidateRawData,
+        },
+      ]);
+
+      await expect(
+        (service as any).persistTransactions('CP61', [row]),
+      ).resolves.toBe(0);
+
+      expect(prisma.mapVietinTransaction.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            storeCode: 'CP61',
+            amount: 9146000,
+            content: 'XNLD CAO THE TT TIEN CAMERA HD 2807',
+          }),
+          take: 5,
+        }),
+      );
+      expect(prisma.mapVietinTransaction.upsert).not.toHaveBeenCalled();
+      expect(paymentNotifications.createForTransaction).not.toHaveBeenCalled();
+    },
+  );
+
+  it('serializes MAP and eFAST persistence before checking the exact fingerprint', async () => {
+    const baseRow = {
+      amount: 9146000,
+      transactionDescription: 'XNLD CAO THE TT TIEN CAMERA HD 2807',
+      tranTime: '17/07/2026 17:25:40',
+      status: 'SUCCESS',
+    };
+    const mapRow = {
+      ...baseRow,
+      transactionNumber: '2026198056714',
+    };
+    const efastRow = {
+      ...baseRow,
+      source: 'VIETIN_EFAST',
+      transactionNumber: '333985',
+      trxId: '333985',
+    };
+    let stored: any = null;
+    prisma.mapVietinTransaction.findUnique.mockImplementation(
+      async ({ where }: any) =>
+        stored?.transactionKey === where.transactionKey ? stored : null,
+    );
+    prisma.mapVietinTransaction.findFirst.mockResolvedValue(null);
+    prisma.mapVietinTransaction.findMany.mockImplementation(async () =>
+      stored
+        ? [
+            {
+              id: stored.id,
+              transactionKey: stored.transactionKey,
+              storeCode: stored.storeCode,
+              rawData: stored.rawData,
+            },
+          ]
+        : [],
+    );
+    prisma.mapVietinTransaction.upsert.mockImplementation(
+      async ({ create }: any) => {
+        await new Promise((resolve) => setTimeout(resolve, 10));
+        stored = { id: 'stored-map-row', ...create };
+        return stored;
+      },
+    );
+    paymentNotifications.createForTransaction.mockResolvedValue({});
+
+    const results = await Promise.all([
+      (service as any).persistTransactions('CP61', [mapRow]),
+      (service as any).persistTransactions('CP61', [efastRow]),
+    ]);
+
+    expect(results).toEqual([1, 0]);
+    expect(prisma.mapVietinTransaction.upsert).toHaveBeenCalledTimes(1);
+    expect(paymentNotifications.createForTransaction).toHaveBeenCalledTimes(1);
   });
 
   it('maps eFAST rows by the receiving account when pmtId is missing', async () => {

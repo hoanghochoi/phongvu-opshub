@@ -7,6 +7,17 @@
 - Dirty worktree: clean before this implementation; feature diff introduced in
   the current patch.
 
+### Reliability follow-up checkpoint (2026-07-18)
+
+- Branch: `staging`.
+- Pre-change HEAD: `5e5f48c52c604c3ec44e6c0cf3afd7975931f2aa`.
+- Production backup:
+  `/home/ubuntu/opshub-hotfix-backups/statement-20260718T024213Z`, permission
+  `700` with per-file permission `600` and verified SHA-256 manifest.
+- Repair is split into two gates: production data reconciliation was executed
+  from the checkpoint; the prevention code remains local and must not be
+  treated as deployed until the normal release gate completes.
+
 ## Steps
 
 1. Add Prisma order fields, audit table, indexes, migration, and generated

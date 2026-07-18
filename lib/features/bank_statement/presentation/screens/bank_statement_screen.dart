@@ -200,8 +200,16 @@ class _BankStatementScreenState extends State<BankStatementScreen> {
     return ListView.builder(
       physics: const AlwaysScrollableScrollPhysics(),
       itemCount: provider.transactions.length,
+      findChildIndexCallback: (key) {
+        if (key is! ValueKey<String>) return null;
+        final index = provider.transactions.indexWhere(
+          (transaction) => transaction.id == key.value,
+        );
+        return index < 0 ? null : index;
+      },
       itemBuilder: (context, index) {
         return _StatementCard(
+          key: ValueKey(provider.transactions[index].id),
           transaction: provider.transactions[index],
           money: _money,
         );
@@ -736,7 +744,11 @@ class _StatementCard extends StatefulWidget {
   final BankStatementTransaction transaction;
   final NumberFormat money;
 
-  const _StatementCard({required this.transaction, required this.money});
+  const _StatementCard({
+    super.key,
+    required this.transaction,
+    required this.money,
+  });
 
   @override
   State<_StatementCard> createState() => _StatementCardState();
@@ -759,7 +771,10 @@ class _StatementCardState extends State<_StatementCard> {
   @override
   void didUpdateWidget(covariant _StatementCard oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (!_editing &&
+    if (oldWidget.transaction.id != widget.transaction.id) {
+      _editing = false;
+      _controller.text = _ordersEditText(widget.transaction.orders);
+    } else if (!_editing &&
         oldWidget.transaction.orders != widget.transaction.orders) {
       _controller.text = _ordersEditText(widget.transaction.orders);
     }
@@ -833,8 +848,11 @@ class _StatementCardState extends State<_StatementCard> {
                     setState(() => _editing = false);
                   },
                   onSave: () async {
-                    await provider.updateOrders(tx.id, _controller.text);
-                    if (mounted) setState(() => _editing = false);
+                    final saved = await provider.updateOrders(
+                      tx.id,
+                      _controller.text,
+                    );
+                    if (mounted && saved) setState(() => _editing = false);
                   },
                   onRequestTransfer: () =>
                       _showOrderTransferRequestDialog(context, provider, tx),
@@ -901,8 +919,13 @@ class _StatementCardState extends State<_StatementCard> {
                         setState(() => _editing = false);
                       },
                       onSave: () async {
-                        await provider.updateOrders(tx.id, _controller.text);
-                        if (mounted) setState(() => _editing = false);
+                        final saved = await provider.updateOrders(
+                          tx.id,
+                          _controller.text,
+                        );
+                        if (mounted && saved) {
+                          setState(() => _editing = false);
+                        }
                       },
                       onRequestTransfer: () => _showOrderTransferRequestDialog(
                         context,

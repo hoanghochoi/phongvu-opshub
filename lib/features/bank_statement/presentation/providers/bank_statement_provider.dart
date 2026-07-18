@@ -527,7 +527,7 @@ class BankStatementProvider extends ChangeNotifier {
     }
   }
 
-  Future<void> updateOrders(String transactionId, String rawInput) async {
+  Future<bool> updateOrders(String transactionId, String rawInput) async {
     final existing = _findTransactionById(transactionId);
     final transactionKey = existing?.transactionKey.trim() ?? '';
     try {
@@ -562,6 +562,7 @@ class BankStatementProvider extends ChangeNotifier {
           'orderCount': orders.length,
         },
       );
+      return true;
     } catch (error) {
       final orders = _tryParseOrderInput(rawInput);
       if (orders != null &&
@@ -572,7 +573,7 @@ class BankStatementProvider extends ChangeNotifier {
             transactionKey: transactionKey,
             orders: orders,
           )) {
-        return;
+        return true;
       }
       final message = _orderInputErrorMessage(
         error,
@@ -588,6 +589,7 @@ class BankStatementProvider extends ChangeNotifier {
           'hasTransactionKey': transactionKey.isNotEmpty,
         },
       );
+      return false;
     }
   }
 
@@ -1249,8 +1251,16 @@ class BankStatementProvider extends ChangeNotifier {
 
   String _orderInputErrorMessage(Object error, {required String fallback}) {
     if (error is ApiException) return error.message;
+    if (error is StatementOrderInputFormatException) {
+      return switch (error.reason) {
+        StatementOrderInputErrorReason.invalidDatePrefix =>
+          '6 chữ số đầu của mã đơn phải là ngày hợp lệ theo định dạng YYMMDD.',
+        StatementOrderInputErrorReason.invalidFormat =>
+          'Mã đơn hàng phải gồm đúng 14 chữ số. Nếu nhập nhiều mã, hãy ngăn cách bằng dòng hoặc dấu phẩy.',
+      };
+    }
     if (error is FormatException) {
-      return 'Mã đơn hàng phải gồm 14 chữ số, ngăn cách bằng dòng hoặc dấu phẩy.';
+      return 'Mã đơn hàng không hợp lệ. Vui lòng kiểm tra lại.';
     }
     return fallback;
   }

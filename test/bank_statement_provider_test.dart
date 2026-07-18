@@ -254,7 +254,7 @@ void main() {
         provider.setOrder('26052912345678');
         await provider.search();
         provider.toggleAllVisible(true);
-        await provider.updateOrders(
+        final saved = await provider.updateOrders(
           'tx-1',
           '26052987654321, 26052987654321 26052900000000',
         );
@@ -269,6 +269,7 @@ void main() {
         ]);
         expect(repository.lastUpdatedTransactionKey, 'key-tx-1');
         expect(repository.lastUpdatedLookupOrder, '26052912345678');
+        expect(saved, isTrue);
         expect(provider.transactions.first.orders, [
           '26052987654321',
           '26052900000000',
@@ -450,10 +451,34 @@ void main() {
       provider.setOrder('26052912345678');
       await provider.search();
 
-      await provider.updateOrders('tx-1', '26023012345678');
+      final saved = await provider.updateOrders('tx-1', '26023012345678');
 
+      expect(saved, isFalse);
       expect(repository.updateOrdersCount, 0);
       expect(provider.transactions.first.orders, ['26052912345678']);
+      expect(
+        provider.rowMessage('tx-1')?.text,
+        '6 chữ số đầu của mã đơn phải là ngày hợp lệ theo định dạng YYMMDD.',
+      );
+
+      provider.dispose();
+    });
+
+    test('explains invalid 14-digit order format before calling API', () async {
+      final repository = _FakeBankStatementRepository();
+      final provider = BankStatementProvider(repository);
+      await provider.initialize(_nationalManager);
+      provider.setOrder('26052912345678');
+      await provider.search();
+
+      final saved = await provider.updateOrders('tx-1', '2605291234567A');
+
+      expect(saved, isFalse);
+      expect(repository.updateOrdersCount, 0);
+      expect(
+        provider.rowMessage('tx-1')?.text,
+        'Mã đơn hàng phải gồm đúng 14 chữ số. Nếu nhập nhiều mã, hãy ngăn cách bằng dòng hoặc dấu phẩy.',
+      );
 
       provider.dispose();
     });

@@ -6,10 +6,14 @@
   transaction has no order.
 - Extract orders during MAP normalization with a shared validator: independent
   14-digit tokens, valid `yymmdd` prefix, duplicate removal, stable order.
-- Preserve manually edited rows by skipping order overwrite when
-  `orderSource = MANUAL`.
-- Add an order audit table for manual edits only, linked to the transaction and
-  scoped by store code.
+- Preserve protected rows by skipping sync order overwrite when `orderSource`
+  is `MANUAL` or an approved `OFFSET`.
+- Add an order audit table for manual edits and approved offset transfers,
+  linked to the transaction and scoped by store code.
+- De-duplicate MAP/eFAST rows by bank identifiers first. If the providers expose
+  unrelated identifiers, use the exact cross-source fingerprint of mapped
+  showroom, amount, bank timestamp, and stored content; never apply this
+  fallback between two rows from the same source.
 - Add statement endpoints under `/admin/map-vietin/statements` for list, XLSX
   export, inline order update, and order history.
 - Add an ACC-reviewed order-transfer request table and endpoints so visible

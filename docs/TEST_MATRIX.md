@@ -308,6 +308,22 @@ Recent focused evidence:
   mobile Sao kê collapses filters after search. Validation: Prisma generate,
   Nest build, focused MAP/income-type Jest, Flutter analyze, and focused bank
   statement provider/screen tests including the mobile collapse regression.
+- `PAYMENT-STATEMENT-001`, 2026-07-18: MAP sync now preserves both `MANUAL` and
+  approved `OFFSET` orders. De-duplication keeps identifier matching as the
+  primary path and adds an exact opposite-source fingerprint fallback using
+  showroom, amount, bank timestamp, and stored content. Flutter statement cards
+  are keyed and reindexed by transaction ID; failed order saves keep the editor
+  open and distinguish invalid 14-digit format from an invalid `YYMMDD` date.
+  Validation: focused MAP Jest (106 tests), Nest build, bank-statement provider
+  tests (29), widget tests (7), and Flutter analyze passed. The checkpointed
+  production repair removed six exact eFAST duplicate rows and notifications,
+  retained their audit/delivery evidence on MAP, and restored seven rows from
+  the latest approved OFFSET audits; immediate post-check was duplicate `0`,
+  deleted references `0`, and restored OFFSET `7/7`. Prevention code remains
+  local pending the normal release gate. Full Nest regression passed 80 suites /
+  780 tests. Full Flutter reached 562 passed and 3 skipped; the only failure was
+  the unrelated existing design-system route-count guard against an unchanged
+  router/gap-map document.
 - `UI-UX-001`, 2026-07-11: sửa race thứ hai của `AppCombobox` trên
   desktop/Windows: khi bấm chuột chọn option, `TextField` mất focus ở
   mouse-down và timer đóng overlay cũ có thể đóng menu trước mouse-up/onTap,

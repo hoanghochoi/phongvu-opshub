@@ -228,12 +228,14 @@ Expected responses:
   `pmtId` is missing or has no configured showroom, it falls back to the eFAST
   history account (`efastCreditAccountNo`). eFAST sync uses the Vietnam
   business date (UTC+7) for provider
-  history queries. MAP and eFAST derive the same source-agnostic transaction
-  key from the bank statement reference, and both ingestion directions check
-  all stored statement identifiers before insert. This prevents duplicate rows
-  and payment notifications whether MAP or eFAST arrives first, including
-  near-simultaneous provider responses. Product-facing `Mã sao kê` values use
-  eFAST `trxId`, which matches the MAP statement reference; eFAST `trxRefNo`
+  history queries. MAP and eFAST first de-duplicate by all stored statement
+  identifiers. Some real bank rows expose unrelated identifiers across the two
+  providers, so ingestion also falls back to an exact cross-source fingerprint:
+  same mapped showroom, amount, bank timestamp, and stored transfer content.
+  The fallback never collapses two rows from the same source. This prevents
+  duplicate rows and payment notifications whether MAP or eFAST arrives first,
+  including near-simultaneous provider responses. Product-facing `Mã sao kê`
+  values use eFAST `trxId`, which matches the MAP statement reference; eFAST `trxRefNo`
   remains a provider-side technical reference in raw audit data. Rows with
   missing `pmtId` are still stored with `storeCode=null` when neither account
   identifies a unique showroom, so

@@ -452,13 +452,15 @@ When enabled, the eFAST adapter logs in through `/api/v1/account/login`, reads
 `/api/v1/account/history` for credit rows only, and maps each row `pmtId` to
 `Store.transferAccountNumber`. If `pmtId` is missing or unmapped, the configured
 eFAST history account is the fallback receiving-account identity. eFAST history
-queries use the Vietnam business date (UTC+7). MAP and eFAST derive the same
-source-agnostic transaction key from the bank statement reference, and both
-ingestion directions check all stored statement identifiers before inserting.
-The database transaction-key constraint therefore prevents duplicate rows and
-payment notifications whether MAP or eFAST arrives first, including
-near-simultaneous responses. For user-facing `Mã sao kê` fields, API responses,
-XLSX exports, and stored VietQR confirmations use eFAST `trxId`; the numeric
+queries use the Vietnam business date (UTC+7). MAP and eFAST first check all
+stored statement identifiers before inserting. When the providers expose
+unrelated identifiers for the same bank row, ingestion falls back to an exact
+cross-source fingerprint: same mapped showroom, amount, bank timestamp, and
+stored transfer content. The fallback never merges two rows from the same
+source. This prevents duplicate rows and payment notifications whether MAP or
+eFAST arrives first, including near-simultaneous responses. For user-facing
+`Mã sao kê` fields, API responses, XLSX exports, and stored VietQR confirmations
+use eFAST `trxId`; the numeric
 eFAST `trxRefNo` remains technical raw/audit data. Rows with a
 missing `pmtId` are stored with `storeCode=null` only when neither the virtual
 account nor source account identifies a unique showroom;
@@ -473,10 +475,10 @@ fallback to new transactions. Rows with an unmapped or ambiguous account stay
 in the unmapped-transaction quarantine and do not trigger payment audio.
 
 The one-time production cleanup for rows created before the symmetric de-dupe
-keeps the transaction that has order codes when only one side has orders. If
-both sides have orders or both are empty, it keeps MAP and removes eFAST. Before
-deleting the duplicate transaction, the migration reattaches VietQR matches,
-order audits, transfer requests, and any sole notification to the retained row.
+keeps MAP, preserves protected order audit and notification delivery evidence
+on the retained transaction, then removes the duplicate eFAST transaction and
+notification. Subsequent syncs must not overwrite orders whose `orderSource` is
+`MANUAL` or an approved `OFFSET`.
 The eFAST scheduler is separate from the MAP scheduler: it runs once every
 random 50-60 seconds from 08:00 through 22:00 Vietnam time (UTC+7), and every
 30 minutes from 22:01 through 07:59 the next day. Production should keep two

@@ -250,6 +250,7 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
     string,
     MapSyncFingerprintCacheEntry
   >();
+  private mapPersistenceQueue: Promise<void> = Promise.resolve();
   private globalSessionCache?: {
     username: string;
     session: MapSession;
@@ -2726,11 +2727,31 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
     rows: unknown[],
     stats: MapPersistStats = { updated: 0, unchanged: 0, cacheHits: 0 },
   ) {
+    let releaseQueue!: () => void;
+    const previous = this.mapPersistenceQueue;
+    this.mapPersistenceQueue = new Promise<void>((resolve) => {
+      releaseQueue = resolve;
+    });
+    await previous;
+    try {
+      return await this.persistTransactionsUnlocked(storeCode, rows, stats);
+    } finally {
+      releaseQueue();
+    }
+  }
+
+  private async persistTransactionsUnlocked(
+    storeCode: string | null,
+    rows: unknown[],
+    stats: MapPersistStats,
+  ) {
     let created = 0;
     let withOrders = 0;
     let withoutOrders = 0;
     let manualProtected = 0;
+    let offsetProtected = 0;
     let duplicateStatementSkipped = 0;
+    let duplicateFingerprintSkipped = 0;
     let salesIncome = 0;
     let partnerInternalIncome = 0;
     for (const raw of rows) {
@@ -2781,6 +2802,23 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
           );
           continue;
         }
+        const existingFingerprint =
+          await this.findExistingTransactionByBankFingerprint(
+            normalized.transactionKey,
+            normalized,
+            row,
+          );
+        if (existingFingerprint) {
+          duplicateFingerprintSkipped += 1;
+          this.logger.warn(
+            `MAP sync duplicate skipped by bank fingerprint: incoming=${normalized.transactionKey} existing=${existingFingerprint.transactionKey} store=${normalized.storeCode || 'null'} source=${this.isEfastMapTransactionRow(row) ? 'VIETIN_EFAST' : 'MAP'}`,
+          );
+          this.rememberMapSyncFingerprint(
+            normalized.transactionKey,
+            syncFingerprint,
+          );
+          continue;
+        }
       }
       if (normalized.orders.length > 0) {
         withOrders += 1;
@@ -2788,15 +2826,17 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
         withoutOrders += 1;
       }
       if (!existing) created += 1;
-      const preservesManualOrders =
-        existing?.orderSource === ORDER_SOURCE_MANUAL;
-      if (preservesManualOrders) manualProtected += 1;
+      const preservesProtectedOrders =
+        existing?.orderSource === ORDER_SOURCE_MANUAL ||
+        existing?.orderSource === ORDER_SOURCE_OFFSET;
+      if (existing?.orderSource === ORDER_SOURCE_MANUAL) manualProtected += 1;
+      if (existing?.orderSource === ORDER_SOURCE_OFFSET) offsetProtected += 1;
       const updateData = {
         transactionNumber: normalized.transactionNumber,
         amount: normalized.amount,
         content: normalized.content,
         incomeType: normalized.incomeType,
-        ...(preservesManualOrders
+        ...(preservesProtectedOrders
           ? {}
           : {
               orders: normalized.orders,
@@ -2845,10 +2885,15 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
           });
       }
     }
-    if (created > 0 || stats.updated > 0 || duplicateStatementSkipped > 0) {
+    if (
+      created > 0 ||
+      stats.updated > 0 ||
+      duplicateStatementSkipped > 0 ||
+      duplicateFingerprintSkipped > 0
+    ) {
       const storeLabel = storeCode || 'null';
       this.logger.log(
-        `MAP sync order extraction: store=${storeLabel} created=${created} updated=${stats.updated} unchanged=${stats.unchanged} withOrders=${withOrders} withoutOrders=${withoutOrders} salesIncome=${salesIncome} partnerInternalIncome=${partnerInternalIncome} manualProtected=${manualProtected} duplicateStatementSkipped=${duplicateStatementSkipped}`,
+        `MAP sync order extraction: store=${storeLabel} created=${created} updated=${stats.updated} unchanged=${stats.unchanged} withOrders=${withOrders} withoutOrders=${withoutOrders} salesIncome=${salesIncome} partnerInternalIncome=${partnerInternalIncome} manualProtected=${manualProtected} offsetProtected=${offsetProtected} duplicateStatementSkipped=${duplicateStatementSkipped} duplicateFingerprintSkipped=${duplicateFingerprintSkipped}`,
       );
     }
     return created;
@@ -2980,6 +3025,51 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
       },
       select: { id: true, transactionKey: true, storeCode: true },
     });
+  }
+
+  private async findExistingTransactionByBankFingerprint(
+    transactionKey: string,
+    normalized: {
+      storeCode: string | null;
+      amount: number;
+      content: string;
+      paidAt: Date | null;
+    },
+    row: MapTransactionRow,
+  ) {
+    if (
+      !normalized.storeCode ||
+      !normalized.paidAt ||
+      !normalized.content.trim()
+    ) {
+      return null;
+    }
+    const incomingIsEfast = this.isEfastMapTransactionRow(row);
+    const candidates = await this.prisma.mapVietinTransaction.findMany({
+      where: {
+        transactionKey: { not: transactionKey },
+        storeCode: normalized.storeCode,
+        amount: normalized.amount,
+        paidAt: normalized.paidAt,
+        content: normalized.content,
+      },
+      select: {
+        id: true,
+        transactionKey: true,
+        storeCode: true,
+        rawData: true,
+      },
+      take: 5,
+    });
+    return (
+      candidates.find((candidate) => {
+        const candidateRaw = this.rawDataAsMapRow(candidate.rawData);
+        const candidateIsEfast = candidateRaw
+          ? this.isEfastMapTransactionRow(candidateRaw)
+          : false;
+        return candidateIsEfast !== incomingIsEfast;
+      }) || null
+    );
   }
 
   private async persistGlobalTransactions(
@@ -3462,8 +3552,13 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
         .map((token) => token.trim())
         .filter(Boolean);
       for (const token of tokens) {
-        if (!this.isValidOrderCode(token)) {
-          throw new BadRequestException('Mã đơn hàng không hợp lệ');
+        if (!/^\d{14}$/.test(token)) {
+          throw new BadRequestException('Mã đơn hàng phải gồm đúng 14 chữ số.');
+        }
+        if (!this.hasValidOrderDatePrefix(token)) {
+          throw new BadRequestException(
+            '6 chữ số đầu của mã đơn phải là ngày hợp lệ theo định dạng YYMMDD.',
+          );
         }
         if (seen.has(token)) continue;
         seen.add(token);
@@ -3475,6 +3570,10 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
 
   private isValidOrderCode(value: string) {
     if (!/^\d{14}$/.test(value)) return false;
+    return this.hasValidOrderDatePrefix(value);
+  }
+
+  private hasValidOrderDatePrefix(value: string) {
     const year = 2000 + Number(value.slice(0, 2));
     const month = Number(value.slice(2, 4));
     const day = Number(value.slice(4, 6));
@@ -3785,7 +3884,9 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
     content?: string | null;
     incomeType?: string | null;
   }) {
-    const value = String(row.incomeType || '').trim().toUpperCase();
+    const value = String(row.incomeType || '')
+      .trim()
+      .toUpperCase();
     if (
       value === MAP_VIETIN_INCOME_TYPE.SALES ||
       value === MAP_VIETIN_INCOME_TYPE.PARTNER_INTERNAL

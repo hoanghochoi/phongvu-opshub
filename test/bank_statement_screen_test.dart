@@ -263,6 +263,112 @@ void main() {
     expect(find.text('Lịch sử sao kê 00020300000000004567'), findsOneWidget);
     expect(find.text('Chưa có chỉnh sửa thủ công.'), findsOneWidget);
   });
+
+  testWidgets('keeps the order editor open and explains invalid YYMMDD', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(1200, 900));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    final repository = _WidgetBankStatementRepository();
+    final provider = BankStatementProvider(
+      repository,
+      notificationReadStore: _FakeNotificationReadStore(),
+    );
+    await provider.initialize(_accUser);
+    provider.setOrder('26062512345678');
+    await provider.search();
+
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider<AuthProvider>.value(
+            value: _FakeAuthProvider(_accUser),
+          ),
+          ChangeNotifierProvider<BankStatementProvider>.value(value: provider),
+        ],
+        child: const MaterialApp(home: BankStatementScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final card = find.byKey(const ValueKey('tx-offset'));
+    await tester.tap(
+      find.descendant(of: card, matching: find.byTooltip('Sửa mã đơn')),
+    );
+    await tester.pump();
+    final input = find.descendant(of: card, matching: find.byType(TextField));
+    await tester.enterText(input, '26023012345678');
+    await tester.tap(
+      find.descendant(of: card, matching: find.byTooltip('Lưu mã đơn')),
+    );
+    await tester.pump();
+
+    expect(input, findsOneWidget);
+    expect(
+      find.text(
+        '6 chữ số đầu của mã đơn phải là ngày hợp lệ theo định dạng YYMMDD.',
+      ),
+      findsOneWidget,
+    );
+    await tester.pump(const Duration(seconds: 3));
+  });
+
+  testWidgets('keeps editor state with its transaction after list reorder', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(1200, 900));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    final repository = _WidgetBankStatementRepository();
+    final provider = BankStatementProvider(
+      repository,
+      notificationReadStore: _FakeNotificationReadStore(),
+    );
+    await provider.initialize(_accUser);
+    provider.setOrder('26062512345678');
+    await provider.search();
+
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider<AuthProvider>.value(
+            value: _FakeAuthProvider(_accUser),
+          ),
+          ChangeNotifierProvider<BankStatementProvider>.value(value: provider),
+        ],
+        child: const MaterialApp(home: BankStatementScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    var card = find.byKey(const ValueKey('tx-offset'));
+    await tester.tap(
+      find.descendant(of: card, matching: find.byTooltip('Sửa mã đơn')),
+    );
+    await tester.pump();
+    await tester.enterText(
+      find.descendant(of: card, matching: find.byType(TextField)),
+      '26062511111111',
+    );
+
+    repository.rows = [_offsetTransaction, _pendingTransaction];
+    await provider.refreshCurrentPage();
+    await tester.pump();
+
+    card = find.byKey(const ValueKey('tx-offset'));
+    final input = tester.widget<TextField>(
+      find.descendant(of: card, matching: find.byType(TextField)),
+    );
+    expect(input.controller?.text, '26062511111111');
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('tx-pending')),
+        matching: find.byType(TextField),
+      ),
+      findsNothing,
+    );
+  });
 }
 
 class _FakeNotificationReadStore extends AppNotificationReadStore {
@@ -318,6 +424,10 @@ class _WidgetBankStatementRepository extends BankStatementRepository {
 
   int fetchStatementsCount = 0;
   BankStatementQuery? lastQuery;
+  List<BankStatementTransaction> rows = [
+    _pendingTransaction,
+    _offsetTransaction,
+  ];
 
   @override
   Future<List<StoreBranch>> fetchStores() async {
@@ -330,7 +440,6 @@ class _WidgetBankStatementRepository extends BankStatementRepository {
   Future<BankStatementPage> fetchStatements(BankStatementQuery query) async {
     fetchStatementsCount += 1;
     lastQuery = query;
-    final rows = [_pendingTransaction, _offsetTransaction];
     return BankStatementPage(
       transactions: rows,
       page: query.page,
