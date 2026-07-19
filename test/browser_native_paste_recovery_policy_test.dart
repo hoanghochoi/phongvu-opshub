@@ -33,4 +33,29 @@ void main() {
 
     expect(after, isNull);
   });
+
+  test('normalizes a reversed DOM selection before replacing pasted text', () {
+    final after = recoverBrowserPasteText(
+      beforeText: 'abcdef',
+      selectionStart: 5,
+      selectionEnd: 2,
+      pastedText: 'X',
+    );
+
+    expect(after?.text, 'abXf');
+    expect(after?.selectionOffset, 3);
+  });
+
+  test('normalizes a reversed framework selection for the fallback path', () {
+    final after = recoverBrowserPasteValue(
+      before: const TextEditingValue(
+        text: 'abcdef',
+        selection: TextSelection(baseOffset: 5, extentOffset: 2),
+      ),
+      pastedText: 'X',
+    );
+
+    expect(after?.text, 'abXf');
+    expect(after?.selection, const TextSelection.collapsed(offset: 3));
+  });
 }

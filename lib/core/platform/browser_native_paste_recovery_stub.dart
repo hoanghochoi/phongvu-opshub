@@ -1,1 +1,3 @@
-Future<void> initializeBrowserNativePasteRecovery() async {}
+Future<void> initializeBrowserNativePasteRecovery({
+  bool preserveRepeatedTapTarget = false,
+}) async {}

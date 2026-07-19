@@ -319,10 +319,39 @@ visual systems that make the app feel assembled from unrelated screens.
   supported and otherwise fall back to the adaptive toolbar. Shared text inputs
   must isolate editable selection from an ancestor `SelectionArea`; never pass
   a null or empty `contextMenuBuilder`, and never enable browser and Flutter
-  menus at the same time. Mobile web may recover a browser `paste` event once
-  when Flutter's hidden input misses the resulting editing update; this
-  fallback must use the focused field snapshot, remain idempotent, and never
-  call the clipboard API outside the user-initiated paste event.
+  menus at the same time. On iOS web, the first touch used to focus a field and
+  all mouse, keyboard, or programmatic clicks continue to Flutter normally.
+  Only a touch sequence on the already-focused DOM input, or a fast repeated
+  touch on that same input, is kept out of Flutter's competing editable
+  recognizers without calling `preventDefault`, so WebKit retains caret,
+  selection, and native-callout behavior. Ownership is keyed to the same
+  `pointerId`, so another finger or unrelated touch is never suppressed. A
+  matching pointer-up or pointer-cancel is still consumed if WebKit retargets
+  it to a selection handle or ancestor; Flutter therefore never receives a
+  terminal event for a pointer-down it did not receive. Only an exact-input
+  click within the 300ms pointer-up lease is stopped before Flutter's engine can
+  move the hidden input to `-9999px`; pointer-cancel never creates that lease.
+  A null-target blur is hidden from Flutter while that exact touch is active or
+  during one single-use 220ms grace immediately after its matching pointer-up
+  or pointer-cancel, and only while `relatedTarget` is null and the document is
+  focused and visible. An outside pointer, focus on another control,
+  `pagehide`/hidden visibility, or a new primary touch clears stale ownership;
+  later, field, and keyboard-dismissal blur continue normally.
+  Mobile web's shared bridge listens in capture phase to both `paste`
+  and `beforeinput(insertFromPaste)`, replaces the exact selection on the direct
+  or active Flutter `.flt-text-editing` DOM node, and emits one synthetic
+  `input` update. It may reuse a cached DOM target only when that exact input
+  produced the guarded transient blur, is no older than 10 seconds, and still
+  matches the retained focused `EditableText`. An empty clipboard event may
+  retain one 180ms lease only for its immediate opposite `paste`/`beforeinput`
+  event carrying text; a second empty, same-source, late, foreign, focus, or
+  lifecycle event consumes it. The bridge never queries or redirects a paste
+  from an arbitrary or foreign input. If the engine drops the DOM update, the retained
+  `EditableText` state is updated through Flutter's formatter/onChanged
+  pipeline. A single-use 180ms marker consumes only the paired opposite
+  `paste`/`beforeinput` event, including when its neutral event target is
+  `body` and a formatter normalizes the DOM value. The bridge never reads the
+  clipboard outside the user gesture.
 - Mobile screens with tall filters or forms must keep every focused input inside
   a vertical scrollable that responds to the software-keyboard viewport. Opening
   the keyboard must not create a flex overflow or leave the focused input behind

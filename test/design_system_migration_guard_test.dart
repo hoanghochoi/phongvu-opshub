@@ -164,7 +164,7 @@ void main() {
     );
     expect(
       bootstrapSource,
-      contains('initializeBrowserNativePasteRecovery()'),
+      contains('initializeBrowserNativePasteRecovery('),
       reason:
           'Mobile web must retain the idempotent recovery for Safari paste events that miss the Flutter editing state.',
     );
@@ -172,12 +172,129 @@ void main() {
     final pasteRecoverySource = File(
       'lib/core/platform/browser_native_paste_recovery_web.dart',
     ).readAsStringSync();
-    expect(pasteRecoverySource, contains("addEventListener('paste'"));
     expect(
       pasteRecoverySource,
-      contains('if (controller.text != before.text)'),
+      contains("addEventListener('paste', _pasteListener"),
+    );
+    expect(
+      pasteRecoverySource,
+      contains("addEventListener('beforeinput', _beforeInputListener"),
       reason:
-          'The Safari fallback must stay idempotent and never append a second paste after Flutter already updated.',
+          'Mobile web must handle Safari beforeinput paste delivery when the '
+          'browser does not expose a reliable ClipboardEvent payload.',
+    );
+    expect(
+      pasteRecoverySource,
+      contains('event.stopImmediatePropagation()'),
+      reason:
+          'A native paste gesture must produce one framework-facing input '
+          'event, even when Safari emits paste and beforeinput together.',
+    );
+    expect(
+      pasteRecoverySource,
+      contains('_scheduleFrameworkFallback'),
+      reason:
+          'The Safari fallback must stay formatter-safe and only run when the '
+          'DOM input was not reflected by Flutter.',
+    );
+    expect(
+      pasteRecoverySource,
+      contains('_keepEditableClickOnBrowserInput'),
+      reason:
+          'iOS repeated taps must keep Flutter\'s real DOM input from moving '
+          'under the full-screen SelectionArea platform view.',
+    );
+    expect(
+      pasteRecoverySource,
+      contains("web.document.addEventListener('click', _editableClickListener"),
+      reason:
+          'Flutter 3.44 temporarily moves the iOS input to -9999px from its '
+          'target click handler; capture must stop only the click paired with '
+          'an already-owned native touch before that handler runs.',
+    );
+    expect(
+      pasteRecoverySource,
+      contains("'pointerdown'"),
+      reason:
+          'Focused iOS editable gestures must stay with WebKit so Flutter\'s '
+          'double-tap and long-press recognizers cannot dismiss the native menu.',
+    );
+    expect(
+      pasteRecoverySource,
+      contains('_handleEditablePointerUp'),
+      reason:
+          'The native pointer ownership guard must release cleanly after each '
+          'gesture sequence.',
+    );
+    expect(
+      pasteRecoverySource,
+      contains('_repeatedTapWindow'),
+      reason:
+          'The guard must cover the short second-tap race even when iOS '
+          'temporarily reports body as activeElement.',
+    );
+    expect(
+      pasteRecoverySource,
+      contains('_keepNativeEditableConnectionOnTransientBlur'),
+      reason:
+          'A native iOS callout must not let a transient null-target blur '
+          'close Flutter\'s text connection before Paste is delivered.',
+    );
+    expect(
+      pasteRecoverySource,
+      contains("addEventListener('blur', _editableBlurListener"),
+      reason:
+          'The iOS blur guard must run in document capture before the engine '
+          'listener attached to Flutter\'s hidden input.',
+    );
+    expect(
+      pasteRecoverySource,
+      contains("pointerType != 'touch'"),
+      reason:
+          'The iOS native-selection guard must not swallow mouse, pen, keyboard '
+          'or programmatic interactions.',
+    );
+    expect(
+      pasteRecoverySource,
+      contains('web.document.hasFocus()'),
+      reason:
+          'A window/app focus loss must always reach Flutter instead of being '
+          'mistaken for a transient native callout blur.',
+    );
+    expect(
+      pasteRecoverySource,
+      contains("addEventListener('pagehide', _pageHideListener"),
+      reason:
+          'Backgrounding or navigating the iOS PWA must release stale native '
+          'pointer and callout ownership.',
+    );
+    expect(
+      pasteRecoverySource,
+      contains('pointerEvent.pointerId == _ownedPointerId'),
+      reason:
+          'Only the exact touch sequence owned by WebKit may be kept outside '
+          'Flutter recognizers.',
+    );
+    expect(
+      pasteRecoverySource,
+      contains('_transientCalloutRetentionWindow'),
+      reason:
+          'A blurred callout target must have a bounded lease instead of being '
+          'eligible for an unrelated later paste.',
+    );
+    expect(pasteRecoverySource, contains('_isForeignEditable'));
+    expect(
+      pasteRecoverySource,
+      isNot(contains('web.document.querySelector(')),
+      reason:
+          'Paste must never fall back to an arbitrary mounted Flutter input.',
+    );
+    expect(
+      pasteRecoverySource,
+      contains('_lastHandledPaste = null;'),
+      reason:
+          'The paired paste/beforeinput marker must be consumed so a new paste '
+          'using the same clipboard cannot be dropped.',
     );
 
     final comboboxSource = File(

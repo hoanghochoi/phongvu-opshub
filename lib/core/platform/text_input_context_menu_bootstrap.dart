@@ -60,7 +60,9 @@ Future<void> initializeTextInputContextMenu({
     if (mode == TextInputContextMenuMode.browserNative) {
       await (enableBrowserContextMenu ??
           BrowserContextMenu.enableContextMenu)();
-      await initializeBrowserNativePasteRecovery();
+      await initializeBrowserNativePasteRecovery(
+        preserveRepeatedTapTarget: targetPlatform == TargetPlatform.iOS,
+      );
     } else {
       await (disableBrowserContextMenu ??
           BrowserContextMenu.disableContextMenu)();

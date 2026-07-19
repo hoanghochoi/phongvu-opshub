@@ -29,17 +29,67 @@ handshake. The full Flutter run reached 570 passed and 3 intentional skips but
 hit unrelated timing assertions in realtime tests; isolated reruns of
 `statement realtime max-wait prevents refresh starvation` and
 `SalesReportProvider filters and coalesces shared realtime v2 events` both
-passed. Intake 74 adds an idempotent browser-paste recovery path for the
-intermittent case where Safari emits a paste event but Flutter's hidden DOM
-input misses the result. It uses the focused `EditableText` controller snapshot
-and applies the replacement only when Flutter has not already changed it.
-Focused shared/native proof passed 42 tests, `flutter analyze --no-pub` was
-clean, the release web build plus Wasm dry run succeeded, and the full Flutter
-suite passed 573 tests with 3 intentional platform skips. Physical iOS PWA
-smoke on staging remains the final device gate for this follow-up. Intake 74
-affected-runtime run/record passed for four protected consumers:
-`PAYMENT-STATEMENT-KEYBOARD-001`, `UI-KEYBOARD-001`, `UI-PASTE-001`, and
-`UI-UX-001`.
+passed. The follow-up replaces the timer/controller recovery with a narrowly
+owned iOS touch path plus a capture-phase DOM bridge for both `paste` and
+`beforeinput(insertFromPaste)`. The first touch used to focus a field and all
+mouse, keyboard, or programmatic clicks still reach Flutter. Only a touch on an
+already-focused input, or a fast repeated touch on that same input, is kept
+outside Flutter's editable recognizers without canceling WebKit defaults. The
+owned `pointerId` must match, so unrelated multi-touch events are not
+suppressed. Matching pointer-up/cancel stays owned even when retargeted, while
+only an exact-input click in the 300ms pointer-up lease is stopped before
+Flutter 3.44.x can move the hidden input to `-9999px`. A null-target blur is
+guarded while that owned touch is active or during one single-use 220ms grace
+immediately after its matching pointer-up or pointer-cancel, and only when the
+document remains focused and visible. An outside pointer, focus on another
+control, hidden/page lifecycle, or a new primary touch clears stale ownership.
+The bridge
+uses the direct or active Flutter DOM input. It may reuse a cached input only
+when that exact target produced the guarded transient blur within the bounded
+10-second lease and still matches the retained focused `EditableTextState`.
+An empty first event retains one 180ms lease only for its immediate opposite
+event carrying text; another empty, same-source, late, foreign, focus, or
+lifecycle event consumes it. The bridge never queries or redirects a foreign
+input. It emits one synthetic `input` event, uses a
+single-use 180ms marker for the paired opposite browser event even when it lands
+on `body`, and calls
+`userUpdateTextEditingValue` as a formatter-safe fallback when the engine drops
+the DOM update. Focused policy/guard/bootstrap
+proof passed 29 tests, `flutter analyze --no-pub` was clean, and
+`flutter build web --release --no-pub` (including the Wasm dry run) succeeded.
+A local Playwright iPhone-profile smoke on the final release build verified the
+first-focus touch/click passed through, a focused native touch kept the same
+`.flt-text-editing` transform instead of moving it to `-9999px`, and no browser
+default was canceled. Same-pointer up/cancel stayed owned when retargeted;
+pointer-cancel kept the null-target blur but did not create a click lease.
+`pagehide` released the old pointer, a new primary touch recovered stale owner
+state, unrelated/non-primary touches bubbled, and blur/click propagated after
+their 220/300ms windows. A paired `paste`/`beforeinput` inserted once, an
+immediate new paste with the same clipboard inserted again, and foreign-input
+paste was not redirected. On an actual focused Flutter input, neutral
+`paste(empty)` followed by data-bearing `beforeinput` inserted exactly once;
+the next body paste and an empty/empty/data sequence did not reuse the stale
+field. The Flutter Chrome widget runner
+still times out before its test-manager handshake, so it remains an environment
+gap rather than a passing proof. Physical iOS PWA smoke on staging remains the
+final device gate for this follow-up. Intake 74 affected-runtime
+run/record/check passed against the narrowed implementation fingerprint for all
+four protected consumers: `PAYMENT-STATEMENT-KEYBOARD-001`,
+`UI-KEYBOARD-001`, `UI-PASTE-001`, and `UI-UX-001`.
+
+Final local proof on 2026-07-20 additionally held the focused input for 700ms,
+verified active and post-pointer owned-touch blur versus ordinary later blur,
+verified `beforeinput`-only plus guarded transient-blur replacements, and
+covered the single-use 220ms pointer-up/pointer-cancel grace, retargeted
+terminal events, 220/300ms expiry, lifecycle/new-primary reset, 10-second target
+expiry, empty-to-data pairing and double-empty consumption, and unrelated
+`pointerId` rejection. The
+full Flutter run reached 574 passed and 3 intentional skips, with one unrelated
+existing timing assertion failing in
+`OffsetAdjustmentProvider offset realtime max-wait prevents refresh
+starvation` (`expected 2`, `actual 3`); an isolated rerun reproduced that same
+offset-refresh failure. No paste, input, keyboard, or shared-control regression
+failed.
 
 ## Manual proof
 

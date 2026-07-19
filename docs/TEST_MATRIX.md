@@ -75,19 +75,58 @@ Recent focused evidence:
   intentional skips; two unrelated realtime timing assertions were flaky in
   the aggregate run and each passed in isolation. Physical iOS PWA smoke on
   staging remains the final platform gate.
-- `UI-PASTE-001`, 2026-07-19 intermittent-paste hardening: mobile web now
-  observes the native DOM `paste` event and keeps a short focused-field
-  snapshot. If Flutter does not reflect the browser-provided text within
-  120ms, the shared recovery replaces the captured selection exactly once;
-  if Flutter already updated, it is a no-op. The path is initialized only for
-  browser-native mobile mode, keeps the browser as the sole menu owner, and
-  logs captured/ignored/recovered/failed branches without clipboard contents.
-  Focused shared/native proof passed 42 tests, `flutter analyze --no-pub` was
-  clean, the release web build plus Wasm dry run succeeded, and the full Flutter
-  suite passed 573 tests with 3 intentional platform skips. Intake 74
-  affected-runtime proof passed for `PAYMENT-STATEMENT-KEYBOARD-001`,
-  `UI-KEYBOARD-001`, `UI-PASTE-001`, and `UI-UX-001`. The physical iOS PWA
-  repeat matrix remains pending for this follow-up.
+- `UI-PASTE-001`, 2026-07-19 intermittent-paste hardening: the first iOS touch
+  used to focus an input and mouse, keyboard, or programmatic clicks continue to
+  Flutter normally. Only a touch sequence on the already-focused input, or a
+  fast repeated touch on that same input, is WebKit-owned without canceling its
+  default action. Ownership requires the same `pointerId` and target, so
+  unrelated multi-touch events are not suppressed. Only the paired click is
+  stopped before Flutter's engine can relocate `.flt-text-editing` to
+  `-9999px`. A null-target blur is protected while that owned touch remains
+  active or during one single-use 220ms grace immediately after its matching
+  pointer-up or pointer-cancel, including a terminal event retargeted by WebKit,
+  and only while `relatedTarget` is null and the document stays focused and
+  visible. An outside pointer, focus on another control, hidden/page lifecycle,
+  or a new primary touch clears stale ownership; later and
+  keyboard-dismissal blur continue normally. The bridge observes both native
+  DOM `paste` and
+  `beforeinput(insertFromPaste)` in capture phase. It resolves the direct or
+  active Flutter DOM input, replaces the exact selection synchronously, and
+  emits one synthetic `input`. A cached target is eligible only when that exact
+  input produced the guarded transient blur no more than 10 seconds earlier and
+  still matches the retained focused `EditableTextState`. An empty first event
+  retains one 180ms lease only for an immediate opposite event carrying text;
+  a second empty, same-source, late, foreign, focus, or lifecycle event consumes
+  it. Arbitrary queried nodes and foreign inputs are rejected. A single-use
+  180ms marker consumes only the paired opposite
+  event, including a neutral `body` target and formatter normalization. If the
+  Flutter engine drops that DOM
+  update, the retained `EditableTextState` receives the same replacement through
+  `userUpdateTextEditingValue`, keeping formatters and `onChanged` intact. The
+  path is initialized only for browser-native mobile mode, keeps the browser
+  as the sole menu owner, and logs sanitized source/branch/length context
+  without clipboard contents.
+  Focused policy/guard/bootstrap proof passed 29 tests, `flutter analyze
+  --no-pub` was clean, and the release web build plus Wasm dry run succeeded.
+  Local Playwright iPhone-profile smoke on the final release build verified the
+  first-focus touch/click passed, the focused native touch kept the same DOM
+  input and transform without `preventDefault`, and paired paste/beforeinput
+  produced one exact replacement. Retargeted up/cancel stayed owned, cancel
+  preserved blur without creating a click lease, `pagehide` released the old
+  pointer, new-primary recovery worked, unrelated/non-primary touches bubbled,
+  and blur/click propagated after 220/300ms. On an actual focused Flutter input,
+  empty paste followed by a data-bearing opposite event inserted once, while a
+  later body paste and empty/empty/data sequence did not reuse the stale field.
+  A new paste with the same clipboard still inserted, and foreign HTML-input
+  paste was neither canceled nor redirected. The full Flutter run reached
+  574 passed and 3 skips; the unrelated offset-adjustment max-wait timing
+  assertion failed with expected 2
+  versus actual 3 and reproduced in isolation. The Chrome widget runner still
+  times out before its test-manager handshake; physical iOS PWA repeat remains
+  the final device gate. Intake 74 affected-runtime run/record/check passed
+  against the narrowed implementation fingerprint for
+  `PAYMENT-STATEMENT-KEYBOARD-001`, `UI-KEYBOARD-001`, `UI-PASTE-001`, and
+  `UI-UX-001`.
 - `HOME-DASHBOARD-002`, 2026-07-19: modal `Đơn chưa báo cáo` thêm cột
   `Giá trị đơn` ngay sau `Mã đơn hàng`, lấy từ
   `HomeSummaryOrderFact.grandTotal` và định dạng VND. Details API v1/v2 dùng
