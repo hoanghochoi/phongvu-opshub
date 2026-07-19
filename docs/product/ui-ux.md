@@ -319,7 +319,10 @@ visual systems that make the app feel assembled from unrelated screens.
   supported and otherwise fall back to the adaptive toolbar. Shared text inputs
   must isolate editable selection from an ancestor `SelectionArea`; never pass
   a null or empty `contextMenuBuilder`, and never enable browser and Flutter
-  menus at the same time.
+  menus at the same time. Mobile web may recover a browser `paste` event once
+  when Flutter's hidden input misses the resulting editing update; this
+  fallback must use the focused field snapshot, remain idempotent, and never
+  call the clipboard API outside the user-initiated paste event.
 - Mobile screens with tall filters or forms must keep every focused input inside
   a vertical scrollable that responds to the software-keyboard viewport. Opening
   the keyboard must not create a flex overflow or leave the focused input behind

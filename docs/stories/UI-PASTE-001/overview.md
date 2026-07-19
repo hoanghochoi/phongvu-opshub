@@ -23,6 +23,11 @@ reuse the same shared menu policy.
 - iOS/Android PWA enables the browser context menu. Flutter web then suppresses
   its own editable toolbar and lets the browser DOM input perform Paste in one
   native interaction.
+- The mobile-web bootstrap also observes the browser `paste` event. If Safari
+  delivered clipboard data but Flutter's hidden DOM input did not update the
+  focused `EditableText` within one frame window, an idempotent recovery applies
+  the captured selection replacement once. The recovery never reads the
+  clipboard outside the browser paste gesture and never renders a second menu.
 - Desktop web disables the browser context menu and renders one adaptive Flutter
   toolbar.
 - `AppGlobalSelectionScope` keeps visible text selectable; shared editable
@@ -34,4 +39,6 @@ reuse the same shared menu policy.
 ## Logging
 
 Startup logs record context-menu bootstrap start, resolved platform/mode,
-success, skip, and sanitized failure through `AppLogger`.
+success, skip, and sanitized failure through `AppLogger`. Mobile-web paste
+events record field/selection/text lengths; a recovery or failure records its
+branch and sanitized error through `AppLogger`.

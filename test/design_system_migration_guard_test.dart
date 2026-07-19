@@ -162,6 +162,23 @@ void main() {
       reason:
           'Mobile web must use the browser DOM input directly so Paste is not a two-step Flutter plus iOS action.',
     );
+    expect(
+      bootstrapSource,
+      contains('initializeBrowserNativePasteRecovery()'),
+      reason:
+          'Mobile web must retain the idempotent recovery for Safari paste events that miss the Flutter editing state.',
+    );
+
+    final pasteRecoverySource = File(
+      'lib/core/platform/browser_native_paste_recovery_web.dart',
+    ).readAsStringSync();
+    expect(pasteRecoverySource, contains("addEventListener('paste'"));
+    expect(
+      pasteRecoverySource,
+      contains('if (controller.text != before.text)'),
+      reason:
+          'The Safari fallback must stay idempotent and never append a second paste after Flutter already updated.',
+    );
 
     final comboboxSource = File(
       'lib/app/widgets/app_combobox.dart',

@@ -3,10 +3,10 @@
 ## Automated proof
 
 - Shared/native bundle:
-  `flutter test --no-pub test/app_form_controls_test.dart test/text_input_context_menu_bootstrap_test.dart test/design_system_migration_guard_test.dart --reporter expanded`
+  `flutter test --no-pub test/browser_native_paste_recovery_policy_test.dart test/app_form_controls_test.dart test/text_input_context_menu_bootstrap_test.dart test/design_system_migration_guard_test.dart --reporter expanded`
 - Required web compilation: `flutter build web --release --no-pub`.
 - Required static proof: `flutter analyze --no-pub`.
-- Required final gate: full `flutter test --no-pub` and Harness intake 73
+- Required final gate: full `flutter test --no-pub` and Harness intake 74
   affected-runtime run/check.
 
 The native iOS widget regression opens the shared system/adaptive toolbar, taps
@@ -29,7 +29,17 @@ handshake. The full Flutter run reached 570 passed and 3 intentional skips but
 hit unrelated timing assertions in realtime tests; isolated reruns of
 `statement realtime max-wait prevents refresh starvation` and
 `SalesReportProvider filters and coalesces shared realtime v2 events` both
-passed. Physical iOS PWA smoke on staging remains the final device gate.
+passed. Intake 74 adds an idempotent browser-paste recovery path for the
+intermittent case where Safari emits a paste event but Flutter's hidden DOM
+input misses the result. It uses the focused `EditableText` controller snapshot
+and applies the replacement only when Flutter has not already changed it.
+Focused shared/native proof passed 42 tests, `flutter analyze --no-pub` was
+clean, the release web build plus Wasm dry run succeeded, and the full Flutter
+suite passed 573 tests with 3 intentional platform skips. Physical iOS PWA
+smoke on staging remains the final device gate for this follow-up. Intake 74
+affected-runtime run/record passed for four protected consumers:
+`PAYMENT-STATEMENT-KEYBOARD-001`, `UI-KEYBOARD-001`, `UI-PASTE-001`, and
+`UI-UX-001`.
 
 ## Manual proof
 

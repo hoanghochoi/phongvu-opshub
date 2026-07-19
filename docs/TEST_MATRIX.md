@@ -75,6 +75,19 @@ Recent focused evidence:
   intentional skips; two unrelated realtime timing assertions were flaky in
   the aggregate run and each passed in isolation. Physical iOS PWA smoke on
   staging remains the final platform gate.
+- `UI-PASTE-001`, 2026-07-19 intermittent-paste hardening: mobile web now
+  observes the native DOM `paste` event and keeps a short focused-field
+  snapshot. If Flutter does not reflect the browser-provided text within
+  120ms, the shared recovery replaces the captured selection exactly once;
+  if Flutter already updated, it is a no-op. The path is initialized only for
+  browser-native mobile mode, keeps the browser as the sole menu owner, and
+  logs captured/ignored/recovered/failed branches without clipboard contents.
+  Focused shared/native proof passed 42 tests, `flutter analyze --no-pub` was
+  clean, the release web build plus Wasm dry run succeeded, and the full Flutter
+  suite passed 573 tests with 3 intentional platform skips. Intake 74
+  affected-runtime proof passed for `PAYMENT-STATEMENT-KEYBOARD-001`,
+  `UI-KEYBOARD-001`, `UI-PASTE-001`, and `UI-UX-001`. The physical iOS PWA
+  repeat matrix remains pending for this follow-up.
 - `HOME-DASHBOARD-002`, 2026-07-19: modal `Đơn chưa báo cáo` thêm cột
   `Giá trị đơn` ngay sau `Mã đơn hàng`, lấy từ
   `HomeSummaryOrderFact.grandTotal` và định dạng VND. Details API v1/v2 dùng

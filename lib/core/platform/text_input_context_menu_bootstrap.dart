@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 import '../logging/app_logger.dart';
+import 'browser_native_paste_recovery.dart';
 
 typedef ConfigureBrowserContextMenu = Future<void> Function();
 
@@ -59,6 +60,7 @@ Future<void> initializeTextInputContextMenu({
     if (mode == TextInputContextMenuMode.browserNative) {
       await (enableBrowserContextMenu ??
           BrowserContextMenu.enableContextMenu)();
+      await initializeBrowserNativePasteRecovery();
     } else {
       await (disableBrowserContextMenu ??
           BrowserContextMenu.disableContextMenu)();
