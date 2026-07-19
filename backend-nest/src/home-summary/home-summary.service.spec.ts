@@ -24,6 +24,7 @@ describe('HomeSummaryService', () => {
       },
       {
         orderCode: '2607040002',
+        grandTotal: 5000000,
         orderCreatedAt: new Date('2026-07-04T05:00:00Z'),
         fetchedAt: new Date('2026-07-04T05:10:00Z'),
         storeCode: 'CP75',
@@ -849,6 +850,7 @@ describe('HomeSummaryService', () => {
     prisma.homeSummaryOrderFact.findMany.mockResolvedValue([
       {
         orderCode: '2607040002',
+        grandTotal: 5000000,
         orderCreatedAt: new Date('2026-07-04T05:00:00Z'),
         fetchedAt: new Date('2026-07-04T05:10:00Z'),
         storeCode: 'CP62',
@@ -944,6 +946,7 @@ describe('HomeSummaryService', () => {
       unreportedOrders: [
         {
           orderCode: '2607040002',
+          grandTotal: 5000000,
           storeCode: 'CP62',
           salesName: 'Nhân viên Kho',
           soldAt: new Date('2026-07-04T05:00:00Z'),
@@ -1021,6 +1024,7 @@ describe('HomeSummaryService', () => {
     expect(result.unreportedOrders).toEqual([
       expect.objectContaining({
         orderCode: '26070337539840',
+        grandTotal: null,
         soldAt: null,
         salesName: 'Việt Nguyễn Quang',
       }),

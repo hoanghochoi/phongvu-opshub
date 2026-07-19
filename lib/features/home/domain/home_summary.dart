@@ -541,12 +541,14 @@ class HomeNotPurchasedReportDetail {
 class HomeUnreportedOrderDetail {
   const HomeUnreportedOrderDetail({
     required this.orderCode,
+    required this.grandTotal,
     required this.soldAt,
     required this.storeCode,
     required this.salesName,
   });
 
   final String orderCode;
+  final int? grandTotal;
   final DateTime? soldAt;
   final String? storeCode;
   final String? salesName;
@@ -554,6 +556,9 @@ class HomeUnreportedOrderDetail {
   factory HomeUnreportedOrderDetail.fromJson(Map<String, dynamic> json) {
     return HomeUnreportedOrderDetail(
       orderCode: HomeSummary._stringOf(json['orderCode']),
+      grandTotal: json['grandTotal'] == null
+          ? null
+          : HomeSummary._intOf(json['grandTotal']),
       soldAt: HomeSummary._dateTimeOf(json['soldAt']),
       storeCode: HomeSummary._nullableStringOf(json['storeCode']),
       salesName: HomeSummary._nullableStringOf(json['salesName']),

@@ -135,6 +135,20 @@ void main() {
     expect(summary.appDownloadRate, 100);
   });
 
+  test('Home behavior details parse unreported order value', () {
+    final details = HomeSalesBehaviorDetails.fromJson({
+      'unreportedOrders': [
+        {
+          'orderCode': '2607040002',
+          'grandTotal': 5000000,
+          'soldAt': '2026-07-04T03:30:00Z',
+        },
+      ],
+    });
+
+    expect(details.unreportedOrders.single.grandTotal, 5000000);
+  });
+
   test('Home summary parses projection freshness and stale warning', () {
     final summary = HomeSummary.fromJson({
       'date': '2026-07-14',
@@ -909,6 +923,7 @@ void main() {
       unreportedOrders: [
         HomeUnreportedOrderDetail(
           orderCode: '2607040002',
+          grandTotal: 5000000,
           soldAt: DateTime(2026, 7, 4, 10, 30),
           storeCode: 'CP62',
           salesName: 'SA Hai',
@@ -1003,10 +1018,12 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('Mã đơn hàng'), findsOneWidget);
+    expect(find.text('Giá trị đơn'), findsOneWidget);
     expect(find.text('Thời gian bán'), findsOneWidget);
     expect(find.text('Mã showroom'), findsOneWidget);
     expect(find.text('SA Hai'), findsOneWidget);
     expect(find.text('2607040002'), findsOneWidget);
+    expect(find.text('5.000.000 VND'), findsOneWidget);
     expect(find.text('CP62'), findsOneWidget);
     expect(find.text('04/07/2026 10:30'), findsOneWidget);
 

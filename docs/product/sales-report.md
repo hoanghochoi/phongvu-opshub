@@ -37,8 +37,8 @@ cho Google Form, đồng thời lưu dữ liệu đủ chuẩn để dashboard d
   `Số khách chưa mua` hoặc `Số đơn chưa báo cáo` mở modal chi tiết theo cùng
   ngày/scope/SA đang chọn; bảng hỗ trợ cuộn dọc và ngang trên màn nhỏ. Bảng
   khách chưa mua gồm Mã showroom, Tên SA, Tên khách hàng, Loại khách hàng, Ngành hàng
-  và Lý do không mua. Bảng đơn chưa báo cáo gồm Mã showroom, Tên SA, Mã đơn hàng và
-  Thời gian bán.
+  và Lý do không mua. Bảng đơn chưa báo cáo gồm Mã showroom, Tên SA, Mã đơn hàng,
+  Giá trị đơn và Thời gian bán; giá trị lấy từ `HomeSummaryOrderFact.grandTotal`.
   Card `Báo cáo đã mua` chỉ mở route `/admin/sales-reports` khi user có quyền
   `ADMIN_SALES_REPORTS` như Store Manager trở lên; user không có quyền chỉ xem
   số liệu. Card `Số lượng nhu cầu trả góp` mở modal chi tiết gồm SR, Tên SA,

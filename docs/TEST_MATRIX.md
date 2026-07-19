@@ -58,6 +58,13 @@ This file maps product behavior to proof. Existing flows are marked
 
 Recent focused evidence:
 
+- `HOME-DASHBOARD-002`, 2026-07-19: modal `Đơn chưa báo cáo` thêm cột
+  `Giá trị đơn` ngay sau `Mã đơn hàng`, lấy từ
+  `HomeSummaryOrderFact.grandTotal` và định dạng VND. Details API v1/v2 dùng
+  cùng contract nullable để dữ liệu cũ không có giá trị vẫn hiển thị an toàn.
+  Validation: focused Home Summary NestJS passed 36 tests, focused Home
+  dashboard Flutter passed 26 tests, `npm run build`,
+  `flutter analyze --no-pub`, and `git diff --check` passed.
 - `UI-KEYBOARD-001`, 2026-07-19: audited 31 Flutter presentation files that own
   text inputs and their shared viewport shells. Fixed the two risky compact
   layouts: Bank Statement now scrolls filters, states, and results in one mobile
@@ -516,7 +523,7 @@ Recent focused evidence:
   bấm phần chữ. Modal dùng cùng ngày/scope/SA đang chọn, có bảng cuộn dọc và
   ngang cho màn nhỏ; khách chưa mua hiển thị Tên SA, Tên khách hàng, Loại khách
   hàng, Ngành hàng, Lý do không mua; đơn chưa báo cáo hiển thị Tên SA, Mã đơn
-  hàng, Thời gian bán. Validation: focused Home Summary
+  hàng, Giá trị đơn, Thời gian bán. Validation: focused Home Summary
   service/controller/dto Jest, Nest build, focused Home dashboard Flutter
   widget test, `flutter analyze --no-pub`, `git diff --check`.
 - `HOME-DASHBOARD-002`, 2026-07-08: `Tổng quan` desktop giữ đủ 4 card trên

@@ -1568,7 +1568,7 @@ class _SalesBehaviorDetailsTable extends StatelessWidget {
         Expanded(
           child: AppTwoAxisScrollView(
             child: ConstrainedBox(
-              constraints: BoxConstraints(minWidth: isNotPurchased ? 940 : 660),
+              constraints: BoxConstraints(minWidth: isNotPurchased ? 940 : 820),
               child: isNotPurchased
                   ? _NotPurchasedDetailsDataTable(
                       rows: details.notPurchasedReports,
@@ -1645,6 +1645,7 @@ class _UnreportedOrdersDetailsDataTable extends StatelessWidget {
         DataColumn(label: Text('Mã showroom')),
         DataColumn(label: Text('Tên nhân viên')),
         DataColumn(label: Text('Mã đơn hàng')),
+        DataColumn(label: Text('Giá trị đơn')),
         DataColumn(label: Text('Thời gian bán')),
       ],
       rows: [
@@ -1654,6 +1655,7 @@ class _UnreportedOrdersDetailsDataTable extends StatelessWidget {
               DataCell(Text(_valueOrEmpty(row.storeCode))),
               DataCell(Text(_valueOrEmpty(row.salesName))),
               DataCell(Text(row.orderCode)),
+              DataCell(Text(_valueOrEmpty(formatVndAmount(row.grandTotal)))),
               DataCell(Text(_dateTimeLabel(row.soldAt))),
             ],
           ),

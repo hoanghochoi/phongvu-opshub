@@ -235,6 +235,7 @@ type HomeSummaryNotPurchasedDetail = {
 
 type HomeSummaryUnreportedOrderDetail = {
   orderCode: string;
+  grandTotal: number | null;
   soldAt: Date | null;
   storeCode: string | null;
   salesName: string | null;
@@ -952,6 +953,7 @@ export class HomeSummaryService {
         take: limit,
         select: {
           orderCode: true,
+          grandTotal: true,
           orderCreatedAt: true,
           fetchedAt: true,
           storeCode: true,
@@ -1279,6 +1281,7 @@ export class HomeSummaryService {
           ...(cursorId ? { cursor: { orderCode: cursorId }, skip: 1 } : {}),
           select: {
             orderCode: true,
+            grandTotal: true,
             orderCreatedAt: true,
             fetchedAt: true,
             storeCode: true,
@@ -3244,6 +3247,7 @@ export class HomeSummaryService {
     const storeCode = this.normalizeStoreCode(row.storeCode);
     return {
       orderCode: this.normalizeOrderCode(row.orderCode) ?? '',
+      grandTotal: typeof row.grandTotal === 'number' ? row.grandTotal : null,
       soldAt: row.orderCreatedAt ?? null,
       storeCode,
       salesName:
