@@ -5,7 +5,7 @@ import '../logging/app_logger.dart';
 
 typedef ConfigureBrowserContextMenu = Future<void> Function();
 
-enum TextInputContextMenuMode { platformNative, flutter }
+enum TextInputContextMenuMode { platformNative, browserNative, flutter }
 
 @visibleForTesting
 TextInputContextMenuMode resolveTextInputContextMenuMode({
@@ -13,6 +13,10 @@ TextInputContextMenuMode resolveTextInputContextMenuMode({
   required TargetPlatform targetPlatform,
 }) {
   if (!isWeb) return TextInputContextMenuMode.platformNative;
+  if (targetPlatform == TargetPlatform.iOS ||
+      targetPlatform == TargetPlatform.android) {
+    return TextInputContextMenuMode.browserNative;
+  }
   return TextInputContextMenuMode.flutter;
 }
 
@@ -20,6 +24,7 @@ Future<void> initializeTextInputContextMenu({
   bool? isWebOverride,
   TargetPlatform? targetPlatformOverride,
   ConfigureBrowserContextMenu? disableBrowserContextMenu,
+  ConfigureBrowserContextMenu? enableBrowserContextMenu,
 }) async {
   final isWeb = isWebOverride ?? kIsWeb;
   final targetPlatform = targetPlatformOverride ?? defaultTargetPlatform;
@@ -51,8 +56,13 @@ Future<void> initializeTextInputContextMenu({
   }
 
   try {
-    await (disableBrowserContextMenu ??
-        BrowserContextMenu.disableContextMenu)();
+    if (mode == TextInputContextMenuMode.browserNative) {
+      await (enableBrowserContextMenu ??
+          BrowserContextMenu.enableContextMenu)();
+    } else {
+      await (disableBrowserContextMenu ??
+          BrowserContextMenu.disableContextMenu)();
+    }
     await AppLogger.instance.info(
       'Startup',
       'Text input context menu bootstrap succeeded',

@@ -152,6 +152,17 @@ void main() {
           'Shared editable inputs must never replace Paste with an empty menu.',
     );
 
+    final bootstrapSource = File(
+      'lib/core/platform/text_input_context_menu_bootstrap.dart',
+    ).readAsStringSync();
+    expect(bootstrapSource, contains('TextInputContextMenuMode.browserNative'));
+    expect(
+      bootstrapSource,
+      contains('BrowserContextMenu.enableContextMenu'),
+      reason:
+          'Mobile web must use the browser DOM input directly so Paste is not a two-step Flutter plus iOS action.',
+    );
+
     final comboboxSource = File(
       'lib/app/widgets/app_combobox.dart',
     ).readAsStringSync();

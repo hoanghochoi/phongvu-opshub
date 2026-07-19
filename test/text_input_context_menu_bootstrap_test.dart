@@ -11,14 +11,14 @@ void main() {
         isWeb: true,
         targetPlatform: TargetPlatform.iOS,
       ),
-      TextInputContextMenuMode.flutter,
+      TextInputContextMenuMode.browserNative,
     );
     expect(
       resolveTextInputContextMenuMode(
         isWeb: true,
         targetPlatform: TargetPlatform.android,
       ),
-      TextInputContextMenuMode.flutter,
+      TextInputContextMenuMode.browserNative,
     );
     expect(
       resolveTextInputContextMenuMode(
@@ -38,6 +38,7 @@ void main() {
 
   test('disables browser context menu for desktop web', () async {
     var disabledCalls = 0;
+    var enabledCalls = 0;
 
     await initializeTextInputContextMenu(
       isWebOverride: true,
@@ -45,15 +46,20 @@ void main() {
       disableBrowserContextMenu: () async {
         disabledCalls += 1;
       },
+      enableBrowserContextMenu: () async {
+        enabledCalls += 1;
+      },
     );
 
     expect(disabledCalls, 1);
+    expect(enabledCalls, 0);
   });
 
   test(
-    'disables browser menu so mobile web uses Flutter paste toolbar',
+    'enables browser menu so mobile web uses one native paste action',
     () async {
       var disabledCalls = 0;
+      var enabledCalls = 0;
 
       await initializeTextInputContextMenu(
         isWebOverride: true,
@@ -61,24 +67,33 @@ void main() {
         disableBrowserContextMenu: () async {
           disabledCalls += 1;
         },
+        enableBrowserContextMenu: () async {
+          enabledCalls += 1;
+        },
       );
 
-      expect(disabledCalls, 1);
+      expect(disabledCalls, 0);
+      expect(enabledCalls, 1);
     },
   );
 
   test('skips browser context menu changes outside web', () async {
-    var calls = 0;
+    var disabledCalls = 0;
+    var enabledCalls = 0;
 
     await initializeTextInputContextMenu(
       isWebOverride: false,
       targetPlatformOverride: TargetPlatform.android,
       disableBrowserContextMenu: () async {
-        calls += 1;
+        disabledCalls += 1;
+      },
+      enableBrowserContextMenu: () async {
+        enabledCalls += 1;
       },
     );
 
-    expect(calls, 0);
+    expect(disabledCalls, 0);
+    expect(enabledCalls, 0);
   });
 
   test(

@@ -58,20 +58,23 @@ This file maps product behavior to proof. Existing flows are marked
 
 Recent focused evidence:
 
-- `UI-PASTE-001`, 2026-07-19: traced the missing iOS paste menu to the shared
-  `contextMenuBuilder`: native/desktop modes explicitly received `null`, while
-  mobile web received an empty widget and delegated to a browser menu that did
-  not attach reliably to Flutter's editable canvas. All shared inputs now use
-  `SystemContextMenu` where supported with an adaptive Flutter fallback; every
-  web target disables the browser menu so Flutter is the single menu owner.
-  The runtime guard confirms all editable fields still flow through
-  `AppTextInput`, `AppFormTextInput`, or `AppCombobox`. Focused native/shared
-  regression passed 40 tests, including an iOS toolbar action that pastes real
-  mock-clipboard text into the controller. `flutter analyze --no-pub` and the
-  release web build passed, including the Wasm dry run; full Flutter regression
-  passed 571 tests with 3 platform skips. Chrome runner proof remains pending
-  because the local Flutter 3.38/Chrome 150 headless handshake did not complete;
-  physical iOS PWA smoke is the separate final platform gate.
+- `UI-PASTE-001`, 2026-07-19 follow-up: physical iOS PWA staging build
+  `2026.07.19.210` proved that the all-Flutter web policy created two Paste
+  controls: Flutter's toolbar initiated clipboard access, then Safari opened
+  its native confirmation. Intake 73 restores browser-native ownership for
+  iOS/Android PWA while desktop web keeps the Flutter toolbar. Shared inputs
+  retain their system/adaptive builder; Flutter web suppresses that builder
+  automatically while `BrowserContextMenu` is enabled. The runtime guard still
+  requires every editable field to flow through `AppTextInput`,
+  `AppFormTextInput`, or `AppCombobox`. Corrected automated and physical proof
+  Focused shared/native proof passed 40 tests; `flutter analyze --no-pub` and
+  `flutter build web --release --no-pub` (including the Wasm dry run) passed. A
+  Playwright iPhone-profile smoke (platform override before Flutter boot)
+  verified an uncanceled browser `contextmenu`, one DOM clipboard insertion,
+  and zero Flutter `Paste` labels. The full suite reached 570 passed and 3
+  intentional skips; two unrelated realtime timing assertions were flaky in
+  the aggregate run and each passed in isolation. Physical iOS PWA smoke on
+  staging remains the final platform gate.
 - `HOME-DASHBOARD-002`, 2026-07-19: modal `Đơn chưa báo cáo` thêm cột
   `Giá trị đơn` ngay sau `Mã đơn hàng`, lấy từ
   `HomeSummaryOrderFact.grandTotal` và định dạng VND. Details API v1/v2 dùng

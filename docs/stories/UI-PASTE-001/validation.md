@@ -6,18 +6,30 @@
   `flutter test --no-pub test/app_form_controls_test.dart test/text_input_context_menu_bootstrap_test.dart test/design_system_migration_guard_test.dart --reporter expanded`
 - Required web compilation: `flutter build web --release --no-pub`.
 - Required static proof: `flutter analyze --no-pub`.
-- Required final gate: full `flutter test --no-pub` and Harness intake 72
+- Required final gate: full `flutter test --no-pub` and Harness intake 73
   affected-runtime run/check.
 
-The iOS widget regression opens the shared toolbar, taps Paste, and asserts the
-controller receives the mock clipboard text. The migration guard proves all
-runtime editable fields still use the shared input primitives and that the
-shared builder retains system plus adaptive implementations.
+The native iOS widget regression opens the shared system/adaptive toolbar, taps
+Paste, and asserts the controller receives the mock clipboard text. The web
+regressions require iOS PWA to enable `BrowserContextMenu`, reject a Flutter
+toolbar/Paste button, and cover both shared text input and combobox. The
+migration guard proves all runtime editable fields still use the shared input
+primitives, retain system plus adaptive fallbacks, and keep browser-native mode
+for mobile web.
 
-Current result: the shared/native bundle passed 40 tests,
-`flutter analyze --no-pub` passed, and the release web build plus Wasm dry run
-completed successfully. Full Flutter regression passed 571 tests with 3
-platform skips.
+Previous result at staging build `2026.07.19.210`: physical iOS PWA exposed the
+duplicate Flutter plus Safari Paste controls. Intake 73 corrected the owner
+policy. Automated proof now passes the focused shared/native bundle (40 tests),
+`flutter analyze --no-pub`, and `flutter build web --release --no-pub` with the
+Wasm dry run. A Playwright iPhone-profile smoke with `navigator.platform`
+overridden to `iPhone` verified browser context-menu events are not canceled,
+DOM paste inserts `IOS-PWA-PASTE` once, and no Flutter `Paste` semantic label is
+rendered. The Chrome widget-test runner still times out before its test-manager
+handshake. The full Flutter run reached 570 passed and 3 intentional skips but
+hit unrelated timing assertions in realtime tests; isolated reruns of
+`statement realtime max-wait prevents refresh starvation` and
+`SalesReportProvider filters and coalesces shared realtime v2 events` both
+passed. Physical iOS PWA smoke on staging remains the final device gate.
 
 ## Manual proof
 

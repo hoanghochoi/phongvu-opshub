@@ -2,25 +2,29 @@
 
 ## Problem
 
-On iOS, staff could focus inputs and open the software keyboard, but tap,
-double tap, and long press did not expose Paste. The failure affected every
-runtime input because all editable controls reuse the same shared menu policy.
+On iOS PWA, Paste first appeared in a Flutter toolbar. Tapping it then opened a
+second iOS browser Paste confirmation, so insertion required two separate
+actions. The failure affected every runtime input because all editable controls
+reuse the same shared menu policy.
 
 ## Root cause
 
-- Native and desktop modes passed an explicit null `contextMenuBuilder`, which
-  disables the `TextField` default context menu.
-- Mobile web/PWA returned an empty Flutter menu and enabled the browser menu.
-  That browser menu did not reliably attach to Flutter's rendered editable.
-- Existing tests asserted which owner was selected but did not execute Paste
-  and verify that clipboard text reached the controller.
+- The shared bootstrap disabled `BrowserContextMenu` for every web target.
+- On iOS PWA, Flutter therefore rendered its own Paste button and read the web
+  clipboard. Safari then required its native Paste confirmation, producing two
+  stacked controls and a two-step interaction.
+- Existing web tests asserted that Flutter Paste existed, which encoded the
+  duplicate-owner behavior instead of rejecting it.
 
 ## Accepted behavior
 
 - Native inputs use `SystemContextMenu` when Flutter reports support and fall
   back to `AdaptiveTextSelectionToolbar` otherwise.
-- Every web target disables the browser context menu and renders one adaptive
-  Flutter toolbar.
+- iOS/Android PWA enables the browser context menu. Flutter web then suppresses
+  its own editable toolbar and lets the browser DOM input perform Paste in one
+  native interaction.
+- Desktop web disables the browser context menu and renders one adaptive Flutter
+  toolbar.
 - `AppGlobalSelectionScope` keeps visible text selectable; shared editable
   controls remain isolated with `SelectionContainer.disabled` so the outer
   selection region cannot compete with input selection.
