@@ -58,6 +58,20 @@ This file maps product behavior to proof. Existing flows are marked
 
 Recent focused evidence:
 
+- `UI-PASTE-001`, 2026-07-19: traced the missing iOS paste menu to the shared
+  `contextMenuBuilder`: native/desktop modes explicitly received `null`, while
+  mobile web received an empty widget and delegated to a browser menu that did
+  not attach reliably to Flutter's editable canvas. All shared inputs now use
+  `SystemContextMenu` where supported with an adaptive Flutter fallback; every
+  web target disables the browser menu so Flutter is the single menu owner.
+  The runtime guard confirms all editable fields still flow through
+  `AppTextInput`, `AppFormTextInput`, or `AppCombobox`. Focused native/shared
+  regression passed 40 tests, including an iOS toolbar action that pastes real
+  mock-clipboard text into the controller. `flutter analyze --no-pub` and the
+  release web build passed, including the Wasm dry run; full Flutter regression
+  passed 571 tests with 3 platform skips. Chrome runner proof remains pending
+  because the local Flutter 3.38/Chrome 150 headless handshake did not complete;
+  physical iOS PWA smoke is the separate final platform gate.
 - `HOME-DASHBOARD-002`, 2026-07-19: modal `Đơn chưa báo cáo` thêm cột
   `Giá trị đơn` ngay sau `Mã đơn hàng`, lấy từ
   `HomeSummaryOrderFact.grandTotal` và định dạng VND. Details API v1/v2 dùng

@@ -58,7 +58,7 @@ void main() {
   }, skip: !kIsWeb);
 
   testWidgets(
-    'mobile web AppTextInput keeps browser paste and suppresses Flutter toolbar',
+    'mobile web AppTextInput disables browser menu and shows Flutter paste',
     (tester) async {
       debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
       try {
@@ -100,8 +100,8 @@ void main() {
         await tester.pump();
         await tester.pump(const Duration(milliseconds: 300));
 
-        expect(contextMenuCalls, contains('enableContextMenu'));
-        expect(find.text('Paste'), findsNothing);
+        expect(contextMenuCalls, contains('disableContextMenu'));
+        expect(find.text('Paste'), findsOneWidget);
       } finally {
         debugDefaultTargetPlatformOverride = null;
       }
@@ -109,71 +109,67 @@ void main() {
     skip: !kIsWeb,
   );
 
-  testWidgets(
-    'mobile web AppCombobox uses only the browser paste menu',
-    (tester) async {
-      debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
-      try {
-        final contextMenuCalls = <String>[];
+  testWidgets('mobile web AppCombobox uses the Flutter paste menu', (
+    tester,
+  ) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+    try {
+      final contextMenuCalls = <String>[];
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(SystemChannels.contextMenu, (call) async {
+            contextMenuCalls.add(call.method);
+            return null;
+          });
+      addTearDown(() {
         TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-            .setMockMethodCallHandler(SystemChannels.contextMenu, (call) async {
-              contextMenuCalls.add(call.method);
-              return null;
-            });
-        addTearDown(() {
-          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-              .setMockMethodCallHandler(SystemChannels.contextMenu, null);
-        });
+            .setMockMethodCallHandler(SystemChannels.contextMenu, null);
+      });
 
-        await initializeTextInputContextMenu(
-          targetPlatformOverride: TargetPlatform.iOS,
-        );
+      await initializeTextInputContextMenu(
+        targetPlatformOverride: TargetPlatform.iOS,
+      );
 
-        await tester.pumpWidget(
-          MaterialApp(
-            home: Scaffold(
-              body: SelectionArea(
-                child: AppCombobox<String>.single(
-                  label: 'Showroom',
-                  value: null,
-                  options: const [
-                    AppComboboxOption(value: 'CP01', label: 'Showroom CP01'),
-                  ],
-                  onChanged: (_) {},
-                ),
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SelectionArea(
+              child: AppCombobox<String>.single(
+                label: 'Showroom',
+                value: null,
+                options: const [
+                  AppComboboxOption(value: 'CP01', label: 'Showroom CP01'),
+                ],
+                onChanged: (_) {},
               ),
             ),
           ),
-        );
+        ),
+      );
 
-        final editableTextState = tester.state<EditableTextState>(
-          find.byType(EditableText),
-        );
-        expect(
-          SelectionContainer.maybeOf(
-            tester.element(find.byType(EditableText)),
-          ),
-          isNull,
-        );
-        expect(
-          tester.widget<TextField>(find.byType(TextField)).contextMenuBuilder,
-          isNotNull,
-        );
+      final editableTextState = tester.state<EditableTextState>(
+        find.byType(EditableText),
+      );
+      expect(
+        SelectionContainer.maybeOf(tester.element(find.byType(EditableText))),
+        isNull,
+      );
+      expect(
+        tester.widget<TextField>(find.byType(TextField)).contextMenuBuilder,
+        isNotNull,
+      );
 
-        editableTextState.renderEditable.selectWordsInRange(
-          from: Offset.zero,
-          cause: SelectionChangedCause.longPress,
-        );
-        editableTextState.showToolbar();
-        await tester.pump();
-        await tester.pump(const Duration(milliseconds: 300));
+      editableTextState.renderEditable.selectWordsInRange(
+        from: Offset.zero,
+        cause: SelectionChangedCause.longPress,
+      );
+      editableTextState.showToolbar();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
 
-        expect(contextMenuCalls, contains('enableContextMenu'));
-        expect(find.text('Paste'), findsNothing);
-      } finally {
-        debugDefaultTargetPlatformOverride = null;
-      }
-    },
-    skip: !kIsWeb,
-  );
+      expect(contextMenuCalls, contains('disableContextMenu'));
+      expect(find.text('Paste'), findsOneWidget);
+    } finally {
+      debugDefaultTargetPlatformOverride = null;
+    }
+  }, skip: !kIsWeb);
 }

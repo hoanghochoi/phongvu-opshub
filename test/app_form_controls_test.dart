@@ -1,6 +1,7 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:phongvu_opshub/app/widgets/app_cards.dart';
 import 'package:phongvu_opshub/app/widgets/app_combobox.dart';
@@ -9,35 +10,8 @@ import 'package:phongvu_opshub/app/widgets/app_pagination.dart';
 import 'package:phongvu_opshub/app/widgets/app_state_widgets.dart';
 
 void main() {
-  test('context menu policy suppresses only Flutter mobile-web toolbar', () {
-    expect(
-      appTextInputContextMenuBuilder(
-        isWebOverride: true,
-        targetPlatformOverride: TargetPlatform.iOS,
-      ),
-      isNotNull,
-    );
-    expect(
-      appTextInputContextMenuBuilder(
-        isWebOverride: true,
-        targetPlatformOverride: TargetPlatform.android,
-      ),
-      isNotNull,
-    );
-    expect(
-      appTextInputContextMenuBuilder(
-        isWebOverride: true,
-        targetPlatformOverride: TargetPlatform.windows,
-      ),
-      isNull,
-    );
-    expect(
-      appTextInputContextMenuBuilder(
-        isWebOverride: false,
-        targetPlatformOverride: TargetPlatform.android,
-      ),
-      isNull,
-    );
+  test('every shared input mode provides a Flutter context menu builder', () {
+    expect(appTextInputContextMenuBuilder(), isNotNull);
   });
 
   testWidgets('AppTextInput renders tokenized label, icon, and input text', (
@@ -94,34 +68,94 @@ void main() {
   );
 
   testWidgets(
-    'AppCombobox is isolated from ancestor SelectionArea ownership',
+    'iOS AppTextInput exposes a working Paste action under global SelectionArea',
     (tester) async {
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: SelectionArea(
-              child: AppCombobox<String>.single(
-                label: 'Showroom',
-                value: null,
-                options: const [
-                  AppComboboxOption(value: 'CP01', label: 'Showroom CP01'),
-                ],
-                onChanged: (_) {},
+      debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+      try {
+        var clipboardText = 'CP01';
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(SystemChannels.platform, (call) async {
+              switch (call.method) {
+                case 'Clipboard.getData':
+                  return <String, Object?>{'text': clipboardText};
+                case 'Clipboard.hasStrings':
+                  return <String, bool>{'value': clipboardText.isNotEmpty};
+                case 'Clipboard.setData':
+                  clipboardText =
+                      (call.arguments as Map<Object?, Object?>?)?['text']
+                          as String? ??
+                      '';
+              }
+              return null;
+            });
+        addTearDown(() {
+          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+              .setMockMethodCallHandler(SystemChannels.platform, null);
+        });
+        final controller = TextEditingController();
+        addTearDown(controller.dispose);
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: SelectionArea(
+                child: AppTextInput(
+                  controller: controller,
+                  label: 'Mã đơn hàng',
+                ),
               ),
             ),
           ),
-        ),
-      );
+        );
 
-      final editableTextContext = tester.element(find.byType(EditableText));
-      expect(
-        SelectionContainer.maybeOf(editableTextContext),
-        isNull,
-        reason:
-            'The global SelectionArea must not compete with the combobox paste menu.',
-      );
+        final editableTextState = tester.state<EditableTextState>(
+          find.byType(EditableText),
+        );
+        editableTextState.renderEditable.selectWordsInRange(
+          from: Offset.zero,
+          cause: SelectionChangedCause.longPress,
+        );
+        await tester.pump();
+        expect(editableTextState.showToolbar(), isTrue);
+        await tester.pumpAndSettle();
+
+        expect(find.text('Paste'), findsOneWidget);
+        await tester.tap(find.text('Paste'));
+        await tester.pump();
+        expect(controller.text, 'CP01');
+      } finally {
+        debugDefaultTargetPlatformOverride = null;
+      }
     },
   );
+
+  testWidgets('AppCombobox is isolated from ancestor SelectionArea ownership', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SelectionArea(
+            child: AppCombobox<String>.single(
+              label: 'Showroom',
+              value: null,
+              options: const [
+                AppComboboxOption(value: 'CP01', label: 'Showroom CP01'),
+              ],
+              onChanged: (_) {},
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final editableTextContext = tester.element(find.byType(EditableText));
+    expect(
+      SelectionContainer.maybeOf(editableTextContext),
+      isNull,
+      reason:
+          'The global SelectionArea must not compete with the combobox paste menu.',
+    );
+  });
 
   testWidgets('AppFormTextInput keeps form validation on shared input', (
     tester,

@@ -137,6 +137,20 @@ void main() {
       ).allMatches(editableInputSource).length,
       2,
     );
+    expect(
+      appInputsSource,
+      contains('SystemContextMenu.isSupportedByField(editableTextState)'),
+    );
+    expect(
+      appInputsSource,
+      contains('AdaptiveTextSelectionToolbar.editableText('),
+    );
+    expect(
+      appInputsSource,
+      isNot(contains('=> const SizedBox.shrink()')),
+      reason:
+          'Shared editable inputs must never replace Paste with an empty menu.',
+    );
 
     final comboboxSource = File(
       'lib/app/widgets/app_combobox.dart',

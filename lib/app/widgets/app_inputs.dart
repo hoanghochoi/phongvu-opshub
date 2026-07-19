@@ -1,23 +1,21 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import '../../core/platform/text_input_context_menu_bootstrap.dart';
 import '../theme/app_text_styles.dart';
 import 'app_dialogs.dart';
 import 'app_layout.dart';
 
-EditableTextContextMenuBuilder? appTextInputContextMenuBuilder({
-  bool? isWebOverride,
-  TargetPlatform? targetPlatformOverride,
-}) {
-  final suppressFlutterMenu = shouldSuppressFlutterTextInputContextMenu(
-    isWeb: isWebOverride ?? kIsWeb,
-    targetPlatform: targetPlatformOverride ?? defaultTargetPlatform,
-  );
-  if (!suppressFlutterMenu) return null;
-  return (context, editableTextState) => const SizedBox.shrink();
-}
+EditableTextContextMenuBuilder appTextInputContextMenuBuilder() =>
+    (context, editableTextState) {
+      if (SystemContextMenu.isSupportedByField(editableTextState)) {
+        return SystemContextMenu.editableText(
+          editableTextState: editableTextState,
+        );
+      }
+      return AdaptiveTextSelectionToolbar.editableText(
+        editableTextState: editableTextState,
+      );
+    };
 
 class AppInputMetrics {
   AppInputMetrics._();

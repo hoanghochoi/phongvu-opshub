@@ -310,11 +310,14 @@ visual systems that make the app feel assembled from unrelated screens.
   Linux và macOS thumb/track luôn hiện và phải kéo được bằng chuột. Không lồng
   các `Scrollbar` không controller vì sẽ tranh `PrimaryScrollController` và
   làm mất thao tác drag trên desktop.
-- Text inputs have exactly one context-menu owner per platform: mobile web uses
-  the browser-native selection/paste menu, desktop web uses Flutter's toolbar,
-  and native Android/iOS uses the platform Flutter toolbar. Shared text inputs
-  must isolate editable selection from an ancestor `SelectionArea`; do not
-  enable both browser and Flutter paste menus on mobile web.
+- Text inputs have exactly one context-menu owner per platform. All Flutter web
+  builds disable the browser context menu and use the shared Flutter adaptive
+  toolbar so tap, double tap, long press, cut, copy, paste, and select-all work
+  consistently in iOS/Android PWA and desktop browsers. Native clients use
+  `SystemContextMenu` when supported and otherwise fall back to the same
+  adaptive toolbar. Shared text inputs must isolate editable selection from an
+  ancestor `SelectionArea`; never pass a null or empty `contextMenuBuilder`, and
+  never enable browser and Flutter menus at the same time.
 - Mobile screens with tall filters or forms must keep every focused input inside
   a vertical scrollable that responds to the software-keyboard viewport. Opening
   the keyboard must not create a flex overflow or leave the focused input behind

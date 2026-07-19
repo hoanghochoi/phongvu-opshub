@@ -11,14 +11,14 @@ void main() {
         isWeb: true,
         targetPlatform: TargetPlatform.iOS,
       ),
-      TextInputContextMenuMode.platformNative,
+      TextInputContextMenuMode.flutter,
     );
     expect(
       resolveTextInputContextMenuMode(
         isWeb: true,
         targetPlatform: TargetPlatform.android,
       ),
-      TextInputContextMenuMode.platformNative,
+      TextInputContextMenuMode.flutter,
     );
     expect(
       resolveTextInputContextMenuMode(
@@ -36,9 +36,8 @@ void main() {
     );
   });
 
-  test('disables browser context menu only for desktop web', () async {
+  test('disables browser context menu for desktop web', () async {
     var disabledCalls = 0;
-    var enabledCalls = 0;
 
     await initializeTextInputContextMenu(
       isWebOverride: true,
@@ -46,33 +45,27 @@ void main() {
       disableBrowserContextMenu: () async {
         disabledCalls += 1;
       },
-      enableBrowserContextMenu: () async {
-        enabledCalls += 1;
-      },
     );
 
     expect(disabledCalls, 1);
-    expect(enabledCalls, 0);
   });
 
-  test('keeps native browser menu enabled on mobile web', () async {
-    var disabledCalls = 0;
-    var enabledCalls = 0;
+  test(
+    'disables browser menu so mobile web uses Flutter paste toolbar',
+    () async {
+      var disabledCalls = 0;
 
-    await initializeTextInputContextMenu(
-      isWebOverride: true,
-      targetPlatformOverride: TargetPlatform.iOS,
-      disableBrowserContextMenu: () async {
-        disabledCalls += 1;
-      },
-      enableBrowserContextMenu: () async {
-        enabledCalls += 1;
-      },
-    );
+      await initializeTextInputContextMenu(
+        isWebOverride: true,
+        targetPlatformOverride: TargetPlatform.iOS,
+        disableBrowserContextMenu: () async {
+          disabledCalls += 1;
+        },
+      );
 
-    expect(disabledCalls, 0);
-    expect(enabledCalls, 1);
-  });
+      expect(disabledCalls, 1);
+    },
+  );
 
   test('skips browser context menu changes outside web', () async {
     var calls = 0;

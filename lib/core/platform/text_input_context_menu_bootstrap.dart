@@ -13,28 +13,13 @@ TextInputContextMenuMode resolveTextInputContextMenuMode({
   required TargetPlatform targetPlatform,
 }) {
   if (!isWeb) return TextInputContextMenuMode.platformNative;
-  return targetPlatform == TargetPlatform.android ||
-          targetPlatform == TargetPlatform.iOS
-      ? TextInputContextMenuMode.platformNative
-      : TextInputContextMenuMode.flutter;
+  return TextInputContextMenuMode.flutter;
 }
-
-bool shouldSuppressFlutterTextInputContextMenu({
-  required bool isWeb,
-  required TargetPlatform targetPlatform,
-}) =>
-    resolveTextInputContextMenuMode(
-          isWeb: isWeb,
-          targetPlatform: targetPlatform,
-        ) ==
-        TextInputContextMenuMode.platformNative &&
-    isWeb;
 
 Future<void> initializeTextInputContextMenu({
   bool? isWebOverride,
   TargetPlatform? targetPlatformOverride,
   ConfigureBrowserContextMenu? disableBrowserContextMenu,
-  ConfigureBrowserContextMenu? enableBrowserContextMenu,
 }) async {
   final isWeb = isWebOverride ?? kIsWeb;
   final targetPlatform = targetPlatformOverride ?? defaultTargetPlatform;
@@ -66,13 +51,8 @@ Future<void> initializeTextInputContextMenu({
   }
 
   try {
-    if (mode == TextInputContextMenuMode.platformNative) {
-      await (enableBrowserContextMenu ??
-          BrowserContextMenu.enableContextMenu)();
-    } else {
-      await (disableBrowserContextMenu ??
-          BrowserContextMenu.disableContextMenu)();
-    }
+    await (disableBrowserContextMenu ??
+        BrowserContextMenu.disableContextMenu)();
     await AppLogger.instance.info(
       'Startup',
       'Text input context menu bootstrap succeeded',
