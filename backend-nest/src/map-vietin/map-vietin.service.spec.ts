@@ -324,17 +324,12 @@ describe('MapVietinService', () => {
     );
     expect(prisma.mapVietinTransaction.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: {
-          AND: expect.arrayContaining([
-            { storeCode: 'CP01' },
-            { incomeType: 'SALES' },
-          ]),
-        },
+        where: { storeCode: 'CP01' },
       }),
     );
   });
 
-  it('limits SR users to sales income even for global lookup', async () => {
+  it('allows SR users to see both income types for global lookup', async () => {
     prisma.mapVietinTransaction.findMany.mockResolvedValue([]);
     prisma.mapVietinTransaction.count.mockResolvedValue(0);
 
@@ -343,8 +338,7 @@ describe('MapVietinService', () => {
     } as any);
 
     const where = prisma.mapVietinTransaction.findMany.mock.calls[0][0].where;
-    expect(JSON.stringify(where)).toContain('incomeType');
-    expect(JSON.stringify(where)).toContain('SALES');
+    expect(JSON.stringify(where)).not.toContain('incomeType');
   });
 
   it('allows FIN_ACC users to see both income types in the same scope', async () => {
@@ -369,6 +363,21 @@ describe('MapVietinService', () => {
     expect(prisma.mapVietinTransaction.findMany).toHaveBeenCalledWith(
       expect.objectContaining({ where: { storeCode: 'CP01' } }),
     );
+  });
+
+  it('classifies a configured payer account from the provider payload as partner/internal', () => {
+    const normalized = (service as any).normalizeTransaction('CP01', {
+      amount: 1250000,
+      transactionDescription: 'Khach chuyen tien',
+      transactionStatus: 'SUCCESS',
+      senderAccount: '8637988888',
+    });
+
+    expect(normalized).toMatchObject({
+      payerAccount: '8637988888',
+      incomeType: 'PARTNER_INTERNAL',
+      incomeTypeSource: 'AUTO',
+    });
   });
 
   it('allows statement reads for the parent showroom of assigned Lv5 nodes', async () => {
@@ -406,12 +415,7 @@ describe('MapVietinService', () => {
 
     expect(prisma.mapVietinTransaction.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: {
-          AND: expect.arrayContaining([
-            { storeCode: 'CP75' },
-            { incomeType: 'SALES' },
-          ]),
-        },
+        where: { storeCode: 'CP75' },
       }),
     );
   });
@@ -888,6 +892,37 @@ describe('MapVietinService', () => {
       expect(update.content).toBe(normalized.content);
     },
   );
+
+  it('preserves a manually selected income type during source sync', async () => {
+    const row = {
+      ...globalTransaction('TXN-MANUAL-INCOME-TYPE'),
+      transactionDescription: 'NHAT TIN THANH TOAN COD',
+    };
+    const normalized = (service as any).normalizeTransaction('CP01', row);
+    const existing = {
+      id: 'stored-manual-income-type',
+      ...normalized,
+      content: 'Older transfer content',
+      incomeType: 'SALES',
+      incomeTypeSource: 'MANUAL',
+      firstSeenAt: new Date('2026-07-17T03:00:00.000Z'),
+    };
+    prisma.mapVietinTransaction.findUnique.mockResolvedValue(existing);
+    prisma.mapVietinTransaction.upsert.mockResolvedValue({
+      ...existing,
+      content: normalized.content,
+    });
+
+    await expect(
+      (service as any).persistTransactions('CP01', [row]),
+    ).resolves.toBe(0);
+
+    const update =
+      prisma.mapVietinTransaction.upsert.mock.calls.at(-1)[0].update;
+    expect(update).not.toHaveProperty('incomeType');
+    expect(update).not.toHaveProperty('incomeTypeSource');
+    expect(update.content).toBe(normalized.content);
+  });
 
   it.each([
     {
@@ -3558,6 +3593,88 @@ describe('MapVietinService', () => {
         { orders: ['26052287654321'] },
       ),
     ).resolves.toMatchObject({ canEditOrders: true });
+  });
+
+  it('lets FIN_ACC change statement income type and protects the manual choice', async () => {
+    const existing = {
+      id: 'stored-income-type',
+      storeCode: 'CP01',
+      transactionKey: 'CP01:income-type',
+      transactionNumber: 'TXN-INCOME-TYPE',
+      amount: 1250000,
+      content: 'Customer transfer',
+      orders: [],
+      orderSource: 'AUTO',
+      orderUpdatedAt: null,
+      orderUpdatedByUserId: null,
+      orderUpdatedByEmail: null,
+      status: 'SUCCESS',
+      paidAt: new Date('2026-07-19T03:00:00.000Z'),
+      payerName: null,
+      payerAccount: null,
+      incomeType: 'SALES',
+      incomeTypeSource: 'AUTO',
+      rawData: {},
+      firstSeenAt: new Date('2026-07-19T03:00:05.000Z'),
+    };
+    prisma.store.findUnique.mockResolvedValue({
+      id: 'store-uuid-1',
+      storeId: 'CP01',
+    });
+    prisma.mapVietinTransaction.findUnique.mockResolvedValue(existing);
+    prisma.mapVietinTransaction.update.mockResolvedValue({
+      ...existing,
+      incomeType: 'PARTNER_INTERNAL',
+      incomeTypeSource: 'MANUAL',
+      incomeTypeUpdatedAt: new Date('2026-07-19T03:01:00.000Z'),
+      incomeTypeUpdatedByUserId: 'fin-node-user',
+      incomeTypeUpdatedByEmail: 'fin-node@example.com',
+    });
+
+    await expect(
+      service.updateStatementIncomeType(
+        {
+          id: 'fin-node-user',
+          email: 'fin-node@example.com',
+          role: 'USER',
+          departmentCode: 'FIN_ACC',
+          storeId: 'store-uuid-1',
+          featureBankStatements: true,
+        },
+        existing.id,
+        { incomeType: 'PARTNER_INTERNAL' },
+      ),
+    ).resolves.toMatchObject({
+      incomeType: 'PARTNER_INTERNAL',
+      incomeTypeLabel: 'Đối tác/Nội bộ',
+      incomeTypeSource: 'MANUAL',
+      canEditIncomeType: true,
+    });
+    expect(prisma.mapVietinTransaction.update).toHaveBeenCalledWith({
+      where: { id: existing.id },
+      data: expect.objectContaining({
+        incomeType: 'PARTNER_INTERNAL',
+        incomeTypeSource: 'MANUAL',
+        incomeTypeUpdatedByUserId: 'fin-node-user',
+        incomeTypeUpdatedByEmail: 'fin-node@example.com',
+      }),
+    });
+  });
+
+  it('blocks non-FIN users from changing statement income type', async () => {
+    await expect(
+      service.updateStatementIncomeType(
+        {
+          id: 'manager-1',
+          email: 'manager@example.com',
+          role: 'MANAGER',
+          storeId: 'store-uuid-1',
+        },
+        'stored-income-type',
+        { incomeType: 'PARTNER_INTERNAL' },
+      ),
+    ).rejects.toThrow('Bạn không có quyền thay đổi loại giao dịch sao kê.');
+    expect(prisma.mapVietinTransaction.update).not.toHaveBeenCalled();
   });
 
   it('exports selected statement rows as XLSX', async () => {

@@ -13,6 +13,16 @@
 
 ## Evidence
 
+- 2026-07-19 local implementation: Sao kê no longer adds a `SALES` query
+  restriction for SR users. The classifier and migration share the compact
+  whitespace-insensitive content and payer-account rules. FIN_ACC/protected
+  administrators can update the pill and the `MANUAL` source protects the
+  choice from subsequent syncs. Prisma generate/validate passed, focused
+  income-type/MAP Jest passed 138 tests, full Nest regression passed 80 suites /
+  803 tests, and Nest build passed. Focused Bank Statement provider/screen tests
+  passed 37 tests, `flutter analyze --no-pub` passed, and full Flutter passed
+  569 tests with 3 platform skips. Production deployment remains
+  a separate gate.
 - 2026-07-18 reliability regression: focused MAP Jest passed 106 tests,
   `npm run build` passed, bank-statement provider tests passed 29 tests,
   bank-statement widget tests passed 7 tests, and `flutter analyze --no-pub`
@@ -78,7 +88,9 @@
 
 - Live VietinBank MAP payload variants may include fields not covered by local
   fixtures.
-- The income migration and backfill have not been applied to production in this
-  turn; production rollout still requires the normal staging/migration proof.
+- The 2026-07-19 visibility hotfix and income migration/backfill have not yet
+  been proved on production; the managed shell is blocked from reaching the
+  production SSH endpoint before authentication. Production rollout still
+  requires migration, API health, query visibility, and sync-preservation proof.
 - Full desktop click-through smoke is still manual unless run against a local
   backend and migrated database.

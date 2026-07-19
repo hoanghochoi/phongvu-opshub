@@ -41,6 +41,7 @@ class BankStatementProvider extends ChangeNotifier {
   final List<StoreBranch> _stores = [];
   final Set<String> _selectedIds = {};
   final Set<String> _seenOrderTransferNotificationIds = {};
+  final Set<String> _updatingIncomeTypeIds = {};
   final Map<String, BankStatementRowMessage> _rowMessages = {};
   final Map<String, Timer> _messageTimers = {};
   StreamSubscription<RealtimeEnvelope>? _orderTransferRealtimeSubscription;
@@ -150,6 +151,7 @@ class BankStatementProvider extends ChangeNotifier {
   bool get canUseAllStores => _user?.canUseAllBankStatementStores == true;
 
   BankStatementRowMessage? rowMessage(String id) => _rowMessages[id];
+  bool isUpdatingIncomeType(String id) => _updatingIncomeTypeIds.contains(id);
 
   Future<void> initialize(User? user) async {
     _user = user;
@@ -590,6 +592,81 @@ class BankStatementProvider extends ChangeNotifier {
         },
       );
       return false;
+    }
+  }
+
+  Future<bool> updateIncomeType(String transactionId, String incomeType) async {
+    final existing = _findTransactionById(transactionId);
+    final normalizedIncomeType = incomeType.trim().toUpperCase();
+    if (existing == null) {
+      _showRowMessage(
+        transactionId,
+        'Không tìm thấy giao dịch để cập nhật.',
+        false,
+      );
+      return false;
+    }
+    if (!existing.canEditIncomeType) {
+      _showRowMessage(
+        transactionId,
+        'Bạn không có quyền thay đổi loại giao dịch sao kê.',
+        false,
+      );
+      return false;
+    }
+    if (normalizedIncomeType != 'SALES' &&
+        normalizedIncomeType != 'PARTNER_INTERNAL') {
+      _showRowMessage(transactionId, 'Loại giao dịch không hợp lệ.', false);
+      return false;
+    }
+    if (existing.incomeType == normalizedIncomeType) return true;
+    if (!_updatingIncomeTypeIds.add(transactionId)) return false;
+    notifyListeners();
+    try {
+      await AppLogger.instance.info(
+        'BankStatement',
+        'Bank statement income type update started',
+        context: {
+          'transactionId': transactionId,
+          'previousIncomeType': existing.incomeType,
+          'nextIncomeType': normalizedIncomeType,
+        },
+      );
+      final updated = await _repository.updateIncomeType(
+        transactionId,
+        normalizedIncomeType,
+      );
+      _replaceTransaction(updated);
+      _showRowMessage(updated.id, 'Đã đổi loại giao dịch.', true);
+      await AppLogger.instance.info(
+        'BankStatement',
+        'Bank statement income type update succeeded',
+        context: {
+          'transactionId': updated.id,
+          'previousIncomeType': existing.incomeType,
+          'nextIncomeType': updated.incomeType,
+        },
+      );
+      return true;
+    } catch (error) {
+      final message = error is ApiException
+          ? error.message
+          : 'Chưa đổi được loại giao dịch. Vui lòng thử lại.';
+      _showRowMessage(transactionId, message, false);
+      await AppLogger.instance.error(
+        'BankStatement',
+        'Bank statement income type update failed',
+        error: error,
+        context: {
+          'transactionId': transactionId,
+          'previousIncomeType': existing.incomeType,
+          'nextIncomeType': normalizedIncomeType,
+        },
+      );
+      return false;
+    } finally {
+      _updatingIncomeTypeIds.remove(transactionId);
+      notifyListeners();
     }
   }
 

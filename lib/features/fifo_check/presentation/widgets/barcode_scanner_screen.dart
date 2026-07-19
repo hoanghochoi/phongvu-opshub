@@ -445,8 +445,10 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
     if (!_supportsCameraScanner) {
       return Scaffold(
         appBar: AppBar(title: Text(widget.title)),
-        body: AppResponsiveContent(
+        body: AppResponsiveScrollView(
+          key: const Key('barcode-fallback-scroll'),
           maxWidth: AppLayoutTokens.formMaxWidth,
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
           child: AppFormColumn(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [

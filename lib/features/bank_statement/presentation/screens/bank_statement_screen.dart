@@ -54,7 +54,8 @@ class BankStatementScreen extends StatefulWidget {
   State<BankStatementScreen> createState() => _BankStatementScreenState();
 }
 
-class _BankStatementScreenState extends State<BankStatementScreen> {
+class _BankStatementScreenState extends State<BankStatementScreen>
+    with WidgetsBindingObserver {
   final _statementNumberController = TextEditingController();
   final _orderController = TextEditingController();
   final _amountController = TextEditingController();
@@ -68,9 +69,24 @@ class _BankStatementScreenState extends State<BankStatementScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _statementNumberFocus.addListener(
+      () => _handleFilterFocus('statement_number', _statementNumberFocus),
+    );
+    _orderFocus.addListener(() => _handleFilterFocus('order', _orderFocus));
+    _amountFocus.addListener(() => _handleFilterFocus('amount', _amountFocus));
+    _contentFocus.addListener(
+      () => _handleFilterFocus('content', _contentFocus),
+    );
     WidgetsBinding.instance.addPostFrameCallback((_) {
       unawaited(_initializeFromRoute());
     });
+  }
+
+  @override
+  void didChangeMetrics() {
+    super.didChangeMetrics();
+    _scheduleFocusedFilterVisibility();
   }
 
   Future<void> _initializeFromRoute() async {
@@ -99,6 +115,7 @@ class _BankStatementScreenState extends State<BankStatementScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _statementNumberController.dispose();
     _orderController.dispose();
     _amountController.dispose();
@@ -108,6 +125,93 @@ class _BankStatementScreenState extends State<BankStatementScreen> {
     _amountFocus.dispose();
     _contentFocus.dispose();
     super.dispose();
+  }
+
+  void _handleFilterFocus(String filter, FocusNode focusNode) {
+    if (!focusNode.hasFocus) return;
+    _scheduleFocusedFilterVisibility(filter: filter, focusNode: focusNode);
+  }
+
+  void _scheduleFocusedFilterVisibility({
+    String? filter,
+    FocusNode? focusNode,
+  }) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final focusedFilter = filter ?? _focusedFilterName;
+      final focusedNode = focusNode ?? _focusedFilterNode;
+      if (focusedFilter == null ||
+          focusedNode == null ||
+          !focusedNode.hasFocus ||
+          MediaQuery.sizeOf(context).width >= _localBreakpoint ||
+          _keyboardInset <= 0) {
+        return;
+      }
+      unawaited(_keepFocusedFilterVisible(focusedFilter, focusedNode));
+    });
+  }
+
+  String? get _focusedFilterName {
+    if (_statementNumberFocus.hasFocus) return 'statement_number';
+    if (_orderFocus.hasFocus) return 'order';
+    if (_amountFocus.hasFocus) return 'amount';
+    if (_contentFocus.hasFocus) return 'content';
+    return null;
+  }
+
+  FocusNode? get _focusedFilterNode {
+    if (_statementNumberFocus.hasFocus) return _statementNumberFocus;
+    if (_orderFocus.hasFocus) return _orderFocus;
+    if (_amountFocus.hasFocus) return _amountFocus;
+    if (_contentFocus.hasFocus) return _contentFocus;
+    return null;
+  }
+
+  double get _keyboardInset {
+    final view = View.of(context);
+    return view.viewInsets.bottom / view.devicePixelRatio;
+  }
+
+  Future<void> _keepFocusedFilterVisible(
+    String filter,
+    FocusNode focusNode,
+  ) async {
+    final focusContext = focusNode.context;
+    if (!mounted || focusContext == null) return;
+    final stopwatch = Stopwatch()..start();
+    final bottomInset = _keyboardInset;
+    unawaited(
+      AppLogger.instance.info(
+        'BankStatement',
+        'Bank statement keyboard avoidance started',
+        context: {'filter': filter, 'bottomInset': bottomInset.round()},
+      ),
+    );
+    try {
+      await Scrollable.ensureVisible(
+        focusContext,
+        alignment: 0.2,
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeOutCubic,
+      );
+      await AppLogger.instance.info(
+        'BankStatement',
+        'Bank statement keyboard avoidance succeeded',
+        context: {
+          'filter': filter,
+          'bottomInset': bottomInset.round(),
+          'durationMs': stopwatch.elapsedMilliseconds,
+        },
+      );
+    } catch (error, stackTrace) {
+      await AppLogger.instance.error(
+        'BankStatement',
+        'Bank statement keyboard avoidance failed',
+        error: error,
+        stackTrace: stackTrace,
+        context: {'filter': filter, 'bottomInset': bottomInset.round()},
+      );
+    }
   }
 
   Future<void> _refreshScreen() async {
@@ -133,48 +237,130 @@ class _BankStatementScreenState extends State<BankStatementScreen> {
           'hasSearched': provider.hasSearched,
           'canSearch': provider.canSearch,
         },
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            _FilterPanel(
-              provider: provider,
-              statementNumberController: _statementNumberController,
-              orderController: _orderController,
-              amountController: _amountController,
-              contentController: _contentController,
-              statementNumberFocus: _statementNumberFocus,
-              orderFocus: _orderFocus,
-              amountFocus: _amountFocus,
-              contentFocus: _contentFocus,
-            ),
-            if (provider.errorMessage != null) ...[
-              const SizedBox(height: 10),
-              AppStatusBanner(
-                icon: Icons.error_outline_rounded,
-                title: 'Chưa tải được sao kê',
-                message: provider.errorMessage!,
-                tone: AppStateTone.error,
-              ),
-            ],
-            if (provider.exportMessage != null) ...[
-              const SizedBox(height: 10),
-              AppStatusBanner(
-                icon: Icons.download_done_rounded,
-                title: 'Xuất file',
-                message: provider.exportMessage!,
-                tone: AppStateTone.info,
-              ),
-            ],
-            if (provider.isLoading && provider.transactions.isNotEmpty) ...[
-              const SizedBox(height: 10),
-              const LinearProgressIndicator(),
-            ],
-            const SizedBox(height: 10),
-            Expanded(child: _buildList(provider)),
-          ],
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final header = _buildHeader(provider);
+            if (constraints.maxWidth < _localBreakpoint) {
+              return CustomScrollView(
+                key: const Key('bank-statement-mobile-scroll'),
+                physics: const AlwaysScrollableScrollPhysics(),
+                keyboardDismissBehavior:
+                    ScrollViewKeyboardDismissBehavior.onDrag,
+                slivers: [
+                  SliverToBoxAdapter(child: header),
+                  ..._buildMobileList(provider),
+                ],
+              );
+            }
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                header,
+                Expanded(child: _buildList(provider)),
+              ],
+            );
+          },
         ),
       ),
     );
+  }
+
+  Widget _buildHeader(BankStatementProvider provider) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _FilterPanel(
+          provider: provider,
+          statementNumberController: _statementNumberController,
+          orderController: _orderController,
+          amountController: _amountController,
+          contentController: _contentController,
+          statementNumberFocus: _statementNumberFocus,
+          orderFocus: _orderFocus,
+          amountFocus: _amountFocus,
+          contentFocus: _contentFocus,
+        ),
+        if (provider.errorMessage != null) ...[
+          const SizedBox(height: 10),
+          AppStatusBanner(
+            icon: Icons.error_outline_rounded,
+            title: 'Chưa tải được sao kê',
+            message: provider.errorMessage!,
+            tone: AppStateTone.error,
+          ),
+        ],
+        if (provider.exportMessage != null) ...[
+          const SizedBox(height: 10),
+          AppStatusBanner(
+            icon: Icons.download_done_rounded,
+            title: 'Xuất file',
+            message: provider.exportMessage!,
+            tone: AppStateTone.info,
+          ),
+        ],
+        if (provider.isLoading && provider.transactions.isNotEmpty) ...[
+          const SizedBox(height: 10),
+          const LinearProgressIndicator(),
+        ],
+        const SizedBox(height: 10),
+      ],
+    );
+  }
+
+  List<Widget> _buildMobileList(BankStatementProvider provider) {
+    if (provider.isLoading && provider.transactions.isEmpty) {
+      return const [
+        SliverToBoxAdapter(
+          child: AppListSkeleton(
+            itemCount: 5,
+            showLeading: false,
+            itemHeight: 124,
+            scrollable: false,
+          ),
+        ),
+      ];
+    }
+    if (!provider.hasSearched) {
+      return const [
+        SliverFillRemaining(
+          hasScrollBody: false,
+          child: AppStatePanel.empty(
+            title: 'Chọn filter rồi bấm Tìm để tải giao dịch',
+            icon: Icons.manage_search_rounded,
+          ),
+        ),
+      ];
+    }
+    if (provider.transactions.isEmpty) {
+      return const [
+        SliverFillRemaining(
+          hasScrollBody: false,
+          child: AppStatePanel.empty(
+            title: 'Không có giao dịch khớp filter',
+            icon: Icons.receipt_long_outlined,
+          ),
+        ),
+      ];
+    }
+    return [
+      SliverList(
+        delegate: SliverChildBuilderDelegate(
+          (context, index) => _StatementCard(
+            key: ValueKey(provider.transactions[index].id),
+            transaction: provider.transactions[index],
+            money: _money,
+          ),
+          childCount: provider.transactions.length,
+          findChildIndexCallback: (key) {
+            if (key is! ValueKey<String>) return null;
+            final index = provider.transactions.indexWhere(
+              (transaction) => transaction.id == key.value,
+            );
+            return index < 0 ? null : index;
+          },
+        ),
+      ),
+    ];
   }
 
   Widget _buildList(BankStatementProvider provider) {
@@ -831,7 +1017,18 @@ class _StatementCardState extends State<_StatementCard> {
                       child: BankStatementTransactionDetailsLauncher(
                         transaction: tx,
                         amountFormatter: widget.money,
-                        child: _TransactionDetails(tx: tx, money: widget.money),
+                        child: _TransactionDetails(
+                          tx: tx,
+                          money: widget.money,
+                          incomeTypeUpdating: provider.isUpdatingIncomeType(
+                            tx.id,
+                          ),
+                          onIncomeTypeSelected: (incomeType) {
+                            unawaited(
+                              provider.updateIncomeType(tx.id, incomeType),
+                            );
+                          },
+                        ),
                       ),
                     ),
                   ],
@@ -899,7 +1096,14 @@ class _StatementCardState extends State<_StatementCard> {
                 child: BankStatementTransactionDetailsLauncher(
                   transaction: tx,
                   amountFormatter: widget.money,
-                  child: _TransactionDetails(tx: tx, money: widget.money),
+                  child: _TransactionDetails(
+                    tx: tx,
+                    money: widget.money,
+                    incomeTypeUpdating: provider.isUpdatingIncomeType(tx.id),
+                    onIncomeTypeSelected: (incomeType) {
+                      unawaited(provider.updateIncomeType(tx.id, incomeType));
+                    },
+                  ),
                 ),
               ),
               const SizedBox(width: 12),
@@ -1267,8 +1471,15 @@ class _StatementCardState extends State<_StatementCard> {
 class _TransactionDetails extends StatelessWidget {
   final BankStatementTransaction tx;
   final NumberFormat money;
+  final bool incomeTypeUpdating;
+  final ValueChanged<String> onIncomeTypeSelected;
 
-  const _TransactionDetails({required this.tx, required this.money});
+  const _TransactionDetails({
+    required this.tx,
+    required this.money,
+    required this.incomeTypeUpdating,
+    required this.onIncomeTypeSelected,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1299,10 +1510,11 @@ class _TransactionDetails extends StatelessWidget {
               color: AppColors.success,
               fontSize: pillFontSize,
             ),
-            _StatementPill(
-              label: tx.incomeTypeLabel,
-              color: tx.isPartnerInternal ? AppColors.warning : AppColors.info,
+            _IncomeTypePill(
+              transaction: tx,
               fontSize: pillFontSize,
+              isUpdating: incomeTypeUpdating,
+              onSelected: onIncomeTypeSelected,
             ),
             _StatementPill(
               label: 'Thành công',
@@ -1353,6 +1565,86 @@ class _StatementPill extends StatelessWidget {
       fontSize: fontSize,
       fontWeight: FontWeight.w700,
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+    );
+  }
+}
+
+class _IncomeTypePill extends StatelessWidget {
+  final BankStatementTransaction transaction;
+  final double fontSize;
+  final bool isUpdating;
+  final ValueChanged<String> onSelected;
+
+  const _IncomeTypePill({
+    required this.transaction,
+    required this.fontSize,
+    required this.isUpdating,
+    required this.onSelected,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final color = transaction.isPartnerInternal
+        ? AppColors.warning
+        : AppColors.info;
+    if (!transaction.canEditIncomeType) {
+      return _StatementPill(
+        label: transaction.incomeTypeLabel,
+        color: color,
+        fontSize: fontSize,
+      );
+    }
+    return Semantics(
+      button: true,
+      label: 'Loại giao dịch ${transaction.incomeTypeLabel}. Nhấn để thay đổi.',
+      child: PopupMenuButton<String>(
+        key: Key('bank-statement-income-type-${transaction.id}'),
+        enabled: !isUpdating,
+        tooltip: isUpdating
+            ? 'Đang đổi loại giao dịch'
+            : 'Thay đổi loại giao dịch',
+        initialValue: transaction.incomeType,
+        onSelected: onSelected,
+        itemBuilder: (context) => [
+          _incomeTypeMenuItem(
+            value: 'SALES',
+            label: 'Bán hàng',
+            selected: !transaction.isPartnerInternal,
+          ),
+          _incomeTypeMenuItem(
+            value: 'PARTNER_INTERNAL',
+            label: 'Đối tác/Nội bộ',
+            selected: transaction.isPartnerInternal,
+          ),
+        ],
+        child: AppStatusPill(
+          icon: Icons.arrow_drop_down_rounded,
+          label: transaction.incomeTypeLabel,
+          color: color,
+          isLoading: isUpdating,
+          height: 30,
+        ),
+      ),
+    );
+  }
+
+  PopupMenuItem<String> _incomeTypeMenuItem({
+    required String value,
+    required String label,
+    required bool selected,
+  }) {
+    return PopupMenuItem<String>(
+      value: value,
+      child: Row(
+        children: [
+          Icon(
+            selected ? Icons.check_rounded : Icons.circle_outlined,
+            size: 18,
+          ),
+          const SizedBox(width: 8),
+          Text(label),
+        ],
+      ),
     );
   }
 }

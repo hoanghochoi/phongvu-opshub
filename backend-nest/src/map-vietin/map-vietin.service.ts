@@ -45,6 +45,7 @@ import {
   ListMapVietinStatementsDto,
   ReviewMapVietinStatementOrderTransferRequestDto,
   SearchMapVietinTransactionsDto,
+  UpdateMapVietinStatementIncomeTypeDto,
   UpdateMapVietinStatementOrdersDto,
 } from './map-vietin.dto';
 import {
@@ -101,6 +102,8 @@ const VIETNAM_UTC_OFFSET_HOURS = 7;
 const ORDER_SOURCE_AUTO = 'AUTO';
 const ORDER_SOURCE_MANUAL = 'MANUAL';
 const ORDER_SOURCE_OFFSET = 'OFFSET';
+const INCOME_TYPE_SOURCE_AUTO = 'AUTO';
+const INCOME_TYPE_SOURCE_MANUAL = 'MANUAL';
 const FIN_ACC_DEPARTMENT_CODE = 'FIN_ACC';
 const ACC_DEPARTMENT_CODE = 'ACC';
 const ORDER_EDIT_FORBIDDEN_MESSAGE = 'Bạn không có quyền sửa đơn hàng.';
@@ -525,6 +528,7 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
     );
     const canEditProtectedOrders =
       await this.canEditProtectedStatementOrders(user);
+    const canEditIncomeType = canEditProtectedOrders;
     const actionScope =
       rows.length > 0 ? await this.resolveStatementActionScope(user) : null;
 
@@ -548,6 +552,7 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
           canEditProtectedOrders:
             canEditProtectedOrders || verifiedOrderLookupEdit,
           canUseStatements: canUseStatementActions,
+          canEditIncomeType: canEditIncomeType && canUseStatementActions,
         });
       }),
     };
@@ -719,7 +724,66 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
     );
     return this.toStoredTransactionDto(updated, {
       canEditProtectedOrders: canEditThisProtectedOrder,
+      canEditIncomeType: canEditProtectedOrders,
     });
+  }
+
+  async updateStatementIncomeType(
+    user: any,
+    transactionId: string,
+    input: UpdateMapVietinStatementIncomeTypeDto,
+  ) {
+    const startedAt = Date.now();
+    await this.assertCanUseStatements(user);
+    const id = String(transactionId || '').trim();
+    const nextIncomeType = String(input.incomeType || '')
+      .trim()
+      .toUpperCase();
+    this.logger.log(
+      `Statement income type update started: user=${this.safeUserLabel(user)} transaction=${id || 'missing'} target=${nextIncomeType || 'missing'}`,
+    );
+    try {
+      if (!id) throw new BadRequestException('Giao dịch không hợp lệ');
+      if (
+        nextIncomeType !== MAP_VIETIN_INCOME_TYPE.SALES &&
+        nextIncomeType !== MAP_VIETIN_INCOME_TYPE.PARTNER_INTERNAL
+      ) {
+        throw new BadRequestException('Loại giao dịch không hợp lệ');
+      }
+      if (!(await this.canEditProtectedStatementOrders(user))) {
+        throw new ForbiddenException(
+          'Bạn không có quyền thay đổi loại giao dịch sao kê.',
+        );
+      }
+      const existing = await this.prisma.mapVietinTransaction.findUnique({
+        where: { id },
+      });
+      if (!existing) throw new BadRequestException('Giao dịch không hợp lệ');
+      await this.assertCanReadStatementStore(user, existing.storeCode);
+      const previousIncomeType = this.storedIncomeType(existing);
+      const updated = await this.prisma.mapVietinTransaction.update({
+        where: { id },
+        data: {
+          incomeType: nextIncomeType,
+          incomeTypeSource: INCOME_TYPE_SOURCE_MANUAL,
+          incomeTypeUpdatedAt: new Date(),
+          incomeTypeUpdatedByUserId: user?.id || null,
+          incomeTypeUpdatedByEmail: this.safeUserEmail(user),
+        },
+      });
+      this.logger.log(
+        `Statement income type update succeeded: user=${this.safeUserLabel(user)} transaction=${id} store=${existing.storeCode || 'null'} previous=${previousIncomeType} next=${nextIncomeType} changed=${previousIncomeType !== nextIncomeType} durationMs=${Date.now() - startedAt}`,
+      );
+      return this.toStoredTransactionDto(updated, {
+        canEditProtectedOrders: true,
+        canEditIncomeType: true,
+      });
+    } catch (error) {
+      this.logger.warn(
+        `Statement income type update failed: user=${this.safeUserLabel(user)} transaction=${id || 'missing'} target=${nextIncomeType || 'missing'} durationMs=${Date.now() - startedAt} error=${this.safeError(error)}`,
+      );
+      throw error;
+    }
   }
 
   async createStatementOrderTransferRequest(
@@ -1767,14 +1831,10 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
   }
 
   private async buildStatementIncomeTypeWhere(user: any) {
-    if (await this.hasNationalStatementScope(user)) return {};
-    const canReadPartnerInternal = await this.userMatchesStatementAccessCodes(
-      user,
-      [FIN_ACC_DEPARTMENT_CODE],
+    this.logger.debug(
+      `Statement income type visibility is unrestricted: user=${this.safeUserLabel(user)}`,
     );
-    return canReadPartnerInternal
-      ? {}
-      : { incomeType: MAP_VIETIN_INCOME_TYPE.SALES };
+    return {};
   }
 
   private normalizeStatementFilters(input: ListMapVietinStatementsDto) {
@@ -2750,6 +2810,7 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
     let withoutOrders = 0;
     let manualProtected = 0;
     let offsetProtected = 0;
+    let manualIncomeTypeProtected = 0;
     let duplicateStatementSkipped = 0;
     let duplicateFingerprintSkipped = 0;
     let salesIncome = 0;
@@ -2829,13 +2890,21 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
       const preservesProtectedOrders =
         existing?.orderSource === ORDER_SOURCE_MANUAL ||
         existing?.orderSource === ORDER_SOURCE_OFFSET;
+      const preservesManualIncomeType =
+        existing?.incomeTypeSource === INCOME_TYPE_SOURCE_MANUAL;
+      if (preservesManualIncomeType) manualIncomeTypeProtected += 1;
       if (existing?.orderSource === ORDER_SOURCE_MANUAL) manualProtected += 1;
       if (existing?.orderSource === ORDER_SOURCE_OFFSET) offsetProtected += 1;
       const updateData = {
         transactionNumber: normalized.transactionNumber,
         amount: normalized.amount,
         content: normalized.content,
-        incomeType: normalized.incomeType,
+        ...(preservesManualIncomeType
+          ? {}
+          : {
+              incomeType: normalized.incomeType,
+              incomeTypeSource: INCOME_TYPE_SOURCE_AUTO,
+            }),
         ...(preservesProtectedOrders
           ? {}
           : {
@@ -2893,7 +2962,7 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
     ) {
       const storeLabel = storeCode || 'null';
       this.logger.log(
-        `MAP sync order extraction: store=${storeLabel} created=${created} updated=${stats.updated} unchanged=${stats.unchanged} withOrders=${withOrders} withoutOrders=${withoutOrders} salesIncome=${salesIncome} partnerInternalIncome=${partnerInternalIncome} manualProtected=${manualProtected} offsetProtected=${offsetProtected} duplicateStatementSkipped=${duplicateStatementSkipped} duplicateFingerprintSkipped=${duplicateFingerprintSkipped}`,
+        `MAP sync order extraction: store=${storeLabel} created=${created} updated=${stats.updated} unchanged=${stats.unchanged} withOrders=${withOrders} withoutOrders=${withoutOrders} salesIncome=${salesIncome} partnerInternalIncome=${partnerInternalIncome} manualProtected=${manualProtected} offsetProtected=${offsetProtected} manualIncomeTypeProtected=${manualIncomeTypeProtected} duplicateStatementSkipped=${duplicateStatementSkipped} duplicateFingerprintSkipped=${duplicateFingerprintSkipped}`,
       );
     }
     return created;
@@ -3524,7 +3593,8 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
       paidAt,
       payerName: payerName || null,
       payerAccount: payerAccount || null,
-      incomeType: classifyMapVietinIncomeType(content),
+      incomeType: classifyMapVietinIncomeType(content, storeCode, payerAccount),
+      incomeTypeSource: INCOME_TYPE_SOURCE_AUTO,
       rawData: row as Prisma.InputJsonObject,
     };
   }
@@ -3609,6 +3679,10 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
       payerName: string | null;
       payerAccount: string | null;
       incomeType?: string | null;
+      incomeTypeSource?: string | null;
+      incomeTypeUpdatedAt?: Date | null;
+      incomeTypeUpdatedByUserId?: string | null;
+      incomeTypeUpdatedByEmail?: string | null;
       rawData?: Prisma.JsonValue | null;
       firstSeenAt: Date;
       orderTransferRequests?: Array<{
@@ -3624,6 +3698,7 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
     options: {
       canEditProtectedOrders?: boolean;
       canUseStatements?: boolean;
+      canEditIncomeType?: boolean;
     } = {},
   ) {
     const payer = this.resolveStoredPayer(row);
@@ -3700,6 +3775,11 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
       receivingAccount: this.resolveStoredReceivingAccount(row),
       incomeType,
       incomeTypeLabel: mapVietinIncomeTypeLabel(incomeType),
+      incomeTypeSource: row.incomeTypeSource || INCOME_TYPE_SOURCE_AUTO,
+      incomeTypeUpdatedAt: row.incomeTypeUpdatedAt || null,
+      incomeTypeUpdatedByUserId: row.incomeTypeUpdatedByUserId || null,
+      incomeTypeUpdatedByEmail: row.incomeTypeUpdatedByEmail || null,
+      canEditIncomeType: canUseStatements && options.canEditIncomeType === true,
       firstSeenAt: row.firstSeenAt,
     };
   }
@@ -3882,6 +3962,8 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
 
   private storedIncomeType(row: {
     content?: string | null;
+    storeCode?: string | null;
+    payerAccount?: string | null;
     incomeType?: string | null;
   }) {
     const value = String(row.incomeType || '')
@@ -3893,7 +3975,11 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
     ) {
       return value;
     }
-    return classifyMapVietinIncomeType(row.content);
+    return classifyMapVietinIncomeType(
+      row.content,
+      row.storeCode,
+      row.payerAccount,
+    );
   }
 
   private rawDataAsMapRow(value?: Prisma.JsonValue | null) {

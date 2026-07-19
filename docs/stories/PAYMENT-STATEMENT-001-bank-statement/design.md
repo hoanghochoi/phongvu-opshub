@@ -25,9 +25,12 @@
   layout, buttons, state panels, chips, and logging patterns, including a
   generic `Thông báo` bell for reviewer and requester order-transfer
   notifications.
-- Persist `incomeType` as `SALES` or `PARTNER_INTERNAL`, classify only
-  high-confidence partner/internal content markers, enforce the type at the
-  backend query/export boundary, and show a Vietnamese income-type pill.
+- Persist `incomeType` as `SALES` or `PARTNER_INTERNAL`, classify only the
+  accepted whitespace-insensitive exact content and payer-account rules, and
+  show a Vietnamese income-type pill. Income type does not narrow statement
+  visibility. FIN_ACC and protected-statement administrators can change it from
+  the pill; mark that choice `MANUAL` so subsequent MAP/eFAST syncs cannot
+  overwrite it.
 
 ## Alternatives Considered
 

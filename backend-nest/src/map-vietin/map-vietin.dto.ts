@@ -241,6 +241,12 @@ export class UpdateMapVietinStatementOrdersDto {
   content?: string;
 }
 
+export class UpdateMapVietinStatementIncomeTypeDto {
+  @IsString()
+  @IsIn(['SALES', 'PARTNER_INTERNAL'])
+  incomeType!: string;
+}
+
 export class CreateMapVietinStatementOrderTransferRequestDto {
   @IsArray()
   @IsString({ each: true })

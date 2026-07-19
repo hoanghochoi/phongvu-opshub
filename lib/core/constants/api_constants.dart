@@ -88,6 +88,8 @@ class ApiConstants {
       '/admin/map-vietin/statements/export';
   static String adminMapVietinStatementOrdersEndpoint(String id) =>
       '/admin/map-vietin/statements/$id/orders';
+  static String adminMapVietinStatementIncomeTypeEndpoint(String id) =>
+      '/admin/map-vietin/statements/$id/income-type';
   static String adminMapVietinStatementOrderTransferRequestsEndpoint(
     String id,
   ) => '/admin/map-vietin/statements/$id/order-transfer-requests';

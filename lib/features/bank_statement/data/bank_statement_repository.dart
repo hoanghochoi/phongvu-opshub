@@ -177,6 +177,19 @@ class BankStatementRepository {
     );
   }
 
+  Future<BankStatementTransaction> updateIncomeType(
+    String transactionId,
+    String incomeType,
+  ) async {
+    final response = await _apiClient.patch(
+      ApiConstants.adminMapVietinStatementIncomeTypeEndpoint(transactionId),
+      body: {'incomeType': incomeType},
+    );
+    return BankStatementTransaction.fromJson(
+      jsonDecode(response.body) as Map<String, dynamic>,
+    );
+  }
+
   Future<BankStatementOrderTransferRequest> createOrderTransferRequest(
     String transactionId,
     List<String> orders,

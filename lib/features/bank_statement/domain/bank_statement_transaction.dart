@@ -21,6 +21,8 @@ class BankStatementTransaction {
   final String? payerName;
   final String? payerAccount;
   final String incomeType;
+  final String incomeTypeSource;
+  final bool canEditIncomeType;
   final String? receivingAccount;
   final bool canEditOrders;
   final String? orderEditBlockedReason;
@@ -53,6 +55,8 @@ class BankStatementTransaction {
     required this.payerName,
     required this.payerAccount,
     this.incomeType = 'SALES',
+    this.incomeTypeSource = 'AUTO',
+    this.canEditIncomeType = false,
     this.receivingAccount,
     required this.canEditOrders,
     required this.orderEditBlockedReason,
@@ -133,6 +137,11 @@ class BankStatementTransaction {
               'PARTNER_INTERNAL'
           ? 'PARTNER_INTERNAL'
           : 'SALES',
+      incomeTypeSource:
+          json['incomeTypeSource']?.toString().trim().toUpperCase() == 'MANUAL'
+          ? 'MANUAL'
+          : 'AUTO',
+      canEditIncomeType: json['canEditIncomeType'] == true,
       receivingAccount: _readFirstText(json, const [
         'receivingAccount',
         'receiveAccount',
@@ -156,7 +165,12 @@ class BankStatementTransaction {
     payerAccount?.trim() ?? '',
   ].where((value) => value.isNotEmpty).join(' • ');
 
-  BankStatementTransaction copyWith({List<String>? orders}) {
+  BankStatementTransaction copyWith({
+    List<String>? orders,
+    String? incomeType,
+    String? incomeTypeSource,
+    bool? canEditIncomeType,
+  }) {
     return BankStatementTransaction(
       id: id,
       storeId: storeId,
@@ -174,7 +188,9 @@ class BankStatementTransaction {
       firstSeenAt: firstSeenAt,
       payerName: payerName,
       payerAccount: payerAccount,
-      incomeType: incomeType,
+      incomeType: incomeType ?? this.incomeType,
+      incomeTypeSource: incomeTypeSource ?? this.incomeTypeSource,
+      canEditIncomeType: canEditIncomeType ?? this.canEditIncomeType,
       receivingAccount: receivingAccount,
       canEditOrders: canEditOrders,
       orderEditBlockedReason: orderEditBlockedReason,

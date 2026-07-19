@@ -23,6 +23,7 @@ import {
   ListMapVietinStatementsDto,
   ReviewMapVietinStatementOrderTransferRequestDto,
   SearchMapVietinTransactionsDto,
+  UpdateMapVietinStatementIncomeTypeDto,
   UpdateMapVietinStatementOrdersDto,
 } from './map-vietin.dto';
 import { MapVietinService } from './map-vietin.service';
@@ -89,6 +90,16 @@ export class MapVietinController {
     @Body() body: UpdateMapVietinStatementOrdersDto,
   ) {
     return this.mapVietinService.updateStatementOrders(req.user, id, body);
+  }
+
+  @Patch('statements/:id/income-type')
+  @RequireFeature(FEATURE_KEYS.BANK_STATEMENTS)
+  updateStatementIncomeType(
+    @Request() req: any,
+    @Param('id') id: string,
+    @Body() body: UpdateMapVietinStatementIncomeTypeDto,
+  ) {
+    return this.mapVietinService.updateStatementIncomeType(req.user, id, body);
   }
 
   @Post('statements/:id/order-transfer-requests')

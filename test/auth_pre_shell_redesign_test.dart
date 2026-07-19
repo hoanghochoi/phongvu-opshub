@@ -90,6 +90,35 @@ void main() {
       desktop: false,
     );
   });
+
+  testWidgets('registration keeps its last input above the mobile keyboard', (
+    WidgetTester tester,
+  ) async {
+    tester.view
+      ..physicalSize = const Size(390, 844)
+      ..devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+
+    await _pumpAuthScreen(tester, const RegisterScreen());
+    final input = find.widgetWithText(TextFormField, 'Mã xác thực email');
+    await tester.ensureVisible(input);
+    await tester.tap(input);
+    await tester.pump();
+
+    tester.view.viewInsets = const FakeViewPadding(bottom: 360);
+    await tester.pumpAndSettle();
+
+    final scroll = find.descendant(
+      of: find.byType(AuthFormPanel),
+      matching: find.byType(SingleChildScrollView),
+    );
+    expect(scroll, findsOneWidget);
+    expect(tester.takeException(), isNull);
+    expect(
+      tester.getRect(input).bottom,
+      lessThanOrEqualTo(tester.getRect(scroll).bottom + 0.5),
+    );
+  });
 }
 
 Future<void> _pumpAuthScreen(WidgetTester tester, Widget screen) async {

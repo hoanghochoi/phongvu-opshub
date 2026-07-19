@@ -489,17 +489,23 @@ configured eFAST bank accounts, `VIETIN_EFAST_PAGE_SIZE=150`, and
 
 Sao kê exports use `.xlsx` and include both `Loại giao dịch` and `Tài khoản
 nhận`. The backend stores `incomeType` as `SALES` (`Bán hàng`) or
-`PARTNER_INTERNAL` (`Đối tác/Nội bộ`). The classifier uses high-confidence
-content markers from the current MAP/eFAST data: internal reconciliation codes
-starting with `BC CN`, `BC CP`, `BC CTY`, or `BC DKKD`; `So GD goc`; and known
-partner/payment rails such as `VNSHOP`, `RECESS`, `ShopeePay`, `ZaloPay`,
-`VNPAY`, `Nhat Tin`, `GiaoHangTietKiem`, `Theo lo EMB`, and `KHDN`. Generic
-`CT DEN` and numeric-only content remain sales to avoid hiding customer
-payments. The migration backfills existing rows and each subsequent sync
-re-evaluates the content.
+`PARTNER_INTERNAL` (`Đối tác/Nội bộ`). Before matching, the classifier only
+uppercases the content and removes whitespace. A row is automatically marked
+`Đối tác/Nội bộ` when the compact content starts with `BCCN`, `BCCP`, `BCCTY`,
+or `BCDKKD`; contains one of `NHATTIN`, `VNPAYTT217344`, `SHOPEEPAYMS`,
+`SHOPEEWSSSELLERWITHDRAWAL`, `GIAOHANGTIETKIEMCHUYENTIENCOD`,
+`TTGDQUAVIZALOPAY`, or `DIEUTIENTUDONG`; or contains
+`TNG<storeCode>NOPTIEN` for the row's mapped store. The row is also
+`Đối tác/Nội bộ` when its normalized payer account is `8637988888`,
+`0302607125`, `113000179095`, `110600994666`, `1011103131001`,
+`0071001142275`, or `117601180666`. No accent, punctuation, or other broad
+content normalization is applied. Generic `VNPAY`, `So GD goc`, `CT DEN`, and
+numeric-only content remain sales unless another exact rule matches. The
+migration backfills existing rows with this same rule set.
 
-The API applies the income-type restriction after every scope/global filter and
-before pagination or selected-row export: SR-scoped users see only `Bán hàng`,
-while FIN_ACC and national statement-scope users see both types. The card shows
-a Vietnamese pill for the income type. On mobile, a successful `Tìm` action
-closes the filter panel so the result list is visible.
+Income type is not an additional visibility boundary: every statement user sees
+both types subject to their existing organization/showroom scope. FIN_ACC and
+existing protected-statement administrators can change the type from the
+Vietnamese pill. A manual choice is stored with `incomeTypeSource=MANUAL` and
+must survive later MAP/eFAST syncs; automatic rows remain `AUTO`. On mobile, a
+successful `Tìm` action closes the filter panel so the result list is visible.

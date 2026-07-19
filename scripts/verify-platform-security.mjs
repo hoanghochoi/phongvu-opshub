@@ -7,7 +7,8 @@ import vm from 'node:vm';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 async function text(relativePath) {
-  return readFile(path.join(root, relativePath), 'utf8');
+  const source = await readFile(path.join(root, relativePath), 'utf8');
+  return source.replace(/\r\n?/g, '\n');
 }
 
 async function filesBelow(relativeDirectory) {

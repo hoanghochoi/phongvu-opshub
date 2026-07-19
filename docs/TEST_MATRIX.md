@@ -58,6 +58,19 @@ This file maps product behavior to proof. Existing flows are marked
 
 Recent focused evidence:
 
+- `UI-KEYBOARD-001`, 2026-07-19: audited 31 Flutter presentation files that own
+  text inputs and their shared viewport shells. Fixed the two risky compact
+  layouts: Bank Statement now scrolls filters, states, and results in one mobile
+  viewport while keeping the focused filter visible; the unsupported-camera
+  barcode fallback now uses the shared responsive scroll surface. Added mobile
+  keyboard-inset regression coverage for both fixes, supported-camera barcode,
+  and the last registration field. Desktop layouts and third-party iOS keyboard
+  theming remain unchanged by contract. Validation: the 13-file representative
+  bundle passed 68 tests, the combined Bank Statement provider/screen/keyboard
+  bundle passed 38 tests, and `flutter analyze --no-pub` passed. Full Flutter
+  passed 569 tests with 3 platform skips; the income-type row-message test also
+  verifies its intended 3-second expiry. Final gates: affected-runtime Harness
+  proof and staged-diff review before the staging push.
 - `SALES-REPORT-001`, 2026-07-19: export `Trả góp` chèn `Đơn hàng` và
   `Giá trị đơn hàng` ngay sau `Email người báo cáo`, lấy lần lượt từ
   `orderCode` và tổng tiền ERP; báo cáo chưa mua để trống hai cột này. Trường
@@ -333,6 +346,18 @@ Recent focused evidence:
   780 tests. Full Flutter reached 562 passed and 3 skipped; the only failure was
   the unrelated existing design-system route-count guard against an unchanged
   router/gap-map document.
+- `PAYMENT-STATEMENT-001`, 2026-07-19: income type no longer filters statement
+  visibility beyond the user's existing organization/showroom scope. FIN_ACC
+  and protected-statement administrators can change the Vietnamese pill, and
+  `incomeTypeSource=MANUAL` protects that choice from MAP/eFAST sync. Automatic
+  classification only uppercases/removes whitespace, then matches the accepted
+  `BC CN/CP/CTY/DKKD` prefixes, Nhat Tin, VNPAY TT 217344, ShopeePay MS/WSS
+  withdrawal, GiaoHangTietKiem CoD, ZaloPay wallet settlement, `Dieu tien tu
+  dong`, the mapped store's `TNG<storeCode>NOPTIEN`, or a configured payer
+  account. Focused income-type/MAP Jest passed 138 tests, the full Nest
+  regression passed 80 suites / 803 tests, and Nest build passed. Focused Bank
+  Statement provider/screen tests passed 37 tests, Flutter analyze passed, and
+  full Flutter passed 569 tests with 3 platform skips.
 - `UI-UX-001`, 2026-07-11: sửa race thứ hai của `AppCombobox` trên
   desktop/Windows: khi bấm chuột chọn option, `TextField` mất focus ở
   mouse-down và timer đóng overlay cũ có thể đóng menu trước mouse-up/onTap,

@@ -131,6 +131,57 @@ void main() {
     expect(repository.lastQuery?.orderStatus, 'MISSING_ORDER');
   });
 
+  testWidgets('lets accounting change income type from the pill', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(1200, 900));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    final repository = _WidgetBankStatementRepository()
+      ..rows = [
+        _transaction(
+          id: 'tx-edit-income-type',
+          orders: const [],
+          canEditIncomeType: true,
+        ),
+      ];
+    final provider = BankStatementProvider(
+      repository,
+      notificationReadStore: _FakeNotificationReadStore(),
+    );
+    await provider.initialize(_accUser);
+    provider.setAmount('1250000');
+    await provider.search();
+
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider<AuthProvider>.value(
+            value: _FakeAuthProvider(_accUser),
+          ),
+          ChangeNotifierProvider<BankStatementProvider>.value(value: provider),
+        ],
+        child: const MaterialApp(home: BankStatementScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(
+      find.byKey(const Key('bank-statement-income-type-tx-edit-income-type')),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Đối tác/Nội bộ'));
+    await tester.pumpAndSettle();
+
+    expect(repository.updateIncomeTypeCount, 1);
+    expect(repository.lastUpdatedIncomeType, 'PARTNER_INTERNAL');
+    expect(find.text('Đối tác/Nội bộ'), findsOneWidget);
+    expect(find.text('Đã đổi loại giao dịch.'), findsOneWidget);
+
+    await tester.pump(const Duration(seconds: 3));
+    expect(find.text('Đã đổi loại giao dịch.'), findsNothing);
+  });
+
   testWidgets('collapses mobile filters after a search', (tester) async {
     await tester.binding.setSurfaceSize(const Size(390, 1600));
     addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -423,6 +474,8 @@ class _WidgetBankStatementRepository extends BankStatementRepository {
   _WidgetBankStatementRepository() : super(ApiClient());
 
   int fetchStatementsCount = 0;
+  int updateIncomeTypeCount = 0;
+  String? lastUpdatedIncomeType;
   BankStatementQuery? lastQuery;
   List<BankStatementTransaction> rows = [
     _pendingTransaction,
@@ -497,6 +550,23 @@ class _WidgetBankStatementRepository extends BankStatementRepository {
     String? content,
   }) async {
     throw UnimplementedError();
+  }
+
+  @override
+  Future<BankStatementTransaction> updateIncomeType(
+    String transactionId,
+    String incomeType,
+  ) async {
+    updateIncomeTypeCount += 1;
+    lastUpdatedIncomeType = incomeType;
+    final index = rows.indexWhere((row) => row.id == transactionId);
+    if (index < 0) throw StateError('Missing fake transaction $transactionId');
+    final updated = rows[index].copyWith(
+      incomeType: incomeType,
+      incomeTypeSource: 'MANUAL',
+    );
+    rows[index] = updated;
+    return updated;
   }
 
   @override
@@ -599,6 +669,7 @@ BankStatementTransaction _transaction({
   String? orderTransferStatus,
   bool isOrderOffsetConfirmed = false,
   String incomeType = 'SALES',
+  bool canEditIncomeType = false,
 }) {
   return BankStatementTransaction(
     id: id,
@@ -618,6 +689,7 @@ BankStatementTransaction _transaction({
     payerName: null,
     payerAccount: null,
     incomeType: incomeType,
+    canEditIncomeType: canEditIncomeType,
     canEditOrders: canEditOrders,
     orderEditBlockedReason: orderEditBlockedReason,
     canRequestOrderTransfer: canRequestOrderTransfer,

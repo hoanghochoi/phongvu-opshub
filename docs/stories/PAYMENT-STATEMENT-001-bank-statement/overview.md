@@ -26,28 +26,32 @@ rows and must not overwrite rows that staff already assigned manually.
 
 Every stored statement has `incomeType`: `SALES` (`Bán hàng`) or
 `PARTNER_INTERNAL` (`Đối tác/Nội bộ`). Classification is deterministic and
-versioned in code: high-confidence partner/internal markers include internal
-reconciliation prefixes (`BC CN...`, `BC CP...`, `BC CTY...`, `BC DKKD...`),
-`So GD goc`, and known partner/payment rails (`VNSHOP`, `RECESS`, `ShopeePay`,
-`ZaloPay`, `VNPAY`, `Nhat Tin`, `GiaoHangTietKiem`, `Theo lo EMB`, `KHDN`).
-Generic `CT DEN` and generic numeric content remain `Bán hàng` so customer
-payments are not hidden by an over-broad rule. Existing rows are backfilled by
-the same marker set in the migration; later syncs reclassify the row from its
-current content.
+versioned in code. Matching only uppercases and removes whitespace. Exact
+partner/internal rules are compact content starting with `BCCN`, `BCCP`,
+`BCCTY`, or `BCDKKD`; containing `NHATTIN`, `VNPAYTT217344`, `SHOPEEPAYMS`,
+`SHOPEEWSSSELLERWITHDRAWAL`, `GIAOHANGTIETKIEMCHUYENTIENCOD`,
+`TTGDQUAVIZALOPAY`, or `DIEUTIENTUDONG`; or containing
+`TNG<storeCode>NOPTIEN` for the mapped store. Payer accounts `8637988888`,
+`0302607125`, `113000179095`, `110600994666`, `1011103131001`,
+`0071001142275`, and `117601180666` also mark the row partner/internal. Generic
+`VNPAY`, `So GD goc`, `CT DEN`, and numeric content remain `Bán hàng` unless
+another exact rule matches.
+Existing rows are backfilled by the same rules in the migration; later syncs
+only reclassify rows whose `incomeTypeSource` is still `AUTO`.
 
-SR-scoped users are always constrained to `SALES` at the backend query boundary,
-including statement-number/order/amount/content global lookup and selected-row
-export. FIN_ACC and existing national statement-scope users can see both types.
-The Flutter card shows a Vietnamese income-type pill, and mobile collapses the
-filter panel after a successful search.
+All statement users can see both income types within their existing
+organization/showroom scope, including global lookup and selected-row export.
+FIN_ACC and existing protected-statement administrators can change the type by
+clicking the Flutter pill. Such changes are stored as `MANUAL` and survive later
+MAP/eFAST syncs. Mobile collapses the filter panel after a successful search.
 
 ## Affected Areas
 
 - Flutter: home entry, `bank_statement` feature, payment monitor card borders,
   AppLogger events.
 - API: MAP statement list/export/update/history endpoints.
-- Database: `MapVietinTransaction.orders`, `incomeType`, order metadata, and order audit
-  table.
+- Database: `MapVietinTransaction.orders`, `incomeType`, income-type override
+  metadata, order metadata, and order audit table.
 - Auth/security: MANAGER/SUPER_ADMIN feature gate and statement showroom scope.
 - External systems: VietinBank MAP sync normalization.
 - Deployment: Prisma migration and generated client.

@@ -315,6 +315,13 @@ visual systems that make the app feel assembled from unrelated screens.
   and native Android/iOS uses the platform Flutter toolbar. Shared text inputs
   must isolate editable selection from an ancestor `SelectionArea`; do not
   enable both browser and Flutter paste menus on mobile web.
+- Mobile screens with tall filters or forms must keep every focused input inside
+  a vertical scrollable that responds to the software-keyboard viewport. Opening
+  the keyboard must not create a flex overflow or leave the focused input behind
+  the keyboard; dragging the content should dismiss the keyboard. Keep Flutter's
+  active light/dark `keyboardAppearance` contract. A third-party iOS keyboard
+  extension owns the colors and transparency of its own keyboard surface, so
+  feature code must not fake a keyboard theme by forcing the opposite app mode.
 - Trên các thiết bị di động (Mobile), các thành phần điều khiển hành động quan trọng ở chân trang (như sticky action bar, submit button) bắt buộc phải chèn một khoảng đệm an toàn tối thiểu `80px` (bằng chiều cao Bottom Navigation Bar cộng thêm khoảng cách an toàn) để tránh bị che đè bởi thanh điều hướng hệ thống hoặc navigation chrome của ứng dụng.
 - Flutter web is an additional staff operations surface served from the domain
   root in production and staging. The SPA fallback must preserve `/api`, `/ws`,

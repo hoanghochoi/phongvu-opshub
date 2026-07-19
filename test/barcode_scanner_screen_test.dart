@@ -293,6 +293,66 @@ void main() {
   });
 
   testWidgets(
+    'manual scanner fallback keeps input visible above the software keyboard',
+    (tester) async {
+      tester.view
+        ..physicalSize = const Size(390, 520)
+        ..devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: BarcodeScannerScreen(
+            scannerService: MockBarcodeScannerService(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final input = find.byKey(const Key('barcode-manual-input'));
+      await tester.tap(input);
+      await tester.pump();
+      tester.view.viewInsets = const FakeViewPadding(bottom: 260);
+      await tester.pumpAndSettle();
+
+      final scroll = find.byKey(const Key('barcode-fallback-scroll'));
+      expect(scroll, findsOneWidget);
+      expect(tester.takeException(), isNull);
+      expect(
+        tester.getRect(input).bottom,
+        lessThanOrEqualTo(tester.getRect(scroll).bottom + 0.5),
+      );
+    },
+  );
+
+  testWidgets('camera scanner moves its input panel above the keyboard', (
+    tester,
+  ) async {
+    tester.view
+      ..physicalSize = const Size(390, 844)
+      ..devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: BarcodeScannerScreen(
+          scannerService: _CameraBarcodeScannerService(),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    final input = find.byKey(const Key('barcode-manual-input'));
+    await tester.tap(input);
+    await tester.pump();
+    tester.view.viewInsets = const FakeViewPadding(bottom: 360);
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+    expect(tester.getRect(input).bottom, lessThanOrEqualTo(844 - 360));
+  });
+
+  testWidgets(
     'camera scanner keeps manual input and compact action in one row',
     (tester) async {
       tester.view.physicalSize = const Size(390, 844);

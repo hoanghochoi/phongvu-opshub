@@ -46,6 +46,8 @@ void main() {
         'payerName': 'NGUYEN VAN A',
         'payerAccount': '9704361234567890',
         'incomeType': 'PARTNER_INTERNAL',
+        'incomeTypeSource': 'MANUAL',
+        'canEditIncomeType': true,
         'receivingAccount': '118002647006',
       });
       final history = BankStatementOrderHistoryEntry.fromJson({
@@ -65,6 +67,8 @@ void main() {
       expect(transaction.payerLabel, 'NGUYEN VAN A • 9704361234567890');
       expect(transaction.isPartnerInternal, isTrue);
       expect(transaction.incomeTypeLabel, 'Đối tác/Nội bộ');
+      expect(transaction.incomeTypeSource, 'MANUAL');
+      expect(transaction.canEditIncomeType, isTrue);
       expect(transaction.receivingAccount, '118002647006');
       expect(history.oldOrders, ['26052912345678']);
       expect(history.newOrders, ['26052987654321']);
@@ -172,6 +176,44 @@ void main() {
 
       provider.dispose();
     });
+
+    test(
+      'updates income type and keeps the manual result in the list',
+      () async {
+        final editable = _transaction(
+          'tx-income-type',
+          const [],
+        ).copyWith(canEditIncomeType: true);
+        final repository = _FakeBankStatementRepository(
+          pages: [
+            [editable],
+          ],
+        );
+        final provider = BankStatementProvider(repository);
+
+        await provider.initialize(_accUser);
+        provider.setAmount('1250000');
+        await provider.search();
+
+        final updated = await provider.updateIncomeType(
+          editable.id,
+          'PARTNER_INTERNAL',
+        );
+
+        expect(updated, isTrue);
+        expect(repository.updateIncomeTypeCount, 1);
+        expect(repository.lastUpdatedIncomeType, 'PARTNER_INTERNAL');
+        expect(provider.transactions.single.incomeType, 'PARTNER_INTERNAL');
+        expect(provider.transactions.single.incomeTypeSource, 'MANUAL');
+        expect(
+          provider.rowMessage(editable.id)?.text,
+          'Đã đổi loại giao dịch.',
+        );
+        expect(provider.isUpdatingIncomeType(editable.id), isFalse);
+
+        provider.dispose();
+      },
+    );
 
     test(
       'keeps every assigned showroom visible for multi-store users',
@@ -853,6 +895,7 @@ const _accUser = User(
 class _FakeBankStatementRepository extends BankStatementRepository {
   int fetchStatementsCount = 0;
   int updateOrdersCount = 0;
+  int updateIncomeTypeCount = 0;
   int createOrderTransferRequestCount = 0;
   int fetchOrderTransferRequestsCount = 0;
   int approveOrderTransferRequestCount = 0;
@@ -868,6 +911,7 @@ class _FakeBankStatementRepository extends BankStatementRepository {
   String? lastUpdatedAmount;
   String? lastUpdatedLookupOrder;
   String? lastUpdatedContent;
+  String? lastUpdatedIncomeType;
   List<String> lastTransferRequestedOrders = const [];
   List<String> lastExportTransactionIds = const [];
   final bool canReviewOrderTransfers;
@@ -954,6 +998,28 @@ class _FakeBankStatementRepository extends BankStatementRepository {
       );
       if (index < 0) continue;
       final updated = _pages[pageIndex][index].copyWith(orders: orders);
+      _pages[pageIndex][index] = updated;
+      return updated;
+    }
+    throw StateError('Missing fake transaction $transactionId');
+  }
+
+  @override
+  Future<BankStatementTransaction> updateIncomeType(
+    String transactionId,
+    String incomeType,
+  ) async {
+    updateIncomeTypeCount += 1;
+    lastUpdatedIncomeType = incomeType;
+    for (var pageIndex = 0; pageIndex < _pages.length; pageIndex += 1) {
+      final index = _pages[pageIndex].indexWhere(
+        (row) => row.id == transactionId,
+      );
+      if (index < 0) continue;
+      final updated = _pages[pageIndex][index].copyWith(
+        incomeType: incomeType,
+        incomeTypeSource: 'MANUAL',
+      );
       _pages[pageIndex][index] = updated;
       return updated;
     }
@@ -1283,6 +1349,9 @@ BankStatementTransaction _copyTransaction(
     firstSeenAt: transaction.firstSeenAt,
     payerName: transaction.payerName,
     payerAccount: transaction.payerAccount,
+    incomeType: transaction.incomeType,
+    incomeTypeSource: transaction.incomeTypeSource,
+    canEditIncomeType: transaction.canEditIncomeType,
     canEditOrders: canEditOrders ?? transaction.canEditOrders,
     orderEditBlockedReason: identical(orderEditBlockedReason, _unchanged)
         ? transaction.orderEditBlockedReason
