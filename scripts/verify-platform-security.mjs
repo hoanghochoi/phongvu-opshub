@@ -112,6 +112,11 @@ const [
   windowsMsixWorkflow,
   pubspec,
   robotoLicense,
+  privateMediaHeaders,
+  homeScreen,
+  profileScreen,
+  warrantyDetailsScreen,
+  feedbackAdminScreen,
 ] = await Promise.all([
   text('deploy/home-server/Caddyfile'),
   text('deploy/home-server/docker-compose.home.yml'),
@@ -140,6 +145,11 @@ const [
   text('.github/workflows/build-windows-msix.yml'),
   text('pubspec.yaml'),
   text('fonts/Roboto-LICENSE.txt'),
+  text('lib/core/network/private_media_headers.dart'),
+  text('lib/features/home/presentation/screens/home_screen.dart'),
+  text('lib/features/auth/presentation/screens/profile_screen.dart'),
+  text('lib/features/warranty/presentation/screens/warranty_details_screen.dart'),
+  text('lib/features/admin/presentation/screens/feedback_admin_screen.dart'),
 ]);
 
 assertWorkflowRunExpressionLengths(productionWorkflow, 'production workflow');
@@ -241,6 +251,43 @@ contains(productionCompose, 'REALTIME_LEGACY_JWT_SECRET', 'isolated realtime rol
 contains(productionCompose, 'explicit loopback binding', 'origin loopback gate');
 contains(productionCompose, '/private-media:/data/private-media', 'private media API volume');
 excludes(productionCompose, '/private-media:/srv/', 'private media Caddy exposure');
+
+contains(
+  privateMediaHeaders,
+  'if (!isProtectedPrivateMediaUrl(url, apiBaseUrl: apiBaseUrl))',
+  'private media credential scope gate',
+);
+contains(
+  privateMediaHeaders,
+  'if (target.origin != base.origin) return false;',
+  'private media exact-origin credential gate',
+);
+contains(
+  privateMediaHeaders,
+  "target.path.startsWith('$basePath/media/')",
+  'private media API-path credential gate',
+);
+contains(
+  homeScreen,
+  'headers: privateMediaHeaders(avatarUrl)',
+  'Home avatar dual-read headers',
+);
+contains(
+  profileScreen,
+  'headers: privateMediaHeaders(avatarUrl!)',
+  'profile avatar dual-read headers',
+);
+contains(
+  warrantyDetailsScreen,
+  'httpHeaders: privateMediaHeaders(imageSource)',
+  'warranty image dual-read headers',
+);
+assert.ok(
+  feedbackAdminScreen.split('httpHeaders: privateMediaHeaders(imageUrl)').length -
+    1 >=
+    2,
+  'feedback thumbnail and preview must both use dual-read headers',
+);
 
 contains(localCompose, '127.0.0.1:5432:5432', 'local PostgreSQL binding');
 contains(localCompose, '127.0.0.1:6379:6379', 'local Redis binding');

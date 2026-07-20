@@ -199,3 +199,10 @@
   the four healthchecked services healthy and no one-shot maintenance container
   left behind. Production remained on `76380540...`; this proof did not restart
   the production Caddy or authorize migration apply.
+- A shared Flutter dual-read contract now covers avatar, warranty and feedback
+  references together: legacy URLs remain credential-free, same-origin private
+  media URLs receive the bearer token, and model/parser layers preserve mixed
+  references in order. The platform checker pins the header helper at Home,
+  Profile, Warranty Detail, and both Feedback image surfaces. The focused test
+  passed 3/3 and full Flutter analyze reported no issues. Live post-batch smoke
+  remains mandatory because source proof does not prove production data access.

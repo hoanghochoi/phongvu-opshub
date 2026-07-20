@@ -866,3 +866,10 @@ Trạng thái proof: workflow staging `29725449833` success đúng `c86c2611...`
 fail-closed apply thiếu limit và full strict dry-run đều đạt trên maintenance
 image. Production vẫn giữ `76380540...`; chưa promote công cụ, chưa restart
 Caddy và chưa chạy migration apply.
+
+6. Trước maintenance, giữ dual-read bằng một contract test chung cho avatar,
+   warranty và feedback: legacy URL không nhận credential, private URL cùng API
+   origin nhận bearer, model/parser không làm mất hoặc đổi thứ tự reference.
+   Platform gate phải fail nếu Home/Profile/Warranty/Feedback bỏ helper header.
+   Sau apply vẫn bắt buộc smoke production bằng record thật; test source không
+   được dùng thay bằng chứng live.
