@@ -192,3 +192,10 @@
   keeps rollback on the shrinking head. Ten focused telemetry/batch tests and
   the platform-security contract pass locally. No production apply or runtime
   restart was performed, so the observation continuity is unchanged.
+- Staging workflow `29725449833` completed successfully at exact SHA
+  `c86c2611d6ab5b69b329d5541a594ded848f9f02`. The live maintenance image
+  rejected apply without `--limit`; a complete strict dry-run returned zero
+  errors with the new batch report. All five staging services remained up with
+  the four healthchecked services healthy and no one-shot maintenance container
+  left behind. Production remained on `76380540...`; this proof did not restart
+  the production Caddy or authorize migration apply.

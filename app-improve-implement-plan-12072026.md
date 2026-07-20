@@ -861,3 +861,8 @@ riêng, không được automation hoặc daily monitor tự kích hoạt.
    report, rollback lặp từ offset 0 vì candidate set co lại. Focused test phải
    chứng minh dry-run đầy đủ vẫn dùng được, apply không limit bị từ chối, offset
    migration tiếp nối đúng và rollback không chấp nhận offset.
+
+Trạng thái proof: workflow staging `29725449833` success đúng `c86c2611...`;
+fail-closed apply thiếu limit và full strict dry-run đều đạt trên maintenance
+image. Production vẫn giữ `76380540...`; chưa promote công cụ, chưa restart
+Caddy và chưa chạy migration apply.
