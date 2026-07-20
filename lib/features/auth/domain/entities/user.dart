@@ -275,15 +275,12 @@ class User {
   bool get hasNationalWorkScope =>
       isAdminRole(role) || workScopeType?.toUpperCase() == 'NATIONAL';
 
-  bool get canUseBankStatements =>
-      canUseFeature('BANK_STATEMENTS') ||
-      canUsePolicy('BANK_STATEMENT_ALL_SCOPE');
+  bool get canUseBankStatements => canUseFeature('BANK_STATEMENTS');
 
   bool get canUseAllBankStatementStores =>
       canUsePolicy('BANK_STATEMENT_ALL_SCOPE');
 
-  bool get canUseOffsetAdjustments =>
-      canUseFeature('OFFSET_ADJUSTMENTS') || canUsePolicy('OFFSET_ADJUSTMENTS');
+  bool get canUseOffsetAdjustments => canUseFeature('OFFSET_ADJUSTMENTS');
 
   bool get canReviewOffsetAdjustments {
     if (isSuperAdmin) return true;

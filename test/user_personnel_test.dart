@@ -130,7 +130,7 @@ void main() {
     expect(user.canUsePolicy('ADMIN_POLICIES'), isTrue);
   });
 
-  test('User treats bank statement all-scope policy as statement access', () {
+  test('User does not reopen bank statements from all-scope policy alone', () {
     final user = User.fromJson({
       'email': 'finance@phongvu.vn',
       'role': 'USER',
@@ -142,7 +142,7 @@ void main() {
 
     expect(user.hasNationalWorkScope, isFalse);
     expect(user.canUseFeature('BANK_STATEMENTS'), isFalse);
-    expect(user.canUseBankStatements, isTrue);
+    expect(user.canUseBankStatements, isFalse);
     expect(user.canUseAllBankStatementStores, isTrue);
   });
 
@@ -170,6 +170,7 @@ void main() {
     final policyUser = User.fromJson({
       'email': 'admin@phongvu.vn',
       'role': 'ADMIN',
+      'resolvedFeatureAccess': {'OFFSET_ADJUSTMENTS': false},
       'resolvedAdminPolicies': {'OFFSET_ADJUSTMENTS': true},
     });
     final accUser = User.fromJson({
@@ -186,7 +187,7 @@ void main() {
     });
 
     expect(featureUser.canUseOffsetAdjustments, isTrue);
-    expect(policyUser.canUseOffsetAdjustments, isTrue);
+    expect(policyUser.canUseOffsetAdjustments, isFalse);
     expect(accUser.canReviewOffsetAdjustments, isTrue);
     expect(orgTreeAccUser.canReviewOffsetAdjustments, isTrue);
   });

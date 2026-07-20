@@ -140,7 +140,7 @@ describe('RealtimeTicketService', () => {
     ]);
   });
 
-  it('maps policy-only access to effective realtime feature entitlements', async () => {
+  it('does not advertise disabled features from policy-only access', async () => {
     const { service, redis, featureService, policyService } = setup();
     featureService.resolveFeatureAccessMap.mockResolvedValue({
       BANK_STATEMENTS: false,
@@ -153,13 +153,8 @@ describe('RealtimeTicketService', () => {
 
     await service.issueTicket(authenticatedUser, 'CP01');
 
-    expect(redis.setJsonWithTtl.mock.calls[0][1].featureCodes).toEqual([
-      'BANK_STATEMENTS',
-      'OFFSET_ADJUSTMENTS',
-    ]);
-    expect(redis.setJsonWithTtl.mock.calls[0][1].policyCodes).not.toContain(
-      'BANK_STATEMENT_ALL_SCOPE',
-    );
+    expect(redis.setJsonWithTtl.mock.calls[0][1].featureCodes).toEqual([]);
+    expect(redis.setJsonWithTtl.mock.calls[0][1].policyCodes).toEqual([]);
   });
 
   it('adds only granted finance and payment all-scope markers to the ticket', async () => {

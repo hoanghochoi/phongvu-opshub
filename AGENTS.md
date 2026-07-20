@@ -26,9 +26,11 @@ before acting. Never claim done before verification.
 - Prefer reversible changes and small patches.
 - Before implementation, create a concrete plan and establish a checkpoint:
   current branch, current HEAD, and dirty worktree state.
-- Work only on `staging` or `main` by default. Do not create, switch to, or
-  work on any other branch unless Đại Ca explicitly asks for that branch or
-  branch workflow.
+- Never implement, edit, commit, merge, rebase, or promote on `main`. `main` is
+  promotion-only and may be updated only by an explicit command from Đại Ca,
+  using a fast-forward from `staging`.
+- Work on `staging` by default. Do not create, switch to, or work on any other
+  branch unless Đại Ca explicitly asks for that branch or branch workflow.
 - Protect existing user work. Do not revert unrelated changes.
 - Before pushing code, re-check the exact diff and run the relevant validation.
 

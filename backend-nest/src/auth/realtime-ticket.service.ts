@@ -160,15 +160,6 @@ export class RealtimeTicketService {
           speakerFeatureAllowed,
       );
     }
-    if (
-      policyAccess[ADMIN_POLICY_CODES.BANK_STATEMENTS] === true ||
-      policyAccess[ADMIN_POLICY_CODES.BANK_STATEMENT_ALL_SCOPE] === true
-    ) {
-      featureCodes.add(FEATURE_KEYS.BANK_STATEMENTS);
-    }
-    if (policyAccess[ADMIN_POLICY_CODES.OFFSET_ADJUSTMENTS] === true) {
-      featureCodes.add(FEATURE_KEYS.OFFSET_ADJUSTMENTS);
-    }
     organizationAccessCodes.sort();
     const policyCodes = !requestedStore
       ? [
