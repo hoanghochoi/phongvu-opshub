@@ -873,3 +873,10 @@ Caddy và chưa chạy migration apply.
    Platform gate phải fail nếu Home/Profile/Warranty/Feedback bỏ helper header.
    Sau apply vẫn bắt buộc smoke production bằng record thật; test source không
    được dùng thay bằng chứng live.
+
+7. Tách rõ hai verdict của private-media audit: `ok` kiểm file/metadata/owner
+   integrity, còn `legacyReferencesClear` kiểm database đã hết phụ thuộc
+   `/uploads`. Inventory chỉ xuất aggregate theo feature và exact route, kể cả
+   reference tương đối có thể resolve vào `/uploads`; không xuất URL/path/id.
+   Preflight chạy `--strict`, post-batch cuối bắt buộc
+   `--strict --fail-on-legacy` và chỉ cutover khi tổng legacy bằng 0.

@@ -206,3 +206,14 @@
   Profile, Warranty Detail, and both Feedback image surfaces. The focused test
   passed 3/3 and full Flutter analyze reported no issues. Live post-batch smoke
   remains mandatory because source proof does not prove production data access.
+- Pre-maintenance audit hardening now distinguishes storage integrity from
+  legacy-reference closure. The report classifies only aggregate counts by
+  exact origin/path (including relative references that resolve to `/uploads`),
+  emits no URL/path/record id, and supports `--fail-on-legacy` for the final
+  post-batch gate. Preflight `--strict` remains compatible while legacy rows are
+  expected; route cutover requires `legacyReferencesClear=true` and zero legacy
+  references. Four new reference-audit tests plus the ten telemetry/batch tests
+  passed 14/14, and the platform-security contract passed. Prisma generate,
+  Nest build and reviewed runtime packaging (284 files, auditor/helper both
+  present) passed. Staging execution and live production post-batch proof
+  remain pending.

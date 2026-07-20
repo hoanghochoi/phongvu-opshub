@@ -1,12 +1,20 @@
 import 'dotenv/config';
 import fs from 'fs/promises';
 import path from 'path';
+import {
+  parsePrivateMediaAuditArgs,
+  summarizePrivateMediaReferences,
+} from './private-media-reference-audit.mjs';
 import { createPrismaClient } from './prisma-local.mjs';
 
-const strict = process.argv.includes('--strict');
+const { strict, failOnLegacy } = parsePrivateMediaAuditArgs(
+  process.argv.slice(2),
+);
 const baseDir = path.resolve(
   process.env.PRIVATE_MEDIA_BASE_DIR || '/data/private-media',
 );
+const legacyBaseUrl = requiredEnv('IMAGE_BASE_URL');
+const privatePublicBaseUrl = requiredEnv('PRIVATE_MEDIA_PUBLIC_BASE_URL');
 const { prisma, close } = createPrismaClient();
 
 try {
@@ -37,25 +45,32 @@ try {
     }
   }
 
-  const orphanDiskFiles = [...diskKeys].filter((key) => !activeKeys.has(key)).length;
+  const orphanDiskFiles = [...diskKeys].filter(
+    (key) => !activeKeys.has(key),
+  ).length;
   const ownerCounts = await countMissingOwners(activeRows);
-  const [legacyAvatars, legacyWarranties, feedbackWithImages] = await Promise.all([
-    prisma.user.count({
+  const [avatarRows, warrantyRows, feedbackRows] = await Promise.all([
+    prisma.user.findMany({
       where: { avatarUrl: { not: null, notIn: [''] } },
+      select: { avatarUrl: true },
     }),
-    prisma.warranty.count({
+    prisma.warranty.findMany({
       where: { imageLinks: { not: null, notIn: [''] } },
+      select: { imageLinks: true },
     }),
-    prisma.feedback.count({
+    prisma.feedback.findMany({
       where: { content: { contains: 'Hình ảnh:' } },
+      select: { content: true },
     }),
   ]);
-  const [protectedAvatars, protectedWarranties, protectedFeedback] =
-    await Promise.all([
-      prisma.user.count({ where: { avatarUrl: { contains: '/media/' } } }),
-      prisma.warranty.count({ where: { imageLinks: { contains: '/media/' } } }),
-      prisma.feedback.count({ where: { content: { contains: '/media/' } } }),
-    ]);
+  const referenceSummary = summarizePrivateMediaReferences({
+    avatars: avatarRows.map((row) => row.avatarUrl),
+    warranties: warrantyRows.map((row) => row.imageLinks),
+    feedbackItems: feedbackRows.map((row) => row.content),
+    legacyBaseUrl,
+    privatePublicBaseUrl,
+  });
+  const legacyReferencesTotal = referenceSummary.references.legacy.total;
 
   const report = {
     ok:
@@ -63,6 +78,7 @@ try {
       sizeMismatches === 0 &&
       orphanDiskFiles === 0 &&
       ownerCounts.total === 0,
+    legacyReferencesClear: legacyReferencesTotal === 0,
     generatedAt: new Date().toISOString(),
     metadata: {
       total: rows.length,
@@ -76,16 +92,25 @@ try {
       missingOwners: ownerCounts,
     },
     referenceInventory: {
-      avatarRecords: legacyAvatars,
-      protectedAvatarRecords: protectedAvatars,
-      warrantyRecords: legacyWarranties,
-      protectedWarrantyRecords: protectedWarranties,
-      feedbackRecordsWithImages: feedbackWithImages,
-      protectedFeedbackRecords: protectedFeedback,
+      avatarRecords: referenceSummary.records.avatar.scanned,
+      protectedAvatarRecords: referenceSummary.records.avatar.withProtected,
+      legacyAvatarRecords: referenceSummary.records.avatar.withLegacy,
+      warrantyRecords: referenceSummary.records.warranty.scanned,
+      protectedWarrantyRecords: referenceSummary.records.warranty.withProtected,
+      legacyWarrantyRecords: referenceSummary.records.warranty.withLegacy,
+      feedbackRecordsWithImages: referenceSummary.records.feedback.scanned,
+      protectedFeedbackRecords: referenceSummary.records.feedback.withProtected,
+      legacyFeedbackRecords: referenceSummary.records.feedback.withLegacy,
+      legacyReferencesTotal,
+      references: referenceSummary.references,
     },
   };
   process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
-  if (strict && !report.ok) process.exitCode = 2;
+  if (strict && !report.ok) {
+    process.exitCode = 2;
+  } else if (failOnLegacy && !report.legacyReferencesClear) {
+    process.exitCode = 3;
+  }
 } finally {
   await close();
 }
@@ -122,16 +147,19 @@ async function countMissingOwners(rows) {
       result.unknown += 1;
     }
   }
-  result.total = result.warranty + result.feedback + result.avatar + result.unknown;
+  result.total =
+    result.warranty + result.feedback + result.avatar + result.unknown;
   return result;
 }
 
 async function listFiles(directory) {
   const results = [];
-  const entries = await fs.readdir(directory, { withFileTypes: true }).catch((error) => {
-    if (error?.code === 'ENOENT') return [];
-    throw error;
-  });
+  const entries = await fs
+    .readdir(directory, { withFileTypes: true })
+    .catch((error) => {
+      if (error?.code === 'ENOENT') return [];
+      throw error;
+    });
   for (const entry of entries) {
     const target = path.join(directory, entry.name);
     if (entry.isSymbolicLink()) {
@@ -153,4 +181,10 @@ function safeStoragePath(storageKey) {
 
 function toStorageKey(filePath) {
   return path.relative(baseDir, filePath).split(path.sep).join('/');
+}
+
+function requiredEnv(key) {
+  const value = process.env[key]?.trim();
+  if (!value) throw new Error(`Missing required environment variable: ${key}`);
+  return value;
 }

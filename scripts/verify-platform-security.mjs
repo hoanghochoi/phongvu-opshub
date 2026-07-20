@@ -117,6 +117,8 @@ const [
   profileScreen,
   warrantyDetailsScreen,
   feedbackAdminScreen,
+  auditPrivateMedia,
+  privateMediaReferenceAudit,
 ] = await Promise.all([
   text('deploy/home-server/Caddyfile'),
   text('deploy/home-server/docker-compose.home.yml'),
@@ -150,6 +152,8 @@ const [
   text('lib/features/auth/presentation/screens/profile_screen.dart'),
   text('lib/features/warranty/presentation/screens/warranty_details_screen.dart'),
   text('lib/features/admin/presentation/screens/feedback_admin_screen.dart'),
+  text('backend-nest/scripts/audit-private-media.mjs'),
+  text('backend-nest/scripts/private-media-reference-audit.mjs'),
 ]);
 
 assertWorkflowRunExpressionLengths(productionWorkflow, 'production workflow');
@@ -287,6 +291,31 @@ assert.ok(
     1 >=
     2,
   'feedback thumbnail and preview must both use dual-read headers',
+);
+contains(
+  auditPrivateMedia,
+  'parsePrivateMediaAuditArgs',
+  'private media audit fail-closed CLI parser',
+);
+contains(
+  auditPrivateMedia,
+  'legacyReferencesClear: legacyReferencesTotal === 0',
+  'private media aggregate legacy reference verdict',
+);
+contains(
+  auditPrivateMedia,
+  'failOnLegacy && !report.legacyReferencesClear',
+  'private media post-migration legacy fail gate',
+);
+contains(
+  privateMediaReferenceAudit,
+  "const supported = new Set(['--strict', '--fail-on-legacy'])",
+  'private media audit supported argument allowlist',
+);
+contains(
+  privateMediaReferenceAudit,
+  "if (matchesRoute(target, legacyBase, legacyBase.pathname)) return 'legacy';",
+  'private media exact legacy route classification',
 );
 
 contains(localCompose, '127.0.0.1:5432:5432', 'local PostgreSQL binding');

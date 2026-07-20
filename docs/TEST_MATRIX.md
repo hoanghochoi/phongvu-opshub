@@ -3067,6 +3067,15 @@ src/map-vietin/map-vietin.service.spec.ts` (26 tests), `npm run build`, full
   0 missing/rejected/error; apply/cutover remains a separate data-maintenance
   follow-up because 764 legacy upload files remain and Caddy has no access-log
   proof.
+- Private-media post-audit hardening, 2026-07-20: the integrity verdict remains
+  compatible with a pre-migration strict audit, while a separate aggregate
+  `--fail-on-legacy` gate proves no database reference still depends on
+  `/uploads` before route removal. Exact-origin/path and relative-path fixtures,
+  fail-closed argument parsing, telemetry/batch regressions, and no-raw-value
+  output passed 14/14 Node tests; the platform security contract also passed.
+  Prisma generate, Nest build and reviewed runtime packaging (284 files,
+  auditor/helper both present) passed. Staging execution and live production
+  post-batch proof remain pending.
 
 ## QUICK-ACTIONS-001 — Thao tác nhanh v1 (2026-07-13)
 

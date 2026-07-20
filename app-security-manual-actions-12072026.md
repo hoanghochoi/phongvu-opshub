@@ -352,7 +352,10 @@ compose=(docker compose --env-file "$OPSHUB_ENV_FILE" \
 
 Lưu JSON report vào kho nội bộ an toàn. So sánh số avatar/warranty/feedback,
 missing file/owner, orphan và dung lượng. Dry-run đầy đủ không sửa reference;
-không thêm `--limit` vào lần kiểm kê production cuối cùng.
+không thêm `--limit` vào lần kiểm kê production cuối cùng. Audit chỉ xuất số
+aggregate; `referenceInventory.legacyReferencesTotal` là baseline trước apply,
+không chứa URL/path. Ở preflight chỉ dùng `--strict`: legacy reference đang chờ
+migration chưa làm audit integrity thất bại.
 
 ### 4.2 Apply theo batch
 
@@ -374,7 +377,8 @@ BATCH_OFFSET=0
 chặn ở 250 khi `--apply`. Sau mỗi batch:
 
 1. Dừng ngay nếu exit khác 0, `errors > 0`, audit lỗi hoặc smoke lỗi.
-2. Chạy audit và smoke đúng owner/showroom/admin; anonymous phải nhận 404.
+2. Chạy audit `--strict` và smoke đúng owner/showroom/admin; anonymous phải nhận
+   404. Audit phải giữ `ok=true`, không có missing/orphan/size mismatch.
 3. Nếu `batch.hasMore=true`, đặt `BATCH_OFFSET` bằng đúng
    `batch.nextOffset` trong report rồi chạy batch kế tiếp.
 4. Chỉ kết thúc khi `batch.hasMore=false`; không tự tăng offset theo phỏng đoán.
@@ -382,6 +386,18 @@ chặn ở 250 khi `--apply`. Sau mỗi batch:
 Migration dùng dataset ổn định nên offset tăng dần không bỏ sót record. Script
 re-encode ảnh, tạo metadata/checksum, đổi reference nhưng **không xóa file
 legacy**.
+
+Sau batch cuối (`batch.hasMore=false`), chạy post-audit fail-closed:
+
+```bash
+"${compose[@]}" --profile maintenance run --rm maintenance \
+  npm run security:audit-private-media -- --strict --fail-on-legacy
+```
+
+Chỉ đạt khi `ok=true`, `legacyReferencesClear=true` và
+`referenceInventory.legacyReferencesTotal=0`. Exit `2` là lỗi integrity; exit
+`3` nghĩa vẫn còn reference phụ thuộc route legacy và phải dừng cutover. Report
+không xuất URL/path/record id.
 
 ### 4.3 Cutover
 
@@ -400,9 +416,14 @@ legacy**.
    `uniquePathHashes` là số aggregate; script không xuất filename hay client IP.
    Khi chuẩn bị cutover, chạy lại với `--strict --fail-on-hits`; exit `3` nghĩa
    vẫn còn traffic legacy và phải dừng.
-2. Xóa `handle_path /uploads/*` khỏi Caddy ở một change riêng, validate/reload, purge đúng cache prefix.
-3. Kiểm anonymous `/uploads/...` và `/api/media/:id` đều không trả ảnh; đúng scope `/api/media/:id` vẫn pass.
-4. Chỉ dọn orphan sau retention + backup + approval; không dùng lệnh xóa tay không manifest.
+2. Chạy lại post-audit `--strict --fail-on-legacy`; chỉ tiếp tục khi aggregate
+   legacy bằng 0 và integrity sạch.
+3. Xóa `handle_path /uploads/*` khỏi Caddy ở một change riêng, validate/reload,
+   purge đúng cache prefix.
+4. Kiểm anonymous `/uploads/...` và `/api/media/:id` đều không trả ảnh; đúng
+   scope `/api/media/:id` vẫn pass.
+5. Chỉ dọn orphan sau retention + backup + approval; không dùng lệnh xóa tay
+   không manifest.
 
 Rollback reference nếu phải quay client/API nhưng vẫn giữ file private:
 
