@@ -1,0 +1,77 @@
+name: Set up pinned Flutter
+description: Install and cache the repository-approved Flutter SDK without unpinned transitive actions.
+
+inputs:
+  flutter-version:
+    description: Human-readable Flutter release used in cache keys and verification.
+    required: false
+    default: "3.38.3"
+  flutter-revision:
+    description: Full Flutter framework commit SHA to install.
+    required: false
+    default: "19074d12f7eaf6a8180cd4036a430c1d76de904e"
+
+runs:
+  using: composite
+  steps:
+    - name: Configure Flutter paths
+      id: paths
+      shell: pwsh
+      run: |
+        $ErrorActionPreference = 'Stop'
+        $flutterRoot = Join-Path $env:RUNNER_TOOL_CACHE "flutter-${{ inputs.flutter-version }}-${{ inputs.flutter-revision }}"
+        $pubCache = Join-Path $env:RUNNER_TOOL_CACHE 'opshub-pub-cache'
+
+        "FLUTTER_ROOT=$flutterRoot" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+        "PUB_CACHE=$pubCache" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+        "flutter-root=$flutterRoot" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+        "pub-cache=$pubCache" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+        (Join-Path $flutterRoot 'bin') | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+        (Join-Path $pubCache 'bin') | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+    - name: Restore Flutter SDK cache
+      id: flutter-cache
+      uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25
+      with:
+        path: ${{ steps.paths.outputs.flutter-root }}
+        key: flutter-${{ runner.os }}-${{ runner.arch }}-${{ inputs.flutter-version }}-${{ inputs.flutter-revision }}
+
+    - name: Restore Dart package cache
+      uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25
+      with:
+        path: ${{ steps.paths.outputs.pub-cache }}
+        key: flutter-pub-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('**/pubspec.lock') }}
+
+    - name: Install pinned Flutter SDK
+      if: steps.flutter-cache.outputs.cache-hit != 'true'
+      shell: pwsh
+      run: |
+        $ErrorActionPreference = 'Stop'
+        if (Test-Path -LiteralPath $env:FLUTTER_ROOT) {
+          Remove-Item -LiteralPath $env:FLUTTER_ROOT -Recurse -Force
+        }
+        New-Item -ItemType Directory -Path $env:FLUTTER_ROOT -Force | Out-Null
+
+        git -C $env:FLUTTER_ROOT init
+        git -C $env:FLUTTER_ROOT remote add origin https://github.com/flutter/flutter.git
+        git -C $env:FLUTTER_ROOT fetch --depth 1 origin "refs/tags/${{ inputs.flutter-version }}:refs/tags/${{ inputs.flutter-version }}"
+        git -C $env:FLUTTER_ROOT checkout --detach "${{ inputs.flutter-revision }}"
+
+        $actualRevision = (git -C $env:FLUTTER_ROOT rev-parse HEAD).Trim()
+        if ($actualRevision -ne '${{ inputs.flutter-revision }}') {
+          throw "Flutter revision mismatch: expected ${{ inputs.flutter-revision }}, got $actualRevision"
+        }
+
+    - name: Verify pinned Flutter SDK
+      shell: pwsh
+      run: |
+        $ErrorActionPreference = 'Stop'
+        flutter config --no-analytics
+        $version = flutter --version --machine | ConvertFrom-Json
+        if ($version.frameworkVersion -ne '${{ inputs.flutter-version }}') {
+          throw "Flutter version mismatch: expected ${{ inputs.flutter-version }}, got $($version.frameworkVersion)"
+        }
+        if ($version.frameworkRevision -ne '${{ inputs.flutter-revision }}') {
+          throw "Flutter revision mismatch: expected ${{ inputs.flutter-revision }}, got $($version.frameworkRevision)"
+        }
+        flutter --version
