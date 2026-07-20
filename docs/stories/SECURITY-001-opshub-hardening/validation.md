@@ -231,3 +231,39 @@
   `6/6`, manifest paths include both `uploads` and `private-media`, `.incoming=0`,
   and all five containers remained running (four healthchecked). Retention/ZFS
   expiry is still not enabled or approved.
+- `/uploads` is explicitly blocked as an independent lane until no earlier than
+  `2026-07-27 14:17:17 UTC+7`. The daily monitor is read-only and cannot invoke
+  migration apply, route removal, cache purge or file deletion; other security
+  lanes may proceed without weakening this stop condition.
+- Eleven historical local backup files (1,406,850,712 bytes) were encrypted and
+  archived to NAS as `local-recovery-20260720T102843Z`; checksum passed `3/3`
+  and `.incoming=0`. The local backup directory now contains only 11,139 bytes
+  of checkpoints. SEC-12 therefore no longer carries a plaintext-local-backup
+  residual; retention/ZFS policy and periodic restore governance remain open.
+- GitHub API recheck reported CodeQL, Dependabot and Secret Scanning at `0 open`.
+  Default workflow permission is read-only and third-party Actions are limited
+  to two pinned SHAs. Ruleset `19202484` now blocks deletion and
+  non-fast-forward updates on `main` and `staging`; both branches report
+  `protected=true`, while normal fast-forward pushes remain allowed.
+- Every workflow action reference uses a full commit SHA. Repository Actions
+  policy now reports `sha_pinning_required=true` through API version
+  `2026-03-10`. Secret validity-check enablement did not persist (verified GET
+  remained `disabled`), so it is recorded as unavailable/unverified rather than
+  claimed as enabled.
+- The independent realtime residual is closed at the measured staging level:
+  121,628 authenticated HTTP requests across the 25/50/100-QPS ladder, a
+  15-minute 100-QPS hold, 100% success, p95/p99 85.976/176.193 ms, zero
+  unexpected 429/5xx/timeout/drop, and 60/60 `/ws/v2` sessions. One-time ticket
+  replay, cross-scope audience rejection, session/access revocation and
+  slow-client isolation remain covered by focused contracts. Cleanup revoked
+  60 sessions, deleted 60 synthetic users and verified zero residual records or
+  token artifacts. This proof is not a 1,000-user capacity claim.
+- A read-only production aggregate found 3 active `SUPER_ADMIN`, 35 active
+  `ADMIN`, zero locked privileged accounts and 38 active privileged sessions.
+  The database schema contains no MFA/TOTP/WebAuthn/recovery field or table.
+  Owner decision on 2026-07-20: do not implement MFA in this scope. Record this
+  as accepted risk/deferred—38 privileged accounts remain password-only; no
+  account, credential or session was changed during the check.
+- Owner decision on Windows signing: no public CA certificate has been bought;
+  the self-signed update waiver remains accepted and must be reviewed before
+  2026-10-13 or earlier if the distribution channel changes.

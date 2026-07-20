@@ -896,3 +896,42 @@ Caddy và chưa chạy migration apply.
     cutover. Bản v3 đã checkpoint/rollback, retry live-tree archive tối đa ba
     lần và manual proof `20260720-164144` đạt 6/6; retention/ZFS expiry vẫn
     phải được duyệt trước khi bật.
+
+## 22. Kế hoạch tiếp tục khi `/uploads` bị blocked
+
+1. Giữ `SEC-03` ở trạng thái **BLOCKED** đến sớm nhất
+   `27/07/2026 14:17:17` UTC+7. Monitor chỉ đọc và báo cáo; tuyệt đối không tự
+   chạy `--apply`, đóng route, purge cache hoặc xóa legacy file.
+2. Không chờ media gate để xử lý các lane độc lập. Thứ tự ưu tiên mới:
+   - P1 supply-chain: bảo vệ `main`/`staging` khỏi delete và non-fast-forward;
+     sau đó đánh giá required checks/PR review theo release flow thực tế.
+   - P1 identity: hai admin cá nhân, recovery owner, MFA và rotation theo từng
+     service; đây là lane cần owner thao tác/đồng thuận.
+   - P1 realtime: **đã đóng ở mức measured proof** 100 QPS/15 phút và 60/60
+     authenticated socket trên staging, ghép với replay/revoke/cross-scope/
+     slow-client tests. Không suy rộng kết quả này thành capacity 1.000 user.
+   - P1 backup governance: chốt retention/ZFS snapshot/expiry trước khi bật bất
+     kỳ cleanup phá hủy nào. Plaintext backup local cũ đã được mã hóa, checksum
+     và chuyển sang NAS archive nên không còn là blocker riêng.
+3. Snapshot supply-chain ngày 20/07/2026: CodeQL/Dependabot/Secret Scanning đều
+   `0 open`; workflow permission mặc định `read`; third-party Actions chỉ cho
+   phép hai SHA pin. Ruleset `19202484` đã bảo vệ `main`/`staging` khỏi delete
+   và non-fast-forward. Toàn bộ workflow đã dùng full commit SHA và repo policy
+   `sha_pinning_required=true` đã bật; non-provider secret patterns/validity
+   checks vẫn tắt, trong đó validity-check API update không persist.
+4. Rule tối thiểu đã được API xác nhận active và vẫn cho direct fast-forward
+   push. Required status check hoặc bắt buộc PR chỉ bật sau khi chứng minh
+   staging/main promotion vẫn chạy được và có rollback/bypass owner.
+5. Không chạy lại k6 chỉ để lặp proof: exact staging result ngày 17/07 đã lưu
+   121.628 request, 100% success, p95/p99 85,976/176,193 ms, 60/60 socket và
+   cleanup zero. Workstation hiện không có k6; nếu mở capacity initiative mới
+   phải cài binary có checksum và đi lại toàn bộ load preflight.
+6. Identity preflight production chỉ đọc aggregate: 3 `SUPER_ADMIN`, 35
+   `ADMIN`, 0 privileged account bị khóa và 38 active privileged sessions;
+   schema không có MFA/TOTP/WebAuthn/recovery field. Theo owner decision,
+   không triển khai MFA trong scope hiện tại; ghi nhận accepted risk/deferred,
+   không mở code/migration enrollment.
+7. Windows public CA chưa mua; self-signed waiver tiếp tục được chấp nhận và
+   phải review trước `13/10/2026`. Các lane không tự chạy còn lại là
+   retention/ZFS (cần policy expiry), dead source/table (cần 30 ngày telemetry)
+   và `/uploads` (giữ stop condition riêng đến ít nhất 27/07).
