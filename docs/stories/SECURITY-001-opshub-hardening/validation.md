@@ -171,3 +171,17 @@
   access-audit tests and Caddyfile adaptation with the production Caddy binary
   passed. Staging deploy and a fresh privacy probe remain required before the
   seven-day observation clock starts.
+- Staging workflow `29722657920` deployed exact SHA `76380540...`. The release
+  symlink matched that SHA; five containers were up, the four stateful/runtime
+  services reported healthy, and the persistent log was created as `0600`.
+  A loopback-origin probe returned `404` and produced exactly one hashed entry;
+  strict audit reported one hit, one unique hash and zero malformed entries,
+  while raw path and query sentinels were absent.
+- Production workflow `29723471724` then deployed the same SHA successfully.
+  The release symlink matched, API/realtime/PostgreSQL/Redis were healthy,
+  Caddy was up, and edge plus origin health returned `200`. Production created
+  `/srv/opshub/caddy/data/legacy-uploads-access.log` as `0600`, owner UID/GID
+  mapped to `opc:opc`, with zero hits and zero malformed entries. No production
+  probe was generated, so the observation window starts clean at Caddy start
+  `2026-07-20T07:17:17.446Z` (14:17:17 UTC+7). Earliest seven-day gate is
+  27/07/2026 after 14:17:17 UTC+7; the fourteen-day limit is 03/08/2026.

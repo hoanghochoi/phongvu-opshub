@@ -197,9 +197,11 @@ hoặc giữ private identity.
   `0600`, roll ở `10 MiB`, tối đa 14 file/14 ngày để không mất cửa sổ quan sát
   khi Caddy được recreate. Docker runtime log vẫn giới hạn `10m x 5`.
 - [ ] Sau deploy, tạo đúng một probe `/uploads/*?token=...`; chạy
-  `zcat -f /srv/opshub/caddy/data/legacy-uploads-access*.log* |` nối vào
-  `security:audit-legacy-upload-access -- --strict` và xác nhận một hit, một
-  hash, không có raw path/query/IP. Không in hoặc lưu file log thô ra máy trạm.
+  `sudo sh -c 'for f in /srv/opshub/caddy/data/legacy-uploads-access.log*; do
+  case "$f" in *.gz) gzip -cd -- "$f";; *) cat -- "$f";; esac; done' |` nối
+  trực tiếp vào `security:audit-legacy-upload-access -- --strict` và xác nhận
+  một hit, một hash, không có raw path/query/IP. Dùng `sudo sh -c` để glob được
+  mở sau khi nâng quyền; không in hoặc lưu file log thô ra máy trạm.
 - [ ] Dùng cửa sổ tối thiểu 7 ngày trước media cutover. `--fail-on-hits` phải
   trả 0; nếu exit `3` thì dừng cutover, không xóa route/file/cache.
 

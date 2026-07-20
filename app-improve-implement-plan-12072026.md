@@ -848,3 +848,10 @@ deployed runtime SHA để không tạo một release binary khác không cần 
 4. Chỉ mở maintenance cutover sau khi `--fail-on-hits` trả 0 trên toàn cửa sổ,
    strict audit/dry-run pass và có rollback manifest. Identity/MFA, realtime
    soak và ZFS retention vẫn là follow-up độc lập, không gộp vào commit này.
+
+Trạng thái runtime: staging workflow `29722657920` và production workflow
+`29723471724` đã deploy success cùng SHA `76380540...`. Staging privacy probe
+đạt một hash/không raw data; production log bắt đầu sạch, mode `0600`, lúc
+`20/07/2026 14:17:17` UTC+7. Gate bảy ngày là sau `27/07/2026 14:17:17`; nếu
+không có hit mới chạy strict audit + dry-run. `--apply` vẫn chờ maintenance gate
+riêng, không được automation hoặc daily monitor tự kích hoạt.
