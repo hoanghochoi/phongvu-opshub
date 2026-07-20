@@ -222,16 +222,6 @@ export const DEFAULT_ADMIN_POLICY_RULES = [
     systemRole: 'ADMIN',
   },
   {
-    policyCode: ADMIN_POLICY_CODES.BANK_STATEMENTS,
-    allowed: true,
-    systemRole: 'ADMIN',
-  },
-  {
-    policyCode: ADMIN_POLICY_CODES.OFFSET_ADJUSTMENTS,
-    allowed: true,
-    systemRole: 'ADMIN',
-  },
-  {
     policyCode: ADMIN_POLICY_CODES.ADMIN_USER_ROLE_EDIT,
     allowed: true,
     systemRole: 'SUPER_ADMIN',

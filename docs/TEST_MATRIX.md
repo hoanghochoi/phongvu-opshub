@@ -3,6 +3,16 @@
 This file maps product behavior to proof. Existing flows are marked
 `existing_unverified` until fresh validation evidence is attached.
 
+- `AUTH-FEATURE-GATE-001`, 2026-07-20: `ADMIN` users now receive the same
+  feature-gated workspace behavior as `SUPER_ADMIN` within their assigned
+  scope; policy rules may narrow capability or widen data scope only after the
+  feature is enabled. Disabled `Cấn trừ`/`Sao kê` features no longer reopen
+  through policy-only access or realtime ticket claims. Fresh proof: NestJS
+  focused suites `151/151`, NestJS build, Prisma validation, Go `64/64`,
+  Flutter analyze, and Flutter permission/navigation/route tests `32/32`.
+  Full Flutter also passed `582` tests with `3` platform skips. Evidence is
+  recorded in intake `77` and the protected `PROFILE-ADMIN-001` story.
+
 - `UI-DATE-RANGE-001`, 2026-07-11: replaced the Material range dialog with the
   canonical token-based `DateRangePicker`: desktop compact anchored popover
   attached to the trigger button with preset sidebar plus dual calendars, mobile

@@ -224,4 +224,21 @@ void main() {
     ]);
     expect(sections[3].destinations.map((item) => item.label), ['Bảo hành']);
   });
+
+  test('legacy policy cannot reopen a disabled feature workspace', () {
+    const user = User(
+      id: 'scoped-admin',
+      email: 'admin@phongvu.vn',
+      role: 'ADMIN',
+      featureAccess: {'OFFSET_ADJUSTMENTS': false},
+      policyAccess: {'OFFSET_ADJUSTMENTS': true},
+    );
+
+    final destinations = AppNavModel.visibleSidebarDestinations(user);
+
+    expect(
+      destinations.any((destination) => destination.id == 'offset'),
+      isFalse,
+    );
+  });
 }

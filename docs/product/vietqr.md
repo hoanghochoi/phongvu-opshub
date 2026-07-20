@@ -238,10 +238,9 @@ a customer to scan and pay manually.
 ## Bank Statement Reconciliation
 
 - The app exposes the `Sao ke` home action when the resolved
-  `BANK_STATEMENTS` feature is allowed or the user has the
-  `BANK_STATEMENT_ALL_SCOPE` policy. The NestJS feature guard and statement
-  endpoints apply the same fallback, so a finance user can receive national
-  statement access without also receiving unrelated manager capabilities.
+  `BANK_STATEMENTS` feature is allowed. The `BANK_STATEMENT_ALL_SCOPE` policy
+  can widen showroom scope after the feature is enabled, but cannot reopen the
+  feature or its endpoints by itself.
 - MAP sync extracts every valid order code from the transfer content. A valid
   order is an independent 14-digit number whose first 6 digits are a real
   `yymmdd` date. Duplicates are removed while preserving first-seen order; no

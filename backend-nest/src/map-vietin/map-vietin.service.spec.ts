@@ -138,7 +138,7 @@ describe('MapVietinService', () => {
       canAccessFeature: jest.fn(async (user: any, code: string) => {
         return (
           code === FEATURE_KEYS.BANK_STATEMENTS &&
-          user?.featureBankStatements === true
+          user?.featureBankStatements !== false
         );
       }),
     };
@@ -404,10 +404,9 @@ describe('MapVietinService', () => {
     prisma.mapVietinTransaction.findMany.mockResolvedValue([]);
     prisma.mapVietinTransaction.count.mockResolvedValue(0);
 
-    await service.listStatements(
-      { id: 'super-1', role: 'SUPER_ADMIN' },
-      { allStores: 'true' } as any,
-    );
+    await service.listStatements({ id: 'super-1', role: 'SUPER_ADMIN' }, {
+      allStores: 'true',
+    } as any);
 
     expect(prisma.mapVietinTransaction.findMany).toHaveBeenCalledWith(
       expect.objectContaining({ where: { incomeType: 'SALES' } }),
@@ -459,15 +458,37 @@ describe('MapVietinService', () => {
     );
   });
 
-  it('rejects statement reads without feature-tree access or statement policy', async () => {
+  it('rejects statement reads without feature-tree access', async () => {
     await expect(
       service.listStatements(
-        { id: 'staff-1', role: 'USER', storeId: 'store-uuid-1' },
+        {
+          id: 'staff-1',
+          role: 'USER',
+          storeId: 'store-uuid-1',
+          featureBankStatements: false,
+        },
         { storeIds: 'CP01', page: 0, limit: 20 },
       ),
     ).rejects.toBeInstanceOf(ForbiddenException);
 
     expect(prisma.store.findUnique).not.toHaveBeenCalled();
+    expect(prisma.mapVietinTransaction.findMany).not.toHaveBeenCalled();
+  });
+
+  it('does not reopen statement reads from all-scope policy alone', async () => {
+    await expect(
+      service.listStatements(
+        {
+          id: 'policy-only-user',
+          role: 'USER',
+          storeId: 'store-uuid-1',
+          statementAllScope: true,
+          featureBankStatements: false,
+        },
+        { storeIds: 'CP01', page: 0, limit: 20 },
+      ),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+
     expect(prisma.mapVietinTransaction.findMany).not.toHaveBeenCalled();
   });
 
@@ -2194,7 +2215,11 @@ describe('MapVietinService', () => {
 
     await expect(
       service.listStoredTransactions(
-        { role: 'USER', storeId: 'store-uuid-1' },
+        {
+          role: 'USER',
+          storeId: 'store-uuid-1',
+          featureBankStatements: false,
+        },
         { date: '2026-05-21', page: 0, limit: 10 },
       ),
     ).resolves.toMatchObject({

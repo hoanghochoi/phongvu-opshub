@@ -196,6 +196,42 @@ void main() {
     );
   });
 
+  test('admin routes follow feature assignments despite legacy policies', () {
+    const disabledAdmin = User(
+      email: 'disabled-admin@phongvu.vn',
+      role: 'ADMIN',
+      organizationNodeId: 'org-store',
+      featureAccess: {'BANK_STATEMENTS': false, 'OFFSET_ADJUSTMENTS': false},
+      policyAccess: {
+        'BANK_STATEMENT_ALL_SCOPE': true,
+        'OFFSET_ADJUSTMENTS': true,
+      },
+    );
+    const enabledAdmin = User(
+      email: 'enabled-admin@phongvu.vn',
+      role: 'ADMIN',
+      organizationNodeId: 'org-store',
+      featureAccess: {'BANK_STATEMENTS': true, 'OFFSET_ADJUSTMENTS': true},
+    );
+
+    expect(
+      AppRouter.canUseRouteForTesting(disabledAdmin, '/bank-statement'),
+      isFalse,
+    );
+    expect(
+      AppRouter.canUseRouteForTesting(disabledAdmin, '/offset-adjustments'),
+      isFalse,
+    );
+    expect(
+      AppRouter.canUseRouteForTesting(enabledAdmin, '/bank-statement'),
+      isTrue,
+    );
+    expect(
+      AppRouter.canUseRouteForTesting(enabledAdmin, '/offset-adjustments'),
+      isTrue,
+    );
+  });
+
   test('warranty detail route requires WARRANTY access', () {
     const warrantyUser = User(
       email: 'warranty@phongvu.vn',

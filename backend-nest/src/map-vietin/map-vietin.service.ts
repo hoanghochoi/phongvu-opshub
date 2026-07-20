@@ -2239,23 +2239,10 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
   }
 
   private async canUseStatements(user: any) {
-    if (
-      await this.policyService.canAccessPolicy(
-        user,
-        ADMIN_POLICY_CODES.BANK_STATEMENTS,
-      )
-    ) {
-      return true;
-    }
-    if (
-      await this.featureService.canAccessFeature(
-        user,
-        FEATURE_KEYS.BANK_STATEMENTS,
-      )
-    ) {
-      return true;
-    }
-    return this.hasNationalStatementScope(user);
+    return this.featureService.canAccessFeature(
+      user,
+      FEATURE_KEYS.BANK_STATEMENTS,
+    );
   }
 
   private async assertCanUseStatements(user: any) {
@@ -3995,10 +3982,7 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
     ) {
       return value;
     }
-    return classifyMapVietinIncomeType(
-      row.content,
-      row.payerAccount,
-    );
+    return classifyMapVietinIncomeType(row.content, row.payerAccount);
   }
 
   private rawDataAsMapRow(value?: Prisma.JsonValue | null) {

@@ -24,12 +24,14 @@ and basic administration for privileged roles.
 
 ## Admin Management
 
-- Admin menu visibility is resolved through backend feature and policy maps.
-  Runtime feature access uses node-group assignments from the user's direct
-  active organization node: same root + node type + business code/code share the
-  same active feature set. Policy rules still control capability and data
-  scope, but they do not automatically open a feature that is not assigned to
-  the user's direct node group.
+- Admin menu visibility is resolved through the backend feature map. Runtime
+  feature access uses node-group assignments from the user's direct active
+  organization node: same root + node type + business code/code share the same
+  active feature set. Policy rules still control capability and data scope,
+  but they never open a feature that is not assigned to the user's direct node
+  group. `ADMIN` has the same feature-gated workspace behavior as
+  `SUPER_ADMIN`, except that `SUPER_ADMIN` bypasses feature gates to avoid
+  lockout.
 - The administration menu contains user management, read-only system role
   management, Lv0-Lv5 organization tree management, personnel catalog
   management, feature management, policy management, and manual FIFO inventory
