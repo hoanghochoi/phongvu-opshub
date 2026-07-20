@@ -225,3 +225,9 @@
   files (including `.gz`) server-side and pipes them directly into the auditor;
   it no longer relies on container-local `docker logs --since 168h`. Platform
   verification prevents regression to the ephemeral source.
+- Backup contract review found v2 omitted `private-media` despite valid checksums.
+  The host script was checkpointed and upgraded to v3 with bounded live-tree
+  retry. Manual run `20260720-164144` finished `Result=success`, NAS checksum
+  `6/6`, manifest paths include both `uploads` and `private-media`, `.incoming=0`,
+  and all five containers remained running (four healthchecked). Retention/ZFS
+  expiry is still not enabled or approved.

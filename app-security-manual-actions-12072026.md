@@ -471,6 +471,19 @@ bằng `< /dev/null`.
   Manual run `20260713-152745` pass và timer đang chạy hằng ngày 02:30
   `Asia/Bangkok` với jitter tối đa 15 phút.
 
+### 5.0.1 Cập nhật private-media backup ngày 20/07/2026
+
+- Kiểm tra source của job cho thấy contract v2 trước đây chỉ archive
+  `uploads,payment-audio,import,caddy,env`; checksum v2 không chứng minh
+  `private-media` được bảo vệ. Không dùng các recovery point v2 đó làm backup
+  cutover.
+- Script đã được checkpoint trước khi thay, nâng marker/manifest lên v3 để ghi
+  rõ `persistent_paths=uploads,private-media,...`, retry live-tree archive tối
+  đa ba lần nhưng vẫn fail-closed nếu tar/age không hoàn tất.
+- Manual run mới `20260720-164144` đạt `Result=success`, exit `0`, NAS checksum
+  `6/6`, `.incoming=0`, marker v3, và container `4 healthy/5 running`. Timer vẫn
+  `enabled/active`; backup retention/ZFS snapshot chưa được bật tự động.
+
 Gate còn mở, không tự động xử lý:
 
 1. `/srv/opshub/backups` còn khoảng 1,4 GB backup lịch sử plaintext; chỉ xóa/migrate

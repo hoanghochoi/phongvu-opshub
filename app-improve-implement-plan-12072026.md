@@ -891,3 +891,8 @@ Caddy và chưa chạy migration apply.
 9. Gate telemetry 7–14 ngày phải đọc file persistent và rolled `.gz` trực tiếp
    trên server, pipe vào auditor; không dùng `docker logs --since 168h` vì Caddy
    recreate sẽ làm history container không đại diện toàn cửa sổ.
+10. NAS backup contract phải archive cả `uploads` và `private-media`. Bản v2 đã
+    checksum đúng nhưng thiếu private-media, nên không đủ làm recovery point cho
+    cutover. Bản v3 đã checkpoint/rollback, retry live-tree archive tối đa ba
+    lần và manual proof `20260720-164144` đạt 6/6; retention/ZFS expiry vẫn
+    phải được duyệt trước khi bật.

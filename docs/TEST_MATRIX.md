@@ -3083,6 +3083,11 @@ src/map-vietin/map-vietin.service.spec.ts` (26 tests), `npm run build`, full
   Go jobs passed; staging `/api/health` returned 200 while `/health` correctly
   redirected through Cloudflare Access. Live production post-batch proof
   remains pending.
+  Backup proof `20260720-164144` now includes both `uploads` and `private-media`
+  under v3 manifest, passes NAS checksum 6/6 with `.incoming=0`, and leaves all
+  five production services running (four healthchecked). The earlier v2 backup
+  was checksum-valid but omitted `private-media`; retention/ZFS expiry remains
+  an explicit unapproved gap.
 
 ## QUICK-ACTIONS-001 — Thao tác nhanh v1 (2026-07-13)
 

@@ -226,6 +226,11 @@ hoặc giữ private identity.
   cùng Docker target `ops`; thiếu `--build` có thể chạy script từ release cũ.
   Kiểm container còn sót bằng Docker label
   `com.docker.compose.service=maintenance`, không dùng `compose ps` toàn project.
+- [ ] Recovery point trước private-media migration phải có manifest archive đồng
+  thời `uploads` và `private-media`, checksum đủ artifact và không còn
+  `.incoming-*`. Checksum pass của backup v2 thiếu `private-media` không đạt gate.
+  Backup v3 đã có bounded retry cho live-tree tar; vẫn không bật retention/ZFS
+  expiry nếu chưa có policy approval.
 
 ### 7.2 API multi-replica qua Docker DNS
 
