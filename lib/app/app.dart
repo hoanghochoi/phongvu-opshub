@@ -13,6 +13,7 @@ import '../core/runtime/app_runtime_coordinator.dart';
 import '../features/auth/data/repositories/auth_repository.dart';
 import '../features/auth/presentation/providers/auth_provider.dart';
 import '../features/auth/presentation/providers/auth_access_refresh_coordinator.dart';
+import '../features/auth/presentation/providers/authenticated_realtime_coordinator.dart';
 import '../features/app_update/presentation/app_update_gate.dart';
 import '../features/bank_statement/data/bank_statement_repository.dart';
 import '../features/home/data/repositories/home_summary_repository.dart';
@@ -50,6 +51,26 @@ class App extends StatelessWidget {
         ),
         ChangeNotifierProvider(
           create: (_) => AuthProvider(AuthRepository(ApiClient())),
+        ),
+        ProxyProvider2<
+          AuthProvider,
+          AppRuntimeCoordinator,
+          AuthenticatedRealtimeCoordinator
+        >(
+          lazy: false,
+          create: (_) => AuthenticatedRealtimeCoordinator(
+            realtimeClient: RealtimeConnectionManager.instance,
+          ),
+          update: (_, auth, runtime, coordinator) {
+            final value =
+                coordinator ??
+                AuthenticatedRealtimeCoordinator(
+                  realtimeClient: RealtimeConnectionManager.instance,
+                );
+            value.sync(auth, runtime);
+            return value;
+          },
+          dispose: (_, coordinator) => coordinator.dispose(),
         ),
         ProxyProvider2<
           AuthProvider,

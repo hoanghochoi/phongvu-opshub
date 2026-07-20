@@ -439,37 +439,78 @@ class HomeSalesProgressPeriod {
   }
 }
 
-class HomeSalesBehaviorDetails {
-  const HomeSalesBehaviorDetails({
+enum HomeSummaryDetailKind {
+  notPurchased('NOT_PURCHASED'),
+  unreportedOrder('UNREPORTED_ORDER'),
+  installmentNeed('INSTALLMENT_NEED');
+
+  const HomeSummaryDetailKind(this.apiValue);
+
+  final String apiValue;
+
+  static HomeSummaryDetailKind fromApiValue(Object? value) {
+    final normalized = value?.toString().trim().toUpperCase();
+    return HomeSummaryDetailKind.values.firstWhere(
+      (kind) => kind.apiValue == normalized,
+      orElse: () =>
+          throw const FormatException('Home summary detail kind is invalid'),
+    );
+  }
+}
+
+class HomeSummaryDetailsPage<T> {
+  const HomeSummaryDetailsPage({
+    required this.kind,
     required this.startDate,
     required this.endDate,
     required this.scope,
     required this.scopeLabel,
     required this.selectedSalesProgressUserId,
     required this.limit,
-    required this.notPurchasedTotal,
-    required this.unreportedTotal,
-    required this.installmentNeedTotal,
-    required this.notPurchasedReports,
-    required this.unreportedOrders,
-    required this.installmentNeedReports,
+    required this.total,
+    required this.items,
+    required this.nextCursor,
   });
 
+  final HomeSummaryDetailKind kind;
   final String startDate;
   final String endDate;
   final String scope;
   final String scopeLabel;
   final String? selectedSalesProgressUserId;
   final int limit;
-  final int notPurchasedTotal;
-  final int unreportedTotal;
-  final int installmentNeedTotal;
-  final List<HomeNotPurchasedReportDetail> notPurchasedReports;
-  final List<HomeUnreportedOrderDetail> unreportedOrders;
-  final List<HomeInstallmentNeedDetail> installmentNeedReports;
+  final int total;
+  final List<T> items;
+  final String? nextCursor;
 
-  factory HomeSalesBehaviorDetails.fromJson(Map<String, dynamic> json) {
-    return HomeSalesBehaviorDetails(
+  bool get hasNextPage => nextCursor?.trim().isNotEmpty == true;
+
+  factory HomeSummaryDetailsPage.fromJson(
+    Map<String, dynamic> json, {
+    required HomeSummaryDetailKind expectedKind,
+    required T Function(Map<String, dynamic> json) itemFromJson,
+  }) {
+    final kind = HomeSummaryDetailKind.fromApiValue(json['kind']);
+    if (kind != expectedKind) {
+      throw const FormatException('Home summary detail kind mismatch');
+    }
+    final rawItems = json['items'];
+    if (rawItems is! List) {
+      throw const FormatException('Home summary detail items are invalid');
+    }
+    final parsedItems = <T>[];
+    for (final rawItem in rawItems) {
+      if (rawItem is! Map) {
+        throw const FormatException('Home summary detail item is invalid');
+      }
+      parsedItems.add(itemFromJson(Map<String, dynamic>.from(rawItem)));
+    }
+    final total = HomeSummary._intOf(json['total']);
+    if (total < parsedItems.length) {
+      throw const FormatException('Home summary detail total is invalid');
+    }
+    return HomeSummaryDetailsPage<T>(
+      kind: kind,
       startDate: HomeSummary._stringOf(json['startDate']),
       endDate: HomeSummary._stringOf(json['endDate']),
       scope: HomeSummary._stringOf(json['scope']),
@@ -478,23 +519,31 @@ class HomeSalesBehaviorDetails {
         json['selectedSalesProgressUserId'],
       ),
       limit: HomeSummary._intOf(json['limit']),
-      notPurchasedTotal: HomeSummary._intOf(json['notPurchasedTotal']),
-      unreportedTotal: HomeSummary._intOf(json['unreportedTotal']),
-      installmentNeedTotal: HomeSummary._intOf(json['installmentNeedTotal']),
-      notPurchasedReports: (json['notPurchasedReports'] as List? ?? const [])
-          .whereType<Map<String, dynamic>>()
-          .map(HomeNotPurchasedReportDetail.fromJson)
-          .toList(growable: false),
-      unreportedOrders: (json['unreportedOrders'] as List? ?? const [])
-          .whereType<Map<String, dynamic>>()
-          .map(HomeUnreportedOrderDetail.fromJson)
-          .where((item) => item.orderCode.isNotEmpty)
-          .toList(growable: false),
-      installmentNeedReports:
-          (json['installmentNeedReports'] as List? ?? const [])
-              .whereType<Map<String, dynamic>>()
-              .map(HomeInstallmentNeedDetail.fromJson)
-              .toList(growable: false),
+      total: total,
+      items: parsedItems,
+      nextCursor: HomeSummary._nullableStringOf(json['nextCursor']),
+    );
+  }
+
+  HomeSummaryDetailsPage<T> append(HomeSummaryDetailsPage<T> nextPage) {
+    if (kind != nextPage.kind ||
+        startDate != nextPage.startDate ||
+        endDate != nextPage.endDate ||
+        scope != nextPage.scope ||
+        selectedSalesProgressUserId != nextPage.selectedSalesProgressUserId) {
+      throw const FormatException('Home summary detail page mismatch');
+    }
+    return HomeSummaryDetailsPage<T>(
+      kind: kind,
+      startDate: startDate,
+      endDate: endDate,
+      scope: scope,
+      scopeLabel: scopeLabel,
+      selectedSalesProgressUserId: selectedSalesProgressUserId,
+      limit: nextPage.limit,
+      total: nextPage.total,
+      items: List<T>.unmodifiable([...items, ...nextPage.items]),
+      nextCursor: nextPage.nextCursor,
     );
   }
 }

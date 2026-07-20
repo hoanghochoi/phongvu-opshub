@@ -1232,6 +1232,7 @@ model HomeSummaryReportFact {
 model HomeSummaryDailyAggregate {
   id                  String    @id @default(uuid())
   summaryDate         DateTime  @db.Date
+  projectionKind      String    @default("SALES")
   dimensionType       String
   dimensionKey        String    @default("")
   storeCode           String    @default("")
@@ -1241,15 +1242,16 @@ model HomeSummaryDailyAggregate {
   notPurchasedReports Int       @default(0)
   orderRevenueAmount  BigInt    @default(0)
   reportRevenueAmount BigInt    @default(0)
+  metrics             Json      @default("{}")
   projectionVersion   BigInt
   sourceUpdatedAt     DateTime?
   generatedAt         DateTime
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
 
-  @@unique([summaryDate, dimensionType, dimensionKey, storeCode])
-  @@index([dimensionType, dimensionKey, summaryDate])
-  @@index([dimensionType, storeCode, summaryDate])
+  @@unique([summaryDate, projectionKind, dimensionType, dimensionKey, storeCode])
+  @@index([projectionKind, dimensionType, dimensionKey, summaryDate])
+  @@index([projectionKind, dimensionType, storeCode, summaryDate])
 }
 
 model HomeSummaryProjectionState {
@@ -1260,6 +1262,12 @@ model HomeSummaryProjectionState {
   salesReportSourceUpdatedAt   DateTime?
   erpOrderCacheSourceUpdatedAt DateTime?
   mapVietinSourceUpdatedAt     DateTime?
+  salesStatus                  String    @default("PENDING")
+  salesProjectionVersion       BigInt    @default(0)
+  salesGeneratedAt             DateTime?
+  financeStatus                String    @default("PENDING")
+  financeProjectionVersion     BigInt    @default(0)
+  financeGeneratedAt           DateTime?
   generatedAt                  DateTime?
   lastError                    String?
   createdAt                    DateTime  @default(now())
@@ -1268,43 +1276,52 @@ model HomeSummaryProjectionState {
   @@index([status, updatedAt])
 }
 
-// Queue bền vững kiêm coalescing key cho mỗi ngày. Worker chỉ xóa row khi
-// sourceUpdatedAt chưa đổi trong lúc rebuild, nhờ đó không làm rơi event mới.
+// Queue bền vững kiêm coalescing key cho mỗi ngày/loại projection. Worker chỉ
+// xóa row khi dirtyGeneration chưa tăng trong lúc rebuild; nếu source đổi thì
+// lease được nhả thành đúng một follow-up job, không làm rơi event mới.
 // Partial ready-claim index nằm trong migration vì Prisma chưa biểu diễn được.
 model HomeSummaryProjectionQueue {
-  id              String    @id @default(uuid())
-  summaryDate     DateTime  @db.Date
-  dimensionType   String    @default("GLOBAL")
-  dimensionKey    String    @default("")
-  storeCode       String    @default("")
-  sourceUpdatedAt DateTime
-  firstEnqueuedAt DateTime  @default(now())
-  availableAt     DateTime
-  claimedAt       DateTime?
-  attempts        Int       @default(0)
-  lastError       String?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  id                String    @id @default(uuid())
+  summaryDate       DateTime  @db.Date
+  projectionKind    String    @default("SALES")
+  dimensionType     String    @default("GLOBAL")
+  dimensionKey      String    @default("")
+  storeCode         String    @default("")
+  sourceUpdatedAt   DateTime
+  firstEnqueuedAt   DateTime  @default(now())
+  availableAt       DateTime
+  claimedAt         DateTime?
+  claimToken        String?
+  leaseExpiresAt    DateTime?
+  dirtyGeneration   BigInt    @default(1)
+  claimedGeneration BigInt?
+  attempts          Int       @default(0)
+  lastError         String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
-  @@unique([summaryDate, dimensionType, dimensionKey, storeCode])
-  @@index([availableAt, claimedAt])
+  @@unique([summaryDate, projectionKind])
+  @@index([availableAt, leaseExpiresAt])
 }
 
 model DomainOutboxEvent {
-  id            String    @id @default(uuid())
-  eventType     String
-  aggregateType String
-  aggregateId   String
-  dedupeKey     String?   @unique
-  schemaVersion Int       @default(1)
-  payload       Json
-  occurredAt    DateTime  @default(now())
-  availableAt   DateTime  @default(now())
-  publishedAt   DateTime?
-  attempts      Int       @default(0)
-  lastError     String?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  id             String    @id @default(uuid())
+  eventType      String
+  aggregateType  String
+  aggregateId    String
+  dedupeKey      String?   @unique
+  schemaVersion  Int       @default(1)
+  payload        Json
+  occurredAt     DateTime  @default(now())
+  availableAt    DateTime  @default(now())
+  publishedAt    DateTime?
+  claimedAt      DateTime?
+  claimToken     String?
+  leaseExpiresAt DateTime?
+  attempts       Int       @default(0)
+  lastError      String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
   @@index([publishedAt, availableAt])
   @@index([eventType, occurredAt])

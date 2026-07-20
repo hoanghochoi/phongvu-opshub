@@ -135,18 +135,31 @@ void main() {
     expect(summary.appDownloadRate, 100);
   });
 
-  test('Home behavior details parse unreported order value', () {
-    final details = HomeSalesBehaviorDetails.fromJson({
-      'unreportedOrders': [
-        {
-          'orderCode': '2607040002',
-          'grandTotal': 5000000,
-          'soldAt': '2026-07-04T03:30:00Z',
-        },
-      ],
-    });
+  test('Home details v2 parses typed unreported order page', () {
+    final details = HomeSummaryDetailsPage<HomeUnreportedOrderDetail>.fromJson(
+      {
+        'kind': 'UNREPORTED_ORDER',
+        'startDate': '2026-07-04',
+        'endDate': '2026-07-04',
+        'scope': 'OWN',
+        'scopeLabel': 'Phạm vi cá nhân',
+        'selectedSalesProgressUserId': null,
+        'limit': 50,
+        'total': 1,
+        'nextCursor': null,
+        'items': [
+          {
+            'orderCode': '2607040002',
+            'grandTotal': 5000000,
+            'soldAt': '2026-07-04T03:30:00Z',
+          },
+        ],
+      },
+      expectedKind: HomeSummaryDetailKind.unreportedOrder,
+      itemFromJson: HomeUnreportedOrderDetail.fromJson,
+    );
 
-    expect(details.unreportedOrders.single.grandTotal, 5000000);
+    expect(details.items.single.grandTotal, 5000000);
   });
 
   test('Home summary parses projection freshness and stale warning', () {
@@ -179,7 +192,11 @@ void main() {
     'Home realtime debounces relevant dates and resyncs once on resume',
     (tester) async {
       final realtime = _FakeRealtimeClient();
-      final repository = _FakeHomeSummaryRepository(summary: _homeSummary());
+      final repository = _FakeHomeSummaryRepository(
+        // A higher version may belong to another date in the selected range;
+        // it must not suppress a lower-but-new version for 2026-07-14.
+        summary: _homeSummary(projectionVersion: 100),
+      );
       final provider = HomeSummaryProvider(
         repository,
         now: () => DateTime(2026, 7, 14, 10),
@@ -193,7 +210,7 @@ void main() {
       await tester.pump();
       final initialRequests = repository.requestedScopes.length;
       expect(initialRequests, greaterThan(0));
-      expect(realtime.sessionKeys.single, contains('user-1'));
+      expect(realtime.sessionKeys, isEmpty);
 
       realtime.addEvent(
         RealtimeEnvelope(
@@ -209,7 +226,7 @@ void main() {
           },
         ),
       );
-      await tester.pump(const Duration(milliseconds: 1999));
+      await tester.pump(const Duration(milliseconds: 499));
       expect(repository.requestedScopes.length, initialRequests);
       await tester.pump(const Duration(milliseconds: 1));
       await tester.pump();
@@ -898,17 +915,17 @@ void main() {
       coverageRate: 50,
       refreshedAt: DateTime.parse('2026-07-04T03:15:00.000Z'),
     );
-    final details = HomeSalesBehaviorDetails(
+    final notPurchasedDetails = HomeSummaryDetailsPage(
+      kind: HomeSummaryDetailKind.notPurchased,
       startDate: '2026-07-04',
       endDate: '2026-07-04',
       scope: 'OWN',
       scopeLabel: 'Phạm vi cá nhân',
       selectedSalesProgressUserId: null,
-      limit: 200,
-      notPurchasedTotal: 1,
-      unreportedTotal: 1,
-      installmentNeedTotal: 2,
-      notPurchasedReports: [
+      limit: 50,
+      total: 2,
+      nextCursor: 'not-purchased-cursor-1',
+      items: [
         HomeNotPurchasedReportDetail(
           id: 'report-2',
           submittedAt: DateTime(2026, 7, 4, 9),
@@ -920,7 +937,41 @@ void main() {
           notPurchasedReasonLabel: 'Phân vân giá',
         ),
       ],
-      unreportedOrders: [
+    );
+    final notPurchasedNextDetails = HomeSummaryDetailsPage(
+      kind: HomeSummaryDetailKind.notPurchased,
+      startDate: '2026-07-04',
+      endDate: '2026-07-04',
+      scope: 'OWN',
+      scopeLabel: 'Phạm vi cá nhân',
+      selectedSalesProgressUserId: null,
+      limit: 50,
+      total: 2,
+      nextCursor: null,
+      items: [
+        HomeNotPurchasedReportDetail(
+          id: 'report-5',
+          submittedAt: DateTime(2026, 7, 4, 13),
+          storeCode: 'CP70',
+          salesName: 'SA Năm',
+          customerName: 'Nguyễn Văn B',
+          customerTypeLabel: 'Cá nhân',
+          categoryName: 'Laptop',
+          notPurchasedReasonLabel: 'Khách tham khảo',
+        ),
+      ],
+    );
+    final unreportedDetails = HomeSummaryDetailsPage(
+      kind: HomeSummaryDetailKind.unreportedOrder,
+      startDate: '2026-07-04',
+      endDate: '2026-07-04',
+      scope: 'OWN',
+      scopeLabel: 'Phạm vi cá nhân',
+      selectedSalesProgressUserId: null,
+      limit: 50,
+      total: 1,
+      nextCursor: null,
+      items: [
         HomeUnreportedOrderDetail(
           orderCode: '2607040002',
           grandTotal: 5000000,
@@ -929,7 +980,18 @@ void main() {
           salesName: 'SA Hai',
         ),
       ],
-      installmentNeedReports: [
+    );
+    final installmentDetails = HomeSummaryDetailsPage(
+      kind: HomeSummaryDetailKind.installmentNeed,
+      startDate: '2026-07-04',
+      endDate: '2026-07-04',
+      scope: 'OWN',
+      scopeLabel: 'Phạm vi cá nhân',
+      selectedSalesProgressUserId: null,
+      limit: 50,
+      total: 2,
+      nextCursor: null,
+      items: [
         HomeInstallmentNeedDetail(
           id: 'report-3',
           submittedAt: DateTime(2026, 7, 4, 11),
@@ -954,7 +1016,10 @@ void main() {
     );
     final repository = _FakeHomeSummaryRepository(
       summary: summary,
-      salesBehaviorDetails: details,
+      notPurchasedDetails: notPurchasedDetails,
+      notPurchasedNextDetails: notPurchasedNextDetails,
+      unreportedDetails: unreportedDetails,
+      installmentDetails: installmentDetails,
     );
     final summaryProvider = HomeSummaryProvider(repository);
     addTearDown(summaryProvider.dispose);
@@ -1002,6 +1067,13 @@ void main() {
     expect(find.text('Linh kiện máy tính'), findsOneWidget);
     expect(find.text('Phân vân giá'), findsOneWidget);
     expect(find.text('CP75'), findsOneWidget);
+    final loadMore = find.byKey(const Key('home-details-load-more-button'));
+    await tester.ensureVisible(loadMore);
+    await tester.tap(loadMore);
+    await tester.pumpAndSettle();
+    expect(find.text('SA Năm'), findsOneWidget);
+    expect(find.text('Nguyễn Văn B'), findsOneWidget);
+    expect(find.text('Khách tham khảo'), findsOneWidget);
 
     await tester.tap(find.byTooltip('Đóng'));
     await tester.pumpAndSettle();
@@ -1062,7 +1134,13 @@ void main() {
       find.text('Khách từ chối: Lãi suất/Phí trả góp cao'),
       findsOneWidget,
     );
-    expect(repository.requestedDetailLimits, [200, 200, 200]);
+    expect(repository.requestedDetailLimits, [50, 50, 50, 50]);
+    expect(repository.requestedDetailCursors, [
+      null,
+      'not-purchased-cursor-1',
+      null,
+      null,
+    ]);
   });
 
   testWidgets(
@@ -2066,7 +2144,7 @@ List<String> _gridMetricKeys(WidgetTester tester, Key gridKey) {
       .toList(growable: false);
 }
 
-HomeSummary _homeSummary() {
+HomeSummary _homeSummary({int? projectionVersion}) {
   return HomeSummary(
     date: '2026-07-06',
     available: true,
@@ -2081,6 +2159,9 @@ HomeSummary _homeSummary() {
     unreportedOrders: 0,
     coverageRate: 0,
     refreshedAt: DateTime.parse('2026-07-06T03:15:00.000Z'),
+    freshness: projectionVersion == null
+        ? null
+        : HomeSummaryFreshness(projectionVersion: projectionVersion),
   );
 }
 
@@ -2099,11 +2180,18 @@ class _FakeHomeSummaryRepository extends HomeSummaryRepository {
   final Map<String, HomeSummary> nodeSummaries;
   final Map<String, HomeSummary> salesProgressUserSummaries;
   final List<HomeSummaryScopeOptionDto> scopeOptions;
-  final HomeSalesBehaviorDetails? salesBehaviorDetails;
+  final HomeSummaryDetailsPage<HomeNotPurchasedReportDetail>?
+  notPurchasedDetails;
+  final HomeSummaryDetailsPage<HomeNotPurchasedReportDetail>?
+  notPurchasedNextDetails;
+  final HomeSummaryDetailsPage<HomeUnreportedOrderDetail>? unreportedDetails;
+  final HomeSummaryDetailsPage<HomeInstallmentNeedDetail>? installmentDetails;
   final List<String?> requestedScopes = [];
   final List<String?> requestedNodeIds = [];
   final List<String?> requestedSalesProgressUserIds = [];
-  final List<int?> requestedDetailLimits = [];
+  final List<HomeSummaryDetailKind> requestedDetailKinds = [];
+  final List<String?> requestedDetailCursors = [];
+  final List<int> requestedDetailLimits = [];
   final List<bool> requestedForceRefreshes = [];
 
   _FakeHomeSummaryRepository({
@@ -2112,7 +2200,10 @@ class _FakeHomeSummaryRepository extends HomeSummaryRepository {
     this.nodeSummaries = const {},
     this.salesProgressUserSummaries = const {},
     this.scopeOptions = const [],
-    this.salesBehaviorDetails,
+    this.notPurchasedDetails,
+    this.notPurchasedNextDetails,
+    this.unreportedDetails,
+    this.installmentDetails,
   }) : super(ApiClient());
 
   @override
@@ -2150,34 +2241,138 @@ class _FakeHomeSummaryRepository extends HomeSummaryRepository {
   }
 
   @override
-  Future<HomeSalesBehaviorDetails> fetchSalesBehaviorDetails({
+  Future<HomeSummaryDetailsPage<HomeNotPurchasedReportDetail>>
+  fetchNotPurchasedDetails({
     String? date,
     String? startDate,
     String? endDate,
     String? scope,
     String? organizationNodeId,
     String? salesProgressUserId,
-    int? limit,
+    String? cursor,
+    int limit = 50,
   }) async {
+    _recordDetailsRequest(
+      kind: HomeSummaryDetailKind.notPurchased,
+      scope: scope,
+      organizationNodeId: organizationNodeId,
+      salesProgressUserId: salesProgressUserId,
+      cursor: cursor,
+      limit: limit,
+    );
+    return (cursor == null ? notPurchasedDetails : notPurchasedNextDetails) ??
+        _emptyDetailsPage<HomeNotPurchasedReportDetail>(
+          kind: HomeSummaryDetailKind.notPurchased,
+          date: date,
+          startDate: startDate,
+          endDate: endDate,
+          scope: scope,
+          salesProgressUserId: salesProgressUserId,
+          limit: limit,
+        );
+  }
+
+  @override
+  Future<HomeSummaryDetailsPage<HomeUnreportedOrderDetail>>
+  fetchUnreportedOrderDetails({
+    String? date,
+    String? startDate,
+    String? endDate,
+    String? scope,
+    String? organizationNodeId,
+    String? salesProgressUserId,
+    String? cursor,
+    int limit = 50,
+  }) async {
+    _recordDetailsRequest(
+      kind: HomeSummaryDetailKind.unreportedOrder,
+      scope: scope,
+      organizationNodeId: organizationNodeId,
+      salesProgressUserId: salesProgressUserId,
+      cursor: cursor,
+      limit: limit,
+    );
+    return unreportedDetails ??
+        _emptyDetailsPage<HomeUnreportedOrderDetail>(
+          kind: HomeSummaryDetailKind.unreportedOrder,
+          date: date,
+          startDate: startDate,
+          endDate: endDate,
+          scope: scope,
+          salesProgressUserId: salesProgressUserId,
+          limit: limit,
+        );
+  }
+
+  @override
+  Future<HomeSummaryDetailsPage<HomeInstallmentNeedDetail>>
+  fetchInstallmentNeedDetails({
+    String? date,
+    String? startDate,
+    String? endDate,
+    String? scope,
+    String? organizationNodeId,
+    String? salesProgressUserId,
+    String? cursor,
+    int limit = 50,
+  }) async {
+    _recordDetailsRequest(
+      kind: HomeSummaryDetailKind.installmentNeed,
+      scope: scope,
+      organizationNodeId: organizationNodeId,
+      salesProgressUserId: salesProgressUserId,
+      cursor: cursor,
+      limit: limit,
+    );
+    return installmentDetails ??
+        _emptyDetailsPage<HomeInstallmentNeedDetail>(
+          kind: HomeSummaryDetailKind.installmentNeed,
+          date: date,
+          startDate: startDate,
+          endDate: endDate,
+          scope: scope,
+          salesProgressUserId: salesProgressUserId,
+          limit: limit,
+        );
+  }
+
+  void _recordDetailsRequest({
+    required HomeSummaryDetailKind kind,
+    required String? scope,
+    required String? organizationNodeId,
+    required String? salesProgressUserId,
+    required String? cursor,
+    required int limit,
+  }) {
     requestedScopes.add(scope);
     requestedNodeIds.add(organizationNodeId);
     requestedSalesProgressUserIds.add(salesProgressUserId);
+    requestedDetailKinds.add(kind);
+    requestedDetailCursors.add(cursor);
     requestedDetailLimits.add(limit);
-    return salesBehaviorDetails ??
-        HomeSalesBehaviorDetails(
-          startDate: startDate ?? date ?? summary.startDate,
-          endDate: endDate ?? date ?? summary.endDate,
-          scope: scope ?? summary.scope,
-          scopeLabel: summary.resolvedScopeLabel,
-          selectedSalesProgressUserId: salesProgressUserId,
-          limit: limit ?? 200,
-          notPurchasedTotal: 0,
-          unreportedTotal: 0,
-          installmentNeedTotal: 0,
-          notPurchasedReports: const [],
-          unreportedOrders: const [],
-          installmentNeedReports: const [],
-        );
+  }
+
+  HomeSummaryDetailsPage<T> _emptyDetailsPage<T>({
+    required HomeSummaryDetailKind kind,
+    required String? date,
+    required String? startDate,
+    required String? endDate,
+    required String? scope,
+    required String? salesProgressUserId,
+    required int limit,
+  }) {
+    return HomeSummaryDetailsPage<T>(
+      kind: kind,
+      startDate: startDate ?? date ?? summary.startDate,
+      endDate: endDate ?? date ?? summary.endDate,
+      scope: scope ?? summary.scope,
+      scopeLabel: summary.resolvedScopeLabel,
+      selectedSalesProgressUserId: salesProgressUserId,
+      limit: limit,
+      total: 0,
+      items: const [],
+      nextCursor: null,
+    );
   }
 }
 

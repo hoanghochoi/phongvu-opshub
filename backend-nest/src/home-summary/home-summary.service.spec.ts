@@ -162,6 +162,9 @@ describe('HomeSummaryService', () => {
       homeSummaryProjectionState: {
         findMany: jest.fn().mockResolvedValue([]),
       },
+      homeSummaryDailyAggregate: {
+        findMany: jest.fn().mockResolvedValue([]),
+      },
       mapVietinTransaction: {
         count: jest
           .fn()
@@ -768,6 +771,12 @@ describe('HomeSummaryService', () => {
           summaryDate: new Date('2026-07-04T00:00:00.000Z'),
           status: 'COMPLETE',
           projectionVersion: BigInt(42),
+          salesStatus: 'COMPLETE',
+          salesProjectionVersion: BigInt(42),
+          salesGeneratedAt: new Date('2026-07-04T03:00:04.000Z'),
+          financeStatus: 'COMPLETE',
+          financeProjectionVersion: BigInt(41),
+          financeGeneratedAt: new Date('2026-07-04T03:00:04.000Z'),
           sourceUpdatedAt: new Date('2026-07-04T03:00:00.000Z'),
           salesReportSourceUpdatedAt: new Date('2026-07-04T03:00:00.000Z'),
           erpOrderCacheSourceUpdatedAt: new Date('2026-07-04T02:59:59.000Z'),
@@ -794,6 +803,155 @@ describe('HomeSummaryService', () => {
       );
       expect(prisma.homeSummaryReportFact.upsert).not.toHaveBeenCalled();
       expect(prisma.homeSummaryOrderFact.upsert).not.toHaveBeenCalled();
+    } finally {
+      if (previousProjectionFlag === undefined) {
+        delete process.env.HOME_SUMMARY_PROJECTION_ENABLED;
+      } else {
+        process.env.HOME_SUMMARY_PROJECTION_ENABLED = previousProjectionFlag;
+      }
+      if (previousFallbackFlag === undefined) {
+        delete process.env.HOME_SUMMARY_LEGACY_SYNC_FALLBACK_ENABLED;
+      } else {
+        process.env.HOME_SUMMARY_LEGACY_SYNC_FALLBACK_ENABLED =
+          previousFallbackFlag;
+      }
+    }
+  });
+
+  it('uses the legacy read path after projection fallback is activated', async () => {
+    const previousProjectionFlag = process.env.HOME_SUMMARY_PROJECTION_ENABLED;
+    const previousFallbackFlag =
+      process.env.HOME_SUMMARY_LEGACY_SYNC_FALLBACK_ENABLED;
+    process.env.HOME_SUMMARY_PROJECTION_ENABLED = 'true';
+    process.env.HOME_SUMMARY_LEGACY_SYNC_FALLBACK_ENABLED = 'true';
+    try {
+      const { service, prisma } = createHarness();
+
+      const response = await service.getSummary(
+        { id: 'user-1', email: 'staff@phongvu.vn' },
+        { date: '2026-07-04' },
+      );
+
+      expect(response.freshness).toBeNull();
+      expect(response.totalRevenue).toBe(16500000);
+      expect(prisma.homeSummaryReportFact.upsert).toHaveBeenCalled();
+      expect(prisma.homeSummaryOrderFact.upsert).toHaveBeenCalled();
+      expect(prisma.homeSummaryDailyAggregate.findMany).not.toHaveBeenCalled();
+    } finally {
+      if (previousProjectionFlag === undefined) {
+        delete process.env.HOME_SUMMARY_PROJECTION_ENABLED;
+      } else {
+        process.env.HOME_SUMMARY_PROJECTION_ENABLED = previousProjectionFlag;
+      }
+      if (previousFallbackFlag === undefined) {
+        delete process.env.HOME_SUMMARY_LEGACY_SYNC_FALLBACK_ENABLED;
+      } else {
+        process.env.HOME_SUMMARY_LEGACY_SYNC_FALLBACK_ENABLED =
+          previousFallbackFlag;
+      }
+    }
+  });
+
+  it('serves the last complete snapshot as stale when a pending source watermark is older than 15 seconds', async () => {
+    const previousProjectionFlag = process.env.HOME_SUMMARY_PROJECTION_ENABLED;
+    const previousFallbackFlag =
+      process.env.HOME_SUMMARY_LEGACY_SYNC_FALLBACK_ENABLED;
+    process.env.HOME_SUMMARY_PROJECTION_ENABLED = 'true';
+    process.env.HOME_SUMMARY_LEGACY_SYNC_FALLBACK_ENABLED = 'false';
+    try {
+      const { service, prisma } = createHarness();
+      const sourceUpdatedAt = new Date(Date.now() - 20_000);
+      const generatedAt = new Date(sourceUpdatedAt.getTime() - 1_000);
+      prisma.homeSummaryProjectionState.findMany.mockResolvedValue([
+        {
+          summaryDate: new Date('2026-07-04T00:00:00.000Z'),
+          status: 'PENDING',
+          projectionVersion: 42n,
+          salesStatus: 'PENDING',
+          salesProjectionVersion: 42n,
+          salesGeneratedAt: generatedAt,
+          financeStatus: 'COMPLETE',
+          financeProjectionVersion: 41n,
+          financeGeneratedAt: generatedAt,
+          sourceUpdatedAt,
+          salesReportSourceUpdatedAt: sourceUpdatedAt,
+          erpOrderCacheSourceUpdatedAt: null,
+          mapVietinSourceUpdatedAt: generatedAt,
+          generatedAt,
+        },
+      ]);
+
+      const response = await service.getSummary(
+        { id: 'user-1', email: 'staff@phongvu.vn' },
+        { date: '2026-07-04' },
+      );
+
+      expect(response.freshness).toMatchObject({
+        projectionVersion: 42,
+        isStale: true,
+      });
+      expect(response.freshness!.projectionLagSeconds).toBeGreaterThanOrEqual(
+        20,
+      );
+      expect(prisma.homeSummaryReportFact.upsert).not.toHaveBeenCalled();
+      expect(prisma.homeSummaryOrderFact.upsert).not.toHaveBeenCalled();
+    } finally {
+      if (previousProjectionFlag === undefined) {
+        delete process.env.HOME_SUMMARY_PROJECTION_ENABLED;
+      } else {
+        process.env.HOME_SUMMARY_PROJECTION_ENABLED = previousProjectionFlag;
+      }
+      if (previousFallbackFlag === undefined) {
+        delete process.env.HOME_SUMMARY_LEGACY_SYNC_FALLBACK_ENABLED;
+      } else {
+        process.env.HOME_SUMMARY_LEGACY_SYNC_FALLBACK_ENABLED =
+          previousFallbackFlag;
+      }
+    }
+  });
+
+  it('does not mark SALES stale because an unchanged FINANCE snapshot is older', async () => {
+    const previousProjectionFlag = process.env.HOME_SUMMARY_PROJECTION_ENABLED;
+    const previousFallbackFlag =
+      process.env.HOME_SUMMARY_LEGACY_SYNC_FALLBACK_ENABLED;
+    process.env.HOME_SUMMARY_PROJECTION_ENABLED = 'true';
+    process.env.HOME_SUMMARY_LEGACY_SYNC_FALLBACK_ENABLED = 'false';
+    try {
+      const { service, prisma } = createHarness();
+      const salesSourceUpdatedAt = new Date(Date.now() - 20_000);
+      const salesGeneratedAt = new Date(salesSourceUpdatedAt.getTime() + 1_000);
+      const financeGeneratedAt = new Date(Date.now() - 60 * 60 * 1000);
+      prisma.homeSummaryProjectionState.findMany.mockResolvedValue([
+        {
+          summaryDate: new Date('2026-07-04T00:00:00.000Z'),
+          status: 'COMPLETE',
+          projectionVersion: 42n,
+          salesStatus: 'COMPLETE',
+          salesProjectionVersion: 42n,
+          salesGeneratedAt,
+          financeStatus: 'COMPLETE',
+          financeProjectionVersion: 41n,
+          financeGeneratedAt,
+          sourceUpdatedAt: salesSourceUpdatedAt,
+          salesReportSourceUpdatedAt: salesSourceUpdatedAt,
+          erpOrderCacheSourceUpdatedAt: null,
+          mapVietinSourceUpdatedAt: new Date(
+            financeGeneratedAt.getTime() - 1_000,
+          ),
+          generatedAt: financeGeneratedAt,
+        },
+      ]);
+
+      const response = await service.getSummary(
+        { id: 'user-1', email: 'staff@phongvu.vn' },
+        { date: '2026-07-04' },
+      );
+
+      expect(response.freshness).toMatchObject({
+        projectionVersion: 42,
+        isStale: false,
+      });
+      expect(response.freshness!.projectionLagSeconds).toBeLessThan(15);
     } finally {
       if (previousProjectionFlag === undefined) {
         delete process.env.HOME_SUMMARY_PROJECTION_ENABLED;
@@ -987,6 +1145,99 @@ describe('HomeSummaryService', () => {
       expect.objectContaining({
         where: { id: { in: ['report-2'] } },
         select: expect.objectContaining({ storeCode: true }),
+      }),
+    );
+  });
+
+  it('returns a bounded opaque cursor page from details v2', async () => {
+    const { service, prisma } = createHarness();
+    prisma.homeSummaryReportFact.count.mockReset();
+    prisma.homeSummaryReportFact.count.mockResolvedValue(2);
+    prisma.homeSummaryReportFact.findMany.mockReset();
+    prisma.homeSummaryReportFact.findMany.mockResolvedValue([
+      { salesReportId: 'report-2' },
+      { salesReportId: 'report-3' },
+    ]);
+    prisma.salesReport.findMany.mockReset();
+    prisma.salesReport.findMany.mockResolvedValue([
+      {
+        id: 'report-2',
+        submittedAt: new Date('2026-07-04T03:00:00.000Z'),
+        storeCode: 'CP75',
+        createdByName: 'Nhân viên Một',
+        createdByEmail: 'staff@phongvu.vn',
+        customerName: 'Khách hàng A',
+        customerType: 'PERSONAL',
+        categoryGroupName: 'Laptop',
+        categoryGroupNameVi: 'Laptop',
+        notPurchasedReason: 'PRICE_HESITATION',
+        notPurchasedOtherReason: null,
+      },
+    ]);
+
+    const page = await service.getBehaviorDetailsV2(
+      { id: 'user-1', email: 'staff@phongvu.vn' },
+      {
+        date: '2026-07-04',
+        kind: 'NOT_PURCHASED',
+        limit: 1,
+      },
+    );
+
+    expect(page).toMatchObject({
+      kind: 'NOT_PURCHASED',
+      limit: 1,
+      total: 2,
+      items: [expect.objectContaining({ id: 'report-2' })],
+      nextCursor: expect.any(String),
+    });
+    const decodedCursor = JSON.parse(
+      Buffer.from(page.nextCursor!, 'base64url').toString('utf8'),
+    );
+    expect(decodedCursor).toEqual({
+      v: 1,
+      kind: 'NOT_PURCHASED',
+      id: 'report-2',
+    });
+    expect(prisma.homeSummaryReportFact.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ take: 2, orderBy: { salesReportId: 'asc' } }),
+    );
+  });
+
+  it('uses the visible DATE key and Vietnam UTC window when populating SALES metrics', async () => {
+    const { service } = createHarness();
+    const tx = {
+      homeSummaryDailyAggregate: {
+        findMany: jest.fn().mockResolvedValue([]),
+        update: jest.fn(),
+      },
+      salesReport: { findMany: jest.fn().mockResolvedValue([]) },
+      salesReportErpOrderCache: { findMany: jest.fn().mockResolvedValue([]) },
+    };
+
+    await service.populateSalesProjectionMetrics(tx as any, '2026-07-04');
+
+    expect(tx.homeSummaryDailyAggregate.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          summaryDate: new Date('2026-07-04T00:00:00.000Z'),
+          projectionKind: 'SALES',
+        },
+      }),
+    );
+    expect(tx.salesReport.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          erpExcludedAt: null,
+          OR: expect.arrayContaining([
+            expect.objectContaining({
+              erpOrderCreatedAt: {
+                gte: new Date('2026-07-03T17:00:00.000Z'),
+                lt: new Date('2026-07-04T17:00:00.000Z'),
+              },
+            }),
+          ]),
+        }),
       }),
     );
   });

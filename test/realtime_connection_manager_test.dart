@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:phongvu_opshub/core/logging/app_logger.dart';
 import 'package:phongvu_opshub/core/network/realtime_connection_manager.dart';
@@ -55,6 +56,8 @@ void main() {
           return connection;
         },
         reconnectDelays: const [Duration(milliseconds: 1)],
+        stableConnectionWindow: Duration.zero,
+        randomDouble: () => 1,
       );
       addTearDown(manager.shutdown);
       final events = <RealtimeEnvelope>[];
@@ -153,6 +156,7 @@ void main() {
           connections.add(connection);
           return connection;
         },
+        stableConnectionWindow: Duration.zero,
       );
       addTearDown(manager.shutdown);
 
@@ -176,6 +180,48 @@ void main() {
 
       expect(connections, hasLength(1));
       expect(manager.isConnected, isTrue);
+    },
+  );
+
+  testWidgets(
+    'authenticated socket pauses in background and reconnects once on resume',
+    (tester) async {
+      final connections = <_FakeRealtimeConnection>[];
+      final syncReasons = <RealtimeSyncReason>[];
+      final manager = RealtimeConnectionManager(
+        issueConnectionUri: () async =>
+            Uri.parse('ws://localhost/ws/v2?ticket=test'),
+        connector: (uri) {
+          final connection = _FakeRealtimeConnection();
+          connections.add(connection);
+          return connection;
+        },
+        reconnectDelays: const [Duration(milliseconds: 1)],
+        stableConnectionWindow: Duration.zero,
+        randomDouble: () => 1,
+      );
+      addTearDown(manager.shutdown);
+      final subscription = manager.syncRequests.listen(syncReasons.add);
+      addTearDown(subscription.cancel);
+
+      await manager.syncSession('session-1');
+      await tester.pump();
+      expect(connections, hasLength(1));
+      expect(manager.isConnected, isTrue);
+
+      manager.didChangeAppLifecycleState(AppLifecycleState.paused);
+      await tester.pump();
+      expect(manager.isConnected, isFalse);
+      await tester.pump(const Duration(seconds: 1));
+      expect(connections, hasLength(1));
+
+      manager.didChangeAppLifecycleState(AppLifecycleState.resumed);
+      await tester.pump();
+      await tester.pump();
+      expect(connections, hasLength(2));
+      expect(manager.isConnected, isTrue);
+      expect(syncReasons, contains(RealtimeSyncReason.appResumed));
+      expect(syncReasons, contains(RealtimeSyncReason.reconnected));
     },
   );
 }

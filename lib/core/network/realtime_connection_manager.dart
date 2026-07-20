@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:collection';
 import 'dart:convert';
+import 'dart:math' as math;
 
 import 'package:flutter/widgets.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
@@ -87,6 +88,7 @@ abstract interface class RealtimeConnection {
 
 typedef RealtimeConnector = RealtimeConnection Function(Uri uri);
 typedef RealtimeUriIssuer = Future<Uri> Function();
+typedef RealtimeRandomDouble = double Function();
 
 class WebSocketRealtimeConnection implements RealtimeConnection {
   WebSocketRealtimeConnection._(this._channel);
@@ -118,6 +120,8 @@ class RealtimeConnectionManager
     RealtimeUriIssuer? issueConnectionUri,
     RealtimeConnector? connector,
     Duration readyTimeout = const Duration(seconds: 10),
+    Duration stableConnectionWindow = const Duration(seconds: 30),
+    RealtimeRandomDouble? randomDouble,
     List<Duration> reconnectDelays = const [
       Duration(seconds: 1),
       Duration(seconds: 2),
@@ -130,6 +134,8 @@ class RealtimeConnectionManager
            RealtimeTicketClient.instance.issueV2ConnectionUri,
        _connector = connector ?? WebSocketRealtimeConnection.connect,
        _readyTimeout = readyTimeout,
+       _stableConnectionWindow = stableConnectionWindow,
+       _randomDouble = randomDouble ?? math.Random().nextDouble,
        _reconnectDelays = List.unmodifiable(reconnectDelays);
 
   static final RealtimeConnectionManager instance = RealtimeConnectionManager();
@@ -139,6 +145,8 @@ class RealtimeConnectionManager
   final RealtimeUriIssuer _issueConnectionUri;
   final RealtimeConnector _connector;
   final Duration _readyTimeout;
+  final Duration _stableConnectionWindow;
+  final RealtimeRandomDouble _randomDouble;
   final List<Duration> _reconnectDelays;
   final StreamController<RealtimeEnvelope> _eventController =
       StreamController<RealtimeEnvelope>.broadcast();
@@ -151,7 +159,9 @@ class RealtimeConnectionManager
   RealtimeConnection? _connection;
   StreamSubscription<dynamic>? _subscription;
   Timer? _reconnectTimer;
+  Timer? _stableConnectionTimer;
   bool _active = false;
+  bool _isForeground = true;
   int? _connectingGeneration;
   bool _hasConnected = false;
   bool _observingLifecycle = false;
@@ -190,6 +200,8 @@ class RealtimeConnectionManager
     _sessionKey = nextSessionKey;
     _hasConnected = false;
     _reconnectAttempt = 0;
+    _stableConnectionTimer?.cancel();
+    _stableConnectionTimer = null;
     _seenEventIds.clear();
     _lastSequenceByTopic.clear();
     _reconnectTimer?.cancel();
@@ -207,12 +219,13 @@ class RealtimeConnectionManager
     }
 
     _startObservingLifecycle();
-    unawaited(_connect(generation, isReconnect: false));
+    if (_isForeground) unawaited(_connect(generation, isReconnect: false));
   }
 
   Future<void> _connect(int generation, {required bool isReconnect}) async {
     if (!_active ||
         _isShutdown ||
+        !_isForeground ||
         generation != _generation ||
         _connectingGeneration != null ||
         _connection != null) {
@@ -231,7 +244,12 @@ class RealtimeConnectionManager
     RealtimeConnection? connection;
     try {
       final uri = await _issueConnectionUri();
-      if (!_active || generation != _generation || _isShutdown) return;
+      if (!_active ||
+          !_isForeground ||
+          generation != _generation ||
+          _isShutdown) {
+        return;
+      }
       connection = _connector(uri);
       _connection = connection;
       _subscription = connection.stream.listen(
@@ -271,13 +289,14 @@ class RealtimeConnectionManager
       await connection.ready.timeout(_readyTimeout);
       if (!identical(connection, _connection) ||
           !_active ||
+          !_isForeground ||
           generation != _generation ||
           _isShutdown) {
         return;
       }
-      _reconnectAttempt = 0;
       final shouldRequestSync = _hasConnected;
       _hasConnected = true;
+      _scheduleStableConnectionReset(generation, connection);
       await AppLogger.instance.info(
         'RealtimeV2',
         'Realtime connection succeeded',
@@ -382,6 +401,8 @@ class RealtimeConnectionManager
     bool streamEnded = false,
   }) async {
     if (!identical(expectedConnection, _connection)) return;
+    _stableConnectionTimer?.cancel();
+    _stableConnectionTimer = null;
     await _disconnectCurrent(reason, cancelSubscription: !streamEnded);
     if (_active && generation == _generation && !_isShutdown) {
       _scheduleReconnect(generation);
@@ -416,6 +437,7 @@ class RealtimeConnectionManager
   void _scheduleReconnect(int generation) {
     if (!_active ||
         _isShutdown ||
+        !_isForeground ||
         generation != _generation ||
         _reconnectTimer?.isActive == true ||
         _reconnectDelays.isEmpty) {
@@ -424,7 +446,11 @@ class RealtimeConnectionManager
     final delayIndex = _reconnectAttempt < _reconnectDelays.length
         ? _reconnectAttempt
         : _reconnectDelays.length - 1;
-    final delay = _reconnectDelays[delayIndex];
+    final delayCap = _reconnectDelays[delayIndex];
+    final jitter = _randomDouble().clamp(0.0, 1.0);
+    final delay = Duration(
+      milliseconds: (delayCap.inMilliseconds * jitter).floor(),
+    );
     _reconnectAttempt += 1;
     unawaited(
       AppLogger.instance.info(
@@ -433,6 +459,7 @@ class RealtimeConnectionManager
         context: {
           'attempt': _reconnectAttempt,
           'delayMs': delay.inMilliseconds,
+          'delayCapMs': delayCap.inMilliseconds,
         },
       ),
     );
@@ -442,8 +469,41 @@ class RealtimeConnectionManager
     });
   }
 
+  void _scheduleStableConnectionReset(
+    int generation,
+    RealtimeConnection connection,
+  ) {
+    _stableConnectionTimer?.cancel();
+    if (_stableConnectionWindow <= Duration.zero) {
+      _reconnectAttempt = 0;
+      return;
+    }
+    _stableConnectionTimer = Timer(_stableConnectionWindow, () {
+      _stableConnectionTimer = null;
+      if (!_active ||
+          _isShutdown ||
+          generation != _generation ||
+          !identical(connection, _connection)) {
+        return;
+      }
+      final previousAttempt = _reconnectAttempt;
+      _reconnectAttempt = 0;
+      unawaited(
+        AppLogger.instance.info(
+          'RealtimeV2',
+          'Realtime reconnect backoff reset after stable connection',
+          context: {
+            'stableWindowSeconds': _stableConnectionWindow.inSeconds,
+            'previousAttempt': previousAttempt,
+          },
+        ),
+      );
+    });
+  }
+
   void handleAppResumed() {
     if (!_active || _isShutdown) return;
+    _isForeground = true;
     unawaited(
       AppLogger.instance.info(
         'RealtimeV2',
@@ -463,7 +523,32 @@ class RealtimeConnectionManager
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) handleAppResumed();
+    if (state == AppLifecycleState.resumed) {
+      handleAppResumed();
+      return;
+    }
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.hidden ||
+        state == AppLifecycleState.detached) {
+      _handleAppBackgrounded(state);
+    }
+  }
+
+  void _handleAppBackgrounded(AppLifecycleState state) {
+    if (!_isForeground || _isShutdown) return;
+    _isForeground = false;
+    _reconnectTimer?.cancel();
+    _reconnectTimer = null;
+    _stableConnectionTimer?.cancel();
+    _stableConnectionTimer = null;
+    unawaited(
+      AppLogger.instance.info(
+        'RealtimeV2',
+        'App backgrounded; authenticated realtime paused',
+        context: {'state': state.name, 'connected': _connection != null},
+      ),
+    );
+    unawaited(_disconnectCurrent('app_backgrounded'));
   }
 
   void _startObservingLifecycle() {
@@ -486,6 +571,8 @@ class RealtimeConnectionManager
     _connectingGeneration = null;
     _reconnectTimer?.cancel();
     _reconnectTimer = null;
+    _stableConnectionTimer?.cancel();
+    _stableConnectionTimer = null;
     _stopObservingLifecycle();
     await _disconnectCurrent('manager_shutdown');
     await _eventController.close();

@@ -18,15 +18,24 @@ const HOME_SUMMARY_UPDATED_EVENT = 'HOME_SUMMARY_UPDATED';
 const PROJECTION_LISTEN_CHANNEL = 'opshub_home_summary_projection';
 const MAX_PARALLEL_JOBS = 4;
 const OUTBOX_BATCH_SIZE = 20;
+const PROJECTION_LEASE_SECONDS = 120;
+const OUTBOX_LEASE_SECONDS = 30;
+
+type ProjectionKind = 'SALES' | 'FINANCE';
 
 type ClaimedProjectionJob = {
   id: string;
   summaryDate: Date;
+  projectionKind: ProjectionKind;
   dimensionType: string;
   dimensionKey: string;
   storeCode: string;
   sourceUpdatedAt: Date;
   claimedAt: Date;
+  claimToken: string;
+  leaseExpiresAt: Date;
+  dirtyGeneration: bigint;
+  claimedGeneration: bigint;
   attempts: number;
   firstEnqueuedAt: Date;
 };
@@ -173,6 +182,7 @@ export class HomeSummaryProjectionService
         FROM expected
         LEFT JOIN "HomeSummaryDailyAggregate" AS aggregate
           ON aggregate."summaryDate" = expected.summary_date
+          AND aggregate."projectionKind" = 'SALES'
           AND aggregate."dimensionType" = 'GLOBAL'
           AND aggregate."dimensionKey" = ''
           AND aggregate."storeCode" = ''
@@ -184,7 +194,7 @@ export class HomeSummaryProjectionService
       `);
       for (const affectedDate of affectedDates) {
         await this.prisma.$executeRaw(
-          Prisma.sql`SELECT opshub_enqueue_home_summary_projection(CAST(${affectedDate.dateKey} AS date), 'RECONCILIATION')`,
+          Prisma.sql`SELECT opshub_enqueue_home_summary_projection_kind(CAST(${affectedDate.dateKey} AS date), 'RECONCILIATION', 'SALES')`,
         );
       }
       this.logger.log(
@@ -231,23 +241,24 @@ export class HomeSummaryProjectionService
         SELECT "id"
         FROM "HomeSummaryProjectionQueue"
         WHERE "availableAt" <= CURRENT_TIMESTAMP
-          AND (
-            "claimedAt" IS NULL
-            OR "claimedAt" < CURRENT_TIMESTAMP - INTERVAL '2 minutes'
-          )
+          AND ("claimToken" IS NULL OR "leaseExpiresAt" < CURRENT_TIMESTAMP)
         ORDER BY "availableAt" ASC, "firstEnqueuedAt" ASC
         FOR UPDATE SKIP LOCKED
         LIMIT ${MAX_PARALLEL_JOBS}
       )
       UPDATE "HomeSummaryProjectionQueue" AS queue
       SET "claimedAt" = CURRENT_TIMESTAMP,
+          "claimToken" = gen_random_uuid()::text,
+          "leaseExpiresAt" = CURRENT_TIMESTAMP + (${PROJECTION_LEASE_SECONDS} * INTERVAL '1 second'),
+          "claimedGeneration" = queue."dirtyGeneration",
           "attempts" = queue."attempts" + 1,
           "updatedAt" = CURRENT_TIMESTAMP
       FROM candidates
       WHERE queue."id" = candidates."id"
-      RETURNING queue."id", queue."summaryDate", queue."dimensionType",
+      RETURNING queue."id", queue."summaryDate", queue."projectionKind", queue."dimensionType",
                 queue."dimensionKey", queue."storeCode",
-                queue."sourceUpdatedAt", queue."claimedAt",
+                queue."sourceUpdatedAt", queue."claimedAt", queue."claimToken",
+                queue."leaseExpiresAt", queue."dirtyGeneration", queue."claimedGeneration",
                 queue."attempts", queue."firstEnqueuedAt"
     `);
     return rows.map((row) => ({
@@ -255,6 +266,9 @@ export class HomeSummaryProjectionService
       summaryDate: new Date(row.summaryDate),
       sourceUpdatedAt: new Date(row.sourceUpdatedAt),
       claimedAt: new Date(row.claimedAt),
+      leaseExpiresAt: new Date(row.leaseExpiresAt),
+      dirtyGeneration: BigInt(row.dirtyGeneration),
+      claimedGeneration: BigInt(row.claimedGeneration),
       firstEnqueuedAt: new Date(row.firstEnqueuedAt),
     }));
   }
@@ -267,39 +281,50 @@ export class HomeSummaryProjectionService
       startedAt - new Date(job.firstEnqueuedAt).getTime(),
     );
     this.logger.log(
-      `Home projection rebuild started: date=${dateKey} grain=${job.dimensionType} sourceCommitAt=${job.sourceUpdatedAt.toISOString()} queueDelayMs=${queueDelayMs} attempt=${job.attempts}`,
+      `Home projection rebuild started: date=${dateKey} kind=${job.projectionKind} grain=${job.dimensionType} generation=${job.claimedGeneration.toString()} sourceCommitAt=${job.sourceUpdatedAt.toISOString()} queueDelayMs=${queueDelayMs} attempt=${job.attempts}`,
     );
     try {
-      await this.homeSummary.rebuildProjectionDate(dateKey);
+      if (job.projectionKind === 'SALES') {
+        await this.homeSummary.rebuildProjectionDate(dateKey);
+      }
       const version = await this.finalizeProjection(job, dateKey);
       if (version === null) {
         this.logger.log(
-          `Home projection rebuild superseded: date=${dateKey} grain=${job.dimensionType} durationMs=${Date.now() - startedAt}`,
+          `Home projection rebuild lease lost: date=${dateKey} kind=${job.projectionKind} grain=${job.dimensionType} durationMs=${Date.now() - startedAt}`,
         );
         return;
       }
       this.logger.log(
-        `Home projection rebuild succeeded: date=${dateKey} grain=${job.dimensionType} grainCount=3 sourceCommitAt=${job.sourceUpdatedAt.toISOString()} projectionVersion=${version.toString()} queueDelayMs=${queueDelayMs} rebuildDurationMs=${Date.now() - startedAt}`,
+        `Home projection rebuild succeeded: date=${dateKey} kind=${job.projectionKind} grain=${job.dimensionType} generation=${job.claimedGeneration.toString()} sourceCommitAt=${job.sourceUpdatedAt.toISOString()} projectionVersion=${version.toString()} queueDelayMs=${queueDelayMs} rebuildDurationMs=${Date.now() - startedAt}`,
       );
     } catch (error) {
       const retrySeconds = this.retrySeconds(job.attempts);
       const sanitizedError = safeLogError(error).slice(0, 500);
       await this.prisma.$transaction([
         this.prisma.homeSummaryProjectionQueue.updateMany({
-          where: { id: job.id, sourceUpdatedAt: job.sourceUpdatedAt },
+          where: { id: job.id, claimToken: job.claimToken },
           data: {
             claimedAt: null,
+            claimToken: null,
+            leaseExpiresAt: null,
+            claimedGeneration: null,
             availableAt: new Date(Date.now() + retrySeconds * 1000),
             lastError: sanitizedError,
           },
         }),
         this.prisma.homeSummaryProjectionState.updateMany({
           where: { summaryDate: job.summaryDate },
-          data: { status: 'ERROR', lastError: sanitizedError },
+          data: {
+            status: 'ERROR',
+            ...(job.projectionKind === 'SALES'
+              ? { salesStatus: 'ERROR' }
+              : { financeStatus: 'ERROR' }),
+            lastError: sanitizedError,
+          },
         }),
       ]);
       this.logger.error(
-        `Home projection rebuild failed: date=${dateKey} grain=${job.dimensionType} attempt=${job.attempts} retrySeconds=${retrySeconds} durationMs=${Date.now() - startedAt} error=${sanitizedError}`,
+        `Home projection rebuild failed: date=${dateKey} kind=${job.projectionKind} grain=${job.dimensionType} attempt=${job.attempts} retrySeconds=${retrySeconds} durationMs=${Date.now() - startedAt} error=${sanitizedError}`,
       );
     }
   }
@@ -310,9 +335,14 @@ export class HomeSummaryProjectionService
   ): Promise<bigint | null> {
     return this.prisma.$transaction(async (tx) => {
       const currentRows = await tx.$queryRaw<
-        Array<{ sourceUpdatedAt: Date }>
+        Array<{
+          sourceUpdatedAt: Date;
+          claimToken: string | null;
+          dirtyGeneration: bigint;
+          claimedGeneration: bigint | null;
+        }>
       >(Prisma.sql`
-        SELECT "sourceUpdatedAt"
+        SELECT "sourceUpdatedAt", "claimToken", "dirtyGeneration", "claimedGeneration"
         FROM "HomeSummaryProjectionQueue"
         WHERE "id" = ${job.id}
         FOR UPDATE
@@ -320,8 +350,9 @@ export class HomeSummaryProjectionService
       const current = currentRows[0];
       if (
         !current ||
-        current.sourceUpdatedAt.getTime() !==
-          new Date(job.sourceUpdatedAt).getTime()
+        current.claimToken !== job.claimToken ||
+        current.claimedGeneration === null ||
+        BigInt(current.claimedGeneration) !== job.claimedGeneration
       ) {
         return null;
       }
@@ -335,54 +366,106 @@ export class HomeSummaryProjectionService
       }
       const generatedAt = new Date();
       await tx.homeSummaryDailyAggregate.deleteMany({
-        where: { summaryDate: job.summaryDate },
+        where: {
+          summaryDate: job.summaryDate,
+          projectionKind: job.projectionKind,
+        },
       });
-      await this.insertGlobalAggregate(
-        tx,
-        dateKey,
-        version,
-        job.sourceUpdatedAt,
-        generatedAt,
-      );
-      await this.insertStoreAggregates(
-        tx,
-        dateKey,
-        version,
-        job.sourceUpdatedAt,
-        generatedAt,
-      );
-      await this.insertUserStoreAggregates(
-        tx,
-        dateKey,
-        version,
-        job.sourceUpdatedAt,
-        generatedAt,
-      );
+      if (job.projectionKind === 'SALES') {
+        await this.insertGlobalAggregate(
+          tx,
+          dateKey,
+          version,
+          job.sourceUpdatedAt,
+          generatedAt,
+        );
+        await this.insertStoreAggregates(
+          tx,
+          dateKey,
+          version,
+          job.sourceUpdatedAt,
+          generatedAt,
+        );
+        await this.insertUserStoreAggregates(
+          tx,
+          dateKey,
+          version,
+          job.sourceUpdatedAt,
+          generatedAt,
+        );
+        await this.homeSummary.populateSalesProjectionMetrics(tx, dateKey);
+      } else {
+        await this.insertFinanceAggregates(
+          tx,
+          dateKey,
+          version,
+          job.sourceUpdatedAt,
+          generatedAt,
+        );
+      }
 
       await tx.homeSummaryProjectionState.upsert({
         where: { summaryDate: job.summaryDate },
         create: {
           summaryDate: job.summaryDate,
-          status: 'COMPLETE',
+          status: 'PENDING',
           projectionVersion: version,
           sourceUpdatedAt: job.sourceUpdatedAt,
           generatedAt,
+          ...(job.projectionKind === 'SALES'
+            ? {
+                salesStatus: 'COMPLETE',
+                salesProjectionVersion: version,
+                salesGeneratedAt: generatedAt,
+              }
+            : {
+                financeStatus: 'COMPLETE',
+                financeProjectionVersion: version,
+                financeGeneratedAt: generatedAt,
+              }),
           lastError: null,
         },
         update: {
-          status: 'COMPLETE',
           projectionVersion: version,
-          sourceUpdatedAt: job.sourceUpdatedAt,
-          generatedAt,
+          ...(job.projectionKind === 'SALES'
+            ? {
+                salesStatus: 'COMPLETE',
+                salesProjectionVersion: version,
+                salesGeneratedAt: generatedAt,
+              }
+            : {
+                financeStatus: 'COMPLETE',
+                financeProjectionVersion: version,
+                financeGeneratedAt: generatedAt,
+              }),
           lastError: null,
         },
       });
+      await tx.$executeRaw(Prisma.sql`
+        UPDATE "HomeSummaryProjectionState"
+        SET "status" = CASE
+              WHEN "salesStatus" = 'COMPLETE' AND "financeStatus" = 'COMPLETE' THEN 'COMPLETE'
+              ELSE 'PENDING'
+            END,
+            "projectionVersion" = GREATEST("salesProjectionVersion", "financeProjectionVersion"),
+            "generatedAt" = CASE
+              WHEN "salesGeneratedAt" IS NULL THEN "financeGeneratedAt"
+              WHEN "financeGeneratedAt" IS NULL THEN "salesGeneratedAt"
+              ELSE LEAST("salesGeneratedAt", "financeGeneratedAt")
+            END,
+            "sourceUpdatedAt" = GREATEST(
+              COALESCE("sourceUpdatedAt", ${job.sourceUpdatedAt}),
+              ${job.sourceUpdatedAt}
+            ),
+            "updatedAt" = CURRENT_TIMESTAMP
+        WHERE "summaryDate" = CAST(${dateKey} AS date)
+      `);
       await tx.domainOutboxEvent.create({
         data: {
           eventType: HOME_SUMMARY_UPDATED_EVENT,
           aggregateType: 'HOME_SUMMARY_DATE',
           aggregateId: dateKey,
-          dedupeKey: `home-summary-updated:${version.toString()}`,
+          dedupeKey: `home-summary-updated:${job.projectionKind}:${version.toString()}`,
           schemaVersion: 2,
           payload: {
             affectedDates: [dateKey],
@@ -397,10 +480,36 @@ export class HomeSummaryProjectionService
           eventType: HOME_SUMMARY_SOURCE_EVENT,
           aggregateId: dateKey,
           publishedAt: null,
+          payload: {
+            path: ['projectionKind'],
+            equals: job.projectionKind,
+          },
         },
         data: { publishedAt: generatedAt, lastError: null },
       });
-      await tx.homeSummaryProjectionQueue.delete({ where: { id: job.id } });
+      const hasFollowUp =
+        BigInt(current.dirtyGeneration) > job.claimedGeneration;
+      if (hasFollowUp) {
+        await tx.homeSummaryProjectionQueue.updateMany({
+          where: { id: job.id, claimToken: job.claimToken },
+          data: {
+            claimedAt: null,
+            claimToken: null,
+            leaseExpiresAt: null,
+            claimedGeneration: null,
+            firstEnqueuedAt: generatedAt,
+            attempts: 0,
+          },
+        });
+      } else {
+        await tx.homeSummaryProjectionQueue.deleteMany({
+          where: {
+            id: job.id,
+            claimToken: job.claimToken,
+            dirtyGeneration: job.claimedGeneration,
+          },
+        });
+      }
       return version;
     });
   }
@@ -414,13 +523,13 @@ export class HomeSummaryProjectionService
   ) {
     return tx.$executeRaw(Prisma.sql`
       INSERT INTO "HomeSummaryDailyAggregate" (
-        "id", "summaryDate", "dimensionType", "dimensionKey", "storeCode",
+        "id", "summaryDate", "projectionKind", "dimensionType", "dimensionKey", "storeCode",
         "totalOrders", "reportedOrders", "totalReports",
         "notPurchasedReports", "orderRevenueAmount", "reportRevenueAmount",
-        "projectionVersion", "sourceUpdatedAt", "generatedAt",
+        "metrics", "projectionVersion", "sourceUpdatedAt", "generatedAt",
         "createdAt", "updatedAt"
       )
-      SELECT gen_random_uuid()::text, CAST(${dateKey} AS date), 'GLOBAL', '', '',
+      SELECT gen_random_uuid()::text, CAST(${dateKey} AS date), 'SALES', 'GLOBAL', '', '',
         (SELECT COUNT(*)::int FROM "HomeSummaryOrderFact"
           WHERE ("summaryDate" + INTERVAL '7 hours')::date = CAST(${dateKey} AS date)
             AND NOT "isPaymentPending"),
@@ -440,7 +549,7 @@ export class HomeSummaryProjectionService
         (SELECT COALESCE(SUM(GREATEST(COALESCE("revenue", 0), 0)), 0)
           FROM "HomeSummaryReportFact"
           WHERE ("summaryDate" + INTERVAL '7 hours')::date = CAST(${dateKey} AS date)),
-        ${version}, ${sourceUpdatedAt}, ${generatedAt}, ${generatedAt}, ${generatedAt}
+        '{}'::jsonb, ${version}, ${sourceUpdatedAt}, ${generatedAt}, ${generatedAt}, ${generatedAt}
     `);
   }
 
@@ -471,18 +580,18 @@ export class HomeSummaryProjectionService
         GROUP BY UPPER(TRIM(COALESCE("storeCode", '')))
       )
       INSERT INTO "HomeSummaryDailyAggregate" (
-        "id", "summaryDate", "dimensionType", "dimensionKey", "storeCode",
+        "id", "summaryDate", "projectionKind", "dimensionType", "dimensionKey", "storeCode",
         "totalOrders", "reportedOrders", "totalReports",
         "notPurchasedReports", "orderRevenueAmount", "reportRevenueAmount",
-        "projectionVersion", "sourceUpdatedAt", "generatedAt",
+        "metrics", "projectionVersion", "sourceUpdatedAt", "generatedAt",
         "createdAt", "updatedAt"
       )
-      SELECT gen_random_uuid()::text, CAST(${dateKey} AS date), 'STORE',
+      SELECT gen_random_uuid()::text, CAST(${dateKey} AS date), 'SALES', 'STORE',
         COALESCE(o.store_code, r.store_code), COALESCE(o.store_code, r.store_code),
         COALESCE(o.total_orders, 0), COALESCE(o.reported_orders, 0),
         COALESCE(r.total_reports, 0), COALESCE(r.not_purchased, 0),
         COALESCE(o.order_revenue, 0), COALESCE(r.report_revenue, 0),
-        ${version}, ${sourceUpdatedAt}, ${generatedAt}, ${generatedAt}, ${generatedAt}
+        '{}'::jsonb, ${version}, ${sourceUpdatedAt}, ${generatedAt}, ${generatedAt}, ${generatedAt}
       FROM order_metrics o
       FULL OUTER JOIN report_metrics r ON r.store_code = o.store_code
       WHERE COALESCE(o.store_code, r.store_code) <> ''
@@ -499,19 +608,25 @@ export class HomeSummaryProjectionService
     return tx.$executeRaw(Prisma.sql`
       WITH order_metrics AS (
         SELECT
-          TRIM(COALESCE("sourceUserId", LOWER("sourceUserEmail"),
-            LOWER("consultantEmail"), LOWER("sellerEmail"), '')) AS user_key,
+          LOWER(TRIM(identity.email)) AS user_key,
           UPPER(TRIM(COALESCE("storeCode", ''))) AS store_code,
           COUNT(*)::int AS total_orders,
           COUNT(*) FILTER (WHERE "hasValidReport")::int AS reported_orders,
           COALESCE(SUM(GREATEST(COALESCE("grandTotal", 0), 0)), 0) AS order_revenue
         FROM "HomeSummaryOrderFact"
+        CROSS JOIN LATERAL (
+          SELECT DISTINCT email
+          FROM unnest(ARRAY[
+            "sourceUserEmail", "consultantEmail", "sellerEmail", "reportCreatedByEmail"
+          ]) AS candidate(email)
+          WHERE NULLIF(TRIM(email), '') IS NOT NULL
+        ) AS identity
         WHERE ("summaryDate" + INTERVAL '7 hours')::date = CAST(${dateKey} AS date)
           AND NOT "isPaymentPending"
         GROUP BY 1, 2
       ), report_metrics AS (
         SELECT
-          TRIM(COALESCE("createdByUserId", LOWER("createdByEmail"), '')) AS user_key,
+          LOWER(TRIM(COALESCE("createdByEmail", ''))) AS user_key,
           UPPER(TRIM(COALESCE("storeCode", ''))) AS store_code,
           COUNT(*)::int AS total_reports,
           COUNT(*) FILTER (WHERE "reportType" = 'NOT_PURCHASED')::int AS not_purchased,
@@ -521,18 +636,18 @@ export class HomeSummaryProjectionService
         GROUP BY 1, 2
       )
       INSERT INTO "HomeSummaryDailyAggregate" (
-        "id", "summaryDate", "dimensionType", "dimensionKey", "storeCode",
+        "id", "summaryDate", "projectionKind", "dimensionType", "dimensionKey", "storeCode",
         "totalOrders", "reportedOrders", "totalReports",
         "notPurchasedReports", "orderRevenueAmount", "reportRevenueAmount",
-        "projectionVersion", "sourceUpdatedAt", "generatedAt",
+        "metrics", "projectionVersion", "sourceUpdatedAt", "generatedAt",
         "createdAt", "updatedAt"
       )
-      SELECT gen_random_uuid()::text, CAST(${dateKey} AS date), 'USER_STORE',
+      SELECT gen_random_uuid()::text, CAST(${dateKey} AS date), 'SALES', 'USER_STORE',
         COALESCE(o.user_key, r.user_key), COALESCE(o.store_code, r.store_code),
         COALESCE(o.total_orders, 0), COALESCE(o.reported_orders, 0),
         COALESCE(r.total_reports, 0), COALESCE(r.not_purchased, 0),
         COALESCE(o.order_revenue, 0), COALESCE(r.report_revenue, 0),
-        ${version}, ${sourceUpdatedAt}, ${generatedAt}, ${generatedAt}, ${generatedAt}
+        '{}'::jsonb, ${version}, ${sourceUpdatedAt}, ${generatedAt}, ${generatedAt}, ${generatedAt}
       FROM order_metrics o
       FULL OUTER JOIN report_metrics r
         ON r.user_key = o.user_key AND r.store_code = o.store_code
@@ -541,16 +656,111 @@ export class HomeSummaryProjectionService
     `);
   }
 
+  private insertFinanceAggregates(
+    tx: Prisma.TransactionClient,
+    dateKey: string,
+    version: bigint,
+    sourceUpdatedAt: Date,
+    generatedAt: Date,
+  ) {
+    return tx.$executeRaw(Prisma.sql`
+      WITH source_rows AS (
+        SELECT transaction.*,
+          COALESCE(NULLIF(UPPER(TRIM(transaction."storeCode")), ''), '') AS store_code,
+          COALESCE(transaction."paidAt", transaction."firstSeenAt") AS occurred_at
+        FROM "MapVietinTransaction" AS transaction
+        WHERE COALESCE(transaction."paidAt", transaction."firstSeenAt") >= CAST(${dateKey} AS date) - INTERVAL '7 hours'
+          AND COALESCE(transaction."paidAt", transaction."firstSeenAt") < CAST(${dateKey} AS date) + INTERVAL '1 day' - INTERVAL '7 hours'
+      ), user_order_grains AS (
+        SELECT DISTINCT fact."orderCode" AS order_code,
+          LOWER(TRIM(identity.email)) AS user_key,
+          UPPER(TRIM(COALESCE(fact."storeCode", ''))) AS store_code
+        FROM "HomeSummaryOrderFact" AS fact
+        CROSS JOIN LATERAL unnest(ARRAY[
+          fact."sourceUserEmail", fact."consultantEmail", fact."sellerEmail",
+          fact."reportCreatedByEmail"
+        ]) AS identity(email)
+        WHERE fact."summaryDate" >= CAST(${dateKey} AS date) - INTERVAL '7 hours'
+          AND fact."summaryDate" < CAST(${dateKey} AS date) + INTERVAL '1 day' - INTERVAL '7 hours'
+          AND NULLIF(TRIM(identity.email), '') IS NOT NULL
+      ), user_transactions AS (
+        SELECT DISTINCT source."id", mapping.user_key, mapping.store_code
+        FROM source_rows AS source
+        JOIN user_order_grains AS mapping ON mapping.order_code = ANY(source."orders")
+        WHERE mapping.store_code <> ''
+      ), grains AS (
+        SELECT 'GLOBAL'::text AS dimension_type, ''::text AS dimension_key,
+          ''::text AS grain_store_code, source."id", source."amount", source."orders"
+        FROM source_rows AS source
+        UNION ALL
+        SELECT 'STORE', source.store_code, source.store_code,
+          source."id", source."amount", source."orders"
+        FROM source_rows AS source
+        WHERE source.store_code <> ''
+        UNION ALL
+        SELECT 'USER_STORE', mapped.user_key, mapped.store_code,
+          source."id", source."amount", source."orders"
+        FROM user_transactions AS mapped
+        JOIN source_rows AS source ON source."id" = mapped."id"
+      ), grouped AS (
+        SELECT dimension_type, dimension_key, grain_store_code,
+          COUNT(*)::int AS statement_count,
+          COALESCE(SUM(GREATEST(COALESCE("amount", 0), 0)), 0) AS transferred_amount,
+          COUNT(*) FILTER (WHERE cardinality("orders") > 0)::int AS with_order,
+          COUNT(*) FILTER (WHERE cardinality("orders") = 0)::int AS without_order
+        FROM grains
+        GROUP BY dimension_type, dimension_key, grain_store_code
+      )
+      INSERT INTO "HomeSummaryDailyAggregate" (
+        "id", "summaryDate", "projectionKind", "dimensionType", "dimensionKey", "storeCode",
+        "totalOrders", "reportedOrders", "totalReports", "notPurchasedReports",
+        "orderRevenueAmount", "reportRevenueAmount", "metrics", "projectionVersion",
+        "sourceUpdatedAt", "generatedAt", "createdAt", "updatedAt"
+      )
+      SELECT gen_random_uuid()::text, CAST(${dateKey} AS date), 'FINANCE',
+        dimension_type, dimension_key, grain_store_code, 0, 0, 0, 0, 0, 0,
+        jsonb_build_object(
+          'totalStatements', statement_count,
+          'totalTransferredAmount', transferred_amount,
+          'totalStatementsWithOrder', with_order,
+          'totalStatementsWithoutOrder', without_order
+        ),
+        ${version}, ${sourceUpdatedAt}, ${generatedAt}, ${generatedAt}, ${generatedAt}
+      FROM grouped
+    `);
+  }
+
   private async publishPendingEvents() {
-    const events = await this.prisma.domainOutboxEvent.findMany({
-      where: {
-        eventType: HOME_SUMMARY_UPDATED_EVENT,
-        publishedAt: null,
-        availableAt: { lte: new Date() },
-      },
-      orderBy: [{ occurredAt: 'asc' }],
-      take: OUTBOX_BATCH_SIZE,
-    });
+    const events = await this.prisma.$queryRaw<
+      Array<{
+        id: string;
+        payload: Prisma.JsonValue;
+        occurredAt: Date;
+        attempts: number;
+        claimToken: string;
+      }>
+    >(Prisma.sql`
+      WITH candidates AS (
+        SELECT "id"
+        FROM "DomainOutboxEvent"
+        WHERE "eventType" = ${HOME_SUMMARY_UPDATED_EVENT}
+          AND "publishedAt" IS NULL
+          AND "availableAt" <= CURRENT_TIMESTAMP
+          AND ("claimToken" IS NULL OR "leaseExpiresAt" < CURRENT_TIMESTAMP)
+        ORDER BY "occurredAt" ASC
+        FOR UPDATE SKIP LOCKED
+        LIMIT ${OUTBOX_BATCH_SIZE}
+      )
+      UPDATE "DomainOutboxEvent" AS event
+      SET "claimedAt" = CURRENT_TIMESTAMP,
+          "claimToken" = gen_random_uuid()::text,
+          "leaseExpiresAt" = CURRENT_TIMESTAMP + (${OUTBOX_LEASE_SECONDS} * INTERVAL '1 second'),
+          "updatedAt" = CURRENT_TIMESTAMP
+      FROM candidates
+      WHERE event."id" = candidates."id"
+      RETURNING event."id", event."payload", event."occurredAt",
+                event."attempts", event."claimToken"
+    `);
     let published = 0;
     if (events.length > 0) {
       this.homeSummary.invalidateSummaryResponseCache(
@@ -582,11 +792,18 @@ export class HomeSummaryProjectionService
           payload: { affectedDates, projectionVersion },
         });
         await this.prisma.domainOutboxEvent.updateMany({
-          where: { id: event.id, publishedAt: null },
+          where: {
+            id: event.id,
+            publishedAt: null,
+            claimToken: event.claimToken,
+          },
           data: {
             publishedAt: new Date(),
             attempts: { increment: 1 },
             lastError: null,
+            claimedAt: null,
+            claimToken: null,
+            leaseExpiresAt: null,
           },
         });
         published += 1;
@@ -598,11 +815,18 @@ export class HomeSummaryProjectionService
         const retrySeconds = this.retrySeconds(attempts);
         const sanitizedError = safeLogError(error).slice(0, 500);
         await this.prisma.domainOutboxEvent.updateMany({
-          where: { id: event.id, publishedAt: null },
+          where: {
+            id: event.id,
+            publishedAt: null,
+            claimToken: event.claimToken,
+          },
           data: {
             attempts,
             availableAt: new Date(Date.now() + retrySeconds * 1000),
             lastError: sanitizedError,
+            claimedAt: null,
+            claimToken: null,
+            leaseExpiresAt: null,
           },
         });
         this.logger.error(
@@ -641,37 +865,86 @@ export class HomeSummaryProjectionService
           select: {
             summaryDate: true,
             status: true,
+            salesStatus: true,
+            financeStatus: true,
             sourceUpdatedAt: true,
+            salesReportSourceUpdatedAt: true,
+            erpOrderCacheSourceUpdatedAt: true,
+            mapVietinSourceUpdatedAt: true,
+            salesGeneratedAt: true,
+            financeGeneratedAt: true,
             generatedAt: true,
           },
         }),
         this.prisma.homeSummaryProjectionQueue.findMany({
           where: {
             summaryDate: { in: dateValues },
-            dimensionType: 'GLOBAL',
-            dimensionKey: '',
-            storeCode: '',
           },
-          select: { summaryDate: true },
+          select: { summaryDate: true, projectionKind: true },
         }),
       ]);
       const stateByDate = new Map(
         states.map((state) => [this.dateKey(state.summaryDate), state]),
       );
-      const queuedDates = new Set(
-        queuedRows.map((row) => this.dateKey(row.summaryDate)),
-      );
+      const queuedKindsByDate = new Map<string, Set<ProjectionKind>>();
+      for (const row of queuedRows) {
+        const date = this.dateKey(row.summaryDate);
+        const kinds = queuedKindsByDate.get(date) ?? new Set<ProjectionKind>();
+        kinds.add(row.projectionKind as ProjectionKind);
+        queuedKindsByDate.set(date, kinds);
+      }
       datesToEnqueue = dates.filter((date) => {
-        if (queuedDates.has(date)) {
+        const queuedKinds = queuedKindsByDate.get(date);
+        if (queuedKinds?.has('SALES') && queuedKinds.has('FINANCE')) {
           skippedQueued += 1;
           return false;
         }
         const state = stateByDate.get(date);
+        const salesSourceUpdatedAt = [
+          state?.salesReportSourceUpdatedAt,
+          state?.erpOrderCacheSourceUpdatedAt,
+        ]
+          .filter(
+            (value): value is Date => value !== null && value !== undefined,
+          )
+          .reduce<Date | null>(
+            (latest, value) => (!latest || value > latest ? value : latest),
+            null,
+          );
+        const financeSourceUpdatedAt = state?.mapVietinSourceUpdatedAt ?? null;
+        const hasSpecificSourceWatermark =
+          salesSourceUpdatedAt !== null || financeSourceUpdatedAt !== null;
+        const salesBaseline =
+          salesSourceUpdatedAt ??
+          (!hasSpecificSourceWatermark
+            ? (state?.sourceUpdatedAt ?? null)
+            : null);
+        const financeBaseline =
+          financeSourceUpdatedAt ??
+          (!hasSpecificSourceWatermark
+            ? (state?.sourceUpdatedAt ?? null)
+            : null);
+        const salesCurrent =
+          state?.salesGeneratedAt !== null &&
+          state?.salesGeneratedAt !== undefined &&
+          (hasSpecificSourceWatermark
+            ? salesBaseline === null || salesBaseline <= state.salesGeneratedAt
+            : salesBaseline !== null &&
+              salesBaseline <= state.salesGeneratedAt);
+        const financeCurrent =
+          state?.financeGeneratedAt !== null &&
+          state?.financeGeneratedAt !== undefined &&
+          (hasSpecificSourceWatermark
+            ? financeBaseline === null ||
+              financeBaseline <= state.financeGeneratedAt
+            : financeBaseline !== null &&
+              financeBaseline <= state.financeGeneratedAt);
         const stable =
           state?.status === 'COMPLETE' &&
-          state.generatedAt !== null &&
-          state.sourceUpdatedAt !== null &&
-          state.sourceUpdatedAt <= state.generatedAt;
+          state.salesStatus === 'COMPLETE' &&
+          state.financeStatus === 'COMPLETE' &&
+          salesCurrent &&
+          financeCurrent;
         if (stable) {
           skippedStable += 1;
           return false;

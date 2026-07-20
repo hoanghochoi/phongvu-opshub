@@ -116,14 +116,86 @@ class HomeSummaryRepository {
     return HomeSummary.fromJson(snapshot.data);
   }
 
-  Future<HomeSalesBehaviorDetails> fetchSalesBehaviorDetails({
+  Future<HomeSummaryDetailsPage<HomeNotPurchasedReportDetail>>
+  fetchNotPurchasedDetails({
     String? date,
     String? startDate,
     String? endDate,
     String? scope,
     String? organizationNodeId,
     String? salesProgressUserId,
-    int? limit,
+    String? cursor,
+    int limit = 50,
+  }) => _fetchDetailsPage(
+    kind: HomeSummaryDetailKind.notPurchased,
+    itemFromJson: HomeNotPurchasedReportDetail.fromJson,
+    date: date,
+    startDate: startDate,
+    endDate: endDate,
+    scope: scope,
+    organizationNodeId: organizationNodeId,
+    salesProgressUserId: salesProgressUserId,
+    cursor: cursor,
+    limit: limit,
+  );
+
+  Future<HomeSummaryDetailsPage<HomeUnreportedOrderDetail>>
+  fetchUnreportedOrderDetails({
+    String? date,
+    String? startDate,
+    String? endDate,
+    String? scope,
+    String? organizationNodeId,
+    String? salesProgressUserId,
+    String? cursor,
+    int limit = 50,
+  }) => _fetchDetailsPage(
+    kind: HomeSummaryDetailKind.unreportedOrder,
+    itemFromJson: HomeUnreportedOrderDetail.fromJson,
+    date: date,
+    startDate: startDate,
+    endDate: endDate,
+    scope: scope,
+    organizationNodeId: organizationNodeId,
+    salesProgressUserId: salesProgressUserId,
+    cursor: cursor,
+    limit: limit,
+  );
+
+  Future<HomeSummaryDetailsPage<HomeInstallmentNeedDetail>>
+  fetchInstallmentNeedDetails({
+    String? date,
+    String? startDate,
+    String? endDate,
+    String? scope,
+    String? organizationNodeId,
+    String? salesProgressUserId,
+    String? cursor,
+    int limit = 50,
+  }) => _fetchDetailsPage(
+    kind: HomeSummaryDetailKind.installmentNeed,
+    itemFromJson: HomeInstallmentNeedDetail.fromJson,
+    date: date,
+    startDate: startDate,
+    endDate: endDate,
+    scope: scope,
+    organizationNodeId: organizationNodeId,
+    salesProgressUserId: salesProgressUserId,
+    cursor: cursor,
+    limit: limit,
+  );
+
+  Future<HomeSummaryDetailsPage<T>> _fetchDetailsPage<T>({
+    required HomeSummaryDetailKind kind,
+    required T Function(Map<String, dynamic> json) itemFromJson,
+    String? date,
+    String? startDate,
+    String? endDate,
+    String? scope,
+    String? organizationNodeId,
+    String? salesProgressUserId,
+    String? cursor,
+    int limit = 50,
   }) async {
     final queryParameters = _buildSummaryQueryParameters(
       date: date,
@@ -133,11 +205,14 @@ class HomeSummaryRepository {
       organizationNodeId: organizationNodeId,
       salesProgressUserId: salesProgressUserId,
     );
-    if (limit != null && limit > 0) {
-      queryParameters['limit'] = limit.toString();
+    final normalizedCursor = cursor?.trim();
+    queryParameters['kind'] = kind.apiValue;
+    queryParameters['limit'] = limit.clamp(1, 100).toString();
+    if (normalizedCursor != null && normalizedCursor.isNotEmpty) {
+      queryParameters['cursor'] = normalizedCursor;
     }
     final response = await _apiClient.get(
-      ApiConstants.homeSummaryDetailsEndpoint,
+      ApiConstants.homeSummaryDetailsV2Endpoint,
       queryParameters: queryParameters,
     );
     final data = jsonDecode(response.body);
@@ -146,7 +221,17 @@ class HomeSummaryRepository {
         'Dữ liệu chi tiết báo cáo chưa đúng định dạng. Vui lòng thử lại.',
       );
     }
-    return HomeSalesBehaviorDetails.fromJson(data);
+    try {
+      return HomeSummaryDetailsPage<T>.fromJson(
+        data,
+        expectedKind: kind,
+        itemFromJson: itemFromJson,
+      );
+    } on FormatException {
+      throw ParseException(
+        'Dữ liệu chi tiết báo cáo chưa đúng định dạng. Vui lòng thử lại.',
+      );
+    }
   }
 
   Future<List<HomeSummaryScopeOptionDto>> fetchScopeOptions({

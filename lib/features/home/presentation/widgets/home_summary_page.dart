@@ -9,6 +9,7 @@ import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_radius.dart';
 import '../../../../app/theme/app_text_styles.dart';
 import '../../../../app/widgets/app_cards.dart';
+import '../../../../app/widgets/app_buttons.dart';
 import '../../../../app/widgets/app_combobox.dart';
 import '../../../../app/widgets/app_filter_dropdowns.dart';
 import '../../../../app/widgets/app_layout.dart';
@@ -1283,17 +1284,98 @@ class _SalesBehaviorDetailsDialog extends StatefulWidget {
 class _SalesBehaviorDetailsDialogState
     extends State<_SalesBehaviorDetailsDialog> {
   late _SalesBehaviorDetailTab _selectedTab;
-  late Future<HomeSalesBehaviorDetails> _future;
+  HomeSummaryDetailsPage<HomeNotPurchasedReportDetail>? _notPurchasedPage;
+  HomeSummaryDetailsPage<HomeUnreportedOrderDetail>? _unreportedPage;
+  bool _isInitialLoading = false;
+  bool _isLoadingMore = false;
+  String? _initialError;
+  String? _loadMoreError;
+  int _loadGeneration = 0;
 
   @override
   void initState() {
     super.initState();
     _selectedTab = widget.initialTab;
-    _future = widget.provider.fetchSalesBehaviorDetails(
-      source: _selectedTab == _SalesBehaviorDetailTab.notPurchased
-          ? 'not_purchased_card'
-          : 'unreported_orders_card',
-    );
+    unawaited(_loadSelectedPage());
+  }
+
+  HomeSummaryDetailsPage<Object>? get _selectedPage => switch (_selectedTab) {
+    _SalesBehaviorDetailTab.notPurchased => _notPurchasedPage,
+    _SalesBehaviorDetailTab.unreported => _unreportedPage,
+  };
+
+  void _selectTab(_SalesBehaviorDetailTab tab) {
+    if (_selectedTab == tab) return;
+    _loadGeneration += 1;
+    setState(() {
+      _selectedTab = tab;
+      _isInitialLoading = false;
+      _isLoadingMore = false;
+      _initialError = null;
+      _loadMoreError = null;
+    });
+    if (_selectedPage == null) unawaited(_loadSelectedPage());
+  }
+
+  Future<void> _loadSelectedPage({bool loadMore = false}) async {
+    final requestedTab = _selectedTab;
+    final currentPage = _selectedPage;
+    if (loadMore &&
+        (currentPage == null || !currentPage.hasNextPage || _isLoadingMore)) {
+      return;
+    }
+    final generation = ++_loadGeneration;
+    setState(() {
+      _isInitialLoading = !loadMore && currentPage == null;
+      _isLoadingMore = loadMore;
+      if (loadMore) {
+        _loadMoreError = null;
+      } else {
+        _initialError = null;
+      }
+    });
+    try {
+      switch (requestedTab) {
+        case _SalesBehaviorDetailTab.notPurchased:
+          final page = await widget.provider.fetchNotPurchasedDetails(
+            source: 'not_purchased_card',
+            cursor: loadMore ? _notPurchasedPage?.nextCursor : null,
+          );
+          if (!mounted || generation != _loadGeneration) return;
+          setState(() {
+            _notPurchasedPage = loadMore
+                ? _notPurchasedPage!.append(page)
+                : page;
+          });
+        case _SalesBehaviorDetailTab.unreported:
+          final page = await widget.provider.fetchUnreportedOrderDetails(
+            source: 'unreported_orders_card',
+            cursor: loadMore ? _unreportedPage?.nextCursor : null,
+          );
+          if (!mounted || generation != _loadGeneration) return;
+          setState(() {
+            _unreportedPage = loadMore ? _unreportedPage!.append(page) : page;
+          });
+      }
+    } catch (_) {
+      if (!mounted || generation != _loadGeneration) return;
+      setState(() {
+        if (loadMore) {
+          _loadMoreError =
+              'Chưa tải được phần tiếp theo. Vui lòng kiểm tra kết nối và thử lại.';
+        } else {
+          _initialError =
+              'Chưa tải được danh sách. Vui lòng kiểm tra kết nối và thử lại.';
+        }
+      });
+    } finally {
+      if (mounted && generation == _loadGeneration) {
+        setState(() {
+          _isInitialLoading = false;
+          _isLoadingMore = false;
+        });
+      }
+    }
   }
 
   @override
@@ -1331,71 +1413,66 @@ class _SalesBehaviorDetailsDialogState
                 ],
               ),
               const SizedBox(height: 8),
-              FutureBuilder<HomeSalesBehaviorDetails>(
-                future: _future,
-                builder: (context, snapshot) {
-                  final details = snapshot.data;
-                  return Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      _DetailTabPill(
-                        key: const Key('home-sales-behavior-tab-not-purchased'),
-                        label: 'Khách chưa mua',
-                        count: details?.notPurchasedTotal,
-                        selected:
-                            _selectedTab ==
-                            _SalesBehaviorDetailTab.notPurchased,
-                        onTap: () => setState(
-                          () => _selectedTab =
-                              _SalesBehaviorDetailTab.notPurchased,
-                        ),
-                      ),
-                      _DetailTabPill(
-                        key: const Key('home-sales-behavior-tab-unreported'),
-                        label: 'Đơn chưa báo cáo',
-                        count: details?.unreportedTotal,
-                        selected:
-                            _selectedTab == _SalesBehaviorDetailTab.unreported,
-                        onTap: () => setState(
-                          () =>
-                              _selectedTab = _SalesBehaviorDetailTab.unreported,
-                        ),
-                      ),
-                    ],
-                  );
-                },
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  _DetailTabPill(
+                    key: const Key('home-sales-behavior-tab-not-purchased'),
+                    label: 'Khách chưa mua',
+                    count: _notPurchasedPage?.total,
+                    selected:
+                        _selectedTab == _SalesBehaviorDetailTab.notPurchased,
+                    onTap: () =>
+                        _selectTab(_SalesBehaviorDetailTab.notPurchased),
+                  ),
+                  _DetailTabPill(
+                    key: const Key('home-sales-behavior-tab-unreported'),
+                    label: 'Đơn chưa báo cáo',
+                    count: _unreportedPage?.total,
+                    selected:
+                        _selectedTab == _SalesBehaviorDetailTab.unreported,
+                    onTap: () => _selectTab(_SalesBehaviorDetailTab.unreported),
+                  ),
+                ],
               ),
               const SizedBox(height: 12),
-              Expanded(
-                child: FutureBuilder<HomeSalesBehaviorDetails>(
-                  future: _future,
-                  builder: (context, snapshot) {
-                    if (snapshot.connectionState == ConnectionState.waiting) {
-                      return const AppStatePanel.loading(
-                        title: 'Đang tải chi tiết',
-                        message:
-                            'Hệ thống đang lấy danh sách theo phạm vi hiện tại.',
-                      );
-                    }
-                    if (snapshot.hasError || !snapshot.hasData) {
-                      return AppStatePanel.error(
-                        title: 'Chưa tải được chi tiết',
-                        message:
-                            'Kiểm tra kết nối rồi thử mở lại bảng chi tiết.',
-                      );
-                    }
-                    return _SalesBehaviorDetailsTable(
-                      details: snapshot.data!,
-                      selectedTab: _selectedTab,
-                    );
-                  },
-                ),
-              ),
+              Expanded(child: _buildSelectedContent()),
             ],
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildSelectedContent() {
+    if (_isInitialLoading && _selectedPage == null) {
+      return const AppStatePanel.loading(
+        title: 'Đang tải chi tiết',
+        message: 'Hệ thống đang lấy danh sách theo phạm vi hiện tại.',
+      );
+    }
+    if (_initialError != null && _selectedPage == null) {
+      return AppStatePanel.error(
+        key: const Key('home-details-initial-error'),
+        title: 'Chưa tải được chi tiết',
+        message: _initialError,
+        actionLabel: 'Thử lại',
+        onAction: _loadSelectedPage,
+      );
+    }
+    final page = _selectedPage;
+    if (page == null) return const SizedBox.shrink();
+    return _SalesBehaviorDetailsTable(
+      notPurchasedPage: _selectedTab == _SalesBehaviorDetailTab.notPurchased
+          ? _notPurchasedPage
+          : null,
+      unreportedPage: _selectedTab == _SalesBehaviorDetailTab.unreported
+          ? _unreportedPage
+          : null,
+      isLoadingMore: _isLoadingMore,
+      loadMoreError: _loadMoreError,
+      onLoadMore: () => _loadSelectedPage(loadMore: true),
     );
   }
 }
@@ -1412,14 +1489,59 @@ class _InstallmentNeedDetailsDialog extends StatefulWidget {
 
 class _InstallmentNeedDetailsDialogState
     extends State<_InstallmentNeedDetailsDialog> {
-  late Future<HomeSalesBehaviorDetails> _future;
+  HomeSummaryDetailsPage<HomeInstallmentNeedDetail>? _page;
+  bool _isInitialLoading = false;
+  bool _isLoadingMore = false;
+  String? _initialError;
+  String? _loadMoreError;
 
   @override
   void initState() {
     super.initState();
-    _future = widget.provider.fetchSalesBehaviorDetails(
-      source: 'installment_need_card',
-    );
+    unawaited(_loadPage());
+  }
+
+  Future<void> _loadPage({bool loadMore = false}) async {
+    if (loadMore && (_page == null || !_page!.hasNextPage || _isLoadingMore)) {
+      return;
+    }
+    setState(() {
+      _isInitialLoading = !loadMore && _page == null;
+      _isLoadingMore = loadMore;
+      if (loadMore) {
+        _loadMoreError = null;
+      } else {
+        _initialError = null;
+      }
+    });
+    try {
+      final page = await widget.provider.fetchInstallmentNeedDetails(
+        source: 'installment_need_card',
+        cursor: loadMore ? _page?.nextCursor : null,
+      );
+      if (!mounted) return;
+      setState(() {
+        _page = loadMore ? _page!.append(page) : page;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        if (loadMore) {
+          _loadMoreError =
+              'Chưa tải được phần tiếp theo. Vui lòng kiểm tra kết nối và thử lại.';
+        } else {
+          _initialError =
+              'Chưa tải được danh sách. Vui lòng kiểm tra kết nối và thử lại.';
+        }
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isInitialLoading = false;
+          _isLoadingMore = false;
+        });
+      }
+    }
   }
 
   @override
@@ -1457,33 +1579,37 @@ class _InstallmentNeedDetailsDialogState
                 ],
               ),
               const SizedBox(height: 12),
-              Expanded(
-                child: FutureBuilder<HomeSalesBehaviorDetails>(
-                  future: _future,
-                  builder: (context, snapshot) {
-                    if (snapshot.connectionState == ConnectionState.waiting) {
-                      return const AppStatePanel.loading(
-                        title: 'Đang tải chi tiết',
-                        message: 'Hệ thống đang lấy danh sách nhu cầu trả góp.',
-                      );
-                    }
-                    if (snapshot.hasError || !snapshot.hasData) {
-                      return AppStatePanel.error(
-                        title: 'Chưa tải được chi tiết',
-                        message:
-                            'Kiểm tra kết nối rồi thử mở lại bảng chi tiết.',
-                      );
-                    }
-                    return _InstallmentNeedDetailsTable(
-                      details: snapshot.data!,
-                    );
-                  },
-                ),
-              ),
+              Expanded(child: _buildContent()),
             ],
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildContent() {
+    if (_isInitialLoading && _page == null) {
+      return const AppStatePanel.loading(
+        title: 'Đang tải chi tiết',
+        message: 'Hệ thống đang lấy danh sách nhu cầu trả góp.',
+      );
+    }
+    if (_initialError != null && _page == null) {
+      return AppStatePanel.error(
+        key: const Key('home-installment-details-initial-error'),
+        title: 'Chưa tải được chi tiết',
+        message: _initialError,
+        actionLabel: 'Thử lại',
+        onAction: _loadPage,
+      );
+    }
+    final page = _page;
+    if (page == null) return const SizedBox.shrink();
+    return _InstallmentNeedDetailsTable(
+      page: page,
+      isLoadingMore: _isLoadingMore,
+      loadMoreError: _loadMoreError,
+      onLoadMore: () => _loadPage(loadMore: true),
     );
   }
 }
@@ -1532,22 +1658,31 @@ class _DetailTabPill extends StatelessWidget {
 
 class _SalesBehaviorDetailsTable extends StatelessWidget {
   const _SalesBehaviorDetailsTable({
-    required this.details,
-    required this.selectedTab,
+    required this.notPurchasedPage,
+    required this.unreportedPage,
+    required this.isLoadingMore,
+    required this.loadMoreError,
+    required this.onLoadMore,
   });
 
-  final HomeSalesBehaviorDetails details;
-  final _SalesBehaviorDetailTab selectedTab;
+  final HomeSummaryDetailsPage<HomeNotPurchasedReportDetail>? notPurchasedPage;
+  final HomeSummaryDetailsPage<HomeUnreportedOrderDetail>? unreportedPage;
+  final bool isLoadingMore;
+  final String? loadMoreError;
+  final VoidCallback onLoadMore;
 
   @override
   Widget build(BuildContext context) {
-    final isNotPurchased = selectedTab == _SalesBehaviorDetailTab.notPurchased;
+    final isNotPurchased = notPurchasedPage != null;
     final rowCount = isNotPurchased
-        ? details.notPurchasedReports.length
-        : details.unreportedOrders.length;
+        ? notPurchasedPage!.items.length
+        : unreportedPage!.items.length;
     final total = isNotPurchased
-        ? details.notPurchasedTotal
-        : details.unreportedTotal;
+        ? notPurchasedPage!.total
+        : unreportedPage!.total;
+    final hasNextPage = isNotPurchased
+        ? notPurchasedPage!.hasNextPage
+        : unreportedPage!.hasNextPage;
     if (rowCount == 0) {
       return const AppStatePanel.empty(
         title: 'Chưa có dòng chi tiết',
@@ -1570,14 +1705,18 @@ class _SalesBehaviorDetailsTable extends StatelessWidget {
             child: ConstrainedBox(
               constraints: BoxConstraints(minWidth: isNotPurchased ? 940 : 820),
               child: isNotPurchased
-                  ? _NotPurchasedDetailsDataTable(
-                      rows: details.notPurchasedReports,
-                    )
+                  ? _NotPurchasedDetailsDataTable(rows: notPurchasedPage!.items)
                   : _UnreportedOrdersDetailsDataTable(
-                      rows: details.unreportedOrders,
+                      rows: unreportedPage!.items,
                     ),
             ),
           ),
+        ),
+        _DetailsLoadMoreFooter(
+          hasNextPage: hasNextPage,
+          isLoading: isLoadingMore,
+          errorMessage: loadMoreError,
+          onLoadMore: onLoadMore,
         ),
       ],
     );
@@ -1665,13 +1804,21 @@ class _UnreportedOrdersDetailsDataTable extends StatelessWidget {
 }
 
 class _InstallmentNeedDetailsTable extends StatelessWidget {
-  const _InstallmentNeedDetailsTable({required this.details});
+  const _InstallmentNeedDetailsTable({
+    required this.page,
+    required this.isLoadingMore,
+    required this.loadMoreError,
+    required this.onLoadMore,
+  });
 
-  final HomeSalesBehaviorDetails details;
+  final HomeSummaryDetailsPage<HomeInstallmentNeedDetail> page;
+  final bool isLoadingMore;
+  final String? loadMoreError;
+  final VoidCallback onLoadMore;
 
   @override
   Widget build(BuildContext context) {
-    final rows = details.installmentNeedReports;
+    final rows = page.items;
     if (rows.isEmpty) {
       return const AppStatePanel.empty(
         title: 'Chưa có dòng chi tiết',
@@ -1683,7 +1830,7 @@ class _InstallmentNeedDetailsTable extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text(
-          _detailCountLabel(rows.length, details.installmentNeedTotal),
+          _detailCountLabel(rows.length, page.total),
           style: AppTextStyles.caption.copyWith(
             color: AppColors.textMutedOf(context),
           ),
@@ -1697,7 +1844,60 @@ class _InstallmentNeedDetailsTable extends StatelessWidget {
             ),
           ),
         ),
+        _DetailsLoadMoreFooter(
+          hasNextPage: page.hasNextPage,
+          isLoading: isLoadingMore,
+          errorMessage: loadMoreError,
+          onLoadMore: onLoadMore,
+        ),
       ],
+    );
+  }
+}
+
+class _DetailsLoadMoreFooter extends StatelessWidget {
+  const _DetailsLoadMoreFooter({
+    required this.hasNextPage,
+    required this.isLoading,
+    required this.errorMessage,
+    required this.onLoadMore,
+  });
+
+  final bool hasNextPage;
+  final bool isLoading;
+  final String? errorMessage;
+  final VoidCallback onLoadMore;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!hasNextPage && errorMessage == null) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(top: 10),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          if (errorMessage != null) ...[
+            Expanded(
+              child: Text(
+                errorMessage!,
+                key: const Key('home-details-load-more-error'),
+                style: AppTextStyles.caption.copyWith(color: AppColors.error),
+              ),
+            ),
+            const SizedBox(width: 12),
+          ],
+          AppSecondaryButton(
+            key: const Key('home-details-load-more-button'),
+            onPressed: isLoading ? null : onLoadMore,
+            icon: Icons.expand_more_rounded,
+            label: 'Xem thêm',
+            isLoading: isLoading,
+            loadingLabel: 'Đang tải thêm',
+            expand: false,
+            height: AppButtonMetrics.compactActionHeight,
+          ),
+        ],
+      ),
     );
   }
 }

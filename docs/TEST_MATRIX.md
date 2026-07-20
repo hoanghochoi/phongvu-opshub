@@ -327,6 +327,18 @@ Recent focused evidence:
   rollout gates. The date-sensitive ERP 40/10 quota fixture now derives a
   recent order date instead of expiring after the calendar advances; focused
   Sales Report passed 65/65 and full Nest passed 64/64 suites, 629/629 tests.
+- `HOME-DASHBOARD-003`, 2026-07-20 Phase 1 closure: projection work is
+  coalesced by date/kind with lease and dirty-generation recovery; SALES and
+  FINANCE snapshots commit independently and publish only after the atomic
+  replace. Flutter now owns one authenticated socket at app-session scope,
+  compares Home versions per affected date, refreshes on overlap/resume, and
+  pages details v2 with a typed keyset cursor. Scratch migration proof passed
+  up/seed/burst/down (`90/180/180`, `5000 -> 1`); focused Home Nest passed 58,
+  full Nest passed 81 suites/812 tests, Go passed 64 plus vet, focused Flutter
+  passed 37, design/Home details passed 49, full Flutter passed 580 with 3
+  intentional platform skips, and analyze passed. Staging k6/SLO, worker
+  latency, 1/7/30/90 parity and RAM remain rollout gates; k6 is unavailable on
+  the local host.
 - `HOME-DASHBOARD-003`/`PAYMENT-MONITOR-001`, 2026-07-15: identical MAP rows
   are discarded by a bounded TTL/LRU fingerprint cache before database access;
   database comparison remains the fallback and new rows are committed before
