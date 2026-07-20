@@ -7,11 +7,27 @@
 | Flutter | `flutter analyze`, `flutter test` |
 | NestJS | `npx prisma validate`, `npx prisma generate`, focused MAP Jest tests, `npm run build` |
 | Go realtime | Not affected |
-| Integration | Statement API behavior covered by service tests with Prisma mocks |
-| Platform | Production API health, eFAST scheduler counters, and post-remap database counts |
+| Integration | Statement service behavior plus controller headers and streamed XLSX bytes |
+| Platform | Production API health, authenticated XLSX download/parse, eFAST scheduler counters, and post-remap database counts |
 | Release | `git diff --check` and exact diff review before handoff |
 
 ## Evidence
+
+- 2026-07-20 XLSX transport hotfix: production logs matched the reported
+  07:40 export and showed the workbook service completing successfully. The
+  controller was returning a Node `Buffer` directly, which the Nest Express
+  adapter serializes through `response.json`; the endpoint now returns a
+  `StreamableFile`, matching the existing Sales Report export contract. A new
+  controller regression verifies MIME/disposition headers and unchanged `PK`
+  workbook bytes. Focused MAP/controller Jest passed 111 tests, the full Nest
+  regression passed 81 suites / 804 tests, Nest build passed, and the protected
+  Payment Monitor/Bank Statement/VietQR Flutter consumers passed 72 tests.
+  Production API image `sha256:27fe835c...` is healthy. An authenticated live
+  export returned the XLSX MIME type, 540,952 bytes, ZIP magic `504b0304`, and
+  one parseable `Sao ke` worksheet without exporting row contents off-host.
+  The first API start encountered a PostgreSQL deadlock and Docker restarted it
+  once; the second start completed, health stayed green, and no fatal log was
+  observed afterward. No database migration or client release was involved.
 
 - 2026-07-19 local implementation: Sao kê no longer adds a `SALES` query
   restriction for SR users. The classifier and migration share the compact

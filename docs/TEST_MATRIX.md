@@ -434,6 +434,16 @@ Recent focused evidence:
   regression passed 80 suites / 803 tests, and Nest build passed. Focused Bank
   Statement provider/screen tests passed 37 tests, Flutter analyze passed, and
   full Flutter passed 569 tests with 3 platform skips.
+- `PAYMENT-STATEMENT-001`, 2026-07-20: fixed the Sao ke XLSX HTTP transport.
+  The workbook service already produced valid XLSX bytes, but its controller
+  returned a raw Node `Buffer` and Nest serialized that object as JSON while
+  retaining the XLSX filename/header. The controller now returns
+  `StreamableFile`, with regression coverage for the binary `PK` bytes and
+  response headers. Validation: 111 focused MAP/controller Jest tests, full
+  Nest 81 suites / 804 tests, Nest build, 72 protected Flutter consumer tests,
+  production health, and an authenticated live export parsed successfully as
+  a 540,952-byte XLSX workbook with one worksheet. No migration or client
+  release was required.
 - `UI-UX-001`, 2026-07-11: sửa race thứ hai của `AppCombobox` trên
   desktop/Windows: khi bấm chuột chọn option, `TextField` mất focus ở
   mouse-down và timer đóng overlay cũ có thể đóng menu trước mouse-up/onTap,

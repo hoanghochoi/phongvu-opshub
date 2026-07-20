@@ -8,6 +8,7 @@ import {
   Query,
   Request,
   Res,
+  StreamableFile,
   UseGuards,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
@@ -79,7 +80,7 @@ export class MapVietinController {
       'Content-Disposition',
       'attachment; filename="opshub-bank-statements.xlsx"',
     );
-    return xlsx;
+    return new StreamableFile(xlsx);
   }
 
   @Patch('statements/:id/orders')
