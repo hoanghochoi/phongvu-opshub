@@ -347,25 +347,41 @@ compose=(docker compose --env-file "$OPSHUB_ENV_FILE" \
   npm run security:audit-private-media -- --strict
 
 "${compose[@]}" --profile maintenance run --rm maintenance \
-  npm run security:migrate-private-media -- --strict --limit 100
+  npm run security:migrate-private-media -- --strict
 ```
 
-Lưu JSON report vào kho nội bộ an toàn. So sánh số avatar/warranty/feedback, missing file/owner, orphan và dung lượng. Dry-run không sửa reference.
+Lưu JSON report vào kho nội bộ an toàn. So sánh số avatar/warranty/feedback,
+missing file/owner, orphan và dung lượng. Dry-run đầy đủ không sửa reference;
+không thêm `--limit` vào lần kiểm kê production cuối cùng.
 
 ### 4.2 Apply theo batch
 
-Chạy backup mã hóa trước, sau đó:
+Chạy backup mã hóa trước, sau đó đặt batch đầu tiên:
 
 ```bash
+BATCH_LIMIT=100
+BATCH_OFFSET=0
+
 "${compose[@]}" --profile maintenance run --rm maintenance \
   npm run security:migrate-private-media -- \
-  --apply --strict --limit 100 \
+  --apply --strict --limit "$BATCH_LIMIT" --offset "$BATCH_OFFSET" \
   --ticket SEC-YYYY-NNN \
   --approved-by MA-NGUOI-DUYET \
   --confirm MIGRATE_PRIVATE_MEDIA_V1
 ```
 
-Sau mỗi batch chạy audit, smoke đúng owner/showroom/admin và anonymous 404. Script re-encode ảnh, tạo metadata/checksum, đổi reference nhưng **không xóa file legacy**.
+`--limit` là số record tối đa **trên mỗi nhóm** avatar/warranty/feedback và bị
+chặn ở 250 khi `--apply`. Sau mỗi batch:
+
+1. Dừng ngay nếu exit khác 0, `errors > 0`, audit lỗi hoặc smoke lỗi.
+2. Chạy audit và smoke đúng owner/showroom/admin; anonymous phải nhận 404.
+3. Nếu `batch.hasMore=true`, đặt `BATCH_OFFSET` bằng đúng
+   `batch.nextOffset` trong report rồi chạy batch kế tiếp.
+4. Chỉ kết thúc khi `batch.hasMore=false`; không tự tăng offset theo phỏng đoán.
+
+Migration dùng dataset ổn định nên offset tăng dần không bỏ sót record. Script
+re-encode ảnh, tạo metadata/checksum, đổi reference nhưng **không xóa file
+legacy**.
 
 ### 4.3 Cutover
 
@@ -391,11 +407,18 @@ Sau mỗi batch chạy audit, smoke đúng owner/showroom/admin và anonymous 40
 Rollback reference nếu phải quay client/API nhưng vẫn giữ file private:
 
 ```bash
+BATCH_LIMIT=100
+
 "${compose[@]}" --profile maintenance run --rm maintenance \
   npm run security:rollback-private-media -- \
-  --apply --ticket SEC-YYYY-NNN --approved-by MA-NGUOI-DUYET \
+  --apply --limit "$BATCH_LIMIT" \
+  --ticket SEC-YYYY-NNN --approved-by MA-NGUOI-DUYET \
   --confirm ROLLBACK_PRIVATE_MEDIA_REFERENCES_V1
 ```
+
+Rollback luôn xử lý đầu tập dữ liệu đang co lại, vì vậy **không dùng
+`--offset`**. Lặp lại cùng lệnh khi `batch.hasMore=true`; dừng nếu
+`unresolved > 0`, và kết thúc khi `batch.hasMore=false`.
 
 ## 5. Backup encryption và restore drill
 

@@ -204,6 +204,15 @@ hoặc giữ private identity.
   mở sau khi nâng quyền; không in hoặc lưu file log thô ra máy trạm.
 - [ ] Dùng cửa sổ tối thiểu 7 ngày trước media cutover. `--fail-on-hits` phải
   trả 0; nếu exit `3` thì dừng cutover, không xóa route/file/cache.
+- [ ] Sau cửa sổ quan sát, chạy lại strict private-media audit và dry-run đầy
+  đủ không `--limit`. Chỉ mở maintenance khi cả legacy telemetry, audit và
+  dry-run cùng sạch.
+- [ ] `security:migrate-private-media --apply` bắt buộc có `--limit` từ 1 đến
+  250 và dùng `--offset` đúng bằng `batch.nextOffset` của report trước. Mỗi
+  batch phải audit/smoke lại; lỗi hoặc `errors > 0` là stop gate.
+- [ ] Rollback cũng bắt buộc có `--limit`, nhưng không nhận `--offset` vì tập
+  candidate co lại sau mỗi batch. Lặp từ đầu cho đến `batch.hasMore=false`;
+  hướng dẫn lệnh đầy đủ nằm trong `app-security-manual-actions-12072026.md`.
 
 ### 7.2 API multi-replica qua Docker DNS
 

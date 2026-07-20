@@ -185,3 +185,10 @@
   probe was generated, so the observation window starts clean at Caddy start
   `2026-07-20T07:17:17.446Z` (14:17:17 UTC+7). Earliest seven-day gate is
   27/07/2026 after 14:17:17 UTC+7; the fourteen-day limit is 03/08/2026.
+- Pre-maintenance review found that the original migration `--limit` always
+  selected the first records and therefore was not resumable. The follow-up
+  branch now requires bounded apply batches (maximum 250 records per category),
+  reports `hasMore`/`nextOffset`, advances migration over a stable offset, and
+  keeps rollback on the shrinking head. Ten focused telemetry/batch tests and
+  the platform-security contract pass locally. No production apply or runtime
+  restart was performed, so the observation continuity is unchanged.

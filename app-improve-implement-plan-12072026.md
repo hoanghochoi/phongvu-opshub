@@ -855,3 +855,9 @@ Trạng thái runtime: staging workflow `29722657920` và production workflow
 `20/07/2026 14:17:17` UTC+7. Gate bảy ngày là sau `27/07/2026 14:17:17`; nếu
 không có hit mới chạy strict audit + dry-run. `--apply` vẫn chờ maintenance gate
 riêng, không được automation hoặc daily monitor tự kích hoạt.
+
+5. Trước ngày maintenance, harden công cụ migration để không lặp batch đầu:
+   apply bắt buộc `--limit <= 250`, migration tiếp nối bằng `--offset` đúng từ
+   report, rollback lặp từ offset 0 vì candidate set co lại. Focused test phải
+   chứng minh dry-run đầy đủ vẫn dùng được, apply không limit bị từ chối, offset
+   migration tiếp nối đúng và rollback không chấp nhận offset.

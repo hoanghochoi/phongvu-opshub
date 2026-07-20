@@ -1,8 +1,18 @@
 import 'dotenv/config';
+import {
+  PRIVATE_MEDIA_BATCH_STRATEGY,
+  parsePrivateMediaBatchArgs,
+  privateMediaBatchQuery,
+  resolvePrivateMediaBatchPage,
+} from './private-media-batch-window.mjs';
 import { createPrismaClient } from './prisma-local.mjs';
 
 const CONFIRMATION = 'ROLLBACK_PRIVATE_MEDIA_REFERENCES_V1';
 const apply = process.argv.includes('--apply');
+const batch = parsePrivateMediaBatchArgs(process.argv.slice(2), {
+  apply,
+  strategy: PRIVATE_MEDIA_BATCH_STRATEGY.shrinkingHead,
+});
 const ticket = arg('ticket');
 const approvedBy = arg('approved-by');
 if (apply) {
@@ -19,6 +29,15 @@ const basePath = publicBase.pathname.replace(/\/+$/, '');
 const report = {
   mode: apply ? 'apply' : 'dry-run',
   generatedAt: new Date().toISOString(),
+  batch: {
+    strategy: batch.strategy,
+    limit: batch.limit,
+    offset: 0,
+    maxApplyBatchSize: batch.maxApplyBatchSize,
+    hasMore: false,
+    nextOffset: null,
+    categories: {},
+  },
   referencesScanned: 0,
   referencesRestored: 0,
   recordsChanged: { avatar: 0, warranty: 0, feedback: 0 },
@@ -30,6 +49,7 @@ try {
   await rollbackAvatars();
   await rollbackWarranties();
   await rollbackFeedback();
+  finalizeBatchReport();
   if (apply) {
     await prisma.appLog.create({
       data: {
@@ -47,11 +67,14 @@ try {
 }
 
 async function rollbackAvatars() {
-  const rows = await prisma.user.findMany({
+  const page = resolvePrivateMediaBatchPage(await prisma.user.findMany({
     where: { avatarUrl: { contains: '/media/' } },
     select: { id: true, avatarUrl: true },
-  });
-  for (const row of rows) {
+    orderBy: { id: 'asc' },
+    ...privateMediaBatchQuery(batch),
+  }), batch);
+  recordBatchCategory('avatar', page);
+  for (const row of page.rows) {
     const next = await legacyReference(row.avatarUrl, 'AVATAR', row.id);
     if (next === row.avatarUrl) continue;
     report.recordsChanged.avatar += 1;
@@ -62,11 +85,14 @@ async function rollbackAvatars() {
 }
 
 async function rollbackWarranties() {
-  const rows = await prisma.warranty.findMany({
+  const page = resolvePrivateMediaBatchPage(await prisma.warranty.findMany({
     where: { imageLinks: { contains: '/media/' } },
     select: { id: true, imageLinks: true },
-  });
-  for (const row of rows) {
+    orderBy: { id: 'asc' },
+    ...privateMediaBatchQuery(batch),
+  }), batch);
+  recordBatchCategory('warranty', page);
+  for (const row of page.rows) {
     const current = splitLinks(row.imageLinks);
     const next = [];
     for (const value of current) {
@@ -85,11 +111,14 @@ async function rollbackWarranties() {
 }
 
 async function rollbackFeedback() {
-  const rows = await prisma.feedback.findMany({
+  const page = resolvePrivateMediaBatchPage(await prisma.feedback.findMany({
     where: { content: { contains: '/media/' } },
     select: { id: true, content: true },
-  });
-  for (const row of rows) {
+    orderBy: { id: 'asc' },
+    ...privateMediaBatchQuery(batch),
+  }), batch);
+  recordBatchCategory('feedback', page);
+  for (const row of page.rows) {
     const marker = 'Hình ảnh:';
     const markerIndex = row.content.lastIndexOf(marker);
     if (markerIndex < 0) continue;
@@ -114,6 +143,20 @@ async function rollbackFeedback() {
       });
     }
   }
+}
+
+function recordBatchCategory(category, page) {
+  report.batch.categories[category] = {
+    recordsInBatch: page.rows.length,
+    hasMore: page.hasMore,
+    nextOffset: page.nextOffset,
+  };
+}
+
+function finalizeBatchReport() {
+  const categories = Object.values(report.batch.categories);
+  report.batch.hasMore = categories.some((category) => category.hasMore);
+  report.batch.nextOffset = report.batch.hasMore ? 0 : null;
 }
 
 async function legacyReference(value, ownerFeature, ownerRecordId) {
