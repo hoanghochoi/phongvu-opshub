@@ -24,6 +24,8 @@
    sơ kể cả khi không có showroom/node được gán.
 4. Card có tên, liên hệ, ngành hàng, mã SR, tiếp xúc đầu, lần chăm sóc gần nhất
    và pill số ngày đúng màu/thứ tự.
+   Super Admin có thêm bộ lọc `Mã SR / Showroom`, mặc định xem tất cả SR và
+   khi chọn một SR thì danh sách tải lại đúng `storeCode` đã chọn.
 5. Modal giữ header khách hàng cố định, hiển thị lịch sử, tự mở lần chăm sóc kế
    tiếp và cho chọn bốn kết quả.
 6. `PURCHASED` tạo báo cáo `COMEBACK` bằng form mua hàng hiện tại, giữ báo cáo
@@ -34,6 +36,13 @@
    `AppLogger` và backend log đã được làm sạch dữ liệu nhạy cảm.
 9. Realtime dùng `SALES_REPORT_ORDERS_UPDATED` để tải lại danh sách khi hồ sơ
    được chăm sóc, phân công hoặc mở lại.
+10. Quản lý báo cáo nhập được file Excel lịch sử qua bước xem trước/xác nhận;
+    chỉ dòng chưa mua hợp lệ đúng scope được tạo thành báo cáo
+    `HISTORICAL_IMPORT` và follow-up `OPEN`. Dòng đã mua, lỗi hoặc trùng được bỏ
+    qua có thống kê. Nhân viên chưa khớp để chưa phân công nhưng giữ email/MSNV
+    nguồn; bốn câu hỏi không có trong file ghi `NOT_CAPTURED`. Checksum và
+    fingerprint ngăn xác nhận sai file hoặc nhập trùng, batch audit không giữ
+    nguyên file/PII.
 
 ## Proof plan
 
@@ -45,3 +54,6 @@
 - Repo: `git diff --check`, audit đúng file/hunk trước commit.
 - Runtime còn cần sau deploy: chạy migration trên staging, kiểm tra backfill,
   gọi/Zalo trên thiết bị thật và xác nhận ERP creator của đơn comeback.
+- Import Excel: parser/service test bao phủ template, chuẩn hóa thời gian/phone/
+  kênh, lý do khác, scope, owner chưa khớp, checksum và tạo follow-up; widget
+  test bao phủ quyền hiển thị, preview, commit và tự tải lại danh sách.

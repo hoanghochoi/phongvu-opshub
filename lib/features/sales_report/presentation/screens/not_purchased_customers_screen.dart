@@ -22,10 +22,14 @@ import '../../../../core/logging/app_logger.dart';
 import '../../../../core/network/api_client.dart';
 import '../../../../core/network/api_exception.dart';
 import '../../../../core/network/realtime_connection_manager.dart';
+import '../../../auth/data/repositories/auth_repository.dart';
+import '../../../auth/domain/entities/store_branch.dart';
+import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../data/sales_report_repository.dart';
 import '../../domain/sales_report.dart';
 import '../providers/sales_report_provider.dart';
 import 'sales_report_screen.dart';
+import 'sales_report_import_dialog.dart';
 
 const _outcomeNotPurchased = 'NOT_PURCHASED';
 const _outcomePurchased = 'PURCHASED';
@@ -46,16 +50,22 @@ const _reasonOptions = <String, String>{
 
 class NotPurchasedCustomersScreen extends StatefulWidget {
   final SalesReportRepository? repository;
+  final AuthRepository? authRepository;
+  final Future<List<StoreBranch>> Function()? storeLoader;
   final RealtimeClient? realtimeClient;
   final Duration realtimeDebounce;
   final Duration realtimeMaxWait;
+  final SalesReportImportFilePicker? importFilePicker;
 
   const NotPurchasedCustomersScreen({
     super.key,
     this.repository,
+    this.authRepository,
+    this.storeLoader,
     this.realtimeClient,
     this.realtimeDebounce = const Duration(seconds: 2),
     this.realtimeMaxWait = const Duration(seconds: 5),
+    this.importFilePicker,
   });
 
   @override
@@ -69,6 +79,7 @@ class _NotPurchasedCustomersScreenState
   static const String _realtimeKind = 'SALES_REPORT_ORDERS_UPDATED';
 
   late final SalesReportRepository _repository;
+  late final Future<List<StoreBranch>> Function() _storeLoader;
   late final RealtimeClient _realtimeClient;
   final _searchController = TextEditingController();
   SalesReportFollowUpPage? _data;
@@ -83,11 +94,19 @@ class _NotPurchasedCustomersScreenState
   Timer? _realtimeMaxWaitTimer;
   bool _realtimeRefreshDirty = false;
   bool _realtimeRefreshInFlight = false;
+  bool _isSuperAdmin = false;
+  bool _canImport = false;
+  bool _storeLoading = false;
+  String? _storeError;
+  String? _selectedStoreCode;
+  List<StoreBranch> _stores = const [];
 
   @override
   void initState() {
     super.initState();
     _repository = widget.repository ?? SalesReportRepository(ApiClient());
+    final authRepository = widget.authRepository ?? AuthRepository(ApiClient());
+    _storeLoader = widget.storeLoader ?? authRepository.getStores;
     _realtimeClient =
         widget.realtimeClient ?? RealtimeConnectionManager.instance;
     _realtimeEventSubscription = _realtimeClient.events.listen(
@@ -97,8 +116,65 @@ class _NotPurchasedCustomersScreenState
       _handleRealtimeSyncRequest,
     );
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      _initializeAccess();
       unawaited(_load());
     });
+  }
+
+  void _initializeAccess() {
+    final user = Provider.of<AuthProvider?>(context, listen: false)?.user;
+    final isSuperAdmin = user?.isSuperAdmin == true;
+    final canImport = user?.canUseFeature('ADMIN_SALES_REPORTS') == true;
+    if (_isSuperAdmin != isSuperAdmin || _canImport != canImport) {
+      setState(() {
+        _isSuperAdmin = isSuperAdmin;
+        _canImport = canImport;
+      });
+    }
+    if (isSuperAdmin) unawaited(_loadSuperAdminStores());
+  }
+
+  Future<void> _loadSuperAdminStores() async {
+    if (!_isSuperAdmin || _storeLoading) return;
+    setState(() {
+      _storeLoading = true;
+      _storeError = null;
+    });
+    final startedAt = DateTime.now();
+    await AppLogger.instance.info(
+      'SalesReportFollowUp',
+      'Super Admin SR filter load started',
+    );
+    try {
+      final stores = await _storeLoader();
+      if (!mounted) return;
+      setState(() => _stores = stores);
+      await AppLogger.instance.info(
+        'SalesReportFollowUp',
+        'Super Admin SR filter load succeeded',
+        context: {
+          'count': stores.length,
+          'durationMs': DateTime.now().difference(startedAt).inMilliseconds,
+        },
+      );
+    } catch (error, stackTrace) {
+      if (mounted) {
+        setState(
+          () => _storeError = 'Chưa tải được danh sách SR. Vui lòng thử lại.',
+        );
+      }
+      await AppLogger.instance.error(
+        'SalesReportFollowUp',
+        'Super Admin SR filter load failed',
+        error: error,
+        stackTrace: stackTrace,
+        context: {
+          'durationMs': DateTime.now().difference(startedAt).inMilliseconds,
+        },
+      );
+    } finally {
+      if (mounted) setState(() => _storeLoading = false);
+    }
   }
 
   @override
@@ -216,11 +292,13 @@ class _NotPurchasedCustomersScreenState
           'status': _status,
           'page': _page,
           'hasSearch': _searchController.text.trim().isNotEmpty,
+          'storeCode': _selectedStoreCode,
         },
       );
       final result = await _repository.fetchFollowUpCases(
         status: _status,
         search: _searchController.text,
+        storeCode: _selectedStoreCode,
         page: _page,
       );
       if (!mounted) return;
@@ -292,6 +370,20 @@ class _NotPurchasedCustomersScreenState
     if (changed == true && mounted) await _load();
   }
 
+  Future<void> _openImport() async {
+    await AppLogger.instance.info(
+      'SalesReportImport',
+      'Historical customer import dialog opened from follow-up workspace',
+    );
+    if (!mounted) return;
+    final changed = await showSalesReportImportDialog(
+      context: context,
+      repository: _repository,
+      filePicker: widget.importFilePicker,
+    );
+    if (changed == true && mounted) await _load(page: 0);
+  }
+
   @override
   Widget build(BuildContext context) {
     final data = _data;
@@ -312,6 +404,7 @@ class _NotPurchasedCustomersScreenState
             total: data?.total ?? 0,
             contactGracePeriodActive: data?.contactGracePeriodActive ?? false,
             contactGracePeriodEndsAt: data?.contactGracePeriodEndsAt,
+            onImport: _canImport ? _openImport : null,
           ),
           const SizedBox(height: 16),
           LayoutBuilder(
@@ -342,17 +435,79 @@ class _NotPurchasedCustomersScreenState
                   unawaited(_load(page: 0));
                 },
               );
+              final storeFilter = _isSuperAdmin
+                  ? Row(
+                      children: [
+                        Expanded(
+                          child: AppCombobox<String>.single(
+                            label: 'Mã SR / Showroom',
+                            value: _selectedStoreCode,
+                            emptyLabel: _storeLoading
+                                ? 'Đang tải danh sách SR'
+                                : 'Tất cả SR',
+                            helperText: _storeError,
+                            icon: Icons.storefront_outlined,
+                            enabled: !_storeLoading,
+                            options: _storeOptions,
+                            onChanged: (value) {
+                              setState(() => _selectedStoreCode = value);
+                              unawaited(
+                                AppLogger.instance.info(
+                                  'SalesReportFollowUp',
+                                  'Super Admin SR filter changed',
+                                  context: {'storeCode': value},
+                                ),
+                              );
+                              unawaited(_load(page: 0));
+                            },
+                          ),
+                        ),
+                        if (_storeError != null) ...[
+                          const SizedBox(width: 8),
+                          Tooltip(
+                            message: 'Tải lại danh sách SR',
+                            child: IconButton.outlined(
+                              onPressed: _storeLoading
+                                  ? null
+                                  : () => unawaited(_loadSuperAdminStores()),
+                              icon: const Icon(Icons.refresh_rounded),
+                            ),
+                          ),
+                        ],
+                      ],
+                    )
+                  : null;
               if (compact) {
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [search, const SizedBox(height: 12), filters],
+                  children: [
+                    search,
+                    const SizedBox(height: 12),
+                    filters,
+                    if (storeFilter != null) ...[
+                      const SizedBox(height: 12),
+                      storeFilter,
+                    ],
+                  ],
                 );
               }
-              return Row(
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Expanded(child: search),
-                  const SizedBox(width: 12),
-                  filters,
+                  Row(
+                    children: [
+                      Expanded(child: search),
+                      const SizedBox(width: 12),
+                      filters,
+                    ],
+                  ),
+                  if (storeFilter != null) ...[
+                    const SizedBox(height: 12),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: SizedBox(width: 360, child: storeFilter),
+                    ),
+                  ],
                 ],
               );
             },
@@ -427,17 +582,38 @@ class _NotPurchasedCustomersScreenState
       ),
     );
   }
+
+  List<AppComboboxOption<String>> get _storeOptions {
+    final seen = <String>{};
+    final options = <AppComboboxOption<String>>[];
+    for (final store in _stores) {
+      final code = store.storeId.trim().toUpperCase();
+      if (code.isEmpty || !seen.add(code)) continue;
+      final name = store.storeName.trim();
+      options.add(
+        AppComboboxOption<String>(
+          value: code,
+          label: name.isEmpty ? code : '$code - $name',
+          searchKeywords: [code, name],
+        ),
+      );
+    }
+    options.sort((a, b) => a.value.compareTo(b.value));
+    return options;
+  }
 }
 
 class _PageHeader extends StatelessWidget {
   final int total;
   final bool contactGracePeriodActive;
   final DateTime? contactGracePeriodEndsAt;
+  final VoidCallback? onImport;
 
   const _PageHeader({
     required this.total,
     required this.contactGracePeriodActive,
     required this.contactGracePeriodEndsAt,
+    required this.onImport,
   });
 
   @override
@@ -464,6 +640,16 @@ class _PageHeader extends StatelessWidget {
             ],
           ),
         ),
+        if (onImport != null) ...[
+          const SizedBox(width: 12),
+          AppSecondaryButton(
+            onPressed: onImport,
+            icon: Icons.upload_file_rounded,
+            label: 'Nhập Excel',
+            expand: false,
+            height: 44,
+          ),
+        ],
       ],
     ),
   );

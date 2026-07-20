@@ -189,6 +189,11 @@ Recent focused evidence:
   migration trên PostgreSQL thật do Docker local không chạy và compose secrets
   chưa được cấu hình.
 
+- `SALES-REPORT-002`, 2026-07-20: màn hình `Chăm sóc lại` thêm bộ lọc
+  `Mã SR / Showroom` chỉ cho Super Admin; chọn SR truyền `storeCode` vào API,
+  reset về trang đầu và giữ nguyên scope của các vai trò khác. Validation:
+  focused Flutter follow-up widget test và affected-runtime guard.
+
 - `AUTH-004`, 2026-07-15: passive production evidence showed healthy resource
   headroom while HTTP 429 reached 8,814/13,416 requests in 30 minutes;
   `/home/summary` alone returned 798/2,115 throttles. That evidence diagnoses
@@ -3201,6 +3206,7 @@ src/map-vietin/map-vietin.service.spec.ts` (26 tests), `npm run build`, full
 | Chăm sóc chưa mua/terminal/mở lại      | Flutter widget + API service test                                                                          | Thử đồng thời hai thiết bị và kiểm tra conflict                         |
 | Comeback mua hàng                      | sales report service test + Flutter form test                                                              | Kiểm tra ERP `order.creator.email`, báo cáo gốc và báo cáo mua liên kết |
 | Realtime                               | provider/channel test                                                                                      | Mở hai client và xác nhận danh sách tự tải lại                          |
+| Nhập Excel dữ liệu lịch sử             | `sales-report-import-parser.service.spec.ts`, `sales-report-import.service.spec.ts`, `not_purchased_customers_test.dart` | Chạy migration, nhập file thật có ≤1.000 dòng; đối chiếu thống kê, scope SR, hồ sơ chưa phân công và thử nhập lại cùng file |
 
 ## AuthContext atomic-version proof
 

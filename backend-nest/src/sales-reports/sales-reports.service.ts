@@ -229,6 +229,7 @@ export type HomeSummaryScopeOption = {
 };
 
 const ANSWER_LABELS: Record<string, string> = {
+  NOT_CAPTURED: 'Không có dữ liệu lịch sử',
   YES: 'Có',
   CUSTOMER_BUSY_OR_NO_NEED:
     'Không - KH vội/không có nhu cầu/không muốn tư vấn/chỉ tham quan',
@@ -4216,11 +4217,13 @@ export class SalesReportsService implements OnApplicationBootstrap {
       entrySourceLabel:
         row.entrySource === 'COMEBACK'
           ? 'Khách quay lại'
-          : row.entrySource === 'SYNC_LIST'
-            ? 'Danh sách đồng bộ'
-            : row.entrySource === 'MANUAL_ENTRY'
-              ? 'Nhập thủ công'
-              : null,
+          : row.entrySource === 'HISTORICAL_IMPORT'
+            ? 'Nhập dữ liệu lịch sử'
+            : row.entrySource === 'SYNC_LIST'
+              ? 'Danh sách đồng bộ'
+              : row.entrySource === 'MANUAL_ENTRY'
+                ? 'Nhập thủ công'
+                : null,
       storeCode: row.storeCode,
       storeName: row.storeName,
       organizationNodeName: row.organizationNodeName,

@@ -12,6 +12,7 @@ const INSTALLMENT_SUCCESS = 'SUCCESS';
 const INSTALLMENT_FAILED = 'FAILED';
 
 const ANSWER_LABELS: Record<string, string> = {
+  NOT_CAPTURED: 'Không có dữ liệu lịch sử',
   YES: 'Có',
   CUSTOMER_BUSY_OR_NO_NEED:
     'Không - KH vội/không có nhu cầu/không muốn tư vấn/chỉ tham quan',

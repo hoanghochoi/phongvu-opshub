@@ -852,6 +852,31 @@ model SalesReportCategoryGroup {
   @@index([isActive, sortOrder])
 }
 
+model SalesReportImportBatch {
+  id               String    @id @default(uuid())
+  fileName         String
+  fileHash         String
+  status           String    @default("PROCESSING")
+  importedByUserId String?
+  importedByEmail  String?
+  importedByName   String?
+  totalRows        Int       @default(0)
+  validRows        Int       @default(0)
+  importedRows     Int       @default(0)
+  purchasedRows    Int       @default(0)
+  duplicateRows    Int       @default(0)
+  invalidRows      Int       @default(0)
+  unassignedRows   Int       @default(0)
+  createdAt        DateTime  @default(now())
+  completedAt      DateTime?
+
+  reports SalesReport[]
+
+  @@index([fileHash, createdAt])
+  @@index([importedByUserId, createdAt])
+  @@index([status, createdAt])
+}
+
 model SalesReport {
   id                             String                   @id @default(uuid())
   reportType                     String
@@ -890,6 +915,7 @@ model SalesReport {
   createdByEmail                 String?
   createdByName                  String?
   createdByPersonnelCode         String?
+  sourceSalespersonCode          String?
   storeCode                      String?
   storeName                      String?
   organizationNodeId             String?
@@ -924,6 +950,9 @@ model SalesReport {
   erpExclusionReason             String?
   rawResponses                   Json?
   entrySource                    String?
+  importFingerprint              String?                  @unique
+  importBatchId                  String?
+  importBatch                    SalesReportImportBatch?  @relation(fields: [importBatchId], references: [id], onDelete: SetNull, onUpdate: Cascade)
   submittedByUserId              String?
   submittedByEmail               String?
   submittedByName                String?
@@ -952,6 +981,7 @@ model SalesReport {
   @@index([erpLifecycleStatus, erpStatusCheckedAt])
   @@index([erpLifecycleStatus, erpStatusCheckAttemptDate])
   @@index([entrySource, submittedAt])
+  @@index([importBatchId])
 }
 
 model SalesReportFollowUpCase {
