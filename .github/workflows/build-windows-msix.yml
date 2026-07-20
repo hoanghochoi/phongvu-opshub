@@ -1,4 +1,4 @@
-name: Build Windows MSIX Store Package
+name: Build Windows MSIX Package
 
 on:
   workflow_dispatch:
@@ -11,12 +11,24 @@ on:
           - production
           - staging
         default: production
+      package_kind:
+        description: Internal sideload MSIX uses OpsHub signing PFX; Store MSIX uses Partner Center identity.
+        required: true
+        type: choice
+        options:
+          - internal
+          - store
+        default: internal
       version_name:
         description: Optional app version name. Leave empty to use UTC date plus run number.
         required: false
         type: string
+      version_code:
+        description: Optional Flutter build number. Use this to match a published EXE build exactly.
+        required: false
+        type: string
       msix_version:
-        description: Optional Store package version a.b.c.d. Leave empty to use UTC date plus run number.
+        description: Optional MSIX package version a.b.c.d. Leave empty to use UTC date plus run number.
         required: false
         type: string
 
@@ -24,7 +36,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: windows-msix-store-${{ inputs.environment }}
+  group: windows-msix-${{ inputs.environment }}-${{ inputs.package_kind }}
   cancel-in-progress: false
 
 env:
@@ -48,7 +60,9 @@ jobs:
         shell: bash
         env:
           INPUT_ENVIRONMENT: ${{ inputs.environment }}
+          INPUT_PACKAGE_KIND: ${{ inputs.package_kind }}
           INPUT_VERSION_NAME: ${{ inputs.version_name }}
+          INPUT_VERSION_CODE: ${{ inputs.version_code }}
           INPUT_MSIX_VERSION: ${{ inputs.msix_version }}
         run: |
           set -euo pipefail
@@ -59,6 +73,12 @@ jobs:
           else
             api_base_url="$OPSHUB_PRODUCTION_API_BASE_URL"
             build_offset=100000
+          fi
+
+          if [ "$INPUT_PACKAGE_KIND" = "store" ]; then
+            package_suffix="windows-store"
+          else
+            package_suffix="windows-internal-msix"
           fi
 
           version_name="$INPUT_VERSION_NAME"
@@ -88,8 +108,16 @@ jobs:
           done
 
           windows_build_name="$(date -u +%Y).$(date -u +%-m).$(date -u +%-d)"
-          version_code="$((build_offset + GITHUB_RUN_NUMBER))"
-          windows_msix_basename="phongvu-opshub-${INPUT_ENVIRONMENT}-windows-store-v${version_name}+${version_code}"
+          version_code="$INPUT_VERSION_CODE"
+          if [ -z "$version_code" ]; then
+            version_code="$((build_offset + GITHUB_RUN_NUMBER))"
+          fi
+          if ! [[ "$version_code" =~ ^[0-9]+$ ]] || [ "$version_code" -le 0 ]; then
+            echo "version_code must be a positive integer: $version_code" >&2
+            exit 1
+          fi
+
+          windows_msix_basename="phongvu-opshub-${INPUT_ENVIRONMENT}-${package_suffix}-v${version_name}+${version_code}"
           windows_msix_name="${windows_msix_basename}.msix"
 
           echo "api_base_url=${api_base_url}" >> "$GITHUB_OUTPUT"
@@ -100,7 +128,82 @@ jobs:
           echo "windows_msix_name=${windows_msix_name}" >> "$GITHUB_OUTPUT"
           echo "windows_msix_version=${windows_msix_version}" >> "$GITHUB_OUTPUT"
 
-  build_msix:
+  build_internal_msix:
+    if: inputs.package_kind == 'internal'
+    runs-on: windows-latest
+    needs: prepare
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Apply Windows staging icon
+        if: inputs.environment == 'staging'
+        shell: pwsh
+        run: .\scripts\apply-staging-icons.ps1 -Platform windows
+
+      - name: Build Windows release
+        shell: pwsh
+        run: |
+          flutter pub get
+          flutter build windows --release `
+            --build-name "${{ needs.prepare.outputs.windows_build_name }}" `
+            --build-number "${{ needs.prepare.outputs.version_code }}" `
+            --dart-define "API_BASE_URL=${{ needs.prepare.outputs.api_base_url }}"
+
+      - name: Configure internal MSIX signing certificate
+        shell: pwsh
+        env:
+          WINDOWS_SIGNING_PFX_BASE64: ${{ secrets.WINDOWS_SIGNING_PFX_BASE64 }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:WINDOWS_SIGNING_PFX_BASE64)) {
+            throw 'Repository secret WINDOWS_SIGNING_PFX_BASE64 is required for internal MSIX packaging.'
+          }
+          $certPath = Join-Path $env:RUNNER_TEMP 'opshub-msix-signing.pfx'
+          [IO.File]::WriteAllBytes($certPath, [Convert]::FromBase64String($env:WINDOWS_SIGNING_PFX_BASE64))
+          "WINDOWS_MSIX_SIGNING_PFX_PATH=$certPath" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Build internal signed MSIX
+        shell: pwsh
+        env:
+          WINDOWS_MSIX_SIGNING_PFX_PASSWORD: ${{ secrets.WINDOWS_SIGNING_PFX_PASSWORD }}
+        run: |
+          $logoPath = if ('${{ inputs.environment }}' -eq 'staging') {
+            'assets\icon\staging\source\app_icon_padded.png'
+          } else {
+            'assets\icon\source\app_icon_padded.png'
+          }
+          .\scripts\build-windows-msix-internal.ps1 `
+            -MsixVersion "${{ needs.prepare.outputs.windows_msix_version }}" `
+            -OutputName "${{ needs.prepare.outputs.windows_msix_basename }}" `
+            -CertificatePath "$env:WINDOWS_MSIX_SIGNING_PFX_PATH" `
+            -CertificatePassword "$env:WINDOWS_MSIX_SIGNING_PFX_PASSWORD" `
+            -LogoPath $logoPath
+
+      - name: Scan MSIX with Microsoft Defender
+        shell: pwsh
+        run: |
+          .\scripts\scan-windows-artifact-defender.ps1 -Path @(
+            'build\windows\msix\${{ needs.prepare.outputs.windows_msix_name }}'
+          )
+
+      - name: Upload MSIX artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: ${{ needs.prepare.outputs.windows_msix_basename }}
+          path: |
+            build/windows/msix/${{ needs.prepare.outputs.windows_msix_name }}
+            build/windows/msix/${{ needs.prepare.outputs.windows_msix_name }}.sha256
+          if-no-files-found: error
+          retention-days: 14
+
+  build_store_msix:
+    if: inputs.package_kind == 'store'
     runs-on: windows-latest
     needs: prepare
     environment: ${{ inputs.environment }}
@@ -146,14 +249,14 @@ jobs:
             -OutputName "${{ needs.prepare.outputs.windows_msix_basename }}" `
             -LogoPath $logoPath
 
-      - name: Scan Store MSIX with Microsoft Defender
+      - name: Scan MSIX with Microsoft Defender
         shell: pwsh
         run: |
           .\scripts\scan-windows-artifact-defender.ps1 -Path @(
             'build\windows\msix\${{ needs.prepare.outputs.windows_msix_name }}'
           )
 
-      - name: Upload Store MSIX artifact
+      - name: Upload MSIX artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: ${{ needs.prepare.outputs.windows_msix_basename }}

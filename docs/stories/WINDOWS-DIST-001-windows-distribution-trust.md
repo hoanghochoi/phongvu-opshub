@@ -27,10 +27,11 @@ using Microsoft Store or buying a public code-signing certificate.
 - Documentation defines the internal trust requirement: deploy the public code-
   signing certificate to `Trusted Root Certification Authorities` and `Trusted
   Publishers` on target PCs.
-- Microsoft Store/MSIX distribution is in scope as a separate manual packaging
-  path. The Store MSIX workflow builds and uploads a GitHub Actions artifact for
-  Partner Center, but does not deploy it to the VPS and does not change the
-  live EXE/ZIP/download/app-version runtime contract.
+- MSIX distribution is in scope as a separate manual packaging path. The MSIX
+  workflow can build an internal signed sideload artifact with the Windows
+  signing PFX, or a Store artifact with Partner Center identity secrets. Neither
+  path deploys to the VPS or changes the live EXE/ZIP/download/app-version
+  runtime contract.
 
 ## Validation
 
@@ -42,11 +43,13 @@ using Microsoft Store or buying a public code-signing certificate.
 - Scan the local installer and portable ZIP with Microsoft Defender.
 - Generate and inspect the Windows `.sha256` file.
 - Parse the GitHub workflow YAML.
-- Build the Store MSIX with Partner Center identity secrets, scan it with
-  Microsoft Defender, and upload the MSIX plus checksum as workflow artifacts.
+- Build the internal MSIX with Windows signing secrets or the Store MSIX with
+  Partner Center identity secrets, scan it with Microsoft Defender, and upload
+  the MSIX plus checksum as workflow artifacts.
 - Run `git diff --check`.
 - Signed CI proof must show the final Defender gate passing before checksums and
   upload, plus valid Authenticode/timestamp and a matching signer pin. Target-PC
   trust still requires a managed PC with the public `.cer` installed separately.
-- Store/MSIX proof must also show Partner Center identity acceptance and a clean
-  Store install/update smoke before replacing any EXE update path.
+- Store/MSIX proof must also show the selected channel's identity/signature
+  acceptance, Partner Center identity acceptance when applicable, and a clean
+  install/update smoke before replacing any EXE update path.
