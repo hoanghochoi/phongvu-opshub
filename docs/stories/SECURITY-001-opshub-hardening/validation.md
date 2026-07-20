@@ -215,5 +215,13 @@
   references. Four new reference-audit tests plus the ten telemetry/batch tests
   passed 14/14, and the platform-security contract passed. Prisma generate,
   Nest build and reviewed runtime packaging (284 files, auditor/helper both
-  present) passed. Staging execution and live production post-batch proof
-  remain pending.
+  present) passed. Staging run `29729119859` deployed exact SHA `bc9ca1c8...`.
+  A run without `--build` proved the maintenance tag could remain stale even
+  after the migrate image was built; rerunning with `-T --build` and closed
+  stdin loaded the new auditor, passed preflight and final zero-legacy gates,
+  rejected an unknown flag, left no maintenance container and kept all five
+  services healthy. Live production post-batch proof remains pending.
+- The cutover command now reads the persistent current and rolled telemetry
+  files (including `.gz`) server-side and pipes them directly into the auditor;
+  it no longer relies on container-local `docker logs --since 168h`. Platform
+  verification prevents regression to the ephemeral source.

@@ -3074,8 +3074,15 @@ src/map-vietin/map-vietin.service.spec.ts` (26 tests), `npm run build`, full
   fail-closed argument parsing, telemetry/batch regressions, and no-raw-value
   output passed 14/14 Node tests; the platform security contract also passed.
   Prisma generate, Nest build and reviewed runtime packaging (284 files,
-  auditor/helper both present) passed. Staging execution and live production
-  post-batch proof remain pending.
+  auditor/helper both present) passed. Staging run `29729119859` deployed exact
+  SHA `bc9ca1c8...`; the first maintenance run exposed a stale service image,
+  while `-T --build` with closed stdin loaded the new auditor and passed
+  preflight/final/unknown-flag gates with zero leftover maintenance containers.
+  Manual cutover now reads persistent and compressed rolled telemetry
+  server-side instead of ephemeral Docker logs. CodeQL JavaScript/TypeScript and
+  Go jobs passed; staging `/api/health` returned 200 while `/health` correctly
+  redirected through Cloudflare Access. Live production post-batch proof
+  remains pending.
 
 ## QUICK-ACTIONS-001 — Thao tác nhanh v1 (2026-07-13)
 

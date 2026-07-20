@@ -880,3 +880,14 @@ Caddy và chưa chạy migration apply.
    reference tương đối có thể resolve vào `/uploads`; không xuất URL/path/id.
    Preflight chạy `--strict`, post-batch cuối bắt buộc
    `--strict --fail-on-legacy` và chỉ cutover khi tổng legacy bằng 0.
+
+8. One-shot maintenance phải build đúng source của symlink release hiện hành:
+   luôn dùng `run --rm -T --build ... < /dev/null`. Không suy diễn image
+   `maintenance` đã mới chỉ vì deploy vừa build service `migrate`; Compose dùng
+   tag khác nhau. Kiểm container rác bằng label service. Staging run
+   `29729119859` đã tái hiện stale-image khi thiếu `--build` và pass đủ
+   preflight/final/typo gate sau khi build đúng image.
+
+9. Gate telemetry 7–14 ngày phải đọc file persistent và rolled `.gz` trực tiếp
+   trên server, pipe vào auditor; không dùng `docker logs --since 168h` vì Caddy
+   recreate sẽ làm history container không đại diện toàn cửa sổ.

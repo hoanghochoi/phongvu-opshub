@@ -119,6 +119,7 @@ const [
   feedbackAdminScreen,
   auditPrivateMedia,
   privateMediaReferenceAudit,
+  securityManualActions,
 ] = await Promise.all([
   text('deploy/home-server/Caddyfile'),
   text('deploy/home-server/docker-compose.home.yml'),
@@ -154,6 +155,7 @@ const [
   text('lib/features/admin/presentation/screens/feedback_admin_screen.dart'),
   text('backend-nest/scripts/audit-private-media.mjs'),
   text('backend-nest/scripts/private-media-reference-audit.mjs'),
+  text('app-security-manual-actions-12072026.md'),
 ]);
 
 assertWorkflowRunExpressionLengths(productionWorkflow, 'production workflow');
@@ -316,6 +318,49 @@ contains(
   privateMediaReferenceAudit,
   "if (matchesRoute(target, legacyBase, legacyBase.pathname)) return 'legacy';",
   'private media exact legacy route classification',
+);
+assert.ok(
+  securityManualActions.split(
+    '--profile maintenance run --rm -T --build maintenance',
+  ).length -
+    1 >=
+    5,
+  'private media maintenance commands must rebuild the current release image',
+);
+contains(
+  securityManualActions,
+  '--profile maintenance run --rm -T --build --no-deps maintenance',
+  'legacy telemetry audit rebuilds the current release image',
+);
+contains(
+  securityManualActions,
+  '/srv/opshub/caddy/data/legacy-uploads-access.log*',
+  'legacy telemetry cutover reads persistent and rolled files',
+);
+contains(
+  securityManualActions,
+  'gzip -cd -- "$f"',
+  'legacy telemetry cutover reads compressed rotations server-side',
+);
+contains(
+  securityManualActions,
+  'security:audit-legacy-upload-access -- --strict --fail-on-hits',
+  'legacy telemetry cutover fails when any hashed hit remains',
+);
+excludes(
+  securityManualActions,
+  'docker logs --since 168h',
+  'legacy telemetry cutover must not rely on ephemeral Docker logs',
+);
+excludes(
+  securityManualActions,
+  'security:audit-legacy-upload-access -- --strict --fail-on-hits < /dev/null',
+  'legacy telemetry input pipe must not be replaced with empty stdin',
+);
+contains(
+  securityManualActions,
+  '< /dev/null',
+  'maintenance commands close stdin for remote execution',
 );
 
 contains(localCompose, '127.0.0.1:5432:5432', 'local PostgreSQL binding');

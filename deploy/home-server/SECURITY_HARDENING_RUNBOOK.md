@@ -219,6 +219,13 @@ hoặc giữ private identity.
   `security:audit-private-media -- --strict --fail-on-legacy`; chỉ đạt khi
   `legacyReferencesClear=true` và `legacyReferencesTotal=0`. Exit `3` chặn
   cutover; report chỉ chứa aggregate, không URL/path/record id.
+- [ ] Mọi `maintenance run` cho audit/migrate/rollback phải có `-T --build`.
+  Database command đóng stdin bằng `< /dev/null`; legacy telemetry auditor phải
+  giữ stdin duy nhất từ pipeline persistent log, không được redirect đè thành
+  rỗng. Service `migrate` và `maintenance` có image tag Compose khác nhau dù
+  cùng Docker target `ops`; thiếu `--build` có thể chạy script từ release cũ.
+  Kiểm container còn sót bằng Docker label
+  `com.docker.compose.service=maintenance`, không dùng `compose ps` toàn project.
 
 ### 7.2 API multi-replica qua Docker DNS
 
