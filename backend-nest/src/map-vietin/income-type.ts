@@ -41,7 +41,6 @@ export function normalizeIncomeTypeContent(value: unknown): string {
 
 export function classifyMapVietinIncomeType(
   content: unknown,
-  storeCode?: unknown,
   payerAccount?: unknown,
 ): MapVietinIncomeType {
   const normalized = normalizeIncomeTypeContent(content);
@@ -64,11 +63,7 @@ export function classifyMapVietinIncomeType(
   ) {
     return MAP_VIETIN_INCOME_TYPE.PARTNER_INTERNAL;
   }
-  const normalizedStoreCode = normalizeIncomeTypeContent(storeCode);
-  if (
-    normalizedStoreCode &&
-    normalized.includes(`TNG${normalizedStoreCode}NOPTIEN`)
-  ) {
+  if (normalized.startsWith('TNG')) {
     return MAP_VIETIN_INCOME_TYPE.PARTNER_INTERNAL;
   }
   return MAP_VIETIN_INCOME_TYPE.SALES;

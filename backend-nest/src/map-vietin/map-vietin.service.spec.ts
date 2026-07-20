@@ -264,7 +264,7 @@ describe('MapVietinService', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it('allows statement reads from all-scope policy without base statement policy', async () => {
+  it('limits a non-FIN all-scope user to sales statements', async () => {
     const financeUser = {
       id: 'finance-1',
       role: 'USER',
@@ -283,7 +283,7 @@ describe('MapVietinService', () => {
     });
 
     expect(prisma.mapVietinTransaction.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({ where: {} }),
+      expect.objectContaining({ where: { incomeType: 'SALES' } }),
     );
     expect(policyService.canAccessPolicy).toHaveBeenCalledWith(
       financeUser,
@@ -324,12 +324,17 @@ describe('MapVietinService', () => {
     );
     expect(prisma.mapVietinTransaction.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { storeCode: 'CP01' },
+        where: {
+          AND: expect.arrayContaining([
+            { storeCode: 'CP01' },
+            { incomeType: 'SALES' },
+          ]),
+        },
       }),
     );
   });
 
-  it('allows SR users to see both income types for global lookup', async () => {
+  it('limits SR users to sales income even for global lookup', async () => {
     prisma.mapVietinTransaction.findMany.mockResolvedValue([]);
     prisma.mapVietinTransaction.count.mockResolvedValue(0);
 
@@ -338,7 +343,8 @@ describe('MapVietinService', () => {
     } as any);
 
     const where = prisma.mapVietinTransaction.findMany.mock.calls[0][0].where;
-    expect(JSON.stringify(where)).not.toContain('incomeType');
+    expect(JSON.stringify(where)).toContain('incomeType');
+    expect(JSON.stringify(where)).toContain('SALES');
   });
 
   it('allows FIN_ACC users to see both income types in the same scope', async () => {
@@ -380,6 +386,34 @@ describe('MapVietinService', () => {
     });
   });
 
+  it('classifies provider content starting with TNG independent of mapped store', () => {
+    const normalized = (service as any).normalizeTransaction('CP01', {
+      amount: 40708000,
+      transactionDescription: 'TNG CP69 NOP TIEN N 20.07.2026',
+      transactionStatus: 'SUCCESS',
+    });
+
+    expect(normalized).toMatchObject({
+      storeCode: 'CP01',
+      incomeType: 'PARTNER_INTERNAL',
+      incomeTypeSource: 'AUTO',
+    });
+  });
+
+  it('limits SUPER_ADMIN to sales unless the user belongs to FIN_ACC', async () => {
+    prisma.mapVietinTransaction.findMany.mockResolvedValue([]);
+    prisma.mapVietinTransaction.count.mockResolvedValue(0);
+
+    await service.listStatements(
+      { id: 'super-1', role: 'SUPER_ADMIN' },
+      { allStores: 'true' } as any,
+    );
+
+    expect(prisma.mapVietinTransaction.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { incomeType: 'SALES' } }),
+    );
+  });
+
   it('allows statement reads for the parent showroom of assigned Lv5 nodes', async () => {
     prisma.user.findUnique.mockResolvedValueOnce({
       store: null,
@@ -415,7 +449,12 @@ describe('MapVietinService', () => {
 
     expect(prisma.mapVietinTransaction.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { storeCode: 'CP75' },
+        where: {
+          AND: expect.arrayContaining([
+            { storeCode: 'CP75' },
+            { incomeType: 'SALES' },
+          ]),
+        },
       }),
     );
   });
@@ -2537,7 +2576,12 @@ describe('MapVietinService', () => {
 
     expect(prisma.mapVietinTransaction.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { storeCode: { in: ['CP01', 'CP02'] } },
+        where: {
+          AND: expect.arrayContaining([
+            { storeCode: { in: ['CP01', 'CP02'] } },
+            { incomeType: 'SALES' },
+          ]),
+        },
       }),
     );
     expect(prisma.store.findUnique).not.toHaveBeenCalled();
@@ -2630,7 +2674,10 @@ describe('MapVietinService', () => {
     expect(prisma.mapVietinTransaction.findMany).toHaveBeenLastCalledWith(
       expect.objectContaining({
         where: {
-          orderTransferRequests: { some: { status: 'PENDING' } },
+          AND: expect.arrayContaining([
+            { orderTransferRequests: { some: { status: 'PENDING' } } },
+            { incomeType: 'SALES' },
+          ]),
         },
       }),
     );
@@ -2644,7 +2691,12 @@ describe('MapVietinService', () => {
 
     expect(prisma.mapVietinTransaction.findMany).toHaveBeenLastCalledWith(
       expect.objectContaining({
-        where: { orderSource: 'OFFSET' },
+        where: {
+          AND: expect.arrayContaining([
+            { orderSource: 'OFFSET' },
+            { incomeType: 'SALES' },
+          ]),
+        },
       }),
     );
   });
@@ -3677,6 +3729,21 @@ describe('MapVietinService', () => {
     expect(prisma.mapVietinTransaction.update).not.toHaveBeenCalled();
   });
 
+  it('blocks SUPER_ADMIN outside FIN_ACC from changing statement income type', async () => {
+    await expect(
+      service.updateStatementIncomeType(
+        {
+          id: 'super-1',
+          email: 'root@example.com',
+          role: 'SUPER_ADMIN',
+        },
+        'stored-income-type',
+        { incomeType: 'PARTNER_INTERNAL' },
+      ),
+    ).rejects.toThrow('Bạn không có quyền thay đổi loại giao dịch sao kê.');
+    expect(prisma.mapVietinTransaction.update).not.toHaveBeenCalled();
+  });
+
   it('exports selected statement rows as XLSX', async () => {
     prisma.mapVietinTransaction.findMany.mockResolvedValue([
       {
@@ -3702,7 +3769,13 @@ describe('MapVietinService', () => {
     ]);
 
     const xlsx = await service.exportStatementsXlsx(
-      { role: 'SUPER_ADMIN' },
+      {
+        id: 'fin-node-user',
+        role: 'USER',
+        departmentCode: 'FIN_ACC',
+        featureBankStatements: true,
+        statementAllScope: true,
+      },
       { transactionIds: ['stored-1'] },
     );
 
@@ -3783,6 +3856,8 @@ describe('MapVietinService', () => {
     const serializedWhere = JSON.stringify(where);
     expect(serializedWhere).toContain('1250000');
     expect(serializedWhere).toContain('stored-1');
+    expect(serializedWhere).toContain('incomeType');
+    expect(serializedWhere).toContain('SALES');
     expect(serializedWhere).not.toContain('storeCode');
     expect(serializedWhere).not.toContain('CP01');
   });

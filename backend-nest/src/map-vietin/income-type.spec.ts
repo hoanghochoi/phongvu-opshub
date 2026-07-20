@@ -32,14 +32,19 @@ describe('map vietin income type classifier', () => {
     );
   });
 
-  it('matches TNG deposits only for the mapped store code', () => {
-    expect(classifyMapVietinIncomeType('TNG CP74 NOP TIEN', 'CP74')).toBe(
+  it.each([
+    'TNG CP69 NOP TIEN N 20.07.2026',
+    'TNG CP55 NOP QUY NGAY 19.07.2026',
+    'TNG-CP57 NOP TIEN NGAY 20/07/2026',
+    'T N G CP61 NOP TIEN DEN NGAY 20.07.2026',
+  ])('classifies content starting with TNG as partner/internal: %s', (content) => {
+    expect(classifyMapVietinIncomeType(content)).toBe(
       MAP_VIETIN_INCOME_TYPE.PARTNER_INTERNAL,
     );
-    expect(
-      classifyMapVietinIncomeType('T N G C P 7 4 N O P T I E N', 'CP74'),
-    ).toBe(MAP_VIETIN_INCOME_TYPE.PARTNER_INTERNAL);
-    expect(classifyMapVietinIncomeType('TNG CP74 NOP TIEN', 'CP75')).toBe(
+  });
+
+  it('does not classify TNG appearing after the content prefix', () => {
+    expect(classifyMapVietinIncomeType('KHACH CHUYEN TIEN TNG CP61')).toBe(
       MAP_VIETIN_INCOME_TYPE.SALES,
     );
   });
@@ -54,7 +59,7 @@ describe('map vietin income type classifier', () => {
     '117601180666',
   ])('classifies payer account %s as partner/internal', (payerAccount) => {
     expect(
-      classifyMapVietinIncomeType('Khach chuyen tien', 'CP01', payerAccount),
+      classifyMapVietinIncomeType('Khach chuyen tien', payerAccount),
     ).toBe(MAP_VIETIN_INCOME_TYPE.PARTNER_INTERNAL);
   });
 
@@ -62,7 +67,6 @@ describe('map vietin income type classifier', () => {
     expect(
       classifyMapVietinIncomeType(
         'Khach chuyen tien',
-        'CP01',
         '113 000 179 095',
       ),
     ).toBe(MAP_VIETIN_INCOME_TYPE.PARTNER_INTERNAL);

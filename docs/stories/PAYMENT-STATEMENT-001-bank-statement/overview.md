@@ -30,8 +30,8 @@ versioned in code. Matching only uppercases and removes whitespace. Exact
 partner/internal rules are compact content starting with `BCCN`, `BCCP`,
 `BCCTY`, or `BCDKKD`; containing `NHATTIN`, `VNPAYTT217344`, `SHOPEEPAYMS`,
 `SHOPEEWSSSELLERWITHDRAWAL`, `GIAOHANGTIETKIEMCHUYENTIENCOD`,
-`TTGDQUAVIZALOPAY`, or `DIEUTIENTUDONG`; or containing
-`TNG<storeCode>NOPTIEN` for the mapped store. Payer accounts `8637988888`,
+`TTGDQUAVIZALOPAY`, or `DIEUTIENTUDONG`; or compact content starting with
+`TNG`, independent of mapped store and subsequent wording. Payer accounts `8637988888`,
 `0302607125`, `113000179095`, `110600994666`, `1011103131001`,
 `0071001142275`, and `117601180666` also mark the row partner/internal. Generic
 `VNPAY`, `So GD goc`, `CT DEN`, and numeric content remain `Bán hàng` unless
@@ -39,11 +39,12 @@ another exact rule matches.
 Existing rows are backfilled by the same rules in the migration; later syncs
 only reclassify rows whose `incomeTypeSource` is still `AUTO`.
 
-All statement users can see both income types within their existing
-organization/showroom scope, including global lookup and selected-row export.
-FIN_ACC and existing protected-statement administrators can change the type by
-clicking the Flutter pill. Such changes are stored as `MANUAL` and survive later
-MAP/eFAST syncs. Mobile collapses the filter panel after a successful search.
+Only users belonging to `FIN_ACC` can see both income types within their
+existing organization/showroom scope. Every other user is constrained to
+`SALES`, including global lookup and selected-row export. Only `FIN_ACC` can
+change the type by clicking the Flutter pill. Such changes are stored as
+`MANUAL` and survive later MAP/eFAST syncs. Mobile collapses the filter panel
+after a successful search.
 
 ## Affected Areas
 

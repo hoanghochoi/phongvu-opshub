@@ -444,6 +444,15 @@ Recent focused evidence:
   production health, and an authenticated live export parsed successfully as
   a 540,952-byte XLSX workbook with one worksheet. No migration or client
   release was required.
+- `PAYMENT-STATEMENT-001`, 2026-07-20: TNG classification now uses only the
+  whitespace-compacted content prefix: every content starting with `TNG` is
+  `PARTNER_INTERNAL`, independent of showroom code or subsequent wording. A new
+  migration backfills only `AUTO` rows so manual classifications remain intact.
+  Statement list, global lookup, and selected export constrain every user
+  outside `FIN_ACC` to `SALES`; only `FIN_ACC` can view or edit both types.
+  Validation: Prisma generate/validate, focused MAP/income-type Jest 145 tests,
+  full Nest 81 suites / 811 tests, Nest build, 72 protected Flutter consumer
+  tests, Flutter analyze, and diff check all passed.
 - `UI-UX-001`, 2026-07-11: sửa race thứ hai của `AppCombobox` trên
   desktop/Windows: khi bấm chuột chọn option, `TextField` mất focus ở
   mouse-down và timer đóng overlay cũ có thể đóng menu trước mouse-up/onTap,

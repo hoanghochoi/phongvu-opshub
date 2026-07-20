@@ -13,6 +13,18 @@
 
 ## Evidence
 
+- 2026-07-20 TNG/visibility correction: compact content beginning with `TNG`
+  classifies as `PARTNER_INTERNAL` without showroom or suffix matching. The
+  regression fixtures cover `TNG CP69`, `TNG CP55`, `TNG-CP57`, spaced `T N G`
+  and the provider normalization path. List, global lookup, selected export and
+  income-type editing expose partner/internal rows only to users belonging to
+  `FIN_ACC`; non-FIN all-scope and `SUPER_ADMIN` fixtures remain `SALES`-only.
+  The backfill migration updates only `incomeTypeSource=AUTO`. Prisma
+  generate/validate passed, focused income-type/MAP Jest passed 145 tests, full
+  Nest regression passed 81 suites / 811 tests, Nest build passed, the protected
+  Payment Monitor/Bank Statement/VietQR Flutter consumers passed 72 tests, and
+  Flutter analyze reported no issues. The migration has not been applied to a
+  runtime in this local-commit-only change.
 - 2026-07-20 XLSX transport hotfix: production logs matched the reported
   07:40 export and showed the workbook service completing successfully. The
   controller was returning a Node `Buffer` directly, which the Nest Express

@@ -27,10 +27,10 @@
   notifications.
 - Persist `incomeType` as `SALES` or `PARTNER_INTERNAL`, classify only the
   accepted whitespace-insensitive exact content and payer-account rules, and
-  show a Vietnamese income-type pill. Income type does not narrow statement
-  visibility. FIN_ACC and protected-statement administrators can change it from
-  the pill; mark that choice `MANUAL` so subsequent MAP/eFAST syncs cannot
-  overwrite it.
+  show a Vietnamese income-type pill. Apply `incomeType=SALES` at every list,
+  global-lookup, and export query boundary unless the user belongs to `FIN_ACC`.
+  Only `FIN_ACC` can change the type from the pill; mark that choice `MANUAL` so
+  subsequent MAP/eFAST syncs cannot overwrite it.
 
 ## Alternatives Considered
 

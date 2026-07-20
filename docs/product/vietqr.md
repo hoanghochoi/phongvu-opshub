@@ -494,8 +494,9 @@ uppercases the content and removes whitespace. A row is automatically marked
 `Đối tác/Nội bộ` when the compact content starts with `BCCN`, `BCCP`, `BCCTY`,
 or `BCDKKD`; contains one of `NHATTIN`, `VNPAYTT217344`, `SHOPEEPAYMS`,
 `SHOPEEWSSSELLERWITHDRAWAL`, `GIAOHANGTIETKIEMCHUYENTIENCOD`,
-`TTGDQUAVIZALOPAY`, or `DIEUTIENTUDONG`; or contains
-`TNG<storeCode>NOPTIEN` for the row's mapped store. The row is also
+`TTGDQUAVIZALOPAY`, or `DIEUTIENTUDONG`; or its compact content starts with
+`TNG`. The TNG rule does not depend on the mapped store or subsequent wording.
+The row is also
 `Đối tác/Nội bộ` when its normalized payer account is `8637988888`,
 `0302607125`, `113000179095`, `110600994666`, `1011103131001`,
 `0071001142275`, or `117601180666`. No accent, punctuation, or other broad
@@ -503,9 +504,10 @@ content normalization is applied. Generic `VNPAY`, `So GD goc`, `CT DEN`, and
 numeric-only content remain sales unless another exact rule matches. The
 migration backfills existing rows with this same rule set.
 
-Income type is not an additional visibility boundary: every statement user sees
-both types subject to their existing organization/showroom scope. FIN_ACC and
-existing protected-statement administrators can change the type from the
-Vietnamese pill. A manual choice is stored with `incomeTypeSource=MANUAL` and
-must survive later MAP/eFAST syncs; automatic rows remain `AUTO`. On mobile, a
-successful `Tìm` action closes the filter panel so the result list is visible.
+Income type is an additional backend visibility boundary after the existing
+organization/showroom scope. Only users belonging to `FIN_ACC` can list, search,
+or export both types; every other user is constrained to `SALES`, including
+global lookup and selected-row export. Only `FIN_ACC` can change the type from
+the Vietnamese pill. A manual choice is stored with `incomeTypeSource=MANUAL`
+and must survive later MAP/eFAST syncs; automatic rows remain `AUTO`. On mobile,
+a successful `Tìm` action closes the filter panel so the result list is visible.

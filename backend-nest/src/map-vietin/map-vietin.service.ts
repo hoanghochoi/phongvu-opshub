@@ -528,7 +528,7 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
     );
     const canEditProtectedOrders =
       await this.canEditProtectedStatementOrders(user);
-    const canEditIncomeType = canEditProtectedOrders;
+    const canEditIncomeType = await this.canEditStatementIncomeType(user);
     const actionScope =
       rows.length > 0 ? await this.resolveStatementActionScope(user) : null;
 
@@ -686,6 +686,7 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
     const changed = !this.sameOrderList(oldOrders, orders);
     const canEditProtectedOrders =
       await this.canEditProtectedStatementOrders(user);
+    const canEditIncomeType = await this.canEditStatementIncomeType(user);
     const canEditThisProtectedOrder =
       canEditProtectedOrders || verifiedOrderLookupEdit;
     this.assertStatementOrderEditAllowed(existing, canEditThisProtectedOrder);
@@ -724,7 +725,7 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
     );
     return this.toStoredTransactionDto(updated, {
       canEditProtectedOrders: canEditThisProtectedOrder,
-      canEditIncomeType: canEditProtectedOrders,
+      canEditIncomeType,
     });
   }
 
@@ -750,7 +751,7 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
       ) {
         throw new BadRequestException('Loại giao dịch không hợp lệ');
       }
-      if (!(await this.canEditProtectedStatementOrders(user))) {
+      if (!(await this.canEditStatementIncomeType(user))) {
         throw new ForbiddenException(
           'Bạn không có quyền thay đổi loại giao dịch sao kê.',
         );
@@ -1831,10 +1832,16 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
   }
 
   private async buildStatementIncomeTypeWhere(user: any) {
-    this.logger.debug(
-      `Statement income type visibility is unrestricted: user=${this.safeUserLabel(user)}`,
+    const canReadPartnerInternal = await this.userBelongsToStatementAccessCodes(
+      user,
+      [FIN_ACC_DEPARTMENT_CODE],
     );
-    return {};
+    this.logger.debug(
+      `Statement income type visibility resolved: user=${this.safeUserLabel(user)} partnerInternal=${canReadPartnerInternal ? 'allowed' : 'blocked'} reason=fin_acc_membership`,
+    );
+    return canReadPartnerInternal
+      ? {}
+      : { incomeType: MAP_VIETIN_INCOME_TYPE.SALES };
   }
 
   private normalizeStatementFilters(input: ListMapVietinStatementsDto) {
@@ -2335,6 +2342,12 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
     ]);
   }
 
+  private async canEditStatementIncomeType(user: any): Promise<boolean> {
+    return this.userBelongsToStatementAccessCodes(user, [
+      FIN_ACC_DEPARTMENT_CODE,
+    ]);
+  }
+
   private async canReviewStatementOrderTransferRequests(
     user: any,
   ): Promise<boolean> {
@@ -2438,6 +2451,13 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
     allowedCodes: string[],
   ): Promise<boolean> {
     if (String(user?.role || '').toUpperCase() === 'SUPER_ADMIN') return true;
+    return this.userBelongsToStatementAccessCodes(user, allowedCodes);
+  }
+
+  private async userBelongsToStatementAccessCodes(
+    user: any,
+    allowedCodes: string[],
+  ): Promise<boolean> {
     const allowed = new Set(
       allowedCodes.map((code) => this.normalizeStatementAccessCode(code)),
     );
@@ -3593,7 +3613,7 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
       paidAt,
       payerName: payerName || null,
       payerAccount: payerAccount || null,
-      incomeType: classifyMapVietinIncomeType(content, storeCode, payerAccount),
+      incomeType: classifyMapVietinIncomeType(content, payerAccount),
       incomeTypeSource: INCOME_TYPE_SOURCE_AUTO,
       rawData: row as Prisma.InputJsonObject,
     };
@@ -3977,7 +3997,6 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
     }
     return classifyMapVietinIncomeType(
       row.content,
-      row.storeCode,
       row.payerAccount,
     );
   }
