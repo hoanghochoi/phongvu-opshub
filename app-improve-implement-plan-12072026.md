@@ -832,3 +832,19 @@ rollback và bằng chứng riêng trước khi đổi trạng thái.
 Không build/deploy thêm chỉ để cập nhật hai tài liệu này; runtime production đã
 được chứng minh ở SHA `9044e9c3...`. Commit tài liệu phải dùng CI-skip và ghi rõ
 deployed runtime SHA để không tạo một release binary khác không cần thiết.
+
+## 21. Follow-up song song: telemetry private-media ngày 20/07/2026
+
+1. Backup rollback mới `20260720-100144` đã đạt systemd success, checksum 6/6,
+   không còn incoming/local staging; đây là checkpoint dữ liệu, không phải quyền
+   tự động chạy media migration.
+2. Production hiện còn một legacy-upload hit đã hash sau lần Caddy restart gần
+   nhất. Vì vậy stop condition đang kích hoạt: không chạy `--apply`, không đóng
+   `/uploads`, không purge cache và không xóa 764 file legacy.
+3. Batch source độc lập chỉ làm telemetry đã lọc tồn tại qua Caddy recreate,
+   mode `0600`, rotation 10 MiB x 14 file/14 ngày. Sau staging deploy phải tạo
+   privacy probe, xác nhận log không chứa raw path/query/IP rồi mới bắt đầu cửa
+   sổ quan sát tối thiểu bảy ngày.
+4. Chỉ mở maintenance cutover sau khi `--fail-on-hits` trả 0 trên toàn cửa sổ,
+   strict audit/dry-run pass và có rollback manifest. Identity/MFA, realtime
+   soak và ZFS retention vẫn là follow-up độc lập, không gộp vào commit này.

@@ -192,11 +192,14 @@ hoặc giữ private identity.
   `no_hostname`: reset/auth/ws URL có thể chứa query nhạy cảm nếu rơi về default
   logger.
 - [ ] Entry phải xóa URI, IP, headers, response headers và user id; chỉ giữ path
-  hash, thời gian, method/status/duration/size. Docker log tiếp tục giới hạn
-  `10m x 5`.
+  hash, thời gian, method/status/duration/size. Telemetry ghi vào
+  `/srv/opshub/caddy/data/legacy-uploads-access.log` qua volume `/data`, mode
+  `0600`, roll ở `10 MiB`, tối đa 14 file/14 ngày để không mất cửa sổ quan sát
+  khi Caddy được recreate. Docker runtime log vẫn giới hạn `10m x 5`.
 - [ ] Sau deploy, tạo đúng một probe `/uploads/*?token=...`; chạy
+  `zcat -f /srv/opshub/caddy/data/legacy-uploads-access*.log* |` nối vào
   `security:audit-legacy-upload-access -- --strict` và xác nhận một hit, một
-  hash, không có raw path/query/IP.
+  hash, không có raw path/query/IP. Không in hoặc lưu file log thô ra máy trạm.
 - [ ] Dùng cửa sổ tối thiểu 7 ngày trước media cutover. `--fail-on-hits` phải
   trả 0; nếu exit `3` thì dừng cutover, không xóa route/file/cache.
 

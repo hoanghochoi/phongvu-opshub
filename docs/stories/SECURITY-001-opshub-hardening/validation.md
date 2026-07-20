@@ -149,3 +149,25 @@
   no access-log directive, so 0 Docker-log hits is inconclusive. Media cutover,
   two-admin/MFA/secret rotation, retention/ZFS, sustained live load soak and
   Windows self-signed waiver review remain explicit follow-up controls.
+
+## Backup closure and persistent legacy-media telemetry 20/07/2026
+
+- TrueNAS Maproot was corrected to `root:root` for the NFS client path observed
+  by TrueNAS. A write/read/SHA-256/delete probe passed before the backup job ran.
+- Manual backup `20260720-100144` finished with systemd `Result=success` and
+  exit code `0`. An independent destination check passed all six checksum
+  entries; NAS `.incoming` and local `.nas-staging-*` counts were zero. The
+  timer remained enabled/active and all five production containers stayed up,
+  with API/realtime/PostgreSQL/Redis healthy and origin HTTP `200`.
+- The current Caddy container started at `2026-07-20T00:13:40Z`. Its filtered
+  legacy-upload telemetry contained one valid hashed `GET` hit at
+  `2026-07-20T02:30:20Z`, status `304`, with zero malformed entries. Therefore
+  private-media cutover remains blocked; no `--apply`, route removal, cache
+  purge or legacy-file deletion was performed.
+- Docker-only access history cannot survive a Caddy recreation. The follow-up
+  source change writes only the already-filtered logger to the persistent
+  `/data/legacy-uploads-access.log`, mode `0600`, rolling at 10 MiB with at most
+  14 files retained for 14 days. Local platform-security checks, all four
+  access-audit tests and Caddyfile adaptation with the production Caddy binary
+  passed. Staging deploy and a fresh privacy probe remain required before the
+  seven-day observation clock starts.
