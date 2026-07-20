@@ -261,7 +261,9 @@
 - A read-only production aggregate found 3 active `SUPER_ADMIN`, 35 active
   `ADMIN`, zero locked privileged accounts and 38 active privileged sessions.
   The database schema contains no MFA/TOTP/WebAuthn/recovery field or table.
-  Identity is therefore blocked on an owner decision and enrollment plan, not
-  on admin redundancy: choose the second factor and recovery owner, define a
-  grace/enforcement window, then revoke existing sessions in a maintenance
-  window. No account, credential or session was changed during this check.
+  Owner decision on 2026-07-20: do not implement MFA in this scope. Record this
+  as accepted risk/deferred—38 privileged accounts remain password-only; no
+  account, credential or session was changed during the check.
+- Owner decision on Windows signing: no public CA certificate has been bought;
+  the self-signed update waiver remains accepted and must be reviewed before
+  2026-10-13 or earlier if the distribution channel changes.

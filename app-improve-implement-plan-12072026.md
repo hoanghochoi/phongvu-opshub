@@ -928,9 +928,10 @@ Caddy và chưa chạy migration apply.
    phải cài binary có checksum và đi lại toàn bộ load preflight.
 6. Identity preflight production chỉ đọc aggregate: 3 `SUPER_ADMIN`, 35
    `ADMIN`, 0 privileged account bị khóa và 38 active privileged sessions;
-   schema không có MFA/TOTP/WebAuthn/recovery field. Bước code tiếp theo chỉ mở
-   sau khi owner chọn phương thức second factor, recovery owner, grace period
-   và session-revocation window.
-7. Các lane còn lại không tự chạy: retention/ZFS có expiry phá hủy cần policy;
-   Windows CA chờ ngân sách và đang có waiver; dead source/table cần 30 ngày
-   telemetry; `/uploads` giữ stop condition riêng đến ít nhất 27/07.
+   schema không có MFA/TOTP/WebAuthn/recovery field. Theo owner decision,
+   không triển khai MFA trong scope hiện tại; ghi nhận accepted risk/deferred,
+   không mở code/migration enrollment.
+7. Windows public CA chưa mua; self-signed waiver tiếp tục được chấp nhận và
+   phải review trước `13/10/2026`. Các lane không tự chạy còn lại là
+   retention/ZFS (cần policy expiry), dead source/table (cần 30 ngày telemetry)
+   và `/uploads` (giữ stop condition riêng đến ít nhất 27/07).
