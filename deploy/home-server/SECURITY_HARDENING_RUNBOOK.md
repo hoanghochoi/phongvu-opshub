@@ -192,13 +192,45 @@ hoặc giữ private identity.
   `no_hostname`: reset/auth/ws URL có thể chứa query nhạy cảm nếu rơi về default
   logger.
 - [ ] Entry phải xóa URI, IP, headers, response headers và user id; chỉ giữ path
-  hash, thời gian, method/status/duration/size. Docker log tiếp tục giới hạn
-  `10m x 5`.
+  hash, thời gian, method/status/duration/size. Telemetry ghi vào
+  `/srv/opshub/caddy/data/legacy-uploads-access.log` qua volume `/data`, mode
+  `0600`, roll ở `10 MiB`, tối đa 14 file/14 ngày để không mất cửa sổ quan sát
+  khi Caddy được recreate. Docker runtime log vẫn giới hạn `10m x 5`.
 - [ ] Sau deploy, tạo đúng một probe `/uploads/*?token=...`; chạy
-  `security:audit-legacy-upload-access -- --strict` và xác nhận một hit, một
-  hash, không có raw path/query/IP.
+  `sudo sh -c 'for f in /srv/opshub/caddy/data/legacy-uploads-access.log*; do
+  case "$f" in *.gz) gzip -cd -- "$f";; *) cat -- "$f";; esac; done' |` nối
+  trực tiếp vào `security:audit-legacy-upload-access -- --strict` và xác nhận
+  một hit, một hash, không có raw path/query/IP. Dùng `sudo sh -c` để glob được
+  mở sau khi nâng quyền; không in hoặc lưu file log thô ra máy trạm.
 - [ ] Dùng cửa sổ tối thiểu 7 ngày trước media cutover. `--fail-on-hits` phải
   trả 0; nếu exit `3` thì dừng cutover, không xóa route/file/cache.
+- [ ] Sau cửa sổ quan sát, chạy lại strict private-media audit và dry-run đầy
+  đủ không `--limit`. Preflight audit phải `ok=true` và ghi lại aggregate
+  `legacyReferencesTotal` làm baseline; chưa dùng `--fail-on-legacy` trước khi
+  migration. Chỉ mở maintenance khi legacy telemetry, integrity audit và
+  dry-run cùng sạch.
+- [ ] `security:migrate-private-media --apply` bắt buộc có `--limit` từ 1 đến
+  250 và dùng `--offset` đúng bằng `batch.nextOffset` của report trước. Mỗi
+  batch phải audit/smoke lại; lỗi hoặc `errors > 0` là stop gate.
+- [ ] Rollback cũng bắt buộc có `--limit`, nhưng không nhận `--offset` vì tập
+  candidate co lại sau mỗi batch. Lặp từ đầu cho đến `batch.hasMore=false`;
+  hướng dẫn lệnh đầy đủ nằm trong `app-security-manual-actions-12072026.md`.
+- [ ] Sau mỗi apply batch, strict audit phải giữ `ok=true`. Sau batch cuối chạy
+  `security:audit-private-media -- --strict --fail-on-legacy`; chỉ đạt khi
+  `legacyReferencesClear=true` và `legacyReferencesTotal=0`. Exit `3` chặn
+  cutover; report chỉ chứa aggregate, không URL/path/record id.
+- [ ] Mọi `maintenance run` cho audit/migrate/rollback phải có `-T --build`.
+  Database command đóng stdin bằng `< /dev/null`; legacy telemetry auditor phải
+  giữ stdin duy nhất từ pipeline persistent log, không được redirect đè thành
+  rỗng. Service `migrate` và `maintenance` có image tag Compose khác nhau dù
+  cùng Docker target `ops`; thiếu `--build` có thể chạy script từ release cũ.
+  Kiểm container còn sót bằng Docker label
+  `com.docker.compose.service=maintenance`, không dùng `compose ps` toàn project.
+- [ ] Recovery point trước private-media migration phải có manifest archive đồng
+  thời `uploads` và `private-media`, checksum đủ artifact và không còn
+  `.incoming-*`. Checksum pass của backup v2 thiếu `private-media` không đạt gate.
+  Backup v3 đã có bounded retry cho live-tree tar; vẫn không bật retention/ZFS
+  expiry nếu chưa có policy approval.
 
 ### 7.2 API multi-replica qua Docker DNS
 

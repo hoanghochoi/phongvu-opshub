@@ -21,10 +21,16 @@ http://{$OPSHUB_DOMAIN} {
 
   # Privacy-minimized telemetry for the legacy public upload route only. The
   # path is hashed and request URI/IP/headers are removed before the entry is
-  # written to Docker's already bounded log driver.
+  # written to the persistent Caddy data volume. Keep enough rolled history for
+  # the required seven-day cutover observation window across container rebuilds.
   log legacy_uploads {
     no_hostname
-    output stdout
+    output file /data/legacy-uploads-access.log {
+      mode 0600
+      roll_size 10MiB
+      roll_keep 14
+      roll_keep_for 336h
+    }
     format filter {
       request>uri delete
       request>remote_ip delete

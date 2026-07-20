@@ -149,3 +149,85 @@
   no access-log directive, so 0 Docker-log hits is inconclusive. Media cutover,
   two-admin/MFA/secret rotation, retention/ZFS, sustained live load soak and
   Windows self-signed waiver review remain explicit follow-up controls.
+
+## Backup closure and persistent legacy-media telemetry 20/07/2026
+
+- TrueNAS Maproot was corrected to `root:root` for the NFS client path observed
+  by TrueNAS. A write/read/SHA-256/delete probe passed before the backup job ran.
+- Manual backup `20260720-100144` finished with systemd `Result=success` and
+  exit code `0`. An independent destination check passed all six checksum
+  entries; NAS `.incoming` and local `.nas-staging-*` counts were zero. The
+  timer remained enabled/active and all five production containers stayed up,
+  with API/realtime/PostgreSQL/Redis healthy and origin HTTP `200`.
+- The current Caddy container started at `2026-07-20T00:13:40Z`. Its filtered
+  legacy-upload telemetry contained one valid hashed `GET` hit at
+  `2026-07-20T02:30:20Z`, status `304`, with zero malformed entries. Therefore
+  private-media cutover remains blocked; no `--apply`, route removal, cache
+  purge or legacy-file deletion was performed.
+- Docker-only access history cannot survive a Caddy recreation. The follow-up
+  source change writes only the already-filtered logger to the persistent
+  `/data/legacy-uploads-access.log`, mode `0600`, rolling at 10 MiB with at most
+  14 files retained for 14 days. Local platform-security checks, all four
+  access-audit tests and Caddyfile adaptation with the production Caddy binary
+  passed. Staging deploy and a fresh privacy probe remain required before the
+  seven-day observation clock starts.
+- Staging workflow `29722657920` deployed exact SHA `76380540...`. The release
+  symlink matched that SHA; five containers were up, the four stateful/runtime
+  services reported healthy, and the persistent log was created as `0600`.
+  A loopback-origin probe returned `404` and produced exactly one hashed entry;
+  strict audit reported one hit, one unique hash and zero malformed entries,
+  while raw path and query sentinels were absent.
+- Production workflow `29723471724` then deployed the same SHA successfully.
+  The release symlink matched, API/realtime/PostgreSQL/Redis were healthy,
+  Caddy was up, and edge plus origin health returned `200`. Production created
+  `/srv/opshub/caddy/data/legacy-uploads-access.log` as `0600`, owner UID/GID
+  mapped to `opc:opc`, with zero hits and zero malformed entries. No production
+  probe was generated, so the observation window starts clean at Caddy start
+  `2026-07-20T07:17:17.446Z` (14:17:17 UTC+7). Earliest seven-day gate is
+  27/07/2026 after 14:17:17 UTC+7; the fourteen-day limit is 03/08/2026.
+- Pre-maintenance review found that the original migration `--limit` always
+  selected the first records and therefore was not resumable. The follow-up
+  branch now requires bounded apply batches (maximum 250 records per category),
+  reports `hasMore`/`nextOffset`, advances migration over a stable offset, and
+  keeps rollback on the shrinking head. Ten focused telemetry/batch tests and
+  the platform-security contract pass locally. No production apply or runtime
+  restart was performed, so the observation continuity is unchanged.
+- Staging workflow `29725449833` completed successfully at exact SHA
+  `c86c2611d6ab5b69b329d5541a594ded848f9f02`. The live maintenance image
+  rejected apply without `--limit`; a complete strict dry-run returned zero
+  errors with the new batch report. All five staging services remained up with
+  the four healthchecked services healthy and no one-shot maintenance container
+  left behind. Production remained on `76380540...`; this proof did not restart
+  the production Caddy or authorize migration apply.
+- A shared Flutter dual-read contract now covers avatar, warranty and feedback
+  references together: legacy URLs remain credential-free, same-origin private
+  media URLs receive the bearer token, and model/parser layers preserve mixed
+  references in order. The platform checker pins the header helper at Home,
+  Profile, Warranty Detail, and both Feedback image surfaces. The focused test
+  passed 3/3 and full Flutter analyze reported no issues. Live post-batch smoke
+  remains mandatory because source proof does not prove production data access.
+- Pre-maintenance audit hardening now distinguishes storage integrity from
+  legacy-reference closure. The report classifies only aggregate counts by
+  exact origin/path (including relative references that resolve to `/uploads`),
+  emits no URL/path/record id, and supports `--fail-on-legacy` for the final
+  post-batch gate. Preflight `--strict` remains compatible while legacy rows are
+  expected; route cutover requires `legacyReferencesClear=true` and zero legacy
+  references. Four new reference-audit tests plus the ten telemetry/batch tests
+  passed 14/14, and the platform-security contract passed. Prisma generate,
+  Nest build and reviewed runtime packaging (284 files, auditor/helper both
+  present) passed. Staging run `29729119859` deployed exact SHA `bc9ca1c8...`.
+  A run without `--build` proved the maintenance tag could remain stale even
+  after the migrate image was built; rerunning with `-T --build` and closed
+  stdin loaded the new auditor, passed preflight and final zero-legacy gates,
+  rejected an unknown flag, left no maintenance container and kept all five
+  services healthy. Live production post-batch proof remains pending.
+- The cutover command now reads the persistent current and rolled telemetry
+  files (including `.gz`) server-side and pipes them directly into the auditor;
+  it no longer relies on container-local `docker logs --since 168h`. Platform
+  verification prevents regression to the ephemeral source.
+- Backup contract review found v2 omitted `private-media` despite valid checksums.
+  The host script was checkpointed and upgraded to v3 with bounded live-tree
+  retry. Manual run `20260720-164144` finished `Result=success`, NAS checksum
+  `6/6`, manifest paths include both `uploads` and `private-media`, `.incoming=0`,
+  and all five containers remained running (four healthchecked). Retention/ZFS
+  expiry is still not enabled or approved.

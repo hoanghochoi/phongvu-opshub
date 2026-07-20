@@ -3,12 +3,21 @@ import { createHash, randomUUID } from 'crypto';
 import fs from 'fs/promises';
 import path from 'path';
 import sharp from 'sharp';
+import {
+  PRIVATE_MEDIA_BATCH_STRATEGY,
+  parsePrivateMediaBatchArgs,
+  privateMediaBatchQuery,
+  resolvePrivateMediaBatchPage,
+} from './private-media-batch-window.mjs';
 import { createPrismaClient } from './prisma-local.mjs';
 
 const APPLY_CONFIRMATION = 'MIGRATE_PRIVATE_MEDIA_V1';
 const apply = process.argv.includes('--apply');
 const strict = process.argv.includes('--strict');
-const limit = positiveIntegerArg('limit');
+const batch = parsePrivateMediaBatchArgs(process.argv.slice(2), {
+  apply,
+  strategy: PRIVATE_MEDIA_BATCH_STRATEGY.stableOffset,
+});
 const ticket = stringArg('ticket');
 const approvedBy = stringArg('approved-by');
 
@@ -40,6 +49,15 @@ if (isInside(uploadBaseDir, privateBaseDir) || isInside(privateBaseDir, uploadBa
 const report = {
   mode: apply ? 'apply' : 'dry-run',
   generatedAt: new Date().toISOString(),
+  batch: {
+    strategy: batch.strategy,
+    limit: batch.limit,
+    offset: batch.offset,
+    maxApplyBatchSize: batch.maxApplyBatchSize,
+    hasMore: false,
+    nextOffset: null,
+    categories: {},
+  },
   recordsScanned: { avatar: 0, warranty: 0, feedback: 0 },
   recordsChanged: { avatar: 0, warranty: 0, feedback: 0 },
   references: {
@@ -61,6 +79,7 @@ try {
   await migrateAvatars();
   await migrateWarranties();
   await migrateFeedback();
+  finalizeBatchReport();
   if (apply) {
     await prisma.appLog.create({
       data: {
@@ -82,13 +101,14 @@ try {
 }
 
 async function migrateAvatars() {
-  const users = await prisma.user.findMany({
+  const page = resolvePrivateMediaBatchPage(await prisma.user.findMany({
     where: { avatarUrl: { not: null, notIn: [''] } },
     select: { id: true, avatarUrl: true },
     orderBy: { id: 'asc' },
-    ...(limit ? { take: limit } : {}),
-  });
-  for (const user of users) {
+    ...privateMediaBatchQuery(batch),
+  }), batch);
+  recordBatchCategory('avatar', page);
+  for (const user of page.rows) {
     report.recordsScanned.avatar += 1;
     const next = await migrateReference(user.avatarUrl, {
       ownerFeature: 'AVATAR',
@@ -104,13 +124,14 @@ async function migrateAvatars() {
 }
 
 async function migrateWarranties() {
-  const warranties = await prisma.warranty.findMany({
+  const page = resolvePrivateMediaBatchPage(await prisma.warranty.findMany({
     where: { imageLinks: { not: null, notIn: [''] } },
     select: { id: true, imageLinks: true, createdById: true },
     orderBy: { id: 'asc' },
-    ...(limit ? { take: limit } : {}),
-  });
-  for (const warranty of warranties) {
+    ...privateMediaBatchQuery(batch),
+  }), batch);
+  recordBatchCategory('warranty', page);
+  for (const warranty of page.rows) {
     report.recordsScanned.warranty += 1;
     const current = splitLinks(warranty.imageLinks);
     const next = [];
@@ -136,13 +157,14 @@ async function migrateWarranties() {
 }
 
 async function migrateFeedback() {
-  const feedback = await prisma.feedback.findMany({
+  const page = resolvePrivateMediaBatchPage(await prisma.feedback.findMany({
     where: { content: { contains: 'Hình ảnh:' } },
     select: { id: true, userId: true, content: true },
     orderBy: { id: 'asc' },
-    ...(limit ? { take: limit } : {}),
-  });
-  for (const item of feedback) {
+    ...privateMediaBatchQuery(batch),
+  }), batch);
+  recordBatchCategory('feedback', page);
+  for (const item of page.rows) {
     report.recordsScanned.feedback += 1;
     const marker = 'Hình ảnh:';
     const markerIndex = item.content.lastIndexOf(marker);
@@ -175,6 +197,22 @@ async function migrateFeedback() {
       });
     }
   }
+}
+
+function recordBatchCategory(category, page) {
+  report.batch.categories[category] = {
+    recordsInBatch: page.rows.length,
+    hasMore: page.hasMore,
+    nextOffset: page.nextOffset,
+  };
+}
+
+function finalizeBatchReport() {
+  const categories = Object.values(report.batch.categories);
+  report.batch.hasMore = categories.some((category) => category.hasMore);
+  report.batch.nextOffset = report.batch.hasMore
+    ? batch.offset + batch.limit
+    : null;
 }
 
 async function migrateReference(value, owner) {
@@ -414,16 +452,6 @@ function positiveEnv(key, fallback) {
     throw new Error(`${key} must be a positive integer`);
   }
   return value;
-}
-
-function positiveIntegerArg(name) {
-  const value = stringArg(name);
-  if (!value) return null;
-  const parsed = Number(value);
-  if (!Number.isSafeInteger(parsed) || parsed <= 0) {
-    throw new Error(`--${name} must be a positive integer`);
-  }
-  return parsed;
 }
 
 function stringArg(name) {

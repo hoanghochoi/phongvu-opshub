@@ -3088,6 +3088,27 @@ src/map-vietin/map-vietin.service.spec.ts` (26 tests), `npm run build`, full
   0 missing/rejected/error; apply/cutover remains a separate data-maintenance
   follow-up because 764 legacy upload files remain and Caddy has no access-log
   proof.
+- Private-media post-audit hardening, 2026-07-20: the integrity verdict remains
+  compatible with a pre-migration strict audit, while a separate aggregate
+  `--fail-on-legacy` gate proves no database reference still depends on
+  `/uploads` before route removal. Exact-origin/path and relative-path fixtures,
+  fail-closed argument parsing, telemetry/batch regressions, and no-raw-value
+  output passed 14/14 Node tests; the platform security contract also passed.
+  Prisma generate, Nest build and reviewed runtime packaging (284 files,
+  auditor/helper both present) passed. Staging run `29729119859` deployed exact
+  SHA `bc9ca1c8...`; the first maintenance run exposed a stale service image,
+  while `-T --build` with closed stdin loaded the new auditor and passed
+  preflight/final/unknown-flag gates with zero leftover maintenance containers.
+  Manual cutover now reads persistent and compressed rolled telemetry
+  server-side instead of ephemeral Docker logs. CodeQL JavaScript/TypeScript and
+  Go jobs passed; staging `/api/health` returned 200 while `/health` correctly
+  redirected through Cloudflare Access. Live production post-batch proof
+  remains pending.
+  Backup proof `20260720-164144` now includes both `uploads` and `private-media`
+  under v3 manifest, passes NAS checksum 6/6 with `.incoming=0`, and leaves all
+  five production services running (four healthchecked). The earlier v2 backup
+  was checksum-valid but omitted `private-media`; retention/ZFS expiry remains
+  an explicit unapproved gap.
 
 ## QUICK-ACTIONS-001 — Thao tác nhanh v1 (2026-07-13)
 

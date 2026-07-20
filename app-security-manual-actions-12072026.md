@@ -343,29 +343,61 @@ compose=(docker compose --env-file "$OPSHUB_ENV_FILE" \
 ### 4.1 Audit và dry-run
 
 ```bash
-"${compose[@]}" --profile maintenance run --rm maintenance \
-  npm run security:audit-private-media -- --strict
+"${compose[@]}" --profile maintenance run --rm -T --build maintenance \
+  npm run security:audit-private-media -- --strict < /dev/null
 
-"${compose[@]}" --profile maintenance run --rm maintenance \
-  npm run security:migrate-private-media -- --strict --limit 100
+"${compose[@]}" --profile maintenance run --rm -T --build maintenance \
+  npm run security:migrate-private-media -- --strict < /dev/null
 ```
 
-Lưu JSON report vào kho nội bộ an toàn. So sánh số avatar/warranty/feedback, missing file/owner, orphan và dung lượng. Dry-run không sửa reference.
+Lưu JSON report vào kho nội bộ an toàn. So sánh số avatar/warranty/feedback,
+missing file/owner, orphan và dung lượng. Dry-run đầy đủ không sửa reference;
+không thêm `--limit` vào lần kiểm kê production cuối cùng. Audit chỉ xuất số
+aggregate; `referenceInventory.legacyReferencesTotal` là baseline trước apply,
+không chứa URL/path. Ở preflight chỉ dùng `--strict`: legacy reference đang chờ
+migration chưa làm audit integrity thất bại.
 
 ### 4.2 Apply theo batch
 
-Chạy backup mã hóa trước, sau đó:
+Chạy backup mã hóa trước, sau đó đặt batch đầu tiên:
 
 ```bash
-"${compose[@]}" --profile maintenance run --rm maintenance \
+BATCH_LIMIT=100
+BATCH_OFFSET=0
+
+"${compose[@]}" --profile maintenance run --rm -T --build maintenance \
   npm run security:migrate-private-media -- \
-  --apply --strict --limit 100 \
+  --apply --strict --limit "$BATCH_LIMIT" --offset "$BATCH_OFFSET" \
   --ticket SEC-YYYY-NNN \
   --approved-by MA-NGUOI-DUYET \
-  --confirm MIGRATE_PRIVATE_MEDIA_V1
+  --confirm MIGRATE_PRIVATE_MEDIA_V1 < /dev/null
 ```
 
-Sau mỗi batch chạy audit, smoke đúng owner/showroom/admin và anonymous 404. Script re-encode ảnh, tạo metadata/checksum, đổi reference nhưng **không xóa file legacy**.
+`--limit` là số record tối đa **trên mỗi nhóm** avatar/warranty/feedback và bị
+chặn ở 250 khi `--apply`. Sau mỗi batch:
+
+1. Dừng ngay nếu exit khác 0, `errors > 0`, audit lỗi hoặc smoke lỗi.
+2. Chạy audit `--strict` và smoke đúng owner/showroom/admin; anonymous phải nhận
+   404. Audit phải giữ `ok=true`, không có missing/orphan/size mismatch.
+3. Nếu `batch.hasMore=true`, đặt `BATCH_OFFSET` bằng đúng
+   `batch.nextOffset` trong report rồi chạy batch kế tiếp.
+4. Chỉ kết thúc khi `batch.hasMore=false`; không tự tăng offset theo phỏng đoán.
+
+Migration dùng dataset ổn định nên offset tăng dần không bỏ sót record. Script
+re-encode ảnh, tạo metadata/checksum, đổi reference nhưng **không xóa file
+legacy**.
+
+Sau batch cuối (`batch.hasMore=false`), chạy post-audit fail-closed:
+
+```bash
+"${compose[@]}" --profile maintenance run --rm -T --build maintenance \
+  npm run security:audit-private-media -- --strict --fail-on-legacy < /dev/null
+```
+
+Chỉ đạt khi `ok=true`, `legacyReferencesClear=true` và
+`referenceInventory.legacyReferencesTotal=0`. Exit `2` là lỗi integrity; exit
+`3` nghĩa vẫn còn reference phụ thuộc route legacy và phải dừng cutover. Report
+không xuất URL/path/record id.
 
 ### 4.3 Cutover
 
@@ -373,29 +405,55 @@ Sau mỗi batch chạy audit, smoke đúng owner/showroom/admin và anonymous 40
    in path/IP/header/query:
 
    ```bash
-   caddy_id="$("${compose[@]}" ps -q caddy)"
-   test -n "$caddy_id"
-   docker logs --since 168h "$caddy_id" 2>&1 | \
-     "${compose[@]}" --profile maintenance run --rm -T --no-deps maintenance \
-       npm run security:audit-legacy-upload-access -- --strict
+   sudo -n sh -c 'for f in /srv/opshub/caddy/data/legacy-uploads-access.log*; do
+     [ -e "$f" ] || continue
+     case "$f" in
+       *.gz) gzip -cd -- "$f" ;;
+       *) cat -- "$f" ;;
+     esac
+   done' | \
+     "${compose[@]}" --profile maintenance run --rm -T --build --no-deps maintenance \
+       npm run security:audit-legacy-upload-access -- --strict --fail-on-hits
    ```
 
    Kết quả hợp lệ phải có `malformedAccessLines=0`. `totalHits` và
    `uniquePathHashes` là số aggregate; script không xuất filename hay client IP.
-   Khi chuẩn bị cutover, chạy lại với `--strict --fail-on-hits`; exit `3` nghĩa
-   vẫn còn traffic legacy và phải dừng.
-2. Xóa `handle_path /uploads/*` khỏi Caddy ở một change riêng, validate/reload, purge đúng cache prefix.
-3. Kiểm anonymous `/uploads/...` và `/api/media/:id` đều không trả ảnh; đúng scope `/api/media/:id` vẫn pass.
-4. Chỉ dọn orphan sau retention + backup + approval; không dùng lệnh xóa tay không manifest.
+   Phải đọc file persistent và toàn bộ rolled file server-side như trên; không
+   thay bằng `docker logs`, vì container có thể đã recreate trong cửa sổ 7–14
+   ngày. Không tải hoặc in log thô ra máy trạm.
+   Exit `3` nghĩa vẫn còn traffic legacy và phải dừng.
+2. Chạy lại post-audit `--strict --fail-on-legacy`; chỉ tiếp tục khi aggregate
+   legacy bằng 0 và integrity sạch.
+3. Xóa `handle_path /uploads/*` khỏi Caddy ở một change riêng, validate/reload,
+   purge đúng cache prefix.
+4. Kiểm anonymous `/uploads/...` và `/api/media/:id` đều không trả ảnh; đúng
+   scope `/api/media/:id` vẫn pass.
+5. Chỉ dọn orphan sau retention + backup + approval; không dùng lệnh xóa tay
+   không manifest.
 
 Rollback reference nếu phải quay client/API nhưng vẫn giữ file private:
 
 ```bash
-"${compose[@]}" --profile maintenance run --rm maintenance \
+BATCH_LIMIT=100
+
+"${compose[@]}" --profile maintenance run --rm -T --build maintenance \
   npm run security:rollback-private-media -- \
-  --apply --ticket SEC-YYYY-NNN --approved-by MA-NGUOI-DUYET \
-  --confirm ROLLBACK_PRIVATE_MEDIA_REFERENCES_V1
+  --apply --limit "$BATCH_LIMIT" \
+  --ticket SEC-YYYY-NNN --approved-by MA-NGUOI-DUYET \
+  --confirm ROLLBACK_PRIVATE_MEDIA_REFERENCES_V1 < /dev/null
 ```
+
+Rollback luôn xử lý đầu tập dữ liệu đang co lại, vì vậy **không dùng
+`--offset`**. Lặp lại cùng lệnh khi `batch.hasMore=true`; dừng nếu
+`unresolved > 0`, và kết thúc khi `batch.hasMore=false`.
+
+`--build` là bắt buộc cho mọi one-shot private-media command. Compose gắn image
+tag riêng cho service `migrate` và `maintenance`; việc deploy đã build
+`migrate` không bảo đảm `maintenance` dùng source mới. Với audit/migrate/
+rollback database, `-T` và `< /dev/null` ngăn container hút phần còn lại nếu
+command được gửi qua `ssh ... bash -s`. Riêng legacy telemetry auditor phải giữ
+stdin từ pipeline file persistent ở Bước 4.3, tuyệt đối không override pipeline
+bằng `< /dev/null`.
 
 ## 5. Backup encryption và restore drill
 
@@ -412,6 +470,19 @@ Rollback reference nếu phải quay client/API nhưng vẫn giữ file private:
   `/srv/opshub/env` và deployed release; kiểm checksum hai đầu rồi publish nguyên tử.
   Manual run `20260713-152745` pass và timer đang chạy hằng ngày 02:30
   `Asia/Bangkok` với jitter tối đa 15 phút.
+
+### 5.0.1 Cập nhật private-media backup ngày 20/07/2026
+
+- Kiểm tra source của job cho thấy contract v2 trước đây chỉ archive
+  `uploads,payment-audio,import,caddy,env`; checksum v2 không chứng minh
+  `private-media` được bảo vệ. Không dùng các recovery point v2 đó làm backup
+  cutover.
+- Script đã được checkpoint trước khi thay, nâng marker/manifest lên v3 để ghi
+  rõ `persistent_paths=uploads,private-media,...`, retry live-tree archive tối
+  đa ba lần nhưng vẫn fail-closed nếu tar/age không hoàn tất.
+- Manual run mới `20260720-164144` đạt `Result=success`, exit `0`, NAS checksum
+  `6/6`, `.incoming=0`, marker v3, và container `4 healthy/5 running`. Timer vẫn
+  `enabled/active`; backup retention/ZFS snapshot chưa được bật tự động.
 
 Gate còn mở, không tự động xử lý:
 

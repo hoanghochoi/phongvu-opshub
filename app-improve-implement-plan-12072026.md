@@ -832,3 +832,67 @@ rollback và bằng chứng riêng trước khi đổi trạng thái.
 Không build/deploy thêm chỉ để cập nhật hai tài liệu này; runtime production đã
 được chứng minh ở SHA `9044e9c3...`. Commit tài liệu phải dùng CI-skip và ghi rõ
 deployed runtime SHA để không tạo một release binary khác không cần thiết.
+
+## 21. Follow-up song song: telemetry private-media ngày 20/07/2026
+
+1. Backup rollback mới `20260720-100144` đã đạt systemd success, checksum 6/6,
+   không còn incoming/local staging; đây là checkpoint dữ liệu, không phải quyền
+   tự động chạy media migration.
+2. Production hiện còn một legacy-upload hit đã hash sau lần Caddy restart gần
+   nhất. Vì vậy stop condition đang kích hoạt: không chạy `--apply`, không đóng
+   `/uploads`, không purge cache và không xóa 764 file legacy.
+3. Batch source độc lập chỉ làm telemetry đã lọc tồn tại qua Caddy recreate,
+   mode `0600`, rotation 10 MiB x 14 file/14 ngày. Sau staging deploy phải tạo
+   privacy probe, xác nhận log không chứa raw path/query/IP rồi mới bắt đầu cửa
+   sổ quan sát tối thiểu bảy ngày.
+4. Chỉ mở maintenance cutover sau khi `--fail-on-hits` trả 0 trên toàn cửa sổ,
+   strict audit/dry-run pass và có rollback manifest. Identity/MFA, realtime
+   soak và ZFS retention vẫn là follow-up độc lập, không gộp vào commit này.
+
+Trạng thái runtime: staging workflow `29722657920` và production workflow
+`29723471724` đã deploy success cùng SHA `76380540...`. Staging privacy probe
+đạt một hash/không raw data; production log bắt đầu sạch, mode `0600`, lúc
+`20/07/2026 14:17:17` UTC+7. Gate bảy ngày là sau `27/07/2026 14:17:17`; nếu
+không có hit mới chạy strict audit + dry-run. `--apply` vẫn chờ maintenance gate
+riêng, không được automation hoặc daily monitor tự kích hoạt.
+
+5. Trước ngày maintenance, harden công cụ migration để không lặp batch đầu:
+   apply bắt buộc `--limit <= 250`, migration tiếp nối bằng `--offset` đúng từ
+   report, rollback lặp từ offset 0 vì candidate set co lại. Focused test phải
+   chứng minh dry-run đầy đủ vẫn dùng được, apply không limit bị từ chối, offset
+   migration tiếp nối đúng và rollback không chấp nhận offset.
+
+Trạng thái proof: workflow staging `29725449833` success đúng `c86c2611...`;
+fail-closed apply thiếu limit và full strict dry-run đều đạt trên maintenance
+image. Production vẫn giữ `76380540...`; chưa promote công cụ, chưa restart
+Caddy và chưa chạy migration apply.
+
+6. Trước maintenance, giữ dual-read bằng một contract test chung cho avatar,
+   warranty và feedback: legacy URL không nhận credential, private URL cùng API
+   origin nhận bearer, model/parser không làm mất hoặc đổi thứ tự reference.
+   Platform gate phải fail nếu Home/Profile/Warranty/Feedback bỏ helper header.
+   Sau apply vẫn bắt buộc smoke production bằng record thật; test source không
+   được dùng thay bằng chứng live.
+
+7. Tách rõ hai verdict của private-media audit: `ok` kiểm file/metadata/owner
+   integrity, còn `legacyReferencesClear` kiểm database đã hết phụ thuộc
+   `/uploads`. Inventory chỉ xuất aggregate theo feature và exact route, kể cả
+   reference tương đối có thể resolve vào `/uploads`; không xuất URL/path/id.
+   Preflight chạy `--strict`, post-batch cuối bắt buộc
+   `--strict --fail-on-legacy` và chỉ cutover khi tổng legacy bằng 0.
+
+8. One-shot maintenance phải build đúng source của symlink release hiện hành:
+   luôn dùng `run --rm -T --build ... < /dev/null`. Không suy diễn image
+   `maintenance` đã mới chỉ vì deploy vừa build service `migrate`; Compose dùng
+   tag khác nhau. Kiểm container rác bằng label service. Staging run
+   `29729119859` đã tái hiện stale-image khi thiếu `--build` và pass đủ
+   preflight/final/typo gate sau khi build đúng image.
+
+9. Gate telemetry 7–14 ngày phải đọc file persistent và rolled `.gz` trực tiếp
+   trên server, pipe vào auditor; không dùng `docker logs --since 168h` vì Caddy
+   recreate sẽ làm history container không đại diện toàn cửa sổ.
+10. NAS backup contract phải archive cả `uploads` và `private-media`. Bản v2 đã
+    checksum đúng nhưng thiếu private-media, nên không đủ làm recovery point cho
+    cutover. Bản v3 đã checkpoint/rollback, retry live-tree archive tối đa ba
+    lần và manual proof `20260720-164144` đạt 6/6; retention/ZFS expiry vẫn
+    phải được duyệt trước khi bật.
