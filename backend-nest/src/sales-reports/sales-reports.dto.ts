@@ -19,6 +19,7 @@ export const SALES_REPORT_ENTRY_SOURCES = [
   'MANUAL_ENTRY',
   'SYNC_LIST',
   'COMEBACK',
+  'HISTORICAL_IMPORT',
 ] as const;
 
 export const SALES_REPORT_FOLLOW_UP_STATUSES = [

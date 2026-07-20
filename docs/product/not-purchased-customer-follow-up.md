@@ -35,12 +35,41 @@ Cho phép nhân viên bán hàng theo dõi và chăm sóc lại từng lượt b
 - Quản lý chỉ được phân công cho nhân viên bán hàng đang hoạt động trong cùng
   showroom.
 - Sau khi phân công, người nhận mới là người phụ trách hồ sơ.
+- Super Admin có thể lọc danh sách theo `Mã SR / Showroom`; mặc định là tất cả
+  showroom trong phạm vi toàn hệ thống. Khi đổi SR, danh sách và phân trang tải
+  lại theo `storeCode` đã chọn; các vai trò khác không thấy bộ lọc toàn hệ thống.
 
 ## Thứ tự và cảnh báo
 
 - Hồ sơ chưa từng chăm sóc xếp trước; sau đó xếp từ lần chăm sóc cũ nhất.
 - Số ngày được tính từ lần chăm sóc gần nhất, hoặc lần tiếp xúc đầu nếu chưa có
   lần chăm sóc: xanh 0-1 ngày, vàng 2-3 ngày, đỏ trên 3 ngày.
+
+## Nhập dữ liệu lịch sử từ Excel
+
+- Tài khoản có quyền quản lý báo cáo bán hàng mở `Nhập Excel` ngay trong màn
+  hình Chăm sóc lại. Nhân viên bán hàng thông thường không thấy thao tác này.
+- Hỗ trợ `.xlsx`/`.xls`, tối đa 5 MB và 1.000 dòng dữ liệu mỗi lần. File phải
+  giữ các cột nguồn: Timestamp, Email Address, MSNV bán hàng, Họ & Tên Khách
+  Hàng, SDT Khách Hàng, Ngành hàng, sản phẩm khách tìm, Chốt đơn thành công?,
+  Lí/Lý do không mua, SR ID và Kênh liên lạc; cột trống dư được bỏ qua.
+- Luồng bắt buộc xem trước rồi mới xác nhận. Kết quả tách rõ dòng hợp lệ, đã
+  mua, trùng, không hợp lệ và chưa phân công; chỉ dòng chưa mua hợp lệ được
+  nhập. File thay đổi sau lúc xem trước bị chặn bằng checksum.
+- Phone được chuẩn hóa về `0` + 9 chữ số; `+84` và chuỗi 9 chữ số được quy đổi.
+  Marker `0zalo` chỉ tạo kênh `ZALO_PERSONAL`, không lưu vào số điện thoại.
+  Kênh liên lạc hỗ trợ `PHONE`, `ZALO_PERSONAL`, `ZALO_OA`.
+- Ngành hàng phải khớp mã/tên Việt/tên Anh trong danh mục hiện hành. SR phải tồn
+  tại và nằm trong scope của người nhập; Super Admin được nhập cho mọi SR.
+- Email nhân viên active đúng SR được gán làm owner/assignee. Nếu chưa khớp,
+  hồ sơ vẫn được nhập ở trạng thái chưa phân công, đồng thời giữ Email Address
+  và `sourceSalespersonCode` để quản lý xử lý sau.
+- Báo cáo lịch sử dùng `entrySource=HISTORICAL_IMPORT`; bốn câu hỏi hành vi chưa
+  có trong file được lưu `NOT_CAPTURED` và hiển thị `Không có dữ liệu lịch sử`,
+  không giả lập câu trả lời của khách hoặc nhân viên.
+- Mỗi dòng có fingerprint duy nhất. Nhập lại cùng dữ liệu chỉ tăng thống kê
+  trùng, không ghi đè báo cáo hay lịch sử chăm sóc đã có. Batch audit chỉ lưu
+  checksum, tên file, actor và số lượng; không lưu nguyên file hoặc payload PII.
 
 ## Luồng modal
 

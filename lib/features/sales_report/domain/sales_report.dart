@@ -490,6 +490,105 @@ class SalesReportInput {
   }
 }
 
+class SalesReportImportRowPreview {
+  final int rowNumber;
+  final String status;
+  final String customerName;
+  final String? customerPhone;
+  final String salespersonEmail;
+  final String sourceSalespersonCode;
+  final String storeCode;
+  final List<String> errors;
+  final List<String> warnings;
+
+  const SalesReportImportRowPreview({
+    required this.rowNumber,
+    required this.status,
+    required this.customerName,
+    required this.customerPhone,
+    required this.salespersonEmail,
+    required this.sourceSalespersonCode,
+    required this.storeCode,
+    required this.errors,
+    required this.warnings,
+  });
+
+  factory SalesReportImportRowPreview.fromJson(Map<String, dynamic> json) =>
+      SalesReportImportRowPreview(
+        rowNumber: _salesReportInt(json['rowNumber']),
+        status: json['status']?.toString() ?? '',
+        customerName: json['customerName']?.toString() ?? '',
+        customerPhone: json['customerPhone']?.toString(),
+        salespersonEmail: json['salespersonEmail']?.toString() ?? '',
+        sourceSalespersonCode: json['sourceSalespersonCode']?.toString() ?? '',
+        storeCode: json['storeCode']?.toString() ?? '',
+        errors: _salesReportStrings(json['errors']),
+        warnings: _salesReportStrings(json['warnings']),
+      );
+}
+
+class SalesReportImportPreview {
+  final String fileName;
+  final String fileHash;
+  final String? batchId;
+  final int totalRows;
+  final int validRows;
+  final int importedRows;
+  final int purchasedRows;
+  final int duplicateRows;
+  final int invalidRows;
+  final int unassignedRows;
+  final List<SalesReportImportRowPreview> rows;
+
+  const SalesReportImportPreview({
+    required this.fileName,
+    required this.fileHash,
+    required this.batchId,
+    required this.totalRows,
+    required this.validRows,
+    required this.importedRows,
+    required this.purchasedRows,
+    required this.duplicateRows,
+    required this.invalidRows,
+    required this.unassignedRows,
+    required this.rows,
+  });
+
+  bool get canCommit => validRows > 0 && fileHash.isNotEmpty;
+  bool get committed => batchId?.isNotEmpty == true;
+
+  factory SalesReportImportPreview.fromJson(Map<String, dynamic> json) =>
+      SalesReportImportPreview(
+        fileName: json['fileName']?.toString() ?? '',
+        fileHash: json['fileHash']?.toString() ?? '',
+        batchId: json['batchId']?.toString(),
+        totalRows: _salesReportInt(json['totalRows']),
+        validRows: _salesReportInt(json['validRows']),
+        importedRows: _salesReportInt(json['importedRows']),
+        purchasedRows: _salesReportInt(json['purchasedRows']),
+        duplicateRows: _salesReportInt(json['duplicateRows']),
+        invalidRows: _salesReportInt(json['invalidRows']),
+        unassignedRows: _salesReportInt(json['unassignedRows']),
+        rows: (json['rows'] as List<dynamic>? ?? const [])
+            .whereType<Map>()
+            .map(
+              (row) => SalesReportImportRowPreview.fromJson(
+                row.map((key, value) => MapEntry(key.toString(), value)),
+              ),
+            )
+            .toList(growable: false),
+      );
+}
+
+int _salesReportInt(Object? value) =>
+    value is int ? value : int.tryParse(value?.toString() ?? '') ?? 0;
+
+List<String> _salesReportStrings(Object? value) =>
+    (value as List<dynamic>? ?? const [])
+        .map((item) => item.toString())
+        .where((item) => item.trim().isNotEmpty)
+        .toList(growable: false);
+
 class SalesReportFollowUpEntry {
   final String id;
   final int sequenceNumber;

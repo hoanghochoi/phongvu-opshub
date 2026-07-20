@@ -8,6 +8,8 @@ import { SalesReportsController } from './sales-reports.controller';
 import { SalesReportsService } from './sales-reports.service';
 import { SalesReportFollowUpsController } from './sales-report-follow-ups.controller';
 import { SalesReportFollowUpsService } from './sales-report-follow-ups.service';
+import { SalesReportImportParserService } from './sales-report-import-parser.service';
+import { SalesReportImportService } from './sales-report-import.service';
 
 @Module({
   imports: [PrismaModule, RedisModule],
@@ -18,6 +20,8 @@ import { SalesReportFollowUpsService } from './sales-report-follow-ups.service';
     SalesReportsBigQuerySyncService,
     SalesReportsService,
     SalesReportFollowUpsService,
+    SalesReportImportParserService,
+    SalesReportImportService,
   ],
   exports: [
     SalesReportErpService,

@@ -119,6 +119,10 @@ class ApiConstants {
   static const String salesReportsCheckOrderEndpoint =
       '/sales-reports/check-order';
   static const String salesReportsExportEndpoint = '/sales-reports/export';
+  static const String salesReportsImportPreviewEndpoint =
+      '/sales-reports/import/preview';
+  static const String salesReportsImportCommitEndpoint =
+      '/sales-reports/import/commit';
   static const String salesReportFollowUpCasesEndpoint =
       '/sales-reports/follow-up-cases';
   static String salesReportFollowUpCaseEndpoint(String id) =>

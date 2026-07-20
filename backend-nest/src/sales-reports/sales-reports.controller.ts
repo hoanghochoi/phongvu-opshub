@@ -7,9 +7,12 @@ import {
   Request,
   Res,
   StreamableFile,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
+import { FileInterceptor } from '@nestjs/platform-express';
 import type { Response } from 'express';
 import { FEATURE_KEYS } from '../feature/feature.constants';
 import { RequireFeature } from '../feature/feature.decorator';
@@ -22,6 +25,8 @@ import {
   ListSalesReportsDto,
 } from './sales-reports.dto';
 import { SalesReportsBigQuerySyncService } from './sales-reports-bigquery-sync.service';
+import { salesReportImportFileUploadOptions } from './sales-report-import-file-upload.options';
+import { SalesReportImportService } from './sales-report-import.service';
 import { SalesReportsService } from './sales-reports.service';
 
 @Controller('sales-reports')
@@ -30,6 +35,7 @@ export class SalesReportsController {
   constructor(
     private readonly service: SalesReportsService,
     private readonly bigQuerySync: SalesReportsBigQuerySyncService,
+    private readonly importService: SalesReportImportService,
   ) {}
 
   @Get('categories')
@@ -60,6 +66,27 @@ export class SalesReportsController {
   @RequireFeature(FEATURE_KEYS.SALES_REPORT)
   create(@Request() req: any, @Body() body: CreateSalesReportDto) {
     return this.service.create(req.user, body);
+  }
+
+  @Post('import/preview')
+  @RequireFeature(FEATURE_KEYS.ADMIN_SALES_REPORTS)
+  @UseInterceptors(FileInterceptor('file', salesReportImportFileUploadOptions))
+  previewImport(
+    @Request() req: any,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    return this.importService.preview(req.user, file);
+  }
+
+  @Post('import/commit')
+  @RequireFeature(FEATURE_KEYS.ADMIN_SALES_REPORTS)
+  @UseInterceptors(FileInterceptor('file', salesReportImportFileUploadOptions))
+  commitImport(
+    @Request() req: any,
+    @UploadedFile() file: Express.Multer.File,
+    @Body('expectedFileHash') expectedFileHash: string,
+  ) {
+    return this.importService.commit(req.user, file, expectedFileHash);
   }
 
   @Get()

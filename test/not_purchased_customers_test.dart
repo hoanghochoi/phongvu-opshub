@@ -1,15 +1,152 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:provider/provider.dart';
 import 'package:phongvu_opshub/core/network/api_client.dart';
 import 'package:phongvu_opshub/core/network/api_exception.dart';
 import 'package:phongvu_opshub/core/network/realtime_connection_manager.dart';
+import 'package:phongvu_opshub/features/auth/domain/entities/store_branch.dart';
+import 'package:phongvu_opshub/features/auth/domain/entities/user.dart';
+import 'package:phongvu_opshub/features/auth/data/repositories/auth_repository.dart';
+import 'package:phongvu_opshub/features/auth/presentation/providers/auth_provider.dart';
 import 'package:phongvu_opshub/features/sales_report/data/sales_report_repository.dart';
 import 'package:phongvu_opshub/features/sales_report/domain/sales_report.dart';
 import 'package:phongvu_opshub/features/sales_report/presentation/screens/not_purchased_customers_screen.dart';
 
 void main() {
+  testWidgets('quản lý xem trước và nhập Excel ngay tại Chăm sóc lại', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1200, 1000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final repository = _FakeFollowUpRepository(
+      _case(customerPhone: '0900000000', customerZaloContact: null),
+    );
+    final authProvider = _FakeAuthProvider(
+      const User(
+        email: 'manager@phongvu.com',
+        role: 'USER',
+        featureAccess: {'ADMIN_SALES_REPORTS': true},
+      ),
+    );
+
+    await tester.pumpWidget(
+      ChangeNotifierProvider<AuthProvider>.value(
+        value: authProvider,
+        child: MaterialApp(
+          home: Scaffold(
+            body: NotPurchasedCustomersScreen(
+              repository: repository,
+              importFilePicker: () async => SalesReportImportFile(
+                name: 'khach-chua-mua.xlsx',
+                size: 4,
+                bytes: Uint8List.fromList(const [1, 2, 3, 4]),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Nhập Excel'), findsOneWidget);
+    await tester.tap(find.text('Nhập Excel'));
+    await tester.pumpAndSettle();
+    expect(find.text('Nhập Excel khách chưa mua'), findsOneWidget);
+
+    await tester.tap(find.text('Chọn file Excel'));
+    await tester.pumpAndSettle();
+    expect(find.text('khach-chua-mua.xlsx'), findsOneWidget);
+
+    await tester.tap(find.text('Xem trước dữ liệu'));
+    await tester.pumpAndSettle();
+    expect(find.text('Kết quả xem trước'), findsOneWidget);
+    expect(repository.previewCalls, 1);
+
+    await tester.tap(find.text('Nhập 1 dòng hợp lệ'));
+    await tester.pumpAndSettle();
+    expect(find.text('Đã nhập dữ liệu'), findsOneWidget);
+    expect(repository.commitCalls, 1);
+
+    await tester.tap(find.text('Hoàn tất'));
+    await tester.pumpAndSettle();
+    expect(repository.listCalls, 2);
+  });
+
+  testWidgets('nhân viên bán hàng không thấy thao tác nhập Excel', (
+    tester,
+  ) async {
+    final repository = _FakeFollowUpRepository(
+      _case(customerPhone: '0900000000', customerZaloContact: null),
+    );
+    final authProvider = _FakeAuthProvider(
+      const User(
+        email: 'staff@phongvu.com',
+        role: 'USER',
+        featureAccess: {'SALES_REPORT': true},
+      ),
+    );
+
+    await tester.pumpWidget(
+      ChangeNotifierProvider<AuthProvider>.value(
+        value: authProvider,
+        child: MaterialApp(
+          home: Scaffold(
+            body: NotPurchasedCustomersScreen(repository: repository),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Nhập Excel'), findsNothing);
+  });
+
+  testWidgets('Super Admin có thể lọc khách chưa mua theo SR', (tester) async {
+    final repository = _FakeFollowUpRepository(
+      _case(customerPhone: '0900000000', customerZaloContact: null),
+    );
+    final realtime = _FakeRealtimeClient();
+    final authProvider = _FakeAuthProvider(
+      const User(email: 'admin@phongvu.com', role: 'SUPER_ADMIN'),
+    );
+
+    await tester.pumpWidget(
+      ChangeNotifierProvider<AuthProvider>.value(
+        value: authProvider,
+        child: MaterialApp(
+          home: Scaffold(
+            body: NotPurchasedCustomersScreen(
+              repository: repository,
+              realtimeClient: realtime,
+              storeLoader: () async => const [
+                StoreBranch(
+                  id: 'store-2',
+                  storeId: 'CP02',
+                  storeName: 'Quận 2',
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Mã SR / Showroom'), findsOneWidget);
+    await tester.tap(find.byType(TextField).last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('CP02 - Quận 2').last);
+    await tester.pumpAndSettle();
+
+    expect(repository.lastStoreCode, 'CP02');
+    await realtime.dispose();
+  });
+
   testWidgets('trong grace vẫn hiện khách chỉ có Zalo và mở lịch sử chăm sóc', (
     tester,
   ) async {
@@ -291,6 +428,9 @@ class _FakeFollowUpRepository extends SalesReportRepository {
   final DateTime? contactGracePeriodEndsAt;
   int detailCalls = 0;
   int listCalls = 0;
+  String? lastStoreCode;
+  int previewCalls = 0;
+  int commitCalls = 0;
 
   _FakeFollowUpRepository(
     this.item, {
@@ -303,10 +443,12 @@ class _FakeFollowUpRepository extends SalesReportRepository {
   Future<SalesReportFollowUpPage> fetchFollowUpCases({
     String status = 'OPEN',
     String? search,
+    String? storeCode,
     int page = 0,
     int limit = 20,
   }) async {
     listCalls += 1;
+    lastStoreCode = storeCode;
     return SalesReportFollowUpPage(
       items: [item],
       page: page,
@@ -327,6 +469,55 @@ class _FakeFollowUpRepository extends SalesReportRepository {
     }
     return item;
   }
+
+  @override
+  Future<SalesReportImportPreview> previewImport(
+    SalesReportImportFile file,
+  ) async {
+    previewCalls += 1;
+    return _importPreview();
+  }
+
+  @override
+  Future<SalesReportImportPreview> commitImport(
+    SalesReportImportFile file, {
+    required String expectedFileHash,
+  }) async {
+    commitCalls += 1;
+    return _importPreview(batchId: 'batch-1', importedRows: 1);
+  }
+}
+
+SalesReportImportPreview _importPreview({
+  String? batchId,
+  int importedRows = 0,
+}) => SalesReportImportPreview(
+  fileName: 'khach-chua-mua.xlsx',
+  fileHash: List.filled(64, 'a').join(),
+  batchId: batchId,
+  totalRows: 1,
+  validRows: 1,
+  importedRows: importedRows,
+  purchasedRows: 0,
+  duplicateRows: 0,
+  invalidRows: 0,
+  unassignedRows: 0,
+  rows: const [],
+);
+
+class _FakeAuthProvider extends AuthProvider {
+  _FakeAuthProvider(this.currentUser) : super(AuthRepository(ApiClient()));
+
+  final User currentUser;
+
+  @override
+  User? get user => currentUser;
+
+  @override
+  bool get isInitialized => true;
+
+  @override
+  bool get isAuthenticated => true;
 }
 
 class _FakeRealtimeClient implements RealtimeClient {

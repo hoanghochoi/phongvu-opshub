@@ -1,9 +1,27 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:http/http.dart' as http;
+
 import '../../../core/constants/api_constants.dart';
 import '../../../core/network/api_client.dart';
 import '../domain/sales_report.dart';
+
+class SalesReportImportFile {
+  final String name;
+  final int size;
+  final Uint8List? bytes;
+  final String? path;
+
+  const SalesReportImportFile({
+    required this.name,
+    required this.size,
+    this.bytes,
+    this.path,
+  });
+
+  bool get hasContent => bytes?.isNotEmpty == true || path?.isNotEmpty == true;
+}
 
 class SalesReportRepository {
   final ApiClient _apiClient;
@@ -77,6 +95,7 @@ class SalesReportRepository {
   Future<SalesReportFollowUpPage> fetchFollowUpCases({
     String status = 'OPEN',
     String? search,
+    String? storeCode,
     int page = 0,
     int limit = 20,
   }) async {
@@ -85,6 +104,7 @@ class SalesReportRepository {
       queryParameters: {
         'status': status,
         if ((search ?? '').trim().isNotEmpty) 'search': search!.trim(),
+        if ((storeCode ?? '').trim().isNotEmpty) 'storeCode': storeCode!.trim(),
         'page': '$page',
         'limit': '$limit',
       },
@@ -153,5 +173,46 @@ class SalesReportRepository {
       timeout: const Duration(seconds: 60),
     );
     return Uint8List.fromList(bytes);
+  }
+
+  Future<SalesReportImportPreview> previewImport(
+    SalesReportImportFile file,
+  ) async {
+    final response = await _apiClient.postMultipart(
+      ApiConstants.salesReportsImportPreviewEndpoint,
+      fields: const {},
+      files: [await _importFilePart(file)],
+      timeout: ApiConstants.uploadTimeout,
+    );
+    return SalesReportImportPreview.fromJson(
+      jsonDecode(response.body) as Map<String, dynamic>,
+    );
+  }
+
+  Future<SalesReportImportPreview> commitImport(
+    SalesReportImportFile file, {
+    required String expectedFileHash,
+  }) async {
+    final response = await _apiClient.postMultipart(
+      ApiConstants.salesReportsImportCommitEndpoint,
+      fields: {'expectedFileHash': expectedFileHash},
+      files: [await _importFilePart(file)],
+      timeout: ApiConstants.uploadTimeout,
+    );
+    return SalesReportImportPreview.fromJson(
+      jsonDecode(response.body) as Map<String, dynamic>,
+    );
+  }
+
+  Future<http.MultipartFile> _importFilePart(SalesReportImportFile file) async {
+    final bytes = file.bytes;
+    if (bytes != null && bytes.isNotEmpty) {
+      return http.MultipartFile.fromBytes('file', bytes, filename: file.name);
+    }
+    final path = file.path;
+    if (path != null && path.isNotEmpty) {
+      return http.MultipartFile.fromPath('file', path, filename: file.name);
+    }
+    throw ArgumentError('File Excel chưa có dữ liệu để tải lên.');
   }
 }
