@@ -13,16 +13,18 @@ WebSocket và Flutter lifecycle trên nhiều runtime.
 
 ## Acceptance
 
-- Dữ liệu nguồn và outbox được ghi cùng transaction hoặc cùng transaction của
-  từng chunk; projection không chạy đồng bộ trong transaction nguồn.
-- Worker poll outbox mỗi giây, dùng `NOTIFY` làm wake-up hint, coalesce cùng
-  grain trong 500 ms/tối đa hai giây; riêng burst MAP debounce hai giây/tối đa
-  năm giây và không rebuild cùng grain song song.
+- Dữ liệu nguồn làm bẩn `HomeSummaryProjectionQueue` ngay trong transaction
+  nguồn/chunk. `DomainOutboxEvent` giữ source signal và outbound event bền
+  vững; projection không chạy đồng bộ trong transaction nguồn.
+- Worker poll queue mỗi giây, dùng `NOTIFY` làm wake-up hint và coalesce theo
+  `(summaryDate, projectionKind)`. Queue dùng lease, dirty generation và
+  `FOR UPDATE SKIP LOCKED`, vì vậy burst trong lúc rebuild vẫn giữ đúng một
+  follow-up job và không rebuild cùng loại/ngày song song.
 - MAP sync dùng fingerprint cache RAM có TTL/LRU giới hạn để loại payload lặp
   trước DB; cache miss vẫn so sánh no-op trước `upsert`. Trigger projection bỏ
   qua UPDATE không đổi ngày/showroom/số tiền/danh sách đơn.
-- Daily aggregate có grain `GLOBAL`, `STORE`, `USER_STORE`; chỉ lưu metric cộng
-  dồn. Phần trăm/rate được tính khi đọc.
+- Daily aggregate tách `SALES`/`FINANCE`, có grain vật lý `GLOBAL`, `STORE`,
+  `USER_STORE`; chỉ lưu metric cộng dồn. Phần trăm/rate được tính khi đọc.
 - `GET /home/summary` giữ toàn bộ DTO KPI hiện tại và thêm `freshness` gồm
   `projectionGeneratedAt`, `projectionLagSeconds`,
   `sourceUpdatedAtBySource`, `isStale`.
@@ -32,9 +34,10 @@ WebSocket và Flutter lifecycle trên nhiều runtime.
 - `/ws/v2` dùng ticket xác thực hiện tại và phát `HOME_SUMMARY_UPDATED` chỉ có
   `affectedDates` cùng `projectionVersion`, không chứa KPI hoặc dữ liệu nhạy
   cảm.
-- Flutter dùng một `RealtimeConnectionManager` tối thiểu cho Home, loại event
-  trùng/out-of-order, debounce 500 ms và chỉ gọi lại API khi ngày đang xem giao
-  với `affectedDates`.
+- Flutter dùng một `RealtimeConnectionManager` được điều phối ở cấp ứng dụng
+  cho toàn phiên đăng nhập, không phụ thuộc Home đang mount. Client loại event
+  trùng/out-of-order, theo dõi version riêng từng ngày, debounce 500 ms/tối đa
+  hai giây và chỉ gọi lại API khi ngày đang xem giao với `affectedDates`.
 - `HomeSummaryRepository.summaryFreshTtl` là nguồn TTL duy nhất, cố định 60
   giây cho cả repository cache và route revalidation. Quay lại Home trước 60
   giây không gọi HTTP; tại hoặc sau 60 giây chỉ có một revalidation được
@@ -70,15 +73,22 @@ WebSocket và Flutter lifecycle trên nhiều runtime.
 ## Local Implementation Proof
 
 - Prisma format/validate/generate và Nest build đã chạy thành công.
-- Migration chain đã được deploy vào database tạm, tạo đủ 5 bảng, 3 source
-  trigger, 2 hot-path partial index và seed `90/90/90`; `rollback.sql` đã dọn
-  sạch database tạm. Staging database chưa được thay đổi.
-- 42 Jest test tập trung đã pass cho projection/outbox, retry, reconciliation,
-  stale/503, details v2, ERP offset và checkpoint resume.
-- 31 Go test, 24 Flutter Home/realtime test và full Flutter suite 458 test đã
-  pass; `flutter analyze` không có lỗi.
-- Load gate 250 concurrent/2.000 request, burst 5.000 source row, parity
-  1/7/30/90 ngày và RAM host vẫn phải chạy trên staging trước rollout.
+- Migration chain đã được deploy vào database tạm, tạo 9 statement-level
+  source trigger, seed `90` state/`180` queue job/`180` source signal. Burst
+  5.000 source row cùng ngày coalesce thành đúng một FINANCE job; `rollback.sql`
+  đã khôi phục legacy schema/trigger. Staging database chưa được thay đổi.
+- 58 Jest test tập trung đã pass cho lease/claim/retry, dirty generation,
+  reconciliation, last-complete stale/503, details v2, timezone window, ERP
+  offset và checkpoint resume; full Nest pass 81 suite/812 test.
+- Go pass 64 test và `go vet`; Flutter Home/realtime pass 37 test, design-system
+  guard cùng Home/details pass 49 test, full Flutter pass 580 test với 3 platform
+  skip có chủ đích; `flutter analyze` không có lỗi.
+- Schema analyzer đọc được 57 bảng. Cảnh báo JSON additive snapshot và `BIGINT`
+  là lựa chọn có chủ đích; migration scratch database là bằng chứng constraint,
+  index và rollback có thẩm quyền hơn parser DDL đơn giản của analyzer.
+- Load gate HTTP 250 concurrent/2.000 request, runtime parity 1/7/30/90 ngày,
+  worker latency và RAM host vẫn phải chạy trên staging trước rollout; máy local
+  hiện không cài `k6`.
 
 ## Proof Target
 

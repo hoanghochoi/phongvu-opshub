@@ -8,6 +8,7 @@ import '../../../../core/network/api_exception.dart';
 import '../../../../core/network/realtime_connection_manager.dart';
 import '../../../../core/utils/date_range_defaults.dart';
 import '../../../auth/domain/entities/user.dart';
+import '../../../auth/domain/realtime_session_identity.dart';
 import '../../data/repositories/home_summary_repository.dart';
 import '../../domain/home_summary.dart';
 
@@ -59,8 +60,7 @@ class HomeSummaryProvider extends ChangeNotifier {
     this._repository, {
     DateTime Function()? now,
     RealtimeClient? realtimeClient,
-  }) : _now = now ?? DateTime.now,
-       _realtimeClient = realtimeClient {
+  }) : _now = now ?? DateTime.now {
     _resetSelectedDateRangeToToday();
     if (realtimeClient != null) {
       _realtimeEventSubscription = realtimeClient.events.listen(
@@ -74,21 +74,20 @@ class HomeSummaryProvider extends ChangeNotifier {
 
   static final DateFormat _queryDateFormat = DateFormat('yyyy-MM-dd');
   static final DateFormat _updatedAtFormat = DateFormat('HH:mm dd/MM/yyyy');
-  static const Duration _realtimeRefreshDebounce = Duration(seconds: 2);
-  static const Duration _realtimeRefreshMaxWait = Duration(seconds: 5);
+  static const Duration _realtimeRefreshDebounce = Duration(milliseconds: 500);
+  static const Duration _realtimeRefreshMaxWait = Duration(seconds: 2);
 
   final HomeSummaryRepository _repository;
   final DateTime Function() _now;
-  final RealtimeClient? _realtimeClient;
 
   StreamSubscription<RealtimeEnvelope>? _realtimeEventSubscription;
   StreamSubscription<RealtimeSyncReason>? _realtimeSyncSubscription;
   Timer? _realtimeRefreshTimer;
   Timer? _realtimeRefreshMaxTimer;
   final Set<String> _pendingAffectedDates = <String>{};
+  final Map<String, int> _pendingProjectionVersionByDate = <String, int>{};
+  final Map<String, int> _lastAppliedProjectionVersionByDate = <String, int>{};
   String? _pendingRealtimeReason;
-  int? _pendingProjectionVersion;
-  int? _lastAppliedProjectionVersion;
   DateTime? _lastSuccessfulLoadAt;
 
   User? _user;
@@ -252,14 +251,10 @@ class HomeSummaryProvider extends ChangeNotifier {
       _requestToken += 1;
       _cancelRealtimeRefreshTimers();
       _pendingAffectedDates.clear();
+      _pendingProjectionVersionByDate.clear();
+      _lastAppliedProjectionVersionByDate.clear();
       _pendingRealtimeReason = null;
-      _pendingProjectionVersion = null;
-      _lastAppliedProjectionVersion = null;
       _lastSuccessfulLoadAt = null;
-      final realtimeClient = _realtimeClient;
-      if (realtimeClient != null) {
-        unawaited(realtimeClient.syncSession(nextSessionKey));
-      }
     }
 
     if (!isInitialized || effectiveUser == null) {
@@ -412,9 +407,75 @@ class HomeSummaryProvider extends ChangeNotifier {
     await loadSummary(reason: 'manual_refresh');
   }
 
-  Future<HomeSalesBehaviorDetails> fetchSalesBehaviorDetails({
+  Future<HomeSummaryDetailsPage<HomeNotPurchasedReportDetail>>
+  fetchNotPurchasedDetails({
     required String source,
-    int limit = 200,
+    String? cursor,
+    int limit = 50,
+  }) => _fetchDetailsPage(
+    source: source,
+    kind: HomeSummaryDetailKind.notPurchased,
+    cursor: cursor,
+    limit: limit,
+    loader: () => _repository.fetchNotPurchasedDetails(
+      startDate: formattedSelectedStartDate,
+      endDate: formattedSelectedEndDate,
+      scope: _requestScopeForSelectedScope,
+      organizationNodeId: _organizationNodeIdForSelectedScope,
+      salesProgressUserId: _selectedSalesProgressUserId,
+      cursor: cursor,
+      limit: limit,
+    ),
+  );
+
+  Future<HomeSummaryDetailsPage<HomeUnreportedOrderDetail>>
+  fetchUnreportedOrderDetails({
+    required String source,
+    String? cursor,
+    int limit = 50,
+  }) => _fetchDetailsPage(
+    source: source,
+    kind: HomeSummaryDetailKind.unreportedOrder,
+    cursor: cursor,
+    limit: limit,
+    loader: () => _repository.fetchUnreportedOrderDetails(
+      startDate: formattedSelectedStartDate,
+      endDate: formattedSelectedEndDate,
+      scope: _requestScopeForSelectedScope,
+      organizationNodeId: _organizationNodeIdForSelectedScope,
+      salesProgressUserId: _selectedSalesProgressUserId,
+      cursor: cursor,
+      limit: limit,
+    ),
+  );
+
+  Future<HomeSummaryDetailsPage<HomeInstallmentNeedDetail>>
+  fetchInstallmentNeedDetails({
+    required String source,
+    String? cursor,
+    int limit = 50,
+  }) => _fetchDetailsPage(
+    source: source,
+    kind: HomeSummaryDetailKind.installmentNeed,
+    cursor: cursor,
+    limit: limit,
+    loader: () => _repository.fetchInstallmentNeedDetails(
+      startDate: formattedSelectedStartDate,
+      endDate: formattedSelectedEndDate,
+      scope: _requestScopeForSelectedScope,
+      organizationNodeId: _organizationNodeIdForSelectedScope,
+      salesProgressUserId: _selectedSalesProgressUserId,
+      cursor: cursor,
+      limit: limit,
+    ),
+  );
+
+  Future<HomeSummaryDetailsPage<T>> _fetchDetailsPage<T>({
+    required String source,
+    required HomeSummaryDetailKind kind,
+    required String? cursor,
+    required int limit,
+    required Future<HomeSummaryDetailsPage<T>> Function() loader,
   }) async {
     final user = _user;
     if (user == null) {
@@ -423,54 +484,49 @@ class HomeSummaryProvider extends ChangeNotifier {
 
     await AppLogger.instance.info(
       'HomeSummary',
-      'Home sales behavior details load started',
+      'Home summary details page load started',
       context: {
         'userId': user.id,
         'source': source,
+        'kind': kind.apiValue,
         'startDate': formattedSelectedStartDate,
         'endDate': formattedSelectedEndDate,
         'scopeFilter': _selectedScope,
         'requestScope': _requestScopeForSelectedScope,
         'organizationNodeId': _organizationNodeIdForSelectedScope,
         'salesProgressUserId': _selectedSalesProgressUserId,
-        'limit': limit,
+        'limit': limit.clamp(1, 100),
+        'hasCursor': cursor?.trim().isNotEmpty == true,
       },
     );
 
     try {
-      final details = await _repository.fetchSalesBehaviorDetails(
-        startDate: formattedSelectedStartDate,
-        endDate: formattedSelectedEndDate,
-        scope: _requestScopeForSelectedScope,
-        organizationNodeId: _organizationNodeIdForSelectedScope,
-        salesProgressUserId: _selectedSalesProgressUserId,
-        limit: limit,
-      );
+      final page = await loader();
       await AppLogger.instance.info(
         'HomeSummary',
-        'Home sales behavior details load succeeded',
+        'Home summary details page load succeeded',
         context: {
           'userId': user.id,
           'source': source,
-          'scope': details.scope,
-          'selectedSalesProgressUserId': details.selectedSalesProgressUserId,
-          'notPurchasedRows': details.notPurchasedReports.length,
-          'notPurchasedTotal': details.notPurchasedTotal,
-          'unreportedRows': details.unreportedOrders.length,
-          'unreportedTotal': details.unreportedTotal,
-          'installmentNeedRows': details.installmentNeedReports.length,
-          'installmentNeedTotal': details.installmentNeedTotal,
-          'limit': details.limit,
+          'kind': page.kind.apiValue,
+          'scope': page.scope,
+          'selectedSalesProgressUserId': page.selectedSalesProgressUserId,
+          'rows': page.items.length,
+          'total': page.total,
+          'limit': page.limit,
+          'hasNextPage': page.hasNextPage,
         },
       );
-      return details;
+      return page;
     } on ApiException catch (error) {
       await AppLogger.instance.warn(
         'HomeSummary',
-        'Home sales behavior details load failed',
+        'Home summary details page load failed',
         context: {
           'userId': user.id,
           'source': source,
+          'kind': kind.apiValue,
+          'hasCursor': cursor?.trim().isNotEmpty == true,
           'message': error.message,
         },
       );
@@ -478,10 +534,15 @@ class HomeSummaryProvider extends ChangeNotifier {
     } catch (error, stackTrace) {
       await AppLogger.instance.error(
         'HomeSummary',
-        'Home sales behavior details load failed unexpectedly',
+        'Home summary details page load failed unexpectedly',
         error: error,
         stackTrace: stackTrace,
-        context: {'userId': user.id, 'source': source},
+        context: {
+          'userId': user.id,
+          'source': source,
+          'kind': kind.apiValue,
+          'hasCursor': cursor?.trim().isNotEmpty == true,
+        },
         upload: true,
       );
       throw ApiException('Chưa tải được chi tiết báo cáo. Vui lòng thử lại.');
@@ -619,11 +680,6 @@ class HomeSummaryProvider extends ChangeNotifier {
 
       _summary = summary;
       _lastSuccessfulLoadAt = _repository.lastSummaryFetchedAt ?? _now();
-      final responseProjectionVersion = summary.freshness?.projectionVersion;
-      if (responseProjectionVersion != null &&
-          responseProjectionVersion > (_lastAppliedProjectionVersion ?? -1)) {
-        _lastAppliedProjectionVersion = responseProjectionVersion;
-      }
       _selectedSalesProgressUserId = summary.selectedSalesProgressUserId;
       _errorMessage = _repository.lastSummaryWasStale
           ? _staleCacheMessage(_lastSuccessfulLoadAt)
@@ -778,8 +834,13 @@ class HomeSummaryProvider extends ChangeNotifier {
       );
       return;
     }
-    final appliedVersion = _lastAppliedProjectionVersion ?? -1;
-    if (projectionVersion <= appliedVersion) {
+    final changedDates = affectedDates.where((date) {
+      final appliedVersion = _lastAppliedProjectionVersionByDate[date] ?? -1;
+      final pendingVersion = _pendingProjectionVersionByDate[date] ?? -1;
+      return projectionVersion > appliedVersion &&
+          projectionVersion > pendingVersion;
+    }).toSet();
+    if (changedDates.isEmpty) {
       unawaited(
         AppLogger.instance.info(
           'HomeSummaryRealtime',
@@ -787,31 +848,16 @@ class HomeSummaryProvider extends ChangeNotifier {
           context: {
             'eventId': envelope.id,
             'projectionVersion': projectionVersion,
-            'appliedProjectionVersion': appliedVersion,
+            'affectedDateCount': affectedDates.length,
           },
         ),
       );
       return;
     }
-    final pendingVersion = _pendingProjectionVersion;
-    if (pendingVersion != null && projectionVersion < pendingVersion) {
-      unawaited(
-        AppLogger.instance.info(
-          'HomeSummaryRealtime',
-          'Home realtime projection superseded',
-          context: {
-            'eventId': envelope.id,
-            'projectionVersion': projectionVersion,
-            'pendingProjectionVersion': pendingVersion,
-          },
-        ),
-      );
-      return;
+    for (final date in changedDates) {
+      _pendingProjectionVersionByDate[date] = projectionVersion;
     }
-    _pendingAffectedDates.addAll(affectedDates);
-    if (pendingVersion == null || projectionVersion > pendingVersion) {
-      _pendingProjectionVersion = projectionVersion;
-    }
+    _pendingAffectedDates.addAll(changedDates);
     _scheduleRealtimeRefresh(reason: 'realtime_event');
   }
 
@@ -869,10 +915,16 @@ class HomeSummaryProvider extends ChangeNotifier {
     if (_user == null) return;
     if (!_isRouteActive || !_isForeground) return;
     final reason = _pendingRealtimeReason ?? 'realtime_sync';
-    final projectionVersion = _pendingProjectionVersion;
+    final pendingVersions = Map<String, int>.from(
+      _pendingProjectionVersionByDate,
+    );
+    final projectionVersion = pendingVersions.values.fold<int?>(
+      null,
+      (highest, value) => highest == null || value > highest ? value : highest,
+    );
     final affectedDates = Set<String>.from(_pendingAffectedDates);
     _pendingRealtimeReason = null;
-    _pendingProjectionVersion = null;
+    _pendingProjectionVersionByDate.clear();
     _pendingAffectedDates.clear();
     if (affectedDates.isNotEmpty && !_overlapsSelectedRange(affectedDates)) {
       await AppLogger.instance.info(
@@ -897,8 +949,13 @@ class HomeSummaryProvider extends ChangeNotifier {
       },
     );
     final succeeded = await _loadSummary(reason: reason);
-    if (succeeded && projectionVersion != null) {
-      _lastAppliedProjectionVersion = projectionVersion;
+    if (succeeded) {
+      for (final entry in pendingVersions.entries) {
+        final applied = _lastAppliedProjectionVersionByDate[entry.key] ?? -1;
+        if (entry.value > applied) {
+          _lastAppliedProjectionVersionByDate[entry.key] = entry.value;
+        }
+      }
     }
     if (succeeded) {
       await AppLogger.instance.info(
@@ -1041,22 +1098,8 @@ class HomeSummaryProvider extends ChangeNotifier {
 
   String _cacheIdentity(User user) => _syncedSessionKey ?? _sessionKey(user);
 
-  static String _sessionKey(User user, {String? accessIdentity}) {
-    final assignedStores = user.assignedStoreIds.toList()..sort();
-    final features = user.featureAccess.entries.toList()
-      ..sort((left, right) => left.key.compareTo(right.key));
-    final policies = user.policyAccess.entries.toList()
-      ..sort((left, right) => left.key.compareTo(right.key));
-    final accessSignature = accessIdentity?.trim().isNotEmpty == true
-        ? accessIdentity!.trim()
-        : [
-            ...features.map((entry) => '${entry.key}:${entry.value}'),
-            ...policies.map((entry) => '${entry.key}:${entry.value}'),
-          ].join(',');
-    return '${user.id ?? user.email}|${user.role ?? ''}|'
-        '${user.organizationNodeId ?? ''}|${user.organizationNodeIds.join(',')}|'
-        '${assignedStores.join(',')}|$accessSignature';
-  }
+  static String _sessionKey(User user, {String? accessIdentity}) =>
+      RealtimeSessionIdentity.forUser(user, accessIdentity: accessIdentity);
 
   static bool _shouldForceNetworkForReason(String reason) =>
       reason == 'manual_refresh' ||
@@ -1082,7 +1125,7 @@ class HomeSummaryProvider extends ChangeNotifier {
 
   bool get _hasPendingRealtimeRefresh =>
       _pendingRealtimeReason != null ||
-      _pendingProjectionVersion != null ||
+      _pendingProjectionVersionByDate.isNotEmpty ||
       _pendingAffectedDates.isNotEmpty;
 
   void _cancelRealtimeRefreshTimers() {

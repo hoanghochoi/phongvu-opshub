@@ -165,6 +165,39 @@ type HomeSummaryProjectionSnapshot = {
   versionsByDate: Map<string, number>;
 };
 
+type HomeProjectionKind = 'SALES' | 'FINANCE';
+
+type HomeProjectionMetrics = {
+  totalOrders: number;
+  reportedOrders: number;
+  totalReports: number;
+  notPurchasedReports: number;
+  totalRevenue: number;
+  completedRevenue: number;
+  businessCustomerRevenue: number;
+  personalCustomerRevenue: number;
+  examScorePromotionCount: number;
+  studentPromotionCount: number;
+  installmentNeedCount: number;
+  successfulInstallmentCount: number;
+  extendedInsuranceQuantity: number;
+  laptopQuantity: number;
+  pcQuantity: number;
+  assembledPcQuantity: number;
+  appleQuantity: number;
+  monitorQuantity: number;
+  printerQuantity: number;
+  accessoriesQuantity: number;
+  consultedSolutionYes: number;
+  experiencedYes: number;
+  zaloYes: number;
+  appDownloadYes: number;
+  totalTransferredAmount: number;
+  totalStatements: number;
+  totalStatementsWithOrder: number;
+  totalStatementsWithoutOrder: number;
+};
+
 type HomeSummaryScopeOptionsCacheEntry = {
   expiresAt: number;
   response: HomeSummaryScopeOptionResponse[];
@@ -623,9 +656,14 @@ export class HomeSummaryService {
     let refreshedAt = new Date();
     let freshness: HomeSummaryFreshnessResponse | null = null;
     let projectionVersionsByDate = new Map<string, number>();
-    if (this.projectionEnabled()) {
+    let useProjection = this.projectionEnabled();
+    if (useProjection) {
       try {
-        const projection = await this.loadProjectionFreshness(range);
+        const projection = await this.loadProjectionFreshness(
+          range,
+          salesAvailable,
+          financeAvailable,
+        );
         freshness = projection.freshness;
         projectionVersionsByDate = projection.versionsByDate;
         refreshedAt = freshness.projectionGeneratedAt;
@@ -634,6 +672,7 @@ export class HomeSummaryService {
         this.logger.warn(
           `Home summary projection unavailable; legacy sync fallback started: user=${this.safeUserLabel(user)} startDate=${range.startDate} endDate=${range.endDate}`,
         );
+        useProjection = false;
         refreshedAt = await this.syncFactsForRange(range);
       }
     } else if (salesAvailable || (financeAvailable && scope.scope === 'OWN')) {
@@ -665,58 +704,89 @@ export class HomeSummaryService {
     let mainKpis = this.emptyMainKpis();
     let behaviorYesCounts = this.emptyBehaviorYesCounts();
     if (salesAvailable) {
-      const reportWhere = this.reportScopeWhere(salesMetricsScope, range);
-      const [
-        orderCount,
-        reportCount,
-        notPurchasedReportCount,
-        reportedCodeRows,
-      ] = await this.prisma.$transaction([
-        this.homeSummaryOrderFact.count({ where: salesOrderWhere }),
-        this.homeSummaryReportFact.count({ where: reportWhere }),
-        this.homeSummaryReportFact.count({
-          where: {
-            ...reportWhere,
-            reportType: REPORT_TYPE_NOT_PURCHASED,
-          },
-        }),
-        this.homeSummaryReportFact.findMany({
-          where: {
-            ...reportWhere,
-            reportType: REPORT_TYPE_PURCHASED,
-            orderCode: { not: null },
-          },
-          select: { orderCode: true },
-        }),
-      ]);
-      totalOrders = orderCount;
-      totalReports = reportCount;
-      notPurchasedReports = notPurchasedReportCount;
-      const reportedCodes = Array.from(
-        new Set(
-          reportedCodeRows
-            .map((row: { orderCode: string | null }) =>
-              this.normalizeOrderCode(row.orderCode),
-            )
-            .filter((value: string | null): value is string => Boolean(value)),
-        ),
-      );
-      reportedOrders =
-        reportedCodes.length > 0
+      if (useProjection) {
+        const projected = await this.loadProjectionMetrics(
+          range,
+          salesMetricsScope,
+          'SALES',
+        );
+        totalOrders = projected.totalOrders;
+        totalReports = projected.totalReports;
+        notPurchasedReports = projected.notPurchasedReports;
+        reportedOrders = projected.reportedOrders;
+        totalRevenue = projected.totalRevenue;
+        completedRevenue = projected.completedRevenue;
+        behaviorYesCounts = {
+          consultedSolution: projected.consultedSolutionYes,
+          experienced: projected.experiencedYes,
+          zalo: projected.zaloYes,
+          appDownload: projected.appDownloadYes,
+        };
+        mainKpis = {
+          businessCustomerRevenue: projected.businessCustomerRevenue,
+          personalCustomerRevenue: projected.personalCustomerRevenue,
+          examScorePromotionCount: projected.examScorePromotionCount,
+          studentPromotionCount: projected.studentPromotionCount,
+          installmentNeedCount: projected.installmentNeedCount,
+          successfulInstallmentCount: projected.successfulInstallmentCount,
+          extendedInsuranceQuantity: projected.extendedInsuranceQuantity,
+          laptopQuantity: projected.laptopQuantity,
+          pcQuantity: projected.pcQuantity,
+          assembledPcQuantity: projected.assembledPcQuantity,
+          appleQuantity: projected.appleQuantity,
+          monitorQuantity: projected.monitorQuantity,
+          printerQuantity: projected.printerQuantity,
+          accessoriesQuantity: projected.accessoriesQuantity,
+        };
+      } else {
+        const reportWhere = this.reportScopeWhere(salesMetricsScope, range);
+        const [
+          orderCount,
+          reportCount,
+          notPurchasedReportCount,
+          reportedCodeRows,
+        ] = await this.prisma.$transaction([
+          this.homeSummaryOrderFact.count({ where: salesOrderWhere }),
+          this.homeSummaryReportFact.count({ where: reportWhere }),
+          this.homeSummaryReportFact.count({
+            where: { ...reportWhere, reportType: REPORT_TYPE_NOT_PURCHASED },
+          }),
+          this.homeSummaryReportFact.findMany({
+            where: {
+              ...reportWhere,
+              reportType: REPORT_TYPE_PURCHASED,
+              orderCode: { not: null },
+            },
+            select: { orderCode: true },
+          }),
+        ]);
+        totalOrders = orderCount;
+        totalReports = reportCount;
+        notPurchasedReports = notPurchasedReportCount;
+        const reportedCodes = Array.from(
+          new Set(
+            reportedCodeRows
+              .map((row: { orderCode: string | null }) =>
+                this.normalizeOrderCode(row.orderCode),
+              )
+              .filter((value: string | null): value is string =>
+                Boolean(value),
+              ),
+          ),
+        );
+        reportedOrders = reportedCodes.length
           ? await this.homeSummaryOrderFact.count({
-              where: {
-                ...salesOrderWhere,
-                orderCode: { in: reportedCodes },
-              },
+              where: { ...salesOrderWhere, orderCode: { in: reportedCodes } },
             })
           : 0;
-      [totalRevenue, completedRevenue, behaviorYesCounts, mainKpis] =
-        await Promise.all([
-          this.totalCacheRevenue(salesMetricsScope, range),
-          this.completedRevenue(salesMetricsScope, range),
-          this.countBehaviorYesReports(salesMetricsScope, range),
-          this.buildSalesMainKpis(salesMetricsScope, range),
-        ]);
+        [totalRevenue, completedRevenue, behaviorYesCounts, mainKpis] =
+          await Promise.all([
+            this.totalCacheRevenue(salesMetricsScope, range),
+            this.completedRevenue(salesMetricsScope, range),
+            this.countBehaviorYesReports(salesMetricsScope, range),
+            this.buildSalesMainKpis(salesMetricsScope, range),
+          ]);
+      }
     }
 
     let totalStatements = 0;
@@ -724,51 +794,65 @@ export class HomeSummaryService {
     let totalStatementsWithOrder = 0;
     let totalStatementsWithoutOrder = 0;
     if (financeAvailable) {
-      const financeOrderWhere = this.orderScopeWhere(scope, range);
-      const personalOrderCodes =
-        scope.scope === 'OWN'
-          ? (
-              await this.homeSummaryOrderFact.findMany({
-                where: financeOrderWhere,
-                select: { orderCode: true },
-              })
-            )
-              .map((row: { orderCode: string | null }) =>
-                this.normalizeOrderCode(row.orderCode),
+      if (useProjection) {
+        const projected = await this.loadProjectionMetrics(
+          range,
+          scope,
+          'FINANCE',
+        );
+        totalStatements = projected.totalStatements;
+        totalTransferredAmount = projected.totalTransferredAmount;
+        totalStatementsWithOrder = projected.totalStatementsWithOrder;
+        totalStatementsWithoutOrder = projected.totalStatementsWithoutOrder;
+      } else {
+        const financeOrderWhere = this.orderScopeWhere(scope, range);
+        const personalOrderCodes =
+          scope.scope === 'OWN'
+            ? (
+                await this.homeSummaryOrderFact.findMany({
+                  where: financeOrderWhere,
+                  select: { orderCode: true },
+                })
               )
-              .filter((value: string | null): value is string => Boolean(value))
-          : [];
-      const financeWhere = this.financeScopeWhere(
-        scope,
-        range,
-        personalOrderCodes,
-      );
-      const [
-        statementCount,
-        transferredAmountSummary,
-        statementWithOrderCount,
-        statementWithoutOrderCount,
-      ] = await this.prisma.$transaction([
-        this.prisma.mapVietinTransaction.count({ where: financeWhere }),
-        this.prisma.mapVietinTransaction.aggregate({
-          where: financeWhere,
-          _sum: { amount: true },
-        }),
-        this.prisma.mapVietinTransaction.count({
-          where: this.andMapTransactionWhere(financeWhere, {
-            orders: { isEmpty: false },
+                .map((row: { orderCode: string | null }) =>
+                  this.normalizeOrderCode(row.orderCode),
+                )
+                .filter((value: string | null): value is string =>
+                  Boolean(value),
+                )
+            : [];
+        const financeWhere = this.financeScopeWhere(
+          scope,
+          range,
+          personalOrderCodes,
+        );
+        const [
+          statementCount,
+          transferredAmountSummary,
+          statementWithOrderCount,
+          statementWithoutOrderCount,
+        ] = await this.prisma.$transaction([
+          this.prisma.mapVietinTransaction.count({ where: financeWhere }),
+          this.prisma.mapVietinTransaction.aggregate({
+            where: financeWhere,
+            _sum: { amount: true },
           }),
-        }),
-        this.prisma.mapVietinTransaction.count({
-          where: this.andMapTransactionWhere(financeWhere, {
-            orders: { isEmpty: true },
+          this.prisma.mapVietinTransaction.count({
+            where: this.andMapTransactionWhere(financeWhere, {
+              orders: { isEmpty: false },
+            }),
           }),
-        }),
-      ]);
-      totalStatements = statementCount;
-      totalTransferredAmount = transferredAmountSummary._sum.amount ?? 0;
-      totalStatementsWithOrder = statementWithOrderCount;
-      totalStatementsWithoutOrder = statementWithoutOrderCount;
+          this.prisma.mapVietinTransaction.count({
+            where: this.andMapTransactionWhere(financeWhere, {
+              orders: { isEmpty: true },
+            }),
+          }),
+        ]);
+        totalStatements = statementCount;
+        totalTransferredAmount = transferredAmountSummary._sum.amount ?? 0;
+        totalStatementsWithOrder = statementWithOrderCount;
+        totalStatementsWithoutOrder = statementWithoutOrderCount;
+      }
     }
     const unreportedOrders = Math.max(totalOrders - reportedOrders, 0);
     const averageOrderValue = totalOrders
@@ -1392,6 +1476,225 @@ export class HomeSummaryService {
       throw new Error('Projection date must use yyyy-MM-dd');
     }
     return this.syncFacts(date, summaryDate);
+  }
+
+  async populateSalesProjectionMetrics(
+    tx: Prisma.TransactionClient,
+    date: string,
+  ) {
+    const startedAt = Date.now();
+    const sourceDayStart = this.parseDateOnly(date);
+    if (!sourceDayStart) throw new Error('Projection date must use yyyy-MM-dd');
+    // Aggregate summaryDate is a PostgreSQL DATE keyed by the visible Vietnam
+    // date, while source facts use the UTC instant at Vietnam midnight.
+    const aggregateDate = this.dateOnlyUtc(date);
+    const range = this.dateRangeFor(sourceDayStart);
+    const [aggregates, reports, cacheRows] = await Promise.all([
+      tx.homeSummaryDailyAggregate.findMany({
+        where: { summaryDate: aggregateDate, projectionKind: 'SALES' },
+        select: {
+          id: true,
+          dimensionType: true,
+          dimensionKey: true,
+          storeCode: true,
+          totalOrders: true,
+          reportedOrders: true,
+          totalReports: true,
+          notPurchasedReports: true,
+        },
+      }),
+      tx.salesReport.findMany({
+        where: {
+          erpExcludedAt: null,
+          ...this.reportedOrderDateWhere(range),
+        },
+        select: {
+          id: true,
+          reportType: true,
+          orderCode: true,
+          erpOrderId: true,
+          createdByEmail: true,
+          storeCode: true,
+          consultedSolutionAnswer: true,
+          experiencedAnswer: true,
+          zaloAnswer: true,
+          appDownloadAnswer: true,
+          customerType: true,
+          erpGrandTotal: true,
+          erpReturnedAfterTaxAmount: true,
+          erpLifecycleStatus: true,
+          promotionCodes: true,
+          installmentNeed: true,
+          installmentStatus: true,
+          installmentNoInstallmentReason: true,
+          items: {
+            orderBy: { createdAt: 'asc' },
+            select: {
+              name: true,
+              productTypeName: true,
+              productGroupName: true,
+              categoryType: true,
+              quantity: true,
+              finalSellPrice: true,
+              rowTotal: true,
+            },
+          },
+        },
+      }),
+      tx.salesReportErpOrderCache.findMany({
+        where: { excludedAt: null, ...this.orderCacheDateWhere(range) },
+        select: {
+          storeCode: true,
+          sourceUserEmail: true,
+          consultantEmail: true,
+          sellerEmail: true,
+          grandTotal: true,
+          paymentStatus: true,
+          lifecycleStatus: true,
+          hasReturnedFullItems: true,
+          returnedAfterTaxAmount: true,
+        },
+      }),
+    ]);
+    type SalesAccumulator = {
+      reports: any[];
+      totalRevenue: number;
+      completedRevenue: number;
+      consultedSolutionYes: number;
+      experiencedYes: number;
+      zaloYes: number;
+      appDownloadYes: number;
+    };
+    const buckets = new Map<string, SalesAccumulator>();
+    const grainKey = (
+      dimensionType: string,
+      dimensionKey: string,
+      store: string,
+    ) => `${dimensionType}\u0000${dimensionKey}\u0000${store}`;
+    const bucketFor = (key: string) => {
+      let bucket = buckets.get(key);
+      if (!bucket) {
+        bucket = {
+          reports: [],
+          totalRevenue: 0,
+          completedRevenue: 0,
+          consultedSolutionYes: 0,
+          experiencedYes: 0,
+          zaloYes: 0,
+          appDownloadYes: 0,
+        };
+        buckets.set(key, bucket);
+      }
+      return bucket;
+    };
+    const reportKeys = (row: {
+      storeCode: string | null;
+      createdByEmail: string | null;
+    }) => {
+      const store = this.normalizeStoreCode(row.storeCode) ?? '';
+      const email = this.normalizeEmail(row.createdByEmail) ?? '';
+      return Array.from(
+        new Set([
+          grainKey('GLOBAL', '', ''),
+          ...(store ? [grainKey('STORE', store, store)] : []),
+          ...(store && email ? [grainKey('USER_STORE', email, store)] : []),
+        ]),
+      );
+    };
+    for (const report of reports) {
+      for (const key of reportKeys(report)) {
+        const bucket = bucketFor(key);
+        bucket.reports.push(report);
+        if (report.consultedSolutionAnswer === 'YES')
+          bucket.consultedSolutionYes += 1;
+        if (report.experiencedAnswer === 'YES') bucket.experiencedYes += 1;
+        if (report.zaloAnswer === 'YES') bucket.zaloYes += 1;
+        if (report.appDownloadAnswer === 'YES') bucket.appDownloadYes += 1;
+        if (
+          report.reportType === REPORT_TYPE_PURCHASED &&
+          ['COMPLETED', 'COMPLETED_PARTIAL_RETURN'].includes(
+            report.erpLifecycleStatus,
+          )
+        ) {
+          bucket.completedRevenue += Math.max(
+            0,
+            (report.erpGrandTotal ?? 0) - report.erpReturnedAfterTaxAmount,
+          );
+        }
+      }
+    }
+    for (const row of cacheRows) {
+      const store = this.normalizeStoreCode(row.storeCode) ?? '';
+      const emails = new Set(
+        [row.sourceUserEmail, row.consultantEmail, row.sellerEmail]
+          .map((value) => this.normalizeEmail(value))
+          .filter((value): value is string => Boolean(value)),
+      );
+      const keys = [
+        grainKey('GLOBAL', '', ''),
+        ...(store ? [grainKey('STORE', store, store)] : []),
+        ...(store
+          ? Array.from(emails, (email) => grainKey('USER_STORE', email, store))
+          : []),
+      ];
+      const revenue = this.netCacheRevenue(row);
+      for (const key of new Set(keys)) bucketFor(key).totalRevenue += revenue;
+    }
+    const metricUpdates: Array<{
+      id: string;
+      metrics: Prisma.InputJsonObject;
+    }> = [];
+    for (const aggregate of aggregates) {
+      const bucket = bucketFor(
+        grainKey(
+          aggregate.dimensionType,
+          aggregate.dimensionKey,
+          aggregate.storeCode,
+        ),
+      );
+      const main = this.salesReports.summarizeSalesRevenueRows(bucket.reports);
+      const metrics: Prisma.InputJsonObject = {
+        totalRevenue: bucket.totalRevenue,
+        completedRevenue: bucket.completedRevenue,
+        businessCustomerRevenue: main.businessRevenue,
+        personalCustomerRevenue: main.personalRevenue,
+        examScorePromotionCount: main.examScorePromotionCount,
+        studentPromotionCount: main.studentPromotionCount,
+        installmentNeedCount: main.installmentNeedTotalCount,
+        successfulInstallmentCount: main.successfulInstallmentOrderCount,
+        extendedInsuranceQuantity: main.extendedInsuranceQuantity,
+        laptopQuantity: main.laptopQuantity,
+        pcQuantity: main.pcQuantity,
+        assembledPcQuantity: main.assembledPcQuantity,
+        appleQuantity: main.appleQuantity,
+        monitorQuantity: main.monitorQuantity,
+        printerQuantity: main.printerQuantity,
+        accessoriesQuantity: main.accessoriesQuantity,
+        consultedSolutionYes: bucket.consultedSolutionYes,
+        experiencedYes: bucket.experiencedYes,
+        zaloYes: bucket.zaloYes,
+        appDownloadYes: bucket.appDownloadYes,
+      };
+      metricUpdates.push({ id: aggregate.id, metrics });
+    }
+    if (metricUpdates.length > 0) {
+      await tx.$executeRaw(Prisma.sql`
+        WITH metric_updates AS (
+          SELECT item->>'id' AS id, item->'metrics' AS metrics
+          FROM jsonb_array_elements(
+            CAST(${JSON.stringify(metricUpdates)} AS jsonb)
+          ) AS item
+        )
+        UPDATE "HomeSummaryDailyAggregate" AS aggregate
+        SET "metrics" = metric_updates.metrics,
+            "updatedAt" = CURRENT_TIMESTAMP
+        FROM metric_updates
+        WHERE aggregate."id" = metric_updates.id
+      `);
+    }
+    this.logger.log(
+      `Home projection sales metrics populated: date=${date} grains=${metricUpdates.length} reports=${reports.length} cacheRows=${cacheRows.length} durationMs=${Date.now() - startedAt}`,
+    );
   }
 
   private parseScopeParam(value?: string | null): HomeSummaryScopeRequest {
@@ -2844,6 +3147,8 @@ export class HomeSummaryService {
 
   private async loadProjectionFreshness(
     range: SummaryDateRange,
+    requireSales = true,
+    requireFinance = true,
   ): Promise<HomeSummaryProjectionSnapshot> {
     const startDate = this.dateOnlyUtc(range.startDate);
     const endDate = this.dateOnlyUtc(range.endDate);
@@ -2857,7 +3162,17 @@ export class HomeSummaryService {
     const expectedDates = this.rangeDateKeys(range.startDate, range.endDate);
     const missingDates = expectedDates.filter((date) => {
       const state = stateByDate.get(date);
-      return !state?.generatedAt;
+      if (!state) return true;
+      // A source write marks its projection kind PENDING immediately, while the
+      // previous aggregate snapshot remains complete and readable. Only return
+      // 503 when that kind has never produced a complete snapshot.
+      if (requireSales && !state.salesGeneratedAt) {
+        return true;
+      }
+      if (requireFinance && !state.financeGeneratedAt) {
+        return true;
+      }
+      return false;
     });
     if (missingDates.length > 0) {
       this.logger.warn(
@@ -2881,29 +3196,71 @@ export class HomeSummaryService {
     };
     for (const date of expectedDates) {
       const state = stateByDate.get(date)!;
-      const generatedAt = state.generatedAt!;
+      const generatedCandidates = [
+        ...(requireSales && state.salesGeneratedAt
+          ? [state.salesGeneratedAt]
+          : []),
+        ...(requireFinance && state.financeGeneratedAt
+          ? [state.financeGeneratedAt]
+          : []),
+      ];
+      const generatedAt = generatedCandidates.reduce(
+        (oldest, value) => (value < oldest ? value : oldest),
+        generatedCandidates[0],
+      );
       if (generatedAt < projectionGeneratedAt) {
         projectionGeneratedAt = generatedAt;
       }
       projectionVersion = Math.max(
         projectionVersion,
-        Number(state.projectionVersion),
+        requireSales ? Number(state.salesProjectionVersion) : 0,
+        requireFinance ? Number(state.financeProjectionVersion) : 0,
       );
       setLatest('SALES_REPORT', state.salesReportSourceUpdatedAt);
       setLatest('ERP_ORDER_CACHE', state.erpOrderCacheSourceUpdatedAt);
       setLatest('MAP_VIETIN', state.mapVietinSourceUpdatedAt);
-      const sourceUpdatedAt = state.sourceUpdatedAt;
-      if (!sourceUpdatedAt) continue;
-      const projectedAfterSourceMs =
-        generatedAt.getTime() - sourceUpdatedAt.getTime();
-      const pendingMs =
-        sourceUpdatedAt > generatedAt ? nowMs - sourceUpdatedAt.getTime() : 0;
-      projectionLagSeconds = Math.max(
-        projectionLagSeconds,
-        Math.ceil(Math.max(projectedAfterSourceMs, pendingMs, 0) / 1000),
-      );
-      if (sourceUpdatedAt > generatedAt && pendingMs > 15_000) {
-        isStale = true;
+      const freshnessPairs = [
+        ...(requireSales
+          ? [
+              {
+                generatedAt: state.salesGeneratedAt!,
+                sourceWatermarks: [
+                  state.salesReportSourceUpdatedAt,
+                  state.erpOrderCacheSourceUpdatedAt,
+                ],
+              },
+            ]
+          : []),
+        ...(requireFinance
+          ? [
+              {
+                generatedAt: state.financeGeneratedAt!,
+                sourceWatermarks: [state.mapVietinSourceUpdatedAt],
+              },
+            ]
+          : []),
+      ];
+      for (const pair of freshnessPairs) {
+        const sourceUpdatedAt = pair.sourceWatermarks
+          .filter((value): value is Date => value !== null)
+          .reduce<Date | null>(
+            (latest, value) => (!latest || value > latest ? value : latest),
+            null,
+          );
+        if (!sourceUpdatedAt) continue;
+        const projectedAfterSourceMs =
+          pair.generatedAt.getTime() - sourceUpdatedAt.getTime();
+        const pendingMs =
+          sourceUpdatedAt > pair.generatedAt
+            ? nowMs - sourceUpdatedAt.getTime()
+            : 0;
+        projectionLagSeconds = Math.max(
+          projectionLagSeconds,
+          Math.ceil(Math.max(projectedAfterSourceMs, pendingMs, 0) / 1000),
+        );
+        if (sourceUpdatedAt > pair.generatedAt && pendingMs > 15_000) {
+          isStale = true;
+        }
       }
     }
     return {
@@ -2917,10 +3274,130 @@ export class HomeSummaryService {
       versionsByDate: new Map(
         expectedDates.map((date) => [
           date,
-          Number(stateByDate.get(date)!.projectionVersion),
+          Math.max(
+            requireSales
+              ? Number(stateByDate.get(date)!.salesProjectionVersion)
+              : 0,
+            requireFinance
+              ? Number(stateByDate.get(date)!.financeProjectionVersion)
+              : 0,
+          ),
         ]),
       ),
     };
+  }
+
+  private emptyProjectionMetrics(): HomeProjectionMetrics {
+    return {
+      totalOrders: 0,
+      reportedOrders: 0,
+      totalReports: 0,
+      notPurchasedReports: 0,
+      totalRevenue: 0,
+      completedRevenue: 0,
+      businessCustomerRevenue: 0,
+      personalCustomerRevenue: 0,
+      examScorePromotionCount: 0,
+      studentPromotionCount: 0,
+      installmentNeedCount: 0,
+      successfulInstallmentCount: 0,
+      extendedInsuranceQuantity: 0,
+      laptopQuantity: 0,
+      pcQuantity: 0,
+      assembledPcQuantity: 0,
+      appleQuantity: 0,
+      monitorQuantity: 0,
+      printerQuantity: 0,
+      accessoriesQuantity: 0,
+      consultedSolutionYes: 0,
+      experiencedYes: 0,
+      zaloYes: 0,
+      appDownloadYes: 0,
+      totalTransferredAmount: 0,
+      totalStatements: 0,
+      totalStatementsWithOrder: 0,
+      totalStatementsWithoutOrder: 0,
+    };
+  }
+
+  private async loadProjectionMetrics(
+    range: SummaryDateRange,
+    scope: SalesReportSummaryScopeDescriptor,
+    projectionKind: HomeProjectionKind,
+  ): Promise<HomeProjectionMetrics> {
+    const startDate = this.dateOnlyUtc(range.startDate);
+    const endDate = this.dateOnlyUtc(range.endDate);
+    const base = {
+      summaryDate: { gte: startDate, lte: endDate },
+      projectionKind,
+    };
+    let where: Prisma.HomeSummaryDailyAggregateWhereInput;
+    if (scope.scope === 'ALL') {
+      where = {
+        ...base,
+        dimensionType: 'GLOBAL',
+        dimensionKey: '',
+        storeCode: '',
+      };
+    } else if (scope.scope === 'MANAGED_SCOPE') {
+      const stores = this.normalizedStoreCodes(scope.allowedStoreCodes);
+      where = {
+        ...base,
+        dimensionType: 'STORE',
+        storeCode: { in: stores.length ? stores : ['__NO_PROJECTED_STORE__'] },
+      };
+    } else {
+      const email = this.personalEmail(scope);
+      const stores = this.normalizedStoreCodes(scope.allowedStoreCodes);
+      where = {
+        ...base,
+        dimensionType: 'USER_STORE',
+        dimensionKey: email ?? '__NO_PROJECTED_USER__',
+        ...(stores.length > 0 ? { storeCode: { in: stores } } : {}),
+      };
+    }
+    const rows = await this.prisma.homeSummaryDailyAggregate.findMany({
+      where,
+      select: {
+        totalOrders: true,
+        reportedOrders: true,
+        totalReports: true,
+        notPurchasedReports: true,
+        metrics: true,
+      },
+    });
+    const result = this.emptyProjectionMetrics();
+    const metricKeys = Object.keys(result) as Array<
+      keyof HomeProjectionMetrics
+    >;
+    for (const row of rows) {
+      result.totalOrders += row.totalOrders;
+      result.reportedOrders += row.reportedOrders;
+      result.totalReports += row.totalReports;
+      result.notPurchasedReports += row.notPurchasedReports;
+      const metrics =
+        row.metrics &&
+        typeof row.metrics === 'object' &&
+        !Array.isArray(row.metrics)
+          ? (row.metrics as Record<string, unknown>)
+          : {};
+      for (const key of metricKeys) {
+        if (
+          key === 'totalOrders' ||
+          key === 'reportedOrders' ||
+          key === 'totalReports' ||
+          key === 'notPurchasedReports'
+        ) {
+          continue;
+        }
+        const value = Number(metrics[key] ?? 0);
+        if (Number.isFinite(value)) result[key] += value;
+      }
+    }
+    this.logger.log(
+      `Home projection metrics loaded: kind=${projectionKind} scope=${scope.scope} grains=${rows.length} startDate=${range.startDate} endDate=${range.endDate}`,
+    );
+    return result;
   }
 
   private rangeDateKeys(startDate: string, endDate: string) {

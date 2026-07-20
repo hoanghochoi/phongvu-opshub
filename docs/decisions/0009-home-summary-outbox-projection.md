@@ -20,26 +20,31 @@ Home inside a business write transaction would lengthen the source write path.
 
 ## Decision
 
-- Source changes create a `DomainOutboxEvent` in the same PostgreSQL
-  transaction. PostgreSQL `NOTIFY` is only a wake-up hint; a worker still polls
-  the durable outbox every second.
-- A `HomeSummaryProjectionQueue` coalesces work by summary date, dimension type,
-  dimension key, and store. It normally debounces for 500 ms and waits at most
-  two seconds; MAP bursts use a two-second trailing debounce with a five-second
-  maximum. Work is claimed with `FOR UPDATE SKIP LOCKED` so the same grain is
-  not rebuilt concurrently.
+- Source changes dirty `HomeSummaryProjectionQueue` in the same PostgreSQL
+  transaction. `DomainOutboxEvent` retains durable source signals and committed
+  outbound events. PostgreSQL `NOTIFY` is only a wake-up hint; a worker still
+  polls the durable queue every second.
+- `HomeSummaryProjectionQueue` coalesces work by summary date and projection
+  kind (`SALES` or `FINANCE`). Lease tokens, lease expiry, dirty generation,
+  and `FOR UPDATE SKIP LOCKED` prevent concurrent rebuilds while preserving one
+  follow-up job when a source commit arrives during an active rebuild.
 - MAP polling uses a bounded TTL/LRU fingerprint cache as a read/write shedding
   layer. Cache misses still use the database idempotency contract, and new
   transactions are committed before payment notifications are published.
 - MAP transaction updates that do not change Home finance inputs are ignored by
   the projection trigger. API clients apply per-endpoint cooldown after HTTP
   429 and the server emits/obeys standard `Retry-After` hints.
-- The worker rebuilds additive daily aggregates for `GLOBAL`, `STORE`, and
-  `USER_STORE` grains outside source transactions. Rates are calculated when
-  reading rather than persisted.
-- The projection transaction commits before `HOME_SUMMARY_UPDATED` is
-  published. The WebSocket event contains only affected dates and a projection
-  version; clients re-read the authenticated HTTP API for KPI data.
+- The worker rebuilds kind-specific additive daily aggregates for `GLOBAL`,
+  `STORE`, and `USER_STORE` grains outside source transactions. Extended SALES
+  counters are stored as internal additive JSON snapshot metrics because they
+  are replaced and read as one unit, never filtered as source facts. Rates are
+  calculated when reading rather than persisted; revenue and projection
+  versions remain 64-bit values.
+- The projection transaction atomically replaces one date/kind and appends the
+  outbound event before commit. The publisher leases that outbox row only after
+  commit. `HOME_SUMMARY_UPDATED` contains only affected dates and a globally
+  monotonic projection version; clients re-read the authenticated HTTP API for
+  KPI data and compare versions per affected date.
 - `GET /home/summary` never rebuilds synchronously when projection mode is on.
   It returns the latest complete projection and a `freshness` object. A complete
   result older than 15 seconds is marked stale; absence of any complete result
