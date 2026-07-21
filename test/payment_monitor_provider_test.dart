@@ -516,6 +516,228 @@ void main() {
     },
   );
 
+  test(
+    'inactive payment route keeps cache and refreshes once for a matching realtime event',
+    () async {
+      SharedPreferences.setMockInitialValues({
+        AppStorageKeys.shared('payment_monitor_enabled'): false,
+      });
+      final transactions = <MapPaymentTransaction>[
+        _paymentTransaction(id: 'txn-existing'),
+      ];
+      final repository = _FakePaymentMonitorRepository(
+        notifications: const [],
+        transactions: transactions,
+      );
+      final provider = PaymentMonitorProvider(
+        repository,
+        _FakePaymentSpeaker(),
+        null,
+        retryDelay,
+      );
+      addTearDown(provider.dispose);
+
+      await Future<void>.delayed(Duration.zero);
+      provider.syncAuth(_storeUser(storeId: 'CP01'), isInitialized: true);
+      await _waitUntil(
+        () => repository.transactionFetchCount == 1 && !provider.isLoading,
+      );
+
+      provider.syncRuntime(isForeground: true, isListViewActive: false);
+      await Future<void>.delayed(const Duration(milliseconds: 650));
+
+      expect(provider.isActive, isTrue);
+      expect(
+        provider.latestTransactions.single.transactionNumber,
+        'txn-existing',
+      );
+      expect(repository.transactionFetchCount, 1);
+
+      transactions.add(_paymentTransaction(id: 'txn-new'));
+      await provider.handleRealtimeMessageForTesting(
+        _realtimeEnvelope(
+          kind: 'PAYMENT_NOTIFICATION',
+          topic: 'payment.transactions',
+          data: const {
+            'notificationId': 'note-new',
+            'transactionId': 'txn-new',
+            'storeCode': 'CP01',
+            'amount': 750000,
+          },
+        ),
+      );
+      await _waitUntil(
+        () => repository.transactionFetchCount == 2 && !provider.isLoading,
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+
+      expect(repository.transactionFetchCount, 2);
+      expect(
+        provider.latestTransactions.map((item) => item.transactionNumber),
+        containsAll(<String>['txn-existing', 'txn-new']),
+      );
+      expect(repository.readyFetchCount, 0);
+    },
+  );
+
+  test(
+    'inactive payment route ignores other stores and refreshes assigned stores',
+    () async {
+      SharedPreferences.setMockInitialValues({
+        AppStorageKeys.shared('payment_monitor_enabled'): false,
+      });
+      final repository = _FakePaymentMonitorRepository(notifications: const []);
+      final provider = PaymentMonitorProvider(
+        repository,
+        _FakePaymentSpeaker(),
+        null,
+        retryDelay,
+      );
+      addTearDown(provider.dispose);
+
+      await Future<void>.delayed(Duration.zero);
+      provider.syncAuth(_multiStoreUser(), isInitialized: true);
+      await _waitUntil(
+        () => repository.transactionFetchCount == 1 && !provider.isLoading,
+      );
+      provider.syncRuntime(isForeground: true, isListViewActive: false);
+
+      await provider.handleRealtimeMessageForTesting(
+        _realtimeEnvelope(
+          kind: 'PAYMENT_NOTIFICATION',
+          topic: 'payment.transactions',
+          data: const {'storeCode': 'CP99'},
+        ),
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 650));
+      expect(repository.transactionFetchCount, 1);
+
+      await provider.handleRealtimeMessageForTesting(
+        _realtimeEnvelope(
+          kind: 'PAYMENT_NOTIFICATION',
+          topic: 'payment.transactions',
+          data: const {'storeCode': 'CP75'},
+          sequence: 2,
+        ),
+      );
+      await _waitUntil(
+        () => repository.transactionFetchCount == 2 && !provider.isLoading,
+      );
+
+      expect(repository.transactionFetchCount, 2);
+      expect(repository.requestedStoreIds, everyElement('CP62,CP75'));
+      expect(repository.readyFetchCount, 0);
+    },
+  );
+
+  test(
+    'background runtime preserves cache and does not read on events',
+    () async {
+      SharedPreferences.setMockInitialValues({
+        AppStorageKeys.shared('payment_monitor_enabled'): false,
+      });
+      final repository = _FakePaymentMonitorRepository(
+        notifications: const [],
+        transactions: [_paymentTransaction(id: 'txn-existing')],
+      );
+      final provider = PaymentMonitorProvider(
+        repository,
+        _FakePaymentSpeaker(),
+        null,
+        retryDelay,
+      );
+      addTearDown(provider.dispose);
+
+      await Future<void>.delayed(Duration.zero);
+      provider.syncAuth(_storeUser(storeId: 'CP01'), isInitialized: true);
+      await _waitUntil(
+        () => repository.transactionFetchCount == 1 && !provider.isLoading,
+      );
+
+      provider.syncRuntime(isForeground: false, isListViewActive: false);
+      await provider.handleRealtimeMessageForTesting(
+        _realtimeEnvelope(
+          kind: 'PAYMENT_NOTIFICATION',
+          topic: 'payment.transactions',
+          data: const {'storeCode': 'CP01'},
+        ),
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 650));
+
+      expect(provider.isActive, isTrue);
+      expect(
+        provider.latestTransactions.single.transactionNumber,
+        'txn-existing',
+      );
+      expect(repository.transactionFetchCount, 1);
+
+      provider.syncRuntime(isForeground: true, isListViewActive: false);
+      await provider.handleRealtimeMessageForTesting(
+        _realtimeEnvelope(
+          kind: 'PAYMENT_NOTIFICATION',
+          topic: 'payment.transactions',
+          data: const {'storeCode': 'CP01'},
+          sequence: 2,
+        ),
+      );
+      await _waitUntil(
+        () => repository.transactionFetchCount == 2 && !provider.isLoading,
+      );
+
+      expect(repository.transactionFetchCount, 2);
+    },
+  );
+
+  test(
+    'foreground resume on active payment route keeps cache without fetching',
+    () async {
+      SharedPreferences.setMockInitialValues({
+        AppStorageKeys.shared('payment_monitor_enabled'): false,
+      });
+      final repository = _FakePaymentMonitorRepository(
+        notifications: const [],
+        transactions: [_paymentTransaction(id: 'txn-existing')],
+      );
+      final provider = PaymentMonitorProvider(
+        repository,
+        _FakePaymentSpeaker(),
+        null,
+        retryDelay,
+      );
+      addTearDown(provider.dispose);
+
+      await Future<void>.delayed(Duration.zero);
+      provider.syncAuth(_storeUser(storeId: 'CP01'), isInitialized: true);
+      await _waitUntil(
+        () => repository.transactionFetchCount == 1 && !provider.isLoading,
+      );
+
+      provider.syncRuntime(isForeground: false, isListViewActive: true);
+      provider.syncRuntime(isForeground: true, isListViewActive: true);
+      await Future<void>.delayed(const Duration(milliseconds: 650));
+
+      expect(provider.isActive, isTrue);
+      expect(
+        provider.latestTransactions.single.transactionNumber,
+        'txn-existing',
+      );
+      expect(repository.transactionFetchCount, 1);
+
+      await provider.handleRealtimeMessageForTesting(
+        _realtimeEnvelope(
+          kind: 'PAYMENT_NOTIFICATION',
+          topic: 'payment.transactions',
+          data: const {'storeCode': 'CP01'},
+        ),
+      );
+      await _waitUntil(
+        () => repository.transactionFetchCount == 2 && !provider.isLoading,
+      );
+
+      expect(repository.transactionFetchCount, 2);
+    },
+  );
+
   test('stream event skips without retry when speaker is disabled', () async {
     SharedPreferences.setMockInitialValues({
       AppStorageKeys.shared('payment_monitor_enabled'): false,
@@ -839,7 +1061,7 @@ void main() {
   );
 
   test(
-    'uses shared realtime sync requests without opening a feature socket',
+    'shared realtime sync drains speaker backlog without list refresh',
     () async {
       final repository = _FakePaymentMonitorRepository(notifications: const []);
       final realtime = _FakeRealtimeClient();
@@ -857,6 +1079,7 @@ void main() {
         () => repository.transactionFetchCount > 0 && !provider.isLoading,
       );
       final initialFetchCount = repository.transactionFetchCount;
+      final initialReadyFetchCount = repository.readyFetchCount;
 
       realtime.addEvent(
         _realtimeEnvelope(
@@ -870,10 +1093,34 @@ void main() {
 
       realtime.addSync(RealtimeSyncReason.reconnected);
       await _waitUntil(
-        () => repository.transactionFetchCount > initialFetchCount,
+        () => repository.readyFetchCount > initialReadyFetchCount,
       );
 
       expect(provider.isActive, isTrue);
+      expect(repository.transactionFetchCount, initialFetchCount);
+      final readyFetchCountAfterReconnect = repository.readyFetchCount;
+
+      realtime.addSync(RealtimeSyncReason.appResumed);
+      await _waitUntil(
+        () => repository.readyFetchCount > readyFetchCountAfterReconnect,
+      );
+
+      expect(repository.transactionFetchCount, initialFetchCount);
+
+      realtime.addEvent(
+        _realtimeEnvelope(
+          kind: 'PAYMENT_NOTIFICATION',
+          topic: 'payment.transactions',
+          data: const {'storeCode': 'CP01'},
+          sequence: 2,
+        ),
+      );
+      await _waitUntil(
+        () =>
+            repository.transactionFetchCount == initialFetchCount + 1 &&
+            !provider.isLoading,
+      );
+
       expect(repository.requestedIncludeTotals.last, isFalse);
       expect(repository.requestedRateLimitCooldownBypasses.last, isFalse);
 

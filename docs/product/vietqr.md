@@ -123,13 +123,20 @@ a customer to scan and pay manually.
 - The app starts the monitor after sign-in when the account has at least one
   assigned showroom. It seeds currently visible server transactions silently so
   old rows are not announced again on speaker-capable clients.
-- While the app is running, scoped realtime payment events refresh stored
-  transactions when a new notification arrives. The app reconnects the
-  realtime socket after disconnects. On Windows speaker-capable clients, a
-  lightweight ready-notification fallback drains only the speaker backlog after
-  realtime silence, but only for notifications still inside the short recovery
-  window. Stream-pending notifications older than 30 seconds are recorded as
-  not read and are never played later as delayed speaker backlog.
+- While the app is in the foreground, a scoped realtime payment event for any
+  showroom in the user's current transaction scope triggers one debounced
+  refresh of the current page, even when another OpsHub route is visible.
+  Changing routes keeps the cached transaction list and the realtime monitor
+  active; events for showrooms outside the current scope are ignored. The app
+  does not poll the transaction list on a timer. Moving the app to the
+  background keeps the cache but pauses new reads until it returns to the
+  foreground. The app reconnects the realtime socket after disconnects. On
+  Windows speaker-capable clients, a lightweight ready-notification fallback
+  drains only the speaker backlog after realtime silence, but only for
+  notifications still inside the short recovery window. This `/ready` fallback
+  is separate from transaction-list refresh and never polls that list.
+  Stream-pending notifications older than 30 seconds are recorded as not read
+  and are never played later as delayed speaker backlog.
 - Failed transaction refreshes apply bounded backoff. Realtime/fallback refresh
   cannot bypass that backoff; only an explicit user refresh or filter/page
   action may retry immediately. This prevents socket bursts from amplifying

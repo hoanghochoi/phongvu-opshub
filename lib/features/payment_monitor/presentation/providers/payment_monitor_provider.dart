@@ -126,6 +126,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
   bool _isDrainingStreamNotifications = false;
   bool _isDrainingReadyNotifications = false;
   bool _canReviewOrderTransfers = false;
+  bool _isForeground = true;
   bool _isListViewActive = true;
   DateTime? _lastRealtimeEventAt;
   final Set<String> _activeNotificationIds = {};
@@ -182,16 +183,36 @@ class PaymentMonitorProvider extends ChangeNotifier {
     required bool isForeground,
     required bool isListViewActive,
   }) {
-    final nextListActive = isForeground && isListViewActive;
-    final becameListActive = !_isListViewActive && nextListActive;
-    _isListViewActive = nextListActive;
+    if (_isDisposed) return;
+    final foregroundChanged = _isForeground != isForeground;
+    final listViewChanged = _isListViewActive != isListViewActive;
+    final becameListActive = !_isListViewActive && isListViewActive;
+    _isForeground = isForeground;
+    _isListViewActive = isListViewActive;
+    if (foregroundChanged || listViewChanged) {
+      unawaited(
+        AppLogger.instance.info(
+          'PaymentMonitor',
+          'Payment monitor runtime state changed',
+          context: {
+            'foreground': _isForeground,
+            'listViewActive': _isListViewActive,
+            'monitorActive': _isActive,
+            'cachedTransactionCount': _latestTransactions.length,
+            'speakerEnabled': _shouldReadPaymentSpeaker,
+          },
+        ),
+      );
+    }
     if (!_isSpeakerPreferenceLoaded || _user == null) return;
-    if (!_isListViewActive && !_shouldReadPaymentSpeaker) {
-      _stop(reason: 'inactive_route');
+    if (!_isForeground) {
+      _realtimeRefreshTimer?.cancel();
+      _realtimeRefreshTimer = null;
+      _stopSpeakerReadyFallback('app_backgrounded');
       return;
     }
     _reconcile();
-    if (becameListActive && _isActive) {
+    if (becameListActive && _isListViewActive && _isActive) {
       unawaited(
         _poll(
           force: true,
@@ -664,12 +685,12 @@ class PaymentMonitorProvider extends ChangeNotifier {
       _stop(reason: 'missing_scope');
       return;
     }
-    final speakerEligible = _canUsePaymentSpeaker;
-    final speakerPlaybackEnabled = _shouldReadPaymentSpeaker;
-    if (!_isListViewActive && !speakerPlaybackEnabled) {
-      _stop(reason: 'inactive_route');
+    if (!_isForeground) {
+      _stopSpeakerReadyFallback('app_backgrounded');
       return;
     }
+    final speakerEligible = _canUsePaymentSpeaker;
+    final speakerPlaybackEnabled = _shouldReadPaymentSpeaker;
     _logSpeakerEligibility(
       eligible: speakerEligible,
       reason: _speakerEligibilityReason(),
@@ -818,7 +839,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
   }
 
   Future<void> _runSpeakerReadyFallback() async {
-    if (!_isActive || !_shouldReadPaymentSpeaker) return;
+    if (!_isActive || !_isForeground || !_shouldReadPaymentSpeaker) return;
     final lastRealtimeEventAt = _lastRealtimeEventAt;
     if (lastRealtimeEventAt != null &&
         DateTime.now().difference(lastRealtimeEventAt) <
@@ -843,7 +864,9 @@ class PaymentMonitorProvider extends ChangeNotifier {
   }
 
   Future<void> _handleRealtimeEnvelope(RealtimeEnvelope envelope) async {
-    if (_isDisposed || !_isActive || !_hasMonitorScope) return;
+    if (_isDisposed || !_isActive || !_isForeground || !_hasMonitorScope) {
+      return;
+    }
     final isTransactionEvent =
         envelope.kind == 'PAYMENT_NOTIFICATION' &&
         envelope.topic == 'payment.transactions';
@@ -855,14 +878,22 @@ class PaymentMonitorProvider extends ChangeNotifier {
       final eventType = envelope.kind;
       final payload = envelope.data;
       final eventStore = payload['storeCode']?.toString().trim().toUpperCase();
-      final expectedStore = (_requestStoreId ?? _user?.storeId)
-          ?.trim()
-          .toUpperCase();
-      if (expectedStore != null &&
-          expectedStore.isNotEmpty &&
-          eventStore != null &&
+      final effectiveStoreIds = _effectiveListStoreIds.toSet();
+      if (eventStore != null &&
           eventStore.isNotEmpty &&
-          eventStore != expectedStore) {
+          !effectiveStoreIds.contains(eventStore)) {
+        await _logRealtimeInfo(
+          'Payment realtime event ignored outside the visible store scope',
+          context: {
+            'eventId': envelope.id,
+            'eventType': eventType,
+            'storeId': eventStore,
+            'visibleStoreCount': effectiveStoreIds.length,
+            'listViewActive': _isListViewActive,
+            'action': 'ignore_outside_store_scope',
+          },
+          storeCode: eventStore,
+        );
         return;
       }
       _lastRealtimeEventAt = DateTime.now();
@@ -883,6 +914,8 @@ class PaymentMonitorProvider extends ChangeNotifier {
           'audioStatus': payload['audioStatus']?.toString(),
           'speakerEligible': _canUsePaymentSpeaker,
           'speakerEnabled': _isSpeakerEnabled,
+          'listViewActive': _isListViewActive,
+          'visibleStoreCount': effectiveStoreIds.length,
           'action': eventType == 'PAYMENT_SPEAKER_STREAM'
               ? shouldReadSpeaker
                     ? 'refresh_and_stream_audio'
@@ -918,7 +951,9 @@ class PaymentMonitorProvider extends ChangeNotifier {
   }
 
   void _handleRealtimeSyncRequest(RealtimeSyncReason reason) {
-    if (_isDisposed || !_isActive || !_hasMonitorScope) return;
+    if (_isDisposed || !_isActive || !_isForeground || !_hasMonitorScope) {
+      return;
+    }
     unawaited(
       _logRealtimeInfo(
         'Payment monitor realtime sync requested',
@@ -926,19 +961,13 @@ class PaymentMonitorProvider extends ChangeNotifier {
           'reason': reason.name,
           'listViewActive': _isListViewActive,
           'speakerEnabled': _shouldReadPaymentSpeaker,
+          'action': _shouldReadPaymentSpeaker
+              ? 'drain_ready_only'
+              : 'keep_cached_transactions',
         },
       ),
     );
-    if (_isListViewActive) {
-      unawaited(
-        _poll(
-          force: true,
-          includeTotal: false,
-          reason: 'realtime_${reason.name}',
-          drainReadyNotifications: _shouldReadPaymentSpeaker,
-        ),
-      );
-    } else if (_shouldReadPaymentSpeaker) {
+    if (_shouldReadPaymentSpeaker) {
       unawaited(
         _drainReadyNotificationsOnly(reason: 'realtime_${reason.name}'),
       );
@@ -948,16 +977,14 @@ class PaymentMonitorProvider extends ChangeNotifier {
   void _scheduleRealtimeRefresh({required bool drainReadyNotifications}) {
     _realtimeRefreshTimer?.cancel();
     _realtimeRefreshTimer = Timer(_realtimeRefreshDebounce, () {
-      if (_isListViewActive) {
+      if (_isForeground) {
         _poll(
           force: true,
           includeTotal: false,
-          reason: 'realtime_event',
+          reason: _isListViewActive
+              ? 'realtime_event'
+              : 'realtime_event_inactive_route',
           drainReadyNotifications: drainReadyNotifications,
-        );
-      } else if (drainReadyNotifications && _shouldReadPaymentSpeaker) {
-        unawaited(
-          _drainReadyNotificationsOnly(reason: 'realtime_event_inactive_list'),
         );
       }
     });
@@ -1145,6 +1172,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
     String reason = 'unknown',
   }) async {
     if (_isDisposed) return;
+    if (!_isForeground) return;
     if (!_canMonitorOnThisDevice || !_hasMonitorScope) return;
     if (_isLoading) {
       if (force) {
@@ -1369,6 +1397,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
     return !_isDisposed &&
         generation == _speakerGeneration &&
         _isActive &&
+        _isForeground &&
         _hasMonitorScope &&
         _canUsePaymentSpeaker;
   }
