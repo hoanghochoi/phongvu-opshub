@@ -445,6 +445,11 @@ void main() {
 
       expect(ok, isTrue);
       expect(repository.requestedOrderTransfers.single, ['26052287654321']);
+      expect(repository.requestedOrderTransferTransactionIds.single, 'txn-1');
+      expect(
+        repository.requestedOrderTransferTransactionKeys.single,
+        'key-txn-1',
+      );
       expect(repository.transactionFetchCount, greaterThan(fetchCount));
       expect(provider.rowMessages['txn-1']?.text, 'Đã gửi Kế toán xác nhận.');
 
@@ -1387,6 +1392,8 @@ class _FakePaymentMonitorRepository extends PaymentMonitorRepository {
   final List<List<String>> savedOrderInputs = [];
   final List<String?> savedOrderTransactionKeys = [];
   final List<List<String>> requestedOrderTransfers = [];
+  final List<String> requestedOrderTransferTransactionIds = [];
+  final List<String?> requestedOrderTransferTransactionKeys = [];
   final List<bool> requestedRateLimitCooldownBypasses = [];
   final List<String> approvedRequestIds = [];
   final List<String> rejectedRequestIds = [];
@@ -1466,8 +1473,11 @@ class _FakePaymentMonitorRepository extends PaymentMonitorRepository {
   Future<void> createOrderTransferRequest(
     String transactionId,
     List<String> orders, {
+    String? transactionKey,
     bool allowRateLimitCooldownBypass = false,
   }) async {
+    requestedOrderTransferTransactionIds.add(transactionId);
+    requestedOrderTransferTransactionKeys.add(transactionKey);
     requestedOrderTransfers.add(orders);
   }
 

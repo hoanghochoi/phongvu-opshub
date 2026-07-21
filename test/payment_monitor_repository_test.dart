@@ -9,6 +9,31 @@ import 'package:phongvu_opshub/features/payment_monitor/data/repositories/paymen
 import 'package:phongvu_opshub/features/payment_monitor/domain/payment_delivery_metrics.dart';
 
 void main() {
+  test(
+    'createOrderTransferRequest forwards the stable transaction key',
+    () async {
+      final requests = <http.Request>[];
+      final repository = PaymentMonitorRepository(
+        ApiClient.test(
+          MockClient((request) async {
+            requests.add(request);
+            return http.Response('', 201);
+          }),
+        ),
+      );
+
+      await repository.createOrderTransferRequest('stale-or-external-id', [
+        '26052287654321',
+      ], transactionKey: 'CP01:202605210001');
+
+      expect(requests, hasLength(1));
+      expect(jsonDecode(requests.single.body), {
+        'orders': ['26052287654321'],
+        'transactionKey': 'CP01:202605210001',
+      });
+    },
+  );
+
   test('stored transaction user action forwards the cooldown bypass', () async {
     var requests = 0;
     final repository = PaymentMonitorRepository(

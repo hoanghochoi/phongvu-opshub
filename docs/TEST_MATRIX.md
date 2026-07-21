@@ -584,6 +584,15 @@ Recent focused evidence:
   chặn race khi hai nguồn trả gần đồng thời; dữ liệu key legacy vẫn được bảo vệ
   bằng lookup hai chiều trước insert. Validation: focused MAP/eFAST service
   Jest, Nest build, Prisma validate, và `git diff --check`.
+- `OPS-6`/`PAYMENT-STATEMENT-001`, 2026-07-21: Payment Monitor now keeps the
+  persisted OpsHub transaction UUID separate from the provider statement number
+  and sends the unique `transactionKey` with order-transfer requests. The NestJS
+  endpoint resolves a stale or provider-facing id by that key before applying
+  the existing scope, cutoff, pending-request, and authorization checks; missing
+  rows now return Vietnamese reload guidance and emit sanitized start/resolve/
+  failure logs. Validation: focused Flutter payment-monitor tests and focused
+  MAP service Jest regression for stale-id resolution. Production deployment and
+  live click-through remain pending.
 - `PAYMENT-MONITOR-001`/`PAYMENT-STATEMENT-001`, 2026-07-13: migration cleanup
   một lần ưu tiên giữ giao dịch có mã đơn khi chỉ một bản có đơn; nếu cả hai
   cùng có đơn hoặc cùng trống thì giữ MAP, xóa eFAST. VietQR match, order audit,
