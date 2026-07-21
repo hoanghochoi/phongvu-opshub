@@ -1,0 +1,81 @@
+name: Promote OpsHub Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      staging_sha:
+        description: Exact 40-character origin/staging SHA already deployed and QA-approved.
+        required: true
+        type: string
+      qa_confirmation:
+        description: Type QA-APPROVED after Đại Ca confirms staging QA.
+        required: true
+        type: string
+      release_confirmation:
+        description: Type PROMOTE ORIGIN/STAGING TO MAIN to authorize this promotion.
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-promotion
+  cancel-in-progress: false
+
+jobs:
+  promote:
+    name: Fast-forward origin/staging to main
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Validate explicit release confirmation
+        shell: bash
+        env:
+          QA_CONFIRMATION: ${{ inputs.qa_confirmation }}
+          RELEASE_CONFIRMATION: ${{ inputs.release_confirmation }}
+        run: |
+          set -euo pipefail
+          if [ "$QA_CONFIRMATION" != 'QA-APPROVED' ]; then
+            echo 'qa_confirmation must be exactly QA-APPROVED.' >&2
+            exit 1
+          fi
+          if [ "$RELEASE_CONFIRMATION" != 'PROMOTE ORIGIN/STAGING TO MAIN' ]; then
+            echo 'release_confirmation does not authorize origin/staging -> main.' >&2
+            exit 1
+          fi
+
+      - name: Mint least-privilege release token
+        id: release-token
+        uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349
+        with:
+          app-id: ${{ vars.OPSHUB_RELEASE_APP_ID }}
+          private-key: ${{ secrets.OPSHUB_RELEASE_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+          permission-checks: read
+          permission-contents: write
+          permission-statuses: read
+
+      - name: Check out release guard
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+          token: ${{ steps.release-token.outputs.token }}
+
+      - name: Verify and promote staging SHA
+        shell: bash
+        env:
+          EXPECTED_STAGING_SHA: ${{ inputs.staging_sha }}
+          GH_TOKEN: ${{ steps.release-token.outputs.token }}
+        run: |
+          set -euo pipefail
+          node scripts/promote-production.mjs \
+            --expected-sha "$EXPECTED_STAGING_SHA" \
+            --authorized-by "$GITHUB_ACTOR" \
+            --ci-confirmed \
+            --qa-confirmed \
+            --release-window-locked \
+            --verify-github-ci \
+            --execute

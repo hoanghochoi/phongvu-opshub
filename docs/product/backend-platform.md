@@ -80,12 +80,20 @@ curl http://localhost:3000/app-version
   off to the OS installer. Android still shows the system install-confirmation
   screen for self-hosted APKs. Windows uses the published silent Inno Setup args
   and exits after launching the installer.
-- Deploy source branches are `staging`, `main`, and `help-content`. Pushing
-  `staging` runs the staging workflow. Production app deploys fast-forward
-  `main` from accepted `staging` code, then push `main` to run the production
-  workflow. The `help-content` branch remains the production source branch for
-  `docs/help/*` plus `/help/assets/*`; pushing it runs only the production
-  static help/download deploy. That deploy syncs the latest `docs/help/*` onto
+- Deploy source branches are `staging`, `main`, and `help-content`. Feature work
+  defaults to a Linear-linked task branch and PR into `staging`; pushing
+  `staging` runs the staging workflow. A production promotion requires Đại Ca's
+  explicit current-task command, the exact CI-green and QA-approved
+  `origin/staging` SHA, a locked release window, and a fast-forward ancestry
+  check. `.github/workflows/promote-production.yml` uses a dedicated GitHub App
+  token and the protected `production` environment to update `main` without
+  force, re-fetch both refs, and require equality. Pushing `main` then runs the
+  existing production workflow. Direct staging exceptions, GitHub rulesets,
+  Linear lifecycle, hotfix, and rollback rules are defined in
+  `docs/runbooks/git-release-playbook.md`. The `help-content` branch remains the
+  production source branch for `docs/help/*` plus `/help/assets/*`; pushing it
+  runs only the production static help/download deploy. That deploy syncs the
+  latest `docs/help/*` onto
   the live release so docs-managed runtime help can auto-sync on the next load,
   while admin-edited runtime pages can be realigned manually through
   `Khôi phục từ docs`.

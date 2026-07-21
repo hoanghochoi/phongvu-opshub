@@ -26,13 +26,42 @@ before acting. Never claim done before verification.
 - Prefer reversible changes and small patches.
 - Before implementation, create a concrete plan and establish a checkpoint:
   current branch, current HEAD, and dirty worktree state.
-- Never implement, edit, commit, merge, rebase, or promote on `main`. `main` is
-  promotion-only and may be updated only by an explicit command from Đại Ca,
-  using a fast-forward from `staging`.
-- Work on `staging` by default. Do not create, switch to, or work on any other
-  branch unless Đại Ca explicitly asks for that branch or branch workflow.
+- `staging` is the integration and testing branch. `main` is production and is
+  promotion-only: never implement, edit, commit, merge, or rebase on `main`.
+- Create task branches and worktrees from the latest `origin/staging`. Include
+  the Linear issue ID in every task branch name, and target feature PRs at
+  `staging`. The default feature path is feature branch -> PR -> `staging`.
+- Codex may push directly to `staging` only after Đại Ca gives an explicit
+  command in the current task naming the push action and `staging` as target.
+  Treat that route as an exception and report that PR review, squash merge, and
+  PR-driven Linear automation will be skipped.
+- Codex may push directly to `main` only after Đại Ca explicitly orders a
+  promotion from `origin/staging` in the current task. Never promote an
+  arbitrary task branch or SHA to `main`.
+- An explicit push command grants authority for that action only. It never
+  waives CI, staging deploy, QA, clean-worktree, scope, release-window, or
+  fast-forward checks. Stop when any gate fails or the source SHA changes.
+- Before every direct push, report the source branch/SHA, target branch, current
+  SHA, CI/QA/fast-forward result, and that the direct push follows Đại Ca's
+  explicit command.
+- Never force-push or delete `staging` or `main`. A completed production
+  promotion must leave fetched `origin/main` and `origin/staging` at the same
+  SHA.
 - Protect existing user work. Do not revert unrelated changes.
 - Before pushing code, re-check the exact diff and run the relevant validation.
+
+## Pull Requests And Release Tracking
+
+- PR titles use `[OPS-123] Description`; feature PRs use base `staging`.
+- Use `Part of OPS-123` while the issue is awaiting staging QA. Use
+  `Fixes OPS-123` only when the change is intended to close after production.
+- Feature PRs use squash-and-merge unless Đại Ca explicitly directs another
+  reviewed workflow.
+- Do not mark a Linear issue `Done` after a feature push, PR merge, staging
+  deploy, QA approval, or release approval alone. `Done` requires a successful
+  production deployment.
+- Follow `docs/runbooks/git-release-playbook.md` for direct staging pushes,
+  production promotion, hotfixes, rollback, and GitHub/Linear configuration.
 
 ## Feature Logging Requirement
 
