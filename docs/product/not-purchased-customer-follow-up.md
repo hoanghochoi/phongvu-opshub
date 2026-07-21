@@ -25,6 +25,9 @@ Cho phép nhân viên bán hàng theo dõi và chăm sóc lại từng lượt b
   chúng cũng độc lập với câu trả lời hành vi sale về việc khách quét Zalo OA.
 - Danh sách chính chỉ hiển thị hồ sơ `OPEN`; `PURCHASED_ELSEWHERE` và
   `NO_LONGER_INTERESTED` nằm trong mục `Đã ẩn`; hồ sơ `PURCHASED` không hiện lại.
+- Tab `Lịch sử chăm sóc` nằm giữa `Cần chăm sóc` và `Đã ẩn`, vẫn dùng dạng card
+  như danh sách chính. Tab này hiển thị mọi trạng thái có `followUpCount > 0`,
+  sắp lần chăm sóc gần nhất trước; mở card để xem đầy đủ các lần chăm sóc.
 
 ## Phạm vi và phân công
 
@@ -59,8 +62,11 @@ Cho phép nhân viên bán hàng theo dõi và chăm sóc lại từng lượt b
 - Phone được chuẩn hóa về `0` + 9 chữ số; `+84` và chuỗi 9 chữ số được quy đổi.
   Marker `0zalo` chỉ tạo kênh `ZALO_PERSONAL`, không lưu vào số điện thoại.
   Kênh liên lạc hỗ trợ `PHONE`, `ZALO_PERSONAL`, `ZALO_OA`.
-- Ngành hàng phải khớp mã/tên Việt/tên Anh trong danh mục hiện hành. SR phải tồn
-  tại và nằm trong scope của người nhập; Super Admin được nhập cho mọi SR.
+- Ngành hàng được đối chiếu theo mã/tên Việt/tên Anh trong danh mục hiện hành;
+  nếu tên lịch sử lệch cách ghi, backend tự ghép vào ngành hàng hiện hành gần
+  nhất và ghi cảnh báo trong bản xem trước. Giá trị trống hoặc không đủ gần vẫn
+  bị đánh dấu lỗi để tránh gán nhầm. SR phải tồn tại và nằm trong scope của
+  người nhập; Super Admin được nhập cho mọi SR.
 - Email nhân viên active đúng SR được gán làm owner/assignee. Nếu chưa khớp,
   hồ sơ vẫn được nhập ở trạng thái chưa phân công, đồng thời giữ Email Address
   và `sourceSalespersonCode` để quản lý xử lý sau.
@@ -70,6 +76,18 @@ Cho phép nhân viên bán hàng theo dõi và chăm sóc lại từng lượt b
 - Mỗi dòng có fingerprint duy nhất. Nhập lại cùng dữ liệu chỉ tăng thống kê
   trùng, không ghi đè báo cáo hay lịch sử chăm sóc đã có. Batch audit chỉ lưu
   checksum, tên file, actor và số lượng; không lưu nguyên file hoặc payload PII.
+
+## Đồng bộ BigQuery
+
+- Job BigQuery báo cáo bán hàng chạy theo lịch hiện có lúc 07:00 giờ Việt Nam
+  và đồng bộ thêm bảng lịch sử chăm sóc khi
+  `SALES_REPORT_BIGQUERY_SYNC_ENABLED=true`; thao tác đồng bộ thủ công của quản
+  lý báo cáo cũng bao gồm bảng này.
+- Bảng mặc định là `opshub_sales_report_follow_up_history`, có thể đổi bằng
+  `SALES_REPORT_BIGQUERY_FOLLOW_UP_TABLE_ID`. Mỗi hồ sơ khách hàng là một dòng;
+  mỗi lần chăm sóc là một cột RECORD `follow_up_1`, `follow_up_2`, ... chứa kết
+  quả, lý do, người và thời gian chăm sóc. Full refresh giữ đúng một dòng cho
+  mỗi `follow_up_case_id` và tự mở rộng schema khi phát sinh số lần mới.
 
 ## Luồng modal
 

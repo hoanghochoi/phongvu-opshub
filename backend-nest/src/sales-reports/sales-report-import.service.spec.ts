@@ -80,6 +80,58 @@ describe('SalesReportImportService', () => {
           catGroupName: 'Laptop',
           catGroupNameVi: 'Laptop',
         },
+        {
+          id: 'NH02',
+          catGroupName: 'PC',
+          catGroupNameVi: 'Máy tính bộ',
+        },
+        {
+          id: 'NH03',
+          catGroupName: 'Computer components',
+          catGroupNameVi: 'Linh kiện máy tính',
+        },
+        { id: 'NH05', catGroupName: 'Apple', catGroupNameVi: 'Apple' },
+        {
+          id: 'NH06',
+          catGroupName: 'Peripherals',
+          catGroupNameVi: 'Thiết bị ngoại vi',
+        },
+        {
+          id: 'NH07',
+          catGroupName: 'Office equipment',
+          catGroupNameVi: 'Thiết bị văn phòng',
+        },
+        {
+          id: 'NH08',
+          catGroupName: 'Network and Security equipment',
+          catGroupNameVi: 'Thiết bị mạng và an ninh',
+        },
+        {
+          id: 'NH09',
+          catGroupName: 'Software',
+          catGroupNameVi: 'Phần mềm',
+        },
+        {
+          id: 'NH10',
+          catGroupName: 'Entertainment and Digital devices',
+          catGroupNameVi: 'Thiết bị giải trí và kỹ thuật số',
+        },
+        {
+          id: 'NH11',
+          catGroupName: 'Accessories',
+          catGroupNameVi: 'Phụ kiện',
+        },
+        {
+          id: 'NH12',
+          catGroupName: 'Electric',
+          catGroupNameVi: 'Điện máy',
+        },
+        {
+          id: 'NH14',
+          catGroupName: 'Small Domestic Appliances',
+          catGroupNameVi: 'Điện gia dụng',
+        },
+        { id: 'NH99', catGroupName: 'Others', catGroupNameVi: 'Khác' },
       ]),
     };
     return {
@@ -213,6 +265,75 @@ describe('SalesReportImportService', () => {
       'File đã thay đổi sau khi xem trước',
     );
     expect(prisma.salesReportImportBatch.create).not.toHaveBeenCalled();
+  });
+
+  it('accepts missing product detail and maps a legacy category label to the closest active category', async () => {
+    const { service, parser } = setup();
+    parser.parse.mockReturnValue({
+      fileName: 'khach-chua-mua.xlsx',
+      fileHash: hash,
+      totalRows: 1,
+      rows: [
+        parsedRow({
+          customerNeed: '',
+          categoryValue: 'PC (PCPV, PC Hãng, PC Nguyên chiếc)',
+          warnings: [],
+        }),
+      ],
+    });
+
+    const preview = await service.preview(actor, file);
+
+    expect(preview).toMatchObject({
+      validRows: 1,
+      invalidRows: 0,
+    });
+    expect(preview.rows[0]).toMatchObject({ status: 'VALID' });
+    expect(preview.rows[0].warnings).toContain(
+      'Ngành hàng “PC (PCPV, PC Hãng, PC Nguyên chiếc)” đã được ghép với “Máy tính bộ”.',
+    );
+  });
+
+  it('maps the legacy survey category labels used by the historical workbook', async () => {
+    const { service, parser } = setup();
+    const legacyLabels = [
+      'Màn hình',
+      'TBVP (Máy in, Scan, Máy chiếu)',
+      'Gear (Chuột, bàn phím, tai nghe)',
+      'Linh kiện PC (Main,CPU,VGA,Ram)',
+      'Thiết bị mạng (Router, usb wifi)',
+      'Thiết bị âm thanh (Loa)',
+      'Điện thoại (Điện thoại Android)',
+      'Camera',
+      'KH tham quan (Không cung cấp sản phẩm)',
+      'Máy cũ (Laptop cũ, PC cũ)',
+    ];
+    parser.parse.mockReturnValue({
+      fileName: 'khach-chua-mua.xlsx',
+      fileHash: hash,
+      totalRows: legacyLabels.length,
+      rows: legacyLabels.map((categoryValue, index) =>
+        parsedRow({
+          rowNumber: index + 2,
+          categoryValue,
+          fingerprint: `legacy-${index}`,
+        }),
+      ),
+    });
+
+    const preview = await service.preview(actor, file);
+
+    expect(preview).toMatchObject({
+      validRows: legacyLabels.length,
+      invalidRows: 0,
+    });
+    expect(
+      preview.rows.every(
+        (row) =>
+          row.status === 'VALID' &&
+          row.warnings.some((warning) => warning.includes('đã được ghép với')),
+      ),
+    ).toBe(true);
   });
 });
 

@@ -183,6 +183,85 @@ describe('SalesReportFollowUpsService', () => {
     expect(JSON.stringify(where)).not.toContain('customerZaloContact');
   });
 
+  it('trả lịch sử chăm sóc gồm mọi trạng thái có ít nhất một lần chăm sóc', async () => {
+    const row = {
+      id: 'case-history',
+      status: 'PURCHASED',
+      assigneeUserId: 'user-a',
+      assigneeEmail: 'a@phongvu.vn',
+      assigneeName: 'Nhân viên A',
+      lastFollowUpAt: new Date('2026-07-20T02:00:00Z'),
+      lastFollowUpByName: 'Nhân viên A',
+      followUpCount: 1,
+      priorityAt: new Date('2026-07-20T02:00:00Z'),
+      sourceReport: {
+        id: 'report-history',
+        reportType: 'NOT_PURCHASED',
+        customerName: 'Nguyễn Văn A',
+        customerPhone: '0909000000',
+        customerContactChannels: ['PHONE'],
+        customerZaloContact: null,
+        categoryGroupId: 'NH01',
+        categoryGroupNameVi: 'Laptop',
+        categorySelections: [],
+        submittedAt: new Date('2026-07-10T02:00:00Z'),
+        createdByName: 'Nhân viên A',
+        createdByEmail: 'a@phongvu.vn',
+        notPurchasedReason: 'CUSTOMER_BROWSING',
+        notPurchasedOtherReason: null,
+        storeCode: 'CP01',
+        storeName: 'Phong Vũ CP01',
+      },
+      entries: [
+        {
+          id: 'entry-1',
+          sequenceNumber: 1,
+          outcome: 'PURCHASED',
+          notPurchasedReason: null,
+          notPurchasedOtherReason: null,
+          actorName: 'Nhân viên A',
+          actorEmail: 'a@phongvu.vn',
+          contactedAt: new Date('2026-07-20T02:00:00Z'),
+        },
+      ],
+    };
+    const findMany = jest.fn().mockResolvedValue([row]);
+    const prisma = {
+      user: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'admin-1',
+          email: 'admin@phongvu.vn',
+          role: 'SUPER_ADMIN',
+        }),
+      },
+      salesReportFollowUpCase: { findMany },
+    };
+    const service = new SalesReportFollowUpsService(
+      prisma as any,
+      {} as any,
+      {} as any,
+    );
+
+    const result = await service.list(
+      { id: 'admin-1', email: 'admin@phongvu.vn', role: 'SUPER_ADMIN' },
+      { status: 'HISTORY', page: 0, limit: 20 },
+    );
+
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0]).toMatchObject({
+      id: 'case-history',
+      status: 'PURCHASED',
+      followUpCount: 1,
+    });
+    const where = findMany.mock.calls[0][0].where;
+    expect(JSON.stringify(where)).toContain('followUpCount');
+    expect(JSON.stringify(where)).toContain('"gt":0');
+    expect(JSON.stringify(where)).not.toContain('PURCHASED_ELSEWHERE');
+    expect(findMany.mock.calls[0][0].orderBy[0]).toEqual({
+      lastFollowUpAt: { sort: 'desc', nulls: 'last' },
+    });
+  });
+
   it('vẫn trả lịch sử khi danh sách nhân viên phân công bị lỗi tạm thời', async () => {
     const row = {
       id: 'case-detail',

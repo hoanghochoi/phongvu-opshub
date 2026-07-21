@@ -85,6 +85,48 @@ describe('SalesReportImportParserService', () => {
       parser.parse(workbookFile([['Timestamp'], ['20/07/2026']])),
     ).toThrow('File Excel chưa đúng mẫu');
   });
+
+  it('accepts the short product header and keeps missing product detail as a warning', () => {
+    const result = parser.parse(
+      workbookFile([
+        [
+          'Timestamp',
+          'Email Address',
+          'MSNV bán hàng',
+          'Họ & Tên Khách Hàng',
+          'SDT Khách Hàng',
+          'Ngành hàng',
+          'sản phẩm khách tìm',
+          'Chốt đơn thành công?',
+          'Lí do không mua',
+          'SR ID',
+          'Kênh liên lạc',
+        ],
+        [
+          '20/07/2026 10:15',
+          'sa@example.com',
+          'NV001',
+          'Khách A',
+          '0zalo',
+          'Laptop',
+          '',
+          'Không',
+          'Khách tham khảo',
+          'CP02',
+          'ZALO_PERSONAL',
+        ],
+      ]),
+    );
+
+    expect(result.rows[0]).toMatchObject({
+      customerNeed: '',
+      customerContactChannels: ['ZALO_PERSONAL'],
+      errors: [],
+    });
+    expect(result.rows[0].warnings).toContain(
+      'Thiếu sản phẩm khách hàng đang tìm; dữ liệu sẽ được lưu trống để bổ sung sau.',
+    );
+  });
 });
 
 function workbookFile(rows: unknown[][]): Express.Multer.File {
