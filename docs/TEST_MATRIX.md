@@ -3,6 +3,21 @@
 This file maps product behavior to proof. Existing flows are marked
 `existing_unverified` until fresh validation evidence is attached.
 
+- `GIT-WORKFLOW-001`, 2026-07-21: feature work defaults to a Linear-linked
+  task branch and PR into `staging`; direct protected-branch pushes now require
+  an explicit current-task command without waiving clean scope, CI, QA,
+  release-window, or fast-forward gates. The production promotion guard accepts
+  only the exact `origin/staging` SHA, defaults to dry-run, verifies GitHub
+  checks/statuses when dispatched, never force-pushes, and re-fetches to require
+  `origin/main == origin/staging`. Fixture proof passed 8/8 tests: dry-run no-op,
+  successful fast-forward, blocked divergence, stale SHA, missing QA, dirty
+  worktree, GitHub CI pass/fail, existing staging/production deploy triggers,
+  and static no-force policy. All workflow YAML parsed and `git diff --check`
+  passed. External gate still required: install the dedicated release GitHub
+  App, configure its ruleset bypass, add a production required reviewer, disable
+  admin environment bypass, create missing Linear statuses, then perform a
+  controlled workflow rehearsal.
+
 - `AUTH-FEATURE-GATE-001`, 2026-07-20: `ADMIN` users now receive the same
   feature-gated workspace behavior as `SUPER_ADMIN` within their assigned
   scope; policy rules may narrow capability or widen data scope only after the
