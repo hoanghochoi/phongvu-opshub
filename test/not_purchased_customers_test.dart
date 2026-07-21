@@ -62,6 +62,13 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('khach-chua-mua.xlsx'), findsOneWidget);
 
+    await tester.tapAt(const Offset(4, 4));
+    await tester.pumpAndSettle();
+    expect(find.text('Hủy các thay đổi?'), findsOneWidget);
+    await tester.tap(find.text('Tiếp tục chỉnh sửa'));
+    await tester.pumpAndSettle();
+    expect(find.text('Nhập Excel khách chưa mua'), findsOneWidget);
+
     await tester.tap(find.text('Xem trước dữ liệu'));
     await tester.pumpAndSettle();
     expect(find.text('Kết quả xem trước'), findsOneWidget);
@@ -137,7 +144,9 @@ void main() {
     expect(repository.lastStatus, 'HISTORY');
   });
 
-  testWidgets('Super Admin có thể lọc khách chưa mua theo SR', (tester) async {
+  testWidgets('Super Admin có thể lọc khách chưa mua theo showroom', (
+    tester,
+  ) async {
     final repository = _FakeFollowUpRepository(
       _case(customerPhone: '0900000000', customerZaloContact: null),
     );
@@ -168,7 +177,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Mã SR / Showroom'), findsOneWidget);
+    expect(find.text('Mã showroom'), findsOneWidget);
     await tester.tap(find.byType(TextField).last);
     await tester.pumpAndSettle();
     await tester.tap(find.text('CP02 - Quận 2').last);
