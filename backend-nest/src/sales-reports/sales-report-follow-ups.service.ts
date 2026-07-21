@@ -57,7 +57,12 @@ export class SalesReportFollowUpsService {
     const principal = await this.principal(user);
     const manager = this.isManager(user, principal);
     const scopeWhere = await this.scopeWhere(user, principal, manager);
-    const status = query.status === 'HIDDEN' ? 'HIDDEN' : 'OPEN';
+    const status =
+      query.status === 'HIDDEN'
+        ? 'HIDDEN'
+        : query.status === 'HISTORY'
+          ? 'HISTORY'
+          : 'OPEN';
     const page = Math.max(0, Number(query.page) || 0);
     const limit = Math.min(100, Math.max(1, Number(query.limit) || 20));
     const search = this.text(query.search, 120);
@@ -77,7 +82,11 @@ export class SalesReportFollowUpsService {
     const parts: Prisma.SalesReportFollowUpCaseWhereInput[] = [
       scopeWhere,
       {
-        status: status === 'OPEN' ? 'OPEN' : { in: HIDDEN_STATUSES },
+        ...(status === 'OPEN'
+          ? { status: 'OPEN' }
+          : status === 'HIDDEN'
+            ? { status: { in: HIDDEN_STATUSES } }
+            : { followUpCount: { gt: 0 } }),
         sourceReport: {
           reportType: 'NOT_PURCHASED',
           ...(contactGracePeriod.active
@@ -110,15 +119,26 @@ export class SalesReportFollowUpsService {
       });
     }
     const where: Prisma.SalesReportFollowUpCaseWhereInput = { AND: parts };
-    const orderBy: Prisma.SalesReportFollowUpCaseOrderByWithRelationInput[] = [
-      {
-        lastFollowUpAt: {
-          sort: Prisma.SortOrder.asc,
-          nulls: Prisma.NullsOrder.first,
-        },
-      },
-      { priorityAt: Prisma.SortOrder.asc },
-    ];
+    const orderBy: Prisma.SalesReportFollowUpCaseOrderByWithRelationInput[] =
+      status === 'HISTORY'
+        ? [
+            {
+              lastFollowUpAt: {
+                sort: Prisma.SortOrder.desc,
+                nulls: Prisma.NullsOrder.last,
+              },
+            },
+            { priorityAt: Prisma.SortOrder.desc },
+          ]
+        : [
+            {
+              lastFollowUpAt: {
+                sort: Prisma.SortOrder.asc,
+                nulls: Prisma.NullsOrder.first,
+              },
+            },
+            { priorityAt: Prisma.SortOrder.asc },
+          ];
     const contactCandidates =
       await this.prisma.salesReportFollowUpCase.findMany({
         where,
@@ -845,7 +865,11 @@ export class SalesReportFollowUpsService {
     return Array.from(
       new Set(
         (Array.isArray(value) ? value : [])
-          .map((item) => String(item ?? '').trim().toUpperCase())
+          .map((item) =>
+            String(item ?? '')
+              .trim()
+              .toUpperCase(),
+          )
           .filter((code) => allowed.has(code)),
       ),
     );

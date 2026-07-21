@@ -239,9 +239,18 @@ export class SalesReportImportService {
     const rows: EnrichedImportRow[] = parsed.rows.map((row) => {
       const errors = [...row.errors];
       const warnings = [...row.warnings];
-      const category =
-        categoryByKey.get(normalizeKey(row.categoryValue)) ?? null;
+      const categoryResolution = resolveClosestCategory(
+        row.categoryValue,
+        categories,
+        categoryByKey,
+      );
+      const category = categoryResolution.category;
       const store = storeByCode.get(row.storeCode) ?? null;
+      if (categoryResolution.mappedFrom) {
+        warnings.push(
+          `Ngành hàng “${categoryResolution.mappedFrom.slice(0, 80)}” đã được ghép với “${category?.catGroupNameVi || category?.catGroupName || ''}”.`,
+        );
+      }
       if (row.categoryValue && !category) {
         errors.push('Ngành hàng không khớp danh mục đang sử dụng.');
       }
@@ -531,6 +540,127 @@ function normalizeKey(value: unknown) {
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
     .replace(/[^a-z0-9]+/g, '');
+}
+
+type ImportCategory = {
+  id: string;
+  catGroupName: string;
+  catGroupNameVi: string;
+};
+
+const LEGACY_IMPORT_CATEGORY_PREFIXES = [
+  ['khthamquan', 'NH99'],
+  ['maycu', 'NH99'],
+  ['linhkienmaytinhxachtay', 'NH03'],
+  ['linhkienpc', 'NH03'],
+  ['phukienluutru', 'NH11'],
+  ['phukien', 'NH11'],
+  ['thietbiamthanh', 'NH12'],
+  ['thietbimang', 'NH08'],
+  ['dienthoaiban', 'NH07'],
+  ['dienthoai', 'NH10'],
+  ['diengiadung', 'NH14'],
+  ['dienmay', 'NH12'],
+  ['manhinh', 'NH06'],
+  ['camera', 'NH08'],
+  ['tbvp', 'NH07'],
+  ['gear', 'NH06'],
+  ['apple', 'NH05'],
+  ['khac', 'NH99'],
+  ['pc', 'NH02'],
+] as const;
+
+function resolveClosestCategory(
+  value: string,
+  categories: readonly ImportCategory[],
+  categoryByKey: Map<string, ImportCategory>,
+) {
+  const normalizedValue = normalizeKey(value);
+  if (!normalizedValue) return { category: null, mappedFrom: null };
+  const exact = categoryByKey.get(normalizedValue);
+  if (exact) return { category: exact, mappedFrom: null };
+  const legacyCategoryId = LEGACY_IMPORT_CATEGORY_PREFIXES.find(([prefix]) =>
+    normalizedValue.startsWith(prefix),
+  )?.[1];
+  const legacyCategory = legacyCategoryId
+    ? categoryByKey.get(normalizeKey(legacyCategoryId))
+    : null;
+  if (legacyCategory) {
+    return { category: legacyCategory, mappedFrom: value };
+  }
+
+  let best: { category: ImportCategory; score: number } | null = null;
+  for (const category of categories) {
+    const score = Math.max(
+      categorySimilarity(value, category.catGroupName),
+      categorySimilarity(value, category.catGroupNameVi),
+    );
+    if (!best || score > best.score) best = { category, score };
+  }
+  if (!best || best.score < 0.55) {
+    return { category: null, mappedFrom: null };
+  }
+  return { category: best.category, mappedFrom: value };
+}
+
+function categorySimilarity(source: string, target: string) {
+  const sourceText = normalizeWords(source);
+  const targetText = normalizeWords(target);
+  if (!sourceText || !targetText) return 0;
+  if (sourceText === targetText) return 1;
+
+  const sourceCompact = sourceText.replace(/ /g, '');
+  const targetCompact = targetText.replace(/ /g, '');
+  const shorterLength = Math.min(sourceCompact.length, targetCompact.length);
+  const longerLength = Math.max(sourceCompact.length, targetCompact.length);
+  if (
+    shorterLength >= 4 &&
+    (sourceCompact.includes(targetCompact) ||
+      targetCompact.includes(sourceCompact))
+  ) {
+    return 0.88 + 0.08 * (shorterLength / longerLength);
+  }
+
+  const sourceTokens = new Set(sourceText.split(' '));
+  const targetTokens = new Set(targetText.split(' '));
+  const sharedTokens = Array.from(sourceTokens).filter((token) =>
+    targetTokens.has(token),
+  ).length;
+  const unionSize = new Set([...sourceTokens, ...targetTokens]).size;
+  const tokenScore = unionSize === 0 ? 0 : sharedTokens / unionSize;
+  const characterScore =
+    1 - levenshteinDistance(sourceCompact, targetCompact) / longerLength;
+  return Math.max(tokenScore * 0.9, characterScore * 0.72);
+}
+
+function normalizeWords(value: unknown) {
+  return String(value ?? '')
+    .trim()
+    .toLowerCase()
+    .replace(/đ/g, 'd')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
+function levenshteinDistance(left: string, right: string) {
+  if (left === right) return 0;
+  if (!left.length) return right.length;
+  if (!right.length) return left.length;
+  let previous = Array.from({ length: right.length + 1 }, (_, index) => index);
+  for (let row = 1; row <= left.length; row += 1) {
+    const current = [row];
+    for (let column = 1; column <= right.length; column += 1) {
+      current[column] = Math.min(
+        current[column - 1] + 1,
+        previous[column] + 1,
+        previous[column - 1] + (left[row - 1] === right[column - 1] ? 0 : 1),
+      );
+    }
+    previous = current;
+  }
+  return previous[right.length];
 }
 
 function safeActor(user: any) {

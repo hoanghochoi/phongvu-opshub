@@ -106,6 +106,37 @@ void main() {
     expect(find.text('Nhập Excel'), findsNothing);
   });
 
+  testWidgets('Lịch sử chăm sóc nằm giữa Cần chăm sóc và Đã ẩn', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1200, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final repository = _FakeFollowUpRepository(
+      _case(customerPhone: '0900000000', customerZaloContact: null),
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: NotPurchasedCustomersScreen(repository: repository),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final openX = tester.getCenter(find.text('Cần chăm sóc')).dx;
+    final historyX = tester.getCenter(find.text('Lịch sử chăm sóc')).dx;
+    final hiddenX = tester.getCenter(find.text('Đã ẩn')).dx;
+    expect(openX, lessThan(historyX));
+    expect(historyX, lessThan(hiddenX));
+
+    await tester.tap(find.text('Lịch sử chăm sóc'));
+    await tester.pumpAndSettle();
+    expect(repository.lastStatus, 'HISTORY');
+  });
+
   testWidgets('Super Admin có thể lọc khách chưa mua theo SR', (tester) async {
     final repository = _FakeFollowUpRepository(
       _case(customerPhone: '0900000000', customerZaloContact: null),
@@ -429,6 +460,7 @@ class _FakeFollowUpRepository extends SalesReportRepository {
   int detailCalls = 0;
   int listCalls = 0;
   String? lastStoreCode;
+  String? lastStatus;
   int previewCalls = 0;
   int commitCalls = 0;
 
@@ -449,6 +481,7 @@ class _FakeFollowUpRepository extends SalesReportRepository {
   }) async {
     listCalls += 1;
     lastStoreCode = storeCode;
+    lastStatus = status;
     return SalesReportFollowUpPage(
       items: [item],
       page: page,

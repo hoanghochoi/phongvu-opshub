@@ -74,6 +74,7 @@ type BigQueryField = {
   name: string;
   type: string;
   mode?: string;
+  fields?: BigQueryField[];
 };
 
 type SalesReportBigQueryConfig = {
@@ -84,6 +85,7 @@ type SalesReportBigQueryConfig = {
   revenueTableId: string;
   itemTableId: string;
   paymentTableId: string;
+  followUpTableId: string;
   maxRows: number;
 };
 
@@ -94,11 +96,13 @@ export type SalesReportBigQuerySyncResult = {
   revenueRows: number;
   itemRows: number;
   paymentRows: number;
+  followUpRows: number;
   tables: {
     reports: string;
     revenueByStore: string;
     items: string;
     payments: string;
+    followUps: string;
   } | null;
   durationMs: number;
 };
@@ -163,24 +167,44 @@ export class SalesReportsBigQuerySyncService implements OnApplicationBootstrap {
 
     this.syncRunning = true;
     this.logger.log(
-      `Sales report BigQuery sync started: source=${source} dataset=${config.projectId}.${config.datasetId} reportTable=${config.reportTableId} revenueTable=${config.revenueTableId} itemTable=${config.itemTableId} paymentTable=${config.paymentTableId}`,
+      `Sales report BigQuery sync started: source=${source} dataset=${config.projectId}.${config.datasetId} reportTable=${config.reportTableId} revenueTable=${config.revenueTableId} itemTable=${config.itemTableId} paymentTable=${config.paymentTableId} followUpTable=${config.followUpTableId}`,
     );
 
     try {
       const client = this.createBigQueryClient(config);
-      const reports = await this.prisma.salesReport.findMany({
-        where: { erpExcludedAt: null },
-        orderBy: [{ submittedAt: 'asc' }, { id: 'asc' }],
-        take: config.maxRows,
-        include: {
-          categorySelections: { orderBy: { sortOrder: 'asc' } },
-          items: { orderBy: { createdAt: 'asc' } },
-          payments: { orderBy: { createdAt: 'asc' } },
-        },
-      });
+      const [reports, followUpCases] = await Promise.all([
+        this.prisma.salesReport.findMany({
+          where: { erpExcludedAt: null },
+          orderBy: [{ submittedAt: 'asc' }, { id: 'asc' }],
+          take: config.maxRows,
+          include: {
+            categorySelections: { orderBy: { sortOrder: 'asc' } },
+            items: { orderBy: { createdAt: 'asc' } },
+            payments: { orderBy: { createdAt: 'asc' } },
+          },
+        }),
+        this.prisma.salesReportFollowUpCase.findMany({
+          where: { followUpCount: { gt: 0 } },
+          orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+          take: config.maxRows,
+          include: {
+            sourceReport: {
+              include: {
+                categorySelections: { orderBy: { sortOrder: 'asc' } },
+              },
+            },
+            entries: { orderBy: { sequenceNumber: 'asc' } },
+          },
+        }),
+      ]);
       if (reports.length >= config.maxRows) {
         this.logger.warn(
           `Sales report BigQuery sync reached maxRows=${config.maxRows}; increase SALES_REPORT_BIGQUERY_MAX_ROWS if older rows are missing`,
+        );
+      }
+      if (followUpCases.length >= config.maxRows) {
+        this.logger.warn(
+          `Sales report follow-up BigQuery sync reached maxRows=${config.maxRows}; increase SALES_REPORT_BIGQUERY_MAX_ROWS if older rows are missing`,
         );
       }
 
@@ -196,6 +220,9 @@ export class SalesReportsBigQuerySyncService implements OnApplicationBootstrap {
         (row.payments ?? []).map((payment: any) =>
           this.toPaymentRow(row, payment, syncedAt),
         ),
+      );
+      const followUpRows = followUpCases.map((row) =>
+        this.toFollowUpRow(row, syncedAt),
       );
 
       await this.replaceTableRows(
@@ -226,6 +253,13 @@ export class SalesReportsBigQuerySyncService implements OnApplicationBootstrap {
         PAYMENT_SCHEMA,
         paymentRows,
       );
+      await this.replaceTableRows(
+        client,
+        config,
+        config.followUpTableId,
+        this.followUpSchema(followUpCases),
+        followUpRows,
+      );
 
       const result: SalesReportBigQuerySyncResult = {
         skipped: false,
@@ -233,16 +267,18 @@ export class SalesReportsBigQuerySyncService implements OnApplicationBootstrap {
         revenueRows: revenueRows.length,
         itemRows: itemRows.length,
         paymentRows: paymentRows.length,
+        followUpRows: followUpRows.length,
         tables: {
           reports: this.tablePath(config, config.reportTableId),
           revenueByStore: this.tablePath(config, config.revenueTableId),
           items: this.tablePath(config, config.itemTableId),
           payments: this.tablePath(config, config.paymentTableId),
+          followUps: this.tablePath(config, config.followUpTableId),
         },
         durationMs: Date.now() - startedAt,
       };
       this.logger.log(
-        `Sales report BigQuery sync succeeded: source=${source} reports=${result.reportRows} revenueByStore=${result.revenueRows} items=${result.itemRows} payments=${result.paymentRows} durationMs=${result.durationMs}`,
+        `Sales report BigQuery sync succeeded: source=${source} reports=${result.reportRows} revenueByStore=${result.revenueRows} items=${result.itemRows} payments=${result.paymentRows} followUps=${result.followUpRows} durationMs=${result.durationMs}`,
       );
       return result;
     } catch (error) {
@@ -335,8 +371,7 @@ export class SalesReportsBigQuerySyncService implements OnApplicationBootstrap {
         .map((code) => this.customerContactChannelLabel(code))
         .join('; '),
       has_phone_contact: contactChannelCodes.includes('PHONE'),
-      has_zalo_personal_contact:
-        contactChannelCodes.includes('ZALO_PERSONAL'),
+      has_zalo_personal_contact: contactChannelCodes.includes('ZALO_PERSONAL'),
       has_zalo_oa_contact: contactChannelCodes.includes('ZALO_OA'),
       customer_need: this.text(row.customerNeed),
       category_group_id: this.text(row.categoryGroupId),
@@ -640,6 +675,95 @@ export class SalesReportsBigQuerySyncService implements OnApplicationBootstrap {
     };
   }
 
+  private toFollowUpRow(row: any, syncedAt: Date) {
+    const report = row.sourceReport ?? {};
+    const contactChannelCodes = this.arrayText(report.customerContactChannels);
+    const result: Record<string, unknown> = {
+      follow_up_case_id: this.text(row.id),
+      source_report_id: this.text(row.sourceReportId || report.id),
+      status: this.text(row.status),
+      customer_name: this.text(report.customerName),
+      customer_phone: this.text(report.customerPhone),
+      customer_zalo_contact: this.text(report.customerZaloContact),
+      customer_contact_channel_codes: contactChannelCodes.join('; '),
+      customer_need: this.text(report.customerNeed),
+      category_group_id: this.text(report.categoryGroupId),
+      category_group_name_vi: this.text(report.categoryGroupNameVi),
+      category_groups_vi: this.categoryGroups(report)
+        .map((category: any) => category.categoryGroupNameVi)
+        .filter(Boolean)
+        .join('; '),
+      store_code: this.text(report.storeCode),
+      store_name: this.text(report.storeName),
+      organization_node_id: this.text(report.organizationNodeId),
+      organization_node_name: this.text(report.organizationNodeName),
+      region_code: this.text(report.regionCode),
+      area_code: this.text(report.areaCode),
+      first_contact_at: this.timestamp(this.dateValue(report.submittedAt)),
+      first_contact_by_user_id: this.text(report.createdByUserId),
+      first_contact_by_email: this.text(report.createdByEmail),
+      first_contact_by_name: this.text(report.createdByName),
+      first_not_purchased_reason: this.text(report.notPurchasedReason),
+      first_not_purchased_reason_label: report.notPurchasedReason
+        ? this.notPurchasedLabel(report.notPurchasedReason)
+        : '',
+      first_not_purchased_other_reason: this.text(
+        report.notPurchasedOtherReason,
+      ),
+      assignee_user_id: this.text(row.assigneeUserId),
+      assignee_email: this.text(row.assigneeEmail),
+      assignee_name: this.text(row.assigneeName),
+      follow_up_count: this.integer(row.followUpCount) ?? 0,
+      last_follow_up_at: this.timestamp(this.dateValue(row.lastFollowUpAt)),
+      last_follow_up_by_user_id: this.text(row.lastFollowUpByUserId),
+      last_follow_up_by_email: this.text(row.lastFollowUpByEmail),
+      last_follow_up_by_name: this.text(row.lastFollowUpByName),
+      closed_at: this.timestamp(this.dateValue(row.closedAt)),
+      created_at: this.timestamp(this.dateValue(row.createdAt)),
+      updated_at: this.timestamp(this.dateValue(row.updatedAt)),
+      synced_at: this.timestamp(syncedAt),
+    };
+    for (const entry of Array.isArray(row.entries) ? row.entries : []) {
+      const sequenceNumber = this.integer(entry?.sequenceNumber);
+      if (sequenceNumber === null || sequenceNumber < 1) continue;
+      result[`follow_up_${sequenceNumber}`] = {
+        sequence_number: sequenceNumber,
+        outcome: this.text(entry.outcome),
+        outcome_label: this.followUpOutcomeLabel(entry.outcome),
+        not_purchased_reason: this.text(entry.notPurchasedReason),
+        not_purchased_reason_label: entry.notPurchasedReason
+          ? this.notPurchasedLabel(entry.notPurchasedReason)
+          : '',
+        not_purchased_other_reason: this.text(entry.notPurchasedOtherReason),
+        actor_user_id: this.text(entry.actorUserId),
+        actor_email: this.text(entry.actorEmail),
+        actor_name: this.text(entry.actorName),
+        purchased_report_id: this.text(entry.purchasedReportId),
+        contacted_at: this.timestamp(this.dateValue(entry.contactedAt)),
+      };
+    }
+    return result;
+  }
+
+  private followUpSchema(rows: any[]) {
+    const maxSequence = rows.reduce((max, row) => {
+      const entries = Array.isArray(row?.entries) ? row.entries : [];
+      return entries.reduce((entryMax: number, entry: any) => {
+        const sequence = this.integer(entry?.sequenceNumber) ?? 0;
+        return Math.max(entryMax, sequence);
+      }, max);
+    }, 0);
+    return [
+      ...FOLLOW_UP_BASE_SCHEMA,
+      ...Array.from({ length: maxSequence }, (_, index) => ({
+        name: `follow_up_${index + 1}`,
+        type: 'RECORD',
+        mode: 'NULLABLE',
+        fields: FOLLOW_UP_ENTRY_SCHEMA,
+      })),
+    ];
+  }
+
   private createBigQueryClient(config: SalesReportBigQueryConfig) {
     return new BigQuery({
       projectId: config.projectId,
@@ -680,6 +804,9 @@ export class SalesReportsBigQuerySyncService implements OnApplicationBootstrap {
       paymentTableId:
         this.firstEnv(['SALES_REPORT_BIGQUERY_PAYMENT_TABLE_ID']) ??
         `${prefix}_payments`,
+      followUpTableId:
+        this.firstEnv(['SALES_REPORT_BIGQUERY_FOLLOW_UP_TABLE_ID']) ??
+        `${prefix}_follow_up_history`,
       maxRows: this.envInt(
         'SALES_REPORT_BIGQUERY_MAX_ROWS',
         DEFAULT_MAX_ROWS,
@@ -700,6 +827,7 @@ export class SalesReportsBigQuerySyncService implements OnApplicationBootstrap {
       revenueRows: 0,
       itemRows: 0,
       paymentRows: 0,
+      followUpRows: 0,
       tables: null,
       durationMs: Date.now() - startedAt,
     };
@@ -735,6 +863,18 @@ export class SalesReportsBigQuerySyncService implements OnApplicationBootstrap {
   private notPurchasedLabel(code: unknown) {
     const text = this.text(code);
     return text ? (NOT_PURCHASED_LABELS[text] ?? text) : '';
+  }
+
+  private followUpOutcomeLabel(code: unknown) {
+    const text = this.text(code);
+    return (
+      {
+        PURCHASED: 'Mua hàng',
+        NOT_PURCHASED: 'Chưa mua',
+        PURCHASED_ELSEWHERE: 'Đã mua nơi khác',
+        NO_LONGER_INTERESTED: 'Hết nhu cầu',
+      }[text] ?? text
+    );
   }
 
   private customerTypeLabel(code: unknown) {
@@ -934,6 +1074,59 @@ export class SalesReportsBigQuerySyncService implements OnApplicationBootstrap {
     return String(error);
   }
 }
+
+const FOLLOW_UP_ENTRY_SCHEMA: BigQueryField[] = [
+  { name: 'sequence_number', type: 'INTEGER' },
+  { name: 'outcome', type: 'STRING' },
+  { name: 'outcome_label', type: 'STRING' },
+  { name: 'not_purchased_reason', type: 'STRING' },
+  { name: 'not_purchased_reason_label', type: 'STRING' },
+  { name: 'not_purchased_other_reason', type: 'STRING' },
+  { name: 'actor_user_id', type: 'STRING' },
+  { name: 'actor_email', type: 'STRING' },
+  { name: 'actor_name', type: 'STRING' },
+  { name: 'purchased_report_id', type: 'STRING' },
+  { name: 'contacted_at', type: 'TIMESTAMP' },
+];
+
+const FOLLOW_UP_BASE_SCHEMA: BigQueryField[] = [
+  { name: 'follow_up_case_id', type: 'STRING' },
+  { name: 'source_report_id', type: 'STRING' },
+  { name: 'status', type: 'STRING' },
+  { name: 'customer_name', type: 'STRING' },
+  { name: 'customer_phone', type: 'STRING' },
+  { name: 'customer_zalo_contact', type: 'STRING' },
+  { name: 'customer_contact_channel_codes', type: 'STRING' },
+  { name: 'customer_need', type: 'STRING' },
+  { name: 'category_group_id', type: 'STRING' },
+  { name: 'category_group_name_vi', type: 'STRING' },
+  { name: 'category_groups_vi', type: 'STRING' },
+  { name: 'store_code', type: 'STRING' },
+  { name: 'store_name', type: 'STRING' },
+  { name: 'organization_node_id', type: 'STRING' },
+  { name: 'organization_node_name', type: 'STRING' },
+  { name: 'region_code', type: 'STRING' },
+  { name: 'area_code', type: 'STRING' },
+  { name: 'first_contact_at', type: 'TIMESTAMP' },
+  { name: 'first_contact_by_user_id', type: 'STRING' },
+  { name: 'first_contact_by_email', type: 'STRING' },
+  { name: 'first_contact_by_name', type: 'STRING' },
+  { name: 'first_not_purchased_reason', type: 'STRING' },
+  { name: 'first_not_purchased_reason_label', type: 'STRING' },
+  { name: 'first_not_purchased_other_reason', type: 'STRING' },
+  { name: 'assignee_user_id', type: 'STRING' },
+  { name: 'assignee_email', type: 'STRING' },
+  { name: 'assignee_name', type: 'STRING' },
+  { name: 'follow_up_count', type: 'INTEGER' },
+  { name: 'last_follow_up_at', type: 'TIMESTAMP' },
+  { name: 'last_follow_up_by_user_id', type: 'STRING' },
+  { name: 'last_follow_up_by_email', type: 'STRING' },
+  { name: 'last_follow_up_by_name', type: 'STRING' },
+  { name: 'closed_at', type: 'TIMESTAMP' },
+  { name: 'created_at', type: 'TIMESTAMP' },
+  { name: 'updated_at', type: 'TIMESTAMP' },
+  { name: 'synced_at', type: 'TIMESTAMP' },
+];
 
 const REPORT_SCHEMA: BigQueryField[] = [
   { name: 'sales_report_id', type: 'STRING' },
