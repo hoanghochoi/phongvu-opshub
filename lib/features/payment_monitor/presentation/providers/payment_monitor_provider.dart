@@ -1571,6 +1571,8 @@ class PaymentMonitorProvider extends ChangeNotifier {
     String transactionId,
     String rawInput,
   ) async {
+    final existing = _findTransactionById(transactionId);
+    final transactionKey = existing?.transactionKey.trim() ?? '';
     try {
       final orders = parseStatementOrderInput(rawInput);
       if (orders.isEmpty) {
@@ -1580,11 +1582,16 @@ class PaymentMonitorProvider extends ChangeNotifier {
       await AppLogger.instance.info(
         'PaymentMonitor',
         'Payment monitor order transfer request started',
-        context: {'transactionId': transactionId, 'orderCount': orders.length},
+        context: {
+          'transactionId': transactionId,
+          'hasTransactionKey': transactionKey.isNotEmpty,
+          'orderCount': orders.length,
+        },
       );
       await _repository.createOrderTransferRequest(
         transactionId,
         orders,
+        transactionKey: transactionKey,
         allowRateLimitCooldownBypass: true,
       );
       await _refreshCurrentPageAfterOrderAction(
@@ -1594,7 +1601,11 @@ class PaymentMonitorProvider extends ChangeNotifier {
       await AppLogger.instance.info(
         'PaymentMonitor',
         'Payment monitor order transfer request succeeded',
-        context: {'transactionId': transactionId, 'orderCount': orders.length},
+        context: {
+          'transactionId': transactionId,
+          'hasTransactionKey': transactionKey.isNotEmpty,
+          'orderCount': orders.length,
+        },
       );
       return true;
     } catch (error) {
@@ -1610,7 +1621,11 @@ class PaymentMonitorProvider extends ChangeNotifier {
         'PaymentMonitor',
         'Payment monitor order transfer request failed',
         error: error,
-        context: {'transactionId': transactionId},
+        upload: true,
+        context: {
+          'transactionId': transactionId,
+          'hasTransactionKey': transactionKey.isNotEmpty,
+        },
       );
       return false;
     }

@@ -21,6 +21,11 @@
   `paidAt ?? firstSeenAt` closes at 00:00 UTC+7; `SUPER_ADMIN`, `FIN_ACC`, and
   `ACC` reviewers can approve or reject with an optional rejection note, and
   stale pending requests expire out of the pending state.
+- Store-action requests carry the persisted transaction UUID separately from the
+  provider-facing statement number and include `transactionKey`; the backend
+  resolves a stale UUID by that unique key before checking scope or creating the
+  request, so MAP/eFAST deduplication cannot turn a valid action into a missing
+  transaction error.
 - Build a Flutter `bank_statement` feature that reuses existing responsive
   layout, buttons, state panels, chips, and logging patterns, including a
   generic `Thông báo` bell for reviewer and requester order-transfer

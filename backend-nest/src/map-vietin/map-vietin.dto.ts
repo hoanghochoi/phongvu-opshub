@@ -248,6 +248,11 @@ export class UpdateMapVietinStatementIncomeTypeDto {
 }
 
 export class CreateMapVietinStatementOrderTransferRequestDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  transactionKey?: string;
+
   @IsArray()
   @IsString({ each: true })
   @MaxLength(80, { each: true })

@@ -30,6 +30,24 @@ void main() {
       expect(transaction.isValidIncoming, isTrue);
     });
 
+    test(
+      'keeps persisted transaction id separate from MAP transaction number',
+      () {
+        final transaction = MapPaymentTransaction.fromJson({
+          'id': 'stored-uuid-1',
+          'transactionKey': 'CP01:202605210001',
+          'transactionNumber': '2026202038515',
+          'amount': 1250000,
+          'storeCode': 'CP01',
+          'status': '00',
+        });
+
+        expect(transaction.id, 'stored-uuid-1');
+        expect(transaction.transactionNumber, '2026202038515');
+        expect(transaction.transactionKey, 'CP01:202605210001');
+      },
+    );
+
     test('reads VietinBank MAP request card payer fields', () {
       final transaction = MapPaymentTransaction.fromJson({
         'transactionNumber': 'MAP-REQ-001',
