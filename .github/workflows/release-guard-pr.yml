@@ -1,0 +1,33 @@
+name: Release Guard PR
+
+on:
+  pull_request:
+    branches:
+      - staging
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-guard-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  release-guard:
+    name: Release guard
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out pull request
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          fetch-depth: 0
+
+      - name: Run release workflow tests
+        run: node scripts/test-git-release-workflow.mjs
+
+      - name: Check patch whitespace
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: git diff --check "$BASE_SHA...$GITHUB_SHA"

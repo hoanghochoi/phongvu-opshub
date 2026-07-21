@@ -242,6 +242,10 @@ test('workflow and policy preserve existing deploy consumers and never force pus
     path.join(repoRoot, '.github', 'workflows', 'promote-production.yml'),
     'utf8',
   );
+  const prWorkflow = fs.readFileSync(
+    path.join(repoRoot, '.github', 'workflows', 'release-guard-pr.yml'),
+    'utf8',
+  );
   const productionWorkflow = fs.readFileSync(
     path.join(repoRoot, '.github', 'workflows', 'deploy-opshub.yml'),
     'utf8',
@@ -261,6 +265,15 @@ test('workflow and policy preserve existing deploy consumers and never force pus
   assert.match(promotionWorkflow, /--execute/);
   assert.doesNotMatch(promotionWorkflow, /push\s+--force|--force-with-lease/);
   assert.doesNotMatch(guard, /push[^\n]*--force|--force-with-lease/);
+
+  assert.match(prWorkflow, /name: Release Guard PR/);
+  assert.match(prWorkflow, /pull_request:/);
+  assert.match(prWorkflow, /- staging/);
+  assert.match(prWorkflow, /- main/);
+  assert.match(prWorkflow, /name: Release guard/);
+  assert.match(prWorkflow, /node scripts\/test-git-release-workflow\.mjs/);
+  assert.match(prWorkflow, /git diff --check/);
+  assert.doesNotMatch(prWorkflow, /secrets\.|GH_TOKEN|GITHUB_TOKEN/);
 
   assert.match(productionWorkflow, /push:\s*\n\s*branches:\s*\n\s*- main/);
   assert.match(stagingWorkflow, /push:\s*\n\s*branches:\s*\n\s*- staging/);

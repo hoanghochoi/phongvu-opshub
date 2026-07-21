@@ -46,10 +46,13 @@ tiện”; release mà tiện quá thường là lúc rollback bắt đầu tậ
 3. Chạy proof theo vùng thay đổi: Flutter (`flutter analyze`, `flutter test`),
    NestJS (`npm run build`, `npm test -- --runInBand`), Go (`go test ./...`) và
    `git diff --check`.
-4. PR title: `[OPS-142] Fix date picker`; base: `staging`; body dùng
+4. `.github/workflows/release-guard-pr.yml` phải chạy trên mọi PR vào `staging`
+   hoặc `main`. Ruleset chỉ được require check `Release guard` sau khi check đã
+   xuất hiện và pass ít nhất một lần trên GitHub.
+5. PR title: `[OPS-142] Fix date picker`; base: `staging`; body dùng
    `Part of OPS-142`. Dùng `Fixes OPS-142` chỉ khi production release thực sự
    dự kiến đóng issue.
-5. Feature PR dùng squash-and-merge. Merge vào `staging` chưa phải `Done`.
+6. Feature PR dùng squash-and-merge. Merge vào `staging` chưa phải `Done`.
 
 ## Ngoại lệ: direct push vào staging
 

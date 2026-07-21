@@ -12,11 +12,13 @@ This file maps product behavior to proof. Existing flows are marked
   `origin/main == origin/staging`. Fixture proof passed 8/8 tests: dry-run no-op,
   successful fast-forward, blocked divergence, stale SHA, missing QA, dirty
   worktree, GitHub CI pass/fail, existing staging/production deploy triggers,
-  and static no-force policy. All workflow YAML parsed and `git diff --check`
-  passed. External gate still required: install the dedicated release GitHub
-  App, configure its ruleset bypass, add a production required reviewer, disable
-  admin environment bypass, create missing Linear statuses, then perform a
-  controlled workflow rehearsal.
+  the always-on `Release guard` PR check, and static no-force policy. All six
+  workflow YAML files parsed and `git diff --check` passed. GitHub external audit
+  confirms the production reviewer, branch policy, App ID variable, private-key
+  environment secret name, and disabled admin bypass. Remaining external gates:
+  observe one live `Release guard` check, verify App token mint, configure the
+  App ruleset bypass, create missing Linear statuses, and perform a controlled
+  workflow rehearsal.
 
 - `AUTH-FEATURE-GATE-001`, 2026-07-20: `ADMIN` users now receive the same
   feature-gated workspace behavior as `SUPER_ADMIN` within their assigned
