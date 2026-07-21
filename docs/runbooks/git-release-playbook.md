@@ -155,6 +155,15 @@ Không chuyển `Done` vì task branch đã push, PR đã merge, staging đã de
 đã approve hoặc release PR đã mở. Nếu workspace chưa có các status trên, admin
 phải tạo chúng trước khi bật automation theo target branch.
 
+### Issue tracking record
+
+Before every forward Linear status transition, add an issue comment containing
+the implementation summary, changed scope, exact proof results, branch/commit/
+PR/environment metadata, residual risk, and one next-step recommendation. Post
+the comment before changing the status, then read the issue back to verify both.
+Do not mark the tracking step complete when Linear is unavailable or when a
+proof result is inferred rather than observed.
+
 ## Hotfix, feature flag và rollback
 
 - Code chưa sẵn sàng không vào `staging`, trừ khi bị khóa bằng feature flag,

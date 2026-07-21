@@ -63,6 +63,17 @@ before acting. Never claim done before verification.
 - Follow `docs/runbooks/git-release-playbook.md` for direct staging pushes,
   production promotion, hotfixes, rollback, and GitHub/Linear configuration.
 
+### Linear implementation/proof tracking
+
+- Every Linear-linked task must record implementation and proof in the issue
+  before its next lifecycle status transition.
+- The tracking note must name the changed scope, commit/PR/environment, exact
+  validation results, affected-consumer proof, residual risk, and one proposed
+  next step.
+- Post the note first, transition the status second, and read the issue back to
+  verify both. If Linear is unavailable, do not claim the transition or proof
+  was recorded.
+
 ## Feature Logging Requirement
 
 - Every new or changed feature must include useful debug logs through
@@ -244,3 +255,5 @@ A task is done only when:
 - Product docs, stories, decisions, and test matrix remain current when affected.
 - Relevant validation has been run, or the unverified part is stated clearly.
 - The final report says what changed, what was verified, and any remaining risk.
+- The linked issue contains the same implementation/proof record and a concrete
+  next-step recommendation when an issue tracker is part of the workflow.
