@@ -11,6 +11,7 @@ const ENV_KEYS = [
   'SALES_REPORT_BIGQUERY_REVENUE_TABLE_ID',
   'SALES_REPORT_BIGQUERY_ITEM_TABLE_ID',
   'SALES_REPORT_BIGQUERY_PAYMENT_TABLE_ID',
+  'SALES_REPORT_BIGQUERY_FOLLOW_UP_TABLE_ID',
   'SALES_REPORT_BIGQUERY_MAX_ROWS',
   'BIGQUERY_PROJECT_ID',
   'BIGQUERY_DATASET_ID',
@@ -45,18 +46,18 @@ describe('SalesReportsBigQuerySyncService', () => {
       reportRows: 0,
       itemRows: 0,
       paymentRows: 0,
+      followUpRows: 0,
     });
     expect(prisma.salesReport.findMany).not.toHaveBeenCalled();
   });
 
   it('labels not-purchased reports separately from purchased payment methods', () => {
     const service = new SalesReportsBigQuerySyncService({} as any);
-    const label = (row: any) =>
-      (service as any).finalPaymentMethodLabel(row);
+    const label = (row: any) => (service as any).finalPaymentMethodLabel(row);
 
-    expect(
-      label({ reportType: 'NOT_PURCHASED', erpPaymentMethods: [] }),
-    ).toBe('Chưa mua hàng');
+    expect(label({ reportType: 'NOT_PURCHASED', erpPaymentMethods: [] })).toBe(
+      'Chưa mua hàng',
+    );
     expect(label({ reportType: 'PURCHASED', erpPaymentMethods: [] })).toBe(
       'Trả thẳng',
     );
@@ -99,6 +100,9 @@ describe('SalesReportsBigQuerySyncService', () => {
           },
         ]),
       },
+      salesReportFollowUpCase: {
+        findMany: jest.fn().mockResolvedValue([followUpCaseFixture()]),
+      },
     };
     const service = new SalesReportsBigQuerySyncService(prisma as any);
     const replaceTableRows = jest
@@ -116,12 +120,15 @@ describe('SalesReportsBigQuerySyncService', () => {
       revenueRows: 2,
       itemRows: 2,
       paymentRows: 1,
+      followUpRows: 1,
       tables: {
         reports: 'opshub-project.opshub_reporting.sales_report_reports',
         revenueByStore:
           'opshub-project.opshub_reporting.sales_report_revenue_by_store',
         items: 'opshub-project.opshub_reporting.sales_report_items',
         payments: 'opshub-project.opshub_reporting.sales_report_payments',
+        followUps:
+          'opshub-project.opshub_reporting.sales_report_follow_up_history',
       },
     });
     expect(prisma.salesReport.findMany).toHaveBeenCalledWith(
@@ -134,7 +141,16 @@ describe('SalesReportsBigQuerySyncService', () => {
         }),
       }),
     );
-    expect(replaceTableRows).toHaveBeenCalledTimes(4);
+    expect(prisma.salesReportFollowUpCase.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { followUpCount: { gt: 0 } },
+        include: expect.objectContaining({
+          sourceReport: expect.any(Object),
+          entries: expect.any(Object),
+        }),
+      }),
+    );
+    expect(replaceTableRows).toHaveBeenCalledTimes(5);
 
     const reportRows = replaceTableRows.mock.calls[0][4] as Array<
       Record<string, unknown>
@@ -146,6 +162,12 @@ describe('SalesReportsBigQuerySyncService', () => {
       Record<string, unknown>
     >;
     const paymentRows = replaceTableRows.mock.calls[3][4] as Array<
+      Record<string, unknown>
+    >;
+    const followUpSchema = replaceTableRows.mock.calls[4][3] as Array<
+      Record<string, unknown>
+    >;
+    const followUpRows = replaceTableRows.mock.calls[4][4] as Array<
       Record<string, unknown>
     >;
 
@@ -198,8 +220,74 @@ describe('SalesReportsBigQuerySyncService', () => {
       payment_method: 'installment',
       amount: 500000,
     });
+    expect(followUpSchema.map((field) => field.name)).toContain('follow_up_2');
+    expect(followUpRows).toHaveLength(1);
+    expect(followUpRows[0]).toMatchObject({
+      follow_up_case_id: 'case-1',
+      source_report_id: 'report-1',
+      customer_name: 'Nguyen Van A',
+      follow_up_count: 2,
+      follow_up_1: {
+        sequence_number: 1,
+        outcome: 'NOT_PURCHASED',
+        outcome_label: 'Chưa mua',
+        not_purchased_reason_label: 'Phân vân giá',
+      },
+      follow_up_2: {
+        sequence_number: 2,
+        outcome: 'PURCHASED',
+        outcome_label: 'Mua hàng',
+      },
+    });
   });
 });
+
+function followUpCaseFixture() {
+  const sourceReport = salesReportFixture();
+  return {
+    id: 'case-1',
+    sourceReportId: sourceReport.id,
+    sourceReport,
+    status: 'PURCHASED',
+    assigneeUserId: 'user-1',
+    assigneeEmail: 'sale@phongvu.vn',
+    assigneeName: 'Sale User',
+    followUpCount: 2,
+    lastFollowUpAt: new Date('2026-07-03T02:00:00.000Z'),
+    lastFollowUpByUserId: 'user-1',
+    lastFollowUpByEmail: 'sale@phongvu.vn',
+    lastFollowUpByName: 'Sale User',
+    closedAt: new Date('2026-07-03T02:00:00.000Z'),
+    createdAt: new Date('2026-07-01T01:30:00.000Z'),
+    updatedAt: new Date('2026-07-03T02:00:00.000Z'),
+    entries: [
+      {
+        id: 'entry-1',
+        sequenceNumber: 1,
+        outcome: 'NOT_PURCHASED',
+        notPurchasedReason: 'PRICE_HESITATION',
+        notPurchasedOtherReason: null,
+        actorUserId: 'user-1',
+        actorEmail: 'sale@phongvu.vn',
+        actorName: 'Sale User',
+        purchasedReportId: null,
+        contactedAt: new Date('2026-07-02T02:00:00.000Z'),
+      },
+      {
+        id: 'entry-2',
+        sequenceNumber: 2,
+        outcome: 'PURCHASED',
+        notPurchasedReason: null,
+        notPurchasedOtherReason: null,
+        actorUserId: 'user-1',
+        actorEmail: 'sale@phongvu.vn',
+        actorName: 'Sale User',
+        purchasedReportId: 'report-purchased',
+        contactedAt: new Date('2026-07-03T02:00:00.000Z'),
+      },
+    ],
+  };
+}
 
 function salesReportFixture() {
   return {

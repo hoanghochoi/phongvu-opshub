@@ -409,7 +409,7 @@ class _NotPurchasedCustomersScreenState
           const SizedBox(height: 16),
           LayoutBuilder(
             builder: (context, constraints) {
-              final compact = constraints.maxWidth < 700;
+              final compact = constraints.maxWidth < 900;
               final search = AppTextInput(
                 controller: _searchController,
                 label: 'Tìm theo tên, điện thoại hoặc Zalo',
@@ -424,6 +424,11 @@ class _NotPurchasedCustomersScreenState
                     icon: Icon(Icons.schedule_rounded),
                   ),
                   ButtonSegment(
+                    value: 'HISTORY',
+                    label: Text('Lịch sử chăm sóc'),
+                    icon: Icon(Icons.history_rounded),
+                  ),
+                  ButtonSegment(
                     value: 'HIDDEN',
                     label: Text('Đã ẩn'),
                     icon: Icon(Icons.archive_outlined),
@@ -431,7 +436,15 @@ class _NotPurchasedCustomersScreenState
                 ],
                 selected: {_status},
                 onSelectionChanged: (value) {
-                  setState(() => _status = value.first);
+                  final status = value.first;
+                  setState(() => _status = status);
+                  unawaited(
+                    AppLogger.instance.info(
+                      'SalesReportFollowUp',
+                      'Follow-up list status changed',
+                      context: {'status': status},
+                    ),
+                  );
                   unawaited(_load(page: 0));
                 },
               );
@@ -483,7 +496,10 @@ class _NotPurchasedCustomersScreenState
                   children: [
                     search,
                     const SizedBox(height: 12),
-                    filters,
+                    SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: filters,
+                    ),
                     if (storeFilter != null) ...[
                       const SizedBox(height: 12),
                       storeFilter,
@@ -514,8 +530,10 @@ class _NotPurchasedCustomersScreenState
           ),
           const SizedBox(height: 16),
           if (_loading && data == null)
-            const AppStatePanel.loading(
-              title: 'Đang tải khách hàng cần chăm sóc...',
+            AppStatePanel.loading(
+              title: _status == 'HISTORY'
+                  ? 'Đang tải lịch sử chăm sóc...'
+                  : 'Đang tải danh sách khách hàng...',
             )
           else if (_error != null)
             AppStatePanel.error(
@@ -528,6 +546,8 @@ class _NotPurchasedCustomersScreenState
             AppStatePanel.empty(
               title: _status == 'OPEN'
                   ? 'Không có khách hàng cần chăm sóc'
+                  : _status == 'HISTORY'
+                  ? 'Chưa có lịch sử chăm sóc'
                   : 'Chưa có hồ sơ đã ẩn',
               message: data?.contactGracePeriodActive == true
                   ? 'Chưa có hồ sơ khách hàng chưa mua trong phạm vi được phân công.'

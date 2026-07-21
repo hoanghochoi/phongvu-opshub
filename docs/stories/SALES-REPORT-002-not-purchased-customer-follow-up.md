@@ -40,9 +40,15 @@
     chỉ dòng chưa mua hợp lệ đúng scope được tạo thành báo cáo
     `HISTORICAL_IMPORT` và follow-up `OPEN`. Dòng đã mua, lỗi hoặc trùng được bỏ
     qua có thống kê. Nhân viên chưa khớp để chưa phân công nhưng giữ email/MSNV
-    nguồn; bốn câu hỏi không có trong file ghi `NOT_CAPTURED`. Checksum và
-    fingerprint ngăn xác nhận sai file hoặc nhập trùng, batch audit không giữ
-    nguyên file/PII.
+    nguồn; bốn câu hỏi không có trong file ghi `NOT_CAPTURED`. Dòng thiếu mô tả
+    sản phẩm vẫn được nhận và lưu trống; ngành hàng lệch cách ghi được ghép vào
+    danh mục hiện hành gần nhất, còn giá trị trống hoặc không đủ gần vẫn bị đánh
+    dấu lỗi. Checksum và fingerprint ngăn xác nhận sai file hoặc nhập trùng,
+    batch audit không giữ nguyên file/PII.
+11. Tab card `Lịch sử chăm sóc` nằm giữa `Cần chăm sóc` và `Đã ẩn`, trả mọi hồ
+    sơ đúng scope có ít nhất một lần chăm sóc và xếp lần gần nhất trước. Job
+    BigQuery báo cáo bán hàng đồng bộ thêm bảng wide-format: một dòng cho mỗi
+    khách/hồ sơ, mỗi lần chăm sóc thêm một cột RECORD `follow_up_N`.
 
 ## Proof plan
 
@@ -57,3 +63,5 @@
 - Import Excel: parser/service test bao phủ template, chuẩn hóa thời gian/phone/
   kênh, lý do khác, scope, owner chưa khớp, checksum và tạo follow-up; widget
   test bao phủ quyền hiển thị, preview, commit và tự tải lại danh sách.
+- Lịch sử/BigQuery: service test bao phủ `status=HISTORY`, widget test vị trí và
+  truy vấn tab; BigQuery test bao phủ một dòng mỗi hồ sơ và cột RECORD động.

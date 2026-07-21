@@ -427,7 +427,7 @@ export class ListSalesReportOrdersDto {
 export class ListSalesReportFollowUpCasesDto {
   @IsOptional()
   @IsString()
-  @IsIn(['OPEN', 'HIDDEN'])
+  @IsIn(['OPEN', 'HISTORY', 'HIDDEN'])
   status?: string;
 
   @IsOptional()

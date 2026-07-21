@@ -58,6 +58,7 @@ const HEADER_ALIASES: Record<string, (typeof REQUIRED_HEADERS)[number]> = {
   sdtkhachhang: 'customerPhone',
   sodienthoaikhachhang: 'customerPhone',
   nganhhang: 'category',
+  sanphamkhachtim: 'customerNeed',
   khachhangtimsanphamgiloaispvathuonghieu: 'customerNeed',
   khachhangtimsanphamgi: 'customerNeed',
   chotdonthanhcong: 'purchased',
@@ -201,7 +202,11 @@ export class SalesReportImportParserService {
       warnings.push('Số điện thoại không hợp lệ nên không được lưu.');
     }
     if (!categoryValue) errors.push('Thiếu ngành hàng.');
-    if (!customerNeed) errors.push('Thiếu sản phẩm khách hàng đang tìm.');
+    if (!customerNeed) {
+      warnings.push(
+        'Thiếu sản phẩm khách hàng đang tìm; dữ liệu sẽ được lưu trống để bổ sung sau.',
+      );
+    }
     if (customerNeed.length > 1000)
       errors.push('Nhu cầu khách hàng dài quá 1.000 ký tự.');
     if (purchased === null)
@@ -386,7 +391,7 @@ function parseContactChannels(
         warnings.push(
           'Kênh điện thoại bị bỏ qua vì số điện thoại không hợp lệ.',
         );
-    } else if (['zalo', 'zalocanhan'].includes(key)) {
+    } else if (['zalo', 'zalocanhan', 'zalopersonal'].includes(key)) {
       codes.add('ZALO_PERSONAL');
     } else if (['zalooa', 'oa'].includes(key)) {
       codes.add('ZALO_OA');
