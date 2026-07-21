@@ -143,7 +143,7 @@ class _NotPurchasedCustomersScreenState
     final startedAt = DateTime.now();
     await AppLogger.instance.info(
       'SalesReportFollowUp',
-      'Super Admin SR filter load started',
+      'Super Admin showroom filter load started',
     );
     try {
       final stores = await _storeLoader();
@@ -151,7 +151,7 @@ class _NotPurchasedCustomersScreenState
       setState(() => _stores = stores);
       await AppLogger.instance.info(
         'SalesReportFollowUp',
-        'Super Admin SR filter load succeeded',
+        'Super Admin showroom filter load succeeded',
         context: {
           'count': stores.length,
           'durationMs': DateTime.now().difference(startedAt).inMilliseconds,
@@ -160,12 +160,13 @@ class _NotPurchasedCustomersScreenState
     } catch (error, stackTrace) {
       if (mounted) {
         setState(
-          () => _storeError = 'Chưa tải được danh sách SR. Vui lòng thử lại.',
+          () => _storeError =
+              'Chưa tải được danh sách showroom. Vui lòng thử lại.',
         );
       }
       await AppLogger.instance.error(
         'SalesReportFollowUp',
-        'Super Admin SR filter load failed',
+        'Super Admin showroom filter load failed',
         error: error,
         stackTrace: stackTrace,
         context: {
@@ -453,11 +454,11 @@ class _NotPurchasedCustomersScreenState
                       children: [
                         Expanded(
                           child: AppCombobox<String>.single(
-                            label: 'Mã SR / Showroom',
+                            label: 'Mã showroom',
                             value: _selectedStoreCode,
                             emptyLabel: _storeLoading
-                                ? 'Đang tải danh sách SR'
-                                : 'Tất cả SR',
+                                ? 'Đang tải danh sách showroom'
+                                : 'Tất cả showroom',
                             helperText: _storeError,
                             icon: Icons.storefront_outlined,
                             enabled: !_storeLoading,
@@ -467,7 +468,7 @@ class _NotPurchasedCustomersScreenState
                               unawaited(
                                 AppLogger.instance.info(
                                   'SalesReportFollowUp',
-                                  'Super Admin SR filter changed',
+                                  'Super Admin showroom filter changed',
                                   context: {'storeCode': value},
                                 ),
                               );
@@ -478,7 +479,7 @@ class _NotPurchasedCustomersScreenState
                         if (_storeError != null) ...[
                           const SizedBox(width: 8),
                           Tooltip(
-                            message: 'Tải lại danh sách SR',
+                            message: 'Tải lại danh sách showroom',
                             child: IconButton.outlined(
                               onPressed: _storeLoading
                                   ? null
@@ -731,7 +732,7 @@ class _FollowUpCard extends StatelessWidget {
           if (showStore && (item.storeCode ?? '').trim().isNotEmpty)
             _InfoLine(
               icon: Icons.storefront_outlined,
-              text: 'Mã SR: ${item.storeCode}',
+              text: 'Mã showroom: ${item.storeCode}',
             ),
           _InfoLine(
             icon: Icons.person_outline_rounded,

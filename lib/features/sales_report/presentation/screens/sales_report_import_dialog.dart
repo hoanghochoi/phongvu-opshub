@@ -7,6 +7,7 @@ import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_text_styles.dart';
 import '../../../../app/widgets/app_buttons.dart';
 import '../../../../app/widgets/app_cards.dart';
+import '../../../../app/widgets/app_dialogs.dart';
 import '../../../../core/logging/app_logger.dart';
 import '../../../../core/network/api_exception.dart';
 import '../../data/sales_report_repository.dart';
@@ -20,9 +21,13 @@ Future<bool?> showSalesReportImportDialog({
   SalesReportImportFilePicker? filePicker,
 }) => showDialog<bool>(
   context: context,
-  barrierDismissible: false,
-  builder: (_) =>
-      _SalesReportImportDialog(repository: repository, filePicker: filePicker),
+  builder: (_) => AppDirtyFormGuard(
+    source: 'SalesReportImport',
+    child: _SalesReportImportDialog(
+      repository: repository,
+      filePicker: filePicker,
+    ),
+  ),
 );
 
 class _SalesReportImportDialog extends StatefulWidget {
@@ -100,6 +105,7 @@ class _SalesReportImportDialogState extends State<_SalesReportImportDialog> {
       _result = null;
       _error = null;
     });
+    notifyAppFormChanged(context);
     await AppLogger.instance.info(
       'SalesReportImport',
       'Historical customer import file selected',
@@ -402,10 +408,11 @@ class _FilePanel extends StatelessWidget {
             ],
           ),
         ),
-        TextButton.icon(
+        AppLinkButton(
           onPressed: onPick,
-          icon: Icon(file == null ? Icons.attach_file : Icons.swap_horiz),
-          label: Text(file == null ? 'Chọn file' : 'Đổi file'),
+          icon: file == null ? Icons.attach_file : Icons.swap_horiz,
+          label: file == null ? 'Chọn file' : 'Đổi file',
+          compact: true,
         ),
       ],
     ),
@@ -488,29 +495,27 @@ class _RowIssueTile extends StatelessWidget {
   const _RowIssueTile(this.row);
 
   @override
-  Widget build(BuildContext context) => Card(
+  Widget build(BuildContext context) => AppSurfaceCard(
     margin: const EdgeInsets.only(bottom: 8),
-    child: Padding(
-      padding: const EdgeInsets.all(12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
+    padding: const EdgeInsets.all(12),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Dòng ${row.rowNumber} • ${row.customerName.isEmpty ? 'Chưa có tên khách' : row.customerName} • Showroom ${row.storeCode.isEmpty ? 'chưa có' : row.storeCode}',
+          style: AppTextStyles.labelM,
+        ),
+        for (final error in row.errors)
           Text(
-            'Dòng ${row.rowNumber} • ${row.customerName.isEmpty ? 'Chưa có tên khách' : row.customerName} • SR ${row.storeCode.isEmpty ? 'chưa có' : row.storeCode}',
-            style: AppTextStyles.labelM,
+            'Lỗi: $error',
+            style: AppTextStyles.bodyS.copyWith(color: AppColors.error),
           ),
-          for (final error in row.errors)
-            Text(
-              'Lỗi: $error',
-              style: AppTextStyles.bodyS.copyWith(color: AppColors.error),
-            ),
-          for (final warning in row.warnings)
-            Text(
-              'Lưu ý: $warning',
-              style: AppTextStyles.bodyS.copyWith(color: AppColors.warning),
-            ),
-        ],
-      ),
+        for (final warning in row.warnings)
+          Text(
+            'Lưu ý: $warning',
+            style: AppTextStyles.bodyS.copyWith(color: AppColors.warning),
+          ),
+      ],
     ),
   );
 }

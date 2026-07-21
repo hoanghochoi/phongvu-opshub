@@ -87,6 +87,15 @@ This file maps product behavior to proof. Existing flows are marked
 
 Recent focused evidence:
 
+- `OPS-10`, 2026-07-21: khôi phục baseline Design System cho Sales Report.
+  Modal nhập Excel dùng `AppDirtyFormGuard`, đánh dấu thay đổi sau khi chọn tệp
+  và xác nhận trước khi hủy dữ liệu chưa nhập; thao tác nhập thành công vẫn đóng
+  và tải lại danh sách. Nút chọn tệp và thẻ dòng lỗi dùng primitive chung;
+  nội dung hiển thị đổi `SR` thành `showroom` mà không đổi `storeCode` hay scope
+  dữ liệu. Không sửa hoặc làm yếu global guard. Validation: focused Design
+  System/dialog/Sales Report passed 35 tests, `flutter analyze --no-pub` sạch,
+  full Flutter passed 591 tests with 3 platform skips. Harness intake 87 giữ
+  completion record theo đúng changeset fingerprint.
 - `UI-PASTE-001`, 2026-07-19 follow-up: physical iOS PWA staging build
   `2026.07.19.210` proved that the all-Flutter web policy created two Paste
   controls: Flutter's toolbar initiated clipboard access, then Safari opened
