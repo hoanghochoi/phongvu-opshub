@@ -300,6 +300,11 @@ a customer to scan and pay manually.
   edit actions limited to the user's assigned statement scope. Users enter
   multiple orders one per line or separated by comma/semicolon/whitespace,
   save/cancel in place, and see a short per-row success or failure message.
+- Payment Monitor and Sao ke action requests use the persisted OpsHub statement
+  id as the primary identity and include the stable transaction key as a
+  fallback. If MAP/eFAST deduplication replaces a row id between list load and
+  submit, the backend resolves the current row by that key before re-checking
+  showroom scope, cutoff, pending-request, and edit permissions.
 - Users who can view a statement transaction can request an order update for
   that transaction only while it is still the same Vietnam-local calendar day
   as `paidAt ?? firstSeenAt`. After 00:00 UTC+7, the app disables the update

@@ -801,10 +801,33 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
     if (requestedOrders.length === 0) {
       throw new BadRequestException('Vui lòng nhập mã đơn hàng mới');
     }
-    const existing = await this.prisma.mapVietinTransaction.findUnique({
+    const transactionKey = String(input.transactionKey || '').trim();
+    this.logger.log(
+      `Statement order transfer request started: user=${this.safeUserLabel(user)} requestedTransaction=${id} hasTransactionKey=${Boolean(transactionKey)} requestedCount=${requestedOrders.length}`,
+    );
+    let existing = await this.prisma.mapVietinTransaction.findUnique({
       where: { id },
     });
-    if (!existing) throw new BadRequestException('Giao dịch không hợp lệ');
+    let resolvedId = id;
+    if (!existing && transactionKey) {
+      existing = await this.prisma.mapVietinTransaction.findUnique({
+        where: { transactionKey },
+      });
+      if (existing) {
+        resolvedId = existing.id;
+        this.logger.warn(
+          `Statement order transfer request resolved stale id by transaction key: user=${this.safeUserLabel(user)} requestedTransaction=${id} resolvedTransaction=${resolvedId} store=${existing.storeCode}`,
+        );
+      }
+    }
+    if (!existing) {
+      this.logger.warn(
+        `Statement order transfer request rejected: user=${this.safeUserLabel(user)} transaction=${id} hasTransactionKey=${Boolean(transactionKey)} reason=missing_transaction`,
+      );
+      throw new BadRequestException(
+        'Không tìm thấy giao dịch mới nhất. Vui lòng tải lại danh sách rồi thử lại.',
+      );
+    }
     if (!existing.storeCode) {
       throw new BadRequestException(
         'Giao dịch chưa có showroom nên không tạo yêu cầu cấn trừ.',
@@ -819,7 +842,7 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
     const pending =
       await this.prisma.mapVietinStatementOrderTransferRequest.findFirst({
         where: {
-          transactionId: id,
+          transactionId: resolvedId,
           status: STATEMENT_ORDER_TRANSFER_REQUEST_STATUS_PENDING,
         },
       });
@@ -831,7 +854,7 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
       const request =
         await this.prisma.mapVietinStatementOrderTransferRequest.create({
           data: {
-            transactionId: id,
+            transactionId: resolvedId,
             storeCode: existing.storeCode,
             oldOrders,
             requestedOrders,
@@ -842,7 +865,7 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
         });
       await this.publishStatementOrderTransferRequestEvent(request);
       this.logger.log(
-        `Statement order transfer requested: user=${this.safeUserLabel(user)} transaction=${id} request=${request.id} store=${existing.storeCode} oldCount=${oldOrders.length} requestedCount=${requestedOrders.length} durationMs=${Date.now() - startedAt}`,
+        `Statement order transfer requested: user=${this.safeUserLabel(user)} transaction=${resolvedId} request=${request.id} store=${existing.storeCode} oldCount=${oldOrders.length} requestedCount=${requestedOrders.length} durationMs=${Date.now() - startedAt}`,
       );
       return this.toStatementOrderTransferRequestDto(request);
     } catch (error) {
@@ -850,7 +873,7 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
         throw new BadRequestException('Giao dịch đang chờ Kế toán xác nhận');
       }
       this.logger.error(
-        `Statement order transfer request failed: user=${this.safeUserLabel(user)} transaction=${id} store=${existing.storeCode} requestedCount=${requestedOrders.length} durationMs=${Date.now() - startedAt} error=${this.safeError(error)}`,
+        `Statement order transfer request failed: user=${this.safeUserLabel(user)} transaction=${resolvedId} store=${existing.storeCode} requestedCount=${requestedOrders.length} durationMs=${Date.now() - startedAt} error=${this.safeError(error)}`,
       );
       throw error;
     }

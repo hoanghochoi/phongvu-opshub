@@ -2791,6 +2791,69 @@ describe('MapVietinService', () => {
     );
   });
 
+  it('resolves a stale transfer request id by transaction key', async () => {
+    const transaction = statementTransactionRow({
+      id: 'stored-1',
+      transactionKey: 'CP01:202605210001',
+      orders: ['26052112345678'],
+      paidAt: new Date('2026-05-21T02:00:00.000Z'),
+    });
+    prisma.store.findUnique.mockResolvedValue({
+      id: 'store-uuid-1',
+      storeId: 'CP01',
+    });
+    prisma.mapVietinTransaction.findUnique
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(transaction);
+    prisma.mapVietinStatementOrderTransferRequest.findFirst.mockResolvedValue(
+      null,
+    );
+    prisma.mapVietinStatementOrderTransferRequest.create.mockImplementation(
+      async ({ data }: any) => ({
+        id: 'request-1',
+        ...data,
+        status: 'PENDING',
+        createdAt: new Date('2026-05-21T03:00:00.000Z'),
+        updatedAt: new Date('2026-05-21T03:00:00.000Z'),
+        reviewedAt: null,
+        reviewedByEmail: null,
+        transaction,
+      }),
+    );
+
+    await expect(
+      service.createStatementOrderTransferRequest(
+        {
+          id: 'user-1',
+          email: 'staff@example.com',
+          role: 'MANAGER',
+          storeId: 'store-uuid-1',
+        },
+        '2026202038515',
+        {
+          transactionKey: 'CP01:202605210001',
+          orders: ['26052287654321'],
+        },
+      ),
+    ).resolves.toMatchObject({
+      id: 'request-1',
+      transactionId: 'stored-1',
+      requestedOrders: ['26052287654321'],
+    });
+
+    expect(prisma.mapVietinTransaction.findUnique).toHaveBeenNthCalledWith(2, {
+      where: { transactionKey: 'CP01:202605210001' },
+    });
+    expect(
+      prisma.mapVietinStatementOrderTransferRequest.findFirst,
+    ).toHaveBeenCalledWith({
+      where: {
+        transactionId: 'stored-1',
+        status: 'PENDING',
+      },
+    });
+  });
+
   it('blocks statement order transfer requests after the Vietnam day closes', async () => {
     prisma.store.findUnique.mockResolvedValue({
       id: 'store-uuid-1',

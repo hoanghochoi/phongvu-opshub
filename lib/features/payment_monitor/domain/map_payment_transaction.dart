@@ -62,6 +62,7 @@ class MapPaymentTransaction {
   factory MapPaymentTransaction.fromJson(Map<String, dynamic> json) {
     final amount = _readAmount(json);
     final storeId = _readFirstText(json, const ['storeId', 'storeCode']);
+    final persistedId = _readFirstText(json, const ['id']);
     final transactionNumber = _readFirstText(json, const [
       'transactionNumber',
       'txnNumber',
@@ -134,7 +135,11 @@ class MapPaymentTransaction {
     ].join('|');
 
     return MapPaymentTransaction(
-      id: transactionNumber.isNotEmpty ? transactionNumber : fallbackId,
+      id: persistedId.isNotEmpty
+          ? persistedId
+          : transactionNumber.isNotEmpty
+          ? transactionNumber
+          : fallbackId,
       storeId: storeId,
       transactionKey: json['transactionKey']?.toString() ?? '',
       amount: amount ?? 0,

@@ -105,14 +105,20 @@ class PaymentMonitorRepository {
   Future<void> createOrderTransferRequest(
     String transactionId,
     List<String> orders, {
+    String? transactionKey,
     bool allowRateLimitCooldownBypass = false,
   }) async {
+    final cleanTransactionKey = transactionKey?.trim() ?? '';
     await _apiClient.post(
       ApiConstants.adminMapVietinStatementOrderTransferRequestsEndpoint(
         transactionId,
       ),
       allowRateLimitCooldownBypass: allowRateLimitCooldownBypass,
-      body: {'orders': orders},
+      body: {
+        'orders': orders,
+        if (cleanTransactionKey.isNotEmpty)
+          'transactionKey': cleanTransactionKey,
+      },
     );
   }
 
