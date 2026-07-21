@@ -124,6 +124,15 @@ curl http://localhost:3000/app-version
   published in new app-version metadata.
   Staging DB refresh is a separate manual sanitized-clone operation and is not
   part of the normal staging deploy workflow.
+- Production and staging Flutter web builds use the source-controlled
+  `web/flutter_bootstrap.js` and select the full CanvasKit variant. The generic
+  variant avoids Chromium's deprecated `Intl.v8BreakIterator` path while
+  preserving the existing CanvasKit renderer and service-worker startup. The
+  cache-busting publish step fails closed when this loader contract is missing,
+  and release proof must verify both the generated bootstrap and the full
+  CanvasKit artifact. The uncompressed CanvasKit Wasm artifact is about 1.37 MB
+  larger than the Chromium-specific variant; this is the accepted compatibility
+  cost until Flutter removes the deprecated line-breaking path upstream.
 
 ## Expected Proof
 

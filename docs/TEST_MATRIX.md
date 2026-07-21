@@ -3,6 +3,16 @@
 This file maps product behavior to proof. Existing flows are marked
 `existing_unverified` until fresh validation evidence is attached.
 
+- `OPS-8`, 2026-07-21: Flutter web now selects full CanvasKit through the
+  source-controlled bootstrap, while retaining the generated service-worker
+  version and deployment cache-busting token. A release build and the static
+  bootstrap verifier passed; Chrome CDP loaded `/canvaskit/canvaskit.wasm` and
+  reported zero `IntlV8BreakIterator` deprecation issues on the login route.
+  The uncompressed selected Wasm artifact is 7,083,768 bytes versus 5,708,955
+  bytes for the Chromium-specific variant. Intake `85` protects the existing
+  Flutter analyzer, full test suite, release build, service-worker bootstrap,
+  and cache-busting consumers.
+
 - `GIT-WORKFLOW-001`, 2026-07-21: feature work defaults to a Linear-linked
   task branch and PR into `staging`; direct protected-branch pushes now require
   an explicit current-task command without waiving clean scope, CI, QA,
