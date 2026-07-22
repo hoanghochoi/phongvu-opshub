@@ -33,32 +33,29 @@ void main() {
     );
   });
 
-  test(
-    'composes reviewed Ngoc Linh assets without changing WAV policy',
-    () async {
-      final composer = PaymentAmountAudioComposerIo(
-        packDirectoryForTesting: Directory(
-          'windows/assets/payment_audio/ngoc_linh_chunk_v4',
-        ),
-      );
+  test('composes reviewed Piper assets without changing WAV policy', () async {
+    final composer = PaymentAmountAudioComposerIo(
+      packDirectoryForTesting: Directory(
+        'windows/assets/payment_audio/piper_vi_vais1000_chunk_v1',
+      ),
+    );
 
-      final result = await composer.compose(
-        amount: 1250000,
-        assetPackVersion: paymentAmountAudioPackVersion,
-      );
-      final info = PaymentWavTools.readInfo(result.bytes);
+    final result = await composer.compose(
+      amount: 1250000,
+      assetPackVersion: paymentAmountAudioPackVersion,
+    );
+    final info = PaymentWavTools.readInfo(result.bytes);
 
-      expect(result.assetIds, [
-        'chunk/leading/001',
-        'chunk/unit/triệu',
-        'chunk/leading/250',
-        'chunk/unit/nghìn',
-        'chunk/unit/đồng',
-      ]);
-      expect(info.sampleRateHz, 24000);
-      expect(info.channels, 1);
-      expect(info.bitsPerSample, 16);
-      expect(info.dataBytes, greaterThan(0));
-    },
-  );
+    expect(result.assetIds, [
+      'chunk/leading/001',
+      'chunk/unit/triệu',
+      'chunk/leading/250',
+      'chunk/unit/nghìn',
+      'chunk/unit/đồng',
+    ]);
+    expect(info.sampleRateHz, 24000);
+    expect(info.channels, 1);
+    expect(info.bitsPerSample, 16);
+    expect(info.dataBytes, greaterThan(0));
+  });
 }

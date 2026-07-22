@@ -174,9 +174,9 @@ jobs:
       - name: Set up Flutter
         uses: ./.github/actions/setup-flutter
 
-      - name: Validate Ngoc Linh payment audio source pack
+      - name: Validate Piper payment audio source pack
         shell: pwsh
-        run: python scripts/verify_payment_audio_assets.py --pack windows/assets/payment_audio/ngoc_linh_chunk_v4
+        run: python scripts/verify_payment_audio_assets.py --pack windows/assets/payment_audio/piper_vi_vais1000_chunk_v1
 
       - name: Build Windows release
         shell: pwsh
@@ -187,9 +187,9 @@ jobs:
             --build-number "${{ needs.prepare.outputs.version_code }}" `
             --dart-define "API_BASE_URL=${env:OPSHUB_API_BASE_URL}"
 
-      - name: Validate Ngoc Linh payment audio release pack
+      - name: Validate Piper payment audio release pack
         shell: pwsh
-        run: python scripts/verify_payment_audio_assets.py --pack build/windows/x64/runner/Release/data/payment_audio/ngoc_linh_chunk_v4
+        run: python scripts/verify_payment_audio_assets.py --pack build/windows/x64/runner/Release/data/payment_audio/piper_vi_vais1000_chunk_v1
 
       - name: Configure Windows internal signing certificate
         shell: pwsh

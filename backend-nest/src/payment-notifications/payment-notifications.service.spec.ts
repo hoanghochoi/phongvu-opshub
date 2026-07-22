@@ -252,7 +252,7 @@ describe('PaymentNotificationsService', () => {
           storeCode: 'CP01',
           amount: 1250000,
           currency: 'VND',
-          assetPackVersion: 'ngoc-linh-chunk-v4',
+          assetPackVersion: 'piper-vi-vais1000-chunk-v1',
           playbackMode: 'LOCAL_ASSET',
           transactionContent: 'DH002 CP01 BOT',
           transferContent: 'DH002 CP01 BOT',
@@ -343,7 +343,7 @@ describe('PaymentNotificationsService', () => {
       service.claimLocalPlayback(speakerUser(), 'note-local', 'pc-local'),
     ).resolves.toEqual({
       claimed: true,
-      assetPackVersion: 'ngoc-linh-chunk-v4',
+      assetPackVersion: 'piper-vi-vais1000-chunk-v1',
       playbackMode: 'LOCAL_ASSET',
     });
 

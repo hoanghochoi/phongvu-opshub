@@ -2544,7 +2544,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
         'triggerSource': triggerSource,
         'preferredMode':
             useStreamEndpoint && notification.requestsLocalAssetPlayback
-            ? 'local_asset_chunk_v4'
+            ? 'local_asset_piper_chunk_v1'
             : 'client_cue_prefix_amount',
       },
     );
@@ -2563,7 +2563,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
           notification: notification,
           clientId: clientId,
           bytes: composed.bytes.length,
-          mode: 'local_asset_chunk_v4',
+          mode: 'local_asset_piper_chunk_v1',
           deliveryPath: deliveryPath,
           triggerSource: triggerSource,
         );
@@ -2571,7 +2571,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
           bytes: composed.bytes,
           playLocalCue: false,
           playLocalCuePrefix: true,
-          mode: 'local_asset_chunk_v4',
+          mode: 'local_asset_piper_chunk_v1',
         );
       } catch (error, stackTrace) {
         if (error is api.ApiException &&

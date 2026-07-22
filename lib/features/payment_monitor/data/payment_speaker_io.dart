@@ -39,7 +39,7 @@ class PaymentSpeaker {
   static const _cueTimeout = Duration(seconds: 5);
   static const _cuePrefixTimeout = Duration(seconds: 8);
   static const _cueVolumePercent = 80.0;
-  static const _cuePrefixGap = Duration(milliseconds: 80);
+  static const _cuePrefixGap = Duration(milliseconds: 150);
 
   final PaymentMediaKitPlayer? _mediaKitPlayerForTesting;
   final PaymentPlaySoundPlayer? _playSoundPlayerForTesting;
@@ -211,9 +211,15 @@ class PaymentSpeaker {
       asset.offsetInBytes,
       asset.lengthInBytes,
     );
+    final normalizedPrefix = PaymentWavTools.normalizeToPcm16Mono44100(
+      prefixBytes,
+    );
+    final normalizedVoice = PaymentWavTools.normalizeToPcm16Mono44100(
+      voiceBytes,
+    );
     final result = PaymentWavTools.combinePcm16WithGap(
-      prefixBytes: prefixBytes,
-      voiceBytes: voiceBytes,
+      prefixBytes: normalizedPrefix.bytes,
+      voiceBytes: normalizedVoice.bytes,
       gap: _cuePrefixGap,
     );
     await AppLogger.instance.info(
@@ -224,6 +230,9 @@ class PaymentSpeaker {
         'asset': 'data/payment-cue-prefix.wav',
         'prefixBytes': asset.lengthInBytes,
         'voiceBytes': voiceBytes.length,
+        'prefixNormalizedBytes': normalizedPrefix.bytes.length,
+        'voiceNormalizedBytes': normalizedVoice.bytes.length,
+        'normalizedSampleRateHz': result.combined.sampleRateHz,
         'combinedBytes': result.bytes.length,
         'gapMs': result.gapMs,
         'prefixTrailingSilenceTrimmedMs': result.prefixTrailingSilenceTrimmedMs,

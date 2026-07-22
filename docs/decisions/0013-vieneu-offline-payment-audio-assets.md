@@ -4,9 +4,9 @@ Date: 2026-07-22
 
 ## Status
 
-Accepted for OPS-11 implementation. Ngọc Linh and the corpus-v4 listening files
-were approved on 2026-07-22; physical-speaker staging QA remains required before
-production rollout.
+Superseded by decision 0014 on 2026-07-22. The chunk grammar and audio-boundary
+findings remain valid, but the VieNeu/Ngọc Linh pack is not a release candidate
+and must not ship in an OpsHub installer.
 
 ## Context
 
