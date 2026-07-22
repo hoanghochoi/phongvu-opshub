@@ -10,6 +10,7 @@ import { Interval } from '@nestjs/schedule';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { MapVietinService } from '../map-vietin/map-vietin.service';
+import { resolveStoredStatementNumber } from '../map-vietin/statement-identifiers';
 import { ADMIN_POLICY_CODES } from '../policy/policy.constants';
 import { PolicyService } from '../policy/policy.service';
 import {
@@ -949,20 +950,7 @@ export class VietQrService {
     transactionNumber?: string | null;
     rawData?: Prisma.JsonValue | null;
   }) {
-    const rawData = this.rawDataAsMapTransaction(row.rawData);
-    if (rawData && this.readText(rawData, 'source') === 'VIETIN_EFAST') {
-      return (
-        this.readText(rawData, 'trxId') ||
-        row.transactionNumber?.trim() ||
-        this.readText(rawData, 'trxRefNo') ||
-        this.readText(rawData, 'txnReference') ||
-        null
-      );
-    }
-    const reference = rawData
-      ? this.readFirstText(rawData, this.mapTransactionReferenceKeys)
-      : '';
-    return reference || row.transactionNumber?.trim() || null;
+    return resolveStoredStatementNumber(row);
   }
 
   private readMapStatementNumber(row: MapTransaction) {

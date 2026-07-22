@@ -13,6 +13,20 @@
 
 ## Evidence
 
+- 2026-07-22 OPS-12 local implementation: MAP and eFAST now retain their
+  provider identifiers together in `rawData.providerIdentifiers`; `efastTrxId`
+  is the canonical user-facing statement number when it exists. Both arrival
+  orders and the concurrent exact-fingerprint path enrich one survivor, update
+  linked VietQR matches, and keep one payment notification. Ambiguous matches
+  and identifier conflicts fail closed. API projection, search, XLSX, transfer
+  details, and stored VietQR confirmation share the same resolver. The repair
+  command defaults to dry-run and requires a checkpoint directory plus the
+  expected input SHA-256 before apply. Prisma generate/validate and Nest build
+  passed; five focused Nest suites passed 193 tests; full Nest passed 84 suites /
+  839 tests; the repair planner passed 4 tests; and seven protected Payment
+  Monitor/Bank Statement/VietQR Flutter files passed 94 tests. A checkpoint-backed
+  database repair dry-run and staging API/XLSX proof remain release gates because
+  no immutable historical checkpoint input was available locally.
 - 2026-07-20 TNG/visibility correction: compact content beginning with `TNG`
   classifies as `PARTNER_INTERNAL` without showroom or suffix matching. The
   regression fixtures cover `TNG CP69`, `TNG CP55`, `TNG-CP57`, spaced `T N G`
@@ -114,6 +128,8 @@
 
 ## Unverified Risk
 
+- OPS-12 has not yet run the checkpoint-backed repair against staging data or
+  proved the canonical identifier through a deployed staging API/XLSX response.
 - Live VietinBank MAP payload variants may include fields not covered by local
   fixtures.
 - The 2026-07-19 visibility hotfix and income migration/backfill have not yet

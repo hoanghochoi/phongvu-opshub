@@ -529,6 +529,19 @@ Recent focused evidence:
   Validation: Prisma generate/validate, focused MAP/income-type Jest 145 tests,
   full Nest 81 suites / 811 tests, Nest build, 72 protected Flutter consumer
   tests, Flutter analyze, and diff check all passed.
+- `PAYMENT-STATEMENT-001`/`PAYMENT-MONITOR-001`/`VIETQR-001`, 2026-07-22
+  (OPS-12): MAP and eFAST identifiers are preserved together under
+  `rawData.providerIdentifiers`, with `efastTrxId` preferred for statement
+  display, search, XLSX, transfer details, and stored VietQR confirmation.
+  Either source may arrive first; exact opposite-source matches enrich one
+  survivor and its linked VietQR intent without publishing a second payment
+  notification. Ambiguous fingerprints and conflicting identifiers stop before
+  mutation. The historical repair is dry-run by default and requires immutable
+  checkpoint/hash proof before apply. Validation: Prisma generate/validate,
+  Nest build, 193 focused Nest tests, full Nest 84 suites / 839 tests, 4 repair
+  planner tests, and 94 protected Flutter consumer tests passed. A real
+  checkpoint-backed repair dry-run plus deployed staging API/XLSX proof remain
+  pending.
 - `UI-UX-001`, 2026-07-11: sửa race thứ hai của `AppCombobox` trên
   desktop/Windows: khi bấm chuột chọn option, `TextField` mất focus ở
   mouse-down và timer đóng overlay cũ có thể đóng menu trước mouse-up/onTap,

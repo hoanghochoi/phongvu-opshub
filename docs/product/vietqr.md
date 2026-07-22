@@ -471,7 +471,10 @@ stored transfer content. The fallback never merges two rows from the same
 source. This prevents duplicate rows and payment notifications whether MAP or
 eFAST arrives first, including near-simultaneous responses. For user-facing
 `Mã sao kê` fields, API responses, XLSX exports, and stored VietQR confirmations
-use eFAST `trxId`; the numeric
+use eFAST `trxId`, even when the retained database row originally came from
+MAP. The survivor stores MAP `transactionNumber`, eFAST `trxId`, and eFAST
+`trxRefNo` under namespaced provider identifiers; search accepts all three,
+while only `trxId` is product-facing. The numeric
 eFAST `trxRefNo` remains technical raw/audit data. Rows with a
 missing `pmtId` are stored with `storeCode=null` only when neither the virtual
 account nor source account identifies a unique showroom;

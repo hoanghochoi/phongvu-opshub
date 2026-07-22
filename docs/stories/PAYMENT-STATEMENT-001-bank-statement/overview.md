@@ -18,6 +18,10 @@ allows manual inline order correction with audit history, supports scoped search
 and XLSX export, and marks transactions visually by whether an order is present.
 User-facing statement numbers use the MAP statement reference; stored eFAST rows
 must expose their matching `trxId`, while `trxRefNo` stays technical audit data.
+When MAP/eFAST deduplication retains a MAP row, that survivor must still retain
+the eFAST `trxId` and expose it as the product-facing statement number. The MAP
+`transactionNumber` remains searchable technical/audit data and must not be
+discarded.
 eFAST showroom mapping prefers `pmtId` and falls back to the configured receiving
 account. Store-account changes immediately assign matching unassigned statement
 rows and must not overwrite rows that staff already assigned manually.

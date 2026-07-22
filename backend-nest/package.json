@@ -19,6 +19,8 @@
     "load-users:staging": "node scripts/manage-staging-load-users.mjs",
     "audit:runtime-org-tree": "node scripts/audit-runtime-org-tree-code.mjs",
     "verify:migration:home-summary": "node scripts/verify-home-summary-migration.mjs",
+    "repair:map-efast-identifiers": "node scripts/repair-map-efast-identifiers.mjs",
+    "test:repair:map-efast-identifiers": "node --test scripts/repair-map-efast-identifiers.test.mjs",
     "audit:node-features": "node scripts/audit-node-feature-permissions.mjs",
     "security:disable-account-access": "node scripts/disable-account-access.mjs",
     "security:issue-emergency-admin-reset": "node scripts/issue-emergency-admin-reset.mjs",
