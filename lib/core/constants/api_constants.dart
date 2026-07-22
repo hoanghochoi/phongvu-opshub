@@ -147,6 +147,8 @@ class ApiConstants {
       '/payment-notifications/$id/audio';
   static String paymentNotificationStreamEndpoint(String id) =>
       '/payment-notifications/$id/stream';
+  static String paymentNotificationClaimEndpoint(String id) =>
+      '/payment-notifications/$id/claim';
   static String paymentNotificationAckEndpoint(String id) =>
       '/payment-notifications/$id/ack';
   static const String paymentNotificationDeliveryMetricsEndpoint =

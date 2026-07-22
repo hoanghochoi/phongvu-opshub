@@ -14,6 +14,7 @@ import '../../../auth/domain/entities/user.dart';
 import '../../../bank_statement/domain/bank_statement_transaction.dart';
 import '../../../bank_statement/domain/order_code_parser.dart';
 import '../../data/payment_speaker.dart';
+import '../../data/payment_amount_audio_composer.dart';
 import '../../data/repositories/payment_monitor_repository.dart';
 import '../../domain/map_payment_transaction.dart';
 import '../../domain/payment_notification.dart';
@@ -79,6 +80,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
 
   final PaymentMonitorRepository _repository;
   final PaymentSpeaker _speaker;
+  final PaymentAmountAudioComposer _amountAudioComposer;
   final AppRestartService _restartService;
   final Duration _playbackRetryDelay;
   final Duration _speakerReadyFallbackInterval;
@@ -142,9 +144,12 @@ class PaymentMonitorProvider extends ChangeNotifier {
     RealtimeClient? realtimeClient,
     Duration speakerReadyFallbackInterval =
         _defaultSpeakerReadyFallbackInterval,
+    PaymentAmountAudioComposer? amountAudioComposer,
   ]) : _restartService = restartService ?? AppRestartService(),
        _playbackRetryDelay = playbackRetryDelay,
        _speakerReadyFallbackInterval = speakerReadyFallbackInterval,
+       _amountAudioComposer =
+           amountAudioComposer ?? createPaymentAmountAudioComposer(),
        _realtimeClient = realtimeClient ?? RealtimeConnectionManager.instance {
     _realtimeEventSubscription = _realtimeClient.events.listen(
       _handleRealtimeEnvelope,
@@ -2528,7 +2533,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
     final deliveryPath = useStreamEndpoint ? 'stream' : 'audio';
     await AppLogger.instance.info(
       'PaymentMonitor',
-      'Downloading payment notification audio',
+      'Preparing payment notification audio',
       context: {
         'notificationId': notification.notificationId,
         'transactionId': notification.transactionId,
@@ -2537,9 +2542,84 @@ class PaymentMonitorProvider extends ChangeNotifier {
         'clientId': clientId,
         'deliveryPath': deliveryPath,
         'triggerSource': triggerSource,
-        'preferredMode': 'client_cue_prefix_amount',
+        'preferredMode':
+            useStreamEndpoint && notification.requestsLocalAssetPlayback
+            ? 'local_asset_chunk_v4'
+            : 'client_cue_prefix_amount',
       },
     );
+    if (useStreamEndpoint && notification.requestsLocalAssetPlayback) {
+      try {
+        final assetPackVersion = notification.assetPackVersion!.trim();
+        final composed = await _amountAudioComposer.compose(
+          amount: notification.amount,
+          assetPackVersion: assetPackVersion,
+        );
+        await _repository.claimNotificationForLocalPlayback(
+          notification.notificationId,
+          clientId: clientId,
+        );
+        await _logNotificationAudioPrepared(
+          notification: notification,
+          clientId: clientId,
+          bytes: composed.bytes.length,
+          mode: 'local_asset_chunk_v4',
+          deliveryPath: deliveryPath,
+          triggerSource: triggerSource,
+        );
+        return _DownloadedPaymentAudio(
+          bytes: composed.bytes,
+          playLocalCue: false,
+          playLocalCuePrefix: true,
+          mode: 'local_asset_chunk_v4',
+        );
+      } catch (error, stackTrace) {
+        if (error is api.ApiException &&
+            (error.statusCode == 401 || error.statusCode == 403)) {
+          rethrow;
+        }
+        if (error is api.ApiException && error.statusCode == 409) {
+          throw _PaymentNotificationDeliverySuppressedException(
+            _streamSuppressedReason(error),
+            _safeSpeakerError(error),
+          );
+        }
+        final safeError = _safeSpeakerError(error);
+        await AppLogger.instance.warn(
+          'PaymentMonitor',
+          'Offline payment audio unavailable; falling back to server audio',
+          context: {
+            'notificationId': notification.notificationId,
+            'transactionId': notification.transactionId,
+            'storeCode': notification.storeCode,
+            'amount': notification.amount,
+            'clientId': clientId,
+            'assetPackVersion': notification.assetPackVersion,
+            'deliveryPath': deliveryPath,
+            'triggerSource': triggerSource,
+            'audioMode': 'server_audio_fallback',
+            'error': safeError,
+            'stackTrace': stackTrace.toString(),
+          },
+        );
+        await AppLogger.instance.uploadLog(
+          'warn',
+          'PaymentMonitor',
+          'Offline payment audio unavailable; falling back to server audio',
+          context: {
+            'notificationId': notification.notificationId,
+            'transactionId': notification.transactionId,
+            'amount': notification.amount,
+            'assetPackVersion': notification.assetPackVersion,
+            'deliveryPath': deliveryPath,
+            'triggerSource': triggerSource,
+            'audioMode': 'server_audio_fallback',
+            'error': safeError,
+          },
+          storeCode: notification.storeCode,
+        );
+      }
+    }
     try {
       final audioBytes = useStreamEndpoint
           ? await _repository.downloadNotificationStreamAudio(
@@ -2554,7 +2634,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
       if (audioBytes.isEmpty) {
         throw StateError('Raw amount audio is empty');
       }
-      await _logNotificationAudioDownloaded(
+      await _logNotificationAudioPrepared(
         notification: notification,
         clientId: clientId,
         bytes: audioBytes.length,
@@ -2629,7 +2709,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
       if (audioBytes.isEmpty) {
         throw StateError('Server combined audio is empty');
       }
-      await _logNotificationAudioDownloaded(
+      await _logNotificationAudioPrepared(
         notification: notification,
         clientId: clientId,
         bytes: audioBytes.length,
@@ -2701,7 +2781,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
     if (audioBytes.isEmpty) {
       throw StateError('Server audio is empty');
     }
-    await _logNotificationAudioDownloaded(
+    await _logNotificationAudioPrepared(
       notification: notification,
       clientId: clientId,
       bytes: audioBytes.length,
@@ -2717,7 +2797,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
     );
   }
 
-  Future<void> _logNotificationAudioDownloaded({
+  Future<void> _logNotificationAudioPrepared({
     required PaymentNotification notification,
     required String clientId,
     required int bytes,
@@ -2727,7 +2807,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
   }) async {
     await AppLogger.instance.info(
       'PaymentMonitor',
-      'Payment notification audio downloaded',
+      'Payment notification audio prepared',
       context: {
         'notificationId': notification.notificationId,
         'clientId': clientId,
@@ -2740,7 +2820,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
     await AppLogger.instance.uploadLog(
       'info',
       'PaymentMonitor',
-      'Payment notification audio downloaded',
+      'Payment notification audio prepared',
       context: {
         'notificationId': notification.notificationId,
         'clientId': clientId,

@@ -22,6 +22,7 @@ import {
   PaymentNotificationDeliveryHistoryQueryDto,
   PaymentNotificationDeliveryMetricsQueryDto,
   PaymentNotificationAckDto,
+  PaymentNotificationClaimDto,
 } from './payment-notifications.dto';
 import { PaymentNotificationsService } from './payment-notifications.service';
 
@@ -109,6 +110,16 @@ export class PaymentNotificationsController {
         .trim()
         .toLowerCase() === 'true'
     );
+  }
+
+  @Post('payment-notifications/:id/claim')
+  @RequireFeature(FEATURE_KEYS.PAYMENT_MONITOR)
+  claimLocalPlayback(
+    @Request() req: any,
+    @Param('id') id: string,
+    @Body() body: PaymentNotificationClaimDto,
+  ) {
+    return this.service.claimLocalPlayback(req.user, id, body.clientId);
   }
 
   @Post('payment-notifications/:id/ack')

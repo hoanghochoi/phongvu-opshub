@@ -5,6 +5,9 @@ class PaymentNotification {
   final int amount;
   final String? audioUrl;
   final String? streamUrl;
+  final String? currency;
+  final String? assetPackVersion;
+  final String? playbackMode;
   final String audioStatus;
   final DateTime? paidAt;
   final DateTime? firstSeenAt;
@@ -17,6 +20,9 @@ class PaymentNotification {
     required this.amount,
     required this.audioUrl,
     required this.streamUrl,
+    this.currency,
+    this.assetPackVersion,
+    this.playbackMode,
     required this.audioStatus,
     required this.paidAt,
     required this.firstSeenAt,
@@ -31,6 +37,9 @@ class PaymentNotification {
       amount: _readAmount(json['amount']),
       audioUrl: json['audioUrl']?.toString(),
       streamUrl: json['streamUrl']?.toString(),
+      currency: json['currency']?.toString(),
+      assetPackVersion: json['assetPackVersion']?.toString(),
+      playbackMode: json['playbackMode']?.toString(),
       audioStatus: json['audioStatus']?.toString() ?? 'FAILED',
       paidAt: DateTime.tryParse(json['paidAt']?.toString() ?? ''),
       firstSeenAt: DateTime.tryParse(json['firstSeenAt']?.toString() ?? ''),
@@ -40,6 +49,11 @@ class PaymentNotification {
 
   bool get isValid =>
       notificationId.isNotEmpty && storeCode.isNotEmpty && amount > 0;
+
+  bool get requestsLocalAssetPlayback =>
+      currency?.trim().toUpperCase() == 'VND' &&
+      playbackMode?.trim().toUpperCase() == 'LOCAL_ASSET' &&
+      (assetPackVersion?.trim().isNotEmpty ?? false);
 
   static int _readAmount(Object? value) {
     if (value is num) return value.toInt();

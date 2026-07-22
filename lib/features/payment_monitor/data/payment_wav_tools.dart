@@ -81,6 +81,20 @@ class PaymentWavCombineResult {
   });
 }
 
+class PaymentWavSequenceResult {
+  final Uint8List bytes;
+  final PaymentWavInfo combined;
+  final int segmentCount;
+  final int gapMs;
+
+  const PaymentWavSequenceResult({
+    required this.bytes,
+    required this.combined,
+    required this.segmentCount,
+    required this.gapMs,
+  });
+}
+
 class PaymentWavTools {
   static const int targetSampleRateHz = 44100;
 
@@ -264,6 +278,106 @@ class PaymentWavTools {
     );
   }
 
+  static PaymentWavSequenceResult combinePcm16SequenceWithKnownGuards({
+    required List<List<int>> segments,
+    required Duration storedLeadingSilence,
+    required Duration storedTrailingSilence,
+    required Duration retainedBoundarySilence,
+    required Duration gap,
+  }) {
+    if (segments.isEmpty) {
+      throw const PaymentWavException('At least one WAV segment is required');
+    }
+    final data = segments.map(_asUint8List).toList(growable: false);
+    final infos = data.map(readInfo).toList(growable: false);
+    final reference = infos.first;
+    for (final info in infos) {
+      _validateCompatiblePcm16(reference, info);
+    }
+
+    int framesFor(Duration duration) => math.max(
+      0,
+      (reference.sampleRateHz *
+              duration.inMicroseconds /
+              Duration.microsecondsPerSecond)
+          .round(),
+    );
+
+    final storedLeadingFrames = framesFor(storedLeadingSilence);
+    final storedTrailingFrames = framesFor(storedTrailingSilence);
+    final retainedFrames = framesFor(retainedBoundarySilence);
+    if (retainedFrames > storedLeadingFrames ||
+        retainedFrames > storedTrailingFrames) {
+      throw const PaymentWavException(
+        'Retained boundary silence exceeds the stored guard',
+      );
+    }
+    final trimLeadingFrames = storedLeadingFrames - retainedFrames;
+    final trimTrailingFrames = storedTrailingFrames - retainedFrames;
+    final gapFrames = framesFor(gap);
+    var outputFrames = gapFrames * (segments.length - 1);
+    final keptFrames = <int>[];
+
+    for (var index = 0; index < infos.length; index += 1) {
+      final info = infos[index];
+      final bytes = data[index];
+      if (info.frameCount <= storedLeadingFrames + storedTrailingFrames) {
+        throw const PaymentWavException(
+          'WAV segment is shorter than its stored boundary guards',
+        );
+      }
+      if (!_framesAreZero(bytes, info, 0, storedLeadingFrames) ||
+          !_framesAreZero(
+            bytes,
+            info,
+            info.frameCount - storedTrailingFrames,
+            info.frameCount,
+          )) {
+        throw const PaymentWavException(
+          'WAV segment boundary guard contains non-zero PCM data',
+        );
+      }
+      if (_framesAreZero(
+        bytes,
+        info,
+        storedLeadingFrames,
+        info.frameCount - storedTrailingFrames,
+      )) {
+        throw const PaymentWavException('WAV segment speech payload is silent');
+      }
+      final count = info.frameCount - trimLeadingFrames - trimTrailingFrames;
+      keptFrames.add(count);
+      outputFrames += count;
+    }
+
+    final outputPcm = Uint8List(outputFrames * reference.blockAlign);
+    var outputOffset = 0;
+    for (var index = 0; index < infos.length; index += 1) {
+      final info = infos[index];
+      final bytes = data[index];
+      final sourceOffset =
+          info.dataOffset + trimLeadingFrames * info.blockAlign;
+      final byteCount = keptFrames[index] * info.blockAlign;
+      outputPcm.setRange(
+        outputOffset,
+        outputOffset + byteCount,
+        bytes,
+        sourceOffset,
+      );
+      outputOffset += byteCount;
+      if (index < infos.length - 1) {
+        outputOffset += gapFrames * reference.blockAlign;
+      }
+    }
+    final output = _writePcm16Wav(outputPcm, reference);
+    return PaymentWavSequenceResult(
+      bytes: output,
+      combined: readInfo(output),
+      segmentCount: segments.length,
+      gapMs: _framesToMs(gapFrames, reference.sampleRateHz),
+    );
+  }
+
   static void _validateCompatiblePcm16(
     PaymentWavInfo prefix,
     PaymentWavInfo voice,
@@ -310,6 +424,20 @@ class PaymentWavTools {
       if (bytes[offset + byte] != 0) return true;
     }
     return false;
+  }
+
+  static bool _framesAreZero(
+    Uint8List bytes,
+    PaymentWavInfo info,
+    int startFrame,
+    int endFrame,
+  ) {
+    final start = info.dataOffset + startFrame * info.blockAlign;
+    final end = info.dataOffset + endFrame * info.blockAlign;
+    for (var offset = start; offset < end; offset += 1) {
+      if (bytes[offset] != 0) return false;
+    }
+    return true;
   }
 
   static int _framesToMs(int frames, int sampleRateHz) {

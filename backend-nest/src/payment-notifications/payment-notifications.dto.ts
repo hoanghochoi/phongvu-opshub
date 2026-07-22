@@ -5,6 +5,7 @@
   IsString,
   Matches,
   MaxLength,
+  MinLength,
 } from 'class-validator';
 
 export class ListPaymentNotificationsQueryDto {
@@ -61,6 +62,13 @@ export class PaymentNotificationAckDto {
   @IsString()
   @MaxLength(500)
   error?: string;
+}
+
+export class PaymentNotificationClaimDto {
+  @IsString()
+  @MinLength(1)
+  @MaxLength(120)
+  clientId!: string;
 }
 
 export class CreateAppLogDto {
