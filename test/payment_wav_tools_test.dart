@@ -152,6 +152,82 @@ void main() {
     );
   });
 
+  test('combines guarded asset sequence without trimming speech samples', () {
+    final first = _pcm16Wav(
+      sampleRateHz: 1000,
+      channels: 1,
+      frames: const [
+        [0],
+        [0],
+        [0],
+        [100],
+        [200],
+        [0],
+        [0],
+      ],
+    );
+    final second = _pcm16Wav(
+      sampleRateHz: 1000,
+      channels: 1,
+      frames: const [
+        [0],
+        [0],
+        [0],
+        [300],
+        [400],
+        [0],
+        [0],
+      ],
+    );
+
+    final result = PaymentWavTools.combinePcm16SequenceWithKnownGuards(
+      segments: [first, second],
+      storedLeadingSilence: const Duration(milliseconds: 3),
+      storedTrailingSilence: const Duration(milliseconds: 2),
+      retainedBoundarySilence: const Duration(milliseconds: 1),
+      gap: const Duration(milliseconds: 2),
+    );
+
+    expect(result.segmentCount, 2);
+    expect(result.gapMs, 2);
+    expect(
+      List.generate(
+        result.combined.frameCount,
+        (index) => _int16(
+          result.bytes,
+          result.combined.dataOffset + index * result.combined.blockAlign,
+        ),
+      ),
+      [0, 100, 200, 0, 0, 0, 0, 300, 400, 0],
+    );
+  });
+
+  test('rejects guarded asset sequence with non-zero boundary PCM', () {
+    final corrupt = _pcm16Wav(
+      sampleRateHz: 1000,
+      channels: 1,
+      frames: const [
+        [1],
+        [0],
+        [0],
+        [100],
+        [0],
+        [0],
+      ],
+    );
+
+    expect(
+      () => PaymentWavTools.combinePcm16SequenceWithKnownGuards(
+        segments: [corrupt],
+        storedLeadingSilence: const Duration(milliseconds: 3),
+        storedTrailingSilence: const Duration(milliseconds: 2),
+        retainedBoundarySilence: const Duration(milliseconds: 1),
+        gap: const Duration(milliseconds: 2),
+      ),
+      throwsA(isA<PaymentWavException>()),
+    );
+  });
+
   test('rejects unsupported WAV formats without crashing', () {
     final wav = _wavHeader(
       audioFormat: 3,

@@ -37,6 +37,7 @@ describe('PaymentNotificationsService', () => {
     delete process.env.PAYMENT_AUDIO_DIR;
     delete process.env.PAYMENT_AMOUNT_AUDIO_CACHE_DIR;
     delete process.env.PAYMENT_SPEAKER_STREAMING_ENABLED;
+    delete process.env.PAYMENT_LOCAL_ASSET_ENABLED;
     delete process.env.PAYMENT_STREAM_EVENT_REPEAT_COUNT;
     delete process.env.PAYMENT_STREAM_EVENT_REPEAT_GAP_MS;
     delete process.env.PAYMENT_STREAM_PENDING_RECOVERY_WINDOW_SECONDS;
@@ -250,6 +251,9 @@ describe('PaymentNotificationsService', () => {
           transactionId: 'txn-stream',
           storeCode: 'CP01',
           amount: 1250000,
+          currency: 'VND',
+          assetPackVersion: 'ngoc-linh-chunk-v4',
+          playbackMode: 'LOCAL_ASSET',
           transactionContent: 'DH002 CP01 BOT',
           transferContent: 'DH002 CP01 BOT',
           transactionNumber: 'STMT-2',
@@ -316,6 +320,42 @@ describe('PaymentNotificationsService', () => {
     expect(
       prisma.paymentNotificationDeliveryLog.deleteMany,
     ).not.toHaveBeenCalled();
+  });
+
+  it('claims local playback without opening or generating audio', async () => {
+    const audioSpy = jest.spyOn(service, 'getAudioForUser');
+    const fetchMock = jest.spyOn(global, 'fetch');
+    prisma.paymentNotification.findUnique.mockResolvedValue({
+      id: 'note-local',
+      storeCode: 'CP01',
+      transactionId: 'txn-local',
+      audioStatus: 'PENDING',
+      createdAt: new Date(),
+    });
+    prisma.store.findUnique.mockResolvedValue({ storeId: 'CP01' });
+    prisma.paymentNotificationDeliveryLog.findFirst.mockResolvedValue(null);
+    prisma.paymentNotificationDeliveryLog.create.mockResolvedValue({
+      id: 'claim-local',
+      clientId: 'pc-local',
+    });
+
+    await expect(
+      service.claimLocalPlayback(speakerUser(), 'note-local', 'pc-local'),
+    ).resolves.toEqual({
+      claimed: true,
+      assetPackVersion: 'ngoc-linh-chunk-v4',
+      playbackMode: 'LOCAL_ASSET',
+    });
+
+    expect(audioSpy).not.toHaveBeenCalled();
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(prisma.paymentNotificationDeliveryLog.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        notificationId: 'note-local',
+        clientId: 'pc-local',
+        event: 'DELIVERED',
+      }),
+    });
   });
 
   it('suppresses duplicate stream download on the same client before opening audio', async () => {

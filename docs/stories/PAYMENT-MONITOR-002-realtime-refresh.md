@@ -28,6 +28,10 @@
   notification trong recovery window 30 giây; `/ready` và `/stream` cùng chặn
   cả audio `PENDING` lẫn `READY` đã cũ để client khác không phát lại muộn. Nếu
   loa tắt/không khả dụng, app chỉ tải lại giao dịch và không poll hàng đợi ready.
+- Event stream có `playbackMode=LOCAL_ASSET`, `currency=VND` và đúng
+  `assetPackVersion` sẽ ghép asset Ngọc Linh cài sẵn trước, claim nhẹ trên server
+  rồi phát; đường thành công không tải audio và không gọi TTS. Thiếu/hỏng/lệch
+  version hoặc kill switch tắt phải quay về stream audio hiện tại.
 - Mọi nhánh nhận event, refresh thành công/thất bại và quyết định xử lý loa phải
   có `AppLogger` với context đã sanitize.
 - Cooldown 429 được quản lý theo `HTTP method + path`, bỏ query string. Mỗi chu

@@ -103,6 +103,15 @@ install(CODE "
 install(DIRECTORY "${PROJECT_BUILD_DIR}/${FLUTTER_ASSET_DIR_NAME}"
   DESTINATION "${INSTALL_BUNDLE_DATA_DIR}" COMPONENT Runtime)
 
+# OPS-11 payment speech assets are Windows-only. Keep them outside Flutter's
+# cross-platform asset bundle and install the reviewed, hash-validated pack
+# next to the Windows executable.
+set(PAYMENT_AUDIO_ASSET_DIR
+  "${CMAKE_CURRENT_SOURCE_DIR}/assets/payment_audio/ngoc_linh_chunk_v4")
+install(DIRECTORY "${PAYMENT_AUDIO_ASSET_DIR}"
+  DESTINATION "${INSTALL_BUNDLE_DATA_DIR}/payment_audio"
+  COMPONENT Runtime)
+
 # Install the AOT library on non-Debug builds only.
 install(FILES "${AOT_LIBRARY}" DESTINATION "${INSTALL_BUNDLE_DATA_DIR}"
   CONFIGURATIONS Profile;Release

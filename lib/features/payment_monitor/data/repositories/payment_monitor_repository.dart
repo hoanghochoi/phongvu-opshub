@@ -218,6 +218,16 @@ class PaymentMonitorRepository {
     );
   }
 
+  Future<void> claimNotificationForLocalPlayback(
+    String notificationId, {
+    required String clientId,
+  }) async {
+    await _apiClient.post(
+      ApiConstants.paymentNotificationClaimEndpoint(notificationId),
+      body: {'clientId': clientId},
+    );
+  }
+
   Future<List<PaymentNotification>> fetchReadyNotifications({
     required String clientId,
     String? storeId,

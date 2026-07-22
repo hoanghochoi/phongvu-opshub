@@ -11,6 +11,7 @@ import 'package:phongvu_opshub/core/storage/app_storage_keys.dart';
 import 'package:phongvu_opshub/features/auth/domain/entities/store_branch.dart';
 import 'package:phongvu_opshub/features/auth/domain/entities/user.dart';
 import 'package:phongvu_opshub/features/payment_monitor/data/payment_speaker.dart';
+import 'package:phongvu_opshub/features/payment_monitor/data/payment_amount_audio_composer.dart';
 import 'package:phongvu_opshub/features/payment_monitor/data/repositories/payment_monitor_repository.dart';
 import 'package:phongvu_opshub/features/payment_monitor/domain/map_payment_transaction.dart';
 import 'package:phongvu_opshub/features/payment_monitor/domain/payment_notification.dart';
@@ -780,6 +781,84 @@ void main() {
 
     provider.dispose();
   });
+
+  test('local-asset stream composes and claims without audio HTTP', () async {
+    final repository = _FakePaymentMonitorRepository(notifications: const []);
+    final speaker = _FakePaymentSpeaker();
+    final composer = _FakePaymentAmountAudioComposer();
+    final provider = PaymentMonitorProvider(
+      repository,
+      speaker,
+      null,
+      retryDelay,
+      null,
+      const Duration(seconds: 5),
+      composer,
+    );
+    addTearDown(provider.dispose);
+
+    await Future<void>.delayed(Duration.zero);
+    provider.syncAuth(_storeUser(storeId: 'CP01'), isInitialized: true);
+    await _waitUntil(
+      () => repository.transactionFetchCount > 0 && !provider.isLoading,
+    );
+
+    await provider.handleRealtimeMessageForTesting(
+      _realtimeEnvelope(
+        kind: 'PAYMENT_SPEAKER_STREAM',
+        topic: 'payment.speaker',
+        data: _streamPayload('note-local', localAsset: true),
+      ),
+    );
+    await _waitUntil(() => repository.ackEvents.contains('PLAYED'));
+
+    expect(composer.composeCount, 1);
+    expect(repository.localClaimCount, 1);
+    expect(repository.streamDownloadCount, 0);
+    expect(repository.downloadCount, 0);
+    expect(speaker.playCount, 1);
+    expect(speaker.playLocalCuePrefixValues, [true]);
+  });
+
+  test(
+    'missing local asset falls back to the existing stream audio path',
+    () async {
+      final repository = _FakePaymentMonitorRepository(notifications: const []);
+      final speaker = _FakePaymentSpeaker();
+      final composer = _FakePaymentAmountAudioComposer(
+        error: StateError('asset missing'),
+      );
+      final provider = PaymentMonitorProvider(
+        repository,
+        speaker,
+        null,
+        retryDelay,
+        null,
+        const Duration(seconds: 5),
+        composer,
+      );
+      addTearDown(provider.dispose);
+
+      await Future<void>.delayed(Duration.zero);
+      provider.syncAuth(_storeUser(storeId: 'CP01'), isInitialized: true);
+      await _waitUntil(
+        () => repository.transactionFetchCount > 0 && !provider.isLoading,
+      );
+      await provider.handleRealtimeMessageForTesting(
+        _realtimeEnvelope(
+          kind: 'PAYMENT_SPEAKER_STREAM',
+          topic: 'payment.speaker',
+          data: _streamPayload('note-local-fallback', localAsset: true),
+        ),
+      );
+      await _waitUntil(() => repository.ackEvents.contains('PLAYED'));
+
+      expect(repository.localClaimCount, 0);
+      expect(repository.streamDownloadCount, 1);
+      expect(repository.requestedRawAmounts, [true]);
+      expect(speaker.playCount, 1);
+    },
+  );
 
   test(
     'stream event retries playback errors and logs them to server',
@@ -1605,7 +1684,10 @@ RealtimeEnvelope _realtimeEnvelope({
   );
 }
 
-Map<String, dynamic> _streamPayload(String notificationId) {
+Map<String, dynamic> _streamPayload(
+  String notificationId, {
+  bool localAsset = false,
+}) {
   return {
     'notificationId': notificationId,
     'transactionId': 'txn-$notificationId',
@@ -1615,6 +1697,11 @@ Map<String, dynamic> _streamPayload(String notificationId) {
     'firstSeenAt': '2026-06-27T01:00:02.000Z',
     'streamUrl': '/payment-notifications/$notificationId/stream',
     'expiresAt': '2026-06-28T01:00:00.000Z',
+    if (localAsset) ...{
+      'currency': 'VND',
+      'assetPackVersion': paymentAmountAudioPackVersion,
+      'playbackMode': 'LOCAL_ASSET',
+    },
   };
 }
 
@@ -1648,6 +1735,7 @@ class _FakePaymentMonitorRepository extends PaymentMonitorRepository {
   int readyFetchCount = 0;
   int downloadCount = 0;
   int streamDownloadCount = 0;
+  int localClaimCount = 0;
   int _notificationBatchIndex = 0;
   MapPaymentTransaction? updatedTransaction;
 
@@ -1798,6 +1886,14 @@ class _FakePaymentMonitorRepository extends PaymentMonitorRepository {
   }
 
   @override
+  Future<void> claimNotificationForLocalPlayback(
+    String notificationId, {
+    required String clientId,
+  }) async {
+    localClaimCount += 1;
+  }
+
+  @override
   Future<void> acknowledgeNotification({
     required String notificationId,
     required String clientId,
@@ -1861,6 +1957,28 @@ class _FakePaymentSpeaker extends PaymentSpeaker {
       durationMs: 5,
       reportedSuccess: true,
       audibleVerified: false,
+    );
+  }
+}
+
+class _FakePaymentAmountAudioComposer implements PaymentAmountAudioComposer {
+  final Object? error;
+  int composeCount = 0;
+
+  _FakePaymentAmountAudioComposer({this.error});
+
+  @override
+  Future<PaymentAmountAudioResult> compose({
+    required int amount,
+    required String assetPackVersion,
+  }) async {
+    composeCount += 1;
+    final failure = error;
+    if (failure != null) throw failure;
+    return PaymentAmountAudioResult(
+      bytes: Uint8List.fromList(const [0x52, 0x49, 0x46, 0x46, 0x00]),
+      assetIds: const ['chunk/leading/001', 'chunk/unit/đồng'],
+      composeDurationMs: 1,
     );
   }
 }

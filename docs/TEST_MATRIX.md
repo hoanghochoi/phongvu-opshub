@@ -3,6 +3,17 @@
 This file maps product behavior to proof. Existing flows are marked
 `existing_unverified` until fresh validation evidence is attached.
 
+- `OPS-11`, 2026-07-22: accepted Ngọc Linh `ngoc-linh-chunk-v4` ships as a
+  Windows-only pack with 1.103 PCM16 mono 24 kHz assets. Matching realtime
+  events compose locally, claim delivery without opening audio, retain existing
+  FIFO/dedupe/ACK behavior, and fall back to server audio on any pack or version
+  failure. Full source and Windows Release packs passed SHA-256/format/guard
+  validation for all 1.103 WAV files (88.838.258 bytes); focused Flutter passed
+  48 tests, first real five-asset compose measured 229 ms, analyzer was clean,
+  NestJS build and 44 focused tests passed, and Windows Release build plus
+  packaged-pack validation passed. Remaining staging gates: physical speaker,
+  burst FIFO and p95 WebSocket-to-first-audio telemetry.
+
 - `OPS-8`, 2026-07-21: Flutter web now selects full CanvasKit through the
   source-controlled bootstrap, while retaining the generated service-worker
   version and deployment cache-busting token. A release build and the static

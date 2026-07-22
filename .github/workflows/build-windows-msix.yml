@@ -144,6 +144,10 @@ jobs:
         shell: pwsh
         run: .\scripts\apply-staging-icons.ps1 -Platform windows
 
+      - name: Validate Ngoc Linh payment audio source pack
+        shell: pwsh
+        run: python scripts/verify_payment_audio_assets.py --pack windows/assets/payment_audio/ngoc_linh_chunk_v4
+
       - name: Build Windows release
         shell: pwsh
         run: |
@@ -152,6 +156,10 @@ jobs:
             --build-name "${{ needs.prepare.outputs.windows_build_name }}" `
             --build-number "${{ needs.prepare.outputs.version_code }}" `
             --dart-define "API_BASE_URL=${{ needs.prepare.outputs.api_base_url }}"
+
+      - name: Validate Ngoc Linh payment audio release pack
+        shell: pwsh
+        run: python scripts/verify_payment_audio_assets.py --pack build/windows/x64/runner/Release/data/payment_audio/ngoc_linh_chunk_v4
 
       - name: Configure internal MSIX signing certificate
         shell: pwsh
@@ -216,6 +224,10 @@ jobs:
         shell: pwsh
         run: .\scripts\apply-staging-icons.ps1 -Platform windows
 
+      - name: Validate Ngoc Linh payment audio source pack
+        shell: pwsh
+        run: python scripts/verify_payment_audio_assets.py --pack windows/assets/payment_audio/ngoc_linh_chunk_v4
+
       - name: Build Windows release
         shell: pwsh
         run: |
@@ -224,6 +236,10 @@ jobs:
             --build-name "${{ needs.prepare.outputs.windows_build_name }}" `
             --build-number "${{ needs.prepare.outputs.version_code }}" `
             --dart-define "API_BASE_URL=${{ needs.prepare.outputs.api_base_url }}"
+
+      - name: Validate Ngoc Linh payment audio release pack
+        shell: pwsh
+        run: python scripts/verify_payment_audio_assets.py --pack build/windows/x64/runner/Release/data/payment_audio/ngoc_linh_chunk_v4
 
       - name: Build Store MSIX
         shell: pwsh
