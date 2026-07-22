@@ -1,69 +1,37 @@
-# OPS-11 VieNeu asset spike
+# OPS-11 Piper payment-number assets
 
-This is build-time tooling. VieNeu and its model are not Flutter runtime
-dependencies, and generated audio belongs under the ignored
-`artifacts/ops-11-vieneu-spike/` directory until a reviewed pack is selected
-for application packaging.
+This build-time tool generates the immutable Windows payment-number pack with
+the same Piper `vi-vais1000` model and `piper-tts==1.4.2` version used by the
+OpsHub production TTS sidecar. Piper and the model are not shipped in the
+client; only the generated WAV files are packaged in the Windows installer.
 
-## Reproduce
-
-Use Python 3.10 on Windows and install `requirements.txt` into an isolated
-virtual environment. Download the exact model and codec revisions recorded in
-`generate_vieneu_assets.py`, then run:
+Use Python 3.12 and an isolated virtual environment:
 
 ```powershell
-python tool/payment_audio_spike/generate_vieneu_assets.py `
-  --model-dir <v3-turbo-onnx-int8-directory> `
-  --codec-dir <moss-codec-onnx-directory> `
-  --output artifacts/ops-11-vieneu-spike/corpus-v3 `
-  --scheme all --workers 4 --threads 2 --regenerate
+python -m venv artifacts/ops-11-piper-local/venv
+artifacts/ops-11-piper-local/venv/Scripts/python.exe -m pip install `
+  -r tool/payment_audio_spike/requirements.txt
 ```
 
-To preserve the accepted v3 speech while changing only the standalone corpus
-guards to 300 ms leading and 200 ms trailing, build a versioned v4 corpus:
+Copy `model.onnx` and `config.json` from the configured production model
+directory into an ignored local artifact directory. The generator refuses to
+run unless both SHA-256 checksums match the production pins recorded in source.
+
+Generate to a new, empty ignored directory first:
 
 ```powershell
-python tool/payment_audio_spike/generate_vieneu_assets.py `
-  --migrate-from artifacts/ops-11-vieneu-spike/corpus-v3 `
-  --output artifacts/ops-11-vieneu-spike/corpus-v4 `
-  --scheme all
+artifacts/ops-11-piper-local/venv/Scripts/python.exe `
+  tool/payment_audio_spike/generate_piper_assets.py `
+  --model artifacts/ops-11-piper-local/model/model.onnx `
+  --config artifacts/ops-11-piper-local/model/config.json `
+  --output artifacts/ops-11-piper-local/generated/piper_vi_vais1000_chunk_v1 `
+  --speed 0.90
 ```
 
-The migration does not run TTS or modify `corpus-v3`. Composition still keeps
-30 ms at each asset edge with a 45 ms join gap, so A/B audio timing stays
-unchanged. Voice samples remain on their existing 120 ms symmetric guards.
+The output is exactly 1,103 PCM16 mono 24 kHz WAV files plus a manifest and
+third-party notice. Every WAV has 300 ms leading silence and 200 ms trailing
+silence. Run the fail-closed verifier before copying the generated directory to
+`windows/assets/payment_audio/piper_vi_vais1000_chunk_v1/`.
 
-Generation writes source 48 kHz and package-candidate 24 kHz WAV files, a
-hash/format manifest, compressed-size measurements, composition timing, QC
-outliers, and a blind 15-amount A/B pack. To rebuild only reports from an
-existing full corpus:
-
-```powershell
-python tool/payment_audio_spike/generate_vieneu_assets.py `
-  --output artifacts/ops-11-vieneu-spike/corpus-v3 `
-  --scheme all --postprocess-only
-```
-
-Generate current preset-voice candidates with:
-
-```powershell
-python tool/payment_audio_spike/generate_voice_samples.py `
-  --model-dir <v3-turbo-onnx-int8-directory> `
-  --codec-dir <moss-codec-onnx-directory> `
-  --output artifacts/ops-11-vieneu-spike/corpus-v3-voice-samples
-```
-
-Generation is fail-closed: a rejected asset prevents the manifest and A/B pack
-from being published. The 48 kHz and 24 kHz outputs contain exact zero boundary
-guards; speech is resampled before the package guard is added, so resampler
-ringing cannot contaminate the guard.
-
-Validate the full generated deliverable with:
-
-```powershell
-python tool/payment_audio_spike/validate_vieneu_assets.py `
-  --root artifacts/ops-11-vieneu-spike `
-  --corpus-name corpus-v4 `
-  --baseline-corpus-name corpus-v3 `
-  --voice-corpus-name corpus-v3
-```
+The existing runtime cue `data/payment-cue-prefix.wav` is deliberately outside
+this generator and must not be replaced by the OPS-11 number-pack workflow.

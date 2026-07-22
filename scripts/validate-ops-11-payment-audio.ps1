@@ -19,7 +19,7 @@ Push-Location $repoRoot
 try {
   Invoke-NativeStep 'Validate source payment audio pack' {
     python scripts/verify_payment_audio_assets.py `
-      --pack windows/assets/payment_audio/ngoc_linh_chunk_v4
+      --pack windows/assets/payment_audio/piper_vi_vais1000_chunk_v1
   }
   Invoke-NativeStep 'Analyze Flutter' { flutter analyze --no-pub }
   Invoke-NativeStep 'Test payment and affected Flutter consumers' {
@@ -53,7 +53,7 @@ try {
   }
   Invoke-NativeStep 'Validate Windows Release payment audio pack' {
     python scripts/verify_payment_audio_assets.py `
-      --pack build/windows/x64/runner/Release/data/payment_audio/ngoc_linh_chunk_v4
+      --pack build/windows/x64/runner/Release/data/payment_audio/piper_vi_vais1000_chunk_v1
   }
   Invoke-NativeStep 'Check Git diff whitespace' { git diff --check }
 } finally {

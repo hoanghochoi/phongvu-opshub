@@ -1,6 +1,6 @@
 import 'dart:typed_data';
 
-const paymentAmountAudioPackVersion = 'ngoc-linh-chunk-v4';
+const paymentAmountAudioPackVersion = 'piper-vi-vais1000-chunk-v1';
 
 class PaymentAmountAudioResult {
   final Uint8List bytes;

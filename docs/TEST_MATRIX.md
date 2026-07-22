@@ -3,16 +3,20 @@
 This file maps product behavior to proof. Existing flows are marked
 `existing_unverified` until fresh validation evidence is attached.
 
-- `OPS-11`, 2026-07-22: accepted Ngọc Linh `ngoc-linh-chunk-v4` ships as a
+- `OPS-11`, 2026-07-22: Piper `piper-vi-vais1000-chunk-v1` supersedes the
+  rejected VieNeu/Ngọc Linh pack and ships as a
   Windows-only pack with 1.103 PCM16 mono 24 kHz assets. Matching realtime
   events compose locally, claim delivery without opening audio, retain existing
   FIFO/dedupe/ACK behavior, and fall back to server audio on any pack or version
-  failure. Full source and Windows Release packs passed SHA-256/format/guard
-  validation for all 1.103 WAV files (88.838.258 bytes); focused Flutter passed
-  48 tests, first real five-asset compose measured 229 ms, analyzer was clean,
-  NestJS build and 44 focused tests passed, and Windows Release build plus
-  packaged-pack validation passed. Remaining staging gates: physical speaker,
-  burst FIFO and p95 WebSocket-to-first-audio telemetry.
+  failure. The generated and copied source packs passed SHA-256/format/guard/
+  full-scale validation for all 1.103 WAV files (74.793.470 bytes); generator
+  tests passed 8/8, focused Flutter passed 96/96 including a real five-asset
+  compose, full Flutter passed 601 with 3 skips, analyzer was clean, NestJS
+  build and 44 focused tests passed, and Go realtime passed 64 tests. Windows
+  Release build and its packaged copy of all 1.103 assets passed the independent
+  verifier. Local real-speaker playback confirmed the 150 ms cue gap and 45 ms
+  chunk gap. Remaining staging gates: authenticated-app burst FIFO, corrupt-
+  asset fallback and p95 WebSocket-to-first-audio QA.
 
 - `OPS-8`, 2026-07-21: Flutter web now selects full CanvasKit through the
   source-controlled bootstrap, while retaining the generated service-worker
@@ -2579,7 +2583,7 @@ test\barcode_scanner_screen_test.dart test\design_system_migration_guard_test.da
   now prefers the prejoined cue+prefix WAV before appending the amount audio.
   Amount WAVs are cached by text/voice/speed/pitch and newer clients first
   request `rawAmount=true`, trim zero padding, join bundled
-  `data/payment-cue-prefix.wav` to the downloaded amount with an 80 ms gap, and
+  `data/payment-cue-prefix.wav` to the downloaded amount with a 150 ms gap, and
   play one WAV. Incompatible PCM formats fall back to sequential playback, and
   missing prefix assets fall back to the
   existing full-sentence TTS path, and TTS/cache generation logs mode, cache
@@ -2603,6 +2607,8 @@ test\barcode_scanner_screen_test.dart test\design_system_migration_guard_test.da
   `flutter analyze --no-pub`, Windows release build, and `git diff --check`.
   Gap: physical
   Windows speaker playback remains pending.
+  Current OPS-11 policy: the production cue-to-amount gap is 150 ms; amount
+  chunks trim stored guards fully and use a 45 ms join gap.
 - PLATFORM-001, 2026-06-22: production and staging workflows now serialize
   deploys, use GitHub Environments, and pin checkout, Flutter, and Tailscale
   actions to immutable commits. Added public-cutover/environment-secret

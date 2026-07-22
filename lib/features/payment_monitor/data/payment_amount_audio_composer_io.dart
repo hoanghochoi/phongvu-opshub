@@ -52,10 +52,10 @@ List<String> paymentAmountChunkAssetIds(int amount) {
 class PaymentAmountAudioComposerIo implements PaymentAmountAudioComposer {
   static const _source = 'PaymentAmountAudio';
   static const _assetCount = 1103;
-  static const _packDirectoryName = 'ngoc_linh_chunk_v4';
+  static const _packDirectoryName = 'piper_vi_vais1000_chunk_v1';
   static const _storedLeadingSilence = Duration(milliseconds: 300);
   static const _storedTrailingSilence = Duration(milliseconds: 200);
-  static const _retainedBoundarySilence = Duration(milliseconds: 30);
+  static const _retainedBoundarySilence = Duration.zero;
   static const _joinGap = Duration(milliseconds: 45);
 
   final Directory? _packDirectoryForTesting;
@@ -153,7 +153,7 @@ class PaymentAmountAudioComposerIo implements PaymentAmountAudioComposer {
     final json = decoded.map((key, value) => MapEntry(key.toString(), value));
     if (json['schemaVersion'] != 1 ||
         json['assetPackVersion'] != paymentAmountAudioPackVersion ||
-        json['voice'] != 'Ngọc Linh') {
+        json['voice'] != 'Piper vi-vais1000') {
       throw const FormatException('Payment audio manifest identity is invalid');
     }
     final policy = json['audioPolicy'];
@@ -163,7 +163,7 @@ class PaymentAmountAudioComposerIo implements PaymentAmountAudioComposer {
         policy['bitsPerSample'] != 16 ||
         policy['assetLeadingSilenceMs'] != 300 ||
         policy['assetTrailingSilenceMs'] != 200 ||
-        policy['composeBoundarySilenceMs'] != 30 ||
+        policy['composeBoundarySilenceMs'] != 0 ||
         policy['joinGapMs'] != 45) {
       throw const FormatException('Payment audio manifest policy is invalid');
     }

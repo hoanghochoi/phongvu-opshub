@@ -276,7 +276,7 @@ void main() {
         expect(playedFiles.single, contains('opshub-payment-'));
         expect(playbackVolumes, [100.0]);
         final combinedInfo = PaymentWavTools.readInfo(playedAudio.single);
-        expect(combinedInfo.sampleRateHz, 22050);
+        expect(combinedInfo.sampleRateHz, 44100);
         expect(combinedInfo.channels, 1);
         expect(
           ByteData.sublistView(playedAudio.single).getInt16(

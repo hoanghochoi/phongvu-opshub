@@ -4,13 +4,19 @@
 from __future__ import annotations
 
 import argparse
+import array
 import hashlib
 import json
+import sys
 import wave
 from pathlib import Path
 
 
-PACK_VERSION = "ngoc-linh-chunk-v4"
+PACK_VERSION = "piper-vi-vais1000-chunk-v1"
+VOICE = "Piper vi-vais1000"
+PIPER_TTS_VERSION = "1.4.2"
+MODEL_SHA256 = "ec7c89e2c85f4d1edc24b6120c18aaf1bda614f06b511567eb9c7c0de15e2dab"
+CONFIG_SHA256 = "fafb9da1354ed4b77c31af228ed41fb41cd825c14cffa105454b25e6ae751ee0"
 EXPECTED_ASSET_COUNT = 1_103
 SAMPLE_RATE = 24_000
 LEADING_MS = 300
@@ -49,8 +55,22 @@ def validate_pack(root: Path) -> dict[str, int | str]:
         raise ValueError("unsupported manifest schema")
     if manifest.get("assetPackVersion") != PACK_VERSION:
         raise ValueError(f"unexpected asset pack version: {manifest.get('assetPackVersion')}")
-    if manifest.get("voice") != "Ngọc Linh":
+    if manifest.get("voice") != VOICE:
         raise ValueError(f"unexpected voice: {manifest.get('voice')}")
+    generator = manifest.get("generator", {})
+    expected_generator = {
+        "provider": "Piper",
+        "piperTtsVersion": PIPER_TTS_VERSION,
+        "voiceId": "piper:vi-vais1000",
+        "model": "vi-vais1000",
+        "modelSha256": MODEL_SHA256,
+        "configSha256": CONFIG_SHA256,
+        "speed": 0.9,
+        "outputGainDb": -1.5,
+    }
+    for key, expected in expected_generator.items():
+        if generator.get(key) != expected:
+            raise ValueError(f"unexpected generator {key}: {generator.get(key)}")
     policy = manifest.get("audioPolicy", {})
     expected_policy = {
         "packageSampleRate": SAMPLE_RATE,
@@ -58,8 +78,9 @@ def validate_pack(root: Path) -> dict[str, int | str]:
         "bitsPerSample": 16,
         "assetLeadingSilenceMs": LEADING_MS,
         "assetTrailingSilenceMs": TRAILING_MS,
-        "composeBoundarySilenceMs": 30,
+        "composeBoundarySilenceMs": 0,
         "joinGapMs": 45,
+        "outputGainDb": -1.5,
     }
     for key, expected in expected_policy.items():
         if policy.get(key) != expected:
@@ -105,6 +126,12 @@ def validate_pack(root: Path) -> dict[str, int | str]:
             raise ValueError(f"boundary guard is not silent: {path.name}")
         if not any(pcm[leading_bytes:-trailing_bytes]):
             raise ValueError(f"speech payload is silent: {path.name}")
+        content = array.array("h")
+        content.frombytes(pcm[leading_bytes:-trailing_bytes])
+        if sys.byteorder != "little":
+            content.byteswap()
+        if any(sample in {-32768, 32767} for sample in content):
+            raise ValueError(f"speech payload reaches full scale: {path.name}")
         expected_content_frames = round(float(asset["contentDurationMs"]) * SAMPLE_RATE / 1_000)
         if frames != leading_frames + expected_content_frames + trailing_frames:
             raise ValueError(f"content duration mismatch: {path.name}")
