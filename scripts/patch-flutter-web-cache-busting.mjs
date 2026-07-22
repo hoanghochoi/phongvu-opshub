@@ -10,6 +10,7 @@ if (!token) {
 
 const indexPath = 'build/web/index.html';
 const bootstrapPath = 'build/web/flutter_bootstrap.js';
+const fullCanvasKitVariantPattern = /canvasKitVariant\s*:\s*(['"])full\1/;
 
 function patchFile(filePath, patcher) {
   let before;
@@ -35,11 +36,17 @@ patchFile(indexPath, (content) =>
   ),
 );
 
-patchFile(bootstrapPath, (content) =>
-  content.replace(
+patchFile(bootstrapPath, (content) => {
+  if (!fullCanvasKitVariantPattern.test(content)) {
+    throw new Error(
+      'Flutter web bootstrap must configure canvasKitVariant: full.',
+    );
+  }
+
+  return content.replace(
     /"mainJsPath":"main\.dart\.js(?:\?[^"]*)?"/,
     `"mainJsPath":"main.dart.js?v=${token}"`,
-  ),
-);
+  );
+});
 
 console.log(`Patched Flutter web cache-busting token: ${token}`);
