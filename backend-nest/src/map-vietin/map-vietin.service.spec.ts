@@ -25,6 +25,9 @@ describe('MapVietinService', () => {
       MAP_VIETIN_CREDENTIAL_SECRET: 'test-map-secret',
     };
     prisma = {
+      $transaction: jest.fn(async (callback: (tx: any) => unknown) =>
+        callback(prisma),
+      ),
       user: {
         findUnique: jest.fn(async ({ where }: any) => {
           if (where.id === 'fin-node-user') {
@@ -101,6 +104,9 @@ describe('MapVietinService', () => {
       },
       mapVietinSyncState: {
         upsert: jest.fn(),
+      },
+      vietQrPaymentIntent: {
+        updateMany: jest.fn(async () => ({ count: 0 })),
       },
     };
     delete process.env.MAP_VIETIN_GLOBAL_USERNAME;
@@ -989,15 +995,25 @@ describe('MapVietinService', () => {
       label: 'eFAST arrives after MAP',
       incomingSource: 'VIETIN_EFAST',
       candidateRawData: { transactionNumber: '2026198056714' },
+      candidateTransactionNumber: '2026198056714',
     },
     {
       label: 'MAP arrives after eFAST',
       incomingSource: 'MAP',
-      candidateRawData: { source: 'VIETIN_EFAST', trxId: '333985' },
+      candidateRawData: {
+        source: 'VIETIN_EFAST',
+        trxId: '333985',
+        trxRefNo: '331225',
+      },
+      candidateTransactionNumber: '333985',
     },
   ])(
-    'skips a cross-source duplicate by exact bank fingerprint when $label',
-    async ({ incomingSource, candidateRawData }) => {
+    'enriches a cross-source duplicate by exact bank fingerprint when $label',
+    async ({
+      incomingSource,
+      candidateRawData,
+      candidateTransactionNumber,
+    }) => {
       const row = {
         ...(incomingSource === 'VIETIN_EFAST'
           ? { source: 'VIETIN_EFAST' }
@@ -1005,6 +1021,7 @@ describe('MapVietinService', () => {
         transactionNumber:
           incomingSource === 'VIETIN_EFAST' ? '333985' : '2026198056714',
         trxId: incomingSource === 'VIETIN_EFAST' ? '333985' : undefined,
+        trxRefNo: incomingSource === 'VIETIN_EFAST' ? '331225' : undefined,
         amount: 9146000,
         transactionDescription: 'XNLD CAO THE TT TIEN CAMERA HD 2807',
         tranTime: '17/07/2026 17:25:40',
@@ -1016,10 +1033,14 @@ describe('MapVietinService', () => {
         {
           id: 'stored-cross-source',
           transactionKey: 'CP61:existing-cross-source',
+          transactionNumber: candidateTransactionNumber,
           storeCode: 'CP61',
           rawData: candidateRawData,
         },
       ]);
+      prisma.mapVietinTransaction.update.mockResolvedValue({
+        id: 'stored-cross-source',
+      });
 
       await expect(
         (service as any).persistTransactions('CP61', [row]),
@@ -1036,9 +1057,64 @@ describe('MapVietinService', () => {
         }),
       );
       expect(prisma.mapVietinTransaction.upsert).not.toHaveBeenCalled();
+      expect(prisma.mapVietinTransaction.update).toHaveBeenCalledWith({
+        where: { id: 'stored-cross-source' },
+        data: {
+          rawData: expect.objectContaining({
+            providerIdentifiers: {
+              mapTransactionNumber: '2026198056714',
+              efastTrxId: '333985',
+              efastTrxRefNo: '331225',
+            },
+          }),
+        },
+      });
+      expect(prisma.vietQrPaymentIntent.updateMany).toHaveBeenCalledWith({
+        where: { matchedTransactionId: 'stored-cross-source' },
+        data: { matchedTransactionNumber: '333985' },
+      });
       expect(paymentNotifications.createForTransaction).not.toHaveBeenCalled();
     },
   );
+
+  it('stops identifier enrichment when a bank fingerprint is ambiguous', async () => {
+    const row = {
+      source: 'VIETIN_EFAST',
+      transactionNumber: '333985',
+      trxId: '333985',
+      trxRefNo: '331225',
+      amount: 9146000,
+      transactionDescription: 'XNLD CAO THE TT TIEN CAMERA HD 2807',
+      tranTime: '17/07/2026 17:25:40',
+      status: 'SUCCESS',
+    };
+    prisma.mapVietinTransaction.findUnique.mockResolvedValue(null);
+    prisma.mapVietinTransaction.findFirst.mockResolvedValue(null);
+    prisma.mapVietinTransaction.findMany.mockResolvedValue([
+      {
+        id: 'candidate-1',
+        transactionKey: 'CP61:candidate-1',
+        transactionNumber: '2026198056714',
+        storeCode: 'CP61',
+        rawData: { transactionNumber: '2026198056714' },
+      },
+      {
+        id: 'candidate-2',
+        transactionKey: 'CP61:candidate-2',
+        transactionNumber: '2026198056715',
+        storeCode: 'CP61',
+        rawData: { transactionNumber: '2026198056715' },
+      },
+    ]);
+
+    await expect(
+      (service as any).persistTransactions('CP61', [row]),
+    ).resolves.toBe(0);
+
+    expect(prisma.mapVietinTransaction.update).not.toHaveBeenCalled();
+    expect(prisma.mapVietinTransaction.upsert).not.toHaveBeenCalled();
+    expect(paymentNotifications.createForTransaction).not.toHaveBeenCalled();
+  });
 
   it('serializes MAP and eFAST persistence before checking the exact fingerprint', async () => {
     const baseRow = {
@@ -1082,6 +1158,12 @@ describe('MapVietinService', () => {
         return stored;
       },
     );
+    prisma.mapVietinTransaction.update.mockImplementation(
+      async ({ data }: any) => {
+        stored = { ...stored, ...data };
+        return stored;
+      },
+    );
     paymentNotifications.createForTransaction.mockResolvedValue({});
 
     const results = await Promise.all([
@@ -1091,6 +1173,10 @@ describe('MapVietinService', () => {
 
     expect(results).toEqual([1, 0]);
     expect(prisma.mapVietinTransaction.upsert).toHaveBeenCalledTimes(1);
+    expect(stored.rawData.providerIdentifiers).toEqual({
+      mapTransactionNumber: '2026198056714',
+      efastTrxId: '333985',
+    });
     expect(paymentNotifications.createForTransaction).toHaveBeenCalledTimes(1);
   });
 
@@ -2120,6 +2206,61 @@ describe('MapVietinService', () => {
     ).toBe('904D60713M9LLR5M');
   });
 
+  it('exposes an enriched eFAST trxId from a retained MAP row', () => {
+    const resolveStoredTransactionReference = (
+      service as any
+    ).resolveStoredTransactionReference.bind(service);
+
+    expect(
+      resolveStoredTransactionReference({
+        transactionNumber: '2026198056714',
+        rawData: {
+          transactionNumber: '2026198056714',
+          providerIdentifiers: {
+            mapTransactionNumber: '2026198056714',
+            efastTrxId: '333985',
+            efastTrxRefNo: '331225',
+          },
+        },
+      }),
+    ).toBe('333985');
+  });
+
+  it('uses the enriched canonical statement number in API and transfer DTOs', () => {
+    const transaction = statementTransactionRow({
+      transactionNumber: '2026198056714',
+      rawData: {
+        transactionNumber: '2026198056714',
+        providerIdentifiers: {
+          mapTransactionNumber: '2026198056714',
+          efastTrxId: '333985',
+          efastTrxRefNo: '331225',
+        },
+      },
+    });
+
+    expect((service as any).toStoredTransactionDto(transaction)).toMatchObject({
+      transactionNumber: '2026198056714',
+      transactionReference: '333985',
+    });
+    expect(
+      (service as any).toStatementOrderTransferRequestDto({
+        id: 'request-1',
+        transactionId: transaction.id,
+        storeCode: 'CP61',
+        oldOrders: [],
+        requestedOrders: ['26072212345678'],
+        status: 'PENDING',
+        createdAt: new Date('2026-07-22T03:00:00.000Z'),
+        updatedAt: new Date('2026-07-22T03:00:00.000Z'),
+        transaction,
+      }),
+    ).toMatchObject({
+      transactionNumber: '2026198056714',
+      transactionReference: '333985',
+    });
+  });
+
   it('lists stored transactions across a Vietnam-local date range', async () => {
     prisma.store.findUnique.mockResolvedValue({
       id: 'store-uuid-1',
@@ -2446,6 +2587,10 @@ describe('MapVietinService', () => {
     const where = prisma.mapVietinTransaction.findMany.mock.calls[0][0].where;
     expect(JSON.stringify(where)).toContain('transactionNumber');
     expect(JSON.stringify(where)).toContain('txnReference');
+    expect(JSON.stringify(where)).toContain('providerIdentifiers');
+    expect(JSON.stringify(where)).toContain('mapTransactionNumber');
+    expect(JSON.stringify(where)).toContain('efastTrxId');
+    expect(JSON.stringify(where)).toContain('efastTrxRefNo');
     expect(JSON.stringify(where)).toContain('00020300000000004567');
   });
 
@@ -3929,6 +4074,46 @@ describe('MapVietinService', () => {
       raw: false,
     }) as unknown[][];
     expect(rows[1]).toContain('904D60713M9LLR5M');
+    expect(rows[1]).not.toContain('331225');
+  });
+
+  it('exports the enriched eFAST trxId from a retained MAP row', async () => {
+    prisma.mapVietinTransaction.findMany.mockResolvedValue([
+      {
+        storeCode: 'CP61',
+        transactionNumber: '2026198056714',
+        amount: 9146000,
+        content: 'XNLD CAO THE TT TIEN CAMERA HD 2807',
+        orders: [],
+        status: 'SUCCESS',
+        paidAt: new Date('2026-07-17T10:25:40.000Z'),
+        payerName: null,
+        payerAccount: null,
+        rawData: {
+          transactionNumber: '2026198056714',
+          providerIdentifiers: {
+            mapTransactionNumber: '2026198056714',
+            efastTrxId: '333985',
+            efastTrxRefNo: '331225',
+          },
+        },
+        firstSeenAt: new Date('2026-07-17T10:25:45.000Z'),
+        orderSource: 'AUTO',
+      },
+    ]);
+
+    const xlsx = await service.exportStatementsXlsx(
+      { role: 'SUPER_ADMIN' },
+      { transactionIds: ['retained-map'] },
+    );
+    const workbook = XLSX.read(xlsx, { type: 'buffer' });
+    const rows = XLSX.utils.sheet_to_json(workbook.Sheets['Sao kê'], {
+      header: 1,
+      raw: false,
+    }) as unknown[][];
+
+    expect(rows[1]).toContain('333985');
+    expect(rows[1]).not.toContain('2026198056714');
     expect(rows[1]).not.toContain('331225');
   });
 

@@ -14,6 +14,13 @@
   unrelated identifiers, use the exact cross-source fingerprint of mapped
   showroom, amount, bank timestamp, and stored content; never apply this
   fallback between two rows from the same source.
+- Persist the surviving row's provider identity in
+  `rawData.providerIdentifiers`: `mapTransactionNumber`, `efastTrxId`, and
+  `efastTrxRefNo`. Cross-source matches enrich the existing row instead of
+  replacing its provider payload or creating a second notification. A shared
+  resolver always prefers `efastTrxId`; search also covers both product-facing
+  and technical identifiers. Conflicting identifiers or more than one exact
+  opposite-source fingerprint candidate stop enrichment rather than guessing.
 - Add statement endpoints under `/admin/map-vietin/statements` for list, XLSX
   export, inline order update, and order history.
 - Add an ACC-reviewed order-transfer request table and endpoints so visible
@@ -60,6 +67,21 @@
   NestJS and relay it as `STATEMENT_ORDER_TRANSFER_REQUEST` from Go without
   sending order contents over realtime.
 - Environment: no new environment variable.
+
+## OPS-12 Historical Repair
+
+- `npm run repair:map-efast-identifiers -- --input <checkpoint.jsonl>` is a
+  read-only dry-run against the configured database. It accepts the immutable
+  eFAST transaction evidence retained by the earlier cleanup checkpoint and
+  matches only exact showroom/amount/bank-time/content fingerprints.
+- Apply mode additionally requires `--apply`, `--checkpoint-dir <off-repo-dir>`,
+  and `--expected-input-sha256 <sha256>`. It writes an exclusive before-state
+  checkpoint and manifest before opening the transaction.
+- Any ambiguous MAP survivor, conflicting canonical identifier, input checksum
+  mismatch, transaction verification failure, or stale VietQR confirmation
+  rolls back/stops the repair. The script changes only identifier metadata and
+  the denormalized VietQR statement number; transaction IDs, orders, audits,
+  notifications, delivery/read receipts, and transfer requests stay intact.
 
 ## Rollback Plan
 
