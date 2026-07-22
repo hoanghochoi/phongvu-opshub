@@ -27,6 +27,10 @@ void main() {
     ]);
     expect(paymentAmountChunkAssetIds(999999999999999999), hasLength(14));
     expect(() => paymentAmountChunkAssetIds(0), throwsArgumentError);
+    expect(
+      () => paymentAmountChunkAssetIds(1000000000000000000),
+      throwsArgumentError,
+    );
   });
 
   test(
