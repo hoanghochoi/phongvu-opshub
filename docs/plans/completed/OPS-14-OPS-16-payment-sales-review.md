@@ -155,9 +155,11 @@ validation, 64 Go tests, the Windows debug build, formatter check, and `git
 diff --check` pass. Independent final reviews found no remaining blocking issue
 and confirmed the strictly one-way `SYNC_LIST` to `COMEBACK` invariant.
 
-The bounded scope was committed as `5c0ffbdc`, pushed on
-`codex/ops-14-ops-16-payment-sales-review`, and opened as ready PR #20 to
-`staging`. Release guard and CodeQL JavaScript/TypeScript and Go passed. The
-implementation/proof comments and `In Review` transitions were read back for
-both OPS-14 and OPS-16. Physical Windows speaker QA, live PostgreSQL
-concurrency, and live BigQuery refresh remain staging-only proof.
+The bounded runtime scope was committed as `5c0ffbdc` and squash-merged to
+`staging` as `6555f315` through PR #20 after Release Guard and CodeQL
+JavaScript/TypeScript and Go passed. Follow-up PR #21 contains only this
+completed-plan relocation/update, is ready for review, and has a
+green Release Guard. The refreshed implementation/proof comments and current
+`In Review` states were read back for both OPS-14 and OPS-16. Physical Windows
+speaker QA, live PostgreSQL concurrency, and live BigQuery refresh remain
+staging-only proof.
