@@ -174,6 +174,7 @@ describe('SalesReportsBigQuerySyncService', () => {
     expect(reportRows[0]).toMatchObject({
       sales_report_id: 'report-1',
       report_type_label: 'Mua hàng',
+      entry_source: 'COMEBACK',
       submitted_date: '2026-07-01',
       category_groups_vi: 'Laptop; Màn hình',
       consulted_solution_label: 'Có',
@@ -293,6 +294,7 @@ function salesReportFixture() {
   return {
     id: 'report-1',
     reportType: 'PURCHASED',
+    entrySource: 'COMEBACK',
     submittedAt: new Date('2026-07-01T01:30:00.000Z'),
     orderCode: '2607010001',
     customerName: 'Nguyen Van A',

@@ -130,8 +130,22 @@ type SalesReportComebackScope = {
 
 type SalesReportCreateOptions = {
   comebackScope?: SalesReportComebackScope;
-  persist?: (data: any, include: any) => Promise<any>;
+  persist?: (
+    data: any,
+    include: any,
+    context: {
+      existingSyncListReportId: string | null;
+      orderCode: string | null;
+    },
+  ) => Promise<{
+    report: any;
+    convertedExistingReport: boolean;
+  }>;
 };
+
+export const SALES_REPORT_COMEBACK_DUPLICATE_MESSAGE =
+  'Đơn hàng này đã được ghi nhận là khách quay lại, không thể tạo báo cáo mua hàng trùng.';
+const SALES_REPORT_DUPLICATE_MESSAGE = 'Đơn hàng này đã được báo cáo mua hàng.';
 
 type ErpOrderStatusSyncCandidateSource =
   | 'cache_pending'
@@ -1726,43 +1740,64 @@ export class SalesReportsService implements OnApplicationBootstrap {
     orderCodeInput: string,
     scopeOverride?: SalesReportComebackScope,
   ) {
+    const startedAt = Date.now();
     const orderCode = this.normalizeOrderCode(orderCodeInput);
-    await this.assertOrderNotReported(orderCode);
-    await this.assertOrderNotExcluded(orderCode);
-    const actorContext = await this.resolveUserSnapshot(user);
-    const context = scopeOverride
-      ? { ...actorContext, ...scopeOverride }
-      : actorContext;
-    const erpOrder = await this.lookupErpOrderForReport(
-      user,
-      context,
-      orderCode ?? '',
+    this.logger.log(
+      `Sales report order check started: user=${this.safeUserLabel(user)} followUp=${Boolean(scopeOverride)} ${this.orderLogPart(orderCode)}`,
     );
-    const matchedCategories = await this.attachCategoryTypes(erpOrder);
-    const cacheResult = await this.upsertErpOrderCacheFromOrder(
-      user,
-      context,
-      erpOrder,
-    );
-    this.assertOrderCachePersistResultReportable(cacheResult);
-    return {
-      orderCode,
-      customerName: erpOrder.customerName,
-      customerPhone: erpOrder.customerPhone,
-      customerNeed: erpOrder.customerNeed,
-      customerType: erpOrder.customerType,
-      customerTypeLabel: this.customerTypeLabel(erpOrder.customerType),
-      customerIsStudent: erpOrder.customerIsStudent,
-      promotionCodes: erpOrder.promotionCodes,
-      installmentNeed: erpOrder.installmentNeed,
-      installmentLoanAmount: erpOrder.installmentLoanAmount,
-      categoryGroup: matchedCategories[0] ?? null,
-      categoryGroups: matchedCategories,
-      order: this.toOrderDto(erpOrder),
-      items: erpOrder.items,
-      payments: erpOrder.payments,
-      paymentMethods: erpOrder.paymentMethods,
-    };
+    try {
+      const existingReport = await this.requireOrderAvailable(orderCode, {
+        allowSyncListConversion: Boolean(scopeOverride),
+        operation: 'check',
+        user,
+      });
+      await this.assertOrderNotExcluded(orderCode);
+      const actorContext = await this.resolveUserSnapshot(user);
+      const context = scopeOverride
+        ? { ...actorContext, ...scopeOverride }
+        : actorContext;
+      const erpOrder = await this.lookupErpOrderForReport(
+        user,
+        context,
+        orderCode ?? '',
+      );
+      const matchedCategories = await this.attachCategoryTypes(erpOrder);
+      const cacheResult = await this.upsertErpOrderCacheFromOrder(
+        user,
+        context,
+        erpOrder,
+      );
+      this.assertOrderCachePersistResultReportable(cacheResult);
+      const willConvertSyncedReport =
+        existingReport?.entrySource === 'SYNC_LIST';
+      this.logger.log(
+        `Sales report order check succeeded: user=${this.safeUserLabel(user)} followUp=${Boolean(scopeOverride)} willConvertSyncedReport=${willConvertSyncedReport} categoryCount=${matchedCategories.length} itemCount=${erpOrder.items.length} paymentCount=${erpOrder.payments.length} ${this.orderLogPart(orderCode)} durationMs=${Date.now() - startedAt}`,
+      );
+      return {
+        orderCode,
+        customerName: erpOrder.customerName,
+        customerPhone: erpOrder.customerPhone,
+        customerNeed: erpOrder.customerNeed,
+        customerType: erpOrder.customerType,
+        customerTypeLabel: this.customerTypeLabel(erpOrder.customerType),
+        customerIsStudent: erpOrder.customerIsStudent,
+        promotionCodes: erpOrder.promotionCodes,
+        installmentNeed: erpOrder.installmentNeed,
+        installmentLoanAmount: erpOrder.installmentLoanAmount,
+        categoryGroup: matchedCategories[0] ?? null,
+        categoryGroups: matchedCategories,
+        order: this.toOrderDto(erpOrder),
+        items: erpOrder.items,
+        payments: erpOrder.payments,
+        paymentMethods: erpOrder.paymentMethods,
+        willConvertSyncedReport,
+      };
+    } catch (error) {
+      this.logger.error(
+        `Sales report order check failed: user=${this.safeUserLabel(user)} followUp=${Boolean(scopeOverride)} ${this.orderLogPart(orderCode)} durationMs=${Date.now() - startedAt} error=${String(error)}`,
+      );
+      throw error;
+    }
   }
 
   async create(
@@ -1800,8 +1835,18 @@ export class SalesReportsService implements OnApplicationBootstrap {
       legacyCustomerZaloContact,
     );
     let erpOrder: SalesReportErpOrder | null = null;
+    let existingSyncListReportId: string | null = null;
     if (reportType === REPORT_TYPE_PURCHASED) {
-      await this.assertOrderNotReported(orderCode);
+      const existingReport = await this.requireOrderAvailable(orderCode, {
+        allowSyncListConversion:
+          entrySource === 'COMEBACK' &&
+          Boolean(options.comebackScope) &&
+          Boolean(options.persist),
+        operation: 'create',
+        user,
+      });
+      existingSyncListReportId =
+        existingReport?.entrySource === 'SYNC_LIST' ? existingReport.id : null;
       await this.assertOrderNotExcluded(orderCode);
       erpOrder = await this.lookupErpOrderForReport(
         user,
@@ -1819,7 +1864,7 @@ export class SalesReportsService implements OnApplicationBootstrap {
       await this.attachCategoryTypes(erpOrder);
     }
     let reportOwnerContext = context;
-    if (entrySource === 'COMEBACK') {
+    if (entrySource === 'COMEBACK' && !existingSyncListReportId) {
       const creatorEmail = this.normalizeEmail(erpOrder?.creatorEmail);
       if (!creatorEmail) {
         throw new BadRequestException(
@@ -2030,22 +2075,40 @@ export class SalesReportsService implements OnApplicationBootstrap {
         items: true,
         payments: true,
       };
-      const report = options.persist
-        ? await options.persist(reportData, reportInclude)
-        : await this.prisma.salesReport.create({
-            data: reportData,
-            include: reportInclude,
-          });
+      const persisted = options.persist
+        ? await options.persist(reportData, reportInclude, {
+            existingSyncListReportId,
+            orderCode,
+          })
+        : {
+            report: await this.prisma.salesReport.create({
+              data: reportData,
+              include: reportInclude,
+            }),
+            convertedExistingReport: false,
+          };
+      const report = persisted.report;
       this.logger.log(
-        `Sales report create succeeded: id=${report.id} user=${this.safeUserLabel(user)} type=${reportType} entrySource=${entrySource} store=${report.storeCode || 'none'} ${this.orderLogPart(orderCode)} hasCustomerPhone=${Boolean(customerPhone)} customerContactChannelCount=${customerContactChannels.length} durationMs=${Date.now() - startedAt}`,
+        `Sales report create succeeded: id=${report.id} user=${this.safeUserLabel(user)} type=${reportType} entrySource=${entrySource} convertedExistingReport=${persisted.convertedExistingReport} store=${report.storeCode || 'none'} ${this.orderLogPart(orderCode)} hasCustomerPhone=${Boolean(customerPhone)} customerContactChannelCount=${customerContactChannels.length} durationMs=${Date.now() - startedAt}`,
       );
-      return this.toReportDto(report);
+      return {
+        ...this.toReportDto(report),
+        convertedExistingReport: persisted.convertedExistingReport,
+      };
     } catch (error) {
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
         error.code === 'P2002'
       ) {
-        throw new BadRequestException('Đơn hàng này đã được báo cáo mua hàng.');
+        const existing = await this.findExistingOrderReport(orderCode);
+        const message =
+          existing?.entrySource === 'COMEBACK'
+            ? SALES_REPORT_COMEBACK_DUPLICATE_MESSAGE
+            : SALES_REPORT_DUPLICATE_MESSAGE;
+        this.logger.warn(
+          `Sales report duplicate blocked after unique conflict: user=${this.safeUserLabel(user)} operation=create existingSource=${existing?.entrySource || 'unknown'} ${this.orderLogPart(orderCode)}`,
+        );
+        throw new BadRequestException(message);
       }
       this.logger.error(
         `Sales report create failed: user=${this.safeUserLabel(user)} type=${reportType} entrySource=${entrySource} ${this.orderLogPart(orderCode)} durationMs=${Date.now() - startedAt} error=${String(error)}`,
@@ -3407,15 +3470,43 @@ export class SalesReportsService implements OnApplicationBootstrap {
     return unique;
   }
 
-  private async assertOrderNotReported(orderCode: string | null) {
-    if (!orderCode) return;
-    const existing = await this.prisma.salesReport.findUnique({
+  private async findExistingOrderReport(orderCode: string | null) {
+    if (!orderCode) return null;
+    return this.prisma.salesReport.findUnique({
       where: { orderCode },
-      select: { id: true },
+      select: { id: true, reportType: true, entrySource: true },
     });
-    if (existing) {
-      throw new BadRequestException('Đơn hàng này đã được báo cáo mua hàng.');
+  }
+
+  private async requireOrderAvailable(
+    orderCode: string | null,
+    options: {
+      allowSyncListConversion: boolean;
+      operation: 'check' | 'create';
+      user: any;
+    },
+  ) {
+    const existing = await this.findExistingOrderReport(orderCode);
+    if (!existing) return null;
+    if (
+      options.allowSyncListConversion &&
+      existing.reportType === REPORT_TYPE_PURCHASED &&
+      existing.entrySource === 'SYNC_LIST'
+    ) {
+      this.logger.log(
+        `Sales report synced order eligible for comeback conversion: user=${this.safeUserLabel(options.user)} operation=${options.operation} existingReport=${existing.id} ${this.orderLogPart(orderCode)}`,
+      );
+      return existing;
     }
+
+    const message =
+      existing.entrySource === 'COMEBACK'
+        ? SALES_REPORT_COMEBACK_DUPLICATE_MESSAGE
+        : SALES_REPORT_DUPLICATE_MESSAGE;
+    this.logger.warn(
+      `Sales report duplicate blocked: user=${this.safeUserLabel(options.user)} operation=${options.operation} existingSource=${existing.entrySource || 'unknown'} ${this.orderLogPart(orderCode)}`,
+    );
+    throw new BadRequestException(message);
   }
 
   private async canUseSalesReport(user: any) {

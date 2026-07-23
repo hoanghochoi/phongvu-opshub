@@ -481,6 +481,60 @@ void main() {
     expect(repository.createCalled, isFalse);
   });
 
+  testWidgets('Chăm sóc lại warns before converting a synced report', (
+    tester,
+  ) async {
+    final repository = _FakeSalesReportRepository(
+      orderCheckOverrides: const {'willConvertSyncedReport': true},
+    );
+    final authProvider = _FakeAuthProvider(
+      const User(
+        id: 'user-1',
+        email: 'sale@phongvu.vn',
+        role: 'USER',
+        organizationNodeId: 'org-store-cp01',
+        featureAccess: {'SALES_REPORT': true},
+      ),
+    );
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider<AuthProvider>.value(value: authProvider),
+          ChangeNotifierProvider<SalesReportProvider>(
+            create: (_) => SalesReportProvider(repository),
+          ),
+        ],
+        child: const MaterialApp(
+          home: Scaffold(
+            body: SalesReportFormScreen.purchased(
+              entrySource: 'COMEBACK',
+              followUpCaseId: 'case-purchase',
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      _textFormFieldByParentKey('sales-report-order-code-field'),
+      '2607010002',
+    );
+    await tester.tap(
+      find.widgetWithText(AppSecondaryButton, 'Kiểm tra đơn hàng'),
+    );
+    await tester.pump(const Duration(seconds: 1));
+    await tester.pump();
+
+    expect(
+      find.text(
+        'Đơn hàng này đã có trong danh sách đồng bộ. Nếu lưu mua hàng, hệ thống sẽ chuyển báo cáo sang Khách quay lại.',
+      ),
+      findsOneWidget,
+    );
+    expect(repository.checkOrderCount, 1);
+  });
+
   testWidgets('Báo cáo hub omits duplicate export and list actions', (
     tester,
   ) async {
@@ -1078,6 +1132,7 @@ void main() {
       'customerPhone': '0901234567',
       'customerType': 'BUSINESS',
       'customerTypeLabel': 'Doanh nghiệp',
+      'willConvertSyncedReport': true,
       'paymentMethods': ['cash', 'bank_transfer'],
       'categoryGroups': [
         {
@@ -1101,6 +1156,27 @@ void main() {
     expect(check.customerType, 'BUSINESS');
     expect(check.customerPhone, '0901234567');
     expect(check.paymentMethods, ['cash', 'bank_transfer']);
+    expect(check.willConvertSyncedReport, isTrue);
+  });
+
+  test('SalesReportProvider exposes converted-report success copy', () async {
+    final repository = _FakeSalesReportRepository(
+      createResponse: const {'convertedExistingReport': true},
+    );
+    final provider = SalesReportProvider(repository);
+    addTearDown(provider.dispose);
+
+    final result = await provider.submit(
+      _purchasedReportInput(),
+      const User(id: 'user-1', email: 'sale@phongvu.vn', role: 'USER'),
+      followUpCaseId: 'case-purchase',
+    );
+
+    expect(result, isTrue);
+    expect(
+      provider.successMessage,
+      'Đã ghi nhận khách quay lại và chuyển nguồn báo cáo.',
+    );
   });
 
   test('SalesReportQuery serializes admin date filters and export type', () {
@@ -1357,10 +1433,46 @@ class _FakeStoreAuthRepository extends AuthRepository {
   }
 }
 
+SalesReportInput _purchasedReportInput() {
+  return const SalesReportInput(
+    reportType: 'PURCHASED',
+    orderCode: '2606290001',
+    entrySource: 'COMEBACK',
+    customerName: 'Nguyễn Văn A',
+    customerPhone: '0900000000',
+    customerContactChannels: [salesReportContactChannelPhone],
+    customerZaloContact: null,
+    categoryGroupId: 'NH08',
+    categoryGroupIds: ['NH08'],
+    customerNeed: 'Laptop',
+    consultedSolutionAnswer: 'YES',
+    consultedSolutionOtherReason: null,
+    experiencedAnswer: 'YES',
+    experiencedOtherReason: null,
+    zaloAnswer: 'YES',
+    zaloOtherReason: null,
+    appDownloadAnswer: 'YES',
+    appDownloadOtherReason: null,
+    notPurchasedReason: null,
+    notPurchasedOtherReason: null,
+    customerType: 'PERSONAL',
+    customerIsStudent: false,
+    promotionCodes: ['OTHER'],
+    installmentNeed: false,
+    installmentApproved: null,
+    installmentLoanAmount: null,
+    installmentNoInstallmentReason: null,
+    installmentStatus: null,
+    installmentFailureReason: null,
+    installmentPartnerCodes: [],
+  );
+}
+
 class _FakeSalesReportRepository extends SalesReportRepository {
   final bool managedScope;
   final int unreportedTotal;
   final Map<String, dynamic> orderCheckOverrides;
+  final Map<String, dynamic> createResponse;
   bool createCalled = false;
   int fetchListCount = 0;
   int fetchOrdersCount = 0;
@@ -1373,6 +1485,7 @@ class _FakeSalesReportRepository extends SalesReportRepository {
     this.managedScope = false,
     this.unreportedTotal = 21,
     this.orderCheckOverrides = const {},
+    this.createResponse = const {},
   }) : super(ApiClient());
 
   @override
@@ -1395,7 +1508,7 @@ class _FakeSalesReportRepository extends SalesReportRepository {
   }) async {
     createCalled = true;
     lastInput = input;
-    return const {};
+    return createResponse;
   }
 
   @override

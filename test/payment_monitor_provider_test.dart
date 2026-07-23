@@ -632,7 +632,7 @@ void main() {
   );
 
   test(
-    'background runtime preserves cache and does not read on events',
+    'background runtime defers event refresh until foreground once',
     () async {
       SharedPreferences.setMockInitialValues({
         AppStorageKeys.shared('payment_monitor_enabled'): false,
@@ -655,7 +655,11 @@ void main() {
         () => repository.transactionFetchCount == 1 && !provider.isLoading,
       );
 
-      provider.syncRuntime(isForeground: false, isListViewActive: false);
+      provider.syncRuntime(
+        isForeground: false,
+        isListViewActive: false,
+        allowBackgroundSpeakerRuntime: true,
+      );
       await provider.handleRealtimeMessageForTesting(
         _realtimeEnvelope(
           kind: 'PAYMENT_NOTIFICATION',
@@ -672,7 +676,54 @@ void main() {
       );
       expect(repository.transactionFetchCount, 1);
 
-      provider.syncRuntime(isForeground: true, isListViewActive: false);
+      provider.syncRuntime(
+        isForeground: true,
+        isListViewActive: false,
+        allowBackgroundSpeakerRuntime: true,
+      );
+      await _waitUntil(
+        () => repository.transactionFetchCount == 2 && !provider.isLoading,
+      );
+      provider.syncRuntime(
+        isForeground: true,
+        isListViewActive: false,
+        allowBackgroundSpeakerRuntime: true,
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 650));
+
+      expect(repository.transactionFetchCount, 2);
+    },
+  );
+
+  test(
+    'background speaker event plays without refreshing the transaction list',
+    () async {
+      final repository = _FakePaymentMonitorRepository(notifications: const []);
+      final speaker = _FakePaymentSpeaker();
+      final realtime = _FakeRealtimeClient();
+      final provider = PaymentMonitorProvider(
+        repository,
+        speaker,
+        null,
+        retryDelay,
+        realtime,
+      );
+
+      provider.syncRuntime(
+        isForeground: true,
+        isListViewActive: true,
+        allowBackgroundSpeakerRuntime: true,
+      );
+      await Future<void>.delayed(Duration.zero);
+      provider.syncAuth(_storeUser(storeId: 'CP01'), isInitialized: true);
+      await _waitUntil(
+        () =>
+            repository.transactionFetchCount == 1 &&
+            !provider.isLoading &&
+            realtime.activeBackgroundLeaseCount == 1,
+      );
+      final initialTransactionFetchCount = repository.transactionFetchCount;
+
       await provider.handleRealtimeMessageForTesting(
         _realtimeEnvelope(
           kind: 'PAYMENT_NOTIFICATION',
@@ -681,13 +732,137 @@ void main() {
           sequence: 2,
         ),
       );
-      await _waitUntil(
-        () => repository.transactionFetchCount == 2 && !provider.isLoading,
+      provider.syncRuntime(
+        isForeground: false,
+        isListViewActive: false,
+        allowBackgroundSpeakerRuntime: true,
       );
+      realtime.addBackgroundSpeakerEvent(
+        _realtimeEnvelope(
+          kind: 'PAYMENT_SPEAKER_STREAM',
+          topic: 'payment.speaker',
+          data: _streamPayload('note-background'),
+        ),
+      );
+      await _waitUntil(() => repository.ackEvents.contains('PLAYED'));
+      await Future<void>.delayed(const Duration(milliseconds: 600));
 
-      expect(repository.transactionFetchCount, 2);
+      expect(speaker.playCount, 1);
+      expect(repository.transactionFetchCount, initialTransactionFetchCount);
+      expect(realtime.activeBackgroundLeaseCount, 1);
+
+      provider.dispose();
+      expect(realtime.activeBackgroundLeaseCount, 0);
+      await realtime.dispose();
     },
   );
+
+  test(
+    'background reconnect sync drains speaker metadata without a list fetch',
+    () async {
+      final repository = _FakePaymentMonitorRepository(
+        notifications: const [],
+        notificationBatches: [
+          const [],
+          [
+            _readyNotification(
+              notificationId: 'note-background-ready',
+              transactionId: 'txn-background-ready',
+            ),
+          ],
+        ],
+      );
+      final realtime = _FakeRealtimeClient();
+      final provider = PaymentMonitorProvider(
+        repository,
+        _FakePaymentSpeaker(),
+        null,
+        retryDelay,
+        realtime,
+        const Duration(hours: 1),
+      );
+
+      provider.syncRuntime(
+        isForeground: true,
+        isListViewActive: true,
+        allowBackgroundSpeakerRuntime: true,
+      );
+      await Future<void>.delayed(Duration.zero);
+      provider.syncAuth(_storeUser(storeId: 'CP01'), isInitialized: true);
+      await _waitUntil(
+        () =>
+            repository.transactionFetchCount == 1 &&
+            repository.readyFetchCount >= 1 &&
+            !provider.isLoading,
+      );
+      final initialTransactionFetchCount = repository.transactionFetchCount;
+
+      provider.syncRuntime(
+        isForeground: false,
+        isListViewActive: false,
+        allowBackgroundSpeakerRuntime: true,
+      );
+      realtime.addBackgroundSpeakerSync(RealtimeSyncReason.reconnected);
+      await _waitUntil(() => repository.ackEvents.contains('PLAYED'));
+
+      expect(repository.readyFetchCount, greaterThanOrEqualTo(2));
+      expect(repository.transactionFetchCount, initialTransactionFetchCount);
+
+      provider.dispose();
+      await realtime.dispose();
+    },
+  );
+
+  test('speaker lease releases on mute detached logout and dispose', () async {
+    final realtime = _FakeRealtimeClient();
+    final provider = PaymentMonitorProvider(
+      _FakePaymentMonitorRepository(notifications: const []),
+      _FakePaymentSpeaker(),
+      null,
+      retryDelay,
+      realtime,
+    );
+
+    provider.syncRuntime(
+      isForeground: true,
+      isListViewActive: false,
+      allowBackgroundSpeakerRuntime: true,
+    );
+    await Future<void>.delayed(Duration.zero);
+    provider.syncAuth(_storeUser(storeId: 'CP01'), isInitialized: true);
+    await _waitUntil(() => realtime.activeBackgroundLeaseCount == 1);
+
+    await provider.setSpeakerEnabled(false);
+    expect(realtime.activeBackgroundLeaseCount, 0);
+
+    await provider.setSpeakerEnabled(true);
+    await _waitUntil(() => realtime.activeBackgroundLeaseCount == 1);
+
+    provider.syncRuntime(
+      isForeground: false,
+      isListViewActive: false,
+      allowBackgroundSpeakerRuntime: false,
+    );
+    expect(realtime.activeBackgroundLeaseCount, 0);
+
+    provider.syncRuntime(
+      isForeground: true,
+      isListViewActive: false,
+      allowBackgroundSpeakerRuntime: true,
+    );
+    await _waitUntil(() => realtime.activeBackgroundLeaseCount == 1);
+
+    provider.syncAuth(null, isInitialized: true);
+    expect(realtime.activeBackgroundLeaseCount, 0);
+
+    provider.syncAuth(_storeUser(storeId: 'CP01'), isInitialized: true);
+    await _waitUntil(() => realtime.activeBackgroundLeaseCount == 1);
+    provider.dispose();
+
+    expect(realtime.activeBackgroundLeaseCount, 0);
+    expect(realtime.acquiredBackgroundLeaseCount, greaterThanOrEqualTo(4));
+    await realtime.dispose();
+  });
 
   test(
     'foreground resume on active payment route keeps cache without fetching',
@@ -1983,9 +2158,16 @@ class _FakePaymentAmountAudioComposer implements PaymentAmountAudioComposer {
   }
 }
 
-class _FakeRealtimeClient implements RealtimeClient {
+class _FakeRealtimeClient
+    implements RealtimeClient, RealtimeBackgroundConnectionController {
   final _events = StreamController<RealtimeEnvelope>.broadcast();
   final _syncRequests = StreamController<RealtimeSyncReason>.broadcast();
+  final _backgroundSpeakerEvents =
+      StreamController<RealtimeEnvelope>.broadcast();
+  final _backgroundSpeakerSyncRequests =
+      StreamController<RealtimeSyncReason>.broadcast();
+  int acquiredBackgroundLeaseCount = 0;
+  int activeBackgroundLeaseCount = 0;
 
   @override
   Stream<RealtimeEnvelope> get events => _events.stream;
@@ -1993,9 +2175,32 @@ class _FakeRealtimeClient implements RealtimeClient {
   @override
   Stream<RealtimeSyncReason> get syncRequests => _syncRequests.stream;
 
+  @override
+  Stream<RealtimeEnvelope> get backgroundSpeakerEvents =>
+      _backgroundSpeakerEvents.stream;
+
+  @override
+  Stream<RealtimeSyncReason> get backgroundSpeakerSyncRequests =>
+      _backgroundSpeakerSyncRequests.stream;
+
   void addEvent(RealtimeEnvelope envelope) => _events.add(envelope);
 
   void addSync(RealtimeSyncReason reason) => _syncRequests.add(reason);
+
+  void addBackgroundSpeakerEvent(RealtimeEnvelope envelope) =>
+      _backgroundSpeakerEvents.add(envelope);
+
+  void addBackgroundSpeakerSync(RealtimeSyncReason reason) =>
+      _backgroundSpeakerSyncRequests.add(reason);
+
+  @override
+  RealtimeBackgroundConnectionLease acquireBackgroundConnection(String owner) {
+    acquiredBackgroundLeaseCount += 1;
+    activeBackgroundLeaseCount += 1;
+    return _FakeRealtimeBackgroundConnectionLease(() {
+      activeBackgroundLeaseCount -= 1;
+    });
+  }
 
   @override
   Future<void> syncSession(String? sessionKey) async {}
@@ -2003,6 +2208,23 @@ class _FakeRealtimeClient implements RealtimeClient {
   Future<void> dispose() async {
     await _events.close();
     await _syncRequests.close();
+    await _backgroundSpeakerEvents.close();
+    await _backgroundSpeakerSyncRequests.close();
+  }
+}
+
+class _FakeRealtimeBackgroundConnectionLease
+    implements RealtimeBackgroundConnectionLease {
+  _FakeRealtimeBackgroundConnectionLease(this._onRelease);
+
+  void Function()? _onRelease;
+
+  @override
+  void release() {
+    final onRelease = _onRelease;
+    if (onRelease == null) return;
+    _onRelease = null;
+    onRelease();
   }
 }
 

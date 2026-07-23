@@ -13,6 +13,102 @@ describe('SalesReportFollowUpsService', () => {
     else process.env[graceUntilEnv] = originalGraceUntil;
   });
 
+  function purchasedCaseFixture() {
+    return {
+      id: 'case-purchase',
+      status: 'OPEN',
+      assigneeUserId: 'user-1',
+      assigneeEmail: 'sale@phongvu.vn',
+      assigneeName: 'Sale User',
+      followUpCount: 0,
+      sourceReport: {
+        id: 'source-not-purchased',
+        reportType: 'NOT_PURCHASED',
+        customerName: 'Nguyễn Văn A',
+        customerPhone: '0900000000',
+        customerZaloContact: null,
+        storeCode: 'CP62',
+        storeName: 'CP62',
+        organizationNodeId: 'node-cp62',
+        organizationNodeName: 'CP62',
+        regionCode: null,
+        areaCode: null,
+      },
+      entries: [],
+    };
+  }
+
+  function createPurchaseHarness(options: {
+    existingSyncListReportId: string | null;
+    convertedCount?: number;
+  }) {
+    const row = purchasedCaseFixture();
+    const prisma: any = {
+      user: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'user-1',
+          email: 'sale@phongvu.vn',
+          role: 'SUPER_ADMIN',
+        }),
+      },
+      salesReportFollowUpCase: {
+        findUnique: jest.fn().mockResolvedValue(row),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+        update: jest.fn().mockResolvedValue({}),
+      },
+      salesReportFollowUpEntry: {
+        create: jest.fn().mockResolvedValue({}),
+      },
+      salesReport: {
+        updateMany: jest
+          .fn()
+          .mockResolvedValue({ count: options.convertedCount ?? 1 }),
+        findUnique: jest.fn().mockResolvedValue({
+          id: options.existingSyncListReportId,
+          reportType: 'PURCHASED',
+          orderCode: '2606290001',
+          entrySource: 'COMEBACK',
+          items: [],
+          payments: [],
+          categorySelections: [],
+        }),
+        create: jest.fn().mockResolvedValue({
+          id: 'new-comeback',
+          reportType: 'PURCHASED',
+          orderCode: '2606290001',
+          entrySource: 'COMEBACK',
+          items: [],
+          payments: [],
+          categorySelections: [],
+        }),
+      },
+    };
+    prisma.$transaction = jest.fn((callback: any) => callback(prisma));
+    const salesReports = {
+      create: jest.fn(async (_user: any, _body: any, createOptions: any) => {
+        const persisted = await createOptions.persist(
+          { reportType: 'PURCHASED' },
+          { items: true, payments: true, categorySelections: true },
+          {
+            existingSyncListReportId: options.existingSyncListReportId,
+            orderCode: '2606290001',
+          },
+        );
+        return {
+          ...persisted.report,
+          convertedExistingReport: persisted.convertedExistingReport,
+        };
+      }),
+    };
+    const redis = { publishMessage: jest.fn().mockResolvedValue(undefined) };
+    const service = new SalesReportFollowUpsService(
+      prisma,
+      salesReports as any,
+      redis as any,
+    );
+    return { service, prisma, salesReports, redis };
+  }
+
   it('sau grace chỉ hiển thị số điện thoại hợp lệ hoặc kênh Zalo đã lưu', async () => {
     process.env[graceUntilEnv] = '2000-07-31T02:00:00.000Z';
     const makeRow = (
@@ -328,6 +424,102 @@ describe('SalesReportFollowUpsService', () => {
 
     expect(result.entries).toHaveLength(1);
     expect(result.assignmentCandidates).toEqual([]);
+  });
+
+  it('atomically converts and links the existing synced report without creating a new report', async () => {
+    const { service, prisma } = createPurchaseHarness({
+      existingSyncListReportId: 'existing-synced',
+    });
+
+    await expect(
+      service.createEntry(
+        { id: 'user-1', email: 'sale@phongvu.vn', role: 'SUPER_ADMIN' },
+        'case-purchase',
+        {
+          outcome: 'PURCHASED',
+          purchasedReport: { orderCode: '2606290001' } as any,
+        },
+      ),
+    ).resolves.toMatchObject({
+      caseStatus: 'PURCHASED',
+      convertedExistingReport: true,
+      report: { id: 'existing-synced' },
+    });
+    expect(prisma.salesReport.updateMany).toHaveBeenCalledWith({
+      where: {
+        id: 'existing-synced',
+        orderCode: '2606290001',
+        reportType: 'PURCHASED',
+        entrySource: 'SYNC_LIST',
+      },
+      data: { entrySource: 'COMEBACK' },
+    });
+    expect(prisma.salesReport.create).not.toHaveBeenCalled();
+    expect(prisma.salesReportFollowUpEntry.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        caseId: 'case-purchase',
+        outcome: 'PURCHASED',
+        purchasedReportId: 'existing-synced',
+      }),
+    });
+    expect(prisma.salesReportFollowUpCase.update).toHaveBeenCalledWith({
+      where: { id: 'case-purchase' },
+      data: expect.objectContaining({
+        status: 'PURCHASED',
+        convertedReportId: 'existing-synced',
+      }),
+    });
+  });
+
+  it('fails closed when another request already converted the synced report', async () => {
+    const { service, prisma } = createPurchaseHarness({
+      existingSyncListReportId: 'existing-synced',
+      convertedCount: 0,
+    });
+
+    await expect(
+      service.createEntry(
+        { id: 'user-1', email: 'sale@phongvu.vn', role: 'SUPER_ADMIN' },
+        'case-purchase',
+        {
+          outcome: 'PURCHASED',
+          purchasedReport: { orderCode: '2606290001' } as any,
+        },
+      ),
+    ).rejects.toThrow(
+      'Đơn hàng này đã được ghi nhận là khách quay lại, không thể tạo báo cáo mua hàng trùng.',
+    );
+    expect(prisma.salesReport.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ entrySource: 'SYNC_LIST' }),
+      }),
+    );
+    expect(prisma.salesReport.create).not.toHaveBeenCalled();
+    expect(prisma.salesReportFollowUpEntry.create).not.toHaveBeenCalled();
+    expect(prisma.salesReportFollowUpCase.update).not.toHaveBeenCalled();
+  });
+
+  it('keeps creating a new comeback report when no synced report exists', async () => {
+    const { service, prisma } = createPurchaseHarness({
+      existingSyncListReportId: null,
+    });
+
+    await expect(
+      service.createEntry(
+        { id: 'user-1', email: 'sale@phongvu.vn', role: 'SUPER_ADMIN' },
+        'case-purchase',
+        {
+          outcome: 'PURCHASED',
+          purchasedReport: { orderCode: '2606290001' } as any,
+        },
+      ),
+    ).resolves.toMatchObject({
+      caseStatus: 'PURCHASED',
+      convertedExistingReport: false,
+      report: { id: 'new-comeback' },
+    });
+    expect(prisma.salesReport.updateMany).not.toHaveBeenCalled();
+    expect(prisma.salesReport.create).toHaveBeenCalled();
   });
 
   it('publishes follow-up changes with a strict server-derived audience', async () => {

@@ -213,7 +213,9 @@ class SalesReportProvider extends ChangeNotifier {
         followUpCaseId: followUpCaseId,
       );
       _checkedOrder = result;
-      _successMessage = 'Đã kiểm tra đơn hàng.';
+      _successMessage = result.willConvertSyncedReport
+          ? 'Đơn hàng này đã có trong danh sách đồng bộ. Nếu lưu mua hàng, hệ thống sẽ chuyển báo cáo sang Khách quay lại.'
+          : 'Đã kiểm tra đơn hàng.';
       await AppLogger.instance.info(
         'SalesReport',
         'Sales report order check succeeded',
@@ -231,6 +233,7 @@ class SalesReportProvider extends ChangeNotifier {
           'hasInstallmentLoanAmount': result.installmentLoanAmount != null,
           'paymentStatus': result.order['paymentStatus']?.toString(),
           'pendingPaymentBlocked': result.isPendingPayment,
+          'willConvertSyncedReport': result.willConvertSyncedReport,
           'durationMs': DateTime.now().difference(startedAt).inMilliseconds,
         },
       );
@@ -407,8 +410,17 @@ class SalesReportProvider extends ChangeNotifier {
           'storeId': user?.storeId,
         },
       );
-      await _repository.create(input, followUpCaseId: followUpCaseId);
-      _successMessage = 'Đã gửi báo cáo.';
+      final response = await _repository.create(
+        input,
+        followUpCaseId: followUpCaseId,
+      );
+      final convertedExistingReport =
+          response['convertedExistingReport'] == true ||
+          (response['report'] is Map &&
+              (response['report'] as Map)['convertedExistingReport'] == true);
+      _successMessage = convertedExistingReport
+          ? 'Đã ghi nhận khách quay lại và chuyển nguồn báo cáo.'
+          : 'Đã gửi báo cáo.';
       await AppLogger.instance.info(
         'SalesReport',
         'Sales report submit succeeded',
@@ -416,6 +428,7 @@ class SalesReportProvider extends ChangeNotifier {
           'type': input.reportType,
           'entrySource': input.entrySource,
           if (followUpCaseId != null) 'followUpCaseId': followUpCaseId,
+          'convertedExistingReport': convertedExistingReport,
           'orderLength': (input.orderCode ?? '').trim().length,
           'orderSuffix': _orderSuffix(input.orderCode),
           'categoryGroupId': input.categoryGroupId,

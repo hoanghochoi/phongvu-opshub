@@ -3369,3 +3369,34 @@ removed all raw artifacts.
   newly played notifications use `triggerSource=realtime_stream`, with median
   `paidAt -> STREAM_STARTED` below 5 seconds; fallback traffic must remain the
   minority safety path.
+
+## OPS-14 + OPS-16 review-readiness proof (2026-07-24)
+
+- OPS-14 keeps the eligible Windows payment speaker on the existing shared
+  `/ws/v2` connection through a scoped background lease. `inactive` retains
+  the baseline socket behavior, `hidden`/`paused` require the lease, and
+  `detached` always stops. Background processing is limited to the speaker
+  stream and `/ready`; transaction-list and other UI reads remain
+  foreground-only. Focused Flutter proof passed, followed by affected-consumer
+  proof for auth/runtime coordinators, notifications, delivery metrics, Home,
+  warranty, quick actions, bank statement, offset adjustment, and Sales Report.
+- OPS-16 enforces one-way conversion only: an existing purchased `SYNC_LIST`
+  report may become `COMEBACK` inside the follow-up claim transaction, using a
+  conditional update that requires the same report id, normalized order code,
+  purchased type, and source. It preserves the report id and related payloads;
+  existing `COMEBACK` reports are blocked for manual, ERP/cockpit, and retry
+  paths. Focused Nest/Flutter proof covers atomic conversion, race/retry
+  failure, duplicate blocking, create-only-when-absent behavior, Vietnamese UI
+  copy, and BigQuery mapping.
+- Final local gates passed on the integrated changeset: OPS-14 focused Flutter
+  tests (49/49); affected realtime/UI consumers (187/187: 185 serial plus 2
+  runtime-coordinator tests); Flutter
+  analyze; full Flutter tests (610 passed, with 3 intentional platform skips);
+  OPS-16 focused Nest tests (3 suites, 89 tests); Nest build; full Nest tests
+  (88 suites, 863 tests); Prisma validate; Go tests (64 tests); Windows debug
+  build; and `git diff --check`. No schema or dependency-lock change is
+  included.
+- Remaining staging/manual proof: physical Windows speaker playback across
+  minimize/restore, a concurrent follow-up transaction against live
+  PostgreSQL, and a live BigQuery refresh. These are post-PR staging gates and
+  are not claimed as local proof.

@@ -28,8 +28,10 @@
    khi chọn một SR thì danh sách tải lại đúng `storeCode` đã chọn.
 5. Modal giữ header khách hàng cố định, hiển thị lịch sử, tự mở lần chăm sóc kế
    tiếp và cho chọn bốn kết quả.
-6. `PURCHASED` tạo báo cáo `COMEBACK` bằng form mua hàng hiện tại, giữ báo cáo
-   gốc và chỉ lấy người bán từ `order.creator.email` ERP.
+6. `PURCHASED` dùng form mua hàng hiện tại. Đơn chưa có báo cáo tạo báo cáo
+   `COMEBACK`; đơn đã có `SYNC_LIST` chuyển một chiều chính báo cáo đó sang
+   `COMEBACK`, giữ id/dữ liệu và liên kết cùng report vào hồ sơ. Báo cáo đã là
+   `COMEBACK` hoặc nguồn khác bị chặn trùng; không có chiều chuyển ngược.
 7. Hai trạng thái terminal nằm trong `Đã ẩn`; assignee mở lại được. Hồ sơ đã mua
    không xuất hiện lại.
 8. Mobile hỗ trợ gọi/Zalo; desktop/web sao chép liên hệ. Mọi nhánh chính có

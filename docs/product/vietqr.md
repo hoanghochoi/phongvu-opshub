@@ -132,7 +132,9 @@ a customer to scan and pay manually.
   background keeps the cache but pauses new reads until it returns to the
   foreground. The app reconnects the realtime socket after disconnects. On
   Windows speaker-capable clients, a lightweight ready-notification fallback
-  drains only the speaker backlog after realtime silence, but only for
+  and the existing shared realtime socket continue while the app process is
+  inactive, hidden, or minimized and the speaker remains eligible. They drain
+  only the speaker backlog after realtime silence, but only for
   notifications still inside the short recovery window. This `/ready` fallback
   is separate from transaction-list refresh and never polls that list.
   Stream-pending notifications older than 30 seconds are recorded as not read
