@@ -1,0 +1,3 @@
+{"op":"changeset.header","version":1,"run_id":"fixture_negative_unsupported","base_schema_version":13}
+{"op":"story.add","version":1,"id":"FIX-ROLLBACK","payload":{"title":"Must roll back","risk_lane":"normal","contract_doc":null,"verify_command":null,"notes":null}}
+{"op":"fixture.unsupported","version":1,"payload":{}}

@@ -1,0 +1,14 @@
+{"op":"changeset.header","version":1,"run_id":"fixture_generic_story_graph","base_schema_version":13}
+{"op":"story.add","version":1,"id":"FIX-ROOT","payload":{"title":"Generic root","risk_lane":"normal","contract_doc":"docs/product/fixture.md","verify_command":"true","notes":"fixture"}}
+{"op":"story.add","version":1,"id":"FIX-CHILD","payload":{"title":"Generic child","risk_lane":"normal","contract_doc":null,"verify_command":"true","notes":null}}
+{"op":"story.add","version":1,"id":"FIX-RETIRED","payload":{"title":"Generic retired story","risk_lane":"tiny","contract_doc":null,"verify_command":null,"notes":null}}
+{"op":"story.add","version":1,"id":"FIX-VERIFIED","payload":{"title":"Generic verified story","risk_lane":"high_risk","contract_doc":null,"verify_command":"true","notes":null}}
+{"op":"story.update","version":1,"id":"FIX-CHILD","payload":{"status":"changed","evidence":"generic update evidence","unit_proof":1,"integration_proof":1,"e2e_proof":0,"platform_proof":0,"verify_command":"printf fixture"}}
+{"op":"story.update","version":1,"id":"FIX-RETIRED","payload":{"status":"retired"}}
+{"op":"story.verify","version":2,"id":"FIX-VERIFIED","payload":{"result":"pass","verified_at":"2040-01-02 03:04:05"}}
+{"op":"story.dependency.add","version":1,"id":"FIX-ROOT","payload":{"blocked":"FIX-CHILD"}}
+{"op":"story.dependency.remove","version":1,"id":"FIX-ROOT","payload":{"blocked":"FIX-CHILD"}}
+{"op":"story.dependency.add","version":1,"id":"FIX-ROOT","payload":{"blocked":"FIX-CHILD"}}
+{"op":"story.hierarchy.add","version":1,"id":"FIX-ROOT","payload":{"child":"FIX-CHILD"}}
+{"op":"story.hierarchy.remove","version":1,"id":"FIX-ROOT","payload":{"child":"FIX-CHILD"}}
+{"op":"story.hierarchy.add","version":1,"id":"FIX-ROOT","payload":{"child":"FIX-CHILD"}}

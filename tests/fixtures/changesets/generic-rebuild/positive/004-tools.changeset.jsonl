@@ -1,0 +1,6 @@
+{"op":"changeset.header","version":1,"run_id":"fixture_generic_tools","base_schema_version":13}
+{"op":"tool.register","version":1,"id":"fixture-removed-tool","payload":{"command":"fixture-missing-command","description":"Temporary generic fixture provider","args":null,"responsibility":"Verification","kind":"cli","capability":"fixture-verification","scan_target":null}}
+{"op":"tool.check","version":1,"id":"fixture-removed-tool","payload":{"status":"missing"}}
+{"op":"tool.remove","version":1,"id":"fixture-removed-tool","payload":{}}
+{"op":"tool.register","version":1,"id":"fixture-retained-tool","payload":{"command":"fixture-provider","description":"Retained generic fixture provider","args":"[]","responsibility":"Context","kind":"binary","capability":"fixture-context","scan_target":"fixture-provider"}}
+{"op":"tool.check","version":1,"id":"fixture-retained-tool","payload":{"status":"present"}}

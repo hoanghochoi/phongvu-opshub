@@ -137,20 +137,20 @@ Read in this order:
 4. `docs/stories/` for story packets and active backlog.
 5. `docs/TEST_MATRIX.md` for required proof and known gaps.
 6. `docs/decisions/` for durable tradeoffs.
-7. `scripts/harness query matrix` for the structured durable-layer view when
+7. `scripts/bin/harness-cli.exe query matrix` for the structured durable-layer view when
    `harness.db` has been initialized. On Windows PowerShell, define the Git for
    Windows login shell once and use it for every Harness command in this guide;
    do not rely on whichever `bash.exe` happens to be first on `PATH`:
 
    ```powershell
    $gitBash = "${env:ProgramFiles}\Git\bin\bash.exe"
-   & $gitBash --login scripts/harness query matrix
+   & $gitBash --login scripts/bin/harness-cli.exe query matrix
    ```
 
    Codex `Agent environment = Windows native` keeps this Git Bash entrypoint
    even when the integrated terminal shell is WSL. From a manually opened WSL
    terminal, read-only `doctor`, `query`, and `audit` commands may use
-   `bash scripts/harness ...` from the mounted repo. Stored proof commands are
+   `scripts/bin/harness-cli.exe ...` from the mounted repo. Stored proof commands are
    not automatically WSL-safe; keep mutation and proof gates on the
    Windows-native Git Bash route unless their commands use a cross-platform
    wrapper such as `bash scripts/validate ...`.
@@ -178,16 +178,15 @@ Every implementation request goes through intake first:
 5. Decide the minimum validation proof before editing code.
 6. When the durable harness DB is available, record meaningful intakes,
    story/proof updates, decisions, backlog items, or traces through
-   `scripts/harness` instead of hand-editing structured operational records.
+    `scripts/bin/harness-cli.exe` instead of hand-editing structured operational records.
 7. If a task ships a temporary Phase 1, defers accepted behavior, or leaves
    technical debt, record it with
-   `scripts/harness backlog add --kind phase_followup|product_followup|tech_debt`
+    `scripts/bin/harness-cli.exe backlog add --kind phase_followup|product_followup|tech_debt`
    before reporting done.
-8. Keep harness framework files and runtime state local-only unless the user
-   explicitly asks otherwise. Treat `.gitignore` as the canonical boundary and
-   run `git check-ignore -v <path>` before staging a Harness artifact. Tracked
-   policy files such as this guide, `docs/FEATURE_INTAKE.md`, and accepted ADRs
-   remain separate from the ignored local Harness framework and state.
+8. Track the upstream Harness framework, protocol, schemas, docs, and tests in
+   Git so every branch inherits the same core. Keep only runtime databases,
+   WAL/SHM files, downloaded binaries, update state, and temporary backups
+   ignored according to the upstream consumer profile.
 
 ## Existing Runtime Regression Gate
 
@@ -257,3 +256,34 @@ A task is done only when:
 - The final report says what changed, what was verified, and any remaining risk.
 - The linked issue contains the same implementation/proof record and a concrete
   next-step recommendation when an issue tracker is part of the workflow.
+
+<!-- HARNESS:BEGIN -->
+## Harness
+
+Start with the requested outcome, then use the repository as the system of
+record. Read `docs/WORKFLOW.md` and only the product, design, plan, code, and
+validation material relevant to the task.
+
+- Answers, explanations, reviews, diagnoses, plans, and status reports are
+  read-only. Inspect only what is needed and do not mutate repository or Harness
+  state.
+- For a bounded change, use an ephemeral plan: inspect the affected behavior and
+  existing proof, implement the change, and run behavior-appropriate validation.
+  No control-plane operation is required.
+- Create or update one file under `docs/plans/active/` when work spans sessions,
+  needs coordination or an ordered sequence, has meaningful dependencies, or
+  requires explicit recovery steps. Move it to `docs/plans/completed/` only
+  after validation.
+- Before editing, identify repository authority for each new externally
+  observable policy. If materially different choices remain open, stop before
+  edits; configurable defaults are not authority.
+- Also pause when product intent remains ambiguous, an action is difficult to
+  recover, validation would be weakened, or the request does not authorize the
+  needed action.
+- Claim completion only with relevant executable or observable evidence. Report
+  the outcome, important changed surfaces, validation, and unresolved risks.
+
+SQLite intake, story, trace, scoring, audit, and proposal commands are optional
+compatibility features. Use them only when explicitly requested or required by
+an external orchestrator.
+<!-- HARNESS:END -->
