@@ -8,6 +8,7 @@
 | NestJS | No runtime change; not required. |
 | Go realtime | No runtime change; not required. |
 | Integration | Fixture proves dry-run no-op, exact fast-forward execute, and blocked divergence/stale SHA/missing QA/dirty state. |
+| Task lifecycle | OPS-18 fixture proves guarded staging sync, exact start SHA, merged-task cleanup, stale remote rollback, dirty/diverged/unmerged/protected blocks. |
 | Platform | Parse every workflow YAML; inspect pinned actions and least-privilege App token inputs; keep an always-on `Release guard` check for PRs into `staging` or `main`. |
 | Release | Preserve existing `staging` and `main` push consumers; GitHub CI pass/fail verifier; affected-runtime guard and final fingerprint. |
 
@@ -20,10 +21,20 @@
 - `.github/workflows/release-guard-pr.yml` runs the fixture proof and patch
   whitespace check on every PR into `staging` or `main`; its static contract is
   covered by the 8/8 test suite.
-- PyYAML parsed all six `.github/workflows/*.yml`: pass.
+- PyYAML parsed all eight `.github/workflows/*.yml`: pass.
 - `git diff --check`: pass.
 - Existing consumers explicitly tested: `Deploy OpsHub Staging` remains bound
   to `staging` pushes; `Deploy OpsHub` remains bound to `main` pushes.
+- OPS-18 lifecycle fixture: 11/11 passed, including start dry-run and exact
+  SHA creation, fast-forward-only sync, post-sync dirty artifact blocking,
+  diverged staging, stale remote rollback, merged-task cleanup, unmerged PR,
+  dirty task worktree, and protected branch rejection.
+- `Release guard` PR integration: existing 8/8 passed with the lifecycle suite
+  wired into `.github/workflows/release-guard-pr.yml`.
+- All 8 workflow YAML files parsed and `git diff --check` passed.
+- Canonical staging proof: the dirty gate first rejected the 10 legacy Harness
+  artifacts, then a post-quarantine `start` dry-run passed with local, fetched,
+  and live `origin/staging` equal at `0cc43097`; `harness.db` was unchanged.
 - GitHub read-only audit: current ruleset protects delete/non-fast-forward only;
   production is limited to `main` and `help-content`, has required reviewer
   `1618hoangnguyen`, and rejects admin bypass. Repository variable

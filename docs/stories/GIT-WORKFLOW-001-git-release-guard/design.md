@@ -14,6 +14,15 @@ manual dispatch requires exact QA/release phrases, pauses on the protected
 the guard with GitHub CI verification. The App token is required instead of
 `GITHUB_TOKEN` so the `main` push can trigger the existing production workflow.
 
+The local task boundary is guarded separately by
+`scripts/task-lifecycle.mjs`. `start` fetches and fast-forwards the canonical
+`staging` worktree only when it matches live `origin/staging`, then creates the
+Linear-linked task at that exact SHA. `finish` proves the PR is merged into
+`staging`, the task head/worktree are exact and clean, synchronizes staging,
+removes the task worktree/local branch, and rechecks the live staging SHA.
+Remote branch deletion remains a separately authorized GitHub operation because
+CI cannot safely mutate arbitrary local worktrees.
+
 Policy and operational details live in `AGENTS.md` and
 `docs/runbooks/git-release-playbook.md`. Rulesets remain an external repository
 configuration because their bypass actor ID is installation-specific.

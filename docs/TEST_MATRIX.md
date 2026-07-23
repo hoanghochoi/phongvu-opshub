@@ -45,6 +45,21 @@ This file maps product behavior to proof. Existing flows are marked
   App ruleset bypass, create missing Linear statuses, and perform a controlled
   workflow rehearsal.
 
+- `GIT-WORKFLOW-001` lifecycle extension, 2026-07-23: a guarded
+  `scripts/task-lifecycle.mjs` now owns the local post-merge/start boundary.
+  `finish` requires a merged staging PR, exact task head, clean registered
+  worktree, fast-forward-only staging sync, and then removes the local task
+  worktree/branch. `start` repeats the live `origin/staging` SHA proof before
+  creating a new task, and rolls back its own clean worktree/branch if the
+  remote advances during setup. Focused fixture proof passed 11/11, existing
+  release-guard proof passed 8/8, all 8 workflow YAML files parsed, and
+  `git diff --check` passed. The actual canonical staging dirty guard also
+  blocked the legacy untracked Harness artifacts as designed; after approved
+  quarantine, the canonical `start` dry-run passed at the exact live staging
+  SHA while the legacy `harness.db` hash remained unchanged. Ignored task
+  artifacts block cleanup unless `--allow-ignored` is explicit. Remote branch
+  deletion remains a separate publish action.
+
 - `AUTH-FEATURE-GATE-001`, 2026-07-20: `ADMIN` users now receive the same
   feature-gated workspace behavior as `SUPER_ADMIN` within their assigned
   scope; policy rules may narrow capability or widen data scope only after the

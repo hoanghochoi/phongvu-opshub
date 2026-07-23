@@ -272,6 +272,7 @@ test('workflow and policy preserve existing deploy consumers and never force pus
   assert.match(prWorkflow, /- main/);
   assert.match(prWorkflow, /name: Release guard/);
   assert.match(prWorkflow, /node scripts\/test-git-release-workflow\.mjs/);
+  assert.match(prWorkflow, /node scripts\/test-task-lifecycle\.mjs/);
   assert.match(prWorkflow, /git diff --check/);
   assert.doesNotMatch(prWorkflow, /secrets\.|GH_TOKEN|GITHUB_TOKEN/);
 
@@ -280,4 +281,5 @@ test('workflow and policy preserve existing deploy consumers and never force pus
   assert.match(policy, /explicit\s+command in the current task/);
   assert.match(policy, /Never promote an\s+arbitrary task branch or SHA to `main`/);
   assert.match(policy, /Never force-push or delete `staging` or `main`/);
+  assert.match(policy, /scripts\/task-lifecycle\.mjs/);
 });

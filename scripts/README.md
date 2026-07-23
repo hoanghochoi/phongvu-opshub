@@ -362,6 +362,43 @@ task-effect contracts; release workflow structure; and whitespace errors.
 Installed consumer projects keep their own stack-specific validation commands;
 the template does not impose this repository's Rust gate on them.
 
+## OpsHub Task Lifecycle
+
+OpsHub task worktrees must be created and closed from the canonical clean
+`staging` worktree. The command is dry-run by default and never deletes remote
+branches:
+
+```powershell
+node scripts/task-lifecycle.mjs start `
+  --issue OPS-123 `
+  --slug short-description `
+  --worktree ..\opshub-ops-123
+node scripts/task-lifecycle.mjs start `
+  --issue OPS-123 `
+  --slug short-description `
+  --worktree ..\opshub-ops-123 --execute
+
+# after PR merge into staging, before the next task
+node scripts/task-lifecycle.mjs finish `
+  --pr 456 `
+  --branch codex/ops-123-short-description `
+  --worktree ..\opshub-ops-123
+node scripts/task-lifecycle.mjs finish `
+  --pr 456 `
+  --branch codex/ops-123-short-description `
+  --worktree ..\opshub-ops-123 --execute
+```
+
+`start --execute` fetches and fast-forwards local `staging` only when it can
+reach the live `origin/staging` head, then creates the task at that exact SHA.
+`finish --execute` requires a merged PR into `staging`, matching task head and
+branch, and a clean registered worktree before removing it and its local
+squash-merged branch. Dirty, diverged, stale, protected, or unregistered state
+stops the command. Ignored files also stop cleanup unless the operator adds
+`--allow-ignored` after reviewing that those files may be deleted with the
+worktree. GitHub remote branch deletion remains a separately approved publish
+action.
+
 ## Changeset Rebuild Validation
 
 Run the durable repository rebuild and its validator contract regressions:
