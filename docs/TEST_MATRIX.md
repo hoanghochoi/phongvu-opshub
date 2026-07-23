@@ -96,6 +96,26 @@ This file maps product behavior to proof. Existing flows are marked
 
 ## Current Release Security Proof
 
+- `OPS-19`, 2026-07-24: refreshed only transitive `brace-expansion`
+  releases admitted by the existing parent ranges. Development copies now use
+  `1.1.16` or `2.1.2`, the production BigQuery/gaxios/rimraf path uses
+  `2.1.2`, and existing 5.x copies remain on the fixed `5.0.7`;
+  `body-parser@2.3.0` remains inherited from staging PR #7. Focused Express
+  proof covers valid JSON and URL-encoded requests, HTTP 413 for both oversized
+  body types, and fail-closed parser construction for an invalid configured
+  limit. Validation: focused Jest passed 2 suites/27 tests, Nest build passed,
+  full Jest passed 89 suites/869 tests, all seven installed brace-expansion
+  copies completed the 2,000-group consecutive-brace trigger in 352-429ms,
+  production/development dependency-tree checks and `git diff --check`
+  passed. Both npm audit modes still report five unrelated residual findings
+  in Hono/Prisma, fast-uri, and sharp; no force fix was applied. Docker runtime
+  image proof is unverified because the local Docker daemon is unavailable.
+  A separate stress probe using a very large valid option expansion exhausted
+  a 512MB child process; it is not the GHSA consecutive non-expanding-groups
+  trigger and no request-controlled glob path is proven in OpsHub, so it remains
+  an explicit residual rather than expanding this dependency-patch task.
+  Dependabot alerts remain open until the patch reaches the default production
+  branch and must not be dismissed manually.
 - `WINDOWS-DIST-001`, 2026-07-02: the manual MSIX workflow supports an
   internal signed sideload artifact with the selected Windows signing PFX, plus
   the existing Store artifact path with Partner Center identity secrets. Runtime

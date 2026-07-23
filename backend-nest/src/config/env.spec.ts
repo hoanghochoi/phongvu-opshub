@@ -1,6 +1,7 @@
 import {
   getDataSyncSource,
   getPort,
+  getRequestBodyLimit,
   isCorsOriginAllowed,
   getRequiredEnv,
   validateRuntimeEnv,
@@ -103,6 +104,11 @@ describe('env validation', () => {
     expect(() => getDataSyncSource({ DATA_SYNC_SOURCE: 'sheets' })).toThrow(
       'Invalid DATA_SYNC_SOURCE value: sheets',
     );
+  });
+
+  it('keeps the default request body limit and trims configured values', () => {
+    expect(getRequestBodyLimit({})).toBe('1mb');
+    expect(getRequestBodyLimit({ REQUEST_BODY_LIMIT: ' 2mb ' })).toBe('2mb');
   });
 
   it('rejects placeholder values in production', () => {
