@@ -1,0 +1,3 @@
+{"op":"changeset.header","version":1,"run_id":"fixture_generic_remap_b","base_schema_version":13}
+{"op":"intake.add","version":1,"id":1,"payload":{"input_type":"change_request","summary":"Generic remap B intake","risk_lane":"normal","risk_flags":null,"affected_docs":null,"story_id":null,"notes":null}}
+{"op":"trace.add","version":1,"id":1,"payload":{"task_summary":"Generic remap B trace","intake_id":1,"story_id":null,"agent":"fixture","actions_taken":"[\"replay\"]","files_read":null,"files_changed":null,"decisions_made":null,"errors":null,"outcome":"completed","duration_seconds":1,"token_estimate":1,"harness_friction":null,"notes":null}}

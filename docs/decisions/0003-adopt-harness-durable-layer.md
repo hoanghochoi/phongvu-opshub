@@ -1,5 +1,11 @@
 # 0003 Adopt Harness Durable Layer
 
+> Historical decision. OPS-15 supersedes the ignored-framework choice below by
+> tracking the upstream Harness surface, but local OpsHub DB/docs remain the
+> data authority until a preservation-first adapter is approved. Keep this
+> record for provenance; use `docs/WORKFLOW.md` and `AGENTS.md` for the current
+> authority and command boundaries.
+
 Date: 2026-05-24
 Amended: 2026-07-18
 

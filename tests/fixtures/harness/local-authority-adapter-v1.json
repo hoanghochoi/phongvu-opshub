@@ -1,0 +1,93 @@
+{
+  "fixture": "harness-local-authority-adapter-v1",
+  "purpose": "redacted golden digest derived from a WAL-safe copy of local harness.db",
+  "sidecar": {
+    "contract": "harness-local-authority-adapter-v1",
+    "local_only_fields": {
+      "backlog": {
+        "columns": ["kind"],
+        "count": 27,
+        "sha256": "1eed36803c4ead146d0b3e18bc2ebc75caec57bb84f36de9599fcaa220d214cc"
+      },
+      "intake": {
+        "columns": ["checkpoint_branch", "checkpoint_head", "checkpoint_dirty_paths", "checkpoint_worktree_state"],
+        "count": 92,
+        "sha256": "0bcdb7b4366fa3aed9f8f759943b2899371b275728afcd4e66aa40da1a3fc3da"
+      },
+      "intake.input_type.bug_fix": {
+        "count": 24,
+        "projection": "change_request",
+        "sha256": "802a8942a53efcc9d91c0aa0d7b7607829f2c183bee17c81f98074f3cbb82299"
+      },
+      "story": {
+        "columns": ["path_contracts", "affected_verify_command", "last_affected_verified_at", "last_affected_result", "last_affected_fingerprint"],
+        "count": 37,
+        "sha256": "3c0820572e12a6eb97c6e396db66ac83817a38e6f4072ee20d26db677d39b58e"
+      }
+    },
+    "source_schema_version": 12,
+    "source_snapshot_sha256": "dd34da3afd6985e5d5c9c58eebd435863041f96ca3a3daa3eda6aff3566031be"
+  },
+  "source": {
+    "root_file_sha256": "7B529CCF63F9E3709D04E5F470D524325D51C8D7030D18CB6E208D66BB3255E5",
+    "schema_version": 12,
+    "snapshot_file_sha256": "dd34da3afd6985e5d5c9c58eebd435863041f96ca3a3daa3eda6aff3566031be",
+    "tables": {
+      "backlog": {
+        "columns": ["id", "created_at", "title", "discovered_while", "current_pain", "suggested_improvement", "risk", "status", "predicted_impact", "actual_outcome", "implemented_at", "notes", "kind"],
+        "count": 27,
+        "sha256": "d535eda347333d9b18039943c466eb2fc046c6a5dcd6cc346d0a3907cf6d1b4d"
+      },
+      "changeset_applied": {
+        "columns": ["id", "path", "applied_at"],
+        "count": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "decision": {
+        "columns": ["id", "title", "created_at", "status", "doc_path", "verify_command", "last_verified_at", "last_verified_result", "predicted_impact", "actual_outcome", "notes"],
+        "count": 7,
+        "sha256": "38fdd3ccc1ce6206827d229c14a5473a6911392b0956800180d3435bd11ff182"
+      },
+      "intake": {
+        "columns": ["id", "created_at", "input_type", "summary", "risk_lane", "risk_flags", "affected_docs", "story_id", "notes", "checkpoint_branch", "checkpoint_head", "checkpoint_dirty_paths", "checkpoint_worktree_state"],
+        "count": 92,
+        "sha256": "a361fc0d48f6a21c0891cf63f2e2f25b0b5ee6f43aa2a1d1a25275be54c2090d"
+      },
+      "intervention": {
+        "columns": ["id", "created_at", "trace_id", "story_id", "type", "description", "source", "impact"],
+        "count": 1,
+        "sha256": "afbf2e74a77b912c9ef6ffba1a472f88ca95fbedc0c88d82641f2eadadc11249"
+      },
+      "schema_version": {
+        "columns": ["version", "applied_at"],
+        "count": 12,
+        "sha256": "a7c53558eaa6ee9d0b61b4be501b9caad04d7667e573eef498d4c7e28810dfb4"
+      },
+      "story": {
+        "columns": ["id", "title", "created_at", "risk_lane", "contract_doc", "status", "unit_proof", "integration_proof", "e2e_proof", "platform_proof", "evidence", "notes", "verify_command", "last_verified_at", "last_verified_result", "path_contracts", "affected_verify_command", "last_affected_verified_at", "last_affected_result", "last_affected_fingerprint"],
+        "count": 37,
+        "sha256": "344385ebb892cea1553a245b0631593edf8782d3e4321cae20ca20ec6d66a865"
+      },
+      "story_dependency": {
+        "columns": ["story_id", "blocks_story_id", "created_at"],
+        "count": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "story_hierarchy": {
+        "columns": ["parent_story_id", "child_story_id", "created_at"],
+        "count": 0,
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "tool": {
+        "columns": ["name", "created_at", "provider", "command", "description", "args", "responsibility", "since", "kind", "capability", "scan_target", "status", "checked_at"],
+        "count": 4,
+        "sha256": "d4a14e9fc9ffbc3858a499c86ad59c64eb124da1b345e07f0e6e96543e1fe0c6"
+      },
+      "trace": {
+        "columns": ["id", "created_at", "task_summary", "intake_id", "story_id", "agent", "actions_taken", "files_read", "files_changed", "decisions_made", "errors", "outcome", "duration_seconds", "token_estimate", "harness_friction", "notes"],
+        "count": 36,
+        "sha256": "eff7e3afa34408288b83933090f0fc8fc9c1e81e708ad2420ffecfec65575739"
+      }
+    }
+  }
+}

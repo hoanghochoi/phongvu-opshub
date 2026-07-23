@@ -1,0 +1,18 @@
+{
+  "schema_version": 14,
+  "changesets": 4,
+  "operations": 22,
+  "stories": [
+    {"id":"FIX-CHILD","status":"changed","unit_proof":1,"integration_proof":1,"e2e_proof":0,"platform_proof":0,"evidence":"generic update evidence","verify_command":"printf fixture"},
+    {"id":"FIX-RETIRED","status":"retired","unit_proof":0,"integration_proof":0,"e2e_proof":0,"platform_proof":0,"evidence":null,"verify_command":null},
+    {"id":"FIX-ROOT","status":"planned","unit_proof":0,"integration_proof":0,"e2e_proof":0,"platform_proof":0,"evidence":null,"verify_command":"true"},
+    {"id":"FIX-VERIFIED","status":"planned","unit_proof":0,"integration_proof":0,"e2e_proof":0,"platform_proof":0,"evidence":null,"verify_command":"true"}
+  ],
+  "verification": {"id":"FIX-VERIFIED","result":"pass","verified_at":"2040-01-02 03:04:05"},
+  "dependencies": [{"blocker":"FIX-ROOT","blocked":"FIX-CHILD"}],
+  "hierarchy": [{"parent":"FIX-ROOT","child":"FIX-CHILD"}],
+  "retained_tools": [{"name":"fixture-retained-tool","status":"present","kind":"binary","capability":"fixture-context"}],
+  "removed_tools": ["fixture-removed-tool"],
+  "remap": {"intakes":2,"traces":2,"distinct_trace_intake_ids":2,"closed_trace_intake_links":2},
+  "run_ids": ["fixture_generic_remap_a","fixture_generic_remap_b","fixture_generic_story_graph","fixture_generic_tools"]
+}

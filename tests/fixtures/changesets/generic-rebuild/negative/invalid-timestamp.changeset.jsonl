@@ -1,0 +1,3 @@
+{"op":"changeset.header","version":1,"run_id":"fixture_negative_timestamp","base_schema_version":13}
+{"op":"story.add","version":1,"id":"FIX-BAD-TIMESTAMP","payload":{"title":"Must roll back","risk_lane":"normal","contract_doc":null,"verify_command":null,"notes":null}}
+{"op":"story.verify","version":2,"id":"FIX-BAD-TIMESTAMP","payload":{"result":"pass","verified_at":"not-a-timestamp"}}

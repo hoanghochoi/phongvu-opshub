@@ -11,5 +11,5 @@
 | Product contract | Accepted behavior documented under `docs/product/` |
 | Story packet | Small implementation plan and evidence record under `docs/stories/` |
 | Feature intake | Classification step that turns a prompt into tiny, normal, or high-risk work before implementation begins |
-| Durable layer | Local SQLite database plus `scripts/harness` CLI that stores queryable operational records |
+| Durable layer | OpsHub-local `harness.db` plus project Markdown as the source of truth; the tracked upstream CLI is the execution/migration target after an approved schema/state adapter |
 | Trace | Structured record of what an agent did during a task: actions, files, errors, outcome, and harness friction |
