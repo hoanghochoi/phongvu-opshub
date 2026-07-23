@@ -137,10 +137,16 @@ Read in this order:
 4. `docs/stories/` for story packets and active backlog.
 5. `docs/TEST_MATRIX.md` for required proof and known gaps.
 6. `docs/decisions/` for durable tradeoffs.
-7. `scripts/bin/harness-cli.exe query matrix` for the structured durable-layer view when
-   `harness.db` has been initialized. On Windows PowerShell, define the Git for
-   Windows login shell once and use it for every Harness command in this guide;
-   do not rely on whichever `bash.exe` happens to be first on `PATH`:
+7. The local OpsHub `harness.db` plus Markdown docs are the authority. The
+   legacy compatibility wrapper exists only in the root legacy workspace; it is
+   not a tracked command surface on this upstream-aligned branch. Until an
+   approved schema/state adapter is committed, do not write the authoritative
+   DB from this branch. Use `scripts/bin/harness-cli.exe query matrix` only for
+   a disposable or already migrated schema-14 DB; never run upstream
+   `import brownfield` as a refresh of the authoritative local DB. On Windows
+   PowerShell, define the Git for Windows login shell once and use it for every
+   Harness command in this guide; do not rely on whichever `bash.exe` happens
+   to be first on `PATH`:
 
    ```powershell
    $gitBash = "${env:ProgramFiles}\Git\bin\bash.exe"
@@ -149,10 +155,10 @@ Read in this order:
 
    Codex `Agent environment = Windows native` keeps this Git Bash entrypoint
    even when the integrated terminal shell is WSL. From a manually opened WSL
-   terminal, read-only `doctor`, `query`, and `audit` commands may use
-   `scripts/bin/harness-cli.exe ...` from the mounted repo. Stored proof commands are
-   not automatically WSL-safe; keep mutation and proof gates on the
-   Windows-native Git Bash route unless their commands use a cross-platform
+   terminal, read-only checks against a disposable schema-14 DB may use
+   `scripts/bin/harness-cli.exe ...` from the mounted repo. Stored proof
+   commands are not automatically WSL-safe; keep mutation and proof gates on
+   the Windows-native Git Bash route unless their commands use a cross-platform
    wrapper such as `bash scripts/validate ...`.
 8. Runtime code under `lib/`, `backend-nest/`, `backend-go/`, and `deploy/`.
 
@@ -178,10 +184,14 @@ Every implementation request goes through intake first:
 5. Decide the minimum validation proof before editing code.
 6. When the durable harness DB is available, record meaningful intakes,
    story/proof updates, decisions, backlog items, or traces through
-    `scripts/bin/harness-cli.exe` instead of hand-editing structured operational records.
+   the approved local compatibility adapter instead of hand-editing structured
+   operational records. The adapter is not part of this upstream-aligned
+   branch yet; switch to the upstream CLI only after the schema/state adapter is
+   in place.
 7. If a task ships a temporary Phase 1, defers accepted behavior, or leaves
    technical debt, record it with
-    `scripts/bin/harness-cli.exe backlog add --kind phase_followup|product_followup|tech_debt`
+   approved compatibility adapter's backlog command
+   (`--kind phase_followup|product_followup|tech_debt`)
    before reporting done.
 8. Track the upstream Harness framework, protocol, schemas, docs, and tests in
    Git so every branch inherits the same core. Keep only runtime databases,
@@ -200,18 +210,20 @@ existing consumers before implementing the new behavior:
 2. Give the affected story repo-relative `path_contracts` and an
    `affected_verify_command`. A shared producer must map to every old consumer
    whose behavior can change, even when that consumer's files are untouched.
-3. Before editing on Windows PowerShell, run
-   `& $gitBash --login scripts/harness story verify-affected --intake <id> --strict`
-   to inspect the path-to-contract plan. Treat an unmatched runtime or
-   verification path as a missing contract, not as permission to skip proof.
-   Deleting or weakening an existing regression test is itself
-   verification-sensitive. A rename is evaluated as delete plus add, so both
-   the old and new paths must map to protected contracts.
-4. Before reporting done, run
-   `& $gitBash --login scripts/harness story verify-affected --intake <id> --run --record --strict`,
-   then `& $gitBash --login scripts/harness story verify-affected --intake <id> --check --strict`.
-   The final check must happen after every source, test, documentation, contract,
-   and Harness edit that participates in the fingerprint.
+3. The upstream CLI does not implement the former `story verify-affected`
+   command or a `--strict` audit flag. Path-contract matching and affected-
+   consumer proof are therefore consumer/orchestrator responsibilities. Run
+   the reviewed wrapper declared by the story when one exists; otherwise treat
+   an unmatched runtime or verification path as a missing contract, not as
+   permission to skip proof. Deleting or weakening an existing regression test
+   is itself verification-sensitive. A rename is evaluated as delete plus add,
+   so both the old and new paths must map to protected contracts.
+4. Before reporting done, run the declared consumer/orchestrator affected-proof
+   command. Run upstream `story verify <id>` only after the story is backed by
+   the approved schema/state adapter; until then, the current local DB can only
+   be audited from the legacy root workspace. The final check must happen after
+   every source, test, documentation, contract, and Harness edit that
+   participates in the fingerprint.
    Do not switch the execution backend between checkpoint and final check. In
    particular, a manual WSL shell is not equivalent for arbitrary stored
    `flutter`, `npm`, `npx`, or `go` commands; run those gates through the
