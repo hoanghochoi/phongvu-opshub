@@ -41,6 +41,7 @@ class SalesReportOrderCheck {
   final List<Map<String, dynamic>> items;
   final List<Map<String, dynamic>> payments;
   final List<String> paymentMethods;
+  final bool willConvertSyncedReport;
 
   const SalesReportOrderCheck({
     required this.orderCode,
@@ -59,6 +60,7 @@ class SalesReportOrderCheck {
     required this.items,
     required this.payments,
     required this.paymentMethods,
+    this.willConvertSyncedReport = false,
   });
 
   bool get isPendingPayment {
@@ -140,6 +142,7 @@ class SalesReportOrderCheck {
               .map((value) => value.toString())
               .where((value) => value.trim().isNotEmpty)
               .toList(),
+      willConvertSyncedReport: json['willConvertSyncedReport'] == true,
     );
   }
 }

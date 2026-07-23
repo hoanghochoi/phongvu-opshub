@@ -252,9 +252,10 @@ class App extends StatelessWidget {
                   realtimeClient: RealtimeConnectionManager.instance,
                 );
             final isSurfaceActive =
-                kIsWeb ||
-                defaultTargetPlatform != TargetPlatform.windows ||
-                runtime.routeIs('/home');
+                runtime.isForeground &&
+                (kIsWeb ||
+                    defaultTargetPlatform != TargetPlatform.windows ||
+                    runtime.routeIs('/home'));
             Future.microtask(
               () => provider.syncUser(
                 auth.user,
@@ -289,6 +290,8 @@ class App extends StatelessWidget {
               provider.syncRuntime(
                 isForeground: runtime.isForeground,
                 isListViewActive: runtime.routeIs('/payment-monitor'),
+                allowBackgroundSpeakerRuntime:
+                    runtime.lifecycleState != AppLifecycleState.detached,
               );
               provider.syncAuth(auth.user, isInitialized: auth.isInitialized);
             });

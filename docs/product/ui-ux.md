@@ -376,10 +376,15 @@ visual systems that make the app feel assembled from unrelated screens.
 - Payment speaker is a route-independent Windows service. When the device and
   feature are eligible, the user enabled `Đọc loa`, and exactly one showroom is
   selected, `payment.speaker` metadata and the bounded ready fallback continue
-  outside the `Tiền vào` route; this must not reactivate transaction-list
-  refreshes. The fallback checks every 5 seconds after realtime silence.
+  outside the `Tiền vào` route and while the live app process is inactive,
+  hidden, or minimized; this must not reactivate transaction-list refreshes.
+  The service holds a scoped lease on the single authenticated realtime socket
+  instead of opening a second consumer. The fallback checks every 5 seconds
+  after realtime silence.
   Disabling speaker or losing its scope stops the audio path and rejects stale
-  in-flight responses from the previous authorization generation.
+  in-flight responses from the previous authorization generation. Logout,
+  detached/terminated processes, sleep/hibernate, and unavailable network or
+  audio devices remain stop conditions.
 - The Super Admin delivery-metrics surface is global to the authenticated
   foreground shell, not tied to `Tiền vào`. Typed
   `payment.delivery-metrics` invalidations use a 30-second trailing debounce;

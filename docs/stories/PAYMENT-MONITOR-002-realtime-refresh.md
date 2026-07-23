@@ -13,15 +13,18 @@
   chủ động tải danh sách giao dịch.
 - Khi chuyển sang route khác trong lúc app vẫn foreground, provider giữ cache
   danh sách và tiếp tục lắng nghe realtime; không dừng monitor hoặc xoá dữ liệu
-  đang hiển thị. Khi app xuống background, cache vẫn được giữ nhưng app không
-  phát sinh request mới cho đến khi foreground trở lại.
+  đang hiển thị. Khi app xuống background, cache vẫn được giữ nhưng mọi
+  consumer danh sách/UI dừng xử lý event và không phát sinh request mới. Riêng
+  Windows có loa đủ điều kiện và đang bật được giữ shared socket bằng scoped
+  lease để chỉ xử lý speaker stream và `/ready` cho đến khi foreground trở lại.
 - Sau đó app không poll danh sách giao dịch theo timer. Khi WebSocket handshake
   thành công hoặc im lặng quá lâu, app chỉ drain hàng đợi ready cho đường đọc
   loa nếu `Đọc loa` đang khả dụng và bật.
-- Khi nhận `PAYMENT_NOTIFICATION` hoặc `PAYMENT_SPEAKER_STREAM` đúng một trong
-  các showroom thuộc scope danh sách hiện tại, app debounce rồi tải lại trang
-  hiện tại đúng một lần, kể cả khi user đang xem route khác. Event ngoài scope
-  bị bỏ qua và không tạo request danh sách.
+- Khi app đang foreground và nhận `PAYMENT_NOTIFICATION` hoặc
+  `PAYMENT_SPEAKER_STREAM` đúng một trong các showroom thuộc scope danh sách
+  hiện tại, app debounce rồi tải lại trang hiện tại đúng một lần, kể cả khi
+  user đang xem route khác. Event ngoài scope hoặc event danh sách/UI khi app
+  background bị bỏ qua và không tạo request danh sách.
 - Nếu `Đọc loa` khả dụng và đang bật, app xử lý âm thanh từ stream hoặc hàng đợi
   ready tương ứng với loại sự kiện, đồng thời có fallback ready-notification nhẹ
   mỗi 5 giây sau khi realtime im lặng để bù WebSocket miss. Fallback chỉ nhận
@@ -58,8 +61,9 @@
   chỉ refresh đúng một lần sau event realtime đúng showroom.
 - Test scope nhiều showroom: event của showroom được phân công refresh danh
   sách; event ngoài scope không tạo request.
-- Test app background: giữ cache và bỏ qua event cho đến khi foreground trở
-  lại; không tạo request nền.
+- Test app background: giữ cache, mọi consumer danh sách/UI bỏ qua event và
+  không tạo request nền; loa Windows đủ điều kiện vẫn xử lý speaker stream và
+  `/ready`, rồi các consumer foreground đồng bộ đúng một lần khi resume.
 - Test reconnect/fallback: socket nối lại hoặc realtime im lặng không làm tăng
   số lần fetch danh sách, nhưng vẫn drain được ready backlog cho loa.
 - Test freshness/metric: notification `READY` cũ không được client khác phát lại;

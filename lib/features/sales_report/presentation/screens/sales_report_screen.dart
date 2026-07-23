@@ -1550,6 +1550,25 @@ class _SalesReportFormScreenState extends State<SalesReportFormScreen> {
       _showSnack(_pendingPaymentOrderMessage, AppColors.warning);
       return;
     }
+    if (result.willConvertSyncedReport) {
+      unawaited(
+        AppLogger.instance.info(
+          'SalesReport',
+          'Sales report synced order conversion warning shown',
+          context: {
+            'orderLength': result.orderCode.length,
+            'entrySource': widget.entrySource,
+            if (widget.followUpCaseId != null)
+              'followUpCaseId': widget.followUpCaseId,
+          },
+        ),
+      );
+      _showSnack(
+        'Đơn hàng này đã có trong danh sách đồng bộ. Nếu lưu mua hàng, hệ thống sẽ chuyển báo cáo sang Khách quay lại.',
+        AppColors.warning,
+      );
+      return;
+    }
     _showSnack('Đã kiểm tra đơn hàng.', AppColors.success);
   }
 
@@ -1694,7 +1713,10 @@ class _SalesReportFormScreenState extends State<SalesReportFormScreen> {
     );
     if (!mounted) return;
     if (ok) {
-      _showSnack('Đã gửi báo cáo.', AppColors.success);
+      _showSnack(
+        provider.successMessage ?? 'Đã gửi báo cáo.',
+        AppColors.success,
+      );
       _resetFormAfterSubmit();
       await _scrollToTopAfterSubmit();
       if (widget.closeOnSuccess && mounted) {

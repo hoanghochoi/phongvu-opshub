@@ -312,7 +312,12 @@ cho Google Form, đồng thời lưu dữ liệu đủ chuẩn để dashboard d
 - File xuất admin dùng định dạng Excel `.xlsx` để Excel/WPS đọc tiếng Việt ổn định;
   dấu phẩy trong nội dung được giữ nguyên trong cùng một ô.
 - `orderCode` là unique trên bảng `SalesReport`; một đơn mua hàng chỉ được báo
-  cáo một lần.
+  cáo một lần. Ngoại lệ một chiều duy nhất: khi hồ sơ `Chăm sóc lại` ghi nhận
+  mua hàng và report hiện có mang nguồn `SYNC_LIST`, transaction chuyển chính
+  report đó sang `COMEBACK` rồi liên kết cùng id vào hồ sơ/lần chăm sóc, không
+  tạo report thứ hai và không thay đổi dữ liệu lịch sử khác. Report đã là
+  `COMEBACK` không bao giờ được chuyển ngược về `SYNC_LIST`; mọi luồng manual,
+  ERP/cockpit và chăm sóc lại tiếp theo đều bị chặn tạo trùng.
 - Không có field nhập `MSNV`; backend lấy user, email, tên, showroom và
   organization node từ token/user hiện tại. Home Summary dùng email để định danh
   SA khi lọc scope cá nhân, không dùng mã nhân viên suy ra.

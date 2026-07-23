@@ -97,9 +97,13 @@ Cho phép nhân viên bán hàng theo dõi và chăm sóc lại từng lượt b
 - Lần chăm sóc mới tự đánh số kế tiếp và có bốn kết quả loại trừ nhau:
   `PURCHASED`, `NOT_PURCHASED`, `PURCHASED_ELSEWHERE`,
   `NO_LONGER_INTERESTED`.
-- `PURCHASED` dùng lại đầy đủ form báo cáo mua hàng. Báo cáo mua mới có
-  `entrySource=COMEBACK`, liên kết hồ sơ gốc và không thay đổi báo cáo
-  `NOT_PURCHASED` ban đầu.
+- `PURCHASED` dùng lại đầy đủ form báo cáo mua hàng. Nếu mã đơn chưa có báo cáo,
+  hệ thống tạo báo cáo mua mới với `entrySource=COMEBACK`, liên kết hồ sơ gốc và
+  không thay đổi báo cáo `NOT_PURCHASED` ban đầu. Nếu mã đơn đã có báo cáo
+  `SYNC_LIST`, hệ thống cảnh báo trước khi lưu rồi chuyển chính báo cáo đó một
+  chiều sang `COMEBACK`, giữ nguyên id và dữ liệu lịch sử, sau đó liên kết cùng
+  id vào lần chăm sóc và hồ sơ. Báo cáo đã là `COMEBACK` hoặc thuộc nguồn khác
+  không được chuyển ngược hay tạo trùng.
 - Người được ghi nhận doanh số là `order.creator.email` từ ERP. Không có email
   này thì chặn lưu bằng thông báo tiếng Việt; người thực hiện thao tác được lưu
   riêng để audit.

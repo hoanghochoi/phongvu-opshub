@@ -22,7 +22,10 @@ import {
   ListSalesReportFollowUpCasesDto,
   NOT_PURCHASED_REASON_CODES,
 } from './sales-reports.dto';
-import { SalesReportsService } from './sales-reports.service';
+import {
+  SALES_REPORT_COMEBACK_DUPLICATE_MESSAGE,
+  SalesReportsService,
+} from './sales-reports.service';
 
 const MANAGER_ROLE_CODES = new Set([
   'STORE_MANAGER',
@@ -273,56 +276,107 @@ export class SalesReportFollowUpsService {
           row.sourceReport.customerZaloContact ??
           undefined,
       };
-      const report = await this.salesReports.create(user, purchasedBody, {
-        comebackScope: this.caseScope(row),
-        persist: async (data, include) =>
-          this.prisma.$transaction(async (tx) => {
-            const claimed = await tx.salesReportFollowUpCase.updateMany({
-              where: {
-                id: row.id,
-                status: 'OPEN',
-                followUpCount: row.followUpCount,
-              },
-              data: { updatedAt: now },
-            });
-            if (claimed.count !== 1) {
-              throw new ConflictException(
-                'Hồ sơ vừa được cập nhật ở thiết bị khác. Vui lòng tải lại.',
-              );
-            }
-            const created = await tx.salesReport.create({ data, include });
-            await tx.salesReportFollowUpEntry.create({
-              data: {
-                caseId: row.id,
-                sequenceNumber: row.followUpCount + 1,
-                outcome: 'PURCHASED',
-                ...actor,
-                purchasedReportId: created.id,
-                contactedAt: now,
-              },
-            });
-            await tx.salesReportFollowUpCase.update({
-              where: { id: row.id },
-              data: {
-                status: 'PURCHASED',
-                convertedReportId: created.id,
-                closedAt: now,
-                lastFollowUpAt: now,
-                lastFollowUpByUserId: actor.actorUserId,
-                lastFollowUpByEmail: actor.actorEmail,
-                lastFollowUpByName: actor.actorName,
-                followUpCount: { increment: 1 },
-                priorityAt: now,
-              },
-            });
-            return created;
-          }),
-      });
-      await this.publish(row, user, 'follow_up_purchased');
+      const orderLogPart = this.orderLogPart(body.purchasedReport.orderCode);
       this.logger.log(
-        `Follow-up purchase succeeded: case=${row.id} user=${this.safeUser(user)} store=${row.sourceReport.storeCode || 'none'} durationMs=${Date.now() - startedAt}`,
+        `Follow-up purchase started: case=${row.id} user=${this.safeUser(user)} store=${row.sourceReport.storeCode || 'none'} ${orderLogPart}`,
       );
-      return { caseStatus: 'PURCHASED', report };
+      try {
+        const report = await this.salesReports.create(user, purchasedBody, {
+          comebackScope: this.caseScope(row),
+          persist: async (data, include, conversion) =>
+            this.prisma.$transaction(async (tx) => {
+              const claimed = await tx.salesReportFollowUpCase.updateMany({
+                where: {
+                  id: row.id,
+                  status: 'OPEN',
+                  followUpCount: row.followUpCount,
+                },
+                data: { updatedAt: now },
+              });
+              if (claimed.count !== 1) {
+                throw new ConflictException(
+                  'Hồ sơ vừa được cập nhật ở thiết bị khác. Vui lòng tải lại.',
+                );
+              }
+              let persistedReport: any;
+              let convertedExistingReport = false;
+              if (conversion.existingSyncListReportId) {
+                const converted = await tx.salesReport.updateMany({
+                  where: {
+                    id: conversion.existingSyncListReportId,
+                    orderCode: conversion.orderCode,
+                    reportType: 'PURCHASED',
+                    entrySource: 'SYNC_LIST',
+                  },
+                  data: { entrySource: 'COMEBACK' },
+                });
+                if (converted.count !== 1) {
+                  this.logger.warn(
+                    `Follow-up purchase duplicate blocked during conversion: case=${row.id} user=${this.safeUser(user)} existingReport=${conversion.existingSyncListReportId} ${orderLogPart}`,
+                  );
+                  throw new BadRequestException(
+                    SALES_REPORT_COMEBACK_DUPLICATE_MESSAGE,
+                  );
+                }
+                persistedReport = await tx.salesReport.findUnique({
+                  where: { id: conversion.existingSyncListReportId },
+                  include,
+                });
+                if (!persistedReport) {
+                  throw new ConflictException(
+                    'Báo cáo vừa thay đổi. Vui lòng tải lại và thử lại.',
+                  );
+                }
+                convertedExistingReport = true;
+              } else {
+                persistedReport = await tx.salesReport.create({
+                  data,
+                  include,
+                });
+              }
+              await tx.salesReportFollowUpEntry.create({
+                data: {
+                  caseId: row.id,
+                  sequenceNumber: row.followUpCount + 1,
+                  outcome: 'PURCHASED',
+                  ...actor,
+                  purchasedReportId: persistedReport.id,
+                  contactedAt: now,
+                },
+              });
+              await tx.salesReportFollowUpCase.update({
+                where: { id: row.id },
+                data: {
+                  status: 'PURCHASED',
+                  convertedReportId: persistedReport.id,
+                  closedAt: now,
+                  lastFollowUpAt: now,
+                  lastFollowUpByUserId: actor.actorUserId,
+                  lastFollowUpByEmail: actor.actorEmail,
+                  lastFollowUpByName: actor.actorName,
+                  followUpCount: { increment: 1 },
+                  priorityAt: now,
+                },
+              });
+              return { report: persistedReport, convertedExistingReport };
+            }),
+        });
+        await this.publish(row, user, 'follow_up_purchased');
+        const convertedExistingReport = report.convertedExistingReport === true;
+        this.logger.log(
+          `Follow-up purchase succeeded: case=${row.id} user=${this.safeUser(user)} store=${row.sourceReport.storeCode || 'none'} convertedExistingReport=${convertedExistingReport} report=${report.id} ${orderLogPart} durationMs=${Date.now() - startedAt}`,
+        );
+        return {
+          caseStatus: 'PURCHASED',
+          report,
+          convertedExistingReport,
+        };
+      } catch (error) {
+        this.logger.error(
+          `Follow-up purchase failed: case=${row.id} user=${this.safeUser(user)} store=${row.sourceReport.storeCode || 'none'} ${orderLogPart} durationMs=${Date.now() - startedAt} error=${this.safeError(error)}`,
+        );
+        throw error;
+      }
     }
 
     if (body.outcome === 'NOT_PURCHASED') {
@@ -848,6 +902,15 @@ export class SalesReportFollowUpsService {
 
   private storeCode(value: unknown) {
     return this.text(value, 40)?.toUpperCase() ?? null;
+  }
+
+  private orderLogPart(value: unknown) {
+    const normalized = String(value ?? '')
+      .trim()
+      .toUpperCase()
+      .replace(/\s+/g, '');
+    if (!normalized) return 'orderLength=0 orderSuffix=none';
+    return `orderLength=${normalized.length} orderSuffix=${normalized.slice(-4)}`;
   }
 
   private hasVisibleContact(phoneValue: unknown, channelValue: unknown) {

@@ -80,6 +80,16 @@ abstract interface class RealtimeClient {
   Future<void> syncSession(String? sessionKey);
 }
 
+abstract interface class RealtimeBackgroundConnectionLease {
+  void release();
+}
+
+abstract interface class RealtimeBackgroundConnectionController {
+  Stream<RealtimeEnvelope> get backgroundSpeakerEvents;
+  Stream<RealtimeSyncReason> get backgroundSpeakerSyncRequests;
+  RealtimeBackgroundConnectionLease acquireBackgroundConnection(String owner);
+}
+
 abstract interface class RealtimeConnection {
   Future<void> get ready;
   Stream<dynamic> get stream;
@@ -115,7 +125,7 @@ class WebSocketRealtimeConnection implements RealtimeConnection {
 /// typed events instead of opening another connection for each screen.
 class RealtimeConnectionManager
     with WidgetsBindingObserver
-    implements RealtimeClient {
+    implements RealtimeClient, RealtimeBackgroundConnectionController {
   RealtimeConnectionManager({
     RealtimeUriIssuer? issueConnectionUri,
     RealtimeConnector? connector,
@@ -152,8 +162,15 @@ class RealtimeConnectionManager
       StreamController<RealtimeEnvelope>.broadcast();
   final StreamController<RealtimeSyncReason> _syncController =
       StreamController<RealtimeSyncReason>.broadcast();
+  final StreamController<RealtimeEnvelope> _backgroundSpeakerEventController =
+      StreamController<RealtimeEnvelope>.broadcast();
+  final StreamController<RealtimeSyncReason> _backgroundSpeakerSyncController =
+      StreamController<RealtimeSyncReason>.broadcast();
   final LinkedHashSet<String> _seenEventIds = LinkedHashSet<String>();
   final Map<String, int> _lastSequenceByTopic = <String, int>{};
+  final LinkedHashMap<String, RealtimeEnvelope> _deferredForegroundEvents =
+      LinkedHashMap<String, RealtimeEnvelope>();
+  final Map<int, String> _backgroundConnectionLeases = <int, String>{};
 
   String? _sessionKey;
   RealtimeConnection? _connection;
@@ -161,13 +178,15 @@ class RealtimeConnectionManager
   Timer? _reconnectTimer;
   Timer? _stableConnectionTimer;
   bool _active = false;
-  bool _isForeground = true;
+  AppLifecycleState _lifecycleState = AppLifecycleState.resumed;
+  bool _foregroundConnectionAllowed = true;
   int? _connectingGeneration;
   bool _hasConnected = false;
   bool _observingLifecycle = false;
   bool _isShutdown = false;
   int _generation = 0;
   int _reconnectAttempt = 0;
+  int _nextBackgroundConnectionLeaseId = 0;
 
   @override
   Stream<RealtimeEnvelope> get events => _eventController.stream;
@@ -175,7 +194,84 @@ class RealtimeConnectionManager
   @override
   Stream<RealtimeSyncReason> get syncRequests => _syncController.stream;
 
+  @override
+  Stream<RealtimeEnvelope> get backgroundSpeakerEvents =>
+      _backgroundSpeakerEventController.stream;
+
+  @override
+  Stream<RealtimeSyncReason> get backgroundSpeakerSyncRequests =>
+      _backgroundSpeakerSyncController.stream;
+
   bool get isConnected => _connection != null && _connectingGeneration == null;
+
+  bool get _canMaintainConnection =>
+      _lifecycleState != AppLifecycleState.detached &&
+      (_foregroundConnectionAllowed || _backgroundConnectionLeases.isNotEmpty);
+
+  @visibleForTesting
+  int get backgroundConnectionRequirementCount =>
+      _backgroundConnectionLeases.length;
+
+  @override
+  RealtimeBackgroundConnectionLease acquireBackgroundConnection(String owner) {
+    final normalizedOwner = owner.trim();
+    if (normalizedOwner.isEmpty) {
+      throw ArgumentError.value(owner, 'owner', 'must not be empty');
+    }
+    if (_isShutdown) return _NoopRealtimeBackgroundConnectionLease();
+
+    final leaseId = ++_nextBackgroundConnectionLeaseId;
+    _backgroundConnectionLeases[leaseId] = normalizedOwner;
+    _handleBackgroundConnectionRequirementsChanged(
+      owner: normalizedOwner,
+      action: 'acquired',
+    );
+    return _ManagedRealtimeBackgroundConnectionLease(
+      () => _releaseBackgroundConnection(leaseId),
+    );
+  }
+
+  void _releaseBackgroundConnection(int leaseId) {
+    if (_isShutdown) return;
+    final owner = _backgroundConnectionLeases.remove(leaseId);
+    if (owner == null) return;
+    _handleBackgroundConnectionRequirementsChanged(
+      owner: owner,
+      action: 'released',
+    );
+  }
+
+  void _handleBackgroundConnectionRequirementsChanged({
+    required String owner,
+    required String action,
+  }) {
+    final canMaintainConnection = _canMaintainConnection;
+    unawaited(
+      AppLogger.instance.info(
+        'RealtimeV2',
+        'Realtime background connection requirement changed',
+        context: {
+          'owner': owner,
+          'action': action,
+          'requirementCount': _backgroundConnectionLeases.length,
+          'lifecycleState': _lifecycleState.name,
+          'connected': _connection != null,
+          'connectionAllowed': canMaintainConnection,
+        },
+      ),
+    );
+    if (!_active) return;
+    if (!canMaintainConnection) {
+      _cancelConnectionTimers();
+      unawaited(_disconnectCurrent('background_requirement_released'));
+      return;
+    }
+    if (_connection == null && _connectingGeneration == null) {
+      _reconnectTimer?.cancel();
+      _reconnectTimer = null;
+      unawaited(_connect(_generation, isReconnect: _hasConnected));
+    }
+  }
 
   @override
   Future<void> syncSession(String? sessionKey) async {
@@ -204,6 +300,7 @@ class RealtimeConnectionManager
     _stableConnectionTimer = null;
     _seenEventIds.clear();
     _lastSequenceByTopic.clear();
+    _deferredForegroundEvents.clear();
     _reconnectTimer?.cancel();
     _reconnectTimer = null;
     await _disconnectCurrent('session_changed');
@@ -219,13 +316,15 @@ class RealtimeConnectionManager
     }
 
     _startObservingLifecycle();
-    if (_isForeground) unawaited(_connect(generation, isReconnect: false));
+    if (_canMaintainConnection) {
+      unawaited(_connect(generation, isReconnect: false));
+    }
   }
 
   Future<void> _connect(int generation, {required bool isReconnect}) async {
     if (!_active ||
         _isShutdown ||
-        !_isForeground ||
+        !_canMaintainConnection ||
         generation != _generation ||
         _connectingGeneration != null ||
         _connection != null) {
@@ -245,7 +344,7 @@ class RealtimeConnectionManager
     try {
       final uri = await _issueConnectionUri();
       if (!_active ||
-          !_isForeground ||
+          !_canMaintainConnection ||
           generation != _generation ||
           _isShutdown) {
         return;
@@ -289,7 +388,7 @@ class RealtimeConnectionManager
       await connection.ready.timeout(_readyTimeout);
       if (!identical(connection, _connection) ||
           !_active ||
-          !_isForeground ||
+          !_canMaintainConnection ||
           generation != _generation ||
           _isShutdown) {
         return;
@@ -307,9 +406,7 @@ class RealtimeConnectionManager
           'durationMs': DateTime.now().difference(startedAt).inMilliseconds,
         },
       );
-      if (shouldRequestSync && !_syncController.isClosed) {
-        _syncController.add(RealtimeSyncReason.reconnected);
-      }
+      if (shouldRequestSync) _requestReconnectSync();
     } catch (error, stackTrace) {
       await AppLogger.instance.error(
         'RealtimeV2',
@@ -382,7 +479,7 @@ class RealtimeConnectionManager
       if (_seenEventIds.length > _seenEventLimit) {
         _seenEventIds.remove(_seenEventIds.first);
       }
-      if (!_eventController.isClosed) _eventController.add(envelope);
+      _routeEnvelope(envelope);
     } catch (error) {
       unawaited(
         AppLogger.instance.warn(
@@ -392,6 +489,72 @@ class RealtimeConnectionManager
         ),
       );
     }
+  }
+
+  void _routeEnvelope(RealtimeEnvelope envelope) {
+    if (_lifecycleState == AppLifecycleState.resumed) {
+      if (!_eventController.isClosed) _eventController.add(envelope);
+      return;
+    }
+    final isBackgroundSpeakerEvent =
+        envelope.kind == 'PAYMENT_SPEAKER_STREAM' &&
+        envelope.topic == 'payment.speaker';
+    if (isBackgroundSpeakerEvent) {
+      if (_backgroundConnectionLeases.isNotEmpty &&
+          _lifecycleState != AppLifecycleState.detached &&
+          !_backgroundSpeakerEventController.isClosed) {
+        _backgroundSpeakerEventController.add(envelope);
+      }
+      return;
+    }
+    if (_lifecycleState == AppLifecycleState.detached) return;
+    _deferredForegroundEvents[envelope.id] = envelope;
+    if (_deferredForegroundEvents.length > _seenEventLimit) {
+      _deferredForegroundEvents.remove(_deferredForegroundEvents.keys.first);
+    }
+    unawaited(
+      AppLogger.instance.info(
+        'RealtimeV2',
+        'Realtime UI event deferred outside resumed lifecycle',
+        context: {
+          'eventId': envelope.id,
+          'kind': envelope.kind,
+          'topic': envelope.topic,
+          'lifecycleState': _lifecycleState.name,
+          'pendingCount': _deferredForegroundEvents.length,
+        },
+      ),
+    );
+  }
+
+  void _requestReconnectSync() {
+    if (_lifecycleState == AppLifecycleState.resumed) {
+      if (!_syncController.isClosed) {
+        _syncController.add(RealtimeSyncReason.reconnected);
+      }
+      return;
+    }
+    if (_backgroundConnectionLeases.isNotEmpty &&
+        _lifecycleState != AppLifecycleState.detached &&
+        !_backgroundSpeakerSyncController.isClosed) {
+      _backgroundSpeakerSyncController.add(RealtimeSyncReason.reconnected);
+    }
+  }
+
+  void _drainDeferredForegroundEvents() {
+    if (_deferredForegroundEvents.isEmpty || _eventController.isClosed) return;
+    final pending = _deferredForegroundEvents.values.toList(growable: false);
+    _deferredForegroundEvents.clear();
+    for (final envelope in pending) {
+      _eventController.add(envelope);
+    }
+    unawaited(
+      AppLogger.instance.info(
+        'RealtimeV2',
+        'Deferred realtime UI events released on resume',
+        context: {'eventCount': pending.length},
+      ),
+    );
   }
 
   Future<void> _handleDisconnect(
@@ -437,7 +600,7 @@ class RealtimeConnectionManager
   void _scheduleReconnect(int generation) {
     if (!_active ||
         _isShutdown ||
-        !_isForeground ||
+        !_canMaintainConnection ||
         generation != _generation ||
         _reconnectTimer?.isActive == true ||
         _reconnectDelays.isEmpty) {
@@ -502,8 +665,10 @@ class RealtimeConnectionManager
   }
 
   void handleAppResumed() {
+    _lifecycleState = AppLifecycleState.resumed;
+    _foregroundConnectionAllowed = true;
     if (!_active || _isShutdown) return;
-    _isForeground = true;
+    _drainDeferredForegroundEvents();
     unawaited(
       AppLogger.instance.info(
         'RealtimeV2',
@@ -527,28 +692,62 @@ class RealtimeConnectionManager
       handleAppResumed();
       return;
     }
-    if (state == AppLifecycleState.paused ||
-        state == AppLifecycleState.hidden ||
-        state == AppLifecycleState.detached) {
-      _handleAppBackgrounded(state);
-    }
+    _handleAppBackgrounded(state);
   }
 
   void _handleAppBackgrounded(AppLifecycleState state) {
-    if (!_isForeground || _isShutdown) return;
-    _isForeground = false;
-    _reconnectTimer?.cancel();
-    _reconnectTimer = null;
-    _stableConnectionTimer?.cancel();
-    _stableConnectionTimer = null;
+    if (_isShutdown) return;
+    final previousState = _lifecycleState;
+    _lifecycleState = state;
+    if (state != AppLifecycleState.inactive) {
+      _foregroundConnectionAllowed = false;
+    }
+    if (_canMaintainConnection) {
+      final retentionReason = _backgroundConnectionLeases.isNotEmpty
+          ? 'background_requirement'
+          : 'inactive_compatibility';
+      unawaited(
+        AppLogger.instance.info(
+          'RealtimeV2',
+          'Authenticated realtime retained outside resumed lifecycle',
+          context: {
+            'fromState': previousState.name,
+            'state': state.name,
+            'reason': retentionReason,
+            'connected': _connection != null,
+            'requirementCount': _backgroundConnectionLeases.length,
+          },
+        ),
+      );
+      if (_active &&
+          _connection == null &&
+          _connectingGeneration == null &&
+          _reconnectTimer?.isActive != true) {
+        unawaited(_connect(_generation, isReconnect: _hasConnected));
+      }
+      return;
+    }
+    _cancelConnectionTimers();
     unawaited(
       AppLogger.instance.info(
         'RealtimeV2',
         'App backgrounded; authenticated realtime paused',
-        context: {'state': state.name, 'connected': _connection != null},
+        context: {
+          'fromState': previousState.name,
+          'state': state.name,
+          'connected': _connection != null,
+          'requirementCount': _backgroundConnectionLeases.length,
+        },
       ),
     );
     unawaited(_disconnectCurrent('app_backgrounded'));
+  }
+
+  void _cancelConnectionTimers() {
+    _reconnectTimer?.cancel();
+    _reconnectTimer = null;
+    _stableConnectionTimer?.cancel();
+    _stableConnectionTimer = null;
   }
 
   void _startObservingLifecycle() {
@@ -569,13 +768,34 @@ class RealtimeConnectionManager
     _active = false;
     _generation += 1;
     _connectingGeneration = null;
-    _reconnectTimer?.cancel();
-    _reconnectTimer = null;
-    _stableConnectionTimer?.cancel();
-    _stableConnectionTimer = null;
+    _backgroundConnectionLeases.clear();
+    _cancelConnectionTimers();
     _stopObservingLifecycle();
     await _disconnectCurrent('manager_shutdown');
     await _eventController.close();
     await _syncController.close();
+    await _backgroundSpeakerEventController.close();
+    await _backgroundSpeakerSyncController.close();
   }
+}
+
+class _ManagedRealtimeBackgroundConnectionLease
+    implements RealtimeBackgroundConnectionLease {
+  _ManagedRealtimeBackgroundConnectionLease(this._onRelease);
+
+  void Function()? _onRelease;
+
+  @override
+  void release() {
+    final onRelease = _onRelease;
+    if (onRelease == null) return;
+    _onRelease = null;
+    onRelease();
+  }
+}
+
+class _NoopRealtimeBackgroundConnectionLease
+    implements RealtimeBackgroundConnectionLease {
+  @override
+  void release() {}
 }
