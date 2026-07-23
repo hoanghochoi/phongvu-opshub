@@ -2,7 +2,6 @@ import 'dotenv/config';
 import { Logger, ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { NestExpressApplication } from '@nestjs/platform-express';
-import { json, urlencoded } from 'express';
 import helmet from 'helmet';
 import { randomUUID } from 'crypto';
 import { AppModule } from './app.module';
@@ -12,6 +11,7 @@ import {
   isCorsOriginAllowed,
   validateRuntimeEnv,
 } from './config/env';
+import { registerRequestBodyParsers } from './request-body-parsers';
 import { requestPathForLog } from './request-log';
 
 async function bootstrap() {
@@ -40,8 +40,7 @@ async function bootstrap() {
     });
     next();
   });
-  app.use(json({ limit: getRequestBodyLimit() }));
-  app.use(urlencoded({ extended: true, limit: getRequestBodyLimit() }));
+  registerRequestBodyParsers(app, getRequestBodyLimit());
   app.enableCors({
     credentials: false,
     origin: (
