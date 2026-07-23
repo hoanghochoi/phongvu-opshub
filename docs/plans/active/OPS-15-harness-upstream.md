@@ -58,6 +58,27 @@ traces. Any strict policy must therefore be owned by the consumer/orchestrator
 and must treat local DB/docs as canonical until an explicit schema/state
 adapter is reviewed.
 
+## Preservation-first adapter v1 proof
+
+- Added `docs/contracts/harness-local-authority-adapter-v1.md` and the separate
+  consumer adapter `scripts/adapter/harness_local_authority_v1.py`; upstream
+  Harness core logic remains unchanged.
+- Created the schema-12 source with the upstream WAL-safe online snapshot
+  command. The authoritative root DB hash stayed
+  `7B529CCF63F9E3709D04E5F470D524325D51C8D7030D18CB6E208D66BB3255E5`;
+  the immutable snapshot hash is
+  `dd34da3afd6985e5d5c9c58eebd435863041f96ca3a3daa3eda6aff3566031be`.
+- Added the redacted digest fixture
+  `tests/fixtures/harness/local-authority-adapter-v1.json`. Full row payloads,
+  local paths, notes, commands, and the SQLite snapshot remain outside Git.
+- Projected all 37 stories, 92 intakes, 7 decisions, 27 backlog items, 36
+  traces, 4 tools, and 1 intervention into a freshly initialized schema-14
+  target. Local-only checkpoint, affected-proof, path-contract, backlog-kind,
+  and `bug_fix` semantics are bound to the external sidecar.
+- Parity passed with `changeset_created=false`. Tampering either a target story
+  or the source snapshot failed closed; a second projection into a non-empty
+  target also failed before writing. No Harness changeset or PR was created.
+
 ## Follow-up implementation plan
 
 1. Keep the tracked upstream framework as the only Harness core. Treat any
@@ -68,9 +89,9 @@ adapter is reviewed.
    baseline/changesets.
 3. Treat local DB/docs as canonical; do not run upstream `import brownfield`
    against the authoritative DB and do not apply the quarantined changeset.
-4. Design and review a schema/state adapter that preserves local stories,
-   intakes, decisions, traces, and strict audit semantics without changing the
-   upstream core.
+4. Review the preservation-first adapter v1 proof before allowing any
+   changeset generation. Keep local stories, intakes, decisions, traces, and
+   consumer-only fields bound to the schema-12 source plus sidecar.
 5. Keep strict enforcement in the consumer/orchestrator layer; specify its
    exit policy and JSON contract in OPS-17, not as an upstream `--strict` flag.
 6. Validate on Windows native PowerShell/Git Bash and a second clean worktree:
