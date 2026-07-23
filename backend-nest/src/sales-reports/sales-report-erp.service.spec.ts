@@ -169,6 +169,127 @@ describe('SalesReportErpService', () => {
     ).toBe(true);
   });
 
+  it('retries only unresolved Listing SKUs and merges non-empty categories', async () => {
+    process.env.ERP_ACCESS_TOKEN = 'static-access-token';
+    const listingCalls: string[] = [];
+    const fetchMock = jest.fn(async (input: string | URL) => {
+      const url = new URL(input.toString());
+      listingCalls.push(url.searchParams.get('skus') || '');
+      const skus = (url.searchParams.get('skus') || '').split(',');
+      if (skus.length > 1) {
+        return jsonResponse({
+          result: {
+            products: [
+              { sku: 'SKU-FULL', categories: [{ code: 'NH01', level: 1 }] },
+              { sku: 'SKU-EMPTY', categories: [] },
+            ],
+          },
+        });
+      }
+      return jsonResponse({
+        result: {
+          products: [
+            { sku: 'SKU-EMPTY', categories: [{ code: 'NH02-01', level: 2 }] },
+          ],
+        },
+      });
+    }) as jest.MockedFunction<typeof fetch>;
+    global.fetch = fetchMock;
+
+    const service = new SalesReportErpService();
+    const result = await service.lookupListingCategories(
+      ['SKU-FULL', 'SKU-EMPTY'],
+      'CP64',
+    );
+
+    expect(listingCalls).toEqual(['SKU-FULL,SKU-EMPTY', 'SKU-EMPTY']);
+    expect(result.get('SKU-FULL')).toEqual([
+      expect.objectContaining({ code: 'NH01', level: 1 }),
+    ]);
+    expect(result.get('SKU-EMPTY')).toEqual([
+      expect.objectContaining({ code: 'NH02-01', level: 2 }),
+    ]);
+  });
+
+  it('does not retry when the bulk Listing response has categories for every SKU', async () => {
+    process.env.ERP_ACCESS_TOKEN = 'static-access-token';
+    const fetchMock = jest.fn(async (input: string | URL) => {
+      const url = new URL(input.toString());
+      return jsonResponse({
+        result: {
+          products: (url.searchParams.get('skus') || '')
+            .split(',')
+            .map((sku) => ({ sku, categories: [{ code: 'NH01', level: 1 }] })),
+        },
+      });
+    }) as jest.MockedFunction<typeof fetch>;
+    global.fetch = fetchMock;
+
+    const service = new SalesReportErpService();
+    await service.lookupListingCategories(['SKU-FULL-1', 'SKU-FULL-2'], 'CP64');
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps unresolved Listing categories fail-soft after one retry round', async () => {
+    process.env.ERP_ACCESS_TOKEN = 'static-access-token';
+    const listingCalls: string[] = [];
+    const fetchMock = jest.fn(async (input: string | URL) => {
+      const url = new URL(input.toString());
+      listingCalls.push(url.searchParams.get('skus') || '');
+      return new Response('temporarily unavailable', { status: 503 });
+    }) as jest.MockedFunction<typeof fetch>;
+    global.fetch = fetchMock;
+
+    const service = new SalesReportErpService();
+    const result = await service.lookupListingCategories(
+      ['SKU-ONE', 'SKU-TWO'],
+      'CP64',
+    );
+
+    expect(listingCalls).toEqual(['SKU-ONE,SKU-TWO', 'SKU-ONE,SKU-TWO']);
+    expect(result.size).toBe(0);
+  });
+
+  it('uses retry chunks of ten with at most two concurrent requests', async () => {
+    process.env.ERP_ACCESS_TOKEN = 'static-access-token';
+    const retryCalls: string[] = [];
+    let active = 0;
+    let maxActive = 0;
+    const skus = Array.from({ length: 21 }, (_, index) => `SKU-${index}`);
+    const fetchMock = jest.fn(async (input: string | URL) => {
+      const url = new URL(input.toString());
+      const requested = (url.searchParams.get('skus') || '').split(',');
+      if (requested.length === skus.length) {
+        return jsonResponse({ result: { products: [] } });
+      }
+      retryCalls.push(url.searchParams.get('skus') || '');
+      active += 1;
+      maxActive = Math.max(maxActive, active);
+      await new Promise((resolve) => setTimeout(resolve, 1));
+      active -= 1;
+      return jsonResponse({
+        result: {
+          products: requested.map((sku) => ({
+            sku,
+            categories: [{ code: 'NH01', level: 1 }],
+          })),
+        },
+      });
+    }) as jest.MockedFunction<typeof fetch>;
+    global.fetch = fetchMock;
+
+    const service = new SalesReportErpService();
+    const result = await service.lookupListingCategories(skus, 'CP64');
+
+    expect(retryCalls).toHaveLength(3);
+    expect(retryCalls.every((value) => value.split(',').length <= 10)).toBe(
+      true,
+    );
+    expect(maxActive).toBeLessThanOrEqual(2);
+    expect(result.size).toBe(21);
+  });
+
   it('keeps the Listing hierarchy for downstream deepest-category matching', async () => {
     process.env.ERP_ACCESS_TOKEN = 'static-access-token';
     const fetchMock = jest.fn(async (input: string | URL) => {

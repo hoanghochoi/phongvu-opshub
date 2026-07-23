@@ -173,6 +173,11 @@ type CachedToken = {
   expiresAt: number;
 };
 
+export type SalesReportListingCategoryLookup = Map<string, unknown[]>;
+
+const LISTING_RETRY_CHUNK_SIZE = 10;
+const LISTING_RETRY_CONCURRENCY = 2;
+
 const DEFAULT_ERP_SCOPE =
   'openid profile read:permissions sellers om catalog ppm page_builder wms as fms seller-gateway ps-v2 us tenant:management notification-management-apis apl staff-bff user-segment-bff rebate-staff-bff merchant-bff ons-bff uns-bff-api ticket-bff dca payment-staff-bff lo marketing-automation-bff-api rebate-admin shopping-cart:order shopping-cart:write teko:marketing-automation-bff-api terra-staff-bff terra-staff-bff:loyalty user-segment-v2 loyalty-staff-bff loyalty-management-bff';
 
@@ -267,6 +272,29 @@ export class SalesReportErpService {
         'Chưa kiểm tra được mã đơn hàng. Vui lòng thử lại sau ít phút.',
       );
     }
+  }
+
+  /**
+   * Reuses the order Listing lookup contract for a bounded category repair.
+   * The caller is responsible for applying the existing CSV/deepest-node
+   * mapping; this seam only returns sanitized Listing category arrays.
+   */
+  async lookupListingCategories(
+    sellerSkus: string[],
+    storeCode: string,
+  ): Promise<SalesReportListingCategoryLookup> {
+    const accessToken = await this.getAccessToken();
+    const products = await this.fetchProducts(
+      sellerSkus,
+      accessToken,
+      storeCode,
+    );
+    return new Map(
+      Array.from(products.entries()).map(([sku, product]) => [
+        sku,
+        this.cleanListingCategories(product?.categories),
+      ]),
+    );
   }
 
   async listRecentOrders(input: {
@@ -956,47 +984,136 @@ export class SalesReportErpService {
     const uniqueSkus = Array.from(new Set(sellerSkus)).slice(0, 50);
     const result = new Map<string, any>();
     if (uniqueSkus.length === 0) return result;
+    const startedAt = Date.now();
+    const terminal =
+      storeCode || this.env('ERP_LISTING_TERMINAL', '{storeCode}');
+    const channel = this.env('ERP_LISTING_CHANNEL', 'pv_showroom');
+    this.logger.log(
+      `Sales report Listing category enrichment started: requested=${uniqueSkus.length} store=${terminal} channel=${channel}`,
+    );
+    let bulkReturned = 0;
+    let bulkWithCategory = 0;
+    try {
+      const bulk = await this.fetchListingProductChunk(
+        uniqueSkus,
+        accessToken,
+        terminal,
+        channel,
+      );
+      for (const [sku, product] of bulk.products) result.set(sku, product);
+      bulkReturned = result.size;
+      bulkWithCategory = Array.from(result.values()).filter(
+        (product) =>
+          this.cleanListingCategories(product?.categories).length > 0,
+      ).length;
+    } catch (error) {
+      this.logger.warn(
+        `Sales report Listing category bulk lookup failed but order lookup continues: requested=${uniqueSkus.length} store=${terminal} errorType=${this.errorType(error)}`,
+      );
+    }
+
+    const unresolvedSkus = uniqueSkus.filter((sku) => {
+      const product = result.get(sku);
+      return (
+        !product || this.cleanListingCategories(product.categories).length === 0
+      );
+    });
+    let retryReturned = 0;
+    let retryWithCategory = 0;
+    if (unresolvedSkus.length > 0) {
+      const chunks: string[][] = [];
+      for (
+        let index = 0;
+        index < unresolvedSkus.length;
+        index += LISTING_RETRY_CHUNK_SIZE
+      ) {
+        chunks.push(
+          unresolvedSkus.slice(index, index + LISTING_RETRY_CHUNK_SIZE),
+        );
+      }
+      let nextChunk = 0;
+      const worker = async () => {
+        while (nextChunk < chunks.length) {
+          const chunk = chunks[nextChunk++];
+          try {
+            const retry = await this.fetchListingProductChunk(
+              chunk,
+              accessToken,
+              terminal,
+              channel,
+            );
+            retryReturned += retry.products.size;
+            for (const [sku, product] of retry.products) {
+              if (
+                this.cleanListingCategories(product?.categories).length === 0
+              ) {
+                continue;
+              }
+              retryWithCategory += 1;
+              result.set(sku, product);
+            }
+          } catch (error) {
+            this.logger.warn(
+              `Sales report Listing category retry failed: requested=${chunk.length} store=${terminal} errorType=${this.errorType(error)}`,
+            );
+          }
+        }
+      };
+      await Promise.all(
+        Array.from(
+          { length: Math.min(LISTING_RETRY_CONCURRENCY, chunks.length) },
+          () => worker(),
+        ),
+      );
+    }
+    const remaining = uniqueSkus.filter((sku) => {
+      const product = result.get(sku);
+      return (
+        !product || this.cleanListingCategories(product.categories).length === 0
+      );
+    }).length;
+    this.logger.log(
+      `Sales report Listing category enrichment succeeded: requested=${uniqueSkus.length} bulkReturned=${bulkReturned} bulkWithCategory=${bulkWithCategory} retryRequested=${unresolvedSkus.length} retryReturned=${retryReturned} retryWithCategory=${retryWithCategory} remaining=${remaining} store=${terminal} durationMs=${Date.now() - startedAt}`,
+    );
+    return result;
+  }
+
+  private async fetchListingProductChunk(
+    sellerSkus: string[],
+    accessToken: string,
+    terminal: string,
+    channel: string,
+  ): Promise<{ products: Map<string, any>; status: number }> {
     const baseUrl = this.env(
       'ERP_LISTING_BASE_URL',
       'https://listing.tekoapis.com',
     ).replace(/\/$/, '');
     const url = new URL(`${baseUrl}/api/products/`);
-    url.searchParams.set(
-      'channel',
-      this.env('ERP_LISTING_CHANNEL', 'pv_showroom'),
-    );
-    url.searchParams.set(
-      'terminal',
-      storeCode || this.env('ERP_LISTING_TERMINAL', '{storeCode}'),
-    );
-    url.searchParams.set('skus', uniqueSkus.join(','));
-    try {
-      const response = await this.fetchWithTimeout(url.toString(), {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-          Accept: 'application/json',
-        },
-      });
-      if (!response.ok) {
-        this.logger.warn(
-          `Sales report ERP product lookup skipped: status=${response.status}`,
-        );
-        return result;
-      }
-      const body = (await response.json()) as any;
-      const products = Array.isArray(body?.result?.products)
-        ? body.result.products
-        : [];
-      for (const product of products) {
-        const sku = this.optionalText(product?.sku);
-        if (sku) result.set(sku, product);
-      }
-    } catch (error) {
+    url.searchParams.set('channel', channel);
+    url.searchParams.set('terminal', terminal);
+    url.searchParams.set('skus', sellerSkus.join(','));
+    const response = await this.fetchWithTimeout(url.toString(), {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        Accept: 'application/json',
+      },
+    });
+    if (!response.ok) {
       this.logger.warn(
-        `Sales report ERP product lookup failed but order lookup continues: errorType=${this.errorType(error)}`,
+        `Sales report ERP product lookup skipped: status=${response.status} requested=${sellerSkus.length} store=${terminal}`,
       );
+      return { products: new Map(), status: response.status };
     }
-    return result;
+    const body = (await response.json()) as any;
+    const products = Array.isArray(body?.result?.products)
+      ? body.result.products
+      : [];
+    const result = new Map<string, any>();
+    for (const product of products) {
+      const sku = this.optionalText(product?.sku);
+      if (sku) result.set(sku, product);
+    }
+    return { products: result, status: response.status };
   }
 
   private normalizePayments(value: unknown): SalesReportErpPayment[] {

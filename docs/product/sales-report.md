@@ -208,7 +208,17 @@ cho Google Form, đồng thời lưu dữ liệu đủ chuẩn để dashboard d
   khi gửi báo cáo.
   Tên nhóm gốc ngắn như `PC` chỉ được match khi ERP/Listing trả đúng giá trị
   đó, không được match substring trong tên sản phẩm/dịch vụ như `... PC miễn
-phí`.
+  phí`.
+- Nếu lần Listing bulk đầu tiên không trả product hoặc trả product không có
+  `categories`, backend chỉ thực hiện đúng một vòng retry có giới hạn theo
+  SKU, giữ nguyên `channel` và `terminal` của showroom. Retry lỗi vẫn fail-soft
+  và giữ `categoryType = null`; không được suy luận từ tên/group. OPS-13 có
+  command backfill dành cho các `SalesReportOrderItem.categoryType IS NULL`,
+  chạy dry-run mặc định với checkpoint/hash bất biến, snapshot cutoff,
+  upper-bound, apply theo keyset và compare-and-set để chạy lại an toàn kể cả
+  khi process dừng giữa mutation. Sau khi cập nhật, command enqueue lại
+  Home theo ngày Việt Nam và gọi lại BigQuery sync hiện hữu; không thay đổi
+  công thức PC ráp hoặc quy tắc chỉ map category level sâu nhất.
 - Nhu cầu khách hàng và các câu hỏi hành vi tư vấn/trải nghiệm/Zalo/App đều là
   trường bắt buộc. `Tên khách hàng` là trường bắt buộc trên cả 2 báo cáo; với
   báo cáo mua hàng app tự điền nếu ERP trả về tên khách, sale vẫn có thể nhập
@@ -277,6 +287,9 @@ phí`.
   PC, PC ráp, Apple, màn hình, máy in, phụ kiện và dịch vụ bảo hiểm. Item
   `categoryType = gift` vẫn được lưu để đối soát nhưng không tự chọn ngành hàng
   theo category cha của quà tặng.
+- Khi dữ liệu cũ còn `categoryType = null`, backfill chỉ xử lý row báo cáo mua
+  hàng có `sellerSku` và `storeCode` đã lưu; row thiếu context được báo rõ để
+  xử lý riêng, không dùng showroom mặc định.
 - File `HVTC` xuất một dòng cho mỗi báo cáo với các cột tiếng Việt: ngày báo
   cáo, email người báo cáo, mã nhân viên tư vấn ERP, tên/số điện thoại/kênh liên
   hệ/nhu cầu khách hàng, các câu trả lời hành vi, loại báo cáo, lý do chưa mua
@@ -318,6 +331,9 @@ phí`.
   tồn tại sẵn và service
   account cần quyền chạy load job/tạo hoặc replace bảng trong dataset đó. Khi
   bật sync, backend chạy lịch cố định 07:00 hằng ngày theo giờ Việt Nam (UTC+7).
+  Backfill category chạy lại chính full-refresh contract này sau khi Home đã
+  được enqueue; nếu bước sau lỗi, checkpoint giữ trạng thái để resume mà không
+  ghi đè các row đã được sửa.
   Admin có `ADMIN_SALES_REPORTS` có thể gọi
   `POST /api/sales-reports/admin/bigquery-sync` để chạy sync thủ công.
 

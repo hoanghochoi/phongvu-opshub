@@ -10,6 +10,7 @@ import { SalesReportFollowUpsController } from './sales-report-follow-ups.contro
 import { SalesReportFollowUpsService } from './sales-report-follow-ups.service';
 import { SalesReportImportParserService } from './sales-report-import-parser.service';
 import { SalesReportImportService } from './sales-report-import.service';
+import { SalesReportCategoryBackfillService } from './sales-report-category-backfill.service';
 
 @Module({
   imports: [PrismaModule, RedisModule],
@@ -22,11 +23,13 @@ import { SalesReportImportService } from './sales-report-import.service';
     SalesReportFollowUpsService,
     SalesReportImportParserService,
     SalesReportImportService,
+    SalesReportCategoryBackfillService,
   ],
   exports: [
     SalesReportErpService,
     SalesReportsService,
     SalesReportsBigQuerySyncService,
+    SalesReportCategoryBackfillService,
   ],
 })
 export class SalesReportsModule {}
