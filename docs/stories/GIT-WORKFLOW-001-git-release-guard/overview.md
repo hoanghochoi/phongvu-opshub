@@ -20,6 +20,11 @@ Weak proof, and Multi-domain.
 - A successful promotion leaves fetched `origin/main` and `origin/staging` at
   the same SHA and triggers the existing production deployment workflow.
 - Linear reaches `Done` only after production deployment succeeds.
+- After a feature PR merges into `staging`, the canonical local `staging`
+  worktree must be synchronized to the live `origin/staging` head before a new
+  task starts. The merged task's clean worktree and local squash-merged branch
+  are removed by the guarded lifecycle command; dirty or ambiguous state stops
+  the flow.
 
 ## Affected Areas
 

@@ -35,11 +35,18 @@ tiện”; release mà tiện quá thường là lúc rollback bắt đầu tậ
 ## Feature mặc định
 
 1. Tạo một Linear issue, một Codex task, một worktree, một task branch và một PR.
-2. Branch phải chứa Linear ID và bắt đầu từ `origin/staging` mới nhất:
+2. Từ canonical worktree đang checkout `staging`, chạy lifecycle gate. Branch
+   phải chứa Linear ID và bắt đầu từ đúng SHA live của `origin/staging`:
 
    ```powershell
-   git fetch origin
-   git worktree add ..\opshub-ops-142 -b codex/ops-142-fix-date-picker origin/staging
+   node scripts/task-lifecycle.mjs start `
+     --issue OPS-142 `
+     --slug fix-date-picker `
+     --worktree ..\opshub-ops-142
+   node scripts/task-lifecycle.mjs start `
+     --issue OPS-142 `
+     --slug fix-date-picker `
+     --worktree ..\opshub-ops-142 --execute
    Set-Location ..\opshub-ops-142
    ```
 
@@ -53,6 +60,28 @@ tiện”; release mà tiện quá thường là lúc rollback bắt đầu tậ
    `Part of OPS-142`. Dùng `Fixes OPS-142` chỉ khi production release thực sự
    dự kiến đóng issue.
 6. Feature PR dùng squash-and-merge. Merge vào `staging` chưa phải `Done`.
+7. Sau khi PR merge, không mở task mới cho tới khi cleanup và sync staging
+   thành công:
+
+   ```powershell
+   # chạy từ canonical staging worktree, dry-run trước
+   node scripts/task-lifecycle.mjs finish `
+     --pr 123 `
+     --branch codex/ops-142-fix-date-picker `
+     --worktree ..\opshub-ops-142
+   node scripts/task-lifecycle.mjs finish `
+     --pr 123 `
+     --branch codex/ops-142-fix-date-picker `
+     --worktree ..\opshub-ops-142 --execute
+   ```
+
+   `FINISH PASS` phải chứng minh local `staging == origin/staging`, task
+   worktree sạch đã được remove và local task branch đã bị xoá. Lệnh dừng khi
+   staging dirty/diverged/stale, PR chưa merge, head không khớp hoặc worktree
+   còn thay đổi, kể cả ignored artifact. Chỉ thêm `--allow-ignored` sau khi
+   review rõ các file ignored có thể xoá cùng worktree. Không dùng
+   reset/rebase/force để vượt gate. Remote branch deletion/GitHub auto-delete
+   là publish phase riêng.
 
 ## Ngoại lệ: direct push vào staging
 

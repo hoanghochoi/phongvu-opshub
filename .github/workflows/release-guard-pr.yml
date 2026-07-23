@@ -27,6 +27,9 @@ jobs:
       - name: Run release workflow tests
         run: node scripts/test-git-release-workflow.mjs
 
+      - name: Run task lifecycle tests
+        run: node scripts/test-task-lifecycle.mjs
+
       - name: Check patch whitespace
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}

@@ -31,6 +31,15 @@ before acting. Never claim done before verification.
 - Create task branches and worktrees from the latest `origin/staging`. Include
   the Linear issue ID in every task branch name, and target feature PRs at
   `staging`. The default feature path is feature branch -> PR -> `staging`.
+- The canonical task lifecycle is guarded by
+  `scripts/task-lifecycle.mjs`: after a PR merges into `staging`, run `finish`
+  from the clean canonical `staging` worktree before opening another task.
+  `finish --execute` fetches and fast-forwards local `staging` only, verifies
+  the merged PR/head/worktree, and removes the clean task worktree/local
+  branch. A new task must start through `start --execute`, which repeats the
+  live `origin/staging` SHA check and creates the task from that exact SHA.
+  Dirty, diverged, stale, unregistered, or protected state is fail-closed;
+  never reset or rebase `staging` to bypass the gate.
 - Codex may push directly to `staging` only after Đại Ca gives an explicit
   command in the current task naming the push action and `staging` as target.
   Treat that route as an exception and report that PR review, squash merge, and
@@ -57,6 +66,24 @@ before acting. Never claim done before verification.
   `Fixes OPS-123` only when the change is intended to close after production.
 - Feature PRs use squash-and-merge unless Đại Ca explicitly directs another
   reviewed workflow.
+- Do not open the next task after a merge until the post-merge lifecycle gate
+  has passed. From the canonical staging worktree, use the dry-run first:
+
+  ```powershell
+  node scripts/task-lifecycle.mjs finish --pr <number> `
+    --branch codex/ops-123-short-description `
+    --worktree ..\opshub-ops-123
+  node scripts/task-lifecycle.mjs finish --pr <number> `
+    --branch codex/ops-123-short-description `
+    --worktree ..\opshub-ops-123 --execute
+  ```
+
+  Only after `FINISH PASS` may the next task be created, also through the
+  guarded `start` command. Remote branch deletion and the GitHub repository
+  auto-delete setting are separate publish actions and are not performed by
+  the local lifecycle command. Ignored files inside the task worktree also
+  block cleanup by default; use `--allow-ignored` only after explicitly
+  reviewing that those generated/local files may be deleted with the worktree.
 - Do not mark a Linear issue `Done` after a feature push, PR merge, staging
   deploy, QA approval, or release approval alone. `Done` requires a successful
   production deployment.
