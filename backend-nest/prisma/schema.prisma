@@ -87,6 +87,7 @@ model MapVietinTransaction {
   incomeTypeUpdatedByUserId String?
   incomeTypeUpdatedByEmail  String?
   rawData                   Json
+  bigQueryRevision          BigInt    @default(0)
   firstSeenAt               DateTime  @default(now())
   createdAt                 DateTime  @default(now())
   updatedAt                 DateTime  @updatedAt
@@ -1348,6 +1349,7 @@ model DomainOutboxEvent {
   claimedAt      DateTime?
   claimToken     String?
   leaseExpiresAt DateTime?
+  deadLetteredAt DateTime?
   attempts       Int       @default(0)
   lastError      String?
   createdAt      DateTime  @default(now())
@@ -1355,6 +1357,24 @@ model DomainOutboxEvent {
 
   @@index([publishedAt, availableAt])
   @@index([eventType, occurredAt])
+}
+
+model MapVietinBigQueryBackfillCheckpoint {
+  jobKey                  String    @id
+  status                  String    @default("PENDING")
+  upperBoundFirstSeenAt   DateTime
+  upperBoundTransactionId String
+  lastFirstSeenAt         DateTime?
+  lastTransactionId       String?
+  claimToken              String?
+  leaseExpiresAt          DateTime?
+  pagesProcessed          Int       @default(0)
+  rowsEnqueued            Int       @default(0)
+  lastError               String?
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
+
+  @@index([status, leaseExpiresAt, updatedAt])
 }
 
 model ErpOrderCacheBackfillCheckpoint {
