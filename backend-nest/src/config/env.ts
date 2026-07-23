@@ -1,4 +1,5 @@
 import * as path from 'path';
+import { resolveMapVietinBigQueryConfig } from '../map-vietin-bigquery/map-vietin-bigquery.config';
 
 type EnvMap = Record<string, string | undefined>;
 
@@ -146,6 +147,7 @@ export function validateRuntimeEnv(env: EnvMap = process.env): void {
   validatePrivateMediaEnv(env);
   validateVietinEfastEnv(env);
   validateBigQueryEnv(env);
+  validateMapVietinBigQueryEnv(env);
   validateProductionPlaceholders(env);
   validateProductionExternalUrls(env);
 }
@@ -292,6 +294,10 @@ function validateBigQueryEnv(env: EnvMap): void {
       `Incomplete FIFO BigQuery configuration. Missing: ${missing.join(', ')}`,
     );
   }
+}
+
+function validateMapVietinBigQueryEnv(env: EnvMap): void {
+  resolveMapVietinBigQueryConfig(env as NodeJS.ProcessEnv);
 }
 
 function validateAllowedOrigins(env: EnvMap): void {

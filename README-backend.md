@@ -165,6 +165,12 @@ Expected responses:
   managed as active organization tree nodes in OpsHub admin; `EMAIL_DOMAIN_FILE`
   is only the fallback file path when the tree is unavailable.
 - Set all `BIGQUERY_*` values and place the service-account JSON outside git.
+- MAP Vietin BigQuery export (OPS-9) is disabled by default. Provision the
+  sanitized raw table and current-row view with
+  `npm run provision:map-vietin-bigquery`, then set `MAP_VIETIN_BIGQUERY_*`.
+  PostgreSQL remains the source of truth; the leased outbox worker retries
+  asynchronously and never blocks MAP transaction writes. Enable the
+  checkpointed backfill only as an explicit operator action.
 - For sales-report analytics in Looker Studio, set
   `SALES_REPORT_BIGQUERY_SYNC_ENABLED=true`,
   `SALES_REPORT_BIGQUERY_PROJECT_ID`,

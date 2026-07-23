@@ -3,6 +3,7 @@ import { PrismaModule } from '../prisma/prisma.module';
 import { PaymentNotificationsModule } from '../payment-notifications/payment-notifications.module';
 import { RedisModule } from '../redis/redis.module';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { MapVietinBigQueryModule } from '../map-vietin-bigquery/map-vietin-bigquery.module';
 import { MapVietinController } from './map-vietin.controller';
 import { MapVietinService } from './map-vietin.service';
 
@@ -12,6 +13,7 @@ import { MapVietinService } from './map-vietin.service';
     PaymentNotificationsModule,
     RedisModule,
     NotificationsModule,
+    MapVietinBigQueryModule,
   ],
   controllers: [MapVietinController],
   providers: [MapVietinService],
