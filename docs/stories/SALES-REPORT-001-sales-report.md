@@ -119,6 +119,15 @@ nằm rời ở Google Form và có thể dùng cho dashboard sau này.
   đã sanitize, và từng sản phẩm thành từng row trong `SalesReportOrderItem`.
   Backend map thêm `categoryType` bằng `Type` trong `data/categories.csv`, chỉ
   dùng category level sâu nhất trong payload `categories` từ Listing.
+- Khi Listing bulk thiếu SKU hoặc trả `categories` rỗng, backend retry đúng một
+  vòng bounded (chunk tối đa 10 SKU, tối đa 2 request đồng thời) với cùng
+  showroom/channel; lỗi vẫn để `categoryType = null` và không fallback tên/group.
+  OPS-13 cung cấp backfill dry-run mặc định cho item còn `categoryType IS NULL`,
+  có plan hash/checkpoint write-once, keyset pagination, compare-and-set,
+  snapshot cutoff/upper-bound và resume theo các stage `DB_STARTED → DB_APPLIED
+  → HOME_ENQUEUED → BIGQUERY_SYNCED`. Backfill
+  dùng đúng `storeCode` đã lưu, enqueue Home theo ngày ảnh hưởng rồi gọi lại
+  BigQuery full-refresh hiện hữu; không đổi công thức PC ráp.
 - Admin xuất 3 file Excel `.xlsx` tiếng Việt: `HVTC` một dòng mỗi báo cáo
   mua/chưa mua theo các cột hành vi khách hàng; `Doanh số` một dòng tổng hợp số
   đơn duy nhất, doanh thu doanh nghiệp/cá nhân, tổng số báo cáo có tick
