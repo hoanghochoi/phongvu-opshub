@@ -20,6 +20,7 @@ export type SalesReportErpOrderItem = {
   categoryType: string | null;
   listingCategories: unknown[];
   quantity: number | null;
+  uomName: string | null;
   sellPrice: number | null;
   finalSellPrice: number | null;
   rowTotal: number | null;
@@ -968,6 +969,7 @@ export class SalesReportErpService {
         categoryType: null,
         listingCategories: this.cleanListingCategories(product?.categories),
         quantity: this.toInt(item?.quantity),
+        uomName: this.optionalText(item?.uomName),
         sellPrice: this.toInt(item?.sellPrice),
         finalSellPrice: this.toInt(item?.finalSellPrice),
         rowTotal: this.toInt(item?.rowTotal),
@@ -1569,6 +1571,7 @@ export class SalesReportErpService {
       name: this.optionalText(item?.name),
       sellerName: this.optionalText(item?.sellerName),
       quantity: this.toInt(item?.quantity),
+      uomName: this.optionalText(item?.uomName),
       sellPrice: this.toInt(item?.sellPrice),
       finalSellPrice: this.toInt(item?.finalSellPrice),
       rowTotal: this.toInt(item?.rowTotal),

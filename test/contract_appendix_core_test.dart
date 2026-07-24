@@ -20,18 +20,18 @@ void main() {
         'items': [
           {
             'position': 1,
-            'sourceLineKey': '1:250902982',
-            'sku': '250902982',
-            'productName': 'Laptop',
-            'quantity': 2,
-            'unit': 'Cái',
-            'finalSellPrice': 21576187,
+            'sourceLineKey': '1:220909037',
+            'sku': '220909037',
+            'productName': 'Phần mềm Microsoft Win Pro 11 64-bit',
+            'quantity': 3,
+            'unit': 'Bản',
+            'finalSellPrice': 5190000,
             'vatRateBps': null,
             'taxSource': 'MISSING',
             'unitPriceBeforeVat': null,
             'lineBeforeVat': null,
             'lineVatAmount': null,
-            'lineAfterVat': 43152374,
+            'lineAfterVat': 15570000,
           },
         ],
         'totalBeforeVat': null,
@@ -44,7 +44,7 @@ void main() {
       });
 
       expect(document.totalBeforeVat, isNull);
-      expect(document.items.single.lineAfterVat, 43152374);
+      expect(document.items.single.lineAfterVat, 15570000);
       expect(document.items.single.isTaxMissing, isTrue);
       expect(document.canSave, isFalse);
     });
@@ -71,7 +71,7 @@ void main() {
       );
       expect(payload.html, isNot(contains('Laptop <Pro>')));
       expect(payload.html, contains('Tổng giá trị hợp đồng'));
-      expect(payload.html, contains('Bằng chữ: Năm mươi lăm triệu'));
+      expect(payload.html, contains('Bằng chữ: Mười lăm triệu'));
       expect(payload.html, contains("font-family:'Times New Roman'"));
       expect(payload.html, contains('font-size:12pt'));
       expect(payload.html.trimLeft(), startsWith('<table'));
@@ -138,6 +138,28 @@ void main() {
         throwsStateError,
       );
     });
+
+    test(
+      'copies the reported 0% SKU with ERP unit and gross quantity total',
+      () {
+        final payload = buildContractAppendixClipboardPayload(
+          _document(saved: true),
+        );
+
+        expect(
+          payload.plainText,
+          contains('Phần mềm Microsoft Win Pro 11 64-bit'),
+        );
+        expect(payload.plainText, contains('\tBản\t5.190.000\t0%\t15.570.000'));
+        expect(payload.plainText, contains('Tổng cộng\t\t\t\t\t\t15.570.000'));
+        expect(
+          payload.plainText,
+          contains(
+            'Tổng giá trị hợp đồng (đã bao gồm thuế GTGT)\t\t\t\t\t\t15.570.000',
+          ),
+        );
+      },
+    );
   });
 
   group('ContractAppendixProvider', () {
@@ -152,7 +174,7 @@ void main() {
       expect(await provider.lookupOrder(' SO-1 '), isTrue);
       expect(provider.canCopy, isFalse);
 
-      provider.updateProductName('1:250902982', 'Tên hợp đồng');
+      provider.updateProductName('1:220909037', 'Tên hợp đồng');
       expect(provider.isDirty, isTrue);
       expect(provider.canCopy, isFalse);
 
@@ -162,7 +184,7 @@ void main() {
       expect(provider.saved?.items.single.productName, 'Tên hợp đồng');
       expect(provider.canCopy, isTrue);
 
-      provider.updateUnit('1:250902982', 'Bộ');
+      provider.updateUnit('1:220909037', 'Bộ');
       expect(provider.isDirty, isTrue);
       expect(provider.canCopy, isFalse);
     });
@@ -244,7 +266,7 @@ class _FakeDataSource implements ContractAppendixDataSource {
     final name = overrides.isEmpty
         ? 'Laptop ERP'
         : overrides.single['productName'] as String;
-    final unit = overrides.isEmpty ? 'Cái' : overrides.single['unit'] as String;
+    final unit = overrides.isEmpty ? 'Bản' : overrides.single['unit'] as String;
     return _document(
       quoteVersion: 'quote-$previewCalls',
       productName: name,
@@ -307,8 +329,8 @@ class _FakeDataSource implements ContractAppendixDataSource {
 ContractAppendixDocument _document({
   bool saved = false,
   String quoteVersion = 'quote-1',
-  String productName = 'Laptop ERP',
-  String unit = 'Cái',
+  String productName = 'Phần mềm Microsoft Win Pro 11 64-bit',
+  String unit = 'Bản',
 }) {
   final createdAt = saved ? DateTime.utc(2026, 7, 17, 8) : null;
   return ContractAppendixDocument(
@@ -320,28 +342,28 @@ ContractAppendixDocument _document({
     items: [
       ContractAppendixItem(
         position: 1,
-        sourceLineKey: '1:250902982',
-        sku: '250902982',
-        sellerSku: '250902982',
+        sourceLineKey: '1:220909037',
+        sku: '220909037',
+        sellerSku: '220909037',
         productName: productName,
-        quantity: 1,
+        quantity: 3,
         unit: unit,
-        finalSellPrice: 55180000,
-        vatRateBps: 800,
-        taxCode: 'VAT8',
-        taxLabel: 'Thuế GTGT 8%',
+        finalSellPrice: 5190000,
+        vatRateBps: 0,
+        taxCode: 'VAT0',
+        taxLabel: 'Thuế 0%',
         taxSource: 'ERP_PPM',
         taxFetchedAt: DateTime.utc(2026, 7, 17, 7),
-        unitPriceBeforeVat: 51092593,
-        lineBeforeVat: 51092593,
-        lineVatAmount: 4087407,
-        lineAfterVat: 55180000,
+        unitPriceBeforeVat: 5190000,
+        lineBeforeVat: 15570000,
+        lineVatAmount: 0,
+        lineAfterVat: 15570000,
       ),
     ],
-    totalBeforeVat: 51092593,
-    totalVatAmount: 4087407,
-    totalAfterVat: 55180000,
-    amountInWords: 'Năm mươi lăm triệu một trăm tám mươi nghìn đồng chẵn.',
+    totalBeforeVat: 15570000,
+    totalVatAmount: 0,
+    totalAfterVat: 15570000,
+    amountInWords: 'Mười lăm triệu năm trăm bảy mươi nghìn đồng chẵn.',
     manualTaxItemCount: 0,
     unresolvedTaxCount: 0,
     canSave: true,

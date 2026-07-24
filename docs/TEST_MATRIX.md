@@ -275,6 +275,16 @@ Recent focused evidence:
   `thead/th` nên không đánh dấu lặp header. Còn recheck định dạng thật trên cả
   tài liệu Word trắng và file mẫu sau khi phát hành follow-up.
 
+- `CONTRACT-APPENDIX-001` / `OPS-20`, 2026-07-24: sửa preview có thể dùng tax
+  cache 5 phút trong khi save force-refresh, khiến SKU `220909037` thấy stale
+  `8%` thay vì live `0%`. PPM tax adapter nay deduplicate SKU, gọi live theo
+  batch tối đa 50 cho cả preview/save và không đọc/ghi memory/Redis tax cache;
+  ERP login/token cache giữ nguyên. ERP order item mang `uomName` vào phụ lục,
+  không hard-code `Cái`. Proof local đạt 6 focused Nest suite / 43 test, 10
+  focused Flutter test, Nest build, full Nest 89 suite / 873 test, Flutter
+  analyze và full Flutter 611 passed / 3 skipped. Live PPM SKU `220909037` và
+  order `uomName` còn là staging gate trước `Ready for Release`.
+
 - `SALES-REPORT-001` / `SALES-REPORT-002`, 2026-07-17: biểu mẫu khách chưa
   mua đã bỏ ô Zalo tự do; số điện thoại chỉ nhận đúng 10 chữ số bắt đầu bằng
   `0` hoặc để trống. Hai kênh `ZALO_PERSONAL` và `ZALO_OA` được chọn độc lập,

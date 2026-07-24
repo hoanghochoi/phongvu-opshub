@@ -4,15 +4,16 @@ import { ContractAppendicesService } from './contract-appendices.service';
 describe('ContractAppendicesService', () => {
   const fetchedAt = new Date('2026-07-17T02:00:00.000Z');
   const order = {
-    orderCode: 'SO-250902982',
+    orderCode: 'SO-220909037',
     fetchedAt,
     items: [
       {
-        sku: '250902982',
-        sellerSku: '250902982',
-        name: 'Tai nghe Apple AirPods Pro 3',
-        quantity: 2,
-        finalSellPrice: 2_246_907,
+        sku: '220909037',
+        sellerSku: '220909037',
+        name: 'Phần mềm Microsoft Win Pro 11 64-bit',
+        quantity: 3,
+        uomName: 'Bản',
+        finalSellPrice: 5_190_000,
         sellPrice: 99,
       },
     ],
@@ -20,16 +21,16 @@ describe('ContractAppendicesService', () => {
   const taxes = {
     terminalCode: '49180_PRICE_0001',
     sellerId: '1',
-    requestedSkus: ['250902982'],
+    requestedSkus: ['220909037'],
     missingSkus: [],
     fetchedAt,
     items: [
       {
-        sku: '250902982',
-        vatRateBps: 800,
-        taxOutAmount: 8,
-        taxCode: '8',
-        taxLabel: 'Thuế 8%',
+        sku: '220909037',
+        vatRateBps: 0,
+        taxOutAmount: 0,
+        taxCode: 'VAT0',
+        taxLabel: 'Thuế 0%',
         source: 'ERP_PPM',
         fetchedAt,
       },
@@ -65,37 +66,57 @@ describe('ContractAppendicesService', () => {
     const { service, orderErp, productErp } = harness();
     const result = await service.preview(
       { id: 'user-1' },
-      { orderCode: ' SO-250902982 ' },
+      { orderCode: ' SO-220909037 ' },
     );
-    expect(orderErp.lookupOrder).toHaveBeenCalledWith(' SO-250902982 ');
-    expect(productErp.lookupTaxes).toHaveBeenCalledWith(['250902982'], {
-      forceRefresh: false,
-    });
+    expect(orderErp.lookupOrder).toHaveBeenCalledWith(' SO-220909037 ');
+    expect(productErp.lookupTaxes).toHaveBeenCalledWith(['220909037']);
     expect(result.canSave).toBe(true);
     expect(result.items[0]).toMatchObject({
-      sku: '250902982',
-      quantity: 2,
-      finalSellPrice: 2_246_907,
-      unitPriceBeforeVat: 2_080_469,
-      lineBeforeVat: 4_160_938,
-      lineVatAmount: 332_876,
-      lineAfterVat: 4_493_814,
+      sku: '220909037',
+      quantity: 3,
+      unit: 'Bản',
+      finalSellPrice: 5_190_000,
+      unitPriceBeforeVat: 5_190_000,
+      lineBeforeVat: 15_570_000,
+      lineVatAmount: 0,
+      lineAfterVat: 15_570_000,
     });
     expect(result.totalBeforeVat + result.totalVatAmount).toBe(
       result.totalAfterVat,
     );
   });
 
+  it('uses an explicit unit override but never invents a missing ERP unit', async () => {
+    const { service, orderErp } = harness();
+    orderErp.lookupOrder.mockResolvedValue({
+      ...order,
+      items: [{ ...order.items[0], uomName: null }],
+    });
+
+    await expect(
+      service.preview({ id: 'user-1' }, { orderCode: 'SO-220909037' }),
+    ).rejects.toThrow('ERP chưa trả đơn vị tính');
+
+    const result = await service.preview(
+      { id: 'user-1' },
+      {
+        orderCode: 'SO-220909037',
+        overrides: [{ sourceLineKey: '1:220909037', unit: 'Bản' }],
+      },
+    );
+    expect(result.items[0].unit).toBe('Bản');
+  });
+
   it('requires an explicit manual tax when PPM has no tax', async () => {
     const { service, productErp } = harness();
     productErp.lookupTaxes.mockResolvedValue({
       ...taxes,
-      missingSkus: ['250902982'],
+      missingSkus: ['220909037'],
       items: [{ ...taxes.items[0], vatRateBps: null, source: 'MISSING' }],
     });
     const unresolved = await service.preview(
       { id: 'user-1' },
-      { orderCode: 'SO-250902982' },
+      { orderCode: 'SO-220909037' },
     );
     expect(unresolved.canSave).toBe(false);
     expect(unresolved.unresolvedTaxCount).toBe(1);
@@ -104,8 +125,8 @@ describe('ContractAppendicesService', () => {
     const manual = await service.preview(
       { id: 'user-1' },
       {
-        orderCode: 'SO-250902982',
-        overrides: [{ sourceLineKey: '1:250902982', manualVatRateBps: 800 }],
+        orderCode: 'SO-220909037',
+        overrides: [{ sourceLineKey: '1:220909037', manualVatRateBps: 800 }],
       },
     );
     expect(manual.canSave).toBe(true);
@@ -113,11 +134,11 @@ describe('ContractAppendicesService', () => {
     expect(manual.items[0].taxSource).toBe('MANUAL');
   });
 
-  it('force-refreshes tax and persists an immutable creator snapshot', async () => {
+  it('refetches live tax and persists an immutable creator snapshot', async () => {
     const { service, prisma, productErp } = harness();
     const preview = await service.preview(
       { id: 'user-1' },
-      { orderCode: 'SO-250902982' },
+      { orderCode: 'SO-220909037' },
     );
     prisma.contractAppendix.create.mockImplementation(({ data }: any) => ({
       id: 'appendix-1',
@@ -131,26 +152,27 @@ describe('ContractAppendicesService', () => {
 
     const saved = await service.create(
       { id: 'user-1' },
-      { orderCode: 'SO-250902982', quoteVersion: preview.quoteVersion },
+      { orderCode: 'SO-220909037', quoteVersion: preview.quoteVersion },
     );
-    expect(productErp.lookupTaxes).toHaveBeenLastCalledWith(['250902982'], {
-      forceRefresh: true,
-    });
+    expect(productErp.lookupTaxes).toHaveBeenCalledTimes(2);
+    expect(productErp.lookupTaxes).toHaveBeenLastCalledWith(['220909037']);
     const createData = prisma.contractAppendix.create.mock.calls[0][0].data;
     expect(createData.userId).toBe('user-1');
     expect(createData.terminalCode).toBe('49180_PRICE_0001');
-    expect(createData.totalAfterVat).toBe(4_493_814n);
+    expect(createData.items.create[0].unit).toBe('Bản');
+    expect(createData.items.create[0].vatRateBps).toBe(0);
+    expect(createData.totalAfterVat).toBe(15_570_000n);
     expect(
       createData.expiresAt.getTime() - createData.createdAt.getTime(),
     ).toBe(30 * 24 * 60 * 60 * 1000);
-    expect(saved.totalAfterVat).toBe(4_493_814);
+    expect(saved.totalAfterVat).toBe(15_570_000);
   });
 
   it('rejects save when ERP tax changed after preview', async () => {
     const { service, productErp } = harness();
     const preview = await service.preview(
       { id: 'user-1' },
-      { orderCode: 'SO-250902982' },
+      { orderCode: 'SO-220909037' },
     );
     productErp.lookupTaxes.mockResolvedValue({
       ...taxes,
@@ -159,7 +181,7 @@ describe('ContractAppendicesService', () => {
     await expect(
       service.create(
         { id: 'user-1' },
-        { orderCode: 'SO-250902982', quoteVersion: preview.quoteVersion },
+        { orderCode: 'SO-220909037', quoteVersion: preview.quoteVersion },
       ),
     ).rejects.toBeInstanceOf(ConflictException);
   });

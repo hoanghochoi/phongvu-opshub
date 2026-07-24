@@ -20,7 +20,3 @@ export type ErpPpmTaxLookupResult = {
   missingSkus: string[];
   fetchedAt: Date;
 };
-
-export type ErpPpmTaxLookupOptions = {
-  forceRefresh?: boolean;
-};

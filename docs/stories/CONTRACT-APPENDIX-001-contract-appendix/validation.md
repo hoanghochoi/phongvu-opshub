@@ -3,8 +3,8 @@
 ## Automated
 
 - `npx prisma format && npx prisma validate && npx prisma generate`
-- Focused Nest tests cho ERP authorized request, PPM batch/cache, calculator,
-  amount words và contract service/controller.
+- Focused Nest tests cho ERP authorized request, PPM live batch/no-cache,
+  `uomName`, calculator mixed-tax, amount words và contract service/controller.
 - `npm run build`
 - Flutter tests cho JSON models, HTML/TSV escaping, provider state, route/access
   và layout `390x844`.
@@ -36,10 +36,27 @@
 - Chưa xác minh: migration up/rollback trên database scratch vì Docker Desktop
   Linux engine chưa chạy trong phiên local này.
 
+### Follow-up OPS-20 local 2026-07-24
+
+- Đạt: PPM live batch/no-cache, stale 8% -> live 0%, không đọc/ghi legacy
+  Redis tax cache, ERP `uomName`, SKU `220909037` 0%, mixed 0%/8%, quantity > 1,
+  snapshot, quote conflict, history/access và token refresh trong 6 focused Nest
+  suite / 43 test.
+- Đạt: Contract Appendix model/provider/UI/HTML/TSV clipboard trong 10 focused
+  Flutter test; cột chưa VAT và ba dòng tổng dùng đúng kết quả từng sản phẩm.
+- Đạt: Nest build; full Nest 89 suite / 873 test; `flutter analyze --no-pub`;
+  full Flutter 611 passed / 3 skipped; `git diff --check`.
+- Local live PPM chưa chạy do môi trường máy không có ERP credential. Live SKU
+  `220909037` và order `uomName` phải được xác minh trên staging sau deploy trước
+  khi chuyển `Ready for Release`.
+
 ## Integration and Manual
 
-- Backend smoke SKU `250902982` trả `vatRateBps=800` tại terminal
-  `49180_PRICE_0001`; thêm fixture 0%, 10% và KCT nếu provider trả code.
+- Backend smoke SKU `220909037` trả `vatRateBps=0` và SKU `250902982` trả
+  `vatRateBps=800` tại terminal `49180_PRICE_0001`; thêm fixture 10% và KCT nếu
+  provider trả code.
+- Hai lookup liên tiếp phải gọi PPM hai lần; fixture stale 8% rồi live 0% phải
+  trả kết quả 0% ở lần sau và không chạm Redis tax cache.
 - Đơn có quantity > 1 chứng minh `finalSellPrice` là giá mỗi đơn vị và footer
   reconcile đúng.
 - User khác không đọc được snapshot; bản hết hạn bị 404 và cron xóa idempotent.
