@@ -116,6 +116,23 @@ This file maps product behavior to proof. Existing flows are marked
   an explicit residual rather than expanding this dependency-patch task.
   Dependabot alerts remain open until the patch reaches the default production
   branch and must not be dismissed manually.
+- `OPS-21`, 2026-07-24: replaced the vulnerable dependency paths behind
+  Dependabot #23-#26 without dismissing alerts or running a forced audit fix.
+  Direct runtime Sharp is now `0.35.3` with bundled libvips `8.18.3`; every
+  fast-uri path resolves to `3.1.4`; the vulnerable `@hono/node-server` path is
+  absent; Prisma runtime/client remain aligned at `7.8.0` while the existing
+  development-only override is narrowed to fixed `@prisma/dev@0.24.16`, which
+  uses `find-my-way@9.7.0`. The repeatable `npm run verify:security-deps`
+  check asserts all version floors, IDN hostname canonicalization, literal
+  backslash authority rejection, inherited HTTP-method rejection, loaded
+  Sharp/libvips versions, and a real Sharp PNG encode/decode control.
+  Validation: `npm ci`, Prisma schema validation/client generation, Nest build,
+  both npm audit modes (`0 vulnerabilities`), focused private-media/VietQR Jest
+  (2 suites/35 tests), and full Jest (89 suites/873 tests) passed. The protected
+  consumers exercised valid and spoofed upload images plus a server-rendered,
+  QR-decodable VietQR PNG. Local Docker runtime image proof remains unavailable
+  because the Docker Desktop Linux daemon is not running; CI/staging image and
+  deploy proof remain required before release readiness.
 - `WINDOWS-DIST-001`, 2026-07-02: the manual MSIX workflow supports an
   internal signed sideload artifact with the selected Windows signing PFX, plus
   the existing Store artifact path with Partner Center identity secrets. Runtime
