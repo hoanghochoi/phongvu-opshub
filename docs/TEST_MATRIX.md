@@ -130,9 +130,19 @@ This file maps product behavior to proof. Existing flows are marked
   both npm audit modes (`0 vulnerabilities`), focused private-media/VietQR Jest
   (2 suites/35 tests), and full Jest (89 suites/873 tests) passed. The protected
   consumers exercised valid and spoofed upload images plus a server-rendered,
-  QR-decodable VietQR PNG. Local Docker runtime image proof remains unavailable
-  because the Docker Desktop Linux daemon is not running; CI/staging image and
-  deploy proof remain required before release readiness.
+  QR-decodable VietQR PNG. PR #32 merged as `b3be3486d...`, but its first
+  staging deploy exposed that Sharp's Linux x64 prebuilt addon requires
+  x86-64-v2/SSE4.2 while the staging QEMU CPU does not; the Wasm fallback also
+  requires unsupported Wasm SIMD. The audited checkpoint restored healthy
+  release `d488571f...` and public HTTP 200 health/version metadata. The
+  follow-up image now compiles only the Sharp addon from source, links the same
+  fixed libvips `8.18.3`, and retains no compiler, node-gyp, or libvips headers
+  in the runtime stage. An isolated build and post-prune probe passed directly
+  on the staging host: image `sha256:e38f999...`, runtime UID 1000,
+  `x64v2=false`, Sharp `0.35.3`, libvips `8.18.3`, and real PNG encode/decode.
+  Platform security checks also prove Bash ERR-trap inheritance for automatic
+  rollback; the follow-up PR's staging deploy and QA remain required before
+  release readiness.
 - `WINDOWS-DIST-001`, 2026-07-02: the manual MSIX workflow supports an
   internal signed sideload artifact with the selected Windows signing PFX, plus
   the existing Store artifact path with Partner Center identity secrets. Runtime

@@ -2,23 +2,38 @@ FROM node:22-alpine@sha256:16e22a550f3863206a3f701448c45f7912c6896a62de43add43bb
 
 WORKDIR /app
 
+# Sharp's locally-built addon lives outside the prebuilt package layout, so
+# make its bundled libvips runtime library explicit for build-time checks.
+ENV LD_LIBRARY_PATH=/app/node_modules/@img/sharp-libvips-linuxmusl-x64/lib
+
+RUN apk add --no-cache build-base python3
+
 COPY package*.json ./
-RUN npm ci
+RUN npm ci && \
+    SHARP_IGNORE_GLOBAL_LIBVIPS=1 npm_config_nodedir=/usr/local npm explore sharp -- npm run build && \
+    SHARP_VERSION="$(node -p "require('./node_modules/sharp/package.json').version")" && \
+    test -f "node_modules/sharp/src/build/Release/sharp-linuxmusl-x64-${SHARP_VERSION}.node"
 
 COPY . .
-RUN npx prisma generate && npm run build
+RUN npm run verify:security-deps && npx prisma generate && npm run build
 RUN find dist -type f \( -name '*.map' -o -name '*.d.ts' -o -name '*.tsbuildinfo' \) -delete
 
 FROM build AS production-deps
 
 # Keep generated Prisma artifacts, then remove build/test tooling before the
 # long-running API image is assembled.
-RUN npm prune --omit=dev && npm cache clean --force
+RUN npm prune --omit=dev && \
+    npm cache clean --force && \
+    SHARP_VERSION="$(node -p "require('./node_modules/sharp/package.json').version")" && \
+    test -f "node_modules/sharp/src/build/Release/sharp-linuxmusl-x64-${SHARP_VERSION}.node" && \
+    test -f "${LD_LIBRARY_PATH}/libvips-cpp.so.8.18.3" && \
+    node -e "const sharp=require('sharp'); (async()=>{ const png=await sharp({create:{width:2,height:2,channels:3,background:'#1238c8'}}).png().toBuffer(); const metadata=await sharp(png).metadata(); if(metadata.format!=='png'||metadata.width!==2||metadata.height!==2) throw new Error('Sharp runtime PNG control failed'); console.log(JSON.stringify({sharp:sharp.versions.sharp,vips:sharp.versions.vips,sourceBuild:'ok',pngControl:'ok'})); })().catch((error)=>{ console.error(error); process.exit(1); });"
 
 FROM node:22-alpine@sha256:16e22a550f3863206a3f701448c45f7912c6896a62de43add43bb9c86130c3e2 AS ops
 
 WORKDIR /app
-ENV NODE_ENV=production
+ENV NODE_ENV=production \
+    LD_LIBRARY_PATH=/app/node_modules/@img/sharp-libvips-linuxmusl-x64/lib
 
 RUN apk add --no-cache fontconfig ttf-dejavu
 
@@ -36,7 +51,8 @@ CMD ["npx", "prisma", "migrate", "deploy"]
 FROM node:22-alpine@sha256:16e22a550f3863206a3f701448c45f7912c6896a62de43add43bb9c86130c3e2 AS runtime
 
 WORKDIR /app
-ENV NODE_ENV=production
+ENV NODE_ENV=production \
+    LD_LIBRARY_PATH=/app/node_modules/@img/sharp-libvips-linuxmusl-x64/lib
 
 RUN apk add --no-cache fontconfig ttf-dejavu
 

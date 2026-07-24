@@ -623,7 +623,7 @@ jobs:
              WINDOWS_INSTALLER_ARGS='$windows_installer_args' \
              APP_RELEASE_NOTES='$APP_RELEASE_NOTES' \
              bash -s" <<'REMOTE'
-          set -euo pipefail
+          set -Eeuo pipefail
 
           if [ ! -s "$OPSHUB_ENV_FILE" ]; then
             echo "Missing staging env file: $OPSHUB_ENV_FILE" >&2
