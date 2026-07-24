@@ -25,7 +25,7 @@ export function mapVietinBigQueryTableDdl({ projectId, datasetId, tableId }) {
   store_code STRING,
   statement_number STRING,
   amount INT64 NOT NULL,
-  orders ARRAY<STRING> NOT NULL,
+  orders ARRAY<STRING>,
   order_source STRING,
   status STRING,
   paid_at TIMESTAMP,

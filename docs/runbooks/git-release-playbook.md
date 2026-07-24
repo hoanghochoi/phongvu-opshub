@@ -197,10 +197,51 @@ proof result is inferred rather than observed.
 
 - Code chưa sẵn sàng không vào `staging`, trừ khi bị khóa bằng feature flag,
   draft PR, route ẩn hoặc integration branch có tài liệu.
-- Hotfix: `main` -> hotfix branch -> PR/explicit exception vào `staging` -> test
-  -> Đại Ca ra lệnh promote -> `main`.
+- Hotfix: live `origin/staging` -> hotfix branch -> PR/explicit exception vào
+  `staging` -> test -> Đại Ca ra lệnh promote -> `main`.
 - Rollback: tạo revert branch từ commit đã phát hành -> đưa revert vào `staging`
   -> deploy/QA -> Đại Ca ra lệnh promote. Không rewrite `main`.
+
+### Đánh giá hotfix trước, full fix sau
+
+Mỗi bug phải được đánh giá thành hai lane trước khi sửa:
+
+- **Hotfix:** thay đổi nhỏ nhất, rollback được, nhằm khôi phục hoặc ổn định
+  production ngay; có regression test, recovery point và feature flag/kill
+  switch khi luồng cho phép.
+- **Full fix:** xử lý tận gốc, gồm cleanup, migration, backfill, thay đổi kiến
+  trúc hoặc hardening rộng hơn. Nếu vượt phạm vi hotfix, giữ thành issue/PR riêng
+  và link với hotfix thay vì kéo rộng bản vá production.
+
+Khi nhiều Linear issue cùng chờ xử lý, ưu tiên hotfix đang ảnh hưởng production
+trước full fix, sau khi kiểm tra dependency và safety gate. Thứ tự ưu tiên này
+không cho phép bỏ qua CI, staging proof, QA, release lock hoặc rollback plan.
+Comment Linear của hotfix phải nêu phần full fix còn lại, residual risk và bước
+tiếp theo; không dùng hotfix để âm thầm đóng một full fix chưa được chứng minh.
+
+### Runtime hotfix khi chưa redeploy production ngay
+
+Chỉ dùng trình tự này khi Đại Ca yêu cầu sửa runtime nhưng chưa muốn chạy lại
+production deploy:
+
+1. Tạo task branch từ live `origin/staging`, sửa code và chạy local proof.
+2. Commit/push, mở PR vào `staging`, chờ CI pass rồi merge theo workflow chuẩn.
+3. Chờ build/deploy staging của đúng merge SHA pass và xác minh behavior liên
+   quan. Nếu staging chưa pass thì không sửa production runtime.
+4. Sau authorization sửa server rõ ràng, SSH vào `hoang-n8n` (hoặc production
+   host hiện hành theo deployment source of truth), xác định exact active
+   release/artifact, tạo checkpoint/backup có thể khôi phục rồi mới áp đúng
+   patch đã qua staging. Không chép secret hoặc payload nhạy cảm vào log/proof.
+5. Xác minh checksum/diff của target, service health, behavior đã sửa và các
+   feature flag liên quan vẫn ở trạng thái đã duyệt. Ghi lại runtime drift và
+   recovery command trong Linear.
+6. Ở release window kế tiếp, promote đúng Git fix từ `origin/staging` sang
+   `main`, deploy và chứng minh runtime khớp artifact trong Git; chỉ lúc đó mới
+   coi manual runtime drift đã được xóa.
+
+Manual runtime patch không thay thế Git, PR, staging proof hay production
+promotion. Nếu target runtime không khớp source đã proof, backup thất bại, hoặc
+SHA staging đổi trong lúc thao tác thì dừng fail-closed.
 
 ## Proof và smoke định kỳ
 

@@ -59,6 +59,24 @@ before acting. Never claim done before verification.
 - Protect existing user work. Do not revert unrelated changes.
 - Before pushing code, re-check the exact diff and run the relevant validation.
 
+### Bug-fix hotfix/full-fix triage
+
+- Evaluate every bug in two lanes before implementation: a **hotfix** is the
+  smallest reversible change that restores or stabilizes production; a
+  **full fix** addresses the durable root cause, cleanup, migration, backfill,
+  or architectural follow-up.
+- When several Linear issues are active, prioritize production-impacting
+  hotfixes before full fixes after checking dependencies and safety gates.
+  Priority never bypasses CI, staging proof, QA, release, or rollback rules.
+- If the hotfix intentionally leaves broader work, record and link the full-fix
+  scope in Linear with residual risk and an explicit next step. Do not silently
+  treat the hotfix as the completed full fix.
+- A manual production runtime patch is a temporary, audited exception. The Git
+  fix must first be merged into `staging` and its staging build/deploy must pass;
+  checkpoint and back up the exact runtime target before patching, verify
+  health/behavior afterward, and later promote/deploy the Git fix so the next
+  release removes the runtime drift instead of restoring the bug.
+
 ## Pull Requests And Release Tracking
 
 - PR titles use `[OPS-123] Description`; feature PRs use base `staging`.
