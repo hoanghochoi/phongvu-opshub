@@ -9,11 +9,17 @@ const backendRoot = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
   '..',
 );
-const migrationDir = path.join(
+const baseMigrationDir = path.join(
   backendRoot,
   'prisma',
   'migrations',
   '20260723100000_map_vietin_bigquery_outbox',
+);
+const hotfixMigrationDir = path.join(
+  backendRoot,
+  'prisma',
+  'migrations',
+  '20260724113000_map_vietin_bigquery_canonical_revision',
 );
 const sourceUrl = process.env.DATABASE_URL?.trim();
 if (!sourceUrl) throw new Error('DATABASE_URL is required');
@@ -69,9 +75,9 @@ try {
     `INSERT INTO "MapVietinTransaction" (
        "id", "storeCode", "transactionKey", "transactionNumber", "amount", "content", "orders",
        "orderSource", "status", "paidAt", "payerName", "payerAccount", "incomeType", "rawData", "updatedAt"
-     ) VALUES ('verify-map-vietin-1', 'S01', 'verify-map-vietin', 'TRX-1', 125000, 'ignored', ARRAY['ORD-1'],
-       'MAP', 'PAID', '2026-07-23T02:00:00.000Z', 'Payer', 'Account', 'SALES',
-       '{"source":"MAP","providerIdentifiers":{"efastTrxId":"STMT-1"}}'::jsonb, CURRENT_TIMESTAMP)
+     ) VALUES ('verify-map-vietin-1', 'S01', 'verify-map-vietin', 'MAP-TRX-1', 125000, 'ignored', ARRAY['ORD-1'],
+       'MAP', 'Thành công', '2026-07-23T02:00:00.000Z', 'Payer', 'Account', 'SALES',
+       '{"source":"MAP","providerIdentifiers":{"mapTransactionNumber":"MAP-TRX-1","efastTrxId":"STMT-1"}}'::jsonb, CURRENT_TIMESTAMP)
      RETURNING "id", "bigQueryRevision"`,
   );
   const id = inserted.rows[0].id;
@@ -94,10 +100,50 @@ try {
     'statement identifier was not sanitized',
   );
   requireCondition(
+    payload.status === 'SUCCESS',
+    'successful MAP status was not canonicalized',
+  );
+  requireCondition(
+    payload.provider_source === 'VIETIN_EFAST',
+    'provider source was not derived from stable identifiers',
+  );
+  requireCondition(
     !Object.keys(payload).some((key) =>
       /raw|content|payer|account|email|user|token|credential/i.test(key),
     ),
     'payload leaked a sensitive key',
+  );
+
+  for (let index = 0; index < 100; index += 1) {
+    const efastReplay = index % 2 === 0;
+    await scratch.query(
+      `UPDATE "MapVietinTransaction"
+       SET "status" = $2,
+           "rawData" = jsonb_set("rawData", '{source}', to_jsonb($3::text)),
+           "updatedAt" = CURRENT_TIMESTAMP
+       WHERE "id" = $1`,
+      [
+        id,
+        efastReplay ? 'SUCCESS' : 'Thành công',
+        efastReplay ? 'VIETIN_EFAST' : 'MAP',
+      ],
+    );
+  }
+  const afterEquivalentReplay = await scratch.query(
+    `SELECT transaction."bigQueryRevision",
+            COUNT(event."id")::int AS event_count
+     FROM "MapVietinTransaction" AS transaction
+     LEFT JOIN "DomainOutboxEvent" AS event
+       ON event."aggregateId" = transaction."id"
+      AND event."eventType" = 'MAP_VIETIN_BIGQUERY_TRANSACTION_REVISION'
+     WHERE transaction."id" = $1
+     GROUP BY transaction."bigQueryRevision"`,
+    [id],
+  );
+  requireCondition(
+    Number(afterEquivalentReplay.rows[0].bigQueryRevision) === 1 &&
+      afterEquivalentReplay.rows[0].event_count === 1,
+    'equivalent MAP/eFAST replay emitted duplicate revisions',
   );
 
   await scratch.query(
@@ -140,6 +186,87 @@ try {
     'dedupe key was not idempotent',
   );
 
+  await scratch.query(
+    `UPDATE "MapVietinTransaction" SET "status" = 'FAILED' WHERE "id" = $1`,
+    [id],
+  );
+  const afterMeaningfulStatus = await scratch.query(
+    `SELECT transaction."bigQueryRevision",
+            COUNT(event."id")::int AS event_count
+     FROM "MapVietinTransaction" AS transaction
+     LEFT JOIN "DomainOutboxEvent" AS event
+       ON event."aggregateId" = transaction."id"
+      AND event."eventType" = 'MAP_VIETIN_BIGQUERY_TRANSACTION_REVISION'
+     WHERE transaction."id" = $1
+     GROUP BY transaction."bigQueryRevision"`,
+    [id],
+  );
+  requireCondition(
+    Number(afterMeaningfulStatus.rows[0].bigQueryRevision) === 3 &&
+      afterMeaningfulStatus.rows[0].event_count === 3,
+    'meaningful status update did not emit exactly one revision',
+  );
+
+  const enrichmentId = 'verify-map-vietin-enrichment';
+  await scratch.query(
+    `INSERT INTO "MapVietinTransaction" (
+       "id", "storeCode", "transactionKey", "transactionNumber", "amount", "content", "orders",
+       "orderSource", "status", "paidAt", "incomeType", "rawData", "updatedAt"
+     ) VALUES ($1, 'S01', 'verify-map-vietin-enrichment', 'MAP-TRX-2', 250000, 'ignored', ARRAY[]::text[],
+       'MAP', 'Thành công', '2026-07-23T03:00:00.000Z', 'SALES',
+       '{"source":"MAP","providerIdentifiers":{"mapTransactionNumber":"MAP-TRX-2"}}'::jsonb,
+       CURRENT_TIMESTAMP)`,
+    [enrichmentId],
+  );
+  await scratch.query(
+    `UPDATE "MapVietinTransaction"
+     SET "status" = 'SUCCESS',
+         "rawData" = '{"source":"VIETIN_EFAST","providerIdentifiers":{"mapTransactionNumber":"MAP-TRX-2","efastTrxId":"EFAST-TRX-2"}}'::jsonb,
+         "updatedAt" = CURRENT_TIMESTAMP
+     WHERE "id" = $1`,
+    [enrichmentId],
+  );
+  for (let index = 0; index < 20; index += 1) {
+    const efastReplay = index % 2 === 0;
+    await scratch.query(
+      `UPDATE "MapVietinTransaction"
+       SET "status" = $2,
+           "rawData" = jsonb_set("rawData", '{source}', to_jsonb($3::text)),
+           "updatedAt" = CURRENT_TIMESTAMP
+       WHERE "id" = $1`,
+      [
+        enrichmentId,
+        efastReplay ? 'SUCCESS' : 'Thành công',
+        efastReplay ? 'VIETIN_EFAST' : 'MAP',
+      ],
+    );
+  }
+  const afterIdentifierEnrichment = await scratch.query(
+    `SELECT transaction."bigQueryRevision",
+            COUNT(event."id")::int AS event_count,
+            (array_agg(event."payload" ORDER BY event."occurredAt" DESC))[1] AS latest_payload
+     FROM "MapVietinTransaction" AS transaction
+     LEFT JOIN "DomainOutboxEvent" AS event
+       ON event."aggregateId" = transaction."id"
+      AND event."eventType" = 'MAP_VIETIN_BIGQUERY_TRANSACTION_REVISION'
+     WHERE transaction."id" = $1
+     GROUP BY transaction."bigQueryRevision"`,
+    [enrichmentId],
+  );
+  requireCondition(
+    Number(afterIdentifierEnrichment.rows[0].bigQueryRevision) === 2 &&
+      afterIdentifierEnrichment.rows[0].event_count === 2,
+    'identifier enrichment or replay produced the wrong revision count',
+  );
+  requireCondition(
+    afterIdentifierEnrichment.rows[0].latest_payload.statement_number ===
+      'EFAST-TRX-2' &&
+      afterIdentifierEnrichment.rows[0].latest_payload.status === 'SUCCESS' &&
+      afterIdentifierEnrichment.rows[0].latest_payload.provider_source ===
+        'VIETIN_EFAST',
+    'identifier enrichment did not produce the canonical BigQuery payload',
+  );
+
   await scratch.query(`DELETE FROM "MapVietinTransaction" WHERE "id" = $1`, [
     id,
   ]);
@@ -173,7 +300,56 @@ try {
   );
 
   await scratch.query(
-    await readFile(path.join(migrationDir, 'rollback.sql'), 'utf8'),
+    await readFile(path.join(hotfixMigrationDir, 'rollback.sql'), 'utf8'),
+  );
+  const hotfixDown = await scratch.query(
+    `SELECT
+       to_regprocedure('opshub_map_vietin_bigquery_canonical_status(text)') IS NULL AS status_helper_removed,
+       to_regprocedure('opshub_map_vietin_bigquery_provider_source(jsonb)') IS NULL AS source_helper_removed`,
+  );
+  requireCondition(
+    Object.values(hotfixDown.rows[0]).every(Boolean),
+    'hotfix rollback left canonicalization helpers behind',
+  );
+
+  const legacyBehaviorId = 'verify-map-vietin-hotfix-rollback';
+  await scratch.query(
+    `INSERT INTO "MapVietinTransaction" (
+       "id", "transactionKey", "transactionNumber", "amount", "content", "orders",
+       "status", "incomeType", "rawData", "updatedAt"
+     ) VALUES ($1, 'verify-hotfix-rollback', 'MAP-ROLLBACK', 1, 'rollback', ARRAY[]::text[],
+       'Thành công', 'SALES',
+       '{"source":"MAP","providerIdentifiers":{"mapTransactionNumber":"MAP-ROLLBACK","efastTrxId":"EFAST-ROLLBACK"}}'::jsonb,
+       CURRENT_TIMESTAMP)`,
+    [legacyBehaviorId],
+  );
+  await scratch.query(
+    `UPDATE "MapVietinTransaction"
+     SET "status" = 'SUCCESS',
+         "rawData" = jsonb_set("rawData", '{source}', '"VIETIN_EFAST"'::jsonb),
+         "updatedAt" = CURRENT_TIMESTAMP
+     WHERE "id" = $1`,
+    [legacyBehaviorId],
+  );
+  const legacyBehavior = await scratch.query(
+    `SELECT transaction."bigQueryRevision",
+            COUNT(event."id")::int AS event_count
+     FROM "MapVietinTransaction" AS transaction
+     LEFT JOIN "DomainOutboxEvent" AS event
+       ON event."aggregateId" = transaction."id"
+      AND event."eventType" = 'MAP_VIETIN_BIGQUERY_TRANSACTION_REVISION'
+     WHERE transaction."id" = $1
+     GROUP BY transaction."bigQueryRevision"`,
+    [legacyBehaviorId],
+  );
+  requireCondition(
+    Number(legacyBehavior.rows[0].bigQueryRevision) === 2 &&
+      legacyBehavior.rows[0].event_count === 2,
+    'hotfix rollback did not restore the previous revision behavior',
+  );
+
+  await scratch.query(
+    await readFile(path.join(baseMigrationDir, 'rollback.sql'), 'utf8'),
   );
   const down = await scratch.query(
     `SELECT
@@ -186,7 +362,7 @@ try {
     'rollback left MAP BigQuery objects behind',
   );
   process.stdout.write(
-    'MAP Vietin BigQuery migration verified: insert=ok pii_update=ignored orders_revision=ok dedupe=ok tombstone=ok rollback=ok\n',
+    'MAP Vietin BigQuery migration verified: insert=ok canonical_replay=stable identifier_enrichment=ok pii_update=ignored orders_revision=ok status_revision=ok dedupe=ok tombstone=ok rollback=ok\n',
   );
 } finally {
   if (scratch) await scratch.end().catch(() => undefined);

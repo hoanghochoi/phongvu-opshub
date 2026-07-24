@@ -10,7 +10,17 @@ MapVietinTransaction commit
   -> transactions_current view (latest revision; tombstone bị ẩn)
 ```
 
-Revision tăng khi các trường báo cáo thay đổi: store, transaction number, amount, orders/order source, status, paidAt, income type, firstSeenAt hoặc provider identifiers/source. Thay đổi PII/rawData không liên quan không tạo event.
+Revision tăng khi các trường báo cáo thay đổi: store, transaction number,
+amount, orders/order source, status canonical, paidAt, income type, firstSeenAt
+hoặc provider identifiers. Thay đổi PII/rawData và raw provider source không
+liên quan không tạo event.
+
+Sau hotfix revision canonical, các nhãn thành công tương đương của MAP/eFAST
+(`Thành công`, `SUCCESS` và các alias thành công đã được nhận diện) cùng xuất
+thành `SUCCESS`. `provider_source` được suy ra ổn định từ identifier đã merge;
+dao động trường `rawData.source` không tự tạo revision. Thay đổi mã đơn,
+statement identifier hoặc trạng thái nghiệp vụ không tương đương vẫn tạo một
+revision mới.
 
 `dedupeKey = map-vietin-bigquery:<transactionId>:<revision>` bảo đảm enqueue
 idempotent và không va chạm namespace với event khác. Default stream chấp nhận
