@@ -15,21 +15,21 @@ export type MapVietinBigQueryRow = {
   transaction_id: string;
   revision: string;
   schema_version: number;
-  transaction_date: string;
+  transaction_date: Date;
   store_code: string | null;
   statement_number: string | null;
   amount: number;
   orders: string[];
   order_source: string | null;
   status: string | null;
-  paid_at: string | null;
+  paid_at: Date | null;
   income_type: string;
   provider_source: string | null;
-  first_seen_at: string;
-  source_created_at: string;
-  source_updated_at: string;
-  event_occurred_at: string;
-  exported_at: string;
+  first_seen_at: Date;
+  source_created_at: Date;
+  source_updated_at: Date;
+  event_occurred_at: Date;
+  exported_at: Date;
   is_deleted: boolean;
 };
 
