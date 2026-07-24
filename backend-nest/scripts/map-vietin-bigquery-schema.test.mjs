@@ -17,6 +17,7 @@ test('raw table is partitioned and clustered for current-row queries', () => {
   assert.match(ddl, /PARTITION BY transaction_date/);
   assert.match(ddl, /CLUSTER BY store_code, transaction_id/);
   assert.match(ddl, /orders ARRAY<STRING>/);
+  assert.doesNotMatch(ddl, /orders ARRAY<STRING> NOT NULL/);
   assert.doesNotMatch(ddl, /rawData|payer|account|email|token|credential/i);
 });
 

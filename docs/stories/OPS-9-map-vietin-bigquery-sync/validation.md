@@ -94,3 +94,16 @@ Integration append thật cần service account/staging BigQuery và không ch�
   consumers PASS 147 tests with file concurrency `1`; analyze reported no
   issues. Worker/backfill remain disabled until staging and production startup
   proof pass.
+
+## Live BigQuery DDL compatibility 2026-07-24
+
+- Production release `1a2d0fd4` passed startup and public-health proof with
+  zero API restarts and no startup deadlock.
+- The first operator provisioning attempt failed closed before creating the raw
+  table or current view: BigQuery does not allow `NOT NULL` on a repeated
+  `ARRAY` field. Worker/backfill stayed disabled and no outbox row was claimed.
+- The DDL keeps `orders` as `ARRAY<STRING>` without the unsupported modifier;
+  the schema test now rejects any regression to `ARRAY<STRING> NOT NULL`.
+- Local proof PASS: DDL 2/2; focused BigQuery 3 suites / 6 tests; Prisma
+  validate; Nest build; and full Nest 89 suites / 870 tests. Live provisioning,
+  worker enablement and outbox mutation were not performed by this proof.

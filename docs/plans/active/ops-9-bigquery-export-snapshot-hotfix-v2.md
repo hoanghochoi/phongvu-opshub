@@ -37,6 +37,10 @@ critical path.
 - Hotfix checkpoint: branch `codex/ops-9-production-startup-deadlock`, HEAD
   `aec81152414225cd49f1bdad0e7baea770393a1c`, clean worktree created from live
   `origin/staging`.
+- Production release `1a2d0fd4` passed startup and public-health proof, but the
+  first live schema-provisioning attempt failed closed before creating any
+  object because BigQuery rejects `NOT NULL` on repeated `ARRAY` fields. The
+  worker/backfill remained disabled and no event was claimed or exported.
 
 ## Scope
 
@@ -53,6 +57,12 @@ critical path.
   transactions. Keep critical seed failure fail-closed and add sanitized
   start/success/failure timing logs.
 - Add a regression test that observes the maximum concurrent catalog writes.
+- Keep `orders` as a repeated `ARRAY<STRING>` while omitting the unsupported
+  `NOT NULL` modifier from operator DDL; row mapping still always emits an
+  array and BigQuery stores repeated fields as empty arrays rather than null.
+- Codify the production bug workflow: assess hotfix and full-fix lanes, prefer
+  production-impacting hotfixes across competing Linear issues, and allow a
+  temporary audited runtime patch only after the Git fix passes staging.
 
 Out of scope until the hotfix is staging- and production-proven:
 
@@ -75,8 +85,13 @@ retains its existing layered `rollback.sql` recovery path.
 - [x] Promote `aec81152`; production migration v2 applied.
 - [x] Diagnose failed production candidate and verify automatic rollback.
 - [x] Implement and verify startup access-catalog serialization hotfix.
-- [ ] Publish through a new PR to staging and prove startup/upgrade health.
-- [ ] Promote/deploy with release guards; prove revision storm remains stopped.
+- [x] Publish through a new PR to staging and prove startup/upgrade health.
+- [x] Promote/deploy with release guards; prove revision storm remains stopped.
+- [x] Implement and locally verify the live BigQuery `ARRAY` DDL compatibility
+  hotfix.
+- [x] Record the hotfix/full-fix triage and staging-first runtime patch workflow.
+- [ ] Publish the live BigQuery `ARRAY` DDL compatibility hotfix through staging
+  and production.
 - [ ] Provision raw/current BigQuery objects, safely canonicalize the pending
   backlog, enable a bounded worker canary and query one real transaction from
   BigQuery before completing OPS-9.
@@ -96,6 +111,16 @@ retains its existing layered `rollback.sql` recovery path.
   BigQuery feature flag changes.
 - Final end-to-end proof records a PostgreSQL transaction/outbox revision,
   worker success and matching row returned from the BigQuery current view.
+
+## BigQuery ARRAY DDL compatibility local proof — 2026-07-24
+
+- Raw/current DDL tests PASS, 2/2; the regression rejects
+  `orders ARRAY<STRING> NOT NULL`.
+- Focused BigQuery mapper/config/writer PASS, 3 suites / 6 tests.
+- Prisma schema validate PASS; Nest build PASS; full Nest PASS, 89 suites /
+  870 tests.
+- Worker/backfill and live BigQuery provisioning remained untouched during
+  local proof.
 
 ## Startup deadlock hotfix local proof — 2026-07-24
 
