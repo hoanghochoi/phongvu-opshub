@@ -654,6 +654,15 @@ const stagingVerificationRollbackIndex = stagingWorkflow.indexOf(
 const stagingCheckpointCleanupIndex = stagingWorkflow.indexOf(
   'name: Finalize successful staging rollback checkpoint',
 );
+const stagingRuntimeTransaction = stagingWorkflow.slice(
+  stagingRuntimeCheckpointIndex,
+  stagingPublicVerificationIndex,
+);
+contains(
+  stagingRuntimeTransaction,
+  'set -Eeuo pipefail',
+  'staging runtime ERR trap inheritance through shell functions',
+);
 assert.ok(
   stagingRuntimeCheckpointIndex >= 0 &&
     stagingRuntimeCheckpointIndex < stagingPublicVerificationIndex &&

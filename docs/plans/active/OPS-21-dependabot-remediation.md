@@ -93,6 +93,13 @@ Out of scope:
 5. Record proof, publish a reviewed PR to `staging`, observe staging deployment,
    perform staging QA, and leave OPS-21 at `Ready for Release` only when those
    gates pass.
+6. After staging exposed a baseline-CPU incompatibility in Sharp's Linux x64
+   prebuilt addon, compile the Sharp 0.35.3 addon from source in the Alpine
+   build stage, retain its libvips 8.18.3 runtime dependency, and require real
+   PNG proof both before and after production-dependency pruning.
+7. Restore ERR-trap inheritance in the staging runtime transaction so a future
+   failure inside a Compose helper invokes the already-checkpointed automatic
+   rollback instead of leaving the failed release active.
 
 ## Risks And Recovery
 
@@ -106,6 +113,10 @@ Out of scope:
   diff rather than accepting broad churn.
 - Docker may be unavailable locally: CI/staging image build remains mandatory;
   any local gap is recorded as unknown until that proof passes.
+- Staging's QEMU baseline CPU lacks x86-64-v2/SSE4.2 and cannot use Sharp's
+  Linux x64 prebuilt addon or its Wasm SIMD fallback: build the native addon
+  with the image toolchain, prove the resulting image on that exact host, and
+  keep the previous healthy release as the recovery target until QA passes.
 - Recovery before publication is to revert only the OPS-21 worktree changes;
   after merge, use the repository revert-through-staging workflow.
 
@@ -117,7 +128,11 @@ Out of scope:
 - [x] Apply the minimal manifest and lockfile remediation.
 - [x] Run ordered local security closure and affected-consumer validation.
 - [x] Update durable local proof and complete the pre-publication diff review.
-- [ ] Publish through PR, pass staging deployment/QA, and hand off at
+- [x] Publish PR #32 and pass PR CI; diagnose its staging runtime failure and
+      restore the previous healthy release through the audited checkpoint.
+- [x] Prove the source-built, production-pruned Sharp artifact on the exact
+      staging CPU and restore inherited ERR-trap rollback coverage.
+- [ ] Publish the follow-up PR, pass staging deployment/QA, and hand off at
       `Ready for Release`.
 
 ## Decisions
@@ -139,6 +154,14 @@ Out of scope:
   Prisma Studio/engine churn. Retain Prisma 7.8.0 and override only its
   development-tooling package to `@prisma/dev@0.24.16` (which uses
   `find-my-way@9.7.0`), then prove CLI compatibility.
+- 2026-07-24: Do not downgrade Sharp or bypass its CPU guard. Staging run
+  `30107168348` confirmed that the prebuilt addon requires x86-64-v2 while the
+  host exposes a baseline QEMU CPU; compile the same fixed Sharp/libvips release
+  from source and make the Docker build exercise the exact pruned artifact.
+- 2026-07-24: The same run proved the remote deployment's ERR trap was not
+  inherited inside shell functions. Enable Bash errtrace (`set -E`) and guard
+  it in the platform-security verifier; retain the explicit post-deploy
+  rollback step for failures after the runtime transaction succeeds.
 
 ## Validation
 
@@ -178,3 +201,20 @@ scripts in its TypeScript project service, so the new verifier is covered by
 Node syntax execution and Prettier instead. Local Docker proof is unavailable
 because the Docker Desktop Linux daemon is not running; PR CI, staging image
 build/deploy, and staging QA remain mandatory before release readiness.
+
+PR #32 merged as `b3be3486d0f94c482e8fb4b1d82365073c5e3ab8`, but staging
+run `30107168348` failed when the API loaded Sharp on a CPU without
+x86-64-v2/SSE4.2; the Wasm fallback also required unsupported Wasm SIMD. The
+audited rollback restored release `d488571f...-30098775176-1`, public health,
+version metadata, and all service health checks. Follow-up runtime proof is now
+required before the remediation can advance.
+
+The follow-up runtime image built successfully on the exact staging host. Both
+the full-dependency build gate and production-pruned layer loaded Sharp 0.35.3
+with libvips 8.18.3 and completed real PNG encode/decode. The isolated final
+image probe ran as UID 1000, reported the source addon as `x64v2=false`, found
+no missing dynamic libraries, and confirmed that compiler, node-gyp, and
+libvips headers were absent. Local regression proof also remained green:
+focused 2 suites/35 tests, full 89 suites/873 tests, Nest build, Prisma
+validate/generate, both audit modes, platform security checks, release workflow
+tests, workflow YAML parsing, and `git diff --check`.
