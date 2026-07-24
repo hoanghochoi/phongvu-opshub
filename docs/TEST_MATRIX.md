@@ -3439,3 +3439,23 @@ removed all raw artifacts.
   `git diff --check` before final documentation closeout.
 - Not claimed: BigQuery provisioning/live append, worker enablement, staging
   soak, or any mutation/compaction of the existing production backlog.
+
+## OPS-9 BigQuery export snapshot hotfix v2 (2026-07-24)
+
+- V1 production deployment completed successfully at `f67917b2`, but passive
+  proof found `+291` outbox events in 47 seconds. `814/916` classified events
+  changed no exported report field, proving the first hotfix did not close the
+  full revision boundary.
+- V2 uses a forward-only migration to compare the canonical export snapshot.
+  It ignores raw persistence churn hidden by the selected statement identifier
+  while preserving revisions for orders, identifier enrichment, non-equivalent
+  status, amount, store, paid time, income type and delete.
+- Scratch PostgreSQL migration/rollback proof passed, including 100 alternating
+  hidden `transactionNumber` and MAP/eFAST replays; focused BigQuery 3 suites/6
+  tests, DDL 2/2, Prisma validation, affected Nest 15 suites/298 tests and Nest
+  build passed. Full Nest passed 89 suites/869 tests. Protected Flutter Bank
+  Statement, Payment Monitor, VietQR and Home consumers passed 148 tests, and
+  Flutter analyze found no issues.
+- Pending gates: PR/staging deploy and runtime soak with zero export-invisible
+  revisions. BigQuery provisioning, backlog mutation and worker enablement
+  remain forbidden until those gates pass.

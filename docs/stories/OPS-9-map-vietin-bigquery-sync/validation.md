@@ -53,3 +53,26 @@ Integration append thật cần service account/staging BigQuery và không ch�
 - Protected Flutter consumers for Bank Statement, Payment Monitor, VietQR and
   Home passed 53 tests; `flutter analyze --no-pub` reported no issues.
 - Existing production backlog is intentionally not modified by this hotfix.
+
+## Hotfix export snapshot v2 2026-07-24
+
+- Production deploy of v1 passed at `f67917b2`, but passive proof still found
+  `+291` events in 47 seconds. In the first classified sample, `814/916` events
+  had no change in any exported report field; `101/146` affected transactions
+  had a raw `transactionNumber` masked by the canonical provider identifier.
+- V2 adds a forward migration and compares the canonical export snapshot at the
+  revision boundary. Revision metadata, descriptive provider source and
+  volatile source update time are excluded; report fields and tombstones remain
+  protected.
+- Scratch PostgreSQL verifier PASS: 100 raw `transactionNumber` plus MAP/eFAST
+  status/source replays stayed at one revision/event while orders, statement
+  identifier enrichment and a real status change each emitted one revision.
+  Atomic insert, PII-only update, idempotent enqueue, tombstone, transaction
+  rollback and layered v2 → v1 → base rollback also passed.
+- Prisma validation PASS; BigQuery focused 3 suites/6 tests; DDL 2/2; affected
+  MAP/eFAST, Payment Notification, VietQR and Home consumers 15 suites/298 tests;
+  Nest build PASS.
+- Full Nest PASS, 89 suites/869 tests. Protected Flutter Bank Statement,
+  Payment Monitor, VietQR and Home consumers PASS, 148 tests; Flutter analyze
+  reported no issues. Staging runtime soak remains required before worker
+  enablement. Existing production backlog remains untouched.
