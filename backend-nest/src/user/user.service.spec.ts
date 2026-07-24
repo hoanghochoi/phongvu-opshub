@@ -361,6 +361,33 @@ describe('UserService admin store management', () => {
     expect(prisma.user.updateMany).not.toHaveBeenCalled();
   });
 
+  it('serializes access-sensitive catalog writes during module initialization', async () => {
+    let activeWrites = 0;
+    let maxActiveWrites = 0;
+    const trackWrite = jest.fn(async () => {
+      activeWrites += 1;
+      maxActiveWrites = Math.max(maxActiveWrites, activeWrites);
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      activeWrites -= 1;
+    });
+    prisma.roleDefinition.upsert.mockImplementation(trackWrite);
+    prisma.departmentDefinition.upsert.mockImplementation(trackWrite);
+    prisma.jobRoleDefinition.upsert.mockImplementation(trackWrite);
+    prisma.regionDefinition.upsert.mockImplementation(trackWrite);
+    prisma.areaDefinition.upsert.mockImplementation(trackWrite);
+    jest
+      .spyOn(service as any, 'seedDefaultOrganizationTree')
+      .mockResolvedValue(undefined);
+    jest
+      .spyOn(service as any, 'syncStoreOrganizationNodes')
+      .mockResolvedValue(undefined);
+
+    await service.onModuleInit();
+
+    expect(trackWrite.mock.calls.length).toBeGreaterThan(1);
+    expect(maxActiveWrites).toBe(1);
+  });
+
   it('invalidates access only for existing users changed by BigQuery sync', async () => {
     const previousEnv = {
       source: process.env.DATA_SYNC_SOURCE,

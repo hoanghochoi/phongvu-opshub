@@ -395,10 +395,23 @@ export class UserService implements OnModuleInit {
   }
 
   async onModuleInit() {
-    await this.seedDefaultRoles();
-    await this.seedDefaultPersonnelCatalog();
-    await this.seedDefaultOrganizationTree();
-    await this.syncStoreOrganizationNodes('module-init');
+    const seedStartedAt = Date.now();
+    this.logger.log('Startup access catalog seed started');
+    try {
+      await this.seedDefaultRoles();
+      await this.seedDefaultPersonnelCatalog();
+      await this.seedDefaultOrganizationTree();
+      await this.syncStoreOrganizationNodes('module-init');
+      this.logger.log(
+        `Startup access catalog seed completed: durationMs=${Date.now() - seedStartedAt}`,
+      );
+    } catch (error) {
+      this.logger.error(
+        `Startup access catalog seed failed: durationMs=${Date.now() - seedStartedAt}`,
+        safeLogError(error),
+      );
+      throw error;
+    }
 
     if (getDataSyncSource() !== 'bigquery') {
       this.logger.log('DATA_SYNC_SOURCE=local, skipping BigQuery user sync');
@@ -4907,85 +4920,78 @@ export class UserService implements OnModuleInit {
   }
 
   private async seedDefaultRoles() {
-    await Promise.all(
-      DEFAULT_ROLE_DEFINITIONS.map((role) =>
-        this.prisma.roleDefinition.upsert({
-          where: { code: role.code },
-          update: {
-            displayName: role.displayName,
-            description: role.description,
-            isSystem: true,
-          },
-          create: { ...role, isSystem: true },
-        }),
-      ),
-    );
+    // Access-version triggers can update every active user. Keep startup writes
+    // serial so separate transactions cannot lock the User table out of order.
+    for (const role of DEFAULT_ROLE_DEFINITIONS) {
+      await this.prisma.roleDefinition.upsert({
+        where: { code: role.code },
+        update: {
+          displayName: role.displayName,
+          description: role.description,
+          isSystem: true,
+        },
+        create: { ...role, isSystem: true },
+      });
+    }
   }
 
   private async seedDefaultPersonnelCatalog() {
-    await Promise.all(
-      DEFAULT_DEPARTMENT_DEFINITIONS.map((department) =>
-        this.prisma.departmentDefinition.upsert({
-          where: { code: department.code },
-          update: {
-            displayName: department.displayName,
-            description: department.description,
-            isSystem: true,
-            isActive: true,
-          },
-          create: { ...department, isSystem: true, isActive: true },
-        }),
-      ),
-    );
+    // These catalogs share the same broad access-version invalidation path.
+    for (const department of DEFAULT_DEPARTMENT_DEFINITIONS) {
+      await this.prisma.departmentDefinition.upsert({
+        where: { code: department.code },
+        update: {
+          displayName: department.displayName,
+          description: department.description,
+          isSystem: true,
+          isActive: true,
+        },
+        create: { ...department, isSystem: true, isActive: true },
+      });
+    }
 
-    await Promise.all(
-      DEFAULT_JOB_ROLE_DEFINITIONS.map((jobRole) =>
-        this.prisma.jobRoleDefinition.upsert({
-          where: { code: jobRole.code },
-          update: {
-            displayName: jobRole.displayName,
-            description: jobRole.description,
-            departmentCode: jobRole.departmentCode,
-            isSystem: true,
-            isActive: true,
-          },
-          create: { ...jobRole, isSystem: true, isActive: true },
-        }),
-      ),
-    );
+    for (const jobRole of DEFAULT_JOB_ROLE_DEFINITIONS) {
+      await this.prisma.jobRoleDefinition.upsert({
+        where: { code: jobRole.code },
+        update: {
+          displayName: jobRole.displayName,
+          description: jobRole.description,
+          departmentCode: jobRole.departmentCode,
+          isSystem: true,
+          isActive: true,
+        },
+        create: { ...jobRole, isSystem: true, isActive: true },
+      });
+    }
 
-    await Promise.all(
-      DEFAULT_REGION_DEFINITIONS.map((region) =>
-        this.prisma.regionDefinition.upsert({
-          where: { code: region.code },
-          update: {
-            displayName: region.displayName,
-            abbreviation: region.abbreviation,
-            description: region.description,
-            isSystem: true,
-            isActive: true,
-          },
-          create: { ...region, isActive: true },
-        }),
-      ),
-    );
+    for (const region of DEFAULT_REGION_DEFINITIONS) {
+      await this.prisma.regionDefinition.upsert({
+        where: { code: region.code },
+        update: {
+          displayName: region.displayName,
+          abbreviation: region.abbreviation,
+          description: region.description,
+          isSystem: true,
+          isActive: true,
+        },
+        create: { ...region, isActive: true },
+      });
+    }
 
-    await Promise.all(
-      DEFAULT_AREA_DEFINITIONS.map((area) =>
-        this.prisma.areaDefinition.upsert({
-          where: { code: area.code },
-          update: {
-            displayName: area.displayName,
-            abbreviation: area.abbreviation,
-            description: area.description,
-            regionCode: area.regionCode,
-            isSystem: true,
-            isActive: true,
-          },
-          create: { ...area, isActive: true },
-        }),
-      ),
-    );
+    for (const area of DEFAULT_AREA_DEFINITIONS) {
+      await this.prisma.areaDefinition.upsert({
+        where: { code: area.code },
+        update: {
+          displayName: area.displayName,
+          abbreviation: area.abbreviation,
+          description: area.description,
+          regionCode: area.regionCode,
+          isSystem: true,
+          isActive: true,
+        },
+        create: { ...area, isActive: true },
+      });
+    }
 
     this.logger.log(
       `Personnel catalog seeded: departments=${DEFAULT_DEPARTMENT_DEFINITIONS.length}, jobRoles=${DEFAULT_JOB_ROLE_DEFINITIONS.length}, regions=${DEFAULT_REGION_DEFINITIONS.length}, areas=${DEFAULT_AREA_DEFINITIONS.length}`,
