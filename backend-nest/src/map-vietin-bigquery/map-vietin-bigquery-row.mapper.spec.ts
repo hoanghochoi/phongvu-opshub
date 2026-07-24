@@ -39,6 +39,11 @@ describe('MapVietinBigQueryRowMapper', () => {
       statement_number: 'STMT-1',
       is_deleted: false,
     });
+    expect(row.transaction_date).toEqual(new Date('2026-07-23T00:00:00.000Z'));
+    expect(row.paid_at).toEqual(new Date('2026-07-23T02:00:00.000Z'));
+    expect(row.first_seen_at).toEqual(new Date('2026-07-23T01:00:00.000Z'));
+    expect(row.event_occurred_at).toEqual(new Date('2026-07-23T02:00:00.000Z'));
+    expect(row.exported_at).toEqual(new Date('2026-07-23T03:00:00.000Z'));
     expect(row).not.toHaveProperty('rawData');
     expect(row).not.toHaveProperty('payerName');
   });
@@ -53,5 +58,14 @@ describe('MapVietinBigQueryRowMapper', () => {
         payload: { ...(event.payload as object), amount: 1.5 },
       }),
     ).toThrow('amount');
+    expect(() =>
+      mapper.toRow({
+        ...event,
+        payload: {
+          ...(event.payload as object),
+          transaction_date: '2026-02-31',
+        },
+      }),
+    ).toThrow('transaction_date');
   });
 });

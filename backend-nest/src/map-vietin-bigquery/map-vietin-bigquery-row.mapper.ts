@@ -43,8 +43,8 @@ export class MapVietinBigQueryRowMapper {
         payload.source_updated_at,
         'source_updated_at',
       ),
-      event_occurred_at: event.occurredAt.toISOString(),
-      exported_at: now.toISOString(),
+      event_occurred_at: new Date(event.occurredAt.getTime()),
+      exported_at: new Date(now.getTime()),
       is_deleted: this.requiredBoolean(payload.is_deleted, 'is_deleted'),
     };
   }
@@ -90,7 +90,14 @@ export class MapVietinBigQueryRowMapper {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(normalized)) {
       throw new Error(`Invalid ${field}`);
     }
-    return normalized;
+    const parsed = new Date(`${normalized}T00:00:00.000Z`);
+    if (
+      !Number.isFinite(parsed.getTime()) ||
+      parsed.toISOString().slice(0, 10) !== normalized
+    ) {
+      throw new Error(`Invalid ${field}`);
+    }
+    return parsed;
   }
 
   private optionalTimestamp(value: unknown, field: string) {
@@ -100,10 +107,11 @@ export class MapVietinBigQueryRowMapper {
 
   private requiredTimestamp(value: unknown, field: string) {
     const normalized = this.requiredString(value, field);
-    if (!Number.isFinite(Date.parse(normalized))) {
+    const parsed = new Date(normalized);
+    if (!Number.isFinite(parsed.getTime())) {
       throw new Error(`Invalid ${field}`);
     }
-    return normalized;
+    return parsed;
   }
 
   private requiredBoolean(value: unknown, field: string) {

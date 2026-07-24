@@ -10,17 +10,17 @@
 
 ## Ma trận hành vi
 
-| Hành vi | Bằng chứng |
-| --- | --- |
-| Worker tắt mặc định | config spec; không khởi tạo BigQuery client |
-| Claim đa replica + lease | worker SQL có `FOR UPDATE SKIP LOCKED`, event type filter, token/lease guard |
-| Partial row errors | request có row error được coi là reject toàn batch; appender loại row lỗi, append lại phần hợp lệ rồi worker mới ack/retry riêng từng event |
-| PII/rawData không export | mapper whitelist + migration verifier kiểm tra payload keys |
-| Replay MAP/eFAST tương đương | scratch migration verifier đổi qua lại `Thành công`/`SUCCESS` và MAP/eFAST 100 lần nhưng giữ nguyên revision/event count |
-| Mã đơn/statement identifier thay đổi | scratch migration verifier chứng minh orders và eFAST identifier enrichment tạo đúng một revision mới |
-| Backfill restart-safe | checkpoint upper bound/keyset và enqueue/checkpoint cùng transaction |
-| Delete | tombstone revision `is_deleted=true`; current view lọc tombstone |
-| Rollback | migration verifier chạy rollback.sql và kiểm tra function/column/table |
+| Hành vi                              | Bằng chứng                                                                                                                                  |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| Worker tắt mặc định                  | config spec; không khởi tạo BigQuery client                                                                                                 |
+| Claim đa replica + lease             | worker SQL có `FOR UPDATE SKIP LOCKED`, event type filter, token/lease guard                                                                |
+| Partial row errors                   | request có row error được coi là reject toàn batch; appender loại row lỗi, append lại phần hợp lệ rồi worker mới ack/retry riêng từng event |
+| PII/rawData không export             | mapper whitelist + migration verifier kiểm tra payload keys                                                                                 |
+| Replay MAP/eFAST tương đương         | scratch migration verifier đổi qua lại `Thành công`/`SUCCESS` và MAP/eFAST 100 lần nhưng giữ nguyên revision/event count                    |
+| Mã đơn/statement identifier thay đổi | scratch migration verifier chứng minh orders và eFAST identifier enrichment tạo đúng một revision mới                                       |
+| Backfill restart-safe                | checkpoint upper bound/keyset và enqueue/checkpoint cùng transaction                                                                        |
+| Delete                               | tombstone revision `is_deleted=true`; current view lọc tombstone                                                                            |
+| Rollback                             | migration verifier chạy rollback.sql và kiểm tra function/column/table                                                                      |
 
 ## Known gaps
 
@@ -107,3 +107,23 @@ Integration append thật cần service account/staging BigQuery và không ch�
 - Local proof PASS: DDL 2/2; focused BigQuery 3 suites / 6 tests; Prisma
   validate; Nest build; and full Nest 89 suites / 870 tests. Live provisioning,
   worker enablement and outbox mutation were not performed by this proof.
+
+## Storage Write logical-type canary 2026-07-24
+
+- PR #29/staging deploy PASS; the production operator script was backed up and
+  patched to the exact staging checksum. BigQuery raw/current objects were
+  provisioned with the expected location, partition, clustering and repeated
+  `orders` schema.
+- Backlog rehearsal PASS with recovery difference `0`; the live operation kept
+  one current-revision winner per active aggregate and retained a persistent
+  pre-enable backup. Worker/backfill were still off during that operation.
+- The first batch-1 canary claimed one event once, wrote zero rows and returned
+  `interior hyphen`. The event remained unpublished/retryable, the lease was
+  released, and the worker was disabled before the second poll.
+- Root cause: Storage Write encodes `DATE`/`TIMESTAMP` as protobuf integer
+  logical types and its JSON encoder converts JavaScript `Date` values, while
+  the row mapper supplied ISO strings. The hotfix returns `Date` instances
+  without changing the persisted outbox JSON contract.
+- Local hotfix proof PASS: focused mapper/config/writer 3 suites / 7 tests,
+  including the real `JSONWriter` encoder boundary; Nest build; and full Nest
+  89 suites / 871 tests. Live retry remains pending staging proof/runtime patch.
