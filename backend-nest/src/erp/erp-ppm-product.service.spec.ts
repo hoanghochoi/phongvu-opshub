@@ -13,7 +13,6 @@ describe('ErpPpmProductService', () => {
       ERP_PPM_BASE_URL: 'https://ppm.tekoapis.com/api',
       ERP_PPM_SELLER_ID: '1',
       ERP_PPM_TERMINAL_CODE: '49180_PRICE_0001',
-      ERP_PPM_CACHE_TTL_MS: '300000',
     };
     authorizedRequest = jest.fn();
     service = new ErpPpmProductService({
@@ -85,7 +84,7 @@ describe('ErpPpmProductService', () => {
         result: {
           results: [
             {
-              sku: 'ZERO',
+              sku: '220909037',
               taxOutAmount: 0,
               taxOutCode: 'VAT0',
               taxOutLabel: 'Thuế suất 0%',
@@ -101,10 +100,10 @@ describe('ErpPpmProductService', () => {
       }),
     );
 
-    const result = await service.lookupTaxes(['ZERO', 'KCT', 'NOT-FOUND']);
+    const result = await service.lookupTaxes(['220909037', 'KCT', 'NOT-FOUND']);
 
     expect(result.items[0]).toMatchObject({
-      sku: 'ZERO',
+      sku: '220909037',
       taxOutAmount: 0,
       vatRateBps: 0,
       taxCode: 'VAT0',
@@ -121,12 +120,12 @@ describe('ErpPpmProductService', () => {
     expect(result.missingSkus).toEqual(['NOT-FOUND']);
   });
 
-  it('uses the five-minute cache and bypasses it for final refresh', async () => {
+  it('fetches live tax on every lookup so stale 8% cannot hide current 0%', async () => {
     authorizedRequest
       .mockResolvedValueOnce(
         jsonResponse({
           result: {
-            results: [{ sku: '250902982', taxOutAmount: 8 }],
+            results: [{ sku: '220909037', taxOutAmount: 8 }],
             totalItems: 1,
           },
         }),
@@ -134,64 +133,49 @@ describe('ErpPpmProductService', () => {
       .mockResolvedValueOnce(
         jsonResponse({
           result: {
-            results: [{ sku: '250902982', taxOutAmount: 10 }],
+            results: [{ sku: '220909037', taxOutAmount: 0 }],
             totalItems: 1,
           },
         }),
       );
 
-    const first = await service.lookupTaxes(['250902982']);
-    const cached = await service.lookupTaxes(['250902982']);
-    const refreshed = await service.lookupTaxes(['250902982'], {
-      forceRefresh: true,
-    });
+    const first = await service.lookupTaxes(['220909037']);
+    const current = await service.lookupTaxes(['220909037']);
 
     expect(first.items[0].vatRateBps).toBe(800);
-    expect(cached.items[0].vatRateBps).toBe(800);
-    expect(refreshed.items[0].vatRateBps).toBe(1000);
+    expect(current.items[0].vatRateBps).toBe(0);
     expect(authorizedRequest).toHaveBeenCalledTimes(2);
   });
 
-  it('shares preview tax through Redis without putting a raw SKU in the key', async () => {
-    const values = new Map<string, unknown>();
-    const redis = {
-      getJson: jest.fn(async (key: string) => values.get(key) ?? null),
-      setJsonWithTtl: jest.fn(
-        async (key: string, value: unknown, _ttlSeconds: number) => {
-          values.set(key, value);
-        },
-      ),
+  it('never reads or writes a legacy Redis tax cache', async () => {
+    const legacyRedis = {
+      getJson: jest.fn().mockResolvedValue({
+        sku: '220909037',
+        vatRateBps: 800,
+        taxOutAmount: 8,
+        source: 'ERP_PPM',
+      }),
+      setJsonWithTtl: jest.fn(),
     };
+    (service as any).redis = legacyRedis;
     authorizedRequest.mockResolvedValue(
       jsonResponse({
         result: {
-          results: [{ sku: '250902982', taxOutAmount: 8 }],
+          results: [{ sku: '220909037', taxOutAmount: 0 }],
           totalItems: 1,
         },
       }),
     );
-    const writer = new ErpPpmProductService(
-      { authorizedRequest } as unknown as SalesReportErpService,
-      redis as any,
-    );
 
-    await writer.lookupTaxes(['250902982']);
-
-    const cacheKey = redis.setJsonWithTtl.mock.calls[0][0];
-    expect(cacheKey).toMatch(/^contract-appendix:ppm-tax:v1:[a-f0-9]{64}$/);
-    expect(cacheKey).not.toContain('250902982');
-    const readerRequest = jest.fn();
-    const reader = new ErpPpmProductService(
-      { authorizedRequest: readerRequest } as unknown as SalesReportErpService,
-      redis as any,
-    );
-    const result = await reader.lookupTaxes(['250902982']);
+    const result = await service.lookupTaxes(['220909037']);
     expect(result.items[0]).toMatchObject({
-      sku: '250902982',
-      vatRateBps: 800,
+      sku: '220909037',
+      vatRateBps: 0,
       source: 'ERP_PPM',
     });
-    expect(readerRequest).not.toHaveBeenCalled();
+    expect(authorizedRequest).toHaveBeenCalledTimes(1);
+    expect(legacyRedis.getJson).not.toHaveBeenCalled();
+    expect(legacyRedis.setJsonWithTtl).not.toHaveBeenCalled();
   });
 
   it('rejects a paginated response that would silently truncate tax rows', async () => {

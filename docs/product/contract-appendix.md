@@ -10,11 +10,13 @@ cá nhân 30 ngày và sao chép bảng có định dạng trực tiếp vào Mi
 - Chi tiết đơn luôn đi qua `SalesReportErpService.lookupOrder()` hiện hữu. Mọi
   tính năng ERP phải dùng chung tài khoản, login, token cache và cơ chế refresh
   đang có; không tạo luồng xác thực ERP song song.
-- SKU, số lượng, tên gợi ý và `finalSellPrice` lấy từ item của đơn ERP.
+- SKU, số lượng, tên gợi ý, `uomName` và `finalSellPrice` lấy từ item của đơn ERP.
   `finalSellPrice` là giá mỗi đơn vị đã gồm VAT và là nguồn giá duy nhất; không
   fallback sang `sellPrice`, `rowTotal` hay giá PPM.
 - Thuế lấy từ PPM `POST /products`, field `taxOutAmount`, với terminal cố định
-  `49180_PRICE_0001`. PPM không phải nguồn giá.
+  `49180_PRICE_0001`. Mỗi preview và save đều deduplicate toàn bộ SKU của đơn,
+  gọi PPM live theo batch tối đa 50 SKU và không đọc/ghi memory hoặc Redis tax
+  cache. PPM không phải nguồn giá; token xác thực ERP dùng chung vẫn được cache.
 - VAT `0%` và hàng không chịu thuế được phân biệt bằng `taxCode/taxLabel`;
   mã KCT hợp lệ được giữ nguyên trên snapshot dù cùng có số tiền thuế bằng 0.
 - Thuế ERP hợp lệ bị khóa. Khi PPM thiếu hoặc lỗi, user phải chọn tay một trong
@@ -39,12 +41,14 @@ chữ được sinh phía server từ tổng đã VAT và kết thúc bằng `đ
 
 1. User có feature `CONTRACT_APPENDIX` mở `/contract-appendix`.
 2. Nhập mã đơn và bấm `Lấy thông tin` trên cùng một hàng.
-3. App hiển thị SKU, số lượng và giá ERP ở trạng thái khóa; tên hàng và đơn vị
-   tính được sửa. Thuế nhập tay chỉ xuất hiện ở dòng chưa có thuế ERP.
+3. App hiển thị SKU, số lượng và giá ERP ở trạng thái khóa; đơn vị tính khởi tạo
+   từ `uomName`, tên hàng và đơn vị tính vẫn được sửa. Không mặc định cứng đơn vị
+   tính khi ERP thiếu dữ liệu. Thuế nhập tay chỉ xuất hiện ở dòng chưa có thuế ERP.
 4. Editor và preview luôn xếp thành một cột để giữ đủ chiều rộng; desktop dùng
    bảng editor, mobile dùng item card. Preview dùng bảng 7 cột, cột cuối là
    `Thành tiền (VNĐ) - Chưa VAT`.
-5. `Lưu phụ lục` buộc backend refetch thuế, so `quoteVersion`, tính lại và lưu
+5. Preview và `Lưu phụ lục` đều buộc backend refetch live thuế, so
+   `quoteVersion`, tính lại và lưu
    snapshot bất biến. Nếu nguồn đổi, user phải xem lại preview.
 6. `Sao chép bảng` chỉ dùng snapshot đã lưu, ghi HTML và plain-text TSV vào
    clipboard; không gọi API trong clipboard handler. HTML Word đặt Times New
@@ -70,4 +74,5 @@ chữ được sinh phía server từ tổng đã VAT và kết thúc bằng `đ
 - Backend log start/success/failure, item/batch/missing/manual counts và
   duration; Flutter dùng `AppLogger` cho lookup, save, history và copy.
 - Không log token, credential, raw ERP payload, tên hàng hoặc mã đơn thô.
-- SKU test tích hợp chuẩn: `250902982` tại terminal cố định phải trả `8%`.
+- SKU test tích hợp chuẩn: `220909037` tại terminal cố định phải trả `0%` và
+  `250902982` phải trả `8%`.

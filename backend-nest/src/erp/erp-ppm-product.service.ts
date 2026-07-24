@@ -2,43 +2,25 @@ import {
   BadRequestException,
   Injectable,
   Logger,
-  Optional,
   ServiceUnavailableException,
 } from '@nestjs/common';
-import { createHash } from 'node:crypto';
-import { RedisService } from '../redis/redis.service';
 import { SalesReportErpService } from '../sales-reports/sales-report-erp.service';
 import {
   ERP_PPM_TERMINAL_CODE,
   ErpPpmProductTax,
-  ErpPpmTaxLookupOptions,
   ErpPpmTaxLookupResult,
 } from './erp.types';
 
-type CachedTax = {
-  value: ErpPpmProductTax;
-  expiresAt: number;
-};
-
 const PPM_BATCH_SIZE = 50;
 const PPM_MAX_SKUS = 500;
-const DEFAULT_CACHE_TTL_MS = 5 * 60 * 1000;
-const MISSING_CACHE_TTL_MS = 30 * 1000;
 
 @Injectable()
 export class ErpPpmProductService {
   private readonly logger = new Logger(ErpPpmProductService.name);
-  private readonly cache = new Map<string, CachedTax>();
 
-  constructor(
-    private readonly erp: SalesReportErpService,
-    @Optional() private readonly redis?: RedisService,
-  ) {}
+  constructor(private readonly erp: SalesReportErpService) {}
 
-  async lookupTaxes(
-    skuInputs: string[],
-    options: ErpPpmTaxLookupOptions = {},
-  ): Promise<ErpPpmTaxLookupResult> {
+  async lookupTaxes(skuInputs: string[]): Promise<ErpPpmTaxLookupResult> {
     const requestedSkus = this.normalizeSkus(skuInputs);
     const terminalCode = this.env(
       'ERP_PPM_TERMINAL_CODE',
@@ -60,26 +42,9 @@ export class ErpPpmProductService {
     }
 
     const resolved = new Map<string, ErpPpmProductTax>();
-    const pending: string[] = [];
-    if (!options.forceRefresh) {
-      const cachedItems = await Promise.all(
-        requestedSkus.map((sku) =>
-          this.readCachedTax(sellerId, terminalCode, sku),
-        ),
-      );
-      for (let index = 0; index < requestedSkus.length; index += 1) {
-        const sku = requestedSkus[index];
-        const cached = cachedItems[index];
-        if (cached) resolved.set(sku, cached);
-        else pending.push(sku);
-      }
-    } else {
-      pending.push(...requestedSkus);
-    }
-
-    const batches = this.chunks(pending, PPM_BATCH_SIZE);
+    const batches = this.chunks(requestedSkus, PPM_BATCH_SIZE);
     this.logger.log(
-      `ERP PPM tax lookup started: skuCount=${requestedSkus.length} cachedCount=${resolved.size} batchCount=${batches.length} forceRefresh=${Boolean(options.forceRefresh)}`,
+      `ERP PPM tax lookup started: skuCount=${requestedSkus.length} batchCount=${batches.length} cacheMode=disabled`,
     );
     try {
       for (const batch of batches) {
@@ -87,11 +52,6 @@ export class ErpPpmProductService {
         for (const item of batchItems) {
           resolved.set(item.sku, item);
         }
-        await Promise.all(
-          batchItems.map((item) =>
-            this.writeCachedTax(sellerId, terminalCode, item),
-          ),
-        );
       }
 
       const items = requestedSkus.map(
@@ -340,108 +300,6 @@ export class ErpPpmProductService {
       result.push(values.slice(index, index + size));
     }
     return result;
-  }
-
-  private cacheKey(sellerId: string, terminalCode: string, sku: string) {
-    const digest = createHash('sha256')
-      .update(`${sellerId}:${terminalCode}:${sku}`)
-      .digest('hex');
-    return `contract-appendix:ppm-tax:v1:${digest}`;
-  }
-
-  private async readCachedTax(
-    sellerId: string,
-    terminalCode: string,
-    sku: string,
-  ) {
-    const key = this.cacheKey(sellerId, terminalCode, sku);
-    const memory = this.cache.get(key);
-    if (memory && memory.expiresAt > Date.now()) return memory.value;
-    if (!this.redis) return null;
-    try {
-      const cached = await this.redis.getJson<Record<string, unknown>>(key);
-      const parsed = this.parseCachedTax(cached, sku);
-      if (!parsed) return null;
-      const expiresAt = parsed.fetchedAt.getTime() + this.cacheTtlMsFor(parsed);
-      if (expiresAt <= Date.now()) return null;
-      this.cache.set(key, {
-        value: parsed,
-        expiresAt,
-      });
-      return parsed;
-    } catch (error) {
-      this.logger.warn(
-        `ERP PPM Redis cache read skipped: errorType=${this.errorType(error)}`,
-      );
-      return null;
-    }
-  }
-
-  private async writeCachedTax(
-    sellerId: string,
-    terminalCode: string,
-    item: ErpPpmProductTax,
-  ) {
-    const ttlMs = this.cacheTtlMsFor(item);
-    if (ttlMs <= 0) return;
-    const key = this.cacheKey(sellerId, terminalCode, item.sku);
-    this.cache.set(key, { value: item, expiresAt: Date.now() + ttlMs });
-    if (!this.redis) return;
-    try {
-      await this.redis.setJsonWithTtl(
-        key,
-        { ...item, fetchedAt: item.fetchedAt.toISOString() },
-        Math.max(1, Math.floor(ttlMs / 1000)),
-      );
-    } catch (error) {
-      this.logger.warn(
-        `ERP PPM Redis cache write skipped: errorType=${this.errorType(error)}`,
-      );
-    }
-  }
-
-  private parseCachedTax(value: unknown, expectedSku: string) {
-    if (!value || typeof value !== 'object') return null;
-    const row = value as Record<string, unknown>;
-    if (String(row.sku ?? '') !== expectedSku) return null;
-    const vatRateBps = this.optionalNumber(row.vatRateBps);
-    const taxOutAmount = this.optionalNumber(row.taxOutAmount);
-    const source = row.source === 'ERP_PPM' ? 'ERP_PPM' : 'MISSING';
-    if (
-      (vatRateBps !== null &&
-        (!Number.isInteger(vatRateBps) ||
-          vatRateBps < 0 ||
-          vatRateBps > 10_000)) ||
-      (taxOutAmount !== null && (taxOutAmount < 0 || taxOutAmount > 100)) ||
-      (source === 'ERP_PPM' && (vatRateBps === null || taxOutAmount === null))
-    ) {
-      return null;
-    }
-    const fetchedAt = new Date(String(row.fetchedAt ?? ''));
-    if (Number.isNaN(fetchedAt.getTime())) return null;
-    return {
-      sku: expectedSku,
-      vatRateBps,
-      taxOutAmount,
-      taxCode: this.firstText(row.taxCode),
-      taxLabel: this.firstText(row.taxLabel),
-      source,
-      fetchedAt,
-    } satisfies ErpPpmProductTax;
-  }
-
-  private cacheTtlMs() {
-    const configured = Number(process.env.ERP_PPM_CACHE_TTL_MS);
-    if (!Number.isFinite(configured) || configured < 0) {
-      return DEFAULT_CACHE_TTL_MS;
-    }
-    return Math.min(configured, DEFAULT_CACHE_TTL_MS);
-  }
-
-  private cacheTtlMsFor(item: ErpPpmProductTax) {
-    return item.source === 'MISSING'
-      ? Math.min(this.cacheTtlMs(), MISSING_CACHE_TTL_MS)
-      : this.cacheTtlMs();
   }
 
   private env(key: string, fallback: string) {

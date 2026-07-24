@@ -65,7 +65,7 @@ export class ContractAppendicesService {
       `Contract appendix preview started: user=${logFingerprint(userId)} order=${logFingerprint(dto.orderCode)} overrideCount=${dto.overrides?.length ?? 0}`,
     );
     try {
-      const result = await this.buildPreview(dto, false);
+      const result = await this.buildPreview(dto);
       this.logger.log(
         `Contract appendix preview succeeded: user=${logFingerprint(userId)} itemCount=${result.items.length} unresolvedTaxCount=${result.unresolvedTaxCount} manualTaxItemCount=${result.manualTaxItemCount} durationMs=${Date.now() - startedAt}`,
       );
@@ -85,7 +85,7 @@ export class ContractAppendicesService {
       `Contract appendix create started: user=${logFingerprint(userId)} order=${logFingerprint(dto.orderCode)} overrideCount=${dto.overrides?.length ?? 0}`,
     );
     try {
-      const preview = await this.buildPreview(dto, true);
+      const preview = await this.buildPreview(dto);
       if (preview.quoteVersion !== dto.quoteVersion) {
         throw new ConflictException(
           'Giá hoặc thuế vừa thay đổi. Vui lòng xem lại bảng mới.',
@@ -240,10 +240,7 @@ export class ContractAppendicesService {
     }
   }
 
-  private async buildPreview(
-    dto: PreviewContractAppendixDto,
-    forceTaxRefresh: boolean,
-  ) {
+  private async buildPreview(dto: PreviewContractAppendixDto) {
     const overrides = this.overrideMap(dto.overrides ?? []);
     const order = await this.orderErp.lookupOrder(dto.orderCode);
     const preparedSource = order.items.map((item, index) =>
@@ -261,7 +258,6 @@ export class ContractAppendicesService {
     }
     const taxBySku = await this.lookupTaxesWithManualFallback(
       preparedSource.map((item) => item.sku),
-      forceTaxRefresh,
     );
     const lines: PreparedLine[] = preparedSource.map((source) => {
       const override = overrides.get(source.sourceLineKey);
@@ -387,30 +383,32 @@ export class ContractAppendicesService {
         `Sản phẩm dòng ${index + 1} chưa có tên hàng hóa.`,
       );
     }
+    const unit = String(override?.unit ?? item.uomName ?? '')
+      .trim()
+      .slice(0, 30);
+    if (!unit) {
+      throw new BadRequestException(
+        `ERP chưa trả đơn vị tính cho sản phẩm dòng ${index + 1}. Vui lòng kiểm tra lại đơn hàng.`,
+      );
+    }
     return {
       sourceLineKey,
       sku,
       sellerSku: item.sellerSku,
       productName: productName.slice(0, 500),
       quantity: quantity as number,
-      unit:
-        String(override?.unit ?? 'Cái')
-          .trim()
-          .slice(0, 30) || 'Cái',
+      unit,
       finalSellPrice: finalSellPrice as number,
     };
   }
 
-  private async lookupTaxesWithManualFallback(
-    skus: string[],
-    forceRefresh: boolean,
-  ) {
+  private async lookupTaxesWithManualFallback(skus: string[]) {
     try {
-      const result = await this.productErp.lookupTaxes(skus, { forceRefresh });
+      const result = await this.productErp.lookupTaxes(skus);
       return new Map(result.items.map((item) => [item.sku, item]));
     } catch (error) {
       this.logger.warn(
-        `Contract appendix PPM unavailable; manual tax required: skuCount=${new Set(skus).size} forceRefresh=${forceRefresh} error=${safeLogError(error)}`,
+        `Contract appendix PPM unavailable; manual tax required: skuCount=${new Set(skus).size} lookupMode=live error=${safeLogError(error)}`,
       );
       return new Map<string, ErpPpmProductTax>();
     }

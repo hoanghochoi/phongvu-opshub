@@ -90,6 +90,7 @@ describe('SalesReportErpService', () => {
                   sellerSku: 'SKU-1',
                   name: 'RAM DDR5',
                   quantity: 1,
+                  uomName: 'Chiếc',
                   sellPrice: 1230000,
                   finalSellPrice: 1230000,
                   rowTotal: 1230000,
@@ -142,6 +143,8 @@ describe('SalesReportErpService', () => {
     });
     expect(result.paymentMethods).toEqual(['cash']);
     expect(result.items).toHaveLength(1);
+    expect(result.items[0].uomName).toBe('Chiếc');
+    expect(result.items[0].raw.uomName).toBe('Chiếc');
     expect(result.items[0].productGroupId).toBe('80283');
     expect(result.items[0].productGroupCode).toBe('NH08');
     expect(result.items[0].listingCategories).toEqual(

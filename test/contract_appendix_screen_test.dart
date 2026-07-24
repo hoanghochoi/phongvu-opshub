@@ -52,9 +52,11 @@ void main() {
       lessThan(8),
     );
     expect(
-      find.byKey(const ValueKey('contract-appendix-item-1:250902982')),
+      find.byKey(const ValueKey('contract-appendix-item-1:220909037')),
       findsOneWidget,
     );
+    expect(find.text('Bản'), findsWidgets);
+    expect(find.text('0%'), findsWidgets);
     expect(
       find.byKey(const Key('app-two-axis-horizontal-scrollbar')),
       findsOneWidget,
@@ -163,30 +165,28 @@ class _ScreenDataSource implements ContractAppendixDataSource {
       items: [
         ContractAppendixItem(
           position: 1,
-          sourceLineKey: '1:250902982',
-          sku: '250902982',
-          sellerSku: '250902982',
-          productName: 'Laptop dùng kiểm thử giao diện mobile',
-          quantity: 2,
-          unit: 'Cái',
-          finalSellPrice: 21576187,
-          vatRateBps: 800,
-          taxCode: 'VAT8',
-          taxLabel: 'Thuế GTGT 8%',
+          sourceLineKey: '1:220909037',
+          sku: '220909037',
+          sellerSku: '220909037',
+          productName: 'Phần mềm Microsoft Win Pro 11 64-bit',
+          quantity: 3,
+          unit: 'Bản',
+          finalSellPrice: 5190000,
+          vatRateBps: 0,
+          taxCode: 'VAT0',
+          taxLabel: 'Thuế 0%',
           taxSource: 'ERP_PPM',
           taxFetchedAt: DateTime.utc(2026, 7, 17),
-          unitPriceBeforeVat: 19977951,
-          lineBeforeVat: 39955902,
-          lineVatAmount: 3196472,
-          lineAfterVat: 43152374,
+          unitPriceBeforeVat: 5190000,
+          lineBeforeVat: 15570000,
+          lineVatAmount: 0,
+          lineAfterVat: 15570000,
         ),
       ],
-      totalBeforeVat: 39955902,
-      totalVatAmount: 3196472,
-      totalAfterVat: 43152374,
-      amountInWords:
-          'Bốn mươi ba triệu một trăm năm mươi hai nghìn ba trăm '
-          'bảy mươi bốn đồng chẵn.',
+      totalBeforeVat: 15570000,
+      totalVatAmount: 0,
+      totalAfterVat: 15570000,
+      amountInWords: 'Mười lăm triệu năm trăm bảy mươi nghìn đồng chẵn.',
       manualTaxItemCount: 0,
       unresolvedTaxCount: 0,
       canSave: true,
