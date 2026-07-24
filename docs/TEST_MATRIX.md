@@ -3420,3 +3420,22 @@ removed all raw artifacts.
   minimize/restore, a concurrent follow-up transaction against live
   PostgreSQL, and a live BigQuery refresh. These are post-PR staging gates and
   are not claimed as local proof.
+
+## OPS-9 BigQuery canonical outbox proof (2026-07-24)
+
+- A production read-only audit found the BigQuery worker disabled while
+  equivalent MAP/eFAST status and raw source representations generated a
+  rapidly growing pending outbox. The hotfix adds a forward migration that
+  canonicalizes successful status values, derives stable exported provider
+  source, and stops raw provider-source alternation from creating revisions.
+- Scratch PostgreSQL proof passed for atomic insert, 100 MAP/eFAST replays,
+  identifier enrichment, order update, real status update, PII-only update,
+  tombstone, transaction rollback and migration rollback. Replay remained at
+  one event after identifiers stabilized; real order/status/identifier changes
+  each produced one new event.
+- Exact local gates passed: Prisma validate; BigQuery DDL 2/2; focused BigQuery
+  3 suites/6 tests; affected Nest 15 suites/298 tests; full Nest 89 suites/869
+  tests; Nest build; protected Flutter 53 tests; Flutter analyze; and
+  `git diff --check` before final documentation closeout.
+- Not claimed: BigQuery provisioning/live append, worker enablement, staging
+  soak, or any mutation/compaction of the existing production backlog.
