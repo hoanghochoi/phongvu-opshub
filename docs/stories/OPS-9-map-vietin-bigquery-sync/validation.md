@@ -76,3 +76,21 @@ Integration append thật cần service account/staging BigQuery và không ch�
   Payment Monitor, VietQR and Home consumers PASS, 148 tests; Flutter analyze
   reported no issues. Staging runtime soak remains required before worker
   enablement. Existing production backlog remains untouched.
+
+## Production startup deadlock hotfix 2026-07-24
+
+- Production deploy run `30075963800` applied export-snapshot migration v2 but
+  rolled the application back to `f67917b2`. PostgreSQL server logs proved the
+  deadlock came from concurrent startup `JobRoleDefinition` inserts invoking
+  the all-user access-version trigger; MAP deep-sweep only overlapped in time.
+- Startup default role, department, job-role, region and area writes are now
+  serialized. Critical seed failure remains fail-closed and emits sanitized
+  start/success/failure timing logs.
+- Regression proof PASS: `UserService` 64 tests with maximum catalog-write
+  concurrency `1`; shared access/auth 6 suites / 126 tests; full Nest 89 suites
+  / 870 tests; build, Prisma validate, BigQuery DDL 2/2 and scratch migration
+  verifier PASS.
+- Protected Flutter auth, Bank Statement, Payment Monitor, VietQR and Home
+  consumers PASS 147 tests with file concurrency `1`; analyze reported no
+  issues. Worker/backfill remain disabled until staging and production startup
+  proof pass.

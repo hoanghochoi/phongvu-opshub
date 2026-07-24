@@ -130,3 +130,18 @@ Keep public compatibility routes and the old resolver/process-local-cache kill
 switch. The additive column/functions/triggers are backward-compatible with the
 previous application build; rollback the application first and investigate
 before removing database objects.
+
+## Production startup deadlock follow-up — 2026-07-24
+
+- A later OPS-9 production candidate exposed a startup interaction with the
+  access-version trigger: parallel default `JobRoleDefinition` inserts each
+  attempted the broad active-user version bump and PostgreSQL detected
+  `40P01`. The deployment guard restored the previous healthy application;
+  additive migrations remained applied.
+- The application hotfix serializes all access-sensitive default catalog
+  upserts inside one API process. It does not weaken atomic access invalidation,
+  hide seed failures or change auth/bootstrap contracts.
+- Local proof PASS: maximum startup catalog-write concurrency `1`; shared
+  user/feature/policy/auth tests 126/126; full Nest 870/870; protected Flutter
+  auth and affected OPS-9 consumers 147/147; Nest build and Flutter analyze
+  clean. Staging upgrade/startup observation remains required.
