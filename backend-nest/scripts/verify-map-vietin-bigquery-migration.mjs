@@ -21,6 +21,12 @@ const hotfixMigrationDir = path.join(
   'migrations',
   '20260724113000_map_vietin_bigquery_canonical_revision',
 );
+const snapshotHotfixMigrationDir = path.join(
+  backendRoot,
+  'prisma',
+  'migrations',
+  '20260724133000_map_vietin_bigquery_export_snapshot_revision',
+);
 const sourceUrl = process.env.DATABASE_URL?.trim();
 if (!sourceUrl) throw new Error('DATABASE_URL is required');
 
@@ -118,12 +124,14 @@ try {
     const efastReplay = index % 2 === 0;
     await scratch.query(
       `UPDATE "MapVietinTransaction"
-       SET "status" = $2,
-           "rawData" = jsonb_set("rawData", '{source}', to_jsonb($3::text)),
+       SET "transactionNumber" = $2,
+           "status" = $3,
+           "rawData" = jsonb_set("rawData", '{source}', to_jsonb($4::text)),
            "updatedAt" = CURRENT_TIMESTAMP
        WHERE "id" = $1`,
       [
         id,
+        efastReplay ? 'HIDDEN-EFAST-TRX' : 'HIDDEN-MAP-TRX',
         efastReplay ? 'SUCCESS' : 'Thành công',
         efastReplay ? 'VIETIN_EFAST' : 'MAP',
       ],
@@ -143,7 +151,7 @@ try {
   requireCondition(
     Number(afterEquivalentReplay.rows[0].bigQueryRevision) === 1 &&
       afterEquivalentReplay.rows[0].event_count === 1,
-    'equivalent MAP/eFAST replay emitted duplicate revisions',
+    'hidden transaction number or equivalent MAP/eFAST replay emitted duplicate revisions',
   );
 
   await scratch.query(
@@ -300,6 +308,56 @@ try {
   );
 
   await scratch.query(
+    await readFile(
+      path.join(snapshotHotfixMigrationDir, 'rollback.sql'),
+      'utf8',
+    ),
+  );
+  const snapshotHotfixDown = await scratch.query(
+    `SELECT
+       to_regprocedure('opshub_map_vietin_bigquery_revision_snapshot("MapVietinTransaction")') IS NULL AS snapshot_helper_removed,
+       to_regprocedure('opshub_map_vietin_bigquery_canonical_status(text)') IS NOT NULL AS v1_status_helper_restored`,
+  );
+  requireCondition(
+    Object.values(snapshotHotfixDown.rows[0]).every(Boolean),
+    'snapshot hotfix rollback did not restore v1 cleanly',
+  );
+
+  const snapshotRollbackId = 'verify-map-vietin-snapshot-rollback';
+  await scratch.query(
+    `INSERT INTO "MapVietinTransaction" (
+       "id", "transactionKey", "transactionNumber", "amount", "content", "orders",
+       "status", "incomeType", "rawData", "updatedAt"
+     ) VALUES ($1, 'verify-snapshot-rollback', 'RAW-A', 1, 'rollback', ARRAY[]::text[],
+       'SUCCESS', 'SALES',
+       '{"source":"VIETIN_EFAST","providerIdentifiers":{"efastTrxId":"STABLE-ID"}}'::jsonb,
+       CURRENT_TIMESTAMP)`,
+    [snapshotRollbackId],
+  );
+  await scratch.query(
+    `UPDATE "MapVietinTransaction"
+     SET "transactionNumber" = 'RAW-B', "updatedAt" = CURRENT_TIMESTAMP
+     WHERE "id" = $1`,
+    [snapshotRollbackId],
+  );
+  const snapshotRollbackBehavior = await scratch.query(
+    `SELECT transaction."bigQueryRevision",
+            COUNT(event."id")::int AS event_count
+     FROM "MapVietinTransaction" AS transaction
+     LEFT JOIN "DomainOutboxEvent" AS event
+       ON event."aggregateId" = transaction."id"
+      AND event."eventType" = 'MAP_VIETIN_BIGQUERY_TRANSACTION_REVISION'
+     WHERE transaction."id" = $1
+     GROUP BY transaction."bigQueryRevision"`,
+    [snapshotRollbackId],
+  );
+  requireCondition(
+    Number(snapshotRollbackBehavior.rows[0].bigQueryRevision) === 2 &&
+      snapshotRollbackBehavior.rows[0].event_count === 2,
+    'snapshot hotfix rollback did not restore v1 raw transaction behavior',
+  );
+
+  await scratch.query(
     await readFile(path.join(hotfixMigrationDir, 'rollback.sql'), 'utf8'),
   );
   const hotfixDown = await scratch.query(
@@ -362,7 +420,7 @@ try {
     'rollback left MAP BigQuery objects behind',
   );
   process.stdout.write(
-    'MAP Vietin BigQuery migration verified: insert=ok canonical_replay=stable identifier_enrichment=ok pii_update=ignored orders_revision=ok status_revision=ok dedupe=ok tombstone=ok rollback=ok\n',
+    'MAP Vietin BigQuery migration verified: insert=ok export_snapshot_replay=stable identifier_enrichment=ok pii_update=ignored orders_revision=ok status_revision=ok dedupe=ok tombstone=ok layered_rollback=ok\n',
   );
 } finally {
   if (scratch) await scratch.end().catch(() => undefined);
