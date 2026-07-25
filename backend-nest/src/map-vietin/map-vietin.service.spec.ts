@@ -565,6 +565,59 @@ describe('MapVietinService', () => {
     });
   });
 
+  it('retries a 40P01 MAP upsert without duplicating its payment notification', async () => {
+    const store = {
+      storeId: 'CP01',
+      mapVietinUsername: 'map-user',
+      mapVietinPasswordCipher: encryptSecret('map-pass'),
+    };
+    fetchMock
+      .mockResolvedValueOnce(
+        jsonResponse({
+          access_token: 'access-token',
+          merchant_info: [{ merchant_id: 'merchant-default' }],
+        }),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({
+          data: {
+            list: [
+              {
+                txnNo: 'TXN-DEADLOCK-001',
+                txnAmount: '1,250,000',
+                txnDate: '21/05/2026 10:00:00',
+                txnDesc: 'Thanh toan don 26052112345678',
+                status: '00',
+              },
+            ],
+          },
+        }),
+      );
+    prisma.mapVietinTransaction.findUnique.mockResolvedValue(null);
+    prisma.mapVietinTransaction.upsert
+      .mockRejectedValueOnce({
+        name: 'DriverAdapterError',
+        cause: { originalCode: '40P01' },
+      })
+      .mockRejectedValueOnce({ code: '40P01' })
+      .mockResolvedValue({
+        id: 'stored-deadlock-1',
+        storeCode: 'CP01',
+        amount: 1250000,
+      });
+    prisma.mapVietinSyncState.upsert.mockResolvedValue({});
+    paymentNotifications.createForTransaction.mockResolvedValue({});
+    jest.spyOn(Math, 'random').mockReturnValue(0);
+
+    await expect(service.syncStoreTransactions(store)).resolves.toBe(1);
+
+    expect(prisma.mapVietinTransaction.upsert).toHaveBeenCalledTimes(3);
+    expect(paymentNotifications.createForTransaction).toHaveBeenCalledTimes(1);
+    expect(paymentNotifications.createForTransaction).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'stored-deadlock-1', storeCode: 'CP01' }),
+    );
+  });
+
   it('syncs global MAP transactions by virtual account and creates notifications', async () => {
     process.env.MAP_VIETIN_GLOBAL_USERNAME = 'global-user';
     process.env.MAP_VIETIN_GLOBAL_PASSWORD = 'global-pass';

@@ -36,6 +36,7 @@ import {
   readBoundedHttpResponse,
 } from '../common/bounded-http-response';
 import { buildRealtimeRedisEnvelope } from '../common/realtime-event';
+import { withPostgresDeadlockRetry } from '../common/postgres-deadlock-retry';
 import * as XLSX from 'xlsx';
 import {
   CreateMapVietinStatementOrderTransferRequestDto,
@@ -3026,14 +3027,21 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
         existing && this.mapTransactionSyncIsNoOp(existing, updateData);
       const stored = isNoOp
         ? existing
-        : await this.prisma.mapVietinTransaction.upsert({
-            where: {
-              transactionKey:
-                existing?.transactionKey ?? normalized.transactionKey,
+        : await withPostgresDeadlockRetry(
+            () =>
+              this.prisma.mapVietinTransaction.upsert({
+                where: {
+                  transactionKey:
+                    existing?.transactionKey ?? normalized.transactionKey,
+                },
+                create: normalized,
+                update: updateData,
+              }),
+            {
+              operation: 'map_vietin_ingest_upsert',
+              logger: this.logger,
             },
-            create: normalized,
-            update: updateData,
-          });
+          );
       if (isNoOp) {
         stats.unchanged += 1;
       } else if (existing) {

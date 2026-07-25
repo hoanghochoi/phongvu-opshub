@@ -8,6 +8,7 @@ import { Cron, Interval } from '@nestjs/schedule';
 import { Prisma } from '@prisma/client';
 import pg from 'pg';
 import { safeLogError } from '../common/log-sanitizer';
+import { withPostgresDeadlockRetry } from '../common/postgres-deadlock-retry';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
 import { HomeSummaryService } from './home-summary.service';
@@ -193,8 +194,15 @@ export class HomeSummaryProjectionService
         ORDER BY expected.summary_date
       `);
       for (const affectedDate of affectedDates) {
-        await this.prisma.$executeRaw(
-          Prisma.sql`SELECT opshub_enqueue_home_summary_projection_kind(CAST(${affectedDate.dateKey} AS date), 'RECONCILIATION', 'SALES')`,
+        await withPostgresDeadlockRetry(
+          () =>
+            this.prisma.$executeRaw(
+              Prisma.sql`SELECT opshub_enqueue_home_summary_projection_kind(CAST(${affectedDate.dateKey} AS date), 'RECONCILIATION', 'SALES')`,
+            ),
+          {
+            operation: 'home_projection_startup_enqueue',
+            logger: this.logger,
+          },
         );
       }
       this.logger.log(
@@ -287,7 +295,13 @@ export class HomeSummaryProjectionService
       if (job.projectionKind === 'SALES') {
         await this.homeSummary.rebuildProjectionDate(dateKey);
       }
-      const version = await this.finalizeProjection(job, dateKey);
+      const version = await withPostgresDeadlockRetry(
+        () => this.finalizeProjection(job, dateKey),
+        {
+          operation: 'home_projection_finalize',
+          logger: this.logger,
+        },
+      );
       if (version === null) {
         this.logger.log(
           `Home projection rebuild lease lost: date=${dateKey} kind=${job.projectionKind} grain=${job.dimensionType} durationMs=${Date.now() - startedAt}`,
@@ -300,29 +314,36 @@ export class HomeSummaryProjectionService
     } catch (error) {
       const retrySeconds = this.retrySeconds(job.attempts);
       const sanitizedError = safeLogError(error).slice(0, 500);
-      await this.prisma.$transaction([
-        this.prisma.homeSummaryProjectionQueue.updateMany({
-          where: { id: job.id, claimToken: job.claimToken },
-          data: {
-            claimedAt: null,
-            claimToken: null,
-            leaseExpiresAt: null,
-            claimedGeneration: null,
-            availableAt: new Date(Date.now() + retrySeconds * 1000),
-            lastError: sanitizedError,
-          },
-        }),
-        this.prisma.homeSummaryProjectionState.updateMany({
-          where: { summaryDate: job.summaryDate },
-          data: {
-            status: 'ERROR',
-            ...(job.projectionKind === 'SALES'
-              ? { salesStatus: 'ERROR' }
-              : { financeStatus: 'ERROR' }),
-            lastError: sanitizedError,
-          },
-        }),
-      ]);
+      await withPostgresDeadlockRetry(
+        () =>
+          this.prisma.$transaction([
+            this.prisma.homeSummaryProjectionQueue.updateMany({
+              where: { id: job.id, claimToken: job.claimToken },
+              data: {
+                claimedAt: null,
+                claimToken: null,
+                leaseExpiresAt: null,
+                claimedGeneration: null,
+                availableAt: new Date(Date.now() + retrySeconds * 1000),
+                lastError: sanitizedError,
+              },
+            }),
+            this.prisma.homeSummaryProjectionState.updateMany({
+              where: { summaryDate: job.summaryDate },
+              data: {
+                status: 'ERROR',
+                ...(job.projectionKind === 'SALES'
+                  ? { salesStatus: 'ERROR' }
+                  : { financeStatus: 'ERROR' }),
+                lastError: sanitizedError,
+              },
+            }),
+          ]),
+        {
+          operation: 'home_projection_recovery',
+          logger: this.logger,
+        },
+      );
       this.logger.error(
         `Home projection rebuild failed: date=${dateKey} kind=${job.projectionKind} grain=${job.dimensionType} attempt=${job.attempts} retrySeconds=${retrySeconds} durationMs=${Date.now() - startedAt} error=${sanitizedError}`,
       );
@@ -953,8 +974,15 @@ export class HomeSummaryProjectionService
       });
     }
     for (const dateKey of datesToEnqueue) {
-      await this.prisma.$executeRaw(
-        Prisma.sql`SELECT opshub_enqueue_home_summary_projection(CAST(${dateKey} AS date), 'RECONCILIATION')`,
+      await withPostgresDeadlockRetry(
+        () =>
+          this.prisma.$executeRaw(
+            Prisma.sql`SELECT opshub_enqueue_home_summary_projection(CAST(${dateKey} AS date), 'RECONCILIATION')`,
+          ),
+        {
+          operation: 'home_projection_reconciliation_enqueue',
+          logger: this.logger,
+        },
       );
     }
     this.logger.log(

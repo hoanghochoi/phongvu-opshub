@@ -20,6 +20,7 @@
     "load-users:staging": "node scripts/manage-staging-load-users.mjs",
     "audit:runtime-org-tree": "node scripts/audit-runtime-org-tree-code.mjs",
     "verify:migration:home-summary": "node scripts/verify-home-summary-migration.mjs",
+    "verify:migration:home-summary-deadlock": "node scripts/verify-home-summary-deadlock-migration.mjs",
     "verify:migration:map-vietin-bigquery": "node scripts/verify-map-vietin-bigquery-migration.mjs",
     "repair:map-efast-identifiers": "node scripts/repair-map-efast-identifiers.mjs",
     "test:repair:map-efast-identifiers": "node --test scripts/repair-map-efast-identifiers.test.mjs",

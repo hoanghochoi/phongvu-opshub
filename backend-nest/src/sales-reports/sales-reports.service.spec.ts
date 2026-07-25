@@ -5,6 +5,8 @@ import { SalesReportErpCanceledOrderException } from './sales-report-erp.service
 import { SalesReportsService } from './sales-reports.service';
 
 describe('SalesReportsService', () => {
+  afterEach(() => jest.restoreAllMocks());
+
   function createHarness(options: { redis?: any } = {}) {
     const prisma = {
       user: {
@@ -127,6 +129,56 @@ describe('SalesReportsService', () => {
         payload,
       }),
     );
+  });
+
+  it('retries an idempotent ERP cache upsert only for 40P01', async () => {
+    const { service, prisma } = createHarness();
+    prisma.salesReportErpOrderCache.upsert
+      .mockRejectedValueOnce({
+        code: 'P2010',
+        meta: {
+          driverAdapterError: { cause: { originalCode: '40P01' } },
+        },
+      })
+      .mockRejectedValueOnce({ code: '40P01' })
+      .mockResolvedValue({});
+    jest.spyOn(Math, 'random').mockReturnValue(0);
+    const context = await (service as any).resolveUserSnapshot(userFixture());
+
+    await expect(
+      (service as any).upsertErpOrderCacheItem(
+        userFixture(),
+        context,
+        erpListOrderFixture(),
+        new Map(),
+      ),
+    ).resolves.toEqual(expect.objectContaining({ excluded: false }));
+
+    expect(prisma.salesReportErpOrderCache.upsert).toHaveBeenCalledTimes(3);
+    expect(prisma.salesReport.updateMany).toHaveBeenCalledTimes(1);
+  });
+
+  it('retries ERP status failure persistence without exceeding three attempts', async () => {
+    const { service, prisma } = createHarness();
+    prisma.$transaction
+      .mockRejectedValueOnce({ code: '40P01' })
+      .mockRejectedValueOnce({ cause: { originalCode: '40P01' } })
+      .mockResolvedValue([{ count: 1 }, { count: 1 }]);
+    jest.spyOn(Math, 'random').mockReturnValue(0);
+
+    await expect(
+      (service as any).recordErpStatusSyncFailure(
+        {
+          orderCode: '2607010001',
+          statusCheckAttemptDate: null,
+          statusCheckAttemptCount: 0,
+          statusCheckFailureCount: 0,
+        },
+        new Date('2026-07-25T01:00:00.000Z'),
+      ),
+    ).resolves.toBeUndefined();
+
+    expect(prisma.$transaction).toHaveBeenCalledTimes(3);
   });
 
   it('requires order code for purchased report', async () => {

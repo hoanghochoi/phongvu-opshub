@@ -117,17 +117,19 @@ try {
 
   const functions = await scratch.query(
     `SELECT
-       pg_get_functiondef('opshub_enqueue_home_summary_projection_kind(date,text,text)'::regprocedure) AS enqueue_kind_definition,
+       pg_get_functiondef('opshub_enqueue_home_summary_projection_kinds(date,text,text[])'::regprocedure) AS enqueue_kinds_definition,
        pg_get_functiondef('opshub_home_summary_statement_trigger()'::regprocedure) AS statement_trigger_definition`,
   );
-  const enqueueKindDefinition =
-    functions.rows[0]?.enqueue_kind_definition || '';
+  const enqueueKindsDefinition =
+    functions.rows[0]?.enqueue_kinds_definition || '';
   const statementTriggerDefinition =
     functions.rows[0]?.statement_trigger_definition || '';
   requireCondition(
-    enqueueKindDefinition.includes('dirtyGeneration') &&
-      enqueueKindDefinition.includes('claimToken') &&
-      enqueueKindDefinition.includes('pg_notify') &&
+    enqueueKindsDefinition.includes('dirtyGeneration') &&
+      enqueueKindsDefinition.includes('claimToken') &&
+      enqueueKindsDefinition.includes('pg_notify') &&
+      enqueueKindsDefinition.indexOf('HomeSummaryProjectionQueue') <
+        enqueueKindsDefinition.indexOf('HomeSummaryProjectionState') &&
       statementTriggerDefinition.includes('new_rows') &&
       statementTriggerDefinition.includes('old_rows'),
     'Phase 1 closure functions are missing coalescing or statement trigger logic',
