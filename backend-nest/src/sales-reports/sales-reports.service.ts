@@ -15,6 +15,7 @@ import {
   storesForOrganizationNodeTree,
 } from '../common/organization-store-scope';
 import { logFingerprint } from '../common/log-sanitizer';
+import { withPostgresDeadlockRetry } from '../common/postgres-deadlock-retry';
 import { buildRealtimeRedisEnvelope } from '../common/realtime-event';
 import { isSuperAdminRole } from '../common/system-role';
 import { FEATURE_KEYS } from '../feature/feature.constants';
@@ -1470,40 +1471,47 @@ export class SalesReportsService implements OnApplicationBootstrap {
           }
         : {}),
     };
-    await this.prisma.$transaction([
-      this.prisma.salesReportErpOrderCache.upsert({
-        where: { orderCode: order.orderCode },
-        create: { orderCode: order.orderCode, ...cacheData },
-        update: cacheData,
-      }),
-      this.prisma.salesReport.updateMany({
-        where: {
-          orderCode: order.orderCode,
-          reportType: REPORT_TYPE_PURCHASED,
-        },
-        data: {
-          erpPaymentStatus: cacheData.paymentStatus,
-          erpConfirmationStatus: cacheData.confirmationStatus,
-          erpFulfillmentStatus: cacheData.fulfillmentStatus,
-          erpLifecycleStatus: order.lifecycleStatus,
-          erpHasReturnedFullItems: order.hasReturnedFullItems,
-          erpReturnedAfterTaxAmount: cacheData.returnedAfterTaxAmount,
-          ...(orderCreatedAt ? { erpOrderCreatedAt: orderCreatedAt } : {}),
-          erpStatusCheckedAt: order.statusCheckedAt,
-          erpStatusCheckAttemptedAt: attemptedAt,
-          erpStatusCheckAttemptDate: attempt.date,
-          erpStatusCheckAttemptCount: attempt.count,
-          erpStatusCheckFailureCount: 0,
-          erpFetchedAt: order.fetchedAt,
-          ...(exclusion.excludedAt
-            ? {
-                erpExcludedAt: exclusion.excludedAt,
-                erpExclusionReason: exclusion.exclusionReason,
-              }
-            : {}),
-        },
-      }),
-    ]);
+    await withPostgresDeadlockRetry(
+      () =>
+        this.prisma.$transaction([
+          this.prisma.salesReportErpOrderCache.upsert({
+            where: { orderCode: order.orderCode },
+            create: { orderCode: order.orderCode, ...cacheData },
+            update: cacheData,
+          }),
+          this.prisma.salesReport.updateMany({
+            where: {
+              orderCode: order.orderCode,
+              reportType: REPORT_TYPE_PURCHASED,
+            },
+            data: {
+              erpPaymentStatus: cacheData.paymentStatus,
+              erpConfirmationStatus: cacheData.confirmationStatus,
+              erpFulfillmentStatus: cacheData.fulfillmentStatus,
+              erpLifecycleStatus: order.lifecycleStatus,
+              erpHasReturnedFullItems: order.hasReturnedFullItems,
+              erpReturnedAfterTaxAmount: cacheData.returnedAfterTaxAmount,
+              ...(orderCreatedAt ? { erpOrderCreatedAt: orderCreatedAt } : {}),
+              erpStatusCheckedAt: order.statusCheckedAt,
+              erpStatusCheckAttemptedAt: attemptedAt,
+              erpStatusCheckAttemptDate: attempt.date,
+              erpStatusCheckAttemptCount: attempt.count,
+              erpStatusCheckFailureCount: 0,
+              erpFetchedAt: order.fetchedAt,
+              ...(exclusion.excludedAt
+                ? {
+                    erpExcludedAt: exclusion.excludedAt,
+                    erpExclusionReason: exclusion.exclusionReason,
+                  }
+                : {}),
+            },
+          }),
+        ]),
+      {
+        operation: 'sales_report_erp_status_persist',
+        logger: this.logger,
+      },
+    );
     if (exclusion.excludedAt) {
       this.logger.warn(
         `Sales report scheduled ERP excluded order persisted: orderLength=${order.orderCode.length} lifecycleStatus=${order.lifecycleStatus} reason=${exclusion.exclusionReason}`,
@@ -1528,29 +1536,36 @@ export class SalesReportsService implements OnApplicationBootstrap {
     )
       ? this.toNonNegativeInt(candidate.statusCheckFailureCount) + 1
       : 1;
-    const [cacheResult] = await this.prisma.$transaction([
-      this.prisma.salesReportErpOrderCache.updateMany({
-        where: { orderCode: candidate.orderCode },
-        data: {
-          statusCheckAttemptedAt: attemptedAt,
-          statusCheckAttemptDate: attempt.date,
-          statusCheckAttemptCount: attempt.count,
-          statusCheckFailureCount: failureCount,
-        },
-      }),
-      this.prisma.salesReport.updateMany({
-        where: {
-          orderCode: candidate.orderCode,
-          reportType: REPORT_TYPE_PURCHASED,
-        },
-        data: {
-          erpStatusCheckAttemptedAt: attemptedAt,
-          erpStatusCheckAttemptDate: attempt.date,
-          erpStatusCheckAttemptCount: attempt.count,
-          erpStatusCheckFailureCount: failureCount,
-        },
-      }),
-    ]);
+    const [cacheResult] = await withPostgresDeadlockRetry(
+      () =>
+        this.prisma.$transaction([
+          this.prisma.salesReportErpOrderCache.updateMany({
+            where: { orderCode: candidate.orderCode },
+            data: {
+              statusCheckAttemptedAt: attemptedAt,
+              statusCheckAttemptDate: attempt.date,
+              statusCheckAttemptCount: attempt.count,
+              statusCheckFailureCount: failureCount,
+            },
+          }),
+          this.prisma.salesReport.updateMany({
+            where: {
+              orderCode: candidate.orderCode,
+              reportType: REPORT_TYPE_PURCHASED,
+            },
+            data: {
+              erpStatusCheckAttemptedAt: attemptedAt,
+              erpStatusCheckAttemptDate: attempt.date,
+              erpStatusCheckAttemptCount: attempt.count,
+              erpStatusCheckFailureCount: failureCount,
+            },
+          }),
+        ]),
+      {
+        operation: 'sales_report_erp_status_failure_persist',
+        logger: this.logger,
+      },
+    );
     if (cacheResult.count === 0) {
       this.logger.warn(
         `ERP order status failure recorded without cache row: orderLength=${candidate.orderCode.length}`,
@@ -2874,35 +2889,45 @@ export class SalesReportsService implements OnApplicationBootstrap {
       delete updateData.excludedAt;
       delete updateData.exclusionReason;
     }
-    await this.prisma.salesReportErpOrderCache.upsert({
-      where: { orderCode },
-      create: { orderCode, ...data },
-      update: updateData,
-    });
-    await this.prisma.salesReport.updateMany({
-      where: { orderCode, reportType: REPORT_TYPE_PURCHASED },
-      data: {
-        erpPaymentStatus: data.paymentStatus,
-        erpConfirmationStatus: data.confirmationStatus,
-        erpFulfillmentStatus: data.fulfillmentStatus,
-        erpLifecycleStatus: lifecycleStatus,
-        erpHasReturnedFullItems: hasReturnedFullItems,
-        erpReturnedAfterTaxAmount: returnedAfterTaxAmount,
-        ...(orderCreatedAt ? { erpOrderCreatedAt: orderCreatedAt } : {}),
-        erpStatusCheckedAt: statusCheckedAt,
-        erpStatusCheckAttemptedAt: statusCheckAttemptedAt,
-        erpStatusCheckAttemptDate: statusCheckAttemptDate,
-        erpStatusCheckAttemptCount: statusCheckAttemptCount,
-        erpStatusCheckFailureCount: statusCheckFailureCount,
-        erpFetchedAt: order.fetchedAt,
+    await withPostgresDeadlockRetry(
+      async () => {
+        await this.prisma.salesReportErpOrderCache.upsert({
+          where: { orderCode },
+          create: { orderCode, ...data },
+          update: updateData,
+        });
+        await this.prisma.salesReport.updateMany({
+          where: { orderCode, reportType: REPORT_TYPE_PURCHASED },
+          data: {
+            erpPaymentStatus: data.paymentStatus,
+            erpConfirmationStatus: data.confirmationStatus,
+            erpFulfillmentStatus: data.fulfillmentStatus,
+            erpLifecycleStatus: lifecycleStatus,
+            erpHasReturnedFullItems: hasReturnedFullItems,
+            erpReturnedAfterTaxAmount: returnedAfterTaxAmount,
+            ...(orderCreatedAt ? { erpOrderCreatedAt: orderCreatedAt } : {}),
+            erpStatusCheckedAt: statusCheckedAt,
+            erpStatusCheckAttemptedAt: statusCheckAttemptedAt,
+            erpStatusCheckAttemptDate: statusCheckAttemptDate,
+            erpStatusCheckAttemptCount: statusCheckAttemptCount,
+            erpStatusCheckFailureCount: statusCheckFailureCount,
+            erpFetchedAt: order.fetchedAt,
+          },
+        });
+        if (exclusion.excludedAt) {
+          await this.markSalesReportsExcluded(
+            orderCode,
+            exclusion.excludedAt,
+            exclusion.exclusionReason!,
+          );
+        }
       },
-    });
+      {
+        operation: 'sales_report_erp_cache_persist',
+        logger: this.logger,
+      },
+    );
     if (exclusion.excludedAt) {
-      await this.markSalesReportsExcluded(
-        orderCode,
-        exclusion.excludedAt,
-        exclusion.exclusionReason!,
-      );
       this.logger.warn(
         `Sales report excluded order persisted: orderLength=${orderCode.length} lifecycleStatus=${lifecycleStatus} reason=${exclusion.exclusionReason}`,
       );

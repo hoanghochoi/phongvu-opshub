@@ -104,6 +104,23 @@ WebSocket và Flutter lifecycle trên nhiều runtime.
 - Load proof riêng sau staging: 250 request đồng thời/2.000 request tổng, burst
   5.000 source row, KPI parity 1/7/30/90 ngày và RAM host dưới 20 GB.
 
+## OPS-24 lock-order hardening
+
+- Producer trigger và worker dùng chung thứ tự khóa
+  `ProjectionQueue(kind ổn định) -> ProjectionState -> DomainOutboxEvent`;
+  enqueue hai kind không được giữ state trong lúc chờ queue kind còn lại.
+- Bounded retry là lớp phòng thủ cho đúng SQLSTATE `40P01`, tối đa ba attempts
+  tổng cộng và chỉ bao quanh operation idempotent. Hết retry phải trả job về
+  durable queue/error state, không đánh dấu hoàn tất giả.
+- Scratch PostgreSQL proof tái hiện cycle cũ với đúng một `40P01`; cùng
+  contention sau migration hoàn tất cả producer/worker, giữ một queue row và
+  tăng đúng một dirty generation. Focused MAP/Sales/Home retry proof pass
+  4 suites/226 tests; affected Payment Notification, Home freshness, ERP và
+  BigQuery consumers pass 11 suites/135 tests. Home Phase 1, OPS-24 deadlock và
+  MAP BigQuery migration verifiers đều pass; Prisma format/validate/generate,
+  Nest build và full Nest 90 suites/887 tests pass. Staging soak vẫn là release
+  gate.
+
 ## Deferred Follow-up
 
 - Phase 2: một authenticated socket mỗi platform session, gateway index theo

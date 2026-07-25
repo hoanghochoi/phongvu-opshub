@@ -3,6 +3,26 @@
 This file maps product behavior to proof. Existing flows are marked
 `existing_unverified` until fresh validation evidence is attached.
 
+- `OPS-24`, 2026-07-25: production audit found the Home producer trigger
+  locking `HomeSummaryProjectionState -> HomeSummaryProjectionQueue` while the
+  worker finalizer locks `Queue -> State`, producing PostgreSQL `40P01` under
+  concurrent Sales Report/MAP writes. The forward migration now acquires all
+  date/kind queue keys in deterministic order before state and source outbox;
+  lease, dirty-generation, coalescing and durable outbox semantics remain.
+  Structured retry traverses Prisma driver-adapter causes, accepts only exact
+  SQLSTATE `40P01`, caps at three total attempts and logs sanitized
+  operation/attempt/delay/outcome. Scratch PostgreSQL reproduced exactly one
+  legacy `40P01`, then proved migrated contention completes both transactions,
+  keeps one queue row, increments one generation and rolls back/reapplies
+  cleanly. Focused MAP/Sales/Home/helper proof passed 4 suites/226 tests; the
+  explicit affected-consumer set for Payment Notification/Speaker, Home
+  freshness/queue, ERP status/cache and MAP/Sales BigQuery passed 11 suites/135
+  tests. All three scratch migration verifiers passed, including Home Phase 1
+  seed/burst/rollback and MAP BigQuery replay/dedupe/tombstone/layered rollback;
+  Prisma format/validate/generate, Nest build, full Nest 90 suites/887 tests and
+  `git diff --check` passed. Staging deploy/concurrent soak and the bounded
+  post-production audit remain release gates.
+
 - `OPS-11`, 2026-07-22: Piper `piper-vi-vais1000-chunk-v1` supersedes the
   rejected VieNeu/Ngọc Linh pack and ships as a
   Windows-only pack with 1.103 PCM16 mono 24 kHz assets. Matching realtime

@@ -1,6 +1,8 @@
 import { HomeSummaryProjectionService } from './home-summary-projection.service';
 
 describe('HomeSummaryProjectionService', () => {
+  afterEach(() => jest.restoreAllMocks());
+
   function createHarness() {
     const prisma = {
       domainOutboxEvent: {
@@ -191,6 +193,82 @@ describe('HomeSummaryProjectionService', () => {
     expect(prisma.homeSummaryProjectionState.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({ status: 'ERROR' }),
+      }),
+    );
+  });
+
+  it('retries a 40P01 finalizer and rebuilds SALES facts only once', async () => {
+    const { service, homeSummary, prisma } = createHarness();
+    jest
+      .spyOn(service as any, 'finalizeProjection')
+      .mockRejectedValueOnce({ cause: { originalCode: '40P01' } })
+      .mockRejectedValueOnce({ code: '40P01' })
+      .mockResolvedValue(42n);
+    jest.spyOn(Math, 'random').mockReturnValue(0);
+
+    await (service as any).processJob({
+      id: 'job-deadlock',
+      summaryDate: new Date('2026-07-14T00:00:00.000Z'),
+      projectionKind: 'SALES',
+      dimensionType: 'GLOBAL',
+      dimensionKey: '',
+      storeCode: '',
+      sourceUpdatedAt: new Date('2026-07-14T10:30:00.000Z'),
+      claimedAt: new Date(),
+      claimToken: 'claim-deadlock',
+      leaseExpiresAt: new Date(Date.now() + 120_000),
+      dirtyGeneration: 1n,
+      claimedGeneration: 1n,
+      attempts: 1,
+      firstEnqueuedAt: new Date(),
+    });
+
+    expect(homeSummary.rebuildProjectionDate).toHaveBeenCalledTimes(1);
+    expect((service as any).finalizeProjection).toHaveBeenCalledTimes(3);
+    expect(prisma.homeSummaryProjectionQueue.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('keeps the job retryable after three deadlocked finalizer attempts', async () => {
+    const { service, prisma } = createHarness();
+    jest
+      .spyOn(service as any, 'finalizeProjection')
+      .mockRejectedValue({ code: '40P01' });
+    jest.spyOn(Math, 'random').mockReturnValue(0);
+
+    await (service as any).processJob({
+      id: 'job-deadlock-exhausted',
+      summaryDate: new Date('2026-07-14T00:00:00.000Z'),
+      projectionKind: 'FINANCE',
+      dimensionType: 'GLOBAL',
+      dimensionKey: '',
+      storeCode: '',
+      sourceUpdatedAt: new Date('2026-07-14T10:30:00.000Z'),
+      claimedAt: new Date(),
+      claimToken: 'claim-deadlock-exhausted',
+      leaseExpiresAt: new Date(Date.now() + 120_000),
+      dirtyGeneration: 1n,
+      claimedGeneration: 1n,
+      attempts: 1,
+      firstEnqueuedAt: new Date(),
+    });
+
+    expect((service as any).finalizeProjection).toHaveBeenCalledTimes(3);
+    expect(prisma.homeSummaryProjectionQueue.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          id: 'job-deadlock-exhausted',
+          claimToken: 'claim-deadlock-exhausted',
+        },
+        data: expect.objectContaining({
+          claimToken: null,
+          claimedGeneration: null,
+          availableAt: expect.any(Date),
+        }),
+      }),
+    );
+    expect(prisma.homeSummaryProjectionState.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ financeStatus: 'ERROR' }),
       }),
     );
   });
@@ -397,6 +475,21 @@ describe('HomeSummaryProjectionService', () => {
     expect((service as any).runCycle).toHaveBeenCalledWith(
       'reconciliation_recent_7d_hourly',
     );
+  });
+
+  it('retries a deadlocked reconciliation enqueue without duplicating the date loop', async () => {
+    const { service, prisma } = createHarness();
+    prisma.$executeRaw
+      .mockRejectedValueOnce({ cause: { originalCode: '40P01' } })
+      .mockRejectedValueOnce({ code: '40P01' })
+      .mockResolvedValue(1);
+    jest.spyOn(Math, 'random').mockReturnValue(0);
+    jest.spyOn(service as any, 'runCycle').mockResolvedValue(undefined);
+
+    await (service as any).enqueueReconciliationDates(1, 'deadlock_test');
+
+    expect(prisma.$executeRaw).toHaveBeenCalledTimes(3);
+    expect((service as any).runCycle).toHaveBeenCalledTimes(1);
   });
 
   it('skips minute reconciliation when each projection kind is current for its own sources', async () => {

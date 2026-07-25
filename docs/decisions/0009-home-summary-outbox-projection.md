@@ -28,6 +28,17 @@ Home inside a business write transaction would lengthen the source write path.
   kind (`SALES` or `FINANCE`). Lease tokens, lease expiry, dirty generation,
   and `FOR UPDATE SKIP LOCKED` prevent concurrent rebuilds while preserving one
   follow-up job when a source commit arrives during an active rebuild.
+- Every producer and worker that mutates projection coordination rows uses one
+  lock order: all affected `HomeSummaryProjectionQueue` keys first in stable
+  projection-kind order, then `HomeSummaryProjectionState`, then source/update
+  outbox rows. A transaction must not hold projection state while waiting for a
+  second queue key. This keeps dual-kind reconciliation compatible with the
+  worker's queue-first finalizer.
+- Idempotent MAP, ERP-cache and Home projection database boundaries may retry
+  exact PostgreSQL SQLSTATE `40P01` at most three total attempts with short
+  exponential backoff and jitter. Message-text matching and retrying other
+  database/business errors are not part of the contract; the durable Home job
+  remains the recovery path after retry exhaustion.
 - MAP polling uses a bounded TTL/LRU fingerprint cache as a read/write shedding
   layer. Cache misses still use the database idempotency contract, and new
   transactions are committed before payment notifications are published.
@@ -74,6 +85,9 @@ Home inside a business write transaction would lengthen the source write path.
 ## Validation Impact
 
 - Validate Prisma schema plus migration up/down behavior and idempotent backfill.
+- Reproduce the legacy queue/state lock cycle on scratch PostgreSQL and observe
+  `40P01`, then run equivalent migrated contention and prove both transactions
+  complete while retaining one coalesced queue row and correct generation.
 - Prove KPI parity for 1/7/30/90-day ranges and every supported scope.
 - Test missed `NOTIFY`, worker restart, duplicate/out-of-order events, Redis
   reconnect, stale/no-projection responses, and backfill resume.
