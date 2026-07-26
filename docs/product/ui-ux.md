@@ -21,6 +21,24 @@ visual systems that make the app feel assembled from unrelated screens.
 - Do not hide platform limits: Windows-only features must be hidden where they
   are not supported and must show a clear unsupported screen if opened directly.
 
+## New Redesign Initiative
+
+The next UI/UX redesign is governed by `docs/ui-redesign/`. It is an incremental
+target layered over the current Redesign V2 runtime, not permission to discard
+accepted product behavior or rewrite the application in one pass.
+
+- Current product, business, API, permission, platform, accessibility, logging,
+  copy, shared-control, and verification contracts in this document remain
+  mandatory unless a separate authoritative product change updates them.
+- Approved new Figma frames control the visual/interaction target only for their
+  exact migrated scope. Unmigrated screens keep the current runtime contract.
+- Be Vietnam Pro is the target redesign font after an approved foundation issue
+  provides local assets, shared-theme migration, compatibility and platform
+  proof; the current SF Pro Display runtime does not change from docs alone.
+- The redesign reuses the existing responsive breakpoint contract in
+  `AppLayoutTokens`: compact `<600`, medium `600–899`, expanded `900–1199`, and
+  wide desktop `>=1200`.
+
 ## Design Tokens
 
 - Colors: every app color must come from `AppColors`. Add a token before adding

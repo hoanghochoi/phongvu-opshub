@@ -1,0 +1,79 @@
+# [Implementation] <Feature or Screen>
+
+## Goal
+
+Implement approved redesign scope without changing unrelated behavior.
+
+## Traceability
+
+- Design issue:
+- Approved Figma frame/node/revision:
+- Approval comment/date:
+- Product docs and decision:
+
+## Scope
+
+- Screens/components:
+- Shared foundation/components to evolve:
+- User-visible behavior:
+
+## Out of scope
+
+- Business/API/data/permission changes not separately authorized
+- Unrelated screens/components
+
+## Protected current behavior and affected consumers
+
+- Old behavior that must continue:
+- Shared producers/consumers:
+- Path contracts/affected proof command when required:
+
+## Required states and responsive behavior
+
+- Compact `<600`
+- Medium `600–899`
+- Expanded `900–1199`
+- Wide `>=1200` when applicable
+- Loading/empty/error/retry/validation/permission/session/domain states
+
+## Accessibility and platform
+
+- Android and Windows primary proof
+- Web/additional affected platform proof
+- Keyboard/focus/semantics/contrast/touch target/text scaling/reduced motion
+
+## Logging and copy
+
+- `AppLogger` start/success/failure/key branches with sanitized context
+- Vietnamese-first/action-oriented UI copy; no technical codes or secrets
+
+## Acceptance criteria
+
+- [ ] UI matches exact approved Figma revision.
+- [ ] Product/business/API/permission/platform contracts remain intact.
+- [ ] Shared tokens/components are used; no parallel feature design system.
+- [ ] Typography and breakpoint behavior follow approved foundation.
+- [ ] Required data/form/permission states are implemented.
+- [ ] Protected affected consumers pass.
+- [ ] Focused and repository-required validation passes.
+- [ ] Screenshots/smoke evidence identifies viewport/platform/build SHA.
+- [ ] Known differences and residual risk are recorded.
+
+## Verification plan
+
+```powershell
+dart format --output=none --set-exit-if-changed <changed Dart files>
+git diff --check
+flutter analyze --no-pub
+flutter test --no-pub --reporter expanded
+```
+
+Add focused widget/unit/golden/visual and affected-consumer commands here.
+
+## Delivery gate
+
+- Branch/worktree created by task lifecycle from live `origin/staging`.
+- PR `[OPS-123] Description` targets `staging` and uses `Part of OPS-123` while
+  awaiting staging QA.
+- Linear tracking comment is posted before each forward status transition.
+- `Done` requires successful production deployment.
