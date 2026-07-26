@@ -591,7 +591,7 @@ contains(
 );
 contains(
   productionWorkflow,
-  'compose_cmd up -d --force-recreate --wait --wait-timeout 120 redis',
+  'run_compose_or_rollback up -d --force-recreate --wait --wait-timeout 120 redis',
   'production coordinated Redis authentication rollout',
 );
 contains(
@@ -599,6 +599,53 @@ contains(
   'redis api realtime caddy',
   'production rollback includes Redis configuration',
 );
+const productionBackendDeployIndex = productionWorkflow.indexOf(
+  'name: Deploy backend and publish version metadata',
+);
+const productionRemoteRuntimeIndex = productionWorkflow.indexOf(
+  `bash -s" <<'REMOTE'`,
+  productionBackendDeployIndex,
+);
+const productionRuntimeTrapIndex = productionWorkflow.indexOf(
+  "trap 'rollback_on_error $?' ERR",
+  productionRemoteRuntimeIndex,
+);
+const productionRuntimeTrapEndIndex = productionWorkflow.indexOf(
+  'trap - ERR',
+  productionRuntimeTrapIndex,
+);
+assert.ok(
+  productionBackendDeployIndex >= 0 &&
+    productionRemoteRuntimeIndex > productionBackendDeployIndex &&
+    productionRuntimeTrapIndex > productionRemoteRuntimeIndex &&
+    productionRuntimeTrapEndIndex > productionRuntimeTrapIndex,
+  'production runtime rollback transaction boundaries are missing',
+);
+const productionRuntimeTransaction = productionWorkflow.slice(
+  productionRemoteRuntimeIndex,
+  productionRuntimeTrapEndIndex,
+);
+contains(
+  productionRuntimeTransaction,
+  'set -Eeuo pipefail',
+  'production ERR trap inheritance through shell functions',
+);
+contains(
+  productionRuntimeTransaction,
+  'run_compose_or_rollback()',
+  'production explicit compose rollback wrapper',
+);
+for (const guardedCompose of [
+  'run_compose_or_rollback up -d --force-recreate --wait --wait-timeout 120 redis',
+  'run_compose_or_rollback --profile migrate run --rm -T --build migrate',
+  'run_compose_or_rollback up -d --build --force-recreate --wait --wait-timeout 240 api realtime caddy',
+]) {
+  contains(
+    productionRuntimeTransaction,
+    guardedCompose,
+    'production compose failure rollback coverage',
+  );
+}
 contains(stagingWorkflow, '--no-web-resources-cdn', 'staging local Flutter web resources');
 contains(stagingWorkflow, 'secrets.CF_ACCESS_CLIENT_ID', 'staging Access client ID secret');
 contains(stagingWorkflow, 'secrets.CF_ACCESS_CLIENT_SECRET', 'staging Access client secret');

@@ -19,6 +19,7 @@
     "sanitize:staging": "node scripts/sanitize-staging-db.mjs",
     "load-users:staging": "node scripts/manage-staging-load-users.mjs",
     "audit:runtime-org-tree": "node scripts/audit-runtime-org-tree-code.mjs",
+    "verify:dockerfile:sharp": "node scripts/verify-sharp-dockerfile.mjs",
     "verify:migration:home-summary": "node scripts/verify-home-summary-migration.mjs",
     "verify:migration:home-summary-deadlock": "node scripts/verify-home-summary-deadlock-migration.mjs",
     "verify:migration:map-vietin-bigquery": "node scripts/verify-map-vietin-bigquery-migration.mjs",
