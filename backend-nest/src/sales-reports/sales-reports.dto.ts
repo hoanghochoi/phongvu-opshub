@@ -7,6 +7,7 @@ import {
   IsArray,
   IsOptional,
   IsString,
+  Matches,
   Max,
   MaxLength,
   Min,
@@ -446,6 +447,20 @@ export class ListSalesReportFollowUpCasesDto {
   assigneeUserId?: string;
 
   @IsOptional()
+  @IsString()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, {
+    message: 'Ngày bắt đầu phải có định dạng YYYY-MM-DD.',
+  })
+  startDate?: string;
+
+  @IsOptional()
+  @IsString()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, {
+    message: 'Ngày kết thúc phải có định dạng YYYY-MM-DD.',
+  })
+  endDate?: string;
+
+  @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(0)
@@ -457,6 +472,32 @@ export class ListSalesReportFollowUpCasesDto {
   @Min(1)
   @Max(100)
   limit?: number;
+}
+
+export class ExportSalesReportFollowUpHistoryDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  search?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  storeCode?: string;
+
+  @IsOptional()
+  @IsString()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, {
+    message: 'Ngày bắt đầu phải có định dạng YYYY-MM-DD.',
+  })
+  startDate?: string;
+
+  @IsOptional()
+  @IsString()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, {
+    message: 'Ngày kết thúc phải có định dạng YYYY-MM-DD.',
+  })
+  endDate?: string;
 }
 
 export class CreateSalesReportFollowUpEntryDto {

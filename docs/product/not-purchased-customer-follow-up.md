@@ -48,6 +48,24 @@ Cho phép nhân viên bán hàng theo dõi và chăm sóc lại từng lượt b
 - Số ngày được tính từ lần chăm sóc gần nhất, hoặc lần tiếp xúc đầu nếu chưa có
   lần chăm sóc: xanh 0-1 ngày, vàng 2-3 ngày, đỏ trên 3 ngày.
 
+## Lọc ngày và tải lịch sử chăm sóc
+
+- Bộ lọc khoảng ngày dùng DateRangePicker chung và áp dụng cho cả `Cần chăm
+  sóc`, `Lịch sử chăm sóc` và `Đã ẩn`. Hồ sơ được đối chiếu theo
+  `lastFollowUpAt`; nếu chưa từng chăm sóc thì dùng `submittedAt` của báo cáo
+  gốc.
+- Không chọn khoảng ngày nghĩa là 30 ngày gần nhất. Khoảng chọn tối đa 90 ngày;
+  ngày bắt đầu và kết thúc được tính trọn ngày theo giờ Việt Nam.
+- Store/Area/Region Manager và Super Admin thấy thao tác `Tải lịch sử chăm sóc`.
+  Backend vẫn kiểm tra managed scope; nhân viên bán hàng không thấy nút và
+  không được gọi trực tiếp endpoint tải file.
+- File XLSX không phụ thuộc tab đang mở, nhưng giữ keyword và showroom đang
+  chọn. Mỗi lượt chăm sóc có `contactedAt` trong khoảng ngày là một dòng; file
+  chứa tối đa 10.000 lượt và yêu cầu thu hẹp khoảng ngày khi vượt giới hạn.
+- Không có dữ liệu thì không tạo file rỗng. Log chỉ ghi khoảng ngày, scope,
+  trạng thái lưu, số dòng/byte và thời lượng; không ghi thông tin liên hệ của
+  khách hàng.
+
 ## Nhập dữ liệu lịch sử từ Excel
 
 - Tài khoản có quyền quản lý báo cáo bán hàng mở `Nhập Excel` ngay trong màn

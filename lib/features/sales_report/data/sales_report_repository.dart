@@ -96,6 +96,8 @@ class SalesReportRepository {
     String status = 'OPEN',
     String? search,
     String? storeCode,
+    DateTime? startDate,
+    DateTime? endDate,
     int page = 0,
     int limit = 20,
   }) async {
@@ -105,11 +107,32 @@ class SalesReportRepository {
         'status': status,
         if ((search ?? '').trim().isNotEmpty) 'search': search!.trim(),
         if ((storeCode ?? '').trim().isNotEmpty) 'storeCode': storeCode!.trim(),
+        if (startDate != null) 'startDate': _apiDate(startDate),
+        if (endDate != null) 'endDate': _apiDate(endDate),
         'page': '$page',
         'limit': '$limit',
       },
     );
     return SalesReportFollowUpPage.fromJson(jsonDecode(response.body));
+  }
+
+  Future<Uint8List> exportFollowUpHistory({
+    String? search,
+    String? storeCode,
+    required DateTime startDate,
+    required DateTime endDate,
+  }) async {
+    final bytes = await _apiClient.getBytes(
+      ApiConstants.salesReportFollowUpHistoryExportEndpoint,
+      queryParameters: {
+        if ((search ?? '').trim().isNotEmpty) 'search': search!.trim(),
+        if ((storeCode ?? '').trim().isNotEmpty) 'storeCode': storeCode!.trim(),
+        'startDate': _apiDate(startDate),
+        'endDate': _apiDate(endDate),
+      },
+      timeout: const Duration(seconds: 60),
+    );
+    return Uint8List.fromList(bytes);
   }
 
   Future<SalesReportFollowUpCase> fetchFollowUpCase(String id) async {
@@ -214,5 +237,10 @@ class SalesReportRepository {
       return http.MultipartFile.fromPath('file', path, filename: file.name);
     }
     throw ArgumentError('File Excel chưa có dữ liệu để tải lên.');
+  }
+
+  String _apiDate(DateTime value) {
+    String two(int part) => part.toString().padLeft(2, '0');
+    return '${value.year}-${two(value.month)}-${two(value.day)}';
   }
 }

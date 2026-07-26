@@ -7,6 +7,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import * as XLSX from 'xlsx';
 import {
   organizationNodeStoreTreeInclude,
   storesForOrganizationNodeTree,
@@ -19,6 +20,7 @@ import { FEATURE_KEYS } from '../feature/feature.constants';
 import {
   AssignSalesReportFollowUpCaseDto,
   CreateSalesReportFollowUpEntryDto,
+  ExportSalesReportFollowUpHistoryDto,
   ListSalesReportFollowUpCasesDto,
   NOT_PURCHASED_REASON_CODES,
 } from './sales-reports.dto';
@@ -36,6 +38,11 @@ const MANAGER_ROLE_CODES = new Set([
 const HIDDEN_STATUSES = ['PURCHASED_ELSEWHERE', 'NO_LONGER_INTERESTED'];
 const REALTIME_CHANNEL = 'SALES_REPORT_ORDERS_UPDATED';
 const CONTACT_GRACE_UNTIL_ENV = 'SALES_REPORT_FOLLOW_UP_CONTACT_GRACE_UNTIL';
+const DEFAULT_DATE_RANGE_DAYS = 30;
+const MAX_DATE_RANGE_DAYS = 90;
+const MAX_EXPORT_ROWS = 10_000;
+const VIETNAM_TIME_ZONE = 'Asia/Ho_Chi_Minh';
+const DAY_MS = 24 * 60 * 60 * 1000;
 const CASE_INCLUDE = {
   sourceReport: {
     include: {
@@ -72,6 +79,7 @@ export class SalesReportFollowUpsService {
     const storeCode = this.storeCode(query.storeCode);
     const assigneeUserId = this.text(query.assigneeUserId, 80);
     const contactGracePeriod = this.contactGracePeriod();
+    const dateRange = this.followUpDateRange(query.startDate, query.endDate);
 
     if (!manager && (storeCode || assigneeUserId)) {
       throw new ForbiddenException(
@@ -101,6 +109,25 @@ export class SalesReportFollowUpsService {
                 ],
               }),
         },
+      },
+      {
+        OR: [
+          {
+            lastFollowUpAt: {
+              gte: dateRange.start,
+              lt: dateRange.endExclusive,
+            },
+          },
+          {
+            lastFollowUpAt: null,
+            sourceReport: {
+              submittedAt: {
+                gte: dateRange.start,
+                lt: dateRange.endExclusive,
+              },
+            },
+          },
+        ],
       },
     ];
     if (storeCode) parts.push({ sourceReport: { storeCode } });
@@ -177,7 +204,7 @@ export class SalesReportFollowUpsService {
         })
       : [];
     this.logger.log(
-      `Follow-up case list succeeded: user=${this.safeUser(user)} manager=${manager} status=${status} contactGraceActive=${contactGracePeriod.active} contactGraceUntil=${contactGracePeriod.endsAt?.toISOString() ?? 'none'} count=${rows.length}/${total} excludedInvalidContact=${contactCandidates.length - total} page=${page} durationMs=${Date.now() - startedAt}`,
+      `Follow-up case list succeeded: user=${this.safeUser(user)} manager=${manager} status=${status} startDate=${dateRange.startDate} endDate=${dateRange.endDate} contactGraceActive=${contactGracePeriod.active} contactGraceUntil=${contactGracePeriod.endsAt?.toISOString() ?? 'none'} count=${rows.length}/${total} excludedInvalidContact=${contactCandidates.length - total} page=${page} durationMs=${Date.now() - startedAt}`,
     );
     return {
       items: rows.map((row) => this.toCaseDto(row, user, principal, manager)),
@@ -186,9 +213,105 @@ export class SalesReportFollowUpsService {
       total,
       hasMore: (page + 1) * limit < total,
       managedScope: manager,
+      startDate: dateRange.startDate,
+      endDate: dateRange.endDate,
       contactGracePeriodActive: contactGracePeriod.active,
       contactGracePeriodEndsAt: contactGracePeriod.endsAt,
     };
+  }
+
+  async exportHistory(user: any, query: ExportSalesReportFollowUpHistoryDto) {
+    const startedAt = Date.now();
+    const principal = await this.principal(user);
+    const manager = this.isManager(user, principal);
+    const dateRange = this.followUpDateRange(query.startDate, query.endDate);
+    const search = this.text(query.search, 120);
+    const storeCode = this.storeCode(query.storeCode);
+    this.logger.log(
+      `Follow-up history export started: user=${this.safeUser(user)} manager=${manager} startDate=${dateRange.startDate} endDate=${dateRange.endDate} store=${storeCode ?? 'managed-scope'} hasSearch=${Boolean(search)}`,
+    );
+
+    try {
+      if (!manager) {
+        throw new ForbiddenException(
+          'Chỉ quản lý mới có thể tải lịch sử chăm sóc.',
+        );
+      }
+      const scopeWhere = await this.scopeWhere(user, principal, manager);
+      if (storeCode) {
+        await this.assertStoreAllowed(user, principal, storeCode);
+      }
+      const caseParts: Prisma.SalesReportFollowUpCaseWhereInput[] = [
+        scopeWhere,
+        { sourceReport: { reportType: 'NOT_PURCHASED' } },
+      ];
+      if (storeCode) caseParts.push({ sourceReport: { storeCode } });
+      if (search) {
+        caseParts.push({
+          sourceReport: {
+            OR: [
+              { customerName: { contains: search, mode: 'insensitive' } },
+              { customerPhone: { contains: search, mode: 'insensitive' } },
+              {
+                customerZaloContact: {
+                  contains: search,
+                  mode: 'insensitive',
+                },
+              },
+            ],
+          },
+        });
+      }
+      const entries = await this.prisma.salesReportFollowUpEntry.findMany({
+        where: {
+          contactedAt: {
+            gte: dateRange.start,
+            lt: dateRange.endExclusive,
+          },
+          case: { is: { AND: caseParts } },
+        },
+        orderBy: [
+          { contactedAt: Prisma.SortOrder.asc },
+          { caseId: Prisma.SortOrder.asc },
+          { sequenceNumber: Prisma.SortOrder.asc },
+        ],
+        take: MAX_EXPORT_ROWS + 1,
+        include: {
+          purchasedReport: { select: { orderCode: true } },
+          case: {
+            include: {
+              sourceReport: {
+                include: {
+                  categorySelections: {
+                    orderBy: { sortOrder: Prisma.SortOrder.asc },
+                  },
+                },
+              },
+            },
+          },
+        },
+      });
+      if (entries.length === 0) {
+        throw new BadRequestException(
+          'Không có lịch sử chăm sóc trong khoảng ngày đã chọn. Vui lòng chọn khoảng ngày khác.',
+        );
+      }
+      if (entries.length > MAX_EXPORT_ROWS) {
+        throw new BadRequestException(
+          'Dữ liệu vượt quá 10.000 lượt chăm sóc. Vui lòng thu hẹp khoảng ngày.',
+        );
+      }
+      const workbook = this.buildHistoryWorkbook(entries);
+      this.logger.log(
+        `Follow-up history export succeeded: user=${this.safeUser(user)} startDate=${dateRange.startDate} endDate=${dateRange.endDate} store=${storeCode ?? 'managed-scope'} count=${entries.length} bytes=${workbook.length} durationMs=${Date.now() - startedAt}`,
+      );
+      return workbook;
+    } catch (error) {
+      this.logger.error(
+        `Follow-up history export failed: user=${this.safeUser(user)} startDate=${dateRange.startDate} endDate=${dateRange.endDate} store=${storeCode ?? 'managed-scope'} durationMs=${Date.now() - startedAt} error=${this.safeError(error)}`,
+      );
+      throw error;
+    }
   }
 
   async detail(user: any, caseId: string) {
@@ -808,6 +931,190 @@ export class SalesReportFollowUpsService {
         contactedAt: entry.contactedAt,
       })),
     };
+  }
+
+  private buildHistoryWorkbook(entries: any[]) {
+    const headers = [
+      'Mã hồ sơ',
+      'Mã showroom',
+      'Tên showroom',
+      'Khách hàng',
+      'Số điện thoại',
+      'Kênh liên hệ',
+      'Ngành hàng',
+      'Nhu cầu',
+      'Tiếp xúc đầu',
+      'Người tiếp xúc đầu',
+      'Phụ trách hiện tại',
+      'Trạng thái hồ sơ',
+      'Lần chăm sóc',
+      'Thời gian chăm sóc',
+      'Người chăm sóc',
+      'Email người chăm sóc',
+      'Kết quả',
+      'Lý do chưa mua',
+      'Lý do khác',
+      'Mã đơn mua',
+    ];
+    const rows = entries.map((entry) => {
+      const followUpCase = entry.case;
+      const report = followUpCase.sourceReport;
+      const categories = (report.categorySelections ?? []).length
+        ? report.categorySelections
+            .map((item: any) => item.categoryGroupNameVi)
+            .filter(Boolean)
+            .join(', ')
+        : report.categoryGroupNameVi;
+      return [
+        followUpCase.id,
+        report.storeCode ?? '',
+        report.storeName ?? '',
+        report.customerName ?? '',
+        report.customerPhone ?? '',
+        this.contactChannelLabels(report.customerContactChannels).join(', '),
+        categories ?? '',
+        report.customerNeed ?? '',
+        this.formatVietnamDateTime(report.submittedAt),
+        report.createdByName ?? report.createdByEmail ?? '',
+        followUpCase.assigneeName ?? followUpCase.assigneeEmail ?? '',
+        this.caseStatusLabel(followUpCase.status),
+        entry.sequenceNumber,
+        this.formatVietnamDateTime(entry.contactedAt),
+        entry.actorName ?? '',
+        entry.actorEmail ?? '',
+        this.outcomeLabel(entry.outcome),
+        this.notPurchasedLabel(entry.notPurchasedReason) ?? '',
+        entry.notPurchasedOtherReason ?? '',
+        entry.purchasedReport?.orderCode ?? '',
+      ];
+    });
+    const worksheet = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+    worksheet['!cols'] = headers.map((header) => ({
+      wch: Math.min(32, Math.max(14, header.length + 2)),
+    }));
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Lịch sử chăm sóc');
+    return XLSX.write(workbook, {
+      bookType: 'xlsx',
+      type: 'buffer',
+    }) as Buffer;
+  }
+
+  private followUpDateRange(startValue: unknown, endValue: unknown) {
+    const requestedStart = this.dateParam(startValue);
+    const requestedEnd = this.dateParam(endValue);
+    let startDate: string;
+    let endDate: string;
+    if (!requestedStart && !requestedEnd) {
+      endDate = this.todayVietnamDate();
+      startDate = this.shiftDate(endDate, -(DEFAULT_DATE_RANGE_DAYS - 1));
+    } else {
+      const fallback = requestedStart ?? requestedEnd!;
+      startDate = requestedStart ?? fallback;
+      endDate = requestedEnd ?? fallback;
+    }
+    if (startDate > endDate) {
+      throw new BadRequestException(
+        'Ngày kết thúc phải bằng hoặc sau ngày bắt đầu.',
+      );
+    }
+    const rangeDays =
+      Math.floor(
+        (this.dateOnlyUtc(endDate) - this.dateOnlyUtc(startDate)) / DAY_MS,
+      ) + 1;
+    if (rangeDays > MAX_DATE_RANGE_DAYS) {
+      throw new BadRequestException(
+        'Chỉ có thể chọn tối đa 90 ngày. Vui lòng thu hẹp khoảng ngày.',
+      );
+    }
+    const start = new Date(`${startDate}T00:00:00.000+07:00`);
+    const endExclusive = new Date(`${endDate}T00:00:00.000+07:00`);
+    endExclusive.setUTCDate(endExclusive.getUTCDate() + 1);
+    return { startDate, endDate, start, endExclusive };
+  }
+
+  private dateParam(value: unknown) {
+    const normalized = this.text(value, 10);
+    if (!normalized) return null;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(normalized)) {
+      throw new BadRequestException(
+        'Ngày không hợp lệ. Vui lòng chọn lại khoảng ngày.',
+      );
+    }
+    const [year, month, day] = normalized.split('-').map(Number);
+    const parsed = new Date(Date.UTC(year, month - 1, day));
+    if (
+      parsed.getUTCFullYear() !== year ||
+      parsed.getUTCMonth() !== month - 1 ||
+      parsed.getUTCDate() !== day
+    ) {
+      throw new BadRequestException(
+        'Ngày không hợp lệ. Vui lòng chọn lại khoảng ngày.',
+      );
+    }
+    return normalized;
+  }
+
+  private todayVietnamDate() {
+    const parts = new Intl.DateTimeFormat('en-GB', {
+      timeZone: VIETNAM_TIME_ZONE,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).formatToParts(new Date());
+    const part = (type: Intl.DateTimeFormatPartTypes) =>
+      parts.find((item) => item.type === type)?.value ?? '';
+    return `${part('year')}-${part('month')}-${part('day')}`;
+  }
+
+  private shiftDate(value: string, days: number) {
+    return new Date(this.dateOnlyUtc(value) + days * DAY_MS)
+      .toISOString()
+      .slice(0, 10);
+  }
+
+  private dateOnlyUtc(value: string) {
+    const [year, month, day] = value.split('-').map(Number);
+    return Date.UTC(year, month - 1, day);
+  }
+
+  private formatVietnamDateTime(value: Date | string | null | undefined) {
+    if (!value) return '';
+    const parts = new Intl.DateTimeFormat('en-GB', {
+      timeZone: VIETNAM_TIME_ZONE,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hourCycle: 'h23',
+    }).formatToParts(new Date(value));
+    const part = (type: Intl.DateTimeFormatPartTypes) =>
+      parts.find((item) => item.type === type)?.value ?? '';
+    return `${part('day')}/${part('month')}/${part('year')} ${part('hour')}:${part('minute')}`;
+  }
+
+  private contactChannelLabels(value: unknown) {
+    const channels = this.cleanContactChannels(value);
+    return channels.map(
+      (channel) =>
+        ({
+          PHONE: 'Điện thoại',
+          ZALO_PERSONAL: 'Zalo cá nhân',
+          ZALO_OA: 'Zalo OA',
+        })[channel] ?? channel,
+    );
+  }
+
+  private caseStatusLabel(value: string) {
+    return (
+      {
+        OPEN: 'Cần chăm sóc',
+        PURCHASED: 'Đã mua hàng',
+        PURCHASED_ELSEWHERE: 'Đã mua nơi khác',
+        NO_LONGER_INTERESTED: 'Hết nhu cầu',
+      }[value] ?? value
+    );
   }
 
   private careAgeDays(value: Date | string) {

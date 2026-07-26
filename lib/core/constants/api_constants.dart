@@ -125,6 +125,8 @@ class ApiConstants {
       '/sales-reports/import/commit';
   static const String salesReportFollowUpCasesEndpoint =
       '/sales-reports/follow-up-cases';
+  static const String salesReportFollowUpHistoryExportEndpoint =
+      '/sales-reports/follow-up-cases/export';
   static String salesReportFollowUpCaseEndpoint(String id) =>
       '$salesReportFollowUpCasesEndpoint/$id';
   static String salesReportFollowUpCaseEntriesEndpoint(String id) =>

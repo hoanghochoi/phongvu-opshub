@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -13,6 +14,7 @@ import '../../../../app/widgets/app_buttons.dart';
 import '../../../../app/widgets/app_cards.dart';
 import '../../../../app/widgets/app_combobox.dart';
 import '../../../../app/widgets/app_dialogs.dart';
+import '../../../../app/widgets/app_filter_dropdowns.dart';
 import '../../../../app/widgets/app_inputs.dart';
 import '../../../../app/widgets/app_layout.dart';
 import '../../../../app/widgets/app_pagination.dart';
@@ -22,6 +24,7 @@ import '../../../../core/logging/app_logger.dart';
 import '../../../../core/network/api_client.dart';
 import '../../../../core/network/api_exception.dart';
 import '../../../../core/network/realtime_connection_manager.dart';
+import '../../../../core/utils/date_range_defaults.dart';
 import '../../../auth/data/repositories/auth_repository.dart';
 import '../../../auth/domain/entities/store_branch.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
@@ -35,6 +38,13 @@ const _outcomeNotPurchased = 'NOT_PURCHASED';
 const _outcomePurchased = 'PURCHASED';
 const _outcomePurchasedElsewhere = 'PURCHASED_ELSEWHERE';
 const _outcomeNoLongerInterested = 'NO_LONGER_INTERESTED';
+const _maxFollowUpDateRangeDays = 90;
+
+typedef SalesReportFollowUpHistorySaver =
+    Future<String?> Function({
+      required String fileName,
+      required Uint8List bytes,
+    });
 
 const _reasonOptions = <String, String>{
   'NOT_SOLD': 'Chưa kinh doanh',
@@ -56,6 +66,8 @@ class NotPurchasedCustomersScreen extends StatefulWidget {
   final Duration realtimeDebounce;
   final Duration realtimeMaxWait;
   final SalesReportImportFilePicker? importFilePicker;
+  final SalesReportFollowUpHistorySaver? historySaver;
+  final DateTime Function()? now;
 
   const NotPurchasedCustomersScreen({
     super.key,
@@ -66,6 +78,8 @@ class NotPurchasedCustomersScreen extends StatefulWidget {
     this.realtimeDebounce = const Duration(seconds: 2),
     this.realtimeMaxWait = const Duration(seconds: 5),
     this.importFilePicker,
+    this.historySaver,
+    this.now,
   });
 
   @override
@@ -96,9 +110,12 @@ class _NotPurchasedCustomersScreenState
   bool _realtimeRefreshInFlight = false;
   bool _isSuperAdmin = false;
   bool _canImport = false;
+  bool _exportingHistory = false;
   bool _storeLoading = false;
   String? _storeError;
   String? _selectedStoreCode;
+  DateTime? _startDate;
+  DateTime? _endDate;
   List<StoreBranch> _stores = const [];
 
   @override
@@ -285,6 +302,8 @@ class _NotPurchasedCustomersScreenState
       if (page != null) _page = page;
     });
     final startedAt = DateTime.now();
+    final effectiveStartDate = _effectiveStartDate;
+    final effectiveEndDate = _effectiveEndDate;
     try {
       await AppLogger.instance.info(
         'SalesReportFollowUp',
@@ -294,12 +313,17 @@ class _NotPurchasedCustomersScreenState
           'page': _page,
           'hasSearch': _searchController.text.trim().isNotEmpty,
           'storeCode': _selectedStoreCode,
+          'startDate': _apiDate(effectiveStartDate),
+          'endDate': _apiDate(effectiveEndDate),
+          'usesImplicitDateRange': _startDate == null && _endDate == null,
         },
       );
       final result = await _repository.fetchFollowUpCases(
         status: _status,
         search: _searchController.text,
         storeCode: _selectedStoreCode,
+        startDate: effectiveStartDate,
+        endDate: effectiveEndDate,
         page: _page,
       );
       if (!mounted) return;
@@ -355,6 +379,46 @@ class _NotPurchasedCustomersScreenState
     });
   }
 
+  DateTime get _effectiveEndDate =>
+      _endDate ?? appImplicitDateRangeEnd((widget.now ?? DateTime.now)());
+
+  DateTime get _effectiveStartDate =>
+      _startDate ?? appImplicitDateRangeStart((widget.now ?? DateTime.now)());
+
+  Future<void> _setDateRange(DateTime? start, DateTime? end) async {
+    if (start != null && end != null) {
+      final days = end.difference(start).inDays + 1;
+      if (days > _maxFollowUpDateRangeDays) {
+        AppToast.show(
+          context,
+          const SnackBar(
+            content: Text('Chỉ có thể chọn tối đa 90 ngày. Vui lòng chọn lại.'),
+          ),
+        );
+        await AppLogger.instance.warn(
+          'SalesReportFollowUp',
+          'Follow-up date range rejected',
+          context: {'days': days, 'maximumDays': _maxFollowUpDateRangeDays},
+        );
+        return;
+      }
+    }
+    setState(() {
+      _startDate = start;
+      _endDate = end;
+    });
+    await AppLogger.instance.info(
+      'SalesReportFollowUp',
+      'Follow-up date range changed',
+      context: {
+        'hasExplicitRange': start != null && end != null,
+        'startDate': _apiDate(_effectiveStartDate),
+        'endDate': _apiDate(_effectiveEndDate),
+      },
+    );
+    if (mounted) await _load(page: 0);
+  }
+
   Future<void> _openCase(SalesReportFollowUpCase item) async {
     await AppLogger.instance.info(
       'SalesReportFollowUp',
@@ -385,6 +449,96 @@ class _NotPurchasedCustomersScreenState
     if (changed == true && mounted) await _load(page: 0);
   }
 
+  Future<void> _exportHistory() async {
+    if (_exportingHistory || _data?.managedScope != true) return;
+    setState(() => _exportingHistory = true);
+    final startedAt = DateTime.now();
+    final startDate = _effectiveStartDate;
+    final endDate = _effectiveEndDate;
+    final contextData = <String, Object?>{
+      'startDate': _apiDate(startDate),
+      'endDate': _apiDate(endDate),
+      'storeCode': _selectedStoreCode,
+      'hasSearch': _searchController.text.trim().isNotEmpty,
+    };
+    try {
+      await AppLogger.instance.info(
+        'SalesReportFollowUp',
+        'Follow-up history export started',
+        context: contextData,
+      );
+      final bytes = await _repository.exportFollowUpHistory(
+        search: _searchController.text,
+        storeCode: _selectedStoreCode,
+        startDate: startDate,
+        endDate: endDate,
+      );
+      final fileName =
+          'opshub-lich-su-cham-soc-${_apiDate(startDate).replaceAll('-', '')}-${_apiDate(endDate).replaceAll('-', '')}.xlsx';
+      final saver = widget.historySaver ?? _saveHistoryFile;
+      final path = await saver(fileName: fileName, bytes: bytes);
+      if (!mounted) return;
+      AppToast.show(
+        context,
+        SnackBar(
+          content: Text(
+            path == null
+                ? 'Đã hủy lưu file lịch sử chăm sóc.'
+                : 'Đã tải lịch sử chăm sóc.',
+          ),
+        ),
+      );
+      await AppLogger.instance.info(
+        'SalesReportFollowUp',
+        'Follow-up history export succeeded',
+        context: {
+          ...contextData,
+          'saved': path != null,
+          'bytes': bytes.length,
+          'durationMs': DateTime.now().difference(startedAt).inMilliseconds,
+        },
+      );
+    } catch (error, stackTrace) {
+      if (mounted) {
+        final message = error is ApiException
+            ? error.message
+            : 'Chưa tải được lịch sử chăm sóc. Vui lòng thử lại.';
+        AppToast.show(context, SnackBar(content: Text(message)));
+      }
+      await AppLogger.instance.error(
+        'SalesReportFollowUp',
+        'Follow-up history export failed',
+        error: error,
+        stackTrace: stackTrace,
+        context: {
+          ...contextData,
+          'durationMs': DateTime.now().difference(startedAt).inMilliseconds,
+        },
+      );
+    } finally {
+      if (mounted) setState(() => _exportingHistory = false);
+    }
+  }
+
+  Future<String?> _saveHistoryFile({
+    required String fileName,
+    required Uint8List bytes,
+  }) {
+    return FilePicker.saveFile(
+      dialogTitle: 'Lưu lịch sử chăm sóc',
+      fileName: fileName,
+      type: FileType.custom,
+      allowedExtensions: const ['xlsx'],
+      bytes: bytes,
+      lockParentWindow: true,
+    );
+  }
+
+  String _apiDate(DateTime value) {
+    String two(int part) => part.toString().padLeft(2, '0');
+    return '${value.year}-${two(value.month)}-${two(value.day)}';
+  }
+
   @override
   Widget build(BuildContext context) {
     final data = _data;
@@ -406,11 +560,14 @@ class _NotPurchasedCustomersScreenState
             contactGracePeriodActive: data?.contactGracePeriodActive ?? false,
             contactGracePeriodEndsAt: data?.contactGracePeriodEndsAt,
             onImport: _canImport ? _openImport : null,
+            onExportHistory: data?.managedScope == true ? _exportHistory : null,
+            exportingHistory: _exportingHistory,
           ),
           const SizedBox(height: 16),
           LayoutBuilder(
             builder: (context, constraints) {
-              final compact = constraints.maxWidth < 900;
+              final compact =
+                  constraints.maxWidth < AppLayoutTokens.tabletBreakpoint;
               final search = AppTextInput(
                 controller: _searchController,
                 label: 'Tìm theo tên, điện thoại hoặc Zalo',
@@ -448,6 +605,16 @@ class _NotPurchasedCustomersScreenState
                   );
                   unawaited(_load(page: 0));
                 },
+              );
+              final dateRangeFilter = AppDateRangeDropdown(
+                label: 'Khoảng ngày',
+                start: _startDate,
+                end: _endDate,
+                onChanged: (start, end) => unawaited(_setDateRange(start, end)),
+                emptyRangeHelperText:
+                    'Không chọn khoảng ngày: hệ thống lấy 30 ngày gần nhất.',
+                firstDate: DateTime(2020),
+                lastDate: (widget.now ?? DateTime.now)(),
               );
               final storeFilter = _isSuperAdmin
                   ? Row(
@@ -501,6 +668,8 @@ class _NotPurchasedCustomersScreenState
                       scrollDirection: Axis.horizontal,
                       child: filters,
                     ),
+                    const SizedBox(height: 12),
+                    dateRangeFilter,
                     if (storeFilter != null) ...[
                       const SizedBox(height: 12),
                       storeFilter,
@@ -518,13 +687,16 @@ class _NotPurchasedCustomersScreenState
                       filters,
                     ],
                   ),
-                  if (storeFilter != null) ...[
-                    const SizedBox(height: 12),
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: SizedBox(width: 360, child: storeFilter),
-                    ),
-                  ],
+                  const SizedBox(height: 12),
+                  Wrap(
+                    spacing: 12,
+                    runSpacing: 12,
+                    children: [
+                      SizedBox(width: 360, child: dateRangeFilter),
+                      if (storeFilter != null)
+                        SizedBox(width: 360, child: storeFilter),
+                    ],
+                  ),
                 ],
               );
             },
@@ -629,49 +801,95 @@ class _PageHeader extends StatelessWidget {
   final bool contactGracePeriodActive;
   final DateTime? contactGracePeriodEndsAt;
   final VoidCallback? onImport;
+  final VoidCallback? onExportHistory;
+  final bool exportingHistory;
 
   const _PageHeader({
     required this.total,
     required this.contactGracePeriodActive,
     required this.contactGracePeriodEndsAt,
     required this.onImport,
+    required this.onExportHistory,
+    required this.exportingHistory,
   });
 
   @override
   Widget build(BuildContext context) => AppSurfaceCard(
     backgroundColor: AppColors.primary.withValues(alpha: 0.06),
     borderColor: AppColors.primary.withValues(alpha: 0.18),
-    child: Row(
-      children: [
-        const Icon(Icons.person_search_rounded, color: AppColors.primary),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('Chăm sóc lại', style: AppTextStyles.headingM),
-              Text(
-                contactGracePeriodActive
-                    ? 'Tạm hiển thị toàn bộ khách chưa mua${contactGracePeriodEndsAt == null ? '' : ' đến ${DateFormat('HH:mm dd/MM/yyyy').format(contactGracePeriodEndsAt!.toLocal())}'} • $total hồ sơ'
-                    : 'Theo dõi khách có liên hệ hợp lệ • $total hồ sơ',
-                style: AppTextStyles.bodyM.copyWith(
-                  color: AppColors.neutral600,
-                ),
+    child: LayoutBuilder(
+      builder: (context, constraints) {
+        final compact =
+            constraints.maxWidth < AppLayoutTokens.compactBreakpoint;
+        final summary = Row(
+          children: [
+            const Icon(Icons.person_search_rounded, color: AppColors.primary),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Chăm sóc lại', style: AppTextStyles.headingM),
+                  Text(
+                    contactGracePeriodActive
+                        ? 'Tạm hiển thị toàn bộ khách chưa mua${contactGracePeriodEndsAt == null ? '' : ' đến ${DateFormat('HH:mm dd/MM/yyyy').format(contactGracePeriodEndsAt!.toLocal())}'} • $total hồ sơ'
+                        : 'Theo dõi khách có liên hệ hợp lệ • $total hồ sơ',
+                    style: AppTextStyles.bodyM.copyWith(
+                      color: AppColors.neutral600,
+                    ),
+                  ),
+                ],
               ),
+            ),
+          ],
+        );
+        final actions = Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          alignment: WrapAlignment.end,
+          children: [
+            if (onExportHistory != null)
+              AppSecondaryButton(
+                onPressed: onExportHistory,
+                icon: Icons.download_rounded,
+                label: 'Tải lịch sử chăm sóc',
+                isLoading: exportingHistory,
+                loadingLabel: 'Đang tạo file...',
+                expand: false,
+                height: AppLayoutTokens.compactActionHeight,
+              ),
+            if (onImport != null)
+              AppSecondaryButton(
+                onPressed: onImport,
+                icon: Icons.upload_file_rounded,
+                label: 'Nhập Excel',
+                expand: false,
+                height: AppLayoutTokens.compactActionHeight,
+              ),
+          ],
+        );
+        if (compact) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              summary,
+              if (onExportHistory != null || onImport != null) ...[
+                const SizedBox(height: 12),
+                Align(alignment: Alignment.centerRight, child: actions),
+              ],
             ],
-          ),
-        ),
-        if (onImport != null) ...[
-          const SizedBox(width: 12),
-          AppSecondaryButton(
-            onPressed: onImport,
-            icon: Icons.upload_file_rounded,
-            label: 'Nhập Excel',
-            expand: false,
-            height: 44,
-          ),
-        ],
-      ],
+          );
+        }
+        return Row(
+          children: [
+            Expanded(child: summary),
+            if (onExportHistory != null || onImport != null) ...[
+              const SizedBox(width: 12),
+              actions,
+            ],
+          ],
+        );
+      },
     ),
   );
 }
