@@ -87,7 +87,9 @@ curl http://localhost:3000/app-version
   `origin/staging` SHA, a locked release window, and a fast-forward ancestry
   check. `.github/workflows/promote-production.yml` uses a dedicated GitHub App
   token and the protected `production` environment to update `main` without
-  force, re-fetch both refs, and require equality. Pushing `main` then runs the
+  force, re-fetch both refs, and require equality. Dispatch uses the workflow
+  definition from ref `main` while the exact `staging_sha` input identifies the
+  approved source. Pushing `main` then runs the
   existing production workflow. Direct staging exceptions, GitHub rulesets,
   Linear lifecycle, hotfix, and rollback rules are defined in
   `docs/runbooks/git-release-playbook.md`. The `help-content` branch remains the

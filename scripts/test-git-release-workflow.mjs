@@ -211,7 +211,11 @@ test('GitHub CI verification accepts completed checks and rejects failures', asy
     token: 'redacted-test-token',
     fetchImpl: successFetch,
   });
-  assert.deepEqual(evidence, { checkRunCount: 1, statusCount: 0 });
+  assert.deepEqual(evidence, {
+    checkRunCount: 1,
+    ignoredPromotionCheckRunCount: 0,
+    statusCount: 0,
+  });
 
   const failureFetch = async (url) => ({
     ok: true,
@@ -237,6 +241,60 @@ test('GitHub CI verification accepts completed checks and rejects failures', asy
   );
 });
 
+test('GitHub CI verification ignores only promotion self-checks', async () => {
+  const sha = 'b'.repeat(40);
+  const responseFor = (checkRuns) => async (url) => ({
+    ok: true,
+    status: 200,
+    async json() {
+      return String(url).includes('/check-runs')
+        ? { total_count: checkRuns.length, check_runs: checkRuns }
+        : [];
+    },
+  });
+  const failedPromotionCheck = {
+    name: 'Fast-forward origin/staging to main',
+    status: 'completed',
+    conclusion: 'failure',
+    details_url: 'https://github.com/example/repo/actions/runs/123/job/456',
+    app: { slug: 'github-actions' },
+  };
+  const successfulSourceCheck = {
+    name: 'Deploy OpsHub Staging',
+    status: 'completed',
+    conclusion: 'success',
+    details_url: 'https://github.com/example/repo/actions/runs/120/job/450',
+    app: { slug: 'github-actions' },
+  };
+
+  const evidence = await verifyGithubCi({
+    apiUrl: 'https://example.invalid',
+    repository: 'example/repo',
+    sha,
+    token: 'redacted-test-token',
+    fetchImpl: responseFor([failedPromotionCheck, successfulSourceCheck]),
+  });
+  assert.deepEqual(evidence, {
+    checkRunCount: 1,
+    ignoredPromotionCheckRunCount: 1,
+    statusCount: 0,
+  });
+
+  await assert.rejects(
+    verifyGithubCi({
+      apiUrl: 'https://example.invalid',
+      repository: 'example/repo',
+      sha,
+      token: 'redacted-test-token',
+      fetchImpl: responseFor([
+        failedPromotionCheck,
+        { ...successfulSourceCheck, conclusion: 'failure' },
+      ]),
+    }),
+    /CI check chưa đạt: Deploy OpsHub Staging/,
+  );
+});
+
 test('workflow and policy preserve existing deploy consumers and never force push', () => {
   const promotionWorkflow = fs.readFileSync(
     path.join(repoRoot, '.github', 'workflows', 'promote-production.yml'),
@@ -255,9 +313,14 @@ test('workflow and policy preserve existing deploy consumers and never force pus
     'utf8',
   );
   const policy = fs.readFileSync(path.join(repoRoot, 'AGENTS.md'), 'utf8');
+  const playbook = fs.readFileSync(
+    path.join(repoRoot, 'docs', 'runbooks', 'git-release-playbook.md'),
+    'utf8',
+  );
   const guard = fs.readFileSync(promotionScript, 'utf8');
 
   assert.match(promotionWorkflow, /workflow_dispatch:/);
+  assert.match(promotionWorkflow, /run-name: Promote origin\/staging to main from workflow ref/);
   assert.match(promotionWorkflow, /group: production-promotion/);
   assert.match(promotionWorkflow, /environment: production/);
   assert.match(promotionWorkflow, /actions\/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349/);
@@ -282,4 +345,5 @@ test('workflow and policy preserve existing deploy consumers and never force pus
   assert.match(policy, /Never promote an\s+arbitrary task branch or SHA to `main`/);
   assert.match(policy, /Never force-push or delete `staging` or `main`/);
   assert.match(policy, /scripts\/task-lifecycle\.mjs/);
+  assert.match(playbook, /gh workflow run promote-production\.yml --ref main/);
 });

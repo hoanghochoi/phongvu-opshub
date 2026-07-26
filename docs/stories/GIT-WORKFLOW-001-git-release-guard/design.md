@@ -13,6 +13,12 @@ manual dispatch requires exact QA/release phrases, pauses on the protected
 `production` environment, mints a repository-scoped GitHub App token, and runs
 the guard with GitHub CI verification. The App token is required instead of
 `GITHUB_TOKEN` so the `main` push can trigger the existing production workflow.
+Operators dispatch the workflow definition from ref `main`; the immutable
+`staging_sha` input remains the release source. GitHub CI verification excludes
+only checks matching the canonical promotion job name, the `github-actions`
+app, and an Actions run URL. This prevents a rejected/failed promotion attempt
+from becoming source-CI evidence while unrelated failed or pending checks and
+commit statuses remain blocking.
 
 The local task boundary is guarded separately by
 `scripts/task-lifecycle.mjs`. `start` fetches and fast-forwards the canonical

@@ -1,4 +1,7 @@
 name: Promote OpsHub Production
+# Dispatch this workflow from ref `main`. The approved source remains the exact
+# `staging_sha` input; the workflow fetches and verifies live origin/staging.
+run-name: Promote origin/staging to main from workflow ref ${{ github.ref_name }}
 
 on:
   workflow_dispatch:
