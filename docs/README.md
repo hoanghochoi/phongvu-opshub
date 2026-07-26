@@ -8,6 +8,7 @@ story-sized work, decisions, and validation proof close to the code.
 | Path | Purpose |
 | --- | --- |
 | `product/` | Current product contracts for accepted behavior |
+| `ui-redesign/` | Target design and delivery workflow for the new incremental UI/UX redesign |
 | `stories/` | Story packets, backlog, and implementation evidence |
 | `decisions/` | Durable architecture and product tradeoffs |
 | `templates/` | Reusable story, decision, intake, and validation templates |
