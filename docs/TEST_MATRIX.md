@@ -3407,6 +3407,7 @@ src/map-vietin/map-vietin.service.spec.ts` (26 tests), `npm run build`, full
 | Comeback mua hàng                      | sales report service test + Flutter form test                                                              | Kiểm tra ERP `order.creator.email`, báo cáo gốc và báo cáo mua liên kết |
 | Realtime                               | provider/channel test                                                                                      | Mở hai client và xác nhận danh sách tự tải lại                          |
 | Nhập Excel dữ liệu lịch sử             | `sales-report-import-parser.service.spec.ts`, `sales-report-import.service.spec.ts`, `not_purchased_customers_test.dart` | Chạy migration, nhập file thật có ≤1.000 dòng; đối chiếu thống kê, scope SR, hồ sơ chưa phân công và thử nhập lại cùng file |
+| Lọc ngày và tải XLSX lịch sử           | `sales-report-follow-ups.service.spec.ts`, `sales-report-follow-ups.controller.spec.ts`, `not_purchased_customers_test.dart`, `app_date_range_dropdown_test.dart` | Đăng nhập Store/Area/Region Manager và Super Admin; đối chiếu file thật theo keyword/showroom, biên ngày Việt Nam và xác nhận nhân viên không thấy nút |
 
 ## AuthContext atomic-version proof
 

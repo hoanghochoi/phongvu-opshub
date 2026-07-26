@@ -51,6 +51,10 @@
     sơ đúng scope có ít nhất một lần chăm sóc và xếp lần gần nhất trước. Job
     BigQuery báo cáo bán hàng đồng bộ thêm bảng wide-format: một dòng cho mỗi
     khách/hồ sơ, mỗi lần chăm sóc thêm một cột RECORD `follow_up_N`.
+12. DateRangePicker dùng chung lọc cả ba tab theo `lastFollowUpAt`, fallback về
+    `submittedAt` khi chưa chăm sóc; mặc định 30 ngày và tối đa 90 ngày theo giờ
+    Việt Nam. Managed scope tải được XLSX một dòng mỗi lượt chăm sóc, giữ
+    keyword/showroom nhưng không phụ thuộc tab; nhân viên bị chặn ở cả UI và API.
 
 ## Proof plan
 
@@ -67,3 +71,19 @@
   test bao phủ quyền hiển thị, preview, commit và tự tải lại danh sách.
 - Lịch sử/BigQuery: service test bao phủ `status=HISTORY`, widget test vị trí và
   truy vấn tab; BigQuery test bao phủ một dòng mỗi hồ sơ và cột RECORD động.
+- Lọc/xuất lịch sử: service test bao phủ default/max range, biên ngày Việt Nam,
+  manager/staff scope, keyword/showroom và workbook; widget test bao phủ picker
+  dùng chung, giữ khoảng ngày qua ba tab, quyền hiển thị và lưu file.
+
+## Affected-runtime contract — OPS-28
+
+- `path_contracts`: `backend-nest/src/sales-reports/sales-report-follow-ups.*`,
+  `backend-nest/src/sales-reports/sales-reports.dto.ts`,
+  `lib/features/sales_report/**`, `lib/core/constants/api_constants.dart`,
+  `test/not_purchased_customers_test.dart`, product/story/test-matrix docs.
+- `affected_verify_command`: focused Nest follow-up service/controller tests;
+  Flutter `not_purchased_customers_test.dart` và
+  `app_date_range_dropdown_test.dart`; sau đó Nest build/full tests, Flutter
+  analyze/full tests và `git diff --check` trên cùng final fingerprint.
+- Protected consumers: list/search/showroom scope, ba tab, pagination, realtime,
+  Nhập Excel, modal chi tiết và canonical DateRangePicker.

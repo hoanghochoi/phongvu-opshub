@@ -7,9 +7,12 @@ import {
   Post,
   Query,
   Request,
+  Res,
+  StreamableFile,
   UseGuards,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
+import type { Response } from 'express';
 import { RequireFeature } from '../feature/feature.decorator';
 import { FEATURE_KEYS } from '../feature/feature.constants';
 import { FeatureGuard } from '../feature/feature.guard';
@@ -17,6 +20,7 @@ import {
   AssignSalesReportFollowUpCaseDto,
   CheckSalesReportOrderDto,
   CreateSalesReportFollowUpEntryDto,
+  ExportSalesReportFollowUpHistoryDto,
   ListSalesReportFollowUpCasesDto,
 } from './sales-reports.dto';
 import { SalesReportFollowUpsService } from './sales-report-follow-ups.service';
@@ -30,6 +34,26 @@ export class SalesReportFollowUpsController {
   @Get()
   list(@Request() req: any, @Query() query: ListSalesReportFollowUpCasesDto) {
     return this.service.list(req.user, query);
+  }
+
+  @Get('export')
+  async exportHistory(
+    @Request() req: any,
+    @Query() query: ExportSalesReportFollowUpHistoryDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const workbook = await this.service.exportHistory(req.user, query);
+    const range = [query.startDate, query.endDate].filter(Boolean).join('-');
+    const suffix = range ? `-${range}` : '';
+    res.setHeader(
+      'Content-Type',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    );
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="opshub-lich-su-cham-soc${suffix}.xlsx"`,
+    );
+    return new StreamableFile(workbook);
   }
 
   @Get(':id')

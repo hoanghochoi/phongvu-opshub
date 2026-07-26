@@ -113,6 +113,167 @@ void main() {
     expect(find.text('Nhập Excel'), findsNothing);
   });
 
+  testWidgets('chỉ managed scope thấy và tải được lịch sử chăm sóc', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1200, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final repository = _FakeFollowUpRepository(
+      _case(customerPhone: '0900000000', customerZaloContact: null),
+      managedScope: true,
+    );
+    String? savedFileName;
+    Uint8List? savedBytes;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: NotPurchasedCustomersScreen(
+            repository: repository,
+            now: () => DateTime(2026, 7, 27),
+            historySaver: ({required fileName, required bytes}) async {
+              savedFileName = fileName;
+              savedBytes = bytes;
+              return 'C:\\exports\\$fileName';
+            },
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Tải lịch sử chăm sóc'), findsOneWidget);
+    await tester.tap(find.text('Tải lịch sử chăm sóc'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(repository.exportCalls, 1);
+    expect(repository.lastExportStartDate, DateTime(2026, 6, 28));
+    expect(repository.lastExportEndDate, DateTime(2026, 7, 27));
+    expect(savedFileName, 'opshub-lich-su-cham-soc-20260628-20260727.xlsx');
+    expect(savedBytes, orderedEquals(const [1, 2, 3]));
+    expect(find.text('Đã tải lịch sử chăm sóc.'), findsOneWidget);
+  });
+
+  testWidgets('hủy lưu file không báo tải thành công', (tester) async {
+    final repository = _FakeFollowUpRepository(
+      _case(customerPhone: '0900000000', customerZaloContact: null),
+      managedScope: true,
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: NotPurchasedCustomersScreen(
+            repository: repository,
+            historySaver: ({required fileName, required bytes}) async => null,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Tải lịch sử chăm sóc'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(repository.exportCalls, 1);
+    expect(find.text('Đã hủy lưu file lịch sử chăm sóc.'), findsOneWidget);
+    expect(find.text('Đã tải lịch sử chăm sóc.'), findsNothing);
+  });
+
+  testWidgets('lỗi lưu file hiển thị hướng dẫn thử lại', (tester) async {
+    final repository = _FakeFollowUpRepository(
+      _case(customerPhone: '0900000000', customerZaloContact: null),
+      managedScope: true,
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: NotPurchasedCustomersScreen(
+            repository: repository,
+            historySaver: ({required fileName, required bytes}) async {
+              throw StateError('disk unavailable');
+            },
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Tải lịch sử chăm sóc'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(repository.exportCalls, 1);
+    expect(
+      find.text('Chưa tải được lịch sử chăm sóc. Vui lòng thử lại.'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('nhân viên không thấy nút tải lịch sử chăm sóc', (tester) async {
+    final repository = _FakeFollowUpRepository(
+      _case(customerPhone: '0900000000', customerZaloContact: null),
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: NotPurchasedCustomersScreen(repository: repository),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Tải lịch sử chăm sóc'), findsNothing);
+  });
+
+  testWidgets('khoảng ngày dùng chung được giữ khi đổi cả ba tab', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1200, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final repository = _FakeFollowUpRepository(
+      _case(customerPhone: '0900000000', customerZaloContact: null),
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: NotPurchasedCustomersScreen(
+            repository: repository,
+            now: () => DateTime(2026, 7, 27),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('open-date-range-picker')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('7 ngày gần nhất'));
+    await tester.tap(find.text('Áp dụng'));
+    await tester.pumpAndSettle();
+    expect(repository.lastStartDate, DateTime(2026, 7, 21));
+    expect(repository.lastEndDate, DateTime(2026, 7, 27));
+
+    await tester.tap(find.text('Lịch sử chăm sóc'));
+    await tester.pumpAndSettle();
+    expect(repository.lastStatus, 'HISTORY');
+    expect(repository.lastStartDate, DateTime(2026, 7, 21));
+
+    await tester.tap(find.text('Đã ẩn'));
+    await tester.pumpAndSettle();
+    expect(repository.lastStatus, 'HIDDEN');
+    expect(repository.lastEndDate, DateTime(2026, 7, 27));
+  });
+
   testWidgets('Lịch sử chăm sóc nằm giữa Cần chăm sóc và Đã ẩn', (
     tester,
   ) async {
@@ -466,10 +627,16 @@ class _FakeFollowUpRepository extends SalesReportRepository {
   final int detailFailures;
   final bool contactGracePeriodActive;
   final DateTime? contactGracePeriodEndsAt;
+  final bool managedScope;
   int detailCalls = 0;
   int listCalls = 0;
   String? lastStoreCode;
   String? lastStatus;
+  DateTime? lastStartDate;
+  DateTime? lastEndDate;
+  int exportCalls = 0;
+  DateTime? lastExportStartDate;
+  DateTime? lastExportEndDate;
   int previewCalls = 0;
   int commitCalls = 0;
 
@@ -478,6 +645,7 @@ class _FakeFollowUpRepository extends SalesReportRepository {
     this.detailFailures = 0,
     this.contactGracePeriodActive = false,
     this.contactGracePeriodEndsAt,
+    this.managedScope = false,
   }) : super(ApiClient());
 
   @override
@@ -485,22 +653,39 @@ class _FakeFollowUpRepository extends SalesReportRepository {
     String status = 'OPEN',
     String? search,
     String? storeCode,
+    DateTime? startDate,
+    DateTime? endDate,
     int page = 0,
     int limit = 20,
   }) async {
     listCalls += 1;
     lastStoreCode = storeCode;
     lastStatus = status;
+    lastStartDate = startDate;
+    lastEndDate = endDate;
     return SalesReportFollowUpPage(
       items: [item],
       page: page,
       limit: limit,
       total: 1,
       hasMore: false,
-      managedScope: false,
+      managedScope: managedScope,
       contactGracePeriodActive: contactGracePeriodActive,
       contactGracePeriodEndsAt: contactGracePeriodEndsAt,
     );
+  }
+
+  @override
+  Future<Uint8List> exportFollowUpHistory({
+    String? search,
+    String? storeCode,
+    required DateTime startDate,
+    required DateTime endDate,
+  }) async {
+    exportCalls += 1;
+    lastExportStartDate = startDate;
+    lastExportEndDate = endDate;
+    return Uint8List.fromList(const [1, 2, 3]);
   }
 
   @override

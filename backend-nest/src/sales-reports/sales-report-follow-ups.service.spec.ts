@@ -1,3 +1,4 @@
+import * as XLSX from 'xlsx';
 import { SalesReportFollowUpsService } from './sales-report-follow-ups.service';
 
 describe('SalesReportFollowUpsService', () => {
@@ -6,7 +7,10 @@ describe('SalesReportFollowUpsService', () => {
 
   beforeEach(() => {
     delete process.env[graceUntilEnv];
+    jest.useFakeTimers().setSystemTime(new Date('2026-07-27T05:00:00.000Z'));
   });
+
+  afterEach(() => jest.useRealTimers());
 
   afterAll(() => {
     if (originalGraceUntil === undefined) delete process.env[graceUntilEnv];
@@ -356,6 +360,250 @@ describe('SalesReportFollowUpsService', () => {
     expect(findMany.mock.calls[0][0].orderBy[0]).toEqual({
       lastFollowUpAt: { sort: 'desc', nulls: 'last' },
     });
+  });
+
+  it('lọc cả ba tab theo lần chăm sóc gần nhất hoặc ngày tiếp xúc đầu', async () => {
+    const findMany = jest.fn().mockResolvedValue([]);
+    const prisma = {
+      user: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'admin-1',
+          email: 'admin@phongvu.vn',
+          role: 'SUPER_ADMIN',
+        }),
+      },
+      salesReportFollowUpCase: { findMany },
+    };
+    const service = new SalesReportFollowUpsService(
+      prisma as any,
+      {} as any,
+      {} as any,
+    );
+
+    await service.list(
+      { id: 'admin-1', email: 'admin@phongvu.vn', role: 'SUPER_ADMIN' },
+      {
+        status: 'OPEN',
+        startDate: '2026-07-01',
+        endDate: '2026-07-10',
+      },
+    );
+
+    const where = findMany.mock.calls[0][0].where;
+    const serialized = JSON.stringify(where);
+    expect(serialized).toContain('lastFollowUpAt');
+    expect(serialized).toContain('submittedAt');
+    expect(serialized).toContain('2026-06-30T17:00:00.000Z');
+    expect(serialized).toContain('2026-07-10T17:00:00.000Z');
+  });
+
+  it('mặc định 30 ngày và chặn khoảng ngày vượt quá 90 ngày', async () => {
+    const findMany = jest.fn().mockResolvedValue([]);
+    const prisma = {
+      user: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'admin-1',
+          email: 'admin@phongvu.vn',
+          role: 'SUPER_ADMIN',
+        }),
+      },
+      salesReportFollowUpCase: { findMany },
+    };
+    const service = new SalesReportFollowUpsService(
+      prisma as any,
+      {} as any,
+      {} as any,
+    );
+
+    const result = await service.list(
+      { id: 'admin-1', email: 'admin@phongvu.vn', role: 'SUPER_ADMIN' },
+      { status: 'OPEN' },
+    );
+    expect(result.startDate).toBe('2026-06-28');
+    expect(result.endDate).toBe('2026-07-27');
+
+    await expect(
+      service.list(
+        { id: 'admin-1', email: 'admin@phongvu.vn', role: 'SUPER_ADMIN' },
+        { startDate: '2026-01-01', endDate: '2026-04-01' },
+      ),
+    ).rejects.toThrow('Chỉ có thể chọn tối đa 90 ngày');
+  });
+
+  it('chỉ manager được xuất XLSX và giữ đúng scope, keyword, ngày chăm sóc', async () => {
+    const entry = {
+      id: 'entry-1',
+      caseId: 'case-1',
+      sequenceNumber: 2,
+      outcome: 'NOT_PURCHASED',
+      notPurchasedReason: 'PRICE_HESITATION',
+      notPurchasedOtherReason: 'Chờ khuyến mãi',
+      actorName: 'Nhân viên A',
+      actorEmail: 'sale@phongvu.vn',
+      contactedAt: new Date('2026-07-20T03:15:00.000Z'),
+      purchasedReport: null,
+      case: {
+        id: 'case-1',
+        status: 'OPEN',
+        assigneeName: 'Nhân viên A',
+        assigneeEmail: 'sale@phongvu.vn',
+        sourceReport: {
+          reportType: 'NOT_PURCHASED',
+          customerName: 'Khách A',
+          customerPhone: '0900000000',
+          customerContactChannels: ['PHONE', 'ZALO_PERSONAL'],
+          customerZaloContact: null,
+          customerNeed: 'Laptop văn phòng',
+          categoryGroupNameVi: 'Laptop',
+          categorySelections: [{ categoryGroupNameVi: 'Laptop', sortOrder: 0 }],
+          submittedAt: new Date('2026-07-01T02:00:00.000Z'),
+          createdByName: 'Nhân viên A',
+          createdByEmail: 'sale@phongvu.vn',
+          storeCode: 'CP01',
+          storeName: 'Phong Vũ CP01',
+        },
+      },
+    };
+    const findMany = jest.fn().mockResolvedValue([entry]);
+    const prisma = {
+      user: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'manager-1',
+          email: 'manager@phongvu.vn',
+          role: 'USER',
+          jobRoleCode: 'STORE_MANAGER',
+          store: { storeId: 'CP01' },
+          organizationAssignments: [],
+        }),
+      },
+      salesReportFollowUpEntry: { findMany },
+    };
+    const service = new SalesReportFollowUpsService(
+      prisma as any,
+      {} as any,
+      {} as any,
+    );
+
+    const buffer = await service.exportHistory(
+      { id: 'manager-1', email: 'manager@phongvu.vn', role: 'USER' },
+      {
+        startDate: '2026-07-01',
+        endDate: '2026-07-31',
+        storeCode: 'CP01',
+        search: 'Khách A',
+      },
+    );
+
+    const workbook = XLSX.read(buffer, { type: 'buffer' });
+    const rows = XLSX.utils.sheet_to_json<unknown[]>(
+      workbook.Sheets['Lịch sử chăm sóc'],
+      { header: 1 },
+    );
+    expect(rows[0]).toEqual(
+      expect.arrayContaining(['Mã showroom', 'Lần chăm sóc', 'Kết quả']),
+    );
+    expect(rows[1]).toEqual(
+      expect.arrayContaining([
+        'CP01',
+        'Khách A',
+        'Điện thoại, Zalo cá nhân',
+        2,
+        'Phân vân giá',
+        'Chờ khuyến mãi',
+      ]),
+    );
+    const request = findMany.mock.calls[0][0];
+    expect(request.take).toBe(10_001);
+    expect(JSON.stringify(request.where)).toContain('2026-06-30T17:00:00.000Z');
+    expect(JSON.stringify(request.where)).toContain('CP01');
+    expect(JSON.stringify(request.where)).toContain('Khách A');
+  });
+
+  it('không tạo file khi khoảng ngày không có lịch sử chăm sóc', async () => {
+    const findMany = jest.fn().mockResolvedValue([]);
+    const prisma = {
+      user: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'admin-1',
+          email: 'admin@phongvu.vn',
+          role: 'SUPER_ADMIN',
+        }),
+      },
+      salesReportFollowUpEntry: { findMany },
+    };
+    const service = new SalesReportFollowUpsService(
+      prisma as any,
+      {} as any,
+      {} as any,
+    );
+
+    await expect(
+      service.exportHistory(
+        { id: 'admin-1', email: 'admin@phongvu.vn', role: 'SUPER_ADMIN' },
+        { startDate: '2026-07-01', endDate: '2026-07-31' },
+      ),
+    ).rejects.toThrow('Không có lịch sử chăm sóc trong khoảng ngày đã chọn');
+    expect(findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ take: 10_001 }),
+    );
+  });
+
+  it('yêu cầu thu hẹp khoảng ngày khi lịch sử vượt quá 10.000 lượt', async () => {
+    const findMany = jest.fn().mockResolvedValue(new Array(10_001).fill({}));
+    const prisma = {
+      user: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'admin-1',
+          email: 'admin@phongvu.vn',
+          role: 'SUPER_ADMIN',
+        }),
+      },
+      salesReportFollowUpEntry: { findMany },
+    };
+    const service = new SalesReportFollowUpsService(
+      prisma as any,
+      {} as any,
+      {} as any,
+    );
+
+    await expect(
+      service.exportHistory(
+        { id: 'admin-1', email: 'admin@phongvu.vn', role: 'SUPER_ADMIN' },
+        { startDate: '2026-07-01', endDate: '2026-07-31' },
+      ),
+    ).rejects.toThrow(
+      'Dữ liệu vượt quá 10.000 lượt chăm sóc. Vui lòng thu hẹp khoảng ngày.',
+    );
+  });
+
+  it('chặn nhân viên tải lịch sử trước khi truy vấn dữ liệu', async () => {
+    const findMany = jest.fn();
+    const prisma = {
+      user: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'staff-1',
+          email: 'staff@phongvu.vn',
+          role: 'USER',
+          jobRoleCode: 'SA',
+          store: { storeId: 'CP01' },
+          organizationAssignments: [],
+        }),
+      },
+      salesReportFollowUpEntry: { findMany },
+    };
+    const service = new SalesReportFollowUpsService(
+      prisma as any,
+      {} as any,
+      {} as any,
+    );
+
+    await expect(
+      service.exportHistory(
+        { id: 'staff-1', email: 'staff@phongvu.vn', role: 'USER' },
+        { startDate: '2026-07-01', endDate: '2026-07-31' },
+      ),
+    ).rejects.toThrow('Chỉ quản lý mới có thể tải lịch sử chăm sóc');
+    expect(findMany).not.toHaveBeenCalled();
   });
 
   it('vẫn trả lịch sử khi danh sách nhân viên phân công bị lỗi tạm thời', async () => {
