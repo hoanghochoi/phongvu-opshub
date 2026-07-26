@@ -37,7 +37,9 @@
 
 ## Status
 
-- Local implementation hoàn tất; đang chờ publish qua PR vào `staging`.
+- Implementation và local proof hoàn tất tại commit `8321b440`; PR #37 đã mở
+  vào `staging`. Phần CI, staging deploy và QA tiếp tục được theo dõi trên
+  GitHub/Linear theo release workflow.
 
 ## Validation
 
@@ -48,4 +50,7 @@
   `app_date_range_dropdown_test.dart`: PASS.
 - Full Flutter: 616 tests PASS, 3 skipped; `flutter analyze --no-pub`: PASS.
 - `git diff --check`: PASS; changed runtime files không có dấu hiệu mojibake.
-- Còn lại: exact diff audit, commit/push/PR, CI, staging deploy và staging QA.
+- Exact diff/staged scope audit: PASS; branch đã push và PR #37 đã mở.
+- Residual risk trước release: CI, staging deploy và staging QA bằng tài khoản
+  managed scope với file XLSX thực chưa hoàn tất tại thời điểm đóng execution
+  plan cục bộ.
