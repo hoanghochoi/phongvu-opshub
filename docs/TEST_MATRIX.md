@@ -3516,3 +3516,27 @@ removed all raw artifacts.
 - Pending gates: PR/staging deploy and runtime soak with zero export-invisible
   revisions. BigQuery provisioning, backlog mutation and worker enablement
   remain forbidden until those gates pass.
+
+## OPS-24 ARM64 production-release recovery (2026-07-26)
+
+- Production deploy run `30152246314` failed after Sharp correctly built
+  `sharp-linuxmusl-arm64-0.35.3.node` because the Dockerfile asserted the old
+  x64-only filename. The release symlink had already advanced and core services
+  were stopped; the ERR trap was not inherited through the compose helper, so
+  automatic rollback did not run. Production was manually restored to
+  `d488571f`; API, realtime, Caddy, Redis and PostgreSQL are healthy, with API
+  restart count `0`, OOM `false`, and both public health endpoints passing.
+- Recovery uses `process.arch` for the Sharp addon and libvips path on x64 and
+  arm64. Every migration/runtime compose call is routed through an explicit
+  rollback wrapper in addition to `set -E`. Static platform contracts, YAML
+  parsing, `git diff --check`, Prisma validate/generate, Nest build, focused
+  OPS-24 consumers (4 suites/226 tests), and the full backend suite
+  (90 suites/887 tests) passed.
+- An isolated image built on the production `aarch64` host without using the
+  running Compose project. It reported `linux/arm64`, Sharp `0.35.3`, libvips
+  `8.18.3`, and generated a 2x2 PNG inside `--network none`. Production stayed
+  healthy during proof, and the temporary image/directory were removed.
+- Residual release-workflow risk: client artifacts and version metadata can be
+  published before backend success, as observed in this failed run. The client
+  bundle is compatible here because there was no Flutter runtime diff, but a
+  transactional publication/rollback full fix remains required separately.

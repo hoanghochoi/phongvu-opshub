@@ -565,7 +565,7 @@ jobs:
              WINDOWS_INSTALLER_ARGS='$windows_installer_args' \
              APP_RELEASE_NOTES='${{ needs.prepare.outputs.release_notes }}' \
              bash -s" <<'REMOTE'
-          set -euo pipefail
+          set -Eeuo pipefail
 
           sudo mkdir -p "$(dirname "$OPSHUB_ENV_FILE")"
           if [ ! -s "$OPSHUB_ENV_FILE" ]; then
@@ -766,6 +766,16 @@ jobs:
             exit "$status"
           }
 
+          run_compose_or_rollback() {
+            local status
+            if compose_cmd "$@"; then
+              return 0
+            else
+              status=$?
+            fi
+            rollback_on_error "$status"
+          }
+
           compose_cmd config >/dev/null
 
           # The first hardened production rollout enables Redis authentication.
@@ -773,21 +783,15 @@ jobs:
           # realtime never start with credentials that the running Redis ignores.
           trap 'rollback_on_error $?' ERR
           compose_cmd stop api realtime caddy || true
-          compose_cmd up -d --force-recreate --wait --wait-timeout 120 redis
+          run_compose_or_rollback up -d --force-recreate --wait --wait-timeout 120 redis
 
-          compose_cmd --profile migrate run --rm -T --build migrate \
+          run_compose_or_rollback --profile migrate run --rm -T --build migrate \
             node scripts/recover-failed-prisma-migration.mjs \
               20260614130000_flatten_store_cash_org_tree
 
-          compose_cmd --profile migrate run --rm -T --build migrate
+          run_compose_or_rollback --profile migrate run --rm -T --build migrate
 
-          set +e
-          compose_cmd up -d --build --force-recreate --wait --wait-timeout 240 api realtime caddy
-          deploy_status=$?
-          set -e
-          if [ "$deploy_status" -ne 0 ]; then
-            rollback_on_error "$deploy_status"
-          fi
+          run_compose_or_rollback up -d --build --force-recreate --wait --wait-timeout 240 api realtime caddy
           trap - ERR
 
           expected_app_env="${APP_VERSION}|${APP_BUILD_NUMBER}|${APP_VERSION}|${APP_BUILD_NUMBER}|${APP_VERSION}|${APP_BUILD_NUMBER}|1|false"

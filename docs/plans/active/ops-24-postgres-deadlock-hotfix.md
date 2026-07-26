@@ -6,6 +6,29 @@ Date: 2026-07-25
 
 Active
 
+## Production release recovery — 2026-07-25
+
+- Promotion reached `main` at `5bbb6396`, but production deploy run
+  `30152246314` failed while building Sharp on the `aarch64` host. The image
+  recipe built the correct arm64 addon and then asserted an x64-only filename.
+- The workflow had already switched the release symlink and stopped API,
+  realtime and Caddy. Its ERR trap was not inherited through `compose_cmd`, so
+  the intended rollback did not execute. Production was recovered manually to
+  `d488571f`; all core containers and public health endpoints passed afterward.
+- Recovery scope: derive the Sharp musl addon/libvips directory from
+  `process.arch` for supported x64 and arm64 builds, and explicitly route every
+  risky compose step through rollback in addition to enabling ERR inheritance.
+- The failed run had already published client artifacts and version metadata
+  before the backend image failed. The public clients are compatible because
+  `d488571f..5bbb6396` contains no Flutter runtime change, but production is a
+  partial release until the backend is deployed. Transactional publication of
+  runtime, env metadata, web and downloads remains a separate full-fix scope;
+  it is intentionally not folded into this bounded recovery hotfix.
+- Required proof before another release: static Dockerfile/workflow guards,
+  full Nest/build proof, isolated x64 image proof when available, isolated
+  arm64 image build plus Sharp PNG runtime control on the production host, then
+  the normal PR -> staging deploy/QA -> protected promotion flow.
+
 ## Outcome
 
 Production producers and the Home projection worker no longer form the known
@@ -103,7 +126,11 @@ Out of scope:
 - [x] Add lock-order migration, rollback and concurrency verifier.
 - [x] Integrate retry at MAP, Sales Report and Home boundaries with tests.
 - [x] Run final local and affected-consumer proof.
-- [ ] Publish implementation/proof record and progress the issue lifecycle.
+- [x] Recover production to healthy `d488571f` after failed run `30152246314`.
+- [x] Prove the recovery image on the production ARM64 host without touching
+  the running Compose project.
+- [ ] Merge the release-recovery PR to `staging`, deploy/QA it and complete a
+  new protected production promotion.
 
 ## Decisions
 
@@ -114,6 +141,9 @@ Out of scope:
 - 2026-07-25: Use three total attempts with short in-process delays only for
   exact `40P01`; the existing durable Home retry remains the longer recovery
   path after exhaustion.
+- 2026-07-26: Keep the ARM64/rollback recovery narrow. Record transactional
+  publication as the durable release-workflow follow-up because the failed run
+  proved that client metadata can advance before backend success.
 
 ## Validation
 
@@ -129,6 +159,12 @@ Out of scope:
   identifier enrichment, dedupe, tombstone and layered rollback.
 - Repository checks: Prisma format/validate/generate passed; Nest build passed;
   full Nest passed 90 suites/887 tests; `git diff --check` passed.
+- Release recovery proof: Dockerfile/workflow contract guards and YAML parsing
+  passed; explicit compose-failure routing preserved status `17` and invoked
+  rollback; the isolated production-host image reported `linux/arm64`, loaded
+  Sharp `0.35.3` with libvips `8.18.3`, and generated a 2x2 PNG with no network.
+  The proof image and remote temporary files were removed afterward while the
+  OPS-24 hotfix backup was retained.
 
 ## Result
 
