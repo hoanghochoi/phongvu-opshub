@@ -4,6 +4,15 @@ import { spawnSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 
 const ALLOWED_CHECK_CONCLUSIONS = new Set(['success', 'neutral', 'skipped']);
+export const PROMOTION_CHECK_NAME = 'Fast-forward origin/staging to main';
+
+function isPromotionWorkflowCheck(run) {
+  return (
+    run?.name === PROMOTION_CHECK_NAME &&
+    run?.app?.slug === 'github-actions' &&
+    /\/actions\/runs\/\d+(?:\/job\/\d+)?(?:[/?#]|$)/.test(run?.details_url || '')
+  );
+}
 
 function blocked(message) {
   throw new Error(message);
@@ -154,11 +163,14 @@ export async function verifyGithubCi({
     fetchImpl,
   });
 
-  if (checkRuns.length === 0 && statuses.length === 0) {
+  const promotionChecks = checkRuns.filter(isPromotionWorkflowCheck);
+  const sourceCheckRuns = checkRuns.filter((run) => !isPromotionWorkflowCheck(run));
+
+  if (sourceCheckRuns.length === 0 && statuses.length === 0) {
     blocked('Không tìm thấy CI/status nào cho staging SHA; không được promotion.');
   }
 
-  const failedRuns = checkRuns.filter(
+  const failedRuns = sourceCheckRuns.filter(
     (run) => run.status !== 'completed' || !ALLOWED_CHECK_CONCLUSIONS.has(run.conclusion),
   );
   if (failedRuns.length > 0) {
@@ -176,7 +188,11 @@ export async function verifyGithubCi({
     blocked(`Commit status chưa đạt: ${names}`);
   }
 
-  return { checkRunCount: checkRuns.length, statusCount: latestStatuses.size };
+  return {
+    checkRunCount: sourceCheckRuns.length,
+    ignoredPromotionCheckRunCount: promotionChecks.length,
+    statusCount: latestStatuses.size,
+  };
 }
 
 async function main() {
@@ -240,7 +256,7 @@ async function main() {
   console.log(`QA: PASS (explicit confirmation)`);
   console.log(
     githubCi
-      ? `CI: PASS (checks=${githubCi.checkRunCount}, statuses=${githubCi.statusCount})`
+      ? `CI: PASS (checks=${githubCi.checkRunCount}, ignoredPromotionChecks=${githubCi.ignoredPromotionCheckRunCount}, statuses=${githubCi.statusCount})`
       : 'CI: PASS (operator confirmation; GitHub API verification not requested)',
   );
   console.log(`Release window: PASS (locked)`);

@@ -118,6 +118,17 @@ node scripts/promote-production.mjs `
 
 Production dùng workflow `Promote OpsHub Production` (`workflow_dispatch`):
 
+Dispatch workflow definition từ `main`; không chọn ref `staging`, vì environment
+`production` cố ý chỉ nhận source branch đã allowlist và một dispatch bị từ chối
+vẫn có thể tạo check run trên staging SHA:
+
+```powershell
+gh workflow run promote-production.yml --ref main `
+  -f staging_sha=$stagingSha `
+  -f qa_confirmation=QA-APPROVED `
+  -f "release_confirmation=PROMOTE ORIGIN/STAGING TO MAIN"
+```
+
 1. Nhập đúng staging SHA đã QA.
 2. Nhập `QA-APPROVED`.
 3. Nhập `PROMOTE ORIGIN/STAGING TO MAIN`.
@@ -126,6 +137,10 @@ Production dùng workflow `Promote OpsHub Production` (`workflow_dispatch`):
    với `--execute`, push non-force và fetch lại để chứng minh hai SHA bằng nhau.
 6. Push bằng GitHub App token kích hoạt `Deploy OpsHub` trên `main`; không thay
    bằng `GITHUB_TOKEN`, vì push từ token mặc định không tạo downstream workflow.
+
+CI verification không xem check do chính job `Fast-forward origin/staging to
+main` phát ra là source CI. Bộ lọc chỉ nhận đúng job name, GitHub Actions app và
+Actions run URL; mọi check/status khác vẫn fail-closed khi pending hoặc thất bại.
 
 Bootstrap lần đầu là ngoại lệ có thứ tự: workflow chỉ xuất hiện trong danh sách
 dispatch sau khi file đã có trên default branch `main`. Vì vậy hãy cài App và

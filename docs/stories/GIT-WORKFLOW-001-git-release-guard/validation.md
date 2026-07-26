@@ -18,9 +18,16 @@
 - `node --check scripts/test-git-release-workflow.mjs`: pass.
 - `node scripts/test-git-release-workflow.mjs`: 8/8 pass, including both
   success paths and every specified blocked path.
+- 2026-07-27 OPS-29 hotfix proof: `node scripts/test-git-release-workflow.mjs`
+  9/9 pass, including a failed promotion self-check that is ignored and an
+  unrelated failed source check that remains blocking.
+- 2026-07-27 live read-only GitHub API proof against staging SHA
+  `4bd51aaf6a63ffbeb382da743fe089cbbef67c4d`: 6 source check runs accepted,
+  1 promotion self-check ignored, 0 commit statuses.
+- 2026-07-27 `node scripts/test-task-lifecycle.mjs`: 11/11 pass.
 - `.github/workflows/release-guard-pr.yml` runs the fixture proof and patch
   whitespace check on every PR into `staging` or `main`; its static contract is
-  covered by the 8/8 test suite.
+  covered by the 9/9 test suite.
 - PyYAML parsed all eight `.github/workflows/*.yml`: pass.
 - `git diff --check`: pass.
 - Existing consumers explicitly tested: `Deploy OpsHub Staging` remains bound
@@ -29,7 +36,7 @@
   SHA creation, fast-forward-only sync, post-sync dirty artifact blocking,
   diverged staging, stale remote rollback, merged-task cleanup, unmerged PR,
   dirty task worktree, and protected branch rejection.
-- `Release guard` PR integration: existing 8/8 passed with the lifecycle suite
+- `Release guard` PR integration: existing 9/9 passed with the lifecycle suite
   wired into `.github/workflows/release-guard-pr.yml`.
 - All 8 workflow YAML files parsed and `git diff --check` passed.
 - Canonical staging proof: the dirty gate first rejected the 10 legacy Harness
