@@ -56,7 +56,7 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('Bản'), findsWidgets);
-    expect(find.text('0%'), findsWidgets);
+    expect(find.text('8%'), findsWidgets);
     expect(
       find.byKey(const Key('app-two-axis-horizontal-scrollbar')),
       findsOneWidget,
@@ -107,6 +107,16 @@ void main() {
       closeTo(tester.getSize(preview).width, 1),
     );
     expect(tester.getSize(table).width, closeTo(960, 1));
+    expect(find.text('Thành tiền (VNĐ)\n(đã bao gồm VAT)'), findsOneWidget);
+    expect(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is Text &&
+            widget.data == '15.570.000' &&
+            widget.style?.fontWeight == FontWeight.w400,
+      ),
+      findsOneWidget,
+    );
     expect(tester.takeException(), isNull);
   });
 
@@ -172,14 +182,14 @@ class _ScreenDataSource implements ContractAppendixDataSource {
           quantity: 3,
           unit: 'Bản',
           finalSellPrice: 5190000,
-          vatRateBps: 0,
-          taxCode: 'VAT0',
-          taxLabel: 'Thuế 0%',
+          vatRateBps: 800,
+          taxCode: 'VAT8',
+          taxLabel: 'Thuế 8%',
           taxSource: 'ERP_PPM',
           taxFetchedAt: DateTime.utc(2026, 7, 17),
-          unitPriceBeforeVat: 5190000,
-          lineBeforeVat: 15570000,
-          lineVatAmount: 0,
+          unitPriceBeforeVat: 4805556,
+          lineBeforeVat: 14416668,
+          lineVatAmount: 1153332,
           lineAfterVat: 15570000,
         ),
       ],

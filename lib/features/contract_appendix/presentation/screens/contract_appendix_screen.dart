@@ -905,7 +905,10 @@ class ContractAppendixPreviewTable extends StatelessWidget {
                   _PreviewCell('ĐVT', header: true),
                   _PreviewCell('Đơn giá (VNĐ)\nChưa VAT', header: true),
                   _PreviewCell('GTGT', header: true),
-                  _PreviewCell('Thành tiền (VNĐ)\nChưa VAT', header: true),
+                  _PreviewCell(
+                    'Thành tiền (VNĐ)\n(đã bao gồm VAT)',
+                    header: true,
+                  ),
                 ],
               ),
               for (final item in document.items)
@@ -920,10 +923,7 @@ class ContractAppendixPreviewTable extends StatelessWidget {
                       center: true,
                     ),
                     _PreviewCell(item.vatLabel, center: true),
-                    _PreviewCell(
-                      _moneyOrDash(item.lineBeforeVat),
-                      center: true,
-                    ),
+                    _PreviewCell(_moneyOrDash(item.lineAfterVat), center: true),
                   ],
                 ),
             ],

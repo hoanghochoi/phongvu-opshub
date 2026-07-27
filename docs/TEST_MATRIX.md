@@ -341,6 +341,20 @@ Recent focused evidence:
   analyze và full Flutter 611 passed / 3 skipped. Live PPM SKU `220909037` và
   order `uomName` còn là staging gate trước `Ready for Release`.
 
+- `CONTRACT-APPENDIX-001` / `OPS-32`, 2026-07-27: Contract Appendix dùng
+  lookup ERP riêng để lấy `finalSellPrice` từ shipment khớp duy nhất theo khóa
+  ổn định; Sales Report vẫn giữ nguyên giá từ capture. Shipment thiếu, mơ hồ
+  hoặc không có giá hợp lệ dừng fail-closed, không fallback sang capture,
+  `sellPrice`, `rowTotal` hay PPM. Preview và HTML/TSV Word dùng
+  `lineAfterVat` với nhãn `Thành tiền (VNĐ) (đã bao gồm VAT)`; bảng vẫn 7 cột
+  và giữ tỷ lệ/border/Unicode. Local proof: Prisma validate, Nest build,
+  focused Nest 3 suites/33 tests, full Nest 90 suites/896 tests, Flutter
+  focused 10 tests và `flutter analyze --no-pub` đều pass. Full Flutter run
+  đạt 615 pass/3 skip trước một failure timing ngoài scope ở
+  `sales_report_hub_test.dart`; rerun riêng suite đó pass 25 tests. Staging
+  phải smoke payload ERP đã làm sạch có giá shipment khác capture, quantity > 1
+  và Word paste trước khi chuyển `Ready for Release`.
+
 - `SALES-REPORT-001` / `SALES-REPORT-002`, 2026-07-17: biểu mẫu khách chưa
   mua đã bỏ ô Zalo tự do; số điện thoại chỉ nhận đúng 10 chữ số bắt đầu bằng
   `0` hoặc để trống. Hai kênh `ZALO_PERSONAL` và `ZALO_OA` được chọn độc lập,

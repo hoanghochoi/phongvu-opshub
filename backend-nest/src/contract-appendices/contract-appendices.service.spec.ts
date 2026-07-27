@@ -48,7 +48,9 @@ describe('ContractAppendicesService', () => {
       },
       $transaction: jest.fn((values: unknown[]) => Promise.all(values)),
     };
-    const orderErp = { lookupOrder: jest.fn().mockResolvedValue(order) };
+    const orderErp = {
+      lookupContractAppendixOrder: jest.fn().mockResolvedValue(order),
+    };
     const productErp = { lookupTaxes: jest.fn().mockResolvedValue(taxes) };
     return {
       prisma,
@@ -62,13 +64,15 @@ describe('ContractAppendicesService', () => {
     };
   }
 
-  it('uses existing ERP order finalSellPrice and PPM tax', async () => {
+  it('uses shipment-priced ERP order data and PPM tax', async () => {
     const { service, orderErp, productErp } = harness();
     const result = await service.preview(
       { id: 'user-1' },
       { orderCode: ' SO-220909037 ' },
     );
-    expect(orderErp.lookupOrder).toHaveBeenCalledWith(' SO-220909037 ');
+    expect(orderErp.lookupContractAppendixOrder).toHaveBeenCalledWith(
+      ' SO-220909037 ',
+    );
     expect(productErp.lookupTaxes).toHaveBeenCalledWith(['220909037']);
     expect(result.canSave).toBe(true);
     expect(result.items[0]).toMatchObject({
@@ -88,7 +92,7 @@ describe('ContractAppendicesService', () => {
 
   it('uses an explicit unit override but never invents a missing ERP unit', async () => {
     const { service, orderErp } = harness();
-    orderErp.lookupOrder.mockResolvedValue({
+    orderErp.lookupContractAppendixOrder.mockResolvedValue({
       ...order,
       items: [{ ...order.items[0], uomName: null }],
     });

@@ -1,4 +1,5 @@
 import {
+  ContractAppendixShipmentPriceException,
   isSalesReportErpPendingPaymentStatus,
   SalesReportErpService,
 } from './sales-report-erp.service';
@@ -170,6 +171,100 @@ describe('SalesReportErpService', () => {
             'Bearer access-token-123',
       ),
     ).toBe(true);
+  });
+
+  it('uses the unique shipment price for Contract Appendix without changing Sales Report lookup prices', async () => {
+    process.env.ERP_ACCESS_TOKEN = 'static-access-token';
+    const fetchMock = jest.fn(async (input: string | URL) => {
+      const url = input.toString();
+      if (url.includes('/staff-admin/orders/2607290032')) {
+        return jsonResponse({
+          data: {
+            order: {
+              orderId: '2607290032',
+              confirmationStatus: 'active',
+              fulfillmentStatus: 'PROCESSING',
+              orderCaptureLineItems: [
+                {
+                  orderCaptureLineItemId: 'capture-1',
+                  sellerSku: 'SKU-SHIPMENT',
+                  name: 'Sản phẩm thử nghiệm',
+                  quantity: 2,
+                  uomName: 'Cái',
+                  finalSellPrice: 100,
+                  sellPrice: 90,
+                  rowTotal: 180,
+                },
+              ],
+              shipments: [
+                {
+                  items: [
+                    {
+                      orderCaptureLineItemId: 'capture-1',
+                      sellerSku: 'SKU-SHIPMENT',
+                      finalSellPrice: 250,
+                    },
+                  ],
+                },
+              ],
+              payments: [],
+            },
+          },
+        });
+      }
+      if (url.startsWith('https://listing.tekoapis.com/api/products/')) {
+        return jsonResponse({ result: { products: [] } });
+      }
+      throw new Error(`Unexpected fetch: ${url}`);
+    }) as jest.MockedFunction<typeof fetch>;
+    global.fetch = fetchMock;
+
+    const service = new SalesReportErpService();
+    const salesReportOrder = await service.lookupOrder('2607290032');
+    const contractAppendixOrder =
+      await service.lookupContractAppendixOrder('2607290032');
+
+    expect(salesReportOrder.items).toHaveLength(1);
+    expect(salesReportOrder.items[0].finalSellPrice).toBe(100);
+    expect(contractAppendixOrder.items).toHaveLength(1);
+    expect(contractAppendixOrder.items[0]).toMatchObject({
+      finalSellPrice: 250,
+      quantity: 2,
+    });
+  });
+
+  it('rejects missing or ambiguous shipment prices instead of falling back to capture prices', () => {
+    const service = new SalesReportErpService();
+    const resolveShipmentPrices = (order: Record<string, unknown>) =>
+      (service as any).resolveShipmentFinalSellPrices(order);
+
+    expect(() =>
+      resolveShipmentPrices({
+        orderCaptureLineItems: [
+          {
+            sellerSku: 'SKU-1',
+            finalSellPrice: 100,
+            sellPrice: 90,
+            rowTotal: 90,
+          },
+        ],
+        shipments: [{ items: [{ sellerSku: 'SKU-1', sellPrice: 250 }] }],
+      }),
+    ).toThrow(ContractAppendixShipmentPriceException);
+
+    expect(() =>
+      resolveShipmentPrices({
+        orderCaptureLineItems: [{ sellerSku: 'SKU-1', finalSellPrice: 100 }],
+        shipments: [
+          {
+            items: [
+              { sellerSku: 'SKU-1', finalSellPrice: 250 },
+              { sellerSku: 'SKU-1', finalSellPrice: 260 },
+            ],
+          },
+        ],
+      }),
+    ).toThrow(ContractAppendixShipmentPriceException);
   });
 
   it('retries only unresolved Listing SKUs and merges non-empty categories', async () => {
