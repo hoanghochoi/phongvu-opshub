@@ -464,7 +464,19 @@ describe('SalesReportFollowUpsService', () => {
         },
       },
     };
-    const findMany = jest.fn().mockResolvedValue([entry]);
+    const purchasedEntry = {
+      ...entry,
+      id: 'entry-2',
+      sequenceNumber: 3,
+      outcome: 'PURCHASED',
+      notPurchasedReason: null,
+      notPurchasedOtherReason: null,
+      purchasedReport: {
+        orderCode: '2607010002',
+        erpGrandTotal: 1234567,
+      },
+    };
+    const findMany = jest.fn().mockResolvedValue([entry, purchasedEntry]);
     const prisma = {
       user: {
         findUnique: jest.fn().mockResolvedValue({
@@ -500,7 +512,13 @@ describe('SalesReportFollowUpsService', () => {
       { header: 1 },
     );
     expect(rows[0]).toEqual(
-      expect.arrayContaining(['Mã showroom', 'Lần chăm sóc', 'Kết quả']),
+      expect.arrayContaining([
+        'Mã showroom',
+        'Lần chăm sóc',
+        'Kết quả',
+        'Mã đơn mua',
+        'Doanh số',
+      ]),
     );
     expect(rows[1]).toEqual(
       expect.arrayContaining([
@@ -512,6 +530,9 @@ describe('SalesReportFollowUpsService', () => {
         'Chờ khuyến mãi',
       ]),
     );
+    expect(rows[1][19]).toBe('');
+    expect(rows[2][19]).toBe('2607010002');
+    expect(rows[2][20]).toBe(1234567);
     const request = findMany.mock.calls[0][0];
     expect(request.take).toBe(10_001);
     expect(JSON.stringify(request.where)).toContain('2026-06-30T17:00:00.000Z');

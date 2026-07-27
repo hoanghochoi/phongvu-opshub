@@ -277,7 +277,7 @@ export class SalesReportFollowUpsService {
         ],
         take: MAX_EXPORT_ROWS + 1,
         include: {
-          purchasedReport: { select: { orderCode: true } },
+          purchasedReport: { select: { orderCode: true, erpGrandTotal: true } },
           case: {
             include: {
               sourceReport: {
@@ -955,6 +955,7 @@ export class SalesReportFollowUpsService {
       'Lý do chưa mua',
       'Lý do khác',
       'Mã đơn mua',
+      'Doanh số',
     ];
     const rows = entries.map((entry) => {
       const followUpCase = entry.case;
@@ -986,6 +987,9 @@ export class SalesReportFollowUpsService {
         this.notPurchasedLabel(entry.notPurchasedReason) ?? '',
         entry.notPurchasedOtherReason ?? '',
         entry.purchasedReport?.orderCode ?? '',
+        entry.outcome === 'PURCHASED'
+          ? (entry.purchasedReport?.erpGrandTotal ?? '')
+          : '',
       ];
     });
     const worksheet = XLSX.utils.aoa_to_sheet([headers, ...rows]);
