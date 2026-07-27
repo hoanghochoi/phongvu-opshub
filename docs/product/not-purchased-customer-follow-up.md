@@ -62,6 +62,9 @@ Cho phép nhân viên bán hàng theo dõi và chăm sóc lại từng lượt b
 - File XLSX không phụ thuộc tab đang mở, nhưng giữ keyword và showroom đang
   chọn. Mỗi lượt chăm sóc có `contactedAt` trong khoảng ngày là một dòng; file
   chứa tối đa 10.000 lượt và yêu cầu thu hẹp khoảng ngày khi vượt giới hạn.
+  Với lượt có kết quả `PURCHASED`, file thêm cột `Doanh số` cạnh `Mã đơn mua`,
+  lấy nguyên `erpGrandTotal` đã lưu trên báo cáo mua hàng; các kết quả khác để
+  trống cột này.
 - Không có dữ liệu thì không tạo file rỗng. Log chỉ ghi khoảng ngày, scope,
   trạng thái lưu, số dòng/byte và thời lượng; không ghi thông tin liên hệ của
   khách hàng.

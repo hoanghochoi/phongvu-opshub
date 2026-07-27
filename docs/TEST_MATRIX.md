@@ -3,6 +3,15 @@
 This file maps product behavior to proof. Existing flows are marked
 `existing_unverified` until fresh validation evidence is attached.
 
+- `OPS-30`, 2026-07-27: file `Tải lịch sử chăm sóc` thêm cột `Doanh số` cạnh
+  `Mã đơn mua` cho các lượt chăm sóc có kết quả `PURCHASED`, lấy nguyên
+  `erpGrandTotal` đã lưu; các kết quả khác để trống. Regression export giữ
+  nguyên scope, keyword, khoảng ngày, giới hạn 10.000 dòng và không gọi ERP
+  mới. Focused NestJS follow-up Jest passed 14/14, `npm run build` passed,
+  focused Flutter follow-up widget test passed 16/16, and `git diff --check`
+  passed. Chưa thực hiện smoke mở file XLSX thật trên máy người dùng hoặc
+  staging deploy/QA.
+
 - `OPS-24`, 2026-07-25: production audit found the Home producer trigger
   locking `HomeSummaryProjectionState -> HomeSummaryProjectionQueue` while the
   worker finalizer locks `Queue -> State`, producing PostgreSQL `40P01` under
