@@ -10,9 +10,11 @@ cá nhân 30 ngày và sao chép bảng có định dạng trực tiếp vào Mi
 - Chi tiết đơn luôn đi qua `SalesReportErpService.lookupOrder()` hiện hữu. Mọi
   tính năng ERP phải dùng chung tài khoản, login, token cache và cơ chế refresh
   đang có; không tạo luồng xác thực ERP song song.
-- SKU, số lượng, tên gợi ý, `uomName` và `finalSellPrice` lấy từ item của đơn ERP.
-  `finalSellPrice` là giá mỗi đơn vị đã gồm VAT và là nguồn giá duy nhất; không
-  fallback sang `sellPrice`, `rowTotal` hay giá PPM.
+- SKU, số lượng, tên gợi ý và `uomName` lấy từ `orderCaptureLineItems` của đơn
+  ERP. `finalSellPrice` phải lấy từ item shipment khớp bằng khóa ổn định; đây là
+  giá mỗi đơn vị đã gồm VAT và là nguồn giá duy nhất. Khi shipment thiếu, không
+  khớp hoặc khớp mơ hồ, dừng luồng với hướng dẫn kiểm tra đơn; không fallback
+  sang giá capture, `sellPrice`, `rowTotal` hay giá PPM.
 - Thuế lấy từ PPM `POST /products`, field `taxOutAmount`, với terminal cố định
   `49180_PRICE_0001`. Mỗi preview và save đều deduplicate toàn bộ SKU của đơn,
   gọi PPM live theo batch tối đa 50 SKU và không đọc/ghi memory hoặc Redis tax
@@ -46,7 +48,7 @@ chữ được sinh phía server từ tổng đã VAT và kết thúc bằng `đ
    tính khi ERP thiếu dữ liệu. Thuế nhập tay chỉ xuất hiện ở dòng chưa có thuế ERP.
 4. Editor và preview luôn xếp thành một cột để giữ đủ chiều rộng; desktop dùng
    bảng editor, mobile dùng item card. Preview dùng bảng 7 cột, cột cuối là
-   `Thành tiền (VNĐ) - Chưa VAT`.
+   `Thành tiền (VNĐ) (đã bao gồm VAT)` và hiển thị `lineAfterVat`.
 5. Preview và `Lưu phụ lục` đều buộc backend refetch live thuế, so
    `quoteVersion`, tính lại và lưu
    snapshot bất biến. Nếu nguồn đổi, user phải xem lại preview.

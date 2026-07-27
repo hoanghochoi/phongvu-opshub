@@ -75,19 +75,22 @@ ContractAppendixClipboardPayload buildContractAppendixClipboardPayload(
     ..write(_htmlHeader('Đơn giá (VNĐ)<br>Chưa VAT', width: _columnWidths[4]))
     ..write(_htmlHeader('GTGT', width: _columnWidths[5]))
     ..write(
-      _htmlHeader('Thành tiền (VNĐ)<br>Chưa VAT', width: _columnWidths[6]),
+      _htmlHeader(
+        'Thành tiền (VNĐ)<br>(đã bao gồm VAT)',
+        width: _columnWidths[6],
+      ),
     )
     ..writeln('</tr>');
 
   final tsv = StringBuffer()
     ..writeln(
       'STT\tTên hàng hóa\tSL\tĐVT\tĐơn giá (VNĐ) - Chưa VAT\tGTGT\t'
-      'Thành tiền (VNĐ) - Chưa VAT',
+      'Thành tiền (VNĐ) (đã bao gồm VAT)',
     );
 
   for (final item in document.items) {
     final unitBeforeVat = _money(item.unitPriceBeforeVat);
-    final lineBeforeVat = _money(item.lineBeforeVat);
+    final lineAfterVat = _money(item.lineAfterVat);
     html
       ..writeln('<tr>')
       ..write(
@@ -133,7 +136,7 @@ ContractAppendixClipboardPayload buildContractAppendixClipboardPayload(
       )
       ..write(
         _htmlCell(
-          lineBeforeVat,
+          lineAfterVat,
           width: _columnWidths[6],
           align: 'center',
           nowrap: true,
@@ -142,7 +145,7 @@ ContractAppendixClipboardPayload buildContractAppendixClipboardPayload(
       ..writeln('</tr>');
     tsv.writeln(
       '${item.position}\t${_tsv(item.productName)}\t${item.quantity}\t'
-      '${_tsv(item.unit)}\t$unitBeforeVat\t${item.vatLabel}\t$lineBeforeVat',
+      '${_tsv(item.unit)}\t$unitBeforeVat\t${item.vatLabel}\t$lineAfterVat',
     );
   }
 

@@ -64,7 +64,9 @@ void main() {
         RegExp('<td width="').allMatches(payload.html).length,
         greaterThanOrEqualTo(14),
       );
-      expect(payload.html, contains('Thành tiền (VNĐ)<br>Chưa VAT'));
+      expect(payload.html, contains('Thành tiền (VNĐ)<br>(đã bao gồm VAT)'));
+      expect(payload.plainText, contains('Thành tiền (VNĐ) (đã bao gồm VAT)'));
+      expect(payload.plainText, contains('15.570.000'));
       expect(
         payload.html,
         contains('Laptop &lt;Pro&gt; &amp; &quot;Office&quot;'),

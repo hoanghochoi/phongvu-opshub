@@ -1,7 +1,10 @@
 # Design
 
-- Backend module `contract-appendices` gọi `SalesReportErpService.lookupOrder`
-  và adapter `ErpPpmProductService`; adapter PPM dùng `authorizedRequest` trên
+- Backend module `contract-appendices` gọi
+  `SalesReportErpService.lookupContractAppendixOrder` và adapter
+  `ErpPpmProductService`; lookup này thay `finalSellPrice` của capture bằng
+  giá shipment khớp duy nhất theo khóa ổn định, fail-closed khi thiếu/mơ hồ và
+  không đổi contract `lookupOrder` của Sales Report. Adapter PPM dùng `authorizedRequest` trên
   đúng token cache ERP hiện hữu, deduplicate toàn bộ SKU và chia batch 50. Tax
   lookup luôn live và không có memory/Redis tax cache.
 - `POST /contract-appendices/preview` không ghi DB nhưng luôn refetch live thuế.

@@ -169,6 +169,16 @@ export class SalesReportErpReturnedOrderException extends BadRequestException {
   }
 }
 
+export class ContractAppendixShipmentPriceException extends BadRequestException {
+  constructor(
+    public readonly reason: 'MISSING' | 'AMBIGUOUS' | 'INVALID_PRICE',
+  ) {
+    super(
+      'Chưa lấy được giá giao hàng cho một số sản phẩm. Vui lòng kiểm tra lại đơn hàng rồi thử lại.',
+    );
+  }
+}
+
 type CachedToken = {
   accessToken: string;
   expiresAt: number;
@@ -219,13 +229,41 @@ export class SalesReportErpService {
   }
 
   async lookupOrder(orderCodeInput: string, storeCode?: string | null) {
+    return this.lookupOrderForPurpose(
+      orderCodeInput,
+      storeCode,
+      'SALES_REPORT',
+    );
+  }
+
+  /**
+   * Contract Appendix must use the final sell price from the shipment line.
+   * Keep this separate from the Sales Report lookup contract, whose existing
+   * consumers continue to receive order-capture prices.
+   */
+  async lookupContractAppendixOrder(orderCodeInput: string) {
+    return this.lookupOrderForPurpose(
+      orderCodeInput,
+      null,
+      'CONTRACT_APPENDIX',
+    );
+  }
+
+  private async lookupOrderForPurpose(
+    orderCodeInput: string,
+    storeCode: string | null | undefined,
+    purpose: 'SALES_REPORT' | 'CONTRACT_APPENDIX',
+  ) {
     const orderCode = this.normalizeOrderCode(orderCodeInput);
     if (!orderCode) {
       throw new BadRequestException('Vui lòng nhập mã đơn hàng.');
     }
     const startedAt = Date.now();
+    const isContractAppendix = purpose === 'CONTRACT_APPENDIX';
     this.logger.log(
-      `Sales report ERP lookup started: orderLength=${orderCode.length} store=${storeCode || 'none'}`,
+      isContractAppendix
+        ? `Contract appendix ERP lookup started: orderLength=${orderCode.length}`
+        : `Sales report ERP lookup started: orderLength=${orderCode.length} store=${storeCode || 'none'}`,
     );
     try {
       const accessToken = await this.getAccessToken();
@@ -241,11 +279,9 @@ export class SalesReportErpService {
         storeCode ?? null,
         status,
       );
-      const items = await this.normalizeItems(
-        order,
-        accessToken,
-        storeCode ?? null,
-      );
+      const items = isContractAppendix
+        ? await this.normalizeContractAppendixItems(order, accessToken)
+        : await this.normalizeItems(order, accessToken, storeCode ?? null);
       const payments = this.normalizePayments(order?.payments);
       const result = this.normalizeOrder(
         orderCode,
@@ -256,7 +292,9 @@ export class SalesReportErpService {
       );
       const customerTaxCode = this.billingTaxCode(order);
       this.logger.log(
-        `Sales report ERP lookup succeeded: orderLength=${orderCode.length} itemCount=${items.length} listingCategoryItemCount=${result.items.filter((item) => item.listingCategories.length > 0).length} paymentCount=${payments.length} customerType=${result.customerType} billingCustomerType=${result.erpCustomerType || 'none'} hasBillingTaxCode=${Boolean(customerTaxCode)} promotionCodes=${result.promotionCodes.join(',')} customerIsStudent=${result.customerIsStudent} installmentNeed=${result.installmentNeed} installmentLoanAmount=${result.installmentLoanAmount ?? 0} durationMs=${Date.now() - startedAt}`,
+        isContractAppendix
+          ? `Contract appendix ERP lookup succeeded: orderLength=${orderCode.length} itemCount=${items.length} paymentCount=${payments.length} durationMs=${Date.now() - startedAt}`
+          : `Sales report ERP lookup succeeded: orderLength=${orderCode.length} itemCount=${items.length} listingCategoryItemCount=${result.items.filter((item) => item.listingCategories.length > 0).length} paymentCount=${payments.length} customerType=${result.customerType} billingCustomerType=${result.erpCustomerType || 'none'} hasBillingTaxCode=${Boolean(customerTaxCode)} promotionCodes=${result.promotionCodes.join(',')} customerIsStudent=${result.customerIsStudent} installmentNeed=${result.installmentNeed} installmentLoanAmount=${result.installmentLoanAmount ?? 0} durationMs=${Date.now() - startedAt}`,
       );
       return result;
     } catch (error) {
@@ -267,7 +305,9 @@ export class SalesReportErpService {
         throw error;
       }
       this.logger.error(
-        `Sales report ERP lookup failed: orderLength=${orderCode.length} durationMs=${Date.now() - startedAt} errorType=${this.errorType(error)}`,
+        isContractAppendix
+          ? `Contract appendix ERP lookup failed: orderLength=${orderCode.length} durationMs=${Date.now() - startedAt} errorType=${this.errorType(error)}`
+          : `Sales report ERP lookup failed: orderLength=${orderCode.length} durationMs=${Date.now() - startedAt} errorType=${this.errorType(error)}`,
       );
       throw new ServiceUnavailableException(
         'Chưa kiểm tra được mã đơn hàng. Vui lòng thử lại sau ít phút.',
@@ -976,6 +1016,129 @@ export class SalesReportErpService {
         raw: this.sanitizeItemRaw(item, product),
       };
     });
+  }
+
+  private async normalizeContractAppendixItems(
+    order: any,
+    accessToken: string,
+  ): Promise<SalesReportErpOrderItem[]> {
+    const items = await this.normalizeItems(order, accessToken, null);
+    const shipmentPrices = this.resolveShipmentFinalSellPrices(order);
+    return items.map((item, index) => ({
+      ...item,
+      finalSellPrice: shipmentPrices[index],
+      raw: {
+        ...item.raw,
+        finalSellPrice: shipmentPrices[index],
+      },
+    }));
+  }
+
+  private resolveShipmentFinalSellPrices(order: any): number[] {
+    const orderItems: any[] = Array.isArray(order?.orderCaptureLineItems)
+      ? order.orderCaptureLineItems
+      : [];
+    const shipmentItems = this.extractShipmentItems(order);
+    this.logger.debug(
+      `Contract appendix shipment price mapping started: orderItemCount=${orderItems.length} shipmentItemCount=${shipmentItems.length}`,
+    );
+    const index = new Map<string, any[]>();
+    for (const shipmentItem of shipmentItems) {
+      for (const [field, value] of this.shipmentMatchValues(shipmentItem)) {
+        const key = `${field}:${value}`;
+        index.set(key, [...(index.get(key) ?? []), shipmentItem]);
+      }
+    }
+
+    const orderSkuCounts = new Map<string, number>();
+    for (const item of orderItems) {
+      const sku = this.optionalText(item?.sellerSku);
+      if (sku) orderSkuCounts.set(sku, (orderSkuCounts.get(sku) ?? 0) + 1);
+    }
+
+    try {
+      const prices = orderItems.map((item) => {
+        const matched = this.matchShipmentItem(item, index, orderSkuCounts);
+        const price = this.toInt(matched?.finalSellPrice);
+        if (price === null || !Number.isSafeInteger(price) || price < 0) {
+          throw new ContractAppendixShipmentPriceException('INVALID_PRICE');
+        }
+        return price;
+      });
+      this.logger.log(
+        `Contract appendix shipment price mapping succeeded: orderItemCount=${orderItems.length} shipmentItemCount=${shipmentItems.length}`,
+      );
+      return prices;
+    } catch (error) {
+      const reason =
+        error instanceof ContractAppendixShipmentPriceException
+          ? error.reason
+          : this.errorType(error);
+      this.logger.warn(
+        `Contract appendix shipment price mapping failed: reason=${reason} orderItemCount=${orderItems.length} shipmentItemCount=${shipmentItems.length}`,
+      );
+      throw error;
+    }
+  }
+
+  private extractShipmentItems(order: any): any[] {
+    const shipments: any[] = Array.isArray(order?.shipments)
+      ? order.shipments
+      : [];
+    return shipments.flatMap((shipment) => {
+      const candidates = [
+        shipment?.shipmentLineItems,
+        shipment?.items,
+        shipment?.orderItems,
+        shipment?.orderCaptureLineItems,
+      ];
+      return candidates.find(Array.isArray) ?? [];
+    });
+  }
+
+  private matchShipmentItem(
+    orderItem: any,
+    index: Map<string, any[]>,
+    orderSkuCounts: Map<string, number>,
+  ) {
+    const stableFields = [
+      'orderCaptureLineItemId',
+      'orderLineItemId',
+      'lineItemId',
+    ];
+    for (const field of stableFields) {
+      const value = this.optionalText(orderItem?.[field]);
+      if (!value) continue;
+      const candidates = index.get(`${field}:${value}`) ?? [];
+      if (candidates.length === 1) return candidates[0];
+      if (candidates.length > 1) return this.rejectShipmentMatch('AMBIGUOUS');
+    }
+
+    const sellerSku = this.optionalText(orderItem?.sellerSku);
+    if (!sellerSku || orderSkuCounts.get(sellerSku) !== 1) {
+      return this.rejectShipmentMatch('AMBIGUOUS');
+    }
+    const candidates = index.get(`sellerSku:${sellerSku}`) ?? [];
+    if (candidates.length === 1) return candidates[0];
+    return this.rejectShipmentMatch(
+      candidates.length > 1 ? 'AMBIGUOUS' : 'MISSING',
+    );
+  }
+
+  private shipmentMatchValues(item: any): Array<[string, string]> {
+    return [
+      'orderCaptureLineItemId',
+      'orderLineItemId',
+      'lineItemId',
+      'sellerSku',
+    ].flatMap((field) => {
+      const value = this.optionalText(item?.[field]);
+      return value ? [[field, value] as [string, string]] : [];
+    });
+  }
+
+  private rejectShipmentMatch(reason: 'MISSING' | 'AMBIGUOUS'): never {
+    throw new ContractAppendixShipmentPriceException(reason);
   }
 
   private async fetchProducts(

@@ -242,7 +242,9 @@ export class ContractAppendicesService {
 
   private async buildPreview(dto: PreviewContractAppendixDto) {
     const overrides = this.overrideMap(dto.overrides ?? []);
-    const order = await this.orderErp.lookupOrder(dto.orderCode);
+    const order = await this.orderErp.lookupContractAppendixOrder(
+      dto.orderCode,
+    );
     const preparedSource = order.items.map((item, index) =>
       this.prepareSourceLine(item, index, overrides),
     );

@@ -3,11 +3,12 @@
 ## Automated
 
 - `npx prisma format && npx prisma validate && npx prisma generate`
-- Focused Nest tests cho ERP authorized request, PPM live batch/no-cache,
-  `uomName`, calculator mixed-tax, amount words và contract service/controller.
+- Focused Nest tests cho ERP authorized request, mapping giá shipment (khác
+  capture, thiếu/mơ hồ, không fallback), PPM live batch/no-cache, `uomName`,
+  calculator mixed-tax, amount words và contract service/controller.
 - `npm run build`
-- Flutter tests cho JSON models, HTML/TSV escaping, provider state, route/access
-  và layout `390x844`.
+- Flutter tests cho JSON models, HTML/TSV escaping, cột `lineAfterVat`/nhãn đã
+  VAT, provider state, route/access và layout `390x844`.
 - `flutter analyze --no-pub`
 - `flutter test --no-pub`
 - `git diff --check`
@@ -49,6 +50,19 @@
 - Local live PPM chưa chạy do môi trường máy không có ERP credential. Live SKU
   `220909037` và order `uomName` phải được xác minh trên staging sau deploy trước
   khi chuyển `Ready for Release`.
+
+### OPS-32 local 2026-07-27
+
+- Đạt: fixture capture/shipment khác giá, quantity > 1, strict mapping theo
+  khóa ổn định, shipment thiếu/mơ hồ/giá không hợp lệ fail-closed, không
+  fallback về các giá cũ; Sales Report lookup vẫn dùng giá capture.
+- Đạt: preview, save, quoteVersion và snapshot cùng dùng lookup shipment;
+  Flutter preview + HTML/TSV clipboard dùng `lineAfterVat` và nhãn đã VAT.
+- Đạt: Prisma validate, Nest build, focused Nest 3 suite / 33 test, full Nest
+  90 suite / 896 test, focused Flutter 10 test và `flutter analyze --no-pub`.
+- Chưa xanh toàn bộ Flutter: run full đạt 615 pass / 3 skip trước một failure
+  timing ngoài phạm vi ở `sales_report_hub_test.dart`; rerun riêng cùng suite
+  đạt 25 test. Staging smoke ERP/Word vẫn là gate trước `Ready for Release`.
 
 ## Integration and Manual
 
