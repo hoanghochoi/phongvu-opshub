@@ -16,6 +16,15 @@ Think and work in this order:
 4. Report the concise result and the next useful step.
 5. Spawn subagents when needed.
 
+## Multi-Agent Routing
+
+- For substantive work where parallel discovery or independent review materially
+  improves quality, invoke `$orchestrate-opshub-task` and keep its wave/ownership
+  limits; skip the full workflow for tiny bounded changes.
+- The skill supplements this file and the repository playbook; it never weakens
+  Linear intake, task lifecycle, affected-consumer proof, Figma, security,
+  logging, or release gates.
+
 If a request is ambiguous or underspecified, ask focused clarifying questions
 before acting. Never claim done before verification.
 

@@ -1,0 +1,7 @@
+interface:
+  display_name: "Orchestrate OpsHub Task"
+  short_description: "Coordinate safe multi-agent OpsHub delivery"
+  default_prompt: "Use $orchestrate-opshub-task to coordinate this OpsHub task with scoped agents and verified handoffs."
+
+policy:
+  allow_implicit_invocation: false

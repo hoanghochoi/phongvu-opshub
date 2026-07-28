@@ -3,6 +3,23 @@
 This file maps product behavior to proof. Existing flows are marked
 `existing_unverified` until fresh validation evidence is attached.
 
+- `OPS-38`/`CODEX-DESKTOP-AGENT-001`, 2026-07-29: project-scoped Codex Desktop
+  configuration, eight repo-native agents, and the explicit orchestration
+  skill have passed local static/workflow proof: config validator PASS, skill
+  validator PASS, `git diff --check` PASS, task-lifecycle fixtures 11/11 PASS,
+  and release-workflow fixtures 9/9 PASS. Desktop-managed runtime
+  `0.146.0-alpha.3.1` loaded the task worktree, reported multi-agent enabled,
+  and enumerated all eight custom role names in an ephemeral non-mutating smoke.
+  A fresh Desktop task then dispatched child thread
+  `019fa9ef-6d31-7a61-9ac3-9db5a18706eb` as `opshub_repo_explorer` with
+  `gpt-5.6-terra`, medium effort, and multi-agent v2. Runtime sandbox metadata
+  was `danger-full-access` with permission profile disabled, proving that the
+  child inherited the parent permission; pre/post Git state matched. Review
+  roles remain non-mutating by task contract, with Harness/worktree/lifecycle
+  guards and unchanged-state proof as the safety controls.
+  No Flutter, NestJS, Go, or production runtime behavior is changed by this
+  work; standalone CLI parity remains `unverified` and out of scope.
+
 - `OPS-36`/`PAYMENT-STATEMENT-001`, 2026-07-28: Sao kê and Tiền vào use one
 existing-style order editor. Every new code is ERP-verified and active;
 existing codes may be replaced/cleared only on the same Vietnam day after all
