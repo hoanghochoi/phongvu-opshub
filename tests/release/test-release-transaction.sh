@@ -7,6 +7,50 @@ source "$root/deploy/home-server/release-transaction.sh"
 temp=$(mktemp -d)
 trap 'rm -rf "$temp"' EXIT
 
+# Git Bash on Windows exposes POSIX commands over NTFS but does not reliably
+# preserve Unix mode/ownership bits. Keep the fixture semantic-only there;
+# Linux CI still exercises the real permission-preserving commands.
+if [[ "$(uname -s)" == MINGW* ]]; then
+  opshub_test_sudo() {
+    local command_name="$1"
+    shift
+    case "$command_name" in
+      install)
+        local -a args=()
+        local skip_next=false arg
+        for arg in "$@"; do
+          if [[ "$skip_next" == true ]]; then
+            skip_next=false
+            continue
+          fi
+          if [[ "$arg" == -m ]]; then
+            skip_next=true
+            continue
+          fi
+          args+=("$arg")
+        done
+        command install "${args[@]}"
+        ;;
+      chmod)
+        return 0
+        ;;
+      cp)
+        local -a args=()
+        for arg in "$@"; do
+          [[ "$arg" == --preserve=* ]] || args+=("$arg")
+        done
+        command cp "${args[@]}"
+        ;;
+      *)
+        command "$command_name" "$@"
+        ;;
+    esac
+  }
+  export OPSHUB_SUDO=opshub_test_sudo
+else
+  export OPSHUB_SUDO=''
+fi
+
 mkdir -p "$temp/opshub/releases/old/deploy/home-server" \
   "$temp/opshub/releases/new/deploy/home-server" \
   "$temp/opshub/downloads/help/assets" "$temp/opshub/web" \
@@ -19,8 +63,6 @@ printf 'old manifest\n' > "$temp/opshub/downloads/latest.json"
 printf 'old page\n' > "$temp/opshub/downloads/download.html"
 printf 'old icon\n' > "$temp/opshub/downloads/opshub-icon-192.png"
 printf 'old env\n' > "$temp/opshub.env"
-ln -s "$temp/opshub/releases/old" "$temp/opshub/current"
-
 printf 'new index\n' > "$temp/input/web/index.html"
 printf 'new help\n' > "$temp/input/help/assets/new.md"
 printf 'new manifest\n' > "$temp/input/latest.json"
@@ -33,11 +75,10 @@ printf 'checksum\n' > "$temp/input/windows/app.sha256"
 tar -C "$temp/input/web" -czf "$temp/input/web.tar.gz" .
 tar -C "$temp/input/help" -czf "$temp/input/help-assets.tar.gz" .
 
-export OPSHUB_SUDO=''
 export OPSHUB_ENV_FILE="$temp/opshub.env"
 export OPSHUB_SSD_ROOT="$temp/opshub"
 export OPSHUB_REMOTE_APP_DIR="$temp/opshub"
-export CURRENT_DIR="$temp/opshub/current"
+export CURRENT_DIR="$temp/opshub/releases/old"
 export REMOTE_RELEASE_DIR="$temp/opshub/releases/new"
 export DEPLOY_RUN_ID=101
 export DEPLOY_RUN_ATTEMPT=1
@@ -80,11 +121,41 @@ opshub_txn_cleanup
 # A partial shared restore reports failure, preserves evidence, and can resume.
 export DEPLOY_RUN_ID=104
 export DEPLOY_RUN_ATTEMPT=1
+export INJECT_SHARED_RESTORE_FAILURE=true
 opshub_txn_begin
 opshub_txn_stage_shared
 opshub_test_sudo() {
-  if [[ "$1" = cp && " $* " = *" $OPSHUB_TXN_SHARED_SNAPSHOT/web "* ]]; then
+  if [[ "${INJECT_SHARED_RESTORE_FAILURE:-false}" = true && "$1" = cp && " $* " = *" $OPSHUB_TXN_SHARED_SNAPSHOT/web "* ]]; then
     return 23
+  fi
+  if [[ "$(uname -s)" == MINGW* && "$1" = cp ]]; then
+    local -a args=()
+    local arg
+    for arg in "${@:2}"; do
+      [[ "$arg" == --preserve=* ]] || args+=("$arg")
+    done
+    command cp "${args[@]}"
+    return
+  fi
+  if [[ "$(uname -s)" == MINGW* && "$1" = install ]]; then
+    local -a args=()
+    local skip_next=false arg
+    for arg in "${@:2}"; do
+      if [[ "$skip_next" == true ]]; then
+        skip_next=false
+        continue
+      fi
+      if [[ "$arg" == -m ]]; then
+        skip_next=true
+        continue
+      fi
+      args+=("$arg")
+    done
+    command install "${args[@]}"
+    return
+  fi
+  if [[ "$(uname -s)" == MINGW* && "$1" = chmod ]]; then
+    return 0
   fi
   command "$@"
 }
@@ -94,7 +165,12 @@ if opshub_txn_restore_shared; then
   exit 1
 fi
 test -e "$OPSHUB_TXN_STATE"
-export OPSHUB_SUDO=''
+export INJECT_SHARED_RESTORE_FAILURE=false
+if [[ "$(uname -s)" == MINGW* ]]; then
+  export OPSHUB_SUDO=opshub_test_sudo
+else
+  export OPSHUB_SUDO=''
+fi
 opshub_txn_restore_shared
 grep -Fxq 'old index' "$WEB_DIR/index.html"
 opshub_txn_cleanup

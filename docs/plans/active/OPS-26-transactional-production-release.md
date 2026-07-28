@@ -78,7 +78,11 @@ Out of scope:
 - [x] Integrate full production deploy transaction.
 - [x] Integrate static-only deploy transaction.
 - [x] Update runbook/test matrix.
-- [ ] Run focused proof, open PR, merge to staging, and verify staging.
+- [x] Run focused proof, merge PR #46 to staging, and verify the exact merged
+  SHA with a normal staging deployment.
+- [ ] Merge staging-only controlled failpoints and prove rollback after shared
+  promotion, from the migration/backend-build gate, during public verification,
+  and through the shared static-only transaction rehearsal.
 
 ## Decisions
 
@@ -98,6 +102,16 @@ Out of scope:
   security PASS, release workflow fixtures `9/9` PASS, lifecycle fixtures
   `11/11` PASS, runtime-release preview packaging PASS, Node syntax PASS and
   `git diff --check` PASS.
+- PR #46 squash-merged as `5c6563cc57a7dd132fedb6fcd8c49bb29741ece9`;
+  exact-SHA staging run `30402514299` passed Android/Windows builds, signing,
+  Defender, web/backend deploy, direct-origin checks and public health/version/
+  manifest/help/download verification.
+- Staging failpoint fingerprint contract, shared static transaction rehearsal,
+  workflow YAML parsing and all embedded Bash blocks pass locally. The
+  failpoint workflow now keeps its input in the deploy step, fingerprints
+  staging-named client artifacts with path/type/mode/owner/content metadata,
+  and routes the runtime failpoint through the migration/backend-build command.
+  Live controlled rollback runs remain.
 - The repository's existing `tests/release/test-release-workflow-contract.sh`
   and `test-post-merge-release-recovery.sh` remain blocked by pre-existing
   references to absent `.github/workflows/post-merge-maintenance.yml` and
@@ -109,5 +123,8 @@ Out of scope:
 
 ## Result
 
-Local implementation and focused proof complete. PR, exact-SHA staging deploy,
-public verification, controlled rollback evidence and QA remain pending.
+Production transaction implementation is merged to staging and its normal
+exact-SHA deploy/public verification passed. The staging-only failpoint follow-up
+and four live controlled rollback runs remain before OPS-26 can move to Ready
+for Release. The fourth run is an isolated rehearsal on the staging host using
+the same `release-transaction.sh` helper as production static-only publication.

@@ -15,8 +15,16 @@ This file maps product behavior to proof. Existing flows are marked
   Help/download Help rollback, workflow ordering and run-attempt isolation.
   Embedded deploy Bash syntax, all workflow YAML parsing, release guard `9/9`,
   lifecycle `11/11`, platform security, runtime-release preview packaging and
-  `git diff --check` passed. Exact-SHA staging deploy, public verification and a
-  controlled failed-verification rollback remain required before release.
+  `git diff --check` passed. PR #46 merged as
+  `5c6563cc57a7dd132fedb6fcd8c49bb29741ece9`; exact-SHA staging run
+  `30402514299` passed client builds, signing/Defender, runtime deploy and
+  public health/version/manifest/help/download checks. The staging fingerprint
+  contract and shared static-only transaction rehearsal additionally pass
+  locally; baseline capture is pinned to the deploy job, staging artifact names
+  are included, and the runtime failpoint is routed through the
+  migration/backend-build command. Live controlled rollback at the
+  shared-promotion, migration/backend-build, public-verification and static
+  transaction failpoints remains required before release.
 
 - `OPS-38`/`CODEX-DESKTOP-AGENT-001`, 2026-07-29: project-scoped Codex Desktop
   configuration, eight repo-native agents, and the explicit orchestration

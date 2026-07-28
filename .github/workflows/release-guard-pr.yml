@@ -28,7 +28,9 @@ jobs:
         run: node scripts/test-git-release-workflow.mjs
 
       - name: Run production release transaction tests
-        run: bash tests/release/test-release-transaction.sh
+        run: |
+          bash tests/release/test-release-transaction.sh
+          bash tests/release/test-staging-release-fingerprint.sh
 
       - name: Run task lifecycle tests
         run: node scripts/test-task-lifecycle.mjs
