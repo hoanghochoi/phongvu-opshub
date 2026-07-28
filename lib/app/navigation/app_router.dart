@@ -53,7 +53,6 @@ import '../../features/payment_monitor/presentation/screens/payment_monitor_unsu
 import '../../features/settings/presentation/screens/settings_screen.dart';
 import '../../features/vietqr/presentation/screens/vietqr_screen.dart';
 import '../../features/fifo/presentation/screens/fifo_check_screen.dart';
-import '../../features/fifo/presentation/screens/fifo_menu_screen.dart';
 import '../../features/fifo/presentation/screens/fifo_history_screen.dart';
 import '../../features/sort/presentation/screens/sort_screen.dart';
 import '../../core/platform/app_platform_capabilities.dart';
@@ -85,6 +84,7 @@ class AppRouter {
       redirect: (context, state) {
         final location = state.matchedLocation;
         if (location == '/tasks') return '/home';
+        if (location == '/fifo-menu') return '/operations';
 
         if (!authProvider.isInitialized) {
           if (location == '/help') return null;
@@ -305,11 +305,6 @@ class AppRouter {
                   child: const SalesReportAdminScreen(),
                 ),
               ),
-            ),
-            GoRoute(
-              path: '/fifo-menu',
-              pageBuilder: (context, state) =>
-                  _noTransitionPage(state, const FifoMenuScreen()),
             ),
             GoRoute(
               path: '/fifo-check',
