@@ -213,6 +213,8 @@ export type SalesReportOperatingSummary = {
   financeAvailable: boolean;
   totalTransferredAmount: number;
   totalStatements: number;
+  totalStatementsTracked: number;
+  totalStatementsUnfollowed: number;
   totalStatementsWithOrder: number;
   totalStatementsWithoutOrder: number;
   statementOrderRate: number;

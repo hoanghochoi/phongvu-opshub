@@ -15,6 +15,11 @@ class BankStatementTransaction {
   final String? orderSource;
   final DateTime? orderUpdatedAt;
   final String? orderUpdatedByEmail;
+  final String orderTrackingStatus;
+  final DateTime? orderTrackingUpdatedAt;
+  final String? orderTrackingUpdatedByEmail;
+  final bool canManageOrderTracking;
+  final String? orderTrackingActionBlockedReason;
   final String? status;
   final DateTime? paidAt;
   final DateTime? firstSeenAt;
@@ -49,6 +54,11 @@ class BankStatementTransaction {
     required this.orderSource,
     required this.orderUpdatedAt,
     required this.orderUpdatedByEmail,
+    this.orderTrackingStatus = 'FOLLOWING',
+    this.orderTrackingUpdatedAt,
+    this.orderTrackingUpdatedByEmail,
+    this.canManageOrderTracking = false,
+    this.orderTrackingActionBlockedReason,
     required this.status,
     required this.paidAt,
     required this.firstSeenAt,
@@ -88,6 +98,17 @@ class BankStatementTransaction {
       orderSource: json['orderSource']?.toString(),
       orderUpdatedAt: _readDate(json['orderUpdatedAt']),
       orderUpdatedByEmail: json['orderUpdatedByEmail']?.toString(),
+      orderTrackingStatus:
+          json['orderTrackingStatus']?.toString().trim().toUpperCase() ==
+              'UNFOLLOWED'
+          ? 'UNFOLLOWED'
+          : 'FOLLOWING',
+      orderTrackingUpdatedAt: _readDate(json['orderTrackingUpdatedAt']),
+      orderTrackingUpdatedByEmail: json['orderTrackingUpdatedByEmail']
+          ?.toString(),
+      canManageOrderTracking: json['canManageOrderTracking'] == true,
+      orderTrackingActionBlockedReason: json['orderTrackingActionBlockedReason']
+          ?.toString(),
       status: json['status']?.toString(),
       paidAt: _readDate(json['paidAt']),
       firstSeenAt: _readDate(json['firstSeenAt']),
@@ -151,6 +172,7 @@ class BankStatementTransaction {
   }
 
   bool get hasOrders => orders.isNotEmpty;
+  bool get isFollowing => orderTrackingStatus == 'FOLLOWING';
   bool get isPartnerInternal => incomeType == 'PARTNER_INTERNAL';
   String get incomeTypeLabel =>
       isPartnerInternal ? 'Đối tác/Nội bộ' : 'Bán hàng';
@@ -183,6 +205,11 @@ class BankStatementTransaction {
       orderSource: orderSource,
       orderUpdatedAt: orderUpdatedAt,
       orderUpdatedByEmail: orderUpdatedByEmail,
+      orderTrackingStatus: orderTrackingStatus,
+      orderTrackingUpdatedAt: orderTrackingUpdatedAt,
+      orderTrackingUpdatedByEmail: orderTrackingUpdatedByEmail,
+      canManageOrderTracking: canManageOrderTracking,
+      orderTrackingActionBlockedReason: orderTrackingActionBlockedReason,
       status: status,
       paidAt: paidAt,
       firstSeenAt: firstSeenAt,

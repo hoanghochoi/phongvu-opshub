@@ -22,10 +22,12 @@ void main() {
             success: true,
           ),
           canReviewTransfer: false,
+          busy: false,
           onSaveOrders: (rawInput) async {
             savedInput = rawInput;
+            return true;
           },
-          onRequestTransfer: (_) async => true,
+          onToggleTracking: () async => true,
           onApproveTransfer: (_) async {},
           onRejectTransfer: (_, {note}) async {},
           onLoadHistory: () async => const <BankStatementOrderHistoryEntry>[],
@@ -37,7 +39,7 @@ void main() {
     expect(find.text('26052112345678'), findsOneWidget);
     expect(find.text('Đã cập nhật mã đơn hàng.'), findsOneWidget);
 
-    await tester.tap(find.byTooltip('Sửa mã đơn'));
+    await tester.tap(find.byTooltip('Cập nhật mã đơn'));
     await tester.pumpAndSettle();
     await tester.enterText(
       find.byType(TextField),
@@ -65,8 +67,9 @@ void main() {
           amountFormatter: NumberFormat.decimalPattern('vi_VN'),
           rowMessage: null,
           canReviewTransfer: false,
-          onSaveOrders: (_) async {},
-          onRequestTransfer: (_) async => true,
+          busy: false,
+          onSaveOrders: (_) async => true,
+          onToggleTracking: () async => true,
           onApproveTransfer: (_) async {},
           onRejectTransfer: (_, {note}) async {},
           onLoadHistory: () async => const <BankStatementOrderHistoryEntry>[],
@@ -100,8 +103,9 @@ void main() {
           amountFormatter: NumberFormat.decimalPattern('vi_VN'),
           rowMessage: null,
           canReviewTransfer: true,
-          onSaveOrders: (_) async {},
-          onRequestTransfer: (_) async => true,
+          busy: false,
+          onSaveOrders: (_) async => true,
+          onToggleTracking: () async => true,
           onApproveTransfer: (requestId) async {
             approvedRequestId = requestId;
           },
@@ -142,8 +146,9 @@ void main() {
           amountFormatter: NumberFormat.decimalPattern('vi_VN'),
           rowMessage: null,
           canReviewTransfer: false,
-          onSaveOrders: (_) async {},
-          onRequestTransfer: (_) async => true,
+          busy: false,
+          onSaveOrders: (_) async => true,
+          onToggleTracking: () async => true,
           onApproveTransfer: (_) async {},
           onRejectTransfer: (_, {note}) async {},
           onLoadHistory: () async => const <BankStatementOrderHistoryEntry>[],
@@ -153,6 +158,173 @@ void main() {
 
     expect(find.text(reason), findsOneWidget);
     expect(find.byTooltip(reason), findsWidgets);
+  });
+
+  testWidgets(
+    'Payment transaction tile exposes one current order update action',
+    (tester) async {
+      await tester.pumpWidget(
+        _wrap(
+          PaymentTransactionTile(
+            transaction: _transaction(
+              orders: const ['26052112345678'],
+              canEditOrders: true,
+              canRequestOrderTransfer: true,
+            ),
+            amountFormatter: NumberFormat.decimalPattern('vi_VN'),
+            rowMessage: null,
+            canReviewTransfer: false,
+            busy: false,
+            onSaveOrders: (_) async => true,
+            onToggleTracking: () async => true,
+            onApproveTransfer: (_) async {},
+            onRejectTransfer: (_, {note}) async {},
+            onLoadHistory: () async => const <BankStatementOrderHistoryEntry>[],
+          ),
+        ),
+      );
+
+      expect(find.byTooltip('Cập nhật mã đơn'), findsOneWidget);
+      expect(find.byIcon(Icons.swap_horiz_rounded), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'Payment transaction tile keeps editor open when ERP save fails',
+    (tester) async {
+      await tester.pumpWidget(
+        _wrap(
+          PaymentTransactionTile(
+            transaction: _transaction(
+              orders: const ['26052112345678'],
+              canEditOrders: true,
+            ),
+            amountFormatter: NumberFormat.decimalPattern('vi_VN'),
+            rowMessage: null,
+            canReviewTransfer: false,
+            busy: false,
+            onSaveOrders: (_) async => false,
+            onToggleTracking: () async => true,
+            onApproveTransfer: (_) async {},
+            onRejectTransfer: (_, {note}) async {},
+            onLoadHistory: () async => const <BankStatementOrderHistoryEntry>[],
+          ),
+        ),
+      );
+
+      await tester.tap(find.byTooltip('Cập nhật mã đơn'));
+      await tester.pump();
+      await tester.enterText(find.byType(TextField), '26052287654321');
+      await tester.tap(find.byTooltip('Lưu mã đơn'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(TextField), findsOneWidget);
+      expect(find.byTooltip('Lưu mã đơn'), findsOneWidget);
+    },
+  );
+
+  testWidgets('Payment transaction tile shows ERP busy state', (tester) async {
+    await tester.pumpWidget(
+      _wrap(
+        PaymentTransactionTile(
+          transaction: _transaction(
+            orders: const ['26052112345678'],
+            canEditOrders: true,
+          ),
+          amountFormatter: NumberFormat.decimalPattern('vi_VN'),
+          rowMessage: null,
+          canReviewTransfer: false,
+          busy: true,
+          onSaveOrders: (_) async => true,
+          onToggleTracking: () async => true,
+          onApproveTransfer: (_) async {},
+          onRejectTransfer: (_, {note}) async {},
+          onLoadHistory: () async => const <BankStatementOrderHistoryEntry>[],
+        ),
+      ),
+    );
+
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    expect(find.byTooltip('Đang kiểm tra trạng thái đơn hàng'), findsOneWidget);
+    final action = tester.widget<IconButton>(
+      find.ancestor(
+        of: find.byType(CircularProgressIndicator),
+        matching: find.byType(IconButton),
+      ),
+    );
+    expect(action.onPressed, isNull);
+  });
+
+  testWidgets(
+    'Payment transaction tile toggles tracking and keeps status visible',
+    (tester) async {
+      var toggleCount = 0;
+      await tester.pumpWidget(
+        _wrap(
+          PaymentTransactionTile(
+            transaction: _transaction(
+              orders: const ['26052112345678'],
+              canEditOrders: true,
+              canManageOrderTracking: true,
+            ),
+            amountFormatter: NumberFormat.decimalPattern('vi_VN'),
+            rowMessage: null,
+            canReviewTransfer: false,
+            busy: false,
+            onSaveOrders: (_) async => true,
+            onToggleTracking: () async {
+              toggleCount += 1;
+              return true;
+            },
+            onApproveTransfer: (_) async {},
+            onRejectTransfer: (_, {note}) async {},
+            onLoadHistory: () async => const <BankStatementOrderHistoryEntry>[],
+          ),
+        ),
+      );
+
+      expect(find.text('Đang theo dõi'), findsOneWidget);
+      await tester.tap(find.byTooltip('Bỏ theo dõi giao dịch'));
+      await tester.pump();
+      expect(toggleCount, 1);
+    },
+  );
+
+  testWidgets('Payment transaction tile blocks order edits when unfollowed', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _wrap(
+        PaymentTransactionTile(
+          transaction: _transaction(
+            orders: const ['26052112345678'],
+            canEditOrders: true,
+            canManageOrderTracking: true,
+            orderTrackingStatus: 'UNFOLLOWED',
+          ),
+          amountFormatter: NumberFormat.decimalPattern('vi_VN'),
+          rowMessage: null,
+          canReviewTransfer: false,
+          busy: false,
+          onSaveOrders: (_) async => true,
+          onToggleTracking: () async => true,
+          onApproveTransfer: (_) async {},
+          onRejectTransfer: (_, {note}) async {},
+          onLoadHistory: () async => const <BankStatementOrderHistoryEntry>[],
+        ),
+      ),
+    );
+
+    final updateButton = tester.widget<IconButton>(
+      find.ancestor(
+        of: find.byTooltip(
+          'Giao dịch đang Bỏ theo dõi. Vui lòng Theo dõi lại trước khi cập nhật mã đơn.',
+        ),
+        matching: find.byType(IconButton),
+      ),
+    );
+    expect(find.text('Đã bỏ theo dõi'), findsOneWidget);
+    expect(updateButton.onPressed, isNull);
   });
 }
 
@@ -166,6 +338,8 @@ MapPaymentTransaction _transaction({
   List<String> orders = const [],
   bool canEditOrders = false,
   bool canRequestOrderTransfer = false,
+  bool canManageOrderTracking = false,
+  String orderTrackingStatus = 'FOLLOWING',
   String? orderEditBlockedReason,
   String? orderTransferRequestBlockedReason,
   String? pendingRequestId,
@@ -180,6 +354,8 @@ MapPaymentTransaction _transaction({
     'orders': orders,
     'canEditOrders': canEditOrders,
     'canRequestOrderTransfer': canRequestOrderTransfer,
+    'canManageOrderTracking': canManageOrderTracking,
+    'orderTrackingStatus': orderTrackingStatus,
     if (orderEditBlockedReason != null)
       'orderEditBlockedReason': orderEditBlockedReason,
     if (orderTransferRequestBlockedReason != null)

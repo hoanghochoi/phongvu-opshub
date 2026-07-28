@@ -2,16 +2,29 @@
 
 ## Required Proof
 
-| Layer | Proof |
-| --- | --- |
-| Flutter | `flutter analyze`, `flutter test` |
-| NestJS | `npx prisma validate`, `npx prisma generate`, focused MAP Jest tests, `npm run build` |
-| Go realtime | Not affected |
-| Integration | Statement service behavior plus controller headers and streamed XLSX bytes |
-| Platform | Production API health, authenticated XLSX download/parse, eFAST scheduler counters, and post-remap database counts |
-| Release | `git diff --check` and exact diff review before handoff |
+| Layer       | Proof                                                                                                              |
+| ----------- | ------------------------------------------------------------------------------------------------------------------ |
+| Flutter     | `flutter analyze`, `flutter test`                                                                                  |
+| NestJS      | `npx prisma validate`, `npx prisma generate`, focused MAP Jest tests, `npm run build`                              |
+| Go realtime | Not affected                                                                                                       |
+| Integration | Statement service behavior plus controller headers and streamed XLSX bytes                                         |
+| Platform    | Production API health, authenticated XLSX download/parse, eFAST scheduler counters, and post-remap database counts |
+| Release     | `git diff --check` and exact diff review before handoff                                                            |
 
 ## Evidence
+
+- 2026-07-28 OPS-36 local proof: the order editor is consolidated on the
+  existing Sao kê/Tiền vào UI; backend mutations verify every old/new lifecycle
+  through ERP, apply same-day and optimistic-concurrency guards, block
+  `UNFOLLOWED` before lookup on both endpoints, auto-approve compatibility
+  requests, and publish an `APPROVED` realtime invalidation without a new
+  pending notification. Tracking propagates through filter/Home/XLSX/BigQuery.
+  Focused MAP passed `140/140`; full Nest passed `90 suites / 918 tests`; Nest
+  build and Prisma validate/generate passed. Focused Flutter passed `119/119`;
+  full Flutter passed `635` with `3` skips; Flutter analyze reported no issues.
+  BigQuery DDL tests passed `3/3`. Disposable PostgreSQL verified a 5,000-row
+  idempotent v2 backfill, observed write-lock behavior, revision/dedupe/
+  tombstone semantics, tracking rollback and layered rollback in `977 ms`.
 
 - 2026-07-22 OPS-12 local implementation: MAP and eFAST now retain their
   provider identifiers together in `rawData.providerIdentifiers`; `efastTrxId`
@@ -109,7 +122,7 @@
 - 2026-07-17: income-type classifier tests cover the supplied BC, So GD goc,
   ShopeePay, Nhat Tin, GHTK, VNPAY and sales `CT DEN` examples. Focused MAP and
   income-type Jest passed; XLSX export tests verify `Loại giao dịch`, `Tài khoản
-  nhận`, long identifiers and Vietnam-local timestamps. Flutter provider/screen
+nhận`, long identifiers and Vietnam-local timestamps. Flutter provider/screen
   tests verify model parsing and mobile filter collapse after search; Flutter
   analyze passed after removing compatibility deprecation notices.
 - 2026-05-29: `npx prisma validate` passed.

@@ -27,6 +27,8 @@ void main() {
       expect(transaction.payerAccount, '9704361234567890');
       expect(transaction.payerLabel, 'NGUYEN VAN A • 9704361234567890');
       expect(transaction.firstSeenAt, DateTime.utc(2026, 5, 21, 2, 15, 35));
+      expect(transaction.orderTrackingStatus, 'FOLLOWING');
+      expect(transaction.isFollowing, isTrue);
       expect(transaction.isValidIncoming, isTrue);
     });
 
@@ -77,6 +79,12 @@ void main() {
         'orderSource': 'OFFSET',
         'orderUpdatedAt': '2026-05-21T03:00:00.000Z',
         'orderUpdatedByEmail': 'acc@example.com',
+        'orderTrackingStatus': 'UNFOLLOWED',
+        'orderTrackingUpdatedAt': '2026-05-21T03:05:00.000Z',
+        'orderTrackingUpdatedByEmail': 'manager@example.com',
+        'canManageOrderTracking': true,
+        'orderTrackingActionBlockedReason':
+            'Giao dịch đang có yêu cầu chờ xử lý.',
         'canEditOrders': false,
         'orderEditBlockedReason': 'Giao dịch đang chờ Kế toán xác nhận.',
         'canRequestOrderTransfer': false,
@@ -95,6 +103,18 @@ void main() {
       expect(transaction.orderSource, 'OFFSET');
       expect(transaction.orderUpdatedAt, DateTime.utc(2026, 5, 21, 3));
       expect(transaction.orderUpdatedByEmail, 'acc@example.com');
+      expect(transaction.orderTrackingStatus, 'UNFOLLOWED');
+      expect(transaction.isFollowing, isFalse);
+      expect(
+        transaction.orderTrackingUpdatedAt,
+        DateTime.utc(2026, 5, 21, 3, 5),
+      );
+      expect(transaction.orderTrackingUpdatedByEmail, 'manager@example.com');
+      expect(transaction.canManageOrderTracking, isTrue);
+      expect(
+        transaction.orderTrackingActionBlockedReason,
+        'Giao dịch đang có yêu cầu chờ xử lý.',
+      );
       expect(transaction.canEditOrders, isFalse);
       expect(
         transaction.orderEditBlockedReason,

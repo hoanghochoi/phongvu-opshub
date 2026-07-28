@@ -21,6 +21,7 @@ export type MapVietinBigQueryRow = {
   amount: number;
   orders: string[];
   order_source: string | null;
+  order_tracking_status: string;
   status: string | null;
   paid_at: Date | null;
   income_type: string;

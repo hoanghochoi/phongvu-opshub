@@ -213,14 +213,21 @@ class _PaymentMonitorScreenState extends State<PaymentMonitorScreen> {
                               rowMessage: monitor.rowMessages[transaction.id],
                               canReviewTransfer:
                                   monitor.canReviewOrderTransfers,
+                              busy:
+                                  monitor.isUpdatingOrders(transaction.id) ||
+                                  monitor.isUpdatingOrderTracking(
+                                    transaction.id,
+                                  ),
                               onSaveOrders: (rawInput) => context
                                   .read<PaymentMonitorProvider>()
                                   .updateOrders(transaction.id, rawInput),
-                              onRequestTransfer: (rawInput) => context
+                              onToggleTracking: () => context
                                   .read<PaymentMonitorProvider>()
-                                  .requestOrderTransfer(
+                                  .updateOrderTracking(
                                     transaction.id,
-                                    rawInput,
+                                    transaction.isFollowing
+                                        ? 'UNFOLLOWED'
+                                        : 'FOLLOWING',
                                   ),
                               onApproveTransfer: (requestId) => context
                                   .read<PaymentMonitorProvider>()

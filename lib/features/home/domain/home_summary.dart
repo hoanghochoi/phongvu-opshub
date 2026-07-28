@@ -88,6 +88,8 @@ class HomeSummary {
   final bool financeAvailable;
   final int totalTransferredAmount;
   final int totalStatements;
+  final int totalStatementsTracked;
+  final int totalStatementsUnfollowed;
   final int totalStatementsWithOrder;
   final int totalStatementsWithoutOrder;
   final double statementOrderRate;
@@ -142,6 +144,8 @@ class HomeSummary {
     this.financeAvailable = false,
     this.totalTransferredAmount = 0,
     this.totalStatements = 0,
+    this.totalStatementsTracked = 0,
+    this.totalStatementsUnfollowed = 0,
     this.totalStatementsWithOrder = 0,
     this.totalStatementsWithoutOrder = 0,
     this.statementOrderRate = 0,
@@ -210,6 +214,8 @@ class HomeSummary {
       financeAvailable: json['financeAvailable'] == true,
       totalTransferredAmount: _intOf(json['totalTransferredAmount']),
       totalStatements: _intOf(json['totalStatements']),
+      totalStatementsTracked: _intOf(json['totalStatementsTracked']),
+      totalStatementsUnfollowed: _intOf(json['totalStatementsUnfollowed']),
       totalStatementsWithOrder: _intOf(json['totalStatementsWithOrder']),
       totalStatementsWithoutOrder: _intOf(json['totalStatementsWithoutOrder']),
       statementOrderRate: _coverageOf(json['statementOrderRate']),
@@ -269,6 +275,8 @@ class HomeSummary {
       accessoriesQuantity > 0 ||
       totalTransferredAmount > 0 ||
       totalStatements > 0 ||
+      totalStatementsTracked > 0 ||
+      totalStatementsUnfollowed > 0 ||
       totalStatementsWithOrder > 0 ||
       totalStatementsWithoutOrder > 0 ||
       personalSalesProgress.isApplicable ||

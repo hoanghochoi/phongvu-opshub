@@ -33,6 +33,7 @@ const List<AppComboboxOption<String>> _orderStatusOptions = [
   AppComboboxOption(value: 'MISSING_ORDER', label: 'Chưa có đơn hàng'),
   AppComboboxOption(value: 'OFFSET_CONFIRMED', label: 'Giao dịch cấn trừ'),
   AppComboboxOption(value: 'OFFSET_PENDING', label: 'Chờ xác nhận'),
+  AppComboboxOption(value: 'UNFOLLOWED', label: 'Đã bỏ theo dõi'),
 ];
 
 String _formatStatementDateTime(DateTime? value) {
@@ -1038,6 +1039,9 @@ class _StatementCardState extends State<_StatementCard> {
                   transaction: tx,
                   controller: _controller,
                   editing: _editing,
+                  busy:
+                      provider.isUpdatingOrders(tx.id) ||
+                      provider.isUpdatingOrderTracking(tx.id),
                   canReviewTransfer: provider.canReviewOrderTransfers,
                   onEdit: () => setState(() => _editing = true),
                   onCancel: () {
@@ -1051,8 +1055,12 @@ class _StatementCardState extends State<_StatementCard> {
                     );
                     if (mounted && saved) setState(() => _editing = false);
                   },
-                  onRequestTransfer: () =>
-                      _showOrderTransferRequestDialog(context, provider, tx),
+                  onToggleTracking: () => unawaited(
+                    provider.updateOrderTracking(
+                      tx.id,
+                      tx.isFollowing ? 'UNFOLLOWED' : 'FOLLOWING',
+                    ),
+                  ),
                   onReviewTransfer: () =>
                       _showOrderTransferReviewDialog(context, provider, tx),
                   onHistory: () => _showHistory(context, provider, tx),
@@ -1116,6 +1124,9 @@ class _StatementCardState extends State<_StatementCard> {
                       transaction: tx,
                       controller: _controller,
                       editing: _editing,
+                      busy:
+                          provider.isUpdatingOrders(tx.id) ||
+                          provider.isUpdatingOrderTracking(tx.id),
                       canReviewTransfer: provider.canReviewOrderTransfers,
                       onEdit: () => setState(() => _editing = true),
                       onCancel: () {
@@ -1131,10 +1142,11 @@ class _StatementCardState extends State<_StatementCard> {
                           setState(() => _editing = false);
                         }
                       },
-                      onRequestTransfer: () => _showOrderTransferRequestDialog(
-                        context,
-                        provider,
-                        tx,
+                      onToggleTracking: () => unawaited(
+                        provider.updateOrderTracking(
+                          tx.id,
+                          tx.isFollowing ? 'UNFOLLOWED' : 'FOLLOWING',
+                        ),
                       ),
                       onReviewTransfer: () =>
                           _showOrderTransferReviewDialog(context, provider, tx),
@@ -1235,81 +1247,6 @@ class _StatementCardState extends State<_StatementCard> {
   }
 
   String _ordersText(List<String> orders) => statementOrdersText(orders);
-
-  Future<void> _showOrderTransferRequestDialog(
-    BuildContext context,
-    BankStatementProvider provider,
-    BankStatementTransaction transaction,
-  ) async {
-    final requestController = TextEditingController(
-      text: transaction.orderTransferRequestedOrders.isNotEmpty
-          ? _ordersEditText(transaction.orderTransferRequestedOrders)
-          : _ordersEditText(transaction.orders),
-    );
-    try {
-      await showDialog<void>(
-        context: context,
-        builder: (dialogContext) {
-          var saving = false;
-          return AppDirtyFormGuard(
-            source: 'bank_statement.order_transfer_request',
-            child: StatefulBuilder(
-              builder: (context, setDialogState) {
-                return AlertDialog(
-                  title: const Text('Cập nhật mã đơn'),
-                  content: SizedBox(
-                    width: MediaQuery.of(context).size.width < 560
-                        ? double.maxFinite
-                        : 420,
-                    child: AppTextInput(
-                      controller: requestController,
-                      label: 'Mã đơn hàng mới',
-                      hintText: 'Nhập mỗi mã một dòng, hoặc cách bằng dấu phẩy',
-                      autofocus: true,
-                      keyboardType: TextInputType.multiline,
-                      textInputAction: TextInputAction.newline,
-                      minLines: 3,
-                      maxLines: 6,
-                    ),
-                  ),
-                  actions: [
-                    AppDialogCancelButton(
-                      onPressed: saving
-                          ? null
-                          : () => Navigator.of(dialogContext).pop(),
-                    ),
-                    AppDialogConfirmButton(
-                      onPressed: saving
-                          ? null
-                          : () async {
-                              setDialogState(() => saving = true);
-                              final ok = await provider.requestOrderTransfer(
-                                transaction.id,
-                                requestController.text,
-                              );
-                              if (ok && dialogContext.mounted) {
-                                await _reloadGlobalNotifications();
-                                if (!dialogContext.mounted) return;
-                                Navigator.of(dialogContext).pop(true);
-                              } else if (dialogContext.mounted) {
-                                setDialogState(() => saving = false);
-                              }
-                            },
-                      icon: Icons.send_rounded,
-                      label: 'Gửi Kế toán',
-                      isLoading: saving,
-                    ),
-                  ],
-                );
-              },
-            ),
-          );
-        },
-      );
-    } finally {
-      requestController.dispose();
-    }
-  }
 
   Future<void> _showOrderTransferReviewDialog(
     BuildContext context,
@@ -1653,11 +1590,12 @@ class _OrderEditor extends StatelessWidget {
   final BankStatementTransaction transaction;
   final TextEditingController controller;
   final bool editing;
+  final bool busy;
   final bool canReviewTransfer;
   final VoidCallback onEdit;
   final VoidCallback onCancel;
   final Future<void> Function() onSave;
-  final VoidCallback onRequestTransfer;
+  final VoidCallback onToggleTracking;
   final VoidCallback onReviewTransfer;
   final VoidCallback onHistory;
 
@@ -1665,11 +1603,12 @@ class _OrderEditor extends StatelessWidget {
     required this.transaction,
     required this.controller,
     required this.editing,
+    required this.busy,
     required this.canReviewTransfer,
     required this.onEdit,
     required this.onCancel,
     required this.onSave,
-    required this.onRequestTransfer,
+    required this.onToggleTracking,
     required this.onReviewTransfer,
     required this.onHistory,
   });
@@ -1703,50 +1642,79 @@ class _OrderEditor extends StatelessWidget {
                     ],
                   ),
                 ),
-                IconButton(
-                  tooltip: transaction.canRequestOrderTransfer
-                      ? 'Cập nhật mã đơn'
-                      : transaction.orderTransferRequestBlockedReason ??
-                            'Không thể cập nhật mã đơn',
-                  onPressed: !editing && transaction.canRequestOrderTransfer
-                      ? onRequestTransfer
-                      : null,
-                  icon: const Icon(Icons.swap_horiz_rounded),
-                ),
+                if (transaction.canManageOrderTracking)
+                  IconButton(
+                    tooltip: transaction.isFollowing
+                        ? 'Bỏ theo dõi giao dịch'
+                        : 'Theo dõi lại giao dịch',
+                    onPressed:
+                        !editing &&
+                            !busy &&
+                            !transaction.hasPendingOrderTransferRequest
+                        ? onToggleTracking
+                        : null,
+                    icon: Icon(
+                      transaction.isFollowing
+                          ? Icons.visibility_off_outlined
+                          : Icons.visibility_outlined,
+                    ),
+                  ),
                 if (canReviewTransfer &&
                     transaction.hasPendingOrderTransferRequest)
                   IconButton(
                     tooltip: 'Phê duyệt cập nhật mã đơn',
-                    onPressed: !editing ? onReviewTransfer : null,
+                    onPressed: !editing && !busy ? onReviewTransfer : null,
                     icon: const Icon(Icons.fact_check_rounded),
                   ),
                 IconButton(
                   tooltip: 'Lịch sử chỉnh sửa',
-                  onPressed: onHistory,
+                  onPressed: busy ? null : onHistory,
                   icon: const Icon(Icons.history_rounded),
                 ),
                 IconButton(
-                  tooltip: editing
+                  tooltip: busy
+                      ? 'Đang kiểm tra trạng thái đơn hàng'
+                      : editing
                       ? 'Lưu mã đơn'
-                      : transaction.canEditOrders
-                      ? 'Sửa mã đơn'
+                      : transaction.canEditOrders && transaction.isFollowing
+                      ? 'Cập nhật mã đơn'
+                      : !transaction.isFollowing
+                      ? 'Giao dịch đang Bỏ theo dõi. Vui lòng Theo dõi lại trước khi cập nhật mã đơn.'
                       : transaction.orderEditBlockedReason ?? 'Không được sửa',
-                  onPressed: editing
+                  onPressed: busy
+                      ? null
+                      : editing
                       ? onSave
-                      : transaction.canEditOrders
+                      : transaction.canEditOrders && transaction.isFollowing
                       ? onEdit
                       : null,
-                  icon: Icon(
-                    editing ? Icons.check_rounded : Icons.edit_rounded,
-                  ),
+                  icon: busy
+                      ? const SizedBox.square(
+                          dimension: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : Icon(
+                          editing ? Icons.check_rounded : Icons.edit_rounded,
+                        ),
                 ),
                 if (editing)
                   IconButton(
                     tooltip: 'Hủy sửa',
-                    onPressed: onCancel,
+                    onPressed: busy ? null : onCancel,
                     icon: const Icon(Icons.close_rounded),
                   ),
               ],
+            ),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: AppStatusChip(
+                label: transaction.isFollowing
+                    ? 'Đang theo dõi'
+                    : 'Đã bỏ theo dõi',
+                color: transaction.isFollowing
+                    ? AppColors.info
+                    : AppColors.neutral500,
+              ),
             ),
             if (editing)
               AppTextInput(

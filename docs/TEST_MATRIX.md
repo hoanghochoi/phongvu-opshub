@@ -3,6 +3,20 @@
 This file maps product behavior to proof. Existing flows are marked
 `existing_unverified` until fresh validation evidence is attached.
 
+- `OPS-36`/`PAYMENT-STATEMENT-001`, 2026-07-28: Sao kê and Tiền vào use one
+existing-style order editor. Every new code is ERP-verified and active;
+existing codes may be replaced/cleared only on the same Vietnam day after all
+old codes are cancelled or fully returned. `UNFOLLOWED` blocks both PATCH and
+compatibility POST before ERP lookup. Compatibility POST auto-approves, emits
+an `APPROVED` realtime invalidation, and creates no new pending notification;
+legacy pending review remains. Tracking permissions/audit, filter, Home KPI,
+XLSX, and BigQuery consumers are covered. Proof: focused MAP `140/140`, full
+Nest `90 suites / 918 tests`, Nest build, Prisma validate/generate, focused
+Flutter `119/119`, full Flutter `635 passed / 3 skipped`, and Flutter analyze
+all passed. BigQuery DDL tests passed `3/3`; disposable PostgreSQL verified the
+5,000-row idempotent schema-v2 backfill, write-lock observation, revision,
+dedupe, tombstone, tracking rollback and layered rollback in `977 ms`.
+
 - `OPS-30`, 2026-07-27: file `Tải lịch sử chăm sóc` thêm cột `Doanh số` cạnh
   `Mã đơn mua` cho các lượt chăm sóc có kết quả `PURCHASED`, lấy nguyên
   `erpGrandTotal` đã lưu; các kết quả khác để trống. Regression export giữ
@@ -178,7 +192,7 @@ This file maps product behavior to proof. Existing flows are marked
   distribution remains unchanged: production/staging deploys still publish the
   Inno EXE, ZIP, checksum, `/download`, and Windows `/app-version` EXE update
   URL. Validation target: workflow syntax, PowerShell parser, `git diff
-  --check`, and an MSIX CI run that reaches Microsoft Defender scan plus
+--check`, and an MSIX CI run that reaches Microsoft Defender scan plus
   artifact upload.
 - `WINDOWS-DIST-001`, 2026-06-24: production setup `v2026.06.23.88+100088`
   was reproduced as `Trojan:Win32/Wacatac.B!ml` while its checksum-matched
@@ -261,7 +275,7 @@ Recent focused evidence:
   as the sole menu owner, and logs sanitized source/branch/length context
   without clipboard contents.
   Focused policy/guard/bootstrap proof passed 29 tests, `flutter analyze
-  --no-pub` was clean, and the release web build plus Wasm dry run succeeded.
+--no-pub` was clean, and the release web build plus Wasm dry run succeeded.
   Local Playwright iPhone-profile smoke on the final release build verified the
   first-focus touch/click passed, the focused native touch kept the same DOM
   input and transform without `preventDefault`, and paired paste/beforeinput
@@ -624,7 +638,7 @@ Recent focused evidence:
   classification only uppercases/removes whitespace, then matches the accepted
   `BC CN/CP/CTY/DKKD` prefixes, Nhat Tin, VNPAY TT 217344, ShopeePay MS/WSS
   withdrawal, GiaoHangTietKiem CoD, ZaloPay wallet settlement, `Dieu tien tu
-  dong`, the mapped store's `TNG<storeCode>NOPTIEN`, or a configured payer
+dong`, the mapped store's `TNG<storeCode>NOPTIEN`, or a configured payer
   account. Focused income-type/MAP Jest passed 138 tests, the full Nest
   regression passed 80 suites / 803 tests, and Nest build passed. Focused Bank
   Statement provider/screen tests passed 37 tests, Flutter analyze passed, and
@@ -1059,7 +1073,7 @@ test\sales_report_hub_test.dart` (19 tests), `flutter analyze --no-pub`, và
   vào SPOS thanh toán lại hoặc hủy đơn, đồng thời đưa phần thân modal về đầu.
   Backend submit cũng re-check và từ chối tạo bản ghi nếu client bỏ qua chốt UI.
   Validation: focused widget test `Báo cáo blocks unpaid order submission and
-  returns modal to top`, focused Nest test, `flutter analyze --no-pub`,
+returns modal to top`, focused Nest test, `flutter analyze --no-pub`,
   `npm run build`, và `git diff --check`.
 - `HOME-DASHBOARD-002`, 2026-07-05: Home tách KPI thành `Bán hàng` và
   `Tài chính` dùng chung ngày/scope. Bán hàng bỏ `Tổng số báo cáo hợp lệ`, đổi
@@ -3421,16 +3435,16 @@ src/map-vietin/map-vietin.service.spec.ts` (26 tests), `npm run build`, full
 
 # Chăm sóc lại
 
-| Luồng                                  | Proof tự động                                                                                              | Proof staging/manual                                                    |
-| -------------------------------------- | ---------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
-| Grace 14 ngày hiển thị toàn bộ hồ sơ đúng scope | `sales-report-follow-ups.service.spec.ts`, `not_purchased_customers_test.dart` | Xác nhận mốc UTC được ghi một lần lúc deploy và không đổi sau restart/redeploy |
-| Sau grace chỉ hiện hồ sơ có liên hệ hợp lệ | `sales-report-follow-ups.service.spec.ts`, `not_purchased_customers_test.dart` | Đối chiếu số 10 chữ số bắt đầu bằng `0`, các mã `PHONE`/`ZALO_PERSONAL`/`ZALO_OA` và dữ liệu rác đã được migration đưa về `null` sau mốc kết thúc |
-| Scope và phân công cùng showroom       | NestJS service/controller guard test + build; `SUPER_ADMIN` không có showroom vẫn nhận scope toàn hệ thống | Đăng nhập Super Admin không gán showroom, Store Manager và quản lý node |
-| Chăm sóc chưa mua/terminal/mở lại      | Flutter widget + API service test                                                                          | Thử đồng thời hai thiết bị và kiểm tra conflict                         |
-| Comeback mua hàng                      | sales report service test + Flutter form test                                                              | Kiểm tra ERP `order.creator.email`, báo cáo gốc và báo cáo mua liên kết |
-| Realtime                               | provider/channel test                                                                                      | Mở hai client và xác nhận danh sách tự tải lại                          |
-| Nhập Excel dữ liệu lịch sử             | `sales-report-import-parser.service.spec.ts`, `sales-report-import.service.spec.ts`, `not_purchased_customers_test.dart` | Chạy migration, nhập file thật có ≤1.000 dòng; đối chiếu thống kê, scope SR, hồ sơ chưa phân công và thử nhập lại cùng file |
-| Lọc ngày và tải XLSX lịch sử           | `sales-report-follow-ups.service.spec.ts`, `sales-report-follow-ups.controller.spec.ts`, `not_purchased_customers_test.dart`, `app_date_range_dropdown_test.dart` | Đăng nhập Store/Area/Region Manager và Super Admin; đối chiếu file thật theo keyword/showroom, biên ngày Việt Nam và xác nhận nhân viên không thấy nút |
+| Luồng                                           | Proof tự động                                                                                                                                                     | Proof staging/manual                                                                                                                                   |
+| ----------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Grace 14 ngày hiển thị toàn bộ hồ sơ đúng scope | `sales-report-follow-ups.service.spec.ts`, `not_purchased_customers_test.dart`                                                                                    | Xác nhận mốc UTC được ghi một lần lúc deploy và không đổi sau restart/redeploy                                                                         |
+| Sau grace chỉ hiện hồ sơ có liên hệ hợp lệ      | `sales-report-follow-ups.service.spec.ts`, `not_purchased_customers_test.dart`                                                                                    | Đối chiếu số 10 chữ số bắt đầu bằng `0`, các mã `PHONE`/`ZALO_PERSONAL`/`ZALO_OA` và dữ liệu rác đã được migration đưa về `null` sau mốc kết thúc      |
+| Scope và phân công cùng showroom                | NestJS service/controller guard test + build; `SUPER_ADMIN` không có showroom vẫn nhận scope toàn hệ thống                                                        | Đăng nhập Super Admin không gán showroom, Store Manager và quản lý node                                                                                |
+| Chăm sóc chưa mua/terminal/mở lại               | Flutter widget + API service test                                                                                                                                 | Thử đồng thời hai thiết bị và kiểm tra conflict                                                                                                        |
+| Comeback mua hàng                               | sales report service test + Flutter form test                                                                                                                     | Kiểm tra ERP `order.creator.email`, báo cáo gốc và báo cáo mua liên kết                                                                                |
+| Realtime                                        | provider/channel test                                                                                                                                             | Mở hai client và xác nhận danh sách tự tải lại                                                                                                         |
+| Nhập Excel dữ liệu lịch sử                      | `sales-report-import-parser.service.spec.ts`, `sales-report-import.service.spec.ts`, `not_purchased_customers_test.dart`                                          | Chạy migration, nhập file thật có ≤1.000 dòng; đối chiếu thống kê, scope SR, hồ sơ chưa phân công và thử nhập lại cùng file                            |
+| Lọc ngày và tải XLSX lịch sử                    | `sales-report-follow-ups.service.spec.ts`, `sales-report-follow-ups.controller.spec.ts`, `not_purchased_customers_test.dart`, `app_date_range_dropdown_test.dart` | Đăng nhập Store/Area/Region Manager và Super Admin; đối chiếu file thật theo keyword/showroom, biên ngày Việt Nam và xác nhận nhân viên không thấy nút |
 
 ## AuthContext atomic-version proof
 

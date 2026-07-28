@@ -1,6 +1,7 @@
 import { Type } from 'class-transformer';
 import {
   IsArray,
+  ArrayMaxSize,
   IsIn,
   IsInt,
   IsOptional,
@@ -174,6 +175,7 @@ export class ListMapVietinStatementsDto {
     'MISSING_ORDER',
     'OFFSET_PENDING',
     'OFFSET_CONFIRMED',
+    'UNFOLLOWED',
   ])
   orderStatus?: string;
 
@@ -211,6 +213,7 @@ export class ExportMapVietinStatementsDto extends ListMapVietinStatementsDto {
 
 export class UpdateMapVietinStatementOrdersDto {
   @IsArray()
+  @ArrayMaxSize(20)
   @IsString({ each: true })
   @MaxLength(80, { each: true })
   orders!: string[];
@@ -247,6 +250,12 @@ export class UpdateMapVietinStatementIncomeTypeDto {
   incomeType!: string;
 }
 
+export class UpdateMapVietinStatementOrderTrackingDto {
+  @IsString()
+  @IsIn(['FOLLOWING', 'UNFOLLOWED'])
+  status!: string;
+}
+
 export class CreateMapVietinStatementOrderTransferRequestDto {
   @IsOptional()
   @IsString()
@@ -254,6 +263,7 @@ export class CreateMapVietinStatementOrderTransferRequestDto {
   transactionKey?: string;
 
   @IsArray()
+  @ArrayMaxSize(20)
   @IsString({ each: true })
   @MaxLength(80, { each: true })
   orders!: string[];

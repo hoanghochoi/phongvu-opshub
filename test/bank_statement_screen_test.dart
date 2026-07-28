@@ -88,11 +88,132 @@ void main() {
     expect(find.text('Đã cấn trừ'), findsOneWidget);
     expect(find.text('Đối tác/Nội bộ'), findsOneWidget);
     expect(find.byTooltip('Giao dịch đang chờ Kế toán xác nhận'), findsWidgets);
+    expect(find.byTooltip('Cập nhật mã đơn'), findsOneWidget);
+    expect(find.byIcon(Icons.swap_horiz_rounded), findsNothing);
+    expect(find.byTooltip('Phê duyệt cập nhật mã đơn'), findsOneWidget);
+    expect(find.text('Đang theo dõi'), findsNWidgets(2));
 
     expect(provider.pendingOrderTransferTotal, 1);
     expect(appNotificationsProvider.totalCount, 1);
 
     appNotificationsProvider.dispose();
+  });
+
+  testWidgets('toggles statement tracking in the current order card', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(1200, 900));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    final repository = _WidgetBankStatementRepository();
+    final provider = BankStatementProvider(
+      repository,
+      notificationReadStore: _FakeNotificationReadStore(),
+    );
+    addTearDown(provider.dispose);
+    await provider.initialize(_accUser);
+    provider.setOrder('26062512345678');
+    await provider.search();
+
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider<AuthProvider>.value(
+            value: _FakeAuthProvider(_accUser),
+          ),
+          ChangeNotifierProvider<BankStatementProvider>.value(value: provider),
+        ],
+        child: const MaterialApp(home: BankStatementScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    var card = find.byKey(const ValueKey('tx-offset'));
+    await tester.tap(
+      find.descendant(
+        of: card,
+        matching: find.byTooltip('Bỏ theo dõi giao dịch'),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(repository.updateOrderTrackingCount, 1);
+    expect(repository.lastUpdatedOrderTrackingStatus, 'UNFOLLOWED');
+    card = find.byKey(const ValueKey('tx-offset'));
+    expect(
+      find.descendant(of: card, matching: find.text('Đã bỏ theo dõi')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: card,
+        matching: find.byTooltip('Theo dõi lại giao dịch'),
+      ),
+      findsOneWidget,
+    );
+    final blockedOrderButton = tester.widget<IconButton>(
+      find.ancestor(
+        of: find.descendant(
+          of: card,
+          matching: find.byTooltip(
+            'Giao dịch đang Bỏ theo dõi. Vui lòng Theo dõi lại trước khi cập nhật mã đơn.',
+          ),
+        ),
+        matching: find.byType(IconButton),
+      ),
+    );
+    expect(blockedOrderButton.onPressed, isNull);
+    await tester.pump(const Duration(seconds: 4));
+  });
+
+  testWidgets('keeps legacy pending review and blocks tracking action', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(1200, 900));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    final repository = _WidgetBankStatementRepository();
+    final provider = BankStatementProvider(
+      repository,
+      notificationReadStore: _FakeNotificationReadStore(),
+    );
+    addTearDown(provider.dispose);
+    await provider.initialize(_accUser);
+    provider.setOrder('26062512345678');
+    await provider.search();
+
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider<AuthProvider>.value(
+            value: _FakeAuthProvider(_accUser),
+          ),
+          ChangeNotifierProvider<BankStatementProvider>.value(value: provider),
+        ],
+        child: const MaterialApp(home: BankStatementScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final card = find.byKey(const ValueKey('tx-pending'));
+    final trackingButton = tester.widget<IconButton>(
+      find.descendant(
+        of: card,
+        matching: find.widgetWithIcon(
+          IconButton,
+          Icons.visibility_off_outlined,
+        ),
+      ),
+    );
+    final reviewButton = tester.widget<IconButton>(
+      find.descendant(
+        of: card,
+        matching: find.widgetWithIcon(IconButton, Icons.fact_check_rounded),
+      ),
+    );
+
+    expect(trackingButton.onPressed, isNull);
+    expect(reviewButton.onPressed, isNotNull);
   });
 
   testWidgets('opens with missing-order filter from Home shortcut', (
@@ -345,7 +466,7 @@ void main() {
 
     final card = find.byKey(const ValueKey('tx-offset'));
     await tester.tap(
-      find.descendant(of: card, matching: find.byTooltip('Sửa mã đơn')),
+      find.descendant(of: card, matching: find.byTooltip('Cập nhật mã đơn')),
     );
     await tester.pump();
     final input = find.descendant(of: card, matching: find.byType(TextField));
@@ -395,7 +516,7 @@ void main() {
 
     var card = find.byKey(const ValueKey('tx-offset'));
     await tester.tap(
-      find.descendant(of: card, matching: find.byTooltip('Sửa mã đơn')),
+      find.descendant(of: card, matching: find.byTooltip('Cập nhật mã đơn')),
     );
     await tester.pump();
     await tester.enterText(
@@ -475,7 +596,9 @@ class _WidgetBankStatementRepository extends BankStatementRepository {
 
   int fetchStatementsCount = 0;
   int updateIncomeTypeCount = 0;
+  int updateOrderTrackingCount = 0;
   String? lastUpdatedIncomeType;
+  String? lastUpdatedOrderTrackingStatus;
   BankStatementQuery? lastQuery;
   List<BankStatementTransaction> rows = [
     _pendingTransaction,
@@ -570,6 +693,39 @@ class _WidgetBankStatementRepository extends BankStatementRepository {
   }
 
   @override
+  Future<BankStatementTransaction> updateOrderTracking(
+    String transactionId,
+    String status,
+  ) async {
+    updateOrderTrackingCount += 1;
+    lastUpdatedOrderTrackingStatus = status;
+    final index = rows.indexWhere((row) => row.id == transactionId);
+    if (index < 0) throw StateError('Missing fake transaction $transactionId');
+    final current = rows[index];
+    final updated = _transaction(
+      id: current.id,
+      orders: current.orders,
+      transactionReference: current.transactionReference,
+      orderSource: current.orderSource,
+      canEditOrders: status == 'FOLLOWING',
+      orderEditBlockedReason: status == 'FOLLOWING'
+          ? null
+          : 'Giao dịch đang Bỏ theo dõi. Vui lòng Theo dõi lại trước khi cập nhật mã đơn.',
+      canRequestOrderTransfer: status == 'FOLLOWING',
+      orderTransferRequestBlockedReason: status == 'FOLLOWING'
+          ? null
+          : 'Giao dịch đang Bỏ theo dõi. Vui lòng Theo dõi lại trước khi cập nhật mã đơn.',
+      isOrderOffsetConfirmed: current.isOrderOffsetConfirmed,
+      incomeType: current.incomeType,
+      canEditIncomeType: current.canEditIncomeType,
+      orderTrackingStatus: status,
+      canManageOrderTracking: current.canManageOrderTracking,
+    );
+    rows[index] = updated;
+    return updated;
+  }
+
+  @override
   Future<List<BankStatementOrderHistoryEntry>> fetchOrderHistory(
     String transactionId,
   ) async {
@@ -641,6 +797,8 @@ final _pendingTransaction = _transaction(
   orderEditBlockedReason: 'Giao dịch đang chờ Kế toán xác nhận',
   canRequestOrderTransfer: false,
   orderTransferRequestBlockedReason: 'Giao dịch đang chờ Kế toán xác nhận',
+  canManageOrderTracking: true,
+  orderTrackingActionBlockedReason: 'Giao dịch đang có yêu cầu chờ xử lý.',
 );
 
 final _offsetTransaction = _transaction(
@@ -649,6 +807,7 @@ final _offsetTransaction = _transaction(
   orderSource: 'OFFSET',
   isOrderOffsetConfirmed: true,
   incomeType: 'PARTNER_INTERNAL',
+  canManageOrderTracking: true,
 );
 
 BankStatementTransaction _transaction({
@@ -670,6 +829,9 @@ BankStatementTransaction _transaction({
   bool isOrderOffsetConfirmed = false,
   String incomeType = 'SALES',
   bool canEditIncomeType = false,
+  String orderTrackingStatus = 'FOLLOWING',
+  bool canManageOrderTracking = false,
+  String? orderTrackingActionBlockedReason,
 }) {
   return BankStatementTransaction(
     id: id,
@@ -683,6 +845,9 @@ BankStatementTransaction _transaction({
     orderSource: orderSource ?? (orders.isEmpty ? null : 'AUTO'),
     orderUpdatedAt: null,
     orderUpdatedByEmail: null,
+    orderTrackingStatus: orderTrackingStatus,
+    canManageOrderTracking: canManageOrderTracking,
+    orderTrackingActionBlockedReason: orderTrackingActionBlockedReason,
     status: '00',
     paidAt: DateTime.utc(2026, 6, 25, 2),
     firstSeenAt: DateTime.utc(2026, 6, 25, 2, 0, 5),

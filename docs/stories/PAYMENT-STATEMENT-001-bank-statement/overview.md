@@ -66,3 +66,17 @@ after a successful search.
 None for V1. Accepted assumptions: national scope can search all/multiple SR;
 showroom-scoped users search only their own SR; region/multi-store mapping is a
 future phase; no selected rows means export the full filtered result.
+
+## OPS-36 ERP Order Update And Tracking
+
+`Sao kê` and `Tiền vào` now share one existing-style `Cập nhật mã đơn` action.
+New order codes are verified through ERP and must be active; replacing or
+clearing existing codes is same-Vietnam-day only and requires every old code to
+be `CANCELLED` or `RETURNED_FULL`. New compatibility requests are auto-approved
+through ERP, while legacy pending requests retain their review lifecycle.
+
+Statements also persist `FOLLOWING`/`UNFOLLOWED` with actor/time metadata and a
+dedicated audit. ACC, FIN_ACC, and Super Admin may toggle tracking within their
+showroom scope after pending requests are cleared. Filter, Home KPI, XLSX, and
+BigQuery consumers use the shared tracking contract; total statement count and
+amount remain inclusive, while order coverage counts only followed statements.

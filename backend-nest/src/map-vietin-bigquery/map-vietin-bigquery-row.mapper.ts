@@ -5,6 +5,10 @@ import { ClaimedMapVietinBigQueryEvent } from './map-vietin-bigquery.types';
 export class MapVietinBigQueryRowMapper {
   toRow(event: ClaimedMapVietinBigQueryEvent, now = new Date()) {
     const payload = this.record(event.payload);
+    const orderTrackingStatus = this.orderTrackingStatus(
+      payload.order_tracking_status,
+      event.schemaVersion,
+    );
     const transactionId = this.requiredString(
       payload.transaction_id,
       'transaction_id',
@@ -27,6 +31,7 @@ export class MapVietinBigQueryRowMapper {
       amount: this.requiredInteger(payload.amount, 'amount'),
       orders: this.stringArray(payload.orders, 'orders'),
       order_source: this.optionalString(payload.order_source),
+      order_tracking_status: orderTrackingStatus,
       status: this.optionalString(payload.status),
       paid_at: this.optionalTimestamp(payload.paid_at, 'paid_at'),
       income_type: this.requiredString(payload.income_type, 'income_type'),
@@ -66,6 +71,15 @@ export class MapVietinBigQueryRowMapper {
     if (value === null || value === undefined) return null;
     const normalized = String(value).trim();
     return normalized || null;
+  }
+
+  private orderTrackingStatus(value: unknown, schemaVersion: number) {
+    const normalized = this.optionalString(value)?.toUpperCase() || null;
+    if (schemaVersion < 2 && normalized === null) return 'FOLLOWING';
+    if (normalized !== 'FOLLOWING' && normalized !== 'UNFOLLOWED') {
+      throw new Error('Invalid order_tracking_status');
+    }
+    return normalized;
   }
 
   private requiredIntegerString(value: unknown, field: string) {

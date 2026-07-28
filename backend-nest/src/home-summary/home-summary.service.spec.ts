@@ -168,8 +168,10 @@ describe('HomeSummaryService', () => {
       mapVietinTransaction: {
         count: jest
           .fn()
-          .mockResolvedValueOnce(4)
+          .mockResolvedValueOnce(5)
           .mockResolvedValueOnce(3)
+          .mockResolvedValueOnce(2)
+          .mockResolvedValueOnce(2)
           .mockResolvedValueOnce(1),
         aggregate: jest.fn().mockResolvedValue({
           _sum: { amount: 42000000 },
@@ -620,10 +622,12 @@ describe('HomeSummaryService', () => {
       salesAvailable: true,
       financeAvailable: true,
       totalTransferredAmount: 42000000,
-      totalStatements: 4,
-      totalStatementsWithOrder: 3,
+      totalStatements: 5,
+      totalStatementsTracked: 3,
+      totalStatementsUnfollowed: 2,
+      totalStatementsWithOrder: 2,
       totalStatementsWithoutOrder: 1,
-      statementOrderRate: 75,
+      statementOrderRate: 66.67,
     });
 
     expect(salesReports.describeHomeSummaryScope).toHaveBeenCalledWith(
@@ -676,6 +680,29 @@ describe('HomeSummaryService', () => {
         }),
       }),
     );
+    const financeCountWheres = prisma.mapVietinTransaction.count.mock.calls.map(
+      ([args]: any[]) => JSON.stringify(args.where),
+    );
+    expect(financeCountWheres[0]).not.toContain('orderTrackingStatus');
+    expect(financeCountWheres.slice(1)).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining('"orderTrackingStatus":"FOLLOWING"'),
+        expect.stringContaining('"orderTrackingStatus":"UNFOLLOWED"'),
+      ]),
+    );
+    expect(financeCountWheres.slice(3)).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining('"isEmpty":false'),
+        expect.stringContaining('"isEmpty":true'),
+      ]),
+    );
+    expect(
+      financeCountWheres
+        .slice(3)
+        .every((where: string) =>
+          where.includes('"orderTrackingStatus":"FOLLOWING"'),
+        ),
+    ).toBe(true);
   });
 
   it('keeps pending-payment cache rows for reporting but excludes them from sales KPIs', async () => {

@@ -7,6 +7,7 @@
   OnModuleDestroy,
   OnModuleInit,
   Optional,
+  ServiceUnavailableException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
@@ -37,6 +38,10 @@ import {
 } from '../common/bounded-http-response';
 import { buildRealtimeRedisEnvelope } from '../common/realtime-event';
 import { withPostgresDeadlockRetry } from '../common/postgres-deadlock-retry';
+import {
+  SalesReportErpService,
+  type SalesReportErpLifecycleStatus,
+} from '../sales-reports/sales-report-erp.service';
 import * as XLSX from 'xlsx';
 import {
   CreateMapVietinStatementOrderTransferRequestDto,
@@ -47,6 +52,7 @@ import {
   ReviewMapVietinStatementOrderTransferRequestDto,
   SearchMapVietinTransactionsDto,
   UpdateMapVietinStatementIncomeTypeDto,
+  UpdateMapVietinStatementOrderTrackingDto,
   UpdateMapVietinStatementOrdersDto,
 } from './map-vietin.dto';
 import {
@@ -108,6 +114,8 @@ const VIETNAM_UTC_OFFSET_HOURS = 7;
 const ORDER_SOURCE_AUTO = 'AUTO';
 const ORDER_SOURCE_MANUAL = 'MANUAL';
 const ORDER_SOURCE_OFFSET = 'OFFSET';
+const ORDER_SOURCE_ERP_REPLACEMENT = 'ERP_REPLACEMENT';
+const ORDER_RESOLUTION_SOURCE_ERP = 'ERP';
 const INCOME_TYPE_SOURCE_AUTO = 'AUTO';
 const INCOME_TYPE_SOURCE_MANUAL = 'MANUAL';
 const FIN_ACC_DEPARTMENT_CODE = 'FIN_ACC';
@@ -122,6 +130,9 @@ const STATEMENT_ORDER_STATUS_HAS_ORDER = 'HAS_ORDER';
 const STATEMENT_ORDER_STATUS_MISSING_ORDER = 'MISSING_ORDER';
 const STATEMENT_ORDER_STATUS_OFFSET_PENDING = 'OFFSET_PENDING';
 const STATEMENT_ORDER_STATUS_OFFSET_CONFIRMED = 'OFFSET_CONFIRMED';
+const STATEMENT_ORDER_STATUS_UNFOLLOWED = 'UNFOLLOWED';
+const ORDER_TRACKING_STATUS_FOLLOWING = 'FOLLOWING';
+const ORDER_TRACKING_STATUS_UNFOLLOWED = 'UNFOLLOWED';
 const STATEMENT_EXPORT_MAX_DATE_SPAN_DAYS = 31;
 const STATEMENT_ORDER_TRANSFER_REQUEST_STATUS_PENDING = 'PENDING';
 const STATEMENT_ORDER_TRANSFER_REQUEST_STATUS_APPROVED = 'APPROVED';
@@ -381,6 +392,8 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
     private redisService?: RedisService,
     @Optional()
     private notificationsService?: NotificationsService,
+    @Optional()
+    private salesReportErpService?: SalesReportErpService,
   ) {}
 
   onModuleInit() {
@@ -429,10 +442,10 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
       allStores: input.allStores,
     });
     const canUseStatements = await this.canUseStatements(user);
-    const [canEditProtectedOrders, canReviewOrderTransfers] = canUseStatements
+    const [canReviewOrderTransfers, canManageTracking] = canUseStatements
       ? await Promise.all([
-          this.canEditProtectedStatementOrders(user),
           this.canReviewStatementOrderTransferRequests(user),
+          this.canManageStatementOrderTracking(user),
         ])
       : [false, false];
     const afterFirstSeenAt = input.afterFirstSeenAt
@@ -500,8 +513,8 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
       canReviewOrderTransfers,
       list: rows.map((row) =>
         this.toStoredTransactionDto(row, {
-          canEditProtectedOrders,
           canUseStatements,
+          canManageTracking,
         }),
       ),
     };
@@ -532,9 +545,10 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
     this.logger.log(
       `Statement search succeeded: user=${this.safeUserLabel(user)} total=${total} page=${query.page} limit=${query.limit} filters=${query.filterSummary}`,
     );
-    const canEditProtectedOrders =
-      await this.canEditProtectedStatementOrders(user);
-    const canEditIncomeType = await this.canEditStatementIncomeType(user);
+    const [canEditIncomeType, canManageTracking] = await Promise.all([
+      this.canEditStatementIncomeType(user),
+      this.canManageStatementOrderTracking(user),
+    ]);
     const actionScope =
       rows.length > 0 ? await this.resolveStatementActionScope(user) : null;
 
@@ -554,11 +568,16 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
             ? actionScope.storeCodes.includes(row.storeCode)
             : actionScope.includeUnassigned) ||
           verifiedOrderLookupEdit;
+        const canUseScopedStatementActions =
+          !actionScope ||
+          actionScope.allStores ||
+          (row.storeCode
+            ? actionScope.storeCodes.includes(row.storeCode)
+            : actionScope.includeUnassigned);
         return this.toStoredTransactionDto(row, {
-          canEditProtectedOrders:
-            canEditProtectedOrders || verifiedOrderLookupEdit,
           canUseStatements: canUseStatementActions,
           canEditIncomeType: canEditIncomeType && canUseStatementActions,
+          canManageTracking: canManageTracking && canUseScopedStatementActions,
         });
       }),
     };
@@ -631,108 +650,21 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
     transactionId: string,
     input: UpdateMapVietinStatementOrdersDto,
   ) {
-    await this.assertCanUseStatements(user);
-    await this.expireStaleStatementOrderTransferRequests();
-    const id = String(transactionId || '').trim();
-    if (!id) throw new BadRequestException('transactionId không hợp lệ');
-    const orders = this.normalizeOrderCodes(input.orders || []);
-    const transactionKey = String(input.transactionKey || '').trim();
-    let existing = await this.prisma.mapVietinTransaction.findUnique({
-      where: { id },
-    });
-    let resolvedId = id;
-    let resolvedByTransactionKey = false;
-    if (!existing && transactionKey) {
-      existing = await this.prisma.mapVietinTransaction.findUnique({
-        where: { transactionKey },
-      });
-      if (existing) {
-        resolvedId = existing.id;
-        resolvedByTransactionKey = true;
-        this.logger.warn(
-          `Statement order update resolved stale id by transaction key: user=${this.safeUserLabel(user)} requestedTransaction=${id} resolvedTransaction=${resolvedId} store=${existing.storeCode}`,
-        );
-      }
-    }
-    if (!existing) {
+    const startedAt = Date.now();
+    try {
+      const result = await this.applyStatementOrderMutation(
+        user,
+        transactionId,
+        input,
+        { createCompatibilityRequest: false },
+      );
+      return result.transaction;
+    } catch (error) {
       this.logger.warn(
-        `Statement order update rejected: user=${this.safeUserLabel(user)} transaction=${id} hasTransactionKey=${Boolean(transactionKey)} reason=missing_transaction`,
+        `Statement ERP order update failed: user=${this.safeUserLabel(user)} transaction=${String(transactionId || '').trim() || 'missing'} endpoint=patch durationMs=${Date.now() - startedAt} error=${this.safeError(error)}`,
       );
-      throw new BadRequestException('Giao dịch không hợp lệ');
+      throw error;
     }
-    const lookup = this.normalizeStatementOrderUpdateLookup(input);
-    const canReadStore = await this.canReadStatementStore(
-      user,
-      existing.storeCode,
-    );
-    const verifiedOrderLookupEdit = this.matchesStatementOrderUpdateLookup(
-      existing,
-      lookup.hasExactField ? lookup : null,
-    );
-    if (!canReadStore && !verifiedOrderLookupEdit) {
-      this.logger.warn(
-        `Statement order update rejected: user=${this.safeUserLabel(user)} transaction=${resolvedId} store=${existing.storeCode} reason=cross_store_lookup_not_verified hasLookup=${lookup.hasExactField}`,
-      );
-      throw new ForbiddenException(
-        'Chỉ được sửa giao dịch showroom khác khi tìm chính xác bằng mã sao kê, mã đơn, số tiền hoặc nội dung chuyển khoản.',
-      );
-    }
-    const pendingTransferRequest =
-      await this.prisma.mapVietinStatementOrderTransferRequest.findFirst({
-        where: {
-          transactionId: resolvedId,
-          status: STATEMENT_ORDER_TRANSFER_REQUEST_STATUS_PENDING,
-        },
-      });
-    if (pendingTransferRequest) {
-      throw new BadRequestException('Giao dịch đang chờ Kế toán xác nhận');
-    }
-
-    const oldOrders = this.normalizeOrderCodes(existing.orders || []);
-    const changed = !this.sameOrderList(oldOrders, orders);
-    const canEditProtectedOrders =
-      await this.canEditProtectedStatementOrders(user);
-    const canEditIncomeType = await this.canEditStatementIncomeType(user);
-    const canEditThisProtectedOrder =
-      canEditProtectedOrders || verifiedOrderLookupEdit;
-    this.assertStatementOrderEditAllowed(existing, canEditThisProtectedOrder);
-    const assignedStoreCode = existing.storeCode
-      ? existing.storeCode
-      : (await this.resolveUserStore(user)).storeId;
-    const now = new Date();
-    const updated = await this.prisma.mapVietinTransaction.update({
-      where: { id: resolvedId },
-      data: {
-        storeCode: assignedStoreCode,
-        orders,
-        orderSource: ORDER_SOURCE_MANUAL,
-        orderUpdatedAt: now,
-        orderUpdatedByUserId: user.id || null,
-        orderUpdatedByEmail: this.safeUserEmail(user),
-      },
-    });
-
-    if (changed) {
-      await this.prisma.mapVietinTransactionOrderAudit.create({
-        data: {
-          transactionId: resolvedId,
-          storeCode: assignedStoreCode,
-          oldOrders,
-          newOrders: orders,
-          changedByUserId: user.id || null,
-          changedByEmail: this.safeUserEmail(user),
-          source: ORDER_SOURCE_MANUAL,
-        },
-      });
-    }
-
-    this.logger.log(
-      `Statement orders updated: user=${this.safeUserLabel(user)} transaction=${resolvedId} requestedTransaction=${id} store=${assignedStoreCode} oldStore=${existing.storeCode || 'null'} oldCount=${oldOrders.length} newCount=${orders.length} changed=${changed} protected=${oldOrders.length > 0} finAcc=${canEditProtectedOrders} resolvedByTransactionKey=${resolvedByTransactionKey} crossStoreVerified=${!canReadStore && verifiedOrderLookupEdit}`,
-    );
-    return this.toStoredTransactionDto(updated, {
-      canEditProtectedOrders: canEditThisProtectedOrder,
-      canEditIncomeType,
-    });
   }
 
   async updateStatementIncomeType(
@@ -793,94 +725,502 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
+  async updateStatementOrderTracking(
+    user: any,
+    transactionId: string,
+    input: UpdateMapVietinStatementOrderTrackingDto,
+  ) {
+    const startedAt = Date.now();
+    await this.assertCanUseStatements(user);
+    const id = String(transactionId || '').trim();
+    const nextStatus = String(input.status || '')
+      .trim()
+      .toUpperCase();
+    if (!id) throw new BadRequestException('Giao dịch không hợp lệ');
+    if (
+      nextStatus !== ORDER_TRACKING_STATUS_FOLLOWING &&
+      nextStatus !== ORDER_TRACKING_STATUS_UNFOLLOWED
+    ) {
+      throw new BadRequestException('Trạng thái theo dõi không hợp lệ');
+    }
+    if (!(await this.canManageStatementOrderTracking(user))) {
+      throw new ForbiddenException(
+        'Bạn không có quyền thay đổi trạng thái theo dõi giao dịch.',
+      );
+    }
+    const existing = await this.prisma.mapVietinTransaction.findUnique({
+      where: { id },
+    });
+    if (!existing) throw new BadRequestException('Giao dịch không hợp lệ');
+    await this.assertCanReadStatementStore(user, existing.storeCode);
+    const pending =
+      await this.prisma.mapVietinStatementOrderTransferRequest.findFirst({
+        where: {
+          transactionId: id,
+          status: STATEMENT_ORDER_TRANSFER_REQUEST_STATUS_PENDING,
+        },
+      });
+    if (pending) {
+      throw new BadRequestException(
+        'Giao dịch đang chờ Kế toán xác nhận. Vui lòng xử lý yêu cầu cũ trước.',
+      );
+    }
+    const oldStatus = this.storedOrderTrackingStatus(existing);
+    if (oldStatus === nextStatus) {
+      this.logger.log(
+        `Statement tracking update skipped: user=${this.safeUserLabel(user)} transaction=${id} status=${nextStatus} reason=no_change`,
+      );
+      return this.toStoredTransactionDto(existing, {
+        canUseStatements: true,
+        canEditIncomeType: await this.canEditStatementIncomeType(user),
+        canManageTracking: true,
+      });
+    }
+
+    const now = new Date();
+    const userEmail = this.safeUserEmail(user);
+    const updated = await this.runStatementOptimisticTransaction(() =>
+      this.prisma.$transaction(async (tx) => {
+        const current = await tx.mapVietinTransaction.findUnique({
+          where: { id },
+        });
+        const currentPending =
+          await tx.mapVietinStatementOrderTransferRequest.findFirst({
+            where: {
+              transactionId: id,
+              status: STATEMENT_ORDER_TRANSFER_REQUEST_STATUS_PENDING,
+            },
+          });
+        if (
+          !current ||
+          currentPending ||
+          !this.sameInstant(current.updatedAt, existing.updatedAt) ||
+          this.storedOrderTrackingStatus(current) !== oldStatus
+        ) {
+          throw new BadRequestException(
+            'Dữ liệu giao dịch vừa thay đổi. Vui lòng tải lại và thử lại.',
+          );
+        }
+        const row = await tx.mapVietinTransaction.update({
+          where: {
+            id,
+            updatedAt: existing.updatedAt,
+            orderTrackingStatus: oldStatus,
+          },
+          data: {
+            orderTrackingStatus: nextStatus,
+            orderTrackingUpdatedAt: now,
+            orderTrackingUpdatedByUserId: user.id || null,
+            orderTrackingUpdatedByEmail: userEmail,
+          },
+        });
+        await tx.mapVietinTransactionOrderTrackingAudit.create({
+          data: {
+            transactionId: id,
+            storeCode: existing.storeCode,
+            oldStatus,
+            newStatus: nextStatus,
+            changedByUserId: user.id || null,
+            changedByEmail: userEmail,
+            source: ORDER_SOURCE_MANUAL,
+          },
+        });
+        return row;
+      }),
+    );
+    this.logger.log(
+      `Statement tracking update succeeded: user=${this.safeUserLabel(user)} transaction=${id} store=${existing.storeCode || 'null'} oldStatus=${oldStatus} newStatus=${nextStatus} durationMs=${Date.now() - startedAt}`,
+    );
+    return this.toStoredTransactionDto(updated, {
+      canUseStatements: true,
+      canEditIncomeType: await this.canEditStatementIncomeType(user),
+      canManageTracking: true,
+    });
+  }
+
   async createStatementOrderTransferRequest(
     user: any,
     transactionId: string,
     input: CreateMapVietinStatementOrderTransferRequestDto,
   ) {
+    const startedAt = Date.now();
+    try {
+      const result = await this.applyStatementOrderMutation(
+        user,
+        transactionId,
+        input,
+        { createCompatibilityRequest: true },
+      );
+      return result.request;
+    } catch (error) {
+      this.logger.warn(
+        `Statement ERP order update failed: user=${this.safeUserLabel(user)} transaction=${String(transactionId || '').trim() || 'missing'} endpoint=compatibility_post durationMs=${Date.now() - startedAt} error=${this.safeError(error)}`,
+      );
+      throw error;
+    }
+  }
+
+  private async applyStatementOrderMutation(
+    user: any,
+    transactionId: string,
+    input:
+      | UpdateMapVietinStatementOrdersDto
+      | CreateMapVietinStatementOrderTransferRequestDto,
+    options: { createCompatibilityRequest: boolean },
+  ) {
+    const startedAt = Date.now();
     await this.assertCanUseStatements(user);
     await this.expireStaleStatementOrderTransferRequests();
-    const startedAt = Date.now();
-    const id = String(transactionId || '').trim();
-    if (!id) throw new BadRequestException('transactionId không hợp lệ');
-    const requestedOrders = this.normalizeOrderCodes(input.orders || []);
-    if (requestedOrders.length === 0) {
-      throw new BadRequestException('Vui lòng nhập mã đơn hàng mới');
-    }
+    const requestedId = String(transactionId || '').trim();
+    if (!requestedId) throw new BadRequestException('Giao dịch không hợp lệ');
+    const newOrders = this.normalizeOrderCodes(input.orders || []);
     const transactionKey = String(input.transactionKey || '').trim();
     this.logger.log(
-      `Statement order transfer request started: user=${this.safeUserLabel(user)} requestedTransaction=${id} hasTransactionKey=${Boolean(transactionKey)} requestedCount=${requestedOrders.length}`,
+      `Statement ERP order update started: user=${this.safeUserLabel(user)} transaction=${requestedId} oldEndpoint=${options.createCompatibilityRequest} newCount=${newOrders.length}`,
     );
+
     let existing = await this.prisma.mapVietinTransaction.findUnique({
-      where: { id },
+      where: { id: requestedId },
     });
-    let resolvedId = id;
+    let resolvedId = requestedId;
     if (!existing && transactionKey) {
       existing = await this.prisma.mapVietinTransaction.findUnique({
         where: { transactionKey },
       });
-      if (existing) {
-        resolvedId = existing.id;
-        this.logger.warn(
-          `Statement order transfer request resolved stale id by transaction key: user=${this.safeUserLabel(user)} requestedTransaction=${id} resolvedTransaction=${resolvedId} store=${existing.storeCode}`,
-        );
-      }
+      if (existing) resolvedId = existing.id;
     }
     if (!existing) {
-      this.logger.warn(
-        `Statement order transfer request rejected: user=${this.safeUserLabel(user)} transaction=${id} hasTransactionKey=${Boolean(transactionKey)} reason=missing_transaction`,
-      );
       throw new BadRequestException(
         'Không tìm thấy giao dịch mới nhất. Vui lòng tải lại danh sách rồi thử lại.',
       );
     }
-    if (!existing.storeCode) {
-      throw new BadRequestException(
-        'Giao dịch chưa có showroom nên không tạo yêu cầu cấn trừ.',
+
+    const lookup = this.normalizeStatementOrderUpdateLookup(
+      input as UpdateMapVietinStatementOrdersDto,
+    );
+    const canReadStore = await this.canReadStatementStore(
+      user,
+      existing.storeCode,
+    );
+    const verifiedOrderLookupEdit = this.matchesStatementOrderUpdateLookup(
+      existing,
+      lookup.hasExactField ? lookup : null,
+    );
+    if (!canReadStore && !verifiedOrderLookupEdit) {
+      throw new ForbiddenException(
+        'Chỉ được sửa giao dịch showroom khác khi tìm chính xác bằng mã sao kê, mã đơn, số tiền hoặc nội dung chuyển khoản.',
       );
     }
-    await this.assertCanReadStatementStore(user, existing.storeCode);
-    this.assertStatementOrderTransferWindow(existing);
+
     const oldOrders = this.normalizeOrderCodes(existing.orders || []);
-    if (this.sameOrderList(oldOrders, requestedOrders)) {
-      throw new BadRequestException('Mã đơn mới đang trùng mã hiện tại');
+    if (this.sameOrderList(oldOrders, newOrders)) {
+      this.logger.log(
+        `Statement ERP order update skipped: user=${this.safeUserLabel(user)} transaction=${resolvedId} reason=no_change oldCount=${oldOrders.length}`,
+      );
+      const [canEditIncomeType, canManageTracking] = await Promise.all([
+        this.canEditStatementIncomeType(user),
+        this.canManageStatementOrderTracking(user),
+      ]);
+      const noOpAt = existing.updatedAt || existing.firstSeenAt || new Date();
+      return {
+        transaction: this.toStoredTransactionDto(existing, {
+          canUseStatements: true,
+          canEditIncomeType,
+          canManageTracking,
+        }),
+        request: options.createCompatibilityRequest
+          ? this.toStatementOrderTransferRequestDto({
+              id: `noop:${resolvedId}:${noOpAt.getTime()}`,
+              transactionId: resolvedId,
+              storeCode: existing.storeCode || '__all__',
+              oldOrders,
+              requestedOrders: newOrders,
+              status: STATEMENT_ORDER_TRANSFER_REQUEST_STATUS_APPROVED,
+              requestedByUserId: user.id || null,
+              requestedByEmail: this.safeUserEmail(user),
+              reviewedByUserId: user.id || null,
+              reviewedByEmail: this.safeUserEmail(user),
+              resolutionSource: ORDER_RESOLUTION_SOURCE_ERP,
+              reviewedAt: noOpAt,
+              createdAt: noOpAt,
+              updatedAt: noOpAt,
+              transaction: existing,
+            })
+          : null,
+      };
     }
-    const pending =
+
+    const pendingRequest =
       await this.prisma.mapVietinStatementOrderTransferRequest.findFirst({
         where: {
           transactionId: resolvedId,
           status: STATEMENT_ORDER_TRANSFER_REQUEST_STATUS_PENDING,
         },
       });
-    if (pending) {
-      throw new BadRequestException('Giao dịch đang chờ Kế toán xác nhận');
+    if (pendingRequest) {
+      throw new BadRequestException(
+        'Giao dịch đang chờ Kế toán xác nhận. Vui lòng xử lý yêu cầu cũ trước.',
+      );
     }
 
-    try {
-      const request =
-        await this.prisma.mapVietinStatementOrderTransferRequest.create({
+    const trackingStatus = this.storedOrderTrackingStatus(existing);
+    if (trackingStatus === ORDER_TRACKING_STATUS_UNFOLLOWED) {
+      throw new BadRequestException(
+        'Giao dịch đang Bỏ theo dõi. Vui lòng Theo dõi lại trước khi cập nhật mã đơn.',
+      );
+    }
+    if (oldOrders.length === 0 && newOrders.length === 0) {
+      throw new BadRequestException('Vui lòng nhập ít nhất một mã đơn hàng');
+    }
+    if (oldOrders.length > 0) {
+      this.assertStatementOrderTransferWindow(existing);
+    }
+
+    const oldLifecycle = oldOrders.length
+      ? await this.lookupStatementOrderLifecycles(
+          oldOrders,
+          existing.storeCode,
+          'current',
+        )
+      : [];
+    if (
+      oldLifecycle.some(
+        (status) => status !== 'CANCELLED' && status !== 'RETURNED_FULL',
+      )
+    ) {
+      throw new BadRequestException(
+        'Chỉ được cập nhật khi tất cả mã đơn hiện tại đã hủy hoặc hoàn trả toàn bộ trên hệ thống bán hàng.',
+      );
+    }
+
+    const newLifecycle = newOrders.length
+      ? await this.lookupStatementOrderLifecycles(
+          newOrders,
+          existing.storeCode,
+          'new',
+        )
+      : [];
+    if (
+      newLifecycle.some(
+        (status) => status === 'CANCELLED' || status === 'RETURNED_FULL',
+      )
+    ) {
+      throw new BadRequestException(
+        'Mã đơn mới đã bị hủy hoặc hoàn trả toàn bộ. Vui lòng chọn mã đơn còn hiệu lực.',
+      );
+    }
+
+    const assignedStoreCode = existing.storeCode
+      ? existing.storeCode
+      : (await this.resolveUserStore(user)).storeId;
+    const now = new Date();
+    const userEmail = this.safeUserEmail(user);
+    const snapshotUpdatedAt = existing.updatedAt;
+    const result = await this.runStatementOptimisticTransaction(() =>
+      this.prisma.$transaction(async (tx) => {
+        const current = await tx.mapVietinTransaction.findUnique({
+          where: { id: resolvedId },
+        });
+        const currentPending =
+          await tx.mapVietinStatementOrderTransferRequest.findFirst({
+            where: {
+              transactionId: resolvedId,
+              status: STATEMENT_ORDER_TRANSFER_REQUEST_STATUS_PENDING,
+            },
+          });
+        if (
+          !current ||
+          currentPending ||
+          !this.sameInstant(current.updatedAt, snapshotUpdatedAt) ||
+          !this.sameOrderList(
+            this.normalizeOrderCodes(current.orders || []),
+            oldOrders,
+          ) ||
+          this.storedOrderTrackingStatus(current) !== trackingStatus
+        ) {
+          throw new BadRequestException(
+            'Dữ liệu giao dịch vừa thay đổi. Vui lòng tải lại và thử lại.',
+          );
+        }
+
+        const updated = await tx.mapVietinTransaction.update({
+          where: {
+            id: resolvedId,
+            updatedAt: snapshotUpdatedAt,
+            orderTrackingStatus: trackingStatus,
+            orders: { equals: oldOrders },
+          },
+          data: {
+            storeCode: assignedStoreCode,
+            orders: newOrders,
+            orderSource: ORDER_SOURCE_ERP_REPLACEMENT,
+            orderUpdatedAt: now,
+            orderUpdatedByUserId: user.id || null,
+            orderUpdatedByEmail: userEmail,
+          },
+        });
+        await tx.mapVietinTransactionOrderAudit.create({
           data: {
             transactionId: resolvedId,
-            storeCode: existing.storeCode,
+            storeCode: assignedStoreCode,
             oldOrders,
-            requestedOrders,
-            requestedByUserId: user.id || null,
-            requestedByEmail: this.safeUserEmail(user),
+            newOrders,
+            changedByUserId: user.id || null,
+            changedByEmail: userEmail,
+            source: ORDER_SOURCE_ERP_REPLACEMENT,
           },
-          include: { transaction: true },
         });
-      await this.publishStatementOrderTransferRequestEvent(request);
-      this.logger.log(
-        `Statement order transfer requested: user=${this.safeUserLabel(user)} transaction=${resolvedId} request=${request.id} store=${existing.storeCode} oldCount=${oldOrders.length} requestedCount=${requestedOrders.length} durationMs=${Date.now() - startedAt}`,
+
+        const request = options.createCompatibilityRequest
+          ? await tx.mapVietinStatementOrderTransferRequest.create({
+              data: {
+                transactionId: resolvedId,
+                storeCode: assignedStoreCode,
+                oldOrders,
+                requestedOrders: newOrders,
+                status: STATEMENT_ORDER_TRANSFER_REQUEST_STATUS_APPROVED,
+                requestedByUserId: user.id || null,
+                requestedByEmail: userEmail,
+                reviewedByUserId: user.id || null,
+                reviewedByEmail: userEmail,
+                reviewedAt: now,
+                resolutionSource: ORDER_RESOLUTION_SOURCE_ERP,
+              },
+              include: { transaction: true },
+            })
+          : null;
+        return { updated, request };
+      }),
+    );
+
+    if (result.request) {
+      await this.publishStatementOrderTransferRequestEvent({
+        id: result.request.id,
+        transactionId: result.request.transactionId,
+        storeCode: result.request.storeCode,
+        status: result.request.status,
+        createdAt: result.request.createdAt,
+      });
+    }
+
+    const [canEditIncomeType, canManageTracking] = await Promise.all([
+      this.canEditStatementIncomeType(user),
+      this.canManageStatementOrderTracking(user),
+    ]);
+    this.logger.log(
+      `Statement ERP order update succeeded: user=${this.safeUserLabel(user)} transaction=${resolvedId} oldCount=${oldOrders.length} newCount=${newOrders.length} oldLifecycle=${this.lifecycleSummary(oldLifecycle)} newLifecycle=${this.lifecycleSummary(newLifecycle)} oldEndpoint=${options.createCompatibilityRequest} durationMs=${Date.now() - startedAt}`,
+    );
+    return {
+      transaction: this.toStoredTransactionDto(result.updated, {
+        canUseStatements: true,
+        canEditIncomeType,
+        canManageTracking,
+      }),
+      request: result.request
+        ? this.toStatementOrderTransferRequestDto(result.request)
+        : null,
+    };
+  }
+
+  private async lookupStatementOrderLifecycles(
+    orders: string[],
+    storeCode: string | null,
+    phase: 'current' | 'new',
+  ): Promise<SalesReportErpLifecycleStatus[]> {
+    if (!this.salesReportErpService) {
+      throw new ServiceUnavailableException(
+        'Chưa thể kiểm tra đơn hàng trên hệ thống bán hàng. Vui lòng thử lại sau ít phút.',
       );
-      return this.toStatementOrderTransferRequestDto(request);
-    } catch (error) {
-      if ((error as any)?.code === 'P2002') {
-        throw new BadRequestException('Giao dịch đang chờ Kế toán xác nhận');
+    }
+    const startedAt = Date.now();
+    try {
+      const rows = await Promise.all(
+        orders.map((order) =>
+          this.salesReportErpService!.lookupOrderStatus(order, storeCode),
+        ),
+      );
+      const statuses = rows.map((row) => row.lifecycleStatus);
+      if (rows.some((row) => row.lifecycleVerified !== true)) {
+        throw new Error('unverified_lifecycle');
       }
-      this.logger.error(
-        `Statement order transfer request failed: user=${this.safeUserLabel(user)} transaction=${resolvedId} store=${existing.storeCode} requestedCount=${requestedOrders.length} durationMs=${Date.now() - startedAt} error=${this.safeError(error)}`,
+      if (
+        statuses.some(
+          (status) =>
+            ![
+              'PENDING',
+              'COMPLETED',
+              'COMPLETED_PARTIAL_RETURN',
+              'CANCELLED',
+              'RETURNED_FULL',
+            ].includes(status),
+        )
+      ) {
+        throw new Error('missing_lifecycle');
+      }
+      this.logger.log(
+        `Statement ERP lifecycle lookup succeeded: phase=${phase} count=${orders.length} summary=${this.lifecycleSummary(statuses)} durationMs=${Date.now() - startedAt}`,
       );
+      return statuses;
+    } catch (error) {
+      this.logger.warn(
+        `Statement ERP lifecycle lookup failed: phase=${phase} count=${orders.length} durationMs=${Date.now() - startedAt} errorType=${this.errorTypeName(error)}`,
+      );
+      throw new BadRequestException(
+        phase === 'current'
+          ? 'Chưa xác minh được trạng thái của tất cả mã đơn hiện tại trên hệ thống bán hàng. Vui lòng thử lại.'
+          : 'Không tìm thấy hoặc chưa kiểm tra được mã đơn mới trên hệ thống bán hàng. Vui lòng kiểm tra mã và thử lại.',
+      );
+    }
+  }
+
+  private lifecycleSummary(statuses: SalesReportErpLifecycleStatus[]) {
+    if (statuses.length === 0) return 'none';
+    const counts = statuses.reduce<Record<string, number>>(
+      (summary, status) => {
+        summary[status] = (summary[status] || 0) + 1;
+        return summary;
+      },
+      {},
+    );
+    return Object.keys(counts)
+      .sort()
+      .map((status) => `${status}:${counts[status]}`)
+      .join(',');
+  }
+
+  private errorTypeName(error: unknown) {
+    return error instanceof Error ? error.constructor.name : typeof error;
+  }
+
+  private sameInstant(left: unknown, right: unknown) {
+    if (
+      left === null ||
+      left === undefined ||
+      right === null ||
+      right === undefined
+    ) {
+      return left === right;
+    }
+    const leftTime =
+      left instanceof Date ? left.getTime() : new Date(String(left)).getTime();
+    const rightTime =
+      right instanceof Date
+        ? right.getTime()
+        : new Date(String(right)).getTime();
+    return Number.isFinite(leftTime) && leftTime === rightTime;
+  }
+
+  private async runStatementOptimisticTransaction<T>(
+    operation: () => Promise<T>,
+  ): Promise<T> {
+    try {
+      return await operation();
+    } catch (error) {
+      if ((error as { code?: string } | null)?.code === 'P2025') {
+        throw new BadRequestException(
+          'Dữ liệu giao dịch vừa thay đổi. Vui lòng tải lại và thử lại.',
+        );
+      }
       throw error;
     }
   }
@@ -1910,7 +2250,8 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
       orderStatus === STATEMENT_ORDER_STATUS_HAS_ORDER ||
       orderStatus === STATEMENT_ORDER_STATUS_MISSING_ORDER ||
       orderStatus === STATEMENT_ORDER_STATUS_OFFSET_PENDING ||
-      orderStatus === STATEMENT_ORDER_STATUS_OFFSET_CONFIRMED;
+      orderStatus === STATEMENT_ORDER_STATUS_OFFSET_CONFIRMED ||
+      orderStatus === STATEMENT_ORDER_STATUS_UNFOLLOWED;
 
     return {
       requestedAllStores,
@@ -2128,6 +2469,14 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
         },
       });
     }
+    if (
+      filters.orderStatus === STATEMENT_ORDER_STATUS_HAS_ORDER ||
+      filters.orderStatus === STATEMENT_ORDER_STATUS_MISSING_ORDER ||
+      filters.orderStatus === STATEMENT_ORDER_STATUS_OFFSET_PENDING ||
+      filters.orderStatus === STATEMENT_ORDER_STATUS_OFFSET_CONFIRMED
+    ) {
+      parts.push({ orderTrackingStatus: ORDER_TRACKING_STATUS_FOLLOWING });
+    }
     if (filters.orderStatus === STATEMENT_ORDER_STATUS_HAS_ORDER) {
       parts.push({ orders: { isEmpty: false } });
     } else if (filters.orderStatus === STATEMENT_ORDER_STATUS_MISSING_ORDER) {
@@ -2142,6 +2491,8 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
       filters.orderStatus === STATEMENT_ORDER_STATUS_OFFSET_CONFIRMED
     ) {
       parts.push({ orderSource: ORDER_SOURCE_OFFSET });
+    } else if (filters.orderStatus === STATEMENT_ORDER_STATUS_UNFOLLOWED) {
+      parts.push({ orderTrackingStatus: ORDER_TRACKING_STATUS_UNFOLLOWED });
     }
     if (filters.dateRange) {
       parts.push({
@@ -2397,6 +2748,13 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
   private async canReviewStatementOrderTransferRequests(
     user: any,
   ): Promise<boolean> {
+    return this.userMatchesStatementAccessCodes(user, [
+      FIN_ACC_DEPARTMENT_CODE,
+      ACC_DEPARTMENT_CODE,
+    ]);
+  }
+
+  private async canManageStatementOrderTracking(user: any): Promise<boolean> {
     return this.userMatchesStatementAccessCodes(user, [
       FIN_ACC_DEPARTMENT_CODE,
       ACC_DEPARTMENT_CODE,
@@ -3104,7 +3462,10 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
     },
     reason: 'statement_identifier' | 'bank_fingerprint',
   ) {
-    const conflicts = conflictingStatementProviderIdentifiers(existing, incoming);
+    const conflicts = conflictingStatementProviderIdentifiers(
+      existing,
+      incoming,
+    );
     if (conflicts.length > 0) {
       this.logger.warn(
         `MAP sync identifier enrichment conflict: transaction=${existing.id} reason=${reason} fields=${conflicts.join(',')}`,
@@ -3322,12 +3683,12 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
       take: 5,
     });
     const oppositeSourceCandidates = candidates.filter((candidate) => {
-        const candidateRaw = this.rawDataAsMapRow(candidate.rawData);
-        const candidateIsEfast = candidateRaw
-          ? this.isEfastMapTransactionRow(candidateRaw)
-          : false;
-        return candidateIsEfast !== incomingIsEfast;
-      });
+      const candidateRaw = this.rawDataAsMapRow(candidate.rawData);
+      const candidateIsEfast = candidateRaw
+        ? this.isEfastMapTransactionRow(candidateRaw)
+        : false;
+      return candidateIsEfast !== incomingIsEfast;
+    });
     if (oppositeSourceCandidates.length !== 1) {
       return {
         match: null,
@@ -3876,6 +4237,10 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
       orderUpdatedAt?: Date | null;
       orderUpdatedByUserId?: string | null;
       orderUpdatedByEmail?: string | null;
+      orderTrackingStatus?: string | null;
+      orderTrackingUpdatedAt?: Date | null;
+      orderTrackingUpdatedByUserId?: string | null;
+      orderTrackingUpdatedByEmail?: string | null;
       status: string | null;
       paidAt: Date | null;
       payerName: string | null;
@@ -3901,6 +4266,7 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
       canEditProtectedOrders?: boolean;
       canUseStatements?: boolean;
       canEditIncomeType?: boolean;
+      canManageTracking?: boolean;
     } = {},
   ) {
     const payer = this.resolveStoredPayer(row);
@@ -3909,33 +4275,28 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
     const pendingTransferRequest = row.orderTransferRequests?.[0] || null;
     const canUseStatements = options.canUseStatements !== false;
     const transferWindowOpen = this.isStatementOrderTransferWindowOpen(row);
+    const orderTrackingStatus = this.storedOrderTrackingStatus(row);
+    const isFollowing = orderTrackingStatus === ORDER_TRACKING_STATUS_FOLLOWING;
     const hasStoreCode = Boolean(row.storeCode);
     const canEditOrders =
       canUseStatements &&
+      isFollowing &&
       !pendingTransferRequest &&
-      (orders.length === 0 || options.canEditProtectedOrders === true);
+      (orders.length === 0 || transferWindowOpen);
     let orderEditBlockedReason: string | null = null;
     if (!canEditOrders) {
       orderEditBlockedReason = !canUseStatements
         ? ORDER_ACTION_REQUIRES_STATEMENT_PERMISSION_MESSAGE
-        : pendingTransferRequest
-          ? 'Giao dịch đang chờ Kế toán xác nhận.'
-          : ORDER_EDIT_FORBIDDEN_MESSAGE;
+        : !isFollowing
+          ? 'Giao dịch đang Bỏ theo dõi. Vui lòng Theo dõi lại trước khi cập nhật mã đơn.'
+          : pendingTransferRequest
+            ? 'Giao dịch đang chờ Kế toán xác nhận.'
+            : ORDER_TRANSFER_WINDOW_FORBIDDEN_MESSAGE;
     }
-    const canRequestOrderTransfer =
-      canUseStatements &&
-      hasStoreCode &&
-      !pendingTransferRequest &&
-      transferWindowOpen;
+    const canRequestOrderTransfer = canEditOrders && hasStoreCode;
     let orderTransferBlockedReason: string | null = null;
     if (!canRequestOrderTransfer) {
-      orderTransferBlockedReason = pendingTransferRequest
-        ? 'Giao dịch đang chờ Kế toán xác nhận.'
-        : !hasStoreCode
-          ? 'Giao dịch chưa có showroom nên không tạo yêu cầu cấn trừ.'
-          : !canUseStatements
-            ? ORDER_ACTION_REQUIRES_STATEMENT_PERMISSION_MESSAGE
-            : ORDER_TRANSFER_WINDOW_FORBIDDEN_MESSAGE;
+      orderTransferBlockedReason = orderEditBlockedReason;
     }
     return {
       id: row.id,
@@ -3950,6 +4311,19 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
       orderUpdatedAt: row.orderUpdatedAt || null,
       orderUpdatedByUserId: row.orderUpdatedByUserId || null,
       orderUpdatedByEmail: row.orderUpdatedByEmail || null,
+      orderTrackingStatus,
+      orderTrackingUpdatedAt: row.orderTrackingUpdatedAt || null,
+      orderTrackingUpdatedByUserId: row.orderTrackingUpdatedByUserId || null,
+      orderTrackingUpdatedByEmail: row.orderTrackingUpdatedByEmail || null,
+      canManageOrderTracking:
+        canUseStatements &&
+        !pendingTransferRequest &&
+        options.canManageTracking === true,
+      orderTrackingActionBlockedReason: pendingTransferRequest
+        ? 'Giao dịch đang có yêu cầu chờ xử lý.'
+        : options.canManageTracking === true
+          ? null
+          : 'Bạn không có quyền thay đổi trạng thái theo dõi giao dịch.',
       canEditOrders,
       orderEditBlockedReason,
       canRequestOrderTransfer,
@@ -3998,6 +4372,7 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
       requestedByEmail?: string | null;
       reviewedByUserId?: string | null;
       reviewedByEmail?: string | null;
+      resolutionSource?: string | null;
       reviewNote?: string | null;
       reviewedAt?: Date | null;
       createdAt: Date;
@@ -4024,6 +4399,7 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
       requestedByEmail: row.requestedByEmail || null,
       reviewedByUserId: row.reviewedByUserId || null,
       reviewedByEmail: row.reviewedByEmail || null,
+      resolutionSource: row.resolutionSource || null,
       reviewNote: row.reviewNote || null,
       reviewedAt: row.reviewedAt || null,
       createdAt: row.createdAt,
@@ -4161,6 +4537,16 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
       return value;
     }
     return classifyMapVietinIncomeType(row.content, row.payerAccount);
+  }
+
+  private storedOrderTrackingStatus(row: {
+    orderTrackingStatus?: string | null;
+  }) {
+    return String(row.orderTrackingStatus || ORDER_TRACKING_STATUS_FOLLOWING)
+      .trim()
+      .toUpperCase() === ORDER_TRACKING_STATUS_UNFOLLOWED
+      ? ORDER_TRACKING_STATUS_UNFOLLOWED
+      : ORDER_TRACKING_STATUS_FOLLOWING;
   }
 
   private rawDataAsMapRow(value?: Prisma.JsonValue | null) {
@@ -4855,6 +5241,7 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
       'Số tiền',
       'Nội dung chuyển khoản',
       'Mã đơn hàng',
+      'Trạng thái theo dõi',
       'Trạng thái',
       'Ngày giao dịch',
       'Người chuyển',
@@ -4878,6 +5265,9 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
         this.csvAmountValue(row.amount),
         this.csvText(row.content),
         this.csvText((row.orders || []).join('\n')),
+        this.storedOrderTrackingStatus(row) === ORDER_TRACKING_STATUS_UNFOLLOWED
+          ? 'Bỏ theo dõi'
+          : 'Đang theo dõi',
         this.csvText(row.status),
         this.csvVietnamDate(row.paidAt),
         this.csvText(payer.name),
@@ -4897,6 +5287,7 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
       { wch: 16 },
       { wch: 52 },
       { wch: 30 },
+      { wch: 20 },
       { wch: 16 },
       { wch: 22 },
       { wch: 28 },

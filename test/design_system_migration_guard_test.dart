@@ -952,8 +952,13 @@ void main() {
           (count: 2, reason: 'compact metric chips'),
       'lib/features/payment_monitor/presentation/screens/payment_monitor_screen.dart':
           (count: 1, reason: 'inline refresh progress'),
+      'lib/features/payment_monitor/presentation/widgets/payment_transaction_tile.dart':
+          (count: 1, reason: 'inline ERP order verification action'),
       'lib/features/bank_statement/presentation/screens/bank_statement_screen.dart':
-          (count: 1, reason: 'inline refresh progress'),
+          (
+            count: 2,
+            reason: 'inline refresh and ERP order verification actions',
+          ),
       'lib/features/home/presentation/widgets/home_summary_page.dart': (
         count: 1,
         reason: 'toolbar refresh state',

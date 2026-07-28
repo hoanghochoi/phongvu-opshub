@@ -205,8 +205,42 @@ export class HomeSummaryProjectionService
           },
         );
       }
+      const financeTrackingDates = await this.prisma.$queryRaw<
+        Array<{ dateKey: string }>
+      >(Prisma.sql`
+        WITH statement_dates AS (
+          SELECT DISTINCT (
+            COALESCE("paidAt", "firstSeenAt") + INTERVAL '7 hours'
+          )::date AS summary_date
+          FROM "MapVietinTransaction"
+        )
+        SELECT statement.summary_date::text AS "dateKey"
+        FROM statement_dates AS statement
+        LEFT JOIN "HomeSummaryDailyAggregate" AS aggregate
+          ON aggregate."summaryDate" = statement.summary_date
+          AND aggregate."projectionKind" = 'FINANCE'
+          AND aggregate."dimensionType" = 'GLOBAL'
+          AND aggregate."dimensionKey" = ''
+          AND aggregate."storeCode" = ''
+        WHERE aggregate."id" IS NULL
+          OR NOT (aggregate."metrics" ? 'totalStatementsTracked')
+          OR NOT (aggregate."metrics" ? 'totalStatementsUnfollowed')
+        ORDER BY statement.summary_date
+      `);
+      for (const affectedDate of financeTrackingDates) {
+        await withPostgresDeadlockRetry(
+          () =>
+            this.prisma.$executeRaw(
+              Prisma.sql`SELECT opshub_enqueue_home_summary_projection_kind(CAST(${affectedDate.dateKey} AS date), 'TRACKING_STATUS_BACKFILL', 'FINANCE')`,
+            ),
+          {
+            operation: 'home_projection_tracking_startup_enqueue',
+            logger: this.logger,
+          },
+        );
+      }
       this.logger.log(
-        `Home projection startup reconciliation succeeded: reason=pending_payment_rollout dates=${affectedDates.length} durationMs=${Date.now() - startedAt}`,
+        `Home projection startup reconciliation succeeded: reason=pending_payment_rollout dates=${affectedDates.length} trackingDates=${financeTrackingDates.length} durationMs=${Date.now() - startedAt}`,
       );
     } catch (error) {
       this.logger.error(
@@ -711,24 +745,33 @@ export class HomeSummaryProjectionService
         WHERE mapping.store_code <> ''
       ), grains AS (
         SELECT 'GLOBAL'::text AS dimension_type, ''::text AS dimension_key,
-          ''::text AS grain_store_code, source."id", source."amount", source."orders"
+          ''::text AS grain_store_code, source."id", source."amount", source."orders",
+          COALESCE(NULLIF(UPPER(TRIM(source."orderTrackingStatus")), ''), 'FOLLOWING') AS tracking_status
         FROM source_rows AS source
         UNION ALL
         SELECT 'STORE', source.store_code, source.store_code,
-          source."id", source."amount", source."orders"
+          source."id", source."amount", source."orders",
+          COALESCE(NULLIF(UPPER(TRIM(source."orderTrackingStatus")), ''), 'FOLLOWING') AS tracking_status
         FROM source_rows AS source
         WHERE source.store_code <> ''
         UNION ALL
         SELECT 'USER_STORE', mapped.user_key, mapped.store_code,
-          source."id", source."amount", source."orders"
+          source."id", source."amount", source."orders",
+          COALESCE(NULLIF(UPPER(TRIM(source."orderTrackingStatus")), ''), 'FOLLOWING') AS tracking_status
         FROM user_transactions AS mapped
         JOIN source_rows AS source ON source."id" = mapped."id"
       ), grouped AS (
         SELECT dimension_type, dimension_key, grain_store_code,
           COUNT(*)::int AS statement_count,
+          COUNT(*) FILTER (WHERE tracking_status = 'FOLLOWING')::int AS tracked_count,
+          COUNT(*) FILTER (WHERE tracking_status = 'UNFOLLOWED')::int AS unfollowed_count,
           COALESCE(SUM(GREATEST(COALESCE("amount", 0), 0)), 0) AS transferred_amount,
-          COUNT(*) FILTER (WHERE cardinality("orders") > 0)::int AS with_order,
-          COUNT(*) FILTER (WHERE cardinality("orders") = 0)::int AS without_order
+          COUNT(*) FILTER (
+            WHERE tracking_status = 'FOLLOWING' AND cardinality("orders") > 0
+          )::int AS with_order,
+          COUNT(*) FILTER (
+            WHERE tracking_status = 'FOLLOWING' AND cardinality("orders") = 0
+          )::int AS without_order
         FROM grains
         GROUP BY dimension_type, dimension_key, grain_store_code
       )
@@ -742,6 +785,8 @@ export class HomeSummaryProjectionService
         dimension_type, dimension_key, grain_store_code, 0, 0, 0, 0, 0, 0,
         jsonb_build_object(
           'totalStatements', statement_count,
+          'totalStatementsTracked', tracked_count,
+          'totalStatementsUnfollowed', unfollowed_count,
           'totalTransferredAmount', transferred_amount,
           'totalStatementsWithOrder', with_order,
           'totalStatementsWithoutOrder', without_order

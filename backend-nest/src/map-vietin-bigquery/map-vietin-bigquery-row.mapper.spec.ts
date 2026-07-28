@@ -37,6 +37,7 @@ describe('MapVietinBigQueryRowMapper', () => {
       transaction_id: 'transaction-1',
       revision: '2',
       statement_number: 'STMT-1',
+      order_tracking_status: 'FOLLOWING',
       is_deleted: false,
     });
     expect(row.transaction_date).toEqual(new Date('2026-07-23T00:00:00.000Z'));
@@ -46,6 +47,37 @@ describe('MapVietinBigQueryRowMapper', () => {
     expect(row.exported_at).toEqual(new Date('2026-07-23T03:00:00.000Z'));
     expect(row).not.toHaveProperty('rawData');
     expect(row).not.toHaveProperty('payerName');
+  });
+
+  it('requires a canonical tracking status for schema v2 events', () => {
+    const v2Event = {
+      ...event,
+      schemaVersion: 2,
+      payload: {
+        ...(event.payload as object),
+        order_tracking_status: 'unfollowed',
+      },
+    };
+
+    expect(mapper.toRow(v2Event as never)).toMatchObject({
+      schema_version: 2,
+      order_tracking_status: 'UNFOLLOWED',
+    });
+    expect(() =>
+      mapper.toRow({
+        ...v2Event,
+        payload: {
+          ...(v2Event.payload as object),
+          order_tracking_status: 'PAUSED',
+        },
+      } as never),
+    ).toThrow('order_tracking_status');
+    expect(() =>
+      mapper.toRow({
+        ...v2Event,
+        payload: { ...(event.payload as object) },
+      } as never),
+    ).toThrow('order_tracking_status');
   });
 
   it('rejects aggregate mismatch and malformed numeric values', () => {

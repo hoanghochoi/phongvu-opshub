@@ -70,6 +70,56 @@ void main() {
   });
 
   test(
+    'tracking update sends status and bypasses the user-action cooldown',
+    () async {
+      final requests = <http.Request>[];
+      final repository = PaymentMonitorRepository(
+        ApiClient.test(
+          MockClient((request) async {
+            requests.add(request);
+            if (requests.length == 1) {
+              return http.Response('', 429, headers: {'retry-after': '30'});
+            }
+            return http.Response(
+              jsonEncode({
+                'id': 'tx-1',
+                'transactionNumber': 'MAP-001',
+                'transactionKey': 'key-tx-1',
+                'amount': 1250000,
+                'storeId': 'CP01',
+                'status': '00',
+                'orders': ['26052912345678'],
+                'orderTrackingStatus': 'UNFOLLOWED',
+                'canManageOrderTracking': true,
+              }),
+              200,
+            );
+          }),
+        ),
+      );
+
+      await expectLater(
+        repository.fetchStoredTransactions(),
+        throwsA(isA<RateLimitedException>()),
+      );
+      final transaction = await repository.updateOrderTracking(
+        'tx-1',
+        'UNFOLLOWED',
+        allowRateLimitCooldownBypass: true,
+      );
+
+      expect(requests, hasLength(2));
+      expect(requests.last.method, 'PATCH');
+      expect(
+        requests.last.url.path,
+        '/api/admin/map-vietin/statements/tx-1/order-tracking',
+      );
+      expect(jsonDecode(requests.last.body), {'status': 'UNFOLLOWED'});
+      expect(transaction.isFollowing, isFalse);
+    },
+  );
+
+  test(
     'downloadNotificationAudio requests server-combined cue when enabled',
     () async {
       final requests = <http.Request>[];

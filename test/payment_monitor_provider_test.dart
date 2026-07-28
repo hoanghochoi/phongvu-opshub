@@ -419,6 +419,178 @@ void main() {
     provider.dispose();
   });
 
+  test('rejects blank payment order input without an existing order', () async {
+    final repository = _FakePaymentMonitorRepository(
+      notifications: const [],
+      transactions: [_paymentTransaction(id: 'txn-blank')],
+    );
+    final provider = PaymentMonitorProvider(
+      repository,
+      _FakePaymentSpeaker(),
+      null,
+      retryDelay,
+    );
+
+    await Future<void>.delayed(Duration.zero);
+    provider.syncAuth(_storeUser(), isInitialized: true);
+    await _waitUntil(
+      () => repository.transactionFetchCount > 0 && !provider.isLoading,
+    );
+
+    final saved = await provider.updateOrders('txn-blank', '  ');
+
+    expect(saved, isFalse);
+    expect(repository.savedOrderInputs, isEmpty);
+    expect(
+      provider.rowMessages['txn-blank']?.text,
+      'Mã đơn hàng phải gồm 14 chữ số, ngăn cách bằng dòng hoặc dấu phẩy.',
+    );
+
+    provider.dispose();
+  });
+
+  test('allows blank payment order input to remove existing orders', () async {
+    final repository = _FakePaymentMonitorRepository(
+      notifications: const [],
+      transactions: [
+        _paymentTransaction(id: 'txn-delete', orders: const ['26052112345678']),
+      ],
+    );
+    final provider = PaymentMonitorProvider(
+      repository,
+      _FakePaymentSpeaker(),
+      null,
+      retryDelay,
+    );
+
+    await Future<void>.delayed(Duration.zero);
+    provider.syncAuth(_storeUser(), isInitialized: true);
+    await _waitUntil(
+      () => repository.transactionFetchCount > 0 && !provider.isLoading,
+    );
+
+    final saved = await provider.updateOrders('txn-delete', '');
+
+    expect(saved, isTrue);
+    expect(repository.savedOrderInputs.single, isEmpty);
+    expect(provider.latestTransactions.single.orders, isEmpty);
+
+    provider.dispose();
+  });
+
+  test(
+    'exposes payment ERP loading and keeps API failure in the row',
+    () async {
+      final pending = Completer<void>();
+      final repository = _FakePaymentMonitorRepository(
+        notifications: const [],
+        transactions: [_paymentTransaction(id: 'txn-error')],
+        pendingOrderUpdate: pending,
+        updateOrdersError: ApiException('ERP tạm thời chưa phản hồi', 503),
+      );
+      final provider = PaymentMonitorProvider(
+        repository,
+        _FakePaymentSpeaker(),
+        null,
+        retryDelay,
+      );
+
+      await Future<void>.delayed(Duration.zero);
+      provider.syncAuth(_storeUser(), isInitialized: true);
+      await _waitUntil(
+        () => repository.transactionFetchCount > 0 && !provider.isLoading,
+      );
+
+      final save = provider.updateOrders('txn-error', '26052287654321');
+      await Future<void>.delayed(Duration.zero);
+      expect(provider.isUpdatingOrders('txn-error'), isTrue);
+
+      pending.complete();
+      expect(await save, isFalse);
+      expect(provider.isUpdatingOrders('txn-error'), isFalse);
+      expect(
+        provider.rowMessages['txn-error']?.text,
+        'ERP tạm thời chưa phản hồi',
+      );
+
+      provider.dispose();
+    },
+  );
+
+  test('updates payment tracking and replaces the visible row', () async {
+    final repository = _FakePaymentMonitorRepository(
+      notifications: const [],
+      transactions: [
+        _paymentTransaction(
+          id: 'txn-track',
+          orders: const ['26052112345678'],
+          canManageOrderTracking: true,
+        ),
+      ],
+    );
+    final provider = PaymentMonitorProvider(
+      repository,
+      _FakePaymentSpeaker(),
+      null,
+      retryDelay,
+    );
+
+    await Future<void>.delayed(Duration.zero);
+    provider.syncAuth(_storeUser(), isInitialized: true);
+    await _waitUntil(
+      () => repository.transactionFetchCount > 0 && !provider.isLoading,
+    );
+
+    final updated = await provider.updateOrderTracking(
+      'txn-track',
+      'UNFOLLOWED',
+    );
+
+    expect(updated, isTrue);
+    expect(repository.updatedTrackingStatuses, ['UNFOLLOWED']);
+    expect(repository.trackingCooldownBypasses, [isTrue]);
+    expect(provider.latestTransactions.single.isFollowing, isFalse);
+    expect(
+      provider.rowMessages['txn-track']?.text,
+      'Đã bỏ theo dõi giao dịch.',
+    );
+
+    provider.dispose();
+  });
+
+  test('blocks payment tracking update without permission', () async {
+    final repository = _FakePaymentMonitorRepository(
+      notifications: const [],
+      transactions: [_paymentTransaction(id: 'txn-no-track')],
+    );
+    final provider = PaymentMonitorProvider(
+      repository,
+      _FakePaymentSpeaker(),
+      null,
+      retryDelay,
+    );
+
+    await Future<void>.delayed(Duration.zero);
+    provider.syncAuth(_storeUser(), isInitialized: true);
+    await _waitUntil(
+      () => repository.transactionFetchCount > 0 && !provider.isLoading,
+    );
+
+    final updated = await provider.updateOrderTracking(
+      'txn-no-track',
+      'UNFOLLOWED',
+    );
+
+    expect(updated, isFalse);
+    expect(repository.updatedTrackingStatuses, isEmpty);
+    expect(
+      provider.rowMessages['txn-no-track']?.text,
+      'Không thể thay đổi trạng thái theo dõi giao dịch.',
+    );
+
+    provider.dispose();
+  });
+
   test(
     'requests payment order transfer and refreshes the current page',
     () async {
@@ -452,7 +624,7 @@ void main() {
         'key-txn-1',
       );
       expect(repository.transactionFetchCount, greaterThan(fetchCount));
-      expect(provider.rowMessages['txn-1']?.text, 'Đã gửi Kế toán xác nhận.');
+      expect(provider.rowMessages['txn-1']?.text, 'Đã cập nhật mã đơn hàng.');
 
       provider.dispose();
     },
@@ -1822,6 +1994,9 @@ MapPaymentTransaction _paymentTransaction({
   List<String> orders = const [],
   bool canEditOrders = true,
   bool canRequestOrderTransfer = true,
+  String orderTrackingStatus = 'FOLLOWING',
+  bool canManageOrderTracking = false,
+  String? orderTrackingActionBlockedReason,
   String? pendingRequestId,
   List<String> requestedOrders = const [],
 }) {
@@ -1834,6 +2009,10 @@ MapPaymentTransaction _paymentTransaction({
     'orders': orders,
     'canEditOrders': canEditOrders,
     'canRequestOrderTransfer': canRequestOrderTransfer,
+    'orderTrackingStatus': orderTrackingStatus,
+    'canManageOrderTracking': canManageOrderTracking,
+    if (orderTrackingActionBlockedReason != null)
+      'orderTrackingActionBlockedReason': orderTrackingActionBlockedReason,
     if (pendingRequestId != null) ...{
       'orderTransferRequestId': pendingRequestId,
       'orderTransferStatus': 'PENDING',
@@ -1888,7 +2067,9 @@ class _FakePaymentMonitorRepository extends PaymentMonitorRepository {
   final Object? transactionError;
   final Object? rawAmountAudioError;
   final Object? combinedAudioError;
+  final Object? updateOrdersError;
   final Completer<StoredPaymentTransactionsPage>? pendingTransactionPage;
+  final Completer<void>? pendingOrderUpdate;
   final List<String> ackEvents = [];
   final List<String> ackErrors = [];
   final List<String?> requestedStartDates = [];
@@ -1900,6 +2081,8 @@ class _FakePaymentMonitorRepository extends PaymentMonitorRepository {
   final List<String?> requestedStreamClientIds = [];
   final List<List<String>> savedOrderInputs = [];
   final List<String?> savedOrderTransactionKeys = [];
+  final List<String> updatedTrackingStatuses = [];
+  final List<bool> trackingCooldownBypasses = [];
   final List<List<String>> requestedOrderTransfers = [];
   final List<String> requestedOrderTransferTransactionIds = [];
   final List<String?> requestedOrderTransferTransactionKeys = [];
@@ -1922,7 +2105,9 @@ class _FakePaymentMonitorRepository extends PaymentMonitorRepository {
     this.transactionError,
     this.rawAmountAudioError,
     this.combinedAudioError,
+    this.updateOrdersError,
     this.pendingTransactionPage,
+    this.pendingOrderUpdate,
   }) : super(ApiClient());
 
   @override
@@ -1966,6 +2151,9 @@ class _FakePaymentMonitorRepository extends PaymentMonitorRepository {
   }) async {
     savedOrderInputs.add(orders);
     savedOrderTransactionKeys.add(transactionKey);
+    await pendingOrderUpdate?.future;
+    final error = updateOrdersError;
+    if (error != null) throw error;
     return updatedTransaction ??
         MapPaymentTransaction.fromJson({
           'transactionNumber': transactionId,
@@ -1977,6 +2165,34 @@ class _FakePaymentMonitorRepository extends PaymentMonitorRepository {
           'canEditOrders': true,
           'canRequestOrderTransfer': true,
         });
+  }
+
+  @override
+  Future<MapPaymentTransaction> updateOrderTracking(
+    String transactionId,
+    String status, {
+    bool allowRateLimitCooldownBypass = false,
+  }) async {
+    updatedTrackingStatuses.add(status);
+    trackingCooldownBypasses.add(allowRateLimitCooldownBypass);
+    final existing = transactions.firstWhere(
+      (transaction) => transaction.id == transactionId,
+    );
+    return MapPaymentTransaction.fromJson({
+      'id': existing.id,
+      'transactionNumber': existing.transactionNumber,
+      'transactionReference': existing.transactionReference,
+      'transactionKey': existing.transactionKey,
+      'amount': existing.amount,
+      'content': existing.content,
+      'storeId': existing.storeId,
+      'status': existing.status,
+      'orders': existing.orders,
+      'orderTrackingStatus': status,
+      'canManageOrderTracking': existing.canManageOrderTracking,
+      'canEditOrders': status == 'FOLLOWING',
+      'canRequestOrderTransfer': status == 'FOLLOWING',
+    });
   }
 
   @override

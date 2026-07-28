@@ -41,15 +41,17 @@ describe('HomeSummaryProjectionService', () => {
 
   it('re-enqueues pending-payment dates before the startup cycle', async () => {
     const { service, prisma } = createHarness();
-    prisma.$queryRaw.mockResolvedValue([
-      { dateKey: '2026-07-14' },
-      { dateKey: '2026-07-16' },
-    ]);
+    prisma.$queryRaw
+      .mockResolvedValueOnce([
+        { dateKey: '2026-07-14' },
+        { dateKey: '2026-07-16' },
+      ])
+      .mockResolvedValueOnce([{ dateKey: '2026-07-18' }]);
     jest.spyOn(service as any, 'runCycle').mockResolvedValue(undefined);
 
     await (service as any).runStartupCycle();
 
-    expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(2);
     expect(prisma.$queryRaw.mock.calls[0][0].sql).toContain(
       '"isPaymentPending"',
     );
@@ -59,13 +61,56 @@ describe('HomeSummaryProjectionService', () => {
     expect(prisma.$queryRaw.mock.calls[0][0].sql).toContain(
       "INTERVAL '7 hours'",
     );
-    expect(prisma.$executeRaw).toHaveBeenCalledTimes(2);
+    expect(prisma.$queryRaw.mock.calls[1][0].sql).toContain(
+      'aggregate."metrics" ? \'totalStatementsTracked\'',
+    );
+    expect(prisma.$queryRaw.mock.calls[1][0].sql).toContain(
+      'aggregate."metrics" ? \'totalStatementsUnfollowed\'',
+    );
+    expect(prisma.$executeRaw).toHaveBeenCalledTimes(3);
     expect(
       prisma.$executeRaw.mock.calls.map(([statement]: any[]) =>
         statement.values.at(0),
       ),
-    ).toEqual(['2026-07-14', '2026-07-16']);
+    ).toEqual(['2026-07-14', '2026-07-16', '2026-07-18']);
+    expect(prisma.$executeRaw.mock.calls[2][0].sql).toContain(
+      'opshub_enqueue_home_summary_projection_kind',
+    );
+    expect(prisma.$executeRaw.mock.calls[2][0].sql).toContain(
+      "'TRACKING_STATUS_BACKFILL', 'FINANCE'",
+    );
     expect((service as any).runCycle).toHaveBeenCalledWith('startup');
+  });
+
+  it('keeps statement totals inclusive while limiting order KPIs to followed rows', async () => {
+    const { service } = createHarness();
+    const tx = { $executeRaw: jest.fn().mockResolvedValue(1) };
+
+    await (service as any).insertFinanceAggregates(
+      tx,
+      '2026-07-14',
+      42n,
+      new Date('2026-07-14T10:30:00.000Z'),
+      new Date('2026-07-14T10:30:01.000Z'),
+    );
+
+    const sql = tx.$executeRaw.mock.calls[0][0].sql as string;
+    expect(sql).toContain('COUNT(*)::int AS statement_count');
+    expect(sql).toContain('SUM(GREATEST(COALESCE("amount", 0), 0))');
+    expect(sql).toContain(
+      "COUNT(*) FILTER (WHERE tracking_status = 'FOLLOWING')::int AS tracked_count",
+    );
+    expect(sql).toContain(
+      "COUNT(*) FILTER (WHERE tracking_status = 'UNFOLLOWED')::int AS unfollowed_count",
+    );
+    expect(sql).toContain(
+      'WHERE tracking_status = \'FOLLOWING\' AND cardinality("orders") > 0',
+    );
+    expect(sql).toContain(
+      'WHERE tracking_status = \'FOLLOWING\' AND cardinality("orders") = 0',
+    );
+    expect(sql).toContain("'totalStatementsTracked', tracked_count");
+    expect(sql).toContain("'totalStatementsUnfollowed', unfollowed_count");
   });
 
   it('keeps the normal startup cycle when targeted reconciliation fails', async () => {

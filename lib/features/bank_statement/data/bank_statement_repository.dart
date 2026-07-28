@@ -190,6 +190,19 @@ class BankStatementRepository {
     );
   }
 
+  Future<BankStatementTransaction> updateOrderTracking(
+    String transactionId,
+    String status,
+  ) async {
+    final response = await _apiClient.patch(
+      ApiConstants.adminMapVietinStatementOrderTrackingEndpoint(transactionId),
+      body: {'status': status},
+    );
+    return BankStatementTransaction.fromJson(
+      jsonDecode(response.body) as Map<String, dynamic>,
+    );
+  }
+
   Future<BankStatementOrderTransferRequest> createOrderTransferRequest(
     String transactionId,
     List<String> orders,

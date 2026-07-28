@@ -30,7 +30,7 @@ a customer to scan and pay manually.
   details plus a server-rendered PNG image containing QR, brand title, logo,
   bank, account, amount, and transfer content. The endpoint requires
   `VIETQR_EXTERNAL_API_KEY` through `x-opshub-vietqr-key`, `Authorization:
-  Bearer <key>`, or a query key for quick-link compatibility.
+Bearer <key>`, or a query key for quick-link compatibility.
 - The backend owns the bank BIN, account number, account name, and merchant
   city through environment configuration.
 - Admin backend can probe VietinBank MAP payment transactions for a configured
@@ -246,6 +246,45 @@ a customer to scan and pay manually.
 
 ## Bank Statement Reconciliation
 
+### OPS-36 ERP-verified order updates and tracking
+
+The rules in this subsection supersede the legacy protected-row update and
+new order-transfer-request behavior described later in this section. The old
+`PENDING` review/history path remains only for requests created before OPS-36.
+
+- `Sao kê` and `Tiền vào` expose one existing-style action named `Cập nhật mã
+đơn`; there is no new visual redesign or new request-for-accounting action.
+- A transaction with no stored order may be updated on any date, but the new
+  list cannot be empty. Every new code must exist in ERP, have a verified
+  lifecycle, and be neither `CANCELLED` nor `RETURNED_FULL`; accepted active
+  lifecycles are `PENDING`, `COMPLETED`, and `COMPLETED_PARTIAL_RETURN`.
+- A transaction with stored orders may be replaced or cleared only on the same
+  Vietnam-local calendar day as `paidAt ?? firstSeenAt`, and only after every
+  existing code is verified by ERP as `CANCELLED` or `RETURNED_FULL`. Any
+  active, missing, unverified, or unavailable old order blocks the full update.
+- ERP lookup failure, timeout, missing order, or missing lifecycle fails closed.
+  A no-op skips ERP and creates no transaction write, audit row, or compatibility
+  request. ERP lookup runs outside the database transaction; the write rechecks
+  `updatedAt`, stored orders, pending state, and tracking status before applying
+  the order change and audit atomically.
+- The compatibility `POST .../order-transfer-requests` endpoint applies the
+  same rules immediately, stores changed requests as `APPROVED` with ERP as the
+  resolution source, emits an `APPROVED` realtime invalidation, and creates no
+  new pending notification. Existing pending requests may still be approved,
+  rejected, or expired through the old flow.
+- Every statement has `FOLLOWING` or `UNFOLLOWED` tracking status. ACC, FIN_ACC,
+  and Super Admin may toggle it within their showroom scope when no legacy
+  pending request exists. An unfollowed transaction must be followed again
+  before its order list can change; every real toggle writes a dedicated audit.
+- `ALL` includes both tracking states. `HAS_ORDER`, `MISSING_ORDER`,
+  `OFFSET_PENDING`, and `OFFSET_CONFIRMED` include only `FOLLOWING`; the status
+  filter adds `UNFOLLOWED`. XLSX adds `Trạng thái theo dõi`.
+- Home total statement count and transferred amount remain inclusive. With-
+  order and without-order counts include only `FOLLOWING`; Home also exposes
+  tracked/unfollowed counts and divides the order-attachment rate by tracked
+  statements. BigQuery schema v2 exports `order_tracking_status`; the current
+  view treats legacy null values as `FOLLOWING`.
+
 - The app exposes the `Sao ke` home action when the resolved
   `BANK_STATEMENTS` feature is allowed. The `BANK_STATEMENT_ALL_SCOPE` policy
   can widen showroom scope after the feature is enabled, but cannot reopen the
@@ -318,13 +357,13 @@ a customer to scan and pay manually.
   that transaction only while it is still the same Vietnam-local calendar day
   as `paidAt ?? firstSeenAt`. After 00:00 UTC+7, the app disables the update
   action with `Quá thời hạn cập nhật trong ngày. Vui lòng dùng chức năng Cấn
-  trừ.`, the backend rejects the same request, and stale pending requests are
+trừ.`, the backend rejects the same request, and stale pending requests are
   moved to `EXPIRED` so rows no longer show `Chờ xác nhận`. The separate
   after-day-close `Cấn trừ` flow is handled by the dedicated offset adjustment
   contract.
 - Only one order-transfer request may be pending for a transaction. Pending
   rows use a yellow border and show the requested order codes as `Chờ ACC xác
-  nhận`. ACC approval is available to `SUPER_ADMIN` and users in `FIN_ACC` or
+nhận`. ACC approval is available to `SUPER_ADMIN` and users in `FIN_ACC` or
   `ACC` through department or organization-node code/businessCode. Approval
   replaces the transaction orders with the requested orders, sets order source
   `OFFSET`, writes the order audit, and shows a small `Đã cấn trừ` tag beside
@@ -348,7 +387,7 @@ a customer to scan and pay manually.
   preserves long numeric identifiers such as statement references, transaction
   numbers, order codes, and payer accounts as text, and formats transaction
   timestamps in Vietnam local time. It includes `Loại giao dịch` and `Tài khoản
-  nhận`; when a transaction has multiple orders, the order-code cell exports
+nhận`; when a transaction has multiple orders, the order-code cell exports
   one code per line. Statement
   search uses server-side paging, while selected transaction ids stay selected
   when users move between pages and take precedence during export. If nothing is
