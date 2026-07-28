@@ -191,13 +191,22 @@ publishes a `.sha256` file beside the direct Windows downloads so operators and
 the runtime updater can verify the final signed bytes.
 
 The Android and Windows build jobs upload the finished client packages directly
-to a per-run staging directory on the VPS instead of storing them as GitHub
-Actions artifacts. The deploy job promotes those staged files to
-`/srv/opshub/downloads/`, writes the public download manifest from the published
-files, points Windows update metadata at the installer EXE, updates the backend
-generic `APP_*`, `APP_ANDROID_APP_*`, and `APP_WINDOWS_APP_*` env values, runs
-Prisma migrations, rebuilds the Docker stack, and keeps only the five newest
-release folders plus the newest client downloads.
+to a run/attempt-scoped staging directory on the VPS instead of storing them as
+GitHub Actions artifacts. The deploy job stages the runtime, web, Help,
+download metadata and every client artifact before touching live paths. It then
+captures the exact previous runtime, production env and overwritten shared
+paths, promotes them inside one recoverable transaction, runs Prisma migrations
+and rebuilds the Docker stack. Public health/version/download verification must
+pass before the checkpoint and staging inputs are removed.
+
+Production migrations are expand/contract only. Every migration included in a
+release must keep the exact previous runtime compatible after the forward
+migration; destructive contract work ships only in a later release after the
+old runtime is no longer a rollback target. The release transaction does not
+snapshot or restore PostgreSQL. On failure it restores the snapshotted env,
+shared publication and exact previous runtime, never an arbitrary older release.
+Every failed release retains its run/attempt-scoped checkpoint for audit and
+manual cleanup; only a fully verified successful release finalizes it.
 
 Full production deploys also build the Flutter web app with
 `API_BASE_URL=https://opshub.hoanghochoi.com/api`, sync it to
@@ -224,7 +233,9 @@ static landing page/icon/help asset bundle, syncs `docs/help/*` into the
 current release as the runtime seed/rollback source, regenerates `latest.json`
 from the already live app-version metadata and files, updates the current
 Caddyfile, and reloads Caddy without rebuilding APK, Windows packages, backend
-images, or app-version metadata.
+images, or app-version metadata. This path uses the same checkpoint contract:
+failed promotion or public verification restores Caddy, current-release Help,
+download Help assets, manifest, landing page and icon before cleanup.
 
 New Android and Windows clients use `/app-version` package metadata to update
 inside the app: they download `packageUrl`, verify `packageSha256` and
