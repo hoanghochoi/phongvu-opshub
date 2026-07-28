@@ -3,6 +3,21 @@
 This file maps product behavior to proof. Existing flows are marked
 `existing_unverified` until fresh validation evidence is attached.
 
+- `OPS-26`, 2026-07-29: production full deploy and `deploy_download_static`
+  now share a run/attempt-scoped filesystem transaction. The checkpoint keeps
+  the exact previous runtime, env, web, Help, download metadata and affected
+  client artifacts; failures restore only that recorded release and retain
+  evidence, while cleanup runs only after public verification succeeds.
+  Production database migrations are expand/contract only and must leave the
+  previous runtime compatible; database snapshot/restore is intentionally out
+  of scope. Local failure-injection proof passed snapshot/promote/restore,
+  missing-env and partial-shared-restore retention/resume, static Caddy/current
+  Help/download Help rollback, workflow ordering and run-attempt isolation.
+  Embedded deploy Bash syntax, all workflow YAML parsing, release guard `9/9`,
+  lifecycle `11/11`, platform security, runtime-release preview packaging and
+  `git diff --check` passed. Exact-SHA staging deploy, public verification and a
+  controlled failed-verification rollback remain required before release.
+
 - `OPS-38`/`CODEX-DESKTOP-AGENT-001`, 2026-07-29: project-scoped Codex Desktop
   configuration, eight repo-native agents, and the explicit orchestration
   skill have passed local static/workflow proof: config validator PASS, skill

@@ -157,7 +157,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          staging_dir="${OPSHUB_REMOTE_APP_DIR}/action-staging/${GITHUB_RUN_ID}/android"
+          staging_dir="${OPSHUB_REMOTE_APP_DIR}/action-staging/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}/android"
           ssh opshub-vps "mkdir -p '$staging_dir'"
           scp 'build/app/outputs/flutter-apk/app-production-release.apk' \
             "opshub-vps:${staging_dir}/${{ needs.prepare.outputs.apk_name }}"
@@ -383,7 +383,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          staging_dir="${OPSHUB_REMOTE_APP_DIR}/action-staging/${GITHUB_RUN_ID}/windows"
+          staging_dir="${OPSHUB_REMOTE_APP_DIR}/action-staging/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}/windows"
           ssh opshub-vps "mkdir -p '$staging_dir'"
           scp \
             'build/windows/x64/runner/${{ needs.prepare.outputs.windows_zip_name }}' \
@@ -449,11 +449,11 @@ jobs:
             echo "  IdentitiesOnly yes"
           } >> ~/.ssh/config
 
-      - name: Promote staged client artifacts
+      - name: Verify staged client artifacts
         shell: bash
         run: |
           set -euo pipefail
-          client_staging_dir="${OPSHUB_REMOTE_APP_DIR}/action-staging/${GITHUB_RUN_ID}"
+          client_staging_dir="${OPSHUB_REMOTE_APP_DIR}/action-staging/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           ssh opshub-vps \
             "CLIENT_STAGING_DIR='$client_staging_dir' \
              APK_NAME='${{ needs.prepare.outputs.apk_name }}' \
@@ -463,7 +463,6 @@ jobs:
              bash -s" <<'REMOTE'
           set -euo pipefail
 
-          downloads_dir=/srv/opshub/downloads
           android_artifact="$CLIENT_STAGING_DIR/android/$APK_NAME"
           windows_zip="$CLIENT_STAGING_DIR/windows/$WINDOWS_ZIP_NAME"
           windows_installer="$CLIENT_STAGING_DIR/windows/$WINDOWS_INSTALLER_NAME"
@@ -476,11 +475,6 @@ jobs:
             fi
           done
 
-          mkdir -p "$downloads_dir"
-          install -m 0644 "$android_artifact" "$downloads_dir/$APK_NAME"
-          install -m 0644 "$windows_zip" "$downloads_dir/$WINDOWS_ZIP_NAME"
-          install -m 0644 "$windows_installer" "$downloads_dir/$WINDOWS_INSTALLER_NAME"
-          install -m 0644 "$windows_checksum" "$downloads_dir/$WINDOWS_CHECKSUM_NAME"
           REMOTE
 
       - name: Write download manifest
@@ -496,10 +490,11 @@ jobs:
           WINDOWS_CHECKSUM_FILE_NAME: ${{ needs.prepare.outputs.windows_checksum_name }}
         run: |
           set -euo pipefail
-          APK_FILE_SIZE_BYTES="$(ssh opshub-vps "stat -c%s '/srv/opshub/downloads/${{ needs.prepare.outputs.apk_name }}'")"
-          WINDOWS_INSTALLER_FILE_SIZE_BYTES="$(ssh opshub-vps "stat -c%s '/srv/opshub/downloads/${{ needs.prepare.outputs.windows_installer_name }}'")"
-          WINDOWS_ZIP_FILE_SIZE_BYTES="$(ssh opshub-vps "stat -c%s '/srv/opshub/downloads/${{ needs.prepare.outputs.windows_zip_name }}'")"
-          WINDOWS_CHECKSUM_FILE_SIZE_BYTES="$(ssh opshub-vps "stat -c%s '/srv/opshub/downloads/${{ needs.prepare.outputs.windows_checksum_name }}'")"
+          client_staging_dir="${OPSHUB_REMOTE_APP_DIR}/action-staging/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          APK_FILE_SIZE_BYTES="$(ssh opshub-vps "stat -c%s '$client_staging_dir/android/${{ needs.prepare.outputs.apk_name }}'")"
+          WINDOWS_INSTALLER_FILE_SIZE_BYTES="$(ssh opshub-vps "stat -c%s '$client_staging_dir/windows/${{ needs.prepare.outputs.windows_installer_name }}'")"
+          WINDOWS_ZIP_FILE_SIZE_BYTES="$(ssh opshub-vps "stat -c%s '$client_staging_dir/windows/${{ needs.prepare.outputs.windows_zip_name }}'")"
+          WINDOWS_CHECKSUM_FILE_SIZE_BYTES="$(ssh opshub-vps "stat -c%s '$client_staging_dir/windows/${{ needs.prepare.outputs.windows_checksum_name }}'")"
           export \
             APK_FILE_SIZE_BYTES \
             WINDOWS_INSTALLER_FILE_SIZE_BYTES \
@@ -520,40 +515,49 @@ jobs:
             echo "origin/${OPSHUB_HELP_CONTENT_BRANCH} not found; using docs/help from ${GITHUB_REF_NAME}."
           fi
           node scripts/build-runtime-release.mjs
-          remote_release_dir="${OPSHUB_REMOTE_APP_DIR}/releases/${GITHUB_SHA}"
-          ssh opshub-vps "mkdir -p '$remote_release_dir' /srv/opshub/downloads /srv/opshub/web"
+          tar -C docs/help -czf dist/help-assets.tar.gz assets
+          tar -C build/web -czf dist/web.tar.gz .
+          remote_release_dir="${OPSHUB_REMOTE_APP_DIR}/releases/${GITHUB_SHA}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          tmp_dir="${OPSHUB_REMOTE_APP_DIR}/tmp/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          ssh opshub-vps "mkdir -p '$remote_release_dir' '$tmp_dir'"
           rsync -az --delete 'dist/runtime-release/' \
             "opshub-vps:${remote_release_dir}/"
-          rsync -az --delete 'build/web/' \
-            'opshub-vps:/srv/opshub/web/'
-          scp 'dist/downloads/latest.json' \
-            'opshub-vps:/srv/opshub/downloads/latest.json'
-          scp 'deploy/home-server/download.html' \
-            'opshub-vps:/srv/opshub/downloads/download.html'
+          scp 'dist/downloads/latest.json' 'deploy/home-server/download.html' \
+            'dist/help-assets.tar.gz' 'dist/web.tar.gz' "opshub-vps:${tmp_dir}/"
           scp 'web/icons/Icon-192.png' \
-            'opshub-vps:/srv/opshub/downloads/opshub-icon-192.png'
-          rsync -az --delete 'docs/help/assets/' \
-            'opshub-vps:/srv/opshub/downloads/help/assets/'
+            "opshub-vps:${tmp_dir}/opshub-icon-192.png"
 
       - name: Deploy backend and publish version metadata
+        id: deploy_runtime
         shell: bash
         run: |
           set -euo pipefail
-          remote_release_dir="${OPSHUB_REMOTE_APP_DIR}/releases/${GITHUB_SHA}"
-          client_staging_dir="${OPSHUB_REMOTE_APP_DIR}/action-staging/${GITHUB_RUN_ID}"
+          remote_release_dir="${OPSHUB_REMOTE_APP_DIR}/releases/${GITHUB_SHA}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          client_staging_dir="${OPSHUB_REMOTE_APP_DIR}/action-staging/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          tmp_dir="${OPSHUB_REMOTE_APP_DIR}/tmp/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           android_update_url="${OPSHUB_PUBLIC_BASE_URL}/downloads/${{ needs.prepare.outputs.apk_name }}"
           windows_update_url="${OPSHUB_PUBLIC_BASE_URL}/downloads/${{ needs.prepare.outputs.windows_installer_name }}"
-          android_package_sha256="$(ssh opshub-vps "sha256sum '/srv/opshub/downloads/${{ needs.prepare.outputs.apk_name }}' | awk '{print \$1}'")"
-          windows_package_sha256="$(ssh opshub-vps "sha256sum '/srv/opshub/downloads/${{ needs.prepare.outputs.windows_installer_name }}' | awk '{print \$1}'")"
-          android_package_size_bytes="$(ssh opshub-vps "stat -c%s '/srv/opshub/downloads/${{ needs.prepare.outputs.apk_name }}'")"
-          windows_package_size_bytes="$(ssh opshub-vps "stat -c%s '/srv/opshub/downloads/${{ needs.prepare.outputs.windows_installer_name }}'")"
+          android_package_sha256="$(ssh opshub-vps "sha256sum '$client_staging_dir/android/${{ needs.prepare.outputs.apk_name }}' | awk '{print \$1}'")"
+          windows_package_sha256="$(ssh opshub-vps "sha256sum '$client_staging_dir/windows/${{ needs.prepare.outputs.windows_installer_name }}' | awk '{print \$1}'")"
+          android_package_size_bytes="$(ssh opshub-vps "stat -c%s '$client_staging_dir/android/${{ needs.prepare.outputs.apk_name }}'")"
+          windows_package_size_bytes="$(ssh opshub-vps "stat -c%s '$client_staging_dir/windows/${{ needs.prepare.outputs.windows_installer_name }}'")"
           windows_installer_args="/VERYSILENT,/SUPPRESSMSGBOXES,/NORESTART,/CLOSEAPPLICATIONS,/OPSHUBRELAUNCH=1"
           ssh opshub-vps \
             "REMOTE_RELEASE_DIR='$remote_release_dir' \
              CLIENT_STAGING_DIR='$client_staging_dir' \
+             TMP_DIR='$tmp_dir' \
              OPSHUB_REMOTE_APP_DIR='${OPSHUB_REMOTE_APP_DIR}' \
+             DEPLOY_RUN_ID='$GITHUB_RUN_ID' \
+             DEPLOY_RUN_ATTEMPT='$GITHUB_RUN_ATTEMPT' \
              CURRENT_DIR='${OPSHUB_REMOTE_APP_DIR}/current' \
              OPSHUB_ENV_FILE='$OPSHUB_ENV_FILE' \
+             OPSHUB_SSD_ROOT='/srv/opshub' \
+             DOWNLOADS_DIR='/srv/opshub/downloads' \
+             WEB_DIR='/srv/opshub/web' \
+             APK_NAME='${{ needs.prepare.outputs.apk_name }}' \
+             WINDOWS_ZIP_NAME='${{ needs.prepare.outputs.windows_zip_name }}' \
+             WINDOWS_INSTALLER_NAME='${{ needs.prepare.outputs.windows_installer_name }}' \
+             WINDOWS_CHECKSUM_NAME='${{ needs.prepare.outputs.windows_checksum_name }}' \
              APP_VERSION='${{ needs.prepare.outputs.version_name }}' \
              APP_BUILD_NUMBER='${{ needs.prepare.outputs.version_code }}' \
              ANDROID_UPDATE_URL='$android_update_url' \
@@ -567,11 +571,103 @@ jobs:
              bash -s" <<'REMOTE'
           set -Eeuo pipefail
 
+          source "$REMOTE_RELEASE_DIR/deploy/home-server/release-transaction.sh"
+          export OPSHUB_SUDO=sudo
+          TXN_INPUT_DIR="$TMP_DIR"
+          TXN_CLIENT_DIR="$CLIENT_STAGING_DIR"
+
           sudo mkdir -p "$(dirname "$OPSHUB_ENV_FILE")"
           if [ ! -s "$OPSHUB_ENV_FILE" ]; then
             echo "Missing non-empty production env file: $OPSHUB_ENV_FILE" >&2
             exit 1
           fi
+          opshub_txn_begin
+          previous_current="$(opshub_txn_previous_release)"
+
+          compose_cmd() {
+             "${compose[@]}" "$@" < /dev/null
+          }
+
+          dump_deploy_diagnostics() {
+             set +e
+             if declare -F compose_cmd >/dev/null 2>&1 && declare -p compose >/dev/null 2>&1; then
+               echo "::group::Docker deployment diagnostics"
+               compose_cmd ps
+               compose_cmd logs --tail=200 api
+               compose_cmd logs --tail=120 realtime
+               compose_cmd logs --tail=120 caddy
+               docker inspect home-server-api-1 --format '{{json .State.Health}}'
+               echo "::endgroup::"
+             else
+               echo 'Docker diagnostics unavailable before Compose initialization.' >&2
+             fi
+             set -e
+          }
+
+          rollback_to_release() {
+             local candidate="$1"
+             if [ ! -d "$candidate" ]; then
+               return 1
+             fi
+             echo "Attempting rollback to release: $candidate"
+             ln -sfn "$candidate" "${CURRENT_DIR}.rollback"
+             mv -Tf "${CURRENT_DIR}.rollback" "$CURRENT_DIR"
+             cd "$CURRENT_DIR"
+             export OPSHUB_ENV_FILE
+             compose=(docker compose --env-file "$OPSHUB_ENV_FILE" -f deploy/home-server/docker-compose.home.yml)
+             if compose_cmd up -d --build --force-recreate --wait --wait-timeout 240 redis api realtime caddy; then
+               echo "Rollback release is healthy: $candidate"
+               compose_cmd ps
+               return 0
+             fi
+             dump_deploy_diagnostics
+             return 1
+          }
+
+          rollback_on_error() {
+             local status="$1"
+             local env_restored=false
+             local shared_restored=false
+             trap - ERR
+             echo "Deploy failed with status $status" >&2
+             dump_deploy_diagnostics
+             if opshub_txn_restore_env; then
+               env_restored=true
+             else
+               echo "Production env restore failed; rollback evidence retained." >&2
+             fi
+             if opshub_txn_restore_shared; then
+               shared_restored=true
+             else
+               echo "Production shared publication restore failed; rollback evidence retained." >&2
+             fi
+             if [ "$env_restored" != true ]; then
+               echo "Exact runtime rollback is unsafe without the previous env; manual recovery required." >&2
+               exit "$status"
+             fi
+             if rollback_to_release "$previous_current"; then
+               if [ "$shared_restored" = true ]; then
+                 echo "Rollback is healthy; checkpoint retained because the release failed." >&2
+               else
+                 echo "Runtime is healthy but shared publication recovery remains incomplete." >&2
+               fi
+               exit "$status"
+             fi
+             echo "Exact previous release rollback did not become healthy; evidence retained." >&2
+             exit "$status"
+          }
+
+          run_compose_or_rollback() {
+             local status
+             if compose_cmd "$@"; then
+               return 0
+             else
+               status=$?
+             fi
+             rollback_on_error "$status"
+          }
+          trap 'rollback_on_error $?' ERR
+
           sudo chown root:"$(id -gn)" "$OPSHUB_ENV_FILE"
           sudo chmod 640 "$OPSHUB_ENV_FILE"
 
@@ -684,8 +780,9 @@ jobs:
             -v "$REMOTE_RELEASE_DIR/deploy/home-server/Caddyfile:/etc/caddy/Caddyfile:ro" \
             caddy:2-alpine caddy validate --config /etc/caddy/Caddyfile < /dev/null
 
-          previous_current="$(readlink -f "$CURRENT_DIR" || true)"
-          remote_release_real="$(readlink -f "$REMOTE_RELEASE_DIR" || true)"
+          # Publish client/static inputs only after env and Caddy validation,
+          # while keeping the complete rollback checkpoint alive.
+          opshub_txn_stage_shared
           ln -sfn "$REMOTE_RELEASE_DIR" "${CURRENT_DIR}.next"
           mv -Tf "${CURRENT_DIR}.next" "$CURRENT_DIR"
           cd "$CURRENT_DIR"
@@ -695,93 +792,11 @@ jobs:
             "${compose[@]}" "$@" < /dev/null
           }
 
-          dump_deploy_diagnostics() {
-            set +e
-            echo "::group::Docker deployment diagnostics"
-            compose_cmd ps
-            compose_cmd logs --tail=200 api
-            compose_cmd logs --tail=120 realtime
-            compose_cmd logs --tail=120 caddy
-            docker inspect home-server-api-1 --format '{{json .State.Health}}'
-            echo "::endgroup::"
-            set -e
-          }
-
-          rollback_to_release() {
-            candidate="$1"
-            if [ ! -d "$candidate" ]; then
-              return 1
-            fi
-            echo "Attempting rollback to release: $candidate"
-            ln -sfn "$candidate" "${CURRENT_DIR}.rollback"
-            mv -Tf "${CURRENT_DIR}.rollback" "$CURRENT_DIR"
-            cd "$CURRENT_DIR"
-            compose=(docker compose --env-file "$OPSHUB_ENV_FILE" -f deploy/home-server/docker-compose.home.yml)
-            if compose_cmd up -d --build --force-recreate --wait --wait-timeout 240 redis api realtime caddy; then
-              echo "Rollback release is healthy: $candidate"
-              compose_cmd ps
-              return 0
-            fi
-            dump_deploy_diagnostics
-            return 1
-          }
-
-          rollback_on_error() {
-            status="$1"
-            trap - ERR
-            echo "Deploy failed with status $status" >&2
-            dump_deploy_diagnostics
-
-            rollback_candidates=()
-            if [ -n "${previous_current:-}" ] && [ -d "$previous_current" ]; then
-              rollback_candidates+=("$previous_current")
-            fi
-
-            releases_dir="$(dirname "$REMOTE_RELEASE_DIR")"
-            while IFS= read -r dir; do
-              dir_real="$(readlink -f "$dir" || true)"
-              if [ -z "$dir_real" ] || [ "$dir_real" = "$remote_release_real" ]; then
-                continue
-              fi
-              already_added=false
-              for existing in "${rollback_candidates[@]}"; do
-                existing_real="$(readlink -f "$existing" || true)"
-                if [ "$existing_real" = "$dir_real" ]; then
-                  already_added=true
-                  break
-                fi
-              done
-              if [ "$already_added" = false ]; then
-                rollback_candidates+=("$dir_real")
-              fi
-            done < <(find "$releases_dir" -mindepth 1 -maxdepth 1 -type d -printf '%T@ %p\n' | sort -rn | awk '{print $2}')
-
-            for candidate in "${rollback_candidates[@]}"; do
-              if rollback_to_release "$candidate"; then
-                exit "$status"
-              fi
-            done
-
-            echo "Rollback did not find a healthy release" >&2
-            exit "$status"
-          }
-
-          run_compose_or_rollback() {
-            local status
-            if compose_cmd "$@"; then
-              return 0
-            else
-              status=$?
-            fi
-            rollback_on_error "$status"
-          }
-
           compose_cmd config >/dev/null
 
           # The first hardened production rollout enables Redis authentication.
           # Recreate Redis in the same guarded maintenance transaction so API and
           # realtime never start with credentials that the running Redis ignores.
-          trap 'rollback_on_error $?' ERR
           compose_cmd stop api realtime caddy || true
           run_compose_or_rollback up -d --force-recreate --wait --wait-timeout 120 redis
 
@@ -792,7 +807,6 @@ jobs:
           run_compose_or_rollback --profile migrate run --rm -T --build migrate
 
           run_compose_or_rollback up -d --build --force-recreate --wait --wait-timeout 240 api realtime caddy
-          trap - ERR
 
           expected_app_env="${APP_VERSION}|${APP_BUILD_NUMBER}|${APP_VERSION}|${APP_BUILD_NUMBER}|${APP_VERSION}|${APP_BUILD_NUMBER}|1|false"
           for attempt in {1..12}; do
@@ -813,39 +827,8 @@ jobs:
           done
 
           compose_cmd ps
+          trap - ERR
 
-          releases_dir="$(dirname "$REMOTE_RELEASE_DIR")"
-          current_real="$(readlink -f "$CURRENT_DIR" || true)"
-          mapfile -t release_dirs < <(find "$releases_dir" -mindepth 1 -maxdepth 1 -type d -printf '%T@ %p\n' | sort -rn | awk '{print $2}')
-          kept=0
-          for dir in "${release_dirs[@]}"; do
-            dir_real="$(readlink -f "$dir")"
-            if [ "$dir_real" = "$current_real" ] || [ "$kept" -lt 5 ]; then
-              kept=$((kept + 1))
-              continue
-            fi
-            rm -rf "$dir"
-          done
-
-          mapfile -t client_files < <(find /srv/opshub/downloads -maxdepth 1 -type f \( -name 'phongvu-opshub-v*.apk' -o -name 'phongvu-opshub-windows-v*.zip' -o -name 'phongvu-opshub-windows-setup-v*.exe' -o -name 'phongvu-opshub-windows-v*.sha256' \) -printf '%T@ %p\n' | sort -rn | awk '{print $2}')
-          kept=0
-          for file in "${client_files[@]}"; do
-            if [ "$kept" -lt 20 ]; then
-              kept=$((kept + 1))
-              continue
-            fi
-            rm -f "$file"
-          done
-
-          case "$CLIENT_STAGING_DIR" in
-            "$OPSHUB_REMOTE_APP_DIR"/action-staging/*)
-              rm -rf "$CLIENT_STAGING_DIR"
-              ;;
-            *)
-              echo "Refusing to remove unexpected staging directory: $CLIENT_STAGING_DIR" >&2
-              exit 1
-              ;;
-          esac
           REMOTE
 
       - name: Verify public health and version metadata
@@ -992,6 +975,99 @@ jobs:
             curl -fIs "$url" >/dev/null
           done
 
+      - name: Roll back production after failed release verification
+        if: ${{ (failure() || cancelled()) && steps.deploy_runtime.outcome == 'success' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          remote_release_dir="${OPSHUB_REMOTE_APP_DIR}/releases/${GITHUB_SHA}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          client_staging_dir="${OPSHUB_REMOTE_APP_DIR}/action-staging/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          tmp_dir="${OPSHUB_REMOTE_APP_DIR}/tmp/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          ssh opshub-vps \
+            "REMOTE_RELEASE_DIR='$remote_release_dir' \
+             CURRENT_DIR='${OPSHUB_REMOTE_APP_DIR}/current' \
+             CLIENT_STAGING_DIR='$client_staging_dir' \
+             TMP_DIR='$tmp_dir' \
+             OPSHUB_REMOTE_APP_DIR='${OPSHUB_REMOTE_APP_DIR}' \
+             DEPLOY_RUN_ID='$GITHUB_RUN_ID' \
+             DEPLOY_RUN_ATTEMPT='$GITHUB_RUN_ATTEMPT' \
+             OPSHUB_ENV_FILE='$OPSHUB_ENV_FILE' \
+             OPSHUB_SSD_ROOT='/srv/opshub' \
+             DOWNLOADS_DIR='/srv/opshub/downloads' \
+             WEB_DIR='/srv/opshub/web' \
+             APK_NAME='${{ needs.prepare.outputs.apk_name }}' \
+             WINDOWS_ZIP_NAME='${{ needs.prepare.outputs.windows_zip_name }}' \
+             WINDOWS_INSTALLER_NAME='${{ needs.prepare.outputs.windows_installer_name }}' \
+             WINDOWS_CHECKSUM_NAME='${{ needs.prepare.outputs.windows_checksum_name }}' \
+             COMPOSE_PROJECT_NAME='opshub' \
+             bash -s" <<'REMOTE'
+          set -Eeuo pipefail
+          source "$REMOTE_RELEASE_DIR/deploy/home-server/release-transaction.sh"
+          export OPSHUB_SUDO=sudo
+          txn_id="${DEPLOY_RUN_ID}-${DEPLOY_RUN_ATTEMPT}"
+          if ! sudo test -s "${OPSHUB_ENV_FILE}.rollback.${txn_id}" || \
+             ! sudo test -s "${OPSHUB_SSD_ROOT}/rollback/deploy-${txn_id}.state" || \
+             ! sudo test -e "${OPSHUB_SSD_ROOT}/rollback/deploy-${txn_id}.shared/SNAPSHOT_READY"; then
+            echo 'Protected production rollback checkpoint is missing; manual recovery required.' >&2
+            exit 1
+          fi
+          opshub_txn_load
+          opshub_txn_require_promoted
+          previous_release="$(opshub_txn_previous_release)"
+          current_real="$(readlink -f "$CURRENT_DIR" || true)"
+          if [ "$current_real" != "$(opshub_txn_candidate_release)" ]; then
+            echo 'Production rollback candidate no longer matches checkpoint; refusing runtime change.' >&2
+            exit 1
+          fi
+          opshub_txn_restore_env
+          opshub_txn_restore_shared
+          ln -sfn "$previous_release" "${CURRENT_DIR}.rollback"
+          mv -Tf "${CURRENT_DIR}.rollback" "$CURRENT_DIR"
+          cd "$CURRENT_DIR"
+          export OPSHUB_ENV_FILE COMPOSE_PROJECT_NAME
+          compose=(docker compose --env-file "$OPSHUB_ENV_FILE" -f deploy/home-server/docker-compose.home.yml)
+          compose_cmd() { "${compose[@]}" "$@" < /dev/null; }
+          compose_cmd up -d --build --force-recreate --wait --wait-timeout 240 redis api realtime caddy
+          curl -fsS -H 'Host: opshub.hoanghochoi.com' -H 'X-Forwarded-Proto: https' 'http://127.0.0.1:8090/health' >/dev/null
+          echo 'Production release, env, web, Help, manifest and client files rolled back; checkpoint retained because public verification failed.' >&2
+          REMOTE
+
+      - name: Finalize successful production release checkpoint
+        if: ${{ success() && steps.deploy_runtime.outcome == 'success' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          remote_release_dir="${OPSHUB_REMOTE_APP_DIR}/releases/${GITHUB_SHA}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          client_staging_dir="${OPSHUB_REMOTE_APP_DIR}/action-staging/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          tmp_dir="${OPSHUB_REMOTE_APP_DIR}/tmp/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          ssh opshub-vps \
+            "REMOTE_RELEASE_DIR='$remote_release_dir' CURRENT_DIR='${OPSHUB_REMOTE_APP_DIR}/current' CLIENT_STAGING_DIR='$client_staging_dir' TMP_DIR='$tmp_dir' OPSHUB_REMOTE_APP_DIR='${OPSHUB_REMOTE_APP_DIR}' DEPLOY_RUN_ID='$GITHUB_RUN_ID' DEPLOY_RUN_ATTEMPT='$GITHUB_RUN_ATTEMPT' OPSHUB_ENV_FILE='$OPSHUB_ENV_FILE' OPSHUB_SSD_ROOT='/srv/opshub' DOWNLOADS_DIR='/srv/opshub/downloads' WEB_DIR='/srv/opshub/web' APK_NAME='${{ needs.prepare.outputs.apk_name }}' WINDOWS_ZIP_NAME='${{ needs.prepare.outputs.windows_zip_name }}' WINDOWS_INSTALLER_NAME='${{ needs.prepare.outputs.windows_installer_name }}' WINDOWS_CHECKSUM_NAME='${{ needs.prepare.outputs.windows_checksum_name }}' bash -s" <<'REMOTE'
+          set -Eeuo pipefail
+          source "$REMOTE_RELEASE_DIR/deploy/home-server/release-transaction.sh"
+          export OPSHUB_SUDO=sudo
+          opshub_txn_load
+          opshub_txn_require_promoted
+          current_real="$(readlink -f "$CURRENT_DIR" || true)"
+          candidate_real="$(opshub_txn_candidate_release)"
+          [ "$current_real" = "$candidate_real" ] || { echo 'Successful release checkpoint does not match current runtime.' >&2; exit 1; }
+          case "$CLIENT_STAGING_DIR" in "$OPSHUB_REMOTE_APP_DIR"/action-staging/*) rm -rf -- "$CLIENT_STAGING_DIR" ;; *) exit 1 ;; esac
+          case "$TMP_DIR" in "$OPSHUB_REMOTE_APP_DIR"/tmp/*) rm -rf -- "$TMP_DIR" ;; *) exit 1 ;; esac
+          releases_dir="$(dirname "$REMOTE_RELEASE_DIR")"
+          mapfile -t release_dirs < <(find "$releases_dir" -mindepth 1 -maxdepth 1 -type d -printf '%T@ %p\n' | sort -rn | awk '{print $2}')
+          kept=0
+          previous_real="$(opshub_txn_previous_release)"
+          for dir in "${release_dirs[@]}"; do
+            dir_real="$(readlink -f "$dir")"
+            if [ "$dir_real" = "$current_real" ] || [ "$dir_real" = "$previous_real" ] || [ "$kept" -lt 5 ]; then kept=$((kept + 1)); continue; fi
+            rm -rf -- "$dir"
+          done
+          mapfile -t client_files < <(find "$DOWNLOADS_DIR" -maxdepth 1 -type f \( -name 'phongvu-opshub-v*.apk' -o -name 'phongvu-opshub-windows-v*.zip' -o -name 'phongvu-opshub-windows-setup-v*.exe' -o -name 'phongvu-opshub-windows-v*.sha256' \) -printf '%T@ %p\n' | sort -rn | awk '{print $2}')
+          kept=0
+          for file in "${client_files[@]}"; do if [ "$kept" -lt 20 ]; then kept=$((kept + 1)); else rm -f -- "$file"; fi; done
+          opshub_txn_cleanup
+          echo 'Production release checkpoint finalized after public verification.'
+          REMOTE
+
   deploy_download_static:
     runs-on: ubuntu-latest
     if: ${{ (github.event_name == 'workflow_dispatch' && inputs.skip_client_build == true) || github.ref == 'refs/heads/help-content' }}
@@ -1054,6 +1130,7 @@ jobs:
           } >> ~/.ssh/config
 
       - name: Upload download landing files and reload Caddy
+        id: deploy_static
         shell: bash
         run: |
           set -euo pipefail
@@ -1063,37 +1140,73 @@ jobs:
             git checkout FETCH_HEAD -- docs/help
             echo "Loaded docs/help from origin/${OPSHUB_HELP_CONTENT_BRANCH}."
           fi
-          caddy_tmp="/tmp/opshub-Caddyfile-${GITHUB_SHA}"
-          ssh opshub-vps "mkdir -p /srv/opshub/downloads"
-          ssh opshub-vps "mkdir -p '${OPSHUB_REMOTE_APP_DIR}/current/docs/help'"
-          scp 'dist/downloads/latest.json' \
-            'opshub-vps:/srv/opshub/downloads/latest.json'
-          scp 'deploy/home-server/download.html' \
-            'opshub-vps:/srv/opshub/downloads/download.html'
+          tmp_dir="${OPSHUB_REMOTE_APP_DIR}/tmp/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-static"
+          tar -C docs/help -czf dist/docs-help.tar.gz .
+          ssh opshub-vps "mkdir -p '$tmp_dir'"
+          scp 'dist/downloads/latest.json' 'deploy/home-server/download.html' \
+            'deploy/home-server/Caddyfile' 'deploy/home-server/release-transaction.sh' \
+            'dist/docs-help.tar.gz' \
+            "opshub-vps:${tmp_dir}/"
           scp 'web/icons/Icon-192.png' \
-            'opshub-vps:/srv/opshub/downloads/opshub-icon-192.png'
-          rsync -az --delete 'docs/help/' \
-            "opshub-vps:${OPSHUB_REMOTE_APP_DIR}/current/docs/help/"
-          rsync -az --delete 'docs/help/assets/' \
-            'opshub-vps:/srv/opshub/downloads/help/assets/'
-          scp 'deploy/home-server/Caddyfile' "opshub-vps:${caddy_tmp}"
+            "opshub-vps:${tmp_dir}/opshub-icon-192.png"
 
           ssh opshub-vps \
-            "CURRENT_DIR='${OPSHUB_REMOTE_APP_DIR}/current' \
+            "REMOTE_RELEASE_DIR='${OPSHUB_REMOTE_APP_DIR}/current' \
+             CURRENT_DIR='${OPSHUB_REMOTE_APP_DIR}/current' \
+             TMP_DIR='$tmp_dir' \
+             OPSHUB_REMOTE_APP_DIR='${OPSHUB_REMOTE_APP_DIR}' \
+             DEPLOY_RUN_ID='$GITHUB_RUN_ID' \
+             DEPLOY_RUN_ATTEMPT='$GITHUB_RUN_ATTEMPT' \
              OPSHUB_ENV_FILE='$OPSHUB_ENV_FILE' \
-             CADDY_TMP='$caddy_tmp' \
+             OPSHUB_SSD_ROOT='/srv/opshub' \
+             DOWNLOADS_DIR='/srv/opshub/downloads' \
+             WEB_DIR='/srv/opshub/web' \
+             OPSHUB_TXN_STATIC_ONLY=true \
              bash -s" <<'REMOTE'
-          set -euo pipefail
+          set -Eeuo pipefail
+          source "$TMP_DIR/release-transaction.sh"
+          export OPSHUB_SUDO=sudo
+          TXN_INPUT_DIR="$TMP_DIR"
           if [ ! -d "$CURRENT_DIR/deploy/home-server" ]; then
             echo "Current deploy directory is missing: $CURRENT_DIR/deploy/home-server" >&2
             exit 1
           fi
           docker run --rm \
             --env-file "$OPSHUB_ENV_FILE" \
-            -v "$CADDY_TMP:/etc/caddy/Caddyfile:ro" \
+            -v "$TMP_DIR/Caddyfile:/etc/caddy/Caddyfile:ro" \
             caddy:2-alpine caddy validate --config /etc/caddy/Caddyfile < /dev/null
-          install -m 0644 "$CADDY_TMP" "$CURRENT_DIR/deploy/home-server/Caddyfile"
-          rm -f "$CADDY_TMP"
+          opshub_txn_begin
+          rollback_static() {
+            local status="$1"
+            local shared_restored=false
+            local static_restored=false
+            local caddy_restored=false
+            trap - ERR
+            echo "Static-only publication failed with status $status" >&2
+            if opshub_txn_restore_shared; then
+              shared_restored=true
+            fi
+            if opshub_txn_restore_static_current; then
+              static_restored=true
+            fi
+            if [ "$shared_restored" = true ] && [ "$static_restored" = true ]; then
+              cd "$CURRENT_DIR"
+              export OPSHUB_ENV_FILE
+              compose=(docker compose --env-file "$OPSHUB_ENV_FILE" -f deploy/home-server/docker-compose.home.yml)
+              compose_cmd() { "${compose[@]}" "$@" < /dev/null; }
+              if compose_cmd up -d --no-deps --force-recreate caddy; then
+                caddy_restored=true
+              fi
+            fi
+            if [ "$shared_restored" = true ] && [ "$static_restored" = true ] && [ "$caddy_restored" = true ]; then
+              echo 'Static rollback is healthy; checkpoint retained because publication failed.' >&2
+            else
+              echo 'Static-only rollback incomplete; evidence retained.' >&2
+            fi
+            exit "$status"
+          }
+          trap 'rollback_static $?' ERR
+          opshub_txn_promote_static
           cd "$CURRENT_DIR"
           export OPSHUB_ENV_FILE
           compose=(docker compose --env-file "$OPSHUB_ENV_FILE" -f deploy/home-server/docker-compose.home.yml)
@@ -1108,6 +1221,7 @@ jobs:
             compose_cmd restart caddy
           fi
           compose_cmd ps caddy
+          trap - ERR
           REMOTE
 
       - name: Verify static download deploy
@@ -1166,3 +1280,56 @@ jobs:
           " "$manifest_json" | while IFS= read -r url; do
             curl -fIs "$url" >/dev/null
           done
+
+      - name: Roll back static-only publication after failed verification
+        if: ${{ (failure() || cancelled()) && steps.deploy_static.outcome == 'success' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          current_dir="${OPSHUB_REMOTE_APP_DIR}/current"
+          tmp_dir="${OPSHUB_REMOTE_APP_DIR}/tmp/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-static"
+          ssh opshub-vps \
+            "REMOTE_RELEASE_DIR='$current_dir' CURRENT_DIR='$current_dir' TMP_DIR='$tmp_dir' OPSHUB_REMOTE_APP_DIR='${OPSHUB_REMOTE_APP_DIR}' DEPLOY_RUN_ID='$GITHUB_RUN_ID' DEPLOY_RUN_ATTEMPT='$GITHUB_RUN_ATTEMPT' OPSHUB_ENV_FILE='$OPSHUB_ENV_FILE' OPSHUB_SSD_ROOT='/srv/opshub' DOWNLOADS_DIR='/srv/opshub/downloads' WEB_DIR='/srv/opshub/web' OPSHUB_TXN_STATIC_ONLY=true bash -s" <<'REMOTE'
+          set -Eeuo pipefail
+          source "$TMP_DIR/release-transaction.sh"
+          export OPSHUB_SUDO=sudo
+          opshub_txn_load
+          opshub_txn_require_promoted
+          current_real="$(readlink -f "$CURRENT_DIR" || true)"
+          [ "$current_real" = "$(opshub_txn_candidate_release)" ] || {
+            echo 'Static rollback candidate no longer matches checkpoint; refusing publication change.' >&2
+            exit 1
+          }
+          opshub_txn_restore_shared
+          opshub_txn_restore_static_current
+          cd "$CURRENT_DIR"
+          export OPSHUB_ENV_FILE
+          compose=(docker compose --env-file "$OPSHUB_ENV_FILE" -f deploy/home-server/docker-compose.home.yml)
+          compose_cmd() { "${compose[@]}" "$@" < /dev/null; }
+          compose_cmd up -d --no-deps --force-recreate caddy
+          echo 'Static-only publication rolled back; checkpoint retained because public verification failed.' >&2
+          REMOTE
+
+      - name: Finalize successful static-only publication checkpoint
+        if: ${{ success() && steps.deploy_static.outcome == 'success' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          current_dir="${OPSHUB_REMOTE_APP_DIR}/current"
+          tmp_dir="${OPSHUB_REMOTE_APP_DIR}/tmp/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-static"
+          ssh opshub-vps \
+            "REMOTE_RELEASE_DIR='$current_dir' CURRENT_DIR='$current_dir' TMP_DIR='$tmp_dir' OPSHUB_REMOTE_APP_DIR='${OPSHUB_REMOTE_APP_DIR}' DEPLOY_RUN_ID='$GITHUB_RUN_ID' DEPLOY_RUN_ATTEMPT='$GITHUB_RUN_ATTEMPT' OPSHUB_ENV_FILE='$OPSHUB_ENV_FILE' OPSHUB_SSD_ROOT='/srv/opshub' OPSHUB_TXN_STATIC_ONLY=true bash -s" <<'REMOTE'
+          set -Eeuo pipefail
+          source "$TMP_DIR/release-transaction.sh"
+          export OPSHUB_SUDO=sudo
+          opshub_txn_load
+          opshub_txn_require_promoted
+          current_real="$(readlink -f "$CURRENT_DIR" || true)"
+          [ "$current_real" = "$(opshub_txn_candidate_release)" ] || {
+            echo 'Static checkpoint no longer matches current runtime; refusing cleanup.' >&2
+            exit 1
+          }
+          case "$TMP_DIR" in "$OPSHUB_REMOTE_APP_DIR"/tmp/*) rm -rf -- "$TMP_DIR" ;; *) exit 1 ;; esac
+          opshub_txn_cleanup
+          echo 'Static-only publication checkpoint finalized after verification.'
+          REMOTE
