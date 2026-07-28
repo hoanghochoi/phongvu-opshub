@@ -24,7 +24,12 @@ This file maps product behavior to proof. Existing flows are marked
   are included, and the runtime failpoint is routed through the
   migration/backend-build command. Live controlled rollback at the
   shared-promotion, migration/backend-build, public-verification and static
-  transaction failpoints remains required before release.
+  transaction failpoints all passed on staging SHA `952d30d3ecf4fd88649e9040317737a4ef06bad0`:
+  runs `30405830449`, `30407258288`, `30408136342` and `30408918912` each
+  ended with the expected injected failure, successful rollback verification and
+  `CONTROLLED STAGING ROLLBACK PASS`; the static run also logged
+  `STATIC TRANSACTION REHEARSAL PASS`. OPS-26 is now Ready for Release; only
+  protected production promotion remains.
 
 - `OPS-38`/`CODEX-DESKTOP-AGENT-001`, 2026-07-29: project-scoped Codex Desktop
   configuration, eight repo-native agents, and the explicit orchestration
