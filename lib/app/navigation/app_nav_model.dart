@@ -304,7 +304,6 @@ class AppNavModel {
         location.startsWith('/admin') ||
             location == '/fifo-history' ||
             location == '/fifo/inventory-import',
-      'operations' => location == '/fifo-menu',
       'warranty' =>
         location == '/warranty' || location.startsWith('/check-warranty'),
       'sales' =>
