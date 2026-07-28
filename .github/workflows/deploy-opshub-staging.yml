@@ -5,6 +5,18 @@ on:
     branches:
       - staging
   workflow_dispatch:
+    inputs:
+      failure_injection:
+        description: Staging-only rollback proof. The selected run is expected to fail after recovery verification.
+        required: false
+        type: choice
+        default: none
+        options:
+          - none
+          - after_shared_promotion
+          - after_runtime_switch
+          - public_verification
+          - static_transaction
 
 permissions:
   contents: read
@@ -500,6 +512,58 @@ jobs:
             echo "  IdentitiesOnly yes"
           } >> ~/.ssh/config
 
+      - name: Capture controlled rollback baseline
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.failure_injection != 'none' }}
+        shell: bash
+        env:
+          CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+          CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${CF_ACCESS_CLIENT_ID}" || -z "${CF_ACCESS_CLIENT_SECRET}" ]]; then
+            echo 'Cloudflare Access service credentials are required for rollback proof.' >&2
+            exit 1
+          fi
+          mkdir -p dist/staging-rollback-baseline
+          ssh opshub-staging \
+            "CURRENT_DIR='${OPSHUB_REMOTE_APP_DIR}/current' \
+             OPSHUB_ENV_FILE='$OPSHUB_ENV_FILE' \
+             DOWNLOADS_DIR='${OPSHUB_SSD_ROOT}/downloads' \
+             WEB_DIR='${OPSHUB_SSD_ROOT}/web' \
+             OPSHUB_SUDO=sudo \
+             bash -s" \
+            < deploy/staging/release-fingerprint.sh \
+            > dist/staging-rollback-baseline/runtime.txt
+
+          access_curl() {
+            curl -fsS \
+              -H "CF-Access-Client-Id: ${CF_ACCESS_CLIENT_ID}" \
+              -H "CF-Access-Client-Secret: ${CF_ACCESS_CLIENT_SECRET}" \
+              "$1"
+          }
+          access_curl "${OPSHUB_PUBLIC_BASE_URL}/health" >/dev/null
+          access_curl "${OPSHUB_API_BASE_URL}/app-version?platform=android" \
+            > dist/staging-rollback-baseline/android.json
+          access_curl "${OPSHUB_API_BASE_URL}/app-version?platform=windows" \
+            > dist/staging-rollback-baseline/windows.json
+          access_curl "${OPSHUB_API_BASE_URL}/app-version?platform=web" \
+            > dist/staging-rollback-baseline/web.json
+          access_curl "${OPSHUB_API_BASE_URL}/help-content/public" \
+            > dist/staging-rollback-baseline/help.json
+          access_curl "${OPSHUB_DOWNLOAD_PUBLIC_BASE_URL}/downloads/latest.json" \
+            > dist/staging-rollback-baseline/manifest.json
+
+      - name: Rehearse shared static transaction (staging-only)
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.failure_injection == 'static_transaction' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          ssh opshub-staging \
+            "CURRENT_DIR='${OPSHUB_REMOTE_APP_DIR}/current' bash -s" \
+            < deploy/staging/static-transaction-rehearsal.sh
+          echo 'Intentional staging failure after static transaction rehearsal.' >&2
+          exit 86
+
       - name: Verify staged client artifacts
         shell: bash
         run: |
@@ -581,6 +645,7 @@ jobs:
           APP_VERSION: ${{ needs.prepare.outputs.version_name }}
           APP_BUILD_NUMBER: ${{ needs.prepare.outputs.version_code }}
           APP_RELEASE_NOTES: ${{ needs.prepare.outputs.release_notes }}
+          STAGING_FAILURE_INJECTION: ${{ inputs.failure_injection || 'none' }}
         run: |
           set -euo pipefail
           remote_release_dir="${OPSHUB_REMOTE_APP_DIR}/releases/${GITHUB_SHA}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
@@ -622,6 +687,7 @@ jobs:
              WINDOWS_PACKAGE_SIZE_BYTES='$windows_package_size_bytes' \
              WINDOWS_INSTALLER_ARGS='$windows_installer_args' \
              APP_RELEASE_NOTES='$APP_RELEASE_NOTES' \
+             STAGING_FAILURE_INJECTION='$STAGING_FAILURE_INJECTION' \
              bash -s" <<'REMOTE'
           set -Eeuo pipefail
 
@@ -634,6 +700,13 @@ jobs:
           case "$DEPLOY_RUN_ID" in
             ''|*[!0-9]*)
               echo "Invalid staging deploy run id." >&2
+              exit 1
+              ;;
+          esac
+          case "$STAGING_FAILURE_INJECTION" in
+            none|after_shared_promotion|after_runtime_switch|public_verification|static_transaction) ;;
+            *)
+              echo "Invalid staging failure injection: $STAGING_FAILURE_INJECTION" >&2
               exit 1
               ;;
           esac
@@ -994,6 +1067,10 @@ jobs:
 
           snapshot_and_promote_shared_publication
           cd "$REMOTE_RELEASE_DIR"
+          if [ "$STAGING_FAILURE_INJECTION" = after_shared_promotion ]; then
+            echo 'Intentional staging failure after shared promotion.' >&2
+            false
+          fi
           export COMPOSE_PROJECT_NAME OPSHUB_ENV_FILE
           compose=(docker compose --env-file "$OPSHUB_ENV_FILE" -f deploy/home-server/docker-compose.home.yml)
           compose_cmd() {
@@ -1176,7 +1253,15 @@ jobs:
           resolve_failed_node_feature_migration
           resolve_failed_quick_actions_migration
 
-          compose_cmd --profile migrate run --rm -T --build migrate
+          run_guarded_migration_and_backend_build() {
+            if [ "$STAGING_FAILURE_INJECTION" = after_runtime_switch ]; then
+              echo 'Intentional staging failure from the migration/backend build gate after runtime switch.' >&2
+              return 86
+            fi
+            compose_cmd --profile migrate run --rm -T --build migrate
+          }
+
+          run_guarded_migration_and_backend_build
 
           compose_cmd stop api realtime caddy || true
           compose_cmd rm -f api realtime caddy || true
@@ -1333,6 +1418,7 @@ jobs:
         env:
           CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
           CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
+          STAGING_FAILURE_INJECTION: ${{ inputs.failure_injection || 'none' }}
         run: |
           set -euo pipefail
           if [[ -z "${CF_ACCESS_CLIENT_ID}" || -z "${CF_ACCESS_CLIENT_SECRET}" ]]; then
@@ -1394,6 +1480,10 @@ jobs:
 
           retry_curl "${OPSHUB_PUBLIC_BASE_URL}/health"
           retry_curl "${OPSHUB_PUBLIC_BASE_URL}/" >/dev/null
+          if [ "$STAGING_FAILURE_INJECTION" = public_verification ]; then
+            echo 'Intentional staging failure during public verification.' >&2
+            exit 86
+          fi
           main_headers_file="$(mktemp)"
           if ! main_status="$(
             access_curl "${OPSHUB_PUBLIC_BASE_URL}/main.dart.js?v=${GITHUB_SHA}" \
@@ -1687,6 +1777,55 @@ jobs:
           sudo rm -rf -- "$shared_stage_dir" "$shared_snapshot_dir"
           echo "Staging release, env, web, Help, manifest and client files were rolled back after failed public verification." >&2
           REMOTE
+
+      - name: Verify controlled staging rollback
+        if: ${{ failure() && github.event_name == 'workflow_dispatch' && inputs.failure_injection != 'none' }}
+        shell: bash
+        env:
+          CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+          CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
+          STAGING_FAILURE_INJECTION: ${{ inputs.failure_injection }}
+        run: |
+          set -euo pipefail
+          baseline_dir=dist/staging-rollback-baseline
+          test -s "$baseline_dir/runtime.txt"
+
+          ssh opshub-staging \
+            "CURRENT_DIR='${OPSHUB_REMOTE_APP_DIR}/current' \
+             OPSHUB_ENV_FILE='$OPSHUB_ENV_FILE' \
+             DOWNLOADS_DIR='${OPSHUB_SSD_ROOT}/downloads' \
+             WEB_DIR='${OPSHUB_SSD_ROOT}/web' \
+             OPSHUB_SUDO=sudo \
+             bash -s" \
+            < deploy/staging/release-fingerprint.sh \
+            > "$baseline_dir/runtime-after.txt"
+          diff -u "$baseline_dir/runtime.txt" "$baseline_dir/runtime-after.txt"
+
+          access_curl() {
+            curl -fsS \
+              -H "CF-Access-Client-Id: ${CF_ACCESS_CLIENT_ID}" \
+              -H "CF-Access-Client-Secret: ${CF_ACCESS_CLIENT_SECRET}" \
+              "$1"
+          }
+          access_curl "${OPSHUB_PUBLIC_BASE_URL}/health" >/dev/null
+          access_curl "${OPSHUB_API_BASE_URL}/app-version?platform=android" > "$baseline_dir/android-after.json"
+          access_curl "${OPSHUB_API_BASE_URL}/app-version?platform=windows" > "$baseline_dir/windows-after.json"
+          access_curl "${OPSHUB_API_BASE_URL}/app-version?platform=web" > "$baseline_dir/web-after.json"
+          access_curl "${OPSHUB_API_BASE_URL}/help-content/public" > "$baseline_dir/help-after.json"
+          access_curl "${OPSHUB_DOWNLOAD_PUBLIC_BASE_URL}/downloads/latest.json" > "$baseline_dir/manifest-after.json"
+
+          node - "$baseline_dir" <<'NODE'
+          const fs = require('node:fs');
+          const path = require('node:path');
+          const root = process.argv[2];
+          for (const name of ['android', 'windows', 'web', 'help', 'manifest']) {
+            const before = JSON.stringify(JSON.parse(fs.readFileSync(path.join(root, `${name}.json`), 'utf8')));
+            const after = JSON.stringify(JSON.parse(fs.readFileSync(path.join(root, `${name}-after.json`), 'utf8')));
+            if (before !== after) throw new Error(`Rollback authority mismatch: ${name}`);
+          }
+          NODE
+
+          echo "CONTROLLED STAGING ROLLBACK PASS: ${STAGING_FAILURE_INJECTION}"
 
       - name: Finalize successful staging rollback checkpoint
         if: ${{ success() && steps.deploy_runtime.outcome == 'success' }}
