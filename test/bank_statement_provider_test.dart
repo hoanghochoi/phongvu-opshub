@@ -40,6 +40,11 @@ void main() {
         'orderSource': 'AUTO',
         'orderUpdatedAt': '2026-05-29T03:00:00.000Z',
         'orderUpdatedByEmail': 'manager@example.com',
+        'orderTrackingStatus': 'UNFOLLOWED',
+        'orderTrackingUpdatedAt': '2026-05-29T03:05:00.000Z',
+        'orderTrackingUpdatedByEmail': 'acc@example.com',
+        'canManageOrderTracking': true,
+        'orderTrackingActionBlockedReason': 'Đang có yêu cầu chờ xử lý.',
         'status': '00',
         'paidAt': '2026-05-29T02:00:00.000Z',
         'firstSeenAt': '2026-05-29T02:00:05.000Z',
@@ -70,6 +75,18 @@ void main() {
       expect(transaction.incomeTypeSource, 'MANUAL');
       expect(transaction.canEditIncomeType, isTrue);
       expect(transaction.receivingAccount, '118002647006');
+      expect(transaction.orderTrackingStatus, 'UNFOLLOWED');
+      expect(transaction.isFollowing, isFalse);
+      expect(
+        transaction.orderTrackingUpdatedAt,
+        DateTime.utc(2026, 5, 29, 3, 5),
+      );
+      expect(transaction.orderTrackingUpdatedByEmail, 'acc@example.com');
+      expect(transaction.canManageOrderTracking, isTrue);
+      expect(
+        transaction.orderTrackingActionBlockedReason,
+        'Đang có yêu cầu chờ xử lý.',
+      );
       expect(history.oldOrders, ['26052912345678']);
       expect(history.newOrders, ['26052987654321']);
       expect(history.changedByEmail, 'manager@example.com');
@@ -550,6 +567,130 @@ void main() {
       provider.dispose();
     });
 
+    test(
+      'rejects blank order input when transaction has no existing order',
+      () async {
+        final repository = _FakeBankStatementRepository();
+        final provider = BankStatementProvider(repository);
+        await provider.initialize(_nationalManager);
+        provider.setOrder('26052912345678');
+        await provider.search();
+
+        final saved = await provider.updateOrders('tx-2', '  ');
+
+        expect(saved, isFalse);
+        expect(repository.updateOrdersCount, 0);
+        expect(
+          provider.rowMessage('tx-2')?.text,
+          'Mã đơn hàng không hợp lệ. Vui lòng kiểm tra lại.',
+        );
+
+        provider.dispose();
+      },
+    );
+
+    test('allows blank order input to remove existing orders', () async {
+      final repository = _FakeBankStatementRepository();
+      final provider = BankStatementProvider(repository);
+      await provider.initialize(_nationalManager);
+      provider.setOrder('26052912345678');
+      await provider.search();
+
+      final saved = await provider.updateOrders('tx-1', '');
+
+      expect(saved, isTrue);
+      expect(repository.updateOrdersCount, 1);
+      expect(repository.lastUpdatedOrders, isEmpty);
+      expect(provider.transactions.first.orders, isEmpty);
+
+      provider.dispose();
+    });
+
+    test('exposes ERP order loading and clears it after failure', () async {
+      final pending = Completer<void>();
+      final repository = _FakeBankStatementRepository(
+        pendingUpdateOrders: pending,
+      );
+      repository.updateOrdersError = ApiException(
+        'ERP tạm thời chưa phản hồi',
+        503,
+      );
+      final provider = BankStatementProvider(repository);
+      await provider.initialize(_nationalManager);
+      provider.setOrder('26052912345678');
+      await provider.search();
+
+      final save = provider.updateOrders('tx-1', '26053087654321');
+      await Future<void>.delayed(Duration.zero);
+      expect(provider.isUpdatingOrders('tx-1'), isTrue);
+
+      pending.complete();
+      expect(await save, isFalse);
+      expect(provider.isUpdatingOrders('tx-1'), isFalse);
+      expect(provider.rowMessage('tx-1')?.text, 'ERP tạm thời chưa phản hồi');
+
+      provider.dispose();
+    });
+
+    test(
+      'updates tracking status and replaces the visible transaction',
+      () async {
+        final repository = _FakeBankStatementRepository(
+          pages: [
+            [
+              _transaction('tx-track', const [
+                '26052912345678',
+              ], canManageOrderTracking: true),
+            ],
+          ],
+        );
+        final provider = BankStatementProvider(repository);
+        await provider.initialize(_accUser);
+        provider.setOrder('26052912345678');
+        await provider.search();
+
+        final updated = await provider.updateOrderTracking(
+          'tx-track',
+          'UNFOLLOWED',
+        );
+
+        expect(updated, isTrue);
+        expect(repository.updatedTrackingStatuses, ['UNFOLLOWED']);
+        expect(provider.transactions.single.isFollowing, isFalse);
+        expect(
+          provider.rowMessage('tx-track')?.text,
+          'Đã bỏ theo dõi giao dịch.',
+        );
+
+        provider.dispose();
+      },
+    );
+
+    test(
+      'blocks tracking update without permission before calling API',
+      () async {
+        final repository = _FakeBankStatementRepository();
+        final provider = BankStatementProvider(repository);
+        await provider.initialize(_nationalManager);
+        provider.setOrder('26052912345678');
+        await provider.search();
+
+        final updated = await provider.updateOrderTracking(
+          'tx-1',
+          'UNFOLLOWED',
+        );
+
+        expect(updated, isFalse);
+        expect(repository.updatedTrackingStatuses, isEmpty);
+        expect(
+          provider.rowMessage('tx-1')?.text,
+          'Không thể thay đổi trạng thái theo dõi giao dịch.',
+        );
+
+        provider.dispose();
+      },
+    );
+
     test('passes offset order status filters to statement query', () async {
       final repository = _FakeBankStatementRepository();
       final provider = BankStatementProvider(repository);
@@ -914,8 +1055,10 @@ class _FakeBankStatementRepository extends BankStatementRepository {
   String? lastUpdatedIncomeType;
   List<String> lastTransferRequestedOrders = const [];
   List<String> lastExportTransactionIds = const [];
+  final List<String> updatedTrackingStatuses = [];
   final bool canReviewOrderTransfers;
   final DateTime? notificationReadAt;
+  final Completer<void>? pendingUpdateOrders;
   Object? updateOrdersError;
   bool updateOrdersErrorOnce = false;
   void Function()? beforeThrowingUpdateOrdersError;
@@ -927,6 +1070,7 @@ class _FakeBankStatementRepository extends BankStatementRepository {
     List<List<BankStatementTransaction>>? pages,
     this.canReviewOrderTransfers = false,
     this.notificationReadAt,
+    this.pendingUpdateOrders,
   }) : _pages =
            pages ??
            [
@@ -984,6 +1128,7 @@ class _FakeBankStatementRepository extends BankStatementRepository {
     lastUpdatedLookupOrder = order;
     lastUpdatedContent = content;
     lastUpdatedOrders = List.of(orders);
+    await pendingUpdateOrders?.future;
     final error = updateOrdersError;
     if (error != null) {
       beforeThrowingUpdateOrdersError?.call();
@@ -998,6 +1143,27 @@ class _FakeBankStatementRepository extends BankStatementRepository {
       );
       if (index < 0) continue;
       final updated = _pages[pageIndex][index].copyWith(orders: orders);
+      _pages[pageIndex][index] = updated;
+      return updated;
+    }
+    throw StateError('Missing fake transaction $transactionId');
+  }
+
+  @override
+  Future<BankStatementTransaction> updateOrderTracking(
+    String transactionId,
+    String status,
+  ) async {
+    updatedTrackingStatuses.add(status);
+    for (var pageIndex = 0; pageIndex < _pages.length; pageIndex += 1) {
+      final index = _pages[pageIndex].indexWhere(
+        (row) => row.id == transactionId,
+      );
+      if (index < 0) continue;
+      final updated = _copyTransaction(
+        _pages[pageIndex][index],
+        orderTrackingStatus: status,
+      );
       _pages[pageIndex][index] = updated;
       return updated;
     }
@@ -1282,7 +1448,13 @@ class _FakeRealtimeClient implements RealtimeClient {
 
 const Object _unchanged = Object();
 
-BankStatementTransaction _transaction(String id, List<String> orders) {
+BankStatementTransaction _transaction(
+  String id,
+  List<String> orders, {
+  String orderTrackingStatus = 'FOLLOWING',
+  bool canManageOrderTracking = false,
+  String? orderTrackingActionBlockedReason,
+}) {
   return BankStatementTransaction(
     id: id,
     storeId: 'CP01',
@@ -1294,6 +1466,9 @@ BankStatementTransaction _transaction(String id, List<String> orders) {
     orderSource: orders.isEmpty ? null : 'AUTO',
     orderUpdatedAt: null,
     orderUpdatedByEmail: null,
+    orderTrackingStatus: orderTrackingStatus,
+    canManageOrderTracking: canManageOrderTracking,
+    orderTrackingActionBlockedReason: orderTrackingActionBlockedReason,
     status: '00',
     paidAt: DateTime.utc(2026, 5, 29, 2),
     firstSeenAt: DateTime.utc(2026, 5, 29, 2, 0, 5),
@@ -1319,6 +1494,9 @@ BankStatementTransaction _copyTransaction(
   String? id,
   List<String>? orders,
   String? orderSource,
+  String? orderTrackingStatus,
+  bool? canManageOrderTracking,
+  Object? orderTrackingActionBlockedReason = _unchanged,
   bool? canEditOrders,
   Object? orderEditBlockedReason = _unchanged,
   bool? canRequestOrderTransfer,
@@ -1344,6 +1522,15 @@ BankStatementTransaction _copyTransaction(
     orderSource: orderSource ?? transaction.orderSource,
     orderUpdatedAt: transaction.orderUpdatedAt,
     orderUpdatedByEmail: transaction.orderUpdatedByEmail,
+    orderTrackingStatus: orderTrackingStatus ?? transaction.orderTrackingStatus,
+    orderTrackingUpdatedAt: transaction.orderTrackingUpdatedAt,
+    orderTrackingUpdatedByEmail: transaction.orderTrackingUpdatedByEmail,
+    canManageOrderTracking:
+        canManageOrderTracking ?? transaction.canManageOrderTracking,
+    orderTrackingActionBlockedReason:
+        identical(orderTrackingActionBlockedReason, _unchanged)
+        ? transaction.orderTrackingActionBlockedReason
+        : orderTrackingActionBlockedReason as String?,
     status: transaction.status,
     paidAt: transaction.paidAt,
     firstSeenAt: transaction.firstSeenAt,

@@ -81,6 +81,7 @@ export type SalesReportErpOrderListItem = {
   confirmationStatus: string | null;
   fulfillmentStatus: string | null;
   lifecycleStatus: SalesReportErpLifecycleStatus;
+  lifecycleVerified?: boolean;
   hasReturnedFullItems: boolean;
   returnedAfterTaxAmount: number;
   statusCheckedAt: Date;
@@ -613,6 +614,7 @@ export class SalesReportErpService {
       confirmationStatus: this.optionalText(order?.confirmationStatus),
       fulfillmentStatus: this.optionalText(order?.fulfillmentStatus),
       lifecycleStatus: lifecycle.lifecycleStatus,
+      lifecycleVerified: lifecycle.verified,
       hasReturnedFullItems: lifecycle.hasReturnedFullItems,
       returnedAfterTaxAmount: lifecycle.returnedAfterTaxAmount,
       statusCheckedAt: lifecycle.statusCheckedAt,
@@ -639,6 +641,7 @@ export class SalesReportErpService {
         confirmationStatus: this.optionalText(order?.confirmationStatus),
         fulfillmentStatus: this.optionalText(order?.fulfillmentStatus),
         lifecycleStatus: lifecycle.lifecycleStatus,
+        lifecycleVerified: lifecycle.verified,
         hasReturnedFullItems: lifecycle.hasReturnedFullItems,
         returnedAfterTaxAmount: lifecycle.returnedAfterTaxAmount,
         terminalName,

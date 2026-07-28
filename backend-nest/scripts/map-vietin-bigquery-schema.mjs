@@ -27,6 +27,7 @@ export function mapVietinBigQueryTableDdl({ projectId, datasetId, tableId }) {
   amount INT64 NOT NULL,
   orders ARRAY<STRING>,
   order_source STRING,
+  order_tracking_status STRING,
   status STRING,
   paid_at TIMESTAMP,
   income_type STRING NOT NULL,
@@ -42,6 +43,15 @@ PARTITION BY transaction_date
 CLUSTER BY store_code, transaction_id`;
 }
 
+export function mapVietinBigQueryTrackingColumnDdl({
+  projectId,
+  datasetId,
+  tableId,
+}) {
+  return `ALTER TABLE \`${projectId}.${datasetId}.${tableId}\`
+ADD COLUMN IF NOT EXISTS order_tracking_status STRING`;
+}
+
 export function mapVietinBigQueryCurrentViewDdl({
   projectId,
   datasetId,
@@ -49,7 +59,8 @@ export function mapVietinBigQueryCurrentViewDdl({
   currentViewId,
 }) {
   return `CREATE OR REPLACE VIEW \`${projectId}.${datasetId}.${currentViewId}\` AS
-SELECT * EXCEPT(row_number)
+SELECT * EXCEPT(row_number, order_tracking_status),
+  COALESCE(order_tracking_status, 'FOLLOWING') AS order_tracking_status
 FROM (
   SELECT raw.*, ROW_NUMBER() OVER (
     PARTITION BY transaction_id

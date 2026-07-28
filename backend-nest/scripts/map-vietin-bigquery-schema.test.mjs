@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   mapVietinBigQueryCurrentViewDdl,
   mapVietinBigQueryTableDdl,
+  mapVietinBigQueryTrackingColumnDdl,
 } from './map-vietin-bigquery-schema.mjs';
 
 const config = {
@@ -18,7 +19,19 @@ test('raw table is partitioned and clustered for current-row queries', () => {
   assert.match(ddl, /CLUSTER BY store_code, transaction_id/);
   assert.match(ddl, /orders ARRAY<STRING>/);
   assert.doesNotMatch(ddl, /orders ARRAY<STRING> NOT NULL/);
+  assert.match(ddl, /order_tracking_status STRING/);
+  assert.doesNotMatch(ddl, /order_tracking_status STRING NOT NULL/);
   assert.doesNotMatch(ddl, /rawData|payer|account|email|token|credential/i);
+});
+
+test('tracking column upgrade is nullable and idempotent for existing raw tables', () => {
+  const ddl = mapVietinBigQueryTrackingColumnDdl(config);
+  assert.match(
+    ddl,
+    /ALTER TABLE `opshub-staging\.map_vietin\.transactions_raw`/,
+  );
+  assert.match(ddl, /ADD COLUMN IF NOT EXISTS order_tracking_status STRING/);
+  assert.doesNotMatch(ddl, /order_tracking_status STRING NOT NULL/);
 });
 
 test('current view dedupes by transaction revision and hides tombstones', () => {
@@ -27,6 +40,10 @@ test('current view dedupes by transaction revision and hides tombstones', () => 
   assert.match(
     ddl,
     /ORDER BY revision DESC, event_occurred_at DESC, event_id DESC/,
+  );
+  assert.match(
+    ddl,
+    /COALESCE\(order_tracking_status, 'FOLLOWING'\) AS order_tracking_status/,
   );
   assert.match(ddl, /is_deleted = FALSE/);
 });

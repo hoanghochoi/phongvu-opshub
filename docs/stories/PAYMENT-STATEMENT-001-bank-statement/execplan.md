@@ -44,3 +44,11 @@
   `lib/features/bank_statement`, home navigation, and payment monitor cards.
 - Out of scope: real region/multi-store hierarchy, MAP portal UI automation,
   and showing auto extraction as manual history.
+
+## OPS-36 Follow-up
+
+The completed local execution record is
+`docs/plans/completed/ops-36-statement-order-erp-unfollow.md`. It covers the ERP
+lifecycle gate, tracking migration/audit, compatibility behavior, current-UI
+Flutter adaptation, Home/XLSX/BigQuery consumers, disposable migration proof,
+and full affected-consumer verification.

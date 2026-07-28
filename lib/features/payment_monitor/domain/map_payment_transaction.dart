@@ -10,6 +10,11 @@ class MapPaymentTransaction {
   final String? orderSource;
   final DateTime? orderUpdatedAt;
   final String? orderUpdatedByEmail;
+  final String orderTrackingStatus;
+  final DateTime? orderTrackingUpdatedAt;
+  final String? orderTrackingUpdatedByEmail;
+  final bool canManageOrderTracking;
+  final String? orderTrackingActionBlockedReason;
   final bool canEditOrders;
   final String? orderEditBlockedReason;
   final bool canRequestOrderTransfer;
@@ -40,6 +45,11 @@ class MapPaymentTransaction {
     required this.orderSource,
     required this.orderUpdatedAt,
     required this.orderUpdatedByEmail,
+    this.orderTrackingStatus = 'FOLLOWING',
+    this.orderTrackingUpdatedAt,
+    this.orderTrackingUpdatedByEmail,
+    this.canManageOrderTracking = false,
+    this.orderTrackingActionBlockedReason,
     required this.canEditOrders,
     required this.orderEditBlockedReason,
     required this.canRequestOrderTransfer,
@@ -150,6 +160,20 @@ class MapPaymentTransaction {
       orderSource: json['orderSource']?.toString(),
       orderUpdatedAt: _readDate(json, keys: const ['orderUpdatedAt']),
       orderUpdatedByEmail: json['orderUpdatedByEmail']?.toString(),
+      orderTrackingStatus:
+          json['orderTrackingStatus']?.toString().trim().toUpperCase() ==
+              'UNFOLLOWED'
+          ? 'UNFOLLOWED'
+          : 'FOLLOWING',
+      orderTrackingUpdatedAt: _readDate(
+        json,
+        keys: const ['orderTrackingUpdatedAt'],
+      ),
+      orderTrackingUpdatedByEmail: json['orderTrackingUpdatedByEmail']
+          ?.toString(),
+      canManageOrderTracking: json['canManageOrderTracking'] == true,
+      orderTrackingActionBlockedReason: json['orderTrackingActionBlockedReason']
+          ?.toString(),
       canEditOrders: json['canEditOrders'] == true,
       orderEditBlockedReason: json['orderEditBlockedReason']?.toString(),
       canRequestOrderTransfer: json['canRequestOrderTransfer'] == true,
@@ -181,6 +205,7 @@ class MapPaymentTransaction {
 
   bool get isValidIncoming => amount > 0 && successful;
   bool get hasOrders => orders.isNotEmpty;
+  bool get isFollowing => orderTrackingStatus == 'FOLLOWING';
   bool get hasPendingOrderTransferRequest =>
       (orderTransferRequestId?.trim().isNotEmpty ?? false) ||
       orderTransferStatus?.toUpperCase() == 'PENDING';

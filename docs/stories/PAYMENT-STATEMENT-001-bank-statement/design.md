@@ -88,3 +88,21 @@
 Hide the home route/tile and block the API endpoints if a runtime rollback is
 needed. A database rollback requires reversing the Prisma migration after
 preserving any manual audit/order data that must not be lost.
+
+## OPS-36 Design Amendment
+
+- `PATCH /admin/map-vietin/statements/:id/orders` and the compatibility POST
+  share one ERP-verified mutation pipeline. No-op precedes pending/tracking/date
+  checks and performs no ERP call or write.
+- ERP reads occur outside the transaction. Persistence uses optimistic
+  concurrency over update time, orders, pending state, and tracking state; order
+  mutation, audit, and optional `APPROVED` compatibility row commit together.
+- `orderTrackingStatus` defaults/backfills to `FOLLOWING`; actor/time metadata
+  and `MapVietinTransactionOrderTrackingAudit` preserve every real toggle.
+- The current Flutter card/editor layout remains authoritative for OPS-36. The
+  old create-request button is removed, while legacy review/history controls
+  remain for pre-existing pending rows.
+- Home projection and fallback use the same tracking-aware numerator and
+  denominator. BigQuery adds a nullable warehouse column before schema-v2
+  events, defaults legacy rows in the current view, and keeps the column on
+  rollback.

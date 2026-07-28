@@ -4,6 +4,7 @@ import { PaymentNotificationsModule } from '../payment-notifications/payment-not
 import { RedisModule } from '../redis/redis.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { MapVietinBigQueryModule } from '../map-vietin-bigquery/map-vietin-bigquery.module';
+import { SalesReportsModule } from '../sales-reports/sales-reports.module';
 import { MapVietinController } from './map-vietin.controller';
 import { MapVietinService } from './map-vietin.service';
 
@@ -14,6 +15,7 @@ import { MapVietinService } from './map-vietin.service';
     RedisModule,
     NotificationsModule,
     MapVietinBigQueryModule,
+    SalesReportsModule,
   ],
   controllers: [MapVietinController],
   providers: [MapVietinService],

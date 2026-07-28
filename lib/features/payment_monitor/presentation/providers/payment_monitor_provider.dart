@@ -94,6 +94,8 @@ class PaymentMonitorProvider extends ChangeNotifier {
   final List<MapPaymentTransaction> _latestTransactions = [];
   final Map<String, PaymentMonitorRowMessage> _rowMessages = {};
   final Map<String, Timer> _rowMessageTimers = {};
+  final Set<String> _updatingOrderIds = {};
+  final Set<String> _updatingOrderTrackingIds = {};
 
   Timer? _realtimeRefreshTimer;
   Timer? _speakerReadyFallbackTimer;
@@ -202,6 +204,9 @@ class PaymentMonitorProvider extends ChangeNotifier {
   bool get canReviewOrderTransfers => _canReviewOrderTransfers;
   Map<String, PaymentMonitorRowMessage> get rowMessages =>
       Map.unmodifiable(_rowMessages);
+  bool isUpdatingOrders(String id) => _updatingOrderIds.contains(id);
+  bool isUpdatingOrderTracking(String id) =>
+      _updatingOrderTrackingIds.contains(id);
   bool get isViewingMultipleStores => _effectiveListStoreIds.length > 1;
 
   void syncRuntime({
@@ -1667,11 +1672,16 @@ class PaymentMonitorProvider extends ChangeNotifier {
     }
   }
 
-  Future<void> updateOrders(String transactionId, String rawInput) async {
+  Future<bool> updateOrders(String transactionId, String rawInput) async {
     final existing = _findTransactionById(transactionId);
     final transactionKey = existing?.transactionKey.trim() ?? '';
+    if (!_updatingOrderIds.add(transactionId)) return false;
+    notifyListeners();
     try {
       final orders = parseStatementOrderInput(rawInput);
+      if (orders.isEmpty && existing?.orders.isEmpty != false) {
+        throw const FormatException('Missing order codes');
+      }
       await AppLogger.instance.info(
         'PaymentMonitor',
         'Payment monitor inline order save started',
@@ -1699,6 +1709,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
           'orderCount': orders.length,
         },
       );
+      return true;
     } catch (error) {
       final orders = _tryParseStatementOrderInput(rawInput);
       if (orders != null &&
@@ -1709,7 +1720,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
             transactionKey: transactionKey,
             orders: orders,
           )) {
-        return;
+        return true;
       }
       _showRowMessage(
         transactionId,
@@ -1725,6 +1736,77 @@ class PaymentMonitorProvider extends ChangeNotifier {
           'hasTransactionKey': transactionKey.isNotEmpty,
         },
       );
+      return false;
+    } finally {
+      _updatingOrderIds.remove(transactionId);
+      notifyListeners();
+    }
+  }
+
+  Future<bool> updateOrderTracking(String transactionId, String status) async {
+    final existing = _findTransactionById(transactionId);
+    final nextStatus = status.trim().toUpperCase();
+    if (existing == null ||
+        !existing.canManageOrderTracking ||
+        (nextStatus != 'FOLLOWING' && nextStatus != 'UNFOLLOWED')) {
+      _showRowMessage(
+        transactionId,
+        existing?.orderTrackingActionBlockedReason ??
+            'Không thể thay đổi trạng thái theo dõi giao dịch.',
+        false,
+      );
+      return false;
+    }
+    if (existing.orderTrackingStatus == nextStatus) return true;
+    if (!_updatingOrderTrackingIds.add(transactionId)) return false;
+    notifyListeners();
+    try {
+      await AppLogger.instance.info(
+        'PaymentMonitor',
+        'Payment monitor tracking update started',
+        context: {'transactionId': transactionId, 'nextStatus': nextStatus},
+      );
+      final updated = await _repository.updateOrderTracking(
+        transactionId,
+        nextStatus,
+        allowRateLimitCooldownBypass: true,
+      );
+      _replaceTransaction(updated, previousId: transactionId);
+      _showRowMessage(
+        updated.id,
+        updated.isFollowing
+            ? 'Đã theo dõi lại giao dịch.'
+            : 'Đã bỏ theo dõi giao dịch.',
+        true,
+      );
+      await AppLogger.instance.info(
+        'PaymentMonitor',
+        'Payment monitor tracking update succeeded',
+        context: {
+          'transactionId': updated.id,
+          'nextStatus': updated.orderTrackingStatus,
+        },
+      );
+      return true;
+    } catch (error) {
+      _showRowMessage(
+        transactionId,
+        _orderInputErrorMessage(
+          error,
+          fallback: 'Chưa thay đổi được trạng thái theo dõi.',
+        ),
+        false,
+      );
+      await AppLogger.instance.error(
+        'PaymentMonitor',
+        'Payment monitor tracking update failed',
+        error: error,
+        context: {'transactionId': transactionId, 'nextStatus': nextStatus},
+      );
+      return false;
+    } finally {
+      _updatingOrderTrackingIds.remove(transactionId);
+      notifyListeners();
     }
   }
 
@@ -1742,7 +1824,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
       }
       await AppLogger.instance.info(
         'PaymentMonitor',
-        'Payment monitor order transfer request started',
+        'Payment monitor compatibility order update started',
         context: {
           'transactionId': transactionId,
           'hasTransactionKey': transactionKey.isNotEmpty,
@@ -1756,12 +1838,12 @@ class PaymentMonitorProvider extends ChangeNotifier {
         allowRateLimitCooldownBypass: true,
       );
       await _refreshCurrentPageAfterOrderAction(
-        reason: 'order_transfer_request',
+        reason: 'compatibility_order_update',
       );
-      _showRowMessage(transactionId, 'Đã gửi Kế toán xác nhận.', true);
+      _showRowMessage(transactionId, 'Đã cập nhật mã đơn hàng.', true);
       await AppLogger.instance.info(
         'PaymentMonitor',
-        'Payment monitor order transfer request succeeded',
+        'Payment monitor compatibility order update succeeded',
         context: {
           'transactionId': transactionId,
           'hasTransactionKey': transactionKey.isNotEmpty,
@@ -1772,15 +1854,12 @@ class PaymentMonitorProvider extends ChangeNotifier {
     } catch (error) {
       _showRowMessage(
         transactionId,
-        _orderInputErrorMessage(
-          error,
-          fallback: 'Chưa gửi được yêu cầu cập nhật mã đơn.',
-        ),
+        _orderInputErrorMessage(error, fallback: 'Chưa cập nhật được mã đơn.'),
         false,
       );
       await AppLogger.instance.error(
         'PaymentMonitor',
-        'Payment monitor order transfer request failed',
+        'Payment monitor compatibility order update failed',
         error: error,
         upload: true,
         context: {

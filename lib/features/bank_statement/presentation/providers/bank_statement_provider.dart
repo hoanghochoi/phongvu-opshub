@@ -42,6 +42,8 @@ class BankStatementProvider extends ChangeNotifier {
   final Set<String> _selectedIds = {};
   final Set<String> _seenOrderTransferNotificationIds = {};
   final Set<String> _updatingIncomeTypeIds = {};
+  final Set<String> _updatingOrderIds = {};
+  final Set<String> _updatingOrderTrackingIds = {};
   final Map<String, BankStatementRowMessage> _rowMessages = {};
   final Map<String, Timer> _messageTimers = {};
   StreamSubscription<RealtimeEnvelope>? _orderTransferRealtimeSubscription;
@@ -152,6 +154,9 @@ class BankStatementProvider extends ChangeNotifier {
 
   BankStatementRowMessage? rowMessage(String id) => _rowMessages[id];
   bool isUpdatingIncomeType(String id) => _updatingIncomeTypeIds.contains(id);
+  bool isUpdatingOrders(String id) => _updatingOrderIds.contains(id);
+  bool isUpdatingOrderTracking(String id) =>
+      _updatingOrderTrackingIds.contains(id);
 
   Future<void> initialize(User? user) async {
     _user = user;
@@ -532,8 +537,13 @@ class BankStatementProvider extends ChangeNotifier {
   Future<bool> updateOrders(String transactionId, String rawInput) async {
     final existing = _findTransactionById(transactionId);
     final transactionKey = existing?.transactionKey.trim() ?? '';
+    if (!_updatingOrderIds.add(transactionId)) return false;
+    notifyListeners();
     try {
       final orders = parseOrderInput(rawInput);
+      if (orders.isEmpty && existing?.orders.isEmpty != false) {
+        throw const FormatException('Missing order codes');
+      }
       await AppLogger.instance.info(
         'BankStatement',
         'Bank statement inline order save started',
@@ -592,6 +602,71 @@ class BankStatementProvider extends ChangeNotifier {
         },
       );
       return false;
+    } finally {
+      _updatingOrderIds.remove(transactionId);
+      notifyListeners();
+    }
+  }
+
+  Future<bool> updateOrderTracking(String transactionId, String status) async {
+    final existing = _findTransactionById(transactionId);
+    final nextStatus = status.trim().toUpperCase();
+    if (existing == null ||
+        !existing.canManageOrderTracking ||
+        (nextStatus != 'FOLLOWING' && nextStatus != 'UNFOLLOWED')) {
+      _showRowMessage(
+        transactionId,
+        existing?.orderTrackingActionBlockedReason ??
+            'Không thể thay đổi trạng thái theo dõi giao dịch.',
+        false,
+      );
+      return false;
+    }
+    if (existing.orderTrackingStatus == nextStatus) return true;
+    if (!_updatingOrderTrackingIds.add(transactionId)) return false;
+    notifyListeners();
+    try {
+      await AppLogger.instance.info(
+        'BankStatement',
+        'Bank statement tracking update started',
+        context: {'transactionId': transactionId, 'nextStatus': nextStatus},
+      );
+      final updated = await _repository.updateOrderTracking(
+        transactionId,
+        nextStatus,
+      );
+      _replaceTransaction(updated, previousId: transactionId);
+      _showRowMessage(
+        updated.id,
+        updated.isFollowing
+            ? 'Đã theo dõi lại giao dịch.'
+            : 'Đã bỏ theo dõi giao dịch.',
+        true,
+      );
+      await AppLogger.instance.info(
+        'BankStatement',
+        'Bank statement tracking update succeeded',
+        context: {
+          'transactionId': updated.id,
+          'nextStatus': updated.orderTrackingStatus,
+        },
+      );
+      return true;
+    } catch (error) {
+      final message = error is ApiException
+          ? error.message
+          : 'Chưa thay đổi được trạng thái theo dõi. Vui lòng thử lại.';
+      _showRowMessage(transactionId, message, false);
+      await AppLogger.instance.error(
+        'BankStatement',
+        'Bank statement tracking update failed',
+        error: error,
+        context: {'transactionId': transactionId, 'nextStatus': nextStatus},
+      );
+      return false;
+    } finally {
+      _updatingOrderTrackingIds.remove(transactionId);
+      notifyListeners();
     }
   }
 
@@ -681,14 +756,14 @@ class BankStatementProvider extends ChangeNotifier {
       }
       await AppLogger.instance.info(
         'BankStatement',
-        'Bank statement order transfer request started',
+        'Bank statement compatibility order update started',
         context: {'transactionId': transactionId, 'orderCount': orders.length},
       );
       await _repository.createOrderTransferRequest(transactionId, orders);
-      _showRowMessage(transactionId, 'Đã gửi Kế toán xác nhận.', true);
+      _showRowMessage(transactionId, 'Đã cập nhật mã đơn hàng.', true);
       await AppLogger.instance.info(
         'BankStatement',
-        'Bank statement order transfer request succeeded',
+        'Bank statement compatibility order update succeeded',
         context: {'transactionId': transactionId, 'orderCount': orders.length},
       );
       await loadPendingOrderTransferRequests(silent: true);
@@ -701,12 +776,12 @@ class BankStatementProvider extends ChangeNotifier {
     } catch (error) {
       final message = _orderInputErrorMessage(
         error,
-        fallback: 'Chưa gửi được yêu cầu cập nhật mã đơn.',
+        fallback: 'Chưa cập nhật được mã đơn.',
       );
       _showRowMessage(transactionId, message, false);
       await AppLogger.instance.error(
         'BankStatement',
-        'Bank statement order transfer request failed',
+        'Bank statement compatibility order update failed',
         error: error,
         context: {'transactionId': transactionId},
       );

@@ -4,6 +4,7 @@ import {
   assertMapVietinBigQueryIdentifiers,
   mapVietinBigQueryCurrentViewDdl,
   mapVietinBigQueryTableDdl,
+  mapVietinBigQueryTrackingColumnDdl,
 } from './map-vietin-bigquery-schema.mjs';
 
 const config = {
@@ -21,6 +22,7 @@ const client = new BigQuery({
 });
 
 await runDdl(mapVietinBigQueryTableDdl(config));
+await runDdl(mapVietinBigQueryTrackingColumnDdl(config));
 await runDdl(mapVietinBigQueryCurrentViewDdl(config));
 console.log(
   `Provisioned MAP Vietin BigQuery raw table and current view: dataset=${config.datasetId} table=${config.tableId} view=${config.currentViewId}`,

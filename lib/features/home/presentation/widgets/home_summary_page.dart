@@ -930,6 +930,22 @@ class FinanceSummaryCardGrid extends StatelessWidget {
         color: AppColors.primary,
       ),
       SummaryCard(
+        metricKey: 'totalStatementsTracked',
+        icon: Icons.visibility_outlined,
+        title: 'Sao kê đang theo dõi',
+        value: _integerLabel(summary.totalStatementsTracked),
+        trend: const SummaryTrend.neutral('Dùng để tính tỷ lệ'),
+        color: AppColors.info,
+      ),
+      SummaryCard(
+        metricKey: 'totalStatementsUnfollowed',
+        icon: Icons.visibility_off_outlined,
+        title: 'Sao kê đã bỏ theo dõi',
+        value: _integerLabel(summary.totalStatementsUnfollowed),
+        trend: const SummaryTrend.neutral('Không tính đối chiếu đơn'),
+        color: AppColors.neutral500,
+      ),
+      SummaryCard(
         metricKey: 'totalStatementsWithOrder',
         icon: Icons.task_alt_rounded,
         title: 'Sao kê có đơn hàng',

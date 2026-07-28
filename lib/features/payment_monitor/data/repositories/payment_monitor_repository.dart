@@ -122,6 +122,21 @@ class PaymentMonitorRepository {
     );
   }
 
+  Future<MapPaymentTransaction> updateOrderTracking(
+    String transactionId,
+    String status, {
+    bool allowRateLimitCooldownBypass = false,
+  }) async {
+    final response = await _apiClient.patch(
+      ApiConstants.adminMapVietinStatementOrderTrackingEndpoint(transactionId),
+      allowRateLimitCooldownBypass: allowRateLimitCooldownBypass,
+      body: {'status': status},
+    );
+    return MapPaymentTransaction.fromJson(
+      jsonDecode(response.body) as Map<String, dynamic>,
+    );
+  }
+
   Future<MapPaymentTransaction?> approveOrderTransferRequest(
     String requestId, {
     bool allowRateLimitCooldownBypass = false,

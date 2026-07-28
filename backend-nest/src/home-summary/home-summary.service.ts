@@ -194,6 +194,8 @@ type HomeProjectionMetrics = {
   appDownloadYes: number;
   totalTransferredAmount: number;
   totalStatements: number;
+  totalStatementsTracked: number;
+  totalStatementsUnfollowed: number;
   totalStatementsWithOrder: number;
   totalStatementsWithoutOrder: number;
 };
@@ -790,6 +792,8 @@ export class HomeSummaryService {
     }
 
     let totalStatements = 0;
+    let totalStatementsTracked = 0;
+    let totalStatementsUnfollowed = 0;
     let totalTransferredAmount = 0;
     let totalStatementsWithOrder = 0;
     let totalStatementsWithoutOrder = 0;
@@ -801,6 +805,8 @@ export class HomeSummaryService {
           'FINANCE',
         );
         totalStatements = projected.totalStatements;
+        totalStatementsTracked = projected.totalStatementsTracked;
+        totalStatementsUnfollowed = projected.totalStatementsUnfollowed;
         totalTransferredAmount = projected.totalTransferredAmount;
         totalStatementsWithOrder = projected.totalStatementsWithOrder;
         totalStatementsWithoutOrder = projected.totalStatementsWithoutOrder;
@@ -828,27 +834,43 @@ export class HomeSummaryService {
         );
         const [
           statementCount,
+          statementTrackedCount,
+          statementUnfollowedCount,
           transferredAmountSummary,
           statementWithOrderCount,
           statementWithoutOrderCount,
         ] = await this.prisma.$transaction([
           this.prisma.mapVietinTransaction.count({ where: financeWhere }),
+          this.prisma.mapVietinTransaction.count({
+            where: this.andMapTransactionWhere(financeWhere, {
+              orderTrackingStatus: 'FOLLOWING',
+            }),
+          }),
+          this.prisma.mapVietinTransaction.count({
+            where: this.andMapTransactionWhere(financeWhere, {
+              orderTrackingStatus: 'UNFOLLOWED',
+            }),
+          }),
           this.prisma.mapVietinTransaction.aggregate({
             where: financeWhere,
             _sum: { amount: true },
           }),
           this.prisma.mapVietinTransaction.count({
             where: this.andMapTransactionWhere(financeWhere, {
+              orderTrackingStatus: 'FOLLOWING',
               orders: { isEmpty: false },
             }),
           }),
           this.prisma.mapVietinTransaction.count({
             where: this.andMapTransactionWhere(financeWhere, {
+              orderTrackingStatus: 'FOLLOWING',
               orders: { isEmpty: true },
             }),
           }),
         ]);
         totalStatements = statementCount;
+        totalStatementsTracked = statementTrackedCount;
+        totalStatementsUnfollowed = statementUnfollowedCount;
         totalTransferredAmount = transferredAmountSummary._sum.amount ?? 0;
         totalStatementsWithOrder = statementWithOrderCount;
         totalStatementsWithoutOrder = statementWithoutOrderCount;
@@ -878,8 +900,12 @@ export class HomeSummaryService {
       behaviorYesCounts.appDownload,
       totalReports,
     );
-    const statementOrderRate = totalStatements
-      ? Number(((totalStatementsWithOrder / totalStatements) * 100).toFixed(2))
+    const statementOrderRate = totalStatementsTracked
+      ? Number(
+          ((totalStatementsWithOrder / totalStatementsTracked) * 100).toFixed(
+            2,
+          ),
+        )
       : 0;
     const response: HomeSummaryResponse = {
       date,
@@ -910,6 +936,8 @@ export class HomeSummaryService {
       financeAvailable,
       totalTransferredAmount,
       totalStatements,
+      totalStatementsTracked,
+      totalStatementsUnfollowed,
       totalStatementsWithOrder,
       totalStatementsWithoutOrder,
       statementOrderRate,
@@ -3131,6 +3159,8 @@ export class HomeSummaryService {
       financeAvailable: false,
       totalTransferredAmount: 0,
       totalStatements: 0,
+      totalStatementsTracked: 0,
+      totalStatementsUnfollowed: 0,
       totalStatementsWithOrder: 0,
       totalStatementsWithoutOrder: 0,
       statementOrderRate: 0,
@@ -3315,6 +3345,8 @@ export class HomeSummaryService {
       appDownloadYes: 0,
       totalTransferredAmount: 0,
       totalStatements: 0,
+      totalStatementsTracked: 0,
+      totalStatementsUnfollowed: 0,
       totalStatementsWithOrder: 0,
       totalStatementsWithoutOrder: 0,
     };

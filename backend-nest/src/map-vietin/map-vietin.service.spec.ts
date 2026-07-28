@@ -16,6 +16,7 @@ describe('MapVietinService', () => {
   let notificationsService: { readAtByNotificationId: jest.Mock };
   let policyService: { canAccessPolicy: jest.Mock };
   let featureService: { canAccessFeature: jest.Mock };
+  let salesReportErpService: { lookupOrderStatus: jest.Mock };
   let service: MapVietinService;
 
   beforeEach(() => {
@@ -90,6 +91,9 @@ describe('MapVietinService', () => {
         create: jest.fn(),
         findMany: jest.fn(),
       },
+      mapVietinTransactionOrderTrackingAudit: {
+        create: jest.fn(),
+      },
       mapVietinStatementOrderTransferRequest: {
         updateMany: jest.fn(async () => ({ count: 0 })),
         findFirst: jest.fn(),
@@ -152,6 +156,12 @@ describe('MapVietinService', () => {
     notificationsService = {
       readAtByNotificationId: jest.fn().mockResolvedValue(new Map()),
     };
+    salesReportErpService = {
+      lookupOrderStatus: jest.fn(async () => ({
+        lifecycleStatus: 'COMPLETED',
+        lifecycleVerified: true,
+      })),
+    };
     global.fetch = fetchMock as any;
     jest
       .spyOn(Date, 'now')
@@ -163,6 +173,7 @@ describe('MapVietinService', () => {
       paymentNotifications as any,
       redisService as any,
       notificationsService as any,
+      salesReportErpService as any,
     );
   });
 
@@ -2702,8 +2713,8 @@ describe('MapVietinService', () => {
       list: [
         {
           id: 'has-order',
-          canEditOrders: false,
-          orderEditBlockedReason: 'Bạn không có quyền sửa đơn hàng.',
+          canEditOrders: true,
+          orderEditBlockedReason: null,
         },
         { id: 'null-order', canEditOrders: true, orderEditBlockedReason: null },
       ],
@@ -2894,16 +2905,12 @@ describe('MapVietinService', () => {
       ),
     ).resolves.toMatchObject({ total: 0, list: [] });
 
-    expect(prisma.mapVietinTransaction.findMany).toHaveBeenLastCalledWith(
-      expect.objectContaining({
-        where: {
-          AND: expect.arrayContaining([
-            { orderTransferRequests: { some: { status: 'PENDING' } } },
-            { incomeType: 'SALES' },
-          ]),
-        },
-      }),
+    let serializedWhere = JSON.stringify(
+      prisma.mapVietinTransaction.findMany.mock.calls.at(-1)[0].where,
     );
+    expect(serializedWhere).toContain('orderTrackingStatus');
+    expect(serializedWhere).toContain('FOLLOWING');
+    expect(serializedWhere).toContain('PENDING');
 
     await expect(
       service.listStatements(
@@ -2912,19 +2919,15 @@ describe('MapVietinService', () => {
       ),
     ).resolves.toMatchObject({ total: 0, list: [] });
 
-    expect(prisma.mapVietinTransaction.findMany).toHaveBeenLastCalledWith(
-      expect.objectContaining({
-        where: {
-          AND: expect.arrayContaining([
-            { orderSource: 'OFFSET' },
-            { incomeType: 'SALES' },
-          ]),
-        },
-      }),
+    serializedWhere = JSON.stringify(
+      prisma.mapVietinTransaction.findMany.mock.calls.at(-1)[0].where,
     );
+    expect(serializedWhere).toContain('orderTrackingStatus');
+    expect(serializedWhere).toContain('FOLLOWING');
+    expect(serializedWhere).toContain('OFFSET');
   });
 
-  it('creates statement order transfer requests before the Vietnam day closes', async () => {
+  it('auto-approves compatibility order updates and publishes realtime invalidation', async () => {
     const transaction = statementTransactionRow({
       id: 'stored-1',
       orders: ['26052112345678'],
@@ -2938,11 +2941,25 @@ describe('MapVietinService', () => {
     prisma.mapVietinStatementOrderTransferRequest.findFirst.mockResolvedValue(
       null,
     );
+    salesReportErpService.lookupOrderStatus
+      .mockResolvedValueOnce({
+        lifecycleStatus: 'CANCELLED',
+        lifecycleVerified: true,
+      })
+      .mockResolvedValueOnce({
+        lifecycleStatus: 'COMPLETED',
+        lifecycleVerified: true,
+      });
+    prisma.mapVietinTransaction.update.mockResolvedValue({
+      ...transaction,
+      orders: ['26052187654321'],
+      orderSource: 'ERP_REPLACEMENT',
+    });
     prisma.mapVietinStatementOrderTransferRequest.create.mockImplementation(
       async ({ data }: any) => ({
         id: 'request-1',
         ...data,
-        status: 'PENDING',
+        status: 'APPROVED',
         createdAt: new Date('2026-05-21T03:00:00.000Z'),
         updatedAt: new Date('2026-05-21T03:00:00.000Z'),
         reviewedAt: null,
@@ -2966,24 +2983,17 @@ describe('MapVietinService', () => {
       id: 'request-1',
       transactionId: 'stored-1',
       requestedOrders: ['26052187654321'],
-      status: 'PENDING',
+      status: 'APPROVED',
+      resolutionSource: 'ERP',
     });
-
     expect(redisService.publishMessage).toHaveBeenCalledWith(
       'STATEMENT_ORDER_TRANSFER_REQUESTED',
       expect.objectContaining({
-        schemaVersion: 1,
         type: 'STATEMENT_ORDER_TRANSFER_REQUEST',
-        audience: expect.objectContaining({
-          storeCodes: ['CP01'],
-          roles: ['SUPER_ADMIN'],
-          policyCodes: ['BANK_STATEMENT_ALL_SCOPE'],
-          featureCodes: ['BANK_STATEMENTS'],
-        }),
         payload: expect.objectContaining({
           requestId: 'request-1',
           transactionId: 'stored-1',
-          storeCode: 'CP01',
+          status: 'APPROVED',
         }),
       }),
     );
@@ -3002,15 +3012,30 @@ describe('MapVietinService', () => {
     });
     prisma.mapVietinTransaction.findUnique
       .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce(transaction);
+      .mockResolvedValueOnce(transaction)
+      .mockResolvedValue(transaction);
     prisma.mapVietinStatementOrderTransferRequest.findFirst.mockResolvedValue(
       null,
     );
+    salesReportErpService.lookupOrderStatus
+      .mockResolvedValueOnce({
+        lifecycleStatus: 'RETURNED_FULL',
+        lifecycleVerified: true,
+      })
+      .mockResolvedValueOnce({
+        lifecycleStatus: 'PENDING',
+        lifecycleVerified: true,
+      });
+    prisma.mapVietinTransaction.update.mockResolvedValue({
+      ...transaction,
+      orders: ['26052287654321'],
+      orderSource: 'ERP_REPLACEMENT',
+    });
     prisma.mapVietinStatementOrderTransferRequest.create.mockImplementation(
       async ({ data }: any) => ({
         id: 'request-1',
         ...data,
-        status: 'PENDING',
+        status: 'APPROVED',
         createdAt: new Date('2026-05-21T03:00:00.000Z'),
         updatedAt: new Date('2026-05-21T03:00:00.000Z'),
         reviewedAt: null,
@@ -3076,6 +3101,7 @@ describe('MapVietinService', () => {
     expect(
       prisma.mapVietinStatementOrderTransferRequest.create,
     ).not.toHaveBeenCalled();
+    expect(redisService.publishMessage).not.toHaveBeenCalled();
   });
 
   it('blocks previous-day statement order transfer requests even inside 24h', async () => {
@@ -3446,8 +3472,27 @@ describe('MapVietinService', () => {
     prisma.mapVietinTransaction.findUnique.mockResolvedValue({
       id: 'stored-1',
       storeCode: 'CP01',
+      transactionKey: 'CP01:key',
+      transactionNumber: 'TXN-001',
+      amount: 1250000,
+      content: 'Manual fix',
       orders: ['26052112345678'],
+      orderSource: 'AUTO',
+      orderTrackingStatus: 'FOLLOWING',
+      status: '00',
+      paidAt: new Date('2026-05-21T02:00:00.000Z'),
+      firstSeenAt: new Date('2026-05-21T02:00:00.000Z'),
+      updatedAt: new Date('2026-05-21T02:30:00.000Z'),
     });
+    salesReportErpService.lookupOrderStatus
+      .mockResolvedValueOnce({
+        lifecycleStatus: 'CANCELLED',
+        lifecycleVerified: true,
+      })
+      .mockResolvedValueOnce({
+        lifecycleStatus: 'COMPLETED_PARTIAL_RETURN',
+        lifecycleVerified: true,
+      });
     prisma.mapVietinTransaction.update.mockResolvedValue({
       id: 'stored-1',
       storeCode: 'CP01',
@@ -3456,7 +3501,7 @@ describe('MapVietinService', () => {
       amount: 1250000,
       content: 'Manual fix',
       orders: ['26052287654321'],
-      orderSource: 'MANUAL',
+      orderSource: 'ERP_REPLACEMENT',
       orderUpdatedAt: new Date('2026-05-21T03:00:00.000Z'),
       orderUpdatedByUserId: 'user-1',
       orderUpdatedByEmail: 'manager@example.com',
@@ -3548,7 +3593,7 @@ describe('MapVietinService', () => {
     ).resolves.toMatchObject({
       storeId: 'CP01',
       orders: ['26052287654321'],
-      canEditOrders: false,
+      canEditOrders: true,
     });
 
     expect(prisma.mapVietinTransactionOrderAudit.create).toHaveBeenCalledWith(
@@ -3644,6 +3689,18 @@ describe('MapVietinService', () => {
         storeCode: 'CP01',
         transactionKey: 'CP01:key',
         orders: [],
+        orderTrackingStatus: 'FOLLOWING',
+        updatedAt: new Date('2026-05-21T02:30:00.000Z'),
+        firstSeenAt: new Date('2026-05-21T03:00:05.000Z'),
+      })
+      .mockResolvedValue({
+        id: 'stored-fresh',
+        storeCode: 'CP01',
+        transactionKey: 'CP01:key',
+        orders: [],
+        orderTrackingStatus: 'FOLLOWING',
+        updatedAt: new Date('2026-05-21T02:30:00.000Z'),
+        firstSeenAt: new Date('2026-05-21T03:00:05.000Z'),
       });
     prisma.mapVietinTransaction.update.mockResolvedValue({
       id: 'stored-fresh',
@@ -3682,7 +3739,9 @@ describe('MapVietinService', () => {
     });
 
     expect(prisma.mapVietinTransaction.update).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { id: 'stored-fresh' } }),
+      expect.objectContaining({
+        where: expect.objectContaining({ id: 'stored-fresh' }),
+      }),
     );
     expect(prisma.mapVietinTransactionOrderAudit.create).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -3705,8 +3764,21 @@ describe('MapVietinService', () => {
       content: 'Cross SR manual fix',
       orders: ['26052912345678'],
       orderSource: 'AUTO',
+      orderTrackingStatus: 'FOLLOWING',
+      paidAt: new Date('2026-05-21T02:00:00.000Z'),
+      firstSeenAt: new Date('2026-05-21T02:00:00.000Z'),
+      updatedAt: new Date('2026-05-21T02:30:00.000Z'),
       rawData: null,
     });
+    salesReportErpService.lookupOrderStatus
+      .mockResolvedValueOnce({
+        lifecycleStatus: 'RETURNED_FULL',
+        lifecycleVerified: true,
+      })
+      .mockResolvedValueOnce({
+        lifecycleStatus: 'COMPLETED',
+        lifecycleVerified: true,
+      });
     prisma.mapVietinTransaction.update.mockResolvedValue({
       id: 'stored-cross-sr',
       storeCode: 'CP02',
@@ -3715,7 +3787,7 @@ describe('MapVietinService', () => {
       amount: 1250000,
       content: 'Cross SR manual fix',
       orders: ['26052987654321'],
-      orderSource: 'MANUAL',
+      orderSource: 'ERP_REPLACEMENT',
       orderUpdatedAt: new Date('2026-05-21T03:00:00.000Z'),
       orderUpdatedByUserId: 'user-1',
       orderUpdatedByEmail: 'manager@example.com',
@@ -3724,7 +3796,7 @@ describe('MapVietinService', () => {
       payerName: null,
       payerAccount: null,
       rawData: null,
-      firstSeenAt: new Date('2026-05-21T03:00:05.000Z'),
+      firstSeenAt: new Date('2026-05-21T02:00:00.000Z'),
     });
     prisma.mapVietinTransactionOrderAudit.create.mockResolvedValue({});
 
@@ -3750,7 +3822,9 @@ describe('MapVietinService', () => {
     });
 
     expect(prisma.mapVietinTransaction.update).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { id: 'stored-cross-sr' } }),
+      expect.objectContaining({
+        where: expect.objectContaining({ id: 'stored-cross-sr' }),
+      }),
     );
     expect(prisma.mapVietinTransactionOrderAudit.create).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -3844,12 +3918,12 @@ describe('MapVietinService', () => {
       ),
     ).resolves.toMatchObject({
       orders: ['26052287654321'],
-      canEditOrders: false,
-      orderEditBlockedReason: 'Bạn không có quyền sửa đơn hàng.',
+      canEditOrders: true,
+      orderEditBlockedReason: null,
     });
   });
 
-  it('blocks non-FIN users from editing existing AUTO or MANUAL orders', async () => {
+  it('blocks previous-day protected orders regardless of finance role', async () => {
     prisma.store.findUnique.mockResolvedValue({
       id: 'store-uuid-1',
       storeId: 'CP01',
@@ -3872,11 +3946,11 @@ describe('MapVietinService', () => {
         'stored-protected',
         { orders: ['26052287654321'] },
       ),
-    ).rejects.toThrow('Bạn không có quyền sửa đơn hàng.');
+    ).rejects.toThrow('Quá thời hạn cập nhật trong ngày.');
     expect(prisma.mapVietinTransaction.update).not.toHaveBeenCalled();
   });
 
-  it('lets SUPER_ADMIN and FIN_ACC node users edit protected statement orders', async () => {
+  it('does not let SUPER_ADMIN or FIN_ACC bypass the same-day guard', async () => {
     prisma.store.findUnique.mockResolvedValue({
       id: 'store-uuid-1',
       storeId: 'CP01',
@@ -3918,7 +3992,7 @@ describe('MapVietinService', () => {
         'stored-protected',
         { orders: ['26052287654321'] },
       ),
-    ).resolves.toMatchObject({ canEditOrders: true });
+    ).rejects.toThrow('Quá thời hạn cập nhật trong ngày.');
 
     await expect(
       service.updateStatementOrders(
@@ -3930,7 +4004,7 @@ describe('MapVietinService', () => {
         'stored-protected',
         { orders: ['26052287654321'] },
       ),
-    ).resolves.toMatchObject({ canEditOrders: true });
+    ).rejects.toThrow('Quá thời hạn cập nhật trong ngày.');
   });
 
   it('lets FIN_ACC change statement income type and protects the manual choice', async () => {
@@ -4038,6 +4112,7 @@ describe('MapVietinService', () => {
         amount: 5190000,
         content: 'Khách chuyển tiền, cần giữ tiếng Việt',
         orders: ['26052912345678', '26053087654321'],
+        orderTrackingStatus: 'UNFOLLOWED',
         status: 'Thành công',
         paidAt: new Date('2026-06-03T09:39:41.000Z'),
         payerName: null,
@@ -4071,7 +4146,11 @@ describe('MapVietinService', () => {
       raw: false,
     }) as unknown[][];
     expect(rows[0]).toEqual(
-      expect.arrayContaining(['Loại giao dịch', 'Tài khoản nhận']),
+      expect.arrayContaining([
+        'Loại giao dịch',
+        'Tài khoản nhận',
+        'Trạng thái theo dõi',
+      ]),
     );
     expect(rows[1]).toEqual(
       expect.arrayContaining([
@@ -4081,6 +4160,7 @@ describe('MapVietinService', () => {
         '03/06/2026 16:39:41',
         'Nguyễn Văn A',
         '9704361234567890',
+        'Bỏ theo dõi',
       ]),
     );
     expect(rows[1]).toContain('5190000');
@@ -4202,6 +4282,526 @@ describe('MapVietinService', () => {
 
     expect(prisma.mapVietinTransaction.findMany).not.toHaveBeenCalled();
   });
+
+  it('returns order no-op without ERP lookup or writes', async () => {
+    const transaction = statementTransactionRow();
+    prisma.store.findUnique.mockResolvedValue({
+      id: 'store-uuid-1',
+      storeId: 'CP01',
+    });
+    prisma.mapVietinTransaction.findUnique.mockResolvedValue(transaction);
+
+    await expect(
+      service.updateStatementOrders(
+        { role: 'MANAGER', storeId: 'store-uuid-1' },
+        transaction.id,
+        { orders: transaction.orders },
+      ),
+    ).resolves.toMatchObject({ orders: transaction.orders });
+
+    expect(salesReportErpService.lookupOrderStatus).not.toHaveBeenCalled();
+    expect(prisma.mapVietinTransaction.update).not.toHaveBeenCalled();
+    expect(prisma.mapVietinTransactionOrderAudit.create).not.toHaveBeenCalled();
+  });
+
+  it('returns an approved compatibility response for a no-op without writing a request', async () => {
+    const transaction = statementTransactionRow();
+    prisma.store.findUnique.mockResolvedValue({
+      id: 'store-uuid-1',
+      storeId: 'CP01',
+    });
+    prisma.mapVietinTransaction.findUnique.mockResolvedValue(transaction);
+
+    await expect(
+      service.createStatementOrderTransferRequest(
+        { id: 'user-1', role: 'MANAGER', storeId: 'store-uuid-1' },
+        transaction.id,
+        { orders: transaction.orders },
+      ),
+    ).resolves.toMatchObject({
+      transactionId: transaction.id,
+      requestedOrders: transaction.orders,
+      status: 'APPROVED',
+      resolutionSource: 'ERP',
+    });
+
+    expect(salesReportErpService.lookupOrderStatus).not.toHaveBeenCalled();
+    expect(prisma.mapVietinTransaction.update).not.toHaveBeenCalled();
+    expect(prisma.mapVietinTransactionOrderAudit.create).not.toHaveBeenCalled();
+    expect(
+      prisma.mapVietinStatementOrderTransferRequest.create,
+    ).not.toHaveBeenCalled();
+  });
+
+  it('allows assigning an old statement with no orders after ERP verifies the new order', async () => {
+    const transaction = statementTransactionRow({
+      orders: [],
+      paidAt: new Date('2026-05-10T02:00:00.000Z'),
+    });
+    prisma.store.findUnique.mockResolvedValue({
+      id: 'store-uuid-1',
+      storeId: 'CP01',
+    });
+    prisma.mapVietinTransaction.findUnique.mockResolvedValue(transaction);
+    prisma.mapVietinStatementOrderTransferRequest.findFirst.mockResolvedValue(
+      null,
+    );
+    salesReportErpService.lookupOrderStatus.mockResolvedValue({
+      lifecycleStatus: 'PENDING',
+      lifecycleVerified: true,
+    });
+    prisma.mapVietinTransaction.update.mockImplementation(
+      async ({ data }: any) => ({ ...transaction, ...data }),
+    );
+    prisma.mapVietinTransactionOrderAudit.create.mockResolvedValue({});
+
+    await expect(
+      service.updateStatementOrders(manager, transaction.id, {
+        orders: ['26052187654321'],
+      }),
+    ).resolves.toMatchObject({
+      orders: ['26052187654321'],
+      orderSource: 'ERP_REPLACEMENT',
+    });
+    expect(salesReportErpService.lookupOrderStatus).toHaveBeenCalledTimes(1);
+  });
+
+  it('replaces multiple orders when old lifecycles are cancelled or fully returned and every new lifecycle is active', async () => {
+    const transaction = statementTransactionRow({
+      orders: ['26052111111111', '26052122222222'],
+    });
+    const nextOrders = ['26052133333333', '26052144444444', '26052155555555'];
+    prisma.store.findUnique.mockResolvedValue({
+      id: 'store-uuid-1',
+      storeId: 'CP01',
+    });
+    prisma.mapVietinTransaction.findUnique.mockResolvedValue(transaction);
+    prisma.mapVietinStatementOrderTransferRequest.findFirst.mockResolvedValue(
+      null,
+    );
+    salesReportErpService.lookupOrderStatus
+      .mockResolvedValueOnce({
+        lifecycleStatus: 'CANCELLED',
+        lifecycleVerified: true,
+      })
+      .mockResolvedValueOnce({
+        lifecycleStatus: 'RETURNED_FULL',
+        lifecycleVerified: true,
+      })
+      .mockResolvedValueOnce({
+        lifecycleStatus: 'PENDING',
+        lifecycleVerified: true,
+      })
+      .mockResolvedValueOnce({
+        lifecycleStatus: 'COMPLETED',
+        lifecycleVerified: true,
+      })
+      .mockResolvedValueOnce({
+        lifecycleStatus: 'COMPLETED_PARTIAL_RETURN',
+        lifecycleVerified: true,
+      });
+    prisma.mapVietinTransaction.update.mockImplementation(
+      async ({ data }: any) => ({ ...transaction, ...data }),
+    );
+    prisma.mapVietinTransactionOrderAudit.create.mockResolvedValue({});
+
+    await expect(
+      service.updateStatementOrders(manager, transaction.id, {
+        orders: nextOrders,
+      }),
+    ).resolves.toMatchObject({ orders: nextOrders });
+    expect(salesReportErpService.lookupOrderStatus).toHaveBeenCalledTimes(5);
+  });
+
+  it.each(['CANCELLED', 'RETURNED_FULL'])(
+    'blocks a new order whose ERP lifecycle is %s',
+    async (lifecycleStatus) => {
+      const transaction = statementTransactionRow({ orders: [] });
+      prisma.store.findUnique.mockResolvedValue({
+        id: 'store-uuid-1',
+        storeId: 'CP01',
+      });
+      prisma.mapVietinTransaction.findUnique.mockResolvedValue(transaction);
+      prisma.mapVietinStatementOrderTransferRequest.findFirst.mockResolvedValue(
+        null,
+      );
+      salesReportErpService.lookupOrderStatus.mockResolvedValue({
+        lifecycleStatus,
+        lifecycleVerified: true,
+      });
+
+      await expect(
+        service.updateStatementOrders(manager, transaction.id, {
+          orders: ['26052187654321'],
+        }),
+      ).rejects.toThrow('Mã đơn mới đã bị hủy hoặc hoàn trả toàn bộ');
+      expect(prisma.mapVietinTransaction.update).not.toHaveBeenCalled();
+      expect(
+        prisma.mapVietinTransactionOrderAudit.create,
+      ).not.toHaveBeenCalled();
+    },
+  );
+
+  it('fails the whole assignment when one ERP lookup fails', async () => {
+    const transaction = statementTransactionRow({ orders: [] });
+    prisma.store.findUnique.mockResolvedValue({
+      id: 'store-uuid-1',
+      storeId: 'CP01',
+    });
+    prisma.mapVietinTransaction.findUnique.mockResolvedValue(transaction);
+    prisma.mapVietinStatementOrderTransferRequest.findFirst.mockResolvedValue(
+      null,
+    );
+    salesReportErpService.lookupOrderStatus
+      .mockResolvedValueOnce({
+        lifecycleStatus: 'COMPLETED',
+        lifecycleVerified: true,
+      })
+      .mockRejectedValueOnce(new Error('erp timeout'));
+
+    await expect(
+      service.updateStatementOrders(manager, transaction.id, {
+        orders: ['26052187654321', '26052187654322'],
+      }),
+    ).rejects.toThrow('chưa kiểm tra được mã đơn mới');
+    expect(prisma.mapVietinTransaction.update).not.toHaveBeenCalled();
+    expect(prisma.mapVietinTransactionOrderAudit.create).not.toHaveBeenCalled();
+  });
+
+  it('rejects a stale transaction snapshot after ERP lookup', async () => {
+    const transaction = statementTransactionRow();
+    prisma.store.findUnique.mockResolvedValue({
+      id: 'store-uuid-1',
+      storeId: 'CP01',
+    });
+    prisma.mapVietinTransaction.findUnique
+      .mockResolvedValueOnce(transaction)
+      .mockResolvedValueOnce({
+        ...transaction,
+        updatedAt: new Date('2026-05-21T02:31:00.000Z'),
+      });
+    prisma.mapVietinStatementOrderTransferRequest.findFirst.mockResolvedValue(
+      null,
+    );
+    salesReportErpService.lookupOrderStatus
+      .mockResolvedValueOnce({
+        lifecycleStatus: 'CANCELLED',
+        lifecycleVerified: true,
+      })
+      .mockResolvedValueOnce({
+        lifecycleStatus: 'COMPLETED',
+        lifecycleVerified: true,
+      });
+
+    await expect(
+      service.updateStatementOrders(manager, transaction.id, {
+        orders: ['26052187654321'],
+      }),
+    ).rejects.toThrow('Dữ liệu giao dịch vừa thay đổi');
+    expect(prisma.mapVietinTransaction.update).not.toHaveBeenCalled();
+    expect(prisma.mapVietinTransactionOrderAudit.create).not.toHaveBeenCalled();
+  });
+
+  it('blocks replacement when any current order is still active', async () => {
+    const transaction = statementTransactionRow();
+    prisma.store.findUnique.mockResolvedValue({
+      id: 'store-uuid-1',
+      storeId: 'CP01',
+    });
+    prisma.mapVietinTransaction.findUnique.mockResolvedValue(transaction);
+    salesReportErpService.lookupOrderStatus.mockResolvedValue({
+      lifecycleStatus: 'COMPLETED',
+      lifecycleVerified: true,
+    });
+
+    await expect(
+      service.updateStatementOrders(
+        { role: 'MANAGER', storeId: 'store-uuid-1' },
+        transaction.id,
+        { orders: ['26052187654321'] },
+      ),
+    ).rejects.toThrow('tất cả mã đơn hiện tại đã hủy');
+    expect(salesReportErpService.lookupOrderStatus).toHaveBeenCalledTimes(1);
+    expect(prisma.mapVietinTransaction.update).not.toHaveBeenCalled();
+  });
+
+  it('fails closed when ERP lifecycle is not verified', async () => {
+    const transaction = statementTransactionRow({ orders: [] });
+    prisma.store.findUnique.mockResolvedValue({
+      id: 'store-uuid-1',
+      storeId: 'CP01',
+    });
+    prisma.mapVietinTransaction.findUnique.mockResolvedValue(transaction);
+    salesReportErpService.lookupOrderStatus.mockResolvedValue({
+      lifecycleStatus: 'PENDING',
+      lifecycleVerified: false,
+    });
+
+    await expect(
+      service.updateStatementOrders(
+        { role: 'MANAGER', storeId: 'store-uuid-1' },
+        transaction.id,
+        { orders: ['26052187654321'] },
+      ),
+    ).rejects.toThrow('chưa kiểm tra được mã đơn mới');
+    expect(prisma.mapVietinTransaction.update).not.toHaveBeenCalled();
+  });
+
+  it('allows blank deletion after every current order is cancelled', async () => {
+    const transaction = statementTransactionRow();
+    prisma.store.findUnique.mockResolvedValue({
+      id: 'store-uuid-1',
+      storeId: 'CP01',
+    });
+    prisma.mapVietinTransaction.findUnique.mockResolvedValue(transaction);
+    prisma.mapVietinTransaction.update.mockResolvedValue({
+      ...transaction,
+      orders: [],
+      orderSource: 'ERP_REPLACEMENT',
+    });
+    prisma.mapVietinTransactionOrderAudit.create.mockResolvedValue({});
+    salesReportErpService.lookupOrderStatus.mockResolvedValue({
+      lifecycleStatus: 'CANCELLED',
+      lifecycleVerified: true,
+    });
+
+    await expect(
+      service.updateStatementOrders(
+        { role: 'MANAGER', storeId: 'store-uuid-1' },
+        transaction.id,
+        { orders: [] },
+      ),
+    ).resolves.toMatchObject({ orders: [] });
+    expect(prisma.mapVietinTransactionOrderAudit.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ newOrders: [] }),
+      }),
+    );
+  });
+
+  it('requires refollow before updating statement orders', async () => {
+    const transaction = statementTransactionRow({
+      orderTrackingStatus: 'UNFOLLOWED',
+    });
+    prisma.store.findUnique.mockResolvedValue({
+      id: 'store-uuid-1',
+      storeId: 'CP01',
+    });
+    prisma.mapVietinTransaction.findUnique.mockResolvedValue(transaction);
+
+    await expect(
+      service.updateStatementOrders(
+        { role: 'MANAGER', storeId: 'store-uuid-1' },
+        transaction.id,
+        { orders: ['26052187654321'] },
+      ),
+    ).rejects.toThrow('Theo dõi lại');
+    await expect(
+      service.createStatementOrderTransferRequest(
+        { role: 'MANAGER', storeId: 'store-uuid-1' },
+        transaction.id,
+        { orders: ['26052187654321'] },
+      ),
+    ).rejects.toThrow('Theo dõi lại');
+    expect(salesReportErpService.lookupOrderStatus).not.toHaveBeenCalled();
+  });
+
+  it('lets ACC unfollow a scoped statement and records tracking audit', async () => {
+    const transaction = statementTransactionRow();
+    prisma.store.findUnique.mockResolvedValue({
+      id: 'store-uuid-1',
+      storeId: 'CP01',
+    });
+    prisma.mapVietinTransaction.findUnique.mockResolvedValue(transaction);
+    prisma.mapVietinStatementOrderTransferRequest.findFirst.mockResolvedValue(
+      null,
+    );
+    prisma.mapVietinTransaction.update.mockResolvedValue({
+      ...transaction,
+      orderTrackingStatus: 'UNFOLLOWED',
+    });
+    prisma.mapVietinTransactionOrderTrackingAudit.create.mockResolvedValue({});
+
+    await expect(
+      service.updateStatementOrderTracking(
+        {
+          id: 'acc-1',
+          role: 'USER',
+          departmentCode: 'ACC',
+          storeId: 'store-uuid-1',
+        },
+        transaction.id,
+        { status: 'UNFOLLOWED' },
+      ),
+    ).resolves.toMatchObject({
+      orderTrackingStatus: 'UNFOLLOWED',
+      canManageOrderTracking: true,
+    });
+    expect(
+      prisma.mapVietinTransactionOrderTrackingAudit.create,
+    ).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          oldStatus: 'FOLLOWING',
+          newStatus: 'UNFOLLOWED',
+        }),
+      }),
+    );
+  });
+
+  it.each([
+    {
+      label: 'FIN_ACC',
+      user: {
+        id: 'fin-1',
+        role: 'USER',
+        departmentCode: 'FIN_ACC',
+        storeId: 'store-uuid-1',
+      },
+    },
+    {
+      label: 'Super Admin',
+      user: { id: 'super-1', role: 'SUPER_ADMIN' },
+    },
+  ])('lets $label manage tracking in scope', async ({ user }) => {
+    const transaction = statementTransactionRow();
+    prisma.store.findUnique.mockResolvedValue({
+      id: 'store-uuid-1',
+      storeId: 'CP01',
+    });
+    prisma.mapVietinTransaction.findUnique.mockResolvedValue(transaction);
+    prisma.mapVietinStatementOrderTransferRequest.findFirst.mockResolvedValue(
+      null,
+    );
+    prisma.mapVietinTransaction.update.mockResolvedValue({
+      ...transaction,
+      orderTrackingStatus: 'UNFOLLOWED',
+    });
+    prisma.mapVietinTransactionOrderTrackingAudit.create.mockResolvedValue({});
+
+    await expect(
+      service.updateStatementOrderTracking(user, transaction.id, {
+        status: 'UNFOLLOWED',
+      }),
+    ).resolves.toMatchObject({ orderTrackingStatus: 'UNFOLLOWED' });
+  });
+
+  it('blocks tracking changes for users outside accounting roles', async () => {
+    await expect(
+      service.updateStatementOrderTracking(
+        {
+          id: 'sales-1',
+          role: 'MANAGER',
+          departmentCode: 'SALES',
+          storeId: 'store-uuid-1',
+        },
+        'stored-1',
+        { status: 'UNFOLLOWED' },
+      ),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(prisma.mapVietinTransaction.update).not.toHaveBeenCalled();
+  });
+
+  it('blocks accounting users from changing tracking outside showroom scope', async () => {
+    prisma.store.findUnique.mockResolvedValue({
+      id: 'store-uuid-1',
+      storeId: 'CP01',
+    });
+    prisma.mapVietinTransaction.findUnique.mockResolvedValue(
+      statementTransactionRow({ storeCode: 'CP02' }),
+    );
+
+    await expect(
+      service.updateStatementOrderTracking(
+        {
+          id: 'acc-1',
+          role: 'USER',
+          departmentCode: 'ACC',
+          storeId: 'store-uuid-1',
+        },
+        'stored-1',
+        { status: 'UNFOLLOWED' },
+      ),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(prisma.mapVietinTransaction.update).not.toHaveBeenCalled();
+  });
+
+  it('blocks tracking changes while a legacy request is pending', async () => {
+    const transaction = statementTransactionRow();
+    prisma.store.findUnique.mockResolvedValue({
+      id: 'store-uuid-1',
+      storeId: 'CP01',
+    });
+    prisma.mapVietinTransaction.findUnique.mockResolvedValue(transaction);
+    prisma.mapVietinStatementOrderTransferRequest.findFirst.mockResolvedValue({
+      id: 'pending-1',
+    });
+
+    await expect(
+      service.updateStatementOrderTracking(
+        {
+          id: 'acc-1',
+          role: 'USER',
+          departmentCode: 'ACC',
+          storeId: 'store-uuid-1',
+        },
+        transaction.id,
+        { status: 'UNFOLLOWED' },
+      ),
+    ).rejects.toThrow('đang chờ Kế toán xác nhận');
+    expect(prisma.mapVietinTransaction.update).not.toHaveBeenCalled();
+    expect(
+      prisma.mapVietinTransactionOrderTrackingAudit.create,
+    ).not.toHaveBeenCalled();
+  });
+
+  it('treats repeated tracking status as idempotent without audit', async () => {
+    const transaction = statementTransactionRow({
+      orderTrackingStatus: 'UNFOLLOWED',
+    });
+    prisma.store.findUnique.mockResolvedValue({
+      id: 'store-uuid-1',
+      storeId: 'CP01',
+    });
+    prisma.mapVietinTransaction.findUnique.mockResolvedValue(transaction);
+    prisma.mapVietinStatementOrderTransferRequest.findFirst.mockResolvedValue(
+      null,
+    );
+
+    await expect(
+      service.updateStatementOrderTracking(
+        {
+          id: 'acc-1',
+          role: 'USER',
+          departmentCode: 'ACC',
+          storeId: 'store-uuid-1',
+        },
+        transaction.id,
+        { status: 'UNFOLLOWED' },
+      ),
+    ).resolves.toMatchObject({ orderTrackingStatus: 'UNFOLLOWED' });
+    expect(prisma.mapVietinTransaction.update).not.toHaveBeenCalled();
+    expect(
+      prisma.mapVietinTransactionOrderTrackingAudit.create,
+    ).not.toHaveBeenCalled();
+  });
+
+  it('treats UNFOLLOWED as an effective statement filter', async () => {
+    prisma.mapVietinTransaction.findMany.mockResolvedValue([]);
+    prisma.mapVietinTransaction.count.mockResolvedValue(0);
+
+    await expect(
+      service.listStatements(
+        { role: 'SUPER_ADMIN' },
+        { orderStatus: 'UNFOLLOWED', page: 0, limit: 20 },
+      ),
+    ).resolves.toMatchObject({ total: 0, list: [] });
+    expect(
+      JSON.stringify(
+        prisma.mapVietinTransaction.findMany.mock.calls.at(-1)[0].where,
+      ),
+    ).toContain('UNFOLLOWED');
+  });
 });
 
 function jsonResponse(body: unknown) {
@@ -4251,12 +4851,17 @@ function statementTransactionRow(overrides: Record<string, unknown> = {}) {
     orderUpdatedAt: null,
     orderUpdatedByUserId: null,
     orderUpdatedByEmail: null,
+    orderTrackingStatus: 'FOLLOWING',
+    orderTrackingUpdatedAt: null,
+    orderTrackingUpdatedByUserId: null,
+    orderTrackingUpdatedByEmail: null,
     status: '00',
     paidAt: new Date('2026-05-21T02:00:00.000Z'),
     payerName: null,
     payerAccount: null,
     rawData: {},
     firstSeenAt: new Date('2026-05-21T02:00:05.000Z'),
+    updatedAt: new Date('2026-05-21T02:30:00.000Z'),
     orderTransferRequests: [],
     ...overrides,
   };
