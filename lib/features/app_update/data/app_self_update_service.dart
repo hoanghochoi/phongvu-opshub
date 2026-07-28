@@ -547,7 +547,8 @@ class AppSelfUpdateService {
       ..._logContext(result),
       'code': failure.code,
       'stage': failure.stage.name,
-      'launchStatus': 'failed',
+      if (failure.stage == AppSelfUpdateStage.installing)
+        'launchStatus': 'failed',
       'durationMs': DateTime.now().difference(startedAt).inMilliseconds,
       if (failure.receivedBytes != null) 'receivedBytes': failure.receivedBytes,
       if (failure.expectedBytes != null) 'expectedBytes': failure.expectedBytes,
