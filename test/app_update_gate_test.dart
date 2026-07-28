@@ -238,6 +238,44 @@ void main() {
     expect(installCalls, 2);
   });
 
+  testWidgets('clears loading after installer launch timeout', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: _UpdateGateHarness(
+          checkForUpdate: () async => _requiredUpdateResult,
+          requiredUpdateOverride: true,
+          autoStartUpdates: true,
+          installUpdate: (_, onProgress) async {
+            onProgress(
+              const AppSelfUpdateProgress(
+                stage: AppSelfUpdateStage.installing,
+                message: 'Đang mở trình cài đặt...',
+              ),
+            );
+            throw const AppSelfUpdateException(
+              'Mở trình cài đặt quá thời gian. Vui lòng thử lại hoặc cập nhật thủ công.',
+              code: 'INSTALLING_LAUNCH_TIMEOUT',
+              stage: AppSelfUpdateStage.installing,
+            );
+          },
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+    await tester.pump();
+
+    expect(
+      find.text(
+        'Mở trình cài đặt quá thời gian. Vui lòng thử lại hoặc cập nhật thủ công.',
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('Đang mở trình cài đặt...'), findsNothing);
+    expect(find.text('Thử lại'), findsOneWidget);
+    expect(find.text('Cập nhật thủ công'), findsOneWidget);
+  });
+
   testWidgets('keeps manual prompt when package metadata is incomplete', (
     tester,
   ) async {

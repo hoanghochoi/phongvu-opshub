@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:crypto/crypto.dart';
@@ -80,6 +81,67 @@ void main() {
         ]);
       },
     );
+
+    test(
+      'times out a Windows installer handoff with a stable warning',
+      () async {
+        final bytes = 'fake installer bytes'.codeUnits;
+        final installer = Completer<void>();
+        final service = AppSelfUpdateService(
+          httpClient: MockClient((_) async => http.Response.bytes(bytes, 200)),
+          tempDirectoryProvider: () async => tempDir,
+          installer: (_) => installer.future,
+          installerLaunchTimeout: const Duration(milliseconds: 10),
+        );
+
+        await expectLater(
+          service.downloadAndInstall(_resultFor(bytes)),
+          throwsA(
+            isA<AppSelfUpdateException>()
+                .having(
+                  (error) => error.code,
+                  'code',
+                  'INSTALLING_LAUNCH_TIMEOUT',
+                )
+                .having(
+                  (error) => error.stage,
+                  'stage',
+                  AppSelfUpdateStage.installing,
+                )
+                .having(
+                  (error) => error.severity,
+                  'severity',
+                  AppSelfUpdateFailureSeverity.warning,
+                ),
+          ),
+        );
+        installer.complete();
+      },
+    );
+
+    test('classifies a ProcessException from the installer handoff', () async {
+      final bytes = 'fake installer bytes'.codeUnits;
+      final service = AppSelfUpdateService(
+        httpClient: MockClient((_) async => http.Response.bytes(bytes, 200)),
+        tempDirectoryProvider: () async => tempDir,
+        installer: (_) async {
+          throw ProcessException('installer', const <String>[]);
+        },
+      );
+
+      await expectLater(
+        service.downloadAndInstall(_resultFor(bytes)),
+        throwsA(
+          isA<AppSelfUpdateException>()
+              .having((error) => error.code, 'code', 'INSTALLING_LAUNCH_FAILED')
+              .having(
+                (error) => error.stage,
+                'stage',
+                AppSelfUpdateStage.installing,
+              ),
+        ),
+      );
+    });
 
     test('stops when checksum does not match', () async {
       final bytes = 'fake installer bytes'.codeUnits;

@@ -16,19 +16,25 @@ import 'app_update_service.dart';
 typedef AppUpdatePackageInstaller =
     Future<void> Function(AppUpdateInstallRequest request);
 typedef AppUpdateTempDirectoryProvider = Future<Directory> Function();
+typedef AppUpdateProcessExit = void Function(int code);
 
 class AppSelfUpdateService {
   AppSelfUpdateService({
     http.Client? httpClient,
     AppUpdatePackageInstaller? installer,
     AppUpdateTempDirectoryProvider? tempDirectoryProvider,
+    AppUpdateProcessExit? processExit,
     int maxPackageBytes = 512 * 1024 * 1024,
     Duration overallDownloadTimeout = const Duration(minutes: 15),
+    Duration installerLaunchTimeout = const Duration(seconds: 30),
   }) : _httpClient = httpClient ?? http.Client(),
        _installer = installer ?? _installPackage,
+       _usesDefaultInstaller = installer == null,
        _tempDirectoryProvider = tempDirectoryProvider ?? getTemporaryDirectory,
+       _processExit = processExit ?? exit,
        _maxPackageBytes = maxPackageBytes,
-       _overallDownloadTimeout = overallDownloadTimeout;
+       _overallDownloadTimeout = overallDownloadTimeout,
+       _installerLaunchTimeout = installerLaunchTimeout;
 
   static const _androidChannel = MethodChannel('phongvu_opshub/app_update');
   static const _connectTimeout = Duration(seconds: 30);
@@ -46,9 +52,12 @@ class AppSelfUpdateService {
 
   final http.Client _httpClient;
   final AppUpdatePackageInstaller _installer;
+  final bool _usesDefaultInstaller;
   final AppUpdateTempDirectoryProvider _tempDirectoryProvider;
+  final AppUpdateProcessExit _processExit;
   final int _maxPackageBytes;
   final Duration _overallDownloadTimeout;
+  final Duration _installerLaunchTimeout;
 
   Future<void> downloadAndInstall(
     AppUpdateCheckResult result, {
@@ -125,15 +134,58 @@ class AppSelfUpdateService {
           message: 'Đang mở trình cài đặt...',
         ),
       );
-      await _installer(installRequest);
+      final launchStartedAt = DateTime.now();
       await AppLogger.instance.info(
         'AppSelfUpdate',
-        'Self-update installer launched',
+        'Self-update installer launch started',
         context: {
           ..._logContext(result),
-          'durationMs': DateTime.now().difference(startedAt).inMilliseconds,
+          'code': 'INSTALLING_LAUNCH_STARTED',
+          'stage': AppSelfUpdateStage.installing.name,
+          'launchStatus': 'started',
+          'installerLaunchTimeoutMs': _installerLaunchTimeout.inMilliseconds,
         },
       );
+      final isWindowsInstaller =
+          info.platform.trim().toLowerCase() == 'windows';
+      try {
+        if (isWindowsInstaller) {
+          await _installer(installRequest).timeout(
+            _installerLaunchTimeout,
+            onTimeout: () {
+              throw const AppSelfUpdateException(
+                'Mở trình cài đặt quá thời gian. Vui lòng thử lại hoặc cập nhật thủ công.',
+                code: 'INSTALLING_LAUNCH_TIMEOUT',
+                stage: AppSelfUpdateStage.installing,
+              );
+            },
+          );
+        } else {
+          await _installer(installRequest);
+        }
+      } on ProcessException {
+        throw const AppSelfUpdateException(
+          'Chưa mở được trình cài đặt. Vui lòng thử lại hoặc cập nhật thủ công.',
+          code: 'INSTALLING_LAUNCH_FAILED',
+          stage: AppSelfUpdateStage.installing,
+        );
+      }
+      await AppLogger.instance.info(
+        'AppSelfUpdate',
+        'Self-update installer launch returned',
+        context: {
+          ..._logContext(result),
+          'code': 'INSTALLING_LAUNCH_RETURNED',
+          'stage': AppSelfUpdateStage.installing.name,
+          'launchStatus': 'returned',
+          'launchDurationMs': DateTime.now()
+              .difference(launchStartedAt)
+              .inMilliseconds,
+        },
+      );
+      if (isWindowsInstaller && _usesDefaultInstaller && Platform.isWindows) {
+        _processExit(0);
+      }
     } on AppSelfUpdateException catch (error) {
       await _logFailure(result, error, startedAt);
       rethrow;
@@ -388,7 +440,7 @@ class AppSelfUpdateService {
           stage: AppSelfUpdateStage.installing,
         );
       }
-      exit(0);
+      return;
     }
     throw const AppSelfUpdateException(
       'Nền tảng này chưa hỗ trợ tự cập nhật trong ứng dụng.',
@@ -495,6 +547,7 @@ class AppSelfUpdateService {
       ..._logContext(result),
       'code': failure.code,
       'stage': failure.stage.name,
+      'launchStatus': 'failed',
       'durationMs': DateTime.now().difference(startedAt).inMilliseconds,
       if (failure.receivedBytes != null) 'receivedBytes': failure.receivedBytes,
       if (failure.expectedBytes != null) 'expectedBytes': failure.expectedBytes,
@@ -592,6 +645,7 @@ class AppSelfUpdateException implements Exception {
   });
 
   static const _warningCodes = <String>{
+    'INSTALLING_LAUNCH_TIMEOUT',
     'DOWNLOADING_CONNECT_TIMEOUT',
     'DOWNLOADING_NETWORK_FAILED',
     'DOWNLOADING_HTTP_FAILED',
