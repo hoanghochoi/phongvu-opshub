@@ -1,7 +1,9 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:crypto/crypto.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -524,6 +526,67 @@ void main() {
         throwsA(isA<AppSelfUpdateException>()),
       );
       expect(installerCalled, isFalse);
+    });
+
+    test('only marks installer-stage failures as launch failures', () async {
+      final messages = <String>[];
+      final originalDebugPrint = debugPrint;
+      debugPrint = (String? message, {int? wrapWidth}) {
+        if (message != null) messages.add(message);
+      };
+      addTearDown(() => debugPrint = originalDebugPrint);
+
+      final bytes = 'fake installer bytes'.codeUnits;
+      final checksumFailureService = AppSelfUpdateService(
+        httpClient: MockClient((_) async => http.Response.bytes(bytes, 200)),
+        tempDirectoryProvider: () async => tempDir,
+        installer: (_) async {},
+      );
+
+      await expectLater(
+        checksumFailureService.downloadAndInstall(
+          _resultFor(
+            bytes,
+            sha256Override:
+                'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+          ),
+        ),
+        throwsA(isA<AppSelfUpdateException>()),
+      );
+
+      final checksumFailureLog = messages
+          .map((message) => jsonDecode(message) as Map<String, dynamic>)
+          .singleWhere(
+            (entry) => entry['message'] == 'Self-update safety failure',
+          );
+      expect(
+        checksumFailureLog['context'] as Map<String, dynamic>,
+        isNot(contains('launchStatus')),
+      );
+
+      messages.clear();
+      final launchFailureService = AppSelfUpdateService(
+        httpClient: MockClient((_) async => http.Response.bytes(bytes, 200)),
+        tempDirectoryProvider: () async => tempDir,
+        installer: (_) async {
+          throw ProcessException('installer', const <String>[]);
+        },
+      );
+
+      await expectLater(
+        launchFailureService.downloadAndInstall(_resultFor(bytes)),
+        throwsA(isA<AppSelfUpdateException>()),
+      );
+
+      final launchFailureLog = messages
+          .map((message) => jsonDecode(message) as Map<String, dynamic>)
+          .singleWhere(
+            (entry) => entry['message'] == 'Self-update safety failure',
+          );
+      expect(
+        (launchFailureLog['context'] as Map<String, dynamic>)['launchStatus'],
+        'failed',
+      );
     });
   });
 }
