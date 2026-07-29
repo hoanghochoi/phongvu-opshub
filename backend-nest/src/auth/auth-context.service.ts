@@ -1,6 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { createHash } from 'node:crypto';
-import { organizationNodeStoreTreeInclude } from '../common/organization-store-scope';
 import { safeLogError } from '../common/log-sanitizer';
 import { FeatureService } from '../feature/feature.service';
 import { PolicyService } from '../policy/policy.service';
@@ -544,6 +543,50 @@ export class AuthContextService {
     return contextUser;
   }
 
+  private homeScopeNodeSelect(depth = 6): Record<string, unknown> {
+    const select: Record<string, unknown> = {
+      id: true,
+      parentId: true,
+      code: true,
+      businessCode: true,
+      type: true,
+      displayName: true,
+      abbreviation: true,
+      isActive: true,
+      stores: {
+        select: {
+          storeId: true,
+          storeName: true,
+        },
+        orderBy: { storeId: 'asc' },
+      },
+    };
+    if (depth > 0) {
+      select.parent = { select: this.homeScopeNodeSelect(depth - 1) };
+      select.children = {
+        orderBy: { sortOrder: 'asc' },
+        select: this.homeScopeNodeSelect(depth - 1),
+      };
+    }
+    return select;
+  }
+
+  private homeScopeStoreSelect() {
+    return {
+      storeId: true,
+      storeName: true,
+      organizationNodeId: true,
+      area: {
+        select: {
+          code: true,
+          abbreviation: true,
+          region: { select: { code: true, abbreviation: true } },
+        },
+      },
+      organizationNode: { select: this.homeScopeNodeSelect() },
+    };
+  }
+
   private scopeSnapshotSelect() {
     return {
       id: true,
@@ -563,21 +606,28 @@ export class AuthContextService {
       organizationNodeId: true,
       storeId: true,
       store: {
-        include: {
-          area: { include: { region: true } },
-          organizationNode: true,
-        },
+        select: this.homeScopeStoreSelect(),
       },
-      organizationNode: { include: organizationNodeStoreTreeInclude() },
+      organizationNode: { select: this.homeScopeNodeSelect() },
       organizationAssignments: {
         where: { isActive: true },
         orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }],
-        include: {
-          organizationNode: { include: organizationNodeStoreTreeInclude() },
+        select: {
+          isActive: true,
+          isPrimary: true,
+          createdAt: true,
+          organizationNodeId: true,
+          organizationNode: { select: this.homeScopeNodeSelect() },
         },
       },
-      region: true,
-      area: { include: { region: true } },
+      region: { select: { code: true, abbreviation: true } },
+      area: {
+        select: {
+          code: true,
+          abbreviation: true,
+          region: { select: { code: true, abbreviation: true } },
+        },
+      },
     };
   }
 
