@@ -5,6 +5,7 @@ import { FeatureService } from '../feature/feature.service';
 import { PolicyService } from '../policy/policy.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
+import { getOrganizationTree } from '../common/organization-tree-cache';
 import { AuthService } from './auth.service';
 
 const AUTH_CONTEXT_SCHEMA_VERSION = 1;
@@ -17,6 +18,7 @@ const AUTH_CONTEXT_LEASE_PREFIX = 'opshub:auth-context:lease:v1:';
 const AUTH_PROFILE_KEY_PREFIX = 'opshub:auth-profile:v1:';
 const HOME_SCOPE_BATCH_DELAY_MS = 20;
 const MAX_PENDING_HOME_SCOPE_REQUESTS = 5_000;
+const HOME_SCOPE_TREE_DEPTH = 6;
 
 export type AuthContextVersion = {
   userId: string;
@@ -446,13 +448,20 @@ export class AuthContextService {
       );
     }
     try {
-      const rows: any[] = await (this.prisma as any).user.findMany({
-        where: {
-          id: { in: Array.from(new Set(batch.map((entry) => entry.userId))) },
-        },
-        select: this.scopeSnapshotSelect(),
-      });
-      const byId = new Map(rows.map((row) => [String(row.id), row]));
+      const [rows, organizationNodes] = await Promise.all([
+        (this.prisma as any).user.findMany({
+          where: {
+            id: { in: Array.from(new Set(batch.map((entry) => entry.userId))) },
+          },
+          select: this.scopeSnapshotSelect(),
+        }),
+        getOrganizationTree(this.prisma),
+      ]);
+      const organizationGraph = this.organizationGraph(organizationNodes);
+      const enrichedRows = (rows as any[]).map((row) =>
+        this.enrichScopeSnapshot(row, organizationGraph),
+      );
+      const byId = new Map(enrichedRows.map((row) => [String(row.id), row]));
       const featureCodes = Array.from(
         new Set(batch.flatMap((entry) => entry.featureCodes)),
       );
@@ -543,34 +552,6 @@ export class AuthContextService {
     return contextUser;
   }
 
-  private homeScopeNodeSelect(depth = 6): Record<string, unknown> {
-    const select: Record<string, unknown> = {
-      id: true,
-      parentId: true,
-      code: true,
-      businessCode: true,
-      type: true,
-      displayName: true,
-      abbreviation: true,
-      isActive: true,
-      stores: {
-        select: {
-          storeId: true,
-          storeName: true,
-        },
-        orderBy: { storeId: 'asc' },
-      },
-    };
-    if (depth > 0) {
-      select.parent = { select: this.homeScopeNodeSelect(depth - 1) };
-      select.children = {
-        orderBy: { sortOrder: 'asc' },
-        select: this.homeScopeNodeSelect(depth - 1),
-      };
-    }
-    return select;
-  }
-
   private homeScopeStoreSelect() {
     return {
       storeId: true,
@@ -583,7 +564,6 @@ export class AuthContextService {
           region: { select: { code: true, abbreviation: true } },
         },
       },
-      organizationNode: { select: this.homeScopeNodeSelect() },
     };
   }
 
@@ -608,7 +588,6 @@ export class AuthContextService {
       store: {
         select: this.homeScopeStoreSelect(),
       },
-      organizationNode: { select: this.homeScopeNodeSelect() },
       organizationAssignments: {
         where: { isActive: true },
         orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }],
@@ -617,7 +596,6 @@ export class AuthContextService {
           isPrimary: true,
           createdAt: true,
           organizationNodeId: true,
-          organizationNode: { select: this.homeScopeNodeSelect() },
         },
       },
       region: { select: { code: true, abbreviation: true } },
@@ -634,10 +612,165 @@ export class AuthContextService {
   private async loadScopeSnapshot(userId: string) {
     const userModel = (this.prisma as any)?.user;
     if (!userId || !userModel?.findUnique) return null;
-    return userModel.findUnique({
-      where: { id: userId },
-      select: this.scopeSnapshotSelect(),
-    });
+    const [row, organizationNodes] = await Promise.all([
+      userModel.findUnique({
+        where: { id: userId },
+        select: this.scopeSnapshotSelect(),
+      }),
+      getOrganizationTree(this.prisma),
+    ]);
+    return row
+      ? this.enrichScopeSnapshot(row, this.organizationGraph(organizationNodes))
+      : null;
+  }
+
+  private enrichScopeSnapshot(
+    row: any,
+    graph: { treeFor: (id: string) => any },
+  ) {
+    if (!row) return row;
+    const enriched = { ...row };
+    const organizationNodeId = String(row.organizationNodeId || '').trim();
+    if (organizationNodeId) {
+      enriched.organizationNode = graph.treeFor(organizationNodeId);
+    }
+
+    if (row.store && typeof row.store === 'object') {
+      const store = { ...row.store };
+      const storeNodeId = String(store.organizationNodeId || '').trim();
+      store.organizationNode = storeNodeId ? graph.treeFor(storeNodeId) : null;
+      enriched.store = store;
+    }
+
+    if (Array.isArray(row.organizationAssignments)) {
+      enriched.organizationAssignments = row.organizationAssignments.map(
+        (assignment: any) => {
+          const next = { ...assignment };
+          const assignmentNodeId = String(
+            assignment?.organizationNodeId || '',
+          ).trim();
+          if (assignmentNodeId) {
+            next.organizationNode = graph.treeFor(assignmentNodeId);
+          }
+          return next;
+        },
+      );
+    }
+
+    return enriched;
+  }
+
+  private organizationGraph(organizationNodes: any[]) {
+    const byId = new Map<string, any>();
+    for (const source of organizationNodes) {
+      const id = String(source?.id || '').trim();
+      if (!id) continue;
+      byId.set(id, {
+        ...source,
+        parent: null,
+        children: [],
+        stores: Array.isArray(source?.stores)
+          ? source.stores.map((store: any) => ({ ...store }))
+          : [],
+      });
+    }
+
+    const childrenById = new Map<string, string[]>();
+    for (const node of byId.values()) {
+      const parentId = String(node.parentId || '').trim();
+      if (!parentId || !byId.has(parentId)) continue;
+      const children = childrenById.get(parentId) ?? [];
+      children.push(node.id);
+      childrenById.set(parentId, children);
+    }
+
+    const sortChildren = (ids: string[]) =>
+      ids.sort((leftId, rightId) => {
+        const left = byId.get(leftId);
+        const right = byId.get(rightId);
+        return (
+          Number(left?.sortOrder ?? 0) - Number(right?.sortOrder ?? 0) ||
+          String(left?.id ?? '').localeCompare(String(right?.id ?? ''))
+        );
+      });
+
+    for (const node of byId.values()) {
+      node.stores.sort((left: any, right: any) =>
+        String(left.storeId).localeCompare(String(right.storeId)),
+      );
+    }
+
+    const buildBranch = (id: string, depth: number, path: Set<string>): any => {
+      const source = byId.get(id);
+      if (!source) return null;
+      const node = {
+        ...source,
+        parent: null,
+        stores: source.stores.map((store: any) => ({ ...store })),
+        children: [] as any[],
+      };
+      if (depth >= HOME_SCOPE_TREE_DEPTH || path.has(id)) return node;
+      const nextPath = new Set(path);
+      nextPath.add(id);
+      node.children = sortChildren([...(childrenById.get(id) ?? [])])
+        .map((childId) => buildBranch(childId, depth + 1, nextPath))
+        .filter(Boolean);
+      return node;
+    };
+
+    const buildParentBranch = (
+      id: string,
+      depth: number,
+      path: Set<string>,
+      includeDescendants: boolean,
+    ): any => {
+      const source = byId.get(id);
+      if (!source) return null;
+      const node = {
+        ...source,
+        parent: null,
+        stores: source.stores.map((store: any) => ({ ...store })),
+        children: includeDescendants
+          ? sortChildren([...(childrenById.get(id) ?? [])])
+              .map((childId) => buildBranch(childId, depth + 1, path))
+              .filter(Boolean)
+          : [],
+      };
+      if (depth >= HOME_SCOPE_TREE_DEPTH || path.has(id)) return node;
+      const nextPath = new Set(path);
+      nextPath.add(id);
+      const parentId = String(byId.get(id)?.parentId || '').trim();
+      node.parent = parentId
+        ? buildParentBranch(parentId, depth + 1, nextPath, false)
+        : null;
+      return node;
+    };
+
+    const treeFor = (id: string) => {
+      if (!byId.has(id)) return null;
+      const node = buildBranch(id, 0, new Set());
+      const parentId = String(byId.get(id)?.parentId || '').trim();
+      const nodeType = String(byId.get(id)?.type || '')
+        .trim()
+        .toUpperCase();
+      const parentType = String(byId.get(parentId)?.type || '')
+        .trim()
+        .toUpperCase();
+      const includeParentDescendants =
+        ['LV5_POSITION', 'JOB_ROLE', 'POSITION'].includes(nodeType) &&
+        !['LV4_STORE', 'SHOWROOM', 'STORE'].includes(parentType);
+      node.parent = parentId
+        ? buildParentBranch(
+            parentId,
+            1,
+            new Set([id]),
+            includeParentDescendants,
+          )
+        : null;
+      return node;
+    };
+
+    return { treeFor };
   }
 
   private async redisJson<T>(key: string) {
