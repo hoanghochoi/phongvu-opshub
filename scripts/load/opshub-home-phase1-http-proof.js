@@ -3,6 +3,11 @@ import { check } from "k6";
 import exec from "k6/execution";
 import { SharedArray } from "k6/data";
 import { Counter, Rate, Trend } from "k6/metrics";
+import {
+  dailyHomeBodyMatchesContract,
+  homeAggregateBodiesHaveParity,
+  legacyHomeBodyMatchesContract,
+} from "./opshub-home-phase1-contract.mjs";
 
 const STAGING_BASE_URL = "https://opshub-staging.hoanghochoi.com/api";
 const STAGING_APPROVAL = "OPSHUB_STAGING_HOME_PHASE1_HTTP_APPROVED";
@@ -36,6 +41,9 @@ if (configuredVus !== TARGET_VUS || configuredRequests !== TARGET_REQUESTS) {
     `This proof is fixed at ${TARGET_VUS} concurrent VUs and ${TARGET_REQUESTS} requests`,
   );
 }
+if (TARGET_REQUESTS % 2 !== 0) {
+  throw new Error("TARGET_REQUESTS must be even for paired Home proof");
+}
 if (!manifest || manifest.schemaVersion !== 1 || manifest.runId !== runId) {
   throw new Error("Token manifest schema/run id does not match TEST_RUN_ID");
 }
@@ -61,6 +69,7 @@ const activeVus = new Counter("opshub_home_active_vus");
 const homeRequests = new Counter("opshub_home_requests");
 const homeSuccess = new Rate("opshub_home_success");
 const homeErrors = new Rate("opshub_home_errors");
+const homeContractValid = new Rate("opshub_home_contract_valid");
 const unexpected429 = new Counter("opshub_home_unexpected_429");
 const transportOr5xx = new Counter("opshub_home_transport_or_5xx");
 const homeDuration = new Trend("opshub_home_duration", true);
@@ -69,6 +78,7 @@ let vuRecorded = false;
 const rangeThresholds = {};
 for (const range of ["home_1d", "home_7d", "home_30d", "home_90d"]) {
   rangeThresholds[`opshub_home_duration{range:${range}}`] = [
+    "p(50)<=250",
     "p(95)<=500",
     "p(99)<=1000",
     "max<=3000",
@@ -82,7 +92,7 @@ export const options = {
       executor: "shared-iterations",
       exec: "homeProof",
       vus: TARGET_VUS,
-      iterations: TARGET_REQUESTS,
+      iterations: TARGET_REQUESTS / 2,
       maxDuration: "3m",
       gracefulStop: "0s",
     },
@@ -102,9 +112,15 @@ export const options = {
     opshub_home_requests: [`count==${TARGET_REQUESTS}`],
     opshub_home_success: ["rate>0.999"],
     opshub_home_errors: ["rate<0.001"],
+    opshub_home_contract_valid: ["rate==1"],
     opshub_home_unexpected_429: ["count==0"],
     opshub_home_transport_or_5xx: ["count==0"],
-    opshub_home_duration: ["p(95)<=500", "p(99)<=1000", "max<=3000"],
+    opshub_home_duration: [
+      "p(50)<=250",
+      "p(95)<=500",
+      "p(99)<=1000",
+      "max<=3000",
+    ],
     http_reqs: [`count==${TARGET_REQUESTS}`],
     checks: ["rate>0.999"],
     ...rangeThresholds,
@@ -124,8 +140,53 @@ function routeForIteration() {
   const startDate = priorDate(endDate, days - 1);
   return {
     name: `home_${days}d`,
-    path: `/home/summary?startDate=${startDate}&endDate=${endDate}`,
+    days,
+    startDate,
+    endDate,
+    legacyPath: `/home/summary?startDate=${startDate}&endDate=${endDate}`,
+    dailyPath: `/home/summary?startDate=${startDate}&endDate=${endDate}&includeDailySeries=true`,
   };
+}
+
+function responseBody(response) {
+  if (response.status !== 200) return null;
+  try {
+    return response.json();
+  } catch (_) {
+    return null;
+  }
+}
+
+function requestHome(record, route, variant) {
+  const path = variant === "legacy" ? route.legacyPath : route.dailyPath;
+  return http.get(`${baseUrl}${path}`, {
+    headers: {
+      Authorization: `Bearer ${record.token}`,
+      "X-OpsHub-Load-Test": runId,
+    },
+    tags: {
+      endpoint: "home_summary",
+      range: route.name,
+      variant,
+    },
+    timeout: "10s",
+    responseCallback: http.expectedStatuses(200),
+    responseType: "text",
+  });
+}
+
+function recordHomeResult(response, route, variant, contractValid) {
+  const succeeded = response.status === 200;
+  homeRequests.add(1);
+  homeSuccess.add(succeeded);
+  homeErrors.add(!succeeded);
+  homeContractValid.add(contractValid);
+  homeDuration.add(response.timings.duration, {
+    range: route.name,
+    variant,
+  });
+  if (response.status === 429) unexpected429.add(1);
+  if (response.status === 0 || response.status >= 500) transportOr5xx.add(1);
 }
 
 export function homeProof() {
@@ -135,22 +196,26 @@ export function homeProof() {
   }
   const route = routeForIteration();
   const record = users[exec.scenario.iterationInTest % users.length];
-  const response = http.get(`${baseUrl}${route.path}`, {
-    headers: {
-      Authorization: `Bearer ${record.token}`,
-      "X-OpsHub-Load-Test": runId,
+  const legacyResponse = requestHome(record, route, "legacy");
+  const dailyResponse = requestHome(record, route, "daily_series");
+  const legacyBody = responseBody(legacyResponse);
+  const dailyBody = responseBody(dailyResponse);
+  const legacyValid = legacyHomeBodyMatchesContract(legacyBody);
+  const dailyValid = dailyHomeBodyMatchesContract(dailyBody, route);
+  const aggregateParity = homeAggregateBodiesHaveParity(legacyBody, dailyBody);
+  const pairValid = legacyValid && dailyValid && aggregateParity;
+
+  recordHomeResult(legacyResponse, route, "legacy", pairValid);
+  recordHomeResult(dailyResponse, route, "daily_series", pairValid);
+  check(
+    { legacyResponse, dailyResponse },
+    {
+      "Home summary pair returned 200": ({ legacyResponse, dailyResponse }) =>
+        legacyResponse.status === 200 && dailyResponse.status === 200,
+      "Home summary pair matched legacy and daily contracts": () =>
+        legacyValid && dailyValid,
+      "Home summary aggregate parity matched across variants": () =>
+        aggregateParity,
     },
-    tags: { endpoint: "home_summary", range: route.name },
-    timeout: "10s",
-    responseCallback: http.expectedStatuses(200),
-  });
-  const succeeded = response.status === 200;
-  const failed = !succeeded;
-  homeRequests.add(1);
-  homeSuccess.add(succeeded);
-  homeErrors.add(failed);
-  homeDuration.add(response.timings.duration, { range: route.name });
-  if (response.status === 429) unexpected429.add(1);
-  if (response.status === 0 || response.status >= 500) transportOr5xx.add(1);
-  check(response, { "Home summary returned 200": () => succeeded });
+  );
 }

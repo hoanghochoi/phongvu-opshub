@@ -26,6 +26,63 @@ describe('GetHomeSummaryQueryDto', () => {
     ).resolves.toMatchObject({ date: '2026-07-04' });
   });
 
+  it.each(['true', 'false'])(
+    'accepts the strict daily series value %s',
+    async (includeDailySeries) => {
+      const pipe = createPipe();
+
+      await expect(
+        pipe.transform(
+          { includeDailySeries },
+          { type: 'query', metatype: GetHomeSummaryQueryDto, data: '' },
+        ),
+      ).resolves.toMatchObject({ includeDailySeries });
+    },
+  );
+
+  it.each(['TRUE', '1', 'yes', ''])(
+    'rejects the non-contract daily series value %s',
+    async (includeDailySeries) => {
+      const pipe = createPipe();
+
+      await expect(
+        pipe.transform(
+          { includeDailySeries },
+          { type: 'query', metatype: GetHomeSummaryQueryDto, data: '' },
+        ),
+      ).rejects.toMatchObject({
+        response: {
+          message: expect.arrayContaining([
+            'Tùy chọn chuỗi theo ngày chỉ nhận true hoặc false.',
+          ]),
+          statusCode: 400,
+        },
+      });
+    },
+  );
+
+  it('does not accept the summary-only option on detail routes', async () => {
+    const pipe = createPipe();
+
+    await expect(
+      pipe.transform(
+        { includeDailySeries: 'true' },
+        {
+          type: 'query',
+          metatype: GetHomeSummaryDetailsQueryDto,
+          data: '',
+        },
+      ),
+    ).rejects.toMatchObject({
+      response: {
+        message: expect.arrayContaining([
+          'property includeDailySeries should not exist',
+        ]),
+        statusCode: 400,
+      },
+    });
+  });
+
   it('still rejects unexpected query properties', async () => {
     const pipe = createPipe();
 

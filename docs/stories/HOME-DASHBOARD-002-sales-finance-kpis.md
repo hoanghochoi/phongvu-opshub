@@ -102,6 +102,12 @@ kê trên cùng Trang chủ, theo đúng một ngày và một phạm vi đang c
   tương ứng; quyền này độc lập với quyền mở màn hình `Sao kê`.
 - Luồng tải dashboard có log bắt đầu, thành công, thất bại và các tổng đếm đã
   sanitize; không log nội dung chuyển khoản hay mã sao kê.
+- `GET /home/summary` chỉ thêm `dailySeries` khi client gửi chính xác
+  `includeDailySeries=true`. Chuỗi gồm tối đa 90 ngày tăng dần, zero-fill và bốn
+  metric `totalRevenue`, `totalOrders`, `reportedOrders`, `totalReports`; tổng
+  từng metric phải bằng KPI aggregate trong cùng response. Chuỗi dùng cùng
+  scope Bán hàng/SA đã chọn, bị omit khi Bán hàng không khả dụng và không làm
+  đổi DTO của client cũ không opt in.
 - User có `Quản lý doanh số` theo node được cập nhật chỉ tiêu các SR trong
   subtree được cấp; SA nhận phần chỉ tiêu SR chia cho số SA active tại SR.
 

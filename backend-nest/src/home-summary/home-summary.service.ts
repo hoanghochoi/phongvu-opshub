@@ -127,6 +127,15 @@ type HomeSummaryResponse = SalesReportOperatingSummary & {
   zaloRate: number;
   appDownloadRate: number;
   freshness: HomeSummaryFreshnessResponse | null;
+  dailySeries?: HomeSummaryDailyPoint[];
+};
+
+type HomeSummaryDailyPoint = {
+  date: string;
+  totalRevenue: number;
+  totalOrders: number;
+  reportedOrders: number;
+  totalReports: number;
 };
 
 type HomeSummaryFreshnessResponse = {
@@ -198,6 +207,10 @@ type HomeProjectionMetrics = {
   totalStatementsUnfollowed: number;
   totalStatementsWithOrder: number;
   totalStatementsWithoutOrder: number;
+};
+
+type HomeProjectionLoadResult = HomeProjectionMetrics & {
+  dailySeries?: HomeSummaryDailyPoint[];
 };
 
 type HomeSummaryScopeOptionsCacheEntry = {
@@ -599,6 +612,18 @@ export class HomeSummaryService {
   ): Promise<HomeSummaryResponse> {
     const startedAt = Date.now();
     const range = this.parseSummaryRange(query);
+    const includeDailySeries = query.includeDailySeries === 'true';
+    const dailySeriesDates = includeDailySeries
+      ? this.rangeDateKeys(range.startDate, range.endDate)
+      : [];
+    if (dailySeriesDates.length > 90) {
+      this.logger.warn(
+        `Home summary daily series rejected: reason=range_above_90_days days=${dailySeriesDates.length}`,
+      );
+      throw new BadRequestException(
+        'Chuỗi dữ liệu theo ngày chỉ hỗ trợ tối đa 90 ngày. Vui lòng chọn khoảng ngắn hơn.',
+      );
+    }
     const date = range.endDate;
     const requestedScope = this.parseScopeParam(query.scope);
     const summaryDate = this.parseDateOnly(date) ?? new Date();
@@ -607,7 +632,7 @@ export class HomeSummaryService {
       80,
     );
     this.logger.log(
-      `Home summary load started: user=${this.safeUserLabel(user)} startDate=${range.startDate} endDate=${range.endDate} scopeFilter=${requestedScope} salesProgressUserId=${requestedSalesProgressUserId || 'none'}`,
+      `Home summary load started: user=${this.safeUserLabel(user)} startDate=${range.startDate} endDate=${range.endDate} scopeFilter=${requestedScope} salesProgressUserId=${requestedSalesProgressUserId || 'none'} includeDailySeries=${includeDailySeries} dailySeriesDays=${dailySeriesDates.length}`,
     );
     const { salesAvailable, financeAvailable } =
       await this.resolveSectionAccess(user);
@@ -659,6 +684,14 @@ export class HomeSummaryService {
     let freshness: HomeSummaryFreshnessResponse | null = null;
     let projectionVersionsByDate = new Map<string, number>();
     let useProjection = this.projectionEnabled();
+    if (includeDailySeries && salesAvailable && !useProjection) {
+      this.logger.warn(
+        'Home summary daily series unavailable: reason=projection_disabled',
+      );
+      throw new ServiceUnavailableException(
+        'Chuỗi dữ liệu theo ngày đang được chuẩn bị. Vui lòng thử lại sau ít phút.',
+      );
+    }
     if (useProjection) {
       try {
         const projection = await this.loadProjectionFreshness(
@@ -670,6 +703,12 @@ export class HomeSummaryService {
         projectionVersionsByDate = projection.versionsByDate;
         refreshedAt = freshness.projectionGeneratedAt;
       } catch (error) {
+        if (includeDailySeries && salesAvailable) {
+          this.logger.warn(
+            `Home summary daily series load failed: reason=projection_freshness error=${safeLogError(error)} durationMs=${Date.now() - startedAt}`,
+          );
+          throw error;
+        }
         if (!this.legacySyncFallbackEnabled()) throw error;
         this.logger.warn(
           `Home summary projection unavailable; legacy sync fallback started: user=${this.safeUserLabel(user)} startDate=${range.startDate} endDate=${range.endDate}`,
@@ -703,6 +742,7 @@ export class HomeSummaryService {
     let reportedOrders = 0;
     let notPurchasedReports = 0;
     let completedRevenue = 0;
+    let dailySeries: HomeSummaryDailyPoint[] | undefined;
     let mainKpis = this.emptyMainKpis();
     let behaviorYesCounts = this.emptyBehaviorYesCounts();
     if (salesAvailable) {
@@ -711,6 +751,7 @@ export class HomeSummaryService {
           range,
           salesMetricsScope,
           'SALES',
+          includeDailySeries,
         );
         totalOrders = projected.totalOrders;
         totalReports = projected.totalReports;
@@ -718,6 +759,7 @@ export class HomeSummaryService {
         reportedOrders = projected.reportedOrders;
         totalRevenue = projected.totalRevenue;
         completedRevenue = projected.completedRevenue;
+        dailySeries = projected.dailySeries;
         behaviorYesCounts = {
           consultedSolution: projected.consultedSolutionYes,
           experienced: projected.experiencedYes,
@@ -789,6 +831,10 @@ export class HomeSummaryService {
             this.buildSalesMainKpis(salesMetricsScope, range),
           ]);
       }
+    } else if (includeDailySeries) {
+      this.logger.log(
+        'Home summary daily series omitted: reason=sales_unavailable',
+      );
     }
 
     let totalStatements = 0;
@@ -949,10 +995,11 @@ export class HomeSummaryService {
       refreshedAt,
       freshness,
       unavailableMessage: null,
+      ...(dailySeries ? { dailySeries } : {}),
     };
     this.projectionVersionsByResponse.set(response, projectionVersionsByDate);
     this.logger.log(
-      `Home summary load succeeded: user=${this.safeUserLabel(user)} startDate=${range.startDate} endDate=${range.endDate} scopeFilter=${requestedScope} scope=${scope.scope} salesMetricsScope=${salesMetricsScope.scope} selectedSalesProgressUserId=${salesProgressBundle.selectedUserId || 'none'} salesProgressAssignees=${salesProgressBundle.assignees.length} salesAvailable=${salesAvailable} financeAvailable=${financeAvailable} totalRevenue=${totalRevenue} completedRevenue=${completedRevenue} pendingRevenue=${pendingRevenue} businessCustomerRevenue=${mainKpis.businessCustomerRevenue} personalCustomerRevenue=${mainKpis.personalCustomerRevenue} installmentNeedCount=${mainKpis.installmentNeedCount} successfulInstallmentCount=${mainKpis.successfulInstallmentCount} laptopQuantity=${mainKpis.laptopQuantity} pcQuantity=${mainKpis.pcQuantity} assembledPcQuantity=${mainKpis.assembledPcQuantity} appleQuantity=${mainKpis.appleQuantity} totalOrders=${totalOrders} averageOrderValue=${averageOrderValue} totalReports=${totalReports} reportedOrders=${reportedOrders} notPurchasedReports=${notPurchasedReports} consultedYes=${behaviorYesCounts.consultedSolution} experiencedYes=${behaviorYesCounts.experienced} zaloYes=${behaviorYesCounts.zalo} appDownloadYes=${behaviorYesCounts.appDownload} totalStatements=${totalStatements} statementsWithOrder=${totalStatementsWithOrder} projectionVersion=${freshness?.projectionVersion ?? 'legacy'} projectionLagSeconds=${freshness?.projectionLagSeconds ?? 'legacy'} isStale=${freshness?.isStale ?? false} durationMs=${Date.now() - startedAt}`,
+      `Home summary load succeeded: user=${this.safeUserLabel(user)} startDate=${range.startDate} endDate=${range.endDate} scopeFilter=${requestedScope} scope=${scope.scope} salesMetricsScope=${salesMetricsScope.scope} selectedSalesProgressUserId=${salesProgressBundle.selectedUserId || 'none'} salesProgressAssignees=${salesProgressBundle.assignees.length} salesAvailable=${salesAvailable} financeAvailable=${financeAvailable} includeDailySeries=${includeDailySeries} dailySeriesPoints=${dailySeries?.length ?? 0} totalRevenue=${totalRevenue} completedRevenue=${completedRevenue} pendingRevenue=${pendingRevenue} businessCustomerRevenue=${mainKpis.businessCustomerRevenue} personalCustomerRevenue=${mainKpis.personalCustomerRevenue} installmentNeedCount=${mainKpis.installmentNeedCount} successfulInstallmentCount=${mainKpis.successfulInstallmentCount} laptopQuantity=${mainKpis.laptopQuantity} pcQuantity=${mainKpis.pcQuantity} assembledPcQuantity=${mainKpis.assembledPcQuantity} appleQuantity=${mainKpis.appleQuantity} totalOrders=${totalOrders} averageOrderValue=${averageOrderValue} totalReports=${totalReports} reportedOrders=${reportedOrders} notPurchasedReports=${notPurchasedReports} consultedYes=${behaviorYesCounts.consultedSolution} experiencedYes=${behaviorYesCounts.experienced} zaloYes=${behaviorYesCounts.zalo} appDownloadYes=${behaviorYesCounts.appDownload} totalStatements=${totalStatements} statementsWithOrder=${totalStatementsWithOrder} projectionVersion=${freshness?.projectionVersion ?? 'legacy'} projectionLagSeconds=${freshness?.projectionLagSeconds ?? 'legacy'} isStale=${freshness?.isStale ?? false} durationMs=${Date.now() - startedAt}`,
     );
     return response;
   }
@@ -3356,7 +3403,9 @@ export class HomeSummaryService {
     range: SummaryDateRange,
     scope: SalesReportSummaryScopeDescriptor,
     projectionKind: HomeProjectionKind,
-  ): Promise<HomeProjectionMetrics> {
+    includeDailySeries = false,
+  ): Promise<HomeProjectionLoadResult> {
+    const startedAt = Date.now();
     const startDate = this.dateOnlyUtc(range.startDate);
     const endDate = this.dateOnlyUtc(range.endDate);
     const base = {
@@ -3388,20 +3437,57 @@ export class HomeSummaryService {
         ...(stores.length > 0 ? { storeCode: { in: stores } } : {}),
       };
     }
-    const rows = await this.prisma.homeSummaryDailyAggregate.findMany({
-      where,
-      select: {
-        totalOrders: true,
-        reportedOrders: true,
-        totalReports: true,
-        notPurchasedReports: true,
-        metrics: true,
-      },
-    });
-    const result = this.emptyProjectionMetrics();
+    if (includeDailySeries) {
+      this.logger.log(
+        `Home summary daily series load started: kind=${projectionKind} scope=${scope.scope} startDate=${range.startDate} endDate=${range.endDate}`,
+      );
+    }
+    let rows: Array<{
+      summaryDate?: Date;
+      totalOrders: number;
+      reportedOrders: number;
+      totalReports: number;
+      notPurchasedReports: number;
+      metrics: Prisma.JsonValue;
+    }>;
+    try {
+      rows = await this.prisma.homeSummaryDailyAggregate.findMany({
+        where,
+        select: {
+          ...(includeDailySeries ? { summaryDate: true } : {}),
+          totalOrders: true,
+          reportedOrders: true,
+          totalReports: true,
+          notPurchasedReports: true,
+          metrics: true,
+        },
+      });
+    } catch (error) {
+      if (includeDailySeries) {
+        this.logger.warn(
+          `Home summary daily series load failed: kind=${projectionKind} scope=${scope.scope} error=${safeLogError(error)} durationMs=${Date.now() - startedAt}`,
+        );
+      }
+      throw error;
+    }
+    const result: HomeProjectionLoadResult = this.emptyProjectionMetrics();
     const metricKeys = Object.keys(result) as Array<
       keyof HomeProjectionMetrics
     >;
+    const dailyByDate = includeDailySeries
+      ? new Map(
+          this.rangeDateKeys(range.startDate, range.endDate).map((date) => [
+            date,
+            {
+              date,
+              totalRevenue: 0,
+              totalOrders: 0,
+              reportedOrders: 0,
+              totalReports: 0,
+            } satisfies HomeSummaryDailyPoint,
+          ]),
+        )
+      : null;
     for (const row of rows) {
       result.totalOrders += row.totalOrders;
       result.reportedOrders += row.reportedOrders;
@@ -3413,6 +3499,18 @@ export class HomeSummaryService {
         !Array.isArray(row.metrics)
           ? (row.metrics as Record<string, unknown>)
           : {};
+      const dailyPoint = row.summaryDate
+        ? dailyByDate?.get(this.dateOnlyKey(row.summaryDate))
+        : undefined;
+      if (dailyPoint) {
+        dailyPoint.totalOrders += row.totalOrders;
+        dailyPoint.reportedOrders += row.reportedOrders;
+        dailyPoint.totalReports += row.totalReports;
+        const dailyRevenue = Number(metrics.totalRevenue ?? 0);
+        if (Number.isFinite(dailyRevenue)) {
+          dailyPoint.totalRevenue += dailyRevenue;
+        }
+      }
       for (const key of metricKeys) {
         if (
           key === 'totalOrders' ||
@@ -3426,8 +3524,9 @@ export class HomeSummaryService {
         if (Number.isFinite(value)) result[key] += value;
       }
     }
+    if (dailyByDate) result.dailySeries = Array.from(dailyByDate.values());
     this.logger.log(
-      `Home projection metrics loaded: kind=${projectionKind} scope=${scope.scope} grains=${rows.length} startDate=${range.startDate} endDate=${range.endDate}`,
+      `Home projection metrics loaded: kind=${projectionKind} scope=${scope.scope} grains=${rows.length} startDate=${range.startDate} endDate=${range.endDate} includeDailySeries=${includeDailySeries} dailySeriesPoints=${result.dailySeries?.length ?? 0} durationMs=${Date.now() - startedAt}`,
     );
     return result;
   }
@@ -3485,15 +3584,16 @@ export class HomeSummaryService {
       this.optionalText(user?.personnelCode, 80) ||
       'anonymous';
     const canonicalKey = JSON.stringify([
-      'v3',
+      'v4',
       userKey,
       range.startDate,
       range.endDate,
       this.parseScopeParam(query.scope),
       this.optionalText(query.organizationNodeId, 80) || '',
       this.optionalText(query.salesProgressUserId, 80) || '',
+      query.includeDailySeries === 'true',
     ]);
-    return `v3:${createHash('sha256').update(canonicalKey).digest('hex')}`;
+    return `v4:${createHash('sha256').update(canonicalKey).digest('hex')}`;
   }
 
   private storeSummaryResponseCache(

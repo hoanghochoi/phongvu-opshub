@@ -3,6 +3,30 @@
 This file maps product behavior to proof. Existing flows are marked
 `existing_unverified` until fresh validation evidence is attached.
 
+- `OPS-31`/`HOME-DASHBOARD-002`/`HOME-DASHBOARD-003`, 2026-07-29:
+  `GET /home/summary` preserves the legacy aggregate response unless the strict
+  query `includeDailySeries=true` is present. The opted-in response adds at
+  most 90 ascending, zero-filled SALES projection points for revenue, orders,
+  reported orders and reports; it reuses the aggregate ALL/managed/own or
+  selected-SA predicate, one range-wide query, freshness, generation-aware
+  cache/invalidation and sanitized logs. Sales-unavailable responses omit the
+  series, and a disabled/incomplete projection never falls back to a
+  synchronous fact rebuild for this contract. Focused DTO/controller/service
+  Jest passed 3 suites/62 tests, including real opted-in selected-SA,
+  out-of-scope fallback and both cache generations; shared projection and Sales
+  scope regressions passed 2 suites/99 tests; full Nest passed 90 suites/939
+  tests; Nest build
+  and changed-file Prettier passed. Existing Flutter Home parser/cache,
+  dashboard, realtime, details and avatar consumers passed 48 tests, including an unknown
+  `dailySeries` fixture with no opt-in request; `flutter analyze --no-pub`
+  found no issue. Both k6 profiles passed Prettier and `node --check`, enforce
+  p50/p95/p99/max `250/500/1000/3000 ms`; the paired legacy/daily comparator
+  passed 3 Node tests and rejects cross-variant aggregate drift.
+  `git diff --check` passed.
+  Authenticated staging parity/load/SLO proof remains
+  required before release readiness; no schema, event, permission, rate-limit
+  or Flutter production behavior changed.
+
 - `OPS-17`/`HARNESS-STRICT-AUDIT-001`, 2026-07-29: the tracked
   consumer/orchestrator wrapper binds a counts-only schema-12 strict-audit
   envelope to the reviewed OPS-15 schema-12 to schema-14 parity result. It is
