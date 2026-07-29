@@ -1,6 +1,6 @@
 # OpsHub Redesign System Gap Map
 
-Ngày cập nhật: 03/07/2026
+Ngày cập nhật: 29/07/2026
 
 ## Đã đưa vào repo trong Batch 1
 
@@ -172,25 +172,23 @@ Ngày cập nhật: 03/07/2026
   `152:1189`/`151:60`/`152:80`, Assignment Pending
   `152:1217`/`151:89`/`152:119`, bỏ mock SSO/2FA, `Họ và tên`,
   `Tạo tài khoản mới` và `Gửi mã xác minh` không khớp runtime.
-- Inventory Import `/fifo/inventory-import` đã được migrate khỏi
-  `GradientHeader` riêng sang content-only workspace trong `AppShell`: header
-  card thể hiện trạng thái file import, panel chọn file/cập nhật dùng shared
+- Inventory Import `/admin/inventory-import` trong `Quản trị` đã được migrate
+  khỏi `GradientHeader` riêng sang content-only workspace trong `AppShell`:
+  header card thể hiện trạng thái file import, panel chọn file/cập nhật dùng shared
   buttons, error state có thể retry, result card hiển thị tổng dòng/dòng hợp
   lệ/dòng bỏ qua/dòng ngừng active và SR trong file, trong khi endpoint
-  `/fifo/inventory/import`, guard `FIFO_IMPORT`, và alias
-  `/admin/inventory-import` vẫn giữ runtime contract hiện có. Các frame
+  `/fifo/inventory/import`, guard `FIFO_IMPORT`, và alias cũ
+  `/fifo/inventory-import` vẫn giữ runtime contract hiện có. Các frame
   `Desktop v2 / Inventory Import`, `Tablet v2 / Inventory Import` và
   `Mobile v2 / Inventory Import` trong Figma đã bỏ lịch sử/search/filter/export
   và thêm mới giả không có runtime contract, thay bằng header/upload/result
   state theo màn đang chạy.
-- FIFO hub `/fifo-menu` đã được migrate thành content-only workspace trong
-  `AppShell`: header card hiển thị số tác vụ khả dụng/số tác vụ cần thêm
-  quyền, danh sách action dùng `AppFeatureSection`, empty state dùng
-  `AppStatePanel`, và click từng action log qua `AppLogger` trước khi mở
-  `/fifo-check`, `/sort`, `/fifo/inventory-import` hoặc `/fifo-history`.
-  Figma đã bổ sung các frame runtime `Desktop v2 / FIFO Menu` (`476:2`),
-  `Tablet v2 / FIFO Menu` (`476:48`) và `Mobile v2 / FIFO Menu` (`476:92`)
-  theo đúng action/copy đang chạy.
+- FIFO hub riêng đã được retire. `/operations` là catalog nghiệp vụ canonical:
+  nhóm `Kho` chứa `Kiểm tra FIFO` và `Sắp xếp FIFO`; `Cập nhật tồn kho` và
+  `Lịch sử FIFO` nằm trong `Quản trị` theo quyền hiện có. Deep link cũ
+  `/fifo-menu` chỉ redirect tương thích sang `/operations` và không render hub.
+  Các frame FIFO Menu `476:2`, `476:48`, `476:92` chỉ còn là mốc lịch sử,
+  không phải visual target của route active.
 - Sort FIFO `/sort` đã được migrate khỏi `GradientHeader` riêng sang
   content-only workspace trong `AppShell`: header card có chips nhóm/vị trí/đã
   kiểm, command card nhập hoặc quét SKU/BIN, trạng thái loading/empty/error và

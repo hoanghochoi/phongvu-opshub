@@ -3,6 +3,18 @@
 This file maps product behavior to proof. Existing flows are marked
 `existing_unverified` until fresh validation evidence is attached.
 
+- `OPS-37`, 2026-07-29: `/operations` is the only active operational catalog.
+  `Kiểm tra FIFO` and `Sắp xếp FIFO` remain permission-gated in `Kho`, while
+  `Cập nhật tồn kho` and `Lịch sử FIFO` remain permission-gated in `Quản trị`.
+  The legacy `/fifo-menu` deep link redirects to `/operations` before rendering
+  authenticated content and never renders a FIFO hub. Focused Flutter proof
+  covers the operations grouping, admin FIFO tools, permission-empty state,
+  and compatibility redirect in `operations_screen_test.dart`,
+  `admin_menu_screen_test.dart`, and `fifo_menu_redesign_test.dart` (11/11
+  passed). Historical FIFO Menu frames and execution proof remain audit
+  records, not the current navigation target. Authenticated staging deep-link
+  and permission smoke remains a release gate.
+
 - `OPS-26`, 2026-07-29: production full deploy and `deploy_download_static`
   now share a run/attempt-scoped filesystem transaction. The checkpoint keeps
   the exact previous runtime, env, web, Help, download metadata and affected
