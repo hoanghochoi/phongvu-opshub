@@ -36,6 +36,8 @@ const COVERAGE_LABEL = 'Tỉ lệ báo cáo';
 const DEFAULT_HOME_SUMMARY_RANGE_DAYS = 30;
 const DEFAULT_HOME_SUMMARY_DETAIL_LIMIT = 200;
 const HOME_SUMMARY_RESPONSE_CACHE_TTL_MS = 60_000;
+const HOME_SUMMARY_SUPPORT_CACHE_TTL_MS = 5_000;
+const HOME_SUMMARY_CACHE_DIAGNOSTIC_LOG_INTERVAL_MS = 15_000;
 const HOME_SUMMARY_RESPONSE_REFRESH_AHEAD_MIN_MS = 30_000;
 const HOME_SUMMARY_RESPONSE_REFRESH_AHEAD_SPREAD_MS = 20_000;
 const MAX_HOME_SUMMARY_RESPONSE_CACHE_ENTRIES = 1000;
@@ -161,7 +163,18 @@ type HomeSummaryInFlightEntry = {
   startDate: string;
   endDate: string;
   invalidated: boolean;
-  source: 'miss' | 'refresh_ahead';
+  source: 'miss' | 'refresh_ahead' | 'daily_extension';
+};
+
+type HomeSummarySupportCacheEntry<T> = {
+  expiresAt: number;
+  value: T;
+};
+
+type HomeSummaryComputationContext = {
+  useProjection: boolean;
+  salesAvailable: boolean;
+  salesMetricsScope: SalesReportSummaryScopeDescriptor;
 };
 
 export type HomeSummaryProjectionInvalidation = {
@@ -354,6 +367,36 @@ export class HomeSummaryService {
     HomeSummaryResponse,
     Map<string, number>
   >();
+  private readonly computationContextByResponse = new WeakMap<
+    HomeSummaryResponse,
+    HomeSummaryComputationContext
+  >();
+  private readonly projectionFreshnessCache = new Map<
+    string,
+    HomeSummarySupportCacheEntry<HomeSummaryProjectionSnapshot>
+  >();
+  private readonly projectionFreshnessInFlight = new Map<
+    string,
+    Promise<HomeSummaryProjectionSnapshot>
+  >();
+  private readonly salesProgressBundleCache = new Map<
+    string,
+    HomeSummarySupportCacheEntry<SalesProgressBundle>
+  >();
+  private readonly salesProgressBundleInFlight = new Map<
+    string,
+    Promise<SalesProgressBundle>
+  >();
+  private readonly scopedSalesProgressCache = new Map<
+    string,
+    HomeSummarySupportCacheEntry<SalesProgressResponse>
+  >();
+  private readonly scopedSalesProgressInFlight = new Map<
+    string,
+    Promise<SalesProgressResponse>
+  >();
+  private readonly cacheDiagnosticLogAtByBranch = new Map<string, number>();
+  private supportCacheGeneration = 0;
   private readonly latestProjectionVersionByDate = new Map<string, number>();
   private readonly scopeOptionsCache = new Map<
     string,
@@ -402,18 +445,25 @@ export class HomeSummaryService {
         range,
         now,
       );
-      this.logger.log(
+      this.logCacheDiagnostic(
+        'response_hit',
         `Home summary cache hit: key=${cacheLabel} ttlMs=${cached.expiresAt - now}`,
       );
       return cached.response;
     }
     if (cached) {
       this.summaryResponseCache.delete(cacheKey);
-      this.logger.log(`Home summary cache expired: key=${cacheLabel}`);
+      this.logCacheDiagnostic(
+        'response_expired',
+        `Home summary cache expired: key=${cacheLabel}`,
+      );
     }
     const pending = this.summaryInFlight.get(cacheKey);
     if (pending && !pending.invalidated) {
-      this.logger.log(`Home summary cache joined in-flight: key=${cacheLabel}`);
+      this.logCacheDiagnostic(
+        'response_join',
+        `Home summary cache joined in-flight: key=${cacheLabel}`,
+      );
       return pending.promise;
     }
     if (pending?.invalidated) {
@@ -421,6 +471,16 @@ export class HomeSummaryService {
         `Home summary cache follow-up started: key=${cacheLabel} source=${pending.source}`,
       );
     }
+
+    const dailyExtension = this.maybeStartDailySeriesExtension(
+      cacheKey,
+      cacheLabel,
+      user,
+      query,
+      range,
+      now,
+    );
+    if (dailyExtension) return dailyExtension;
 
     this.logger.log(`Home summary cache miss: key=${cacheLabel}`);
     return this.startSummaryLoad(
@@ -473,6 +533,8 @@ export class HomeSummaryService {
       }
       this.latestProjectionVersionByDate.set(date, version);
     }
+    const invalidatedSupportEntries =
+      changedVersionsByDate.size > 0 ? this.clearSummarySupportCaches() : 0;
 
     let invalidatedCacheEntries = 0;
     let coveredCacheEntries = 0;
@@ -503,12 +565,13 @@ export class HomeSummaryService {
     }
 
     this.logger.log(
-      `Home summary cache invalidated: source=${source} affectedDates=${changedVersionsByDate.size} cacheEntries=${invalidatedCacheEntries} coveredCacheEntries=${coveredCacheEntries} inFlightMarked=${invalidatedInFlight} ignoredUpdates=${ignoredUpdates}`,
+      `Home summary cache invalidated: source=${source} affectedDates=${changedVersionsByDate.size} cacheEntries=${invalidatedCacheEntries} coveredCacheEntries=${coveredCacheEntries} supportEntries=${invalidatedSupportEntries} inFlightMarked=${invalidatedInFlight} ignoredUpdates=${ignoredUpdates}`,
     );
     return {
       affectedDates: changedVersionsByDate.size,
       invalidatedCacheEntries,
       coveredCacheEntries,
+      invalidatedSupportEntries,
       invalidatedInFlight,
       ignoredUpdates,
     };
@@ -583,6 +646,125 @@ export class HomeSummaryService {
     return promise;
   }
 
+  private maybeStartDailySeriesExtension(
+    cacheKey: string,
+    cacheLabel: string,
+    user: any,
+    query: GetHomeSummaryQueryDto,
+    range: SummaryDateRange,
+    now: number,
+  ) {
+    if (query.includeDailySeries !== 'true') return null;
+    const days = this.rangeDateKeys(range.startDate, range.endDate).length;
+    if (days > 90) return null;
+    const legacyQuery: GetHomeSummaryQueryDto = {
+      ...query,
+      includeDailySeries: 'false',
+    };
+    const legacyKey = this.summaryResponseCacheKey(user, legacyQuery);
+    const legacy = this.summaryResponseCache.get(legacyKey);
+    if (!legacy || legacy.expiresAt <= now) return null;
+    const context = this.computationContextByResponse.get(legacy.response);
+    if (!context?.useProjection || !context.salesAvailable) return null;
+
+    this.logger.log(
+      `Home summary daily cache extension started: key=${cacheLabel} days=${days} scope=${context.salesMetricsScope.scope}`,
+    );
+    return this.startDailySeriesExtension(
+      cacheKey,
+      cacheLabel,
+      user,
+      query,
+      range,
+      legacy.response,
+      context,
+    );
+  }
+
+  private startDailySeriesExtension(
+    cacheKey: string,
+    cacheLabel: string,
+    user: any,
+    query: GetHomeSummaryQueryDto,
+    range: SummaryDateRange,
+    legacyResponse: HomeSummaryResponse,
+    context: HomeSummaryComputationContext,
+  ) {
+    let inFlight: HomeSummaryInFlightEntry;
+    const startedAt = Date.now();
+    const promise = this.extendLegacySummaryWithDailySeries(
+      user,
+      query,
+      range,
+      legacyResponse,
+      context,
+    )
+      .then((response) => {
+        if (inFlight.invalidated) {
+          this.logger.log(
+            `Home summary cache stale store skipped: key=${cacheLabel} source=daily_extension`,
+          );
+          return response;
+        }
+        this.storeSummaryResponseCache(cacheKey, response, range);
+        this.logger.log(
+          `Home summary daily cache extension stored: key=${cacheLabel} scope=${context.salesMetricsScope.scope} points=${response.dailySeries?.length ?? 0} durationMs=${Date.now() - startedAt}`,
+        );
+        return response;
+      })
+      .finally(() => {
+        if (this.summaryInFlight.get(cacheKey) === inFlight) {
+          this.summaryInFlight.delete(cacheKey);
+        }
+      });
+    inFlight = {
+      promise,
+      startDate: range.startDate,
+      endDate: range.endDate,
+      invalidated: false,
+      source: 'daily_extension',
+    };
+    this.summaryInFlight.set(cacheKey, inFlight);
+    return promise;
+  }
+
+  private async extendLegacySummaryWithDailySeries(
+    user: any,
+    query: GetHomeSummaryQueryDto,
+    range: SummaryDateRange,
+    legacyResponse: HomeSummaryResponse,
+    context: HomeSummaryComputationContext,
+  ) {
+    const projected = await this.loadProjectionMetrics(
+      range,
+      context.salesMetricsScope,
+      'SALES',
+      true,
+    );
+    if (
+      !projected.dailySeries ||
+      projected.totalRevenue !== legacyResponse.totalRevenue ||
+      projected.totalOrders !== legacyResponse.totalOrders ||
+      projected.reportedOrders !== legacyResponse.reportedOrders ||
+      projected.totalReports !== legacyResponse.totalReports
+    ) {
+      this.logger.warn(
+        `Home summary daily cache extension bypassed: reason=aggregate_drift scope=${context.salesMetricsScope.scope}`,
+      );
+      return this.computeSummary(user, query);
+    }
+    const response: HomeSummaryResponse = {
+      ...legacyResponse,
+      dailySeries: projected.dailySeries,
+    };
+    const versions = this.projectionVersionsByResponse.get(legacyResponse);
+    if (versions) {
+      this.projectionVersionsByResponse.set(response, new Map(versions));
+    }
+    this.computationContextByResponse.set(response, context);
+    return response;
+  }
+
   private cacheEntryNeedsInvalidation(
     entry: HomeSummaryResponseCacheEntry,
     changes: Map<string, number | null>,
@@ -604,6 +786,81 @@ export class HomeSummaryService {
       if (date >= range.startDate && date <= range.endDate) return true;
     }
     return false;
+  }
+
+  private clearSummarySupportCaches() {
+    const entries =
+      this.projectionFreshnessCache.size +
+      this.salesProgressBundleCache.size +
+      this.scopedSalesProgressCache.size;
+    this.supportCacheGeneration += 1;
+    this.projectionFreshnessCache.clear();
+    this.salesProgressBundleCache.clear();
+    this.scopedSalesProgressCache.clear();
+    this.projectionFreshnessInFlight.clear();
+    this.salesProgressBundleInFlight.clear();
+    this.scopedSalesProgressInFlight.clear();
+    return entries;
+  }
+
+  private async getOrLoadSummarySupportValue<T>(
+    key: string,
+    label: string,
+    cache: Map<string, HomeSummarySupportCacheEntry<T>>,
+    inFlight: Map<string, Promise<T>>,
+    loader: () => Promise<T>,
+  ): Promise<T> {
+    if (!this.summaryResponseCacheEnabled()) return loader();
+    const now = Date.now();
+    const cached = cache.get(key);
+    if (cached && cached.expiresAt > now) {
+      this.logCacheDiagnostic(
+        `support_hit:${label}`,
+        `Home summary support cache hit: type=${label}`,
+      );
+      return cached.value;
+    }
+    if (cached) cache.delete(key);
+    const pending = inFlight.get(key);
+    if (pending) {
+      this.logCacheDiagnostic(
+        `support_join:${label}`,
+        `Home summary support cache joined in-flight: type=${label}`,
+      );
+      return pending;
+    }
+
+    const generation = this.supportCacheGeneration;
+    let promise: Promise<T>;
+    promise = loader()
+      .then((value) => {
+        if (generation !== this.supportCacheGeneration) return value;
+        while (cache.size >= MAX_HOME_SUMMARY_RESPONSE_CACHE_ENTRIES) {
+          const oldestKey = cache.keys().next().value;
+          if (!oldestKey) break;
+          cache.delete(oldestKey);
+        }
+        cache.set(key, {
+          expiresAt: Date.now() + HOME_SUMMARY_SUPPORT_CACHE_TTL_MS,
+          value,
+        });
+        return value;
+      })
+      .finally(() => {
+        if (inFlight.get(key) === promise) inFlight.delete(key);
+      });
+    inFlight.set(key, promise);
+    return promise;
+  }
+
+  private logCacheDiagnostic(branch: string, message: string) {
+    const now = Date.now();
+    const lastLoggedAt = this.cacheDiagnosticLogAtByBranch.get(branch) ?? 0;
+    if (now - lastLoggedAt < HOME_SUMMARY_CACHE_DIAGNOSTIC_LOG_INTERVAL_MS) {
+      return;
+    }
+    this.cacheDiagnosticLogAtByBranch.set(branch, now);
+    this.logger.debug(message);
   }
 
   private async computeSummary(
@@ -694,7 +951,7 @@ export class HomeSummaryService {
     }
     if (useProjection) {
       try {
-        const projection = await this.loadProjectionFreshness(
+        const projection = await this.loadProjectionFreshnessCached(
           range,
           salesAvailable,
           financeAvailable,
@@ -720,7 +977,7 @@ export class HomeSummaryService {
       refreshedAt = await this.syncFactsForRange(range);
     }
     const salesProgressBundle = salesAvailable
-      ? await this.buildSalesProgressBundle(
+      ? await this.buildSalesProgressBundleCached(
           user,
           scope,
           summaryDate,
@@ -745,14 +1002,26 @@ export class HomeSummaryService {
     let dailySeries: HomeSummaryDailyPoint[] | undefined;
     let mainKpis = this.emptyMainKpis();
     let behaviorYesCounts = this.emptyBehaviorYesCounts();
+    let projectedSales: HomeProjectionLoadResult | null = null;
+    let projectedFinance: HomeProjectionLoadResult | null = null;
+    if (useProjection) {
+      [projectedSales, projectedFinance] = await Promise.all([
+        salesAvailable
+          ? this.loadProjectionMetrics(
+              range,
+              salesMetricsScope,
+              'SALES',
+              includeDailySeries,
+            )
+          : Promise.resolve(null),
+        financeAvailable
+          ? this.loadProjectionMetrics(range, scope, 'FINANCE')
+          : Promise.resolve(null),
+      ]);
+    }
     if (salesAvailable) {
       if (useProjection) {
-        const projected = await this.loadProjectionMetrics(
-          range,
-          salesMetricsScope,
-          'SALES',
-          includeDailySeries,
-        );
+        const projected = projectedSales!;
         totalOrders = projected.totalOrders;
         totalReports = projected.totalReports;
         notPurchasedReports = projected.notPurchasedReports;
@@ -845,11 +1114,7 @@ export class HomeSummaryService {
     let totalStatementsWithoutOrder = 0;
     if (financeAvailable) {
       if (useProjection) {
-        const projected = await this.loadProjectionMetrics(
-          range,
-          scope,
-          'FINANCE',
-        );
+        const projected = projectedFinance!;
         totalStatements = projected.totalStatements;
         totalStatementsTracked = projected.totalStatementsTracked;
         totalStatementsUnfollowed = projected.totalStatementsUnfollowed;
@@ -998,6 +1263,11 @@ export class HomeSummaryService {
       ...(dailySeries ? { dailySeries } : {}),
     };
     this.projectionVersionsByResponse.set(response, projectionVersionsByDate);
+    this.computationContextByResponse.set(response, {
+      useProjection,
+      salesAvailable,
+      salesMetricsScope,
+    });
     this.logger.log(
       `Home summary load succeeded: user=${this.safeUserLabel(user)} startDate=${range.startDate} endDate=${range.endDate} scopeFilter=${requestedScope} scope=${scope.scope} salesMetricsScope=${salesMetricsScope.scope} selectedSalesProgressUserId=${salesProgressBundle.selectedUserId || 'none'} salesProgressAssignees=${salesProgressBundle.assignees.length} salesAvailable=${salesAvailable} financeAvailable=${financeAvailable} includeDailySeries=${includeDailySeries} dailySeriesPoints=${dailySeries?.length ?? 0} totalRevenue=${totalRevenue} completedRevenue=${completedRevenue} pendingRevenue=${pendingRevenue} businessCustomerRevenue=${mainKpis.businessCustomerRevenue} personalCustomerRevenue=${mainKpis.personalCustomerRevenue} installmentNeedCount=${mainKpis.installmentNeedCount} successfulInstallmentCount=${mainKpis.successfulInstallmentCount} laptopQuantity=${mainKpis.laptopQuantity} pcQuantity=${mainKpis.pcQuantity} assembledPcQuantity=${mainKpis.assembledPcQuantity} appleQuantity=${mainKpis.appleQuantity} totalOrders=${totalOrders} averageOrderValue=${averageOrderValue} totalReports=${totalReports} reportedOrders=${reportedOrders} notPurchasedReports=${notPurchasedReports} consultedYes=${behaviorYesCounts.consultedSolution} experiencedYes=${behaviorYesCounts.experienced} zaloYes=${behaviorYesCounts.zalo} appDownloadYes=${behaviorYesCounts.appDownload} totalStatements=${totalStatements} statementsWithOrder=${totalStatementsWithOrder} projectionVersion=${freshness?.projectionVersion ?? 'legacy'} projectionLagSeconds=${freshness?.projectionLagSeconds ?? 'legacy'} isStale=${freshness?.isStale ?? false} durationMs=${Date.now() - startedAt}`,
     );
@@ -2669,8 +2939,7 @@ export class HomeSummaryService {
     const scopeProgressScope = this.scopeSalesProgressScope(scope);
     const [scopeProgress, assignees] = await Promise.all([
       scopeProgressScope
-        ? this.buildSalesProgress(
-            user,
+        ? this.buildSharedScopeSalesProgressCached(
             scopeProgressScope,
             summaryDate,
             selectedRange,
@@ -2710,6 +2979,61 @@ export class HomeSummaryService {
       selectedUserId,
       selectedScope: selectedAssignee ? personalScope : null,
     };
+  }
+
+  private buildSalesProgressBundleCached(
+    user: any,
+    scope: SalesReportSummaryScopeDescriptor,
+    summaryDate: Date,
+    selectedRange: DateRange,
+    requestedUserId: string | null,
+  ) {
+    const key = this.salesProgressBundleCacheKey(
+      user,
+      scope,
+      summaryDate,
+      selectedRange,
+      requestedUserId,
+    );
+    return this.getOrLoadSummarySupportValue(
+      key,
+      'principal_progress',
+      this.salesProgressBundleCache,
+      this.salesProgressBundleInFlight,
+      () =>
+        this.buildSalesProgressBundle(
+          user,
+          scope,
+          summaryDate,
+          selectedRange,
+          requestedUserId,
+        ),
+    );
+  }
+
+  private buildSharedScopeSalesProgressCached(
+    scope: SalesReportSummaryScopeDescriptor,
+    summaryDate: Date,
+    selectedRange: DateRange,
+  ) {
+    if (scope.scope !== 'ALL' && scope.scope !== 'MANAGED_SCOPE') {
+      throw new Error('Shared sales progress requires a non-personal scope.');
+    }
+    const canonical = JSON.stringify([
+      'v1',
+      this.summaryScopeFingerprint(scope),
+      this.dateOnlyKey(summaryDate),
+      selectedRange.start.toISOString(),
+      selectedRange.end.toISOString(),
+    ]);
+    const key = createHash('sha256').update(canonical).digest('hex');
+    return this.getOrLoadSummarySupportValue(
+      key,
+      'shared_scope_progress',
+      this.scopedSalesProgressCache,
+      this.scopedSalesProgressInFlight,
+      () => this.buildSalesProgress(null, scope, summaryDate, selectedRange),
+    );
   }
 
   private emptySalesProgressBundle(): SalesProgressBundle {
@@ -3222,6 +3546,28 @@ export class HomeSummaryService {
     };
   }
 
+  private loadProjectionFreshnessCached(
+    range: SummaryDateRange,
+    requireSales: boolean,
+    requireFinance: boolean,
+  ) {
+    const canonical = JSON.stringify([
+      'v1',
+      range.startDate,
+      range.endDate,
+      requireSales,
+      requireFinance,
+    ]);
+    const key = createHash('sha256').update(canonical).digest('hex');
+    return this.getOrLoadSummarySupportValue(
+      key,
+      'projection_freshness',
+      this.projectionFreshnessCache,
+      this.projectionFreshnessInFlight,
+      () => this.loadProjectionFreshness(range, requireSales, requireFinance),
+    );
+  }
+
   private async loadProjectionFreshness(
     range: SummaryDateRange,
     requireSales = true,
@@ -3594,6 +3940,48 @@ export class HomeSummaryService {
       query.includeDailySeries === 'true',
     ]);
     return `v4:${createHash('sha256').update(canonicalKey).digest('hex')}`;
+  }
+
+  private salesProgressBundleCacheKey(
+    user: any,
+    scope: SalesReportSummaryScopeDescriptor,
+    summaryDate: Date,
+    selectedRange: DateRange,
+    requestedUserId: string | null,
+  ) {
+    const userKey =
+      this.optionalText(user?.id, 120) ||
+      this.optionalText(user?.email, 160) ||
+      this.optionalText(user?.personnelCode, 80) ||
+      'anonymous';
+    const accessVersion = [
+      user?.tokenVersion ?? 0,
+      user?.authSession?.sessionVersion ?? 0,
+      user?.accessVersion ?? 0,
+    ].join('|');
+    const canonical = JSON.stringify([
+      'v1',
+      userKey,
+      accessVersion,
+      this.summaryScopeFingerprint(scope),
+      this.dateOnlyKey(summaryDate),
+      selectedRange.start.toISOString(),
+      selectedRange.end.toISOString(),
+      this.optionalText(requestedUserId, 80) || '',
+    ]);
+    return createHash('sha256').update(canonical).digest('hex');
+  }
+
+  private summaryScopeFingerprint(scope: SalesReportSummaryScopeDescriptor) {
+    const canonical = JSON.stringify([
+      scope.available,
+      scope.scope,
+      this.optionalText(scope.ownUserId, 120) || '',
+      this.normalizeEmail(scope.ownEmail) || '',
+      this.optionalText(scope.ownPersonnelCode, 120) || '',
+      this.normalizedStoreCodes(scope.allowedStoreCodes).sort(),
+    ]);
+    return createHash('sha256').update(canonical).digest('hex');
   }
 
   private storeSummaryResponseCache(

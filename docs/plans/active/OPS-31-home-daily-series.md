@@ -108,8 +108,16 @@ Out of scope:
 - [x] Extend load/parity proof and durable product/test documentation.
 - [x] Run focused, affected-consumer, build, full relevant, and diff checks.
 - [x] Independent code/security review and fix all actionable findings.
-- [ ] Record exact proof in Linear, publish PR to staging, and pass CI.
-- [ ] Merge, run lifecycle finish, deploy exact staging SHA, and complete QA.
+- [x] Record exact implementation proof in Linear, publish PR #52 to staging,
+      and pass CI.
+- [x] Merge PR #52, run lifecycle finish, and deploy exact staging SHA
+      `6fc7c530e5e52a7be02bb0ed463d270231d0bdf1`.
+- [x] Run staging smoke and the first fixed 250-VU/2,000-request proof; record
+      the latency failure and complete mandatory synthetic-user/token cleanup.
+- [x] Reduce cold principal/shape computation without sharing user responses or
+      weakening scope, parity, cache invalidation, or thresholds.
+- [ ] Re-run local affected-consumer proof, independent review, PR/CI/lifecycle,
+      exact-SHA staging deploy, cold load QA, selected-SA QA, and cleanup.
 
 ## Decisions
 
@@ -182,3 +190,46 @@ Unverified release gates are authenticated staging response/parity checks, the
 fixed 250-concurrent/2,000-request profile,
 exact-SHA deploy/QA, and publication lifecycle. No local k6 or authenticated
 staging run is claimed here.
+
+### Staging QA attempt 1 and recovery
+
+PR #52 deployed successfully through staging workflow run `30452682182` at the
+exact squash SHA `6fc7c530e5e52a7be02bb0ed463d270231d0bdf1`. The public health,
+direct-origin, client artifact, side-effect guard, symlink and container checks
+passed. Authenticated smoke proved legacy/daily contract, 1/7/30/90 ordering,
+zero-fill, parity and non-stale freshness.
+
+The fixed cold profile then returned 2,000/2,000 HTTP 200 responses with 100%
+contract/parity and zero 429/5xx, but failed latency: client p50/p95/p99/max
+were `612.27/2537.48/2872.48/3228.62 ms`; server-side values were
+`494/2094/2241/3002 ms`. The exact window contained 120 misses, 417 in-flight
+joins and 1,463 hits. API CPU briefly peaked at 147.29%, while PostgreSQL used
+at most 17/100 connections, Redis had zero evictions/blocked clients and no
+runtime container restarted. Exactly 60 synthetic users/sessions were revoked
+and deleted; server/local token files and k6 processes were verified absent.
+
+The bounded full-fix keeps response caches principal-specific. It may dedupe
+only inputs proven independent of the principal (range-wide projection
+freshness and store/global sales progress), reuse principal-specific progress
+between the legacy and daily response shapes, extend a fresh legacy response
+with one same-scope daily projection read, parallelize independent projected
+SALES/FINANCE reads, and move per-request hit/join diagnostics to debug. Any
+scope ambiguity, parity drift, stale-version race, schema/event/permission
+change or weakened cold-load threshold stops the fix.
+
+### Full-fix local proof
+
+The full-fix remains additive and requires no schema, migration, event,
+permission, rate-limit or Flutter production change. Exact local gates on the
+full-fix changeset passed:
+
+- Home DTO/controller/service Jest: 3 suites, 69 tests.
+- Shared projection producer and Sales scope Jest: 2 suites, 99 tests.
+- Full Nest Jest: 90 suites, 946 tests; Nest build passed.
+- Existing Flutter Home parser/cache/dashboard/realtime/details/avatar
+  consumers: 48 tests; `flutter analyze --no-pub` found no issue.
+- Changed Home TypeScript Prettier and `git diff --check` passed.
+
+The remaining release-readiness proof is PR review/CI, exact-SHA staging
+deployment, the unchanged cold 250-VU/2,000-request profile, authenticated
+selected-SA scope checks, resource monitoring and mandatory synthetic cleanup.
