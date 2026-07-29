@@ -62,6 +62,166 @@ describe('JwtStrategy', () => {
     strategy = new JwtStrategy(prisma as any, authSessionService);
   });
 
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  it('batches only callers waiting before the authoritative snapshot query', async () => {
+    jest.useFakeTimers();
+    const sharedSnapshot = snapshot({
+      branchLockedAt: new Date('2026-01-02T01:00:00.000Z'),
+    });
+    prisma.$queryRaw.mockResolvedValue([sharedSnapshot]);
+
+    const first = strategy.validate(payload);
+    const joined = strategy.validate(payload);
+    expect(prisma.$queryRaw).not.toHaveBeenCalled();
+
+    await jest.advanceTimersByTimeAsync(2);
+    const [firstPrincipal, joinedPrincipal] = await Promise.all([
+      first,
+      joined,
+    ]);
+
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
+    expect((strategy as any).pendingValidationBatches.size).toBe(0);
+    expect(firstPrincipal).not.toBe(joinedPrincipal);
+    expect(firstPrincipal.authSession).not.toBe(joinedPrincipal.authSession);
+    expect(firstPrincipal.createdAt).not.toBe(joinedPrincipal.createdAt);
+    expect(firstPrincipal.updatedAt).not.toBe(joinedPrincipal.updatedAt);
+    expect(firstPrincipal.profileCompletedAt).not.toBe(
+      joinedPrincipal.profileCompletedAt,
+    );
+    expect(firstPrincipal.branchLockedAt).not.toBe(
+      joinedPrincipal.branchLockedAt,
+    );
+  });
+
+  it('reduces a 250-request burst across 60 principals to 60 snapshot queries', async () => {
+    jest.useFakeTimers();
+    prisma.$queryRaw.mockImplementation(
+      (_queryParts, sessionId: string, userId: string) =>
+        Promise.resolve([
+          snapshot(
+            { id: userId },
+            {
+              authSessionId: sessionId,
+              authSessionUserId: userId,
+            },
+          ),
+        ]),
+    );
+
+    const validations = Array.from({ length: 250 }, (_, index) => {
+      const principal = index % 60;
+      return strategy.validate({
+        ...payload,
+        sub: `user-${principal}`,
+        sessionId: `session-${principal}`,
+      });
+    });
+    await jest.advanceTimersByTimeAsync(2);
+
+    await expect(Promise.all(validations)).resolves.toHaveLength(250);
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(60);
+    expect((strategy as any).pendingValidationBatches.size).toBe(0);
+  });
+
+  it('does not collapse exact and whitespace-prefixed user claims into one batch', async () => {
+    jest.useFakeTimers();
+    prisma.$queryRaw
+      .mockResolvedValueOnce([snapshot()])
+      .mockResolvedValueOnce([]);
+
+    const exact = strategy.validate(payload);
+    const differentClaim = strategy.validate({ ...payload, sub: ' user-1' });
+    const exactExpectation = expect(exact).resolves.toMatchObject({
+      id: 'user-1',
+    });
+    const differentClaimExpectation = expect(
+      differentClaim,
+    ).rejects.toBeInstanceOf(UnauthorizedException);
+    await jest.advanceTimersByTimeAsync(2);
+
+    await exactExpectation;
+    await differentClaimExpectation;
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(2);
+  });
+
+  it('uses post-change state when a lock commits before the batch query starts', async () => {
+    jest.useFakeTimers();
+    prisma.$queryRaw.mockResolvedValue([snapshot({ status: 'no' })]);
+
+    const first = strategy.validate(payload);
+    const joinedBeforeQuery = strategy.validate(payload);
+    const firstExpectation = expect(first).rejects.toBeInstanceOf(
+      UnauthorizedException,
+    );
+    const joinedExpectation = expect(joinedBeforeQuery).rejects.toBeInstanceOf(
+      UnauthorizedException,
+    );
+    await jest.advanceTimersByTimeAsync(2);
+
+    await firstExpectation;
+    await joinedExpectation;
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps an existing join but independently validates overflow principals when the pending map is full', async () => {
+    jest.useFakeTimers();
+    const pendingBatches = (strategy as any).pendingValidationBatches as Map<
+      string,
+      { callers: number; validation: Promise<unknown> }
+    >;
+    prisma.$queryRaw.mockImplementation(
+      (_queryParts, sessionId: string, userId: string) =>
+        Promise.resolve([
+          snapshot(
+            { id: userId },
+            {
+              authSessionId: sessionId,
+              authSessionUserId: userId,
+            },
+          ),
+        ]),
+    );
+
+    const existingPayload = {
+      ...payload,
+      sub: 'existing-user',
+      sessionId: 'existing-session',
+    };
+    const existingFirst = strategy.validate(existingPayload);
+    for (let index = 0; index < 4_999; index += 1) {
+      pendingBatches.set(`occupied-${index}`, {
+        callers: 1,
+        validation: new Promise(() => undefined),
+      });
+    }
+
+    const existingJoin = strategy.validate(existingPayload);
+    const overflowA = strategy.validate({
+      ...payload,
+      sub: 'overflow-user-a',
+      sessionId: 'overflow-session-a',
+    });
+    const overflowB = strategy.validate({
+      ...payload,
+      sub: 'overflow-user-b',
+      sessionId: 'overflow-session-b',
+    });
+
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(2);
+    expect(pendingBatches.size).toBe(5_000);
+    await jest.advanceTimersByTimeAsync(2);
+    await expect(
+      Promise.all([existingFirst, existingJoin, overflowA, overflowB]),
+    ).resolves.toHaveLength(4);
+    expect(prisma.$queryRaw).toHaveBeenCalledTimes(3);
+    expect(pendingBatches.size).toBe(4_999);
+    pendingBatches.clear();
+  });
+
   it('reads the user and platform session through one parameterized snapshot query', async () => {
     prisma.$queryRaw.mockResolvedValue([snapshot()]);
 
@@ -97,6 +257,7 @@ describe('JwtStrategy', () => {
   });
 
   it('does not share an active snapshot with a request started after the user is locked', async () => {
+    jest.useFakeTimers();
     let resolveFirst!: (value: unknown[]) => void;
     prisma.$queryRaw
       .mockImplementationOnce(
@@ -108,15 +269,21 @@ describe('JwtStrategy', () => {
       .mockResolvedValueOnce([snapshot({ status: 'no' })]);
 
     const first = strategy.validate(payload);
+    await jest.advanceTimersByTimeAsync(2);
     const afterLock = strategy.validate(payload);
+    const afterLockExpectation = expect(afterLock).rejects.toBeInstanceOf(
+      UnauthorizedException,
+    );
+    await jest.advanceTimersByTimeAsync(2);
 
-    await expect(afterLock).rejects.toBeInstanceOf(UnauthorizedException);
+    await afterLockExpectation;
     expect(prisma.$queryRaw).toHaveBeenCalledTimes(2);
     resolveFirst([snapshot()]);
     await expect(first).resolves.toMatchObject({ id: 'user-1' });
   });
 
   it('does not share an active snapshot with a request started after token invalidation', async () => {
+    jest.useFakeTimers();
     let resolveFirst!: (value: unknown[]) => void;
     prisma.$queryRaw
       .mockImplementationOnce(
@@ -128,11 +295,14 @@ describe('JwtStrategy', () => {
       .mockResolvedValueOnce([snapshot({ tokenVersion: 3 })]);
 
     const first = strategy.validate(payload);
+    await jest.advanceTimersByTimeAsync(2);
     const afterTokenChange = strategy.validate(payload);
+    const afterTokenChangeExpectation = expect(
+      afterTokenChange,
+    ).rejects.toBeInstanceOf(UnauthorizedException);
+    await jest.advanceTimersByTimeAsync(2);
 
-    await expect(afterTokenChange).rejects.toBeInstanceOf(
-      UnauthorizedException,
-    );
+    await afterTokenChangeExpectation;
     expect(prisma.$queryRaw).toHaveBeenCalledTimes(2);
     resolveFirst([snapshot()]);
     await expect(first).resolves.toMatchObject({ id: 'user-1' });
@@ -157,6 +327,7 @@ describe('JwtStrategy', () => {
   ])(
     'does not share an active snapshot with a request started after %s',
     async (_label, sessionChange, expectedMessage) => {
+      jest.useFakeTimers();
       let resolveFirst!: (value: unknown[]) => void;
       prisma.$queryRaw
         .mockImplementationOnce(
@@ -168,11 +339,16 @@ describe('JwtStrategy', () => {
         .mockResolvedValueOnce([snapshot({}, sessionChange)]);
 
       const first = strategy.validate(payload);
+      await jest.advanceTimersByTimeAsync(2);
       const afterSessionChange = strategy.validate(payload);
-
-      await expect(afterSessionChange).rejects.toMatchObject({
+      const afterSessionChangeExpectation = expect(
+        afterSessionChange,
+      ).rejects.toMatchObject({
         response: expect.objectContaining({ message: expectedMessage }),
       });
+      await jest.advanceTimersByTimeAsync(2);
+
+      await afterSessionChangeExpectation;
       expect(prisma.$queryRaw).toHaveBeenCalledTimes(2);
       resolveFirst([snapshot()]);
       await expect(first).resolves.toMatchObject({ id: 'user-1' });
