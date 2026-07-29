@@ -3,6 +3,22 @@
 This file maps product behavior to proof. Existing flows are marked
 `existing_unverified` until fresh validation evidence is attached.
 
+- `OPS-17`/`HARNESS-STRICT-AUDIT-001`, 2026-07-29: the tracked
+  consumer/orchestrator wrapper binds a counts-only schema-12 strict-audit
+  envelope to the reviewed OPS-15 schema-12 to schema-14 parity result. It is
+  read-only and emits stable compact JSON with exit `0` for a clean audit, `2`
+  for non-zero strict categories, `3` for changeset/CAS conflicts, and `78`
+  for invalid provenance, schema, snapshot, sidecar, or parity. The v1 binding
+  rejects changed/zeroed caller counts, forged revisions, unknown categories,
+  contradictory PASS/failures, mapped-count drift, created changesets, invalid
+  arguments, and malformed adapter inputs with JSON exit `78`. Focused unit
+  and CLI proof covers all 17 regression paths. The
+  retained canonical baseline returns exit `2` after parity PASS on both
+  Windows-native Python and Git for Windows; a tampered target returns exit
+  `78`. Source snapshot, projected target, digest fixture, and sidecar hashes
+  remain unchanged across proof. The wrapper does not modify upstream Rust,
+  `scripts/bin/harness-cli.exe`, schemas, changesets, or OpsHub runtime.
+
 - `OPS-35`/`UPDATE-004`, 2026-07-29: installed Windows staging self-update
   smoke passed from `2026.7.28+200259` to `2026.7.29+200267`. The signed
   installer was published by staging SHA

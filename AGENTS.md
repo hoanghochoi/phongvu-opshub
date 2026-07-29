@@ -245,12 +245,15 @@ Read in this order:
 5. `docs/TEST_MATRIX.md` for required proof and known gaps.
 6. `docs/decisions/` for durable tradeoffs.
 7. The local OpsHub `harness.db` plus Markdown docs are the authority. The
-   legacy compatibility wrapper exists only in the root legacy workspace; it is
-   not a tracked command surface on this upstream-aligned branch. Until an
-   approved schema/state adapter is committed, do not write the authoritative
-   DB from this branch. Use `scripts/bin/harness-cli.exe query matrix` only for
-   a disposable or already migrated schema-14 DB; never run upstream
-   `import brownfield` as a refresh of the authoritative local DB. On Windows
+   tracked preservation adapter and strict-audit wrapper are read-only: they
+   operate on a WAL-safe schema-12 snapshot plus an isolated schema-14 target
+   and sidecar, never on the writable canonical DB. The legacy compatibility
+   wrapper remains available only in the root legacy workspace, and no tracked
+   writable schema/state adapter exists on this upstream-aligned branch. Do not
+   write the authoritative DB from this branch. Use
+   `scripts/bin/harness-cli.exe query matrix` only for a disposable or already
+   migrated schema-14 DB; never run upstream `import brownfield` as a refresh
+   of the authoritative local DB. On Windows
    PowerShell, define the Git for Windows login shell once and use it for every
    Harness command in this guide; do not rely on whichever `bash.exe` happens
    to be first on `PATH`:
@@ -290,11 +293,12 @@ Every implementation request goes through intake first:
 4. Choose lane: tiny, normal, or high-risk.
 5. Decide the minimum validation proof before editing code.
 6. When the durable harness DB is available, record meaningful intakes,
-   story/proof updates, decisions, backlog items, or traces through
-   the approved local compatibility adapter instead of hand-editing structured
-   operational records. The adapter is not part of this upstream-aligned
-   branch yet; switch to the upstream CLI only after the schema/state adapter is
-   in place.
+   story/proof updates, decisions, backlog items, or traces through the
+   approved writable local compatibility adapter instead of hand-editing
+   structured operational records. No such writable adapter is tracked on
+   this upstream-aligned branch yet; the tracked preservation/parity and strict
+   wrappers are read-only and do not authorize DB writes. Switch to the
+   upstream CLI only after a writable schema/state adapter is approved.
 7. If a task ships a temporary Phase 1, defers accepted behavior, or leaves
    technical debt, record it with
    approved compatibility adapter's backlog command
