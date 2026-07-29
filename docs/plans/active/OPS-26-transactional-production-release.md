@@ -80,7 +80,7 @@ Out of scope:
 - [x] Update runbook/test matrix.
 - [x] Run focused proof, merge PR #46 to staging, and verify the exact merged
   SHA with a normal staging deployment.
-- [ ] Merge staging-only controlled failpoints and prove rollback after shared
+- [x] Merge staging-only controlled failpoints and prove rollback after shared
   promotion, from the migration/backend-build gate, during public verification,
   and through the shared static-only transaction rehearsal.
 
@@ -111,7 +111,12 @@ Out of scope:
   failpoint workflow now keeps its input in the deploy step, fingerprints
   staging-named client artifacts with path/type/mode/owner/content metadata,
   and routes the runtime failpoint through the migration/backend-build command.
-  Live controlled rollback runs remain.
+- Live exact-SHA controlled runs on staging `952d30d3ecf4fd88649e9040317737a4ef06bad0`
+  all passed their rollback proof: `30405830449` (after shared promotion),
+  `30407258288` (migration/backend-build), `30408136342` (public verification),
+  and `30408918912` (static transaction; includes `STATIC TRANSACTION REHEARSAL
+  PASS`). Each run ended with expected injected failure plus
+  `CONTROLLED STAGING ROLLBACK PASS`.
 - The repository's existing `tests/release/test-release-workflow-contract.sh`
   and `test-post-merge-release-recovery.sh` remain blocked by pre-existing
   references to absent `.github/workflows/post-merge-maintenance.yml` and
@@ -124,7 +129,8 @@ Out of scope:
 ## Result
 
 Production transaction implementation is merged to staging and its normal
-exact-SHA deploy/public verification passed. The staging-only failpoint follow-up
-and four live controlled rollback runs remain before OPS-26 can move to Ready
-for Release. The fourth run is an isolated rehearsal on the staging host using
-the same `release-transaction.sh` helper as production static-only publication.
+exact-SHA deploy/public verification passed. Four live controlled rollback runs
+also passed, including an isolated staging-host rehearsal using the same
+`release-transaction.sh` helper as production static-only publication. OPS-26 is
+ready for the protected production release window; production promotion itself
+remains intentionally out of scope for this task.
