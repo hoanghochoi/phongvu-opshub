@@ -16,7 +16,7 @@ const AUTH_CONTEXT_MAX_L1_ENTRIES = 2_000;
 const AUTH_CONTEXT_KEY_PREFIX = 'opshub:auth-context:v1:';
 const AUTH_CONTEXT_LEASE_PREFIX = 'opshub:auth-context:lease:v1:';
 const AUTH_PROFILE_KEY_PREFIX = 'opshub:auth-profile:v1:';
-const HOME_SCOPE_BATCH_DELAY_MS = 2;
+const HOME_SCOPE_BATCH_DELAY_MS = 20;
 const MAX_PENDING_HOME_SCOPE_REQUESTS = 5_000;
 
 export type AuthContextVersion = {
@@ -53,9 +53,16 @@ type ProfileCacheEntry = {
   profile: AuthContext['profile'];
 };
 
+type HomeFeatureScopeSlice = {
+  featureAccess: Record<string, boolean>;
+  scopeSnapshot: any | null;
+};
+
 type PendingHomeScopeRequest = {
+  authenticatedUser: any;
+  featureCodes: string[];
   userId: string;
-  resolve: (snapshot: any | null) => void;
+  resolve: (slice: HomeFeatureScopeSlice) => void;
   reject: (reason?: unknown) => void;
 };
 
@@ -152,26 +159,8 @@ export class AuthContextService {
     authenticatedUser: any,
     featureCodes: string[],
   ) {
-    const version = this.versionFor(authenticatedUser);
-    const scopeSnapshot = await this.loadHomeScopeSnapshot(version.userId);
-    let featureAccess: Record<string, boolean>;
-    if (!scopeSnapshot) {
-      featureAccess = Object.fromEntries(
-        featureCodes.map((featureCode) => [featureCode, false]),
-      );
-    } else {
-      const contextUser = { ...authenticatedUser };
-      Object.defineProperty(contextUser, '__authScopeSnapshot', {
-        configurable: false,
-        enumerable: false,
-        value: scopeSnapshot,
-        writable: false,
-      });
-      featureAccess = await this.featureService.resolveFeatureAccessMapForCodes(
-        contextUser,
-        featureCodes,
-      );
-    }
+    const { featureAccess, scopeSnapshot } =
+      await this.loadHomeFeatureScopeSlice(authenticatedUser, featureCodes);
 
     const enriched = { ...authenticatedUser };
     Object.defineProperty(enriched, '__authContext', {
@@ -394,24 +383,47 @@ export class AuthContextService {
     return profile;
   }
 
-  private loadHomeScopeSnapshot(userId: string): Promise<any | null> {
+  private loadHomeFeatureScopeSlice(
+    authenticatedUser: any,
+    featureCodes: string[],
+  ): Promise<HomeFeatureScopeSlice> {
+    const userId = this.versionFor(authenticatedUser).userId;
     const userModel = (this.prisma as any)?.user;
     if (!userId || !userModel?.findMany) {
-      return this.loadScopeSnapshot(userId);
+      return this.loadIndependentFeatureScopeSlice(
+        authenticatedUser,
+        featureCodes,
+        userId,
+      );
     }
 
-    return new Promise<any | null>((resolve, reject) => {
+    return new Promise<HomeFeatureScopeSlice>((resolve, reject) => {
       const batch = this.pendingHomeScopeBatch;
       if (batch && batch.length < MAX_PENDING_HOME_SCOPE_REQUESTS) {
-        batch.push({ userId, resolve, reject });
+        batch.push({
+          authenticatedUser,
+          featureCodes,
+          userId,
+          resolve,
+          reject,
+        });
         return;
       }
       if (batch) {
-        void this.loadScopeSnapshot(userId).then(resolve, reject);
+        this.logger.debug(
+          `Home auth feature/scope overflow fallback: pendingRequests=${batch.length} features=${featureCodes.length}`,
+        );
+        void this.loadIndependentFeatureScopeSlice(
+          authenticatedUser,
+          featureCodes,
+          userId,
+        ).then(resolve, reject);
         return;
       }
 
-      const newBatch: PendingHomeScopeRequest[] = [{ userId, resolve, reject }];
+      const newBatch: PendingHomeScopeRequest[] = [
+        { authenticatedUser, featureCodes, userId, resolve, reject },
+      ];
       this.pendingHomeScopeBatch = newBatch;
       setTimeout(() => {
         if (this.pendingHomeScopeBatch === newBatch) {
@@ -425,26 +437,111 @@ export class AuthContextService {
   private async flushHomeScopeBatch(
     batch: PendingHomeScopeRequest[],
   ): Promise<void> {
-    let rows: any[];
+    const startedAt = Date.now();
+    const principalCount = new Set(batch.map((entry) => entry.userId)).size;
+    const featureCount = new Set(batch.flatMap((entry) => entry.featureCodes))
+      .size;
+    if (batch.length > 1) {
+      this.logger.debug(
+        `Home auth feature/scope pre-query batch started: callers=${batch.length} principals=${principalCount} features=${featureCount}`,
+      );
+    }
     try {
-      rows = await (this.prisma as any).user.findMany({
+      const rows: any[] = await (this.prisma as any).user.findMany({
         where: {
           id: { in: Array.from(new Set(batch.map((entry) => entry.userId))) },
         },
         select: this.scopeSnapshotSelect(),
       });
-    } catch (error) {
-      batch.forEach((entry) => entry.reject(error));
-      return;
-    }
-
-    const byId = new Map(rows.map((row) => [String(row.id), row]));
-    batch.forEach((entry) => entry.resolve(byId.get(entry.userId) ?? null));
-    if (batch.length > 1) {
-      this.logger.debug(
-        `Home auth scope pre-query batch closed: callers=${batch.length} principals=${byId.size} pendingRequests=${this.pendingHomeScopeBatch?.length ?? 0}`,
+      const byId = new Map(rows.map((row) => [String(row.id), row]));
+      const featureCodes = Array.from(
+        new Set(batch.flatMap((entry) => entry.featureCodes)),
       );
+      const representativeById = new Map<string, PendingHomeScopeRequest>();
+      for (const entry of batch) {
+        if (byId.has(entry.userId) && !representativeById.has(entry.userId)) {
+          representativeById.set(entry.userId, entry);
+        }
+      }
+      const principalIds = Array.from(representativeById.keys());
+      const contextUsers = principalIds.map((userId) =>
+        this.withScopeSnapshot(
+          representativeById.get(userId)!.authenticatedUser,
+          byId.get(userId),
+        ),
+      );
+      const accessMaps =
+        await this.featureService.resolveFeatureAccessMapsForCodes(
+          contextUsers,
+          featureCodes,
+        );
+      const accessById = new Map(
+        principalIds.map((userId, index) => [userId, accessMaps[index] ?? {}]),
+      );
+
+      for (const entry of batch) {
+        const scopeSnapshot = byId.get(entry.userId) ?? null;
+        const requestedCodes = new Set(
+          entry.featureCodes.map((featureCode) =>
+            String(featureCode).trim().toUpperCase(),
+          ),
+        );
+        const featureAccess = scopeSnapshot
+          ? Object.fromEntries(
+              Object.entries(accessById.get(entry.userId) ?? {}).filter(
+                ([featureCode]) => requestedCodes.has(featureCode),
+              ),
+            )
+          : Object.fromEntries(
+              entry.featureCodes.map((featureCode) => [featureCode, false]),
+            );
+        entry.resolve({ featureAccess, scopeSnapshot });
+      }
+
+      if (batch.length > 1) {
+        this.logger.debug(
+          `Home auth feature/scope pre-query batch closed: callers=${batch.length} principals=${byId.size} features=${featureCodes.length} pendingRequests=${this.pendingHomeScopeBatch?.length ?? 0} durationMs=${Date.now() - startedAt}`,
+        );
+      }
+    } catch (error) {
+      this.logger.error(
+        `Home auth feature/scope pre-query batch failed: callers=${batch.length} principals=${principalCount} features=${featureCount} durationMs=${Date.now() - startedAt} error=${safeLogError(error)}`,
+      );
+      batch.forEach((entry) => entry.reject(error));
     }
+  }
+
+  private async loadIndependentFeatureScopeSlice(
+    authenticatedUser: any,
+    featureCodes: string[],
+    userId: string,
+  ): Promise<HomeFeatureScopeSlice> {
+    const scopeSnapshot = await this.loadScopeSnapshot(userId);
+    if (!scopeSnapshot) {
+      return {
+        featureAccess: Object.fromEntries(
+          featureCodes.map((featureCode) => [featureCode, false]),
+        ),
+        scopeSnapshot: null,
+      };
+    }
+    const featureAccess =
+      await this.featureService.resolveFeatureAccessMapForCodes(
+        this.withScopeSnapshot(authenticatedUser, scopeSnapshot),
+        featureCodes,
+      );
+    return { featureAccess, scopeSnapshot };
+  }
+
+  private withScopeSnapshot(authenticatedUser: any, scopeSnapshot: any) {
+    const contextUser = { ...authenticatedUser };
+    Object.defineProperty(contextUser, '__authScopeSnapshot', {
+      configurable: false,
+      enumerable: false,
+      value: scopeSnapshot,
+      writable: false,
+    });
+    return contextUser;
   }
 
   private scopeSnapshotSelect() {

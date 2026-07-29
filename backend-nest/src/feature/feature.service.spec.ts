@@ -440,6 +440,106 @@ describe('FeatureService', () => {
     ).not.toHaveBeenCalled();
   });
 
+  it('keeps an id-bearing super admin independent from assignment lookup', async () => {
+    prisma.featureDefinition.findMany.mockResolvedValueOnce([
+      { code: 'HOME_DASHBOARD_SALES' },
+    ]);
+    prisma.user.findUnique.mockResolvedValueOnce({
+      ...storeUser,
+      id: 'super-1',
+      role: 'SUPER_ADMIN',
+    });
+    prisma.organizationNodeFeatureAssignment.findMany.mockRejectedValueOnce(
+      new Error('assignment lookup unavailable'),
+    );
+
+    await expect(
+      service.resolveFeatureAccessMapForCodes({ id: 'super-1' }, [
+        'HOME_DASHBOARD_SALES',
+        'MISSING_FEATURE',
+      ]),
+    ).resolves.toEqual({
+      HOME_DASHBOARD_SALES: true,
+      MISSING_FEATURE: false,
+    });
+    expect(prisma.user.findUnique).toHaveBeenCalledTimes(1);
+    expect(prisma.featureDefinition.findMany).toHaveBeenCalledTimes(1);
+    expect(
+      prisma.organizationNodeFeatureAssignment.findMany,
+    ).not.toHaveBeenCalled();
+  });
+
+  it('chunks thousands of distinct feature targets without mixing access maps', async () => {
+    const featureCode = 'HOME_DASHBOARD_SALES';
+    const users = Array.from({ length: 2_001 }, (_, index) => ({
+      id: `user-${index}`,
+      targetKey: `STORE-${index}`,
+    }));
+    prisma.featureDefinition.findMany.mockResolvedValueOnce([
+      { code: featureCode },
+    ]);
+    let contextResolutionInFlight = 0;
+    let maxContextResolutionInFlight = 0;
+    jest
+      .spyOn(service as any, 'resolveContext')
+      .mockImplementation(async (user: any) => {
+        contextResolutionInFlight += 1;
+        maxContextResolutionInFlight = Math.max(
+          maxContextResolutionInFlight,
+          contextResolutionInFlight,
+        );
+        await Promise.resolve();
+        contextResolutionInFlight -= 1;
+        return {
+          id: user.id,
+          role: 'STAFF',
+          organizationNodeActive: true,
+          organizationScopeRootId: 'org-domain-acare-vn',
+          organizationNodeType: 'LV4_STORE',
+          organizationNodeKey: user.targetKey,
+          organizationNodeFeatureTargets: [
+            {
+              scopeRootNodeId: 'org-domain-acare-vn',
+              nodeType: 'LV4_STORE',
+              nodeKey: user.targetKey,
+            },
+          ],
+        };
+      });
+    prisma.organizationNodeFeatureAssignment.findMany.mockImplementation(
+      async ({ where }: any) =>
+        where.OR.map((target: any) => ({
+          scopeRootNodeId: target.scopeRootNodeId,
+          nodeType: target.nodeType,
+          nodeKey: target.nodeKey,
+          featureCode,
+        })),
+    );
+
+    const accessMaps = await service.resolveFeatureAccessMapsForCodes(users, [
+      featureCode,
+    ]);
+
+    expect(accessMaps).toHaveLength(users.length);
+    expect(maxContextResolutionInFlight).toBeLessThanOrEqual(250);
+    expect(
+      accessMaps.every((accessMap) => accessMap[featureCode] === true),
+    ).toBe(true);
+    expect(
+      prisma.organizationNodeFeatureAssignment.findMany.mock.calls.length,
+    ).toBeGreaterThan(1);
+    for (const [input] of prisma.organizationNodeFeatureAssignment.findMany.mock
+      .calls) {
+      expect(input.where.OR.length).toBeLessThanOrEqual(250);
+    }
+    const queriedTargetKeys = new Set(
+      prisma.organizationNodeFeatureAssignment.findMany.mock.calls.flatMap(
+        ([input]: any[]) => input.where.OR.map((target: any) => target.nodeKey),
+      ),
+    );
+    expect(queriedTargetKeys.size).toBe(users.length);
+  });
+
   it('does not use legacy rule or per-user assignment for runtime access', async () => {
     rules = [{ featureCode: 'FIFO', enabled: true, userId: 'user-1' }];
 
