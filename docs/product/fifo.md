@@ -10,9 +10,16 @@ history where permitted.
 - Flutter FIFO screens live under `lib/features/fifo/`; sort widgets live under
   `lib/features/sort/`; shared FIFO check scanner/history helpers live under
   `lib/features/fifo_check/`.
-- Home, Tasks, sidebar, and mobile navigation expose one FIFO workspace only.
-  `Sắp xếp FIFO` stays inside the FIFO menu and keeps route `/sort` for runtime
-  compatibility; do not add a standalone Home/sidebar `Sắp xếp` entry.
+- `/operations` is the canonical catalog for staff-facing operational tools.
+  Its `Kho` group exposes `Kiểm tra FIFO` at `/fifo-check` and `Sắp xếp FIFO`
+  at `/sort` when the signed-in user has FIFO access.
+- `Cập nhật tồn kho` and `Lịch sử FIFO` are administrative tools exposed from
+  `Quản trị` when their existing permissions allow access. The admin catalog
+  opens `/admin/inventory-import` and `/fifo-history`; the older
+  `/fifo/inventory-import` alias keeps the same `FIFO_IMPORT` guard.
+- `/fifo-menu` is a compatibility-only deep link that redirects to
+  `/operations`. It must never render a separate FIFO hub or become a second
+  catalog of FIFO actions.
 - NestJS owns FIFO, sort, inventory compatibility, and FIFO log modules.
 - FIFO inventory reads and export/unexport writes use the OpsHub database table
   `fifo_inventory`. The table uses BigQuery inventory column names as the
@@ -35,11 +42,11 @@ history where permitted.
   A refresh upserts current rows and deactivates any existing
   `opshub_source='bigquery'` row that is missing from the latest valid BigQuery
   snapshot, including rows for an SR that no longer appears in the snapshot.
-- Users with `FIFO_IMPORT` access can manually import an Excel inventory export from the FIFO menu
-  with the physical serial inventory format as a supplemental path. Manual
-  imports map their Vietnamese headers into the canonical BigQuery shape,
-  upsert `opshub_source='manual'`, preserve export state, and do not deactivate
-  rows missing from the uploaded file.
+- Users with `FIFO_IMPORT` access can manually import an Excel inventory export
+  from `Quản trị` with the physical serial inventory format as a supplemental
+  path. Manual imports map their Vietnamese headers into the canonical BigQuery
+  shape, upsert `opshub_source='manual'`, preserve export state, and do not
+  deactivate rows missing from the uploaded file.
 - Manual `Ngày nhập kho` maps to `Date_import_site`; manual `Loại hàng = Hàng
   bán` normalizes to `BIN_type = Hàng bán mới tại kho`; manual-only columns are
   stored in `opshub_manual_payload` for audit.
@@ -65,4 +72,6 @@ history where permitted.
 - Unit tests for sort/FIFO rules.
 - NestJS service tests for inventory, sort, and FIFO log behavior.
 - Flutter tests for validators and user-visible states where practical.
+- Flutter navigation tests for the `/operations` grouping, administrative FIFO
+  tools, and the `/fifo-menu` compatibility redirect.
 - Manual app smoke for scanner-driven or device-specific flows.
