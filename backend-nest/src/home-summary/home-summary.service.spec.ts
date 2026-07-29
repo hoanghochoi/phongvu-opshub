@@ -323,6 +323,33 @@ describe('HomeSummaryService', () => {
     expect(key).not.toContain('staff@phongvu.vn');
   });
 
+  it('rate-limits repeated cache-hit diagnostics on the hot path', async () => {
+    const previousCacheFlag = process.env.HOME_SUMMARY_RESPONSE_CACHE_ENABLED;
+    process.env.HOME_SUMMARY_RESPONSE_CACHE_ENABLED = 'true';
+    try {
+      const { service } = createHarness();
+      const debug = jest.spyOn((service as any).logger, 'debug');
+      const user = { id: 'user-1', email: 'staff@phongvu.vn' };
+      const query = { startDate: '2026-07-04', endDate: '2026-07-04' };
+
+      await service.getSummary(user, query);
+      await service.getSummary(user, query);
+      await service.getSummary(user, query);
+
+      expect(
+        debug.mock.calls.filter(([message]) =>
+          String(message).includes('Home summary cache hit:'),
+        ),
+      ).toHaveLength(1);
+    } finally {
+      if (previousCacheFlag === undefined) {
+        delete process.env.HOME_SUMMARY_RESPONSE_CACHE_ENABLED;
+      } else {
+        process.env.HOME_SUMMARY_RESPONSE_CACHE_ENABLED = previousCacheFlag;
+      }
+    }
+  });
+
   it('separates legacy and daily-series response cache generations', async () => {
     const previousCacheFlag = process.env.HOME_SUMMARY_RESPONSE_CACHE_ENABLED;
     process.env.HOME_SUMMARY_RESPONSE_CACHE_ENABLED = 'true';
@@ -358,6 +385,488 @@ describe('HomeSummaryService', () => {
       ).resolves.toBe(dailyResponse);
 
       expect((service as any).computeSummary).toHaveBeenCalledTimes(2);
+    } finally {
+      if (previousCacheFlag === undefined) {
+        delete process.env.HOME_SUMMARY_RESPONSE_CACHE_ENABLED;
+      } else {
+        process.env.HOME_SUMMARY_RESPONSE_CACHE_ENABLED = previousCacheFlag;
+      }
+    }
+  });
+
+  it('extends a fresh principal-specific legacy cache with one scoped daily projection read', async () => {
+    const previousCacheFlag = process.env.HOME_SUMMARY_RESPONSE_CACHE_ENABLED;
+    process.env.HOME_SUMMARY_RESPONSE_CACHE_ENABLED = 'true';
+    try {
+      const { service } = createHarness();
+      const user = { id: 'user-1', email: 'staff@phongvu.vn' };
+      const legacyQuery = {
+        startDate: '2026-07-04',
+        endDate: '2026-07-04',
+      };
+      const dailyQuery = {
+        ...legacyQuery,
+        includeDailySeries: 'true' as const,
+      };
+      const legacyResponse = {
+        totalRevenue: 10,
+        totalOrders: 2,
+        reportedOrders: 1,
+        totalReports: 3,
+        freshness: { projectionVersion: 40 },
+      } as any;
+      const compute = jest
+        .spyOn(service as any, 'computeSummary')
+        .mockResolvedValue(legacyResponse);
+      const projection = jest
+        .spyOn(service as any, 'loadProjectionMetrics')
+        .mockResolvedValue({
+          totalRevenue: 10,
+          totalOrders: 2,
+          reportedOrders: 1,
+          totalReports: 3,
+          dailySeries: [
+            {
+              date: '2026-07-04',
+              totalRevenue: 10,
+              totalOrders: 2,
+              reportedOrders: 1,
+              totalReports: 3,
+            },
+          ],
+        });
+
+      await expect(service.getSummary(user, legacyQuery)).resolves.toBe(
+        legacyResponse,
+      );
+      (service as any).computationContextByResponse.set(legacyResponse, {
+        useProjection: true,
+        salesAvailable: true,
+        salesMetricsScope: {
+          available: true,
+          scope: 'OWN',
+          scopeLabel: 'Pháº¡m vi cÃ¡ nhÃ¢n',
+          scopeDetail: 'CP75',
+          unavailableMessage: null,
+          ownUserId: 'user-1',
+          ownEmail: 'staff@phongvu.vn',
+          ownPersonnelCode: 'PV001',
+          allowedStoreCodes: ['CP75'],
+        },
+      });
+
+      const extended = await service.getSummary(user, dailyQuery);
+      await expect(service.getSummary(user, dailyQuery)).resolves.toBe(
+        extended,
+      );
+
+      expect(compute).toHaveBeenCalledTimes(1);
+      expect(projection).toHaveBeenCalledTimes(1);
+      expect(projection).toHaveBeenCalledWith(
+        expect.objectContaining({
+          startDate: '2026-07-04',
+          endDate: '2026-07-04',
+        }),
+        expect.objectContaining({
+          scope: 'OWN',
+          ownEmail: 'staff@phongvu.vn',
+          allowedStoreCodes: ['CP75'],
+        }),
+        'SALES',
+        true,
+      );
+      expect(legacyResponse).not.toHaveProperty('dailySeries');
+      expect(extended).not.toBe(legacyResponse);
+      expect(extended.dailySeries).toHaveLength(1);
+    } finally {
+      if (previousCacheFlag === undefined) {
+        delete process.env.HOME_SUMMARY_RESPONSE_CACHE_ENABLED;
+      } else {
+        process.env.HOME_SUMMARY_RESPONSE_CACHE_ENABLED = previousCacheFlag;
+      }
+    }
+  });
+
+  it('falls back to a full opted-in computation when a cached legacy aggregate drifts', async () => {
+    const previousCacheFlag = process.env.HOME_SUMMARY_RESPONSE_CACHE_ENABLED;
+    process.env.HOME_SUMMARY_RESPONSE_CACHE_ENABLED = 'true';
+    try {
+      const { service } = createHarness();
+      const user = { id: 'user-1', email: 'staff@phongvu.vn' };
+      const legacyQuery = {
+        startDate: '2026-07-04',
+        endDate: '2026-07-04',
+      };
+      const legacyResponse = {
+        totalRevenue: 10,
+        totalOrders: 2,
+        reportedOrders: 1,
+        totalReports: 3,
+        freshness: { projectionVersion: 40 },
+      } as any;
+      const recomputed = {
+        ...legacyResponse,
+        totalRevenue: 11,
+        dailySeries: [
+          {
+            date: '2026-07-04',
+            totalRevenue: 11,
+            totalOrders: 2,
+            reportedOrders: 1,
+            totalReports: 3,
+          },
+        ],
+      } as any;
+      const compute = jest
+        .spyOn(service as any, 'computeSummary')
+        .mockResolvedValueOnce(legacyResponse)
+        .mockResolvedValueOnce(recomputed);
+      jest.spyOn(service as any, 'loadProjectionMetrics').mockResolvedValue({
+        totalRevenue: 11,
+        totalOrders: 2,
+        reportedOrders: 1,
+        totalReports: 3,
+        dailySeries: recomputed.dailySeries,
+      });
+
+      await service.getSummary(user, legacyQuery);
+      (service as any).computationContextByResponse.set(legacyResponse, {
+        useProjection: true,
+        salesAvailable: true,
+        salesMetricsScope: {
+          available: true,
+          scope: 'OWN',
+          scopeLabel: 'Pháº¡m vi cÃ¡ nhÃ¢n',
+          scopeDetail: 'CP75',
+          unavailableMessage: null,
+          ownUserId: 'user-1',
+          ownEmail: 'staff@phongvu.vn',
+          ownPersonnelCode: 'PV001',
+          allowedStoreCodes: ['CP75'],
+        },
+      });
+
+      await expect(
+        service.getSummary(user, {
+          ...legacyQuery,
+          includeDailySeries: 'true',
+        }),
+      ).resolves.toBe(recomputed);
+      expect(compute).toHaveBeenCalledTimes(2);
+    } finally {
+      if (previousCacheFlag === undefined) {
+        delete process.env.HOME_SUMMARY_RESPONSE_CACHE_ENABLED;
+      } else {
+        process.env.HOME_SUMMARY_RESPONSE_CACHE_ENABLED = previousCacheFlag;
+      }
+    }
+  });
+
+  it('does not store a daily extension invalidated while its projection read is in flight', async () => {
+    const previousCacheFlag = process.env.HOME_SUMMARY_RESPONSE_CACHE_ENABLED;
+    process.env.HOME_SUMMARY_RESPONSE_CACHE_ENABLED = 'true';
+    try {
+      const { service } = createHarness();
+      const user = { id: 'user-1', email: 'staff@phongvu.vn' };
+      const legacyQuery = {
+        startDate: '2026-07-04',
+        endDate: '2026-07-04',
+      };
+      const dailyQuery = {
+        ...legacyQuery,
+        includeDailySeries: 'true' as const,
+      };
+      const legacyResponse = {
+        totalRevenue: 10,
+        totalOrders: 2,
+        reportedOrders: 1,
+        totalReports: 3,
+      } as any;
+      const recomputed = {
+        ...legacyResponse,
+        dailySeries: [],
+      } as any;
+      const compute = jest
+        .spyOn(service as any, 'computeSummary')
+        .mockResolvedValueOnce(legacyResponse)
+        .mockResolvedValueOnce(recomputed);
+      let resolveProjection!: (value: any) => void;
+      jest
+        .spyOn(service as any, 'loadProjectionMetrics')
+        .mockImplementationOnce(
+          () =>
+            new Promise((resolve) => {
+              resolveProjection = resolve;
+            }),
+        );
+
+      await service.getSummary(user, legacyQuery);
+      (service as any).computationContextByResponse.set(legacyResponse, {
+        useProjection: true,
+        salesAvailable: true,
+        salesMetricsScope: {
+          available: true,
+          scope: 'OWN',
+          scopeLabel: 'PhÃ¡ÂºÂ¡m vi cÃƒÂ¡ nhÃƒÂ¢n',
+          scopeDetail: 'CP75',
+          unavailableMessage: null,
+          ownUserId: 'user-1',
+          ownEmail: 'staff@phongvu.vn',
+          ownPersonnelCode: 'PV001',
+          allowedStoreCodes: ['CP75'],
+        },
+      });
+
+      const pending = service.getSummary(user, dailyQuery);
+      await Promise.resolve();
+      const invalidation = service.invalidateSummaryResponseCache([
+        { affectedDates: ['2026-07-04'], projectionVersion: 41 },
+      ]);
+      expect(invalidation.invalidatedInFlight).toBe(1);
+
+      resolveProjection({
+        totalRevenue: 10,
+        totalOrders: 2,
+        reportedOrders: 1,
+        totalReports: 3,
+        dailySeries: [],
+      });
+      await pending;
+      const dailyKey = (service as any).summaryResponseCacheKey(
+        user,
+        dailyQuery,
+      );
+      expect((service as any).summaryResponseCache.has(dailyKey)).toBe(false);
+      await expect(service.getSummary(user, dailyQuery)).resolves.toBe(
+        recomputed,
+      );
+      expect(compute).toHaveBeenCalledTimes(2);
+    } finally {
+      if (previousCacheFlag === undefined) {
+        delete process.env.HOME_SUMMARY_RESPONSE_CACHE_ENABLED;
+      } else {
+        process.env.HOME_SUMMARY_RESPONSE_CACHE_ENABLED = previousCacheFlag;
+      }
+    }
+  });
+
+  it('deduplicates shared freshness and managed-scope progress while isolating principal progress', async () => {
+    const previousCacheFlag = process.env.HOME_SUMMARY_RESPONSE_CACHE_ENABLED;
+    process.env.HOME_SUMMARY_RESPONSE_CACHE_ENABLED = 'true';
+    try {
+      const { service } = createHarness();
+      const range = (service as any).parseSummaryRange({
+        startDate: '2026-07-01',
+        endDate: '2026-07-07',
+      });
+      const freshness = {
+        freshness: {
+          projectionGeneratedAt: new Date('2026-07-07T03:00:00Z'),
+          projectionLagSeconds: 0,
+          projectionVersion: 40,
+          sourceUpdatedAtBySource: {},
+          isStale: false,
+        },
+        versionsByDate: new Map([['2026-07-07', 40]]),
+      };
+      const freshnessLoad = jest
+        .spyOn(service as any, 'loadProjectionFreshness')
+        .mockResolvedValue(freshness);
+
+      await Promise.all([
+        (service as any).loadProjectionFreshnessCached(range, true, true),
+        (service as any).loadProjectionFreshnessCached(range, true, true),
+      ]);
+      expect(freshnessLoad).toHaveBeenCalledTimes(1);
+
+      const managedScope = {
+        available: true,
+        scope: 'MANAGED_SCOPE',
+        scopeLabel: 'Cá»­a hÃ ng',
+        scopeDetail: 'CP75',
+        unavailableMessage: null,
+        ownUserId: null,
+        ownEmail: null,
+        ownPersonnelCode: null,
+        allowedStoreCodes: ['CP75'],
+      };
+      const progress = {
+        status: 'AVAILABLE',
+        scope: 'MANAGED',
+        missingStoreCodes: [],
+        range: { actual: 1, target: 2, percentage: 50 },
+        day: { actual: 1, target: 2, percentage: 50 },
+        week: { actual: 1, target: 2, percentage: 50 },
+        month: { actual: 1, target: 2, percentage: 50 },
+      };
+      const progressLoad = jest
+        .spyOn(service as any, 'buildSalesProgress')
+        .mockResolvedValue(progress);
+      const summaryDate = new Date('2026-07-07T00:00:00Z');
+      await Promise.all([
+        (service as any).buildSharedScopeSalesProgressCached(
+          managedScope,
+          summaryDate,
+          range,
+        ),
+        (service as any).buildSharedScopeSalesProgressCached(
+          { ...managedScope, allowedStoreCodes: ['cp75'] },
+          summaryDate,
+          range,
+        ),
+      ]);
+      expect(progressLoad).toHaveBeenCalledTimes(1);
+      expect(() =>
+        (service as any).buildSharedScopeSalesProgressCached(
+          { ...managedScope, scope: 'OWN' },
+          summaryDate,
+          range,
+        ),
+      ).toThrow('Shared sales progress requires a non-personal scope.');
+
+      const bundle = {
+        personal: progress,
+        scope: progress,
+        assignees: [],
+        selectedUserId: null,
+        selectedScope: null,
+      };
+      const bundleLoad = jest
+        .spyOn(service as any, 'buildSalesProgressBundle')
+        .mockResolvedValue(bundle);
+      const ownScope = {
+        ...managedScope,
+        scope: 'OWN',
+        ownUserId: 'user-1',
+        ownEmail: 'staff@phongvu.vn',
+      };
+      await (service as any).buildSalesProgressBundleCached(
+        { id: 'user-1', email: 'staff@phongvu.vn' },
+        ownScope,
+        summaryDate,
+        range,
+        null,
+      );
+      await (service as any).buildSalesProgressBundleCached(
+        { id: 'user-1', email: 'staff@phongvu.vn' },
+        ownScope,
+        summaryDate,
+        range,
+        null,
+      );
+      await (service as any).buildSalesProgressBundleCached(
+        { id: 'user-2', email: 'staff2@phongvu.vn' },
+        {
+          ...ownScope,
+          ownUserId: 'user-2',
+          ownEmail: 'staff2@phongvu.vn',
+        },
+        summaryDate,
+        range,
+        null,
+      );
+      expect(bundleLoad).toHaveBeenCalledTimes(2);
+
+      const invalidation = service.invalidateSummaryResponseCache([
+        { affectedDates: ['2026-07-07'], projectionVersion: 41 },
+      ]);
+      expect(invalidation.invalidatedSupportEntries).toBeGreaterThanOrEqual(4);
+      await (service as any).loadProjectionFreshnessCached(range, true, true);
+      expect(freshnessLoad).toHaveBeenCalledTimes(2);
+    } finally {
+      if (previousCacheFlag === undefined) {
+        delete process.env.HOME_SUMMARY_RESPONSE_CACHE_ENABLED;
+      } else {
+        process.env.HOME_SUMMARY_RESPONSE_CACHE_ENABLED = previousCacheFlag;
+      }
+    }
+  });
+
+  it('expires support data after five seconds so it cannot extend the response staleness window', async () => {
+    const previousCacheFlag = process.env.HOME_SUMMARY_RESPONSE_CACHE_ENABLED;
+    process.env.HOME_SUMMARY_RESPONSE_CACHE_ENABLED = 'true';
+    const nowSpy = jest.spyOn(Date, 'now').mockReturnValue(1_000_000);
+    try {
+      const { service } = createHarness();
+      const range = (service as any).parseSummaryRange({
+        startDate: '2026-07-01',
+        endDate: '2026-07-07',
+      });
+      const load = jest
+        .spyOn(service as any, 'loadProjectionFreshness')
+        .mockResolvedValue({
+          freshness: {
+            projectionGeneratedAt: new Date('2026-07-07T03:00:00Z'),
+            projectionLagSeconds: 0,
+            projectionVersion: 40,
+            sourceUpdatedAtBySource: {},
+            isStale: false,
+          },
+          versionsByDate: new Map([['2026-07-07', 40]]),
+        });
+
+      await (service as any).loadProjectionFreshnessCached(range, true, true);
+      nowSpy.mockReturnValue(1_004_999);
+      await (service as any).loadProjectionFreshnessCached(range, true, true);
+      expect(load).toHaveBeenCalledTimes(1);
+
+      nowSpy.mockReturnValue(1_005_001);
+      await (service as any).loadProjectionFreshnessCached(range, true, true);
+      expect(load).toHaveBeenCalledTimes(2);
+    } finally {
+      nowSpy.mockRestore();
+      if (previousCacheFlag === undefined) {
+        delete process.env.HOME_SUMMARY_RESPONSE_CACHE_ENABLED;
+      } else {
+        process.env.HOME_SUMMARY_RESPONSE_CACHE_ENABLED = previousCacheFlag;
+      }
+    }
+  });
+
+  it('prevents an invalidated support load from overwriting a newer cache generation', async () => {
+    const previousCacheFlag = process.env.HOME_SUMMARY_RESPONSE_CACHE_ENABLED;
+    process.env.HOME_SUMMARY_RESPONSE_CACHE_ENABLED = 'true';
+    try {
+      const { service } = createHarness();
+      const range = (service as any).parseSummaryRange({
+        startDate: '2026-07-01',
+        endDate: '2026-07-07',
+      });
+      const oldValue = {
+        freshness: { projectionVersion: 40 },
+        versionsByDate: new Map([['2026-07-07', 40]]),
+      } as any;
+      const newValue = {
+        freshness: { projectionVersion: 41 },
+        versionsByDate: new Map([['2026-07-07', 41]]),
+      } as any;
+      let resolveOld!: (value: any) => void;
+      const oldPromise = new Promise((resolve) => {
+        resolveOld = resolve;
+      });
+      const load = jest
+        .spyOn(service as any, 'loadProjectionFreshness')
+        .mockImplementationOnce(() => oldPromise)
+        .mockResolvedValueOnce(newValue);
+
+      const oldLoad = (service as any).loadProjectionFreshnessCached(
+        range,
+        true,
+        true,
+      );
+      service.invalidateSummaryResponseCache([
+        { affectedDates: ['2026-07-07'], projectionVersion: 41 },
+      ]);
+      await expect(
+        (service as any).loadProjectionFreshnessCached(range, true, true),
+      ).resolves.toBe(newValue);
+
+      resolveOld(oldValue);
+      await expect(oldLoad).resolves.toBe(oldValue);
+      await expect(
+        (service as any).loadProjectionFreshnessCached(range, true, true),
+      ).resolves.toBe(newValue);
+      expect(load).toHaveBeenCalledTimes(2);
     } finally {
       if (previousCacheFlag === undefined) {
         delete process.env.HOME_SUMMARY_RESPONSE_CACHE_ENABLED;
