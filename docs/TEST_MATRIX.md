@@ -3,6 +3,26 @@
 This file maps product behavior to proof. Existing flows are marked
 `existing_unverified` until fresh validation evidence is attached.
 
+- `OPS-35`/`UPDATE-004`, 2026-07-29: installed Windows staging self-update
+  smoke passed from `2026.7.28+200259` to `2026.7.29+200267`. The signed
+  installer was published by staging SHA
+  `157cd93158d4978c3d0e303cf886a6c46cc10515`; public metadata and
+  `latest.json` agreed on build `200267`, size `93,825,232` bytes, SHA-256
+  `d23d31aa31d5220320af13d8efaad1582cf0c5f58f897506b869104132e5e09e`,
+  package type, and silent `/OPSHUBRELAUNCH=1` arguments. The installed client
+  automatically downloaded the exact byte count, verified SHA-256, logged
+  `INSTALLING_LAUNCH_STARTED`, returned from the installer handoff in `279 ms`,
+  closed, installed, and relaunched. The relaunched executable reported
+  `2026.7.29+200267`; three fresh metadata checks logged
+  `currentBuild=latestBuild=200267` with no update available. Logs contained
+  only sanitized platform/build/host/size/duration context. The separate
+  production installation was unchanged. Observed residual: Windows uninstall-registry
+  `DisplayVersion` remained `2026.07.28.259` although the installed executable
+  and runtime build were `200267`. It did not block the observed app
+  update/relaunch path, but package-registration metadata needs follow-up before
+  another workflow relies on it. Android installed self-update smoke remains
+  pending and is outside this Windows hotfix acceptance gate.
+
 - `OPS-37`, 2026-07-29: `/operations` is the only active operational catalog.
   `Kiểm tra FIFO` and `Sắp xếp FIFO` remain permission-gated in `Kho`, while
   `Cập nhật tồn kho` and `Lịch sử FIFO` remain permission-gated in `Quản trị`.
