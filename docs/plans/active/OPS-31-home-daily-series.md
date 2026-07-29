@@ -342,3 +342,66 @@ contract changes. Expand/contract migration policy is therefore not invoked.
 Remaining gates are PR/CI/lifecycle, exact-SHA staging deployment, unchanged
 cold 250-VU/2,000-request load proof, selected-SA isolation and mandatory
 synthetic cleanup.
+
+### Staging QA attempt 4 and cross-principal statement batching
+
+PR #56 deployed successfully at exact staging SHA
+`d108748eb7ef9d89170613d2ce4bd7eaaff3df2d` through run `30474756531`.
+Authenticated smoke again passed auth, bootstrap, scopes and legacy/daily
+1/7/30/90 ordering, zero-fill, parity and freshness. The fixed cold profile
+returned 2,000/2,000 HTTP 200 with 100% contract/parity and zero
+429/5xx/timeout, but still failed latency. Client p50/p95/p99/max were
+`425.9/2130/2910/3360 ms`; server Home values were
+`312/1610.2/2368.17/2741 ms`.
+
+The exact-principal pre-query window grouped 483 requests in 185 multi-caller
+batches, saving 298 statements and leaving an inferred 1,702 snapshot
+statements. Sixty initial Home loads remained at
+`1655.5/2468.3/2642.71/2661 ms`; sixty daily extensions were
+`178.5/318.25/365.61/378 ms`. API CPU peaked at 137.10% and PostgreSQL at
+87.06% with at most 17/100 connections, one active connection and zero active
+wait in samples. Redis had no eviction/blocked client and no container
+restarted. Cleanup revoked/deleted exactly 60 synthetic sessions/users and
+proved zero remaining records plus absent server/local tokens and k6 process.
+
+The next bounded fix keeps the same query-start security boundary but batches
+all requests already waiting in the two-millisecond window into one
+parameterized PostgreSQL statement. The pending array is detached before that
+statement starts; requests arriving afterward form a later batch and cannot
+reuse its snapshot. `jsonb_to_recordset` supplies a generated request index,
+exact user id and normalized session id; indexed user/session joins return one
+row per request. Token, current access state, platform, session version,
+revocation and expiry are still evaluated separately for every caller, with
+request-local principal/session/Date objects. A missing/locked user rejects only
+its matching request, database failure rejects the whole batch, and a 5,000
+pending-request cap falls back to independent full validation. There is no TTL,
+post-query sharing, schema, migration, token, permission, event, rate-limit or
+public API change.
+
+### Cross-principal statement-batch local proof
+
+The implementation detaches the pending array synchronously before issuing the
+database statement. A 250-request burst across 60 distinct principals therefore
+uses one parameterized statement while every request retains its own payload,
+row index, authorization evaluation and cloned principal. A live read-only
+staging `EXPLAIN` with nonexistent synthetic ids confirmed the SQL syntax and
+primary-key user join; the lateral session lookup remains bounded to the exact
+session id. No data row or PII was returned by that check.
+
+Exact local proof on the final three-file fingerprint passed:
+
+- JwtStrategy: 20 tests covering the one-statement 250-request burst,
+  before-query lock visibility, after-query lock/token/session isolation,
+  mixed-principal failure isolation, immutable captured claims, query-failure
+  cleanup/recovery, request-local mutable objects and fail-closed saturation.
+- JwtStrategy plus AuthSessionService: 2 suites, 31 tests.
+- Affected auth/session/throttler/Home: 11 suites, 176 tests.
+- Full Nest: 90 suites, 964 tests; Nest build passed.
+- Existing Flutter auth bootstrap/session/access-refresh/realtime/Home
+  consumers: 76 tests; `flutter analyze --no-pub` found no issue.
+- Changed-file Prettier and `git diff --check` passed.
+
+No migration exists in this changeset, so expand/contract policy is not
+invoked. Remaining release gates are PR/CI/lifecycle, exact-SHA staging deploy,
+the unchanged cold load profile, selected-SA isolation and mandatory synthetic
+cleanup.
