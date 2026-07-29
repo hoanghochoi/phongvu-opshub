@@ -525,3 +525,93 @@ No schema, migration, token, session, permission, cache-key, event, rate-limit,
 API or Flutter production contract changes. Remaining gates are PR/CI/lifecycle,
 exact-SHA staging deployment, the unchanged fixed cold load profile, selected-SA
 isolation and mandatory synthetic cleanup.
+
+### Staging QA attempt 7 and cross-principal feature batching
+
+PR #59 deployed successfully at exact staging SHA
+`c92bef8f5b1ce376dac113b6bb8104b10a4e61b4` through run `30487118598`.
+Smoke passed auth/bootstrap/scopes and legacy/daily 1/7/30/90-day contract,
+ordering, freshness and parity. Synthetic run `ops31slice-20260730-0304`
+returned 2,000/2,000 HTTP 200 with 100% contract/parity and zero
+429/5xx/timeout, but latency regressed. Client p50/p95/p99/max were
+`334.25/3030/4100/4150 ms`; every range failed the p95 and p99 gates.
+
+Sixty cold synthetic Home loads plus smoke measured
+`2483/2945/2991.4/3043 ms` at p50/p95/p99/max, while 59 daily extensions were
+`148/251.2/260.26/262 ms`. Lightweight context itself was
+`1643/1855 ms` at p50/p95; scope resolution was `471/814 ms`, sales progress
+`240/439 ms`, and metrics `180/343 ms`. API CPU peaked at 139.19%, PostgreSQL
+at 87.60%, and connections at 17/100 with five active and zero waiting. Redis
+eviction/blocked and all restart counts remained zero.
+
+The two-millisecond scope window produced only 14 multi-caller batches covering
+31 callers, with two to four principals per batch. The inferred scope query
+count remained 44. More importantly, every principal resumed separately after
+that read and issued its own active-feature and node-assignment resolution,
+creating another pair of PostgreSQL queries per cold caller. The partial batch
+therefore synchronized a large cold wave without eliminating enough database
+work, and the resulting contention also delayed downstream scope, progress and
+metric reads.
+
+Cleanup revoked exactly 60 users and sessions, deleted exactly 60 users, and a
+separate idempotent verification proved zero remaining users, tagged grants,
+email codes and known references. Server/local tokens and the k6 process were
+absent; containers stayed healthy with zero restart. Selected-SA proof was not
+run because latency failed.
+
+The next bounded fix keeps the same no-TTL, pre-query-only security boundary
+but closes the entire feature/scope slice as one cross-principal batch. A
+20-millisecond cold-miss window is detached before the first database query.
+One exact-user scope read is followed by one active-feature lookup, one shared
+organization-tree load and a union node-assignment lookup for all principals in
+that detached batch. The normal Home batch uses one assignment query; unusually
+large target sets are split into bounded chunks. Each caller still receives
+only its own scope row and requested feature map; missing users deny, any
+scope/feature query failure rejects only that batch, and overflow uses the
+existing independent path.
+There is no post-query sharing or migration, so old and new runtimes remain
+database-compatible under the expand/contract policy.
+
+### Cross-principal feature/scope batch local proof
+
+The bounded patch now groups the exact-user scope read and feature resolution in
+one detached 20-millisecond pre-query batch. Duplicate principals are resolved
+once, feature codes are unioned for shared queries, and each caller receives
+only its own scope row and requested feature subset. The batched feature
+resolver performs one active-definition lookup and reuses the shared
+organization tree load. Context resolution and union node-assignment queries
+are both capped at 250 items per chunk, preventing a 5,000-caller burst from
+creating unbounded concurrent context work or one oversized Prisma `OR`. Super
+admin contexts never contribute assignment targets, so an all-super-admin batch
+keeps active-only access even if the assignment store is unavailable. Missing
+users deny, scope or feature failures reject the detached batch, and overflow
+retains the independent path. Batch start/success/failure and overflow branches
+now log counts, duration and sanitized errors without identity or credential
+payloads. There is still no TTL, Redis, post-query sharing, schema, migration,
+API, permission, token, session, event, rate-limit, or Flutter production
+change.
+
+The first independent correctness review blocked publication on the
+id-bearing super-admin failure coupling, an unbounded union-assignment query,
+missing failure diagnostics and stale proof. The security review independently
+confirmed principal isolation and parameterization, closed revocation and
+shared-object concerns as non-actionable, and kept only the same bounded-batch
+availability risk. The patch now closes those actionable findings with:
+
+- an id-bearing super-admin regression proving active-only access without an
+  assignment query;
+- a 2,001-principal/target regression proving context concurrency and every
+  assignment-query `OR` stay at or below 250 while all access maps remain exact;
+- a two-principal failure/recovery regression proving one sanitized batch error
+  log with no email or token content;
+- duplicate-principal, mixed-subset, missing-user, detach, overflow and real
+  FeatureService handoff regressions retained unchanged.
+
+The post-finding focused gate passes 3 suites / 92 tests, Nest build, changed-
+file Prettier and `git diff --check`. Earlier affected/full Nest and Flutter
+results predate this review patch and are intentionally stale. The final
+publication fingerprint must receive a second independent correctness/security
+read and fresh focused, 13-suite affected, full Nest/build, protected Flutter,
+analyze, Prettier and diff proof before commit. Exact results belong in the PR
+and Linear proof attached to that unchanged commit so this plan does not create
+another post-proof fingerprint change.

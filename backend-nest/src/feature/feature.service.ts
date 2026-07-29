@@ -22,6 +22,8 @@ import { getOrganizationTree } from '../common/organization-tree-cache';
 const SUPER_ADMIN_ROLE = SYSTEM_ROLE_SUPER_ADMIN;
 const ADMIN_ROLE = SYSTEM_ROLE_ADMIN;
 const VALID_WORK_SCOPES = new Set(['NATIONAL', 'REGION', 'AREA', 'STORE']);
+const FEATURE_CONTEXT_RESOLUTION_LIMIT = 250;
+const FEATURE_ASSIGNMENT_QUERY_TARGET_LIMIT = 250;
 
 type FeatureNodeTarget = {
   scopeRootNodeId: string;
@@ -133,6 +135,17 @@ export class FeatureService implements OnModuleInit {
     user: any,
     featureCodeInputs: string[],
   ) {
+    const [accessMap] = await this.resolveFeatureAccessMapsForCodes(
+      [user],
+      featureCodeInputs,
+    );
+    return accessMap ?? {};
+  }
+
+  async resolveFeatureAccessMapsForCodes(
+    users: any[],
+    featureCodeInputs: string[],
+  ): Promise<Record<string, boolean>[]> {
     const featureCodes = Array.from(
       new Set(
         featureCodeInputs.map((featureCode) =>
@@ -140,47 +153,71 @@ export class FeatureService implements OnModuleInit {
         ),
       ),
     );
-    if (featureCodes.length === 0) return {};
+    if (users.length === 0) return [];
+    if (featureCodes.length === 0) return users.map(() => ({}));
 
-    const activeFeatures = await this.prisma.featureDefinition.findMany({
-      where: { code: { in: featureCodes }, isActive: true },
-      select: { code: true },
-    });
+    const [activeFeatures, contexts] = await Promise.all([
+      this.prisma.featureDefinition.findMany({
+        where: { code: { in: featureCodes }, isActive: true },
+        select: { code: true },
+      }),
+      this.resolveFeatureContexts(users),
+    ]);
     const activeCodes = new Set(activeFeatures.map((feature) => feature.code));
-    const context = await this.resolveContext(user);
-    if (this.normalizeSystemRole(context.role) === SUPER_ADMIN_ROLE) {
+    const targetGroupsByContext = contexts.map((context) =>
+      this.requiredFeatureTargetGroups(context),
+    );
+    const superAdminByContext = contexts.map(
+      (context) => this.normalizeSystemRole(context.role) === SUPER_ADMIN_ROLE,
+    );
+    const uniqueTargets = new Map<string, FeatureNodeTarget>();
+    for (const [index, targetGroups] of targetGroupsByContext.entries()) {
+      if (superAdminByContext[index]) continue;
+      for (const target of targetGroups.flat()) {
+        uniqueTargets.set(this.featureTargetKey(target, ''), target);
+      }
+    }
+    const enabledAssignments = await this.enabledFeatureAssignmentKeys(
+      Array.from(uniqueTargets.values()),
+      featureCodes.filter((featureCode) => activeCodes.has(featureCode)),
+    );
+
+    return contexts.map((context, index) => {
+      const targetGroups = targetGroupsByContext[index];
+      const superAdmin = superAdminByContext[index];
       return Object.fromEntries(
         featureCodes.map((featureCode) => [
           featureCode,
-          activeCodes.has(featureCode),
+          activeCodes.has(featureCode) &&
+            (superAdmin ||
+              targetGroups.some((targets) =>
+                targets.every((target) =>
+                  enabledAssignments.has(
+                    this.featureTargetKey(target, featureCode),
+                  ),
+                ),
+              )),
         ]),
       );
-    }
+    });
+  }
 
-    const targetGroups = this.requiredFeatureTargetGroups(context);
-    if (targetGroups.length === 0) {
-      return Object.fromEntries(
-        featureCodes.map((featureCode) => [featureCode, false]),
+  private async resolveFeatureContexts(users: any[]) {
+    const contexts: FeatureContext[] = [];
+    for (
+      let offset = 0;
+      offset < users.length;
+      offset += FEATURE_CONTEXT_RESOLUTION_LIMIT
+    ) {
+      contexts.push(
+        ...(await Promise.all(
+          users
+            .slice(offset, offset + FEATURE_CONTEXT_RESOLUTION_LIMIT)
+            .map((user) => this.resolveContext(user)),
+        )),
       );
     }
-
-    const enabledAssignments = await this.enabledFeatureAssignmentKeys(
-      targetGroups.flat(),
-      featureCodes.filter((featureCode) => activeCodes.has(featureCode)),
-    );
-    return Object.fromEntries(
-      featureCodes.map((featureCode) => [
-        featureCode,
-        activeCodes.has(featureCode) &&
-          targetGroups.some((targets) =>
-            targets.every((target) =>
-              enabledAssignments.has(
-                this.featureTargetKey(target, featureCode),
-              ),
-            ),
-          ),
-      ]),
-    );
+    return contexts;
   }
 
   async canAccessFeature(user: any, featureCode: string) {
@@ -1003,23 +1040,41 @@ export class FeatureService implements OnModuleInit {
     if (targets.length === 0 || normalizedFeatureCodes.length === 0) {
       return new Set<string>();
     }
-    const rows = await this.prisma.organizationNodeFeatureAssignment.findMany({
-      where: {
-        enabled: true,
-        featureCode: { in: normalizedFeatureCodes },
-        OR: targets.map((target) => ({
-          scopeRootNodeId: target.scopeRootNodeId,
-          nodeType: target.nodeType,
-          nodeKey: target.nodeKey,
+    const rows: Array<{
+      scopeRootNodeId: string;
+      nodeType: string;
+      nodeKey: string;
+      featureCode: string;
+    }> = [];
+    for (
+      let offset = 0;
+      offset < targets.length;
+      offset += FEATURE_ASSIGNMENT_QUERY_TARGET_LIMIT
+    ) {
+      const targetChunk = targets.slice(
+        offset,
+        offset + FEATURE_ASSIGNMENT_QUERY_TARGET_LIMIT,
+      );
+      rows.push(
+        ...(await this.prisma.organizationNodeFeatureAssignment.findMany({
+          where: {
+            enabled: true,
+            featureCode: { in: normalizedFeatureCodes },
+            OR: targetChunk.map((target) => ({
+              scopeRootNodeId: target.scopeRootNodeId,
+              nodeType: target.nodeType,
+              nodeKey: target.nodeKey,
+            })),
+          },
+          select: {
+            scopeRootNodeId: true,
+            nodeType: true,
+            nodeKey: true,
+            featureCode: true,
+          },
         })),
-      },
-      select: {
-        scopeRootNodeId: true,
-        nodeType: true,
-        nodeKey: true,
-        featureCode: true,
-      },
-    });
+      );
+    }
     return new Set(
       rows.map((row) =>
         this.featureTargetKey(

@@ -231,13 +231,16 @@ describe('AuthContextService', () => {
     };
     const featureService = {
       resolveFeatureAccessMap: jest.fn(),
-      resolveFeatureAccessMapForCodes: jest.fn(
-        async (user: any, featureCodes: string[]) =>
-          Object.fromEntries(
-            featureCodes.map((featureCode) => [
-              featureCode,
-              user.__authScopeSnapshot.id === 'user-1',
-            ]),
+      resolveFeatureAccessMapForCodes: jest.fn(),
+      resolveFeatureAccessMapsForCodes: jest.fn(
+        async (users: any[], featureCodes: string[]) =>
+          users.map((user) =>
+            Object.fromEntries(
+              featureCodes.map((featureCode) => [
+                featureCode,
+                user.__authScopeSnapshot.id === 'user-1',
+              ]),
+            ),
           ),
       ),
     };
@@ -278,7 +281,7 @@ describe('AuthContextService', () => {
       { id: 'missing-user' },
       featureCodes,
     );
-    jest.advanceTimersByTime(2);
+    jest.advanceTimersByTime(20);
     const [first, second, missing] = await Promise.all([
       firstPromise,
       secondPromise,
@@ -315,14 +318,101 @@ describe('AuthContextService', () => {
       scopeSnapshot: null,
     });
     expect(
+      featureService.resolveFeatureAccessMapsForCodes,
+    ).toHaveBeenCalledTimes(1);
+    expect(
+      featureService.resolveFeatureAccessMapsForCodes,
+    ).toHaveBeenCalledWith(
+      expect.arrayContaining([
+        expect.objectContaining({ id: 'user-1' }),
+        expect.objectContaining({ id: 'user-2' }),
+      ]),
+      featureCodes,
+    );
+    expect(
       featureService.resolveFeatureAccessMapForCodes,
-    ).toHaveBeenCalledTimes(2);
+    ).not.toHaveBeenCalled();
     expect(featureService.resolveFeatureAccessMap).not.toHaveBeenCalled();
     expect(authService.getUserData).not.toHaveBeenCalled();
     expect(authService.projectUserData).not.toHaveBeenCalled();
     expect(policyService.resolvePolicyAccessMap).not.toHaveBeenCalled();
     expect(redis.getJson).not.toHaveBeenCalled();
     expect(redis.setJsonWithTtl).not.toHaveBeenCalled();
+  });
+
+  it('deduplicates a principal while isolating mixed feature subsets', async () => {
+    jest.useFakeTimers();
+    const prisma = {
+      user: {
+        findMany: jest.fn().mockResolvedValue([
+          { id: 'user-2', organizationAssignments: [] },
+          { id: 'user-1', organizationAssignments: [] },
+        ]),
+        findUnique: jest.fn(),
+      },
+    };
+    const featureService = {
+      resolveFeatureAccessMapsForCodes: jest.fn(async (users: any[]) =>
+        users.map((user) => ({
+          HOME_DASHBOARD_SALES: user.__authScopeSnapshot.id === 'user-1',
+          HOME_DASHBOARD_FINANCE: user.__authScopeSnapshot.id === 'user-2',
+        })),
+      ),
+    };
+    const service = new AuthContextService(
+      {} as any,
+      featureService as any,
+      {} as any,
+      prisma as any,
+      {} as any,
+    );
+
+    const firstSales = service.withFeatureScopeContext({ id: 'user-1' }, [
+      'HOME_DASHBOARD_SALES',
+    ]);
+    const firstFinance = service.withFeatureScopeContext({ id: 'user-1' }, [
+      'HOME_DASHBOARD_FINANCE',
+    ]);
+    const secondFinance = service.withFeatureScopeContext({ id: 'user-2' }, [
+      'HOME_DASHBOARD_FINANCE',
+    ]);
+    jest.advanceTimersByTime(20);
+
+    await expect(firstSales).resolves.toMatchObject({
+      __authContext: {
+        featureAccess: { HOME_DASHBOARD_SALES: true },
+        scopeSnapshot: { id: 'user-1' },
+      },
+    });
+    await expect(firstFinance).resolves.toMatchObject({
+      __authContext: {
+        featureAccess: { HOME_DASHBOARD_FINANCE: false },
+        scopeSnapshot: { id: 'user-1' },
+      },
+    });
+    await expect(secondFinance).resolves.toMatchObject({
+      __authContext: {
+        featureAccess: { HOME_DASHBOARD_FINANCE: true },
+        scopeSnapshot: { id: 'user-2' },
+      },
+    });
+    expect(prisma.user.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: { in: ['user-1', 'user-2'] } },
+      }),
+    );
+    expect(
+      featureService.resolveFeatureAccessMapsForCodes,
+    ).toHaveBeenCalledTimes(1);
+    expect(
+      featureService.resolveFeatureAccessMapsForCodes,
+    ).toHaveBeenCalledWith(
+      expect.arrayContaining([
+        expect.objectContaining({ id: 'user-1' }),
+        expect.objectContaining({ id: 'user-2' }),
+      ]),
+      ['HOME_DASHBOARD_SALES', 'HOME_DASHBOARD_FINANCE'],
+    );
   });
 
   it('passes each batched scope snapshot through the real feature resolver', async () => {
@@ -447,7 +537,7 @@ describe('AuthContextService', () => {
       { id: 'user-2' },
       featureCodes,
     );
-    jest.advanceTimersByTime(2);
+    jest.advanceTimersByTime(20);
     const [first, second] = await Promise.all([firstPromise, secondPromise]);
 
     expect(first.__authContext.featureAccess).toEqual({
@@ -460,10 +550,11 @@ describe('AuthContextService', () => {
     });
     expect(prisma.user.findMany).toHaveBeenCalledTimes(1);
     expect(prisma.user.findUnique).not.toHaveBeenCalled();
+    expect(prisma.featureDefinition.findMany).toHaveBeenCalledTimes(1);
     expect(prisma.organizationNode.findMany).toHaveBeenCalledTimes(1);
     expect(
       prisma.organizationNodeFeatureAssignment.findMany,
-    ).toHaveBeenCalledTimes(2);
+    ).toHaveBeenCalledTimes(1);
   });
 
   it('detaches the pending Home batch before its query can be shared', async () => {
@@ -484,9 +575,9 @@ describe('AuthContextService', () => {
       },
     };
     const featureService = {
-      resolveFeatureAccessMapForCodes: jest
-        .fn()
-        .mockResolvedValue({ HOME_DASHBOARD_SALES: true }),
+      resolveFeatureAccessMapsForCodes: jest.fn(async (users: any[]) =>
+        users.map(() => ({ HOME_DASHBOARD_SALES: true })),
+      ),
     };
     const service = new AuthContextService(
       {} as any,
@@ -499,13 +590,13 @@ describe('AuthContextService', () => {
     const firstPromise = service.withFeatureScopeContext({ id: 'user-1' }, [
       'HOME_DASHBOARD_SALES',
     ]);
-    jest.advanceTimersByTime(2);
+    jest.advanceTimersByTime(20);
     expect(prisma.user.findMany).toHaveBeenCalledTimes(1);
 
     const secondPromise = service.withFeatureScopeContext({ id: 'user-2' }, [
       'HOME_DASHBOARD_SALES',
     ]);
-    jest.advanceTimersByTime(2);
+    jest.advanceTimersByTime(20);
     await expect(secondPromise).resolves.toMatchObject({ id: 'user-2' });
     expect(prisma.user.findMany).toHaveBeenCalledTimes(2);
 
@@ -530,9 +621,9 @@ describe('AuthContextService', () => {
     const service = new AuthContextService(
       {} as any,
       {
-        resolveFeatureAccessMapForCodes: jest
-          .fn()
-          .mockResolvedValue({ HOME_DASHBOARD_SALES: true }),
+        resolveFeatureAccessMapsForCodes: jest.fn(async (users: any[]) =>
+          users.map(() => ({ HOME_DASHBOARD_SALES: true })),
+        ),
       } as any,
       {} as any,
       prisma as any,
@@ -542,15 +633,81 @@ describe('AuthContextService', () => {
     const failedPromise = service.withFeatureScopeContext({ id: 'user-1' }, [
       'HOME_DASHBOARD_SALES',
     ]);
-    jest.advanceTimersByTime(2);
+    jest.advanceTimersByTime(20);
     await expect(failedPromise).rejects.toBe(databaseError);
 
     const recoveredPromise = service.withFeatureScopeContext({ id: 'user-2' }, [
       'HOME_DASHBOARD_SALES',
     ]);
-    jest.advanceTimersByTime(2);
+    jest.advanceTimersByTime(20);
     await expect(recoveredPromise).resolves.toMatchObject({ id: 'user-2' });
     expect(prisma.user.findMany).toHaveBeenCalledTimes(2);
+  });
+
+  it('recovers the next Home batch after batched feature resolution fails', async () => {
+    jest.useFakeTimers();
+    const featureError = new Error('feature lookup unavailable');
+    const prisma = {
+      user: {
+        findMany: jest.fn(async ({ where }: any) =>
+          where.id.in.map((id: string) => ({
+            id,
+            organizationAssignments: [],
+          })),
+        ),
+        findUnique: jest.fn(),
+      },
+    };
+    const featureService = {
+      resolveFeatureAccessMapsForCodes: jest
+        .fn()
+        .mockRejectedValueOnce(featureError)
+        .mockResolvedValueOnce([{ HOME_DASHBOARD_SALES: true }]),
+    };
+    const service = new AuthContextService(
+      {} as any,
+      featureService as any,
+      {} as any,
+      prisma as any,
+      {} as any,
+    );
+    const failureLog = jest
+      .spyOn((service as any).logger, 'error')
+      .mockImplementation(() => undefined);
+
+    const failedPromise = service.withFeatureScopeContext(
+      {
+        id: 'user-1',
+        email: 'secret.person@phongvu.vn',
+        token: 'raw-secret-token',
+      },
+      ['HOME_DASHBOARD_SALES'],
+    );
+    const secondFailedPromise = service.withFeatureScopeContext(
+      { id: 'user-2' },
+      ['HOME_DASHBOARD_SALES'],
+    );
+    jest.advanceTimersByTime(20);
+    await expect(failedPromise).rejects.toBe(featureError);
+    await expect(secondFailedPromise).rejects.toBe(featureError);
+    expect(failureLog).toHaveBeenCalledTimes(1);
+    const failureMessage = String(failureLog.mock.calls[0][0]);
+    expect(failureMessage).toContain('callers=2');
+    expect(failureMessage).toContain('principals=2');
+    expect(failureMessage).toContain('features=1');
+    expect(failureMessage).toContain('feature lookup unavailable');
+    expect(failureMessage).not.toContain('secret.person@phongvu.vn');
+    expect(failureMessage).not.toContain('raw-secret-token');
+
+    const recoveredPromise = service.withFeatureScopeContext({ id: 'user-2' }, [
+      'HOME_DASHBOARD_SALES',
+    ]);
+    jest.advanceTimersByTime(20);
+    await expect(recoveredPromise).resolves.toMatchObject({ id: 'user-2' });
+    expect(prisma.user.findMany).toHaveBeenCalledTimes(2);
+    expect(
+      featureService.resolveFeatureAccessMapsForCodes,
+    ).toHaveBeenCalledTimes(2);
   });
 
   it('falls back to an independent scope query when the Home batch is full', async () => {
@@ -567,6 +724,9 @@ describe('AuthContextService', () => {
       resolveFeatureAccessMapForCodes: jest
         .fn()
         .mockResolvedValue({ HOME_DASHBOARD_SALES: true }),
+      resolveFeatureAccessMapsForCodes: jest.fn(async (users: any[]) =>
+        users.map(() => ({ HOME_DASHBOARD_SALES: true })),
+      ),
     };
     const service = new AuthContextService(
       {} as any,
@@ -588,7 +748,7 @@ describe('AuthContextService', () => {
     await expect(overflow).resolves.toMatchObject({ id: 'overflow-user' });
     expect(prisma.user.findUnique).toHaveBeenCalledTimes(1);
     expect(prisma.user.findMany).not.toHaveBeenCalled();
-    jest.advanceTimersByTime(2);
+    jest.advanceTimersByTime(20);
     await Promise.all(pending);
     expect(prisma.user.findMany).toHaveBeenCalledTimes(1);
   });
