@@ -883,7 +883,10 @@ export class HomeSummaryService {
     }
     const contextStartedAt = Date.now();
     const contextUser = this.authContextService
-      ? await this.authContextService.withContext(user)
+      ? await this.authContextService.withFeatureScopeContext(user, [
+          FEATURE_KEYS.HOME_DASHBOARD_SALES,
+          FEATURE_KEYS.HOME_DASHBOARD_FINANCE,
+        ])
       : user;
     const contextDurationMs = Date.now() - contextStartedAt;
     const date = range.endDate;

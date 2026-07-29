@@ -16,6 +16,8 @@ const AUTH_CONTEXT_MAX_L1_ENTRIES = 2_000;
 const AUTH_CONTEXT_KEY_PREFIX = 'opshub:auth-context:v1:';
 const AUTH_CONTEXT_LEASE_PREFIX = 'opshub:auth-context:lease:v1:';
 const AUTH_PROFILE_KEY_PREFIX = 'opshub:auth-profile:v1:';
+const HOME_SCOPE_BATCH_DELAY_MS = 2;
+const MAX_PENDING_HOME_SCOPE_REQUESTS = 5_000;
 
 export type AuthContextVersion = {
   userId: string;
@@ -51,6 +53,12 @@ type ProfileCacheEntry = {
   profile: AuthContext['profile'];
 };
 
+type PendingHomeScopeRequest = {
+  userId: string;
+  resolve: (snapshot: any | null) => void;
+  reject: (reason?: unknown) => void;
+};
+
 @Injectable()
 export class AuthContextService {
   private readonly logger = new Logger(AuthContextService.name);
@@ -61,6 +69,7 @@ export class AuthContextService {
     string,
     Promise<AuthContext['profile']>
   >();
+  private pendingHomeScopeBatch: PendingHomeScopeRequest[] | null = null;
 
   constructor(
     private readonly authService: AuthService,
@@ -134,6 +143,41 @@ export class AuthContextService {
       configurable: true,
       enumerable: false,
       value: context,
+      writable: false,
+    });
+    return enriched;
+  }
+
+  async withFeatureScopeContext(
+    authenticatedUser: any,
+    featureCodes: string[],
+  ) {
+    const version = this.versionFor(authenticatedUser);
+    const scopeSnapshot = await this.loadHomeScopeSnapshot(version.userId);
+    let featureAccess: Record<string, boolean>;
+    if (!scopeSnapshot) {
+      featureAccess = Object.fromEntries(
+        featureCodes.map((featureCode) => [featureCode, false]),
+      );
+    } else {
+      const contextUser = { ...authenticatedUser };
+      Object.defineProperty(contextUser, '__authScopeSnapshot', {
+        configurable: false,
+        enumerable: false,
+        value: scopeSnapshot,
+        writable: false,
+      });
+      featureAccess = await this.featureService.resolveFeatureAccessMapForCodes(
+        contextUser,
+        featureCodes,
+      );
+    }
+
+    const enriched = { ...authenticatedUser };
+    Object.defineProperty(enriched, '__authContext', {
+      configurable: true,
+      enumerable: false,
+      value: { featureAccess, scopeSnapshot },
       writable: false,
     });
     return enriched;
@@ -350,45 +394,102 @@ export class AuthContextService {
     return profile;
   }
 
+  private loadHomeScopeSnapshot(userId: string): Promise<any | null> {
+    const userModel = (this.prisma as any)?.user;
+    if (!userId || !userModel?.findMany) {
+      return this.loadScopeSnapshot(userId);
+    }
+
+    return new Promise<any | null>((resolve, reject) => {
+      const batch = this.pendingHomeScopeBatch;
+      if (batch && batch.length < MAX_PENDING_HOME_SCOPE_REQUESTS) {
+        batch.push({ userId, resolve, reject });
+        return;
+      }
+      if (batch) {
+        void this.loadScopeSnapshot(userId).then(resolve, reject);
+        return;
+      }
+
+      const newBatch: PendingHomeScopeRequest[] = [{ userId, resolve, reject }];
+      this.pendingHomeScopeBatch = newBatch;
+      setTimeout(() => {
+        if (this.pendingHomeScopeBatch === newBatch) {
+          this.pendingHomeScopeBatch = null;
+        }
+        void this.flushHomeScopeBatch(newBatch);
+      }, HOME_SCOPE_BATCH_DELAY_MS);
+    });
+  }
+
+  private async flushHomeScopeBatch(
+    batch: PendingHomeScopeRequest[],
+  ): Promise<void> {
+    let rows: any[];
+    try {
+      rows = await (this.prisma as any).user.findMany({
+        where: {
+          id: { in: Array.from(new Set(batch.map((entry) => entry.userId))) },
+        },
+        select: this.scopeSnapshotSelect(),
+      });
+    } catch (error) {
+      batch.forEach((entry) => entry.reject(error));
+      return;
+    }
+
+    const byId = new Map(rows.map((row) => [String(row.id), row]));
+    batch.forEach((entry) => entry.resolve(byId.get(entry.userId) ?? null));
+    if (batch.length > 1) {
+      this.logger.debug(
+        `Home auth scope pre-query batch closed: callers=${batch.length} principals=${byId.size} pendingRequests=${this.pendingHomeScopeBatch?.length ?? 0}`,
+      );
+    }
+  }
+
+  private scopeSnapshotSelect() {
+    return {
+      id: true,
+      email: true,
+      firstName: true,
+      lastName: true,
+      role: true,
+      status: true,
+      avatarUrl: true,
+      profileCompletedAt: true,
+      branchLockedAt: true,
+      departmentCode: true,
+      jobRoleCode: true,
+      workScopeType: true,
+      regionCode: true,
+      areaCode: true,
+      organizationNodeId: true,
+      storeId: true,
+      store: {
+        include: {
+          area: { include: { region: true } },
+          organizationNode: true,
+        },
+      },
+      organizationNode: { include: organizationNodeStoreTreeInclude() },
+      organizationAssignments: {
+        where: { isActive: true },
+        orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }],
+        include: {
+          organizationNode: { include: organizationNodeStoreTreeInclude() },
+        },
+      },
+      region: true,
+      area: { include: { region: true } },
+    };
+  }
+
   private async loadScopeSnapshot(userId: string) {
     const userModel = (this.prisma as any)?.user;
     if (!userId || !userModel?.findUnique) return null;
     return userModel.findUnique({
       where: { id: userId },
-      select: {
-        id: true,
-        email: true,
-        firstName: true,
-        lastName: true,
-        role: true,
-        status: true,
-        avatarUrl: true,
-        profileCompletedAt: true,
-        branchLockedAt: true,
-        departmentCode: true,
-        jobRoleCode: true,
-        workScopeType: true,
-        regionCode: true,
-        areaCode: true,
-        organizationNodeId: true,
-        storeId: true,
-        store: {
-          include: {
-            area: { include: { region: true } },
-            organizationNode: true,
-          },
-        },
-        organizationNode: { include: organizationNodeStoreTreeInclude() },
-        organizationAssignments: {
-          where: { isActive: true },
-          orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }],
-          include: {
-            organizationNode: { include: organizationNodeStoreTreeInclude() },
-          },
-        },
-        region: true,
-        area: { include: { region: true } },
-      },
+      select: this.scopeSnapshotSelect(),
     });
   }
 

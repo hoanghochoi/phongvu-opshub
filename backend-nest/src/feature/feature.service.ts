@@ -129,6 +129,60 @@ export class FeatureService implements OnModuleInit {
     );
   }
 
+  async resolveFeatureAccessMapForCodes(
+    user: any,
+    featureCodeInputs: string[],
+  ) {
+    const featureCodes = Array.from(
+      new Set(
+        featureCodeInputs.map((featureCode) =>
+          this.normalizeCode(featureCode, 'Mã tính năng không hợp lệ'),
+        ),
+      ),
+    );
+    if (featureCodes.length === 0) return {};
+
+    const activeFeatures = await this.prisma.featureDefinition.findMany({
+      where: { code: { in: featureCodes }, isActive: true },
+      select: { code: true },
+    });
+    const activeCodes = new Set(activeFeatures.map((feature) => feature.code));
+    const context = await this.resolveContext(user);
+    if (this.normalizeSystemRole(context.role) === SUPER_ADMIN_ROLE) {
+      return Object.fromEntries(
+        featureCodes.map((featureCode) => [
+          featureCode,
+          activeCodes.has(featureCode),
+        ]),
+      );
+    }
+
+    const targetGroups = this.requiredFeatureTargetGroups(context);
+    if (targetGroups.length === 0) {
+      return Object.fromEntries(
+        featureCodes.map((featureCode) => [featureCode, false]),
+      );
+    }
+
+    const enabledAssignments = await this.enabledFeatureAssignmentKeys(
+      targetGroups.flat(),
+      featureCodes.filter((featureCode) => activeCodes.has(featureCode)),
+    );
+    return Object.fromEntries(
+      featureCodes.map((featureCode) => [
+        featureCode,
+        activeCodes.has(featureCode) &&
+          targetGroups.some((targets) =>
+            targets.every((target) =>
+              enabledAssignments.has(
+                this.featureTargetKey(target, featureCode),
+              ),
+            ),
+          ),
+      ]),
+    );
+  }
+
   async canAccessFeature(user: any, featureCode: string) {
     const context = await this.resolveContext(user);
     return this.canAccessFeatureWithContext(context, featureCode);
@@ -657,9 +711,10 @@ export class FeatureService implements OnModuleInit {
         const ids = new Set(nodeIds);
         impactedUserCountsByGroup.set(
           groupKey,
-          users.filter(
-            (user: { organizationNodeId?: string | null }) =>
-              Boolean(user.organizationNodeId && ids.has(user.organizationNodeId)),
+          users.filter((user: { organizationNodeId?: string | null }) =>
+            Boolean(
+              user.organizationNodeId && ids.has(user.organizationNodeId),
+            ),
           ).length,
         );
       }
