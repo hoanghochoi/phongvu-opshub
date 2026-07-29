@@ -119,13 +119,16 @@ Affected guard: path contracts mapped; focused proof command selected.
 ```
 
 When the authoritative local OpsHub DB is initialized, record normal/high-risk
-work through the approved local compatibility adapter instead of editing
-structured status by hand. That adapter is currently available only in the
-legacy root workspace; it is not a tracked command surface on this
-upstream-aligned branch. Markdown product docs and story packets remain the
+work through the approved writable local compatibility adapter instead of
+editing structured status by hand. That writable adapter is currently
+available only in the legacy root workspace; it is not a tracked command
+surface on this upstream-aligned branch. The tracked preservation/parity and
+strict-audit wrappers are read-only and operate only on a WAL-safe snapshot,
+isolated target, sidecar, and counts-only audit envelope. They do not authorize
+canonical DB writes. Markdown product docs and story packets remain the
 readable contract; the DB stores queryable operational records. The upstream
-CLI is the execution target for an approved schema/state adapter, not a
-brownfield source refresh. It does not implement the former
+CLI is the execution target for an approved writable schema/state adapter, not
+a brownfield source refresh. It does not implement the former
 `story verify-affected` command, path-contract flags, or a strict audit flag.
 Those affected-consumer checks belong to the consumer/orchestrator layer and
 must be supplied by a reviewed wrapper.
@@ -136,11 +139,11 @@ worktree blobs, staged/index state, Git-normalized modes/deletions, guard source
 story contracts/commands/status, and the intake checkpoint:
 
 ```powershell
-# Legacy-root baseline only; do not run against the local DB from this branch
-# until the preservation-first adapter is approved.
+# Writable legacy-root examples only; do not run them against the local DB from
+# this branch. The tracked preservation and strict wrappers authorize reads only.
 # & $gitBash --login scripts/harness intake --type <type> --summary <text> --lane <lane> --story <id>
 # & $gitBash --login scripts/harness story update --id <id> --paths '<csv-globs>' --affected-verify '<command>'
-# consumer/orchestrator affected-proof wrapper, after adapter approval
+# consumer/orchestrator affected-proof wrapper, after writable-adapter approval
 # implement
 # & $gitBash --login scripts/harness story verify-affected --intake <id> --run --record --strict
 # & $gitBash --login scripts/harness story verify-affected --intake <id> --check --strict
