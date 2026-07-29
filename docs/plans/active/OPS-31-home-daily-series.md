@@ -446,3 +446,82 @@ Home calculations. Expand/contract migration policy is not invoked. Required
 proof covers context propagation, auth-context version isolation, Home legacy
 and daily consumers, full affected backend/Flutter gates, exact-SHA load and
 mandatory cleanup.
+
+### Staging QA attempt 6 and Home-specific authorization slice
+
+PR #58 deployed successfully at exact staging SHA
+`c5b6ea33ced8ec575dd09aa6b03a1da6cf90738c` through run `30482995010`.
+Authenticated smoke again passed the supported Home contract. Synthetic run
+attempt 6 returned 2,000/2,000 HTTP 200 with 100% contract and parity, zero
+429/5xx/timeout, and client p50/p95/p99/max of
+`144.17/2150/2410/2520 ms`. Sixty cold Home loads remained
+`1647/2026/2062/2071 ms`, while daily extension was only
+`72/102/102.42/103 ms`.
+
+Sanitized server timings isolated the cold bottleneck. Full auth-context
+hydration was `1269/1421 ms` at p50/p95, section access was `0/0 ms`, scope
+resolution `279/425 ms`, sales progress `104/183 ms`, and metrics `62/89 ms`.
+API CPU peaked at 141.43%, PostgreSQL at 61.06%, and database connections at
+17/100 with two active and zero waiting. Containers remained healthy with zero
+restart. Cleanup revoked and deleted exactly 60 synthetic users/sessions and
+proved zero remaining tagged/email-code/reference records, absent server/local
+tokens, and no k6 process.
+
+The full context is semantically correct but needlessly projects profile data,
+all feature and policy maps, and Redis serialization for a Home cold miss. The
+next bounded fix therefore loads only the existing organization scope snapshot
+and resolves exactly `HOME_DASHBOARD_SALES` plus
+`HOME_DASHBOARD_FINANCE`. Requests already waiting in a two-millisecond window
+share one Prisma `user.findMany` scope read across exact user ids. The pending
+array is detached before the query starts; later requests form a later batch.
+Missing users deny both features, query failure rejects only that detached
+batch, and a 5,000-request cap falls back to the existing independent
+`findUnique` scope read. There is no TTL, post-query cache, Redis access,
+profile projection, policy hydration, cross-request result reuse, or public
+contract change.
+
+The selected shared multi-tenant deployment model is preserved: each returned
+row is associated only with its exact globally unique user id, and feature
+evaluation continues through the user's own organization roots and active node
+assignments. No schema or migration is introduced, so old and new runtimes use
+the same database shape and the expand/contract migration policy is not
+invoked. Exact-SHA staging latency, selected-SA isolation, affected consumers,
+and mandatory synthetic cleanup remain release gates.
+
+### Home-specific authorization-slice local proof
+
+The Home cold summary path now calls the lightweight slice with exactly the
+sales and finance dashboard feature codes. The slice batches exact-user scope
+rows only before the Prisma query begins, then reuses the returned request-local
+scope snapshot for feature, Home scope, and sales-progress authorization. The
+existing full AuthContext remains unchanged for bootstrap/profile/policy and
+other consumers.
+
+Exact local proof on the final seven-file fingerprint passed:
+
+- Focused AuthContext, Feature and Home: 3 suites / 88 tests. New regressions
+  cover cross-principal row mapping, missing-user deny, pending-array detach,
+  query failure/recovery, 5,000-request overflow fallback, no
+  profile/policy/Redis/full-feature hydration, two-feature assignment batching,
+  inactive/missing features, active-only super-admin bypass, and end-to-end
+  passage of batched principal snapshots through the real feature resolver
+  without a secondary user query.
+- Affected auth/session/JWT/bootstrap/realtime, feature guard/controller,
+  policy, Home DTO/controller/service and Sales Report scope resolver:
+  13 suites / 251 tests.
+- Full Nest: 90 suites / 973 tests; Nest build passed.
+- Existing Flutter auth bootstrap/session/device/access-refresh/realtime and
+  Home legacy/daily parser, cache, details, dashboard, selected-SA, avatar and
+  shell consumers: 88 tests; `flutter analyze --no-pub` found no issue.
+- Changed-file Prettier and `git diff --check` passed.
+
+Independent correctness review found that the first subset implementation let
+super admin bypass inactive or missing feature definitions, unlike the existing
+full-map path, and identified the missing real FeatureService handoff proof.
+Both findings were corrected and the post-fix focused, affected and full gates
+above passed.
+
+No schema, migration, token, session, permission, cache-key, event, rate-limit,
+API or Flutter production contract changes. Remaining gates are PR/CI/lifecycle,
+exact-SHA staging deployment, the unchanged fixed cold load profile, selected-SA
+isolation and mandatory synthetic cleanup.

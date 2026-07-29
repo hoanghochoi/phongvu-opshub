@@ -355,6 +355,91 @@ describe('FeatureService', () => {
     );
   });
 
+  it('resolves an exact feature subset with one context and assignment batch', async () => {
+    prisma.featureDefinition.findMany.mockResolvedValueOnce([
+      { code: 'HOME_DASHBOARD_SALES' },
+      { code: 'HOME_DASHBOARD_FINANCE' },
+    ]);
+    setStoreChainAssignment('HOME_DASHBOARD_SALES');
+    setStoreChainAssignment('HOME_DASHBOARD_FINANCE');
+
+    await expect(
+      service.resolveFeatureAccessMapForCodes({ id: 'user-1' }, [
+        'HOME_DASHBOARD_SALES',
+        'HOME_DASHBOARD_FINANCE',
+      ]),
+    ).resolves.toEqual({
+      HOME_DASHBOARD_SALES: true,
+      HOME_DASHBOARD_FINANCE: true,
+    });
+    expect(prisma.user.findUnique).toHaveBeenCalledTimes(1);
+    expect(prisma.featureDefinition.findMany).toHaveBeenCalledTimes(1);
+    expect(
+      prisma.organizationNodeFeatureAssignment.findMany,
+    ).toHaveBeenCalledTimes(1);
+    expect(
+      prisma.organizationNodeFeatureAssignment.findMany,
+    ).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          enabled: true,
+          featureCode: {
+            in: ['HOME_DASHBOARD_SALES', 'HOME_DASHBOARD_FINANCE'],
+          },
+        }),
+      }),
+    );
+  });
+
+  it('denies inactive or missing features in an exact subset', async () => {
+    prisma.featureDefinition.findMany.mockResolvedValueOnce([
+      { code: 'HOME_DASHBOARD_SALES' },
+    ]);
+    setStoreChainAssignment('HOME_DASHBOARD_SALES');
+    setStoreChainAssignment('HOME_DASHBOARD_FINANCE');
+
+    await expect(
+      service.resolveFeatureAccessMapForCodes({ id: 'user-1' }, [
+        'HOME_DASHBOARD_SALES',
+        'HOME_DASHBOARD_FINANCE',
+        'MISSING_FEATURE',
+      ]),
+    ).resolves.toEqual({
+      HOME_DASHBOARD_SALES: true,
+      HOME_DASHBOARD_FINANCE: false,
+      MISSING_FEATURE: false,
+    });
+    expect(
+      prisma.organizationNodeFeatureAssignment.findMany,
+    ).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          featureCode: { in: ['HOME_DASHBOARD_SALES'] },
+        }),
+      }),
+    );
+  });
+
+  it('keeps the super-admin bypass for an exact feature subset', async () => {
+    prisma.featureDefinition.findMany.mockResolvedValueOnce([
+      { code: 'HOME_DASHBOARD_SALES' },
+    ]);
+
+    await expect(
+      service.resolveFeatureAccessMapForCodes({ role: 'SUPER_ADMIN' }, [
+        'HOME_DASHBOARD_SALES',
+        'MISSING_FEATURE',
+      ]),
+    ).resolves.toEqual({
+      HOME_DASHBOARD_SALES: true,
+      MISSING_FEATURE: false,
+    });
+    expect(prisma.featureDefinition.findMany).toHaveBeenCalledTimes(1);
+    expect(
+      prisma.organizationNodeFeatureAssignment.findMany,
+    ).not.toHaveBeenCalled();
+  });
+
   it('does not use legacy rule or per-user assignment for runtime access', async () => {
     rules = [{ featureCode: 'FIFO', enabled: true, userId: 'user-1' }];
 

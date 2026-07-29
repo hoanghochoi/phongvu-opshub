@@ -307,7 +307,7 @@ describe('HomeSummaryService', () => {
       },
     };
     const authContextService = {
-      withContext: jest.fn().mockResolvedValue(contextUser),
+      withFeatureScopeContext: jest.fn().mockResolvedValue(contextUser),
     };
     const { service, salesReports } = createHarness({ authContextService });
     const sectionAccess = jest
@@ -339,8 +339,11 @@ describe('HomeSummaryService', () => {
       endDate: '2026-07-04',
     });
 
-    expect(authContextService.withContext).toHaveBeenCalledTimes(1);
-    expect(authContextService.withContext).toHaveBeenCalledWith(rawUser);
+    expect(authContextService.withFeatureScopeContext).toHaveBeenCalledTimes(1);
+    expect(authContextService.withFeatureScopeContext).toHaveBeenCalledWith(
+      rawUser,
+      ['HOME_DASHBOARD_SALES', 'HOME_DASHBOARD_FINANCE'],
+    );
     expect(sectionAccess).toHaveBeenCalledWith(contextUser);
     expect(salesReports.describeHomeSummaryScope).toHaveBeenCalledWith(
       contextUser,

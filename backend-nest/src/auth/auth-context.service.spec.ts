@@ -1,6 +1,11 @@
+import { FeatureService } from '../feature/feature.service';
 import { AuthContextService } from './auth-context.service';
 
 describe('AuthContextService', () => {
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
   it('hydrates once and reuses the versioned L1 context', async () => {
     const authService = {
       getUserData: jest.fn(),
@@ -216,5 +221,375 @@ describe('AuthContextService', () => {
     expect(authService.projectUserData).toHaveBeenCalledTimes(1);
     expect(featureService.resolveFeatureAccessMap).not.toHaveBeenCalled();
     expect(policyService.resolvePolicyAccessMap).not.toHaveBeenCalled();
+  });
+
+  it('batches Home scope rows across principals and denies a missing user', async () => {
+    jest.useFakeTimers();
+    const authService = {
+      getUserData: jest.fn(),
+      projectUserData: jest.fn(),
+    };
+    const featureService = {
+      resolveFeatureAccessMap: jest.fn(),
+      resolveFeatureAccessMapForCodes: jest.fn(
+        async (user: any, featureCodes: string[]) =>
+          Object.fromEntries(
+            featureCodes.map((featureCode) => [
+              featureCode,
+              user.__authScopeSnapshot.id === 'user-1',
+            ]),
+          ),
+      ),
+    };
+    const policyService = { resolvePolicyAccessMap: jest.fn() };
+    const prisma = {
+      user: {
+        findMany: jest.fn().mockResolvedValue([
+          { id: 'user-2', organizationAssignments: [] },
+          { id: 'user-1', organizationAssignments: [] },
+        ]),
+        findUnique: jest.fn(),
+      },
+    };
+    const redis = {
+      getJson: jest.fn(),
+      setJsonWithTtl: jest.fn(),
+      tryAcquireLease: jest.fn(),
+      releaseLease: jest.fn(),
+    };
+    const service = new AuthContextService(
+      authService as any,
+      featureService as any,
+      policyService as any,
+      prisma as any,
+      redis as any,
+    );
+    const featureCodes = ['HOME_DASHBOARD_SALES', 'HOME_DASHBOARD_FINANCE'];
+
+    const firstPromise = service.withFeatureScopeContext(
+      { id: 'user-1' },
+      featureCodes,
+    );
+    const secondPromise = service.withFeatureScopeContext(
+      { id: 'user-2' },
+      featureCodes,
+    );
+    const missingPromise = service.withFeatureScopeContext(
+      { id: 'missing-user' },
+      featureCodes,
+    );
+    jest.advanceTimersByTime(2);
+    const [first, second, missing] = await Promise.all([
+      firstPromise,
+      secondPromise,
+      missingPromise,
+    ]);
+
+    expect(prisma.user.findMany).toHaveBeenCalledTimes(1);
+    expect(prisma.user.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          id: { in: ['user-1', 'user-2', 'missing-user'] },
+        },
+      }),
+    );
+    expect(first.__authContext).toEqual({
+      featureAccess: {
+        HOME_DASHBOARD_SALES: true,
+        HOME_DASHBOARD_FINANCE: true,
+      },
+      scopeSnapshot: { id: 'user-1', organizationAssignments: [] },
+    });
+    expect(second.__authContext).toEqual({
+      featureAccess: {
+        HOME_DASHBOARD_SALES: false,
+        HOME_DASHBOARD_FINANCE: false,
+      },
+      scopeSnapshot: { id: 'user-2', organizationAssignments: [] },
+    });
+    expect(missing.__authContext).toEqual({
+      featureAccess: {
+        HOME_DASHBOARD_SALES: false,
+        HOME_DASHBOARD_FINANCE: false,
+      },
+      scopeSnapshot: null,
+    });
+    expect(
+      featureService.resolveFeatureAccessMapForCodes,
+    ).toHaveBeenCalledTimes(2);
+    expect(featureService.resolveFeatureAccessMap).not.toHaveBeenCalled();
+    expect(authService.getUserData).not.toHaveBeenCalled();
+    expect(authService.projectUserData).not.toHaveBeenCalled();
+    expect(policyService.resolvePolicyAccessMap).not.toHaveBeenCalled();
+    expect(redis.getJson).not.toHaveBeenCalled();
+    expect(redis.setJsonWithTtl).not.toHaveBeenCalled();
+  });
+
+  it('passes each batched scope snapshot through the real feature resolver', async () => {
+    jest.useFakeTimers();
+    const nodes = [
+      {
+        id: 'root',
+        parentId: null,
+        type: 'LV0_DOMAIN',
+        code: 'DOMAIN_ACARE_VN',
+        businessCode: 'ACARE',
+        isActive: true,
+      },
+      {
+        id: 'region',
+        parentId: 'root',
+        type: 'LV2_REGION',
+        code: 'REGION_ACARE_MIEN_NAM',
+        businessCode: 'MIEN_NAM',
+        isActive: true,
+      },
+      {
+        id: 'area',
+        parentId: 'region',
+        type: 'LV3_AREA',
+        code: 'AREA_ACARE_HCM',
+        businessCode: 'HCM',
+        isActive: true,
+      },
+      {
+        id: 'store-1',
+        parentId: 'area',
+        type: 'LV4_STORE',
+        code: 'STORE_CP01',
+        businessCode: 'CP01',
+        isActive: true,
+      },
+      {
+        id: 'store-2',
+        parentId: 'area',
+        type: 'LV4_STORE',
+        code: 'STORE_CP02',
+        businessCode: 'CP02',
+        isActive: true,
+      },
+    ];
+    const scopeRows = [
+      {
+        id: 'user-1',
+        role: 'STAFF',
+        workScopeType: 'STORE',
+        organizationNodeId: 'store-1',
+        organizationAssignments: [],
+      },
+      {
+        id: 'user-2',
+        role: 'STAFF',
+        workScopeType: 'STORE',
+        organizationNodeId: 'store-2',
+        organizationAssignments: [],
+      },
+    ];
+    const grants = new Set([
+      'LV2_REGION:MIEN_NAM:HOME_DASHBOARD_SALES',
+      'LV3_AREA:HCM:HOME_DASHBOARD_SALES',
+      'LV4_STORE:CP01:HOME_DASHBOARD_SALES',
+      'LV2_REGION:MIEN_NAM:HOME_DASHBOARD_FINANCE',
+      'LV3_AREA:HCM:HOME_DASHBOARD_FINANCE',
+      'LV4_STORE:CP02:HOME_DASHBOARD_FINANCE',
+    ]);
+    const prisma = {
+      user: {
+        findMany: jest.fn().mockResolvedValue(scopeRows),
+        findUnique: jest.fn(),
+      },
+      featureDefinition: {
+        findMany: jest.fn(async ({ where }: any) =>
+          where.code.in.map((code: string) => ({ code })),
+        ),
+      },
+      organizationNode: {
+        findMany: jest.fn().mockResolvedValue(nodes),
+      },
+      organizationNodeFeatureAssignment: {
+        findMany: jest.fn(async ({ where }: any) => {
+          const rows: any[] = [];
+          for (const target of where.OR) {
+            for (const featureCode of where.featureCode.in) {
+              if (
+                grants.has(
+                  `${target.nodeType}:${target.nodeKey}:${featureCode}`,
+                )
+              ) {
+                rows.push({
+                  scopeRootNodeId: target.scopeRootNodeId,
+                  nodeType: target.nodeType,
+                  nodeKey: target.nodeKey,
+                  featureCode,
+                });
+              }
+            }
+          }
+          return rows;
+        }),
+      },
+    };
+    const featureService = new FeatureService(prisma as any, {} as any);
+    const service = new AuthContextService(
+      {} as any,
+      featureService,
+      {} as any,
+      prisma as any,
+      {} as any,
+    );
+    const featureCodes = ['HOME_DASHBOARD_SALES', 'HOME_DASHBOARD_FINANCE'];
+
+    const firstPromise = service.withFeatureScopeContext(
+      { id: 'user-1' },
+      featureCodes,
+    );
+    const secondPromise = service.withFeatureScopeContext(
+      { id: 'user-2' },
+      featureCodes,
+    );
+    jest.advanceTimersByTime(2);
+    const [first, second] = await Promise.all([firstPromise, secondPromise]);
+
+    expect(first.__authContext.featureAccess).toEqual({
+      HOME_DASHBOARD_SALES: true,
+      HOME_DASHBOARD_FINANCE: false,
+    });
+    expect(second.__authContext.featureAccess).toEqual({
+      HOME_DASHBOARD_SALES: false,
+      HOME_DASHBOARD_FINANCE: true,
+    });
+    expect(prisma.user.findMany).toHaveBeenCalledTimes(1);
+    expect(prisma.user.findUnique).not.toHaveBeenCalled();
+    expect(prisma.organizationNode.findMany).toHaveBeenCalledTimes(1);
+    expect(
+      prisma.organizationNodeFeatureAssignment.findMany,
+    ).toHaveBeenCalledTimes(2);
+  });
+
+  it('detaches the pending Home batch before its query can be shared', async () => {
+    jest.useFakeTimers();
+    let resolveFirstQuery!: (rows: any[]) => void;
+    const firstQuery = new Promise<any[]>((resolve) => {
+      resolveFirstQuery = resolve;
+    });
+    const prisma = {
+      user: {
+        findMany: jest
+          .fn()
+          .mockReturnValueOnce(firstQuery)
+          .mockResolvedValueOnce([
+            { id: 'user-2', organizationAssignments: [] },
+          ]),
+        findUnique: jest.fn(),
+      },
+    };
+    const featureService = {
+      resolveFeatureAccessMapForCodes: jest
+        .fn()
+        .mockResolvedValue({ HOME_DASHBOARD_SALES: true }),
+    };
+    const service = new AuthContextService(
+      {} as any,
+      featureService as any,
+      {} as any,
+      prisma as any,
+      {} as any,
+    );
+
+    const firstPromise = service.withFeatureScopeContext({ id: 'user-1' }, [
+      'HOME_DASHBOARD_SALES',
+    ]);
+    jest.advanceTimersByTime(2);
+    expect(prisma.user.findMany).toHaveBeenCalledTimes(1);
+
+    const secondPromise = service.withFeatureScopeContext({ id: 'user-2' }, [
+      'HOME_DASHBOARD_SALES',
+    ]);
+    jest.advanceTimersByTime(2);
+    await expect(secondPromise).resolves.toMatchObject({ id: 'user-2' });
+    expect(prisma.user.findMany).toHaveBeenCalledTimes(2);
+
+    resolveFirstQuery([{ id: 'user-1', organizationAssignments: [] }]);
+    await expect(firstPromise).resolves.toMatchObject({ id: 'user-1' });
+  });
+
+  it('recovers the next Home scope batch after a database failure', async () => {
+    jest.useFakeTimers();
+    const databaseError = new Error('database unavailable');
+    const prisma = {
+      user: {
+        findMany: jest
+          .fn()
+          .mockRejectedValueOnce(databaseError)
+          .mockResolvedValueOnce([
+            { id: 'user-2', organizationAssignments: [] },
+          ]),
+        findUnique: jest.fn(),
+      },
+    };
+    const service = new AuthContextService(
+      {} as any,
+      {
+        resolveFeatureAccessMapForCodes: jest
+          .fn()
+          .mockResolvedValue({ HOME_DASHBOARD_SALES: true }),
+      } as any,
+      {} as any,
+      prisma as any,
+      {} as any,
+    );
+
+    const failedPromise = service.withFeatureScopeContext({ id: 'user-1' }, [
+      'HOME_DASHBOARD_SALES',
+    ]);
+    jest.advanceTimersByTime(2);
+    await expect(failedPromise).rejects.toBe(databaseError);
+
+    const recoveredPromise = service.withFeatureScopeContext({ id: 'user-2' }, [
+      'HOME_DASHBOARD_SALES',
+    ]);
+    jest.advanceTimersByTime(2);
+    await expect(recoveredPromise).resolves.toMatchObject({ id: 'user-2' });
+    expect(prisma.user.findMany).toHaveBeenCalledTimes(2);
+  });
+
+  it('falls back to an independent scope query when the Home batch is full', async () => {
+    jest.useFakeTimers();
+    const row = { id: 'user-1', organizationAssignments: [] };
+    const overflowRow = { id: 'overflow-user', organizationAssignments: [] };
+    const prisma = {
+      user: {
+        findMany: jest.fn().mockResolvedValue([row]),
+        findUnique: jest.fn().mockResolvedValue(overflowRow),
+      },
+    };
+    const featureService = {
+      resolveFeatureAccessMapForCodes: jest
+        .fn()
+        .mockResolvedValue({ HOME_DASHBOARD_SALES: true }),
+    };
+    const service = new AuthContextService(
+      {} as any,
+      featureService as any,
+      {} as any,
+      prisma as any,
+      {} as any,
+    );
+
+    const pending = Array.from({ length: 5_000 }, () =>
+      service.withFeatureScopeContext({ id: 'user-1' }, [
+        'HOME_DASHBOARD_SALES',
+      ]),
+    );
+    const overflow = service.withFeatureScopeContext({ id: 'overflow-user' }, [
+      'HOME_DASHBOARD_SALES',
+    ]);
+
+    await expect(overflow).resolves.toMatchObject({ id: 'overflow-user' });
+    expect(prisma.user.findUnique).toHaveBeenCalledTimes(1);
+    expect(prisma.user.findMany).not.toHaveBeenCalled();
+    jest.advanceTimersByTime(2);
+    await Promise.all(pending);
+    expect(prisma.user.findMany).toHaveBeenCalledTimes(1);
   });
 });
