@@ -1,5 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
 import * as XLSX from 'xlsx';
+import { AuthContextService } from '../auth/auth-context.service';
 import { FEATURE_KEYS } from '../feature/feature.constants';
 import { SalesReportErpCanceledOrderException } from './sales-report-erp.service';
 import { SalesReportsService } from './sales-reports.service';
@@ -3263,6 +3264,129 @@ describe('SalesReportsService', () => {
       positionNode.id,
     );
   });
+
+  it.each([
+    {
+      label: 'area',
+      positionParentId: 'area-1',
+      selectedNodeId: 'store-2',
+      expectedStoreCode: 'CP02',
+    },
+    {
+      label: 'showroom',
+      positionParentId: 'store-1',
+      selectedNodeId: 'store-1',
+      expectedStoreCode: 'CP01',
+    },
+  ])(
+    'preserves Home scope traversal for a flat-tree position under $label',
+    async ({ positionParentId, selectedNodeId, expectedStoreCode }) => {
+      const { service, prisma } = createHarness();
+      const flatNodes = [
+        {
+          id: 'area-1',
+          parentId: null,
+          type: 'LV3_AREA',
+          code: 'AREA_HCM',
+          businessCode: 'HCM',
+          displayName: 'Hồ Chí Minh',
+          abbreviation: 'HCM',
+          isActive: true,
+          sortOrder: 0,
+          stores: [],
+        },
+        {
+          id: 'store-1',
+          parentId: 'area-1',
+          type: 'LV4_STORE',
+          code: 'STORE_CP01',
+          businessCode: 'CP01',
+          displayName: 'CP01',
+          abbreviation: null,
+          isActive: true,
+          sortOrder: 1,
+          stores: [{ storeId: 'CP01', storeName: 'Cửa hàng 01' }],
+        },
+        {
+          id: 'store-2',
+          parentId: 'area-1',
+          type: 'LV4_STORE',
+          code: 'STORE_CP02',
+          businessCode: 'CP02',
+          displayName: 'CP02',
+          abbreviation: null,
+          isActive: true,
+          sortOrder: 2,
+          stores: [{ storeId: 'CP02', storeName: 'Cửa hàng 02' }],
+        },
+        {
+          id: 'position-1',
+          parentId: positionParentId,
+          type: 'LV5_POSITION',
+          code: 'POSITION_SA',
+          businessCode: 'SA',
+          displayName: 'Tư vấn bán hàng',
+          abbreviation: 'SA',
+          isActive: true,
+          sortOrder: 3,
+          stores: [],
+        },
+      ];
+      const authContext = new AuthContextService(
+        {} as any,
+        {} as any,
+        {} as any,
+        prisma as any,
+        {} as any,
+      );
+      const graph = (authContext as any).organizationGraph(flatNodes);
+      const scopeSnapshot = (authContext as any).enrichScopeSnapshot(
+        {
+          ...userFixture(),
+          jobRoleCode: 'SA',
+          store: null,
+          organizationNodeId: 'position-1',
+          organizationAssignments: [
+            {
+              organizationNodeId: 'position-1',
+              isPrimary: true,
+              isActive: true,
+            },
+          ],
+        },
+        graph,
+      );
+      const user = {
+        ...userFixture(),
+        jobRoleCode: 'SA',
+        store: null,
+        __authContext: { scopeSnapshot },
+      };
+
+      const options = await service.listHomeSummaryScopeOptions(user, {
+        allowOwnScope: true,
+      });
+      const selected = await service.describeHomeSummaryScope(
+        user,
+        'MANAGED_SCOPE',
+        selectedNodeId,
+        { allowOwnScope: true },
+      );
+
+      expect(options.map((option) => option.organizationNodeId)).toContain(
+        selectedNodeId,
+      );
+      expect(options.map((option) => option.organizationNodeId)).not.toContain(
+        'position-1',
+      );
+      expect(selected).toMatchObject({
+        available: true,
+        scope: 'MANAGED_SCOPE',
+        allowedStoreCodes: [expectedStoreCode],
+      });
+      expect(prisma.user.findUnique).not.toHaveBeenCalled();
+    },
+  );
 
   it('offers all and active organization node dashboard scopes to super admin', async () => {
     const { service, prisma } = createHarness();

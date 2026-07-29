@@ -7,6 +7,7 @@ type OrganizationTreeNode = {
   displayName: string;
   abbreviation: string | null;
   isActive: boolean;
+  sortOrder: number;
   stores: Array<{ storeId: string; storeName?: string | null }>;
 };
 
@@ -45,6 +46,7 @@ export async function getOrganizationTree(
         displayName: true,
         abbreviation: true,
         isActive: true,
+        sortOrder: true,
         stores: { select: { storeId: true, storeName: true } },
       },
     })

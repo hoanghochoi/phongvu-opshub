@@ -177,6 +177,11 @@ describe('AuthContextService', () => {
     expect(query.select.password).toBeUndefined();
     expect(query.select.tokenVersion).toBeUndefined();
     expect(query.select.accessVersion).toBeUndefined();
+    expect(query.select.organizationNode).toBeUndefined();
+    expect(query.select.store.select.organizationNode).toBeUndefined();
+    expect(
+      query.select.organizationAssignments.select.organizationNode,
+    ).toBeUndefined();
   });
 
   it('serves profile-only requests without hydrating feature or policy maps', async () => {
@@ -555,6 +560,217 @@ describe('AuthContextService', () => {
     expect(
       prisma.organizationNodeFeatureAssignment.findMany,
     ).toHaveBeenCalledTimes(1);
+  });
+
+  it('assembles a sorted organization graph from one flat shared tree query', async () => {
+    jest.useFakeTimers();
+    const nodes = [
+      {
+        id: 'root',
+        parentId: null,
+        type: 'LV0_DOMAIN',
+        code: 'DOMAIN_ACARE_VN',
+        businessCode: 'ACARE',
+        displayName: 'Acare',
+        abbreviation: null,
+        isActive: true,
+        sortOrder: 0,
+        stores: [],
+      },
+      {
+        id: 'area',
+        parentId: 'root',
+        type: 'LV3_AREA',
+        code: 'AREA_ACARE_HCM',
+        businessCode: 'HCM',
+        displayName: 'Hồ Chí Minh',
+        abbreviation: 'HCM',
+        isActive: true,
+        sortOrder: 1,
+        stores: [],
+      },
+      {
+        id: 'store-2',
+        parentId: 'area',
+        type: 'LV4_STORE',
+        code: 'STORE_CP02',
+        businessCode: 'CP02',
+        displayName: 'CP02',
+        abbreviation: null,
+        isActive: true,
+        sortOrder: 2,
+        stores: [{ storeId: 'CP02', storeName: 'Cửa hàng 02' }],
+      },
+      {
+        id: 'store-1',
+        parentId: 'area',
+        type: 'LV4_STORE',
+        code: 'STORE_CP01',
+        businessCode: 'CP01',
+        displayName: 'CP01',
+        abbreviation: null,
+        isActive: true,
+        sortOrder: 1,
+        stores: [{ storeId: 'CP01', storeName: 'Cửa hàng 01' }],
+      },
+    ];
+    const scopeRow = {
+      id: 'user-1',
+      organizationNodeId: 'area',
+      store: {
+        storeId: 'CP01',
+        storeName: 'Cửa hàng 01',
+        organizationNodeId: 'store-1',
+        area: { code: 'HCM', abbreviation: 'HCM', region: null },
+      },
+      organizationAssignments: [
+        {
+          isActive: true,
+          isPrimary: true,
+          createdAt: new Date('2026-07-01T00:00:00.000Z'),
+          organizationNodeId: 'store-1',
+        },
+      ],
+    };
+    const prisma = {
+      user: {
+        findMany: jest.fn().mockResolvedValue([scopeRow]),
+        findUnique: jest.fn(),
+      },
+      organizationNode: { findMany: jest.fn().mockResolvedValue(nodes) },
+    };
+    const featureService = {
+      resolveFeatureAccessMapsForCodes: jest.fn().mockResolvedValue([{}]),
+    };
+    const service = new AuthContextService(
+      {} as any,
+      featureService as any,
+      {} as any,
+      prisma as any,
+      {} as any,
+    );
+
+    const promise = service.withFeatureScopeContext({ id: 'user-1' }, [
+      'HOME_DASHBOARD_SALES',
+    ]);
+    jest.advanceTimersByTime(20);
+    const enriched = await promise;
+    const snapshot = enriched.__authContext.scopeSnapshot;
+    const query = prisma.user.findMany.mock.calls[0][0];
+
+    expect(query.select.organizationNode).toBeUndefined();
+    expect(query.select.store.select.organizationNode).toBeUndefined();
+    expect(
+      query.select.organizationAssignments.select.organizationNode,
+    ).toBeUndefined();
+    expect(prisma.organizationNode.findMany).toHaveBeenCalledTimes(1);
+    expect(snapshot.organizationNode.id).toBe('area');
+    expect(snapshot.organizationNode.parent.id).toBe('root');
+    expect(
+      snapshot.organizationNode.children.map((node: any) => node.id),
+    ).toEqual(['store-1', 'store-2']);
+    expect(() => JSON.stringify(snapshot)).not.toThrow();
+    expect(() => JSON.stringify(snapshot)).not.toThrow();
+    expect(snapshot.store.organizationNode.id).toBe('store-1');
+    expect(snapshot.organizationAssignments[0].organizationNode.parent.id).toBe(
+      'area',
+    );
+  });
+
+  it('uses the same flat-tree enrichment for the independent fallback', async () => {
+    const nodes = [
+      {
+        id: 'root',
+        parentId: null,
+        type: 'LV0_DOMAIN',
+        code: 'DOMAIN_ACARE_VN',
+        businessCode: 'ACARE',
+        displayName: 'Acare',
+        abbreviation: null,
+        isActive: true,
+        sortOrder: 0,
+        stores: [],
+      },
+      {
+        id: 'store-1',
+        parentId: 'root',
+        type: 'LV4_STORE',
+        code: 'STORE_CP01',
+        businessCode: 'CP01',
+        displayName: 'CP01',
+        abbreviation: null,
+        isActive: true,
+        sortOrder: 1,
+        stores: [{ storeId: 'CP01', storeName: 'Cửa hàng 01' }],
+      },
+    ];
+    const prisma = {
+      user: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'user-1',
+          organizationNodeId: 'store-1',
+          organizationAssignments: [],
+        }),
+      },
+      organizationNode: { findMany: jest.fn().mockResolvedValue(nodes) },
+    };
+    const featureService = {
+      resolveFeatureAccessMapForCodes: jest.fn(async (user: any) => ({
+        HOME_DASHBOARD_SALES:
+          user.__authScopeSnapshot.organizationNode.id === 'store-1',
+      })),
+    };
+    const service = new AuthContextService(
+      {} as any,
+      featureService as any,
+      {} as any,
+      prisma as any,
+      {} as any,
+    );
+
+    const enriched = await service.withFeatureScopeContext({ id: 'user-1' }, [
+      'HOME_DASHBOARD_SALES',
+    ]);
+
+    expect(enriched.__authContext.featureAccess).toEqual({
+      HOME_DASHBOARD_SALES: true,
+    });
+    expect(
+      enriched.__authContext.scopeSnapshot.organizationNode.parent.id,
+    ).toBe('root');
+    expect(prisma.organizationNode.findMany).toHaveBeenCalledTimes(1);
+  });
+
+  it('caps materialized organization branches at the legacy depth', () => {
+    const service = new AuthContextService(
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+      {} as any,
+    );
+    const nodes = Array.from({ length: 10 }, (_, index) => ({
+      id: `node-${index}`,
+      parentId: index === 0 ? null : `node-${index - 1}`,
+      type: index === 9 ? 'LV4_STORE' : 'LV3_AREA',
+      code: `NODE_${index}`,
+      businessCode: `NODE_${index}`,
+      displayName: `Node ${index}`,
+      abbreviation: null,
+      isActive: true,
+      sortOrder: index,
+      stores: [],
+    }));
+
+    const tree = (service as any).organizationGraph(nodes).treeFor('node-0');
+    let cursor = tree;
+    for (let depth = 0; depth < 6; depth += 1) {
+      expect(cursor.children).toHaveLength(1);
+      cursor = cursor.children[0];
+    }
+    expect(cursor.id).toBe('node-6');
+    expect(cursor.children).toEqual([]);
+    expect(() => JSON.stringify(tree)).not.toThrow();
   });
 
   it('detaches the pending Home batch before its query can be shared', async () => {
