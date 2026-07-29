@@ -281,3 +281,64 @@ readiness.
 Corrected pre-integration local proof passed: JwtStrategy plus AuthSessionService
 2 suites/23 tests, Nest build, changed-file Prettier and `git diff --check`.
 Exact-SHA staging load/cleanup remains the release gate.
+
+### Staging QA attempt 3 and pre-query batch follow-up
+
+PR #55 deployed successfully at exact staging SHA
+`967613e2d47dad4d3050f21bdfa4eaf6ab7e0d36` through run `30469998848`.
+Authenticated smoke passed auth, bootstrap, scopes and legacy/daily 1/7/30/90
+ordering, zero-fill, parity and freshness. The fixed cold profile again returned
+2,000/2,000 HTTP 200 with 100% contract/parity and zero 429/5xx/timeout, but
+failed latency: client p50/p95/p99/max were
+`474.12/2530/3400/4080 ms`; server Home values were
+`339/1758.05/2180.06/2786 ms`.
+
+There were still only 60 initial Home loads and 60 daily extensions. Extension
+p50/p95/p99/max was `150.5/324.65/491.41/492 ms`, while initial loads were
+`1839/2294.45/2689.28/2694 ms` under contention from 2,000 per-request auth
+snapshot queries. API CPU peaked at 143.15%, PostgreSQL at 82.21% with at most
+17/100 connections, one active connection in sampled windows and zero active
+wait; Redis had no eviction/blocked client and no container restarted. Cleanup
+revoked/deleted exactly 60 synthetic sessions/users and proved zero remaining
+records plus absent server/local tokens and k6 process.
+
+The next bounded fix may batch only requests that are waiting **before** the
+authoritative snapshot statement starts. A two-millisecond window groups exact
+signed user/token/access/session/platform generations; the map entry is removed
+synchronously before calling PostgreSQL. A request arriving after that point
+always creates a later batch/query and therefore cannot reuse an older database
+snapshot. If a lock/revocation commits while a batch is still open, its later
+query observes the changed state. There is no TTL or post-query sharing, each
+caller receives independent principal/session/Date objects, and map saturation
+falls back to an independent full validation. Regression proof must cover both
+sides of the query-start boundary before another staging run.
+
+### Pre-query batch local proof
+
+The bounded implementation uses the approved two-millisecond pre-query window
+and deletes the exact map entry before issuing the authoritative PostgreSQL
+statement. The validation key includes the exact user claim plus normalized
+token/access/session/platform generations. Missing or malformed session keys
+bypass batching and execute full validation. A 5,000-entry cap is fail-closed:
+an already-open exact batch can still accept its matching caller, while new
+principals execute independent snapshot queries without growing the map. No
+result or in-flight query is shared after the statement starts.
+
+Exact local proof on the final three-file fingerprint passed:
+
+- JwtStrategy: 17 tests, including 250 requests across 60 principals producing
+  exactly 60 snapshot queries; before-query lock visibility; after-query lock,
+  token and session isolation; exact-claim separation; request-local mutable
+  objects; and saturation join/overflow behavior.
+- JwtStrategy plus AuthSessionService: 2 suites, 28 tests.
+- Affected auth/session/throttler/Home: 11 suites, 173 tests.
+- Full Nest: 90 suites, 961 tests; Nest build passed.
+- Existing Flutter auth bootstrap/session/access-refresh/realtime/Home
+  consumers: 76 tests; `flutter analyze --no-pub` found no issue.
+- Changed-file Prettier and `git diff --check` passed.
+
+No schema, migration, token, permission, event, rate-limit or public API
+contract changes. Expand/contract migration policy is therefore not invoked.
+Remaining gates are PR/CI/lifecycle, exact-SHA staging deployment, unchanged
+cold 250-VU/2,000-request load proof, selected-SA isolation and mandatory
+synthetic cleanup.
