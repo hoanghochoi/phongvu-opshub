@@ -8,7 +8,10 @@ describe('HomeSummaryController', () => {
     };
     const controller = new HomeSummaryController(service as any);
     const req = { user: { id: 'user-1' } };
-    const query = { date: '2026-07-04' };
+    const query = {
+      date: '2026-07-04',
+      includeDailySeries: 'true' as const,
+    };
 
     await expect(controller.summary(req, query)).resolves.toEqual({ ok: true });
     expect(service.getSummary).toHaveBeenCalledWith(req.user, query);

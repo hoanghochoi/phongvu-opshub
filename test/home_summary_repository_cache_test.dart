@@ -8,6 +8,49 @@ import 'package:phongvu_opshub/core/network/api_client.dart';
 import 'package:phongvu_opshub/features/home/data/repositories/home_summary_repository.dart';
 
 void main() {
+  test(
+    'legacy Home consumer ignores an unknown optional daily series',
+    () async {
+      final repository = HomeSummaryRepository(
+        ApiClient.test(
+          MockClient((request) async {
+            expect(
+              request.url.queryParameters,
+              isNot(contains('includeDailySeries')),
+            );
+            return http.Response(
+              jsonEncode(
+                _summaryJson(
+                  totalOrders: 3,
+                  dailySeries: const [
+                    {
+                      'date': '2026-07-15',
+                      'totalRevenue': 12000000,
+                      'totalOrders': 3,
+                      'reportedOrders': 2,
+                      'totalReports': 4,
+                    },
+                  ],
+                ),
+              ),
+              200,
+              headers: {'content-type': 'application/json'},
+            );
+          }),
+        ),
+      );
+
+      final summary = await repository.fetchSummary(
+        startDate: '2026-07-15',
+        endDate: '2026-07-15',
+      );
+
+      expect(summary.totalOrders, 3);
+      expect(summary.startDate, '2026-07-15');
+      expect(summary.endDate, '2026-07-15');
+    },
+  );
+
   test('Home summary revalidates at the exact 60-second boundary', () async {
     final fetchedAt = DateTime.utc(2026, 7, 15, 8);
     var now = fetchedAt;
@@ -160,7 +203,10 @@ void main() {
   });
 }
 
-Map<String, dynamic> _summaryJson({required int totalOrders}) => {
+Map<String, dynamic> _summaryJson({
+  required int totalOrders,
+  List<Map<String, Object>>? dailySeries,
+}) => {
   'date': '2026-07-15',
   'startDate': '2026-07-15',
   'endDate': '2026-07-15',
@@ -169,4 +215,5 @@ Map<String, dynamic> _summaryJson({required int totalOrders}) => {
   'scopeLabel': 'Phạm vi cá nhân',
   'coverageLabel': 'Tỉ lệ báo cáo',
   'totalOrders': totalOrders,
+  if (dailySeries != null) 'dailySeries': dailySeries,
 };

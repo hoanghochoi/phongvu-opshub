@@ -241,6 +241,55 @@ describe('HomeSummaryService', () => {
     };
   }
 
+  function completeProjectionStates(dates: string[]) {
+    const generatedAt = new Date('2026-07-07T03:00:04.000Z');
+    const sourceUpdatedAt = new Date('2026-07-07T03:00:00.000Z');
+    return dates.map((date, index) => ({
+      summaryDate: new Date(`${date}T00:00:00.000Z`),
+      status: 'COMPLETE',
+      projectionVersion: BigInt(40 + index),
+      salesStatus: 'COMPLETE',
+      salesProjectionVersion: BigInt(40 + index),
+      salesGeneratedAt: generatedAt,
+      financeStatus: 'COMPLETE',
+      financeProjectionVersion: BigInt(30 + index),
+      financeGeneratedAt: generatedAt,
+      sourceUpdatedAt,
+      salesReportSourceUpdatedAt: sourceUpdatedAt,
+      erpOrderCacheSourceUpdatedAt: sourceUpdatedAt,
+      mapVietinSourceUpdatedAt: sourceUpdatedAt,
+      generatedAt,
+    }));
+  }
+
+  function salesAssignee(id: string, email: string, storeCode: string) {
+    return {
+      id,
+      email,
+      firstName: 'SA',
+      lastName: id,
+      jobRoleCode: 'SA',
+      areaCode: 'HCM',
+      regionCode: 'SOUTH',
+      store: {
+        storeId: storeCode,
+        storeName: storeCode,
+        area: {
+          code: 'HCM',
+          region: { code: 'SOUTH' },
+        },
+        organizationNode: null,
+      },
+      area: {
+        code: 'HCM',
+        region: { code: 'SOUTH' },
+      },
+      region: { code: 'SOUTH' },
+      organizationNode: null,
+      organizationAssignments: [],
+    };
+  }
+
   it('caches repeated summary loads for the same user and query for the Home TTL', async () => {
     const previousCacheFlag = process.env.HOME_SUMMARY_RESPONSE_CACHE_ENABLED;
     process.env.HOME_SUMMARY_RESPONSE_CACHE_ENABLED = 'true';
@@ -270,8 +319,52 @@ describe('HomeSummaryService', () => {
       { startDate: '2026-07-04', endDate: '2026-07-04' },
     );
 
-    expect(key).toMatch(/^v3:[a-f0-9]{64}$/);
+    expect(key).toMatch(/^v4:[a-f0-9]{64}$/);
     expect(key).not.toContain('staff@phongvu.vn');
+  });
+
+  it('separates legacy and daily-series response cache generations', async () => {
+    const previousCacheFlag = process.env.HOME_SUMMARY_RESPONSE_CACHE_ENABLED;
+    process.env.HOME_SUMMARY_RESPONSE_CACHE_ENABLED = 'true';
+    try {
+      const { service } = createHarness();
+      const user = { id: 'user-1', email: 'staff@phongvu.vn' };
+      const legacyResponse = { legacy: true } as any;
+      const dailyResponse = { dailySeries: [] } as any;
+      jest
+        .spyOn(service as any, 'computeSummary')
+        .mockResolvedValueOnce(legacyResponse)
+        .mockResolvedValueOnce(dailyResponse);
+
+      await expect(
+        service.getSummary(user, {
+          startDate: '2026-07-04',
+          endDate: '2026-07-04',
+        }),
+      ).resolves.toBe(legacyResponse);
+      await expect(
+        service.getSummary(user, {
+          startDate: '2026-07-04',
+          endDate: '2026-07-04',
+          includeDailySeries: 'false',
+        }),
+      ).resolves.toBe(legacyResponse);
+      await expect(
+        service.getSummary(user, {
+          startDate: '2026-07-04',
+          endDate: '2026-07-04',
+          includeDailySeries: 'true',
+        }),
+      ).resolves.toBe(dailyResponse);
+
+      expect((service as any).computeSummary).toHaveBeenCalledTimes(2);
+    } finally {
+      if (previousCacheFlag === undefined) {
+        delete process.env.HOME_SUMMARY_RESPONSE_CACHE_ENABLED;
+      } else {
+        process.env.HOME_SUMMARY_RESPONSE_CACHE_ENABLED = previousCacheFlag;
+      }
+    }
   });
 
   it('invalidates only overlapping summary ranges and ignores duplicate projection versions', async () => {
@@ -309,6 +402,66 @@ describe('HomeSummaryService', () => {
       expect(duplicate.invalidatedCacheEntries).toBe(0);
       expect(duplicate.ignoredUpdates).toBe(1);
       expect((service as any).computeSummary).toHaveBeenCalledTimes(2);
+    } finally {
+      if (previousCacheFlag === undefined) {
+        delete process.env.HOME_SUMMARY_RESPONSE_CACHE_ENABLED;
+      } else {
+        process.env.HOME_SUMMARY_RESPONSE_CACHE_ENABLED = previousCacheFlag;
+      }
+    }
+  });
+
+  it('invalidates legacy and daily-series cache generations from the same projection event', async () => {
+    const previousCacheFlag = process.env.HOME_SUMMARY_RESPONSE_CACHE_ENABLED;
+    process.env.HOME_SUMMARY_RESPONSE_CACHE_ENABLED = 'true';
+    try {
+      const { service } = createHarness();
+      const user = { id: 'user-1', email: 'staff@phongvu.vn' };
+      const legacyQuery = {
+        startDate: '2026-07-04',
+        endDate: '2026-07-04',
+      };
+      const dailyQuery = {
+        ...legacyQuery,
+        includeDailySeries: 'true' as const,
+      };
+      const legacyBefore = {
+        freshness: { projectionVersion: 40 },
+      } as any;
+      const dailyBefore = {
+        freshness: { projectionVersion: 40 },
+        dailySeries: [],
+      } as any;
+      const legacyAfter = {
+        freshness: { projectionVersion: 41 },
+      } as any;
+      const dailyAfter = {
+        freshness: { projectionVersion: 41 },
+        dailySeries: [],
+      } as any;
+      jest
+        .spyOn(service as any, 'computeSummary')
+        .mockResolvedValueOnce(legacyBefore)
+        .mockResolvedValueOnce(dailyBefore)
+        .mockResolvedValueOnce(legacyAfter)
+        .mockResolvedValueOnce(dailyAfter);
+
+      await service.getSummary(user, legacyQuery);
+      await service.getSummary(user, dailyQuery);
+      expect((service as any).summaryResponseCache.size).toBe(2);
+
+      const invalidation = service.invalidateSummaryResponseCache([
+        { affectedDates: ['2026-07-04'], projectionVersion: 41 },
+      ]);
+      expect(invalidation.invalidatedCacheEntries).toBe(2);
+
+      await expect(service.getSummary(user, legacyQuery)).resolves.toBe(
+        legacyAfter,
+      );
+      await expect(service.getSummary(user, dailyQuery)).resolves.toBe(
+        dailyAfter,
+      );
+      expect((service as any).computeSummary).toHaveBeenCalledTimes(4);
     } finally {
       if (previousCacheFlag === undefined) {
         delete process.env.HOME_SUMMARY_RESPONSE_CACHE_ENABLED;
@@ -828,6 +981,7 @@ describe('HomeSummaryService', () => {
           ERP_ORDER_CACHE: new Date('2026-07-04T02:59:59.000Z'),
         }),
       );
+      expect(response).not.toHaveProperty('dailySeries');
       expect(prisma.homeSummaryReportFact.upsert).not.toHaveBeenCalled();
       expect(prisma.homeSummaryOrderFact.upsert).not.toHaveBeenCalled();
     } finally {
@@ -841,6 +995,474 @@ describe('HomeSummaryService', () => {
       } else {
         process.env.HOME_SUMMARY_LEGACY_SYNC_FALLBACK_ENABLED =
           previousFallbackFlag;
+      }
+    }
+  });
+
+  it('returns an ascending zero-filled daily series from one scoped SALES projection query', async () => {
+    const previousProjectionFlag = process.env.HOME_SUMMARY_PROJECTION_ENABLED;
+    const previousFallbackFlag =
+      process.env.HOME_SUMMARY_LEGACY_SYNC_FALLBACK_ENABLED;
+    process.env.HOME_SUMMARY_PROJECTION_ENABLED = 'true';
+    process.env.HOME_SUMMARY_LEGACY_SYNC_FALLBACK_ENABLED = 'false';
+    try {
+      const { service, prisma, salesReports, featureService } = createHarness();
+      featureService.canAccessFeature.mockImplementation(
+        (_user: any, featureCode: string) =>
+          featureCode === 'HOME_DASHBOARD_SALES',
+      );
+      salesReports.describeHomeSummaryScope.mockResolvedValue({
+        available: true,
+        scope: 'MANAGED_SCOPE',
+        scopeLabel: 'Phạm vi quản lý',
+        scopeDetail: 'Hai cửa hàng',
+        unavailableMessage: null,
+        ownUserId: null,
+        ownEmail: null,
+        ownPersonnelCode: null,
+        allowedStoreCodes: ['CP75', 'CP62'],
+      });
+      prisma.homeSummaryProjectionState.findMany.mockResolvedValue(
+        completeProjectionStates(['2026-07-04', '2026-07-05', '2026-07-06']),
+      );
+      prisma.homeSummaryDailyAggregate.findMany.mockResolvedValue([
+        {
+          summaryDate: new Date('2026-07-04T00:00:00.000Z'),
+          totalOrders: 2,
+          reportedOrders: 1,
+          totalReports: 3,
+          notPurchasedReports: 1,
+          metrics: { totalRevenue: 12_000_000 },
+        },
+        {
+          summaryDate: new Date('2026-07-04T00:00:00.000Z'),
+          totalOrders: 1,
+          reportedOrders: 1,
+          totalReports: 1,
+          notPurchasedReports: 0,
+          metrics: { totalRevenue: 4_000_000 },
+        },
+        {
+          summaryDate: new Date('2026-07-06T00:00:00.000Z'),
+          totalOrders: 3,
+          reportedOrders: 2,
+          totalReports: 4,
+          notPurchasedReports: 1,
+          metrics: { totalRevenue: 9_000_000 },
+        },
+      ]);
+
+      const response = await service.getSummary(
+        { id: 'manager-1', email: 'manager@phongvu.vn' },
+        {
+          startDate: '2026-07-04',
+          endDate: '2026-07-06',
+          includeDailySeries: 'true',
+        },
+      );
+
+      expect(response.dailySeries).toEqual([
+        {
+          date: '2026-07-04',
+          totalRevenue: 16_000_000,
+          totalOrders: 3,
+          reportedOrders: 2,
+          totalReports: 4,
+        },
+        {
+          date: '2026-07-05',
+          totalRevenue: 0,
+          totalOrders: 0,
+          reportedOrders: 0,
+          totalReports: 0,
+        },
+        {
+          date: '2026-07-06',
+          totalRevenue: 9_000_000,
+          totalOrders: 3,
+          reportedOrders: 2,
+          totalReports: 4,
+        },
+      ]);
+      expect(
+        response.dailySeries!.reduce(
+          (sum, point) => sum + point.totalRevenue,
+          0,
+        ),
+      ).toBe(response.totalRevenue);
+      expect(
+        response.dailySeries!.reduce(
+          (sum, point) => sum + point.totalOrders,
+          0,
+        ),
+      ).toBe(response.totalOrders);
+      expect(
+        response.dailySeries!.reduce(
+          (sum, point) => sum + point.reportedOrders,
+          0,
+        ),
+      ).toBe(response.reportedOrders);
+      expect(
+        response.dailySeries!.reduce(
+          (sum, point) => sum + point.totalReports,
+          0,
+        ),
+      ).toBe(response.totalReports);
+      expect(prisma.homeSummaryDailyAggregate.findMany).toHaveBeenCalledTimes(
+        1,
+      );
+      expect(prisma.homeSummaryDailyAggregate.findMany).toHaveBeenCalledWith({
+        where: expect.objectContaining({
+          projectionKind: 'SALES',
+          dimensionType: 'STORE',
+          storeCode: { in: ['CP75', 'CP62'] },
+        }),
+        select: expect.objectContaining({ summaryDate: true }),
+      });
+    } finally {
+      if (previousProjectionFlag === undefined) {
+        delete process.env.HOME_SUMMARY_PROJECTION_ENABLED;
+      } else {
+        process.env.HOME_SUMMARY_PROJECTION_ENABLED = previousProjectionFlag;
+      }
+      if (previousFallbackFlag === undefined) {
+        delete process.env.HOME_SUMMARY_LEGACY_SYNC_FALLBACK_ENABLED;
+      } else {
+        process.env.HOME_SUMMARY_LEGACY_SYNC_FALLBACK_ENABLED =
+          previousFallbackFlag;
+      }
+    }
+  });
+
+  it('uses an authorized selected SA scope for the opted-in SALES series while FINANCE keeps the dashboard scope', async () => {
+    const previousProjectionFlag = process.env.HOME_SUMMARY_PROJECTION_ENABLED;
+    process.env.HOME_SUMMARY_PROJECTION_ENABLED = 'true';
+    try {
+      const { service, prisma, salesReports } = createHarness();
+      salesReports.describeHomeSummaryScope.mockResolvedValue({
+        available: true,
+        scope: 'MANAGED_SCOPE',
+        scopeLabel: 'Showroom: CP75',
+        scopeDetail: 'CP75',
+        unavailableMessage: null,
+        ownUserId: null,
+        ownEmail: null,
+        ownPersonnelCode: null,
+        allowedStoreCodes: ['CP75'],
+      });
+      prisma.homeSummaryProjectionState.findMany.mockResolvedValue(
+        completeProjectionStates(['2026-07-04']),
+      );
+      prisma.user.findMany.mockResolvedValue([
+        salesAssignee('sa-2', 'SA2@PhongVu.vn', 'CP75'),
+        salesAssignee('sa-99', 'sa99@phongvu.vn', 'CP99'),
+      ]);
+      prisma.homeSummaryDailyAggregate.findMany.mockResolvedValue([]);
+
+      const response = await service.getSummary(
+        { id: 'manager-1', email: 'manager@phongvu.vn' },
+        {
+          date: '2026-07-04',
+          scope: 'MANAGED_SCOPE',
+          organizationNodeId: 'node-cp75',
+          salesProgressUserId: 'sa-2',
+          includeDailySeries: 'true',
+        },
+      );
+
+      expect(response.selectedSalesProgressUserId).toBe('sa-2');
+      expect(response.dailySeries).toEqual([
+        {
+          date: '2026-07-04',
+          totalRevenue: 0,
+          totalOrders: 0,
+          reportedOrders: 0,
+          totalReports: 0,
+        },
+      ]);
+      expect(prisma.homeSummaryDailyAggregate.findMany).toHaveBeenCalledTimes(
+        2,
+      );
+      expect(prisma.homeSummaryDailyAggregate.findMany).toHaveBeenNthCalledWith(
+        1,
+        expect.objectContaining({
+          where: expect.objectContaining({
+            projectionKind: 'SALES',
+            dimensionType: 'USER_STORE',
+            dimensionKey: 'sa2@phongvu.vn',
+            storeCode: { in: ['CP75'] },
+          }),
+        }),
+      );
+      expect(prisma.homeSummaryDailyAggregate.findMany).toHaveBeenNthCalledWith(
+        2,
+        expect.objectContaining({
+          where: expect.objectContaining({
+            projectionKind: 'FINANCE',
+            dimensionType: 'STORE',
+            storeCode: { in: ['CP75'] },
+          }),
+        }),
+      );
+      expect(
+        JSON.stringify(prisma.homeSummaryDailyAggregate.findMany.mock.calls),
+      ).not.toContain('CP99');
+    } finally {
+      if (previousProjectionFlag === undefined) {
+        delete process.env.HOME_SUMMARY_PROJECTION_ENABLED;
+      } else {
+        process.env.HOME_SUMMARY_PROJECTION_ENABLED = previousProjectionFlag;
+      }
+    }
+  });
+
+  it('falls back to the authorized dashboard scope when an opted-in selected SA is outside that scope', async () => {
+    const previousProjectionFlag = process.env.HOME_SUMMARY_PROJECTION_ENABLED;
+    process.env.HOME_SUMMARY_PROJECTION_ENABLED = 'true';
+    try {
+      const { service, prisma, salesReports } = createHarness();
+      salesReports.describeHomeSummaryScope.mockResolvedValue({
+        available: true,
+        scope: 'MANAGED_SCOPE',
+        scopeLabel: 'Showroom: CP75',
+        scopeDetail: 'CP75',
+        unavailableMessage: null,
+        ownUserId: null,
+        ownEmail: null,
+        ownPersonnelCode: null,
+        allowedStoreCodes: ['CP75'],
+      });
+      prisma.homeSummaryProjectionState.findMany.mockResolvedValue(
+        completeProjectionStates(['2026-07-04']),
+      );
+      prisma.user.findMany.mockResolvedValue([
+        salesAssignee('sa-2', 'sa2@phongvu.vn', 'CP75'),
+        salesAssignee('sa-99', 'sa99@phongvu.vn', 'CP99'),
+      ]);
+      prisma.homeSummaryDailyAggregate.findMany.mockResolvedValue([]);
+
+      const response = await service.getSummary(
+        { id: 'manager-1', email: 'manager@phongvu.vn' },
+        {
+          date: '2026-07-04',
+          scope: 'MANAGED_SCOPE',
+          organizationNodeId: 'node-cp75',
+          salesProgressUserId: 'sa-99',
+          includeDailySeries: 'true',
+        },
+      );
+
+      expect(response.selectedSalesProgressUserId).toBeNull();
+      expect(prisma.homeSummaryDailyAggregate.findMany).toHaveBeenNthCalledWith(
+        1,
+        expect.objectContaining({
+          where: expect.objectContaining({
+            projectionKind: 'SALES',
+            dimensionType: 'STORE',
+            storeCode: { in: ['CP75'] },
+          }),
+        }),
+      );
+      expect(
+        JSON.stringify(prisma.homeSummaryDailyAggregate.findMany.mock.calls),
+      ).not.toContain('CP99');
+    } finally {
+      if (previousProjectionFlag === undefined) {
+        delete process.env.HOME_SUMMARY_PROJECTION_ENABLED;
+      } else {
+        process.env.HOME_SUMMARY_PROJECTION_ENABLED = previousProjectionFlag;
+      }
+    }
+  });
+
+  it.each([
+    {
+      name: 'ALL',
+      scope: {
+        available: true,
+        scope: 'ALL',
+        scopeLabel: 'Toàn hệ thống',
+        scopeDetail: null,
+        unavailableMessage: null,
+        ownUserId: null,
+        ownEmail: null,
+        ownPersonnelCode: null,
+        allowedStoreCodes: [],
+      },
+      expectedWhere: {
+        dimensionType: 'GLOBAL',
+        dimensionKey: '',
+        storeCode: '',
+      },
+    },
+    {
+      name: 'OWN or selected SA',
+      scope: {
+        available: true,
+        scope: 'OWN',
+        scopeLabel: 'Phạm vi cá nhân',
+        scopeDetail: 'CP75',
+        unavailableMessage: null,
+        ownUserId: 'sa-2',
+        ownEmail: 'sa2@phongvu.vn',
+        ownPersonnelCode: null,
+        allowedStoreCodes: ['CP75'],
+      },
+      expectedWhere: {
+        dimensionType: 'USER_STORE',
+        dimensionKey: 'sa2@phongvu.vn',
+        storeCode: { in: ['CP75'] },
+      },
+    },
+  ])('reuses the $name projection scope for daily points', async (testCase) => {
+    const { service, prisma } = createHarness();
+    const range = (service as any).parseSummaryRange({
+      startDate: '2026-07-04',
+      endDate: '2026-07-05',
+    });
+
+    await (service as any).loadProjectionMetrics(
+      range,
+      testCase.scope,
+      'SALES',
+      true,
+    );
+
+    expect(prisma.homeSummaryDailyAggregate.findMany).toHaveBeenCalledTimes(1);
+    expect(prisma.homeSummaryDailyAggregate.findMany).toHaveBeenCalledWith({
+      where: expect.objectContaining(testCase.expectedWhere),
+      select: expect.objectContaining({ summaryDate: true }),
+    });
+  });
+
+  it.each([1, 7, 30, 90])(
+    'returns exactly %i ascending zero-filled daily points',
+    async (days) => {
+      const { service, prisma } = createHarness();
+      const startDate = '2026-01-01';
+      const endDate = new Date(Date.UTC(2026, 0, days))
+        .toISOString()
+        .slice(0, 10);
+      const range = (service as any).parseSummaryRange({
+        startDate,
+        endDate,
+      });
+      const scope = {
+        available: true,
+        scope: 'ALL',
+        scopeLabel: 'Toàn hệ thống',
+        scopeDetail: null,
+        unavailableMessage: null,
+        ownUserId: null,
+        ownEmail: null,
+        ownPersonnelCode: null,
+        allowedStoreCodes: [],
+      };
+
+      const result = await (service as any).loadProjectionMetrics(
+        range,
+        scope,
+        'SALES',
+        true,
+      );
+
+      expect(result.dailySeries).toHaveLength(days);
+      expect(result.dailySeries[0]).toMatchObject({ date: startDate });
+      expect(result.dailySeries.at(-1)).toMatchObject({ date: endDate });
+      expect(
+        result.dailySeries.every(
+          (point: any) =>
+            point.totalRevenue === 0 &&
+            point.totalOrders === 0 &&
+            point.reportedOrders === 0 &&
+            point.totalReports === 0,
+        ),
+      ).toBe(true);
+      expect(prisma.homeSummaryDailyAggregate.findMany).toHaveBeenCalledTimes(
+        1,
+      );
+    },
+  );
+
+  it('rejects an opted-in daily range above 90 days before querying projection rows', async () => {
+    const { service, prisma } = createHarness();
+
+    await expect(
+      service.getSummary(
+        { id: 'user-1', email: 'staff@phongvu.vn' },
+        {
+          startDate: '2026-04-01',
+          endDate: '2026-06-30',
+          includeDailySeries: 'true',
+        },
+      ),
+    ).rejects.toThrow(
+      'Chuỗi dữ liệu theo ngày chỉ hỗ trợ tối đa 90 ngày. Vui lòng chọn khoảng ngắn hơn.',
+    );
+    expect(prisma.homeSummaryDailyAggregate.findMany).not.toHaveBeenCalled();
+  });
+
+  it('omits the daily series when the sales section is unavailable', async () => {
+    const previousProjectionFlag = process.env.HOME_SUMMARY_PROJECTION_ENABLED;
+    process.env.HOME_SUMMARY_PROJECTION_ENABLED = 'true';
+    try {
+      const { service, prisma, featureService } = createHarness();
+      featureService.canAccessFeature.mockImplementation(
+        (_user: any, featureCode: string) =>
+          featureCode === 'HOME_DASHBOARD_FINANCE',
+      );
+      prisma.homeSummaryProjectionState.findMany.mockResolvedValue(
+        completeProjectionStates(['2026-07-04']),
+      );
+
+      const response = await service.getSummary(
+        { id: 'finance-1', email: 'finance@phongvu.vn' },
+        { date: '2026-07-04', includeDailySeries: 'true' },
+      );
+
+      expect(response.salesAvailable).toBe(false);
+      expect(response).not.toHaveProperty('dailySeries');
+      expect(prisma.homeSummaryDailyAggregate.findMany).toHaveBeenCalledTimes(
+        1,
+      );
+      expect(prisma.homeSummaryDailyAggregate.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ projectionKind: 'FINANCE' }),
+        }),
+      );
+    } finally {
+      if (previousProjectionFlag === undefined) {
+        delete process.env.HOME_SUMMARY_PROJECTION_ENABLED;
+      } else {
+        process.env.HOME_SUMMARY_PROJECTION_ENABLED = previousProjectionFlag;
+      }
+    }
+  });
+
+  it('preserves finance-only legacy fallback when the daily flag is present', async () => {
+    const previousProjectionFlag = process.env.HOME_SUMMARY_PROJECTION_ENABLED;
+    process.env.HOME_SUMMARY_PROJECTION_ENABLED = 'false';
+    try {
+      const { service, prisma, featureService } = createHarness();
+      featureService.canAccessFeature.mockImplementation(
+        (_user: any, featureCode: string) =>
+          featureCode === 'HOME_DASHBOARD_FINANCE',
+      );
+
+      const response = await service.getSummary(
+        { id: 'finance-1', email: 'finance@phongvu.vn' },
+        { date: '2026-07-04', includeDailySeries: 'true' },
+      );
+
+      expect(response.salesAvailable).toBe(false);
+      expect(response.financeAvailable).toBe(true);
+      expect(response).not.toHaveProperty('dailySeries');
+      expect(prisma.homeSummaryDailyAggregate.findMany).not.toHaveBeenCalled();
+    } finally {
+      if (previousProjectionFlag === undefined) {
+        delete process.env.HOME_SUMMARY_PROJECTION_ENABLED;
+      } else {
+        process.env.HOME_SUMMARY_PROJECTION_ENABLED = previousProjectionFlag;
       }
     }
   });

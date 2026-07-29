@@ -151,45 +151,64 @@ export const options = {
       gracefulStop: "0s",
     },
   },
-  summaryTrendStats: ["avg", "min", "med", "max", "p(90)", "p(95)", "p(99)"],
+  summaryTrendStats: ["avg", "min", "p(50)", "max", "p(90)", "p(95)", "p(99)"],
   thresholds: {
     opshub_http_success: ["rate>=0.999"],
     opshub_http_5xx_or_timeout: ["rate<=0.001"],
     opshub_unexpected_429: ["count==0"],
     http_req_duration: ["p(95)<=500", "p(99)<=1000"],
-    opshub_home_summary_duration: ["p(95)<=500", "p(99)<=1000"],
-    "opshub_home_summary_duration{range:home_1d}": [
+    opshub_home_summary_duration: [
+      "p(50)<=250",
       "p(95)<=500",
       "p(99)<=1000",
+      "max<=3000",
+    ],
+    "opshub_home_summary_duration{range:home_1d}": [
+      "p(50)<=250",
+      "p(95)<=500",
+      "p(99)<=1000",
+      "max<=3000",
     ],
     "opshub_home_summary_duration{range:home_7d}": [
+      "p(50)<=250",
       "p(95)<=500",
       "p(99)<=1000",
+      "max<=3000",
     ],
     "opshub_home_summary_duration{range:home_30d}": [
+      "p(50)<=250",
       "p(95)<=500",
       "p(99)<=1000",
+      "max<=3000",
     ],
     "opshub_home_summary_duration{range:home_90d}": [
+      "p(50)<=250",
       "p(95)<=500",
       "p(99)<=1000",
+      "max<=3000",
     ],
     "opshub_home_summary_duration{phase:capacity_100_qps_hold}": [
+      "p(50)<=250",
       "p(95)<=500",
       "p(99)<=1000",
+      "max<=3000",
     ],
     "opshub_home_summary_duration{phase:capacity_100_qps_hold,range:home_1d}": [
+      "p(50)<=250",
       "p(95)<=500",
       "p(99)<=1000",
+      "max<=3000",
     ],
     "opshub_home_summary_duration{phase:capacity_100_qps_hold,range:home_7d}": [
+      "p(50)<=250",
       "p(95)<=500",
       "p(99)<=1000",
+      "max<=3000",
     ],
     "opshub_home_summary_duration{phase:capacity_100_qps_hold,range:home_30d}":
-      ["p(95)<=500", "p(99)<=1000"],
+      ["p(50)<=250", "p(95)<=500", "p(99)<=1000", "max<=3000"],
     "opshub_home_summary_duration{phase:capacity_100_qps_hold,range:home_90d}":
-      ["p(95)<=500", "p(99)<=1000"],
+      ["p(50)<=250", "p(95)<=500", "p(99)<=1000", "max<=3000"],
     "dropped_iterations{scenario:capacity_25_qps}": ["count==0"],
     "dropped_iterations{scenario:capacity_50_qps}": ["count==0"],
     "dropped_iterations{scenario:capacity_ramp_to_100_qps}": ["count==0"],
@@ -223,7 +242,7 @@ function priorDate(endDate, days) {
 function homePath(days) {
   const endDate = manifest.homeEndDate;
   const startDate = priorDate(endDate, days - 1);
-  return `/home/summary?startDate=${startDate}&endDate=${endDate}`;
+  return `/home/summary?startDate=${startDate}&endDate=${endDate}&includeDailySeries=true`;
 }
 
 function routeForIteration() {

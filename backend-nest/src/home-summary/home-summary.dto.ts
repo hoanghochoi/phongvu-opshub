@@ -9,7 +9,7 @@ import {
   Min,
 } from 'class-validator';
 
-export class GetHomeSummaryQueryDto {
+class HomeSummaryScopeQueryDto {
   @IsOptional()
   @IsString()
   @MaxLength(10)
@@ -41,7 +41,18 @@ export class GetHomeSummaryQueryDto {
   salesProgressUserId?: string;
 }
 
-export class GetHomeSummaryDetailsQueryDto extends GetHomeSummaryQueryDto {
+export class GetHomeSummaryQueryDto extends HomeSummaryScopeQueryDto {
+  @IsOptional()
+  @IsString({
+    message: 'Tùy chọn chuỗi theo ngày chỉ nhận true hoặc false.',
+  })
+  @IsIn(['true', 'false'], {
+    message: 'Tùy chọn chuỗi theo ngày chỉ nhận true hoặc false.',
+  })
+  includeDailySeries?: 'true' | 'false';
+}
+
+export class GetHomeSummaryDetailsQueryDto extends HomeSummaryScopeQueryDto {
   @IsOptional()
   @Type(() => Number)
   @IsInt()
@@ -56,7 +67,7 @@ export const HOME_SUMMARY_DETAIL_V2_KINDS = [
   'INSTALLMENT_NEED',
 ] as const;
 
-export class GetHomeSummaryDetailsV2QueryDto extends GetHomeSummaryQueryDto {
+export class GetHomeSummaryDetailsV2QueryDto extends HomeSummaryScopeQueryDto {
   @IsString()
   @IsIn(HOME_SUMMARY_DETAIL_V2_KINDS)
   kind!: (typeof HOME_SUMMARY_DETAIL_V2_KINDS)[number];

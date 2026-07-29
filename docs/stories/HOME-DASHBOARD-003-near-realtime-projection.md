@@ -28,6 +28,11 @@ WebSocket và Flutter lifecycle trên nhiều runtime.
 - `GET /home/summary` giữ toàn bộ DTO KPI hiện tại và thêm `freshness` gồm
   `projectionGeneratedAt`, `projectionLagSeconds`,
   `sourceUpdatedAtBySource`, `isStale`.
+- Query strict `includeDailySeries=true` đọc một lần projection SALES cho toàn
+  khoảng 1/7/30/90 ngày, nhóm theo ngày trong memory và trả chuỗi tăng dần,
+  zero-fill gồm doanh số, đơn bán, đơn đã báo cáo và tổng báo cáo. Cùng
+  ALL/STORE/USER_STORE grain phục vụ aggregate nên selected-SA và permission
+  không có đường scope riêng; chuỗi không dùng synchronous legacy fact path.
 - Projection trễ hơn 15 giây vẫn trả bản hoàn chỉnh gần nhất với trạng thái
   stale. Chưa có bản hoàn chỉnh trả HTTP 503 với thông báo tiếng Việt; GET
   không rebuild đồng bộ.

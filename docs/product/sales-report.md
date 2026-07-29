@@ -401,6 +401,14 @@ cho Google Form, đồng thời lưu dữ liệu đủ chuẩn để dashboard d
   giữ DTO KPI hiện tại, thêm freshness metadata và trả last complete projection
   khi stale; không có projection hoàn chỉnh thì trả 503 bằng thông báo tiếng
   Việt. Legacy fact/read path còn sau feature flag trong một release để rollback.
+- Client cần chuỗi theo ngày gọi cùng endpoint với
+  `includeDailySeries=true`; không gửi flag hoặc gửi `false` giữ nguyên response
+  cũ. Chuỗi tối đa 90 ngày, tăng dần và zero-fill từng ngày, gồm doanh số tổng,
+  số đơn bán, số đơn đã báo cáo và tổng số báo cáo. Bốn tổng trong chuỗi phải
+  bằng bốn KPI aggregate tương ứng, dùng đúng scope Bán hàng/SA đang chọn. Khi
+  user không có quyền xem Bán hàng thì response không có `dailySeries`; chuỗi
+  không đọc fact đồng bộ, không vào Redis/realtime và không thay đổi số liệu Tài
+  chính.
 - `SalesReportCategoryGroup` đồng bộ từ `data/categories.csv`, dùng `Cat group
 ID` làm code, `Cat group name` làm tên gốc và `catGroupNameVi` làm nhãn tiếng
   Việt.

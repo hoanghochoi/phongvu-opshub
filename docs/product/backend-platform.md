@@ -17,6 +17,14 @@ development services for OpsHub.
   rebuilds additive `GLOBAL`, `STORE`, and `USER_STORE` grains asynchronously.
   PostgreSQL `NOTIFY` is a wake-up hint and one-second outbox polling is the
   loss-safe fallback. Redis carries only the post-commit realtime signal.
+- `GET /home/summary` keeps its aggregate response unchanged by default. A
+  strict `includeDailySeries=true` opt-in adds an ascending, zero-filled series
+  for at most 90 inclusive days with `date`, `totalRevenue`, `totalOrders`,
+  `reportedOrders`, and `totalReports`. The API reads all points with the same
+  range-wide SALES projection query and the same ALL/managed/own or selected-SA
+  scope as the aggregate sales metrics. The series is omitted when Sales is not
+  available; it never falls back to a synchronous fact rebuild. Legacy and
+  opted-in responses use separate 60-second response-cache generations.
 - The authenticated `/ws/v2` endpoint carries versioned topic events. Home uses
   `HOME_SUMMARY_UPDATED` on `home.summary`; its payload has affected dates and
   a projection version but never KPI values. Flutter re-reads

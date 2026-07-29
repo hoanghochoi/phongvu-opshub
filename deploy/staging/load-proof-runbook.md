@@ -69,6 +69,23 @@ The manifest contains deterministic user order and the verified Home end date.
 
 ## Capacity profile
 
+Trước capacity ladder, chạy parity/load profile
+`scripts/load/opshub-home-phase1-http-proof.js` với `BASE_URL`, `TEST_RUN_ID`,
+`TOKENS_FILE`, `TARGET_VUS=250`, `TARGET_REQUESTS=2000` và approval tương ứng
+staging hoặc loopback. Profile luân phiên response legacy và
+`includeDailySeries=true` cho đủ 1/7/30/90 ngày. Nó fail nếu legacy vô tình có
+`dailySeries`, series thiếu/thừa hoặc sai thứ tự ngày, field không phải số, hay
+  tổng bốn metric theo ngày lệch aggregate; đồng thời giữ SLO
+  p50/p95/p99/max `250/500/1000/3000 ms` riêng từng range.
+
+The fixed 2,000-request envelope is executed as 1,000 matched pairs. Each pair
+uses the same synthetic principal and date range, sends one legacy request and
+one `includeDailySeries=true` request sequentially, and compares
+`totalRevenue`, `totalOrders`, `reportedOrders`, and `totalReports`
+across both responses. The run fails even when the opted-in series is internally
+consistent if any protected aggregate differs from its matched legacy response.
+Range and variant tags remain attached to both latency samples.
+
 Run `scripts/load/opshub-staging-home-100qps.js` with the temporary k6 binary
 and these exact environment values:
 
@@ -88,7 +105,9 @@ The fixed ladder is smoke 1-5 users, 25 QPS for two minutes, 50 QPS for three
 minutes, ramp to 100 QPS for three minutes, hold 100 QPS for 15 minutes, then
 ramp down for two minutes. Token selection is deterministic round-robin. The
 read mix is 70% Home summary (35% one day, 20% seven days, 10% 30 days, 5% 90
-days), 10% Home scopes, 10% auth bootstrap and 10% auth me, plus 60 `/ws/v2`
+days), tất cả Home request trong capacity profile dùng
+`includeDailySeries=true`; 10% Home scopes, 10% auth bootstrap và 10% auth me,
+plus 60 `/ws/v2`
 connections. Each synthetic user requests exactly one realtime ticket, opens at
 most one socket after smoke, and holds that socket through the remaining fixed
 HTTP ladder; the release profile does not reconnect or churn sockets.
