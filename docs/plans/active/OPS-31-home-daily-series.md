@@ -405,3 +405,44 @@ No migration exists in this changeset, so expand/contract policy is not
 invoked. Remaining release gates are PR/CI/lifecycle, exact-SHA staging deploy,
 the unchanged cold load profile, selected-SA isolation and mandatory synthetic
 cleanup.
+
+### Staging QA attempt 5 and single Home auth-context hydration
+
+PR #57 deployed successfully at exact staging SHA
+`6a1bee1a5989a6840636c2dffbb93baa5f0bbf52` through run `30479218523`.
+Before merge, a read-only PostgreSQL transaction with two real user/session
+fixtures proved numeric request-index mapping, duplicate-principal isolation,
+valid association, inactive-session and cross-principal mismatch visibility,
+and missing-user omission; the transaction was rolled back and emitted no id
+or token. Release Guard, CodeQL, runtime health and the five disabled
+side-effect flags passed, with no SMTP variables present.
+
+Synthetic run `ops31batch-20260730-0135` passed auth/bootstrap/scopes and
+legacy/daily 1/7/30/90 contract, ordering, freshness and parity. The fixed
+profile returned 2,000/2,000 HTTP 200 with 100% contract/parity and zero
+429/5xx/timeout, but latency still failed. Client p50/p95/p99/max were
+`216.13/2210/2560/2820 ms`. Sixty cold Home loads were
+`1892/2045/2056.1/2062 ms`, while 59 daily extensions were only
+`76/113.1/120.84/122 ms`. API CPU peaked at 123.01%, PostgreSQL at 60.82%,
+connections at 17/100 with one active and zero waiting, and Redis/restart
+signals stayed clean. Cleanup revoked exactly 60 users/sessions, deleted
+exactly 60 users and proved zero remaining/tagged/code/reference rows plus
+absent server/local tokens and k6 process.
+
+The remaining cold path resolves section features twice and the Home scope
+once. Without an attached auth context, those consumers may independently
+hydrate the same user/organization snapshot before projection reads begin.
+`AuthContextService` already owns the versioned scope snapshot and feature map,
+with L1/Redis/in-flight isolation per exact principal, but Home summary did not
+reuse it. The next bounded fix hydrates that existing context once per response
+cache miss and passes the same request-local enriched principal to section
+access, scope resolution and sales-progress work. Sanitized stage timings are
+added to distinguish context, section, scope, projection preparation, progress
+and metric reads on the next exact-SHA run.
+
+This does not share context across principals or tenants, weaken a permission
+check, change cache identity, alter API/schema/migration behavior, or change
+Home calculations. Expand/contract migration policy is not invoked. Required
+proof covers context propagation, auth-context version isolation, Home legacy
+and daily consumers, full affected backend/Flutter gates, exact-SHA load and
+mandatory cleanup.

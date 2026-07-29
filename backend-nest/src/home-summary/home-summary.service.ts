@@ -881,6 +881,11 @@ export class HomeSummaryService {
         'Chuỗi dữ liệu theo ngày chỉ hỗ trợ tối đa 90 ngày. Vui lòng chọn khoảng ngắn hơn.',
       );
     }
+    const contextStartedAt = Date.now();
+    const contextUser = this.authContextService
+      ? await this.authContextService.withContext(user)
+      : user;
+    const contextDurationMs = Date.now() - contextStartedAt;
     const date = range.endDate;
     const requestedScope = this.parseScopeParam(query.scope);
     const summaryDate = this.parseDateOnly(date) ?? new Date();
@@ -891,8 +896,10 @@ export class HomeSummaryService {
     this.logger.log(
       `Home summary load started: user=${this.safeUserLabel(user)} startDate=${range.startDate} endDate=${range.endDate} scopeFilter=${requestedScope} salesProgressUserId=${requestedSalesProgressUserId || 'none'} includeDailySeries=${includeDailySeries} dailySeriesDays=${dailySeriesDates.length}`,
     );
+    const sectionAccessStartedAt = Date.now();
     const { salesAvailable, financeAvailable } =
-      await this.resolveSectionAccess(user);
+      await this.resolveSectionAccess(contextUser);
+    const sectionAccessDurationMs = Date.now() - sectionAccessStartedAt;
     if (!salesAvailable && !financeAvailable) {
       const scope: SalesReportSummaryScopeDescriptor = {
         available: false,
@@ -917,12 +924,14 @@ export class HomeSummaryService {
         scope.unavailableMessage,
       );
     }
+    const scopeStartedAt = Date.now();
     const scope = await this.salesReports.describeHomeSummaryScope(
-      user,
+      contextUser,
       requestedScope,
       this.optionalText(query.organizationNodeId, 80),
       { allowOwnScope: salesAvailable || financeAvailable },
     );
+    const scopeDurationMs = Date.now() - scopeStartedAt;
     if (!scope.available) {
       const response = this.emptySummary(
         date,
@@ -941,6 +950,7 @@ export class HomeSummaryService {
     let freshness: HomeSummaryFreshnessResponse | null = null;
     let projectionVersionsByDate = new Map<string, number>();
     let useProjection = this.projectionEnabled();
+    const projectionPreparationStartedAt = Date.now();
     if (includeDailySeries && salesAvailable && !useProjection) {
       this.logger.warn(
         'Home summary daily series unavailable: reason=projection_disabled',
@@ -976,15 +986,19 @@ export class HomeSummaryService {
     } else if (salesAvailable || (financeAvailable && scope.scope === 'OWN')) {
       refreshedAt = await this.syncFactsForRange(range);
     }
+    const projectionPreparationDurationMs =
+      Date.now() - projectionPreparationStartedAt;
+    const salesProgressStartedAt = Date.now();
     const salesProgressBundle = salesAvailable
       ? await this.buildSalesProgressBundleCached(
-          user,
+          contextUser,
           scope,
           summaryDate,
           range,
           requestedSalesProgressUserId,
         )
       : this.emptySalesProgressBundle();
+    const salesProgressDurationMs = Date.now() - salesProgressStartedAt;
     const salesMetricsScope = salesProgressBundle.selectedScope ?? scope;
     // Pending-payment rows stay in the order cache/facts for reporting, but
     // they are not paid sales and must not inflate the sales KPI denominator.
@@ -1004,6 +1018,7 @@ export class HomeSummaryService {
     let behaviorYesCounts = this.emptyBehaviorYesCounts();
     let projectedSales: HomeProjectionLoadResult | null = null;
     let projectedFinance: HomeProjectionLoadResult | null = null;
+    const projectionMetricsStartedAt = Date.now();
     if (useProjection) {
       [projectedSales, projectedFinance] = await Promise.all([
         salesAvailable
@@ -1019,6 +1034,7 @@ export class HomeSummaryService {
           : Promise.resolve(null),
       ]);
     }
+    const projectionMetricsDurationMs = Date.now() - projectionMetricsStartedAt;
     if (salesAvailable) {
       if (useProjection) {
         const projected = projectedSales!;
@@ -1268,6 +1284,9 @@ export class HomeSummaryService {
       salesAvailable,
       salesMetricsScope,
     });
+    this.logger.debug(
+      `Home summary stage timings: user=${this.safeUserLabel(contextUser)} contextDurationMs=${contextDurationMs} sectionAccessDurationMs=${sectionAccessDurationMs} scopeDurationMs=${scopeDurationMs} projectionPreparationDurationMs=${projectionPreparationDurationMs} salesProgressDurationMs=${salesProgressDurationMs} projectionMetricsDurationMs=${projectionMetricsDurationMs} durationMs=${Date.now() - startedAt}`,
+    );
     this.logger.log(
       `Home summary load succeeded: user=${this.safeUserLabel(user)} startDate=${range.startDate} endDate=${range.endDate} scopeFilter=${requestedScope} scope=${scope.scope} salesMetricsScope=${salesMetricsScope.scope} selectedSalesProgressUserId=${salesProgressBundle.selectedUserId || 'none'} salesProgressAssignees=${salesProgressBundle.assignees.length} salesAvailable=${salesAvailable} financeAvailable=${financeAvailable} includeDailySeries=${includeDailySeries} dailySeriesPoints=${dailySeries?.length ?? 0} totalRevenue=${totalRevenue} completedRevenue=${completedRevenue} pendingRevenue=${pendingRevenue} businessCustomerRevenue=${mainKpis.businessCustomerRevenue} personalCustomerRevenue=${mainKpis.personalCustomerRevenue} installmentNeedCount=${mainKpis.installmentNeedCount} successfulInstallmentCount=${mainKpis.successfulInstallmentCount} laptopQuantity=${mainKpis.laptopQuantity} pcQuantity=${mainKpis.pcQuantity} assembledPcQuantity=${mainKpis.assembledPcQuantity} appleQuantity=${mainKpis.appleQuantity} totalOrders=${totalOrders} averageOrderValue=${averageOrderValue} totalReports=${totalReports} reportedOrders=${reportedOrders} notPurchasedReports=${notPurchasedReports} consultedYes=${behaviorYesCounts.consultedSolution} experiencedYes=${behaviorYesCounts.experienced} zaloYes=${behaviorYesCounts.zalo} appDownloadYes=${behaviorYesCounts.appDownload} totalStatements=${totalStatements} statementsWithOrder=${totalStatementsWithOrder} projectionVersion=${freshness?.projectionVersion ?? 'legacy'} projectionLagSeconds=${freshness?.projectionLagSeconds ?? 'legacy'} isStale=${freshness?.isStale ?? false} durationMs=${Date.now() - startedAt}`,
     );

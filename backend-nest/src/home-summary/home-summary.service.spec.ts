@@ -290,6 +290,76 @@ describe('HomeSummaryService', () => {
     };
   }
 
+  it('hydrates one auth context and reuses it across Home authorization and scope work', async () => {
+    const rawUser = {
+      id: 'user-1',
+      email: 'staff@phongvu.vn',
+      jobRoleCode: 'STAFF',
+    };
+    const contextUser = {
+      ...rawUser,
+      __authContext: {
+        featureAccess: {
+          HOME_DASHBOARD_SALES: true,
+          HOME_DASHBOARD_FINANCE: false,
+        },
+        scopeSnapshot: { ...rawUser, organizationAssignments: [] },
+      },
+    };
+    const authContextService = {
+      withContext: jest.fn().mockResolvedValue(contextUser),
+    };
+    const { service, salesReports } = createHarness({ authContextService });
+    const sectionAccess = jest
+      .spyOn(service as any, 'resolveSectionAccess')
+      .mockResolvedValue({ salesAvailable: true, financeAvailable: false });
+    jest.spyOn(service as any, 'projectionEnabled').mockReturnValue(true);
+    jest
+      .spyOn(service as any, 'loadProjectionFreshnessCached')
+      .mockResolvedValue({
+        freshness: {
+          projectionGeneratedAt: new Date('2026-07-04T03:00:00Z'),
+          projectionLagSeconds: 0,
+          projectionVersion: 40,
+          sourceUpdatedAtBySource: {},
+          isStale: false,
+        },
+        versionsByDate: new Map([['2026-07-04', 40]]),
+      });
+    const progressBundle = (service as any).emptySalesProgressBundle();
+    const progressLoad = jest
+      .spyOn(service as any, 'buildSalesProgressBundleCached')
+      .mockResolvedValue(progressBundle);
+    jest
+      .spyOn(service as any, 'loadProjectionMetrics')
+      .mockResolvedValue((service as any).emptyProjectionMetrics());
+
+    await (service as any).computeSummary(rawUser, {
+      startDate: '2026-07-04',
+      endDate: '2026-07-04',
+    });
+
+    expect(authContextService.withContext).toHaveBeenCalledTimes(1);
+    expect(authContextService.withContext).toHaveBeenCalledWith(rawUser);
+    expect(sectionAccess).toHaveBeenCalledWith(contextUser);
+    expect(salesReports.describeHomeSummaryScope).toHaveBeenCalledWith(
+      contextUser,
+      'AUTO',
+      null,
+      { allowOwnScope: true },
+    );
+    expect(progressLoad).toHaveBeenCalledWith(
+      contextUser,
+      expect.objectContaining({ scope: 'OWN' }),
+      expect.any(Date),
+      expect.objectContaining({
+        start: expect.any(Date),
+        end: expect.any(Date),
+      }),
+      null,
+    );
+  });
+
   it('caches repeated summary loads for the same user and query for the Home TTL', async () => {
     const previousCacheFlag = process.env.HOME_SUMMARY_RESPONSE_CACHE_ENABLED;
     process.env.HOME_SUMMARY_RESPONSE_CACHE_ENABLED = 'true';
