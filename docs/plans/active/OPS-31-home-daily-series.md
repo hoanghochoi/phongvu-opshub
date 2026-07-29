@@ -233,3 +233,51 @@ full-fix changeset passed:
 The remaining release-readiness proof is PR review/CI, exact-SHA staging
 deployment, the unchanged cold 250-VU/2,000-request profile, authenticated
 selected-SA scope checks, resource monitoring and mandatory synthetic cleanup.
+
+### Staging QA attempt 2 and authentication follow-up
+
+PR #53 deployed successfully at exact staging SHA
+`8bb651fa7b5944956cfb4cf9abdccc017f73ef62` through run `30459662495`.
+Authenticated smoke again passed the legacy/daily 1/7/30/90-day contract,
+ordering, zero-fill, parity and freshness. The fixed cold profile returned
+2,000/2,000 HTTP 200 with 100% contract/parity and zero 429/5xx/timeout, but
+failed latency: client p50/p95/p99/max were
+`625.40/2140/2860/5630 ms`; server Home values were
+`464/1560.25/2001.04/2284 ms`.
+
+The Home full-fix was active: there were only 60 initial misses and 60 daily
+extensions for the 60 principal/range shapes. Daily extension p50/p95/p99/max
+fell to `145/304.7/338.4/339 ms`, while the 60 initial authenticated loads
+remained at `1713/1957.2/2027.84/2042 ms`. API CPU briefly peaked at 140.46%,
+PostgreSQL peaked at 17/100 connections with zero active wait, Redis had zero
+evictions/blocked clients and no container restarted. All 60 synthetic users
+and sessions were revoked/deleted and both token copies were verified absent.
+
+Correctness and security review rejected the initial whole-validation
+single-flight approach: a request starting after a committed lock, token change,
+access change or session revocation could join an older request's pending
+promise and receive its stale authorization result. Settlement cleanup and a
+generation-rich key did not close that race because the key contained signed
+claims rather than current database state. The earlier local proof counts for
+that rejected implementation are therefore superseded.
+
+The corrected bounded fix removes all cross-request validation sharing. Every
+protected request executes its own narrowly parameterized PostgreSQL statement
+that left-joins `User` and `UserPlatformSession`, so status, token version,
+current access version, session identity/platform/version, revocation and expiry
+come from one per-request statement snapshot. Existing behavior remains: token
+version is compared with the signed claim, current access version is returned
+as the authorization-context generation, and session failures retain the
+existing Vietnamese responses. Each query result produces a request-local user
+principal and auth-session object. The implementation does not enable a global
+Prisma relation strategy and changes no schema, migration, token, permission,
+event or API contract. The existing `AuthSessionService` remains the single
+authority for platform, version, revocation, expiry, Vietnamese response and
+sanitized rejection-log semantics; the JWT strategy supplies its preloaded row
+without issuing a second query. Focused auth/session proof, affected-consumer
+proof and another exact cold staging run remain mandatory before release
+readiness.
+
+Corrected pre-integration local proof passed: JwtStrategy plus AuthSessionService
+2 suites/23 tests, Nest build, changed-file Prettier and `git diff --check`.
+Exact-SHA staging load/cleanup remains the release gate.

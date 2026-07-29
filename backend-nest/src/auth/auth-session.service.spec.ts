@@ -135,6 +135,32 @@ describe('AuthSessionService', () => {
     });
   });
 
+  it('validates a preloaded JWT session snapshot without a second database query', () => {
+    expect(
+      service.validateJwtSessionSnapshot(
+        'user-1',
+        {
+          sessionId: 'session-1',
+          platform: 'ios',
+          sessionVersion: 4,
+        },
+        {
+          id: 'session-1',
+          userId: 'user-1',
+          platform: 'ios',
+          sessionVersion: 4,
+          revokedAt: null,
+          expiresAt: new Date(Date.now() + 60_000),
+        },
+      ),
+    ).toEqual({
+      sessionId: 'session-1',
+      platform: 'ios',
+      sessionVersion: 4,
+    });
+    expect(prisma.userPlatformSession.findUnique).not.toHaveBeenCalled();
+  });
+
   it('rejects missing JWT session claims to enforce app update immediately', async () => {
     await expect(
       service.validateJwtSession('user-1', { tokenVersion: 0 }),

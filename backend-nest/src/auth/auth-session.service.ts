@@ -5,6 +5,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { createHash } from 'crypto';
+import type { UserPlatformSession } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
 
@@ -32,6 +33,11 @@ export type AuthSessionClaims = {
   platform: AuthPlatform;
   sessionVersion: number;
 };
+
+export type AuthSessionSnapshot = Pick<
+  UserPlatformSession,
+  'id' | 'userId' | 'platform' | 'sessionVersion' | 'revokedAt' | 'expiresAt'
+>;
 
 const SESSION_TTL_DAYS = 7;
 const SESSION_EXPIRED_MESSAGE =
@@ -111,6 +117,26 @@ export class AuthSessionService {
     userId: string,
     payload: any,
   ): Promise<AuthSessionClaims> {
+    const claims = this.requireJwtSessionClaims(userId, payload);
+    const session = await this.prisma.userPlatformSession.findUnique({
+      where: { id: claims.sessionId },
+    });
+    return this.validateJwtSessionRecord(userId, claims, session);
+  }
+
+  validateJwtSessionSnapshot(
+    userId: string,
+    payload: any,
+    session: AuthSessionSnapshot | null,
+  ): AuthSessionClaims {
+    const claims = this.requireJwtSessionClaims(userId, payload);
+    return this.validateJwtSessionRecord(userId, claims, session);
+  }
+
+  private requireJwtSessionClaims(
+    userId: string,
+    payload: any,
+  ): AuthSessionClaims {
     const sessionId = this.stringClaim(payload.sessionId);
     const platform = this.stringClaim(payload.platform);
     const sessionVersion = Number.isInteger(payload.sessionVersion)
@@ -129,18 +155,23 @@ export class AuthSessionService {
       throw new UnauthorizedException(SESSION_EXPIRED_MESSAGE);
     }
 
-    const session = await this.prisma.userPlatformSession.findUnique({
-      where: { id: sessionId },
-    });
+    return { sessionId, platform, sessionVersion };
+  }
+
+  private validateJwtSessionRecord(
+    userId: string,
+    claims: AuthSessionClaims,
+    session: AuthSessionSnapshot | null,
+  ): AuthSessionClaims {
     const reason = this.invalidSessionReason(
       session,
       userId,
-      platform,
-      sessionVersion,
+      claims.platform,
+      claims.sessionVersion,
     );
     if (reason) {
       this.logger.warn(
-        `Auth session rejected: userId=${userId} platform=${platform} sessionId=${sessionId} reason=${reason}`,
+        `Auth session rejected: userId=${userId} platform=${claims.platform} sessionId=${claims.sessionId} reason=${reason}`,
       );
       throw new UnauthorizedException(this.messageForInvalidSession(reason));
     }
