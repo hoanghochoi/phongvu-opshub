@@ -53,9 +53,12 @@
   and passed against the production table/trigger schema with independent
   clients for two stale Offset single/batch races, one statement no-op-batch/
   stale-re-follow race, two all-or-nothing rollback cases, and exact history/
-  audit/revision/outbox counts. Exact-SHA
-  full repository gates, staging Android/Windows/web, live ERP, and
-  latency/error observation remain release gates.
+  audit/revision/outbox counts. Prisma validate, Nest build and `91/91` suites
+  (`1,029` tests), Flutter analyze and full Flutter `671` passed / `3` skipped,
+  Go `64` tests, and `git diff --check` passed on the frozen local candidate.
+  Independent code review found no remaining severity finding. Staging
+  Android/Windows/web, live ERP, and latency/error observation remain release
+  gates.
 
 - 2026-07-28 OPS-36 local proof: the order editor is consolidated on the
   existing Sao kê/Tiền vào UI; backend mutations verify every old/new lifecycle

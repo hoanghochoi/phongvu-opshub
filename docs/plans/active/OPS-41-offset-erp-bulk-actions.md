@@ -4,9 +4,9 @@ Date: 2026-07-30
 
 ## Status
 
-Active; review blockers, the final selling-store steer, and the statement
-no-op/stale-re-follow race are remediated with focused proof. Exact-HEAD full
-validation, publication, staging deployment, and staging QA remain in progress.
+Active; local implementation, review remediation, affected-consumer proof, and
+full repository validation are green. Publication, staging deployment, and
+staging QA remain in progress.
 
 ## Outcome
 
@@ -77,6 +77,11 @@ Out of scope:
   selection contract, constrain only batch eligibility, and run affected tests.
 - Recovery before publication: remove or revert only OPS-41 work in the isolated
   task worktree. No database migration or external runtime mutation is involved.
+- Recovery after a staging merge: revert only the OPS-41 squash commit if ERP
+  validation accepts an invalid lifecycle/value, a batch produces partial state,
+  or a stale single action overwrites a batch. Redeploy that revert to staging,
+  verify Offset create/resubmit/single review and statement single tracking, then
+  repeat affected-consumer proof before reopening release readiness.
 
 ## Progress
 
@@ -106,8 +111,9 @@ Out of scope:
   and exercise independent clients: two stale Offset single/batch races, one
   statement no-op-batch/stale-re-follow race, two atomic rollback scenarios,
   and exact history/audit/revision/outbox counts.
-- [ ] Freeze the final-candidate SHA and rerun Prisma validation, Nest build/full
+- [x] Freeze the final-candidate SHA and rerun Prisma validation, Nest build/full
   Jest, Flutter analyze/full tests, Go tests, PostgreSQL verifier, and diff check.
+- [x] Complete independent remediation review with no remaining severity finding.
 - [ ] Complete the staging smoke/live ERP proof for cross-showroom orders and
   selling-store labels.
 - [ ] Complete staging Android/Windows/web, live ERP, latency/log proof, and
@@ -139,9 +145,12 @@ Out of scope:
 
 The branch is synchronized to `origin/staging@07f5b436`. Review blockers, the
 stale web-smoke inventory, the final `Cửa hàng bán` store-code steer, and the
-statement no-op/stale-re-follow race have focused green proof. A disposable
-PostgreSQL run against the real migrated table/trigger schema proved the
-required independent-client lock/rollback scenarios without audit or downstream
-revision on the logical no-op. Exact-SHA full repository gates,
-staging Android/Windows/web, live ERP, and operational proof remain release
-gates; their immutable results will be recorded on OPS-41 before transition.
+statement no-op/stale-re-follow race have green proof. A disposable PostgreSQL
+run against the real migrated table/trigger schema proved the required
+independent-client lock/rollback scenarios without audit or downstream revision
+on the logical no-op. Prisma validate, Nest build and `91/91` suites (`1,029`
+tests), Flutter analyze and full Flutter `671` passed / `3` skipped, Go `64`
+tests, and `git diff --check` are green. Independent review found no remaining
+severity finding. Publication, staging Android/Windows/web, live ERP, and
+operational proof remain release gates; their immutable results will be recorded
+on OPS-41 before transition.

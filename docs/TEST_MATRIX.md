@@ -4,7 +4,7 @@ This file maps product behavior to proof. Existing flows are marked
 `existing_unverified` until fresh validation evidence is attached.
 
 - `OPS-41`/Offset Adjustments/`PAYMENT-STATEMENT-001`, 2026-07-30,
-  `local_verified_with_release_gaps`: Offset create/resubmit fails closed unless
+  `local_verified_with_staging_release_gaps`: Offset create/resubmit fails closed unless
   ERP proves the required lifecycle and amount cap, while duplicate/local
   validation still short-circuits before ERP. Reviewers may atomically complete
   up to 100 eligible non-VNPAY offset requests. Sao kê may atomically mark up
@@ -26,10 +26,12 @@ This file maps product behavior to proof. Existing flows are marked
   Offset workspace `4/4`. A disposable PostgreSQL verifier deploys the real
   Prisma migrations and passed against the production table/trigger schema with
   independent clients for two Offset single/batch races, one statement
-  no-op-batch/stale-re-follow race, and two atomic rollback scenarios. Exact-SHA
-  full repository gates, staging Android/Windows/web, real ERP orders, and
-  operational latency/error-log observation remain release gates and must be
-  recorded on OPS-41 before transition.
+  no-op-batch/stale-re-follow race, and two atomic rollback scenarios. Prisma
+  validate, Nest build and `91/91` suites (`1,029` tests), Flutter analyze and
+  full Flutter `671` passed / `3` skipped, Go `64` tests, and `git diff --check`
+  pass on the frozen local candidate. Staging Android/Windows/web, real ERP
+  orders, and operational latency/error-log observation remain release gates
+  and must be recorded on OPS-41 before transition.
 
 - `OPS-31`/`HOME-DASHBOARD-002`/`HOME-DASHBOARD-003`, 2026-07-29:
   `GET /home/summary` preserves the legacy aggregate response unless the strict
