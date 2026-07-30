@@ -673,3 +673,62 @@ runtime API. The durable staging installer change pins the same 300-connection
 origin pool and binds metrics to loopback `127.0.0.1:20242`; the official Home
 fixed profile, selected-SA proof and queue-before-Nest comparison remain
 release gates on the resulting exact SHA.
+
+### Public-ingress SLO execution checkpoint after PR #64
+
+The canonical worktree was fetched and verified clean at
+`staging = origin/staging = 0a0cc10e3f46bac7fe48f6d0cd676a1f621fa98a`.
+Lifecycle `start --execute` created
+`codex/ops-31-public-ingress-slo` and
+`../opshub-ops-31-public-ingress` at that exact SHA. Before any runtime
+experiment, the staging host stored and checksum-verified the current
+Cloudflared unit, Caddyfile, release manifest and active-release target under
+`/srv/opshub-staging/rollback/ops31-public-ingress-0a0cc10e-30510510707`.
+
+Baseline remained healthy: the dedicated service used four HA QUIC
+connections, `--proxy-keepalive-connections 300`, loopback metrics
+`127.0.0.1:20242`, origin `http://127.0.0.1:8090`, zero request errors and zero
+restarts. QUIC latest/smoothed RTT was about 2 ms and loopback Caddy
+`/api/health` completed in about 2.7 ms. The active release target was workflow
+run `30510510707` for the exact staging SHA above.
+
+The first telemetry candidate proved that Caddy could emit a sanitized row and
+correlate it to Nest, but independent correctness and security review blocked
+publication: any staging caller could forge the activation header and raw
+request id/tags, the analyzer did not fail closed for partial/error evidence,
+the 100-QPS profile could enter the same log without valid tags, and the
+upstream-attempt duration label was ambiguous.
+
+The hardened candidate now requires a per-run 64-hex random nonce, validates
+the exact range/variant tags in Caddy, overwrites the upstream request id with
+Caddy's UUID, hashes the nonce before persistence, and records total Caddy,
+total reverse-proxy, selected upstream-attempt and retry timing with their exact
+semantics. The fixed-profile window ends before the 100-QPS profile, which does
+not receive the nonce. The analyzer selects only the expected nonce hash and
+exits nonzero unless it receives exactly 2,000 unique correlated `200/200`
+rows, 250 per range/variant group, with zero malformed, duplicate, missing,
+status-mismatch, retry or negative-delta evidence.
+
+Fifteen analyzer/load-contract tests now cover the green fixture, empty and
+malformed inputs, missing/duplicate rows, non-200 and status mismatch, negative
+deltas, missing groups, retries, unbounded fields and nonzero CLI exit. Caddy
+2.11.4 accepted the hardened candidate. Five isolated requests proved only the
+valid nonce/range/variant request entered the logger; missing/bad nonce, range
+or variant requests did not. A caller-supplied request-id marker appeared zero
+times in Caddy and Nest logs, while the Caddy UUID appeared once in Nest. The
+transient container, loopback listener, config and data were removed after the
+probe.
+
+Remaining sequence:
+
+- [x] Lock exact Git/runtime rollback checkpoints.
+- [x] Build and isolated-validate synchronized Cloudflared/Caddy/Nest telemetry.
+- [ ] Review and publish the telemetry change through PR/CI to staging.
+- [ ] Deploy the exact merge SHA and verify the official public/direct gates.
+- [ ] Run no-auth public/loopback controls and the HTTPS plus HTTP/2 origin
+      experiment with certificate validation and immediate rollback.
+- [ ] Keep only a materially better origin path, then run the unchanged fixed
+      Home profile, selected-SA/unavailable-sales checks, 50-QPS confirmation,
+      resource gates and mandatory cleanup.
+- [ ] Record proof in Linear and move to Ready for Release only if every gate
+      passes; otherwise keep Testing with the measured blocker.

@@ -69,6 +69,80 @@ The manifest contains deterministic user order and the verified Home end date.
   Also stop after two consecutive one-minute windows with CPU above 85%, DB
   wait/pool headroom below 80%, or an HTTP/WS SLO breach.
 
+### Synchronized public-ingress telemetry
+
+The Caddy access logger `staging_home_load_telemetry` activates only for the
+dedicated staging hostname and `GET /api/home/summary` when all three official
+load headers are present. Caddy validates the telemetry nonce as exactly 64
+lowercase hexadecimal characters and accepts only the fixed 1/7/30/90-day
+range tags plus `legacy` or `daily_series`. It overwrites any caller-supplied
+`X-Request-Id` with Caddy's request UUID before proxying to Nest. The nonce is a
+per-run provenance value, not an authentication control; Cloudflare Access and
+API authentication remain mandatory.
+
+Caddy deletes the complete request, response headers, TLS data and user field
+before writing the log. It keeps only timestamp, status, byte counts, total
+Caddy duration, total reverse-proxy handler duration, the selected upstream
+attempt duration, retry count, the first four SHA-256 bytes of the nonce, the
+validated range/variant tags and the Caddy UUID echoed by the existing
+sanitized Nest `HttpRequest` entry. Normal staff traffic, the separate capacity
+profile and production do not carry the nonce and therefore cannot match this
+logger.
+
+Generate a new cryptographically random 32-byte nonce for every fixed run,
+store its 64-character lowercase hexadecimal form with the same protected
+workstation ACL as the token manifest, and load it into `TELEMETRY_NONCE`
+without putting the raw value in a command line, log, issue or report. Compute
+the expected telemetry hash locally as the first eight lowercase hexadecimal
+characters of `SHA-256(TELEMETRY_NONCE)`; this hash is safe to pass to the
+analyzer. Delete the nonce file during mandatory cleanup.
+
+Before the run, record the current line count and inode of
+`/srv/opshub-staging/caddy/data/staging-home-load-telemetry.log`, the UTC start
+time, and a Cloudflared metrics snapshot from `127.0.0.1:20242`. During the run,
+sample at least these metrics often enough to observe the peak, not only the
+start/end values:
+
+- `cloudflared_tunnel_concurrent_requests_per_tunnel`;
+- `cloudflared_tunnel_ha_connections`, request errors and response codes;
+- QUIC latest/smoothed/min RTT, congestion window, closed connections and
+  packet-too-big drops.
+
+End this telemetry window immediately after the fixed 2,000-request profile
+and before starting the capacity ladder. Fail the telemetry gate if the Caddy
+log inode changed or the line count moved backwards. Copy only the new Caddy
+lines and only sanitized API `HttpRequest` lines whose path is exactly
+`/home/summary` from the matching UTC window to a protected temporary directory
+outside the repository. Do not copy the whole API log window. Aggregate without
+printing request ids:
+
+```powershell
+node scripts/load/analyze-home-ingress-telemetry.mjs `
+  --caddy <temporary-caddy-ndjson> `
+  --nest <temporary-api-log> `
+  --telemetry-hash <expected-8-character-sha256-prefix> `
+  --expected-count 2000 `
+  --expected-per-group 250 `
+  --output <temporary-sanitized-summary-json>
+```
+
+The analyzer exits nonzero unless it has exactly 2,000 unique correlated
+Caddy/Nest `200/200` rows, zero malformed/duplicate/missing/status-mismatch
+rows, zero proxy retries, no negative timing delta and exactly 250 rows in each
+of the eight range/variant groups. Rows carrying another telemetry hash are
+ignored and cannot affect the run. The summary separates Caddy total,
+reverse-proxy total, selected upstream attempt, Nest and per-request timing
+deltas overall and by group. The upstream-attempt metric includes that attempt's
+response-body write and is not labeled as pure origin compute; reverse-proxy
+total also includes selection/retry handling.
+
+Compare these measurements with the same-window k6 client percentiles and
+Cloudflared peak metrics to locate delay before Caddy without subtracting
+independent percentiles as though they were correlated samples. Delete the raw
+Caddy/Nest slices, nonce and any diagnostic output after the sanitized summary
+has been reviewed. The later 100-QPS profile intentionally does not set
+`TELEMETRY_NONCE` and opens a separate observation window.
+
 ## Capacity profile
 
 Trước capacity ladder, chạy parity/load profile
@@ -77,8 +151,8 @@ Trước capacity ladder, chạy parity/load profile
 staging hoặc loopback. Profile luân phiên response legacy và
 `includeDailySeries=true` cho đủ 1/7/30/90 ngày. Nó fail nếu legacy vô tình có
 `dailySeries`, series thiếu/thừa hoặc sai thứ tự ngày, field không phải số, hay
-  tổng bốn metric theo ngày lệch aggregate; đồng thời giữ SLO
-  p50/p95/p99/max `250/500/1000/3000 ms` riêng từng range.
+tổng bốn metric theo ngày lệch aggregate; đồng thời giữ SLO
+p50/p95/p99/max `250/500/1000/3000 ms` riêng từng range.
 
 The fixed 2,000-request envelope is executed as 1,000 matched pairs. Each pair
 uses the same synthetic principal and date range, sends one legacy request and
@@ -87,6 +161,8 @@ one `includeDailySeries=true` request sequentially, and compares
 across both responses. The run fails even when the opted-in series is internally
 consistent if any protected aggregate differs from its matched legacy response.
 Range and variant tags remain attached to both latency samples.
+The fixed profile also requires the protected per-run `TELEMETRY_NONCE`
+described above; no other load profile receives that value.
 
 Run `scripts/load/opshub-staging-home-100qps.js` with the temporary k6 binary
 and these exact environment values:
