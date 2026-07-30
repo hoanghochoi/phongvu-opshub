@@ -953,6 +953,35 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
             );
           }
 
+          const unchangedIds = transactionIds.filter(
+            (id) =>
+              snapshots.get(id)?.oldStatus === ORDER_TRACKING_STATUS_UNFOLLOWED,
+          );
+          if (unchangedIds.length > 0) {
+            const noOpConcurrencyTokenAt = new Date(
+              unchangedIds.reduce(
+                (latest, id) =>
+                  Math.max(
+                    latest,
+                    (snapshots.get(id)?.updatedAt.getTime() ?? 0) + 1,
+                  ),
+                now.getTime(),
+              ),
+            );
+            const tokenBump = await tx.mapVietinTransaction.updateMany({
+              where: {
+                id: { in: unchangedIds },
+                orderTrackingStatus: ORDER_TRACKING_STATUS_UNFOLLOWED,
+              },
+              data: { updatedAt: noOpConcurrencyTokenAt },
+            });
+            if (tokenBump.count !== unchangedIds.length) {
+              throw new BadRequestException(
+                'Dữ liệu giao dịch vừa thay đổi. Vui lòng tải lại và thử lại.',
+              );
+            }
+          }
+
           let changedCount = 0;
           for (const id of transactionIds) {
             const snapshot = snapshots.get(id)!;

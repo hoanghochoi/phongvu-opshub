@@ -4792,6 +4792,7 @@ describe('MapVietinService', () => {
     const unfollowed = statementTransactionRow({
       id: 'stored-2',
       orderTrackingStatus: 'UNFOLLOWED',
+      updatedAt: new Date('2099-05-21T02:30:00.000Z'),
     });
     prisma.store.findUnique.mockResolvedValue({
       id: 'store-uuid-1',
@@ -4808,6 +4809,7 @@ describe('MapVietinService', () => {
       ...following,
       orderTrackingStatus: 'UNFOLLOWED',
     });
+    prisma.mapVietinTransaction.updateMany.mockResolvedValue({ count: 1 });
     prisma.mapVietinTransactionOrderTrackingAudit.create.mockResolvedValue({});
 
     await expect(
@@ -4829,6 +4831,13 @@ describe('MapVietinService', () => {
       unchangedCount: 1,
     });
     expect(prisma.mapVietinTransaction.update).toHaveBeenCalledTimes(1);
+    expect(prisma.mapVietinTransaction.updateMany).toHaveBeenCalledWith({
+      where: {
+        id: { in: ['stored-2'] },
+        orderTrackingStatus: 'UNFOLLOWED',
+      },
+      data: { updatedAt: new Date('2099-05-21T02:30:00.001Z') },
+    });
     expect(
       prisma.mapVietinTransactionOrderTrackingAudit.create,
     ).toHaveBeenCalledTimes(1);

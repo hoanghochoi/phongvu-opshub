@@ -28,7 +28,10 @@
   but before refresh completion must not notify a dead provider.
 - Concurrency: a single Offset complete/reject request that read an older
   `PENDING_ACC` snapshot must fail after a batch commits first, leaving the
-  approved row, one completion history, and one realtime event.
+  approved row, one completion history, and one realtime event. A stale
+  statement re-follow must also fail after an all-no-op unfollow batch advances
+  the row token, while status remains `UNFOLLOWED` and audit/BigQuery revision/
+  outbox counts remain unchanged.
 - Protected consumers: statement filter/export/order editor/single tracking,
   Payment Monitor, Home projection and fallback, XLSX, BigQuery mapper/storage,
   and Go realtime isolation.
@@ -46,9 +49,11 @@
   only the normalized ERP store code, with a neutral missing-code label and no
   channel/platform/terminal/payment fallback. Focused Offset/Sales Report Nest
   passed `62/62`; Flutter repository passed `6/6`; Offset workspace passed
-  `4/4`. The disposable PostgreSQL verifier passed with independent clients for
-  two stale Offset single/batch races, one statement re-follow/batch race, two
-  all-or-nothing rollback cases, and exact history/audit/event counts. Exact-SHA
+  `4/4`. The disposable PostgreSQL verifier deployed the real Prisma migrations
+  and passed against the production table/trigger schema with independent
+  clients for two stale Offset single/batch races, one statement no-op-batch/
+  stale-re-follow race, two all-or-nothing rollback cases, and exact history/
+  audit/revision/outbox counts. Exact-SHA
   full repository gates, staging Android/Windows/web, live ERP, and
   latency/error observation remain release gates.
 

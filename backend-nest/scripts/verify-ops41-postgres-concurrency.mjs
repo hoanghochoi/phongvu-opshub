@@ -1,5 +1,8 @@
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import process from 'node:process';
+import { fileURLToPath } from 'node:url';
+import path from 'node:path';
 
 import pg from 'pg';
 
@@ -25,61 +28,79 @@ if (!/^opshub_ops41_proof(?:_|$)/i.test(databaseName)) {
   );
 }
 
-const schemaName = `ops41_proof_${process.pid}_${Date.now()}`;
-const schema = `"${schemaName}"`;
+const backendRoot = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  '..',
+);
 const pool = new Pool({ connectionString, max: 5 });
 
-const offsetTable = `${schema}.offset_adjustment`;
-const offsetHistoryTable = `${schema}.offset_history`;
-const statementTable = `${schema}.statement_transaction`;
-const statementAuditTable = `${schema}.statement_audit`;
+const offsetTable = '"OffsetAdjustment"';
+const offsetHistoryTable = '"OffsetAdjustmentHistory"';
+const statementTable = '"MapVietinTransaction"';
+const statementAuditTable = '"MapVietinTransactionOrderTrackingAudit"';
 
 const t0 = new Date('2026-07-30T03:00:00.000Z');
 const t1 = new Date('2026-07-30T03:01:00.000Z');
 const t2 = new Date('2026-07-30T03:02:00.000Z');
 
 async function setup() {
-  await pool.query(`CREATE SCHEMA ${schema}`);
-  await pool.query(`
-    CREATE TABLE ${offsetTable} (
-      id TEXT PRIMARY KEY,
-      status TEXT NOT NULL,
-      updated_at TIMESTAMPTZ NOT NULL
+  const prismaCli = path.join(
+    backendRoot,
+    'node_modules',
+    'prisma',
+    'build',
+    'index.js',
+  );
+  const migration = spawnSync(
+    process.execPath,
+    [prismaCli, 'migrate', 'deploy'],
+    {
+      cwd: backendRoot,
+      env: { ...process.env, DATABASE_URL: connectionString },
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'pipe'],
+    },
+  );
+  if (migration.status !== 0) {
+    throw new Error(
+      `Prisma migrate deploy failed: ${migration.stderr || migration.stdout || 'unknown'}`,
     );
-    CREATE TABLE ${offsetHistoryTable} (
-      id BIGSERIAL PRIMARY KEY,
-      adjustment_id TEXT NOT NULL,
-      action TEXT NOT NULL
-    );
-    CREATE TABLE ${statementTable} (
-      id TEXT PRIMARY KEY,
-      tracking_status TEXT NOT NULL,
-      updated_at TIMESTAMPTZ NOT NULL
-    );
-    CREATE TABLE ${statementAuditTable} (
-      id BIGSERIAL PRIMARY KEY,
-      transaction_id TEXT NOT NULL,
-      old_status TEXT NOT NULL,
-      new_status TEXT NOT NULL
-    );
-  `);
+  }
 }
 
 async function resetOffsetRows(rows) {
   await pool.query(`TRUNCATE ${offsetHistoryTable}, ${offsetTable}`);
   for (const row of rows) {
     await pool.query(
-      `INSERT INTO ${offsetTable} (id, status, updated_at) VALUES ($1, $2, $3)`,
+      `INSERT INTO ${offsetTable}
+       (id, type, status, "storeCode", amount, "updatedAt")
+       VALUES ($1, 'ZALOPAY', $2, 'CP01', 1000, $3)`,
       [row.id, row.status, row.updatedAt],
     );
   }
 }
 
 async function resetStatementRows(rows) {
-  await pool.query(`TRUNCATE ${statementAuditTable}, ${statementTable}`);
+  await pool.query(
+    `DELETE FROM ${statementAuditTable}
+     WHERE "transactionId" LIKE 'statement-%'`,
+  );
+  await pool.query(
+    `DELETE FROM "MapVietinStatementOrderTransferRequest"
+     WHERE "transactionId" LIKE 'statement-%'`,
+  );
+  await pool.query(
+    `DELETE FROM "MapVietinTransactionOrderAudit"
+     WHERE "transactionId" LIKE 'statement-%'`,
+  );
+  await pool.query(`DELETE FROM ${statementTable} WHERE id LIKE 'statement-%'`);
   for (const row of rows) {
     await pool.query(
-      `INSERT INTO ${statementTable} (id, tracking_status, updated_at) VALUES ($1, $2, $3)`,
+      `INSERT INTO ${statementTable}
+       (id, "transactionKey", amount, content, orders,
+        "orderTrackingStatus", "rawData", "updatedAt")
+       VALUES ($1, $1, 1000, 'OPS-41 proof', ARRAY[]::text[],
+        $2, '{}'::jsonb, $3)`,
       [row.id, row.status, row.updatedAt],
     );
   }
@@ -114,15 +135,15 @@ async function offsetSingleAfterBatch(action) {
     );
     const approved = await batch.query(
       `UPDATE ${offsetTable}
-       SET status = 'APPROVED', updated_at = $2
-       WHERE id = $1 AND status = 'PENDING_ACC' AND updated_at = $3
+       SET status = 'APPROVED', "updatedAt" = $2
+       WHERE id = $1 AND status = 'PENDING_ACC' AND "updatedAt" = $3
        RETURNING id`,
       ['offset-race', t1, t0],
     );
     assert.equal(approved.rowCount, 1);
     await batch.query(
-      `INSERT INTO ${offsetHistoryTable} (adjustment_id, action)
-       VALUES ($1, 'COMPLETED')`,
+      `INSERT INTO ${offsetHistoryTable} (id, "adjustmentId", action)
+       VALUES ($1 || '-batch-history', $1, 'COMPLETED')`,
       ['offset-race'],
     );
 
@@ -130,8 +151,8 @@ async function offsetSingleAfterBatch(action) {
     const singleAttempt = (async () => {
       const result = await single.query(
         `UPDATE ${offsetTable}
-         SET status = $2, updated_at = $3
-         WHERE id = $1 AND status = 'PENDING_ACC' AND updated_at = $4
+         SET status = $2, "updatedAt" = $3
+         WHERE id = $1 AND status = 'PENDING_ACC' AND "updatedAt" = $4
          RETURNING id`,
         [
           'offset-race',
@@ -145,8 +166,8 @@ async function offsetSingleAfterBatch(action) {
         return 'conflict';
       }
       await single.query(
-        `INSERT INTO ${offsetHistoryTable} (adjustment_id, action)
-         VALUES ($1, $2)`,
+        `INSERT INTO ${offsetHistoryTable} (id, "adjustmentId", action)
+         VALUES ($1 || '-single-history', $1, $2)`,
         ['offset-race', action === 'complete' ? 'COMPLETED' : 'REJECTED'],
       );
       await single.query('COMMIT');
@@ -164,7 +185,7 @@ async function offsetSingleAfterBatch(action) {
         'offset-race',
       ]),
       pool.query(
-        `SELECT action FROM ${offsetHistoryTable} WHERE adjustment_id = $1`,
+        `SELECT action FROM ${offsetHistoryTable} WHERE "adjustmentId" = $1`,
         ['offset-race'],
       ),
     ]);
@@ -182,10 +203,22 @@ async function offsetSingleAfterBatch(action) {
   }
 }
 
-async function statementRefollowAfterBatch() {
+async function statementRefollowAfterNoopBatch() {
   await resetStatementRows([
-    { id: 'statement-race', status: 'FOLLOWING', updatedAt: t0 },
+    { id: 'statement-race', status: 'UNFOLLOWED', updatedAt: t0 },
   ]);
+  const before = await pool.query(
+    `SELECT t."bigQueryRevision"::text AS revision,
+            COUNT(event.id)::int AS event_count
+     FROM ${statementTable} AS t
+     LEFT JOIN "DomainOutboxEvent" AS event
+       ON event."aggregateId" = t.id
+      AND event."eventType" = 'MAP_VIETIN_BIGQUERY_TRANSACTION_REVISION'
+     WHERE t.id = $1
+     GROUP BY t."bigQueryRevision"`,
+    ['statement-race'],
+  );
+  assert.equal(before.rowCount, 1);
   const batch = await pool.connect();
   const refollow = await pool.connect();
   try {
@@ -194,27 +227,23 @@ async function statementRefollowAfterBatch() {
       `SELECT id FROM ${statementTable} WHERE id = $1 FOR UPDATE`,
       ['statement-race'],
     );
-    const unfollowed = await batch.query(
+    const tokenBump = await batch.query(
       `UPDATE ${statementTable}
-       SET tracking_status = 'UNFOLLOWED', updated_at = $2
-       WHERE id = $1 AND tracking_status = 'FOLLOWING' AND updated_at = $3
+       SET "updatedAt" = $2
+       WHERE id = $1 AND "orderTrackingStatus" = 'UNFOLLOWED'
+         AND "updatedAt" = $3
        RETURNING id`,
       ['statement-race', t1, t0],
     );
-    assert.equal(unfollowed.rowCount, 1);
-    await batch.query(
-      `INSERT INTO ${statementAuditTable}
-       (transaction_id, old_status, new_status)
-       VALUES ($1, 'FOLLOWING', 'UNFOLLOWED')`,
-      ['statement-race'],
-    );
+    assert.equal(tokenBump.rowCount, 1);
 
     await refollow.query('BEGIN');
     const refollowAttempt = (async () => {
       const result = await refollow.query(
         `UPDATE ${statementTable}
-         SET tracking_status = 'FOLLOWING', updated_at = $2
-         WHERE id = $1 AND tracking_status = 'FOLLOWING' AND updated_at = $3
+         SET "orderTrackingStatus" = 'FOLLOWING', "updatedAt" = $2
+         WHERE id = $1 AND "orderTrackingStatus" = 'UNFOLLOWED'
+           AND "updatedAt" = $3
          RETURNING id`,
         ['statement-race', t2, t0],
       );
@@ -226,21 +255,33 @@ async function statementRefollowAfterBatch() {
     await batch.query('COMMIT');
     assert.equal(await refollowAttempt, 'conflict');
 
-    const [row, audit] = await Promise.all([
+    const [row, audit, after] = await Promise.all([
       pool.query(
-        `SELECT tracking_status FROM ${statementTable} WHERE id = $1`,
+        `SELECT "orderTrackingStatus", "updatedAt"
+         FROM ${statementTable} WHERE id = $1`,
         ['statement-race'],
       ),
       pool.query(
-        `SELECT old_status, new_status FROM ${statementAuditTable}
-         WHERE transaction_id = $1`,
+        `SELECT "oldStatus", "newStatus" FROM ${statementAuditTable}
+         WHERE "transactionId" = $1`,
+        ['statement-race'],
+      ),
+      pool.query(
+        `SELECT t."bigQueryRevision"::text AS revision,
+                COUNT(event.id)::int AS event_count
+         FROM ${statementTable} AS t
+         LEFT JOIN "DomainOutboxEvent" AS event
+           ON event."aggregateId" = t.id
+          AND event."eventType" = 'MAP_VIETIN_BIGQUERY_TRANSACTION_REVISION'
+         WHERE t.id = $1
+         GROUP BY t."bigQueryRevision"`,
         ['statement-race'],
       ),
     ]);
-    assert.equal(row.rows[0].tracking_status, 'UNFOLLOWED');
-    assert.deepEqual(audit.rows, [
-      { old_status: 'FOLLOWING', new_status: 'UNFOLLOWED' },
-    ]);
+    assert.equal(row.rows[0].orderTrackingStatus, 'UNFOLLOWED');
+    assert.equal(new Date(row.rows[0].updatedAt).getTime(), t1.getTime());
+    assert.deepEqual(audit.rows, []);
+    assert.deepEqual(after.rows, before.rows);
   } finally {
     await batch.query('ROLLBACK').catch(() => undefined);
     await refollow.query('ROLLBACK').catch(() => undefined);
@@ -266,15 +307,15 @@ async function offsetBatchRollback() {
     for (const id of ['offset-a', 'offset-b']) {
       const updated = await client.query(
         `UPDATE ${offsetTable}
-         SET status = 'APPROVED', updated_at = $2
-         WHERE id = $1 AND status = 'PENDING_ACC' AND updated_at = $3
+         SET status = 'APPROVED', "updatedAt" = $2
+         WHERE id = $1 AND status = 'PENDING_ACC' AND "updatedAt" = $3
          RETURNING id`,
         [id, t2, t0],
       );
       if (updated.rowCount !== 1) throw new Error('stale offset snapshot');
       await client.query(
-        `INSERT INTO ${offsetHistoryTable} (adjustment_id, action)
-         VALUES ($1, 'COMPLETED')`,
+        `INSERT INTO ${offsetHistoryTable} (id, "adjustmentId", action)
+         VALUES ($1 || '-history', $1, 'COMPLETED')`,
         [id],
       );
     }
@@ -316,16 +357,17 @@ async function statementBatchRollback() {
     for (const id of ['statement-a', 'statement-b']) {
       const updated = await client.query(
         `UPDATE ${statementTable}
-         SET tracking_status = 'UNFOLLOWED', updated_at = $2
-         WHERE id = $1 AND tracking_status = 'FOLLOWING' AND updated_at = $3
+         SET "orderTrackingStatus" = 'UNFOLLOWED', "updatedAt" = $2
+         WHERE id = $1 AND "orderTrackingStatus" = 'FOLLOWING'
+           AND "updatedAt" = $3
          RETURNING id`,
         [id, t2, t0],
       );
       if (updated.rowCount !== 1) throw new Error('stale statement snapshot');
       await client.query(
         `INSERT INTO ${statementAuditTable}
-         (transaction_id, old_status, new_status)
-         VALUES ($1, 'FOLLOWING', 'UNFOLLOWED')`,
+         (id, "transactionId", "oldStatus", "newStatus")
+         VALUES ($1 || '-audit', $1, 'FOLLOWING', 'UNFOLLOWED')`,
         [id],
       );
     }
@@ -339,11 +381,13 @@ async function statementBatchRollback() {
   }
 
   const [rows, audit] = await Promise.all([
-    pool.query(`SELECT tracking_status FROM ${statementTable} ORDER BY id`),
-    pool.query(`SELECT old_status, new_status FROM ${statementAuditTable}`),
+    pool.query(
+      `SELECT "orderTrackingStatus" FROM ${statementTable} ORDER BY id`,
+    ),
+    pool.query(`SELECT "oldStatus", "newStatus" FROM ${statementAuditTable}`),
   ]);
   assert.deepEqual(
-    rows.rows.map((row) => row.tracking_status),
+    rows.rows.map((row) => row.orderTrackingStatus),
     ['FOLLOWING', 'FOLLOWING'],
   );
   assert.equal(audit.rowCount, 0);
@@ -353,7 +397,7 @@ try {
   await setup();
   await offsetSingleAfterBatch('complete');
   await offsetSingleAfterBatch('reject');
-  await statementRefollowAfterBatch();
+  await statementRefollowAfterNoopBatch();
   await offsetBatchRollback();
   await statementBatchRollback();
   process.stdout.write(
@@ -362,14 +406,11 @@ try {
       database: databaseName,
       independentClients: true,
       offsetSingleBatchRaces: 2,
-      statementRefollowBatchRaces: 1,
+      statementNoopRefollowBatchRaces: 1,
       atomicRollbackScenarios: 2,
       durationMs: Date.now() - startedAt,
     })}\n`,
   );
 } finally {
-  await pool
-    .query(`DROP SCHEMA IF EXISTS ${schema} CASCADE`)
-    .catch(() => undefined);
   await pool.end();
 }

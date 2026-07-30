@@ -8,10 +8,12 @@ This file maps product behavior to proof. Existing flows are marked
   ERP proves the required lifecycle and amount cap, while duplicate/local
   validation still short-circuits before ERP. Reviewers may atomically complete
   up to 100 eligible non-VNPAY offset requests. Sao kê may atomically mark up
-  to 100 selected transactions `UNFOLLOWED`; existing unfollowed rows are
-  no-op and pending/out-of-scope/stale rows roll back the batch. Canonical
-  row-lock order closes no-op/re-follow races and maps serialization conflicts
-  to reload guidance. Single complete/reject uses the same optimistic snapshot
+  to 100 selected transactions `UNFOLLOWED`; existing unfollowed rows remain
+  logical no-ops without audit or downstream revision, while their concurrency
+  token is advanced to block a stale re-follow. Pending/out-of-scope/stale rows
+  roll back the batch. Canonical row-lock order closes no-op/re-follow races and
+  maps serialization conflicts to reload guidance. Single complete/reject uses
+  the same optimistic snapshot
   so a stale individual action cannot overwrite a batch result. Offset records
   the ERP selling-store code separately from the request showroom and keeps
   `Cấn trừ trên OpsHub` as the creation channel; ERP lookup does not require
@@ -21,10 +23,11 @@ This file maps product behavior to proof. Existing flows are marked
   while a batch is in flight and stops
   post-success refresh notifications after disposal. Focused store-contract
   proof passes Offset/Sales Report Nest `62/62`, Flutter repository `6/6`, and
-  Offset workspace `4/4`. A disposable PostgreSQL verifier passed with
+  Offset workspace `4/4`. A disposable PostgreSQL verifier deploys the real
+  Prisma migrations and passed against the production table/trigger schema with
   independent clients for two Offset single/batch races, one statement
-  re-follow/batch race, and two atomic rollback scenarios. Exact-SHA full
-  repository gates, staging Android/Windows/web, real ERP orders, and
+  no-op-batch/stale-re-follow race, and two atomic rollback scenarios. Exact-SHA
+  full repository gates, staging Android/Windows/web, real ERP orders, and
   operational latency/error-log observation remain release gates and must be
   recorded on OPS-41 before transition.
 

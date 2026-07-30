@@ -91,11 +91,13 @@ The client sends 1-100 unique transaction IDs to
 
 The batch is atomic: every row must still exist in scope, have no pending order
 transfer request, and match its server snapshot. A concurrent or invalid row
-rolls back every tracking and audit write. Rows already `UNFOLLOWED` are valid
-no-ops and create no duplicate audit. The transaction locks every selected row
-in canonical ID order before the final snapshot check, so a concurrent re-follow
-cannot be reported as an unchanged success; serialization/deadlock conflicts
-return an actionable reload error. The response reports processed, changed, and
+rolls back every tracking and audit write. Rows already `UNFOLLOWED` are logical
+no-ops: they create no duplicate audit and no BigQuery revision/outbox event,
+but the batch advances their `updatedAt` concurrency token beyond the locked
+snapshot. The transaction locks every selected row in canonical ID order before
+the final snapshot check, so a stale concurrent re-follow cannot commit after the batch
+reports an unchanged success; serialization/deadlock conflicts return an
+actionable reload error. The response reports processed, changed, and
 unchanged counts, and the client rejects malformed or inconsistent counts.
 Success clears selection and refreshes the current page; failure keeps
 selection. Selected export, individual re-follow, the

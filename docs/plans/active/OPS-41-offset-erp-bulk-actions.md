@@ -4,9 +4,9 @@ Date: 2026-07-30
 
 ## Status
 
-Active; review blockers and the final selling-store steer are remediated with
-focused proof. Exact-HEAD full validation, publication, staging deployment,
-and staging QA remain in progress.
+Active; review blockers, the final selling-store steer, and the statement
+no-op/stale-re-follow race are remediated with focused proof. Exact-HEAD full
+validation, publication, staging deployment, and staging QA remain in progress.
 
 ## Outcome
 
@@ -102,9 +102,10 @@ Out of scope:
   `data.order.createdFromSiteDisplayName`; keep the request showroom separate.
 - [x] Run focused store-contract proof: Offset/Sales Report Nest `62/62`,
   Flutter repository `6/6`, and Offset workspace `4/4`.
-- [x] Add and exercise a disposable PostgreSQL verifier with independent
-  clients: two stale Offset single/batch races, one statement re-follow/batch
-  race, two atomic rollback scenarios, and exact history/audit/event counts.
+- [x] Deploy the real Prisma migrations into a disposable PostgreSQL database
+  and exercise independent clients: two stale Offset single/batch races, one
+  statement no-op-batch/stale-re-follow race, two atomic rollback scenarios,
+  and exact history/audit/revision/outbox counts.
 - [ ] Freeze the final-candidate SHA and rerun Prisma validation, Nest build/full
   Jest, Flutter analyze/full tests, Go tests, PostgreSQL verifier, and diff check.
 - [ ] Complete the staging smoke/live ERP proof for cross-showroom orders and
@@ -124,8 +125,8 @@ Out of scope:
 
 - Focused proof: Offset ERP/batch service and controller Jest; MAP batch service
   and controller Jest; Flutter repository/provider/widget coverage.
-- Channel fallback proof: ERP normalization, Offset history/list/CSV metadata,
-  and COMEBACK owner resolution tests.
+- Store/source metadata proof: ERP normalization, Offset history/list/CSV
+  metadata, and consultant-email owner fallback tests.
 - Protected consumers: Offset create/resubmit/single complete/reject,
   notification/realtime/CSV; statement single tracking/editor/export/filter,
   Payment Monitor, Home projection/fallback, XLSX, BigQuery; Go isolation.
@@ -137,8 +138,10 @@ Out of scope:
 ## Result
 
 The branch is synchronized to `origin/staging@07f5b436`. Review blockers, the
-stale web-smoke inventory, and the final `Cửa hàng bán` store-code steer have
-focused green proof. A disposable PostgreSQL run proved the required
-independent-client lock/rollback scenarios. Exact-SHA full repository gates,
+stale web-smoke inventory, the final `Cửa hàng bán` store-code steer, and the
+statement no-op/stale-re-follow race have focused green proof. A disposable
+PostgreSQL run against the real migrated table/trigger schema proved the
+required independent-client lock/rollback scenarios without audit or downstream
+revision on the logical no-op. Exact-SHA full repository gates,
 staging Android/Windows/web, live ERP, and operational proof remain release
 gates; their immutable results will be recorded on OPS-41 before transition.
