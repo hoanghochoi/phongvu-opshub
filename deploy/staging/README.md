@@ -49,6 +49,13 @@ is `https://opshub-staging.hoanghochoi.com/download`.
    CLOUDFLARED_TUNNEL_TOKEN='<token>' bash deploy/staging/install-cloudflare-tunnel.sh
    ```
 
+   The staging installer keeps the tunnel origin pool at `300` idle
+   keep-alive connections and binds Prometheus metrics to
+   `127.0.0.1:20242`. These defaults are staging-only and keep the metrics
+   endpoint off the public network; override them only for a reviewed staging
+   experiment with `CLOUDFLARED_PROXY_KEEPALIVE_CONNECTIONS` and
+   `CLOUDFLARED_METRICS_ADDRESS`.
+
 5. Add GitHub staging secrets:
 
    - `OPSHUB_STAGING_VPS_HOST=100.127.127.89`
