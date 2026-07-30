@@ -126,6 +126,12 @@ Out of scope:
       `systemd-analyze verify`; final proof remains after review.
 - [ ] Open/merge a reviewed PR into staging and deploy its exact SHA.
 - [ ] Provision and verify the new hostname/tunnel with rollback evidence.
+      The first publication attempt created the tunnel/service but exposed that
+      the host origin cert owns `tokeneco.net`, not `hoanghochoi.com`;
+      cloudflared therefore created a relative record in the wrong zone. The
+      new service was stopped/disabled, the exact wrong CNAME was deleted and
+      verified absent, and the original tunnel remained at four HA connections
+      with zero errors. Zone preflight and manual-DNS support are in progress.
 - [ ] Run the public health gate.
 - [ ] If allowed by the gate, run fixed Home proof, telemetry analysis and
       mandatory cleanup.
@@ -146,6 +152,14 @@ Out of scope:
   not retained because it did not remove the tail.
 - 2026-07-30: Health p95 below 300 ms is the mandatory spend gate for another
   synthetic Home run.
+- 2026-07-30: The deployed release bundle intentionally does not contain
+  operator-only `deploy/staging` scripts. Transfer the exact canonical staging
+  blob to a root-protected operator directory and verify SHA-256 rather than
+  changing OPS-26-owned static publication packaging.
+- 2026-07-30: The host origin cert belongs to `tokeneco.net`; it may create and
+  run the isolated named tunnel, but it must not publish the
+  `hoanghochoi.com` DNS name. The installer defaults to no DNS mutation and only
+  permits automatic DNS after an API-backed exact-zone ownership check.
 
 ## Validation
 
