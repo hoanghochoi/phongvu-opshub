@@ -129,13 +129,18 @@ type SalesReportComebackScope = {
   areaCode: string | null;
 };
 
+type ExistingConvertibleSalesReport = {
+  id: string;
+  entrySource: 'SYNC_LIST' | null;
+};
+
 type SalesReportCreateOptions = {
   comebackScope?: SalesReportComebackScope;
   persist?: (
     data: any,
     include: any,
     context: {
-      existingSyncListReportId: string | null;
+      existingConvertibleReport: ExistingConvertibleSalesReport | null;
       orderCode: string | null;
     },
   ) => Promise<{
@@ -1763,11 +1768,14 @@ export class SalesReportsService implements OnApplicationBootstrap {
       `Sales report order check started: user=${this.safeUserLabel(user)} followUp=${Boolean(scopeOverride)} ${this.orderLogPart(orderCode)}`,
     );
     try {
-      const existingReport = await this.requireOrderAvailable(orderCode, {
-        allowSyncListConversion: Boolean(scopeOverride),
-        operation: 'check',
-        user,
-      });
+      const existingConvertibleReport = await this.requireOrderAvailable(
+        orderCode,
+        {
+          allowComebackConversion: Boolean(scopeOverride),
+          operation: 'check',
+          user,
+        },
+      );
       await this.assertOrderNotExcluded(orderCode);
       const actorContext = await this.resolveUserSnapshot(user);
       const context = scopeOverride
@@ -1786,9 +1794,12 @@ export class SalesReportsService implements OnApplicationBootstrap {
       );
       this.assertOrderCachePersistResultReportable(cacheResult);
       const willConvertSyncedReport =
-        existingReport?.entrySource === 'SYNC_LIST';
+        existingConvertibleReport?.entrySource === 'SYNC_LIST';
+      const willConvertLegacyReport =
+        existingConvertibleReport != null &&
+        existingConvertibleReport.entrySource === null;
       this.logger.log(
-        `Sales report order check succeeded: user=${this.safeUserLabel(user)} followUp=${Boolean(scopeOverride)} willConvertSyncedReport=${willConvertSyncedReport} categoryCount=${matchedCategories.length} itemCount=${erpOrder.items.length} paymentCount=${erpOrder.payments.length} ${this.orderLogPart(orderCode)} durationMs=${Date.now() - startedAt}`,
+        `Sales report order check succeeded: user=${this.safeUserLabel(user)} followUp=${Boolean(scopeOverride)} willConvertSyncedReport=${willConvertSyncedReport} willConvertLegacyReport=${willConvertLegacyReport} categoryCount=${matchedCategories.length} itemCount=${erpOrder.items.length} paymentCount=${erpOrder.payments.length} ${this.orderLogPart(orderCode)} durationMs=${Date.now() - startedAt}`,
       );
       return {
         orderCode,
@@ -1808,6 +1819,7 @@ export class SalesReportsService implements OnApplicationBootstrap {
         payments: erpOrder.payments,
         paymentMethods: erpOrder.paymentMethods,
         willConvertSyncedReport,
+        willConvertLegacyReport,
       };
     } catch (error) {
       this.logger.error(
@@ -1852,18 +1864,16 @@ export class SalesReportsService implements OnApplicationBootstrap {
       legacyCustomerZaloContact,
     );
     let erpOrder: SalesReportErpOrder | null = null;
-    let existingSyncListReportId: string | null = null;
+    let existingConvertibleReport: ExistingConvertibleSalesReport | null = null;
     if (reportType === REPORT_TYPE_PURCHASED) {
-      const existingReport = await this.requireOrderAvailable(orderCode, {
-        allowSyncListConversion:
+      existingConvertibleReport = await this.requireOrderAvailable(orderCode, {
+        allowComebackConversion:
           entrySource === 'COMEBACK' &&
           Boolean(options.comebackScope) &&
           Boolean(options.persist),
         operation: 'create',
         user,
       });
-      existingSyncListReportId =
-        existingReport?.entrySource === 'SYNC_LIST' ? existingReport.id : null;
       await this.assertOrderNotExcluded(orderCode);
       erpOrder = await this.lookupErpOrderForReport(
         user,
@@ -1881,7 +1891,7 @@ export class SalesReportsService implements OnApplicationBootstrap {
       await this.attachCategoryTypes(erpOrder);
     }
     let reportOwnerContext = context;
-    if (entrySource === 'COMEBACK' && !existingSyncListReportId) {
+    if (entrySource === 'COMEBACK' && !existingConvertibleReport) {
       const creatorEmail =
         this.normalizeEmail(erpOrder?.creatorEmail) ??
         this.normalizeEmail(erpOrder?.erpConsultantEmail);
@@ -2096,7 +2106,7 @@ export class SalesReportsService implements OnApplicationBootstrap {
       };
       const persisted = options.persist
         ? await options.persist(reportData, reportInclude, {
-            existingSyncListReportId,
+            existingConvertibleReport,
             orderCode,
           })
         : {
@@ -2125,7 +2135,7 @@ export class SalesReportsService implements OnApplicationBootstrap {
             ? SALES_REPORT_COMEBACK_DUPLICATE_MESSAGE
             : SALES_REPORT_DUPLICATE_MESSAGE;
         this.logger.warn(
-          `Sales report duplicate blocked after unique conflict: user=${this.safeUserLabel(user)} operation=create existingSource=${existing?.entrySource || 'unknown'} ${this.orderLogPart(orderCode)}`,
+          `Sales report duplicate blocked after unique conflict: user=${this.safeUserLabel(user)} operation=create existingSource=${existing ? (existing.entrySource ?? 'LEGACY_NULL') : 'unknown'} ${this.orderLogPart(orderCode)}`,
         );
         throw new BadRequestException(message);
       }
@@ -3532,22 +3542,28 @@ export class SalesReportsService implements OnApplicationBootstrap {
   private async requireOrderAvailable(
     orderCode: string | null,
     options: {
-      allowSyncListConversion: boolean;
+      allowComebackConversion: boolean;
       operation: 'check' | 'create';
       user: any;
     },
-  ) {
+  ): Promise<ExistingConvertibleSalesReport | null> {
     const existing = await this.findExistingOrderReport(orderCode);
     if (!existing) return null;
     if (
-      options.allowSyncListConversion &&
+      options.allowComebackConversion &&
       existing.reportType === REPORT_TYPE_PURCHASED &&
-      existing.entrySource === 'SYNC_LIST'
+      (existing.entrySource === 'SYNC_LIST' || existing.entrySource === null)
     ) {
+      const conversionSource = existing.entrySource ?? 'LEGACY_NULL';
       this.logger.log(
-        `Sales report synced order eligible for comeback conversion: user=${this.safeUserLabel(options.user)} operation=${options.operation} existingReport=${existing.id} ${this.orderLogPart(orderCode)}`,
+        `Sales report order eligible for comeback conversion: user=${this.safeUserLabel(options.user)} operation=${options.operation} existingReport=${existing.id} existingSource=${conversionSource} ${this.orderLogPart(orderCode)}`,
       );
-      return existing;
+      const entrySource: ExistingConvertibleSalesReport['entrySource'] =
+        existing.entrySource;
+      return {
+        id: existing.id,
+        entrySource,
+      };
     }
 
     const message =
@@ -3555,7 +3571,7 @@ export class SalesReportsService implements OnApplicationBootstrap {
         ? SALES_REPORT_COMEBACK_DUPLICATE_MESSAGE
         : SALES_REPORT_DUPLICATE_MESSAGE;
     this.logger.warn(
-      `Sales report duplicate blocked: user=${this.safeUserLabel(options.user)} operation=${options.operation} existingSource=${existing.entrySource || 'unknown'} ${this.orderLogPart(orderCode)}`,
+      `Sales report duplicate blocked: user=${this.safeUserLabel(options.user)} operation=${options.operation} existingSource=${existing.entrySource ?? 'LEGACY_NULL'} ${this.orderLogPart(orderCode)}`,
     );
     throw new BadRequestException(message);
   }

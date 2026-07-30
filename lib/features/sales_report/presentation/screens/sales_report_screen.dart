@@ -1550,6 +1550,25 @@ class _SalesReportFormScreenState extends State<SalesReportFormScreen> {
       _showSnack(_pendingPaymentOrderMessage, AppColors.warning);
       return;
     }
+    if (result.willConvertLegacyReport) {
+      unawaited(
+        AppLogger.instance.info(
+          'SalesReport',
+          'Sales report legacy order conversion warning shown',
+          context: {
+            'orderLength': result.orderCode.length,
+            'entrySource': widget.entrySource,
+            if (widget.followUpCaseId != null)
+              'followUpCaseId': widget.followUpCaseId,
+          },
+        ),
+      );
+      _showSnack(
+        'Đơn hàng này thuộc dữ liệu báo cáo cũ. Nếu lưu mua hàng, hệ thống sẽ chuyển báo cáo sang Khách quay lại.',
+        AppColors.warning,
+      );
+      return;
+    }
     if (result.willConvertSyncedReport) {
       unawaited(
         AppLogger.instance.info(

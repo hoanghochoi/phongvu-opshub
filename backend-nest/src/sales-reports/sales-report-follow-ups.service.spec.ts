@@ -43,7 +43,10 @@ describe('SalesReportFollowUpsService', () => {
   }
 
   function createPurchaseHarness(options: {
-    existingSyncListReportId: string | null;
+    existingConvertibleReport: {
+      id: string;
+      entrySource: 'SYNC_LIST' | null;
+    } | null;
     convertedCount?: number;
   }) {
     const row = purchasedCaseFixture();
@@ -68,7 +71,7 @@ describe('SalesReportFollowUpsService', () => {
           .fn()
           .mockResolvedValue({ count: options.convertedCount ?? 1 }),
         findUnique: jest.fn().mockResolvedValue({
-          id: options.existingSyncListReportId,
+          id: options.existingConvertibleReport?.id,
           reportType: 'PURCHASED',
           orderCode: '2606290001',
           entrySource: 'COMEBACK',
@@ -94,7 +97,7 @@ describe('SalesReportFollowUpsService', () => {
           { reportType: 'PURCHASED' },
           { items: true, payments: true, categorySelections: true },
           {
-            existingSyncListReportId: options.existingSyncListReportId,
+            existingConvertibleReport: options.existingConvertibleReport,
             orderCode: '2606290001',
           },
         );
@@ -697,7 +700,10 @@ describe('SalesReportFollowUpsService', () => {
 
   it('atomically converts and links the existing synced report without creating a new report', async () => {
     const { service, prisma } = createPurchaseHarness({
-      existingSyncListReportId: 'existing-synced',
+      existingConvertibleReport: {
+        id: 'existing-synced',
+        entrySource: 'SYNC_LIST',
+      },
     });
 
     await expect(
@@ -740,9 +746,60 @@ describe('SalesReportFollowUpsService', () => {
     });
   });
 
-  it('fails closed when another request already converted the synced report', async () => {
+  it('atomically converts and links a legacy report without creating a new report', async () => {
     const { service, prisma } = createPurchaseHarness({
-      existingSyncListReportId: 'existing-synced',
+      existingConvertibleReport: {
+        id: 'existing-legacy',
+        entrySource: null,
+      },
+    });
+
+    await expect(
+      service.createEntry(
+        { id: 'user-1', email: 'sale@phongvu.vn', role: 'SUPER_ADMIN' },
+        'case-purchase',
+        {
+          outcome: 'PURCHASED',
+          purchasedReport: { orderCode: ' 260629 0001 ' } as any,
+        },
+      ),
+    ).resolves.toMatchObject({
+      caseStatus: 'PURCHASED',
+      convertedExistingReport: true,
+      report: { id: 'existing-legacy' },
+    });
+    expect(prisma.salesReport.updateMany).toHaveBeenCalledWith({
+      where: {
+        id: 'existing-legacy',
+        orderCode: '2606290001',
+        reportType: 'PURCHASED',
+        entrySource: null,
+      },
+      data: { entrySource: 'COMEBACK' },
+    });
+    expect(prisma.salesReport.create).not.toHaveBeenCalled();
+    expect(prisma.salesReportFollowUpEntry.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        caseId: 'case-purchase',
+        outcome: 'PURCHASED',
+        purchasedReportId: 'existing-legacy',
+      }),
+    });
+    expect(prisma.salesReportFollowUpCase.update).toHaveBeenCalledWith({
+      where: { id: 'case-purchase' },
+      data: expect.objectContaining({
+        status: 'PURCHASED',
+        convertedReportId: 'existing-legacy',
+      }),
+    });
+  });
+
+  it('fails closed when another request already converted the legacy report', async () => {
+    const { service, prisma } = createPurchaseHarness({
+      existingConvertibleReport: {
+        id: 'existing-legacy',
+        entrySource: null,
+      },
       convertedCount: 0,
     });
 
@@ -760,7 +817,7 @@ describe('SalesReportFollowUpsService', () => {
     );
     expect(prisma.salesReport.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: expect.objectContaining({ entrySource: 'SYNC_LIST' }),
+        where: expect.objectContaining({ entrySource: null }),
       }),
     );
     expect(prisma.salesReport.create).not.toHaveBeenCalled();
@@ -770,7 +827,7 @@ describe('SalesReportFollowUpsService', () => {
 
   it('keeps creating a new comeback report when no synced report exists', async () => {
     const { service, prisma } = createPurchaseHarness({
-      existingSyncListReportId: null,
+      existingConvertibleReport: null,
     });
 
     await expect(
