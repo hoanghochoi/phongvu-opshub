@@ -29,7 +29,7 @@ test("API-only tunnel installer has valid Bash syntax", () => {
   assert.equal(result.status, 0, result.stderr);
 });
 
-test("API-only tunnel installer fails closed without both approvals", () => {
+test("API-only tunnel installer fails closed without install approval", () => {
   const result = spawnSync(bash, [installerPath], {
     encoding: "utf8",
     env: {
@@ -46,6 +46,7 @@ test("API-only tunnel installer fails closed without both approvals", () => {
 test("API-only tunnel uses isolated deterministic identities", () => {
   assert.match(source, /SERVICE_NAME="cloudflared-opshub-staging-api"/);
   assert.match(source, /TUNNEL_NAME="opshub-staging-api"/);
+  assert.match(source, /EXPECTED_DNS_ZONE="hoanghochoi\.com"/);
   assert.match(
     source,
     /TUNNEL_HOSTNAME="api-opshub-staging\.hoanghochoi\.com"/,
@@ -85,4 +86,28 @@ test("DNS publication happens only after local validation and service start", ()
   assert.ok(localValidation >= 0);
   assert.ok(serviceStart > localValidation);
   assert.ok(dnsPublication > serviceStart);
+});
+
+test("DNS route requires an exact origin-cert zone ownership preflight", () => {
+  assert.match(source, /CLOUDFLARED_ROUTE_DNS must equal true or false/);
+  assert.match(source, /certificate_zone_name/);
+  assert.match(source, /client\/v4\/zones\/\{zone_id\}/);
+  assert.match(source, /certificate_zone" != "\$EXPECTED_DNS_ZONE/);
+  assert.match(source, /refusing DNS publication/);
+  assert.match(source, /DNS publication skipped; create proxied CNAME/);
+});
+
+test("invalid DNS mode fails before cloudflared discovery or mutation", () => {
+  const result = spawnSync(bash, [installerPath], {
+    encoding: "utf8",
+    env: {
+      ...process.env,
+      CLOUDFLARED_API_TUNNEL_APPROVAL: "INSTALL_OPSHUB_STAGING_API_TUNNEL",
+      CLOUDFLARED_ROUTE_DNS: "maybe",
+    },
+  });
+
+  assert.notEqual(result.status, 0);
+  assert.match(result.stderr, /CLOUDFLARED_ROUTE_DNS must equal true or false/);
+  assert.doesNotMatch(result.stderr, /cloudflared is not installed/);
 });
