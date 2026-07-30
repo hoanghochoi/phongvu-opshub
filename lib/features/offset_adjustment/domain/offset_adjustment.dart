@@ -53,7 +53,7 @@ class OffsetAdjustment {
   final String type;
   final String status;
   final String storeCode;
-  final List<OffsetSalesChannel> salesChannels;
+  final List<OffsetSellingStore> sellingStores;
   final String creationChannel;
   final String? oldOrderCode;
   final String? newOrderCode;
@@ -79,7 +79,7 @@ class OffsetAdjustment {
     required this.type,
     required this.status,
     required this.storeCode,
-    required this.salesChannels,
+    required this.sellingStores,
     required this.creationChannel,
     required this.oldOrderCode,
     required this.newOrderCode,
@@ -107,7 +107,7 @@ class OffsetAdjustment {
       type: json['type']?.toString() ?? '',
       status: json['status']?.toString() ?? '',
       storeCode: json['storeCode']?.toString() ?? '',
-      salesChannels: _salesChannels(json['salesChannels']),
+      sellingStores: _sellingStores(json['sellingStores']),
       creationChannel: _text(json['creationChannel']) ?? 'Cấn trừ trên OpsHub',
       oldOrderCode: _text(json['oldOrderCode']),
       newOrderCode: _text(json['newOrderCode']),
@@ -178,26 +178,28 @@ class OffsetAdjustment {
     return DateTime.tryParse(text);
   }
 
-  static List<OffsetSalesChannel> _salesChannels(Object? value) {
+  static List<OffsetSellingStore> _sellingStores(Object? value) {
     if (value is! List) return const [];
     return value
         .whereType<Map>()
         .map(
-          (entry) => OffsetSalesChannel(
+          (entry) => OffsetSellingStore(
             orderCode: _text(entry['orderCode']) ?? '',
-            label: _text(entry['salesChannel']) ?? '',
+            storeCode: _text(entry['storeCode']) ?? '',
           ),
         )
-        .where((entry) => entry.orderCode.isNotEmpty && entry.label.isNotEmpty)
+        .where(
+          (entry) => entry.orderCode.isNotEmpty && entry.storeCode.isNotEmpty,
+        )
         .toList(growable: false);
   }
 }
 
-class OffsetSalesChannel {
+class OffsetSellingStore {
   final String orderCode;
-  final String label;
+  final String storeCode;
 
-  const OffsetSalesChannel({required this.orderCode, required this.label});
+  const OffsetSellingStore({required this.orderCode, required this.storeCode});
 }
 
 class OffsetAdjustmentInput {

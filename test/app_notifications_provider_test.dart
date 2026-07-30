@@ -375,8 +375,8 @@ void main() {
         offsetAdjustmentRepository: offsetRepository,
         feedRepository: feedRepository,
         realtimeClient: realtime,
-        realtimeRefreshDebounce: const Duration(milliseconds: 10),
-        realtimeRefreshMaxWait: const Duration(milliseconds: 40),
+        realtimeRefreshDebounce: const Duration(milliseconds: 200),
+        realtimeRefreshMaxWait: const Duration(milliseconds: 50),
       );
 
       await _activate(provider);
@@ -391,7 +391,7 @@ void main() {
           ),
         );
       }
-      await Future<void>.delayed(const Duration(milliseconds: 60));
+      await Future<void>.delayed(const Duration(milliseconds: 100));
 
       expect(feedRepository.fetchCount, 2);
 

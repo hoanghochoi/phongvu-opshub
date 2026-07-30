@@ -9,22 +9,22 @@ import 'package:phongvu_opshub/features/offset_adjustment/data/offset_adjustment
 import 'package:phongvu_opshub/features/offset_adjustment/domain/offset_adjustment.dart';
 
 void main() {
-  test('parses ERP selling channel and OpsHub creation channel metadata', () {
+  test('parses ERP selling store and OpsHub creation channel metadata', () {
     final adjustment = OffsetAdjustment.fromJson({
       'id': 'offset-1',
       'type': OffsetAdjustmentType.singleOrder,
       'status': OffsetAdjustmentStatus.pending,
       'storeCode': 'CP01',
-      'salesChannels': [
-        {'orderCode': '2607020002', 'salesChannel': 'Kênh Online'},
+      'sellingStores': [
+        {'orderCode': '2607020002', 'storeCode': 'CP99'},
       ],
       'creationChannel': 'Cấn trừ trên OpsHub',
       'amount': 100000,
     });
 
     expect(adjustment.creationChannel, 'Cấn trừ trên OpsHub');
-    expect(adjustment.salesChannels.single.orderCode, '2607020002');
-    expect(adjustment.salesChannels.single.label, 'Kênh Online');
+    expect(adjustment.sellingStores.single.orderCode, '2607020002');
+    expect(adjustment.sellingStores.single.storeCode, 'CP99');
   });
 
   test(

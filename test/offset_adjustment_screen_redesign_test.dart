@@ -47,9 +47,15 @@ void main() {
     expect(find.text('Cấn trừ đơn'), findsWidgets);
     expect(find.text('CP01'), findsWidgets);
     expect(find.text('2607020001 -> 2607020002'), findsOneWidget);
-    expect(find.text('2607020002: Kênh Online'), findsOneWidget);
+    expect(find.text('2607020002: CP99'), findsOneWidget);
     expect(find.textContaining('1.250.000'), findsWidgets);
     expect(find.text('Chờ Kế toán xác nhận'), findsWidgets);
+
+    await tester.tap(find.text('2607020001 -> 2607020002'));
+    await tester.pumpAndSettle();
+    expect(find.text('Cửa hàng bán'), findsOneWidget);
+    expect(find.text('2607020002: CP99'), findsWidgets);
+
     expect(repository.fetchCount, greaterThanOrEqualTo(2));
     expect(repository.seenQueries.first.allStores, isTrue);
     expect(tester.takeException(), isNull);
@@ -230,8 +236,8 @@ final _offsetAdjustment = OffsetAdjustment.fromJson({
   'type': OffsetAdjustmentType.singleOrder,
   'status': OffsetAdjustmentStatus.pending,
   'storeCode': 'CP01',
-  'salesChannels': [
-    {'orderCode': '2607020002', 'salesChannel': 'Kênh Online'},
+  'sellingStores': [
+    {'orderCode': '2607020002', 'storeCode': 'CP99'},
   ],
   'creationChannel': 'Cấn trừ trên OpsHub',
   'oldOrderCode': '2607020001',
@@ -247,8 +253,8 @@ final _vnpayOffsetAdjustment = OffsetAdjustment.fromJson({
   'type': OffsetAdjustmentType.vnpayQroff,
   'status': OffsetAdjustmentStatus.pending,
   'storeCode': 'CP01',
-  'salesChannels': [
-    {'orderCode': '2607020003', 'salesChannel': 'VNPAY QROFF'},
+  'sellingStores': [
+    {'orderCode': '2607020003', 'storeCode': 'CP88'},
   ],
   'creationChannel': 'Cấn trừ trên OpsHub',
   'orderCode': '2607020003',

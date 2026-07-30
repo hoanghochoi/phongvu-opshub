@@ -13,18 +13,20 @@ This file maps product behavior to proof. Existing flows are marked
   row-lock order closes no-op/re-follow races and maps serialization conflicts
   to reload guidance. Single complete/reject uses the same optimistic snapshot
   so a stale individual action cannot overwrite a batch result. Offset records
-  the ERP selling channel separately from the request showroom and keeps
+  the ERP selling-store code separately from the request showroom and keeps
   `Cấn trừ trên OpsHub` as the creation channel; ERP lookup does not require
-  showroom equality, and payment methods never substitute for a missing selling
-  channel. Flutter locks selection while a batch is in flight and stops
-  post-success refresh notifications after disposal. Focused remediation proof
-  passes Offset Nest `39/39`, Offset/statement provider Flutter `61/61`, Sales
-  Report hub `25/25`, and the corrected web-smoke route guard `1/1`. Prisma
-  validation, Nest build, full Nest `91 suites / 1,029 tests`, Flutter analyze,
-  full Flutter `671 passed / 3 intentional skips`, Go `64 tests`, and
-  `git diff --check` pass on the synchronized final-candidate worktree. Real
-  PostgreSQL two-client proof, staging Android/Windows/web, real ERP orders, and
-  operational latency/error-log observation remain release gates.
+  showroom equality. The code comes only from normalized
+  `data.order.createdFromSiteDisplayName`; channel/platform/terminal/payment
+  fields never substitute for a missing selling store. Flutter locks selection
+  while a batch is in flight and stops
+  post-success refresh notifications after disposal. Focused store-contract
+  proof passes Offset/Sales Report Nest `62/62`, Flutter repository `6/6`, and
+  Offset workspace `4/4`. A disposable PostgreSQL verifier passed with
+  independent clients for two Offset single/batch races, one statement
+  re-follow/batch race, and two atomic rollback scenarios. Exact-SHA full
+  repository gates, staging Android/Windows/web, real ERP orders, and
+  operational latency/error-log observation remain release gates and must be
+  recorded on OPS-41 before transition.
 
 - `OPS-31`/`HOME-DASHBOARD-002`/`HOME-DASHBOARD-003`, 2026-07-29:
   `GET /home/summary` preserves the legacy aggregate response unless the strict

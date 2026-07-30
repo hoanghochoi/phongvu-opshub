@@ -480,7 +480,7 @@ void main() {
       final provider = OffsetAdjustmentProvider(
         repository,
         realtimeClient: realtime,
-        realtimeDebounce: const Duration(milliseconds: 30),
+        realtimeDebounce: const Duration(milliseconds: 200),
         realtimeMaxWait: const Duration(milliseconds: 50),
       );
       await provider.initialize(_srUser);
@@ -492,9 +492,8 @@ void main() {
           topic: 'notifications.offset-adjustment',
           data: {'adjustmentId': 'offset-$index', 'storeCode': 'CP01'},
         );
-        await Future<void>.delayed(const Duration(milliseconds: 20));
       }
-      await Future<void>.delayed(const Duration(milliseconds: 20));
+      await Future<void>.delayed(const Duration(milliseconds: 100));
 
       expect(repository.fetchListCount, baseline + 1);
 

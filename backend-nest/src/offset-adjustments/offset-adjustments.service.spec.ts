@@ -132,21 +132,19 @@ describe('OffsetAdjustmentsService', () => {
     );
   });
 
-  it('keeps ERP selling channel separate from the Offset showroom and source channel', async () => {
+  it('keeps ERP selling store separate from the Offset showroom and creation channel', async () => {
     salesReportErpService.lookupOrderStatus
       .mockResolvedValueOnce({
         lifecycleStatus: 'CANCELLED',
         lifecycleVerified: true,
         grandTotal: 1500000,
         storeCode: 'CP99',
-        salesChannel: 'Kênh Online',
       })
       .mockResolvedValueOnce({
         lifecycleStatus: 'COMPLETED',
         lifecycleVerified: true,
         grandTotal: 1500000,
         storeCode: 'CP88',
-        salesChannel: 'Kênh Đối tác',
       });
     prisma.offsetAdjustment.create.mockResolvedValue(
       offsetRow({
@@ -176,20 +174,20 @@ describe('OffsetAdjustmentsService', () => {
     expect(result).toMatchObject({
       storeCode: 'CP01',
       creationChannel: 'Cấn trừ trên OpsHub',
-      salesChannels: [
-        { orderCode: '26062500000001', salesChannel: 'Kênh Online' },
-        { orderCode: '26062500000002', salesChannel: 'Kênh Đối tác' },
+      sellingStores: [
+        { orderCode: '26062500000001', storeCode: 'CP99' },
+        { orderCode: '26062500000002', storeCode: 'CP88' },
       ],
     });
     expect(prisma.offsetAdjustmentHistory.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
           snapshot: expect.objectContaining({
-            channels: {
+            erpMetadata: {
               creationChannel: 'Cấn trừ trên OpsHub',
-              salesChannels: [
-                { orderCode: '26062500000001', salesChannel: 'Kênh Online' },
-                { orderCode: '26062500000002', salesChannel: 'Kênh Đối tác' },
+              sellingStores: [
+                { orderCode: '26062500000001', storeCode: 'CP99' },
+                { orderCode: '26062500000002', storeCode: 'CP88' },
               ],
             },
           }),
@@ -198,12 +196,12 @@ describe('OffsetAdjustmentsService', () => {
     );
   });
 
-  it('does not present an ERP payment method as the selling channel', async () => {
+  it('keeps a missing ERP selling store neutral without channel or payment fallbacks', async () => {
     salesReportErpService.lookupOrderStatus.mockResolvedValue({
       lifecycleStatus: 'COMPLETED',
       lifecycleVerified: true,
       grandTotal: 250000,
-      salesChannel: null,
+      storeCode: null,
       paymentMethods: ['VNPAY', 'cash'],
     });
     prisma.offsetAdjustment.findFirst.mockResolvedValue(null);
@@ -220,14 +218,14 @@ describe('OffsetAdjustmentsService', () => {
       amount: 200000,
     });
 
-    expect(result.salesChannels).toEqual([
+    expect(result.sellingStores).toEqual([
       {
         orderCode: '26062500000003',
-        salesChannel: 'ERP (chưa có tên kênh bán)',
+        storeCode: 'ERP (chưa có mã cửa hàng bán)',
       },
     ]);
-    expect(JSON.stringify(result.salesChannels)).not.toContain('VNPAY');
-    expect(JSON.stringify(result.salesChannels)).not.toContain('Tiền mặt');
+    expect(JSON.stringify(result.sellingStores)).not.toContain('VNPAY');
+    expect(JSON.stringify(result.sellingStores)).not.toContain('Tiền mặt');
   });
 
   it.each(['PENDING', 'COMPLETED', 'RETURNED_FULL'])(
@@ -893,24 +891,25 @@ describe('OffsetAdjustmentsService', () => {
     );
     expect(csv.charCodeAt(0)).toBe(0xfeff);
     expect(csv).toContain('Cấn trừ đơn');
+    expect(csv).toContain('Cửa hàng bán');
     expect(csv).toContain('Chờ Kế toán xác nhận');
     expect(csv).toContain("'26062500000001");
     expect(csv).toContain("'=HYPERLINK");
     expect(csv).not.toContain(',=HYPERLINK');
   });
 
-  it('returns persisted ERP and OpsHub channel labels from the latest history snapshot', async () => {
+  it('returns persisted ERP selling stores and creation channel from the latest history snapshot', async () => {
     prisma.offsetAdjustment.findMany.mockResolvedValue([
       offsetRow({
         history: [
           {
             snapshot: {
-              channels: {
+              erpMetadata: {
                 creationChannel: 'Cấn trừ trên OpsHub',
-                salesChannels: [
+                sellingStores: [
                   {
                     orderCode: '26062500000003',
-                    salesChannel: 'Kênh Online',
+                    storeCode: 'CP99',
                   },
                 ],
               },
@@ -927,9 +926,7 @@ describe('OffsetAdjustmentsService', () => {
       list: [
         {
           creationChannel: 'Cấn trừ trên OpsHub',
-          salesChannels: [
-            { orderCode: '26062500000003', salesChannel: 'Kênh Online' },
-          ],
+          sellingStores: [{ orderCode: '26062500000003', storeCode: 'CP99' }],
         },
       ],
     });

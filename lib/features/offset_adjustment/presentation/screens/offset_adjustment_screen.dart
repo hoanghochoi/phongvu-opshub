@@ -959,10 +959,10 @@ class _OffsetCard extends StatelessWidget {
                 icon: Icons.storefront_outlined,
                 text: item.storeCode,
               ),
-              if (item.salesChannels.isNotEmpty)
+              if (item.sellingStores.isNotEmpty)
                 _InlineInfo(
                   icon: Icons.storefront_outlined,
-                  text: _salesChannelsLabel(item.salesChannels),
+                  text: _sellingStoresLabel(item.sellingStores),
                 ),
               _InlineInfo(
                 icon: Icons.payments_outlined,
@@ -1039,8 +1039,11 @@ class _OffsetDetailDialog extends StatelessWidget {
               _detail('Trạng thái', OffsetAdjustmentStatus.label(item.status)),
               _detail('Showroom', item.storeCode),
               _detail('Kênh tạo hồ sơ', item.creationChannel),
-              if (item.salesChannels.isNotEmpty)
-                _detail('Kênh bán', _salesChannelsLabel(item.salesChannels)),
+              if (item.sellingStores.isNotEmpty)
+                _detail(
+                  'Cửa hàng bán',
+                  _sellingStoresLabel(item.sellingStores),
+                ),
               if (item.isSingleOrder) ...[
                 _detail('Đơn hàng cũ', item.oldOrderCode),
                 _detail('Đơn hàng mới', item.newOrderCode),
@@ -1110,9 +1113,9 @@ class _OffsetDetailDialog extends StatelessWidget {
   }
 }
 
-String _salesChannelsLabel(List<OffsetSalesChannel> channels) {
-  return channels
-      .map((channel) => '${channel.orderCode}: ${channel.label}')
+String _sellingStoresLabel(List<OffsetSellingStore> stores) {
+  return stores
+      .map((store) => '${store.orderCode}: ${store.storeCode}')
       .join('; ');
 }
 

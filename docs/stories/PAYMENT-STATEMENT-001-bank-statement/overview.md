@@ -102,12 +102,13 @@ selection. Selected export, individual re-follow, the
 `UNFOLLOWED` filter, Home KPI, XLSX, and BigQuery continue to consume the OPS-36
 tracking contract without a new schema or event shape.
 
-## OPS-41 Offset ERP channel authority
+## OPS-41 Offset ERP store authority
 
 Offset ERP validation intentionally does not require the referenced ERP order
 to belong to the request showroom. The request showroom remains the OpsHub
-authorization/reporting scope. ERP selling-channel metadata is sanitized into
-Offset history and exposed as `Kênh bán`; every Offset request is explicitly
-labelled with `Kênh tạo hồ sơ: Cấn trừ trên OpsHub`. The Sales Report cache also
+authorization/reporting scope. The leading ERP store code from
+`data.order.createdFromSiteDisplayName` is sanitized into Offset history and
+exposed as `Cửa hàng bán`; every Offset request is explicitly labelled with
+`Kênh tạo hồ sơ: Cấn trừ trên OpsHub`. The Sales Report cache also
 falls back to `data.order.consultant.email` when the ERP creator email is absent
 so CHAT-created orders still map to the correct SR owner.

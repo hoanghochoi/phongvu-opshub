@@ -73,13 +73,13 @@ type NormalizedOffsetData = {
   note: string | null;
 };
 
-type OffsetErpChannel = {
+type OffsetErpStore = {
   orderCode: string;
-  salesChannel: string;
+  storeCode: string;
 };
 
 type OffsetErpValidationMetadata = {
-  salesChannels: OffsetErpChannel[];
+  sellingStores: OffsetErpStore[];
   creationChannel: typeof OFFSET_CREATION_CHANNEL;
 };
 
@@ -118,7 +118,7 @@ export class OffsetAdjustmentsService {
         orderBy: { submittedAt: 'desc' },
         skip: filters.page * filters.limit,
         take: filters.limit,
-        include: this.channelHistoryInclude(),
+        include: this.erpMetadataHistoryInclude(),
       }),
       this.prisma.offsetAdjustment.count({ where }),
     ]);
@@ -161,7 +161,7 @@ export class OffsetAdjustmentsService {
       const rows = await this.prisma.offsetAdjustment.findMany({
         where,
         orderBy: { submittedAt: 'desc' },
-        include: this.channelHistoryInclude(),
+        include: this.erpMetadataHistoryInclude(),
       });
       this.logger.log(
         `Offset adjustments export succeeded: user=${this.safeUserLabel(user)} reviewer=${scope.reviewer} count=${rows.length} durationMs=${Date.now() - startedAt}`,
@@ -241,7 +241,7 @@ export class OffsetAdjustmentsService {
     const scope = await this.resolveScope(user, {});
     const row = await this.prisma.offsetAdjustment.findFirst({
       where: this.andWhere(scope.where, { id: this.normalizeRequiredId(id) }),
-      include: this.channelHistoryInclude(),
+      include: this.erpMetadataHistoryInclude(),
     });
     if (!row) throw new NotFoundException('Không tìm thấy hồ sơ cấn trừ.');
     const singleCounts = await this.singleOrderCounts(scope.where, [row]);
@@ -351,7 +351,7 @@ export class OffsetAdjustmentsService {
       current.type === OFFSET_TYPE_VNPAY_QROFF
         ? this.normalizeRequiredText(input.ctCode, 'Vui lòng nhập Mã CT.')
         : null;
-    const channelMetadata = this.channelsFromHistory(current);
+    const erpMetadata = this.erpMetadataFromHistory(current);
     const reviewedAt = new Date();
     this.logger.log(
       `Offset adjustment complete started: user=${this.safeUserLabel(user)} id=${current.id} store=${current.storeCode} type=${current.type}`,
@@ -382,7 +382,7 @@ export class OffsetAdjustmentsService {
             updated.status,
             undefined,
             tx,
-            channelMetadata,
+            erpMetadata,
           );
           return updated;
         }),
@@ -411,7 +411,7 @@ export class OffsetAdjustmentsService {
     try {
       const rows = await this.prisma.offsetAdjustment.findMany({
         where: this.andWhere(scope.where, { id: { in: ids } }),
-        include: this.channelHistoryInclude(),
+        include: this.erpMetadataHistoryInclude(),
       });
       if (rows.length !== ids.length) {
         throw new BadRequestException(
@@ -473,7 +473,7 @@ export class OffsetAdjustmentsService {
               row.status,
               undefined,
               tx,
-              this.channelsFromHistory(rowsById.get(id)),
+              this.erpMetadataFromHistory(rowsById.get(id)),
             );
             updated.push(row);
           }
@@ -509,7 +509,7 @@ export class OffsetAdjustmentsService {
       input.reason,
       'Vui lòng nhập lý do từ chối.',
     );
-    const channelMetadata = this.channelsFromHistory(current);
+    const erpMetadata = this.erpMetadataFromHistory(current);
     const reviewedAt = new Date();
     this.logger.log(
       `Offset adjustment reject started: user=${this.safeUserLabel(user)} id=${current.id} store=${current.storeCode} type=${current.type}`,
@@ -539,7 +539,7 @@ export class OffsetAdjustmentsService {
             updated.status,
             reason,
             tx,
-            channelMetadata,
+            erpMetadata,
           );
           return updated;
         }),
@@ -590,7 +590,7 @@ export class OffsetAdjustmentsService {
         );
       }
       this.assertOffsetAmountWithinOrder(data.amount, newOrder, 'đơn hàng mới');
-      return this.erpChannelMetadata([
+      return this.erpStoreMetadata([
         { orderCode: data.oldOrderCode!, order: oldOrder },
         { orderCode: data.newOrderCode!, order: newOrder },
       ]);
@@ -599,7 +599,7 @@ export class OffsetAdjustmentsService {
     const order = await this.lookupOffsetOrder(data.orderCode!, 'wallet');
     this.assertVerifiedLifecycle(order, 'đơn hàng');
     this.assertOffsetAmountWithinOrder(data.amount, order, 'đơn hàng');
-    return this.erpChannelMetadata([{ orderCode: data.orderCode!, order }]);
+    return this.erpStoreMetadata([{ orderCode: data.orderCode!, order }]);
   }
 
   private async lookupOffsetOrder(
@@ -612,7 +612,7 @@ export class OffsetAdjustmentsService {
         orderCode,
         // The ERP order is intentionally not showroom-scoped to the Offset
         // request. The request showroom remains the authorization/audit scope;
-        // ERP owns the order's selling channel and source store metadata.
+        // ERP owns the selling-store code; it is not inferred from request scope.
         null,
       );
       this.logger.log(
@@ -676,7 +676,7 @@ export class OffsetAdjustmentsService {
     }
   }
 
-  private erpChannelMetadata(
+  private erpStoreMetadata(
     entries: Array<{
       orderCode: string;
       order: SalesReportErpOrderListItem;
@@ -684,17 +684,19 @@ export class OffsetAdjustmentsService {
   ): OffsetErpValidationMetadata {
     return {
       creationChannel: OFFSET_CREATION_CHANNEL,
-      salesChannels: entries.map(({ orderCode, order }) => ({
+      sellingStores: entries.map(({ orderCode, order }) => ({
         orderCode,
-        salesChannel: this.salesChannelLabel(order),
+        storeCode: this.sellingStoreCode(order),
       })),
     };
   }
 
-  private salesChannelLabel(order: SalesReportErpOrderListItem) {
-    const explicit = String(order.salesChannel ?? '').trim();
+  private sellingStoreCode(order: SalesReportErpOrderListItem) {
+    const explicit = String(order.storeCode ?? '')
+      .trim()
+      .toUpperCase();
     if (explicit) return explicit.slice(0, 120);
-    return 'ERP (chưa có tên kênh bán)';
+    return 'ERP (chưa có mã cửa hàng bán)';
   }
 
   private normalizeBatchIds(values: unknown, itemLabel: string) {
@@ -734,7 +736,7 @@ export class OffsetAdjustmentsService {
   private async findReviewable(user: any, scope: OffsetScope, id: string) {
     const row = await this.prisma.offsetAdjustment.findFirst({
       where: this.andWhere(scope.where, { id: this.normalizeRequiredId(id) }),
-      include: this.channelHistoryInclude(),
+      include: this.erpMetadataHistoryInclude(),
     });
     if (!row) throw new NotFoundException('Không tìm thấy hồ sơ cấn trừ.');
     if (!scope.reviewer) {
@@ -1180,14 +1182,14 @@ export class OffsetAdjustmentsService {
   ) {
     const canResubmit =
       !scope.reviewer && row.status === OFFSET_STATUS_REJECTED;
-    const channels = metadata ?? this.channelsFromHistory(row);
+    const erpMetadata = metadata ?? this.erpMetadataFromHistory(row);
     return {
       id: row.id,
       type: row.type,
       status: row.status,
       storeCode: row.storeCode,
-      salesChannels: channels.salesChannels,
-      creationChannel: channels.creationChannel,
+      sellingStores: erpMetadata.sellingStores,
+      creationChannel: erpMetadata.creationChannel,
       oldOrderCode: row.oldOrderCode,
       newOrderCode: row.newOrderCode,
       orderCode: row.orderCode,
@@ -1215,7 +1217,7 @@ export class OffsetAdjustmentsService {
     };
   }
 
-  private channelHistoryInclude() {
+  private erpMetadataHistoryInclude() {
     return {
       history: {
         orderBy: { createdAt: 'desc' as const },
@@ -1225,35 +1227,35 @@ export class OffsetAdjustmentsService {
     };
   }
 
-  private channelsFromHistory(row: any): OffsetErpValidationMetadata {
+  private erpMetadataFromHistory(row: any): OffsetErpValidationMetadata {
     const snapshot = row?.history?.[0]?.snapshot;
-    const channels =
+    const erpMetadata =
       snapshot && typeof snapshot === 'object'
-        ? (snapshot as Record<string, unknown>).channels
+        ? (snapshot as Record<string, unknown>).erpMetadata
         : null;
-    if (channels && typeof channels === 'object') {
-      const record = channels as Record<string, unknown>;
-      const salesChannels = Array.isArray(record.salesChannels)
-        ? record.salesChannels
+    if (erpMetadata && typeof erpMetadata === 'object') {
+      const record = erpMetadata as Record<string, unknown>;
+      const sellingStores = Array.isArray(record.sellingStores)
+        ? record.sellingStores
             .filter((entry): entry is Record<string, unknown> =>
               Boolean(entry && typeof entry === 'object'),
             )
             .map((entry) => ({
               orderCode: String(entry.orderCode ?? ''),
-              salesChannel: String(entry.salesChannel ?? '').trim(),
+              storeCode: String(entry.storeCode ?? '').trim(),
             }))
-            .filter((entry) => entry.orderCode && entry.salesChannel)
+            .filter((entry) => entry.orderCode && entry.storeCode)
         : [];
       const creationChannel = String(record.creationChannel ?? '').trim();
-      if (salesChannels.length > 0 && creationChannel) {
+      if (sellingStores.length > 0 && creationChannel) {
         return {
-          salesChannels,
+          sellingStores,
           creationChannel: creationChannel as typeof OFFSET_CREATION_CHANNEL,
         };
       }
     }
     return {
-      salesChannels: [],
+      sellingStores: [],
       creationChannel: OFFSET_CREATION_CHANNEL,
     };
   }
@@ -1279,7 +1281,7 @@ export class OffsetAdjustmentsService {
   }
 
   private historySnapshot(row: any, metadata?: OffsetErpValidationMetadata) {
-    const channels = metadata ?? this.channelsFromHistory(row);
+    const erpMetadata = metadata ?? this.erpMetadataFromHistory(row);
     return {
       id: row.id,
       type: row.type,
@@ -1292,7 +1294,7 @@ export class OffsetAdjustmentsService {
       transactionCode: row.transactionCode,
       editContentKind: row.editContentKind,
       ctCode: row.ctCode,
-      ...(channels.salesChannels.length > 0 ? { channels } : {}),
+      ...(erpMetadata.sellingStores.length > 0 ? { erpMetadata } : {}),
     };
   }
 
@@ -1448,7 +1450,7 @@ export class OffsetAdjustmentsService {
       'SR',
       'Loại',
       'Trạng thái',
-      'Kênh bán',
+      'Cửa hàng bán',
       'Kênh tạo hồ sơ',
       'Đơn hàng cũ',
       'Đơn hàng mới',
@@ -1467,14 +1469,14 @@ export class OffsetAdjustmentsService {
     ];
     const lines = [headers.map((value) => this.csvCell(value)).join(',')];
     for (const row of rows) {
-      const channels = this.channelsFromHistory(row);
+      const erpMetadata = this.erpMetadataFromHistory(row);
       lines.push(
         [
           this.csvCell(row.storeCode),
           this.csvCell(this.typeLabel(row.type)),
           this.csvCell(this.statusLabel(row.status)),
-          this.csvCell(this.salesChannelsLabel(channels.salesChannels)),
-          this.csvCell(channels.creationChannel),
+          this.csvCell(this.sellingStoresLabel(erpMetadata.sellingStores)),
+          this.csvCell(erpMetadata.creationChannel),
           this.csvExcelTextCell(row.oldOrderCode),
           this.csvExcelTextCell(row.newOrderCode),
           this.csvExcelTextCell(row.orderCode),
@@ -1510,12 +1512,12 @@ export class OffsetAdjustmentsService {
     }
   }
 
-  private salesChannelsLabel(channels: OffsetErpChannel[]) {
-    return channels
-      .map((channel) =>
-        channel.orderCode
-          ? `${channel.orderCode}: ${channel.salesChannel}`
-          : channel.salesChannel,
+  private sellingStoresLabel(stores: OffsetErpStore[]) {
+    return stores
+      .map((store) =>
+        store.orderCode
+          ? `${store.orderCode}: ${store.storeCode}`
+          : store.storeCode,
       )
       .join('; ');
   }

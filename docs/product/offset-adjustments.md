@@ -44,10 +44,10 @@ that must be reviewed by ACC before being treated as complete.
   confirm again.
 - ERP orders are not required to belong to the same showroom as the Offset
   request. The request showroom remains the OpsHub authorization/reporting
-  scope, while the ERP selling channel is recorded from the order lookup.
-  The list/detail/CSV surfaces label both `Kênh bán` (ERP, per referenced
-  order) and `Kênh tạo hồ sơ` (`Cấn trừ trên OpsHub`) so the two sources are
-  not conflated.
+  scope, while the ERP selling-store code is recorded from the order lookup.
+  The list/detail/CSV surfaces label both `Cửa hàng bán` (ERP store code, per
+  referenced order) and `Kênh tạo hồ sơ` (`Cấn trừ trên OpsHub`) so the two
+  sources are not conflated.
 
 ## Request Types
 
@@ -83,9 +83,11 @@ that must be reviewed by ACC before being treated as complete.
   returns an order consultant email, it is retained as a sanitized owner
   fallback for the existing Sales Report order-to-SR mapping path; no raw ERP
   payload is stored or logged.
-- `Kênh bán` uses only the authoritative ERP selling-channel field. When ERP
-  omits that field, OpsHub shows `ERP (chưa có tên kênh bán)`; payment methods
-  such as VNPAY or cash are never presented as a selling channel.
+- `Cửa hàng bán` uses the normalized leading store code from
+  `data.order.createdFromSiteDisplayName`; it does not need to equal the Offset
+  request showroom. When ERP omits a usable code, OpsHub shows
+  `ERP (chưa có mã cửa hàng bán)`; sales-channel, platform, terminal, and
+  payment-method fields are never substituted for the store code.
 - Create/resubmit and their history row commit atomically. Resubmit also guards
   the rejected status and `updatedAt` snapshot after the ERP wait. Realtime is
   published only after commit; a Redis failure is logged and does not turn a

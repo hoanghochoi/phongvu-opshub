@@ -17,9 +17,10 @@
   blocker, stale snapshot, full rollback, already-unfollowed no-op, per-row
   audit count, and one canonical downstream revision per changed row.
 - Offset ERP: cross-showroom order references are accepted when lifecycle/value
-  rules pass; sanitized ERP `Kênh bán` and `Cấn trừ trên OpsHub` creation
-  channel survive create/resubmit/review history and list/detail/CSV mapping;
-  payment methods never substitute for a missing ERP selling channel.
+  rules pass; normalized ERP `Cửa hàng bán` code and `Cấn trừ trên OpsHub`
+  creation channel survive create/resubmit/review history and list/detail/CSV
+  mapping; channel/platform/terminal/payment fields never substitute for a
+  missing ERP selling-store code.
 - Flutter: existing selection/export semantics across pages, batch dialog and
   loading guard, success refresh/clear, failure retention, max-100 message, and
   permission visibility without regressing individual tracking or the order
@@ -40,18 +41,16 @@
 - 2026-07-30 OPS-41 remediation proof: batch Offset/statement transactions lock
   rows in canonical ID order, recheck scoped snapshots after locking, map stale,
   serialization, and deadlock failures to Vietnamese reload guidance, and keep
-  no-op rows audit-free. Single complete/reject now uses the same optimistic
-  pending snapshot and cannot overwrite a completed batch. Missing ERP selling
-  channel stays neutral instead of falling back to payment methods. Focused
-  Offset Nest passed `39/39`; Offset/statement provider Flutter passed `61/61`,
-  including selection freeze and dispose-during-refresh races; Sales Report hub
-  passed `25/25`; `flutter analyze --no-pub` found no issues. The stale
-  `/fifo-menu` visual-smoke inventory mismatch is corrected and its route guard
-  passes `1/1`. Prisma validation, Nest build, full Nest `91 suites / 1,029
-  tests`, Flutter analyze, full Flutter `671 passed / 3 intentional skips`, Go
-  `64 tests`, and `git diff --check` pass on the synchronized final-candidate
-  worktree. Real PostgreSQL two-client locking, staging Android/Windows/web,
-  live ERP, and latency/error observation remain unverified release gates.
+  no-op rows audit-free. Single complete/reject uses the same optimistic pending
+  snapshot and cannot overwrite a completed batch. `Cửa hàng bán` now carries
+  only the normalized ERP store code, with a neutral missing-code label and no
+  channel/platform/terminal/payment fallback. Focused Offset/Sales Report Nest
+  passed `62/62`; Flutter repository passed `6/6`; Offset workspace passed
+  `4/4`. The disposable PostgreSQL verifier passed with independent clients for
+  two stale Offset single/batch races, one statement re-follow/batch race, two
+  all-or-nothing rollback cases, and exact history/audit/event counts. Exact-SHA
+  full repository gates, staging Android/Windows/web, live ERP, and
+  latency/error observation remain release gates.
 
 - 2026-07-28 OPS-36 local proof: the order editor is consolidated on the
   existing Sao kê/Tiền vào UI; backend mutations verify every old/new lifecycle

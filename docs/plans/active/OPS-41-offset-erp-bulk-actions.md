@@ -4,8 +4,9 @@ Date: 2026-07-30
 
 ## Status
 
-Active; review blockers are remediated with focused proof. Exact-HEAD full
-validation, publication, staging deployment, and staging QA remain in progress.
+Active; review blockers and the final selling-store steer are remediated with
+focused proof. Exact-HEAD full validation, publication, staging deployment,
+and staging QA remain in progress.
 
 ## Outcome
 
@@ -70,7 +71,7 @@ Out of scope:
   and audit/history write.
 - ERP orders are intentionally not required to match the Offset request
   showroom. The request showroom remains the authorization/reporting scope;
-  sanitized ERP selling-channel metadata and the fixed `Cấn trừ trên OpsHub`
+  the normalized ERP selling-store code and fixed `Cấn trừ trên OpsHub`
   creation channel are carried in history and exposed in list/detail/CSV.
 - Selection changes could regress existing export/editor behavior. Keep old
   selection contract, constrain only batch eligibility, and run affected tests.
@@ -85,24 +86,29 @@ Out of scope:
 - [x] Implement existing-UI Flutter batch selection/actions.
 - [x] Restore legacy Sao kê toolbar geometry regression with focused proof.
 - [x] Complete focused Flutter coverage and contract/test documentation.
-- [x] Keep ERP selling-channel metadata distinct from the request showroom and
+- [x] Keep ERP selling-store metadata distinct from the request showroom and
   add `data.order.consultant.email` as the Sales Report owner-mapping fallback
   for CHAT-style orders.
 - [x] Synchronize the branch to live `origin/staging@07f5b436` with no OPS-41
   path overlap.
 - [x] Complete independent correctness/security review and remediate row-lock,
   scope-query, response-contract, provider-disposal, in-flight selection,
-  single-review concurrency, and selling-channel findings.
+  single-review concurrency, and ERP source-metadata findings.
 - [x] Restore the existing web visual-smoke inventory by excluding the legacy
   `/fifo-menu` redirect and aligning the guard/docs to the 38 current shell
   routes; no runtime route or UI behavior changed.
-- [x] Run focused remediation proof: Offset Nest `39/39`, Offset/statement
-  provider Flutter `61/61`, Sales Report hub `25/25`, and web route guard `1/1`.
-- [x] Freeze the final-candidate worktree and complete fresh affected/full
-  repository gates: Prisma validate, Nest build, full Nest `91/1,029`, Flutter
-  analyze, full Flutter `671 passed / 3 skips`, Go `64`, and diff check.
-- [ ] Verify real PostgreSQL two-client lock behavior and complete the staging
-  smoke/live ERP proof for cross-showroom orders and channel labels.
+- [x] Replace the provisional selling-channel presentation with `Cửa hàng bán`
+  backed only by the normalized leading code from
+  `data.order.createdFromSiteDisplayName`; keep the request showroom separate.
+- [x] Run focused store-contract proof: Offset/Sales Report Nest `62/62`,
+  Flutter repository `6/6`, and Offset workspace `4/4`.
+- [x] Add and exercise a disposable PostgreSQL verifier with independent
+  clients: two stale Offset single/batch races, one statement re-follow/batch
+  race, two atomic rollback scenarios, and exact history/audit/event counts.
+- [ ] Freeze the final-candidate SHA and rerun Prisma validation, Nest build/full
+  Jest, Flutter analyze/full tests, Go tests, PostgreSQL verifier, and diff check.
+- [ ] Complete the staging smoke/live ERP proof for cross-showroom orders and
+  selling-store labels.
 - [ ] Complete staging Android/Windows/web, live ERP, latency/log proof, and
   Linear proof readback before the next lifecycle transition.
 
@@ -130,11 +136,9 @@ Out of scope:
 
 ## Result
 
-The branch is synchronized to live `origin/staging@07f5b436`; review blockers
-and the unrelated stale web-smoke route inventory have focused green proof.
-Prisma validation, Nest build, full Nest `91 suites / 1,029 tests`, Flutter
-analyze, full Flutter `671 passed / 3 intentional skips`, Go `64 tests`, and
-`git diff --check` are green on the final-candidate worktree. The exact commit
-will receive a final focused/diff verification before publication. Real
-PostgreSQL two-client, staging Android/Windows/web, live ERP, and operational
-proof remain release gates.
+The branch is synchronized to `origin/staging@07f5b436`. Review blockers, the
+stale web-smoke inventory, and the final `Cửa hàng bán` store-code steer have
+focused green proof. A disposable PostgreSQL run proved the required
+independent-client lock/rollback scenarios. Exact-SHA full repository gates,
+staging Android/Windows/web, live ERP, and operational proof remain release
+gates; their immutable results will be recorded on OPS-41 before transition.
