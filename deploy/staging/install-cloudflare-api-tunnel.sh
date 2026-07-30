@@ -6,6 +6,7 @@ readonly SERVICE_NAME="cloudflared-opshub-staging-api"
 readonly CURRENT_TUNNEL_NAME="opshub-staging"
 readonly TUNNEL_NAME="opshub-staging-api"
 readonly TUNNEL_HOSTNAME="api-opshub-staging.hoanghochoi.com"
+readonly EXPECTED_DNS_ZONE="hoanghochoi.com"
 readonly TUNNEL_SERVICE="http://127.0.0.1:8090"
 readonly ORIGIN_HOST_HEADER="opshub-staging.hoanghochoi.com"
 readonly METRICS_ADDRESS="127.0.0.1:20243"
@@ -17,6 +18,7 @@ readonly UNIT_FILE="/etc/systemd/system/$SERVICE_NAME.service"
 
 CLOUDFLARED_BIN="$(command -v cloudflared || true)"
 ORIGIN_CERT="${CLOUDFLARED_ORIGIN_CERT:-$HOME/.cloudflared/cert.pem}"
+ROUTE_DNS="${CLOUDFLARED_ROUTE_DNS:-false}"
 
 fail() {
   echo "$*" >&2
@@ -26,14 +28,58 @@ fail() {
 if [[ "${CLOUDFLARED_API_TUNNEL_APPROVAL:-}" != "$APPROVAL_PHRASE" ]]; then
   fail "CLOUDFLARED_API_TUNNEL_APPROVAL must equal $APPROVAL_PHRASE"
 fi
-if [[ "${CLOUDFLARED_ROUTE_DNS:-}" != "true" ]]; then
-  fail "CLOUDFLARED_ROUTE_DNS must equal true for the approved API hostname"
-fi
+case "$ROUTE_DNS" in
+  true | false) ;;
+  *) fail "CLOUDFLARED_ROUTE_DNS must equal true or false" ;;
+esac
 if [[ -z "$CLOUDFLARED_BIN" ]]; then
   fail "cloudflared is not installed on this host"
 fi
 if [[ ! -r "$ORIGIN_CERT" ]]; then
   fail "Cloudflare origin cert is not readable: $ORIGIN_CERT"
+fi
+
+certificate_zone_name() {
+  python3 - "$ORIGIN_CERT" <<'PY'
+import base64
+import json
+import re
+import sys
+import urllib.request
+
+source = open(sys.argv[1], encoding="utf-8").read()
+match = re.search(
+    r"BEGIN ARGO TUNNEL TOKEN-----\s*(.*?)\s*-----END ARGO TUNNEL TOKEN",
+    source,
+    re.S,
+)
+if not match:
+    raise SystemExit("Cloudflare origin cert format is not recognized")
+credential = json.loads(base64.b64decode("".join(match.group(1).split())))
+zone_id = credential.get("zoneID")
+api_token = credential.get("apiToken")
+if not zone_id or not api_token:
+    raise SystemExit("Cloudflare origin cert has no zone credential")
+request = urllib.request.Request(
+    f"https://api.cloudflare.com/client/v4/zones/{zone_id}",
+    headers={"Authorization": f"Bearer {api_token}", "Accept": "application/json"},
+)
+with urllib.request.urlopen(request, timeout=15) as response:
+    payload = json.load(response)
+if not payload.get("success") or payload.get("result", {}).get("name") is None:
+    raise SystemExit("Cloudflare origin cert zone lookup failed")
+print(payload["result"]["name"])
+PY
+}
+
+if [[ "$ROUTE_DNS" == "true" ]]; then
+  if ! command -v python3 >/dev/null 2>&1; then
+    fail "python3 is required for the DNS zone ownership preflight"
+  fi
+  certificate_zone="$(certificate_zone_name)"
+  if [[ "$certificate_zone" != "$EXPECTED_DNS_ZONE" ]]; then
+    fail "Origin cert zone is $certificate_zone, expected $EXPECTED_DNS_ZONE; refusing DNS publication"
+  fi
 fi
 
 lookup_tunnel_id() {
@@ -128,8 +174,13 @@ sudo systemctl daemon-reload
 sudo systemctl enable "$SERVICE_NAME" >/dev/null
 sudo systemctl restart "$SERVICE_NAME"
 sudo systemctl is-active --quiet "$SERVICE_NAME"
-"$CLOUDFLARED_BIN" --origincert "$ORIGIN_CERT" tunnel route dns \
-  --overwrite-dns "$tunnel_id" "$TUNNEL_HOSTNAME"
+if [[ "$ROUTE_DNS" == "true" ]]; then
+  "$CLOUDFLARED_BIN" --origincert "$ORIGIN_CERT" tunnel route dns \
+    --overwrite-dns "$tunnel_id" "$TUNNEL_HOSTNAME"
+else
+  printf 'DNS publication skipped; create proxied CNAME %s -> %s.cfargotunnel.com with the %s zone owner.\n' \
+    "$TUNNEL_HOSTNAME" "$tunnel_id" "$EXPECTED_DNS_ZONE"
+fi
 
 printf 'Installed %s for %s via tunnel %s.\n' \
   "$SERVICE_NAME" "$TUNNEL_HOSTNAME" "$TUNNEL_NAME"

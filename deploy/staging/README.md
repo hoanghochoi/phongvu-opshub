@@ -75,14 +75,27 @@ telemetry. The credentials and config are installed root-only; no token is
 printed or stored in the repository.
 
 Before installation, checkpoint the old connector unit/state and confirm the
-new names and metrics port are unused. Then run from the exact deployed staging
-checkout on `mementoamoris`:
+new names and metrics port are unused. The normal operator path transfers the
+exact script blob from the clean canonical `staging` checkout to a protected
+host directory and verifies the SHA-256 on both sides; deploy release bundles
+do not contain operator-only `deploy/staging` scripts.
+
+Start the connector without publishing DNS:
 
 ```bash
 CLOUDFLARED_API_TUNNEL_APPROVAL=INSTALL_OPSHUB_STAGING_API_TUNNEL \
-CLOUDFLARED_ROUTE_DNS=true \
+CLOUDFLARED_ROUTE_DNS=false \
   bash deploy/staging/install-cloudflare-api-tunnel.sh
 ```
+
+The installer prints the exact `<tunnel-id>.cfargotunnel.com` target. Create a
+proxied CNAME for `api-opshub-staging.hoanghochoi.com` with credentials that own
+the `hoanghochoi.com` zone. Automatic publication is allowed only with
+`CLOUDFLARED_ROUTE_DNS=true`; before any tunnel or service mutation, the script
+resolves the origin cert's zone through Cloudflare and fails unless it is
+exactly `hoanghochoi.com`. A cert for another zone must never be used because
+`cloudflared tunnel route dns` otherwise treats the requested hostname as a
+relative name inside that other zone.
 
 Verify both services independently, the new tunnel has its own HA connections,
 `https://api-opshub-staging.hoanghochoi.com/api/health` succeeds, and a non-API
