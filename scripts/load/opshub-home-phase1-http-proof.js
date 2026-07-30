@@ -21,6 +21,7 @@ const users = new SharedArray("phase 1 Home proof users", () =>
 );
 const baseUrl = String(__ENV.BASE_URL || "").replace(/\/$/, "");
 const runId = String(__ENV.TEST_RUN_ID || "");
+const telemetryNonce = String(__ENV.TELEMETRY_NONCE || "").trim();
 const configuredVus = Number(__ENV.TARGET_VUS || TARGET_VUS);
 const configuredRequests = Number(__ENV.TARGET_REQUESTS || TARGET_REQUESTS);
 const isStaging = baseUrl === STAGING_BASE_URL;
@@ -49,6 +50,11 @@ if (!manifest || manifest.schemaVersion !== 1 || manifest.runId !== runId) {
 }
 if (!/^[a-z0-9](?:[a-z0-9-]{1,30}[a-z0-9])?$/.test(runId)) {
   throw new Error("TEST_RUN_ID is invalid");
+}
+if (!/^[a-f0-9]{64}$/.test(telemetryNonce)) {
+  throw new Error(
+    "TELEMETRY_NONCE must be 64 lowercase hexadecimal characters",
+  );
 }
 if (!/^\d{4}-\d{2}-\d{2}$/.test(String(manifest.homeEndDate || ""))) {
   throw new Error("Token manifest has no verified COMPLETE Home end date");
@@ -163,6 +169,9 @@ function requestHome(record, route, variant) {
     headers: {
       Authorization: `Bearer ${record.token}`,
       "X-OpsHub-Load-Test": runId,
+      "X-OpsHub-Telemetry-Nonce": telemetryNonce,
+      "X-OpsHub-Load-Range": route.name,
+      "X-OpsHub-Load-Variant": variant,
     },
     tags: {
       endpoint: "home_summary",

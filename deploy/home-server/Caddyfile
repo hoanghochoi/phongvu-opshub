@@ -46,9 +46,51 @@ http://{$OPSHUB_DOMAIN} {
     }
   }
 
+  # Staging-only, load-test-only Home latency telemetry. The matcher requires
+  # both the dedicated staging hostname and the synthetic-run header, so this
+  # logger remains inert for production and normal staff traffic. Request
+  # details are deleted; the retained request id only correlates Caddy timing
+  # with the existing sanitized Nest HttpRequest entry.
+  log staging_home_load_telemetry {
+    no_hostname
+    output file /data/staging-home-load-telemetry.log {
+      mode 0600
+      roll_size 10MiB
+      roll_keep 2
+      roll_keep_for 24h
+    }
+    format filter {
+      request delete
+      resp_headers delete
+      tls delete
+      user_id delete
+      telemetry_nonce_hash hash
+      wrap json
+    }
+  }
+
   @legacy_upload_request path /uploads/*
   log_name @legacy_upload_request legacy_uploads
   log_append @legacy_upload_request legacy_path {http.request.uri.path}
+
+  @staging_home_load_request {
+    host opshub-staging.hoanghochoi.com
+    method GET
+    path /api/home/summary
+    header X-OpsHub-Load-Test *
+    header_regexp telemetry_nonce X-OpsHub-Telemetry-Nonce ^[a-f0-9]{64}$
+    header_regexp load_range X-OpsHub-Load-Range ^home_(1|7|30|90)d$
+    header_regexp load_variant X-OpsHub-Load-Variant ^(legacy|daily_series)$
+  }
+  request_header @staging_home_load_request X-Request-Id {http.request.uuid}
+  log_name @staging_home_load_request staging_home_load_telemetry
+  log_append @staging_home_load_request request_id {http.request.uuid}
+  log_append @staging_home_load_request reverse_proxy_duration_ms {rp.duration_ms}
+  log_append @staging_home_load_request upstream_attempt_duration_ms {rp.upstream.duration_ms}
+  log_append @staging_home_load_request reverse_proxy_retries {rp.retries}
+  log_append @staging_home_load_request telemetry_nonce_hash {http.request.header.X-OpsHub-Telemetry-Nonce}
+  log_append @staging_home_load_request load_range {http.request.header.X-OpsHub-Load-Range}
+  log_append @staging_home_load_request load_variant {http.request.header.X-OpsHub-Load-Variant}
 
   # Cloudflare Tunnel terminates TLS before forwarding to this HTTP origin.
   # Redirect only requests that Cloudflare marked as originally HTTP; an
