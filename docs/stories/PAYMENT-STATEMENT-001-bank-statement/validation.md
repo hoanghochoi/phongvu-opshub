@@ -18,11 +18,16 @@
   audit count, and one canonical downstream revision per changed row.
 - Offset ERP: cross-showroom order references are accepted when lifecycle/value
   rules pass; sanitized ERP `Kênh bán` and `Cấn trừ trên OpsHub` creation
-  channel survive create/resubmit/review history and list/detail/CSV mapping.
+  channel survive create/resubmit/review history and list/detail/CSV mapping;
+  payment methods never substitute for a missing ERP selling channel.
 - Flutter: existing selection/export semantics across pages, batch dialog and
   loading guard, success refresh/clear, failure retention, max-100 message, and
   permission visibility without regressing individual tracking or the order
-  editor.
+  editor. Selection cannot mutate in flight, and disposal after batch success
+  but before refresh completion must not notify a dead provider.
+- Concurrency: a single Offset complete/reject request that read an older
+  `PENDING_ACC` snapshot must fail after a batch commits first, leaving the
+  approved row, one completion history, and one realtime event.
 - Protected consumers: statement filter/export/order editor/single tracking,
   Payment Monitor, Home projection and fallback, XLSX, BigQuery mapper/storage,
   and Go realtime isolation.
@@ -32,21 +37,21 @@
 
 ## Evidence
 
-- 2026-07-30 OPS-41 local proof: batch Offset/statement transactions lock rows
-  in canonical ID order, recheck scoped snapshots after locking, map stale,
+- 2026-07-30 OPS-41 remediation proof: batch Offset/statement transactions lock
+  rows in canonical ID order, recheck scoped snapshots after locking, map stale,
   serialization, and deadlock failures to Vietnamese reload guidance, and keep
-  no-op rows audit-free. Focused Nest passed `4 suites / 187 tests` before the
-  channel amendment, and the final full Nest gate passed `91 suites / 1,026
-  tests`; Prisma validation and Nest build passed. The final channel-focused
-  Flutter proof passed `27` tests, including metadata parsing and screen
-  rendering; `flutter analyze --no-pub` found no issues and Go isolation passed
-  `64 tests`.
-  Full Flutter reached `664` passes and `3` skips with two failures: the
-  pre-existing `/fifo-menu` visual-smoke
-  inventory mismatch and the Offset realtime max-wait timing test under full
-  suite load; that realtime test passed in fresh focused runs. Real PostgreSQL
-  two-client locking, staging Android/Windows/web, live ERP, and latency/error
-  observation remain unverified release gates.
+  no-op rows audit-free. Single complete/reject now uses the same optimistic
+  pending snapshot and cannot overwrite a completed batch. Missing ERP selling
+  channel stays neutral instead of falling back to payment methods. Focused
+  Offset Nest passed `39/39`; Offset/statement provider Flutter passed `61/61`,
+  including selection freeze and dispose-during-refresh races; Sales Report hub
+  passed `25/25`; `flutter analyze --no-pub` found no issues. The stale
+  `/fifo-menu` visual-smoke inventory mismatch is corrected and its route guard
+  passes `1/1`. Prisma validation, Nest build, full Nest `91 suites / 1,029
+  tests`, Flutter analyze, full Flutter `671 passed / 3 intentional skips`, Go
+  `64 tests`, and `git diff --check` pass on the synchronized final-candidate
+  worktree. Real PostgreSQL two-client locking, staging Android/Windows/web,
+  live ERP, and latency/error observation remain unverified release gates.
 
 - 2026-07-28 OPS-36 local proof: the order editor is consolidated on the
   existing Sao kê/Tiền vào UI; backend mutations verify every old/new lifecycle

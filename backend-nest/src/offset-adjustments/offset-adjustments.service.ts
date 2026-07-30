@@ -353,32 +353,51 @@ export class OffsetAdjustmentsService {
         : null;
     const channelMetadata = this.channelsFromHistory(current);
     const reviewedAt = new Date();
-    const row = await this.prisma.offsetAdjustment.update({
-      where: { id: current.id },
-      data: {
-        status: OFFSET_STATUS_APPROVED,
-        ctCode,
-        rejectReason: null,
-        reviewedByUserId: user?.id || null,
-        reviewedByEmail: this.safeUserEmail(user),
-        reviewedAt,
-      },
-    });
-    await this.writeHistory(
-      row,
-      'COMPLETED',
-      user,
-      current.status,
-      row.status,
-      undefined,
-      this.prisma,
-      channelMetadata,
-    );
-    await this.publishOffsetEvent(row);
     this.logger.log(
-      `Offset adjustment completed: user=${this.safeUserLabel(user)} id=${row.id} store=${row.storeCode} type=${row.type} durationMs=${Date.now() - startedAt}`,
+      `Offset adjustment complete started: user=${this.safeUserLabel(user)} id=${current.id} store=${current.storeCode} type=${current.type}`,
     );
-    return this.toDto(row, user, scope);
+    try {
+      const row = await this.runOffsetOptimisticTransaction(() =>
+        this.prisma.$transaction(async (tx) => {
+          const updated = await tx.offsetAdjustment.update({
+            where: {
+              id: current.id,
+              status: OFFSET_STATUS_PENDING,
+              updatedAt: current.updatedAt,
+            },
+            data: {
+              status: OFFSET_STATUS_APPROVED,
+              ctCode,
+              rejectReason: null,
+              reviewedByUserId: user?.id || null,
+              reviewedByEmail: this.safeUserEmail(user),
+              reviewedAt,
+            },
+          });
+          await this.writeHistory(
+            updated,
+            'COMPLETED',
+            user,
+            current.status,
+            updated.status,
+            undefined,
+            tx,
+            channelMetadata,
+          );
+          return updated;
+        }),
+      );
+      await this.publishOffsetEventSafely(row);
+      this.logger.log(
+        `Offset adjustment completed: user=${this.safeUserLabel(user)} id=${row.id} store=${row.storeCode} type=${row.type} durationMs=${Date.now() - startedAt}`,
+      );
+      return this.toDto(row, user, scope);
+    } catch (error) {
+      this.logger.warn(
+        `Offset adjustment complete failed: user=${this.safeUserLabel(user)} id=${current.id} store=${current.storeCode} type=${current.type} durationMs=${Date.now() - startedAt} error=${this.safeError(error)}`,
+      );
+      throw error;
+    }
   }
 
   async batchComplete(user: any, input: BatchCompleteOffsetAdjustmentsDto) {
@@ -492,31 +511,50 @@ export class OffsetAdjustmentsService {
     );
     const channelMetadata = this.channelsFromHistory(current);
     const reviewedAt = new Date();
-    const row = await this.prisma.offsetAdjustment.update({
-      where: { id: current.id },
-      data: {
-        status: OFFSET_STATUS_REJECTED,
-        rejectReason: reason,
-        reviewedByUserId: user?.id || null,
-        reviewedByEmail: this.safeUserEmail(user),
-        reviewedAt,
-      },
-    });
-    await this.writeHistory(
-      row,
-      'REJECTED',
-      user,
-      current.status,
-      row.status,
-      reason,
-      this.prisma,
-      channelMetadata,
-    );
-    await this.publishOffsetEvent(row);
     this.logger.log(
-      `Offset adjustment rejected: user=${this.safeUserLabel(user)} id=${row.id} store=${row.storeCode} type=${row.type} durationMs=${Date.now() - startedAt}`,
+      `Offset adjustment reject started: user=${this.safeUserLabel(user)} id=${current.id} store=${current.storeCode} type=${current.type}`,
     );
-    return this.toDto(row, user, scope);
+    try {
+      const row = await this.runOffsetOptimisticTransaction(() =>
+        this.prisma.$transaction(async (tx) => {
+          const updated = await tx.offsetAdjustment.update({
+            where: {
+              id: current.id,
+              status: OFFSET_STATUS_PENDING,
+              updatedAt: current.updatedAt,
+            },
+            data: {
+              status: OFFSET_STATUS_REJECTED,
+              rejectReason: reason,
+              reviewedByUserId: user?.id || null,
+              reviewedByEmail: this.safeUserEmail(user),
+              reviewedAt,
+            },
+          });
+          await this.writeHistory(
+            updated,
+            'REJECTED',
+            user,
+            current.status,
+            updated.status,
+            reason,
+            tx,
+            channelMetadata,
+          );
+          return updated;
+        }),
+      );
+      await this.publishOffsetEventSafely(row);
+      this.logger.log(
+        `Offset adjustment rejected: user=${this.safeUserLabel(user)} id=${row.id} store=${row.storeCode} type=${row.type} durationMs=${Date.now() - startedAt}`,
+      );
+      return this.toDto(row, user, scope);
+    } catch (error) {
+      this.logger.warn(
+        `Offset adjustment reject failed: user=${this.safeUserLabel(user)} id=${current.id} store=${current.storeCode} type=${current.type} durationMs=${Date.now() - startedAt} error=${this.safeError(error)}`,
+      );
+      throw error;
+    }
   }
 
   private async validateOffsetAgainstErp(
@@ -656,33 +694,7 @@ export class OffsetAdjustmentsService {
   private salesChannelLabel(order: SalesReportErpOrderListItem) {
     const explicit = String(order.salesChannel ?? '').trim();
     if (explicit) return explicit.slice(0, 120);
-    const methods = Array.isArray(order.paymentMethods)
-      ? order.paymentMethods
-          .map((method) => this.paymentMethodLabel(method))
-          .filter(Boolean)
-      : [];
-    if (methods.length > 0) return `ERP · ${methods.join(', ')}`;
     return 'ERP (chưa có tên kênh bán)';
-  }
-
-  private paymentMethodLabel(value: unknown) {
-    const normalized = String(value ?? '')
-      .trim()
-      .toUpperCase()
-      .replace(/[^A-Z0-9]+/g, '_')
-      .replace(/^_+|_+$/g, '');
-    if (!normalized) return '';
-    const labels: Record<string, string> = {
-      CASH: 'Tiền mặt',
-      CARD: 'Thẻ',
-      BANK_TRANSFER: 'Chuyển khoản',
-      TRANSFER: 'Chuyển khoản',
-      VNPAY: 'VNPAY',
-      VNPAY_QROFF: 'VNPAY QROFF',
-      ZALOPAY: 'Zalo Pay',
-      SHOPEEPAY: 'Shopee Pay',
-    };
-    return labels[normalized] ?? normalized.replace(/_/g, ' ');
   }
 
   private normalizeBatchIds(values: unknown, itemLabel: string) {

@@ -11,19 +11,20 @@ This file maps product behavior to proof. Existing flows are marked
   to 100 selected transactions `UNFOLLOWED`; existing unfollowed rows are
   no-op and pending/out-of-scope/stale rows roll back the batch. Canonical
   row-lock order closes no-op/re-follow races and maps serialization conflicts
-  to reload guidance. Focused Nest passed `4 suites / 187 tests` before the
-  channel fallback amendment; full Nest passed `91 suites / 1,026 tests`;
-  Prisma validation, Nest build, and Flutter analyze passed. The channel
-  amendment's focused Flutter proof passed `27` tests; fresh Go
-  isolation proof passed `64 tests`, with no Go source/event shape change. Full
-  Flutter reached
-  `664` passes and `3` skips but still has the pre-existing `/fifo-menu`
-  visual-smoke inventory failure plus an Offset max-wait timing failure that
-  passes focused. Offset records the ERP selling channel separately from the
-  request showroom and keeps `Cấn trừ trên OpsHub` as the creation channel;
-  ERP lookup does not require showroom equality. Real PostgreSQL two-client
-  proof, staging Android/Windows/web, real ERP orders, and operational
-  latency/error-log observation remain release gates.
+  to reload guidance. Single complete/reject uses the same optimistic snapshot
+  so a stale individual action cannot overwrite a batch result. Offset records
+  the ERP selling channel separately from the request showroom and keeps
+  `Cấn trừ trên OpsHub` as the creation channel; ERP lookup does not require
+  showroom equality, and payment methods never substitute for a missing selling
+  channel. Flutter locks selection while a batch is in flight and stops
+  post-success refresh notifications after disposal. Focused remediation proof
+  passes Offset Nest `39/39`, Offset/statement provider Flutter `61/61`, Sales
+  Report hub `25/25`, and the corrected web-smoke route guard `1/1`. Prisma
+  validation, Nest build, full Nest `91 suites / 1,029 tests`, Flutter analyze,
+  full Flutter `671 passed / 3 intentional skips`, Go `64 tests`, and
+  `git diff --check` pass on the synchronized final-candidate worktree. Real
+  PostgreSQL two-client proof, staging Android/Windows/web, real ERP orders, and
+  operational latency/error-log observation remain release gates.
 
 - `OPS-31`/`HOME-DASHBOARD-002`/`HOME-DASHBOARD-003`, 2026-07-29:
   `GET /home/summary` preserves the legacy aggregate response unless the strict
@@ -2101,14 +2102,15 @@ FIFO Menu` now has bottom nav active on `Tác vụ`, `Mobile v2 / Profile` has
   credentials, seeds the web session without committing secrets, captures
   ignored screenshots, and checks route hash, console/page errors, rendered
   Flutter viewport size, and visible horizontal overflow while ignoring Flutter
-  semantics-only overflow nodes. The default live staging smoke now runs 86
+  semantics-only overflow nodes. The default live staging smoke now runs 84
   checks across desktop `1440x900` and mobile `390x844`: 3 public routes
   (`/login`, `/register`, `/forgot-password`), 1 pending auth route
   (`/assignment-pending`) rendered from a tokenless cached pending session, plus
-  all 39 authenticated shell routes in `AppRouter`, including Home,
+  all 38 authenticated shell routes in `AppRouter`, including Home,
   Operations, Profile, Admin, FIFO, BH/SC, VietQR, Payment Monitor web
   fallback, Sao kê, Cấn trừ, Góp ý, Report/Sales Report, Help Content admin,
-  and Settings.
+  and Settings. The legacy `/fifo-menu` redirect is excluded because it renders
+  `/operations` rather than owning a ShellRoute.
   Follow-up guard coverage in
   `test\design_system_migration_guard_test.dart` now parses the smoke script
   and `AppRouter` so the default authenticated route list must stay aligned

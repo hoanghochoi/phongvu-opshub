@@ -493,6 +493,36 @@ void main() {
       },
     );
 
+    test(
+      'keeps statement selection immutable while batch is running',
+      () async {
+        final pending = Completer<BankStatementBatchTrackingResult>();
+        final repository = _FakeBankStatementRepository(
+          canReviewOrderTransfers: true,
+        )..pendingBatchUnfollow = pending;
+        final provider = BankStatementProvider(repository);
+        await provider.initialize(_accUser);
+        provider.setOrder('26052912345678');
+        await provider.search();
+        provider.toggleSelected('tx-1', true);
+
+        final operation = provider.batchUnfollowSelected();
+        provider.toggleSelected('tx-2', true);
+        provider.toggleAllVisible(false);
+        expect(provider.selectedIds, {'tx-1'});
+
+        pending.complete(
+          const BankStatementBatchTrackingResult(
+            processedCount: 1,
+            changedCount: 1,
+            unchangedCount: 0,
+          ),
+        );
+        await expectLater(operation, completion(isTrue));
+        provider.dispose();
+      },
+    );
+
     test('does not notify after disposal during batch unfollow', () async {
       final pending = Completer<BankStatementBatchTrackingResult>();
       final repository = _FakeBankStatementRepository(
@@ -517,6 +547,55 @@ void main() {
       await expectLater(operation, completion(isTrue));
       expect(repository.batchUnfollowCount, 1);
     });
+
+    test(
+      'does not notify after disposal during post-batch statement refresh',
+      () async {
+        final pendingBatch = Completer<BankStatementBatchTrackingResult>();
+        final pendingRefresh = Completer<BankStatementPage>();
+        final repository = _FakeBankStatementRepository(
+          canReviewOrderTransfers: true,
+        )..pendingBatchUnfollow = pendingBatch;
+        final provider = BankStatementProvider(repository);
+        await provider.initialize(_accUser);
+        provider.setOrder('26052912345678');
+        await provider.search();
+        provider.toggleSelected('tx-1', true);
+        repository.pendingFetchStatements = pendingRefresh;
+        final operation = provider.batchUnfollowSelected();
+
+        pendingBatch.complete(
+          const BankStatementBatchTrackingResult(
+            processedCount: 1,
+            changedCount: 1,
+            unchangedCount: 0,
+          ),
+        );
+        for (
+          var attempt = 0;
+          attempt < 20 && repository.fetchStatementsCount < 2;
+          attempt += 1
+        ) {
+          await Future<void>.delayed(Duration.zero);
+        }
+        expect(repository.fetchStatementsCount, 2);
+
+        provider.dispose();
+        pendingRefresh.complete(
+          BankStatementPage(
+            transactions: [
+              _transaction('tx-1', ['26052912345678']),
+            ],
+            page: 0,
+            limit: 50,
+            total: 1,
+          ),
+        );
+
+        await expectLater(operation, completion(isTrue));
+        expect(repository.batchUnfollowCount, 1);
+      },
+    );
 
     test(
       'batch unfollow is disabled without the backend review capability',
@@ -1080,7 +1159,7 @@ void main() {
       final provider = BankStatementProvider(
         repository,
         realtimeClient: realtime,
-        realtimeDebounce: const Duration(milliseconds: 30),
+        realtimeDebounce: const Duration(milliseconds: 200),
         realtimeMaxWait: const Duration(milliseconds: 50),
       );
       await provider.initialize(_storeScopedManager);
@@ -1092,9 +1171,8 @@ void main() {
           topic: 'notifications.statement-transfer',
           data: {'transactionId': 'tx-$index', 'storeCode': 'CP01'},
         );
-        await Future<void>.delayed(const Duration(milliseconds: 20));
       }
-      await Future<void>.delayed(const Duration(milliseconds: 20));
+      await Future<void>.delayed(const Duration(milliseconds: 100));
 
       expect(repository.fetchOrderTransferRequestsCount, baseline + 1);
 
@@ -1227,6 +1305,7 @@ class _FakeBankStatementRepository extends BankStatementRepository {
         unchangedCount: 0,
       );
   Completer<BankStatementBatchTrackingResult>? pendingBatchUnfollow;
+  Completer<BankStatementPage>? pendingFetchStatements;
   Object? batchUnfollowError;
   final bool canReviewOrderTransfers;
   final DateTime? notificationReadAt;
@@ -1266,6 +1345,11 @@ class _FakeBankStatementRepository extends BankStatementRepository {
     fetchStatementsCount += 1;
     lastQuery = query;
     seenQueries.add(query);
+    final pending = pendingFetchStatements;
+    if (pending != null) {
+      pendingFetchStatements = null;
+      return pending.future;
+    }
     final allRows = _pages.expand((page) => page).toList(growable: false);
     final start = query.page * query.limit;
     final end = start + query.limit > allRows.length

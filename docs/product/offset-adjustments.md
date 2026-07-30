@@ -83,6 +83,9 @@ that must be reviewed by ACC before being treated as complete.
   returns an order consultant email, it is retained as a sanitized owner
   fallback for the existing Sales Report order-to-SR mapping path; no raw ERP
   payload is stored or logged.
+- `Kênh bán` uses only the authoritative ERP selling-channel field. When ERP
+  omits that field, OpsHub shows `ERP (chưa có tên kênh bán)`; payment methods
+  such as VNPAY or cash are never presented as a selling channel.
 - Create/resubmit and their history row commit atomically. Resubmit also guards
   the rejected status and `updatedAt` snapshot after the ERP wait. Realtime is
   published only after commit; a Redis failure is logged and does not turn a
@@ -103,9 +106,15 @@ that must be reviewed by ACC before being treated as complete.
 - Selected rows are locked in canonical ID order before mutation. Stale,
   serialization, or deadlock conflicts return Vietnamese reload guidance rather
   than exposing database errors.
+- Individual complete/reject uses the same pending-status and `updatedAt`
+  snapshot guard, with history in the same transaction, so a stale individual
+  action cannot overwrite or duplicate a batch result.
 - Every successful request keeps the existing reviewer metadata, history, and
   realtime event shape. Success clears selection and refreshes the page and
   pending count; failure retains selection so the reviewer can correct it.
+- Row and select-all controls remain unchanged visually but are disabled while
+  the batch request is running. Post-success refreshes stop silently if the
+  screen/provider has already been disposed.
 
 ## Realtime Isolation
 

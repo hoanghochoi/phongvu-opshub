@@ -4,8 +4,8 @@ Date: 2026-07-30
 
 ## Status
 
-Active; local implementation is verified, with release and product-authority
-gaps recorded below.
+Active; review blockers are remediated with focused proof. Exact-HEAD full
+validation, publication, staging deployment, and staging QA remain in progress.
 
 ## Outcome
 
@@ -25,7 +25,9 @@ Offset requests, and atomic `Bỏ theo dõi đã chọn` for selected statements
 - Checkpoint: branch `codex/ops-41-offset-erp-bulk-actions`, worktree
   `C:\Users\ASUS1\Documents\flutter_projects\opshub-ops-41`, clean base
   `0a0cc10e3f46bac7fe48f6d0cd676a1f621fa98a` created from live
-  `origin/staging` through the lifecycle guard.
+  `origin/staging` through the lifecycle guard. The branch was subsequently
+  synchronized without path overlap to live `origin/staging`
+  `16e900e3e9251d6e1e069acca0e12c9d8cbdca62` before final remediation.
 
 ## Scope
 
@@ -42,7 +44,8 @@ In scope:
 Out of scope:
 
 - Visual redesign, Figma, new routes, schema migration, backfill, batch reject,
-  batch re-follow, ERP recheck at reviewer completion, commit/push/PR/deploy.
+  batch re-follow, ERP recheck at reviewer completion, and production
+  promotion.
 
 ## Approach
 
@@ -54,6 +57,9 @@ Out of scope:
    routes or redesign targets; preserve old single-row and export behavior.
 4. Add focused tests, run protected-consumer and full gates, then independently
    review security/UI/correctness before recording Linear proof.
+5. Publish through a reviewed PR to `staging`, wait for the exact merged SHA to
+   deploy, complete real ERP/concurrency/platform smoke, and stop at Ready for
+   Release without promoting `main`.
 
 ## Risks And Recovery
 
@@ -82,10 +88,19 @@ Out of scope:
 - [x] Keep ERP selling-channel metadata distinct from the request showroom and
   add `data.order.consultant.email` as the Sales Report owner-mapping fallback
   for CHAT-style orders.
-- [x] Run local affected-consumer and full gates; record the two full-Flutter
-  failures and environment gaps without weakening tests.
+- [x] Synchronize the branch to live `origin/staging@16e900e3` with no OPS-41
+  path overlap.
 - [x] Complete independent correctness/security review and remediate row-lock,
-  scope-query, response-contract, and provider-disposal findings.
+  scope-query, response-contract, provider-disposal, in-flight selection,
+  single-review concurrency, and selling-channel findings.
+- [x] Restore the existing web visual-smoke inventory by excluding the legacy
+  `/fifo-menu` redirect and aligning the guard/docs to the 38 current shell
+  routes; no runtime route or UI behavior changed.
+- [x] Run focused remediation proof: Offset Nest `39/39`, Offset/statement
+  provider Flutter `61/61`, Sales Report hub `25/25`, and web route guard `1/1`.
+- [x] Freeze the final-candidate worktree and complete fresh affected/full
+  repository gates: Prisma validate, Nest build, full Nest `91/1,029`, Flutter
+  analyze, full Flutter `671 passed / 3 skips`, Go `64`, and diff check.
 - [ ] Verify real PostgreSQL two-client lock behavior and complete the staging
   smoke/live ERP proof for cross-showroom orders and channel labels.
 - [ ] Complete staging Android/Windows/web, live ERP, latency/log proof, and
@@ -115,17 +130,11 @@ Out of scope:
 
 ## Result
 
-Local implementation is complete on the task worktree. Prisma validation, Nest
-build, focused Nest (`4 suites / 187 tests` before the channel amendment), full
-Nest (`91 suites / 1,026 tests`), channel-focused Flutter (`27 tests`), Flutter
-analyze, and Go isolation (`64 tests`) pass. Full Flutter previously reported
-`664` passes, `3`
-skips, and two failures: the
-pre-existing `/fifo-menu` visual-smoke inventory mismatch plus the Offset
-realtime max-wait timing test under full-suite load; the latter passes focused.
-Real PostgreSQL two-client, staging/device/web, live ERP, and operational proof
-remain pending. No publication or external runtime mutation is authorized.
-Local `origin/staging` advanced to `4ba6e5915c5d04063700a1083c573a4f54f0f618`
-through an OPS-31 deploy/load-proof-only commit after this task started; its
-changed paths do not overlap OPS-41. The branch still requires the repository's
-approved latest-staging synchronization and fresh affected proof before any PR.
+The branch is synchronized to live `origin/staging@16e900e3`; review blockers
+and the unrelated stale web-smoke route inventory have focused green proof.
+Prisma validation, Nest build, full Nest `91 suites / 1,029 tests`, Flutter
+analyze, full Flutter `671 passed / 3 intentional skips`, Go `64 tests`, and
+`git diff --check` are green on the final-candidate worktree. The exact commit
+will receive a final focused/diff verification before publication. Real
+PostgreSQL two-client, staging Android/Windows/web, live ERP, and operational
+proof remain release gates.

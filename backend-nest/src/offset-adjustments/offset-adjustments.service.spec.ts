@@ -198,6 +198,38 @@ describe('OffsetAdjustmentsService', () => {
     );
   });
 
+  it('does not present an ERP payment method as the selling channel', async () => {
+    salesReportErpService.lookupOrderStatus.mockResolvedValue({
+      lifecycleStatus: 'COMPLETED',
+      lifecycleVerified: true,
+      grandTotal: 250000,
+      salesChannel: null,
+      paymentMethods: ['VNPAY', 'cash'],
+    });
+    prisma.offsetAdjustment.findFirst.mockResolvedValue(null);
+    prisma.offsetAdjustment.create.mockResolvedValue(
+      offsetRow({ type: 'ZALOPAY', amount: 200000 }),
+    );
+
+    const result = await service.create(srUser, {
+      type: 'ZALOPAY',
+      orderCode: '26062500000003',
+      scanDate: '2026-06-25',
+      editContentKind: 'CUSTOMER_OFFSET',
+      transactionCode: 'TXN-ZALOPAY',
+      amount: 200000,
+    });
+
+    expect(result.salesChannels).toEqual([
+      {
+        orderCode: '26062500000003',
+        salesChannel: 'ERP (chưa có tên kênh bán)',
+      },
+    ]);
+    expect(JSON.stringify(result.salesChannels)).not.toContain('VNPAY');
+    expect(JSON.stringify(result.salesChannels)).not.toContain('Tiền mặt');
+  });
+
   it.each(['PENDING', 'COMPLETED', 'RETURNED_FULL'])(
     'blocks a single-order offset when the old order lifecycle is %s',
     async (lifecycleStatus) => {
@@ -621,6 +653,70 @@ describe('OffsetAdjustmentsService', () => {
       'offset-2',
     );
   });
+
+  it.each(['complete', 'reject'])(
+    'prevents stale single %s from overwriting a completed batch',
+    async (action) => {
+      let state = offsetRow({ id: 'offset-1', type: 'ZALOPAY' });
+      let transactionCall = 0;
+      let releaseSingleTransaction!: () => void;
+      let markSingleTransactionStarted!: () => void;
+      const singleTransactionStarted = new Promise<void>((resolve) => {
+        markSingleTransactionStarted = resolve;
+      });
+      const singleTransactionRelease = new Promise<void>((resolve) => {
+        releaseSingleTransaction = resolve;
+      });
+
+      prisma.offsetAdjustment.findFirst.mockImplementation(async () => ({
+        ...state,
+      }));
+      prisma.offsetAdjustment.findMany.mockImplementation(async () => [
+        { ...state },
+      ]);
+      prisma.offsetAdjustment.update.mockImplementation(
+        async ({ where, data }: any) => {
+          if (
+            (where.status && where.status !== state.status) ||
+            (where.updatedAt &&
+              where.updatedAt.getTime() !== state.updatedAt.getTime())
+          ) {
+            throw { code: 'P2025' };
+          }
+          state = {
+            ...state,
+            ...data,
+            updatedAt: new Date('2026-06-25T03:01:00.000Z'),
+          };
+          return { ...state };
+        },
+      );
+      prisma.$transaction.mockImplementation(async (callback: any) => {
+        transactionCall += 1;
+        if (transactionCall === 1) {
+          markSingleTransactionStarted();
+          await singleTransactionRelease;
+        }
+        return callback(prisma);
+      });
+
+      const staleSingle =
+        action === 'complete'
+          ? service.complete(accUser, 'offset-1', {})
+          : service.reject(accUser, 'offset-1', { reason: 'Sai thông tin' });
+      await singleTransactionStarted;
+
+      await expect(
+        service.batchComplete(accUser, { ids: ['offset-1'] }),
+      ).resolves.toEqual({ processedCount: 1 });
+      releaseSingleTransaction();
+
+      await expect(staleSingle).rejects.toThrow('Dữ liệu hồ sơ vừa thay đổi');
+      expect(state.status).toBe('APPROVED');
+      expect(prisma.offsetAdjustmentHistory.create).toHaveBeenCalledTimes(1);
+      expect(redis.publishMessage).toHaveBeenCalledTimes(1);
+    },
+  );
 
   it.each([
     [['offset-1', 'offset-1'], 'khác nhau'],

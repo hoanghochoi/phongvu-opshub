@@ -294,6 +294,31 @@ void main() {
       },
     );
 
+    test('keeps offset selection immutable while batch is running', () async {
+      final pending = Completer<int>();
+      final repository = _FakeOffsetAdjustmentRepository(
+        canReview: true,
+        pages: [
+          [_offset(id: 'offset-1'), _offset(id: 'offset-2')],
+        ],
+      )..pendingBatchComplete = pending;
+      final provider = OffsetAdjustmentProvider(repository);
+
+      await provider.initialize(_accUser);
+      provider.toggleSelected(provider.items.first, true);
+      final operation = provider.batchCompleteSelected();
+
+      provider.toggleSelected(provider.items.last, true);
+      provider.toggleAllVisible(false);
+      provider.clearSelection();
+      expect(provider.selectedIds, {'offset-1'});
+      expect(provider.canSelectForBatch(provider.items.last), isFalse);
+
+      pending.complete(1);
+      await expectLater(operation, completion(isNull));
+      provider.dispose();
+    });
+
     test('does not notify after disposal during batch completion', () async {
       final pending = Completer<int>();
       final repository = _FakeOffsetAdjustmentRepository(canReview: true)
@@ -306,6 +331,43 @@ void main() {
 
       provider.dispose();
       pending.complete(1);
+
+      await expectLater(operation, completion(isNull));
+      expect(repository.batchCompleteCount, 1);
+    });
+
+    test('does not notify after disposal during post-batch refresh', () async {
+      final pendingBatch = Completer<int>();
+      final pendingRefresh = Completer<OffsetAdjustmentPage>();
+      final repository = _FakeOffsetAdjustmentRepository(canReview: true)
+        ..pendingBatchComplete = pendingBatch;
+      final provider = OffsetAdjustmentProvider(repository);
+
+      await provider.initialize(_accUser);
+      provider.toggleSelected(provider.items.single, true);
+      repository.pendingFetchList = pendingRefresh;
+      final operation = provider.batchCompleteSelected();
+
+      pendingBatch.complete(1);
+      for (
+        var attempt = 0;
+        attempt < 20 && repository.fetchListCount < 3;
+        attempt += 1
+      ) {
+        await Future<void>.delayed(Duration.zero);
+      }
+      expect(repository.fetchListCount, 3);
+
+      provider.dispose();
+      pendingRefresh.complete(
+        OffsetAdjustmentPage(
+          items: [_offset()],
+          page: 0,
+          limit: 1,
+          total: 7,
+          canReview: true,
+        ),
+      );
 
       await expectLater(operation, completion(isNull));
       expect(repository.batchCompleteCount, 1);
@@ -480,6 +542,7 @@ class _FakeOffsetAdjustmentRepository extends OffsetAdjustmentRepository {
   int batchCompleteCount = 0;
   int batchCompleteProcessedCount = 0;
   Completer<int>? pendingBatchComplete;
+  Completer<OffsetAdjustmentPage>? pendingFetchList;
   Object? batchCompleteError;
   List<String> lastBatchCompleteIds = const [];
   OffsetAdjustmentQuery? lastQuery;
@@ -504,6 +567,11 @@ class _FakeOffsetAdjustmentRepository extends OffsetAdjustmentRepository {
     fetchListCount += 1;
     lastQuery = query;
     seenQueries.add(query);
+    final pending = pendingFetchList;
+    if (pending != null) {
+      pendingFetchList = null;
+      return pending.future;
+    }
     if (_pages != null) {
       final rows = _pages.expand((page) => page).toList(growable: false);
       final start = query.page * query.limit;

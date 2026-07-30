@@ -375,6 +375,7 @@ class BankStatementProvider extends ChangeNotifier {
   }
 
   void toggleSelected(String id, bool selected) {
+    if (_disposed || _isBatchUpdatingOrderTracking) return;
     if (selected) {
       _selectedIds.add(id);
     } else {
@@ -384,6 +385,7 @@ class BankStatementProvider extends ChangeNotifier {
   }
 
   void toggleAllVisible(bool selected) {
+    if (_disposed || _isBatchUpdatingOrderTracking) return;
     if (selected) {
       _selectedIds.addAll(_transactions.map((item) => item.id));
     } else {
@@ -395,7 +397,7 @@ class BankStatementProvider extends ChangeNotifier {
   }
 
   Future<void> search() async {
-    if (!canSearch || _isLoading) return;
+    if (_disposed || !canSearch || _isLoading) return;
     _isLoading = true;
     _errorMessage = null;
     _exportMessage = null;
@@ -407,7 +409,9 @@ class BankStatementProvider extends ChangeNotifier {
         'Bank statement search started',
         context: _logContext(),
       );
+      if (_disposed) return;
       final result = await _repository.fetchStatements(query);
+      if (_disposed) return;
       _transactions
         ..clear()
         ..addAll(result.transactions);
@@ -426,6 +430,7 @@ class BankStatementProvider extends ChangeNotifier {
         },
       );
     } catch (error) {
+      if (_disposed) return;
       _errorMessage = 'Chưa tải được sao kê. Vui lòng kiểm tra filter.';
       await AppLogger.instance.error(
         'BankStatement',
@@ -434,8 +439,10 @@ class BankStatementProvider extends ChangeNotifier {
         context: _logContext(),
       );
     } finally {
-      _isLoading = false;
-      notifyListeners();
+      if (!_disposed) {
+        _isLoading = false;
+        notifyListeners();
+      }
     }
   }
 
@@ -508,6 +515,7 @@ class BankStatementProvider extends ChangeNotifier {
   Future<void> exportCsv() => exportXlsx();
 
   Future<void> _fetchPage(int page) async {
+    if (_disposed) return;
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
@@ -517,9 +525,11 @@ class BankStatementProvider extends ChangeNotifier {
         'Bank statement page load started',
         context: {..._logContext(), 'targetPage': page},
       );
+      if (_disposed) return;
       final result = await _repository.fetchStatements(
         _query(page: page, limit: _limit),
       );
+      if (_disposed) return;
       _transactions
         ..clear()
         ..addAll(result.transactions);
@@ -537,6 +547,7 @@ class BankStatementProvider extends ChangeNotifier {
         },
       );
     } catch (error) {
+      if (_disposed) return;
       _errorMessage = 'Chưa tải được sao kê. Vui lòng kiểm tra filter.';
       await AppLogger.instance.error(
         'BankStatement',
@@ -545,8 +556,10 @@ class BankStatementProvider extends ChangeNotifier {
         context: {..._logContext(), 'targetPage': page},
       );
     } finally {
-      _isLoading = false;
-      notifyListeners();
+      if (!_disposed) {
+        _isLoading = false;
+        notifyListeners();
+      }
     }
   }
 

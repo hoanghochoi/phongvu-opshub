@@ -736,7 +736,9 @@ class _StatementListControls extends StatelessWidget {
           value: partiallySelected ? null : provider.allVisibleSelected,
           visualDensity: VisualDensity.compact,
           materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-          onChanged: provider.transactions.isEmpty
+          onChanged:
+              provider.transactions.isEmpty ||
+                  provider.isBatchUpdatingOrderTracking
               ? null
               : (value) => provider.toggleAllVisible(value == true),
         ),
@@ -1070,8 +1072,10 @@ class _StatementCardState extends State<_StatementCard> {
                   children: [
                     Checkbox(
                       value: provider.selectedIds.contains(tx.id),
-                      onChanged: (value) =>
-                          provider.toggleSelected(tx.id, value == true),
+                      onChanged: provider.isBatchUpdatingOrderTracking
+                          ? null
+                          : (value) =>
+                                provider.toggleSelected(tx.id, value == true),
                     ),
                     Expanded(
                       child: BankStatementTransactionDetailsLauncher(
@@ -1156,8 +1160,9 @@ class _StatementCardState extends State<_StatementCard> {
             children: [
               Checkbox(
                 value: provider.selectedIds.contains(tx.id),
-                onChanged: (value) =>
-                    provider.toggleSelected(tx.id, value == true),
+                onChanged: provider.isBatchUpdatingOrderTracking
+                    ? null
+                    : (value) => provider.toggleSelected(tx.id, value == true),
               ),
               Expanded(
                 child: BankStatementTransactionDetailsLauncher(
