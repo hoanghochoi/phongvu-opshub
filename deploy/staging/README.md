@@ -56,6 +56,46 @@ is `https://opshub-staging.hoanghochoi.com/download`.
    experiment with `CLOUDFLARED_PROXY_KEEPALIVE_CONNECTIONS` and
    `CLOUDFLARED_METRICS_ADDRESS`.
 
+### API-only ingress isolation
+
+OPS-42 provides a second, locally managed named tunnel for performance
+isolation. It does not replace or restart `cloudflared-opshub-staging`. The
+installer fixes the following identities so the two routes cannot be confused:
+
+- hostname `api-opshub-staging.hoanghochoi.com`;
+- tunnel `opshub-staging-api`;
+- service `cloudflared-opshub-staging-api`;
+- loopback metrics `127.0.0.1:20243`.
+
+The local ingress config forwards only `/api/*` to the existing loopback Caddy
+origin and returns 404 for every catch-all request. It overrides the origin Host
+to `opshub-staging.hoanghochoi.com`, preserving the current Caddy route,
+trusted-proxy normalization, security headers, throttling and staging Home
+telemetry. The credentials and config are installed root-only; no token is
+printed or stored in the repository.
+
+Before installation, checkpoint the old connector unit/state and confirm the
+new names and metrics port are unused. Then run from the exact deployed staging
+checkout on `mementoamoris`:
+
+```bash
+CLOUDFLARED_API_TUNNEL_APPROVAL=INSTALL_OPSHUB_STAGING_API_TUNNEL \
+CLOUDFLARED_ROUTE_DNS=true \
+  bash deploy/staging/install-cloudflare-api-tunnel.sh
+```
+
+Verify both services independently, the new tunnel has its own HA connections,
+`https://api-opshub-staging.hoanghochoi.com/api/health` succeeds, and a non-API
+path on the new hostname returns 404. Stop before creating synthetic users
+unless the fixed public health gate has zero unexpected responses and p95 below
+300 ms.
+
+Rollback affects only the new connector: stop and disable
+`cloudflared-opshub-staging-api`, restore its checkpointed unit/config when one
+existed, reload systemd, and verify `cloudflared-opshub-staging` plus the
+original hostname remained healthy. DNS/tunnel deletion is a separate
+Cloudflare cleanup action and is not part of an automatic rollback.
+
 5. Add GitHub staging secrets:
 
    - `OPSHUB_STAGING_VPS_HOST=100.127.127.89`

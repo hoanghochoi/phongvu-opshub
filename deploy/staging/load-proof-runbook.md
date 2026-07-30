@@ -7,9 +7,13 @@ stay disabled.
 
 ## Safety boundary
 
-- Run only against `https://opshub-staging.hoanghochoi.com/api` and
-  `wss://opshub-staging.hoanghochoi.com/ws/v2`. The scripts hard-fail for any
-  other target, approval phrase, run id, user count, RPS or socket count.
+- Run the fixed Home HTTP proof only against the exact allowlisted base URL
+  `https://opshub-staging.hoanghochoi.com/api` or the OPS-42 API-only ingress
+  `https://api-opshub-staging.hoanghochoi.com/api`. Realtime and every other
+  staging profile remain restricted to
+  `wss://opshub-staging.hoanghochoi.com/ws/v2` and the original base URL. The
+  scripts hard-fail for any other target, approval phrase, run id, user count,
+  RPS or socket count.
 - Use an official stable k6 binary on the workstation and record its exact
   version before the run. A package-manager installation is acceptable when
   it resolves to the official k6 release; otherwise download an archive to a
@@ -27,6 +31,21 @@ stay disabled.
   data, stop; do not refresh or copy production data to satisfy the test.
 
 ## Prepare 60 least-privilege users
+
+Before preparing any synthetic user for OPS-42, run the API-only health gate:
+
+```text
+BASE_URL=https://api-opshub-staging.hoanghochoi.com/api
+TEST_RUN_ID=<unique-lowercase-run-id>
+LOAD_APPROVAL=OPSHUB_STAGING_API_HEALTH_GATE_APPROVED
+```
+
+Run `scripts/load/opshub-staging-api-health-gate.js` with the persistent local
+k6 binary. The profile sends exactly 100 concurrent requests, stays below the
+120-request unauthenticated principal/IP minute bucket, requires the exact Nest
+health response, zero unexpected status/429/5xx/timeout, p95 below 300 ms, p99
+below one second and max below three seconds. Stop without creating users if
+any threshold fails.
 
 On `mementoamoris`, choose a unique lowercase run id of 3-32 characters. The
 wrapper requires hostname, staging sentinels, exact public origin and the
