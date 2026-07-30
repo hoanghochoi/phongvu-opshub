@@ -645,3 +645,31 @@ No schema, migration, permission, API, cache, event, rate-limit or Flutter
 production contract changes. Local proof, independent review, PR/CI/lifecycle,
 exact-SHA deploy, the unchanged load gate, selected-SA isolation and mandatory
 cleanup remain required.
+
+### Staging public-ingress isolation after PR #63
+
+At the exact deployed SHA `144e6ac20d4ae37961d24bd73593e1d3ab45a767`, the
+staging host retained the dedicated `cloudflared-opshub-staging` service,
+loopback origin `http://127.0.0.1:8090`, four HA connections, zero restarts,
+and the unrelated Cloudflare connector was not touched. A same-host public
+`/api/health` burst of 250 concurrent requests was used only to isolate the
+transport path; it produced 120 HTTP 200 and 130 intentional principal-limit
+429 responses. Successful latency was `923/938/940/957 ms` p50/p95/p99/max.
+
+A transient, rollback-ready connector was started with a fixed metrics port
+and `--proxy-keepalive-connections 300`. The main connector was stopped only
+after the probe reported four HA connections. The probe counter proved traffic
+distribution: `cloudflared_tunnel_total_requests` increased from `0` to `252`
+(one health check plus the 250-request burst and one verification request),
+with zero tunnel request errors. The same 250-request burst through the probe
+returned 119 HTTP 200 and 131 intentional 429 responses; successful latency
+was `743/770/773/788 ms` p50/p95/p99/max. The main connector was restarted,
+verified at four HA connections, and the transient probe stopped with no
+listener or persistent unit remaining.
+
+This isolates a measurable public-ingress improvement without changing the
+origin protocol, Caddy trust boundary, rate-limit policy, database schema or
+runtime API. The durable staging installer change pins the same 300-connection
+origin pool and binds metrics to loopback `127.0.0.1:20242`; the official Home
+fixed profile, selected-SA proof and queue-before-Nest comparison remain
+release gates on the resulting exact SHA.

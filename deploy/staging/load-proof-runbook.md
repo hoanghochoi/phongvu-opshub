@@ -10,10 +10,12 @@ stay disabled.
 - Run only against `https://opshub-staging.hoanghochoi.com/api` and
   `wss://opshub-staging.hoanghochoi.com/ws/v2`. The scripts hard-fail for any
   other target, approval phrase, run id, user count, RPS or socket count.
-- Use an official stable k6 archive downloaded to a temporary workstation
-  directory. Verify its SHA-256 against the checksum published with that exact
-  k6 release. Do not install it globally and do not copy the generator to the
-  staging host.
+- Use an official stable k6 binary on the workstation and record its exact
+  version before the run. A package-manager installation is acceptable when
+  it resolves to the official k6 release; otherwise download an archive to a
+  temporary workstation directory and verify its SHA-256 against the checksum
+  published with that exact release. Never copy the generator to the staging
+  host.
 - Record branch/SHA, workflow run, staging release symlink, container/image
   state and rollback target before creating users. Keep all raw tokens, k6 raw
   output and resource snapshots outside the repository and out of the report.

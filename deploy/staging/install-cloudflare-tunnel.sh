@@ -11,9 +11,21 @@ TUNNEL_HOSTNAME="${CLOUDFLARED_TUNNEL_HOSTNAME:-opshub-staging.hoanghochoi.com}"
 TUNNEL_SERVICE="${CLOUDFLARED_TUNNEL_SERVICE:-http://127.0.0.1:8090}"
 ORIGIN_CERT="${CLOUDFLARED_ORIGIN_CERT:-$HOME/.cloudflared/cert.pem}"
 ROUTE_DNS="${CLOUDFLARED_ROUTE_DNS:-false}"
+CLOUDFLARED_PROXY_KEEPALIVE_CONNECTIONS="${CLOUDFLARED_PROXY_KEEPALIVE_CONNECTIONS:-300}"
+CLOUDFLARED_METRICS_ADDRESS="${CLOUDFLARED_METRICS_ADDRESS:-127.0.0.1:20242}"
 
 if [[ -z "$CLOUDFLARED_BIN" ]]; then
   echo "cloudflared is not installed on this host." >&2
+  exit 1
+fi
+
+if [[ ! "$CLOUDFLARED_PROXY_KEEPALIVE_CONNECTIONS" =~ ^[1-9][0-9]{0,4}$ ]]; then
+  echo "CLOUDFLARED_PROXY_KEEPALIVE_CONNECTIONS must be a positive integer." >&2
+  exit 1
+fi
+
+if [[ ! "$CLOUDFLARED_METRICS_ADDRESS" =~ ^127\.0\.0\.1:[0-9]{2,5}$ ]]; then
+  echo "CLOUDFLARED_METRICS_ADDRESS must stay bound to 127.0.0.1 with a numeric port." >&2
   exit 1
 fi
 
@@ -65,7 +77,7 @@ Wants=network-online.target
 [Service]
 TimeoutStartSec=15
 Type=notify
-ExecStart=$CLOUDFLARED_BIN tunnel --no-autoupdate run --token-file $TOKEN_FILE --url $TUNNEL_SERVICE
+ExecStart=$CLOUDFLARED_BIN tunnel --metrics $CLOUDFLARED_METRICS_ADDRESS --no-autoupdate run --token-file $TOKEN_FILE --proxy-keepalive-connections $CLOUDFLARED_PROXY_KEEPALIVE_CONNECTIONS --url $TUNNEL_SERVICE
 Restart=on-failure
 RestartSec=5s
 
