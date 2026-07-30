@@ -28,6 +28,13 @@ class BankStatementRowMessage {
   const BankStatementRowMessage({required this.text, required this.success});
 }
 
+class BankStatementBatchMessage {
+  final String text;
+  final bool success;
+
+  const BankStatementBatchMessage({required this.text, required this.success});
+}
+
 class BankStatementProvider extends ChangeNotifier {
   final BankStatementRepository _repository;
   final DateTime Function() _now;
@@ -57,6 +64,7 @@ class BankStatementProvider extends ChangeNotifier {
   bool _allStores = false;
   bool _isLoading = false;
   bool _isExporting = false;
+  bool _isBatchUpdatingOrderTracking = false;
   bool _isLoadingOrderTransferRequests = false;
   bool _canReviewOrderTransfers = false;
   bool _hasSearched = false;
@@ -67,6 +75,7 @@ class BankStatementProvider extends ChangeNotifier {
   bool _orderTransferRealtimeImmediatePending = false;
   String? _errorMessage;
   String? _exportMessage;
+  BankStatementBatchMessage? _batchMessage;
   String _orderStatus = 'ALL';
   String? _statementNumber;
   String? _order;
@@ -110,12 +119,14 @@ class BankStatementProvider extends ChangeNotifier {
   bool get allStores => _allStores;
   bool get isLoading => _isLoading;
   bool get isExporting => _isExporting;
+  bool get isBatchUpdatingOrderTracking => _isBatchUpdatingOrderTracking;
   bool get isLoadingOrderTransferRequests => _isLoadingOrderTransferRequests;
   bool get canReviewOrderTransfers => _canReviewOrderTransfers;
   bool get hasOrderTransferNotifications => _user?.canUseBankStatements == true;
   bool get hasSearched => _hasSearched;
   String? get errorMessage => _errorMessage;
   String? get exportMessage => _exportMessage;
+  BankStatementBatchMessage? get batchMessage => _batchMessage;
   String get orderStatus => _orderStatus;
   String? get statementNumber => _statementNumber;
   String? get order => _order;
@@ -151,6 +162,11 @@ class BankStatementProvider extends ChangeNotifier {
   }
 
   bool get canUseAllStores => _user?.canUseAllBankStatementStores == true;
+  bool get canBatchUnfollow =>
+      _canReviewOrderTransfers &&
+      _selectedIds.isNotEmpty &&
+      _selectedIds.length <= 100 &&
+      !_isBatchUpdatingOrderTracking;
 
   BankStatementRowMessage? rowMessage(String id) => _rowMessages[id];
   bool isUpdatingIncomeType(String id) => _updatingIncomeTypeIds.contains(id);
@@ -667,6 +683,80 @@ class BankStatementProvider extends ChangeNotifier {
     } finally {
       _updatingOrderTrackingIds.remove(transactionId);
       notifyListeners();
+    }
+  }
+
+  Future<bool> batchUnfollowSelected() async {
+    if (_disposed) return false;
+    if (!canBatchUnfollow) {
+      _batchMessage = BankStatementBatchMessage(
+        text: _selectedIds.length > 100
+            ? 'Chỉ được chọn tối đa 100 giao dịch mỗi lần.'
+            : 'Vui lòng chọn ít nhất một giao dịch để bỏ theo dõi.',
+        success: false,
+      );
+      notifyListeners();
+      return false;
+    }
+    final selected = _selectedIds.toList(growable: false);
+    final stopwatch = Stopwatch()..start();
+    _isBatchUpdatingOrderTracking = true;
+    _batchMessage = null;
+    notifyListeners();
+    try {
+      await AppLogger.instance.info(
+        'BankStatement',
+        'Bank statement batch unfollow started',
+        context: {'selectedCount': selected.length},
+      );
+      final result = await _repository.batchUnfollow(selected);
+      if (_disposed) return true;
+      _selectedIds.clear();
+      final unchangedText = result.unchangedCount > 0
+          ? ' ${result.unchangedCount} giao dịch đã bỏ theo dõi trước đó.'
+          : '';
+      _batchMessage = BankStatementBatchMessage(
+        text: 'Đã bỏ theo dõi ${result.changedCount} giao dịch.$unchangedText',
+        success: true,
+      );
+      await AppLogger.instance.info(
+        'BankStatement',
+        'Bank statement batch unfollow succeeded',
+        context: {
+          'selectedCount': selected.length,
+          'processedCount': result.processedCount,
+          'changedCount': result.changedCount,
+          'unchangedCount': result.unchangedCount,
+          'durationMs': stopwatch.elapsedMilliseconds,
+        },
+      );
+      if (_disposed) return true;
+      await _fetchPage(_page);
+      return true;
+    } catch (error) {
+      final message = error is ApiException
+          ? error.message
+          : 'Chưa bỏ theo dõi được các giao dịch đã chọn. Vui lòng thử lại.';
+      if (!_disposed) {
+        _batchMessage = BankStatementBatchMessage(
+          text: message,
+          success: false,
+        );
+      }
+      await AppLogger.instance.error(
+        'BankStatement',
+        'Bank statement batch unfollow failed',
+        error: error,
+        context: {
+          'selectedCount': selected.length,
+          'durationMs': stopwatch.elapsedMilliseconds,
+        },
+      );
+      if (!_disposed) notifyListeners();
+      return false;
+    } finally {
+      _isBatchUpdatingOrderTracking = false;
+      if (!_disposed) notifyListeners();
     }
   }
 

@@ -85,7 +85,11 @@ describe('SalesReportErpService', () => {
               terminalName: 'CP62',
               grandTotal: 1230000,
               platformId: 1,
-              consultant: { customId: '7583', name: 'Sale CP62' },
+              consultant: {
+                customId: '7583',
+                name: 'Sale CP62',
+                email: 'consultant.chat@phongvu.vn',
+              },
               orderCaptureLineItems: [
                 {
                   sellerSku: 'SKU-1',
@@ -135,6 +139,7 @@ describe('SalesReportErpService', () => {
     const result = await service.lookupOrder(' 2606290001 ', 'CP62');
 
     expect(result.erpOrderId).toBe('2606290001');
+    expect(result.erpConsultantEmail).toBe('consultant.chat@phongvu.vn');
     expect(result.customerType).toBe('BUSINESS');
     expect(result.customerName).toBe('Nguyen Van A');
     expect(result.erpCustomerType).toBe('PERSONAL');

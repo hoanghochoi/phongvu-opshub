@@ -17,6 +17,7 @@ import { FEATURE_KEYS } from '../feature/feature.constants';
 import { RequireFeature } from '../feature/feature.decorator';
 import { FeatureGuard } from '../feature/feature.guard';
 import {
+  BatchUpdateMapVietinStatementOrderTrackingDto,
   CreateMapVietinStatementOrderTransferRequestDto,
   ExportMapVietinStatementsDto,
   ListMapVietinStatementOrderTransferRequestsDto,
@@ -114,6 +115,18 @@ export class MapVietinController {
     return this.mapVietinService.updateStatementOrderTracking(
       req.user,
       id,
+      body,
+    );
+  }
+
+  @Patch('statements/order-tracking/batch')
+  @RequireFeature(FEATURE_KEYS.BANK_STATEMENTS)
+  batchUpdateStatementOrderTracking(
+    @Request() req: any,
+    @Body() body: BatchUpdateMapVietinStatementOrderTrackingDto,
+  ) {
+    return this.mapVietinService.batchUpdateStatementOrderTracking(
+      req.user,
       body,
     );
   }

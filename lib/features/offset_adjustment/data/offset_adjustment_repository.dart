@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import '../../../core/constants/api_constants.dart';
 import '../../../core/network/api_client.dart';
+import '../../../core/network/api_exception.dart';
 import '../../auth/domain/entities/store_branch.dart';
 import '../domain/offset_adjustment.dart';
 
@@ -152,6 +153,28 @@ class OffsetAdjustmentRepository {
       body: {if ((ctCode ?? '').trim().isNotEmpty) 'ctCode': ctCode!.trim()},
     );
     return OffsetAdjustment.fromJson(jsonDecode(response.body));
+  }
+
+  Future<int> batchComplete(List<String> ids) async {
+    final response = await _apiClient.post(
+      ApiConstants.offsetAdjustmentsBatchCompleteEndpoint,
+      body: {'ids': ids},
+    );
+    final decoded = jsonDecode(response.body);
+    if (decoded is! Map<String, dynamic>) {
+      throw ApiException(
+        'Phản hồi xác nhận hàng loạt không hợp lệ. Vui lòng thử lại.',
+      );
+    }
+    final processedCount = decoded['processedCount'];
+    if (processedCount is! int ||
+        processedCount < 0 ||
+        processedCount != ids.length) {
+      throw ApiException(
+        'Phản hồi xác nhận hàng loạt không hợp lệ. Vui lòng thử lại.',
+      );
+    }
+    return processedCount;
   }
 
   Future<OffsetAdjustment> reject(String id, String reason) async {

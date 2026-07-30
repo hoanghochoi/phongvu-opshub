@@ -54,6 +54,7 @@ export type SalesReportErpOrder = {
   erpPlatformId: number | null;
   erpConsultantCustomId: string | null;
   erpConsultantName: string | null;
+  erpConsultantEmail?: string | null;
   customerName: string | null;
   customerPhone: string | null;
   creatorEmail: string | null;
@@ -86,6 +87,8 @@ export type SalesReportErpOrderListItem = {
   returnedAfterTaxAmount: number;
   statusCheckedAt: Date;
   terminalName: string | null;
+  /** Human-readable sales channel returned by ERP, when the endpoint exposes it. */
+  salesChannel?: string | null;
   grandTotal: number | null;
   customerName: string | null;
   customerPhone: string | null;
@@ -492,6 +495,14 @@ export class SalesReportErpService {
       order?.store?.storeName,
       order?.store?.name,
     );
+    const salesChannel = this.firstText(
+      order?.salesChannel,
+      order?.salesChannelName,
+      order?.channelName,
+      order?.platformName,
+      order?.platform?.name,
+      order?.channel?.name,
+    );
     const createdFromSiteStoreCode = this.extractStoreCodeFromDisplayName(
       createdFromSiteDisplayName,
     );
@@ -619,6 +630,7 @@ export class SalesReportErpService {
       returnedAfterTaxAmount: lifecycle.returnedAfterTaxAmount,
       statusCheckedAt: lifecycle.statusCheckedAt,
       terminalName,
+      salesChannel,
       grandTotal: this.toInt(order?.grandTotal ?? order?.totalAmount),
       customerName,
       customerPhone,
@@ -645,6 +657,7 @@ export class SalesReportErpService {
         hasReturnedFullItems: lifecycle.hasReturnedFullItems,
         returnedAfterTaxAmount: lifecycle.returnedAfterTaxAmount,
         terminalName,
+        salesChannel,
         createdFromSiteDisplayName,
         grandTotal: this.toInt(order?.grandTotal ?? order?.totalAmount),
         customerName,
@@ -1417,6 +1430,7 @@ export class SalesReportErpService {
       erpPlatformId: this.toInt(order?.platformId),
       erpConsultantCustomId: this.optionalText(order?.consultant?.customId),
       erpConsultantName: this.optionalText(order?.consultant?.name),
+      erpConsultantEmail: this.optionalText(order?.consultant?.email),
       customerName,
       customerPhone,
       creatorEmail,

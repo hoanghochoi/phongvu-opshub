@@ -182,6 +182,10 @@ class _OffsetAdjustmentScreenState extends State<OffsetAdjustmentScreen> {
         return _OffsetCard(
           item: item,
           money: _money,
+          canReview: provider.canReview,
+          selected: provider.selectedIds.contains(item.id),
+          selectable: provider.canSelectForBatch(item),
+          onSelected: (selected) => provider.toggleSelected(item, selected),
           onTap: () => _showDetails(item),
         );
       },
@@ -671,7 +675,7 @@ class _OffsetListControls extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AppPaginationControls(
+    final pagination = AppPaginationControls(
       pageIndex: provider.page,
       totalItems: provider.total,
       itemLabel: 'hồ sơ',
@@ -684,6 +688,105 @@ class _OffsetListControls extends StatelessWidget {
       onRefresh: () => provider.search(page: provider.page),
       isRefreshing: provider.isLoading,
     );
+    if (!provider.canReview) return pagination;
+
+    final selectableVisible = provider.items
+        .where((item) => item.canBatchComplete)
+        .length;
+    final selectedVisible = provider.items
+        .where(
+          (item) =>
+              item.canBatchComplete && provider.selectedIds.contains(item.id),
+        )
+        .length;
+    final partiallySelected =
+        selectedVisible > 0 && selectedVisible < selectableVisible;
+    final selection = Row(
+      children: [
+        Checkbox(
+          tristate: true,
+          value: partiallySelected
+              ? null
+              : provider.allVisibleSelectableSelected,
+          visualDensity: VisualDensity.compact,
+          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          onChanged: selectableVisible == 0 || provider.isSaving
+              ? null
+              : (value) => provider.toggleAllVisible(value == true),
+        ),
+        Expanded(
+          child: Text(
+            '${provider.selectedCount} hồ sơ đã chọn',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: AppTextStyles.labelM,
+          ),
+        ),
+      ],
+    );
+    final batchAction = AppPrimaryButton(
+      onPressed: provider.canBatchComplete
+          ? () => _confirmBatchComplete(context)
+          : null,
+      icon: Icons.done_all_rounded,
+      label: 'Xác nhận đã chọn',
+      isLoading: provider.isSaving,
+      loadingLabel: 'Đang xác nhận',
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < 620) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              selection,
+              const SizedBox(height: AppLayoutTokens.formInlineGap),
+              batchAction,
+              const SizedBox(height: AppLayoutTokens.formInlineGap),
+              pagination,
+            ],
+          );
+        }
+        return Column(
+          children: [
+            Row(
+              children: [
+                Expanded(child: selection),
+                const SizedBox(width: AppLayoutTokens.formInlineGap),
+                SizedBox(width: 210, child: batchAction),
+              ],
+            ),
+            const SizedBox(height: AppLayoutTokens.formInlineGap),
+            pagination,
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _confirmBatchComplete(BuildContext context) async {
+    final count = provider.selectedCount;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Xác nhận hồ sơ đã chọn'),
+        content: Text(
+          'Xác nhận hoàn thành $count hồ sơ cấn trừ? Thao tác chỉ thực hiện khi tất cả hồ sơ còn hợp lệ.',
+        ),
+        actions: [
+          AppDialogCancelButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+          ),
+          AppDialogConfirmButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            icon: Icons.done_all_rounded,
+            label: 'Xác nhận',
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) await provider.batchCompleteSelected();
   }
 }
 
@@ -758,11 +861,19 @@ class _ExportMenuButton extends StatelessWidget {
 class _OffsetCard extends StatelessWidget {
   final OffsetAdjustment item;
   final NumberFormat money;
+  final bool canReview;
+  final bool selected;
+  final bool selectable;
+  final ValueChanged<bool> onSelected;
   final VoidCallback onTap;
 
   const _OffsetCard({
     required this.item,
     required this.money,
+    required this.canReview,
+    required this.selected,
+    required this.selectable,
+    required this.onSelected,
     required this.onTap,
   });
 
@@ -782,26 +893,56 @@ class _OffsetCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Wrap(
-            spacing: 8,
-            runSpacing: 6,
-            crossAxisAlignment: WrapCrossAlignment.center,
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              AppStatusChip(
-                label: OffsetAdjustmentType.label(item.type),
-                color: AppColors.info,
-              ),
-              AppStatusChip(
-                label: OffsetAdjustmentStatus.label(item.status),
-                color: borderColor,
-              ),
-              if (item.isSingleOrder && item.singleOrderReuseCount != null)
-                AppStatusChip(
-                  label: '${item.singleOrderReuseCount} lần',
-                  color: AppColors.warning,
+              if (canReview)
+                Tooltip(
+                  message: selectable
+                      ? 'Chọn hồ sơ để xác nhận hàng loạt'
+                      : (item.batchCompleteBlockedReason ??
+                            'Hồ sơ không thể xác nhận hàng loạt'),
+                  child: Checkbox(
+                    value: selected,
+                    onChanged: selectable
+                        ? (value) => onSelected(value == true)
+                        : null,
+                  ),
                 ),
+              Expanded(
+                child: Wrap(
+                  spacing: 8,
+                  runSpacing: 6,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    AppStatusChip(
+                      label: OffsetAdjustmentType.label(item.type),
+                      color: AppColors.info,
+                    ),
+                    AppStatusChip(
+                      label: OffsetAdjustmentStatus.label(item.status),
+                      color: borderColor,
+                    ),
+                    if (item.isSingleOrder &&
+                        item.singleOrderReuseCount != null)
+                      AppStatusChip(
+                        label: '${item.singleOrderReuseCount} lần',
+                        color: AppColors.warning,
+                      ),
+                  ],
+                ),
+              ),
             ],
           ),
+          if (canReview &&
+              item.type == OffsetAdjustmentType.vnpayQroff &&
+              item.status == OffsetAdjustmentStatus.pending) ...[
+            const SizedBox(height: 6),
+            Text(
+              'Cần nhập Mã CT và xác nhận riêng.',
+              style: AppTextStyles.labelS.copyWith(color: AppColors.warning),
+            ),
+          ],
           const SizedBox(height: 8),
           Text(
             item.primaryOrderLabel.isEmpty
@@ -818,6 +959,11 @@ class _OffsetCard extends StatelessWidget {
                 icon: Icons.storefront_outlined,
                 text: item.storeCode,
               ),
+              if (item.salesChannels.isNotEmpty)
+                _InlineInfo(
+                  icon: Icons.storefront_outlined,
+                  text: _salesChannelsLabel(item.salesChannels),
+                ),
               _InlineInfo(
                 icon: Icons.payments_outlined,
                 text: money.format(item.amount),
@@ -892,6 +1038,9 @@ class _OffsetDetailDialog extends StatelessWidget {
             children: [
               _detail('Trạng thái', OffsetAdjustmentStatus.label(item.status)),
               _detail('Showroom', item.storeCode),
+              _detail('Kênh tạo hồ sơ', item.creationChannel),
+              if (item.salesChannels.isNotEmpty)
+                _detail('Kênh bán', _salesChannelsLabel(item.salesChannels)),
               if (item.isSingleOrder) ...[
                 _detail('Đơn hàng cũ', item.oldOrderCode),
                 _detail('Đơn hàng mới', item.newOrderCode),
@@ -959,6 +1108,12 @@ class _OffsetDetailDialog extends StatelessWidget {
       ),
     );
   }
+}
+
+String _salesChannelsLabel(List<OffsetSalesChannel> channels) {
+  return channels
+      .map((channel) => '${channel.orderCode}: ${channel.label}')
+      .join('; ');
 }
 
 class _OffsetInputDialog extends StatefulWidget {

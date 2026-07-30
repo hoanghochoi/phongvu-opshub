@@ -1,5 +1,9 @@
 import { Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
+  ArrayMinSize,
+  ArrayUnique,
+  IsArray,
   IsIn,
   IsInt,
   IsOptional,
@@ -183,6 +187,16 @@ export class CompleteOffsetAdjustmentDto {
   @IsString()
   @MaxLength(80)
   ctCode?: string;
+}
+
+export class BatchCompleteOffsetAdjustmentsDto {
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(100)
+  @ArrayUnique()
+  @IsString({ each: true })
+  @MaxLength(80, { each: true })
+  ids!: string[];
 }
 
 export class RejectOffsetAdjustmentDto {

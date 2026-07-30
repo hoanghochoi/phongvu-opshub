@@ -80,3 +80,34 @@ dedicated audit. ACC, FIN_ACC, and Super Admin may toggle tracking within their
 showroom scope after pending requests are cleared. Filter, Home KPI, XLSX, and
 BigQuery consumers use the shared tracking contract; total statement count and
 amount remain inclusive, while order coverage counts only followed statements.
+
+## OPS-41 Batch Unfollow
+
+The existing multi-page statement selection also supports `Bỏ theo dõi đã
+chọn` for ACC, FIN_ACC, and Super Admin within their existing showroom scope.
+The client sends 1-100 unique transaction IDs to
+`PATCH /admin/map-vietin/statements/order-tracking/batch` with status
+`UNFOLLOWED` and keeps the single-row tracking endpoint unchanged.
+
+The batch is atomic: every row must still exist in scope, have no pending order
+transfer request, and match its server snapshot. A concurrent or invalid row
+rolls back every tracking and audit write. Rows already `UNFOLLOWED` are valid
+no-ops and create no duplicate audit. The transaction locks every selected row
+in canonical ID order before the final snapshot check, so a concurrent re-follow
+cannot be reported as an unchanged success; serialization/deadlock conflicts
+return an actionable reload error. The response reports processed, changed, and
+unchanged counts, and the client rejects malformed or inconsistent counts.
+Success clears selection and refreshes the current page; failure keeps
+selection. Selected export, individual re-follow, the
+`UNFOLLOWED` filter, Home KPI, XLSX, and BigQuery continue to consume the OPS-36
+tracking contract without a new schema or event shape.
+
+## OPS-41 Offset ERP channel authority
+
+Offset ERP validation intentionally does not require the referenced ERP order
+to belong to the request showroom. The request showroom remains the OpsHub
+authorization/reporting scope. ERP selling-channel metadata is sanitized into
+Offset history and exposed as `Kênh bán`; every Offset request is explicitly
+labelled with `Kênh tạo hồ sơ: Cấn trừ trên OpsHub`. The Sales Report cache also
+falls back to `data.order.consultant.email` when the ERP creator email is absent
+so CHAT-created orders still map to the correct SR owner.

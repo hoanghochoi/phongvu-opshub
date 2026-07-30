@@ -47,6 +47,7 @@ void main() {
     expect(find.text('Cấn trừ đơn'), findsWidgets);
     expect(find.text('CP01'), findsWidgets);
     expect(find.text('2607020001 -> 2607020002'), findsOneWidget);
+    expect(find.text('2607020002: Kênh Online'), findsOneWidget);
     expect(find.textContaining('1.250.000'), findsWidgets);
     expect(find.text('Chờ Kế toán xác nhận'), findsWidgets);
     expect(repository.fetchCount, greaterThanOrEqualTo(2));
@@ -82,6 +83,60 @@ void main() {
 
     expect(find.text('Mã đơn'), findsOneWidget);
     expect(find.text('Số tiền'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('disables batch selection for VNPAY QROFF rows', (tester) async {
+    tester.view.physicalSize = const Size(1200, 1000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final repository = _WidgetOffsetAdjustmentRepository(
+      items: [_offsetAdjustment, _vnpayOffsetAdjustment],
+    );
+    await tester.pumpWidget(_buildApp(repository));
+    await tester.pumpAndSettle();
+
+    final blockedTooltip = find.byTooltip('Cần nhập Mã CT và xác nhận riêng.');
+    expect(blockedTooltip, findsOneWidget);
+    final checkbox = tester.widget<Checkbox>(
+      find.descendant(of: blockedTooltip, matching: find.byType(Checkbox)),
+    );
+    expect(checkbox.onChanged, isNull);
+    expect(find.textContaining('2 hồ sơ'), findsWidgets);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('confirms selected offsets through the batch dialog', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1200, 1000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final repository = _WidgetOffsetAdjustmentRepository();
+    await tester.pumpWidget(_buildApp(repository));
+    await tester.pumpAndSettle();
+
+    final selectable = find.byTooltip('Chọn hồ sơ để xác nhận hàng loạt');
+    await tester.tap(
+      find.descendant(of: selectable, matching: find.byType(Checkbox)),
+    );
+    await tester.pump();
+    await tester.tap(find.text('Xác nhận đã chọn'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Xác nhận hồ sơ đã chọn'), findsOneWidget);
+    expect(find.textContaining('1 hồ sơ cấn trừ'), findsOneWidget);
+    await tester.tap(find.text('Xác nhận'));
+    await tester.pumpAndSettle();
+
+    expect(repository.batchCompleteCount, 1);
+    expect(repository.lastBatchIds, ['offset-1']);
+    expect(find.text('0 hồ sơ đã chọn'), findsOneWidget);
+    expect(find.text('Đã xác nhận 1 hồ sơ cấn trừ.'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 }
@@ -131,10 +186,15 @@ class _FakeAuthProvider extends AuthProvider {
 }
 
 class _WidgetOffsetAdjustmentRepository extends OffsetAdjustmentRepository {
+  final List<OffsetAdjustment> items;
   int fetchCount = 0;
+  int batchCompleteCount = 0;
+  List<String> lastBatchIds = const [];
   final List<OffsetAdjustmentQuery> seenQueries = [];
 
-  _WidgetOffsetAdjustmentRepository() : super(ApiClient());
+  _WidgetOffsetAdjustmentRepository({List<OffsetAdjustment>? items})
+    : items = items ?? [_offsetAdjustment],
+      super(ApiClient());
 
   @override
   Future<List<StoreBranch>> fetchStores() async {
@@ -149,12 +209,19 @@ class _WidgetOffsetAdjustmentRepository extends OffsetAdjustmentRepository {
     fetchCount += 1;
     seenQueries.add(query);
     return OffsetAdjustmentPage(
-      items: [_offsetAdjustment],
+      items: items,
       page: query.page,
       limit: query.limit,
-      total: 1,
+      total: items.length,
       canReview: true,
     );
+  }
+
+  @override
+  Future<int> batchComplete(List<String> ids) async {
+    batchCompleteCount += 1;
+    lastBatchIds = List.of(ids);
+    return ids.length;
   }
 }
 
@@ -163,10 +230,29 @@ final _offsetAdjustment = OffsetAdjustment.fromJson({
   'type': OffsetAdjustmentType.singleOrder,
   'status': OffsetAdjustmentStatus.pending,
   'storeCode': 'CP01',
+  'salesChannels': [
+    {'orderCode': '2607020002', 'salesChannel': 'Kênh Online'},
+  ],
+  'creationChannel': 'Cấn trừ trên OpsHub',
   'oldOrderCode': '2607020001',
   'newOrderCode': '2607020002',
   'amount': 1250000,
   'singleOrderReuseCount': 2,
   'submittedAt': '2026-07-02T02:00:00.000Z',
+  'canReview': true,
+});
+
+final _vnpayOffsetAdjustment = OffsetAdjustment.fromJson({
+  'id': 'offset-vnpay',
+  'type': OffsetAdjustmentType.vnpayQroff,
+  'status': OffsetAdjustmentStatus.pending,
+  'storeCode': 'CP01',
+  'salesChannels': [
+    {'orderCode': '2607020003', 'salesChannel': 'VNPAY QROFF'},
+  ],
+  'creationChannel': 'Cấn trừ trên OpsHub',
+  'orderCode': '2607020003',
+  'amount': 750000,
+  'submittedAt': '2026-07-02T02:05:00.000Z',
   'canReview': true,
 });

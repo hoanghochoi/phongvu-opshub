@@ -11,7 +11,42 @@
 | Platform    | Production API health, authenticated XLSX download/parse, eFAST scheduler counters, and post-remap database counts |
 | Release     | `git diff --check` and exact diff review before handoff                                                            |
 
+## OPS-41 Required Scenarios
+
+- API: 1-100 unique IDs, permission and showroom scope, pending-transfer
+  blocker, stale snapshot, full rollback, already-unfollowed no-op, per-row
+  audit count, and one canonical downstream revision per changed row.
+- Offset ERP: cross-showroom order references are accepted when lifecycle/value
+  rules pass; sanitized ERP `Kênh bán` and `Cấn trừ trên OpsHub` creation
+  channel survive create/resubmit/review history and list/detail/CSV mapping.
+- Flutter: existing selection/export semantics across pages, batch dialog and
+  loading guard, success refresh/clear, failure retention, max-100 message, and
+  permission visibility without regressing individual tracking or the order
+  editor.
+- Protected consumers: statement filter/export/order editor/single tracking,
+  Payment Monitor, Home projection and fallback, XLSX, BigQuery mapper/storage,
+  and Go realtime isolation.
+- Environment proof before release: Android, Windows, and web smoke with real
+  scoped accounts, including two-client concurrency and latency/error-log
+  observation.
+
 ## Evidence
+
+- 2026-07-30 OPS-41 local proof: batch Offset/statement transactions lock rows
+  in canonical ID order, recheck scoped snapshots after locking, map stale,
+  serialization, and deadlock failures to Vietnamese reload guidance, and keep
+  no-op rows audit-free. Focused Nest passed `4 suites / 187 tests` before the
+  channel amendment, and the final full Nest gate passed `91 suites / 1,026
+  tests`; Prisma validation and Nest build passed. The final channel-focused
+  Flutter proof passed `27` tests, including metadata parsing and screen
+  rendering; `flutter analyze --no-pub` found no issues and Go isolation passed
+  `64 tests`.
+  Full Flutter reached `664` passes and `3` skips with two failures: the
+  pre-existing `/fifo-menu` visual-smoke
+  inventory mismatch and the Offset realtime max-wait timing test under full
+  suite load; that realtime test passed in fresh focused runs. Real PostgreSQL
+  two-client locking, staging Android/Windows/web, live ERP, and latency/error
+  observation remain unverified release gates.
 
 - 2026-07-28 OPS-36 local proof: the order editor is consolidated on the
   existing Sao kê/Tiền vào UI; backend mutations verify every old/new lifecycle

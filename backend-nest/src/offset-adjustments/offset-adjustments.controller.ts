@@ -16,6 +16,7 @@ import { FEATURE_KEYS } from '../feature/feature.constants';
 import { RequireFeature } from '../feature/feature.decorator';
 import { FeatureGuard } from '../feature/feature.guard';
 import {
+  BatchCompleteOffsetAdjustmentsDto,
   CompleteOffsetAdjustmentDto,
   CreateOffsetAdjustmentDto,
   ExportOffsetAdjustmentsDto,
@@ -39,6 +40,14 @@ export class OffsetAdjustmentsController {
   @Post()
   create(@Request() req: any, @Body() body: CreateOffsetAdjustmentDto) {
     return this.service.create(req.user, body);
+  }
+
+  @Post('batch-complete')
+  batchComplete(
+    @Request() req: any,
+    @Body() body: BatchCompleteOffsetAdjustmentsDto,
+  ) {
+    return this.service.batchComplete(req.user, body);
   }
 
   @Get('export')

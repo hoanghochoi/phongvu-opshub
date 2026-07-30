@@ -166,6 +166,54 @@ void main() {
     await tester.pump(const Duration(seconds: 4));
   });
 
+  testWidgets('confirms batch unfollow for the selected statement', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(1200, 900));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
+    final repository = _WidgetBankStatementRepository();
+    final provider = BankStatementProvider(
+      repository,
+      notificationReadStore: _FakeNotificationReadStore(),
+    );
+    addTearDown(provider.dispose);
+    await provider.initialize(_accUser);
+    provider.setOrder('26062512345678');
+    await provider.search();
+
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider<AuthProvider>.value(
+            value: _FakeAuthProvider(_accUser),
+          ),
+          ChangeNotifierProvider<BankStatementProvider>.value(value: provider),
+        ],
+        child: const MaterialApp(home: BankStatementScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final card = find.byKey(const ValueKey('tx-offset'));
+    await tester.tap(
+      find.descendant(of: card, matching: find.byType(Checkbox)),
+    );
+    await tester.pump();
+    await tester.tap(find.text('Bỏ theo dõi đã chọn'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Bỏ theo dõi giao dịch đã chọn'), findsOneWidget);
+    expect(find.textContaining('Bỏ theo dõi 1 giao dịch'), findsOneWidget);
+    await tester.tap(find.text('Bỏ theo dõi'));
+    await tester.pumpAndSettle();
+
+    expect(repository.batchUnfollowCount, 1);
+    expect(repository.lastBatchUnfollowIds, ['tx-offset']);
+    expect(find.text('0 chọn / 2 giao dịch'), findsOneWidget);
+    expect(find.text('Đã bỏ theo dõi 1 giao dịch.'), findsOneWidget);
+  });
+
   testWidgets('keeps legacy pending review and blocks tracking action', (
     tester,
   ) async {
@@ -597,8 +645,10 @@ class _WidgetBankStatementRepository extends BankStatementRepository {
   int fetchStatementsCount = 0;
   int updateIncomeTypeCount = 0;
   int updateOrderTrackingCount = 0;
+  int batchUnfollowCount = 0;
   String? lastUpdatedIncomeType;
   String? lastUpdatedOrderTrackingStatus;
+  List<String> lastBatchUnfollowIds = const [];
   BankStatementQuery? lastQuery;
   List<BankStatementTransaction> rows = [
     _pendingTransaction,
@@ -723,6 +773,19 @@ class _WidgetBankStatementRepository extends BankStatementRepository {
     );
     rows[index] = updated;
     return updated;
+  }
+
+  @override
+  Future<BankStatementBatchTrackingResult> batchUnfollow(
+    List<String> transactionIds,
+  ) async {
+    batchUnfollowCount += 1;
+    lastBatchUnfollowIds = List.of(transactionIds);
+    return BankStatementBatchTrackingResult(
+      processedCount: transactionIds.length,
+      changedCount: transactionIds.length,
+      unchangedCount: 0,
+    );
   }
 
   @override

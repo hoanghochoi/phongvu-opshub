@@ -3,6 +3,28 @@
 This file maps product behavior to proof. Existing flows are marked
 `existing_unverified` until fresh validation evidence is attached.
 
+- `OPS-41`/Offset Adjustments/`PAYMENT-STATEMENT-001`, 2026-07-30,
+  `local_verified_with_release_gaps`: Offset create/resubmit fails closed unless
+  ERP proves the required lifecycle and amount cap, while duplicate/local
+  validation still short-circuits before ERP. Reviewers may atomically complete
+  up to 100 eligible non-VNPAY offset requests. Sao kê may atomically mark up
+  to 100 selected transactions `UNFOLLOWED`; existing unfollowed rows are
+  no-op and pending/out-of-scope/stale rows roll back the batch. Canonical
+  row-lock order closes no-op/re-follow races and maps serialization conflicts
+  to reload guidance. Focused Nest passed `4 suites / 187 tests` before the
+  channel fallback amendment; full Nest passed `91 suites / 1,026 tests`;
+  Prisma validation, Nest build, and Flutter analyze passed. The channel
+  amendment's focused Flutter proof passed `27` tests; fresh Go
+  isolation proof passed `64 tests`, with no Go source/event shape change. Full
+  Flutter reached
+  `664` passes and `3` skips but still has the pre-existing `/fifo-menu`
+  visual-smoke inventory failure plus an Offset max-wait timing failure that
+  passes focused. Offset records the ERP selling channel separately from the
+  request showroom and keeps `Cấn trừ trên OpsHub` as the creation channel;
+  ERP lookup does not require showroom equality. Real PostgreSQL two-client
+  proof, staging Android/Windows/web, real ERP orders, and operational
+  latency/error-log observation remain release gates.
+
 - `OPS-31`/`HOME-DASHBOARD-002`/`HOME-DASHBOARD-003`, 2026-07-29:
   `GET /home/summary` preserves the legacy aggregate response unless the strict
   query `includeDailySeries=true` is present. The opted-in response adds at
