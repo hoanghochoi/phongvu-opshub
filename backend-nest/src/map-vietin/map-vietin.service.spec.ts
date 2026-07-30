@@ -29,6 +29,7 @@ describe('MapVietinService', () => {
       $transaction: jest.fn(async (callback: (tx: any) => unknown) =>
         callback(prisma),
       ),
+      $queryRaw: jest.fn().mockResolvedValue([]),
       user: {
         findUnique: jest.fn(async ({ where }: any) => {
           if (where.id === 'fin-node-user') {
@@ -4784,6 +4785,298 @@ describe('MapVietinService', () => {
     expect(
       prisma.mapVietinTransactionOrderTrackingAudit.create,
     ).not.toHaveBeenCalled();
+  });
+
+  it('atomically unfollows selected statements and skips existing unfollowed rows', async () => {
+    const following = statementTransactionRow({ id: 'stored-1' });
+    const unfollowed = statementTransactionRow({
+      id: 'stored-2',
+      orderTrackingStatus: 'UNFOLLOWED',
+      updatedAt: new Date('2099-05-21T02:30:00.000Z'),
+    });
+    prisma.store.findUnique.mockResolvedValue({
+      id: 'store-uuid-1',
+      storeId: 'CP01',
+    });
+    prisma.mapVietinTransaction.findMany.mockResolvedValue([
+      following,
+      unfollowed,
+    ]);
+    prisma.mapVietinStatementOrderTransferRequest.findMany.mockResolvedValue(
+      [],
+    );
+    prisma.mapVietinTransaction.update.mockResolvedValue({
+      ...following,
+      orderTrackingStatus: 'UNFOLLOWED',
+    });
+    prisma.mapVietinTransaction.updateMany.mockResolvedValue({ count: 1 });
+    prisma.mapVietinTransactionOrderTrackingAudit.create.mockResolvedValue({});
+
+    await expect(
+      service.batchUpdateStatementOrderTracking(
+        {
+          id: 'acc-1',
+          role: 'USER',
+          departmentCode: 'ACC',
+          storeId: 'store-uuid-1',
+        },
+        {
+          transactionIds: ['stored-1', 'stored-2'],
+          status: 'UNFOLLOWED',
+        },
+      ),
+    ).resolves.toEqual({
+      processedCount: 2,
+      changedCount: 1,
+      unchangedCount: 1,
+    });
+    expect(prisma.mapVietinTransaction.update).toHaveBeenCalledTimes(1);
+    expect(prisma.mapVietinTransaction.updateMany).toHaveBeenCalledWith({
+      where: {
+        id: { in: ['stored-2'] },
+        orderTrackingStatus: 'UNFOLLOWED',
+      },
+      data: { updatedAt: new Date('2099-05-21T02:30:00.001Z') },
+    });
+    expect(
+      prisma.mapVietinTransactionOrderTrackingAudit.create,
+    ).toHaveBeenCalledTimes(1);
+    expect(prisma.$queryRaw.mock.calls[0][0].sql).toContain('ORDER BY "id"');
+  });
+
+  it('resolves statement batch scope once for 100 selected rows', async () => {
+    const rows = Array.from({ length: 100 }, (_, index) =>
+      statementTransactionRow({ id: `stored-${index}` }),
+    );
+    prisma.store.findUnique.mockResolvedValue({
+      id: 'store-uuid-1',
+      storeId: 'CP01',
+    });
+    prisma.mapVietinTransaction.findMany.mockResolvedValue(rows);
+    prisma.mapVietinStatementOrderTransferRequest.findMany.mockResolvedValue(
+      [],
+    );
+    prisma.mapVietinTransaction.update.mockImplementation(
+      async ({ where }: any) => ({
+        ...rows.find((row) => row.id === where.id),
+        orderTrackingStatus: 'UNFOLLOWED',
+      }),
+    );
+    prisma.mapVietinTransactionOrderTrackingAudit.create.mockResolvedValue({});
+
+    await expect(
+      service.batchUpdateStatementOrderTracking(
+        {
+          id: 'acc-1',
+          role: 'USER',
+          departmentCode: 'ACC',
+          storeId: 'store-uuid-1',
+        },
+        {
+          transactionIds: rows.map((row) => row.id).reverse(),
+          status: 'UNFOLLOWED',
+        },
+      ),
+    ).resolves.toEqual({
+      processedCount: 100,
+      changedCount: 100,
+      unchangedCount: 0,
+    });
+    expect(prisma.store.findUnique).toHaveBeenCalledTimes(1);
+    expect(prisma.mapVietinTransaction.update).toHaveBeenCalledTimes(100);
+    expect(prisma.mapVietinTransaction.update.mock.calls[0][0].where.id).toBe(
+      'stored-0',
+    );
+  });
+
+  it.each([
+    [['stored-1', 'stored-1'], 'khác nhau'],
+    [Array.from({ length: 101 }, (_, index) => `stored-${index}`), '1 đến 100'],
+  ])(
+    'rejects invalid tracking batch id lists before transaction lookup',
+    async (transactionIds, message) => {
+      await expect(
+        service.batchUpdateStatementOrderTracking(
+          {
+            id: 'acc-1',
+            role: 'USER',
+            departmentCode: 'ACC',
+            storeId: 'store-uuid-1',
+          },
+          { transactionIds, status: 'UNFOLLOWED' },
+        ),
+      ).rejects.toThrow(message);
+      expect(prisma.mapVietinTransaction.findMany).not.toHaveBeenCalled();
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+    },
+  );
+
+  it('rejects a tracking batch containing a missing statement', async () => {
+    prisma.store.findUnique.mockResolvedValue({
+      id: 'store-uuid-1',
+      storeId: 'CP01',
+    });
+    prisma.mapVietinTransaction.findMany.mockResolvedValue([
+      statementTransactionRow({ id: 'stored-1' }),
+    ]);
+
+    await expect(
+      service.batchUpdateStatementOrderTracking(
+        {
+          id: 'acc-1',
+          role: 'USER',
+          departmentCode: 'ACC',
+          storeId: 'store-uuid-1',
+        },
+        {
+          transactionIds: ['stored-1', 'stored-2'],
+          status: 'UNFOLLOWED',
+        },
+      ),
+    ).rejects.toThrow('không còn khả dụng');
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+    expect(prisma.mapVietinTransaction.update).not.toHaveBeenCalled();
+  });
+
+  it('rejects the whole tracking batch when one row is outside showroom scope', async () => {
+    prisma.store.findUnique.mockResolvedValue({
+      id: 'store-uuid-1',
+      storeId: 'CP01',
+    });
+    prisma.mapVietinTransaction.findMany.mockResolvedValue([
+      statementTransactionRow({ id: 'stored-1', storeCode: 'CP01' }),
+    ]);
+
+    await expect(
+      service.batchUpdateStatementOrderTracking(
+        {
+          id: 'acc-1',
+          role: 'USER',
+          departmentCode: 'ACC',
+          storeId: 'store-uuid-1',
+        },
+        {
+          transactionIds: ['stored-1', 'stored-2'],
+          status: 'UNFOLLOWED',
+        },
+      ),
+    ).rejects.toThrow('không còn khả dụng');
+    expect(prisma.mapVietinTransaction.findMany).toHaveBeenCalledWith({
+      where: {
+        AND: [
+          { id: { in: ['stored-1', 'stored-2'] } },
+          { storeCode: { in: ['CP01'] } },
+        ],
+      },
+    });
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('blocks the whole tracking batch when a request is pending', async () => {
+    const rows = [
+      statementTransactionRow({ id: 'stored-1' }),
+      statementTransactionRow({ id: 'stored-2' }),
+    ];
+    prisma.store.findUnique.mockResolvedValue({
+      id: 'store-uuid-1',
+      storeId: 'CP01',
+    });
+    prisma.mapVietinTransaction.findMany.mockResolvedValue(rows);
+    prisma.mapVietinStatementOrderTransferRequest.findMany.mockResolvedValue([
+      { transactionId: 'stored-2' },
+    ]);
+
+    await expect(
+      service.batchUpdateStatementOrderTracking(
+        {
+          id: 'acc-1',
+          role: 'USER',
+          departmentCode: 'ACC',
+          storeId: 'store-uuid-1',
+        },
+        {
+          transactionIds: ['stored-1', 'stored-2'],
+          status: 'UNFOLLOWED',
+        },
+      ),
+    ).rejects.toThrow('đang chờ Kế toán xác nhận');
+    expect(prisma.mapVietinTransaction.update).not.toHaveBeenCalled();
+    expect(
+      prisma.mapVietinTransactionOrderTrackingAudit.create,
+    ).not.toHaveBeenCalled();
+  });
+
+  it('rejects stale tracking batch snapshots atomically', async () => {
+    const before = statementTransactionRow({ id: 'stored-1' });
+    const after = statementTransactionRow({
+      id: 'stored-1',
+      updatedAt: new Date('2026-05-21T03:01:00.000Z'),
+    });
+    prisma.store.findUnique.mockResolvedValue({
+      id: 'store-uuid-1',
+      storeId: 'CP01',
+    });
+    prisma.mapVietinTransaction.findMany
+      .mockResolvedValueOnce([before])
+      .mockResolvedValueOnce([after]);
+    prisma.mapVietinStatementOrderTransferRequest.findMany.mockResolvedValue(
+      [],
+    );
+
+    await expect(
+      service.batchUpdateStatementOrderTracking(
+        {
+          id: 'acc-1',
+          role: 'USER',
+          departmentCode: 'ACC',
+          storeId: 'store-uuid-1',
+        },
+        { transactionIds: ['stored-1'], status: 'UNFOLLOWED' },
+      ),
+    ).rejects.toThrow('Dữ liệu giao dịch vừa thay đổi');
+    expect(prisma.mapVietinTransaction.update).not.toHaveBeenCalled();
+  });
+
+  it('returns an actionable conflict when tracking batch serialization aborts', async () => {
+    prisma.store.findUnique.mockResolvedValue({
+      id: 'store-uuid-1',
+      storeId: 'CP01',
+    });
+    prisma.mapVietinTransaction.findMany.mockResolvedValue([
+      statementTransactionRow({ id: 'stored-1' }),
+    ]);
+    prisma.mapVietinStatementOrderTransferRequest.findMany.mockResolvedValue(
+      [],
+    );
+    prisma.$transaction.mockRejectedValueOnce({ code: 'P2034' });
+
+    await expect(
+      service.batchUpdateStatementOrderTracking(
+        {
+          id: 'acc-1',
+          role: 'USER',
+          departmentCode: 'ACC',
+          storeId: 'store-uuid-1',
+        },
+        { transactionIds: ['stored-1'], status: 'UNFOLLOWED' },
+      ),
+    ).rejects.toThrow('Dữ liệu giao dịch vừa thay đổi');
+    expect(prisma.mapVietinTransaction.update).not.toHaveBeenCalled();
+  });
+
+  it('blocks tracking batch access outside accounting roles', async () => {
+    await expect(
+      service.batchUpdateStatementOrderTracking(
+        {
+          id: 'sales-1',
+          role: 'MANAGER',
+          departmentCode: 'SALES',
+          storeId: 'store-uuid-1',
+        },
+        { transactionIds: ['stored-1'], status: 'UNFOLLOWED' },
+      ),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(prisma.mapVietinTransaction.findMany).not.toHaveBeenCalled();
   });
 
   it('treats UNFOLLOWED as an effective statement filter', async () => {

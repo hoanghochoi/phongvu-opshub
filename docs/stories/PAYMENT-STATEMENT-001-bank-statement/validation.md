@@ -11,7 +11,54 @@
 | Platform    | Production API health, authenticated XLSX download/parse, eFAST scheduler counters, and post-remap database counts |
 | Release     | `git diff --check` and exact diff review before handoff                                                            |
 
+## OPS-41 Required Scenarios
+
+- API: 1-100 unique IDs, permission and showroom scope, pending-transfer
+  blocker, stale snapshot, full rollback, already-unfollowed no-op, per-row
+  audit count, and one canonical downstream revision per changed row.
+- Offset ERP: cross-showroom order references are accepted when lifecycle/value
+  rules pass; normalized ERP `Cửa hàng bán` code and `Cấn trừ trên OpsHub`
+  creation channel survive create/resubmit/review history and list/detail/CSV
+  mapping; channel/platform/terminal/payment fields never substitute for a
+  missing ERP selling-store code.
+- Flutter: existing selection/export semantics across pages, batch dialog and
+  loading guard, success refresh/clear, failure retention, max-100 message, and
+  permission visibility without regressing individual tracking or the order
+  editor. Selection cannot mutate in flight, and disposal after batch success
+  but before refresh completion must not notify a dead provider.
+- Concurrency: a single Offset complete/reject request that read an older
+  `PENDING_ACC` snapshot must fail after a batch commits first, leaving the
+  approved row, one completion history, and one realtime event. A stale
+  statement re-follow must also fail after an all-no-op unfollow batch advances
+  the row token, while status remains `UNFOLLOWED` and audit/BigQuery revision/
+  outbox counts remain unchanged.
+- Protected consumers: statement filter/export/order editor/single tracking,
+  Payment Monitor, Home projection and fallback, XLSX, BigQuery mapper/storage,
+  and Go realtime isolation.
+- Environment proof before release: Android, Windows, and web smoke with real
+  scoped accounts, including two-client concurrency and latency/error-log
+  observation.
+
 ## Evidence
+
+- 2026-07-30 OPS-41 remediation proof: batch Offset/statement transactions lock
+  rows in canonical ID order, recheck scoped snapshots after locking, map stale,
+  serialization, and deadlock failures to Vietnamese reload guidance, and keep
+  no-op rows audit-free. Single complete/reject uses the same optimistic pending
+  snapshot and cannot overwrite a completed batch. `Cửa hàng bán` now carries
+  only the normalized ERP store code, with a neutral missing-code label and no
+  channel/platform/terminal/payment fallback. Focused Offset/Sales Report Nest
+  passed `62/62`; Flutter repository passed `6/6`; Offset workspace passed
+  `4/4`. The disposable PostgreSQL verifier deployed the real Prisma migrations
+  and passed against the production table/trigger schema with independent
+  clients for two stale Offset single/batch races, one statement no-op-batch/
+  stale-re-follow race, two all-or-nothing rollback cases, and exact history/
+  audit/revision/outbox counts. Prisma validate, Nest build and `91/91` suites
+  (`1,029` tests), Flutter analyze and full Flutter `671` passed / `3` skipped,
+  Go `64` tests, and `git diff --check` passed on the frozen local candidate.
+  Independent code review found no remaining severity finding. Staging
+  Android/Windows/web, live ERP, and latency/error observation remain release
+  gates.
 
 - 2026-07-28 OPS-36 local proof: the order editor is consolidated on the
   existing Sao kê/Tiền vào UI; backend mutations verify every old/new lifecycle

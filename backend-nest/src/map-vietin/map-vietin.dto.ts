@@ -2,6 +2,8 @@ import { Type } from 'class-transformer';
 import {
   IsArray,
   ArrayMaxSize,
+  ArrayMinSize,
+  ArrayUnique,
   IsIn,
   IsInt,
   IsOptional,
@@ -253,6 +255,20 @@ export class UpdateMapVietinStatementIncomeTypeDto {
 export class UpdateMapVietinStatementOrderTrackingDto {
   @IsString()
   @IsIn(['FOLLOWING', 'UNFOLLOWED'])
+  status!: string;
+}
+
+export class BatchUpdateMapVietinStatementOrderTrackingDto {
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(100)
+  @ArrayUnique()
+  @IsString({ each: true })
+  @MaxLength(80, { each: true })
+  transactionIds!: string[];
+
+  @IsString()
+  @IsIn(['UNFOLLOWED'])
   status!: string;
 }
 

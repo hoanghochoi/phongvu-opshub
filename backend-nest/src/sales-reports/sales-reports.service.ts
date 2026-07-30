@@ -1882,7 +1882,9 @@ export class SalesReportsService implements OnApplicationBootstrap {
     }
     let reportOwnerContext = context;
     if (entrySource === 'COMEBACK' && !existingSyncListReportId) {
-      const creatorEmail = this.normalizeEmail(erpOrder?.creatorEmail);
+      const creatorEmail =
+        this.normalizeEmail(erpOrder?.creatorEmail) ??
+        this.normalizeEmail(erpOrder?.erpConsultantEmail);
       if (!creatorEmail) {
         throw new BadRequestException(
           'Đơn hàng chưa có email nhân viên bán hàng trên ERP. Vui lòng kiểm tra lại dữ liệu đơn hàng.',
@@ -2696,7 +2698,7 @@ export class SalesReportsService implements OnApplicationBootstrap {
       platformId: erpOrder.erpPlatformId,
       consultantCustomId: erpOrder.erpConsultantCustomId,
       consultantName: erpOrder.erpConsultantName,
-      consultantEmail: null,
+      consultantEmail: erpOrder.erpConsultantEmail ?? null,
       sellerId: null,
       sellerName: null,
       sellerEmail: null,

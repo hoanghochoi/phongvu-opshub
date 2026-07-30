@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import '../../../core/constants/api_constants.dart';
 import '../../../core/network/api_client.dart';
+import '../../../core/network/api_exception.dart';
 import '../../auth/domain/entities/store_branch.dart';
 import '../domain/bank_statement_transaction.dart';
 
@@ -43,6 +44,18 @@ class BankStatementOrderTransferReviewResult {
   const BankStatementOrderTransferReviewResult({
     required this.request,
     required this.transaction,
+  });
+}
+
+class BankStatementBatchTrackingResult {
+  final int processedCount;
+  final int changedCount;
+  final int unchangedCount;
+
+  const BankStatementBatchTrackingResult({
+    required this.processedCount,
+    required this.changedCount,
+    required this.unchangedCount,
   });
 }
 
@@ -200,6 +213,43 @@ class BankStatementRepository {
     );
     return BankStatementTransaction.fromJson(
       jsonDecode(response.body) as Map<String, dynamic>,
+    );
+  }
+
+  Future<BankStatementBatchTrackingResult> batchUnfollow(
+    List<String> transactionIds,
+  ) async {
+    final response = await _apiClient.patch(
+      ApiConstants.adminMapVietinStatementOrderTrackingBatchEndpoint,
+      body: {'transactionIds': transactionIds, 'status': 'UNFOLLOWED'},
+    );
+    final decoded = jsonDecode(response.body);
+    if (decoded is! Map<String, dynamic>) {
+      throw ApiException(
+        'Phản hồi bỏ theo dõi hàng loạt không hợp lệ. Vui lòng thử lại.',
+      );
+    }
+    int? count(String key) {
+      final value = decoded[key];
+      return value is int && value >= 0 ? value : null;
+    }
+
+    final processedCount = count('processedCount');
+    final changedCount = count('changedCount');
+    final unchangedCount = count('unchangedCount');
+    if (processedCount == null ||
+        changedCount == null ||
+        unchangedCount == null ||
+        processedCount != transactionIds.length ||
+        changedCount + unchangedCount != processedCount) {
+      throw ApiException(
+        'Phản hồi bỏ theo dõi hàng loạt không hợp lệ. Vui lòng thử lại.',
+      );
+    }
+    return BankStatementBatchTrackingResult(
+      processedCount: processedCount,
+      changedCount: changedCount,
+      unchangedCount: unchangedCount,
     );
   }
 

@@ -37,13 +37,17 @@ import {
   readBoundedHttpResponse,
 } from '../common/bounded-http-response';
 import { buildRealtimeRedisEnvelope } from '../common/realtime-event';
-import { withPostgresDeadlockRetry } from '../common/postgres-deadlock-retry';
+import {
+  isPostgresDeadlock,
+  withPostgresDeadlockRetry,
+} from '../common/postgres-deadlock-retry';
 import {
   SalesReportErpService,
   type SalesReportErpLifecycleStatus,
 } from '../sales-reports/sales-report-erp.service';
 import * as XLSX from 'xlsx';
 import {
+  BatchUpdateMapVietinStatementOrderTrackingDto,
   CreateMapVietinStatementOrderTransferRequestDto,
   ExportMapVietinStatementsDto,
   ListMapVietinStatementOrderTransferRequestsDto,
@@ -838,6 +842,197 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
     });
   }
 
+  async batchUpdateStatementOrderTracking(
+    user: any,
+    input: BatchUpdateMapVietinStatementOrderTrackingDto,
+  ) {
+    const startedAt = Date.now();
+    await this.assertCanUseStatements(user);
+    if (!(await this.canManageStatementOrderTracking(user))) {
+      throw new ForbiddenException(
+        'Bạn không có quyền bỏ theo dõi các giao dịch đã chọn.',
+      );
+    }
+    const requestedIds = Array.isArray(input.transactionIds)
+      ? input.transactionIds
+      : [];
+    const transactionIds = this.normalizeTransactionIds(requestedIds).sort();
+    if (
+      transactionIds.length < 1 ||
+      transactionIds.length > 100 ||
+      transactionIds.length !== requestedIds.length
+    ) {
+      throw new BadRequestException(
+        'Chỉ được chọn từ 1 đến 100 giao dịch khác nhau mỗi lần.',
+      );
+    }
+    const nextStatus = String(input.status || '')
+      .trim()
+      .toUpperCase();
+    if (nextStatus !== ORDER_TRACKING_STATUS_UNFOLLOWED) {
+      throw new BadRequestException(
+        'Thao tác hàng loạt chỉ hỗ trợ Bỏ theo dõi.',
+      );
+    }
+    this.logger.log(
+      `Statement tracking batch update started: user=${this.safeUserLabel(user)} count=${transactionIds.length} nextStatus=${nextStatus}`,
+    );
+
+    try {
+      const actionScope = await this.resolveStatementActionScope(user);
+      const scopeWhere = this.statementActionScopeWhere(actionScope);
+      const existingRows = await this.prisma.mapVietinTransaction.findMany({
+        where: this.andWhere({ id: { in: transactionIds } }, scopeWhere),
+      });
+      if (existingRows.length !== transactionIds.length) {
+        throw new BadRequestException(
+          'Một số giao dịch không còn khả dụng. Vui lòng tải lại và chọn lại.',
+        );
+      }
+      const pending =
+        await this.prisma.mapVietinStatementOrderTransferRequest.findMany({
+          where: {
+            transactionId: { in: transactionIds },
+            status: STATEMENT_ORDER_TRANSFER_REQUEST_STATUS_PENDING,
+          },
+          select: { transactionId: true },
+        });
+      if (pending.length > 0) {
+        throw new BadRequestException(
+          `${pending.length} giao dịch đang chờ Kế toán xác nhận. Vui lòng xử lý yêu cầu cũ trước.`,
+        );
+      }
+
+      const snapshots = new Map(
+        existingRows.map((row) => [
+          row.id,
+          {
+            updatedAt: row.updatedAt,
+            oldStatus: this.storedOrderTrackingStatus(row),
+            storeCode: row.storeCode,
+          },
+        ]),
+      );
+      const now = new Date();
+      const userEmail = this.safeUserEmail(user);
+      const result = await this.runStatementOptimisticTransaction(() =>
+        this.prisma.$transaction(async (tx) => {
+          await tx.$queryRaw(Prisma.sql`
+            SELECT "id"
+            FROM "MapVietinTransaction"
+            WHERE "id" IN (${Prisma.join(transactionIds)})
+            ORDER BY "id"
+            FOR UPDATE
+          `);
+          const [currentRows, currentPending] = await Promise.all([
+            tx.mapVietinTransaction.findMany({
+              where: this.andWhere({ id: { in: transactionIds } }, scopeWhere),
+            }),
+            tx.mapVietinStatementOrderTransferRequest.findMany({
+              where: {
+                transactionId: { in: transactionIds },
+                status: STATEMENT_ORDER_TRANSFER_REQUEST_STATUS_PENDING,
+              },
+              select: { transactionId: true },
+            }),
+          ]);
+          if (
+            currentRows.length !== transactionIds.length ||
+            currentPending.length > 0 ||
+            currentRows.some((row) => {
+              const snapshot = snapshots.get(row.id);
+              return (
+                !snapshot ||
+                !this.sameInstant(row.updatedAt, snapshot.updatedAt) ||
+                this.storedOrderTrackingStatus(row) !== snapshot.oldStatus
+              );
+            })
+          ) {
+            throw new BadRequestException(
+              'Dữ liệu giao dịch vừa thay đổi. Vui lòng tải lại và thử lại.',
+            );
+          }
+
+          const unchangedIds = transactionIds.filter(
+            (id) =>
+              snapshots.get(id)?.oldStatus === ORDER_TRACKING_STATUS_UNFOLLOWED,
+          );
+          if (unchangedIds.length > 0) {
+            const noOpConcurrencyTokenAt = new Date(
+              unchangedIds.reduce(
+                (latest, id) =>
+                  Math.max(
+                    latest,
+                    (snapshots.get(id)?.updatedAt.getTime() ?? 0) + 1,
+                  ),
+                now.getTime(),
+              ),
+            );
+            const tokenBump = await tx.mapVietinTransaction.updateMany({
+              where: {
+                id: { in: unchangedIds },
+                orderTrackingStatus: ORDER_TRACKING_STATUS_UNFOLLOWED,
+              },
+              data: { updatedAt: noOpConcurrencyTokenAt },
+            });
+            if (tokenBump.count !== unchangedIds.length) {
+              throw new BadRequestException(
+                'Dữ liệu giao dịch vừa thay đổi. Vui lòng tải lại và thử lại.',
+              );
+            }
+          }
+
+          let changedCount = 0;
+          for (const id of transactionIds) {
+            const snapshot = snapshots.get(id)!;
+            if (snapshot.oldStatus === ORDER_TRACKING_STATUS_UNFOLLOWED) {
+              continue;
+            }
+            await tx.mapVietinTransaction.update({
+              where: {
+                id,
+                updatedAt: snapshot.updatedAt,
+                orderTrackingStatus: snapshot.oldStatus,
+              },
+              data: {
+                orderTrackingStatus: nextStatus,
+                orderTrackingUpdatedAt: now,
+                orderTrackingUpdatedByUserId: user.id || null,
+                orderTrackingUpdatedByEmail: userEmail,
+              },
+            });
+            await tx.mapVietinTransactionOrderTrackingAudit.create({
+              data: {
+                transactionId: id,
+                storeCode: snapshot.storeCode,
+                oldStatus: snapshot.oldStatus,
+                newStatus: nextStatus,
+                changedByUserId: user.id || null,
+                changedByEmail: userEmail,
+                source: ORDER_SOURCE_MANUAL,
+              },
+            });
+            changedCount += 1;
+          }
+          return {
+            processedCount: transactionIds.length,
+            changedCount,
+            unchangedCount: transactionIds.length - changedCount,
+          };
+        }),
+      );
+      this.logger.log(
+        `Statement tracking batch update succeeded: user=${this.safeUserLabel(user)} count=${result.processedCount} changed=${result.changedCount} unchanged=${result.unchangedCount} durationMs=${Date.now() - startedAt}`,
+      );
+      return result;
+    } catch (error) {
+      this.logger.warn(
+        `Statement tracking batch update failed: user=${this.safeUserLabel(user)} count=${transactionIds.length} durationMs=${Date.now() - startedAt} error=${this.safeError(error)}`,
+      );
+      throw error;
+    }
+  }
+
   async createStatementOrderTransferRequest(
     user: any,
     transactionId: string,
@@ -1216,7 +1411,8 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
     try {
       return await operation();
     } catch (error) {
-      if ((error as { code?: string } | null)?.code === 'P2025') {
+      const code = (error as { code?: string } | null)?.code;
+      if (code === 'P2025' || code === 'P2034' || isPostgresDeadlock(error)) {
         throw new BadRequestException(
           'Dữ liệu giao dịch vừa thay đổi. Vui lòng tải lại và thử lại.',
         );
@@ -2567,6 +2763,20 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
       includeUnassigned:
         await this.canReadUnassignedStatementTransactions(user),
     };
+  }
+
+  private statementActionScopeWhere(scope: {
+    allStores: boolean;
+    storeCodes: string[];
+    includeUnassigned: boolean;
+  }): Prisma.MapVietinTransactionWhereInput {
+    if (scope.allStores) return {};
+    const storeWhere: Prisma.MapVietinTransactionWhereInput = {
+      storeCode: { in: scope.storeCodes },
+    };
+    return scope.includeUnassigned
+      ? { OR: [storeWhere, { storeCode: null }] }
+      : storeWhere;
   }
 
   private async resolveUserStore(user: any) {

@@ -53,6 +53,8 @@ class OffsetAdjustment {
   final String type;
   final String status;
   final String storeCode;
+  final List<OffsetSellingStore> sellingStores;
+  final String creationChannel;
   final String? oldOrderCode;
   final String? newOrderCode;
   final String? orderCode;
@@ -77,6 +79,8 @@ class OffsetAdjustment {
     required this.type,
     required this.status,
     required this.storeCode,
+    required this.sellingStores,
+    required this.creationChannel,
     required this.oldOrderCode,
     required this.newOrderCode,
     required this.orderCode,
@@ -103,6 +107,8 @@ class OffsetAdjustment {
       type: json['type']?.toString() ?? '',
       status: json['status']?.toString() ?? '',
       storeCode: json['storeCode']?.toString() ?? '',
+      sellingStores: _sellingStores(json['sellingStores']),
+      creationChannel: _text(json['creationChannel']) ?? 'Cấn trừ trên OpsHub',
       oldOrderCode: _text(json['oldOrderCode']),
       newOrderCode: _text(json['newOrderCode']),
       orderCode: _text(json['orderCode']),
@@ -127,6 +133,21 @@ class OffsetAdjustment {
   }
 
   bool get isSingleOrder => type == OffsetAdjustmentType.singleOrder;
+
+  bool get canBatchComplete =>
+      status == OffsetAdjustmentStatus.pending &&
+      type != OffsetAdjustmentType.vnpayQroff;
+
+  String? get batchCompleteBlockedReason {
+    if (type == OffsetAdjustmentType.vnpayQroff &&
+        status == OffsetAdjustmentStatus.pending) {
+      return 'Cần nhập Mã CT và xác nhận riêng.';
+    }
+    if (status != OffsetAdjustmentStatus.pending) {
+      return 'Hồ sơ đã được xử lý hoặc đang chờ sửa.';
+    }
+    return null;
+  }
 
   String get primaryOrderLabel {
     if (isSingleOrder) {
@@ -156,6 +177,29 @@ class OffsetAdjustment {
     if (text == null || text.isEmpty) return null;
     return DateTime.tryParse(text);
   }
+
+  static List<OffsetSellingStore> _sellingStores(Object? value) {
+    if (value is! List) return const [];
+    return value
+        .whereType<Map>()
+        .map(
+          (entry) => OffsetSellingStore(
+            orderCode: _text(entry['orderCode']) ?? '',
+            storeCode: _text(entry['storeCode']) ?? '',
+          ),
+        )
+        .where(
+          (entry) => entry.orderCode.isNotEmpty && entry.storeCode.isNotEmpty,
+        )
+        .toList(growable: false);
+  }
+}
+
+class OffsetSellingStore {
+  final String orderCode;
+  final String storeCode;
+
+  const OffsetSellingStore({required this.orderCode, required this.storeCode});
 }
 
 class OffsetAdjustmentInput {

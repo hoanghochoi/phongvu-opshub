@@ -5,6 +5,7 @@ describe('OffsetAdjustmentsService', () => {
   let prisma: any;
   let redis: { publishMessage: jest.Mock };
   let notificationsService: { readAtByNotificationId: jest.Mock };
+  let salesReportErpService: { lookupOrderStatus: jest.Mock };
   let service: OffsetAdjustmentsService;
 
   const srUser = {
@@ -24,6 +25,10 @@ describe('OffsetAdjustmentsService', () => {
 
   beforeEach(() => {
     prisma = {
+      $transaction: jest.fn(async (callback: (tx: any) => unknown) =>
+        callback(prisma),
+      ),
+      $queryRaw: jest.fn().mockResolvedValue([]),
       store: {
         findUnique: jest.fn().mockResolvedValue({
           id: 'store-uuid-cp01',
@@ -48,10 +53,19 @@ describe('OffsetAdjustmentsService', () => {
     notificationsService = {
       readAtByNotificationId: jest.fn().mockResolvedValue(new Map()),
     };
+    salesReportErpService = {
+      lookupOrderStatus: jest.fn(async (orderCode: string) => ({
+        orderCode,
+        lifecycleStatus: orderCode.endsWith('01') ? 'CANCELLED' : 'COMPLETED',
+        lifecycleVerified: true,
+        grandTotal: 2000000,
+      })),
+    };
     service = new OffsetAdjustmentsService(
       prisma as any,
       redis as any,
       notificationsService as any,
+      salesReportErpService as any,
     );
     jest
       .spyOn(Date, 'now')
@@ -80,6 +94,7 @@ describe('OffsetAdjustmentsService', () => {
     });
 
     expect(result.id).toBe('offset-1');
+    expect(salesReportErpService.lookupOrderStatus).toHaveBeenCalledTimes(2);
     expect(prisma.offsetAdjustment.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
@@ -117,6 +132,358 @@ describe('OffsetAdjustmentsService', () => {
     );
   });
 
+  it('keeps ERP selling store separate from the Offset showroom and creation channel', async () => {
+    salesReportErpService.lookupOrderStatus
+      .mockResolvedValueOnce({
+        lifecycleStatus: 'CANCELLED',
+        lifecycleVerified: true,
+        grandTotal: 1500000,
+        storeCode: 'CP99',
+      })
+      .mockResolvedValueOnce({
+        lifecycleStatus: 'COMPLETED',
+        lifecycleVerified: true,
+        grandTotal: 1500000,
+        storeCode: 'CP88',
+      });
+    prisma.offsetAdjustment.create.mockResolvedValue(
+      offsetRow({
+        type: 'SINGLE_ORDER',
+        oldOrderCode: '26062500000001',
+        newOrderCode: '26062500000002',
+      }),
+    );
+
+    const result = await service.create(srUser, {
+      type: 'SINGLE_ORDER',
+      oldOrderCode: '26062500000001',
+      newOrderCode: '26062500000002',
+      amount: 1500000,
+    });
+
+    expect(salesReportErpService.lookupOrderStatus).toHaveBeenNthCalledWith(
+      1,
+      '26062500000001',
+      null,
+    );
+    expect(salesReportErpService.lookupOrderStatus).toHaveBeenNthCalledWith(
+      2,
+      '26062500000002',
+      null,
+    );
+    expect(result).toMatchObject({
+      storeCode: 'CP01',
+      creationChannel: 'Cấn trừ trên OpsHub',
+      sellingStores: [
+        { orderCode: '26062500000001', storeCode: 'CP99' },
+        { orderCode: '26062500000002', storeCode: 'CP88' },
+      ],
+    });
+    expect(prisma.offsetAdjustmentHistory.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          snapshot: expect.objectContaining({
+            erpMetadata: {
+              creationChannel: 'Cấn trừ trên OpsHub',
+              sellingStores: [
+                { orderCode: '26062500000001', storeCode: 'CP99' },
+                { orderCode: '26062500000002', storeCode: 'CP88' },
+              ],
+            },
+          }),
+        }),
+      }),
+    );
+  });
+
+  it('keeps a missing ERP selling store neutral without channel or payment fallbacks', async () => {
+    salesReportErpService.lookupOrderStatus.mockResolvedValue({
+      lifecycleStatus: 'COMPLETED',
+      lifecycleVerified: true,
+      grandTotal: 250000,
+      storeCode: null,
+      paymentMethods: ['VNPAY', 'cash'],
+    });
+    prisma.offsetAdjustment.findFirst.mockResolvedValue(null);
+    prisma.offsetAdjustment.create.mockResolvedValue(
+      offsetRow({ type: 'ZALOPAY', amount: 200000 }),
+    );
+
+    const result = await service.create(srUser, {
+      type: 'ZALOPAY',
+      orderCode: '26062500000003',
+      scanDate: '2026-06-25',
+      editContentKind: 'CUSTOMER_OFFSET',
+      transactionCode: 'TXN-ZALOPAY',
+      amount: 200000,
+    });
+
+    expect(result.sellingStores).toEqual([
+      {
+        orderCode: '26062500000003',
+        storeCode: 'ERP (chưa có mã cửa hàng bán)',
+      },
+    ]);
+    expect(JSON.stringify(result.sellingStores)).not.toContain('VNPAY');
+    expect(JSON.stringify(result.sellingStores)).not.toContain('Tiền mặt');
+  });
+
+  it.each(['PENDING', 'COMPLETED', 'RETURNED_FULL'])(
+    'blocks a single-order offset when the old order lifecycle is %s',
+    async (lifecycleStatus) => {
+      salesReportErpService.lookupOrderStatus
+        .mockResolvedValueOnce({
+          lifecycleStatus,
+          lifecycleVerified: true,
+          grandTotal: 1500000,
+        })
+        .mockResolvedValueOnce({
+          lifecycleStatus: 'COMPLETED',
+          lifecycleVerified: true,
+          grandTotal: 1500000,
+        });
+
+      await expect(
+        service.create(srUser, {
+          type: 'SINGLE_ORDER',
+          oldOrderCode: '26062500000001',
+          newOrderCode: '26062500000002',
+          amount: 1500000,
+        }),
+      ).rejects.toThrow('Đã hủy hoặc Hoàn một phần');
+      expect(prisma.offsetAdjustment.create).not.toHaveBeenCalled();
+      expect(prisma.offsetAdjustmentHistory.create).not.toHaveBeenCalled();
+      expect(redis.publishMessage).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(['CANCELLED', 'RETURNED_FULL'])(
+    'blocks a single-order offset when the new order lifecycle is %s',
+    async (lifecycleStatus) => {
+      salesReportErpService.lookupOrderStatus
+        .mockResolvedValueOnce({
+          lifecycleStatus: 'COMPLETED_PARTIAL_RETURN',
+          lifecycleVerified: true,
+          grandTotal: 1500000,
+        })
+        .mockResolvedValueOnce({
+          lifecycleStatus,
+          lifecycleVerified: true,
+          grandTotal: 1500000,
+        });
+
+      await expect(
+        service.create(srUser, {
+          type: 'SINGLE_ORDER',
+          oldOrderCode: '26062500000001',
+          newOrderCode: '26062500000002',
+          amount: 1500000,
+        }),
+      ).rejects.toThrow('đã hủy hoặc hoàn toàn phần');
+      expect(prisma.offsetAdjustment.create).not.toHaveBeenCalled();
+    },
+  );
+
+  it('accepts an amount equal to the new order total', async () => {
+    salesReportErpService.lookupOrderStatus
+      .mockResolvedValueOnce({
+        lifecycleStatus: 'CANCELLED',
+        lifecycleVerified: true,
+        grandTotal: 500000,
+      })
+      .mockResolvedValueOnce({
+        lifecycleStatus: 'PENDING',
+        lifecycleVerified: true,
+        grandTotal: 1500000,
+      });
+    prisma.offsetAdjustment.create.mockResolvedValue(
+      offsetRow({
+        type: 'SINGLE_ORDER',
+        oldOrderCode: '26062500000001',
+        newOrderCode: '26062500000002',
+        amount: 1500000,
+      }),
+    );
+
+    await expect(
+      service.create(srUser, {
+        type: 'SINGLE_ORDER',
+        oldOrderCode: '26062500000001',
+        newOrderCode: '26062500000002',
+        amount: 1500000,
+      }),
+    ).resolves.toMatchObject({ amount: 1500000 });
+  });
+
+  it('blocks an amount above the order total without writing', async () => {
+    salesReportErpService.lookupOrderStatus
+      .mockResolvedValueOnce({
+        lifecycleStatus: 'CANCELLED',
+        lifecycleVerified: true,
+        grandTotal: 500000,
+      })
+      .mockResolvedValueOnce({
+        lifecycleStatus: 'COMPLETED',
+        lifecycleVerified: true,
+        grandTotal: 1499999,
+      });
+
+    await expect(
+      service.create(srUser, {
+        type: 'SINGLE_ORDER',
+        oldOrderCode: '26062500000001',
+        newOrderCode: '26062500000002',
+        amount: 1500000,
+      }),
+    ).rejects.toThrow('không được vượt quá giá trị đơn hàng mới');
+    expect(prisma.offsetAdjustment.create).not.toHaveBeenCalled();
+    expect(prisma.offsetAdjustmentHistory.create).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['old', 0, 'Không tìm thấy đơn hàng cũ'],
+    ['new', 1, 'Không tìm thấy đơn hàng mới'],
+  ])(
+    'returns a clear error when the %s order does not exist',
+    async (_phase, rejectedCall, message) => {
+      if (rejectedCall === 0) {
+        salesReportErpService.lookupOrderStatus
+          .mockRejectedValueOnce(new BadRequestException('not found'))
+          .mockResolvedValueOnce({
+            lifecycleStatus: 'COMPLETED',
+            lifecycleVerified: true,
+            grandTotal: 1500000,
+          });
+      } else {
+        salesReportErpService.lookupOrderStatus
+          .mockResolvedValueOnce({
+            lifecycleStatus: 'CANCELLED',
+            lifecycleVerified: true,
+            grandTotal: 1500000,
+          })
+          .mockRejectedValueOnce(new BadRequestException('not found'));
+      }
+
+      await expect(
+        service.create(srUser, {
+          type: 'SINGLE_ORDER',
+          oldOrderCode: '26062500000001',
+          newOrderCode: '26062500000002',
+          amount: 100000,
+        }),
+      ).rejects.toThrow(message);
+      expect(prisma.offsetAdjustment.create).not.toHaveBeenCalled();
+      expect(prisma.offsetAdjustmentHistory.create).not.toHaveBeenCalled();
+      expect(redis.publishMessage).not.toHaveBeenCalled();
+    },
+  );
+
+  it('fails closed when the ERP lookup times out', async () => {
+    salesReportErpService.lookupOrderStatus.mockRejectedValue(
+      new Error('timeout'),
+    );
+
+    await expect(
+      service.create(srUser, {
+        type: 'SINGLE_ORDER',
+        oldOrderCode: '26062500000001',
+        newOrderCode: '26062500000002',
+        amount: 100000,
+      }),
+    ).rejects.toThrow('Chưa thể kiểm tra đơn hàng trên hệ thống bán hàng');
+    expect(prisma.offsetAdjustment.create).not.toHaveBeenCalled();
+    expect(prisma.offsetAdjustmentHistory.create).not.toHaveBeenCalled();
+    expect(redis.publishMessage).not.toHaveBeenCalled();
+  });
+
+  it.each(['VNPAY_QROFF', 'ZALOPAY', 'SHOPEEPAY'])(
+    'accepts verified %s orders without restricting their lifecycle',
+    async (type) => {
+      salesReportErpService.lookupOrderStatus.mockResolvedValue({
+        lifecycleStatus: 'RETURNED_FULL',
+        lifecycleVerified: true,
+        grandTotal: 250000,
+      });
+      prisma.offsetAdjustment.findFirst.mockResolvedValue(null);
+      prisma.offsetAdjustment.create.mockResolvedValue(
+        offsetRow({ type, amount: 200000 }),
+      );
+
+      await expect(
+        service.create(srUser, {
+          type,
+          orderCode: '26062500000003',
+          scanDate: '2026-06-25',
+          editContentKind: 'CUSTOMER_OFFSET',
+          transactionCode: `TXN-${type}`,
+          amount: 200000,
+        }),
+      ).resolves.toMatchObject({ type, amount: 200000 });
+    },
+  );
+
+  it('fails closed when ERP does not return an order total', async () => {
+    salesReportErpService.lookupOrderStatus.mockResolvedValue({
+      lifecycleStatus: 'COMPLETED',
+      lifecycleVerified: true,
+      grandTotal: null,
+    });
+    prisma.offsetAdjustment.findFirst.mockResolvedValue(null);
+
+    await expect(
+      service.create(srUser, {
+        type: 'SHOPEEPAY',
+        orderCode: '26062500000003',
+        scanDate: '2026-06-25',
+        editContentKind: 'CUSTOMER_OFFSET',
+        transactionCode: 'TXN-NEW',
+        amount: 250000,
+      }),
+    ).rejects.toThrow('Chưa lấy được giá trị đơn hàng');
+    expect(prisma.offsetAdjustment.create).not.toHaveBeenCalled();
+  });
+
+  it('fails closed when ERP has not verified a wallet order lifecycle', async () => {
+    salesReportErpService.lookupOrderStatus.mockResolvedValue({
+      lifecycleStatus: 'PENDING',
+      lifecycleVerified: false,
+      grandTotal: 250000,
+    });
+    prisma.offsetAdjustment.findFirst.mockResolvedValue(null);
+
+    await expect(
+      service.create(srUser, {
+        type: 'VNPAY_QROFF',
+        orderCode: '26062500000003',
+        scanDate: '2026-06-25',
+        editContentKind: 'CUSTOMER_OFFSET',
+        transactionCode: 'TXN-NEW',
+        amount: 250000,
+      }),
+    ).rejects.toThrow('Chưa xác minh được trạng thái đơn hàng');
+    expect(prisma.offsetAdjustment.create).not.toHaveBeenCalled();
+    expect(prisma.offsetAdjustmentHistory.create).not.toHaveBeenCalled();
+    expect(redis.publishMessage).not.toHaveBeenCalled();
+  });
+
+  it('keeps a committed create successful when realtime publication fails', async () => {
+    const row = offsetRow({ amount: 250000 });
+    prisma.offsetAdjustment.findFirst.mockResolvedValue(null);
+    prisma.offsetAdjustment.create.mockResolvedValue(row);
+    redis.publishMessage.mockRejectedValue(new Error('redis unavailable'));
+
+    await expect(
+      service.create(srUser, {
+        type: 'ZALOPAY',
+        orderCode: '26062500000003',
+        scanDate: '2026-06-25',
+        editContentKind: 'CUSTOMER_OFFSET',
+        transactionCode: 'TXN-NEW',
+        amount: 250000,
+      }),
+    ).resolves.toMatchObject({ id: row.id });
+  });
+
   it('rejects a single-order offset when old and new orders match', async () => {
     await expect(
       service.create(srUser, {
@@ -152,6 +519,7 @@ describe('OffsetAdjustmentsService', () => {
     expect(prisma.offsetAdjustment.findFirst).toHaveBeenCalledWith({
       where: expect.objectContaining({ type: 'VNPAY_QROFF' }),
     });
+    expect(salesReportErpService.lookupOrderStatus).not.toHaveBeenCalled();
   });
 
   it('requires CT code when ACC completes VNPAY QROFF', async () => {
@@ -218,6 +586,197 @@ describe('OffsetAdjustmentsService', () => {
         }),
       }),
     );
+  });
+
+  it('does not update a rejected row when ERP validation fails on resubmit', async () => {
+    prisma.offsetAdjustment.findFirst
+      .mockResolvedValueOnce(
+        offsetRow({ id: 'offset-1', status: 'REJECTED_NEEDS_FIX' }),
+      )
+      .mockResolvedValueOnce(null);
+    salesReportErpService.lookupOrderStatus.mockRejectedValue(
+      new Error('erp unavailable'),
+    );
+
+    await expect(
+      service.resubmit(srUser, 'offset-1', { amount: 250000 }),
+    ).rejects.toThrow('Chưa thể kiểm tra đơn hàng trên hệ thống bán hàng');
+    expect(prisma.offsetAdjustment.update).not.toHaveBeenCalled();
+    expect(prisma.offsetAdjustmentHistory.create).not.toHaveBeenCalled();
+    expect(redis.publishMessage).not.toHaveBeenCalled();
+  });
+
+  it('rejects a resubmit when the row changes during the ERP wait', async () => {
+    prisma.offsetAdjustment.findFirst
+      .mockResolvedValueOnce(
+        offsetRow({ id: 'offset-1', status: 'REJECTED_NEEDS_FIX' }),
+      )
+      .mockResolvedValueOnce(null);
+    prisma.offsetAdjustment.update.mockRejectedValue({ code: 'P2025' });
+
+    await expect(
+      service.resubmit(srUser, 'offset-1', { amount: 250000 }),
+    ).rejects.toThrow('Dữ liệu hồ sơ vừa thay đổi');
+    expect(prisma.offsetAdjustmentHistory.create).not.toHaveBeenCalled();
+    expect(redis.publishMessage).not.toHaveBeenCalled();
+  });
+
+  it('atomically completes selected non-VNPAY offsets', async () => {
+    const rows = [
+      offsetRow({ id: 'offset-1', type: 'SINGLE_ORDER' }),
+      offsetRow({ id: 'offset-2', type: 'ZALOPAY' }),
+    ];
+    prisma.offsetAdjustment.findMany.mockResolvedValue(rows);
+    prisma.offsetAdjustment.update.mockImplementation(async ({ where }: any) =>
+      offsetRow({
+        id: where.id,
+        type: where.id === 'offset-1' ? 'SINGLE_ORDER' : 'ZALOPAY',
+        status: 'APPROVED',
+        reviewedByEmail: 'acc@phongvu.vn',
+      }),
+    );
+
+    await expect(
+      service.batchComplete(accUser, { ids: ['offset-2', 'offset-1'] }),
+    ).resolves.toEqual({ processedCount: 2 });
+    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+    expect(prisma.offsetAdjustment.update).toHaveBeenCalledTimes(2);
+    expect(prisma.offsetAdjustmentHistory.create).toHaveBeenCalledTimes(2);
+    expect(redis.publishMessage).toHaveBeenCalledTimes(2);
+    expect(prisma.$queryRaw.mock.calls[0][0].sql).toContain('ORDER BY "id"');
+    expect(prisma.offsetAdjustment.update.mock.calls[0][0].where.id).toBe(
+      'offset-1',
+    );
+    expect(prisma.offsetAdjustment.update.mock.calls[1][0].where.id).toBe(
+      'offset-2',
+    );
+  });
+
+  it.each(['complete', 'reject'])(
+    'prevents stale single %s from overwriting a completed batch',
+    async (action) => {
+      let state = offsetRow({ id: 'offset-1', type: 'ZALOPAY' });
+      let transactionCall = 0;
+      let releaseSingleTransaction!: () => void;
+      let markSingleTransactionStarted!: () => void;
+      const singleTransactionStarted = new Promise<void>((resolve) => {
+        markSingleTransactionStarted = resolve;
+      });
+      const singleTransactionRelease = new Promise<void>((resolve) => {
+        releaseSingleTransaction = resolve;
+      });
+
+      prisma.offsetAdjustment.findFirst.mockImplementation(async () => ({
+        ...state,
+      }));
+      prisma.offsetAdjustment.findMany.mockImplementation(async () => [
+        { ...state },
+      ]);
+      prisma.offsetAdjustment.update.mockImplementation(
+        async ({ where, data }: any) => {
+          if (
+            (where.status && where.status !== state.status) ||
+            (where.updatedAt &&
+              where.updatedAt.getTime() !== state.updatedAt.getTime())
+          ) {
+            throw { code: 'P2025' };
+          }
+          state = {
+            ...state,
+            ...data,
+            updatedAt: new Date('2026-06-25T03:01:00.000Z'),
+          };
+          return { ...state };
+        },
+      );
+      prisma.$transaction.mockImplementation(async (callback: any) => {
+        transactionCall += 1;
+        if (transactionCall === 1) {
+          markSingleTransactionStarted();
+          await singleTransactionRelease;
+        }
+        return callback(prisma);
+      });
+
+      const staleSingle =
+        action === 'complete'
+          ? service.complete(accUser, 'offset-1', {})
+          : service.reject(accUser, 'offset-1', { reason: 'Sai thông tin' });
+      await singleTransactionStarted;
+
+      await expect(
+        service.batchComplete(accUser, { ids: ['offset-1'] }),
+      ).resolves.toEqual({ processedCount: 1 });
+      releaseSingleTransaction();
+
+      await expect(staleSingle).rejects.toThrow('Dữ liệu hồ sơ vừa thay đổi');
+      expect(state.status).toBe('APPROVED');
+      expect(prisma.offsetAdjustmentHistory.create).toHaveBeenCalledTimes(1);
+      expect(redis.publishMessage).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it.each([
+    [['offset-1', 'offset-1'], 'khác nhau'],
+    [Array.from({ length: 101 }, (_, index) => `offset-${index}`), '1 đến 100'],
+  ])('rejects invalid batch id lists before lookup', async (ids, message) => {
+    await expect(service.batchComplete(accUser, { ids })).rejects.toThrow(
+      message,
+    );
+    expect(prisma.offsetAdjustment.findMany).not.toHaveBeenCalled();
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('rejects a batch containing a missing or out-of-scope offset', async () => {
+    prisma.offsetAdjustment.findMany.mockResolvedValue([
+      offsetRow({ id: 'offset-1', type: 'ZALOPAY' }),
+    ]);
+
+    await expect(
+      service.batchComplete(accUser, { ids: ['offset-1', 'offset-2'] }),
+    ).rejects.toThrow('không còn khả dụng trong phạm vi của bạn');
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+    expect(prisma.offsetAdjustment.update).not.toHaveBeenCalled();
+  });
+
+  it('rejects a mixed VNPAY batch before any write', async () => {
+    prisma.offsetAdjustment.findMany.mockResolvedValue([
+      offsetRow({ id: 'offset-1', type: 'ZALOPAY' }),
+      offsetRow({ id: 'offset-2', type: 'VNPAY_QROFF' }),
+    ]);
+
+    await expect(
+      service.batchComplete(accUser, { ids: ['offset-1', 'offset-2'] }),
+    ).rejects.toThrow('cần nhập Mã CT và xác nhận riêng');
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+    expect(prisma.offsetAdjustment.update).not.toHaveBeenCalled();
+  });
+
+  it('rolls back a batch when one selected offset changed', async () => {
+    prisma.offsetAdjustment.findMany.mockResolvedValue([
+      offsetRow({ id: 'offset-1', type: 'ZALOPAY' }),
+      offsetRow({ id: 'offset-2', type: 'SHOPEEPAY' }),
+    ]);
+    prisma.offsetAdjustment.update
+      .mockResolvedValueOnce(offsetRow({ id: 'offset-1', status: 'APPROVED' }))
+      .mockRejectedValueOnce({ code: 'P2025' });
+
+    await expect(
+      service.batchComplete(accUser, { ids: ['offset-1', 'offset-2'] }),
+    ).rejects.toThrow('Dữ liệu hồ sơ vừa thay đổi');
+    expect(redis.publishMessage).not.toHaveBeenCalled();
+  });
+
+  it('returns an actionable conflict when the batch transaction is aborted', async () => {
+    prisma.offsetAdjustment.findMany.mockResolvedValue([
+      offsetRow({ id: 'offset-1', type: 'ZALOPAY' }),
+    ]);
+    prisma.$transaction.mockRejectedValueOnce({ code: 'P2034' });
+
+    await expect(
+      service.batchComplete(accUser, { ids: ['offset-1'] }),
+    ).rejects.toThrow('Dữ liệu hồ sơ vừa thay đổi');
+    expect(redis.publishMessage).not.toHaveBeenCalled();
   });
 
   it('blocks non-reviewers from all-store list requests', async () => {
@@ -332,10 +891,45 @@ describe('OffsetAdjustmentsService', () => {
     );
     expect(csv.charCodeAt(0)).toBe(0xfeff);
     expect(csv).toContain('Cấn trừ đơn');
+    expect(csv).toContain('Cửa hàng bán');
     expect(csv).toContain('Chờ Kế toán xác nhận');
     expect(csv).toContain("'26062500000001");
     expect(csv).toContain("'=HYPERLINK");
     expect(csv).not.toContain(',=HYPERLINK');
+  });
+
+  it('returns persisted ERP selling stores and creation channel from the latest history snapshot', async () => {
+    prisma.offsetAdjustment.findMany.mockResolvedValue([
+      offsetRow({
+        history: [
+          {
+            snapshot: {
+              erpMetadata: {
+                creationChannel: 'Cấn trừ trên OpsHub',
+                sellingStores: [
+                  {
+                    orderCode: '26062500000003',
+                    storeCode: 'CP99',
+                  },
+                ],
+              },
+            },
+          },
+        ],
+      }),
+    ]);
+    prisma.offsetAdjustment.count.mockResolvedValue(1);
+
+    await expect(
+      service.list(srUser, { page: 0, limit: 20 }),
+    ).resolves.toMatchObject({
+      list: [
+        {
+          creationChannel: 'Cấn trừ trên OpsHub',
+          sellingStores: [{ orderCode: '26062500000003', storeCode: 'CP99' }],
+        },
+      ],
+    });
   });
 });
 

@@ -64,7 +64,6 @@ const defaultAuthenticatedRoutes = parseRoutes(
       '/admin/feedback',
       '/admin/help-content',
       '/admin/sales-reports',
-      '/fifo-menu',
       '/fifo-check',
       '/fifo-history',
       '/fifo/inventory-import',

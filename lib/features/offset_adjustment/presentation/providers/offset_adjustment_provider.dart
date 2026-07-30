@@ -14,6 +14,7 @@ import '../../domain/offset_adjustment.dart';
 
 const _offsetRealtimeEventType = 'OFFSET_ADJUSTMENT_NOTIFICATION';
 const _offsetRealtimeTopic = 'notifications.offset-adjustment';
+const int _maxBatchSelection = 100;
 
 class OffsetAdjustmentProvider extends ChangeNotifier {
   final OffsetAdjustmentRepository _repository;
@@ -24,6 +25,7 @@ class OffsetAdjustmentProvider extends ChangeNotifier {
   final List<OffsetAdjustment> _items = [];
   final List<OffsetAdjustment> _pendingItems = [];
   final List<StoreBranch> _stores = [];
+  final Set<String> _selectedIds = {};
   StreamSubscription<RealtimeEnvelope>? _realtimeSubscription;
   StreamSubscription<RealtimeSyncReason>? _realtimeSyncSubscription;
   Timer? _realtimeDebounceTimer;
@@ -96,10 +98,25 @@ class OffsetAdjustmentProvider extends ChangeNotifier {
   int get total => _total;
   int get pendingTotal => _pendingTotal;
   Set<String> get selectedStoreIds => Set.unmodifiable(_selectedStoreIds);
+  Set<String> get selectedIds => Set.unmodifiable(_selectedIds);
+  int get selectedCount => _selectedIds.length;
   String? get errorMessage => _errorMessage;
   String? get successMessage => _successMessage;
   bool get canGoPrevious => _page > 0;
   bool get canGoNext => (_page + 1) * _limit < _total;
+  bool get canBatchComplete =>
+      _canReview &&
+      _selectedIds.isNotEmpty &&
+      _selectedIds.length <= _maxBatchSelection &&
+      !_isSaving;
+  bool get allVisibleSelectableSelected {
+    final selectable = _items.where((item) => item.canBatchComplete).toList();
+    return selectable.isNotEmpty &&
+        selectable.every((item) => _selectedIds.contains(item.id));
+  }
+
+  bool canSelectForBatch(OffsetAdjustment item) =>
+      !_isSaving && _canReview && item.canBatchComplete;
 
   Future<void> initialize(User? user) async {
     _user = user;
@@ -113,8 +130,11 @@ class OffsetAdjustmentProvider extends ChangeNotifier {
       },
     );
     if (!_storesLoaded) await loadStores();
+    if (_disposed) return;
     await search();
+    if (_disposed) return;
     await loadPendingTotal();
+    if (_disposed) return;
     _isInitialized = true;
     if (_realtimeDirty) {
       _queueRealtimeRefresh(reason: 'provider_activated', immediate: true);
@@ -210,7 +230,7 @@ class OffsetAdjustmentProvider extends ChangeNotifier {
   void setLimit(int value) {
     if (_limit == value) return;
     _limit = value;
-    _page = 0;
+    _resetPaging();
     if (_hasSearched) {
       unawaited(search(page: 0));
     }
@@ -218,7 +238,7 @@ class OffsetAdjustmentProvider extends ChangeNotifier {
   }
 
   Future<void> search({int? page}) async {
-    if (_isLoading) return;
+    if (_disposed || _isLoading) return;
     _isLoading = true;
     _errorMessage = null;
     if (page != null) _page = page;
@@ -230,7 +250,9 @@ class OffsetAdjustmentProvider extends ChangeNotifier {
         'Offset adjustment search started',
         context: _logContext(),
       );
+      if (_disposed) return;
       final result = await _repository.fetchList(query);
+      if (_disposed) return;
       _items
         ..clear()
         ..addAll(result.items);
@@ -245,6 +267,7 @@ class OffsetAdjustmentProvider extends ChangeNotifier {
         context: {..._logContext(), 'count': _items.length, 'total': _total},
       );
     } catch (error) {
+      if (_disposed) return;
       _errorMessage = _messageFor(error, 'Chưa tải được danh sách cấn trừ.');
       await AppLogger.instance.error(
         'OffsetAdjustment',
@@ -253,8 +276,10 @@ class OffsetAdjustmentProvider extends ChangeNotifier {
         context: _logContext(),
       );
     } finally {
-      _isLoading = false;
-      notifyListeners();
+      if (!_disposed) {
+        _isLoading = false;
+        notifyListeners();
+      }
     }
   }
 
@@ -266,13 +291,55 @@ class OffsetAdjustmentProvider extends ChangeNotifier {
     if (canGoPrevious) await search(page: _page - 1);
   }
 
+  void toggleSelected(OffsetAdjustment item, bool selected) {
+    if (_disposed || _isSaving) return;
+    if (selected) {
+      if (!canSelectForBatch(item)) return;
+      if (_selectedIds.length >= _maxBatchSelection &&
+          !_selectedIds.contains(item.id)) {
+        _errorMessage =
+            'Chỉ được chọn tối đa $_maxBatchSelection hồ sơ mỗi lần.';
+        notifyListeners();
+        return;
+      }
+      _selectedIds.add(item.id);
+    } else {
+      _selectedIds.remove(item.id);
+    }
+    notifyListeners();
+  }
+
+  void toggleAllVisible(bool selected) {
+    if (_disposed || _isSaving) return;
+    final selectable = _items.where(canSelectForBatch);
+    if (selected) {
+      for (final item in selectable) {
+        if (_selectedIds.length >= _maxBatchSelection) break;
+        _selectedIds.add(item.id);
+      }
+    } else {
+      for (final item in selectable) {
+        _selectedIds.remove(item.id);
+      }
+    }
+    notifyListeners();
+  }
+
+  void clearSelection() {
+    if (_disposed || _isSaving || _selectedIds.isEmpty) return;
+    _selectedIds.clear();
+    notifyListeners();
+  }
+
   Future<void> loadPendingTotal() async {
-    if (!_canReview) return;
+    if (_disposed || !_canReview) return;
     try {
       final result = await _repository.fetchList(_pendingQuery(limit: 1));
+      if (_disposed) return;
       _pendingTotal = result.total;
       notifyListeners();
     } catch (error) {
+      if (_disposed) return;
       await AppLogger.instance.warn(
         'OffsetAdjustment',
         'Offset adjustment pending count failed',
@@ -382,11 +449,72 @@ class OffsetAdjustmentProvider extends ChangeNotifier {
     return _save('reject', () => _repository.reject(id, reason));
   }
 
+  Future<String?> batchCompleteSelected() async {
+    if (_disposed) return null;
+    if (!canBatchComplete) {
+      return _selectedIds.length > _maxBatchSelection
+          ? 'Chỉ được chọn tối đa $_maxBatchSelection hồ sơ mỗi lần.'
+          : 'Vui lòng chọn ít nhất một hồ sơ có thể xác nhận.';
+    }
+    final ids = _selectedIds.toList(growable: false);
+    final stopwatch = Stopwatch()..start();
+    _isSaving = true;
+    _errorMessage = null;
+    _successMessage = null;
+    notifyListeners();
+    try {
+      await AppLogger.instance.info(
+        'OffsetAdjustment',
+        'Offset adjustment batch complete started',
+        context: {..._logContext(), 'selectedCount': ids.length},
+      );
+      final processedCount = await _repository.batchComplete(ids);
+      if (_disposed) return null;
+      _selectedIds.clear();
+      _successMessage = 'Đã xác nhận $processedCount hồ sơ cấn trừ.';
+      await AppLogger.instance.info(
+        'OffsetAdjustment',
+        'Offset adjustment batch complete succeeded',
+        context: {
+          'selectedCount': ids.length,
+          'processedCount': processedCount,
+          'durationMs': stopwatch.elapsedMilliseconds,
+        },
+      );
+      if (_disposed) return null;
+      await loadPendingTotal();
+      if (_disposed) return null;
+      await search(page: _page);
+      return null;
+    } catch (error) {
+      final message = _messageFor(
+        error,
+        'Chưa xác nhận được các hồ sơ đã chọn. Vui lòng thử lại.',
+      );
+      if (!_disposed) _errorMessage = message;
+      await AppLogger.instance.error(
+        'OffsetAdjustment',
+        'Offset adjustment batch complete failed',
+        error: error,
+        context: {
+          ..._logContext(),
+          'selectedCount': ids.length,
+          'durationMs': stopwatch.elapsedMilliseconds,
+        },
+      );
+      return message;
+    } finally {
+      _isSaving = false;
+      if (!_disposed) notifyListeners();
+    }
+  }
+
   Future<String?> _save(
     String action,
     Future<OffsetAdjustment> Function() call,
   ) async {
     if (_isSaving) return null;
+    final stopwatch = Stopwatch()..start();
     _isSaving = true;
     _errorMessage = null;
     _successMessage = null;
@@ -408,7 +536,12 @@ class OffsetAdjustmentProvider extends ChangeNotifier {
       await AppLogger.instance.info(
         'OffsetAdjustment',
         'Offset adjustment $action succeeded',
-        context: {'id': row.id, 'type': row.type, 'status': row.status},
+        context: {
+          'id': row.id,
+          'type': row.type,
+          'status': row.status,
+          'durationMs': stopwatch.elapsedMilliseconds,
+        },
       );
       await loadPendingTotal();
       await search(page: _page);
@@ -420,7 +553,10 @@ class OffsetAdjustmentProvider extends ChangeNotifier {
         'OffsetAdjustment',
         'Offset adjustment $action failed',
         error: error,
-        context: _logContext(),
+        context: {
+          ..._logContext(),
+          'durationMs': stopwatch.elapsedMilliseconds,
+        },
       );
       notifyListeners();
       return message;
@@ -574,6 +710,7 @@ class OffsetAdjustmentProvider extends ChangeNotifier {
     _realtimeDirty = false;
     _realtimeImmediatePending = false;
     _realtimeRefreshInFlight = true;
+    _selectedIds.clear();
     final startedAt = DateTime.now();
     try {
       await AppLogger.instance.info(
@@ -640,6 +777,7 @@ class OffsetAdjustmentProvider extends ChangeNotifier {
 
   void _resetPaging() {
     _page = 0;
+    _selectedIds.clear();
   }
 
   String? _clean(String value) {

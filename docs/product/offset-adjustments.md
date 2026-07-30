@@ -42,6 +42,12 @@ that must be reviewed by ACC before being treated as complete.
 - Rejected requests notify the submitting SR through the offset realtime event.
   After SR resubmits, reviewers receive the same offset realtime event and can
   confirm again.
+- ERP orders are not required to belong to the same showroom as the Offset
+  request. The request showroom remains the OpsHub authorization/reporting
+  scope, while the ERP selling-store code is recorded from the order lookup.
+  The list/detail/CSV surfaces label both `Cửa hàng bán` (ERP store code, per
+  referenced order) and `Kênh tạo hồ sơ` (`Cấn trừ trên OpsHub`) so the two
+  sources are not conflated.
 
 ## Request Types
 
@@ -55,6 +61,62 @@ that must be reviewed by ACC before being treated as complete.
 - `Shopee Pay`: order, Shopee Pay scan date, edit-content kind, transaction
   code, and amount. Order code and transaction code must be unique within
   Shopee Pay.
+
+## ERP Validation On Save
+
+- The backend validates ERP only when SR creates a request or resubmits a
+  rejected request. Reviewer completion does not repeat the ERP lookup.
+- Cheap local validation and duplicate checks run before ERP. If ERP cannot
+  prove the required order state or value, create/resubmit fails closed and
+  writes no request, history, or realtime event.
+- `Cấn trừ đơn` requires the old order to be `CANCELLED` or
+  `COMPLETED_PARTIAL_RETURN`. The new order must be `PENDING`, `COMPLETED`, or
+  `COMPLETED_PARTIAL_RETURN`, must expose `grandTotal`, and the offset amount
+  must be less than or equal to that value.
+- `VNPAY QROFF`, `Zalo Pay`, and `Shopee Pay` require an existing order with a
+  verified `grandTotal`; their lifecycle does not otherwise restrict saving.
+  The offset amount must be less than or equal to the order value.
+- Missing orders, unverified lifecycle, missing order value, ERP timeout/error,
+  and an over-limit amount return Vietnamese, action-oriented errors without
+  exposing ERP codes or payloads.
+- ERP lookup is not showroom-filtered by the request showroom. When ERP
+  returns an order consultant email, it is retained as a sanitized owner
+  fallback for the existing Sales Report order-to-SR mapping path; no raw ERP
+  payload is stored or logged.
+- `Cửa hàng bán` uses the normalized leading store code from
+  `data.order.createdFromSiteDisplayName`; it does not need to equal the Offset
+  request showroom. When ERP omits a usable code, OpsHub shows
+  `ERP (chưa có mã cửa hàng bán)`; sales-channel, platform, terminal, and
+  payment-method fields are never substituted for the store code.
+- Create/resubmit and their history row commit atomically. Resubmit also guards
+  the rejected status and `updatedAt` snapshot after the ERP wait. Realtime is
+  published only after commit; a Redis failure is logged and does not turn a
+  committed request into a false user-facing failure.
+
+## Batch Completion
+
+- ACC, FIN_ACC, and Super Admin reviewers may select up to 100 unique eligible
+  requests across pages of the same query. Changing the query/filter or a
+  realtime resync clears selection; select-all affects eligible rows on the
+  current page only.
+- Only `PENDING_ACC` requests outside `VNPAY_QROFF` are eligible. VNPAY remains
+  an individual completion because it requires `Mã CT`; the UI explains this
+  on its disabled checkbox.
+- `POST /offset-adjustments/batch-complete` is scoped to the reviewer's visible
+  showrooms and is atomic. Missing, out-of-scope, stale, non-pending, or VNPAY
+  input rolls back the whole batch.
+- Selected rows are locked in canonical ID order before mutation. Stale,
+  serialization, or deadlock conflicts return Vietnamese reload guidance rather
+  than exposing database errors.
+- Individual complete/reject uses the same pending-status and `updatedAt`
+  snapshot guard, with history in the same transaction, so a stale individual
+  action cannot overwrite or duplicate a batch result.
+- Every successful request keeps the existing reviewer metadata, history, and
+  realtime event shape. Success clears selection and refreshes the page and
+  pending count; failure retains selection so the reviewer can correct it.
+- Row and select-all controls remain unchanged visually but are disabled while
+  the batch request is running. Post-success refreshes stop silently if the
+  screen/provider has already been disposed.
 
 ## Realtime Isolation
 

@@ -1,10 +1,12 @@
 import {
   BadRequestException,
   ForbiddenException,
+  HttpException,
   Injectable,
   Logger,
   NotFoundException,
   Optional,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
@@ -23,8 +25,15 @@ import {
 } from '../common/csv-export';
 import { logFingerprint } from '../common/log-sanitizer';
 import { buildRealtimeRedisEnvelope } from '../common/realtime-event';
+import { isPostgresDeadlock } from '../common/postgres-deadlock-retry';
 import { FEATURE_KEYS } from '../feature/feature.constants';
 import {
+  SalesReportErpLifecycleStatus,
+  SalesReportErpOrderListItem,
+  SalesReportErpService,
+} from '../sales-reports/sales-report-erp.service';
+import {
+  BatchCompleteOffsetAdjustmentsDto,
   CompleteOffsetAdjustmentDto,
   CreateOffsetAdjustmentDto,
   OFFSET_ADJUSTMENT_NOTIFICATION_STATUS,
@@ -46,6 +55,7 @@ const OFFSET_TYPE_VNPAY_QROFF = 'VNPAY_QROFF';
 const FIN_ACC_DEPARTMENT_CODE = 'FIN_ACC';
 const ACC_DEPARTMENT_CODE = 'ACC';
 const SUPER_ADMIN_ROLE = 'SUPER_ADMIN';
+const OFFSET_CREATION_CHANNEL = 'Cấn trừ trên OpsHub';
 const VIETNAM_UTC_OFFSET_MS = 7 * 60 * 60 * 1000;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
@@ -63,6 +73,16 @@ type NormalizedOffsetData = {
   note: string | null;
 };
 
+type OffsetErpStore = {
+  orderCode: string;
+  storeCode: string;
+};
+
+type OffsetErpValidationMetadata = {
+  sellingStores: OffsetErpStore[];
+  creationChannel: typeof OFFSET_CREATION_CHANNEL;
+};
+
 type OffsetScope = {
   reviewer: boolean;
   where: Prisma.OffsetAdjustmentWhereInput;
@@ -76,6 +96,8 @@ export class OffsetAdjustmentsService {
     private prisma: PrismaService,
     @Optional() private readonly redisService?: RedisService,
     @Optional() private readonly notificationsService?: NotificationsService,
+    @Optional()
+    private readonly salesReportErpService?: SalesReportErpService,
   ) {}
 
   async list(user: any, input: ListOffsetAdjustmentsDto) {
@@ -96,6 +118,7 @@ export class OffsetAdjustmentsService {
         orderBy: { submittedAt: 'desc' },
         skip: filters.page * filters.limit,
         take: filters.limit,
+        include: this.erpMetadataHistoryInclude(),
       }),
       this.prisma.offsetAdjustment.count({ where }),
     ]);
@@ -138,6 +161,7 @@ export class OffsetAdjustmentsService {
       const rows = await this.prisma.offsetAdjustment.findMany({
         where,
         orderBy: { submittedAt: 'desc' },
+        include: this.erpMetadataHistoryInclude(),
       });
       this.logger.log(
         `Offset adjustments export succeeded: user=${this.safeUserLabel(user)} reviewer=${scope.reviewer} count=${rows.length} durationMs=${Date.now() - startedAt}`,
@@ -162,26 +186,46 @@ export class OffsetAdjustmentsService {
 
     try {
       this.logger.log(
-        `Offset adjustment create started: user=${this.safeUserLabel(user)} store=${store.storeId} type=${data.type} amount=${data.amount}`,
+        `Offset adjustment create started: user=${this.safeUserLabel(user)} store=${store.storeId} type=${data.type}`,
       );
-      const row = await this.prisma.offsetAdjustment.create({
-        data: {
-          ...data,
-          status: OFFSET_STATUS_PENDING,
-          storeCode: store.storeId,
-          createdByUserId: user?.id || null,
-          createdByEmail: this.safeUserEmail(user),
-        },
+      const erpMetadata = await this.validateOffsetAgainstErp(data);
+      const row = await this.prisma.$transaction(async (tx) => {
+        const created = await tx.offsetAdjustment.create({
+          data: {
+            ...data,
+            status: OFFSET_STATUS_PENDING,
+            storeCode: store.storeId,
+            createdByUserId: user?.id || null,
+            createdByEmail: this.safeUserEmail(user),
+          },
+        });
+        await this.writeHistory(
+          created,
+          'CREATED',
+          user,
+          null,
+          created.status,
+          undefined,
+          tx,
+          erpMetadata,
+        );
+        return created;
       });
-      await this.writeHistory(row, 'CREATED', user, null, row.status);
-      await this.publishOffsetEvent(row);
+      await this.publishOffsetEventSafely(row);
       this.logger.log(
         `Offset adjustment create succeeded: user=${this.safeUserLabel(user)} id=${row.id} store=${row.storeCode} type=${row.type} durationMs=${Date.now() - startedAt}`,
       );
-      return this.toDto(row, user, {
-        reviewer: false,
-        where: { storeCode: store.storeId },
-      });
+      return this.toDto(
+        row,
+        user,
+        {
+          reviewer: false,
+          where: { storeCode: store.storeId },
+        },
+        new Map(),
+        undefined,
+        erpMetadata,
+      );
     } catch (error) {
       if (this.isUniqueConflict(error)) {
         throw new BadRequestException('Hồ sơ cấn trừ loại này đã có mã trùng.');
@@ -197,6 +241,7 @@ export class OffsetAdjustmentsService {
     const scope = await this.resolveScope(user, {});
     const row = await this.prisma.offsetAdjustment.findFirst({
       where: this.andWhere(scope.where, { id: this.normalizeRequiredId(id) }),
+      include: this.erpMetadataHistoryInclude(),
     });
     if (!row) throw new NotFoundException('Không tìm thấy hồ sơ cấn trừ.');
     const singleCounts = await this.singleOrderCounts(scope.where, [row]);
@@ -234,34 +279,54 @@ export class OffsetAdjustmentsService {
     await this.assertNoDuplicateWalletFields(data, current.id);
 
     try {
-      const row = await this.prisma.offsetAdjustment.update({
-        where: { id: current.id },
-        data: {
-          ...data,
-          status: OFFSET_STATUS_PENDING,
-          rejectReason: null,
-          reviewedByUserId: null,
-          reviewedByEmail: null,
-          reviewedAt: null,
-          ctCode: null,
-          submittedAt: new Date(),
-        },
-      });
-      await this.writeHistory(
-        row,
-        'RESUBMITTED',
-        user,
-        current.status,
-        row.status,
+      const erpMetadata = await this.validateOffsetAgainstErp(data);
+      const row = await this.runOffsetOptimisticTransaction(() =>
+        this.prisma.$transaction(async (tx) => {
+          const updated = await tx.offsetAdjustment.update({
+            where: {
+              id: current.id,
+              status: OFFSET_STATUS_REJECTED,
+              updatedAt: current.updatedAt,
+            },
+            data: {
+              ...data,
+              status: OFFSET_STATUS_PENDING,
+              rejectReason: null,
+              reviewedByUserId: null,
+              reviewedByEmail: null,
+              reviewedAt: null,
+              ctCode: null,
+              submittedAt: new Date(),
+            },
+          });
+          await this.writeHistory(
+            updated,
+            'RESUBMITTED',
+            user,
+            current.status,
+            updated.status,
+            undefined,
+            tx,
+            erpMetadata,
+          );
+          return updated;
+        }),
       );
-      await this.publishOffsetEvent(row);
+      await this.publishOffsetEventSafely(row);
       this.logger.log(
         `Offset adjustment resubmitted: user=${this.safeUserLabel(user)} id=${row.id} store=${row.storeCode} type=${row.type} durationMs=${Date.now() - startedAt}`,
       );
-      return this.toDto(row, user, {
-        reviewer: false,
-        where: { storeCode: store.storeId },
-      });
+      return this.toDto(
+        row,
+        user,
+        {
+          reviewer: false,
+          where: { storeCode: store.storeId },
+        },
+        new Map(),
+        undefined,
+        erpMetadata,
+      );
     } catch (error) {
       if (this.isUniqueConflict(error)) {
         throw new BadRequestException('Hồ sơ cấn trừ loại này đã có mã trùng.');
@@ -286,24 +351,149 @@ export class OffsetAdjustmentsService {
       current.type === OFFSET_TYPE_VNPAY_QROFF
         ? this.normalizeRequiredText(input.ctCode, 'Vui lòng nhập Mã CT.')
         : null;
+    const erpMetadata = this.erpMetadataFromHistory(current);
     const reviewedAt = new Date();
-    const row = await this.prisma.offsetAdjustment.update({
-      where: { id: current.id },
-      data: {
-        status: OFFSET_STATUS_APPROVED,
-        ctCode,
-        rejectReason: null,
-        reviewedByUserId: user?.id || null,
-        reviewedByEmail: this.safeUserEmail(user),
-        reviewedAt,
-      },
-    });
-    await this.writeHistory(row, 'COMPLETED', user, current.status, row.status);
-    await this.publishOffsetEvent(row);
     this.logger.log(
-      `Offset adjustment completed: user=${this.safeUserLabel(user)} id=${row.id} store=${row.storeCode} type=${row.type} durationMs=${Date.now() - startedAt}`,
+      `Offset adjustment complete started: user=${this.safeUserLabel(user)} id=${current.id} store=${current.storeCode} type=${current.type}`,
     );
-    return this.toDto(row, user, scope);
+    try {
+      const row = await this.runOffsetOptimisticTransaction(() =>
+        this.prisma.$transaction(async (tx) => {
+          const updated = await tx.offsetAdjustment.update({
+            where: {
+              id: current.id,
+              status: OFFSET_STATUS_PENDING,
+              updatedAt: current.updatedAt,
+            },
+            data: {
+              status: OFFSET_STATUS_APPROVED,
+              ctCode,
+              rejectReason: null,
+              reviewedByUserId: user?.id || null,
+              reviewedByEmail: this.safeUserEmail(user),
+              reviewedAt,
+            },
+          });
+          await this.writeHistory(
+            updated,
+            'COMPLETED',
+            user,
+            current.status,
+            updated.status,
+            undefined,
+            tx,
+            erpMetadata,
+          );
+          return updated;
+        }),
+      );
+      await this.publishOffsetEventSafely(row);
+      this.logger.log(
+        `Offset adjustment completed: user=${this.safeUserLabel(user)} id=${row.id} store=${row.storeCode} type=${row.type} durationMs=${Date.now() - startedAt}`,
+      );
+      return this.toDto(row, user, scope);
+    } catch (error) {
+      this.logger.warn(
+        `Offset adjustment complete failed: user=${this.safeUserLabel(user)} id=${current.id} store=${current.storeCode} type=${current.type} durationMs=${Date.now() - startedAt} error=${this.safeError(error)}`,
+      );
+      throw error;
+    }
+  }
+
+  async batchComplete(user: any, input: BatchCompleteOffsetAdjustmentsDto) {
+    const startedAt = Date.now();
+    const ids = this.normalizeBatchIds(input.ids, 'hồ sơ').sort();
+    const scope = await this.resolveReviewerScope(user);
+    this.logger.log(
+      `Offset adjustment batch complete started: user=${this.safeUserLabel(user)} count=${ids.length}`,
+    );
+
+    try {
+      const rows = await this.prisma.offsetAdjustment.findMany({
+        where: this.andWhere(scope.where, { id: { in: ids } }),
+        include: this.erpMetadataHistoryInclude(),
+      });
+      if (rows.length !== ids.length) {
+        throw new BadRequestException(
+          'Một số hồ sơ không còn khả dụng trong phạm vi của bạn. Vui lòng tải lại và chọn lại.',
+        );
+      }
+      const vnpayCount = rows.filter(
+        (row) => row.type === OFFSET_TYPE_VNPAY_QROFF,
+      ).length;
+      if (vnpayCount > 0) {
+        throw new BadRequestException(
+          `${vnpayCount} hồ sơ VNPAY QROFF cần nhập Mã CT và xác nhận riêng.`,
+        );
+      }
+      const unavailableCount = rows.filter(
+        (row) => row.status !== OFFSET_STATUS_PENDING,
+      ).length;
+      if (unavailableCount > 0) {
+        throw new BadRequestException(
+          `${unavailableCount} hồ sơ đã được xử lý hoặc đang chờ sửa. Vui lòng tải lại danh sách.`,
+        );
+      }
+
+      const snapshots = new Map(rows.map((row) => [row.id, row.updatedAt]));
+      const rowsById = new Map(rows.map((row) => [row.id, row]));
+      const reviewedAt = new Date();
+      const reviewedByEmail = this.safeUserEmail(user);
+      const updatedRows = await this.runOffsetOptimisticTransaction(() =>
+        this.prisma.$transaction(async (tx) => {
+          await tx.$queryRaw(Prisma.sql`
+            SELECT "id"
+            FROM "OffsetAdjustment"
+            WHERE "id" IN (${Prisma.join(ids)})
+            ORDER BY "id"
+            FOR UPDATE
+          `);
+          const updated = [];
+          for (const id of ids) {
+            const row = await tx.offsetAdjustment.update({
+              where: {
+                id,
+                status: OFFSET_STATUS_PENDING,
+                updatedAt: snapshots.get(id),
+              },
+              data: {
+                status: OFFSET_STATUS_APPROVED,
+                ctCode: null,
+                rejectReason: null,
+                reviewedByUserId: user?.id || null,
+                reviewedByEmail,
+                reviewedAt,
+              },
+            });
+            await this.writeHistory(
+              row,
+              'COMPLETED',
+              user,
+              OFFSET_STATUS_PENDING,
+              row.status,
+              undefined,
+              tx,
+              this.erpMetadataFromHistory(rowsById.get(id)),
+            );
+            updated.push(row);
+          }
+          return updated;
+        }),
+      );
+
+      await Promise.all(
+        updatedRows.map((row) => this.publishOffsetEventSafely(row)),
+      );
+      this.logger.log(
+        `Offset adjustment batch complete succeeded: user=${this.safeUserLabel(user)} count=${updatedRows.length} durationMs=${Date.now() - startedAt}`,
+      );
+      return { processedCount: updatedRows.length };
+    } catch (error) {
+      this.logger.warn(
+        `Offset adjustment batch complete failed: user=${this.safeUserLabel(user)} count=${ids.length} durationMs=${Date.now() - startedAt} error=${this.safeError(error)}`,
+      );
+      throw error;
+    }
   }
 
   async reject(user: any, id: string, input: RejectOffsetAdjustmentDto) {
@@ -319,35 +509,234 @@ export class OffsetAdjustmentsService {
       input.reason,
       'Vui lòng nhập lý do từ chối.',
     );
+    const erpMetadata = this.erpMetadataFromHistory(current);
     const reviewedAt = new Date();
-    const row = await this.prisma.offsetAdjustment.update({
-      where: { id: current.id },
-      data: {
-        status: OFFSET_STATUS_REJECTED,
-        rejectReason: reason,
-        reviewedByUserId: user?.id || null,
-        reviewedByEmail: this.safeUserEmail(user),
-        reviewedAt,
-      },
-    });
-    await this.writeHistory(
-      row,
-      'REJECTED',
-      user,
-      current.status,
-      row.status,
-      reason,
-    );
-    await this.publishOffsetEvent(row);
     this.logger.log(
-      `Offset adjustment rejected: user=${this.safeUserLabel(user)} id=${row.id} store=${row.storeCode} type=${row.type} durationMs=${Date.now() - startedAt}`,
+      `Offset adjustment reject started: user=${this.safeUserLabel(user)} id=${current.id} store=${current.storeCode} type=${current.type}`,
     );
-    return this.toDto(row, user, scope);
+    try {
+      const row = await this.runOffsetOptimisticTransaction(() =>
+        this.prisma.$transaction(async (tx) => {
+          const updated = await tx.offsetAdjustment.update({
+            where: {
+              id: current.id,
+              status: OFFSET_STATUS_PENDING,
+              updatedAt: current.updatedAt,
+            },
+            data: {
+              status: OFFSET_STATUS_REJECTED,
+              rejectReason: reason,
+              reviewedByUserId: user?.id || null,
+              reviewedByEmail: this.safeUserEmail(user),
+              reviewedAt,
+            },
+          });
+          await this.writeHistory(
+            updated,
+            'REJECTED',
+            user,
+            current.status,
+            updated.status,
+            reason,
+            tx,
+            erpMetadata,
+          );
+          return updated;
+        }),
+      );
+      await this.publishOffsetEventSafely(row);
+      this.logger.log(
+        `Offset adjustment rejected: user=${this.safeUserLabel(user)} id=${row.id} store=${row.storeCode} type=${row.type} durationMs=${Date.now() - startedAt}`,
+      );
+      return this.toDto(row, user, scope);
+    } catch (error) {
+      this.logger.warn(
+        `Offset adjustment reject failed: user=${this.safeUserLabel(user)} id=${current.id} store=${current.storeCode} type=${current.type} durationMs=${Date.now() - startedAt} error=${this.safeError(error)}`,
+      );
+      throw error;
+    }
+  }
+
+  private async validateOffsetAgainstErp(
+    data: NormalizedOffsetData,
+  ): Promise<OffsetErpValidationMetadata> {
+    if (!this.salesReportErpService) {
+      throw new ServiceUnavailableException(
+        'Chưa thể kiểm tra đơn hàng trên hệ thống bán hàng. Vui lòng thử lại sau ít phút.',
+      );
+    }
+
+    if (data.type === OFFSET_TYPE_SINGLE_ORDER) {
+      const [oldOrder, newOrder] = await Promise.all([
+        this.lookupOffsetOrder(data.oldOrderCode!, 'old'),
+        this.lookupOffsetOrder(data.newOrderCode!, 'new'),
+      ]);
+      this.assertVerifiedLifecycle(oldOrder, 'đơn hàng cũ');
+      this.assertVerifiedLifecycle(newOrder, 'đơn hàng mới');
+      if (
+        oldOrder.lifecycleStatus !== 'CANCELLED' &&
+        oldOrder.lifecycleStatus !== 'COMPLETED_PARTIAL_RETURN'
+      ) {
+        throw new BadRequestException(
+          'Đơn hàng cũ phải ở trạng thái Đã hủy hoặc Hoàn một phần trên hệ thống bán hàng.',
+        );
+      }
+      if (
+        newOrder.lifecycleStatus === 'CANCELLED' ||
+        newOrder.lifecycleStatus === 'RETURNED_FULL'
+      ) {
+        throw new BadRequestException(
+          'Đơn hàng mới đã hủy hoặc hoàn toàn phần. Vui lòng chọn đơn hàng còn hiệu lực.',
+        );
+      }
+      this.assertOffsetAmountWithinOrder(data.amount, newOrder, 'đơn hàng mới');
+      return this.erpStoreMetadata([
+        { orderCode: data.oldOrderCode!, order: oldOrder },
+        { orderCode: data.newOrderCode!, order: newOrder },
+      ]);
+    }
+
+    const order = await this.lookupOffsetOrder(data.orderCode!, 'wallet');
+    this.assertVerifiedLifecycle(order, 'đơn hàng');
+    this.assertOffsetAmountWithinOrder(data.amount, order, 'đơn hàng');
+    return this.erpStoreMetadata([{ orderCode: data.orderCode!, order }]);
+  }
+
+  private async lookupOffsetOrder(
+    orderCode: string,
+    phase: 'old' | 'new' | 'wallet',
+  ): Promise<SalesReportErpOrderListItem> {
+    const startedAt = Date.now();
+    try {
+      const row = await this.salesReportErpService!.lookupOrderStatus(
+        orderCode,
+        // The ERP order is intentionally not showroom-scoped to the Offset
+        // request. The request showroom remains the authorization/audit scope;
+        // ERP owns the selling-store code; it is not inferred from request scope.
+        null,
+      );
+      this.logger.log(
+        `Offset ERP lookup succeeded: phase=${phase} codeLength=${orderCode.length} lifecycle=${row.lifecycleStatus} lifecycleVerified=${row.lifecycleVerified === true} hasGrandTotal=${row.grandTotal !== null} durationMs=${Date.now() - startedAt}`,
+      );
+      return row;
+    } catch (error) {
+      this.logger.warn(
+        `Offset ERP lookup failed: phase=${phase} codeLength=${orderCode.length} durationMs=${Date.now() - startedAt} errorType=${error instanceof Error ? error.constructor.name : typeof error}`,
+      );
+      if (error instanceof BadRequestException) {
+        const label = phase === 'old' ? 'cũ' : phase === 'new' ? 'mới' : '';
+        throw new BadRequestException(
+          `Không tìm thấy đơn hàng${label ? ` ${label}` : ''} trên hệ thống bán hàng. Vui lòng kiểm tra mã đơn và thử lại.`,
+        );
+      }
+      if (error instanceof HttpException && error.getStatus() < 500) {
+        throw error;
+      }
+      throw new ServiceUnavailableException(
+        'Chưa thể kiểm tra đơn hàng trên hệ thống bán hàng. Vui lòng thử lại sau ít phút.',
+      );
+    }
+  }
+
+  private assertVerifiedLifecycle(
+    order: SalesReportErpOrderListItem,
+    label: string,
+  ) {
+    const accepted: SalesReportErpLifecycleStatus[] = [
+      'PENDING',
+      'COMPLETED',
+      'COMPLETED_PARTIAL_RETURN',
+      'CANCELLED',
+      'RETURNED_FULL',
+    ];
+    if (
+      order.lifecycleVerified !== true ||
+      !accepted.includes(order.lifecycleStatus)
+    ) {
+      throw new ServiceUnavailableException(
+        `Chưa xác minh được trạng thái ${label} trên hệ thống bán hàng. Vui lòng thử lại.`,
+      );
+    }
+  }
+
+  private assertOffsetAmountWithinOrder(
+    amount: number,
+    order: SalesReportErpOrderListItem,
+    label: string,
+  ) {
+    if (!Number.isInteger(order.grandTotal) || order.grandTotal === null) {
+      throw new ServiceUnavailableException(
+        `Chưa lấy được giá trị ${label} trên hệ thống bán hàng. Vui lòng thử lại.`,
+      );
+    }
+    if (amount > order.grandTotal) {
+      throw new BadRequestException(
+        `Số tiền cấn trừ không được vượt quá giá trị ${label}. Vui lòng giảm số tiền rồi lưu lại.`,
+      );
+    }
+  }
+
+  private erpStoreMetadata(
+    entries: Array<{
+      orderCode: string;
+      order: SalesReportErpOrderListItem;
+    }>,
+  ): OffsetErpValidationMetadata {
+    return {
+      creationChannel: OFFSET_CREATION_CHANNEL,
+      sellingStores: entries.map(({ orderCode, order }) => ({
+        orderCode,
+        storeCode: this.sellingStoreCode(order),
+      })),
+    };
+  }
+
+  private sellingStoreCode(order: SalesReportErpOrderListItem) {
+    const explicit = String(order.storeCode ?? '')
+      .trim()
+      .toUpperCase();
+    if (explicit) return explicit.slice(0, 120);
+    return 'ERP (chưa có mã cửa hàng bán)';
+  }
+
+  private normalizeBatchIds(values: unknown, itemLabel: string) {
+    if (!Array.isArray(values)) {
+      throw new BadRequestException(`Danh sách ${itemLabel} không hợp lệ.`);
+    }
+    const ids = values.map((value) => String(value || '').trim());
+    if (
+      ids.length < 1 ||
+      ids.length > 100 ||
+      ids.some((id) => !id) ||
+      new Set(ids).size !== ids.length
+    ) {
+      throw new BadRequestException(
+        `Chỉ được chọn từ 1 đến 100 ${itemLabel} khác nhau mỗi lần.`,
+      );
+    }
+    return ids;
+  }
+
+  private async runOffsetOptimisticTransaction<T>(
+    operation: () => Promise<T>,
+  ): Promise<T> {
+    try {
+      return await operation();
+    } catch (error) {
+      const code = (error as { code?: string } | null)?.code;
+      if (code === 'P2025' || code === 'P2034' || isPostgresDeadlock(error)) {
+        throw new BadRequestException(
+          'Dữ liệu hồ sơ vừa thay đổi. Vui lòng tải lại và thử lại.',
+        );
+      }
+      throw error;
+    }
   }
 
   private async findReviewable(user: any, scope: OffsetScope, id: string) {
     const row = await this.prisma.offsetAdjustment.findFirst({
       where: this.andWhere(scope.where, { id: this.normalizeRequiredId(id) }),
+      include: this.erpMetadataHistoryInclude(),
     });
     if (!row) throw new NotFoundException('Không tìm thấy hồ sơ cấn trừ.');
     if (!scope.reviewer) {
@@ -711,8 +1100,10 @@ export class OffsetAdjustmentsService {
     fromStatus: string | null,
     toStatus: string | null,
     reason?: string,
+    client: any = this.prisma,
+    metadata?: OffsetErpValidationMetadata,
   ) {
-    await this.prisma.offsetAdjustmentHistory.create({
+    await client.offsetAdjustmentHistory.create({
       data: {
         adjustmentId: row.id,
         action,
@@ -721,7 +1112,7 @@ export class OffsetAdjustmentsService {
         actorUserId: user?.id || null,
         actorEmail: this.safeUserEmail(user),
         reason: reason || null,
-        snapshot: this.historySnapshot(row),
+        snapshot: this.historySnapshot(row, metadata),
       },
     });
   }
@@ -765,20 +1156,40 @@ export class OffsetAdjustmentsService {
     );
   }
 
+  private async publishOffsetEventSafely(row: {
+    id: string;
+    storeCode: string;
+    type: string;
+    status: string;
+    updatedAt: Date;
+  }) {
+    try {
+      await this.publishOffsetEvent(row);
+    } catch (error) {
+      this.logger.warn(
+        `Offset adjustment realtime publish failed after commit: id=${row.id} store=${row.storeCode} status=${row.status} error=${this.safeError(error)}`,
+      );
+    }
+  }
+
   private toDto(
     row: any,
     user: any,
     scope: OffsetScope,
     singleCounts = new Map<string, number>(),
     notificationReadAt?: Date | null,
+    metadata?: OffsetErpValidationMetadata,
   ) {
     const canResubmit =
       !scope.reviewer && row.status === OFFSET_STATUS_REJECTED;
+    const erpMetadata = metadata ?? this.erpMetadataFromHistory(row);
     return {
       id: row.id,
       type: row.type,
       status: row.status,
       storeCode: row.storeCode,
+      sellingStores: erpMetadata.sellingStores,
+      creationChannel: erpMetadata.creationChannel,
       oldOrderCode: row.oldOrderCode,
       newOrderCode: row.newOrderCode,
       orderCode: row.orderCode,
@@ -806,6 +1217,49 @@ export class OffsetAdjustmentsService {
     };
   }
 
+  private erpMetadataHistoryInclude() {
+    return {
+      history: {
+        orderBy: { createdAt: 'desc' as const },
+        take: 1,
+        select: { snapshot: true },
+      },
+    };
+  }
+
+  private erpMetadataFromHistory(row: any): OffsetErpValidationMetadata {
+    const snapshot = row?.history?.[0]?.snapshot;
+    const erpMetadata =
+      snapshot && typeof snapshot === 'object'
+        ? (snapshot as Record<string, unknown>).erpMetadata
+        : null;
+    if (erpMetadata && typeof erpMetadata === 'object') {
+      const record = erpMetadata as Record<string, unknown>;
+      const sellingStores = Array.isArray(record.sellingStores)
+        ? record.sellingStores
+            .filter((entry): entry is Record<string, unknown> =>
+              Boolean(entry && typeof entry === 'object'),
+            )
+            .map((entry) => ({
+              orderCode: String(entry.orderCode ?? ''),
+              storeCode: String(entry.storeCode ?? '').trim(),
+            }))
+            .filter((entry) => entry.orderCode && entry.storeCode)
+        : [];
+      const creationChannel = String(record.creationChannel ?? '').trim();
+      if (sellingStores.length > 0 && creationChannel) {
+        return {
+          sellingStores,
+          creationChannel: creationChannel as typeof OFFSET_CREATION_CHANNEL,
+        };
+      }
+    }
+    return {
+      sellingStores: [],
+      creationChannel: OFFSET_CREATION_CHANNEL,
+    };
+  }
+
   private async notificationReadAtById(
     user: any,
     source: typeof APP_NOTIFICATION_SOURCE_OFFSET_ADJUSTMENT,
@@ -826,7 +1280,8 @@ export class OffsetAdjustmentsService {
     }
   }
 
-  private historySnapshot(row: any) {
+  private historySnapshot(row: any, metadata?: OffsetErpValidationMetadata) {
+    const erpMetadata = metadata ?? this.erpMetadataFromHistory(row);
     return {
       id: row.id,
       type: row.type,
@@ -839,6 +1294,7 @@ export class OffsetAdjustmentsService {
       transactionCode: row.transactionCode,
       editContentKind: row.editContentKind,
       ctCode: row.ctCode,
+      ...(erpMetadata.sellingStores.length > 0 ? { erpMetadata } : {}),
     };
   }
 
@@ -994,6 +1450,8 @@ export class OffsetAdjustmentsService {
       'SR',
       'Loại',
       'Trạng thái',
+      'Cửa hàng bán',
+      'Kênh tạo hồ sơ',
       'Đơn hàng cũ',
       'Đơn hàng mới',
       'Đơn hàng',
@@ -1011,11 +1469,14 @@ export class OffsetAdjustmentsService {
     ];
     const lines = [headers.map((value) => this.csvCell(value)).join(',')];
     for (const row of rows) {
+      const erpMetadata = this.erpMetadataFromHistory(row);
       lines.push(
         [
           this.csvCell(row.storeCode),
           this.csvCell(this.typeLabel(row.type)),
           this.csvCell(this.statusLabel(row.status)),
+          this.csvCell(this.sellingStoresLabel(erpMetadata.sellingStores)),
+          this.csvCell(erpMetadata.creationChannel),
           this.csvExcelTextCell(row.oldOrderCode),
           this.csvExcelTextCell(row.newOrderCode),
           this.csvExcelTextCell(row.orderCode),
@@ -1049,6 +1510,16 @@ export class OffsetAdjustmentsService {
       default:
         return this.csvText(type);
     }
+  }
+
+  private sellingStoresLabel(stores: OffsetErpStore[]) {
+    return stores
+      .map((store) =>
+        store.orderCode
+          ? `${store.orderCode}: ${store.storeCode}`
+          : store.storeCode,
+      )
+      .join('; ');
   }
 
   private statusLabel(status: unknown) {

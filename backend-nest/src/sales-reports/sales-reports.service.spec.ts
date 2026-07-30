@@ -617,6 +617,53 @@ describe('SalesReportsService', () => {
     );
   });
 
+  it('falls back to the ERP consultant email when creator email is absent', async () => {
+    const { service, prisma, erp } = createHarness();
+    erp.lookupOrder.mockResolvedValueOnce({
+      ...erpOrderFixture(),
+      creatorEmail: null,
+      creatorName: null,
+      erpConsultantEmail: 'consultant.chat@phongvu.vn',
+      erpConsultantName: 'CHAT Consultant',
+    });
+    prisma.user.findUnique
+      .mockResolvedValueOnce(userFixture())
+      .mockResolvedValueOnce({
+        ...userFixture(),
+        id: 'consultant-user',
+        email: 'consultant.chat@phongvu.vn',
+        firstName: 'CHAT',
+        lastName: 'Consultant',
+        store: {
+          storeId: 'CP99',
+          storeName: 'CP99',
+          organizationNodeId: 'node-cp99',
+        },
+      });
+
+    await service.create(userFixture(), {
+      ...baseInput(),
+      reportType: 'PURCHASED',
+      orderCode: '2606290001',
+      entrySource: 'COMEBACK',
+    });
+
+    expect(prisma.user.findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { email: 'consultant.chat@phongvu.vn' },
+      }),
+    );
+    expect(prisma.salesReport.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          createdByUserId: 'consultant-user',
+          createdByEmail: 'consultant.chat@phongvu.vn',
+          createdByName: 'CHAT Consultant',
+        }),
+      }),
+    );
+  });
+
   it('returns ERP autofill hints when checking a purchased order', async () => {
     const { service, erp } = createHarness();
     erp.lookupOrder.mockResolvedValueOnce({
@@ -3960,6 +4007,7 @@ function erpOrderFixture() {
     erpPlatformId: 1,
     erpConsultantCustomId: '7583',
     erpConsultantName: 'Sale CP62',
+    erpConsultantEmail: null,
     customerName: 'Nguyen Van A',
     customerType: 'BUSINESS',
     customerIsStudent: false,

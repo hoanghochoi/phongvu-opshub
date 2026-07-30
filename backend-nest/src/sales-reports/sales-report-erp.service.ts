@@ -54,6 +54,7 @@ export type SalesReportErpOrder = {
   erpPlatformId: number | null;
   erpConsultantCustomId: string | null;
   erpConsultantName: string | null;
+  erpConsultantEmail?: string | null;
   customerName: string | null;
   customerPhone: string | null;
   creatorEmail: string | null;
@@ -1417,6 +1418,7 @@ export class SalesReportErpService {
       erpPlatformId: this.toInt(order?.platformId),
       erpConsultantCustomId: this.optionalText(order?.consultant?.customId),
       erpConsultantName: this.optionalText(order?.consultant?.name),
+      erpConsultantEmail: this.optionalText(order?.consultant?.email),
       customerName,
       customerPhone,
       creatorEmail,

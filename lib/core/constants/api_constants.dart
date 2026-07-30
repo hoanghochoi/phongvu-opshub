@@ -92,6 +92,8 @@ class ApiConstants {
       '/admin/map-vietin/statements/$id/income-type';
   static String adminMapVietinStatementOrderTrackingEndpoint(String id) =>
       '/admin/map-vietin/statements/$id/order-tracking';
+  static const String adminMapVietinStatementOrderTrackingBatchEndpoint =
+      '/admin/map-vietin/statements/order-tracking/batch';
   static String adminMapVietinStatementOrderTransferRequestsEndpoint(
     String id,
   ) => '/admin/map-vietin/statements/$id/order-transfer-requests';
@@ -105,6 +107,8 @@ class ApiConstants {
   static String adminMapVietinStatementOrderHistoryEndpoint(String id) =>
       '/admin/map-vietin/statements/$id/order-history';
   static const String offsetAdjustmentsEndpoint = '/offset-adjustments';
+  static const String offsetAdjustmentsBatchCompleteEndpoint =
+      '/offset-adjustments/batch-complete';
   static const String offsetAdjustmentsExportEndpoint =
       '/offset-adjustments/export';
   static const String salesReportsEndpoint = '/sales-reports';

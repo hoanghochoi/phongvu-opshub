@@ -299,6 +299,21 @@ class _BankStatementScreenState extends State<BankStatementScreen>
             tone: AppStateTone.info,
           ),
         ],
+        if (provider.batchMessage != null) ...[
+          const SizedBox(height: 10),
+          AppStatusBanner(
+            icon: provider.batchMessage!.success
+                ? Icons.check_circle_outline_rounded
+                : Icons.error_outline_rounded,
+            title: provider.batchMessage!.success
+                ? 'Đã cập nhật theo dõi'
+                : 'Chưa bỏ theo dõi được',
+            message: provider.batchMessage!.text,
+            tone: provider.batchMessage!.success
+                ? AppStateTone.success
+                : AppStateTone.error,
+          ),
+        ],
         if (provider.isLoading && provider.transactions.isNotEmpty) ...[
           const SizedBox(height: 10),
           const LinearProgressIndicator(),
@@ -721,7 +736,9 @@ class _StatementListControls extends StatelessWidget {
           value: partiallySelected ? null : provider.allVisibleSelected,
           visualDensity: VisualDensity.compact,
           materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-          onChanged: provider.transactions.isEmpty
+          onChanged:
+              provider.transactions.isEmpty ||
+                  provider.isBatchUpdatingOrderTracking
               ? null
               : (value) => provider.toggleAllVisible(value == true),
         ),
@@ -747,13 +764,29 @@ class _StatementListControls extends StatelessWidget {
           : null,
       isRefreshing: provider.isLoading,
     );
+    final batchAction = provider.canReviewOrderTransfers
+        ? AppSecondaryButton(
+            onPressed: provider.canBatchUnfollow
+                ? () => _confirmBatchUnfollow(context)
+                : null,
+            icon: Icons.visibility_off_outlined,
+            label: 'Bỏ theo dõi đã chọn',
+            isLoading: provider.isBatchUpdatingOrderTracking,
+            loadingLabel: 'Đang cập nhật',
+          )
+        : null;
 
     return LayoutBuilder(
       builder: (context, constraints) {
         if (constraints.maxWidth < 620) {
           return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               selectionControl,
+              if (batchAction != null) ...[
+                const SizedBox(height: AppLayoutTokens.formInlineGap),
+                batchAction,
+              ],
               const SizedBox(height: AppLayoutTokens.formInlineGap),
               pageControls,
             ],
@@ -761,13 +794,41 @@ class _StatementListControls extends StatelessWidget {
         }
         return Row(
           children: [
-            SizedBox(width: 260, child: selectionControl),
+            SizedBox(width: 200, child: selectionControl),
+            if (batchAction != null) ...[
+              const SizedBox(width: AppLayoutTokens.formInlineGap),
+              SizedBox(width: 200, child: batchAction),
+            ],
             const SizedBox(width: AppLayoutTokens.formInlineGap),
             Expanded(child: pageControls),
           ],
         );
       },
     );
+  }
+
+  Future<void> _confirmBatchUnfollow(BuildContext context) async {
+    final count = provider.selectedIds.length;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Bỏ theo dõi giao dịch đã chọn'),
+        content: Text(
+          'Bỏ theo dõi $count giao dịch? Thao tác chỉ thực hiện khi tất cả giao dịch còn hợp lệ.',
+        ),
+        actions: [
+          AppDialogCancelButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+          ),
+          AppDialogConfirmButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            icon: Icons.visibility_off_outlined,
+            label: 'Bỏ theo dõi',
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) await provider.batchUnfollowSelected();
   }
 }
 
@@ -1011,8 +1072,10 @@ class _StatementCardState extends State<_StatementCard> {
                   children: [
                     Checkbox(
                       value: provider.selectedIds.contains(tx.id),
-                      onChanged: (value) =>
-                          provider.toggleSelected(tx.id, value == true),
+                      onChanged: provider.isBatchUpdatingOrderTracking
+                          ? null
+                          : (value) =>
+                                provider.toggleSelected(tx.id, value == true),
                     ),
                     Expanded(
                       child: BankStatementTransactionDetailsLauncher(
@@ -1097,8 +1160,9 @@ class _StatementCardState extends State<_StatementCard> {
             children: [
               Checkbox(
                 value: provider.selectedIds.contains(tx.id),
-                onChanged: (value) =>
-                    provider.toggleSelected(tx.id, value == true),
+                onChanged: provider.isBatchUpdatingOrderTracking
+                    ? null
+                    : (value) => provider.toggleSelected(tx.id, value == true),
               ),
               Expanded(
                 child: BankStatementTransactionDetailsLauncher(

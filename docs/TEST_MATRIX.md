@@ -3,6 +3,36 @@
 This file maps product behavior to proof. Existing flows are marked
 `existing_unverified` until fresh validation evidence is attached.
 
+- `OPS-41`/Offset Adjustments/`PAYMENT-STATEMENT-001`, 2026-07-30,
+  `local_verified_with_staging_release_gaps`: Offset create/resubmit fails closed unless
+  ERP proves the required lifecycle and amount cap, while duplicate/local
+  validation still short-circuits before ERP. Reviewers may atomically complete
+  up to 100 eligible non-VNPAY offset requests. Sao kê may atomically mark up
+  to 100 selected transactions `UNFOLLOWED`; existing unfollowed rows remain
+  logical no-ops without audit or downstream revision, while their concurrency
+  token is advanced to block a stale re-follow. Pending/out-of-scope/stale rows
+  roll back the batch. Canonical row-lock order closes no-op/re-follow races and
+  maps serialization conflicts to reload guidance. Single complete/reject uses
+  the same optimistic snapshot
+  so a stale individual action cannot overwrite a batch result. Offset records
+  the ERP selling-store code separately from the request showroom and keeps
+  `Cấn trừ trên OpsHub` as the creation channel; ERP lookup does not require
+  showroom equality. The code comes only from normalized
+  `data.order.createdFromSiteDisplayName`; channel/platform/terminal/payment
+  fields never substitute for a missing selling store. Flutter locks selection
+  while a batch is in flight and stops
+  post-success refresh notifications after disposal. Focused store-contract
+  proof passes Offset/Sales Report Nest `62/62`, Flutter repository `6/6`, and
+  Offset workspace `4/4`. A disposable PostgreSQL verifier deploys the real
+  Prisma migrations and passed against the production table/trigger schema with
+  independent clients for two Offset single/batch races, one statement
+  no-op-batch/stale-re-follow race, and two atomic rollback scenarios. Prisma
+  validate, Nest build and `91/91` suites (`1,029` tests), Flutter analyze and
+  full Flutter `671` passed / `3` skipped, Go `64` tests, and `git diff --check`
+  pass on the frozen local candidate. Staging Android/Windows/web, real ERP
+  orders, and operational latency/error-log observation remain release gates
+  and must be recorded on OPS-41 before transition.
+
 - `OPS-31`/`HOME-DASHBOARD-002`/`HOME-DASHBOARD-003`, 2026-07-29:
   `GET /home/summary` preserves the legacy aggregate response unless the strict
   query `includeDailySeries=true` is present. The opted-in response adds at
@@ -2079,14 +2109,15 @@ FIFO Menu` now has bottom nav active on `Tác vụ`, `Mobile v2 / Profile` has
   credentials, seeds the web session without committing secrets, captures
   ignored screenshots, and checks route hash, console/page errors, rendered
   Flutter viewport size, and visible horizontal overflow while ignoring Flutter
-  semantics-only overflow nodes. The default live staging smoke now runs 86
+  semantics-only overflow nodes. The default live staging smoke now runs 84
   checks across desktop `1440x900` and mobile `390x844`: 3 public routes
   (`/login`, `/register`, `/forgot-password`), 1 pending auth route
   (`/assignment-pending`) rendered from a tokenless cached pending session, plus
-  all 39 authenticated shell routes in `AppRouter`, including Home,
+  all 38 authenticated shell routes in `AppRouter`, including Home,
   Operations, Profile, Admin, FIFO, BH/SC, VietQR, Payment Monitor web
   fallback, Sao kê, Cấn trừ, Góp ý, Report/Sales Report, Help Content admin,
-  and Settings.
+  and Settings. The legacy `/fifo-menu` redirect is excluded because it renders
+  `/operations` rather than owning a ShellRoute.
   Follow-up guard coverage in
   `test\design_system_migration_guard_test.dart` now parses the smoke script
   and `AppRouter` so the default authenticated route list must stay aligned
