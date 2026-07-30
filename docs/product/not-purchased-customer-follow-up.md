@@ -123,7 +123,11 @@ Cho phép nhân viên bán hàng theo dõi và chăm sóc lại từng lượt b
   không thay đổi báo cáo `NOT_PURCHASED` ban đầu. Nếu mã đơn đã có báo cáo
   `SYNC_LIST`, hệ thống cảnh báo trước khi lưu rồi chuyển chính báo cáo đó một
   chiều sang `COMEBACK`, giữ nguyên id và dữ liệu lịch sử, sau đó liên kết cùng
-  id vào lần chăm sóc và hồ sơ. Báo cáo đã là `COMEBACK` hoặc thuộc nguồn khác
+  id vào lần chăm sóc và hồ sơ. Báo cáo mua legacy có `entrySource=null` được
+  xử lý tương đương `SYNC_LIST` chỉ trong luồng Chăm sóc lại: hệ thống cảnh báo
+  đây là dữ liệu báo cáo cũ rồi chuyển atomic `null` sang `COMEBACK`, không tạo
+  report mới hoặc backfill hàng loạt. Ngoài Chăm sóc lại, report legacy vẫn
+  chặn manual/ERP theo mã đơn; báo cáo đã là `COMEBACK` hoặc thuộc nguồn khác
   không được chuyển ngược hay tạo trùng.
 - Người được ghi nhận doanh số là `order.creator.email` từ ERP. Không có email
   này thì chặn lưu bằng thông báo tiếng Việt; người thực hiện thao tác được lưu

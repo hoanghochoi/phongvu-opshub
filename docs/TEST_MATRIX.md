@@ -3664,6 +3664,35 @@ removed all raw artifacts.
   PostgreSQL, and a live BigQuery refresh. These are post-PR staging gates and
   are not claimed as local proof.
 
+## OPS-16 legacy entry-source follow-up fix (2026-07-30)
+
+- A production read-only diagnosis found that the failing purchased order had
+  `entrySource=null`, while the original OPS-16 runtime accepted only explicit
+  `SYNC_LIST`. Production contained 690 purchased legacy rows without a source,
+  so deployment health and the original `SYNC_LIST` proof did not cover this
+  consumer class.
+- The follow-up-only conversion contract now treats an existing
+  `PURCHASED + entrySource=null` report as legacy-convertible. Order check
+  returns a separate legacy warning hint; create carries the existing report id
+  and exact expected source into the follow-up transaction; compare-and-set
+  requires the same normalized order code, purchased type and `null` source
+  before updating to `COMEBACK`. The existing report id is reused for the
+  follow-up entry/case. Manual, ERP/cockpit, malformed non-purchased, existing
+  `COMEBACK` and non-follow-up paths remain blocked.
+- Flutter parses the legacy hint, logs the branch through `AppLogger`, and shows
+  Vietnamese-first warning copy that identifies old report data before save.
+  The existing success copy remains source-code-free and confirms the customer
+  was recorded as returning.
+- Local proof on the final runtime changeset: focused Sales Report/Follow-up/
+  BigQuery Nest suites passed 109/109; full Nest passed 91 suites/1,034 tests;
+  Nest build and Prisma validate passed. Focused Sales Report Flutter passed
+  27/27; full Flutter passed 673 tests with 3 intentional platform skips;
+  Flutter analyze reported no issues. Final diff/format checks are required
+  again after documentation closeout.
+- Not claimed locally: live PostgreSQL concurrency, staging BigQuery refresh,
+  staging deploy/QA, production deployment, or any bulk mutation/backfill of
+  the 690 production legacy rows.
+
 ## OPS-9 BigQuery canonical outbox proof (2026-07-24)
 
 - A production read-only audit found the BigQuery worker disabled while

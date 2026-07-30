@@ -195,9 +195,13 @@ describe('SalesReportsService', () => {
     expect(erp.lookupOrder).not.toHaveBeenCalled();
   });
 
-  it('blocks duplicate purchased order before ERP lookup', async () => {
+  it('blocks a legacy purchased order outside follow-up before ERP lookup', async () => {
     const { service, prisma, erp } = createHarness();
-    prisma.salesReport.findUnique.mockResolvedValueOnce({ id: 'existing' });
+    prisma.salesReport.findUnique.mockResolvedValueOnce({
+      id: 'existing-legacy',
+      reportType: 'PURCHASED',
+      entrySource: null,
+    });
 
     await expect(
       service.create(userFixture(), {
@@ -277,6 +281,31 @@ describe('SalesReportsService', () => {
     expect(erp.lookupOrder).toHaveBeenCalled();
   });
 
+  it('allows only a follow-up check to inspect a legacy purchased report', async () => {
+    const { service, prisma, erp } = createHarness();
+    prisma.salesReport.findUnique.mockResolvedValueOnce({
+      id: 'existing-legacy',
+      reportType: 'PURCHASED',
+      entrySource: null,
+    });
+
+    await expect(
+      service.checkOrder(userFixture(), ' 260629 0001 ', {
+        storeCode: 'CP62',
+        storeName: 'CP62',
+        organizationNodeId: 'node-cp62',
+        organizationNodeName: 'CP62',
+        regionCode: null,
+        areaCode: null,
+      }),
+    ).resolves.toMatchObject({
+      orderCode: '2606290001',
+      willConvertSyncedReport: false,
+      willConvertLegacyReport: true,
+    });
+    expect(erp.lookupOrder).toHaveBeenCalled();
+  });
+
   it('keeps a malformed non-purchased synced row blocked from conversion', async () => {
     const { service, prisma, erp } = createHarness();
     prisma.salesReport.findUnique.mockResolvedValueOnce({
@@ -298,12 +327,47 @@ describe('SalesReportsService', () => {
     expect(erp.lookupOrder).not.toHaveBeenCalled();
   });
 
+  it('keeps a malformed non-purchased legacy row blocked from conversion', async () => {
+    const { service, prisma, erp } = createHarness();
+    prisma.salesReport.findUnique.mockResolvedValueOnce({
+      id: 'legacy-not-purchased-null',
+      reportType: 'NOT_PURCHASED',
+      entrySource: null,
+    });
+
+    await expect(
+      service.checkOrder(userFixture(), '2606290001', {
+        storeCode: 'CP62',
+        storeName: 'CP62',
+        organizationNodeId: 'node-cp62',
+        organizationNodeName: 'CP62',
+        regionCode: null,
+        areaCode: null,
+      }),
+    ).rejects.toThrow('Đơn hàng này đã được báo cáo mua hàng.');
+    expect(erp.lookupOrder).not.toHaveBeenCalled();
+  });
+
   it('keeps an existing synced report blocked outside follow-up', async () => {
     const { service, prisma, erp } = createHarness();
     prisma.salesReport.findUnique.mockResolvedValueOnce({
       id: 'existing-synced',
       reportType: 'PURCHASED',
       entrySource: 'SYNC_LIST',
+    });
+
+    await expect(
+      service.checkOrder(userFixture(), '2606290001'),
+    ).rejects.toThrow('Đơn hàng này đã được báo cáo mua hàng.');
+    expect(erp.lookupOrder).not.toHaveBeenCalled();
+  });
+
+  it('keeps an existing legacy report blocked outside follow-up', async () => {
+    const { service, prisma, erp } = createHarness();
+    prisma.salesReport.findUnique.mockResolvedValueOnce({
+      id: 'existing-legacy',
+      reportType: 'PURCHASED',
+      entrySource: null,
     });
 
     await expect(
@@ -582,10 +646,75 @@ describe('SalesReportsService', () => {
       expect.any(Object),
       expect.any(Object),
       {
-        existingSyncListReportId: 'existing-synced',
+        existingConvertibleReport: {
+          id: 'existing-synced',
+          entrySource: 'SYNC_LIST',
+        },
         orderCode: '2606290001',
       },
     );
+    expect(prisma.salesReport.create).not.toHaveBeenCalled();
+  });
+
+  it('preserves a legacy report without requiring new comeback ownership', async () => {
+    const { service, prisma, erp } = createHarness();
+    prisma.salesReport.findUnique.mockResolvedValueOnce({
+      id: 'existing-legacy',
+      reportType: 'PURCHASED',
+      entrySource: null,
+    });
+    const persist = jest.fn().mockResolvedValue({
+      report: {
+        id: 'existing-legacy',
+        reportType: 'PURCHASED',
+        orderCode: '2606290001',
+        entrySource: 'COMEBACK',
+        categorySelections: [],
+        items: [],
+        payments: [],
+      },
+      convertedExistingReport: true,
+    });
+
+    await expect(
+      service.create(
+        userFixture(),
+        {
+          ...baseInput(),
+          reportType: 'PURCHASED',
+          orderCode: ' 260629 0001 ',
+          entrySource: 'COMEBACK',
+        },
+        {
+          comebackScope: {
+            storeCode: 'CP62',
+            storeName: 'CP62',
+            organizationNodeId: 'node-cp62',
+            organizationNodeName: 'CP62',
+            regionCode: null,
+            areaCode: null,
+          },
+          persist,
+        },
+      ),
+    ).resolves.toMatchObject({
+      id: 'existing-legacy',
+      entrySource: 'COMEBACK',
+      convertedExistingReport: true,
+    });
+    expect(erp.lookupOrder).toHaveBeenCalled();
+    expect(persist).toHaveBeenCalledWith(
+      expect.any(Object),
+      expect.any(Object),
+      {
+        existingConvertibleReport: {
+          id: 'existing-legacy',
+          entrySource: null,
+        },
+        orderCode: '2606290001',
+      },
+    );
+    expect(prisma.user.findUnique).toHaveBeenCalledTimes(1);
     expect(prisma.salesReport.create).not.toHaveBeenCalled();
   });
 

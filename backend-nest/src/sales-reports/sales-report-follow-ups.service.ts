@@ -423,26 +423,29 @@ export class SalesReportFollowUpsService {
               }
               let persistedReport: any;
               let convertedExistingReport = false;
-              if (conversion.existingSyncListReportId) {
+              if (conversion.existingConvertibleReport) {
+                const convertibleReport = conversion.existingConvertibleReport;
+                const conversionSource =
+                  convertibleReport.entrySource ?? 'LEGACY_NULL';
                 const converted = await tx.salesReport.updateMany({
                   where: {
-                    id: conversion.existingSyncListReportId,
+                    id: convertibleReport.id,
                     orderCode: conversion.orderCode,
                     reportType: 'PURCHASED',
-                    entrySource: 'SYNC_LIST',
+                    entrySource: convertibleReport.entrySource,
                   },
                   data: { entrySource: 'COMEBACK' },
                 });
                 if (converted.count !== 1) {
                   this.logger.warn(
-                    `Follow-up purchase duplicate blocked during conversion: case=${row.id} user=${this.safeUser(user)} existingReport=${conversion.existingSyncListReportId} ${orderLogPart}`,
+                    `Follow-up purchase duplicate blocked during conversion: case=${row.id} user=${this.safeUser(user)} existingReport=${convertibleReport.id} existingSource=${conversionSource} ${orderLogPart}`,
                   );
                   throw new BadRequestException(
                     SALES_REPORT_COMEBACK_DUPLICATE_MESSAGE,
                   );
                 }
                 persistedReport = await tx.salesReport.findUnique({
-                  where: { id: conversion.existingSyncListReportId },
+                  where: { id: convertibleReport.id },
                   include,
                 });
                 if (!persistedReport) {

@@ -535,6 +535,60 @@ void main() {
     expect(repository.checkOrderCount, 1);
   });
 
+  testWidgets('Chăm sóc lại warns before converting a legacy report', (
+    tester,
+  ) async {
+    final repository = _FakeSalesReportRepository(
+      orderCheckOverrides: const {'willConvertLegacyReport': true},
+    );
+    final authProvider = _FakeAuthProvider(
+      const User(
+        id: 'user-1',
+        email: 'sale@phongvu.vn',
+        role: 'USER',
+        organizationNodeId: 'org-store-cp01',
+        featureAccess: {'SALES_REPORT': true},
+      ),
+    );
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider<AuthProvider>.value(value: authProvider),
+          ChangeNotifierProvider<SalesReportProvider>(
+            create: (_) => SalesReportProvider(repository),
+          ),
+        ],
+        child: const MaterialApp(
+          home: Scaffold(
+            body: SalesReportFormScreen.purchased(
+              entrySource: 'COMEBACK',
+              followUpCaseId: 'case-purchase',
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      _textFormFieldByParentKey('sales-report-order-code-field'),
+      '2607010002',
+    );
+    await tester.tap(
+      find.widgetWithText(AppSecondaryButton, 'Kiểm tra đơn hàng'),
+    );
+    await tester.pump(const Duration(seconds: 1));
+    await tester.pump();
+
+    expect(
+      find.text(
+        'Đơn hàng này thuộc dữ liệu báo cáo cũ. Nếu lưu mua hàng, hệ thống sẽ chuyển báo cáo sang Khách quay lại.',
+      ),
+      findsOneWidget,
+    );
+    expect(repository.checkOrderCount, 1);
+  });
+
   testWidgets('Báo cáo hub omits duplicate export and list actions', (
     tester,
   ) async {
@@ -1157,6 +1211,16 @@ void main() {
     expect(check.customerPhone, '0901234567');
     expect(check.paymentMethods, ['cash', 'bank_transfer']);
     expect(check.willConvertSyncedReport, isTrue);
+  });
+
+  test('SalesReportOrderCheck parses legacy conversion hint', () {
+    final check = SalesReportOrderCheck.fromJson({
+      'orderCode': '26070734972030',
+      'willConvertLegacyReport': true,
+    });
+
+    expect(check.willConvertSyncedReport, isFalse);
+    expect(check.willConvertLegacyReport, isTrue);
   });
 
   test('SalesReportProvider exposes converted-report success copy', () async {

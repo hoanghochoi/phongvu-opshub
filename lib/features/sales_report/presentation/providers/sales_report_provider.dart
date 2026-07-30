@@ -213,7 +213,9 @@ class SalesReportProvider extends ChangeNotifier {
         followUpCaseId: followUpCaseId,
       );
       _checkedOrder = result;
-      _successMessage = result.willConvertSyncedReport
+      _successMessage = result.willConvertLegacyReport
+          ? 'Đơn hàng này thuộc dữ liệu báo cáo cũ. Nếu lưu mua hàng, hệ thống sẽ chuyển báo cáo sang Khách quay lại.'
+          : result.willConvertSyncedReport
           ? 'Đơn hàng này đã có trong danh sách đồng bộ. Nếu lưu mua hàng, hệ thống sẽ chuyển báo cáo sang Khách quay lại.'
           : 'Đã kiểm tra đơn hàng.';
       await AppLogger.instance.info(
@@ -234,6 +236,7 @@ class SalesReportProvider extends ChangeNotifier {
           'paymentStatus': result.order['paymentStatus']?.toString(),
           'pendingPaymentBlocked': result.isPendingPayment,
           'willConvertSyncedReport': result.willConvertSyncedReport,
+          'willConvertLegacyReport': result.willConvertLegacyReport,
           'durationMs': DateTime.now().difference(startedAt).inMilliseconds,
         },
       );
