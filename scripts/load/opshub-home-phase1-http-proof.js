@@ -8,8 +8,8 @@ import {
   homeAggregateBodiesHaveParity,
   legacyHomeBodyMatchesContract,
 } from "./opshub-home-phase1-contract.mjs";
+import { isApprovedHomePhase1StagingBaseUrl } from "./opshub-staging-targets.mjs";
 
-const STAGING_BASE_URL = "https://opshub-staging.hoanghochoi.com/api";
 const STAGING_APPROVAL = "OPSHUB_STAGING_HOME_PHASE1_HTTP_APPROVED";
 const LOCAL_APPROVAL = "OPSHUB_LOCAL_HOME_PHASE1_HTTP_APPROVED";
 const TARGET_VUS = 250;
@@ -24,7 +24,7 @@ const runId = String(__ENV.TEST_RUN_ID || "");
 const telemetryNonce = String(__ENV.TELEMETRY_NONCE || "").trim();
 const configuredVus = Number(__ENV.TARGET_VUS || TARGET_VUS);
 const configuredRequests = Number(__ENV.TARGET_REQUESTS || TARGET_REQUESTS);
-const isStaging = baseUrl === STAGING_BASE_URL;
+const isStaging = isApprovedHomePhase1StagingBaseUrl(baseUrl);
 const isLocal =
   /^https?:\/\/(?:localhost|127\.0\.0\.1|\[::1\])(?::\d+)?\/api$/.test(baseUrl);
 const requiredApproval = isStaging ? STAGING_APPROVAL : LOCAL_APPROVAL;
