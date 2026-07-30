@@ -615,3 +615,33 @@ read and fresh focused, 13-suite affected, full Nest/build, protected Flutter,
 analyze, Prettier and diff proof before commit. Exact results belong in the PR
 and Linear proof attached to that unchanged commit so this plan does not create
 another post-proof fingerprint change.
+
+### Resume checkpoint after flat organization cache
+
+PR #62 is merged into staging at
+`cccb5ad2fcb53855161fc30bc863510a754b1cce`. Its final fingerprint passed 3
+focused suites / 99 tests, 13 affected suites / 260 tests, 90 full Nest suites /
+982 tests, Nest build, 114 protected Flutter tests, Flutter analyze, Prettier
+and diff checks. The exact-SHA staging deploy and contract/parity smoke passed.
+
+The fixed 250-VU/2,000-request run returned 2,000 HTTP 200 responses with 100%
+contract/parity and no 429, timeout or 5xx, but client latency still failed at
+p50/p95/p99/max `221.49/3100/4860/5240 ms`. Sanitized server stages isolated
+the remaining cold work: context `306/458/518/518 ms`, scope
+`373/784/833/833 ms`, sales progress `129/224/251/251 ms`, metrics
+`65/124/147/147 ms`, and total `850/1471/1567/1567 ms`. Selected-SA QA was not
+run after the latency failure. All 60 synthetic users and sessions were revoked
+and deleted, zero tagged/email/reference rows remained, and temporary tokens
+and k6 processes were absent.
+
+The next task checkpoint is branch
+`codex/ops-31-home-scope-consumer-access` from that exact staging SHA. The
+bounded fix adds `ADMIN_SALES_REPORTS` to the existing Home authorization slice
+and makes Sales Reports consume the exact pre-resolved feature decision and
+scope snapshot before considering legacy fallback queries. Explicit false
+still checks the managed job-role contract from the same snapshot; consumers
+without an auth context retain the old FeatureService and user-query fallback.
+No schema, migration, permission, API, cache, event, rate-limit or Flutter
+production contract changes. Local proof, independent review, PR/CI/lifecycle,
+exact-SHA deploy, the unchanged load gate, selected-SA isolation and mandatory
+cleanup remain required.

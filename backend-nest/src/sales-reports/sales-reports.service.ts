@@ -2972,7 +2972,19 @@ export class SalesReportsService implements OnApplicationBootstrap {
 
   private async canViewAdminSalesReports(user: any) {
     if (isSuperAdminRole(user?.role)) return true;
-    if (this.featureService?.canAccessFeature) {
+    const contextFeatureAccess = user?.__authContext?.featureAccess;
+    const hasContextFeatureDecision =
+      contextFeatureAccess &&
+      typeof contextFeatureAccess === 'object' &&
+      Object.prototype.hasOwnProperty.call(
+        contextFeatureAccess,
+        FEATURE_KEYS.ADMIN_SALES_REPORTS,
+      );
+    if (hasContextFeatureDecision) {
+      if (contextFeatureAccess[FEATURE_KEYS.ADMIN_SALES_REPORTS] === true) {
+        return true;
+      }
+    } else if (this.featureService?.canAccessFeature) {
       try {
         const canAccess = await this.featureService.canAccessFeature(
           user,
@@ -2986,8 +2998,10 @@ export class SalesReportsService implements OnApplicationBootstrap {
       }
     }
     if (
-      user?.featureAccess?.[FEATURE_KEYS.ADMIN_SALES_REPORTS] === true ||
-      user?.resolvedFeatureAccess?.[FEATURE_KEYS.ADMIN_SALES_REPORTS] === true
+      !hasContextFeatureDecision &&
+      (user?.featureAccess?.[FEATURE_KEYS.ADMIN_SALES_REPORTS] === true ||
+        user?.resolvedFeatureAccess?.[FEATURE_KEYS.ADMIN_SALES_REPORTS] ===
+          true)
     ) {
       return true;
     }
@@ -2995,6 +3009,14 @@ export class SalesReportsService implements OnApplicationBootstrap {
   }
 
   private async hasManagedSalesReportScope(user: any) {
+    const authContext = user?.__authContext;
+    if (
+      authContext &&
+      typeof authContext === 'object' &&
+      Object.prototype.hasOwnProperty.call(authContext, 'scopeSnapshot')
+    ) {
+      return this.hasManagedSalesReportJobRole(authContext.scopeSnapshot);
+    }
     if (this.hasManagedSalesReportJobRole(user)) return true;
     if (!user?.id || !(this.prisma as any).user?.findUnique) return false;
     try {

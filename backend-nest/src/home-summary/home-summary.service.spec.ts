@@ -302,6 +302,7 @@ describe('HomeSummaryService', () => {
         featureAccess: {
           HOME_DASHBOARD_SALES: true,
           HOME_DASHBOARD_FINANCE: false,
+          ADMIN_SALES_REPORTS: false,
         },
         scopeSnapshot: { ...rawUser, organizationAssignments: [] },
       },
@@ -342,7 +343,7 @@ describe('HomeSummaryService', () => {
     expect(authContextService.withFeatureScopeContext).toHaveBeenCalledTimes(1);
     expect(authContextService.withFeatureScopeContext).toHaveBeenCalledWith(
       rawUser,
-      ['HOME_DASHBOARD_SALES', 'HOME_DASHBOARD_FINANCE'],
+      ['HOME_DASHBOARD_SALES', 'HOME_DASHBOARD_FINANCE', 'ADMIN_SALES_REPORTS'],
     );
     expect(sectionAccess).toHaveBeenCalledWith(contextUser);
     expect(salesReports.describeHomeSummaryScope).toHaveBeenCalledWith(
