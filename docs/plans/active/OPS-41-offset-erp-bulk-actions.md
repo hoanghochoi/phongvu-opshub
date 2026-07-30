@@ -27,7 +27,7 @@ Offset requests, and atomic `Bỏ theo dõi đã chọn` for selected statements
   `0a0cc10e3f46bac7fe48f6d0cd676a1f621fa98a` created from live
   `origin/staging` through the lifecycle guard. The branch was subsequently
   synchronized without path overlap to live `origin/staging`
-  `16e900e3e9251d6e1e069acca0e12c9d8cbdca62` before final remediation.
+  `07f5b43603f9ae1fe14ddfc7324006e628959abd` before final verification.
 
 ## Scope
 
@@ -88,7 +88,7 @@ Out of scope:
 - [x] Keep ERP selling-channel metadata distinct from the request showroom and
   add `data.order.consultant.email` as the Sales Report owner-mapping fallback
   for CHAT-style orders.
-- [x] Synchronize the branch to live `origin/staging@16e900e3` with no OPS-41
+- [x] Synchronize the branch to live `origin/staging@07f5b436` with no OPS-41
   path overlap.
 - [x] Complete independent correctness/security review and remediate row-lock,
   scope-query, response-contract, provider-disposal, in-flight selection,
@@ -130,7 +130,7 @@ Out of scope:
 
 ## Result
 
-The branch is synchronized to live `origin/staging@16e900e3`; review blockers
+The branch is synchronized to live `origin/staging@07f5b436`; review blockers
 and the unrelated stale web-smoke route inventory have focused green proof.
 Prisma validation, Nest build, full Nest `91 suites / 1,029 tests`, Flutter
 analyze, full Flutter `671 passed / 3 intentional skips`, Go `64 tests`, and
