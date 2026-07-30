@@ -886,6 +886,7 @@ export class HomeSummaryService {
       ? await this.authContextService.withFeatureScopeContext(user, [
           FEATURE_KEYS.HOME_DASHBOARD_SALES,
           FEATURE_KEYS.HOME_DASHBOARD_FINANCE,
+          FEATURE_KEYS.ADMIN_SALES_REPORTS,
         ])
       : user;
     const contextDurationMs = Date.now() - contextStartedAt;

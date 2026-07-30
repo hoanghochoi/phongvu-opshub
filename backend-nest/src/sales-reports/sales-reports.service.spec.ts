@@ -8,7 +8,7 @@ import { SalesReportsService } from './sales-reports.service';
 describe('SalesReportsService', () => {
   afterEach(() => jest.restoreAllMocks());
 
-  function createHarness(options: { redis?: any } = {}) {
+  function createHarness(options: { redis?: any; featureService?: any } = {}) {
     const prisma = {
       user: {
         findUnique: jest.fn().mockResolvedValue(userFixture()),
@@ -96,7 +96,7 @@ describe('SalesReportsService', () => {
       prisma as any,
       categories as any,
       erp as any,
-      undefined,
+      options.featureService,
       options.redis,
     );
     return { service, prisma, categories, erp };
@@ -3387,6 +3387,82 @@ describe('SalesReportsService', () => {
       expect(prisma.user.findUnique).not.toHaveBeenCalled();
     },
   );
+
+  it('uses the exact pre-resolved admin feature decision without querying access or user state', async () => {
+    const featureService = {
+      canAccessFeature: jest.fn().mockResolvedValue(false),
+    };
+    const { service, prisma } = createHarness({ featureService });
+    const user = {
+      ...userFixture(),
+      jobRoleCode: 'STAFF',
+      __authContext: {
+        featureAccess: { [FEATURE_KEYS.ADMIN_SALES_REPORTS]: true },
+        scopeSnapshot: { jobRoleCode: 'STAFF' },
+      },
+    };
+
+    await expect((service as any).canViewAdminSalesReports(user)).resolves.toBe(
+      true,
+    );
+    expect(featureService.canAccessFeature).not.toHaveBeenCalled();
+    expect(prisma.user.findUnique).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { jobRoleCode: 'AREA_MANAGER', expected: true },
+    { jobRoleCode: 'STAFF', expected: false },
+  ])(
+    'uses the exact scope snapshot for a denied pre-resolved admin feature: $jobRoleCode',
+    async ({ jobRoleCode, expected }) => {
+      const featureService = {
+        canAccessFeature: jest.fn().mockResolvedValue(true),
+      };
+      const { service, prisma } = createHarness({ featureService });
+      const user = {
+        ...userFixture(),
+        jobRoleCode: 'STORE_MANAGER',
+        featureAccess: { [FEATURE_KEYS.ADMIN_SALES_REPORTS]: true },
+        resolvedFeatureAccess: {
+          [FEATURE_KEYS.ADMIN_SALES_REPORTS]: true,
+        },
+        __authContext: {
+          featureAccess: { [FEATURE_KEYS.ADMIN_SALES_REPORTS]: false },
+          scopeSnapshot: { jobRoleCode },
+        },
+      };
+
+      await expect(
+        (service as any).canViewAdminSalesReports(user),
+      ).resolves.toBe(expected);
+      expect(featureService.canAccessFeature).not.toHaveBeenCalled();
+      expect(prisma.user.findUnique).not.toHaveBeenCalled();
+    },
+  );
+
+  it('preserves feature and managed-role query fallbacks without an auth context', async () => {
+    const featureService = {
+      canAccessFeature: jest.fn().mockResolvedValue(false),
+    };
+    const { service, prisma } = createHarness({ featureService });
+    prisma.user.findUnique.mockResolvedValue({ jobRoleCode: 'REGION_MANAGER' });
+    const user = { ...userFixture(), jobRoleCode: 'STAFF' };
+
+    await expect((service as any).canViewAdminSalesReports(user)).resolves.toBe(
+      true,
+    );
+    expect(featureService.canAccessFeature).toHaveBeenCalledWith(
+      user,
+      FEATURE_KEYS.ADMIN_SALES_REPORTS,
+    );
+    expect(prisma.user.findUnique).toHaveBeenCalledWith({
+      where: { id: user.id },
+      select: {
+        jobRoleCode: true,
+        jobRole: { select: { code: true } },
+      },
+    });
+  });
 
   it('offers all and active organization node dashboard scopes to super admin', async () => {
     const { service, prisma } = createHarness();
