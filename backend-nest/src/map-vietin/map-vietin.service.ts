@@ -3553,7 +3553,8 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
       if (!existing) created += 1;
       const preservesProtectedOrders =
         existing?.orderSource === ORDER_SOURCE_MANUAL ||
-        existing?.orderSource === ORDER_SOURCE_OFFSET;
+        existing?.orderSource === ORDER_SOURCE_OFFSET ||
+        existing?.orderSource === ORDER_SOURCE_ERP_REPLACEMENT;
       const preservesManualIncomeType =
         existing?.incomeTypeSource === INCOME_TYPE_SOURCE_MANUAL;
       if (preservesManualIncomeType) manualIncomeTypeProtected += 1;
