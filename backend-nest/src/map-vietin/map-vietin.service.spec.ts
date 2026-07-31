@@ -993,7 +993,7 @@ describe('MapVietinService', () => {
     expect(prisma.mapVietinTransaction.upsert).not.toHaveBeenCalled();
   });
 
-  it.each(['MANUAL', 'OFFSET'])(
+  it.each(['MANUAL', 'OFFSET', 'ERP_REPLACEMENT'])(
     'preserves %s orders when a source sync refreshes the transaction',
     async (orderSource) => {
       const row = globalTransaction(`TXN-PROTECTED-${orderSource}`);
