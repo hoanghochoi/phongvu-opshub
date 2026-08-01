@@ -14,8 +14,9 @@ kê trên cùng Trang chủ, theo đúng một ngày và một phạm vi đang c
   `Tổng quan Cửa hàng` và `Tài chính` vẫn giữ scope showroom/node ở header.
 - `Bán hàng` chia thành ba nhóm nhỏ: `Doanh số`, `KPI chính` và
   `Hành vi then chốt`.
-- Nhóm `Doanh số` hiển thị `Doanh số tổng`, `Số đơn bán`,
-  `Trung bình đơn hàng`, `Doanh số hoàn thành`, `Pending` và
+- Nhóm `Doanh số (đã bao gồm VAT)` hiển thị `Giá trị bán (đã bao gồm VAT)`,
+  `Số đơn bán`, `Trung bình đơn hàng (đã bao gồm VAT)`,
+  `Hoàn thành (đã bao gồm VAT)`, `Chờ hoàn thành (đã bao gồm VAT)` và
   `Tỉ lệ chuyển đổi`.
 - Nhóm `KPI chính` hiển thị hai dòng trên desktop: dòng 1 gồm doanh số khách
   hàng doanh nghiệp, doanh số khách hàng cá nhân, số lượng CTKM đổi điểm thi,
@@ -23,12 +24,16 @@ kê trên cùng Trang chủ, theo đúng một ngày và một phạm vi đang c
   dòng 2 gồm số lượng bảo hiểm mở rộng, laptop, PC bộ, PC ráp, Apple
   (iPhone, MacBook, iPad), màn hình, máy in và phụ kiện. Tablet/mobile được
   wrap theo breakpoint dashboard hiện có để không vỡ layout.
-- `Doanh số tổng` lấy tổng giá trị đơn trong cache theo ngày/scope đang chọn,
-  không cộng đơn 0 VND, đơn hủy/trả toàn bộ và trừ giá trị trả một phần.
-- `Trung bình đơn hàng = Doanh số tổng / Số đơn bán`.
-- `Doanh số hoàn thành` chỉ cộng các báo cáo mua hàng có trạng thái ERP đã
-  sync là hoàn thành; đơn trả một phần trừ giá trị trả trước khi cộng.
-- `Pending = Doanh số tổng - Doanh số hoàn thành`, không âm.
+- Giá trị bán chỉ lấy `SalesReportErpOrderCache.grandTotal` VAT-inclusive theo
+  ngày/scope đang chọn. Không fallback report snapshot/capture/shipment/item;
+  thiếu hoặc invalid cho doanh thu 0 nhưng giữ count/fact đủ điều kiện. Không
+  cộng đơn 0 VND, đơn hủy/trả toàn bộ hoặc pending-payment; trả một phần vẫn
+  cộng toàn bộ canonical `grandTotal`.
+- `Trung bình đơn hàng = Giá trị bán / Số đơn bán`.
+- `Hoàn thành (đã bao gồm VAT)` chỉ cộng các báo cáo mua hàng có trạng thái ERP
+  đã sync là hoàn thành và tra giá trị cache theo `orderCode`; trả một phần
+  không bị trừ doanh số.
+- `Chờ hoàn thành = Giá trị bán - Hoàn thành`, không âm.
 - Nhóm `Hành vi then chốt` hiển thị `Số khách chưa mua`,
   `Số đơn chưa báo cáo`, `Báo cáo đã mua`, `Tỉ lệ báo cáo`, `Tỉ lệ 3 giải pháp`,
   `Tỉ lệ trải nghiệm`, `Tỉ lệ Zalo OA` và `Tỉ lệ tải App`.
@@ -62,23 +67,25 @@ kê trên cùng Trang chủ, theo đúng một ngày và một phạm vi đang c
   báo cáo, sao kê và doanh số. Doanh số tách thành hai card:
   `Tổng quan cá nhân` và `Tổng quan Miền/Vùng/Cửa hàng`. Card cá nhân thể hiện
   tiến độ của user/SA đang chọn; với tài khoản quản lý, mặc định là `Chưa chọn
-  SA`, card hiển thị hướng dẫn `Chọn SA để hiển thị chỉ số` và các KPI
+SA`, card hiển thị hướng dẫn `Chọn SA để hiển thị chỉ số` và các KPI
   `Bán hàng`/`Hành vi then chốt` vẫn giữ toàn bộ scope showroom/node ở header.
   Scope `Toàn hệ thống` vẫn hiển thị card `Tổng quan cá nhân` ở trạng thái chưa
   chọn thay vì ẩn card. Card Miền/Vùng/Cửa hàng thể hiện toàn bộ phạm vi quản
   lý đang chọn, giống nhau cho các user trong cùng SR và không đổi khi dropdown
   SA thay đổi. Trên desktop đủ rộng, bốn card tổng quan nằm một hàng: `Tiến độ
-  báo cáo` + `Tiến độ sao kê` gộp bằng một phần ba chiều ngang, hai card doanh
+báo cáo` + `Tiến độ sao kê` gộp bằng một phần ba chiều ngang, hai card doanh
   số mỗi card một phần ba. Mỗi card gồm khoảng chọn, tuần và tháng; vòng dừng ở
   100% nhưng text vẫn thể hiện vượt chỉ tiêu.
 - Grid KPI trên mobile thông thường hiển thị 2 card mỗi hàng; chỉ hạ còn 1 card
   khi vùng nội dung hẹp dưới 320 px. Bán hàng và Tài chính dùng cùng breakpoint.
-- Doanh số thực đạt chỉ cộng báo cáo mua hàng có trạng thái ERP hoàn thành;
-  đơn 0 VND, đơn hủy/trả toàn bộ không tính, trả một phần trừ giá trị hàng trả
-  rồi mới quy đổi về trước VAT 8%.
+- Giá trị thực đạt chỉ cộng báo cáo mua hàng có trạng thái ERP hoàn thành theo
+  canonical cache `grandTotal` VAT-inclusive; đơn 0 VND, đơn hủy/trả toàn bộ
+  không tính, trả một phần giữ toàn bộ giá trị.
 - Chỉ tiêu lưu theo SR/tháng. Ngày và tuần được phân bổ theo số ngày nằm trong
   tháng; thiếu chỉ tiêu ở bất kỳ SR nào thì vẫn hiện thực đạt nhưng không tính
-  phần trăm.
+  phần trăm. Backend giữ nguyên `targetBeforeTax` đã lưu nhưng so sánh/hiển thị
+  `round(targetBeforeTax * 1.08)` để không cần backfill lịch sử; card tiến độ ghi
+  rõ `Giá trị đã bao gồm VAT`.
 - Với `Tổng quan cá nhân`, SA nhận phần chỉ tiêu SR chia cho số SA active tại
   SR. Store manager hoặc tài khoản quản lý theo node được chọn SA trong phạm vi
   hiện tại để xem card cá nhân của SA đó; danh sách chọn không vượt ngoài các
@@ -108,6 +115,11 @@ kê trên cùng Trang chủ, theo đúng một ngày và một phạm vi đang c
   từng metric phải bằng KPI aggregate trong cùng response. Chuỗi dùng cùng
   scope Bán hàng/SA đã chọn, bị omit khi Bán hàng không khả dụng và không làm
   đổi DTO của client cũ không opt in.
+- Derived SALES projection mang version contract giá. Khi startup gặp ngày có
+  aggregate version cũ/thiếu hoặc ngày chỉ có order/report fact, backend enqueue
+  union ngày đó qua projection queue. Aggregate replacement chạy trong
+  transaction hiện hữu nên generation lỗi giữ last-known-good; không rewrite
+  source rows, không Prisma migration/backfill.
 - User có `Quản lý doanh số` theo node được cập nhật chỉ tiêu các SR trong
   subtree được cấp; SA nhận phần chỉ tiêu SR chia cho số SA active tại SR.
 

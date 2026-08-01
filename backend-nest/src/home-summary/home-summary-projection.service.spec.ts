@@ -39,12 +39,13 @@ describe('HomeSummaryProjectionService', () => {
     return { service, prisma, homeSummary, redis };
   }
 
-  it('re-enqueues pending-payment dates before the startup cycle', async () => {
+  it('re-enqueues pending-payment, raw completed-only, and stale sales-price-contract dates before the startup cycle', async () => {
     const { service, prisma } = createHarness();
     prisma.$queryRaw
       .mockResolvedValueOnce([
         { dateKey: '2026-07-14' },
         { dateKey: '2026-07-16' },
+        { dateKey: '2026-07-17' },
       ])
       .mockResolvedValueOnce([{ dateKey: '2026-07-18' }]);
     jest.spyOn(service as any, 'runCycle').mockResolvedValue(undefined);
@@ -59,6 +60,34 @@ describe('HomeSummaryProjectionService', () => {
       '"HomeSummaryDailyAggregate"',
     );
     expect(prisma.$queryRaw.mock.calls[0][0].sql).toContain(
+      'FROM "HomeSummaryReportFact"',
+    );
+    expect(prisma.$queryRaw.mock.calls[0][0].sql).toContain(
+      'FROM "SalesReportErpOrderCache"',
+    );
+    expect(prisma.$queryRaw.mock.calls[0][0].sql).toContain(
+      'COALESCE("orderCreatedAt", "fetchedAt")',
+    );
+    expect(prisma.$queryRaw.mock.calls[0][0].sql).toContain(
+      'WHERE "excludedAt" IS NULL',
+    );
+    expect(prisma.$queryRaw.mock.calls[0][0].sql).toContain(
+      'FROM "SalesReport"',
+    );
+    expect(prisma.$queryRaw.mock.calls[0][0].sql).toContain(
+      'COALESCE("erpOrderCreatedAt", "submittedAt")',
+    );
+    expect(prisma.$queryRaw.mock.calls[0][0].sql).toContain(
+      'WHERE "erpExcludedAt" IS NULL',
+    );
+    expect(prisma.$queryRaw.mock.calls[0][0].sql).toContain(
+      'LEFT JOIN "HomeSummaryOrderFact"',
+    );
+    expect(prisma.$queryRaw.mock.calls[0][0].sql).toContain(
+      'salesPriceContractVersion',
+    );
+    expect(prisma.$queryRaw.mock.calls[0][0].values).toContain('2');
+    expect(prisma.$queryRaw.mock.calls[0][0].sql).toContain(
       "INTERVAL '7 hours'",
     );
     expect(prisma.$queryRaw.mock.calls[1][0].sql).toContain(
@@ -67,16 +96,19 @@ describe('HomeSummaryProjectionService', () => {
     expect(prisma.$queryRaw.mock.calls[1][0].sql).toContain(
       'aggregate."metrics" ? \'totalStatementsUnfollowed\'',
     );
-    expect(prisma.$executeRaw).toHaveBeenCalledTimes(3);
+    expect(prisma.$executeRaw).toHaveBeenCalledTimes(4);
     expect(
       prisma.$executeRaw.mock.calls.map(([statement]: any[]) =>
         statement.values.at(0),
       ),
-    ).toEqual(['2026-07-14', '2026-07-16', '2026-07-18']);
+    ).toEqual(['2026-07-14', '2026-07-16', '2026-07-17', '2026-07-18']);
     expect(prisma.$executeRaw.mock.calls[2][0].sql).toContain(
+      "'RECONCILIATION', 'SALES'",
+    );
+    expect(prisma.$executeRaw.mock.calls[3][0].sql).toContain(
       'opshub_enqueue_home_summary_projection_kind',
     );
-    expect(prisma.$executeRaw.mock.calls[2][0].sql).toContain(
+    expect(prisma.$executeRaw.mock.calls[3][0].sql).toContain(
       "'TRACKING_STATUS_BACKFILL', 'FINANCE'",
     );
     expect((service as any).runCycle).toHaveBeenCalledWith('startup');
@@ -123,7 +155,7 @@ describe('HomeSummaryProjectionService', () => {
 
     expect((service as any).logger.error).toHaveBeenCalledWith(
       expect.stringContaining(
-        'Home projection startup reconciliation failed: reason=pending_payment_rollout',
+        'Home projection startup reconciliation failed: reason=sales_price_contract version=2',
       ),
     );
     expect((service as any).runCycle).toHaveBeenCalledWith('startup');
@@ -192,6 +224,7 @@ describe('HomeSummaryProjectionService', () => {
 
   it('keeps a failed grain durable and applies capped retry backoff', async () => {
     const { service, prisma, homeSummary } = createHarness();
+    const finalizeProjection = jest.spyOn(service as any, 'finalizeProjection');
     homeSummary.rebuildProjectionDate.mockRejectedValue(
       new Error('source temporarily unavailable'),
     );
@@ -240,6 +273,7 @@ describe('HomeSummaryProjectionService', () => {
         data: expect.objectContaining({ status: 'ERROR' }),
       }),
     );
+    expect(finalizeProjection).not.toHaveBeenCalled();
   });
 
   it('retries a 40P01 finalizer and rebuilds SALES facts only once', async () => {

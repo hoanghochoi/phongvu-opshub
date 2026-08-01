@@ -11,6 +11,7 @@ import { safeLogError } from '../common/log-sanitizer';
 import { withPostgresDeadlockRetry } from '../common/postgres-deadlock-retry';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
+import { SALES_PRICE_CONTRACT_VERSION } from '../sales-reports/sales-report-revenue';
 import { HomeSummaryService } from './home-summary.service';
 
 const HOME_SUMMARY_UPDATED_CHANNEL = 'HOME_SUMMARY_UPDATED';
@@ -155,18 +156,39 @@ export class HomeSummaryProjectionService
   private async runStartupCycle() {
     const startedAt = Date.now();
     this.logger.log(
-      'Home projection startup reconciliation started: reason=pending_payment_rollout',
+      `Home projection startup reconciliation started: reason=sales_price_contract version=${SALES_PRICE_CONTRACT_VERSION}`,
     );
     try {
       const affectedDates = await this.prisma.$queryRaw<
         Array<{ dateKey: string }>
       >(Prisma.sql`
-        WITH pending_dates AS (
+        WITH candidate_dates AS (
           SELECT DISTINCT ("summaryDate" + INTERVAL '7 hours')::date AS summary_date
           FROM "HomeSummaryOrderFact"
-          WHERE "isPaymentPending"
+          UNION
+          SELECT DISTINCT ("summaryDate" + INTERVAL '7 hours')::date AS summary_date
+          FROM "HomeSummaryReportFact"
+          UNION
+          SELECT DISTINCT (
+            COALESCE("orderCreatedAt", "fetchedAt") + INTERVAL '7 hours'
+          )::date AS summary_date
+          FROM "SalesReportErpOrderCache"
+          WHERE "excludedAt" IS NULL
+          UNION
+          SELECT DISTINCT (
+            COALESCE("erpOrderCreatedAt", "submittedAt") + INTERVAL '7 hours'
+          )::date AS summary_date
+          FROM "SalesReport"
+          WHERE "erpExcludedAt" IS NULL
+          UNION
+          SELECT DISTINCT "summaryDate" AS summary_date
+          FROM "HomeSummaryDailyAggregate"
+          WHERE "projectionKind" = 'SALES'
+            AND "dimensionType" = 'GLOBAL'
+            AND "dimensionKey" = ''
+            AND "storeCode" = ''
         ), expected AS (
-          SELECT pending.summary_date,
+          SELECT candidate.summary_date,
             COUNT(*) FILTER (WHERE NOT fact."isPaymentPending")::int AS total_orders,
             COUNT(*) FILTER (WHERE NOT fact."isPaymentPending" AND fact."hasValidReport")::int AS reported_orders,
             COALESCE(
@@ -174,10 +196,10 @@ export class HomeSummaryProjectionService
                 FILTER (WHERE NOT fact."isPaymentPending"),
               0
             ) AS order_revenue
-          FROM pending_dates AS pending
-          JOIN "HomeSummaryOrderFact" AS fact
-            ON (fact."summaryDate" + INTERVAL '7 hours')::date = pending.summary_date
-          GROUP BY pending.summary_date
+          FROM candidate_dates AS candidate
+          LEFT JOIN "HomeSummaryOrderFact" AS fact
+            ON (fact."summaryDate" + INTERVAL '7 hours')::date = candidate.summary_date
+          GROUP BY candidate.summary_date
         )
         SELECT expected.summary_date::text AS "dateKey"
         FROM expected
@@ -191,6 +213,10 @@ export class HomeSummaryProjectionService
           OR aggregate."totalOrders" <> expected.total_orders
           OR aggregate."reportedOrders" <> expected.reported_orders
           OR aggregate."orderRevenueAmount" <> expected.order_revenue
+          OR COALESCE(
+            aggregate."metrics"->>'salesPriceContractVersion',
+            ''
+          ) <> ${String(SALES_PRICE_CONTRACT_VERSION)}
         ORDER BY expected.summary_date
       `);
       for (const affectedDate of affectedDates) {
@@ -240,11 +266,11 @@ export class HomeSummaryProjectionService
         );
       }
       this.logger.log(
-        `Home projection startup reconciliation succeeded: reason=pending_payment_rollout dates=${affectedDates.length} trackingDates=${financeTrackingDates.length} durationMs=${Date.now() - startedAt}`,
+        `Home projection startup reconciliation succeeded: reason=sales_price_contract version=${SALES_PRICE_CONTRACT_VERSION} dates=${affectedDates.length} trackingDates=${financeTrackingDates.length} durationMs=${Date.now() - startedAt}`,
       );
     } catch (error) {
       this.logger.error(
-        `Home projection startup reconciliation failed: reason=pending_payment_rollout durationMs=${Date.now() - startedAt} error=${safeLogError(error)}`,
+        `Home projection startup reconciliation failed: reason=sales_price_contract version=${SALES_PRICE_CONTRACT_VERSION} durationMs=${Date.now() - startedAt} error=${safeLogError(error)}`,
       );
     }
     await this.runCycle('startup');

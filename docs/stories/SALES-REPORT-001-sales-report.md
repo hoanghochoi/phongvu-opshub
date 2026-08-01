@@ -31,6 +31,12 @@ nằm rời ở Google Form và có thể dùng cho dashboard sau này.
   sync sau. Flutter không kích hoạt ERP sync; client đọc cache DB khi mở màn
   hình hoặc bấm `Tải lại`, và refresh realtime qua WebSocket khi backend báo có
   đơn mới hoặc mapping vừa được bổ sung trong scope liên quan.
+- Cache chỉ nhận `grandTotal` từ `data.orders.grandTotal`; không fallback sang
+  `totalAmount`. Giá trị dương phải là safe integer mới được tính doanh số;
+  thiếu/không hợp lệ fail closed về 0 nhưng không làm mất count/fact đủ điều
+  kiện. Chỉ list sync được cập nhật field canonical này; detail check/submit/
+  status không ghi đè và detail-only tạo `null`. Quy tắc durable exclusion cho
+  `grandTotal <= 0` chỉ áp dụng khi list sync xác nhận.
 - User thường chỉ thấy đơn/report của mình theo
   `data.orders.creator.email`, fallback về consultant/seller/source-user
   snapshot nếu ERP không trả creator. STORE_MANAGER hoặc chức danh quản lý theo
@@ -51,7 +57,7 @@ nằm rời ở Google Form và có thể dùng cho dashboard sau này.
 - Nếu chi tiết ERP sau lần check do user chủ động vẫn có `paymentStatus` thuộc
   nhóm chưa thanh toán, form phải khóa nút `Gửi báo cáo`, cuộn phần thân modal
   về đầu và hiện toast `Đơn chưa thanh toán, vui lòng vào spos bấm Thanh toán
-  lại hoặc Hủy đơn.` Không tạo báo cáo cho đến khi đơn được thanh toán hoặc hủy.
+lại hoặc Hủy đơn.` Không tạo báo cáo cho đến khi đơn được thanh toán hoặc hủy.
 - Nếu ERP trả `confirmationStatus` hoặc `fulfillmentStatus` là `cancelled`
   không phân biệt hoa/thường, app báo `Đơn đã bị hủy.` và không load thông tin
   đơn hàng vào form.
@@ -84,7 +90,8 @@ nằm rời ở Google Form và có thể dùng cho dashboard sau này.
   hướng dẫn SPOS và chặn duplicate `orderCode`.
 - Check/submit lưu trạng thái vòng đời ERP và dữ liệu hoàn trả. Pending được
   giữ trong tiến độ nhưng chưa tính doanh số; đơn 0 VND, hủy/trả toàn bộ bị
-  loại; trả một phần trừ giá trị trả trước khi bỏ VAT 8%.
+  loại; trả một phần giữ toàn bộ canonical cache `grandTotal` VAT-inclusive và
+  không trừ giá trị trả.
 - Backend rà trạng thái mỗi 5 phút, mặc định tối đa 80 đơn với concurrency 2:
   rà cả pending trong cache chưa báo cáo và pending đã báo cáo, ưu tiên ngày bán
   gần nhất đến ngày xa nhất trong từng nhóm, đồng thời vẫn dành quota cho đơn
@@ -125,7 +132,7 @@ nằm rời ở Google Form và có thể dùng cho dashboard sau này.
   OPS-13 cung cấp backfill dry-run mặc định cho item còn `categoryType IS NULL`,
   có plan hash/checkpoint write-once, keyset pagination, compare-and-set,
   snapshot cutoff/upper-bound và resume theo các stage `DB_STARTED → DB_APPLIED
-  → HOME_ENQUEUED → BIGQUERY_SYNCED`. Backfill
+→ HOME_ENQUEUED → BIGQUERY_SYNCED`. Backfill
   dùng đúng `storeCode` đã lưu, enqueue Home theo ngày ảnh hưởng rồi gọi lại
   BigQuery full-refresh hiện hữu; không đổi công thức PC ráp.
 - Admin xuất 3 file Excel `.xlsx` tiếng Việt: `HVTC` một dòng mỗi báo cáo
@@ -135,11 +142,17 @@ nằm rời ở Google Form và có thể dùng cho dashboard sau này.
   lượng theo type laptop/PC/PC ráp/Apple/màn hình/máy in/phụ kiện/bảo hiểm mở
   rộng; lý do trả góp nằm ở cột cuối cùng của file `Doanh số`;
   `Trả góp` chỉ lấy các row có `installmentNeed = true`, gồm các cột tiếng Việt
-  `Ngày báo cáo`, `Email người báo cáo`, `Đơn hàng`, `Giá trị đơn hàng`,
+  `Ngày báo cáo`, `Email người báo cáo`, `Đơn hàng`,
+  `Giá trị đơn hàng (đã bao gồm VAT)`,
   `Số tiền vay trả góp`, `Đối tác trả góp`, `Kết quả duyệt hồ sơ`, `Loại báo cáo`,
   `Phương thức thanh toán cuối cùng`, `Lý do không trả góp`. Với row
   `NOT_PURCHASED`, phương thức thanh toán cuối cùng là `Chưa mua hàng`; chỉ
   row `PURCHASED` mới phân loại `Trả góp` hoặc `Trả thẳng` theo ERP method.
+  Doanh thu doanh nghiệp/cá nhân và giá trị đơn trả góp lấy batch theo
+  `SalesReportErpOrderCache.grandTotal` cùng `orderCode`, không dùng snapshot,
+  capture, shipment hoặc item sum fallback. Header tiền ghi rõ
+  `(đã bao gồm VAT)`; thiếu/không hợp lệ cho doanh thu 0 nhưng vẫn giữ count,
+  installment và item/category facts.
 - Admin có `ADMIN_SALES_REPORTS` theo node tổ chức xem/query/export báo cáo
   trong phạm vi được gán; Super Admin thấy toàn app. Nếu admin được gán nhiều
   SR, danh sách quản trị có bộ lọc `SR` để xem từng showroom hoặc `Tất cả SR`;
@@ -149,6 +162,16 @@ nằm rời ở Google Form và có thể dùng cho dashboard sau này.
   doanh số BigQuery có một row cho mỗi cửa hàng/showroom, không sync một dòng
   tổng toàn bộ. Sync chạy nền khi bật env và có endpoint admin
   `POST /api/sales-reports/admin/bigquery-sync` để chạy thủ công.
+  `business_revenue`/`personal_revenue` là canonical gross VAT-inclusive từ
+  cache và có cột provenance/quality cộng thêm. Report fact thêm canonical
+  gross/source/quality bên cạnh snapshot cũ. Item facts giữ nguyên capture
+  values, chỉ thêm provenance `ORDER_CAPTURE` và phương pháp before-VAT legacy.
+  Sync đọc `maxRows + 1`, fail closed khi source report rỗng hoặc bị truncate,
+  stage đủ năm table trước publish và dùng backup để rollback best-effort nếu
+  copy served table thất bại. Atomic multi-table/Looker parity cần rehearsal ở
+  staging trước release.
+  Contract Appendix tiếp tục dùng shipment final sell price theo contract riêng
+  và tuyệt đối không dùng shipment làm revenue fallback.
 - Danh sách báo cáo admin mặc định chọn ngày hiện tại. Bộ lọc dùng một action
   `Chọn khoảng ngày` để chọn cả `Từ ngày` và `Đến ngày` trong cùng một range
   picker rồi áp dụng một lần; nếu admin chủ động chọn `Tất cả ngày`, query/export

@@ -620,7 +620,7 @@ export class SalesReportErpService {
       returnedAfterTaxAmount: lifecycle.returnedAfterTaxAmount,
       statusCheckedAt: lifecycle.statusCheckedAt,
       terminalName,
-      grandTotal: this.toInt(order?.grandTotal ?? order?.totalAmount),
+      grandTotal: this.toSafeInteger(order?.grandTotal),
       customerName,
       customerPhone,
       customerType,
@@ -647,7 +647,7 @@ export class SalesReportErpService {
         returnedAfterTaxAmount: lifecycle.returnedAfterTaxAmount,
         terminalName,
         createdFromSiteDisplayName,
-        grandTotal: this.toInt(order?.grandTotal ?? order?.totalAmount),
+        grandTotal: this.toSafeInteger(order?.grandTotal),
         customerName,
         customerType,
         billingInfo: {
@@ -811,11 +811,11 @@ export class SalesReportErpService {
     const returns = await this.fetchReturnSummary(
       orderCode,
       this.toInt(order?.platformId),
-      this.toInt(order?.grandTotal),
+      this.toSafeInteger(order?.grandTotal),
       order?.hasReturnedFullItems === true,
       accessToken,
     );
-    const grandTotal = Math.max(0, this.toInt(order?.grandTotal) ?? 0);
+    const grandTotal = Math.max(0, this.toSafeInteger(order?.grandTotal) ?? 0);
     const returnedAmount = Math.min(
       grandTotal,
       Math.max(0, returns.returnedAfterTaxAmount),
@@ -1413,7 +1413,7 @@ export class SalesReportErpService {
       erpReturnedAfterTaxAmount: status.returnedAfterTaxAmount,
       erpStatusCheckedAt: status.statusCheckedAt,
       erpTerminalName: this.optionalText(order?.terminalName),
-      erpGrandTotal: this.toInt(order?.grandTotal),
+      erpGrandTotal: this.toSafeInteger(order?.grandTotal),
       erpCustomerType,
       erpPlatformId: this.toInt(order?.platformId),
       erpConsultantCustomId: this.optionalText(order?.consultant?.customId),
@@ -1464,7 +1464,7 @@ export class SalesReportErpService {
           email: creatorEmail,
           name: creatorName,
         },
-        grandTotal: this.toInt(order?.grandTotal),
+        grandTotal: this.toSafeInteger(order?.grandTotal),
         paymentMethods,
         platformId: this.toInt(order?.platformId),
         consultant: {
@@ -1879,6 +1879,15 @@ export class SalesReportErpService {
     const number = Number(normalized);
     if (!Number.isFinite(number)) return null;
     return Math.trunc(number);
+  }
+
+  private toSafeInteger(value: unknown) {
+    if (typeof value !== 'number' && typeof value !== 'string') return null;
+    const normalized =
+      typeof value === 'string' ? value.replace(/,/g, '').trim() : value;
+    if (normalized === '') return null;
+    const number = Number(normalized);
+    return Number.isSafeInteger(number) ? number : null;
   }
 
   private optionalText(value: unknown) {

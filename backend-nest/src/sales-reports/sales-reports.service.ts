@@ -14,7 +14,7 @@ import {
   organizationNodeStoreTreeInclude,
   storesForOrganizationNodeTree,
 } from '../common/organization-store-scope';
-import { logFingerprint } from '../common/log-sanitizer';
+import { logFingerprint, safeLogError } from '../common/log-sanitizer';
 import { withPostgresDeadlockRetry } from '../common/postgres-deadlock-retry';
 import { buildRealtimeRedisEnvelope } from '../common/realtime-event';
 import { isSuperAdminRole } from '../common/system-role';
@@ -32,6 +32,12 @@ import {
   isSalesReportErpOrderCanceledStatuses,
   isSalesReportErpPendingPaymentStatus,
 } from './sales-report-erp.service';
+import {
+  buildCanonicalRevenueLookup,
+  canonicalRevenueForOrder,
+  CanonicalRevenueLookup,
+  normalizeRevenueOrderCode,
+} from './sales-report-revenue';
 import {
   APP_DOWNLOAD_REASON_CODES,
   CreateSalesReportDto,
@@ -1435,7 +1441,13 @@ export class SalesReportsService implements OnApplicationBootstrap {
     candidate: ErpOrderStatusSyncCandidate,
     attemptedAt: Date,
   ): Promise<ErpOrderCachePersistResult> {
-    const grandTotal = this.numberValue(order.grandTotal);
+    const existingCache = await this.prisma.salesReportErpOrderCache.findUnique(
+      {
+        where: { orderCode: order.orderCode },
+        select: { grandTotal: true },
+      },
+    );
+    const grandTotal = this.numberValue(existingCache?.grandTotal);
     const exclusion = this.orderExclusionState(
       order.lifecycleStatus,
       grandTotal,
@@ -1467,7 +1479,6 @@ export class SalesReportsService implements OnApplicationBootstrap {
       statusCheckFailureCount: 0,
       fetchedAt: order.fetchedAt,
       sanitizedSnapshot: order.sanitizedSnapshot as Prisma.InputJsonValue,
-      ...(grandTotal === null ? {} : { grandTotal }),
       storeCode,
       storeName,
       organizationNodeId: store?.organizationNodeId ?? null,
@@ -1483,7 +1494,11 @@ export class SalesReportsService implements OnApplicationBootstrap {
         this.prisma.$transaction([
           this.prisma.salesReportErpOrderCache.upsert({
             where: { orderCode: order.orderCode },
-            create: { orderCode: order.orderCode, ...cacheData },
+            create: {
+              orderCode: order.orderCode,
+              ...cacheData,
+              grandTotal: null,
+            },
             update: cacheData,
           }),
           this.prisma.salesReport.updateMany({
@@ -2184,41 +2199,104 @@ export class SalesReportsService implements OnApplicationBootstrap {
   }
 
   async exportWorkbook(user: any, query: ExportSalesReportsDto) {
+    const startedAt = Date.now();
     const filters = this.normalizeFilters({ ...query, page: 0, limit: 100 });
     const exportType = this.normalizeExportType(query.exportType);
-    const scopeWhere = await this.resolveAdminScopeWhere(user, {
-      requestedAllStores: filters.requestedAllStores,
-      storeIds: filters.storeIds,
-    });
-    const where = this.andWhere(
-      scopeWhere,
-      this.visibleSalesReportWhere(),
-      this.buildFilterWhere(filters),
-    );
-    const exportWhere =
-      exportType === EXPORT_TYPE_INSTALLMENT
-        ? this.andWhere(where, { installmentNeed: true })
-        : where;
-    const rows = await this.prisma.salesReport.findMany({
-      where: exportWhere,
-      orderBy: { submittedAt: 'desc' },
-      take: 10_000,
-      include: {
-        categorySelections: { orderBy: { sortOrder: 'asc' } },
-        items: { orderBy: { createdAt: 'asc' } },
-        payments: { orderBy: { createdAt: 'asc' } },
-      },
-    });
     this.logger.log(
-      `Sales reports export completed: user=${this.safeUserLabel(user)} type=${exportType} count=${rows.length}`,
+      `Sales reports export started: user=${this.safeUserLabel(user)} type=${exportType}`,
     );
-    if (exportType === EXPORT_TYPE_REVENUE) {
-      return this.buildRevenueWorkbook(rows);
+    try {
+      const scopeWhere = await this.resolveAdminScopeWhere(user, {
+        requestedAllStores: filters.requestedAllStores,
+        storeIds: filters.storeIds,
+      });
+      const where = this.andWhere(
+        scopeWhere,
+        this.visibleSalesReportWhere(),
+        this.buildFilterWhere(filters),
+      );
+      const exportWhere =
+        exportType === EXPORT_TYPE_INSTALLMENT
+          ? this.andWhere(where, { installmentNeed: true })
+          : where;
+      const rows = await this.prisma.salesReport.findMany({
+        where: exportWhere,
+        orderBy: { submittedAt: 'desc' },
+        take: 10_000,
+        include: {
+          categorySelections: { orderBy: { sortOrder: 'asc' } },
+          items: { orderBy: { createdAt: 'asc' } },
+          payments: { orderBy: { createdAt: 'asc' } },
+        },
+      });
+      const canonicalRevenue =
+        exportType === EXPORT_TYPE_REVENUE ||
+        exportType === EXPORT_TYPE_INSTALLMENT
+          ? await this.loadCanonicalRevenue(rows)
+          : buildCanonicalRevenueLookup([]);
+      if (
+        exportType === EXPORT_TYPE_REVENUE ||
+        exportType === EXPORT_TYPE_INSTALLMENT
+      ) {
+        const requestedCodes = this.uniqueRevenueOrderCodes(rows);
+        const missingCount = requestedCodes.filter(
+          (code) => !canonicalRevenue.presentCodes.has(code),
+        ).length;
+        const invalidCount = requestedCodes.filter((code) =>
+          canonicalRevenue.invalidCodes.has(code),
+        ).length;
+        if (missingCount > 0 || invalidCount > 0) {
+          this.logger.warn(
+            `Sales revenue quality warning: source=export type=${exportType} reports=${rows.length} requestedOrders=${requestedCodes.length} validOrders=${canonicalRevenue.values.size} missingOrders=${missingCount} invalidOrders=${invalidCount}`,
+          );
+        }
+      }
+      if (exportType === EXPORT_TYPE_REVENUE) {
+        const workbook = this.buildRevenueWorkbook(rows, canonicalRevenue);
+        this.logger.log(
+          `Sales reports export completed: user=${this.safeUserLabel(user)} type=${exportType} count=${rows.length} durationMs=${Date.now() - startedAt}`,
+        );
+        return workbook;
+      }
+      if (exportType === EXPORT_TYPE_INSTALLMENT) {
+        const workbook = this.buildInstallmentWorkbook(rows, canonicalRevenue);
+        this.logger.log(
+          `Sales reports export completed: user=${this.safeUserLabel(user)} type=${exportType} count=${rows.length} durationMs=${Date.now() - startedAt}`,
+        );
+        return workbook;
+      }
+      const workbook = this.buildHvtcWorkbook(rows);
+      this.logger.log(
+        `Sales reports export completed: user=${this.safeUserLabel(user)} type=${exportType} count=${rows.length} durationMs=${Date.now() - startedAt}`,
+      );
+      return workbook;
+    } catch (error) {
+      this.logger.error(
+        `Sales reports export failed: user=${this.safeUserLabel(user)} type=${exportType} durationMs=${Date.now() - startedAt} error=${safeLogError(error)}`,
+      );
+      throw error;
     }
-    if (exportType === EXPORT_TYPE_INSTALLMENT) {
-      return this.buildInstallmentWorkbook(rows);
-    }
-    return this.buildHvtcWorkbook(rows);
+  }
+
+  private uniqueRevenueOrderCodes(rows: any[]) {
+    return Array.from(
+      new Set(
+        rows
+          .map((row) => normalizeRevenueOrderCode(row?.orderCode))
+          .filter((code): code is string => Boolean(code)),
+      ),
+    );
+  }
+
+  private async loadCanonicalRevenue(rows: any[]) {
+    const orderCodes = this.uniqueRevenueOrderCodes(rows);
+    const cacheRows = orderCodes.length
+      ? await this.prisma.salesReportErpOrderCache.findMany({
+          where: { orderCode: { in: orderCodes }, excludedAt: null },
+          select: { orderCode: true, grandTotal: true },
+        })
+      : [];
+    return buildCanonicalRevenueLookup(cacheRows);
   }
 
   private normalizeOrderCockpitFilters(
@@ -2392,6 +2470,7 @@ export class SalesReportsService implements OnApplicationBootstrap {
             organizationNodeId: true,
             sourceUserId: true,
             sourceUserEmail: true,
+            grandTotal: true,
           },
         })) ?? [])
       : [];
@@ -2477,7 +2556,11 @@ export class SalesReportsService implements OnApplicationBootstrap {
         order,
         storeByCode,
         owner,
-        { existingCacheRow: existingRow, preserveVerifiedLifecycle: true },
+        {
+          existingCacheRow: existingRow,
+          preserveVerifiedLifecycle: true,
+          canonicalGrandTotalFromList: true,
+        },
       );
       const becameExcluded =
         cacheResult.excluded && !Boolean(existingRow?.excludedAt);
@@ -2733,6 +2816,7 @@ export class SalesReportsService implements OnApplicationBootstrap {
       existingCacheRow?: any | null;
       preserveVerifiedLifecycle?: boolean;
       userInitiatedStatusCheck?: boolean;
+      canonicalGrandTotalFromList?: boolean;
     } = {},
   ): Promise<ErpOrderCachePersistResult> {
     const orderCode = this.normalizeOrderCode(order.orderCode);
@@ -2755,6 +2839,7 @@ export class SalesReportsService implements OnApplicationBootstrap {
               statusCheckAttemptCount: true,
               statusCheckFailureCount: true,
               sanitizedSnapshot: true,
+              grandTotal: true,
             },
           })
         : null);
@@ -2827,7 +2912,9 @@ export class SalesReportsService implements OnApplicationBootstrap {
           )
         : 1
       : this.toNonNegativeInt(existingCacheRow?.statusCheckAttemptCount);
-    const grandTotal = this.numberValue(order.grandTotal);
+    const grandTotal = options.canonicalGrandTotalFromList
+      ? this.numberValue(order.grandTotal)
+      : this.numberValue(existingCacheRow?.grandTotal);
     const exclusion = this.orderExclusionState(lifecycleStatus, grandTotal);
     const sourceOfTruthStoreCode = this.authoritativeStoreCodeForCache(
       order.sanitizedSnapshot,
@@ -2899,6 +2986,7 @@ export class SalesReportsService implements OnApplicationBootstrap {
       if (updateData[key] === null) delete updateData[key];
     }
     if (updateData.orderCreatedAt === null) delete updateData.orderCreatedAt;
+    if (!options.canonicalGrandTotalFromList) delete updateData.grandTotal;
     if (!exclusion.excludedAt) {
       delete updateData.excludedAt;
       delete updateData.exclusionReason;
@@ -4460,12 +4548,15 @@ export class SalesReportsService implements OnApplicationBootstrap {
     return this.workbookBuffer('HVTC', data);
   }
 
-  private buildRevenueWorkbook(rows: any[]) {
-    const summary = this.summarizeSalesRevenueRows(rows);
+  private buildRevenueWorkbook(
+    rows: any[],
+    canonicalRevenue: CanonicalRevenueLookup,
+  ) {
+    const summary = this.summarizeSalesRevenueRows(rows, canonicalRevenue);
     const headers = [
       'Số đơn hàng duy nhất',
-      'Tổng doanh thu khách hàng doanh nghiệp',
-      'Tổng doanh thu khách hàng cá nhân',
+      'Tổng doanh thu khách hàng doanh nghiệp (đã bao gồm VAT)',
+      'Tổng doanh thu khách hàng cá nhân (đã bao gồm VAT)',
       'Báo cáo có nhu cầu trả góp',
       'Trả góp thành công (theo báo cáo bán hàng)',
       'Số lượng laptop',
@@ -4503,12 +4594,15 @@ export class SalesReportsService implements OnApplicationBootstrap {
     return this.workbookBuffer('Doanh so', [headers, values]);
   }
 
-  private buildInstallmentWorkbook(rows: any[]) {
+  private buildInstallmentWorkbook(
+    rows: any[],
+    canonicalRevenue: CanonicalRevenueLookup,
+  ) {
     const headers = [
       'Ngày báo cáo',
       'Email người báo cáo',
       'Đơn hàng',
-      'Giá trị đơn hàng',
+      'Giá trị đơn hàng (đã bao gồm VAT)',
       'Số tiền vay trả góp',
       'Đối tác trả góp',
       'Kết quả duyệt hồ sơ',
@@ -4525,7 +4619,9 @@ export class SalesReportsService implements OnApplicationBootstrap {
         this.workbookText(this.csvVietnamDateTime(row.submittedAt)),
         this.workbookText(row.createdByEmail),
         this.workbookText(row.orderCode),
-        this.workbookNumber(row.erpGrandTotal),
+        this.workbookNumber(
+          canonicalRevenueForOrder(canonicalRevenue, row.orderCode),
+        ),
         this.workbookNumber(row.installmentLoanAmount),
         this.workbookText(partnerCodes.join('; ')),
         this.workbookText(
@@ -4545,7 +4641,10 @@ export class SalesReportsService implements OnApplicationBootstrap {
     return this.workbookBuffer('Tra gop', data);
   }
 
-  summarizeSalesRevenueRows(rows: any[]) {
+  summarizeSalesRevenueRows(
+    rows: any[],
+    canonicalRevenue: CanonicalRevenueLookup = buildCanonicalRevenueLookup([]),
+  ) {
     const uniquePurchased = new Map<string, any>();
     const noInstallmentReasons = new Map<string, number>();
     const successfulInstallmentOrderKeys = new Set<string>();
@@ -4575,9 +4674,9 @@ export class SalesReportsService implements OnApplicationBootstrap {
         }
       }
       if (row.reportType !== REPORT_TYPE_PURCHASED) continue;
-      const key = String(
-        row.orderCode ?? row.erpOrderId ?? row.id ?? '',
-      ).trim();
+      const key =
+        normalizeRevenueOrderCode(row.orderCode) ??
+        String(row.erpOrderId ?? row.id ?? '').trim();
       if (hasInstallmentNeed && key && this.isReportedInstallmentSuccess(row)) {
         successfulInstallmentOrderKeys.add(key);
       }
@@ -4604,7 +4703,7 @@ export class SalesReportsService implements OnApplicationBootstrap {
     };
 
     for (const row of uniquePurchased.values()) {
-      const revenue = this.orderRevenue(row);
+      const revenue = canonicalRevenueForOrder(canonicalRevenue, row.orderCode);
       if (row.customerType === 'BUSINESS') {
         summary.businessRevenue += revenue;
       } else {
@@ -4636,22 +4735,6 @@ export class SalesReportsService implements OnApplicationBootstrap {
     }
 
     return summary;
-  }
-
-  private orderRevenue(row: any) {
-    const grandTotal = this.numberValue(row.erpGrandTotal);
-    if (grandTotal !== null) return grandTotal;
-    return (Array.isArray(row.items) ? row.items : []).reduce(
-      (total: number, item: any) => {
-        const rowTotal = this.numberValue(item?.rowTotal);
-        if (rowTotal !== null) return total + rowTotal;
-        const price = this.numberValue(item?.finalSellPrice);
-        return price === null
-          ? total
-          : total + price * this.salesItemQuantity(item);
-      },
-      0,
-    );
   }
 
   private assembledPcQuantity(componentQuantities: Map<string, number>) {

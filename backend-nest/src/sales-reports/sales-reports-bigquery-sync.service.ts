@@ -4,10 +4,19 @@ import { Cron } from '@nestjs/schedule';
 import { promises as fs } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { safeLogError } from '../common/log-sanitizer';
 import { PrismaService } from '../prisma/prisma.service';
+import {
+  buildCanonicalRevenueLookup,
+  canonicalRevenueForOrder,
+  CanonicalRevenueLookup,
+  normalizeRevenueOrderCode,
+  SALES_REVENUE_SOURCE,
+} from './sales-report-revenue';
 
 const DEFAULT_TABLE_PREFIX = 'opshub_sales_report';
 const DEFAULT_MAX_ROWS = 100_000;
+const CANONICAL_REVENUE_LOOKUP_BATCH_SIZE = 5_000;
 const INSTALLMENT_SUCCESS = 'SUCCESS';
 const INSTALLMENT_FAILED = 'FAILED';
 
@@ -120,6 +129,8 @@ type RevenueByStoreSummary = {
   orderKeys: Set<string>;
   businessRevenue: number;
   personalRevenue: number;
+  missingRevenueOrderCount: number;
+  invalidRevenueOrderCount: number;
   noInstallmentReasons: Map<string, number>;
   laptopQuantity: number;
   pcQuantity: number;
@@ -129,6 +140,18 @@ type RevenueByStoreSummary = {
   printerQuantity: number;
   accessoriesQuantity: number;
   extendedInsuranceQuantity: number;
+};
+
+type BigQuerySnapshotTable = {
+  tableId: string;
+  schema: BigQueryField[];
+  rows: Array<Record<string, unknown>>;
+};
+
+type StagedBigQueryTable = BigQuerySnapshotTable & {
+  stagingTableId: string;
+  backupTableId: string;
+  targetExisted: boolean;
 };
 
 @Injectable()
@@ -176,7 +199,7 @@ export class SalesReportsBigQuerySyncService implements OnApplicationBootstrap {
         this.prisma.salesReport.findMany({
           where: { erpExcludedAt: null },
           orderBy: [{ submittedAt: 'asc' }, { id: 'asc' }],
-          take: config.maxRows,
+          take: config.maxRows + 1,
           include: {
             categorySelections: { orderBy: { sortOrder: 'asc' } },
             items: { orderBy: { createdAt: 'asc' } },
@@ -186,7 +209,7 @@ export class SalesReportsBigQuerySyncService implements OnApplicationBootstrap {
         this.prisma.salesReportFollowUpCase.findMany({
           where: { followUpCount: { gt: 0 } },
           orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
-          take: config.maxRows,
+          take: config.maxRows + 1,
           include: {
             sourceReport: {
               include: {
@@ -197,20 +220,42 @@ export class SalesReportsBigQuerySyncService implements OnApplicationBootstrap {
           },
         }),
       ]);
-      if (reports.length >= config.maxRows) {
-        this.logger.warn(
-          `Sales report BigQuery sync reached maxRows=${config.maxRows}; increase SALES_REPORT_BIGQUERY_MAX_ROWS if older rows are missing`,
+      if (reports.length === 0) {
+        throw new Error(
+          'BigQuery snapshot validation failed: reason=empty_sales_reports',
         );
       }
-      if (followUpCases.length >= config.maxRows) {
-        this.logger.warn(
-          `Sales report follow-up BigQuery sync reached maxRows=${config.maxRows}; increase SALES_REPORT_BIGQUERY_MAX_ROWS if older rows are missing`,
+      if (reports.length > config.maxRows) {
+        throw new Error(
+          `BigQuery snapshot validation failed: reason=sales_report_limit_exceeded maxRows=${config.maxRows}`,
+        );
+      }
+      if (followUpCases.length > config.maxRows) {
+        throw new Error(
+          `BigQuery snapshot validation failed: reason=follow_up_limit_exceeded maxRows=${config.maxRows}`,
         );
       }
 
+      const revenueOrderCodes = Array.from(
+        new Set(
+          reports
+            .map((row) => normalizeRevenueOrderCode(row.orderCode))
+            .filter((code): code is string => Boolean(code)),
+        ),
+      );
+      const revenueCacheRows =
+        await this.loadCanonicalRevenueRows(revenueOrderCodes);
+      const canonicalRevenue = buildCanonicalRevenueLookup(revenueCacheRows);
+
       const syncedAt = new Date();
-      const reportRows = reports.map((row) => this.toReportRow(row, syncedAt));
-      const revenueRows = this.toRevenueByStoreRows(reports, syncedAt);
+      const reportRows = reports.map((row) =>
+        this.toReportRow(row, syncedAt, canonicalRevenue),
+      );
+      const revenueRows = this.toRevenueByStoreRows(
+        reports,
+        syncedAt,
+        canonicalRevenue,
+      );
       const itemRows = reports.flatMap((row) =>
         (row.items ?? []).map((item: any) =>
           this.toItemRow(row, item, syncedAt),
@@ -224,42 +269,47 @@ export class SalesReportsBigQuerySyncService implements OnApplicationBootstrap {
       const followUpRows = followUpCases.map((row) =>
         this.toFollowUpRow(row, syncedAt),
       );
+      const missingRevenueOrders = revenueRows.reduce(
+        (sum, row) => sum + Number(row.missing_revenue_order_count ?? 0),
+        0,
+      );
+      const invalidRevenueOrders = revenueRows.reduce(
+        (sum, row) => sum + Number(row.invalid_revenue_order_count ?? 0),
+        0,
+      );
+      if (missingRevenueOrders > 0 || invalidRevenueOrders > 0) {
+        this.logger.warn(
+          `Sales revenue quality warning: source=bigquery reports=${reports.length} requestedOrders=${revenueOrderCodes.length} validOrders=${canonicalRevenue.values.size} missingOrders=${missingRevenueOrders} invalidOrders=${invalidRevenueOrders}`,
+        );
+      }
 
-      await this.replaceTableRows(
-        client,
-        config,
-        config.reportTableId,
-        REPORT_SCHEMA,
-        reportRows,
-      );
-      await this.replaceTableRows(
-        client,
-        config,
-        config.revenueTableId,
-        REVENUE_BY_STORE_SCHEMA,
-        revenueRows,
-      );
-      await this.replaceTableRows(
-        client,
-        config,
-        config.itemTableId,
-        ITEM_SCHEMA,
-        itemRows,
-      );
-      await this.replaceTableRows(
-        client,
-        config,
-        config.paymentTableId,
-        PAYMENT_SCHEMA,
-        paymentRows,
-      );
-      await this.replaceTableRows(
-        client,
-        config,
-        config.followUpTableId,
-        this.followUpSchema(followUpCases),
-        followUpRows,
-      );
+      await this.stageAndPublishSnapshot(client, config, syncedAt, [
+        {
+          tableId: config.reportTableId,
+          schema: REPORT_SCHEMA,
+          rows: reportRows,
+        },
+        {
+          tableId: config.revenueTableId,
+          schema: REVENUE_BY_STORE_SCHEMA,
+          rows: revenueRows,
+        },
+        {
+          tableId: config.itemTableId,
+          schema: ITEM_SCHEMA,
+          rows: itemRows,
+        },
+        {
+          tableId: config.paymentTableId,
+          schema: PAYMENT_SCHEMA,
+          rows: paymentRows,
+        },
+        {
+          tableId: config.followUpTableId,
+          schema: this.followUpSchema(followUpCases),
+          rows: followUpRows,
+        },
+      ]);
 
       const result: SalesReportBigQuerySyncResult = {
         skipped: false,
@@ -288,6 +338,135 @@ export class SalesReportsBigQuerySyncService implements OnApplicationBootstrap {
       throw error;
     } finally {
       this.syncRunning = false;
+    }
+  }
+
+  private async loadCanonicalRevenueRows(orderCodes: string[]) {
+    const rows: Array<{ orderCode: string; grandTotal: number | null }> = [];
+    for (
+      let index = 0;
+      index < orderCodes.length;
+      index += CANONICAL_REVENUE_LOOKUP_BATCH_SIZE
+    ) {
+      const batch = orderCodes.slice(
+        index,
+        index + CANONICAL_REVENUE_LOOKUP_BATCH_SIZE,
+      );
+      rows.push(
+        ...(await this.prisma.salesReportErpOrderCache.findMany({
+          where: {
+            orderCode: { in: batch },
+            excludedAt: null,
+          },
+          select: { orderCode: true, grandTotal: true },
+        })),
+      );
+    }
+    return rows;
+  }
+
+  private async stageAndPublishSnapshot(
+    client: BigQuery,
+    config: SalesReportBigQueryConfig,
+    syncedAt: Date,
+    tables: BigQuerySnapshotTable[],
+  ) {
+    const runToken = `${syncedAt.getTime()}_${Math.random().toString(36).slice(2, 10)}`;
+    const staged: StagedBigQueryTable[] = tables.map((table) => ({
+      ...table,
+      stagingTableId: `${table.tableId}__stage_${runToken}`,
+      backupTableId: `${table.tableId}__backup_${runToken}`,
+      targetExisted: false,
+    }));
+    const published: StagedBigQueryTable[] = [];
+    const backupTableIdsToPreserve = new Set<string>();
+    try {
+      for (const table of staged) {
+        await this.replaceTableRows(
+          client,
+          config,
+          table.stagingTableId,
+          table.schema,
+          table.rows,
+        );
+      }
+
+      const dataset = client.dataset(config.datasetId);
+      for (const table of staged) {
+        const target = dataset.table(table.tableId);
+        const [exists] = await target.exists();
+        table.targetExisted = exists;
+        if (!exists) continue;
+        const backup = dataset.table(table.backupTableId);
+        const [job] = await target.createCopyJob(backup, {
+          createDisposition: 'CREATE_IF_NEEDED',
+          writeDisposition: 'WRITE_TRUNCATE',
+        });
+        await this.waitForBigQueryJob(job);
+      }
+
+      for (const table of staged) {
+        const staging = dataset.table(table.stagingTableId);
+        const target = dataset.table(table.tableId);
+        const [job] = await staging.createCopyJob(target, {
+          createDisposition: 'CREATE_IF_NEEDED',
+          writeDisposition: 'WRITE_TRUNCATE',
+        });
+        await this.waitForBigQueryJob(job);
+        published.push(table);
+      }
+    } catch (error) {
+      const rollbackFailures: string[] = [];
+      const dataset = client.dataset(config.datasetId);
+      for (const table of [...published].reverse()) {
+        try {
+          const target = dataset.table(table.tableId);
+          if (table.targetExisted) {
+            const backup = dataset.table(table.backupTableId);
+            const [job] = await backup.createCopyJob(target, {
+              createDisposition: 'CREATE_IF_NEEDED',
+              writeDisposition: 'WRITE_TRUNCATE',
+            });
+            await this.waitForBigQueryJob(job);
+          } else {
+            await target.delete({ ignoreNotFound: true } as any);
+          }
+        } catch {
+          rollbackFailures.push(table.tableId);
+          if (table.targetExisted) {
+            backupTableIdsToPreserve.add(table.backupTableId);
+          }
+        }
+      }
+      if (rollbackFailures.length > 0) {
+        throw new Error(
+          `BigQuery snapshot publish failed: rollbackIncomplete=${rollbackFailures.length} cause=${safeLogError(error, 160)}`,
+        );
+      }
+      throw error;
+    } finally {
+      const dataset = client.dataset(config.datasetId);
+      for (const table of staged) {
+        try {
+          await dataset
+            .table(table.stagingTableId)
+            .delete({ ignoreNotFound: true } as any);
+        } catch (error) {
+          this.logger.warn(
+            `Sales report BigQuery temporary table cleanup failed: tableKind=stage error=${this.safeError(error)}`,
+          );
+        }
+        if (backupTableIdsToPreserve.has(table.backupTableId)) continue;
+        try {
+          await dataset
+            .table(table.backupTableId)
+            .delete({ ignoreNotFound: true } as any);
+        } catch (error) {
+          this.logger.warn(
+            `Sales report BigQuery temporary table cleanup failed: tableKind=backup error=${this.safeError(error)}`,
+          );
+        }
+      }
     }
   }
 
@@ -345,14 +524,42 @@ export class SalesReportsBigQuerySyncService implements OnApplicationBootstrap {
 
   private async ensureTable(table: any, schema: BigQueryField[]) {
     const [exists] = await table.exists();
-    if (exists) return;
-    await table.create({ schema: { fields: schema } });
+    if (!exists) {
+      await table.create({ schema: { fields: schema } });
+      return;
+    }
+    const [metadata] = await table.getMetadata();
+    const existingFields = Array.isArray(metadata?.schema?.fields)
+      ? metadata.schema.fields
+      : [];
+    const existingNames = new Set(
+      existingFields.map((field: BigQueryField) => field.name),
+    );
+    const missingFields = schema.filter(
+      (field) => !existingNames.has(field.name),
+    );
+    if (missingFields.length === 0) return;
+    await table.setMetadata({
+      schema: { fields: [...existingFields, ...missingFields] },
+    });
   }
 
-  private toReportRow(row: any, syncedAt: Date) {
+  private toReportRow(
+    row: any,
+    syncedAt: Date,
+    canonicalRevenue: CanonicalRevenueLookup,
+  ) {
     const submittedAt = this.dateValue(row.submittedAt);
     const categoryGroups = this.categoryGroups(row);
     const promotionCodes = this.arrayText(row.promotionCodes);
+    const canonicalRevenueAmount = canonicalRevenueForOrder(
+      canonicalRevenue,
+      row.orderCode,
+    );
+    const canonicalRevenueQuality = this.canonicalRevenueQuality(
+      canonicalRevenue,
+      row.orderCode,
+    );
     const partnerCodes = this.arrayText(row.installmentPartnerCodes);
     const contactChannelCodes = this.arrayText(row.customerContactChannels);
     return {
@@ -456,7 +663,10 @@ export class SalesReportsBigQuerySyncService implements OnApplicationBootstrap {
       ),
       erp_terminal_name: this.text(row.erpTerminalName),
       erp_grand_total: this.integer(row.erpGrandTotal),
-      revenue_before_vat: this.revenueBeforeVat(row.erpGrandTotal),
+      canonical_revenue_vat_inclusive: canonicalRevenueAmount,
+      canonical_revenue_source: SALES_REVENUE_SOURCE,
+      canonical_revenue_quality: canonicalRevenueQuality,
+      revenue_before_vat: this.revenueBeforeVat(canonicalRevenueAmount),
       erp_payment_methods: this.arrayText(row.erpPaymentMethods).join('; '),
       erp_customer_type: this.text(row.erpCustomerType),
       erp_platform_id: this.integer(row.erpPlatformId),
@@ -470,7 +680,11 @@ export class SalesReportsBigQuerySyncService implements OnApplicationBootstrap {
     };
   }
 
-  private toRevenueByStoreRows(reports: any[], syncedAt: Date) {
+  private toRevenueByStoreRows(
+    reports: any[],
+    syncedAt: Date,
+    canonicalRevenue: CanonicalRevenueLookup,
+  ) {
     const summaries = new Map<string, RevenueByStoreSummary>();
     for (const row of reports) {
       const summary = this.revenueSummaryForStore(summaries, row);
@@ -503,7 +717,19 @@ export class SalesReportsBigQuerySyncService implements OnApplicationBootstrap {
       if (!orderKey || summary.orderKeys.has(orderKey)) continue;
       summary.orderKeys.add(orderKey);
 
-      const revenue = this.orderRevenue(row);
+      const normalizedOrderCode = normalizeRevenueOrderCode(row.orderCode);
+      if (
+        !normalizedOrderCode ||
+        !canonicalRevenue.presentCodes.has(normalizedOrderCode)
+      ) {
+        summary.missingRevenueOrderCount += 1;
+      } else if (canonicalRevenue.invalidCodes.has(normalizedOrderCode)) {
+        summary.invalidRevenueOrderCount += 1;
+      }
+      const revenue = canonicalRevenueForOrder(
+        canonicalRevenue,
+        normalizedOrderCode,
+      );
       if (this.text(row.customerType) === 'BUSINESS') {
         summary.businessRevenue += revenue;
       } else {
@@ -554,6 +780,10 @@ export class SalesReportsBigQuerySyncService implements OnApplicationBootstrap {
         order_count_unique: summary.orderKeys.size,
         business_revenue: summary.businessRevenue,
         personal_revenue: summary.personalRevenue,
+        revenue_source: SALES_REVENUE_SOURCE,
+        revenue_vat_inclusive: true,
+        missing_revenue_order_count: summary.missingRevenueOrderCount,
+        invalid_revenue_order_count: summary.invalidRevenueOrderCount,
         no_installment_reasons: Array.from(
           summary.noInstallmentReasons.entries(),
         )
@@ -569,6 +799,15 @@ export class SalesReportsBigQuerySyncService implements OnApplicationBootstrap {
         extended_insurance_quantity: summary.extendedInsuranceQuantity,
         synced_at: this.timestamp(syncedAt),
       }));
+  }
+
+  private canonicalRevenueQuality(
+    lookup: CanonicalRevenueLookup,
+    orderCode: unknown,
+  ) {
+    const normalized = normalizeRevenueOrderCode(orderCode);
+    if (!normalized || !lookup.presentCodes.has(normalized)) return 'MISSING';
+    return lookup.invalidCodes.has(normalized) ? 'INVALID' : 'VALID';
   }
 
   private revenueSummaryForStore(
@@ -594,6 +833,8 @@ export class SalesReportsBigQuerySyncService implements OnApplicationBootstrap {
         orderKeys: new Set<string>(),
         businessRevenue: 0,
         personalRevenue: 0,
+        missingRevenueOrderCount: 0,
+        invalidRevenueOrderCount: 0,
         noInstallmentReasons: new Map<string, number>(),
         laptopQuantity: 0,
         pcQuantity: 0,
@@ -647,6 +888,8 @@ export class SalesReportsBigQuerySyncService implements OnApplicationBootstrap {
       final_sell_price: this.integer(item.finalSellPrice),
       row_total: this.integer(item.rowTotal),
       row_revenue_before_vat: this.revenueBeforeVat(item.rowTotal),
+      item_price_source: 'ORDER_CAPTURE',
+      row_revenue_before_vat_method: 'LEGACY_DIVIDE_BY_1_08',
       created_at: this.timestamp(this.dateValue(item.createdAt)),
       synced_at: this.timestamp(syncedAt),
     };
@@ -933,22 +1176,6 @@ export class SalesReportsBigQuerySyncService implements OnApplicationBootstrap {
     );
   }
 
-  private orderRevenue(row: any) {
-    const grandTotal = this.integer(row.erpGrandTotal);
-    if (grandTotal !== null) return grandTotal;
-    return (Array.isArray(row.items) ? row.items : []).reduce(
-      (total: number, item: any) => {
-        const rowTotal = this.integer(item?.rowTotal);
-        if (rowTotal !== null) return total + rowTotal;
-        const price = this.integer(item?.finalSellPrice);
-        return price === null
-          ? total
-          : total + price * this.salesItemQuantity(item);
-      },
-      0,
-    );
-  }
-
   private salesItemQuantity(item: any) {
     const quantity = this.integer(item?.quantity);
     return quantity !== null && quantity > 0 ? quantity : 1;
@@ -1070,8 +1297,27 @@ export class SalesReportsBigQuerySyncService implements OnApplicationBootstrap {
   }
 
   private safeError(error: unknown) {
-    if (error instanceof Error) return error.message;
-    return String(error);
+    const record =
+      error && typeof error === 'object'
+        ? (error as unknown as Record<string, unknown>)
+        : null;
+    const name = this.safeErrorToken(
+      error instanceof Error ? error.name : record?.name,
+      'Error',
+    );
+    const code = this.safeErrorToken(
+      record?.code ?? record?.status ?? record?.statusCode,
+      'none',
+    );
+    return `name=${name} code=${code} message=${safeLogError(error, 180)}`;
+  }
+
+  private safeErrorToken(value: unknown, fallback: string) {
+    const token = String(value ?? '')
+      .trim()
+      .replace(/[^A-Za-z0-9_.-]/g, '')
+      .slice(0, 80);
+    return token || fallback;
   }
 }
 
@@ -1203,6 +1449,9 @@ const REPORT_SCHEMA: BigQueryField[] = [
   { name: 'erp_returned_after_tax_amount', type: 'INTEGER' },
   { name: 'erp_terminal_name', type: 'STRING' },
   { name: 'erp_grand_total', type: 'INTEGER' },
+  { name: 'canonical_revenue_vat_inclusive', type: 'INTEGER' },
+  { name: 'canonical_revenue_source', type: 'STRING' },
+  { name: 'canonical_revenue_quality', type: 'STRING' },
   { name: 'revenue_before_vat', type: 'INTEGER' },
   { name: 'erp_payment_methods', type: 'STRING' },
   { name: 'erp_customer_type', type: 'STRING' },
@@ -1229,6 +1478,10 @@ const REVENUE_BY_STORE_SCHEMA: BigQueryField[] = [
   { name: 'order_count_unique', type: 'INTEGER' },
   { name: 'business_revenue', type: 'INTEGER' },
   { name: 'personal_revenue', type: 'INTEGER' },
+  { name: 'revenue_source', type: 'STRING' },
+  { name: 'revenue_vat_inclusive', type: 'BOOLEAN' },
+  { name: 'missing_revenue_order_count', type: 'INTEGER' },
+  { name: 'invalid_revenue_order_count', type: 'INTEGER' },
   { name: 'no_installment_reasons', type: 'STRING' },
   { name: 'laptop_quantity', type: 'INTEGER' },
   { name: 'pc_quantity', type: 'INTEGER' },
@@ -1270,6 +1523,8 @@ const ITEM_SCHEMA: BigQueryField[] = [
   { name: 'final_sell_price', type: 'INTEGER' },
   { name: 'row_total', type: 'INTEGER' },
   { name: 'row_revenue_before_vat', type: 'INTEGER' },
+  { name: 'item_price_source', type: 'STRING' },
+  { name: 'row_revenue_before_vat_method', type: 'STRING' },
   { name: 'created_at', type: 'TIMESTAMP' },
   { name: 'synced_at', type: 'TIMESTAMP' },
 ];
