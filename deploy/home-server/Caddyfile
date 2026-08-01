@@ -210,3 +210,45 @@ http://{$OPSHUB_DOMAIN} {
     file_server
   }
 }
+
+# Dedicated BIDV H2H origin. This host intentionally has no SPA, staff API,
+# WebSocket, upload or download fallback.
+http://{$BIDV_H2H_DOMAIN} {
+  encode gzip zstd
+  log {
+    output discard
+  }
+
+  @insecure_edge_request header X-Forwarded-Proto http
+  redir @insecure_edge_request https://{host}{uri} 308
+
+  header {
+    -Server
+    X-Content-Type-Options "nosniff"
+    Referrer-Policy "no-referrer"
+    X-Frame-Options "DENY"
+    Strict-Transport-Security "max-age=31536000; includeSubDomains"
+    Cache-Control "no-store"
+  }
+
+  handle /health {
+    respond "ok" 200
+  }
+
+  @bidv_h2h_api path /oauth2/token /v1/balance-changes
+  handle @bidv_h2h_api {
+    reverse_proxy {
+      dynamic a api 3000 {
+        refresh 5s
+        versions ipv4
+      }
+      lb_policy round_robin
+      header_up X-Forwarded-For {client_ip}
+      header_up X-Real-IP {client_ip}
+    }
+  }
+
+  handle {
+    respond "Not found" 404
+  }
+}

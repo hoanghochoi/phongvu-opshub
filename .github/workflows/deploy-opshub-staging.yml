@@ -1002,6 +1002,9 @@ jobs:
           upsert_env OPSHUB_STAGING true
           upsert_env COMPOSE_PROJECT_NAME "$COMPOSE_PROJECT_NAME"
           upsert_env OPSHUB_DOMAIN "opshub-staging.hoanghochoi.com"
+          upsert_env BIDV_H2H_DOMAIN "bidv-staging.opshub.hoanghochoi.com"
+          upsert_env BIDV_H2H_PUBLIC_BASE_URL "https://bidv-staging.opshub.hoanghochoi.com"
+          upsert_env BIDV_H2H_ENVIRONMENT staging
           upsert_env PUBLIC_BASE_URL "$OPSHUB_PUBLIC_BASE_URL"
           upsert_env OPSHUB_SSD_ROOT "$OPSHUB_SSD_ROOT"
           upsert_env OPSHUB_HTTP_BIND "127.0.0.1:8090"
@@ -1015,6 +1018,12 @@ jobs:
           upsert_env VIETQR_AUTO_RECONCILE_ENABLED false
           upsert_env MAP_VIETIN_GLOBAL_SYNC_ENABLED false
           upsert_env HOME_SUMMARY_ERP_BACKFILL_ENABLED false
+          if ! sudo grep -q '^BIDV_H2H_INGEST_ENABLED=' "$OPSHUB_ENV_FILE"; then
+            upsert_env BIDV_H2H_INGEST_ENABLED false
+          fi
+          if ! sudo grep -q '^BIDV_H2H_PROJECTION_ENABLED=' "$OPSHUB_ENV_FILE"; then
+            upsert_env BIDV_H2H_PROJECTION_ENABLED false
+          fi
           for smtp_key in SMTP_HOST SMTP_PORT SMTP_SECURE SMTP_USER SMTP_PASS SMTP_FROM; do
             unset_env "$smtp_key"
           done

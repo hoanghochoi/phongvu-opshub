@@ -78,6 +78,8 @@ class ApiConstants {
   static const String adminPolicyScopeTreeEndpoint =
       '/admin/policies/scope-tree';
   static const String adminSettingsEndpoint = '/admin/settings';
+  static const String adminBidvConnectionsEndpoint =
+      '/admin/api-connections/bidv';
   static const String adminMapVietinTransactionsEndpoint =
       '/admin/map-vietin/transactions/search';
   static const String adminMapVietinStoredTransactionsEndpoint =

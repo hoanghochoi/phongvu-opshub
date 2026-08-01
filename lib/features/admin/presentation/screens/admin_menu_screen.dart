@@ -115,6 +115,23 @@ class AdminMenuScreen extends StatelessWidget {
         ),
       if (isSuperAdmin)
         AppFeatureAction(
+          icon: Icons.api_rounded,
+          title: 'Quản lý kết nối API',
+          description: 'Client và khóa ngân hàng',
+          color: AppColors.warning,
+          onTap: () {
+            unawaited(
+              AppLogger.instance.info(
+                'Admin',
+                'API connection administration selected',
+                context: {'route': '/admin/api-connections'},
+              ),
+            );
+            context.push('/admin/api-connections');
+          },
+        ),
+      if (isSuperAdmin)
+        AppFeatureAction(
           icon: Icons.menu_book_outlined,
           title: 'Quản lý hướng dẫn',
           description: 'Nội dung runtime công khai',

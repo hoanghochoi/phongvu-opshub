@@ -26,6 +26,10 @@ export type MapVietinBigQueryRow = {
   paid_at: Date | null;
   income_type: string;
   provider_source: string | null;
+  bank_source: string | null;
+  currency: string;
+  direction: string;
+  exact_amount: string;
   first_seen_at: Date;
   source_created_at: Date;
   source_updated_at: Date;

@@ -12,6 +12,7 @@ export const FEATURE_KEYS = {
   ADMIN_SALES_REPORTS: 'ADMIN_SALES_REPORTS',
   ADMIN_SALES_TARGETS: 'ADMIN_SALES_TARGETS',
   ADMIN_QUICK_ACTION_CODES: 'ADMIN_QUICK_ACTION_CODES',
+  ADMIN_API_CONNECTIONS: 'ADMIN_API_CONNECTIONS',
   HOME_DASHBOARD: 'HOME_DASHBOARD',
   HOME_DASHBOARD_SALES: 'HOME_DASHBOARD_SALES',
   HOME_DASHBOARD_FINANCE: 'HOME_DASHBOARD_FINANCE',
@@ -130,6 +131,14 @@ export const DEFAULT_FEATURE_DEFINITIONS = [
     description: 'Cấu hình liên kết QR theo showroom',
     parentCode: FEATURE_KEYS.ADMIN,
     sortOrder: 97,
+  },
+  {
+    code: FEATURE_KEYS.ADMIN_API_CONNECTIONS,
+    displayName: 'Quản lý kết nối API',
+    description: 'Quản lý kết nối ngân hàng H2H',
+    parentCode: FEATURE_KEYS.ADMIN,
+    sortOrder: 98,
+    visibleInUserPicker: false,
   },
   {
     code: FEATURE_KEYS.HOME_DASHBOARD,

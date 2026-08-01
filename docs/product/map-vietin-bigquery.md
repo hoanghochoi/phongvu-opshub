@@ -1,5 +1,9 @@
 # MAP Vietin BigQuery export
 
+OPS-39 adds nullable `bank_source`, `currency`, `direction` and NUMERIC
+`exact_amount`. BIDV rows use `provider_source=BIDV_H2H`. No account, payload,
+credential or key is exported. Old rows fall back to VND/C and legacy amount.
+
 OPS-36 bổ sung `order_tracking_status` vào raw row và payload schema v2. Giá trị
 hợp lệ là `FOLLOWING` hoặc `UNFOLLOWED`; mapper schema v2 fail-closed với giá trị
 khác. Event schema v1 không có field này được đọc tương thích là `FOLLOWING`, và

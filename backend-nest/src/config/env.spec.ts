@@ -4,6 +4,7 @@ import {
   getRequestBodyLimit,
   isCorsOriginAllowed,
   getRequiredEnv,
+  getBidvH2hConfig,
   validateRuntimeEnv,
 } from './env';
 
@@ -320,5 +321,60 @@ describe('env validation', () => {
         ALLOWED_ORIGINS: 'https://opshub.example.com',
       }),
     ).toBe(false);
+  });
+
+  it('keeps BIDV H2H off by default and requires a dedicated 32-byte KEK', () => {
+    expect(getBidvH2hConfig({})).toMatchObject({
+      ingestMasterEnabled: false,
+      projectionMasterEnabled: false,
+      tokenTtlSeconds: 300,
+      maxTransactionsPerBatch: 100,
+    });
+    expect(() => getBidvH2hConfig({ BIDV_H2H_INGEST_ENABLED: 'true' })).toThrow(
+      'BIDV_H2H_KEK_BASE64 is required',
+    );
+    expect(() =>
+      getBidvH2hConfig({
+        BIDV_H2H_INGEST_ENABLED: 'true',
+        BIDV_H2H_KEK_BASE64: Buffer.alloc(31).toString('base64'),
+      }),
+    ).toThrow('exactly 32 bytes');
+    expect(
+      getBidvH2hConfig({
+        BIDV_H2H_INGEST_ENABLED: 'true',
+        BIDV_H2H_KEK_BASE64: Buffer.alloc(32, 3).toString('base64'),
+        BIDV_H2H_ENVIRONMENT: 'local',
+        BIDV_H2H_PUBLIC_BASE_URL: 'http://localhost:3000',
+      }).kek,
+    ).toHaveLength(32);
+  });
+
+  it('pins staging and production BIDV public hosts', () => {
+    const key = Buffer.alloc(32, 3).toString('base64');
+    expect(() =>
+      getBidvH2hConfig({
+        BIDV_H2H_INGEST_ENABLED: 'true',
+        BIDV_H2H_KEK_BASE64: key,
+        BIDV_H2H_ENVIRONMENT: 'staging',
+        BIDV_H2H_PUBLIC_BASE_URL: 'https://wrong.example.com',
+      }),
+    ).toThrow('bidv-staging.opshub.hoanghochoi.com');
+    expect(
+      getBidvH2hConfig({
+        BIDV_H2H_INGEST_ENABLED: 'true',
+        BIDV_H2H_KEK_BASE64: key,
+        BIDV_H2H_ENVIRONMENT: 'production',
+        BIDV_H2H_PUBLIC_BASE_URL: 'https://bidv.opshub.hoanghochoi.com',
+      }).publicBaseUrl,
+    ).toBe('https://bidv.opshub.hoanghochoi.com');
+  });
+
+  it('blocks projection when ingest master is off', () => {
+    expect(() =>
+      getBidvH2hConfig({
+        BIDV_H2H_PROJECTION_ENABLED: 'true',
+        BIDV_H2H_KEK_BASE64: Buffer.alloc(32, 3).toString('base64'),
+      }),
+    ).toThrow('requires BIDV_H2H_INGEST_ENABLED=true');
   });
 });

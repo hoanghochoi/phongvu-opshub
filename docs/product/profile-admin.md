@@ -24,6 +24,11 @@ and basic administration for privileged roles.
 
 ## Admin Management
 
+- `SUPER_ADMIN` can open `Quản lý kết nối API` on Windows and web to create,
+  rotate and revoke BIDV OAuth clients and OpenPGP keys, export only public key
+  material, and request audited ingest/projection state. Client secrets show
+  once; stored secrets and private keys are never readable from the UI.
+
 - Admin menu visibility is resolved through the backend feature map. Runtime
   feature access uses node-group assignments from the user's direct active
   organization node: same root + node type + business code/code share the same
