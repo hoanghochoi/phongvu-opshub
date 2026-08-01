@@ -58,6 +58,7 @@ import '../../features/fifo/presentation/screens/fifo_history_screen.dart';
 import '../../features/sort/presentation/screens/sort_screen.dart';
 import '../../core/platform/app_platform_capabilities.dart';
 import 'app_shell.dart';
+import '../../features/support_chat/presentation/support_chat_surface.dart';
 
 class AppRouter {
   AppRouter._();
@@ -134,6 +135,10 @@ class AppRouter {
         }
 
         final routeFeature = _featureForRoute(location);
+        if (routeFeature == 'ADMIN_SUPPORT_CHATS' &&
+            !authProvider.supportChatEnabled) {
+          return '/home';
+        }
         if (routeFeature != null &&
             !_canUseRouteFeature(authProvider.user, routeFeature)) {
           return '/home';
@@ -285,6 +290,11 @@ class AppRouter {
                   repository: QuickActionsRepository(ApiClient()),
                 ),
               ),
+            ),
+            GoRoute(
+              path: '/admin/support-chats',
+              pageBuilder: (context, state) =>
+                  _noTransitionPage(state, const SupportChatAdminScreen()),
             ),
             GoRoute(
               path: '/admin/inventory-import',
@@ -474,6 +484,7 @@ class AppRouter {
       '/admin/personnel' => 'ADMIN_PERSONNEL',
       '/admin/sales-targets' => 'ADMIN_SALES_TARGETS',
       '/admin/quick-action-links' => 'ADMIN_QUICK_ACTION_CODES',
+      '/admin/support-chats' => 'ADMIN_SUPPORT_CHATS',
       '/admin/api-connections' => 'ADMIN_API_CONNECTIONS',
       '/admin/inventory-import' => 'FIFO_IMPORT',
       '/admin/feedback' => 'ADMIN_FEEDBACK',
@@ -501,6 +512,9 @@ class AppRouter {
 
   static bool _canUseRouteFeature(User? user, String featureCode) {
     if (featureCode == 'ADMIN_API_CONNECTIONS') {
+      return user?.isSuperAdmin == true;
+    }
+    if (featureCode == 'ADMIN_SUPPORT_CHATS') {
       return user?.isSuperAdmin == true;
     }
     if (featureCode == 'SALES_REPORT_FOLLOW_UP') {

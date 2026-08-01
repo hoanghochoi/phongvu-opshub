@@ -7,6 +7,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
 import { getOrganizationTree } from '../common/organization-tree-cache';
 import { AuthService } from './auth.service';
+import { isSupportChatEnabled } from '../support-chat/support-chat.config';
 
 const AUTH_CONTEXT_SCHEMA_VERSION = 1;
 const AUTH_CONTEXT_L1_TTL_MS = 5_000;
@@ -185,6 +186,7 @@ export class AuthContextService {
           version.sessionVersion,
           version.accessVersion,
           projectionIdentity,
+          isSupportChatEnabled() ? 'support-chat:on' : 'support-chat:off',
         ].join('|'),
       )
       .digest('hex')}"`;

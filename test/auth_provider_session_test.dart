@@ -81,7 +81,12 @@ void main() {
             policyAccess: const {'BANK_STATEMENT_ALL_SCOPE': true},
             capabilities: const AuthBootstrapCapabilities(
               conditionalGet: true,
-              realtimeV2Topics: ['access.changed', 'home.summary'],
+              supportChat: true,
+              realtimeV2Topics: [
+                'access.changed',
+                'home.summary',
+                'support.chat',
+              ],
             ),
           ),
           etag: '"access-v2"',
@@ -97,7 +102,12 @@ void main() {
       expect(provider.user?.canUsePolicy('BANK_STATEMENT_ALL_SCOPE'), isTrue);
       expect(provider.bootstrapVersion, 'access-v2');
       expect(provider.bootstrapConditionalGet, isTrue);
-      expect(provider.realtimeV2Topics, ['access.changed', 'home.summary']);
+      expect(provider.supportChatEnabled, isTrue);
+      expect(provider.realtimeV2Topics, [
+        'access.changed',
+        'home.summary',
+        'support.chat',
+      ]);
 
       final prefs = await SharedPreferences.getInstance();
       final saved =
@@ -116,6 +126,7 @@ void main() {
       expect(savedUser['policyAccess'], {'BANK_STATEMENT_ALL_SCOPE': true});
       expect(savedBootstrap['etag'], '"access-v2"');
       expect(savedBootstrap['lastSuccessAt'], isNotNull);
+      expect(savedBootstrap['supportChat'], isTrue);
       provider.dispose();
     },
   );

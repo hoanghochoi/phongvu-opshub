@@ -24,6 +24,7 @@ var redisChannels = []string{
 	homeSummaryRedisChannel,
 	accessChangedRedisChannel,
 	quickActionLinksRedisChannel,
+	supportChatRedisChannel,
 	authSessionRevokedRedisChannel,
 }
 

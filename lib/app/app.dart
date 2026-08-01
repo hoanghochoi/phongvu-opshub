@@ -32,6 +32,8 @@ import '../features/quick_actions/data/quick_actions_repository.dart';
 import '../features/quick_actions/presentation/quick_actions_provider.dart';
 import '../features/sort/data/repositories/sort_repository.dart';
 import '../features/sort/presentation/providers/sort_provider.dart';
+import '../features/support_chat/data/support_chat_repository.dart';
+import '../features/support_chat/presentation/providers/support_chat_provider.dart';
 import 'theme/app_theme.dart';
 import 'theme/theme_provider.dart';
 import 'navigation/app_router.dart';
@@ -124,6 +126,28 @@ class App extends StatelessWidget {
         ChangeNotifierProvider(
           create: (_) => SortProvider(SortRepository(ApiClient())),
         ),
+        ChangeNotifierProxyProvider<AuthProvider, SupportChatProvider>(
+          lazy: false,
+          create: (_) => SupportChatProvider(
+            SupportChatRepository(ApiClient()),
+            realtimeClient: RealtimeConnectionManager.instance,
+          ),
+          update: (_, auth, supportChat) {
+            final provider =
+                supportChat ??
+                SupportChatProvider(
+                  SupportChatRepository(ApiClient()),
+                  realtimeClient: RealtimeConnectionManager.instance,
+                );
+            Future.microtask(
+              () => provider.syncAuth(
+                auth.user,
+                enabled: auth.supportChatEnabled,
+              ),
+            );
+            return provider;
+          },
+        ),
         ChangeNotifierProxyProvider2<
           AuthProvider,
           AppRuntimeCoordinator,
@@ -159,6 +183,7 @@ class App extends StatelessWidget {
               await provider.syncAuth(
                 auth.user,
                 isInitialized: auth.isInitialized,
+                supportChatEnabled: auth.supportChatEnabled,
               );
             });
             return provider;

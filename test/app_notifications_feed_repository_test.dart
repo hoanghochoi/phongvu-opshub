@@ -29,6 +29,8 @@ void main() {
       expect(result.statementOrderTransfers.total, 2);
       expect(result.offsetAdjustments.items.single.id, 'offset-1');
       expect(result.offsetAdjustments.total, 3);
+      expect(result.supportChat?.unreadCount, 2);
+      expect(result.supportChat?.unassignedCount, 1);
     },
   );
 }
@@ -73,5 +75,12 @@ final _payload = {
         'submittedAt': '2026-07-15T04:30:00.000Z',
       },
     ],
+  },
+  'supportChat': {
+    'enabled': true,
+    'unreadCount': 2,
+    'unassignedCount': 1,
+    'conversationId': 'conversation-1',
+    'status': 'OPEN',
   },
 };

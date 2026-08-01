@@ -283,6 +283,7 @@ export function validateRuntimeEnv(env: EnvMap = process.env): void {
   validateVietinEfastEnv(env);
   validateBigQueryEnv(env);
   validateMapVietinBigQueryEnv(env);
+  parseBooleanEnv(env, 'SUPPORT_CHAT_ENABLED', false);
   getBidvH2hConfig(env);
   validateProductionPlaceholders(env);
   validateProductionExternalUrls(env);

@@ -7,6 +7,7 @@ describe('NotificationFeedService', () => {
     listStatementOrderTransferRequests: jest.Mock;
   };
   let offsetAdjustmentsService: { list: jest.Mock };
+  let supportChatService: { notificationSummary: jest.Mock };
   let service: NotificationFeedService;
 
   beforeEach(() => {
@@ -34,10 +35,14 @@ describe('NotificationFeedService', () => {
         list: [{ id: 'offset-1' }],
       }),
     };
+    supportChatService = {
+      notificationSummary: jest.fn().mockResolvedValue(null),
+    };
     service = new NotificationFeedService(
       featureService as any,
       mapVietinService as any,
       offsetAdjustmentsService as any,
+      supportChatService as any,
     );
   });
 
@@ -92,5 +97,37 @@ describe('NotificationFeedService', () => {
     offsetAdjustmentsService.list.mockRejectedValue(new Error('database down'));
 
     await expect(service.load(user)).rejects.toThrow('database down');
+  });
+
+  it('adds support chat without changing the existing feed sections', async () => {
+    supportChatService.notificationSummary.mockResolvedValue({
+      enabled: true,
+      unreadCount: 2,
+      conversationId: 'conversation-1',
+      status: 'OPEN',
+    });
+
+    const result = await service.load(user);
+
+    expect(result.schemaVersion).toBe(1);
+    expect(result.supportChat).toMatchObject({ enabled: true, unreadCount: 2 });
+    expect(result.statementOrderTransfers.list).toEqual([
+      { id: 'statement-1' },
+    ]);
+    expect(result.offsetAdjustments.list).toEqual([{ id: 'offset-1' }]);
+  });
+
+  it('keeps existing feed sections available when support chat summary fails', async () => {
+    supportChatService.notificationSummary.mockRejectedValue(
+      new Error('support database unavailable'),
+    );
+
+    const result = await service.load(user);
+
+    expect(result).not.toHaveProperty('supportChat');
+    expect(result.statementOrderTransfers.list).toEqual([
+      { id: 'statement-1' },
+    ]);
+    expect(result.offsetAdjustments.list).toEqual([{ id: 'offset-1' }]);
   });
 });

@@ -17,4 +17,5 @@ update them when behavior changes.
 | `contract-appendix.md` | ERP-backed contract appendix, VAT calculation, 30-day history, and Word clipboard |
 | `profile-admin.md` | Profile, admin-assigned organization nodes, and user administration |
 | `backend-platform.md` | Backend services, infra, deployment contracts |
+| `support-chat.md` | Private in-app requester ↔ Super Admin Support Chat Phase 1 |
 | `windows-distribution.md` | Internal Windows signing, trusted certificate deployment, and download checklist |

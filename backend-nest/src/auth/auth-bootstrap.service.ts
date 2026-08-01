@@ -10,6 +10,7 @@ import { FeatureService } from '../feature/feature.service';
 import { PolicyService } from '../policy/policy.service';
 import { AuthService } from './auth.service';
 import { AuthContextService } from './auth-context.service';
+import { isSupportChatEnabled } from '../support-chat/support-chat.config';
 
 const AUTH_BOOTSTRAP_SCHEMA_VERSION = 1 as const;
 const REALTIME_V2_TOPICS = [
@@ -24,6 +25,7 @@ const REALTIME_V2_TOPICS = [
   'sales-report.orders',
   'quick-actions.links',
 ] as const;
+const SUPPORT_CHAT_REALTIME_TOPIC = 'support.chat';
 
 type AuthenticatedUser = {
   id?: string | null;
@@ -46,6 +48,7 @@ export type AuthBootstrapPayload = {
   capabilities: {
     conditionalGet: true;
     realtimeV2Topics: readonly string[];
+    supportChat?: true;
   };
 };
 
@@ -121,9 +124,13 @@ export class AuthBootstrapService {
         id: authenticatedUserId,
         email: authenticatedEmail,
       };
+      const supportChat = isSupportChatEnabled();
       const capabilities = {
         conditionalGet: true as const,
-        realtimeV2Topics: REALTIME_V2_TOPICS,
+        realtimeV2Topics: supportChat
+          ? [...REALTIME_V2_TOPICS, SUPPORT_CHAT_REALTIME_TOPIC]
+          : REALTIME_V2_TOPICS,
+        ...(supportChat ? { supportChat: true as const } : {}),
       };
       const version = context
         ? this.authContextService!.etagForUser(user).replace(/^"|"$/g, '')

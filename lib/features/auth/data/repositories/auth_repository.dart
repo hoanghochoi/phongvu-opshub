@@ -141,10 +141,12 @@ class _AuthBootstrapFormatException implements Exception {
 
 class AuthBootstrapCapabilities {
   final bool conditionalGet;
+  final bool supportChat;
   final List<String> realtimeV2Topics;
 
   const AuthBootstrapCapabilities({
     required this.conditionalGet,
+    this.supportChat = false,
     required this.realtimeV2Topics,
   });
 
@@ -152,6 +154,7 @@ class AuthBootstrapCapabilities {
     final topics = json['realtimeV2Topics'];
     return AuthBootstrapCapabilities(
       conditionalGet: json['conditionalGet'] == true,
+      supportChat: json['supportChat'] == true,
       realtimeV2Topics: topics is List
           ? topics
                 .map((value) => value?.toString().trim() ?? '')

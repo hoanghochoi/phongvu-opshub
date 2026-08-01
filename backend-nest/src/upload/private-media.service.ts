@@ -23,6 +23,7 @@ export const PRIVATE_MEDIA_OWNER = {
   WARRANTY: 'WARRANTY',
   FEEDBACK: 'FEEDBACK',
   AVATAR: 'AVATAR',
+  SUPPORT_CHAT: 'SUPPORT_CHAT',
 } as const;
 
 export type PrivateMediaOwner =
@@ -62,6 +63,8 @@ export class PrivateMediaService implements OnModuleInit {
     uploaderId: string;
     files: Express.Multer.File[];
     maxBytesPerFile?: number;
+    maxAggregateBytes?: number;
+    retainOriginalName?: boolean;
   }): Promise<string[]> {
     const startedAt = Date.now();
     const files = this.requireFileArray(input.files);
@@ -78,7 +81,8 @@ export class PrivateMediaService implements OnModuleInit {
       await this.cleanupManagedTemporaryFiles(files);
       throw error;
     }
-    const aggregateLimit = getImageUploadAggregateMaxBytes();
+    const aggregateLimit =
+      input.maxAggregateBytes ?? getImageUploadAggregateMaxBytes();
     if (aggregateBytes > aggregateLimit) {
       await this.cleanupManagedTemporaryFiles(files);
       this.logger.warn(
@@ -218,6 +222,61 @@ export class PrivateMediaService implements OnModuleInit {
     );
   }
 
+  async discardUrlsStrict(urls: string[]) {
+    const ids = urls
+      .map((url) => this.mediaIdFromUrl(url))
+      .filter(Boolean) as string[];
+    if (ids.length === 0) return;
+    const media = await this.prisma.mediaObject.findMany({
+      where: { id: { in: ids }, deletedAt: null },
+    });
+    for (const item of [...media].reverse()) {
+      try {
+        await fs.promises.unlink(this.privatePath(item.storageKey));
+      } catch (error) {
+        const fileError = error as NodeJS.ErrnoException;
+        if (fileError.code !== 'ENOENT') {
+          this.logger.error(
+            `Private media strict cleanup file failed: mediaId=${this.mediaLogId(item.id)} error=${this.safeError(error)}`,
+          );
+          throw error;
+        }
+      }
+      try {
+        await this.prisma.mediaObject.updateMany({
+          where: { id: item.id, deletedAt: null },
+          data: { deletedAt: new Date() },
+        });
+      } catch (error) {
+        this.logger.error(
+          `Private media strict cleanup metadata failed: mediaId=${this.mediaLogId(item.id)} error=${this.safeError(error)}`,
+        );
+        throw error;
+      }
+    }
+  }
+
+  async discardTemporaryFiles(files: Express.Multer.File[]) {
+    await this.cleanupManagedTemporaryFiles(this.requireFileArray(files));
+  }
+
+  async discardTemporaryFilesStrict(files: Express.Multer.File[]) {
+    for (const file of this.requireFileArray(files)) {
+      const temporaryPath = this.managedTemporaryPath(file);
+      if (!temporaryPath) continue;
+      try {
+        await fs.promises.unlink(temporaryPath);
+      } catch (error) {
+        const fileError = error as NodeJS.ErrnoException;
+        if (fileError.code === 'ENOENT') continue;
+        this.logger.error(
+          `Private temporary media cleanup failed: error=${this.safeError(error)}`,
+        );
+        throw error;
+      }
+    }
+  }
+
   publicUrl(mediaId: string) {
     return `${this.publicMediaBaseUrl()}/media/${mediaId}`;
   }
@@ -227,6 +286,7 @@ export class PrivateMediaService implements OnModuleInit {
     ownerRecordId: string;
     uploaderId: string;
     normalized: NormalizedImage;
+    retainOriginalName?: boolean;
   }): Promise<SavedMedia> {
     const id = randomUUID();
     const storageKey = path.posix.join(
@@ -246,7 +306,10 @@ export class PrivateMediaService implements OnModuleInit {
           ownerFeature: input.ownerFeature,
           ownerRecordId: input.ownerRecordId,
           uploaderId: input.uploaderId,
-          originalName: input.normalized.originalName,
+          originalName:
+            input.retainOriginalName === false
+              ? null
+              : input.normalized.originalName,
           contentTypeVerified: input.normalized.contentType,
           sizeBytes: input.normalized.buffer.length,
           checksumSha256: createHash('sha256')
@@ -373,6 +436,25 @@ export class PrivateMediaService implements OnModuleInit {
           where: {
             id: media.ownerRecordId,
             createdBy: { storeId: user.storeId },
+          },
+          select: { id: true },
+        }),
+      );
+    }
+    if (media.ownerFeature === PRIVATE_MEDIA_OWNER.SUPPORT_CHAT) {
+      if (isSuperAdminRole(user.role)) {
+        return Boolean(
+          await this.prisma.supportMessage.findUnique({
+            where: { id: media.ownerRecordId },
+            select: { id: true },
+          }),
+        );
+      }
+      return Boolean(
+        await this.prisma.supportMessage.findFirst({
+          where: {
+            id: media.ownerRecordId,
+            conversation: { requesterId: user.id },
           },
           select: { id: true },
         }),
@@ -590,6 +672,7 @@ export class PrivateMediaService implements OnModuleInit {
     if (value === PRIVATE_MEDIA_OWNER.WARRANTY) return 'WARRANTY';
     if (value === PRIVATE_MEDIA_OWNER.FEEDBACK) return 'FEEDBACK';
     if (value === PRIVATE_MEDIA_OWNER.AVATAR) return 'AVATAR';
+    if (value === PRIVATE_MEDIA_OWNER.SUPPORT_CHAT) return 'SUPPORT_CHAT';
     return 'UNKNOWN';
   }
 

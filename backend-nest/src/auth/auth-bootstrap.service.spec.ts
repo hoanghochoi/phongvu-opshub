@@ -40,6 +40,7 @@ function loadAuthBootstrapV1Fixture(): AuthBootstrapV1Fixture {
 const authBootstrapV1Fixture = loadAuthBootstrapV1Fixture();
 
 describe('AuthBootstrapService', () => {
+  const originalSupportChatEnabled = process.env.SUPPORT_CHAT_ENABLED;
   let service: AuthBootstrapService;
   let authService: { getUserData: jest.Mock };
   let featureService: { resolveFeatureAccessMap: jest.Mock };
@@ -52,6 +53,7 @@ describe('AuthBootstrapService', () => {
   };
 
   beforeEach(() => {
+    delete process.env.SUPPORT_CHAT_ENABLED;
     jest.useFakeTimers().setSystemTime(new Date('2026-07-15T02:00:00.000Z'));
     authService = {
       getUserData: jest.fn().mockResolvedValue({
@@ -80,6 +82,11 @@ describe('AuthBootstrapService', () => {
 
   afterEach(() => {
     jest.useRealTimers();
+    if (originalSupportChatEnabled === undefined) {
+      delete process.env.SUPPORT_CHAT_ENABLED;
+    } else {
+      process.env.SUPPORT_CHAT_ENABLED = originalSupportChatEnabled;
+    }
   });
 
   it('combines the current user, feature access, policy access and capabilities', async () => {
@@ -184,5 +191,22 @@ describe('AuthBootstrapService', () => {
     );
     expect(service.matchesEtag('*', '"version-1"')).toBe(true);
     expect(service.matchesEtag('"old"', '"version-1"')).toBe(false);
+  });
+
+  it('advertises Support Chat only while the rollout flag is enabled', async () => {
+    process.env.SUPPORT_CHAT_ENABLED = 'true';
+
+    const enabled = await service.resolve(authenticatedUser);
+
+    expect(enabled.body.capabilities).toMatchObject({ supportChat: true });
+    expect(enabled.body.capabilities.realtimeV2Topics).toContain('support.chat');
+
+    process.env.SUPPORT_CHAT_ENABLED = 'false';
+    const disabled = await service.resolve(authenticatedUser);
+    expect(disabled.body.capabilities).not.toHaveProperty('supportChat');
+    expect(disabled.body.capabilities.realtimeV2Topics).not.toContain(
+      'support.chat',
+    );
+    expect(disabled.body.version).not.toBe(enabled.body.version);
   });
 });

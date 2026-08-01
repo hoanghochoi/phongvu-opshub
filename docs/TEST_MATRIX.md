@@ -3,6 +3,53 @@
 This file maps product behavior to proof. Existing flows are marked
 `existing_unverified` until fresh validation evidence is attached.
 
+- `OPS-40`/`SUPPORT-CHAT-001`, 2026-08-01,
+  `local_verified_with_release_gaps`:
+  lifecycle `START PASS` created `codex/ops-40-support-chat-phase-1` from exact
+  live `origin/staging@4850c4ba`; feature commit `b8984ef1` is reconciled with
+  merged `origin/staging@47ec0956` at merge HEAD `97122acb`. Product authority
+  permits temporary current/legacy Flutter UI with existing shared components/
+  tokens and no Figma mutation; this is not redesign approval. Required local
+  proof covers
+  expand-only migration fresh/upgrade/rollback; conversation/idempotency/claim/
+  resolve/reopen races; requester/Super-Admin/assignee/media authorization;
+  image decode/re-encode bounds and cleanup; durable outbox/Redis outage;
+  strict v2-only audience routing with every old topic and `/ws` protected;
+  additive bootstrap/notification compatibility; AppShell, Quick Actions,
+  Seatalk, assignment-pending, logout/access revoke and memory-only media;
+  current-UI responsive/accessibility states; retention/flag/rollback; full
+  Nest/Go/Flutter affected-consumer suites and platform builds. Local proof:
+  Prisma validate/generate/static PASS; Nest build PASS, focused correction
+  4 suites/22 tests; the multipart upload tampering regression passes its
+  focused Support Chat service suite 13/13; affected 14 suites/158 tests and
+  full 102 suites/1112 tests PASS. The local remediation for CodeQL alert #25
+  (`js/type-confusion-through-parameter-tampering`) treats
+  uploaded files as untrusted input, requiring a runtime array before every
+  length/media operation and failing closed for requester/admin uploads;
+  remote CodeQL must confirm alert closure before merge. Go test/vet PASS;
+  Read acknowledgements now use the client-observed sequence, cap under the
+  conversation lock, advance monotonically and publish no invalidation unless
+  the receipt increases; requester/admin races, no-decrease/idempotency and a
+  settling Flutter realtime cycle are covered. Flutter analyze has no issues,
+  focused Support Chat provider 12/12, affected 103 and full 697 passed/3
+  intentional skips under serial execution; Windows,
+  staging APK and web debug builds plus the web wasm dry-run PASS; security
+  sentinels and diff checks PASS. Post-merge OPS-33 proof passes five Nest
+  suites/206 tests, Home/Sales Report Flutter 53 tests and Contract Appendix
+  six Nest suites/46 tests plus 10 Flutter tests. Its route guard confirms all
+  40 authenticated routes, 88 route/viewport checks and `Hộp thư hỗ trợ`.
+  The affected path-contract wrapper passes in both default pre-commit and
+  base-aware
+  `--base origin/staging` modes with 67 base-aware paths; its 2/2 focused
+  self-test covers committed rename,
+  dirty/untracked discovery, deduplication and invalid-base/argument failure.
+  The isolated local PostgreSQL binary rehearsal did not complete and was
+  safely stopped/cleaned,
+  so fresh/upgrade/rollback remains unverified and was not retried. Staging
+  2-user/2-admin QA, 20 message/s load, outbox/latency metrics, live restart/
+  outage durability, backup/restore purge, exact-SHA deployment and production
+  release remain gates. Issue cannot become `Done` before production deployment.
+
 - `OPS-33`/`SALES-REPORT-001`/`HOME-DASHBOARD-002`, 2026-08-01:
   `local_verified_with_staging_bigquery_looker_release_gaps`. A single canonical price contract proves
   that ERP list ingestion never falls back from `data.orders.grandTotal` to
@@ -2138,14 +2185,15 @@ FIFO Menu` now has bottom nav active on `Tác vụ`, `Mobile v2 / Profile` has
   credentials, seeds the web session without committing secrets, captures
   ignored screenshots, and checks route hash, console/page errors, rendered
   Flutter viewport size, and visible horizontal overflow while ignoring Flutter
-  semantics-only overflow nodes. The default live staging smoke now runs 86
+  semantics-only overflow nodes. The default live staging smoke now runs 88
   checks across desktop `1440x900` and mobile `390x844`: 3 public routes
   (`/login`, `/register`, `/forgot-password`), 1 pending auth route
   (`/assignment-pending`) rendered from a tokenless cached pending session, plus
-  all 39 authenticated shell routes in `AppRouter`, including Home,
+  all 40 authenticated shell routes in `AppRouter`, including Home,
   Operations, Profile, Admin, FIFO, BH/SC, VietQR, Payment Monitor web
-  fallback, Sao kê, Cấn trừ, Góp ý, Report/Sales Report, Help Content admin,
-  and Settings. The legacy `/fifo-menu` redirect is excluded because it renders
+  fallback, Sao kê, Cấn trừ, Góp ý, Report/Sales Report, Hộp thư hỗ trợ,
+  Help Content admin, and Settings. The legacy `/fifo-menu` redirect is excluded
+  because it renders
   `/operations` rather than owning a ShellRoute.
   Follow-up guard coverage in
   `test\design_system_migration_guard_test.dart` now parses the smoke script
