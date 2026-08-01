@@ -163,6 +163,8 @@ void main() {
     expect(find.text('Quản lý hướng dẫn'), findsOneWidget);
     expect(find.text('Nội dung runtime công khai'), findsOneWidget);
     expect(find.text('Danh sách góp ý'), findsOneWidget);
+    expect(find.text('Quản lý kết nối API'), findsOneWidget);
+    expect(find.text('Client và khóa ngân hàng'), findsOneWidget);
   });
 
   testWidgets('Admin menu owns inventory update and FIFO history tools', (

@@ -26,6 +26,7 @@ import '../../features/auth/presentation/screens/forgot_password_screen.dart';
 import '../../features/auth/presentation/screens/profile_screen.dart';
 import '../../features/auth/presentation/screens/register_screen.dart';
 import '../../features/admin/presentation/screens/admin_menu_screen.dart';
+import '../../features/admin/presentation/screens/api_connection_admin_screen.dart';
 import '../../features/admin/presentation/screens/feature_admin_screen.dart';
 import '../../features/admin/presentation/screens/feedback_admin_screen.dart';
 import '../../features/admin/presentation/screens/inventory_import_screen.dart';
@@ -123,6 +124,11 @@ class AppRouter {
         }
 
         if (location == '/admin/help-content' &&
+            authProvider.user?.role != 'SUPER_ADMIN') {
+          return '/home';
+        }
+
+        if (location == '/admin/api-connections' &&
             authProvider.user?.role != 'SUPER_ADMIN') {
           return '/home';
         }
@@ -296,6 +302,11 @@ class AppRouter {
                   _noTransitionPage(state, const HelpContentAdminScreen()),
             ),
             GoRoute(
+              path: '/admin/api-connections',
+              pageBuilder: (context, state) =>
+                  _noTransitionPage(state, const ApiConnectionAdminScreen()),
+            ),
+            GoRoute(
               path: '/admin/sales-reports',
               pageBuilder: (context, state) => _noTransitionPage(
                 state,
@@ -463,6 +474,7 @@ class AppRouter {
       '/admin/personnel' => 'ADMIN_PERSONNEL',
       '/admin/sales-targets' => 'ADMIN_SALES_TARGETS',
       '/admin/quick-action-links' => 'ADMIN_QUICK_ACTION_CODES',
+      '/admin/api-connections' => 'ADMIN_API_CONNECTIONS',
       '/admin/inventory-import' => 'FIFO_IMPORT',
       '/admin/feedback' => 'ADMIN_FEEDBACK',
       '/admin/sales-reports' => 'ADMIN_SALES_REPORTS',
@@ -488,6 +500,9 @@ class AppRouter {
   }
 
   static bool _canUseRouteFeature(User? user, String featureCode) {
+    if (featureCode == 'ADMIN_API_CONNECTIONS') {
+      return user?.isSuperAdmin == true;
+    }
     if (featureCode == 'SALES_REPORT_FOLLOW_UP') {
       return user?.canUseFeature('SALES_REPORT') == true ||
           user?.canUseFeature('ADMIN_SALES_REPORTS') == true;
@@ -513,6 +528,7 @@ class AppRouter {
           user?.canUseFeature('ADMIN_SALES_TARGETS') == true ||
           user?.canUseFeature('ADMIN_QUICK_ACTION_CODES') == true ||
           user?.canUseFeature('ADMIN_SALES_REPORTS') == true ||
+          user?.canUseFeature('ADMIN_API_CONNECTIONS') == true ||
           user?.canUseFeature('ADMIN_FEEDBACK') == true;
     }
     if (featureCode == 'BANK_STATEMENTS') {

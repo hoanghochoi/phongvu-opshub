@@ -56,5 +56,29 @@ void main() {
         isFalse,
       );
     });
+
+    test('supports API connection administration on web and Windows only', () {
+      expect(
+        AppPlatformCapabilities.isApiConnectionAdminSupported(
+          isWeb: true,
+          platform: TargetPlatform.android,
+        ),
+        isTrue,
+      );
+      expect(
+        AppPlatformCapabilities.isApiConnectionAdminSupported(
+          isWeb: false,
+          platform: TargetPlatform.windows,
+        ),
+        isTrue,
+      );
+      expect(
+        AppPlatformCapabilities.isApiConnectionAdminSupported(
+          isWeb: false,
+          platform: TargetPlatform.android,
+        ),
+        isFalse,
+      );
+    });
   });
 }

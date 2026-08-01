@@ -166,6 +166,28 @@ void main() {
     expect(AppRouter.canUseRouteForTesting(staff, '/reports'), isFalse);
   });
 
+  test('API connection route is fail-closed outside Super Admin', () {
+    const superAdmin = User(
+      email: 'super-admin@phongvu.vn',
+      role: 'SUPER_ADMIN',
+      organizationNodeId: 'org-root',
+    );
+    const admin = User(
+      email: 'admin@phongvu.vn',
+      role: 'ADMIN',
+      organizationNodeId: 'org-root',
+      featureAccess: {'ADMIN_API_CONNECTIONS': true},
+    );
+    expect(
+      AppRouter.canUseRouteForTesting(superAdmin, '/admin/api-connections'),
+      isTrue,
+    );
+    expect(
+      AppRouter.canUseRouteForTesting(admin, '/admin/api-connections'),
+      isFalse,
+    );
+  });
+
   test('bank statement query route still requires statement access', () {
     const statementUser = User(
       email: 'statement@phongvu.vn',

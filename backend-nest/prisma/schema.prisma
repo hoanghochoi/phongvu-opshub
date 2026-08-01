@@ -66,18 +66,18 @@ model VietQrPaymentIntent {
 }
 
 model MapVietinTransaction {
-  id                           String    @id @default(uuid())
+  id                           String           @id @default(uuid())
   storeCode                    String?
-  transactionKey               String    @unique
+  transactionKey               String           @unique
   transactionNumber            String?
   amount                       Int
   content                      String
-  orders                       String[]  @default([])
+  orders                       String[]         @default([])
   orderSource                  String?
   orderUpdatedAt               DateTime?
   orderUpdatedByUserId         String?
   orderUpdatedByEmail          String?
-  orderTrackingStatus          String    @default("FOLLOWING")
+  orderTrackingStatus          String           @default("FOLLOWING")
   orderTrackingUpdatedAt       DateTime?
   orderTrackingUpdatedByUserId String?
   orderTrackingUpdatedByEmail  String?
@@ -85,16 +85,22 @@ model MapVietinTransaction {
   paidAt                       DateTime?
   payerName                    String?
   payerAccount                 String?
-  incomeType                   String    @default("SALES")
-  incomeTypeSource             String    @default("AUTO")
+  incomeType                   String           @default("SALES")
+  incomeTypeSource             String           @default("AUTO")
   incomeTypeUpdatedAt          DateTime?
   incomeTypeUpdatedByUserId    String?
   incomeTypeUpdatedByEmail     String?
   rawData                      Json
-  bigQueryRevision             BigInt    @default(0)
-  firstSeenAt                  DateTime  @default(now())
-  createdAt                    DateTime  @default(now())
-  updatedAt                    DateTime  @updatedAt
+  bankSource                   String           @default("VIETIN")
+  currency                     String           @default("VND")
+  direction                    String           @default("C")
+  exactAmount                  Decimal?         @db.Decimal(24, 6)
+  canonicalBankTransactionId   String?          @unique
+  canonicalBankTransaction     BankTransaction? @relation(fields: [canonicalBankTransactionId], references: [id], onDelete: SetNull)
+  bigQueryRevision             BigInt           @default(0)
+  firstSeenAt                  DateTime         @default(now())
+  createdAt                    DateTime         @default(now())
+  updatedAt                    DateTime         @updatedAt
 
   orderAudits           MapVietinTransactionOrderAudit[]
   orderTrackingAudits   MapVietinTransactionOrderTrackingAudit[]
@@ -108,6 +114,172 @@ model MapVietinTransaction {
   @@index([orderTrackingStatus, paidAt])
   @@index([amount])
   @@index([orders], type: Gin)
+}
+
+// ============================================================
+// MANAGED BANK H2H CONNECTIONS
+// ============================================================
+model BankApiClient {
+  id                 String    @id @default(uuid())
+  displayName        String
+  bankCode           String    @default("BIDV")
+  clientId           String    @unique
+  secretHash         String
+  scope              String    @default("balance-changes:write")
+  status             String    @default("ACTIVE")
+  version            Int       @default(1)
+  activatedAt        DateTime  @default(now())
+  overlapExpiresAt   DateTime?
+  revokedAt          DateTime?
+  createdByUserId    String?
+  createdByEmailHash String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  accessTokens BankAccessToken[]
+
+  @@index([bankCode, status, activatedAt])
+}
+
+model BankAccessToken {
+  id          String        @id @default(uuid())
+  clientRefId String
+  client      BankApiClient @relation(fields: [clientRefId], references: [id], onDelete: Cascade)
+  tokenHash   String        @unique
+  scope       String
+  expiresAt   DateTime
+  revokedAt   DateTime?
+  createdAt   DateTime      @default(now())
+
+  @@index([clientRefId, expiresAt])
+  @@index([expiresAt, revokedAt])
+}
+
+model BankPgpKey {
+  id                 String    @id @default(uuid())
+  displayName        String
+  bankCode           String    @default("BIDV")
+  fingerprint        String    @unique
+  algorithm          String
+  publicKeyArmor     String
+  privateKeyCipher   String
+  envelopeVersion    Int       @default(1)
+  status             String    @default("ACTIVE")
+  version            Int       @default(1)
+  activatedAt        DateTime  @default(now())
+  overlapExpiresAt   DateTime?
+  revokedAt          DateTime?
+  createdByUserId    String?
+  createdByEmailHash String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@index([bankCode, status, activatedAt])
+}
+
+model BankConnectionAudit {
+  id             String   @id @default(uuid())
+  bankCode       String   @default("BIDV")
+  actorUserId    String?
+  actorEmailHash String?
+  action         String
+  targetType     String
+  targetId       String
+  summary        Json
+  createdAt      DateTime @default(now())
+
+  @@index([bankCode, createdAt])
+  @@index([targetType, targetId, createdAt])
+}
+
+model BankConnectionControl {
+  bankCode          String   @id
+  ingressEnabled    Boolean  @default(false)
+  projectionEnabled Boolean  @default(false)
+  version           Int      @default(1)
+  updatedByUserId   String?
+  updatedAt         DateTime @updatedAt
+}
+
+model BankIngressReceipt {
+  id               String    @id @default(uuid())
+  bankCode         String
+  requestId        String
+  requestHash      String
+  clientRefId      String
+  status           String    @default("ACCEPTED")
+  transactionCount Int       @default(0)
+  receivedAt       DateTime  @default(now())
+  completedAt      DateTime?
+
+  transactions BankTransaction[]
+
+  @@unique([bankCode, requestId])
+  @@index([receivedAt])
+  @@index([clientRefId, receivedAt])
+}
+
+model BankTransaction {
+  id                       String             @id @default(uuid())
+  receiptId                String
+  receipt                  BankIngressReceipt @relation(fields: [receiptId], references: [id], onDelete: Restrict)
+  bankCode                 String
+  identityHash             String
+  payloadHash              String
+  accountNoHash            String
+  accountNoMasked          String
+  exactAmount              Decimal            @db.Decimal(24, 6)
+  currency                 String
+  transactionDate          DateTime           @db.Date
+  transactionTime          String
+  paidAt                   DateTime
+  direction                String
+  sequence                 String
+  referenceNumber          String
+  remark                   String
+  senderBankCode           String?
+  senderAccountName        String?
+  senderAccountHash        String?
+  senderAccountMasked      String?
+  senderBankName           String?
+  endingBalance            Decimal?           @db.Decimal(24, 6)
+  channelReference         String?
+  channelId                String?
+  businessDate             DateTime           @db.Date
+  receiverBankCode         String?
+  receiverAccountName      String?
+  receiverAccountHash      String?
+  receiverAccountMasked    String?
+  receiverBankName         String?
+  virtualAccountHash       String?
+  virtualAccountMasked     String?
+  showroomCodeHint         String?
+  transactionCode          String?
+  extensions               Json
+  conflictStatus           String             @default("NONE")
+  projectionStatus         String             @default("PENDING")
+  projectionReason         String?
+  projectedTransactionId   String?            @unique
+  projectionAttempts       Int                @default(0)
+  projectionAvailableAt    DateTime           @default(now())
+  projectionClaimedAt      DateTime?
+  projectionClaimToken     String?
+  projectionLeaseExpiresAt DateTime?
+  projectionLastError      String?
+  projectedAt              DateTime?
+  retainedUntil            DateTime
+  createdAt                DateTime           @default(now())
+  updatedAt                DateTime           @updatedAt
+
+  compatibilityTransaction MapVietinTransaction?
+
+  @@unique([identityHash, payloadHash])
+  @@index([receiptId])
+  @@index([projectionStatus, projectionAvailableAt, projectionLeaseExpiresAt])
+  @@index([bankCode, businessDate])
+  @@index([accountNoHash, paidAt])
+  @@index([showroomCodeHint, paidAt])
+  @@index([retainedUntil])
 }
 
 model MapVietinTransactionOrderAudit {

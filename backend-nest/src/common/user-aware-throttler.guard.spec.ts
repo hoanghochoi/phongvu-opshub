@@ -154,6 +154,21 @@ describe('UserAwareThrottlerGuard', () => {
     ).resolves.toBe(ipTracker('172.20.0.3'));
   });
 
+  it('uses a hashed H2H credential plus trusted IP on dedicated bank routes', async () => {
+    const basic = Buffer.from('bidv-client:must-not-enter-key').toString(
+      'base64',
+    );
+    await expect(
+      guard.principalTrackerFor({
+        ip: '203.0.113.25',
+        path: '/oauth2/token',
+        headers: { authorization: `Basic ${basic}` },
+      }),
+    ).resolves.toBe(
+      `principal:h2h:${trackerHash('client:bidv-client')}:ip:${trackerHash('203.0.113.25')}`,
+    );
+  });
+
   it('uses a hashed email bucket for public auth requests without a client id', async () => {
     await expect(
       guard.principalTrackerFor({

@@ -1,5 +1,10 @@
 # VietQR
 
+BIDV canonical rows affect VietQR reconciliation only after the OPS-39
+projector creates an eligible, uniquely mapped `MapVietinTransaction`. Debit,
+foreign-currency, fractional, conflicting or unmapped rows cannot confirm an
+intent.
+
 OpsHub supports a dedicated mobile screen for staff to create a transfer QR for
 a customer to scan and pay manually.
 

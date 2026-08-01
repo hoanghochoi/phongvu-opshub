@@ -4,6 +4,7 @@ import {
   mapVietinBigQueryCurrentViewDdl,
   mapVietinBigQueryTableDdl,
   mapVietinBigQueryTrackingColumnDdl,
+  mapVietinBigQueryBankColumnsDdl,
 } from './map-vietin-bigquery-schema.mjs';
 
 const config = {
@@ -22,6 +23,17 @@ test('raw table is partitioned and clustered for current-row queries', () => {
   assert.match(ddl, /order_tracking_status STRING/);
   assert.doesNotMatch(ddl, /order_tracking_status STRING NOT NULL/);
   assert.doesNotMatch(ddl, /rawData|payer|account|email|token|credential/i);
+  assert.match(ddl, /bank_source STRING/);
+  assert.match(ddl, /currency STRING/);
+  assert.match(ddl, /direction STRING/);
+  assert.match(ddl, /exact_amount NUMERIC/);
+});
+
+test('bank compatibility columns upgrade existing tables idempotently', () => {
+  const ddl = mapVietinBigQueryBankColumnsDdl(config);
+  assert.match(ddl, /ADD COLUMN IF NOT EXISTS bank_source STRING/);
+  assert.match(ddl, /ADD COLUMN IF NOT EXISTS exact_amount NUMERIC/);
+  assert.doesNotMatch(ddl, /account|payload|credential|secret/i);
 });
 
 test('tracking column upgrade is nullable and idempotent for existing raw tables', () => {

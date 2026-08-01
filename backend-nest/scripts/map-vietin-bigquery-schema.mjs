@@ -32,6 +32,10 @@ export function mapVietinBigQueryTableDdl({ projectId, datasetId, tableId }) {
   paid_at TIMESTAMP,
   income_type STRING NOT NULL,
   provider_source STRING,
+  bank_source STRING,
+  currency STRING,
+  direction STRING,
+  exact_amount NUMERIC,
   first_seen_at TIMESTAMP NOT NULL,
   source_created_at TIMESTAMP NOT NULL,
   source_updated_at TIMESTAMP NOT NULL,
@@ -50,6 +54,24 @@ export function mapVietinBigQueryTrackingColumnDdl({
 }) {
   return `ALTER TABLE \`${projectId}.${datasetId}.${tableId}\`
 ADD COLUMN IF NOT EXISTS order_tracking_status STRING`;
+}
+
+export function mapVietinBigQueryBankColumnsDdl({
+  projectId,
+  datasetId,
+  tableId,
+}) {
+  return [
+    ['bank_source', 'STRING'],
+    ['currency', 'STRING'],
+    ['direction', 'STRING'],
+    ['exact_amount', 'NUMERIC'],
+  ]
+    .map(
+      ([name, type]) =>
+        `ALTER TABLE \`${projectId}.${datasetId}.${tableId}\` ADD COLUMN IF NOT EXISTS ${name} ${type}`,
+    )
+    .join(';\n');
 }
 
 export function mapVietinBigQueryCurrentViewDdl({

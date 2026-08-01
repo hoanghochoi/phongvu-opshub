@@ -116,6 +116,7 @@ const ALLOWED_APP_LOG_SOURCES = new Set([
   'HelpScreen',
   'HomeSummary',
   'InventoryImport',
+  'ApiConnectionAdmin',
   'OffsetAdjustment',
   'PaymentMonitor',
   'PaymentMonitorRealtime',

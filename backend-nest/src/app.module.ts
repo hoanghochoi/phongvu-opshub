@@ -34,6 +34,7 @@ import { SalesTargetsModule } from './sales-targets/sales-targets.module';
 import { QuickActionsModule } from './quick-actions/quick-actions.module';
 import { NotificationFeedModule } from './notification-feed/notification-feed.module';
 import { ContractAppendicesModule } from './contract-appendices/contract-appendices.module';
+import { BidvH2hModule } from './bidv-h2h/bidv-h2h.module';
 
 export const GLOBAL_API_THROTTLER_OPTIONS = {
   throttlers: [
@@ -76,6 +77,7 @@ export const GLOBAL_API_THROTTLER_OPTIONS = {
     SalesTargetsModule,
     QuickActionsModule,
     ContractAppendicesModule,
+    BidvH2hModule,
     FifoModule,
   ],
   controllers: [AppController],

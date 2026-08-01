@@ -62,6 +62,13 @@ development services for OpsHub.
 
 ## Health Checks
 
+### BIDV H2H boundary
+
+The dedicated BIDV hosts and fail-closed auth/crypto/persistence boundary are
+specified in `docs/product/bidv-h2h.md`. They do not inherit the staff SPA or
+`/api` surface. Ingest/projection default off and private material requires a
+dedicated 32-byte KEK.
+
 Expected local liveness checks:
 
 ```bash

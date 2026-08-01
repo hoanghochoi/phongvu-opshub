@@ -36,6 +36,14 @@ export class MapVietinBigQueryRowMapper {
       paid_at: this.optionalTimestamp(payload.paid_at, 'paid_at'),
       income_type: this.requiredString(payload.income_type, 'income_type'),
       provider_source: this.optionalString(payload.provider_source),
+      bank_source:
+        this.optionalString(payload.bank_source) ??
+        this.optionalString(payload.provider_source),
+      currency: this.optionalString(payload.currency) ?? 'VND',
+      direction: this.optionalString(payload.direction) ?? 'C',
+      exact_amount:
+        this.optionalDecimalString(payload.exact_amount) ??
+        this.requiredInteger(payload.amount, 'amount').toString(),
       first_seen_at: this.requiredTimestamp(
         payload.first_seen_at,
         'first_seen_at',
@@ -92,6 +100,15 @@ export class MapVietinBigQueryRowMapper {
     const parsed = Number(value);
     if (!Number.isSafeInteger(parsed)) throw new Error(`Invalid ${field}`);
     return parsed;
+  }
+
+  private optionalDecimalString(value: unknown) {
+    if (value === null || value === undefined || value === '') return null;
+    const normalized = String(value).trim();
+    if (!/^-?\d+(?:\.\d{1,6})?$/.test(normalized)) {
+      throw new Error('Invalid exact_amount');
+    }
+    return normalized;
   }
 
   private stringArray(value: unknown, field: string) {

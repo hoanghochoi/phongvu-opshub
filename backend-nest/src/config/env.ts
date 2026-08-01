@@ -46,6 +46,7 @@ const PLACEHOLDER_SENSITIVE_KEYS = [
   'SMTP_PASS',
   'VIETIN_EFAST_PASSWORD',
   'ERP_CLIENT_SECRET',
+  'BIDV_H2H_KEK_BASE64',
 ] as const;
 
 const PRODUCTION_EXTERNAL_HOSTS: Record<string, Set<string>> = {
@@ -93,6 +94,140 @@ export function getDataSyncSource(env: EnvMap = process.env): SyncSource {
 
 export function getRequestBodyLimit(env: EnvMap = process.env): string {
   return getEnvValue(env, 'REQUEST_BODY_LIMIT') ?? '1mb';
+}
+
+export type BidvH2hConfig = {
+  environment: 'local' | 'staging' | 'production';
+  publicBaseUrl: string | null;
+  ingestMasterEnabled: boolean;
+  projectionMasterEnabled: boolean;
+  tokenTtlSeconds: number;
+  maxEncodedBodyBytes: number;
+  maxTransactionsPerBatch: number;
+  processingTimeoutMs: number;
+  rotationOverlapHours: number;
+  retentionDays: number;
+  kek: Buffer | null;
+};
+
+export function getBidvH2hConfig(env: EnvMap = process.env): BidvH2hConfig {
+  const ingestMasterEnabled = parseBooleanEnv(
+    env,
+    'BIDV_H2H_INGEST_ENABLED',
+    false,
+  );
+  const projectionMasterEnabled = parseBooleanEnv(
+    env,
+    'BIDV_H2H_PROJECTION_ENABLED',
+    false,
+  );
+  if (projectionMasterEnabled && !ingestMasterEnabled) {
+    throw new Error(
+      'BIDV_H2H_PROJECTION_ENABLED=true requires BIDV_H2H_INGEST_ENABLED=true',
+    );
+  }
+
+  const kekText = getEnvValue(env, 'BIDV_H2H_KEK_BASE64');
+  const kek = kekText ? decodeExactBase64Key(kekText) : null;
+  if ((ingestMasterEnabled || projectionMasterEnabled) && !kek) {
+    throw new Error('BIDV_H2H_KEK_BASE64 is required when BIDV H2H is enabled');
+  }
+
+  const environmentValue = getEnvValue(env, 'BIDV_H2H_ENVIRONMENT') ?? 'local';
+  if (!['local', 'staging', 'production'].includes(environmentValue)) {
+    throw new Error(`Invalid BIDV_H2H_ENVIRONMENT value: ${environmentValue}`);
+  }
+  const environment = environmentValue as BidvH2hConfig['environment'];
+  const publicBaseUrlValue = getEnvValue(env, 'BIDV_H2H_PUBLIC_BASE_URL');
+  if ((ingestMasterEnabled || projectionMasterEnabled) && !publicBaseUrlValue) {
+    throw new Error(
+      'BIDV_H2H_PUBLIC_BASE_URL is required when BIDV H2H is enabled',
+    );
+  }
+  const publicBaseUrl = publicBaseUrlValue
+    ? validateBidvPublicBaseUrl(publicBaseUrlValue, environment)
+    : null;
+
+  return {
+    environment,
+    publicBaseUrl,
+    ingestMasterEnabled,
+    projectionMasterEnabled,
+    tokenTtlSeconds: positiveInteger(
+      env,
+      'BIDV_H2H_TOKEN_TTL_SECONDS',
+      300,
+      3600,
+    ),
+    maxEncodedBodyBytes: positiveInteger(
+      env,
+      'BIDV_H2H_MAX_ENCODED_BODY_BYTES',
+      1_048_576,
+      10_485_760,
+    ),
+    maxTransactionsPerBatch: positiveInteger(
+      env,
+      'BIDV_H2H_MAX_TRANSACTIONS_PER_BATCH',
+      100,
+      1000,
+    ),
+    processingTimeoutMs: positiveInteger(
+      env,
+      'BIDV_H2H_PROCESSING_TIMEOUT_MS',
+      10_000,
+      60_000,
+    ),
+    rotationOverlapHours: positiveInteger(
+      env,
+      'BIDV_H2H_ROTATION_OVERLAP_HOURS',
+      24,
+      168,
+    ),
+    retentionDays: positiveInteger(env, 'BIDV_H2H_RETENTION_DAYS', 90, 365),
+    kek,
+  };
+}
+
+function validateBidvPublicBaseUrl(
+  value: string,
+  environment: BidvH2hConfig['environment'],
+): string {
+  let parsed: URL;
+  try {
+    parsed = new URL(value);
+  } catch {
+    throw new Error('Invalid BIDV_H2H_PUBLIC_BASE_URL value');
+  }
+  if (
+    parsed.username ||
+    parsed.password ||
+    parsed.search ||
+    parsed.hash ||
+    parsed.pathname !== '/'
+  ) {
+    throw new Error('Invalid BIDV_H2H_PUBLIC_BASE_URL value');
+  }
+  const expectedHost =
+    environment === 'production'
+      ? 'bidv.opshub.hoanghochoi.com'
+      : environment === 'staging'
+        ? 'bidv-staging.opshub.hoanghochoi.com'
+        : null;
+  if (expectedHost) {
+    if (parsed.protocol !== 'https:' || parsed.hostname !== expectedHost) {
+      throw new Error(
+        `BIDV_H2H_PUBLIC_BASE_URL must use https://${expectedHost}`,
+      );
+    }
+  } else if (
+    !['http:', 'https:'].includes(parsed.protocol) ||
+    !LOCAL_ORIGIN_HOSTS.has(parsed.hostname)
+  ) {
+    throw new Error(
+      'Local BIDV_H2H_PUBLIC_BASE_URL must target localhost over HTTP(S)',
+    );
+  }
+  return parsed.toString().replace(/\/$/, '');
 }
 
 export function isCorsOriginAllowed(
@@ -148,8 +283,43 @@ export function validateRuntimeEnv(env: EnvMap = process.env): void {
   validateVietinEfastEnv(env);
   validateBigQueryEnv(env);
   validateMapVietinBigQueryEnv(env);
+  getBidvH2hConfig(env);
   validateProductionPlaceholders(env);
   validateProductionExternalUrls(env);
+}
+
+function parseBooleanEnv(env: EnvMap, key: string, fallback: boolean): boolean {
+  const raw = getEnvValue(env, key);
+  if (!raw) return fallback;
+  if (raw.toLowerCase() === 'true') return true;
+  if (raw.toLowerCase() === 'false') return false;
+  throw new Error(`Invalid boolean environment variable: ${key}`);
+}
+
+function positiveInteger(
+  env: EnvMap,
+  key: string,
+  fallback: number,
+  max: number,
+): number {
+  const raw = getEnvValue(env, key);
+  if (!raw) return fallback;
+  const parsed = Number(raw);
+  if (!Number.isInteger(parsed) || parsed <= 0 || parsed > max) {
+    throw new Error(`Invalid ${key} value: ${raw}`);
+  }
+  return parsed;
+}
+
+function decodeExactBase64Key(value: string): Buffer {
+  if (!/^[A-Za-z0-9+/]+={0,2}$/.test(value) || value.length % 4 !== 0) {
+    throw new Error('BIDV_H2H_KEK_BASE64 must be canonical Base64');
+  }
+  const decoded = Buffer.from(value, 'base64');
+  if (decoded.length !== 32 || decoded.toString('base64') !== value) {
+    throw new Error('BIDV_H2H_KEK_BASE64 must decode to exactly 32 bytes');
+  }
+  return decoded;
 }
 
 function validateRedisPort(env: EnvMap): void {
