@@ -182,26 +182,34 @@ rate-limit keys: the four send routes keep their documented 30/minute text and
 Local implementation and affected-consumer proof pass with the feature flag
 still disabled. Final evidence on 2026-08-01:
 
+- Post-OPS-33 reconciliation is pinned to feature commit `b8984ef1`, merged
+  `origin/staging@47ec0956` and merge HEAD `97122acb`. The TEST_MATRIX order
+  remains OPS-40, OPS-33, OPS-41; the focused route guard passes with all 40
+  authenticated routes, 88 route/viewport checks and `Hộp thư hỗ trợ`.
 - Prisma validate, generate and static migration contract: PASS. The single
   isolated PostgreSQL binary rehearsal was stopped and cleaned safely but did
   not complete fresh/upgrade/rollback; per coordinator authority it was not
   retried and remains unverified due local execution/runtime behavior.
 - Nest build: PASS. Focused final correction batch: 4 suites/22 tests PASS.
   Affected wrapper Nest set: 14 suites/152 tests PASS. Full Jest: 102 suites/
-  1089 tests PASS.
+  1106 tests PASS. Post-merge OPS-33 proof also passes 5 suites/206 tests;
+  Contract Appendix passes 6 Nest suites/46 tests and 10 Flutter tests.
 - Go realtime: `go test ./...` and `go vet ./...` PASS, including v2 payload
   allowlisting and all existing realtime consumers.
 - Flutter: analyze PASS with no issues; final Support Chat/design focused batch
   38 tests PASS; affected wrapper mapped 102 tests PASS; full machine run
-  814/814 PASS with zero failures/skips.
+  passes 696 tests with 3 intentional skips under `--concurrency=1`. The
+  post-merge Home/Sales Report bundle passes 53 tests. An initial concurrent
+  full run missed one OPS-33 debounce assertion; that exact test then passed
+  6/6 isolated runs before the serial full-suite PASS, with no code change.
 - Final platform builds: Windows debug PASS
   (`build/windows/x64/runner/Debug/phongvu_opshub.exe`, 1,058,816 bytes),
   staging APK debug PASS (`build/app/outputs/flutter-apk/app-staging-debug.apk`,
-  207,065,744 bytes), and web debug PASS (`build/web`).
+  207,065,744 bytes), and web debug plus wasm dry-run PASS (`build/web`).
 - `OPS40_SECURITY_SENTINELS_PASS`; affected path-contract wrapper default and
-  `--base origin/staging` modes PASS; committed/dirty/untracked/invalid-base/
-  dedup self-tests PASS; and `git diff --check` PASS. No generated/plugin
-  status-only noise remains.
+  `--base origin/staging` modes PASS (67 base-aware paths); committed/dirty/
+  untracked/invalid-base/dedup self-tests pass 2/2; wrapper Prettier and
+  `git diff --check` PASS. No generated/plugin status-only noise remains.
 
 Still pending and not local completion claims: disposable PostgreSQL migration
 rehearsal, staging two-requester/two-admin QA, 20 message/s load, live Redis

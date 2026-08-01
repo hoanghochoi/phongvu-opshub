@@ -6,9 +6,11 @@ This file maps product behavior to proof. Existing flows are marked
 - `OPS-40`/`SUPPORT-CHAT-001`, 2026-08-01,
   `local_verified_with_release_gaps`:
   lifecycle `START PASS` created `codex/ops-40-support-chat-phase-1` from exact
-  live `origin/staging@4850c4ba`. Product authority permits temporary
-  current/legacy Flutter UI with existing shared components/tokens and no Figma
-  mutation; this is not redesign approval. Required local proof covers
+  live `origin/staging@4850c4ba`; feature commit `b8984ef1` is reconciled with
+  merged `origin/staging@47ec0956` at merge HEAD `97122acb`. Product authority
+  permits temporary current/legacy Flutter UI with existing shared components/
+  tokens and no Figma mutation; this is not redesign approval. Required local
+  proof covers
   expand-only migration fresh/upgrade/rollback; conversation/idempotency/claim/
   resolve/reopen races; requester/Super-Admin/assignee/media authorization;
   image decode/re-encode bounds and cleanup; durable outbox/Redis outage;
@@ -18,12 +20,18 @@ This file maps product behavior to proof. Existing flows are marked
   current-UI responsive/accessibility states; retention/flag/rollback; full
   Nest/Go/Flutter affected-consumer suites and platform builds. Local proof:
   Prisma validate/generate/static PASS; Nest build PASS, focused correction
-  4 suites/22 tests, affected 14 suites/152 tests and full 102 suites/1089 tests
+  4 suites/22 tests, affected 14 suites/152 tests and full 102 suites/1106 tests
   PASS; Go test/vet PASS; Flutter analyze has no issues, focused 38, affected
-  102 and full 814/814 tests PASS; Windows, staging APK and web debug builds
-  PASS; security sentinels and diff checks PASS. The affected path-contract
-  wrapper passes in both default pre-commit and base-aware
-  `--base origin/staging` modes; its focused self-test covers committed rename,
+  102 and full 696 passed/3 intentional skips under serial execution; Windows,
+  staging APK and web debug builds plus the web wasm dry-run PASS; security
+  sentinels and diff checks PASS. Post-merge OPS-33 proof passes five Nest
+  suites/206 tests, Home/Sales Report Flutter 53 tests and Contract Appendix
+  six Nest suites/46 tests plus 10 Flutter tests. Its route guard confirms all
+  40 authenticated routes, 88 route/viewport checks and `Hộp thư hỗ trợ`.
+  The affected path-contract wrapper passes in both default pre-commit and
+  base-aware
+  `--base origin/staging` modes with 67 base-aware paths; its 2/2 focused
+  self-test covers committed rename,
   dirty/untracked discovery, deduplication and invalid-base/argument failure.
   The isolated local PostgreSQL binary rehearsal did not complete and was
   safely stopped/cleaned,
