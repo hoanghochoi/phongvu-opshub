@@ -3,6 +3,35 @@
 This file maps product behavior to proof. Existing flows are marked
 `existing_unverified` until fresh validation evidence is attached.
 
+- `OPS-40`/`SUPPORT-CHAT-001`, 2026-08-01,
+  `local_verified_with_release_gaps`:
+  lifecycle `START PASS` created `codex/ops-40-support-chat-phase-1` from exact
+  live `origin/staging@4850c4ba`. Product authority permits temporary
+  current/legacy Flutter UI with existing shared components/tokens and no Figma
+  mutation; this is not redesign approval. Required local proof covers
+  expand-only migration fresh/upgrade/rollback; conversation/idempotency/claim/
+  resolve/reopen races; requester/Super-Admin/assignee/media authorization;
+  image decode/re-encode bounds and cleanup; durable outbox/Redis outage;
+  strict v2-only audience routing with every old topic and `/ws` protected;
+  additive bootstrap/notification compatibility; AppShell, Quick Actions,
+  Seatalk, assignment-pending, logout/access revoke and memory-only media;
+  current-UI responsive/accessibility states; retention/flag/rollback; full
+  Nest/Go/Flutter affected-consumer suites and platform builds. Local proof:
+  Prisma validate/generate/static PASS; Nest build PASS, focused correction
+  4 suites/22 tests, affected 14 suites/152 tests and full 102 suites/1089 tests
+  PASS; Go test/vet PASS; Flutter analyze has no issues, focused 38, affected
+  102 and full 814/814 tests PASS; Windows, staging APK and web debug builds
+  PASS; security sentinels and diff checks PASS. The affected path-contract
+  wrapper passes in both default pre-commit and base-aware
+  `--base origin/staging` modes; its focused self-test covers committed rename,
+  dirty/untracked discovery, deduplication and invalid-base/argument failure.
+  The isolated local PostgreSQL binary rehearsal did not complete and was
+  safely stopped/cleaned,
+  so fresh/upgrade/rollback remains unverified and was not retried. Staging
+  2-user/2-admin QA, 20 message/s load, outbox/latency metrics, live restart/
+  outage durability, backup/restore purge, exact-SHA deployment and production
+  release remain gates. Issue cannot become `Done` before production deployment.
+
 - `OPS-41`/Offset Adjustments/`PAYMENT-STATEMENT-001`, 2026-07-30,
   `local_verified_with_staging_release_gaps`: Offset create/resubmit fails closed unless
   ERP proves the required lifecycle and amount cap, while duplicate/local
@@ -2109,14 +2138,15 @@ FIFO Menu` now has bottom nav active on `Tác vụ`, `Mobile v2 / Profile` has
   credentials, seeds the web session without committing secrets, captures
   ignored screenshots, and checks route hash, console/page errors, rendered
   Flutter viewport size, and visible horizontal overflow while ignoring Flutter
-  semantics-only overflow nodes. The default live staging smoke now runs 86
+  semantics-only overflow nodes. The default live staging smoke now runs 88
   checks across desktop `1440x900` and mobile `390x844`: 3 public routes
   (`/login`, `/register`, `/forgot-password`), 1 pending auth route
   (`/assignment-pending`) rendered from a tokenless cached pending session, plus
-  all 39 authenticated shell routes in `AppRouter`, including Home,
+  all 40 authenticated shell routes in `AppRouter`, including Home,
   Operations, Profile, Admin, FIFO, BH/SC, VietQR, Payment Monitor web
-  fallback, Sao kê, Cấn trừ, Góp ý, Report/Sales Report, Help Content admin,
-  and Settings. The legacy `/fifo-menu` redirect is excluded because it renders
+  fallback, Sao kê, Cấn trừ, Góp ý, Report/Sales Report, Hộp thư hỗ trợ,
+  Help Content admin, and Settings. The legacy `/fifo-menu` redirect is excluded
+  because it renders
   `/operations` rather than owning a ShellRoute.
   Follow-up guard coverage in
   `test\design_system_migration_guard_test.dart` now parses the smoke script

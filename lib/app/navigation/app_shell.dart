@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -19,6 +20,7 @@ import '../../features/notifications/presentation/widgets/app_notifications_bell
 import '../../features/payment_monitor/presentation/providers/payment_delivery_metrics_provider.dart';
 import '../../features/payment_monitor/presentation/widgets/payment_delivery_metrics_chip.dart';
 import '../../features/quick_actions/presentation/quick_actions_launcher.dart';
+import '../../features/support_chat/presentation/support_chat_surface.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_radius.dart';
 import '../theme/app_text_styles.dart';
@@ -125,10 +127,16 @@ class _AppShellState extends State<AppShell> {
   @override
   Widget build(BuildContext context) {
     final user = context.watch<AuthProvider>().user;
+    final supportChat = maybeSupportChatProvider(context, listen: true);
     final sidebarDestinations = AppNavModel.visibleSidebarDestinations(user);
     final mobileDestinations = AppNavModel.visibleMobileDestinations(user);
     final hiddenCount = AppNavModel.hiddenSidebarCount(user);
-    final width = MediaQuery.sizeOf(context).width;
+    final mediaQuery = MediaQuery.of(context);
+    final width = mediaQuery.size.width;
+    final floatingBottomInset = math.max(
+      mediaQuery.padding.bottom,
+      mediaQuery.viewInsets.bottom,
+    );
     final layout = width >= AppLayoutTokens.tabletBreakpoint
         ? width >= AppLayoutTokens.desktopBreakpoint
               ? 'desktop'
@@ -173,7 +181,7 @@ class _AppShellState extends State<AppShell> {
                   user: user,
                   version: _version,
                   onNavigate: _navigate,
-                  onSupport: () => _showSupportDialog(context),
+                  onSupport: () => _openSupport(context),
                   onLogout: () => _logout(context),
                   onAppInfo: () => _showAppInfoDialog(context),
                   child: widget.child,
@@ -185,18 +193,35 @@ class _AppShellState extends State<AppShell> {
                   activeDestination: activeDestination,
                   version: _version,
                   onNavigate: _navigate,
-                  onSupport: () => _showSupportDialog(context),
+                  onSupport: () => _openSupport(context),
                   child: widget.child,
                 ),
-          if (!kIsWeb &&
-              defaultTargetPlatform == TargetPlatform.windows &&
-              widget.location == '/home')
+          if (supportChat?.enabled == true ||
+              (!kIsWeb &&
+                  defaultTargetPlatform == TargetPlatform.windows &&
+                  widget.location == '/home'))
             Positioned(
-              right: 24,
-              bottom: 24,
-              child: QuickActionsLauncher(
-                menuAxis: Axis.vertical,
-                location: widget.location,
+              right: width >= AppLayoutTokens.tabletBreakpoint ? 24 : 16,
+              bottom:
+                  (width >= AppLayoutTokens.tabletBreakpoint ? 24 : 96) +
+                  floatingBottomInset,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (!kIsWeb &&
+                      defaultTargetPlatform == TargetPlatform.windows &&
+                      widget.location == '/home')
+                    QuickActionsLauncher(
+                      menuAxis: Axis.vertical,
+                      location: widget.location,
+                    ),
+                  if (!kIsWeb &&
+                      defaultTargetPlatform == TargetPlatform.windows &&
+                      widget.location == '/home' &&
+                      supportChat?.enabled == true)
+                    const SizedBox(height: 12),
+                  SupportChatBubble(onPressed: () => _openSupport(context)),
+                ],
               ),
             ),
         ],
@@ -390,6 +415,15 @@ class _AppShellState extends State<AppShell> {
       'Support dialog closed',
       context: logContext,
     );
+  }
+
+  Future<void> _openSupport(BuildContext context) async {
+    final supportChat = maybeSupportChatProvider(context);
+    if (supportChat?.enabled == true) {
+      await showSupportChatSurface(context);
+      return;
+    }
+    await _showSupportDialog(context);
   }
 
   Future<void> _copySupportGroupLink(BuildContext context) async {

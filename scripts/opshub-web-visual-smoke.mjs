@@ -60,6 +60,7 @@ const defaultAuthenticatedRoutes = parseRoutes(
       '/admin/personnel',
       '/admin/sales-targets',
       '/admin/quick-action-links',
+      '/admin/support-chats',
       '/admin/inventory-import',
       '/admin/feedback',
       '/admin/help-content',

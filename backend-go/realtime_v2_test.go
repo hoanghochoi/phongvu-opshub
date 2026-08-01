@@ -235,6 +235,58 @@ func TestQuickActionLinkUpdatesAreScopedAndV2Only(t *testing.T) {
 	}
 }
 
+func TestSupportChatChannelIsStrictV2OnlyAndAudienceScoped(t *testing.T) {
+	payload := versionedTestEvent(
+		supportChatEventType,
+		`{"recipientUserIds":["requester-1","admin-1"]}`,
+		`{"scope":"THREAD","conversationId":"conversation-1","revision":"4","lastSequence":"9","changeType":"MESSAGE_CREATED"}`,
+	)
+	events, ok := formatRedisEvents(supportChatRedisChannel, payload)
+	if !ok || len(events) != 1 {
+		t.Fatalf("expected one v2-only support route, ok=%t count=%d", ok, len(events))
+	}
+	event := events[0]
+	if event.ProtocolVersion != webSocketProtocolV2 || event.Type != supportChatEventType {
+		t.Fatalf("unexpected support route: %+v", event)
+	}
+	if (&Client{auth: &ClientAuth{UserID: "requester-1"}, protocolVersion: webSocketProtocolV1}).canReceive(event) {
+		t.Fatal("legacy client received Support Chat invalidation")
+	}
+	if !(&Client{auth: &ClientAuth{UserID: "requester-1"}, protocolVersion: webSocketProtocolV2}).canReceive(event) {
+		t.Fatal("target requester did not receive Support Chat invalidation")
+	}
+	if (&Client{auth: &ClientAuth{UserID: "requester-2"}, protocolVersion: webSocketProtocolV2}).canReceive(event) {
+		t.Fatal("unrelated requester received Support Chat invalidation")
+	}
+	var envelope map[string]json.RawMessage
+	if err := json.Unmarshal(event.Message, &envelope); err != nil {
+		t.Fatal(err)
+	}
+	if _, exposed := envelope["audience"]; exposed {
+		t.Fatalf("support audience leaked to client: %s", event.Message)
+	}
+	if !strings.Contains(string(event.Message), `"topic":"support.chat"`) ||
+		!strings.Contains(string(event.Message), `"kind":"SUPPORT_CHAT_INVALIDATED"`) {
+		t.Fatalf("unexpected Support Chat envelope: %s", event.Message)
+	}
+}
+
+func TestSupportChatChannelFailsClosedWithoutCompleteServerAudience(t *testing.T) {
+	invalid := []string{
+		`{"scope":"QUEUE"}`,
+		versionedTestEvent(supportChatEventType, `{}`, `{"scope":"QUEUE","revision":"1","changeType":"CLAIMED"}`),
+		versionedTestEvent(supportChatEventType, `{"featureCodes":["SUPPORT_CHAT"]}`, `{"scope":"THREAD","conversationId":"conversation-1"}`),
+		versionedTestEvent("WRONG_KIND", `{"roles":["SUPER_ADMIN"]}`, `{"scope":"QUEUE"}`),
+		versionedTestEvent(supportChatEventType, `{"roles":["SUPER_ADMIN"]}`, `{"scope":"QUEUE","revision":"1","changeType":"CLAIMED","body":"sentinel-secret"}`),
+		versionedTestEvent(supportChatEventType, `{"recipientUserIds":["requester-1"]}`, `{"scope":"THREAD","conversationId":"conversation-1","revision":"1","lastSequence":"2","changeType":"MESSAGE_CREATED","mediaUrl":"/private/sentinel"}`),
+	}
+	for _, payload := range invalid {
+		if events, ok := formatRedisEvents(supportChatRedisChannel, payload); ok {
+			t.Fatalf("invalid Support Chat audience produced events: %+v", events)
+		}
+	}
+}
+
 func TestRedisBridgeBroadcastsLegacyAndV2Routes(t *testing.T) {
 	hub := newHub(testLogger(), 2)
 	ctx, cancel := context.WithCancel(context.Background())

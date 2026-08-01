@@ -18,6 +18,9 @@ class AdminMenuScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final user = context.select<AuthProvider, User?>((auth) => auth.user);
+    final supportChatEnabled = context.select<AuthProvider, bool>(
+      (auth) => auth.supportChatEnabled,
+    );
     bool canUse(String featureCode) => user?.canUseFeature(featureCode) == true;
     final isSuperAdmin = user?.role == 'SUPER_ADMIN';
     final managerRole = {
@@ -112,6 +115,14 @@ class AdminMenuScreen extends StatelessWidget {
             );
             context.push('/admin/sales-reports');
           },
+        ),
+      if (isSuperAdmin && supportChatEnabled)
+        AppFeatureAction(
+          icon: Icons.support_agent_rounded,
+          title: 'Hỗ trợ nhân viên',
+          description: 'Hộp thư hỗ trợ nội bộ',
+          color: AppColors.info,
+          onTap: () => context.push('/admin/support-chats'),
         ),
       if (isSuperAdmin)
         AppFeatureAction(

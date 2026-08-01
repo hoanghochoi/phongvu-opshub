@@ -21,6 +21,7 @@ const String _offsetAdjustmentRealtimeEventType =
 const String _statementOrderTransferNotificationSource =
     'statement_order_transfer';
 const String _offsetAdjustmentNotificationSource = 'offset_adjustment';
+const String _supportChatNotificationSource = 'support_chat';
 
 class AppNotificationsProvider extends ChangeNotifier {
   final BankStatementRepository _bankStatementRepository;
@@ -38,6 +39,9 @@ class AppNotificationsProvider extends ChangeNotifier {
   User? _user;
   int _statementOrderCount = 0;
   int _offsetAdjustmentCount = 0;
+  int _supportChatUnreadCount = 0;
+  int _supportChatUnassignedCount = 0;
+  bool _supportChatEnabled = false;
   bool _isInitialized = false;
   bool _isLoading = false;
   bool _canReviewStatementOrderTransfers = false;
@@ -93,8 +97,16 @@ class AppNotificationsProvider extends ChangeNotifier {
       _isInitialized && _user?.canUseBankStatements == true;
   bool get hasOffsetAdjustmentNotifications =>
       _isInitialized && _user?.canUseOffsetAdjustments == true;
+  bool get hasSupportChatNotifications =>
+      _isInitialized && _user != null && _supportChatEnabled;
+  int get supportChatUnreadCount =>
+      hasSupportChatNotifications ? _supportChatUnreadCount : 0;
+  int get supportChatUnassignedCount =>
+      hasSupportChatNotifications ? _supportChatUnassignedCount : 0;
   bool get isEnabled =>
-      hasStatementOrderNotifications || hasOffsetAdjustmentNotifications;
+      hasStatementOrderNotifications ||
+      hasOffsetAdjustmentNotifications ||
+      hasSupportChatNotifications;
   int get count =>
       (hasStatementOrderNotifications ? _unreadStatementOrderCount : 0) +
       (hasOffsetAdjustmentNotifications ? _unreadOffsetAdjustmentCount : 0);
@@ -128,11 +140,20 @@ class AppNotificationsProvider extends ChangeNotifier {
     await load(silent: true);
   }
 
-  Future<void> syncAuth(User? user, {required bool isInitialized}) async {
+  Future<void> syncAuth(
+    User? user, {
+    required bool isInitialized,
+    bool supportChatEnabled = false,
+  }) async {
     if (_disposed) return;
     final previousSignature = _authorizationSignature;
-    final nextSignature = _authSignature(user, isInitialized);
+    final nextSignature = _authSignature(
+      user,
+      isInitialized,
+      supportChatEnabled,
+    );
     _isInitialized = isInitialized;
+    _supportChatEnabled = supportChatEnabled;
     final userChanged = _user?.id != user?.id || _user?.email != user?.email;
     _user = user;
     _authorizationSignature = nextSignature;
@@ -147,6 +168,7 @@ class AppNotificationsProvider extends ChangeNotifier {
       // stores visible to the user. Never retain rows from the previous scope.
       _clearStatementOrderNotifications();
       _clearOffsetAdjustmentNotifications();
+      _clearSupportChatNotifications();
       notifyListeners();
     }
     if (userChanged) {
@@ -189,6 +211,7 @@ class AppNotificationsProvider extends ChangeNotifier {
         context: {
           'statementEnabled': loadStatements,
           'offsetEnabled': loadOffsets,
+          'supportChatEnabled': hasSupportChatNotifications,
         },
       );
       final feed = await _feedRepository.fetchFeed();
@@ -206,6 +229,7 @@ class AppNotificationsProvider extends ChangeNotifier {
           'generatedAt': feed.generatedAt.toIso8601String(),
           'statementCount': _statementOrderRequests.length,
           'offsetCount': _offsetAdjustmentRequests.length,
+          'supportChatUnreadCount': supportChatUnreadCount,
           'unreadCount': count,
           'durationMs': DateTime.now().difference(startedAt).inMilliseconds,
         },
@@ -267,6 +291,12 @@ class AppNotificationsProvider extends ChangeNotifier {
     } else {
       _clearOffsetAdjustmentNotifications();
     }
+    if (hasSupportChatNotifications && feed.supportChat?.enabled == true) {
+      _supportChatUnreadCount = feed.supportChat!.unreadCount;
+      _supportChatUnassignedCount = feed.supportChat!.unassignedCount;
+    } else {
+      _clearSupportChatNotifications();
+    }
   }
 
   Future<void> _loadLegacyNotifications({
@@ -286,6 +316,7 @@ class AppNotificationsProvider extends ChangeNotifier {
     } else {
       _clearOffsetAdjustmentNotifications();
     }
+    _clearSupportChatNotifications();
   }
 
   bool _isUnsupportedFeed(ApiException error) {
@@ -560,12 +591,18 @@ class AppNotificationsProvider extends ChangeNotifier {
     final isOffsetEvent =
         envelope.kind == _offsetAdjustmentRealtimeEventType &&
         envelope.topic == 'notifications.offset-adjustment';
-    if (!isStatementEvent && !isOffsetEvent) return;
+    final isSupportChatEvent =
+        envelope.kind == 'SUPPORT_CHAT_INVALIDATED' &&
+        envelope.topic == 'support.chat';
+    if (!isStatementEvent && !isOffsetEvent && !isSupportChatEvent) return;
     if (isStatementEvent && !hasStatementOrderNotifications) {
       return;
     }
     if (isOffsetEvent && !hasOffsetAdjustmentNotifications) return;
-    final source = isOffsetEvent
+    if (isSupportChatEvent && !hasSupportChatNotifications) return;
+    final source = isSupportChatEvent
+        ? _supportChatNotificationSource
+        : isOffsetEvent
         ? _offsetAdjustmentNotificationSource
         : _statementOrderTransferNotificationSource;
     unawaited(
@@ -652,7 +689,11 @@ class AppNotificationsProvider extends ChangeNotifier {
 
   bool get _isRuntimeEligible => _isForeground && _isSurfaceActive;
 
-  static String _authSignature(User? user, bool isInitialized) {
+  static String _authSignature(
+    User? user,
+    bool isInitialized,
+    bool supportChatEnabled,
+  ) {
     if (!isInitialized || user == null) return 'signed_out';
     final assignedStoreIds =
         user.assignedStoreIds
@@ -677,6 +718,7 @@ class AppNotificationsProvider extends ChangeNotifier {
       user.canUseAllBankStatementStores,
       user.canUseOffsetAdjustments,
       user.canReviewOffsetAdjustments,
+      supportChatEnabled,
       user.storeId ?? '',
       assignedStoreIds.join(','),
       user.organizationNodeId ?? '',
@@ -697,12 +739,15 @@ class AppNotificationsProvider extends ChangeNotifier {
         _offsetAdjustmentRequests.isEmpty &&
         _statementOrderCount == 0 &&
         _offsetAdjustmentCount == 0 &&
+        _supportChatUnreadCount == 0 &&
+        _supportChatUnassignedCount == 0 &&
         !_canReviewStatementOrderTransfers &&
         !_canReviewOffsetAdjustments) {
       return;
     }
     _clearStatementOrderNotifications();
     _clearOffsetAdjustmentNotifications();
+    _clearSupportChatNotifications();
     notifyListeners();
   }
 
@@ -716,6 +761,11 @@ class AppNotificationsProvider extends ChangeNotifier {
     _offsetAdjustmentRequests.clear();
     _offsetAdjustmentCount = 0;
     _canReviewOffsetAdjustments = false;
+  }
+
+  void _clearSupportChatNotifications() {
+    _supportChatUnreadCount = 0;
+    _supportChatUnassignedCount = 0;
   }
 
   int get _unreadStatementOrderCount {

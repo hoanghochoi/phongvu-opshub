@@ -20,6 +20,7 @@ const (
 	homeSummaryRedisChannel            = "HOME_SUMMARY_UPDATED"
 	accessChangedRedisChannel          = "ACCESS_CHANGED"
 	quickActionLinksRedisChannel       = "QUICK_ACTION_LINKS_UPDATED"
+	supportChatRedisChannel            = "SUPPORT_CHAT_UPDATED"
 
 	warrantyEventType               = "WARRANTY_EVENT"
 	paymentEventType                = "PAYMENT_NOTIFICATION"
@@ -32,6 +33,7 @@ const (
 	homeSummaryEventType            = "HOME_SUMMARY_UPDATED"
 	accessChangedEventType          = "ACCESS_CHANGED"
 	quickActionLinksEventType       = "QUICK_ACTION_LINKS_UPDATED"
+	supportChatEventType            = "SUPPORT_CHAT_INVALIDATED"
 	warrantyTopic                   = "warranty"
 	paymentTopic                    = "payment.transactions"
 	paymentStreamTopic              = "payment.speaker"
@@ -42,6 +44,7 @@ const (
 	homeSummaryTopic                = "home.summary"
 	accessChangedTopic              = "access.changed"
 	quickActionLinksTopic           = "quick-actions.links"
+	supportChatTopic                = "support.chat"
 
 	webSocketProtocolV1 = 1
 	webSocketProtocolV2 = 2
@@ -163,7 +166,7 @@ func formatRedisEvents(channel string, payload string) ([]RoutedEvent, bool) {
 	if !ok {
 		return nil, false
 	}
-	if channel == quickActionLinksRedisChannel {
+	if channel == quickActionLinksRedisChannel || channel == supportChatRedisChannel {
 		return []RoutedEvent{{
 			Type:            eventType,
 			Message:         v2Message,
@@ -234,10 +237,18 @@ func parseAuthenticatedRedisEvent(
 		if _, err := time.Parse(time.RFC3339Nano, occurredAt); err != nil {
 			return parsedAuthenticatedRedisEvent{}, false
 		}
+		payload := envelope.Payload
+		if channel == supportChatRedisChannel {
+			var valid bool
+			payload, valid = sanitizeSupportChatPayload(payload)
+			if !valid {
+				return parsedAuthenticatedRedisEvent{}, false
+			}
+		}
 		return parsedAuthenticatedRedisEvent{
 			eventID:    eventID,
 			occurredAt: occurredAt,
-			payload:    envelope.Payload,
+			payload:    payload,
 			audience:   audience,
 		}, true
 	}
@@ -252,6 +263,59 @@ func parseAuthenticatedRedisEvent(
 		payload:    rawPayload,
 		audience:   audience,
 	}, true
+}
+
+type supportChatClientPayload struct {
+	Scope          string `json:"scope"`
+	ConversationID string `json:"conversationId,omitempty"`
+	Revision       string `json:"revision"`
+	LastSequence   string `json:"lastSequence,omitempty"`
+	ChangeType     string `json:"changeType"`
+}
+
+func sanitizeSupportChatPayload(raw json.RawMessage) (json.RawMessage, bool) {
+	var payload supportChatClientPayload
+	decoder := json.NewDecoder(strings.NewReader(string(raw)))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&payload); err != nil {
+		return nil, false
+	}
+	payload.Scope = strings.TrimSpace(payload.Scope)
+	payload.ConversationID = strings.TrimSpace(payload.ConversationID)
+	payload.Revision = strings.TrimSpace(payload.Revision)
+	payload.LastSequence = strings.TrimSpace(payload.LastSequence)
+	payload.ChangeType = strings.TrimSpace(payload.ChangeType)
+	validDecimal := func(value string) bool {
+		if value == "0" {
+			return true
+		}
+		if value == "" || len(value) > 19 || value[0] == '0' {
+			return false
+		}
+		for _, char := range value {
+			if char < '0' || char > '9' {
+				return false
+			}
+		}
+		return true
+	}
+	if !validDecimal(payload.Revision) || payload.ChangeType == "" || len(payload.ChangeType) > 64 {
+		return nil, false
+	}
+	switch payload.Scope {
+	case "QUEUE":
+		if payload.ConversationID != "" || payload.LastSequence != "" {
+			return nil, false
+		}
+	case "THREAD":
+		if payload.ConversationID == "" || len(payload.ConversationID) > 128 || !validDecimal(payload.LastSequence) {
+			return nil, false
+		}
+	default:
+		return nil, false
+	}
+	sanitized, err := json.Marshal(payload)
+	return sanitized, err == nil
 }
 
 func formatLegacyClientMessage(eventType string, payload json.RawMessage) ([]byte, bool) {
@@ -408,6 +472,8 @@ func eventTypeForChannel(channel string) (string, bool) {
 		return accessChangedEventType, true
 	case quickActionLinksRedisChannel:
 		return quickActionLinksEventType, true
+	case supportChatRedisChannel:
+		return supportChatEventType, true
 	default:
 		return "", false
 	}
@@ -435,6 +501,8 @@ func topicForChannel(channel string) (string, bool) {
 		return accessChangedTopic, true
 	case quickActionLinksRedisChannel:
 		return quickActionLinksTopic, true
+	case supportChatRedisChannel:
+		return supportChatTopic, true
 	default:
 		return "", false
 	}

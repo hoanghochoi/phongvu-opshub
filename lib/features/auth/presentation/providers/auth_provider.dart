@@ -24,6 +24,7 @@ class _SavedAuthSnapshot {
   final String? bootstrapVersion;
   final int? bootstrapSchemaVersion;
   final bool conditionalGet;
+  final bool supportChatEnabled;
   final List<String> realtimeV2Topics;
 
   const _SavedAuthSnapshot({
@@ -35,6 +36,7 @@ class _SavedAuthSnapshot {
     this.bootstrapVersion,
     this.bootstrapSchemaVersion,
     this.conditionalGet = false,
+    this.supportChatEnabled = false,
     this.realtimeV2Topics = const [],
   });
 }
@@ -95,6 +97,7 @@ class AuthProvider extends ChangeNotifier {
   String? _bootstrapVersion;
   int? _bootstrapSchemaVersion;
   bool _bootstrapConditionalGet = false;
+  bool _supportChatEnabled = false;
   List<String> _realtimeV2Topics = const [];
   Future<bool>? _accessRefreshInFlight;
   int? _accessRefreshEpoch;
@@ -129,6 +132,7 @@ class AuthProvider extends ChangeNotifier {
   }
 
   bool get bootstrapConditionalGet => _bootstrapConditionalGet;
+  bool get supportChatEnabled => _supportChatEnabled;
   List<String> get realtimeV2Topics => List.unmodifiable(_realtimeV2Topics);
   String? get accessSyncWarning {
     if (_user == null) return null;
@@ -264,6 +268,7 @@ class AuthProvider extends ChangeNotifier {
         _bootstrapVersion = savedSnapshot.bootstrapVersion;
         _bootstrapSchemaVersion = savedSnapshot.bootstrapSchemaVersion;
         _bootstrapConditionalGet = savedSnapshot.conditionalGet;
+        _supportChatEnabled = savedSnapshot.supportChatEnabled;
         _realtimeV2Topics = savedSnapshot.realtimeV2Topics;
       } else {
         // Older builds persisted profile/token keys but not the v2 snapshot.
@@ -481,6 +486,7 @@ class AuthProvider extends ChangeNotifier {
             'version': _bootstrapVersion,
             'schemaVersion': _bootstrapSchemaVersion,
             'conditionalGet': _bootstrapConditionalGet,
+            'supportChat': _supportChatEnabled,
             'realtimeV2Topics': _realtimeV2Topics,
           },
         }),
@@ -518,6 +524,7 @@ class AuthProvider extends ChangeNotifier {
     _bootstrapVersion = null;
     _bootstrapSchemaVersion = null;
     _bootstrapConditionalGet = false;
+    _supportChatEnabled = false;
     _realtimeV2Topics = const [];
     _accessSyncState = AuthAccessSyncState.idle;
     unawaited(AppLogger.instance.info('Auth', 'Local session clear started'));
@@ -715,6 +722,7 @@ class AuthProvider extends ChangeNotifier {
           bootstrapValue['schemaVersion']?.toString() ?? '',
         ),
         conditionalGet: bootstrapValue['conditionalGet'] == true,
+        supportChatEnabled: bootstrapValue['supportChat'] == true,
         realtimeV2Topics: topicsValue is List
             ? topicsValue
                   .map((value) => value?.toString().trim() ?? '')
@@ -1050,6 +1058,7 @@ class AuthProvider extends ChangeNotifier {
         _bootstrapVersion = data.version;
         _bootstrapSchemaVersion = data.schemaVersion;
         _bootstrapConditionalGet = data.capabilities.conditionalGet;
+        _supportChatEnabled = data.capabilities.supportChat;
         _realtimeV2Topics = data.capabilities.realtimeV2Topics;
         _accessLastSyncedAt = DateTime.now();
         _accessSyncState = AuthAccessSyncState.fresh;
@@ -1162,6 +1171,7 @@ class AuthProvider extends ChangeNotifier {
     _bootstrapVersion = null;
     _bootstrapSchemaVersion = null;
     _bootstrapConditionalGet = false;
+    _supportChatEnabled = false;
     _realtimeV2Topics = const [];
     _accessLastSyncedAt = DateTime.now();
     _accessSyncState = AuthAccessSyncState.fresh;

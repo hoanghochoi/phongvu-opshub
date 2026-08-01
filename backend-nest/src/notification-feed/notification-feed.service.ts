@@ -4,6 +4,7 @@ import { FEATURE_KEYS } from '../feature/feature.constants';
 import { FeatureService } from '../feature/feature.service';
 import { MapVietinService } from '../map-vietin/map-vietin.service';
 import { OffsetAdjustmentsService } from '../offset-adjustments/offset-adjustments.service';
+import { SupportChatService } from '../support-chat/support-chat.service';
 
 @Injectable()
 export class NotificationFeedService {
@@ -13,6 +14,7 @@ export class NotificationFeedService {
     private readonly featureService: FeatureService,
     private readonly mapVietinService: MapVietinService,
     private readonly offsetAdjustmentsService: OffsetAdjustmentsService,
+    private readonly supportChatService: SupportChatService,
   ) {}
 
   async load(user: any) {
@@ -42,6 +44,16 @@ export class NotificationFeedService {
             })
           : Promise.resolve(this.emptyOffsetFeed()),
       ]);
+      let supportChat: Awaited<
+        ReturnType<SupportChatService['notificationSummary']>
+      > = null;
+      try {
+        supportChat = await this.supportChatService.notificationSummary(user);
+      } catch (error) {
+        this.logger.warn(
+          `Support chat notification summary unavailable: userId=${this.safeUserId(userId)} error=${safeLogError(error)}`,
+        );
+      }
       const result = {
         schemaVersion: 1,
         generatedAt: new Date().toISOString(),
@@ -53,9 +65,10 @@ export class NotificationFeedService {
           enabled: offsetsEnabled,
           ...offsetAdjustments,
         },
+        ...(supportChat ? { supportChat } : {}),
       };
       this.logger.log(
-        `Notification feed load succeeded: userId=${this.safeUserId(userId)} statementEnabled=${statementsEnabled} statementCount=${statementOrderTransfers.list.length} offsetEnabled=${offsetsEnabled} offsetCount=${offsetAdjustments.list.length} durationMs=${Date.now() - startedAt}`,
+        `Notification feed load succeeded: userId=${this.safeUserId(userId)} statementEnabled=${statementsEnabled} statementCount=${statementOrderTransfers.list.length} offsetEnabled=${offsetsEnabled} offsetCount=${offsetAdjustments.list.length} supportChatEnabled=${Boolean(supportChat)} durationMs=${Date.now() - startedAt}`,
       );
       return result;
     } catch (error) {

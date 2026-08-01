@@ -15,6 +15,7 @@ class AppNotificationsFeed {
   final bool offsetAdjustmentsEnabled;
   final BankStatementOrderTransferRequestPage statementOrderTransfers;
   final OffsetAdjustmentPage offsetAdjustments;
+  final SupportChatNotificationSummary? supportChat;
 
   const AppNotificationsFeed({
     required this.schemaVersion,
@@ -23,6 +24,7 @@ class AppNotificationsFeed {
     required this.offsetAdjustmentsEnabled,
     required this.statementOrderTransfers,
     required this.offsetAdjustments,
+    this.supportChat,
   });
 
   factory AppNotificationsFeed.fromJson(Map<String, dynamic> json) {
@@ -32,6 +34,11 @@ class AppNotificationsFeed {
     );
     final statements = _requiredMap(json, 'statementOrderTransfers');
     final offsets = _requiredMap(json, 'offsetAdjustments');
+    final supportChat = json['supportChat'] is Map
+        ? SupportChatNotificationSummary.fromJson(
+            Map<String, dynamic>.from(json['supportChat'] as Map),
+          )
+        : null;
     if (schemaVersion != 1 || generatedAt == null) {
       throw const FormatException('Unsupported notification feed schema');
     }
@@ -61,6 +68,7 @@ class AppNotificationsFeed {
         total: _intOf(offsets['total'], fallback: offsetRows.length),
         canReview: offsets['canReview'] == true,
       ),
+      supportChat: supportChat,
     );
   }
 
@@ -90,6 +98,38 @@ class AppNotificationsFeed {
     }
     return rows.whereType<Map>().map(
       (row) => row.map((key, value) => MapEntry(key.toString(), value)),
+    );
+  }
+}
+
+class SupportChatNotificationSummary {
+  final bool enabled;
+  final int unreadCount;
+  final int unassignedCount;
+  final String? conversationId;
+  final String? status;
+
+  const SupportChatNotificationSummary({
+    required this.enabled,
+    required this.unreadCount,
+    required this.unassignedCount,
+    required this.conversationId,
+    required this.status,
+  });
+
+  factory SupportChatNotificationSummary.fromJson(Map<String, dynamic> json) {
+    return SupportChatNotificationSummary(
+      enabled: json['enabled'] == true,
+      unreadCount: AppNotificationsFeed._intOf(
+        json['unreadCount'],
+        fallback: 0,
+      ),
+      unassignedCount: AppNotificationsFeed._intOf(
+        json['unassignedCount'],
+        fallback: 0,
+      ),
+      conversationId: json['conversationId']?.toString(),
+      status: json['status']?.toString(),
     );
   }
 }

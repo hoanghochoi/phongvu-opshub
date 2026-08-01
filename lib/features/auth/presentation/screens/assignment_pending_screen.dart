@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -10,6 +12,7 @@ import '../../../../app/widgets/app_layout.dart';
 import '../../../../core/logging/app_logger.dart';
 import '../providers/auth_provider.dart';
 import '../widgets/auth_screen_shell.dart';
+import '../../../support_chat/presentation/support_chat_surface.dart';
 
 class AssignmentPendingScreen extends StatefulWidget {
   const AssignmentPendingScreen({super.key});
@@ -99,70 +102,95 @@ class _AssignmentPendingScreenState extends State<AssignmentPendingScreen> {
     final userEmail = context.select<AuthProvider, String?>(
       (auth) => auth.user?.email,
     );
-    return AuthScreenShell(
-      child: AuthCard(
-        icon: Icons.account_tree_outlined,
-        title: 'Chờ gán tổ chức',
-        subtitle: 'Tài khoản đã tạo nhưng chưa có phạm vi sử dụng.',
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            DecoratedBox(
-              decoration: BoxDecoration(
-                color: AppColors.primarySurfaceOf(context),
-                borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
-                border: Border.all(
-                  color: AppColors.primaryOf(context).withValues(alpha: 0.22),
-                ),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.all(14),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('Việc cần làm', style: AppTextStyles.headingS),
-                        const SizedBox(height: AppLayoutTokens.formInlineGap),
-                        Text(
-                          _supportMessage,
-                          style: AppTextStyles.bodyM.copyWith(
-                            color: AppColors.textSecondaryOf(context),
-                          ),
-                        ),
-                        if (userEmail?.isNotEmpty == true) ...[
-                          const SizedBox(height: AppLayoutTokens.formInlineGap),
-                          Text(
-                            userEmail!,
-                            style: AppTextStyles.labelM.copyWith(
-                              color: AppColors.primaryOf(context),
-                            ),
-                          ),
-                        ],
-                      ],
+    final mediaQuery = MediaQuery.of(context);
+    final floatingBottomInset = math.max(
+      mediaQuery.padding.bottom,
+      mediaQuery.viewInsets.bottom,
+    );
+    return Stack(
+      children: [
+        AuthScreenShell(
+          child: AuthCard(
+            icon: Icons.account_tree_outlined,
+            title: 'Chờ gán tổ chức',
+            subtitle: 'Tài khoản đã tạo nhưng chưa có phạm vi sử dụng.',
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: AppColors.primarySurfaceOf(context),
+                    borderRadius: BorderRadius.circular(
+                      AppLayoutTokens.cardRadius,
+                    ),
+                    border: Border.all(
+                      color: AppColors.primaryOf(
+                        context,
+                      ).withValues(alpha: 0.22),
                     ),
                   ),
-                ],
-              ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.all(14),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('Việc cần làm', style: AppTextStyles.headingS),
+                            const SizedBox(
+                              height: AppLayoutTokens.formInlineGap,
+                            ),
+                            Text(
+                              _supportMessage,
+                              style: AppTextStyles.bodyM.copyWith(
+                                color: AppColors.textSecondaryOf(context),
+                              ),
+                            ),
+                            if (userEmail?.isNotEmpty == true) ...[
+                              const SizedBox(
+                                height: AppLayoutTokens.formInlineGap,
+                              ),
+                              Text(
+                                userEmail!,
+                                style: AppTextStyles.labelM.copyWith(
+                                  color: AppColors.primaryOf(context),
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: AppLayoutTokens.formSectionGap),
+                AppPrimaryButton(
+                  onPressed: _refreshing ? null : _refresh,
+                  icon: Icons.refresh_rounded,
+                  label: 'Tải lại trạng thái',
+                  isLoading: _refreshing,
+                  loadingLabel: 'Đang tải lại...',
+                ),
+                const SizedBox(height: AppLayoutTokens.formInlineGap),
+                AppSecondaryButton(
+                  onPressed: _refreshing ? null : _logout,
+                  icon: Icons.logout_rounded,
+                  label: 'Đăng xuất',
+                ),
+              ],
             ),
-            const SizedBox(height: AppLayoutTokens.formSectionGap),
-            AppPrimaryButton(
-              onPressed: _refreshing ? null : _refresh,
-              icon: Icons.refresh_rounded,
-              label: 'Tải lại trạng thái',
-              isLoading: _refreshing,
-              loadingLabel: 'Đang tải lại...',
-            ),
-            const SizedBox(height: AppLayoutTokens.formInlineGap),
-            AppSecondaryButton(
-              onPressed: _refreshing ? null : _logout,
-              icon: Icons.logout_rounded,
-              label: 'Đăng xuất',
-            ),
-          ],
+          ),
         ),
-      ),
+        if (maybeSupportChatProvider(context, listen: true)?.enabled == true)
+          Positioned(
+            right: 16,
+            bottom: 16 + floatingBottomInset,
+            child: SupportChatBubble(
+              onPressed: () => showSupportChatSurface(context),
+            ),
+          ),
+      ],
     );
   }
 }

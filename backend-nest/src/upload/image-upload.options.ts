@@ -8,6 +8,9 @@ import { diskStorage, type Options } from 'multer';
 const DEFAULT_IMAGE_UPLOAD_MAX_BYTES = 10 * 1024 * 1024;
 const DEFAULT_AVATAR_UPLOAD_MAX_BYTES = 2 * 1024 * 1024;
 export const IMAGE_UPLOAD_MAX_FILES = 20;
+export const SUPPORT_CHAT_IMAGE_MAX_FILES = 4;
+export const SUPPORT_CHAT_IMAGE_MAX_BYTES = 5 * 1024 * 1024;
+export const SUPPORT_CHAT_IMAGE_AGGREGATE_MAX_BYTES = 20 * 1024 * 1024;
 const DEFAULT_IMAGE_UPLOAD_AGGREGATE_MAX_BYTES = 30 * 1024 * 1024;
 const ALLOWED_IMAGE_MIME_TYPES = new Set([
   'image/jpeg',
@@ -119,6 +122,17 @@ export const avatarUploadOptions: Options = {
     files: 1,
     fileSize: getAvatarUploadMaxBytes(),
     parts: 1 + boundedMultipartLimits.fields,
+  },
+  fileFilter: imageFileFilter,
+};
+
+export const supportChatImageUploadOptions: Options = {
+  storage: privateUploadStorage,
+  limits: {
+    ...boundedMultipartLimits,
+    files: SUPPORT_CHAT_IMAGE_MAX_FILES,
+    fileSize: SUPPORT_CHAT_IMAGE_MAX_BYTES,
+    parts: SUPPORT_CHAT_IMAGE_MAX_FILES + boundedMultipartLimits.fields,
   },
   fileFilter: imageFileFilter,
 };

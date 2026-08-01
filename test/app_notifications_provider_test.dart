@@ -29,6 +29,37 @@ void main() {
   });
 
   group('AppNotificationsProvider', () {
+    test('uses the aggregate feed as the Support Chat unread source', () async {
+      final bankRepository = _FakeBankStatementRepository();
+      final offsetRepository = _FakeOffsetAdjustmentRepository();
+      final feedRepository = _feedRepository(bankRepository, offsetRepository)
+        ..supportChat = const SupportChatNotificationSummary(
+          enabled: true,
+          unreadCount: 3,
+          unassignedCount: 2,
+          conversationId: 'conversation-1',
+          status: 'OPEN',
+        );
+      final provider = AppNotificationsProvider(
+        bankRepository,
+        offsetAdjustmentRepository: offsetRepository,
+        feedRepository: feedRepository,
+      );
+
+      await _activate(provider);
+      await provider.syncAuth(
+        const User(id: 'support-user', email: 'support@phongvu.vn'),
+        isInitialized: true,
+        supportChatEnabled: true,
+      );
+
+      expect(provider.supportChatUnreadCount, 3);
+      expect(provider.supportChatUnassignedCount, 2);
+      expect(provider.count, 0, reason: 'legacy bell sources stay unchanged');
+      expect(feedRepository.fetchCount, 1);
+      provider.dispose();
+    });
+
     test('combines statement and offset counts in the global bell', () async {
       final bankRepository = _FakeBankStatementRepository(
         requests: [_statementRequest()],
@@ -588,6 +619,7 @@ class _FakeAppNotificationsFeedRepository
   final _FakeOffsetAdjustmentRepository offsets;
   int fetchCount = 0;
   Object? error;
+  SupportChatNotificationSummary? supportChat;
 
   _FakeAppNotificationsFeedRepository(this.statements, this.offsets)
     : super(ApiClient());
@@ -616,6 +648,7 @@ class _FakeAppNotificationsFeedRepository
         total: offsets.total,
         canReview: offsets.canReview,
       ),
+      supportChat: supportChat,
     );
   }
 }

@@ -41,6 +41,10 @@ describe('PrivateMediaService', () => {
         findUnique: jest.fn(),
         findFirst: jest.fn(),
       },
+      supportMessage: {
+        findUnique: jest.fn(),
+        findFirst: jest.fn(),
+      },
     };
     featureService = { canAccessFeature: jest.fn().mockResolvedValue(true) };
     service = new PrivateMediaService(prisma, featureService);
@@ -150,10 +154,7 @@ describe('PrivateMediaService', () => {
   it('removes the managed temporary upload after decoding fails', async () => {
     const tempDir = process.env.PRIVATE_UPLOAD_TEMP_DIR!;
     fs.mkdirSync(tempDir, { recursive: true });
-    const tempPath = path.join(
-      tempDir,
-      '123e4567-e89b-42d3-a456-426614174000',
-    );
+    const tempPath = path.join(tempDir, '123e4567-e89b-42d3-a456-426614174000');
     fs.writeFileSync(tempPath, 'not-an-image');
     const file = multerFile({
       path: tempPath,
@@ -198,6 +199,105 @@ describe('PrivateMediaService', () => {
       }),
     ).rejects.toThrow('Không đọc được tệp ảnh đã chọn');
     expect(fs.existsSync(outsidePath)).toBe(true);
+  });
+
+  it('surfaces and retries managed temporary-file cleanup failure', async () => {
+    const tempDir = process.env.PRIVATE_UPLOAD_TEMP_DIR!;
+    fs.mkdirSync(tempDir, { recursive: true });
+    const tempPath = path.join(tempDir, '123e4567-e89b-42d3-a456-426614174001');
+    fs.writeFileSync(tempPath, 'private-draft');
+    const file = multerFile({
+      path: tempPath,
+      size: fs.statSync(tempPath).size,
+      originalname: 'draft.jpg',
+      mimetype: 'image/jpeg',
+    });
+    const unlinkSpy = jest.spyOn(fs.promises, 'unlink').mockRejectedValueOnce(
+      Object.assign(new Error('temporary cleanup denied'), {
+        code: 'EACCES',
+      }),
+    );
+
+    try {
+      await expect(service.discardTemporaryFilesStrict([file])).rejects.toThrow(
+        'temporary cleanup denied',
+      );
+      expect(fs.existsSync(tempPath)).toBe(true);
+      await expect(
+        service.discardTemporaryFilesStrict([file]),
+      ).resolves.toBeUndefined();
+      expect(fs.existsSync(tempPath)).toBe(false);
+    } finally {
+      unlinkSpy.mockRestore();
+    }
+  });
+
+  it('retries strict cleanup after a physical unlink failure', async () => {
+    const storageKey = 'support-chat/media-retry.png';
+    const storedPath = path.join(
+      process.env.PRIVATE_MEDIA_BASE_DIR!,
+      ...storageKey.split('/'),
+    );
+    fs.mkdirSync(path.dirname(storedPath), { recursive: true });
+    fs.writeFileSync(storedPath, 'private-image');
+    prisma.mediaObject.findMany.mockResolvedValue([
+      { id: 'media-retry', storageKey },
+    ]);
+    const unlinkSpy = jest
+      .spyOn(fs.promises, 'unlink')
+      .mockRejectedValueOnce(
+        Object.assign(new Error('access denied'), { code: 'EACCES' }),
+      );
+
+    try {
+      await expect(
+        service.discardUrlsStrict([
+          'https://api.example.com/api/media/media-retry',
+        ]),
+      ).rejects.toThrow('access denied');
+      expect(prisma.mediaObject.updateMany).not.toHaveBeenCalled();
+      expect(fs.existsSync(storedPath)).toBe(true);
+
+      await expect(
+        service.discardUrlsStrict([
+          'https://api.example.com/api/media/media-retry',
+        ]),
+      ).resolves.toBeUndefined();
+      expect(fs.existsSync(storedPath)).toBe(false);
+      expect(prisma.mediaObject.updateMany).toHaveBeenCalledTimes(1);
+    } finally {
+      unlinkSpy.mockRestore();
+    }
+  });
+
+  it('retries strict metadata cleanup after the file is already absent', async () => {
+    const storageKey = 'support-chat/media-metadata-retry.png';
+    const storedPath = path.join(
+      process.env.PRIVATE_MEDIA_BASE_DIR!,
+      ...storageKey.split('/'),
+    );
+    fs.mkdirSync(path.dirname(storedPath), { recursive: true });
+    fs.writeFileSync(storedPath, 'private-image');
+    prisma.mediaObject.findMany.mockResolvedValue([
+      { id: 'media-metadata-retry', storageKey },
+    ]);
+    prisma.mediaObject.updateMany
+      .mockRejectedValueOnce(new Error('metadata unavailable'))
+      .mockResolvedValue({ count: 1 });
+
+    await expect(
+      service.discardUrlsStrict([
+        'https://api.example.com/api/media/media-metadata-retry',
+      ]),
+    ).rejects.toThrow('metadata unavailable');
+    expect(fs.existsSync(storedPath)).toBe(false);
+
+    await expect(
+      service.discardUrlsStrict([
+        'https://api.example.com/api/media/media-metadata-retry',
+      ]),
+    ).resolves.toBeUndefined();
+    expect(prisma.mediaObject.updateMany).toHaveBeenCalledTimes(2);
   });
 
   it('allows only the avatar owner and hides denial as not found', async () => {
@@ -272,6 +372,51 @@ describe('PrivateMediaService', () => {
       }),
     ).rejects.toBeInstanceOf(NotFoundException);
     expect(prisma.warranty.findFirst).not.toHaveBeenCalled();
+  });
+
+  it('authorizes Support Chat media from the conversation owner, not the URL owner', async () => {
+    const source = await sharp({
+      create: {
+        width: 8,
+        height: 8,
+        channels: 3,
+        background: 'green',
+      },
+    })
+      .png()
+      .toBuffer();
+    const [url] = await service.saveImages({
+      ownerFeature: PRIVATE_MEDIA_OWNER.SUPPORT_CHAT,
+      ownerRecordId: 'message-1',
+      uploaderId: 'requester-1',
+      files: [
+        multerFile({
+          buffer: source,
+          originalname: 'sentinel-private-name.png',
+          mimetype: 'image/png',
+        }),
+      ],
+      retainOriginalName: false,
+      maxAggregateBytes: 20 * 1024 * 1024,
+      maxBytesPerFile: 5 * 1024 * 1024,
+    });
+    const id = url.split('/').pop()!;
+    expect(createdMedia.originalName).toBeNull();
+
+    prisma.supportMessage.findFirst.mockResolvedValue({ id: 'message-1' });
+    await expect(
+      service.openForUser(id, { id: 'requester-1', role: 'USER' }),
+    ).resolves.toMatchObject({ size: createdMedia.sizeBytes });
+
+    prisma.supportMessage.findFirst.mockResolvedValue(null);
+    await expect(
+      service.openForUser(id, { id: 'requester-2', role: 'USER' }),
+    ).rejects.toBeInstanceOf(NotFoundException);
+
+    prisma.supportMessage.findUnique.mockResolvedValue({ id: 'message-1' });
+    await expect(
+      service.openForUser(id, { id: 'admin-1', role: 'SUPER_ADMIN' }),
+    ).resolves.toMatchObject({ size: createdMedia.sizeBytes });
   });
 
   it('rejects a corrupted storage key without leaving the private base', async () => {

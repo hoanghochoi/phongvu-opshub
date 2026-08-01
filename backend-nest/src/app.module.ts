@@ -35,6 +35,7 @@ import { QuickActionsModule } from './quick-actions/quick-actions.module';
 import { NotificationFeedModule } from './notification-feed/notification-feed.module';
 import { ContractAppendicesModule } from './contract-appendices/contract-appendices.module';
 import { BidvH2hModule } from './bidv-h2h/bidv-h2h.module';
+import { SupportChatModule } from './support-chat/support-chat.module';
 
 export const GLOBAL_API_THROTTLER_OPTIONS = {
   throttlers: [
@@ -78,6 +79,7 @@ export const GLOBAL_API_THROTTLER_OPTIONS = {
     QuickActionsModule,
     ContractAppendicesModule,
     BidvH2hModule,
+    SupportChatModule,
     FifoModule,
   ],
   controllers: [AppController],
