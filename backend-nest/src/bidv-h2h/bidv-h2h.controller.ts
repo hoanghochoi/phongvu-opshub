@@ -40,7 +40,7 @@ export class BidvH2hController {
 
   @Post('oauth2/token')
   @HttpCode(HttpStatus.OK)
-  @Throttle({ principal: { limit: 600, ttl: 60_000 } })
+  @Throttle({ principal: { limit: 60, ttl: 60_000 } })
   async token(
     @Headers('authorization') authorization: unknown,
     @Body() _body: BidvTokenDto,

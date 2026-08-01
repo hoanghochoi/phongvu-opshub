@@ -1002,8 +1002,8 @@ jobs:
           upsert_env OPSHUB_STAGING true
           upsert_env COMPOSE_PROJECT_NAME "$COMPOSE_PROJECT_NAME"
           upsert_env OPSHUB_DOMAIN "opshub-staging.hoanghochoi.com"
-          upsert_env BIDV_H2H_DOMAIN "bidv-staging.opshub.hoanghochoi.com"
-          upsert_env BIDV_H2H_PUBLIC_BASE_URL "https://bidv-staging.opshub.hoanghochoi.com"
+          upsert_env BIDV_H2H_DOMAIN "bankapis-staging.hoanghochoi.com"
+          upsert_env BIDV_H2H_PUBLIC_BASE_URL "https://bankapis-staging.hoanghochoi.com"
           upsert_env BIDV_H2H_ENVIRONMENT staging
           upsert_env PUBLIC_BASE_URL "$OPSHUB_PUBLIC_BASE_URL"
           upsert_env OPSHUB_SSD_ROOT "$OPSHUB_SSD_ROOT"

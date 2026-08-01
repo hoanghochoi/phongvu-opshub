@@ -89,7 +89,7 @@ class _FakeRepository extends ApiConnectionRepository {
 final _snapshotJson = <String, dynamic>{
   'bankCode': 'BIDV',
   'environment': 'staging',
-  'publicBaseUrl': 'https://bidv-staging.opshub.hoanghochoi.com',
+  'publicBaseUrl': 'https://bankapis-staging.hoanghochoi.com',
   'controls': {
     'ingressRequested': false,
     'projectionRequested': false,

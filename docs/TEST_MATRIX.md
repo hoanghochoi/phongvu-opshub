@@ -3836,11 +3836,11 @@ removed all raw artifacts.
 
 | Area | Required proof | Local status |
 | --- | --- | --- |
-| OAuth/PGP/admin secret safety | Parser/crypto/OAuth/admin Jest; no-store and redaction checks | Pass: focused suites plus full Nest 98 suites / 1,065 tests; HTTP 200 metadata, no-store, BIDV/scope isolation, key-layout/decompression bounds and redacted serialization are covered |
+| OAuth/PGP/admin secret safety | Parser/crypto/OAuth/admin Jest; no-store, redaction and dedicated-IP throttle checks | Pass: focused suites plus full Nest 98 suites / 1,065 tests; HTTP 200 metadata, no-store, BIDV/scope isolation, key-layout/decompression bounds and redacted serialization are covered |
 | Atomic ingress/projection | Valid/duplicate/conflict/mixed-invalid/rollback, lease/retry/dead-letter tests | Partial: unit proof covers oversize, REQUESTID conflict, stable identity locks, under-lock conflict recheck, eligibility and expired-lease reclaim; disposable PostgreSQL transaction/concurrency proof pending |
 | Migration | Fresh + upgraded scratch PostgreSQL, immutable audit, additive MAP fields | Partial: Prisma validate and static additive/rollback contract pass; fresh/upgraded PostgreSQL and rollback rehearsal blocked by unavailable local runtime |
 | Flutter Admin | Model/repository/screen/menu/router/platform/responsive tests and analyze | Pass: full Flutter 679 tests with 3 existing skips; focused Admin/UI proof and analyze pass |
 | Existing consumers | OPS-39 wrapper: MAP/Sao kê/VietQR/speaker/Home/BigQuery/auth/Admin/Go | Pass: final wrapper covers 13 Nest suites / 283 tests, 67 Flutter tests, Go, BigQuery, migration static contract and whitespace; BIDV showroom mapping is remark-suffix-only while existing MAP/Vietin account/VA mapping remains unchanged |
 | Dedicated host/deploy | Caddy validation, default deny and workflow/env proof | Partial: static Caddy/env isolation contract passes; real Caddy binary/runtime smoke unavailable |
 | Bank playbook | PDF render every page, reopen/text/secret scan | Pass: four A4 pages rendered, reopened and visually inspected; no live credential/private material included |
-| External | BIDV fixture, IP/mTLS, 10 QPS staging, full reconciliation | Blocked on external coordination |
+| External | BIDV fixture, 10 QPS staging, full reconciliation | Blocked on external coordination |

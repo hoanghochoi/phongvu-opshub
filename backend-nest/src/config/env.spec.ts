@@ -358,15 +358,15 @@ describe('env validation', () => {
         BIDV_H2H_ENVIRONMENT: 'staging',
         BIDV_H2H_PUBLIC_BASE_URL: 'https://wrong.example.com',
       }),
-    ).toThrow('bidv-staging.opshub.hoanghochoi.com');
+    ).toThrow('bankapis-staging.hoanghochoi.com');
     expect(
       getBidvH2hConfig({
         BIDV_H2H_INGEST_ENABLED: 'true',
         BIDV_H2H_KEK_BASE64: key,
         BIDV_H2H_ENVIRONMENT: 'production',
-        BIDV_H2H_PUBLIC_BASE_URL: 'https://bidv.opshub.hoanghochoi.com',
+        BIDV_H2H_PUBLIC_BASE_URL: 'https://bankapis.hoanghochoi.com',
       }).publicBaseUrl,
-    ).toBe('https://bidv.opshub.hoanghochoi.com');
+    ).toBe('https://bankapis.hoanghochoi.com');
   });
 
   it('blocks projection when ingest master is off', () => {
