@@ -140,6 +140,35 @@ describe('SupportChatService', () => {
     expect(outbox[0].payload).not.toHaveProperty('conversationId');
   });
 
+  it('fails closed when requester multipart files are not an array', async () => {
+    await expect(
+      service.sendRequesterImages(
+        { id: 'requester-1', role: 'USER' },
+        { clientMessageId: 'client-image-requester' },
+        'tampered-files',
+      ),
+    ).rejects.toThrow('Vui lòng chọn từ 1 đến 4 ảnh để gửi.');
+
+    expect(media.discardTemporaryFiles).toHaveBeenCalledWith([]);
+    expect(media.saveImages).not.toHaveBeenCalled();
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('fails closed when admin multipart files are not an array', async () => {
+    await expect(
+      service.sendAdminImages(
+        { id: 'admin-1', role: 'SUPER_ADMIN' },
+        'conversation-1',
+        { clientMessageId: 'client-image-admin' },
+        'tampered-files',
+      ),
+    ).rejects.toThrow('Vui lòng chọn từ 1 đến 4 ảnh để gửi.');
+
+    expect(media.discardTemporaryFiles).toHaveBeenCalledWith([]);
+    expect(media.saveImages).not.toHaveBeenCalled();
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
   it('reopens a resolved requester conversation and clears its assignee in the same transaction', async () => {
     const resolved = conversation({
       status: 'RESOLVED',

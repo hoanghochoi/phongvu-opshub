@@ -191,8 +191,13 @@ still disabled. Final evidence on 2026-08-01:
   not complete fresh/upgrade/rollback; per coordinator authority it was not
   retried and remains unverified due local execution/runtime behavior.
 - Nest build: PASS. Focused final correction batch: 4 suites/22 tests PASS.
-  Affected wrapper Nest set: 14 suites/152 tests PASS. Full Jest: 102 suites/
-  1106 tests PASS. Post-merge OPS-33 proof also passes 5 suites/206 tests;
+  The local remediation for CodeQL alert #25
+  (`js/type-confusion-through-parameter-tampering`) runtime-validates multipart
+  files as an array before every length/media operation and fails closed for
+  tampered requester/admin values; the focused Support Chat service suite
+  passes 9/9. Remote CodeQL must confirm alert closure before merge. Affected
+  wrapper Nest set: 14 suites/154 tests PASS. Full Jest: 102 suites/1108 tests
+  PASS. Post-merge OPS-33 proof also passes 5 suites/206 tests;
   Contract Appendix passes 6 Nest suites/46 tests and 10 Flutter tests.
 - Go realtime: `go test ./...` and `go vet ./...` PASS, including v2 payload
   allowlisting and all existing realtime consumers.

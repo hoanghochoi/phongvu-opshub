@@ -105,7 +105,7 @@ export class SupportChatService {
   async sendRequesterImages(
     principal: Principal,
     body: SendSupportImageMessageDto,
-    files: Express.Multer.File[],
+    files: unknown,
   ) {
     return this.logged('requester_image_send', principal, async () => {
       this.requireEnabled();
@@ -320,7 +320,7 @@ export class SupportChatService {
     principal: Principal,
     conversationId: string,
     body: SendSupportImageMessageDto,
-    files: Express.Multer.File[],
+    files: unknown,
   ) {
     return this.logged(
       'admin_image_send',
@@ -397,18 +397,20 @@ export class SupportChatService {
 
   private async sendImages(input: {
     principal: Principal;
-    files: Express.Multer.File[];
+    files: unknown;
     clientMessageId: string;
     requesterId?: string;
     conversationId?: string;
     actorRole: 'REQUESTER' | 'SUPER_ADMIN';
   }) {
     const actorId = this.principalId(input.principal);
+    const files = Array.isArray(input.files) ? input.files : [];
     if (
-      input.files.length < 1 ||
-      input.files.length > SUPPORT_CHAT_IMAGE_MAX_FILES
+      !Array.isArray(input.files) ||
+      files.length < 1 ||
+      files.length > SUPPORT_CHAT_IMAGE_MAX_FILES
     ) {
-      await this.privateMedia.discardTemporaryFiles(input.files);
+      await this.privateMedia.discardTemporaryFiles(files);
       throw new BadRequestException('Vui lòng chọn từ 1 đến 4 ảnh để gửi.');
     }
     const existing = input.conversationId
@@ -423,7 +425,7 @@ export class SupportChatService {
         })
       : null;
     if (existing) {
-      await this.privateMedia.discardTemporaryFiles(input.files);
+      await this.privateMedia.discardTemporaryFiles(files);
       return { message: this.serializeMessage(existing), idempotent: true };
     }
 
@@ -432,7 +434,7 @@ export class SupportChatService {
       ownerFeature: PRIVATE_MEDIA_OWNER.SUPPORT_CHAT,
       ownerRecordId: messageId,
       uploaderId: actorId,
-      files: input.files,
+      files,
       maxBytesPerFile: SUPPORT_CHAT_IMAGE_MAX_BYTES,
       maxAggregateBytes: SUPPORT_CHAT_IMAGE_AGGREGATE_MAX_BYTES,
       retainOriginalName: false,

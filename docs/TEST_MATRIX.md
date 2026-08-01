@@ -20,8 +20,14 @@ This file maps product behavior to proof. Existing flows are marked
   current-UI responsive/accessibility states; retention/flag/rollback; full
   Nest/Go/Flutter affected-consumer suites and platform builds. Local proof:
   Prisma validate/generate/static PASS; Nest build PASS, focused correction
-  4 suites/22 tests, affected 14 suites/152 tests and full 102 suites/1106 tests
-  PASS; Go test/vet PASS; Flutter analyze has no issues, focused 38, affected
+  4 suites/22 tests; the multipart upload tampering regression passes its
+  focused Support Chat service suite 9/9; affected 14 suites/154 tests and full
+  102 suites/1108 tests PASS. The local remediation for CodeQL alert #25
+  (`js/type-confusion-through-parameter-tampering`) treats
+  uploaded files as untrusted input, requiring a runtime array before every
+  length/media operation and failing closed for requester/admin uploads;
+  remote CodeQL must confirm alert closure before merge. Go test/vet PASS;
+  Flutter analyze has no issues, focused 38, affected
   102 and full 696 passed/3 intentional skips under serial execution; Windows,
   staging APK and web debug builds plus the web wasm dry-run PASS; security
   sentinels and diff checks PASS. Post-merge OPS-33 proof passes five Nest
