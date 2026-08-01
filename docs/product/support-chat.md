@@ -84,6 +84,12 @@ monotonic per-conversation sequence values serialized as decimal strings and a
 maximum page size of 50. `clientMessageId` is idempotent within the authenticated
 sender/conversation boundary.
 
+Both read endpoints require a decimal-string `lastReadSequence` captured from
+the history actually rendered by that client. Under the conversation row lock,
+the server caps it at the current last message, advances each reader receipt
+monotonically and emits `READ_UPDATED` only when the receipt increases. A
+repeated or older acknowledgement performs no receipt write or outbox publish.
+
 Text sends allow 30/minute and image sends allow 6/minute per composite
 principal. They remain inside the accepted global principal budget of
 120/minute. Rate-limit responses include `Retry-After`; no raw principal, IP,

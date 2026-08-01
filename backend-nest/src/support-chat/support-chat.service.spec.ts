@@ -68,6 +68,7 @@ describe('SupportChatService', () => {
         createMany: jest.fn().mockResolvedValue({ count: 2 }),
       },
       supportReadReceipt: {
+        findUnique: jest.fn().mockResolvedValue(null),
         upsert: jest.fn().mockResolvedValue({
           lastReadSequence: 1n,
           updatedAt: now,
@@ -167,6 +168,111 @@ describe('SupportChatService', () => {
     expect(media.discardTemporaryFiles).toHaveBeenCalledWith([]);
     expect(media.saveImages).not.toHaveBeenCalled();
     expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('keeps a requester message that arrived after history unread', async () => {
+    prisma.supportConversation.findUnique.mockResolvedValue({
+      id: 'conversation-1',
+    });
+    tx.supportConversation.findUnique.mockResolvedValue(
+      conversation({ lastMessageSequence: 6n }),
+    );
+    tx.supportReadReceipt.findUnique.mockResolvedValue({
+      lastReadSequence: 4n,
+    });
+    tx.supportReadReceipt.upsert.mockResolvedValue({ lastReadSequence: 5n });
+
+    const result = await service.markRequesterRead(
+      { id: 'requester-1', role: 'USER' },
+      { lastReadSequence: '5' },
+    );
+
+    expect(result.lastReadSequence).toBe('5');
+    expect(tx.supportReadReceipt.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        create: expect.objectContaining({ lastReadSequence: 5n }),
+        update: { lastReadSequence: 5n },
+      }),
+    );
+  });
+
+  it('keeps an admin message that arrived after history unread', async () => {
+    tx.supportConversation.findUnique.mockResolvedValue(
+      conversation({ lastMessageSequence: 9n }),
+    );
+    tx.supportReadReceipt.findUnique.mockResolvedValue({
+      lastReadSequence: 7n,
+    });
+    tx.supportReadReceipt.upsert.mockResolvedValue({ lastReadSequence: 8n });
+
+    const result = await service.markAdminRead(
+      { id: 'admin-1', role: 'SUPER_ADMIN' },
+      'conversation-1',
+      { lastReadSequence: '8' },
+    );
+
+    expect(result.lastReadSequence).toBe('8');
+    expect(tx.supportReadReceipt.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        create: expect.objectContaining({ lastReadSequence: 8n }),
+        update: { lastReadSequence: 8n },
+      }),
+    );
+  });
+
+  it('does not decrease or re-emit an unchanged read receipt', async () => {
+    let storedSequence = 7n;
+    tx.supportConversation.findUnique.mockResolvedValue(
+      conversation({ lastMessageSequence: 9n }),
+    );
+    tx.supportReadReceipt.findUnique.mockImplementation(async () => ({
+      lastReadSequence: storedSequence,
+    }));
+    tx.supportReadReceipt.upsert.mockImplementation(async (input: any) => {
+      storedSequence = input.update.lastReadSequence;
+      return { lastReadSequence: storedSequence };
+    });
+
+    await service.markAdminRead(
+      { id: 'admin-1', role: 'SUPER_ADMIN' },
+      'conversation-1',
+      { lastReadSequence: '8' },
+    );
+    await service.markAdminRead(
+      { id: 'admin-1', role: 'SUPER_ADMIN' },
+      'conversation-1',
+      { lastReadSequence: '8' },
+    );
+    const result = await service.markAdminRead(
+      { id: 'admin-1', role: 'SUPER_ADMIN' },
+      'conversation-1',
+      { lastReadSequence: '6' },
+    );
+
+    expect(result.lastReadSequence).toBe('8');
+    expect(tx.supportReadReceipt.upsert).toHaveBeenCalledTimes(1);
+    expect(tx.domainOutboxEvent.create).toHaveBeenCalledTimes(1);
+  });
+
+  it('caps a read receipt at the locked conversation sequence', async () => {
+    tx.supportConversation.findUnique.mockResolvedValue(
+      conversation({ lastMessageSequence: 9n }),
+    );
+    tx.supportReadReceipt.upsert.mockResolvedValue({ lastReadSequence: 9n });
+
+    const result = await service.markAdminRead(
+      { id: 'admin-1', role: 'SUPER_ADMIN' },
+      'conversation-1',
+      { lastReadSequence: '12' },
+    );
+
+    expect(result.lastReadSequence).toBe('9');
+    expect(tx.supportReadReceipt.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        create: expect.objectContaining({ lastReadSequence: 9n }),
+        update: { lastReadSequence: 9n },
+      }),
+    );
   });
 
   it('reopens a resolved requester conversation and clears its assignee in the same transaction', async () => {

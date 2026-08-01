@@ -111,14 +111,20 @@ in default and `--base origin/staging` modes, with 67 committed paths mapped in
 base-aware mode; its self-test passes 2/2. Focused OPS-33 proof passes five Nest
 suites/206 tests, Home and Sales Report Flutter 53 tests, and Contract Appendix
 six Nest suites/46 tests plus 10 Flutter tests. The reconciled broad proof
-passes Nest 102 suites/1,108 tests, Go test/vet, Flutter analyze, Flutter 696
+passes Nest 102 suites/1,112 tests, Go test/vet, Flutter analyze, Flutter 697
 passed/3 intentional skips under serial execution, Windows/staging APK/web
 debug builds and the web wasm dry-run. The local remediation for CodeQL alert
 #25 (`js/type-confusion-through-parameter-tampering`) runtime-validates
 multipart files as an array before every length/media operation; tampered
-requester/admin values fail closed and the focused service suite passes 9/9.
+requester/admin values fail closed. Read acknowledgements use the rendered
+client sequence, cap under the conversation lock, advance monotonically and
+emit no repeated outbox invalidation; requester/admin race, cap, no-decrease
+and idempotency regressions bring the focused service suite to 13/13. The
+Flutter provider read-invalidation settlement regression passes in its 12/12
+suite.
 Remote CodeQL must confirm alert closure before merge. The affected Nest
-wrapper now passes 14 suites/154 tests. The focused route guard keeps 40
+wrapper now passes 14 suites/158 tests and Flutter mapping passes 103 tests. The
+focused route guard keeps 40
 authenticated routes aligned to the 88 route/viewport checks and includes
 `Hộp thư hỗ trợ`.
 

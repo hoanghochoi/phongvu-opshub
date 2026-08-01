@@ -76,6 +76,31 @@ void main() {
     },
   );
 
+  test('one read invalidation settles without another refresh cycle', () async {
+    final repository = _FakeSupportChatRepository()
+      ..mineThreads.addAll([_thread(unreadCount: 1), _thread(unreadCount: 0)]);
+    final realtime = _FakeRealtimeClient();
+    var emittedReadInvalidation = false;
+    repository.onMarkMineRead = (_) {
+      if (emittedReadInvalidation) return;
+      emittedReadInvalidation = true;
+      realtime.addEvent(_supportEvent('read-updated'));
+    };
+    final provider = SupportChatProvider(repository, realtimeClient: realtime);
+
+    await provider.syncAuth(requester, enabled: true);
+    await provider.setSurfaceActive(true);
+    await Future<void>.delayed(const Duration(milliseconds: 10));
+
+    expect(repository.getMineCount, 2);
+    expect(repository.markMineReadCount, 1);
+    await Future<void>.delayed(const Duration(milliseconds: 10));
+    expect(repository.getMineCount, 2);
+
+    provider.dispose();
+    await realtime.close();
+  });
+
   test('account switch clears prior conversation and unread state', () async {
     final repository = _FakeSupportChatRepository();
     final realtime = _FakeRealtimeClient();
@@ -308,8 +333,8 @@ RealtimeEnvelope _supportEvent(String id) => RealtimeEnvelope(
   data: const {'changeType': 'MESSAGE_CREATED'},
 );
 
-SupportChatThread _thread() => SupportChatThread(
-  conversation: const SupportConversation(
+SupportChatThread _thread({int unreadCount = 2}) => SupportChatThread(
+  conversation: SupportConversation(
     id: 'conversation-1',
     requesterId: 'requester-1',
     requesterDisplayName: 'Nhân viên',
@@ -317,7 +342,7 @@ SupportChatThread _thread() => SupportChatThread(
     assigneeId: null,
     revision: '1',
     lastMessageSequence: '1',
-    unreadCount: 2,
+    unreadCount: unreadCount,
     unassignedSince: null,
     lastMessageAt: null,
     resolvedAt: null,
@@ -350,10 +375,13 @@ class _FakeRealtimeClient implements RealtimeClient {
 
 class _FakeSupportChatRepository implements SupportChatDataSource {
   int getMineCount = 0;
+  int markMineReadCount = 0;
   int adminListCount = 0;
   int adminThreadCount = 0;
   bool failNextSend = false;
   final clientMessageIds = <String>[];
+  final mineThreads = <SupportChatThread>[];
+  void Function(String lastReadSequence)? onMarkMineRead;
   Completer<SupportChatThread>? pendingGetMine;
   Completer<void>? getMineStarted;
   Completer<SupportChatThread>? pendingSendMyText;
@@ -377,7 +405,7 @@ class _FakeSupportChatRepository implements SupportChatDataSource {
       if (getMineStarted?.isCompleted == false) getMineStarted!.complete();
       return pending.future;
     }
-    return _thread();
+    return mineThreads.isEmpty ? _thread() : mineThreads.removeAt(0);
   }
 
   @override
@@ -416,7 +444,10 @@ class _FakeSupportChatRepository implements SupportChatDataSource {
   }
 
   @override
-  Future<void> markMineRead(String lastReadSequence) async {}
+  Future<void> markMineRead(String lastReadSequence) async {
+    markMineReadCount += 1;
+    onMarkMineRead?.call(lastReadSequence);
+  }
 
   @override
   Future<SupportChatAdminPage> listAdmin({

@@ -194,16 +194,22 @@ still disabled. Final evidence on 2026-08-01:
   The local remediation for CodeQL alert #25
   (`js/type-confusion-through-parameter-tampering`) runtime-validates multipart
   files as an array before every length/media operation and fails closed for
-  tampered requester/admin values; the focused Support Chat service suite
-  passes 9/9. Remote CodeQL must confirm alert closure before merge. Affected
-  wrapper Nest set: 14 suites/154 tests PASS. Full Jest: 102 suites/1108 tests
+  tampered requester/admin values. Read acknowledgements now accept the
+  client-observed sequence, cap it under the conversation lock, advance only
+  monotonically and emit no outbox invalidation unless the receipt increases;
+  requester/admin race, cap, no-decrease and repeated-read regressions are in
+  the focused Support Chat service suite, which passes 13/13. Remote CodeQL
+  must confirm alert closure before merge. Affected wrapper Nest set: 14 suites/
+  158 tests PASS. Full Jest: 102 suites/1112 tests
   PASS. Post-merge OPS-33 proof also passes 5 suites/206 tests;
   Contract Appendix passes 6 Nest suites/46 tests and 10 Flutter tests.
 - Go realtime: `go test ./...` and `go vet ./...` PASS, including v2 payload
   allowlisting and all existing realtime consumers.
-- Flutter: analyze PASS with no issues; final Support Chat/design focused batch
-  38 tests PASS; affected wrapper mapped 102 tests PASS; full machine run
-  passes 696 tests with 3 intentional skips under `--concurrency=1`. The
+- Flutter: analyze PASS with no issues; final Support Chat provider 12/12,
+  including one read invalidation settling after a single refresh; the earlier
+  Support Chat/design focused batch passes 38 tests. Affected wrapper mapped
+  103 tests PASS; full machine run passes 697 tests with 3 intentional skips
+  under `--concurrency=1`. The
   post-merge Home/Sales Report bundle passes 53 tests. An initial concurrent
   full run missed one OPS-33 debounce assertion; that exact test then passed
   6/6 isolated runs before the serial full-suite PASS, with no code change.

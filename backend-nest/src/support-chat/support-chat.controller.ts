@@ -17,6 +17,7 @@ import { Throttle } from '@nestjs/throttler';
 import { supportChatImageUploadOptions } from '../upload/image-upload.options';
 import {
   ListSupportConversationsQueryDto,
+  MarkSupportConversationReadDto,
   ResolveSupportConversationDto,
   SendSupportImageMessageDto,
   SendSupportTextMessageDto,
@@ -61,8 +62,11 @@ export class SupportChatController {
   }
 
   @Post('me/read')
-  markMineRead(@Request() request: any) {
-    return this.service.markRequesterRead(request.user);
+  markMineRead(
+    @Request() request: any,
+    @Body() body: MarkSupportConversationReadDto,
+  ) {
+    return this.service.markRequesterRead(request.user, body);
   }
 
   @Get('admin/conversations')
@@ -119,8 +123,9 @@ export class SupportChatController {
   markAdminRead(
     @Request() request: any,
     @Param('id', new ParseUUIDPipe({ version: '4' })) id: string,
+    @Body() body: MarkSupportConversationReadDto,
   ) {
-    return this.service.markAdminRead(request.user, id);
+    return this.service.markAdminRead(request.user, id, body);
   }
 
   @Post('admin/conversations/:id/messages')

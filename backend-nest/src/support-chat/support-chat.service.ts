@@ -22,6 +22,7 @@ import {
 } from '../upload/image-upload.options';
 import {
   ListSupportConversationsQueryDto,
+  MarkSupportConversationReadDto,
   ResolveSupportConversationDto,
   SendSupportImageMessageDto,
   SendSupportTextMessageDto,
@@ -126,7 +127,10 @@ export class SupportChatService {
     });
   }
 
-  async markRequesterRead(principal: Principal) {
+  async markRequesterRead(
+    principal: Principal,
+    body: MarkSupportConversationReadDto,
+  ) {
     return this.logged('requester_read', principal, async () => {
       this.requireEnabled();
       const requesterId = this.principalId(principal);
@@ -135,7 +139,7 @@ export class SupportChatService {
         select: { id: true },
       });
       if (!conversation) return { conversation: null };
-      return this.markRead(principal, conversation.id, false);
+      return this.markRead(principal, conversation.id, false, body);
     });
   }
 
@@ -288,8 +292,12 @@ export class SupportChatService {
     );
   }
 
-  markAdminRead(principal: Principal, conversationId: string) {
-    return this.markRead(principal, conversationId, true);
+  markAdminRead(
+    principal: Principal,
+    conversationId: string,
+    body: MarkSupportConversationReadDto,
+  ) {
+    return this.markRead(principal, conversationId, true, body);
   }
 
   async sendAdminText(
@@ -661,6 +669,7 @@ export class SupportChatService {
     principal: Principal,
     conversationId: string,
     admin: boolean,
+    body: MarkSupportConversationReadDto,
   ) {
     return this.logged(
       admin ? 'admin_read' : 'requester_read',
@@ -676,6 +685,24 @@ export class SupportChatService {
           if (!admin && conversation.requesterId !== readerId) {
             throw this.notFound();
           }
+          const requestedSequence = BigInt(body.lastReadSequence);
+          const nextSequence =
+            requestedSequence < conversation.lastMessageSequence
+              ? requestedSequence
+              : conversation.lastMessageSequence;
+          const existing = await tx.supportReadReceipt.findUnique({
+            where: {
+              conversationId_readerId: { conversationId, readerId },
+            },
+            select: { lastReadSequence: true },
+          });
+          const currentSequence = existing?.lastReadSequence ?? 0n;
+          if (nextSequence <= currentSequence) {
+            return {
+              conversationId,
+              lastReadSequence: currentSequence.toString(),
+            };
+          }
           const receipt = await tx.supportReadReceipt.upsert({
             where: {
               conversationId_readerId: { conversationId, readerId },
@@ -683,9 +710,9 @@ export class SupportChatService {
             create: {
               conversationId,
               readerId,
-              lastReadSequence: conversation.lastMessageSequence,
+              lastReadSequence: nextSequence,
             },
-            update: { lastReadSequence: conversation.lastMessageSequence },
+            update: { lastReadSequence: nextSequence },
           });
           await this.enqueueThreadInvalidation(tx, conversation, {
             revision: conversation.revision,

@@ -47,6 +47,12 @@ export class ResolveSupportConversationDto {
   expectedLastMessageSequence: string;
 }
 
+export class MarkSupportConversationReadDto {
+  @IsString()
+  @Matches(DECIMAL_SEQUENCE)
+  lastReadSequence: string;
+}
+
 export class ListSupportConversationsQueryDto {
   @IsIn(['UNASSIGNED', 'MINE', 'ACTIVE', 'RESOLVED'])
   bucket: 'UNASSIGNED' | 'MINE' | 'ACTIVE' | 'RESOLVED';

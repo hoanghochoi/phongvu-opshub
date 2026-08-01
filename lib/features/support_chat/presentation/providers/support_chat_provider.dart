@@ -433,7 +433,11 @@ class SupportChatProvider extends ChangeNotifier {
 
   Future<void> _markCurrentThreadRead() async {
     final conversation = _thread?.conversation;
-    if (conversation == null || conversation.lastMessageSequence == '0') return;
+    if (conversation == null ||
+        conversation.lastMessageSequence == '0' ||
+        conversation.unreadCount <= 0) {
+      return;
+    }
     try {
       if (isSuperAdmin) {
         await _repository.markAdminRead(
