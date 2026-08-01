@@ -32,6 +32,35 @@ This file maps product behavior to proof. Existing flows are marked
   outage durability, backup/restore purge, exact-SHA deployment and production
   release remain gates. Issue cannot become `Done` before production deployment.
 
+- `OPS-33`/`SALES-REPORT-001`/`HOME-DASHBOARD-002`, 2026-08-01:
+  `local_verified_with_staging_bigquery_looker_release_gaps`. A single canonical price contract proves
+  that ERP list ingestion never falls back from `data.orders.grandTotal` to
+  `totalAmount`; Home total/completed/pending/average, daily projection and
+  target progress; Sales Report REVENUE/INSTALLMENT exports; and BigQuery
+  revenue-by-store all batch-read the VAT-inclusive cache `grandTotal`. Focused
+  fixtures must distinguish capture, shipment and canonical totals; cover
+  missing/invalid cache values, partial return retaining full total, duplicate
+  orders, count/category/installment preservation, projection contract-version
+  regeneration, additive BigQuery provenance/schema evolution, unchanged item
+  capture facts, strict Contract Appendix shipment isolation, and compact/
+  desktop Vietnamese VAT copy. No Prisma migration/source backfill or live
+  BigQuery mutation is allowed. Final regressions also cover list-only canonical
+  cache ownership, detail/status preservation, union-date projection recovery,
+  cross-date report lookup, fail-closed empty/truncated BigQuery snapshots,
+  stage-before-publish with backup restore and recovery-backup retention after
+  incomplete rollback, 5,001-code lookup batching, report-level provenance,
+  sanitized BigQuery errors, and Vietnamese non-technical microcopy. Final local
+  proof passed five focused Nest suites (206/206 tests), full Nest 98/98 suites
+  (1,083/1,083 tests), Nest build, Prisma validate, focused Home/Sales Report
+  Flutter (53/53 tests), Contract Appendix 6/6 Nest suites (46/46 tests) plus
+  10/10 Flutter tests, Flutter analyze, changed-file Prettier/Dart format,
+  forbidden fallback/return-netting/technical-copy searches, VAT-copy proof,
+  and `git diff --check`. Raw-date SQL still needs a real PostgreSQL staging
+  fixture; populated/empty BigQuery copy and rollback rehearsal, true
+  multi-table publication behavior, Looker parity, staging projection
+  regeneration/rollback, staging deploy/QA, and production release remain
+  external gates and are not claimed locally.
+
 - `OPS-41`/Offset Adjustments/`PAYMENT-STATEMENT-001`, 2026-07-30,
   `local_verified_with_staging_release_gaps`: Offset create/resubmit fails closed unless
   ERP proves the required lifecycle and amount cap, while duplicate/local

@@ -25,6 +25,14 @@ import {
 } from '../sales-reports/sales-reports.service';
 import { isSalesReportErpPendingPaymentStatus } from '../sales-reports/sales-report-erp.service';
 import {
+  buildCanonicalRevenueLookup,
+  canonicalRevenueForOrder,
+  canonicalVatIncludedRevenue,
+  CanonicalRevenueLookup,
+  normalizeRevenueOrderCode,
+  SALES_PRICE_CONTRACT_VERSION,
+} from '../sales-reports/sales-report-revenue';
+import {
   GetHomeSummaryDetailsQueryDto,
   GetHomeSummaryDetailsV2QueryDto,
   GetHomeSummaryQueryDto,
@@ -1888,8 +1896,6 @@ export class HomeSummaryService {
           zaloAnswer: true,
           appDownloadAnswer: true,
           customerType: true,
-          erpGrandTotal: true,
-          erpReturnedAfterTaxAmount: true,
           erpLifecycleStatus: true,
           promotionCodes: true,
           installmentNeed: true,
@@ -1913,6 +1919,7 @@ export class HomeSummaryService {
         where: { excludedAt: null, ...this.orderCacheDateWhere(range) },
         select: {
           storeCode: true,
+          orderCode: true,
           sourceUserEmail: true,
           consultantEmail: true,
           sellerEmail: true,
@@ -1920,10 +1927,40 @@ export class HomeSummaryService {
           paymentStatus: true,
           lifecycleStatus: true,
           hasReturnedFullItems: true,
-          returnedAfterTaxAmount: true,
         },
       }),
     ]);
+    const reportRevenueCodes = Array.from(
+      new Set(
+        reports
+          .map((row) => normalizeRevenueOrderCode(row.orderCode))
+          .filter((code): code is string => Boolean(code)),
+      ),
+    );
+    const reportCanonicalRows = reportRevenueCodes.length
+      ? await tx.salesReportErpOrderCache.findMany({
+          where: {
+            orderCode: { in: reportRevenueCodes },
+            excludedAt: null,
+          },
+          select: { orderCode: true, grandTotal: true },
+        })
+      : [];
+    const canonicalRevenue = buildCanonicalRevenueLookup([
+      ...cacheRows,
+      ...reportCanonicalRows,
+    ]);
+    const missingRevenueOrders = reportRevenueCodes.filter(
+      (code) => !canonicalRevenue.presentCodes.has(code),
+    ).length;
+    const invalidRevenueOrders = reportRevenueCodes.filter((code) =>
+      canonicalRevenue.invalidCodes.has(code),
+    ).length;
+    if (missingRevenueOrders > 0 || invalidRevenueOrders > 0) {
+      this.logger.warn(
+        `Home revenue quality warning: source=projection_metrics reports=${reports.length} requestedOrders=${reportRevenueCodes.length} validOrders=${reportRevenueCodes.length - missingRevenueOrders - invalidRevenueOrders} missingOrders=${missingRevenueOrders} invalidOrders=${invalidRevenueOrders}`,
+      );
+    }
     type SalesAccumulator = {
       reports: any[];
       totalRevenue: number;
@@ -1984,9 +2021,9 @@ export class HomeSummaryService {
             report.erpLifecycleStatus,
           )
         ) {
-          bucket.completedRevenue += Math.max(
-            0,
-            (report.erpGrandTotal ?? 0) - report.erpReturnedAfterTaxAmount,
+          bucket.completedRevenue += canonicalRevenueForOrder(
+            canonicalRevenue,
+            report.orderCode,
           );
         }
       }
@@ -2020,8 +2057,12 @@ export class HomeSummaryService {
           aggregate.storeCode,
         ),
       );
-      const main = this.salesReports.summarizeSalesRevenueRows(bucket.reports);
+      const main = this.salesReports.summarizeSalesRevenueRows(
+        bucket.reports,
+        canonicalRevenue,
+      );
       const metrics: Prisma.InputJsonObject = {
+        salesPriceContractVersion: SALES_PRICE_CONTRACT_VERSION,
         totalRevenue: bucket.totalRevenue,
         completedRevenue: bucket.completedRevenue,
         businessCustomerRevenue: main.businessRevenue,
@@ -2061,7 +2102,7 @@ export class HomeSummaryService {
       `);
     }
     this.logger.log(
-      `Home projection sales metrics populated: date=${date} grains=${metricUpdates.length} reports=${reports.length} cacheRows=${cacheRows.length} durationMs=${Date.now() - startedAt}`,
+      `Home projection sales metrics populated: date=${date} grains=${metricUpdates.length} reports=${reports.length} cacheRows=${cacheRows.length} reportRevenueRows=${reportCanonicalRows.length} durationMs=${Date.now() - startedAt}`,
     );
   }
 
@@ -2115,7 +2156,6 @@ export class HomeSummaryService {
           storeCode: true,
           storeName: true,
           organizationNodeId: true,
-          erpGrandTotal: true,
           erpPaymentStatus: true,
           erpConsultantCustomId: true,
           erpConsultantName: true,
@@ -2149,6 +2189,7 @@ export class HomeSummaryService {
         },
       }),
     ]);
+    const canonicalRevenue = buildCanonicalRevenueLookup(orders);
 
     const refreshedAt = new Date();
     const purchaseReportsByOrderCode = new Map<
@@ -2183,8 +2224,7 @@ export class HomeSummaryService {
             row.createdByPersonnelCode,
             120,
           ),
-          revenue:
-            typeof row.erpGrandTotal === 'number' ? row.erpGrandTotal : null,
+          revenue: canonicalRevenueForOrder(canonicalRevenue, orderCode),
           paymentStatus: this.optionalText(row.erpPaymentStatus, 80),
           submittedAt: row.submittedAt,
           storeCode: this.normalizeStoreCode(row.storeCode),
@@ -2212,8 +2252,7 @@ export class HomeSummaryService {
           storeCode: this.normalizeStoreCode(row.storeCode),
           storeName: this.optionalText(row.storeName, 120),
           organizationNodeId: this.optionalText(row.organizationNodeId, 80),
-          revenue:
-            typeof row.erpGrandTotal === 'number' ? row.erpGrandTotal : null,
+          revenue: canonicalRevenueForOrder(canonicalRevenue, orderCode),
           submittedAt: row.submittedAt,
           refreshedAt,
         },
@@ -2230,8 +2269,7 @@ export class HomeSummaryService {
           storeCode: this.normalizeStoreCode(row.storeCode),
           storeName: this.optionalText(row.storeName, 120),
           organizationNodeId: this.optionalText(row.organizationNodeId, 80),
-          revenue:
-            typeof row.erpGrandTotal === 'number' ? row.erpGrandTotal : null,
+          revenue: canonicalRevenueForOrder(canonicalRevenue, orderCode),
           submittedAt: row.submittedAt,
           refreshedAt,
         },
@@ -2623,21 +2661,21 @@ export class HomeSummaryService {
     const rows = await this.prisma.salesReport.findMany({
       where: this.salesProgressReportWhere(scope, queryRange),
       select: {
+        orderCode: true,
         erpOrderCreatedAt: true,
         submittedAt: true,
-        erpGrandTotal: true,
-        erpReturnedAfterTaxAmount: true,
       },
     });
+    const canonicalRevenue = await this.loadCanonicalRevenueForRows(
+      this.prisma,
+      rows,
+      'sales_progress',
+    );
     const actualFor = (range: DateRange) =>
       rows.reduce((sum, row) => {
         const occurredAt = row.erpOrderCreatedAt ?? row.submittedAt;
         if (occurredAt < range.start || occurredAt >= range.end) return sum;
-        const gross = Math.max(
-          0,
-          (row.erpGrandTotal ?? 0) - (row.erpReturnedAfterTaxAmount ?? 0),
-        );
-        return sum + Math.round(gross / 1.08);
+        return sum + canonicalRevenueForOrder(canonicalRevenue, row.orderCode);
       }, 0);
     const actuals = {
       range: actualFor(progressRange),
@@ -2690,7 +2728,7 @@ export class HomeSummaryService {
     const targetByNode = new Map(
       targets.map((target) => [
         target.organizationNodeId,
-        Number(target.targetBeforeTax),
+        Math.round(Number(target.targetBeforeTax) * 1.08),
       ]),
     );
     const saCountByStore =
@@ -2766,17 +2804,19 @@ export class HomeSummaryService {
     const rows = await this.prisma.salesReport.findMany({
       where: this.salesProgressReportWhere(scope, range),
       select: {
-        erpGrandTotal: true,
-        erpReturnedAfterTaxAmount: true,
+        orderCode: true,
       },
     });
-    return rows.reduce((sum, row) => {
-      const gross = Math.max(
-        0,
-        (row.erpGrandTotal ?? 0) - (row.erpReturnedAfterTaxAmount ?? 0),
-      );
-      return sum + gross;
-    }, 0);
+    const canonicalRevenue = await this.loadCanonicalRevenueForRows(
+      this.prisma,
+      rows,
+      'completed_revenue',
+    );
+    return rows.reduce(
+      (sum, row) =>
+        sum + canonicalRevenueForOrder(canonicalRevenue, row.orderCode),
+      0,
+    );
   }
 
   private async totalCacheRevenue(
@@ -2790,19 +2830,22 @@ export class HomeSummaryService {
         paymentStatus: true,
         lifecycleStatus: true,
         hasReturnedFullItems: true,
-        returnedAfterTaxAmount: true,
       },
     });
     let skippedPendingPayment = 0;
+    let invalidCanonicalTotal = 0;
     const revenue = rows.reduce((sum, row) => {
       if (isSalesReportErpPendingPaymentStatus(row.paymentStatus)) {
         skippedPendingPayment += 1;
         return sum;
       }
+      if (canonicalVatIncludedRevenue(row.grandTotal) === null) {
+        invalidCanonicalTotal += 1;
+      }
       return sum + this.netCacheRevenue(row);
     }, 0);
     this.logger.log(
-      `Home summary cache revenue calculated: scope=${scope.scope} rows=${rows.length} skippedPendingPayment=${skippedPendingPayment} revenue=${revenue}`,
+      `Home summary cache revenue calculated: source=cache scope=${scope.scope} rows=${rows.length} skippedPendingPayment=${skippedPendingPayment} invalidCanonicalTotals=${invalidCanonicalTotal} revenue=${revenue}`,
     );
     return revenue;
   }
@@ -2812,7 +2855,6 @@ export class HomeSummaryService {
     paymentStatus?: string | null;
     lifecycleStatus: string;
     hasReturnedFullItems: boolean;
-    returnedAfterTaxAmount: number;
   }) {
     if (isSalesReportErpPendingPaymentStatus(row.paymentStatus)) return 0;
     const status = String(row.lifecycleStatus || '')
@@ -2825,7 +2867,7 @@ export class HomeSummaryService {
     ) {
       return 0;
     }
-    return Math.max(0, (row.grandTotal ?? 0) - row.returnedAfterTaxAmount);
+    return canonicalVatIncludedRevenue(row.grandTotal) ?? 0;
   }
 
   private async countBehaviorYesReports(
@@ -2876,7 +2918,6 @@ export class HomeSummaryService {
         orderCode: true,
         erpOrderId: true,
         customerType: true,
-        erpGrandTotal: true,
         promotionCodes: true,
         installmentNeed: true,
         installmentStatus: true,
@@ -2895,7 +2936,15 @@ export class HomeSummaryService {
         },
       },
     });
-    const summary = this.salesReports.summarizeSalesRevenueRows(rows);
+    const canonicalRevenue = await this.loadCanonicalRevenueForRows(
+      this.prisma,
+      rows,
+      'main_kpis',
+    );
+    const summary = this.salesReports.summarizeSalesRevenueRows(
+      rows,
+      canonicalRevenue,
+    );
     return {
       businessCustomerRevenue: summary.businessRevenue,
       personalCustomerRevenue: summary.personalRevenue,
@@ -4208,6 +4257,42 @@ export class HomeSummaryService {
       .trim()
       .replace(/\s+/g, '');
     return text || null;
+  }
+
+  private async loadCanonicalRevenueForRows(
+    client: {
+      salesReportErpOrderCache: {
+        findMany: (
+          args: unknown,
+        ) => Promise<Array<{ orderCode: string; grandTotal: number | null }>>;
+      };
+    },
+    rows: Array<{ orderCode?: unknown }>,
+    source: string,
+  ): Promise<CanonicalRevenueLookup> {
+    const orderCodes = Array.from(
+      new Set(
+        rows
+          .map((row) => normalizeRevenueOrderCode(row.orderCode))
+          .filter((code): code is string => Boolean(code)),
+      ),
+    );
+    const cacheRows = orderCodes.length
+      ? await client.salesReportErpOrderCache.findMany({
+          where: { orderCode: { in: orderCodes }, excludedAt: null },
+          select: { orderCode: true, grandTotal: true },
+        })
+      : [];
+    const lookup = buildCanonicalRevenueLookup(cacheRows);
+    const missingCount = orderCodes.filter(
+      (code) => !lookup.presentCodes.has(code),
+    ).length;
+    if (missingCount > 0 || lookup.invalidCodes.size > 0) {
+      this.logger.warn(
+        `Home revenue quality warning: source=${source} requestedOrders=${orderCodes.length} validOrders=${lookup.values.size} missingOrders=${missingCount} invalidOrders=${lookup.invalidCodes.size}`,
+      );
+    }
+    return lookup;
   }
 
   private normalizeStoreCode(value: unknown) {
