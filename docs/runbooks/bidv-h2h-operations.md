@@ -20,8 +20,6 @@ reconciliation is approved.
    the one-time secret in the approved bank handoff channel. Export only the
    public key and verify its fingerprint through a second channel.
 5. Configure Cloudflare DNS/tunnel origin host header for the dedicated host.
-   Record the BIDV source IP allowlist; the approved contract explicitly
-   disables mTLS.
 
 ## UAT activation
 

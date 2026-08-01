@@ -1,4 +1,5 @@
 import { HEADERS_METADATA, HTTP_CODE_METADATA } from '@nestjs/common/constants';
+import { THROTTLER_LIMIT } from '@nestjs/throttler/dist/throttler.constants';
 import {
   BidvH2hAdminController,
   BidvH2hController,
@@ -18,6 +19,21 @@ describe('BidvH2hController wire contract', () => {
         BidvH2hController.prototype.balanceChanges,
       ),
     ).toBe(200);
+  });
+
+  it('uses dedicated trusted-IP quotas for the public bank endpoints', () => {
+    expect(
+      Reflect.getMetadata(
+        `${THROTTLER_LIMIT}principal`,
+        BidvH2hController.prototype.token,
+      ),
+    ).toBe(60);
+    expect(
+      Reflect.getMetadata(
+        `${THROTTLER_LIMIT}principal`,
+        BidvH2hController.prototype.balanceChanges,
+      ),
+    ).toBe(600);
   });
 
   it('marks every admin response as no-store', () => {

@@ -95,7 +95,7 @@ export class UserAwareThrottlerGuard extends ThrottlerGuard {
     const trustedIpHash = await this.trustedIpHash(req);
     const authorization = this.valueFromRecord(req.headers, 'authorization');
     if (this.isH2hRoute(req)) {
-      return `principal:h2h:${this.h2hCredentialHash(authorization)}:ip:${trustedIpHash}`;
+      return `principal:ip:${trustedIpHash}`;
     }
     const token = this.bearerToken(authorization);
     if (token) {
@@ -137,25 +137,6 @@ export class UserAwareThrottlerGuard extends ThrottlerGuard {
   private isH2hRoute(req: RateLimitRequest) {
     const path = this.routePath(req);
     return path === '/oauth2/token' || path === '/v1/balance-changes';
-  }
-
-  private h2hCredentialHash(value: unknown) {
-    const authorization = this.stringClaim(value) || '';
-    const basic = authorization.match(/^Basic\s+([^\s]+)$/i);
-    if (basic) {
-      try {
-        const decoded = Buffer.from(basic[1], 'base64').toString('utf8');
-        const separator = decoded.indexOf(':');
-        if (separator > 0) {
-          return this.hashTrackerValue(`client:${decoded.slice(0, separator)}`);
-        }
-      } catch {
-        // Fall through to a hash of the opaque header.
-      }
-    }
-    const bearer = authorization.match(/^Bearer\s+([^\s]+)$/i);
-    if (bearer) return this.hashTrackerValue(`token:${bearer[1]}`);
-    return this.hashTrackerValue('anonymous');
   }
 
   private routePath(req: RateLimitRequest): string {

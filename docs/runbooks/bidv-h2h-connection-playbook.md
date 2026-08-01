@@ -7,8 +7,8 @@ Phạm vi: Thông báo biến động số dư BIDV H2H - OAuth 2.0 và OpenPGP
 
 | Môi trường | Base URL | Trạng thái |
 | --- | --- | --- |
-| UAT | `https://bidv-staging.opshub.hoanghochoi.com` | Kích hoạt sau khi thống nhất IP allowlist |
-| Production | `https://bidv.opshub.hoanghochoi.com` | Kích hoạt sau nghiệm thu UAT |
+| UAT | `https://bankapis-staging.hoanghochoi.com` | Kích hoạt theo kế hoạch UAT |
+| Production | `https://bankapis.hoanghochoi.com` | Kích hoạt sau nghiệm thu UAT |
 
 ## 2. Thông tin OpsHub bàn giao cho BIDV
 
@@ -95,12 +95,9 @@ Giới hạn mặc định cần xác nhận trong UAT: request mã hóa tối �
 - Hai bên đối soát identity mặc định
   `bankCode + accountNo + refNo + seq + businessDate` trước khi bật production.
 
-## 7. Checklist mạng và bảo mật
+## 7. Checklist kết nối và bảo mật
 
-- [ ] BIDV cung cấp IP nguồn UAT và production.
-- [ ] Hai bên chốt IP allowlist cho UAT và production; kết nối **không dùng mTLS**.
 - [ ] TLS public hợp lệ; BIDV không bỏ kiểm tra chứng thư.
-- [ ] Firewall/Cloudflare chỉ cho phép chính sách đã thống nhất.
 - [ ] Không truyền credential qua email thường hoặc đưa vào ticket/chat nhóm.
 - [ ] Fingerprint OpenPGP được đọc lại qua kênh thứ hai.
 - [ ] Đồng hồ hai bên đồng bộ NTP.
@@ -129,9 +126,8 @@ chấp thuận bảo mật phù hợp.
 ## 9. Kích hoạt production
 
 Chỉ kích hoạt sau khi hai bên ký xác nhận UAT, chốt identity/batch/timezone,
-IP allowlist, đối soát tổng số giao dịch và tổng số tiền, cửa sổ
-rotation và kế hoạch rollback. Production dùng client/key riêng, không tái sử
-dụng UAT.
+đối soát tổng số giao dịch và tổng số tiền, cửa sổ rotation và kế hoạch
+rollback. Production dùng client/key riêng, không tái sử dụng UAT.
 
 ## 10. Xử lý sự cố
 

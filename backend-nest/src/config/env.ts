@@ -209,9 +209,9 @@ function validateBidvPublicBaseUrl(
   }
   const expectedHost =
     environment === 'production'
-      ? 'bidv.opshub.hoanghochoi.com'
+      ? 'bankapis.hoanghochoi.com'
       : environment === 'staging'
-        ? 'bidv-staging.opshub.hoanghochoi.com'
+        ? 'bankapis-staging.hoanghochoi.com'
         : null;
   if (expectedHost) {
     if (parsed.protocol !== 'https:' || parsed.hostname !== expectedHost) {

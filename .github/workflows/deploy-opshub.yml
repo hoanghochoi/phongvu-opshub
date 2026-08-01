@@ -735,8 +735,8 @@ jobs:
           echo "Follow-up contact grace ends at $contact_grace_until"
 
           upsert_env APP_VERSION "$APP_VERSION"
-          upsert_env BIDV_H2H_DOMAIN "bidv.opshub.hoanghochoi.com"
-          upsert_env BIDV_H2H_PUBLIC_BASE_URL "https://bidv.opshub.hoanghochoi.com"
+          upsert_env BIDV_H2H_DOMAIN "bankapis.hoanghochoi.com"
+          upsert_env BIDV_H2H_PUBLIC_BASE_URL "https://bankapis.hoanghochoi.com"
           upsert_env BIDV_H2H_ENVIRONMENT production
           if ! sudo grep -q '^BIDV_H2H_INGEST_ENABLED=' "$OPSHUB_ENV_FILE"; then
             upsert_env BIDV_H2H_INGEST_ENABLED false

@@ -6,8 +6,8 @@ OpsHub receives BIDV balance-change batches through a dedicated OAuth 2.0 and
 OpenPGP boundary, persists each validated batch atomically, then projects only
 eligible transactions into the existing payment pipeline.
 
-- UAT: `https://bidv-staging.opshub.hoanghochoi.com`
-- Production: `https://bidv.opshub.hoanghochoi.com`
+- UAT: `https://bankapis-staging.hoanghochoi.com`
+- Production: `https://bankapis.hoanghochoi.com`
 - Token: `POST /oauth2/token`
 - Push: `POST /v1/balance-changes`
 
@@ -19,6 +19,9 @@ serve the OpsHub SPA, staff API, WebSocket, upload, download or help routes.
 - OAuth uses `client_credentials`, HTTP Basic and the fixed
   `balance-changes:write` scope. Opaque tokens expire after five minutes by
   default and are stored only as SHA-256 hashes.
+- The dedicated token endpoint permits 60 requests per minute per trusted
+  source IP; the balance-change endpoint permits 600 requests per minute per
+  trusted source IP. Both return `429` with `Retry-After` when limited.
 - Client secrets are generated server-side, shown once and stored only as a
   bcrypt verifier. A lost response requires rotation; there is no re-reveal.
 - BIDV encrypts the JSON array with the active OpsHub public key, then
@@ -82,6 +85,5 @@ At most two usable versions overlap for 24 hours. The last usable client/key
 requires an explicit audited recovery override; Phase 1 UI does not expose it.
 
 Local implementation does not authorize activation. UAT still requires a
-BIDV-produced fixture, identity/batch/timezone/reconciliation confirmation,
-the agreed source-IP allowlist with mTLS explicitly disabled, and
+BIDV-produced fixture, identity/batch/timezone/reconciliation confirmation and
 operator-created DNS/tunnel routing.

@@ -33,8 +33,8 @@ Deliver a production-ready BIDV H2H boundary that:
   27 pages. Pages 1-6 define the wire contract; pages 6-27 provide OpenPGP
   examples. The document is local input and is not copied into Git or Linear.
 - Public hosts:
-  - UAT/staging: `https://bidv-staging.opshub.hoanghochoi.com`
-  - production: `https://bidv.opshub.hoanghochoi.com`
+  - UAT/staging: `https://bankapis-staging.hoanghochoi.com`
+  - production: `https://bankapis.hoanghochoi.com`
 - Public routes:
   - `POST /oauth2/token`
   - `POST /v1/balance-changes`
@@ -121,7 +121,6 @@ implementation with generated fixtures):
   the exported OpsHub UAT public key;
 - confirmation of the transaction identity tuple, maximum batch size, timezone
   and reconciliation procedure;
-- the BIDV source IP allowlist; mTLS is explicitly disabled; and
 - Cloudflare DNS/tunnel routing for the two accepted dedicated hostnames.
 
 ## Scope
@@ -297,8 +296,7 @@ Planned files:
   handling; Caddy validation and dedicated-host smoke.
 - Cloudflare tunnel/DNS remains an explicit operator step using the current
   tunnel. The playbook/runbook records the exact hostname, origin host header,
-  allowlist and rollback; mTLS is explicitly disabled and code never embeds
-  tunnel credentials.
+  rollback and code never embeds tunnel credentials.
 - `docs/runbooks/bidv-h2h-operations.md` - internal enable/disable, rotation,
   recovery, retention, reconciliation and rollback.
 - `docs/runbooks/bidv-h2h-connection-playbook.md` - sanitized bank-facing source.
@@ -308,9 +306,9 @@ Planned files:
 
 The bank-facing playbook includes both hosts/routes, OAuth request/response,
 push header/body/response, public-key exchange and fingerprint confirmation,
-IP allowlist (with mTLS disabled), retry/idempotency, UAT matrix, activation/rotation,
-contacts/placeholders and troubleshooting. It contains no live secret or
-private material, and Codex does not send it.
+retry/idempotency, UAT matrix, activation/rotation, contacts/placeholders and
+troubleshooting. It contains no live secret or private material, and Codex does
+not send it.
 
 ## Affected-Consumer Contracts
 
@@ -416,8 +414,7 @@ wrapper or plan fingerprint changes.
 
 ## Decisions
 
-- 2026-07-30: Use the user-provided `bidv-staging` and `bidv` dedicated hosts;
-  the older `h2h-*` hostnames are superseded.
+- 2026-07-30: Use dedicated public hosts for the BIDV H2H boundary.
 - 2026-07-30: “Key” means the OpsHub OpenPGP key pair used by BIDV encryption,
   not the existing MAP signature key or VietQR n8n API key.
 - 2026-07-30: Reuse the current Admin runtime components. This is an unmigrated
@@ -429,8 +426,9 @@ wrapper or plan fingerprint changes.
   for OPS-39 secret material.
 - 2026-07-30: Generate the bank-facing playbook as Markdown plus PDF after its
   contents match verified implementation; do not send it externally.
-- 2026-07-31: Finalize the transport contract as OAuth plus source-IP allowlist
-  plus OpenPGP; mTLS is explicitly disabled for both BIDV environments.
+- 2026-08-01: Finalize the transport contract as OAuth plus OpenPGP and use
+  `bankapis-staging.hoanghochoi.com` / `bankapis.hoanghochoi.com` so the
+  existing zone certificate can cover the public hosts.
 
 ## Validation
 
@@ -498,7 +496,7 @@ Staging/external proof still required before production readiness:
 
 - Deploy exact staging SHA with both switches initially off.
 - Exchange only the UAT public key, configure the dedicated hostname and
-  IP allowlist with mTLS disabled, then enable ingest while projection stays off.
+  then enable ingest while projection stays off.
 - Run BIDV-produced happy/duplicate/conflict/invalid/debit/foreign/fractional
   fixtures and reconcile counts, sums and identity.
 - Enable projection and verify Tiền vào, Sao kê, VietQR, speaker dedupe,
@@ -534,7 +532,7 @@ values never infer showroom for BIDV. Existing MAP/Vietin account/VA mapping is
 unchanged and remains covered by its regression suites.
 
 Runtime fresh/upgrade PostgreSQL migration, real Caddy validation, 10 QPS load,
-BIDV-produced OpenPGP fixture, DNS/IP allowlist, staging reconciliation and
+BIDV-produced OpenPGP fixture, DNS/tunnel routing, staging reconciliation and
 release evidence remain pending. Both kill-switch layers stay disabled by
 default. No real credential, key or account fixture was created. At this local
 proof checkpoint, no commit, push, PR, Linear transition, deployment or release
@@ -542,7 +540,7 @@ had been performed.
 The regenerated four-page connection playbook is 92,559 bytes with SHA-256
 `042ea293845151a43cb3c7b30d6879bbdf08171569f6beed221bab679cc1a197`;
 structural extraction confirms both hosts/routes, `REQUESTID`, the fixed scope
-and the explicit no-mTLS statement, while the removed placeholders and
-credential/private-key disclaimer text are absent.
+and the absence of internal operational-control notes, while the removed
+placeholders and credential/private-key disclaimer text are absent.
 The factual implementation/proof note was recorded in Linear without changing
 the issue status.
