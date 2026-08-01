@@ -1172,7 +1172,7 @@ class _OrderCockpitTile extends StatelessWidget {
       reporter,
     ].whereType<String>().join(' • ');
     final meta = [
-      if (money.isNotEmpty) money,
+      if (money.isNotEmpty) 'Tổng tiền (đã bao gồm VAT): $money',
       if (order.reportedAt != null)
         'Đã báo cáo ${_shortDate(order.reportedAt)}',
     ].whereType<String>().join(' • ');
@@ -2155,7 +2155,8 @@ class _OrderSummaryCard extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text('Mã đơn: ${check.orderCode}'),
-          if (grandTotal.isNotEmpty) Text('Tổng tiền: $grandTotal'),
+          if (grandTotal.isNotEmpty)
+            Text('Tổng tiền (đã bao gồm VAT): $grandTotal'),
           if (text('paymentStatus').isNotEmpty)
             Text('Thanh toán: ${text('paymentStatus')}'),
           if (text('terminalName').isNotEmpty)

@@ -353,6 +353,7 @@ void main() {
     expect(repository.checkOrderCount, 1);
     expect(find.text('Báo cáo mua hàng'), findsOneWidget);
     expect(find.text('Đơn hàng đã kiểm tra'), findsOneWidget);
+    expect(find.textContaining('Tổng tiền (đã bao gồm VAT):'), findsWidgets);
     expect(
       tester
           .widget<CheckboxListTile>(

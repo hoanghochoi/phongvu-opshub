@@ -182,7 +182,7 @@ class HomeSummaryPage extends StatelessWidget {
           color: AppColors.primary,
         ),
         const SizedBox(height: 10),
-        const _SummarySubsectionHeader(title: 'Doanh số'),
+        const _SummarySubsectionHeader(title: 'Doanh số (đã bao gồm VAT)'),
         const SizedBox(height: 8),
         SummaryCardGrid(summary: summary),
         const SizedBox(height: 14),
@@ -600,9 +600,9 @@ class SummaryCardGrid extends StatelessWidget {
       SummaryCard(
         metricKey: 'revenue',
         icon: Icons.payments_outlined,
-        title: 'Giá trị bán',
+        title: 'Giá trị bán (đã bao gồm VAT)',
         value: formatCompactVndAmount(summary.totalRevenue),
-        trend: const SummaryTrend.neutral('Theo đơn cache'),
+        trend: const SummaryTrend.neutral('Theo đơn hàng ERP'),
         color: AppColors.success,
       ),
       SummaryCard(
@@ -616,7 +616,7 @@ class SummaryCardGrid extends StatelessWidget {
       SummaryCard(
         metricKey: 'averageOrderValue',
         icon: Icons.show_chart_rounded,
-        title: 'Trung bình đơn hàng',
+        title: 'Trung bình đơn hàng (đã bao gồm VAT)',
         value: formatCompactVndAmount(summary.averageOrderValue),
         trend: const SummaryTrend.neutral('Giá trị/đơn'),
         color: AppColors.info,
@@ -624,15 +624,15 @@ class SummaryCardGrid extends StatelessWidget {
       SummaryCard(
         metricKey: 'completedRevenue',
         icon: Icons.verified_outlined,
-        title: 'Hoàn thành',
+        title: 'Hoàn thành (đã bao gồm VAT)',
         value: formatCompactVndAmount(summary.completedRevenue),
-        trend: const SummaryTrend.success('đã sync'),
+        trend: const SummaryTrend.success('Đã hoàn tất'),
         color: AppColors.secondary,
       ),
       SummaryCard(
         metricKey: 'pendingRevenue',
         icon: Icons.pending_actions_outlined,
-        title: 'Pending',
+        title: 'Chờ hoàn thành (đã bao gồm VAT)',
         value: formatCompactVndAmount(summary.pendingRevenue),
         trend: summary.pendingRevenue > 0
             ? const SummaryTrend.warning('chưa hoàn thành')
@@ -672,7 +672,7 @@ class MainKpiSummaryCardGrid extends StatelessWidget {
       SummaryCard(
         metricKey: 'businessCustomerRevenue',
         icon: Icons.business_center_outlined,
-        title: 'Khách doanh nghiệp',
+        title: 'Khách doanh nghiệp (đã bao gồm VAT)',
         value: formatCompactVndAmount(summary.businessCustomerRevenue),
         trend: const SummaryTrend.neutral('Theo báo cáo'),
         color: AppColors.success,
@@ -680,7 +680,7 @@ class MainKpiSummaryCardGrid extends StatelessWidget {
       SummaryCard(
         metricKey: 'personalCustomerRevenue',
         icon: Icons.person_outline_rounded,
-        title: 'Khách cá nhân',
+        title: 'Khách cá nhân (đã bao gồm VAT)',
         value: formatCompactVndAmount(summary.personalCustomerRevenue),
         trend: const SummaryTrend.neutral('Theo báo cáo'),
         color: AppColors.primary,
@@ -1800,7 +1800,7 @@ class _UnreportedOrdersDetailsDataTable extends StatelessWidget {
         DataColumn(label: Text('Mã showroom')),
         DataColumn(label: Text('Tên nhân viên')),
         DataColumn(label: Text('Mã đơn hàng')),
-        DataColumn(label: Text('Giá trị đơn')),
+        DataColumn(label: Text('Giá trị đơn (đã bao gồm VAT)')),
         DataColumn(label: Text('Thời gian bán')),
       ],
       rows: [
@@ -2614,7 +2614,7 @@ class _SalesProgressPeriodView extends StatelessWidget {
             child: Center(
               child: Text(
                 key: Key('$keyPrefix-$keySuffix-actual-label'),
-                'Đã đạt: ${formatCompactVndAmount(period.actual)}',
+                'Giá trị đã bao gồm VAT: ${formatCompactVndAmount(period.actual)}',
                 maxLines: 2,
                 textAlign: TextAlign.center,
                 style: AppTextStyles.caption.copyWith(
@@ -2629,8 +2629,8 @@ class _SalesProgressPeriodView extends StatelessWidget {
               child: Text(
                 key: Key('$keyPrefix-$keySuffix-target-label'),
                 period.target == null
-                    ? 'Chỉ tiêu: Chưa thiết lập'
-                    : 'Chỉ tiêu: ${formatCompactVndAmount(period.target!)}',
+                    ? 'Chỉ tiêu (đã bao gồm VAT): Chưa thiết lập'
+                    : 'Chỉ tiêu (đã bao gồm VAT): ${formatCompactVndAmount(period.target!)}',
                 maxLines: 2,
                 textAlign: TextAlign.center,
                 style: AppTextStyles.caption.copyWith(

@@ -22,9 +22,10 @@ cho Google Form, đồng thời lưu dữ liệu đủ chuẩn để dashboard d
   code để lọc; `Tổng quan Cửa hàng` và `Tài chính` vẫn giữ theo
   showroom/node đang chọn ở header. Khu vực `Bán hàng` chia thành nhóm
   `Doanh số`, `KPI chính` và `Hành vi then chốt`. Nhóm `Doanh số` hiển thị
-  doanh số tổng từ cache đơn hàng theo ngày bán ERP (`orderCreatedAt`) sau khi
-  loại đơn 0 VND, đơn hủy/trả toàn bộ, đơn chờ thanh toán và trừ giá trị trả
-  một phần, số đơn bán, trung bình đơn hàng, doanh số hoàn thành, pending và
+  doanh số tổng đã bao gồm VAT từ cache đơn hàng theo ngày bán ERP
+  (`orderCreatedAt`) sau khi loại đơn 0 VND, đơn hủy/trả toàn bộ và đơn chờ
+  thanh toán; đơn trả một phần vẫn dùng toàn bộ `grandTotal`, số đơn bán, trung
+  bình đơn hàng, doanh số hoàn thành, pending và
   `Tỉ lệ chuyển đổi = tổng số đơn / tổng số báo cáo`. Nhóm `KPI chính`
   hiển thị doanh số khách hàng doanh nghiệp, doanh số khách hàng cá nhân,
   số lượng CTKM đổi điểm thi, CTKM học sinh - sinh viên, nhu cầu trả góp,
@@ -147,8 +148,8 @@ cho Google Form, đồng thời lưu dữ liệu đủ chuẩn để dashboard d
   return request rồi lưu trạng thái chuẩn `PENDING`, `COMPLETED`,
   `COMPLETED_PARTIAL_RETURN`, `CANCELLED` hoặc `RETURNED_FULL`. Đơn pending vẫn
   được báo cáo nhưng chưa cộng doanh số; đơn trả toàn bộ bị chặn bằng thông báo
-  tiếng Việt; đơn trả một phần giữ report và trừ
-  `returnedQuantity × unitAfterTaxPrice` của request đã hoàn tất.
+  tiếng Việt; đơn trả một phần giữ report và dữ liệu hoàn trả để đối soát nhưng
+  không trừ giá trị hoàn trả khỏi doanh số đơn.
 - Job danh sách đơn ERP chạy mỗi 1 phút và khi service khởi động, mặc định lấy
   50 đơn/ngày gần nhất (đây cũng là giới hạn cấu hình tối đa theo ERP list hiện tại). List sync chỉ cập nhật
   snapshot nhanh; đơn `PENDING` từ list không được tự coi là đã xác minh trạng
@@ -169,14 +170,28 @@ cho Google Form, đồng thời lưu dữ liệu đủ chuẩn để dashboard d
   bộ hoặc trả một phần thì cache/report phải lưu trạng thái mới nhất. Kết quả
   completed/hủy/trả từ thao tác user được đánh dấu là đã kiểm tra trong ngày để
   background không gọi lại vô ích cùng ngày.
-- Doanh số tổng trên dashboard lấy `grandTotal` từ cache đơn hàng theo
-  ngày bán ERP (`orderCreatedAt`)/scope, bỏ đơn 0 VND, đơn hủy/trả toàn bộ,
-  đơn chờ thanh toán và trừ `returnedAfterTaxAmount` khi có trả một phần. Đơn
-  chờ thanh toán vẫn giữ trong cache/cockpit để không mất dữ liệu cần báo cáo.
-  Doanh số hoàn thành chỉ cộng báo
-  cáo mua hàng có trạng thái ERP hoàn thành, cũng trừ `returnedAfterTaxAmount`
-  khi có trả một phần. Riêng tiến độ chỉ tiêu dùng giá trị trước VAT theo công thức
-  `round(max(grandTotal - returnedAfterTaxAmount, 0) / 1.08)`. Home hiển thị
+- Doanh số đơn ERP chỉ lấy giá trị VAT-inclusive từ
+  `SalesReportErpOrderCache.grandTotal`, được cache trực tiếp từ
+  `data.orders.grandTotal`. Không fallback sang `totalAmount`, snapshot
+  `SalesReport.erpGrandTotal`, giá capture/item hoặc giá shipment; thiếu,
+  không nguyên, vượt safe integer hoặc không dương thì doanh số của đơn là 0
+  nhưng các fact/count hợp lệ khác vẫn được giữ. Quy tắc loại đơn 0 VND, đơn
+  hủy/trả toàn bộ và đơn chờ thanh toán không đổi. Đơn trả một phần dùng toàn bộ
+  `grandTotal`, không trừ `returnedAfterTaxAmount`. Contract Appendix là
+  consumer riêng duy nhất tiếp tục lấy final sell price từ shipment, không tham
+  gia tính doanh số.
+- Chỉ ERP order-summary list sync được ghi `SalesReportErpOrderCache.grandTotal`.
+  Các lookup detail dùng cho check/submit/status chỉ enrichment lifecycle và
+  snapshot report; chúng không được ghi đè, xóa hoặc suy lại canonical total.
+  Detail-only thiếu cache giữ canonical total `null`, revenue fail closed về 0;
+  durable zero-value exclusion chỉ được quyết định từ list-derived total.
+- Doanh số tổng trên dashboard dùng contract cache trên theo ngày bán ERP
+  (`orderCreatedAt`)/scope. Đơn chờ thanh toán vẫn giữ trong cache/cockpit để
+  không mất dữ liệu cần báo cáo. Doanh số hoàn thành chỉ cộng báo cáo mua hàng
+  có trạng thái ERP hoàn thành nhưng tra giá trị theo cache cùng `orderCode`.
+  Tiến độ chỉ tiêu so sánh giá trị bán đã bao gồm VAT với
+  `round(targetBeforeTax * 1.08)`; `targetBeforeTax` lịch sử vẫn được giữ nguyên,
+  không migration/backfill. Home hiển thị
   hai card tiến độ: `Tổng quan cá nhân` cho user/SA đang chọn và
   `Tổng quan Miền/Vùng/Cửa hàng` cho toàn bộ scope quản lý hiện tại. Với tài
   khoản quản lý, card cá nhân cho phép trạng thái chưa chọn SA, hiển thị
@@ -208,7 +223,7 @@ cho Google Form, đồng thời lưu dữ liệu đủ chuẩn để dashboard d
   khi gửi báo cáo.
   Tên nhóm gốc ngắn như `PC` chỉ được match khi ERP/Listing trả đúng giá trị
   đó, không được match substring trong tên sản phẩm/dịch vụ như `... PC miễn
-  phí`.
+phí`.
 - Nếu lần Listing bulk đầu tiên không trả product hoặc trả product không có
   `categories`, backend chỉ thực hiện đúng một vòng retry có giới hạn theo
   SKU, giữ nguyên `channel` và `terminal` của showroom. Retry lỗi vẫn fail-soft
@@ -295,17 +310,19 @@ cho Google Form, đồng thời lưu dữ liệu đủ chuẩn để dashboard d
   hệ/nhu cầu khách hàng, các câu trả lời hành vi, loại báo cáo, lý do chưa mua
   và showroom.
 - File `Doanh số` xuất một dòng tổng hợp theo bộ lọc hiện tại: số đơn hàng duy
-  nhất, doanh thu doanh nghiệp/cá nhân, tổng số báo cáo có tick
+  nhất, doanh thu doanh nghiệp/cá nhân đã bao gồm VAT theo canonical cache
+  `grandTotal`, tổng số báo cáo có tick
   `Có nhu cầu trả góp`, số đơn trả góp thành công theo `installmentStatus` của
   báo cáo bán hàng (fallback dữ liệu cũ `NORMAL_INSTALLMENT`), số lượng laptop,
   PC, PC ráp, Apple chỉ tính Macbook/iPhone/iPad, màn hình, máy in, phụ kiện,
   dịch vụ bảo hiểm; các lý do khách không trả góp nằm ở cột cuối cùng.
 - File `Trả góp` xuất một dòng cho mỗi báo cáo có nhu cầu trả góp, gồm:
-  `Ngày báo cáo`, `Email người báo cáo`, `Đơn hàng`, `Giá trị đơn hàng`,
+  `Ngày báo cáo`, `Email người báo cáo`, `Đơn hàng`,
+  `Giá trị đơn hàng (đã bao gồm VAT)`,
   `Số tiền vay trả góp`, `Đối tác trả góp`, `Kết quả duyệt hồ sơ`, `Loại báo cáo`,
   `Phương thức thanh toán cuối cùng`, `Lý do không trả góp`.
-  `Đơn hàng` lấy `orderCode`, `Giá trị đơn hàng` lấy tổng giá trị đơn ERP; báo
-  cáo chưa mua để trống hai cột này.
+  `Đơn hàng` lấy `orderCode`; giá trị đơn tra batch theo canonical cache cùng mã.
+  Cache thiếu/không hợp lệ để giá trị 0 nhưng không xóa row trả góp.
   `Phương thức thanh toán cuối cùng` đọc theo loại báo cáo: `NOT_PURCHASED`
   ghi `Chưa mua hàng`; với `PURCHASED`, có payment method installment thì ghi
   `Trả góp`, không có thì ghi `Trả thẳng`.
@@ -328,8 +345,12 @@ cho Google Form, đồng thời lưu dữ liệu đủ chuẩn để dashboard d
 - OpsHub đồng bộ dữ liệu `Báo cáo bán hàng` sang BigQuery để Looker Studio đọc
   trực tiếp từ BigQuery thay vì gọi runtime API. Sync được bật bằng
   `SALES_REPORT_BIGQUERY_SYNC_ENABLED=true`, dùng service-account JSON nằm ngoài
-  git, full-refresh bốn bảng: report fact, revenue-by-store fact, order item
-  fact và payment fact. Bảng doanh số BigQuery chỉ sync từng dòng theo cửa
+  git, full-refresh report fact, revenue-by-store fact, order item fact,
+  payment fact và follow-up history. Backend load đủ replacement snapshot vào
+  run-scoped staging tables trước khi publish; source rỗng bất thường hoặc vượt
+  `maxRows` fail closed trước mọi write lên served tables. Publish dùng backup
+  run-scoped và rollback best-effort nếu một copy sau thất bại. Bảng doanh số
+  BigQuery chỉ sync từng dòng theo cửa
   hàng/showroom, không sync một dòng tổng toàn hệ thống. Các bảng giữ label
   tiếng Việt tương ứng với export admin hiện tại, đồng thời giữ code gốc để
   lọc/đối soát. Report fact lưu thêm code/label kênh liên hệ và ba cờ
@@ -368,7 +389,8 @@ cho Google Form, đồng thời lưu dữ liệu đủ chuẩn để dashboard d
   `data.orders.createdFromSiteDisplayName` dạng `[CP01] ...` hoặc
   `[CH1001] ...`,
   `creator.email` từ `data.orders.creator.email`, người tư vấn/người bán nếu
-  ERP trả về, tổng tiền, phương thức thanh toán, metadata lần sync nền và
+  ERP trả về, `grandTotal` VAT-inclusive lấy duy nhất từ
+  `data.orders.grandTotal`, phương thức thanh toán, metadata lần sync nền và
   snapshot đã sanitize. `fetchedAt` chỉ là thời điểm đồng bộ; các bộ lọc ngày,
   Home dashboard và cockpit không dùng `fetchedAt` làm ngày bán. Nếu cache cũ
   thiếu `orderCreatedAt` nhưng snapshot còn `createdAt`, backend backfill lại
@@ -387,6 +409,11 @@ cho Google Form, đồng thời lưu dữ liệu đủ chuẩn để dashboard d
   cockpit vẫn giữ chúng để sale tiếp tục báo cáo sau khi thanh toán. Tuy nhiên
   Home KPI `Giá trị bán` và `Đơn bán` đánh dấu `isPaymentPending` và không tính
   các row này cho đến khi trạng thái thanh toán hợp lệ.
+  Projection Home cũ được nhận diện bằng version trong derived metrics và
+  enqueue tái tạo theo union ngày từ order facts, report facts và aggregate hiện
+  hữu qua projection queue; vì replacement aggregate nằm trong một transaction,
+  generation lỗi giữ nguyên last-known-good aggregate. Không sửa source
+  cache/report/fact và không cần Prisma migration hay backfill dữ liệu nguồn.
   API cockpit đếm total chưa báo cáo trực tiếp trên cache DB, loại trừ các
   `orderCode` đã có báo cáo mua hàng hoặc được match từ report thủ công trong
   cache cockpit hiện tại, cùng các row đã bị exclude bền vững, rồi trả từng
@@ -416,7 +443,7 @@ ID` làm code, `Cat group name` làm tên gốc và `catGroupNameVi` làm nhãn 
   Việt.
 - Snapshot report lưu cả code, tên gốc và tên Việt để dữ liệu lịch sử không bị
   lệch nếu file category source đổi sau này.
-- BigQuery sync tạo bốn bảng theo table prefix mặc định:
+- BigQuery sync tạo năm bảng theo table prefix mặc định:
   `opshub_sales_report_reports`,
   `opshub_sales_report_revenue_by_store`, `opshub_sales_report_items` và
   `opshub_sales_report_payments`. Có thể override bằng
@@ -424,6 +451,11 @@ ID` làm code, `Cat group name` làm tên gốc và `catGroupNameVi` làm nhãn 
   `SALES_REPORT_BIGQUERY_REVENUE_TABLE_ID`,
   `SALES_REPORT_BIGQUERY_ITEM_TABLE_ID` và
   `SALES_REPORT_BIGQUERY_PAYMENT_TABLE_ID`.
+  Report fact giữ `erp_grand_total` snapshot để tương thích và thêm
+  `canonical_revenue_vat_inclusive`, `canonical_revenue_source`,
+  `canonical_revenue_quality` để phân biệt canonical cache value với snapshot.
+  Item fact giữ nguyên nghĩa capture của các cột giá cũ. Atomicity đa bảng và
+  Looker parity của staging-copy/rollback vẫn là release rehearsal bắt buộc.
 
 ## Expected Proof
 

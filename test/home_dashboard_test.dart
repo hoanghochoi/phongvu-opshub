@@ -633,19 +633,21 @@ void main() {
           .toList();
       expect(structuredChildren[0], isA<HomeSummaryHeader>());
       expect(find.text('Bán hàng'), findsOneWidget);
-      expect(find.text('Doanh số'), findsOneWidget);
+      expect(find.text('Doanh số (đã bao gồm VAT)'), findsOneWidget);
       expect(find.text('KPI chính'), findsOneWidget);
       expect(find.text('Hành vi then chốt'), findsOneWidget);
       expect(find.text('Tài chính'), findsOneWidget);
       expect(find.text('Tỉ lệ báo cáo'), findsWidgets);
       expect(find.text('Tỉ lệ chuyển đổi'), findsOneWidget);
-      expect(find.text('Giá trị bán'), findsOneWidget);
+      expect(find.text('Giá trị bán (đã bao gồm VAT)'), findsOneWidget);
       expect(find.text('Đơn bán'), findsOneWidget);
-      expect(find.text('Trung bình đơn hàng'), findsOneWidget);
-      expect(find.text('Hoàn thành'), findsOneWidget);
-      expect(find.text('Pending'), findsOneWidget);
-      expect(find.text('Khách doanh nghiệp'), findsOneWidget);
-      expect(find.text('Khách cá nhân'), findsOneWidget);
+      expect(find.text('Trung bình đơn hàng (đã bao gồm VAT)'), findsOneWidget);
+      expect(find.text('Hoàn thành (đã bao gồm VAT)'), findsOneWidget);
+      expect(find.text('Chờ hoàn thành (đã bao gồm VAT)'), findsOneWidget);
+      expect(find.text('Theo đơn hàng ERP'), findsOneWidget);
+      expect(find.text('Đã hoàn tất'), findsOneWidget);
+      expect(find.text('Khách doanh nghiệp (đã bao gồm VAT)'), findsOneWidget);
+      expect(find.text('Khách cá nhân (đã bao gồm VAT)'), findsOneWidget);
       expect(find.text('CTKM đổi điểm thi'), findsOneWidget);
       expect(find.text('CTKM HSSV'), findsOneWidget);
       expect(find.text('Nhu cầu trả góp'), findsOneWidget);
@@ -823,12 +825,12 @@ void main() {
             .dy,
         closeTo(rangeDonutTop, 0.1),
       );
-      expect(find.textContaining('Đã đạt:'), findsWidgets);
-      expect(find.textContaining('Chỉ tiêu:'), findsWidgets);
-      expect(find.text('Đã đạt: 1,2B VND'), findsOneWidget);
-      expect(find.text('Chỉ tiêu: 3B VND'), findsOneWidget);
-      expect(find.text('Đã đạt: 2,4B VND'), findsOneWidget);
-      expect(find.text('Chỉ tiêu: 6B VND'), findsOneWidget);
+      expect(find.textContaining('Giá trị đã bao gồm VAT:'), findsWidgets);
+      expect(find.textContaining('Chỉ tiêu (đã bao gồm VAT):'), findsWidgets);
+      expect(find.text('Giá trị đã bao gồm VAT: 1,2B VND'), findsOneWidget);
+      expect(find.text('Chỉ tiêu (đã bao gồm VAT): 3B VND'), findsOneWidget);
+      expect(find.text('Giá trị đã bao gồm VAT: 2,4B VND'), findsOneWidget);
+      expect(find.text('Chỉ tiêu (đã bao gồm VAT): 6B VND'), findsOneWidget);
       expect(find.byType(LinearProgressIndicator), findsNothing);
       expect(find.text('Tổng quan'), findsOneWidget);
       expect(
@@ -1090,7 +1092,7 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('Mã đơn hàng'), findsOneWidget);
-    expect(find.text('Giá trị đơn'), findsOneWidget);
+    expect(find.text('Giá trị đơn (đã bao gồm VAT)'), findsOneWidget);
     expect(find.text('Thời gian bán'), findsOneWidget);
     expect(find.text('Mã showroom'), findsOneWidget);
     expect(find.text('SA Hai'), findsOneWidget);
@@ -1385,8 +1387,8 @@ void main() {
     expect(scopeMonthTarget.overflow, isNot(TextOverflow.ellipsis));
     expect(scopeMonthActual.maxLines, 2);
     expect(scopeMonthTarget.maxLines, 2);
-    expect(find.text('Đã đạt: 60M VND'), findsOneWidget);
-    expect(find.text('Chỉ tiêu: 120M VND'), findsOneWidget);
+    expect(find.text('Giá trị đã bao gồm VAT: 60M VND'), findsOneWidget);
+    expect(find.text('Chỉ tiêu (đã bao gồm VAT): 120M VND'), findsOneWidget);
   });
 
   testWidgets('Home KPI grid scales desktop columns to card count', (
@@ -2027,8 +2029,8 @@ void main() {
         ),
         findsOneWidget,
       );
-      expect(find.text('Đã đạt: 60M VND'), findsOneWidget);
-      expect(find.text('Chỉ tiêu: 120M VND'), findsOneWidget);
+      expect(find.text('Giá trị đã bao gồm VAT: 60M VND'), findsOneWidget);
+      expect(find.text('Chỉ tiêu (đã bao gồm VAT): 120M VND'), findsOneWidget);
 
       final assigneeDropdown = find.byKey(
         const Key('home-sales-progress-assignee-dropdown'),
@@ -2064,8 +2066,8 @@ void main() {
         ),
         findsOneWidget,
       );
-      expect(find.text('Đã đạt: 60M VND'), findsOneWidget);
-      expect(find.text('Chỉ tiêu: 120M VND'), findsOneWidget);
+      expect(find.text('Giá trị đã bao gồm VAT: 60M VND'), findsOneWidget);
+      expect(find.text('Chỉ tiêu (đã bao gồm VAT): 120M VND'), findsOneWidget);
     },
   );
 

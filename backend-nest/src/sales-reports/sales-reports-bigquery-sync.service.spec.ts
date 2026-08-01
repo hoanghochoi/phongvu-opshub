@@ -1,4 +1,5 @@
 import { SalesReportsBigQuerySyncService } from './sales-reports-bigquery-sync.service';
+import { buildCanonicalRevenueLookup } from './sales-report-revenue';
 
 const ENV_KEYS = [
   'SALES_REPORT_BIGQUERY_SYNC_ENABLED',
@@ -100,13 +101,20 @@ describe('SalesReportsBigQuerySyncService', () => {
           },
         ]),
       },
+      salesReportErpOrderCache: {
+        findMany: jest
+          .fn()
+          .mockResolvedValue([
+            { orderCode: '2607010001', grandTotal: 5400000 },
+          ]),
+      },
       salesReportFollowUpCase: {
         findMany: jest.fn().mockResolvedValue([followUpCaseFixture()]),
       },
     };
     const service = new SalesReportsBigQuerySyncService(prisma as any);
-    const replaceTableRows = jest
-      .spyOn(service as any, 'replaceTableRows')
+    const stageAndPublishSnapshot = jest
+      .spyOn(service as any, 'stageAndPublishSnapshot')
       .mockResolvedValue(undefined);
     jest
       .spyOn(service as any, 'createBigQueryClient')
@@ -150,26 +158,19 @@ describe('SalesReportsBigQuerySyncService', () => {
         }),
       }),
     );
-    expect(replaceTableRows).toHaveBeenCalledTimes(5);
-
-    const reportRows = replaceTableRows.mock.calls[0][4] as Array<
-      Record<string, unknown>
-    >;
-    const revenueRows = replaceTableRows.mock.calls[1][4] as Array<
-      Record<string, unknown>
-    >;
-    const itemRows = replaceTableRows.mock.calls[2][4] as Array<
-      Record<string, unknown>
-    >;
-    const paymentRows = replaceTableRows.mock.calls[3][4] as Array<
-      Record<string, unknown>
-    >;
-    const followUpSchema = replaceTableRows.mock.calls[4][3] as Array<
-      Record<string, unknown>
-    >;
-    const followUpRows = replaceTableRows.mock.calls[4][4] as Array<
-      Record<string, unknown>
-    >;
+    expect(stageAndPublishSnapshot).toHaveBeenCalledTimes(1);
+    const tables = stageAndPublishSnapshot.mock.calls[0][3] as Array<{
+      schema: Array<Record<string, unknown>>;
+      rows: Array<Record<string, unknown>>;
+    }>;
+    const reportRows = tables[0].rows;
+    const revenueRows = tables[1].rows;
+    const revenueSchema = tables[1].schema;
+    const itemRows = tables[2].rows;
+    const itemSchema = tables[2].schema;
+    const paymentRows = tables[3].rows;
+    const followUpSchema = tables[4].schema;
+    const followUpRows = tables[4].rows;
 
     expect(reportRows[0]).toMatchObject({
       sales_report_id: 'report-1',
@@ -187,17 +188,39 @@ describe('SalesReportsBigQuerySyncService', () => {
       promotion_labels: 'Học sinh - Sinh viên',
       final_payment_method_label: 'Trả thẳng',
       erp_grand_total: 1080000,
-      revenue_before_vat: 1000000,
+      canonical_revenue_vat_inclusive: 5400000,
+      canonical_revenue_source: 'ERP_ORDER_CACHE_GRAND_TOTAL',
+      canonical_revenue_quality: 'VALID',
+      revenue_before_vat: 5000000,
     });
+    expect(tables[0].schema.map((field) => field.name)).toEqual(
+      expect.arrayContaining([
+        'canonical_revenue_vat_inclusive',
+        'canonical_revenue_source',
+        'canonical_revenue_quality',
+      ]),
+    );
     expect(revenueRows).toHaveLength(2);
+    expect(revenueSchema.map((field) => field.name)).toEqual(
+      expect.arrayContaining([
+        'revenue_source',
+        'revenue_vat_inclusive',
+        'missing_revenue_order_count',
+        'invalid_revenue_order_count',
+      ]),
+    );
     expect(revenueRows[0]).toMatchObject({
       store_code: 'CP01',
       sales_report_count: 1,
       installment_need_total_count: 1,
       successful_installment_order_count: 1,
       order_count_unique: 1,
-      business_revenue: 1080000,
+      business_revenue: 5400000,
       personal_revenue: 0,
+      revenue_source: 'ERP_ORDER_CACHE_GRAND_TOTAL',
+      revenue_vat_inclusive: true,
+      missing_revenue_order_count: 0,
+      invalid_revenue_order_count: 0,
     });
     expect(revenueRows[1]).toMatchObject({
       store_code: 'CP02',
@@ -206,7 +229,9 @@ describe('SalesReportsBigQuerySyncService', () => {
       successful_installment_order_count: 0,
       order_count_unique: 1,
       business_revenue: 0,
-      personal_revenue: 2160000,
+      personal_revenue: 0,
+      missing_revenue_order_count: 1,
+      invalid_revenue_order_count: 0,
       monitor_quantity: 2,
     });
     expect(itemRows[0]).toMatchObject({
@@ -215,7 +240,15 @@ describe('SalesReportsBigQuerySyncService', () => {
       category_type: 'laptop',
       row_total: 108000,
       row_revenue_before_vat: 100000,
+      item_price_source: 'ORDER_CAPTURE',
+      row_revenue_before_vat_method: 'LEGACY_DIVIDE_BY_1_08',
     });
+    expect(itemSchema.map((field) => field.name)).toEqual(
+      expect.arrayContaining([
+        'item_price_source',
+        'row_revenue_before_vat_method',
+      ]),
+    );
     expect(paymentRows[0]).toMatchObject({
       sales_report_payment_id: 'payment-1',
       payment_method: 'installment',
@@ -240,6 +273,294 @@ describe('SalesReportsBigQuerySyncService', () => {
         outcome_label: 'Mua hàng',
       },
     });
+  });
+
+  it('keeps unique order and item facts when canonical cache revenue is invalid', () => {
+    const service = new SalesReportsBigQuerySyncService({} as any);
+    const fixture = {
+      ...salesReportFixture(),
+      erpGrandTotal: 9999999,
+      erpReturnedAfterTaxAmount: 500000,
+    };
+    const lookup = buildCanonicalRevenueLookup([
+      { orderCode: fixture.orderCode, grandTotal: null },
+    ]);
+
+    const rows = (service as any).toRevenueByStoreRows(
+      [fixture],
+      new Date('2026-08-01T00:00:00Z'),
+      lookup,
+    );
+
+    expect(rows[0]).toMatchObject({
+      order_count_unique: 1,
+      business_revenue: 0,
+      invalid_revenue_order_count: 1,
+      missing_revenue_order_count: 0,
+      laptop_quantity: 1,
+    });
+  });
+
+  it('loads 5,001 canonical order codes in batches of 5,000 and 1', async () => {
+    const findMany = jest.fn().mockImplementation(async ({ where }) =>
+      where.orderCode.in.map((orderCode: string) => ({
+        orderCode,
+        grandTotal: 1080000,
+      })),
+    );
+    const service = new SalesReportsBigQuerySyncService({
+      salesReportErpOrderCache: { findMany },
+    } as any);
+    const orderCodes = Array.from(
+      { length: 5001 },
+      (_, index) => `order-${index + 1}`,
+    );
+
+    const rows = await (service as any).loadCanonicalRevenueRows(orderCodes);
+
+    expect(rows).toHaveLength(5001);
+    expect(findMany).toHaveBeenCalledTimes(2);
+    expect(findMany.mock.calls[0][0]).toMatchObject({
+      where: { excludedAt: null },
+      select: { orderCode: true, grandTotal: true },
+    });
+    expect(findMany.mock.calls[0][0].where.orderCode.in).toHaveLength(5000);
+    expect(findMany.mock.calls[1][0].where.orderCode.in).toEqual([
+      'order-5001',
+    ]);
+  });
+
+  it('adds missing schema fields before clearing an existing empty table', async () => {
+    const service = new SalesReportsBigQuerySyncService({} as any);
+    const table = {
+      exists: jest.fn().mockResolvedValue([true]),
+      getMetadata: jest
+        .fn()
+        .mockResolvedValue([
+          { schema: { fields: [{ name: 'store_code', type: 'STRING' }] } },
+        ]),
+      setMetadata: jest.fn().mockResolvedValue([{}]),
+    };
+    const client = {
+      dataset: jest.fn().mockReturnValue({
+        table: jest.fn().mockReturnValue(table),
+      }),
+      query: jest.fn().mockResolvedValue([{}]),
+    };
+
+    await (service as any).replaceTableRows(
+      client,
+      { projectId: 'project', datasetId: 'dataset' },
+      'revenue',
+      [
+        { name: 'store_code', type: 'STRING' },
+        { name: 'revenue_source', type: 'STRING' },
+      ],
+      [],
+    );
+
+    expect(table.setMetadata).toHaveBeenCalledWith({
+      schema: {
+        fields: [
+          { name: 'store_code', type: 'STRING' },
+          { name: 'revenue_source', type: 'STRING' },
+        ],
+      },
+    });
+    expect(client.query).toHaveBeenCalledWith({
+      query: 'DELETE FROM `project.dataset.revenue` WHERE TRUE',
+    });
+  });
+
+  it('fails closed before BigQuery writes when the report snapshot is empty', async () => {
+    process.env.SALES_REPORT_BIGQUERY_PROJECT_ID = 'opshub-project';
+    process.env.SALES_REPORT_BIGQUERY_DATASET_ID = 'opshub-reporting';
+    const prisma = {
+      salesReport: { findMany: jest.fn().mockResolvedValue([]) },
+      salesReportFollowUpCase: { findMany: jest.fn().mockResolvedValue([]) },
+    };
+    const service = new SalesReportsBigQuerySyncService(prisma as any);
+    const stageAndPublish = jest.spyOn(
+      service as any,
+      'stageAndPublishSnapshot',
+    );
+    jest
+      .spyOn(service as any, 'createBigQueryClient')
+      .mockReturnValue({ fake: true });
+
+    await expect(service.syncAll('manual', { force: true })).rejects.toThrow(
+      'reason=empty_sales_reports',
+    );
+    expect(stageAndPublish).not.toHaveBeenCalled();
+  });
+
+  it('queries maxRows plus one and fails closed before writes when truncated', async () => {
+    process.env.SALES_REPORT_BIGQUERY_PROJECT_ID = 'opshub-project';
+    process.env.SALES_REPORT_BIGQUERY_DATASET_ID = 'opshub-reporting';
+    process.env.SALES_REPORT_BIGQUERY_MAX_ROWS = '1';
+    const prisma = {
+      salesReport: {
+        findMany: jest
+          .fn()
+          .mockResolvedValue([salesReportFixture(), salesReportFixture()]),
+      },
+      salesReportFollowUpCase: { findMany: jest.fn().mockResolvedValue([]) },
+    };
+    const service = new SalesReportsBigQuerySyncService(prisma as any);
+    const stageAndPublish = jest.spyOn(
+      service as any,
+      'stageAndPublishSnapshot',
+    );
+    jest
+      .spyOn(service as any, 'createBigQueryClient')
+      .mockReturnValue({ fake: true });
+
+    await expect(service.syncAll('manual', { force: true })).rejects.toThrow(
+      'reason=sales_report_limit_exceeded maxRows=1',
+    );
+    expect(prisma.salesReport.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ take: 2 }),
+    );
+    expect(stageAndPublish).not.toHaveBeenCalled();
+  });
+
+  it('stages every table before publishing and restores an earlier target when a later publish fails', async () => {
+    const service = new SalesReportsBigQuerySyncService({} as any);
+    const calls: string[] = [];
+    const tables = new Map<string, any>();
+    const tableFor = (id: string) => {
+      if (tables.has(id)) return tables.get(id);
+      const table = {
+        id,
+        exists: jest.fn().mockResolvedValue([!id.includes('__')]),
+        delete: jest.fn().mockImplementation(async () => {
+          calls.push(`delete:${id}`);
+        }),
+        createCopyJob: jest
+          .fn()
+          .mockImplementation(async (destination: any) => {
+            calls.push(`copy:${id}->${destination.id}`);
+            if (id.includes('second__stage_')) {
+              throw new Error('publish failed after staging');
+            }
+            return [{ promise: jest.fn().mockResolvedValue(undefined) }];
+          }),
+      };
+      tables.set(id, table);
+      return table;
+    };
+    const client = {
+      dataset: jest.fn().mockReturnValue({ table: tableFor }),
+    };
+    jest
+      .spyOn(service as any, 'replaceTableRows')
+      .mockImplementation(async (_client, _config, tableId) => {
+        calls.push(`stage:${tableId}`);
+      });
+
+    await expect(
+      (service as any).stageAndPublishSnapshot(
+        client,
+        { datasetId: 'dataset' },
+        new Date('2026-08-01T00:00:00Z'),
+        [
+          { tableId: 'first', schema: [], rows: [{ id: 1 }] },
+          { tableId: 'second', schema: [], rows: [{ id: 2 }] },
+        ],
+      ),
+    ).rejects.toThrow('publish failed after staging');
+
+    const firstPublish = calls.findIndex((call) =>
+      call.startsWith('copy:first__stage_'),
+    );
+    expect(
+      calls.slice(0, firstPublish).filter((call) => call.startsWith('stage:')),
+    ).toHaveLength(2);
+    expect(
+      calls.some(
+        (call) =>
+          call.startsWith('copy:first__backup_') && call.endsWith('->first'),
+      ),
+    ).toBe(true);
+  });
+
+  it('cleans staging but preserves the recovery backup when rollback restoration fails', async () => {
+    const service = new SalesReportsBigQuerySyncService({} as any);
+    const tables = new Map<string, any>();
+    const tableFor = (id: string) => {
+      if (tables.has(id)) return tables.get(id);
+      const table = {
+        id,
+        exists: jest.fn().mockResolvedValue([!id.includes('__')]),
+        delete: jest.fn().mockResolvedValue(undefined),
+        createCopyJob: jest
+          .fn()
+          .mockImplementation(async (destination: any) => {
+            if (id.includes('second__stage_')) {
+              throw new Error('publish failed after staging');
+            }
+            if (id.includes('first__backup_') && destination.id === 'first') {
+              throw new Error('rollback restore failed');
+            }
+            return [{ promise: jest.fn().mockResolvedValue(undefined) }];
+          }),
+      };
+      tables.set(id, table);
+      return table;
+    };
+    const client = {
+      dataset: jest.fn().mockReturnValue({ table: tableFor }),
+    };
+    jest.spyOn(service as any, 'replaceTableRows').mockResolvedValue(undefined);
+
+    await expect(
+      (service as any).stageAndPublishSnapshot(
+        client,
+        { datasetId: 'dataset' },
+        new Date('2026-08-01T00:00:00Z'),
+        [
+          { tableId: 'first', schema: [], rows: [{ id: 1 }] },
+          { tableId: 'second', schema: [], rows: [{ id: 2 }] },
+        ],
+      ),
+    ).rejects.toThrow('rollbackIncomplete=1');
+
+    const firstStage = Array.from(tables.keys()).find((id) =>
+      id.startsWith('first__stage_'),
+    )!;
+    const secondStage = Array.from(tables.keys()).find((id) =>
+      id.startsWith('second__stage_'),
+    )!;
+    const firstBackup = Array.from(tables.keys()).find((id) =>
+      id.startsWith('first__backup_'),
+    )!;
+
+    expect(tables.get(firstStage).delete).toHaveBeenCalledWith({
+      ignoreNotFound: true,
+    });
+    expect(tables.get(secondStage).delete).toHaveBeenCalledWith({
+      ignoreNotFound: true,
+    });
+    expect(tables.get(firstBackup).delete).not.toHaveBeenCalled();
+  });
+
+  it('sanitizes BigQuery error name, code, credentials, and email context', () => {
+    const service = new SalesReportsBigQuerySyncService({} as any);
+    const error = Object.assign(
+      new Error(
+        'authorization=Bearer secret-token user@example.com\npayload follows',
+      ),
+      { code: '403 unsafe', name: 'BigQuery Error' },
+    );
+
+    const summary = (service as any).safeError(error);
+
+    expect(summary).toContain('name=BigQueryError');
+    expect(summary).toContain('code=403unsafe');
+    expect(summary).toContain('[redacted]');
+    expect(summary).toContain('[redacted-email]');
+    expect(summary).not.toContain('secret-token');
+    expect(summary).not.toContain('\n');
   });
 });
 
@@ -352,9 +673,9 @@ function salesReportFixture() {
     erpPaymentStatus: 'PAID',
     erpConfirmationStatus: 'COMPLETED',
     erpFulfillmentStatus: 'COMPLETED',
-    erpLifecycleStatus: 'COMPLETED',
+    erpLifecycleStatus: 'COMPLETED_PARTIAL_RETURN',
     erpHasReturnedFullItems: false,
-    erpReturnedAfterTaxAmount: 0,
+    erpReturnedAfterTaxAmount: 108000,
     erpTerminalName: 'CP01',
     erpGrandTotal: 1080000,
     erpPaymentMethods: ['cash', 'bank_transfer'],

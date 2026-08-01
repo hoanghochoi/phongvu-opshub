@@ -43,24 +43,28 @@ describe('HomeSummaryService', () => {
     ];
     const revenueOrderRows = [
       {
+        orderCode: '2607040001',
         grandTotal: 12500000,
         lifecycleStatus: 'COMPLETED',
         hasReturnedFullItems: false,
         returnedAfterTaxAmount: 0,
       },
       {
+        orderCode: '2607040002',
         grandTotal: 5000000,
         lifecycleStatus: 'COMPLETED_PARTIAL_RETURN',
         hasReturnedFullItems: false,
         returnedAfterTaxAmount: 1000000,
       },
       {
+        orderCode: '2607040003',
         grandTotal: 7000000,
         lifecycleStatus: 'CANCELLED',
         hasReturnedFullItems: false,
         returnedAfterTaxAmount: 0,
       },
       {
+        orderCode: '2607040004',
         grandTotal: 3000000,
         lifecycleStatus: 'RETURNED_FULL',
         hasReturnedFullItems: true,
@@ -1326,15 +1330,15 @@ describe('HomeSummaryService', () => {
       scope: 'OWN',
       scopeLabel: 'Phạm vi cá nhân',
       coverageLabel: 'Tỉ lệ báo cáo',
-      totalRevenue: 16500000,
+      totalRevenue: 17500000,
       totalOrders: 2,
       totalReports: 2,
       reportedOrders: 1,
       notPurchasedReports: 1,
       unreportedOrders: 1,
-      averageOrderValue: 8250000,
+      averageOrderValue: 8750000,
       completedRevenue: 12500000,
-      pendingRevenue: 4000000,
+      pendingRevenue: 5000000,
       businessCustomerRevenue: 12500000,
       personalCustomerRevenue: 4000000,
       examScorePromotionCount: 1,
@@ -1395,10 +1399,15 @@ describe('HomeSummaryService', () => {
       expect.objectContaining({
         select: expect.objectContaining({
           lifecycleStatus: true,
-          returnedAfterTaxAmount: true,
+          grandTotal: true,
         }),
       }),
     );
+    expect(
+      prisma.salesReportErpOrderCache.findMany.mock.calls.some(
+        ([args]: any[]) => args.select?.returnedAfterTaxAmount === true,
+      ),
+    ).toBe(false);
     expect(prisma.salesReport.count).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({ consultedSolutionAnswer: 'YES' }),
@@ -2065,7 +2074,7 @@ describe('HomeSummaryService', () => {
       );
 
       expect(response.freshness).toBeNull();
-      expect(response.totalRevenue).toBe(16500000);
+      expect(response.totalRevenue).toBe(17500000);
       expect(prisma.homeSummaryReportFact.upsert).toHaveBeenCalled();
       expect(prisma.homeSummaryOrderFact.upsert).toHaveBeenCalled();
       expect(prisma.homeSummaryDailyAggregate.findMany).not.toHaveBeenCalled();
@@ -2474,6 +2483,174 @@ describe('HomeSummaryService', () => {
     );
   });
 
+  it('populates projection revenue from full VAT-inclusive cache totals and versions the derived metrics', async () => {
+    const { service, salesReports } = createHarness();
+    const tx = {
+      homeSummaryDailyAggregate: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            id: 'aggregate-global',
+            dimensionType: 'GLOBAL',
+            dimensionKey: '',
+            storeCode: '',
+            totalOrders: 2,
+            reportedOrders: 2,
+            totalReports: 2,
+            notPurchasedReports: 0,
+          },
+        ]),
+      },
+      salesReport: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            id: 'report-partial',
+            reportType: 'PURCHASED',
+            orderCode: 'ORDER-PARTIAL',
+            erpOrderId: 'capture-id',
+            createdByEmail: 'staff@phongvu.vn',
+            storeCode: 'CP75',
+            erpLifecycleStatus: 'COMPLETED_PARTIAL_RETURN',
+            customerType: 'BUSINESS',
+            items: [{ categoryType: 'laptop', quantity: 1, rowTotal: 123 }],
+          },
+          {
+            id: 'report-missing',
+            reportType: 'PURCHASED',
+            orderCode: 'ORDER-MISSING',
+            erpOrderId: 'capture-id-2',
+            createdByEmail: 'staff@phongvu.vn',
+            storeCode: 'CP75',
+            erpLifecycleStatus: 'COMPLETED',
+            customerType: 'PERSONAL',
+            items: [{ categoryType: 'monitor', quantity: 2, rowTotal: 456 }],
+          },
+        ]),
+      },
+      salesReportErpOrderCache: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            orderCode: 'ORDER-PARTIAL',
+            storeCode: 'CP75',
+            sourceUserEmail: 'staff@phongvu.vn',
+            consultantEmail: null,
+            sellerEmail: null,
+            grandTotal: 1080000,
+            paymentStatus: 'PAID',
+            lifecycleStatus: 'COMPLETED_PARTIAL_RETURN',
+            hasReturnedFullItems: false,
+            returnedAfterTaxAmount: 108000,
+          },
+        ]),
+      },
+      $executeRaw: jest.fn().mockResolvedValue(1),
+    };
+
+    await service.populateSalesProjectionMetrics(tx as any, '2026-07-04');
+
+    const lookup = salesReports.summarizeSalesRevenueRows.mock.calls[0][1];
+    expect(lookup.values.get('ORDER-PARTIAL')).toBe(1080000);
+    expect(lookup.values.has('ORDER-MISSING')).toBe(false);
+    const metricPayload = tx.$executeRaw.mock.calls[0][0].values.find(
+      (value: unknown) =>
+        typeof value === 'string' &&
+        value.includes('salesPriceContractVersion'),
+    );
+    const updates = JSON.parse(metricPayload as string);
+    expect(updates[0].metrics).toMatchObject({
+      salesPriceContractVersion: 2,
+      totalRevenue: 1080000,
+      completedRevenue: 1080000,
+    });
+  });
+
+  it('loads report revenue by order code when the canonical cache date is outside the projection day', async () => {
+    const { service, salesReports } = createHarness();
+    const tx = {
+      homeSummaryDailyAggregate: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            id: 'aggregate-global',
+            dimensionType: 'GLOBAL',
+            dimensionKey: '',
+            storeCode: '',
+            totalOrders: 0,
+            reportedOrders: 0,
+            totalReports: 1,
+            notPurchasedReports: 0,
+          },
+        ]),
+      },
+      salesReport: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            id: 'report-cross-date',
+            reportType: 'PURCHASED',
+            orderCode: 'ORDER-CROSS-DATE',
+            erpOrderId: 'detail-snapshot',
+            createdByEmail: 'staff@phongvu.vn',
+            storeCode: 'CP75',
+            erpLifecycleStatus: 'COMPLETED',
+            customerType: 'BUSINESS',
+            items: [],
+          },
+        ]),
+      },
+      salesReportErpOrderCache: {
+        findMany: jest
+          .fn()
+          .mockResolvedValueOnce([])
+          .mockResolvedValueOnce([
+            { orderCode: 'ORDER-CROSS-DATE', grandTotal: 2160000 },
+          ]),
+      },
+      $executeRaw: jest.fn().mockResolvedValue(1),
+    };
+
+    await service.populateSalesProjectionMetrics(tx as any, '2026-07-04');
+
+    const lookup = salesReports.summarizeSalesRevenueRows.mock.calls[0][1];
+    expect(lookup.values.get('ORDER-CROSS-DATE')).toBe(2160000);
+    expect(tx.salesReportErpOrderCache.findMany.mock.calls[1][0]).toEqual({
+      where: {
+        orderCode: { in: ['ORDER-CROSS-DATE'] },
+        excludedAt: null,
+      },
+      select: { orderCode: true, grandTotal: true },
+    });
+    const metricPayload = tx.$executeRaw.mock.calls[0][0].values.find(
+      (value: unknown) =>
+        typeof value === 'string' &&
+        value.includes('salesPriceContractVersion'),
+    );
+    const updates = JSON.parse(metricPayload as string);
+    expect(updates[0].metrics).toMatchObject({
+      completedRevenue: 2160000,
+    });
+  });
+
+  it('uses the full canonical total for partial returns and fails invalid totals closed', () => {
+    const { service } = createHarness();
+
+    expect(
+      (service as any).netCacheRevenue({
+        grandTotal: 1080000,
+        paymentStatus: 'PAID',
+        lifecycleStatus: 'COMPLETED_PARTIAL_RETURN',
+        hasReturnedFullItems: false,
+        returnedAfterTaxAmount: 108000,
+      }),
+    ).toBe(1080000);
+    expect(
+      (service as any).netCacheRevenue({
+        grandTotal: null,
+        paymentStatus: 'PAID',
+        lifecycleStatus: 'COMPLETED',
+        hasReturnedFullItems: false,
+        returnedAfterTaxAmount: 0,
+      }),
+    ).toBe(0);
+  });
+
   it('does not present fetchedAt as the sold time for unreported orders', async () => {
     const { service, prisma } = createHarness();
     prisma.homeSummaryReportFact.findMany
@@ -2522,24 +2699,21 @@ describe('HomeSummaryService', () => {
         {
           erpOrderCreatedAt: new Date('2026-07-04T02:00:00Z'),
           submittedAt: new Date('2026-07-04T02:10:00Z'),
-          erpGrandTotal: 1080000,
-          erpReturnedAfterTaxAmount: 108000,
+          orderCode: '2607040001',
         },
       ])
       .mockResolvedValueOnce([
         {
           erpOrderCreatedAt: new Date('2026-07-04T02:00:00Z'),
           submittedAt: new Date('2026-07-04T02:10:00Z'),
-          erpGrandTotal: 1080000,
-          erpReturnedAfterTaxAmount: 108000,
+          orderCode: '2607040001',
         },
       ])
       .mockResolvedValueOnce([
         {
           erpOrderCreatedAt: new Date('2026-07-04T02:00:00Z'),
           submittedAt: new Date('2026-07-04T02:10:00Z'),
-          erpGrandTotal: 1080000,
-          erpReturnedAfterTaxAmount: 108000,
+          orderCode: '2607040001',
         },
       ]);
 
@@ -2548,9 +2722,9 @@ describe('HomeSummaryService', () => {
       { date: '2026-07-04' },
     );
 
-    expect(result.totalRevenue).toBe(16500000);
-    expect(result.completedRevenue).toBe(972000);
-    expect(result.salesProgress.day.actual).toBe(900000);
+    expect(result.totalRevenue).toBe(17500000);
+    expect(result.completedRevenue).toBe(12500000);
+    expect(result.salesProgress.day.actual).toBe(12500000);
     expect(result.salesProgress.day.actual).not.toBe(
       Math.round(result.totalRevenue / 1.08),
     );
@@ -2625,14 +2799,14 @@ describe('HomeSummaryService', () => {
       status: 'AVAILABLE',
       scope: 'PERSONAL_SA',
       missingStoreCodes: [],
-      day: { target: 14838710 },
-      week: { target: 74193548 },
-      month: { target: 460000000 },
+      day: { target: 16025806 },
+      week: { target: 80129032 },
+      month: { target: 496800000 },
     });
     expect(result.scopeSalesProgress).toMatchObject({
       status: 'AVAILABLE',
       scope: 'MANAGED',
-      month: { target: 610000000 },
+      month: { target: 658800000 },
     });
   });
 

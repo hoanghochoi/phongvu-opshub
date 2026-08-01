@@ -189,6 +189,7 @@ describe('SalesReportErpService', () => {
               orderId: '2607290032',
               confirmationStatus: 'active',
               fulfillmentStatus: 'PROCESSING',
+              grandTotal: 999,
               orderCaptureLineItems: [
                 {
                   orderCaptureLineItemId: 'capture-1',
@@ -230,6 +231,7 @@ describe('SalesReportErpService', () => {
       await service.lookupContractAppendixOrder('2607290032');
 
     expect(salesReportOrder.items).toHaveLength(1);
+    expect(salesReportOrder.erpGrandTotal).toBe(999);
     expect(salesReportOrder.items[0].finalSellPrice).toBe(100);
     expect(contractAppendixOrder.items).toHaveLength(1);
     expect(contractAppendixOrder.items[0]).toMatchObject({
@@ -680,6 +682,7 @@ describe('SalesReportErpService', () => {
                 createdFromSiteDisplayName:
                   '[CH1001] CHI NHANH 30 - CONG TY CO PHAN THUONG MAI - DICH VU PHONG VU',
                 grandTotal: 2500000,
+                totalAmount: 9900000,
                 customerName: 'Tran Thi B',
                 customerType: 'PERSONAL',
                 billingInfo: {
@@ -725,6 +728,42 @@ describe('SalesReportErpService', () => {
     expect(result[0].sanitizedSnapshot.createdFromSiteDisplayName).toBe(
       '[CH1001] CHI NHANH 30 - CONG TY CO PHAN THUONG MAI - DICH VU PHONG VU',
     );
+  });
+
+  it('does not use totalAmount when canonical list grandTotal is missing or unsafe', () => {
+    const service = new SalesReportErpService();
+    const mapListOrder = (service as any).normalizeOrderListItem.bind(service);
+    const fetchedAt = new Date('2026-07-01T01:05:00Z');
+
+    const missing = mapListOrder(
+      { orderId: '2607010003', totalAmount: 3000000 },
+      null,
+      fetchedAt,
+    );
+    const fractional = mapListOrder(
+      { orderId: '2607010004', grandTotal: 3000000.5, totalAmount: 3000000 },
+      null,
+      fetchedAt,
+    );
+    const explicitNull = mapListOrder(
+      { orderId: '2607010005', grandTotal: null, totalAmount: 3000000 },
+      null,
+      fetchedAt,
+    );
+    const blank = mapListOrder(
+      { orderId: '2607010006', grandTotal: ' ', totalAmount: 3000000 },
+      null,
+      fetchedAt,
+    );
+
+    expect(missing.grandTotal).toBeNull();
+    expect(missing.sanitizedSnapshot.grandTotal).toBeNull();
+    expect(fractional.grandTotal).toBeNull();
+    expect(fractional.sanitizedSnapshot.grandTotal).toBeNull();
+    expect(explicitNull.grandTotal).toBeNull();
+    expect(explicitNull.sanitizedSnapshot.grandTotal).toBeNull();
+    expect(blank.grandTotal).toBeNull();
+    expect(blank.sanitizedSnapshot.grandTotal).toBeNull();
   });
 
   it('parses cached order created time from alternate ERP date fields', async () => {

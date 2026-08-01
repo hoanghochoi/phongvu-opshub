@@ -3,6 +3,7 @@ import * as XLSX from 'xlsx';
 import { AuthContextService } from '../auth/auth-context.service';
 import { FEATURE_KEYS } from '../feature/feature.constants';
 import { SalesReportErpCanceledOrderException } from './sales-report-erp.service';
+import { buildCanonicalRevenueLookup } from './sales-report-revenue';
 import { SalesReportsService } from './sales-reports.service';
 
 describe('SalesReportsService', () => {
@@ -29,7 +30,7 @@ describe('SalesReportsService', () => {
           }),
         ),
         count: jest.fn(),
-        findMany: jest.fn(),
+        findMany: jest.fn().mockResolvedValue([]),
       },
       salesReportErpOrderCache: {
         findUnique: jest.fn().mockResolvedValue(null),
@@ -970,7 +971,7 @@ describe('SalesReportsService', () => {
     });
   });
 
-  it('persists and blocks zero-value ERP orders after ERP lookup', async () => {
+  it('does not treat a detail-only zero as canonical revenue or a zero-value exclusion', async () => {
     const { service, prisma, erp } = createHarness();
     erp.lookupOrder.mockResolvedValueOnce({
       ...erpOrderFixture(),
@@ -982,26 +983,130 @@ describe('SalesReportsService', () => {
 
     await expect(
       service.checkOrder(userFixture(), '2607070000'),
-    ).rejects.toThrow('Đơn 0 VND là đơn vận hành nội bộ, không cần báo cáo.');
+    ).resolves.toEqual(expect.objectContaining({ orderCode: '2607070000' }));
 
     expect(prisma.salesReportErpOrderCache.upsert).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { orderCode: '2607070000' },
         create: expect.objectContaining({
           orderCode: '2607070000',
-          grandTotal: 0,
-          exclusionReason: 'ERP_ORDER_ZERO_VALUE_INTERNAL',
-          excludedAt: expect.any(Date),
+          grandTotal: null,
+        }),
+        update: expect.not.objectContaining({ grandTotal: expect.anything() }),
+      }),
+    );
+    expect(prisma.salesReport.updateMany).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          erpExclusionReason: 'ERP_ORDER_ZERO_VALUE_INTERNAL',
         }),
       }),
     );
-    expect(prisma.salesReport.updateMany).toHaveBeenCalledWith({
-      where: { orderCode: '2607070000' },
-      data: {
-        erpExcludedAt: expect.any(Date),
-        erpExclusionReason: 'ERP_ORDER_ZERO_VALUE_INTERNAL',
-      },
+  });
+
+  it('preserves list-derived canonical revenue during user detail enrichment', async () => {
+    const { service, prisma, erp } = createHarness();
+    prisma.salesReportErpOrderCache.findUnique.mockResolvedValue({
+      grandTotal: 1250000,
+      lifecycleStatus: 'COMPLETED',
+      hasReturnedFullItems: false,
+      returnedAfterTaxAmount: 0,
+      paymentStatus: 'PAID',
+      confirmationStatus: 'COMPLETED',
+      fulfillmentStatus: 'COMPLETED',
+      statusCheckedAt: new Date('2026-07-07T01:00:00Z'),
+      statusCheckAttemptedAt: null,
+      statusCheckAttemptDate: null,
+      statusCheckAttemptCount: 0,
+      statusCheckFailureCount: 0,
+      sanitizedSnapshot: { createdFromSiteDisplayName: '[CP62] Showroom' },
+      excludedAt: null,
     });
+    erp.lookupOrder.mockResolvedValueOnce({
+      ...erpOrderFixture(),
+      erpGrandTotal: 9999999,
+      sanitizedSnapshot: { orderId: '2606290001', grandTotal: 9999999 },
+    });
+
+    await service.checkOrder(userFixture(), '2606290001');
+
+    expect(prisma.salesReportErpOrderCache.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        create: expect.objectContaining({ grandTotal: 1250000 }),
+        update: expect.not.objectContaining({ grandTotal: expect.anything() }),
+      }),
+    );
+  });
+
+  it('lets only an ERP list synchronization replace canonical cache revenue', async () => {
+    const { service, prisma } = createHarness();
+    const context = await (service as any).resolveUserSnapshot(userFixture());
+    const existing = {
+      grandTotal: 1250000,
+      lifecycleStatus: 'COMPLETED',
+      hasReturnedFullItems: false,
+      returnedAfterTaxAmount: 0,
+      paymentStatus: 'PAID',
+      confirmationStatus: 'COMPLETED',
+      fulfillmentStatus: 'COMPLETED',
+      statusCheckedAt: new Date('2026-07-07T01:00:00Z'),
+      statusCheckAttemptedAt: null,
+      statusCheckAttemptDate: null,
+      statusCheckAttemptCount: 0,
+      statusCheckFailureCount: 0,
+      sanitizedSnapshot: {},
+    };
+
+    await (service as any).upsertErpOrderCacheItem(
+      null,
+      context,
+      { ...erpListOrderFixture(), grandTotal: 2500000 },
+      new Map(),
+      null,
+      {
+        existingCacheRow: existing,
+        preserveVerifiedLifecycle: true,
+        canonicalGrandTotalFromList: true,
+      },
+    );
+
+    expect(prisma.salesReportErpOrderCache.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        create: expect.objectContaining({ grandTotal: 2500000 }),
+        update: expect.objectContaining({ grandTotal: 2500000 }),
+      }),
+    );
+  });
+
+  it('preserves canonical cache revenue during scheduled detail status refresh', async () => {
+    const { service, prisma } = createHarness();
+    prisma.salesReportErpOrderCache.findUnique.mockResolvedValueOnce({
+      grandTotal: 1250000,
+    });
+
+    await (service as any).persistScheduledErpStatus(
+      { ...erpListOrderFixture(), grandTotal: 9999999 },
+      {
+        orderCode: '2607010001',
+        storeCode: 'CP62',
+        lifecycleStatus: 'PENDING',
+        statusCheckedAt: null,
+        statusCheckAttemptedAt: null,
+        statusCheckAttemptDate: null,
+        statusCheckAttemptCount: 0,
+        statusCheckFailureCount: 0,
+        orderCreatedAt: new Date('2026-07-01T01:00:00Z'),
+        source: 'cache_pending',
+      },
+      new Date('2026-07-01T02:00:00Z'),
+    );
+
+    expect(prisma.salesReportErpOrderCache.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        create: expect.objectContaining({ grandTotal: null }),
+        update: expect.not.objectContaining({ grandTotal: expect.anything() }),
+      }),
+    );
   });
 
   it('uses ERP createdFromSiteDisplayName as the cache store source when checking an order', async () => {
@@ -3262,6 +3367,10 @@ describe('SalesReportsService', () => {
   it('exports Vietnamese revenue summary XLSX by category type', async () => {
     const { service, prisma } = createHarness();
     prisma.salesReport.findMany.mockResolvedValueOnce(revenueReportFixtures());
+    prisma.salesReportErpOrderCache.findMany.mockResolvedValueOnce([
+      { orderCode: '2606290001', grandTotal: 10000 },
+      { orderCode: '2606290002', grandTotal: 20000 },
+    ]);
 
     const workbook = await service.exportWorkbook(
       { ...userFixture(), role: 'SUPER_ADMIN' },
@@ -3272,8 +3381,8 @@ describe('SalesReportsService', () => {
     expect(sheetName).toBe('Doanh so');
     expect(rows[0]).toEqual([
       'Số đơn hàng duy nhất',
-      'Tổng doanh thu khách hàng doanh nghiệp',
-      'Tổng doanh thu khách hàng cá nhân',
+      'Tổng doanh thu khách hàng doanh nghiệp (đã bao gồm VAT)',
+      'Tổng doanh thu khách hàng cá nhân (đã bao gồm VAT)',
       'Báo cáo có nhu cầu trả góp',
       'Trả góp thành công (theo báo cáo bán hàng)',
       'Số lượng laptop',
@@ -3286,7 +3395,7 @@ describe('SalesReportsService', () => {
       'Số lượng dịch vụ bảo hiểm',
       'Các lý do khách không trả góp',
     ]);
-    expect(rows[1].slice(0, 5)).toEqual([2, 1000, 2000, 2, 1]);
+    expect(rows[1].slice(0, 5)).toEqual([2, 10000, 20000, 2, 1]);
     expect(rows[1].slice(5, 13)).toEqual([3, 2, 1, 1, 3, 1, 4, 1]);
     expect(rows[1][13]).toBe('Khách từ chối: Lãi suất/Phí trả góp cao: 1');
   });
@@ -3305,6 +3414,86 @@ describe('SalesReportsService', () => {
 
     expect(summary.examScorePromotionCount).toBe(2);
     expect(summary.studentPromotionCount).toBe(2);
+  });
+
+  it('fails closed on missing or invalid cache revenue while preserving unique orders and item facts', () => {
+    const { service } = createHarness();
+    const rows = [
+      {
+        ...exportReportFixture(),
+        orderCode: 'ORDER-VALID',
+        customerType: 'BUSINESS',
+        erpGrandTotal: 999999,
+        items: [itemFixture('Laptop capture', 'laptop', 2)],
+      },
+      {
+        ...exportReportFixture(),
+        id: 'report-invalid',
+        orderCode: 'ORDER-INVALID',
+        customerType: 'PERSONAL',
+        erpGrandTotal: 888888,
+        items: [itemFixture('Monitor capture', 'monitor', 3)],
+      },
+      {
+        ...exportReportFixture(),
+        id: 'report-missing',
+        orderCode: 'ORDER-MISSING',
+        customerType: 'PERSONAL',
+        erpGrandTotal: 777777,
+        items: [itemFixture('Printer capture', 'printer', 1)],
+      },
+      {
+        ...exportReportFixture(),
+        id: 'report-duplicate',
+        orderCode: ' order-valid ',
+        customerType: 'PERSONAL',
+        erpGrandTotal: 666666,
+        items: [itemFixture('Ignored duplicate', 'accessories', 9)],
+      },
+    ];
+    const lookup = buildCanonicalRevenueLookup([
+      { orderCode: 'ORDER-VALID', grandTotal: 123456 },
+      { orderCode: 'ORDER-INVALID', grandTotal: null },
+    ]);
+
+    const summary = service.summarizeSalesRevenueRows(rows, lookup);
+
+    expect(summary).toMatchObject({
+      orderCountUnique: 3,
+      businessRevenue: 123456,
+      personalRevenue: 0,
+      laptopQuantity: 2,
+      monitorQuantity: 3,
+      printerQuantity: 1,
+      accessoriesQuantity: 0,
+    });
+  });
+
+  it('logs aggregate export revenue quality without order identifiers', async () => {
+    const { service, prisma } = createHarness();
+    prisma.salesReport.findMany.mockResolvedValueOnce([
+      {
+        ...exportReportFixture(),
+        orderCode: 'SENSITIVE-ORDER-CODE',
+      },
+    ]);
+    prisma.salesReportErpOrderCache.findMany.mockResolvedValueOnce([
+      { orderCode: 'SENSITIVE-ORDER-CODE', grandTotal: null },
+    ]);
+    const warning = jest
+      .spyOn((service as any).logger, 'warn')
+      .mockImplementation(() => undefined);
+
+    await service.exportWorkbook(
+      { ...userFixture(), role: 'SUPER_ADMIN' },
+      { exportType: 'REVENUE' },
+    );
+
+    const message = warning.mock.calls[0][0];
+    expect(message).toContain(
+      'source=export type=REVENUE reports=1 requestedOrders=1 validOrders=0 missingOrders=0 invalidOrders=1',
+    );
+    expect(message).not.toContain('SENSITIVE-ORDER-CODE');
   });
 
   it('exports installment XLSX rows only for installment reports', async () => {
@@ -3345,6 +3534,10 @@ describe('SalesReportsService', () => {
         installmentPartnerCodes: [],
       },
     ]);
+    prisma.salesReportErpOrderCache.findMany.mockResolvedValueOnce([
+      { orderCode: '2606290001', grandTotal: 7500000 },
+      { orderCode: '2606290999', grandTotal: 8250000 },
+    ]);
 
     const workbook = await service.exportWorkbook(
       { ...userFixture(), role: 'SUPER_ADMIN' },
@@ -3367,7 +3560,7 @@ describe('SalesReportsService', () => {
       'Ngày báo cáo',
       'Email người báo cáo',
       'Đơn hàng',
-      'Giá trị đơn hàng',
+      'Giá trị đơn hàng (đã bao gồm VAT)',
       'Số tiền vay trả góp',
       'Đối tác trả góp',
       'Kết quả duyệt hồ sơ',
@@ -3380,7 +3573,7 @@ describe('SalesReportsService', () => {
       '29/06/2026 08:00:00',
       'sale@phongvu.vn',
       '2606290001',
-      1500000,
+      7500000,
       5000000,
       'VNPAY_POS; MPOS',
       'Đã duyệt',
@@ -3389,13 +3582,13 @@ describe('SalesReportsService', () => {
       'Khách chốt trả góp bình thường (Không có lý do)',
     ]);
     expect(rows[2][2]).toBe('2606290999');
-    expect(rows[2][3]).toBe(3250000);
+    expect(rows[2][3]).toBe(8250000);
     expect(rows[2][4]).toBe(2500000);
     expect(rows[2][5]).toBe('PAYOO_POS');
     expect(rows[2][6]).toBe('Chưa duyệt');
     expect(rows[2][8]).toBe('Trả thẳng');
     expect(rows[3][2]).toBe('');
-    expect(rows[3][3]).toBe('');
+    expect(rows[3][3]).toBe(0);
     expect(rows[3][7]).toBe('Chưa mua hàng');
     expect(rows[3][8]).toBe('Chưa mua hàng');
     expect(JSON.stringify(rows)).not.toContain('2606290888');
