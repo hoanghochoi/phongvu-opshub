@@ -965,6 +965,57 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
+  /// Starts a credential-authenticated session with the canonical bootstrap
+  /// contract before the authenticated shell is allowed to render access-gated
+  /// surfaces. The legacy access endpoints remain a compatibility fallback in
+  /// [_runSavedSessionSync] for older staging/home-server deployments.
+  Future<bool> _hydrateCredentialSession(User user, String? token) async {
+    _advanceSessionEpoch();
+    final epoch = _sessionEpoch;
+    _user = user;
+    _hasUsableAccessSnapshot = false;
+    _bootstrapEtag = null;
+    _bootstrapGeneratedAt = null;
+    _accessLastSyncedAt = null;
+    _bootstrapVersion = null;
+    _bootstrapSchemaVersion = null;
+    _bootstrapConditionalGet = false;
+    _supportChatEnabled = false;
+    _realtimeV2Topics = const [];
+    _accessSyncState = AuthAccessSyncState.syncing;
+    if (token != null) ApiClient().setAuthToken(token);
+    notifyListeners();
+
+    // Persist the accepted credential immediately, even when bootstrap is
+    // temporarily unavailable. The snapshot stays accessResolved=false so a
+    // restored session will retry instead of unlocking stale capabilities.
+    await _saveSession(user, token: token, expectedEpoch: epoch);
+    final synced = await _synchronizeSavedSession(user);
+    // Bootstrap may enrich a sparse credential response with the canonical
+    // user id, so identity-string equality with the pre-bootstrap user would
+    // reject a valid session. Epoch + current token/user still rejects logout
+    // and account-switch completions without depending on that enrichment.
+    if (epoch != _sessionEpoch ||
+        _user == null ||
+        ApiClient().authToken == null) {
+      return false;
+    }
+    await AppLogger.instance.info(
+      'Auth',
+      'Credential session hydration completed',
+      context: {
+        'email': user.email,
+        'bootstrapSynced': synced,
+        'supportChatEnabled': _supportChatEnabled,
+        'accessSyncState': _accessSyncState.name,
+      },
+    );
+    // Credentials were accepted even if a transient bootstrap failure leaves
+    // the shell on its retry surface. A 401 clears the session and returns
+    // false through the current-session guard above.
+    return _user != null && ApiClient().authToken != null;
+  }
+
   Future<bool> _runSavedSessionSync(
     User cachedUser,
     int epoch,
@@ -1235,9 +1286,10 @@ class AuthProvider extends ChangeNotifier {
           'policyCount': policyAccess.length,
         },
       );
-      _accessLastSyncedAt = DateTime.now();
-      _accessSyncState = AuthAccessSyncState.fresh;
-      _hasUsableAccessSnapshot = true;
+      // These endpoints are legacy access readers. They may enrich the user
+      // object, but they do not establish a canonical bootstrap snapshot (or
+      // its ETag/capabilities), so the refresh coordinator must remain free to
+      // fetch `/auth/bootstrap`.
       return user.copyWith(featureAccess: access, policyAccess: policyAccess);
     } catch (e) {
       if (e is ApiException && e.statusCode == 401) {
@@ -1288,11 +1340,11 @@ class AuthProvider extends ChangeNotifier {
         email: email,
         password: password,
       );
-      _advanceSessionEpoch();
-      _user = await _withFeatureAccess(user);
-
-      if (_user != null) {
-        await _saveSession(_user!, token: token);
+      final hydrated = await _hydrateCredentialSession(user, token);
+      if (!hydrated) {
+        _isLoading = false;
+        notifyListeners();
+        return false;
       }
 
       await AppLogger.instance.info(
@@ -1364,10 +1416,12 @@ class AuthProvider extends ChangeNotifier {
         password: password,
         verificationCode: verificationCode,
       );
-      _advanceSessionEpoch();
-      _user = await _withFeatureAccess(user);
-
-      await _saveSession(_user!, token: token);
+      final hydrated = await _hydrateCredentialSession(user, token);
+      if (!hydrated) {
+        _isLoading = false;
+        notifyListeners();
+        return false;
+      }
       await AppLogger.instance.info(
         'Auth',
         'Registration succeeded',
@@ -1630,9 +1684,12 @@ class AuthProvider extends ChangeNotifier {
         currentPassword: currentPassword,
         newPassword: newPassword,
       );
-      _advanceSessionEpoch();
-      _user = await _withFeatureAccess(user);
-      await _saveSession(_user!, token: token);
+      final hydrated = await _hydrateCredentialSession(user, token);
+      if (!hydrated) {
+        _isLoading = false;
+        notifyListeners();
+        return false;
+      }
       await AppLogger.instance.info(
         'Auth',
         'Password change succeeded',

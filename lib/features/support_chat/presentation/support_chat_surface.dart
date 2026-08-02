@@ -1,8 +1,8 @@
 import 'dart:async';
 import 'dart:math';
-import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
@@ -126,7 +126,7 @@ class SupportChatBubble extends StatelessWidget {
       child: Badge.count(
         count: unread,
         isLabelVisible: unread > 0,
-        child: FloatingActionButton.small(
+        child: FloatingActionButton(
           heroTag: null,
           tooltip: 'Hỗ trợ',
           onPressed: onPressed,
@@ -153,11 +153,13 @@ class SupportChatPanel extends StatefulWidget {
 
 class _SupportChatPanelState extends State<SupportChatPanel> {
   final _textController = TextEditingController();
+  final _composerFocusNode = FocusNode();
   final _scrollController = ScrollController();
   final _picker = ImagePicker();
   List<SupportChatImageDraft> _images = const [];
   String? _pendingClientMessageId;
   SupportChatProvider? _provider;
+  bool _sendInFlight = false;
 
   @override
   void didChangeDependencies() {
@@ -179,6 +181,7 @@ class _SupportChatPanelState extends State<SupportChatPanel> {
     final provider = _provider;
     if (provider != null) unawaited(provider.setSurfaceActive(false));
     _textController.dispose();
+    _composerFocusNode.dispose();
     _scrollController.dispose();
     super.dispose();
   }
@@ -240,27 +243,67 @@ class _SupportChatPanelState extends State<SupportChatPanel> {
 
   Future<void> _send() async {
     final provider = context.read<SupportChatProvider>();
+    if (_sendInFlight || provider.isSending) return;
+    if (_images.isEmpty && _textController.text.trim().isEmpty) return;
+    _sendInFlight = true;
     final clientMessageId = _pendingClientMessageId ??= _newClientMessageId();
-    final success = _images.isNotEmpty
-        ? await provider.sendImages(clientMessageId, _images)
-        : await provider.sendText(clientMessageId, _textController.text);
-    if (!mounted) return;
-    if (success) {
-      setState(() {
-        if (_images.isEmpty) _textController.clear();
-        _images = const [];
-        _pendingClientMessageId = null;
-      });
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (_scrollController.hasClients) {
-          _scrollController.animateTo(
-            _scrollController.position.maxScrollExtent,
-            duration: const Duration(milliseconds: 180),
-            curve: Curves.easeOut,
-          );
-        }
-      });
+    try {
+      final success = _images.isNotEmpty
+          ? await provider.sendImages(clientMessageId, _images)
+          : await provider.sendText(clientMessageId, _textController.text);
+      if (!mounted) return;
+      if (success) {
+        setState(() {
+          if (_images.isEmpty) _textController.clear();
+          _images = const [];
+          _pendingClientMessageId = null;
+        });
+        _composerFocusNode.requestFocus();
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (_scrollController.hasClients) {
+            _scrollController.animateTo(
+              _scrollController.position.maxScrollExtent,
+              duration: const Duration(milliseconds: 180),
+              curve: Curves.easeOut,
+            );
+          }
+        });
+      }
+    } finally {
+      _sendInFlight = false;
     }
+  }
+
+  KeyEventResult _handleComposerKeyEvent(FocusNode node, KeyEvent event) {
+    if (event is! KeyDownEvent) return KeyEventResult.ignored;
+    final isEnter =
+        event.logicalKey == LogicalKeyboardKey.enter ||
+        event.logicalKey == LogicalKeyboardKey.numpadEnter;
+    if (!isEnter) return KeyEventResult.ignored;
+    // Let the IME finish composing text; intercepting here would drop the
+    // composition candidate instead of submitting the completed message.
+    if (_textController.value.composing.isValid) {
+      return KeyEventResult.ignored;
+    }
+    if (HardwareKeyboard.instance.isShiftPressed) {
+      final value = _textController.value;
+      final selection = value.selection.isValid
+          ? value.selection
+          : TextSelection.collapsed(offset: value.text.length);
+      final start = selection.start.clamp(0, value.text.length);
+      final end = selection.end.clamp(start, value.text.length);
+      final text = value.text.replaceRange(start, end, '\n');
+      _textController.value = value.copyWith(
+        text: text,
+        selection: TextSelection.collapsed(offset: start + 1),
+        composing: TextRange.empty,
+      );
+      _pendingClientMessageId ??= _newClientMessageId();
+      setState(() {});
+      return KeyEventResult.handled;
+    }
+    unawaited(_send());
+    return KeyEventResult.handled;
   }
 
   String _newClientMessageId() {
@@ -473,19 +516,24 @@ class _SupportChatPanelState extends State<SupportChatPanel> {
                   ),
                   const SizedBox(width: 8),
                   Expanded(
-                    child: AppTextInput(
-                      controller: _textController,
-                      label: 'Tin nhắn',
-                      hintText: 'Nhập nội dung cần hỗ trợ',
-                      minLines: 1,
-                      maxLines: 4,
-                      enabled: !provider.isSending && _images.isEmpty,
-                      textCapitalization: TextCapitalization.sentences,
-                      onChanged: (_) {
-                        _pendingClientMessageId ??= _newClientMessageId();
-                        setState(() {});
-                      },
-                      onSubmitted: (_) => _send(),
+                    child: Focus(
+                      onKeyEvent: _handleComposerKeyEvent,
+                      child: AppTextInput(
+                        controller: _textController,
+                        focusNode: _composerFocusNode,
+                        label: 'Tin nhắn',
+                        hintText: 'Enter để gửi · Shift+Enter xuống dòng',
+                        minLines: 1,
+                        maxLines: 4,
+                        enabled: !provider.isSending && _images.isEmpty,
+                        textCapitalization: TextCapitalization.sentences,
+                        textInputAction: TextInputAction.send,
+                        onChanged: (_) {
+                          _pendingClientMessageId ??= _newClientMessageId();
+                          setState(() {});
+                        },
+                        onSubmitted: (_) => _send(),
+                      ),
                     ),
                   ),
                   const SizedBox(width: 8),

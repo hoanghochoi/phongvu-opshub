@@ -27,6 +27,101 @@ void main() {
     AppLogger.instance.setUploadsEnabledForTesting(true);
   });
 
+  test('fresh login hydrates Support Chat before the shell is ready', () async {
+    final repository = _FakeAuthRepository(
+      loginResult: (_sparseCredentialUser, 'login-token'),
+      bootstrapResult: _supportBootstrapResult,
+    );
+    final provider = AuthProvider(repository);
+    await _waitForInitialization(provider);
+
+    expect(
+      await provider.login(
+        email: _refreshedUser.email,
+        password: 'Password1!',
+      ),
+      isTrue,
+    );
+    expect(repository.bootstrapCount, 1);
+    expect(provider.hasUsableAccessSnapshot, isTrue);
+    expect(provider.user?.id, _refreshedUser.id);
+    expect(provider.supportChatEnabled, isTrue);
+    expect(provider.realtimeV2Topics, contains('support.chat'));
+    provider.dispose();
+  });
+
+  test('bootstrap outage keeps the accepted login retryable and fail-closed', () async {
+    final repository = _FakeAuthRepository(
+      loginResult: (_refreshedUser, 'login-token'),
+      bootstrapError: ApiException('Hệ thống đang bận.', 503),
+    );
+    final provider = AuthProvider(repository);
+    await _waitForInitialization(provider);
+
+    expect(
+      await provider.login(
+        email: _refreshedUser.email,
+        password: 'Password1!',
+      ),
+      isTrue,
+    );
+    expect(provider.isAuthenticated, isTrue);
+    expect(provider.hasUsableAccessSnapshot, isFalse);
+    expect(provider.supportChatEnabled, isFalse);
+    expect(provider.accessSyncState, AuthAccessSyncState.failed);
+    provider.dispose();
+  });
+
+  test('registration and password change hydrate the same bootstrap contract', () async {
+    final registrationRepository = _FakeAuthRepository(
+      registerResult: (_refreshedUser, 'registration-token'),
+      bootstrapResult: _supportBootstrapResult,
+    );
+    final registrationProvider = AuthProvider(registrationRepository);
+    await _waitForInitialization(registrationProvider);
+
+    expect(
+      await registrationProvider.register(
+        firstName: 'Staging',
+        email: _refreshedUser.email,
+        password: 'Password1!',
+        verificationCode: '123456',
+      ),
+      isTrue,
+    );
+    expect(registrationProvider.supportChatEnabled, isTrue);
+    expect(registrationRepository.bootstrapCount, 1);
+    registrationProvider.dispose();
+
+    ApiClient().setAuthToken(null);
+    SharedPreferences.setMockInitialValues({});
+    FlutterSecureStorage.setMockInitialValues({});
+    final passwordRepository = _FakeAuthRepository(
+      loginResult: (_refreshedUser, 'login-token'),
+      changePasswordResult: (_refreshedUser, 'changed-token'),
+      bootstrapResults: [_supportBootstrapResult, _supportBootstrapResult],
+    );
+    final passwordProvider = AuthProvider(passwordRepository);
+    await _waitForInitialization(passwordProvider);
+    expect(
+      await passwordProvider.login(
+        email: _refreshedUser.email,
+        password: 'Password1!',
+      ),
+      isTrue,
+    );
+    expect(
+      await passwordProvider.changePassword(
+        currentPassword: 'Password1!',
+        newPassword: 'Password2!',
+      ),
+      isTrue,
+    );
+    expect(passwordRepository.bootstrapCount, 2);
+    expect(passwordProvider.supportChatEnabled, isTrue);
+    passwordProvider.dispose();
+  });
+
   test('hydrates cached access before bootstrap refresh completes', () async {
     final bootstrap = Completer<AuthBootstrapResult>();
     _seedSavedSnapshot(
@@ -651,7 +746,32 @@ const _refreshedUser = User(
   ],
 );
 
+const _sparseCredentialUser = User(
+  email: 'staging.user0012@phongvu.vn',
+  role: 'USER',
+);
+
+final _supportBootstrapResult = AuthBootstrapResult.data(
+  data: AuthBootstrapData(
+    schemaVersion: 1,
+    generatedAt: DateTime.utc(2026, 8, 2, 1),
+    version: 'login-access-v1',
+    user: _refreshedUser,
+    featureAccess: {'SUPPORT_CHAT': true},
+    policyAccess: {},
+    capabilities: AuthBootstrapCapabilities(
+      conditionalGet: true,
+      supportChat: true,
+      realtimeV2Topics: ['support.chat'],
+    ),
+  ),
+  etag: '"login-access-v1"',
+);
+
 class _FakeAuthRepository extends AuthRepository {
+  final (User, String?)? loginResult;
+  final (User, String?)? registerResult;
+  final (User, String?)? changePasswordResult;
   AuthBootstrapResult? bootstrapResult;
   Object? bootstrapError;
   final Future<AuthBootstrapResult>? bootstrapFuture;
@@ -666,12 +786,45 @@ class _FakeAuthRepository extends AuthRepository {
   final List<String?> bootstrapFallbackEmails = [];
 
   _FakeAuthRepository({
+    this.loginResult,
+    this.registerResult,
+    this.changePasswordResult,
     this.bootstrapResult,
     this.bootstrapError,
     this.bootstrapFuture,
     List<AuthBootstrapResult>? bootstrapResults,
   }) : bootstrapResults = [...?bootstrapResults],
        super(ApiClient());
+
+  @override
+  Future<(User, String?)> login({
+    required String email,
+    required String password,
+  }) async {
+    return loginResult ?? (throw StateError('login result not configured'));
+  }
+
+  @override
+  Future<(User, String?)> register({
+    required String firstName,
+    String? lastName,
+    required String email,
+    required String password,
+    required String verificationCode,
+  }) async {
+    return registerResult ??
+        (throw StateError('register result not configured'));
+  }
+
+  @override
+  Future<(User, String?)> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    return changePasswordResult ??
+        (throw StateError('change-password result not configured'));
+  }
+
 
   @override
   Future<AuthBootstrapResult> getBootstrap({
