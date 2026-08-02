@@ -519,15 +519,8 @@ jobs:
       - name: Capture controlled rollback baseline
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.failure_injection != 'none' }}
         shell: bash
-        env:
-          CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
-          CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
         run: |
           set -euo pipefail
-          if [[ -z "${CF_ACCESS_CLIENT_ID}" || -z "${CF_ACCESS_CLIENT_SECRET}" ]]; then
-            echo 'Cloudflare Access service credentials are required for rollback proof.' >&2
-            exit 1
-          fi
           mkdir -p dist/staging-rollback-baseline
           ssh opshub-staging \
             "CURRENT_DIR='${OPSHUB_REMOTE_APP_DIR}/current' \
@@ -539,22 +532,19 @@ jobs:
             < deploy/staging/release-fingerprint.sh \
             > dist/staging-rollback-baseline/runtime.txt
 
-          access_curl() {
-            curl -fsS \
-              -H "CF-Access-Client-Id: ${CF_ACCESS_CLIENT_ID}" \
-              -H "CF-Access-Client-Secret: ${CF_ACCESS_CLIENT_SECRET}" \
-              "$1"
+          public_curl() {
+            curl -fsS "$1"
           }
-          access_curl "${OPSHUB_PUBLIC_BASE_URL}/health" >/dev/null
-          access_curl "${OPSHUB_API_BASE_URL}/app-version?platform=android" \
+          public_curl "${OPSHUB_PUBLIC_BASE_URL}/health" >/dev/null
+          public_curl "${OPSHUB_API_BASE_URL}/app-version?platform=android" \
             > dist/staging-rollback-baseline/android.json
-          access_curl "${OPSHUB_API_BASE_URL}/app-version?platform=windows" \
+          public_curl "${OPSHUB_API_BASE_URL}/app-version?platform=windows" \
             > dist/staging-rollback-baseline/windows.json
-          access_curl "${OPSHUB_API_BASE_URL}/app-version?platform=web" \
+          public_curl "${OPSHUB_API_BASE_URL}/app-version?platform=web" \
             > dist/staging-rollback-baseline/web.json
-          access_curl "${OPSHUB_API_BASE_URL}/help-content/public" \
+          public_curl "${OPSHUB_API_BASE_URL}/help-content/public" \
             > dist/staging-rollback-baseline/help.json
-          access_curl "${OPSHUB_DOWNLOAD_PUBLIC_BASE_URL}/downloads/latest.json" \
+          public_curl "${OPSHUB_DOWNLOAD_PUBLIC_BASE_URL}/downloads/latest.json" \
             > dist/staging-rollback-baseline/manifest.json
 
       - name: Rehearse shared static transaction (staging-only)
@@ -1429,25 +1419,12 @@ jobs:
       - name: Verify staging public health and version metadata
         shell: bash
         env:
-          CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
-          CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
           STAGING_FAILURE_INJECTION: ${{ inputs.failure_injection || 'none' }}
         run: |
           set -euo pipefail
-          if [[ -z "${CF_ACCESS_CLIENT_ID}" || -z "${CF_ACCESS_CLIENT_SECRET}" ]]; then
-            echo "Cloudflare Access service credentials are required for staging verification." >&2
-            exit 1
-          fi
-          access_curl() {
+          public_curl() {
             local url="$1"
             shift
-            if [[ "$url" == "${OPSHUB_PUBLIC_BASE_URL}"* ]]; then
-              curl "$@" \
-                -H "CF-Access-Client-Id: ${CF_ACCESS_CLIENT_ID}" \
-                -H "CF-Access-Client-Secret: ${CF_ACCESS_CLIENT_SECRET}" \
-                "$url"
-              return
-            fi
             curl "$@" "$url"
           }
           retry_curl() {
@@ -1457,7 +1434,7 @@ jobs:
             local status
             for attempt in {1..12}; do
               response_file="$(mktemp)"
-              if status="$(access_curl "$url" -sS -o "$response_file" -w '%{http_code}')"; then
+            if status="$(public_curl "$url" -sS -o "$response_file" -w '%{http_code}')"; then
                 if [[ "$status" == 2* ]]; then
                   cat "$response_file"
                   rm -f "$response_file"
@@ -1477,7 +1454,7 @@ jobs:
             local safe_url="${url%%\?*}"
             for attempt in {1..12}; do
               if status="$(
-                access_curl "$url" \
+                public_curl "$url" \
                   -sS -H 'Range: bytes=0-0' -o /dev/null -w '%{http_code}'
               )" && [[ "$status" == 2* ]]; then
                 echo "Staging artifact verified: ${safe_url} (HTTP ${status})."
@@ -1518,7 +1495,7 @@ jobs:
           fi
           main_headers_file="$(mktemp)"
           if ! main_status="$(
-            access_curl "${OPSHUB_PUBLIC_BASE_URL}/main.dart.js?v=${GITHUB_SHA}" \
+            public_curl "${OPSHUB_PUBLIC_BASE_URL}/main.dart.js?v=${GITHUB_SHA}" \
               -sS -D "$main_headers_file" -o /dev/null -w '%{http_code}'
           )"; then
             rm -f "$main_headers_file"
@@ -1584,12 +1561,11 @@ jobs:
           " "$android_json" "$windows_json" "$web_json" "${{ needs.prepare.outputs.version_code }}" "$OPSHUB_DOWNLOAD_PUBLIC_BASE_URL"
           verify_download_artifact "$(node -e "console.log(JSON.parse(process.argv[1]).packageUrl)" "$android_json")"
           verify_download_artifact "$(node -e "console.log(JSON.parse(process.argv[1]).packageUrl)" "$windows_json")"
-          retry_curl "${OPSHUB_PUBLIC_BASE_URL}/download" >/dev/null
-          download_redirect_headers="$(curl -fsSI "${OPSHUB_PUBLIC_BASE_URL}/download")"
-          printf '%s\n' "$download_redirect_headers" |
-            grep -qi '^www-authenticate: Cloudflare-Access '
-          printf '%s\n' "$download_redirect_headers" |
-            grep -Eqi '^location: https://[^/]+\.cloudflareaccess\.com/cdn-cgi/access/login/.*redirect_url=%2Fdownload'
+          download_page="$(retry_curl "${OPSHUB_PUBLIC_BASE_URL}/download")"
+          if ! printf '%s\n' "$download_page" | grep -Fq '<title>Tải ứng dụng PhongVu OpsHub</title>'; then
+            echo 'Staging /download did not return the public download landing page.' >&2
+            exit 1
+          fi
           retry_curl "${OPSHUB_PUBLIC_BASE_URL}/help" >/dev/null
           help_json="$(retry_curl "${OPSHUB_API_BASE_URL}/help-content/public")"
           manifest_json="$(retry_curl "${OPSHUB_DOWNLOAD_PUBLIC_BASE_URL}/downloads/latest.json")"
@@ -1625,7 +1601,7 @@ jobs:
 
           ws_headers_file="$(mktemp)"
           if ! ws_status="$(
-            access_curl "${OPSHUB_PUBLIC_BASE_URL}/ws/v2" \
+            public_curl "${OPSHUB_PUBLIC_BASE_URL}/ws/v2" \
               --http1.1 -sS -D "$ws_headers_file" -o /dev/null -w '%{http_code}' \
               -H 'Connection: Upgrade' \
               -H 'Upgrade: websocket' \
@@ -1814,8 +1790,6 @@ jobs:
         if: ${{ failure() && github.event_name == 'workflow_dispatch' && inputs.failure_injection != 'none' }}
         shell: bash
         env:
-          CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
-          CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
           STAGING_FAILURE_INJECTION: ${{ inputs.failure_injection }}
         run: |
           set -euo pipefail
@@ -1833,18 +1807,15 @@ jobs:
             > "$baseline_dir/runtime-after.txt"
           diff -u "$baseline_dir/runtime.txt" "$baseline_dir/runtime-after.txt"
 
-          access_curl() {
-            curl -fsS \
-              -H "CF-Access-Client-Id: ${CF_ACCESS_CLIENT_ID}" \
-              -H "CF-Access-Client-Secret: ${CF_ACCESS_CLIENT_SECRET}" \
-              "$1"
+          public_curl() {
+            curl -fsS "$1"
           }
-          access_curl "${OPSHUB_PUBLIC_BASE_URL}/health" >/dev/null
-          access_curl "${OPSHUB_API_BASE_URL}/app-version?platform=android" > "$baseline_dir/android-after.json"
-          access_curl "${OPSHUB_API_BASE_URL}/app-version?platform=windows" > "$baseline_dir/windows-after.json"
-          access_curl "${OPSHUB_API_BASE_URL}/app-version?platform=web" > "$baseline_dir/web-after.json"
-          access_curl "${OPSHUB_API_BASE_URL}/help-content/public" > "$baseline_dir/help-after.json"
-          access_curl "${OPSHUB_DOWNLOAD_PUBLIC_BASE_URL}/downloads/latest.json" > "$baseline_dir/manifest-after.json"
+          public_curl "${OPSHUB_PUBLIC_BASE_URL}/health" >/dev/null
+          public_curl "${OPSHUB_API_BASE_URL}/app-version?platform=android" > "$baseline_dir/android-after.json"
+          public_curl "${OPSHUB_API_BASE_URL}/app-version?platform=windows" > "$baseline_dir/windows-after.json"
+          public_curl "${OPSHUB_API_BASE_URL}/app-version?platform=web" > "$baseline_dir/web-after.json"
+          public_curl "${OPSHUB_API_BASE_URL}/help-content/public" > "$baseline_dir/help-after.json"
+          public_curl "${OPSHUB_DOWNLOAD_PUBLIC_BASE_URL}/downloads/latest.json" > "$baseline_dir/manifest-after.json"
 
           node - "$baseline_dir" <<'NODE'
           const fs = require('node:fs');

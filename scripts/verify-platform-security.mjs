@@ -647,10 +647,10 @@ for (const guardedCompose of [
   );
 }
 contains(stagingWorkflow, '--no-web-resources-cdn', 'staging local Flutter web resources');
-contains(stagingWorkflow, 'secrets.CF_ACCESS_CLIENT_ID', 'staging Access client ID secret');
-contains(stagingWorkflow, 'secrets.CF_ACCESS_CLIENT_SECRET', 'staging Access client secret');
-contains(stagingWorkflow, 'CF-Access-Client-Id:', 'staging Access client ID header');
-contains(stagingWorkflow, 'CF-Access-Client-Secret:', 'staging Access client secret header');
+excludes(stagingWorkflow, 'secrets.CF_ACCESS_CLIENT_ID', 'retired staging Access client ID secret');
+excludes(stagingWorkflow, 'secrets.CF_ACCESS_CLIENT_SECRET', 'retired staging Access client secret');
+excludes(stagingWorkflow, 'CF-Access-Client-Id:', 'retired staging Access client ID header');
+excludes(stagingWorkflow, 'CF-Access-Client-Secret:', 'retired staging Access client secret header');
 contains(stagingWorkflow, 'rollback_on_error()', 'staging automatic rollback trap');
 contains(
   stagingWorkflow,
@@ -851,7 +851,7 @@ for (const [workflow, label] of [
   excludes(workflow, 'actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5', `${label} deprecated checkout pin`);
   excludes(workflow, 'actions/checkout@v', `${label} floating checkout version`);
 }
-contains(stagingWorkflow, '[[ "$status" == 2* ]]', 'staging Access 2xx verification gate');
+contains(stagingWorkflow, '[[ "$status" == 2* ]]', 'staging public 2xx verification gate');
 contains(
   stagingWorkflow,
   'OPSHUB_DOWNLOAD_PUBLIC_BASE_URL: https://opshub-staging.hoanghochoi.com',
@@ -866,9 +866,9 @@ contains(stagingWorkflow, '-D "$main_headers_file" -o /dev/null', 'staging real 
 contains(stagingWorkflow, 'main.dart.js returned HTTP ${main_status}', 'staging asset status diagnostics');
 contains(productionWorkflow, '-D "$main_headers_file" -o /dev/null', 'production real GET header verification');
 contains(productionWorkflow, 'main.dart.js returned HTTP ${main_status}', 'production asset status diagnostics');
-excludes(stagingWorkflow, 'main.dart.js?v=${GITHUB_SHA}" -fsSI', 'staging Access HEAD-only asset verification');
-contains(stagingWorkflow, "^www-authenticate: Cloudflare-Access ", 'staging Access challenge verification');
-contains(stagingWorkflow, 'redirect_url=%2Fdownload', 'staging Access download redirect verification');
+excludes(stagingWorkflow, 'main.dart.js?v=${GITHUB_SHA}" -fsSI', 'staging public HEAD-only asset verification');
+contains(stagingWorkflow, '<title>Tải ứng dụng PhongVu OpsHub</title>', 'staging public download landing-page verification');
+excludes(stagingWorkflow, 'cloudflareaccess.com/cdn-cgi/access/login/', 'retired staging Access download redirect verification');
 contains(pubspec, '- family: Roboto', 'local Flutter Roboto fallback');
 contains(pubspec, 'fonts/Roboto-Regular.ttf', 'local Flutter Roboto asset');
 contains(robotoLicense, 'Apache License', 'Roboto license attribution');

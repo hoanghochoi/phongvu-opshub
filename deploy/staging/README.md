@@ -3,7 +3,7 @@
 Staging uses `mementoamoris` through Tailscale and exposes the staging API at
 `opshub-staging.hoanghochoi.com` through a dedicated Cloudflare Tunnel. Staging
 client downloads and manifests are served directly from
-`https://opshub-staging.hoanghochoi.com/downloads/`; the protected download page
+`https://opshub-staging.hoanghochoi.com/downloads/`; the public download page
 is `https://opshub-staging.hoanghochoi.com/download`.
 
 ## One-time server setup
@@ -153,7 +153,7 @@ and any versioned client file whose target name already existed. New client and
 static files remain under run/attempt-scoped staging paths until this checkpoint
 is complete; release directories are also run/attempt-scoped so rerunning the
 same SHA cannot mutate the active release in place. Migration, recreate, health
-check, direct-origin routes, public API/metadata, Cloudflare Access, or `/ws/v2`
+check, direct-origin routes, public API/metadata, download-page content, or `/ws/v2`
 route proof failure restores the env, symlink/services and every shared file;
 only target-version files that did not exist before promotion are removed. The
 protected metadata remains on the server until every public gate is green and
@@ -217,9 +217,9 @@ The sanitizer creates these known users with the password above:
 - `staging.acare@acare.vn`
 
 Rotate the staging password and revoke test sessions after every shared test
-window. Before exposing this environment, place the hostname behind Cloudflare
-Access, VPN or an equivalent identity-aware allowlist; DNS plus a tunnel alone
-is not an access-control boundary.
+window. Staging is intentionally public and does not use Cloudflare Access;
+protect staff data with the application authentication and authorization layers.
+DNS plus a tunnel alone is not an application access-control boundary.
 
 After deploy or refresh, run `deploy/staging/smoke-checklist.md`.
 

@@ -96,7 +96,7 @@ load headers are present. Caddy validates the telemetry nonce as exactly 64
 lowercase hexadecimal characters and accepts only the fixed 1/7/30/90-day
 range tags plus `legacy` or `daily_series`. It overwrites any caller-supplied
 `X-Request-Id` with Caddy's request UUID before proxying to Nest. The nonce is a
-per-run provenance value, not an authentication control; Cloudflare Access and
+per-run provenance value, not an authentication control; application auth and
 API authentication remain mandatory.
 
 Caddy deletes the complete request, response headers, TLS data and user field

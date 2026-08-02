@@ -2,21 +2,22 @@
 
 ## Objective
 
-Restore reliable staging deployment verification without weakening rollback or
-security checks.
+Restore reliable public staging deployment verification without weakening
+rollback, content, or artifact checks.
 
 ## Evidence
 
 GitHub Actions runs 30759850730 and 30759924146 both passed client builds and
 backend deployment, returned `ok` from `/health`, then exited silently in
 `Verify staging public health and version metadata`. The affected workflow uses
-direct `curl -fIs` calls for package and manifest URLs, bypassing the
-Cloudflare Access-aware request helper and providing neither retry nor status
-diagnostics.
+direct `curl -fIs` calls for package and manifest URLs, providing neither retry
+nor status diagnostics. The first follow-up showed that Cloudflare Access has
+now been intentionally removed from staging, so all verification must use the
+public contract rather than service credentials or an Access redirect.
 
 ## Plan
 
-1. Add a bounded, Access-aware range-request helper to validate public download
+1. Add a bounded public range-request helper to validate public download
    artifacts without downloading complete packages.
 2. Route all package and manifest artifact checks through that helper. Keep
    verification fail-closed after the retry budget is exhausted.
@@ -27,6 +28,7 @@ diagnostics.
 
 ## Protected behavior
 
-- Cloudflare Access remains required for protected staging requests.
+- The staging download page is public and must render the download landing page,
+  not the SPA fallback.
 - Staging rollback still occurs when public artifacts cannot be verified.
 - Large installers are not fully downloaded during verification.
