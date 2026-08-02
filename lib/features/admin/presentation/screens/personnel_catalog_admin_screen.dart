@@ -203,10 +203,10 @@ class _PersonnelCatalogAdminScreenState
               onAddJobRole: () => _openJobRoleEditor(),
             ),
             const SizedBox(height: AppLayoutTokens.sectionGap),
-            AppSurfaceCard(
-              key: const Key('personnel-catalog-tabs'),
-              padding: EdgeInsets.zero,
+            Material(
+              color: AppColors.transparent,
               child: TabBar(
+                key: const Key('personnel-catalog-tabs'),
                 onTap: (index) => setState(() => _tabIndex = index),
                 labelColor: AppColors.primaryOf(context),
                 unselectedLabelColor: AppColors.textMutedOf(context),
@@ -308,67 +308,37 @@ class _PersonnelCatalogHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AppSurfaceCard(
+    return Column(
       key: const Key('personnel-catalog-header'),
-      backgroundColor: AppColors.primarySurfaceOf(context),
-      borderColor: AppColors.primaryOf(context).withValues(alpha: 0.20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 52,
-                height: 52,
-                decoration: BoxDecoration(
-                  color: AppColors.primaryOf(context).withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(
-                    AppLayoutTokens.cardRadius,
-                  ),
-                ),
-                child: Icon(
-                  Icons.badge_outlined,
-                  color: AppColors.primaryOf(context),
-                ),
-              ),
-              const SizedBox(width: AppLayoutTokens.formInlineGap),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Danh mục nhân sự', style: AppTextStyles.headingM),
-                    const SizedBox(height: AppLayoutTokens.formInlineGap),
-                    Text(
-                      loading
-                          ? 'Đang tải danh mục'
-                          : '$departmentCount phòng ban • $jobRoleCount chức danh',
-                      style: AppTextStyles.labelS.copyWith(
-                        color: AppColors.textMutedOf(context),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Danh mục nhân sự', style: AppTextStyles.headingM),
+        const SizedBox(height: 8),
+        Text(
+          loading
+              ? 'Đang tải danh mục'
+              : '$departmentCount phòng ban • $jobRoleCount chức danh',
+          style: AppTextStyles.bodyM.copyWith(
+            color: AppColors.textMutedOf(context),
           ),
-          const SizedBox(height: AppLayoutTokens.formSectionGap),
-          AppActionRow(
-            children: [
-              AppSecondaryButton(
-                onPressed: loading ? null : onAddDepartment,
-                icon: Icons.apartment_outlined,
-                label: 'Thêm phòng ban',
-              ),
-              AppSecondaryButton(
-                onPressed: loading ? null : onAddJobRole,
-                icon: Icons.badge_outlined,
-                label: 'Thêm chức danh',
-              ),
-            ],
-          ),
-        ],
-      ),
+        ),
+        const SizedBox(height: AppLayoutTokens.formSectionGap),
+        AppActionRow(
+          desktopAlignment: MainAxisAlignment.start,
+          children: [
+            AppPrimaryButton(
+              onPressed: loading ? null : onAddDepartment,
+              icon: Icons.apartment_outlined,
+              label: 'Thêm phòng ban',
+            ),
+            AppPrimaryButton(
+              onPressed: loading ? null : onAddJobRole,
+              icon: Icons.badge_outlined,
+              label: 'Thêm chức danh',
+            ),
+          ],
+        ),
+      ],
     );
   }
 }
@@ -395,13 +365,26 @@ class _CatalogList extends StatelessWidget {
         ),
       );
     }
-    return Column(
-      children: [
-        for (var index = 0; index < itemCount; index += 1) ...[
-          if (index > 0) const SizedBox(height: 10),
-          itemBuilder(context, index),
-        ],
-      ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final columns = constraints.maxWidth >= 1080
+            ? 3
+            : constraints.maxWidth >= 680
+            ? 2
+            : 1;
+        return GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: itemCount,
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: columns,
+            crossAxisSpacing: AppLayoutTokens.cardGap,
+            mainAxisSpacing: AppLayoutTokens.cardGap,
+            mainAxisExtent: 126,
+          ),
+          itemBuilder: itemBuilder,
+        );
+      },
     );
   }
 }

@@ -116,10 +116,19 @@ class AppNotificationsContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (fullPage) {
+      return _FullPageNotificationsInbox(
+        provider: provider,
+        onReload: _reload,
+        onApprove: (request) =>
+            _handleReview(context, provider, request, approved: true),
+        onReject: (request) =>
+            _handleReview(context, provider, request, approved: false),
+        onOpenOffsetAdjustments: () => _openOffsetAdjustments(context),
+      );
+    }
     final width = MediaQuery.sizeOf(context).width;
-    final menuWidth = fullPage
-        ? double.infinity
-        : (width < 460 ? width - 24 : 440.0);
+    final menuWidth = width < 460 ? width - 24 : 440.0;
     final maxHeight = MediaQuery.sizeOf(context).height - 120;
     final requests = provider.statementOrderRequests;
     final offsets = provider.offsetAdjustmentRequests;
@@ -177,8 +186,6 @@ class AppNotificationsContent extends StatelessWidget {
             padding: EdgeInsets.symmetric(vertical: 24),
             child: Center(child: SelectableText('Chưa có thông báo.')),
           )
-        : fullPage
-        ? notificationList
         : SingleChildScrollView(primary: false, child: notificationList);
     final content = Padding(
       padding: const EdgeInsets.all(AppLayoutTokens.cardPadding),
@@ -216,22 +223,25 @@ class AppNotificationsContent extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 8),
-            fullPage ? body : Flexible(child: body),
+            Flexible(child: body),
           ],
         ),
       ),
     );
     return SizedBox(
       width: menuWidth,
-      child: fullPage
-          ? content
-          : ConstrainedBox(
-              constraints: BoxConstraints(
-                maxHeight: maxHeight.clamp(260.0, 560.0).toDouble(),
-              ),
-              child: content,
-            ),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxHeight: maxHeight.clamp(260.0, 560.0).toDouble(),
+        ),
+        child: content,
+      ),
     );
+  }
+
+  Future<void> _reload() async {
+    await provider.load();
+    await provider.markVisibleNotificationsRead();
   }
 
   void _openOffsetAdjustments(BuildContext context) {
@@ -311,6 +321,407 @@ class AppNotificationsContent extends StatelessWidget {
     } finally {
       controller.dispose();
     }
+  }
+}
+
+class _FullPageNotificationsInbox extends StatelessWidget {
+  final AppNotificationsProvider provider;
+  final Future<void> Function() onReload;
+  final Future<void> Function(BankStatementOrderTransferRequest) onApprove;
+  final Future<void> Function(BankStatementOrderTransferRequest) onReject;
+  final VoidCallback onOpenOffsetAdjustments;
+
+  const _FullPageNotificationsInbox({
+    required this.provider,
+    required this.onReload,
+    required this.onApprove,
+    required this.onReject,
+    required this.onOpenOffsetAdjustments,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final requests = provider.statementOrderRequests;
+    final offsets = provider.offsetAdjustmentRequests;
+    final hasNotifications = requests.isNotEmpty || offsets.isNotEmpty;
+    return Align(
+      alignment: Alignment.topCenter,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 840),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _NotificationsInboxHeader(
+              isLoading: provider.isLoading,
+              onReload: onReload,
+            ),
+            const SizedBox(height: AppLayoutTokens.cardGap),
+            if (provider.isLoading && !hasNotifications)
+              const _NotificationListCard(
+                child: AppListSkeleton(
+                  itemCount: 3,
+                  showLeading: false,
+                  showTrailing: false,
+                  itemHeight: 92,
+                  scrollable: false,
+                ),
+              )
+            else if (!hasNotifications)
+              const _NotificationListCard(
+                child: Padding(
+                  padding: EdgeInsets.symmetric(vertical: 24),
+                  child: Center(child: SelectableText('Chưa có thông báo.')),
+                ),
+              )
+            else ...[
+              for (final request in requests) ...[
+                _FullPageStatementNotificationCard(
+                  request: request,
+                  canReview: provider.canReviewStatementOrderTransfers,
+                  onApprove: () => onApprove(request),
+                  onReject: () => onReject(request),
+                ),
+                const SizedBox(height: AppLayoutTokens.cardGap),
+              ],
+              for (var index = 0; index < offsets.length; index++) ...[
+                _FullPageOffsetNotificationCard(
+                  request: offsets[index],
+                  onOpen: onOpenOffsetAdjustments,
+                ),
+                if (index < offsets.length - 1)
+                  const SizedBox(height: AppLayoutTokens.cardGap),
+              ],
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _NotificationsInboxHeader extends StatelessWidget {
+  final bool isLoading;
+  final Future<void> Function() onReload;
+
+  const _NotificationsInboxHeader({
+    required this.isLoading,
+    required this.onReload,
+  });
+
+  @override
+  Widget build(BuildContext context) => _NotificationListCard(
+    child: Row(
+      children: [
+        Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            color: AppColors.infoSurface,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: const Icon(
+            Icons.notifications_none_rounded,
+            color: AppColors.info,
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(child: Text('Thông báo', style: AppTextStyles.labelL)),
+        AppIconAction(
+          tooltip: 'Tải lại thông báo',
+          icon: Icons.refresh_rounded,
+          filled: false,
+          onPressed: isLoading ? null : onReload,
+        ),
+      ],
+    ),
+  );
+}
+
+class _NotificationListCard extends StatelessWidget {
+  final Widget child;
+
+  const _NotificationListCard({required this.child});
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.all(AppLayoutTokens.cardPadding),
+    decoration: BoxDecoration(
+      color: AppColors.cardOf(context),
+      border: Border.all(color: AppColors.borderOf(context)),
+      borderRadius: BorderRadius.circular(16),
+    ),
+    child: SelectionArea(child: child),
+  );
+}
+
+class _FullPageStatementNotificationCard extends StatelessWidget {
+  final BankStatementOrderTransferRequest request;
+  final bool canReview;
+  final Future<void> Function() onApprove;
+  final Future<void> Function() onReject;
+
+  const _FullPageStatementNotificationCard({
+    required this.request,
+    required this.canReview,
+    required this.onApprove,
+    required this.onReject,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final pending = request.status == 'PENDING';
+    final rejected = request.status == 'REJECTED';
+    final money = NumberFormat.decimalPattern('vi_VN');
+    final canAct = canReview && pending;
+    final title = rejected
+        ? 'Yêu cầu đổi mã đơn bị từ chối'
+        : request.status == 'APPROVED'
+        ? 'Yêu cầu đổi mã đơn đã xác nhận'
+        : canReview
+        ? 'Yêu cầu phê duyệt đổi mã đơn'
+        : 'Yêu cầu đổi mã đơn đang chờ duyệt';
+    final statusLabel = rejected
+        ? 'Bị từ chối'
+        : request.status == 'APPROVED'
+        ? 'Đã xử lý'
+        : 'Chờ duyệt';
+    final tone = rejected
+        ? _NotificationTone.error
+        : pending
+        ? _NotificationTone.warning
+        : _NotificationTone.neutral;
+    final detail = [
+      if (request.storeCode.isNotEmpty) 'Showroom ${request.storeCode}',
+      if (request.statementNumber.isNotEmpty)
+        'Mã sao kê ${request.statementNumber}',
+      '${money.format(request.amount)} VND',
+    ].join(' • ');
+    return _NotificationListCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _NotificationIconTile(tone: tone),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(title, style: AppTextStyles.labelM),
+                    if (detail.isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      SelectableText(
+                        detail,
+                        style: AppTextStyles.bodyS.copyWith(
+                          color: AppColors.textSecondaryOf(context),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              _NotificationStatus(tone: tone, label: statusLabel),
+            ],
+          ),
+          const SizedBox(height: 12),
+          SelectableText(
+            'Đơn cũ: ${statementOrdersText(request.oldOrders)} → Đơn đề nghị: ${statementOrdersText(request.requestedOrders)}',
+            style: AppTextStyles.bodyM.copyWith(
+              color: AppColors.textSecondaryOf(context),
+            ),
+          ),
+          if (rejected) ...[
+            const SizedBox(height: 8),
+            SelectableText(
+              'Cần làm: Kiểm tra lại mã đơn. Nếu giao dịch còn trong ngày, gửi yêu cầu mới; nếu đã qua 00:00, dùng chức năng Cấn trừ.',
+              style: AppTextStyles.bodyM.copyWith(
+                color: AppColors.textSecondaryOf(context),
+              ),
+            ),
+          ],
+          if (request.content.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            SelectableText(request.content, style: AppTextStyles.bodyM),
+          ],
+          if (canAct) ...[
+            const SizedBox(height: 12),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                SizedBox(
+                  width: 96,
+                  child: AppSecondaryButton(
+                    onPressed: onReject,
+                    icon: Icons.close_rounded,
+                    label: 'Từ chối',
+                    expand: false,
+                    size: AppButtonSize.medium,
+                    foregroundColor: AppColors.textPrimaryOf(context),
+                    borderColor: AppColors.borderOf(context),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                SizedBox(
+                  width: 120,
+                  child: AppPrimaryButton(
+                    onPressed: onApprove,
+                    icon: Icons.check_rounded,
+                    label: 'Xác nhận',
+                    size: AppButtonSize.medium,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _FullPageOffsetNotificationCard extends StatelessWidget {
+  final OffsetAdjustment request;
+  final VoidCallback onOpen;
+
+  const _FullPageOffsetNotificationCard({
+    required this.request,
+    required this.onOpen,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final rejected = request.status == OffsetAdjustmentStatus.rejected;
+    final money = NumberFormat.decimalPattern('vi_VN');
+    final detail = [
+      if (request.storeCode.isNotEmpty) 'Showroom ${request.storeCode}',
+      OffsetAdjustmentType.label(request.type),
+      '${money.format(request.amount)} VND',
+    ].join(' • ');
+    return Semantics(
+      button: true,
+      label: 'Mở hồ sơ cấn trừ',
+      child: InkWell(
+        onTap: onOpen,
+        borderRadius: BorderRadius.circular(16),
+        child: _NotificationListCard(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _NotificationIconTile(
+                tone: rejected
+                    ? _NotificationTone.error
+                    : _NotificationTone.warning,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      rejected
+                          ? 'Hồ sơ cấn trừ bị từ chối'
+                          : request.primaryOrderLabel.isEmpty
+                          ? OffsetAdjustmentType.label(request.type)
+                          : request.primaryOrderLabel,
+                      style: AppTextStyles.labelM,
+                    ),
+                    const SizedBox(height: 4),
+                    SelectableText(
+                      detail,
+                      style: AppTextStyles.bodyS.copyWith(
+                        color: AppColors.textSecondaryOf(context),
+                      ),
+                    ),
+                    if (rejected) ...[
+                      const SizedBox(height: 12),
+                      SelectableText(
+                        'Cần làm: Mở Cấn trừ để sửa và gửi lại.',
+                        style: AppTextStyles.bodyM.copyWith(
+                          color: AppColors.textSecondaryOf(context),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              _NotificationStatus(
+                tone: rejected
+                    ? _NotificationTone.error
+                    : _NotificationTone.warning,
+                label: rejected ? 'Bị từ chối' : 'Chờ xử lý',
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+enum _NotificationTone { neutral, warning, error }
+
+class _NotificationIconTile extends StatelessWidget {
+  final _NotificationTone tone;
+
+  const _NotificationIconTile({required this.tone});
+
+  @override
+  Widget build(BuildContext context) {
+    final color = switch (tone) {
+      _NotificationTone.error => AppColors.errorSurface,
+      _NotificationTone.warning => AppColors.warningSurface,
+      _NotificationTone.neutral => AppColors.infoSurface,
+    };
+    final iconColor = switch (tone) {
+      _NotificationTone.error => AppColors.error,
+      _NotificationTone.warning => AppColors.warning,
+      _NotificationTone.neutral => AppColors.info,
+    };
+    return Container(
+      width: 40,
+      height: 40,
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Icon(Icons.swap_horiz_rounded, color: iconColor, size: 22),
+    );
+  }
+}
+
+class _NotificationStatus extends StatelessWidget {
+  final _NotificationTone tone;
+  final String label;
+
+  const _NotificationStatus({required this.tone, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    final background = switch (tone) {
+      _NotificationTone.error => AppColors.errorSurface,
+      _NotificationTone.warning => AppColors.warningSurface,
+      _NotificationTone.neutral => AppColors.chipBackground,
+    };
+    final foreground = switch (tone) {
+      _NotificationTone.error => AppColors.error,
+      _NotificationTone.warning => AppColors.warning,
+      _NotificationTone.neutral => AppColors.textSecondaryOf(context),
+    };
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text(
+        label,
+        style: AppTextStyles.labelS.copyWith(color: foreground),
+      ),
+    );
   }
 }
 

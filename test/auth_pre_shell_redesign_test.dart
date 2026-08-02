@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'helpers/legacy_widget_finders.dart';
+import 'package:phongvu_opshub/app/widgets/app_layout.dart';
+import 'package:phongvu_opshub/app/widgets/app_logo.dart';
 import 'package:phongvu_opshub/core/logging/app_logger.dart';
 import 'package:phongvu_opshub/core/network/api_client.dart';
 import 'package:phongvu_opshub/features/auth/data/repositories/auth_repository.dart';
@@ -147,6 +149,11 @@ Future<void> _expectLoginViewport(
   expect(find.byType(LoginCard), findsOneWidget);
   expect(find.byType(LoginForm), findsOneWidget);
   expect(find.byType(AuthSecondaryActions), findsOneWidget);
+  expect(
+    tester.getSize(find.byType(LoginCard)).width,
+    lessThanOrEqualTo(AppLayoutTokens.authMaxWidth),
+  );
+  expect(tester.getSize(find.byType(AppLogo).first), const Size.square(56));
   expect(find.text('Quên mật khẩu'), findsOneWidget);
   expect(find.text('Đăng ký'), findsOneWidget);
   expect(find.text('Hướng dẫn'), findsOneWidget);

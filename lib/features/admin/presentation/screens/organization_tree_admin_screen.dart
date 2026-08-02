@@ -455,92 +455,88 @@ class _OrganizationTreeHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AppSurfaceCard(
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final compact = constraints.maxWidth < 640;
-          final title = Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Cơ cấu tổ chức', style: AppTextStyles.headingM),
-              const SizedBox(height: 6),
-              Text(
-                'Quản lý cây tổ chức và quyền theo đơn vị.',
-                style: AppTextStyles.bodyM.copyWith(
-                  color: AppColors.neutral600,
-                ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < 640;
+        final title = Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Cơ cấu tổ chức', style: AppTextStyles.headingM),
+            const SizedBox(height: 6),
+            Text(
+              'Quản lý cây tổ chức và quyền theo đơn vị.',
+              style: AppTextStyles.bodyM.copyWith(color: AppColors.neutral600),
+            ),
+            if (selected != null) ...[
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  Chip(
+                    label: Text(
+                      AdminOrganizationNodeTypes.titleOf(selected!.type),
+                    ),
+                  ),
+                  Chip(
+                    label: Text(
+                      selected!.isActive ? 'Đang hoạt động' : 'Đã tắt',
+                    ),
+                  ),
+                ],
               ),
-              if (selected != null) ...[
-                const SizedBox(height: 12),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    Chip(
-                      label: Text(
-                        AdminOrganizationNodeTypes.titleOf(selected!.type),
-                      ),
-                    ),
-                    Chip(
-                      label: Text(
-                        selected!.isActive ? 'Đang hoạt động' : 'Đã tắt',
-                      ),
-                    ),
-                  ],
-                ),
-              ],
             ],
-          );
-          final actions = Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
+          ],
+        );
+        final actions = Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            AppIconAction(
+              onPressed: loading ? null : () => unawaited(onReload()),
+              icon: Icons.refresh_outlined,
+              tooltip: 'Tải lại',
+            ),
+            if (canEditStructure) ...[
+              const SizedBox(width: 8),
               AppIconAction(
-                onPressed: loading ? null : () => unawaited(onReload()),
-                icon: Icons.refresh_outlined,
-                tooltip: 'Tải lại',
+                onPressed: loading ? null : onAdd,
+                icon: Icons.add_outlined,
+                tooltip: 'Thêm đơn vị',
               ),
-              if (canEditStructure) ...[
-                const SizedBox(width: 8),
-                AppIconAction(
-                  onPressed: loading ? null : onAdd,
-                  icon: Icons.add_outlined,
-                  tooltip: 'Thêm đơn vị',
-                ),
-              ],
             ],
-          );
-          if (compact) {
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Icon(
-                      Icons.account_tree_outlined,
-                      color: AppColors.primary,
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(child: title),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                actions,
-              ],
-            );
-          }
-          return Row(
+          ],
+        );
+        if (compact) {
+          return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Icon(Icons.account_tree_outlined, color: AppColors.primary),
-              const SizedBox(width: 12),
-              Expanded(child: title),
-              const SizedBox(width: 12),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(
+                    Icons.account_tree_outlined,
+                    color: AppColors.primary,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(child: title),
+                ],
+              ),
+              const SizedBox(height: 12),
               actions,
             ],
           );
-        },
-      ),
+        }
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Icon(Icons.account_tree_outlined, color: AppColors.primary),
+            const SizedBox(width: 12),
+            Expanded(child: title),
+            const SizedBox(width: 12),
+            actions,
+          ],
+        );
+      },
     );
   }
 }

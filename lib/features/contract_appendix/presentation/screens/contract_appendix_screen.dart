@@ -60,7 +60,7 @@ class _ContractAppendixScreenState extends State<ContractAppendixScreen>
         children: [
           _Header(tabController: _tabController, onTab: _onTab),
           if (provider.errorMessage != null) ...[
-            const SizedBox(height: 12),
+            const SizedBox(height: 16),
             AppStatusBanner(
               icon: Icons.error_outline_rounded,
               title: 'Chưa thực hiện được',
@@ -69,7 +69,7 @@ class _ContractAppendixScreenState extends State<ContractAppendixScreen>
             ),
           ],
           if (provider.successMessage != null) ...[
-            const SizedBox(height: 12),
+            const SizedBox(height: 16),
             AppStatusBanner(
               icon: Icons.check_circle_outline_rounded,
               title: 'Đã cập nhật',
@@ -77,7 +77,7 @@ class _ContractAppendixScreenState extends State<ContractAppendixScreen>
               tone: AppStateTone.success,
             ),
           ],
-          const SizedBox(height: 12),
+          const SizedBox(height: 16),
           AnimatedBuilder(
             animation: _tabController,
             builder: (context, _) => _tabController.index == 0
@@ -141,61 +141,39 @@ class _Header extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AppSurfaceCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  color: AppColors.primarySurfaceOf(context),
-                  borderRadius: AppRadius.allMd,
-                ),
-                child: Icon(
-                  Icons.receipt_long_outlined,
-                  color: AppColors.primaryOf(context),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Phụ lục hợp đồng',
-                      style: AppTextStyles.headingM.copyWith(
-                        color: AppColors.textPrimaryOf(context),
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      'Lấy giá bán từ hệ thống, xác định thuế và sao chép bảng '
-                      'đã lưu thẳng vào Word.',
-                      style: AppTextStyles.bodyM.copyWith(
-                        color: AppColors.textSecondaryOf(context),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
+    return Column(
+      key: const Key('contract-appendix-workspace-header'),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Phụ lục hợp đồng',
+          style: AppTextStyles.headingM.copyWith(
+            color: AppColors.textPrimaryOf(context),
           ),
-          const SizedBox(height: 14),
-          TabBar(
-            controller: tabController,
-            onTap: onTab,
-            isScrollable: false,
-            tabs: const [
-              Tab(text: 'Tạo phụ lục'),
-              Tab(text: 'Lịch sử 30 ngày'),
-            ],
+        ),
+        const SizedBox(height: 4),
+        Text(
+          'Tạo bảng phụ lục từ đơn hàng và quản lý lịch sử gần đây.',
+          style: AppTextStyles.bodyS.copyWith(
+            color: AppColors.textSecondaryOf(context),
           ),
-        ],
-      ),
+        ),
+        const SizedBox(height: 16),
+        TabBar(
+          controller: tabController,
+          onTap: onTab,
+          isScrollable: false,
+          labelColor: AppColors.primaryOf(context),
+          unselectedLabelColor: AppColors.textSecondaryOf(context),
+          indicatorColor: AppColors.primaryOf(context),
+          indicatorWeight: 3,
+          dividerColor: AppColors.borderOf(context),
+          tabs: const [
+            Tab(text: 'Tạo phụ lục'),
+            Tab(text: 'Lịch sử 30 ngày'),
+          ],
+        ),
+      ],
     );
   }
 }
@@ -221,7 +199,7 @@ class _CreateWorkspace extends StatelessWidget {
           isLoading: provider.isLookingUp,
           onSubmit: () => _lookup(context),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 16),
         if (provider.draft == null)
           const AppSurfaceCard(
             child: AppStatePanel.empty(
@@ -280,7 +258,7 @@ class _OrderCommandBar extends StatelessWidget {
               icon: Icons.search_rounded,
             ),
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 12),
           SizedBox(
             width: MediaQuery.sizeOf(context).width < 600 ? 132 : 176,
             child: AppPrimaryButton(
@@ -289,6 +267,7 @@ class _OrderCommandBar extends StatelessWidget {
               label: 'Lấy thông tin',
               isLoading: isLoading,
               loadingLabel: 'Đang lấy',
+              size: AppButtonSize.medium,
             ),
           ),
         ],
@@ -318,7 +297,7 @@ class _DocumentWorkspace extends StatelessWidget {
                 'sản phẩm. Vui lòng chọn thuế nhập tay trước khi lưu.',
             tone: AppStateTone.warning,
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 16),
         ],
         LayoutBuilder(
           builder: (context, constraints) {
@@ -329,13 +308,13 @@ class _DocumentWorkspace extends StatelessWidget {
                   _DesktopEditor(document: document, provider: provider)
                 else
                   _MobileEditor(document: document, provider: provider),
-                const SizedBox(height: 12),
+                const SizedBox(height: 16),
                 ContractAppendixPreviewCard(document: document),
               ],
             );
           },
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 16),
         AppSurfaceCard(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -348,6 +327,7 @@ class _DocumentWorkspace extends StatelessWidget {
                     icon: Icons.calculate_outlined,
                     label: 'Cập nhật xem trước',
                     isLoading: provider.isRefreshingPreview,
+                    size: AppButtonSize.medium,
                   ),
                   AppPrimaryButton(
                     key: const Key('contract-appendix-save-button'),
@@ -355,6 +335,7 @@ class _DocumentWorkspace extends StatelessWidget {
                     icon: Icons.save_outlined,
                     label: 'Lưu phụ lục',
                     isLoading: provider.isSaving,
+                    size: AppButtonSize.medium,
                   ),
                   AppSecondaryButton(
                     key: const Key('contract-appendix-copy-button'),
@@ -364,6 +345,7 @@ class _DocumentWorkspace extends StatelessWidget {
                     icon: Icons.copy_all_outlined,
                     label: 'Sao chép bảng',
                     isLoading: provider.isCopying,
+                    size: AppButtonSize.medium,
                   ),
                 ],
               ),

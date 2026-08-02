@@ -190,80 +190,55 @@ class _FeedbackAdminHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AppSurfaceCard(
+    return Column(
       key: const Key('feedback-admin-header'),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final isCompact =
-              constraints.maxWidth < AppLayoutTokens.compactBreakpoint;
-          final heading = Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Danh sách góp ý',
-                style: AppTextStyles.headingM.copyWith(
-                  color: Theme.of(context).colorScheme.onSurface,
-                ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                'Theo dõi góp ý, lỗi vận hành và ảnh minh họa từ nhân viên.',
-                style: AppTextStyles.bodyM.copyWith(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
-              ),
-              const SizedBox(height: AppLayoutTokens.formInlineGap),
-              Wrap(
-                spacing: AppLayoutTokens.formInlineGap,
-                runSpacing: 8,
-                children: [
-                  AppStatusChip(
-                    label: loading ? 'Đang tải góp ý' : '$feedbackCount góp ý',
-                    color: AppColors.primary,
-                  ),
-                  AppStatusChip(
-                    label: '$feedbackWithImagesCount có ảnh',
-                    color: AppColors.info,
-                  ),
-                  AppStatusChip(
-                    label: '$imageUrlCount ảnh',
-                    color: AppColors.neutral700,
-                  ),
-                  const AppStatusChip(
-                    label: 'Chỉ Super Admin',
-                    color: AppColors.neutral700,
-                  ),
-                ],
-              ),
-            ],
-          );
-          final refreshButton = AppIconAction(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Danh sách góp ý',
+          style: AppTextStyles.headingM.copyWith(
+            color: Theme.of(context).colorScheme.onSurface,
+          ),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          'Theo dõi góp ý, lỗi vận hành và ảnh minh họa từ nhân viên.',
+          style: AppTextStyles.bodyM.copyWith(
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+        ),
+        const SizedBox(height: AppLayoutTokens.formInlineGap),
+        Wrap(
+          spacing: AppLayoutTokens.formInlineGap,
+          runSpacing: 8,
+          children: [
+            AppStatusChip(
+              label: loading ? 'Đang tải góp ý' : '$feedbackCount góp ý',
+              color: AppColors.primary,
+            ),
+            AppStatusChip(
+              label: '$feedbackWithImagesCount có ảnh',
+              color: AppColors.info,
+            ),
+            AppStatusChip(
+              label: '$imageUrlCount ảnh',
+              color: AppColors.neutral700,
+            ),
+            const AppStatusChip(
+              label: 'Chỉ Super Admin',
+              color: AppColors.neutral700,
+            ),
+          ],
+        ),
+        Align(
+          alignment: Alignment.centerRight,
+          child: AppIconAction(
             onPressed: onRefresh,
             icon: Icons.refresh,
             tooltip: 'Tải lại danh sách góp ý',
-          );
-
-          if (isCompact) {
-            return Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(child: heading),
-                const SizedBox(width: AppLayoutTokens.formInlineGap),
-                refreshButton,
-              ],
-            );
-          }
-
-          return Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(child: heading),
-              const SizedBox(width: AppLayoutTokens.formInlineGap),
-              refreshButton,
-            ],
-          );
-        },
-      ),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -292,17 +267,14 @@ class _FeedbackCard extends StatelessWidget {
         : 'Không rõ người gửi';
 
     return AppSurfaceCard(
-      padding: const EdgeInsets.all(14),
-      child: Row(
+      padding: const EdgeInsets.all(12),
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const _FeedbackIcon(),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
+          Row(
+            children: [
+              Expanded(
+                child: Text(
                   sender,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -311,76 +283,56 @@ class _FeedbackCard extends StatelessWidget {
                     fontWeight: FontWeight.w700,
                   ),
                 ),
-                const SizedBox(height: 4),
+              ),
+              if (createdAt != null)
                 Text(
-                  displayContent.body,
-                  maxLines: displayContent.imageUrls.isEmpty ? 4 : 3,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppTextStyles.bodyM.copyWith(
+                  createdAt,
+                  style: AppTextStyles.bodyS.copyWith(
                     color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
                 ),
-                const SizedBox(height: 10),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    if (module != null)
-                      AppStatusChip(
-                        label: module,
-                        color: AppColors.primary,
-                        maxWidth: 180,
-                      ),
-                    if (rating != null)
-                      AppStatusChip(label: rating, color: AppColors.warning),
-                    if (displayContent.imageUrls.isNotEmpty)
-                      AppStatusChip(
-                        label: '${displayContent.imageUrls.length} ảnh',
-                        color: AppColors.info,
-                      ),
-                    if (createdAt != null)
-                      AppStatusChip(
-                        label: createdAt,
-                        color: AppColors.neutral700,
-                        maxWidth: 160,
-                      ),
-                    if (email?.isNotEmpty == true)
-                      AppStatusChip(
-                        label: email!,
-                        color: AppColors.neutral700,
-                        maxWidth: 220,
-                      ),
-                  ],
-                ),
-                if (displayContent.imageUrls.isNotEmpty) ...[
-                  const SizedBox(height: AppLayoutTokens.formInlineGap),
-                  _FeedbackImageStrip(imageUrls: displayContent.imageUrls),
-                ],
-              ],
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            displayContent.body,
+            maxLines: displayContent.imageUrls.isEmpty ? 4 : 3,
+            overflow: TextOverflow.ellipsis,
+            style: AppTextStyles.bodyM.copyWith(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),
           ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              if (module != null)
+                AppStatusChip(
+                  label: module,
+                  color: AppColors.warning,
+                  maxWidth: 180,
+                ),
+              if (rating != null)
+                AppStatusChip(label: rating, color: AppColors.warning),
+              if (displayContent.imageUrls.isNotEmpty)
+                AppStatusChip(
+                  label: '${displayContent.imageUrls.length} ảnh',
+                  color: AppColors.info,
+                ),
+              if (email?.isNotEmpty == true)
+                AppStatusChip(
+                  label: email!,
+                  color: AppColors.neutral700,
+                  maxWidth: 220,
+                ),
+            ],
+          ),
+          if (displayContent.imageUrls.isNotEmpty) ...[
+            const SizedBox(height: AppLayoutTokens.formInlineGap),
+            _FeedbackImageStrip(imageUrls: displayContent.imageUrls),
+          ],
         ],
-      ),
-    );
-  }
-}
-
-class _FeedbackIcon extends StatelessWidget {
-  const _FeedbackIcon();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 44,
-      height: 44,
-      decoration: BoxDecoration(
-        color: AppColors.info.withValues(alpha: 0.11),
-        borderRadius: BorderRadius.circular(AppRadius.sm),
-      ),
-      child: const Icon(
-        Icons.lightbulb_outline_rounded,
-        color: AppColors.info,
-        size: 22,
       ),
     );
   }

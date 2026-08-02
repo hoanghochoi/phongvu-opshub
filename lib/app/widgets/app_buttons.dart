@@ -11,14 +11,26 @@ class AppButtonMetrics {
   AppButtonMetrics._();
 
   static const double height = 52;
+  static const double smallHeight = 40;
+  static const double mediumHeight = 48;
+  static const double largeHeight = 52;
   static const double mobileActionHeight = AppLayoutTokens.mobileActionHeight;
   static const double compactActionHeight = AppLayoutTokens.compactActionHeight;
-  static const double radius = AppRadius.lg;
+  static const double radius = AppRadius.md;
   static const double iconSize = AppLayoutTokens.iconTouchTarget;
   static const EdgeInsets horizontalPadding = EdgeInsets.symmetric(
-    horizontal: 24,
+    horizontal: 20,
   );
+  static const double gap = 8;
+
+  static double heightFor(AppButtonSize size) => switch (size) {
+    AppButtonSize.small => smallHeight,
+    AppButtonSize.medium => mediumHeight,
+    AppButtonSize.large => largeHeight,
+  };
 }
+
+enum AppButtonSize { small, medium, large }
 
 class AppPrimaryButton extends StatelessWidget {
   final VoidCallback? onPressed;
@@ -26,7 +38,8 @@ class AppPrimaryButton extends StatelessWidget {
   final String label;
   final bool isLoading;
   final String? loadingLabel;
-  final double height;
+  final AppButtonSize size;
+  final double? height;
   final double radius;
 
   const AppPrimaryButton({
@@ -36,23 +49,38 @@ class AppPrimaryButton extends StatelessWidget {
     required this.label,
     this.isLoading = false,
     this.loadingLabel,
-    this.height = AppButtonMetrics.height,
+    this.size = AppButtonSize.large,
+    this.height,
     this.radius = AppButtonMetrics.radius,
   });
 
   @override
   Widget build(BuildContext context) {
     final hasIcon = icon != null || isLoading;
-    final buttonStyle = FilledButton.styleFrom(
-      backgroundColor: AppColors.primary,
-      foregroundColor: AppColors.surface,
-      disabledBackgroundColor: AppColors.primary.withValues(alpha: 0.45),
-      disabledForegroundColor: AppColors.surface,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(radius),
-      ),
-      textStyle: AppTextStyles.labelL,
-    );
+    final buttonStyle =
+        FilledButton.styleFrom(
+          backgroundColor: AppColors.primary,
+          foregroundColor: AppColors.surface,
+          disabledBackgroundColor: AppColors.neutral100,
+          disabledForegroundColor: AppColors.neutral500,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(radius),
+          ),
+          textStyle: AppTextStyles.labelL,
+          padding: AppButtonMetrics.horizontalPadding,
+          minimumSize: Size(0, height ?? AppButtonMetrics.heightFor(size)),
+          maximumSize: Size(
+            double.infinity,
+            height ?? AppButtonMetrics.heightFor(size),
+          ),
+        ).copyWith(
+          side: WidgetStateProperty.resolveWith<BorderSide?>((states) {
+            if (states.contains(WidgetState.focused)) {
+              return const BorderSide(color: AppColors.focus, width: 2);
+            }
+            return BorderSide.none;
+          }),
+        );
 
     final buttonLabel = Text(
       isLoading ? loadingLabel ?? label : label,
@@ -63,14 +91,14 @@ class AppPrimaryButton extends StatelessWidget {
 
     return SizedBox(
       width: double.infinity,
-      height: height,
+      height: height ?? AppButtonMetrics.heightFor(size),
       child: hasIcon
           ? FilledButton.icon(
               onPressed: isLoading ? null : onPressed,
               icon: isLoading
                   ? const SizedBox(
-                      width: 18,
-                      height: 18,
+                      width: 20,
+                      height: 20,
                       child: CircularProgressIndicator(
                         strokeWidth: 2,
                         color: AppColors.surface,
@@ -98,7 +126,8 @@ class AppSecondaryButton extends StatelessWidget {
   final Color? foregroundColor;
   final Color? borderColor;
   final bool expand;
-  final double height;
+  final AppButtonSize size;
+  final double? height;
   final double radius;
 
   const AppSecondaryButton({
@@ -111,7 +140,8 @@ class AppSecondaryButton extends StatelessWidget {
     this.foregroundColor,
     this.borderColor,
     this.expand = true,
-    this.height = AppButtonMetrics.height,
+    this.size = AppButtonSize.large,
+    this.height,
     this.radius = AppButtonMetrics.radius,
   });
 
@@ -121,13 +151,13 @@ class AppSecondaryButton extends StatelessWidget {
     final effectiveBorderColor = borderColor ?? effectiveForegroundColor;
     return SizedBox(
       width: expand ? double.infinity : null,
-      height: height,
+      height: height ?? AppButtonMetrics.heightFor(size),
       child: OutlinedButton.icon(
         onPressed: isLoading ? null : onPressed,
         icon: isLoading
             ? const SizedBox(
-                width: 18,
-                height: 18,
+                width: 20,
+                height: 20,
                 child: CircularProgressIndicator(strokeWidth: 2),
               )
             : Icon(icon),
@@ -137,14 +167,28 @@ class AppSecondaryButton extends StatelessWidget {
           overflow: TextOverflow.ellipsis,
           softWrap: false,
         ),
-        style: OutlinedButton.styleFrom(
-          foregroundColor: effectiveForegroundColor,
-          side: BorderSide(color: effectiveBorderColor),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(radius),
-          ),
-          textStyle: AppTextStyles.labelM,
-        ),
+        style:
+            OutlinedButton.styleFrom(
+              foregroundColor: effectiveForegroundColor,
+              side: BorderSide(color: effectiveBorderColor),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(radius),
+              ),
+              textStyle: AppTextStyles.labelM,
+              minimumSize: Size(0, height ?? AppButtonMetrics.heightFor(size)),
+              maximumSize: Size(
+                double.infinity,
+                height ?? AppButtonMetrics.heightFor(size),
+              ),
+              padding: AppButtonMetrics.horizontalPadding,
+            ).copyWith(
+              side: WidgetStateProperty.resolveWith<BorderSide?>((states) {
+                if (states.contains(WidgetState.focused)) {
+                  return BorderSide(color: effectiveBorderColor, width: 2);
+                }
+                return BorderSide(color: effectiveBorderColor);
+              }),
+            ),
       ),
     );
   }
@@ -308,7 +352,7 @@ class AppIconAction extends StatelessWidget {
           disabledBackgroundColor: AppColors.neutral200,
           disabledForegroundColor: AppColors.neutral500,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(AppRadius.lg),
+            borderRadius: BorderRadius.circular(AppButtonMetrics.radius),
           ),
         ),
       ),

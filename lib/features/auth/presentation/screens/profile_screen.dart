@@ -267,9 +267,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
             organizationNodeLabel: organizationNodeLabel,
             onPickAvatar: _pickAvatar,
           ),
-          const SizedBox(height: AppLayoutTokens.sectionGap),
+          const SizedBox(height: AppLayoutTokens.cardGap),
           _ProfileSessionCard(isLoading: isLoading, onLogout: _logout),
-          const SizedBox(height: AppLayoutTokens.sectionGap),
+          const SizedBox(height: AppLayoutTokens.cardGap),
           LayoutBuilder(
             builder: (context, constraints) {
               final useTwoColumns =
@@ -291,7 +291,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     editCard,
-                    const SizedBox(height: AppLayoutTokens.sectionGap),
+                    const SizedBox(height: AppLayoutTokens.cardGap),
                     infoCard,
                   ],
                 );
@@ -301,7 +301,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Expanded(flex: 3, child: editCard),
-                  const SizedBox(width: AppLayoutTokens.sectionGap),
+                  const SizedBox(width: 16),
                   Expanded(flex: 2, child: infoCard),
                 ],
               );
@@ -340,7 +340,7 @@ class _ProfileHeader extends StatelessWidget {
     return AppSurfaceCard(
       key: const Key('profile-header'),
       backgroundColor: AppColors.primarySurfaceOf(context),
-      borderColor: AppColors.primaryOf(context).withValues(alpha: 0.22),
+      borderColor: AppColors.borderOf(context),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -348,7 +348,8 @@ class _ProfileHeader extends StatelessWidget {
             alignment: Alignment.bottomRight,
             children: [
               CircleAvatar(
-                radius: 44,
+                radius: 36,
+                backgroundColor: AppColors.cardOf(context),
                 backgroundImage: hasRemoteAvatar
                     ? NetworkImage(
                         avatarUrl!,
@@ -381,15 +382,10 @@ class _ProfileHeader extends StatelessWidget {
                       )
                     : null,
               ),
-              AppIconAction(
-                onPressed: onPickAvatar,
-                icon: Icons.camera_alt_outlined,
-                tooltip: 'Cập nhật avatar',
-                filled: true,
-              ),
+              _ProfileAvatarAction(onPressed: onPickAvatar),
             ],
           ),
-          const SizedBox(width: AppLayoutTokens.formInlineGap),
+          const SizedBox(width: 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -400,7 +396,7 @@ class _ProfileHeader extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(height: 6),
+                const SizedBox(height: 4),
                 Text(
                   user?.email ?? 'Chưa có email',
                   style: AppTextStyles.bodyM.copyWith(
@@ -409,17 +405,13 @@ class _ProfileHeader extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(height: AppLayoutTokens.formInlineGap),
+                const SizedBox(height: 4),
                 Wrap(
                   spacing: 8,
                   runSpacing: 8,
                   children: [
+                    _ProfileStatusChip(label: User.roleDisplayName(user?.role)),
                     _ProfileStatusChip(
-                      icon: Icons.verified_user_outlined,
-                      label: User.roleDisplayName(user?.role),
-                    ),
-                    _ProfileStatusChip(
-                      icon: Icons.account_tree_outlined,
                       label: organizationNodeLabel ?? 'Chưa gán cây tổ chức',
                     ),
                   ],
@@ -458,8 +450,8 @@ class _ProfileSessionCard extends StatelessWidget {
           final copy = Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Phiên đăng nhập', style: AppTextStyles.headingS),
-              const SizedBox(height: 6),
+              Text('Phiên đăng nhập', style: AppTextStyles.labelM),
+              const SizedBox(height: 4),
               Text(
                 'Đăng xuất khỏi tài khoản trên thiết bị này.',
                 style: AppTextStyles.bodyM.copyWith(
@@ -489,7 +481,7 @@ class _ProfileSessionCard extends StatelessWidget {
             children: [
               Expanded(child: copy),
               const SizedBox(width: AppLayoutTokens.formInlineGap),
-              SizedBox(width: 172, child: logoutButton),
+              SizedBox(width: 116, child: logoutButton),
             ],
           );
         },
@@ -520,7 +512,7 @@ class _ProfileEditCard extends StatelessWidget {
       child: AppFormColumn(
         spacing: AppLayoutTokens.formFieldGap,
         children: [
-          Text('Thông tin hiển thị', style: AppTextStyles.headingS),
+          Text('Thông tin hiển thị', style: AppTextStyles.labelL),
           AppTextInput(
             controller: firstNameController,
             label: 'Tên',
@@ -570,7 +562,7 @@ class _ProfileInfoCard extends StatelessWidget {
       child: AppFormColumn(
         spacing: AppLayoutTokens.formInlineGap,
         children: [
-          Text('Thông tin tài khoản', style: AppTextStyles.headingS),
+          Text('Thông tin tài khoản', style: AppTextStyles.labelL),
           _ProfileInfoRow(
             icon: Icons.email_outlined,
             label: 'Email',
@@ -643,10 +635,9 @@ class _ProfileInfoRow extends StatelessWidget {
 }
 
 class _ProfileStatusChip extends StatelessWidget {
-  final IconData icon;
   final String label;
 
-  const _ProfileStatusChip({required this.icon, required this.label});
+  const _ProfileStatusChip({required this.label});
 
   @override
   Widget build(BuildContext context) {
@@ -657,23 +648,14 @@ class _ProfileStatusChip extends StatelessWidget {
         border: Border.all(color: AppColors.borderOf(context)),
       ),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 16, color: AppColors.primaryOf(context)),
-            const SizedBox(width: 6),
-            Flexible(
-              child: Text(
-                label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: AppTextStyles.labelS.copyWith(
-                  color: AppColors.textSecondaryOf(context),
-                ),
-              ),
-            ),
-          ],
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        child: Text(
+          label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: AppTextStyles.bodyS.copyWith(
+            color: AppColors.textSecondaryOf(context),
+          ),
         ),
       ),
     );
@@ -696,8 +678,32 @@ class _ProfileLogoutButton extends StatelessWidget {
       label: 'Đăng xuất',
       foregroundColor: danger,
       borderColor: danger,
+      expand: false,
+      size: AppButtonSize.medium,
     );
   }
+}
+
+class _ProfileAvatarAction extends StatelessWidget {
+  final VoidCallback onPressed;
+
+  const _ProfileAvatarAction({required this.onPressed});
+
+  @override
+  Widget build(BuildContext context) => SizedBox.square(
+    dimension: 28,
+    child: IconButton(
+      tooltip: 'Cập nhật avatar',
+      onPressed: onPressed,
+      icon: const Icon(Icons.camera_alt_outlined, size: 16),
+      color: AppColors.surface,
+      style: IconButton.styleFrom(
+        backgroundColor: AppColors.primaryOf(context),
+        padding: EdgeInsets.zero,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(9)),
+      ),
+    ),
+  );
 }
 
 String _profileDisplayName(User? user) {

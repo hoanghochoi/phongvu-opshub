@@ -66,7 +66,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Quản lý kết nối API'), findsOneWidget);
+    expect(find.text('Kết nối BIDV'), findsOneWidget);
     expect(find.text('OAuth client'), findsOneWidget);
     expect(find.text('Khóa OpenPGP'), findsOneWidget);
     expect(find.text('bidv_public_client_id'), findsOneWidget);

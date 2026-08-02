@@ -287,12 +287,7 @@ class _QuickActionLinksAdminScreenState
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(
-            'Quản lý mã',
-            style: Theme.of(
-              context,
-            ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700),
-          ),
+          Text('Quản lý mã', style: AppTextStyles.headingM),
           const SizedBox(height: 8),
           Text(
             'Cấu hình liên kết riêng cho từng showroom. Để trống một trường rồi lưu để xóa cấu hình.',
@@ -300,7 +295,7 @@ class _QuickActionLinksAdminScreenState
               color: AppColors.textSecondaryOf(context),
             ),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: AppLayoutTokens.formInlineGap),
           if (_stores.isNotEmpty)
             AppCombobox<String>.single(
               label: 'Showroom',
@@ -321,7 +316,7 @@ class _QuickActionLinksAdminScreenState
                 unawaited(_loadLinks(value));
               },
             ),
-          const SizedBox(height: 20),
+          const SizedBox(height: AppLayoutTokens.formInlineGap),
           if (_loading)
             const AppStatePanel.loading(title: 'Đang tải cấu hình')
           else if (_stores.isEmpty)
@@ -361,7 +356,7 @@ class _QuickActionLinksAdminScreenState
             Align(
               alignment: Alignment.centerRight,
               child: SizedBox(
-                width: 220,
+                width: 156,
                 child: AppPrimaryButton(
                   onPressed: _save,
                   icon: Icons.save_outlined,

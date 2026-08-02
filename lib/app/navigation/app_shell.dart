@@ -621,6 +621,7 @@ class _WideShell extends StatelessWidget {
             child: Column(
               children: [
                 _ShellTopBar(
+                  location: location,
                   activeDestination: activeDestination,
                   user: user,
                   showAccountDetails: isDesktop,
@@ -1275,9 +1276,8 @@ class _SidebarItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final selectedForeground = AppColors.isDark(context)
-        ? AppColors.primaryOf(context)
-        : AppColors.sidebarSelectedOf(context);
+    final selectedForeground = AppColors.primaryOf(context);
+    final selectedBackground = AppColors.sidebarSelectedOf(context);
     final foreground = selected
         ? selectedForeground
         : AppColors.sidebarTextOf(context);
@@ -1286,41 +1286,46 @@ class _SidebarItem extends StatelessWidget {
       selected: selected,
       child: Material(
         key: ValueKey('sidebar-item-${destination.id}'),
-        color: AppColors.transparent,
-        borderRadius: AppRadius.allMd,
+        color: selected ? selectedBackground : AppColors.transparent,
+        borderRadius: AppRadius.allLg,
         clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: onTap,
-          borderRadius: AppRadius.allMd,
+          borderRadius: AppRadius.allLg,
           hoverColor: selectedForeground.withValues(alpha: 0.08),
           focusColor: selectedForeground.withValues(alpha: 0.12),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(0, 10, 12, 10),
-            child: Row(
-              children: [
-                Container(
-                  key: ValueKey('sidebar-selected-indicator-${destination.id}'),
-                  width: 4,
-                  height: 28,
-                  decoration: BoxDecoration(
-                    color: selected
-                        ? selectedForeground
-                        : AppColors.transparent,
-                    borderRadius: BorderRadius.circular(999),
+          child: SizedBox(
+            height: 48,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(0, 0, 12, 0),
+              child: Row(
+                children: [
+                  Container(
+                    key: ValueKey(
+                      'sidebar-selected-indicator-${destination.id}',
+                    ),
+                    width: 4,
+                    height: 28,
+                    decoration: BoxDecoration(
+                      color: selected
+                          ? selectedForeground
+                          : AppColors.transparent,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
                   ),
-                ),
-                const SizedBox(width: 8),
-                Icon(destination.icon, color: foreground, size: 20),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    destination.label,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: AppTextStyles.labelM.copyWith(color: foreground),
+                  const SizedBox(width: 8),
+                  Icon(destination.icon, color: foreground, size: 20),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      destination.label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTextStyles.labelM.copyWith(color: foreground),
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
@@ -1330,6 +1335,7 @@ class _SidebarItem extends StatelessWidget {
 }
 
 class _ShellTopBar extends StatelessWidget {
+  final String location;
   final AppNavDestination activeDestination;
   final User? user;
   final bool showAccountDetails;
@@ -1338,6 +1344,7 @@ class _ShellTopBar extends StatelessWidget {
   final VoidCallback onAppInfo;
 
   const _ShellTopBar({
+    required this.location,
     required this.activeDestination,
     required this.user,
     required this.showAccountDetails,
@@ -1348,6 +1355,7 @@ class _ShellTopBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final header = _shellHeaderFor(location, activeDestination);
     return Container(
       height: AppLayoutTokens.shellTopBarHeight,
       decoration: BoxDecoration(
@@ -1365,7 +1373,7 @@ class _ShellTopBar extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  activeDestination.label,
+                  header.title,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: AppTextStyles.headingS.copyWith(
@@ -1374,7 +1382,7 @@ class _ShellTopBar extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  activeDestination.description,
+                  header.description,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: AppTextStyles.bodyS.copyWith(
@@ -1401,6 +1409,26 @@ class _ShellTopBar extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+({String title, String description}) _shellHeaderFor(
+  String location,
+  AppNavDestination activeDestination,
+) {
+  switch (location) {
+    case '/admin/support-chats':
+      return (title: 'Hỗ trợ', description: 'Quản lý hội thoại khách hàng');
+    case '/admin/api-connections':
+      return (
+        title: 'Quản lý kết nối API',
+        description: 'Cấu hình BIDV và quản lý khóa OpenPGP',
+      );
+    default:
+      return (
+        title: activeDestination.label,
+        description: activeDestination.description,
+      );
   }
 }
 
@@ -1444,29 +1472,29 @@ class _AccountMenuButton extends StatelessWidget {
             onLogout();
         }
       },
-      itemBuilder: (context) => const [
-        PopupMenuItem(
+      itemBuilder: (context) => [
+        const PopupMenuItem(
           value: _AccountAction.profile,
           child: ListTile(
             leading: Icon(Icons.person_outline),
             title: Text('Thông tin cá nhân'),
           ),
         ),
-        PopupMenuItem(
+        const PopupMenuItem(
           value: _AccountAction.settings,
           child: ListTile(
             leading: Icon(Icons.settings_outlined),
             title: Text('Cài đặt'),
           ),
         ),
-        PopupMenuItem(
+        const PopupMenuItem(
           value: _AccountAction.appInfo,
           child: ListTile(
             leading: Icon(Icons.info_outline),
             title: Text('Thông tin ứng dụng'),
           ),
         ),
-        PopupMenuItem(
+        const PopupMenuItem(
           value: _AccountAction.logout,
           child: ListTile(
             leading: Icon(Icons.logout_rounded),

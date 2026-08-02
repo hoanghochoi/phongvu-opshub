@@ -56,6 +56,20 @@ class _PaymentMonitorScreenState extends State<PaymentMonitorScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          Text(
+            'Giao dịch tiền vào',
+            style: AppTextStyles.headingS.copyWith(
+              color: Theme.of(context).colorScheme.onSurface,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Theo dõi giao dịch thành công theo showroom và khoảng ngày.',
+            style: AppTextStyles.bodyS.copyWith(
+              color: AppColors.textSecondaryOf(context),
+            ),
+          ),
+          const SizedBox(height: 16),
           if (canUsePaymentSpeaker ||
               speakerSelectionNotice != null ||
               requiresStoreInput) ...[
@@ -201,13 +215,6 @@ class _PaymentMonitorScreenState extends State<PaymentMonitorScreen> {
           const SizedBox(height: 14),
           _TransactionFilters(monitor: monitor, storeOptions: storeOptions),
           const SizedBox(height: 16),
-          Text(
-            'Giao dịch tiền vào',
-            style: AppTextStyles.labelL.copyWith(
-              color: Theme.of(context).colorScheme.onSurface,
-            ),
-          ),
-          const SizedBox(height: 10),
           Expanded(
             child: Column(
               children: [

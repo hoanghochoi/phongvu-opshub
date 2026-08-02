@@ -184,33 +184,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
             hasStartupError: _startupError != null,
             speakerPresetLabel: speakerPreset?.label,
           ),
-          const SizedBox(height: AppLayoutTokens.sectionGap),
+          const SizedBox(height: 16),
           LayoutBuilder(
             builder: (context, constraints) {
               final useTwoColumns =
                   constraints.maxWidth >= AppLayoutTokens.tabletBreakpoint;
               final sections = <Widget>[
-                _SettingsSection(
-                  title: 'Giao diện',
-                  child: _buildThemeSelector(context),
-                ),
-                _SettingsSection(
-                  title: 'Windows',
-                  child: _buildStartupTile(context),
-                ),
+                _SettingsSection(child: _buildThemeSelector(context)),
+                _SettingsSection(child: _buildStartupTile(context)),
                 if (paymentMonitor?.canConfigurePaymentSpeaker == true)
                   _SettingsSection(
-                    title: 'Loa tiền vào',
                     child: _buildSpeakerVoiceSelector(context, paymentMonitor!),
                   ),
               ];
 
               final itemWidth = useTwoColumns
-                  ? (constraints.maxWidth - AppLayoutTokens.sectionGap) / 2
+                  ? (constraints.maxWidth - 16) / 2
                   : constraints.maxWidth;
               return Wrap(
-                spacing: AppLayoutTokens.sectionGap,
-                runSpacing: AppLayoutTokens.sectionGap,
+                spacing: 16,
+                runSpacing: 16,
                 children: [
                   for (final section in sections)
                     SizedBox(width: itemWidth, child: section),
@@ -232,17 +225,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(
-            children: [
-              Icon(
-                Icons.record_voice_over_outlined,
-                color: AppColors.primary,
-                size: 20,
-              ),
-              SizedBox(width: 8),
-              Text('Giọng đọc', style: AppTextStyles.labelM),
-            ],
-          ),
+          const Text('Loa tiền vào', style: AppTextStyles.labelL),
           const SizedBox(height: AppLayoutTokens.formInlineGap),
           AppCombobox<String>.single(
             label: 'Giọng đọc trên máy này',
@@ -285,24 +268,33 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
     return AppSurfaceCard(
       key: const Key('settings-startup-card'),
-      padding: EdgeInsets.zero,
-      child: SwitchListTile.adaptive(
-        value: isEnabled,
-        onChanged: canToggle ? _setStartupEnabled : null,
-        secondary: _StartupSettingIcon(
-          isEnabled: isEnabled,
-          isLoading: _isLoadingStartup || _isSavingStartup,
-          isSupported: isSupported,
-        ),
-        title: const Text(
-          'Khởi động cùng Windows',
-          style: AppTextStyles.labelM,
-        ),
-        subtitle: Padding(
-          padding: const EdgeInsets.only(top: 4),
-          child: Text(_startupSubtitle(snapshot), style: AppTextStyles.bodyS),
-        ),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Windows', style: AppTextStyles.labelL),
+          const SizedBox(height: 8),
+          SwitchListTile.adaptive(
+            value: isEnabled,
+            onChanged: canToggle ? _setStartupEnabled : null,
+            secondary: _StartupSettingIcon(
+              isEnabled: isEnabled,
+              isLoading: _isLoadingStartup || _isSavingStartup,
+              isSupported: isSupported,
+            ),
+            title: const Text(
+              'Khởi động cùng Windows',
+              style: AppTextStyles.labelM,
+            ),
+            subtitle: Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(
+                _startupSubtitle(snapshot),
+                style: AppTextStyles.bodyS,
+              ),
+            ),
+            contentPadding: EdgeInsets.zero,
+          ),
+        ],
       ),
     );
   }
@@ -327,21 +319,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(
-            children: [
-              Icon(Icons.palette_outlined, color: AppColors.primary, size: 20),
-              SizedBox(width: 8),
-              Text('Chế độ hiển thị', style: AppTextStyles.labelM),
-            ],
-          ),
+          const Text('Giao diện', style: AppTextStyles.labelL),
+          const SizedBox(height: 12),
+          const Text('Chế độ hiển thị', style: AppTextStyles.labelM),
           const SizedBox(height: AppLayoutTokens.formInlineGap),
           Container(
             padding: const EdgeInsets.all(4),
             decoration: BoxDecoration(
               color: Theme.of(context).brightness == Brightness.dark
                   ? AppColors.darkNeutral50
-                  : AppColors.neutral200,
-              borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
+                  : AppColors.neutral50,
+              border: Border.all(color: AppColors.subtleBorderOf(context)),
+              borderRadius: BorderRadius.circular(10),
             ),
             child: Row(
               children: [
@@ -395,26 +384,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
         borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
-          padding: const EdgeInsets.symmetric(vertical: 10),
+          padding: const EdgeInsets.symmetric(vertical: 14),
           decoration: BoxDecoration(
-            color: isActive ? AppColors.primary : AppColors.transparent,
-            borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
-            boxShadow: isActive
-                ? [
-                    BoxShadow(
-                      color: AppColors.primary.withValues(alpha: 0.30),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
-                    ),
-                  ]
-                : null,
+            color: isActive ? AppColors.infoSurface : AppColors.transparent,
+            borderRadius: BorderRadius.circular(8),
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Icon(
                 isActive ? activeIcon : icon,
-                color: isActive ? AppColors.surface : inactiveColor,
+                color: isActive ? AppColors.info : inactiveColor,
                 size: 18,
               ),
               const SizedBox(width: 8),
@@ -424,8 +404,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: AppTextStyles.bodyS.copyWith(
-                    fontWeight: isActive ? FontWeight.w700 : FontWeight.w400,
-                    color: isActive ? AppColors.surface : inactiveColor,
+                    fontWeight: isActive ? FontWeight.w600 : FontWeight.w400,
+                    color: isActive ? AppColors.info : inactiveColor,
                   ),
                 ),
               ),
@@ -456,56 +436,36 @@ class _SettingsHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AppSurfaceCard(
+    return Column(
       key: const Key('settings-header'),
-      backgroundColor: AppColors.primarySurfaceOf(context),
-      borderColor: AppColors.primaryOf(context).withValues(alpha: 0.22),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 52,
-            height: 52,
-            decoration: BoxDecoration(
-              color: AppColors.primaryOf(context).withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
-            ),
-            child: Icon(
-              Icons.settings_outlined,
-              color: AppColors.primaryOf(context),
-            ),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Tùy chọn thiết bị', style: AppTextStyles.headingS),
+        const SizedBox(height: 8),
+        Text(
+          'Điều chỉnh giao diện và hành vi khởi động theo nền tảng.',
+          style: AppTextStyles.bodyS.copyWith(
+            color: AppColors.textSecondaryOf(context),
           ),
-          const SizedBox(width: AppLayoutTokens.formInlineGap),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Tùy chọn thiết bị', style: AppTextStyles.headingM),
-                const SizedBox(height: AppLayoutTokens.formInlineGap),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    _SettingsStatusChip(
-                      icon: Icons.palette_outlined,
-                      label: 'Giao diện: ${_themeModeLabel(themeMode)}',
-                    ),
-                    _SettingsStatusChip(
-                      icon: Icons.rocket_launch_outlined,
-                      label: 'Windows: ${_startupStatusLabel()}',
-                    ),
-                    if (speakerPresetLabel != null)
-                      _SettingsStatusChip(
-                        icon: Icons.record_voice_over_outlined,
-                        label: 'Loa: $speakerPresetLabel',
-                      ),
-                  ],
-                ),
-              ],
+        ),
+        const SizedBox(height: 12),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            _SettingsStatusChip(
+              label: 'Giao diện: ${_themeModeLabel(themeMode)}',
+              tone: _SettingsChipTone.info,
             ),
-          ),
-        ],
-      ),
+            _SettingsStatusChip(
+              label: 'Windows: ${_startupStatusLabel()}',
+              tone: _SettingsChipTone.success,
+            ),
+            if (speakerPresetLabel != null)
+              _SettingsStatusChip(label: 'Loa: $speakerPresetLabel'),
+          ],
+        ),
+      ],
     );
   }
 
@@ -521,37 +481,38 @@ class _SettingsHeader extends StatelessWidget {
 }
 
 class _SettingsStatusChip extends StatelessWidget {
-  final IconData icon;
   final String label;
+  final _SettingsChipTone tone;
 
-  const _SettingsStatusChip({required this.icon, required this.label});
+  const _SettingsStatusChip({
+    required this.label,
+    this.tone = _SettingsChipTone.neutral,
+  });
 
   @override
   Widget build(BuildContext context) {
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: AppColors.cardOf(context).withValues(alpha: 0.72),
-        borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
-        border: Border.all(color: AppColors.borderOf(context)),
+        color: switch (tone) {
+          _SettingsChipTone.info => AppColors.infoSurface,
+          _SettingsChipTone.success => AppColors.successSurface,
+          _SettingsChipTone.neutral => AppColors.chipBackground,
+        },
+        borderRadius: BorderRadius.circular(8),
       ),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 16, color: AppColors.primaryOf(context)),
-            const SizedBox(width: 6),
-            Flexible(
-              child: Text(
-                label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: AppTextStyles.labelS.copyWith(
-                  color: AppColors.textSecondaryOf(context),
-                ),
-              ),
-            ),
-          ],
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        child: Text(
+          label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: AppTextStyles.labelS.copyWith(
+            color: switch (tone) {
+              _SettingsChipTone.info => AppColors.info,
+              _SettingsChipTone.success => AppColors.success,
+              _SettingsChipTone.neutral => AppColors.textSecondaryOf(context),
+            },
+          ),
         ),
       ),
     );
@@ -559,25 +520,15 @@ class _SettingsStatusChip extends StatelessWidget {
 }
 
 class _SettingsSection extends StatelessWidget {
-  const _SettingsSection({required this.title, required this.child});
+  const _SettingsSection({required this.child});
 
-  final String title;
   final Widget child;
 
   @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.only(left: 4, bottom: 8),
-          child: Text(title, style: AppTextStyles.headingS),
-        ),
-        child,
-      ],
-    );
-  }
+  Widget build(BuildContext context) => child;
 }
+
+enum _SettingsChipTone { neutral, info, success }
 
 class _StartupSettingIcon extends StatelessWidget {
   const _StartupSettingIcon({

@@ -3,6 +3,11 @@
 This file maps product behavior to proof. Existing flows are marked
 `existing_unverified` until fresh validation evidence is attached.
 
+OPS-44 live visual-smoke target (2026-08-03): 45 declared route phases are
+covered across wide `1440x900`, compact `390x844`, medium `768x1024` and
+expanded `1024x900` viewports (180 route/viewport checks). Older 88-check
+entries below are historical evidence and do not replace the OPS-44 gate.
+
 - `OPS-40`/`SUPPORT-CHAT-001`, 2026-08-01,
   `local_verified_with_release_gaps`:
   lifecycle `START PASS` created `codex/ops-40-support-chat-phase-1` from exact
