@@ -1,9 +1,10 @@
 import 'dart:async';
-import 'dart:typed_data';
 import 'dart:ui' show Tristate;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:phongvu_opshub/app/navigation/app_shell.dart';
 import 'package:phongvu_opshub/core/logging/app_logger.dart';
 import 'package:phongvu_opshub/core/network/api_client.dart';
 import 'package:phongvu_opshub/core/network/realtime_connection_manager.dart';
@@ -133,6 +134,88 @@ void main() {
     expect(repository.mineCalls, 2);
     expect(find.text('Bắt đầu trò chuyện hỗ trợ'), findsOneWidget);
   });
+
+  testWidgets('composer sends on Enter and keeps Shift+Enter as a newline', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(500, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final repository = _SurfaceRepository();
+    final realtime = _SurfaceRealtimeClient();
+    final provider = SupportChatProvider(repository, realtimeClient: realtime);
+    await provider.syncAuth(_requester, enabled: true);
+    addTearDown(() async {
+      provider.dispose();
+      await realtime.close();
+    });
+
+    await tester.pumpWidget(
+      _surfaceHarness(
+        auth: _SurfaceAuthProvider(_requester),
+        support: provider,
+        child: const SupportChatPanel(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final field = find.byType(TextField);
+    await tester.tap(field);
+    await tester.enterText(field, 'Tin nhan gui nhanh');
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.pumpAndSettle();
+
+    expect(repository.sendMyTextCalls, 1);
+    expect(repository.lastSentText, 'Tin nhan gui nhanh');
+    expect(tester.widget<TextField>(field).controller!.text, isEmpty);
+
+    await tester.enterText(field, 'Dong tiep');
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+    await tester.pump();
+
+    expect(repository.sendMyTextCalls, 1);
+    expect(tester.widget<TextField>(field).controller!.text, 'Dong tiep\n');
+  });
+
+  testWidgets('admin support-chat route hides the global bubble launcher', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1200, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final repository = _SurfaceRepository();
+    final realtime = _SurfaceRealtimeClient();
+    final provider = SupportChatProvider(repository, realtimeClient: realtime);
+    await provider.syncAuth(_admin, enabled: true);
+    addTearDown(() async {
+      provider.dispose();
+      await realtime.close();
+    });
+
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider<AuthProvider>.value(
+            value: _SurfaceAuthProvider(_admin),
+          ),
+          ChangeNotifierProvider<SupportChatProvider>.value(value: provider),
+        ],
+        child: const MaterialApp(
+          home: AppShell(
+            location: '/admin/support-chats',
+            child: SizedBox.expand(),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byType(SupportChatBubble), findsNothing);
+  });
 }
 
 Widget _surfaceHarness({
@@ -229,6 +312,8 @@ class _SurfaceRealtimeClient implements RealtimeClient {
 class _SurfaceRepository implements SupportChatDataSource {
   bool failMineOnce = false;
   int mineCalls = 0;
+  int sendMyTextCalls = 0;
+  String? lastSentText;
 
   @override
   Future<SupportChatThread> getMine({
@@ -302,7 +387,11 @@ class _SurfaceRepository implements SupportChatDataSource {
   Future<SupportChatThread> sendMyText({
     required String clientMessageId,
     required String text,
-  }) async => _adminThread;
+  }) async {
+    sendMyTextCalls += 1;
+    lastSentText = text;
+    return _adminThread;
+  }
 
   @override
   Future<Uint8List> loadPrivateImage(String url) async => Uint8List(0);

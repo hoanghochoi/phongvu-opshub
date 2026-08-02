@@ -33,6 +33,12 @@ Seatalk path.
 - The feature is disabled by default and introduces no legacy `/ws` event.
 - Current notification, auth/bootstrap ETag, media, shell, quick-action,
   assignment, logout/access-revoke and platform contracts remain compatible.
+- Staging correction wave (2026-08-02): credential login/register/password
+  change hydrate canonical `/auth/bootstrap` before access-gated surfaces;
+  the standard Support Chat FAB is raised and hidden on `/admin/support-chats`;
+  desktop/web Enter sends once, Shift+Enter inserts a newline, mobile IME Send
+  remains supported, and failed sends retain draft/idempotency state. This is a
+  restorative current/legacy UI correction with no Figma or redesign approval.
 
 ## Path Contracts
 

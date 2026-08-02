@@ -49,6 +49,11 @@ This file maps product behavior to proof. Existing flows are marked
   2-user/2-admin QA, 20 message/s load, outbox/latency metrics, live restart/
   outage durability, backup/restore purge, exact-SHA deployment and production
   release remain gates. Issue cannot become `Done` before production deployment.
+  The 2026-08-02 staging UX correction additionally protects immediate
+  canonical bootstrap hydration after login/register/password change,
+  fail-closed bootstrap retry, standard/raised launcher placement,
+  `/admin/support-chats` launcher suppression, and composer Enter/Shift+Enter
+  behavior without weakening draft/idempotency or mobile IME Send.
 
 - `OPS-33`/`SALES-REPORT-001`/`HOME-DASHBOARD-002`, 2026-08-01:
   `local_verified_with_staging_bigquery_looker_release_gaps`. A single canonical price contract proves

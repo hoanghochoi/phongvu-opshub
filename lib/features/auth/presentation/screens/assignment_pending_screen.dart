@@ -185,7 +185,7 @@ class _AssignmentPendingScreenState extends State<AssignmentPendingScreen> {
         if (maybeSupportChatProvider(context, listen: true)?.enabled == true)
           Positioned(
             right: 16,
-            bottom: 16 + floatingBottomInset,
+            bottom: 32 + floatingBottomInset,
             child: SupportChatBubble(
               onPressed: () => showSupportChatSurface(context),
             ),

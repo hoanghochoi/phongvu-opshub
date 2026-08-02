@@ -113,6 +113,27 @@ the following coherent batch:
    recovery proof, plus `scripts/validate-ops40-affected-consumers.mjs` mapping
    every protected old consumer without calling removed Harness commands.
 
+## Staging UX Correction Wave — 2026-08-02
+
+The staging rollout exposed an intermittent Support Chat launcher after a
+fresh credential login and a composer interaction mismatch. Keep the staging
+flag enabled for QA while the following owner-authorized current/legacy UI
+corrections are reviewed:
+
+1. Route login, registration and password-change sessions through the canonical
+   `/auth/bootstrap` hydration path before access-gated shell surfaces render;
+   retain legacy 404/501 compatibility and fail closed on transient bootstrap
+   errors so a retry is required before capabilities are unlocked.
+2. Increase the Support Chat launcher to the standard accessible FAB size,
+   raise it above the compact navigation/keyboard inset, preserve the
+   assignment-pending launcher, and hide the global launcher on
+   `/admin/support-chats`.
+3. Make desktop/web Enter submit exactly once, Shift+Enter insert a newline,
+   preserve mobile IME Send behavior and failed-send drafts/idempotency, and
+   keep focus after successful submission.
+
+No Figma frame or redesign target is introduced by this restorative wave.
+
 Decision 0011 remains authority for endpoint-specific composite-principal
 rate-limit keys: the four send routes keep their documented 30/minute text and
 6/minute image quotas inside the existing 120/minute endpoint bucket model.
@@ -156,6 +177,11 @@ rate-limit keys: the four send routes keep their documented 30/minute text and
 - [x] Add and read back Linear implementation/proof note
   `a1101772-9d66-45e3-977b-1635042050ac`; OPS-40 remains `In Progress`
   with no lifecycle transition.
+- [x] Complete staging UX correction wave implementation and focused proof:
+  canonical credential bootstrap, standard/raised route-aware launcher, and
+  Enter/Shift+Enter composer regression coverage pass locally.
+- [ ] Rerun full affected-consumer and platform gates on the correction
+  fingerprint before any commit/push/PR/deploy action.
 
 ## Decisions
 
