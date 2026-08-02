@@ -97,10 +97,89 @@ Mỗi component hỗ trợ các state phù hợp: default, hover, focus, pressed
 selected, disabled, loading, error, success, read-only, long content và large
 text scale.
 
+### Quy tắc component bắt buộc
+
+- Icon dùng trong Figma và runtime thuộc một family thống nhất: **Phosphor**.
+  Luồng bắt buộc là tìm theo ngữ nghĩa nghiệp vụ trong
+  [`phosphor-icons/core`](https://github.com/phosphor-icons/core) → đưa SVG
+  official vào section `FOUNDATION / Icons — Phosphor` trên page `Foundation`
+  → mới reuse ở component/screen.
+  Dùng Regular mặc định; Fill chỉ dành cho trạng thái active/filled được chỉ
+  định rõ. Không vẽ lại icon bằng primitive hoặc thay một icon generic cho
+  action có ngữ nghĩa khác.
+- Status Banner dùng `arrow-counter-clockwise` cho retry và spinner Phosphor
+  cho busy. Action phải là auto-layout, có khoảng cách icon/label rõ ràng và
+  không được đè lên nội dung banner.
+- Focus của checkbox/radio/switch chỉ viền quanh control thực, không viền cả
+  hit-area 48 px, không clip và không tách rời control. Giữ outline 2 px có
+  contrast, thứ tự focus logic và hit target tối thiểu 48 dp trên Android,
+  44 pt trên iOS/iPadOS.
+- Mobile Button có thể dùng visual surface cao 40 px trong toolbar/dialog chật,
+  nhưng interaction, focus và semantics hit box bên ngoài vẫn phải tối thiểu
+  48 dp trên Android và 44 pt trên iOS/iPadOS. Không được map trực tiếp visual
+  40 px thành hit target 40 px; action độc lập tiếp tục ưu tiên control cao
+  48 px.
+- Input, combobox và command input phải giữ đủ bốn cạnh ở default, focused,
+  error, disabled và read-only; stroke nằm trong bounds để không bị cắt. Focus
+  dùng semantic focus border, không thay bằng shadow rời hoặc mất cạnh; field
+  không clip chính stroke của mình.
+- Với textarea/search có helper hoặc lỗi kèm character counter, helper/error và
+  counter là hai lane auto-layout riêng: helper được wrap trong phần còn lại,
+  counter có bề rộng cố định và căn đáy. Component phải đủ chiều cao cho hai
+  dòng helper để không overlap hoặc làm mất counter.
+- Navigation trên nền tối dùng foreground đủ contrast: icon/label mặc định là
+  light neutral, selected theo semantic selected; quick action nổi bật dùng
+  icon trắng. Không dùng neutral xám tối cho foreground trên dark surface.
+- Navigation Destination ở **mọi state** luôn dùng slot icon Phosphor 24 px:
+  Sidebar/Rail căn giữa theo cả hai trục của ô icon, Bottom Navigation căn giữa
+  trong vùng icon phía trên label. Ở state selected, icon dùng đúng semantic foreground của
+  label selected, không giữ màu default/dark-surface. Sau khi sửa component
+  nguồn, phải audit tất cả instance/override ở các Shell mẫu và màn hình; một
+  override cũ không được phép giữ màu hoặc hình học khác component nguồn.
+- Reusable source (component, component set, icon master, screen pattern và
+  specimen) chỉ nằm trên page `Foundation`, trong section theo family. Toàn bộ
+  documentation cũng nằm ở `FOUNDATION / Documentation`; không tạo page riêng
+  theo component. Screen page chỉ dùng frame/instance; icon master chỉ nằm ở
+  `FOUNDATION / Icons — Phosphor`. Sau mỗi lần di chuyển hoặc tạo mới phải audit
+  source ngoài Foundation, overflow và overlap của section trước khi review.
+- Screen inventory tách đúng platform: `Screens — Desktop · Windows`,
+  `Screens — Mobile · Android` và `Screens — Tablet · Android`. Không trộn
+  breakpoint/platform trong cùng page, không đặt main component trong page
+  Screens và yêu cầu top-level overlap bằng `0`. Page cũ chỉ xóa sau khi đã
+  chuyển hết nội dung và xác minh `childCount = 0`.
+- Với icon Navigation, audit phải đối chiếu `vectorPaths` của từng master với
+  SVG `regular` cùng tên từ `phosphor-icons/core`; không chỉ kiểm tra tên layer
+  hoặc kích thước. Nếu icon không tồn tại trong core hay sai ngữ nghĩa runtime,
+  thay toàn bộ consumer bằng icon Phosphor chính thức phù hợp, rồi loại master
+  cũ không còn consumer. Không duy trì page Navigation Shell riêng sau khi icon
+  master, component, specimen và documentation đã chuyển về Foundation.
+- Brand block của Navigation Shell dùng đúng `AppBrand.logoAsset`,
+  `AppBrand.title` và `AppBrand.slogan`; không thay bằng placeholder, logo tự
+  vẽ hoặc slogan tự đặt. Sidebar/drawer xếp logo, title và slogan bằng
+  auto-layout; slogan desktop là hai dòng theo câu “Kết nối nguồn lực.” và
+  “Đồng bộ vận hành.”, còn drawer hẹp truncate một dòng theo runtime.
+- Loading indicator là shared `Phosphor / SpinnerGap / Regular` ở mọi
+  breakpoint/state; không thay bằng vector spinner vẽ riêng theo từng screen
+  hoặc component.
+- Mobile ưu tiên content/task. Helper không thiết yếu được ẩn khỏi layout và
+  mở theo ngữ cảnh bằng nút `?` qua bubble/dialog; không ẩn validation, error,
+  permission hoặc hướng dẫn an toàn cần quyết định ngay.
+- Trên compact mobile, tên chức năng hiển thị ở header/app bar thay vì lặp lại
+  trong page header. Helper có action, link hoặc thao tác phải tách action đó
+  ra khu vực thao tác chính; bubble chỉ giữ hướng dẫn ngắn, không tương tác.
+- Figma không có global setting cấm frame overlap. Mọi App Shell audit frame
+  phải nằm trên canvas grid theo breakpoint, có gutter rõ ràng; trước review
+  chạy collision audit bounding-box cho top-level screen frame và yêu cầu kết
+  quả bằng `0`. Component bên trong ưu tiên auto-layout; metadata (timestamp,
+  chip, counter) phải có lane/y riêng, không dùng cùng toạ độ tuyệt đối.
+
 ## 7. OpsHub contracts phải giữ
 
 - Date filter mở qua canonical shared DateRangePicker; desktop anchored
-  popover, mobile bottom sheet.
+  popover, mobile bottom sheet. Quick ranges có tối thiểu `Hôm nay`, `Hôm qua`,
+  `7 ngày qua`, `30 ngày qua` và `Tùy chọn`; không tạo date picker cục bộ.
+  Một shortcut chỉ xuất hiện một lần trong cùng popover/dialog/modal: desktop
+  đặt ở cột `Khoảng nhanh`, không lặp trong các ô `Từ ngày`/`Đến ngày`.
 - Scan/search/submit command bar giữ input và primary actions cùng hàng.
 - Related editor/report flows dùng presentation model nhất quán; long modal
   giữ context header cố định và chỉ scroll body.
