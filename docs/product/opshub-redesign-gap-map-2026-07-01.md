@@ -390,28 +390,35 @@ test\design_system_migration_guard_test.dart` (7 tests),
   `scripts/opshub-web-visual-smoke.mjs` để kiểm cả public auth routes trước
   đăng nhập và authenticated shell routes sau khi login staging qua API bằng
   biến môi trường. Script seed session web an toàn, rồi chụp screenshot ignored
-  cho desktop `1440x900` và mobile `390x844`. Smoke live mặc định kiểm 3
-  public routes (`/login`, `/register`, `/forgot-password`), 1 pending auth
+  cho wide `1440x900`, compact `390x844`, medium `768x1024` và expanded
+  `1024x900`. Smoke live mặc định kiểm 4 pre-shell routes (`/loading`,
+  `/login`, `/register`, `/forgot-password`), 1 pending auth
   route bằng tokenless cached session (`/assignment-pending`) và 40
   authenticated shell routes trong `AppRouter`
   (`/home`, `/operations`, `/profile`, các admin workspaces, FIFO, BH/SC, VietQR,
   Payment Monitor web fallback, Sao kê, Cấn trừ, Góp ý, Report/Sales Report,
   Hộp thư hỗ trợ, Help Content admin, Quản lý kết nối API, Phụ lục hợp đồng và
-  Settings), tổng 88 route/viewport checks: không redirect sai route, không
+  Settings), tổng 180 route/viewport checks: không redirect sai route, không
   console/page error, không visible horizontal overflow. Script bỏ qua các node
   semantics nội bộ của Flutter như `flt-announcement-*` và paragraph
   accessibility khổng lồ vì chúng không tạo lỗi layout nhìn thấy.
   Follow-up guard 03/07/2026 đã khóa route inventory của smoke script bằng
   `design_system_migration_guard_test.dart`: public auth routes phải là
-  `/login`, `/register`, `/forgot-password`, pending auth route phải là
+  `/loading`, `/login`, `/register`, `/forgot-password`, pending auth route phải là
   `/assignment-pending`, còn authenticated route list phải khớp toàn bộ
-  `ShellRoute` trong `AppRouter`, tổng 88 checks cho 2 viewport.
+  `ShellRoute` trong `AppRouter`, tổng 180 checks cho 4 breakpoint classes.
   Follow-up pixel sanity 03/07/2026 bổ sung PNG parser trong smoke script để
   xác nhận screenshot đúng kích thước viewport và không phải ảnh phẳng/trắng
   bằng ngưỡng sampled-color/luma trước khi coi route là pass.
   Follow-up redaction 03/07/2026 bắt mọi console/page/fatal error đi qua
   sanitizer để failure output không lộ `access_token`, JWT hoặc bearer token
   khi staging/realtime trả lỗi.
+  OPS-44 live Figma/router reconciliation 03/08/2026: file hiện có 8 page,
+  router có 45 `path:` declarations và 43 canonical visual owners. Hai entry
+  point không phải duplicate screen: `/reports` redirect tới `/sales-reports`,
+  còn `/fifo/inventory-import` dùng cùng `InventoryImportScreen` với
+  `/admin/inventory-import`; default smoke hiện là 45 declared routes/180
+  route-viewport checks, bao gồm `/loading` ở pre-shell phase.
   Follow-up live staging 03/07/2026 sau deploy `2026.07.03.98+200098` sửa
   route động BH/SC detail trong smoke: default inventory vẫn giữ pattern
   `/check-warranty/details/:receiptNumber` để guard khớp `AppRouter`, nhưng

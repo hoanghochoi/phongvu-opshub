@@ -42,6 +42,14 @@ void main() {
     final row = find.byKey(const Key('contract-appendix-order-command-row'));
     final input = find.byKey(const Key('contract-appendix-order-input'));
     final button = find.byKey(const Key('contract-appendix-fetch-button'));
+    expect(
+      find.byKey(const Key('contract-appendix-workspace-header')),
+      findsOneWidget,
+    );
+    expect(
+      find.text('Tạo bảng phụ lục từ đơn hàng và quản lý lịch sử gần đây.'),
+      findsOneWidget,
+    );
     expect(row, findsOneWidget);
     expect(input, findsOneWidget);
     expect(button, findsOneWidget);

@@ -27,15 +27,18 @@ class AppLayoutTokens {
   static const double tabletRailWidth = 88;
   static const double shellTopBarHeight = 72;
   static const double mobileBottomNavHeight = 76;
-  static const double compactMobileBottomNavHeight = 68;
+  // Figma App Shell mobile frame uses a 76 px navigation surface at every
+  // compact/medium mobile width; the centered quick-action slot itself stays
+  // 68 px high inside that surface.
+  static const double compactMobileBottomNavHeight = 76;
   static const double mobileStickyActionBottomInset = 72;
   static const double formMaxWidth = 720;
   static const double actionBarMaxWidth = 560;
-  static const double authMaxWidth = 460;
+  static const double authMaxWidth = 360;
   static const double authBrandPanelMinWidth = 520;
   static const double authFormPanelMinWidth = 420;
-  static const double authCardPadding = 28;
-  static const double authMobileCardPadding = 22;
+  static const double authCardPadding = 16;
+  static const double authMobileCardPadding = 16;
   static const double authControlHeight = 48;
   static const double authControlRadius = AppRadius.md;
   static const double authSubmitHeight = 52;

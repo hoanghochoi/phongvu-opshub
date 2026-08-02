@@ -777,26 +777,35 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
                     actionIcon: Icons.filter_alt_off_outlined,
                     onAction: _resetFilters,
                   )
-                : ListView.separated(
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    itemCount: _users.length,
-                    separatorBuilder: (context, index) =>
-                        const SizedBox(height: AppLayoutTokens.cardGap),
-                    itemBuilder: (context, index) {
-                      final user = _users[index];
-                      final canDeleteUser =
-                          canCreateUsers &&
-                          user.id != currentUser?.id &&
-                          user.status?.toLowerCase() == 'no';
-                      return _UserListItem(
-                        user: user,
-                        roleTitle: _roleTitle(user.role),
-                        personnelTitle: _personnelTitle(user),
-                        canResetPassword: canResetPassword,
-                        canDelete: canDeleteUser,
-                        onResetPassword: () => _resetPassword(user),
-                        onEdit: () => _openEditor(user),
-                        onDelete: () => _deleteUser(user),
+                : LayoutBuilder(
+                    builder: (context, constraints) {
+                      final columns = constraints.maxWidth >= 860 ? 2 : 1;
+                      return GridView.builder(
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        itemCount: _users.length,
+                        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: columns,
+                          crossAxisSpacing: AppLayoutTokens.cardGap,
+                          mainAxisSpacing: AppLayoutTokens.cardGap,
+                          mainAxisExtent: 200,
+                        ),
+                        itemBuilder: (context, index) {
+                          final user = _users[index];
+                          final canDeleteUser =
+                              canCreateUsers &&
+                              user.id != currentUser?.id &&
+                              user.status?.toLowerCase() == 'no';
+                          return _UserListItem(
+                            user: user,
+                            roleTitle: _roleTitle(user.role),
+                            personnelTitle: _personnelTitle(user),
+                            canResetPassword: canResetPassword,
+                            canDelete: canDeleteUser,
+                            onResetPassword: () => _resetPassword(user),
+                            onEdit: () => _openEditor(user),
+                            onDelete: () => _deleteUser(user),
+                          );
+                        },
                       );
                     },
                   ),

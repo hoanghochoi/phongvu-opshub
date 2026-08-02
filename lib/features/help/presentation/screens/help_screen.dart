@@ -8,6 +8,7 @@ import 'package:phongvu_opshub/app/widgets/app_toast.dart';
 
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_text_styles.dart';
+import '../../../../app/widgets/app_buttons.dart';
 import '../../../../app/widgets/app_cards.dart';
 import '../../../../app/widgets/app_chips.dart';
 import '../../../../app/widgets/app_layout.dart';
@@ -210,17 +211,6 @@ class _HelpScreenState extends State<HelpScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (widget.embeddedInShell)
-            Align(
-              alignment: Alignment.centerRight,
-              child: IconButton(
-                tooltip: 'Tải lại hướng dẫn',
-                onPressed: _loading
-                    ? null
-                    : () => _load(reason: 'manual_refresh'),
-                icon: const Icon(Icons.refresh_rounded),
-              ),
-            ),
           _HelpScreenHeader(
             loading: _loading,
             pageCount: _pages.length,
@@ -231,6 +221,9 @@ class _HelpScreenState extends State<HelpScreen> {
                   if (latest == null || value.isAfter(latest)) return value;
                   return latest;
                 }),
+            onReload: widget.embeddedInShell && !_loading
+                ? () => _load(reason: 'manual_refresh')
+                : null,
           ),
           const SizedBox(height: AppLayoutTokens.cardGap),
           _buildBody(),
@@ -295,7 +288,7 @@ class _HelpScreenState extends State<HelpScreen> {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final compact = constraints.maxWidth < 960;
+        final compact = constraints.maxWidth < AppLayoutTokens.tabletBreakpoint;
         final navigationCard = _HelpNavigationCard(
           pages: _pages,
           selectedKey: _selectedKey,
@@ -322,8 +315,8 @@ class _HelpScreenState extends State<HelpScreen> {
         return Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            SizedBox(width: 320, child: navigationCard),
-            const SizedBox(width: AppLayoutTokens.cardGap),
+            SizedBox(width: 300, child: navigationCard),
+            const SizedBox(width: 16),
             Expanded(child: contentCard),
           ],
         );
@@ -370,11 +363,13 @@ class _HelpScreenHeader extends StatelessWidget {
     required this.loading,
     required this.pageCount,
     required this.updatedAt,
+    required this.onReload,
   });
 
   final bool loading;
   final int pageCount;
   final DateTime? updatedAt;
+  final VoidCallback? onReload;
 
   @override
   Widget build(BuildContext context) {
@@ -383,8 +378,23 @@ class _HelpScreenHeader extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Kho nội dung hỗ trợ OpsHub', style: AppTextStyles.headingM),
-          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Kho nội dung hỗ trợ OpsHub',
+                  style: AppTextStyles.headingS,
+                ),
+              ),
+              if (onReload != null)
+                AppIconAction(
+                  tooltip: 'Tải lại hướng dẫn',
+                  icon: Icons.refresh_rounded,
+                  onPressed: onReload,
+                ),
+            ],
+          ),
+          const SizedBox(height: 10),
           Wrap(
             spacing: 8,
             runSpacing: 8,
@@ -437,8 +447,7 @@ class _HelpNavigationCard extends StatelessWidget {
               depth: helpPageDepth(page, pages),
               onTap: () => onSelectPage(page),
             ),
-            if (page != pages.last)
-              const SizedBox(height: AppLayoutTokens.formInlineGap),
+            if (page != pages.last) const SizedBox(height: 10),
           ],
         ],
       ),

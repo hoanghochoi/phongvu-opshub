@@ -6,6 +6,7 @@ import 'package:phongvu_opshub/app/theme/app_text_styles.dart';
 import 'package:phongvu_opshub/app/theme/app_theme.dart';
 import 'package:phongvu_opshub/app/widgets/app_buttons.dart';
 import 'package:phongvu_opshub/app/widgets/app_layout.dart';
+import 'package:phongvu_opshub/app/widgets/app_inputs.dart';
 
 void main() {
   testWidgets('mobile typography density leaves tablet and desktop unchanged', (
@@ -57,6 +58,7 @@ void main() {
     final inputBorder =
         theme.inputDecorationTheme.border! as OutlineInputBorder;
     expect(inputBorder.borderRadius, AppRadius.allMd);
+    expect(theme.inputDecorationTheme.errorBorder!.borderSide.width, 2);
 
     final cardShape = theme.cardTheme.shape! as RoundedRectangleBorder;
     expect(cardShape.borderRadius, AppRadius.allSm);
@@ -86,10 +88,25 @@ void main() {
     expect(AppLayoutTokens.iconTouchTarget, 48);
     expect(AppLayoutTokens.listItemTouchTarget, 56);
     expect(AppLayoutTokens.mobileBottomNavHeight, 76);
-    expect(AppLayoutTokens.compactMobileBottomNavHeight, 68);
+    expect(AppLayoutTokens.compactMobileBottomNavHeight, 76);
     expect(AppLayoutTokens.mobileStickyActionBottomInset, 72);
-    expect(AppButtonMetrics.radius, AppRadius.lg);
+    expect(AppLayoutTokens.authMaxWidth, 360);
+    expect(AppLayoutTokens.authCardPadding, 16);
+    expect(AppLayoutTokens.authMobileCardPadding, 16);
+    expect(AppButtonMetrics.radius, AppRadius.md);
     expect(AppButtonMetrics.height, 52);
+    expect(AppButtonMetrics.smallHeight, 40);
+    expect(AppButtonMetrics.mediumHeight, 48);
+    expect(AppButtonMetrics.largeHeight, 52);
+    expect(
+      AppButtonMetrics.horizontalPadding,
+      const EdgeInsets.symmetric(horizontal: 20),
+    );
+    expect(AppButtonMetrics.gap, 8);
+    expect(
+      AppInputMetrics.contentPadding,
+      const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+    );
     expect(AppButtonMetrics.mobileActionHeight, 48);
     expect(AppButtonMetrics.compactActionHeight, 44);
     expect(AppButtonMetrics.iconSize, 48);
@@ -106,5 +123,7 @@ void main() {
     final inputBorder =
         theme.inputDecorationTheme.border! as OutlineInputBorder;
     expect(inputBorder.borderRadius, AppRadius.allMd);
+    final errorBorder = theme.inputDecorationTheme.errorBorder!;
+    expect(errorBorder.borderSide.width, 2);
   });
 }

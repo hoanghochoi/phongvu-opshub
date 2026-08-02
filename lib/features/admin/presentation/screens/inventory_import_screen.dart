@@ -251,81 +251,42 @@ class _InventoryImportHeader extends StatelessWidget {
         ? AppColors.warning
         : AppColors.primary;
 
-    return AppSurfaceCard(
+    return Column(
       key: const Key('inventory-import-header'),
-      backgroundColor: AppColors.primarySurface,
-      borderColor: AppColors.primary.withValues(alpha: 0.18),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final compact =
-              constraints.maxWidth < AppLayoutTokens.tabletBreakpoint;
-          final titleBlock = Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Cập nhật tồn kho FIFO', style: AppTextStyles.headingM),
-              const SizedBox(height: 6),
-              Text(
-                'Nhập file tồn kho vật lý để bổ sung dữ liệu FIFO thủ công.',
-                style: AppTextStyles.bodyM.copyWith(
-                  color: AppColors.neutral600,
-                  height: 1.35,
-                ),
-              ),
-              const SizedBox(height: AppLayoutTokens.cardGap),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  AppStatusChip(
-                    label: statusLabel,
-                    color: statusColor,
-                    backgroundColor: statusColor.withValues(alpha: 0.10),
-                  ),
-                  const AppStatusChip(
-                    label: 'Excel .xlsx/.xls',
-                    color: AppColors.info,
-                    backgroundColor: AppColors.infoSurface,
-                  ),
-                  const AppStatusChip(
-                    label: 'Không ghi đè trạng thái xuất',
-                    color: AppColors.success,
-                    backgroundColor: AppColors.successSurface,
-                  ),
-                ],
-              ),
-            ],
-          );
-
-          final icon = Container(
-            width: 52,
-            height: 52,
-            decoration: BoxDecoration(
-              color: AppColors.primary.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Cập nhật tồn kho FIFO', style: AppTextStyles.headingM),
+        const SizedBox(height: 6),
+        Text(
+          'Nhập file tồn kho vật lý để bổ sung dữ liệu FIFO thủ công.',
+          style: AppTextStyles.bodyM.copyWith(
+            color: AppColors.neutral600,
+            height: 1.35,
+          ),
+        ),
+        const SizedBox(height: AppLayoutTokens.cardGap),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            AppStatusChip(
+              label: statusLabel,
+              color: statusColor,
+              backgroundColor: statusColor.withValues(alpha: 0.10),
             ),
-            child: const Icon(
-              Icons.inventory_2_outlined,
-              color: AppColors.primary,
+            const AppStatusChip(
+              label: 'Excel .xlsx/.xls',
+              color: AppColors.info,
+              backgroundColor: AppColors.infoSurface,
             ),
-          );
-
-          if (compact) {
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [icon, const SizedBox(height: 14), titleBlock],
-            );
-          }
-
-          return Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              icon,
-              const SizedBox(width: AppLayoutTokens.formInlineGap),
-              Expanded(child: titleBlock),
-            ],
-          );
-        },
-      ),
+            const AppStatusChip(
+              label: 'Không ghi đè trạng thái xuất',
+              color: AppColors.success,
+              backgroundColor: AppColors.successSurface,
+            ),
+          ],
+        ),
+      ],
     );
   }
 }

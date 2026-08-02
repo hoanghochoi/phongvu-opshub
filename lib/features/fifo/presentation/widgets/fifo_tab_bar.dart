@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../../../../app/theme/app_colors.dart';
-import '../../../../app/widgets/app_cards.dart';
 
 class FifoHistoryTabBar extends StatelessWidget {
   final TabController controller;
@@ -11,25 +10,20 @@ class FifoHistoryTabBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return AppSurfaceCard(
-      padding: const EdgeInsets.all(4),
-      child: TabBar(
-        controller: controller,
-        labelColor: AppColors.surface,
-        unselectedLabelColor: isDark
-            ? AppColors.neutral300
-            : AppColors.neutral700,
-        indicator: BoxDecoration(
-          borderRadius: BorderRadius.circular(6),
-          color: AppColors.primary,
-        ),
-        indicatorSize: TabBarIndicatorSize.tab,
-        dividerHeight: 0,
-        tabs: const [
-          Tab(text: 'Kiểm tra FIFO'),
-          Tab(text: 'Sắp xếp FIFO'),
-        ],
-      ),
+    return TabBar(
+      controller: controller,
+      labelColor: AppColors.primary,
+      unselectedLabelColor: isDark
+          ? AppColors.neutral300
+          : AppColors.neutral700,
+      indicatorColor: AppColors.primary,
+      indicatorWeight: 3,
+      indicatorSize: TabBarIndicatorSize.tab,
+      dividerColor: Theme.of(context).dividerColor,
+      tabs: const [
+        Tab(text: 'Kiểm tra'),
+        Tab(text: 'Sắp xếp'),
+      ],
     );
   }
 }

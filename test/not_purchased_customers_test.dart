@@ -263,7 +263,7 @@ void main() {
     expect(repository.lastStartDate, DateTime(2026, 7, 21));
     expect(repository.lastEndDate, DateTime(2026, 7, 27));
 
-    await tester.tap(find.text('Lịch sử chăm sóc'));
+    await tester.tap(find.text('Lịch sử'));
     await tester.pumpAndSettle();
     expect(repository.lastStatus, 'HISTORY');
     expect(repository.lastStartDate, DateTime(2026, 7, 21));
@@ -295,12 +295,12 @@ void main() {
     await tester.pumpAndSettle();
 
     final openX = tester.getCenter(find.text('Cần chăm sóc')).dx;
-    final historyX = tester.getCenter(find.text('Lịch sử chăm sóc')).dx;
+    final historyX = tester.getCenter(find.text('Lịch sử')).dx;
     final hiddenX = tester.getCenter(find.text('Đã ẩn')).dx;
     expect(openX, lessThan(historyX));
     expect(historyX, lessThan(hiddenX));
 
-    await tester.tap(find.text('Lịch sử chăm sóc'));
+    await tester.tap(find.text('Lịch sử'));
     await tester.pumpAndSettle();
     expect(repository.lastStatus, 'HISTORY');
   });

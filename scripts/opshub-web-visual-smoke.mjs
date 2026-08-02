@@ -33,11 +33,12 @@ const headless = process.env.OPSHUB_VISUAL_SMOKE_HEADLESS !== 'false';
 const preferredBrowserChannel = process.env.OPSHUB_VISUAL_SMOKE_BROWSER_CHANNEL;
 const waitMs = Number(process.env.OPSHUB_VISUAL_SMOKE_WAIT_MS || 1200);
 const viewports = parseViewports(
-  process.env.OPSHUB_VISUAL_SMOKE_VIEWPORTS || 'desktop=1440x900,mobile=390x844',
+  process.env.OPSHUB_VISUAL_SMOKE_VIEWPORTS ||
+    'wide=1440x900,compact=390x844,medium=768x1024,expanded=1024x900',
 );
 const publicRoutes = parseRoutes(
   process.env.OPSHUB_VISUAL_SMOKE_PUBLIC_ROUTES ||
-    ['/login', '/register', '/forgot-password'].join(','),
+    ['/loading', '/login', '/register', '/forgot-password'].join(','),
 );
 const pendingRoutes = parseRoutes(
   process.env.OPSHUB_VISUAL_SMOKE_PENDING_ROUTES ||

@@ -204,7 +204,17 @@ class _SalesTargetAdminScreenState extends State<SalesTargetAdminScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          Text('Quản lý doanh số', style: AppTextStyles.headingM),
+          const SizedBox(height: 4),
+          Text(
+            'Chỉ tiêu theo showroom',
+            style: AppTextStyles.bodyM.copyWith(
+              color: AppColors.textSecondaryOf(context),
+            ),
+          ),
+          const SizedBox(height: AppLayoutTokens.cardGap),
           AppSurfaceCard(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
             child: Row(
               children: [
                 IconButton(
@@ -215,9 +225,12 @@ class _SalesTargetAdminScreenState extends State<SalesTargetAdminScreen> {
                 Expanded(
                   child: Column(
                     children: [
-                      Text('Quản lý doanh số', style: AppTextStyles.headingS),
                       Text(
-                        'Tháng ${DateFormat('MM/yyyy').format(_month)} • Chỉ tiêu trước VAT',
+                        'Tháng ${DateFormat('MM/yyyy').format(_month)}',
+                        style: AppTextStyles.headingS,
+                      ),
+                      Text(
+                        'Chỉ tiêu trước VAT',
                         style: AppTextStyles.bodyS.copyWith(
                           color: AppColors.textMutedOf(context),
                         ),
@@ -254,21 +267,15 @@ class _SalesTargetAdminScreenState extends State<SalesTargetAdminScreen> {
               message: 'Kiểm tra lại phạm vi tổ chức được cấp quyền.',
             )
           else ...[
-            AppSurfaceCard(
-              child: Column(
-                children: [
-                  for (var index = 0; index < _items.length; index++) ...[
-                    _SalesTargetRow(
-                      item: _items[index],
-                      controller:
-                          _controllers[_items[index].organizationNodeId]!,
-                    ),
-                    if (index < _items.length - 1) const Divider(height: 24),
-                  ],
-                ],
+            for (final item in _items) ...[
+              AppSurfaceCard(
+                child: _SalesTargetRow(
+                  item: item,
+                  controller: _controllers[item.organizationNodeId]!,
+                ),
               ),
-            ),
-            const SizedBox(height: AppLayoutTokens.cardGap),
+              const SizedBox(height: AppLayoutTokens.cardGap),
+            ],
             Align(
               alignment: Alignment.centerRight,
               child: AppPrimaryButton(
@@ -298,8 +305,6 @@ class _SalesTargetRow extends StatelessWidget {
           controller: controller,
           label: 'Chỉ tiêu tháng',
           keyboardType: TextInputType.number,
-          suffixText: 'VND',
-          helperText: 'Để trống nếu chưa thiết lập',
         );
         if (constraints.maxWidth < 600) {
           return Column(
@@ -315,7 +320,7 @@ class _SalesTargetRow extends StatelessWidget {
           children: [
             Expanded(child: Text('${item.storeCode} • ${item.storeName}')),
             const SizedBox(width: 20),
-            SizedBox(width: 320, child: field),
+            SizedBox(width: 240, child: field),
           ],
         );
       },

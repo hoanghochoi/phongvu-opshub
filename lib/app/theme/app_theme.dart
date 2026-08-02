@@ -69,7 +69,7 @@ class AppTheme {
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: AppRadius.allMd,
-          borderSide: const BorderSide(color: AppColors.error, width: 1),
+          borderSide: const BorderSide(color: AppColors.error, width: 2),
         ),
         focusedErrorBorder: OutlineInputBorder(
           borderRadius: AppRadius.allMd,
@@ -91,8 +91,8 @@ class AppTheme {
           backgroundColor: AppColors.primary,
           foregroundColor: AppColors.surface,
           minimumSize: const Size(0, 52),
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-          shape: RoundedRectangleBorder(borderRadius: AppRadius.allLg),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+          shape: RoundedRectangleBorder(borderRadius: AppRadius.allMd),
           elevation: 0,
           textStyle: AppTextStyles.labelL,
         ),
@@ -102,8 +102,8 @@ class AppTheme {
           foregroundColor: AppColors.primary,
           side: const BorderSide(color: AppColors.primary),
           minimumSize: const Size(0, 52),
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-          shape: RoundedRectangleBorder(borderRadius: AppRadius.allLg),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+          shape: RoundedRectangleBorder(borderRadius: AppRadius.allMd),
         ),
       ),
       textButtonTheme: TextButtonThemeData(
@@ -199,7 +199,7 @@ class AppTheme {
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: AppRadius.allMd,
-          borderSide: const BorderSide(color: AppColors.error, width: 1),
+          borderSide: const BorderSide(color: AppColors.error, width: 2),
         ),
         focusedErrorBorder: OutlineInputBorder(
           borderRadius: AppRadius.allMd,
@@ -223,8 +223,8 @@ class AppTheme {
           backgroundColor: AppColors.darkPrimary,
           foregroundColor: AppColors.darkScaffold,
           minimumSize: const Size(0, 52),
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-          shape: RoundedRectangleBorder(borderRadius: AppRadius.allLg),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+          shape: RoundedRectangleBorder(borderRadius: AppRadius.allMd),
           elevation: 0,
           textStyle: AppTextStyles.labelL,
         ),
@@ -234,8 +234,8 @@ class AppTheme {
           foregroundColor: AppColors.darkPrimary,
           side: const BorderSide(color: AppColors.darkPrimary),
           minimumSize: const Size(0, 52),
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-          shape: RoundedRectangleBorder(borderRadius: AppRadius.allLg),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+          shape: RoundedRectangleBorder(borderRadius: AppRadius.allMd),
         ),
       ),
       textButtonTheme: TextButtonThemeData(

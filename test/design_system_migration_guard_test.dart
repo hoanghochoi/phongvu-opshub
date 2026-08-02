@@ -1069,10 +1069,10 @@ void main() {
 
     expect(
       publicSmokeRoutes,
-      equals(['/login', '/register', '/forgot-password']),
+      equals(['/loading', '/login', '/register', '/forgot-password']),
       reason:
-          'Assignment-pending stays widget/Figma-covered until a live pending '
-          'fixture exists; public smoke should cover only unauthenticated auth.',
+          'Pre-shell loading and unauthenticated auth routes must remain in '
+          'visual smoke coverage.',
     );
     expect(
       pendingSmokeRoutes,
@@ -1092,9 +1092,11 @@ void main() {
       (publicSmokeRoutes.length +
               pendingSmokeRoutes.length +
               authenticatedSmokeRoutes.length) *
-          2,
-      88,
-      reason: 'Default smoke should stay at 44 routes across 2 viewports.',
+          4,
+      180,
+      reason:
+          'Default smoke covers 45 declared routes across the four shared '
+          'breakpoint classes.',
     );
     expect(smokeSource, contains('readPngVisualStats'));
     expect(smokeSource, contains('uniqueSampledColors < 16'));
@@ -1111,8 +1113,15 @@ void main() {
     expect(smokeSource, contains('OPSHUB_VISUAL_SMOKE_WARRANTY_RECEIPT'));
     expect(smokeSource, contains('GET /warranties'));
     expect(smokeSource, contains('skippedRoutes'));
-    expect(gapMap, contains('tổng 88 route/viewport checks'));
+    expect(gapMap, contains('tổng 180 route/viewport checks'));
     expect(gapMap, contains(RegExp(r'40\r?\n  authenticated shell routes')));
+    expect(gapMap, contains('router có 45 `path:` declarations'));
+    expect(gapMap, contains('43 canonical visual owners'));
+    expect(gapMap, contains('`/reports` redirect tới `/sales-reports`'));
+    expect(
+      gapMap,
+      contains('`/fifo/inventory-import` dùng cùng `InventoryImportScreen`'),
+    );
     expect(testMatrix, contains('default live staging smoke now runs 88'));
     expect(testMatrix, contains('all 40 authenticated shell routes'));
   });

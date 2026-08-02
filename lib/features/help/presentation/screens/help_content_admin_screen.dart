@@ -749,7 +749,7 @@ class _HelpContentHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final actions = [
       SizedBox(
-        width: 180,
+        width: 86,
         child: AppSecondaryButton(
           onPressed: onRefresh,
           icon: Icons.refresh_rounded,
@@ -760,70 +760,34 @@ class _HelpContentHeader extends StatelessWidget {
         ),
       ),
       SizedBox(
-        width: 180,
-        child: AppSecondaryButton(
+        width: 98,
+        child: AppPrimaryButton(
           onPressed: onCreatePage,
           icon: Icons.note_add_outlined,
           label: 'Tạo trang',
-          expand: false,
         ),
       ),
       SizedBox(
-        width: 220,
-        child: AppSecondaryButton(
+        width: 156,
+        child: AppPrimaryButton(
           onPressed: onRestoreFromDocs,
           icon: Icons.restore_page_outlined,
           label: 'Khôi phục từ docs',
           isLoading: restoring,
           loadingLabel: 'Đang khôi phục',
-          expand: false,
         ),
       ),
     ];
 
-    return AppSurfaceCard(
+    return Column(
       key: const Key('help-content-admin-header'),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('Quản lý hướng dẫn', style: AppTextStyles.headingM),
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              AppStatusChip(
-                label: '$totalPages trang',
-                color: AppColors.primary,
-              ),
-              AppStatusChip(
-                label: '$publicCount public',
-                color: AppColors.success,
-              ),
-              AppStatusChip(
-                label: '$privateCount private',
-                color: AppColors.info,
-              ),
-              AppStatusChip(
-                label: '$draftCount bản nháp',
-                color: AppColors.warning,
-              ),
-              if (updatedAt != null)
-                AppStatusChip(
-                  label:
-                      'Cập nhật ${DateFormat('HH:mm dd/MM').format(updatedAt!.toLocal())}',
-                  color: AppColors.neutral700,
-                ),
-              const AppStatusChip(
-                label: 'Chỉ Super Admin',
-                color: AppColors.neutral700,
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Wrap(spacing: 12, runSpacing: 12, children: actions),
-        ],
-      ),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Quản lý hướng dẫn', style: AppTextStyles.headingM),
+        const SizedBox(height: 12),
+        const SizedBox(height: 12),
+        Wrap(spacing: 12, runSpacing: 12, children: actions),
+      ],
     );
   }
 }

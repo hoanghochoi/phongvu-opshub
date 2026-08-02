@@ -17,14 +17,17 @@ Foundation
 Screens — Desktop · Windows
 Screens — Mobile · Android
 Screens — Tablet · Android
+Screens — Mobile · iOS
+Screens — Tablet · iPadOS
+Screens — Web · Responsive
 ```
 
 `Foundation` là source duy nhất cho variables, components, icon masters,
 screen-pattern components, specimens và documentation. Foundation chia section
 theo family; không tạo lại page riêng cho từng component hoặc icon catalog.
-Ba page Screens chỉ chứa frame/instance của đúng platform, không chứa main
-component. Desktop/Windows, Mobile/Android và Tablet/Android phải có
-grid/gutter riêng và bounding-box overlap bằng `0` trước review. Tablet giữ
+Sáu page Screens chỉ chứa frame/instance của đúng platform, không chứa main
+component. Mỗi platform phải có grid/gutter riêng và bounding-box overlap bằng
+`0` trước review. Tablet giữ
 portrait/landscape hoặc medium/expanded frame riêng khi interaction thực sự
 khác; không trộn chúng vào page Mobile chỉ vì cùng chạy Android.
 

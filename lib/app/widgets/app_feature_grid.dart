@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../theme/app_colors.dart';
+import '../theme/app_radius.dart';
 import '../theme/app_text_styles.dart';
 import 'app_layout.dart';
 
@@ -35,11 +35,24 @@ class AppFeatureSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          title,
-          style: AppTextStyles.headingS.copyWith(
-            color: Theme.of(context).colorScheme.onSurface,
-          ),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              title,
+              style: AppTextStyles.bodyL.copyWith(
+                color: Theme.of(context).colorScheme.onSurface,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            Text(
+              '${actions.length} công cụ',
+              style: AppTextStyles.bodyS.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                height: 18 / 13,
+              ),
+            ),
+          ],
         ),
         const SizedBox(height: 12),
         AppFeatureGrid(actions: actions),
@@ -58,15 +71,11 @@ class AppFeatureGrid extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final width = constraints.maxWidth;
-        final crossAxisCount = width < 300
-            ? 1
-            : width >= 980
-            ? 4
-            : width >= 680
+        final crossAxisCount = width >= AppLayoutTokens.tabletBreakpoint
             ? 3
-            : 2;
-        final spacing = width >= 680 ? 14.0 : 12.0;
-        final tileHeight = width < 340 ? 124.0 : 118.0;
+            : 1;
+        final spacing = width >= AppLayoutTokens.tabletBreakpoint ? 16.0 : 12.0;
+        const tileHeight = 96.0;
 
         return GridView.builder(
           itemCount: actions.length,
@@ -102,55 +111,60 @@ class AppFeatureTile extends StatelessWidget {
         color:
             Theme.of(context).cardTheme.color ??
             Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
+        borderRadius: AppRadius.allLg,
         child: InkWell(
           onTap: action.onTap,
-          borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
+          borderRadius: AppRadius.allLg,
           child: Container(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
+              borderRadius: AppRadius.allLg,
               border: Border.all(color: Theme.of(context).dividerColor),
-              boxShadow: [
-                BoxShadow(
-                  color: AppColors.shadow.withValues(alpha: 0.04),
-                  blurRadius: 10,
-                  offset: const Offset(0, 4),
-                ),
-              ],
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 Container(
-                  width: 34,
-                  height: 34,
+                  width: 44,
+                  height: 44,
                   decoration: BoxDecoration(
                     color: action.color.withValues(alpha: 0.11),
-                    borderRadius: BorderRadius.circular(
-                      AppLayoutTokens.cardRadius,
-                    ),
+                    borderRadius: AppRadius.allMd,
                   ),
-                  child: Icon(action.icon, color: action.color, size: 20),
+                  child: Icon(action.icon, color: action.color, size: 24),
                 ),
-                const Spacer(),
-                Text(
-                  action.title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppTextStyles.labelM.copyWith(
-                    color: Theme.of(context).colorScheme.onSurface,
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        action.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTextStyles.labelM.copyWith(
+                          color: Theme.of(context).colorScheme.onSurface,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        action.description,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTextStyles.bodyS.copyWith(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                          height: 18 / 13,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  action.description,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppTextStyles.bodyS.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    height: 1.2,
-                  ),
+                const SizedBox(width: 12),
+                Icon(
+                  Icons.chevron_right_rounded,
+                  size: 20,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
                 ),
               ],
             ),

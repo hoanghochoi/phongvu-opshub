@@ -12,6 +12,7 @@ import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_text_styles.dart';
 import '../../../../app/widgets/app_buttons.dart';
 import '../../../../app/widgets/app_cards.dart';
+import '../../../../app/widgets/app_chips.dart';
 import '../../../../app/widgets/app_combobox.dart';
 import '../../../../app/widgets/app_dialogs.dart';
 import '../../../../app/widgets/app_filter_dropdowns.dart';
@@ -574,27 +575,9 @@ class _NotPurchasedCustomersScreenState
                 icon: Icons.search_rounded,
                 onChanged: _searchChanged,
               );
-              final filters = SegmentedButton<String>(
-                segments: const [
-                  ButtonSegment(
-                    value: 'OPEN',
-                    label: Text('Cần chăm sóc'),
-                    icon: Icon(Icons.schedule_rounded),
-                  ),
-                  ButtonSegment(
-                    value: 'HISTORY',
-                    label: Text('Lịch sử chăm sóc'),
-                    icon: Icon(Icons.history_rounded),
-                  ),
-                  ButtonSegment(
-                    value: 'HIDDEN',
-                    label: Text('Đã ẩn'),
-                    icon: Icon(Icons.archive_outlined),
-                  ),
-                ],
-                selected: {_status},
-                onSelectionChanged: (value) {
-                  final status = value.first;
+              final filters = _FollowUpStatusTabs(
+                status: _status,
+                onChanged: (status) {
                   setState(() => _status = status);
                   unawaited(
                     AppLogger.instance.info(
@@ -662,13 +645,10 @@ class _NotPurchasedCustomersScreenState
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
+                    filters,
+                    const SizedBox(height: 16),
                     search,
-                    const SizedBox(height: 12),
-                    SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: filters,
-                    ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 16),
                     dateRangeFilter,
                     if (storeFilter != null) ...[
                       const SizedBox(height: 12),
@@ -680,18 +660,13 @@ class _NotPurchasedCustomersScreenState
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Row(
-                    children: [
-                      Expanded(child: search),
-                      const SizedBox(width: 12),
-                      filters,
-                    ],
-                  ),
-                  const SizedBox(height: 12),
+                  Row(children: [Expanded(child: filters)]),
+                  const SizedBox(height: 16),
                   Wrap(
                     spacing: 12,
                     runSpacing: 12,
                     children: [
+                      SizedBox(width: 420, child: search),
                       SizedBox(width: 360, child: dateRangeFilter),
                       if (storeFilter != null)
                         SizedBox(width: 360, child: storeFilter),
@@ -731,14 +706,8 @@ class _NotPurchasedCustomersScreenState
           else ...[
             LayoutBuilder(
               builder: (context, constraints) {
-                final columns = constraints.maxWidth >= 1120
-                    ? 3
-                    : constraints.maxWidth >= 720
-                    ? 2
-                    : 1;
-                final gap = 14.0;
-                final width =
-                    (constraints.maxWidth - gap * (columns - 1)) / columns;
+                const gap = 16.0;
+                final width = constraints.maxWidth;
                 return Wrap(
                   spacing: gap,
                   runSpacing: gap,
@@ -796,6 +765,56 @@ class _NotPurchasedCustomersScreenState
   }
 }
 
+class _FollowUpStatusTabs extends StatelessWidget {
+  final String status;
+  final ValueChanged<String> onChanged;
+
+  const _FollowUpStatusTabs({required this.status, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    const tabs = [
+      ('OPEN', 'Cần chăm sóc'),
+      ('HISTORY', 'Lịch sử'),
+      ('HIDDEN', 'Đã ẩn'),
+    ];
+    return Row(
+      children: [
+        for (final tab in tabs)
+          Expanded(
+            child: InkWell(
+              onTap: () => onChanged(tab.$1),
+              child: Container(
+                height: 52,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  border: Border(
+                    bottom: BorderSide(
+                      color: status == tab.$1
+                          ? AppColors.primaryOf(context)
+                          : AppColors.borderOf(context),
+                      width: status == tab.$1 ? 3 : 1,
+                    ),
+                  ),
+                ),
+                child: Text(
+                  tab.$2,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTextStyles.labelM.copyWith(
+                    color: status == tab.$1
+                        ? AppColors.primaryOf(context)
+                        : AppColors.textSecondaryOf(context),
+                  ),
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
 class _PageHeader extends StatelessWidget {
   final int total;
   final bool contactGracePeriodActive;
@@ -814,83 +833,72 @@ class _PageHeader extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) => AppSurfaceCard(
-    backgroundColor: AppColors.primary.withValues(alpha: 0.06),
-    borderColor: AppColors.primary.withValues(alpha: 0.18),
-    child: LayoutBuilder(
-      builder: (context, constraints) {
-        final compact =
-            constraints.maxWidth < AppLayoutTokens.compactBreakpoint;
-        final summary = Row(
-          children: [
-            const Icon(Icons.person_search_rounded, color: AppColors.primary),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('Chăm sóc lại', style: AppTextStyles.headingM),
-                  Text(
-                    contactGracePeriodActive
-                        ? 'Tạm hiển thị toàn bộ khách chưa mua${contactGracePeriodEndsAt == null ? '' : ' đến ${DateFormat('HH:mm dd/MM/yyyy').format(contactGracePeriodEndsAt!.toLocal())}'} • $total hồ sơ'
-                        : 'Theo dõi khách có liên hệ hợp lệ • $total hồ sơ',
-                    style: AppTextStyles.bodyM.copyWith(
-                      color: AppColors.neutral600,
-                    ),
-                  ),
-                ],
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      final compact = constraints.maxWidth < AppLayoutTokens.compactBreakpoint;
+      final summary = Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Chăm sóc lại', style: AppTextStyles.headingM),
+          const SizedBox(height: 4),
+          Text(
+            contactGracePeriodActive
+                ? 'Tạm hiển thị toàn bộ khách chưa mua${contactGracePeriodEndsAt == null ? '' : ' đến ${DateFormat('HH:mm dd/MM/yyyy').format(contactGracePeriodEndsAt!.toLocal())}'}'
+                : 'Theo dõi khách chưa mua có thông tin liên hệ hợp lệ.',
+            style: AppTextStyles.bodyS.copyWith(color: AppColors.neutral600),
+          ),
+          const SizedBox(height: 10),
+          AppStatusChip(label: '$total hồ sơ', color: AppColors.info),
+        ],
+      );
+      final actions = Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        alignment: WrapAlignment.end,
+        children: [
+          if (onExportHistory != null)
+            AppSecondaryButton(
+              onPressed: onExportHistory,
+              icon: Icons.download_rounded,
+              label: 'Tải lịch sử chăm sóc',
+              isLoading: exportingHistory,
+              loadingLabel: 'Đang tạo file...',
+              expand: false,
+              size: AppButtonSize.medium,
+            ),
+          if (onImport != null)
+            SizedBox(
+              width: 140,
+              child: AppPrimaryButton(
+                onPressed: onImport,
+                label: 'Nhập Excel',
+                size: AppButtonSize.small,
               ),
             ),
-          ],
-        );
-        final actions = Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          alignment: WrapAlignment.end,
+        ],
+      );
+      if (compact) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            if (onExportHistory != null)
-              AppSecondaryButton(
-                onPressed: onExportHistory,
-                icon: Icons.download_rounded,
-                label: 'Tải lịch sử chăm sóc',
-                isLoading: exportingHistory,
-                loadingLabel: 'Đang tạo file...',
-                expand: false,
-                height: AppLayoutTokens.compactActionHeight,
-              ),
-            if (onImport != null)
-              AppSecondaryButton(
-                onPressed: onImport,
-                icon: Icons.upload_file_rounded,
-                label: 'Nhập Excel',
-                expand: false,
-                height: AppLayoutTokens.compactActionHeight,
-              ),
-          ],
-        );
-        if (compact) {
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              summary,
-              if (onExportHistory != null || onImport != null) ...[
-                const SizedBox(height: 12),
-                Align(alignment: Alignment.centerRight, child: actions),
-              ],
-            ],
-          );
-        }
-        return Row(
-          children: [
-            Expanded(child: summary),
+            summary,
             if (onExportHistory != null || onImport != null) ...[
-              const SizedBox(width: 12),
-              actions,
+              const SizedBox(height: 12),
+              Align(alignment: Alignment.centerRight, child: actions),
             ],
           ],
         );
-      },
-    ),
+      }
+      return Row(
+        children: [
+          Expanded(child: summary),
+          if (onExportHistory != null || onImport != null) ...[
+            const SizedBox(width: 12),
+            actions,
+          ],
+        ],
+      );
+    },
   );
 }
 
@@ -911,7 +919,7 @@ class _FollowUpCard extends StatelessWidget {
     final contact = item.contactSummary;
     return AppSurfaceCard(
       onTap: onTap,
-      borderColor: tone.withValues(alpha: 0.35),
+      padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -926,20 +934,15 @@ class _FollowUpCard extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
-                decoration: BoxDecoration(
-                  color: tone.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(99),
-                ),
-                child: Text(
-                  '${item.careAgeDays} ngày',
-                  style: AppTextStyles.labelS.copyWith(color: tone),
-                ),
+              AppLinkButton(
+                onPressed: onTap,
+                icon: Icons.open_in_new_rounded,
+                label: 'Mở hồ sơ',
+                compact: true,
               ),
             ],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           _InfoLine(icon: Icons.call_outlined, text: contact),
           _InfoLine(
             icon: Icons.category_outlined,
@@ -952,22 +955,22 @@ class _FollowUpCard extends StatelessWidget {
               icon: Icons.storefront_outlined,
               text: 'Mã showroom: ${item.storeCode}',
             ),
-          _InfoLine(
-            icon: Icons.person_outline_rounded,
-            text:
-                'Tiếp xúc đầu: ${_person(item.firstContactByName, item.firstContactByEmail)} • ${_date(item.firstContactAt)}',
+          const SizedBox(height: 10),
+          AppStatusChip(
+            label: item.lastFollowUpAt == null
+                ? '${item.careAgeDays} ngày • Chưa chăm sóc lại'
+                : '${item.careAgeDays} ngày • Đã liên hệ ${item.followUpCount} lần',
+            color: tone,
           ),
-          _InfoLine(
-            icon: Icons.history_rounded,
-            text: item.lastFollowUpAt == null
-                ? 'Chưa chăm sóc lại'
-                : 'Lần gần nhất: ${_person(item.lastFollowUpByName, null)} • ${_date(item.lastFollowUpAt)}',
-          ),
-          if ((item.assigneeName ?? '').trim().isNotEmpty)
-            _InfoLine(
-              icon: Icons.assignment_ind_outlined,
-              text: 'Phụ trách: ${item.assigneeName}',
+          if ((item.assigneeName ?? '').trim().isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text(
+              'Phụ trách: ${item.assigneeName}',
+              style: AppTextStyles.bodyS.copyWith(
+                color: AppColors.textSecondaryOf(context),
+              ),
             ),
+          ],
         ],
       ),
     );

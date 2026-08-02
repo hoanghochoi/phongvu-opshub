@@ -446,115 +446,113 @@ class _FeatureAdminScreenState extends State<FeatureAdminScreen>
   @override
   Widget build(BuildContext context) {
     return Column(
-        children: [
-          AppResponsiveContent(
-            child: AppSurfaceCard(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        AppResponsiveContent(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Quản lý tính năng',
+                style: AppTextStyles.headingM.copyWith(
+                  color: Theme.of(context).colorScheme.onSurface,
+                ),
+              ),
+              const SizedBox(height: 16),
+              AppActionRow(
+                desktopAlignment: MainAxisAlignment.start,
+                maxButtonWidth: 210,
                 children: [
-                  Text(
-                    'Quản lý tính năng',
-                    style: AppTextStyles.headingM.copyWith(
-                      color: Theme.of(context).colorScheme.onSurface,
+                  AppPrimaryButton(
+                    onPressed: _loading ? null : () => _openFeatureEditor(),
+                    icon: Icons.add_box_outlined,
+                    label: 'Thêm tính năng',
+                  ),
+                  AppSecondaryButton(
+                    onPressed: _loading
+                        ? null
+                        : () => _openNodeAssignmentEditor(),
+                    icon: Icons.account_tree_outlined,
+                    label: 'Gán đơn vị',
+                  ),
+                  AppSecondaryButton(
+                    onPressed: _loading ? null : () => _openRuleEditor(),
+                    icon: Icons.rule_folder_outlined,
+                    label: 'Thêm quy tắc cũ',
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        AppResponsiveContent(
+          child: Material(
+            color: AppColors.transparent,
+            child: TabBar(
+              controller: _tabController,
+              labelColor: AppColors.primary,
+              unselectedLabelColor: Theme.of(
+                context,
+              ).colorScheme.onSurfaceVariant,
+              indicatorColor: AppColors.primary,
+              dividerColor: Theme.of(context).dividerColor,
+              tabs: const [
+                Tab(text: 'Tính năng'),
+                Tab(text: 'Theo đơn vị'),
+                Tab(text: 'Quy tắc cũ'),
+              ],
+            ),
+          ),
+        ),
+        Expanded(
+          child: _loading
+              ? const AppResponsiveContent(
+                  child: AppListSkeleton(itemCount: 6, itemHeight: 76),
+                )
+              : TabBarView(
+                  controller: _tabController,
+                  children: [
+                    _FeatureList(
+                      features: _features,
+                      onRefresh: _load,
+                      onEdit: _openFeatureEditor,
+                      onDelete: (feature) => feature.isSystem
+                          ? null
+                          : () {
+                              _deleteFeature(feature);
+                            },
                     ),
-                  ),
-                  const SizedBox(height: 16),
-                  AppActionRow(
-                    desktopAlignment: MainAxisAlignment.start,
-                    maxButtonWidth: 210,
-                    children: [
-                      AppSecondaryButton(
-                        onPressed: _loading ? null : () => _openFeatureEditor(),
-                        icon: Icons.add_box_outlined,
-                        label: 'Thêm tính năng',
-                      ),
-                      AppSecondaryButton(
-                        onPressed: _loading
-                            ? null
-                            : () => _openNodeAssignmentEditor(),
-                        icon: Icons.account_tree_outlined,
-                        label: 'Gán đơn vị',
-                      ),
-                      AppSecondaryButton(
-                        onPressed: _loading ? null : () => _openRuleEditor(),
-                        icon: Icons.rule_folder_outlined,
-                        label: 'Thêm quy tắc cũ',
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
-          AppResponsiveContent(
-            child: AppSurfaceCard(
-              padding: EdgeInsets.zero,
-              child: TabBar(
-                controller: _tabController,
-                labelColor: AppColors.primary,
-                unselectedLabelColor: Theme.of(
-                  context,
-                ).colorScheme.onSurfaceVariant,
-                indicatorColor: AppColors.primary,
-                dividerColor: Theme.of(context).dividerColor,
-                tabs: const [
-                  Tab(text: 'Tính năng'),
-                  Tab(text: 'Theo đơn vị'),
-                  Tab(text: 'Quy tắc cũ'),
-                ],
-              ),
-            ),
-          ),
-          Expanded(
-            child: _loading
-                ? const AppResponsiveContent(
-                    child: AppListSkeleton(itemCount: 6, itemHeight: 76),
-                  )
-                : TabBarView(
-                    controller: _tabController,
-                    children: [
-                      _FeatureList(
-                        features: _features,
-                        onRefresh: _load,
-                        onEdit: _openFeatureEditor,
-                        onDelete: (feature) => feature.isSystem
-                            ? null
-                            : () {
-                                _deleteFeature(feature);
-                              },
-                      ),
-                      _NodeAssignmentList(
-                        assignments: _nodeAssignments,
-                        features: _features,
-                        featureFilter: _nodeFeatureFilter,
-                        onFilterChanged: (value) async {
-                          setState(() => _nodeFeatureFilter = value);
-                          await _load();
-                        },
-                        onRefresh: _load,
-                        onAdd: () => _openNodeAssignmentEditor(),
-                        onEdit: _editNodeAssignmentGroup,
-                        onToggle: _toggleNodeAssignment,
-                        onDelete: _deleteNodeAssignment,
-                      ),
-                      _RuleList(
-                        rules: _rules,
-                        features: _features,
-                        featureFilter: _ruleFeatureFilter,
-                        featureTitle: _featureTitle,
-                        onFilterChanged: (value) async {
-                          setState(() => _ruleFeatureFilter = value);
-                          await _load();
-                        },
-                        onRefresh: _load,
-                        onEdit: _openRuleEditor,
-                        onDelete: _deleteRule,
-                      ),
-                    ],
-                  ),
-          ),
-        ],
-      );
+                    _NodeAssignmentList(
+                      assignments: _nodeAssignments,
+                      features: _features,
+                      featureFilter: _nodeFeatureFilter,
+                      onFilterChanged: (value) async {
+                        setState(() => _nodeFeatureFilter = value);
+                        await _load();
+                      },
+                      onRefresh: _load,
+                      onAdd: () => _openNodeAssignmentEditor(),
+                      onEdit: _editNodeAssignmentGroup,
+                      onToggle: _toggleNodeAssignment,
+                      onDelete: _deleteNodeAssignment,
+                    ),
+                    _RuleList(
+                      rules: _rules,
+                      features: _features,
+                      featureFilter: _ruleFeatureFilter,
+                      featureTitle: _featureTitle,
+                      onFilterChanged: (value) async {
+                        setState(() => _ruleFeatureFilter = value);
+                        await _load();
+                      },
+                      onRefresh: _load,
+                      onEdit: _openRuleEditor,
+                      onDelete: _deleteRule,
+                    ),
+                  ],
+                ),
+        ),
+      ],
+    );
   }
 }
 
@@ -585,19 +583,33 @@ class _FeatureList extends StatelessWidget {
       onRefresh: onRefresh,
       refreshLogSource: 'AdminFeatures',
       refreshLogContext: () => {'tab': 'features', 'count': features.length},
-      child: ListView.separated(
-        physics: const AlwaysScrollableScrollPhysics(),
-        padding: AppLayoutTokens.pagePaddingFor(
-          MediaQuery.sizeOf(context).width,
-        ),
-        itemCount: features.length,
-        separatorBuilder: (context, index) => const SizedBox(height: 10),
-        itemBuilder: (context, index) {
-          final feature = features[index];
-          return _FeatureCard(
-            feature: feature,
-            onEdit: () => onEdit(feature),
-            onDelete: onDelete(feature),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final columns = constraints.maxWidth >= 1080
+              ? 3
+              : constraints.maxWidth >= 680
+              ? 2
+              : 1;
+          return GridView.builder(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: AppLayoutTokens.pagePaddingFor(
+              MediaQuery.sizeOf(context).width,
+            ),
+            itemCount: features.length,
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: columns,
+              crossAxisSpacing: AppLayoutTokens.cardGap,
+              mainAxisSpacing: AppLayoutTokens.cardGap,
+              mainAxisExtent: 126,
+            ),
+            itemBuilder: (context, index) {
+              final feature = features[index];
+              return _FeatureCard(
+                feature: feature,
+                onEdit: () => onEdit(feature),
+                onDelete: onDelete(feature),
+              );
+            },
           );
         },
       ),

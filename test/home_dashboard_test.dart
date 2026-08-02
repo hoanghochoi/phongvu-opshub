@@ -553,6 +553,11 @@ void main() {
         findsOneWidget,
       );
       expect(find.byKey(const Key('home-summary-header')), findsOneWidget);
+      expect(find.byKey(const Key('home-summary-greeting')), findsOneWidget);
+      expect(
+        find.text('staff@phongvu.vn · 2 showroom: CP75, CP62'),
+        findsOneWidget,
+      );
       expect(find.byKey(const Key('home-summary-toolbar')), findsNothing);
       expect(find.byKey(const Key('home-summary-grid')), findsOneWidget);
       expect(

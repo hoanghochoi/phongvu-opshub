@@ -108,15 +108,17 @@ class _OffsetAdjustmentScreenState extends State<OffsetAdjustmentScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        const _WorkspaceHeader(),
+        const SizedBox(height: 16),
         _ActionBar(onCreate: _showCreateDialog),
-        const SizedBox(height: 10),
+        const SizedBox(height: 16),
         _FilterPanel(
           provider: provider,
           orderController: _orderController,
           amountController: _amountController,
         ),
         if (provider.errorMessage != null) ...[
-          const SizedBox(height: 10),
+          const SizedBox(height: 16),
           AppStatusBanner(
             icon: Icons.error_outline_rounded,
             title: 'Chưa thực hiện được',
@@ -125,7 +127,7 @@ class _OffsetAdjustmentScreenState extends State<OffsetAdjustmentScreen> {
           ),
         ],
         if (provider.successMessage != null) ...[
-          const SizedBox(height: 10),
+          const SizedBox(height: 16),
           AppStatusBanner(
             icon: Icons.check_circle_outline_rounded,
             title: 'Đã cập nhật',
@@ -134,7 +136,7 @@ class _OffsetAdjustmentScreenState extends State<OffsetAdjustmentScreen> {
           ),
         ],
         if (provider.isLoading && provider.items.isNotEmpty) ...[
-          const SizedBox(height: 10),
+          const SizedBox(height: 16),
           const LinearProgressIndicator(),
         ],
         const SizedBox(height: 10),
@@ -327,6 +329,26 @@ class _OffsetAdjustmentScreenState extends State<OffsetAdjustmentScreen> {
   }
 }
 
+class _WorkspaceHeader extends StatelessWidget {
+  const _WorkspaceHeader();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Column(
+      key: Key('offset-adjustment-workspace-header'),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Hồ sơ cấn trừ', style: AppTextStyles.headingM),
+        SizedBox(height: 4),
+        Text(
+          'Tạo và theo dõi hồ sơ cấn trừ theo quyền hiện tại.',
+          style: AppTextStyles.bodyS,
+        ),
+      ],
+    );
+  }
+}
+
 class _ActionBar extends StatelessWidget {
   final void Function(String type) onCreate;
 
@@ -390,6 +412,7 @@ class _ActionBar extends StatelessWidget {
         onPressed: () => onCreate(type),
         icon: icon,
         label: OffsetAdjustmentType.label(type),
+        size: AppButtonSize.medium,
       ),
     );
   }
@@ -805,6 +828,7 @@ class _FilterActions extends StatelessWidget {
             icon: Icons.search_rounded,
             label: 'Tìm',
             isLoading: provider.isLoading,
+            size: AppButtonSize.medium,
           ),
         ),
         const SizedBox(width: AppLayoutTokens.formInlineGap),
@@ -852,6 +876,7 @@ class _ExportMenuButton extends StatelessWidget {
           label: 'Xuất file',
           isLoading: provider.isExporting,
           loadingLabel: 'Đang xuất',
+          size: AppButtonSize.medium,
         );
       },
     );
@@ -879,16 +904,14 @@ class _OffsetCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final borderColor = _statusColor(item.status);
+    final statusColor = _statusColor(item.status);
     final submittedAt = item.submittedAt;
     final submittedText = submittedAt == null
         ? ''
         : DateFormat('HH:mm dd/MM/yyyy').format(submittedAt.toLocal());
     return AppSurfaceCard(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(12),
-      borderColor: borderColor.withValues(alpha: 0.7),
-      borderWidth: 1.3,
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(16),
       onTap: onTap,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -896,6 +919,14 @@ class _OffsetCard extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              Expanded(
+                child: Text(
+                  item.primaryOrderLabel.isEmpty
+                      ? 'Chưa có mã đơn'
+                      : item.primaryOrderLabel,
+                  style: AppTextStyles.labelL,
+                ),
+              ),
               if (canReview)
                 Tooltip(
                   message: selectable
@@ -909,29 +940,6 @@ class _OffsetCard extends StatelessWidget {
                         : null,
                   ),
                 ),
-              Expanded(
-                child: Wrap(
-                  spacing: 8,
-                  runSpacing: 6,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: [
-                    AppStatusChip(
-                      label: OffsetAdjustmentType.label(item.type),
-                      color: AppColors.info,
-                    ),
-                    AppStatusChip(
-                      label: OffsetAdjustmentStatus.label(item.status),
-                      color: borderColor,
-                    ),
-                    if (item.isSingleOrder &&
-                        item.singleOrderReuseCount != null)
-                      AppStatusChip(
-                        label: '${item.singleOrderReuseCount} lần',
-                        color: AppColors.warning,
-                      ),
-                  ],
-                ),
-              ),
             ],
           ),
           if (canReview &&
@@ -943,13 +951,6 @@ class _OffsetCard extends StatelessWidget {
               style: AppTextStyles.labelS.copyWith(color: AppColors.warning),
             ),
           ],
-          const SizedBox(height: 8),
-          Text(
-            item.primaryOrderLabel.isEmpty
-                ? 'Chưa có mã đơn'
-                : item.primaryOrderLabel,
-            style: AppTextStyles.labelL,
-          ),
           const SizedBox(height: 6),
           Wrap(
             spacing: 10,
@@ -974,6 +975,26 @@ class _OffsetCard extends StatelessWidget {
                 _InlineInfo(
                   icon: Icons.confirmation_number_outlined,
                   text: item.transactionCode!,
+                ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 8,
+            runSpacing: 6,
+            children: [
+              AppStatusChip(
+                label: OffsetAdjustmentStatus.label(item.status),
+                color: statusColor,
+              ),
+              AppStatusChip(
+                label: OffsetAdjustmentType.label(item.type),
+                color: AppColors.info,
+              ),
+              if (item.isSingleOrder && item.singleOrderReuseCount != null)
+                AppStatusChip(
+                  label: '${item.singleOrderReuseCount} lần',
+                  color: AppColors.warning,
                 ),
             ],
           ),

@@ -1497,7 +1497,7 @@ class _VietQrScreenState extends State<VietQrScreen>
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Expanded(flex: 3, child: currentPanel),
-                      const SizedBox(width: AppLayoutTokens.sectionGap),
+                      const SizedBox(width: 16),
                       SizedBox(width: 380, child: historyPanel),
                     ],
                   )
@@ -1506,7 +1506,7 @@ class _VietQrScreenState extends State<VietQrScreen>
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       currentPanel,
-                      const SizedBox(height: AppLayoutTokens.sectionGap),
+                      const SizedBox(height: 16),
                       historyPanel,
                     ],
                   ),
@@ -1575,6 +1575,7 @@ class _VietQrScreenState extends State<VietQrScreen>
             label: 'Tạo mã QR',
             isLoading: _isLoading,
             loadingLabel: 'Đang tạo...',
+            size: AppButtonSize.medium,
           ),
         ],
       ),

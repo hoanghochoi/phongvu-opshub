@@ -83,9 +83,9 @@ void main() {
     expect(repository.fetchOrdersCount, 1);
     expect(
       find.byKey(const Key('sales-report-workspace-header')),
-      findsNothing,
+      findsOneWidget,
     );
-    expect(find.text('Đơn cần báo cáo'), findsNothing);
+    expect(find.text('Báo cáo bán hàng'), findsOneWidget);
     expect(find.text('Báo cáo mua thủ công'), findsOneWidget);
     expect(find.text('Báo cáo chưa mua'), findsOneWidget);
     expect(
@@ -173,10 +173,10 @@ void main() {
 
     expect(
       find.byKey(const Key('sales-report-workspace-header')),
-      findsNothing,
+      findsOneWidget,
     );
-    expect(find.text('Chờ báo cáo'), findsOneWidget);
-    expect(find.text('Hoàn tất'), findsOneWidget);
+    expect(find.text('Chờ báo cáo'), findsNothing);
+    expect(find.text('Hoàn tất'), findsNothing);
     expect(find.text('Đã mua (nhập tay)'), findsOneWidget);
     expect(find.text('Chưa mua'), findsOneWidget);
     expect(
@@ -633,7 +633,7 @@ void main() {
 
     expect(
       find.byKey(const Key('sales-report-workspace-header')),
-      findsNothing,
+      findsOneWidget,
     );
     expect(findsLegacyGradientHeader(), findsNothing);
     expect(find.text('Báo cáo chưa mua'), findsOneWidget);
