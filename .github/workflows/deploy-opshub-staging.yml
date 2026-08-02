@@ -1470,6 +1470,25 @@ jobs:
             echo "Staging verification did not receive a 2xx response from ${url}." >&2
             return 1
           }
+          verify_download_artifact() {
+            local url="$1"
+            local attempt
+            local status
+            local safe_url="${url%%\?*}"
+            for attempt in {1..12}; do
+              if status="$(
+                access_curl "$url" \
+                  -sS -H 'Range: bytes=0-0' -o /dev/null -w '%{http_code}'
+              )" && [[ "$status" == 2* ]]; then
+                echo "Staging artifact verified: ${safe_url} (HTTP ${status})."
+                return 0
+              fi
+              echo "Staging artifact verification attempt ${attempt}/12 returned HTTP ${status:-transport-error}: ${safe_url}." >&2
+              sleep 5
+            done
+            echo "Staging artifact verification did not receive a 2xx response after 12 attempts: ${safe_url}." >&2
+            return 1
+          }
           verify_security_headers() {
             local headers="$1"
             local header
@@ -1563,8 +1582,8 @@ jobs:
             if (web.forceUpdate !== false) throw new Error('Web forceUpdate must be false');
             if (web.minSupportedBuild !== 1) throw new Error('Web minSupportedBuild must be 1');
           " "$android_json" "$windows_json" "$web_json" "${{ needs.prepare.outputs.version_code }}" "$OPSHUB_DOWNLOAD_PUBLIC_BASE_URL"
-          curl -fIs "$(node -e "console.log(JSON.parse(process.argv[1]).packageUrl)" "$android_json")" >/dev/null
-          curl -fIs "$(node -e "console.log(JSON.parse(process.argv[1]).packageUrl)" "$windows_json")" >/dev/null
+          verify_download_artifact "$(node -e "console.log(JSON.parse(process.argv[1]).packageUrl)" "$android_json")"
+          verify_download_artifact "$(node -e "console.log(JSON.parse(process.argv[1]).packageUrl)" "$windows_json")"
           retry_curl "${OPSHUB_PUBLIC_BASE_URL}/download" >/dev/null
           download_redirect_headers="$(curl -fsSI "${OPSHUB_PUBLIC_BASE_URL}/download")"
           printf '%s\n' "$download_redirect_headers" |
@@ -1601,7 +1620,7 @@ jobs:
             const manifest = JSON.parse(process.argv[1]);
             for (const file of Object.values(manifest.files)) console.log(file.url);
           " "$manifest_json" | while IFS= read -r url; do
-            curl -fIs "$url" >/dev/null
+            verify_download_artifact "$url"
           done
 
           ws_headers_file="$(mktemp)"
