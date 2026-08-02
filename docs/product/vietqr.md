@@ -188,23 +188,26 @@ Bearer <key>`, or a query key for quick-link compatibility.
   available for that notification. The backend also logs each completed playback
   acknowledgement with the measured duration and logs KPI/history load
   start/success/failure with sanitized context.
-- New incoming transaction audio is delivered through backend-generated payment
-  notifications. The backend stores notification/audit rows, optionally calls a
-  server-side TTS service, publishes a scoped realtime event, and serves audio
-  only through JWT-protected endpoints. Production uses Piper `vi-vais1000`
-  through `TTS_VOICE_ID=piper:vi-vais1000`; the sidecar still accepts the
-  legacy `custom:suong-vo` voice id for rollback-friendly deploys. The audio
-  endpoint stays backward compatible: `GET /payment-notifications/:id/audio`
+- New incoming transactions create a notification/audit row and publish a
+  scoped `PAYMENT_SPEAKER_STREAM` event by default. The supported Windows
+  speaker path is local-preset-only: the event carries
+  `local-preset-speaker-v1`, and the client composes the selected voice pack
+  locally with the approved 50 ms internal amount crossfade. Each PC stores
+  its selected voice locally and new installs default to
+  `mien-bac-thanh-ha`. The older server-generated TTS/audio endpoints remain
+  readable for existing/manual clients and an explicit rollback mode only;
+  production must keep `PAYMENT_SPEAKER_STREAMING_ENABLED=true`. For that
+  legacy/manual path, `GET /payment-notifications/:id/audio`
   still serves older/manual clients, including `includeCue=true` for one
-  server-combined WAV or `rawAmount=true` for amount-only WAV. The current
-  Windows speaker flow now downloads speaker audio only through
+  server-combined WAV or `rawAmount=true` for amount-only WAV. Legacy/manual
+  clients may download speaker audio through
   `GET /payment-notifications/:id/stream`, while `/payment-notifications/ready`
   returns backlog metadata such as `audioUrl` and `streamUrl` instead of
   serving the active speaker path directly. The server caches the combined WAV
   beside the generated TTS file and deletes both during audio cleanup. If
   combined audio is unavailable, for example legacy MP3 audio or a missing cue
-  WAV, the Windows client falls back to downloading TTS-only audio and playing
-  the local `data/ting_ting.mp3` cue. Playback then attempts `media_kit` on
+  WAV, a legacy/manual client may use TTS-only audio and the local
+  `data/ting_ting.mp3` cue. Playback then attempts `media_kit` on
   Windows, Win32 `PlaySoundW` for WAV files, and MCI as the final fallback. If
   MCI returns error `326` for WAV audio, the client normalizes only that local
   temp file to `WAV PCM 16-bit mono 44100 Hz` and retries once without
@@ -212,40 +215,37 @@ Bearer <key>`, or a query key for quick-link compatibility.
   non-blocking audio preflight for `Audiosrv`, `AudioEndpointBuilder`, and
   WinMM output devices; missing service/device checks warn the user but do not
   block installation.
-- When `PAYMENT_SPEAKER_STREAMING_ENABLED=true`, the backend creates the
-  notification and publishes `PAYMENT_SPEAKER_STREAM` immediately, before
-  blocking on server-side TTS generation. Windows speaker clients then request
-  the stream endpoint for both realtime wake-up and backlog recovery, prefer
-  `rawAmount=true` amount audio plus the bundled cue-prefix asset, and
-  acknowledge `STREAM_STARTED` when playback is about to begin. The stream
-  endpoint is still an authenticated audio file response, not chunked audio.
-  Stream audio requests include the speaker `clientId`, and the backend records
-  that stream open as an in-flight delivery claim before preparing audio. If
-  the same `notificationId + clientId` already has a recent
+- Legacy server-audio compatibility is available only when
+  `PAYMENT_SPEAKER_STREAMING_ENABLED=false`. In that explicitly selected mode,
+  the backend may generate TTS and older/manual clients may request the
+  authenticated stream/audio endpoints; this is not a fallback for the local
+  Windows speaker path.
+  Legacy stream audio requests include the speaker `clientId`, and the backend
+  records that stream open as an in-flight delivery claim before preparing
+  audio. If the same `notificationId + clientId` already has a recent
   `DELIVERED`/`STREAM_STARTED` claim, the backend returns `409` so the client
-  can treat the duplicate as a no-op instead of playing over itself. Normal
+  can treat the duplicate as a no-op instead of playing over itself. Legacy
   ready polling remains only as backlog fallback on startup, manual refresh,
   realtime readiness, or realtime silence; while realtime stays silent the
-  client checks every 5 seconds. It no longer downloads speaker audio through
-  `/audio` directly. `/ready` recovers notifications only while they are newer
-  than `PAYMENT_STREAM_PENDING_RECOVERY_WINDOW_SECONDS` (default `30`), whether
+  client checks every 5 seconds. The supported Windows speaker never downloads
+  audio through `/audio` or `/stream`. Legacy `/ready` recovers notifications
+  only while they are newer than
+  `PAYMENT_STREAM_PENDING_RECOVERY_WINDOW_SECONDS` (default `30`), whether
   their audio is `PENDING` or was already generated as `READY` by another
   client. Older pickup attempts are marked `SILENCED` with
   `stream_recovery_window_expired`, and `/stream` also rejects them so they
   cannot play late. Delivery metrics assign a notification to the time bucket
   containing its first-ever `STREAM_STARTED`; later clients cannot move the
-  same notification into a newer bucket. The Windows client advances a local
-  notification checkpoint
-  and skips locally terminal, queued, or in-flight notification ids before
-  playback, so repeated stream events and fallback ready checks cannot overlap
-  the same transaction audio on one machine.
+  same notification into a newer bucket. The Windows speaker advances a local
+  notification checkpoint and skips locally terminal, queued, or in-flight ids
+  before playback, so repeated realtime events cannot overlap on one machine.
 - When a speaker attempt fails, the client uploads `PaymentSpeaker` started /
   succeeded / failed logs with sanitized context and acknowledges
   `PLAYBACK_FAILED` for attempts 1-2. The client waits 10 seconds between
-  attempts, reuses the same downloaded audio bytes across all 3 attempts, and
+  attempts, reuses the same locally composed audio bytes across all 3 attempts, and
   acknowledges terminal `FAILED` only after attempt 3 still cannot play. Audio
-  logs include sanitized WAV header fields, MCI code/message, WinMM output
-  device count, and whether the local MCI-326 normalized fallback was used.
+  logs include sanitized WAV header fields, selected voice pack, MCI
+  code/message, and WinMM output device count.
 - Payment notification audio is cleaned after 7 days, delivery/app logs after
   30 days, and stored MAP transactions after 90 days by default.
 

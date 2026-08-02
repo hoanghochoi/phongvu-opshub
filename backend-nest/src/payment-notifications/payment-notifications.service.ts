@@ -71,7 +71,7 @@ const DEFAULT_STREAM_EVENT_REPEAT_GAP_MS = 1000;
 const DEFAULT_STREAM_PENDING_RECOVERY_WINDOW_SECONDS = 30;
 const DEFAULT_TTS_CONCURRENCY = 2;
 const DEFAULT_TTS_RESPONSE_MAX_BYTES = 20 * 1024 * 1024;
-const PAYMENT_LOCAL_ASSET_PACK_VERSION = 'piper-vi-vais1000-chunk-v1';
+const PAYMENT_LOCAL_ASSET_PACK_VERSION = 'local-preset-speaker-v1';
 const DELIVERY_CLAIM_EVENT = 'DELIVERED';
 const STREAM_STARTED_EVENT = 'STREAM_STARTED';
 const TERMINAL_DELIVERY_EVENTS = ['PLAYED', 'SILENCED', 'FAILED'];
@@ -1761,7 +1761,6 @@ export class PaymentNotificationsService {
     attempt: number,
   ) {
     const occurredAt = new Date();
-    const localAssetEnabled = this.paymentLocalAssetEnabled();
     await this.redisService.publishMessage(
       PAYMENT_SPEAKER_STREAM_CHANNEL,
       buildRealtimeRedisEnvelope({
@@ -1778,10 +1777,8 @@ export class PaymentNotificationsService {
           storeCode: notification.storeCode,
           amount: notification.amount,
           currency: 'VND',
-          assetPackVersion: localAssetEnabled
-            ? PAYMENT_LOCAL_ASSET_PACK_VERSION
-            : null,
-          playbackMode: localAssetEnabled ? 'LOCAL_ASSET' : 'SERVER_AUDIO',
+          assetPackVersion: PAYMENT_LOCAL_ASSET_PACK_VERSION,
+          playbackMode: 'LOCAL_ASSET',
           transactionContent: transaction.content || '',
           transferContent: transaction.content || '',
           transactionNumber: transaction.transactionNumber || null,
@@ -2285,11 +2282,7 @@ export class PaymentNotificationsService {
   }
 
   private paymentSpeakerStreamingEnabled() {
-    return this.readBoolean('PAYMENT_SPEAKER_STREAMING_ENABLED', false);
-  }
-
-  private paymentLocalAssetEnabled() {
-    return this.readBoolean('PAYMENT_LOCAL_ASSET_ENABLED', true);
+    return this.readBoolean('PAYMENT_SPEAKER_STREAMING_ENABLED', true);
   }
 
   private paymentStreamEventRepeatCount() {

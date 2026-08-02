@@ -67,6 +67,7 @@ class PaymentSpeaker {
     required String storeCode,
     required String clientId,
     required int attempt,
+    List<int>? localPrefixBytes,
     bool playLocalCue = true,
     bool playLocalCuePrefix = false,
     Future<void> Function()? onPlaybackStarting,
@@ -106,6 +107,7 @@ class PaymentSpeaker {
       'audioPreflightStatus': audioPreflightStatus,
       'playLocalCue': playLocalCue,
       'playLocalCuePrefix': playLocalCuePrefix,
+      'localPrefixBytes': localPrefixBytes?.length ?? 0,
       if (wavInfo != null) ...wavInfo.toLogContext(prefix: 'sourceWav'),
       if (extension == 'wav' && wavInfo == null) 'wavHeader': 'unreadable',
     };
@@ -131,12 +133,23 @@ class PaymentSpeaker {
         final combined = await _combinePaymentCuePrefix(
           audioBytes,
           context: playbackContext,
+          localPrefixBytes: localPrefixBytes,
         );
         playbackAudioBytes = combined.bytes;
         cuePrefixCombined = true;
         playbackContext['playbackMode'] = 'client_combined_cue_prefix_amount';
         playbackContext['combinedBytes'] = combined.bytes.length;
       } catch (error, stackTrace) {
+        if (localPrefixBytes != null) {
+          await AppLogger.instance.error(
+            _source,
+            'Selected local payment prefix could not be combined',
+            error: error,
+            stackTrace: stackTrace,
+            context: playbackContext,
+          );
+          Error.throwWithStackTrace(error, stackTrace);
+        }
         await AppLogger.instance.warn(
           _source,
           'Payment cue-prefix combine failed; using sequential playback',
@@ -161,6 +174,12 @@ class PaymentSpeaker {
 
     if (playLocalCuePrefix) {
       if (!cuePrefixCombined) {
+        if (localPrefixBytes != null) {
+          throw const PaymentSpeakerException(
+            'Selected local payment prefix could not be played',
+            retryable: false,
+          );
+        }
         await _playPaymentCuePrefix(
           directory,
           context: playbackContext,
@@ -195,6 +214,7 @@ class PaymentSpeaker {
   Future<PaymentWavCombineResult> _combinePaymentCuePrefix(
     List<int> voiceBytes, {
     required Map<String, Object?> context,
+    List<int>? localPrefixBytes,
   }) async {
     final startedAt = DateTime.now();
     await AppLogger.instance.info(
@@ -202,15 +222,13 @@ class PaymentSpeaker {
       'Payment cue-prefix WAV combine started',
       context: {
         ...context,
-        'asset': 'data/payment-cue-prefix.wav',
+        'asset': localPrefixBytes == null
+            ? 'data/payment-cue-prefix.wav'
+            : 'selected_local_payment_prefix',
         'targetGapMs': _cuePrefixGap.inMilliseconds,
       },
     );
-    final asset = await rootBundle.load('data/payment-cue-prefix.wav');
-    final prefixBytes = asset.buffer.asUint8List(
-      asset.offsetInBytes,
-      asset.lengthInBytes,
-    );
+    final prefixBytes = localPrefixBytes ?? await _loadBundledCuePrefixBytes();
     final normalizedPrefix = PaymentWavTools.normalizeToPcm16Mono44100(
       prefixBytes,
     );
@@ -227,8 +245,10 @@ class PaymentSpeaker {
       'Payment cue-prefix WAV combine succeeded',
       context: {
         ...context,
-        'asset': 'data/payment-cue-prefix.wav',
-        'prefixBytes': asset.lengthInBytes,
+        'asset': localPrefixBytes == null
+            ? 'data/payment-cue-prefix.wav'
+            : 'selected_local_payment_prefix',
+        'prefixBytes': prefixBytes.length,
         'voiceBytes': voiceBytes.length,
         'prefixNormalizedBytes': normalizedPrefix.bytes.length,
         'voiceNormalizedBytes': normalizedVoice.bytes.length,
@@ -242,6 +262,11 @@ class PaymentSpeaker {
       },
     );
     return result;
+  }
+
+  Future<Uint8List> _loadBundledCuePrefixBytes() async {
+    final asset = await rootBundle.load('data/payment-cue-prefix.wav');
+    return asset.buffer.asUint8List(asset.offsetInBytes, asset.lengthInBytes);
   }
 
   Future<void> _playTingTing(Directory directory) async {

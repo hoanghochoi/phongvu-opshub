@@ -36,13 +36,14 @@ void main() {
   test('composes reviewed Piper assets without changing WAV policy', () async {
     final composer = PaymentAmountAudioComposerIo(
       packDirectoryForTesting: Directory(
-        'windows/assets/payment_audio/piper_vi_vais1000_chunk_v1',
+        'windows/assets/payment_audio/local_preset_speaker_v1',
       ),
     );
 
     final result = await composer.compose(
       amount: 1250000,
       assetPackVersion: paymentAmountAudioPackVersion,
+      voicePresetId: defaultPaymentAudioVoicePresetId,
     );
     final info = PaymentWavTools.readInfo(result.bytes);
 
@@ -53,9 +54,11 @@ void main() {
       'chunk/unit/nghìn',
       'chunk/unit/đồng',
     ]);
-    expect(info.sampleRateHz, 24000);
+    expect(info.sampleRateHz, 22050);
     expect(info.channels, 1);
     expect(info.bitsPerSample, 16);
     expect(info.dataBytes, greaterThan(0));
+    expect(PaymentWavTools.readInfo(result.prefixBytes).sampleRateHz, 22050);
+    expect(result.voicePresetId, defaultPaymentAudioVoicePresetId);
   });
 }

@@ -45,12 +45,16 @@ class PaymentMonitorRowMessage {
 
 class _DownloadedPaymentAudio {
   final List<int> bytes;
+  final List<int>? localPrefixBytes;
+  final String? voicePresetId;
   final bool playLocalCue;
   final bool playLocalCuePrefix;
   final String mode;
 
   const _DownloadedPaymentAudio({
     required this.bytes,
+    this.localPrefixBytes,
+    this.voicePresetId,
     required this.playLocalCue,
     required this.playLocalCuePrefix,
     required this.mode,
@@ -66,7 +70,10 @@ class PaymentMonitorProvider extends ChangeNotifier {
   static const _defaultSpeakerReadyFallbackInterval = Duration(seconds: 5);
   static const _speakerReadyFallbackSilenceWindow = Duration(seconds: 30);
   static const _speakerEnabledPreferenceKey = 'payment_monitor_enabled';
+  static const _speakerVoicePresetPreferenceKey =
+      'payment_monitor_voice_preset';
   static const _clientIdPreferenceKey = 'payment_monitor_client_id';
+  static const _readCompensationEnabled = false;
   static const _maxAudioPlaybackAttempts = 3;
   static const _defaultPlaybackRetryDelay = Duration(seconds: 10);
   static const _pollBackoffSchedule = <Duration>[
@@ -122,6 +129,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
   int _totalTransactions = 0;
   bool _loggedMonitorStarted = false;
   bool _isSpeakerEnabled = true;
+  String _speakerVoicePresetId = defaultPaymentAudioVoicePresetId;
   bool _isSpeakerPreferenceLoaded = false;
   int _pollFailureCount = 0;
   DateTime? _nextPollAllowedAt;
@@ -184,6 +192,12 @@ class PaymentMonitorProvider extends ChangeNotifier {
 
   bool get isActive => _isActive;
   bool get isSpeakerEnabled => _isSpeakerEnabled;
+  String get speakerVoicePresetId => _speakerVoicePresetId;
+  PaymentAudioVoicePreset get speakerVoicePreset =>
+      paymentAudioVoicePresetForId(_speakerVoicePresetId) ??
+      paymentAudioVoicePresets.first;
+  List<PaymentAudioVoicePreset> get speakerVoicePresetOptions =>
+      List.unmodifiable(paymentAudioVoicePresets);
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
   DateTime? get lastCheckedAt => _lastCheckedAt;
@@ -200,6 +214,8 @@ class PaymentMonitorProvider extends ChangeNotifier {
   bool get canGoNextPage => (_pageIndex + 1) * _pageSize < _totalTransactions;
   bool get canMonitorOnThisDevice => _canMonitorOnThisDevice;
   bool get hasMonitorScope => _hasMonitorScope;
+  bool get canConfigurePaymentSpeaker =>
+      _canUseSpeakerOnThisDevice && _userCanUsePaymentSpeakerFeature(_user);
   bool get canUsePaymentSpeaker => _canUsePaymentSpeaker;
   bool get canReviewOrderTransfers => _canReviewOrderTransfers;
   Map<String, PaymentMonitorRowMessage> get rowMessages =>
@@ -351,6 +367,50 @@ class PaymentMonitorProvider extends ChangeNotifier {
     _reconcile();
   }
 
+  Future<void> setSpeakerVoicePreset(String voicePresetId) async {
+    final preset = paymentAudioVoicePresetForId(voicePresetId);
+    if (preset == null || !_canUseSpeakerOnThisDevice) {
+      await AppLogger.instance.warn(
+        'PaymentMonitor',
+        'Payment speaker voice preset change ignored',
+        context: {
+          'requestedVoicePresetId': voicePresetId,
+          'supportsPaymentSpeaker': _canUseSpeakerOnThisDevice,
+        },
+      );
+      return;
+    }
+    if (_speakerVoicePresetId == preset.id) return;
+    final previousVoicePresetId = _speakerVoicePresetId;
+    _speakerVoicePresetId = preset.id;
+    notifyListeners();
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(
+        _sharedKey(_speakerVoicePresetPreferenceKey),
+        preset.id,
+      );
+      await AppLogger.instance.info(
+        'PaymentMonitor',
+        'Payment speaker voice preset changed',
+        context: {
+          'previousVoicePresetId': previousVoicePresetId,
+          'voicePresetId': preset.id,
+          'storeId': _requestStoreId ?? _user?.storeId,
+          'appliesFrom': 'next_notification',
+        },
+      );
+    } catch (error, stackTrace) {
+      await AppLogger.instance.error(
+        'PaymentMonitor',
+        'Payment speaker voice preset could not be saved',
+        error: error,
+        stackTrace: stackTrace,
+        context: {'voicePresetId': preset.id},
+      );
+    }
+  }
+
   Future<void> restartApp() async {
     await AppLogger.instance.info(
       'PaymentMonitor',
@@ -500,8 +560,27 @@ class PaymentMonitorProvider extends ChangeNotifier {
     try {
       final prefs = await SharedPreferences.getInstance();
       final enabled = prefs.getBool(_sharedKey(_speakerEnabledPreferenceKey));
+      final configuredVoicePresetId = prefs.getString(
+        _sharedKey(_speakerVoicePresetPreferenceKey),
+      );
       _isSpeakerEnabled = enabled ?? true;
+      final configuredPreset = configuredVoicePresetId == null
+          ? null
+          : paymentAudioVoicePresetForId(configuredVoicePresetId);
+      _speakerVoicePresetId =
+          configuredPreset?.id ?? defaultPaymentAudioVoicePresetId;
       _isSpeakerPreferenceLoaded = true;
+      await AppLogger.instance.info(
+        'PaymentMonitor',
+        'Payment speaker preferences loaded',
+        context: {
+          'speakerEnabled': _isSpeakerEnabled,
+          'voicePresetId': _speakerVoicePresetId,
+          'voicePresetRecoveredToDefault':
+              configuredVoicePresetId != null && configuredPreset == null,
+        },
+      );
+      if (_isDisposed) return;
       _reconcile();
       notifyListeners();
     } catch (error, stackTrace) {
@@ -835,7 +914,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
         reason: initialPollReason,
         drainReadyNotifications: speakerPlaybackEnabled,
       );
-    } else if (speakerPlaybackEnabled) {
+    } else if (speakerPlaybackEnabled && _readCompensationEnabled) {
       unawaited(_drainReadyNotificationsOnly(reason: 'speaker_initial_load'));
     }
     notifyListeners();
@@ -902,6 +981,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
   }
 
   void _startSpeakerReadyFallback() {
+    if (!_readCompensationEnabled) return;
     if (!_isSpeakerRuntimeActive || !_shouldReadPaymentSpeaker) {
       _stopSpeakerReadyFallback('speaker_not_eligible');
       return;
@@ -942,6 +1022,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
   }
 
   Future<void> _runSpeakerReadyFallback() async {
+    if (!_readCompensationEnabled) return;
     if (!_isActive || !_isSpeakerRuntimeActive || !_shouldReadPaymentSpeaker) {
       return;
     }
@@ -1097,7 +1178,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
         },
       ),
     );
-    if (_shouldReadPaymentSpeaker) {
+    if (_readCompensationEnabled && _shouldReadPaymentSpeaker) {
       unawaited(
         _drainReadyNotificationsOnly(reason: 'realtime_${reason.name}'),
       );
@@ -1371,7 +1452,9 @@ class PaymentMonitorProvider extends ChangeNotifier {
         );
       }
       String? clientId;
-      if (speakerPlaybackEnabled && drainReadyNotifications) {
+      if (_readCompensationEnabled &&
+          speakerPlaybackEnabled &&
+          drainReadyNotifications) {
         phase = 'client_id';
         clientId = await _ensureClientId();
         if (!_isCurrentPollRequest(authGeneration, requestToken, sessionKey)) {
@@ -1392,7 +1475,9 @@ class PaymentMonitorProvider extends ChangeNotifier {
       if (!_isCurrentPollRequest(authGeneration, requestToken, sessionKey)) {
         return;
       }
-      if (speakerPlaybackEnabled && drainReadyNotifications) {
+      if (_readCompensationEnabled &&
+          speakerPlaybackEnabled &&
+          drainReadyNotifications) {
         phase = 'ready_notifications';
         await _drainReadyNotificationsWithLock(clientId!, reason: reason);
         if (!_isCurrentPollRequest(authGeneration, requestToken, sessionKey)) {
@@ -1426,7 +1511,9 @@ class PaymentMonitorProvider extends ChangeNotifier {
             'includeTotal': includeTotal,
             'speakerPlaybackEnabled': speakerPlaybackEnabled,
             'readyNotificationsRequested':
-                speakerPlaybackEnabled && drainReadyNotifications,
+                _readCompensationEnabled &&
+                speakerPlaybackEnabled &&
+                drainReadyNotifications,
             'durationMs': DateTime.now().difference(startedAt).inMilliseconds,
           },
         ),
@@ -1629,7 +1716,10 @@ class PaymentMonitorProvider extends ChangeNotifier {
   }
 
   Future<void> _drainReadyNotificationsOnly({required String reason}) async {
-    if (!_isActive || !_isSpeakerRuntimeActive || !_shouldReadPaymentSpeaker) {
+    if (!_readCompensationEnabled ||
+        !_isActive ||
+        !_isSpeakerRuntimeActive ||
+        !_shouldReadPaymentSpeaker) {
       return;
     }
     final speakerGeneration = _speakerGeneration;
@@ -2571,6 +2661,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
           'attempt': attempt,
           'bytes': audio.bytes.length,
           'audioMode': audio.mode,
+          if (audio.voicePresetId != null) 'voicePresetId': audio.voicePresetId,
           'deliveryPath': deliveryPath,
           'triggerSource': triggerSource,
         };
@@ -2625,6 +2716,8 @@ class PaymentMonitorProvider extends ChangeNotifier {
             'audibleVerified': result.audibleVerified,
             'normalized': result.normalized,
             'audioMode': audio.mode,
+            if (audio.voicePresetId != null)
+              'voicePresetId': audio.voicePresetId,
             if (result.sampleRateHz != null)
               'sampleRateHz': result.sampleRateHz,
             if (result.channels != null) 'channels': result.channels,
@@ -2654,6 +2747,8 @@ class PaymentMonitorProvider extends ChangeNotifier {
             'audibleVerified': result.audibleVerified,
             'normalized': result.normalized,
             'audioMode': audio.mode,
+            if (audio.voicePresetId != null)
+              'voicePresetId': audio.voicePresetId,
             if (result.sampleRateHz != null)
               'sampleRateHz': result.sampleRateHz,
             if (result.channels != null) 'channels': result.channels,
@@ -2753,16 +2848,22 @@ class PaymentMonitorProvider extends ChangeNotifier {
         'triggerSource': triggerSource,
         'preferredMode':
             useStreamEndpoint && notification.requestsLocalAssetPlayback
-            ? 'local_asset_piper_chunk_v1'
-            : 'client_cue_prefix_amount',
+            ? 'local_preset_speaker_v1'
+            : 'local_preset_required',
       },
     );
-    if (useStreamEndpoint && notification.requestsLocalAssetPlayback) {
+    if (!useStreamEndpoint || !notification.requestsLocalAssetPlayback) {
+      throw StateError(
+        'Payment speaker requires a LOCAL_ASSET realtime notification',
+      );
+    }
+    {
       try {
         final assetPackVersion = notification.assetPackVersion!.trim();
         final composed = await _amountAudioComposer.compose(
           amount: notification.amount,
           assetPackVersion: assetPackVersion,
+          voicePresetId: _speakerVoicePresetId,
         );
         await _repository.claimNotificationForLocalPlayback(
           notification.notificationId,
@@ -2772,15 +2873,17 @@ class PaymentMonitorProvider extends ChangeNotifier {
           notification: notification,
           clientId: clientId,
           bytes: composed.bytes.length,
-          mode: 'local_asset_piper_chunk_v1',
+          mode: 'local_preset_speaker_v1',
           deliveryPath: deliveryPath,
           triggerSource: triggerSource,
         );
         return _DownloadedPaymentAudio(
           bytes: composed.bytes,
+          localPrefixBytes: composed.prefixBytes,
+          voicePresetId: composed.voicePresetId,
           playLocalCue: false,
           playLocalCuePrefix: true,
-          mode: 'local_asset_piper_chunk_v1',
+          mode: 'local_preset_speaker_v1',
         );
       } catch (error, stackTrace) {
         if (error is api.ApiException &&
@@ -2794,9 +2897,11 @@ class PaymentMonitorProvider extends ChangeNotifier {
           );
         }
         final safeError = _safeSpeakerError(error);
-        await AppLogger.instance.warn(
+        await AppLogger.instance.error(
           'PaymentMonitor',
-          'Offline payment audio unavailable; falling back to server audio',
+          'Offline payment preset is unavailable; server audio is disabled',
+          error: error,
+          stackTrace: stackTrace,
           context: {
             'notificationId': notification.notificationId,
             'transactionId': notification.transactionId,
@@ -2806,15 +2911,15 @@ class PaymentMonitorProvider extends ChangeNotifier {
             'assetPackVersion': notification.assetPackVersion,
             'deliveryPath': deliveryPath,
             'triggerSource': triggerSource,
-            'audioMode': 'server_audio_fallback',
+            'audioMode': 'local_preset_failed',
             'error': safeError,
             'stackTrace': stackTrace.toString(),
           },
         );
         await AppLogger.instance.uploadLog(
-          'warn',
+          'error',
           'PaymentMonitor',
-          'Offline payment audio unavailable; falling back to server audio',
+          'Offline payment preset is unavailable; server audio is disabled',
           context: {
             'notificationId': notification.notificationId,
             'transactionId': notification.transactionId,
@@ -2822,188 +2927,14 @@ class PaymentMonitorProvider extends ChangeNotifier {
             'assetPackVersion': notification.assetPackVersion,
             'deliveryPath': deliveryPath,
             'triggerSource': triggerSource,
-            'audioMode': 'server_audio_fallback',
+            'audioMode': 'local_preset_failed',
             'error': safeError,
           },
           storeCode: notification.storeCode,
         );
+        Error.throwWithStackTrace(error, stackTrace);
       }
     }
-    try {
-      final audioBytes = useStreamEndpoint
-          ? await _repository.downloadNotificationStreamAudio(
-              notification.notificationId,
-              rawAmount: true,
-              clientId: clientId,
-            )
-          : await _repository.downloadNotificationAudio(
-              notification.notificationId,
-              rawAmount: true,
-            );
-      if (audioBytes.isEmpty) {
-        throw StateError('Raw amount audio is empty');
-      }
-      await _logNotificationAudioPrepared(
-        notification: notification,
-        clientId: clientId,
-        bytes: audioBytes.length,
-        mode: 'client_cue_prefix_amount',
-        deliveryPath: deliveryPath,
-        triggerSource: triggerSource,
-      );
-      return _DownloadedPaymentAudio(
-        bytes: audioBytes,
-        playLocalCue: false,
-        playLocalCuePrefix: true,
-        mode: 'client_cue_prefix_amount',
-      );
-    } catch (error, stackTrace) {
-      if (error is api.ApiException &&
-          (error.statusCode == 401 || error.statusCode == 403)) {
-        rethrow;
-      }
-      if (useStreamEndpoint &&
-          error is api.ApiException &&
-          error.statusCode == 409) {
-        throw _PaymentNotificationDeliverySuppressedException(
-          _streamSuppressedReason(error),
-          _safeSpeakerError(error),
-        );
-      }
-      final safeError = _safeSpeakerError(error);
-      await AppLogger.instance.warn(
-        'PaymentMonitor',
-        'Raw amount payment audio unavailable; falling back to server combined cue',
-        context: {
-          'notificationId': notification.notificationId,
-          'transactionId': notification.transactionId,
-          'storeCode': notification.storeCode,
-          'amount': notification.amount,
-          'clientId': clientId,
-          'deliveryPath': deliveryPath,
-          'triggerSource': triggerSource,
-          'audioMode': 'server_combined_cue',
-          'error': safeError,
-          'stackTrace': stackTrace.toString(),
-        },
-      );
-      await AppLogger.instance.uploadLog(
-        'warn',
-        'PaymentMonitor',
-        'Raw amount payment audio unavailable; falling back to server combined cue',
-        context: {
-          'notificationId': notification.notificationId,
-          'transactionId': notification.transactionId,
-          'amount': notification.amount,
-          'deliveryPath': deliveryPath,
-          'triggerSource': triggerSource,
-          'audioMode': 'server_combined_cue',
-          'error': safeError,
-        },
-        storeCode: notification.storeCode,
-      );
-    }
-
-    try {
-      final audioBytes = useStreamEndpoint
-          ? await _repository.downloadNotificationStreamAudio(
-              notification.notificationId,
-              includeCue: true,
-              clientId: clientId,
-            )
-          : await _repository.downloadNotificationAudio(
-              notification.notificationId,
-              includeCue: true,
-            );
-      if (audioBytes.isEmpty) {
-        throw StateError('Server combined audio is empty');
-      }
-      await _logNotificationAudioPrepared(
-        notification: notification,
-        clientId: clientId,
-        bytes: audioBytes.length,
-        mode: 'server_combined_cue',
-        deliveryPath: deliveryPath,
-        triggerSource: triggerSource,
-      );
-      return _DownloadedPaymentAudio(
-        bytes: audioBytes,
-        playLocalCue: false,
-        playLocalCuePrefix: false,
-        mode: 'server_combined_cue',
-      );
-    } catch (error, stackTrace) {
-      if (error is api.ApiException &&
-          (error.statusCode == 401 || error.statusCode == 403)) {
-        rethrow;
-      }
-      if (useStreamEndpoint &&
-          error is api.ApiException &&
-          error.statusCode == 409) {
-        throw _PaymentNotificationDeliverySuppressedException(
-          _streamSuppressedReason(error),
-          _safeSpeakerError(error),
-        );
-      }
-      final safeError = _safeSpeakerError(error);
-      await AppLogger.instance.warn(
-        'PaymentMonitor',
-        'Combined payment audio unavailable; falling back to local cue',
-        context: {
-          'notificationId': notification.notificationId,
-          'transactionId': notification.transactionId,
-          'storeCode': notification.storeCode,
-          'amount': notification.amount,
-          'clientId': clientId,
-          'deliveryPath': deliveryPath,
-          'triggerSource': triggerSource,
-          'audioMode': 'local_cue_fallback',
-          'error': safeError,
-          'stackTrace': stackTrace.toString(),
-        },
-      );
-      await AppLogger.instance.uploadLog(
-        'warn',
-        'PaymentMonitor',
-        'Combined payment audio unavailable; falling back to local cue',
-        context: {
-          'notificationId': notification.notificationId,
-          'transactionId': notification.transactionId,
-          'amount': notification.amount,
-          'deliveryPath': deliveryPath,
-          'triggerSource': triggerSource,
-          'audioMode': 'local_cue_fallback',
-          'error': safeError,
-        },
-        storeCode: notification.storeCode,
-      );
-    }
-
-    final audioBytes = useStreamEndpoint
-        ? await _repository.downloadNotificationStreamAudio(
-            notification.notificationId,
-            clientId: clientId,
-          )
-        : await _repository.downloadNotificationAudio(
-            notification.notificationId,
-          );
-    if (audioBytes.isEmpty) {
-      throw StateError('Server audio is empty');
-    }
-    await _logNotificationAudioPrepared(
-      notification: notification,
-      clientId: clientId,
-      bytes: audioBytes.length,
-      mode: 'local_cue_fallback',
-      deliveryPath: deliveryPath,
-      triggerSource: triggerSource,
-    );
-    return _DownloadedPaymentAudio(
-      bytes: audioBytes,
-      playLocalCue: true,
-      playLocalCuePrefix: false,
-      mode: 'local_cue_fallback',
-    );
   }
 
   Future<void> _logNotificationAudioPrepared({
@@ -3057,6 +2988,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
       storeCode: notification.storeCode,
       clientId: clientId,
       attempt: attempt,
+      localPrefixBytes: audio.localPrefixBytes,
       playLocalCue: audio.playLocalCue,
       playLocalCuePrefix: audio.playLocalCuePrefix,
       onPlaybackStarting: onPlaybackStarting,

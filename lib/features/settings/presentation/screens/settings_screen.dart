@@ -8,8 +8,10 @@ import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_text_styles.dart';
 import '../../../../app/theme/theme_provider.dart';
 import '../../../../app/widgets/app_cards.dart';
+import '../../../../app/widgets/app_combobox.dart';
 import '../../../../app/widgets/app_layout.dart';
 import '../../../../core/logging/app_logger.dart';
+import '../../../payment_monitor/presentation/providers/payment_monitor_provider.dart';
 import '../../data/startup_settings_service.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -165,6 +167,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     final themeMode = context.watch<ThemeProvider>().mode;
+    final paymentMonitor = context.watch<PaymentMonitorProvider?>();
+    final speakerPreset = paymentMonitor?.speakerVoicePreset;
 
     return AppResponsiveScrollView(
       onRefresh: _loadStartupSetting,
@@ -178,13 +182,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
             isLoadingStartup: _isLoadingStartup,
             isSavingStartup: _isSavingStartup,
             hasStartupError: _startupError != null,
+            speakerPresetLabel: speakerPreset?.label,
           ),
           const SizedBox(height: AppLayoutTokens.sectionGap),
           LayoutBuilder(
             builder: (context, constraints) {
               final useTwoColumns =
                   constraints.maxWidth >= AppLayoutTokens.tabletBreakpoint;
-              final sections = [
+              final sections = <Widget>[
                 _SettingsSection(
                   title: 'Giao diện',
                   child: _buildThemeSelector(context),
@@ -193,28 +198,79 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   title: 'Windows',
                   child: _buildStartupTile(context),
                 ),
+                if (paymentMonitor?.canConfigurePaymentSpeaker == true)
+                  _SettingsSection(
+                    title: 'Loa tiền vào',
+                    child: _buildSpeakerVoiceSelector(context, paymentMonitor!),
+                  ),
               ];
 
-              if (!useTwoColumns) {
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    sections.first,
-                    const SizedBox(height: AppLayoutTokens.sectionGap),
-                    sections.last,
-                  ],
-                );
-              }
-
-              return Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              final itemWidth = useTwoColumns
+                  ? (constraints.maxWidth - AppLayoutTokens.sectionGap) / 2
+                  : constraints.maxWidth;
+              return Wrap(
+                spacing: AppLayoutTokens.sectionGap,
+                runSpacing: AppLayoutTokens.sectionGap,
                 children: [
-                  Expanded(child: sections.first),
-                  const SizedBox(width: AppLayoutTokens.sectionGap),
-                  Expanded(child: sections.last),
+                  for (final section in sections)
+                    SizedBox(width: itemWidth, child: section),
                 ],
               );
             },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSpeakerVoiceSelector(
+    BuildContext context,
+    PaymentMonitorProvider monitor,
+  ) {
+    return AppSurfaceCard(
+      key: const Key('settings-speaker-voice-card'),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(
+                Icons.record_voice_over_outlined,
+                color: AppColors.primary,
+                size: 20,
+              ),
+              SizedBox(width: 8),
+              Text('Giọng đọc', style: AppTextStyles.labelM),
+            ],
+          ),
+          const SizedBox(height: AppLayoutTokens.formInlineGap),
+          AppCombobox<String>.single(
+            label: 'Giọng đọc trên máy này',
+            icon: Icons.record_voice_over_outlined,
+            value: monitor.speakerVoicePresetId,
+            options: monitor.speakerVoicePresetOptions
+                .map(
+                  (preset) => AppComboboxOption<String>(
+                    value: preset.id,
+                    label: preset.label,
+                    subtitle: preset.subtitle,
+                    searchKeywords: [preset.label, preset.subtitle],
+                  ),
+                )
+                .toList(growable: false),
+            emptyLabel: 'Chọn giọng đọc',
+            allowClear: false,
+            onChanged: (value) {
+              if (value == null) return;
+              unawaited(monitor.setSpeakerVoicePreset(value));
+            },
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Áp dụng cho thông báo mới. Cài đặt chỉ lưu trên máy loa này.',
+            style: AppTextStyles.bodyS.copyWith(
+              color: AppColors.textSecondaryOf(context),
+            ),
           ),
         ],
       ),
@@ -387,6 +443,7 @@ class _SettingsHeader extends StatelessWidget {
   final bool isLoadingStartup;
   final bool isSavingStartup;
   final bool hasStartupError;
+  final String? speakerPresetLabel;
 
   const _SettingsHeader({
     required this.themeMode,
@@ -394,6 +451,7 @@ class _SettingsHeader extends StatelessWidget {
     required this.isLoadingStartup,
     required this.isSavingStartup,
     required this.hasStartupError,
+    required this.speakerPresetLabel,
   });
 
   @override
@@ -436,6 +494,11 @@ class _SettingsHeader extends StatelessWidget {
                       icon: Icons.rocket_launch_outlined,
                       label: 'Windows: ${_startupStatusLabel()}',
                     ),
+                    if (speakerPresetLabel != null)
+                      _SettingsStatusChip(
+                        icon: Icons.record_voice_over_outlined,
+                        label: 'Loa: $speakerPresetLabel',
+                      ),
                   ],
                 ),
               ],

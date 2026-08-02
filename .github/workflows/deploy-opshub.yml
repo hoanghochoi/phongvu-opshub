@@ -73,6 +73,8 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          lfs: true
 
       - name: Set up Flutter
         uses: ./.github/actions/setup-flutter
@@ -174,9 +176,9 @@ jobs:
       - name: Set up Flutter
         uses: ./.github/actions/setup-flutter
 
-      - name: Validate Piper payment audio source pack
+      - name: Validate local payment audio source presets
         shell: pwsh
-        run: python scripts/verify_payment_audio_assets.py --pack windows/assets/payment_audio/piper_vi_vais1000_chunk_v1
+        run: python scripts/verify_payment_audio_assets.py --presets-root windows/assets/payment_audio/local_preset_speaker_v1
 
       - name: Build Windows release
         shell: pwsh
@@ -187,9 +189,9 @@ jobs:
             --build-number "${{ needs.prepare.outputs.version_code }}" `
             --dart-define "API_BASE_URL=${env:OPSHUB_API_BASE_URL}"
 
-      - name: Validate Piper payment audio release pack
+      - name: Validate local payment audio release presets
         shell: pwsh
-        run: python scripts/verify_payment_audio_assets.py --pack build/windows/x64/runner/Release/data/payment_audio/piper_vi_vais1000_chunk_v1
+        run: python scripts/verify_payment_audio_assets.py --presets-root build/windows/x64/runner/Release/data/payment_audio/local_preset_speaker_v1
 
       - name: Configure Windows internal signing certificate
         shell: pwsh

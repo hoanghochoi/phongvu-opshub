@@ -228,6 +228,53 @@ void main() {
     );
   });
 
+  test('crossfades local preset chunks without a silent join gap', () {
+    final first = _pcm16Wav(
+      sampleRateHz: 1000,
+      channels: 1,
+      frames: const [
+        [0],
+        [0],
+        [100],
+        [200],
+        [300],
+        [0],
+        [0],
+      ],
+    );
+    final second = _pcm16Wav(
+      sampleRateHz: 1000,
+      channels: 1,
+      frames: const [
+        [0],
+        [0],
+        [400],
+        [500],
+        [0],
+        [0],
+      ],
+    );
+
+    final result = PaymentWavTools.combinePcm16SequenceWithCrossfade(
+      segments: [first, second],
+      crossfade: const Duration(milliseconds: 2),
+      silenceThresholdPcm: 1,
+    );
+
+    expect(result.gapMs, 0);
+    expect(result.crossfadeMs, 2);
+    expect(
+      List.generate(
+        result.combined.frameCount,
+        (index) => _int16(
+          result.bytes,
+          result.combined.dataOffset + index * result.combined.blockAlign,
+        ),
+      ),
+      [100, 133, 100, 400, 500],
+    );
+  });
+
   test('rejects unsupported WAV formats without crashing', () {
     final wav = _wavHeader(
       audioFormat: 3,

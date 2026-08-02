@@ -103,11 +103,10 @@ install(CODE "
 install(DIRECTORY "${PROJECT_BUILD_DIR}/${FLUTTER_ASSET_DIR_NAME}"
   DESTINATION "${INSTALL_BUNDLE_DATA_DIR}" COMPONENT Runtime)
 
-# OPS-11 payment speech assets are Windows-only. Keep them outside Flutter's
-# cross-platform asset bundle and install the reviewed, hash-validated pack
-# next to the Windows executable.
+# OPS-43 payment speech assets are Windows-only. Keep the three reviewed,
+# hash-validated local presets outside Flutter's cross-platform asset bundle.
 set(PAYMENT_AUDIO_ASSET_DIR
-  "${CMAKE_CURRENT_SOURCE_DIR}/assets/payment_audio/piper_vi_vais1000_chunk_v1")
+  "${CMAKE_CURRENT_SOURCE_DIR}/assets/payment_audio/local_preset_speaker_v1")
 install(DIRECTORY "${PAYMENT_AUDIO_ASSET_DIR}"
   DESTINATION "${INSTALL_BUNDLE_DATA_DIR}/payment_audio"
   COMPONENT Runtime)

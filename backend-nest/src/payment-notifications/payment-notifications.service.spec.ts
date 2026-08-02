@@ -129,6 +129,7 @@ describe('PaymentNotificationsService', () => {
   });
 
   it('creates notification, marks audio failed without TTS config, and publishes scoped event', async () => {
+    process.env.PAYMENT_SPEAKER_STREAMING_ENABLED = 'false';
     prisma.paymentNotification.findUnique.mockResolvedValue(null);
     prisma.paymentNotification.create.mockResolvedValue({
       id: 'note-1',
@@ -202,8 +203,7 @@ describe('PaymentNotificationsService', () => {
     );
   });
 
-  it('creates streaming notification immediately without generating audio first', async () => {
-    process.env.PAYMENT_SPEAKER_STREAMING_ENABLED = 'true';
+  it('defaults to local preset streaming without generating audio first', async () => {
     process.env.PAYMENT_STREAM_EVENT_REPEAT_COUNT = '1';
     const fetchMock = jest.spyOn(global, 'fetch');
     prisma.paymentNotification.findUnique.mockResolvedValue(null);
@@ -252,7 +252,7 @@ describe('PaymentNotificationsService', () => {
           storeCode: 'CP01',
           amount: 1250000,
           currency: 'VND',
-          assetPackVersion: 'piper-vi-vais1000-chunk-v1',
+          assetPackVersion: 'local-preset-speaker-v1',
           playbackMode: 'LOCAL_ASSET',
           transactionContent: 'DH002 CP01 BOT',
           transferContent: 'DH002 CP01 BOT',
@@ -343,7 +343,7 @@ describe('PaymentNotificationsService', () => {
       service.claimLocalPlayback(speakerUser(), 'note-local', 'pc-local'),
     ).resolves.toEqual({
       claimed: true,
-      assetPackVersion: 'piper-vi-vais1000-chunk-v1',
+      assetPackVersion: 'local-preset-speaker-v1',
       playbackMode: 'LOCAL_ASSET',
     });
 
@@ -384,6 +384,7 @@ describe('PaymentNotificationsService', () => {
   });
 
   it('sends Phong Vu payment text with the default Piper voice settings', async () => {
+    process.env.PAYMENT_SPEAKER_STREAMING_ENABLED = 'false';
     process.env.TTS_SERVICE_URL = 'http://piper-tts:8000';
     const fetchMock = jest.spyOn(global, 'fetch').mockResolvedValue({
       ok: false,
@@ -433,6 +434,7 @@ describe('PaymentNotificationsService', () => {
   });
 
   it('sends amount-only TTS text when fixed prefix audio mode is enabled', async () => {
+    process.env.PAYMENT_SPEAKER_STREAMING_ENABLED = 'false';
     const temp = await mkdtemp(join(tmpdir(), 'opshub-payment-prefix-'));
     const prefixPath = join(temp, 'payment-prefix.wav');
     try {
@@ -499,6 +501,7 @@ describe('PaymentNotificationsService', () => {
   });
 
   it('reuses cached amount-only WAV for repeated amount text', async () => {
+    process.env.PAYMENT_SPEAKER_STREAMING_ENABLED = 'false';
     const temp = await mkdtemp(join(tmpdir(), 'opshub-payment-amount-cache-'));
     const prefixPath = join(temp, 'payment-prefix.wav');
     const audioDir = join(temp, 'audio');
@@ -590,6 +593,7 @@ describe('PaymentNotificationsService', () => {
   });
 
   it('falls back to full TTS text when fixed prefix mode is enabled without a prefix WAV', async () => {
+    process.env.PAYMENT_SPEAKER_STREAMING_ENABLED = 'false';
     process.env.PAYMENT_PREFIX_WAV_PATH = join(
       tmpdir(),
       'missing-payment-prefix.wav',
@@ -1259,6 +1263,7 @@ describe('PaymentNotificationsService', () => {
   });
 
   it('filters ready notifications after the requested createdAt checkpoint', async () => {
+    process.env.PAYMENT_SPEAKER_STREAMING_ENABLED = 'false';
     const checkpoint = new Date('2026-05-21T10:00:00.000Z');
     prisma.store.findUnique.mockResolvedValue({ storeId: 'CP01' });
     prisma.paymentNotification.findMany.mockResolvedValue([]);
@@ -1354,6 +1359,7 @@ describe('PaymentNotificationsService', () => {
   });
 
   it('lists ready audio notifications not yet terminal for this client', async () => {
+    process.env.PAYMENT_SPEAKER_STREAMING_ENABLED = 'false';
     const createdAt = new Date('2026-05-21T10:00:00.000Z');
     prisma.store.findUnique.mockResolvedValue({ storeId: 'CP01' });
     prisma.paymentNotificationDeliveryLog.findMany.mockResolvedValue([

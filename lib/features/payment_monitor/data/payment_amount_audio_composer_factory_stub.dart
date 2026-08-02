@@ -11,6 +11,7 @@ class _UnsupportedPaymentAmountAudioComposer
   Future<PaymentAmountAudioResult> compose({
     required int amount,
     required String assetPackVersion,
+    required String voicePresetId,
   }) {
     throw UnsupportedError(
       'Offline payment audio is supported on Windows only',
