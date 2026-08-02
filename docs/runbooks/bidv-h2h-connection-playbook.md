@@ -92,8 +92,6 @@ Giới hạn mặc định cần xác nhận trong UAT: request mã hóa tối �
 - Không tái sử dụng `REQUESTID` cho nội dung khác.
 - Theo đặc tả BIDV, response khác HTTP 200 được retry tối đa 3 lần, cách nhau
   15 giây.
-- Hai bên đối soát identity mặc định
-  `bankCode + accountNo + refNo + seq + businessDate` trước khi bật production.
 
 ## 7. Checklist kết nối và bảo mật
 
@@ -108,7 +106,7 @@ Giới hạn mặc định cần xác nhận trong UAT: request mã hóa tối �
 | --- | --- |
 | Token hợp lệ | HTTP 200, token 5 phút, scope đúng |
 | Sai client/secret | HTTP 401, không lộ nguyên nhân nhạy cảm |
-| Một giao dịch Credit/VND | HTTP 200, đối soát đúng identity/số tiền/ngày giờ |
+| Một giao dịch Credit/VND | HTTP 200, số tiền/ngày giờ khớp dữ liệu UAT |
 | Nhiều giao dịch | Toàn mẻ hợp lệ mới được ghi nhận |
 | Gửi lặp cùng REQUESTID/body | HTTP 200, không tạo bản ghi/side effect trùng |
 | REQUESTID cũ/body khác | Không chấp nhận; hai bên điều tra log bằng mã đã băm |
@@ -125,9 +123,9 @@ chấp thuận bảo mật phù hợp.
 
 ## 9. Kích hoạt production
 
-Chỉ kích hoạt sau khi hai bên ký xác nhận UAT, chốt identity/batch/timezone,
-đối soát tổng số giao dịch và tổng số tiền, cửa sổ rotation và kế hoạch
-rollback. Production dùng client/key riêng, không tái sử dụng UAT.
+Chỉ kích hoạt sau khi hai bên ký xác nhận UAT, chốt batch/timezone, đối soát
+tổng số giao dịch và tổng số tiền, cửa sổ rotation và kế hoạch rollback.
+Production dùng client/key riêng, không tái sử dụng UAT.
 
 ## 10. Xử lý sự cố
 
