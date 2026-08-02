@@ -86,12 +86,14 @@ class PaymentWavSequenceResult {
   final PaymentWavInfo combined;
   final int segmentCount;
   final int gapMs;
+  final int crossfadeMs;
 
   const PaymentWavSequenceResult({
     required this.bytes,
     required this.combined,
     required this.segmentCount,
     required this.gapMs,
+    this.crossfadeMs = 0,
   });
 }
 
@@ -378,6 +380,139 @@ class PaymentWavTools {
     );
   }
 
+  /// Composes source WAVs that carry natural TTS padding. Intermediate chunks
+  /// trim their boundary padding at [silenceThresholdPcm] and overlap by a
+  /// linear crossfade; the final chunk retains its natural non-zero fade tail.
+  static PaymentWavSequenceResult combinePcm16SequenceWithCrossfade({
+    required List<List<int>> segments,
+    required Duration crossfade,
+    int silenceThresholdPcm = 33,
+  }) {
+    if (segments.isEmpty) {
+      throw const PaymentWavException('At least one WAV segment is required');
+    }
+    if (silenceThresholdPcm <= 0 || silenceThresholdPcm > 32767) {
+      throw const PaymentWavException('Crossfade silence threshold is invalid');
+    }
+    final data = segments.map(_asUint8List).toList(growable: false);
+    final infos = data.map(readInfo).toList(growable: false);
+    final reference = infos.first;
+    for (final info in infos) {
+      _validateCompatiblePcm16(reference, info);
+    }
+    if (reference.channels != 1) {
+      throw const PaymentWavException(
+        'Preset crossfade requires PCM16 mono WAV segments',
+      );
+    }
+    final crossfadeFrames = math.max(
+      0,
+      (reference.sampleRateHz *
+              crossfade.inMicroseconds /
+              Duration.microsecondsPerSecond)
+          .round(),
+    );
+    if (segments.length > 1 && crossfadeFrames == 0) {
+      throw const PaymentWavException(
+        'Preset crossfade must be greater than zero for multiple segments',
+      );
+    }
+
+    final starts = <int>[];
+    final ends = <int>[];
+    var outputFrames = 0;
+    for (var index = 0; index < infos.length; index += 1) {
+      final info = infos[index];
+      final bytes = data[index];
+      final firstAudible = _firstAudibleFrame(bytes, info, silenceThresholdPcm);
+      final lastAudible = _lastAudibleFrame(bytes, info, silenceThresholdPcm);
+      final lastNonZero = _lastNonZeroFrame(bytes, info);
+      if (firstAudible >= info.frameCount ||
+          lastAudible < firstAudible ||
+          lastNonZero < lastAudible) {
+        throw const PaymentWavException(
+          'Preset WAV segment does not contain audible PCM data',
+        );
+      }
+      final start = index == 0
+          ? firstAudible
+          : math.max(0, firstAudible - crossfadeFrames);
+      final end = index == infos.length - 1 ? lastNonZero + 1 : lastAudible + 1;
+      final length = end - start;
+      if (length <= 0 || (segments.length > 1 && length < crossfadeFrames)) {
+        throw const PaymentWavException(
+          'Preset WAV segment is too short for the configured crossfade',
+        );
+      }
+      starts.add(start);
+      ends.add(end);
+      outputFrames += length;
+    }
+    outputFrames -= crossfadeFrames * (segments.length - 1);
+    if (outputFrames <= 0) {
+      throw const PaymentWavException('Preset crossfade produced an empty WAV');
+    }
+
+    final outputPcm = Uint8List(outputFrames * reference.blockAlign);
+    var writtenFrames = 0;
+    for (var index = 0; index < infos.length; index += 1) {
+      final info = infos[index];
+      final bytes = data[index];
+      final start = starts[index];
+      final end = ends[index];
+      if (index == 0) {
+        final byteCount = (end - start) * info.blockAlign;
+        outputPcm.setRange(
+          0,
+          byteCount,
+          bytes,
+          info.dataOffset + start * info.blockAlign,
+        );
+        writtenFrames = end - start;
+        continue;
+      }
+
+      for (var frame = 0; frame < crossfadeFrames; frame += 1) {
+        final outputOffset =
+            (writtenFrames - crossfadeFrames + frame) * reference.blockAlign;
+        final incomingOffset =
+            info.dataOffset + (start + frame) * info.blockAlign;
+        final fadeIn = (frame + 1) / (crossfadeFrames + 1);
+        final mixed = _clampMixedInt16(
+          _int16(outputPcm, outputOffset) * (1 - fadeIn) +
+              _int16(bytes, incomingOffset) * fadeIn,
+        );
+        _writeInt16(outputPcm, outputOffset, mixed);
+      }
+      final remainingFrames = end - start - crossfadeFrames;
+      if (remainingFrames > 0) {
+        final destination = writtenFrames * reference.blockAlign;
+        final source =
+            info.dataOffset + (start + crossfadeFrames) * info.blockAlign;
+        outputPcm.setRange(
+          destination,
+          destination + remainingFrames * reference.blockAlign,
+          bytes,
+          source,
+        );
+        writtenFrames += remainingFrames;
+      }
+    }
+    if (writtenFrames != outputFrames) {
+      throw const PaymentWavException(
+        'Preset crossfade frame accounting failed',
+      );
+    }
+    final output = _writePcm16Wav(outputPcm, reference);
+    return PaymentWavSequenceResult(
+      bytes: output,
+      combined: readInfo(output),
+      segmentCount: segments.length,
+      gapMs: 0,
+      crossfadeMs: _framesToMs(crossfadeFrames, reference.sampleRateHz),
+    );
+  }
+
   static void _validateCompatiblePcm16(
     PaymentWavInfo prefix,
     PaymentWavInfo voice,
@@ -416,6 +551,43 @@ class PaymentWavTools {
       if (_frameIsNonZero(bytes, info, frame)) return frame;
     }
     return -1;
+  }
+
+  static int _firstAudibleFrame(
+    Uint8List bytes,
+    PaymentWavInfo info,
+    int thresholdPcm,
+  ) {
+    for (var frame = 0; frame < info.frameCount; frame += 1) {
+      if (_frameIsAudible(bytes, info, frame, thresholdPcm)) return frame;
+    }
+    return info.frameCount;
+  }
+
+  static int _lastAudibleFrame(
+    Uint8List bytes,
+    PaymentWavInfo info,
+    int thresholdPcm,
+  ) {
+    for (var frame = info.frameCount - 1; frame >= 0; frame -= 1) {
+      if (_frameIsAudible(bytes, info, frame, thresholdPcm)) return frame;
+    }
+    return -1;
+  }
+
+  static bool _frameIsAudible(
+    Uint8List bytes,
+    PaymentWavInfo info,
+    int frame,
+    int thresholdPcm,
+  ) {
+    final offset = info.dataOffset + frame * info.blockAlign;
+    for (var channel = 0; channel < info.channels; channel += 1) {
+      if (_int16(bytes, offset + channel * 2).abs() >= thresholdPcm) {
+        return true;
+      }
+    }
+    return false;
   }
 
   static bool _frameIsNonZero(Uint8List bytes, PaymentWavInfo info, int frame) {
@@ -573,6 +745,12 @@ class PaymentWavTools {
 
   static int _clampInt16(num value) {
     return value.round().clamp(-32768, 32767).toInt();
+  }
+
+  static int _clampMixedInt16(num value) {
+    // Reserve one PCM step so a saturated overlap never becomes a full-scale
+    // sample that downstream asset validation treats as clipping.
+    return value.round().clamp(-32767, 32766).toInt();
   }
 }
 

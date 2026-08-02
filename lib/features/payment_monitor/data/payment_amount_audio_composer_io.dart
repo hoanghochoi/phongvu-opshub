@@ -51,15 +51,15 @@ List<String> paymentAmountChunkAssetIds(int amount) {
 
 class PaymentAmountAudioComposerIo implements PaymentAmountAudioComposer {
   static const _source = 'PaymentAmountAudio';
-  static const _assetCount = 1103;
-  static const _packDirectoryName = 'piper_vi_vais1000_chunk_v1';
-  static const _storedLeadingSilence = Duration(milliseconds: 300);
-  static const _storedTrailingSilence = Duration(milliseconds: 200);
-  static const _retainedBoundarySilence = Duration.zero;
-  static const _joinGap = Duration(milliseconds: 45);
+  static const _assetCount = 1104;
+  static const _packDirectoryName = 'local_preset_speaker_v1';
+  static const _sampleRateHz = 22050;
+  static const _prefixAssetId = 'prefix';
+  static const _crossfade = Duration(milliseconds: 50);
+  static const _trimThresholdPcm = 33;
 
   final Directory? _packDirectoryForTesting;
-  Future<_PaymentAudioManifest>? _manifestFuture;
+  final Map<String, Future<_PaymentAudioManifest>> _manifestFutures = {};
 
   PaymentAmountAudioComposerIo({Directory? packDirectoryForTesting})
     : _packDirectoryForTesting = packDirectoryForTesting;
@@ -68,6 +68,7 @@ class PaymentAmountAudioComposerIo implements PaymentAmountAudioComposer {
   Future<PaymentAmountAudioResult> compose({
     required int amount,
     required String assetPackVersion,
+    required String voicePresetId,
   }) async {
     final stopwatch = Stopwatch()..start();
     final assetIds = paymentAmountChunkAssetIds(amount);
@@ -77,6 +78,7 @@ class PaymentAmountAudioComposerIo implements PaymentAmountAudioComposer {
       context: {
         'amount': amount,
         'assetPackVersion': assetPackVersion,
+        'voicePresetId': voicePresetId,
         'assetCount': assetIds.length,
       },
     );
@@ -86,21 +88,29 @@ class PaymentAmountAudioComposerIo implements PaymentAmountAudioComposer {
           'Asset pack version mismatch: event=$assetPackVersion client=$paymentAmountAudioPackVersion',
         );
       }
-      final manifest = await (_manifestFuture ??= _loadManifest());
+      if (paymentAudioVoicePresetForId(voicePresetId) == null) {
+        throw StateError('Unknown local payment voice preset: $voicePresetId');
+      }
+      final manifest = await _manifestFutures.putIfAbsent(
+        voicePresetId,
+        () => _loadManifest(voicePresetId),
+      );
       if (manifest.version != assetPackVersion) {
         throw StateError(
           'Installed payment audio manifest version does not match the event',
         );
       }
-      final segments = await Future.wait(
-        assetIds.map((assetId) => _loadAsset(manifest, assetId)),
+      final loadedAssets = await Future.wait(
+        [
+          _prefixAssetId,
+          ...assetIds,
+        ].map((assetId) => _loadAsset(manifest, assetId)),
       );
-      final combined = PaymentWavTools.combinePcm16SequenceWithKnownGuards(
-        segments: segments,
-        storedLeadingSilence: _storedLeadingSilence,
-        storedTrailingSilence: _storedTrailingSilence,
-        retainedBoundarySilence: _retainedBoundarySilence,
-        gap: _joinGap,
+      final prefixBytes = loadedAssets.first;
+      final combined = PaymentWavTools.combinePcm16SequenceWithCrossfade(
+        segments: loadedAssets.skip(1).toList(growable: false),
+        crossfade: _crossfade,
+        silenceThresholdPcm: _trimThresholdPcm,
       );
       stopwatch.stop();
       await AppLogger.instance.info(
@@ -109,15 +119,20 @@ class PaymentAmountAudioComposerIo implements PaymentAmountAudioComposer {
         context: {
           'amount': amount,
           'assetPackVersion': assetPackVersion,
+          'voicePresetId': voicePresetId,
           'assetCount': assetIds.length,
           'bytes': combined.bytes.length,
           'composeDurationMs': stopwatch.elapsedMilliseconds,
           'gapMs': combined.gapMs,
+          'crossfadeMs': combined.crossfadeMs,
+          'prefixBytes': prefixBytes.length,
           ...combined.combined.toLogContext(prefix: 'composedWav'),
         },
       );
       return PaymentAmountAudioResult(
         bytes: combined.bytes,
+        prefixBytes: prefixBytes,
+        voicePresetId: voicePresetId,
         assetIds: assetIds,
         composeDurationMs: stopwatch.elapsedMilliseconds,
       );
@@ -131,6 +146,7 @@ class PaymentAmountAudioComposerIo implements PaymentAmountAudioComposer {
         context: {
           'amount': amount,
           'assetPackVersion': assetPackVersion,
+          'voicePresetId': voicePresetId,
           'assetCount': assetIds.length,
           'composeDurationMs': stopwatch.elapsedMilliseconds,
         },
@@ -139,8 +155,8 @@ class PaymentAmountAudioComposerIo implements PaymentAmountAudioComposer {
     }
   }
 
-  Future<_PaymentAudioManifest> _loadManifest() async {
-    final directory = _packDirectory;
+  Future<_PaymentAudioManifest> _loadManifest(String voicePresetId) async {
+    final directory = _packDirectory(voicePresetId);
     final file = File(
       '${directory.path}${Platform.pathSeparator}manifest.json',
     );
@@ -151,20 +167,27 @@ class PaymentAmountAudioComposerIo implements PaymentAmountAudioComposer {
       );
     }
     final json = decoded.map((key, value) => MapEntry(key.toString(), value));
-    if (json['schemaVersion'] != 1 ||
+    final preset = paymentAudioVoicePresetForId(voicePresetId);
+    final rawVoicePreset = json['voicePreset'];
+    if (preset == null ||
+        json['schemaVersion'] != 2 ||
         json['assetPackVersion'] != paymentAmountAudioPackVersion ||
-        json['voice'] != 'Piper vi-vais1000') {
+        rawVoicePreset is! Map ||
+        rawVoicePreset['id'] != preset.id ||
+        rawVoicePreset['label'] != preset.label) {
       throw const FormatException('Payment audio manifest identity is invalid');
     }
     final policy = json['audioPolicy'];
     if (policy is! Map ||
-        policy['packageSampleRate'] != 24000 ||
+        policy['packageSampleRate'] != _sampleRateHz ||
         policy['channels'] != 1 ||
         policy['bitsPerSample'] != 16 ||
-        policy['assetLeadingSilenceMs'] != 300 ||
-        policy['assetTrailingSilenceMs'] != 200 ||
-        policy['composeBoundarySilenceMs'] != 0 ||
-        policy['joinGapMs'] != 45) {
+        policy['sourceBoundaryTrimThresholdDbfs'] != -60 ||
+        policy['internalAmountJoinGapMs'] != 0 ||
+        policy['internalAmountCrossfadeMs'] != _crossfade.inMilliseconds ||
+        policy['preserveFinalCurrencyTail'] != true ||
+        policy['cueToPhraseGapMs'] != 120 ||
+        policy['prefixToAmountGapMs'] != 150) {
       throw const FormatException('Payment audio manifest policy is invalid');
     }
     final rawAssets = json['assets'];
@@ -174,6 +197,17 @@ class PaymentAmountAudioComposerIo implements PaymentAmountAudioComposer {
       );
     }
     final assets = <String, _PaymentAudioAsset>{};
+    final expectedIds = <String>{
+      _prefixAssetId,
+      for (var value = 0; value < 1000; value += 1)
+        'chunk/leading/${value.toString().padLeft(3, '0')}',
+      for (var value = 1; value < 100; value += 1)
+        'chunk/forced/${value.toString().padLeft(3, '0')}',
+      'chunk/unit/nghìn',
+      'chunk/unit/triệu',
+      'chunk/unit/tỷ',
+      'chunk/unit/đồng',
+    };
     for (final rawAsset in rawAssets) {
       if (rawAsset is! Map) {
         throw const FormatException('Payment audio asset entry is invalid');
@@ -185,6 +219,8 @@ class PaymentAmountAudioComposerIo implements PaymentAmountAudioComposer {
       final fileName = asset['file']?.toString() ?? '';
       final digest = asset['sha256']?.toString() ?? '';
       final bytes = asset['bytes'];
+      final frames = asset['frames'];
+      final durationMs = asset['durationMs'];
       if (id.isEmpty ||
           fileName.isEmpty ||
           fileName.contains('/') ||
@@ -193,6 +229,11 @@ class PaymentAmountAudioComposerIo implements PaymentAmountAudioComposer {
           digest.length != 64 ||
           bytes is! int ||
           bytes <= 44 ||
+          frames is! int ||
+          frames <= 0 ||
+          durationMs is! num ||
+          durationMs.toDouble() !=
+              ((frames * 1000 / _sampleRateHz) * 1000).round() / 1000 ||
           assets.containsKey(id)) {
         throw FormatException('Payment audio asset metadata is invalid: $id');
       }
@@ -200,6 +241,14 @@ class PaymentAmountAudioComposerIo implements PaymentAmountAudioComposer {
         fileName: fileName,
         sha256: digest,
         bytes: bytes,
+        frames: frames,
+      );
+    }
+    if (assets.length != _assetCount ||
+        assets.length != expectedIds.length ||
+        !assets.keys.every(expectedIds.contains)) {
+      throw const FormatException(
+        'Payment audio manifest inventory is invalid',
       );
     }
     return _PaymentAudioManifest(
@@ -229,12 +278,25 @@ class PaymentAmountAudioComposerIo implements PaymentAmountAudioComposer {
     if (sha256.convert(bytes).toString() != asset.sha256) {
       throw StateError('Payment audio asset hash mismatch: $assetId');
     }
+    final info = PaymentWavTools.readInfo(bytes);
+    if (!info.isPcm16 ||
+        info.channels != 1 ||
+        info.sampleRateHz != _sampleRateHz ||
+        info.frameCount != asset.frames) {
+      throw StateError('Payment audio asset format mismatch: $assetId');
+    }
     return bytes;
   }
 
-  Directory get _packDirectory {
+  Directory _packDirectory(String voicePresetId) {
     final override = _packDirectoryForTesting;
-    if (override != null) return override;
+    if (override != null) {
+      final normalised = override.path.replaceAll('\\', '/');
+      if (normalised.endsWith('/$voicePresetId')) return override;
+      return Directory(
+        '${override.path}${Platform.pathSeparator}$voicePresetId',
+      );
+    }
     if (!Platform.isWindows) {
       throw UnsupportedError(
         'Offline payment audio is supported on Windows only',
@@ -244,7 +306,8 @@ class PaymentAmountAudioComposerIo implements PaymentAmountAudioComposer {
     return Directory(
       '${executableDirectory.path}${Platform.pathSeparator}data'
       '${Platform.pathSeparator}payment_audio'
-      '${Platform.pathSeparator}$_packDirectoryName',
+      '${Platform.pathSeparator}$_packDirectoryName'
+      '${Platform.pathSeparator}$voicePresetId',
     );
   }
 }
@@ -265,10 +328,12 @@ class _PaymentAudioAsset {
   final String fileName;
   final String sha256;
   final int bytes;
+  final int frames;
 
   const _PaymentAudioAsset({
     required this.fileName,
     required this.sha256,
     required this.bytes,
+    required this.frames,
   });
 }

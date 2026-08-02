@@ -9,6 +9,7 @@ class PaymentSpeaker {
     required String storeCode,
     required String clientId,
     required int attempt,
+    List<int>? localPrefixBytes,
     bool playLocalCue = true,
     bool playLocalCuePrefix = false,
     Future<void> Function()? onPlaybackStarting,

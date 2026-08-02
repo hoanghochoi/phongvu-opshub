@@ -95,6 +95,30 @@ class _PaymentMonitorScreenState extends State<PaymentMonitorScreen> {
                       ],
                     ),
                     const SizedBox(height: 10),
+                    AppCombobox<String>.single(
+                      label: 'Giọng đọc',
+                      icon: Icons.record_voice_over_outlined,
+                      value: monitor.speakerVoicePresetId,
+                      options: monitor.speakerVoicePresetOptions
+                          .map(
+                            (preset) => AppComboboxOption<String>(
+                              value: preset.id,
+                              label: preset.label,
+                              subtitle: preset.subtitle,
+                              searchKeywords: [preset.label, preset.subtitle],
+                            ),
+                          )
+                          .toList(growable: false),
+                      emptyLabel: 'Chọn giọng đọc',
+                      allowClear: false,
+                      onChanged: (value) {
+                        if (value == null) return;
+                        context
+                            .read<PaymentMonitorProvider>()
+                            .setSpeakerVoicePreset(value);
+                      },
+                    ),
+                    const SizedBox(height: 10),
                     Align(
                       alignment: Alignment.centerLeft,
                       child: _SyncStatusPill(monitor: monitor),

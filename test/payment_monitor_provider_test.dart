@@ -59,10 +59,13 @@ void main() {
         speaker,
         null,
         retryDelay,
+        null,
+        const Duration(seconds: 5),
+        _FakePaymentAmountAudioComposer(),
       );
 
       await Future<void>.delayed(Duration.zero);
-      provider.syncAuth(_storeUser(), isInitialized: true);
+      provider.syncAuth(_storeUser(storeId: 'CP01'), isInitialized: true);
       await _waitUntil(
         () => repository.transactionFetchCount > 0 && !provider.isLoading,
       );
@@ -118,56 +121,90 @@ void main() {
     },
   );
 
-  test(
-    'creates a speaker-ready fallback timer without extra list polling',
-    () async {
-      var periodicTimerCount = 0;
-      final periodicDurations = <Duration>[];
-      late PaymentMonitorProvider provider;
-      final repository = _FakePaymentMonitorRepository(notifications: const []);
+  test('does not create a speaker-ready fallback timer', () async {
+    var periodicTimerCount = 0;
+    final periodicDurations = <Duration>[];
+    late PaymentMonitorProvider provider;
+    final repository = _FakePaymentMonitorRepository(notifications: const []);
 
-      await runZoned(
-        () async {
-          provider = PaymentMonitorProvider(
-            repository,
-            _FakePaymentSpeaker(),
-            null,
-            retryDelay,
-          );
-          await Future<void>.delayed(Duration.zero);
-          provider.syncAuth(_storeUser(), isInitialized: true);
-          await _waitUntil(
-            () => repository.transactionFetchCount > 0 && !provider.isLoading,
-          );
+    await runZoned(
+      () async {
+        provider = PaymentMonitorProvider(
+          repository,
+          _FakePaymentSpeaker(),
+          null,
+          retryDelay,
+        );
+        await Future<void>.delayed(Duration.zero);
+        provider.syncAuth(_storeUser(), isInitialized: true);
+        await _waitUntil(
+          () => repository.transactionFetchCount > 0 && !provider.isLoading,
+        );
+      },
+      zoneSpecification: ZoneSpecification(
+        createPeriodicTimer: (self, parent, zone, duration, callback) {
+          periodicTimerCount += 1;
+          periodicDurations.add(duration);
+          return parent.createPeriodicTimer(zone, duration, callback);
         },
-        zoneSpecification: ZoneSpecification(
-          createPeriodicTimer: (self, parent, zone, duration, callback) {
-            periodicTimerCount += 1;
-            periodicDurations.add(duration);
-            return parent.createPeriodicTimer(zone, duration, callback);
-          },
-        ),
-      );
+      ),
+    );
 
-      expect(periodicTimerCount, 1);
-      expect(periodicDurations, [const Duration(seconds: 5)]);
-      expect(repository.transactionFetchCount, 1);
-      provider.dispose();
-    },
-  );
+    expect(periodicTimerCount, 0);
+    expect(periodicDurations, isEmpty);
+    expect(repository.transactionFetchCount, 1);
+    provider.dispose();
+  });
+
+  test('persists the selected speaker voice preset locally', () async {
+    final firstProvider = PaymentMonitorProvider(
+      _FakePaymentMonitorRepository(notifications: const []),
+      _FakePaymentSpeaker(),
+      null,
+      retryDelay,
+    );
+    await Future<void>.delayed(Duration.zero);
+    firstProvider.syncAuth(_storeUser(), isInitialized: true);
+    await _waitUntil(
+      () =>
+          firstProvider.canConfigurePaymentSpeaker && !firstProvider.isLoading,
+    );
+
+    await firstProvider.setSpeakerVoicePreset('mien-nam-phuong-ly');
+    expect(firstProvider.speakerVoicePresetId, 'mien-nam-phuong-ly');
+    final prefs = await SharedPreferences.getInstance();
+    expect(
+      prefs.getString(AppStorageKeys.shared('payment_monitor_voice_preset')),
+      'mien-nam-phuong-ly',
+    );
+    firstProvider.dispose();
+
+    final secondProvider = PaymentMonitorProvider(
+      _FakePaymentMonitorRepository(notifications: const []),
+      _FakePaymentSpeaker(),
+      null,
+      retryDelay,
+    );
+    addTearDown(secondProvider.dispose);
+    await _waitUntil(
+      () => secondProvider.speakerVoicePresetId == 'mien-nam-phuong-ly',
+    );
+    expect(secondProvider.speakerVoicePreset.label, 'Miền Nam — Phương Ly');
+  });
 
   test(
     'loads transactions but skips notification polling without speaker feature',
     () async {
-      final repository = _FakePaymentMonitorRepository(
-        notifications: [_readyNotification()],
-      );
+      final repository = _FakePaymentMonitorRepository(notifications: const []);
       final speaker = _FakePaymentSpeaker();
       final provider = PaymentMonitorProvider(
         repository,
         speaker,
         null,
         retryDelay,
+        null,
+        const Duration(seconds: 5),
+        _FakePaymentAmountAudioComposer(),
       );
 
       await Future<void>.delayed(Duration.zero);
@@ -214,7 +251,7 @@ void main() {
 
       provider.setSelectedStoreIds({'CP75'});
       await _waitUntil(
-        () => repository.readyFetchCount > 0 && !provider.isLoading,
+        () => repository.transactionFetchCount > 1 && !provider.isLoading,
       );
 
       expect(provider.canUsePaymentSpeaker, isTrue);
@@ -246,11 +283,11 @@ void main() {
           isInitialized: true,
         );
         await _waitUntil(
-          () => repository.readyFetchCount > 0 && !provider.isLoading,
+          () => repository.transactionFetchCount > 0 && !provider.isLoading,
         );
 
         expect(provider.canUsePaymentSpeaker, isTrue);
-        expect(repository.readyFetchCount, greaterThan(0));
+        expect(repository.readyFetchCount, 0);
 
         provider.dispose();
       }
@@ -284,40 +321,46 @@ void main() {
     provider.dispose();
   });
 
-  test('lets SUPER_ADMIN use speaker polling after choosing a store', () async {
-    final repository = _FakePaymentMonitorRepository(
-      notifications: [_readyNotification()],
-    );
-    final speaker = _FakePaymentSpeaker();
-    final provider = PaymentMonitorProvider(
-      repository,
-      speaker,
-      null,
-      retryDelay,
-    );
+  test(
+    'lets SUPER_ADMIN enable a speaker scope after choosing a store',
+    () async {
+      final repository = _FakePaymentMonitorRepository(
+        notifications: [_readyNotification()],
+      );
+      final speaker = _FakePaymentSpeaker();
+      final provider = PaymentMonitorProvider(
+        repository,
+        speaker,
+        null,
+        retryDelay,
+        null,
+        const Duration(seconds: 5),
+        _FakePaymentAmountAudioComposer(),
+      );
 
-    await Future<void>.delayed(Duration.zero);
-    provider.syncAuth(_superAdmin(), isInitialized: true);
+      await Future<void>.delayed(Duration.zero);
+      provider.syncAuth(_superAdmin(), isInitialized: true);
 
-    expect(provider.canUsePaymentSpeaker, isFalse);
-    expect(provider.hasMonitorScope, isFalse);
-    expect(repository.readyFetchCount, 0);
+      expect(provider.canUsePaymentSpeaker, isFalse);
+      expect(provider.hasMonitorScope, isFalse);
+      expect(repository.readyFetchCount, 0);
 
-    provider.setStoreOverride('cp62');
-    await _waitUntil(
-      () => repository.readyFetchCount > 0 && !provider.isLoading,
-    );
+      provider.setStoreOverride('cp62');
+      await _waitUntil(
+        () => repository.transactionFetchCount > 0 && !provider.isLoading,
+      );
 
-    expect(provider.hasMonitorScope, isTrue);
-    expect(repository.requestedRateLimitCooldownBypasses.last, isTrue);
-    expect(repository.readyFetchCount, greaterThan(0));
-    expect(repository.downloadCount, 0);
-    expect(repository.streamDownloadCount, 1);
-    expect(repository.ackEvents, contains('PLAYED'));
-    expect(speaker.playCount, 1);
+      expect(provider.hasMonitorScope, isTrue);
+      expect(repository.requestedRateLimitCooldownBypasses.last, isTrue);
+      expect(repository.readyFetchCount, 0);
+      expect(repository.downloadCount, 0);
+      expect(repository.streamDownloadCount, 0);
+      expect(repository.ackEvents, isEmpty);
+      expect(speaker.playCount, 0);
 
-    provider.dispose();
-  });
+      provider.dispose();
+    },
+  );
 
   test('requests stored transactions with the selected date range', () async {
     final repository = _FakePaymentMonitorRepository(notifications: const []);
@@ -631,7 +674,7 @@ void main() {
   );
 
   test(
-    'realtime payment event refreshes transactions and reads ready speaker audio',
+    'realtime payment event refreshes transactions without reading ready audio',
     () async {
       final repository = _FakePaymentMonitorRepository(
         notifications: const [],
@@ -676,14 +719,14 @@ void main() {
       await _waitUntil(
         () =>
             repository.transactionFetchCount > initialFetchCount &&
-            repository.ackEvents.contains('PLAYED') &&
             !provider.isLoading,
       );
 
       expect(repository.requestedIncludeTotals.first, isTrue);
       expect(repository.requestedIncludeTotals.last, isFalse);
-      expect(repository.readyFetchCount, 2);
-      expect(speaker.playCount, 1);
+      expect(repository.readyFetchCount, 0);
+      expect(speaker.playCount, 0);
+      expect(repository.ackEvents, isEmpty);
 
       provider.dispose();
     },
@@ -870,6 +913,9 @@ void main() {
   test(
     'background speaker event plays without refreshing the transaction list',
     () async {
+      SharedPreferences.setMockInitialValues({
+        AppStorageKeys.shared('payment_monitor_enabled'): true,
+      });
       final repository = _FakePaymentMonitorRepository(notifications: const []);
       final speaker = _FakePaymentSpeaker();
       final realtime = _FakeRealtimeClient();
@@ -879,6 +925,8 @@ void main() {
         null,
         retryDelay,
         realtime,
+        const Duration(seconds: 5),
+        _FakePaymentAmountAudioComposer(),
       );
 
       provider.syncRuntime(
@@ -913,7 +961,7 @@ void main() {
         _realtimeEnvelope(
           kind: 'PAYMENT_SPEAKER_STREAM',
           topic: 'payment.speaker',
-          data: _streamPayload('note-background'),
+          data: _streamPayload('note-background', localAsset: true),
         ),
       );
       await _waitUntil(() => repository.ackEvents.contains('PLAYED'));
@@ -929,61 +977,45 @@ void main() {
     },
   );
 
-  test(
-    'background reconnect sync drains speaker metadata without a list fetch',
-    () async {
-      final repository = _FakePaymentMonitorRepository(
-        notifications: const [],
-        notificationBatches: [
-          const [],
-          [
-            _readyNotification(
-              notificationId: 'note-background-ready',
-              transactionId: 'txn-background-ready',
-            ),
-          ],
-        ],
-      );
-      final realtime = _FakeRealtimeClient();
-      final provider = PaymentMonitorProvider(
-        repository,
-        _FakePaymentSpeaker(),
-        null,
-        retryDelay,
-        realtime,
-        const Duration(hours: 1),
-      );
+  test('background reconnect sync does not read a speaker backlog', () async {
+    final repository = _FakePaymentMonitorRepository(notifications: const []);
+    final realtime = _FakeRealtimeClient();
+    final provider = PaymentMonitorProvider(
+      repository,
+      _FakePaymentSpeaker(),
+      null,
+      retryDelay,
+      realtime,
+      const Duration(hours: 1),
+    );
 
-      provider.syncRuntime(
-        isForeground: true,
-        isListViewActive: true,
-        allowBackgroundSpeakerRuntime: true,
-      );
-      await Future<void>.delayed(Duration.zero);
-      provider.syncAuth(_storeUser(storeId: 'CP01'), isInitialized: true);
-      await _waitUntil(
-        () =>
-            repository.transactionFetchCount == 1 &&
-            repository.readyFetchCount >= 1 &&
-            !provider.isLoading,
-      );
-      final initialTransactionFetchCount = repository.transactionFetchCount;
+    provider.syncRuntime(
+      isForeground: true,
+      isListViewActive: true,
+      allowBackgroundSpeakerRuntime: true,
+    );
+    await Future<void>.delayed(Duration.zero);
+    provider.syncAuth(_storeUser(storeId: 'CP01'), isInitialized: true);
+    await _waitUntil(
+      () => repository.transactionFetchCount == 1 && !provider.isLoading,
+    );
+    final initialTransactionFetchCount = repository.transactionFetchCount;
 
-      provider.syncRuntime(
-        isForeground: false,
-        isListViewActive: false,
-        allowBackgroundSpeakerRuntime: true,
-      );
-      realtime.addBackgroundSpeakerSync(RealtimeSyncReason.reconnected);
-      await _waitUntil(() => repository.ackEvents.contains('PLAYED'));
+    provider.syncRuntime(
+      isForeground: false,
+      isListViewActive: false,
+      allowBackgroundSpeakerRuntime: true,
+    );
+    realtime.addBackgroundSpeakerSync(RealtimeSyncReason.reconnected);
+    await Future<void>.delayed(const Duration(milliseconds: 50));
 
-      expect(repository.readyFetchCount, greaterThanOrEqualTo(2));
-      expect(repository.transactionFetchCount, initialTransactionFetchCount);
+    expect(repository.readyFetchCount, 0);
+    expect(repository.ackEvents, isEmpty);
+    expect(repository.transactionFetchCount, initialTransactionFetchCount);
 
-      provider.dispose();
-      await realtime.dispose();
-    },
-  );
+    provider.dispose();
+    await realtime.dispose();
+  });
 
   test('speaker lease releases on mute detached logout and dispose', () async {
     final realtime = _FakeRealtimeClient();
@@ -1132,7 +1164,9 @@ void main() {
   test('local-asset stream composes and claims without audio HTTP', () async {
     final repository = _FakePaymentMonitorRepository(notifications: const []);
     final speaker = _FakePaymentSpeaker();
-    final composer = _FakePaymentAmountAudioComposer();
+    final composer = _FakePaymentAmountAudioComposer(
+      prefixBytes: const [1, 2, 3],
+    );
     final provider = PaymentMonitorProvider(
       repository,
       speaker,
@@ -1165,10 +1199,13 @@ void main() {
     expect(repository.downloadCount, 0);
     expect(speaker.playCount, 1);
     expect(speaker.playLocalCuePrefixValues, [true]);
+    expect(speaker.localPrefixBytesValues, [
+      const [1, 2, 3],
+    ]);
   });
 
   test(
-    'missing local asset falls back to the existing stream audio path',
+    'missing local asset fails terminally without requesting stream audio',
     () async {
       final repository = _FakePaymentMonitorRepository(notifications: const []);
       final speaker = _FakePaymentSpeaker();
@@ -1198,17 +1235,18 @@ void main() {
           data: _streamPayload('note-local-fallback', localAsset: true),
         ),
       );
-      await _waitUntil(() => repository.ackEvents.contains('PLAYED'));
+      await _waitUntil(() => repository.ackEvents.contains('FAILED'));
 
       expect(repository.localClaimCount, 0);
-      expect(repository.streamDownloadCount, 1);
-      expect(repository.requestedRawAmounts, [true]);
-      expect(speaker.playCount, 1);
+      expect(repository.streamDownloadCount, 0);
+      expect(repository.downloadCount, 0);
+      expect(repository.requestedRawAmounts, isEmpty);
+      expect(speaker.playCount, 0);
     },
   );
 
   test(
-    'stream event retries playback errors and logs them to server',
+    'stream event retries local preset playback errors and logs them to server',
     () async {
       final repository = _FakePaymentMonitorRepository(notifications: const []);
       final speaker = _FakePaymentSpeaker(failuresBeforeSuccess: 1);
@@ -1217,6 +1255,9 @@ void main() {
         speaker,
         null,
         retryDelay,
+        null,
+        const Duration(seconds: 5),
+        _FakePaymentAmountAudioComposer(),
       );
 
       await Future<void>.delayed(Duration.zero);
@@ -1229,7 +1270,7 @@ void main() {
         _realtimeEnvelope(
           kind: 'PAYMENT_SPEAKER_STREAM',
           topic: 'payment.speaker',
-          data: _streamPayload('note-retry'),
+          data: _streamPayload('note-retry', localAsset: true),
         ),
       );
       await _waitUntil(
@@ -1237,8 +1278,8 @@ void main() {
       );
 
       expect(repository.downloadCount, 0);
-      expect(repository.streamDownloadCount, 1);
-      expect(repository.requestedRawAmounts, contains(true));
+      expect(repository.streamDownloadCount, 0);
+      expect(repository.requestedRawAmounts, isEmpty);
       expect(repository.ackEvents, contains('STREAM_STARTED'));
       expect(repository.ackEvents, contains('PLAYBACK_FAILED'));
       expect(repository.ackEvents, contains('PLAYED'));
@@ -1260,6 +1301,9 @@ void main() {
         speaker,
         null,
         retryDelay,
+        null,
+        const Duration(seconds: 5),
+        _FakePaymentAmountAudioComposer(),
       );
 
       await Future<void>.delayed(Duration.zero);
@@ -1272,22 +1316,22 @@ void main() {
         _realtimeEnvelope(
           kind: 'PAYMENT_SPEAKER_STREAM',
           topic: 'payment.speaker',
-          data: _streamPayload('note-race'),
+          data: _streamPayload('note-race', localAsset: true),
         ),
       );
       await provider.handleRealtimeMessageForTesting(
         _realtimeEnvelope(
           kind: 'PAYMENT_SPEAKER_STREAM',
           topic: 'payment.speaker',
-          data: _streamPayload('note-race'),
+          data: _streamPayload('note-race', localAsset: true),
         ),
       );
       await _waitUntil(() => repository.ackEvents.contains('PLAYED'));
 
-      expect(repository.streamDownloadCount, 1);
-      expect(repository.requestedStreamClientIds.single, isNotNull);
+      expect(repository.streamDownloadCount, 0);
+      expect(repository.requestedStreamClientIds, isEmpty);
       expect(repository.downloadCount, 0);
-      expect(repository.readyFetchCount, 1);
+      expect(repository.readyFetchCount, 0);
       expect(speaker.playCount, 1);
       expect(
         repository.ackEvents.where((event) => event == 'STREAM_STARTED'),
@@ -1307,7 +1351,7 @@ void main() {
     () async {
       final repository = _FakePaymentMonitorRepository(
         notifications: const [],
-        rawAmountAudioError: ApiException(
+        localClaimError: ApiException(
           'Giao dịch này đang được xử lý trên máy hiện tại.',
           409,
         ),
@@ -1318,6 +1362,9 @@ void main() {
         speaker,
         null,
         retryDelay,
+        null,
+        const Duration(seconds: 5),
+        _FakePaymentAmountAudioComposer(),
       );
 
       await Future<void>.delayed(Duration.zero);
@@ -1330,13 +1377,14 @@ void main() {
         _realtimeEnvelope(
           kind: 'PAYMENT_SPEAKER_STREAM',
           topic: 'payment.speaker',
-          data: _streamPayload('note-suppressed'),
+          data: _streamPayload('note-suppressed', localAsset: true),
         ),
       );
-      await _waitUntil(() => repository.streamDownloadCount == 1);
+      await _waitUntil(() => repository.localClaimCount == 1);
 
       expect(speaker.playCount, 0);
       expect(provider.speakerError, isNull);
+      expect(repository.streamDownloadCount, 0);
       expect(repository.ackEvents, isNot(contains('FAILED')));
       expect(repository.ackEvents, isNot(contains('PLAYED')));
       expect(repository.ackEvents, isNot(contains('STREAM_STARTED')));
@@ -1350,7 +1398,7 @@ void main() {
     () async {
       final repository = _FakePaymentMonitorRepository(
         notifications: const [],
-        rawAmountAudioError: ApiException('Thông báo đọc loa đã quá hạn.', 409),
+        localClaimError: ApiException('Thông báo đọc loa đã quá hạn.', 409),
       );
       final speaker = _FakePaymentSpeaker();
       final provider = PaymentMonitorProvider(
@@ -1358,6 +1406,9 @@ void main() {
         speaker,
         null,
         retryDelay,
+        null,
+        const Duration(seconds: 5),
+        _FakePaymentAmountAudioComposer(),
       );
 
       await Future<void>.delayed(Duration.zero);
@@ -1370,14 +1421,15 @@ void main() {
         _realtimeEnvelope(
           kind: 'PAYMENT_SPEAKER_STREAM',
           topic: 'payment.speaker',
-          data: _streamPayload('note-expired'),
+          data: _streamPayload('note-expired', localAsset: true),
         ),
       );
-      await _waitUntil(() => repository.streamDownloadCount == 1);
+      await _waitUntil(() => repository.localClaimCount == 1);
 
       expect(speaker.playCount, 0);
       expect(provider.speakerError, isNull);
-      expect(repository.requestedRawAmounts, [true]);
+      expect(repository.requestedRawAmounts, isEmpty);
+      expect(repository.streamDownloadCount, 0);
       expect(repository.ackEvents, isNot(contains('FAILED')));
       expect(repository.ackEvents, isNot(contains('PLAYED')));
       expect(repository.ackEvents, isNot(contains('STREAM_STARTED')));
@@ -1386,174 +1438,139 @@ void main() {
     },
   );
 
-  test(
-    'drains ready notification backlog without waiting for fallback tick',
-    () async {
-      final repository = _FakePaymentMonitorRepository(
-        notifications: const [],
-        notificationBatches: [
-          [
-            _readyNotification(
-              notificationId: 'note-1',
-              transactionId: 'txn-1',
-            ),
-            _readyNotification(
-              notificationId: 'note-2',
-              transactionId: 'txn-2',
-            ),
-            _readyNotification(
-              notificationId: 'note-3',
-              transactionId: 'txn-3',
-            ),
-          ],
-          [
-            _readyNotification(
-              notificationId: 'note-4',
-              transactionId: 'txn-4',
-            ),
-          ],
+  test('does not drain a ready notification backlog', () async {
+    final repository = _FakePaymentMonitorRepository(
+      notifications: const [],
+      notificationBatches: [
+        [
+          _readyNotification(notificationId: 'note-1', transactionId: 'txn-1'),
+          _readyNotification(notificationId: 'note-2', transactionId: 'txn-2'),
+          _readyNotification(notificationId: 'note-3', transactionId: 'txn-3'),
         ],
-      );
-      final speaker = _FakePaymentSpeaker();
-      final provider = PaymentMonitorProvider(
-        repository,
-        speaker,
-        null,
-        retryDelay,
-      );
+        [_readyNotification(notificationId: 'note-4', transactionId: 'txn-4')],
+      ],
+    );
+    final speaker = _FakePaymentSpeaker();
+    final provider = PaymentMonitorProvider(
+      repository,
+      speaker,
+      null,
+      retryDelay,
+    );
 
-      await Future<void>.delayed(Duration.zero);
-      provider.syncAuth(_storeUser(), isInitialized: true);
-      await _waitUntil(
-        () =>
-            repository.ackEvents.where((event) => event == 'PLAYED').length ==
-                4 &&
-            !provider.isLoading,
-      );
+    await Future<void>.delayed(Duration.zero);
+    provider.syncAuth(_storeUser(), isInitialized: true);
+    await _waitUntil(
+      () => repository.transactionFetchCount > 0 && !provider.isLoading,
+    );
 
-      expect(repository.readyFetchCount, 2);
-      expect(repository.downloadCount, 0);
-      expect(repository.streamDownloadCount, 4);
-      expect(speaker.playCount, 4);
-      expect(
-        repository.ackEvents.where((event) => event == 'STREAM_STARTED'),
-        hasLength(4),
-      );
+    expect(repository.readyFetchCount, 0);
+    expect(repository.downloadCount, 0);
+    expect(repository.streamDownloadCount, 0);
+    expect(speaker.playCount, 0);
+    expect(repository.ackEvents, isEmpty);
 
-      provider.dispose();
-    },
-  );
+    provider.dispose();
+  });
 
-  test(
-    'speaker-ready fallback drains audio backlog without list refresh',
-    () async {
-      final repository = _FakePaymentMonitorRepository(
-        notifications: const [],
-        notificationBatches: [
-          const [],
-          [
-            _readyNotification(
-              notificationId: 'note-fallback',
-              transactionId: 'txn-fallback',
-            ),
-          ],
+  test('speaker-ready fallback is disabled without list refresh', () async {
+    final repository = _FakePaymentMonitorRepository(
+      notifications: const [],
+      notificationBatches: [
+        const [],
+        [
+          _readyNotification(
+            notificationId: 'note-fallback',
+            transactionId: 'txn-fallback',
+          ),
         ],
-      );
-      final speaker = _FakePaymentSpeaker();
-      final provider = PaymentMonitorProvider(
-        repository,
-        speaker,
-        null,
-        retryDelay,
-        null,
-        retryDelay,
-      );
+      ],
+    );
+    final speaker = _FakePaymentSpeaker();
+    final provider = PaymentMonitorProvider(
+      repository,
+      speaker,
+      null,
+      retryDelay,
+      null,
+      retryDelay,
+    );
 
-      await Future<void>.delayed(Duration.zero);
-      provider.syncAuth(_storeUser(), isInitialized: true);
-      await _waitUntil(
-        () =>
-            repository.transactionFetchCount >= 1 &&
-            repository.readyFetchCount >= 2 &&
-            repository.ackEvents.contains('PLAYED'),
-      );
+    await Future<void>.delayed(Duration.zero);
+    provider.syncAuth(_storeUser(), isInitialized: true);
+    await _waitUntil(
+      () => repository.transactionFetchCount >= 1 && !provider.isLoading,
+    );
 
-      expect(repository.transactionFetchCount, 1);
-      expect(repository.streamDownloadCount, 1);
-      expect(speaker.playCount, 1);
+    expect(repository.transactionFetchCount, 1);
+    expect(repository.readyFetchCount, 0);
+    expect(repository.streamDownloadCount, 0);
+    expect(speaker.playCount, 0);
 
-      provider.dispose();
-    },
-  );
+    provider.dispose();
+  });
 
-  test(
-    'shared realtime sync drains speaker backlog without list refresh',
-    () async {
-      final repository = _FakePaymentMonitorRepository(notifications: const []);
-      final realtime = _FakeRealtimeClient();
-      final provider = PaymentMonitorProvider(
-        repository,
-        _FakePaymentSpeaker(),
-        null,
-        retryDelay,
-        realtime,
-      );
+  test('shared realtime sync does not drain a speaker backlog', () async {
+    final repository = _FakePaymentMonitorRepository(notifications: const []);
+    final realtime = _FakeRealtimeClient();
+    final provider = PaymentMonitorProvider(
+      repository,
+      _FakePaymentSpeaker(),
+      null,
+      retryDelay,
+      realtime,
+    );
 
-      await Future<void>.delayed(Duration.zero);
-      provider.syncAuth(_storeUser(storeId: 'CP01'), isInitialized: true);
-      await _waitUntil(
-        () => repository.transactionFetchCount > 0 && !provider.isLoading,
-      );
-      final initialFetchCount = repository.transactionFetchCount;
-      final initialReadyFetchCount = repository.readyFetchCount;
+    await Future<void>.delayed(Duration.zero);
+    provider.syncAuth(_storeUser(storeId: 'CP01'), isInitialized: true);
+    await _waitUntil(
+      () => repository.transactionFetchCount > 0 && !provider.isLoading,
+    );
+    final initialFetchCount = repository.transactionFetchCount;
 
-      realtime.addEvent(
-        _realtimeEnvelope(
-          kind: 'PAYMENT_NOTIFICATION',
-          topic: 'payment.speaker',
-          data: const {'storeCode': 'CP01'},
-        ),
-      );
-      await Future<void>.delayed(const Duration(milliseconds: 600));
-      expect(repository.transactionFetchCount, initialFetchCount);
+    realtime.addEvent(
+      _realtimeEnvelope(
+        kind: 'PAYMENT_NOTIFICATION',
+        topic: 'payment.speaker',
+        data: const {'storeCode': 'CP01'},
+      ),
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 600));
+    expect(repository.transactionFetchCount, initialFetchCount);
 
-      realtime.addSync(RealtimeSyncReason.reconnected);
-      await _waitUntil(
-        () => repository.readyFetchCount > initialReadyFetchCount,
-      );
+    realtime.addSync(RealtimeSyncReason.reconnected);
+    await Future<void>.delayed(const Duration(milliseconds: 50));
 
-      expect(provider.isActive, isTrue);
-      expect(repository.transactionFetchCount, initialFetchCount);
-      final readyFetchCountAfterReconnect = repository.readyFetchCount;
+    expect(provider.isActive, isTrue);
+    expect(repository.transactionFetchCount, initialFetchCount);
+    expect(repository.readyFetchCount, 0);
 
-      realtime.addSync(RealtimeSyncReason.appResumed);
-      await _waitUntil(
-        () => repository.readyFetchCount > readyFetchCountAfterReconnect,
-      );
+    realtime.addSync(RealtimeSyncReason.appResumed);
+    await Future<void>.delayed(const Duration(milliseconds: 50));
 
-      expect(repository.transactionFetchCount, initialFetchCount);
+    expect(repository.transactionFetchCount, initialFetchCount);
+    expect(repository.readyFetchCount, 0);
 
-      realtime.addEvent(
-        _realtimeEnvelope(
-          kind: 'PAYMENT_NOTIFICATION',
-          topic: 'payment.transactions',
-          data: const {'storeCode': 'CP01'},
-          sequence: 2,
-        ),
-      );
-      await _waitUntil(
-        () =>
-            repository.transactionFetchCount == initialFetchCount + 1 &&
-            !provider.isLoading,
-      );
+    realtime.addEvent(
+      _realtimeEnvelope(
+        kind: 'PAYMENT_NOTIFICATION',
+        topic: 'payment.transactions',
+        data: const {'storeCode': 'CP01'},
+        sequence: 2,
+      ),
+    );
+    await _waitUntil(
+      () =>
+          repository.transactionFetchCount == initialFetchCount + 1 &&
+          !provider.isLoading,
+    );
 
-      expect(repository.requestedIncludeTotals.last, isFalse);
-      expect(repository.requestedRateLimitCooldownBypasses.last, isFalse);
+    expect(repository.requestedIncludeTotals.last, isFalse);
+    expect(repository.requestedRateLimitCooldownBypasses.last, isFalse);
 
-      provider.dispose();
-      await realtime.dispose();
-    },
-  );
+    provider.dispose();
+    await realtime.dispose();
+  });
 
   test('manual refresh requests total count for pagination', () async {
     final repository = _FakePaymentMonitorRepository(notifications: const []);
@@ -1693,65 +1710,85 @@ void main() {
   });
 
   test(
-    'retries payment audio with cached bytes before acknowledging played',
+    'retries local preset playback three times before acknowledging failed',
     () async {
-      final repository = _FakePaymentMonitorRepository(
-        notifications: [_readyNotification()],
-      );
-      final speaker = _FakePaymentSpeaker(failuresBeforeSuccess: 1);
+      SharedPreferences.setMockInitialValues({
+        AppStorageKeys.shared('payment_monitor_enabled'): true,
+      });
+      final repository = _FakePaymentMonitorRepository(notifications: const []);
+      final speaker = _FakePaymentSpeaker(failuresBeforeSuccess: 99);
       final provider = PaymentMonitorProvider(
         repository,
         speaker,
         null,
         retryDelay,
+        null,
+        const Duration(seconds: 5),
+        _FakePaymentAmountAudioComposer(),
       );
 
       await Future<void>.delayed(Duration.zero);
-      provider.syncAuth(_storeUser(), isInitialized: true);
+      provider.syncAuth(_storeUser(storeId: 'CP01'), isInitialized: true);
       await _waitUntil(
-        () => repository.ackEvents.contains('PLAYED') && !provider.isLoading,
+        () => repository.transactionFetchCount > 0 && !provider.isLoading,
       );
+      await provider.handleRealtimeMessageForTesting(
+        _realtimeEnvelope(
+          kind: 'PAYMENT_SPEAKER_STREAM',
+          topic: 'payment.speaker',
+          data: _streamPayload('note-retry-3', localAsset: true),
+        ),
+      );
+      await _waitUntil(() => repository.ackEvents.contains('FAILED'));
 
       expect(repository.downloadCount, 0);
-      expect(repository.streamDownloadCount, 1);
-      expect(speaker.playCount, 2);
+      expect(repository.streamDownloadCount, 0);
+      expect(speaker.playCount, 3);
       expect(
         repository.ackEvents.where((event) => event == 'PLAYBACK_FAILED'),
-        hasLength(1),
+        hasLength(2),
       );
       expect(
         repository.ackEvents.where((event) => event == 'STREAM_STARTED'),
         hasLength(1),
       );
-      expect(repository.ackEvents, contains('PLAYED'));
-      expect(repository.ackEvents, isNot(contains('FAILED')));
-      expect(provider.speakerError, isNull);
+      expect(repository.ackEvents, isNot(contains('PLAYED')));
+      expect(provider.speakerError, isNotNull);
 
       provider.dispose();
     },
   );
 
-  test('plays raw amount audio with local cue-prefix when available', () async {
-    final repository = _FakePaymentMonitorRepository(
-      notifications: [_readyNotification()],
-    );
+  test('plays the selected local prefix with the composed amount', () async {
+    final repository = _FakePaymentMonitorRepository(notifications: const []);
     final speaker = _FakePaymentSpeaker();
     final provider = PaymentMonitorProvider(
       repository,
       speaker,
       null,
       retryDelay,
+      null,
+      const Duration(seconds: 5),
+      _FakePaymentAmountAudioComposer(),
     );
 
     await Future<void>.delayed(Duration.zero);
-    provider.syncAuth(_storeUser(), isInitialized: true);
+    provider.syncAuth(_storeUser(storeId: 'CP01'), isInitialized: true);
     await _waitUntil(
-      () => repository.ackEvents.contains('PLAYED') && !provider.isLoading,
+      () => repository.transactionFetchCount > 0 && !provider.isLoading,
     );
+    await provider.handleRealtimeMessageForTesting(
+      _realtimeEnvelope(
+        kind: 'PAYMENT_SPEAKER_STREAM',
+        topic: 'payment.speaker',
+        data: _streamPayload('note-local-prefix', localAsset: true),
+      ),
+    );
+    await _waitUntil(() => repository.ackEvents.contains('PLAYED'));
 
-    expect(repository.requestedRawAmounts, [true]);
-    expect(repository.requestedIncludeCues, [false]);
-    expect(repository.streamDownloadCount, 1);
+    expect(repository.requestedRawAmounts, isEmpty);
+    expect(repository.requestedIncludeCues, isEmpty);
+    expect(repository.streamDownloadCount, 0);
     expect(repository.ackEvents, contains('STREAM_STARTED'));
     expect(
       repository.ackEvents.indexOf('STREAM_STARTED'),
@@ -1764,93 +1801,111 @@ void main() {
     provider.dispose();
   });
 
-  test(
-    'falls back to server-combined cue audio when raw amount is unavailable',
-    () async {
-      final repository = _FakePaymentMonitorRepository(
-        notifications: [_readyNotification()],
-        rawAmountAudioError: ApiException('Raw amount unavailable', 400),
-      );
-      final speaker = _FakePaymentSpeaker();
-      final provider = PaymentMonitorProvider(
-        repository,
-        speaker,
-        null,
-        retryDelay,
-      );
+  test('does not fall back to server-combined cue audio', () async {
+    final repository = _FakePaymentMonitorRepository(notifications: const []);
+    final speaker = _FakePaymentSpeaker();
+    final provider = PaymentMonitorProvider(
+      repository,
+      speaker,
+      null,
+      retryDelay,
+      null,
+      const Duration(seconds: 5),
+      _FakePaymentAmountAudioComposer(error: StateError('asset missing')),
+    );
 
-      await Future<void>.delayed(Duration.zero);
-      provider.syncAuth(_storeUser(), isInitialized: true);
-      await _waitUntil(
-        () => repository.ackEvents.contains('PLAYED') && !provider.isLoading,
-      );
+    await Future<void>.delayed(Duration.zero);
+    provider.syncAuth(_storeUser(storeId: 'CP01'), isInitialized: true);
+    await _waitUntil(
+      () => repository.transactionFetchCount > 0 && !provider.isLoading,
+    );
+    await provider.handleRealtimeMessageForTesting(
+      _realtimeEnvelope(
+        kind: 'PAYMENT_SPEAKER_STREAM',
+        topic: 'payment.speaker',
+        data: _streamPayload('note-no-combined-fallback', localAsset: true),
+      ),
+    );
+    await _waitUntil(() => repository.ackEvents.contains('FAILED'));
 
-      expect(repository.requestedRawAmounts, [true, false]);
-      expect(repository.requestedIncludeCues, [false, true]);
-      expect(speaker.playLocalCueValues, [false]);
-      expect(speaker.playLocalCuePrefixValues, [false]);
-      expect(repository.downloadCount, 0);
-      expect(repository.streamDownloadCount, 2);
+    expect(repository.requestedRawAmounts, isEmpty);
+    expect(repository.requestedIncludeCues, isEmpty);
+    expect(speaker.playLocalCueValues, isEmpty);
+    expect(speaker.playLocalCuePrefixValues, isEmpty);
+    expect(repository.downloadCount, 0);
+    expect(repository.streamDownloadCount, 0);
 
-      provider.dispose();
-    },
-  );
+    provider.dispose();
+  });
 
-  test(
-    'falls back to TTS-only download with local cue when raw and combined audio fail',
-    () async {
-      final repository = _FakePaymentMonitorRepository(
-        notifications: [_readyNotification()],
-        rawAmountAudioError: ApiException('Raw amount unavailable', 400),
-        combinedAudioError: ApiException('Combined audio unavailable', 400),
-      );
-      final speaker = _FakePaymentSpeaker();
-      final provider = PaymentMonitorProvider(
-        repository,
-        speaker,
-        null,
-        retryDelay,
-      );
+  test('rejects non-local speaker events without a TTS fallback', () async {
+    final repository = _FakePaymentMonitorRepository(notifications: const []);
+    final speaker = _FakePaymentSpeaker();
+    final provider = PaymentMonitorProvider(
+      repository,
+      speaker,
+      null,
+      retryDelay,
+    );
 
-      await Future<void>.delayed(Duration.zero);
-      provider.syncAuth(_storeUser(), isInitialized: true);
-      await _waitUntil(
-        () => repository.ackEvents.contains('PLAYED') && !provider.isLoading,
-      );
+    await Future<void>.delayed(Duration.zero);
+    provider.syncAuth(_storeUser(storeId: 'CP01'), isInitialized: true);
+    await _waitUntil(
+      () => repository.transactionFetchCount > 0 && !provider.isLoading,
+    );
+    await provider.handleRealtimeMessageForTesting(
+      _realtimeEnvelope(
+        kind: 'PAYMENT_SPEAKER_STREAM',
+        topic: 'payment.speaker',
+        data: _streamPayload('note-no-local-mode'),
+      ),
+    );
+    await _waitUntil(() => repository.ackEvents.contains('FAILED'));
 
-      expect(repository.requestedRawAmounts, [true, false, false]);
-      expect(repository.requestedIncludeCues, [false, true, false]);
-      expect(speaker.playLocalCueValues, [true]);
-      expect(speaker.playLocalCuePrefixValues, [false]);
-      expect(repository.downloadCount, 0);
-      expect(repository.streamDownloadCount, 3);
+    expect(repository.requestedRawAmounts, isEmpty);
+    expect(repository.requestedIncludeCues, isEmpty);
+    expect(speaker.playLocalCueValues, isEmpty);
+    expect(speaker.playLocalCuePrefixValues, isEmpty);
+    expect(repository.downloadCount, 0);
+    expect(repository.streamDownloadCount, 0);
 
-      provider.dispose();
-    },
-  );
+    provider.dispose();
+  });
 
   test(
     'final payment audio failure logs playback failures and acks failed',
     () async {
-      final repository = _FakePaymentMonitorRepository(
-        notifications: [_readyNotification()],
-      );
+      SharedPreferences.setMockInitialValues({
+        AppStorageKeys.shared('payment_monitor_enabled'): true,
+      });
+      final repository = _FakePaymentMonitorRepository(notifications: const []);
       final speaker = _FakePaymentSpeaker(failuresBeforeSuccess: 99);
       final provider = PaymentMonitorProvider(
         repository,
         speaker,
         null,
         retryDelay,
+        null,
+        const Duration(seconds: 5),
+        _FakePaymentAmountAudioComposer(),
       );
 
       await Future<void>.delayed(Duration.zero);
-      provider.syncAuth(_storeUser(), isInitialized: true);
+      provider.syncAuth(_storeUser(storeId: 'CP01'), isInitialized: true);
       await _waitUntil(
-        () => repository.ackEvents.contains('FAILED') && !provider.isLoading,
+        () => repository.transactionFetchCount > 0 && !provider.isLoading,
       );
+      await provider.handleRealtimeMessageForTesting(
+        _realtimeEnvelope(
+          kind: 'PAYMENT_SPEAKER_STREAM',
+          topic: 'payment.speaker',
+          data: _streamPayload('note-final-failure', localAsset: true),
+        ),
+      );
+      await _waitUntil(() => repository.ackEvents.contains('FAILED'));
 
       expect(repository.downloadCount, 0);
-      expect(repository.streamDownloadCount, 1);
+      expect(repository.streamDownloadCount, 0);
       expect(speaker.playCount, 3);
       expect(
         repository.ackEvents.where((event) => event == 'PLAYBACK_FAILED'),
@@ -1862,7 +1917,7 @@ void main() {
       );
       expect(repository.ackErrors.last, contains('speaker failed 3'));
       expect(provider.speakerError, isNotNull);
-      expect(provider.speakerError!.notificationId, 'note-1');
+      expect(provider.speakerError!.notificationId, 'note-final-failure');
       expect(provider.speakerError!.amount, 1250000);
 
       provider.dispose();
@@ -1872,25 +1927,34 @@ void main() {
   test(
     'non-retryable payment audio failure acks failed without retries',
     () async {
-      final repository = _FakePaymentMonitorRepository(
-        notifications: [_readyNotification()],
-      );
+      final repository = _FakePaymentMonitorRepository(notifications: const []);
       final speaker = _FakePaymentSpeaker(nonRetryableFailure: true);
       final provider = PaymentMonitorProvider(
         repository,
         speaker,
         null,
         retryDelay,
+        null,
+        const Duration(seconds: 5),
+        _FakePaymentAmountAudioComposer(),
       );
 
       await Future<void>.delayed(Duration.zero);
-      provider.syncAuth(_storeUser(), isInitialized: true);
+      provider.syncAuth(_storeUser(storeId: 'CP01'), isInitialized: true);
       await _waitUntil(
-        () => repository.ackEvents.contains('FAILED') && !provider.isLoading,
+        () => repository.transactionFetchCount > 0 && !provider.isLoading,
       );
+      await provider.handleRealtimeMessageForTesting(
+        _realtimeEnvelope(
+          kind: 'PAYMENT_SPEAKER_STREAM',
+          topic: 'payment.speaker',
+          data: _streamPayload('note-nonretryable', localAsset: true),
+        ),
+      );
+      await _waitUntil(() => repository.ackEvents.contains('FAILED'));
 
       expect(repository.downloadCount, 0);
-      expect(repository.streamDownloadCount, 1);
+      expect(repository.streamDownloadCount, 0);
       expect(speaker.playCount, 1);
       expect(repository.ackEvents, isNot(contains('PLAYBACK_FAILED')));
       expect(
@@ -2065,8 +2129,7 @@ class _FakePaymentMonitorRepository extends PaymentMonitorRepository {
   final List<MapPaymentTransaction> transactions;
   final bool canReviewOrderTransfers;
   final Object? transactionError;
-  final Object? rawAmountAudioError;
-  final Object? combinedAudioError;
+  final Object? localClaimError;
   final Object? updateOrdersError;
   final Completer<StoredPaymentTransactionsPage>? pendingTransactionPage;
   final Completer<void>? pendingOrderUpdate;
@@ -2103,8 +2166,7 @@ class _FakePaymentMonitorRepository extends PaymentMonitorRepository {
     this.transactions = const [],
     this.canReviewOrderTransfers = false,
     this.transactionError,
-    this.rawAmountAudioError,
-    this.combinedAudioError,
+    this.localClaimError,
     this.updateOrdersError,
     this.pendingTransactionPage,
     this.pendingOrderUpdate,
@@ -2251,10 +2313,6 @@ class _FakePaymentMonitorRepository extends PaymentMonitorRepository {
     downloadCount += 1;
     requestedIncludeCues.add(includeCue);
     requestedRawAmounts.add(rawAmount);
-    final rawError = rawAmountAudioError;
-    if (rawAmount && rawError != null) throw rawError;
-    final error = combinedAudioError;
-    if (includeCue && error != null) throw error;
     return const [0x52, 0x49, 0x46, 0x46, 0x00];
   }
 
@@ -2269,10 +2327,6 @@ class _FakePaymentMonitorRepository extends PaymentMonitorRepository {
     requestedStreamClientIds.add(clientId);
     requestedIncludeCues.add(includeCue);
     requestedRawAmounts.add(rawAmount);
-    final rawError = rawAmountAudioError;
-    if (rawAmount && rawError != null) throw rawError;
-    final error = combinedAudioError;
-    if (includeCue && error != null) throw error;
     return const [0x52, 0x49, 0x46, 0x46, 0x00];
   }
 
@@ -2282,6 +2336,8 @@ class _FakePaymentMonitorRepository extends PaymentMonitorRepository {
     required String clientId,
   }) async {
     localClaimCount += 1;
+    final error = localClaimError;
+    if (error != null) throw error;
   }
 
   @override
@@ -2302,6 +2358,7 @@ class _FakePaymentSpeaker extends PaymentSpeaker {
   final Duration playDelay;
   final List<bool> playLocalCueValues = [];
   final List<bool> playLocalCuePrefixValues = [];
+  final List<List<int>?> localPrefixBytesValues = [];
   int playCount = 0;
 
   _FakePaymentSpeaker({
@@ -2319,6 +2376,7 @@ class _FakePaymentSpeaker extends PaymentSpeaker {
     required String storeCode,
     required String clientId,
     required int attempt,
+    List<int>? localPrefixBytes,
     bool playLocalCue = true,
     bool playLocalCuePrefix = false,
     Future<void> Function()? onPlaybackStarting,
@@ -2326,6 +2384,9 @@ class _FakePaymentSpeaker extends PaymentSpeaker {
     playCount += 1;
     playLocalCueValues.add(playLocalCue);
     playLocalCuePrefixValues.add(playLocalCuePrefix);
+    localPrefixBytesValues.add(
+      localPrefixBytes == null ? null : List<int>.from(localPrefixBytes),
+    );
     if (onPlaybackStarting != null) {
       await onPlaybackStarting();
     }
@@ -2354,20 +2415,27 @@ class _FakePaymentSpeaker extends PaymentSpeaker {
 
 class _FakePaymentAmountAudioComposer implements PaymentAmountAudioComposer {
   final Object? error;
+  final List<int> prefixBytes;
   int composeCount = 0;
 
-  _FakePaymentAmountAudioComposer({this.error});
+  _FakePaymentAmountAudioComposer({
+    this.error,
+    this.prefixBytes = const [0x52],
+  });
 
   @override
   Future<PaymentAmountAudioResult> compose({
     required int amount,
     required String assetPackVersion,
+    required String voicePresetId,
   }) async {
     composeCount += 1;
     final failure = error;
     if (failure != null) throw failure;
     return PaymentAmountAudioResult(
       bytes: Uint8List.fromList(const [0x52, 0x49, 0x46, 0x46, 0x00]),
+      prefixBytes: Uint8List.fromList(prefixBytes),
+      voicePresetId: voicePresetId,
       assetIds: const ['chunk/leading/001', 'chunk/unit/đồng'],
       composeDurationMs: 1,
     );
