@@ -39,7 +39,7 @@ local paths or unsanitized logs.
 - Direct-origin `/help/` -> 308 `Location: /help`:
 - Canonical route content/no loop:
 - Enforced CSP and security headers:
-- Public Cloudflare Access/health/API/download smoke:
+- Public health/API/download landing-page smoke:
 - `/ws/v2` authenticated upgrade:
 
 ## Capacity result

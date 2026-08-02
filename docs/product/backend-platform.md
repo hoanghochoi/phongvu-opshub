@@ -134,7 +134,7 @@ curl http://localhost:3000/app-version
   `API_BASE_URL=https://opshub-staging.hoanghochoi.com/api`, publish it under
   `/srv/opshub-staging/web/`, publish downloads under
   `/srv/opshub-staging/downloads/`, expose those downloads through
-  `https://opshub-staging.hoanghochoi.com/downloads/`, expose the protected
+  `https://opshub-staging.hoanghochoi.com/downloads/`, expose the public
   download page at `https://opshub-staging.hoanghochoi.com/download`, and build
   staging client packages with separate Android and Windows app identities. The
   production `/staging-download` route is compatibility-only and must not be

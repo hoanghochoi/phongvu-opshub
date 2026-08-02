@@ -10,14 +10,14 @@ Use this checklist after the manual staging workflow succeeds.
 - `curl -fsS https://opshub-staging.hoanghochoi.com/health` returns `ok`.
 - `curl -fsS https://opshub-staging.hoanghochoi.com/api/health` returns backend health JSON.
 - `curl -fsS https://opshub-staging.hoanghochoi.com/api/app-version?platform=android` points to `https://opshub-staging.hoanghochoi.com/downloads/`.
-- `curl -fsS https://opshub-staging.hoanghochoi.com/download` reaches the Cloudflare Access-protected staging download page.
+- `curl -fsS https://opshub-staging.hoanghochoi.com/download` returns the public staging download landing page.
 - `curl -fsS https://opshub-staging.hoanghochoi.com/downloads/latest.json` contains only staging URLs.
 - Direct-origin trailing-slash contract, run on `mementoamoris` with the staging
   Host header: `/download/` returns 308 with exactly `Location: /download`, and
   `/help/` returns 308 with exactly `Location: /help`.
 - Direct-origin canonical `/download` and `/help` each return content with 200
   and no redirect loop. These origin checks are separate from the public
-  Cloudflare Access check; do not weaken Access to run them.
+  public download-page check; do not weaken the route/content check to run them.
 
   ```bash
   curl -sS -o /dev/null -D - -H 'Host: opshub-staging.hoanghochoi.com' http://127.0.0.1:8090/download/

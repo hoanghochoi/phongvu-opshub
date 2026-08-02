@@ -47,17 +47,19 @@ Cloudflare, runtime, credential hay dữ liệu production/staging**.
   loop. HTTPS phải có `X-Content-Type-Options`, `Referrer-Policy`,
   `X-Frame-Options`, `Permissions-Policy` và enforced
   `Content-Security-Policy`.
-- [ ] Kiểm tra path normalization trực tiếp tại origin, tách khỏi Cloudflare
-  Access. Với đúng `Host` header, `/download/` phải trả 308 và
+- [ ] Kiểm tra path normalization trực tiếp tại origin, tách khỏi public route
+  verification. Với đúng `Host` header, `/download/` phải trả 308 và
   `Location: /download`; `/help/` phải trả 308 và `Location: /help`; hai URL
   canonical phải trả nội dung 200, không loop.
 
-### 2.2 Staging Access
+### 2.2 Staging public exposure
 
-- [ ] Đặt hostname staging sau Cloudflare Access/VPN/IP allowlist.
-- [ ] Tạo policy người dùng theo nhóm được duyệt; CI dùng service token riêng,
-  không dùng session người thật.
-- [ ] Kiểm tra anonymous bị chặn trước khi request tới app.
+- [ ] Staging được công khai qua Cloudflare Tunnel; không cấu hình Cloudflare
+  Access policy hoặc service token cho hostname này.
+- [ ] Kiểm tra anonymous mở được `/download` và nhận đúng landing page, không
+  phải SPA fallback.
+- [ ] Giữ authentication/authorization của ứng dụng cho dữ liệu và thao tác
+  nhân viên; public tunnel không thay thế lớp kiểm soát này.
 - [ ] Rotate `STAGING_TEST_PASSWORD`, JWT/Redis secret staging và thu hồi session
   test cũ. Secret chỉ nằm trong `/srv/opshub-staging/env` mode `0640` hoặc secret
   manager; không truyền qua CLI/shell history.

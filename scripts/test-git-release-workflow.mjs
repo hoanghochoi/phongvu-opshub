@@ -342,10 +342,12 @@ test('workflow and policy preserve existing deploy consumers and never force pus
   assert.match(productionWorkflow, /push:\s*\n\s*branches:\s*\n\s*- main/);
   assert.match(stagingWorkflow, /push:\s*\n\s*branches:\s*\n\s*- staging/);
   assert.match(stagingWorkflow, /verify_download_artifact\(\)/);
-  assert.match(stagingWorkflow, /access_curl "\$url"/);
+  assert.match(stagingWorkflow, /public_curl "\$url"/);
   assert.match(stagingWorkflow, /Range: bytes=0-0/);
   assert.match(stagingWorkflow, /Staging artifact verification attempt \$\{attempt\}\/12/);
   assert.doesNotMatch(stagingWorkflow, /curl -fIs/);
+  assert.match(stagingWorkflow, /<title>Tải ứng dụng PhongVu OpsHub<\/title>/);
+  assert.doesNotMatch(stagingWorkflow, /CF-Access-Client-Id:/);
   assert.match(policy, /explicit\s+command in the current task/);
   assert.match(policy, /Never promote an\s+arbitrary task branch or SHA to `main`/);
   assert.match(policy, /Never force-push or delete `staging` or `main`/);
