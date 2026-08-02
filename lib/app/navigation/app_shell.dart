@@ -196,14 +196,15 @@ class _AppShellState extends State<AppShell> {
                   onSupport: () => _openSupport(context),
                   child: widget.child,
                 ),
-          if (supportChat?.enabled == true ||
-              (!kIsWeb &&
-                  defaultTargetPlatform == TargetPlatform.windows &&
-                  widget.location == '/home'))
+          if (widget.location != '/admin/support-chats' &&
+              (supportChat?.enabled == true ||
+                  (!kIsWeb &&
+                      defaultTargetPlatform == TargetPlatform.windows &&
+                      widget.location == '/home')))
             Positioned(
               right: width >= AppLayoutTokens.tabletBreakpoint ? 24 : 16,
               bottom:
-                  (width >= AppLayoutTokens.tabletBreakpoint ? 24 : 96) +
+                  (width >= AppLayoutTokens.tabletBreakpoint ? 32 : 116) +
                   floatingBottomInset,
               child: Column(
                 mainAxisSize: MainAxisSize.min,
