@@ -79,6 +79,32 @@ Foundation chưa duyệt thì screen design không được tự đặt token ri
 4. Link exact frame/node/revision vào Linear.
 5. Đưa vào Review và dừng chờ approval rõ ràng.
 
+Khi sửa hoặc thêm component foundation, Figma review phải có proof cho:
+
+- icon semantic đúng family Phosphor theo luồng catalog `Icon Exploration —
+  Phosphor`; retry/loading, scan/search/submit và pagination/row action không
+  dùng glyph generic hoặc icon khác nghĩa;
+- action/container auto-layout không overlap; input đủ bốn cạnh ở mọi state;
+- textarea/search có helper/error và character counter dùng hai lane riêng,
+  với case validation dài đã render để chứng minh không overlap;
+- focus control nằm đúng control, không bị clipping; navigation dark surface
+  có contrast đủ cho icon/label và quick action;
+- DateRangePicker có `Hôm qua` trên desktop popover lẫn mobile bottom sheet;
+- cùng một surface không lặp shortcut/copy/action cùng nghĩa; với desktop
+  DateRangePicker, preset chỉ ở cột `Khoảng nhanh`, không lặp trong date field;
+- compact mobile không để helper không thiết yếu chiếm chỗ; `?` phải mở
+  bubble/dialog ngữ cảnh, còn error/validation/permission thiết yếu vẫn hiện
+  trực tiếp.
+- trên compact mobile, chức năng nằm ở app bar; action/link trong helper được
+  đưa ra command/action area trước khi ẩn helper.
+- trước review, chạy collision audit top-level App Shell frame theo bounding
+  box; sắp frame vào grid Desktop/Mobile/Tablet với gutter và chỉ pass khi
+  overlap = 0.
+- file chỉ giữ năm page canonical: `Cover`, `Foundation`,
+  `Screens — Desktop · Windows`, `Screens — Mobile · Android` và
+  `Screens — Tablet · Android`; source và documentation ở Foundation, screen
+  page không chứa main component.
+
 Im lặng, emoji hoặc task chuyển status không tự động là design approval.
 
 ### D — Approval
@@ -109,6 +135,8 @@ Proof tối thiểu cho UI code:
 - compact, medium, expanded và wide behavior khi layout đổi;
 - loading, empty, error, long Vietnamese content và text scaling;
 - keyboard, focus, semantics, safe area, overflow và performance;
+- render/review các master component sau khi sửa để bắt overlap, border mất
+  cạnh, focus clipping, icon sai ngữ nghĩa và foreground chìm trên nền tối;
 - protected old-consumer proof theo risk lane;
 - `dart format`, `git diff --check`, Flutter analyze/test theo repo contract.
 
