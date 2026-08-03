@@ -66,6 +66,14 @@ class AppTextStyles {
     height: 20 / 13,
   );
 
+  /// Figma `Typography/bodyCompact`: compact chart and legend copy, 12/18.
+  static const TextStyle bodyCompact = TextStyle(
+    fontFamily: _fontFamily,
+    fontSize: 12,
+    fontWeight: FontWeight.w400,
+    height: 18 / 12,
+  );
+
   // ── Labels / Buttons ─────────────────────────────────────────────
   static const TextStyle labelL = TextStyle(
     fontFamily: _fontFamily,
@@ -83,6 +91,14 @@ class AppTextStyles {
     fontFamily: _fontFamily,
     fontSize: 12,
     fontWeight: FontWeight.w600,
+    height: 16 / 12,
+  );
+
+  /// Figma `Typography/labelSmallSubtle`: compact metric emphasis, 12/16.
+  static const TextStyle labelSmallSubtle = TextStyle(
+    fontFamily: _fontFamily,
+    fontSize: 12,
+    fontWeight: FontWeight.w500,
     height: 16 / 12,
   );
 
