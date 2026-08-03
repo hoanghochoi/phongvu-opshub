@@ -5,6 +5,8 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../../../../app/theme/app_colors.dart';
+import '../../../../app/theme/app_text_styles.dart';
+import '../../../../app/widgets/app_cards.dart';
 import '../../../../app/widgets/app_feature_grid.dart';
 import '../../../../app/widgets/app_layout.dart';
 import '../../../../app/widgets/app_state_widgets.dart';
@@ -197,20 +199,131 @@ class AdminMenuScreen extends StatelessWidget {
             )
           else ...[
             if (administrationActions.isNotEmpty)
-              AppFeatureSection(
+              _AdminFeatureSection(
                 title: 'Chức năng quản trị',
                 actions: administrationActions,
               ),
             if (administrationActions.isNotEmpty && fifoActions.isNotEmpty)
               const SizedBox(height: AppLayoutTokens.sectionGap),
             if (fifoActions.isNotEmpty)
-              AppFeatureSection(
+              _AdminFeatureSection(
                 key: const Key('admin-fifo-tools-section'),
                 title: 'Công cụ FIFO',
                 actions: fifoActions,
               ),
           ],
         ],
+      ),
+    );
+  }
+}
+
+class _AdminFeatureSection extends StatelessWidget {
+  const _AdminFeatureSection({
+    super.key,
+    required this.title,
+    required this.actions,
+  });
+
+  final String title;
+  final List<AppFeatureAction> actions;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title, style: AppTextStyles.headingS),
+        const SizedBox(height: 12),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final width = constraints.maxWidth;
+            final columns = width >= 980
+                ? 4
+                : width >= 680
+                ? 3
+                : width >= 360
+                ? 2
+                : 1;
+            return GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: actions.length,
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: columns,
+                mainAxisExtent: 92,
+                mainAxisSpacing: 14,
+                crossAxisSpacing: 14,
+              ),
+              itemBuilder: (context, index) =>
+                  _AdminFeatureTile(actions[index]),
+            );
+          },
+        ),
+      ],
+    );
+  }
+}
+
+class _AdminFeatureTile extends StatelessWidget {
+  const _AdminFeatureTile(this.action);
+
+  final AppFeatureAction action;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: 'Chức năng ${action.title}',
+      hint: action.description,
+      child: AppSurfaceCard(
+        padding: const EdgeInsets.all(12),
+        child: InkWell(
+          onTap: action.onTap,
+          borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
+          child: Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: AppColors.infoSurface,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(action.icon, color: AppColors.info, size: 24),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      action.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTextStyles.labelM,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      action.description,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTextStyles.bodyS.copyWith(
+                        color: AppColors.textSecondaryOf(context),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(
+                Icons.chevron_right_rounded,
+                color: AppColors.primary,
+                size: 20,
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

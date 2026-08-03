@@ -117,15 +117,25 @@ class _RoleAdminScreenState extends State<RoleAdminScreen> {
 
     return RefreshIndicator(
       onRefresh: _load,
-      child: ListView.separated(
-        key: const Key('role-admin-list'),
-        physics: const AlwaysScrollableScrollPhysics(),
-        itemCount: _roles.length,
-        separatorBuilder: (context, index) =>
-            const SizedBox(height: AppLayoutTokens.cardGap),
-        itemBuilder: (context, index) {
-          final role = _roles[index];
-          return _RoleCard(role: role);
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final columns = constraints.maxWidth >= 1080
+              ? 3
+              : constraints.maxWidth >= 680
+              ? 2
+              : 1;
+          return GridView.builder(
+            key: const Key('role-admin-list'),
+            physics: const AlwaysScrollableScrollPhysics(),
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: columns,
+              crossAxisSpacing: AppLayoutTokens.cardGap,
+              mainAxisSpacing: AppLayoutTokens.cardGap,
+              mainAxisExtent: 132,
+            ),
+            itemCount: _roles.length,
+            itemBuilder: (context, index) => _RoleCard(role: _roles[index]),
+          );
         },
       ),
     );

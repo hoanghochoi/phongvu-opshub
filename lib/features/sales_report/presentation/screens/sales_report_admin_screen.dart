@@ -23,7 +23,6 @@ import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../domain/sales_report.dart';
 import '../providers/sales_report_provider.dart';
 import '../widgets/sales_report_export_menu.dart';
-import '../widgets/sales_report_workspace_header.dart';
 
 class SalesReportAdminScreen extends StatefulWidget {
   final AuthRepository? authRepository;
@@ -192,11 +191,9 @@ class _SalesReportAdminScreenState extends State<SalesReportAdminScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          SalesReportWorkspaceHeader(
+          _SalesReportAdminHeader(
             key: const Key('sales-report-admin-workspace-header'),
             title: 'Báo cáo bán hàng',
-            subtitle: '',
-            icon: Icons.assignment_outlined,
             chips: [
               AppStatusChip(
                 label: '${provider.adminTotal} báo cáo',
@@ -296,6 +293,29 @@ class _SalesReportAdminScreenState extends State<SalesReportAdminScreen> {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _SalesReportAdminHeader extends StatelessWidget {
+  const _SalesReportAdminHeader({
+    super.key,
+    required this.title,
+    required this.chips,
+  });
+
+  final String title;
+  final List<Widget> chips;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title, style: AppTextStyles.headingM),
+        const SizedBox(height: 12),
+        Wrap(spacing: 8, runSpacing: 8, children: chips),
+      ],
     );
   }
 }
