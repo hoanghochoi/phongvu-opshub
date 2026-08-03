@@ -553,9 +553,9 @@ void main() {
         findsOneWidget,
       );
       expect(find.byKey(const Key('home-summary-header')), findsOneWidget);
-      expect(find.byKey(const Key('home-summary-greeting')), findsOneWidget);
+      expect(find.text('Trang chủ'), findsOneWidget);
       expect(
-        find.text('staff@phongvu.vn · 2 showroom: CP75, CP62'),
+        find.text('Tổng quan theo phạm vi được phân quyền'),
         findsOneWidget,
       );
       expect(find.byKey(const Key('home-summary-toolbar')), findsNothing);
@@ -572,10 +572,13 @@ void main() {
         find.byKey(const Key('home-main-kpi-summary-grid')),
         findsOneWidget,
       );
-      expect(find.byKey(const Key('home-summary-date-range')), findsOneWidget);
+      expect(
+        find.byKey(const Key('home-summary-scope-date-trigger')),
+        findsOneWidget,
+      );
       expect(
         find.byKey(const Key('home-summary-refresh-button')),
-        findsOneWidget,
+        findsNothing,
       );
       expect(
         find.byKey(const Key('home-summary-progress-panel')),
@@ -618,12 +621,6 @@ void main() {
       );
       expect(
         find.byKey(const Key('home-summary-card-notPurchasedReports')),
-        findsOneWidget,
-      );
-      expect(
-        find.byKey(
-          const Key('home-summary-card-notPurchasedReports-detail-icon'),
-        ),
         findsOneWidget,
       );
       expect(
@@ -697,8 +694,11 @@ void main() {
       expect(find.text('Sao kê chưa có đơn hàng'), findsOneWidget);
       expect(find.text('Tỉ lệ sao kê có đơn hàng'), findsOneWidget);
       expect(find.text('98M VND'), findsOneWidget);
-      expect(find.textContaining('Chào buổi'), findsOneWidget);
-      expect(find.textContaining('Dashboard Staff'), findsOneWidget);
+      expect(find.text('Trang chủ'), findsOneWidget);
+      expect(
+        find.text('Tổng quan theo phạm vi được phân quyền'),
+        findsOneWidget,
+      );
       expect(find.text('Doanh số trong ngày'), findsNothing);
       expect(find.text('125M VND'), findsOneWidget);
       expect(find.text('100M VND'), findsOneWidget);
@@ -793,51 +793,33 @@ void main() {
         findsOneWidget,
       );
       expect(
-        find.byKey(const Key('home-sales-progress-range')),
+        find.byKey(const Key('home-analytics-sales-range')),
         findsOneWidget,
       );
       expect(find.text('Tổng quan cá nhân'), findsOneWidget);
       expect(find.text('Tổng quan Cửa hàng'), findsOneWidget);
-      expect(find.byKey(const Key('home-sales-progress-week')), findsOneWidget);
       expect(
-        find.byKey(const Key('home-sales-progress-month')),
+        find.byKey(const Key('home-analytics-sales-week')),
         findsOneWidget,
       );
       expect(
-        find.byKey(const Key('home-scope-sales-progress-range')),
+        find.byKey(const Key('home-analytics-sales-month')),
         findsOneWidget,
       );
       expect(
-        tester.getSize(
-          find.byKey(const Key('home-sales-progress-range-donut')),
-        ),
-        const Size.square(68),
-      );
-      final rangeDonutTop = tester
-          .getTopLeft(find.byKey(const Key('home-sales-progress-range-donut')))
-          .dy;
-      expect(
-        tester
-            .getTopLeft(find.byKey(const Key('home-sales-progress-week-donut')))
-            .dy,
-        closeTo(rangeDonutTop, 0.1),
+        find.byKey(const Key('home-analytics-scope-range')),
+        findsOneWidget,
       );
       expect(
-        tester
-            .getTopLeft(
-              find.byKey(const Key('home-sales-progress-month-donut')),
-            )
-            .dy,
-        closeTo(rangeDonutTop, 0.1),
+        tester.getSize(find.byKey(const Key('home-summary-progress-donut'))),
+        const Size.square(100),
       );
-      expect(find.textContaining('Giá trị đã bao gồm VAT:'), findsWidgets);
-      expect(find.textContaining('Chỉ tiêu (đã bao gồm VAT):'), findsWidgets);
-      expect(find.text('Giá trị đã bao gồm VAT: 1,2B VND'), findsOneWidget);
-      expect(find.text('Chỉ tiêu (đã bao gồm VAT): 3B VND'), findsOneWidget);
-      expect(find.text('Giá trị đã bao gồm VAT: 2,4B VND'), findsOneWidget);
-      expect(find.text('Chỉ tiêu (đã bao gồm VAT): 6B VND'), findsOneWidget);
+      expect(
+        tester.getSize(find.byKey(const Key('home-statement-progress-donut'))),
+        const Size.square(100),
+      );
       expect(find.byType(LinearProgressIndicator), findsNothing);
-      expect(find.text('Tổng quan'), findsOneWidget);
+      expect(find.text('Tiến độ hoạt động'), findsOneWidget);
       expect(
         tester
             .getTopLeft(find.byKey(const Key('home-summary-progress-panel')))
@@ -847,20 +829,6 @@ void main() {
               .getTopLeft(find.byKey(const Key('home-sales-section-header')))
               .dy,
         ),
-      );
-      expect(
-        find.descendant(
-          of: find.byKey(const Key('home-summary-card-conversionRate')),
-          matching: find.byIcon(Icons.swap_horiz_rounded),
-        ),
-        findsOneWidget,
-      );
-      expect(
-        find.descendant(
-          of: find.byKey(const Key('home-summary-card-statementOrderRate')),
-          matching: find.byIcon(Icons.percent_rounded),
-        ),
-        findsOneWidget,
       );
       expect(find.byKey(const Key('home-operations-shortcut')), findsNothing);
       expect(find.text('Công cụ nhanh'), findsNothing);
@@ -897,6 +865,106 @@ void main() {
       );
     },
   );
+
+  testWidgets('Home Web 1024 header follows Figma node 1261:9103 geometry', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1024, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Center(
+            child: SizedBox(
+              width: 896,
+              child: HomeSummaryHeader(
+                summary: _homeSummary(),
+                selectedScope: 'OWN',
+                selectedScopeLabel: 'Showroom được phân quyền',
+                scopeOptions: const [
+                  HomeSummaryScopeOption(
+                    value: 'OWN',
+                    label: 'Showroom được phân quyền',
+                    requestScope: 'OWN',
+                  ),
+                ],
+                selectedStartDate: DateTime(2026, 8, 3),
+                selectedEndDate: DateTime(2026, 8, 3),
+                isRefreshing: false,
+                onScopeChanged: null,
+                onDateRangeChanged: (_, _) {},
+                onRefresh: () {},
+                warningMessage: null,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final header = find.byKey(const Key('home-summary-header'));
+    final trigger = find.byKey(const Key('home-summary-scope-date-trigger'));
+    expect(tester.getSize(header), const Size(896, 64));
+    expect(tester.getSize(trigger), const Size(360, 44));
+    expect(
+      tester.getTopLeft(trigger) - tester.getTopLeft(header),
+      const Offset(536, 10),
+    );
+    expect(find.text('Trang chủ'), findsOneWidget);
+    expect(find.text('Tổng quan theo phạm vi được phân quyền'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Home Android header follows Figma node 331:3184 geometry', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(375, 812);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Center(
+            child: SizedBox(
+              width: 343,
+              child: HomeSummaryHeader(
+                summary: _homeSummary(),
+                greetingName: 'Nguyễn Hoàng',
+                greetingSubtitle: 'nhanvien@phongvu.vn · Showroom Phong Vũ Q.3',
+                greetingNow: () => DateTime(2026, 8, 3, 9),
+                selectedScope: 'OWN',
+                selectedScopeLabel: 'Q.3',
+                scopeOptions: const [
+                  HomeSummaryScopeOption(
+                    value: 'OWN',
+                    label: 'Q.3',
+                    requestScope: 'OWN',
+                  ),
+                ],
+                selectedStartDate: DateTime(2026, 7, 27),
+                selectedEndDate: DateTime(2026, 7, 27),
+                isRefreshing: false,
+                onScopeChanged: null,
+                onDateRangeChanged: (_, _) {},
+                onRefresh: () {},
+                warningMessage: null,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final header = find.byKey(const Key('home-summary-header'));
+    expect(tester.getSize(header), const Size(343, 204));
+    expect(find.text('Chào buổi sáng Nguyễn Hoàng'), findsOneWidget);
+    expect(find.text('Phạm vi: Q.3'), findsOneWidget);
+    expect(find.text('Ngày: 27/07'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets('Home behavior cards open detail tables in modal', (
     tester,
@@ -1346,7 +1414,8 @@ void main() {
       MaterialApp(
         home: Scaffold(
           body: SizedBox(
-            width: 1180,
+            // Figma 1819:16547: two 440px cards with a 16px gutter.
+            width: 896,
             child: ReportProgressPanel(
               summary: summary,
               provider: summaryProvider,
@@ -1368,32 +1437,17 @@ void main() {
     final personalTopLeft = tester.getTopLeft(personalPanel);
     final scopeTopLeft = tester.getTopLeft(scopePanel);
     expect(statementTopLeft.dy, reportTopLeft.dy);
-    expect(personalTopLeft.dy, reportTopLeft.dy);
-    expect(scopeTopLeft.dy, reportTopLeft.dy);
+    expect(personalTopLeft.dy, greaterThan(reportTopLeft.dy));
+    expect(scopeTopLeft.dy, personalTopLeft.dy);
     expect(reportTopLeft.dx, lessThan(statementTopLeft.dx));
-    expect(statementTopLeft.dx, lessThan(personalTopLeft.dx));
-    expect(personalTopLeft.dx, lessThan(scopeTopLeft.dx));
-    final combinedSmallWidth =
-        tester.getSize(reportPanel).width +
-        tester.getSize(statementPanel).width +
-        16;
-    expect(combinedSmallWidth, closeTo(tester.getSize(personalPanel).width, 1));
-    expect(
-      tester.getSize(personalPanel).width,
-      closeTo(tester.getSize(scopePanel).width, 1),
-    );
-    final scopeMonthActual = tester.widget<Text>(
-      find.byKey(const Key('home-scope-sales-progress-month-actual-label')),
-    );
-    final scopeMonthTarget = tester.widget<Text>(
-      find.byKey(const Key('home-scope-sales-progress-month-target-label')),
-    );
-    expect(scopeMonthActual.overflow, isNot(TextOverflow.ellipsis));
-    expect(scopeMonthTarget.overflow, isNot(TextOverflow.ellipsis));
-    expect(scopeMonthActual.maxLines, 2);
-    expect(scopeMonthTarget.maxLines, 2);
-    expect(find.text('Giá trị đã bao gồm VAT: 60M VND'), findsOneWidget);
-    expect(find.text('Chỉ tiêu (đã bao gồm VAT): 120M VND'), findsOneWidget);
+    expect(reportTopLeft.dx, personalTopLeft.dx);
+    expect(statementTopLeft.dx, scopeTopLeft.dx);
+    expect(tester.getSize(reportPanel), const Size(440, 200));
+    expect(tester.getSize(statementPanel), const Size(440, 200));
+    expect(tester.getSize(personalPanel), const Size(440, 264));
+    expect(tester.getSize(scopePanel), const Size(440, 264));
+    expect(find.byKey(const Key('home-analytics-sales-range')), findsOneWidget);
+    expect(find.byKey(const Key('home-analytics-scope-month')), findsOneWidget);
   });
 
   testWidgets('Home KPI grid scales desktop columns to card count', (
@@ -1453,7 +1507,7 @@ void main() {
     expect(conversionRate.dx, greaterThan(pendingRevenue.dx));
   });
 
-  testWidgets('Home main KPI grid uses at most seven desktop columns', (
+  testWidgets('Home main KPI grid uses six Figma desktop columns', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(1280, 800);
@@ -1536,13 +1590,12 @@ void main() {
             find.byKey(const Key('home-summary-card-businessCustomerRevenue')),
           )
           .width,
-      closeTo(161, 1),
+      closeTo(190, 1),
     );
-    expect(insurance.dy, business.dy);
-    expect(insurance.dx, greaterThan(business.dx));
-    expect(laptop.dy, greaterThan(business.dy));
-    expect(accessories.dy, laptop.dy);
-    expect(accessories.dx, greaterThan(laptop.dx));
+    expect(insurance.dy, greaterThan(business.dy));
+    expect(laptop.dy, insurance.dy);
+    expect(laptop.dx, greaterThan(insurance.dx));
+    expect(accessories.dy, greaterThan(laptop.dy));
   });
 
   testWidgets('Home KPI grid keeps two columns on narrow mobile width', (
@@ -1690,18 +1743,20 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Toàn hệ thống'), findsWidgets);
+    expect(find.textContaining('Toàn hệ thống'), findsWidgets);
     expect(find.text('Tài chính'), findsNothing);
     expect(find.byKey(const Key('home-finance-summary-grid')), findsNothing);
 
     await tester.tap(find.byKey(const Key('home-summary-scope-pill')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('home-summary-scope-combobox')));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Phạm vi cá nhân').last);
     await tester.pumpAndSettle();
 
     expect(summaryProvider.selectedScope, 'OWN');
     expect(repository.requestedScopes, contains('OWN'));
-    expect(find.text('Phạm vi cá nhân'), findsWidgets);
+    expect(find.textContaining('Phạm vi cá nhân'), findsWidgets);
     expect(find.text('5M VND'), findsOneWidget);
   });
 
@@ -1790,9 +1845,11 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(summaryProvider.selectedScope, 'ALL');
-      expect(find.text('Toàn hệ thống'), findsWidgets);
+      expect(find.textContaining('Toàn hệ thống'), findsWidgets);
 
       await tester.tap(find.byKey(const Key('home-summary-scope-pill')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('home-summary-scope-combobox')));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Vùng: Hồ Chí Minh').last);
       await tester.pumpAndSettle();
@@ -1800,7 +1857,7 @@ void main() {
       expect(summaryProvider.selectedScope, 'NODE:org-area-hcm');
       expect(repository.requestedScopes, contains('MANAGED_SCOPE'));
       expect(repository.requestedNodeIds, contains('org-area-hcm'));
-      expect(find.text('Vùng: Hồ Chí Minh'), findsWidgets);
+      expect(find.textContaining('Vùng: Hồ Chí Minh'), findsWidgets);
       expect(find.text('15M VND'), findsOneWidget);
     },
   );
@@ -1883,6 +1940,8 @@ void main() {
 
     await tester.tap(find.byKey(const Key('home-summary-scope-pill')));
     await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('home-summary-scope-combobox')));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Showroom: CP75').last);
     await tester.pumpAndSettle();
 
@@ -1963,10 +2022,12 @@ void main() {
     expect(summaryProvider.selectedScope, 'MANAGED_SCOPE');
     expect(repository.requestedScopes, contains('MANAGED_SCOPE'));
     expect(repository.requestedNodeIds, contains(null));
-    expect(find.text('Tất cả SR được gán'), findsWidgets);
+    expect(find.textContaining('Tất cả SR được gán'), findsWidgets);
     expect(find.text('22M VND'), findsOneWidget);
 
     await tester.tap(find.byKey(const Key('home-summary-scope-pill')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('home-summary-scope-combobox')));
     await tester.pumpAndSettle();
 
     expect(find.text('Showroom: CP75'), findsWidgets);
@@ -2018,8 +2079,12 @@ void main() {
       );
       expect(summaryProvider.selectedSalesProgressUserId, isNull);
       expect(repository.requestedSalesProgressUserIds, contains(null));
-      expect(find.text('Chưa chọn SA'), findsOneWidget);
-      expect(find.text('Chọn SA để hiển thị chỉ số'), findsOneWidget);
+      expect(find.text('Tổng quan cá nhân'), findsOneWidget);
+      expect(find.text('Chọn nhân viên để so sánh chỉ tiêu'), findsOneWidget);
+      expect(
+        find.byKey(const Key('home-analytics-sales-range')),
+        findsOneWidget,
+      );
       expect(
         find.descendant(
           of: find.byKey(const Key('home-summary-card-revenue')),
@@ -2034,8 +2099,6 @@ void main() {
         ),
         findsOneWidget,
       );
-      expect(find.text('Giá trị đã bao gồm VAT: 60M VND'), findsOneWidget);
-      expect(find.text('Chỉ tiêu (đã bao gồm VAT): 120M VND'), findsOneWidget);
 
       final assigneeDropdown = find.byKey(
         const Key('home-sales-progress-assignee-dropdown'),
@@ -2071,8 +2134,7 @@ void main() {
         ),
         findsOneWidget,
       );
-      expect(find.text('Giá trị đã bao gồm VAT: 60M VND'), findsOneWidget);
-      expect(find.text('Chỉ tiêu (đã bao gồm VAT): 120M VND'), findsOneWidget);
+      expect(find.text('Tiến độ theo nhân viên đã chọn'), findsOneWidget);
     },
   );
 

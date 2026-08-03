@@ -38,6 +38,14 @@ class AppTextStyles {
     height: 24 / 18,
   );
 
+  /// Figma `Typography/pageTitle`: desktop route heading, 18/26 semibold.
+  static const TextStyle pageTitle = TextStyle(
+    fontFamily: _fontFamily,
+    fontSize: 18,
+    fontWeight: FontWeight.w600,
+    height: 26 / 18,
+  );
+
   // ── Body ─────────────────────────────────────────────────────────
   static const TextStyle bodyL = TextStyle(
     fontFamily: _fontFamily,

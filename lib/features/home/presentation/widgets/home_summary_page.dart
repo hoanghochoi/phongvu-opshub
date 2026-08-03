@@ -230,26 +230,12 @@ class _SummarySectionHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        DecoratedBox(
-          decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.10),
-            borderRadius: AppRadius.allSm,
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(7),
-            child: Icon(icon, size: 18, color: color),
-          ),
-        ),
-        const SizedBox(width: 10),
-        Text(
-          title,
-          style: AppTextStyles.headingS.copyWith(
-            color: AppColors.textPrimaryOf(context),
-          ),
-        ),
-      ],
+    return Text(
+      title,
+      style: AppTextStyles.headingS.copyWith(
+        color: AppColors.textPrimaryOf(context),
+        fontWeight: FontWeight.w600,
+      ),
     );
   }
 }
@@ -265,7 +251,7 @@ class _SummarySubsectionHeader extends StatelessWidget {
       title,
       style: AppTextStyles.labelM.copyWith(
         color: AppColors.textSecondaryOf(context),
-        fontWeight: FontWeight.w800,
+        fontWeight: FontWeight.w600,
       ),
     );
   }
@@ -330,138 +316,382 @@ class HomeSummaryHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final greetingLabel = homeGreetingLabel(greetingName, now: greetingNow);
-    final scopeLabel = summary?.resolvedScopeLabel ?? 'Đang đồng bộ phạm vi';
+    final fallbackScopeLabel =
+        summary?.resolvedScopeLabel ?? 'Đang đồng bộ phạm vi';
+    final scopeLabel = selectedScopeLabel.trim().isEmpty
+        ? fallbackScopeLabel
+        : selectedScopeLabel.trim();
     final updatedLabel = summary?.refreshedAt == null
         ? 'Đang cập nhật'
         : 'Cập nhật ${_timeOnlyLabel(summary!.refreshedAt!)}';
 
-    return AppSurfaceCard(
-      key: const Key('home-summary-header'),
-      padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final compact = constraints.maxWidth < 760;
-          final stackControls = constraints.maxWidth < 560;
-          final denseControls = constraints.maxWidth < 900;
-          final filterWidth = denseControls ? 180.0 : 232.0;
-          final dateRangeWidth = denseControls ? 200.0 : 244.0;
-          final titleBlock = Column(
-            key: const Key('home-summary-greeting'),
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                greetingLabel,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: AppTextStyles.headingM.copyWith(
-                  color: AppColors.textPrimaryOf(context),
-                ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                greetingSubtitle ?? scopeLabel,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: AppTextStyles.bodyS.copyWith(
-                  color: AppColors.textSecondaryOf(context),
-                ),
-              ),
-            ],
-          );
-          final greeting = Row(
-            children: [
-              _HomeSummaryAvatar(name: greetingName),
-              const SizedBox(width: 12),
-              Expanded(child: titleBlock),
-            ],
-          );
-          final controlChildren = [
-            _ScopeSelectorField(
-              label: selectedScopeLabel.isEmpty
-                  ? scopeLabel
-                  : selectedScopeLabel,
-              selectedScope: selectedScope,
-              options: scopeOptions,
-              fillWidth: stackControls,
-              width: filterWidth,
-              onSelected: onScopeChanged,
-            ),
-            SizedBox(
-              key: const Key('home-summary-date-range'),
-              width: stackControls ? double.infinity : dateRangeWidth,
-              child: AppDateRangeDropdown(
-                label: 'Ngày',
-                start: selectedStartDate,
-                end: selectedEndDate,
-                onChanged: onDateRangeChanged,
-                showEmptyRangeHelperText: stackControls,
-                now: () => DateTime.now(),
-              ),
-            ),
-            _HeaderActionPill(
-              key: const Key('home-summary-refresh-button'),
-              icon: Icons.schedule_outlined,
-              label: updatedLabel,
-              tooltip: 'Làm mới dashboard',
-              isLoading: isRefreshing,
-              onTap: onRefresh,
-            ),
-            if (action != null) action!,
-          ];
-          final controls = stackControls
-              ? Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  alignment: WrapAlignment.start,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: controlChildren,
-                )
-              : Align(
-                  alignment: compact
-                      ? Alignment.centerLeft
-                      : Alignment.centerRight,
-                  child: SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: Row(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final mobile = constraints.maxWidth < AppLayoutTokens.compactBreakpoint;
+        final controls = _HomeScopeDateControl(
+          selectedScope: selectedScope,
+          selectedScopeLabel: selectedScopeLabel.isEmpty
+              ? scopeLabel
+              : selectedScopeLabel,
+          scopeOptions: scopeOptions,
+          selectedStartDate: selectedStartDate,
+          selectedEndDate: selectedEndDate,
+          onScopeChanged: onScopeChanged,
+          onDateRangeChanged: onDateRangeChanged,
+          action: action,
+          builder: (context, open) => mobile
+              ? Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        for (
-                          var index = 0;
-                          index < controlChildren.length;
-                          index++
-                        ) ...[
-                          if (index > 0) const SizedBox(width: 8),
-                          controlChildren[index],
-                        ],
+                        SizedBox(
+                          width: 96,
+                          child: _HomeHeaderChip(
+                            label: 'Phạm vi: ${_shortScopeLabel(scopeLabel)}',
+                            onTap: open,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        SizedBox(
+                          width: 100,
+                          child: _HomeHeaderChip(
+                            label:
+                                'Ngày: ${_homeRangeShortLabel(selectedStartDate, selectedEndDate)}',
+                            onTap: open,
+                          ),
+                        ),
                       ],
                     ),
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      width: 112,
+                      child: _HomeHeaderChip(
+                        key: const Key('home-summary-refresh-button'),
+                        label: updatedLabel,
+                        onTap: onRefresh,
+                        busy: isRefreshing,
+                      ),
+                    ),
+                  ],
+                )
+              : Semantics(
+                  button: true,
+                  label: 'Chọn phạm vi và khoảng thời gian',
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      key: const Key('home-summary-scope-date-trigger'),
+                      onTap: open,
+                      borderRadius: AppRadius.allControl,
+                      child: Container(
+                        key: const Key('home-summary-scope-pill'),
+                        width: 360,
+                        height: 44,
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: AppColors.raisedOf(context),
+                          border: Border.all(color: AppColors.neutral200),
+                          borderRadius: AppRadius.allControl,
+                        ),
+                        child: Text(
+                          '${_shortScopeLabel(scopeLabel)}  ·  ${_homeRangeShortLabel(selectedStartDate, selectedEndDate)}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppTextStyles.labelS.copyWith(
+                            color: AppColors.neutral700,
+                          ),
+                        ),
+                      ),
+                    ),
                   ),
-                );
-
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              greeting,
-              const SizedBox(height: 14),
-              controls,
-              if (warningMessage != null) ...[
-                const SizedBox(height: 12),
-                AppStatusBanner(
-                  icon: Icons.sync_problem_rounded,
-                  title: 'Đang hiển thị dữ liệu gần nhất',
-                  message: warningMessage!,
-                  tone: AppStateTone.warning,
-                  actionLabel: isRefreshing ? 'Đang thử lại…' : 'Thử lại',
-                  actionBusy: isRefreshing,
-                  onAction: onRefresh,
                 ),
-              ],
+        );
+        final visualHeader = mobile
+            ? Container(
+                key: const Key('home-summary-header'),
+                height: 204,
+                padding: const EdgeInsets.all(18),
+                decoration: BoxDecoration(
+                  color: AppColors.raisedOf(context),
+                  border: Border.all(color: AppColors.borderOf(context)),
+                  borderRadius: AppRadius.allLg,
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppColors.shadow.withValues(alpha: 0.08),
+                      offset: const Offset(0, 1),
+                      blurRadius: 2,
+                    ),
+                  ],
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        _HomeSummaryAvatar(name: greetingName),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                greetingLabel,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: AppTextStyles.headingS.copyWith(
+                                  color: AppColors.textPrimaryOf(context),
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                greetingSubtitle ?? scopeLabel,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: AppTextStyles.bodyM.copyWith(
+                                  color: AppColors.textSecondaryOf(context),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+                    SizedBox(width: double.infinity, child: controls),
+                  ],
+                ),
+              )
+            : SizedBox(
+                key: const Key('home-summary-header'),
+                height: 64,
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: SizedBox(
+                        height: 56,
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            SizedBox(
+                              height: 26,
+                              child: Text(
+                                'Trang chủ',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: AppTextStyles.pageTitle.copyWith(
+                                  color: AppColors.textPrimaryOf(context),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            SizedBox(
+                              height: 16,
+                              child: Text(
+                                'Tổng quan theo phạm vi được phân quyền',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: AppTextStyles.bodyS.copyWith(
+                                  color: AppColors.neutral500,
+                                  height: 16 / 13,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    controls,
+                  ],
+                ),
+              );
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            visualHeader,
+            if (warningMessage != null) ...[
+              const SizedBox(height: 12),
+              AppStatusBanner(
+                icon: Icons.sync_problem_rounded,
+                title: 'Đang hiển thị dữ liệu gần nhất',
+                message: warningMessage!,
+                tone: AppStateTone.warning,
+                actionLabel: isRefreshing ? 'Đang thử lại…' : 'Thử lại',
+                actionBusy: isRefreshing,
+                onAction: onRefresh,
+              ),
             ],
-          );
-        },
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _HomeScopeDateControl extends StatelessWidget {
+  const _HomeScopeDateControl({
+    required this.selectedScope,
+    required this.selectedScopeLabel,
+    required this.scopeOptions,
+    required this.selectedStartDate,
+    required this.selectedEndDate,
+    required this.onScopeChanged,
+    required this.onDateRangeChanged,
+    required this.builder,
+    this.action,
+  });
+
+  final String selectedScope;
+  final String selectedScopeLabel;
+  final List<HomeSummaryScopeOption> scopeOptions;
+  final DateTime? selectedStartDate;
+  final DateTime? selectedEndDate;
+  final ValueChanged<String>? onScopeChanged;
+  final void Function(DateTime? start, DateTime? end) onDateRangeChanged;
+  final Widget Function(BuildContext context, VoidCallback open) builder;
+  final Widget? action;
+
+  @override
+  Widget build(BuildContext context) {
+    final canSelect = scopeOptions.length > 1 && onScopeChanged != null;
+    final selectedValue =
+        scopeOptions.any((option) => option.value == selectedScope)
+        ? selectedScope
+        : null;
+    return MenuAnchor(
+      style: const MenuStyle(
+        padding: WidgetStatePropertyAll(EdgeInsets.zero),
+        elevation: WidgetStatePropertyAll(2),
+      ),
+      builder: (context, controller, _) => builder(context, () {
+        if (!controller.isOpen) controller.open();
+      }),
+      menuChildren: [
+        Material(
+          color: AppColors.raisedOf(context),
+          child: SizedBox(
+            width: 720,
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Wrap(
+                spacing: 12,
+                runSpacing: 12,
+                crossAxisAlignment: WrapCrossAlignment.end,
+                children: [
+                  SizedBox(
+                    width: 320,
+                    child: AppCombobox<String>.single(
+                      key: const Key('home-summary-scope-combobox'),
+                      label: 'Phạm vi',
+                      value: selectedValue,
+                      icon: Icons.store_outlined,
+                      dense: true,
+                      enabled: canSelect,
+                      allowClear: false,
+                      emptyLabel: selectedScopeLabel,
+                      maxMenuHeight: 320,
+                      options: [
+                        for (final option in scopeOptions)
+                          AppComboboxOption<String>(
+                            value: option.value,
+                            label: option.label,
+                            subtitle: _ScopeSelectorField._scopeOptionSubtitle(
+                              option,
+                            ),
+                            searchKeywords: [
+                              option.value,
+                              option.label,
+                              option.requestScope,
+                              option.organizationNodeId ?? '',
+                            ],
+                          ),
+                      ],
+                      onChanged: canSelect
+                          ? (value) {
+                              if (value != null) onScopeChanged?.call(value);
+                            }
+                          : null,
+                    ),
+                  ),
+                  SizedBox(
+                    width: 360,
+                    child: AppDateRangeDropdown(
+                      label: 'Ngày',
+                      start: selectedStartDate,
+                      end: selectedEndDate,
+                      onChanged: onDateRangeChanged,
+                      showEmptyRangeHelperText: false,
+                      now: DateTime.now,
+                    ),
+                  ),
+                  if (action != null) action!,
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _HomeHeaderChip extends StatelessWidget {
+  const _HomeHeaderChip({
+    super.key,
+    required this.label,
+    this.onTap,
+    this.busy = false,
+  });
+
+  final String label;
+  final VoidCallback? onTap;
+  final bool busy;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: AppColors.neutral50,
+      borderRadius: AppRadius.allSm,
+      child: InkWell(
+        onTap: busy ? null : onTap,
+        borderRadius: AppRadius.allSm,
+        child: Container(
+          height: 26,
+          alignment: Alignment.center,
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          child: busy
+              ? const SizedBox.square(
+                  dimension: 14,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTextStyles.bodyS.copyWith(
+                    color: AppColors.textSecondaryOf(context),
+                    height: 18 / 13,
+                  ),
+                ),
+        ),
       ),
     );
   }
+}
+
+String _shortScopeLabel(String label) {
+  final trimmed = label.trim();
+  return trimmed.isEmpty ? 'Showroom được phân quyền' : trimmed;
+}
+
+String _homeRangeShortLabel(DateTime? start, DateTime? end) {
+  if (start == null && end == null) return 'Tất cả ngày';
+  final startLabel = start == null ? null : DateFormat('dd/MM').format(start);
+  final endLabel = end == null ? null : DateFormat('dd/MM').format(end);
+  if (startLabel != null && startLabel == endLabel) return startLabel;
+  return [startLabel, endLabel].whereType<String>().join(' - ');
 }
 
 class _HomeSummaryAvatar extends StatelessWidget {
@@ -472,7 +702,9 @@ class _HomeSummaryAvatar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final trimmed = name?.trim() ?? '';
-    final initial = trimmed.isEmpty ? '?' : trimmed.characters.first.toUpperCase();
+    final initial = trimmed.isEmpty
+        ? '?'
+        : trimmed.characters.first.toUpperCase();
     return Semantics(
       label: 'Tài khoản $trimmed',
       child: DecoratedBox(
@@ -559,75 +791,6 @@ class _ScopeSelectorField extends StatelessWidget {
     final count = option.storeCount;
     if (count == null || count <= 0) return null;
     return '$count showroom';
-  }
-}
-
-class _HeaderActionPill extends StatelessWidget {
-  const _HeaderActionPill({
-    super.key,
-    required this.icon,
-    required this.label,
-    required this.tooltip,
-    required this.onTap,
-    this.isLoading = false,
-  });
-
-  final IconData icon;
-  final String label;
-  final String tooltip;
-  final VoidCallback? onTap;
-  final bool isLoading;
-
-  @override
-  Widget build(BuildContext context) {
-    final enabled = onTap != null && !isLoading;
-    final color = enabled
-        ? AppColors.neutral700
-        : AppColors.textMutedOf(context);
-    return Tooltip(
-      message: tooltip,
-      child: Material(
-        color: AppColors.transparent,
-        borderRadius: AppRadius.allSm,
-        child: InkWell(
-          onTap: enabled ? onTap : null,
-          borderRadius: AppRadius.allSm,
-          child: Container(
-            constraints: const BoxConstraints(minHeight: 30),
-            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
-            decoration: BoxDecoration(
-              color: AppColors.chipBackground,
-              borderRadius: AppRadius.allSm,
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                SizedBox.square(
-                  dimension: 14,
-                  child: isLoading
-                      ? CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: AppColors.primaryOf(context),
-                        )
-                      : Icon(icon, size: 14, color: color),
-                ),
-                const SizedBox(width: 5),
-                Text(
-                  isLoading ? 'Đang tải' : label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  softWrap: false,
-                  style: AppTextStyles.labelS.copyWith(
-                    color: color,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
   }
 }
 
@@ -1040,8 +1203,8 @@ class _SummaryMetricGrid extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final width = constraints.maxWidth;
-        final maxColumns = width >= 1040
-            ? math.min(7, cards.length)
+        final maxColumns = width >= 960
+            ? math.min(6, cards.length)
             : width >= 760
             ? math.min(3, cards.length)
             : math.min(2, cards.length);
@@ -1063,7 +1226,7 @@ class _SummaryMetricGrid extends StatelessWidget {
                     if (columnIndex > 0) SizedBox(width: gap),
                     Expanded(
                       child: SizedBox(
-                        height: width >= 620 ? 130 : 146,
+                        height: width >= 600 ? 104 : 120,
                         child: rows[rowIndex][columnIndex],
                       ),
                     ),
@@ -1082,19 +1245,12 @@ class _SummaryMetricGrid extends StatelessWidget {
     int maxColumns,
   ) {
     final columns = math.max(1, math.min(maxColumns, cards.length));
-    final rowCount = (cards.length / columns).ceil();
-    final baseCount = cards.length ~/ rowCount;
-    final extraCount = cards.length % rowCount;
-    var index = 0;
-
     return [
-      for (var rowIndex = 0; rowIndex < rowCount; rowIndex++)
-        () {
-          final rowSize = baseCount + (rowIndex < extraCount ? 1 : 0);
-          final row = cards.sublist(index, index + rowSize);
-          index += rowSize;
-          return row;
-        }(),
+      for (var start = 0; start < cards.length; start += columns)
+        cards.sublist(
+          math.min(start, cards.length),
+          math.min(start + columns, cards.length),
+        ),
     ];
   }
 }
@@ -1123,7 +1279,6 @@ class SummaryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final trendColor = trend.color;
     final lowerText = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1132,80 +1287,44 @@ class SummaryCard extends StatelessWidget {
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: AppTextStyles.headingM.copyWith(
-            color: AppColors.textPrimaryOf(context),
+            color: color,
+            fontWeight: FontWeight.w600,
           ),
         ),
-        const SizedBox(height: 8),
-        Row(
-          children: [
-            Icon(trend.icon, size: 15, color: trendColor),
-            const SizedBox(width: 5),
-            Flexible(
-              child: Text(
-                trend.label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: AppTextStyles.captionBold.copyWith(color: trendColor),
-              ),
-            ),
-          ],
+        const SizedBox(height: 4),
+        Text(
+          trend.label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: AppTextStyles.labelS.copyWith(
+            color: AppColors.textMutedOf(context),
+            fontWeight: FontWeight.w500,
+          ),
         ),
       ],
     );
     return AppSurfaceCard(
       key: Key('home-summary-card-$metricKey'),
-      borderColor: color.withValues(alpha: 0.20),
-      backgroundColor: color.withValues(alpha: 0.04),
-      padding: const EdgeInsets.all(14),
+      borderColor: AppColors.borderOf(context),
+      backgroundColor: AppColors.raisedOf(context),
+      padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              DecoratedBox(
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(
-                    AppLayoutTokens.cardRadius,
-                  ),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(8),
-                  child: Icon(icon, color: color, size: 20),
-                ),
+          _SummaryCardTextAction(
+            key: Key('home-summary-card-$metricKey-title-action'),
+            onTap: onTextTap,
+            tooltip: textTapTooltip,
+            child: Text(
+              title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: AppTextStyles.bodyS.copyWith(
+                color: AppColors.textSecondaryOf(context),
+                fontWeight: FontWeight.w600,
+                height: 16 / 13,
               ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: _SummaryCardTextAction(
-                  key: Key('home-summary-card-$metricKey-title-action'),
-                  onTap: onTextTap,
-                  tooltip: textTapTooltip,
-                  child: Text(
-                    title,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: AppTextStyles.labelM.copyWith(
-                      color: AppColors.textPrimaryOf(context),
-                    ),
-                  ),
-                ),
-              ),
-              if (onTextTap != null) ...[
-                const SizedBox(width: 4),
-                _SummaryCardTextAction(
-                  key: Key('home-summary-card-$metricKey-detail-action'),
-                  onTap: onTextTap,
-                  tooltip: textTapTooltip,
-                  child: Icon(
-                    Icons.open_in_new_rounded,
-                    key: Key('home-summary-card-$metricKey-detail-icon'),
-                    size: 15,
-                    color: AppColors.textMutedOf(context),
-                  ),
-                ),
-              ],
-            ],
+            ),
           ),
           const Spacer(),
           _SummaryCardTextAction(
@@ -2116,260 +2235,390 @@ class ReportProgressPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final reportedPercent = summary.totalOrders <= 0
+    final reported = summary.totalOrders <= 0
         ? 0.0
-        : (summary.reportedOrders / summary.totalOrders) * 100;
-    final missingPercent = math.max(0.0, 100 - reportedPercent);
-    final reportPanel = summary.salesAvailable
-        ? _ProgressDonutPanel(
-            panelKey: const Key('home-report-progress-panel'),
-            title: 'Tiến độ báo cáo',
-            percentage: summary.coverageRate,
-            color: AppColors.success,
-            legend: _ReportProgressLegend(
-              reportedOrders: summary.reportedOrders,
-              reportedPercent: reportedPercent,
-              unreportedOrders: summary.unreportedOrders,
-              missingPercent: missingPercent,
+        : summary.reportedOrders / summary.totalOrders * 100;
+    final cards = <Widget>[
+      if (summary.salesAvailable)
+        _AnalyticsDonutCard(
+          cardKey: const Key('home-report-progress-panel'),
+          title: 'Tiến độ báo cáo',
+          subtitle:
+              'Đã báo cáo ${summary.reportedOrders}/${summary.totalOrders} đơn',
+          percentage: summary.coverageRate,
+          color: AppColors.primary,
+          primaryLegend: 'Đã báo cáo · ${summary.reportedOrders} đơn',
+          secondaryLegend: 'Cần xử lý · ${summary.unreportedOrders} đơn',
+          primaryPercent: reported,
+        ),
+      if (summary.financeAvailable)
+        _AnalyticsDonutCard(
+          cardKey: const Key('home-statement-progress-panel'),
+          title: 'Tiến độ sao kê',
+          subtitle: 'Đối chiếu sao kê với đơn hàng',
+          percentage: summary.statementOrderRate,
+          color: AppColors.success,
+          primaryLegend: 'Có đơn · ${summary.totalStatementsWithOrder} sao kê',
+          secondaryLegend:
+              'Chưa có đơn · ${summary.totalStatementsWithoutOrder} sao kê',
+          primaryPercent: summary.statementOrderRate,
+        ),
+      if (summary.salesAvailable &&
+          (summary.personalSalesProgress.isApplicable ||
+              summary.salesProgressAssignees.isNotEmpty))
+        _AnalyticsPeriodCard(
+          cardKey: const Key('home-sales-progress-panel'),
+          title: 'Tổng quan cá nhân',
+          subtitle: summary.selectedSalesProgressUserId == null
+              ? 'Chọn nhân viên để so sánh chỉ tiêu'
+              : 'Tiến độ theo nhân viên đã chọn',
+          color: AppColors.violet600,
+          progress: summary.personalSalesProgress,
+          assignees: summary.salesProgressAssignees,
+          selectedAssigneeId: summary.selectedSalesProgressUserId,
+          onAssigneeChanged: provider.isLoading || provider.isRefreshing
+              ? null
+              : (id) => unawaited(provider.setSelectedSalesProgressUser(id)),
+        ),
+      if (summary.salesAvailable && summary.scopeSalesProgress.isApplicable)
+        _AnalyticsPeriodCard(
+          cardKey: const Key('home-scope-sales-progress-panel'),
+          title: _scopeSalesProgressTitle(summary),
+          subtitle: summary.scopeSalesProgress.hasTarget
+              ? 'Tiến độ theo phạm vi được phân quyền'
+              : 'Thiếu chỉ tiêu: ${summary.scopeSalesProgress.missingStoreCodes.join(', ')}',
+          color: AppColors.primary,
+          progress: summary.scopeSalesProgress,
+        ),
+    ];
+    if (cards.isEmpty) return const SizedBox.shrink();
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final columns = constraints.maxWidth >= 760 ? 2 : 1;
+        final gap = 16.0;
+        final width = (constraints.maxWidth - gap * (columns - 1)) / columns;
+        return Column(
+          key: const Key('home-summary-progress-panel'),
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Tiến độ hoạt động', style: AppTextStyles.pageTitle),
+            const SizedBox(height: 6),
+            Text(
+              'Báo cáo, sao kê và tiến độ chỉ tiêu theo phạm vi hiện tại.',
+              style: AppTextStyles.bodyS.copyWith(
+                color: AppColors.textSecondaryOf(context),
+              ),
             ),
-          )
-        : null;
-    final statementPanel = summary.financeAvailable
-        ? _ProgressDonutPanel(
-            panelKey: const Key('home-statement-progress-panel'),
-            title: 'Tiến độ sao kê',
-            percentage: summary.statementOrderRate,
-            color: AppColors.info,
-            legend: Column(
+            const SizedBox(height: 18),
+            Wrap(
+              spacing: gap,
+              runSpacing: gap,
               children: [
-                _ReportLegendRow(
-                  label: 'Có đơn hàng',
-                  value:
-                      '${_integerLabel(summary.totalStatementsWithOrder)} sao kê',
-                  color: AppColors.success,
-                ),
-                const SizedBox(height: 8),
-                _ReportLegendRow(
-                  label: 'Chưa có đơn',
-                  value:
-                      '${_integerLabel(summary.totalStatementsWithoutOrder)} sao kê',
-                  color: AppColors.error,
-                ),
+                for (final card in cards)
+                  SizedBox(
+                    width: width,
+                    height: card is _AnalyticsPeriodCard ? 264 : 200,
+                    child: card,
+                  ),
               ],
             ),
-          )
-        : null;
-    final personalPanel =
-        summary.salesAvailable &&
-            (summary.personalSalesProgress.isApplicable ||
-                summary.salesProgressAssignees.isNotEmpty)
-        ? _SalesProgressPanel(
-            panelKey: const Key('home-sales-progress-panel'),
-            title: 'Tổng quan cá nhân',
-            progress: summary.personalSalesProgress,
-            rangeLabel: summary.startDate == summary.endDate
-                ? 'Ngày'
-                : 'Khoảng chọn',
-            keyPrefix: 'home-sales-progress',
-            color: AppColors.violet600,
-            assignees: summary.salesProgressAssignees,
-            selectedAssigneeId: summary.selectedSalesProgressUserId,
-            emptyMessage: summary.selectedSalesProgressUserId == null
-                ? 'Chọn SA để hiển thị chỉ số'
-                : null,
-            onAssigneeChanged: provider.isLoading || provider.isRefreshing
-                ? null
-                : (userId) =>
-                      unawaited(provider.setSelectedSalesProgressUser(userId)),
-          )
-        : null;
-    final scopePanel =
-        summary.salesAvailable && summary.scopeSalesProgress.isApplicable
-        ? _SalesProgressPanel(
-            panelKey: const Key('home-scope-sales-progress-panel'),
-            title: _scopeSalesProgressTitle(summary),
-            progress: summary.scopeSalesProgress,
-            rangeLabel: summary.startDate == summary.endDate
-                ? 'Ngày'
-                : 'Khoảng chọn',
-            keyPrefix: 'home-scope-sales-progress',
-            color: AppColors.primary,
-          )
-        : null;
-    final panels = <Widget>[
-      if (reportPanel != null) reportPanel,
-      if (statementPanel != null) statementPanel,
-      if (personalPanel != null) personalPanel,
-      if (scopePanel != null) scopePanel,
-    ];
+          ],
+        );
+      },
+    );
+  }
+}
 
-    return AppSurfaceCard(
-      key: const Key('home-summary-progress-panel'),
-      padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
+class _AnalyticsDonutCard extends StatelessWidget {
+  const _AnalyticsDonutCard({
+    required this.cardKey,
+    required this.title,
+    required this.subtitle,
+    required this.percentage,
+    required this.color,
+    required this.primaryLegend,
+    required this.secondaryLegend,
+    required this.primaryPercent,
+  });
+  final Key cardKey;
+  final String title, subtitle, primaryLegend, secondaryLegend;
+  final double percentage, primaryPercent;
+  final Color color;
+  @override
+  Widget build(BuildContext context) => _AnalyticsCard(
+    cardKey: cardKey,
+    title: title,
+    subtitle: subtitle,
+    child: Row(
+      children: [
+        _ProgressDonut(
+          key: title == 'Tiến độ báo cáo'
+              ? const Key('home-summary-progress-donut')
+              : const Key('home-statement-progress-donut'),
+          percentage: percentage,
+          color: color,
+          dimension: 100,
+        ),
+        const SizedBox(width: 22),
+        Expanded(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _AnalyticsLegend(label: primaryLegend, color: color),
+              const SizedBox(height: 10),
+              _AnalyticsLegend(
+                label: secondaryLegend,
+                color: AppColors.warning,
+              ),
+              const SizedBox(height: 18),
+              _AnalyticsBar(value: primaryPercent, color: color),
+              const SizedBox(height: 8),
+              Text(
+                '${_percentLabel(primaryPercent)} hoàn tất',
+                style: AppTextStyles.caption.copyWith(
+                  color: AppColors.textSecondaryOf(context),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+class _AnalyticsPeriodCard extends StatelessWidget {
+  const _AnalyticsPeriodCard({
+    required this.cardKey,
+    required this.title,
+    required this.subtitle,
+    required this.color,
+    required this.progress,
+    this.assignees = const [],
+    this.selectedAssigneeId,
+    this.onAssigneeChanged,
+  });
+  final Key cardKey;
+  final String title, subtitle;
+  final Color color;
+  final HomeSalesProgress progress;
+  final List<HomeSalesProgressAssignee> assignees;
+  final String? selectedAssigneeId;
+  final ValueChanged<String?>? onAssigneeChanged;
+  @override
+  Widget build(BuildContext context) => _AnalyticsCard(
+    cardKey: cardKey,
+    title: title,
+    subtitle: subtitle,
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (assignees.isNotEmpty) ...[
+          SizedBox(
+            width: 260,
+            height: 48,
+            child: _SalesProgressAssigneeDropdown(
+              assignees: assignees,
+              selectedAssigneeId: selectedAssigneeId,
+              onChanged: onAssigneeChanged,
+            ),
+          ),
+          const SizedBox(height: 14),
+        ],
+        Expanded(
+          child: Row(
+            children: [
+              _AnalyticsPeriod(
+                key: cardKey == const Key('home-sales-progress-panel')
+                    ? const Key('home-analytics-sales-range')
+                    : const Key('home-analytics-scope-range'),
+                label: 'Ngày',
+                period: progress.range,
+                color: color,
+              ),
+              const SizedBox(width: 18),
+              _AnalyticsPeriod(
+                key: cardKey == const Key('home-sales-progress-panel')
+                    ? const Key('home-analytics-sales-week')
+                    : const Key('home-analytics-scope-week'),
+                label: 'Tuần',
+                period: progress.week,
+                color: color,
+              ),
+              const SizedBox(width: 18),
+              _AnalyticsPeriod(
+                key: cardKey == const Key('home-sales-progress-panel')
+                    ? const Key('home-analytics-sales-month')
+                    : const Key('home-analytics-scope-month'),
+                label: 'Tháng',
+                period: progress.month,
+                color: color,
+              ),
+            ],
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+class _AnalyticsCard extends StatelessWidget {
+  const _AnalyticsCard({
+    required this.cardKey,
+    required this.title,
+    required this.subtitle,
+    required this.child,
+  });
+  final Key cardKey;
+  final String title, subtitle;
+  final Widget child;
+  @override
+  Widget build(BuildContext context) => Material(
+    key: cardKey,
+    color: AppColors.raisedOf(context),
+    borderRadius: AppRadius.allCardFigma,
+    child: Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        border: Border.all(color: AppColors.neutral200),
+        borderRadius: AppRadius.allCardFigma,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: AppTextStyles.headingS),
+          const SizedBox(height: 4),
+          Text(
+            subtitle,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: AppTextStyles.bodyS.copyWith(
+              color: AppColors.textSecondaryOf(context),
+            ),
+          ),
+          const SizedBox(height: 14),
+          Expanded(child: child),
+        ],
+      ),
+    ),
+  );
+}
+
+class _AnalyticsLegend extends StatelessWidget {
+  const _AnalyticsLegend({required this.label, required this.color});
+  final String label;
+  final Color color;
+  @override
+  Widget build(BuildContext context) => Row(
+    children: [
+      Container(
+        width: 8,
+        height: 8,
+        decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+      ),
+      const SizedBox(width: 6),
+      Expanded(
+        child: Text(
+          label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: AppTextStyles.bodyS.copyWith(
+            color: AppColors.textSecondaryOf(context),
+          ),
+        ),
+      ),
+    ],
+  );
+}
+
+class _AnalyticsBar extends StatelessWidget {
+  const _AnalyticsBar({required this.value, required this.color});
+  final double value;
+  final Color color;
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, c) => Stack(
+      children: [
+        Container(
+          height: 12,
+          decoration: BoxDecoration(
+            color: AppColors.primary100,
+            borderRadius: BorderRadius.circular(999),
+          ),
+        ),
+        Container(
+          height: 12,
+          width: c.maxWidth * (value.clamp(0, 100) / 100),
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.circular(999),
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+class _AnalyticsPeriod extends StatelessWidget {
+  const _AnalyticsPeriod({
+    super.key,
+    required this.label,
+    required this.period,
+    required this.color,
+  });
+  final String label;
+  final HomeSalesProgressPeriod period;
+  final Color color;
+  @override
+  Widget build(BuildContext context) {
+    final p = period.percentage ?? 0;
+    return Expanded(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Tổng quan',
-            style: AppTextStyles.headingS.copyWith(
-              color: AppColors.textPrimaryOf(context),
-            ),
-          ),
-          const SizedBox(height: 12),
-          LayoutBuilder(
-            builder: (context, constraints) {
-              if (panels.isEmpty) return const SizedBox.shrink();
-              final gap = 16.0;
-              if (constraints.maxWidth >= 1040 &&
-                  reportPanel != null &&
-                  statementPanel != null &&
-                  personalPanel != null &&
-                  scopePanel != null) {
-                return SizedBox(
-                  height: 292,
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Expanded(
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            Expanded(child: reportPanel),
-                            SizedBox(width: gap),
-                            Expanded(child: statementPanel),
-                          ],
-                        ),
-                      ),
-                      SizedBox(width: gap),
-                      Expanded(child: personalPanel),
-                      SizedBox(width: gap),
-                      Expanded(child: scopePanel),
-                    ],
-                  ),
-                );
-              }
-              final hasSalesProgressPanels =
-                  summary.salesAvailable &&
-                  (personalPanel != null || scopePanel != null);
-              final minReadablePanelWidth = hasSalesProgressPanels
-                  ? 420.0
-                  : 280.0;
-              final fullRowWidth =
-                  panels.length * minReadablePanelWidth +
-                  gap * math.max(0, panels.length - 1);
-              final columns = constraints.maxWidth >= fullRowWidth
-                  ? panels.length
-                  : constraints.maxWidth >= 720
-                  ? math.min(2, panels.length)
-                  : 1;
-              final width =
-                  (constraints.maxWidth - gap * math.max(0, columns - 1)) /
-                  math.max(1, columns);
-              final height = constraints.maxWidth >= 980
-                  ? 286.0
-                  : constraints.maxWidth >= 620
-                  ? 278.0
-                  : 292.0;
-              return Wrap(
-                spacing: gap,
-                runSpacing: gap,
-                children: [
-                  for (final panel in panels)
-                    SizedBox(width: width, height: height, child: panel),
-                ],
-              );
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
-  static String _scopeSalesProgressTitle(HomeSummary summary) {
-    final scope = summary.scope.trim().toUpperCase();
-    final label = summary.resolvedScopeLabel.toLowerCase();
-    if (scope == 'ALL') {
-      return 'Tổng quan toàn hệ thống';
-    }
-    if (scope == 'OWN') return 'Tổng quan Cửa hàng';
-    if (label.contains('miền')) return 'Tổng quan Miền';
-    if (label.contains('vùng')) return 'Tổng quan Vùng';
-    if (label.contains('showroom') ||
-        label.contains('cửa hàng') ||
-        label.contains('sr')) {
-      return 'Tổng quan Cửa hàng';
-    }
-    return 'Tổng quan Miền/Vùng/Cửa hàng';
-  }
-}
-
-const double _salesProgressControlSlotHeight = 42;
-const double _salesProgressDonutSlotHeight = 72;
-const double _salesProgressLabelSlotHeight = 18;
-const double _salesProgressMetricSlotHeight = 34;
-
-class _ProgressDonutPanel extends StatelessWidget {
-  const _ProgressDonutPanel({
-    required this.panelKey,
-    required this.title,
-    required this.percentage,
-    required this.color,
-    required this.legend,
-  });
-
-  final Key panelKey;
-  final String title;
-  final double percentage;
-  final Color color;
-  final Widget legend;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      key: panelKey,
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.04),
-        border: Border.all(color: color.withValues(alpha: 0.16)),
-        borderRadius: AppRadius.allMd,
-      ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          SizedBox(
-            height: 22,
-            child: Center(
-              child: Text(
-                title,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: AppTextStyles.labelM,
-              ),
-            ),
-          ),
-          const SizedBox(height: 8),
-          SizedBox(
-            height: 92,
-            child: Center(
-              child: _ProgressDonut(
-                key: title == 'Tiến độ báo cáo'
-                    ? const Key('home-summary-progress-donut')
-                    : const Key('home-statement-progress-donut'),
-                percentage: percentage,
-                color: color,
-                dimension: 92,
-              ),
+            label,
+            style: AppTextStyles.bodyS.copyWith(
+              color: AppColors.textSecondaryOf(context),
             ),
           ),
           const SizedBox(height: 10),
-          SizedBox(
-            height: 50,
-            child: Align(alignment: Alignment.topCenter, child: legend),
+          _AnalyticsBar(value: p, color: color),
+          const SizedBox(height: 8),
+          Text(
+            _percentLabel(p),
+            style: AppTextStyles.headingS.copyWith(color: color),
+          ),
+          Text(
+            period.target == null
+                ? 'Chưa thiết lập'
+                : '${formatCompactVndAmount(period.actual)}/${formatCompactVndAmount(period.target!)}',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: AppTextStyles.caption.copyWith(
+              color: AppColors.textSecondaryOf(context),
+            ),
           ),
         ],
       ),
     );
   }
+}
+
+String _scopeSalesProgressTitle(HomeSummary summary) {
+  final scope = summary.scope.trim().toUpperCase();
+  final label = summary.resolvedScopeLabel.toLowerCase();
+  if (scope == 'ALL') return 'Tổng quan toàn hệ thống';
+  if (scope == 'OWN') return 'Tổng quan Cửa hàng';
+  if (label.contains('miền')) return 'Tổng quan Miền';
+  if (label.contains('vùng')) return 'Tổng quan Vùng';
+  if (label.contains('showroom') ||
+      label.contains('cửa hàng') ||
+      label.contains('sr')) {
+    return 'Tổng quan Cửa hàng';
+  }
+  return 'Tổng quan Miền/Vùng/Cửa hàng';
 }
 
 class _ProgressDonut extends StatelessWidget {
@@ -2403,146 +2652,6 @@ class _ProgressDonut extends StatelessWidget {
             ),
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _SalesProgressPanel extends StatelessWidget {
-  const _SalesProgressPanel({
-    required this.panelKey,
-    required this.title,
-    required this.progress,
-    required this.rangeLabel,
-    required this.keyPrefix,
-    required this.color,
-    this.assignees = const [],
-    this.selectedAssigneeId,
-    this.emptyMessage,
-    this.onAssigneeChanged,
-  });
-
-  final Key panelKey;
-  final String title;
-  final HomeSalesProgress progress;
-  final String rangeLabel;
-  final String keyPrefix;
-  final Color color;
-  final List<HomeSalesProgressAssignee> assignees;
-  final String? selectedAssigneeId;
-  final String? emptyMessage;
-  final ValueChanged<String?>? onAssigneeChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    final resolvedEmptyMessage = emptyMessage?.trim();
-    final showEmptyPrompt =
-        !progress.isApplicable &&
-        resolvedEmptyMessage != null &&
-        resolvedEmptyMessage.isNotEmpty;
-    return Container(
-      key: panelKey,
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.04),
-        border: Border.all(color: color.withValues(alpha: 0.16)),
-        borderRadius: AppRadius.allMd,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Text(title, textAlign: TextAlign.center, style: AppTextStyles.labelM),
-          SizedBox(
-            height: _salesProgressControlSlotHeight,
-            child: assignees.isEmpty
-                ? const SizedBox.shrink()
-                : Align(
-                    alignment: Alignment.topCenter,
-                    child: Padding(
-                      padding: const EdgeInsets.only(top: 8),
-                      child: _SalesProgressAssigneeDropdown(
-                        assignees: assignees,
-                        selectedAssigneeId: selectedAssigneeId,
-                        onChanged: onAssigneeChanged,
-                      ),
-                    ),
-                  ),
-          ),
-          const SizedBox(height: 8),
-          if (showEmptyPrompt)
-            Expanded(
-              child: Center(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 10),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.person_search_rounded, size: 28, color: color),
-                      const SizedBox(height: 8),
-                      Text(
-                        resolvedEmptyMessage,
-                        key: const Key('home-sales-progress-empty-guidance'),
-                        textAlign: TextAlign.center,
-                        style: AppTextStyles.bodyS.copyWith(
-                          color: AppColors.textMutedOf(context),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            )
-          else
-            Expanded(
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Expanded(
-                    child: _SalesProgressPeriodView(
-                      keyPrefix: keyPrefix,
-                      keySuffix: 'range',
-                      label: rangeLabel,
-                      period: progress.range,
-                      color: color,
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: _SalesProgressPeriodView(
-                      keyPrefix: keyPrefix,
-                      keySuffix: 'week',
-                      label: 'Tuần',
-                      period: progress.week,
-                      color: color,
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: _SalesProgressPeriodView(
-                      keyPrefix: keyPrefix,
-                      keySuffix: 'month',
-                      label: 'Tháng',
-                      period: progress.month,
-                      color: color,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          if (!showEmptyPrompt && !progress.hasTarget) ...[
-            const SizedBox(height: 8),
-            Text(
-              progress.missingStoreCodes.isEmpty
-                  ? 'Chưa có chỉ tiêu để tính tiến độ.'
-                  : 'Thiếu chỉ tiêu: ${progress.missingStoreCodes.join(', ')}',
-              textAlign: TextAlign.center,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: AppTextStyles.caption.copyWith(color: AppColors.error),
-            ),
-          ],
-        ],
       ),
     );
   }
@@ -2601,219 +2710,6 @@ class _SalesProgressAssigneeDropdown extends StatelessWidget {
       if (assignee.email?.isNotEmpty == true) assignee.email!,
     ];
     return parts.join(' - ');
-  }
-}
-
-class _SalesProgressPeriodView extends StatelessWidget {
-  const _SalesProgressPeriodView({
-    required this.keyPrefix,
-    required this.keySuffix,
-    required this.label,
-    required this.period,
-    required this.color,
-  });
-
-  final String keyPrefix;
-  final String keySuffix;
-  final String label;
-  final HomeSalesProgressPeriod period;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      key: Key('$keyPrefix-$keySuffix'),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.start,
-        children: [
-          SizedBox(
-            height: _salesProgressDonutSlotHeight,
-            child: Center(
-              child: _ProgressDonut(
-                key: Key('$keyPrefix-$keySuffix-donut'),
-                percentage: period.percentage,
-                color: color,
-                dimension: 68,
-              ),
-            ),
-          ),
-          const SizedBox(height: 6),
-          SizedBox(
-            height: _salesProgressLabelSlotHeight,
-            child: Center(
-              child: Text(
-                label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                textAlign: TextAlign.center,
-                style: AppTextStyles.labelS,
-              ),
-            ),
-          ),
-          const SizedBox(height: 2),
-          SizedBox(
-            height: _salesProgressMetricSlotHeight,
-            child: Center(
-              child: Text(
-                key: Key('$keyPrefix-$keySuffix-actual-label'),
-                'Giá trị đã bao gồm VAT: ${formatCompactVndAmount(period.actual)}',
-                maxLines: 2,
-                textAlign: TextAlign.center,
-                style: AppTextStyles.caption.copyWith(
-                  color: AppColors.textMutedOf(context),
-                ),
-              ),
-            ),
-          ),
-          SizedBox(
-            height: _salesProgressMetricSlotHeight,
-            child: Center(
-              child: Text(
-                key: Key('$keyPrefix-$keySuffix-target-label'),
-                period.target == null
-                    ? 'Chỉ tiêu (đã bao gồm VAT): Chưa thiết lập'
-                    : 'Chỉ tiêu (đã bao gồm VAT): ${formatCompactVndAmount(period.target!)}',
-                maxLines: 2,
-                textAlign: TextAlign.center,
-                style: AppTextStyles.caption.copyWith(
-                  color: AppColors.textMutedOf(context),
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class ReportCoverageDonut extends StatelessWidget {
-  const ReportCoverageDonut({super.key, required this.coverageRate});
-
-  final double coverageRate;
-
-  @override
-  Widget build(BuildContext context) {
-    final value = (coverageRate / 100).clamp(0.0, 1.0);
-    return SizedBox.square(
-      key: const Key('home-summary-progress-donut'),
-      dimension: 124,
-      child: CustomPaint(
-        painter: _CoverageDonutPainter(
-          value: value,
-          trackColor: AppColors.neutral100,
-          valueColor: AppColors.success,
-        ),
-        child: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                _percentLabel(coverageRate),
-                style: AppTextStyles.headingM.copyWith(
-                  color: AppColors.textPrimaryOf(context),
-                ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                'Tỉ lệ báo cáo',
-                style: AppTextStyles.caption.copyWith(
-                  color: AppColors.textMutedOf(context),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _ReportProgressLegend extends StatelessWidget {
-  const _ReportProgressLegend({
-    required this.reportedOrders,
-    required this.reportedPercent,
-    required this.unreportedOrders,
-    required this.missingPercent,
-  });
-
-  final int reportedOrders;
-  final double reportedPercent;
-  final int unreportedOrders;
-  final double missingPercent;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _ReportLegendRow(
-          label: 'Đã báo cáo',
-          value:
-              '${_integerLabel(reportedOrders)} đơn (${_percentLabel(reportedPercent)})',
-          color: AppColors.success,
-        ),
-        const SizedBox(height: 12),
-        _ReportLegendRow(
-          label: 'Còn thiếu',
-          value:
-              '${_integerLabel(unreportedOrders)} đơn (${_percentLabel(missingPercent)})',
-          color: AppColors.error,
-        ),
-      ],
-    );
-  }
-}
-
-class _ReportLegendRow extends StatelessWidget {
-  const _ReportLegendRow({
-    required this.label,
-    required this.value,
-    required this.color,
-  });
-
-  final String label;
-  final String value;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final compact = constraints.maxWidth < 180;
-        return Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            SizedBox(
-              width: compact ? 66 : 96,
-              child: Text(
-                label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: AppTextStyles.labelS.copyWith(
-                  color: AppColors.textPrimaryOf(context),
-                ),
-              ),
-            ),
-            const SizedBox(width: 6),
-            Expanded(
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: FittedBox(
-                  fit: BoxFit.scaleDown,
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    value,
-                    maxLines: 1,
-                    style: AppTextStyles.labelS.copyWith(color: color),
-                  ),
-                ),
-              ),
-            ),
-          ],
-        );
-      },
-    );
   }
 }
 

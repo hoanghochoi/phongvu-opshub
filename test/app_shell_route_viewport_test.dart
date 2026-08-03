@@ -672,15 +672,16 @@ void main() {
     expect(find.byType(AppNotificationsBell), findsOneWidget);
     expect(find.byTooltip('Hỗ trợ'), findsOneWidget);
     expect(find.byTooltip('Tài khoản'), findsOneWidget);
-    expect(find.text('Hỗ trợ'), findsOneWidget);
-    expect(find.text('Thông báo'), findsOneWidget);
-    expect(find.text('Tài khoản'), findsOneWidget);
+    expect(find.text('Làm mới'), findsOneWidget);
+    expect(tester.getSize(find.byType(FilledButton)), const Size(132, 40));
+    expect(find.text('Hỗ trợ'), findsNothing);
+    expect(find.text('Thông báo'), findsNothing);
+    expect(find.text('Tài khoản'), findsNothing);
 
     await tester.tap(find.byTooltip('Tài khoản'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Thông báo'), findsOneWidget);
-    expect(find.text('Hỗ trợ'), findsOneWidget);
+    expect(find.text('Làm mới'), findsOneWidget);
     expect(notificationsProvider.loadCalls, 0);
     expect(notificationsProvider.markReadCalls, 0);
     expect(tester.takeException(), isNull);

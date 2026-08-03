@@ -17,7 +17,9 @@ class AppRadius {
   // ── Raw values ───────────────────────────────────────────────────
   static const double xs = 4;
   static const double sm = 8;
+  static const double control = 10;
   static const double md = 12;
+  static const double cardFigma = 14;
   static const double lg = 16;
   static const double xl = 20;
   static const double xxl = 24;
@@ -26,7 +28,9 @@ class AppRadius {
   // ── Pre-built BorderRadius (all-corners) ─────────────────────────
   static final BorderRadius allXs = BorderRadius.circular(xs);
   static final BorderRadius allSm = BorderRadius.circular(sm);
+  static final BorderRadius allControl = BorderRadius.circular(control);
   static final BorderRadius allMd = BorderRadius.circular(md);
+  static final BorderRadius allCardFigma = BorderRadius.circular(cardFigma);
   static final BorderRadius allLg = BorderRadius.circular(lg);
   static final BorderRadius allXl = BorderRadius.circular(xl);
   static final BorderRadius allXxl = BorderRadius.circular(xxl);
