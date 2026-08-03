@@ -231,11 +231,25 @@ Non-negotiable rules:
   build → authenticated Chrome screenshot comparison at each affected
   viewport. A missing, failed, or stale step blocks visual completion and the
   next visual step; re-run every downstream proof after a visual fix.
+- The node map is a required, reviewable artifact in the Linear issue, active
+  plan or PR body **before the first production UI edit**. It must enumerate
+  every affected viewport/state and every visible element. A verbal claim,
+  screenshot-only comparison or partial map is not a substitute. The map also
+  declares the full Chrome viewport matrix; no viewport may later be dropped
+  because runtime merely appears acceptable.
 - Current/legacy UI may be inspected only to preserve business behavior,
   data, permissions, platform behavior, security, and affected-consumer tests.
   It is categorically forbidden as a visual reference, fallback, placeholder,
   gap-fill, or implementation shortcut — including layout, spacing, colors,
   typography, icons, copy, component shape, responsive behavior, or screenshots.
+- A migrated surface has exactly one production visual path: the approved Figma
+  implementation. Feature flags, conditional legacy widgets, legacy styles or
+  fallback layouts that can render the old UI are prohibited. Preserve old
+  business behavior behind the new UI, never old UI behind a fallback.
+- Treat an unapproved visual difference exactly as a failing test: do not
+  commit it as complete, merge it, advance Linear status or call staging QA
+  passed. Fix runtime or revise/re-approve Figma first; deadline, existing code
+  and "close enough" are never exceptions.
 - Every UI change must have widget/golden geometry proof for each changed
   breakpoint and a local build. After deploy to `staging`, audit the actual
   authenticated app in Chrome at every affected viewport against those exact

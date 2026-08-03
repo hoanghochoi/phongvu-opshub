@@ -63,6 +63,16 @@ Không được dùng UI/code/screenshot cũ để điền khoảng trống visu
 nào. Code cũ chỉ dùng để bảo vệ behavior; thiếu node, state hoặc viewport là
 blocker phải cập nhật Figma + Linear và chờ approval.
 
+### Luật không ngoại lệ về UI cũ
+
+Với surface đã migrate, runtime chỉ được có **một** visual path: implementation
+từ exact approved Figma node. Không được giữ/cài thêm feature flag, condition,
+legacy style/widget hay responsive fallback có thể render UI cũ. Mọi visual
+decision — kể cả breakpoint, empty/loading/error state, copy, icon, spacing và
+geometry — phải có trong node map trước production UI edit. Drift chưa được
+duyệt được xử lý như test fail: chặn commit-as-complete, merge, status forward
+và staging-QA pass cho đến khi runtime được sửa hoặc Figma được revise và duyệt lại.
+
 ## Tài liệu
 
 | Tài liệu | Mục đích |

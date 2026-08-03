@@ -13,6 +13,11 @@ Checklist phải được thu gọn theo scope; item không áp dụng ghi `N/A`
   token/geometry/copy/icon/state; không có visual fallback từ code UI cũ.
 - [ ] Node map cover toàn bộ element nhìn thấy và từng viewport/state affected;
   không dùng code, screenshot hoặc responsive behavior cũ để suy diễn phần thiếu.
+- [ ] Node map đã được lưu/review trong Linear, active plan hoặc PR body trước
+  production UI edit đầu tiên, và có Chrome viewport matrix đầy đủ.
+- [ ] Surface migrated chỉ có một production visual path từ approved Figma;
+  không còn feature flag, conditional branch, legacy widget/style hay fallback
+  responsive nào có thể render UI cũ.
 
 ## Design system
 
@@ -78,6 +83,8 @@ Checklist phải được thu gọn theo scope; item không áp dụng ghi `N/A`
   node/revision, viewport/platform, deployed SHA và verdict; evidence trước
   visual remediation đã được thay bằng audit mới.
 - [ ] Không còn unapproved visual difference; nếu có, đã sửa và audit lại.
+- [ ] Không claim complete, merge, forward status hay staging-QA pass khi còn
+  visual drift chưa approved; drift được xử lý như failed verification.
 - [ ] `flutter analyze --no-pub` pass.
 - [ ] `flutter test --no-pub --reporter expanded` pass.
 - [ ] Screenshot/smoke comparison ghi Figma revision, viewport và build SHA.
