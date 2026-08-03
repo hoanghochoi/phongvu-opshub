@@ -672,8 +672,8 @@ void main() {
     expect(find.byType(AppNotificationsBell), findsOneWidget);
     expect(find.byTooltip('Hỗ trợ'), findsOneWidget);
     expect(find.byTooltip('Tài khoản'), findsOneWidget);
-    expect(find.text('Làm mới'), findsOneWidget);
-    expect(tester.getSize(find.byType(FilledButton)), const Size(132, 40));
+    expect(find.text('Làm mới'), findsNothing);
+    expect(find.textContaining('Web ·'), findsNothing);
     expect(find.text('Hỗ trợ'), findsNothing);
     expect(find.text('Thông báo'), findsNothing);
     expect(find.text('Tài khoản'), findsNothing);
@@ -681,7 +681,7 @@ void main() {
     await tester.tap(find.byTooltip('Tài khoản'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Làm mới'), findsOneWidget);
+    expect(find.text('Làm mới'), findsNothing);
     expect(notificationsProvider.loadCalls, 0);
     expect(notificationsProvider.markReadCalls, 0);
     expect(tester.takeException(), isNull);
@@ -725,7 +725,7 @@ void main() {
   });
 
   testWidgets(
-    'Operations shell matches the Figma title badge and refresh action',
+    'Operations shell does not render audit labels or screen-local refresh',
     (tester) async {
       tester.view.physicalSize = const Size(1024, 900);
       tester.view.devicePixelRatio = 1;
@@ -746,10 +746,9 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('Web · 1024 px'), findsOneWidget);
-      expect(find.text('Làm mới'), findsOneWidget);
+      expect(find.textContaining('Web ·'), findsNothing);
+      expect(find.text('Làm mới'), findsNothing);
       expect(find.text('Công cụ nghiệp vụ theo quyền'), findsNothing);
-      expect(tester.getSize(find.byType(FilledButton)), const Size(132, 40));
       expect(tester.takeException(), isNull);
     },
   );

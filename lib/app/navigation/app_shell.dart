@@ -16,7 +16,6 @@ import '../../core/logging/app_logger.dart';
 import '../../core/runtime/app_runtime_coordinator.dart';
 import '../../features/auth/domain/entities/user.dart';
 import '../../features/auth/presentation/providers/auth_provider.dart';
-import '../../features/home/presentation/providers/home_summary_provider.dart';
 import '../../features/notifications/presentation/providers/app_notifications_provider.dart';
 import '../../features/notifications/presentation/widgets/app_notifications_bell.dart';
 import '../../features/payment_monitor/presentation/providers/payment_delivery_metrics_provider.dart';
@@ -129,7 +128,6 @@ class _AppShellState extends State<AppShell> {
   @override
   Widget build(BuildContext context) {
     final user = context.watch<AuthProvider>().user;
-    final homeSummaryProvider = context.watch<HomeSummaryProvider?>();
     final supportChat = maybeSupportChatProvider(context, listen: true);
     final sidebarDestinations = AppNavModel.visibleSidebarDestinations(user);
     final mobileDestinations = AppNavModel.visibleMobileDestinations(user);
@@ -185,14 +183,6 @@ class _AppShellState extends State<AppShell> {
                   version: _version,
                   onNavigate: _navigate,
                   onSupport: () => _openSupport(context),
-                  onRefresh: () {
-                    if (widget.location == '/home' &&
-                        homeSummaryProvider?.canRefresh == true) {
-                      unawaited(homeSummaryProvider!.refreshNow());
-                      return;
-                    }
-                    unawaited(context.read<AuthProvider>().refreshUserData());
-                  },
                   onLogout: () => _logout(context),
                   onAppInfo: () => _showAppInfoDialog(context),
                   child: widget.child,
@@ -591,7 +581,6 @@ class _WideShell extends StatelessWidget {
   final String version;
   final ValueChanged<AppNavDestination> onNavigate;
   final VoidCallback onSupport;
-  final VoidCallback onRefresh;
   final VoidCallback onLogout;
   final VoidCallback onAppInfo;
   final Widget child;
@@ -605,7 +594,6 @@ class _WideShell extends StatelessWidget {
     required this.version,
     required this.onNavigate,
     required this.onSupport,
-    required this.onRefresh,
     required this.onLogout,
     required this.onAppInfo,
     required this.child,
@@ -640,7 +628,6 @@ class _WideShell extends StatelessWidget {
                   user: user,
                   showAccountDetails: isDesktop,
                   onSupport: onSupport,
-                  onRefresh: onRefresh,
                   onLogout: onLogout,
                   onAppInfo: onAppInfo,
                 ),
@@ -1391,7 +1378,6 @@ class _ShellTopBar extends StatelessWidget {
   final User? user;
   final bool showAccountDetails;
   final VoidCallback onSupport;
-  final VoidCallback onRefresh;
   final VoidCallback onLogout;
   final VoidCallback onAppInfo;
 
@@ -1401,7 +1387,6 @@ class _ShellTopBar extends StatelessWidget {
     required this.user,
     required this.showAccountDetails,
     required this.onSupport,
-    required this.onRefresh,
     required this.onLogout,
     required this.onAppInfo,
   });
@@ -1431,13 +1416,7 @@ class _ShellTopBar extends StatelessWidget {
                 child: figmaTopBarTarget
                     ? Row(
                         mainAxisSize: MainAxisSize.min,
-                        children: [
-                          _ShellTitleText(title: header.title),
-                          const SizedBox(width: 12),
-                          _ResponsiveViewportBadge(
-                            width: MediaQuery.sizeOf(context).width,
-                          ),
-                        ],
+                        children: [_ShellTitleText(title: header.title)],
                       )
                     : Column(
                         mainAxisAlignment: MainAxisAlignment.center,
@@ -1473,52 +1452,9 @@ class _ShellTopBar extends StatelessWidget {
                 onLogout: onLogout,
                 onAppInfo: onAppInfo,
               ),
-              if (figmaTopBarTarget) ...[
-                const SizedBox(width: 12),
-                SizedBox(
-                  width: 132,
-                  height: 40,
-                  child: FilledButton(
-                    onPressed: onRefresh,
-                    style: FilledButton.styleFrom(
-                      backgroundColor: AppColors.primary500,
-                      foregroundColor: AppColors.surface,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      textStyle: AppTextStyles.labelM,
-                    ),
-                    child: const Text('Làm mới'),
-                  ),
-                ),
-              ],
             ],
           );
         },
-      ),
-    );
-  }
-}
-
-class _ResponsiveViewportBadge extends StatelessWidget {
-  final double width;
-
-  const _ResponsiveViewportBadge({required this.width});
-
-  @override
-  Widget build(BuildContext context) {
-    final label = width >= 1200 ? 'Web · ${width.round()} px' : 'Web · 1024 px';
-    return Container(
-      height: 28,
-      padding: const EdgeInsets.symmetric(horizontal: 10),
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        color: AppColors.primary50,
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Text(
-        label,
-        style: AppTextStyles.caption.copyWith(color: AppColors.primary500),
       ),
     );
   }

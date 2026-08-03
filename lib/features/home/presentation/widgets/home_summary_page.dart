@@ -376,36 +376,46 @@ class HomeSummaryHeader extends StatelessWidget {
                     ),
                   ],
                 )
-              : Semantics(
-                  button: true,
-                  label: 'Chọn phạm vi và khoảng thời gian',
-                  child: Material(
-                    color: Colors.transparent,
-                    child: InkWell(
-                      key: const Key('home-summary-scope-date-trigger'),
-                      onTap: open,
-                      borderRadius: AppRadius.allControl,
-                      child: Container(
-                        key: const Key('home-summary-scope-pill'),
-                        width: 360,
-                        height: 44,
-                        alignment: Alignment.center,
-                        decoration: BoxDecoration(
-                          color: AppColors.raisedOf(context),
-                          border: Border.all(color: AppColors.neutral200),
+              : Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _HomeDesktopRefreshButton(
+                      isRefreshing: isRefreshing,
+                      onPressed: onRefresh,
+                    ),
+                    const SizedBox(width: 16),
+                    Semantics(
+                      button: true,
+                      label: 'Chọn phạm vi và khoảng thời gian',
+                      child: Material(
+                        color: Colors.transparent,
+                        child: InkWell(
+                          key: const Key('home-summary-scope-date-trigger'),
+                          onTap: open,
                           borderRadius: AppRadius.allControl,
-                        ),
-                        child: Text(
-                          '${_shortScopeLabel(scopeLabel)}  ·  ${_homeRangeShortLabel(selectedStartDate, selectedEndDate)}',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: AppTextStyles.labelS.copyWith(
-                            color: AppColors.neutral700,
+                          child: Container(
+                            key: const Key('home-summary-scope-pill'),
+                            width: 360,
+                            height: 44,
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              color: AppColors.raisedOf(context),
+                              border: Border.all(color: AppColors.neutral200),
+                              borderRadius: AppRadius.allControl,
+                            ),
+                            child: Text(
+                              '${_shortScopeLabel(scopeLabel)}  ·  ${_homeRangeShortLabel(selectedStartDate, selectedEndDate)}',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: AppTextStyles.labelS.copyWith(
+                                color: AppColors.neutral700,
+                              ),
+                            ),
                           ),
                         ),
                       ),
                     ),
-                  ),
+                  ],
                 ),
         );
         final visualHeader = mobile
@@ -633,6 +643,53 @@ class _HomeScopeDateControl extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _HomeDesktopRefreshButton extends StatelessWidget {
+  const _HomeDesktopRefreshButton({
+    required this.isRefreshing,
+    required this.onPressed,
+  });
+
+  final bool isRefreshing;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: 'Làm mới dữ liệu trang chủ',
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          key: const Key('home-summary-refresh-button'),
+          onTap: isRefreshing ? null : onPressed,
+          borderRadius: AppRadius.allControl,
+          child: Container(
+            width: 104,
+            height: 44,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: AppColors.raisedOf(context),
+              border: Border.all(color: AppColors.neutral200),
+              borderRadius: AppRadius.allControl,
+            ),
+            child: isRefreshing
+                ? const SizedBox.square(
+                    dimension: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : Text(
+                    'Làm mới',
+                    style: AppTextStyles.labelS.copyWith(
+                      color: AppColors.neutral700,
+                    ),
+                  ),
+          ),
+        ),
+      ),
     );
   }
 }
