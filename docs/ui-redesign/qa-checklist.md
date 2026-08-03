@@ -9,6 +9,8 @@ Checklist phải được thu gọn theo scope; item không áp dụng ghi `N/A`
 - [ ] Product/business/API/permission/platform behavior cần bảo vệ đã liệt kê.
 - [ ] Build/commit/SHA và viewport/platform của evidence được ghi.
 - [ ] Không có khác biệt visual chưa được duyệt.
+- [ ] Node map theo viewport có exact Figma node/revision → Flutter component →
+  token/geometry/copy/icon/state; không có visual fallback từ code UI cũ.
 
 ## Design system
 
@@ -63,9 +65,14 @@ Checklist phải được thu gọn theo scope; item không áp dụng ghi `N/A`
 ## Technical proof
 
 - [ ] Focused widget/unit/golden or visual regression tests pass.
+- [ ] Geometry proof kiểm tra kích thước, vị trí, copy/icon và overflow ở mọi
+  breakpoint bị đổi, bám exact node map.
 - [ ] Protected affected consumers pass.
 - [ ] `dart format --output=none --set-exit-if-changed ...` pass.
 - [ ] `git diff --check` pass.
+- [ ] Local build từ source SHA pass; staging deploy đã audit bằng authenticated
+  Chrome ở mọi viewport/platform affected, có evidence so với exact Figma node.
+- [ ] Không còn unapproved visual difference; nếu có, đã sửa và audit lại.
 - [ ] `flutter analyze --no-pub` pass.
 - [ ] `flutter test --no-pub --reporter expanded` pass.
 - [ ] Screenshot/smoke comparison ghi Figma revision, viewport và build SHA.

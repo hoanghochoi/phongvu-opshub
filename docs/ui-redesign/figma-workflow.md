@@ -76,6 +76,11 @@ ghi lý do.
 Foundation/component work cần variables, variants, properties, state matrix và
 mapping note sang shared Flutter tokens/components.
 
+Mỗi scope implementation phải có node map đủ cho từng viewport/state nhìn thấy:
+exact node URL/revision, token, geometry, typography, icon, copy, interaction
+và shared Flutter component tương ứng. Không để code UI cũ lấp vào phần Figma
+thiếu; thiếu node là phải bổ sung/review frame trước khi code phần đó.
+
 ## 6. Review
 
 1. Tạo Figma version/revision cho candidate frames tại page platform tương ứng.
@@ -109,3 +114,8 @@ Nếu target đổi sau approval:
 
 Flutter screenshot khác Figma chỉ được chấp nhận khi difference đã ghi rõ,
 được duyệt và phản ánh lại vào source of truth phù hợp.
+
+Screenshot/runtime cũ không phải visual reference cho implementation. Với
+migrated surface, mọi visual legacy phải được thay bởi node Figma đã duyệt; một
+khác biệt không được duyệt phải được sửa và audit lại, không được ghi là
+"gần giống" hoặc deferred im lặng.

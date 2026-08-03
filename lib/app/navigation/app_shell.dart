@@ -703,27 +703,32 @@ class _MobileShell extends StatelessWidget {
           onNavigate: onNavigate,
         ),
         appBar: AppBar(
+          toolbarHeight: AppLayoutTokens.shellTopBarHeight,
+          backgroundColor: AppColors.raisedOf(context),
+          foregroundColor: AppColors.textPrimaryOf(context),
+          surfaceTintColor: AppColors.raisedOf(context),
           centerTitle: true,
           leading: Builder(
             builder: (context) => IconButton(
               tooltip: 'Mở menu',
               onPressed: () => Scaffold.of(context).openDrawer(),
-              icon: const Icon(Icons.menu_rounded),
+              icon: const Icon(PhosphorIconsRegular.list),
             ),
           ),
           title: Text(
             activeDestination.label,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
+            style: AppTextStyles.headingS.copyWith(
+              color: AppColors.textPrimaryOf(context),
+            ),
           ),
           actions: [
-            const _ShellMetricsPill(),
             IconButton(
               tooltip: 'Hỗ trợ',
               onPressed: onSupport,
-              icon: const Icon(Icons.support_agent_rounded),
+              icon: const Icon(PhosphorIconsRegular.headset),
             ),
-            const SizedBox(width: 4),
           ],
         ),
         body: _ShellAccessSyncSurface(
@@ -1044,31 +1049,67 @@ class _DesktopSidebar extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            // Figma node 326:2699: an 8px shell inset with a 64px brand row.
             Padding(
-              padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
+              padding: const EdgeInsets.all(8),
+              child: SizedBox(
+                height: 64,
+                child: Padding(
+                  padding: const EdgeInsets.all(4),
+                  child: Row(
+                    key: const ValueKey('desktop-sidebar-brand'),
                     children: [
-                      const AppLogo(size: 44, borderRadius: AppRadius.md),
-                      const SizedBox(width: 12),
+                      SizedBox(
+                        width: 56,
+                        height: 56,
+                        child: Stack(
+                          fit: StackFit.expand,
+                          children: [
+                            const AppLogo(
+                              key: ValueKey('desktop-sidebar-logo'),
+                              size: 56,
+                              borderRadius: 12,
+                            ),
+                            IgnorePointer(
+                              child: DecoratedBox(
+                                decoration: BoxDecoration(
+                                  border: Border.all(
+                                    color: AppColors.sidebarTextOf(context),
+                                  ),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 8),
                       Expanded(
                         child: Column(
+                          mainAxisSize: MainAxisSize.min,
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
                               'PhongVu OpsHub',
-                              style: AppTextStyles.labelL.copyWith(
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: AppTextStyles.headingS.copyWith(
                                 color: AppColors.sidebarTextOf(context),
+                                fontWeight: FontWeight.w700,
+                                height: 1,
                               ),
                             ),
+                            const SizedBox(height: 1),
                             Text(
-                              AppBrand.slogan,
+                              'Kết nối nguồn lực.\nĐồng bộ vận hành.',
                               maxLines: 2,
                               overflow: TextOverflow.ellipsis,
                               style: AppTextStyles.caption.copyWith(
-                                color: AppColors.sidebarMutedOf(context),
+                                color: AppColors.sidebarTextOf(
+                                  context,
+                                ).withValues(alpha: 0.78),
+                                fontSize: 12,
+                                height: 1,
                               ),
                             ),
                           ],
@@ -1076,7 +1117,7 @@ class _DesktopSidebar extends StatelessWidget {
                       ),
                     ],
                   ),
-                ],
+                ),
               ),
             ),
             Expanded(
@@ -1362,50 +1403,58 @@ class _ShellTopBar extends StatelessWidget {
         ),
       ),
       padding: const EdgeInsets.symmetric(horizontal: 24),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  header.title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppTextStyles.headingS.copyWith(
-                    color: AppColors.textPrimaryOf(context),
-                  ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          // The Figma tablet rail has room for the three retained actions,
+          // but not their desktop labels or delivery-metrics pill.
+          final compactActions = constraints.maxWidth < 880;
+          return Row(
+            children: [
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      header.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTextStyles.headingS.copyWith(
+                        color: AppColors.textPrimaryOf(context),
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      header.description,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTextStyles.bodyS.copyWith(
+                        color: AppColors.textMutedOf(context),
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 2),
-                Text(
-                  header.description,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppTextStyles.bodyS.copyWith(
-                    color: AppColors.textMutedOf(context),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          _ShellTopBarAction(
-            tooltip: 'Hỗ trợ',
-            label: 'Hỗ trợ',
-            icon: PhosphorIconsRegular.headset,
-            onPressed: onSupport,
-          ),
-          const _ShellMetricsPill(),
-          const AppNotificationsBell(showLabel: true),
-          const SizedBox(width: 8),
-          _AccountMenuButton(
-            user: user,
-            showDetails: showAccountDetails,
-            showLabel: true,
-            onLogout: onLogout,
-            onAppInfo: onAppInfo,
-          ),
-        ],
+              ),
+              _ShellTopBarAction(
+                tooltip: 'Hỗ trợ',
+                label: 'Hỗ trợ',
+                icon: PhosphorIconsRegular.headset,
+                onPressed: onSupport,
+                compact: compactActions,
+              ),
+              if (!compactActions) const _ShellMetricsPill(),
+              AppNotificationsBell(showLabel: !compactActions),
+              const SizedBox(width: 8),
+              _AccountMenuButton(
+                user: user,
+                showDetails: showAccountDetails && !compactActions,
+                showLabel: !compactActions,
+                onLogout: onLogout,
+                onAppInfo: onAppInfo,
+              ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -1588,6 +1637,7 @@ class _ShellTopBarAction extends StatelessWidget {
   final IconData icon;
   final VoidCallback? onPressed;
   final bool showTooltip;
+  final bool compact;
 
   const _ShellTopBarAction({
     required this.tooltip,
@@ -1595,6 +1645,7 @@ class _ShellTopBarAction extends StatelessWidget {
     required this.icon,
     required this.onPressed,
     this.showTooltip = true,
+    this.compact = false,
   });
 
   @override
@@ -1606,18 +1657,23 @@ class _ShellTopBarAction extends StatelessWidget {
         onTap: onPressed,
         borderRadius: AppRadius.allSm,
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          padding: EdgeInsets.symmetric(
+            horizontal: compact ? 12 : 10,
+            vertical: 8,
+          ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
               Icon(icon, size: 18, color: AppColors.textPrimaryOf(context)),
-              const SizedBox(width: 6),
-              Text(
-                label,
-                style: AppTextStyles.labelS.copyWith(
-                  color: AppColors.textPrimaryOf(context),
+              if (!compact) ...[
+                const SizedBox(width: 6),
+                Text(
+                  label,
+                  style: AppTextStyles.labelS.copyWith(
+                    color: AppColors.textPrimaryOf(context),
+                  ),
                 ),
-              ),
+              ],
             ],
           ),
         ),

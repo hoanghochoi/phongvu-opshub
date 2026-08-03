@@ -197,6 +197,14 @@ runtime baseline, not the automatic visual target for the new redesign.
 Unmigrated screens must keep working while migrated scopes follow approved new
 frames.
 
+For every migrated/redesigned surface, **retire the old visual UI completely**.
+Current code may be used only to preserve business logic, data, permissions,
+platform behavior, security, and affected-consumer tests; it is forbidden as a
+visual fallback, spacing/copy/icon reference, or "close enough" implementation.
+When an exact approved Figma node does not cover a visible element, stop that
+visual work, add/revise the Figma target, record the decision in Linear, and
+wait for approval instead of inferring the old UI.
+
 Non-negotiable rules:
 
 - Preserve business logic, API/data contracts, permission, platform behavior,
@@ -212,6 +220,15 @@ Non-negotiable rules:
   use the existing approved behavior without creating a new frame.
 - Figma must not invent routes, data, permission, or business behavior. Stop
   and request product authority when a design requires a new contract.
+- Before any UI mutation, retrieve the exact Figma node(s) for the target
+  viewport and map their tokens, geometry, typography, icons, copy, state, and
+  responsive constraints to shared Flutter components. Do not implement from
+  memory, a screenshot alone, or legacy code.
+- Every UI change must have widget/golden geometry proof for each changed
+  breakpoint and a local build. After deploy to `staging`, audit the actual
+  authenticated app in Chrome at every affected viewport against those exact
+  nodes; capture evidence, fix every unapproved difference, and repeat the
+  audit before calling the scope visually complete.
 - Evolve shared theme/tokens/components before adding feature-local variants.
   Continue to reuse the canonical DateRangePicker, command-input layout,
   related-flow modal model, AppLogger, and accessibility/platform contracts.

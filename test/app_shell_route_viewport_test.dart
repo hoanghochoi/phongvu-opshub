@@ -604,6 +604,42 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('mobile shell matches the Figma compact topbar', (tester) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final authProvider = _FakeAuthProvider(_shellUser);
+
+    await tester.pumpWidget(
+      ChangeNotifierProvider<AuthProvider>.value(
+        value: authProvider,
+        child: const MaterialApp(
+          home: AppShell(
+            location: '/home',
+            child: _RouteMarker(label: 'home-route-marker'),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final appBarFinder = find.byType(AppBar);
+    final appBar = tester.widget<AppBar>(appBarFinder);
+    expect(
+      tester.getSize(appBarFinder).height,
+      AppLayoutTokens.shellTopBarHeight,
+    );
+    expect(appBar.backgroundColor, AppColors.surface);
+    expect(appBar.foregroundColor, AppColors.onSurface);
+    expect(find.byTooltip('Mở menu'), findsOneWidget);
+    expect(find.byTooltip('Hỗ trợ'), findsOneWidget);
+    expect(find.text('Trang chủ'), findsWidgets);
+    expect(find.textContaining('TB '), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('desktop shell keeps support and notifications on the topbar', (
     tester,
   ) async {
@@ -647,6 +683,43 @@ void main() {
     expect(find.text('Hỗ trợ'), findsOneWidget);
     expect(notificationsProvider.loadCalls, 0);
     expect(notificationsProvider.markReadCalls, 0);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('tablet rail keeps retained topbar actions accessible', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(900, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final authProvider = _FakeAuthProvider(_shellUser);
+    final notificationsProvider = _FakeAppNotificationsProvider();
+
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider<AuthProvider>.value(value: authProvider),
+          ChangeNotifierProvider<AppNotificationsProvider>.value(
+            value: notificationsProvider,
+          ),
+        ],
+        child: const MaterialApp(
+          home: AppShell(
+            location: '/home',
+            child: _RouteMarker(label: 'home-route-marker'),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byTooltip('Hỗ trợ'), findsOneWidget);
+    expect(find.byTooltip('Thông báo'), findsOneWidget);
+    expect(find.byTooltip('Tài khoản'), findsOneWidget);
+    expect(find.text('Hỗ trợ'), findsNothing);
+    expect(find.byType(AppNotificationsBell), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -706,7 +779,17 @@ void main() {
     );
     expect(find.byKey(const ValueKey('sidebar-item-feedback')), findsOneWidget);
     expect(find.byKey(const ValueKey('sidebar-item-help')), findsOneWidget);
-    expect(find.text('Kết nối nguồn lực. Đồng bộ vận hành.'), findsOneWidget);
+    expect(find.text('PhongVu OpsHub'), findsOneWidget);
+    expect(
+      find.text('Kết nối nguồn lực.\nĐồng bộ vận hành.'),
+      findsOneWidget,
+    );
+    final desktopBrand = find.byKey(const ValueKey('desktop-sidebar-brand'));
+    expect(tester.getTopLeft(desktopBrand), const Offset(12, 12));
+    expect(
+      tester.getSize(find.byKey(const ValueKey('desktop-sidebar-logo'))),
+      const Size.square(56),
+    );
     expect(find.text('Dev: Hoàng Học Hỏi'), findsOneWidget);
     expect(find.textContaining('© '), findsOneWidget);
     expect(

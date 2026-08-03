@@ -10,6 +10,8 @@ Chỉ bắt đầu visual redesign implementation khi có:
 - task worktree do `scripts/task-lifecycle.mjs start` tạo từ live
   `origin/staging`;
 - validation plan phù hợp risk lane.
+- node map theo viewport: exact Figma node/revision, shared Flutter component,
+  token, geometry, copy/icon, state và behavior cần bảo vệ.
 
 Restorative bug fix không đổi intended design có thể dùng approved behavior/
 current source thay cho frame mới, nhưng phải ghi rõ căn cứ và proof.
@@ -21,6 +23,9 @@ current source thay cho frame mới, nhưng phải ghi rõ căn cứ và proof.
 - Không trộn typography/token mới và cũ tùy tiện trong cùng migrated surface.
 - Giữ business logic, provider/service/API/permission ngoài scope không đổi.
 - Không xóa/deprecate legacy component trước khi không còn consumer và có proof.
+- Với migrated surface, không giữ hoặc tái tạo visual legacy như fallback.
+  Legacy code chỉ được đọc để bảo vệ behavior; không dùng nó để chọn layout,
+  token, spacing, typography, icon, copy hay appearance mới.
 
 ## 3. Shared theme and components
 
@@ -74,6 +79,8 @@ Nếu approved Figma không thể implement an toàn:
 5. Chờ re-approval trước khi tiếp tục.
 
 Không “sửa cho gần giống” trong code rồi để docs chạy theo sau.
+Không suy diễn visual từ screenshot không có node, memory, hoặc runtime cũ.
+Thiếu node/state/viewport là blocker: cập nhật Figma + Linear và chờ approval.
 
 ## 8. Git workflow
 
@@ -111,3 +118,8 @@ Thêm focused widget/unit/golden/visual proof theo behavior; layout change cần
 screenshots hoặc observable smoke ở relevant widths/platforms. Normal/high-risk
 work phải chạy affected-consumer proof. Không claim pass nếu command chưa chạy;
 nếu blocked, nêu verified/unverified và residual risk.
+
+Với visual change, proof còn bắt buộc kiểm tra node-map geometry ở từng
+breakpoint thay đổi và authenticated Chrome audit sau staging deploy tại đúng
+viewport/platform. Mọi unapproved difference là fail; sửa và audit lại trước
+khi báo visual scope hoàn tất.

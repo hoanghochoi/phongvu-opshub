@@ -45,6 +45,12 @@ Nếu một bug fix hoặc refactor làm thay intended design, gate áp dụng l
 Không dùng Figma để phát minh dữ liệu, quyền, route hoặc backend behavior. Không
 dùng code legacy để phủ quyết target visual đã được duyệt.
 
+Với mọi surface đã migrate, UI cũ phải được bỏ hoàn toàn. Code/test cũ chỉ là
+authority bảo vệ behavior; không được tái dùng layout, spacing, typography,
+icon, copy hoặc component appearance cũ làm fallback hay vì "gần giống". Thiếu
+node cho một phần tử nhìn thấy là blocker Figma, không phải quyền suy diễn từ
+runtime hiện tại.
+
 ## 4. Quy trình
 
 ### A — Intake và audit
@@ -55,6 +61,9 @@ dùng code legacy để phủ quyết target visual đã được duyệt.
 3. Ghi rõ behavior phải giữ, visual được thay, platform và state cần proof.
 4. Audit shared theme/tokens/components trước feature-local widgets.
 5. Không refactor hoặc sửa runtime trong bước audit.
+6. Lập node map theo từng viewport: exact Figma node/revision → Flutter shared
+   component → token (màu/type/spacing/radius/elevation) → geometry/copy/icon
+   → behavior phải giữ. Không có node map thì không bắt đầu UI mutation.
 
 Audit phải thừa nhận baseline hiện tại; không giả định repo là greenfield.
 
@@ -127,6 +136,9 @@ Approval phải nêu rõ frame/revision được duyệt. Sau approval:
 5. Thêm sanitized `AppLogger` cho flow user-facing mới/thay đổi.
 6. Nếu technical constraint buộc đổi design, dừng phần liên quan, cập nhật
    Linear/Figma và chờ re-approval.
+7. Không dùng visual UI cũ làm fallback. Nếu Figma thiếu một visible state hoặc
+   element, tạo/revise node và chờ approval; vẫn có thể tiếp tục các node đã đủ
+   authority.
 
 ### F — Verification
 
@@ -140,6 +152,11 @@ Proof tối thiểu cho UI code:
   cạnh, focus clipping, icon sai ngữ nghĩa và foreground chìm trên nền tối;
 - protected old-consumer proof theo risk lane;
 - `dart format`, `git diff --check`, Flutter analyze/test theo repo contract.
+- geometry/widget or golden proof bám exact node map ở mọi breakpoint thay đổi;
+  test phải kiểm tra kích thước, vị trí, copy/icon và overflow khi áp dụng.
+- build của source SHA; sau staging deploy, Chrome audit authenticated tại mọi
+  viewport affected, so trực tiếp với exact Figma node/revision. Difference
+  chưa được duyệt là fail và phải sửa/audit lại, không được gọi là complete.
 
 Ảnh so sánh phải ghi viewport/platform, frame/node và build/SHA.
 
