@@ -927,6 +927,62 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('Home scope menu stays inside a compact desktop viewport', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(640, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Center(
+            child: SizedBox(
+              width: 600,
+              child: HomeSummaryHeader(
+                summary: _homeSummary(),
+                selectedScope: 'ALL',
+                selectedScopeLabel: 'Toàn hệ thống',
+                scopeOptions: const [
+                  HomeSummaryScopeOption(
+                    value: 'ALL',
+                    label: 'Toàn hệ thống',
+                    requestScope: 'ALL',
+                  ),
+                  HomeSummaryScopeOption(
+                    value: 'OWN',
+                    label: 'Phạm vi cá nhân',
+                    requestScope: 'OWN',
+                  ),
+                ],
+                selectedStartDate: DateTime(2026, 8, 3),
+                selectedEndDate: DateTime(2026, 8, 3),
+                isRefreshing: false,
+                onScopeChanged: (_) {},
+                onDateRangeChanged: (_, _) {},
+                onRefresh: () {},
+                warningMessage: null,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('home-summary-scope-date-trigger')));
+    await tester.pumpAndSettle();
+
+    final menu = find.byKey(const Key('home-summary-scope-menu'));
+    final menuRect = tester.getRect(menu);
+    expect(menuRect.left, greaterThanOrEqualTo(0));
+    expect(menuRect.right, lessThanOrEqualTo(640));
+    expect(menuRect.width, closeTo(608, 0.1));
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('Home Android header follows Figma node 331:3184 geometry', (
     tester,
   ) async {
@@ -1424,8 +1480,8 @@ void main() {
       MaterialApp(
         home: Scaffold(
           body: SizedBox(
-            // Figma 1819:16547 caps its 896px inner board even when the
-            // dashboard content area is wider.
+            // Figma Home responsive frames expand this board with the
+            // available content width at each desktop viewport.
             width: 1180,
             child: ReportProgressPanel(
               summary: summary,
@@ -1453,10 +1509,10 @@ void main() {
     expect(reportTopLeft.dx, lessThan(statementTopLeft.dx));
     expect(reportTopLeft.dx, personalTopLeft.dx);
     expect(statementTopLeft.dx, scopeTopLeft.dx);
-    expect(tester.getSize(reportPanel), const Size(440, 200));
-    expect(tester.getSize(statementPanel), const Size(440, 200));
-    expect(tester.getSize(personalPanel), const Size(440, 264));
-    expect(tester.getSize(scopePanel), const Size(440, 264));
+    expect(tester.getSize(reportPanel), const Size(582, 200));
+    expect(tester.getSize(statementPanel), const Size(582, 200));
+    expect(tester.getSize(personalPanel), const Size(582, 264));
+    expect(tester.getSize(scopePanel), const Size(582, 264));
     expect(find.byKey(const Key('home-analytics-sales-range')), findsOneWidget);
     expect(find.byKey(const Key('home-analytics-scope-month')), findsOneWidget);
   });
