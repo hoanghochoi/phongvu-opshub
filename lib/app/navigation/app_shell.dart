@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:phongvu_opshub/app/widgets/app_toast.dart';
@@ -890,7 +891,7 @@ class _MobileNavigationDrawer extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          AppBrand.title,
+                          'PhongVu OpsHub',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: AppTextStyles.labelL.copyWith(
@@ -899,9 +900,9 @@ class _MobileNavigationDrawer extends StatelessWidget {
                         ),
                         Text(
                           AppBrand.slogan,
-                          maxLines: 1,
+                          maxLines: 2,
                           overflow: TextOverflow.ellipsis,
-                          style: AppTextStyles.labelS.copyWith(
+                          style: AppTextStyles.caption.copyWith(
                             color: AppColors.sidebarMutedOf(context),
                           ),
                         ),
@@ -1057,14 +1058,16 @@ class _DesktopSidebar extends StatelessWidget {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'PhongVu',
+                              'PhongVu OpsHub',
                               style: AppTextStyles.labelL.copyWith(
                                 color: AppColors.sidebarTextOf(context),
                               ),
                             ),
                             Text(
-                              'OpsHub',
-                              style: AppTextStyles.bodyS.copyWith(
+                              AppBrand.slogan,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: AppTextStyles.caption.copyWith(
                                 color: AppColors.sidebarMutedOf(context),
                               ),
                             ),
@@ -1072,13 +1075,6 @@ class _DesktopSidebar extends StatelessWidget {
                         ),
                       ),
                     ],
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    AppBrand.slogan,
-                    style: AppTextStyles.labelS.copyWith(
-                      color: AppColors.sidebarMutedOf(context),
-                    ),
                   ),
                 ],
               ),
@@ -1396,7 +1392,7 @@ class _ShellTopBar extends StatelessWidget {
           _ShellTopBarAction(
             tooltip: 'Hỗ trợ',
             label: 'Hỗ trợ',
-            icon: Icons.support_agent_rounded,
+            icon: PhosphorIconsRegular.headset,
             onPressed: onSupport,
           ),
           const _ShellMetricsPill(),
@@ -1508,26 +1504,12 @@ class _AccountMenuButton extends StatelessWidget {
         ),
       ],
       child: showLabel
-          ? Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const _ShellTopBarAction(
-                  tooltip: 'Tài khoản',
-                  label: 'Tài khoản',
-                  icon: Icons.account_circle_outlined,
-                  onPressed: null,
-                  showTooltip: false,
-                ),
-                if (showDetails) ...[
-                  const SizedBox(width: 8),
-                  _accountIdentity(
-                    context,
-                    cleanName: cleanName,
-                    srLabel: srLabel,
-                    initials: initials,
-                  ),
-                ],
-              ],
+          ? const _ShellTopBarAction(
+              tooltip: 'Tài khoản',
+              label: 'Tài khoản',
+              icon: PhosphorIconsRegular.userCircle,
+              onPressed: null,
+              showTooltip: false,
             )
           : showDetails
           ? _accountIdentity(
