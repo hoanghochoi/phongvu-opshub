@@ -570,6 +570,14 @@ class _HomeScopeDateControl extends StatelessWidget {
         scopeOptions.any((option) => option.value == selectedScope)
         ? selectedScope
         : null;
+    // Keep the anchored menu inside the viewport. The desktop design uses a
+    // 720px surface, but that width must yield on compact desktop/mobile
+    // viewports instead of allowing the combobox/date fields to overflow.
+    final viewportWidth = MediaQuery.sizeOf(context).width;
+    final menuWidth = math.min(720.0, math.max(0.0, viewportWidth - 32));
+    final menuContentWidth = math.max(0.0, menuWidth - 32);
+    final scopeFieldWidth = math.min(320.0, menuContentWidth);
+    final dateFieldWidth = math.min(360.0, menuContentWidth);
     return MenuAnchor(
       style: const MenuStyle(
         padding: WidgetStatePropertyAll(EdgeInsets.zero),
@@ -582,7 +590,8 @@ class _HomeScopeDateControl extends StatelessWidget {
         Material(
           color: AppColors.raisedOf(context),
           child: SizedBox(
-            width: 720,
+            key: const Key('home-summary-scope-menu'),
+            width: menuWidth,
             child: Padding(
               padding: const EdgeInsets.all(16),
               child: Wrap(
@@ -591,7 +600,7 @@ class _HomeScopeDateControl extends StatelessWidget {
                 crossAxisAlignment: WrapCrossAlignment.end,
                 children: [
                   SizedBox(
-                    width: 320,
+                    width: scopeFieldWidth,
                     child: AppCombobox<String>.single(
                       key: const Key('home-summary-scope-combobox'),
                       label: 'Phạm vi',
@@ -626,7 +635,7 @@ class _HomeScopeDateControl extends StatelessWidget {
                     ),
                   ),
                   SizedBox(
-                    width: 360,
+                    width: dateFieldWidth,
                     child: AppDateRangeDropdown(
                       label: 'Ngày',
                       start: selectedStartDate,
@@ -2370,12 +2379,13 @@ class ReportProgressPanel extends StatelessWidget {
       builder: (context, constraints) {
         final compact =
             constraints.maxWidth < AppLayoutTokens.compactBreakpoint;
-        // Figma 1819:16547 reserves a 896px inner analytics grid: two 440px
-        // cards with a 16px gutter. Do not stretch charts across wide desktop
-        // dashboard whitespace.
-        final boardWidth = compact
+        // The responsive Home frames use the full content width at each
+        // desktop breakpoint (896px at 1024, 982px at 1280, 1180px at
+        // 1920). Keep the 16px gutter and let each chart card grow with the
+        // available viewport instead of freezing the 896px specimen width.
+        final boardWidth = constraints.maxWidth.isFinite
             ? constraints.maxWidth
-            : math.min(constraints.maxWidth, 896.0);
+            : AppLayoutTokens.contentMaxWidth;
         final columns = boardWidth >= 760 ? 2 : 1;
         final gap = 16.0;
         final width = (boardWidth - gap * (columns - 1)) / columns;
