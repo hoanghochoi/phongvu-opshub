@@ -230,26 +230,12 @@ class _SummarySectionHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        DecoratedBox(
-          decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.10),
-            borderRadius: AppRadius.allSm,
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(7),
-            child: Icon(icon, size: 18, color: color),
-          ),
-        ),
-        const SizedBox(width: 10),
-        Text(
-          title,
-          style: AppTextStyles.headingS.copyWith(
-            color: AppColors.textPrimaryOf(context),
-          ),
-        ),
-      ],
+    return Text(
+      title,
+      style: AppTextStyles.headingS.copyWith(
+        color: AppColors.textPrimaryOf(context),
+        fontWeight: FontWeight.w600,
+      ),
     );
   }
 }
@@ -265,7 +251,7 @@ class _SummarySubsectionHeader extends StatelessWidget {
       title,
       style: AppTextStyles.labelM.copyWith(
         color: AppColors.textSecondaryOf(context),
-        fontWeight: FontWeight.w800,
+        fontWeight: FontWeight.w600,
       ),
     );
   }
@@ -472,7 +458,9 @@ class _HomeSummaryAvatar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final trimmed = name?.trim() ?? '';
-    final initial = trimmed.isEmpty ? '?' : trimmed.characters.first.toUpperCase();
+    final initial = trimmed.isEmpty
+        ? '?'
+        : trimmed.characters.first.toUpperCase();
     return Semantics(
       label: 'Tài khoản $trimmed',
       child: DecoratedBox(
@@ -1040,8 +1028,8 @@ class _SummaryMetricGrid extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final width = constraints.maxWidth;
-        final maxColumns = width >= 1040
-            ? math.min(7, cards.length)
+        final maxColumns = width >= 960
+            ? math.min(6, cards.length)
             : width >= 760
             ? math.min(3, cards.length)
             : math.min(2, cards.length);
@@ -1063,7 +1051,7 @@ class _SummaryMetricGrid extends StatelessWidget {
                     if (columnIndex > 0) SizedBox(width: gap),
                     Expanded(
                       child: SizedBox(
-                        height: width >= 620 ? 130 : 146,
+                        height: width >= 600 ? 104 : 120,
                         child: rows[rowIndex][columnIndex],
                       ),
                     ),
@@ -1082,19 +1070,12 @@ class _SummaryMetricGrid extends StatelessWidget {
     int maxColumns,
   ) {
     final columns = math.max(1, math.min(maxColumns, cards.length));
-    final rowCount = (cards.length / columns).ceil();
-    final baseCount = cards.length ~/ rowCount;
-    final extraCount = cards.length % rowCount;
-    var index = 0;
-
     return [
-      for (var rowIndex = 0; rowIndex < rowCount; rowIndex++)
-        () {
-          final rowSize = baseCount + (rowIndex < extraCount ? 1 : 0);
-          final row = cards.sublist(index, index + rowSize);
-          index += rowSize;
-          return row;
-        }(),
+      for (var start = 0; start < cards.length; start += columns)
+        cards.sublist(
+          math.min(start, cards.length),
+          math.min(start + columns, cards.length),
+        ),
     ];
   }
 }
@@ -1123,7 +1104,6 @@ class SummaryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final trendColor = trend.color;
     final lowerText = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1132,80 +1112,44 @@ class SummaryCard extends StatelessWidget {
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: AppTextStyles.headingM.copyWith(
-            color: AppColors.textPrimaryOf(context),
+            color: color,
+            fontWeight: FontWeight.w600,
           ),
         ),
-        const SizedBox(height: 8),
-        Row(
-          children: [
-            Icon(trend.icon, size: 15, color: trendColor),
-            const SizedBox(width: 5),
-            Flexible(
-              child: Text(
-                trend.label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: AppTextStyles.captionBold.copyWith(color: trendColor),
-              ),
-            ),
-          ],
+        const SizedBox(height: 4),
+        Text(
+          trend.label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: AppTextStyles.labelS.copyWith(
+            color: AppColors.textMutedOf(context),
+            fontWeight: FontWeight.w500,
+          ),
         ),
       ],
     );
     return AppSurfaceCard(
       key: Key('home-summary-card-$metricKey'),
-      borderColor: color.withValues(alpha: 0.20),
-      backgroundColor: color.withValues(alpha: 0.04),
-      padding: const EdgeInsets.all(14),
+      borderColor: AppColors.borderOf(context),
+      backgroundColor: AppColors.raisedOf(context),
+      padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              DecoratedBox(
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(
-                    AppLayoutTokens.cardRadius,
-                  ),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(8),
-                  child: Icon(icon, color: color, size: 20),
-                ),
+          _SummaryCardTextAction(
+            key: Key('home-summary-card-$metricKey-title-action'),
+            onTap: onTextTap,
+            tooltip: textTapTooltip,
+            child: Text(
+              title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: AppTextStyles.bodyS.copyWith(
+                color: AppColors.textSecondaryOf(context),
+                fontWeight: FontWeight.w600,
+                height: 16 / 13,
               ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: _SummaryCardTextAction(
-                  key: Key('home-summary-card-$metricKey-title-action'),
-                  onTap: onTextTap,
-                  tooltip: textTapTooltip,
-                  child: Text(
-                    title,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: AppTextStyles.labelM.copyWith(
-                      color: AppColors.textPrimaryOf(context),
-                    ),
-                  ),
-                ),
-              ),
-              if (onTextTap != null) ...[
-                const SizedBox(width: 4),
-                _SummaryCardTextAction(
-                  key: Key('home-summary-card-$metricKey-detail-action'),
-                  onTap: onTextTap,
-                  tooltip: textTapTooltip,
-                  child: Icon(
-                    Icons.open_in_new_rounded,
-                    key: Key('home-summary-card-$metricKey-detail-icon'),
-                    size: 15,
-                    color: AppColors.textMutedOf(context),
-                  ),
-                ),
-              ],
-            ],
+            ),
           ),
           const Spacer(),
           _SummaryCardTextAction(

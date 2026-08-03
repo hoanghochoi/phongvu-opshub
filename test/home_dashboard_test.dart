@@ -621,12 +621,6 @@ void main() {
         findsOneWidget,
       );
       expect(
-        find.byKey(
-          const Key('home-summary-card-notPurchasedReports-detail-icon'),
-        ),
-        findsOneWidget,
-      );
-      expect(
         find.byKey(const Key('home-summary-card-unreportedOrders')),
         findsOneWidget,
       );
@@ -847,20 +841,6 @@ void main() {
               .getTopLeft(find.byKey(const Key('home-sales-section-header')))
               .dy,
         ),
-      );
-      expect(
-        find.descendant(
-          of: find.byKey(const Key('home-summary-card-conversionRate')),
-          matching: find.byIcon(Icons.swap_horiz_rounded),
-        ),
-        findsOneWidget,
-      );
-      expect(
-        find.descendant(
-          of: find.byKey(const Key('home-summary-card-statementOrderRate')),
-          matching: find.byIcon(Icons.percent_rounded),
-        ),
-        findsOneWidget,
       );
       expect(find.byKey(const Key('home-operations-shortcut')), findsNothing);
       expect(find.text('Công cụ nhanh'), findsNothing);
@@ -1453,7 +1433,7 @@ void main() {
     expect(conversionRate.dx, greaterThan(pendingRevenue.dx));
   });
 
-  testWidgets('Home main KPI grid uses at most seven desktop columns', (
+  testWidgets('Home main KPI grid uses six Figma desktop columns', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(1280, 800);
@@ -1536,13 +1516,12 @@ void main() {
             find.byKey(const Key('home-summary-card-businessCustomerRevenue')),
           )
           .width,
-      closeTo(161, 1),
+      closeTo(190, 1),
     );
-    expect(insurance.dy, business.dy);
-    expect(insurance.dx, greaterThan(business.dx));
-    expect(laptop.dy, greaterThan(business.dy));
-    expect(accessories.dy, laptop.dy);
-    expect(accessories.dx, greaterThan(laptop.dx));
+    expect(insurance.dy, greaterThan(business.dy));
+    expect(laptop.dy, insurance.dy);
+    expect(laptop.dx, greaterThan(insurance.dx));
+    expect(accessories.dy, greaterThan(laptop.dy));
   });
 
   testWidgets('Home KPI grid keeps two columns on narrow mobile width', (
