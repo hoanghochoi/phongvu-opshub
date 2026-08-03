@@ -183,6 +183,8 @@ class _AppShellState extends State<AppShell> {
                   version: _version,
                   onNavigate: _navigate,
                   onSupport: () => _openSupport(context),
+                  onRefresh: () =>
+                      unawaited(context.read<AuthProvider>().refreshUserData()),
                   onLogout: () => _logout(context),
                   onAppInfo: () => _showAppInfoDialog(context),
                   child: widget.child,
@@ -581,6 +583,7 @@ class _WideShell extends StatelessWidget {
   final String version;
   final ValueChanged<AppNavDestination> onNavigate;
   final VoidCallback onSupport;
+  final VoidCallback onRefresh;
   final VoidCallback onLogout;
   final VoidCallback onAppInfo;
   final Widget child;
@@ -594,6 +597,7 @@ class _WideShell extends StatelessWidget {
     required this.version,
     required this.onNavigate,
     required this.onSupport,
+    required this.onRefresh,
     required this.onLogout,
     required this.onAppInfo,
     required this.child,
@@ -628,6 +632,7 @@ class _WideShell extends StatelessWidget {
                   user: user,
                   showAccountDetails: isDesktop,
                   onSupport: onSupport,
+                  onRefresh: onRefresh,
                   onLogout: onLogout,
                   onAppInfo: onAppInfo,
                 ),
@@ -1378,6 +1383,7 @@ class _ShellTopBar extends StatelessWidget {
   final User? user;
   final bool showAccountDetails;
   final VoidCallback onSupport;
+  final VoidCallback onRefresh;
   final VoidCallback onLogout;
   final VoidCallback onAppInfo;
 
@@ -1387,6 +1393,7 @@ class _ShellTopBar extends StatelessWidget {
     required this.user,
     required this.showAccountDetails,
     required this.onSupport,
+    required this.onRefresh,
     required this.onLogout,
     required this.onAppInfo,
   });
@@ -1394,6 +1401,7 @@ class _ShellTopBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final header = _shellHeaderFor(location, activeDestination);
+    final figmaOperationsTarget = location == '/operations';
     return Container(
       height: AppLayoutTokens.shellTopBarHeight,
       decoration: BoxDecoration(
@@ -1411,29 +1419,33 @@ class _ShellTopBar extends StatelessWidget {
           return Row(
             children: [
               Expanded(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      header.title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: AppTextStyles.headingS.copyWith(
-                        color: AppColors.textPrimaryOf(context),
+                child: figmaOperationsTarget
+                    ? Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          _ShellTitleText(title: header.title),
+                          const SizedBox(width: 12),
+                          _ResponsiveViewportBadge(
+                            width: MediaQuery.sizeOf(context).width,
+                          ),
+                        ],
+                      )
+                    : Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _ShellTitleText(title: header.title),
+                          const SizedBox(height: 2),
+                          Text(
+                            header.description,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppTextStyles.bodyS.copyWith(
+                              color: AppColors.textMutedOf(context),
+                            ),
+                          ),
+                        ],
                       ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      header.description,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: AppTextStyles.bodyS.copyWith(
-                        color: AppColors.textMutedOf(context),
-                      ),
-                    ),
-                  ],
-                ),
               ),
               _ShellTopBarAction(
                 tooltip: 'Hỗ trợ',
@@ -1452,9 +1464,71 @@ class _ShellTopBar extends StatelessWidget {
                 onLogout: onLogout,
                 onAppInfo: onAppInfo,
               ),
+              if (figmaOperationsTarget) ...[
+                const SizedBox(width: 12),
+                SizedBox(
+                  width: 132,
+                  height: 40,
+                  child: FilledButton(
+                    onPressed: onRefresh,
+                    style: FilledButton.styleFrom(
+                      backgroundColor: AppColors.primary500,
+                      foregroundColor: AppColors.surface,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      textStyle: AppTextStyles.labelM,
+                    ),
+                    child: const Text('Làm mới'),
+                  ),
+                ),
+              ],
             ],
           );
         },
+      ),
+    );
+  }
+}
+
+class _ResponsiveViewportBadge extends StatelessWidget {
+  final double width;
+
+  const _ResponsiveViewportBadge({required this.width});
+
+  @override
+  Widget build(BuildContext context) {
+    final label = width >= 1200 ? 'Web · ${width.round()} px' : 'Web · 1024 px';
+    return Container(
+      height: 28,
+      padding: const EdgeInsets.symmetric(horizontal: 10),
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: AppColors.primary50,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Text(
+        label,
+        style: AppTextStyles.caption.copyWith(color: AppColors.primary500),
+      ),
+    );
+  }
+}
+
+class _ShellTitleText extends StatelessWidget {
+  final String title;
+
+  const _ShellTitleText({required this.title});
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      title,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: AppTextStyles.headingS.copyWith(
+        color: AppColors.textPrimaryOf(context),
+        fontWeight: FontWeight.w600,
       ),
     );
   }
