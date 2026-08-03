@@ -8,6 +8,7 @@ import '../../../../app/navigation/app_nav_model.dart';
 import '../../../../app/widgets/app_feature_grid.dart';
 import '../../../../app/widgets/app_layout.dart';
 import '../../../../app/widgets/app_state_widgets.dart';
+import '../../../../app/theme/app_colors.dart';
 import '../../../../core/logging/app_logger.dart';
 import '../../../auth/domain/entities/user.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
@@ -33,7 +34,12 @@ class _OperationsScreenState extends State<OperationsScreen> {
 
     _logOperationsResolved(visibleCount, sections.length, user);
 
+    final viewportWidth = MediaQuery.sizeOf(context).width;
+    final pagePadding = viewportWidth >= AppLayoutTokens.tabletBreakpoint
+        ? const EdgeInsets.all(32)
+        : const EdgeInsets.all(16);
     return AppResponsiveScrollView(
+      padding: pagePadding,
       onRefresh: context.read<AuthProvider>().refreshUserData,
       refreshLogSource: 'Operations',
       refreshLogContext: () => {
@@ -57,8 +63,7 @@ class _OperationsScreenState extends State<OperationsScreen> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 for (var index = 0; index < sections.length; index++) ...[
-                  if (index > 0)
-                    const SizedBox(height: AppLayoutTokens.sectionGap),
+                  if (index > 0) const SizedBox(height: 20),
                   AppFeatureSection(
                     key: ValueKey(
                       'operations-section-${sections[index].group.name}',
@@ -88,7 +93,9 @@ class _OperationsScreenState extends State<OperationsScreen> {
                 icon: destination.icon,
                 title: destination.label,
                 description: destination.description,
-                color: destination.color,
+                color: AppColors.primary500,
+                iconColor: AppColors.primary500,
+                iconBackground: AppColors.infoSurface,
                 onTap: () => context.go(destination.route),
               ),
           ],

@@ -26,6 +26,13 @@ void main() {
       tester.getSize(find.byType(AppFeatureTile).first).width,
       closeTo(364.67, 0.01),
     );
+
+    tester.view.physicalSize = const Size(1024, 900);
+    await tester.pumpWidget(_fixture(contentWidth: 872));
+    expect(
+      tester.getSize(find.byType(AppFeatureTile).first),
+      const Size(430, 96),
+    );
   });
 }
 

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../theme/app_radius.dart';
+import '../theme/app_colors.dart';
 import '../theme/app_text_styles.dart';
 import 'app_layout.dart';
 
@@ -9,6 +10,8 @@ class AppFeatureAction {
   final String title;
   final String description;
   final Color color;
+  final Color? iconColor;
+  final Color? iconBackground;
   final VoidCallback? onTap;
 
   const AppFeatureAction({
@@ -16,6 +19,8 @@ class AppFeatureAction {
     required this.title,
     required this.description,
     required this.color,
+    this.iconColor,
+    this.iconBackground,
     required this.onTap,
   });
 }
@@ -70,11 +75,20 @@ class AppFeatureGrid extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final width = constraints.maxWidth;
-        final crossAxisCount = width >= AppLayoutTokens.tabletBreakpoint
+        final viewportWidth = MediaQuery.sizeOf(context).width;
+        // Operations Figma frames use fixed 3-column desktop cards, a fixed
+        // 2-column medium canvas (even for a single-card row), and one column
+        // only below the compact breakpoint.
+        final crossAxisCount = viewportWidth >= AppLayoutTokens.desktopBreakpoint
             ? 3
+            : viewportWidth >= AppLayoutTokens.tabletBreakpoint
+            ? 2
             : 1;
-        final spacing = width >= AppLayoutTokens.tabletBreakpoint ? 16.0 : 12.0;
+        final spacing = viewportWidth >= AppLayoutTokens.desktopBreakpoint
+            ? 16.0
+            : viewportWidth >= AppLayoutTokens.tabletBreakpoint
+            ? (actions.length >= 3 ? 16.0 : 12.0)
+            : 12.0;
         const tileHeight = 96.0;
 
         return GridView.builder(
@@ -128,10 +142,14 @@ class AppFeatureTile extends StatelessWidget {
                   width: 44,
                   height: 44,
                   decoration: BoxDecoration(
-                    color: action.color.withValues(alpha: 0.11),
+                    color: action.iconBackground ?? AppColors.infoSurface,
                     borderRadius: AppRadius.allMd,
                   ),
-                  child: Icon(action.icon, color: action.color, size: 24),
+                  child: Icon(
+                    action.icon,
+                    color: action.iconColor ?? action.color,
+                    size: 24,
+                  ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -150,8 +168,8 @@ class AppFeatureTile extends StatelessWidget {
                       const SizedBox(height: 2),
                       Text(
                         action.description,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                        maxLines: 2,
+                        overflow: TextOverflow.clip,
                         style: AppTextStyles.bodyS.copyWith(
                           color: Theme.of(context).colorScheme.onSurfaceVariant,
                           height: 18 / 13,
@@ -164,7 +182,7 @@ class AppFeatureTile extends StatelessWidget {
                 Icon(
                   Icons.chevron_right_rounded,
                   size: 20,
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  color: AppColors.primary500,
                 ),
               ],
             ),

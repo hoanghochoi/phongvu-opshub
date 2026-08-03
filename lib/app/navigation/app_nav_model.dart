@@ -131,7 +131,7 @@ class AppNavModel {
     AppNavDestination(
       id: 'contractAppendix',
       label: 'Phụ lục hợp đồng',
-      description: 'Tạo và sao chép bảng hàng hóa hợp đồng',
+      description: 'Tạo bảng hàng hóa hợp đồng',
       route: '/contract-appendix',
       icon: PhosphorIconsRegular.notepad,
       color: AppColors.indigo600,
@@ -140,7 +140,7 @@ class AppNavModel {
     AppNavDestination(
       id: 'notPurchasedCustomers',
       label: 'Chăm sóc lại',
-      description: 'Theo dõi và chăm sóc lại khách hàng',
+      description: 'Theo dõi khách hàng cần chăm sóc',
       route: '/sales-reports/follow-up-cases',
       icon: PhosphorIconsRegular.headset,
       color: AppColors.warning,
