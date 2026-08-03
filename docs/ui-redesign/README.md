@@ -46,6 +46,23 @@ và tạo quyết định/acceptance criteria trước khi implement.
   song song trong feature.
 - No approved Figma frame means no **visual redesign implementation**.
 
+## Delivery gate bắt buộc cho mọi UI mutation
+
+Mỗi thay đổi visual/interaction phải đi đúng thứ tự dưới đây. Đây là điều kiện
+để tiếp tục, không phải checklist có thể bù sau:
+
+1. Retrieve exact approved Figma node/revision cho mọi viewport và state bị ảnh hưởng.
+2. Ghi node map: Figma node → shared Flutter widget → token → geometry →
+   typography/copy/icon → responsive constraint → behavior cần giữ.
+3. Implement chỉ từ node map; thêm widget/golden geometry proof bám map đó.
+4. Build source SHA đã test, deploy `staging`.
+5. Mở app đã authenticated trong Chrome, chụp và so trực tiếp từng viewport với
+   đúng node/revision; sửa mọi drift chưa được duyệt rồi lặp lại từ proof bị ảnh hưởng.
+
+Không được dùng UI/code/screenshot cũ để điền khoảng trống visual ở bất kỳ bước
+nào. Code cũ chỉ dùng để bảo vệ behavior; thiếu node, state hoặc viewport là
+blocker phải cập nhật Figma + Linear và chờ approval.
+
 ## Tài liệu
 
 | Tài liệu | Mục đích |

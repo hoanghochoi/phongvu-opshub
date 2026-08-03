@@ -102,6 +102,10 @@ until the replacement has affected-consumer proof.
 - [x] Run local staging web release build and full Flutter regression
       checkpoint; remote staging deploy, Chrome audit and platform proof remain
       pending protected release gates.
+- [x] Harden the redesign workflow into a strict, evidenced Figma-first gate:
+      exact node/revision → complete node map → geometry proof → exact-SHA
+      build → staging deploy → authenticated Chrome comparison. Legacy UI is
+      behavior-only and cannot supply a visual decision or fallback.
 - [ ] Retire remaining legacy visual consumers after remote staging/Chrome and
       primary-platform proof confirms no active consumer needs the compatibility
       layer.
@@ -124,6 +128,10 @@ until the replacement has affected-consumer proof.
   permission/provider-gated metrics chip creates no route, permission or
   business-behavior change. Web specimen `1792:16338` now shows these three
   retained desktop actions directly beside the route-specific topbar action.
+- 2026-08-03: Every UI mutation, including a responsive or single-control fix,
+  must use the strict Figma-first evidence chain. A visual remediation stales
+  every downstream proof; no legacy layout, token, typography, icon, copy,
+  screenshot or responsive behavior may fill an absent Figma node.
 
 ## Validation
 
