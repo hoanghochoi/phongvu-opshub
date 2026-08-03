@@ -20,6 +20,7 @@ import 'package:phongvu_opshub/features/offset_adjustment/data/offset_adjustment
 import 'package:phongvu_opshub/features/offset_adjustment/domain/offset_adjustment.dart';
 import 'package:phongvu_opshub/features/quick_actions/data/quick_actions_repository.dart';
 import 'package:phongvu_opshub/features/quick_actions/presentation/quick_actions_provider.dart';
+import 'package:phongvu_opshub/features/support_chat/presentation/support_chat_surface.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -597,6 +598,7 @@ void main() {
 
     expect(find.text('Thông báo'), findsOneWidget);
     expect(find.byType(AppNotificationsBell), findsNothing);
+    expect(find.byType(SupportChatBubble), findsNothing);
     expect(notificationsProvider.loadCalls, 0);
     expect(notificationsProvider.markReadCalls, 0);
     expect(tester.takeException(), isNull);
@@ -634,12 +636,15 @@ void main() {
     expect(find.byType(AppNotificationsBell), findsOneWidget);
     expect(find.byTooltip('Hỗ trợ'), findsOneWidget);
     expect(find.byTooltip('Tài khoản'), findsOneWidget);
+    expect(find.text('Hỗ trợ'), findsOneWidget);
+    expect(find.text('Thông báo'), findsOneWidget);
+    expect(find.text('Tài khoản'), findsOneWidget);
 
     await tester.tap(find.byTooltip('Tài khoản'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Thông báo'), findsNothing);
-    expect(find.text('Hỗ trợ'), findsNothing);
+    expect(find.text('Thông báo'), findsOneWidget);
+    expect(find.text('Hỗ trợ'), findsOneWidget);
     expect(notificationsProvider.loadCalls, 0);
     expect(notificationsProvider.markReadCalls, 0);
     expect(tester.takeException(), isNull);
@@ -754,7 +759,7 @@ void main() {
 
     await tester.pumpWidget(buildShell('/admin/support-chats'));
     await tester.pumpAndSettle();
-    expect(find.text('Hỗ trợ'), findsOneWidget);
+    expect(find.text('Hỗ trợ'), findsNWidgets(2));
     expect(find.text('Quản lý hội thoại khách hàng'), findsOneWidget);
 
     await tester.pumpWidget(buildShell('/admin/api-connections'));

@@ -196,7 +196,8 @@ class _AppShellState extends State<AppShell> {
                   onSupport: () => _openSupport(context),
                   child: widget.child,
                 ),
-          if (widget.location != '/admin/support-chats' &&
+          if (width >= AppLayoutTokens.tabletBreakpoint &&
+              widget.location != '/admin/support-chats' &&
               (supportChat?.enabled == true ||
                   (!kIsWeb &&
                       defaultTargetPlatform == TargetPlatform.windows &&
@@ -1392,17 +1393,19 @@ class _ShellTopBar extends StatelessWidget {
               ],
             ),
           ),
-          IconButton(
+          _ShellTopBarAction(
             tooltip: 'Hỗ trợ',
+            label: 'Hỗ trợ',
+            icon: Icons.support_agent_rounded,
             onPressed: onSupport,
-            icon: const Icon(Icons.support_agent_rounded),
           ),
           const _ShellMetricsPill(),
-          const AppNotificationsBell(),
+          const AppNotificationsBell(showLabel: true),
           const SizedBox(width: 8),
           _AccountMenuButton(
             user: user,
             showDetails: showAccountDetails,
+            showLabel: true,
             onLogout: onLogout,
             onAppInfo: onAppInfo,
           ),
@@ -1437,12 +1440,14 @@ class _AccountMenuButton extends StatelessWidget {
 
   final User? user;
   final bool showDetails;
+  final bool showLabel;
   final VoidCallback onLogout;
   final VoidCallback onAppInfo;
 
   const _AccountMenuButton({
     required this.user,
     required this.showDetails,
+    this.showLabel = false,
     required this.onLogout,
     required this.onAppInfo,
   });
@@ -1502,51 +1507,87 @@ class _AccountMenuButton extends StatelessWidget {
           ),
         ),
       ],
-      child: showDetails
-          ? ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 230),
+      child: showLabel
+          ? Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const _ShellTopBarAction(
+                  tooltip: 'Tài khoản',
+                  label: 'Tài khoản',
+                  icon: Icons.account_circle_outlined,
+                  onPressed: null,
+                  showTooltip: false,
+                ),
+                if (showDetails) ...[
+                  const SizedBox(width: 8),
+                  _accountIdentity(
+                    context,
+                    cleanName: cleanName,
+                    srLabel: srLabel,
+                    initials: initials,
+                  ),
+                ],
+              ],
+            )
+          : showDetails
+          ? _accountIdentity(
+              context,
+              cleanName: cleanName,
+              srLabel: srLabel,
+              initials: initials,
+            )
+          : _AccountAvatar(initials: initials, size: _avatarSize),
+    );
+  }
+
+  Widget _accountIdentity(
+    BuildContext context, {
+    required String cleanName,
+    required String srLabel,
+    required String initials,
+  }) {
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 230),
+      child: SizedBox(
+        height: _avatarSize,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _AccountAvatar(initials: initials, size: _avatarSize),
+            const SizedBox(width: 10),
+            Flexible(
               child: SizedBox(
                 height: _avatarSize,
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _AccountAvatar(initials: initials, size: _avatarSize),
-                    const SizedBox(width: 10),
-                    Flexible(
-                      child: SizedBox(
-                        height: _avatarSize,
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              cleanName,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: AppTextStyles.labelS.copyWith(
-                                color: AppColors.textPrimaryOf(context),
-                                height: 1.12,
-                              ),
-                            ),
-                            const SizedBox(height: 3),
-                            Text(
-                              srLabel,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: AppTextStyles.caption.copyWith(
-                                color: AppColors.textMutedOf(context),
-                                height: 1.10,
-                              ),
-                            ),
-                          ],
-                        ),
+                    Text(
+                      cleanName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTextStyles.labelS.copyWith(
+                        color: AppColors.textPrimaryOf(context),
+                        height: 1.12,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      srLabel,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTextStyles.caption.copyWith(
+                        color: AppColors.textMutedOf(context),
+                        height: 1.10,
                       ),
                     ),
                   ],
                 ),
               ),
-            )
-          : _AccountAvatar(initials: initials, size: _avatarSize),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -1556,6 +1597,51 @@ class _AccountMenuButton extends StatelessWidget {
     final email = user?.email.trim();
     if (email?.isNotEmpty == true) return email!;
     return 'Tài khoản';
+  }
+}
+
+class _ShellTopBarAction extends StatelessWidget {
+  final String tooltip;
+  final String label;
+  final IconData icon;
+  final VoidCallback? onPressed;
+  final bool showTooltip;
+
+  const _ShellTopBarAction({
+    required this.tooltip,
+    required this.label,
+    required this.icon,
+    required this.onPressed,
+    this.showTooltip = true,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final action = Material(
+      color: AppColors.canvasOf(context),
+      borderRadius: AppRadius.allSm,
+      child: InkWell(
+        onTap: onPressed,
+        borderRadius: AppRadius.allSm,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 18, color: AppColors.textPrimaryOf(context)),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: AppTextStyles.labelS.copyWith(
+                  color: AppColors.textPrimaryOf(context),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    return showTooltip ? Tooltip(message: tooltip, child: action) : action;
   }
 }
 
