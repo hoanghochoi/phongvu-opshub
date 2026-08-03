@@ -578,13 +578,30 @@ class _HomeScopeDateControl extends StatelessWidget {
     final menuContentWidth = math.max(0.0, menuWidth - 32);
     final scopeFieldWidth = math.min(320.0, menuContentWidth);
     final dateFieldWidth = math.min(360.0, menuContentWidth);
+    final menuAnchorKey = GlobalKey();
+
+    void openMenu(MenuController controller) {
+      if (controller.isOpen) return;
+      final anchorRenderObject = menuAnchorKey.currentContext
+          ?.findRenderObject();
+      final anchorBox = anchorRenderObject is RenderBox
+          ? anchorRenderObject
+          : null;
+      final anchorLeft = anchorBox?.localToGlobal(Offset.zero).dx ?? 0;
+      final anchorHeight = anchorBox?.size.height ?? 0;
+      final maxLeft = math.max(16.0, viewportWidth - menuWidth - 16);
+      final menuLeft = anchorLeft.clamp(16.0, maxLeft).toDouble();
+      controller.open(position: Offset(menuLeft - anchorLeft, anchorHeight));
+    }
+
     return MenuAnchor(
+      key: menuAnchorKey,
       style: const MenuStyle(
         padding: WidgetStatePropertyAll(EdgeInsets.zero),
         elevation: WidgetStatePropertyAll(2),
       ),
       builder: (context, controller, _) => builder(context, () {
-        if (!controller.isOpen) controller.open();
+        openMenu(controller);
       }),
       menuChildren: [
         Material(
