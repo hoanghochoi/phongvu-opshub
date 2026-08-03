@@ -36,6 +36,15 @@ void main() {
 
     expect(find.byKey(const Key('offset-adjustment-header')), findsNothing);
     expect(
+      find.byKey(const Key('offset-adjustment-workspace-header')),
+      findsOneWidget,
+    );
+    expect(find.text('Hồ sơ cấn trừ'), findsOneWidget);
+    expect(
+      find.text('Tạo và theo dõi hồ sơ cấn trừ theo quyền hiện tại.'),
+      findsOneWidget,
+    );
+    expect(
       find.byKey(const Key('offset-adjustment-filter-card')),
       findsOneWidget,
     );
@@ -74,6 +83,10 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('offset-adjustment-header')), findsNothing);
+    expect(
+      find.byKey(const Key('offset-adjustment-workspace-header')),
+      findsOneWidget,
+    );
     expect(
       find.byKey(const Key('offset-adjustment-filter-card')),
       findsOneWidget,

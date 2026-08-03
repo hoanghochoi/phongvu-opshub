@@ -120,6 +120,8 @@ class _SortScreenState extends State<SortScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              const _SortWorkspaceHeader(),
+              const SizedBox(height: 16),
               _SortCommandCard(
                 controller: _controller,
                 focusNode: _focusNode,
@@ -127,12 +129,32 @@ class _SortScreenState extends State<SortScreen> {
                 onScan: _scanBarcode,
                 onSubmit: _sendSortRequest,
               ),
-              const SizedBox(height: AppLayoutTokens.sectionGap),
+              const SizedBox(height: 16),
               Expanded(child: _SortResultPanel(provider: provider)),
             ],
           ),
         );
       },
+    );
+  }
+}
+
+class _SortWorkspaceHeader extends StatelessWidget {
+  const _SortWorkspaceHeader();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Column(
+      key: Key('sort-fifo-workspace-header'),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Sắp xếp FIFO', style: AppTextStyles.headingM),
+        SizedBox(height: 4),
+        Text(
+          'Tìm vị trí hàng hóa theo SKU hoặc BIN.',
+          style: AppTextStyles.bodyS,
+        ),
+      ],
     );
   }
 }

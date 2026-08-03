@@ -307,7 +307,7 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
     return Form(
       key: _formKey,
       child: AppResponsiveScrollView(
-        maxWidth: AppLayoutTokens.formMaxWidth,
+        maxWidth: AppLayoutTokens.contentMaxWidth,
         keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
         onRefresh: AppRefreshCallbacks.noop,
         refreshLogSource: 'Feedback',
@@ -318,7 +318,7 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
           'isSubmitting': _isSubmitting,
         },
         child: AppFormColumn(
-          spacing: AppLayoutTokens.sectionGap,
+          spacing: 16,
           children: [
             _FeedbackHeader(
               imageCount: _images.length,
@@ -356,83 +356,44 @@ class _FeedbackHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AppSurfaceCard(
+    return Column(
       key: const Key('feedback-header'),
-      backgroundColor: AppColors.infoSurface,
-      borderColor: AppColors.info.withValues(alpha: 0.22),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final isCompact =
-              constraints.maxWidth < AppLayoutTokens.compactBreakpoint;
-          final icon = Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: AppColors.info.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Chia sẻ phản hồi', style: AppTextStyles.headingS),
+        const SizedBox(height: 8),
+        Text(
+          'Chia sẻ đề xuất, điểm chưa thuận tiện hoặc lỗi bạn gặp '
+          'trong lúc làm việc.',
+          style: AppTextStyles.bodyS.copyWith(
+            color: AppColors.textSecondaryOf(context),
+          ),
+        ),
+        const SizedBox(height: 12),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            AppStatusChip(
+              label: isSubmitting ? 'Đang gửi' : 'Sẵn sàng gửi',
+              color: isSubmitting ? AppColors.warning : AppColors.info,
+              backgroundColor: AppColors.infoSurface,
             ),
-            child: const Icon(
-              Icons.lightbulb_outline_rounded,
+            AppStatusChip(
+              label: '$imageCount/$maxImages ảnh',
+              color: imageCount >= maxImages
+                  ? AppColors.warning
+                  : AppColors.info,
+              backgroundColor: AppColors.infoSurface,
+            ),
+            const AppStatusChip(
+              label: 'Tối đa 20 ảnh',
               color: AppColors.info,
+              backgroundColor: AppColors.infoSurface,
             ),
-          );
-          final heading = Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Chia sẻ phản hồi', style: AppTextStyles.headingS),
-              const SizedBox(height: 4),
-              Text(
-                'Chia sẻ đề xuất, điểm chưa thuận tiện hoặc lỗi bạn gặp '
-                'trong lúc làm việc.',
-                style: AppTextStyles.bodyS.copyWith(
-                  color: AppColors.neutral600,
-                  height: 1.35,
-                ),
-              ),
-              const SizedBox(height: 10),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  AppStatusChip(
-                    label: isSubmitting ? 'Đang gửi' : 'Sẵn sàng gửi',
-                    color: isSubmitting ? AppColors.warning : AppColors.info,
-                    backgroundColor: AppColors.surface,
-                  ),
-                  AppStatusChip(
-                    label: '$imageCount/$maxImages ảnh',
-                    color: imageCount >= maxImages
-                        ? AppColors.warning
-                        : AppColors.neutral700,
-                    backgroundColor: AppColors.surface,
-                  ),
-                  const AppStatusChip(
-                    label: 'Tối đa 20 ảnh',
-                    color: AppColors.neutral700,
-                    backgroundColor: AppColors.surface,
-                  ),
-                ],
-              ),
-            ],
-          );
-
-          if (isCompact) {
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [icon, const SizedBox(height: 10), heading],
-            );
-          }
-
-          return Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              icon,
-              const SizedBox(width: AppLayoutTokens.formInlineGap),
-              Expanded(child: heading),
-            ],
-          );
-        },
-      ),
+          ],
+        ),
+      ],
     );
   }
 }
@@ -516,6 +477,7 @@ class _FeedbackFormCard extends StatelessWidget {
             label: 'Gửi góp ý',
             isLoading: isSubmitting,
             loadingLabel: 'Đang gửi...',
+            size: AppButtonSize.medium,
           ),
         ],
       ),

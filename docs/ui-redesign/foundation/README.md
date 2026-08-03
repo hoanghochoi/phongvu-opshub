@@ -87,6 +87,16 @@ snapshot với SHA-256
 Ledger giữ taxonomy 28 page và các reference trước cleanup, nên không được dùng
 để audit hoặc ghi đè live file hiện do OPS-34 sở hữu.
 
+## OPS-44 live handoff addendum (2026-08-03)
+
+Read-only audit of live Figma file `mFzSmQzlapSe3RSmUhvzll` found eight pages:
+Cover, Foundation and six platform screen pages. The current router has 45
+`path:` declarations and 43 canonical visual owners. `/reports` redirects to
+`/sales-reports`; `/fifo/inventory-import` and `/admin/inventory-import` enter
+the same `InventoryImportScreen` flow. These aliases do not collapse distinct
+product screens, and no duplicate Figma frame should be invented. The
+historical OPS-25 counts above remain frozen; OPS-44 owns live reconciliation.
+
 ## Không được suy diễn từ pack
 
 - Token proposal không tự động đổi `AppColors`, `AppTheme` hay Flutter widgets.

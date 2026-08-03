@@ -181,39 +181,32 @@ class BrandHeader extends StatelessWidget {
     return Column(
       crossAxisAlignment: alignment,
       children: [
-        AppLogo(
-          size: dense ? 64 : (compact ? 72 : 88),
-          borderRadius: AppRadius.xxl,
-        ),
-        SizedBox(height: dense ? 12 : 16),
+        const AppLogo(size: 56, borderRadius: AppRadius.md),
+        SizedBox(height: compact ? 6 : 18),
         Text(
           AppBrand.title,
-          style:
-              (dense
-                      ? AppTextStyles.headingM
-                      : compact
-                      ? AppTextStyles.headingM
-                      : AppTextStyles.headingXL)
-                  .copyWith(color: textColor),
+          style: AppTextStyles.headingS.copyWith(color: textColor),
           textAlign: centered ? TextAlign.center : TextAlign.start,
         ),
-        SizedBox(height: dense ? 4 : 8),
+        SizedBox(height: compact ? 6 : 18),
         Text(
           AppBrand.slogan,
           textAlign: centered ? TextAlign.center : TextAlign.start,
-          style: (dense ? AppTextStyles.bodyS : AppTextStyles.bodyM).copyWith(
+          style: (compact ? AppTextStyles.bodyS : AppTextStyles.bodyL).copyWith(
             color: mutedColor,
           ),
         ),
-        SizedBox(height: dense ? 12 : 18),
-        Container(
-          width: 52,
-          height: 3,
-          decoration: BoxDecoration(
-            color: AppColors.primaryOf(context),
-            borderRadius: AppRadius.allPill,
+        if (!compact) ...[
+          const SizedBox(height: 18),
+          Container(
+            width: 56,
+            height: 4,
+            decoration: BoxDecoration(
+              color: AppColors.primaryOf(context),
+              borderRadius: AppRadius.allPill,
+            ),
           ),
-        ),
+        ],
       ],
     );
   }
@@ -282,7 +275,7 @@ class AuthFormPanel extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final padding = mobile
-            ? const EdgeInsets.fromLTRB(20, 24, 20, 20)
+            ? const EdgeInsets.fromLTRB(15, 24, 15, 20)
             : const EdgeInsets.symmetric(horizontal: 48, vertical: 40);
         final minHeight = math.max(
           0.0,
@@ -347,7 +340,7 @@ class LoginCard extends StatelessWidget {
       child: DecoratedBox(
         decoration: BoxDecoration(
           color: AppColors.cardOf(context),
-          borderRadius: AppRadius.allLg,
+          borderRadius: AppRadius.allMd,
           border: Border.all(color: AppColors.borderOf(context)),
           boxShadow: AppShadowTokens.authCard(context),
         ),

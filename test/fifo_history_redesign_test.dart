@@ -40,9 +40,9 @@ void main() {
     expect(find.byKey(const Key('fifo-history-user-field')), findsOneWidget);
     expect(find.text('Kiểm tra 1'), findsOneWidget);
     expect(find.text('SN-CHECK-001'), findsOneWidget);
-    expect(find.text('Truy vấn'), findsWidgets);
+    expect(find.text('Tìm kiếm'), findsWidgets);
 
-    await tester.tap(find.text('Sắp xếp FIFO'));
+    await tester.tap(find.text('Sắp xếp'));
     await tester.pumpAndSettle();
 
     expect(repository.requestedTypes, contains('FIFO_SORT'));
@@ -92,7 +92,7 @@ void main() {
     expect(find.text('Kiểm tra 1'), findsOneWidget);
     expect(find.text('SN-CHECK-001'), findsOneWidget);
 
-    await tester.tap(find.text('Sắp xếp FIFO'));
+    await tester.tap(find.text('Sắp xếp'));
     await tester.pumpAndSettle();
 
     expect(find.text('Sắp xếp 1'), findsOneWidget);

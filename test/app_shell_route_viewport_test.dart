@@ -20,6 +20,7 @@ import 'package:phongvu_opshub/features/offset_adjustment/data/offset_adjustment
 import 'package:phongvu_opshub/features/offset_adjustment/domain/offset_adjustment.dart';
 import 'package:phongvu_opshub/features/quick_actions/data/quick_actions_repository.dart';
 import 'package:phongvu_opshub/features/quick_actions/presentation/quick_actions_provider.dart';
+import 'package:phongvu_opshub/features/support_chat/presentation/support_chat_surface.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -346,7 +347,7 @@ void main() {
       );
 
       expect(destinationFinder, findsNWidgets(5));
-      expect(tester.getSize(navFinder).height, 68);
+      expect(tester.getSize(navFinder).height, 76);
       expect(quickActionsFinder, findsOneWidget);
       expect(tester.widget<NavigationBar>(navFinder).selectedIndex, 0);
 
@@ -597,12 +598,13 @@ void main() {
 
     expect(find.text('Thông báo'), findsOneWidget);
     expect(find.byType(AppNotificationsBell), findsNothing);
+    expect(find.byType(SupportChatBubble), findsNothing);
     expect(notificationsProvider.loadCalls, 0);
     expect(notificationsProvider.markReadCalls, 0);
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('desktop shell keeps the notification bell quick menu', (
+  testWidgets('desktop shell keeps support and notifications on the topbar', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(1200, 900);
@@ -632,13 +634,19 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byType(AppNotificationsBell), findsOneWidget);
+    expect(find.byTooltip('Hỗ trợ'), findsOneWidget);
+    expect(find.byTooltip('Tài khoản'), findsOneWidget);
+    expect(find.text('Hỗ trợ'), findsOneWidget);
+    expect(find.text('Thông báo'), findsOneWidget);
+    expect(find.text('Tài khoản'), findsOneWidget);
 
-    await tester.tap(find.byTooltip('Thông báo'));
+    await tester.tap(find.byTooltip('Tài khoản'));
     await tester.pumpAndSettle();
 
-    expect(notificationsProvider.loadCalls, 1);
-    expect(notificationsProvider.markReadCalls, 1);
-    expect(find.text('Chưa có thông báo.'), findsOneWidget);
+    expect(find.text('Thông báo'), findsOneWidget);
+    expect(find.text('Hỗ trợ'), findsOneWidget);
+    expect(notificationsProvider.loadCalls, 0);
+    expect(notificationsProvider.markReadCalls, 0);
     expect(tester.takeException(), isNull);
   });
 
@@ -721,10 +729,44 @@ void main() {
       tester.getTopLeft(technicalGroup).dy,
       lessThan(tester.getTopLeft(configurationGroup).dy),
     );
-    expect(selectedItem.color, AppColors.transparent);
+    expect(selectedItem.color, AppColors.sidebarSelected);
     expect(tester.getSize(selectedIndicatorFinder), const Size(4, 28));
     expect(_indicatorColor(selectedIndicator), isNot(AppColors.transparent));
     expect(_indicatorColor(unselectedIndicator), AppColors.transparent);
+  });
+
+  testWidgets('admin surface headers follow their Figma page titles', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1200, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final authProvider = _FakeAuthProvider(_shellUser);
+    final notificationsProvider = _FakeAppNotificationsProvider();
+    Widget buildShell(String location) => MultiProvider(
+      providers: [
+        ChangeNotifierProvider<AuthProvider>.value(value: authProvider),
+        ChangeNotifierProvider<AppNotificationsProvider>.value(
+          value: notificationsProvider,
+        ),
+      ],
+      child: MaterialApp(
+        home: AppShell(location: location, child: const SizedBox.shrink()),
+      ),
+    );
+
+    await tester.pumpWidget(buildShell('/admin/support-chats'));
+    await tester.pumpAndSettle();
+    expect(find.text('Hỗ trợ'), findsNWidgets(2));
+    expect(find.text('Quản lý hội thoại khách hàng'), findsOneWidget);
+
+    await tester.pumpWidget(buildShell('/admin/api-connections'));
+    await tester.pumpAndSettle();
+    expect(find.text('Quản lý kết nối API'), findsOneWidget);
+    expect(find.text('Cấu hình BIDV và quản lý khóa OpenPGP'), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 }
 

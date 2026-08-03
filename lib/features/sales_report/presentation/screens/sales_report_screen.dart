@@ -402,51 +402,61 @@ class _SalesReportCockpitState extends State<_SalesReportCockpit> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _CockpitHero(
-          unreportedTotal: provider.unreportedOrdersTotal,
-          reportedTotal: provider.reportedOrdersTotal,
-        ),
-        const SizedBox(height: AppLayoutTokens.cardGap),
-        _QuickFilterBar(
-          provider: provider,
-          isManagedScope: cockpit?.scope == 'MANAGED_SCOPE',
-          onSelectDateRange: widget.onSelectDateRange,
-          onReload: widget.onReload,
-          onOpenAdvancedFilters: _openAdvancedFilters,
-        ),
-        const SizedBox(height: AppLayoutTokens.cardGap),
-        if (widget.canSubmitReports)
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final compactActions = constraints.maxWidth < 560;
-              return Row(
-                key: const Key('sales-report-manual-actions'),
-                children: [
-                  Expanded(
-                    child: AppPrimaryButton(
-                      onPressed: widget.onPurchased,
-                      icon: compactActions ? null : Icons.receipt_long_outlined,
-                      label: compactActions
-                          ? 'Đã mua (nhập tay)'
-                          : 'Báo cáo mua thủ công',
-                    ),
-                  ),
-                  const SizedBox(width: AppLayoutTokens.cardGap),
-                  Expanded(
-                    child: AppPrimaryButton(
-                      onPressed: widget.onNotPurchased,
-                      icon: compactActions
-                          ? null
-                          : Icons.person_search_outlined,
-                      label: compactActions ? 'Chưa mua' : 'Báo cáo chưa mua',
-                    ),
-                  ),
-                ],
-              );
-            },
+        const _SalesReportHubHeader(),
+        const SizedBox(height: 16),
+        AppSurfaceCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _QuickFilterBar(
+                provider: provider,
+                isManagedScope: cockpit?.scope == 'MANAGED_SCOPE',
+                onSelectDateRange: widget.onSelectDateRange,
+                onReload: widget.onReload,
+                onOpenAdvancedFilters: _openAdvancedFilters,
+              ),
+              if (widget.canSubmitReports) ...[
+                const SizedBox(height: 16),
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final compactActions = constraints.maxWidth < 560;
+                    return Row(
+                      key: const Key('sales-report-manual-actions'),
+                      children: [
+                        Expanded(
+                          child: AppPrimaryButton(
+                            onPressed: widget.onPurchased,
+                            icon: compactActions
+                                ? null
+                                : Icons.receipt_long_outlined,
+                            label: compactActions
+                                ? 'Đã mua (nhập tay)'
+                                : 'Báo cáo mua thủ công',
+                            size: AppButtonSize.medium,
+                          ),
+                        ),
+                        const SizedBox(width: AppLayoutTokens.formInlineGap),
+                        Expanded(
+                          child: AppPrimaryButton(
+                            onPressed: widget.onNotPurchased,
+                            icon: compactActions
+                                ? null
+                                : Icons.person_search_outlined,
+                            label: compactActions
+                                ? 'Chưa mua'
+                                : 'Báo cáo chưa mua',
+                            size: AppButtonSize.medium,
+                          ),
+                        ),
+                      ],
+                    );
+                  },
+                ),
+              ],
+            ],
           ),
-        if (widget.canSubmitReports)
-          const SizedBox(height: AppLayoutTokens.cardGap),
+        ),
+        const SizedBox(height: 16),
         if (provider.errorMessage != null) ...[
           AppStatusBanner(
             icon: Icons.error_outline_rounded,
@@ -454,7 +464,7 @@ class _SalesReportCockpitState extends State<_SalesReportCockpit> {
             message: provider.errorMessage!,
             tone: AppStateTone.error,
           ),
-          const SizedBox(height: AppLayoutTokens.cardGap),
+          const SizedBox(height: 16),
         ],
         Expanded(
           child: cockpit == null
@@ -543,116 +553,22 @@ class _SalesReportCockpitState extends State<_SalesReportCockpit> {
   }
 }
 
-class _CockpitHero extends StatelessWidget {
-  final int unreportedTotal;
-  final int reportedTotal;
-
-  const _CockpitHero({
-    required this.unreportedTotal,
-    required this.reportedTotal,
-  });
+class _SalesReportHubHeader extends StatelessWidget {
+  const _SalesReportHubHeader();
 
   @override
   Widget build(BuildContext context) {
-    return AppSurfaceCard(
-      padding: const EdgeInsets.all(12),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(
-            child: _MetricTile(
-              icon: Icons.receipt_long_outlined,
-              label: 'Chờ báo cáo',
-              value: _countLabel(unreportedTotal),
-              helper: 'chưa báo cáo',
-              color: AppColors.warning,
-              backgroundColor: AppColors.warningSurface,
-            ),
-          ),
-          const SizedBox(width: AppLayoutTokens.formInlineGap),
-          Expanded(
-            child: _MetricTile(
-              icon: Icons.check_circle_outline_rounded,
-              label: 'Hoàn tất',
-              value: _countLabel(reportedTotal),
-              helper: 'đã báo cáo',
-              color: AppColors.success,
-              backgroundColor: AppColors.successSurface,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _MetricTile extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final String value;
-  final String helper;
-  final Color color;
-  final Color backgroundColor;
-
-  const _MetricTile({
-    required this.icon,
-    required this.label,
-    required this.value,
-    required this.helper,
-    required this.color,
-    required this.backgroundColor,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: backgroundColor.withValues(alpha: 0.58),
-        borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
-        border: Border.all(color: color.withValues(alpha: 0.18)),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Row(
-              children: [
-                Icon(icon, size: 18, color: color),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: Text(
-                    label,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: AppTextStyles.labelS.copyWith(
-                      color: AppColors.textSecondaryOf(context),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 6),
-            Text(
-              value,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: AppTextStyles.headingM.copyWith(
-                color: AppColors.textPrimaryOf(context),
-              ),
-            ),
-            Text(
-              helper,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: AppTextStyles.caption.copyWith(
-                color: AppColors.textMutedOf(context),
-              ),
-            ),
-          ],
+    return const Column(
+      key: Key('sales-report-workspace-header'),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Báo cáo bán hàng', style: AppTextStyles.headingM),
+        SizedBox(height: 4),
+        Text(
+          'Đơn chưa báo cáo và đã báo cáo theo cùng phạm vi đang chọn.',
+          style: AppTextStyles.bodyS,
         ),
-      ),
+      ],
     );
   }
 }
@@ -712,7 +628,7 @@ class _QuickFilterBar extends StatelessWidget {
           onPressed: provider.isLoadingOrders ? null : onOpenAdvancedFilters,
           icon: Icons.tune_rounded,
           label: 'Lọc',
-          height: 44,
+          size: AppButtonSize.medium,
         );
         final reloadButton = Tooltip(
           message: 'Tải lại danh sách',
@@ -721,7 +637,7 @@ class _QuickFilterBar extends StatelessWidget {
             icon: Icons.refresh_rounded,
             label: 'Tải lại',
             isLoading: provider.isLoadingOrders,
-            height: 44,
+            size: AppButtonSize.medium,
           ),
         );
 
@@ -773,7 +689,7 @@ class _ReadonlyFilterPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 44,
+      height: AppButtonMetrics.mediumHeight,
       child: DecoratedBox(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
@@ -1054,76 +970,78 @@ class _OrdersColumn extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final pageCount = count <= 0 || limit <= 0 ? 1 : ((count - 1) ~/ limit) + 1;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        if (showHeader) ...[
-          Row(
-            children: [
-              Expanded(child: Text(title, style: AppTextStyles.headingS)),
-              Text(
-                _countLabel(count),
-                style: AppTextStyles.labelM.copyWith(
-                  color: AppColors.textMutedOf(context),
+    return AppSurfaceCard(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (showHeader) ...[
+            Row(
+              children: [
+                Expanded(child: Text(title, style: AppTextStyles.headingS)),
+                Text(
+                  _countLabel(count),
+                  style: AppTextStyles.labelM.copyWith(
+                    color: AppColors.textMutedOf(context),
+                  ),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: AppLayoutTokens.formInlineGap),
-        ],
-        Expanded(
-          child: orders.isEmpty
-              ? LayoutBuilder(
-                  builder: (context, constraints) {
-                    if (constraints.hasBoundedHeight &&
-                        constraints.maxHeight < 150) {
-                      return Align(
-                        alignment: Alignment.center,
-                        child: Text(
-                          emptyMessage,
-                          textAlign: TextAlign.center,
-                          style: AppTextStyles.bodyS.copyWith(
-                            color: AppColors.textMutedOf(context),
+              ],
+            ),
+            const SizedBox(height: 16),
+          ],
+          Expanded(
+            child: orders.isEmpty
+                ? LayoutBuilder(
+                    builder: (context, constraints) {
+                      if (constraints.hasBoundedHeight &&
+                          constraints.maxHeight < 150) {
+                        return Align(
+                          alignment: Alignment.center,
+                          child: Text(
+                            emptyMessage,
+                            textAlign: TextAlign.center,
+                            style: AppTextStyles.bodyS.copyWith(
+                              color: AppColors.textMutedOf(context),
+                            ),
                           ),
-                        ),
+                        );
+                      }
+                      return AppStatePanel.empty(
+                        title: title,
+                        message: emptyMessage,
                       );
-                    }
-                    return AppStatePanel.empty(
-                      title: title,
-                      message: emptyMessage,
-                    );
-                  },
-                )
-              : ListView.separated(
-                  key: Key(
-                    'sales-report-${title == 'Chưa báo cáo' ? 'unreported' : 'reported'}-list',
+                    },
+                  )
+                : ListView.separated(
+                    key: Key(
+                      'sales-report-${title == 'Chưa báo cáo' ? 'unreported' : 'reported'}-list',
+                    ),
+                    physics: const AlwaysScrollableScrollPhysics(),
+                    primary: false,
+                    padding: EdgeInsets.zero,
+                    itemCount: orders.length,
+                    separatorBuilder: (_, _) => const SizedBox(height: 16),
+                    itemBuilder: (context, index) {
+                      return _OrderCockpitTile(
+                        order: orders[index],
+                        onTap: onTap,
+                      );
+                    },
                   ),
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  primary: false,
-                  padding: const EdgeInsets.only(
-                    bottom: AppLayoutTokens.cardGap,
-                  ),
-                  itemCount: orders.length,
-                  separatorBuilder: (_, _) =>
-                      const SizedBox(height: AppLayoutTokens.cardGap),
-                  itemBuilder: (context, index) {
-                    return _OrderCockpitTile(
-                      order: orders[index],
-                      onTap: onTap,
-                    );
-                  },
-                ),
-        ),
-        if (count > limit || page > 0) ...[
-          const SizedBox(height: AppLayoutTokens.formInlineGap),
-          _OrdersPageControls(
-            page: page,
-            pageCount: pageCount,
-            onPreviousPage: !isLoading && canGoPrevious ? onPreviousPage : null,
-            onNextPage: !isLoading && canGoNext ? onNextPage : null,
           ),
+          if (count > limit || page > 0) ...[
+            const SizedBox(height: 16),
+            _OrdersPageControls(
+              page: page,
+              pageCount: pageCount,
+              onPreviousPage: !isLoading && canGoPrevious
+                  ? onPreviousPage
+                  : null,
+              onNextPage: !isLoading && canGoNext ? onNextPage : null,
+            ),
+          ],
         ],
-      ],
+      ),
     );
   }
 }

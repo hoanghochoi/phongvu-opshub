@@ -92,7 +92,7 @@ void main() {
     );
   });
 
-  testWidgets('Desktop shell shows name and SR beside the account avatar', (
+  testWidgets('Desktop shell keeps the Figma account action compact', (
     WidgetTester tester,
   ) async {
     _useDesktopSurface(tester);
@@ -122,8 +122,9 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Dai Ca'), findsOneWidget);
-    expect(find.text('SR: PV001 - PV Test'), findsOneWidget);
+    expect(find.text('Tài khoản'), findsOneWidget);
+    expect(find.text('Dai Ca'), findsNothing);
+    expect(find.text('SR: PV001 - PV Test'), findsNothing);
   });
 
   testWidgets('Tablet shell keeps the account avatar compact', (

@@ -26,6 +26,7 @@ class HomeSummaryPage extends StatelessWidget {
     this.headerAction,
     this.footer,
     this.greetingName,
+    this.greetingSubtitle,
     this.greetingNow,
   });
 
@@ -33,6 +34,7 @@ class HomeSummaryPage extends StatelessWidget {
   final Widget? headerAction;
   final Widget? footer;
   final String? greetingName;
+  final String? greetingSubtitle;
   final DateTime Function()? greetingNow;
 
   @override
@@ -55,6 +57,7 @@ class HomeSummaryPage extends StatelessWidget {
         final header = HomeSummaryHeader(
           summary: summary,
           greetingName: greetingName,
+          greetingSubtitle: greetingSubtitle,
           greetingNow: greetingNow,
           selectedScope: provider.selectedScope,
           selectedScopeLabel: provider.selectedScopeLabel,
@@ -293,6 +296,7 @@ class HomeSummaryHeader extends StatelessWidget {
     super.key,
     required this.summary,
     this.greetingName,
+    this.greetingSubtitle,
     this.greetingNow,
     required this.selectedScope,
     required this.selectedScopeLabel,
@@ -309,6 +313,7 @@ class HomeSummaryHeader extends StatelessWidget {
 
   final HomeSummary? summary;
   final String? greetingName;
+  final String? greetingSubtitle;
   final DateTime Function()? greetingNow;
   final String selectedScope;
   final String selectedScopeLabel;
@@ -341,6 +346,7 @@ class HomeSummaryHeader extends StatelessWidget {
           final filterWidth = denseControls ? 180.0 : 232.0;
           final dateRangeWidth = denseControls ? 200.0 : 244.0;
           final titleBlock = Column(
+            key: const Key('home-summary-greeting'),
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
@@ -351,6 +357,22 @@ class HomeSummaryHeader extends StatelessWidget {
                   color: AppColors.textPrimaryOf(context),
                 ),
               ),
+              const SizedBox(height: 2),
+              Text(
+                greetingSubtitle ?? scopeLabel,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppTextStyles.bodyS.copyWith(
+                  color: AppColors.textSecondaryOf(context),
+                ),
+              ),
+            ],
+          );
+          final greeting = Row(
+            children: [
+              _HomeSummaryAvatar(name: greetingName),
+              const SizedBox(width: 12),
+              Expanded(child: titleBlock),
             ],
           );
           final controlChildren = [
@@ -416,24 +438,12 @@ class HomeSummaryHeader extends StatelessWidget {
                   ),
                 );
 
-          final headerRow = compact
-              ? Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [titleBlock, const SizedBox(height: 12), controls],
-                )
-              : Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    Expanded(flex: 2, child: titleBlock),
-                    const SizedBox(width: 20),
-                    Expanded(flex: 5, child: controls),
-                  ],
-                );
-
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              headerRow,
+              greeting,
+              const SizedBox(height: 14),
+              controls,
               if (warningMessage != null) ...[
                 const SizedBox(height: 12),
                 AppStatusBanner(
@@ -449,6 +459,38 @@ class HomeSummaryHeader extends StatelessWidget {
             ],
           );
         },
+      ),
+    );
+  }
+}
+
+class _HomeSummaryAvatar extends StatelessWidget {
+  const _HomeSummaryAvatar({required this.name});
+
+  final String? name;
+
+  @override
+  Widget build(BuildContext context) {
+    final trimmed = name?.trim() ?? '';
+    final initial = trimmed.isEmpty ? '?' : trimmed.characters.first.toUpperCase();
+    return Semantics(
+      label: 'Tài khoản $trimmed',
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: AppColors.primarySurfaceOf(context),
+          borderRadius: AppRadius.allMd,
+        ),
+        child: SizedBox.square(
+          dimension: 48,
+          child: Center(
+            child: Text(
+              initial,
+              style: AppTextStyles.headingS.copyWith(
+                color: AppColors.primaryOf(context),
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }

@@ -1047,11 +1047,6 @@ class _StatementCardState extends State<_StatementCard> {
   Widget build(BuildContext context) {
     final provider = context.watch<BankStatementProvider>();
     final tx = widget.transaction;
-    final borderColor = tx.hasPendingOrderTransferRequest
-        ? AppColors.warning
-        : tx.hasOrders
-        ? AppColors.success
-        : AppColors.error;
     final message = provider.rowMessage(tx.id);
 
     return LayoutBuilder(
@@ -1060,10 +1055,8 @@ class _StatementCardState extends State<_StatementCard> {
 
         if (isMobile) {
           return AppSurfaceCard(
-            margin: const EdgeInsets.only(bottom: 10),
+            margin: const EdgeInsets.only(bottom: 8),
             padding: const EdgeInsets.all(12),
-            borderColor: borderColor.withValues(alpha: 0.65),
-            borderWidth: 1.3,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
@@ -1151,10 +1144,8 @@ class _StatementCardState extends State<_StatementCard> {
         }
 
         return AppSurfaceCard(
-          margin: const EdgeInsets.only(bottom: 10),
+          margin: const EdgeInsets.only(bottom: 8),
           padding: const EdgeInsets.all(12),
-          borderColor: borderColor.withValues(alpha: 0.65),
-          borderWidth: 1.3,
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [

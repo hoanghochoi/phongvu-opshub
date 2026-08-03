@@ -625,10 +625,19 @@ class _SupportChatAdminScreenState extends State<SupportChatAdminScreen> {
         final list = _buildInbox(provider);
         if (!wide) return list;
         return Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            SizedBox(width: min(380, constraints.maxWidth * 0.36), child: list),
-            VerticalDivider(width: 1, color: AppColors.borderOf(context)),
-            const Expanded(child: SupportChatPanel()),
+            SizedBox(
+              width: min(380, constraints.maxWidth * 0.36),
+              child: AppSurfaceCard(padding: EdgeInsets.zero, child: list),
+            ),
+            const SizedBox(width: AppLayoutTokens.cardGap),
+            Expanded(
+              child: AppSurfaceCard(
+                padding: EdgeInsets.zero,
+                child: const SupportChatPanel(),
+              ),
+            ),
           ],
         );
       },
@@ -639,7 +648,23 @@ class _SupportChatAdminScreenState extends State<SupportChatAdminScreen> {
     return Column(
       children: [
         Padding(
-          padding: const EdgeInsets.all(AppLayoutTokens.cardPadding),
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text('Hộp thư hỗ trợ', style: AppTextStyles.headingS),
+              ),
+              Text(
+                '${provider.adminConversations.length} hội thoại',
+                style: AppTextStyles.bodyS.copyWith(
+                  color: AppColors.textMutedOf(context),
+                ),
+              ),
+            ],
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
           child: Wrap(
             spacing: 8,
             runSpacing: 8,

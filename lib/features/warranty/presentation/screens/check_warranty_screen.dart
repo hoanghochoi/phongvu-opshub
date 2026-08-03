@@ -186,57 +186,10 @@ class _WarrantyLookupHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AppSurfaceCard(
-      key: const Key('warranty-lookup-header'),
-      backgroundColor: AppColors.infoSurface,
-      borderColor: AppColors.info.withValues(alpha: 0.22),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final compact =
-              constraints.maxWidth < AppLayoutTokens.tabletBreakpoint;
-          final icon = Container(
-            width: 52,
-            height: 52,
-            decoration: BoxDecoration(
-              color: AppColors.info.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
-            ),
-            child: const Icon(
-              Icons.manage_search_rounded,
-              color: AppColors.info,
-            ),
-          );
-          final content = Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Xem lại biên nhận', style: AppTextStyles.headingM),
-              const SizedBox(height: AppLayoutTokens.cardGap),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  AppStatusChip(
-                    label: isSearchMode ? 'Đang lọc' : 'Tất cả biên nhận',
-                    color: AppColors.info,
-                    backgroundColor: AppColors.surface,
-                  ),
-                  AppStatusChip(
-                    label: '$receiptCount kết quả',
-                    color: receiptCount == 0
-                        ? AppColors.neutral700
-                        : AppColors.info,
-                    backgroundColor: AppColors.surface,
-                  ),
-                  const AppStatusChip(
-                    label: 'Có scanner',
-                    color: AppColors.info,
-                    backgroundColor: AppColors.surface,
-                  ),
-                ],
-              ),
-            ],
-          );
-          final actions = Wrap(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < AppLayoutTokens.tabletBreakpoint;
+        final actions = Wrap(
             spacing: AppLayoutTokens.formInlineGap,
             runSpacing: 8,
             alignment: WrapAlignment.end,
@@ -260,31 +213,33 @@ class _WarrantyLookupHeader extends StatelessWidget {
             ],
           );
 
-          if (compact) {
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                icon,
-                const SizedBox(height: 14),
-                content,
-                const SizedBox(height: AppLayoutTokens.cardGap),
-                actions,
-              ],
-            );
-          }
-
-          return Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              icon,
-              const SizedBox(width: AppLayoutTokens.formInlineGap),
-              Expanded(child: content),
-              const SizedBox(width: AppLayoutTokens.formInlineGap),
+        final chips = Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            AppStatusChip(label: isSearchMode ? 'Đang lọc' : 'Tất cả biên nhận', color: AppColors.info, backgroundColor: AppColors.surface),
+            AppStatusChip(label: '$receiptCount kết quả', color: receiptCount == 0 ? AppColors.neutral700 : AppColors.info, backgroundColor: AppColors.surface),
+            const AppStatusChip(label: 'Có scanner', color: AppColors.info, backgroundColor: AppColors.surface),
+          ],
+        );
+        return Column(
+          key: const Key('warranty-lookup-header'),
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (compact) ...[
+              Text('Xem lại biên nhận', style: AppTextStyles.headingS),
+              const SizedBox(height: 12),
+              chips,
+              const SizedBox(height: 12),
               actions,
+            ] else ...[
+              Row(children: [Expanded(child: Text('Xem lại biên nhận', style: AppTextStyles.headingS)), actions]),
+              const SizedBox(height: 12),
+              chips,
             ],
-          );
-        },
-      ),
+          ],
+        );
+      },
     );
   }
 }

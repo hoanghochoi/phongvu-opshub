@@ -100,10 +100,11 @@ Khi sửa hoặc thêm component foundation, Figma review phải có proof cho:
 - trước review, chạy collision audit top-level App Shell frame theo bounding
   box; sắp frame vào grid Desktop/Mobile/Tablet với gutter và chỉ pass khi
   overlap = 0.
-- file chỉ giữ năm page canonical: `Cover`, `Foundation`,
-  `Screens — Desktop · Windows`, `Screens — Mobile · Android` và
-  `Screens — Tablet · Android`; source và documentation ở Foundation, screen
-  page không chứa main component.
+- file hiện giữ tám page canonical: `Cover`, `Foundation` và sáu page screen
+  `Screens — Desktop · Windows`, `Screens — Mobile · Android`,
+  `Screens — Tablet · Android`, `Screens — Mobile · iOS`,
+  `Screens — Tablet · iPadOS` và `Screens — Web · Responsive`; source và
+  documentation ở Foundation, screen page không chứa main component.
 
 Im lặng, emoji hoặc task chuyển status không tự động là design approval.
 

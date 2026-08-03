@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 /// Named typography scale for PhongVu OpsHub.
 ///
-/// The font family is SF Pro Display (Regular 400, Medium 500,
+/// The font family is Be Vietnam Pro (Regular 400, Medium 500,
 /// Semibold 600, Bold 700). Weight 800 (ExtraBold) is NOT shipped,
 /// so all emphasis text uses w700 instead.
 ///
@@ -10,7 +10,7 @@ import 'package:flutter/material.dart';
 class AppTextStyles {
   AppTextStyles._();
 
-  static const String _fontFamily = 'SF Pro Display';
+  static const String _fontFamily = 'Be Vietnam Pro';
 
   // ── Headings ─────────────────────────────────────────────────────
   static const TextStyle headingXL = TextStyle(

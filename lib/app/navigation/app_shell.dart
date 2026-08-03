@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:phongvu_opshub/app/widgets/app_toast.dart';
@@ -196,7 +197,8 @@ class _AppShellState extends State<AppShell> {
                   onSupport: () => _openSupport(context),
                   child: widget.child,
                 ),
-          if (widget.location != '/admin/support-chats' &&
+          if (width >= AppLayoutTokens.tabletBreakpoint &&
+              widget.location != '/admin/support-chats' &&
               (supportChat?.enabled == true ||
                   (!kIsWeb &&
                       defaultTargetPlatform == TargetPlatform.windows &&
@@ -621,6 +623,7 @@ class _WideShell extends StatelessWidget {
             child: Column(
               children: [
                 _ShellTopBar(
+                  location: location,
                   activeDestination: activeDestination,
                   user: user,
                   showAccountDetails: isDesktop,
@@ -888,7 +891,7 @@ class _MobileNavigationDrawer extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          AppBrand.title,
+                          'PhongVu OpsHub',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: AppTextStyles.labelL.copyWith(
@@ -897,9 +900,9 @@ class _MobileNavigationDrawer extends StatelessWidget {
                         ),
                         Text(
                           AppBrand.slogan,
-                          maxLines: 1,
+                          maxLines: 2,
                           overflow: TextOverflow.ellipsis,
-                          style: AppTextStyles.labelS.copyWith(
+                          style: AppTextStyles.caption.copyWith(
                             color: AppColors.sidebarMutedOf(context),
                           ),
                         ),
@@ -1055,14 +1058,16 @@ class _DesktopSidebar extends StatelessWidget {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'PhongVu',
+                              'PhongVu OpsHub',
                               style: AppTextStyles.labelL.copyWith(
                                 color: AppColors.sidebarTextOf(context),
                               ),
                             ),
                             Text(
-                              'OpsHub',
-                              style: AppTextStyles.bodyS.copyWith(
+                              AppBrand.slogan,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: AppTextStyles.caption.copyWith(
                                 color: AppColors.sidebarMutedOf(context),
                               ),
                             ),
@@ -1070,13 +1075,6 @@ class _DesktopSidebar extends StatelessWidget {
                         ),
                       ),
                     ],
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    AppBrand.slogan,
-                    style: AppTextStyles.labelS.copyWith(
-                      color: AppColors.sidebarMutedOf(context),
-                    ),
                   ),
                 ],
               ),
@@ -1275,9 +1273,8 @@ class _SidebarItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final selectedForeground = AppColors.isDark(context)
-        ? AppColors.primaryOf(context)
-        : AppColors.sidebarSelectedOf(context);
+    final selectedForeground = AppColors.primaryOf(context);
+    final selectedBackground = AppColors.sidebarSelectedOf(context);
     final foreground = selected
         ? selectedForeground
         : AppColors.sidebarTextOf(context);
@@ -1286,41 +1283,46 @@ class _SidebarItem extends StatelessWidget {
       selected: selected,
       child: Material(
         key: ValueKey('sidebar-item-${destination.id}'),
-        color: AppColors.transparent,
-        borderRadius: AppRadius.allMd,
+        color: selected ? selectedBackground : AppColors.transparent,
+        borderRadius: AppRadius.allLg,
         clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: onTap,
-          borderRadius: AppRadius.allMd,
+          borderRadius: AppRadius.allLg,
           hoverColor: selectedForeground.withValues(alpha: 0.08),
           focusColor: selectedForeground.withValues(alpha: 0.12),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(0, 10, 12, 10),
-            child: Row(
-              children: [
-                Container(
-                  key: ValueKey('sidebar-selected-indicator-${destination.id}'),
-                  width: 4,
-                  height: 28,
-                  decoration: BoxDecoration(
-                    color: selected
-                        ? selectedForeground
-                        : AppColors.transparent,
-                    borderRadius: BorderRadius.circular(999),
+          child: SizedBox(
+            height: 48,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(0, 0, 12, 0),
+              child: Row(
+                children: [
+                  Container(
+                    key: ValueKey(
+                      'sidebar-selected-indicator-${destination.id}',
+                    ),
+                    width: 4,
+                    height: 28,
+                    decoration: BoxDecoration(
+                      color: selected
+                          ? selectedForeground
+                          : AppColors.transparent,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
                   ),
-                ),
-                const SizedBox(width: 8),
-                Icon(destination.icon, color: foreground, size: 20),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    destination.label,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: AppTextStyles.labelM.copyWith(color: foreground),
+                  const SizedBox(width: 8),
+                  Icon(destination.icon, color: foreground, size: 20),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      destination.label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTextStyles.labelM.copyWith(color: foreground),
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
@@ -1330,6 +1332,7 @@ class _SidebarItem extends StatelessWidget {
 }
 
 class _ShellTopBar extends StatelessWidget {
+  final String location;
   final AppNavDestination activeDestination;
   final User? user;
   final bool showAccountDetails;
@@ -1338,6 +1341,7 @@ class _ShellTopBar extends StatelessWidget {
   final VoidCallback onAppInfo;
 
   const _ShellTopBar({
+    required this.location,
     required this.activeDestination,
     required this.user,
     required this.showAccountDetails,
@@ -1348,6 +1352,7 @@ class _ShellTopBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final header = _shellHeaderFor(location, activeDestination);
     return Container(
       height: AppLayoutTokens.shellTopBarHeight,
       decoration: BoxDecoration(
@@ -1365,7 +1370,7 @@ class _ShellTopBar extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  activeDestination.label,
+                  header.title,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: AppTextStyles.headingS.copyWith(
@@ -1374,7 +1379,7 @@ class _ShellTopBar extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  activeDestination.description,
+                  header.description,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: AppTextStyles.bodyS.copyWith(
@@ -1384,17 +1389,19 @@ class _ShellTopBar extends StatelessWidget {
               ],
             ),
           ),
-          IconButton(
+          _ShellTopBarAction(
             tooltip: 'Hỗ trợ',
+            label: 'Hỗ trợ',
+            icon: PhosphorIconsRegular.headset,
             onPressed: onSupport,
-            icon: const Icon(Icons.support_agent_rounded),
           ),
           const _ShellMetricsPill(),
-          const AppNotificationsBell(),
+          const AppNotificationsBell(showLabel: true),
           const SizedBox(width: 8),
           _AccountMenuButton(
             user: user,
             showDetails: showAccountDetails,
+            showLabel: true,
             onLogout: onLogout,
             onAppInfo: onAppInfo,
           ),
@@ -1404,17 +1411,39 @@ class _ShellTopBar extends StatelessWidget {
   }
 }
 
+({String title, String description}) _shellHeaderFor(
+  String location,
+  AppNavDestination activeDestination,
+) {
+  switch (location) {
+    case '/admin/support-chats':
+      return (title: 'Hỗ trợ', description: 'Quản lý hội thoại khách hàng');
+    case '/admin/api-connections':
+      return (
+        title: 'Quản lý kết nối API',
+        description: 'Cấu hình BIDV và quản lý khóa OpenPGP',
+      );
+    default:
+      return (
+        title: activeDestination.label,
+        description: activeDestination.description,
+      );
+  }
+}
+
 class _AccountMenuButton extends StatelessWidget {
   static const double _avatarSize = 42;
 
   final User? user;
   final bool showDetails;
+  final bool showLabel;
   final VoidCallback onLogout;
   final VoidCallback onAppInfo;
 
   const _AccountMenuButton({
     required this.user,
     required this.showDetails,
+    this.showLabel = false,
     required this.onLogout,
     required this.onAppInfo,
   });
@@ -1444,29 +1473,29 @@ class _AccountMenuButton extends StatelessWidget {
             onLogout();
         }
       },
-      itemBuilder: (context) => const [
-        PopupMenuItem(
+      itemBuilder: (context) => [
+        const PopupMenuItem(
           value: _AccountAction.profile,
           child: ListTile(
             leading: Icon(Icons.person_outline),
             title: Text('Thông tin cá nhân'),
           ),
         ),
-        PopupMenuItem(
+        const PopupMenuItem(
           value: _AccountAction.settings,
           child: ListTile(
             leading: Icon(Icons.settings_outlined),
             title: Text('Cài đặt'),
           ),
         ),
-        PopupMenuItem(
+        const PopupMenuItem(
           value: _AccountAction.appInfo,
           child: ListTile(
             leading: Icon(Icons.info_outline),
             title: Text('Thông tin ứng dụng'),
           ),
         ),
-        PopupMenuItem(
+        const PopupMenuItem(
           value: _AccountAction.logout,
           child: ListTile(
             leading: Icon(Icons.logout_rounded),
@@ -1474,51 +1503,73 @@ class _AccountMenuButton extends StatelessWidget {
           ),
         ),
       ],
-      child: showDetails
-          ? ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 230),
+      child: showLabel
+          ? const _ShellTopBarAction(
+              tooltip: 'Tài khoản',
+              label: 'Tài khoản',
+              icon: PhosphorIconsRegular.userCircle,
+              onPressed: null,
+              showTooltip: false,
+            )
+          : showDetails
+          ? _accountIdentity(
+              context,
+              cleanName: cleanName,
+              srLabel: srLabel,
+              initials: initials,
+            )
+          : _AccountAvatar(initials: initials, size: _avatarSize),
+    );
+  }
+
+  Widget _accountIdentity(
+    BuildContext context, {
+    required String cleanName,
+    required String srLabel,
+    required String initials,
+  }) {
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 230),
+      child: SizedBox(
+        height: _avatarSize,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _AccountAvatar(initials: initials, size: _avatarSize),
+            const SizedBox(width: 10),
+            Flexible(
               child: SizedBox(
                 height: _avatarSize,
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _AccountAvatar(initials: initials, size: _avatarSize),
-                    const SizedBox(width: 10),
-                    Flexible(
-                      child: SizedBox(
-                        height: _avatarSize,
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              cleanName,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: AppTextStyles.labelS.copyWith(
-                                color: AppColors.textPrimaryOf(context),
-                                height: 1.12,
-                              ),
-                            ),
-                            const SizedBox(height: 3),
-                            Text(
-                              srLabel,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: AppTextStyles.caption.copyWith(
-                                color: AppColors.textMutedOf(context),
-                                height: 1.10,
-                              ),
-                            ),
-                          ],
-                        ),
+                    Text(
+                      cleanName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTextStyles.labelS.copyWith(
+                        color: AppColors.textPrimaryOf(context),
+                        height: 1.12,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      srLabel,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTextStyles.caption.copyWith(
+                        color: AppColors.textMutedOf(context),
+                        height: 1.10,
                       ),
                     ),
                   ],
                 ),
               ),
-            )
-          : _AccountAvatar(initials: initials, size: _avatarSize),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -1528,6 +1579,51 @@ class _AccountMenuButton extends StatelessWidget {
     final email = user?.email.trim();
     if (email?.isNotEmpty == true) return email!;
     return 'Tài khoản';
+  }
+}
+
+class _ShellTopBarAction extends StatelessWidget {
+  final String tooltip;
+  final String label;
+  final IconData icon;
+  final VoidCallback? onPressed;
+  final bool showTooltip;
+
+  const _ShellTopBarAction({
+    required this.tooltip,
+    required this.label,
+    required this.icon,
+    required this.onPressed,
+    this.showTooltip = true,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final action = Material(
+      color: AppColors.canvasOf(context),
+      borderRadius: AppRadius.allSm,
+      child: InkWell(
+        onTap: onPressed,
+        borderRadius: AppRadius.allSm,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 18, color: AppColors.textPrimaryOf(context)),
+              const SizedBox(width: 6),
+              Text(
+                label,
+                style: AppTextStyles.labelS.copyWith(
+                  color: AppColors.textPrimaryOf(context),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    return showTooltip ? Tooltip(message: tooltip, child: action) : action;
   }
 }
 

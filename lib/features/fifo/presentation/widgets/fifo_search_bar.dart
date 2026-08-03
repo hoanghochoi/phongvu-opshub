@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/widgets/app_buttons.dart';
-import '../../../../app/widgets/app_cards.dart';
 import '../../../../app/widgets/app_chips.dart';
 import '../../../../app/widgets/app_inputs.dart';
 import '../../../../app/widgets/app_layout.dart';
@@ -32,8 +31,8 @@ class FifoHistorySearchBar extends StatelessWidget {
     final searchField = AppTextInput(
       key: const Key('fifo-history-query-field'),
       controller: searchController,
-      label: 'Truy vấn',
-      hintText: 'Serial, SKU hoặc BIN',
+      label: 'Tìm kiếm',
+      hintText: 'SKU, serial hoặc người dùng',
       icon: Icons.search,
       dense: true,
       onSubmitted: (_) => onSearch(),
@@ -69,50 +68,48 @@ class FifoHistorySearchBar extends StatelessWidget {
       ],
     );
 
-    return AppSurfaceCard(
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final compact = constraints.maxWidth < 720;
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              if (compact) ...[
-                searchField,
-                const SizedBox(height: AppLayoutTokens.formFieldGap),
-                userField,
-                const SizedBox(height: AppLayoutTokens.formInlineGap),
-                Align(alignment: Alignment.centerRight, child: actions),
-              ] else
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    Expanded(flex: 2, child: searchField),
-                    const SizedBox(width: AppLayoutTokens.formInlineGap),
-                    Expanded(child: userField),
-                    const SizedBox(width: AppLayoutTokens.formInlineGap),
-                    actions,
-                  ],
-                ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < 720;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (compact) ...[
+              searchField,
+              const SizedBox(height: AppLayoutTokens.formFieldGap),
+              userField,
               const SizedBox(height: AppLayoutTokens.formInlineGap),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
+              Align(alignment: Alignment.centerRight, child: actions),
+            ] else
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  AppStatusChip(
-                    label: '$totalCount bản ghi',
-                    color: AppColors.info,
-                  ),
-                  if (hasFilter)
-                    const AppStatusChip(
-                      label: 'Đang lọc',
-                      color: AppColors.warning,
-                    ),
+                  SizedBox(width: 420, child: searchField),
+                  const SizedBox(width: AppLayoutTokens.formInlineGap),
+                  Expanded(child: userField),
+                  const SizedBox(width: AppLayoutTokens.formInlineGap),
+                  actions,
                 ],
               ),
-            ],
-          );
-        },
-      ),
+            const SizedBox(height: AppLayoutTokens.formInlineGap),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                AppStatusChip(
+                  label: '$totalCount bản ghi',
+                  color: AppColors.info,
+                ),
+                if (hasFilter)
+                  const AppStatusChip(
+                    label: 'Đang lọc',
+                    color: AppColors.warning,
+                  ),
+              ],
+            ),
+          ],
+        );
+      },
     );
   }
 }

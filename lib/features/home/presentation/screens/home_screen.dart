@@ -62,6 +62,7 @@ class _HomeScreenState extends State<HomeScreen> {
         child: HomeSummaryPage(
           provider: homeSummaryProvider,
           greetingName: _homeUserGreetingName(user),
+          greetingSubtitle: _homeGreetingSubtitle(user),
           headerAction: canUsePaymentSpeaker
               ? const _HomeSpeakerStatusButton()
               : null,
@@ -414,6 +415,15 @@ String _homeUserGreetingName(User? user) {
       .join(' ');
   if (fullName.isNotEmpty) return fullName;
   return user?.email ?? '';
+}
+
+String _homeGreetingSubtitle(User? user) {
+  final parts = <String>[
+    if ((user?.email ?? '').trim().isNotEmpty) user!.email.trim(),
+    if ((user?.assignedStoreHeaderInfo ?? '').trim().isNotEmpty)
+      user!.assignedStoreHeaderInfo.trim(),
+  ];
+  return parts.isEmpty ? 'Thông tin tài khoản đang được cập nhật' : parts.join(' · ');
 }
 
 class _AvatarInitials extends StatelessWidget {

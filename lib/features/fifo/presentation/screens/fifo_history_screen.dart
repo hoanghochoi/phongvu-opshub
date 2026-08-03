@@ -5,7 +5,6 @@ import 'package:provider/provider.dart';
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_text_styles.dart';
 import '../../../../app/widgets/app_buttons.dart';
-import '../../../../app/widgets/app_cards.dart';
 import '../../../../app/widgets/app_chips.dart';
 import '../../../../app/widgets/app_layout.dart';
 import '../../../../app/widgets/app_state_widgets.dart';
@@ -269,7 +268,12 @@ class _FifoHistoryScreenState extends State<FifoHistoryScreen>
             onReload: () =>
                 _tabController.index == 0 ? _loadCheckLogs() : _loadSortLogs(),
           ),
-          const SizedBox(height: AppLayoutTokens.cardGap),
+          const SizedBox(height: 16),
+          FifoHistoryTabBar(
+            key: const Key('fifo-history-tabs'),
+            controller: _tabController,
+          ),
+          const SizedBox(height: 16),
           FifoHistorySearchBar(
             key: const Key('fifo-history-filter-card'),
             searchController: _searchController,
@@ -280,12 +284,7 @@ class _FifoHistoryScreenState extends State<FifoHistoryScreen>
             searchQuery: _searchQuery,
             filterUser: _filterUser,
           ),
-          const SizedBox(height: AppLayoutTokens.cardGap),
-          FifoHistoryTabBar(
-            key: const Key('fifo-history-tabs'),
-            controller: _tabController,
-          ),
-          const SizedBox(height: AppLayoutTokens.cardGap),
+          const SizedBox(height: 16),
           Expanded(
             key: const Key('fifo-history-tab-view'),
             child: TabBarView(
@@ -361,7 +360,7 @@ class _FifoHistoryScreenState extends State<FifoHistoryScreen>
       onRefresh: () async => onRefresh(),
       child: ListView.builder(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.symmetric(horizontal: 16),
+        padding: EdgeInsets.zero,
         itemCount: logs.length + (hasMore ? 1 : 0),
         itemBuilder: (context, index) {
           if (index == logs.length) {
@@ -440,78 +439,59 @@ class _FifoHistoryHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AppSurfaceCard(
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final compact = constraints.maxWidth < 620;
-          final title = Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Lịch sử FIFO', style: AppTextStyles.headingM),
-              const SizedBox(height: 6),
-              Text(
-                'Tra cứu lịch sử kiểm tra và sắp xếp FIFO theo người dùng.',
-                style: AppTextStyles.bodyM.copyWith(
-                  color: AppColors.neutral600,
-                ),
-              ),
-              const SizedBox(height: 12),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  AppStatusChip(
-                    label: 'Kiểm tra $checkTotal',
-                    color: AppColors.info,
-                  ),
-                  AppStatusChip(
-                    label: 'Sắp xếp $sortTotal',
-                    color: AppColors.indigo600,
-                  ),
-                ],
-              ),
-            ],
-          );
-          final action = AppIconAction(
-            onPressed: loading ? null : () => unawaited(onReload()),
-            icon: Icons.refresh_outlined,
-            tooltip: 'Tải lại lịch sử',
-          );
-          final icon = DecoratedBox(
-            decoration: BoxDecoration(
-              color: AppColors.primary.withValues(alpha: 0.10),
-              borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < 620;
+        final title = Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Lịch sử FIFO', style: AppTextStyles.headingM),
+            const SizedBox(height: 4),
+            Text(
+              'Tra cứu lịch sử kiểm tra và sắp xếp FIFO theo người dùng.',
+              style: AppTextStyles.bodyM.copyWith(color: AppColors.neutral600),
             ),
-            child: const Padding(
-              padding: EdgeInsets.all(12),
-              child: Icon(Icons.history_rounded, color: AppColors.primary),
-            ),
-          );
-          if (compact) {
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
               children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [icon, const Spacer(), action],
+                AppStatusChip(
+                  label: 'Kiểm tra $checkTotal',
+                  color: AppColors.info,
                 ),
-                const SizedBox(height: 12),
-                title,
+                AppStatusChip(
+                  label: 'Sắp xếp $sortTotal',
+                  color: AppColors.indigo600,
+                ),
               ],
-            );
-          }
-          return Row(
+            ),
+          ],
+        );
+        final action = AppIconAction(
+          onPressed: loading ? null : () => unawaited(onReload()),
+          icon: Icons.refresh_outlined,
+          tooltip: 'Tải lại lịch sử',
+        );
+        if (compact) {
+          return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              icon,
-              const SizedBox(width: 16),
-              Expanded(child: title),
-              const SizedBox(width: 12),
-              action,
+              Align(alignment: Alignment.centerRight, child: action),
+              const SizedBox(height: 4),
+              title,
             ],
           );
-        },
-      ),
+        }
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(child: title),
+            const SizedBox(width: 12),
+            action,
+          ],
+        );
+      },
     );
   }
 }

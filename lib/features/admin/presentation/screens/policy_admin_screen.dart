@@ -484,101 +484,99 @@ class _PolicyAdminHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AppSurfaceCard(
+    return LayoutBuilder(
       key: const Key('policy-admin-header'),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final isCompact =
-              constraints.maxWidth < AppLayoutTokens.compactBreakpoint;
-          final heading = Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Quản lý chính sách',
-                style: AppTextStyles.headingM.copyWith(
-                  color: Theme.of(context).colorScheme.onSurface,
-                ),
+      builder: (context, constraints) {
+        final isCompact =
+            constraints.maxWidth < AppLayoutTokens.compactBreakpoint;
+        final heading = Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Quản lý chính sách',
+              style: AppTextStyles.headingM.copyWith(
+                color: Theme.of(context).colorScheme.onSurface,
               ),
-              const SizedBox(height: 6),
-              Text(
-                'Quản trị chính sách, quy tắc áp dụng và cấu hình vận hành.',
-                style: AppTextStyles.bodyM.copyWith(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Quản trị chính sách, quy tắc áp dụng và cấu hình vận hành.',
+              style: AppTextStyles.bodyM.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
-              const SizedBox(height: AppLayoutTokens.formInlineGap),
-              Wrap(
-                spacing: AppLayoutTokens.formInlineGap,
-                runSpacing: 8,
-                children: [
-                  AppStatusChip(
-                    label: loading
-                        ? 'Đang tải chính sách'
-                        : '$policyCount chính sách',
-                    color: AppColors.primary,
-                  ),
-                  AppStatusChip(
-                    label: '$ruleCount quy tắc',
-                    color: AppColors.info,
-                  ),
-                  AppStatusChip(
-                    label: '$settingCount cấu hình',
-                    color: AppColors.neutral700,
-                  ),
-                ],
-              ),
-            ],
-          );
-          final actions = Wrap(
-            spacing: AppLayoutTokens.formInlineGap,
-            runSpacing: AppLayoutTokens.formInlineGap,
-            alignment: isCompact ? WrapAlignment.start : WrapAlignment.end,
-            children: [
-              AppIconAction(
-                onPressed: onRefresh,
-                icon: Icons.refresh,
-                tooltip: 'Tải lại chính sách',
-              ),
-              AppIconAction(
-                onPressed: onCreatePolicy,
-                icon: Icons.add_box_outlined,
-                tooltip: 'Thêm chính sách',
-                filled: true,
-              ),
-              AppIconAction(
-                onPressed: onCreateRule,
-                icon: Icons.rule_folder_outlined,
-                tooltip: 'Thêm quy tắc',
-              ),
-              AppIconAction(
-                onPressed: onCreateSetting,
-                icon: Icons.settings_outlined,
-                tooltip: 'Thêm cấu hình',
-              ),
-            ],
-          );
-
-          if (isCompact) {
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+            ),
+            const SizedBox(height: AppLayoutTokens.formInlineGap),
+            Wrap(
+              spacing: AppLayoutTokens.formInlineGap,
+              runSpacing: 8,
               children: [
-                heading,
-                const SizedBox(height: AppLayoutTokens.formFieldGap),
-                actions,
+                AppStatusChip(
+                  label: loading
+                      ? 'Đang tải chính sách'
+                      : '$policyCount chính sách',
+                  color: AppColors.primary,
+                ),
+                AppStatusChip(
+                  label: '$ruleCount quy tắc',
+                  color: AppColors.info,
+                ),
+                AppStatusChip(
+                  label: '$settingCount cấu hình',
+                  color: AppColors.neutral700,
+                ),
               ],
-            );
-          }
+            ),
+          ],
+        );
+        final actions = Wrap(
+          spacing: AppLayoutTokens.formInlineGap,
+          runSpacing: AppLayoutTokens.formInlineGap,
+          alignment: isCompact ? WrapAlignment.start : WrapAlignment.end,
+          children: [
+            AppIconAction(
+              onPressed: onRefresh,
+              icon: Icons.refresh,
+              tooltip: 'Tải lại chính sách',
+            ),
+            AppIconAction(
+              onPressed: onCreatePolicy,
+              icon: Icons.add_box_outlined,
+              tooltip: 'Thêm chính sách',
+              filled: true,
+            ),
+            AppIconAction(
+              onPressed: onCreateRule,
+              icon: Icons.rule_folder_outlined,
+              tooltip: 'Thêm quy tắc',
+            ),
+            AppIconAction(
+              onPressed: onCreateSetting,
+              icon: Icons.settings_outlined,
+              tooltip: 'Thêm cấu hình',
+            ),
+          ],
+        );
 
-          return Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+        if (isCompact) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Expanded(child: heading),
-              const SizedBox(width: AppLayoutTokens.formInlineGap),
+              heading,
+              const SizedBox(height: AppLayoutTokens.formFieldGap),
               actions,
             ],
           );
-        },
-      ),
+        }
+
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(child: heading),
+            const SizedBox(width: AppLayoutTokens.formInlineGap),
+            actions,
+          ],
+        );
+      },
     );
   }
 }

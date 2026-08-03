@@ -47,8 +47,10 @@ void main() {
     await tester.pumpWidget(_wrapSortScreen(_FakeSortRepository()));
 
     expect(find.byKey(const Key('sort-fifo-header')), findsNothing);
+    expect(find.byKey(const Key('sort-fifo-workspace-header')), findsOneWidget);
     expect(find.byKey(const Key('sort-fifo-command-card')), findsOneWidget);
-    expect(find.text('Sắp xếp FIFO'), findsNothing);
+    expect(find.text('Sắp xếp FIFO'), findsOneWidget);
+    expect(find.text('Tìm vị trí hàng hóa theo SKU hoặc BIN.'), findsOneWidget);
     expect(find.text('Chưa có kết quả sắp xếp'), findsOneWidget);
     expect(find.byTooltip('Quét mã'), findsOneWidget);
     expect(find.byTooltip('Tìm hàng để sắp xếp'), findsOneWidget);

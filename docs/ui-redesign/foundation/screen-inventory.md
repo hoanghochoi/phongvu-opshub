@@ -2,7 +2,8 @@
 
 Status: **Approved — OPS-25-2026-07-26**
 Authority snapshot: `app_router.dart@3fe2e5cd`
-Coverage target: **44/44 declared paths**
+Coverage target: **43 canonical visual owners across 45 current path
+declarations**
 
 ## 1. Counting rules
 
@@ -56,7 +57,7 @@ Coverage target: **44/44 declared paths**
 | 21 | `/admin/feedback` | Admin feedback / `FeedbackAdminScreen` | Feedback-admin feature and current super-admin guard | ADMIN; list/detail/media loading, response actions | Shared responsive/state/dialog | Admin |
 | 22 | `/admin/help-content` | Admin content / `HelpContentAdminScreen` | Current super-admin guard | ADMIN; page list/editor, loading/error/empty, dirty-close | Shared responsive/state/dialog | Admin |
 | 23 | `/admin/sales-reports` | Admin report / `SalesReportAdminScreen` | Admin sales-report feature | DATA + ADMIN; filter/list/import, empty/error | Shared responsive/state/filter/pagination | Admin |
-| 24 | `/fifo-menu` | Secondary hub / `FifoMenuScreen` | Authenticated; available actions resolve downstream permissions | HUB; permission-filtered empty | Selected under Operations; `AppFeatureGrid` | Operational |
+| 24 | `/fifo-menu` | Historical compatibility link (not a current `path:` declaration) | Legacy deep link redirects to `/operations` before rendering | No standalone Figma owner | Operations canonical owner | Compatibility |
 | 25 | `/fifo-check` | Command/scan workflow / `FifoCheckScreen` | FIFO feature | FLOW + DATA; input and scan actions remain beside input | Shared scanner/input/state; one-hand compact layout | Pilot |
 | 26 | `/fifo-history` | FIFO history / `FifoHistoryScreen` | FIFO feature | DATA; initial/load-more/empty/error | Selected under Admin; shared state/pagination pattern | Operational |
 | 27 | `/fifo/inventory-import` | Alias surface / `InventoryImportScreen` | FIFO import feature | Same canonical FLOW as route #20; no duplicate design | Canonical owner: Inventory Import | Alias → Admin |
@@ -80,18 +81,46 @@ Coverage target: **44/44 declared paths**
 
 ## 4. Coverage proof
 
+### 4.1 Current-router reconciliation (OPS-44)
+
+The historical 44-row table above is retained as an OPS-25 snapshot. The
+current router additionally declares these two admin surfaces, which are real
+visual owners and must not be treated as aliases:
+
+| Current route | Canonical runtime surface | Figma ownership |
+| --- | --- | --- |
+| `/admin/support-chats` | `SupportChatsAdminScreen` | Dedicated admin support-chats frame `1701:131495` |
+| `/admin/api-connections` | `ApiConnectionsAdminScreen` | Dedicated admin API-connections frame `1704:134596` |
+
+`/reports` remains redirect-only. `/fifo/inventory-import` is a route alias
+for the same `InventoryImportScreen` used by `/admin/inventory-import`; it is
+not the `/reports` flow and does not justify a second visual design.
+
 | Classification | Count |
 | --- | ---: |
-| Declared paths | 44 |
+| Current `path:` declarations | 45 |
+| Canonical visual owners | 43 |
 | Pre-shell paths | 5 |
-| ShellRoute paths | 39 |
+| ShellRoute paths | 40 |
 | Redirect-only paths | 1 |
 | Parameterized detail paths | 1 |
 | Navigation destinations | 19 |
-| Inventory rows above | 44 |
+| Historical inventory rows above | 44 |
 
 `/help` nằm trong ShellRoute nhưng có presentation public riêng khi chưa đăng
 nhập. `/reports` được tính là declared path nhưng không có screen riêng.
+
+Desktop shell evidence is explicit rather than inferred: Web specimen
+`1792:16338` (`/shell-topbar · Web · 1440 · Runtime actions`) retains the
+existing Hỗ trợ, Thông báo and Tài khoản actions alongside route-specific
+actions. It documents an existing runtime contract only; it creates no route,
+permission, data or business-behavior authority.
+
+Shared runtime-state evidence is also explicit: Web specimen `1793:16377`
+(`OPS-44 / Shared Runtime States / Web`) instances the existing Foundation
+State Panel variants for loading, filtered empty, retryable error and
+permission. It is a composition of approved shared components, not a new
+route-level state or product-policy decision.
 
 ## 5. Foundation component demand
 

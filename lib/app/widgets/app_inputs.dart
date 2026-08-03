@@ -23,7 +23,7 @@ class AppInputMetrics {
   static const double height = AppLayoutTokens.authControlHeight;
   static const double iconBoxSize = AppLayoutTokens.authControlHeight;
   static const EdgeInsets contentPadding = EdgeInsets.symmetric(
-    horizontal: 14,
+    horizontal: 12,
     vertical: 12,
   );
 }

@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../app/theme/app_colors.dart';
+import '../../../../app/theme/app_radius.dart';
 import '../../../../app/theme/app_text_styles.dart';
 import '../../../../app/widgets/app_buttons.dart';
 import '../../../../app/widgets/app_cards.dart';
@@ -512,7 +513,11 @@ class _ApiConnectionAdminScreenState extends State<ApiConnectionAdminScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _HeaderCard(snapshot: snapshot),
+          _HeaderCard(
+            snapshot: snapshot,
+            disabled: _mutating,
+            onCreateClient: _mutating ? null : _createClient,
+          ),
           if (_error != null) ...[
             const SizedBox(height: AppLayoutTokens.cardGap),
             AppStatePanel.error(
@@ -591,26 +596,75 @@ class _ApiConnectionAdminScreenState extends State<ApiConnectionAdminScreen> {
 }
 
 class _HeaderCard extends StatelessWidget {
-  const _HeaderCard({required this.snapshot});
+  const _HeaderCard({
+    required this.snapshot,
+    required this.disabled,
+    required this.onCreateClient,
+  });
 
   final ApiConnectionSnapshot snapshot;
+  final bool disabled;
+  final VoidCallback? onCreateClient;
 
   @override
   Widget build(BuildContext context) {
+    final environment = snapshot.environment.toLowerCase() == 'production'
+        ? 'Sản xuất'
+        : snapshot.environment;
     return AppSurfaceCard(
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text('Quản lý kết nối API', style: AppTextStyles.headingS),
-          const SizedBox(height: 6),
-          Text(
-            '${snapshot.bankCode} • Môi trường ${snapshot.environment}',
-            style: AppTextStyles.bodyM,
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Kết nối ${snapshot.bankCode}',
+                      style: AppTextStyles.headingS,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Môi trường: $environment${snapshot.publicBaseUrl == null ? '' : ' · Endpoint đã cấu hình'}',
+                      style: AppTextStyles.bodyS.copyWith(
+                        color: AppColors.textMutedOf(context),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              SizedBox(
+                width: 128,
+                child: AppPrimaryButton(
+                  onPressed: onCreateClient,
+                  label: 'Tạo client',
+                  size: AppButtonSize.small,
+                  height: 40,
+                  isLoading: disabled,
+                ),
+              ),
+            ],
           ),
-          if (snapshot.publicBaseUrl != null) ...[
-            const SizedBox(height: 6),
-            SelectableText(snapshot.publicBaseUrl!),
-          ],
+          const SizedBox(height: 12),
+          DecoratedBox(
+            decoration: BoxDecoration(
+              color: AppColors.success.withValues(alpha: 0.14),
+              borderRadius: BorderRadius.circular(AppRadius.sm),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              child: Text(
+                snapshot.controls.ingressEffective
+                    ? 'BIDV đang sẵn sàng tiếp nhận dữ liệu'
+                    : 'BIDV sẵn sàng tiếp nhận dữ liệu',
+                style: AppTextStyles.labelM.copyWith(color: AppColors.success),
+              ),
+            ),
+          ),
         ],
       ),
     );
