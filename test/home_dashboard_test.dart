@@ -977,8 +977,8 @@ void main() {
 
     final menu = find.byKey(const Key('home-summary-scope-menu'));
     final menuRect = tester.getRect(menu);
-    expect(menuRect.left, greaterThanOrEqualTo(0));
-    expect(menuRect.right, lessThanOrEqualTo(640));
+    expect(menuRect.left, greaterThanOrEqualTo(16));
+    expect(menuRect.right, lessThanOrEqualTo(624));
     expect(menuRect.width, closeTo(608, 0.1));
     expect(tester.takeException(), isNull);
   });
