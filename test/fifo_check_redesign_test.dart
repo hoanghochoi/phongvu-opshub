@@ -5,7 +5,6 @@ import 'helpers/legacy_widget_finders.dart';
 import 'package:phongvu_opshub/core/logging/app_logger.dart';
 import 'package:phongvu_opshub/core/network/api_client.dart';
 import 'package:phongvu_opshub/core/storage/app_storage_keys.dart';
-import 'package:phongvu_opshub/core/utils/date_formatter.dart';
 import 'package:phongvu_opshub/features/fifo/data/repositories/fifo_repository.dart';
 import 'package:phongvu_opshub/features/fifo/domain/entities/fifo_check_result.dart';
 import 'package:phongvu_opshub/features/fifo/domain/entities/fifo_inventory_item.dart';
@@ -53,7 +52,7 @@ void main() {
     expect(find.text('0 sản phẩm'), findsNothing);
     expect(find.text('Chỉ còn tồn'), findsNothing);
     expect(find.text('Hiển thị đã xuất kho'), findsOneWidget);
-    expect(find.text('Nhập SKU hoặc serial để kiểm tra FIFO'), findsOneWidget);
+    expect(find.text('SKU-12345'), findsOneWidget);
     expect(find.byTooltip('Quét mã'), findsOneWidget);
     expect(find.byTooltip('Tìm FIFO'), findsOneWidget);
     expect(findsLegacyGradientHeader(), findsNothing);
@@ -74,11 +73,134 @@ void main() {
     final inputRect = tester.getRect(find.byType(TextField));
     final scanRect = tester.getRect(find.byTooltip('Quét mã'));
     final searchRect = tester.getRect(find.byTooltip('Tìm FIFO'));
-
     expect(scanRect.left, greaterThan(inputRect.right));
     expect(searchRect.left, greaterThan(scanRect.right));
     expect((scanRect.center.dy - inputRect.center.dy).abs(), lessThan(10));
     expect((searchRect.center.dy - inputRect.center.dy).abs(), lessThan(10));
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('FIFO check follows approved 375 and web geometry', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1024, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      _wrapFifoCheck(_FakeFifoRepository(), contentWidth: 936),
+    );
+
+    final commandCard = tester.getRect(
+      find.byKey(const Key('fifo-check-command-card')),
+    );
+    final resultPanel = tester.getRect(
+      find.byKey(const Key('fifo-check-results')),
+    );
+    final inputRect = tester.getRect(find.byType(TextField));
+    final scanRect = tester.getRect(find.byTooltip('Quét mã'));
+    final searchRect = tester.getRect(find.byTooltip('Tìm FIFO'));
+
+    expect(commandCard.width, 872);
+    expect(commandCard.height, 200);
+    expect(resultPanel.width, 872);
+    expect(resultPanel.height, 340);
+    expect((resultPanel.top - commandCard.bottom).abs(), 16);
+    expect(inputRect.height, 48);
+    expect(scanRect.size, const Size(48, 48));
+    expect(searchRect.size, const Size(48, 48));
+    expect(scanRect.left, greaterThan(inputRect.right));
+    expect(searchRect.left, greaterThan(scanRect.right));
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('FIFO serial correct follows approved mobile and web geometry', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(375, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(_wrapFifoCheck(_FakeFifoRepository()));
+    await tester.enterText(find.byType(TextField), 'SN001');
+    await tester.tap(find.byTooltip('Tìm FIFO'));
+    await tester.pumpAndSettle();
+
+    expect(
+      tester.getRect(find.byKey(const Key('fifo-check-results'))).size,
+      const Size(343, 340),
+    );
+    expect(
+      tester
+          .getRect(find.byKey(const ValueKey('fifo-copy-serial-fifo-1')))
+          .size,
+      const Size(144, 48),
+    );
+    expect(
+      tester
+          .getRect(find.byKey(const ValueKey('fifo-copy-location-fifo-1')))
+          .size,
+      const Size(143, 48),
+    );
+    expect(
+      tester.getRect(find.byKey(const ValueKey('fifo-export-control'))).size,
+      const Size(48, 48),
+    );
+
+    tester.view.physicalSize = const Size(1024, 900);
+    await tester.pumpWidget(
+      _wrapFifoCheck(_FakeFifoRepository(), contentWidth: 936),
+    );
+    await tester.enterText(find.byType(TextField), 'SN001');
+    await tester.tap(find.byTooltip('Tìm FIFO'));
+    await tester.pumpAndSettle();
+
+    expect(
+      tester.getRect(find.byKey(const Key('fifo-check-results'))).size,
+      const Size(872, 340),
+    );
+    expect(
+      tester
+          .getRect(find.byKey(const ValueKey('fifo-copy-location-fifo-1')))
+          .size,
+      const Size(128, 48),
+    );
+    expect(find.textContaining('Khu:'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('FIFO SKU loaded result keeps approved item geometry', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(375, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(_wrapFifoCheck(_FakeFifoRepository(skuMode: true)));
+    await tester.enterText(find.byType(TextField), 'SKU123');
+    await tester.tap(find.byTooltip('Tìm FIFO'));
+    await tester.pumpAndSettle();
+
+    expect(
+      tester.getRect(find.byKey(const Key('fifo-check-results'))).size,
+      const Size(343, 340),
+    );
+    expect(
+      tester
+          .getRect(find.byKey(const ValueKey('fifo-compact-item-sku-1')))
+          .size,
+      const Size(311, 68),
+    );
+    expect(
+      tester
+          .getRect(find.byKey(const ValueKey('fifo-compact-item-sku-3')))
+          .size,
+      const Size(311, 68),
+    );
+    expect(find.text('SKU123 • Q3-001 • 3 sản phẩm'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -102,15 +224,11 @@ void main() {
 
     expect(repository.lastText, 'SN001');
     expect(repository.lastIncludeExported, isTrue);
-    expect(find.text('Đúng FIFO. Lấy sản phẩm này.'), findsOneWidget);
+    expect(find.text('Đúng thứ tự FIFO'), findsOneWidget);
     expect(find.text('Chuột Logitech B100'), findsOneWidget);
     expect(find.text('SN001'), findsWidgets);
-    expect(find.text('250403171'), findsOneWidget);
     expect(find.text('LK.04-A-03-a'), findsOneWidget);
-    expect(
-      find.text(DateFormatter.inventoryAgeLabel('2026-07-01')!),
-      findsOneWidget,
-    );
+    expect(find.textContaining('Tuổi tồn:'), findsOneWidget);
     expect(find.text('Đánh dấu xuất kho'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
@@ -176,7 +294,10 @@ void main() {
       await tester.pumpWidget(_wrapFifoCheck(repository));
       await tester.pumpAndSettle();
 
-      expect(find.byKey(const Key('fifo-check-recent-searches')), findsNothing);
+      expect(
+        find.byKey(const Key('fifo-check-recent-searches')),
+        findsOneWidget,
+      );
 
       await tester.tap(find.byType(TextField));
       await tester.pumpAndSettle();
@@ -209,21 +330,32 @@ void main() {
         'SN002',
         'SN003',
       ]);
-      expect(find.text('Đúng FIFO. Lấy sản phẩm này.'), findsOneWidget);
+      expect(find.text('Đúng thứ tự FIFO'), findsOneWidget);
       expect(tester.takeException(), isNull);
     },
   );
 }
 
-Widget _wrapFifoCheck(_FakeFifoRepository repository) {
+Widget _wrapFifoCheck(_FakeFifoRepository repository, {double? contentWidth}) {
   return ChangeNotifierProvider<FifoProvider>(
     create: (_) => FifoProvider(repository),
-    child: const MaterialApp(home: FifoCheckScreen()),
+    child: MaterialApp(
+      home: contentWidth == null
+          ? const FifoCheckScreen()
+          : Center(
+              child: SizedBox(
+                width: contentWidth,
+                child: const FifoCheckScreen(),
+              ),
+            ),
+    ),
   );
 }
 
 class _FakeFifoRepository extends FifoRepository {
-  _FakeFifoRepository() : super(ApiClient());
+  _FakeFifoRepository({this.skuMode = false}) : super(ApiClient());
+
+  final bool skuMode;
 
   String? lastText;
   bool? lastIncludeExported;
@@ -235,6 +367,16 @@ class _FakeFifoRepository extends FifoRepository {
   }) async {
     lastText = text;
     lastIncludeExported = includeExported;
+
+    if (skuMode) {
+      return FifoCheckResult(
+        mode: 'sku',
+        query: text,
+        srCode: 'Q3-001',
+        includeExported: includeExported,
+        items: const [_skuItem1, _skuItem2, _skuItem3],
+      );
+    }
 
     return FifoCheckResult(
       mode: 'serial',
@@ -278,6 +420,48 @@ const _fifoItem = FifoInventoryItem(
   bin: 'LK.04-A-03-a',
   zone: 'A1',
   importDate: '2026-07-01',
+  count: 1,
+  exported: false,
+  isFifo: true,
+);
+
+const _skuItem1 = FifoInventoryItem(
+  id: 'sku-1',
+  srCode: 'Q3-001',
+  sku: 'SKU123',
+  skuName: 'Laptop Pro 14',
+  serialNumber: 'SN-001238',
+  bin: 'BIN-A12',
+  zone: 'Q3-001',
+  importDate: '2026-05-12',
+  count: 1,
+  exported: false,
+  isFifo: true,
+);
+
+const _skuItem2 = FifoInventoryItem(
+  id: 'sku-2',
+  srCode: 'Q3-001',
+  sku: 'SKU123',
+  skuName: 'Chuột không dây',
+  serialNumber: 'SN-001491',
+  bin: 'BIN-A18',
+  zone: 'Q3-001',
+  importDate: '2026-05-28',
+  count: 1,
+  exported: true,
+  isFifo: false,
+);
+
+const _skuItem3 = FifoInventoryItem(
+  id: 'sku-3',
+  srCode: 'Q3-001',
+  sku: 'SKU123',
+  skuName: 'Màn hình 24 inch',
+  serialNumber: 'SN-001880',
+  bin: 'BIN-B02',
+  zone: 'Q3-001',
+  importDate: '2026-06-04',
   count: 1,
   exported: false,
   isFifo: true,

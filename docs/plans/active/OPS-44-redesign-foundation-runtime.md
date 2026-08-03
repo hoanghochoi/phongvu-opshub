@@ -106,6 +106,17 @@ until the replacement has affected-consumer proof.
       exact node/revision → complete node map → geometry proof → exact-SHA
       build → staging deploy → authenticated Chrome comparison. Legacy UI is
       behavior-only and cannot supply a visual decision or fallback.
+- [x] FIFO Check node map: mobile Loaded `373:6159` (375 content 343,
+      command 343×200, result 343×340); web Loaded `1381:129739` (1440
+      content 1190, command 1126×200, result 1126×340); web 1024 Loaded R1
+      `1807:16494` (rail 88, content 936, command/result 872×200/340).
+- [x] FIFO Check command/result geometry and serial-correct state use the
+      approved Phosphor command actions plus serial nodes `1811:33734`,
+      `1812:48120`, and `1812:130354`; loading/empty remain shared Foundation
+      state panels.
+- [ ] FIFO Check serial wrong/exported/display-reserved/error states have no
+      approved OPS-44 result nodes yet; keep their business behavior intact and
+      do not infer a new visual target until Figma nodes are approved.
 - [ ] Retire remaining legacy visual consumers after remote staging/Chrome and
       primary-platform proof confirms no active consumer needs the compatibility
       layer.

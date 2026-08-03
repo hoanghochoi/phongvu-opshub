@@ -29,7 +29,7 @@ class AppInputMetrics {
 }
 
 InputDecoration appInputDecoration({
-  required String label,
+  String? label,
   IconData? icon,
   String? hintText,
   String? helperText,
@@ -37,6 +37,7 @@ InputDecoration appInputDecoration({
   String? errorText,
   bool dense = false,
   Widget? suffixIcon,
+  double? fixedHeight,
 }) {
   return InputDecoration(
     labelText: label,
@@ -54,9 +55,14 @@ InputDecoration appInputDecoration({
       width: AppInputMetrics.iconBoxSize,
       height: AppInputMetrics.iconBoxSize,
     ),
-    isDense: dense,
-    contentPadding: AppInputMetrics.contentPadding,
-    constraints: const BoxConstraints(minHeight: AppInputMetrics.height),
+    isDense: fixedHeight != null || dense,
+    isCollapsed: fixedHeight != null,
+    contentPadding: fixedHeight == null
+        ? AppInputMetrics.contentPadding
+        : const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+    constraints: fixedHeight == null
+        ? const BoxConstraints(minHeight: AppInputMetrics.height)
+        : BoxConstraints.tightFor(height: fixedHeight),
   );
 }
 
@@ -85,6 +91,8 @@ class AppTextInput extends StatelessWidget {
   final int? minLines;
   final TextInputAction? textInputAction;
   final Widget? suffixIcon;
+  final bool showLabel;
+  final double? fixedHeight;
 
   const AppTextInput({
     super.key,
@@ -112,44 +120,87 @@ class AppTextInput extends StatelessWidget {
     this.minLines,
     this.textInputAction,
     this.suffixIcon,
+    this.showLabel = true,
+    this.fixedHeight,
   });
 
   @override
   Widget build(BuildContext context) {
-    return SelectionContainer.disabled(
-      child: TextField(
-        controller: controller,
-        focusNode: focusNode,
-        keyboardType: keyboardType,
-        textCapitalization: textCapitalization,
-        inputFormatters: inputFormatters,
-        onChanged: (value) {
-          notifyAppFormChanged(context);
-          onChanged?.call(value);
-        },
-        onSubmitted: onSubmitted,
-        autofocus: autofocus,
-        enabled: enabled,
-        readOnly: readOnly,
-        obscureText: obscureText,
-        autocorrect: autocorrect,
-        autofillHints: autofillHints,
-        maxLines: maxLines,
-        minLines: minLines,
-        textInputAction: textInputAction,
-        contextMenuBuilder: appTextInputContextMenuBuilder(),
-        style: AppTextStyles.bodyM,
-        decoration: appInputDecoration(
-          label: label,
-          icon: icon,
-          hintText: hintText,
-          helperText: helperText,
-          suffixText: suffixText,
-          errorText: errorText,
-          dense: dense,
-          suffixIcon: suffixIcon,
-        ),
+    final field = TextField(
+      controller: controller,
+      focusNode: focusNode,
+      keyboardType: keyboardType,
+      textCapitalization: textCapitalization,
+      inputFormatters: inputFormatters,
+      onChanged: (value) {
+        notifyAppFormChanged(context);
+        onChanged?.call(value);
+      },
+      onSubmitted: onSubmitted,
+      autofocus: autofocus,
+      enabled: enabled,
+      readOnly: readOnly,
+      obscureText: obscureText,
+      autocorrect: autocorrect,
+      autofillHints: autofillHints,
+      maxLines: maxLines,
+      minLines: minLines,
+      textInputAction: textInputAction,
+      contextMenuBuilder: appTextInputContextMenuBuilder(),
+      style: AppTextStyles.bodyM,
+      decoration: appInputDecoration(
+        label: showLabel ? label : null,
+        icon: icon,
+        hintText: hintText,
+        helperText: helperText,
+        suffixText: suffixText,
+        errorText: errorText,
+        dense: dense,
+        suffixIcon: suffixIcon,
+        fixedHeight: fixedHeight,
       ),
+    );
+    return SelectionContainer.disabled(
+      child: fixedHeight == null
+          ? field
+          : SizedBox(height: fixedHeight, child: field),
+    );
+  }
+}
+
+class AppCommandTextInput extends StatelessWidget {
+  final TextEditingController controller;
+  final FocusNode? focusNode;
+  final bool enabled;
+  final String hintText;
+  final TextCapitalization textCapitalization;
+  final TextInputAction? textInputAction;
+  final ValueChanged<String>? onSubmitted;
+
+  const AppCommandTextInput({
+    super.key,
+    required this.controller,
+    required this.hintText,
+    this.focusNode,
+    this.enabled = true,
+    this.textCapitalization = TextCapitalization.none,
+    this.textInputAction,
+    this.onSubmitted,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return AppTextInput(
+      controller: controller,
+      label: '',
+      focusNode: focusNode,
+      enabled: enabled,
+      textCapitalization: textCapitalization,
+      textInputAction: textInputAction,
+      onSubmitted: onSubmitted,
+      hintText: hintText,
+      showLabel: false,
+      fixedHeight: AppInputMetrics.height,
     );
   }
 }
