@@ -578,7 +578,7 @@ void main() {
       );
       expect(
         find.byKey(const Key('home-summary-refresh-button')),
-        findsNothing,
+        findsOneWidget,
       );
       expect(
         find.byKey(const Key('home-summary-progress-panel')),
@@ -873,6 +873,7 @@ void main() {
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
+    var refreshed = false;
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
@@ -895,7 +896,7 @@ void main() {
                 isRefreshing: false,
                 onScopeChanged: null,
                 onDateRangeChanged: (_, _) {},
-                onRefresh: () {},
+                onRefresh: () => refreshed = true,
                 warningMessage: null,
               ),
             ),
@@ -905,15 +906,24 @@ void main() {
     );
 
     final header = find.byKey(const Key('home-summary-header'));
+    final refresh = find.byKey(const Key('home-summary-refresh-button'));
     final trigger = find.byKey(const Key('home-summary-scope-date-trigger'));
     expect(tester.getSize(header), const Size(896, 64));
+    expect(tester.getSize(refresh), const Size(104, 44));
     expect(tester.getSize(trigger), const Size(360, 44));
+    expect(
+      tester.getTopLeft(refresh) - tester.getTopLeft(header),
+      const Offset(416, 10),
+    );
     expect(
       tester.getTopLeft(trigger) - tester.getTopLeft(header),
       const Offset(536, 10),
     );
     expect(find.text('Trang chủ'), findsOneWidget);
     expect(find.text('Tổng quan theo phạm vi được phân quyền'), findsOneWidget);
+    expect(find.text('Làm mới'), findsOneWidget);
+    await tester.tap(refresh);
+    expect(refreshed, isTrue);
     expect(tester.takeException(), isNull);
   });
 
