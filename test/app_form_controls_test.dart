@@ -253,6 +253,46 @@ void main() {
     },
   );
 
+  testWidgets('AppCombobox keeps a wide menu inside the viewport', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Align(
+            alignment: Alignment.centerRight,
+            child: SizedBox(
+              width: 220,
+              child: AppCombobox<String>.single(
+                label: 'Phạm vi',
+                value: null,
+                menuWidth: 360,
+                options: const [
+                  AppComboboxOption(value: 'ALL', label: 'Toàn hệ thống'),
+                ],
+                onChanged: (_) {},
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.byTooltip('Mở danh sách'));
+    await tester.pumpAndSettle();
+
+    final menuRect = tester.getRect(find.byKey(const Key('app-combobox-menu')));
+    expect(menuRect.left, greaterThanOrEqualTo(16));
+    expect(menuRect.right, lessThanOrEqualTo(374));
+    expect(menuRect.width, closeTo(358, 0.1));
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets(
     'AppCombobox keeps the menu open through a desktop mouse click on an option',
     (tester) async {
