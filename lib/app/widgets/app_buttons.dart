@@ -119,7 +119,7 @@ class AppPrimaryButton extends StatelessWidget {
 
 class AppSecondaryButton extends StatelessWidget {
   final VoidCallback? onPressed;
-  final IconData icon;
+  final IconData? icon;
   final String label;
   final bool isLoading;
   final String? loadingLabel;
@@ -133,7 +133,7 @@ class AppSecondaryButton extends StatelessWidget {
   const AppSecondaryButton({
     super.key,
     required this.onPressed,
-    required this.icon,
+    this.icon,
     required this.label,
     this.isLoading = false,
     this.loadingLabel,
@@ -152,44 +152,64 @@ class AppSecondaryButton extends StatelessWidget {
     return SizedBox(
       width: expand ? double.infinity : null,
       height: height ?? AppButtonMetrics.heightFor(size),
-      child: OutlinedButton.icon(
-        onPressed: isLoading ? null : onPressed,
-        icon: isLoading
-            ? const SizedBox(
-                width: 20,
-                height: 20,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              )
-            : Icon(icon),
-        label: Text(
-          isLoading ? loadingLabel ?? label : label,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          softWrap: false,
-        ),
-        style:
-            OutlinedButton.styleFrom(
-              foregroundColor: effectiveForegroundColor,
-              side: BorderSide(color: effectiveBorderColor),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(radius),
-              ),
-              textStyle: AppTextStyles.labelM,
-              minimumSize: Size(0, height ?? AppButtonMetrics.heightFor(size)),
-              maximumSize: Size(
-                double.infinity,
-                height ?? AppButtonMetrics.heightFor(size),
-              ),
-              padding: AppButtonMetrics.horizontalPadding,
-            ).copyWith(
-              side: WidgetStateProperty.resolveWith<BorderSide?>((states) {
-                if (states.contains(WidgetState.focused)) {
-                  return BorderSide(color: effectiveBorderColor, width: 2);
-                }
-                return BorderSide(color: effectiveBorderColor);
-              }),
-            ),
+      child: _buildButton(
+        effectiveForegroundColor: effectiveForegroundColor,
+        effectiveBorderColor: effectiveBorderColor,
       ),
+    );
+  }
+
+  Widget _buildButton({
+    required Color effectiveForegroundColor,
+    required Color effectiveBorderColor,
+  }) {
+    final buttonStyle =
+        OutlinedButton.styleFrom(
+          foregroundColor: effectiveForegroundColor,
+          side: BorderSide(color: effectiveBorderColor),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(radius),
+          ),
+          textStyle: AppTextStyles.labelM,
+          minimumSize: Size(0, height ?? AppButtonMetrics.heightFor(size)),
+          maximumSize: Size(
+            double.infinity,
+            height ?? AppButtonMetrics.heightFor(size),
+          ),
+          padding: AppButtonMetrics.horizontalPadding,
+        ).copyWith(
+          side: WidgetStateProperty.resolveWith<BorderSide?>((states) {
+            if (states.contains(WidgetState.focused)) {
+              return BorderSide(color: effectiveBorderColor, width: 2);
+            }
+            return BorderSide(color: effectiveBorderColor);
+          }),
+        );
+    final buttonLabel = Text(
+      isLoading ? loadingLabel ?? label : label,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      softWrap: false,
+    );
+
+    if (icon == null && !isLoading) {
+      return OutlinedButton(
+        onPressed: onPressed,
+        style: buttonStyle,
+        child: buttonLabel,
+      );
+    }
+    return OutlinedButton.icon(
+      onPressed: isLoading ? null : onPressed,
+      icon: isLoading
+          ? const SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          : Icon(icon),
+      label: buttonLabel,
+      style: buttonStyle,
     );
   }
 }
