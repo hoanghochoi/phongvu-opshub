@@ -43,6 +43,11 @@ class AppColors {
   static const Color warningSurface = Color(0xFFFEF3C7);
   static const Color errorSurface = Color(0xFFFFEDD5);
   static const Color infoSurface = Color(0xFFDBEAFE);
+
+  /// Figma `report-progress-panel` surface and border.
+  static const Color infoSurfaceSubtle = Color(0xFFEFF6FF);
+  static const Color infoBorderSubtle = Color(0xFFBFDBFE);
+  static const Color infoTextStrong = Color(0xFF1E3A8A);
   static const Color teal600 = secondary; // VietQR
   static const Color violet600 = accent; // Payment monitor
   static const Color indigo600 = Color(0xFF4F46E5);

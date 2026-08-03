@@ -16,6 +16,7 @@ import '../../core/logging/app_logger.dart';
 import '../../core/runtime/app_runtime_coordinator.dart';
 import '../../features/auth/domain/entities/user.dart';
 import '../../features/auth/presentation/providers/auth_provider.dart';
+import '../../features/home/presentation/providers/home_summary_provider.dart';
 import '../../features/notifications/presentation/providers/app_notifications_provider.dart';
 import '../../features/notifications/presentation/widgets/app_notifications_bell.dart';
 import '../../features/payment_monitor/presentation/providers/payment_delivery_metrics_provider.dart';
@@ -128,6 +129,7 @@ class _AppShellState extends State<AppShell> {
   @override
   Widget build(BuildContext context) {
     final user = context.watch<AuthProvider>().user;
+    final homeSummaryProvider = context.watch<HomeSummaryProvider?>();
     final supportChat = maybeSupportChatProvider(context, listen: true);
     final sidebarDestinations = AppNavModel.visibleSidebarDestinations(user);
     final mobileDestinations = AppNavModel.visibleMobileDestinations(user);
@@ -183,8 +185,14 @@ class _AppShellState extends State<AppShell> {
                   version: _version,
                   onNavigate: _navigate,
                   onSupport: () => _openSupport(context),
-                  onRefresh: () =>
-                      unawaited(context.read<AuthProvider>().refreshUserData()),
+                  onRefresh: () {
+                    if (widget.location == '/home' &&
+                        homeSummaryProvider?.canRefresh == true) {
+                      unawaited(homeSummaryProvider!.refreshNow());
+                      return;
+                    }
+                    unawaited(context.read<AuthProvider>().refreshUserData());
+                  },
                   onLogout: () => _logout(context),
                   onAppInfo: () => _showAppInfoDialog(context),
                   child: widget.child,
@@ -1401,7 +1409,7 @@ class _ShellTopBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final header = _shellHeaderFor(location, activeDestination);
-    final figmaOperationsTarget = location == '/operations';
+    final figmaTopBarTarget = location == '/operations' || location == '/home';
     return Container(
       height: AppLayoutTokens.shellTopBarHeight,
       decoration: BoxDecoration(
@@ -1415,11 +1423,12 @@ class _ShellTopBar extends StatelessWidget {
         builder: (context, constraints) {
           // The Figma tablet rail has room for the three retained actions,
           // but not their desktop labels or delivery-metrics pill.
-          final compactActions = constraints.maxWidth < 880;
+          final compactActions =
+              constraints.maxWidth < (figmaTopBarTarget ? 960 : 880);
           return Row(
             children: [
               Expanded(
-                child: figmaOperationsTarget
+                child: figmaTopBarTarget
                     ? Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
@@ -1464,7 +1473,7 @@ class _ShellTopBar extends StatelessWidget {
                 onLogout: onLogout,
                 onAppInfo: onAppInfo,
               ),
-              if (figmaOperationsTarget) ...[
+              if (figmaTopBarTarget) ...[
                 const SizedBox(width: 12),
                 SizedBox(
                   width: 132,
