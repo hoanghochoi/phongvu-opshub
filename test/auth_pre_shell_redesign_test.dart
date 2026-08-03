@@ -161,6 +161,10 @@ Future<void> _expectLoginViewport(
   if (desktop) {
     expect(find.byType(AuthBrandPanel), findsOneWidget);
     expect(find.byType(MobileBrandHeader), findsNothing);
+    if (size.width == 1440) {
+      expect(tester.getSize(find.byType(AuthBrandPanel)).width, 820);
+      expect(tester.getSize(find.byType(LoginCard)).width, 360);
+    }
   } else {
     expect(find.byType(AuthBrandPanel), findsNothing);
     expect(find.byType(MobileBrandHeader), findsOneWidget);

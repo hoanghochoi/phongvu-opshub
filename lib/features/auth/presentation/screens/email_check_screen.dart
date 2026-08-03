@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:phongvu_opshub/app/widgets/app_toast.dart';
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_text_styles.dart';
@@ -40,7 +41,7 @@ class _EmailCheckScreenState extends State<EmailCheckScreen> {
       builder: (context, authProvider, _) {
         return AuthScreenShell(
           child: LoginCard(
-            icon: Icons.login_rounded,
+            icon: PhosphorIconsRegular.signIn,
             title: 'Đăng nhập',
             subtitle: 'Dùng tài khoản nội bộ để tiếp tục.',
             child: LoginForm(
@@ -159,7 +160,6 @@ class LoginForm extends StatelessWidget {
                   AutofillHints.email,
                 ],
                 label: 'Email',
-                icon: Icons.alternate_email_rounded,
                 validator: (value) {
                   final email = value?.trim() ?? '';
                   if (!Validators.isValidEmail(email)) {
@@ -177,14 +177,13 @@ class LoginForm extends StatelessWidget {
                 autofillHints: const [AutofillHints.password],
                 onFieldSubmitted: (_) => isLoading ? null : onSubmit(),
                 label: 'Mật khẩu',
-                icon: Icons.lock_rounded,
                 suffixIcon: IconButton(
                   tooltip: obscurePassword ? 'Hiện mật khẩu' : 'Ẩn mật khẩu',
                   onPressed: isLoading ? null : onTogglePassword,
                   icon: Icon(
                     obscurePassword
-                        ? Icons.visibility_rounded
-                        : Icons.visibility_off_rounded,
+                        ? PhosphorIconsRegular.eye
+                        : PhosphorIconsRegular.eyeSlash,
                     size: 20,
                   ),
                 ),
@@ -198,11 +197,11 @@ class LoginForm extends StatelessWidget {
               const SizedBox(height: AppLayoutTokens.formSectionGap),
               AppPrimaryButton(
                 onPressed: isLoading ? null : onSubmit,
-                icon: Icons.login_rounded,
+                icon: PhosphorIconsRegular.signIn,
                 label: 'Đăng nhập',
                 isLoading: isLoading,
                 loadingLabel: 'Đang đăng nhập...',
-                height: AppLayoutTokens.authSubmitHeight,
+                height: AppLayoutTokens.authControlHeight,
                 radius: AppLayoutTokens.authControlRadius,
               ),
               const SizedBox(height: AppLayoutTokens.formInlineGap),
@@ -249,7 +248,7 @@ class AuthSecondaryActions extends StatelessWidget {
             children: [
               AppLinkButton(
                 onPressed: isLoading ? null : onForgotPassword,
-                icon: Icons.lock_reset_rounded,
+                icon: PhosphorIconsRegular.lockKey,
                 label: 'Quên mật khẩu',
                 tooltip: 'Mở luồng đổi mật khẩu',
                 compact: true,
@@ -257,7 +256,7 @@ class AuthSecondaryActions extends StatelessWidget {
               const _AuthActionDivider(),
               AppLinkButton(
                 onPressed: isLoading ? null : onRegister,
-                icon: Icons.person_add_alt_1_rounded,
+                icon: PhosphorIconsRegular.userPlus,
                 label: 'Đăng ký',
                 tooltip: 'Đăng ký tài khoản OpsHub',
                 compact: true,
@@ -265,7 +264,7 @@ class AuthSecondaryActions extends StatelessWidget {
               const _AuthActionDivider(),
               AppLinkButton(
                 onPressed: isLoading ? null : onHelp,
-                icon: Icons.menu_book_outlined,
+                icon: PhosphorIconsRegular.bookOpen,
                 label: 'Hướng dẫn',
                 tooltip: 'Mở hướng dẫn sử dụng',
                 compact: true,

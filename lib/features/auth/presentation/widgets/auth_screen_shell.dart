@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_radius.dart';
@@ -20,17 +21,17 @@ class AuthScreenShell extends StatelessWidget {
     this.maxWidth = AppLayoutTokens.authMaxWidth,
     this.highlights = const [
       AuthShellHighlight(
-        icon: Icons.qr_code_2_rounded,
+        icon: PhosphorIconsRegular.qrCode,
         title: 'VietQR realtime',
         description: 'Theo dõi QR, đối soát và thông báo theo quyền.',
       ),
       AuthShellHighlight(
-        icon: Icons.inventory_2_outlined,
+        icon: PhosphorIconsRegular.package,
         title: 'FIFO và bảo hành',
         description: 'Tác vụ vận hành gọn trong một workspace.',
       ),
       AuthShellHighlight(
-        icon: Icons.admin_panel_settings_outlined,
+        icon: PhosphorIconsRegular.shieldCheck,
         title: 'Phân quyền rõ',
         description: 'Truy cập theo cây tổ chức và tính năng được gán.',
       ),
@@ -72,13 +73,10 @@ class AuthPage extends StatelessWidget {
               );
             }
 
-            final preferredFormWidth = math.max(
+            final formPanelWidth = math.max(
               AppLayoutTokens.authFormPanelMinWidth,
-              constraints.maxWidth * 0.44,
+              constraints.maxWidth - 820,
             );
-            final maxFormWidth =
-                constraints.maxWidth - AppLayoutTokens.authBrandPanelMinWidth;
-            final formPanelWidth = math.min(preferredFormWidth, maxFormWidth);
             final brandPanelWidth = constraints.maxWidth - formPanelWidth;
 
             return Row(
@@ -109,11 +107,7 @@ class AuthBrandPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final dense = constraints.maxHeight < 820;
-        final padding = EdgeInsets.symmetric(
-          horizontal: dense ? 40 : 56,
-          vertical: dense ? 36 : 52,
-        );
+        const padding = EdgeInsets.fromLTRB(56, 56, 56, 48);
         return ColoredBox(
           color: AppColors.sidebarSurfaceOf(context),
           child: Padding(
@@ -121,27 +115,25 @@ class AuthBrandPanel extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                BrandHeader(dense: dense),
-                SizedBox(height: dense ? 24 : 42),
-                AuthBenefitList(highlights: highlights, dense: dense),
+                const BrandHeader(),
+                const SizedBox(height: 18),
+                AuthBenefitList(highlights: highlights),
                 const Spacer(),
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     Icon(
-                      Icons.lock_rounded,
+                      PhosphorIconsRegular.lockKey,
                       size: 18,
                       color: AppColors.sidebarMutedOf(context),
                     ),
                     const SizedBox(width: AppLayoutTokens.formInlineGap),
                     Expanded(
                       child: Text(
-                        'Bảo mật bằng phân quyền và session nội bộ OpsHub.',
-                        style:
-                            (dense ? AppTextStyles.bodyS : AppTextStyles.labelM)
-                                .copyWith(
-                                  color: AppColors.sidebarMutedOf(context),
-                                ),
+                        'Bảo mật bằng phân quyền và phiên nội bộ OpsHub.',
+                        style: AppTextStyles.bodyS.copyWith(
+                          color: AppColors.sidebarMutedOf(context),
+                        ),
                       ),
                     ),
                   ],
@@ -248,7 +240,7 @@ class AuthBenefitList extends StatelessWidget {
     return ConstrainedBox(
       constraints: const BoxConstraints(maxWidth: 470),
       child: AppFormColumn(
-        spacing: dense ? 8 : AppLayoutTokens.cardGap,
+        spacing: 10,
         children: [
           for (final highlight in highlights)
             _AuthBenefitTile(highlight: highlight, dense: dense),
@@ -342,7 +334,6 @@ class LoginCard extends StatelessWidget {
           color: AppColors.cardOf(context),
           borderRadius: AppRadius.allMd,
           border: Border.all(color: AppColors.borderOf(context)),
-          boxShadow: AppShadowTokens.authCard(context),
         ),
         child: Padding(
           padding: padding,
@@ -350,25 +341,26 @@ class LoginCard extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Align(
-                alignment: Alignment.centerLeft,
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: AppColors.primarySurfaceOf(context),
-                    borderRadius: AppRadius.allMd,
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(10),
-                    child: Icon(
-                      icon,
-                      size: 24,
-                      color: AppColors.primaryOf(context),
+              Row(
+                children: [
+                  DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: AppColors.primarySurfaceOf(context),
+                      borderRadius: AppRadius.allMd,
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(12),
+                      child: Icon(
+                        icon,
+                        size: 20,
+                        color: AppColors.primaryOf(context),
+                      ),
                     ),
                   ),
-                ),
+                  const SizedBox(width: 12),
+                  Expanded(child: Text(title, style: AppTextStyles.headingS)),
+                ],
               ),
-              const SizedBox(height: AppLayoutTokens.formFieldGap),
-              Text(title, style: AppTextStyles.headingM),
               const SizedBox(height: 6),
               Text(
                 subtitle,
@@ -376,7 +368,7 @@ class LoginCard extends StatelessWidget {
                   color: AppColors.textSecondaryOf(context),
                 ),
               ),
-              const SizedBox(height: AppLayoutTokens.formSectionGap),
+              const SizedBox(height: 16),
               child,
             ],
           ),
@@ -464,26 +456,17 @@ class _AuthBenefitTileState extends State<_AuthBenefitTile> {
             border: Border.all(color: borderColor, width: _focused ? 2 : 1),
           ),
           child: Padding(
-            padding: EdgeInsets.all(widget.dense ? 10 : 12),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: AppColors.sidebarSelectedOf(
-                      context,
-                    ).withValues(alpha: active ? 0.22 : 0.14),
-                    borderRadius: AppRadius.allMd,
-                  ),
-                  child: SizedBox.square(
-                    dimension: widget.dense
-                        ? AppLayoutTokens.authCompactBenefitIconSize
-                        : AppLayoutTokens.authBenefitIconSize,
-                    child: Icon(
-                      widget.highlight.icon,
-                      size: widget.dense ? 20 : 22,
-                      color: AppColors.sidebarTextOf(context),
-                    ),
+                SizedBox(
+                  width: 22,
+                  height: 24,
+                  child: Icon(
+                    widget.highlight.icon,
+                    size: 20,
+                    color: AppColors.sidebarTextOf(context),
                   ),
                 ),
                 const SizedBox(width: AppLayoutTokens.formInlineGap),
