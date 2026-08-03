@@ -69,6 +69,16 @@ pass làm evidence downstream stale: phải chạy lại geometry proof, build, 
 và Chrome audit tương ứng. “Gần giống”, runtime screenshot cũ, memory, hay
 legacy implementation không bao giờ là evidence thay thế.
 
+Node map là artifact bắt buộc phải review được trong Linear, active plan hoặc
+PR body **trước production UI edit đầu tiên**. Map phải liệt kê toàn bộ
+viewport/state affected, mọi element nhìn thấy và viewport matrix của Chrome
+audit. Không được bỏ một viewport sau đó chỉ vì runtime trông "ổn". Với surface
+đã migrate, chỉ Figma implementation được phép render: cấm feature flag,
+conditional branch, legacy widget/style hay responsive fallback trả lại UI cũ.
+Unapproved visual drift là failed verification, nên chặn completion, merge,
+forward Linear status và staging-QA pass; không có ngoại lệ dựa trên deadline
+hoặc legacy implementation.
+
 ## 4. Quy trình
 
 ### A — Intake và audit
@@ -82,7 +92,9 @@ legacy implementation không bao giờ là evidence thay thế.
 6. Lập node map theo từng viewport: exact Figma node/revision → Flutter shared
    component → token (màu/type/spacing/radius/elevation) → geometry/copy/icon
    → behavior phải giữ. Node map phải cover mọi element nhìn thấy; không có
-   node map thì không bắt đầu UI mutation.
+   node map thì không bắt đầu UI mutation. Lưu map tại Linear, active plan hoặc
+   PR body trước production UI edit đầu tiên; đồng thời khai báo Chrome viewport
+   matrix ở đây để không thể giảm scope audit sau implementation.
 
 Audit phải thừa nhận baseline hiện tại; không giả định repo là greenfield.
 

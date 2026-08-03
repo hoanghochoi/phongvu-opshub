@@ -19,6 +19,11 @@ All visible elements must be covered by the approved node map. Legacy code and
 old runtime screenshots are behavior-only references and must not supply any
 visual decision or fallback.
 
+**Hard-gate attestation:** node map was recorded before the first production UI
+edit; the table includes every affected viewport/state; this migrated surface
+has no feature flag, conditional legacy widget/style or responsive fallback
+that can render old UI. An unapproved visual drift blocks merge/status/QA pass.
+
 ## Product authority and protected behavior
 
 - Product docs and decision:
