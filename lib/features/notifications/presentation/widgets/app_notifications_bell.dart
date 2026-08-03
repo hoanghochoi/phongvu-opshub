@@ -19,7 +19,9 @@ import '../../../offset_adjustment/domain/offset_adjustment.dart';
 import '../providers/app_notifications_provider.dart';
 
 class AppNotificationsBell extends StatelessWidget {
-  const AppNotificationsBell({super.key});
+  final bool showLabel;
+
+  const AppNotificationsBell({super.key, this.showLabel = false});
 
   static Future<bool> showPanel(BuildContext context) async {
     late final AppNotificationsProvider notifications;
@@ -95,6 +97,7 @@ class AppNotificationsBell extends StatelessWidget {
               await notifications.load();
               await notifications.markVisibleNotificationsRead();
             },
+            label: showLabel ? 'Thông báo' : null,
           ),
         );
       },
