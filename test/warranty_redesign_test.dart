@@ -3,6 +3,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:phongvu_opshub/app/navigation/app_shell.dart';
+import 'package:phongvu_opshub/app/widgets/app_layout.dart';
 import 'helpers/legacy_widget_finders.dart';
 import 'package:phongvu_opshub/core/logging/app_logger.dart';
 import 'package:phongvu_opshub/core/network/api_client.dart';
@@ -140,6 +141,135 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('Warranty lookup matches compact Figma geometry', (tester) async {
+    tester.view.physicalSize = const Size(375, 812);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      _buildWarrantyLookupApp(
+        _FakeWarrantyProvider(receipts: _warrantyReceipts),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    _expectRectClose(
+      tester.getRect(find.byKey(const Key('warranty-lookup-actions'))),
+      const Rect.fromLTWH(16, 56, 283, 48),
+    );
+    _expectRectClose(
+      tester.getRect(find.byKey(const Key('warranty-lookup-search-card'))),
+      const Rect.fromLTWH(16, 150, 343, 108),
+    );
+    final inputRect = tester.getRect(
+      find.byKey(const Key('warranty-lookup-input')),
+    );
+    final scanRect = tester.getRect(
+      find.byKey(const Key('warranty-lookup-scan')),
+    );
+    final submitRect = tester.getRect(
+      find.byKey(const Key('warranty-lookup-submit')),
+    );
+    expect(inputRect.right, lessThan(scanRect.left));
+    expect(scanRect.right, lessThan(submitRect.left));
+    expect(scanRect.top, closeTo(submitRect.top, 0.5));
+    _expectRectClose(
+      tester.getRect(find.byKey(const Key('warranty-receipt-card'))),
+      const Rect.fromLTWH(16, 274, 343, 112),
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Warranty lookup stays a 343px task column on Android tablet', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(834, 1112);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      _buildWarrantyLookupApp(
+        _FakeWarrantyProvider(receipts: _warrantyReceipts),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    _expectRectClose(
+      tester.getRect(find.byKey(const Key('warranty-lookup-search-card'))),
+      const Rect.fromLTWH(16, 150, 343, 108),
+    );
+    _expectRectClose(
+      tester.getRect(find.byKey(const Key('warranty-receipt-card'))),
+      const Rect.fromLTWH(16, 274, 343, 112),
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Warranty lookup matches wide Figma content geometry', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      _buildWarrantyLookupApp(
+        _FakeWarrantyProvider(receipts: _warrantyReceipts),
+        availableWidth: 1190,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    _expectRectClose(
+      tester.getRect(find.byKey(const Key('warranty-lookup-actions'))),
+      const Rect.fromLTWH(838, 96, 283, 48),
+    );
+    _expectRectClose(
+      tester.getRect(find.byKey(const Key('warranty-lookup-search-card'))),
+      const Rect.fromLTWH(32, 148, 1126, 108),
+    );
+    _expectRectClose(
+      tester.getRect(find.byKey(const Key('warranty-receipt-card'))),
+      const Rect.fromLTWH(32, 272, 1126, 104),
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Warranty lookup maps compact loading empty and error states', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(375, 812);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      _buildWarrantyLookupApp(_FakeWarrantyProvider(isLoading: true)),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 20));
+    expect(find.byKey(const Key('warranty-lookup-loading')), findsOneWidget);
+
+    await tester.pumpWidget(_buildWarrantyLookupApp(_FakeWarrantyProvider()));
+    await tester.pumpAndSettle();
+    expect(find.text('Không tìm thấy biên nhận'), findsOneWidget);
+
+    await tester.pumpWidget(
+      _buildWarrantyLookupApp(
+        _FakeWarrantyProvider(errorMessage: 'HTTP 500 backend detail'),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Chưa tải được biên nhận'), findsOneWidget);
+    expect(find.text('Kiểm tra kết nối rồi thử lại.'), findsOneWidget);
+    expect(find.text('Thử tải lại'), findsOneWidget);
+    expect(find.textContaining('HTTP 500'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('Warranty detail renders content header and image viewer', (
     tester,
   ) async {
@@ -156,7 +286,7 @@ void main() {
     expect(find.byKey(const Key('warranty-detail-header')), findsOneWidget);
     expect(find.byType(Scaffold), findsNothing);
     expect(findsLegacyGradientHeader(), findsNothing);
-    expect(find.text('Chi tiết biên nhận'), findsOneWidget);
+    expect(find.text('Chi tiết biên nhận'), findsNothing);
     expect(find.text('Thông tin biên nhận'), findsOneWidget);
     expect(find.text('Hình ảnh (2)'), findsOneWidget);
     expect(find.byKey(const Key('warranty-image-card-0')), findsOneWidget);
@@ -168,6 +298,128 @@ void main() {
     expect(find.text('CP01-J12345678 - Ảnh 1'), findsOneWidget);
     expect(find.byType(Scaffold), findsNothing);
     expect(findsLegacyGradientHeader(), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Warranty detail matches compact Figma geometry', (tester) async {
+    tester.view.physicalSize = const Size(375, 812);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      _buildWarrantyDetailApp(
+        _FakeWarrantyProvider(details: _warrantyDetailsWithThreeImages),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    _expectRectClose(
+      tester.getRect(find.byKey(const Key('warranty-detail-back'))),
+      const Rect.fromLTWH(239, 12, 120, 48),
+    );
+    _expectRectClose(
+      tester.getRect(find.byKey(const Key('warranty-detail-receipt-info'))),
+      const Rect.fromLTWH(16, 84, 343, 156),
+    );
+    _expectRectClose(
+      tester.getRect(find.byKey(const Key('warranty-detail-gallery'))),
+      const Rect.fromLTWH(16, 256, 343, 286),
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Warranty detail stays a 343px task column on Android tablet', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(834, 1112);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      _buildWarrantyDetailApp(
+        _FakeWarrantyProvider(details: _warrantyDetailsWithThreeImages),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    _expectRectClose(
+      tester.getRect(find.byKey(const Key('warranty-detail-receipt-info'))),
+      const Rect.fromLTWH(16, 84, 343, 156),
+    );
+    _expectRectClose(
+      tester.getRect(find.byKey(const Key('warranty-detail-gallery'))),
+      const Rect.fromLTWH(16, 256, 343, 286),
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Warranty detail matches wide two-column Figma geometry', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      _buildWarrantyDetailApp(
+        _FakeWarrantyProvider(details: _warrantyDetailsWithThreeImages),
+        availableWidth: 1190,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Chi tiết biên nhận'), findsOneWidget);
+    _expectRectClose(
+      tester.getRect(find.byKey(const Key('warranty-detail-receipt-info'))),
+      const Rect.fromLTWH(32, 172, 399.6, 190),
+    );
+    _expectRectClose(
+      tester.getRect(find.byKey(const Key('warranty-detail-gallery'))),
+      const Rect.fromLTWH(447.6, 172, 710.4, 360),
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Warranty detail maps compact loading empty and error states', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(375, 812);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      _buildWarrantyDetailApp(_FakeWarrantyProvider(isLoading: true)),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 20));
+    expect(find.text('Đang tải chi tiết biên nhận'), findsOneWidget);
+    expect(
+      find.text('Hệ thống đang lấy thông tin và danh sách ảnh.'),
+      findsOneWidget,
+    );
+
+    await tester.pumpWidget(_buildWarrantyDetailApp(_FakeWarrantyProvider()));
+    await tester.pumpAndSettle();
+    expect(find.text('Không có dữ liệu biên nhận'), findsOneWidget);
+    expect(
+      find.text('Biên nhận có thể đã bị xóa hoặc không thuộc phạm vi của bạn.'),
+      findsOneWidget,
+    );
+    expect(find.text('Quay lại'), findsNWidgets(2));
+
+    await tester.pumpWidget(
+      _buildWarrantyDetailApp(
+        _FakeWarrantyProvider(errorMessage: 'HTTP 500 backend detail'),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Chưa tải được chi tiết biên nhận'), findsOneWidget);
+    expect(find.text('Kiểm tra kết nối rồi thử lại.'), findsOneWidget);
+    expect(find.textContaining('HTTP 500'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 }
@@ -186,20 +438,11 @@ Widget _buildWarrantyUploadApp() {
   );
 }
 
-Widget _buildWarrantyLookupApp(_FakeWarrantyProvider warrantyProvider) {
-  return MultiProvider(
-    providers: [
-      ChangeNotifierProvider<AuthProvider>.value(
-        value: _FakeAuthProvider(_warrantyUser),
-      ),
-      ChangeNotifierProvider<WarrantyProvider>.value(value: warrantyProvider),
-    ],
-    child: const MaterialApp(home: CheckWarrantyScreen()),
-  );
-}
-
-Widget _buildWarrantyDetailApp(_FakeWarrantyProvider warrantyProvider) {
-  return MultiProvider(
+Widget _buildWarrantyLookupApp(
+  _FakeWarrantyProvider warrantyProvider, {
+  double? availableWidth,
+}) {
+  final screen = MultiProvider(
     providers: [
       ChangeNotifierProvider<AuthProvider>.value(
         value: _FakeAuthProvider(_warrantyUser),
@@ -207,9 +450,79 @@ Widget _buildWarrantyDetailApp(_FakeWarrantyProvider warrantyProvider) {
       ChangeNotifierProvider<WarrantyProvider>.value(value: warrantyProvider),
     ],
     child: const MaterialApp(
-      home: WarrantyDetailsScreen(receiptNumber: 'CP01-J12345678'),
+      home: AppMobileTypographyDensity(child: CheckWarrantyScreen()),
     ),
   );
+  if (availableWidth == null) return screen;
+  return MaterialApp(
+    home: Align(
+      alignment: Alignment.topLeft,
+      child: SizedBox(
+        width: availableWidth,
+        height: double.infinity,
+        child: MultiProvider(
+          providers: [
+            ChangeNotifierProvider<AuthProvider>.value(
+              value: _FakeAuthProvider(_warrantyUser),
+            ),
+            ChangeNotifierProvider<WarrantyProvider>.value(
+              value: warrantyProvider,
+            ),
+          ],
+          child: const AppMobileTypographyDensity(child: CheckWarrantyScreen()),
+        ),
+      ),
+    ),
+  );
+}
+
+Widget _buildWarrantyDetailApp(
+  _FakeWarrantyProvider warrantyProvider, {
+  double? availableWidth,
+}) {
+  final screen = MultiProvider(
+    providers: [
+      ChangeNotifierProvider<AuthProvider>.value(
+        value: _FakeAuthProvider(_warrantyUser),
+      ),
+      ChangeNotifierProvider<WarrantyProvider>.value(value: warrantyProvider),
+    ],
+    child: const MaterialApp(
+      home: AppMobileTypographyDensity(
+        child: WarrantyDetailsScreen(receiptNumber: 'CP01-J12345678'),
+      ),
+    ),
+  );
+  if (availableWidth == null) return screen;
+  return MaterialApp(
+    home: Align(
+      alignment: Alignment.topLeft,
+      child: SizedBox(
+        width: availableWidth,
+        height: double.infinity,
+        child: MultiProvider(
+          providers: [
+            ChangeNotifierProvider<AuthProvider>.value(
+              value: _FakeAuthProvider(_warrantyUser),
+            ),
+            ChangeNotifierProvider<WarrantyProvider>.value(
+              value: warrantyProvider,
+            ),
+          ],
+          child: const AppMobileTypographyDensity(
+            child: WarrantyDetailsScreen(receiptNumber: 'CP01-J12345678'),
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+void _expectRectClose(Rect actual, Rect expected, {double tolerance = 1}) {
+  expect(actual.left, closeTo(expected.left, tolerance));
+  expect(actual.top, closeTo(expected.top, tolerance));
+  expect(actual.width, closeTo(expected.width, tolerance));
+  expect(actual.height, closeTo(expected.height, tolerance));
 }
 
 const _warrantyUser = User(
@@ -239,6 +552,8 @@ class _FakeAuthProvider extends AuthProvider {
 class _FakeWarrantyProvider extends WarrantyProvider {
   List<Map<String, dynamic>> fakeReceipts;
   Map<String, dynamic>? fakeDetails;
+  final bool fakeIsLoading;
+  final String? fakeErrorMessage;
   int listCallCount = 0;
   int searchCallCount = 0;
   int detailCallCount = 0;
@@ -246,15 +561,19 @@ class _FakeWarrantyProvider extends WarrantyProvider {
   _FakeWarrantyProvider({
     List<Map<String, dynamic>> receipts = const [],
     Map<String, dynamic>? details,
+    bool isLoading = false,
+    String? errorMessage,
   }) : fakeReceipts = List<Map<String, dynamic>>.from(receipts),
        fakeDetails = details,
+       fakeIsLoading = isLoading,
+       fakeErrorMessage = errorMessage,
        super(WarrantyRepository(ApiClient()));
 
   @override
-  bool get isLoading => false;
+  bool get isLoading => fakeIsLoading;
 
   @override
-  String? get errorMessage => null;
+  String? get errorMessage => fakeErrorMessage;
 
   @override
   List<Map<String, dynamic>> get receipts => fakeReceipts;
@@ -309,4 +628,11 @@ const _warrantyDetails = {
   'user': 'warranty@example.com',
   'date': '2026-07-02T09:00:00.000Z',
   'images': [_onePixelPngBase64, _onePixelPngBase64],
+};
+
+const _warrantyDetailsWithThreeImages = {
+  'receipt': 'CP01-J12345678',
+  'user': 'warranty@example.com',
+  'date': '2026-07-02T09:00:00.000Z',
+  'images': [_onePixelPngBase64, _onePixelPngBase64, _onePixelPngBase64],
 };
