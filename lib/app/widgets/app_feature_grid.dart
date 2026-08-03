@@ -76,10 +76,11 @@ class AppFeatureGrid extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final viewportWidth = MediaQuery.sizeOf(context).width;
-        // Operations Figma frames use fixed 3-column desktop cards, a fixed
-        // 2-column medium canvas (even for a single-card row), and one column
-        // only below the compact breakpoint.
-        final crossAxisCount = viewportWidth >= AppLayoutTokens.desktopBreakpoint
+        // Figma node 1405:15958 keeps the five Sales cards in a 3+2 grid at
+        // Web 1024. Two-card and one-card groups use the medium two-column
+        // geometry instead; wide always has three columns.
+        final crossAxisCount =
+            viewportWidth >= AppLayoutTokens.desktopBreakpoint
             ? 3
             : viewportWidth >= AppLayoutTokens.tabletBreakpoint
             ? (actions.length >= 3 ? 3 : 2)

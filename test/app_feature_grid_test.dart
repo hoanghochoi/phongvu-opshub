@@ -34,7 +34,7 @@ void main() {
       const Size(430, 96),
     );
 
-    await tester.pumpWidget(_fixture(contentWidth: 872, actionCount: 3));
+    await tester.pumpWidget(_fixture(contentWidth: 872, actionCount: 5));
     expect(
       tester.getSize(find.byType(AppFeatureTile).first),
       const Size(280, 96),
@@ -43,29 +43,42 @@ void main() {
 }
 
 Widget _fixture({double? contentWidth, int actionCount = 2}) {
-  final actions = <AppFeatureAction>[
-    const AppFeatureAction(
+  final allActions = const [
+    AppFeatureAction(
       icon: Icons.qr_code,
       title: 'VietQR',
       description: 'Tạo mã chuyển khoản',
       color: Colors.blue,
       onTap: null,
     ),
-    const AppFeatureAction(
+    AppFeatureAction(
       icon: Icons.description_outlined,
       title: 'Báo cáo',
       description: 'Theo dõi báo cáo',
       color: Colors.green,
       onTap: null,
     ),
-    if (actionCount >= 3)
-      const AppFeatureAction(
-        icon: Icons.receipt_long,
-        title: 'Phụ lục',
-        description: 'Tạo bảng hàng hóa hợp đồng',
-        color: Colors.blue,
-        onTap: null,
-      ),
+    AppFeatureAction(
+      icon: Icons.article_outlined,
+      title: 'Phụ lục',
+      description: 'Tạo bảng hàng hóa',
+      color: Colors.indigo,
+      onTap: null,
+    ),
+    AppFeatureAction(
+      icon: Icons.headset,
+      title: 'Chăm sóc lại',
+      description: 'Theo dõi khách hàng',
+      color: Colors.orange,
+      onTap: null,
+    ),
+    AppFeatureAction(
+      icon: Icons.payments_outlined,
+      title: 'Tiền vào',
+      description: 'Theo dõi thanh toán',
+      color: Colors.purple,
+      onTap: null,
+    ),
   ];
   return MaterialApp(
     home: Scaffold(
@@ -75,7 +88,7 @@ Widget _fixture({double? contentWidth, int actionCount = 2}) {
           width: contentWidth,
           child: AppFeatureSection(
             title: 'Bán hàng',
-            actions: actions,
+            actions: allActions.take(actionCount).toList(growable: false),
           ),
         ),
       ),

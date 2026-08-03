@@ -723,6 +723,36 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets(
+    'Operations shell matches the Figma title badge and refresh action',
+    (tester) async {
+      tester.view.physicalSize = const Size(1024, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final authProvider = _FakeAuthProvider(_shellUser);
+      await tester.pumpWidget(
+        ChangeNotifierProvider<AuthProvider>.value(
+          value: authProvider,
+          child: const MaterialApp(
+            home: AppShell(
+              location: '/operations',
+              child: _RouteMarker(label: 'operations-route-marker'),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Web · 1024 px'), findsOneWidget);
+      expect(find.text('Làm mới'), findsOneWidget);
+      expect(find.text('Công cụ nghiệp vụ theo quyền'), findsNothing);
+      expect(tester.getSize(find.byType(FilledButton)), const Size(132, 40));
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   testWidgets('desktop sidebar uses a left indicator for selected route', (
     tester,
   ) async {
@@ -780,10 +810,7 @@ void main() {
     expect(find.byKey(const ValueKey('sidebar-item-feedback')), findsOneWidget);
     expect(find.byKey(const ValueKey('sidebar-item-help')), findsOneWidget);
     expect(find.text('PhongVu OpsHub'), findsOneWidget);
-    expect(
-      find.text('Kết nối nguồn lực.\nĐồng bộ vận hành.'),
-      findsOneWidget,
-    );
+    expect(find.text('Kết nối nguồn lực.\nĐồng bộ vận hành.'), findsOneWidget);
     final desktopBrand = find.byKey(const ValueKey('desktop-sidebar-brand'));
     expect(tester.getTopLeft(desktopBrand), const Offset(12, 12));
     expect(
