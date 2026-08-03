@@ -1562,6 +1562,45 @@ void main() {
     );
   });
 
+  testWidgets('Home progress uses viewport width when parent is unbounded', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(640, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final summary = _managerSalesProgressSummary('sa-1', includeFinance: true);
+    final provider = HomeSummaryProvider(
+      _FakeHomeSummaryRepository(summary: summary),
+    );
+    addTearDown(provider.dispose);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SingleChildScrollView(
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: ReportProgressPanel(summary: summary, provider: provider),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final board = tester.getRect(
+      find.byKey(const Key('home-summary-progress-panel')),
+    );
+    expect(board.width, closeTo(640, 0.1));
+    expect(
+      tester.getSize(find.byKey(const Key('home-report-progress-panel'))),
+      const Size(640, 200),
+    );
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('Home KPI grid scales desktop columns to card count', (
     tester,
   ) async {

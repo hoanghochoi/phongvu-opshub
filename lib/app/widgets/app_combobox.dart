@@ -104,6 +104,8 @@ class AppCombobox<T> extends StatefulWidget {
 }
 
 class _AppComboboxState<T> extends State<AppCombobox<T>> {
+  static const double _overlayHorizontalMargin = 16;
+
   final _layerLink = LayerLink();
   final _tapRegionGroup = Object();
   final _fieldKey = GlobalKey();
@@ -113,6 +115,8 @@ class _AppComboboxState<T> extends State<AppCombobox<T>> {
   bool _isOpen = false;
   bool _showAbove = false;
   double _menuHeight = 320;
+  double _menuOffsetX = 0;
+  double _overlayWidth = 0;
   int _highlightedIndex = 0;
   ValueChanged<T?>? _formDidChange;
   bool? _suffixWasOpenOnPointerDown;
@@ -377,7 +381,7 @@ class _AppComboboxState<T> extends State<AppCombobox<T>> {
   Widget _buildOverlay(BuildContext overlayContext) {
     final filtered = _filteredOptions().toList(growable: false);
     final fieldSize = _fieldSize();
-    final width = widget.menuWidth ?? fieldSize.width;
+    final width = _overlayWidth > 0 ? _overlayWidth : fieldSize.width;
     return Positioned.fill(
       child: IgnorePointer(
         ignoring: false,
@@ -387,7 +391,7 @@ class _AppComboboxState<T> extends State<AppCombobox<T>> {
               link: _layerLink,
               showWhenUnlinked: false,
               offset: Offset(
-                0,
+                _menuOffsetX,
                 _showAbove
                     ? -_menuHeight - AppLayoutTokens.formInlineGap / 2
                     : fieldSize.height + AppLayoutTokens.formInlineGap / 2,
@@ -395,6 +399,7 @@ class _AppComboboxState<T> extends State<AppCombobox<T>> {
               child: TapRegion(
                 groupId: _tapRegionGroup,
                 child: Material(
+                  key: const Key('app-combobox-menu'),
                   color: AppColors.overlayOf(context),
                   elevation: 12,
                   shadowColor: AppColors.shadow.withValues(alpha: 0.22),
@@ -405,11 +410,14 @@ class _AppComboboxState<T> extends State<AppCombobox<T>> {
                   ),
                   child: ConstrainedBox(
                     constraints: BoxConstraints(
-                      minWidth: fieldSize.width,
+                      minWidth: math.min(fieldSize.width, width),
                       maxWidth: width,
                       maxHeight: _menuHeight,
                     ),
-                    child: _buildMenuContent(filtered),
+                    child: SizedBox(
+                      width: width,
+                      child: _buildMenuContent(filtered),
+                    ),
                   ),
                 ),
               ),
@@ -648,10 +656,31 @@ class _AppComboboxState<T> extends State<AppCombobox<T>> {
     final box = _fieldKey.currentContext?.findRenderObject() as RenderBox?;
     if (box == null || !box.hasSize) {
       _showAbove = false;
+      _menuOffsetX = 0;
+      _overlayWidth = 0;
       _menuHeight = widget.maxMenuHeight ?? 320;
       return;
     }
     final topLeft = box.localToGlobal(Offset.zero);
+    final viewportWidth = mediaQuery.size.width;
+    final availableWidth = math.max(
+      0.0,
+      viewportWidth - (_overlayHorizontalMargin * 2),
+    );
+    final requestedWidth = widget.menuWidth ?? box.size.width;
+    _overlayWidth = math.min(math.max(0.0, requestedWidth), availableWidth);
+    if (_overlayWidth <= 0) {
+      _menuOffsetX = _overlayHorizontalMargin - topLeft.dx;
+    } else {
+      final maxLeft = math.max(
+        _overlayHorizontalMargin,
+        viewportWidth - _overlayHorizontalMargin - _overlayWidth,
+      );
+      final menuLeft = topLeft.dx
+          .clamp(_overlayHorizontalMargin, maxLeft)
+          .toDouble();
+      _menuOffsetX = menuLeft - topLeft.dx;
+    }
     final below =
         mediaQuery.size.height -
         topLeft.dy -

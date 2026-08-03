@@ -596,6 +596,10 @@ class _HomeScopeDateControl extends StatelessWidget {
 
     return MenuAnchor(
       key: menuAnchorKey,
+      // Keep the explicitly calculated panel width. Flutter's default
+      // unconstrained menu wrapper can otherwise grow the surface past the
+      // viewport on medium/compact web layouts.
+      crossAxisUnconstrained: false,
       style: const MenuStyle(
         padding: WidgetStatePropertyAll(EdgeInsets.zero),
         elevation: WidgetStatePropertyAll(2),
@@ -2394,15 +2398,20 @@ class ReportProgressPanel extends StatelessWidget {
     if (cards.isEmpty) return const SizedBox.shrink();
     return LayoutBuilder(
       builder: (context, constraints) {
-        final compact =
-            constraints.maxWidth < AppLayoutTokens.compactBreakpoint;
         // The responsive Home frames use the full content width at each
         // desktop breakpoint (896px at 1024, 982px at 1280, 1180px at
         // 1920). Keep the 16px gutter and let each chart card grow with the
         // available viewport instead of freezing the 896px specimen width.
-        final boardWidth = constraints.maxWidth.isFinite
+        final viewportWidth = MediaQuery.sizeOf(context).width;
+        final boundedParentWidth =
+            constraints.hasBoundedWidth && constraints.maxWidth.isFinite
             ? constraints.maxWidth
-            : AppLayoutTokens.contentMaxWidth;
+            : viewportWidth;
+        final boardWidth = math.min(
+          AppLayoutTokens.contentMaxWidth,
+          math.max(0.0, math.min(boundedParentWidth, viewportWidth)),
+        );
+        final compact = boardWidth < AppLayoutTokens.compactBreakpoint;
         final columns = boardWidth >= 760 ? 2 : 1;
         final gap = 16.0;
         final width = (boardWidth - gap * (columns - 1)) / columns;
