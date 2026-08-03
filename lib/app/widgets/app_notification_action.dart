@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 import '../theme/app_colors.dart';
 import '../theme/app_radius.dart';
@@ -18,7 +19,7 @@ class AppNotificationIconButton extends StatelessWidget {
     required this.onPressed,
     required this.tooltip,
     this.badgeColor = AppColors.warning,
-    this.icon = Icons.notifications_none_rounded,
+    this.icon = PhosphorIconsRegular.bell,
     this.label,
   });
 

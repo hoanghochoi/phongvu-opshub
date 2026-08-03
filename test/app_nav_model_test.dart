@@ -1,10 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:phongvu_opshub/app/navigation/app_nav_model.dart';
 import 'package:phongvu_opshub/core/platform/app_platform_capabilities.dart';
 import 'package:phongvu_opshub/features/auth/domain/entities/user.dart';
 
 void main() {
+  test('navigation uses the licensed Phosphor regular icon family', () {
+    expect(
+      AppNavModel.destinations.every(
+        (destination) => destination.icon is PhosphorIconData,
+      ),
+      isTrue,
+    );
+  });
+
   test('admin sales report access shows Quản trị without Báo cáo bán hàng', () {
     const user = User(
       id: 'lead-1',
@@ -213,7 +223,7 @@ void main() {
     final followUp = sections[0].destinations.singleWhere(
       (item) => item.id == 'notPurchasedCustomers',
     );
-    expect(followUp.icon, Icons.support_agent_rounded);
+    expect(followUp.icon, PhosphorIconsRegular.headset);
     expect(sections[1].destinations.map((item) => item.label), [
       'Kiểm tra FIFO',
       'Sắp xếp FIFO',
