@@ -2238,62 +2238,81 @@ class ReportProgressPanel extends StatelessWidget {
     final reported = summary.totalOrders <= 0
         ? 0.0
         : summary.reportedOrders / summary.totalOrders * 100;
-    final cards = <Widget>[
+    final cards = <_AnalyticsCardSpec>[
       if (summary.salesAvailable)
-        _AnalyticsDonutCard(
-          cardKey: const Key('home-report-progress-panel'),
-          title: 'Tiến độ báo cáo',
-          subtitle:
-              'Đã báo cáo ${summary.reportedOrders}/${summary.totalOrders} đơn',
-          percentage: summary.coverageRate,
-          color: AppColors.primary,
-          primaryLegend: 'Đã báo cáo · ${summary.reportedOrders} đơn',
-          secondaryLegend: 'Cần xử lý · ${summary.unreportedOrders} đơn',
-          primaryPercent: reported,
+        _AnalyticsCardSpec(
+          compactHeight: 248,
+          expandedHeight: 200,
+          card: _AnalyticsDonutCard(
+            cardKey: const Key('home-report-progress-panel'),
+            title: 'Tiến độ báo cáo',
+            subtitle:
+                'Đã báo cáo ${summary.reportedOrders}/${summary.totalOrders} đơn',
+            percentage: summary.coverageRate,
+            color: AppColors.primary,
+            primaryLegend: 'Đã báo cáo · ${summary.reportedOrders} đơn',
+            secondaryLegend: 'Cần xử lý · ${summary.unreportedOrders} đơn',
+            primaryPercent: reported,
+          ),
         ),
       if (summary.financeAvailable)
-        _AnalyticsDonutCard(
-          cardKey: const Key('home-statement-progress-panel'),
-          title: 'Tiến độ sao kê',
-          subtitle: 'Đối chiếu sao kê với đơn hàng',
-          percentage: summary.statementOrderRate,
-          color: AppColors.success,
-          primaryLegend: 'Có đơn · ${summary.totalStatementsWithOrder} sao kê',
-          secondaryLegend:
-              'Chưa có đơn · ${summary.totalStatementsWithoutOrder} sao kê',
-          primaryPercent: summary.statementOrderRate,
+        _AnalyticsCardSpec(
+          compactHeight: 248,
+          expandedHeight: 200,
+          card: _AnalyticsDonutCard(
+            cardKey: const Key('home-statement-progress-panel'),
+            title: 'Tiến độ sao kê',
+            subtitle: 'Đối chiếu sao kê với đơn hàng',
+            percentage: summary.statementOrderRate,
+            color: AppColors.success,
+            primaryLegend:
+                'Có đơn · ${summary.totalStatementsWithOrder} sao kê',
+            secondaryLegend:
+                'Chưa có đơn · ${summary.totalStatementsWithoutOrder} sao kê',
+            primaryPercent: summary.statementOrderRate,
+          ),
         ),
       if (summary.salesAvailable &&
           (summary.personalSalesProgress.isApplicable ||
               summary.salesProgressAssignees.isNotEmpty))
-        _AnalyticsPeriodCard(
-          cardKey: const Key('home-sales-progress-panel'),
-          title: 'Tổng quan cá nhân',
-          subtitle: summary.selectedSalesProgressUserId == null
-              ? 'Chọn nhân viên để so sánh chỉ tiêu'
-              : 'Tiến độ theo nhân viên đã chọn',
-          color: AppColors.violet600,
-          progress: summary.personalSalesProgress,
-          assignees: summary.salesProgressAssignees,
-          selectedAssigneeId: summary.selectedSalesProgressUserId,
-          onAssigneeChanged: provider.isLoading || provider.isRefreshing
-              ? null
-              : (id) => unawaited(provider.setSelectedSalesProgressUser(id)),
+        _AnalyticsCardSpec(
+          compactHeight: summary.salesProgressAssignees.isEmpty ? 208 : 266,
+          expandedHeight: 264,
+          card: _AnalyticsPeriodCard(
+            cardKey: const Key('home-sales-progress-panel'),
+            title: 'Tổng quan cá nhân',
+            subtitle: summary.selectedSalesProgressUserId == null
+                ? 'Chọn nhân viên để so sánh chỉ tiêu'
+                : 'Tiến độ theo nhân viên đã chọn',
+            color: AppColors.violet600,
+            progress: summary.personalSalesProgress,
+            assignees: summary.salesProgressAssignees,
+            selectedAssigneeId: summary.selectedSalesProgressUserId,
+            onAssigneeChanged: provider.isLoading || provider.isRefreshing
+                ? null
+                : (id) => unawaited(provider.setSelectedSalesProgressUser(id)),
+          ),
         ),
       if (summary.salesAvailable && summary.scopeSalesProgress.isApplicable)
-        _AnalyticsPeriodCard(
-          cardKey: const Key('home-scope-sales-progress-panel'),
-          title: _scopeSalesProgressTitle(summary),
-          subtitle: summary.scopeSalesProgress.hasTarget
-              ? 'Tiến độ theo phạm vi được phân quyền'
-              : 'Thiếu chỉ tiêu: ${summary.scopeSalesProgress.missingStoreCodes.join(', ')}',
-          color: AppColors.primary,
-          progress: summary.scopeSalesProgress,
+        _AnalyticsCardSpec(
+          compactHeight: 208,
+          expandedHeight: 264,
+          card: _AnalyticsPeriodCard(
+            cardKey: const Key('home-scope-sales-progress-panel'),
+            title: _scopeSalesProgressTitle(summary),
+            subtitle: summary.scopeSalesProgress.hasTarget
+                ? 'Tiến độ theo phạm vi được phân quyền'
+                : 'Thiếu chỉ tiêu: ${summary.scopeSalesProgress.missingStoreCodes.join(', ')}',
+            color: AppColors.primary,
+            progress: summary.scopeSalesProgress,
+          ),
         ),
     ];
     if (cards.isEmpty) return const SizedBox.shrink();
     return LayoutBuilder(
       builder: (context, constraints) {
+        final compact =
+            constraints.maxWidth < AppLayoutTokens.compactBreakpoint;
         final columns = constraints.maxWidth >= 760 ? 2 : 1;
         final gap = 16.0;
         final width = (constraints.maxWidth - gap * (columns - 1)) / columns;
@@ -2301,24 +2320,32 @@ class ReportProgressPanel extends StatelessWidget {
           key: const Key('home-summary-progress-panel'),
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Tiến độ hoạt động', style: AppTextStyles.pageTitle),
-            const SizedBox(height: 6),
             Text(
-              'Báo cáo, sao kê và tiến độ chỉ tiêu theo phạm vi hiện tại.',
-              style: AppTextStyles.bodyS.copyWith(
-                color: AppColors.textSecondaryOf(context),
-              ),
+              compact ? 'Tổng quan' : 'Tiến độ hoạt động',
+              style: compact ? AppTextStyles.headingS : AppTextStyles.pageTitle,
             ),
-            const SizedBox(height: 18),
+            if (!compact) ...[
+              const SizedBox(height: 6),
+              Text(
+                'Báo cáo, sao kê và tiến độ chỉ tiêu theo phạm vi hiện tại.',
+                style: AppTextStyles.bodyS.copyWith(
+                  color: AppColors.textSecondaryOf(context),
+                ),
+              ),
+            ],
+            SizedBox(height: compact ? 16 : 18),
             Wrap(
               spacing: gap,
               runSpacing: gap,
               children: [
-                for (final card in cards)
+                for (final spec in cards)
                   SizedBox(
                     width: width,
-                    height: card is _AnalyticsPeriodCard ? 264 : 200,
-                    child: card,
+                    height: compact ? spec.compactHeight : spec.expandedHeight,
+                    child: _AnalyticsCompactScope(
+                      compact: compact,
+                      child: spec.card,
+                    ),
                   ),
               ],
             ),
@@ -2345,47 +2372,66 @@ class _AnalyticsDonutCard extends StatelessWidget {
   final double percentage, primaryPercent;
   final Color color;
   @override
-  Widget build(BuildContext context) => _AnalyticsCard(
-    cardKey: cardKey,
-    title: title,
-    subtitle: subtitle,
-    child: Row(
-      children: [
-        _ProgressDonut(
-          key: title == 'Tiến độ báo cáo'
-              ? const Key('home-summary-progress-donut')
-              : const Key('home-statement-progress-donut'),
-          percentage: percentage,
-          color: color,
-          dimension: 100,
-        ),
-        const SizedBox(width: 22),
-        Expanded(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _AnalyticsLegend(label: primaryLegend, color: color),
-              const SizedBox(height: 10),
-              _AnalyticsLegend(
-                label: secondaryLegend,
-                color: AppColors.warning,
+  Widget build(BuildContext context) {
+    final compact = _AnalyticsCompactScope.of(context);
+    return compact
+        ? Align(
+            alignment: Alignment.topCenter,
+            child: SizedBox(
+              width: 280,
+              height: 248,
+              child: _CompactDonutCard(
+                cardKey: cardKey,
+                title: title,
+                percentage: percentage,
+                color: color,
+                primaryLegend: primaryLegend,
+                secondaryLegend: secondaryLegend,
               ),
-              const SizedBox(height: 18),
-              _AnalyticsBar(value: primaryPercent, color: color),
-              const SizedBox(height: 8),
-              Text(
-                '${_percentLabel(primaryPercent)} hoàn tất',
-                style: AppTextStyles.caption.copyWith(
-                  color: AppColors.textSecondaryOf(context),
+            ),
+          )
+        : _AnalyticsCard(
+            cardKey: cardKey,
+            title: title,
+            subtitle: subtitle,
+            child: Row(
+              children: [
+                _ProgressDonut(
+                  key: title == 'Tiến độ báo cáo'
+                      ? const Key('home-summary-progress-donut')
+                      : const Key('home-statement-progress-donut'),
+                  percentage: percentage,
+                  color: color,
+                  dimension: 100,
                 ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    ),
-  );
+                const SizedBox(width: 22),
+                Expanded(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _AnalyticsLegend(label: primaryLegend, color: color),
+                      const SizedBox(height: 10),
+                      _AnalyticsLegend(
+                        label: secondaryLegend,
+                        color: AppColors.warning,
+                      ),
+                      const SizedBox(height: 18),
+                      _AnalyticsBar(value: primaryPercent, color: color),
+                      const SizedBox(height: 8),
+                      Text(
+                        '${_percentLabel(primaryPercent)} hoàn tất',
+                        style: AppTextStyles.caption.copyWith(
+                          color: AppColors.textSecondaryOf(context),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          );
+  }
 }
 
 class _AnalyticsPeriodCard extends StatelessWidget {
@@ -2407,55 +2453,327 @@ class _AnalyticsPeriodCard extends StatelessWidget {
   final String? selectedAssigneeId;
   final ValueChanged<String?>? onAssigneeChanged;
   @override
-  Widget build(BuildContext context) => _AnalyticsCard(
-    cardKey: cardKey,
-    title: title,
-    subtitle: subtitle,
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        if (assignees.isNotEmpty) ...[
+  Widget build(BuildContext context) {
+    final compact = _AnalyticsCompactScope.of(context);
+    return compact
+        ? _CompactGoalCard(
+            cardKey: cardKey,
+            title: title,
+            progress: progress,
+            assignees: assignees,
+            selectedAssigneeId: selectedAssigneeId,
+            onAssigneeChanged: onAssigneeChanged,
+          )
+        : _AnalyticsCard(
+            cardKey: cardKey,
+            title: title,
+            subtitle: subtitle,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (assignees.isNotEmpty) ...[
+                  SizedBox(
+                    width: 260,
+                    height: 48,
+                    child: _SalesProgressAssigneeDropdown(
+                      assignees: assignees,
+                      selectedAssigneeId: selectedAssigneeId,
+                      onChanged: onAssigneeChanged,
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                ],
+                Expanded(
+                  child: Row(
+                    children: [
+                      _AnalyticsPeriod(
+                        key: cardKey == const Key('home-sales-progress-panel')
+                            ? const Key('home-analytics-sales-range')
+                            : const Key('home-analytics-scope-range'),
+                        label: 'Ngày',
+                        period: progress.range,
+                        color: color,
+                      ),
+                      const SizedBox(width: 18),
+                      _AnalyticsPeriod(
+                        key: cardKey == const Key('home-sales-progress-panel')
+                            ? const Key('home-analytics-sales-week')
+                            : const Key('home-analytics-scope-week'),
+                        label: 'Tuần',
+                        period: progress.week,
+                        color: color,
+                      ),
+                      const SizedBox(width: 18),
+                      _AnalyticsPeriod(
+                        key: cardKey == const Key('home-sales-progress-panel')
+                            ? const Key('home-analytics-sales-month')
+                            : const Key('home-analytics-scope-month'),
+                        label: 'Tháng',
+                        period: progress.month,
+                        color: color,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          );
+  }
+}
+
+class _AnalyticsCompactScope extends InheritedWidget {
+  const _AnalyticsCompactScope({required this.compact, required super.child});
+
+  final bool compact;
+
+  static bool of(BuildContext context) =>
+      context
+          .dependOnInheritedWidgetOfExactType<_AnalyticsCompactScope>()
+          ?.compact ??
+      false;
+
+  @override
+  bool updateShouldNotify(_AnalyticsCompactScope oldWidget) =>
+      compact != oldWidget.compact;
+}
+
+class _AnalyticsCardSpec {
+  const _AnalyticsCardSpec({
+    required this.card,
+    required this.compactHeight,
+    required this.expandedHeight,
+  });
+
+  final Widget card;
+  final double compactHeight;
+  final double expandedHeight;
+}
+
+class _CompactDonutCard extends StatelessWidget {
+  const _CompactDonutCard({
+    required this.cardKey,
+    required this.title,
+    required this.percentage,
+    required this.color,
+    required this.primaryLegend,
+    required this.secondaryLegend,
+  });
+
+  final Key cardKey;
+  final String title, primaryLegend, secondaryLegend;
+  final double percentage;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) => Material(
+    key: cardKey,
+    color: AppColors.raisedOf(context),
+    borderRadius: AppRadius.allLg,
+    child: Container(
+      padding: const EdgeInsets.fromLTRB(18, 16, 18, 14),
+      decoration: BoxDecoration(
+        border: Border.all(color: AppColors.neutral200),
+        borderRadius: AppRadius.allLg,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(title, style: AppTextStyles.labelM),
+          const SizedBox(height: 8),
           SizedBox(
-            width: 260,
-            height: 48,
-            child: _SalesProgressAssigneeDropdown(
-              assignees: assignees,
-              selectedAssigneeId: selectedAssigneeId,
-              onChanged: onAssigneeChanged,
+            height: 116,
+            child: Center(
+              child: _ProgressDonut(
+                key: title == 'Tiến độ báo cáo'
+                    ? const Key('home-summary-progress-donut')
+                    : const Key('home-statement-progress-donut'),
+                percentage: percentage,
+                color: color,
+                dimension: 96,
+              ),
             ),
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 8),
+          _CompactLegend(
+            label: primaryLegend.split(' · ').first,
+            value: _percentLabel(percentage),
+            color: color,
+          ),
+          const SizedBox(height: 5),
+          _CompactLegend(
+            label: secondaryLegend.split(' · ').first,
+            value: _percentLabel(100 - percentage),
+            color: AppColors.error,
+          ),
         ],
+      ),
+    ),
+  );
+}
+
+class _CompactLegend extends StatelessWidget {
+  const _CompactLegend({
+    required this.label,
+    required this.value,
+    required this.color,
+  });
+
+  final String label, value;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+    height: 20,
+    child: Row(
+      children: [
+        Container(
+          width: 8,
+          height: 8,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        ),
+        const SizedBox(width: 8),
         Expanded(
-          child: Row(
-            children: [
-              _AnalyticsPeriod(
-                key: cardKey == const Key('home-sales-progress-panel')
-                    ? const Key('home-analytics-sales-range')
-                    : const Key('home-analytics-scope-range'),
-                label: 'Ngày',
-                period: progress.range,
-                color: color,
-              ),
-              const SizedBox(width: 18),
-              _AnalyticsPeriod(
-                key: cardKey == const Key('home-sales-progress-panel')
-                    ? const Key('home-analytics-sales-week')
-                    : const Key('home-analytics-scope-week'),
-                label: 'Tuần',
-                period: progress.week,
-                color: color,
-              ),
-              const SizedBox(width: 18),
-              _AnalyticsPeriod(
-                key: cardKey == const Key('home-sales-progress-panel')
-                    ? const Key('home-analytics-sales-month')
-                    : const Key('home-analytics-scope-month'),
-                label: 'Tháng',
-                period: progress.month,
-                color: color,
+          child: Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: AppTextStyles.bodyCompact.copyWith(
+              color: AppColors.textSecondaryOf(context),
+            ),
+          ),
+        ),
+        Text(value, style: AppTextStyles.labelSmallSubtle),
+      ],
+    ),
+  );
+}
+
+class _CompactGoalCard extends StatelessWidget {
+  const _CompactGoalCard({
+    required this.cardKey,
+    required this.title,
+    required this.progress,
+    required this.assignees,
+    required this.selectedAssigneeId,
+    required this.onAssigneeChanged,
+  });
+
+  final Key cardKey;
+  final String title;
+  final HomeSalesProgress progress;
+  final List<HomeSalesProgressAssignee> assignees;
+  final String? selectedAssigneeId;
+  final ValueChanged<String?>? onAssigneeChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final period = progress.range;
+    final percent = period.percentage ?? 0;
+    return Material(
+      key: cardKey,
+      color: AppColors.raisedOf(context),
+      borderRadius: AppRadius.allLg,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(18, 16, 18, 14),
+        decoration: BoxDecoration(
+          border: Border.all(color: AppColors.neutral200),
+          borderRadius: AppRadius.allLg,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text('$title · Ngày', style: AppTextStyles.labelM),
+                ),
+                Text(
+                  _percentLabel(percent),
+                  style: AppTextStyles.labelSmallSubtle.copyWith(
+                    color: AppColors.primary,
+                  ),
+                ),
+              ],
+            ),
+            if (assignees.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              SizedBox(
+                width: 260,
+                height: 48,
+                child: _SalesProgressAssigneeDropdown(
+                  assignees: assignees,
+                  selectedAssigneeId: selectedAssigneeId,
+                  onChanged: onAssigneeChanged,
+                ),
               ),
             ],
+            const SizedBox(height: 10),
+            const _CompactPeriodTabs(),
+            const SizedBox(height: 10),
+            _CompactGoalBar(value: percent),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    formatCompactVndAmount(period.actual),
+                    style: AppTextStyles.bodyCompact.copyWith(
+                      color: AppColors.textSecondaryOf(context),
+                    ),
+                  ),
+                ),
+                Text(
+                  period.target == null
+                      ? 'Chưa thiết lập'
+                      : formatCompactVndAmount(period.target!),
+                  style: AppTextStyles.labelSmallSubtle,
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _CompactPeriodTabs extends StatelessWidget {
+  const _CompactPeriodTabs();
+
+  @override
+  Widget build(BuildContext context) => const SizedBox(
+    height: 48,
+    child: Row(
+      children: [
+        Expanded(child: Center(child: Text('Ngày'))),
+        Expanded(child: Center(child: Text('Tuần'))),
+        Expanded(child: Center(child: Text('Tháng'))),
+      ],
+    ),
+  );
+}
+
+class _CompactGoalBar extends StatelessWidget {
+  const _CompactGoalBar({required this.value});
+  final double value;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) => Stack(
+      children: [
+        Container(
+          height: 14,
+          decoration: BoxDecoration(
+            color: AppColors.neutral200,
+            borderRadius: BorderRadius.circular(7),
+          ),
+        ),
+        Container(
+          height: 14,
+          width: constraints.maxWidth * (value.clamp(0, 100) / 100),
+          decoration: BoxDecoration(
+            color: AppColors.success,
+            borderRadius: BorderRadius.circular(7),
           ),
         ),
       ],

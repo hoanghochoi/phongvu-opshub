@@ -1450,6 +1450,51 @@ void main() {
     expect(find.byKey(const Key('home-analytics-scope-month')), findsOneWidget);
   });
 
+  testWidgets('Home progress matches compact Figma analytics geometry', (
+    tester,
+  ) async {
+    final summary = _managerSalesProgressSummary('sa-1', includeFinance: true);
+    final provider = HomeSummaryProvider(
+      _FakeHomeSummaryRepository(summary: summary),
+    );
+    addTearDown(provider.dispose);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SingleChildScrollView(
+            child: SizedBox(
+              width: 343,
+              child: ReportProgressPanel(summary: summary, provider: provider),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final report = find.byKey(const Key('home-report-progress-panel'));
+    final statement = find.byKey(const Key('home-statement-progress-panel'));
+    final personal = find.byKey(const Key('home-sales-progress-panel'));
+    final scope = find.byKey(const Key('home-scope-sales-progress-panel'));
+    expect(tester.getSize(report), const Size(280, 248));
+    expect(tester.getTopLeft(report).dx, closeTo(31.5, 0.1));
+    expect(tester.getSize(statement), const Size(280, 248));
+    expect(tester.getTopLeft(statement).dx, closeTo(31.5, 0.1));
+    expect(tester.getSize(personal), const Size(343, 266));
+    expect(tester.getSize(scope), const Size(343, 208));
+    expect(
+      tester.getSize(
+        find.byKey(const Key('home-sales-progress-assignee-dropdown')),
+      ),
+      const Size(260, 48),
+    );
+    expect(
+      tester.getSize(find.byKey(const Key('home-summary-progress-donut'))),
+      const Size.square(96),
+    );
+  });
+
   testWidgets('Home KPI grid scales desktop columns to card count', (
     tester,
   ) async {
