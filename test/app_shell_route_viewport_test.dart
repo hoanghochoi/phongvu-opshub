@@ -878,6 +878,43 @@ void main() {
     expect(find.text('Cấu hình BIDV và quản lý khóa OpenPGP'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('warranty detail shell uses the exact mobile Figma title', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(375, 812);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final authProvider = _FakeAuthProvider(_shellUser);
+    final notificationsProvider = _FakeAppNotificationsProvider();
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider<AuthProvider>.value(value: authProvider),
+          ChangeNotifierProvider<AppNotificationsProvider>.value(
+            value: notificationsProvider,
+          ),
+        ],
+        child: MaterialApp(
+          home: AppShell(
+            location: '/check-warranty/details/CP75-J202607270018',
+            child: const SizedBox.shrink(),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Chi tiết biên nhận'), findsOneWidget);
+    expect(find.text('Bảo hành'), findsNothing);
+    expect(
+      tester.getSize(find.byKey(const ValueKey('mobile-shell-topbar'))),
+      const Size(375, 72),
+    );
+    expect(tester.takeException(), isNull);
+  });
 }
 
 class _RouteMarker extends StatelessWidget {

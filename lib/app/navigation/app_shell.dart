@@ -669,6 +669,7 @@ class _MobileShell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final mediaQuery = MediaQuery.of(context);
+    final header = _shellHeaderFor(location, activeDestination);
     final compactMobile =
         mediaQuery.size.width < AppLayoutTokens.compactBreakpoint;
     final bottomNavHeight = compactMobile
@@ -703,6 +704,7 @@ class _MobileShell extends StatelessWidget {
           onNavigate: onNavigate,
         ),
         appBar: AppBar(
+          key: const ValueKey('mobile-shell-topbar'),
           toolbarHeight: AppLayoutTokens.shellTopBarHeight,
           backgroundColor: AppColors.raisedOf(context),
           foregroundColor: AppColors.textPrimaryOf(context),
@@ -716,7 +718,7 @@ class _MobileShell extends StatelessWidget {
             ),
           ),
           title: Text(
-            activeDestination.label,
+            header.title,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: AppTextStyles.headingS.copyWith(
@@ -1483,6 +1485,12 @@ class _ShellTitleText extends StatelessWidget {
   String location,
   AppNavDestination activeDestination,
 ) {
+  if (location.startsWith('/check-warranty/details/')) {
+    return (
+      title: 'Chi tiết biên nhận',
+      description: 'Xem thông tin và hình ảnh biên nhận bảo hành',
+    );
+  }
   switch (location) {
     case '/admin/support-chats':
       return (title: 'Hỗ trợ', description: 'Quản lý hội thoại khách hàng');
