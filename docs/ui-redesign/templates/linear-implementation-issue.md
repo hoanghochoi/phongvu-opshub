@@ -11,6 +11,12 @@ Implement approved redesign scope without changing unrelated behavior.
 - Approval comment/date:
 - Product docs and decision:
 
+### Required node map (complete before UI mutation)
+
+| Viewport/state | Exact Figma node/revision | Flutter shared widget | Token + geometry | Typography/copy/icon | Protected behavior |
+| --- | --- | --- | --- | --- | --- |
+| | | | | | |
+
 ## Scope
 
 - Screens/components:
@@ -50,6 +56,8 @@ Implement approved redesign scope without changing unrelated behavior.
 ## Acceptance criteria
 
 - [ ] UI matches exact approved Figma revision.
+- [ ] Node map covers every visible element; no visual choice comes from legacy
+  code, runtime screenshots, memory, or "close enough" inference.
 - [ ] Product/business/API/permission/platform contracts remain intact.
 - [ ] Shared tokens/components are used; no parallel feature design system.
 - [ ] Typography and breakpoint behavior follow approved foundation.
@@ -69,6 +77,11 @@ flutter test --no-pub --reporter expanded
 ```
 
 Add focused widget/unit/golden/visual and affected-consumer commands here.
+
+Evidence must run in this order: node map → geometry widget/golden proof →
+local build of the tested SHA → staging deploy → authenticated Chrome/Figma
+comparison per affected viewport. A visual fix invalidates all downstream
+evidence and requires it to be rerun.
 
 ## Delivery gate
 

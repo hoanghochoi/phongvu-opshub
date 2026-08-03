@@ -11,6 +11,8 @@ Checklist phải được thu gọn theo scope; item không áp dụng ghi `N/A`
 - [ ] Không có khác biệt visual chưa được duyệt.
 - [ ] Node map theo viewport có exact Figma node/revision → Flutter component →
   token/geometry/copy/icon/state; không có visual fallback từ code UI cũ.
+- [ ] Node map cover toàn bộ element nhìn thấy và từng viewport/state affected;
+  không dùng code, screenshot hoặc responsive behavior cũ để suy diễn phần thiếu.
 
 ## Design system
 
@@ -72,6 +74,9 @@ Checklist phải được thu gọn theo scope; item không áp dụng ghi `N/A`
 - [ ] `git diff --check` pass.
 - [ ] Local build từ source SHA pass; staging deploy đã audit bằng authenticated
   Chrome ở mọi viewport/platform affected, có evidence so với exact Figma node.
+- [ ] Mỗi Chrome comparison có runtime screenshot, Figma reference, exact
+  node/revision, viewport/platform, deployed SHA và verdict; evidence trước
+  visual remediation đã được thay bằng audit mới.
 - [ ] Không còn unapproved visual difference; nếu có, đã sửa và audit lại.
 - [ ] `flutter analyze --no-pub` pass.
 - [ ] `flutter test --no-pub --reporter expanded` pass.

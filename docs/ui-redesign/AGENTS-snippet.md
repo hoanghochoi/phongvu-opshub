@@ -39,6 +39,15 @@ Non-negotiable rules:
   and map tokens, geometry, typography, icon, copy, state, and responsive
   constraints to shared Flutter components. Do not implement from memory,
   screenshots alone, or legacy code.
+- UI delivery is a strict ordered gate: exact approved Figma node/revision for
+  every affected viewport/state → node map → geometry widget/golden proof →
+  build of the exact source SHA → staging deploy → authenticated Chrome/Figma
+  screenshot comparison at every affected viewport. A missing, failed or stale
+  step blocks completion; a visual fix requires all downstream proof again.
+- Current/legacy UI may preserve runtime behavior only. It must never supply a
+  visual reference, fallback, placeholder or gap-fill: layout, spacing, color,
+  typography, icon, copy, component shape, responsive behavior and old
+  screenshots are all forbidden visual inputs for a migrated surface.
 - Every UI change needs geometry/widget or golden proof for each changed
   breakpoint and a local build. After staging deploy, audit the authenticated
   Chrome app at every affected viewport against those exact nodes; unapproved

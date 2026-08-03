@@ -12,6 +12,9 @@ Chỉ bắt đầu visual redesign implementation khi có:
 - validation plan phù hợp risk lane.
 - node map theo viewport: exact Figma node/revision, shared Flutter component,
   token, geometry, copy/icon, state và behavior cần bảo vệ.
+- evidence plan theo thứ tự bắt buộc: node map → geometry widget/golden proof →
+  exact-SHA local build → staging deployment → authenticated Chrome/Figma
+  comparison cho từng viewport affected.
 
 Restorative bug fix không đổi intended design có thể dùng approved behavior/
 current source thay cho frame mới, nhưng phải ghi rõ căn cứ và proof.
@@ -26,6 +29,9 @@ current source thay cho frame mới, nhưng phải ghi rõ căn cứ và proof.
 - Với migrated surface, không giữ hoặc tái tạo visual legacy như fallback.
   Legacy code chỉ được đọc để bảo vệ behavior; không dùng nó để chọn layout,
   token, spacing, typography, icon, copy hay appearance mới.
+- Không dùng legacy responsive implementation, screenshot runtime cũ hoặc
+  "nhìn hợp lý" để suy diễn một node/state Figma bị thiếu. Thiếu authority là
+  blocker, kể cả khi behavior runtime cần được giữ.
 
 ## 3. Shared theme and components
 
@@ -122,4 +128,6 @@ nếu blocked, nêu verified/unverified và residual risk.
 Với visual change, proof còn bắt buộc kiểm tra node-map geometry ở từng
 breakpoint thay đổi và authenticated Chrome audit sau staging deploy tại đúng
 viewport/platform. Mọi unapproved difference là fail; sửa và audit lại trước
-khi báo visual scope hoàn tất.
+khi báo visual scope hoàn tất. Visual fix làm stale toàn bộ proof downstream:
+rerun geometry proof, build của SHA mới, deploy và audit Chrome/Figma; ghi
+evidence gồm node/revision, viewport/platform, runtime screenshot và deployed SHA.

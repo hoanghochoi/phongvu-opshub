@@ -51,6 +51,24 @@ icon, copy hoặc component appearance cũ làm fallback hay vì "gần giống"
 node cho một phần tử nhìn thấy là blocker Figma, không phải quyền suy diễn từ
 runtime hiện tại.
 
+### 3.1 Visual delivery contract — thứ tự không được đảo hoặc bỏ qua
+
+Mọi UI mutation, kể cả chỉnh một control nhỏ hoặc responsive fix, phải có
+chuỗi evidence cùng source/revision:
+
+| Gate | Evidence bắt buộc | Fail khi |
+| --- | --- | --- |
+| Figma retrieval | Exact URL/node/revision cho từng viewport/state affected | thiếu node/state/viewport hoặc revision chưa approved |
+| Node map | node → shared widget → token → geometry → typography/copy/icon → responsive constraint → protected behavior | map thiếu bất kỳ phần tử nhìn thấy nào |
+| Code proof | Widget/golden geometry kiểm tra size, position, copy/icon và no overflow tại breakpoint đổi | test không bám node map hoặc chưa pass |
+| Build | Local build của exact tested source SHA | SHA/source khác proof hoặc build fail |
+| Staging audit | Authenticated Chrome screenshot, viewport/platform, Figma node/revision, deployed build SHA và kết quả compare | khác biệt chưa approved, screenshot stale, hoặc chưa audit đủ viewport |
+
+Không được đi tiếp gate sau khi gate trước chưa pass. Sửa visual sau một gate đã
+pass làm evidence downstream stale: phải chạy lại geometry proof, build, deploy
+và Chrome audit tương ứng. “Gần giống”, runtime screenshot cũ, memory, hay
+legacy implementation không bao giờ là evidence thay thế.
+
 ## 4. Quy trình
 
 ### A — Intake và audit
@@ -63,7 +81,8 @@ runtime hiện tại.
 5. Không refactor hoặc sửa runtime trong bước audit.
 6. Lập node map theo từng viewport: exact Figma node/revision → Flutter shared
    component → token (màu/type/spacing/radius/elevation) → geometry/copy/icon
-   → behavior phải giữ. Không có node map thì không bắt đầu UI mutation.
+   → behavior phải giữ. Node map phải cover mọi element nhìn thấy; không có
+   node map thì không bắt đầu UI mutation.
 
 Audit phải thừa nhận baseline hiện tại; không giả định repo là greenfield.
 
@@ -139,6 +158,9 @@ Approval phải nêu rõ frame/revision được duyệt. Sau approval:
 7. Không dùng visual UI cũ làm fallback. Nếu Figma thiếu một visible state hoặc
    element, tạo/revise node và chờ approval; vẫn có thể tiếp tục các node đã đủ
    authority.
+8. Không tái sử dụng bất kỳ visual decision nào từ code cũ (kể cả breakpoint,
+   copy, icon hay screenshot) để lấp Figma gap. Chỉ giữ implementation/runtime
+   behavior đã được protected trong node map.
 
 ### F — Verification
 
@@ -157,6 +179,10 @@ Proof tối thiểu cho UI code:
 - build của source SHA; sau staging deploy, Chrome audit authenticated tại mọi
   viewport affected, so trực tiếp với exact Figma node/revision. Difference
   chưa được duyệt là fail và phải sửa/audit lại, không được gọi là complete.
+- Evidence Chrome phải chứa screenshot runtime, screenshot/reference Figma,
+  viewport/platform, exact node/revision, deployed SHA và verdict per viewport.
+  Sau mỗi visual remediation, các evidence downstream cũ là stale và phải tạo
+  lại trước khi scope được gọi là visually complete.
 
 Ảnh so sánh phải ghi viewport/platform, frame/node và build/SHA.
 

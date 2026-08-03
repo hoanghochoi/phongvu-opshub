@@ -9,6 +9,16 @@
 - Exact frame/node/revision:
 - Approval reference:
 
+## Visual delivery evidence
+
+| Viewport/state | Exact Figma node/revision | Geometry test/golden | Deployed SHA | Authenticated Chrome comparison | Verdict |
+| --- | --- | --- | --- | --- | --- |
+| | | | | | |
+
+All visible elements must be covered by the approved node map. Legacy code and
+old runtime screenshots are behavior-only references and must not supply any
+visual decision or fallback.
+
 ## Product authority and protected behavior
 
 - Product docs and decision:
