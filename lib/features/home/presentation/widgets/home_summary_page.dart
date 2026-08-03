@@ -2313,43 +2313,59 @@ class ReportProgressPanel extends StatelessWidget {
       builder: (context, constraints) {
         final compact =
             constraints.maxWidth < AppLayoutTokens.compactBreakpoint;
-        final columns = constraints.maxWidth >= 760 ? 2 : 1;
+        // Figma 1819:16547 reserves a 896px inner analytics grid: two 440px
+        // cards with a 16px gutter. Do not stretch charts across wide desktop
+        // dashboard whitespace.
+        final boardWidth = compact
+            ? constraints.maxWidth
+            : math.min(constraints.maxWidth, 896.0);
+        final columns = boardWidth >= 760 ? 2 : 1;
         final gap = 16.0;
-        final width = (constraints.maxWidth - gap * (columns - 1)) / columns;
-        return Column(
-          key: const Key('home-summary-progress-panel'),
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              compact ? 'Tổng quan' : 'Tiến độ hoạt động',
-              style: compact ? AppTextStyles.headingS : AppTextStyles.pageTitle,
-            ),
-            if (!compact) ...[
-              const SizedBox(height: 6),
-              Text(
-                'Báo cáo, sao kê và tiến độ chỉ tiêu theo phạm vi hiện tại.',
-                style: AppTextStyles.bodyS.copyWith(
-                  color: AppColors.textSecondaryOf(context),
-                ),
-              ),
-            ],
-            SizedBox(height: compact ? 16 : 18),
-            Wrap(
-              spacing: gap,
-              runSpacing: gap,
+        final width = (boardWidth - gap * (columns - 1)) / columns;
+        return Align(
+          alignment: Alignment.centerLeft,
+          child: SizedBox(
+            width: boardWidth,
+            child: Column(
+              key: const Key('home-summary-progress-panel'),
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                for (final spec in cards)
-                  SizedBox(
-                    width: width,
-                    height: compact ? spec.compactHeight : spec.expandedHeight,
-                    child: _AnalyticsCompactScope(
-                      compact: compact,
-                      child: spec.card,
+                Text(
+                  compact ? 'Tổng quan' : 'Tiến độ hoạt động',
+                  style: compact
+                      ? AppTextStyles.headingS
+                      : AppTextStyles.pageTitle,
+                ),
+                if (!compact) ...[
+                  const SizedBox(height: 6),
+                  Text(
+                    'Báo cáo, sao kê và tiến độ chỉ tiêu theo phạm vi hiện tại.',
+                    style: AppTextStyles.bodyS.copyWith(
+                      color: AppColors.textSecondaryOf(context),
                     ),
                   ),
+                ],
+                SizedBox(height: compact ? 16 : 18),
+                Wrap(
+                  spacing: gap,
+                  runSpacing: gap,
+                  children: [
+                    for (final spec in cards)
+                      SizedBox(
+                        width: width,
+                        height: compact
+                            ? spec.compactHeight
+                            : spec.expandedHeight,
+                        child: _AnalyticsCompactScope(
+                          compact: compact,
+                          child: spec.card,
+                        ),
+                      ),
+                  ],
+                ),
               ],
             ),
-          ],
+          ),
         );
       },
     );

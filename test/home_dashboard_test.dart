@@ -1414,8 +1414,9 @@ void main() {
       MaterialApp(
         home: Scaffold(
           body: SizedBox(
-            // Figma 1819:16547: two 440px cards with a 16px gutter.
-            width: 896,
+            // Figma 1819:16547 caps its 896px inner board even when the
+            // dashboard content area is wider.
+            width: 1180,
             child: ReportProgressPanel(
               summary: summary,
               provider: summaryProvider,
