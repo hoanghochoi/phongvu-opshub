@@ -39,6 +39,7 @@ void main() {
   test('AppTheme maps Figma Foundation tokens into the light theme', () {
     final theme = AppTheme.lightTheme;
 
+    expect(theme.textTheme.bodyMedium?.fontFamily, 'Be Vietnam Pro');
     expect(theme.colorScheme.primary, AppColors.primary);
     expect(theme.colorScheme.secondary, AppColors.secondary);
     expect(theme.colorScheme.surface, AppColors.surface);
@@ -115,6 +116,7 @@ void main() {
   test('dark theme keeps context-aware foundation colors', () {
     final theme = AppTheme.darkTheme;
 
+    expect(theme.textTheme.bodyMedium?.fontFamily, 'Be Vietnam Pro');
     expect(theme.colorScheme.primary, AppColors.darkPrimary);
     expect(theme.colorScheme.secondary, AppColors.darkSecondary);
     expect(theme.colorScheme.surface, AppColors.darkSurface);

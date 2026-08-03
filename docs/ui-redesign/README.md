@@ -9,7 +9,8 @@ thế product contract đã được chấp nhận.
 OpsHub đã có một đợt Redesign V2 trong năm 2026, cùng `AppShell`, design tokens,
 shared components, Figma inventory và regression guards. Vì vậy đợt mới phải:
 
-- audit và kế thừa **hành vi đúng**, không mặc định kế thừa visual cũ;
+- audit và kế thừa **hành vi đúng**, nhưng với migrated surface phải bỏ hoàn
+  toàn visual UI cũ; code cũ không được dùng làm visual fallback;
 - migrate theo feature/screen, không rewrite toàn bộ app trong một PR;
 - giữ business logic, API contract, permission, platform contract và dữ liệu;
 - giữ màn hình chưa migrate hoạt động theo contract hiện hành;
@@ -28,7 +29,8 @@ Các nguồn có phạm vi authority khác nhau:
 4. `design-system-redesign.md` kiểm soát foundation/component target chung.
 5. Linear acceptance criteria kiểm soát scope và proof của từng work item.
 6. Code hiện tại là baseline cho phần chưa migrate và bằng chứng cho behavior
-   cần bảo vệ; nó không tự động là visual target của redesign.
+   cần bảo vệ; nó tuyệt đối không là visual target hay fallback của surface đã
+   migrate.
 
 Nếu Figma đưa ra control, dữ liệu hoặc hành vi chưa có product authority, dừng
 và tạo quyết định/acceptance criteria trước khi implement.
