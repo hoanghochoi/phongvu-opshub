@@ -787,7 +787,7 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
                           crossAxisCount: columns,
                           crossAxisSpacing: AppLayoutTokens.cardGap,
                           mainAxisSpacing: AppLayoutTokens.cardGap,
-                          mainAxisExtent: 200,
+                          mainAxisExtent: 208,
                         ),
                         itemBuilder: (context, index) {
                           final user = _users[index];
