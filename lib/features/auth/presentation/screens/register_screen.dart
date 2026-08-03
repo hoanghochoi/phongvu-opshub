@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:phongvu_opshub/app/widgets/app_toast.dart';
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/widgets/app_buttons.dart';
@@ -54,9 +55,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
     return Consumer<AuthProvider>(
       builder: (context, authProvider, _) {
         return AuthScreenShell(
-          maxWidth: AppLayoutTokens.formMaxWidth,
           child: AuthCard(
-            icon: Icons.person_add_alt_1_rounded,
+            icon: PhosphorIconsRegular.userPlus,
             title: 'Đăng ký tài khoản',
             subtitle:
                 'Tạo tài khoản nội bộ, xác thực email và chờ gán cây tổ chức.',
@@ -68,7 +68,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   AppFormTextInput(
                     controller: _firstNameController,
                     label: 'Tên hiển thị',
-                    icon: Icons.badge_outlined,
                     enabled: !authProvider.isLoading,
                     textInputAction: TextInputAction.next,
                     autofillHints: const [AutofillHints.givenName],
@@ -83,7 +82,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   AppFormTextInput(
                     controller: _lastNameController,
                     label: 'Họ hoặc bộ phận (không bắt buộc)',
-                    icon: Icons.account_circle_outlined,
                     enabled: !authProvider.isLoading,
                     textInputAction: TextInputAction.next,
                     autofillHints: const [AutofillHints.familyName],
@@ -92,7 +90,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   AppFormTextInput(
                     controller: _emailController,
                     label: 'Email',
-                    icon: Icons.alternate_email_rounded,
                     enabled: !authProvider.isLoading && !_isSendingCode,
                     keyboardType: TextInputType.emailAddress,
                     textInputAction: TextInputAction.next,
@@ -114,7 +111,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     onPressed: authProvider.isLoading || _isSendingCode
                         ? null
                         : () => _handleSendVerificationCode(context),
-                    icon: Icons.mark_email_read_rounded,
+                    icon: PhosphorIconsRegular.envelopeSimpleOpen,
                     label: 'Gửi mã xác thực email',
                     isLoading: _isSendingCode,
                     loadingLabel: 'Đang gửi mã...',
@@ -123,7 +120,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   AppFormTextInput(
                     controller: _verificationCodeController,
                     label: 'Mã xác thực email',
-                    icon: Icons.verified_user_outlined,
                     enabled: !authProvider.isLoading && !_isSendingCode,
                     keyboardType: TextInputType.number,
                     textInputAction: TextInputAction.next,
@@ -141,7 +137,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   AppFormTextInput(
                     controller: _passwordController,
                     label: 'Mật khẩu',
-                    icon: Icons.lock_rounded,
                     enabled: !authProvider.isLoading,
                     obscureText: _obscurePassword,
                     textInputAction: TextInputAction.next,
@@ -154,8 +149,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             ),
                       icon: Icon(
                         _obscurePassword
-                            ? Icons.visibility_rounded
-                            : Icons.visibility_off_rounded,
+                            ? PhosphorIconsRegular.eye
+                            : PhosphorIconsRegular.eyeSlash,
                       ),
                     ),
                     validator: (value) {
@@ -166,7 +161,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   AppFormTextInput(
                     controller: _confirmPasswordController,
                     label: 'Nhập lại mật khẩu',
-                    icon: Icons.lock_reset_rounded,
                     enabled: !authProvider.isLoading,
                     obscureText: _obscureConfirmPassword,
                     textInputAction: TextInputAction.done,
@@ -183,8 +177,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             ),
                       icon: Icon(
                         _obscureConfirmPassword
-                            ? Icons.visibility_rounded
-                            : Icons.visibility_off_rounded,
+                            ? PhosphorIconsRegular.eye
+                            : PhosphorIconsRegular.eyeSlash,
                       ),
                     ),
                     validator: (value) {
@@ -199,7 +193,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     onPressed: authProvider.isLoading
                         ? null
                         : () => _handleRegister(context),
-                    icon: Icons.person_add_alt_1_rounded,
+                    icon: PhosphorIconsRegular.userPlus,
                     label: 'Tạo tài khoản',
                     isLoading: authProvider.isLoading,
                     loadingLabel: 'Đang đăng ký...',
@@ -209,7 +203,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     onPressed: authProvider.isLoading
                         ? null
                         : () => Navigator.of(context).pop(),
-                    icon: Icons.arrow_back_rounded,
+                    icon: PhosphorIconsRegular.arrowLeft,
                     label: 'Quay lại đăng nhập',
                   ),
                 ],

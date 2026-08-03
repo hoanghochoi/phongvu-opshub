@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:phongvu_opshub/app/widgets/app_toast.dart';
 
 import '../../../../app/theme/app_colors.dart';
@@ -116,7 +117,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
             ),
             AppDialogConfirmButton(
               onPressed: () => Navigator.of(dialogContext).pop(true),
-              icon: Icons.person_add_alt_1_rounded,
+              icon: PhosphorIconsRegular.userPlus,
               label: 'Đăng ký tài khoản',
             ),
           ],
@@ -200,7 +201,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       builder: (context, authProvider, _) {
         return AuthScreenShell(
           child: AuthCard(
-            icon: Icons.lock_reset_rounded,
+            icon: PhosphorIconsRegular.lockKey,
             title: _title,
             subtitle: _subtitle,
             child: Form(
@@ -227,7 +228,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                       onPressed: authProvider.isLoading
                           ? null
                           : () => _sendCode(context),
-                      icon: Icons.refresh_rounded,
+                      icon: PhosphorIconsRegular.arrowClockwise,
                       label: 'Gửi lại mã',
                     ),
                   ],
@@ -236,7 +237,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                     onPressed: authProvider.isLoading
                         ? null
                         : () => context.go('/login'),
-                    icon: Icons.arrow_back_rounded,
+                    icon: PhosphorIconsRegular.arrowLeft,
                     label: 'Quay lại đăng nhập',
                   ),
                 ],
@@ -260,7 +261,6 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       autofillHints: const [AutofillHints.username, AutofillHints.email],
       onFieldSubmitted: (_) => authProvider.isLoading ? null : _submit(context),
       label: 'Email',
-      icon: Icons.alternate_email_rounded,
       validator: (value) {
         final email = value?.trim() ?? '';
         if (!Validators.isValidEmail(email)) return 'Email không hợp lệ';
@@ -279,7 +279,6 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       counterText: '',
       onFieldSubmitted: (_) => authProvider.isLoading ? null : _submit(context),
       label: 'Mã xác thực email',
-      icon: Icons.verified_user_outlined,
       validator: (value) {
         final code = value?.trim() ?? '';
         if (!RegExp(r'^[0-9]{6}$').hasMatch(code)) {
@@ -298,15 +297,14 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       textInputAction: TextInputAction.next,
       autofillHints: const [AutofillHints.newPassword],
       label: 'Mật khẩu mới',
-      icon: Icons.lock_rounded,
       suffixIcon: IconButton(
         onPressed: authProvider.isLoading
             ? null
             : () => setState(() => _obscurePassword = !_obscurePassword),
         icon: Icon(
           _obscurePassword
-              ? Icons.visibility_rounded
-              : Icons.visibility_off_rounded,
+              ? PhosphorIconsRegular.eye
+              : PhosphorIconsRegular.eyeSlash,
         ),
       ),
       validator: (value) => Validators.getPasswordError(value ?? ''),
@@ -322,7 +320,6 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       autofillHints: const [AutofillHints.newPassword],
       onFieldSubmitted: (_) => authProvider.isLoading ? null : _submit(context),
       label: 'Nhập lại mật khẩu mới',
-      icon: Icons.lock_reset_rounded,
       suffixIcon: IconButton(
         onPressed: authProvider.isLoading
             ? null
@@ -331,8 +328,8 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
               ),
         icon: Icon(
           _obscureConfirmPassword
-              ? Icons.visibility_rounded
-              : Icons.visibility_off_rounded,
+              ? PhosphorIconsRegular.eye
+              : PhosphorIconsRegular.eyeSlash,
         ),
       ),
       validator: (value) {
@@ -404,11 +401,11 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   IconData get _buttonIcon {
     switch (_step) {
       case _ResetStep.email:
-        return Icons.mark_email_read_outlined;
+        return PhosphorIconsRegular.envelopeSimpleOpen;
       case _ResetStep.code:
-        return Icons.verified_outlined;
+        return PhosphorIconsRegular.sealCheck;
       case _ResetStep.password:
-        return Icons.lock_reset_rounded;
+        return PhosphorIconsRegular.lockKey;
     }
   }
 }

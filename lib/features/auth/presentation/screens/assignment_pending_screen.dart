@@ -3,12 +3,12 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:phongvu_opshub/app/widgets/app_toast.dart';
 
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_text_styles.dart';
 import '../../../../app/widgets/app_buttons.dart';
-import '../../../../app/widgets/app_layout.dart';
 import '../../../../core/logging/app_logger.dart';
 import '../providers/auth_provider.dart';
 import '../widgets/auth_screen_shell.dart';
@@ -110,73 +110,68 @@ class _AssignmentPendingScreenState extends State<AssignmentPendingScreen> {
     return Stack(
       children: [
         AuthScreenShell(
-          child: AuthCard(
-            icon: Icons.account_tree_outlined,
-            title: 'Chờ gán tổ chức',
-            subtitle: 'Tài khoản đã tạo nhưng chưa có phạm vi sử dụng.',
+          child: SizedBox(
+            width: 480,
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 DecoratedBox(
                   decoration: BoxDecoration(
                     color: AppColors.primarySurfaceOf(context),
-                    borderRadius: BorderRadius.circular(
-                      AppLayoutTokens.cardRadius,
-                    ),
-                    border: Border.all(
-                      color: AppColors.primaryOf(
-                        context,
-                      ).withValues(alpha: 0.22),
-                    ),
+                    borderRadius: BorderRadius.circular(12),
                   ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.all(14),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text('Việc cần làm', style: AppTextStyles.headingS),
-                            const SizedBox(
-                              height: AppLayoutTokens.formInlineGap,
-                            ),
-                            Text(
-                              _supportMessage,
-                              style: AppTextStyles.bodyM.copyWith(
-                                color: AppColors.textSecondaryOf(context),
-                              ),
-                            ),
-                            if (userEmail?.isNotEmpty == true) ...[
-                              const SizedBox(
-                                height: AppLayoutTokens.formInlineGap,
-                              ),
-                              Text(
-                                userEmail!,
-                                style: AppTextStyles.labelM.copyWith(
-                                  color: AppColors.primaryOf(context),
-                                ),
-                              ),
-                            ],
-                          ],
-                        ),
-                      ),
-                    ],
+                  child: const SizedBox(
+                    width: 56,
+                    height: 56,
+                    child: Icon(PhosphorIconsRegular.warningCircle, size: 30),
                   ),
                 ),
-                const SizedBox(height: AppLayoutTokens.formSectionGap),
-                AppPrimaryButton(
-                  onPressed: _refreshing ? null : _refresh,
-                  icon: Icons.refresh_rounded,
-                  label: 'Tải lại trạng thái',
-                  isLoading: _refreshing,
-                  loadingLabel: 'Đang tải lại...',
+                const SizedBox(height: 12),
+                Text(
+                  'Chờ gán tổ chức',
+                  style: AppTextStyles.labelL.copyWith(
+                    color: AppColors.primaryOf(context),
+                  ),
                 ),
-                const SizedBox(height: AppLayoutTokens.formInlineGap),
-                AppSecondaryButton(
+                const SizedBox(height: 12),
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 440),
+                  child: Text(
+                    _supportMessage,
+                    textAlign: TextAlign.center,
+                    style: AppTextStyles.bodyM.copyWith(
+                      color: AppColors.textMutedOf(context),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: 220,
+                  child: AppSecondaryButton(
+                    onPressed: _refreshing ? null : _refresh,
+                    icon: PhosphorIconsRegular.arrowClockwise,
+                    label: 'Tải lại trạng thái',
+                    isLoading: _refreshing,
+                    loadingLabel: 'Đang tải lại...',
+                    height: 44,
+                  ),
+                ),
+                if (userEmail?.isNotEmpty == true) ...[
+                  const SizedBox(height: 28),
+                  Text(
+                    'Tài khoản: $userEmail',
+                    style: AppTextStyles.labelM.copyWith(
+                      color: AppColors.primaryOf(context),
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 20),
+                AppLinkButton(
                   onPressed: _refreshing ? null : _logout,
-                  icon: Icons.logout_rounded,
+                  icon: PhosphorIconsRegular.signOut,
                   label: 'Đăng xuất',
+                  compact: true,
                 ),
               ],
             ),
