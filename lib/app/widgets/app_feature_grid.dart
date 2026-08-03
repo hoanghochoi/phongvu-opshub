@@ -82,7 +82,7 @@ class AppFeatureGrid extends StatelessWidget {
         final crossAxisCount = viewportWidth >= AppLayoutTokens.desktopBreakpoint
             ? 3
             : viewportWidth >= AppLayoutTokens.tabletBreakpoint
-            ? 2
+            ? (actions.length >= 3 ? 3 : 2)
             : 1;
         final spacing = viewportWidth >= AppLayoutTokens.desktopBreakpoint
             ? 16.0

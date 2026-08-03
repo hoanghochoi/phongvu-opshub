@@ -33,10 +33,40 @@ void main() {
       tester.getSize(find.byType(AppFeatureTile).first),
       const Size(430, 96),
     );
+
+    await tester.pumpWidget(_fixture(contentWidth: 872, actionCount: 3));
+    expect(
+      tester.getSize(find.byType(AppFeatureTile).first),
+      const Size(280, 96),
+    );
   });
 }
 
-Widget _fixture({double? contentWidth}) {
+Widget _fixture({double? contentWidth, int actionCount = 2}) {
+  final actions = <AppFeatureAction>[
+    const AppFeatureAction(
+      icon: Icons.qr_code,
+      title: 'VietQR',
+      description: 'Tạo mã chuyển khoản',
+      color: Colors.blue,
+      onTap: null,
+    ),
+    const AppFeatureAction(
+      icon: Icons.description_outlined,
+      title: 'Báo cáo',
+      description: 'Theo dõi báo cáo',
+      color: Colors.green,
+      onTap: null,
+    ),
+    if (actionCount >= 3)
+      const AppFeatureAction(
+        icon: Icons.receipt_long,
+        title: 'Phụ lục',
+        description: 'Tạo bảng hàng hóa hợp đồng',
+        color: Colors.blue,
+        onTap: null,
+      ),
+  ];
   return MaterialApp(
     home: Scaffold(
       body: Padding(
@@ -45,22 +75,7 @@ Widget _fixture({double? contentWidth}) {
           width: contentWidth,
           child: AppFeatureSection(
             title: 'Bán hàng',
-            actions: const [
-              AppFeatureAction(
-                icon: Icons.qr_code,
-                title: 'VietQR',
-                description: 'Tạo mã chuyển khoản',
-                color: Colors.blue,
-                onTap: null,
-              ),
-              AppFeatureAction(
-                icon: Icons.description_outlined,
-                title: 'Báo cáo',
-                description: 'Theo dõi báo cáo',
-                color: Colors.green,
-                onTap: null,
-              ),
-            ],
+            actions: actions,
           ),
         ),
       ),
