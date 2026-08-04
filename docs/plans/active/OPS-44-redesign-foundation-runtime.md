@@ -20,7 +20,7 @@ proof; business, API, permission, platform và data behavior giữ nguyên.
 - Git baseline: `origin/staging` at
       `5f935de9b2417e1b7ba138026b875bf6329bfbbe`; the guarded execution branch
       `codex/ops-44-execution-plan-v2` is clean at head
-      `9674a83bbb61238bbd709f0a9a88696a205583cf` (runtime checkpoint
+      `8bdfe9b55eeaa68df7543d56750cddee1eda9242` (runtime checkpoint
       `1224a8ad228d04c63bac55e502fca2ba26971050`).
 - Figma file:
   `mFzSmQzlapSe3RSmUhvzll`; target pages Cover `0:1`, Foundation `13:5`,
@@ -456,7 +456,7 @@ readback.
 #### Branch cleanup audit — 2026-08-04
 
 - The active implementation branch/worktree is `codex/ops-44-execution-plan-v2`
-  at clean head `9674a83bbb61238bbd709f0a9a88696a205583cf` (runtime checkpoint
+  at clean head `8bdfe9b55eeaa68df7543d56750cddee1eda9242` (runtime checkpoint
   `1224a8ad228d04c63bac55e502fca2ba26971050`); it is not yet
   published/merged into `staging`.
 - Local `staging` is clean at the same base SHA. The separate `OPS-27`
