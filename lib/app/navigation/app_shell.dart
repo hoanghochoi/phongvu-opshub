@@ -346,7 +346,10 @@ class _AppShellState extends State<AppShell> {
       builder: (dialogContext) => AlertDialog(
         title: Row(
           children: [
-            const Icon(Icons.support_agent_rounded, color: AppColors.primary),
+            Icon(
+              Icons.support_agent_rounded,
+              color: AppColors.primaryOf(dialogContext),
+            ),
             const SizedBox(width: 12),
             const Expanded(child: Text('Hỗ trợ OpsHub')),
           ],
@@ -516,7 +519,7 @@ class _AppShellState extends State<AppShell> {
       builder: (dialogContext) => AlertDialog(
         title: Row(
           children: [
-            const Icon(Icons.info_outline, color: AppColors.primary),
+            Icon(Icons.info_outline, color: AppColors.primaryOf(dialogContext)),
             const SizedBox(width: 12),
             const Expanded(child: Text('Thông tin ứng dụng')),
           ],

@@ -302,10 +302,12 @@ class _HomeSpeakerStatusButton extends StatelessWidget {
 
     final speakerEnabled = monitor.isSpeakerEnabled;
     final label = speakerEnabled ? 'Loa đang bật' : 'Loa đang tắt';
-    final color = speakerEnabled ? AppColors.success : AppColors.neutral600;
+    final color = speakerEnabled
+        ? AppColors.successOf(context)
+        : AppColors.textMutedOf(context);
     final backgroundColor = speakerEnabled
-        ? AppColors.successSurface
-        : AppColors.neutral100;
+        ? AppColors.successSurfaceOf(context)
+        : AppColors.speakerOffSurfaceOf(context);
     final icon = speakerEnabled
         ? Icons.volume_up_rounded
         : Icons.volume_off_rounded;
@@ -337,26 +339,33 @@ class _HomeSpeakerStatusButton extends StatelessWidget {
           key: const Key('home-speaker-status-toggle'),
           borderRadius: AppRadius.allPill,
           onTap: toggleSpeaker,
-          child: Container(
-            constraints: const BoxConstraints(minHeight: 32),
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-            decoration: BoxDecoration(
-              color: backgroundColor,
-              borderRadius: AppRadius.allPill,
-              border: Border.all(color: color.withValues(alpha: 0.24)),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(icon, size: 16, color: color),
-                const SizedBox(width: 6),
-                Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppTextStyles.labelS.copyWith(color: color),
-                ),
-              ],
+          child: SizedBox(
+            width: 152,
+            height: 40,
+            child: Container(
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: backgroundColor,
+                borderRadius: AppRadius.allPill,
+                border: Border.all(color: color),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(icon, size: 16, color: color),
+                  const SizedBox(width: 8),
+                  SizedBox(
+                    width: 104,
+                    child: Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.center,
+                      style: AppTextStyles.labelM.copyWith(color: color),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),

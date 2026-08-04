@@ -136,7 +136,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
       context,
       SnackBar(
         content: Text(message),
-        backgroundColor: success ? AppColors.success : AppColors.error,
+        backgroundColor: success
+            ? AppColors.successOf(context)
+            : AppColors.errorOf(context),
       ),
     );
   }
@@ -497,12 +499,8 @@ class _ProfileSessionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final danger = AppColors.isDark(context)
-        ? AppColors.darkError
-        : AppColors.error;
-    final dangerSurface = AppColors.isDark(context)
-        ? AppColors.darkErrorSurface
-        : AppColors.errorSurface;
+    final danger = AppColors.errorOf(context);
+    final dangerSurface = AppColors.errorSurfaceOf(context);
     return AppSurfaceCard(
       key: const Key('profile-session-card'),
       backgroundColor: dangerSurface,
@@ -779,9 +777,7 @@ class _ProfileStatusChip extends StatelessWidget {
   Widget build(BuildContext context) {
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: AppColors.isDark(context)
-            ? AppColors.darkNeutral100
-            : AppColors.neutral50,
+        color: AppColors.chipBackgroundOf(context),
         borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
       ),
       child: Padding(
@@ -806,9 +802,7 @@ class _ProfileLogoutButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final danger = AppColors.isDark(context)
-        ? AppColors.darkError
-        : AppColors.error;
+    final danger = AppColors.errorOf(context);
     return AppSecondaryButton(
       onPressed: onPressed,
       icon: Icons.logout_rounded,
@@ -833,7 +827,7 @@ class _ProfileAvatarAction extends StatelessWidget {
       tooltip: 'Cập nhật avatar',
       onPressed: onPressed,
       icon: const Icon(Icons.camera_alt_outlined, size: 16),
-      color: AppColors.surface,
+      color: AppColors.primaryForegroundOf(context),
       style: IconButton.styleFrom(
         backgroundColor: AppColors.primaryOf(context),
         padding: EdgeInsets.zero,
@@ -900,7 +894,7 @@ class _ChangePasswordDialogState extends State<_ChangePasswordDialog> {
       context,
       SnackBar(
         content: Text(authProvider.errorMessage ?? 'Không đổi được mật khẩu'),
-        backgroundColor: AppColors.error,
+        backgroundColor: AppColors.errorOf(context),
       ),
     );
   }

@@ -59,10 +59,10 @@ class AppPrimaryButton extends StatelessWidget {
     final hasIcon = icon != null || isLoading;
     final buttonStyle =
         FilledButton.styleFrom(
-          backgroundColor: AppColors.primary,
-          foregroundColor: AppColors.surface,
-          disabledBackgroundColor: AppColors.neutral100,
-          disabledForegroundColor: AppColors.neutral500,
+          backgroundColor: AppColors.primaryOf(context),
+          foregroundColor: AppColors.primaryForegroundOf(context),
+          disabledBackgroundColor: AppColors.borderOf(context),
+          disabledForegroundColor: AppColors.textMutedOf(context),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(radius),
           ),
@@ -96,12 +96,12 @@ class AppPrimaryButton extends StatelessWidget {
           ? FilledButton.icon(
               onPressed: isLoading ? null : onPressed,
               icon: isLoading
-                  ? const SizedBox(
+                  ? SizedBox(
                       width: 20,
                       height: 20,
                       child: CircularProgressIndicator(
                         strokeWidth: 2,
-                        color: AppColors.surface,
+                        color: AppColors.primaryForegroundOf(context),
                       ),
                     )
                   : Icon(icon),
@@ -147,7 +147,8 @@ class AppSecondaryButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final effectiveForegroundColor = foregroundColor ?? AppColors.primary;
+    final effectiveForegroundColor =
+        foregroundColor ?? AppColors.primaryOf(context);
     final effectiveBorderColor = borderColor ?? effectiveForegroundColor;
     return SizedBox(
       width: expand ? double.infinity : null,
@@ -362,12 +363,15 @@ class AppIconAction extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final foreground =
-        foregroundColor ?? (filled ? AppColors.surface : AppColors.primary);
+        foregroundColor ??
+        (filled
+            ? AppColors.primaryForegroundOf(context)
+            : AppColors.primaryOf(context));
     final background =
         backgroundColor ??
         (filled
-            ? AppColors.primary
-            : AppColors.primary.withValues(alpha: 0.10));
+            ? AppColors.primaryOf(context)
+            : AppColors.primaryOf(context).withValues(alpha: 0.10));
 
     return SizedBox.square(
       dimension: AppButtonMetrics.iconSize,
@@ -378,8 +382,8 @@ class AppIconAction extends StatelessWidget {
         color: foreground,
         style: IconButton.styleFrom(
           backgroundColor: background,
-          disabledBackgroundColor: AppColors.neutral200,
-          disabledForegroundColor: AppColors.neutral500,
+          disabledBackgroundColor: AppColors.borderOf(context),
+          disabledForegroundColor: AppColors.textMutedOf(context),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppButtonMetrics.radius),
           ),
@@ -428,8 +432,8 @@ class AppDialogSecondaryButton extends StatelessWidget {
       icon: Icon(icon),
       label: Text(label),
       style: OutlinedButton.styleFrom(
-        foregroundColor: AppColors.primary,
-        side: const BorderSide(color: AppColors.primary),
+        foregroundColor: AppColors.primaryOf(context),
+        side: BorderSide(color: AppColors.primaryOf(context)),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppButtonMetrics.radius),
         ),
@@ -460,19 +464,21 @@ class AppDialogConfirmButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final effectiveIcon = isLoading
-        ? const SizedBox(
+        ? SizedBox(
             width: 16,
             height: 16,
             child: CircularProgressIndicator(
               strokeWidth: 2,
-              color: AppColors.surface,
+              color: AppColors.primaryForegroundOf(context),
             ),
           )
         : icon == null
         ? null
         : Icon(icon);
-    final effectiveBackgroundColor = backgroundColor ?? AppColors.primary;
-    final effectiveForegroundColor = foregroundColor ?? AppColors.surface;
+    final effectiveBackgroundColor =
+        backgroundColor ?? AppColors.primaryOf(context);
+    final effectiveForegroundColor =
+        foregroundColor ?? AppColors.primaryForegroundOf(context);
     final style = FilledButton.styleFrom(
       backgroundColor: effectiveBackgroundColor,
       foregroundColor: effectiveForegroundColor,

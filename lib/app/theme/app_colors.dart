@@ -142,7 +142,12 @@ class AppColors {
   static const Color darkSidebarMuted = Color(0xFFCBD5E1);
   static const Color darkSidebarSelected = Color(0xFF17324D);
   static const Color darkChipBg = Color(0xFF2A2A2A);
-  static const Color darkNeutral50 = Color(0xFF1A1A1A);
+  static const Color speakerOffSurface = Color(0xFFE5E9F0);
+  static const Color darkSpeakerOffSurface = darkNeutral100;
+
+  /// Figma `Input background` (VariableID:8:148) in Dark mode.
+  static const Color darkInput = Color(0xFF111827);
+  static const Color darkNeutral50 = darkInput;
   static const Color darkNeutral100 = Color(0xFF2D2D2D);
   static const Color darkGradientStart = Color(0xFF0B1220);
   static const Color darkGradientMid = Color(0xFF1E3A5F);
@@ -181,8 +186,16 @@ class AppColors {
   static Color primaryOf(BuildContext context) =>
       isDark(context) ? darkPrimary : primary;
 
+  /// Foreground used on a filled primary action. Dark mode follows Figma's
+  /// `text/inverse` value (`#050A28`) instead of a light label on blue.
+  static Color primaryForegroundOf(BuildContext context) =>
+      isDark(context) ? primary900 : surface;
+
   static Color secondaryOf(BuildContext context) =>
       isDark(context) ? darkSecondary : secondary;
+
+  static Color accentOf(BuildContext context) =>
+      isDark(context) ? darkAccent : accent;
 
   static Color primarySurfaceOf(BuildContext context) =>
       isDark(context) ? darkPrimarySurface : primarySurface;
@@ -245,4 +258,10 @@ class AppColors {
 
   static Color sidebarSelectedOf(BuildContext context) =>
       isDark(context) ? darkSidebarSelected : sidebarSelected;
+
+  static Color chipBackgroundOf(BuildContext context) =>
+      isDark(context) ? darkChipBg : chipBackground;
+
+  static Color speakerOffSurfaceOf(BuildContext context) =>
+      isDark(context) ? darkSpeakerOffSurface : speakerOffSurface;
 }

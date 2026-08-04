@@ -1,7 +1,7 @@
 # Execution Plan: OPS-44 Redesign Foundation Runtime And UI Retirement
 
 Date: 2026-08-03
-Last updated: 2026-08-04 (Support Chat state authority proposal + Figma inventory readback)
+Last updated: 2026-08-04 (Đại Ca approved all recorded Figma proposals; Dark remediation)
 
 ## Status
 
@@ -135,6 +135,37 @@ until the replacement has affected-consumer proof.
       `DARK / ...`, with `OpsHub Semantics=Dark` (`4:2`) and
       `OpsHub Components=Dark` (`6:0`) explicit modes. The board stays on the
       existing seven-page target and does not alter Light sources.
+- [x] Dark remediation node map captured before runtime edits (Figma file
+      `mFzSmQzlapSe3RSmUhvzll`, approved board `1874:35444`):
+      AppShell/logo/navigation `1874:123525` → `AppShell`, `AppLogo`,
+      `AppNav` using shell `227:8`, navigation content `8:158`, navigation
+      muted `8:159`, text primary `8:79`; Operations section/action surfaces
+      `1874:123525` → `AppFeatureSection`/`AppFeatureTile` using surface/card
+      `8:154`, info/input `8:148`, primary/muted `8:79`/`8:81`, and the
+      existing Phosphor route icons; Home dashboard `1874:123632` →
+      `HomeSummaryPage` shared cards/section headings using canvas/surface/card
+      semantics and dark text tokens; Bank Statement `1874:129947` →
+      `BankStatementScreen` rows/action labels using `8:154` + `8:79`;
+      Organization edit dialog `1874:125723` → shared dialog/form surfaces.
+      Required Chrome matrix is compact `375×812`, medium `834×1112`,
+      expanded `1024×768`, and wide `1440×900`; states are loaded, loading,
+      empty, retryable error, permission/unsupported and dialog where exposed.
+- [x] Dark runtime semantic remediation local gate: shared `AppColors`, dark
+      `AppTheme`/`DialogTheme`, `AppLogo`, feature tiles, AppCombobox/ListTile,
+      state/chip/card/button primitives, AppShell dialogs, Home KPI/speaker,
+      Operations, Bank Statement, Help, Admin Users/Organization and auth
+      feedback now resolve dark surfaces/text from context helpers; no business,
+      route, permission or platform contract changed. Figma bindings for
+      `229:844`, `677:17777` and Bank Statement action titles were read back to
+      `8:158`, `8:159` and `8:79`.
+- [x] Dark local proof: theme/geometry and affected Admin Users, Organization,
+      Help, Operations, Bank Statement and shared widget tests pass; fresh
+      `flutter analyze --no-pub`, `git diff --check`, and
+      `flutter build web --release --no-pub --no-wasm-dry-run` pass. Full
+      regression is rerun after the Home speaker chip/icon and dark surface
+      remediation: `flutter test --no-pub --reporter json` is `869/869`
+      successful with zero failures. Authenticated staging Chrome comparison
+      remains downstream.
 
 ### Phase 2 — shared foundation cleanup
 
@@ -176,6 +207,42 @@ until the replacement has affected-consumer proof.
 
 ### Phase 4 — Remaining route/state consumer retirement
 
+#### Figma proposal approval checkpoint — 2026-08-04
+
+Đại Ca đã xác nhận tất cả proposal/revision đang được ghi trong issue và
+ledger là đã duyệt. Các node proposal có metadata, screenshot và
+`get_design_context` readback trước đó được coi là authority visual; các wave
+runtime tương ứng được phép implement theo đúng node map, không còn chặn bởi
+approval. Việc hoàn tất vẫn cần geometry proof, exact-SHA build, staging/Chrome
+audit và production deployment theo các gate bên dưới.
+
+Figma authority metadata was synchronized after approval: proposal sections
+`1881:59087`, `1883:59093`, `1884:59093`, `1888:59111`, `1891:59111`,
+`1895:59111` and `1898:107163` no longer carry “Pending approval” labels; each
+now has an approved-authority note. Home speaker adds state icons `1909:2` and
+`1909:4`, read back with `get_metadata`, `get_screenshot` and
+`get_design_context`.
+
+#### Approved modal/state node map readback — 2026-08-04
+
+The approved Admin Users and Admin Features modal/state nodes were re-read
+through `get_metadata` followed by `get_design_context` before runtime work:
+
+- Import result: `1874:131679` (520×584) → shared Dialog shell with result
+  body `810:2940` and actions `810:2941`.
+- Organization picker: `1874:131712` (560×632) → shared Dialog shell with
+  search/filter/list body `810:2956`–`810:2976` and shared actions.
+- Admin Features “Theo đơn vị”: `1874:131499`; “Quy tắc cũ”:
+  `1874:131524` → existing feature-assignment state paths.
+- Admin Users save confirmation: frame `1874:131713`, backdrop
+  `1874:131744`, exact dialog `1874:131745` (480×312), body
+  `810:2995`–`810:3004`, actions `810:3011` and `810:3013`.
+
+Readback confirms shared dialog geometry (24px inset, 12px shell gap, 40px
+small actions) and Vietnamese title/body/action copy. Dark runtime must resolve
+the same surfaces/text through `AppColors`/`DialogTheme`; it must not rebuild
+raw white dialogs or rely on inconsistent title defaults.
+
 - [x] Reconcile every declared route against the seven-page Figma authority:
       router has 45 `path:` declarations; Desktop/Web exposes 44 route owners
       including `/shell-topbar`, Mobile exposes 43, and Tablet exposes all 43
@@ -193,55 +260,65 @@ until the replacement has affected-consumer proof.
       `figma-use` atomic workflow, read back metadata and screenshot, retrieve
       `get_design_context`, record the new node/revision in this plan and Linear,
       then wait for explicit approval before implementation.
-- [x] Notifications runtime parity gap is now represented by the explicitly
-      pending proposal section `1881:59087` on Desktop + Web, built from the
+- [x] Notifications runtime parity gap is represented by the approved proposal
+      section `1881:59087` on Desktop + Web, built from the
       approved notification instances and covering transaction/request times,
       requester, reason and content lines. Metadata readback and screenshot
-      pass; this proposal is not a production authority until approved.
-- [x] Home speaker-status runtime gap is now isolated in pending Figma proposal
-      `1888:59111` (`PROPOSAL — Home speaker status · Pending approval`). The
+      pass; the proposal is now a production visual authority.
+- [x] Home speaker-status runtime gap is isolated in approved Figma proposal
+      `1888:59111` (`PROPOSAL — Home speaker status`). The
       approved Home chain `326:2698` → `326:2731` → `326:2732` has no speaker
-      node, while the protected Windows runtime contract requires `Loa đang
-      bật/tắt` plus the existing toggle/provider/AppLogger behavior. Proposal
-      metadata, screenshot and `get_design_context` readback pass; no Home
-      visual edit is authorized until explicit approval.
-- [x] Support Chat runtime-state gap is now isolated in pending Figma proposal
-      `1898:107163` (`PROPOSAL — Support Chat runtime states · Pending approval`).
+      node in the base header, so the approved proposal supplies the missing
+      state chip and icon nodes. The protected Windows runtime contract still
+      requires `Loa đang bật/tắt` plus the existing toggle/provider/AppLogger
+      behavior. Proposal metadata, screenshot and `get_design_context`
+      readback pass; Home visual implementation is now unblocked.
+- [x] Support Chat runtime-state gap is isolated in approved Figma proposal
+      `1898:107163` (`PROPOSAL — Support Chat runtime states`).
       The proposal covers inbox/thread loading, empty, retryable error,
       permission, selected-thread and responsive desktop, tablet portrait,
       tablet landscape and mobile states. Metadata, screenshot and
-      `get_design_context` readback pass; no production visual edit is
-      authorized until explicit Figma approval.
+      `get_design_context` readback pass; production visual implementation is
+      now unblocked.
 
 #### Figma gap/action ledger — 2026-08-04
 
-All rows below have a named proposal node, metadata readback, screenshot
-readback and `get_design_context` evidence. “Pending approval” is an explicit
-visual gate: runtime code must keep the protected behavior but must not invent
-the missing visual element/state.
+All rows below have a named approved proposal node, metadata readback,
+screenshot readback and `get_design_context` evidence. Runtime may implement
+the protected behavior from these exact nodes; it must not invent a different
+visual element/state.
 
 | Runtime gap | Figma proposal | Protected runtime behavior | Next gate |
 | --- | --- | --- | --- |
-| Notifications content parity | `1881:59087` | unread/read, requester/reason/content, action feedback | Approve proposal, then implement Desktop/Web + mobile parity |
-| API Connections dynamic clients/keys | `1883:59093` | repository mutations, confirmation, secret/key handling, logger | Approve proposal, then implement populated cards |
-| API Connections supported Web compact/medium | `1895:59111` | Web capability remains supported; Android unsupported guard unchanged | Approve proposal, then implement Web responsive geometry |
-| Settings speaker voice card | `1884:59093` | speaker preference provider, combobox selection, startup/theme behavior | Approve proposal, then implement Desktop/mobile/tablet card |
-| Home speaker ON/OFF status | `1888:59111` | existing toggle/provider/AppLogger contract; Windows-only visibility | Approve proposal, then make Home regression green |
-| Sales Reports managed filter | `1891:59111` | existing `Lọc` trigger, advanced sheet, provider scope/filter behavior | Approve proposal, then implement compact/medium trigger states |
-| Support Chat inbox/thread states | `1898:107163` | auth/session, thread selection, retry/permission, composer/realtime behavior | Approve proposal, then implement responsive state matrix |
+| Notifications content parity | `1881:59087` | unread/read, requester/reason/content, action feedback | Implement Desktop/Web + mobile parity |
+| API Connections dynamic clients/keys | `1883:59093` | repository mutations, confirmation, secret/key handling, logger | Implement populated cards |
+| API Connections supported Web compact/medium | `1895:59111` | Web capability remains supported; Android unsupported guard unchanged | Implement Web responsive geometry |
+| Settings speaker voice card | `1884:59093` | speaker preference provider, combobox selection, startup/theme behavior | Implement Desktop/mobile/tablet card |
+| Home speaker ON/OFF status | `1888:59111` | existing toggle/provider/AppLogger contract; Windows-only visibility | Implemented; rerun Home regression |
+| Sales Reports managed filter | `1891:59111` | existing `Lọc` trigger, advanced sheet, provider scope/filter behavior | Implement compact/medium trigger states |
+| Support Chat inbox/thread states | `1898:107163` | auth/session, thread selection, retry/permission, composer/realtime behavior | Implement responsive state matrix |
 
 The destructive archive-page action is tracked separately: page `1174:4`
 (`ARCHIVE — Web Responsive (empty · pending deletion)`) can be deleted only
 after explicit unified-revision approval and a final seven-page inventory
 readback.
-- [ ] Home speaker-status implementation gate: after approval, map the exact
-      ON/OFF node/revision into `HomeSummaryHeader`, add geometry proof for the
-      approved Windows width matrix, and rerun Home/AppShell affected consumers.
+- [x] Home speaker-status implementation gate: approved proposal
+      `1888:59111` was read back at exact ON/OFF nodes `1888:59118` and
+      `1888:59120` (152×40, radius 20) with state-specific icons
+      `1909:2` (Volume Up) and `1909:4` (Volume Off). `HomeSummaryHeader` now
+      places the Windows-only chip beside the desktop scope/date trigger,
+      preserves `home-speaker-status-toggle`, provider mutation and AppLogger
+      behavior, and maps ON/OFF surfaces through light/dark semantic tokens.
+      Compact
+      mobile remains without this visual because the approved matrix starts at
+      medium `600–899`; Android/iOS/Web capability gates remain unchanged.
+      Focused Home speaker geometry/regression proof passes; broader
+      Home/AppShell proof remains the next gate.
 - [x] Super Admin delivery-metrics consumer proof now sets the test viewport to
       the approved wide Desktop/Web contract (`1440×900`); the compact shell
       intentionally omits the metrics pill. Focused run confirms this test
-      passes, while the Windows speaker test remains blocked by the missing
-      approved Figma node above.
+      passes; the Windows speaker test now has an approved node and is pending
+      the fresh focused regression run below.
 - [x] API Connections bounded wave — node map captured before code edit:
       Windows/Web loaded `1704:134596` → route shell instance `1704:134597`,
       header `1730:34726`, content `1730:34729`, BIDV connection card
@@ -260,26 +337,24 @@ readback.
       proof plus affected API-connection/admin/router tests, then rerun
       analyzer/format/diff checks. Staging/Chrome/platform proof remains
       downstream and is required before retiring the old visual consumers.
-- [x] API Connections dynamic-state gap is now isolated in pending proposal
-      `1883:59093` (`PROPOSAL — API Connections dynamic states · Pending
-      approval`). It reuses the approved BIDV/OpenPGP cards and covers a
+- [x] API Connections dynamic-state gap is isolated in approved proposal
+      `1883:59093` (`PROPOSAL — API Connections dynamic states`). It reuses
+      the approved BIDV/OpenPGP cards and covers a
       non-empty OAuth client plus active OpenPGP key. Metadata and screenshot
-      readback pass; this proposal is not production authority until explicit
-      Figma revision approval, so supported client/key visual code remains
-      unchanged for now.
-- [x] API Connections Web responsive authority gap is now isolated in pending
+      readback pass; supported client/key visual code is now unblocked.
+- [x] API Connections Web responsive authority gap is isolated in approved
       proposal `1895:59111` (`PROPOSAL — API Connections supported Web
-      responsive · Pending approval`). The proposal covers Web compact
+      responsive`). The proposal covers Web compact
       `375×812` (343px lane) and Web medium `834×1112` (714px lane), reuses
       the approved Desktop/Web BIDV/controls/OpenPGP anatomy, and explicitly
       distinguishes Web-supported behavior from Android unsupported nodes
       `1704:134781` / `1704:134853`. Metadata and screenshot readback pass;
-      no responsive Web visual edit is authorized until approval.
+      responsive Web visual edit is now unblocked.
 - [x] API Connections Android unsupported state now uses the approved shared
       card/state path with exact Vietnamese copy and 236 px card geometry;
       focused API/admin/router/shell/guard proof passes `65/65`, and
       `flutter analyze --no-pub` plus format/diff checks pass. The supported
-      Windows/Web dynamic path remains open pending the proposal above.
+      Windows/Web dynamic path is now unblocked by the approved proposal above.
 - [x] Sales Reports bounded wave — node map captured before the production UI
       edit for the complete loaded viewport matrix:
       - Desktop/Web `380:7944` (shell) → `380:7977` (content,
@@ -319,13 +394,13 @@ readback.
 - [ ] Sales Reports compact/medium managed-scope advanced filter remains an
       authority gate: runtime behavior still needs the existing `Lọc` trigger
       and `_AdvancedFilterSheet`, but the approved compact/portrait nodes do
-      not contain that visible element. Pending Figma proposal
-      `1891:59111` (`PROPOSAL — Sales Reports managed filter · Pending approval`)
+      not contain that visible element. Approved Figma proposal
+      `1891:59111` (`PROPOSAL — Sales Reports managed filter`)
       records the compact `375×812` and medium `834×1112` state matrix,
       closed/active trigger states, preserved sheet/provider behavior, and the
-      exact loaded node chain. Metadata and screenshot readback passed. Do not
-      retire the compatibility trigger or call the full Sales Reports visual
-      wave complete until the proposal gets an approved node/revision.
+      exact loaded node chain. Metadata and screenshot readback passed. The
+      compatibility trigger may now be implemented against this approved
+      proposal; retire it only after affected-consumer proof.
 - [x] Settings bounded wave — node map captured before code edit:
       Desktop/Web Loaded `385:9054` → content `385:9087`, theme card
       `385:9094`, Windows card `385:9102`; Android Mobile Unsupported
@@ -351,15 +426,13 @@ readback.
       `git diff --check` pass; a fresh repository-wide `flutter analyze --no-pub`
       also passes with no issues. Staging/Chrome/platform proof remains
       downstream and is required before retiring the old visual consumers.
-- [x] Settings speaker-voice authority gap is isolated in pending Figma
-      proposal `1884:59093` (`PROPOSAL — Settings speaker voice card · Pending
-      approval`). It reuses the approved Settings card geometry and canonical
+- [x] Settings speaker-voice authority gap is isolated in approved Figma
+      proposal `1884:59093` (`PROPOSAL — Settings speaker voice card`). It
+      reuses the approved Settings card geometry and canonical
       Combobox instance, covering runtime label/value/helper copy for Desktop
       (`1884:59096`, 555×230), Mobile (`1885:59099`, 343×188) and Tablet
       (`1885:59109`, 343×188). Metadata, screenshot and `get_design_context`
-      readback pass; this proposal is not production authority until explicit
-      Figma approval, so Settings code was not changed for this missing
-      surface.
+      readback pass; Settings implementation for this surface is unblocked.
 - [x] Profile bounded wave — node map captured before code edit:
       Desktop/Web Loaded `305:3111` → content `305:3147`, header `306:3204`,
       session `306:3219`, details `306:3226`, edit `306:3227`, info `306:3245`;
@@ -421,20 +494,23 @@ readback.
       and explicit text alignment without changing the approved field geometry.
       `design_system_migration_guard_test.dart` + `feedback_screen_test.dart`
       pass; analyzer, format and diff checks pass.
-- [ ] Full Flutter regression residuals after the Settings wave (fresh exact
+- [x] Full Flutter regression residuals after the Settings wave (fresh exact
       checkpoint run): `flutter test --no-pub --reporter json` records `868`
       testDone events = `867` success + `1` error. The direct redesign/route
       suite on checkpoint `1224a8ad` passes `107/107`, and the Sales Reports
       suite passes `28/28`; Bank Statement, AppStatePanel and Not Purchased
-      regressions are clean. The only residual is Windows Home speaker status
-      (pending Figma proposal `1888:59111`). Full regression is still
-      release-red until the approved Home node is implemented and the exact run
-      is green.
+      regressions are clean. The only residual recorded at that checkpoint was
+      Windows Home speaker status against proposal `1888:59111`; the approved
+      chip/icon implementation and focused test now pass, so the full exact
+      regression rerun on the current worktree is now green: `869/869`
+      successful, zero failures. Keep the historical checkpoint text above for
+      traceability; the release gate still requires the exact final SHA build
+      and staging/Chrome proof.
 - [x] Exact HEAD rerun on 2026-08-04 (`88112a73`) confirms the same bounded
       residual: `flutter test --no-pub --reporter json` emits `868` testDone
       events with `867` `success` and `1` `error`; the error is the Windows Home
-      speaker assertion for missing `Loa đang bật` authority (`1888:59111`).
-      No new regression appeared after the plan/ledger-only commits.
+      speaker assertion for the Windows capability fixture (`Loa đang bật`).
+      No new Dark regression appeared after the approval checkpoint.
 - [ ] Migrate remaining route groups in bounded waves (shell/auth/system,
       operations, FIFO, sales/finance, warranty, admin and long-tail) with one
       production visual path per migrated surface; remove legacy visual
@@ -528,7 +604,7 @@ readback.
       remain visible, 54 duplicate nodes are hidden rollback evidence, the
       former Web page now has `childCount = 0`, and the consolidated page
       readback is `childCount = 189` including the Dark coverage board, new
-      FIFO state authorities and pending Notifications parity proposal
+      FIFO state authorities and approved Notifications parity proposal
       `1881:59087`, API dynamic proposal `1883:59093`, Settings speaker
       proposal `1884:59093`, Home speaker proposal `1888:59111`, and Sales
       managed-filter proposal `1891:59111`, and Support Chat runtime-state

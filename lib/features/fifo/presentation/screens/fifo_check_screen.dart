@@ -564,9 +564,9 @@ class _FifoResultPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (provider.isLoading) {
-      return const _FifoFrame(
+      return _FifoFrame(
         key: Key('fifo-check-results'),
-        backgroundColor: AppColors.surface,
+        backgroundColor: AppColors.cardOf(context),
         child: AppStatePanel.loading(
           title: 'Đang kiểm tra FIFO',
           message: 'OpsHub đang đối chiếu thứ tự FIFO theo SKU/serial.',
@@ -576,7 +576,7 @@ class _FifoResultPanel extends StatelessWidget {
 
     return _FifoFrame(
       key: const Key('fifo-check-results'),
-      backgroundColor: AppColors.surface,
+      backgroundColor: AppColors.cardOf(context),
       child: _ResultBody(
         result: provider.result,
         exportingIds: provider.exportingIds,

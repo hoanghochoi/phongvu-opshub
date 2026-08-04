@@ -465,7 +465,9 @@ class _OrganizationTreeHeader extends StatelessWidget {
             const SizedBox(height: 6),
             Text(
               'Quản lý cây tổ chức và quyền theo đơn vị.',
-              style: AppTextStyles.bodyM.copyWith(color: AppColors.neutral600),
+              style: AppTextStyles.bodyM.copyWith(
+                color: AppColors.textSecondaryOf(context),
+              ),
             ),
             if (selected != null) ...[
               const SizedBox(height: 12),
@@ -513,9 +515,9 @@ class _OrganizationTreeHeader extends StatelessWidget {
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Icon(
+                  Icon(
                     Icons.account_tree_outlined,
-                    color: AppColors.primary,
+                    color: AppColors.primaryOf(context),
                   ),
                   const SizedBox(width: 12),
                   Expanded(child: title),
@@ -529,7 +531,10 @@ class _OrganizationTreeHeader extends StatelessWidget {
         return Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Icon(Icons.account_tree_outlined, color: AppColors.primary),
+            Icon(
+              Icons.account_tree_outlined,
+              color: AppColors.primaryOf(context),
+            ),
             const SizedBox(width: 12),
             Expanded(child: title),
             const SizedBox(width: 12),
@@ -639,7 +644,7 @@ class _OrganizationTreeList extends StatelessWidget {
             child: Text(
               'Đang hiển thị ${nodes.length}/$totalCount đơn vị',
               style: AppTextStyles.caption.copyWith(
-                color: AppColors.neutral600,
+                color: AppColors.textSecondaryOf(context),
               ),
             ),
           ),
@@ -681,12 +686,17 @@ class _TreeNodeTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final children = byParent[node.id] ?? const <AdminOrganizationNode>[];
     final selected = selectedId == node.id;
-    final color = selected ? AppColors.info.withValues(alpha: 0.12) : null;
+    final color = selected
+        ? AppColors.infoOf(context).withValues(alpha: 0.12)
+        : null;
     final tile = ListTile(
       dense: true,
       contentPadding: EdgeInsets.only(left: 12.0 + depth * 16, right: 8),
       tileColor: color,
-      leading: Icon(_iconForType(node.type), color: _colorForType(node.type)),
+      leading: Icon(
+        _iconForType(node.type),
+        color: _colorForType(node.type, context),
+      ),
       title: Text(node.title, maxLines: 1, overflow: TextOverflow.ellipsis),
       subtitle: Text(
         AdminOrganizationNodeTypes.titleOf(node.type),
@@ -695,7 +705,11 @@ class _TreeNodeTile extends StatelessWidget {
       ),
       trailing: node.isActive
           ? null
-          : const Icon(Icons.block_outlined, color: AppColors.error, size: 18),
+          : Icon(
+              Icons.block_outlined,
+              color: AppColors.errorOf(context),
+              size: 18,
+            ),
       onTap: () => onSelect(node.id),
     );
     if (children.isEmpty) return tile;
@@ -771,7 +785,10 @@ class _OrganizationNodeDetail extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(_iconForType(node.type), color: _colorForType(node.type)),
+              Icon(
+                _iconForType(node.type),
+                color: _colorForType(node.type, context),
+              ),
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
@@ -1092,8 +1109,8 @@ class _OrganizationNodeEditorDialogState
           AppDialogConfirmButton(
             onPressed: () => Navigator.of(dialogContext).pop(true),
             label: 'Tắt đơn vị',
-            backgroundColor: AppColors.warning,
-            foregroundColor: AppColors.surface,
+            backgroundColor: AppColors.warningOf(dialogContext),
+            foregroundColor: AppColors.primaryForegroundOf(dialogContext),
           ),
         ],
       ),
@@ -1343,16 +1360,16 @@ IconData _iconForType(String type) {
   };
 }
 
-Color _colorForType(String type) {
+Color _colorForType(String type, BuildContext context) {
   return switch (AdminOrganizationNode.canonicalType(type)) {
-    'LV0_DOMAIN' => AppColors.info,
-    'LV1_BLOCK' => AppColors.sky500,
-    'LV2_DEPARTMENT' => AppColors.purple600,
-    'LV2_REGION' => AppColors.teal600,
-    'LV3_AREA' => AppColors.emerald600,
-    'LV3_UNIT' => AppColors.warning,
-    'LV4_STORE' => AppColors.success,
-    'LV5_POSITION' => AppColors.violet600,
-    _ => AppColors.neutral500,
+    'LV0_DOMAIN' => AppColors.infoOf(context),
+    'LV1_BLOCK' => AppColors.infoOf(context),
+    'LV2_DEPARTMENT' => AppColors.accentOf(context),
+    'LV2_REGION' => AppColors.secondaryOf(context),
+    'LV3_AREA' => AppColors.successOf(context),
+    'LV3_UNIT' => AppColors.warningOf(context),
+    'LV4_STORE' => AppColors.successOf(context),
+    'LV5_POSITION' => AppColors.accentOf(context),
+    _ => AppColors.textMutedOf(context),
   };
 }

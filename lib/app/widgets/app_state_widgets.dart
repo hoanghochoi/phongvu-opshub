@@ -21,10 +21,7 @@ enum AppStateTone {
       AppStateTone.success => AppColors.successOf(context),
       AppStateTone.warning => AppColors.warningOf(context),
       AppStateTone.error => AppColors.errorOf(context),
-      AppStateTone.neutral =>
-        AppColors.isDark(context)
-            ? AppColors.darkTextMuted
-            : AppColors.neutral500,
+      AppStateTone.neutral => AppColors.textMutedOf(context),
     };
   }
 }
@@ -246,9 +243,7 @@ class AppStatusBanner extends StatelessWidget {
                   Text(
                     message,
                     style: AppTextStyles.bodyM.copyWith(
-                      color: Theme.of(context).brightness == Brightness.dark
-                          ? AppColors.neutral200
-                          : AppColors.neutral800,
+                      color: AppColors.textSecondaryOf(context),
                     ),
                   ),
                   if (actionLabel != null) ...[
@@ -337,11 +332,11 @@ class _AppSkeletonCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final baseColor = Theme.of(context).brightness == Brightness.dark
-        ? AppColors.neutral800
+    final baseColor = AppColors.isDark(context)
+        ? AppColors.darkRaised
         : AppColors.neutral100;
-    final highlightColor = Theme.of(context).brightness == Brightness.dark
-        ? AppColors.neutral700
+    final highlightColor = AppColors.isDark(context)
+        ? AppColors.darkBorder
         : AppColors.neutral200;
 
     return Card(

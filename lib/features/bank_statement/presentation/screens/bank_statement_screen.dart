@@ -1132,8 +1132,8 @@ class _StatementCardState extends State<_StatementCard> {
                             message.text,
                             style: AppTextStyles.labelS.copyWith(
                               color: message.success
-                                  ? AppColors.success
-                                  : AppColors.error,
+                                  ? AppColors.successOf(context)
+                                  : AppColors.errorOf(context),
                             ),
                           ),
                         ),
@@ -1218,8 +1218,8 @@ class _StatementCardState extends State<_StatementCard> {
                                 message.text,
                                 style: AppTextStyles.labelS.copyWith(
                                   color: message.success
-                                      ? AppColors.success
-                                      : AppColors.error,
+                                      ? AppColors.successOf(context)
+                                      : AppColors.errorOf(context),
                                 ),
                               ),
                             ),
@@ -1489,17 +1489,17 @@ class _TransactionDetails extends StatelessWidget {
           children: [
             _StatementPill(
               label: 'VietinBank',
-              color: AppColors.violet600,
+              color: AppColors.accentOf(context),
               fontSize: pillFontSize,
             ),
             _StatementPill(
               label: tx.storeId.isEmpty ? 'Không rõ' : tx.storeId,
-              color: AppColors.info,
+              color: AppColors.infoOf(context),
               fontSize: pillFontSize,
             ),
             _StatementPill(
               label: '${money.format(tx.amount)} VND',
-              color: AppColors.success,
+              color: AppColors.successOf(context),
               fontSize: pillFontSize,
             ),
             _IncomeTypePill(
@@ -1510,7 +1510,7 @@ class _TransactionDetails extends StatelessWidget {
             ),
             _StatementPill(
               label: 'Thành công',
-              color: AppColors.success,
+              color: AppColors.successOf(context),
               fontSize: pillFontSize,
             ),
           ],
@@ -1577,8 +1577,8 @@ class _IncomeTypePill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = transaction.isPartnerInternal
-        ? AppColors.warning
-        : AppColors.info;
+        ? AppColors.warningOf(context)
+        : AppColors.infoOf(context);
     if (!transaction.canEditIncomeType) {
       return _StatementPill(
         label: transaction.incomeTypeLabel,
@@ -1672,7 +1672,7 @@ class _OrderEditor extends StatelessWidget {
   Widget build(BuildContext context) {
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+        color: AppColors.cardOf(context),
         borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
       ),
       child: Padding(
@@ -1688,11 +1688,16 @@ class _OrderEditor extends StatelessWidget {
                     runSpacing: 4,
                     crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
-                      const Text('Đơn hàng', style: AppTextStyles.labelM),
+                      Text(
+                        'Đơn hàng',
+                        style: AppTextStyles.labelM.copyWith(
+                          color: AppColors.textPrimaryOf(context),
+                        ),
+                      ),
                       if (transaction.isOrderOffsetConfirmed)
-                        const AppStatusChip(
+                        AppStatusChip(
                           label: 'Đã cấn trừ',
-                          color: AppColors.warning,
+                          color: AppColors.warningOf(context),
                         ),
                     ],
                   ),
@@ -1767,8 +1772,8 @@ class _OrderEditor extends StatelessWidget {
                     ? 'Đang theo dõi'
                     : 'Đã bỏ theo dõi',
                 color: transaction.isFollowing
-                    ? AppColors.info
-                    : AppColors.neutral500,
+                    ? AppColors.infoOf(context)
+                    : AppColors.textMutedOf(context),
               ),
             ),
             if (editing)
@@ -1786,7 +1791,9 @@ class _OrderEditor extends StatelessWidget {
             else if (transaction.orders.isEmpty)
               Text(
                 bankStatementMissingOrderText,
-                style: AppTextStyles.labelM.copyWith(color: AppColors.error),
+                style: AppTextStyles.labelM.copyWith(
+                  color: AppColors.errorOf(context),
+                ),
               )
             else
               Wrap(
@@ -1794,8 +1801,10 @@ class _OrderEditor extends StatelessWidget {
                 runSpacing: 6,
                 children: transaction.orders
                     .map(
-                      (order) =>
-                          AppStatusChip(label: order, color: AppColors.success),
+                      (order) => AppStatusChip(
+                        label: order,
+                        color: AppColors.successOf(context),
+                      ),
                     )
                     .toList(),
               ),
@@ -1807,13 +1816,15 @@ class _OrderEditor extends StatelessWidget {
                 spacing: 6,
                 runSpacing: 6,
                 children: [
-                  const AppStatusChip(
+                  AppStatusChip(
                     label: 'Chờ Kế toán xác nhận',
-                    color: AppColors.warning,
+                    color: AppColors.warningOf(context),
                   ),
                   ...transaction.orderTransferRequestedOrders.map(
-                    (order) =>
-                        AppStatusChip(label: order, color: AppColors.warning),
+                    (order) => AppStatusChip(
+                      label: order,
+                      color: AppColors.warningOf(context),
+                    ),
                   ),
                 ],
               ),
@@ -1824,7 +1835,9 @@ class _OrderEditor extends StatelessWidget {
               const SizedBox(height: 8),
               Text(
                 transaction.orderEditBlockedReason!,
-                style: AppTextStyles.labelS.copyWith(color: AppColors.warning),
+                style: AppTextStyles.labelS.copyWith(
+                  color: AppColors.warningOf(context),
+                ),
               ),
             ],
           ],

@@ -97,7 +97,10 @@ class _EmailCheckScreenState extends State<EmailCheckScreen> {
           message.contains('chưa có mật khẩu')) {
         AppToast.show(
           context,
-          SnackBar(content: Text(message), backgroundColor: AppColors.warning),
+          SnackBar(
+            content: Text(message),
+            backgroundColor: AppColors.warningOf(context),
+          ),
         );
         await Future<void>.delayed(const Duration(milliseconds: 600));
         if (context.mounted) {
@@ -107,7 +110,10 @@ class _EmailCheckScreenState extends State<EmailCheckScreen> {
       }
       AppToast.show(
         context,
-        SnackBar(content: Text(message), backgroundColor: AppColors.error),
+        SnackBar(
+          content: Text(message),
+          backgroundColor: AppColors.errorOf(context),
+        ),
       );
     }
   }

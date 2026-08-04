@@ -511,7 +511,7 @@ class _HelpScreenHeader extends StatelessWidget {
                 width: 109,
                 child: AppStatusChip(
                   label: 'Nguồn runtime',
-                  color: AppColors.info,
+                  color: AppColors.infoOf(context),
                   backgroundColor: AppColors.infoSurfaceOf(context),
                   fontSize: 12,
                   fontWeight: FontWeight.w600,

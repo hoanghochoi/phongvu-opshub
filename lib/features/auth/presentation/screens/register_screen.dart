@@ -239,7 +239,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         context,
         SnackBar(
           content: Text(authProvider.errorMessage!),
-          backgroundColor: AppColors.error,
+          backgroundColor: AppColors.errorOf(context),
         ),
       );
     }
@@ -264,9 +264,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
     if (ok) {
       AppToast.show(
         context,
-        const SnackBar(
+        SnackBar(
           content: Text('Đã gửi mã xác thực. Vui lòng kiểm tra email.'),
-          backgroundColor: AppColors.success,
+          backgroundColor: AppColors.successOf(context),
         ),
       );
     } else if (authProvider.errorMessage != null) {
@@ -277,7 +277,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
   void _showError(BuildContext context, String message) {
     AppToast.show(
       context,
-      SnackBar(content: Text(message), backgroundColor: AppColors.error),
+      SnackBar(
+        content: Text(message),
+        backgroundColor: AppColors.errorOf(context),
+      ),
     );
   }
 }

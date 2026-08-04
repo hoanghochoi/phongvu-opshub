@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/config/app_brand.dart';
+import '../theme/app_colors.dart';
 
 class AppLogo extends StatelessWidget {
   static String get imageAsset => AppBrand.logoAsset;
@@ -19,9 +20,15 @@ class AppLogo extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(borderRadius),
-      child: Image.asset(imageAsset, width: size, height: size, fit: fit),
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        border: Border.all(color: AppColors.textPrimaryOf(context), width: 1),
+        borderRadius: BorderRadius.circular(borderRadius),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Image.asset(imageAsset, fit: fit),
     );
   }
 }

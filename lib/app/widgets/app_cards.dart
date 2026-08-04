@@ -30,16 +30,13 @@ class AppSurfaceCard extends StatelessWidget {
     final effectiveRadius = BorderRadius.circular(
       radius ?? AppLayoutTokens.cardRadius,
     );
-    final effectiveBorderColor = borderColor ?? Theme.of(context).dividerColor;
+    final effectiveBorderColor = borderColor ?? AppColors.borderOf(context);
     final content = Padding(padding: padding, child: child);
 
     return Card(
       margin: margin,
       elevation: 0,
-      color:
-          backgroundColor ??
-          Theme.of(context).cardTheme.color ??
-          AppColors.card,
+      color: backgroundColor ?? AppColors.cardOf(context),
       shape: RoundedRectangleBorder(
         borderRadius: effectiveRadius,
         side: BorderSide(color: effectiveBorderColor, width: borderWidth),
