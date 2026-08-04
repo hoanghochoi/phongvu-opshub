@@ -706,12 +706,13 @@ readback.
       `1174:4` into `693:17492` in atomic batches; 14 Web-only authority nodes
       remain visible, 54 duplicate nodes are hidden rollback evidence, the
       former Web page now has `childCount = 0`, and the consolidated page
-      readback is `childCount = 191` including the Dark coverage board, new
+      readback is `childCount = 192` including the Dark coverage board, new
       FIFO state authorities and approved Notifications parity proposal
       `1881:59087`, API dynamic proposal `1883:59093`, Settings speaker
       proposal `1884:59093`, Home speaker proposal `1888:59111`, and Sales
       managed-filter proposal `1891:59111`, Support Chat runtime-state
-      proposal `1898:107163`, and composer attachment revision `1923:59111`.
+      proposal `1898:107163`, lifecycle proposal `1917:59111`, and composer
+      attachment revision `1923:59111`.
 - [x] Current branch local proof: `flutter analyze --no-pub`, focused guard /
       theme suite `25/25`, Home bootstrap `1/1`, loaded Home KPI consumer `1/1`,
       `dart analyze`, format check, `git diff --check`, and
