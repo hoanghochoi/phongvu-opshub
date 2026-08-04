@@ -54,7 +54,7 @@ class AdminRoleDefinition {
 
   static Color _colorFor(String code) {
     return switch (code) {
-      'SUPER_ADMIN' => AppColors.violet600,
+      'SUPER_ADMIN' => AppColors.accent,
       'ADMIN' => AppColors.info,
       'USER' => AppColors.neutral600,
       _ => AppColors.purple600,
@@ -71,7 +71,7 @@ class AdminRoles {
       title: 'Quản trị toàn hệ thống',
       description: 'Toàn quyền hệ thống',
       icon: Icons.verified_user_outlined,
-      color: AppColors.violet600,
+      color: AppColors.accent,
     ),
     AdminRoleDefinition(
       value: 'ADMIN',

@@ -116,7 +116,7 @@ class AppNavModel {
       description: 'Tạo mã chuyển khoản',
       route: '/vietqr',
       icon: PhosphorIconsRegular.qrCode,
-      color: AppColors.teal600,
+      color: AppColors.secondary,
       group: AppNavGroup.sales,
     ),
     AppNavDestination(
@@ -152,7 +152,7 @@ class AppNavModel {
       description: 'Theo dõi giao dịch thanh toán',
       route: '/payment-monitor',
       icon: PhosphorIconsRegular.money,
-      color: AppColors.violet600,
+      color: AppColors.accent,
       group: AppNavGroup.sales,
     ),
     AppNavDestination(
@@ -170,7 +170,7 @@ class AppNavModel {
       description: 'Sắp xếp tồn kho theo FIFO',
       route: '/sort',
       icon: PhosphorIconsRegular.list,
-      color: AppColors.teal600,
+      color: AppColors.secondary,
       group: AppNavGroup.warehouse,
     ),
     AppNavDestination(
@@ -188,7 +188,7 @@ class AppNavModel {
       description: 'Gửi yêu cầu xác nhận cấn trừ',
       route: '/offset-adjustments',
       icon: PhosphorIconsRegular.arrowsLeftRight,
-      color: AppColors.teal600,
+      color: AppColors.secondary,
       group: AppNavGroup.finance,
     ),
     AppNavDestination(

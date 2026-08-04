@@ -510,11 +510,25 @@ class _ApiConnectionAdminScreenState extends State<ApiConnectionAdminScreen> {
         key: const Key('api-connection-content'),
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _HeaderCard(
-            snapshot: snapshot,
-            disabled: _mutating,
-            onCreateClient: _mutating ? null : _createClient,
-          ),
+          if (snapshot.clients.isEmpty)
+            _HeaderCard(
+              snapshot: snapshot,
+              disabled: _mutating,
+              onCreateClient: _mutating ? null : _createClient,
+            )
+          else
+            ...snapshot.clients.map(
+              (client) => Padding(
+                padding: const EdgeInsets.only(bottom: AppLayoutTokens.cardGap),
+                child: _ClientCard(
+                  client: client,
+                  disabled: _mutating,
+                  onCreate: _mutating ? null : _createClient,
+                  onRotate: () => _rotateClient(client),
+                  onRevoke: () => _revokeClient(client),
+                ),
+              ),
+            ),
           if (_error != null) ...[
             const SizedBox(height: AppLayoutTokens.cardGap),
             AppStatePanel.error(
@@ -532,46 +546,11 @@ class _ApiConnectionAdminScreenState extends State<ApiConnectionAdminScreen> {
             onChange: _updateControls,
           ),
           const SizedBox(height: AppLayoutTokens.sectionGap),
-          _SectionHeader(
-            title: 'OAuth client',
-            description:
-                'Secret chỉ hiện một lần; hệ thống chỉ lưu bộ kiểm tra một chiều.',
-            actionLabel: 'Tạo client',
-            actionIcon: Icons.add_rounded,
-            onAction: _mutating ? null : _createClient,
-          ),
-          const SizedBox(height: AppLayoutTokens.cardGap),
-          if (snapshot.clients.isEmpty)
-            const AppStatePanel.empty(
-              title: 'Chưa có client',
-              message: 'Tạo client đầu tiên để chuẩn bị kết nối BIDV.',
-            )
-          else
-            ...snapshot.clients.map(
-              (client) => Padding(
-                padding: const EdgeInsets.only(bottom: AppLayoutTokens.cardGap),
-                child: _ClientCard(
-                  client: client,
-                  disabled: _mutating,
-                  onRotate: () => _rotateClient(client),
-                  onRevoke: () => _revokeClient(client),
-                ),
-              ),
-            ),
-          const SizedBox(height: AppLayoutTokens.sectionGap),
-          _SectionHeader(
-            title: 'Khóa OpenPGP',
-            description:
-                'Chỉ khóa công khai và fingerprint được phép xuất khỏi OpsHub.',
-            actionLabel: 'Tạo khóa',
-            actionIcon: Icons.key_rounded,
-            onAction: _mutating ? null : _generateKey,
-          ),
-          const SizedBox(height: AppLayoutTokens.cardGap),
           if (snapshot.keys.isEmpty)
-            const AppStatePanel.empty(
-              title: 'Chưa có khóa OpenPGP',
-              message: 'Tạo khóa để BIDV mã hóa dữ liệu trước khi gửi.',
+            _KeyManagementCard(
+              disabled: _mutating,
+              onExport: null,
+              onCreate: _mutating ? null : _generateKey,
             )
           else
             ...snapshot.keys.map(
@@ -580,6 +559,7 @@ class _ApiConnectionAdminScreenState extends State<ApiConnectionAdminScreen> {
                 child: _KeyCard(
                   keyRecord: key,
                   disabled: _mutating,
+                  onCreate: _mutating ? null : _generateKey,
                   onExport: () => _exportKey(key),
                   onRotate: () => _rotateKey(key),
                   onRevoke: () => _revokeKey(key),
@@ -644,61 +624,53 @@ class _HeaderCard extends StatelessWidget {
     final environment = snapshot.environment.toLowerCase() == 'production'
         ? 'Sản xuất'
         : snapshot.environment;
+    final compact =
+        MediaQuery.sizeOf(context).width < AppLayoutTokens.compactBreakpoint;
     return AppSurfaceCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Kết nối ${snapshot.bankCode}',
-                      style: AppTextStyles.headingS,
+      key: const Key('api-connection-header-card'),
+      radius: AppRadius.lg,
+      child: SizedBox(
+        height: compact ? 152 : 136,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _ApiConnectionHeader(
+              identity: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Kết nối ${snapshot.bankCode}',
+                    style: AppTextStyles.pageTitle.copyWith(
+                      color: AppColors.textPrimaryOf(context),
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Môi trường: $environment${snapshot.publicBaseUrl == null ? '' : ' · Endpoint đã cấu hình'}',
-                      style: AppTextStyles.bodyS.copyWith(
-                        color: AppColors.textMutedOf(context),
-                      ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Môi trường: $environment${snapshot.publicBaseUrl == null ? '' : ' · Endpoint đã cấu hình'}',
+                    style: AppTextStyles.bodyS.copyWith(
+                      height: 18 / 13,
+                      color: AppColors.textSecondaryOf(context),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-              const SizedBox(width: 12),
-              SizedBox(
-                width: 128,
-                child: AppPrimaryButton(
-                  onPressed: onCreateClient,
+              actions: [
+                _ApiActionButton.primary(
+                  width: 112,
                   label: 'Tạo client',
-                  size: AppButtonSize.small,
-                  height: 40,
-                  isLoading: disabled,
+                  onPressed: onCreateClient,
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          DecoratedBox(
-            decoration: BoxDecoration(
-              color: AppColors.success.withValues(alpha: 0.14),
-              borderRadius: BorderRadius.circular(AppRadius.sm),
+              ],
             ),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              child: Text(
-                snapshot.controls.ingressEffective
-                    ? 'BIDV đang sẵn sàng tiếp nhận dữ liệu'
-                    : 'BIDV sẵn sàng tiếp nhận dữ liệu',
-                style: AppTextStyles.labelM.copyWith(color: AppColors.success),
-              ),
+            const SizedBox(height: 12),
+            _ApiConnectionStatusPanel(
+              text: snapshot.controls.ingressEffective
+                  ? 'BIDV sẵn sàng tiếp nhận dữ liệu'
+                  : 'BIDV sẵn sàng tiếp nhận dữ liệu',
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -722,101 +694,54 @@ class _ControlCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return AppSurfaceCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text('Trạng thái vận hành', style: AppTextStyles.headingS),
-          const SizedBox(height: 8),
-          SwitchListTile.adaptive(
-            contentPadding: EdgeInsets.zero,
-            title: const Text('Tiếp nhận dữ liệu BIDV'),
-            subtitle: Text(
-              controls.ingressMasterEnabled
-                  ? 'Công tắc hạ tầng đã cho phép.'
-                  : 'Hạ tầng đang khóa; thay đổi tại UI chưa làm kênh hoạt động.',
-            ),
-            value: controls.ingressRequested,
-            onChanged: disabled
-                ? null
-                : (value) => onChange(
-                    ingressEnabled: value,
-                    projectionEnabled: value
-                        ? controls.projectionRequested
-                        : false,
-                  ),
-          ),
-          SwitchListTile.adaptive(
-            contentPadding: EdgeInsets.zero,
-            title: const Text('Đối soát sang Tiền vào'),
-            subtitle: Text(
-              controls.projectionMasterEnabled
-                  ? 'Chỉ bật sau khi hoàn tất UAT và đối soát.'
-                  : 'Hạ tầng đang khóa đối soát tự động.',
-            ),
-            value: controls.projectionRequested,
-            onChanged: disabled || !controls.ingressRequested
-                ? null
-                : (value) =>
-                      onChange(ingressEnabled: true, projectionEnabled: value),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _SectionHeader extends StatelessWidget {
-  const _SectionHeader({
-    required this.title,
-    required this.description,
-    required this.actionLabel,
-    required this.actionIcon,
-    required this.onAction,
-  });
-
-  final String title;
-  final String description;
-  final String actionLabel;
-  final IconData actionIcon;
-  final VoidCallback? onAction;
-
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final text = Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+      key: const Key('api-connection-controls-card'),
+      radius: AppRadius.lg,
+      child: SizedBox(
+        height: 178,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(title, style: AppTextStyles.headingS),
-            const SizedBox(height: 4),
             Text(
-              description,
-              style: AppTextStyles.bodyS.copyWith(
-                color: AppColors.textMutedOf(context),
+              'Trạng thái vận hành',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: AppTextStyles.pageTitle.copyWith(
+                color: AppColors.textPrimaryOf(context),
               ),
             ),
+            const SizedBox(height: 2),
+            Text(
+              'Đối soát chỉ hoạt động sau khi tiếp nhận dữ liệu BIDV được bật.',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: AppTextStyles.bodyS.copyWith(
+                height: 18 / 13,
+                color: AppColors.textSecondaryOf(context),
+              ),
+            ),
+            const SizedBox(height: 12),
+            _ApiConnectionControlRow(
+              label: 'Tiếp nhận dữ liệu BIDV',
+              support: 'Nhận giao dịch BIDV mới vào OpsHub',
+              value: controls.ingressRequested,
+              enabled: !disabled,
+              onChanged: (value) => onChange(
+                ingressEnabled: value,
+                projectionEnabled: value ? controls.projectionRequested : false,
+              ),
+            ),
+            const SizedBox(height: 12),
+            _ApiConnectionControlRow(
+              label: 'Đối soát sang Tiền vào',
+              support: 'Đưa giao dịch hợp lệ vào khu vực Tiền vào',
+              value: controls.projectionRequested,
+              enabled: !disabled && controls.ingressRequested,
+              onChanged: (value) =>
+                  onChange(ingressEnabled: true, projectionEnabled: value),
+            ),
           ],
-        );
-        final button = AppSecondaryButton(
-          onPressed: onAction,
-          icon: actionIcon,
-          label: actionLabel,
-          expand: false,
-        );
-        if (constraints.maxWidth < AppLayoutTokens.compactBreakpoint) {
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [text, const SizedBox(height: 12), button],
-          );
-        }
-        return Row(
-          children: [
-            Expanded(child: text),
-            const SizedBox(width: 16),
-            button,
-          ],
-        );
-      },
+        ),
+      ),
     );
   }
 }
@@ -825,54 +750,55 @@ class _ClientCard extends StatelessWidget {
   const _ClientCard({
     required this.client,
     required this.disabled,
+    required this.onCreate,
     required this.onRotate,
     required this.onRevoke,
   });
 
   final ApiClientCredential client;
   final bool disabled;
+  final VoidCallback? onCreate;
   final VoidCallback onRotate;
   final VoidCallback onRevoke;
 
   @override
   Widget build(BuildContext context) {
     return AppSurfaceCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          _RecordTitle(
-            title: client.displayName,
-            status: client.status,
-            version: client.version,
+      key: ValueKey('api-connection-client-card-${client.id}'),
+      radius: AppRadius.lg,
+      child: _LifecycleCardBody(
+        minContentHeight: 228,
+        compactContentHeight: 244,
+        identity: _LifecycleIdentity(
+          title: client.status == 'ACTIVE'
+              ? 'OAuth client hoạt động'
+              : 'OAuth client ${_statusLabel(client.status).toLowerCase()}',
+          subtitle: '${client.displayName} · Client ID đã cấp',
+        ),
+        actions: [
+          _ApiActionButton.primary(
+            width: 112,
+            label: 'Tạo client',
+            onPressed: onCreate,
           ),
-          const SizedBox(height: 10),
-          const Text('Client ID'),
-          SelectableText(client.clientId),
-          const SizedBox(height: 6),
-          Text('Scope: ${client.scope}'),
-          if (client.overlapExpiresAt != null)
-            Text(
-              'Hết thời gian chuyển đổi: ${_dateTime(client.overlapExpiresAt)}',
-            ),
-          const SizedBox(height: 12),
-          Wrap(
-            alignment: WrapAlignment.end,
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              AppLinkButton(
-                onPressed: disabled || !client.canRotate ? null : onRotate,
-                icon: Icons.autorenew_rounded,
-                label: 'Xoay vòng',
-              ),
-              AppLinkButton(
-                onPressed: disabled || !client.canRevoke ? null : onRevoke,
-                icon: Icons.block_rounded,
-                label: 'Thu hồi',
-              ),
-            ],
+          _ApiActionButton.secondary(
+            width: 108,
+            label: 'Xoay vòng',
+            onPressed: disabled || !client.canRotate ? null : onRotate,
+          ),
+          _ApiActionButton.secondary(
+            width: 96,
+            label: 'Thu hồi',
+            onPressed: disabled || !client.canRevoke ? null : onRevoke,
           ),
         ],
+        details: _ApiDetailPanel(
+          title: '${client.displayName} · Client ID đã cấp',
+          values: 'Client ID: ${client.clientId} · Scope: ${client.scope}',
+          helper: client.overlapExpiresAt == null
+              ? null
+              : 'Hết thời gian chuyển đổi: ${_dateTime(client.overlapExpiresAt)}',
+        ),
       ),
     );
   }
@@ -882,6 +808,7 @@ class _KeyCard extends StatelessWidget {
   const _KeyCard({
     required this.keyRecord,
     required this.disabled,
+    required this.onCreate,
     required this.onExport,
     required this.onRotate,
     required this.onRevoke,
@@ -889,6 +816,7 @@ class _KeyCard extends StatelessWidget {
 
   final ApiPgpKey keyRecord;
   final bool disabled;
+  final VoidCallback? onCreate;
   final VoidCallback onExport;
   final VoidCallback onRotate;
   final VoidCallback onRevoke;
@@ -896,45 +824,359 @@ class _KeyCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return AppSurfaceCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          _RecordTitle(
-            title: keyRecord.displayName,
-            status: keyRecord.status,
-            version: keyRecord.version,
+      key: ValueKey('api-connection-key-card-${keyRecord.id}'),
+      radius: AppRadius.lg,
+      child: _LifecycleCardBody(
+        minContentHeight: 260,
+        compactContentHeight: 288,
+        identity: _LifecycleIdentity(
+          title: keyRecord.status == 'ACTIVE'
+              ? 'Khóa OpenPGP hoạt động'
+              : 'Khóa OpenPGP ${_statusLabel(keyRecord.status).toLowerCase()}',
+          subtitle: '${keyRecord.displayName} · fingerprint đã cấp',
+        ),
+        actions: [
+          _ApiActionButton.secondary(
+            width: 164,
+            label: 'Xuất khóa công khai',
+            onPressed: disabled ? null : onExport,
           ),
-          const SizedBox(height: 10),
-          Text('Thuật toán: ${keyRecord.algorithm}'),
-          const SizedBox(height: 6),
-          const Text('Fingerprint'),
-          SelectableText(keyRecord.fingerprint),
-          if (keyRecord.overlapExpiresAt != null)
-            Text(
-              'Hết thời gian chuyển đổi: ${_dateTime(keyRecord.overlapExpiresAt)}',
+          _ApiActionButton.secondary(
+            width: 108,
+            label: 'Xoay vòng',
+            onPressed: disabled || !keyRecord.canRotate ? null : onRotate,
+          ),
+          _ApiActionButton.secondary(
+            width: 96,
+            label: 'Thu hồi',
+            onPressed: disabled || !keyRecord.canRevoke ? null : onRevoke,
+          ),
+          _ApiActionButton.primary(
+            width: 104,
+            label: 'Tạo khóa',
+            onPressed: disabled ? null : onCreate,
+          ),
+        ],
+        details: _ApiDetailPanel(
+          title: '${keyRecord.displayName} · fingerprint đã cấp',
+          values:
+              'Fingerprint: ${keyRecord.fingerprint} · Thuật toán: ${keyRecord.algorithm}',
+          helper: keyRecord.overlapExpiresAt == null
+              ? 'Chỉ xuất khóa công khai; khóa riêng không bao giờ hiển thị.'
+              : 'Hết thời gian chuyển đổi: ${_dateTime(keyRecord.overlapExpiresAt)}',
+        ),
+      ),
+    );
+  }
+}
+
+class _KeyManagementCard extends StatelessWidget {
+  const _KeyManagementCard({
+    required this.disabled,
+    required this.onExport,
+    required this.onCreate,
+  });
+
+  final bool disabled;
+  final VoidCallback? onExport;
+  final VoidCallback? onCreate;
+
+  @override
+  Widget build(BuildContext context) {
+    final compact =
+        MediaQuery.sizeOf(context).width < AppLayoutTokens.compactBreakpoint;
+    return AppSurfaceCard(
+      key: const Key('api-connection-key-management-card'),
+      radius: AppRadius.lg,
+      child: SizedBox(
+        height: compact ? 208 : 188,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _ApiConnectionHeader(
+              identity: _LifecycleIdentity(
+                title: 'Khóa OpenPGP',
+                subtitle: 'Bảo vệ nội dung trao đổi với BIDV',
+              ),
+              actions: [
+                _ApiActionButton.secondary(
+                  width: 164,
+                  label: 'Xuất khóa công khai',
+                  onPressed: disabled ? null : onExport,
+                ),
+                _ApiActionButton.primary(
+                  width: 104,
+                  label: 'Tạo khóa',
+                  onPressed: onCreate,
+                ),
+              ],
             ),
-          const SizedBox(height: 12),
-          Wrap(
-            alignment: WrapAlignment.end,
-            spacing: 8,
-            runSpacing: 8,
+            const SizedBox(height: 12),
+            const Expanded(
+              child: _ApiDetailPanel(
+                title: 'Chưa có khóa hoạt động',
+                values:
+                    'Sau khi tạo khóa, có thể xuất khóa công khai, xoay vòng hoặc thu hồi khóa cũ.',
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ApiConnectionHeader extends StatelessWidget {
+  const _ApiConnectionHeader({required this.identity, required this.actions});
+
+  final Widget identity;
+  final List<Widget> actions;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final actionRow = Wrap(
+          alignment: WrapAlignment.end,
+          spacing: 8,
+          runSpacing: 8,
+          children: actions,
+        );
+        if (constraints.maxWidth < AppLayoutTokens.compactBreakpoint) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              AppLinkButton(
-                onPressed: disabled ? null : onExport,
-                icon: Icons.ios_share_rounded,
-                label: 'Xuất khóa công khai',
-              ),
-              AppLinkButton(
-                onPressed: disabled || !keyRecord.canRotate ? null : onRotate,
-                icon: Icons.autorenew_rounded,
-                label: 'Xoay vòng',
-              ),
-              AppLinkButton(
-                onPressed: disabled || !keyRecord.canRevoke ? null : onRevoke,
-                icon: Icons.block_rounded,
-                label: 'Thu hồi',
-              ),
+              SizedBox(height: 48, child: identity),
+              const SizedBox(height: 8),
+              Align(alignment: Alignment.centerRight, child: actionRow),
             ],
+          );
+        }
+        return SizedBox(
+          height: 48,
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Expanded(child: identity),
+              const SizedBox(width: 12),
+              actionRow,
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _LifecycleCardBody extends StatelessWidget {
+  const _LifecycleCardBody({
+    required this.minContentHeight,
+    required this.compactContentHeight,
+    required this.identity,
+    required this.actions,
+    required this.details,
+  });
+
+  final double minContentHeight;
+  final double compactContentHeight;
+  final _LifecycleIdentity identity;
+  final List<Widget> actions;
+  final Widget details;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact =
+            constraints.maxWidth < AppLayoutTokens.compactBreakpoint;
+        return ConstrainedBox(
+          constraints: BoxConstraints(
+            minHeight: compact ? compactContentHeight : minContentHeight,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _ApiConnectionHeader(identity: identity, actions: actions),
+              const SizedBox(height: 12),
+              details,
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _LifecycleIdentity extends StatelessWidget {
+  const _LifecycleIdentity({required this.title, required this.subtitle});
+
+  final String title;
+  final String subtitle;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: AppTextStyles.pageTitle.copyWith(
+            color: AppColors.textPrimaryOf(context),
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          subtitle,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: AppTextStyles.bodyS.copyWith(
+            height: 18 / 13,
+            color: AppColors.textSecondaryOf(context),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ApiDetailPanel extends StatelessWidget {
+  const _ApiDetailPanel({
+    required this.title,
+    required this.values,
+    this.helper,
+  });
+
+  final String title;
+  final String values;
+  final String? helper;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.primarySurfaceOf(context),
+        borderRadius: BorderRadius.circular(AppRadius.md),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: AppTextStyles.labelM.copyWith(
+              color: AppColors.textPrimaryOf(context),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            values,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: AppTextStyles.bodyS.copyWith(
+              height: 18 / 13,
+              color: AppColors.textSecondaryOf(context),
+            ),
+          ),
+          if (helper != null) ...[
+            const SizedBox(height: 8),
+            Text(
+              helper!,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: AppTextStyles.bodyS.copyWith(
+                height: 18 / 13,
+                color: AppColors.textSecondaryOf(context),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _ApiConnectionStatusPanel extends StatelessWidget {
+  const _ApiConnectionStatusPanel({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 40,
+      alignment: Alignment.centerLeft,
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: BoxDecoration(
+        color: AppColors.successSurfaceOf(context),
+        borderRadius: BorderRadius.circular(AppRadius.md),
+      ),
+      child: Text(
+        text,
+        style: AppTextStyles.labelSmallSubtle.copyWith(
+          color: AppColors.textPrimaryOf(context),
+        ),
+      ),
+    );
+  }
+}
+
+class _ApiConnectionControlRow extends StatelessWidget {
+  const _ApiConnectionControlRow({
+    required this.label,
+    required this.support,
+    required this.value,
+    required this.enabled,
+    required this.onChanged,
+  });
+
+  final String label;
+  final String support;
+  final bool value;
+  final bool enabled;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 48,
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTextStyles.labelM.copyWith(
+                    color: AppColors.textPrimaryOf(context),
+                  ),
+                ),
+                Text(
+                  support,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTextStyles.bodyCompact.copyWith(
+                    color: AppColors.textSecondaryOf(context),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          _ApiConnectionSwitch(
+            value: value,
+            enabled: enabled,
+            onChanged: onChanged,
+            label: label,
           ),
         ],
       ),
@@ -942,26 +1184,129 @@ class _KeyCard extends StatelessWidget {
   }
 }
 
-class _RecordTitle extends StatelessWidget {
-  const _RecordTitle({
-    required this.title,
-    required this.status,
-    required this.version,
+class _ApiConnectionSwitch extends StatelessWidget {
+  const _ApiConnectionSwitch({
+    required this.value,
+    required this.enabled,
+    required this.onChanged,
+    required this.label,
   });
 
-  final String title;
-  final String status;
-  final int version;
+  final bool value;
+  final bool enabled;
+  final ValueChanged<bool> onChanged;
+  final String label;
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(
-          child: Text('$title • v$version', style: AppTextStyles.headingS),
+    final trackColor = value
+        ? AppColors.primaryOf(context)
+        : AppColors.neutral300;
+    return Semantics(
+      button: true,
+      toggled: value,
+      enabled: enabled,
+      label: label,
+      child: InkWell(
+        onTap: enabled ? () => onChanged(!value) : null,
+        borderRadius: AppRadius.allPill,
+        child: SizedBox(
+          width: 48,
+          height: 48,
+          child: Center(
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 160),
+              width: 48,
+              height: 24,
+              padding: const EdgeInsets.all(4),
+              decoration: BoxDecoration(
+                color: enabled ? trackColor : AppColors.neutral200,
+                borderRadius: AppRadius.allPill,
+              ),
+              child: Align(
+                alignment: value ? Alignment.centerRight : Alignment.centerLeft,
+                child: const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: AppColors.surface,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
         ),
-        Chip(label: Text(_statusLabel(status))),
-      ],
+      ),
+    );
+  }
+}
+
+class _ApiActionButton extends StatelessWidget {
+  const _ApiActionButton._({
+    required this.width,
+    required this.label,
+    required this.onPressed,
+    required this.primary,
+  });
+
+  factory _ApiActionButton.primary({
+    required double width,
+    required String label,
+    required VoidCallback? onPressed,
+  }) => _ApiActionButton._(
+    width: width,
+    label: label,
+    onPressed: onPressed,
+    primary: true,
+  );
+
+  factory _ApiActionButton.secondary({
+    required double width,
+    required String label,
+    required VoidCallback? onPressed,
+  }) => _ApiActionButton._(
+    width: width,
+    label: label,
+    onPressed: onPressed,
+    primary: false,
+  );
+
+  final double width;
+  final String label;
+  final VoidCallback? onPressed;
+  final bool primary;
+
+  @override
+  Widget build(BuildContext context) {
+    if (primary) {
+      return SizedBox(
+        width: width,
+        child: AppPrimaryButton(
+          onPressed: onPressed,
+          label: label,
+          size: AppButtonSize.small,
+          height: 40,
+          radius: AppRadius.md,
+          textStyle: AppTextStyles.labelSmallSubtle,
+        ),
+      );
+    }
+    return SizedBox(
+      width: width,
+      child: AppSecondaryButton(
+        onPressed: onPressed,
+        label: label,
+        expand: false,
+        size: AppButtonSize.small,
+        height: 40,
+        radius: AppRadius.md,
+        foregroundColor: AppColors.primaryOf(context),
+        borderColor: AppColors.borderOf(context),
+        textStyle: AppTextStyles.labelSmallSubtle,
+      ),
     );
   }
 }

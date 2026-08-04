@@ -26,7 +26,7 @@ void main() {
   testWidgets('compact admin can return to inbox and keeps requester context', (
     tester,
   ) async {
-    tester.view.physicalSize = const Size(500, 800);
+    tester.view.physicalSize = const Size(375, 812);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
@@ -52,6 +52,14 @@ void main() {
 
     expect(find.text('Nguyễn Văn A'), findsOneWidget);
     expect(find.byTooltip('Quay lại hộp thư'), findsOneWidget);
+    expect(
+      tester.getSize(find.byKey(const ValueKey('support-reply-composer'))),
+      const Size(343, 56),
+    );
+    expect(
+      tester.getSize(find.byKey(const ValueKey('support-reply-send'))),
+      const Size(88, 40),
+    );
     expect(
       find.bySemanticsLabel('Tin nhắn từ nhân viên cần hỗ trợ'),
       findsOneWidget,
@@ -99,6 +107,55 @@ void main() {
       Tristate.isTrue,
     );
     semantics.dispose();
+  });
+
+  testWidgets('wide support workspace follows approved Figma geometry', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1190, 828);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final repository = _SurfaceRepository();
+    final realtime = _SurfaceRealtimeClient();
+    final provider = SupportChatProvider(repository, realtimeClient: realtime);
+    await provider.syncAuth(_admin, enabled: true);
+    addTearDown(() async {
+      provider.dispose();
+      await realtime.close();
+    });
+
+    await tester.pumpWidget(
+      _surfaceHarness(
+        auth: _SurfaceAuthProvider(_admin),
+        support: provider,
+        child: const SupportChatAdminScreen(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      tester.getSize(find.byKey(const ValueKey('support-inbox-workspace'))),
+      const Size(380, 780),
+    );
+    expect(
+      tester.getSize(
+        find.byKey(const ValueKey('support-conversation-workspace')),
+      ),
+      const Size(746, 780),
+    );
+    for (final label in [
+      'Chưa tiếp nhận',
+      'Của tôi',
+      'Đang xử lý',
+      'Đã xử lý',
+    ]) {
+      expect(
+        tester.getSize(find.byKey(ValueKey('support-filter-$label'))),
+        const Size(170, 36),
+      );
+    }
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('requester initial-load error offers an actionable retry', (

@@ -308,9 +308,7 @@ class _HomeSpeakerStatusButton extends StatelessWidget {
     final backgroundColor = speakerEnabled
         ? AppColors.successSurfaceOf(context)
         : AppColors.speakerOffSurfaceOf(context);
-    final icon = speakerEnabled
-        ? Icons.volume_up_rounded
-        : Icons.volume_off_rounded;
+    final icon = speakerEnabled ? Icons.volume_up : Icons.volume_off;
 
     void toggleSpeaker() {
       unawaited(

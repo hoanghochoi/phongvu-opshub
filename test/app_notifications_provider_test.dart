@@ -1,6 +1,8 @@
 import 'dart:async';
 
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:provider/provider.dart';
 import 'package:phongvu_opshub/core/logging/app_logger.dart';
 import 'package:phongvu_opshub/core/network/api_client.dart';
 import 'package:phongvu_opshub/core/network/api_exception.dart';
@@ -11,6 +13,7 @@ import 'package:phongvu_opshub/features/bank_statement/domain/bank_statement_tra
 import 'package:phongvu_opshub/features/notifications/data/app_notification_read_store.dart';
 import 'package:phongvu_opshub/features/notifications/data/app_notifications_feed_repository.dart';
 import 'package:phongvu_opshub/features/notifications/presentation/providers/app_notifications_provider.dart';
+import 'package:phongvu_opshub/features/notifications/presentation/screens/notifications_screen.dart';
 import 'package:phongvu_opshub/features/offset_adjustment/data/offset_adjustment_repository.dart';
 import 'package:phongvu_opshub/features/offset_adjustment/domain/offset_adjustment.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -29,6 +32,100 @@ void main() {
   });
 
   group('AppNotificationsProvider', () {
+    testWidgets('notifications pending card follows approved Figma geometry', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(1440, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+      final request = _notificationRequest();
+      final bankRepository = _FakeBankStatementRepository(
+        requests: [request],
+        total: 1,
+        canReview: true,
+      );
+      final offsetRepository = _FakeOffsetAdjustmentRepository();
+      final provider = AppNotificationsProvider(
+        bankRepository,
+        offsetAdjustmentRepository: offsetRepository,
+        feedRepository: _feedRepository(bankRepository, offsetRepository),
+      );
+      addTearDown(provider.dispose);
+
+      await _activate(provider);
+      await provider.syncAuth(_financeReviewer, isInitialized: true);
+      await tester.pumpWidget(
+        ChangeNotifierProvider<AppNotificationsProvider>.value(
+          value: provider,
+          child: const MaterialApp(home: NotificationsScreen()),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final card = find.byKey(const ValueKey('notifications-pending-card'));
+      expect(card, findsOneWidget);
+      expect(tester.getSize(card), const Size(880, 300));
+      expect(find.text('Yêu cầu phê duyệt đổi mã đơn'), findsOneWidget);
+      expect(
+        find.text('Thời gian giao dịch: 10:12:05 04/08/2026'),
+        findsOneWidget,
+      );
+      expect(find.text('Người gửi: staff@phongvu.vn'), findsOneWidget);
+      expect(
+        find.text('Nội dung: Vui lòng kiểm tra lại mã đơn.'),
+        findsOneWidget,
+      );
+      expect(find.text('Xác nhận'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets(
+      'notifications rejected state remains responsive on compact web',
+      (tester) async {
+        tester.view.physicalSize = const Size(375, 812);
+        tester.view.devicePixelRatio = 1;
+        addTearDown(() {
+          tester.view.resetPhysicalSize();
+          tester.view.resetDevicePixelRatio();
+        });
+        final request = _notificationRequest(status: 'REJECTED');
+        final bankRepository = _FakeBankStatementRepository(
+          requests: [request],
+          total: 1,
+          canReview: false,
+        );
+        final offsetRepository = _FakeOffsetAdjustmentRepository();
+        final provider = AppNotificationsProvider(
+          bankRepository,
+          offsetAdjustmentRepository: offsetRepository,
+          feedRepository: _feedRepository(bankRepository, offsetRepository),
+        );
+        addTearDown(provider.dispose);
+
+        await _activate(provider);
+        await provider.syncAuth(_financeReviewer, isInitialized: true);
+        await tester.pumpWidget(
+          ChangeNotifierProvider<AppNotificationsProvider>.value(
+            value: provider,
+            child: const MaterialApp(home: NotificationsScreen()),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(
+          find.byKey(const ValueKey('notifications-rejected-card')),
+          findsOneWidget,
+        );
+        expect(find.text('Bị từ chối'), findsOneWidget);
+        expect(find.text('Lý do: Mã đơn chưa đúng.'), findsOneWidget);
+        expect(find.text('Xác nhận'), findsNothing);
+        expect(tester.takeException(), isNull);
+      },
+    );
+
     test('uses the aggregate feed as the Support Chat unread source', () async {
       final bankRepository = _FakeBankStatementRepository();
       final offsetRepository = _FakeOffsetAdjustmentRepository();
@@ -832,6 +929,31 @@ BankStatementOrderTransferRequest _statementRequest({
     'amount': 1200000,
     'createdAt': '2026-06-26T02:00:00.000Z',
     if (notificationReadAt != null) 'notificationReadAt': notificationReadAt,
+  });
+}
+
+BankStatementOrderTransferRequest _notificationRequest({
+  String status = 'PENDING',
+}) {
+  return BankStatementOrderTransferRequest.fromJson({
+    'id': 'notification-request-1',
+    'transactionId': 'transaction-1',
+    'storeCode': 'Q.3',
+    'oldOrders': ['PV-1024'],
+    'requestedOrders': ['PV-1098'],
+    'status': status,
+    'amount': 12450000,
+    'transactionReference': '839201',
+    'paidAt': '2026-08-04T03:12:05.000Z',
+    'firstSeenAt': '2026-08-04T03:12:05.000Z',
+    'createdAt': '2026-08-04T03:12:08.000Z',
+    'requestedByEmail': 'staff@phongvu.vn',
+    'content': 'Vui lòng kiểm tra lại mã đơn.',
+    if (status == 'REJECTED') ...{
+      'reviewedAt': '2026-08-04T03:15:00.000Z',
+      'reviewedByEmail': 'fin@phongvu.vn',
+      'reviewNote': 'Mã đơn chưa đúng.',
+    },
   });
 }
 

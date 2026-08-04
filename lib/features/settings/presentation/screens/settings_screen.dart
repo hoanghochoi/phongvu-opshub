@@ -432,7 +432,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             padding: const EdgeInsets.all(4),
             decoration: BoxDecoration(
               color: Theme.of(context).brightness == Brightness.dark
-                  ? AppColors.darkNeutral50
+                  ? AppColors.darkInput
                   : AppColors.neutral50,
               border: Border.all(color: AppColors.subtleBorderOf(context)),
               borderRadius: BorderRadius.circular(10),

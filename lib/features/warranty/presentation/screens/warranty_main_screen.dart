@@ -22,7 +22,7 @@ class WarrantyMainScreen extends StatelessWidget {
         icon: Icons.search_rounded,
         title: 'Xem lại hình ảnh',
         description: 'Tìm theo biên nhận',
-        color: AppColors.teal600,
+        color: AppColors.secondary,
         onTap: () => context.push('/check-warranty'),
       ),
     ];

@@ -41,6 +41,7 @@ class AppPrimaryButton extends StatelessWidget {
   final AppButtonSize size;
   final double? height;
   final double radius;
+  final TextStyle? textStyle;
 
   const AppPrimaryButton({
     super.key,
@@ -52,6 +53,7 @@ class AppPrimaryButton extends StatelessWidget {
     this.size = AppButtonSize.large,
     this.height,
     this.radius = AppButtonMetrics.radius,
+    this.textStyle,
   });
 
   @override
@@ -66,7 +68,7 @@ class AppPrimaryButton extends StatelessWidget {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(radius),
           ),
-          textStyle: AppTextStyles.labelL,
+          textStyle: textStyle ?? AppTextStyles.labelL,
           padding: AppButtonMetrics.horizontalPadding,
           minimumSize: Size(0, height ?? AppButtonMetrics.heightFor(size)),
           maximumSize: Size(
@@ -129,6 +131,9 @@ class AppSecondaryButton extends StatelessWidget {
   final AppButtonSize size;
   final double? height;
   final double radius;
+  final TextStyle? textStyle;
+  final Color? backgroundColor;
+  final Color? disabledBackgroundColor;
 
   const AppSecondaryButton({
     super.key,
@@ -143,6 +148,9 @@ class AppSecondaryButton extends StatelessWidget {
     this.size = AppButtonSize.large,
     this.height,
     this.radius = AppButtonMetrics.radius,
+    this.textStyle,
+    this.backgroundColor,
+    this.disabledBackgroundColor,
   });
 
   @override
@@ -167,11 +175,13 @@ class AppSecondaryButton extends StatelessWidget {
     final buttonStyle =
         OutlinedButton.styleFrom(
           foregroundColor: effectiveForegroundColor,
+          backgroundColor: backgroundColor,
+          disabledBackgroundColor: disabledBackgroundColor,
           side: BorderSide(color: effectiveBorderColor),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(radius),
           ),
-          textStyle: AppTextStyles.labelM,
+          textStyle: textStyle ?? AppTextStyles.labelM,
           minimumSize: Size(0, height ?? AppButtonMetrics.heightFor(size)),
           maximumSize: Size(
             double.infinity,
@@ -349,6 +359,7 @@ class AppIconAction extends StatelessWidget {
   final bool filled;
   final Color? backgroundColor;
   final Color? foregroundColor;
+  final double dimension;
 
   const AppIconAction({
     super.key,
@@ -358,6 +369,7 @@ class AppIconAction extends StatelessWidget {
     this.filled = false,
     this.backgroundColor,
     this.foregroundColor,
+    this.dimension = AppButtonMetrics.iconSize,
   });
 
   @override
@@ -374,7 +386,7 @@ class AppIconAction extends StatelessWidget {
             : AppColors.primaryOf(context).withValues(alpha: 0.10));
 
     return SizedBox.square(
-      dimension: AppButtonMetrics.iconSize,
+      dimension: dimension,
       child: IconButton(
         onPressed: onPressed,
         icon: Icon(icon),

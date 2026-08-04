@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import 'package:phongvu_opshub/app/widgets/app_toast.dart';
 
 import '../../../../app/theme/app_colors.dart';
+import '../../../../app/theme/app_radius.dart';
 import '../../../../app/theme/app_text_styles.dart';
 import '../../../../app/widgets/app_buttons.dart';
 import '../../../../app/widgets/app_cards.dart';
@@ -629,11 +630,33 @@ class _SalesReportControls extends StatelessWidget {
             size: AppButtonSize.medium,
           ),
         );
-        final filterButton = AppSecondaryButton(
-          onPressed: provider.isLoadingOrders ? null : onOpenAdvancedFilters,
-          icon: Icons.tune_rounded,
-          label: 'Lọc',
-          size: AppButtonSize.medium,
+        final activeFilterCount = <String?>[
+          provider.ordersStoreCode,
+          provider.ordersUserEmail,
+        ].where((value) => value?.trim().isNotEmpty == true).length;
+        final filterActive = activeFilterCount > 0;
+        final filterButton = SizedBox(
+          key: const Key('sales-report-managed-filter'),
+          width: 152,
+          height: 40,
+          child: AppSecondaryButton(
+            onPressed: provider.isLoadingOrders ? null : onOpenAdvancedFilters,
+            label: filterActive ? 'Đang lọc • $activeFilterCount' : 'Lọc',
+            size: AppButtonSize.small,
+            height: 40,
+            expand: false,
+            radius: AppRadius.xl,
+            textStyle: AppTextStyles.labelM,
+            foregroundColor: filterActive
+                ? AppColors.textSecondaryOf(context)
+                : AppColors.successOf(context),
+            borderColor: filterActive
+                ? AppColors.textSecondaryOf(context)
+                : AppColors.successOf(context),
+            backgroundColor: filterActive
+                ? AppColors.speakerOffSurfaceOf(context)
+                : AppColors.successSurfaceOf(context),
+          ),
         );
 
         Widget actionButton({
@@ -764,7 +787,7 @@ class _SalesReportControls extends StatelessWidget {
                   alignment: Alignment.centerRight,
                   child: Padding(
                     padding: EdgeInsets.symmetric(horizontal: compact ? 16 : 0),
-                    child: SizedBox(width: 120, child: filterButton),
+                    child: filterButton,
                   ),
                 ),
               ],

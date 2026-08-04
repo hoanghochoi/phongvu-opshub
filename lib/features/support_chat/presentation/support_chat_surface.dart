@@ -8,10 +8,10 @@ import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
 import '../../../app/theme/app_colors.dart';
+import '../../../app/theme/app_radius.dart';
 import '../../../app/theme/app_text_styles.dart';
 import '../../../app/widgets/app_buttons.dart';
 import '../../../app/widgets/app_cards.dart';
-import '../../../app/widgets/app_chips.dart';
 import '../../../app/widgets/app_inputs.dart';
 import '../../../app/widgets/app_layout.dart';
 import '../../../app/widgets/app_state_widgets.dart';
@@ -340,67 +340,92 @@ class _SupportChatPanelState extends State<SupportChatPanel> {
           children: [
             Material(
               color: Theme.of(context).colorScheme.surface,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(16, 10, 8, 10),
-                child: Row(
-                  children: [
-                    if (widget.onBackToInbox != null)
-                      AppIconAction(
-                        onPressed: widget.onBackToInbox,
-                        icon: Icons.arrow_back_rounded,
-                        tooltip: 'Quay lại hộp thư',
-                      ),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            provider.isSuperAdmin && conversation != null
-                                ? conversation.requesterDisplayName ??
-                                      'Nhân viên OpsHub'
-                                : 'Hỗ trợ OpsHub',
-                            style: AppTextStyles.titleEmphasis,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          if (provider.isSuperAdmin && conversation != null)
-                            Text(
-                              'Nhân viên cần hỗ trợ',
-                              style: AppTextStyles.caption.copyWith(
-                                color: AppColors.textSecondaryOf(context),
+              child: SizedBox(
+                height: provider.isSuperAdmin && conversation != null ? 72 : 64,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Row(
+                    children: [
+                      if (widget.onBackToInbox != null)
+                        Padding(
+                          padding: const EdgeInsets.only(right: 12),
+                          child: Tooltip(
+                            message: 'Quay lại hộp thư',
+                            child: SizedBox(
+                              width: 152,
+                              height: 40,
+                              child: AppSecondaryButton(
+                                onPressed: widget.onBackToInbox,
+                                label: 'Quay lại hộp thư',
+                                expand: false,
+                                size: AppButtonSize.small,
+                                height: 40,
+                                radius: AppRadius.md,
+                                textStyle: AppTextStyles.labelSmallSubtle,
+                                foregroundColor: AppColors.primaryOf(context),
+                                borderColor: AppColors.borderOf(context),
+                                backgroundColor: AppColors.canvasOf(context),
                               ),
                             ),
-                        ],
-                      ),
-                    ),
-                    if (conversation != null)
-                      Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 2),
-                        child: AppStatusChip(
-                          label: _statusLabel(conversation),
-                          color: _statusColor(conversation),
+                          ),
+                        )
+                      else if (widget.showCloseButton)
+                        const SizedBox(width: 40),
+                      Expanded(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              provider.isSuperAdmin && conversation != null
+                                  ? conversation.requesterDisplayName ??
+                                        'Nhân viên OpsHub'
+                                  : 'Hỗ trợ OpsHub',
+                              style: AppTextStyles.pageTitle.copyWith(
+                                color: AppColors.textPrimaryOf(context),
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            if (provider.isSuperAdmin && conversation != null)
+                              Text(
+                                '${_statusLabel(conversation)} · ${conversation.isAssignedTo(userId) ? 'Tôi đang phụ trách' : 'Chưa có người phụ trách'}',
+                                style: AppTextStyles.bodyS.copyWith(
+                                  color: AppColors.textSecondaryOf(context),
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                          ],
                         ),
                       ),
-                    if (widget.showCloseButton)
-                      AppIconAction(
-                        onPressed: () => Navigator.of(context).pop(),
-                        icon: Icons.close_rounded,
-                        tooltip: 'Đóng',
-                      ),
-                  ],
+                      if (provider.isSuperAdmin &&
+                          conversation != null &&
+                          widget.onBackToInbox == null)
+                        _AdminConversationHeaderActions(
+                          conversation: conversation,
+                        ),
+                      if (widget.showCloseButton)
+                        AppIconAction(
+                          onPressed: () => Navigator.of(context).pop(),
+                          icon: Icons.close_rounded,
+                          tooltip: 'Đóng',
+                        ),
+                    ],
+                  ),
                 ),
               ),
             ),
             Divider(height: 1, color: AppColors.borderOf(context)),
-            if (provider.isSuperAdmin && conversation != null)
-              _AdminConversationActions(conversation: conversation),
             Expanded(child: _buildMessages(provider, thread, userId)),
             if (provider.errorMessage != null && thread != null)
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
                 child: Text(
                   provider.errorMessage!,
-                  style: AppTextStyles.labelM.copyWith(color: AppColors.error),
+                  style: AppTextStyles.labelM.copyWith(
+                    color: AppColors.errorOf(context),
+                  ),
                 ),
               ),
             if (canReply) _buildComposer(provider),
@@ -475,13 +500,15 @@ class _SupportChatPanelState extends State<SupportChatPanel> {
   Widget _buildComposer(SupportChatProvider provider) {
     return SafeArea(
       top: false,
+      bottom: false,
       child: DecoratedBox(
+        key: const ValueKey('support-reply-composer'),
         decoration: BoxDecoration(
           color: AppColors.cardOf(context),
           border: Border(top: BorderSide(color: AppColors.borderOf(context))),
         ),
         child: Padding(
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.all(8),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -507,22 +534,26 @@ class _SupportChatPanelState extends State<SupportChatPanel> {
                   ],
                 ),
               Row(
-                crossAxisAlignment: CrossAxisAlignment.end,
+                crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   AppIconAction(
                     onPressed: provider.isSending ? null : _pickImages,
                     icon: Icons.add_photo_alternate_outlined,
                     tooltip: 'Đính kèm ảnh',
+                    dimension: 40,
                   ),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Focus(
                       onKeyEvent: _handleComposerKeyEvent,
                       child: AppTextInput(
+                        key: const ValueKey('support-reply-input'),
                         controller: _textController,
                         focusNode: _composerFocusNode,
                         label: 'Tin nhắn',
-                        hintText: 'Enter để gửi · Shift+Enter xuống dòng',
+                        hintText: 'Nhập phản hồi…',
+                        showLabel: false,
+                        fixedHeight: 40,
                         minLines: 1,
                         maxLines: 4,
                         enabled: !provider.isSending && _images.isEmpty,
@@ -537,18 +568,23 @@ class _SupportChatPanelState extends State<SupportChatPanel> {
                     ),
                   ),
                   const SizedBox(width: 8),
-                  AppIconAction(
-                    onPressed:
-                        provider.isSending ||
-                            (_images.isEmpty &&
-                                _textController.text.trim().isEmpty)
-                        ? null
-                        : _send,
-                    icon: provider.isSending
-                        ? Icons.hourglass_top_rounded
-                        : Icons.send_rounded,
-                    tooltip: provider.isSending ? 'Đang gửi' : 'Gửi',
-                    filled: true,
+                  SizedBox(
+                    width: MediaQuery.sizeOf(context).width < 600 ? 88 : 96,
+                    height: 40,
+                    child: AppPrimaryButton(
+                      key: const ValueKey('support-reply-send'),
+                      onPressed:
+                          provider.isSending ||
+                              (_images.isEmpty &&
+                                  _textController.text.trim().isEmpty)
+                          ? null
+                          : _send,
+                      label: 'Gửi',
+                      isLoading: provider.isSending,
+                      size: AppButtonSize.small,
+                      height: 40,
+                      textStyle: AppTextStyles.labelSmallSubtle,
+                    ),
                   ),
                 ],
               ),
@@ -617,28 +653,39 @@ class _SupportChatAdminScreenState extends State<SupportChatAdminScreen> {
       builder: (context, constraints) {
         final wide = constraints.maxWidth >= AppLayoutTokens.tabletBreakpoint;
         if (!wide && provider.selectedAdminConversationId != null) {
-          return SupportChatPanel(
-            key: ValueKey(provider.thread?.conversation?.id),
-            onBackToInbox: provider.clearSelectedAdminConversation,
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: SupportChatPanel(
+              key: ValueKey(provider.thread?.conversation?.id),
+              onBackToInbox: provider.clearSelectedAdminConversation,
+            ),
           );
         }
         final list = _buildInbox(provider);
         if (!wide) return list;
-        return Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            SizedBox(
-              width: min(380, constraints.maxWidth * 0.36),
-              child: AppSurfaceCard(padding: EdgeInsets.zero, child: list),
-            ),
-            const SizedBox(width: AppLayoutTokens.cardGap),
-            Expanded(
-              child: AppSurfaceCard(
-                padding: EdgeInsets.zero,
-                child: const SupportChatPanel(),
+        return Padding(
+          padding: const EdgeInsets.all(24),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              SizedBox(
+                width: 380,
+                child: AppSurfaceCard(
+                  key: const ValueKey('support-inbox-workspace'),
+                  padding: EdgeInsets.zero,
+                  child: list,
+                ),
               ),
-            ),
-          ],
+              const SizedBox(width: 16),
+              Expanded(
+                child: AppSurfaceCard(
+                  key: const ValueKey('support-conversation-workspace'),
+                  padding: EdgeInsets.zero,
+                  child: const SupportChatPanel(),
+                ),
+              ),
+            ],
+          ),
         );
       },
     );
@@ -670,12 +717,12 @@ class _SupportChatAdminScreenState extends State<SupportChatAdminScreen> {
             runSpacing: 8,
             children: [
               for (final entry in _buckets.entries)
-                FilterChip(
-                  label: Text(entry.value),
+                _SupportFilterButton(
+                  label: entry.value,
                   selected: provider.adminBucket == entry.key,
-                  onSelected: provider.isLoading
+                  onPressed: provider.isLoading
                       ? null
-                      : (_) {
+                      : () {
                           provider.clearSelectedAdminConversation();
                           unawaited(provider.loadAdminBucket(entry.key));
                         },
@@ -778,10 +825,48 @@ class _SupportChatAdminScreenState extends State<SupportChatAdminScreen> {
   }
 }
 
-class _AdminConversationActions extends StatelessWidget {
+class _SupportFilterButton extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback? onPressed;
+
+  const _SupportFilterButton({
+    required this.label,
+    required this.selected,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      key: ValueKey('support-filter-$label'),
+      width: 170,
+      height: 36,
+      child: AppSecondaryButton(
+        onPressed: onPressed,
+        label: label,
+        expand: false,
+        height: 36,
+        size: AppButtonSize.small,
+        radius: AppRadius.md,
+        textStyle: AppTextStyles.labelSmallSubtle,
+        foregroundColor: selected
+            ? AppColors.primaryOf(context)
+            : AppColors.textSecondaryOf(context),
+        borderColor: AppColors.subtleBorderOf(context),
+        backgroundColor: selected
+            ? AppColors.primarySurfaceOf(context)
+            : AppColors.canvasOf(context),
+        disabledBackgroundColor: AppColors.canvasOf(context),
+      ),
+    );
+  }
+}
+
+class _AdminConversationHeaderActions extends StatelessWidget {
   final SupportConversation conversation;
 
-  const _AdminConversationActions({required this.conversation});
+  const _AdminConversationHeaderActions({required this.conversation});
 
   @override
   Widget build(BuildContext context) {
@@ -790,38 +875,50 @@ class _AdminConversationActions extends StatelessWidget {
       (auth) => auth.user?.id,
     );
     final assignedToMe = conversation.isAssignedTo(userId);
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Wrap(
-        spacing: 8,
-        runSpacing: 8,
-        children: [
-          if (conversation.assigneeId == null)
-            AppLinkButton(
-              onPressed: provider.isSending
-                  ? null
-                  : () => provider.mutateAdmin('claim'),
-              icon: Icons.person_add_alt_1_rounded,
-              label: 'Tiếp nhận',
-            ),
-          if (assignedToMe)
-            AppLinkButton(
-              onPressed: provider.isSending
-                  ? null
-                  : () => provider.mutateAdmin('release'),
-              icon: Icons.person_remove_alt_1_outlined,
-              label: 'Bàn giao',
-            ),
-          if (conversation.assigneeId != null && !assignedToMe)
-            AppLinkButton(
-              onPressed: provider.isSending
-                  ? null
-                  : () => _confirmTakeover(context, provider),
-              icon: Icons.swap_horiz_rounded,
-              label: 'Nhận thay',
-            ),
-          if (assignedToMe && !conversation.isResolved)
-            AppLinkButton(
+    final children = <Widget>[];
+    if (conversation.assigneeId == null) {
+      children.add(
+        SizedBox(
+          width: 96,
+          height: 40,
+          child: AppPrimaryButton(
+            onPressed: provider.isSending
+                ? null
+                : () => provider.mutateAdmin('claim'),
+            label: 'Tiếp nhận',
+            size: AppButtonSize.small,
+            height: 40,
+            textStyle: AppTextStyles.labelSmallSubtle,
+          ),
+        ),
+      );
+    } else if (assignedToMe) {
+      children.add(
+        SizedBox(
+          width: 88,
+          height: 40,
+          child: AppSecondaryButton(
+            onPressed: provider.isSending
+                ? null
+                : () => provider.mutateAdmin('release'),
+            label: 'Bàn giao',
+            expand: false,
+            size: AppButtonSize.small,
+            height: 40,
+            radius: AppRadius.md,
+            textStyle: AppTextStyles.labelSmallSubtle,
+            foregroundColor: AppColors.primaryOf(context),
+            borderColor: AppColors.borderOf(context),
+            backgroundColor: AppColors.cardOf(context),
+          ),
+        ),
+      );
+      if (!conversation.isResolved) {
+        children.add(
+          SizedBox(
+            width: 168,
+            height: 40,
+            child: AppPrimaryButton(
               onPressed: provider.isSending
                   ? null
                   : () => provider.mutateAdmin(
@@ -831,9 +928,45 @@ class _AdminConversationActions extends StatelessWidget {
                             conversation.lastMessageSequence,
                       },
                     ),
-              icon: Icons.task_alt_rounded,
               label: 'Đánh dấu đã xử lý',
+              size: AppButtonSize.small,
+              height: 40,
+              textStyle: AppTextStyles.labelSmallSubtle,
             ),
+          ),
+        );
+      }
+    } else {
+      children.add(
+        SizedBox(
+          width: 96,
+          height: 40,
+          child: AppSecondaryButton(
+            onPressed: provider.isSending
+                ? null
+                : () => _confirmTakeover(context, provider),
+            label: 'Nhận thay',
+            expand: false,
+            size: AppButtonSize.small,
+            height: 40,
+            radius: AppRadius.md,
+            textStyle: AppTextStyles.labelSmallSubtle,
+            foregroundColor: AppColors.primaryOf(context),
+            borderColor: AppColors.borderOf(context),
+            backgroundColor: AppColors.cardOf(context),
+          ),
+        ),
+      );
+    }
+    return Padding(
+      padding: const EdgeInsets.only(left: 12),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          for (var index = 0; index < children.length; index++) ...[
+            if (index > 0) const SizedBox(width: 8),
+            children[index],
+          ],
         ],
       ),
     );
@@ -856,7 +989,6 @@ class _AdminConversationActions extends StatelessWidget {
           ),
           AppDialogConfirmButton(
             onPressed: () => Navigator.of(dialogContext).pop(true),
-            icon: Icons.swap_horiz_rounded,
             label: 'Nhận thay',
           ),
         ],
@@ -874,45 +1006,54 @@ class _MessageBubble extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Semantics(
-      container: true,
-      label: mine
-          ? 'Tin nhắn của bạn'
-          : message.senderKind == 'SUPER_ADMIN'
-          ? 'Tin nhắn từ bộ phận hỗ trợ'
-          : 'Tin nhắn từ nhân viên cần hỗ trợ',
-      child: Align(
-        alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 360),
-          child: AppSurfaceCard(
-            margin: const EdgeInsets.only(bottom: 8),
-            backgroundColor: mine
-                ? AppColors.primarySurfaceOf(context)
-                : AppColors.cardOf(context),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (message.text?.isNotEmpty == true)
-                  Text(message.text!, style: AppTextStyles.bodyM),
-                if (message.attachments.isNotEmpty)
-                  for (final attachment in message.attachments) ...[
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = MediaQuery.sizeOf(context).width < 600;
+        final desiredWidth = compact ? 295.0 : (mine ? 380.0 : 400.0);
+        final bubbleWidth = min(desiredWidth, constraints.maxWidth);
+        return Semantics(
+          container: true,
+          label: mine
+              ? 'Tin nhắn của bạn'
+              : message.senderKind == 'SUPER_ADMIN'
+              ? 'Tin nhắn từ bộ phận hỗ trợ'
+              : 'Tin nhắn từ nhân viên cần hỗ trợ',
+          child: Align(
+            alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
+            child: SizedBox(
+              width: bubbleWidth,
+              child: AppSurfaceCard(
+                margin: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.all(12),
+                radius: AppRadius.md,
+                backgroundColor: mine
+                    ? AppColors.primarySurfaceOf(context)
+                    : AppColors.cardOf(context),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
                     if (message.text?.isNotEmpty == true)
-                      const SizedBox(height: 8),
-                    _SupportPrivateImage(attachment: attachment),
+                      Text(message.text!, style: AppTextStyles.bodyS),
+                    if (message.attachments.isNotEmpty)
+                      for (final attachment in message.attachments) ...[
+                        if (message.text?.isNotEmpty == true)
+                          const SizedBox(height: 8),
+                        _SupportPrivateImage(attachment: attachment),
+                      ],
+                    const SizedBox(height: 4),
+                    Text(
+                      _formatTime(message.createdAt),
+                      style: AppTextStyles.caption.copyWith(
+                        color: AppColors.textMutedOf(context),
+                      ),
+                    ),
                   ],
-                const SizedBox(height: 4),
-                Text(
-                  _formatTime(message.createdAt),
-                  style: AppTextStyles.caption.copyWith(
-                    color: AppColors.textMutedOf(context),
-                  ),
                 ),
-              ],
+              ),
             ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 }
@@ -969,12 +1110,6 @@ String _statusLabel(SupportConversation conversation) {
   if (conversation.isResolved) return 'Đã xử lý';
   if (conversation.assigneeId == null) return 'Đang chờ tiếp nhận';
   return 'Đang được hỗ trợ';
-}
-
-Color _statusColor(SupportConversation conversation) {
-  if (conversation.isResolved) return AppColors.success;
-  if (conversation.assigneeId == null) return AppColors.warning;
-  return AppColors.info;
 }
 
 String _formatTime(DateTime value) {

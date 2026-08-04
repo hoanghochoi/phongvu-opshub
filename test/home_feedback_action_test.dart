@@ -157,7 +157,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Loa đang bật'), findsOneWidget);
-      expect(find.byIcon(Icons.volume_up_rounded), findsOneWidget);
+      expect(find.byIcon(Icons.volume_up), findsOneWidget);
       expect(
         tester.getSize(find.byKey(const Key('home-speaker-status-toggle'))),
         const Size(152, 40),
@@ -183,7 +183,7 @@ void main() {
       expect(paymentProvider.speakerToggleCalls, 1);
       expect(paymentProvider.lastSpeakerValue, isFalse);
       expect(find.text('Loa đang tắt'), findsOneWidget);
-      expect(find.byIcon(Icons.volume_off_rounded), findsOneWidget);
+      expect(find.byIcon(Icons.volume_off), findsOneWidget);
       debugDefaultTargetPlatformOverride = null;
     },
   );

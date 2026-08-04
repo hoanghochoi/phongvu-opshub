@@ -309,6 +309,57 @@ void main() {
     expect(repository.lastOrdersQuery?.unreportedPage, 0);
   });
 
+  testWidgets('managed filter follows approved compact trigger states', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(834, 1112);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+    final authProvider = _FakeAuthProvider(
+      const User(
+        id: 'manager-1',
+        email: 'manager@phongvu.vn',
+        role: 'USER',
+        organizationNodeId: 'org-store-cp01',
+        featureAccess: {'SALES_REPORT': true, 'ADMIN_SALES_REPORTS': true},
+      ),
+    );
+    final repository = _FakeSalesReportRepository(managedScope: true);
+
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider<AuthProvider>.value(value: authProvider),
+          ChangeNotifierProvider<SalesReportProvider>(
+            create: (_) => SalesReportProvider(repository),
+          ),
+        ],
+        child: const MaterialApp(home: Scaffold(body: SalesReportScreen())),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final trigger = find.byKey(const Key('sales-report-managed-filter'));
+    expect(trigger, findsOneWidget);
+    expect(find.text('Lọc'), findsOneWidget);
+    expect(find.byIcon(Icons.tune_rounded), findsNothing);
+    expect(tester.getSize(trigger), const Size(152, 40));
+
+    await tester.tap(trigger);
+    await tester.pumpAndSettle();
+    expect(find.text('Bộ lọc nâng cao'), findsOneWidget);
+    await tester.tap(find.byType(AppCombobox<String>).first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('CP01 - Phong Vu CP01'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Đang lọc • 1'), findsOneWidget);
+    expect(tester.getSize(trigger), const Size(152, 40));
+  });
+
   testWidgets('Báo cáo follows the Figma loaded geometry matrix', (
     tester,
   ) async {

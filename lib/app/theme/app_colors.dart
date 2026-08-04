@@ -31,7 +31,6 @@ class AppColors {
 
   // ── Gradient (header / nav) ──────────────────────────────────────
   static const Color gradientStart = Color(0xFF07539F);
-  static const Color gradientMid = primary;
   static const Color gradientEnd = Color(0xFF3B82F6);
 
   // ── Semantic ─────────────────────────────────────────────────────
@@ -39,7 +38,6 @@ class AppColors {
   static const Color success = Color(0xFF12805C);
   static const Color warning = Color(0xFF8A5A08);
   static const Color error = Color(0xFFC2410C);
-  static const Color danger = error;
   static const Color successSurface = Color(0xFFDCFCE7);
   static const Color warningSurface = Color(0xFFFEF3C7);
   static const Color errorSurface = Color(0xFFFFEDD5);
@@ -49,8 +47,6 @@ class AppColors {
   static const Color infoSurfaceSubtle = Color(0xFFEFF6FF);
   static const Color infoBorderSubtle = Color(0xFFBFDBFE);
   static const Color infoTextStrong = Color(0xFF1E3A8A);
-  static const Color teal600 = secondary; // VietQR
-  static const Color violet600 = accent; // Payment monitor
   static const Color indigo600 = Color(0xFF4F46E5);
   static const Color purple600 = Color(0xFF9333EA);
   static const Color emerald600 = Color(0xFF059669);
@@ -72,7 +68,6 @@ class AppColors {
   // ── Surface ──────────────────────────────────────────────────────
   static const Color surface = Color(0xFFFFFFFF);
   static const Color background = Color(0xFFF7F8FB);
-  static const Color card = surface;
   static const Color transparent = Color(0x00000000);
   static const Color shadow = Color(0xFF000000);
   static const Color border = Color(0xFFD8DEE8);
@@ -147,7 +142,6 @@ class AppColors {
 
   /// Figma `Input background` (VariableID:8:148) in Dark mode.
   static const Color darkInput = Color(0xFF111827);
-  static const Color darkNeutral50 = darkInput;
   static const Color darkNeutral100 = Color(0xFF2D2D2D);
   static const Color darkGradientStart = Color(0xFF0B1220);
   static const Color darkGradientMid = Color(0xFF1E3A5F);
@@ -160,7 +154,7 @@ class AppColors {
       isDark(context) ? darkScaffold : background;
 
   static Color cardOf(BuildContext context) =>
-      isDark(context) ? darkCard : card;
+      isDark(context) ? darkCard : surface;
 
   static Color raisedOf(BuildContext context) =>
       isDark(context) ? darkRaised : surface;

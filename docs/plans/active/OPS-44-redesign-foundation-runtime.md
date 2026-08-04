@@ -1,7 +1,7 @@
 # Execution Plan: OPS-44 Redesign Foundation Runtime And UI Retirement
 
 Date: 2026-08-03
-Last updated: 2026-08-04 (Đại Ca approved all recorded Figma proposals; Dark remediation)
+Last updated: 2026-08-04 (Đại Ca approved proposals; Support Chat Figma gap revision + composer proof)
 
 ## Status
 
@@ -175,7 +175,14 @@ until the replacement has affected-consumer proof.
 - [x] Remove the unused light-only `AppStateTone.color` compatibility getter
       after repository consumer search; all state/chip consumers use the
       context-aware semantic mapping.
-- [ ] Converge remaining shared primitive aliases after affected-consumer proof.
+- [x] Converge remaining shared primitive aliases after affected-consumer proof:
+      removed unused `AppColors.danger`/`gradientMid`, replaced the 1:1
+      `card`, `teal600`, `violet600` and `darkNeutral50` aliases with canonical
+      surface/secondary/accent/dark-input tokens, and kept the semantic
+      `focus`/speaker tokens because they remain distinct component contracts.
+      Button, navigation, admin-role, Settings and Warranty affected-consumer
+      proof passes `37/37`; analyzer and diff checks pass with no color-value
+      change.
 - [x] Align shared responsive page padding with the approved Figma breakpoint
       contract: compact `<600` = 16 px, medium/expanded `600–1199` = 24 px,
       wide `>=1200` = 32 px. The wrapper now classifies from viewport width,
@@ -221,7 +228,10 @@ Figma authority metadata was synchronized after approval: proposal sections
 `1895:59111` and `1898:107163` no longer carry “Pending approval” labels; each
 now has an approved-authority note. Home speaker adds state icons `1909:2` and
 `1909:4`, read back with `get_metadata`, `get_screenshot` and
-`get_design_context`.
+`get_design_context`. API lifecycle proposal `1917:59111` was also synchronized
+to `Proposal note · Approved authority`; its exact populated-card nodes were
+read back with metadata, screenshot and `get_design_context` before runtime
+editing.
 
 #### Approved modal/state node map readback — 2026-08-04
 
@@ -265,6 +275,32 @@ raw white dialogs or rely on inconsistent title defaults.
       approved notification instances and covering transaction/request times,
       requester, reason and content lines. Metadata readback and screenshot
       pass; the proposal is now a production visual authority.
+- [x] Notifications exact node map was read back with `get_metadata` and
+      `get_design_context` before implementation: pending dynamic card
+      `1881:59112` (880×300) → top `1881:59113`, icon tile/icon
+      `1881:59114`/`1881:59115`, unread/title/meta `1881:59117`–`1881:59120`,
+      status/time `1881:59121`–`1881:59123`, detail `1881:59124`, runtime
+      metadata `1881:59129`–`1881:59132`, actions `1881:59125` with reject
+      `1881:59126` (96×48) and confirm `1881:59128`; rejected card
+      `1881:59152` (880×240) with metadata `1881:59169`–`1881:59172`; offset
+      rejected card `1881:59192` (880×176) with metadata
+      `1881:59209`–`1881:59210`. Vietnamese copy, status badges, icon tile,
+      action geometry and responsive adaptation are governed by these exact
+      nodes; notification provider/read/approve/reject/navigation behavior is
+      protected.
+- [x] Notifications runtime implementation gate (local proof): full-page
+      Desktop/Web uses the approved 880px card lane and 16px surface padding;
+      pending cards map the 40px ArrowsLeftRight tile, unread/title/meta,
+      status/time block, detail, four runtime metadata lines and 96/115×48
+      actions; rejected and offset-rejected cards preserve reason/action
+      guidance with the same semantic status surfaces. Compact Web remains
+      overflow-safe. Shared `AppSurfaceCard`, `AppRadius`, Phosphor icon and
+      context-aware Light/Dark colors are reused; provider load/read,
+      approve/reject confirmation, offset navigation and AppLogger behavior
+      remain unchanged. Geometry/state tests pass pending 880×300 and
+      rejected 375×812; Notifications provider suite passes 16/16, shell route
+      notifications proofs pass, `flutter analyze --no-pub` and format pass.
+      Staging/Chrome/platform proof remains downstream before legacy retirement.
 - [x] Home speaker-status runtime gap is isolated in approved Figma proposal
       `1888:59111` (`PROPOSAL — Home speaker status`). The
       approved Home chain `326:2698` → `326:2731` → `326:2732` has no speaker
@@ -280,6 +316,28 @@ raw white dialogs or rely on inconsistent title defaults.
       tablet landscape and mobile states. Metadata, screenshot and
       `get_design_context` readback pass; production visual implementation is
       now unblocked.
+- [x] Support Chat exact loaded node map was read back with `get_metadata` and
+      `get_design_context` before implementation: Desktop/Windows workspace
+      `1711:134979` → inbox `1711:134980` (380×780), conversation
+      `1711:134981` (746×780), filters `1712:34729`, selected/pending cards
+      `1713:34726`/`1713:34731`, assignment actions `1713:134930`/
+      `1713:134932`, composer `1714:34735`; Desktop/Web workspace
+      `1724:17253` → inbox `1724:17254`, conversation `1724:17255`, filters
+      `1725:17193`, selected/pending cards `1725:17204`/`1725:17209`;
+      Android Tablet detail `1720:134943` (714×992) and Android Mobile detail
+      `1720:23234` (343×640), including exact compact headers, timelines,
+      bubbles and composers. State/permission/loading/error behavior remains
+      governed by proposal `1898:107163`; auth/session, selection, realtime,
+      assignment/resolve, composer/media and AppLogger behavior are protected.
+- [x] Support Chat Figma gap revision was required by the runtime attachment
+      control: the approved base composer `1714:34735` contains only input and
+      send, while runtime preserves image picking. A separate revision section
+      `1923:59111` adds composer `1923:59112` (714×56), attachment action
+      `1923:59119` (40×40), Camera icon `1923:59120` (20×20), input
+      `1923:59113` (546×40) and send `1923:59116` (96×40), all using existing
+      semantic variables. Metadata, screenshot and `get_design_context`
+      readback pass; runtime implementation uses the same shared 40px action
+      contract without changing media/composer behavior.
 
 #### Figma gap/action ledger — 2026-08-04
 
@@ -290,13 +348,13 @@ visual element/state.
 
 | Runtime gap | Figma proposal | Protected runtime behavior | Next gate |
 | --- | --- | --- | --- |
-| Notifications content parity | `1881:59087` | unread/read, requester/reason/content, action feedback | Implement Desktop/Web + mobile parity |
-| API Connections dynamic clients/keys | `1883:59093` | repository mutations, confirmation, secret/key handling, logger | Implement populated cards |
-| API Connections supported Web compact/medium | `1895:59111` | Web capability remains supported; Android unsupported guard unchanged | Implement Web responsive geometry |
-| Settings speaker voice card | `1884:59093` | speaker preference provider, combobox selection, startup/theme behavior | Implement Desktop/mobile/tablet card |
-| Home speaker ON/OFF status | `1888:59111` | existing toggle/provider/AppLogger contract; Windows-only visibility | Implemented; rerun Home regression |
-| Sales Reports managed filter | `1891:59111` | existing `Lọc` trigger, advanced sheet, provider scope/filter behavior | Implement compact/medium trigger states |
-| Support Chat inbox/thread states | `1898:107163` | auth/session, thread selection, retry/permission, composer/realtime behavior | Implement responsive state matrix |
+| Notifications content parity | `1881:59087` | unread/read, requester/reason/content, action feedback | Local Desktop/Web + compact implementation proof passed; staging/Chrome/platform audit pending |
+| API Connections dynamic clients/keys | `1883:59093` | repository mutations, confirmation, secret/key handling, logger | Local implementation/proof passed; staging/Chrome/platform audit pending |
+| API Connections supported Web compact/medium | `1895:59111` | Web capability remains supported; Android unsupported guard unchanged | Local responsive implementation/proof passed; staging/Chrome/platform audit pending |
+| Settings speaker voice card | `1884:59093` | speaker preference provider, combobox selection, startup/theme behavior | Local Desktop/mobile/tablet implementation/proof passed; staging/Chrome/platform audit pending |
+| Home speaker ON/OFF status | `1888:59111` | existing toggle/provider/AppLogger contract; Windows-only visibility | Local icon/state implementation/proof passed; staging/Chrome/platform audit pending |
+| Sales Reports managed filter | `1891:59111` | existing `Lọc` trigger, advanced sheet, provider scope/filter behavior | Local compact/medium implementation/proof passed; staging/Chrome/platform audit pending |
+| Support Chat inbox/thread states | `1898:107163` + `1923:59111` | auth/session, thread selection, retry/permission, composer/media/realtime behavior | Local responsive implementation/proof passed; staging/Chrome/platform audit pending |
 
 The destructive archive-page action is tracked separately: page `1174:4`
 (`ARCHIVE — Web Responsive (empty · pending deletion)`) can be deleted only
@@ -317,8 +375,20 @@ readback.
 - [x] Super Admin delivery-metrics consumer proof now sets the test viewport to
       the approved wide Desktop/Web contract (`1440×900`); the compact shell
       intentionally omits the metrics pill. Focused run confirms this test
-      passes; the Windows speaker test now has an approved node and is pending
-      the fresh focused regression run below.
+      passes; the Windows speaker test now has the approved ON/OFF icons and
+      focused Home regression proof passes.
+- [x] Support Chat implementation gate (local proof): the approved Windows/Web,
+      tablet and mobile state map is implemented as one responsive visual path;
+      the runtime attachment control follows Figma revision `1923:59111` with
+      shared `AppIconAction(dimension: 40)`, so compact composer geometry is
+      `343×56` and the send action remains `88×40`. Auth/session, thread
+      selection, loading/empty/retry/permission, assignment/resolve, realtime,
+      image picking, composer keyboard behavior and AppLogger behavior remain
+      unchanged. `support_chat_surface_test.dart` passes `6/6`,
+      `design_system_migration_guard_test.dart` passes `21/21`,
+      `flutter analyze --no-pub` reports no issues and `git diff --check`
+      passes; exact-SHA build, staging/Chrome and platform proof remain
+      downstream.
 - [x] API Connections bounded wave — node map captured before code edit:
       Windows/Web loaded `1704:134596` → route shell instance `1704:134597`,
       header `1730:34726`, content `1730:34729`, BIDV connection card
@@ -332,11 +402,28 @@ readback.
       shared buttons, switches and state panels; preserve repository actions,
       platform capability guard, API contract, mutation confirmation and
       `AppLogger` branches. No mobile/tablet supported state is invented.
-- [ ] API Connections implementation gate: replace the generic legacy visual
-      branch with the one Figma path above, add compact/medium/wide geometry
-      proof plus affected API-connection/admin/router tests, then rerun
-      analyzer/format/diff checks. Staging/Chrome/platform proof remains
-      downstream and is required before retiring the old visual consumers.
+- [x] API Connections populated lifecycle node map captured before code edit:
+      OAuth populated card `1917:59114` → header `1918:59111`, identity
+      `1918:59112`, lifecycle actions `1918:59115`, runtime detail panel
+      `1918:146625`; OpenPGP populated card `1917:59115` → header
+      `1918:146628`, lifecycle actions `1918:146632`, runtime detail panel
+      `1918:146641`. Action widths, 40 px height, 12 px radius, detail panel
+      padding and Vietnamese copy are read back from the approved proposal.
+      Supported Web compact/medium lanes remain governed by approved
+      responsive proposal `1895:59111` (343 px / 714 px content lanes); code
+      must stack action rows without changing repository behavior.
+- [x] API Connections implementation gate (local proof): supported loaded
+      clients/keys now use the approved lifecycle card composition, while the
+      empty path uses the approved BIDV/OpenPGP base cards; operations controls
+      use the exact 48px row/switch anatomy. Shared action buttons gained an
+      optional Figma labelSmallSubtle text style; no raw feature-local buttons
+      remain. Geometry proof passes wide 1440×900 (1142px lane; populated
+      client 260px, key 292px, controls 210px), empty base card geometry and
+      Web compact 375×812 / medium 834×1112 lanes without overflow. API screen
+      proof passes 8/8; design-system guard plus API proof passes 28/28;
+      `flutter analyze --no-pub`, format and `git diff --check` pass. Staging,
+      authenticated Chrome and platform proof remain downstream and are
+      required before retiring the old visual consumers.
 - [x] API Connections dynamic-state gap is isolated in approved proposal
       `1883:59093` (`PROPOSAL — API Connections dynamic states`). It reuses
       the approved BIDV/OpenPGP cards and covers a
@@ -391,16 +478,24 @@ readback.
       `1440×900`, `1024×768`, `834×1112`, `375×812` matrix; the Sales Reports
       affected suite passes `27/27`; provider/API/permission/realtime/dialog
       and AppLogger behavior remain covered.
-- [ ] Sales Reports compact/medium managed-scope advanced filter remains an
-      authority gate: runtime behavior still needs the existing `Lọc` trigger
-      and `_AdvancedFilterSheet`, but the approved compact/portrait nodes do
-      not contain that visible element. Approved Figma proposal
+- [x] Sales Reports compact/medium managed-scope advanced filter implementation
+      gate: runtime behavior keeps the existing `Lọc` trigger and
+      `_AdvancedFilterSheet`; the approved compact/portrait loaded nodes did
+      not contain that visible element, so the approved Figma proposal
       `1891:59111` (`PROPOSAL — Sales Reports managed filter`)
       records the compact `375×812` and medium `834×1112` state matrix,
       closed/active trigger states, preserved sheet/provider behavior, and the
       exact loaded node chain. Metadata and screenshot readback passed. The
-      compatibility trigger may now be implemented against this approved
-      proposal; retire it only after affected-consumer proof.
+      exact trigger nodes are `1891:59118` (closed, 152×40, success surface)
+      and `1891:59120` (active, 152×40, neutral surface); `get_design_context`
+      confirms Vietnamese copy `Lọc` / `Đang lọc • N`, 14/20 semibold text,
+      20px radius and no icon. The 152×40 closed/active
+      trigger now follows the approved `Lọc` / `Đang lọc • N` states with no
+      icon; sheet/provider behavior remains unchanged. Geometry/state proof
+      covers medium `834×1112`; the managed-filter test plus the full affected
+      Sales Reports suite passes `29/29`, and analyzer, format and
+      `git diff --check` pass. Staging/Chrome/platform proof remains downstream
+      before visual retirement.
 - [x] Settings bounded wave — node map captured before code edit:
       Desktop/Web Loaded `385:9054` → content `385:9087`, theme card
       `385:9094`, Windows card `385:9102`; Android Mobile Unsupported
@@ -511,12 +606,15 @@ readback.
       events with `867` `success` and `1` `error`; the error is the Windows Home
       speaker assertion for the Windows capability fixture (`Loa đang bật`).
       No new Dark regression appeared after the approval checkpoint.
-- [ ] Migrate remaining route groups in bounded waves (shell/auth/system,
+- [x] Migrate remaining route groups in bounded waves (shell/auth/system,
       operations, FIFO, sales/finance, warranty, admin and long-tail) with one
-      production visual path per migrated surface; remove legacy visual
-      fallback branches only after affected-consumer proof.
-- [ ] Keep business logic, API/data contracts, permissions, platform behavior,
-      security, Vietnamese-first copy and existing route aliases unchanged.
+      Figma-backed visual path per migrated surface; the local affected suites,
+      migration guard and full regression cover the migrated consumers. Legacy
+      visual fallback retirement remains a downstream staging/Chrome gate.
+- [x] Keep business logic, API/data contracts, permissions, platform behavior,
+      security, Vietnamese-first copy and existing route aliases unchanged;
+      full regression and route/migration guards pass after the final local
+      wave.
 
 ### Phase 5 — release and safe cleanup gates
 
@@ -603,12 +701,12 @@ readback.
       `1174:4` into `693:17492` in atomic batches; 14 Web-only authority nodes
       remain visible, 54 duplicate nodes are hidden rollback evidence, the
       former Web page now has `childCount = 0`, and the consolidated page
-      readback is `childCount = 189` including the Dark coverage board, new
+      readback is `childCount = 191` including the Dark coverage board, new
       FIFO state authorities and approved Notifications parity proposal
       `1881:59087`, API dynamic proposal `1883:59093`, Settings speaker
       proposal `1884:59093`, Home speaker proposal `1888:59111`, and Sales
-      managed-filter proposal `1891:59111`, and Support Chat runtime-state
-      proposal `1898:107163`.
+      managed-filter proposal `1891:59111`, Support Chat runtime-state
+      proposal `1898:107163`, and composer attachment revision `1923:59111`.
 - [x] Current branch local proof: `flutter analyze --no-pub`, focused guard /
       theme suite `25/25`, Home bootstrap `1/1`, loaded Home KPI consumer `1/1`,
       `dart analyze`, format check, `git diff --check`, and
