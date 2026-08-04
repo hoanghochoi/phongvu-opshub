@@ -914,6 +914,32 @@ visual element/state.
   capture correction exposed no new visible element or state, so no Figma
   revision is required.
 
+#### Exact-SHA staging deploy and bootstrap residual — 2026-08-04
+
+- Staging deploy workflow `30923869386` completed successfully for merge SHA
+  `c213f62c3886daf8fa9b504816eababd0a6e2bd6`. Android APK and Windows
+  installer/zip/checksum artifacts built, signed, scanned and uploaded; the
+  staging web/backend verification steps also passed.
+- Public readback is exact: `/health` returns `ok`, `/api/health` returns
+  `status=ok` for `backend-nest`, and `/downloads/latest.json` publishes
+  version `2026.08.04.328`, build `200328`, commit `c213f62c`.
+- The post-deploy authenticated Chrome route smoke at explicit `1024 × 768`
+  remains `39/39`: all hashes resolve, `/reports` redirects to
+  `/sales-reports`, Flutter view is `1024 × 768`, root width is `1024`, and
+  the visible-overflow audit is empty. No application console error appeared.
+- A fresh page reload still emits the non-fatal Flutter bootstrap warning
+  `prepareServiceWorker took more than 4000ms`; after roughly 15 seconds the
+  Flutter view renders again, but the extension screenshot can temporarily
+  show a blank or two-thirds-scaled canvas with white margins even while DOM
+  dimensions remain `1024 × 768`. This is not accepted as visual evidence and
+  is currently classified as an unresolved bootstrap/capture residual, not a
+  Figma gap or a reason to patch layout from the screenshot alone.
+- Next step: reproduce the reload behavior in a clean authenticated Chrome
+  session at the full matrix and inspect/bootstrap-fix only if the defect is
+  observable after Flutter has settled. If a stable runtime state exposes a
+  missing visual element, stop and create/read back an approved Figma node
+  before any UI edit. Keep OPS-44 `Ready for QA`.
+
 ## Decisions
 
 - 2026-08-03: The live Figma file has eight official pages, including iOS,
