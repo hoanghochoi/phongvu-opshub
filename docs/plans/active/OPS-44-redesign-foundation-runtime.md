@@ -1,7 +1,7 @@
 # Execution Plan: OPS-44 Redesign Foundation Runtime And UI Retirement
 
 Date: 2026-08-03
-Last updated: 2026-08-04 (staging deploy 324 and final plan refresh)
+Last updated: 2026-08-04 (staging deploy 325 and release-proof refresh)
 
 ## Status
 
@@ -18,11 +18,11 @@ proof; business, API, permission, platform và data behavior giữ nguyên.
 
 - Linear: OPS-44, related OPS-25 and OPS-34.
 - Git baseline: PR #104 merged the native speaker phase at
-      `3ee28f91e1ff6a46b61cda27693a0d230a63aab1`; docs/proof PR #105 then
-      merged into the current `staging` and `origin/staging` SHA
-      `38deb3f39e8d4fcf827099394209e3bba2a989b6`. All phase branches have
-      been cleaned; this plan refresh is on
-      `codex/ops-44-plan-refresh-20260804`.
+      `3ee28f91e1ff6a46b61cda27693a0d230a63aab1`; docs/proof PR #105 and
+      PR #106 then merged into the current `staging` and `origin/staging`
+      SHA `f7d90a7a0a56ed7be485d1c7e951690f426ab775`. All prior OPS-44 phase
+      branches have been cleaned; this release-proof refresh starts from that
+      exact live SHA.
 - Figma file:
   `mFzSmQzlapSe3RSmUhvzll`; target pages Cover `0:1`, Foundation `13:5`,
   Desktop + Web `693:17492`, Android mobile `693:17493`, Android tablet `698:2`,
@@ -691,7 +691,7 @@ visual element/state.
   after the merge/SHA checks, and `git fetch origin --prune` confirms no
   `codex/ops-44-execution-plan-v2` ref remains.
 - Verified post-cleanup: `staging == origin/staging ==
-  38deb3f39e8d4fcf827099394209e3bba2a989b6`; only the unrelated OPS-27
+  f7d90a7a0a56ed7be485d1c7e951690f426ab775`; only the unrelated OPS-27
   worktree/branch remains. A zero-file directory at
   `..\opshub-ops-44-phase0` is an OS cleanup residue and has no Git/worktree
   registration or branch association.
@@ -718,6 +718,25 @@ visual element/state.
   No new Figma gap was discovered in the observed Web Home state; if any
   missing element/state appears at the exact matrix, stop and create a new
   approved revision before changing runtime.
+
+#### Current staging release proof — 2026-08-04
+
+- Exact source/deploy: workflow `30914208733` completed successfully for
+  `f7d90a7a0a56ed7be485d1c7e951690f426ab775`; `/health` is `200 ok`,
+  `/api/health` is `200` with backend `ok`, and
+  `/downloads/latest.json` publishes version `2026.08.04.325` / build
+  `200325` with the same commit.
+- Figma live readback: `use_figma` enumerates exactly seven pages — Cover,
+  Foundation, Desktop + Web, Android mobile/tablet, iOS mobile/tablet — and
+  `get_metadata(1174:4)` rejects the deleted page. The approved Home speaker
+  revision `1928:59113` contains the ON/OFF 152×40 states and Volume Up/Off
+  16×16 icon nodes `1928:59120`/`1928:59124` and `1928:59122`/`1928:59126`.
+- Chrome control remains an external proof blocker: the staging tab and
+  authenticated URL are visible, but the extension's tab `get/claim` and
+  DOM/screenshot reads timeout while browser health, extension installation,
+  and native-host diagnostics pass. Therefore all four exact viewport verdicts
+  remain `UNVERIFIED`; no visual pass is claimed from the earlier 1534×937
+  smoke observation.
 
 - [x] Create OPS-44 Linear issue and record implementation start proof.
 - [x] Create guarded OPS-44 task worktree from live `origin/staging`.
