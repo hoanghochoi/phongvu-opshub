@@ -893,6 +893,27 @@ visual element/state.
   residual until a clean exact-matrix run proves it absent or classifies it as
   infrastructure-only.
 
+#### Corrected Chrome viewport capture — 2026-08-04
+
+- Reconnected to the authenticated staging tab and applied the temporary
+  explicit `1024 × 768` viewport override. The screenshot now fills the full
+  canvas; the earlier roughly two-thirds app image with white right/bottom
+  margins was caused by the default extension capture scale, not a runtime
+  layout defect. The override is temporary and is reset after capture.
+- The expanded route smoke was rerun against staging at that exact viewport:
+  all 39 authenticated routes resolved (`39/39`), `/reports` resolved to
+  `/sales-reports`, Flutter view and document width/height matched
+  `1024 × 768`, and the visible-overflow audit was empty. `body.scrollWidth`
+  still reports `1112` on several data-heavy routes, but the authoritative
+  `documentElement.scrollWidth` remains `1024`; the only negative-coordinate
+  nodes are hidden Flutter announcement semantics and are excluded by the
+  reviewed smoke rule.
+- Fresh route pass recorded zero Chrome console errors and zero warnings. A
+  corrected authenticated Home screenshot was captured at `1024 × 768`.
+  Existing Figma Desktop/Web and Dark owners remain authoritative; this
+  capture correction exposed no new visible element or state, so no Figma
+  revision is required.
+
 ## Decisions
 
 - 2026-08-03: The live Figma file has eight official pages, including iOS,
