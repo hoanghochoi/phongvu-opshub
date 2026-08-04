@@ -1,7 +1,7 @@
 # Execution Plan: OPS-44 Redesign Foundation Runtime And UI Retirement
 
 Date: 2026-08-03
-Last updated: 2026-08-04 (staging deploy 325 and release-proof refresh)
+Last updated: 2026-08-04 (staging deploy 325 and authenticated Chrome matrix smoke)
 
 ## Status
 
@@ -19,10 +19,11 @@ proof; business, API, permission, platform và data behavior giữ nguyên.
 - Linear: OPS-44, related OPS-25 and OPS-34.
 - Git baseline: PR #104 merged the native speaker phase at
       `3ee28f91e1ff6a46b61cda27693a0d230a63aab1`; docs/proof PR #105 and
-      PR #106 then merged into the current `staging` and `origin/staging`
-      SHA `f7d90a7a0a56ed7be485d1c7e951690f426ab775`. All prior OPS-44 phase
-      branches have been cleaned; this release-proof refresh starts from that
-      exact live SHA.
+      PR #106, then docs-only PR #107, are merged. The current `staging` and
+      `origin/staging` SHA is `144df4da5e7ff2faac5c5847f2bec18a8ed00989`;
+      runtime deploy source remains `f7d90a7a0a56ed7be485d1c7e951690f426ab775`.
+      All prior OPS-44 phase branches have been cleaned; this Chrome-proof
+      refresh starts from that exact live SHA.
 - Figma file:
   `mFzSmQzlapSe3RSmUhvzll`; target pages Cover `0:1`, Foundation `13:5`,
   Desktop + Web `693:17492`, Android mobile `693:17493`, Android tablet `698:2`,
@@ -662,13 +663,22 @@ visual element/state.
       Home `5/5`, capability/bootstrap/unsupported/speaker IO suites pass,
       full Flutter `877` testDone events with exit `0`, analyzer clean, web
       release build and `app-staging-debug.apk` pass.
-- [x] Deploy the current exact SHA to staging; deploy workflow `30912522423`
-      and health checks pass. Published version is `2026.08.04.324`, build
-      `200324`.
+- [x] Deploy the current exact SHA to staging; deploy workflow `30914208733`
+      and health checks pass. Published version is `2026.08.04.325`, build
+      `200325`.
+- [x] Run authenticated Chrome geometry/route smoke at the exact matrix:
+      Home loaded Light and Dark screenshots were captured at `375×812`,
+      `834×1112`, `1024×768` and `1440×900`; the static authenticated route
+      set passes `39/39` at each viewport (`156/156` total), with `/reports`
+      resolving to `/sales-reports`, no real horizontal overflow and no
+      console error/warn. Home authority maps to Figma `331:3160` (compact),
+      `713:18943` (medium), `713:19435` (expanded) and `326:2698` (wide).
 - [ ] Run authenticated Chrome comparison at the complete exact viewport
-      matrix against the approved Figma nodes, and capture Windows/Android
-      primary-platform plus iOS/iPadOS regression evidence. Current wide
-      smoke is recorded below but does not satisfy the exact viewport gate.
+      matrix for every affected loaded/loading/empty/error/dialog state against
+      the approved Figma screenshots, and capture Windows/Android
+      primary-platform plus iOS/iPadOS regression evidence. The loaded Home
+      and route geometry smoke above passes, but state-by-state visual
+      screenshot comparison and physical platform evidence remain open.
 - [ ] Record implementation/proof note in Linear before every forward status
       transition; leave OPS-44 In Progress until production deployment passes.
 - [x] After PR #104 merged, run the guarded lifecycle cleanup; staging is
@@ -731,12 +741,21 @@ visual element/state.
   `get_metadata(1174:4)` rejects the deleted page. The approved Home speaker
   revision `1928:59113` contains the ON/OFF 152×40 states and Volume Up/Off
   16×16 icon nodes `1928:59120`/`1928:59124` and `1928:59122`/`1928:59126`.
-- Chrome control remains an external proof blocker: the staging tab and
-  authenticated URL are visible, but the extension's tab `get/claim` and
-  DOM/screenshot reads timeout while browser health, extension installation,
-  and native-host diagnostics pass. Therefore all four exact viewport verdicts
-  remain `UNVERIFIED`; no visual pass is claimed from the earlier 1534×937
-  smoke observation.
+- Home loaded comparison node map is explicit per width: compact `331:3160`,
+  medium Tablet Android `713:18943`, expanded Tablet Android landscape
+  `713:19435`, and wide Desktop/Web `326:2698`. Dark coverage remains governed
+  by board `1874:35444`; no new runtime-visible Figma gap was found in these
+  loaded states, and Web speaker omission is intentional.
+- Authenticated Chrome exact matrix proof is now available for loaded Home and
+  static route geometry: each of `375×812`, `834×1112`, `1024×768` and
+  `1440×900` reports viewport/Flutter width equality, no real overflow and no
+  console error/warn; Home Light/Dark screenshots were captured and Web has no
+  speaker control by explicit product contract. This does not close the
+  per-state Figma screenshot comparison gate for every route.
+- Remaining release blockers are physical Windows/Android audio plus
+  iOS/iPadOS evidence, state-by-state visual comparison, legacy retirement
+  sign-off and production deployment. If any state exposes a missing visible
+  element, stop and create/revise Figma before editing runtime.
 
 - [x] Create OPS-44 Linear issue and record implementation start proof.
 - [x] Create guarded OPS-44 task worktree from live `origin/staging`.
@@ -876,9 +895,10 @@ visual element/state.
 
 ## Result
 
-Not complete. Local regression/build, staging deploy and merged-phase cleanup
-are verified. Exact authenticated Chrome matrix, physical Android/Windows
-audio evidence, iOS/iPadOS runtime evidence, Linear proof/status transition and
-production deployment remain pending. Record each verified/unverified surface,
-residual risk and next step before moving this plan to
-`docs/plans/completed/`.
+Not complete. Local regression/build, staging deploy, Figma seven-page
+inventory, merged-phase cleanup, authenticated Home Light/Dark screenshots and
+the `39 × 4 = 156` static route/viewport geometry smoke are verified. The
+state-by-state screenshot comparison, physical Android/Windows audio evidence,
+iOS/iPadOS runtime evidence, legacy visual retirement sign-off and production
+deployment remain pending. Record each verified/unverified surface, residual
+risk and next step before moving this plan to `docs/plans/completed/`.
