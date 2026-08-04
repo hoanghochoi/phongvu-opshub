@@ -636,9 +636,10 @@ readback.
 #### Branch cleanup audit — 2026-08-04
 
 - The active implementation branch/worktree is `codex/ops-44-execution-plan-v2`
-  at clean head `3f1b46b384b1ba266623fcc1f5b5856da86f948f` (runtime checkpoint
-  includes the committed Support Chat Figma gap revision and token convergence);
-  it is not yet
+  has a clean runtime source commit `3f1b46b384b1ba266623fcc1f5b5856da86f948f`
+  followed only by the exact-SHA proof note commit (the current worktree is
+  clean); the runtime source includes the committed Support Chat Figma gap
+  revision and token convergence, and it is not yet
   published/merged into `staging`.
 - Local `staging` is clean at the same base SHA. The separate `OPS-27`
   worktree/branch is unrelated and is preserved.
