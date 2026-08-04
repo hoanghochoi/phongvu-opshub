@@ -24,7 +24,7 @@ void main() {
     );
     expect(find.text('Chưa hỗ trợ trên web'), findsOneWidget);
     expect(
-      find.textContaining('đọc loa thanh toán chỉ chạy trên Windows'),
+      find.textContaining('app Android, iOS, iPadOS hoặc Windows'),
       findsOneWidget,
     );
     expect(find.text('Về trang chủ'), findsOneWidget);

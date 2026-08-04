@@ -8,7 +8,8 @@ copy file này để tạo thêm các trang con khác như `vietqr.md`, `sao-ke.
 
 1. Kiểm tra thiết bị đã cài bản OpsHub mới nhất từ `/download`.
 2. Chuẩn bị email nội bộ đã được cấp quyền.
-3. Nếu dùng máy Windows đọc loa, kiểm tra âm thanh đã bật và chọn đúng thiết bị
+3. Nếu dùng tính năng đọc loa trên Android, iOS, iPadOS hoặc Windows, kiểm tra
+   âm thanh đã bật và chọn đúng thiết bị
    phát.
 
 ## Sau khi đăng nhập

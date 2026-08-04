@@ -333,13 +333,13 @@ class _HomeSpeakerStatusButton extends StatelessWidget {
       message: speakerEnabled ? 'Bấm để tắt đọc loa' : 'Bấm để bật đọc loa',
       child: Material(
         color: AppColors.transparent,
-        child: InkWell(
+        child: SizedBox(
           key: const Key('home-speaker-status-toggle'),
-          borderRadius: AppRadius.allPill,
-          onTap: toggleSpeaker,
-          child: SizedBox(
-            width: 152,
-            height: 40,
+          width: 152,
+          height: 40,
+          child: InkWell(
+            borderRadius: AppRadius.allPill,
+            onTap: toggleSpeaker,
             child: Container(
               alignment: Alignment.center,
               decoration: BoxDecoration(

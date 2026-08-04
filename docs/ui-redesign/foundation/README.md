@@ -96,12 +96,11 @@ The current router has 45 `path:` declarations and 43 canonical visual owners.
 `/admin/inventory-import` enter the same `InventoryImportScreen` flow. These
 aliases do not collapse distinct product screens, and no duplicate Figma frame
 should be invented. On 2026-08-04 OPS-44 moved all 68 Web top-level nodes into
-`Screens — Desktop · Windows + Web` (`693:17492`), leaving
-`ARCHIVE — Web Responsive (empty · pending deletion)` (`1174:4`) with
-`childCount = 0`; the consolidated Desktop + Web page now reads
-`childCount = 183` and contains Dark coverage board `1874:35444` with 121
-route/state owners using explicit semantic/component Dark modes. Page deletion
-remains pending revision approval. The historical OPS-25 counts above remain
+`Screens — Desktop · Windows + Web` (`693:17492`). The empty archive page
+`1174:4` was deleted after explicit unified-revision approval and final
+seven-page inventory readback. The consolidated Desktop + Web page contains
+Dark coverage board `1874:35444` with 121 route/state owners using explicit
+semantic/component Dark modes. The historical OPS-25 counts above remain
 frozen; OPS-44 owns live reconciliation.
 
 ## Không được suy diễn từ pack

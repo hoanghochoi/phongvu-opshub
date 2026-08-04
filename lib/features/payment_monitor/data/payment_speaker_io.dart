@@ -72,26 +72,18 @@ class PaymentSpeaker {
     bool playLocalCuePrefix = false,
     Future<void> Function()? onPlaybackStarting,
   }) async {
-    if (!Platform.isWindows) {
-      return const PaymentSpeakerResult(
-        backend: 'unsupported',
-        extension: 'wav',
-        durationMs: 0,
-        reportedSuccess: true,
-        audibleVerified: false,
-      );
-    }
-
     if (audioBytes == null || audioBytes.isEmpty) {
       throw const PaymentSpeakerException('Server audio is empty');
     }
 
     final extension = _audioExtension(audioBytes);
-    final waveOutDevices = _waveOutDeviceCount();
+    final waveOutDevices = Platform.isWindows ? _waveOutDeviceCount() : null;
     final wavInfo = extension == 'wav'
         ? PaymentWavTools.tryReadInfo(audioBytes)
         : null;
-    final audioPreflightStatus = waveOutDevices > 0
+    final audioPreflightStatus = waveOutDevices == null
+        ? 'native_audio_output'
+        : waveOutDevices > 0
         ? 'wave_out_devices_available'
         : 'wave_out_devices_missing';
     final playbackContext = <String, Object?>{
@@ -103,7 +95,7 @@ class PaymentSpeaker {
       'attempt': attempt,
       'extension': extension,
       'bytes': audioBytes.length,
-      'waveOutDevices': waveOutDevices,
+      if (waveOutDevices != null) 'waveOutDevices': waveOutDevices,
       'audioPreflightStatus': audioPreflightStatus,
       'playLocalCue': playLocalCue,
       'playLocalCuePrefix': playLocalCuePrefix,
@@ -116,7 +108,7 @@ class PaymentSpeaker {
       'Preparing server payment audio playback',
       context: playbackContext,
     );
-    if (waveOutDevices <= 0) {
+    if (waveOutDevices != null && waveOutDevices <= 0) {
       throw const PaymentSpeakerException(
         'Windows does not report any audio output device',
         backendErrors: ['waveOutDevices=0'],
@@ -388,12 +380,21 @@ class PaymentSpeaker {
       backendErrors.add('media_kit: ${_safeBackendError(error)}');
       await AppLogger.instance.warn(
         _source,
-        'media_kit playback failed; trying Windows fallback',
+        Platform.isWindows
+            ? 'media_kit playback failed; trying Windows fallback'
+            : 'media_kit playback failed on native mobile audio',
         context: {
           ...context,
           'normalized': normalized,
           'error': _safeBackendError(error),
         },
+      );
+    }
+
+    if (!Platform.isWindows) {
+      throw PaymentSpeakerException(
+        'Payment speaker playback failed',
+        backendErrors: backendErrors,
       );
     }
 

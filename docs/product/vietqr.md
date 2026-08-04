@@ -151,7 +151,8 @@ Bearer <key>`, or a query key for quick-link compatibility.
 - Each newly observed successful incoming transaction can be announced through
   generated audio as `Phong Vũ đã nhận: <amount> đồng.` when the signed-in
   user has both `PAYMENT_MONITOR` and the separate node feature
-  `PAYMENT_SPEAKER` (`Đọc loa`) on a supported Windows PC, and the app is
+  `PAYMENT_SPEAKER` (`Đọc loa`) on a supported Android, iOS, iPadOS or Windows
+  client, and the app is
   currently scoped to exactly one active showroom. Users assigned to many
   showrooms can view many-showroom transaction lists, but speaker polling,
   audio download, and ack stay tied to the selected active showroom. Piper
@@ -161,10 +162,11 @@ Bearer <key>`, or a query key for quick-link compatibility.
   appends the full TTS WAV immediately so there is no configured gap before the
   first spoken word. If combined audio is unavailable, the Windows local-cue
   fallback also plays the cue at `80%` while keeping voice playback at `100%`.
-  The speaker card warns Windows operators to keep the machine awake and the
-  screen on while using audio, because sleep/off-screen states can interrupt
-  playback. Android, web, and other unsupported platforms do not start the
-  speaker path.
+  Windows uses the approved local preset pack; Android/iOS/iPadOS use the
+  authenticated server audio stream. The speaker card warns operators to keep
+  the app active and audio output available while using audio, because sleep,
+  background restrictions or unavailable output can interrupt playback. Web
+  and other unsupported platforms do not start the speaker path.
 - Turning off `Đọc loa tiền vào` mutes only the speaker path. The PC keeps
   syncing transactions from realtime/fallback refreshes, and muted
   notifications are recorded as `SILENCED` so they are not played later as

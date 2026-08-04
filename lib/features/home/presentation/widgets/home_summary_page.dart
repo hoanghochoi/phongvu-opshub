@@ -365,14 +365,24 @@ class HomeSummaryHeader extends StatelessWidget {
                       ],
                     ),
                     const SizedBox(height: 8),
-                    SizedBox(
-                      width: 112,
-                      child: _HomeHeaderChip(
-                        key: const Key('home-summary-refresh-button'),
-                        label: updatedLabel,
-                        onTap: onRefresh,
-                        busy: isRefreshing,
-                      ),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        SizedBox(
+                          width: 112,
+                          child: _HomeHeaderChip(
+                            key: const Key('home-summary-refresh-button'),
+                            label: updatedLabel,
+                            onTap: onRefresh,
+                            busy: isRefreshing,
+                            height: 40,
+                          ),
+                        ),
+                        if (action != null) ...[
+                          const SizedBox(width: 8),
+                          action!,
+                        ],
+                      ],
                     ),
                   ],
                 )
@@ -454,7 +464,7 @@ class HomeSummaryHeader extends StatelessWidget {
                             children: [
                               Text(
                                 greetingLabel,
-                                maxLines: 2,
+                                maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: AppTextStyles.headingS.copyWith(
                                   color: AppColors.textPrimaryOf(context),
@@ -463,7 +473,7 @@ class HomeSummaryHeader extends StatelessWidget {
                               const SizedBox(height: 2),
                               Text(
                                 greetingSubtitle ?? scopeLabel,
-                                maxLines: 2,
+                                maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: AppTextStyles.bodyM.copyWith(
                                   color: AppColors.textSecondaryOf(context),
@@ -735,11 +745,13 @@ class _HomeHeaderChip extends StatelessWidget {
     required this.label,
     this.onTap,
     this.busy = false,
+    this.height = 26,
   });
 
   final String label;
   final VoidCallback? onTap;
   final bool busy;
+  final double height;
 
   @override
   Widget build(BuildContext context) {
@@ -750,7 +762,7 @@ class _HomeHeaderChip extends StatelessWidget {
         onTap: busy ? null : onTap,
         borderRadius: AppRadius.allSm,
         child: Container(
-          height: 26,
+          height: height,
           alignment: Alignment.center,
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
           child: busy

@@ -52,7 +52,7 @@ class _PaymentMonitorUnsupportedScreenState
               icon: Icons.web_asset_off_outlined,
               title: 'Chưa hỗ trợ trên web',
               message:
-                  'Vui lòng dùng app Android hoặc Windows để theo dõi tiền vào. Riêng đọc loa thanh toán chỉ chạy trên Windows.',
+                  'Web chỉ dùng để xem danh sách tiền vào. Muốn bật đọc loa, hãy dùng app Android, iOS, iPadOS hoặc Windows.',
               tone: AppStateTone.warning,
               actionLabel: 'Về trang chủ',
               actionIcon: Icons.home_rounded,

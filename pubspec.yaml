@@ -78,6 +78,16 @@ dependencies:
   web: ^1.1.1
   ffi: ^2.1.4
   media_kit: 1.2.6
+  media_kit_libs_android_audio:
+    git:
+      url: https://github.com/media-kit/media-kit.git
+      ref: 7102e7da96f39c718487a8f7a59b6a034aae7f45
+      path: libs/android/media_kit_libs_android_audio
+  media_kit_libs_ios_audio:
+    git:
+      url: https://github.com/media-kit/media-kit.git
+      ref: 7102e7da96f39c718487a8f7a59b6a034aae7f45
+      path: libs/ios/media_kit_libs_ios_audio
   media_kit_libs_windows_audio:
     git:
       url: https://github.com/media-kit/media-kit.git

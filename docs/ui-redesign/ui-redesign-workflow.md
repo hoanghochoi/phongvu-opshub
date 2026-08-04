@@ -146,10 +146,10 @@ Khi sửa hoặc thêm component foundation, Figma review phải có proof cho:
   expanded/wide `>=900`. Page Desktop + Web hiện có Dark coverage board
   `1874:35444` với 121 route/state owners và explicit semantic/component Dark
   modes; Light source frames không bị sửa. Page cũ đã được đổi thành
-  `ARCHIVE — Web Responsive (empty · pending deletion)` (childCount `0`) và
-  chỉ được xoá sau khi revision/links được cập nhật và unified target được
-  duyệt; source/documentation vẫn ở Foundation, screen page không chứa main
-  component.
+  `ARCHIVE — Web Responsive` page (node `1174:4`) was deleted after
+  revision/links were updated and the unified target was approved; the live
+  file now has the final seven-page inventory. Source/documentation vẫn ở
+  Foundation, screen page không chứa main component.
 
 Im lặng, emoji hoặc task chuyển status không tự động là design approval.
 

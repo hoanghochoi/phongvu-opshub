@@ -386,18 +386,20 @@ accepted product behavior or rewrite the application in one pass.
   root in production and staging. The SPA fallback must preserve `/api`, `/ws`,
   `/download`, `/help`, `/uploads`, `/downloads`, `/staging-download`, and
   `/health` before serving `index.html`.
-- Payment monitor list access is available on Android, Windows, and web when
-  the user has `PAYMENT_MONITOR`. The speaker path is Windows-only because it
-  depends on desktop audio behavior. Home tiles, speaker controls, and provider
-  logic must not conflate those platform capabilities.
+- Payment monitor list access is available on Android, iOS, iPadOS, Windows,
+  and web when the user has `PAYMENT_MONITOR`. The speaker path is available
+  on Android, iOS, iPadOS and Windows when the user also has `PAYMENT_SPEAKER`;
+  web remains list-only. Home tiles, speaker controls, and provider logic must
+  not conflate those platform capabilities.
 - `Tiền vào` loads transactions only while the foreground route is active:
   initially, after explicit filter/page/manual-refresh actions, after a typed
   `payment.transactions` invalidation, and once after shared realtime
   reconnect/resume requests HTTP resync. It must not poll the transaction list
   on a fixed timer, and inactive routes must not fetch transaction rows.
-- Payment speaker is a route-independent Windows service. When the device and
-  feature are eligible, the user enabled `Đọc loa`, and exactly one showroom is
-  selected, `payment.speaker` metadata and the bounded ready fallback continue
+- Payment speaker is a route-independent native service. On Android, iOS,
+  iPadOS and Windows, when the device and feature are eligible, the user
+  enabled `Đọc loa`, and exactly one showroom is
+   selected, `payment.speaker` metadata and the bounded ready fallback continue
   outside the `Tiền vào` route and while the live app process is inactive,
   hidden, or minimized; this must not reactivate transaction-list refreshes.
   The service holds a scoped lease on the single authenticated realtime socket
@@ -414,7 +416,8 @@ accepted product behavior or rewrite the application in one pass.
   cancels both timers, and the previous one-minute polling contract is retired.
 - Web must not start payment audio handling or show speaker controls. The
   `Tiền vào` entry opens the transaction list on web, while the `Đọc loa`
-  controls remain hidden or disabled outside supported Windows clients.
+  controls remain hidden or disabled outside supported Android, iOS, iPadOS
+  and Windows clients.
 - If a feature or sub-feature is platform-specific, direct route access on
   unsupported platforms must not run that sub-feature flow. It must render a
   shared unsupported state or hide the unsupported control and log the branch

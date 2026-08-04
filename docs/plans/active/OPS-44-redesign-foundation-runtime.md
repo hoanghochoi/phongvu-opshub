@@ -26,8 +26,8 @@ proof; business, API, permission, platform và data behavior giữ nguyên.
   `mFzSmQzlapSe3RSmUhvzll`; target pages Cover `0:1`, Foundation `13:5`,
   Desktop + Web `693:17492`, Android mobile `693:17493`, Android tablet `698:2`,
   iOS mobile `1174:2`, and iPadOS tablet `1174:3`. Former Web page `1174:4`
-  is now named `ARCHIVE — Web Responsive (empty · pending deletion)` after the
-  Phase 1 migration and remains pending destructive delete.
+  was explicitly deleted after the unified revision approval and final
+  seven-page inventory readback.
 - Figma audit before migration: 8 pages, 393 variables, 21 text styles, 4
   effect styles, 906 reusable foundation sources, no missing fonts; 43
   canonical visual route surfaces plus `/reports` redirect and
@@ -124,9 +124,11 @@ until the replacement has affected-consumer proof.
       nodes were moved/deduped into `693:17492`; the former Web page is empty.
 - [x] Rename live Figma page `693:17492` to `Screens — Desktop · Windows + Web`
       and rename empty page `1174:4` to `ARCHIVE — Web Responsive (empty ·
-      pending deletion)`; page inventory readback passes.
-- [ ] Approve the unified Figma revision and delete the empty Web page `1174:4`
-      (destructive action still requires explicit revision approval).
+      pending deletion)` before the explicitly approved destructive delete;
+      final page inventory readback passes.
+- [x] Approve the unified Figma revision and delete the empty Web page `1174:4`
+      after explicit destructive-action approval; final inventory readback
+      confirms seven remaining top-level pages.
 - [x] Confirm Android Tablet route ownership: current page `698:2` has 46
       top-level nodes and 43 route owners covering the full canonical route
       inventory; the pre-coverage audit found no Dark-named route/state frame.
@@ -233,6 +235,18 @@ to `Proposal note · Approved authority`; its exact populated-card nodes were
 read back with metadata, screenshot and `get_design_context` before runtime
 editing.
 
+The earlier Windows-only Home speaker authority did not cover the requested
+Android/iOS behavior. The product clarification explicitly keeps Web list-only
+with no speaker control. A new Figma revision `1928:59113` (`PROPOSAL — Home
+speaker Android/iOS coverage`) now records the exact Android/iOS/iPadOS
+viewport/node map and reuses the approved 152×40 ON/OFF pills with 16px Volume
+Up/Off icons (`1928:59120`, `1928:59124`, `1928:59122`, `1928:59126`). Metadata,
+screenshot and `get_design_context` readback passed. Đại Ca approved this
+revision on 2026-08-04; its Figma note now says `Approved authority`. Compact
+Android/iOS place the chip in the Home header's second control row after the
+112×40 update chip; iPadOS keeps it as the trailing header action. Web remains
+explicitly excluded.
+
 #### Approved modal/state node map readback — 2026-08-04
 
 The approved Admin Users and Admin Features modal/state nodes were re-read
@@ -269,9 +283,9 @@ raw white dialogs or rely on inconsistent title defaults.
       Chat attachment action—so code work paused while revision `1923:59111`
       was created through the atomic `figma-use` workflow. Metadata, screenshot
       and `get_design_context` readback were recorded in this plan and Linear;
-      no other unrecorded visible runtime gap remains in the local route/state
-      inventory. Staging/Chrome still remains the authority for discovering
-      deployment-only drift.
+      the subsequent Home speaker platform gap is separately recorded below.
+      Staging/Chrome still remains the authority for discovering deployment-only
+      drift.
 - [x] Notifications runtime parity gap is represented by the approved proposal
       section `1881:59087` on Desktop + Web, built from the
       approved notification instances and covering transaction/request times,
@@ -311,6 +325,27 @@ raw white dialogs or rely on inconsistent title defaults.
       requires `Loa đang bật/tắt` plus the existing toggle/provider/AppLogger
       behavior. Proposal metadata, screenshot and `get_design_context`
       readback pass; Home visual implementation is now unblocked.
+- [x] Home speaker platform expansion gap is isolated in Figma revision
+      `1928:59113` (`PROPOSAL — Home speaker Android/iOS coverage`). The exact
+      map covers Android `331:3160` + `1443:21701`, iOS `1274:4386`, iPadOS
+      `1274:87069`, and the existing Windows chain; Web is explicitly excluded
+      by product contract. The revision reuses the 152×40 ON/OFF pills and 16px
+      Volume Up/Off icons; metadata, screenshot and `get_design_context`
+      readback pass.
+- [x] Approval gate for revision `1928:59113` is satisfied: Đại Ca approved the
+      Android/iOS/iPadOS scope on 2026-08-04; Figma metadata, screenshot and
+      `get_design_context` were re-read after the note changed to approved
+      authority. Web remains list-only.
+- [x] Implement native speaker expansion from the approved map: support Android,
+      iOS and iPadOS in capability/bootstrap, use authenticated server audio on
+      mobile/tablet while retaining the Windows local-preset path, place the
+      approved 152×40 chip in the compact Home second control row beside the
+      approved 112×40 update chip, and update affected tests/product copy
+      without changing provider/API/realtime/ack behavior. Local proof passes
+      Android and iOS/iPadOS realtime server-audio provider cases, Home compact
+      geometry/state, capability/bootstrap/unsupported/speaker IO suites,
+      analyzer, full Flutter regression (`877` testDone events, exit `0`), web
+      release/Wasm build, and Android staging debug APK build.
 - [x] Support Chat runtime-state gap is isolated in approved Figma proposal
       `1898:107163` (`PROPOSAL — Support Chat runtime states`).
       The proposal covers inbox/thread loading, empty, retryable error,
@@ -354,26 +389,26 @@ visual element/state.
 | API Connections dynamic clients/keys | `1883:59093` | repository mutations, confirmation, secret/key handling, logger | Local implementation/proof passed; staging/Chrome/platform audit pending |
 | API Connections supported Web compact/medium | `1895:59111` | Web capability remains supported; Android unsupported guard unchanged | Local responsive implementation/proof passed; staging/Chrome/platform audit pending |
 | Settings speaker voice card | `1884:59093` | speaker preference provider, combobox selection, startup/theme behavior | Local Desktop/mobile/tablet implementation/proof passed; staging/Chrome/platform audit pending |
-| Home speaker ON/OFF status | `1888:59111` | existing toggle/provider/AppLogger contract; Windows-only visibility | Local icon/state implementation/proof passed; staging/Chrome/platform audit pending |
+| Home speaker ON/OFF status | `1888:59111` + `1928:59113` | existing toggle/provider/AppLogger contract; Windows local preset and Android/iOS/iPadOS authenticated server audio; Web remains list-only | Figma approval/readback passed; local Android/iOS provider, Home geometry, web build and Android staging debug proof passed; staging/Chrome and physical-platform audit pending |
 | Sales Reports managed filter | `1891:59111` | existing `Lọc` trigger, advanced sheet, provider scope/filter behavior | Local compact/medium implementation/proof passed; staging/Chrome/platform audit pending |
 | Support Chat inbox/thread states | `1898:107163` + `1923:59111` | auth/session, thread selection, retry/permission, composer/media/realtime behavior | Local responsive implementation/proof passed; staging/Chrome/platform audit pending |
 
-The destructive archive-page action is tracked separately: page `1174:4`
-(`ARCHIVE — Web Responsive (empty · pending deletion)`) can be deleted only
-after explicit unified-revision approval and a final seven-page inventory
-readback.
+- [x] Destructive archive-page action: page `1174:4`
+      (`ARCHIVE — Web Responsive (empty · pending deletion)`) was deleted after
+      explicit unified-revision approval. `get_metadata` now rejects `1174:4`,
+      and the live Figma root inventory contains seven pages.
 - [x] Home speaker-status implementation gate: approved proposal
       `1888:59111` was read back at exact ON/OFF nodes `1888:59118` and
       `1888:59120` (152×40, radius 20) with state-specific icons
       `1909:2` (Volume Up) and `1909:4` (Volume Off). `HomeSummaryHeader` now
-      places the Windows-only chip beside the desktop scope/date trigger,
+      places the approved chip beside the desktop scope/date trigger,
       preserves `home-speaker-status-toggle`, provider mutation and AppLogger
       behavior, and maps ON/OFF surfaces through light/dark semantic tokens.
-      Compact
-      mobile remains without this visual because the approved matrix starts at
-      medium `600–899`; Android/iOS/Web capability gates remain unchanged.
-      Focused Home speaker geometry/regression proof passes; broader
-      Home/AppShell proof remains the next gate.
+      Android/iOS/iPadOS placement is recorded in the approved revision
+      `1928:59113`; Web remains list-only by explicit product clarification.
+      Focused Home speaker geometry/regression proof passes for Windows and
+      compact Android; broader staging/Chrome and physical-platform proof
+      remains the next gate.
 - [x] Super Admin delivery-metrics consumer proof now sets the test viewport to
       the approved wide Desktop/Web contract (`1440×900`); the compact shell
       intentionally omits the metrics pill. Focused run confirms this test
@@ -632,8 +667,9 @@ readback.
 - [ ] After a phase is merged and its worktree is clean, run the guarded
       lifecycle cleanup; never delete the active dirty worktree or the unrelated
       OPS-27 branch.
-- [ ] Delete `ARCHIVE — Web Responsive (empty · pending deletion)` only after
-      explicit Figma revision approval; read back the final seven-page inventory.
+- [x] Delete `ARCHIVE — Web Responsive (empty · pending deletion)` after
+      explicit Figma revision approval; read back the final seven-page inventory
+      and confirm node `1174:4` no longer exists.
 
 #### Branch cleanup audit — 2026-08-04
 
@@ -705,7 +741,8 @@ readback.
 - [x] Figma Desktop + Web consolidation: moved all 68 Web top-level nodes from
       `1174:4` into `693:17492` in atomic batches; 14 Web-only authority nodes
       remain visible, 54 duplicate nodes are hidden rollback evidence, the
-      former Web page now has `childCount = 0`, and the consolidated page
+      former Web page was then deleted after its `childCount = 0` readback, and
+      the consolidated page
       readback is `childCount = 192` including the Dark coverage board, new
       FIFO state authorities and approved Notifications parity proposal
       `1881:59087`, API dynamic proposal `1883:59093`, Settings speaker
@@ -717,6 +754,11 @@ readback.
       theme suite `25/25`, Home bootstrap `1/1`, loaded Home KPI consumer `1/1`,
       `dart analyze`, format check, `git diff --check`, and
       `flutter build web --release --no-pub` (Wasm dry run) pass.
+- [x] Fresh local regression refresh on the current branch (2026-08-04):
+      `flutter test --no-pub --reporter json` completed with `875/875`
+      successful testDone events, `0` failures and `3` intentional skips. The
+      compact reporter pipe timeout was avoided by capturing JSON to a temp file;
+      the command itself exited `0`.
 - [x] Post-Dark/status regression checkpoint: `flutter analyze --no-pub`
       passes; affected FIFO/migration/theme/AppShell suite passes `58/58`;
       `flutter build web --release --no-pub`, format and diff checks pass.

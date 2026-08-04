@@ -294,32 +294,87 @@ void main() {
     },
   );
 
-  test('loads transactions on Android but does not enable speaker', () async {
-    debugDefaultTargetPlatformOverride = TargetPlatform.android;
-    final repository = _FakePaymentMonitorRepository(
-      notifications: [_readyNotification()],
-    );
-    final provider = PaymentMonitorProvider(
-      repository,
-      _FakePaymentSpeaker(),
-      null,
-      retryDelay,
-    );
+  test(
+    'plays realtime server audio on Android without local preset playback',
+    () async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.android;
+      final repository = _FakePaymentMonitorRepository(notifications: const []);
+      final speaker = _FakePaymentSpeaker();
+      final provider = PaymentMonitorProvider(
+        repository,
+        speaker,
+        null,
+        retryDelay,
+      );
 
-    await Future<void>.delayed(Duration.zero);
-    provider.syncAuth(_storeUser(), isInitialized: true);
-    await _waitUntil(
-      () => repository.transactionFetchCount > 0 && !provider.isLoading,
-    );
+      await Future<void>.delayed(Duration.zero);
+      provider.syncAuth(_storeUser(storeId: 'CP01'), isInitialized: true);
+      await _waitUntil(
+        () => repository.transactionFetchCount > 0 && !provider.isLoading,
+      );
 
-    expect(provider.canUsePaymentSpeaker, isFalse);
-    expect(provider.isActive, isTrue);
-    expect(repository.transactionFetchCount, greaterThan(0));
-    expect(repository.readyFetchCount, 0);
-    expect(repository.downloadCount, 0);
+      expect(provider.canUsePaymentSpeaker, isTrue);
+      expect(provider.isActive, isTrue);
+      expect(repository.transactionFetchCount, greaterThan(0));
 
-    provider.dispose();
-  });
+      await provider.handleRealtimeMessageForTesting(
+        _realtimeEnvelope(
+          kind: 'PAYMENT_SPEAKER_STREAM',
+          topic: 'payment.speaker',
+          data: _streamPayload('note-android'),
+        ),
+      );
+      await _waitUntil(() => repository.ackEvents.contains('PLAYED'));
+
+      expect(repository.streamDownloadCount, 1);
+      expect(repository.downloadCount, 0);
+      expect(repository.requestedIncludeCues, contains(true));
+      expect(speaker.playCount, 1);
+      expect(speaker.playLocalCueValues, [false]);
+      expect(speaker.playLocalCuePrefixValues, [false]);
+
+      provider.dispose();
+    },
+  );
+
+  test(
+    'plays realtime server audio on iOS/iPadOS without local preset playback',
+    () async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+      final repository = _FakePaymentMonitorRepository(notifications: const []);
+      final speaker = _FakePaymentSpeaker();
+      final provider = PaymentMonitorProvider(
+        repository,
+        speaker,
+        null,
+        retryDelay,
+      );
+      addTearDown(provider.dispose);
+
+      await Future<void>.delayed(Duration.zero);
+      provider.syncAuth(_storeUser(storeId: 'CP01'), isInitialized: true);
+      await _waitUntil(
+        () => repository.transactionFetchCount > 0 && !provider.isLoading,
+      );
+
+      expect(provider.canUsePaymentSpeaker, isTrue);
+      expect(provider.isActive, isTrue);
+      await provider.handleRealtimeMessageForTesting(
+        _realtimeEnvelope(
+          kind: 'PAYMENT_SPEAKER_STREAM',
+          topic: 'payment.speaker',
+          data: _streamPayload('note-ios'),
+        ),
+      );
+      await _waitUntil(() => repository.ackEvents.contains('PLAYED'));
+
+      expect(repository.streamDownloadCount, 1);
+      expect(repository.downloadCount, 0);
+      expect(speaker.playCount, 1);
+      expect(speaker.playLocalCueValues, [false]);
+      expect(speaker.playLocalCuePrefixValues, [false]);
+    },
+  );
 
   test(
     'lets SUPER_ADMIN enable a speaker scope after choosing a store',
