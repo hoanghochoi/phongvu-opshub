@@ -1,7 +1,7 @@
 # Execution Plan: OPS-44 Redesign Foundation Runtime And UI Retirement
 
 Date: 2026-08-03
-Last updated: 2026-08-04 (staging deploy and merged-phase cleanup audit)
+Last updated: 2026-08-04 (staging deploy 324 and final plan refresh)
 
 ## Status
 
@@ -17,10 +17,12 @@ proof; business, API, permission, platform và data behavior giữ nguyên.
 ## Context
 
 - Linear: OPS-44, related OPS-25 and OPS-34.
-- Git baseline: the native speaker phase was merged by PR #104 into
-      `staging` at exact SHA `3ee28f91e1ff6a46b61cda27693a0d230a63aab1`;
-      local `staging` and `origin/staging` are now equal at that SHA. The
-      follow-up proof branch is `codex/ops-44-release-proof-20260804`.
+- Git baseline: PR #104 merged the native speaker phase at
+      `3ee28f91e1ff6a46b61cda27693a0d230a63aab1`; docs/proof PR #105 then
+      merged into the current `staging` and `origin/staging` SHA
+      `38deb3f39e8d4fcf827099394209e3bba2a989b6`. All phase branches have
+      been cleaned; this plan refresh is on
+      `codex/ops-44-plan-refresh-20260804`.
 - Figma file:
   `mFzSmQzlapSe3RSmUhvzll`; target pages Cover `0:1`, Foundation `13:5`,
   Desktop + Web `693:17492`, Android mobile `693:17493`, Android tablet `698:2`,
@@ -660,8 +662,9 @@ visual element/state.
       Home `5/5`, capability/bootstrap/unsupported/speaker IO suites pass,
       full Flutter `877` testDone events with exit `0`, analyzer clean, web
       release build and `app-staging-debug.apk` pass.
-- [x] Deploy the exact merged SHA to staging; deploy workflow `30903488800`
-      and health checks pass.
+- [x] Deploy the current exact SHA to staging; deploy workflow `30912522423`
+      and health checks pass. Published version is `2026.08.04.324`, build
+      `200324`.
 - [ ] Run authenticated Chrome comparison at the complete exact viewport
       matrix against the approved Figma nodes, and capture Windows/Android
       primary-platform plus iOS/iPadOS regression evidence. Current wide
@@ -688,17 +691,19 @@ visual element/state.
   after the merge/SHA checks, and `git fetch origin --prune` confirms no
   `codex/ops-44-execution-plan-v2` ref remains.
 - Verified post-cleanup: `staging == origin/staging ==
-  3ee28f91e1ff6a46b61cda27693a0d230a63aab1`; only the unrelated OPS-27
+  38deb3f39e8d4fcf827099394209e3bba2a989b6`; only the unrelated OPS-27
   worktree/branch remains. A zero-file directory at
   `..\opshub-ops-44-phase0` is an OS cleanup residue and has no Git/worktree
   registration or branch association.
 
 #### Staging deployment and Chrome audit — 2026-08-04
 
-- Staging health and deploy workflow are green for the exact merged SHA:
-  workflow `30903488800`, published version `2026.08.04.323` / build
-  `200323`; Android and Windows artifact hashes remain recorded in the native
-  speaker proof above.
+- Staging health and deploy workflow are green for the current exact SHA:
+  workflow `30912522423`, published version `2026.08.04.324` / build
+  `200324`; Android SHA-256 is
+  `dd0c94746a87e4c228a566a2dce3ab6aa1bf6ed0acf2851dd9bc1c2af8c139af`, and
+  Windows installer SHA-256 is
+  `c04d11cdedfd905b9ca1269fb83a712a4ba9482d45abd192af9d713365f08ff1`.
 - Authenticated Chrome opened the staging Home route at
   `https://opshub-staging.hoanghochoi.com/#/home`. The wide runtime view
   loaded without console errors; the header/shell, Home cards, dark navigation
