@@ -15,14 +15,14 @@ class WarrantyMainScreen extends StatelessWidget {
         icon: Icons.add_photo_alternate_rounded,
         title: 'Lưu hình ảnh',
         description: 'Ghi nhận bảo hành/sửa chữa',
-        color: AppColors.success,
+        color: AppColors.successOf(context),
         onTap: () => context.push('/warranty'),
       ),
       AppFeatureAction(
         icon: Icons.search_rounded,
         title: 'Xem lại hình ảnh',
         description: 'Tìm theo biên nhận',
-        color: AppColors.secondary,
+        color: AppColors.secondaryOf(context),
         onTap: () => context.push('/check-warranty'),
       ),
     ];

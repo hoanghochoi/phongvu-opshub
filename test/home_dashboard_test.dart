@@ -635,7 +635,7 @@ void main() {
           .toList();
       expect(structuredChildren[0], isA<HomeSummaryHeader>());
       expect(find.text('Bán hàng'), findsOneWidget);
-      expect(find.text('Doanh số (đã bao gồm VAT)'), findsOneWidget);
+      expect(find.text('Doanh số'), findsOneWidget);
       expect(find.text('KPI chính'), findsOneWidget);
       expect(find.text('Hành vi then chốt'), findsOneWidget);
       expect(find.text('Tài chính'), findsOneWidget);
@@ -1658,7 +1658,7 @@ void main() {
     expect(conversionRate.dx, greaterThan(pendingRevenue.dx));
   });
 
-  testWidgets('Home main KPI grid uses six Figma desktop columns', (
+  testWidgets('Home main KPI grid uses five Figma desktop columns', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(1280, 800);
@@ -1741,7 +1741,7 @@ void main() {
             find.byKey(const Key('home-summary-card-businessCustomerRevenue')),
           )
           .width,
-      closeTo(190, 1),
+      closeTo(230.4, 1),
     );
     expect(insurance.dy, greaterThan(business.dy));
     expect(laptop.dy, insurance.dy);

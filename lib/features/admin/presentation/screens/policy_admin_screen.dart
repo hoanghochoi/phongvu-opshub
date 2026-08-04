@@ -275,11 +275,11 @@ class _PolicyAdminScreenState extends State<PolicyAdminScreen> {
               key: const Key('policy-admin-tabs'),
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               child: TabBar(
-                labelColor: AppColors.primary,
+                labelColor: AppColors.primaryOf(context),
                 unselectedLabelColor: Theme.of(
                   context,
                 ).colorScheme.onSurfaceVariant,
-                indicatorColor: AppColors.primary,
+                indicatorColor: AppColors.primaryOf(context),
                 dividerColor: AppColors.transparent,
                 tabs: const [
                   Tab(text: 'Chính sách'),
@@ -514,15 +514,15 @@ class _PolicyAdminHeader extends StatelessWidget {
                   label: loading
                       ? 'Đang tải chính sách'
                       : '$policyCount chính sách',
-                  color: AppColors.primary,
+                  color: AppColors.primaryOf(context),
                 ),
                 AppStatusChip(
                   label: '$ruleCount quy tắc',
-                  color: AppColors.info,
+                  color: AppColors.infoOf(context),
                 ),
                 AppStatusChip(
                   label: '$settingCount cấu hình',
-                  color: AppColors.neutral700,
+                  color: AppColors.neutral700Of(context),
                 ),
               ],
             ),
@@ -603,7 +603,9 @@ class _PolicyCard extends StatelessWidget {
             icon: policy.isActive
                 ? Icons.policy_outlined
                 : Icons.block_outlined,
-            color: policy.isActive ? AppColors.info : AppColors.error,
+            color: policy.isActive
+                ? AppColors.infoOf(context)
+                : AppColors.errorOf(context),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -638,24 +640,24 @@ class _PolicyCard extends StatelessWidget {
                     AppStatusChip(
                       label: policy.isActive ? 'Đang hoạt động' : 'Đã tắt',
                       color: policy.isActive
-                          ? AppColors.success
-                          : AppColors.error,
+                          ? AppColors.successOf(context)
+                          : AppColors.errorOf(context),
                     ),
                     AppStatusChip(
                       label: policy.defaultAllowed
                           ? 'Mặc định cho phép'
                           : 'Mặc định chặn',
                       color: policy.defaultAllowed
-                          ? AppColors.success
-                          : AppColors.neutral700,
+                          ? AppColors.successOf(context)
+                          : AppColors.neutral700Of(context),
                     ),
                     AppStatusChip(
                       label: '${policy.ruleCount} quy tắc',
-                      color: AppColors.info,
+                      color: AppColors.infoOf(context),
                     ),
                     AppStatusChip(
                       label: policy.isSystem ? 'Hệ thống' : 'Tùy chỉnh',
-                      color: AppColors.neutral700,
+                      color: AppColors.neutral700Of(context),
                     ),
                   ],
                 ),
@@ -702,7 +704,9 @@ class _PolicyRuleCard extends StatelessWidget {
             icon: rule.allowed
                 ? Icons.check_circle_outline
                 : Icons.block_outlined,
-            color: rule.allowed ? AppColors.success : AppColors.error,
+            color: rule.allowed
+                ? AppColors.successOf(context)
+                : AppColors.errorOf(context),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -736,17 +740,19 @@ class _PolicyRuleCard extends StatelessWidget {
                   children: [
                     AppStatusChip(
                       label: rule.allowed ? 'Cho phép' : 'Chặn',
-                      color: rule.allowed ? AppColors.success : AppColors.error,
+                      color: rule.allowed
+                          ? AppColors.successOf(context)
+                          : AppColors.errorOf(context),
                     ),
                     if (rule.organizationNodeId?.isNotEmpty == true)
-                      const AppStatusChip(
+                      AppStatusChip(
                         label: 'Có đơn vị tổ chức',
-                        color: AppColors.info,
+                        color: AppColors.infoOf(context),
                       ),
                     if (rule.note?.isNotEmpty == true)
-                      const AppStatusChip(
+                      AppStatusChip(
                         label: 'Có ghi chú',
-                        color: AppColors.neutral700,
+                        color: AppColors.neutral700Of(context),
                       ),
                   ],
                 ),
@@ -783,7 +789,10 @@ class _SettingCard extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const _PolicyIcon(icon: Icons.tune_outlined, color: AppColors.info),
+          _PolicyIcon(
+            icon: Icons.tune_outlined,
+            color: AppColors.infoOf(context),
+          ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -815,13 +824,13 @@ class _SettingCard extends StatelessWidget {
                   runSpacing: 8,
                   children: [
                     if (setting.isSensitive)
-                      const AppStatusChip(
+                      AppStatusChip(
                         label: 'Nhạy cảm',
-                        color: AppColors.error,
+                        color: AppColors.errorOf(context),
                       ),
                     AppStatusChip(
                       label: 'Giá trị: $valuePreview',
-                      color: AppColors.neutral700,
+                      color: AppColors.neutral700Of(context),
                       maxWidth: 260,
                     ),
                   ],

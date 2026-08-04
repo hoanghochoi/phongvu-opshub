@@ -175,26 +175,37 @@ class HomeSummaryPage extends StatelessWidget {
     }
 
     return [
+      const _SummarySectionHeader(
+        key: Key('home-overview-section-header'),
+        title: 'Tổng quan',
+        description: 'Tiến độ báo cáo, sao kê và mục tiêu theo kỳ.',
+      ),
+      const SizedBox(height: AppLayoutTokens.cardGap),
       ReportProgressPanel(summary: summary, provider: provider),
       const SizedBox(height: AppLayoutTokens.sectionGap),
       if (summary.salesAvailable) ...[
         const _SummarySectionHeader(
           key: Key('home-sales-section-header'),
           title: 'Bán hàng',
-          icon: Icons.storefront_outlined,
-          color: AppColors.primary,
+          description:
+              'Các chỉ số bán hàng hiển thị theo quyền và phạm vi được chọn.',
         ),
-        const SizedBox(height: 10),
-        const _SummarySubsectionHeader(title: 'Doanh số (đã bao gồm VAT)'),
-        const SizedBox(height: 8),
+        const SizedBox(height: AppLayoutTokens.cardGap),
+        const _SummarySubsectionHeader(
+          title: 'Doanh số',
+          description:
+              'Doanh thu, đơn hàng và hiệu quả chuyển đổi theo phạm vi đã chọn.',
+          large: true,
+        ),
+        const SizedBox(height: AppLayoutTokens.cardGap),
         SummaryCardGrid(summary: summary),
-        const SizedBox(height: 14),
+        const SizedBox(height: AppLayoutTokens.sectionGap),
         const _SummarySubsectionHeader(title: 'KPI chính'),
-        const SizedBox(height: 8),
+        const SizedBox(height: AppLayoutTokens.cardGap),
         MainKpiSummaryCardGrid(summary: summary, provider: provider),
-        const SizedBox(height: 14),
+        const SizedBox(height: AppLayoutTokens.sectionGap),
         const _SummarySubsectionHeader(title: 'Hành vi then chốt'),
-        const SizedBox(height: 8),
+        const SizedBox(height: AppLayoutTokens.cardGap),
         SalesBehaviorSummaryCardGrid(summary: summary, provider: provider),
       ],
       if (summary.financeAvailable) ...[
@@ -202,10 +213,10 @@ class HomeSummaryPage extends StatelessWidget {
         const _SummarySectionHeader(
           key: Key('home-finance-section-header'),
           title: 'Tài chính',
-          icon: Icons.account_balance_outlined,
-          color: AppColors.success,
+          description:
+              'Chỉ hiển thị khi tài khoản được phép xem tài chính; có thể mở Sao kê theo phạm vi.',
         ),
-        const SizedBox(height: 10),
+        const SizedBox(height: AppLayoutTokens.cardGap),
         FinanceSummaryCardGrid(summary: summary, provider: provider),
       ],
     ];
@@ -220,38 +231,87 @@ class _SummarySectionHeader extends StatelessWidget {
   const _SummarySectionHeader({
     super.key,
     required this.title,
-    required this.icon,
-    required this.color,
+    required this.description,
   });
 
   final String title;
-  final IconData icon;
-  final Color color;
+  final String description;
 
   @override
   Widget build(BuildContext context) {
-    return Text(
-      title,
-      style: AppTextStyles.headingS.copyWith(
-        color: AppColors.textPrimaryOf(context),
-        fontWeight: FontWeight.w600,
+    return SizedBox(
+      key: Key('home-section-header-$title'),
+      height: 47,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: AppTextStyles.pageTitle.copyWith(
+              color: AppColors.textPrimaryOf(context),
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            description,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: AppTextStyles.bodyS.copyWith(
+              color: AppColors.textSecondaryOf(context),
+              height: 15 / 13,
+            ),
+          ),
+        ],
       ),
     );
   }
 }
 
 class _SummarySubsectionHeader extends StatelessWidget {
-  const _SummarySubsectionHeader({required this.title});
+  const _SummarySubsectionHeader({
+    required this.title,
+    this.description,
+    this.large = false,
+  });
 
   final String title;
+  final String? description;
+  final bool large;
 
   @override
   Widget build(BuildContext context) {
-    return Text(
-      title,
-      style: AppTextStyles.labelM.copyWith(
-        color: AppColors.textSecondaryOf(context),
-        fontWeight: FontWeight.w600,
+    if (!large) {
+      return Text(
+        title,
+        style: AppTextStyles.labelM.copyWith(
+          color: AppColors.textPrimaryOf(context),
+        ),
+      );
+    }
+    return SizedBox(
+      height: 47,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: AppTextStyles.pageTitle.copyWith(
+              color: AppColors.textPrimaryOf(context),
+            ),
+          ),
+          if (description != null) ...[
+            const SizedBox(height: 6),
+            Text(
+              description!,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: AppTextStyles.bodyS.copyWith(
+                color: AppColors.textSecondaryOf(context),
+                height: 15 / 13,
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }
@@ -328,6 +388,9 @@ class HomeSummaryHeader extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final mobile = constraints.maxWidth < AppLayoutTokens.compactBreakpoint;
+        final wide =
+            MediaQuery.sizeOf(context).width >=
+            AppLayoutTokens.desktopBreakpoint;
         final controls = _HomeScopeDateControl(
           selectedScope: selectedScope,
           selectedScopeLabel: selectedScopeLabel.isEmpty
@@ -486,6 +549,83 @@ class HomeSummaryHeader extends StatelessWidget {
                     ),
                     const SizedBox(height: 14),
                     SizedBox(width: double.infinity, child: controls),
+                  ],
+                ),
+              )
+            : wide
+            ? Container(
+                key: const Key('home-summary-header'),
+                height: 166,
+                padding: const EdgeInsets.all(18),
+                decoration: BoxDecoration(
+                  color: AppColors.raisedOf(context),
+                  border: Border.all(color: AppColors.borderOf(context)),
+                  borderRadius: AppRadius.allLg,
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppColors.shadow.withValues(alpha: 0.08),
+                      offset: const Offset(0, 1),
+                      blurRadius: 2,
+                    ),
+                  ],
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SizedBox(
+                      height: 48,
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          _HomeSummaryAvatar(name: greetingName),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  greetingLabel,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: AppTextStyles.headingS.copyWith(
+                                    color: AppColors.textPrimaryOf(context),
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  greetingSubtitle ?? scopeLabel,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: AppTextStyles.bodyM.copyWith(
+                                    color: AppColors.textSecondaryOf(context),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      height: 40,
+                      child: Wrap(
+                        spacing: 8,
+                        runSpacing: 0,
+                        children: [
+                          _HomeHeaderChip(
+                            label: 'Phạm vi: ${_shortScopeLabel(scopeLabel)}',
+                          ),
+                          _HomeHeaderChip(
+                            label:
+                                'Ngày: ${_homeRangeShortLabel(selectedStartDate, selectedEndDate)}',
+                          ),
+                          _HomeHeaderChip(label: updatedLabel),
+                          if (action != null) action!,
+                        ],
+                      ),
+                    ),
                   ],
                 ),
               )
@@ -756,7 +896,7 @@ class _HomeHeaderChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: AppColors.raisedOf(context),
+      color: AppColors.chipBackgroundOf(context),
       borderRadius: AppRadius.allSm,
       child: InkWell(
         onTap: busy ? null : onTap,
@@ -912,6 +1052,7 @@ class SummaryCardGrid extends StatelessWidget {
         title: 'Giá trị bán (đã bao gồm VAT)',
         value: formatCompactVndAmount(summary.totalRevenue),
         trend: const SummaryTrend.neutral('Theo đơn hàng ERP'),
+        helperText: 'Theo đơn cache',
         color: AppColors.successOf(context),
       ),
       SummaryCard(
@@ -920,6 +1061,7 @@ class SummaryCardGrid extends StatelessWidget {
         title: 'Đơn bán',
         value: _integerLabel(summary.totalOrders),
         trend: const SummaryTrend.neutral('Theo phạm vi'),
+        helperText: 'Tổng đơn trong ngày',
         color: AppColors.primaryOf(context),
       ),
       SummaryCard(
@@ -928,6 +1070,7 @@ class SummaryCardGrid extends StatelessWidget {
         title: 'Trung bình đơn hàng (đã bao gồm VAT)',
         value: formatCompactVndAmount(summary.averageOrderValue),
         trend: const SummaryTrend.neutral('Giá trị/đơn'),
+        helperText: 'Giá trị trung bình/đơn',
         color: AppColors.infoOf(context),
       ),
       SummaryCard(
@@ -936,6 +1079,7 @@ class SummaryCardGrid extends StatelessWidget {
         title: 'Hoàn thành (đã bao gồm VAT)',
         value: formatCompactVndAmount(summary.completedRevenue),
         trend: const SummaryTrend.success('Đã hoàn tất'),
+        helperText: 'Doanh thu đã hoàn thành',
         color: AppColors.secondaryOf(context),
       ),
       SummaryCard(
@@ -946,6 +1090,7 @@ class SummaryCardGrid extends StatelessWidget {
         trend: summary.pendingRevenue > 0
             ? const SummaryTrend.warning('chưa hoàn thành')
             : const SummaryTrend.success('đã đủ'),
+        helperText: 'Doanh thu cần xử lý',
         color: AppColors.warningOf(context),
       ),
       SummaryCard(
@@ -954,6 +1099,7 @@ class SummaryCardGrid extends StatelessWidget {
         title: 'Tỉ lệ chuyển đổi',
         value: _percentLabel(summary.conversionRate),
         trend: SummaryTrend.conversion(summary.conversionRate),
+        helperText: 'Từ nhu cầu sang đơn',
         color: AppColors.secondaryOf(context),
       ),
     ];
@@ -961,6 +1107,8 @@ class SummaryCardGrid extends StatelessWidget {
     return _SummaryMetricGrid(
       gridKey: const Key('home-summary-grid'),
       cards: cards,
+      wideColumns: 6,
+      rowHeights: const [182],
     );
   }
 }
@@ -1099,6 +1247,8 @@ class MainKpiSummaryCardGrid extends StatelessWidget {
     return _SummaryMetricGrid(
       gridKey: const Key('home-main-kpi-summary-grid'),
       cards: [...firstRow, ...secondRow],
+      wideColumns: 5,
+      rowHeights: const [164, 136, 136],
     );
   }
 }
@@ -1205,6 +1355,8 @@ class SalesBehaviorSummaryCardGrid extends StatelessWidget {
     return _SummaryMetricGrid(
       gridKey: const Key('home-sales-behavior-summary-grid'),
       cards: cards,
+      wideColumns: 4,
+      rowHeights: const [136, 136],
     );
   }
 }
@@ -1291,15 +1443,24 @@ class FinanceSummaryCardGrid extends StatelessWidget {
     return _SummaryMetricGrid(
       gridKey: const Key('home-finance-summary-grid'),
       cards: cards,
+      wideColumns: 5,
+      rowHeights: const [164],
     );
   }
 }
 
 class _SummaryMetricGrid extends StatelessWidget {
-  const _SummaryMetricGrid({required this.gridKey, required this.cards});
+  const _SummaryMetricGrid({
+    required this.gridKey,
+    required this.cards,
+    this.wideColumns = 6,
+    this.rowHeights,
+  });
 
   final Key gridKey;
   final List<SummaryCard> cards;
+  final int wideColumns;
+  final List<double>? rowHeights;
 
   @override
   Widget build(BuildContext context) {
@@ -1307,13 +1468,14 @@ class _SummaryMetricGrid extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final width = constraints.maxWidth;
-        final maxColumns = width >= 960
-            ? math.min(6, cards.length)
+        final maxColumns = width >= 1100
+            ? math.min(wideColumns, cards.length)
             : width >= 760
             ? math.min(3, cards.length)
             : math.min(2, cards.length);
         final rows = _balancedRows(cards, maxColumns);
         final gap = AppLayoutTokens.cardGap;
+        final wide = width >= 1100;
 
         return Column(
           key: gridKey,
@@ -1330,7 +1492,22 @@ class _SummaryMetricGrid extends StatelessWidget {
                     if (columnIndex > 0) SizedBox(width: gap),
                     Expanded(
                       child: SizedBox(
-                        height: width >= 600 ? 104 : 120,
+                        height: rowHeights == null
+                            ? width >= 600
+                                  ? 182
+                                  : 120
+                            : wide
+                            ? rowHeights![math.min(
+                                rowIndex,
+                                rowHeights!.length - 1,
+                              )]
+                            : math.max(
+                                rowHeights![math.min(
+                                  rowIndex,
+                                  rowHeights!.length - 1,
+                                )],
+                                182,
+                              ),
                         child: rows[rowIndex][columnIndex],
                       ),
                     ),
@@ -1368,6 +1545,7 @@ class SummaryCard extends StatelessWidget {
     required this.value,
     required this.trend,
     required this.color,
+    this.helperText,
     this.onTextTap,
     this.textTapTooltip,
   });
@@ -1378,66 +1556,151 @@ class SummaryCard extends StatelessWidget {
   final String value;
   final SummaryTrend trend;
   final Color color;
+  final String? helperText;
   final VoidCallback? onTextTap;
   final String? textTapTooltip;
 
   @override
   Widget build(BuildContext context) {
-    final lowerText = Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          value,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: AppTextStyles.headingM.copyWith(
-            color: color,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          trend.label,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: AppTextStyles.labelS.copyWith(
-            color: AppColors.textMutedOf(context),
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-      ],
-    );
-    return AppSurfaceCard(
-      key: Key('home-summary-card-$metricKey'),
-      borderColor: AppColors.borderOf(context),
-      backgroundColor: AppColors.raisedOf(context),
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _SummaryCardTextAction(
-            key: Key('home-summary-card-$metricKey-title-action'),
-            onTap: onTextTap,
-            tooltip: textTapTooltip,
-            child: Text(
-              title,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: AppTextStyles.bodyS.copyWith(
-                color: AppColors.textSecondaryOf(context),
-                fontWeight: FontWeight.w600,
-                height: 16 / 13,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact =
+            constraints.hasBoundedHeight && constraints.maxHeight < 120;
+        final dense =
+            constraints.hasBoundedHeight && constraints.maxHeight < 160;
+        final iconDimension = compact
+            ? 28.0
+            : dense
+            ? 32.0
+            : 36.0;
+        final iconSize = compact ? 18.0 : 22.0;
+        return AppSurfaceCard(
+          key: Key('home-summary-card-$metricKey'),
+          borderColor: AppColors.borderOf(context),
+          backgroundColor: AppColors.raisedOf(context),
+          padding: const EdgeInsets.all(16),
+          radius: AppRadius.lg,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Container(
+                    width: iconDimension,
+                    height: iconDimension,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: AppColors.infoSurfaceOf(context),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Icon(
+                      icon,
+                      key: Key('home-summary-card-$metricKey-icon'),
+                      color: AppColors.primaryOf(context),
+                      size: iconSize,
+                    ),
+                  ),
+                  SizedBox(width: compact ? 8 : 12),
+                  Expanded(
+                    child: _SummaryCardTextAction(
+                      key: Key('home-summary-card-$metricKey-title-action'),
+                      onTap: onTextTap,
+                      tooltip: textTapTooltip,
+                      child: Text(
+                        title,
+                        maxLines: compact ? 1 : 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTextStyles.labelM.copyWith(
+                          color: AppColors.textPrimaryOf(context),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            ),
+              SizedBox(
+                height: compact
+                    ? 6
+                    : dense
+                    ? 8
+                    : 12,
+              ),
+              _SummaryCardTextAction(
+                key: Key('home-summary-card-$metricKey-value-action'),
+                onTap: onTextTap,
+                tooltip: textTapTooltip,
+                child: Wrap(
+                  spacing: 8,
+                  runSpacing: 4,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    Text(
+                      value,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTextStyles.headingS.copyWith(
+                        color: AppColors.textPrimaryOf(context),
+                      ),
+                    ),
+                    _SummaryTrendPill(trend: trend),
+                  ],
+                ),
+              ),
+              if (!compact && !dense) ...[
+                const Spacer(),
+                Text(
+                  helperText ?? _summaryCardHelperText(trend),
+                  maxLines: dense ? 1 : 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTextStyles.bodyS.copyWith(
+                    color: AppColors.textSecondaryOf(context),
+                    height: 18 / 13,
+                  ),
+                ),
+              ],
+            ],
           ),
-          const Spacer(),
-          _SummaryCardTextAction(
-            key: Key('home-summary-card-$metricKey-value-action'),
-            onTap: onTextTap,
-            tooltip: textTapTooltip,
-            child: lowerText,
-          ),
-        ],
+        );
+      },
+    );
+  }
+}
+
+String _summaryCardHelperText(SummaryTrend trend) {
+  return switch (trend.tone) {
+    SummaryTrendTone.success => 'Theo báo cáo',
+    SummaryTrendTone.warning => 'Cần theo dõi',
+    SummaryTrendTone.neutral => trend.label,
+  };
+}
+
+class _SummaryTrendPill extends StatelessWidget {
+  const _SummaryTrendPill({required this.trend});
+
+  final SummaryTrend trend;
+
+  @override
+  Widget build(BuildContext context) {
+    final isWarning = trend.tone == SummaryTrendTone.warning;
+    final background = isWarning
+        ? AppColors.warningSurfaceOf(context)
+        : AppColors.successSurfaceOf(context);
+    final foreground = isWarning
+        ? AppColors.warningOf(context)
+        : AppColors.secondaryOf(context);
+    return Container(
+      constraints: const BoxConstraints(maxWidth: 150),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: AppRadius.allPill,
+      ),
+      child: Text(
+        trend.label,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: AppTextStyles.labelSmallSubtle.copyWith(color: foreground),
       ),
     );
   }
@@ -2317,14 +2580,6 @@ class SummaryTrend {
   final String label;
   final IconData icon;
   final SummaryTrendTone tone;
-
-  Color get color {
-    return switch (tone) {
-      SummaryTrendTone.success => AppColors.success,
-      SummaryTrendTone.warning => AppColors.error,
-      SummaryTrendTone.neutral => AppColors.neutral600,
-    };
-  }
 }
 
 enum SummaryTrendTone { success, warning, neutral }

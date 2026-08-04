@@ -82,12 +82,11 @@ class _PaymentTransactionTileState extends State<PaymentTransactionTile> {
     final displayTime = _toVietnamTime(
       transaction.paidAt ?? transaction.firstSeenAt,
     );
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final borderColor = transaction.hasPendingOrderTransferRequest
-        ? AppColors.warning
+        ? AppColors.warningOf(context)
         : transaction.hasOrders
-        ? AppColors.success
-        : AppColors.error;
+        ? AppColors.successOf(context)
+        : AppColors.errorOf(context);
 
     Widget buildDetails() {
       return InkWell(
@@ -103,12 +102,12 @@ class _PaymentTransactionTileState extends State<PaymentTransactionTile> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             CircleAvatar(
-              backgroundColor: isDark
-                  ? AppColors.success.withValues(alpha: 0.15)
-                  : AppColors.success.withValues(alpha: 0.08),
-              child: const Icon(
+              backgroundColor: AppColors.successOf(
+                context,
+              ).withValues(alpha: 0.12),
+              child: Icon(
                 Icons.payments_rounded,
-                color: AppColors.success,
+                color: AppColors.successOf(context),
               ),
             ),
             const SizedBox(width: 12),
@@ -126,7 +125,7 @@ class _PaymentTransactionTileState extends State<PaymentTransactionTile> {
                     const SizedBox(height: 4),
                     AppStatusChip(
                       label: 'Showroom ${transaction.storeId}',
-                      color: AppColors.info,
+                      color: AppColors.infoOf(context),
                       maxWidth: 180,
                     ),
                   ],
@@ -187,8 +186,8 @@ class _PaymentTransactionTileState extends State<PaymentTransactionTile> {
                   widget.rowMessage!.text,
                   style: AppTextStyles.captionBold.copyWith(
                     color: widget.rowMessage!.success
-                        ? AppColors.success
-                        : AppColors.error,
+                        ? AppColors.successOf(context)
+                        : AppColors.errorOf(context),
                   ),
                 ),
               ),
@@ -456,9 +455,9 @@ class _PaymentOrderEditor extends StatelessWidget {
                     children: [
                       const Text('Đơn hàng', style: AppTextStyles.labelM),
                       if (transaction.isOrderOffsetConfirmed)
-                        const AppStatusChip(
+                        AppStatusChip(
                           label: 'Đã cấn trừ',
-                          color: AppColors.warning,
+                          color: AppColors.warningOf(context),
                         ),
                     ],
                   ),
@@ -533,8 +532,8 @@ class _PaymentOrderEditor extends StatelessWidget {
                     ? 'Đang theo dõi'
                     : 'Đã bỏ theo dõi',
                 color: transaction.isFollowing
-                    ? AppColors.info
-                    : AppColors.neutral500,
+                    ? AppColors.infoOf(context)
+                    : AppColors.neutral500Of(context),
               ),
             ),
             if (editing)
@@ -552,7 +551,9 @@ class _PaymentOrderEditor extends StatelessWidget {
             else if (transaction.orders.isEmpty)
               Text(
                 bankStatementMissingOrderText,
-                style: AppTextStyles.labelM.copyWith(color: AppColors.error),
+                style: AppTextStyles.labelM.copyWith(
+                  color: AppColors.errorOf(context),
+                ),
               )
             else
               Wrap(
@@ -560,8 +561,10 @@ class _PaymentOrderEditor extends StatelessWidget {
                 runSpacing: 6,
                 children: transaction.orders
                     .map(
-                      (order) =>
-                          AppStatusChip(label: order, color: AppColors.success),
+                      (order) => AppStatusChip(
+                        label: order,
+                        color: AppColors.successOf(context),
+                      ),
                     )
                     .toList(),
               ),
@@ -573,13 +576,15 @@ class _PaymentOrderEditor extends StatelessWidget {
                 spacing: 6,
                 runSpacing: 6,
                 children: [
-                  const AppStatusChip(
+                  AppStatusChip(
                     label: 'Chờ Kế toán xác nhận',
-                    color: AppColors.warning,
+                    color: AppColors.warningOf(context),
                   ),
                   ...transaction.orderTransferRequestedOrders.map(
-                    (order) =>
-                        AppStatusChip(label: order, color: AppColors.warning),
+                    (order) => AppStatusChip(
+                      label: order,
+                      color: AppColors.warningOf(context),
+                    ),
                   ),
                 ],
               ),
@@ -589,7 +594,7 @@ class _PaymentOrderEditor extends StatelessWidget {
               Text(
                 blockedReason!,
                 style: AppTextStyles.captionBold.copyWith(
-                  color: AppColors.warning,
+                  color: AppColors.warningOf(context),
                 ),
               ),
             ],

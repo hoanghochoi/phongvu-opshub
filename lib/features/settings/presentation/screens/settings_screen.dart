@@ -431,9 +431,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
             height: 64,
             padding: const EdgeInsets.all(4),
             decoration: BoxDecoration(
-              color: Theme.of(context).brightness == Brightness.dark
+              color: AppColors.isDark(context)
                   ? AppColors.darkInput
-                  : AppColors.neutral50,
+                  : AppColors.neutral50Of(context),
               border: Border.all(color: AppColors.subtleBorderOf(context)),
               borderRadius: BorderRadius.circular(10),
             ),
@@ -494,7 +494,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
           padding: const EdgeInsets.symmetric(horizontal: 10),
           alignment: Alignment.center,
           decoration: BoxDecoration(
-            color: isActive ? AppColors.infoSurface : AppColors.transparent,
+            color: isActive
+                ? AppColors.infoSurfaceOf(context)
+                : AppColors.transparent,
             borderRadius: BorderRadius.circular(8),
           ),
           child: Row(
@@ -502,7 +504,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             children: [
               Icon(
                 isActive ? activeIcon : icon,
-                color: isActive ? AppColors.info : inactiveColor,
+                color: isActive ? AppColors.infoOf(context) : inactiveColor,
                 size: 18,
               ),
               const SizedBox(width: 8),
@@ -513,7 +515,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   overflow: TextOverflow.ellipsis,
                   style: AppTextStyles.bodyS.copyWith(
                     fontWeight: isActive ? FontWeight.w600 : FontWeight.w400,
-                    color: isActive ? AppColors.info : inactiveColor,
+                    color: isActive ? AppColors.infoOf(context) : inactiveColor,
                   ),
                 ),
               ),
@@ -734,7 +736,7 @@ class _SettingsStartupSwitch extends StatelessWidget {
   Widget build(BuildContext context) {
     final trackColor = value
         ? AppColors.primaryOf(context)
-        : AppColors.neutral300;
+        : AppColors.borderOf(context);
     return Semantics(
       button: true,
       toggled: value,
@@ -753,7 +755,7 @@ class _SettingsStartupSwitch extends StatelessWidget {
               height: 24,
               padding: const EdgeInsets.all(4),
               decoration: BoxDecoration(
-                color: enabled ? trackColor : AppColors.neutral200,
+                color: enabled ? trackColor : AppColors.subtleBorderOf(context),
                 borderRadius: BorderRadius.circular(AppRadius.pill),
               ),
               child: Align(
@@ -763,7 +765,7 @@ class _SettingsStartupSwitch extends StatelessWidget {
                   height: 16,
                   child: DecoratedBox(
                     decoration: BoxDecoration(
-                      color: AppColors.surface,
+                      color: AppColors.cardOf(context),
                       shape: BoxShape.circle,
                     ),
                   ),

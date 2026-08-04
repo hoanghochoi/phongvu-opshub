@@ -43,7 +43,6 @@ class _FifoSkuItemCardState extends State<FifoSkuItemCard> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final onSurface = Theme.of(context).colorScheme.onSurface;
     final onSurfaceVariant = Theme.of(context).colorScheme.onSurfaceVariant;
     final primary = Theme.of(context).colorScheme.primary;
@@ -53,15 +52,13 @@ class _FifoSkuItemCardState extends State<FifoSkuItemCard> {
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: widget.skuItem.isChecked
-            ? (isDark
-                  ? AppColors.success.withValues(alpha: 0.15)
-                  : AppColors.success.withValues(alpha: 0.08))
-            : (isDark ? AppColors.darkCard : AppColors.neutral50),
+            ? AppColors.successSurfaceOf(context)
+            : AppColors.neutral50Of(context),
         borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
         border: Border.all(
           color: widget.skuItem.isChecked
-              ? AppColors.success
-              : (isDark ? AppColors.neutral700 : AppColors.neutral300),
+              ? AppColors.successOf(context)
+              : AppColors.neutral300Of(context),
           width: widget.skuItem.isChecked ? 2 : 1,
         ),
       ),
@@ -100,7 +97,7 @@ class _FifoSkuItemCardState extends State<FifoSkuItemCard> {
                         ? Icons.check_circle
                         : Icons.check_circle_outline,
                     color: widget.skuItem.isChecked
-                        ? AppColors.success
+                        ? AppColors.successOf(context)
                         : onSurfaceVariant,
                     size: 28,
                   ),

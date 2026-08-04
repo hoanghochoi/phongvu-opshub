@@ -44,14 +44,14 @@ class SalesReportWorkspaceHeader extends StatelessWidget {
               ],
               DecoratedBox(
                 decoration: BoxDecoration(
-                  color: AppColors.primary.withValues(alpha: 0.10),
+                  color: AppColors.primaryOf(context).withValues(alpha: 0.10),
                   borderRadius: BorderRadius.circular(
                     AppLayoutTokens.cardRadius,
                   ),
                 ),
                 child: Padding(
                   padding: const EdgeInsets.all(10),
-                  child: Icon(icon, color: AppColors.primary),
+                  child: Icon(icon, color: AppColors.primaryOf(context)),
                 ),
               ),
             ],
@@ -65,7 +65,7 @@ class SalesReportWorkspaceHeader extends StatelessWidget {
                 Text(
                   subtitle,
                   style: AppTextStyles.bodyS.copyWith(
-                    color: AppColors.neutral600,
+                    color: AppColors.neutral600Of(context),
                   ),
                 ),
               ],

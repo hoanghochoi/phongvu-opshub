@@ -214,19 +214,19 @@ class _FeedbackAdminHeader extends StatelessWidget {
           children: [
             AppStatusChip(
               label: loading ? 'Đang tải góp ý' : '$feedbackCount góp ý',
-              color: AppColors.primary,
+              color: AppColors.primaryOf(context),
             ),
             AppStatusChip(
               label: '$feedbackWithImagesCount có ảnh',
-              color: AppColors.info,
+              color: AppColors.infoOf(context),
             ),
             AppStatusChip(
               label: '$imageUrlCount ảnh',
-              color: AppColors.neutral700,
+              color: AppColors.textMutedOf(context),
             ),
-            const AppStatusChip(
+            AppStatusChip(
               label: 'Chỉ Super Admin',
-              color: AppColors.neutral700,
+              color: AppColors.textMutedOf(context),
             ),
           ],
         ),
@@ -310,20 +310,23 @@ class _FeedbackCard extends StatelessWidget {
               if (module != null)
                 AppStatusChip(
                   label: module,
-                  color: AppColors.warning,
+                  color: AppColors.warningOf(context),
                   maxWidth: 180,
                 ),
               if (rating != null)
-                AppStatusChip(label: rating, color: AppColors.warning),
+                AppStatusChip(
+                  label: rating,
+                  color: AppColors.warningOf(context),
+                ),
               if (displayContent.imageUrls.isNotEmpty)
                 AppStatusChip(
                   label: '${displayContent.imageUrls.length} ảnh',
-                  color: AppColors.info,
+                  color: AppColors.infoOf(context),
                 ),
               if (email?.isNotEmpty == true)
                 AppStatusChip(
                   label: email!,
-                  color: AppColors.neutral700,
+                  color: AppColors.textMutedOf(context),
                   maxWidth: 220,
                 ),
             ],

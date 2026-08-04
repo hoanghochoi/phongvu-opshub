@@ -63,8 +63,8 @@ class _SortGroupHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final progressColor = group.isFullyChecked
-        ? AppColors.success
-        : AppColors.info;
+        ? AppColors.successOf(context)
+        : AppColors.infoOf(context);
     final toggleLabel = group.isFullyChecked
         ? 'Bỏ đánh dấu cả nhóm'
         : 'Đánh dấu cả nhóm';
@@ -93,7 +93,7 @@ class _SortGroupHeader extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
                 softWrap: false,
                 style: AppTextStyles.bodyS.copyWith(
-                  color: AppColors.textSecondary,
+                  color: AppColors.textSecondaryOf(context),
                 ),
               ),
             ],
@@ -125,7 +125,7 @@ class _SortGroupHeader extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     softWrap: false,
                     style: AppTextStyles.labelS.copyWith(
-                      color: AppColors.neutral700,
+                      color: AppColors.textMutedOf(context),
                     ),
                   ),
                 ],
@@ -237,7 +237,9 @@ class _SortItemCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = item.isChecked ? AppColors.success : _fifoColor(rank, total);
+    final color = item.isChecked
+        ? AppColors.successOf(context)
+        : _fifoColor(context, rank, total);
     final title = item.name.isNotEmpty ? item.name : item.sku;
     final ageLabel = DateFormatter.inventoryAgeLabel(item.date);
 
@@ -277,10 +279,12 @@ class _SortItemCard extends StatelessWidget {
                           ),
                         ),
                         if (item.isChecked)
-                          const AppStatusChip(
+                          AppStatusChip(
                             label: 'Đã xếp',
-                            color: AppColors.success,
-                            backgroundColor: AppColors.successSurface,
+                            color: AppColors.successOf(context),
+                            backgroundColor: AppColors.successSurfaceOf(
+                              context,
+                            ),
                           )
                         else
                           const AppStatusChip(label: 'FIFO'),
@@ -361,9 +365,14 @@ class _SortItemCard extends StatelessWidget {
     );
   }
 
-  Color _fifoColor(int rank, int total) {
-    if (total <= 1) return AppColors.success;
+  Color _fifoColor(BuildContext context, int rank, int total) {
+    if (total <= 1) return AppColors.successOf(context);
     final t = rank / (total - 1);
-    return Color.lerp(AppColors.success, AppColors.error, t) ?? AppColors.error;
+    return Color.lerp(
+          AppColors.successOf(context),
+          AppColors.errorOf(context),
+          t,
+        ) ??
+        AppColors.errorOf(context);
   }
 }

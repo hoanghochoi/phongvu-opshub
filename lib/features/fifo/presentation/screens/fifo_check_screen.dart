@@ -170,7 +170,10 @@ class _FifoCheckScreenState extends State<FifoCheckScreen> {
     if (error == null || !mounted) return;
     AppToast.show(
       context,
-      SnackBar(content: Text(error), backgroundColor: AppColors.error),
+      SnackBar(
+        content: Text(error),
+        backgroundColor: AppColors.errorOf(context),
+      ),
     );
     provider.clearError();
   }
@@ -279,13 +282,15 @@ class _FifoIconAction extends StatelessWidget {
         onPressed: onPressed,
         icon: Icon(icon, size: filled ? 20 : 24),
         tooltip: tooltip,
-        color: filled ? AppColors.surface : AppColors.secondary,
+        color: filled
+            ? AppColors.primaryForegroundOf(context)
+            : AppColors.secondaryOf(context),
         style: IconButton.styleFrom(
           backgroundColor: filled
-              ? AppColors.primary500
-              : AppColors.secondary.withValues(alpha: 0.06),
-          disabledBackgroundColor: AppColors.neutral200,
-          disabledForegroundColor: AppColors.neutral500,
+              ? AppColors.primaryOf(context)
+              : AppColors.secondaryOf(context).withValues(alpha: 0.10),
+          disabledBackgroundColor: AppColors.borderOf(context),
+          disabledForegroundColor: AppColors.textMutedOf(context),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
@@ -518,7 +523,7 @@ class _RecentSearchChips extends StatelessWidget {
           height: 24,
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
           decoration: BoxDecoration(
-            color: AppColors.infoSurface,
+            color: AppColors.infoSurfaceOf(context),
             borderRadius: BorderRadius.circular(AppRadius.sm),
           ),
           child: Row(
@@ -526,7 +531,9 @@ class _RecentSearchChips extends StatelessWidget {
             children: [
               Text(
                 'Tra cứu gần đây: ',
-                style: AppTextStyles.labelS.copyWith(color: AppColors.info),
+                style: AppTextStyles.labelS.copyWith(
+                  color: AppColors.infoOf(context),
+                ),
               ),
               for (var index = 0; index < searches.length; index++) ...[
                 InkWell(
@@ -534,13 +541,17 @@ class _RecentSearchChips extends StatelessWidget {
                   onTap: enabled ? () => onSelected(searches[index]) : null,
                   child: Text(
                     searches[index],
-                    style: AppTextStyles.labelS.copyWith(color: AppColors.info),
+                    style: AppTextStyles.labelS.copyWith(
+                      color: AppColors.infoOf(context),
+                    ),
                   ),
                 ),
                 if (index < searches.length - 1)
                   Text(
                     ' • ',
-                    style: AppTextStyles.labelS.copyWith(color: AppColors.info),
+                    style: AppTextStyles.labelS.copyWith(
+                      color: AppColors.infoOf(context),
+                    ),
                   ),
               ],
             ],
@@ -1123,7 +1134,7 @@ class _FifoCopyButton extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
                 softWrap: false,
                 style: AppTextStyles.labelM.copyWith(
-                  color: AppColors.primary500,
+                  color: AppColors.primaryOf(context),
                 ),
               ),
             ),
@@ -1162,7 +1173,7 @@ class _FifoExportControl extends StatelessWidget {
             onChanged: enabled ? (next) => onChanged(next ?? false) : null,
             materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
             visualDensity: VisualDensity.compact,
-            side: BorderSide(color: AppColors.neutral500),
+            side: BorderSide(color: AppColors.neutral500Of(context)),
           ),
         ),
       ),
@@ -1229,11 +1240,11 @@ class _SerialResult extends StatelessWidget {
     }
 
     final statusColor = switch (result.status) {
-      'correct' => AppColors.success,
-      'wrong' => AppColors.error,
-      'exported' => AppColors.neutral500,
-      'display_reserved' => AppColors.warning,
-      _ => AppColors.warning,
+      'correct' => AppColors.successOf(context),
+      'wrong' => AppColors.errorOf(context),
+      'exported' => AppColors.neutral500Of(context),
+      'display_reserved' => AppColors.warningOf(context),
+      _ => AppColors.warningOf(context),
     };
 
     return ListView(
@@ -1375,8 +1386,8 @@ class _FifoItemCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = item.exported
-        ? AppColors.neutral500
-        : _fifoColor(rank, total);
+        ? AppColors.neutral500Of(context)
+        : _fifoColor(context, rank, total);
     final ageLabel = DateFormatter.inventoryAgeLabel(item.importDate);
     return AppSurfaceCard(
       margin: const EdgeInsets.only(bottom: 10),
@@ -1507,9 +1518,14 @@ class _FifoItemCard extends StatelessWidget {
     );
   }
 
-  Color _fifoColor(int rank, int total) {
-    if (total <= 1) return AppColors.success;
+  Color _fifoColor(BuildContext context, int rank, int total) {
+    if (total <= 1) return AppColors.successOf(context);
     final t = rank / (total - 1);
-    return Color.lerp(AppColors.success, AppColors.error, t) ?? AppColors.error;
+    return Color.lerp(
+          AppColors.successOf(context),
+          AppColors.errorOf(context),
+          t,
+        ) ??
+        AppColors.errorOf(context);
   }
 }

@@ -164,7 +164,7 @@ class _WarrantyDetailsScreenState extends State<WarrantyDetailsScreen> {
       if (mounted) {
         _showSnackBar(
           'Đã lưu ảnh vào thư mục Tải xuống.',
-          backgroundColor: AppColors.success,
+          backgroundColor: AppColors.successOf(context),
         );
       }
     } catch (error) {
@@ -180,7 +180,7 @@ class _WarrantyDetailsScreenState extends State<WarrantyDetailsScreen> {
       if (mounted) {
         _showSnackBar(
           'Chưa tải được ảnh. Vui lòng thử lại.',
-          backgroundColor: AppColors.error,
+          backgroundColor: AppColors.errorOf(context),
         );
       }
     }
@@ -229,7 +229,7 @@ class _WarrantyDetailsScreenState extends State<WarrantyDetailsScreen> {
             children: [
               Icon(
                 isPermanentlyDenied ? Icons.settings : Icons.info_outline,
-                color: AppColors.warning,
+                color: AppColors.warningOf(context),
               ),
               const SizedBox(width: AppLayoutTokens.formInlineGap),
               const Expanded(child: Text('Cần cấp quyền lưu ảnh')),
@@ -300,8 +300,8 @@ class _WarrantyDetailsScreenState extends State<WarrantyDetailsScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           DecoratedBox(
-            decoration: const BoxDecoration(
-              color: AppColors.warning,
+            decoration: BoxDecoration(
+              color: AppColors.warningOf(context),
               shape: BoxShape.circle,
             ),
             child: SizedBox.square(
@@ -310,7 +310,7 @@ class _WarrantyDetailsScreenState extends State<WarrantyDetailsScreen> {
                 child: Text(
                   number,
                   style: AppTextStyles.labelS.copyWith(
-                    color: AppColors.surface,
+                    color: AppColors.primaryForegroundOf(context),
                   ),
                 ),
               ),
@@ -617,14 +617,14 @@ class _WarrantyDetailHeader extends StatelessWidget {
         AppStatusChip(
           label: imageLabel,
           color: imageCount == null || imageCount == 0
-              ? AppColors.neutral700
-              : AppColors.info,
+              ? AppColors.neutral700Of(context)
+              : AppColors.infoOf(context),
           fontSize: 12,
           fontWeight: FontWeight.w600,
         ),
-        const AppStatusChip(
+        AppStatusChip(
           label: 'Có thể tải ảnh',
-          color: AppColors.info,
+          color: AppColors.infoOf(context),
           fontSize: 12,
           fontWeight: FontWeight.w600,
         ),
@@ -703,16 +703,18 @@ class _PhonePermissionGuide extends StatelessWidget {
   Widget build(BuildContext context) {
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: AppColors.info.withValues(alpha: 0.08),
+        color: AppColors.infoSurfaceOf(context),
         borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
-        border: Border.all(color: AppColors.info.withValues(alpha: 0.24)),
+        border: Border.all(
+          color: AppColors.infoOf(context).withValues(alpha: 0.28),
+        ),
       ),
       child: Padding(
         padding: const EdgeInsets.all(AppLayoutTokens.cardPadding),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-          children: const [
-            _PhonePermissionHeader(),
+          children: [
+            const _PhonePermissionHeader(),
             SizedBox(height: 8),
             _PhoneGuideRow(
               brand: 'Samsung',
@@ -747,12 +749,12 @@ class _PhonePermissionHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        const Icon(Icons.phone_android, size: 16, color: AppColors.info),
+        Icon(Icons.phone_android, size: 16, color: AppColors.infoOf(context)),
         const SizedBox(width: 6),
         Text(
           'Tùy theo hãng điện thoại:',
           style: Theme.of(context).textTheme.labelSmall?.copyWith(
-            color: AppColors.info,
+            color: AppColors.infoOf(context),
             fontWeight: FontWeight.w700,
           ),
         ),
@@ -777,7 +779,7 @@ class _PhoneGuideRow extends StatelessWidget {
           Text(
             '- ',
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: AppColors.info,
+              color: AppColors.infoOf(context),
               fontWeight: FontWeight.w700,
             ),
           ),
@@ -1104,14 +1106,16 @@ class _BrokenImagePlaceholder extends StatelessWidget {
         ? 'Chưa hiển thị được ảnh'
         : 'Ảnh ${index! + 1} chưa tải được';
     return ColoredBox(
-      color: Theme.of(context).brightness == Brightness.dark
-          ? AppColors.darkNeutral100
-          : AppColors.neutral100,
+      color: AppColors.neutral100Of(context),
       child: Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.broken_image, size: 48, color: AppColors.error),
+            Icon(
+              Icons.broken_image,
+              size: 48,
+              color: AppColors.errorOf(context),
+            ),
             const SizedBox(height: 8),
             Text(
               text,

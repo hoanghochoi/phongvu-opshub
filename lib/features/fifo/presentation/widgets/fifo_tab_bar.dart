@@ -8,15 +8,11 @@ class FifoHistoryTabBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
     return TabBar(
       controller: controller,
-      labelColor: AppColors.primary,
-      unselectedLabelColor: isDark
-          ? AppColors.neutral300
-          : AppColors.neutral700,
-      indicatorColor: AppColors.primary,
+      labelColor: AppColors.primaryOf(context),
+      unselectedLabelColor: AppColors.neutral700Of(context),
+      indicatorColor: AppColors.primaryOf(context),
       indicatorWeight: 3,
       indicatorSize: TabBarIndicatorSize.tab,
       dividerColor: Theme.of(context).dividerColor,

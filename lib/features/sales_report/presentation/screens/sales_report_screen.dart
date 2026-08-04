@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -1145,10 +1146,12 @@ class _OrderCockpitTile extends StatelessWidget {
     final badgeLabel = order.isReported
         ? _reportedOutcomeLabel(order.report)
         : money;
-    final badgeColor = order.isReported ? AppColors.success : AppColors.warning;
+    final badgeColor = order.isReported
+        ? AppColors.successOf(context)
+        : AppColors.warningOf(context);
     final badgeBackground = order.isReported
-        ? AppColors.successSurface
-        : AppColors.warningSurface;
+        ? AppColors.successSurfaceOf(context)
+        : AppColors.warningSurfaceOf(context);
     return SizedBox(
       height: 114,
       child: AppSurfaceCard(
@@ -1419,7 +1422,10 @@ class _SalesReportFormScreenState extends State<SalesReportFormScreen> {
         context: {'userId': user?.id, 'storeId': user?.storeId},
       );
       if (mounted) {
-        _showSnack('Chưa quét được mã. Vui lòng thử lại.', AppColors.error);
+        _showSnack(
+          'Chưa quét được mã. Vui lòng thử lại.',
+          AppColors.errorOf(context),
+        );
       }
     }
   }
@@ -1427,7 +1433,7 @@ class _SalesReportFormScreenState extends State<SalesReportFormScreen> {
   Future<void> _checkOrder() async {
     final orderCode = _normalizeOrderCode(_orderController.text);
     if (orderCode.isEmpty) {
-      _showSnack('Vui lòng nhập mã đơn hàng.', AppColors.warning);
+      _showSnack('Vui lòng nhập mã đơn hàng.', AppColors.warningOf(context));
       return;
     }
     final result = await context.read<SalesReportProvider>().checkOrder(
@@ -1480,7 +1486,7 @@ class _SalesReportFormScreenState extends State<SalesReportFormScreen> {
           },
         ),
       );
-      _showSnack(_pendingPaymentOrderMessage, AppColors.warning);
+      _showSnack(_pendingPaymentOrderMessage, AppColors.warningOf(context));
       return;
     }
     if (result.willConvertLegacyReport) {
@@ -1498,7 +1504,7 @@ class _SalesReportFormScreenState extends State<SalesReportFormScreen> {
       );
       _showSnack(
         'Đơn hàng này thuộc dữ liệu báo cáo cũ. Nếu lưu mua hàng, hệ thống sẽ chuyển báo cáo sang Khách quay lại.',
-        AppColors.warning,
+        AppColors.warningOf(context),
       );
       return;
     }
@@ -1517,11 +1523,11 @@ class _SalesReportFormScreenState extends State<SalesReportFormScreen> {
       );
       _showSnack(
         'Đơn hàng này đã có trong danh sách đồng bộ. Nếu lưu mua hàng, hệ thống sẽ chuyển báo cáo sang Khách quay lại.',
-        AppColors.warning,
+        AppColors.warningOf(context),
       );
       return;
     }
-    _showSnack('Đã kiểm tra đơn hàng.', AppColors.success);
+    _showSnack('Đã kiểm tra đơn hàng.', AppColors.successOf(context));
   }
 
   void _checkAnotherOrder() {
@@ -1568,13 +1574,13 @@ class _SalesReportFormScreenState extends State<SalesReportFormScreen> {
     if (_isPurchased && provider.checkedOrder == null) {
       _showSnack(
         'Vui lòng kiểm tra đơn hàng trước khi gửi.',
-        AppColors.warning,
+        AppColors.warningOf(context),
       );
       return;
     }
     if (_isPurchased && provider.checkedOrder?.isPendingPayment == true) {
       _scrollToTopAfterOrderCheck();
-      _showSnack(_pendingPaymentOrderMessage, AppColors.warning);
+      _showSnack(_pendingPaymentOrderMessage, AppColors.warningOf(context));
       return;
     }
     if (!_formKey.currentState!.validate()) {
@@ -1667,7 +1673,7 @@ class _SalesReportFormScreenState extends State<SalesReportFormScreen> {
     if (ok) {
       _showSnack(
         provider.successMessage ?? 'Đã gửi báo cáo.',
-        AppColors.success,
+        AppColors.successOf(context),
       );
       _resetFormAfterSubmit();
       await _scrollToTopAfterSubmit();
@@ -1677,7 +1683,7 @@ class _SalesReportFormScreenState extends State<SalesReportFormScreen> {
     } else {
       _showSnack(
         provider.errorMessage ?? 'Chưa gửi được báo cáo.',
-        AppColors.error,
+        AppColors.errorOf(context),
       );
     }
   }
@@ -1779,7 +1785,9 @@ class _SalesReportFormScreenState extends State<SalesReportFormScreen> {
       chips: [
         AppStatusChip(
           label: _isPurchased ? 'Mua hàng' : 'Chưa mua hàng',
-          color: _isPurchased ? AppColors.success : AppColors.warning,
+          color: _isPurchased
+              ? AppColors.successOf(context)
+              : AppColors.warningOf(context),
         ),
         AppStatusChip(
           label: orderBlockedByPayment
@@ -1788,10 +1796,10 @@ class _SalesReportFormScreenState extends State<SalesReportFormScreen> {
               ? 'Sẵn sàng nhập'
               : 'Cần kiểm tra đơn',
           color: orderBlockedByPayment
-              ? AppColors.warning
+              ? AppColors.warningOf(context)
               : canEditReportBody
-              ? AppColors.primary
-              : AppColors.neutral600,
+              ? AppColors.primaryOf(context)
+              : AppColors.textMutedOf(context),
         ),
       ],
     );
@@ -2004,55 +2012,203 @@ class _OrderCheckCard extends StatelessWidget {
     final provider = context.watch<SalesReportProvider>();
     final checked = provider.checkedOrder != null;
     return AppSurfaceCard(
+      // The approved command masters own the horizontal lane. Keep the card
+      // padding vertical-only so the input/scan/action row can align to the
+      // 720/358/343px Figma content width instead of being shifted inward by
+      // the generic 16px card inset.
+      padding: const EdgeInsets.symmetric(
+        vertical: AppLayoutTokens.cardPadding,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          AppFormTextInput(
-            key: const ValueKey('sales-report-order-code-field'),
-            controller: state._orderController,
-            enabled: !provider.isCheckingOrder && !checked,
-            label: 'Mã đơn hàng',
-            icon: Icons.receipt_long_outlined,
-            textInputAction: TextInputAction.done,
-            textCapitalization: TextCapitalization.characters,
-            onFieldSubmitted: (_) {
-              if (!checked && !provider.isCheckingOrder) onCheck();
-            },
-            suffixIcon: AppIconAction(
-              icon: Icons.qr_code_scanner_rounded,
-              onPressed: checked || provider.isCheckingOrder ? null : onScan,
-              tooltip: 'Quét mã đơn hàng',
-            ),
-            validator: (_) {
-              if (!state._isPurchased) return null;
-              if (state._orderController.text.trim().isEmpty) {
-                return 'Vui lòng nhập mã đơn hàng';
-              }
-              return null;
-            },
-          ),
-          const SizedBox(height: AppLayoutTokens.formInlineGap),
-          AppActionRow(
-            desktopAlignment: MainAxisAlignment.start,
-            children: [
-              AppSecondaryButton(
-                onPressed: checked || provider.isCheckingOrder ? null : onCheck,
-                icon: checked
-                    ? Icons.verified_outlined
-                    : Icons.fact_check_outlined,
-                label: checked ? 'Đã kiểm tra' : 'Kiểm tra đơn hàng',
-                isLoading: provider.isCheckingOrder,
-                loadingLabel: 'Đang kiểm tra...',
-              ),
-              if (checked)
-                AppSecondaryButton(
-                  onPressed: provider.isCheckingOrder ? null : onCheckAnother,
-                  icon: Icons.restart_alt_rounded,
-                  label: 'Kiểm tra đơn khác',
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final width = constraints.hasBoundedWidth
+                  ? constraints.maxWidth
+                  : MediaQuery.sizeOf(context).width;
+              final compact = width < AppLayoutTokens.compactBreakpoint;
+              final ios = Theme.of(context).platform == TargetPlatform.iOS;
+              final scanSize = ios ? 44.0 : 48.0;
+              final gap = compact ? 8.0 : 12.0;
+              final actionWidth = compact
+                  ? 156.0
+                  : ios
+                  ? 222.0
+                  : checked
+                  ? 202.0
+                  : 222.0;
+              final statusInRow = checked && !compact && !ios;
+              final statusWidth = checked
+                  ? (provider.checkedOrder?.isPendingPayment == true
+                        ? 112.0
+                        : 96.0)
+                  : 0.0;
+              final horizontalPadding = !compact && checked && !ios
+                  ? width >= AppLayoutTokens.tabletBreakpoint
+                        ? 4.0
+                        : 6.0
+                  : 0.0;
+              final fixedWidth =
+                  scanSize +
+                  actionWidth +
+                  gap * 2 +
+                  (statusInRow ? statusWidth + gap : 0);
+              final inputWidth = math.max(
+                0.0,
+                width - horizontalPadding * 2 - fixedWidth,
+              );
+              final statusLabel =
+                  provider.checkedOrder?.isPendingPayment == true
+                  ? 'Chưa thanh toán'
+                  : 'Đã kiểm tra';
+
+              final input = AppFormTextInput(
+                key: const ValueKey('sales-report-order-code-field'),
+                controller: state._orderController,
+                enabled: !provider.isCheckingOrder,
+                readOnly: checked,
+                label: 'Mã đơn hàng',
+                textInputAction: TextInputAction.done,
+                textCapitalization: TextCapitalization.characters,
+                onFieldSubmitted: (_) {
+                  if (!checked && !provider.isCheckingOrder) onCheck();
+                },
+                validator: (_) {
+                  if (!state._isPurchased) return null;
+                  if (state._orderController.text.trim().isEmpty) {
+                    return 'Vui lòng nhập mã đơn hàng';
+                  }
+                  return null;
+                },
+              );
+              final inputWithStatus = SizedBox(
+                width: inputWidth,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    input,
+                    if (compact && !ios && checked) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        statusLabel,
+                        style: AppTextStyles.bodyS.copyWith(
+                          color: provider.checkedOrder?.isPendingPayment == true
+                              ? AppColors.warningOf(context)
+                              : AppColors.successOf(context),
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
-            ],
+              );
+              final scan = AppIconAction(
+                icon: Icons.qr_code_scanner_rounded,
+                onPressed: checked || provider.isCheckingOrder ? null : onScan,
+                tooltip: 'Quét mã đơn hàng',
+                dimension: scanSize,
+              );
+              final action = checked
+                  ? AppSecondaryButton(
+                      key: const ValueKey('sales-report-order-check-action'),
+                      onPressed: provider.isCheckingOrder
+                          ? null
+                          : onCheckAnother,
+                      label: 'Kiểm tra đơn khác',
+                      size: AppButtonSize.medium,
+                      height: 48,
+                    )
+                  : AppSecondaryButton(
+                      key: const ValueKey('sales-report-order-check-action'),
+                      onPressed: provider.isCheckingOrder ? null : onCheck,
+                      label: 'Kiểm tra đơn hàng',
+                      isLoading: provider.isCheckingOrder,
+                      loadingLabel: 'Đang kiểm tra...',
+                      size: AppButtonSize.medium,
+                      height: 48,
+                      foregroundColor: AppColors.primaryForegroundOf(context),
+                      borderColor: AppColors.primaryOf(context),
+                      backgroundColor: AppColors.primaryOf(context),
+                      disabledBackgroundColor: AppColors.borderOf(context),
+                    );
+              final status = checked
+                  ? _OrderCheckStatus(
+                      pendingPayment:
+                          provider.checkedOrder?.isPendingPayment == true,
+                    )
+                  : null;
+
+              final row = Row(
+                key: const ValueKey('sales-report-order-command-row'),
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  if (horizontalPadding > 0) SizedBox(width: horizontalPadding),
+                  inputWithStatus,
+                  SizedBox(width: gap),
+                  scan,
+                  if (statusInRow && status != null) ...[
+                    SizedBox(width: gap),
+                    SizedBox(width: statusWidth, child: status),
+                  ],
+                  SizedBox(width: gap),
+                  SizedBox(width: actionWidth, child: action),
+                  if (horizontalPadding > 0) SizedBox(width: horizontalPadding),
+                ],
+              );
+
+              if (!ios || status == null) return row;
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  row,
+                  const SizedBox(height: 4),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      statusLabel,
+                      style: AppTextStyles.caption.copyWith(
+                        color: provider.checkedOrder?.isPendingPayment == true
+                            ? AppColors.warningOf(context)
+                            : AppColors.successOf(context),
+                      ),
+                    ),
+                  ),
+                ],
+              );
+            },
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _OrderCheckStatus extends StatelessWidget {
+  const _OrderCheckStatus({required this.pendingPayment});
+
+  final bool pendingPayment;
+
+  @override
+  Widget build(BuildContext context) {
+    final foreground = pendingPayment
+        ? AppColors.warningOf(context)
+        : AppColors.successOf(context);
+    final background = pendingPayment
+        ? AppColors.warningSurfaceOf(context)
+        : AppColors.successSurfaceOf(context);
+    return Container(
+      height: 40,
+      alignment: Alignment.center,
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: AppRadius.allPill,
+      ),
+      child: Text(
+        pendingPayment ? 'Chưa thanh toán' : 'Đã kiểm tra',
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: AppTextStyles.labelSmallSubtle.copyWith(color: foreground),
       ),
     );
   }
@@ -2069,14 +2225,17 @@ class _OrderSummaryCard extends StatelessWidget {
     String text(String key) => order[key]?.toString() ?? '';
     final grandTotal = formatVndAmount(order['grandTotal']);
     return AppSurfaceCard(
-      backgroundColor: AppColors.success.withValues(alpha: 0.08),
-      borderColor: AppColors.success.withValues(alpha: 0.20),
+      backgroundColor: AppColors.successSurfaceOf(context),
+      borderColor: AppColors.successOf(context).withValues(alpha: 0.36),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(
+          Row(
             children: [
-              Icon(Icons.verified_outlined, color: AppColors.success),
+              Icon(
+                Icons.verified_outlined,
+                color: AppColors.successOf(context),
+              ),
               SizedBox(width: 8),
               Expanded(
                 child: Text(
@@ -2484,7 +2643,7 @@ class _CategoryMultiPicker extends StatelessWidget {
                       ? 'Đang tải danh sách ngành hàng...'
                       : 'Chưa có danh sách ngành hàng.',
                   style: AppTextStyles.bodyM.copyWith(
-                    color: AppColors.neutral600,
+                    color: AppColors.textMutedOf(context),
                   ),
                 )
               : Column(

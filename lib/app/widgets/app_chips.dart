@@ -30,7 +30,10 @@ class AppInfoChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isEmpty = text.isEmpty;
-    final effectiveColor = color ?? AppColors.textSecondaryOf(context);
+    final effectiveColor = AppColors.adaptOf(
+      context,
+      color ?? AppColors.textSecondaryOf(context),
+    );
     final displayColor = isEmpty
         ? AppColors.textMutedOf(context)
         : effectiveColor;
@@ -129,7 +132,10 @@ class AppStatusChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final effectiveColor = color ?? AppColors.textSecondaryOf(context);
+    final effectiveColor = AppColors.adaptOf(
+      context,
+      color ?? AppColors.textSecondaryOf(context),
+    );
     final effectiveBg =
         backgroundColor ?? effectiveColor.withValues(alpha: 0.08);
     return Container(
@@ -179,13 +185,14 @@ class AppStatusPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final effectiveColor = AppColors.adaptOf(context, color);
     return SizedBox(
       height: height,
       child: DecoratedBox(
         decoration: BoxDecoration(
-          color: color.withValues(alpha: 0.10),
+          color: effectiveColor.withValues(alpha: 0.10),
           borderRadius: AppRadius.allSm,
-          border: Border.all(color: color.withValues(alpha: 0.24)),
+          border: Border.all(color: effectiveColor.withValues(alpha: 0.24)),
         ),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -195,8 +202,11 @@ class AppStatusPill extends StatelessWidget {
               SizedBox.square(
                 dimension: 16,
                 child: isLoading
-                    ? CircularProgressIndicator(strokeWidth: 2, color: color)
-                    : Icon(icon, size: 16, color: color),
+                    ? CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: effectiveColor,
+                      )
+                    : Icon(icon, size: 16, color: effectiveColor),
               ),
               const SizedBox(width: 8),
               Flexible(
@@ -206,7 +216,7 @@ class AppStatusPill extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   softWrap: false,
                   style: AppTextStyles.bodyS.copyWith(
-                    color: color,
+                    color: effectiveColor,
                     fontWeight: FontWeight.w700,
                   ),
                 ),

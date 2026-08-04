@@ -109,7 +109,9 @@ class _ContractAppendixScreenState extends State<ContractAppendixScreen>
       context,
       SnackBar(
         content: Text(message),
-        backgroundColor: error ? AppColors.error : AppColors.success,
+        backgroundColor: error
+            ? AppColors.errorOf(context)
+            : AppColors.successOf(context),
       ),
     );
   }
@@ -627,10 +629,10 @@ class _TaxSourceChip extends StatelessWidget {
     final manual = item.taxSource == 'MANUAL';
     final missing = item.isTaxMissing;
     final color = missing
-        ? AppColors.warning
+        ? AppColors.warningOf(context)
         : manual
-        ? AppColors.warning
-        : AppColors.success;
+        ? AppColors.warningOf(context)
+        : AppColors.successOf(context);
     final label = missing
         ? 'Thiếu thuế'
         : manual
@@ -876,10 +878,12 @@ class ContractAppendixPreviewTable extends StatelessWidget {
             key: const Key('contract-appendix-preview-table'),
             columnWidths: widths,
             defaultVerticalAlignment: TableCellVerticalAlignment.middle,
-            border: TableBorder.all(color: AppColors.neutral900),
+            border: TableBorder.all(color: AppColors.neutral900Of(context)),
             children: [
               TableRow(
-                decoration: const BoxDecoration(color: AppColors.errorSurface),
+                decoration: BoxDecoration(
+                  color: AppColors.errorSurfaceOf(context),
+                ),
                 children: const [
                   _PreviewCell('STT', header: true),
                   _PreviewCell('Tên hàng hóa', header: true),
@@ -973,14 +977,14 @@ class _PreviewSummaryRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final background = emphasized ? AppColors.errorSurface : null;
+    final background = emphasized ? AppColors.errorSurfaceOf(context) : null;
     return Container(
       decoration: BoxDecoration(
         color: background,
-        border: const Border(
-          left: BorderSide(color: AppColors.neutral900),
-          right: BorderSide(color: AppColors.neutral900),
-          bottom: BorderSide(color: AppColors.neutral900),
+        border: Border(
+          left: BorderSide(color: AppColors.neutral900Of(context)),
+          right: BorderSide(color: AppColors.neutral900Of(context)),
+          bottom: BorderSide(color: AppColors.neutral900Of(context)),
         ),
       ),
       child: Row(
@@ -996,7 +1000,11 @@ class _PreviewSummaryRow extends StatelessWidget {
               ),
             ),
           ),
-          Container(width: 1, height: 42, color: AppColors.neutral900),
+          Container(
+            width: 1,
+            height: 42,
+            color: AppColors.neutral900Of(context),
+          ),
           Expanded(
             flex: 3,
             child: Padding(
@@ -1173,14 +1181,14 @@ class _HistoryCard extends StatelessWidget {
                 Text(
                   '${_money(item.totalAfterVat)} VNĐ',
                   style: AppTextStyles.labelM.copyWith(
-                    color: AppColors.success,
+                    color: AppColors.successOf(context),
                   ),
                 ),
                 if (item.manualTaxItemCount > 0)
                   Text(
                     '${item.manualTaxItemCount} dòng dùng thuế nhập tay',
                     style: AppTextStyles.caption.copyWith(
-                      color: AppColors.warning,
+                      color: AppColors.warningOf(context),
                     ),
                   ),
               ],

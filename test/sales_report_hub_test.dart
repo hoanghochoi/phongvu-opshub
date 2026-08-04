@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:phongvu_opshub/app/navigation/app_router.dart';
+import 'package:phongvu_opshub/app/theme/app_colors.dart';
+import 'package:phongvu_opshub/app/theme/app_theme.dart';
 import 'package:phongvu_opshub/app/widgets/app_buttons.dart';
 import 'package:phongvu_opshub/app/widgets/app_combobox.dart';
 import 'helpers/legacy_widget_finders.dart';
@@ -782,6 +784,177 @@ void main() {
     expect(find.text('Danh sách'), findsNothing);
     expect(find.text('Đã báo cáo • 1'), findsOneWidget);
     expect(find.text('Chưa báo cáo • 21'), findsOneWidget);
+  });
+
+  testWidgets('Sales report order command keeps scan and check on one row', (
+    tester,
+  ) async {
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    for (final viewport in const [Size(375, 812), Size(1024, 768)]) {
+      tester.view.physicalSize = viewport;
+      tester.view.devicePixelRatio = 1;
+      final authProvider = _FakeAuthProvider(
+        const User(
+          id: 'order-command-user',
+          email: 'sale@phongvu.vn',
+          role: 'USER',
+          organizationNodeId: 'org-store-cp01',
+          featureAccess: {'SALES_REPORT': true},
+        ),
+      );
+      await tester.pumpWidget(
+        MultiProvider(
+          providers: [
+            ChangeNotifierProvider<AuthProvider>.value(value: authProvider),
+            ChangeNotifierProvider<SalesReportProvider>(
+              create: (_) => SalesReportProvider(_FakeSalesReportRepository()),
+            ),
+          ],
+          child: const MaterialApp(
+            home: Scaffold(body: SalesReportFormScreen.purchased()),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final row = find.byKey(const ValueKey('sales-report-order-command-row'));
+      expect(row, findsOneWidget);
+      expect(tester.getSize(row).width, lessThanOrEqualTo(720));
+      final checkAction = tester.getSize(
+        find.widgetWithText(AppSecondaryButton, 'Kiểm tra đơn hàng'),
+      );
+      expect(checkAction.width, viewport.width < 600 ? 156 : 222);
+      expect(
+        tester.getSize(find.byType(AppIconAction).first).width,
+        viewport.width < 600 ? 48 : 48,
+      );
+      if (viewport.width >= 600) {
+        await tester.enterText(
+          find.byKey(const ValueKey('sales-report-order-code-field')),
+          '2607010001',
+        );
+        await tester.tap(
+          find.widgetWithText(AppSecondaryButton, 'Kiểm tra đơn hàng'),
+        );
+        await tester.pump(const Duration(seconds: 1));
+        await tester.pumpAndSettle();
+        expect(
+          tester
+              .getSize(
+                find.widgetWithText(AppSecondaryButton, 'Kiểm tra đơn khác'),
+              )
+              .width,
+          202,
+        );
+        expect(find.text('Đã kiểm tra'), findsOneWidget);
+      }
+      expect(tester.takeException(), isNull);
+    }
+  });
+
+  testWidgets('Sales report order command uses dark semantic controls', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1024, 768);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    final authProvider = _FakeAuthProvider(
+      const User(
+        id: 'order-command-dark-user',
+        email: 'sale@phongvu.vn',
+        role: 'USER',
+        organizationNodeId: 'org-store-cp01',
+        featureAccess: {'SALES_REPORT': true},
+      ),
+    );
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider<AuthProvider>.value(value: authProvider),
+          ChangeNotifierProvider<SalesReportProvider>(
+            create: (_) => SalesReportProvider(_FakeSalesReportRepository()),
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.darkTheme,
+          home: const Scaffold(body: SalesReportFormScreen.purchased()),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const ValueKey('sales-report-order-command-row')),
+      findsOneWidget,
+    );
+    final input = tester.widget<EditableText>(
+      find.descendant(
+        of: find.byType(TextFormField).first,
+        matching: find.byType(EditableText),
+      ),
+    );
+    expect(input.style.color, AppColors.darkTextSecondary);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Sales report order command follows iOS/iPadOS geometry', (
+    tester,
+  ) async {
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    for (final viewport in const [Size(390, 844), Size(834, 1112)]) {
+      tester.view.physicalSize = viewport;
+      tester.view.devicePixelRatio = 1;
+      final authProvider = _FakeAuthProvider(
+        const User(
+          id: 'order-command-ios-user',
+          email: 'sale@phongvu.vn',
+          role: 'USER',
+          organizationNodeId: 'org-store-cp01',
+          featureAccess: {'SALES_REPORT': true},
+        ),
+      );
+      await tester.pumpWidget(
+        MultiProvider(
+          providers: [
+            ChangeNotifierProvider<AuthProvider>.value(value: authProvider),
+            ChangeNotifierProvider<SalesReportProvider>(
+              create: (_) => SalesReportProvider(_FakeSalesReportRepository()),
+            ),
+          ],
+          child: MaterialApp(
+            theme: AppTheme.lightTheme.copyWith(platform: TargetPlatform.iOS),
+            home: const Scaffold(body: SalesReportFormScreen.purchased()),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final row = find.byKey(const ValueKey('sales-report-order-command-row'));
+      expect(row, findsOneWidget);
+      expect(tester.getSize(find.byType(AppIconAction).first).width, 44);
+      expect(
+        tester
+            .getSize(
+              find.byKey(const ValueKey('sales-report-order-check-action')),
+            )
+            .width,
+        viewport.width < 600 ? 156 : 222,
+      );
+
+      expect(tester.takeException(), isNull);
+    }
   });
 
   testWidgets('Báo cáo form requires explicit behavior answers', (

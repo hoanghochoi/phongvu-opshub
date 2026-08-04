@@ -8,6 +8,7 @@ import 'package:phongvu_opshub/app/widgets/app_buttons.dart';
 import 'package:phongvu_opshub/app/widgets/app_feature_grid.dart';
 import 'package:phongvu_opshub/app/widgets/app_layout.dart';
 import 'package:phongvu_opshub/app/widgets/app_inputs.dart';
+import 'package:phongvu_opshub/app/widgets/app_chips.dart';
 
 void main() {
   testWidgets('mobile typography density leaves tablet and desktop unchanged', (
@@ -197,5 +198,31 @@ void main() {
 
     final actionDescription = tester.widget<Text>(find.text('Mô tả'));
     expect(actionDescription.style?.color, AppColors.darkTextSecondary);
+  });
+
+  testWidgets('shared chips adapt base status colors in dark mode', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.darkTheme,
+        home: const Scaffold(
+          body: AppStatusChip(
+            label: 'Đang hoạt động',
+            color: AppColors.success,
+          ),
+        ),
+      ),
+    );
+
+    final label = tester.widget<Text>(find.text('Đang hoạt động'));
+    expect(label.style?.color, AppColors.darkSuccess);
+    expect(
+      AppColors.adaptOf(
+        tester.element(find.text('Đang hoạt động')),
+        AppColors.info,
+      ),
+      AppColors.darkInfo,
+    );
   });
 }

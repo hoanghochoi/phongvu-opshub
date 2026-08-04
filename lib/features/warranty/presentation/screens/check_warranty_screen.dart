@@ -180,7 +180,7 @@ class _CheckWarrantyScreenState extends State<CheckWarrantyScreen> {
           context,
           SnackBar(
             content: Text('Chưa quét được mã. Vui lòng thử lại.'),
-            backgroundColor: AppColors.error,
+            backgroundColor: AppColors.errorOf(context),
           ),
         );
       }
@@ -328,7 +328,7 @@ class _WarrantyLookupHeader extends StatelessWidget {
             width: 115,
             child: AppStatusChip(
               label: isSearchMode ? 'Đang lọc' : 'Tất cả biên nhận',
-              color: AppColors.info,
+              color: AppColors.infoOf(context),
               fontSize: 12,
               fontWeight: FontWeight.w600,
             ),
@@ -338,17 +338,19 @@ class _WarrantyLookupHeader extends StatelessWidget {
             width: 80,
             child: AppStatusChip(
               label: '$receiptCount kết quả',
-              color: receiptCount == 0 ? AppColors.neutral700 : AppColors.info,
+              color: receiptCount == 0
+                  ? AppColors.neutral700Of(context)
+                  : AppColors.infoOf(context),
               fontSize: 12,
               fontWeight: FontWeight.w600,
             ),
           ),
           const SizedBox(width: 18),
-          const SizedBox(
+          SizedBox(
             width: 84,
             child: AppStatusChip(
               label: 'Có scanner',
-              color: AppColors.info,
+              color: AppColors.infoOf(context),
               fontSize: 12,
               fontWeight: FontWeight.w600,
             ),
@@ -664,11 +666,11 @@ class _ReceiptCard extends StatelessWidget {
             ),
             SizedBox.square(
               dimension: isWide ? 24 : 44,
-              child: const Center(
+              child: Center(
                 child: Icon(
                   PhosphorIconsRegular.caretRight,
                   size: 24,
-                  color: AppColors.neutral400,
+                  color: AppColors.neutral400Of(context),
                 ),
               ),
             ),
