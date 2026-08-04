@@ -4,11 +4,14 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:phongvu_opshub/app/widgets/app_toast.dart';
 
 import '../../../../app/theme/app_colors.dart';
+import '../../../../app/theme/app_radius.dart';
 import '../../../../app/theme/app_text_styles.dart';
 import '../../../../app/widgets/app_buttons.dart';
+import '../../../../app/widgets/app_cards.dart';
 import '../../../../app/widgets/app_inputs.dart';
 import '../../../../app/widgets/app_dialogs.dart';
 import '../../../../app/widgets/app_layout.dart';
@@ -350,7 +353,7 @@ class _FullPageNotificationsInbox extends StatelessWidget {
     return Align(
       alignment: Alignment.topCenter,
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 840),
+        constraints: const BoxConstraints(maxWidth: 880),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -419,12 +422,12 @@ class _NotificationsInboxHeader extends StatelessWidget {
           width: 40,
           height: 40,
           decoration: BoxDecoration(
-            color: AppColors.infoSurface,
-            borderRadius: BorderRadius.circular(10),
+            color: AppColors.infoSurfaceOf(context),
+            borderRadius: AppRadius.allSm,
           ),
-          child: const Icon(
+          child: Icon(
             Icons.notifications_none_rounded,
-            color: AppColors.info,
+            color: AppColors.infoOf(context),
           ),
         ),
         const SizedBox(width: 10),
@@ -443,16 +446,12 @@ class _NotificationsInboxHeader extends StatelessWidget {
 class _NotificationListCard extends StatelessWidget {
   final Widget child;
 
-  const _NotificationListCard({required this.child});
+  const _NotificationListCard({super.key, required this.child});
 
   @override
-  Widget build(BuildContext context) => Container(
+  Widget build(BuildContext context) => AppSurfaceCard(
+    radius: AppRadius.lg,
     padding: const EdgeInsets.all(AppLayoutTokens.cardPadding),
-    decoration: BoxDecoration(
-      color: AppColors.cardOf(context),
-      border: Border.all(color: AppColors.borderOf(context)),
-      borderRadius: BorderRadius.circular(16),
-    ),
     child: SelectionArea(child: child),
   );
 }
@@ -499,7 +498,28 @@ class _FullPageStatementNotificationCard extends StatelessWidget {
         'Mã sao kê ${request.statementNumber}',
       '${money.format(request.amount)} VND',
     ].join(' • ');
+    final metadata = <String>[
+      if (request.paidAt != null || request.firstSeenAt != null)
+        'Thời gian giao dịch: ${_notificationDateTime(request.paidAt ?? request.firstSeenAt)}',
+      if (request.createdAt != null)
+        'Thời gian yêu cầu: ${_notificationDateTime(request.createdAt)}',
+      if ((request.requestedByEmail ?? '').trim().isNotEmpty)
+        'Người gửi: ${request.requestedByEmail!.trim()}',
+      if (request.content.trim().isNotEmpty)
+        'Nội dung: ${request.content.trim()}',
+      if (rejected && (request.reviewedByEmail ?? '').trim().isNotEmpty)
+        'Người xử lý: ${request.reviewedByEmail!.trim()}',
+      if (rejected && request.reviewedAt != null)
+        'Thời gian xử lý: ${_notificationDateTime(request.reviewedAt)}',
+      if (rejected && (request.reviewNote ?? '').trim().isNotEmpty)
+        'Lý do: ${request.reviewNote!.trim()}',
+    ];
     return _NotificationListCard(
+      key: ValueKey(
+        rejected
+            ? 'notifications-rejected-card'
+            : 'notifications-${pending ? 'pending' : 'processed'}-card',
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -526,7 +546,11 @@ class _FullPageStatementNotificationCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 12),
-              _NotificationStatus(tone: tone, label: statusLabel),
+              _NotificationStatusBlock(
+                tone: tone,
+                label: statusLabel,
+                time: request.createdAt ?? request.reviewedAt,
+              ),
             ],
           ),
           const SizedBox(height: 12),
@@ -536,6 +560,15 @@ class _FullPageStatementNotificationCard extends StatelessWidget {
               color: AppColors.textSecondaryOf(context),
             ),
           ),
+          for (final line in metadata) ...[
+            const SizedBox(height: 12),
+            SelectableText(
+              line,
+              style: AppTextStyles.bodyM.copyWith(
+                color: AppColors.textSecondaryOf(context),
+              ),
+            ),
+          ],
           if (rejected) ...[
             const SizedBox(height: 8),
             SelectableText(
@@ -545,14 +578,12 @@ class _FullPageStatementNotificationCard extends StatelessWidget {
               ),
             ),
           ],
-          if (request.content.isNotEmpty) ...[
-            const SizedBox(height: 8),
-            SelectableText(request.content, style: AppTextStyles.bodyM),
-          ],
           if (canAct) ...[
             const SizedBox(height: 12),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
+            Wrap(
+              alignment: WrapAlignment.end,
+              spacing: 8,
+              runSpacing: 8,
               children: [
                 SizedBox(
                   width: 96,
@@ -566,9 +597,8 @@ class _FullPageStatementNotificationCard extends StatelessWidget {
                     borderColor: AppColors.borderOf(context),
                   ),
                 ),
-                const SizedBox(width: 8),
                 SizedBox(
-                  width: 120,
+                  width: 115,
                   child: AppPrimaryButton(
                     onPressed: onApprove,
                     icon: Icons.check_rounded,
@@ -608,8 +638,9 @@ class _FullPageOffsetNotificationCard extends StatelessWidget {
       label: 'Mở hồ sơ cấn trừ',
       child: InkWell(
         onTap: onOpen,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: AppRadius.allLg,
         child: _NotificationListCard(
+          key: const ValueKey('notifications-offset-card'),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -651,11 +682,12 @@ class _FullPageOffsetNotificationCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 12),
-              _NotificationStatus(
+              _NotificationStatusBlock(
                 tone: rejected
                     ? _NotificationTone.error
                     : _NotificationTone.warning,
                 label: rejected ? 'Bị từ chối' : 'Chờ xử lý',
+                time: request.submittedAt,
               ),
             ],
           ),
@@ -675,23 +707,24 @@ class _NotificationIconTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = switch (tone) {
-      _NotificationTone.error => AppColors.errorSurface,
-      _NotificationTone.warning => AppColors.warningSurface,
-      _NotificationTone.neutral => AppColors.infoSurface,
+      _NotificationTone.error => AppColors.errorSurfaceOf(context),
+      _NotificationTone.warning => AppColors.warningSurfaceOf(context),
+      _NotificationTone.neutral => AppColors.infoSurfaceOf(context),
     };
     final iconColor = switch (tone) {
-      _NotificationTone.error => AppColors.error,
-      _NotificationTone.warning => AppColors.warning,
-      _NotificationTone.neutral => AppColors.info,
+      _NotificationTone.error => AppColors.errorOf(context),
+      _NotificationTone.warning => AppColors.warningOf(context),
+      _NotificationTone.neutral => AppColors.infoOf(context),
     };
     return Container(
       width: 40,
       height: 40,
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(10),
+      decoration: BoxDecoration(color: color, borderRadius: AppRadius.allSm),
+      child: Icon(
+        PhosphorIconsRegular.arrowsLeftRight,
+        color: iconColor,
+        size: 22,
       ),
-      child: Icon(Icons.swap_horiz_rounded, color: iconColor, size: 22),
     );
   }
 }
@@ -705,27 +738,76 @@ class _NotificationStatus extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final background = switch (tone) {
-      _NotificationTone.error => AppColors.errorSurface,
-      _NotificationTone.warning => AppColors.warningSurface,
-      _NotificationTone.neutral => AppColors.chipBackground,
+      _NotificationTone.error => AppColors.errorSurfaceOf(context),
+      _NotificationTone.warning => AppColors.warningSurfaceOf(context),
+      _NotificationTone.neutral => AppColors.chipBackgroundOf(context),
     };
     final foreground = switch (tone) {
-      _NotificationTone.error => AppColors.error,
-      _NotificationTone.warning => AppColors.warning,
+      _NotificationTone.error => AppColors.errorOf(context),
+      _NotificationTone.warning => AppColors.warningOf(context),
       _NotificationTone.neutral => AppColors.textSecondaryOf(context),
     };
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: background,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Text(
-        label,
-        style: AppTextStyles.labelS.copyWith(color: foreground),
+    return Align(
+      alignment: Alignment.centerRight,
+      child: Container(
+        height: 24,
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+        decoration: BoxDecoration(
+          color: background,
+          borderRadius: AppRadius.allSm,
+        ),
+        child: Center(
+          child: Text(
+            label,
+            style: AppTextStyles.labelSmallSubtle.copyWith(color: foreground),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
       ),
     );
   }
+}
+
+class _NotificationStatusBlock extends StatelessWidget {
+  final _NotificationTone tone;
+  final String label;
+  final DateTime? time;
+
+  const _NotificationStatusBlock({
+    required this.tone,
+    required this.label,
+    required this.time,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 116,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          _NotificationStatus(tone: tone, label: label),
+          if (time != null) ...[
+            const SizedBox(height: 8),
+            Text(
+              DateFormat('HH:mm dd/MM').format(time!.toLocal()),
+              style: AppTextStyles.caption.copyWith(
+                color: AppColors.textMutedOf(context),
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+String _notificationDateTime(DateTime? value) {
+  if (value == null) return '';
+  return DateFormat('HH:mm:ss dd/MM/yyyy').format(value.toLocal());
 }
 
 class _NotificationSectionTitle extends StatelessWidget {

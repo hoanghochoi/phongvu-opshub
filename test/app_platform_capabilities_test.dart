@@ -33,21 +33,20 @@ void main() {
       }
     });
 
-    test('supports payment speaker only on non-web Windows', () {
-      expect(
-        AppPlatformCapabilities.isPaymentSpeakerSupported(
-          isWeb: false,
-          platform: TargetPlatform.windows,
-        ),
-        isTrue,
-      );
-      expect(
-        AppPlatformCapabilities.isPaymentSpeakerSupported(
-          isWeb: false,
-          platform: TargetPlatform.android,
-        ),
-        isFalse,
-      );
+    test('supports payment speaker on native Android, iOS and Windows', () {
+      for (final platform in [
+        TargetPlatform.windows,
+        TargetPlatform.android,
+        TargetPlatform.iOS,
+      ]) {
+        expect(
+          AppPlatformCapabilities.isPaymentSpeakerSupported(
+            isWeb: false,
+            platform: platform,
+          ),
+          isTrue,
+        );
+      }
       expect(
         AppPlatformCapabilities.isPaymentSpeakerSupported(
           isWeb: true,
@@ -55,6 +54,25 @@ void main() {
         ),
         isFalse,
       );
+    });
+
+    test('keeps the local preset pack Windows-only', () {
+      expect(
+        AppPlatformCapabilities.isPaymentSpeakerLocalPresetSupported(
+          isWeb: false,
+          platform: TargetPlatform.windows,
+        ),
+        isTrue,
+      );
+      for (final platform in [TargetPlatform.android, TargetPlatform.iOS]) {
+        expect(
+          AppPlatformCapabilities.isPaymentSpeakerLocalPresetSupported(
+            isWeb: false,
+            platform: platform,
+          ),
+          isFalse,
+        );
+      }
     });
 
     test('supports API connection administration on web and Windows only', () {

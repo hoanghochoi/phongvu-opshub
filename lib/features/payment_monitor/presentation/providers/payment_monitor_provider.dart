@@ -2852,6 +2852,38 @@ class PaymentMonitorProvider extends ChangeNotifier {
             : 'local_preset_required',
       },
     );
+
+    // Windows keeps the approved local-preset path. Android/iOS/iPadOS use
+    // the authenticated server stream because the Windows executable asset
+    // pack is not part of the mobile bundles. Web never reaches this method:
+    // AppPlatformCapabilities keeps it list-only.
+    if (!AppPlatformCapabilities.isPaymentSpeakerLocalPresetSupported()) {
+      final bytes = useStreamEndpoint
+          ? await _repository.downloadNotificationStreamAudio(
+              notification.notificationId,
+              includeCue: true,
+              clientId: clientId,
+            )
+          : await _repository.downloadNotificationAudio(
+              notification.notificationId,
+              includeCue: true,
+            );
+      await _logNotificationAudioPrepared(
+        notification: notification,
+        clientId: clientId,
+        bytes: bytes.length,
+        mode: 'server_audio_native',
+        deliveryPath: deliveryPath,
+        triggerSource: triggerSource,
+      );
+      return _DownloadedPaymentAudio(
+        bytes: bytes,
+        playLocalCue: false,
+        playLocalCuePrefix: false,
+        mode: 'server_audio_native',
+      );
+    }
+
     if (!useStreamEndpoint || !notification.requestsLocalAssetPlayback) {
       throw StateError(
         'Payment speaker requires a LOCAL_ASSET realtime notification',

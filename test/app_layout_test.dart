@@ -4,6 +4,25 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:phongvu_opshub/app/widgets/app_layout.dart';
 
 void main() {
+  test('Figma responsive page gutters use the shared viewport breakpoints', () {
+    expect(
+      AppLayoutTokens.pagePaddingFor(375),
+      const EdgeInsets.fromLTRB(16, 16, 16, 16),
+    );
+    expect(
+      AppLayoutTokens.pagePaddingFor(834),
+      const EdgeInsets.fromLTRB(24, 16, 24, 16),
+    );
+    expect(
+      AppLayoutTokens.pagePaddingFor(1024),
+      const EdgeInsets.fromLTRB(24, 16, 24, 16),
+    );
+    expect(
+      AppLayoutTokens.pagePaddingFor(1440),
+      const EdgeInsets.fromLTRB(32, 24, 32, 24),
+    );
+  });
+
   testWidgets('AppResponsiveContent bounds desktop content width', (
     tester,
   ) async {

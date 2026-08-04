@@ -420,9 +420,9 @@ class _HistoryItemTile extends StatelessWidget {
 
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: AppColors.neutral50,
+        color: AppColors.cardOf(context),
         borderRadius: BorderRadius.circular(AppRadius.sm),
-        border: Border.all(color: AppColors.neutral200),
+        border: Border.all(color: AppColors.borderOf(context)),
       ),
       child: Padding(
         padding: const EdgeInsets.all(10),
@@ -581,7 +581,7 @@ class _HistoryInlineNotice extends StatelessWidget {
             child: Text(
               text,
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: AppColors.neutral700,
+                color: AppColors.textSecondaryOf(context),
                 fontWeight: FontWeight.w600,
               ),
             ),

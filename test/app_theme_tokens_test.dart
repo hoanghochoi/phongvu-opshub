@@ -5,6 +5,7 @@ import 'package:phongvu_opshub/app/theme/app_radius.dart';
 import 'package:phongvu_opshub/app/theme/app_text_styles.dart';
 import 'package:phongvu_opshub/app/theme/app_theme.dart';
 import 'package:phongvu_opshub/app/widgets/app_buttons.dart';
+import 'package:phongvu_opshub/app/widgets/app_feature_grid.dart';
 import 'package:phongvu_opshub/app/widgets/app_layout.dart';
 import 'package:phongvu_opshub/app/widgets/app_inputs.dart';
 
@@ -75,12 +76,6 @@ void main() {
     );
   });
 
-  test('legacy AppTheme aliases stay mapped during incremental migration', () {
-    expect(AppTheme.primaryBlue, AppColors.primary);
-    expect(AppTheme.white, AppColors.surface);
-    expect(AppTheme.buttonColor, AppColors.primary);
-  });
-
   test('shared layout and button metrics use design-system tokens', () {
     expect(AppLayoutTokens.cardRadius, AppRadius.sm);
     expect(AppLayoutTokens.cardPadding, 16);
@@ -127,5 +122,80 @@ void main() {
     expect(inputBorder.borderRadius, AppRadius.allMd);
     final errorBorder = theme.inputDecorationTheme.errorBorder!;
     expect(errorBorder.borderSide.width, 2);
+    expect(theme.dialogTheme.backgroundColor, AppColors.darkCard);
+    expect(theme.dialogTheme.titleTextStyle?.color, AppColors.darkTextPrimary);
+    expect(
+      theme.dialogTheme.contentTextStyle?.color,
+      AppColors.darkTextSecondary,
+    );
+  });
+
+  testWidgets('status tokens resolve to the Figma dark semantic mode', (
+    tester,
+  ) async {
+    BuildContext? captured;
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.darkTheme,
+        home: Builder(
+          builder: (context) {
+            captured = context;
+            return const SizedBox.shrink();
+          },
+        ),
+      ),
+    );
+
+    expect(
+      AppColors.statusColorOf(captured!, 'success'),
+      AppColors.darkSuccess,
+    );
+    expect(
+      AppColors.statusSurfaceOf(captured!, 'success'),
+      AppColors.darkSuccessSurface,
+    );
+    expect(AppColors.statusColorOf(captured!, 'error'), AppColors.darkError);
+    expect(
+      AppColors.statusSurfaceOf(captured!, 'error'),
+      AppColors.darkErrorSurface,
+    );
+  });
+
+  testWidgets('shared dark widgets use semantic Figma surfaces and text', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.darkTheme,
+        home: Scaffold(
+          body: AppFeatureSection(
+            title: 'Chức năng',
+            actions: [
+              AppFeatureAction(
+                icon: Icons.apps_outlined,
+                title: 'Công cụ',
+                description: 'Mô tả',
+                color: AppColors.darkPrimary,
+                onTap: () {},
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    final title = tester.widget<Text>(find.text('Chức năng'));
+    expect(title.style?.color, AppColors.darkTextPrimary);
+
+    final tileMaterial = tester.widget<Material>(
+      find.descendant(
+        of: find.byType(AppFeatureTile),
+        matching: find.byType(Material),
+      ),
+    );
+    expect(tileMaterial.color, AppColors.darkCard);
+
+    final actionDescription = tester.widget<Text>(find.text('Mô tả'));
+    expect(actionDescription.style?.color, AppColors.darkTextSecondary);
   });
 }

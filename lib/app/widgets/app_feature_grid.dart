@@ -46,14 +46,14 @@ class AppFeatureSection extends StatelessWidget {
             Text(
               title,
               style: AppTextStyles.bodyL.copyWith(
-                color: Theme.of(context).colorScheme.onSurface,
+                color: AppColors.textPrimaryOf(context),
                 fontWeight: FontWeight.w600,
               ),
             ),
             Text(
               '${actions.length} công cụ',
               style: AppTextStyles.bodyS.copyWith(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                color: AppColors.textMutedOf(context),
                 height: 18 / 13,
               ),
             ),
@@ -123,9 +123,7 @@ class AppFeatureTile extends StatelessWidget {
       label: 'Chức năng ${action.title}',
       hint: action.description,
       child: Material(
-        color:
-            Theme.of(context).cardTheme.color ??
-            Theme.of(context).colorScheme.surface,
+        color: AppColors.cardOf(context),
         borderRadius: AppRadius.allLg,
         child: InkWell(
           onTap: action.onTap,
@@ -134,7 +132,7 @@ class AppFeatureTile extends StatelessWidget {
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
               borderRadius: AppRadius.allLg,
-              border: Border.all(color: Theme.of(context).dividerColor),
+              border: Border.all(color: AppColors.borderOf(context)),
             ),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.center,
@@ -143,7 +141,9 @@ class AppFeatureTile extends StatelessWidget {
                   width: 44,
                   height: 44,
                   decoration: BoxDecoration(
-                    color: action.iconBackground ?? AppColors.infoSurface,
+                    color:
+                        action.iconBackground ??
+                        AppColors.infoSurfaceOf(context),
                     borderRadius: AppRadius.allMd,
                   ),
                   child: Icon(
@@ -163,7 +163,7 @@ class AppFeatureTile extends StatelessWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: AppTextStyles.labelM.copyWith(
-                          color: Theme.of(context).colorScheme.onSurface,
+                          color: AppColors.textPrimaryOf(context),
                         ),
                       ),
                       const SizedBox(height: 2),
@@ -172,7 +172,7 @@ class AppFeatureTile extends StatelessWidget {
                         maxLines: 2,
                         overflow: TextOverflow.clip,
                         style: AppTextStyles.bodyS.copyWith(
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                          color: AppColors.textSecondaryOf(context),
                           height: 18 / 13,
                         ),
                       ),
@@ -183,7 +183,7 @@ class AppFeatureTile extends StatelessWidget {
                 Icon(
                   Icons.chevron_right_rounded,
                   size: 20,
-                  color: AppColors.primary500,
+                  color: AppColors.primaryOf(context),
                 ),
               ],
             ),

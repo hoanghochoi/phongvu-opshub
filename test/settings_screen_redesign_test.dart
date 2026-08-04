@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:phongvu_opshub/app/theme/theme_provider.dart';
@@ -37,15 +39,18 @@ void main() {
 
     expect(find.byType(Scaffold), findsNothing);
     expect(findsLegacyGradientHeader(), findsNothing);
-    expect(find.byKey(const Key('settings-header')), findsOneWidget);
+    expect(find.byKey(const Key('settings-header')), findsNothing);
+    expect(find.byKey(const Key('settings-status-row')), findsOneWidget);
     expect(find.byKey(const Key('settings-theme-card')), findsOneWidget);
     expect(find.byKey(const Key('settings-startup-card')), findsOneWidget);
-    expect(find.text('Tùy chọn thiết bị'), findsOneWidget);
+    expect(find.text('Tùy chọn thiết bị'), findsNothing);
     expect(find.text('Giao diện'), findsOneWidget);
     expect(find.text('Windows'), findsOneWidget);
     expect(find.text('Giao diện: Hệ thống'), findsOneWidget);
-    expect(find.text('Windows: Không hỗ trợ'), findsOneWidget);
-    expect(find.text('Tùy chọn này chỉ hỗ trợ trên Windows.'), findsOneWidget);
+    expect(find.text('Windows: Không hỗ trợ'), findsNothing);
+    expect(find.text('Windows: Chỉ hỗ trợ trên Windows'), findsNothing);
+    expect(find.text('Chỉ hỗ trợ trên Windows'), findsOneWidget);
+    expect(find.text('Tùy chọn này chỉ hỗ trợ trên Windows.'), findsNothing);
     expect(settingsRuntime.loadCount, 1);
     expect(tester.takeException(), isNull);
   });
@@ -68,6 +73,104 @@ void main() {
     expect(settingsRuntime.loadCount, 1);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets(
+    'Settings follows the approved desktop and tablet card geometry',
+    (tester) async {
+      final desktopRuntime = _FakeSettingsRuntime(
+        const StartupSettingsSnapshot(isSupported: true, isEnabled: true),
+      );
+      tester.view.physicalSize = const Size(1440, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      await tester.pumpWidget(_wrapSettings(desktopRuntime));
+      await tester.pumpAndSettle();
+
+      expect(
+        tester.getSize(find.byKey(const Key('settings-theme-card'))),
+        const Size(555, 230),
+      );
+      expect(
+        tester.getSize(find.byKey(const Key('settings-startup-card'))),
+        const Size(555, 230),
+      );
+
+      final tabletRuntime = _FakeSettingsRuntime(
+        const StartupSettingsSnapshot(isSupported: false, isEnabled: false),
+      );
+      tester.view.physicalSize = const Size(1024, 768);
+      await tester.pumpWidget(_wrapSettings(tabletRuntime));
+      await tester.pumpAndSettle();
+
+      expect(
+        tester.getSize(find.byKey(const Key('settings-theme-card'))),
+        const Size(343, 188),
+      );
+      expect(
+        tester.getSize(find.byKey(const Key('settings-startup-card'))),
+        const Size(343, 188),
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'Settings uses the approved startup loading, saving and error states',
+    (tester) async {
+      final load = Completer<StartupSettingsSnapshot>();
+      final save = Completer<StartupSettingsSnapshot>();
+      final themeProvider = ThemeProvider();
+
+      await tester.pumpWidget(
+        ChangeNotifierProvider<ThemeProvider>.value(
+          value: themeProvider,
+          child: MaterialApp(
+            home: SettingsScreen(
+              loadStartupSetting: () => load.future,
+              setStartupEnabled: (_) => save.future,
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      expect(find.text('Đang tải tùy chọn khởi động...'), findsOneWidget);
+
+      load.complete(
+        const StartupSettingsSnapshot(isSupported: true, isEnabled: false),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('settings-startup-toggle')));
+      await tester.pump();
+      expect(find.text('Đang lưu thay đổi...'), findsOneWidget);
+
+      save.complete(
+        const StartupSettingsSnapshot(isSupported: true, isEnabled: true),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Đang bật'), findsOneWidget);
+
+      await tester.pumpWidget(
+        ChangeNotifierProvider<ThemeProvider>.value(
+          value: ThemeProvider(),
+          child: MaterialApp(
+            home: SettingsScreen(
+              key: UniqueKey(),
+              loadStartupSetting: () async =>
+                  throw StateError('startup unavailable'),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Không thể tải tùy chọn. Thử lại.'), findsOneWidget);
+      expect(find.byKey(const Key('settings-startup-toggle')), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
 }
 
 Widget _wrapSettings(_FakeSettingsRuntime settingsRuntime) {

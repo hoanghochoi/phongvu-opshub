@@ -8,7 +8,10 @@ bool shouldInitializeMediaKit({
   required bool isWeb,
   required TargetPlatform platform,
 }) {
-  return !isWeb && platform == TargetPlatform.windows;
+  return !isWeb &&
+      (platform == TargetPlatform.windows ||
+          platform == TargetPlatform.android ||
+          platform == TargetPlatform.iOS);
 }
 
 Future<void> initializeMediaKitIfSupported({

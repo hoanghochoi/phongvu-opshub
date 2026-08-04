@@ -171,6 +171,90 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets(
+    'FIFO serial wrong-order result follows approved status geometry',
+    (tester) async {
+      tester.view.physicalSize = const Size(375, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await tester.pumpWidget(
+        _wrapFifoCheck(_FakeFifoRepository(status: 'wrong')),
+      );
+      await tester.enterText(find.byType(TextField), 'SN001');
+      await tester.tap(find.byTooltip('Tìm FIFO'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Sai thứ tự FIFO'), findsOneWidget);
+      expect(find.text('Chuột Logitech B100'), findsOneWidget);
+      expect(
+        tester
+            .getRect(find.byKey(const ValueKey('fifo-copy-serial-fifo-1')))
+            .size,
+        const Size(144, 48),
+      );
+      expect(
+        tester
+            .getRect(find.byKey(const ValueKey('fifo-copy-location-fifo-1')))
+            .size,
+        const Size(143, 48),
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('FIFO serial exported and display-reserved states keep actions', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(375, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      _wrapFifoCheck(_FakeFifoRepository(status: 'exported')),
+    );
+    await tester.enterText(find.byType(TextField), 'SN001');
+    await tester.tap(find.byTooltip('Tìm FIFO'));
+    await tester.pumpAndSettle();
+    expect(find.text('Đã xuất kho'), findsOneWidget);
+    expect(find.text('Bỏ đánh dấu xuất kho'), findsOneWidget);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pumpWidget(
+      _wrapFifoCheck(_FakeFifoRepository(status: 'display_reserved')),
+    );
+    await tester.enterText(find.byType(TextField), 'SN001');
+    await tester.tap(find.byTooltip('Tìm FIFO'));
+    await tester.pumpAndSettle();
+    expect(find.text('Hàng trưng bày chỉ định'), findsOneWidget);
+    expect(find.text('Trưng bày'), findsOneWidget);
+    expect(find.text('Đánh dấu xuất kho'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('FIFO serial not-found state uses the approved empty panel', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(375, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      _wrapFifoCheck(_FakeFifoRepository(status: 'not_found')),
+    );
+    await tester.enterText(find.byType(TextField), 'SN404');
+    await tester.tap(find.byTooltip('Tìm FIFO'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Không tìm thấy kết quả'), findsOneWidget);
+    expect(find.textContaining('Hãy đổi từ khóa'), findsOneWidget);
+    expect(find.byKey(const ValueKey('fifo-copy-serial-fifo-1')), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('FIFO SKU loaded result keeps approved item geometry', (
     tester,
   ) async {
@@ -353,9 +437,11 @@ Widget _wrapFifoCheck(_FakeFifoRepository repository, {double? contentWidth}) {
 }
 
 class _FakeFifoRepository extends FifoRepository {
-  _FakeFifoRepository({this.skuMode = false}) : super(ApiClient());
+  _FakeFifoRepository({this.skuMode = false, this.status = 'correct'})
+    : super(ApiClient());
 
   final bool skuMode;
+  final String status;
 
   String? lastText;
   bool? lastIncludeExported;
@@ -383,10 +469,20 @@ class _FakeFifoRepository extends FifoRepository {
       query: text,
       srCode: 'SR01',
       includeExported: includeExported,
-      status: 'correct',
-      message: 'Đúng FIFO. Lấy sản phẩm này.',
+      status: status,
+      message: switch (status) {
+        'wrong' => 'Sai FIFO',
+        'exported' => 'Đã xuất kho',
+        'display_reserved' => 'Hàng trưng bày chỉ định',
+        'not_found' => 'Không tìm thấy',
+        _ => 'Đúng FIFO. Lấy sản phẩm này.',
+      },
       items: const [],
-      item: _fifoItem,
+      item: status == 'not_found'
+          ? null
+          : status == 'exported'
+          ? _exportedFifoItem
+          : _fifoItem,
     );
   }
 
@@ -423,6 +519,20 @@ const _fifoItem = FifoInventoryItem(
   count: 1,
   exported: false,
   isFifo: true,
+);
+
+const _exportedFifoItem = FifoInventoryItem(
+  id: 'fifo-1',
+  srCode: 'SR01',
+  sku: '250403171',
+  skuName: 'Chuột Logitech B100',
+  serialNumber: 'SN001',
+  bin: 'LK.04-A-03-a',
+  zone: 'A1',
+  importDate: '2026-07-01',
+  count: 1,
+  exported: true,
+  isFifo: false,
 );
 
 const _skuItem1 = FifoInventoryItem(

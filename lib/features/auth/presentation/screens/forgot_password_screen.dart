@@ -360,7 +360,9 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       context,
       SnackBar(
         content: Text(message),
-        backgroundColor: success ? AppColors.success : AppColors.error,
+        backgroundColor: success
+            ? AppColors.successOf(context)
+            : AppColors.errorOf(context),
       ),
     );
   }

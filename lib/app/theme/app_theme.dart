@@ -8,11 +8,6 @@ import '../widgets/app_inputs.dart';
 class AppTheme {
   AppTheme._();
 
-  // ── Legacy accessors (kept for incremental migration) ────────────
-  static const Color primaryBlue = AppColors.primary;
-  static const Color white = AppColors.surface;
-  static const Color buttonColor = primaryBlue;
-
   // ── Light theme ──────────────────────────────────────────────────
   static ThemeData get lightTheme {
     return ThemeData(
@@ -113,10 +108,20 @@ class AppTheme {
         ),
       ),
       cardTheme: CardThemeData(
-        color: AppColors.card,
+        color: AppColors.surface,
         elevation: 0,
         shadowColor: AppColors.shadow.withValues(alpha: 0.1),
         shape: RoundedRectangleBorder(borderRadius: AppRadius.allSm),
+      ),
+      dialogTheme: DialogThemeData(
+        backgroundColor: AppColors.surface,
+        surfaceTintColor: AppColors.transparent,
+        titleTextStyle: AppTextStyles.headingS.copyWith(
+          color: AppColors.onSurface,
+        ),
+        contentTextStyle: AppTextStyles.bodyM.copyWith(
+          color: AppColors.textSecondary,
+        ),
       ),
       dividerColor: AppColors.divider,
     );
@@ -173,18 +178,22 @@ class AppTheme {
         bodyMedium: AppTextStyles.bodyM.copyWith(
           color: AppColors.darkTextSecondary,
         ),
-        bodySmall: AppTextStyles.bodyS.copyWith(color: AppColors.neutral300),
+        bodySmall: AppTextStyles.bodyS.copyWith(
+          color: AppColors.darkTextSecondary,
+        ),
         labelLarge: AppTextStyles.labelL.copyWith(
           color: AppColors.darkTextSecondary,
         ),
         labelMedium: AppTextStyles.labelM.copyWith(
           color: AppColors.darkTextSecondary,
         ),
-        labelSmall: AppTextStyles.labelS.copyWith(color: AppColors.neutral300),
+        labelSmall: AppTextStyles.labelS.copyWith(
+          color: AppColors.darkTextMuted,
+        ),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: AppColors.darkNeutral50,
+        fillColor: AppColors.darkInput,
         border: OutlineInputBorder(
           borderRadius: AppRadius.allMd,
           borderSide: const BorderSide(color: AppColors.darkBorder),
@@ -199,7 +208,7 @@ class AppTheme {
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: AppRadius.allMd,
-          borderSide: const BorderSide(color: AppColors.error, width: 2),
+          borderSide: const BorderSide(color: AppColors.darkError, width: 2),
         ),
         focusedErrorBorder: OutlineInputBorder(
           borderRadius: AppRadius.allMd,
@@ -215,8 +224,8 @@ class AppTheme {
         ),
         contentPadding: AppInputMetrics.contentPadding,
         constraints: const BoxConstraints(minHeight: AppInputMetrics.height),
-        labelStyle: const TextStyle(color: AppColors.neutral400),
-        hintStyle: const TextStyle(color: AppColors.neutral500),
+        labelStyle: const TextStyle(color: AppColors.darkTextSecondary),
+        hintStyle: const TextStyle(color: AppColors.darkTextMuted),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
@@ -250,11 +259,21 @@ class AppTheme {
         shadowColor: AppColors.shadow.withValues(alpha: 0.3),
         shape: RoundedRectangleBorder(borderRadius: AppRadius.allSm),
       ),
+      dialogTheme: DialogThemeData(
+        backgroundColor: AppColors.darkCard,
+        surfaceTintColor: AppColors.transparent,
+        titleTextStyle: AppTextStyles.headingS.copyWith(
+          color: AppColors.darkTextPrimary,
+        ),
+        contentTextStyle: AppTextStyles.bodyM.copyWith(
+          color: AppColors.darkTextSecondary,
+        ),
+      ),
       dividerColor: AppColors.darkDivider,
       snackBarTheme: SnackBarThemeData(
-        backgroundColor: AppColors.neutral800,
+        backgroundColor: AppColors.darkRaised,
         contentTextStyle: AppTextStyles.bodyM.copyWith(
-          color: AppColors.neutral100,
+          color: AppColors.darkTextSecondary,
         ),
       ),
     );

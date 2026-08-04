@@ -41,6 +41,7 @@ class AppPrimaryButton extends StatelessWidget {
   final AppButtonSize size;
   final double? height;
   final double radius;
+  final TextStyle? textStyle;
 
   const AppPrimaryButton({
     super.key,
@@ -52,6 +53,7 @@ class AppPrimaryButton extends StatelessWidget {
     this.size = AppButtonSize.large,
     this.height,
     this.radius = AppButtonMetrics.radius,
+    this.textStyle,
   });
 
   @override
@@ -59,14 +61,14 @@ class AppPrimaryButton extends StatelessWidget {
     final hasIcon = icon != null || isLoading;
     final buttonStyle =
         FilledButton.styleFrom(
-          backgroundColor: AppColors.primary,
-          foregroundColor: AppColors.surface,
-          disabledBackgroundColor: AppColors.neutral100,
-          disabledForegroundColor: AppColors.neutral500,
+          backgroundColor: AppColors.primaryOf(context),
+          foregroundColor: AppColors.primaryForegroundOf(context),
+          disabledBackgroundColor: AppColors.borderOf(context),
+          disabledForegroundColor: AppColors.textMutedOf(context),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(radius),
           ),
-          textStyle: AppTextStyles.labelL,
+          textStyle: textStyle ?? AppTextStyles.labelL,
           padding: AppButtonMetrics.horizontalPadding,
           minimumSize: Size(0, height ?? AppButtonMetrics.heightFor(size)),
           maximumSize: Size(
@@ -96,12 +98,12 @@ class AppPrimaryButton extends StatelessWidget {
           ? FilledButton.icon(
               onPressed: isLoading ? null : onPressed,
               icon: isLoading
-                  ? const SizedBox(
+                  ? SizedBox(
                       width: 20,
                       height: 20,
                       child: CircularProgressIndicator(
                         strokeWidth: 2,
-                        color: AppColors.surface,
+                        color: AppColors.primaryForegroundOf(context),
                       ),
                     )
                   : Icon(icon),
@@ -129,6 +131,9 @@ class AppSecondaryButton extends StatelessWidget {
   final AppButtonSize size;
   final double? height;
   final double radius;
+  final TextStyle? textStyle;
+  final Color? backgroundColor;
+  final Color? disabledBackgroundColor;
 
   const AppSecondaryButton({
     super.key,
@@ -143,11 +148,15 @@ class AppSecondaryButton extends StatelessWidget {
     this.size = AppButtonSize.large,
     this.height,
     this.radius = AppButtonMetrics.radius,
+    this.textStyle,
+    this.backgroundColor,
+    this.disabledBackgroundColor,
   });
 
   @override
   Widget build(BuildContext context) {
-    final effectiveForegroundColor = foregroundColor ?? AppColors.primary;
+    final effectiveForegroundColor =
+        foregroundColor ?? AppColors.primaryOf(context);
     final effectiveBorderColor = borderColor ?? effectiveForegroundColor;
     return SizedBox(
       width: expand ? double.infinity : null,
@@ -166,11 +175,13 @@ class AppSecondaryButton extends StatelessWidget {
     final buttonStyle =
         OutlinedButton.styleFrom(
           foregroundColor: effectiveForegroundColor,
+          backgroundColor: backgroundColor,
+          disabledBackgroundColor: disabledBackgroundColor,
           side: BorderSide(color: effectiveBorderColor),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(radius),
           ),
-          textStyle: AppTextStyles.labelM,
+          textStyle: textStyle ?? AppTextStyles.labelM,
           minimumSize: Size(0, height ?? AppButtonMetrics.heightFor(size)),
           maximumSize: Size(
             double.infinity,
@@ -216,7 +227,7 @@ class AppSecondaryButton extends StatelessWidget {
 
 class AppLinkButton extends StatelessWidget {
   final VoidCallback? onPressed;
-  final IconData icon;
+  final IconData? icon;
   final String label;
   final String? tooltip;
   final bool compact;
@@ -224,7 +235,7 @@ class AppLinkButton extends StatelessWidget {
   const AppLinkButton({
     super.key,
     required this.onPressed,
-    required this.icon,
+    this.icon,
     required this.label,
     this.tooltip,
     this.compact = false,
@@ -271,8 +282,10 @@ class AppLinkButton extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: iconSize),
-            SizedBox(width: compact ? 4 : 6),
+            if (icon != null) ...[
+              Icon(icon, size: iconSize),
+              SizedBox(width: compact ? 4 : 6),
+            ],
             Text(label, maxLines: 1, softWrap: false),
           ],
         ),
@@ -344,6 +357,9 @@ class AppIconAction extends StatelessWidget {
   final IconData icon;
   final String tooltip;
   final bool filled;
+  final Color? backgroundColor;
+  final Color? foregroundColor;
+  final double dimension;
 
   const AppIconAction({
     super.key,
@@ -351,17 +367,26 @@ class AppIconAction extends StatelessWidget {
     required this.icon,
     required this.tooltip,
     this.filled = false,
+    this.backgroundColor,
+    this.foregroundColor,
+    this.dimension = AppButtonMetrics.iconSize,
   });
 
   @override
   Widget build(BuildContext context) {
-    final foreground = filled ? AppColors.surface : AppColors.primary;
-    final background = filled
-        ? AppColors.primary
-        : AppColors.primary.withValues(alpha: 0.10);
+    final foreground =
+        foregroundColor ??
+        (filled
+            ? AppColors.primaryForegroundOf(context)
+            : AppColors.primaryOf(context));
+    final background =
+        backgroundColor ??
+        (filled
+            ? AppColors.primaryOf(context)
+            : AppColors.primaryOf(context).withValues(alpha: 0.10));
 
     return SizedBox.square(
-      dimension: AppButtonMetrics.iconSize,
+      dimension: dimension,
       child: IconButton(
         onPressed: onPressed,
         icon: Icon(icon),
@@ -369,8 +394,8 @@ class AppIconAction extends StatelessWidget {
         color: foreground,
         style: IconButton.styleFrom(
           backgroundColor: background,
-          disabledBackgroundColor: AppColors.neutral200,
-          disabledForegroundColor: AppColors.neutral500,
+          disabledBackgroundColor: AppColors.borderOf(context),
+          disabledForegroundColor: AppColors.textMutedOf(context),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppButtonMetrics.radius),
           ),
@@ -419,8 +444,8 @@ class AppDialogSecondaryButton extends StatelessWidget {
       icon: Icon(icon),
       label: Text(label),
       style: OutlinedButton.styleFrom(
-        foregroundColor: AppColors.primary,
-        side: const BorderSide(color: AppColors.primary),
+        foregroundColor: AppColors.primaryOf(context),
+        side: BorderSide(color: AppColors.primaryOf(context)),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppButtonMetrics.radius),
         ),
@@ -451,19 +476,21 @@ class AppDialogConfirmButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final effectiveIcon = isLoading
-        ? const SizedBox(
+        ? SizedBox(
             width: 16,
             height: 16,
             child: CircularProgressIndicator(
               strokeWidth: 2,
-              color: AppColors.surface,
+              color: AppColors.primaryForegroundOf(context),
             ),
           )
         : icon == null
         ? null
         : Icon(icon);
-    final effectiveBackgroundColor = backgroundColor ?? AppColors.primary;
-    final effectiveForegroundColor = foregroundColor ?? AppColors.surface;
+    final effectiveBackgroundColor =
+        backgroundColor ?? AppColors.primaryOf(context);
+    final effectiveForegroundColor =
+        foregroundColor ?? AppColors.primaryForegroundOf(context);
     final style = FilledButton.styleFrom(
       backgroundColor: effectiveBackgroundColor,
       foregroundColor: effectiveForegroundColor,

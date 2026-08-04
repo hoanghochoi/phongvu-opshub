@@ -208,6 +208,7 @@ class AppCommandTextInput extends StatelessWidget {
 class AppFormTextInput extends StatelessWidget {
   final TextEditingController controller;
   final String label;
+  final bool showLabel;
   final IconData? icon;
   final FocusNode? focusNode;
   final TextInputType? keyboardType;
@@ -229,6 +230,7 @@ class AppFormTextInput extends StatelessWidget {
   final Iterable<String>? autofillHints;
   final int? maxLines;
   final int? minLines;
+  final TextAlignVertical? textAlignVertical;
   final int? maxLength;
   final TextInputAction? textInputAction;
   final Widget? suffixIcon;
@@ -239,6 +241,7 @@ class AppFormTextInput extends StatelessWidget {
     super.key,
     required this.controller,
     required this.label,
+    this.showLabel = true,
     this.icon,
     this.focusNode,
     this.keyboardType,
@@ -260,6 +263,7 @@ class AppFormTextInput extends StatelessWidget {
     this.autofillHints,
     this.maxLines = 1,
     this.minLines,
+    this.textAlignVertical,
     this.maxLength,
     this.textInputAction,
     this.suffixIcon,
@@ -290,13 +294,14 @@ class AppFormTextInput extends StatelessWidget {
         autofillHints: autofillHints,
         maxLines: maxLines,
         minLines: minLines,
+        textAlignVertical: textAlignVertical,
         maxLength: maxLength,
         textInputAction: textInputAction,
         contextMenuBuilder: appTextInputContextMenuBuilder(),
         style: AppTextStyles.bodyM,
         decoration:
             appInputDecoration(
-              label: label,
+              label: showLabel ? label : null,
               icon: icon,
               hintText: hintText,
               helperText: helperText,

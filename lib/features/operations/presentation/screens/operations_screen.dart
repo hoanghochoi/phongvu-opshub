@@ -34,12 +34,7 @@ class _OperationsScreenState extends State<OperationsScreen> {
 
     _logOperationsResolved(visibleCount, sections.length, user);
 
-    final viewportWidth = MediaQuery.sizeOf(context).width;
-    final pagePadding = viewportWidth >= AppLayoutTokens.tabletBreakpoint
-        ? const EdgeInsets.all(32)
-        : const EdgeInsets.all(16);
     return AppResponsiveScrollView(
-      padding: pagePadding,
       onRefresh: context.read<AuthProvider>().refreshUserData,
       refreshLogSource: 'Operations',
       refreshLogContext: () => {
@@ -93,9 +88,9 @@ class _OperationsScreenState extends State<OperationsScreen> {
                 icon: destination.icon,
                 title: destination.label,
                 description: destination.description,
-                color: AppColors.primary500,
-                iconColor: AppColors.primary500,
-                iconBackground: AppColors.infoSurface,
+                color: AppColors.primaryOf(context),
+                iconColor: AppColors.primaryOf(context),
+                iconBackground: AppColors.infoSurfaceOf(context),
                 onTap: () => context.go(destination.route),
               ),
           ],

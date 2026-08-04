@@ -16,6 +16,21 @@ class AppPlatformCapabilities {
   }) {
     final effectiveIsWeb = isWeb ?? kIsWeb;
     final effectivePlatform = platform ?? defaultTargetPlatform;
+    return !effectiveIsWeb &&
+        (effectivePlatform == TargetPlatform.windows ||
+            effectivePlatform == TargetPlatform.android ||
+            effectivePlatform == TargetPlatform.iOS);
+  }
+
+  /// The Windows client composes the approved local preset pack. Mobile and
+  /// tablet clients use the authenticated server audio stream instead; Web is
+  /// deliberately list-only and never reaches this path.
+  static bool isPaymentSpeakerLocalPresetSupported({
+    bool? isWeb,
+    TargetPlatform? platform,
+  }) {
+    final effectiveIsWeb = isWeb ?? kIsWeb;
+    final effectivePlatform = platform ?? defaultTargetPlatform;
     return !effectiveIsWeb && effectivePlatform == TargetPlatform.windows;
   }
 

@@ -26,11 +26,11 @@ class AppColors {
   static const Color primaryPressed = Color(0xFF054987);
   static const Color primarySurface = Color(0xFFE8F2FF);
   static const Color secondary = Color(0xFF0F766E);
+  static const Color secondarySurface = Color(0xFFF0FDFA);
   static const Color accent = Color(0xFF7C3AED);
 
   // ── Gradient (header / nav) ──────────────────────────────────────
   static const Color gradientStart = Color(0xFF07539F);
-  static const Color gradientMid = primary;
   static const Color gradientEnd = Color(0xFF3B82F6);
 
   // ── Semantic ─────────────────────────────────────────────────────
@@ -38,7 +38,6 @@ class AppColors {
   static const Color success = Color(0xFF12805C);
   static const Color warning = Color(0xFF8A5A08);
   static const Color error = Color(0xFFC2410C);
-  static const Color danger = error;
   static const Color successSurface = Color(0xFFDCFCE7);
   static const Color warningSurface = Color(0xFFFEF3C7);
   static const Color errorSurface = Color(0xFFFFEDD5);
@@ -48,8 +47,6 @@ class AppColors {
   static const Color infoSurfaceSubtle = Color(0xFFEFF6FF);
   static const Color infoBorderSubtle = Color(0xFFBFDBFE);
   static const Color infoTextStrong = Color(0xFF1E3A8A);
-  static const Color teal600 = secondary; // VietQR
-  static const Color violet600 = accent; // Payment monitor
   static const Color indigo600 = Color(0xFF4F46E5);
   static const Color purple600 = Color(0xFF9333EA);
   static const Color emerald600 = Color(0xFF059669);
@@ -71,7 +68,6 @@ class AppColors {
   // ── Surface ──────────────────────────────────────────────────────
   static const Color surface = Color(0xFFFFFFFF);
   static const Color background = Color(0xFFF7F8FB);
-  static const Color card = surface;
   static const Color transparent = Color(0x00000000);
   static const Color shadow = Color(0xFF000000);
   static const Color border = Color(0xFFD8DEE8);
@@ -117,6 +113,7 @@ class AppColors {
   static const Color darkPrimaryPressed = Color(0xFF25476F);
   static const Color darkPrimarySurface = Color(0xFF071D33);
   static const Color darkSecondary = Color(0xFF5EEAD4);
+  static const Color darkSecondarySurface = Color(0xFF0B2E2A);
   static const Color darkAccent = Color(0xFFC4B5FD);
   static const Color darkInfo = Color(0xFF93C5FD);
   static const Color darkSuccess = Color(0xFF34D399);
@@ -140,7 +137,11 @@ class AppColors {
   static const Color darkSidebarMuted = Color(0xFFCBD5E1);
   static const Color darkSidebarSelected = Color(0xFF17324D);
   static const Color darkChipBg = Color(0xFF2A2A2A);
-  static const Color darkNeutral50 = Color(0xFF1A1A1A);
+  static const Color speakerOffSurface = Color(0xFFE5E9F0);
+  static const Color darkSpeakerOffSurface = darkNeutral100;
+
+  /// Figma `Input background` (VariableID:8:148) in Dark mode.
+  static const Color darkInput = Color(0xFF111827);
   static const Color darkNeutral100 = Color(0xFF2D2D2D);
   static const Color darkGradientStart = Color(0xFF0B1220);
   static const Color darkGradientMid = Color(0xFF1E3A5F);
@@ -153,7 +154,7 @@ class AppColors {
       isDark(context) ? darkScaffold : background;
 
   static Color cardOf(BuildContext context) =>
-      isDark(context) ? darkCard : card;
+      isDark(context) ? darkCard : surface;
 
   static Color raisedOf(BuildContext context) =>
       isDark(context) ? darkRaised : surface;
@@ -179,8 +180,66 @@ class AppColors {
   static Color primaryOf(BuildContext context) =>
       isDark(context) ? darkPrimary : primary;
 
+  /// Foreground used on a filled primary action. Dark mode follows Figma's
+  /// `text/inverse` value (`#050A28`) instead of a light label on blue.
+  static Color primaryForegroundOf(BuildContext context) =>
+      isDark(context) ? primary900 : surface;
+
+  static Color secondaryOf(BuildContext context) =>
+      isDark(context) ? darkSecondary : secondary;
+
+  static Color accentOf(BuildContext context) =>
+      isDark(context) ? darkAccent : accent;
+
   static Color primarySurfaceOf(BuildContext context) =>
       isDark(context) ? darkPrimarySurface : primarySurface;
+
+  static Color secondarySurfaceOf(BuildContext context) =>
+      isDark(context) ? darkSecondarySurface : secondarySurface;
+
+  static Color infoOf(BuildContext context) =>
+      isDark(context) ? darkInfo : info;
+
+  static Color successOf(BuildContext context) =>
+      isDark(context) ? darkSuccess : success;
+
+  static Color warningOf(BuildContext context) =>
+      isDark(context) ? darkWarning : warning;
+
+  static Color errorOf(BuildContext context) =>
+      isDark(context) ? darkError : error;
+
+  static Color infoSurfaceOf(BuildContext context) =>
+      isDark(context) ? darkInfoSurface : infoSurface;
+
+  static Color successSurfaceOf(BuildContext context) =>
+      isDark(context) ? darkSuccessSurface : successSurface;
+
+  static Color warningSurfaceOf(BuildContext context) =>
+      isDark(context) ? darkWarningSurface : warningSurface;
+
+  static Color errorSurfaceOf(BuildContext context) =>
+      isDark(context) ? darkErrorSurface : errorSurface;
+
+  static Color statusColorOf(BuildContext context, String tone) {
+    return switch (tone) {
+      'info' => infoOf(context),
+      'success' => successOf(context),
+      'warning' => warningOf(context),
+      'error' => errorOf(context),
+      _ => isDark(context) ? darkTextMuted : neutral500,
+    };
+  }
+
+  static Color statusSurfaceOf(BuildContext context, String tone) {
+    return switch (tone) {
+      'info' => infoSurfaceOf(context),
+      'success' => successSurfaceOf(context),
+      'warning' => warningSurfaceOf(context),
+      'error' => errorSurfaceOf(context),
+      _ => isDark(context) ? darkNeutral100 : neutral50,
+    };
+  }
 
   static Color sidebarSurfaceOf(BuildContext context) =>
       isDark(context) ? darkSidebarSurface : sidebarSurface;
@@ -193,4 +252,10 @@ class AppColors {
 
   static Color sidebarSelectedOf(BuildContext context) =>
       isDark(context) ? darkSidebarSelected : sidebarSelected;
+
+  static Color chipBackgroundOf(BuildContext context) =>
+      isDark(context) ? darkChipBg : chipBackground;
+
+  static Color speakerOffSurfaceOf(BuildContext context) =>
+      isDark(context) ? darkSpeakerOffSurface : speakerOffSurface;
 }

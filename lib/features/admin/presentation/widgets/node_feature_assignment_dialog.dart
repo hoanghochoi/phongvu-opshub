@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:phongvu_opshub/app/widgets/app_toast.dart';
 
 import '../../../../app/theme/app_radius.dart';
+import '../../../../app/theme/app_colors.dart';
+import '../../../../app/theme/app_text_styles.dart';
 import '../../../../app/widgets/app_buttons.dart';
 import '../../../../app/widgets/app_combobox.dart';
 import '../../../../app/widgets/app_dialogs.dart';
@@ -442,7 +444,12 @@ class _NodeFeatureAssignmentDialogState
       _selectedCodes,
     );
     return AlertDialog(
-      title: const Text('Tính năng theo đơn vị'),
+      title: Text(
+        'Tính năng theo đơn vị',
+        style: AppTextStyles.headingS.copyWith(
+          color: AppColors.textPrimaryOf(context),
+        ),
+      ),
       content: SizedBox(
         width: 620,
         child: SingleChildScrollView(
@@ -473,7 +480,9 @@ class _NodeFeatureAssignmentDialogState
                   'Nhóm: ${AdminOrganizationNodeTypes.titleOf(selectedNode.type)} • ${selectedNode.businessCode ?? selectedNode.storeId ?? selectedNode.code} • người dùng ảnh hưởng: $impactedUsers',
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.bodySmall,
+                  style: AppTextStyles.bodyS.copyWith(
+                    color: AppColors.textSecondaryOf(context),
+                  ),
                 ),
               _NodeFeatureCheckboxTree(
                 features: widget.features,
@@ -688,8 +697,9 @@ class _NodeFeatureCheckboxTree extends StatelessWidget {
       constraints: const BoxConstraints(maxHeight: 320),
       child: DecoratedBox(
         decoration: BoxDecoration(
-          border: Border.all(color: Theme.of(context).dividerColor),
+          border: Border.all(color: AppColors.borderOf(context)),
           borderRadius: BorderRadius.circular(AppRadius.sm),
+          color: AppColors.cardOf(context),
         ),
         child: ListView(
           shrinkWrap: true,
@@ -736,15 +746,27 @@ class _NodeFeatureCheckboxTile extends StatelessWidget {
           dense: true,
           contentPadding: EdgeInsets.only(left: 8.0 + depth * 18, right: 8),
           value: selectedCodes.contains(feature.code),
+          selected: selectedCodes.contains(feature.code),
+          activeColor: AppColors.primaryOf(context),
+          tileColor: AppColors.cardOf(context),
+          selectedTileColor: AppColors.primarySurfaceOf(context),
           title: Text(
             feature.title,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
+            style: AppTextStyles.labelM.copyWith(
+              color: AppColors.textPrimaryOf(context),
+            ),
           ),
           subtitle: Text(
             isDisabled ? '$subtitle • đang tắt' : subtitle,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
+            style: AppTextStyles.bodyS.copyWith(
+              color: isDisabled
+                  ? AppColors.textMutedOf(context)
+                  : AppColors.textSecondaryOf(context),
+            ),
           ),
           controlAffinity: ListTileControlAffinity.leading,
           onChanged: isDisabled

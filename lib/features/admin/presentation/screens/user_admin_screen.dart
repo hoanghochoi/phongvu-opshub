@@ -305,7 +305,7 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
         context,
         SnackBar(
           content: Text('Đã đổi mật khẩu cho ${user.email}'),
-          backgroundColor: AppColors.success,
+          backgroundColor: AppColors.successOf(context),
         ),
       );
     } catch (e) {
@@ -320,9 +320,9 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
       if (!mounted) return;
       AppToast.show(
         context,
-        const SnackBar(
+        SnackBar(
           content: Text('Không đổi được mật khẩu'),
-          backgroundColor: AppColors.error,
+          backgroundColor: AppColors.errorOf(context),
         ),
       );
     }
@@ -368,7 +368,7 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
         context,
         SnackBar(
           content: Text('Đã xóa tài khoản ${user.email}'),
-          backgroundColor: AppColors.success,
+          backgroundColor: AppColors.successOf(context),
         ),
       );
       await _load();
@@ -707,14 +707,14 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
                 Text(
                   'Quản lý người dùng',
                   style: AppTextStyles.headingM.copyWith(
-                    color: Theme.of(context).colorScheme.onSurface,
+                    color: AppColors.textPrimaryOf(context),
                   ),
                 ),
                 const SizedBox(height: 6),
                 Text(
                   'Tìm, lọc và cập nhật tài khoản theo phạm vi quản trị.',
                   style: AppTextStyles.bodyM.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    color: AppColors.textSecondaryOf(context),
                   ),
                 ),
                 if (canCreateUsers) ...[
@@ -849,8 +849,8 @@ class _UserListItem extends StatelessWidget {
         ? 'Đã khóa'
         : 'Hoạt động';
     final statusColor = user.assignmentPending || isLocked
-        ? AppColors.warning
-        : AppColors.success;
+        ? AppColors.warningOf(context)
+        : AppColors.successOf(context);
     final metadata = '$roleTitle • ${user.storeInfo}';
 
     final identity = Row(
@@ -866,7 +866,7 @@ class _UserListItem extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: AppTextStyles.labelL.copyWith(
-                  color: Theme.of(context).colorScheme.onSurface,
+                  color: AppColors.textPrimaryOf(context),
                 ),
               ),
               const SizedBox(height: 2),
@@ -875,7 +875,7 @@ class _UserListItem extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: AppTextStyles.bodyS.copyWith(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  color: AppColors.textSecondaryOf(context),
                 ),
               ),
               const SizedBox(height: 2),
@@ -884,7 +884,7 @@ class _UserListItem extends StatelessWidget {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: AppTextStyles.caption.copyWith(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  color: AppColors.textSecondaryOf(context),
                 ),
               ),
             ],
@@ -944,7 +944,7 @@ class _UserListItem extends StatelessWidget {
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: AppTextStyles.bodyS.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    color: AppColors.textSecondaryOf(context),
                   ),
                 ),
               ],
@@ -967,7 +967,7 @@ class _UserListItem extends StatelessWidget {
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: AppTextStyles.bodyS.copyWith(
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        color: AppColors.textSecondaryOf(context),
                       ),
                     ),
                   ],
@@ -1024,31 +1024,50 @@ class _UserImportResultDialog extends StatelessWidget {
                       const SizedBox(height: 6),
                   itemBuilder: (context, index) {
                     final row = rows[index];
-                    return ListTile(
-                      dense: true,
-                      contentPadding: EdgeInsets.zero,
-                      leading: Icon(
-                        row.welcomeEmailError?.isNotEmpty == true
-                            ? Icons.mark_email_unread_outlined
-                            : row.action == 'created'
-                            ? Icons.person_add_alt_1_outlined
-                            : Icons.manage_accounts_outlined,
-                      ),
-                      title: Text(row.email),
-                      subtitle: Text(
-                        [
-                          'Dòng ${row.rowNumber}',
-                          row.role,
-                          row.personnelCode ?? row.organizationNodeName ?? '-',
-                          if (row.action == 'created')
-                            row.welcomeEmailError?.isNotEmpty == true
-                                ? 'Email lỗi'
-                                : row.welcomeEmailSent
-                                ? 'Đã gửi email'
-                                : 'Chưa gửi email',
-                        ].join(' • '),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
+                    return Material(
+                      color: AppColors.cardOf(context),
+                      borderRadius: AppRadius.allSm,
+                      child: ListTile(
+                        dense: true,
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                        ),
+                        leading: Icon(
+                          row.welcomeEmailError?.isNotEmpty == true
+                              ? Icons.mark_email_unread_outlined
+                              : row.action == 'created'
+                              ? Icons.person_add_alt_1_outlined
+                              : Icons.manage_accounts_outlined,
+                          color: row.welcomeEmailError?.isNotEmpty == true
+                              ? AppColors.errorOf(context)
+                              : AppColors.successOf(context),
+                        ),
+                        title: Text(
+                          row.email,
+                          style: AppTextStyles.labelM.copyWith(
+                            color: AppColors.textPrimaryOf(context),
+                          ),
+                        ),
+                        subtitle: Text(
+                          [
+                            'Dòng ${row.rowNumber}',
+                            row.role,
+                            row.personnelCode ??
+                                row.organizationNodeName ??
+                                '-',
+                            if (row.action == 'created')
+                              row.welcomeEmailError?.isNotEmpty == true
+                                  ? 'Email lỗi'
+                                  : row.welcomeEmailSent
+                                  ? 'Đã gửi email'
+                                  : 'Chưa gửi email',
+                          ].join(' • '),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppTextStyles.bodyS.copyWith(
+                            color: AppColors.textSecondaryOf(context),
+                          ),
+                        ),
                       ),
                     );
                   },
@@ -1310,11 +1329,24 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             for (final change in changes)
-              ListTile(
-                dense: true,
-                contentPadding: EdgeInsets.zero,
-                leading: const Icon(Icons.check_circle_outline, size: 18),
-                title: Text(change),
+              Material(
+                color: AppColors.cardOf(context),
+                borderRadius: AppRadius.allSm,
+                child: ListTile(
+                  dense: true,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 10),
+                  leading: Icon(
+                    Icons.check_circle_outline,
+                    color: AppColors.successOf(context),
+                    size: 18,
+                  ),
+                  title: Text(
+                    change,
+                    style: AppTextStyles.labelM.copyWith(
+                      color: AppColors.textPrimaryOf(context),
+                    ),
+                  ),
+                ),
               ),
           ],
         ),
@@ -1579,48 +1611,88 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
                     ),
                     const SizedBox(height: AppLayoutTokens.formInlineGap),
                     Expanded(
-                      child: ListView.separated(
-                        itemCount:
-                            nodes.length + (_allowsGlobalNationalScope ? 1 : 0),
-                        separatorBuilder: (context, index) =>
-                            const Divider(height: 1),
-                        itemBuilder: (context, index) {
-                          if (_allowsGlobalNationalScope && index == 0) {
-                            final isGlobal = selectedIds.isEmpty;
+                      child: Material(
+                        color: AppColors.cardOf(context),
+                        borderRadius: AppRadius.allSm,
+                        clipBehavior: Clip.antiAlias,
+                        child: ListView.separated(
+                          itemCount:
+                              nodes.length +
+                              (_allowsGlobalNationalScope ? 1 : 0),
+                          separatorBuilder: (context, index) =>
+                              const Divider(height: 1),
+                          itemBuilder: (context, index) {
+                            if (_allowsGlobalNationalScope && index == 0) {
+                              final isGlobal = selectedIds.isEmpty;
+                              return CheckboxListTile(
+                                value: isGlobal,
+                                selected: isGlobal,
+                                controlAffinity:
+                                    ListTileControlAffinity.leading,
+                                activeColor: AppColors.primaryOf(context),
+                                tileColor: AppColors.cardOf(context),
+                                selectedTileColor: AppColors.primarySurfaceOf(
+                                  context,
+                                ),
+                                secondary: Icon(
+                                  Icons.public_rounded,
+                                  color: AppColors.primaryOf(context),
+                                ),
+                                title: Text(
+                                  'Toàn hệ thống',
+                                  style: AppTextStyles.labelM.copyWith(
+                                    color: AppColors.textPrimaryOf(context),
+                                  ),
+                                ),
+                                subtitle: Text(
+                                  'Áp dụng cho toàn bộ hệ thống',
+                                  style: AppTextStyles.bodyS.copyWith(
+                                    color: AppColors.textSecondaryOf(context),
+                                  ),
+                                ),
+                                onChanged: (value) =>
+                                    setDialogState(selectedIds.clear),
+                              );
+                            }
+                            final nodeIndex = _allowsGlobalNationalScope
+                                ? index - 1
+                                : index;
+                            final node = nodes[nodeIndex];
+                            final isSelected = selectedIds.contains(node.id);
                             return CheckboxListTile(
-                              value: isGlobal,
+                              value: isSelected,
+                              selected: isSelected,
                               controlAffinity: ListTileControlAffinity.leading,
-                              secondary: const Icon(Icons.public_rounded),
-                              title: const Text('Toàn hệ thống'),
-                              subtitle: const Text(
-                                'Áp dụng cho toàn bộ hệ thống',
+                              activeColor: AppColors.primaryOf(context),
+                              tileColor: AppColors.cardOf(context),
+                              selectedTileColor: AppColors.primarySurfaceOf(
+                                context,
                               ),
-                              onChanged: (value) =>
-                                  setDialogState(selectedIds.clear),
+                              secondary: _NodeTypeBadge(type: node.type),
+                              title: Text(
+                                _nodeBreadcrumb(node),
+                                style: AppTextStyles.labelM.copyWith(
+                                  color: AppColors.textPrimaryOf(context),
+                                ),
+                              ),
+                              subtitle: Text(
+                                _nodeCode(node),
+                                style: AppTextStyles.bodyS.copyWith(
+                                  color: AppColors.textSecondaryOf(context),
+                                ),
+                              ),
+                              onChanged: (value) {
+                                setDialogState(() {
+                                  if (value == true) {
+                                    selectedIds.add(node.id);
+                                  } else {
+                                    selectedIds.remove(node.id);
+                                  }
+                                });
+                              },
                             );
-                          }
-                          final nodeIndex = _allowsGlobalNationalScope
-                              ? index - 1
-                              : index;
-                          final node = nodes[nodeIndex];
-                          final isSelected = selectedIds.contains(node.id);
-                          return CheckboxListTile(
-                            value: isSelected,
-                            controlAffinity: ListTileControlAffinity.leading,
-                            secondary: _NodeTypeBadge(type: node.type),
-                            title: Text(_nodeBreadcrumb(node)),
-                            subtitle: Text(_nodeCode(node)),
-                            onChanged: (value) {
-                              setDialogState(() {
-                                if (value == true) {
-                                  selectedIds.add(node.id);
-                                } else {
-                                  selectedIds.remove(node.id);
-                                }
-                              });
-                            },
-                          );
-                        },
+                          },
+                        ),
                       ),
                     ),
                   ],
@@ -1877,8 +1949,8 @@ class _OrganizationNodeSelector extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
                 style: AppTextStyles.bodyM.copyWith(
                   color: hasValue
-                      ? Theme.of(context).colorScheme.onSurface
-                      : Theme.of(context).hintColor,
+                      ? AppColors.textPrimaryOf(context)
+                      : AppColors.textMutedOf(context),
                   fontWeight: hasValue ? FontWeight.w600 : FontWeight.normal,
                 ),
               ),

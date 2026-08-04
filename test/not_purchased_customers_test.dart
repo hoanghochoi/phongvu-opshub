@@ -476,6 +476,12 @@ void main() {
 
     await tester.tap(find.text('Nguyễn Văn A'));
     await tester.pumpAndSettle();
+    // The provider retries with the production backoff (350 ms, then 700 ms).
+    // Advance the test clock explicitly; pumpAndSettle alone does not wait on
+    // a Future.delayed that has not scheduled a frame yet.
+    await tester.pump(const Duration(milliseconds: 350));
+    await tester.pump(const Duration(milliseconds: 700));
+    await tester.pumpAndSettle();
 
     expect(find.text('Lần chăm sóc 1'), findsOneWidget);
     expect(repository.detailCalls, 3);

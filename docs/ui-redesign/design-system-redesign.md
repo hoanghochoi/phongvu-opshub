@@ -142,11 +142,14 @@ text scale.
   theo component. Screen page chỉ dùng frame/instance; icon master chỉ nằm ở
   `FOUNDATION / Icons — Phosphor`. Sau mỗi lần di chuyển hoặc tạo mới phải audit
   source ngoài Foundation, overflow và overlap của section trước khi review.
-- Screen inventory tách đúng platform: `Screens — Desktop · Windows`,
-  `Screens — Mobile · Android` và `Screens — Tablet · Android`. Không trộn
+- Screen inventory target hợp nhất Desktop/Web: `Screens — Desktop · Windows + Web`,
+  cùng bốn page mobile/tablet (`Screens — Mobile · Android`, `Screens — Tablet ·
+  Android`, `Screens — Mobile · iOS`, `Screens — Tablet · iPadOS`). Không trộn
   breakpoint/platform trong cùng page, không đặt main component trong page
-  Screens và yêu cầu top-level overlap bằng `0`. Page cũ chỉ xóa sau khi đã
-  chuyển hết nội dung và xác minh `childCount = 0`.
+  Screens và yêu cầu top-level overlap bằng `0`. Dark route/state coverage được
+  quản lý trong board `DARK / Desktop + Web / Route-state coverage · R1` bên
+  trong page Desktop + Web. Page cũ chỉ xóa sau khi đã chuyển hết nội dung và
+  xác minh `childCount = 0` cùng revision approval.
 - Với icon Navigation, audit phải đối chiếu `vectorPaths` của từng master với
   SVG `regular` cùng tên từ `phosphor-icons/core`; không chỉ kiểm tra tên layer
   hoặc kích thước. Nếu icon không tồn tại trong core hay sai ngữ nghĩa runtime,

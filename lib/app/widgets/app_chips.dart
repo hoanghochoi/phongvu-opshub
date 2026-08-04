@@ -30,8 +30,10 @@ class AppInfoChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isEmpty = text.isEmpty;
-    final effectiveColor = color ?? AppColors.neutral700;
-    final displayColor = isEmpty ? AppColors.neutral400 : effectiveColor;
+    final effectiveColor = color ?? AppColors.textSecondaryOf(context);
+    final displayColor = isEmpty
+        ? AppColors.textMutedOf(context)
+        : effectiveColor;
 
     final content = Padding(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
@@ -41,7 +43,7 @@ class AppInfoChip extends StatelessWidget {
           Icon(
             icon,
             size: 14,
-            color: isEmpty ? AppColors.neutral400 : effectiveColor,
+            color: isEmpty ? AppColors.textMutedOf(context) : effectiveColor,
           ),
           const SizedBox(width: 4),
           Flexible(
@@ -72,7 +74,7 @@ class AppInfoChip extends StatelessWidget {
     if (onTap == null) {
       return DecoratedBox(
         decoration: BoxDecoration(
-          color: AppColors.chipBackground,
+          color: AppColors.chipBackgroundOf(context),
           borderRadius: AppRadius.allSm,
         ),
         child: content,
@@ -85,7 +87,7 @@ class AppInfoChip extends StatelessWidget {
       label: semanticsLabel ?? text,
       hint: 'Sao chép',
       child: Material(
-        color: AppColors.chipBackground,
+        color: AppColors.chipBackgroundOf(context),
         borderRadius: AppRadius.allSm,
         clipBehavior: Clip.antiAlias,
         child: InkWell(
@@ -127,7 +129,7 @@ class AppStatusChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final effectiveColor = color ?? AppColors.neutral700;
+    final effectiveColor = color ?? AppColors.textSecondaryOf(context);
     final effectiveBg =
         backgroundColor ?? effectiveColor.withValues(alpha: 0.08);
     return Container(

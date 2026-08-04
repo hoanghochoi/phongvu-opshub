@@ -38,7 +38,7 @@ class AdminMenuScreen extends StatelessWidget {
           icon: Icons.people_alt_outlined,
           title: 'Quản lý người dùng',
           description: 'Tài khoản và phạm vi',
-          color: AppColors.info,
+          color: AppColors.infoOf(context),
           onTap: () => context.push('/admin/users'),
         ),
       if (canUse('ADMIN_ROLES'))
@@ -46,7 +46,7 @@ class AdminMenuScreen extends StatelessWidget {
           icon: Icons.admin_panel_settings_outlined,
           title: 'Quản lý vai trò',
           description: 'Quyền hệ thống',
-          color: AppColors.violet600,
+          color: AppColors.accentOf(context),
           onTap: () => context.push('/admin/roles'),
         ),
       if (canUse('ADMIN_ORG_TREE'))
@@ -54,7 +54,7 @@ class AdminMenuScreen extends StatelessWidget {
           icon: Icons.account_tree_outlined,
           title: 'Cơ cấu tổ chức',
           description: 'Cây tổ chức cấp 0-5',
-          color: AppColors.info,
+          color: AppColors.infoOf(context),
           onTap: () => context.push('/admin/organization'),
         ),
       if (canUse('ADMIN_POLICIES'))
@@ -62,7 +62,7 @@ class AdminMenuScreen extends StatelessWidget {
           icon: Icons.policy_outlined,
           title: 'Quản lý chính sách',
           description: 'Quyền và cấu hình hệ thống',
-          color: AppColors.warning,
+          color: AppColors.warningOf(context),
           onTap: () => context.push('/admin/policies'),
         ),
       if (canUse('ADMIN_FEATURES'))
@@ -70,7 +70,7 @@ class AdminMenuScreen extends StatelessWidget {
           icon: Icons.tune_outlined,
           title: 'Quản lý tính năng',
           description: 'Tính năng và quyền truy cập',
-          color: AppColors.violet600,
+          color: AppColors.accentOf(context),
           onTap: () => context.push('/admin/features'),
         ),
       if (canUse('ADMIN_PERSONNEL'))
@@ -78,7 +78,7 @@ class AdminMenuScreen extends StatelessWidget {
           icon: Icons.badge_outlined,
           title: 'Danh mục nhân sự',
           description: 'Phòng ban và chức danh',
-          color: AppColors.info,
+          color: AppColors.infoOf(context),
           onTap: () => context.push('/admin/personnel'),
         ),
       if (canUse('ADMIN_SALES_TARGETS'))
@@ -86,7 +86,7 @@ class AdminMenuScreen extends StatelessWidget {
           icon: Icons.query_stats_rounded,
           title: 'Quản lý doanh số',
           description: 'Chỉ tiêu theo tháng và showroom',
-          color: AppColors.teal600,
+          color: AppColors.secondaryOf(context),
           onTap: () => context.push('/admin/sales-targets'),
         ),
       if (canUse('ADMIN_QUICK_ACTION_CODES') && (isSuperAdmin || managerRole))
@@ -94,7 +94,7 @@ class AdminMenuScreen extends StatelessWidget {
           icon: Icons.qr_code_2_rounded,
           title: 'Quản lý mã',
           description: 'Liên kết QR theo showroom',
-          color: AppColors.primary,
+          color: AppColors.primaryOf(context),
           onTap: () => context.push('/admin/quick-action-links'),
         ),
       if (canUse('ADMIN_SALES_REPORTS'))
@@ -102,7 +102,7 @@ class AdminMenuScreen extends StatelessWidget {
           icon: Icons.table_chart_outlined,
           title: 'Danh sách báo cáo bán hàng',
           description: 'Lọc danh sách và xuất file',
-          color: AppColors.teal600,
+          color: AppColors.secondaryOf(context),
           onTap: () {
             unawaited(
               AppLogger.instance.info(
@@ -123,7 +123,7 @@ class AdminMenuScreen extends StatelessWidget {
           icon: Icons.support_agent_rounded,
           title: 'Hỗ trợ nhân viên',
           description: 'Hộp thư hỗ trợ nội bộ',
-          color: AppColors.info,
+          color: AppColors.infoOf(context),
           onTap: () => context.push('/admin/support-chats'),
         ),
       if (isSuperAdmin)
@@ -131,7 +131,7 @@ class AdminMenuScreen extends StatelessWidget {
           icon: Icons.api_rounded,
           title: 'Quản lý kết nối API',
           description: 'Client và khóa ngân hàng',
-          color: AppColors.warning,
+          color: AppColors.warningOf(context),
           onTap: () {
             unawaited(
               AppLogger.instance.info(
@@ -148,7 +148,7 @@ class AdminMenuScreen extends StatelessWidget {
           icon: Icons.menu_book_outlined,
           title: 'Quản lý hướng dẫn',
           description: 'Nội dung runtime công khai',
-          color: AppColors.secondary,
+          color: AppColors.secondaryOf(context),
           onTap: () => context.push('/admin/help-content'),
         ),
       if (isSuperAdmin)
@@ -156,7 +156,7 @@ class AdminMenuScreen extends StatelessWidget {
           icon: Icons.lightbulb_outline_rounded,
           title: 'Danh sách góp ý',
           description: 'Góp ý nội bộ',
-          color: AppColors.teal600,
+          color: AppColors.secondaryOf(context),
           onTap: () => context.push('/admin/feedback'),
         ),
     ];
@@ -166,7 +166,7 @@ class AdminMenuScreen extends StatelessWidget {
           icon: Icons.inventory_2_outlined,
           title: 'Cập nhật tồn kho',
           description: 'Nhập dữ liệu tồn kho FIFO',
-          color: AppColors.info,
+          color: AppColors.infoOf(context),
           onTap: () => context.push('/admin/inventory-import'),
         ),
       if (canUse('FIFO'))
@@ -174,7 +174,7 @@ class AdminMenuScreen extends StatelessWidget {
           icon: Icons.history_rounded,
           title: 'Lịch sử FIFO',
           description: 'Tra cứu lịch sử kiểm tra và sắp xếp',
-          color: AppColors.teal600,
+          color: AppColors.secondaryOf(context),
           onTap: () => context.push('/fifo-history'),
         ),
     ];
@@ -233,7 +233,12 @@ class _AdminFeatureSection extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(title, style: AppTextStyles.headingS),
+        Text(
+          title,
+          style: AppTextStyles.headingS.copyWith(
+            color: AppColors.textPrimaryOf(context),
+          ),
+        ),
         const SizedBox(height: 12),
         LayoutBuilder(
           builder: (context, constraints) {
@@ -287,10 +292,14 @@ class _AdminFeatureTile extends StatelessWidget {
                 width: 44,
                 height: 44,
                 decoration: BoxDecoration(
-                  color: AppColors.infoSurface,
+                  color: AppColors.infoSurfaceOf(context),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: Icon(action.icon, color: AppColors.info, size: 24),
+                child: Icon(
+                  action.icon,
+                  color: AppColors.infoOf(context),
+                  size: 24,
+                ),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -302,7 +311,9 @@ class _AdminFeatureTile extends StatelessWidget {
                       action.title,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: AppTextStyles.labelM,
+                      style: AppTextStyles.labelM.copyWith(
+                        color: AppColors.textPrimaryOf(context),
+                      ),
                     ),
                     const SizedBox(height: 2),
                     Text(
@@ -316,9 +327,9 @@ class _AdminFeatureTile extends StatelessWidget {
                   ],
                 ),
               ),
-              const Icon(
+              Icon(
                 Icons.chevron_right_rounded,
-                color: AppColors.primary,
+                color: AppColors.primaryOf(context),
                 size: 20,
               ),
             ],

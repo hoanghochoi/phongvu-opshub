@@ -85,8 +85,8 @@ class _AppDirtyFormGuardState extends State<AppDirtyFormGuard> {
           AppDialogConfirmButton(
             onPressed: () => Navigator.pop(dialogContext, true),
             label: 'Thoát và hủy',
-            backgroundColor: AppColors.error,
-            foregroundColor: AppColors.surface,
+            backgroundColor: AppColors.errorOf(dialogContext),
+            foregroundColor: AppColors.primaryForegroundOf(dialogContext),
           ),
         ],
       ),

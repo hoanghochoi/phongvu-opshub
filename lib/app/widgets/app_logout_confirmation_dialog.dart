@@ -7,7 +7,10 @@ Future<bool> showLogoutConfirmationDialog(BuildContext context) async {
   final confirmed = await showDialog<bool>(
     context: context,
     builder: (dialogContext) => AlertDialog(
-      icon: const Icon(Icons.logout_rounded, color: AppColors.error),
+      icon: Icon(
+        Icons.logout_rounded,
+        color: AppColors.errorOf(dialogContext),
+      ),
       title: const Text('Xác nhận đăng xuất'),
       content: const Text(
         'Bạn có chắc chắn muốn đăng xuất khỏi OpsHub? Bạn sẽ cần đăng nhập lại để tiếp tục làm việc trên thiết bị này.',
@@ -20,7 +23,7 @@ Future<bool> showLogoutConfirmationDialog(BuildContext context) async {
         AppDialogConfirmButton(
           icon: Icons.logout_rounded,
           label: 'Đăng xuất',
-          backgroundColor: AppColors.error,
+          backgroundColor: AppColors.errorOf(dialogContext),
           onPressed: () => Navigator.of(dialogContext).pop(true),
         ),
       ],

@@ -365,14 +365,24 @@ class HomeSummaryHeader extends StatelessWidget {
                       ],
                     ),
                     const SizedBox(height: 8),
-                    SizedBox(
-                      width: 112,
-                      child: _HomeHeaderChip(
-                        key: const Key('home-summary-refresh-button'),
-                        label: updatedLabel,
-                        onTap: onRefresh,
-                        busy: isRefreshing,
-                      ),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        SizedBox(
+                          width: 112,
+                          child: _HomeHeaderChip(
+                            key: const Key('home-summary-refresh-button'),
+                            label: updatedLabel,
+                            onTap: onRefresh,
+                            busy: isRefreshing,
+                            height: 40,
+                          ),
+                        ),
+                        if (action != null) ...[
+                          const SizedBox(width: 8),
+                          action!,
+                        ],
+                      ],
                     ),
                   ],
                 )
@@ -388,33 +398,39 @@ class HomeSummaryHeader extends StatelessWidget {
                       button: true,
                       label: 'Chọn phạm vi và khoảng thời gian',
                       child: Material(
-                        color: Colors.transparent,
+                        color: AppColors.transparent,
                         child: InkWell(
                           key: const Key('home-summary-scope-date-trigger'),
                           onTap: open,
                           borderRadius: AppRadius.allControl,
-                          child: Container(
-                            key: const Key('home-summary-scope-pill'),
-                            width: 360,
-                            height: 44,
-                            alignment: Alignment.center,
-                            decoration: BoxDecoration(
-                              color: AppColors.raisedOf(context),
-                              border: Border.all(color: AppColors.neutral200),
-                              borderRadius: AppRadius.allControl,
-                            ),
-                            child: Text(
-                              '${_shortScopeLabel(scopeLabel)}  ·  ${_homeRangeShortLabel(selectedStartDate, selectedEndDate)}',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: AppTextStyles.labelS.copyWith(
-                                color: AppColors.neutral700,
+                          child: KeyedSubtree(
+                            key: const Key('home-summary-date-range'),
+                            child: Container(
+                              key: const Key('home-summary-scope-pill'),
+                              width: 360,
+                              height: 44,
+                              alignment: Alignment.center,
+                              decoration: BoxDecoration(
+                                color: AppColors.raisedOf(context),
+                                border: Border.all(
+                                  color: AppColors.borderOf(context),
+                                ),
+                                borderRadius: AppRadius.allControl,
+                              ),
+                              child: Text(
+                                '${_shortScopeLabel(scopeLabel)}  ·  ${_homeRangeShortLabel(selectedStartDate, selectedEndDate)}',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: AppTextStyles.labelS.copyWith(
+                                  color: AppColors.textPrimaryOf(context),
+                                ),
                               ),
                             ),
                           ),
                         ),
                       ),
                     ),
+                    if (action != null) ...[const SizedBox(width: 12), action!],
                   ],
                 ),
         );
@@ -448,7 +464,7 @@ class HomeSummaryHeader extends StatelessWidget {
                             children: [
                               Text(
                                 greetingLabel,
-                                maxLines: 2,
+                                maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: AppTextStyles.headingS.copyWith(
                                   color: AppColors.textPrimaryOf(context),
@@ -457,7 +473,7 @@ class HomeSummaryHeader extends StatelessWidget {
                               const SizedBox(height: 2),
                               Text(
                                 greetingSubtitle ?? scopeLabel,
-                                maxLines: 2,
+                                maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: AppTextStyles.bodyM.copyWith(
                                   color: AppColors.textSecondaryOf(context),
@@ -504,7 +520,7 @@ class HomeSummaryHeader extends StatelessWidget {
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: AppTextStyles.bodyS.copyWith(
-                                  color: AppColors.neutral500,
+                                  color: AppColors.textMutedOf(context),
                                   height: 16 / 13,
                                 ),
                               ),
@@ -666,7 +682,6 @@ class _HomeScopeDateControl extends StatelessWidget {
                       now: DateTime.now,
                     ),
                   ),
-                  if (action != null) action!,
                 ],
               ),
             ),
@@ -692,7 +707,7 @@ class _HomeDesktopRefreshButton extends StatelessWidget {
       button: true,
       label: 'Làm mới dữ liệu trang chủ',
       child: Material(
-        color: Colors.transparent,
+        color: AppColors.transparent,
         child: InkWell(
           key: const Key('home-summary-refresh-button'),
           onTap: isRefreshing ? null : onPressed,
@@ -703,7 +718,7 @@ class _HomeDesktopRefreshButton extends StatelessWidget {
             alignment: Alignment.center,
             decoration: BoxDecoration(
               color: AppColors.raisedOf(context),
-              border: Border.all(color: AppColors.neutral200),
+              border: Border.all(color: AppColors.borderOf(context)),
               borderRadius: AppRadius.allControl,
             ),
             child: isRefreshing
@@ -714,7 +729,7 @@ class _HomeDesktopRefreshButton extends StatelessWidget {
                 : Text(
                     'Làm mới',
                     style: AppTextStyles.labelS.copyWith(
-                      color: AppColors.neutral700,
+                      color: AppColors.textPrimaryOf(context),
                     ),
                   ),
           ),
@@ -730,22 +745,24 @@ class _HomeHeaderChip extends StatelessWidget {
     required this.label,
     this.onTap,
     this.busy = false,
+    this.height = 26,
   });
 
   final String label;
   final VoidCallback? onTap;
   final bool busy;
+  final double height;
 
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: AppColors.neutral50,
+      color: AppColors.raisedOf(context),
       borderRadius: AppRadius.allSm,
       child: InkWell(
         onTap: busy ? null : onTap,
         borderRadius: AppRadius.allSm,
         child: Container(
-          height: 26,
+          height: height,
           alignment: Alignment.center,
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
           child: busy
@@ -895,7 +912,7 @@ class SummaryCardGrid extends StatelessWidget {
         title: 'Giá trị bán (đã bao gồm VAT)',
         value: formatCompactVndAmount(summary.totalRevenue),
         trend: const SummaryTrend.neutral('Theo đơn hàng ERP'),
-        color: AppColors.success,
+        color: AppColors.successOf(context),
       ),
       SummaryCard(
         metricKey: 'totalOrders',
@@ -903,7 +920,7 @@ class SummaryCardGrid extends StatelessWidget {
         title: 'Đơn bán',
         value: _integerLabel(summary.totalOrders),
         trend: const SummaryTrend.neutral('Theo phạm vi'),
-        color: AppColors.primary,
+        color: AppColors.primaryOf(context),
       ),
       SummaryCard(
         metricKey: 'averageOrderValue',
@@ -911,7 +928,7 @@ class SummaryCardGrid extends StatelessWidget {
         title: 'Trung bình đơn hàng (đã bao gồm VAT)',
         value: formatCompactVndAmount(summary.averageOrderValue),
         trend: const SummaryTrend.neutral('Giá trị/đơn'),
-        color: AppColors.info,
+        color: AppColors.infoOf(context),
       ),
       SummaryCard(
         metricKey: 'completedRevenue',
@@ -919,7 +936,7 @@ class SummaryCardGrid extends StatelessWidget {
         title: 'Hoàn thành (đã bao gồm VAT)',
         value: formatCompactVndAmount(summary.completedRevenue),
         trend: const SummaryTrend.success('Đã hoàn tất'),
-        color: AppColors.secondary,
+        color: AppColors.secondaryOf(context),
       ),
       SummaryCard(
         metricKey: 'pendingRevenue',
@@ -929,7 +946,7 @@ class SummaryCardGrid extends StatelessWidget {
         trend: summary.pendingRevenue > 0
             ? const SummaryTrend.warning('chưa hoàn thành')
             : const SummaryTrend.success('đã đủ'),
-        color: AppColors.warning,
+        color: AppColors.warningOf(context),
       ),
       SummaryCard(
         metricKey: 'conversionRate',
@@ -937,7 +954,7 @@ class SummaryCardGrid extends StatelessWidget {
         title: 'Tỉ lệ chuyển đổi',
         value: _percentLabel(summary.conversionRate),
         trend: SummaryTrend.conversion(summary.conversionRate),
-        color: AppColors.secondary,
+        color: AppColors.secondaryOf(context),
       ),
     ];
 
@@ -967,7 +984,7 @@ class MainKpiSummaryCardGrid extends StatelessWidget {
         title: 'Khách doanh nghiệp (đã bao gồm VAT)',
         value: formatCompactVndAmount(summary.businessCustomerRevenue),
         trend: const SummaryTrend.neutral('Theo báo cáo'),
-        color: AppColors.success,
+        color: AppColors.successOf(context),
       ),
       SummaryCard(
         metricKey: 'personalCustomerRevenue',
@@ -975,7 +992,7 @@ class MainKpiSummaryCardGrid extends StatelessWidget {
         title: 'Khách cá nhân (đã bao gồm VAT)',
         value: formatCompactVndAmount(summary.personalCustomerRevenue),
         trend: const SummaryTrend.neutral('Theo báo cáo'),
-        color: AppColors.primary,
+        color: AppColors.primaryOf(context),
       ),
       SummaryCard(
         metricKey: 'examScorePromotionCount',
@@ -983,7 +1000,7 @@ class MainKpiSummaryCardGrid extends StatelessWidget {
         title: 'CTKM đổi điểm thi',
         value: _integerLabel(summary.examScorePromotionCount),
         trend: const SummaryTrend.neutral('Theo báo cáo'),
-        color: AppColors.secondary,
+        color: AppColors.secondaryOf(context),
       ),
       SummaryCard(
         metricKey: 'studentPromotionCount',
@@ -991,7 +1008,7 @@ class MainKpiSummaryCardGrid extends StatelessWidget {
         title: 'CTKM HSSV',
         value: _integerLabel(summary.studentPromotionCount),
         trend: const SummaryTrend.neutral('Theo báo cáo'),
-        color: AppColors.info,
+        color: AppColors.infoOf(context),
       ),
       SummaryCard(
         metricKey: 'installmentNeedCount',
@@ -999,7 +1016,7 @@ class MainKpiSummaryCardGrid extends StatelessWidget {
         title: 'Nhu cầu trả góp',
         value: _integerLabel(summary.installmentNeedCount),
         trend: const SummaryTrend.neutral('Theo báo cáo'),
-        color: AppColors.warning,
+        color: AppColors.warningOf(context),
         textTapTooltip: 'Xem chi tiết nhu cầu trả góp',
         onTextTap: () => _openInstallmentNeedDetailsDialog(context, provider),
       ),
@@ -1009,7 +1026,7 @@ class MainKpiSummaryCardGrid extends StatelessWidget {
         title: 'Trả góp thành công',
         value: _integerLabel(summary.successfulInstallmentCount),
         trend: const SummaryTrend.success('Có đơn trả góp'),
-        color: AppColors.success,
+        color: AppColors.successOf(context),
       ),
     ];
     final secondRow = [
@@ -1019,7 +1036,7 @@ class MainKpiSummaryCardGrid extends StatelessWidget {
         title: 'Bảo hiểm mở rộng',
         value: _integerLabel(summary.extendedInsuranceQuantity),
         trend: const SummaryTrend.neutral('Theo lượng'),
-        color: AppColors.secondary,
+        color: AppColors.secondaryOf(context),
       ),
       SummaryCard(
         metricKey: 'laptopQuantity',
@@ -1027,7 +1044,7 @@ class MainKpiSummaryCardGrid extends StatelessWidget {
         title: 'Laptop',
         value: _integerLabel(summary.laptopQuantity),
         trend: const SummaryTrend.neutral('Theo lượng'),
-        color: AppColors.primary,
+        color: AppColors.primaryOf(context),
       ),
       SummaryCard(
         metricKey: 'pcQuantity',
@@ -1035,7 +1052,7 @@ class MainKpiSummaryCardGrid extends StatelessWidget {
         title: 'PC bộ',
         value: _integerLabel(summary.pcQuantity),
         trend: const SummaryTrend.neutral('Theo lượng'),
-        color: AppColors.info,
+        color: AppColors.infoOf(context),
       ),
       SummaryCard(
         metricKey: 'assembledPcQuantity',
@@ -1043,7 +1060,7 @@ class MainKpiSummaryCardGrid extends StatelessWidget {
         title: 'PC ráp',
         value: _integerLabel(summary.assembledPcQuantity),
         trend: const SummaryTrend.neutral('Theo bộ ráp'),
-        color: AppColors.warning,
+        color: AppColors.warningOf(context),
       ),
       SummaryCard(
         metricKey: 'appleQuantity',
@@ -1051,7 +1068,7 @@ class MainKpiSummaryCardGrid extends StatelessWidget {
         title: 'Apple',
         value: _integerLabel(summary.appleQuantity),
         trend: const SummaryTrend.neutral('iPhone/MacBook/iPad'),
-        color: AppColors.success,
+        color: AppColors.successOf(context),
       ),
       SummaryCard(
         metricKey: 'monitorQuantity',
@@ -1059,7 +1076,7 @@ class MainKpiSummaryCardGrid extends StatelessWidget {
         title: 'Màn hình',
         value: _integerLabel(summary.monitorQuantity),
         trend: const SummaryTrend.neutral('Theo lượng'),
-        color: AppColors.primary,
+        color: AppColors.primaryOf(context),
       ),
       SummaryCard(
         metricKey: 'printerQuantity',
@@ -1067,7 +1084,7 @@ class MainKpiSummaryCardGrid extends StatelessWidget {
         title: 'Máy in',
         value: _integerLabel(summary.printerQuantity),
         trend: const SummaryTrend.neutral('Theo lượng'),
-        color: AppColors.secondary,
+        color: AppColors.secondaryOf(context),
       ),
       SummaryCard(
         metricKey: 'accessoriesQuantity',
@@ -1075,7 +1092,7 @@ class MainKpiSummaryCardGrid extends StatelessWidget {
         title: 'Phụ kiện',
         value: _integerLabel(summary.accessoriesQuantity),
         trend: const SummaryTrend.neutral('Theo lượng'),
-        color: AppColors.info,
+        color: AppColors.infoOf(context),
       ),
     ];
 
@@ -1105,7 +1122,7 @@ class SalesBehaviorSummaryCardGrid extends StatelessWidget {
         title: 'Khách chưa mua',
         value: _integerLabel(summary.notPurchasedReports),
         trend: const SummaryTrend.neutral('Theo báo cáo'),
-        color: AppColors.secondary,
+        color: AppColors.secondaryOf(context),
         textTapTooltip: 'Xem chi tiết khách chưa mua',
         onTextTap: () => _openSalesBehaviorDetailsDialog(
           context,
@@ -1121,7 +1138,7 @@ class SalesBehaviorSummaryCardGrid extends StatelessWidget {
         trend: summary.unreportedOrders > 0
             ? const SummaryTrend.warning('cần xử lý')
             : const SummaryTrend.success('đã đủ'),
-        color: AppColors.warning,
+        color: AppColors.warningOf(context),
         textTapTooltip: 'Xem chi tiết đơn chưa báo cáo',
         onTextTap: () => _openSalesBehaviorDetailsDialog(
           context,
@@ -1135,7 +1152,7 @@ class SalesBehaviorSummaryCardGrid extends StatelessWidget {
         title: 'Báo cáo đã mua',
         value: _integerLabel(summary.reportedOrders),
         trend: const SummaryTrend.success('đã ghi nhận'),
-        color: AppColors.success,
+        color: AppColors.successOf(context),
         textTapTooltip: provider.canOpenSalesReportAdmin
             ? 'Mở Quản trị/Báo cáo bán hàng'
             : null,
@@ -1149,7 +1166,7 @@ class SalesBehaviorSummaryCardGrid extends StatelessWidget {
         title: summary.resolvedCoverageLabel,
         value: _percentLabel(summary.coverageRate),
         trend: SummaryTrend.coverage(summary.coverageRate),
-        color: AppColors.info,
+        color: AppColors.infoOf(context),
       ),
       SummaryCard(
         metricKey: 'consultedSolutionRate',
@@ -1157,7 +1174,7 @@ class SalesBehaviorSummaryCardGrid extends StatelessWidget {
         title: 'Tỉ lệ 3 giải pháp',
         value: _percentLabel(summary.consultedSolutionRate),
         trend: SummaryTrend.yesRate(summary.consultedSolutionRate),
-        color: AppColors.primary,
+        color: AppColors.primaryOf(context),
       ),
       SummaryCard(
         metricKey: 'experiencedRate',
@@ -1165,7 +1182,7 @@ class SalesBehaviorSummaryCardGrid extends StatelessWidget {
         title: 'Tỉ lệ trải nghiệm',
         value: _percentLabel(summary.experiencedRate),
         trend: SummaryTrend.yesRate(summary.experiencedRate),
-        color: AppColors.success,
+        color: AppColors.successOf(context),
       ),
       SummaryCard(
         metricKey: 'zaloRate',
@@ -1173,7 +1190,7 @@ class SalesBehaviorSummaryCardGrid extends StatelessWidget {
         title: 'Tỉ lệ Zalo OA',
         value: _percentLabel(summary.zaloRate),
         trend: SummaryTrend.yesRate(summary.zaloRate),
-        color: AppColors.info,
+        color: AppColors.infoOf(context),
       ),
       SummaryCard(
         metricKey: 'appDownloadRate',
@@ -1181,7 +1198,7 @@ class SalesBehaviorSummaryCardGrid extends StatelessWidget {
         title: 'Tỉ lệ tải App',
         value: _percentLabel(summary.appDownloadRate),
         trend: SummaryTrend.yesRate(summary.appDownloadRate),
-        color: AppColors.secondary,
+        color: AppColors.secondaryOf(context),
       ),
     ];
 
@@ -1211,7 +1228,7 @@ class FinanceSummaryCardGrid extends StatelessWidget {
         title: 'Tiền chuyển khoản',
         value: formatCompactVndAmount(summary.totalTransferredAmount),
         trend: const SummaryTrend.neutral('Theo phạm vi'),
-        color: AppColors.success,
+        color: AppColors.successOf(context),
       ),
       SummaryCard(
         metricKey: 'totalStatements',
@@ -1219,7 +1236,7 @@ class FinanceSummaryCardGrid extends StatelessWidget {
         title: 'Sao kê',
         value: _integerLabel(summary.totalStatements),
         trend: const SummaryTrend.neutral('Trong ngày'),
-        color: AppColors.primary,
+        color: AppColors.primaryOf(context),
       ),
       SummaryCard(
         metricKey: 'totalStatementsTracked',
@@ -1227,7 +1244,7 @@ class FinanceSummaryCardGrid extends StatelessWidget {
         title: 'Sao kê đang theo dõi',
         value: _integerLabel(summary.totalStatementsTracked),
         trend: const SummaryTrend.neutral('Dùng để tính tỷ lệ'),
-        color: AppColors.info,
+        color: AppColors.infoOf(context),
       ),
       SummaryCard(
         metricKey: 'totalStatementsUnfollowed',
@@ -1235,7 +1252,7 @@ class FinanceSummaryCardGrid extends StatelessWidget {
         title: 'Sao kê đã bỏ theo dõi',
         value: _integerLabel(summary.totalStatementsUnfollowed),
         trend: const SummaryTrend.neutral('Không tính đối chiếu đơn'),
-        color: AppColors.neutral500,
+        color: AppColors.textMutedOf(context),
       ),
       SummaryCard(
         metricKey: 'totalStatementsWithOrder',
@@ -1243,7 +1260,7 @@ class FinanceSummaryCardGrid extends StatelessWidget {
         title: 'Sao kê có đơn hàng',
         value: _integerLabel(summary.totalStatementsWithOrder),
         trend: const SummaryTrend.success('đã đối chiếu'),
-        color: AppColors.success,
+        color: AppColors.successOf(context),
       ),
       SummaryCard(
         metricKey: 'totalStatementsWithoutOrder',
@@ -1253,7 +1270,7 @@ class FinanceSummaryCardGrid extends StatelessWidget {
         trend: summary.totalStatementsWithoutOrder > 0
             ? const SummaryTrend.warning('cần xử lý')
             : const SummaryTrend.success('đã đủ'),
-        color: AppColors.warning,
+        color: AppColors.warningOf(context),
         textTapTooltip: provider.canOpenBankStatement
             ? 'Mở Sao kê với bộ lọc chưa có đơn hàng'
             : null,
@@ -1267,7 +1284,7 @@ class FinanceSummaryCardGrid extends StatelessWidget {
         title: 'Tỉ lệ sao kê có đơn hàng',
         value: _percentLabel(summary.statementOrderRate),
         trend: SummaryTrend.statementOrder(summary.statementOrderRate),
-        color: AppColors.info,
+        color: AppColors.infoOf(context),
       ),
     ];
 
@@ -1896,11 +1913,11 @@ class _DetailTabPill extends StatelessWidget {
   Widget build(BuildContext context) {
     final color = selected
         ? AppColors.primaryOf(context)
-        : AppColors.neutral700;
+        : AppColors.textSecondaryOf(context);
     return Material(
       color: selected
           ? AppColors.primaryOf(context).withValues(alpha: 0.10)
-          : AppColors.chipBackground,
+          : AppColors.chipBackgroundOf(context),
       borderRadius: AppRadius.allSm,
       child: InkWell(
         onTap: onTap,
@@ -2145,7 +2162,9 @@ class _DetailsLoadMoreFooter extends StatelessWidget {
               child: Text(
                 errorMessage!,
                 key: const Key('home-details-load-more-error'),
-                style: AppTextStyles.caption.copyWith(color: AppColors.error),
+                style: AppTextStyles.caption.copyWith(
+                  color: AppColors.errorOf(context),
+                ),
               ),
             ),
             const SizedBox(width: 12),
@@ -2204,15 +2223,15 @@ class _InstallmentNeedDetailsDataTable extends StatelessWidget {
               ),
               DataCell(
                 row.successful
-                    ? const Icon(
+                    ? Icon(
                         Icons.check_circle_rounded,
-                        color: AppColors.success,
+                        color: AppColors.successOf(context),
                         size: 18,
                       )
                     : Text(
                         'Không',
                         style: AppTextStyles.bodyS.copyWith(
-                          color: AppColors.error,
+                          color: AppColors.errorOf(context),
                         ),
                       ),
               ),
@@ -2336,7 +2355,7 @@ class ReportProgressPanel extends StatelessWidget {
             subtitle:
                 'Đã báo cáo ${summary.reportedOrders}/${summary.totalOrders} đơn',
             percentage: summary.coverageRate,
-            color: AppColors.primary,
+            color: AppColors.primaryOf(context),
             primaryLegend: 'Đã báo cáo · ${summary.reportedOrders} đơn',
             secondaryLegend: 'Cần xử lý · ${summary.unreportedOrders} đơn',
             primaryPercent: reported,
@@ -2351,7 +2370,7 @@ class ReportProgressPanel extends StatelessWidget {
             title: 'Tiến độ sao kê',
             subtitle: 'Đối chiếu sao kê với đơn hàng',
             percentage: summary.statementOrderRate,
-            color: AppColors.success,
+            color: AppColors.successOf(context),
             primaryLegend:
                 'Có đơn · ${summary.totalStatementsWithOrder} sao kê',
             secondaryLegend:
@@ -2371,7 +2390,7 @@ class ReportProgressPanel extends StatelessWidget {
             subtitle: summary.selectedSalesProgressUserId == null
                 ? 'Chọn nhân viên để so sánh chỉ tiêu'
                 : 'Tiến độ theo nhân viên đã chọn',
-            color: AppColors.violet600,
+            color: AppColors.accentOf(context),
             progress: summary.personalSalesProgress,
             assignees: summary.salesProgressAssignees,
             selectedAssigneeId: summary.selectedSalesProgressUserId,
@@ -2390,7 +2409,7 @@ class ReportProgressPanel extends StatelessWidget {
             subtitle: summary.scopeSalesProgress.hasTarget
                 ? 'Tiến độ theo phạm vi được phân quyền'
                 : 'Thiếu chỉ tiêu: ${summary.scopeSalesProgress.missingStoreCodes.join(', ')}',
-            color: AppColors.primary,
+            color: AppColors.primaryOf(context),
             progress: summary.scopeSalesProgress,
           ),
         ),
@@ -2523,7 +2542,7 @@ class _AnalyticsDonutCard extends StatelessWidget {
                       const SizedBox(height: 10),
                       _AnalyticsLegend(
                         label: secondaryLegend,
-                        color: AppColors.warning,
+                        color: AppColors.warningOf(context),
                       ),
                       const SizedBox(height: 18),
                       _AnalyticsBar(value: primaryPercent, color: color),
@@ -2681,7 +2700,7 @@ class _CompactDonutCard extends StatelessWidget {
     child: Container(
       padding: const EdgeInsets.fromLTRB(18, 16, 18, 14),
       decoration: BoxDecoration(
-        border: Border.all(color: AppColors.neutral200),
+        border: Border.all(color: AppColors.borderOf(context)),
         borderRadius: AppRadius.allLg,
       ),
       child: Column(
@@ -2712,7 +2731,7 @@ class _CompactDonutCard extends StatelessWidget {
           _CompactLegend(
             label: secondaryLegend.split(' · ').first,
             value: _percentLabel(100 - percentage),
-            color: AppColors.error,
+            color: AppColors.errorOf(context),
           ),
         ],
       ),
@@ -2785,7 +2804,7 @@ class _CompactGoalCard extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.fromLTRB(18, 16, 18, 14),
         decoration: BoxDecoration(
-          border: Border.all(color: AppColors.neutral200),
+          border: Border.all(color: AppColors.borderOf(context)),
           borderRadius: AppRadius.allLg,
         ),
         child: Column(
@@ -2799,7 +2818,7 @@ class _CompactGoalCard extends StatelessWidget {
                 Text(
                   _percentLabel(percent),
                   style: AppTextStyles.labelSmallSubtle.copyWith(
-                    color: AppColors.primary,
+                    color: AppColors.primaryOf(context),
                   ),
                 ),
               ],
@@ -2873,7 +2892,7 @@ class _CompactGoalBar extends StatelessWidget {
         Container(
           height: 14,
           decoration: BoxDecoration(
-            color: AppColors.neutral200,
+            color: AppColors.borderOf(context),
             borderRadius: BorderRadius.circular(7),
           ),
         ),
@@ -2881,7 +2900,7 @@ class _CompactGoalBar extends StatelessWidget {
           height: 14,
           width: constraints.maxWidth * (value.clamp(0, 100) / 100),
           decoration: BoxDecoration(
-            color: AppColors.success,
+            color: AppColors.successOf(context),
             borderRadius: BorderRadius.circular(7),
           ),
         ),
@@ -2908,7 +2927,7 @@ class _AnalyticsCard extends StatelessWidget {
     child: Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        border: Border.all(color: AppColors.neutral200),
+        border: Border.all(color: AppColors.borderOf(context)),
         borderRadius: AppRadius.allCardFigma,
       ),
       child: Column(
@@ -2970,7 +2989,7 @@ class _AnalyticsBar extends StatelessWidget {
         Container(
           height: 12,
           decoration: BoxDecoration(
-            color: AppColors.primary100,
+            color: AppColors.primarySurfaceOf(context),
             borderRadius: BorderRadius.circular(999),
           ),
         ),
@@ -3068,7 +3087,7 @@ class _ProgressDonut extends StatelessWidget {
       child: CustomPaint(
         painter: _CoverageDonutPainter(
           value: ((percentage ?? 0) / 100).clamp(0.0, 1.0),
-          trackColor: AppColors.neutral100,
+          trackColor: AppColors.subtleBorderOf(context),
           valueColor: color,
         ),
         child: Center(

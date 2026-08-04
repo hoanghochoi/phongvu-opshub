@@ -91,6 +91,10 @@ void main() {
     expect(find.text('2 showroom: CP75, CP62'), findsOneWidget);
     expect(find.byType(AppFeatureTile), findsNothing);
     expect(find.text('Không gian làm việc'), findsNothing);
+    expect(
+      find.byKey(const Key('home-summary-provider-loading')),
+      findsOneWidget,
+    );
   });
 
   testWidgets(
@@ -153,6 +157,11 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Loa đang bật'), findsOneWidget);
+      expect(find.byIcon(Icons.volume_up), findsOneWidget);
+      expect(
+        tester.getSize(find.byKey(const Key('home-speaker-status-toggle'))),
+        const Size(152, 40),
+      );
       expect(
         tester
             .getTopLeft(find.byKey(const Key('home-speaker-status-toggle')))
@@ -174,15 +183,22 @@ void main() {
       expect(paymentProvider.speakerToggleCalls, 1);
       expect(paymentProvider.lastSpeakerValue, isFalse);
       expect(find.text('Loa đang tắt'), findsOneWidget);
+      expect(find.byIcon(Icons.volume_off), findsOneWidget);
       debugDefaultTargetPlatformOverride = null;
     },
   );
 
-  testWidgets('Android Home keeps speaker quick toggle hidden', (tester) async {
+  testWidgets('Android Home shows the approved speaker quick toggle', (
+    tester,
+  ) async {
     debugDefaultTargetPlatformOverride = TargetPlatform.android;
     addTearDown(() {
       debugDefaultTargetPlatformOverride = null;
     });
+    tester.view.physicalSize = const Size(375, 812);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
     SharedPreferences.setMockInitialValues({});
     FlutterSecureStorage.setMockInitialValues({});
     PackageInfo.setMockInitialValues(
@@ -192,34 +208,80 @@ void main() {
       buildNumber: '2',
       buildSignature: '',
     );
-    final authProvider = _FakeAuthProvider(
-      const User(
-        id: 'user-1',
-        email: 'staff@phongvu.vn',
-        role: 'USER',
-        organizationNodeId: 'org-store-cp01',
-        featureAccess: {'PAYMENT_MONITOR': true, 'PAYMENT_SPEAKER': true},
-      ),
+    const user = User(
+      id: 'user-1',
+      email: 'staff@phongvu.vn',
+      name: 'Staging',
+      role: 'USER',
+      organizationNodeId: 'org-store-cp01',
+      assignedStores: [
+        StoreBranch(id: 'store-01', storeId: 'CP01', storeName: 'CP01'),
+      ],
+      featureAccess: {'PAYMENT_MONITOR': true, 'PAYMENT_SPEAKER': true},
     );
+    final authProvider = _FakeAuthProvider(user);
+    final paymentProvider = _FakeHomePaymentMonitorProvider(
+      isActive: true,
+      isSpeakerEnabled: true,
+      canUsePaymentSpeaker: true,
+      speakerSelectionNotice: null,
+    );
+    final summaryProvider = HomeSummaryProvider(
+      _FakeHomeSummaryRepository(summary: _homeSummary()),
+    );
+    addTearDown(paymentProvider.dispose);
+    addTearDown(summaryProvider.dispose);
+    summaryProvider.syncAuth(user, isInitialized: true);
 
     await tester.pumpWidget(
-      ChangeNotifierProvider<AuthProvider>.value(
-        value: authProvider,
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider<AuthProvider>.value(value: authProvider),
+          ChangeNotifierProvider<PaymentMonitorProvider>.value(
+            value: paymentProvider,
+          ),
+          ChangeNotifierProvider<HomeSummaryProvider>.value(
+            value: summaryProvider,
+          ),
+        ],
         child: const MaterialApp(home: HomeScreen()),
       ),
     );
     await tester.pumpAndSettle();
 
-    expect(find.byKey(const Key('home-welcome-strip')), findsOneWidget);
-    expect(find.text('Đọc loa tiền vào'), findsNothing);
-    expect(find.byType(SwitchListTile), findsNothing);
-    expect(find.byType(AppFeatureTile), findsNothing);
+    expect(find.byKey(const Key('home-summary-header')), findsOneWidget);
+    expect(find.text('Loa đang bật'), findsOneWidget);
+    expect(find.byIcon(Icons.volume_up), findsOneWidget);
+    expect(
+      tester.getSize(find.byKey(const Key('home-speaker-status-toggle'))),
+      const Size(152, 40),
+    );
+    expect(
+      tester.getTopLeft(find.byKey(const Key('home-speaker-status-toggle'))).dy,
+      tester
+          .getTopLeft(find.byKey(const Key('home-summary-refresh-button')))
+          .dy,
+    );
+
+    await tester.tap(find.byKey(const Key('home-speaker-status-toggle')));
+    await tester.pumpAndSettle();
+
+    expect(paymentProvider.speakerToggleCalls, 1);
+    expect(paymentProvider.lastSpeakerValue, isFalse);
+    expect(find.text('Loa đang tắt'), findsOneWidget);
+    expect(find.byIcon(Icons.volume_off), findsOneWidget);
     debugDefaultTargetPlatformOverride = null;
   });
 
   testWidgets('Super Admin Home shows speaker delivery history pill', (
     tester,
   ) async {
+    // The approved Desktop/Web shell is validated at the wide viewport. The
+    // compact top bar intentionally omits the delivery-metrics pill.
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
     SharedPreferences.setMockInitialValues({});
     FlutterSecureStorage.setMockInitialValues({});
     PackageInfo.setMockInitialValues(

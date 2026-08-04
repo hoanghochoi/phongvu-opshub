@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../core/utils/date_range_defaults.dart';
+import '../theme/app_colors.dart';
 import '../theme/app_text_styles.dart';
 import 'app_inputs.dart';
 import 'app_layout.dart';
@@ -24,6 +25,10 @@ class AppDateRangeDropdown extends StatelessWidget {
   final DateTime? lastDate;
   final AppSelectableDayPredicate? selectableDayPredicate;
 
+  /// Renders the canonical picker trigger as a Figma field (label above,
+  /// 48px outlined control) instead of the legacy compact button.
+  final bool fieldStyle;
+
   const AppDateRangeDropdown({
     super.key,
     required this.label,
@@ -37,26 +42,71 @@ class AppDateRangeDropdown extends StatelessWidget {
     this.firstDate,
     this.lastDate,
     this.selectableDayPredicate,
+    this.fieldStyle = false,
   });
 
   @override
   Widget build(BuildContext context) {
     final helperText = _emptyRangeHelperText();
+    final trigger = fieldStyle
+        ? Builder(
+            builder: (buttonContext) => Semantics(
+              button: true,
+              label: '$label: ${_rangeLabel(start, end)}',
+              child: InkWell(
+                key: const Key('open-date-range-picker'),
+                borderRadius: BorderRadius.circular(12),
+                onTap: () => _openPicker(buttonContext),
+                child: Container(
+                  height: 48,
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  decoration: BoxDecoration(
+                    color: AppColors.cardOf(context),
+                    border: Border.all(color: AppColors.borderOf(context)),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          _rangeLabel(start, end),
+                          overflow: TextOverflow.ellipsis,
+                          style: AppTextStyles.bodyM.copyWith(
+                            color: AppColors.textMutedOf(context),
+                          ),
+                        ),
+                      ),
+                      Icon(
+                        Icons.keyboard_arrow_down_rounded,
+                        size: 24,
+                        color: AppColors.textSecondaryOf(context),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          )
+        : Builder(
+            builder: (buttonContext) => OutlinedButton.icon(
+              key: const Key('open-date-range-picker'),
+              icon: const Icon(Icons.date_range_rounded, size: 18),
+              style: _filterButtonStyle(),
+              label: Text(
+                '$label: ${_rangeLabel(start, end)}',
+                overflow: TextOverflow.ellipsis,
+              ),
+              onPressed: () => _openPicker(buttonContext),
+            ),
+          );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Builder(
-          builder: (buttonContext) => OutlinedButton.icon(
-            key: const Key('open-date-range-picker'),
-            icon: const Icon(Icons.date_range_rounded, size: 18),
-            style: _filterButtonStyle(),
-            label: Text(
-              '$label: ${_rangeLabel(start, end)}',
-              overflow: TextOverflow.ellipsis,
-            ),
-            onPressed: () => _openPicker(buttonContext),
-          ),
-        ),
+        if (fieldStyle) ...[
+          Text(label, style: AppTextStyles.labelM),
+          const SizedBox(height: 8),
+        ],
+        trigger,
         if (helperText != null) ...[
           const SizedBox(height: 4),
           Padding(

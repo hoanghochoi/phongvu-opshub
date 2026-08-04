@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:intl/intl.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:phongvu_opshub/app/widgets/app_toast.dart';
 
@@ -201,6 +202,10 @@ class _HelpScreenState extends State<HelpScreen> {
   @override
   Widget build(BuildContext context) {
     final pageContent = AppResponsiveScrollView(
+      maxWidth: widget.embeddedInShell ? 1126 : 1120,
+      padding: widget.embeddedInShell
+          ? null
+          : _publicContentPadding(MediaQuery.sizeOf(context).width),
       onRefresh: () => _load(reason: 'pull_refresh'),
       refreshLogSource: 'HelpScreen',
       refreshLogContext: () => {
@@ -232,25 +237,24 @@ class _HelpScreenState extends State<HelpScreen> {
     );
     if (widget.embeddedInShell) return pageContent;
     return Scaffold(
-      appBar: AppBar(
-        leading: widget.onBack != null || Navigator.of(context).canPop()
-            ? IconButton(
-                tooltip: 'Quay lại',
-                onPressed: _handleBack,
-                icon: const Icon(Icons.arrow_back_rounded),
-              )
-            : null,
-        title: const Text('Hướng dẫn sử dụng'),
-        actions: [
-          IconButton(
-            tooltip: 'Tải lại hướng dẫn',
-            onPressed: _loading ? null : () => _load(reason: 'manual_refresh'),
-            icon: const Icon(Icons.refresh_rounded),
+      body: Column(
+        children: [
+          _HelpPublicTopBar(
+            loading: _loading,
+            onBack: _handleBack,
+            onRefresh: () => _load(reason: 'manual_refresh'),
           ),
+          Expanded(child: pageContent),
         ],
       ),
-      body: pageContent,
     );
+  }
+
+  EdgeInsets _publicContentPadding(double width) {
+    if (width >= AppLayoutTokens.desktopBreakpoint) {
+      return const EdgeInsets.fromLTRB(32, 32, 32, 24);
+    }
+    return const EdgeInsets.all(16);
   }
 
   Widget _buildBody() {
@@ -269,7 +273,7 @@ class _HelpScreenState extends State<HelpScreen> {
           title: 'Chưa tải được hướng dẫn',
           message: _errorMessage,
           actionLabel: 'Thử lại',
-          actionIcon: Icons.refresh_rounded,
+          actionIcon: PhosphorIconsRegular.arrowCounterClockwise,
           onAction: () => _load(reason: 'retry'),
         ),
       );
@@ -281,14 +285,20 @@ class _HelpScreenState extends State<HelpScreen> {
           title: 'Chưa có nội dung hướng dẫn',
           message:
               'Nội dung sẽ hiển thị khi runtime help có trang được xuất bản.',
-          icon: Icons.menu_book_outlined,
+          icon: PhosphorIconsRegular.bookOpen,
         ),
       );
     }
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final compact = constraints.maxWidth < AppLayoutTokens.tabletBreakpoint;
+        final viewportWidth = MediaQuery.sizeOf(context).width;
+        final shellTablet =
+            widget.embeddedInShell &&
+            viewportWidth >= AppLayoutTokens.compactBreakpoint &&
+            viewportWidth < AppLayoutTokens.tabletBreakpoint;
+        final sideBySide =
+            shellTablet || viewportWidth >= AppLayoutTokens.desktopBreakpoint;
         final navigationCard = _HelpNavigationCard(
           pages: _pages,
           selectedKey: _selectedKey,
@@ -299,9 +309,18 @@ class _HelpScreenState extends State<HelpScreen> {
           parentTitle: helpPageParentTitle(_selectedPage!, _pages),
           markdown: _resolvedMarkdown(_selectedPage!),
           onLinkTap: _handleLink,
+          minHeight: widget.embeddedInShell
+              ? (viewportWidth < AppLayoutTokens.compactBreakpoint
+                    ? 455
+                    : viewportWidth < AppLayoutTokens.tabletBreakpoint
+                    ? 312
+                    : 329)
+              : viewportWidth < AppLayoutTokens.compactBreakpoint
+              ? 409
+              : 329,
         );
 
-        if (compact) {
+        if (!sideBySide) {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -315,9 +334,12 @@ class _HelpScreenState extends State<HelpScreen> {
         return Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            SizedBox(width: 300, child: navigationCard),
+            SizedBox(width: shellTablet ? 210 : 300, child: navigationCard),
             const SizedBox(width: 16),
-            Expanded(child: contentCard),
+            if (shellTablet)
+              SizedBox(width: 480, child: contentCard)
+            else
+              Expanded(child: contentCard),
           ],
         );
       },
@@ -358,6 +380,55 @@ class _HelpScreenState extends State<HelpScreen> {
   }
 }
 
+class _HelpPublicTopBar extends StatelessWidget {
+  const _HelpPublicTopBar({
+    required this.loading,
+    required this.onBack,
+    required this.onRefresh,
+  });
+
+  final bool loading;
+  final VoidCallback onBack;
+  final VoidCallback onRefresh;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 64,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: AppColors.cardOf(context),
+          border: Border(
+            bottom: BorderSide(color: AppColors.borderOf(context)),
+          ),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          child: Row(
+            children: [
+              AppIconAction(
+                tooltip: 'Quay lại',
+                icon: PhosphorIconsRegular.arrowLeft,
+                onPressed: onBack,
+                backgroundColor: AppColors.secondarySurfaceOf(context),
+                foregroundColor: AppColors.secondaryOf(context),
+              ),
+              const SizedBox(width: 12),
+              Text('Hướng dẫn sử dụng', style: AppTextStyles.labelL),
+              const Spacer(),
+              AppIconAction(
+                tooltip: 'Tải lại hướng dẫn',
+                icon: PhosphorIconsRegular.arrowCounterClockwise,
+                onPressed: loading ? null : onRefresh,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _HelpScreenHeader extends StatelessWidget {
   const _HelpScreenHeader({
     required this.loading,
@@ -375,43 +446,77 @@ class _HelpScreenHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return AppSurfaceCard(
       key: const Key('help-screen-header'),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  'Kho nội dung hỗ trợ OpsHub',
-                  style: AppTextStyles.headingS,
+          SizedBox(
+            height: 48,
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Kho nội dung hỗ trợ OpsHub',
+                    style: AppTextStyles.pageTitle,
+                  ),
                 ),
-              ),
-              if (onReload != null)
-                AppIconAction(
-                  tooltip: 'Tải lại hướng dẫn',
-                  icon: Icons.refresh_rounded,
-                  onPressed: onReload,
-                ),
-            ],
+                if (onReload != null)
+                  AppIconAction(
+                    tooltip: 'Tải lại hướng dẫn',
+                    icon: PhosphorIconsRegular.arrowCounterClockwise,
+                    onPressed: onReload,
+                  ),
+              ],
+            ),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
           Wrap(
             spacing: 8,
             runSpacing: 8,
             children: [
-              AppStatusChip(
-                label: loading ? 'Đang đồng bộ' : '$pageCount trang',
-                color: AppColors.primary,
+              SizedBox(
+                width: loading ? 93 : 67,
+                child: AppStatusChip(
+                  label: loading ? 'Đang đồng bộ' : '$pageCount trang',
+                  color: AppColors.primaryOf(context),
+                  backgroundColor: AppColors.primarySurfaceOf(context),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 5,
+                  ),
+                ),
               ),
               if (updatedAt != null)
-                AppStatusChip(
-                  label:
-                      'Cập nhật ${DateFormat('HH:mm dd/MM').format(updatedAt!.toLocal())}',
-                  color: AppColors.neutral700,
+                SizedBox(
+                  width: 155,
+                  child: AppStatusChip(
+                    label:
+                        'Cập nhật ${DateFormat('HH:mm dd/MM').format(updatedAt!.toLocal())}',
+                    color: AppColors.textSecondaryOf(context),
+                    backgroundColor: AppColors.statusSurfaceOf(
+                      context,
+                      'neutral',
+                    ),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 5,
+                    ),
+                  ),
                 ),
-              const AppStatusChip(
-                label: 'Nguồn runtime',
-                color: AppColors.info,
+              SizedBox(
+                width: 109,
+                child: AppStatusChip(
+                  label: 'Nguồn runtime',
+                  color: AppColors.infoOf(context),
+                  backgroundColor: AppColors.infoSurfaceOf(context),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  padding: EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                ),
               ),
             ],
           ),
@@ -435,11 +540,13 @@ class _HelpNavigationCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return AppSurfaceCard(
+      key: const Key('help-navigation-card'),
+      padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text('Mục lục', style: AppTextStyles.headingS),
-          const SizedBox(height: 12),
+          Text('Mục lục', style: AppTextStyles.pageTitle),
+          const SizedBox(height: 10),
           for (final page in pages) ...[
             _HelpNavigationItem(
               page: page,
@@ -477,39 +584,41 @@ class _HelpNavigationItem extends StatelessWidget {
       child: Ink(
         decoration: BoxDecoration(
           color: selected
-              ? AppColors.primary.withValues(alpha: 0.06)
+              ? AppColors.primarySurfaceOf(context)
               : AppColors.cardOf(context),
           borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
           border: Border.all(
             color: selected
-                ? AppColors.primary.withValues(alpha: 0.24)
+                ? AppColors.primaryOf(context).withValues(alpha: 0.24)
                 : AppColors.borderOf(context),
           ),
         ),
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              SizedBox(width: depth * 12),
-              Icon(
-                depth == 0
-                    ? Icons.book_outlined
-                    : Icons.subdirectory_arrow_right,
-                color: selected ? AppColors.primary : AppColors.neutral700,
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  page.title,
-                  style: AppTextStyles.labelM.copyWith(
-                    color: selected
-                        ? AppColors.primaryOf(context)
-                        : AppColors.textPrimaryOf(context),
+        child: SizedBox(
+          height: 46,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                SizedBox(width: depth * 12),
+                Icon(
+                  PhosphorIconsRegular.bookOpen,
+                  size: 20,
+                  color: selected
+                      ? AppColors.primaryOf(context)
+                      : AppColors.textSecondaryOf(context),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    page.title,
+                    style: AppTextStyles.labelM.copyWith(
+                      color: AppColors.textPrimaryOf(context),
+                    ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -523,38 +632,63 @@ class _HelpContentCard extends StatelessWidget {
     required this.parentTitle,
     required this.markdown,
     required this.onLinkTap,
+    required this.minHeight,
   });
 
   final HelpContentPage page;
   final String? parentTitle;
   final String markdown;
   final Future<void> Function(String) onLinkTap;
+  final double minHeight;
 
   @override
   Widget build(BuildContext context) {
-    return AppSurfaceCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(page.title, style: AppTextStyles.headingM),
-          const SizedBox(height: 6),
-          Text(
-            parentTitle == null ? 'Trang gốc' : 'Thuộc mục $parentTitle',
-            style: AppTextStyles.bodyS.copyWith(
-              color: AppColors.textSecondaryOf(context),
+    return ConstrainedBox(
+      constraints: BoxConstraints(minHeight: minHeight),
+      child: AppSurfaceCard(
+        key: const Key('help-content-card'),
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(page.title, style: AppTextStyles.pageTitle),
+            const SizedBox(height: 12),
+            Text(
+              parentTitle == null ? 'Trang gốc' : 'Thuộc mục $parentTitle',
+              style: AppTextStyles.bodyS.copyWith(
+                height: 18 / 13,
+                color: AppColors.textSecondaryOf(context),
+              ),
             ),
-          ),
-          const SizedBox(height: 16),
-          MarkdownBody(
-            data: markdown,
-            selectable: true,
-            shrinkWrap: true,
-            onTapLink: (text, href, title) {
-              if (href == null) return;
-              unawaited(onLinkTap(href));
-            },
-          ),
-        ],
+            const SizedBox(height: 12),
+            Divider(height: 1, color: AppColors.borderOf(context)),
+            const SizedBox(height: 12),
+            MarkdownBody(
+              data: markdown,
+              selectable: true,
+              shrinkWrap: true,
+              styleSheet: MarkdownStyleSheet.fromTheme(Theme.of(context))
+                  .copyWith(
+                    h1: AppTextStyles.pageTitle,
+                    h2: AppTextStyles.pageTitle,
+                    h3: AppTextStyles.pageTitle,
+                    p: AppTextStyles.bodyM.copyWith(
+                      color: AppColors.textPrimaryOf(context),
+                    ),
+                    a: AppTextStyles.labelM.copyWith(
+                      color: AppColors.primaryOf(context),
+                    ),
+                    listBullet: AppTextStyles.bodyM.copyWith(
+                      color: AppColors.textPrimaryOf(context),
+                    ),
+                  ),
+              onTapLink: (text, href, title) {
+                if (href == null) return;
+                unawaited(onLinkTap(href));
+              },
+            ),
+          ],
+        ),
       ),
     );
   }

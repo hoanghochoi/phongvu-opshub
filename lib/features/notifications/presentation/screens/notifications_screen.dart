@@ -56,6 +56,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   @override
   Widget build(BuildContext context) {
     return AppResponsiveScrollView(
+      maxWidth: 880,
       onRefresh: _loadNotifications,
       refreshLogSource: 'NotificationsScreen',
       child: Consumer<AppNotificationsProvider>(

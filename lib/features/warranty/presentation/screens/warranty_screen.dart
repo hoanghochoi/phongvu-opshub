@@ -405,8 +405,8 @@ class _WarrantyUploadHeader extends StatelessWidget {
     final receiptLabel = receipt.isEmpty ? 'Chưa nhập biên nhận' : receipt;
     return AppSurfaceCard(
       key: const Key('warranty-upload-header'),
-      backgroundColor: AppColors.successSurface,
-      borderColor: AppColors.success.withValues(alpha: 0.22),
+      backgroundColor: AppColors.successSurfaceOf(context),
+      borderColor: AppColors.successOf(context).withValues(alpha: 0.22),
       child: LayoutBuilder(
         builder: (context, constraints) {
           final compact =
@@ -415,12 +415,12 @@ class _WarrantyUploadHeader extends StatelessWidget {
             width: 52,
             height: 52,
             decoration: BoxDecoration(
-              color: AppColors.success.withValues(alpha: 0.12),
+              color: AppColors.successOf(context).withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
             ),
-            child: const Icon(
+            child: Icon(
               Icons.add_photo_alternate_rounded,
-              color: AppColors.success,
+              color: AppColors.successOf(context),
             ),
           );
           final content = Column(
@@ -435,17 +435,17 @@ class _WarrantyUploadHeader extends StatelessWidget {
                   AppStatusChip(
                     label: receiptLabel,
                     color: receipt.isEmpty
-                        ? AppColors.neutral700
-                        : AppColors.success,
-                    backgroundColor: AppColors.surface,
+                        ? AppColors.textMutedOf(context)
+                        : AppColors.successOf(context),
+                    backgroundColor: AppColors.raisedOf(context),
                   ),
                   AppStatusChip(
                     key: const Key('warranty-image-count-chip'),
                     label: '$imageCount/$maxImages ảnh',
                     color: imageCount == 0
-                        ? AppColors.neutral700
-                        : AppColors.success,
-                    backgroundColor: AppColors.surface,
+                        ? AppColors.textMutedOf(context)
+                        : AppColors.successOf(context),
+                    backgroundColor: AppColors.raisedOf(context),
                   ),
                 ],
               ),
@@ -486,10 +486,12 @@ class _ImageSectionHeader extends StatelessWidget {
         Expanded(child: Text('Hình ảnh', style: AppTextStyles.headingS)),
         AppStatusChip(
           label: '$count/$maxImages',
-          color: count >= maxImages ? AppColors.warning : AppColors.neutral700,
+          color: count >= maxImages
+              ? AppColors.warningOf(context)
+              : AppColors.textMutedOf(context),
           backgroundColor: count >= maxImages
-              ? AppColors.warningSurface
-              : AppColors.neutral100,
+              ? AppColors.warningSurfaceOf(context)
+              : AppColors.statusSurfaceOf(context, 'neutral'),
         ),
       ],
     );

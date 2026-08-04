@@ -471,10 +471,16 @@ class _AppComboboxState<T> extends State<AppCombobox<T>> {
                       return CheckboxListTile(
                         dense: true,
                         value: selected,
+                        selected: selected,
+                        activeColor: AppColors.primaryOf(context),
+                        selectedTileColor: AppColors.primarySurfaceOf(context),
                         title: Text(
                           option.label,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
+                          style: AppTextStyles.labelM.copyWith(
+                            color: AppColors.textPrimaryOf(context),
+                          ),
                         ),
                         subtitle: option.subtitle == null
                             ? null
@@ -482,16 +488,23 @@ class _AppComboboxState<T> extends State<AppCombobox<T>> {
                                 option.subtitle!,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
+                                style: AppTextStyles.bodyS.copyWith(
+                                  color: AppColors.textSecondaryOf(context),
+                                ),
                               ),
                         controlAffinity: ListTileControlAffinity.leading,
                         tileColor: highlighted
                             ? AppColors.primarySurfaceOf(context)
-                            : null,
+                            : AppColors.overlayOf(context),
                         onChanged: (_) => _toggleOption(option),
                       );
                     }
                     return ListTile(
                       dense: true,
+                      selected: selected,
+                      tileColor: highlighted
+                          ? AppColors.primarySurfaceOf(context)
+                          : AppColors.overlayOf(context),
                       leading: selected
                           ? const Icon(Icons.check_rounded, size: 18)
                           : const SizedBox(width: 18),
@@ -499,6 +512,9 @@ class _AppComboboxState<T> extends State<AppCombobox<T>> {
                         option.label,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
+                        style: AppTextStyles.labelM.copyWith(
+                          color: AppColors.textPrimaryOf(context),
+                        ),
                       ),
                       subtitle: option.subtitle == null
                           ? null
@@ -506,10 +522,10 @@ class _AppComboboxState<T> extends State<AppCombobox<T>> {
                               option.subtitle!,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
+                              style: AppTextStyles.bodyS.copyWith(
+                                color: AppColors.textSecondaryOf(context),
+                              ),
                             ),
-                      tileColor: highlighted
-                          ? AppColors.primarySurfaceOf(context)
-                          : null,
                       onTap: () => _selectOption(option, null),
                     );
                   },
@@ -723,10 +739,18 @@ class _ClearSelectionTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return ListTile(
       dense: true,
+      tileColor: AppColors.overlayOf(context),
       leading: selected
           ? const Icon(Icons.check_rounded, size: 18)
           : const SizedBox(width: 18),
-      title: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
+      title: Text(
+        label,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: AppTextStyles.labelM.copyWith(
+          color: AppColors.textPrimaryOf(context),
+        ),
+      ),
       onTap: onTap,
     );
   }
