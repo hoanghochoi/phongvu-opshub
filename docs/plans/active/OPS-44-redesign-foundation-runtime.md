@@ -437,11 +437,14 @@ until the replacement has affected-consumer proof.
   locally but not yet published/merged into `staging`.
 - Local `staging` is clean at the same base SHA. The separate `OPS-27`
   worktree/branch is unrelated and is preserved.
-- Remote OPS-44 feature branches for merged PRs `#83`–`#103` are stale
-  candidates (`codex/ops-44-*`); no open PR was found for them. Remote branch
-  deletion is a separate destructive publish action and is not performed by
-  the local lifecycle command. Remove only after explicit cleanup approval and
-  a final check that each branch has no open PR or unmerged work.
+- Remote stale cleanup completed on 2026-08-04: the 11 remaining
+  `codex/ops-44-*` refs were verified against merged PRs (`#89`, `#90`,
+  `#92`–`#98`, `#101`–`#103`), each remote tip matched its merged PR
+  `headRefOid`, and no open PR or post-merge branch commit was present. The
+  refs were deleted with `git push origin --delete ...`, then removed from
+  local tracking refs with `git fetch origin --prune`; a fresh readback shows
+  no remote `codex/ops-44-*` branches. Active OPS-44, `staging`, `main` and
+  unrelated OPS-27 were not touched.
 - After the next approved phase is committed, PR-merged into `staging`, and
   the task worktree is clean, run `scripts/task-lifecycle.mjs finish --execute`
   from canonical `staging` before starting another task.
