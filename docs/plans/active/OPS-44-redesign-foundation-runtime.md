@@ -19,9 +19,9 @@ proof; business, API, permission, platform và data behavior giữ nguyên.
 - Linear: OPS-44, related OPS-25 and OPS-34.
 - Git baseline: `origin/staging` at
       `5f935de9b2417e1b7ba138026b875bf6329bfbbe`; the guarded execution branch
-      `codex/ops-44-execution-plan-v2` is clean at head
-      `73c3a77376a3ce3e71fc3a58b83d3c4b9e2bef9f` (runtime checkpoint
-      `1224a8ad228d04c63bac55e502fca2ba26971050`).
+      `codex/ops-44-execution-plan-v2` contains the native speaker phase source
+      commit `f2af57b8bca65ea5101df6ca3dcddcbe1a7ed5bc` and is not yet merged
+      into `staging`.
 - Figma file:
   `mFzSmQzlapSe3RSmUhvzll`; target pages Cover `0:1`, Foundation `13:5`,
   Desktop + Web `693:17492`, Android mobile `693:17493`, Android tablet `698:2`,
@@ -655,10 +655,12 @@ visual element/state.
 ### Phase 5 — release and safe cleanup gates
 
 - [x] Run focused widget/golden geometry proof, `flutter analyze`, affected
-      consumer tests, full Flutter regression, web release/Wasm build and
-      `git diff --check` on exact SHA `3f1b46b384b1ba266623fcc1f5b5856da86f948f`:
-      Support Chat `6/6`, migration guard `21/21`, full Flutter `875/875`,
-      analyzer clean, web release build pass and clean worktree.
+      consumer tests, full Flutter regression, web release/Wasm build,
+      Android staging debug build and `git diff --check` on native speaker
+      phase SHA `f2af57b8bca65ea5101df6ca3dcddcbe1a7ed5bc`: provider `48/48`,
+      Home `5/5`, capability/bootstrap/unsupported/speaker IO suites pass,
+      full Flutter `877` testDone events with exit `0`, analyzer clean, web
+      release build and `app-staging-debug.apk` pass.
 - [ ] Deploy that exact SHA to staging, run authenticated Chrome comparison at
       the complete viewport matrix against the exact Figma nodes, and capture
       Windows/Android primary-platform plus iOS/iPadOS regression evidence.
@@ -674,11 +676,11 @@ visual element/state.
 #### Branch cleanup audit — 2026-08-04
 
 - The active implementation branch/worktree is `codex/ops-44-execution-plan-v2`
-  has a clean runtime source commit `3f1b46b384b1ba266623fcc1f5b5856da86f948f`
-  followed only by the exact-SHA proof note commit (the current worktree is
-  clean); the runtime source includes the committed Support Chat Figma gap
-  revision and token convergence, and it is not yet
-  published/merged into `staging`.
+  and the native speaker phase is committed at
+  `f2af57b8bca65ea5101df6ca3dcddcbe1a7ed5bc` (the current docs proof update
+  follows this runtime commit); the runtime source includes the approved
+  Support Chat gap revision, token convergence and mobile/tablet speaker
+  expansion, and it is not yet published/merged into `staging`.
 - Local `staging` is clean at the same base SHA. The separate `OPS-27`
   worktree/branch is unrelated and is preserved.
 - Remote stale cleanup completed on 2026-08-04: the 11 remaining
@@ -759,6 +761,16 @@ visual element/state.
       successful testDone events, `0` failures and `3` intentional skips. The
       compact reporter pipe timeout was avoided by capturing JSON to a temp file;
       the command itself exited `0`.
+- [x] Native speaker phase verification on SHA
+      `f2af57b8bca65ea5101df6ca3dcddcbe1a7ed5bc`: focused provider suite
+      `48/48` includes Android and iOS/iPadOS authenticated server-audio
+      realtime cases; Home compact geometry/state `5/5`; capabilities,
+      media_kit bootstrap, unsupported copy and speaker IO suites pass;
+      full Flutter regression emits `877` testDone events and exits `0`;
+      `flutter analyze --no-pub`, `git diff --check`, web release/Wasm and
+      `flutter build apk --debug --flavor staging --no-pub` pass. Physical
+      Android/iOS/iPadOS audio output and authenticated staging Chrome remain
+      downstream release gates.
 - [x] Post-Dark/status regression checkpoint: `flutter analyze --no-pub`
       passes; affected FIFO/migration/theme/AppShell suite passes `58/58`;
       `flutter build web --release --no-pub`, format and diff checks pass.
@@ -802,6 +814,10 @@ visual element/state.
   must use the strict Figma-first evidence chain. A visual remediation stales
   every downstream proof; no legacy layout, token, typography, icon, copy,
   screenshot or responsive behavior may fill an absent Figma node.
+- 2026-08-04: After the approved `1928:59113` readback, Home speaker support is
+  native on Android/iOS/iPadOS plus Windows; Windows keeps the local preset
+  pack, mobile/tablet use authenticated server audio, and Web remains
+  list-only. The provider/realtime/ack contract is unchanged.
 
 ## Validation
 
