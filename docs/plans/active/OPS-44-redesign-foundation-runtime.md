@@ -430,6 +430,11 @@ readback.
       (pending Figma proposal `1888:59111`). Full regression is still
       release-red until the approved Home node is implemented and the exact run
       is green.
+- [x] Exact HEAD rerun on 2026-08-04 (`88112a73`) confirms the same bounded
+      residual: `flutter test --no-pub --reporter json` emits `868` testDone
+      events with `867` `success` and `1` `error`; the error is the Windows Home
+      speaker assertion for missing `Loa đang bật` authority (`1888:59111`).
+      No new regression appeared after the plan/ledger-only commits.
 - [ ] Migrate remaining route groups in bounded waves (shell/auth/system,
       operations, FIFO, sales/finance, warranty, admin and long-tail) with one
       production visual path per migrated surface; remove legacy visual
