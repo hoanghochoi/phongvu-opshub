@@ -212,6 +212,28 @@ until the replacement has affected-consumer proof.
       tablet landscape and mobile states. Metadata, screenshot and
       `get_design_context` readback pass; no production visual edit is
       authorized until explicit Figma approval.
+
+#### Figma gap/action ledger — 2026-08-04
+
+All rows below have a named proposal node, metadata readback, screenshot
+readback and `get_design_context` evidence. “Pending approval” is an explicit
+visual gate: runtime code must keep the protected behavior but must not invent
+the missing visual element/state.
+
+| Runtime gap | Figma proposal | Protected runtime behavior | Next gate |
+| --- | --- | --- | --- |
+| Notifications content parity | `1881:59087` | unread/read, requester/reason/content, action feedback | Approve proposal, then implement Desktop/Web + mobile parity |
+| API Connections dynamic clients/keys | `1883:59093` | repository mutations, confirmation, secret/key handling, logger | Approve proposal, then implement populated cards |
+| API Connections supported Web compact/medium | `1895:59111` | Web capability remains supported; Android unsupported guard unchanged | Approve proposal, then implement Web responsive geometry |
+| Settings speaker voice card | `1884:59093` | speaker preference provider, combobox selection, startup/theme behavior | Approve proposal, then implement Desktop/mobile/tablet card |
+| Home speaker ON/OFF status | `1888:59111` | existing toggle/provider/AppLogger contract; Windows-only visibility | Approve proposal, then make Home regression green |
+| Sales Reports managed filter | `1891:59111` | existing `Lọc` trigger, advanced sheet, provider scope/filter behavior | Approve proposal, then implement compact/medium trigger states |
+| Support Chat inbox/thread states | `1898:107163` | auth/session, thread selection, retry/permission, composer/realtime behavior | Approve proposal, then implement responsive state matrix |
+
+The destructive archive-page action is tracked separately: page `1174:4`
+(`ARCHIVE — Web Responsive (empty · pending deletion)`) can be deleted only
+after explicit unified-revision approval and a final seven-page inventory
+readback.
 - [ ] Home speaker-status implementation gate: after approval, map the exact
       ON/OFF node/revision into `HomeSummaryHeader`, add geometry proof for the
       approved Windows width matrix, and rerun Home/AppShell affected consumers.
