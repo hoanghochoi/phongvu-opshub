@@ -127,6 +127,135 @@ void main() {
     expect(find.byKey(const Key('profile-session-card')), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('Profile compact geometry follows the approved Figma nodes', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(375, 812);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    SharedPreferences.setMockInitialValues({
+      AppStorageKeys.shared('user_email'): 'staff@example.com',
+      AppStorageKeys.shared('user_name'): 'Hoàng',
+      AppStorageKeys.shared('user_lastName'): 'Nguyễn',
+      AppStorageKeys.shared('user_role'): 'USER',
+      AppStorageKeys.shared('user_organizationNodeName'): 'Quản lý Cửa hàng',
+    });
+    _seedSecureToken();
+
+    await tester.pumpWidget(
+      ChangeNotifierProvider<AuthProvider>(
+        create: (_) => AuthProvider(AuthRepository(ApiClient())),
+        child: const MaterialApp(home: ProfileScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final contentSize = tester.getSize(
+      find.byKey(const Key('profile-content')),
+    );
+    expect(contentSize.width, 343);
+    expect(
+      tester.getSize(find.byKey(const Key('profile-header'))),
+      const Size(343, 112),
+    );
+    expect(
+      tester.getSize(find.byKey(const Key('profile-session-card'))),
+      const Size(343, 92),
+    );
+    expect(
+      tester.getSize(find.byKey(const Key('profile-edit-card'))),
+      const Size(343, 292),
+    );
+    expect(
+      tester.getSize(find.byKey(const Key('profile-info-card'))).width,
+      343,
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+    'Profile responsive geometry stays aligned across Figma viewport classes',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      const viewports =
+          <
+            ({
+              Size size,
+              double contentWidth,
+              double headerHeight,
+              double sessionHeight,
+              double editHeight,
+              double infoWidth,
+            })
+          >[
+            (
+              size: Size(768, 1024),
+              contentWidth: 720,
+              headerHeight: 112,
+              sessionHeight: 80,
+              editHeight: 292,
+              infoWidth: 720,
+            ),
+            (
+              size: Size(1280, 900),
+              contentWidth: 1180,
+              headerHeight: 114,
+              sessionHeight: 80,
+              editHeight: 284,
+              infoWidth: 430,
+            ),
+          ];
+
+      for (final viewport in viewports) {
+        tester.view.physicalSize = viewport.size;
+        SharedPreferences.setMockInitialValues({
+          AppStorageKeys.shared('user_email'): 'staff@example.com',
+          AppStorageKeys.shared('user_name'): 'Hoàng',
+          AppStorageKeys.shared('user_lastName'): 'Nguyễn',
+          AppStorageKeys.shared('user_role'): 'USER',
+          AppStorageKeys.shared('user_organizationNodeName'):
+              'Quản lý Cửa hàng',
+        });
+        _seedSecureToken();
+
+        await tester.pumpWidget(
+          ChangeNotifierProvider<AuthProvider>(
+            create: (_) => AuthProvider(AuthRepository(ApiClient())),
+            child: const MaterialApp(home: ProfileScreen()),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(
+          tester.getSize(find.byKey(const Key('profile-content'))).width,
+          viewport.contentWidth,
+        );
+        expect(
+          tester.getSize(find.byKey(const Key('profile-header'))).height,
+          viewport.headerHeight,
+        );
+        expect(
+          tester.getSize(find.byKey(const Key('profile-session-card'))).height,
+          viewport.sessionHeight,
+        );
+        expect(
+          tester.getSize(find.byKey(const Key('profile-edit-card'))).height,
+          viewport.editHeight,
+        );
+        expect(
+          tester.getSize(find.byKey(const Key('profile-info-card'))).width,
+          viewport.infoWidth,
+        );
+        expect(tester.takeException(), isNull);
+      }
+    },
+  );
 }
 
 void _seedSecureToken() {

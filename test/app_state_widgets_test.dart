@@ -1,9 +1,33 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:phongvu_opshub/app/theme/app_colors.dart';
+import 'package:phongvu_opshub/app/theme/app_theme.dart';
 import 'package:phongvu_opshub/app/widgets/app_state_widgets.dart';
 
 void main() {
+  testWidgets('state tones use the approved dark semantic mode', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.darkTheme,
+        home: const Scaffold(
+          body: AppStatePanel.error(
+            title: 'Không thể tải dữ liệu',
+            message: 'Vui lòng thử lại.',
+          ),
+        ),
+      ),
+    );
+
+    final icon = tester.widget<Icon>(find.byIcon(Icons.error_outline_rounded));
+    expect(icon.color, AppColors.darkError);
+    final title = tester.widget<Text>(find.text('Không thể tải dữ liệu'));
+    expect(title.style?.color, AppColors.darkError);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('loading state follows the shared Figma geometry', (
     tester,
   ) async {

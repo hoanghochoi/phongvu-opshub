@@ -388,7 +388,7 @@ class HomeSummaryHeader extends StatelessWidget {
                       button: true,
                       label: 'Chọn phạm vi và khoảng thời gian',
                       child: Material(
-                        color: Colors.transparent,
+                        color: AppColors.transparent,
                         child: InkWell(
                           key: const Key('home-summary-scope-date-trigger'),
                           onTap: open,
@@ -692,7 +692,7 @@ class _HomeDesktopRefreshButton extends StatelessWidget {
       button: true,
       label: 'Làm mới dữ liệu trang chủ',
       child: Material(
-        color: Colors.transparent,
+        color: AppColors.transparent,
         child: InkWell(
           key: const Key('home-summary-refresh-button'),
           onTap: isRefreshing ? null : onPressed,

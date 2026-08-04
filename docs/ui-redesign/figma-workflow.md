@@ -14,18 +14,22 @@ page/file/revision được phân biệt rõ; không sửa đè approved histori
 ```text
 Cover
 Foundation
-Screens — Desktop · Windows
+Screens — Desktop · Windows + Web
 Screens — Mobile · Android
 Screens — Tablet · Android
 Screens — Mobile · iOS
 Screens — Tablet · iPadOS
-Screens — Web · Responsive
 ```
+
+Web uses Mobile Android at compact `<600`, Tablet Android at medium `600–899`,
+and Desktop + Web at expanded/wide `>=900`. The former `Screens — Web ·
+Responsive` page is deleted only after Web-only nodes are moved/deduped,
+links/revision are updated, and Figma confirms `childCount = 0`.
 
 `Foundation` là source duy nhất cho variables, components, icon masters,
 screen-pattern components, specimens và documentation. Foundation chia section
 theo family; không tạo lại page riêng cho từng component hoặc icon catalog.
-Sáu page Screens chỉ chứa frame/instance của đúng platform, không chứa main
+Năm page Screens chỉ chứa frame/instance của đúng platform, không chứa main
 component. Mỗi platform phải có grid/gutter riêng và bounding-box overlap bằng
 `0` trước review. Tablet giữ
 portrait/landscape hoặc medium/expanded frame riêng khi interaction thực sự

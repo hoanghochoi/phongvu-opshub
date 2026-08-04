@@ -289,7 +289,7 @@ class _SalesReportScreenState extends State<SalesReportScreen> {
     );
     final provider = context.watch<SalesReportProvider>();
     return AppResponsiveContent(
-      maxWidth: AppLayoutTokens.pageMaxWidth,
+      maxWidth: AppLayoutTokens.salesReportMaxWidth,
       onRefresh: provider.loadOrderCockpit,
       refreshLogSource: 'SalesReport',
       refreshLogContext: () => {
@@ -344,8 +344,6 @@ class _SalesReportCockpit extends StatefulWidget {
 }
 
 class _SalesReportCockpitState extends State<_SalesReportCockpit> {
-  bool _showUnreported = true;
-
   Future<void> _openAdvancedFilters() async {
     final user = context.read<AuthProvider>().user;
     await AppLogger.instance.info(
@@ -399,156 +397,122 @@ class _SalesReportCockpitState extends State<_SalesReportCockpit> {
   Widget build(BuildContext context) {
     final provider = widget.provider;
     final cockpit = provider.orderCockpit;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        const _SalesReportHubHeader(),
-        const SizedBox(height: 16),
-        AppSurfaceCard(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              _QuickFilterBar(
-                provider: provider,
-                isManagedScope: cockpit?.scope == 'MANAGED_SCOPE',
-                onSelectDateRange: widget.onSelectDateRange,
-                onReload: widget.onReload,
-                onOpenAdvancedFilters: _openAdvancedFilters,
-              ),
-              if (widget.canSubmitReports) ...[
-                const SizedBox(height: 16),
-                LayoutBuilder(
-                  builder: (context, constraints) {
-                    final compactActions = constraints.maxWidth < 560;
-                    return Row(
-                      key: const Key('sales-report-manual-actions'),
-                      children: [
-                        Expanded(
-                          child: AppPrimaryButton(
-                            onPressed: widget.onPurchased,
-                            icon: compactActions
-                                ? null
-                                : Icons.receipt_long_outlined,
-                            label: compactActions
-                                ? 'Đã mua (nhập tay)'
-                                : 'Báo cáo mua thủ công',
-                            size: AppButtonSize.medium,
-                          ),
-                        ),
-                        const SizedBox(width: AppLayoutTokens.formInlineGap),
-                        Expanded(
-                          child: AppPrimaryButton(
-                            onPressed: widget.onNotPurchased,
-                            icon: compactActions
-                                ? null
-                                : Icons.person_search_outlined,
-                            label: compactActions
-                                ? 'Chưa mua'
-                                : 'Báo cáo chưa mua',
-                            size: AppButtonSize.medium,
-                          ),
-                        ),
-                      ],
-                    );
-                  },
-                ),
-              ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final wide = MediaQuery.sizeOf(context).width >= 1200;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (wide) ...[
+              const _SalesReportHubHeader(),
+              const SizedBox(height: 16),
             ],
-          ),
-        ),
-        const SizedBox(height: 16),
-        if (provider.errorMessage != null) ...[
-          AppStatusBanner(
-            icon: Icons.error_outline_rounded,
-            title: 'Chưa tải đủ dữ liệu',
-            message: provider.errorMessage!,
-            tone: AppStateTone.error,
-          ),
-          const SizedBox(height: 16),
-        ],
-        Expanded(
-          child: cockpit == null
-              ? const AppListSkeleton(itemCount: 6)
-              : LayoutBuilder(
-                  builder: (context, constraints) {
-                    final twoColumns = constraints.maxWidth >= 760;
-                    final reported = _OrdersColumn(
-                      title: 'Đã báo cáo',
-                      count: provider.reportedOrdersTotal,
-                      emptyMessage: 'Chưa có đơn đã báo cáo.',
-                      orders: provider.reportedOrders,
-                      page: provider.reportedOrdersPage,
-                      limit: provider.ordersLimit,
-                      isLoading: provider.isLoadingOrders,
-                      canGoPrevious: provider.canGoPreviousReportedOrders,
-                      canGoNext: provider.canGoNextReportedOrders,
-                      onPreviousPage: () => unawaited(
-                        provider.loadReportedOrdersPage(
-                          provider.reportedOrdersPage - 1,
-                        ),
-                      ),
-                      onNextPage: () => unawaited(
-                        provider.loadReportedOrdersPage(
-                          provider.reportedOrdersPage + 1,
-                        ),
-                      ),
-                      onTap: null,
-                    );
-                    final unreported = _OrdersColumn(
-                      title: 'Chưa báo cáo',
-                      count: provider.unreportedOrdersTotal,
-                      emptyMessage: 'Chưa có đơn chờ báo cáo.',
-                      orders: provider.unreportedOrders,
-                      page: provider.unreportedOrdersPage,
-                      limit: provider.ordersLimit,
-                      isLoading: provider.isLoadingOrders,
-                      canGoPrevious: provider.canGoPreviousUnreportedOrders,
-                      canGoNext: provider.canGoNextUnreportedOrders,
-                      onPreviousPage: () => unawaited(
-                        provider.loadUnreportedOrdersPage(
-                          provider.unreportedOrdersPage - 1,
-                        ),
-                      ),
-                      onNextPage: () => unawaited(
-                        provider.loadUnreportedOrdersPage(
-                          provider.unreportedOrdersPage + 1,
-                        ),
-                      ),
-                      onTap: widget.onOrderTap,
-                    );
-                    if (!twoColumns) {
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          _OrderStatusTabs(
-                            showUnreported: _showUnreported,
-                            unreportedTotal: provider.unreportedOrdersTotal,
-                            reportedTotal: provider.reportedOrdersTotal,
-                            onChanged: (value) {
-                              setState(() => _showUnreported = value);
-                            },
+            _SalesReportControls(
+              provider: provider,
+              isManagedScope: cockpit?.scope == 'MANAGED_SCOPE',
+              canSubmitReports: widget.canSubmitReports,
+              onPurchased: widget.onPurchased,
+              onNotPurchased: widget.onNotPurchased,
+              onSelectDateRange: widget.onSelectDateRange,
+              onReload: widget.onReload,
+              onOpenAdvancedFilters: _openAdvancedFilters,
+            ),
+            SizedBox(height: wide ? 16 : 12),
+            if (provider.errorMessage != null) ...[
+              AppStatusBanner(
+                icon: Icons.error_outline_rounded,
+                title: 'Chưa tải đủ dữ liệu',
+                message: provider.errorMessage!,
+                tone: AppStateTone.error,
+              ),
+              const SizedBox(height: 16),
+            ],
+            Expanded(
+              child: cockpit == null
+                  ? const AppListSkeleton(itemCount: 6)
+                  : LayoutBuilder(
+                      builder: (context, constraints) {
+                        final twoColumns = constraints.maxWidth >= 900;
+                        final columnHeight = wide ? 514.0 : 360.0;
+                        final reported = _OrdersColumn(
+                          title: 'Đã báo cáo',
+                          count: provider.reportedOrdersTotal,
+                          emptyMessage: 'Chưa có đơn đã báo cáo.',
+                          orders: provider.reportedOrders,
+                          page: provider.reportedOrdersPage,
+                          limit: provider.ordersLimit,
+                          isLoading: provider.isLoadingOrders,
+                          canGoPrevious: provider.canGoPreviousReportedOrders,
+                          canGoNext: provider.canGoNextReportedOrders,
+                          onPreviousPage: () => unawaited(
+                            provider.loadReportedOrdersPage(
+                              provider.reportedOrdersPage - 1,
+                            ),
                           ),
-                          const SizedBox(height: AppLayoutTokens.cardGap),
-                          Expanded(
-                            child: _showUnreported
-                                ? unreported.copyWith(showHeader: false)
-                                : reported.copyWith(showHeader: false),
+                          onNextPage: () => unawaited(
+                            provider.loadReportedOrdersPage(
+                              provider.reportedOrdersPage + 1,
+                            ),
                           ),
-                        ],
-                      );
-                    }
-                    return Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(child: unreported),
-                        const SizedBox(width: AppLayoutTokens.cardGap),
-                        Expanded(child: reported),
-                      ],
-                    );
-                  },
-                ),
-        ),
-      ],
+                          onTap: null,
+                        );
+                        final unreported = _OrdersColumn(
+                          title: 'Chưa báo cáo',
+                          count: provider.unreportedOrdersTotal,
+                          emptyMessage: 'Chưa có đơn chờ báo cáo.',
+                          orders: provider.unreportedOrders,
+                          page: provider.unreportedOrdersPage,
+                          limit: provider.ordersLimit,
+                          isLoading: provider.isLoadingOrders,
+                          canGoPrevious: provider.canGoPreviousUnreportedOrders,
+                          canGoNext: provider.canGoNextUnreportedOrders,
+                          onPreviousPage: () => unawaited(
+                            provider.loadUnreportedOrdersPage(
+                              provider.unreportedOrdersPage - 1,
+                            ),
+                          ),
+                          onNextPage: () => unawaited(
+                            provider.loadUnreportedOrdersPage(
+                              provider.unreportedOrdersPage + 1,
+                            ),
+                          ),
+                          onTap: widget.onOrderTap,
+                        );
+                        if (!twoColumns) {
+                          return ListView(
+                            key: const Key('sales-report-columns-scroll'),
+                            padding: EdgeInsets.zero,
+                            children: [
+                              SizedBox(height: columnHeight, child: unreported),
+                              const SizedBox(height: AppLayoutTokens.cardGap),
+                              SizedBox(height: columnHeight, child: reported),
+                            ],
+                          );
+                        }
+                        return Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: SizedBox(
+                                height: columnHeight,
+                                child: unreported,
+                              ),
+                            ),
+                            const SizedBox(width: AppLayoutTokens.cardGap),
+                            Expanded(
+                              child: SizedBox(
+                                height: columnHeight,
+                                child: reported,
+                              ),
+                            ),
+                          ],
+                        );
+                      },
+                    ),
+            ),
+          ],
+        );
+      },
     );
   }
 }
@@ -573,16 +537,22 @@ class _SalesReportHubHeader extends StatelessWidget {
   }
 }
 
-class _QuickFilterBar extends StatelessWidget {
+class _SalesReportControls extends StatelessWidget {
   final SalesReportProvider provider;
   final bool isManagedScope;
+  final bool canSubmitReports;
+  final VoidCallback? onPurchased;
+  final VoidCallback? onNotPurchased;
   final void Function(DateTime? start, DateTime? end) onSelectDateRange;
   final VoidCallback onReload;
   final VoidCallback onOpenAdvancedFilters;
 
-  const _QuickFilterBar({
+  const _SalesReportControls({
     required this.provider,
     required this.isManagedScope,
+    required this.canSubmitReports,
+    required this.onPurchased,
+    required this.onNotPurchased,
     required this.onSelectDateRange,
     required this.onReload,
     required this.onOpenAdvancedFilters,
@@ -592,7 +562,8 @@ class _QuickFilterBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final compact = constraints.maxWidth < 620;
+        final wide = MediaQuery.sizeOf(context).width >= 1200;
+        final compact = constraints.maxWidth < 600;
         final dateRangeFilter = AppDateRangeDropdown(
           key: const Key('sales-report-orders-date-range'),
           label: 'Ngày',
@@ -600,12 +571,13 @@ class _QuickFilterBar extends StatelessWidget {
           end: provider.ordersEndDate,
           onChanged: onSelectDateRange,
           now: () => provider.currentDate,
+          fieldStyle: true,
         );
         final storeFilter = isManagedScope
             ? AppCombobox<String>.single(
                 label: 'Showroom',
                 value: provider.ordersStoreCode,
-                emptyLabel: 'Tất cả',
+                emptyLabel: 'Tất cả showroom',
                 icon: Icons.store_outlined,
                 options: provider.orderStoreOptions
                     .map(
@@ -620,16 +592,33 @@ class _QuickFilterBar extends StatelessWidget {
                   provider.setOrderFilters(storeCode: value, updateStore: true),
                 ),
               )
-            : const _ReadonlyFilterPill(
-                icon: Icons.store_outlined,
-                label: 'Showroom của tôi',
+            : const _ReadonlyFilterField(
+                label: 'Showroom',
+                value: 'Showroom của tôi',
               );
-        final filterButton = AppSecondaryButton(
-          onPressed: provider.isLoadingOrders ? null : onOpenAdvancedFilters,
-          icon: Icons.tune_rounded,
-          label: 'Lọc',
-          size: AppButtonSize.medium,
-        );
+        final userFilter = isManagedScope
+            ? AppCombobox<String>.single(
+                label: 'Nhân viên',
+                value: provider.ordersUserEmail,
+                emptyLabel: 'Tất cả nhân viên',
+                icon: Icons.person_outline_rounded,
+                options: provider.orderUserOptions
+                    .map(
+                      (option) => AppComboboxOption<String>(
+                        value: option.value,
+                        label: option.label,
+                        searchKeywords: [option.value, option.label],
+                      ),
+                    )
+                    .toList(growable: false),
+                onChanged: (value) => unawaited(
+                  provider.setOrderFilters(userEmail: value, updateUser: true),
+                ),
+              )
+            : const _ReadonlyFilterField(
+                label: 'Nhân viên',
+                value: 'Nhân viên của tôi',
+              );
         final reloadButton = Tooltip(
           message: 'Tải lại danh sách',
           child: AppSecondaryButton(
@@ -640,82 +629,209 @@ class _QuickFilterBar extends StatelessWidget {
             size: AppButtonSize.medium,
           ),
         );
+        final filterButton = AppSecondaryButton(
+          onPressed: provider.isLoadingOrders ? null : onOpenAdvancedFilters,
+          icon: Icons.tune_rounded,
+          label: 'Lọc',
+          size: AppButtonSize.medium,
+        );
 
-        if (compact) {
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
-                children: [
-                  Expanded(child: dateRangeFilter),
-                  const SizedBox(width: AppLayoutTokens.formInlineGap),
-                  SizedBox(width: 96, child: filterButton),
-                ],
-              ),
-              const SizedBox(height: AppLayoutTokens.formInlineGap),
-              Row(
-                children: [
-                  Expanded(child: storeFilter),
-                  const SizedBox(width: AppLayoutTokens.formInlineGap),
-                  SizedBox(width: 116, child: reloadButton),
-                ],
-              ),
-            ],
+        Widget actionButton({
+          required String label,
+          required VoidCallback? onPressed,
+          required double width,
+        }) {
+          return SizedBox(
+            width: width,
+            child: AppPrimaryButton(
+              onPressed: onPressed,
+              label: label,
+              size: AppButtonSize.medium,
+            ),
           );
         }
 
-        return Wrap(
-          spacing: AppLayoutTokens.formInlineGap,
-          runSpacing: AppLayoutTokens.formInlineGap,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          children: [
-            SizedBox(width: 240, child: dateRangeFilter),
-            SizedBox(width: 220, child: storeFilter),
-            SizedBox(width: 120, child: filterButton),
-            SizedBox(width: 150, child: reloadButton),
-          ],
+        if (wide) {
+          return AppSurfaceCard(
+            key: const Key('sales-report-controls'),
+            margin: EdgeInsets.zero,
+            padding: const EdgeInsets.only(left: 15, top: 15, bottom: 15),
+            child: SizedBox(
+              height: 102,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(width: 220, child: dateRangeFilter),
+                  const SizedBox(width: 12),
+                  SizedBox(width: 180, child: storeFilter),
+                  const SizedBox(width: 12),
+                  SizedBox(width: 220, child: userFilter),
+                  const SizedBox(width: 12),
+                  Padding(
+                    padding: const EdgeInsets.only(top: 28),
+                    child: SizedBox(width: 120, child: reloadButton),
+                  ),
+                  const SizedBox(width: 12),
+                  Padding(
+                    padding: const EdgeInsets.only(top: 28),
+                    child: actionButton(
+                      label: 'Báo cáo thủ công',
+                      onPressed: canSubmitReports ? onPurchased : null,
+                      width: 160,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Padding(
+                    padding: const EdgeInsets.only(top: 28),
+                    child: actionButton(
+                      label: 'Báo cáo chưa mua',
+                      onPressed: canSubmitReports ? onNotPurchased : null,
+                      width: 153,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
+
+        final actions = canSubmitReports
+            ? compact
+                  ? Row(
+                      key: const Key('sales-report-manual-actions'),
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        actionButton(
+                          label: 'Báo cáo mua thủ công',
+                          onPressed: onPurchased,
+                          width: 181,
+                        ),
+                        const SizedBox(width: 8),
+                        actionButton(
+                          label: 'Báo cáo chưa mua',
+                          onPressed: onNotPurchased,
+                          width: 154,
+                        ),
+                      ],
+                    )
+                  : Row(
+                      key: const Key('sales-report-manual-actions'),
+                      children: [
+                        Expanded(
+                          child: actionButton(
+                            label: 'Báo cáo mua thủ công',
+                            onPressed: onPurchased,
+                            width: double.infinity,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: actionButton(
+                            label: 'Báo cáo chưa mua',
+                            onPressed: onNotPurchased,
+                            width: double.infinity,
+                          ),
+                        ),
+                      ],
+                    )
+            : const SizedBox.shrink();
+
+        return AppSurfaceCard(
+          key: const Key('sales-report-controls'),
+          margin: EdgeInsets.zero,
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Padding(
+                padding: EdgeInsets.symmetric(horizontal: compact ? 16 : 0),
+                child: dateRangeFilter,
+              ),
+              if (canSubmitReports) ...[
+                const SizedBox(height: 12),
+                if (compact)
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    physics: const NeverScrollableScrollPhysics(),
+                    child: actions,
+                  )
+                else
+                  actions,
+              ],
+              if (isManagedScope) ...[
+                const SizedBox(height: 12),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(horizontal: compact ? 16 : 0),
+                    child: SizedBox(width: 120, child: filterButton),
+                  ),
+                ),
+              ],
+              const SizedBox(height: 12),
+              Align(
+                alignment: Alignment.centerRight,
+                child: Padding(
+                  padding: EdgeInsets.symmetric(horizontal: compact ? 16 : 0),
+                  child: SizedBox(
+                    width: compact ? double.infinity : 180,
+                    child: reloadButton,
+                  ),
+                ),
+              ),
+            ],
+          ),
         );
       },
     );
   }
 }
 
-class _ReadonlyFilterPill extends StatelessWidget {
-  final IconData icon;
+class _ReadonlyFilterField extends StatelessWidget {
   final String label;
+  final String value;
 
-  const _ReadonlyFilterPill({required this.icon, required this.label});
+  const _ReadonlyFilterField({required this.label, required this.value});
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: AppButtonMetrics.mediumHeight,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
-          border: Border.all(color: AppColors.borderOf(context)),
-          color: AppColors.cardOf(context),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14),
-          child: Row(
-            children: [
-              Icon(icon, size: 18, color: AppColors.primaryOf(context)),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppTextStyles.labelM.copyWith(
-                    color: AppColors.primaryOf(context),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(label, style: AppTextStyles.labelM),
+        const SizedBox(height: 8),
+        SizedBox(
+          height: 48,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.borderOf(context)),
+              color: AppColors.cardOf(context),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      value,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTextStyles.bodyM.copyWith(
+                        color: AppColors.textMutedOf(context),
+                      ),
+                    ),
                   ),
-                ),
+                  Icon(
+                    Icons.keyboard_arrow_down_rounded,
+                    size: 24,
+                    color: AppColors.textSecondaryOf(context),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
         ),
-      ),
+      ],
     );
   }
 }
@@ -791,9 +907,9 @@ class _AdvancedFilterSheet extends StatelessWidget {
                   ),
                 )
               else
-                const _ReadonlyFilterPill(
-                  icon: Icons.store_outlined,
-                  label: 'Showroom của tôi',
+                const _ReadonlyFilterField(
+                  label: 'Showroom',
+                  value: 'Showroom của tôi',
                 ),
               if (managedScope) ...[
                 const SizedBox(height: AppLayoutTokens.formInlineGap),
@@ -826,91 +942,6 @@ class _AdvancedFilterSheet extends StatelessWidget {
                 label: 'Áp dụng',
               ),
             ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _OrderStatusTabs extends StatelessWidget {
-  final bool showUnreported;
-  final int unreportedTotal;
-  final int reportedTotal;
-  final ValueChanged<bool> onChanged;
-
-  const _OrderStatusTabs({
-    required this.showUnreported,
-    required this.unreportedTotal,
-    required this.reportedTotal,
-    required this.onChanged,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: AppColors.cardOf(context),
-        borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
-        border: Border.all(color: AppColors.borderOf(context)),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: _OrderStatusTabButton(
-              selected: showUnreported,
-              label: 'Chưa báo cáo (${_countLabel(unreportedTotal)})',
-              onTap: () => onChanged(true),
-            ),
-          ),
-          Expanded(
-            child: _OrderStatusTabButton(
-              selected: !showUnreported,
-              label: 'Đã báo cáo (${_countLabel(reportedTotal)})',
-              onTap: () => onChanged(false),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _OrderStatusTabButton extends StatelessWidget {
-  final bool selected;
-  final String label;
-  final VoidCallback onTap;
-
-  const _OrderStatusTabButton({
-    required this.selected,
-    required this.label,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 160),
-        height: 44,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: selected ? AppColors.primarySurfaceOf(context) : null,
-          borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
-          border: selected
-              ? Border.all(color: AppColors.primaryOf(context))
-              : Border.all(color: AppColors.transparent),
-        ),
-        child: Text(
-          label,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: AppTextStyles.labelM.copyWith(
-            color: selected
-                ? AppColors.primaryOf(context)
-                : AppColors.textSecondaryOf(context),
           ),
         ),
       ),
@@ -971,23 +1002,22 @@ class _OrdersColumn extends StatelessWidget {
   Widget build(BuildContext context) {
     final pageCount = count <= 0 || limit <= 0 ? 1 : ((count - 1) ~/ limit) + 1;
     return AppSurfaceCard(
-      padding: const EdgeInsets.all(16),
+      key: Key(
+        title == 'Chưa báo cáo'
+            ? 'sales-report-unreported-column'
+            : 'sales-report-reported-column',
+      ),
+      margin: EdgeInsets.zero,
+      padding: const EdgeInsets.all(12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           if (showHeader) ...[
-            Row(
-              children: [
-                Expanded(child: Text(title, style: AppTextStyles.headingS)),
-                Text(
-                  _countLabel(count),
-                  style: AppTextStyles.labelM.copyWith(
-                    color: AppColors.textMutedOf(context),
-                  ),
-                ),
-              ],
+            Text(
+              '$title • ${_countLabel(count)}',
+              style: AppTextStyles.headingS,
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 8),
           ],
           Expanded(
             child: orders.isEmpty
@@ -1020,7 +1050,7 @@ class _OrdersColumn extends StatelessWidget {
                     primary: false,
                     padding: EdgeInsets.zero,
                     itemCount: orders.length,
-                    separatorBuilder: (_, _) => const SizedBox(height: 16),
+                    separatorBuilder: (_, _) => const SizedBox(height: 12),
                     itemBuilder: (context, index) {
                       return _OrderCockpitTile(
                         order: orders[index],
@@ -1087,129 +1117,91 @@ class _OrderCockpitTile extends StatelessWidget {
         _cleanOrderLabel(order.consultantCustomId);
     final subtitle = [
       _cleanOrderLabel(order.storeCode),
-      reporter,
+      _cleanOrderLabel(order.customerName) ?? reporter,
     ].whereType<String>().join(' • ');
-    final meta = [
-      if (money.isNotEmpty) 'Tổng tiền (đã bao gồm VAT): $money',
-      if (order.reportedAt != null)
-        'Đã báo cáo ${_shortDate(order.reportedAt)}',
-    ].whereType<String>().join(' • ');
-    return AppSurfaceCard(
-      onTap: onTap == null ? null : () => onTap!(order),
-      padding: const EdgeInsets.all(12),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(
-            order.isReported
-                ? Icons.verified_outlined
-                : Icons.receipt_long_outlined,
-            color: order.isReported ? AppColors.success : AppColors.warning,
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        order.orderCode,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: AppTextStyles.labelM,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    _PaymentBadge(
-                      paymentStatus: order.paymentStatus,
-                      isReported: order.isReported,
-                    ),
-                  ],
+    final badgeLabel = order.isReported
+        ? _reportedOutcomeLabel(order.report)
+        : money;
+    final badgeColor = order.isReported ? AppColors.success : AppColors.warning;
+    final badgeBackground = order.isReported
+        ? AppColors.successSurface
+        : AppColors.warningSurface;
+    return SizedBox(
+      height: 114,
+      child: AppSurfaceCard(
+        margin: EdgeInsets.zero,
+        onTap: onTap == null ? null : () => onTap!(order),
+        padding: const EdgeInsets.fromLTRB(15, 12, 15, 0),
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Positioned(
+              left: 0,
+              top: 0,
+              right: 0,
+              child: Text(
+                order.orderCode,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppTextStyles.labelL,
+              ),
+            ),
+            if (subtitle.isNotEmpty)
+              Positioned(
+                left: 0,
+                top: 32,
+                right: 0,
+                child: Text(
+                  subtitle,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTextStyles.bodyS.copyWith(
+                    color: AppColors.textSecondaryOf(context),
+                  ),
                 ),
-                if ((order.customerName ?? '').trim().isNotEmpty) ...[
-                  const SizedBox(height: 4),
-                  Text(
-                    order.customerName!,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: AppTextStyles.bodyM,
+              ),
+            if (badgeLabel.isNotEmpty)
+              Positioned(
+                left: 0,
+                top: 60,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: badgeBackground,
+                    borderRadius: BorderRadius.circular(8),
                   ),
-                ],
-                if (subtitle.isNotEmpty) ...[
-                  const SizedBox(height: 4),
-                  Text(
-                    subtitle,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: AppTextStyles.bodyM.copyWith(
-                      color: AppColors.neutral600,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    child: Text(
+                      badgeLabel,
+                      style: AppTextStyles.labelS.copyWith(color: badgeColor),
                     ),
                   ),
-                ],
-                if (meta.isNotEmpty) ...[
-                  const SizedBox(height: 4),
-                  Text(
-                    meta,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: AppTextStyles.labelS.copyWith(
-                      color: AppColors.neutral500,
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-          if (onTap != null)
-            const Icon(
-              Icons.chevron_right_rounded,
-              color: AppColors.neutral500,
-            ),
-        ],
+                ),
+              ),
+            if (onTap != null)
+              Positioned(
+                right: -8,
+                bottom: -1,
+                child: AppLinkButton(
+                  onPressed: () => onTap!(order),
+                  label: 'Báo cáo',
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }
 
-  static String _shortDate(DateTime? value) {
-    if (value == null) return '';
-    final local = value.toLocal();
-    String two(int part) => part.toString().padLeft(2, '0');
-    return '${two(local.day)}/${two(local.month)} ${two(local.hour)}:${two(local.minute)}';
-  }
-}
-
-class _PaymentBadge extends StatelessWidget {
-  final String? paymentStatus;
-  final bool isReported;
-
-  const _PaymentBadge({required this.paymentStatus, required this.isReported});
-
-  @override
-  Widget build(BuildContext context) {
-    final normalized = (paymentStatus ?? '').trim().toUpperCase();
-    final label = switch (normalized) {
-      'PAID' || 'DONE' || 'COMPLETED' => 'Đã TT',
-      'PARTIAL' || 'PARTIALLY_PAID' => 'Một phần',
-      'PENDING' || 'UNPAID' || '' => isReported ? 'Hoàn tất' : 'Chưa TT',
-      _ => isReported ? 'Hoàn tất' : 'Chưa TT',
-    };
-    final color = switch (normalized) {
-      'PAID' || 'DONE' || 'COMPLETED' => AppColors.success,
-      'PARTIAL' || 'PARTIALLY_PAID' => AppColors.error,
-      _ => isReported ? AppColors.success : AppColors.warning,
-    };
-    final background = switch (normalized) {
-      'PAID' || 'DONE' || 'COMPLETED' => AppColors.successSurface,
-      'PARTIAL' || 'PARTIALLY_PAID' => AppColors.errorSurface,
-      _ => isReported ? AppColors.successSurface : AppColors.warningSurface,
-    };
-    return AppStatusChip(
-      label: label,
-      color: color,
-      backgroundColor: background,
-    );
+  static String _reportedOutcomeLabel(Map<String, dynamic>? report) {
+    final type = report?['type']?.toString().trim().toUpperCase() ?? '';
+    if (type.contains('NOT_PURCHASED') || type.contains('NOT_PURCHASE')) {
+      return 'Chưa mua hàng';
+    }
+    return 'Mua hàng';
   }
 }
 

@@ -91,6 +91,10 @@ void main() {
     expect(find.text('2 showroom: CP75, CP62'), findsOneWidget);
     expect(find.byType(AppFeatureTile), findsNothing);
     expect(find.text('Không gian làm việc'), findsNothing);
+    expect(
+      find.byKey(const Key('home-summary-provider-loading')),
+      findsOneWidget,
+    );
   });
 
   testWidgets(
@@ -220,6 +224,12 @@ void main() {
   testWidgets('Super Admin Home shows speaker delivery history pill', (
     tester,
   ) async {
+    // The approved Desktop/Web shell is validated at the wide viewport. The
+    // compact top bar intentionally omits the delivery-metrics pill.
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
     SharedPreferences.setMockInitialValues({});
     FlutterSecureStorage.setMockInitialValues({});
     PackageInfo.setMockInitialValues(

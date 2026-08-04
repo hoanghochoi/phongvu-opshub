@@ -30,6 +30,9 @@ Ngày cập nhật: 29/07/2026
   `Trang chủ`/`Tài khoản`. Khi tài khoản không có workspace khả dụng,
   Home dùng shared `AppStatePanel.empty` trong surface `home-empty-state`; ba
   frame Figma tương ứng là desktop `487:2`, tablet `487:91` và mobile `487:170`.
+  Đây là historical evidence; live OPS-44 authority hiện là Desktop Windows
+  `326:2698`. Provider-missing bootstrap dùng shared Foundation loading state,
+  còn permission/empty data states vẫn do `HomeSummaryPage` sở hữu.
 - VietQR `/vietqr` đã được migrate khỏi `GradientHeader` riêng sang
   content-only workspace trong `AppShell`: header hiển thị SR đang chọn, trạng
   thái QR và số lịch sử; chọn SR, quét mã đơn, tạo QR, kiểm tra MAP, realtime

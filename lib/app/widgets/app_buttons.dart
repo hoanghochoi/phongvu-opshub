@@ -216,7 +216,7 @@ class AppSecondaryButton extends StatelessWidget {
 
 class AppLinkButton extends StatelessWidget {
   final VoidCallback? onPressed;
-  final IconData icon;
+  final IconData? icon;
   final String label;
   final String? tooltip;
   final bool compact;
@@ -224,7 +224,7 @@ class AppLinkButton extends StatelessWidget {
   const AppLinkButton({
     super.key,
     required this.onPressed,
-    required this.icon,
+    this.icon,
     required this.label,
     this.tooltip,
     this.compact = false,
@@ -271,8 +271,10 @@ class AppLinkButton extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: iconSize),
-            SizedBox(width: compact ? 4 : 6),
+            if (icon != null) ...[
+              Icon(icon, size: iconSize),
+              SizedBox(width: compact ? 4 : 6),
+            ],
             Text(label, maxLines: 1, softWrap: false),
           ],
         ),
@@ -344,6 +346,8 @@ class AppIconAction extends StatelessWidget {
   final IconData icon;
   final String tooltip;
   final bool filled;
+  final Color? backgroundColor;
+  final Color? foregroundColor;
 
   const AppIconAction({
     super.key,
@@ -351,14 +355,19 @@ class AppIconAction extends StatelessWidget {
     required this.icon,
     required this.tooltip,
     this.filled = false,
+    this.backgroundColor,
+    this.foregroundColor,
   });
 
   @override
   Widget build(BuildContext context) {
-    final foreground = filled ? AppColors.surface : AppColors.primary;
-    final background = filled
-        ? AppColors.primary
-        : AppColors.primary.withValues(alpha: 0.10);
+    final foreground =
+        foregroundColor ?? (filled ? AppColors.surface : AppColors.primary);
+    final background =
+        backgroundColor ??
+        (filled
+            ? AppColors.primary
+            : AppColors.primary.withValues(alpha: 0.10));
 
     return SizedBox.square(
       dimension: AppButtonMetrics.iconSize,

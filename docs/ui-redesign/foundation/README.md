@@ -89,13 +89,20 @@ Ledger giữ taxonomy 28 page và các reference trước cleanup, nên không �
 
 ## OPS-44 live handoff addendum (2026-08-03)
 
-Read-only audit of live Figma file `mFzSmQzlapSe3RSmUhvzll` found eight pages:
-Cover, Foundation and six platform screen pages. The current router has 45
-`path:` declarations and 43 canonical visual owners. `/reports` redirects to
-`/sales-reports`; `/fifo/inventory-import` and `/admin/inventory-import` enter
-the same `InventoryImportScreen` flow. These aliases do not collapse distinct
-product screens, and no duplicate Figma frame should be invented. The
-historical OPS-25 counts above remain frozen; OPS-44 owns live reconciliation.
+Read-only audit of live Figma file `mFzSmQzlapSe3RSmUhvzll` found eight pages
+before OPS-44 consolidation: Cover, Foundation and six platform screen pages.
+The current router has 45 `path:` declarations and 43 canonical visual owners.
+`/reports` redirects to `/sales-reports`; `/fifo/inventory-import` and
+`/admin/inventory-import` enter the same `InventoryImportScreen` flow. These
+aliases do not collapse distinct product screens, and no duplicate Figma frame
+should be invented. On 2026-08-04 OPS-44 moved all 68 Web top-level nodes into
+`Screens — Desktop · Windows + Web` (`693:17492`), leaving
+`ARCHIVE — Web Responsive (empty · pending deletion)` (`1174:4`) with
+`childCount = 0`; the consolidated Desktop + Web page now reads
+`childCount = 183` and contains Dark coverage board `1874:35444` with 121
+route/state owners using explicit semantic/component Dark modes. Page deletion
+remains pending revision approval. The historical OPS-25 counts above remain
+frozen; OPS-44 owns live reconciliation.
 
 ## Không được suy diễn từ pack
 

@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:phongvu_opshub/app/widgets/app_toast.dart';
 
 import '../../../../app/theme/app_colors.dart';
+import '../../../../app/theme/app_radius.dart';
 import '../../../../app/theme/app_text_styles.dart';
 import '../../../../app/theme/theme_provider.dart';
 import '../../../../app/widgets/app_cards.dart';
@@ -169,6 +170,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final themeMode = context.watch<ThemeProvider>().mode;
     final paymentMonitor = context.watch<PaymentMonitorProvider?>();
     final speakerPreset = paymentMonitor?.speakerVoicePreset;
+    final viewportWidth = MediaQuery.sizeOf(context).width;
+    final isWide = viewportWidth >= AppLayoutTokens.desktopBreakpoint;
 
     return AppResponsiveScrollView(
       onRefresh: _loadStartupSetting,
@@ -176,39 +179,57 @@ class _SettingsScreenState extends State<SettingsScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _SettingsHeader(
-            themeMode: themeMode,
-            startupSnapshot: _startupSnapshot,
-            isLoadingStartup: _isLoadingStartup,
-            isSavingStartup: _isSavingStartup,
-            hasStartupError: _startupError != null,
-            speakerPresetLabel: speakerPreset?.label,
-          ),
+          if (isWide)
+            _SettingsHeader(
+              themeMode: themeMode,
+              startupSnapshot: _startupSnapshot,
+              isLoadingStartup: _isLoadingStartup,
+              isSavingStartup: _isSavingStartup,
+              hasStartupError: _startupError != null,
+              speakerPresetLabel: speakerPreset?.label,
+            )
+          else
+            _SettingsStatusRow(
+              themeMode: themeMode,
+              startupStatus: _startupStatusLabel(),
+              showWindows: viewportWidth >= AppLayoutTokens.compactBreakpoint,
+            ),
           const SizedBox(height: 16),
           LayoutBuilder(
             builder: (context, constraints) {
-              final useTwoColumns =
-                  constraints.maxWidth >= AppLayoutTokens.tabletBreakpoint;
+              // Figma keeps the tablet rail as a single 343 px column. Only
+              // the wide Desktop/Web frame uses the 555 px two-column grid.
+              final cardWidth = isWide ? 555.0 : 343.0;
+              final boundedCardWidth = constraints.maxWidth < cardWidth
+                  ? constraints.maxWidth
+                  : cardWidth;
               final sections = <Widget>[
-                _SettingsSection(child: _buildThemeSelector(context)),
-                _SettingsSection(child: _buildStartupTile(context)),
+                SizedBox(
+                  width: boundedCardWidth,
+                  height: isWide ? 230 : 188,
+                  child: _SettingsSection(child: _buildThemeSelector(context)),
+                ),
+                SizedBox(
+                  width: boundedCardWidth,
+                  height: isWide
+                      ? 230
+                      : (viewportWidth < AppLayoutTokens.compactBreakpoint
+                            ? 166
+                            : 188),
+                  child: _SettingsSection(child: _buildStartupTile(context)),
+                ),
                 if (paymentMonitor?.canConfigurePaymentSpeaker == true)
-                  _SettingsSection(
-                    child: _buildSpeakerVoiceSelector(context, paymentMonitor!),
+                  SizedBox(
+                    width: boundedCardWidth,
+                    child: _SettingsSection(
+                      child: _buildSpeakerVoiceSelector(
+                        context,
+                        paymentMonitor!,
+                      ),
+                    ),
                   ),
               ];
-
-              final itemWidth = useTwoColumns
-                  ? (constraints.maxWidth - 16) / 2
-                  : constraints.maxWidth;
-              return Wrap(
-                spacing: 16,
-                runSpacing: 16,
-                children: [
-                  for (final section in sections)
-                    SizedBox(width: itemWidth, child: section),
-                ],
-              );
+              return Wrap(spacing: 16, runSpacing: 16, children: sections);
             },
           ),
         ],
@@ -222,6 +243,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   ) {
     return AppSurfaceCard(
       key: const Key('settings-speaker-voice-card'),
+      radius: AppRadius.cardFigma,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -263,52 +285,118 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget _buildStartupTile(BuildContext context) {
     final snapshot = _startupSnapshot;
     final isSupported = snapshot?.isSupported ?? true;
-    final canToggle = !_isLoadingStartup && !_isSavingStartup && isSupported;
+    final canToggle =
+        !_isLoadingStartup &&
+        !_isSavingStartup &&
+        _startupError == null &&
+        isSupported &&
+        snapshot != null;
     final isEnabled = snapshot?.isEnabled ?? false;
+    final showSwitch = canToggle;
 
     return AppSurfaceCard(
       key: const Key('settings-startup-card'),
+      radius: AppRadius.cardFigma,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Windows', style: AppTextStyles.labelL),
+          Text(
+            'Windows',
+            style: AppTextStyles.titleEmphasis.copyWith(
+              fontSize: 17,
+              height: 20 / 17,
+              color: AppColors.textPrimaryOf(context),
+            ),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            height: 48,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                if (showSwitch) ...[
+                  _SettingsStartupSwitch(
+                    key: const Key('settings-startup-toggle'),
+                    value: isEnabled,
+                    enabled: canToggle,
+                    onChanged: _setStartupEnabled,
+                  ),
+                  const SizedBox(width: 12),
+                ],
+                Expanded(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Khởi động cùng Windows',
+                        maxLines: 1,
+                        softWrap: false,
+                        style: AppTextStyles.labelM.copyWith(
+                          fontSize: 14,
+                          height: 20 / 14,
+                          color: AppColors.textPrimaryOf(context),
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'OpsHub sẽ tự mở khi đăng nhập Windows',
+                        maxLines: 1,
+                        softWrap: false,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTextStyles.bodyS.copyWith(
+                          fontSize: 12,
+                          height: 18 / 12,
+                          color: AppColors.textSecondaryOf(context),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
           const SizedBox(height: 8),
-          SwitchListTile.adaptive(
-            value: isEnabled,
-            onChanged: canToggle ? _setStartupEnabled : null,
-            secondary: _StartupSettingIcon(
-              isEnabled: isEnabled,
-              isLoading: _isLoadingStartup || _isSavingStartup,
-              isSupported: isSupported,
-            ),
-            title: const Text(
-              'Khởi động cùng Windows',
-              style: AppTextStyles.labelM,
-            ),
-            subtitle: Padding(
-              padding: const EdgeInsets.only(top: 4),
-              child: Text(
-                _startupSubtitle(snapshot),
-                style: AppTextStyles.bodyS,
-              ),
-            ),
-            contentPadding: EdgeInsets.zero,
+          _SettingsStartupStateBadge(
+            label: _startupStateBadgeLabel(snapshot),
+            tone: _startupStateBadgeTone(snapshot),
           ),
         ],
       ),
     );
   }
 
-  String _startupSubtitle(StartupSettingsSnapshot? snapshot) {
-    if (_isLoadingStartup) return 'Đang kiểm tra trạng thái';
-    if (_isSavingStartup) return 'Đang lưu thay đổi';
-    if (_startupError != null) return _startupError!;
+  String _startupStateBadgeLabel(StartupSettingsSnapshot? snapshot) {
+    if (_isLoadingStartup) return 'Đang tải tùy chọn khởi động...';
+    if (_isSavingStartup) return 'Đang lưu thay đổi...';
+    if (_startupError != null) return 'Không thể tải tùy chọn. Thử lại.';
+    if (snapshot == null || !snapshot.isSupported) {
+      return 'Chỉ hỗ trợ trên Windows';
+    }
+    return snapshot.isEnabled ? 'Đang bật' : 'Đang tắt';
+  }
+
+  _SettingsStartupBadgeTone _startupStateBadgeTone(
+    StartupSettingsSnapshot? snapshot,
+  ) {
+    if (_startupError != null) return _SettingsStartupBadgeTone.error;
+    if (_isLoadingStartup || _isSavingStartup) {
+      return _SettingsStartupBadgeTone.neutral;
+    }
+    if (snapshot?.isSupported == true) {
+      return _SettingsStartupBadgeTone.success;
+    }
+    return _SettingsStartupBadgeTone.neutral;
+  }
+
+  String _startupStatusLabel() {
+    if (_isLoadingStartup) return 'Đang tải';
+    if (_isSavingStartup) return 'Đang lưu';
+    if (_startupError != null) return 'Cần thử lại';
+    final snapshot = _startupSnapshot;
     if (snapshot == null) return 'Chưa có trạng thái';
-    if (snapshot.message != null) return snapshot.message!;
     if (!snapshot.isSupported) return 'Chỉ hỗ trợ trên Windows';
-    return snapshot.isEnabled
-        ? 'OpsHub sẽ tự mở khi đăng nhập Windows'
-        : 'OpsHub không tự mở khi đăng nhập Windows';
+    return snapshot.isEnabled ? 'Đang bật' : 'Đang tắt';
   }
 
   Widget _buildThemeSelector(BuildContext context) {
@@ -316,14 +404,31 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
     return AppSurfaceCard(
       key: const Key('settings-theme-card'),
+      radius: AppRadius.cardFigma,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Giao diện', style: AppTextStyles.labelL),
+          Text(
+            'Giao diện',
+            style: AppTextStyles.titleEmphasis.copyWith(
+              fontSize: 17,
+              height: 20 / 17,
+              color: AppColors.textPrimaryOf(context),
+            ),
+          ),
+          const SizedBox(height: 14),
+          Text(
+            'Chế độ hiển thị',
+            style: AppTextStyles.bodyS.copyWith(
+              fontSize: 13,
+              height: 20 / 13,
+              fontWeight: FontWeight.w500,
+              color: AppColors.textPrimaryOf(context),
+            ),
+          ),
           const SizedBox(height: 12),
-          const Text('Chế độ hiển thị', style: AppTextStyles.labelM),
-          const SizedBox(height: AppLayoutTokens.formInlineGap),
           Container(
+            height: 64,
             padding: const EdgeInsets.all(4),
             decoration: BoxDecoration(
               color: Theme.of(context).brightness == Brightness.dark
@@ -384,7 +489,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
         borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
-          padding: const EdgeInsets.symmetric(vertical: 14),
+          height: 52,
+          margin: const EdgeInsets.symmetric(vertical: 2),
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          alignment: Alignment.center,
           decoration: BoxDecoration(
             color: isActive ? AppColors.infoSurface : AppColors.transparent,
             borderRadius: BorderRadius.circular(8),
@@ -470,13 +578,45 @@ class _SettingsHeader extends StatelessWidget {
   }
 
   String _startupStatusLabel() {
-    if (isLoadingStartup) return 'Đang kiểm tra';
+    if (isLoadingStartup) return 'Đang tải';
     if (isSavingStartup) return 'Đang lưu';
     if (hasStartupError) return 'Cần thử lại';
     final snapshot = startupSnapshot;
     if (snapshot == null) return 'Chưa có trạng thái';
-    if (!snapshot.isSupported) return 'Không hỗ trợ';
+    if (!snapshot.isSupported) return 'Chỉ hỗ trợ trên Windows';
     return snapshot.isEnabled ? 'Đang bật' : 'Đang tắt';
+  }
+}
+
+class _SettingsStatusRow extends StatelessWidget {
+  final ThemeMode themeMode;
+  final String startupStatus;
+  final bool showWindows;
+
+  const _SettingsStatusRow({
+    required this.themeMode,
+    required this.startupStatus,
+    required this.showWindows,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      key: const Key('settings-status-row'),
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        _SettingsStatusChip(
+          label: 'Giao diện: ${_themeModeLabel(themeMode)}',
+          tone: _SettingsChipTone.info,
+        ),
+        if (showWindows)
+          _SettingsStatusChip(
+            label: 'Windows: $startupStatus',
+            tone: _SettingsChipTone.success,
+          ),
+      ],
+    );
   }
 }
 
@@ -494,9 +634,12 @@ class _SettingsStatusChip extends StatelessWidget {
     return DecoratedBox(
       decoration: BoxDecoration(
         color: switch (tone) {
-          _SettingsChipTone.info => AppColors.infoSurface,
-          _SettingsChipTone.success => AppColors.successSurface,
-          _SettingsChipTone.neutral => AppColors.chipBackground,
+          _SettingsChipTone.info => AppColors.infoSurfaceOf(context),
+          _SettingsChipTone.success => AppColors.successSurfaceOf(context),
+          _SettingsChipTone.neutral => AppColors.statusSurfaceOf(
+            context,
+            'neutral',
+          ),
         },
         borderRadius: BorderRadius.circular(8),
       ),
@@ -508,8 +651,8 @@ class _SettingsStatusChip extends StatelessWidget {
           overflow: TextOverflow.ellipsis,
           style: AppTextStyles.labelS.copyWith(
             color: switch (tone) {
-              _SettingsChipTone.info => AppColors.info,
-              _SettingsChipTone.success => AppColors.success,
+              _SettingsChipTone.info => AppColors.infoOf(context),
+              _SettingsChipTone.success => AppColors.successOf(context),
               _SettingsChipTone.neutral => AppColors.textSecondaryOf(context),
             },
           ),
@@ -530,34 +673,106 @@ class _SettingsSection extends StatelessWidget {
 
 enum _SettingsChipTone { neutral, info, success }
 
-class _StartupSettingIcon extends StatelessWidget {
-  const _StartupSettingIcon({
-    required this.isEnabled,
-    required this.isLoading,
-    required this.isSupported,
-  });
+enum _SettingsStartupBadgeTone { neutral, success, error }
 
-  final bool isEnabled;
-  final bool isLoading;
-  final bool isSupported;
+class _SettingsStartupStateBadge extends StatelessWidget {
+  final String label;
+  final _SettingsStartupBadgeTone tone;
+
+  const _SettingsStartupStateBadge({required this.label, required this.tone});
 
   @override
   Widget build(BuildContext context) {
-    if (isLoading) {
-      return const SizedBox(
-        width: 24,
-        height: 24,
-        child: CircularProgressIndicator(strokeWidth: 2.4),
-      );
-    }
+    final (background, foreground) = switch (tone) {
+      _SettingsStartupBadgeTone.neutral => (
+        AppColors.statusSurfaceOf(context, 'neutral'),
+        AppColors.textSecondaryOf(context),
+      ),
+      _SettingsStartupBadgeTone.success => (
+        AppColors.successSurfaceOf(context),
+        AppColors.successOf(context),
+      ),
+      _SettingsStartupBadgeTone.error => (
+        AppColors.errorSurfaceOf(context),
+        AppColors.errorOf(context),
+      ),
+    };
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minHeight: 34),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: background,
+          borderRadius: BorderRadius.circular(AppRadius.pill),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          child: Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: AppTextStyles.captionBold.copyWith(color: foreground),
+          ),
+        ),
+      ),
+    );
+  }
+}
 
-    return Icon(
-      isEnabled ? Icons.rocket_launch_rounded : Icons.power_settings_new,
-      color: !isSupported
-          ? AppColors.neutral300
-          : isEnabled
-          ? AppColors.success
-          : AppColors.neutral500,
+class _SettingsStartupSwitch extends StatelessWidget {
+  final bool value;
+  final bool enabled;
+  final ValueChanged<bool> onChanged;
+
+  const _SettingsStartupSwitch({
+    super.key,
+    required this.value,
+    required this.enabled,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final trackColor = value
+        ? AppColors.primaryOf(context)
+        : AppColors.neutral300;
+    return Semantics(
+      button: true,
+      toggled: value,
+      enabled: enabled,
+      label: 'Khởi động cùng Windows',
+      child: InkWell(
+        onTap: enabled ? () => onChanged(!value) : null,
+        borderRadius: BorderRadius.circular(AppRadius.pill),
+        child: SizedBox(
+          width: 48,
+          height: 48,
+          child: Center(
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 160),
+              width: 40,
+              height: 24,
+              padding: const EdgeInsets.all(4),
+              decoration: BoxDecoration(
+                color: enabled ? trackColor : AppColors.neutral200,
+                borderRadius: BorderRadius.circular(AppRadius.pill),
+              ),
+              child: Align(
+                alignment: value ? Alignment.centerRight : Alignment.centerLeft,
+                child: SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: AppColors.surface,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

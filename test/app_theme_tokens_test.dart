@@ -75,12 +75,6 @@ void main() {
     );
   });
 
-  test('legacy AppTheme aliases stay mapped during incremental migration', () {
-    expect(AppTheme.primaryBlue, AppColors.primary);
-    expect(AppTheme.white, AppColors.surface);
-    expect(AppTheme.buttonColor, AppColors.primary);
-  });
-
   test('shared layout and button metrics use design-system tokens', () {
     expect(AppLayoutTokens.cardRadius, AppRadius.sm);
     expect(AppLayoutTokens.cardPadding, 16);
@@ -127,5 +121,33 @@ void main() {
     expect(inputBorder.borderRadius, AppRadius.allMd);
     final errorBorder = theme.inputDecorationTheme.errorBorder!;
     expect(errorBorder.borderSide.width, 2);
+  });
+
+  testWidgets('status tokens resolve to the Figma dark semantic mode', (
+    tester,
+  ) async {
+    BuildContext? captured;
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.darkTheme,
+        home: Builder(
+          builder: (context) {
+            captured = context;
+            return const SizedBox.shrink();
+          },
+        ),
+      ),
+    );
+
+    expect(AppColors.statusColorOf(captured!, 'success'), AppColors.darkSuccess);
+    expect(
+      AppColors.statusSurfaceOf(captured!, 'success'),
+      AppColors.darkSuccessSurface,
+    );
+    expect(AppColors.statusColorOf(captured!, 'error'), AppColors.darkError);
+    expect(
+      AppColors.statusSurfaceOf(captured!, 'error'),
+      AppColors.darkErrorSurface,
+    );
   });
 }

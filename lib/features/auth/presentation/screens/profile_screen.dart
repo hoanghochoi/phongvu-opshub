@@ -252,6 +252,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final isLoading = context.watch<AuthProvider>().isLoading;
 
     return AppResponsiveScrollView(
+      padding: _profilePagePadding(context),
       onRefresh: _refreshProfile,
       refreshLogSource: _logSource,
       refreshLogContext: () => {
@@ -259,31 +260,45 @@ class _ProfileScreenState extends State<ProfileScreen> {
         'hasAvatar': avatarUrl != null,
       },
       child: Column(
+        key: const Key('profile-content'),
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _ProfileHeader(
-            user: user,
-            avatarUrl: avatarUrl,
-            organizationNodeLabel: organizationNodeLabel,
-            onPickAvatar: _pickAvatar,
+          SizedBox(
+            height: _profileHeaderHeight(context),
+            child: _ProfileHeader(
+              user: user,
+              avatarUrl: avatarUrl,
+              organizationNodeLabel: organizationNodeLabel,
+              onPickAvatar: _pickAvatar,
+            ),
           ),
           const SizedBox(height: AppLayoutTokens.cardGap),
-          _ProfileSessionCard(isLoading: isLoading, onLogout: _logout),
+          SizedBox(
+            height: _profileSessionHeight(context),
+            child: _ProfileSessionCard(isLoading: isLoading, onLogout: _logout),
+          ),
           const SizedBox(height: AppLayoutTokens.cardGap),
           LayoutBuilder(
             builder: (context, constraints) {
-              final useTwoColumns =
-                  constraints.maxWidth >= AppLayoutTokens.tabletBreakpoint;
-              final editCard = _ProfileEditCard(
-                firstNameController: _firstNameController,
-                lastNameController: _lastNameController,
-                isLoading: isLoading,
-                onChangePassword: _changePassword,
-                onSave: _save,
+              final useTwoColumns = constraints.maxWidth >= 1000;
+              final editCard = SizedBox(
+                height: _profileEditHeight(context),
+                child: _ProfileEditCard(
+                  firstNameController: _firstNameController,
+                  lastNameController: _lastNameController,
+                  isLoading: isLoading,
+                  onChangePassword: _changePassword,
+                  onSave: _save,
+                ),
               );
-              final infoCard = _ProfileInfoCard(
-                user: user,
-                organizationNodeLabel: organizationNodeLabel,
+              final infoCard = ConstrainedBox(
+                constraints: BoxConstraints(
+                  minHeight: _profileInfoHeight(context),
+                ),
+                child: _ProfileInfoCard(
+                  user: user,
+                  organizationNodeLabel: organizationNodeLabel,
+                ),
               );
 
               if (!useTwoColumns) {
@@ -297,12 +312,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 );
               }
 
+              const detailsGap = 16.0;
+              final infoWidth = constraints.maxWidth >= 1000 ? 430.0 : 0.0;
+              final editWidth =
+                  constraints.maxWidth -
+                  (infoWidth > 0 ? infoWidth + detailsGap : 0);
               return Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(flex: 3, child: editCard),
-                  const SizedBox(width: 16),
-                  Expanded(flex: 2, child: infoCard),
+                  SizedBox(width: editWidth, child: editCard),
+                  const SizedBox(width: detailsGap),
+                  SizedBox(width: infoWidth, child: infoCard),
                 ],
               );
             },
@@ -318,6 +338,38 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return text;
   }
 }
+
+EdgeInsets _profilePagePadding(BuildContext context) {
+  final width = MediaQuery.sizeOf(context).width;
+  if (width >= AppLayoutTokens.desktopBreakpoint) {
+    return const EdgeInsets.fromLTRB(32, 32, 32, 32);
+  }
+  return AppLayoutTokens.pagePaddingFor(width);
+}
+
+double _profileHeaderHeight(BuildContext context) {
+  return MediaQuery.sizeOf(context).width >= AppLayoutTokens.desktopBreakpoint
+      ? 114
+      : 112;
+}
+
+double _profileSessionHeight(BuildContext context) {
+  final width = MediaQuery.sizeOf(context).width;
+  if (width < AppLayoutTokens.compactBreakpoint) return 92;
+  if (width >= AppLayoutTokens.desktopBreakpoint) return 80;
+  if (width >= AppLayoutTokens.tabletBreakpoint) return 74;
+  return 80;
+}
+
+double _profileEditHeight(BuildContext context) {
+  final width = MediaQuery.sizeOf(context).width;
+  return width >= AppLayoutTokens.desktopBreakpoint ||
+          (width >= AppLayoutTokens.tabletBreakpoint && width < 1200)
+      ? 284
+      : 292;
+}
+
+double _profileInfoHeight(BuildContext context) => 256;
 
 class _ProfileHeader extends StatelessWidget {
   final User? user;
@@ -406,15 +458,27 @@ class _ProfileHeader extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 4),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    _ProfileStatusChip(label: User.roleDisplayName(user?.role)),
-                    _ProfileStatusChip(
-                      label: organizationNodeLabel ?? 'Chưa gán cây tổ chức',
-                    ),
-                  ],
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final chips = [
+                      _ProfileStatusChip(
+                        label: User.roleDisplayName(user?.role),
+                      ),
+                      _ProfileStatusChip(
+                        label: organizationNodeLabel ?? 'Chưa gán cây tổ chức',
+                      ),
+                    ];
+                    if (constraints.maxWidth < 300) {
+                      return Row(
+                        children: [
+                          Expanded(child: chips[0]),
+                          const SizedBox(width: 8),
+                          Expanded(child: chips[1]),
+                        ],
+                      );
+                    }
+                    return Wrap(spacing: 8, runSpacing: 8, children: chips);
+                  },
                 ),
               ],
             ),
@@ -441,22 +505,32 @@ class _ProfileSessionCard extends StatelessWidget {
         : AppColors.errorSurface;
     return AppSurfaceCard(
       key: const Key('profile-session-card'),
-      backgroundColor: dangerSurface.withValues(alpha: 0.5),
-      borderColor: danger.withValues(alpha: 0.32),
+      backgroundColor: dangerSurface,
+      borderColor: danger,
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final isCompact =
-              constraints.maxWidth < AppLayoutTokens.compactBreakpoint;
+          final copyWidth =
+              constraints.maxWidth - AppLayoutTokens.formInlineGap - 116;
+          final compactCopy = copyWidth < 400;
           final copy = Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Phiên đăng nhập', style: AppTextStyles.labelM),
+              Text(
+                'Phiên đăng nhập',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppTextStyles.labelM,
+              ),
               const SizedBox(height: 4),
               Text(
                 'Đăng xuất khỏi tài khoản trên thiết bị này.',
-                style: AppTextStyles.bodyM.copyWith(
-                  color: AppColors.textSecondaryOf(context),
-                ),
+                maxLines: compactCopy ? 2 : 1,
+                overflow: TextOverflow.ellipsis,
+                style:
+                    (compactCopy
+                            ? AppTextStyles.bodyCompact
+                            : AppTextStyles.bodyM)
+                        .copyWith(color: AppColors.textSecondaryOf(context)),
               ),
             ],
           );
@@ -464,18 +538,6 @@ class _ProfileSessionCard extends StatelessWidget {
             key: const Key('profile-logout-button'),
             onPressed: isLoading ? null : onLogout,
           );
-
-          if (isCompact) {
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                copy,
-                const SizedBox(height: AppLayoutTokens.formInlineGap),
-                logoutButton,
-              ],
-            );
-          }
-
           return Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
@@ -510,37 +572,102 @@ class _ProfileEditCard extends StatelessWidget {
     return AppSurfaceCard(
       key: const Key('profile-edit-card'),
       child: AppFormColumn(
-        spacing: AppLayoutTokens.formFieldGap,
+        spacing: AppLayoutTokens.formInlineGap,
         children: [
           Text('Thông tin hiển thị', style: AppTextStyles.labelL),
-          AppTextInput(
+          _ProfileInputField(
             controller: firstNameController,
             label: 'Tên',
             icon: Icons.person_outline,
           ),
-          AppTextInput(
+          _ProfileInputField(
             controller: lastNameController,
             label: 'Họ',
             icon: Icons.badge_outlined,
           ),
-          AppActionRow(
-            children: [
-              AppSecondaryButton(
-                onPressed: isLoading ? null : onChangePassword,
-                icon: Icons.lock_reset_outlined,
-                label: 'Đổi mật khẩu',
-              ),
-              AppPrimaryButton(
-                onPressed: isLoading ? null : onSave,
-                icon: Icons.save_outlined,
-                label: 'Lưu',
-                isLoading: isLoading,
-                loadingLabel: 'Đang lưu...',
-              ),
-            ],
+          _ProfileActions(
+            isLoading: isLoading,
+            onChangePassword: onChangePassword,
+            onSave: onSave,
           ),
         ],
       ),
+    );
+  }
+}
+
+class _ProfileInputField extends StatelessWidget {
+  const _ProfileInputField({
+    required this.controller,
+    required this.label,
+    required this.icon,
+  });
+
+  final TextEditingController controller;
+  final String label;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(label, style: AppTextStyles.labelS),
+        const SizedBox(height: 8),
+        AppTextInput(
+          controller: controller,
+          label: label,
+          icon: icon,
+          showLabel: false,
+          fixedHeight: 48,
+        ),
+      ],
+    );
+  }
+}
+
+class _ProfileActions extends StatelessWidget {
+  const _ProfileActions({
+    required this.isLoading,
+    required this.onChangePassword,
+    required this.onSave,
+  });
+
+  final bool isLoading;
+  final VoidCallback onChangePassword;
+  final VoidCallback onSave;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.end,
+      children: [
+        SizedBox(
+          width: 138,
+          height: 48,
+          child: AppSecondaryButton(
+            onPressed: isLoading ? null : onChangePassword,
+            icon: Icons.lock_reset_outlined,
+            label: 'Đổi mật khẩu',
+            size: AppButtonSize.medium,
+            height: 48,
+            expand: true,
+          ),
+        ),
+        const SizedBox(width: 8),
+        SizedBox(
+          width: 70,
+          height: 48,
+          child: AppPrimaryButton(
+            onPressed: isLoading ? null : onSave,
+            label: 'Lưu',
+            size: AppButtonSize.medium,
+            height: 48,
+            isLoading: isLoading,
+            loadingLabel: 'Lưu',
+          ),
+        ),
+      ],
     );
   }
 }
@@ -607,7 +734,16 @@ class _ProfileInfoRow extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon, color: AppColors.primaryOf(context), size: 22),
+        DecoratedBox(
+          decoration: BoxDecoration(
+            color: AppColors.infoSurfaceOf(context),
+            borderRadius: BorderRadius.circular(9),
+          ),
+          child: SizedBox.square(
+            dimension: 36,
+            child: Icon(icon, color: AppColors.primaryOf(context), size: 20),
+          ),
+        ),
         const SizedBox(width: AppLayoutTokens.formInlineGap),
         Expanded(
           child: Column(
@@ -643,9 +779,10 @@ class _ProfileStatusChip extends StatelessWidget {
   Widget build(BuildContext context) {
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: AppColors.cardOf(context).withValues(alpha: 0.72),
+        color: AppColors.isDark(context)
+            ? AppColors.darkNeutral100
+            : AppColors.neutral50,
         borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
-        border: Border.all(color: AppColors.borderOf(context)),
       ),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -653,7 +790,7 @@ class _ProfileStatusChip extends StatelessWidget {
           label,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
-          style: AppTextStyles.bodyS.copyWith(
+          style: AppTextStyles.labelS.copyWith(
             color: AppColors.textSecondaryOf(context),
           ),
         ),

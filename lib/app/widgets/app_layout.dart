@@ -20,9 +20,11 @@ class AppLayoutTokens {
   static const double tabletBreakpoint = 900;
   static const double desktopBreakpoint = 1200;
   static const double authDesktopBreakpoint = 1024;
-  static const double legacyDesktopBreakpoint = tabletBreakpoint;
   static const double contentMaxWidth = 1180;
   static const double pageMaxWidth = contentMaxWidth;
+
+  /// Wide Sales Reports Figma content lane (1190px shell viewport).
+  static const double salesReportMaxWidth = 1190;
   static const double sidebarWidth = 250;
   static const double tabletRailWidth = 88;
   static const double shellTopBarHeight = 72;
@@ -58,8 +60,14 @@ class AppLayoutTokens {
   static const double listItemTouchTarget = 56;
 
   static EdgeInsets pagePaddingFor(double width) {
-    if (width >= tabletBreakpoint) {
+    // Figma screen pages define 16 px compact, 24 px medium/expanded and
+    // 32 px wide desktop gutters. Classify from the viewport so a bounded
+    // AppShell content pane does not make a wide page look like a tablet.
+    if (width >= desktopBreakpoint) {
       return const EdgeInsets.fromLTRB(32, 24, 32, 24);
+    }
+    if (width >= compactBreakpoint) {
+      return const EdgeInsets.fromLTRB(24, 16, 24, 16);
     }
     return const EdgeInsets.fromLTRB(16, 16, 16, 16);
   }
@@ -153,7 +161,7 @@ class AppResponsiveContent extends StatelessWidget {
             : viewportWidth;
         final availableWidth = math.min(boundedWidth, viewportWidth);
         final effectivePadding =
-            padding ?? AppLayoutTokens.pagePaddingFor(availableWidth);
+            padding ?? AppLayoutTokens.pagePaddingFor(viewportWidth);
         final effectiveMaxWidth = math.min(maxWidth, availableWidth);
         final content = Align(
           alignment: alignment,
@@ -216,7 +224,7 @@ class AppResponsiveScrollView extends StatelessWidget {
             : viewportWidth;
         final availableWidth = math.min(boundedWidth, viewportWidth);
         final effectivePadding =
-            padding ?? AppLayoutTokens.pagePaddingFor(availableWidth);
+            padding ?? AppLayoutTokens.pagePaddingFor(viewportWidth);
         final effectiveMaxWidth = math.min(maxWidth, availableWidth);
         final scrollView = SingleChildScrollView(
           controller: controller,

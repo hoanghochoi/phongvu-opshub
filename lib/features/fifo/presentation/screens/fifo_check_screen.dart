@@ -682,17 +682,22 @@ class _SkuResultList extends StatelessWidget {
 class _FifoCompactItem extends StatelessWidget {
   final FifoInventoryItem item;
   final bool compact;
+  final String? badgeLabelOverride;
+  final String? badgeToneOverride;
 
   const _FifoCompactItem({
     super.key,
     required this.item,
     required this.compact,
+    this.badgeLabelOverride,
+    this.badgeToneOverride,
   });
 
   @override
   Widget build(BuildContext context) {
-    final badgeLabel = item.exported ? 'Đã xuất' : 'FIFO';
-    final badgeColor = item.exported ? AppColors.info : AppColors.success;
+    final badgeLabel =
+        badgeLabelOverride ?? (item.exported ? 'Đã xuất' : 'FIFO');
+    final badgeTone = badgeToneOverride ?? (item.exported ? 'info' : 'success');
     final importDate = DateFormatter.format(item.importDate);
 
     return LayoutBuilder(
@@ -796,7 +801,7 @@ class _FifoCompactItem extends StatelessWidget {
               Positioned(
                 left: badgeLeft,
                 top: 13,
-                child: _FifoBadge(label: badgeLabel, color: badgeColor),
+                child: _FifoBadge(label: badgeLabel, tone: badgeTone),
               ),
             ],
           ),
@@ -808,19 +813,18 @@ class _FifoCompactItem extends StatelessWidget {
 
 class _FifoBadge extends StatelessWidget {
   final String label;
-  final Color color;
+  final String tone;
 
-  const _FifoBadge({required this.label, required this.color});
+  const _FifoBadge({required this.label, required this.tone});
 
   @override
   Widget build(BuildContext context) {
+    final color = AppColors.statusColorOf(context, tone);
     return Container(
       height: 24,
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: color == AppColors.success
-            ? AppColors.successSurface
-            : AppColors.infoSurface,
+        color: AppColors.statusSurfaceOf(context, tone),
         borderRadius: BorderRadius.circular(AppRadius.sm),
       ),
       child: Text(
@@ -839,12 +843,20 @@ class _SerialCorrectResult extends StatelessWidget {
   final bool isBusy;
   final Future<void> Function(FifoInventoryItem item, bool exported)
   onExportChanged;
+  final String statusLabel;
+  final String statusTone;
+  final String? itemBadgeLabel;
+  final String? itemBadgeTone;
 
   const _SerialCorrectResult({
     required this.result,
     required this.item,
     required this.isBusy,
     required this.onExportChanged,
+    this.statusLabel = 'Đúng thứ tự FIFO',
+    this.statusTone = 'success',
+    this.itemBadgeLabel,
+    this.itemBadgeTone,
   });
 
   Future<void> _copyMetadata(
@@ -934,17 +946,19 @@ class _SerialCorrectResult extends StatelessWidget {
               left: 15,
               top: 47,
               height: 24,
-              child: _FifoBadge(
-                label: 'Đúng thứ tự FIFO',
-                color: AppColors.success,
-              ),
+              child: _FifoBadge(label: statusLabel, tone: statusTone),
             ),
             Positioned(
               left: 15,
               right: 15,
               top: 95,
               height: 68,
-              child: _FifoCompactItem(item: item, compact: compact),
+              child: _FifoCompactItem(
+                item: item,
+                compact: compact,
+                badgeLabelOverride: itemBadgeLabel,
+                badgeToneOverride: itemBadgeTone,
+              ),
             ),
             Positioned(
               left: 15,
@@ -1030,6 +1044,46 @@ class _SerialCorrectResult extends StatelessWidget {
           ],
         );
       },
+    );
+  }
+}
+
+class _SerialWrongOrderResult extends StatelessWidget {
+  final FifoCheckResult result;
+  final FifoInventoryItem item;
+  final bool isBusy;
+  final Future<void> Function(FifoInventoryItem item, bool exported)
+  onExportChanged;
+
+  const _SerialWrongOrderResult({
+    required this.result,
+    required this.item,
+    required this.isBusy,
+    required this.onExportChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return _SerialCorrectResult(
+      result: result,
+      item: item,
+      isBusy: isBusy,
+      onExportChanged: onExportChanged,
+      statusLabel: 'Sai thứ tự FIFO',
+      statusTone: 'error',
+    );
+  }
+}
+
+class _SerialNotFoundResult extends StatelessWidget {
+  const _SerialNotFoundResult();
+
+  @override
+  Widget build(BuildContext context) {
+    return const AppStatePanel.empty(
+      title: 'Không tìm thấy kết quả',
+      message: 'Hãy đổi từ khóa hoặc bật hiển thị đã xuất kho để thử lại.',
+      icon: PhosphorIconsRegular.magnifyingGlass,
     );
   }
 }
@@ -1130,9 +1184,8 @@ class _SerialResult extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // The approved R1 serial frames cover the correct state only. Keep the
-    // existing business/state path for other statuses until their dedicated
-    // Figma nodes are approved; the gap is recorded in the OPS-44 plan.
+    // Approved R1 serial frames cover the result status variants below. Keep
+    // the provider's existing fallback path for unexpected status values.
     if (result.status == 'correct' && result.item != null) {
       return _SerialCorrectResult(
         result: result,
@@ -1140,6 +1193,39 @@ class _SerialResult extends StatelessWidget {
         isBusy: exportingIds.contains(result.item!.id),
         onExportChanged: onExportChanged,
       );
+    }
+    if (result.status == 'wrong' && result.item != null) {
+      return _SerialWrongOrderResult(
+        result: result,
+        item: result.item!,
+        isBusy: exportingIds.contains(result.item!.id),
+        onExportChanged: onExportChanged,
+      );
+    }
+    if (result.status == 'exported' && result.item != null) {
+      return _SerialCorrectResult(
+        result: result,
+        item: result.item!,
+        isBusy: exportingIds.contains(result.item!.id),
+        onExportChanged: onExportChanged,
+        statusLabel: 'Đã xuất kho',
+        statusTone: 'info',
+      );
+    }
+    if (result.status == 'display_reserved' && result.item != null) {
+      return _SerialCorrectResult(
+        result: result,
+        item: result.item!,
+        isBusy: exportingIds.contains(result.item!.id),
+        onExportChanged: onExportChanged,
+        statusLabel: 'Hàng trưng bày chỉ định',
+        statusTone: 'warning',
+        itemBadgeLabel: 'Trưng bày',
+        itemBadgeTone: 'warning',
+      );
+    }
+    if (result.status == 'not_found') {
+      return const _SerialNotFoundResult();
     }
 
     final statusColor = switch (result.status) {

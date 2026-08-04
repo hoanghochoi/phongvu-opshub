@@ -4,10 +4,12 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:provider/provider.dart';
 import 'package:phongvu_opshub/app/widgets/app_toast.dart';
 
 import '../../../../app/theme/app_colors.dart';
+import '../../../../app/theme/app_radius.dart';
 import '../../../../app/widgets/app_buttons.dart';
 import '../../../../app/widgets/app_layout.dart';
 import '../../../../app/widgets/app_chips.dart';
@@ -163,7 +165,7 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             ListTile(
-              leading: const Icon(Icons.photo_library_outlined),
+              leading: Icon(PhosphorIconsRegular.images),
               title: const Text('Chọn từ thư viện'),
               onTap: () {
                 Navigator.of(dialogContext).pop();
@@ -171,7 +173,7 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
               },
             ),
             ListTile(
-              leading: const Icon(Icons.camera_alt_outlined),
+              leading: Icon(PhosphorIconsRegular.camera),
               title: const Text('Chụp ảnh mới'),
               onTap: () {
                 Navigator.of(dialogContext).pop();
@@ -304,10 +306,23 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final viewportWidth = MediaQuery.sizeOf(context).width;
+    final isWide = viewportWidth >= AppLayoutTokens.desktopBreakpoint;
+    final horizontalPadding = isWide ? 32.0 : 16.0;
+    final topPadding = isWide ? 32.0 : 18.0;
+    final contentWidth = isWide ? 1126.0 : AppLayoutTokens.contentMaxWidth;
     return Form(
       key: _formKey,
       child: AppResponsiveScrollView(
-        maxWidth: AppLayoutTokens.contentMaxWidth,
+        // Exact Figma shell geometry: wide content is 1126px inside 32px
+        // gutters; compact/tablet/expanded uses the approved 343px form lane.
+        maxWidth: contentWidth,
+        padding: EdgeInsets.fromLTRB(
+          horizontalPadding,
+          topPadding,
+          horizontalPadding,
+          24,
+        ),
         keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
         onRefresh: AppRefreshCallbacks.noop,
         refreshLogSource: 'Feedback',
@@ -317,26 +332,38 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
           'imageCount': _images.length,
           'isSubmitting': _isSubmitting,
         },
-        child: AppFormColumn(
-          spacing: 16,
-          children: [
-            _FeedbackHeader(
-              imageCount: _images.length,
-              maxImages: _maxImages,
-              isSubmitting: _isSubmitting,
+        child: SizedBox(
+          width: double.infinity,
+          child: Align(
+            alignment: Alignment.topLeft,
+            child: SizedBox(
+              width: isWide ? double.infinity : 343,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _FeedbackHeader(
+                    imageCount: _images.length,
+                    maxImages: _maxImages,
+                    isSubmitting: _isSubmitting,
+                    showHeading: isWide,
+                  ),
+                  SizedBox(height: isWide ? 19 : 18),
+                  _FeedbackFormCard(
+                    functionController: _functionController,
+                    descriptionController: _descriptionController,
+                    images: _images,
+                    maxImages: _maxImages,
+                    isSubmitting: _isSubmitting,
+                    isWide: isWide,
+                    onAddImage: _showImageSourceDialog,
+                    onRemoveImage: (index) => unawaited(_removeImage(index)),
+                    onSubmit: _submitFeedback,
+                  ),
+                  const SizedBox(height: 80.0),
+                ],
+              ),
             ),
-            _FeedbackFormCard(
-              functionController: _functionController,
-              descriptionController: _descriptionController,
-              images: _images,
-              maxImages: _maxImages,
-              isSubmitting: _isSubmitting,
-              onAddImage: _showImageSourceDialog,
-              onRemoveImage: (index) => unawaited(_removeImage(index)),
-              onSubmit: _submitFeedback,
-            ),
-            const SizedBox(height: 80.0),
-          ],
+          ),
         ),
       ),
     );
@@ -347,52 +374,66 @@ class _FeedbackHeader extends StatelessWidget {
   final int imageCount;
   final int maxImages;
   final bool isSubmitting;
+  final bool showHeading;
 
   const _FeedbackHeader({
     required this.imageCount,
     required this.maxImages,
     required this.isSubmitting,
+    required this.showHeading,
   });
 
   @override
   Widget build(BuildContext context) {
+    final chips = <Widget>[
+      AppStatusChip(
+        label: isSubmitting ? 'Đang gửi' : 'Sẵn sàng gửi',
+        color: isSubmitting ? AppColors.warning : AppColors.info,
+        backgroundColor: AppColors.infoSurface,
+      ),
+      AppStatusChip(
+        label: '$imageCount/$maxImages ảnh',
+        color: imageCount >= maxImages ? AppColors.warning : AppColors.info,
+        backgroundColor: AppColors.infoSurface,
+      ),
+      const AppStatusChip(
+        label: 'Tối đa 20 ảnh',
+        color: AppColors.info,
+        backgroundColor: AppColors.infoSurface,
+      ),
+    ];
     return Column(
       key: const Key('feedback-header'),
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Chia sẻ phản hồi', style: AppTextStyles.headingS),
-        const SizedBox(height: 8),
-        Text(
-          'Chia sẻ đề xuất, điểm chưa thuận tiện hoặc lỗi bạn gặp '
-          'trong lúc làm việc.',
-          style: AppTextStyles.bodyS.copyWith(
-            color: AppColors.textSecondaryOf(context),
+        if (showHeading) ...[
+          Text('Chia sẻ phản hồi', style: AppTextStyles.pageTitle),
+          const SizedBox(height: 18),
+          Text(
+            'Chia sẻ đề xuất, điểm chưa thuận tiện hoặc lỗi bạn gặp '
+            'trong lúc làm việc.',
+            style: AppTextStyles.bodyM.copyWith(
+              color: AppColors.textSecondaryOf(context),
+            ),
           ),
-        ),
-        const SizedBox(height: 12),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            AppStatusChip(
-              label: isSubmitting ? 'Đang gửi' : 'Sẵn sàng gửi',
-              color: isSubmitting ? AppColors.warning : AppColors.info,
-              backgroundColor: AppColors.infoSurface,
+          const SizedBox(height: 10),
+        ],
+        if (showHeading)
+          Wrap(spacing: 8, runSpacing: 8, children: chips)
+        else
+          SizedBox(
+            height: 24,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SizedBox(width: isSubmitting ? 71 : 93, child: chips[0]),
+                const SizedBox(width: 8),
+                SizedBox(width: 72, child: chips[1]),
+                const SizedBox(width: 8),
+                SizedBox(width: 98, child: chips[2]),
+              ],
             ),
-            AppStatusChip(
-              label: '$imageCount/$maxImages ảnh',
-              color: imageCount >= maxImages
-                  ? AppColors.warning
-                  : AppColors.info,
-              backgroundColor: AppColors.infoSurface,
-            ),
-            const AppStatusChip(
-              label: 'Tối đa 20 ảnh',
-              color: AppColors.info,
-              backgroundColor: AppColors.infoSurface,
-            ),
-          ],
-        ),
+          ),
       ],
     );
   }
@@ -404,6 +445,7 @@ class _FeedbackFormCard extends StatelessWidget {
   final List<File> images;
   final int maxImages;
   final bool isSubmitting;
+  final bool isWide;
   final VoidCallback onAddImage;
   final ValueChanged<int> onRemoveImage;
   final VoidCallback onSubmit;
@@ -414,6 +456,7 @@ class _FeedbackFormCard extends StatelessWidget {
     required this.images,
     required this.maxImages,
     required this.isSubmitting,
+    required this.isWide,
     required this.onAddImage,
     required this.onRemoveImage,
     required this.onSubmit,
@@ -421,66 +464,252 @@ class _FeedbackFormCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final slotHeight = isWide ? 86.0 : 56.0;
+    final extraRows = images.length <= 2 ? 0 : (images.length - 2 + 1) ~/ 2;
+    final extraHeight = extraRows * (slotHeight + 8);
+    final cardHeight = (isWide ? 590.0 : 552.0) + extraHeight;
+    final fieldWidth = isWide ? null : 311.0;
     return AppSurfaceCard(
       key: const Key('feedback-form-card'),
-      child: AppFormColumn(
-        spacing: AppLayoutTokens.formSectionGap,
-        children: [
-          AppFormTextInput(
-            key: const ValueKey('suggestion-function-field'),
-            controller: functionController,
-            enabled: !isSubmitting,
-            textInputAction: TextInputAction.next,
-            maxLength: 120,
-            label: 'Chức năng liên quan',
-            hintText: 'Ví dụ: FIFO, VietQR, Sao kê, Tiền vào, Bảo hành...',
-            helperText: 'Cho biết khu vực bạn đang sử dụng.',
-            icon: Icons.category_outlined,
-            validator: (value) {
-              if (value == null || value.trim().isEmpty) {
-                return 'Vui lòng nhập chức năng liên quan';
-              }
-              return null;
-            },
-          ),
-          AppFormTextInput(
-            key: const ValueKey('suggestion-description-field'),
-            controller: descriptionController,
-            enabled: !isSubmitting,
-            minLines: 5,
-            maxLines: 8,
-            maxLength: 5000,
-            label: 'Nội dung góp ý',
-            hintText:
-                'Bạn mong muốn thay đổi điều gì? Nếu là lỗi, hãy mô tả '
-                'các bước đã thực hiện.',
-            alignLabelWithHint: true,
-            icon: Icons.edit_note_rounded,
-            validator: (value) {
-              if (value == null || value.trim().isEmpty) {
-                return 'Vui lòng nhập nội dung góp ý';
-              }
-              return null;
-            },
-          ),
-          _SuggestionImagesCard(
-            images: images,
-            maxImages: maxImages,
-            isSubmitting: isSubmitting,
-            onAdd: onAddImage,
-            onRemove: onRemoveImage,
-          ),
-          AppPrimaryButton(
-            key: const ValueKey('submit-suggestion-button'),
-            onPressed: onSubmit,
-            icon: Icons.send_rounded,
-            label: 'Gửi góp ý',
-            isLoading: isSubmitting,
-            loadingLabel: 'Đang gửi...',
-            size: AppButtonSize.medium,
-          ),
-        ],
+      radius: AppRadius.cardFigma,
+      padding: EdgeInsets.zero,
+      child: SizedBox(
+        height: cardHeight,
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Positioned(
+              left: 15,
+              right: 15,
+              top: 15,
+              child: SizedBox(
+                height: 102,
+                width: fieldWidth,
+                child: _FeedbackField(
+                  key: const ValueKey('suggestion-function-field'),
+                  controller: functionController,
+                  enabled: !isSubmitting,
+                  label: 'Chức năng liên quan',
+                  hintText:
+                      'Ví dụ: FIFO, VietQR, Sao kê, Tiền vào, Bảo hành...',
+                  helperText: 'Tối đa 120 ký tự',
+                  maxLength: 120,
+                  textInputAction: TextInputAction.next,
+                  validator: (value) => value == null || value.trim().isEmpty
+                      ? 'Vui lòng nhập chức năng liên quan'
+                      : null,
+                ),
+              ),
+            ),
+            Positioned(
+              left: 15,
+              right: 15,
+              top: 123,
+              child: SizedBox(
+                height: isWide ? 192 : 174,
+                child: _FeedbackTextArea(
+                  key: const ValueKey('suggestion-description-field'),
+                  controller: descriptionController,
+                  enabled: !isSubmitting,
+                  label: 'Nội dung góp ý',
+                  hintText:
+                      'Bạn mong muốn thay đổi điều gì? Nếu là lỗi, hãy mô tả '
+                      'các bước đã thực hiện.',
+                  maxLength: 5000,
+                  validator: (value) => value == null || value.trim().isEmpty
+                      ? 'Vui lòng nhập nội dung góp ý'
+                      : null,
+                ),
+              ),
+            ),
+            Positioned(
+              left: 15,
+              right: 15,
+              top: isWide ? 321 : 313,
+              child: SizedBox(
+                height: (isWide ? 176.0 : 150.0) + extraHeight,
+                child: _SuggestionImagesCard(
+                  images: images,
+                  maxImages: maxImages,
+                  isSubmitting: isSubmitting,
+                  isWide: isWide,
+                  extraRows: extraRows,
+                  onAdd: onAddImage,
+                  onRemove: onRemoveImage,
+                ),
+              ),
+            ),
+            Positioned(
+              left: 15,
+              right: 15,
+              top: (isWide ? 517.0 : 479.0) + extraHeight,
+              child: AppPrimaryButton(
+                key: const ValueKey('submit-suggestion-button'),
+                onPressed: onSubmit,
+                label: 'Gửi góp ý',
+                isLoading: isSubmitting,
+                loadingLabel: 'Đang gửi...',
+                size: AppButtonSize.medium,
+                height: 48,
+                radius: isWide ? 12 : 10,
+              ),
+            ),
+          ],
+        ),
       ),
+    );
+  }
+}
+
+class _FeedbackField extends StatelessWidget {
+  final TextEditingController controller;
+  final bool enabled;
+  final String label;
+  final String hintText;
+  final String helperText;
+  final int maxLength;
+  final TextInputAction? textInputAction;
+  final FormFieldValidator<String>? validator;
+
+  const _FeedbackField({
+    super.key,
+    required this.controller,
+    required this.enabled,
+    required this.label,
+    required this.hintText,
+    required this.helperText,
+    required this.maxLength,
+    required this.validator,
+    this.textInputAction,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(label, style: AppTextStyles.labelM),
+        const SizedBox(height: 8),
+        SizedBox(
+          height: 48,
+          child: AppFormTextInput(
+            controller: controller,
+            label: label,
+            showLabel: false,
+            enabled: enabled,
+            maxLength: maxLength,
+            textInputAction: textInputAction,
+            validator: validator,
+            hintText: hintText,
+            dense: true,
+            counterText: '',
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          helperText,
+          style: AppTextStyles.bodyS.copyWith(
+            height: 18 / 13,
+            color: AppColors.textSecondaryOf(context),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _FeedbackTextArea extends StatelessWidget {
+  final TextEditingController controller;
+  final bool enabled;
+  final String label;
+  final String hintText;
+  final int maxLength;
+  final FormFieldValidator<String>? validator;
+
+  const _FeedbackTextArea({
+    super.key,
+    required this.controller,
+    required this.enabled,
+    required this.label,
+    required this.hintText,
+    required this.maxLength,
+    required this.validator,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<TextEditingValue>(
+      valueListenable: controller,
+      builder: (context, value, _) {
+        return Stack(
+          clipBehavior: Clip.none,
+          children: [
+            Positioned(
+              left: 0,
+              right: 0,
+              top: 0,
+              child: Text(label, style: AppTextStyles.labelM),
+            ),
+            Positioned(
+              left: 0,
+              right: 0,
+              top: 28,
+              child: SizedBox(
+                height: 120,
+                child: AppFormTextInput(
+                  controller: controller,
+                  label: label,
+                  showLabel: false,
+                  enabled: enabled,
+                  maxLength: maxLength,
+                  minLines: 5,
+                  maxLines: 5,
+                  textAlignVertical: TextAlignVertical.top,
+                  validator: validator,
+                  hintText: hintText,
+                  dense: true,
+                  alignLabelWithHint: true,
+                  counterText: '',
+                ),
+              ),
+            ),
+            Positioned(
+              left: 0,
+              right: 0,
+              top: 156,
+              child: SizedBox(
+                height: 36,
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Mô tả tình huống, kết quả mong đợi và bước đã thử.',
+                        style: AppTextStyles.bodyS.copyWith(
+                          color: AppColors.textSecondaryOf(context),
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    SizedBox(
+                      width: 48,
+                      child: Text(
+                        '${value.text.length}/$maxLength',
+                        textAlign: TextAlign.right,
+                        style: AppTextStyles.bodyCompact.copyWith(
+                          color: AppColors.textSecondaryOf(context),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 }
@@ -489,6 +718,8 @@ class _SuggestionImagesCard extends StatelessWidget {
   final List<File> images;
   final int maxImages;
   final bool isSubmitting;
+  final bool isWide;
+  final int extraRows;
   final VoidCallback onAdd;
   final ValueChanged<int> onRemove;
 
@@ -496,110 +727,143 @@ class _SuggestionImagesCard extends StatelessWidget {
     required this.images,
     required this.maxImages,
     required this.isSubmitting,
+    required this.isWide,
+    required this.extraRows,
     required this.onAdd,
     required this.onRemove,
   });
 
   @override
   Widget build(BuildContext context) {
+    final cardRadius = isWide ? 10.0 : 10.0;
+    final slotHeight = isWide ? 86.0 : 56.0;
     return AppSurfaceCard(
+      radius: cardRadius,
+      padding: EdgeInsets.zero,
+      backgroundColor: AppColors.cardOf(context),
+      borderColor: AppColors.subtleBorderOf(context),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text('Ảnh minh họa', style: AppTextStyles.labelM),
-                    const SizedBox(height: 3),
-                    Text(
-                      'Không bắt buộc, tối đa $maxImages ảnh',
-                      style: AppTextStyles.labelS.copyWith(
-                        color: AppColors.neutral500,
-                      ),
-                    ),
-                  ],
+          SizedBox(
+            height: isWide ? 73 : 81,
+            child: Stack(
+              children: [
+                Positioned(
+                  left: 11,
+                  top: 9,
+                  child: Text('Ảnh minh họa', style: AppTextStyles.labelM),
                 ),
-              ),
-              AppDialogSecondaryButton(
-                onPressed: isSubmitting || images.length >= maxImages
-                    ? null
-                    : onAdd,
-                icon: Icons.add_photo_alternate_outlined,
-                label: 'Thêm ảnh',
-              ),
-            ],
+                Positioned(
+                  left: 11,
+                  top: 33,
+                  child: Text(
+                    'Không bắt buộc, tối đa $maxImages ảnh',
+                    style: AppTextStyles.bodyCompact.copyWith(
+                      color: AppColors.textMutedOf(context),
+                    ),
+                  ),
+                ),
+                Positioned(
+                  right: 11,
+                  top: 13,
+                  child: SizedBox(
+                    width: 104,
+                    height: 48,
+                    child: AppPrimaryButton(
+                      onPressed: isSubmitting || images.length >= maxImages
+                          ? null
+                          : onAdd,
+                      label: 'Thêm ảnh',
+                      size: AppButtonSize.medium,
+                      height: 48,
+                      radius: isWide ? 12 : 10,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
-          const SizedBox(height: AppLayoutTokens.formInlineGap),
-          if (images.isEmpty)
-            Container(
-              padding: const EdgeInsets.all(AppLayoutTokens.cardPadding),
-              decoration: BoxDecoration(
-                color: AppColors.neutral50,
-                borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
-                border: Border.all(color: AppColors.neutral200),
-              ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 11),
+            child: Row(
+              children: [
+                Expanded(
+                  child: _FeedbackImageSlot(
+                    image: images.isNotEmpty ? images.first : null,
+                    label: 'Ảnh 1',
+                    height: slotHeight,
+                    index: 0,
+                    enabled: !isSubmitting,
+                    onRemove: images.isNotEmpty ? () => onRemove(0) : null,
+                  ),
+                ),
+                SizedBox(width: isWide ? 8 : 8),
+                Expanded(
+                  child: _FeedbackImageSlot(
+                    image: images.length > 1 ? images[1] : null,
+                    label: 'Ảnh 2',
+                    height: slotHeight,
+                    index: 1,
+                    enabled: !isSubmitting,
+                    onRemove: images.length > 1 ? () => onRemove(1) : null,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          for (var row = 0; row < extraRows; row++) ...[
+            const SizedBox(height: 8),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 11),
               child: Row(
                 children: [
-                  const Icon(
-                    Icons.image_outlined,
-                    color: AppColors.neutral400,
-                    size: 34,
-                  ),
-                  const SizedBox(width: 12),
                   Expanded(
-                    child: Text(
-                      'Thêm ảnh khi hình ảnh giúp mô tả góp ý rõ hơn.',
-                      style: AppTextStyles.bodyS.copyWith(
-                        color: AppColors.neutral600,
-                      ),
+                    child: _FeedbackImageSlot(
+                      image: images[2 + row * 2],
+                      label: 'Ảnh ${3 + row * 2}',
+                      height: slotHeight,
+                      index: 2 + row * 2,
+                      enabled: !isSubmitting,
+                      onRemove: () => onRemove(2 + row * 2),
                     ),
                   ),
+                  const SizedBox(width: 8),
+                  if (2 + row * 2 + 1 < images.length)
+                    Expanded(
+                      child: _FeedbackImageSlot(
+                        image: images[2 + row * 2 + 1],
+                        label: 'Ảnh ${4 + row * 2}',
+                        height: slotHeight,
+                        index: 2 + row * 2 + 1,
+                        enabled: !isSubmitting,
+                        onRemove: () => onRemove(2 + row * 2 + 1),
+                      ),
+                    )
+                  else
+                    const Spacer(),
                 ],
               ),
-            )
-          else
-            LayoutBuilder(
-              builder: (context, constraints) {
-                final columnCount = constraints.maxWidth >= 600
-                    ? 4
-                    : constraints.maxWidth < 360
-                    ? 2
-                    : 3;
-                return GridView.builder(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemCount: images.length,
-                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: columnCount,
-                    crossAxisSpacing: 10,
-                    mainAxisSpacing: 10,
-                  ),
-                  itemBuilder: (context, index) => _SuggestionImageTile(
-                    image: images[index],
-                    index: index,
-                    enabled: !isSubmitting,
-                    onRemove: () => onRemove(index),
-                  ),
-                );
-              },
             ),
+          ],
         ],
       ),
     );
   }
 }
 
-class _SuggestionImageTile extends StatelessWidget {
-  final File image;
+class _FeedbackImageSlot extends StatelessWidget {
+  final File? image;
+  final String label;
+  final double height;
   final int index;
   final bool enabled;
-  final VoidCallback onRemove;
+  final VoidCallback? onRemove;
 
-  const _SuggestionImageTile({
+  const _FeedbackImageSlot({
     required this.image,
+    required this.label,
+    required this.height,
     required this.index,
     required this.enabled,
     required this.onRemove,
@@ -607,50 +871,77 @@ class _SuggestionImageTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final infoSurface = AppColors.infoSurfaceOf(context);
+    final infoColor = AppColors.infoOf(context);
     return Semantics(
-      image: true,
+      image: image != null,
       label: 'Ảnh góp ý ${index + 1}',
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
-            child: Image.file(
-              image,
-              fit: BoxFit.cover,
-              errorBuilder: (context, error, stackTrace) => ColoredBox(
-                color: AppColors.neutral50,
-                child: const Icon(
-                  Icons.broken_image_outlined,
-                  color: AppColors.error,
-                ),
+      child: SizedBox(
+        height: height,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            DecoratedBox(
+              decoration: BoxDecoration(
+                color: infoSurface,
+                borderRadius: AppRadius.allSm,
+                border: Border.all(color: infoSurface),
               ),
+              child: image == null
+                  ? Align(
+                      alignment: Alignment.topLeft,
+                      child: Padding(
+                        padding: const EdgeInsets.only(left: 8, top: 15),
+                        child: Text(
+                          label,
+                          style: AppTextStyles.labelS.copyWith(
+                            color: infoColor,
+                          ),
+                        ),
+                      ),
+                    )
+                  : ClipRRect(
+                      borderRadius: AppRadius.allSm,
+                      child: Image.file(
+                        image!,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) => Center(
+                          child: Icon(
+                            PhosphorIconsRegular.image,
+                            color: infoColor,
+                          ),
+                        ),
+                      ),
+                    ),
             ),
-          ),
-          Positioned(
-            top: 5,
-            right: 5,
-            child: Tooltip(
-              message: 'Xóa ảnh ${index + 1}',
-              child: Material(
-                color: enabled ? AppColors.error : AppColors.neutral400,
-                shape: const CircleBorder(),
-                child: InkWell(
-                  onTap: enabled ? onRemove : null,
-                  customBorder: const CircleBorder(),
-                  child: const Padding(
-                    padding: EdgeInsets.all(6),
-                    child: Icon(
-                      Icons.close_rounded,
-                      color: AppColors.surface,
-                      size: 16,
+            if (onRemove != null)
+              Positioned(
+                top: 4,
+                right: 4,
+                child: Tooltip(
+                  message: 'Xóa ảnh ${index + 1}',
+                  child: Material(
+                    color: enabled
+                        ? AppColors.errorOf(context)
+                        : AppColors.neutral400,
+                    shape: const CircleBorder(),
+                    child: InkWell(
+                      onTap: enabled ? onRemove : null,
+                      customBorder: const CircleBorder(),
+                      child: const Padding(
+                        padding: EdgeInsets.all(4),
+                        child: Icon(
+                          PhosphorIconsRegular.x,
+                          color: AppColors.surface,
+                          size: 14,
+                        ),
+                      ),
                     ),
                   ),
                 ),
               ),
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

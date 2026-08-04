@@ -26,6 +26,7 @@ class AppColors {
   static const Color primaryPressed = Color(0xFF054987);
   static const Color primarySurface = Color(0xFFE8F2FF);
   static const Color secondary = Color(0xFF0F766E);
+  static const Color secondarySurface = Color(0xFFF0FDFA);
   static const Color accent = Color(0xFF7C3AED);
 
   // ── Gradient (header / nav) ──────────────────────────────────────
@@ -117,6 +118,7 @@ class AppColors {
   static const Color darkPrimaryPressed = Color(0xFF25476F);
   static const Color darkPrimarySurface = Color(0xFF071D33);
   static const Color darkSecondary = Color(0xFF5EEAD4);
+  static const Color darkSecondarySurface = Color(0xFF0B2E2A);
   static const Color darkAccent = Color(0xFFC4B5FD);
   static const Color darkInfo = Color(0xFF93C5FD);
   static const Color darkSuccess = Color(0xFF34D399);
@@ -179,8 +181,58 @@ class AppColors {
   static Color primaryOf(BuildContext context) =>
       isDark(context) ? darkPrimary : primary;
 
+  static Color secondaryOf(BuildContext context) =>
+      isDark(context) ? darkSecondary : secondary;
+
   static Color primarySurfaceOf(BuildContext context) =>
       isDark(context) ? darkPrimarySurface : primarySurface;
+
+  static Color secondarySurfaceOf(BuildContext context) =>
+      isDark(context) ? darkSecondarySurface : secondarySurface;
+
+  static Color infoOf(BuildContext context) =>
+      isDark(context) ? darkInfo : info;
+
+  static Color successOf(BuildContext context) =>
+      isDark(context) ? darkSuccess : success;
+
+  static Color warningOf(BuildContext context) =>
+      isDark(context) ? darkWarning : warning;
+
+  static Color errorOf(BuildContext context) =>
+      isDark(context) ? darkError : error;
+
+  static Color infoSurfaceOf(BuildContext context) =>
+      isDark(context) ? darkInfoSurface : infoSurface;
+
+  static Color successSurfaceOf(BuildContext context) =>
+      isDark(context) ? darkSuccessSurface : successSurface;
+
+  static Color warningSurfaceOf(BuildContext context) =>
+      isDark(context) ? darkWarningSurface : warningSurface;
+
+  static Color errorSurfaceOf(BuildContext context) =>
+      isDark(context) ? darkErrorSurface : errorSurface;
+
+  static Color statusColorOf(BuildContext context, String tone) {
+    return switch (tone) {
+      'info' => infoOf(context),
+      'success' => successOf(context),
+      'warning' => warningOf(context),
+      'error' => errorOf(context),
+      _ => isDark(context) ? darkTextMuted : neutral500,
+    };
+  }
+
+  static Color statusSurfaceOf(BuildContext context, String tone) {
+    return switch (tone) {
+      'info' => infoSurfaceOf(context),
+      'success' => successSurfaceOf(context),
+      'warning' => warningSurfaceOf(context),
+      'error' => errorSurfaceOf(context),
+      _ => isDark(context) ? darkNeutral100 : neutral50,
+    };
+  }
 
   static Color sidebarSurfaceOf(BuildContext context) =>
       isDark(context) ? darkSidebarSurface : sidebarSurface;

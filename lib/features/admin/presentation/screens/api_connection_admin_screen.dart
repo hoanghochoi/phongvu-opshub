@@ -479,12 +479,7 @@ class _ApiConnectionAdminScreenState extends State<ApiConnectionAdminScreen> {
   Widget build(BuildContext context) {
     if (!_supported) {
       return const AppResponsiveContent(
-        child: AppStatePanel.empty(
-          title: 'Thiết bị chưa hỗ trợ quản lý kết nối',
-          message:
-              'Vui lòng mở OpsHub trên Windows hoặc trình duyệt web để quản lý client và khóa.',
-          icon: Icons.devices_other_rounded,
-        ),
+        child: _ApiConnectionUnsupportedState(),
       );
     }
     if (_loading && _snapshot == null) {
@@ -508,9 +503,11 @@ class _ApiConnectionAdminScreenState extends State<ApiConnectionAdminScreen> {
     }
     final snapshot = _snapshot!;
     return AppResponsiveScrollView(
+      padding: _apiConnectionPagePadding(context),
       onRefresh: _load,
       refreshLogSource: 'ApiConnectionAdmin',
       child: Column(
+        key: const Key('api-connection-content'),
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           _HeaderCard(
@@ -590,6 +587,42 @@ class _ApiConnectionAdminScreenState extends State<ApiConnectionAdminScreen> {
               ),
             ),
         ],
+      ),
+    );
+  }
+}
+
+EdgeInsets _apiConnectionPagePadding(BuildContext context) {
+  final width = MediaQuery.sizeOf(context).width;
+  // The approved API Connections nodes use 24 px inside the wide desktop
+  // shell and 16 px inside compact/tablet route viewports. Keep this local
+  // geometry explicit until the medium supported-web state receives its own
+  // approved Figma node.
+  final horizontal = width >= AppLayoutTokens.desktopBreakpoint ? 24.0 : 16.0;
+  final vertical = width >= AppLayoutTokens.compactBreakpoint ? 24.0 : 16.0;
+  return EdgeInsets.symmetric(horizontal: horizontal, vertical: vertical);
+}
+
+/// Figma authority: Android Mobile `1729:121826` and Android Tablet
+/// `1729:134628`. The platform guard is business behavior; this widget only
+/// supplies the approved unsupported visual path and never invents a
+/// supported mobile/tablet API-connection state.
+class _ApiConnectionUnsupportedState extends StatelessWidget {
+  const _ApiConnectionUnsupportedState();
+
+  @override
+  Widget build(BuildContext context) {
+    return AppSurfaceCard(
+      key: const Key('api-connection-unsupported-card'),
+      padding: EdgeInsets.zero,
+      child: SizedBox(
+        height: 236,
+        child: const AppStatePanel(
+          icon: Icons.devices_other_rounded,
+          title: 'Thiết bị chưa hỗ trợ quản lý kết nối',
+          message: 'Vui lòng dùng OpsHub trên Windows hoặc Web để tiếp tục.',
+          compact: true,
+        ),
       ),
     );
   }

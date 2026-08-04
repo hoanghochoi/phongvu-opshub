@@ -8,11 +8,6 @@ import '../widgets/app_inputs.dart';
 class AppTheme {
   AppTheme._();
 
-  // ── Legacy accessors (kept for incremental migration) ────────────
-  static const Color primaryBlue = AppColors.primary;
-  static const Color white = AppColors.surface;
-  static const Color buttonColor = primaryBlue;
-
   // ── Light theme ──────────────────────────────────────────────────
   static ThemeData get lightTheme {
     return ThemeData(

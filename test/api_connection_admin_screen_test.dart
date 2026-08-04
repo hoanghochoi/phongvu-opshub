@@ -45,8 +45,67 @@ void main() {
       ),
     );
     expect(find.text('Thiết bị chưa hỗ trợ quản lý kết nối'), findsOneWidget);
-    expect(find.textContaining('Windows hoặc trình duyệt web'), findsOneWidget);
+    expect(
+      find.text('Vui lòng dùng OpsHub trên Windows hoặc Web để tiếp tục.'),
+      findsOneWidget,
+    );
+    expect(
+      tester.getSize(find.byKey(const Key('api-connection-unsupported-card'))),
+      const Size(752, 236),
+    );
     expect(find.text('Tạo client'), findsNothing);
+  });
+
+  testWidgets('unsupported mobile layout keeps the Figma state geometry', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(375, 812);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: ApiConnectionAdminScreen(platformSupported: false),
+        ),
+      ),
+    );
+
+    final card = find.byKey(const Key('api-connection-unsupported-card'));
+    expect(tester.getSize(card).height, greaterThanOrEqualTo(236));
+    expect(tester.getSize(card).width, 343);
+  });
+
+  testWidgets('wide supported content uses the Figma 24px route gutter', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 1190,
+            child: ApiConnectionAdminScreen(
+              platformSupported: true,
+              repository: _FakeRepository(
+                ApiConnectionSnapshot.fromJson(_snapshotJson),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      tester.getSize(find.byKey(const Key('api-connection-content'))).width,
+      1142,
+    );
   });
 
   testWidgets('renders clients, keys and disabled master state', (

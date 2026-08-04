@@ -7,6 +7,14 @@ void main() {
   testWidgets('Góp ý screen uses current copy and validates required fields', (
     tester,
   ) async {
+    addTearDown(() {
+      tester.view
+        ..resetPhysicalSize()
+        ..resetDevicePixelRatio();
+    });
+    tester.view
+      ..physicalSize = const Size(1440, 900)
+      ..devicePixelRatio = 1;
     await tester.pumpWidget(const MaterialApp(home: FeedbackScreen()));
     await tester.pump();
 
@@ -29,5 +37,31 @@ void main() {
 
     expect(find.text('Vui lòng nhập chức năng liên quan'), findsOneWidget);
     expect(find.text('Vui lòng nhập nội dung góp ý'), findsOneWidget);
+  });
+
+  testWidgets('Góp ý form follows the approved compact and wide Figma lanes', (
+    tester,
+  ) async {
+    addTearDown(() {
+      tester.view
+        ..resetPhysicalSize()
+        ..resetDevicePixelRatio();
+    });
+
+    Future<void> pumpAt(Size size, Size expected, double expectedTop) async {
+      tester.view
+        ..physicalSize = size
+        ..devicePixelRatio = 1;
+      await tester.pumpWidget(const MaterialApp(home: FeedbackScreen()));
+      await tester.pump();
+      final form = find.byKey(const Key('feedback-form-card'));
+      expect(tester.getSize(form), expected);
+      expect(tester.getTopLeft(form).dy, expectedTop);
+    }
+
+    await pumpAt(const Size(375, 812), const Size(343, 552), 60);
+    await pumpAt(const Size(834, 1112), const Size(343, 552), 60);
+    await pumpAt(const Size(1024, 768), const Size(343, 552), 60);
+    await pumpAt(const Size(1440, 900), const Size(1126, 590), 148);
   });
 }

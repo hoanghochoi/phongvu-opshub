@@ -140,11 +140,16 @@ Khi sửa hoặc thêm component foundation, Figma review phải có proof cho:
 - trước review, chạy collision audit top-level App Shell frame theo bounding
   box; sắp frame vào grid Desktop/Mobile/Tablet với gutter và chỉ pass khi
   overlap = 0.
-- file hiện giữ tám page canonical: `Cover`, `Foundation` và sáu page screen
-  `Screens — Desktop · Windows`, `Screens — Mobile · Android`,
-  `Screens — Tablet · Android`, `Screens — Mobile · iOS`,
-  `Screens — Tablet · iPadOS` và `Screens — Web · Responsive`; source và
-  documentation ở Foundation, screen page không chứa main component.
+- file target của OPS-44 giữ `Cover`, `Foundation`, bốn page mobile/tablet và
+  một page `Screens — Desktop · Windows + Web`: Web dùng Mobile Android ở
+  compact `<600`, Tablet Android ở medium `600–899`, và Desktop + Web ở
+  expanded/wide `>=900`. Page Desktop + Web hiện có Dark coverage board
+  `1874:35444` với 121 route/state owners và explicit semantic/component Dark
+  modes; Light source frames không bị sửa. Page cũ đã được đổi thành
+  `ARCHIVE — Web Responsive (empty · pending deletion)` (childCount `0`) và
+  chỉ được xoá sau khi revision/links được cập nhật và unified target được
+  duyệt; source/documentation vẫn ở Foundation, screen page không chứa main
+  component.
 
 Im lặng, emoji hoặc task chuyển status không tự động là design approval.
 

@@ -1677,12 +1677,11 @@ test\home_feedback_action_test.dart test\home_avatar_test.dart
 test\design_system_migration_guard_test.dart test\app_router_test.dart
 test\app_nav_model_test.dart` (20 tests), `flutter analyze --no-pub`,
   `flutter build web --no-pub`, and `git diff --check`. Empty-state follow-up:
-  Home now renders shared `AppStatePanel.empty` inside `home-empty-state` when
-  the current account has no workspace action, with widget proof that no
-  `AppFeatureTile` leaks into that state. Figma empty-state frames are desktop
-  `487:2`, tablet `487:91`, and mobile `487:170`; Figma QA confirmed required
-  missing `[]`, zero-size text `0`, missing font `0`, out-of-parent `[]`, and
-  the fixed mobile screenshot has no collapsed copy.
+  Historical Home empty-state coverage used shared `AppStatePanel.empty` inside
+  `home-empty-state`; those `487:*` nodes are no longer live Figma authority.
+  The current Home source is Desktop Windows `326:2698`, and a missing app-level
+  summary provider is covered by the shared Foundation loading panel while the
+  provider-backed permission/empty states remain in `HomeSummaryPage`.
 - `UI-UX-001`/`VIETQR-001`, 2026-07-02: `/vietqr` now renders as a
   content-only workspace under `AppShell` instead of nesting a
   `Scaffold`/`GradientHeader`. The runtime header shows selected SR, QR state,
@@ -2022,6 +2021,59 @@ test\feedback_admin_redesign_test.dart --reporter expanded` (8 tests), full
   `flutter test --no-pub --reporter expanded` (257 tests),
   `flutter build windows --debug --dart-define=APP_ENV=smoke --no-pub`, and
   `git diff --check` with CRLF warnings only.
+- `OPS-44`/`FIFO-CHECK-STATE-R1`, 2026-08-04: the unified Figma Desktop + Web
+  page now owns serial exported (`1872:34872`), display-reserved (`1872:122546`),
+  serial not-found (`1872:122717`) and retryable-error (`1872:122901`) states.
+  Flutter routes correct/wrong/exported/display-reserved/not-found through the
+  approved result geometry while preserving provider/export/copy behavior.
+  Focused proof: `flutter test --no-pub test\\fifo_check_redesign_test.dart
+  --reporter expanded` (12 tests), targeted `dart analyze`, format check and
+  `git diff --check` pass. Staging/Chrome/platform proof remains pending.
+- `OPS-44`/`DARK-ROUTE-COVERAGE-R1`, 2026-08-04: Figma board `1874:35444`
+  contains 121 visible Desktop + Web route/state owners under explicit
+  `OpsHub Semantics=Dark` and `OpsHub Components=Dark` modes. A dark login
+  sample screenshot was inspected for shell, form contrast and Vietnamese copy;
+  authenticated Chrome comparison is still a release-gate item.
+- `OPS-44`/`API-CONNECTIONS-UNSUPPORTED-R1`, 2026-08-04: API Connections
+  unsupported Android state now maps to Figma mobile `1729:121826` and tablet
+  `1729:134628` through the shared card/state path, with exact Vietnamese
+  guidance and a 236 px state-card geometry check. Focused affected proof
+  (`api_connection_admin_screen`, admin menu, router, AppShell viewport and
+  migration guard) passes 65/65; `flutter analyze --no-pub`, format and
+  `git diff --check` pass. Supported Windows/Web non-empty client/key states
+  remain blocked on pending Figma proposal `1883:59093`.
+- `OPS-44`/`SETTINGS-SPEAKER-VOICE-PROPOSAL-R1`, 2026-08-04: the runtime-only
+  Settings speaker-voice card gap is isolated in pending Figma proposal
+  `1884:59093` with Desktop `1884:59096` (`555x230`), Mobile `1885:59099`
+  (`343x188`) and Tablet `1885:59109` (`343x188`) cards. Canonical combobox
+  and helper geometry read back at each width; metadata, isolated screenshot
+  and `get_design_context` pass. No Settings code was changed; implementation
+  remains blocked until explicit Figma approval.
+- `OPS-44`/`PROFILE-FIGMA-R1`, 2026-08-04: Profile now uses the approved
+  Desktop/Web, Android mobile and Android tablet node maps (`305:3111`,
+  `305:3148`, `839:2666`, `839:2854`) for content, header, session, edit and
+  account-info geometry. Compact `375x812`, tablet `768x1024` and wide
+  `1280x900` widget geometry pass with no overflow; the affected
+  Profile/AuthProvider/session/avatar, router, AppShell viewport and migration
+  guard suite passes `82/82`. `flutter analyze --no-pub`, format and
+  `git diff --check` pass; `flutter build web --release --no-pub` passes with
+  the Wasm dry run succeeding. Staging/Chrome/primary-platform proof remains
+  pending before visual completion or legacy retirement.
+- `OPS-44`/`FEEDBACK-FIGMA-R1`, 2026-08-04: Feedback now uses the approved
+  Figma wide form lane (`385:8932`, `385:8965`, `385:8974`, `385:8987`,
+  `385:8996`) and compact/tablet lanes (`385:8998`, `842:30519`, `842:30600`)
+  with shared label/input/textarea/button tokens, 343px compact/tablet form
+  geometry and 1126px wide geometry. State authority was read back for ready,
+  uploading, success and recoverable error on Windows/tablet plus mobile
+  validation/submitting/success/error. Focused proof:
+  `flutter test --no-pub test\\feedback_screen_test.dart
+  test\\app_shell_route_viewport_test.dart test\\admin_menu_screen_test.dart
+  --reporter expanded` (30 tests), including compact/tablet/expanded/wide
+  geometry assertions; `flutter analyze --no-pub`, format and
+  `git diff --check` pass. Existing feedback validation, picker/camera,
+  multipart upload, max-20 cap, AppLogger and success/error workflow remain
+  protected. Exact-SHA build, staging/Chrome and Windows/Android/iOS/iPadOS
+  visual proof remain release gates.
 - `UI-UX-001`/`FIFO-001`/`FIFO-HISTORY`, 2026-07-02: `/fifo-history` now
   renders as a content-only workspace under `AppShell` instead of nesting a
   `GradientHeader`. It keeps the existing admin log runtime contract through
@@ -2588,6 +2640,17 @@ windows --debug --no-pub`, and `flutter build apk --debug --no-pub`. Gap:
 | UPDATE-004            | Android and Windows users update from the app prompt without downloading the package through a browser; the client downloads `packageUrl`, verifies SHA-256 and size, then hands off to Windows Inno Setup or Android Package Installer with platform safety checks                                                                                                                                                                                                                                                                    | partial | app-version + Flutter self-update tests | no                           | installed Android/Windows update smoke         | changed             | 2026-07-06: Added self-update package metadata (`packageUrl`, `packageSha256`, `packageSizeBytes`, `packageType`, Windows `installerArgs`) to `/app-version`, wired production/staging deploys to compute and verify it from published APK/EXE files, changed `AppUpdateGate` to run an in-app downloader/verifier instead of opening `updateUrl`, added Windows silent installer launch and Android FileProvider/native package/signature/version validation before opening Package Installer. Validation so far: focused Flutter update tests (16) and focused NestJS app-version tests (7). Gap: `flutter analyze`, platform builds, workflow parse, and manual installed-build Android/Windows update smoke remain pending.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 
 ## Recent Evidence
+
+- OPS-44 Help visual wave, 2026-08-04: recorded exact Figma node map before
+  editing `HelpScreen` and aligned public/shell responsive geometry, shared
+  Phosphor actions, semantic surfaces, state panels and Markdown typography.
+  Proof: `flutter test --no-pub --reporter expanded test\\help_screen_test.dart
+  test\\app_shell_route_viewport_test.dart test\\app_router_initial_location_test.dart
+  test\\app_router_test.dart test\\app_nav_model_test.dart
+  test\\admin_menu_screen_test.dart test\\design_system_migration_guard_test.dart
+  test\\app_theme_tokens_test.dart` (86/86), `flutter analyze --no-pub`, Dart
+  format, `git diff --check`, and `flutter build web --release --no-pub
+  --no-wasm-dry-run`. Staging/Chrome/platform proof remains open.
 
 - UPDATE-004, 2026-07-09: Windows self-update now publishes
   `/OPSHUBRELAUNCH=1` in installer args and the Inno script only relaunches

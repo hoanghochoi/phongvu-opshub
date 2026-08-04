@@ -1849,10 +1849,14 @@ class _VietQrScreenState extends State<VietQrScreen>
                 width: 40,
                 height: 40,
                 decoration: BoxDecoration(
-                  color: statusTone.color.withValues(alpha: 0.12),
+                  color: statusTone.colorOf(context).withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(AppRadius.md),
                 ),
-                child: Icon(statusIcon, color: statusTone.color, size: 22),
+                child: Icon(
+                  statusIcon,
+                  color: statusTone.colorOf(context),
+                  size: 22,
+                ),
               ),
               const SizedBox(width: 12),
               details,
@@ -1868,6 +1872,7 @@ class _VietQrScreenState extends State<VietQrScreen>
                   children: [
                     Expanded(
                       child: _buildStatusChip(
+                        context,
                         statusLabel,
                         statusTone,
                         fill: true,
@@ -1890,7 +1895,7 @@ class _VietQrScreenState extends State<VietQrScreen>
             children: [
               Expanded(child: summary),
               const SizedBox(width: 12),
-              _buildStatusChip(statusLabel, statusTone),
+              _buildStatusChip(context, statusLabel, statusTone),
               if (canOpen) ...[
                 const SizedBox(width: 8),
                 const Icon(
@@ -1906,6 +1911,7 @@ class _VietQrScreenState extends State<VietQrScreen>
   }
 
   Widget _buildStatusChip(
+    BuildContext context,
     String label,
     AppStateTone tone, {
     bool fill = false,
@@ -1913,7 +1919,7 @@ class _VietQrScreenState extends State<VietQrScreen>
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: tone.color.withValues(alpha: 0.12),
+        color: tone.colorOf(context).withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(AppRadius.pill),
       ),
       child: Row(
@@ -1928,7 +1934,7 @@ class _VietQrScreenState extends State<VietQrScreen>
                 ? Icons.error_outline_rounded
                 : Icons.timelapse_rounded,
             size: 14,
-            color: tone.color,
+            color: tone.colorOf(context),
           ),
           const SizedBox(width: 4),
           if (fill)
@@ -1937,13 +1943,17 @@ class _VietQrScreenState extends State<VietQrScreen>
                 label,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: AppTextStyles.labelM.copyWith(color: tone.color),
+                style: AppTextStyles.labelM.copyWith(
+                  color: tone.colorOf(context),
+                ),
               ),
             )
           else
             Text(
               label,
-              style: AppTextStyles.labelM.copyWith(color: tone.color),
+              style: AppTextStyles.labelM.copyWith(
+                color: tone.colorOf(context),
+              ),
             ),
         ],
       ),

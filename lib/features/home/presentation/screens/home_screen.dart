@@ -1,15 +1,12 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../../../../app/navigation/app_nav_model.dart';
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_radius.dart';
 import '../../../../app/theme/app_text_styles.dart';
-import '../../../../app/widgets/app_buttons.dart';
-import '../../../../app/widgets/app_cards.dart';
 import '../../../../app/widgets/app_layout.dart';
 import '../../../../app/widgets/app_state_widgets.dart';
 import '../../../../core/logging/app_logger.dart';
@@ -71,118 +68,22 @@ class _HomeScreenState extends State<HomeScreen> {
       );
     }
 
+    // The app-level provider is created eagerly in App; a missing provider is
+    // only an integration/bootstrap condition. Keep the approved Home header
+    // visible while the shared Foundation state panel covers that condition.
     final content = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _HomeCommandPanel(user: user),
         const SizedBox(height: AppLayoutTokens.sectionGap),
-        _LegacyHomeBody(
-          workspaceCount: workspaceCount,
-          onOpenOperations: () => _openOperations(context, workspaceCount),
+        const AppStatePanel.loading(
+          key: Key('home-summary-provider-loading'),
+          title: 'Đang tải tổng quan',
+          message: 'Vui lòng chờ trong giây lát.',
         ),
-        const SizedBox(height: 20),
       ],
     );
     return AppResponsiveScrollView(child: content);
-  }
-
-  void _openOperations(BuildContext context, int workspaceCount) {
-    unawaited(
-      AppLogger.instance.info(
-        'Home',
-        'Operations workspace opened from home',
-        context: {'visibleActions': workspaceCount},
-      ),
-    );
-    context.go('/operations');
-  }
-
-  List<HomeQuickToolAction> quickToolsForLegacy(
-    BuildContext context,
-    User? user,
-    int workspaceCount,
-  ) {
-    HomeQuickToolAction action({
-      required String id,
-      required String title,
-      required String description,
-      required IconData icon,
-      required Color color,
-      required String route,
-      String? fallbackRoute,
-    }) {
-      return HomeQuickToolAction(
-        id: id,
-        title: title,
-        description: description,
-        icon: icon,
-        color: color,
-        onTap: () {
-          final targetRoute = fallbackRoute ?? route;
-          unawaited(
-            AppLogger.instance.info(
-              'Home',
-              'Quick tool opened from home dashboard',
-              context: {
-                'tool': id,
-                'route': targetRoute,
-                'visibleActions': workspaceCount,
-              },
-            ),
-          );
-          context.go(targetRoute);
-        },
-      );
-    }
-
-    final salesDestination = AppNavModel.destinations.firstWhere(
-      (destination) => destination.id == 'sales',
-    );
-    final statementDestination = AppNavModel.destinations.firstWhere(
-      (destination) => destination.id == 'statement',
-    );
-    final canOpenSales = AppNavModel.canUseDestination(user, salesDestination);
-    final canOpenStatement = AppNavModel.canUseDestination(
-      user,
-      statementDestination,
-    );
-
-    return [
-      action(
-        id: 'reports',
-        title: 'Tổng hợp ngày',
-        description: 'Xem tổng hợp và chi tiết báo cáo',
-        icon: Icons.description_outlined,
-        color: AppColors.secondary,
-        route: salesDestination.route,
-        fallbackRoute: canOpenSales ? null : '/operations',
-      ),
-      action(
-        id: 'reconcile',
-        title: 'Đối soát',
-        description: 'Đối soát doanh số và đơn hàng',
-        icon: Icons.fact_check_outlined,
-        color: AppColors.info,
-        route: '/bank-statement',
-        fallbackRoute: canOpenStatement ? null : '/operations',
-      ),
-      action(
-        id: 'operations',
-        title: 'Vận hành',
-        description: 'Xử lý đơn và theo dõi tiến độ',
-        icon: Icons.apps_outlined,
-        color: AppColors.accent,
-        route: '/operations',
-      ),
-      action(
-        id: 'settings',
-        title: 'Thiết lập phạm vi',
-        description: 'Thiết lập hệ thống và phạm vi',
-        icon: Icons.settings_outlined,
-        color: AppColors.warning,
-        route: '/settings',
-      ),
-    ];
   }
 
   void _logHomeResolved(
@@ -207,67 +108,6 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       );
     });
-  }
-}
-
-class _LegacyHomeBody extends StatelessWidget {
-  final int workspaceCount;
-  final VoidCallback onOpenOperations;
-
-  const _LegacyHomeBody({
-    required this.workspaceCount,
-    required this.onOpenOperations,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    if (workspaceCount == 0) {
-      return const AppSurfaceCard(
-        key: Key('home-empty-state'),
-        child: AppStatePanel.empty(
-          icon: Icons.apps_outlined,
-          title: 'Chưa có chức năng khả dụng',
-          message: 'Vui lòng liên hệ quản lý để kiểm tra phân quyền truy cập.',
-        ),
-      );
-    }
-
-    final countLabel = workspaceCount == 1
-        ? '1 công cụ đang sẵn sàng'
-        : '$workspaceCount công cụ đang sẵn sàng';
-
-    return AppSurfaceCard(
-      key: const Key('home-operations-card'),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Vận hành theo quyền',
-            style: AppTextStyles.headingS.copyWith(
-              color: AppColors.textPrimaryOf(context),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            countLabel,
-            style: AppTextStyles.labelM.copyWith(
-              color: AppColors.textPrimaryOf(context),
-            ),
-          ),
-          const SizedBox(height: AppLayoutTokens.sectionGap),
-          AppActionRow(
-            desktopAlignment: MainAxisAlignment.start,
-            children: [
-              AppPrimaryButton(
-                onPressed: onOpenOperations,
-                icon: Icons.apps_rounded,
-                label: 'Mở Vận hành',
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
   }
 }
 
@@ -423,7 +263,9 @@ String _homeGreetingSubtitle(User? user) {
     if ((user?.assignedStoreHeaderInfo ?? '').trim().isNotEmpty)
       user!.assignedStoreHeaderInfo.trim(),
   ];
-  return parts.isEmpty ? 'Thông tin tài khoản đang được cập nhật' : parts.join(' · ');
+  return parts.isEmpty
+      ? 'Thông tin tài khoản đang được cập nhật'
+      : parts.join(' · ');
 }
 
 class _AvatarInitials extends StatelessWidget {

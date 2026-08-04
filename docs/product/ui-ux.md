@@ -46,9 +46,9 @@ accepted product behavior or rewrite the application in one pass.
   unless it is framework-required and there is no suitable token.
 - Figma `Foundation/*` variables map into the shared theme layer first:
   `AppColors`, `AppTextStyles`, `AppRadius`, `AppLayoutTokens`, and
-  `AppTheme`. Keep legacy aliases such as `AppTheme.primaryBlue` during the
-  migration so older screens keep their runtime behavior while new tokens roll
-  out.
+  `AppTheme`. Compatibility aliases may remain only while an affected
+  consumer is proven; the OPS-44 Home foundation batch removed the unused
+  `AppTheme` color aliases after the repository consumer search passed.
 - Typography: use `AppTextStyles` or `Theme.of(context).textTheme`. Do not use
   one-off font scales unless the screen has a specific layout need. Do not use
   `FontWeight.w800`; the shipped font set normalizes emphasis to `w700` through
@@ -56,6 +56,10 @@ accepted product behavior or rewrite the application in one pass.
 - Radius: use `AppRadius` or `AppLayoutTokens.cardRadius` for feature UI.
 - Spacing and layout: use `AppLayoutTokens` for page padding, card padding,
   section gaps, form gaps, inline gaps, and responsive breakpoints.
+- Page gutters follow the Figma viewport contract through the shared wrappers:
+  compact `<600` uses 16 px, medium/expanded `600–1199` uses 24 px, and wide
+  `>=1200` uses 32 px. The wrapper classifies from viewport width even when
+  `AppShell` has already bounded the route content pane.
 
 ## Standard Components
 

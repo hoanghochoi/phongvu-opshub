@@ -1,5 +1,3 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
@@ -17,13 +15,16 @@ enum AppStateTone {
   warning,
   error;
 
-  Color get color {
+  Color colorOf(BuildContext context) {
     return switch (this) {
-      AppStateTone.info => AppColors.info,
-      AppStateTone.success => AppColors.success,
-      AppStateTone.warning => AppColors.warning,
-      AppStateTone.error => AppColors.error,
-      AppStateTone.neutral => AppColors.neutral500,
+      AppStateTone.info => AppColors.infoOf(context),
+      AppStateTone.success => AppColors.successOf(context),
+      AppStateTone.warning => AppColors.warningOf(context),
+      AppStateTone.error => AppColors.errorOf(context),
+      AppStateTone.neutral =>
+        AppColors.isDark(context)
+            ? AppColors.darkTextMuted
+            : AppColors.neutral500,
     };
   }
 }
@@ -89,7 +90,7 @@ class AppStatePanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = tone.color;
+    final color = tone.colorOf(context);
     final titleStyle = AppTextStyles.labelL.copyWith(
       height: 24 / 16,
       color: tone == AppStateTone.neutral
@@ -106,82 +107,72 @@ class AppStatePanel extends StatelessWidget {
           width: double.infinity,
           child: Padding(
             padding: EdgeInsets.all(compact ? 14 : 20),
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                final actionWidth = math.min(
-                  compact ? 180.0 : 220.0,
-                  constraints.maxWidth,
-                );
-                return Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (isLoading)
-                      Semantics(
-                        label: 'Đang tải',
-                        child: SizedBox.square(
-                          key: const Key('app-state-loading-spinner'),
-                          dimension: compact ? 28 : 36,
-                          child: Icon(
-                            PhosphorIconsRegular.spinnerGap,
-                            color: AppColors.primaryOf(context),
-                            size: compact ? 20 : 24,
-                          ),
-                        ),
-                      )
-                    else
-                      Container(
-                        key: const Key('app-state-icon-tile'),
-                        width: compact ? 44 : 56,
-                        height: compact ? 44 : 56,
-                        decoration: BoxDecoration(
-                          color: _iconTileColor(context, color),
-                          borderRadius: BorderRadius.circular(
-                            compact ? AppLayoutTokens.cardRadius : AppRadius.md,
-                          ),
-                        ),
-                        child: Icon(
-                          icon,
-                          color: color,
-                          size: compact ? 24 : 30,
-                        ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (isLoading)
+                  Semantics(
+                    label: 'Đang tải',
+                    child: SizedBox.square(
+                      key: const Key('app-state-loading-spinner'),
+                      dimension: compact ? 28 : 36,
+                      child: Icon(
+                        PhosphorIconsRegular.spinnerGap,
+                        color: AppColors.primaryOf(context),
+                        size: compact ? 20 : 24,
                       ),
-                    SizedBox(height: compact ? 10 : 12),
-                    Text(
-                      title,
-                      textAlign: TextAlign.center,
-                      softWrap: true,
-                      style: titleStyle,
                     ),
-                    if (messageText != null &&
-                        messageText.trim().isNotEmpty) ...[
-                      SizedBox(height: compact ? 8 : 12),
-                      Text(
-                        messageText,
-                        textAlign: TextAlign.center,
-                        softWrap: true,
-                        style: AppTextStyles.bodyM.copyWith(
-                          color: AppColors.textMutedOf(context),
-                        ),
+                  )
+                else
+                  Container(
+                    key: const Key('app-state-icon-tile'),
+                    width: compact ? 44 : 56,
+                    height: compact ? 44 : 56,
+                    decoration: BoxDecoration(
+                      color: _iconTileColor(context, color),
+                      borderRadius: BorderRadius.circular(
+                        compact ? AppLayoutTokens.cardRadius : AppRadius.md,
                       ),
-                    ],
-                    if (actionLabel != null && onAction != null) ...[
-                      const SizedBox(height: 12),
-                      SizedBox(
-                        key: const Key('app-state-action'),
-                        width: actionWidth,
+                    ),
+                    child: Icon(icon, color: color, size: compact ? 24 : 30),
+                  ),
+                SizedBox(height: compact ? 10 : 12),
+                Text(
+                  title,
+                  textAlign: TextAlign.center,
+                  softWrap: true,
+                  style: titleStyle,
+                ),
+                if (messageText != null && messageText.trim().isNotEmpty) ...[
+                  SizedBox(height: compact ? 8 : 12),
+                  Text(
+                    messageText,
+                    textAlign: TextAlign.center,
+                    softWrap: true,
+                    style: AppTextStyles.bodyM.copyWith(
+                      color: AppColors.textMutedOf(context),
+                    ),
+                  ),
+                ],
+                if (actionLabel != null && onAction != null) ...[
+                  const SizedBox(height: 12),
+                  ConstrainedBox(
+                    constraints: BoxConstraints(maxWidth: compact ? 180 : 220),
+                    child: SizedBox(
+                      key: const Key('app-state-action'),
+                      width: double.infinity,
+                      height: 44,
+                      child: AppSecondaryButton(
+                        onPressed: onAction,
+                        icon: actionIcon,
+                        label: actionLabel!,
                         height: 44,
-                        child: AppSecondaryButton(
-                          onPressed: onAction,
-                          icon: actionIcon,
-                          label: actionLabel!,
-                          height: 44,
-                          radius: AppRadius.md,
-                        ),
+                        radius: AppRadius.md,
                       ),
-                    ],
-                  ],
-                );
-              },
+                    ),
+                  ),
+                ],
+              ],
             ),
           ),
         ),
@@ -226,7 +217,7 @@ class AppStatusBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = tone.color;
+    final color = tone.colorOf(context);
     return Card(
       elevation: 0,
       color: color.withValues(alpha: 0.08),

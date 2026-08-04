@@ -487,6 +487,40 @@ void main() {
     expect(hits, isEmpty, reason: hits.join('\n'));
   });
 
+  test(
+    'migrated Home and shared foundation do not keep visual compatibility aliases',
+    () {
+      final homeSource = File(
+        [
+          'lib',
+          'features',
+          'home',
+          'presentation',
+          'screens',
+          'home_screen.dart',
+        ].join(Platform.pathSeparator),
+      ).readAsStringSync();
+      final themeSource = File(
+        ['lib', 'app', 'theme', 'app_theme.dart'].join(Platform.pathSeparator),
+      ).readAsStringSync();
+      final layoutSource = File(
+        [
+          'lib',
+          'app',
+          'widgets',
+          'app_layout.dart',
+        ].join(Platform.pathSeparator),
+      ).readAsStringSync();
+
+      expect(homeSource, isNot(contains('_LegacyHomeBody')));
+      expect(homeSource, isNot(contains('quickToolsForLegacy')));
+      expect(homeSource, isNot(contains('home-operations-card')));
+      expect(themeSource, isNot(contains('primaryBlue')));
+      expect(themeSource, isNot(contains('buttonColor')));
+      expect(layoutSource, isNot(contains('legacyDesktopBreakpoint')));
+    },
+  );
+
   test('scan callers use the shared barcode scanner navigation helper', () {
     final directScannerPattern = RegExp(r'\bBarcodeScannerScreen\s*\(');
     final hits = <String>[];
@@ -913,6 +947,13 @@ void main() {
         ),
       );
       expect(gapMap, contains('physical acceptance 03/07/2026'));
+      expect(gapMap, contains('live OPS-44 authority hiện là Desktop Windows'));
+      expect(gapMap, contains('`326:2698`'));
+      expect(
+        testMatrix,
+        contains('current Home source is Desktop Windows `326:2698`'),
+      );
+      expect(testMatrix, contains('provider-backed permission/empty states'));
       expect(testMatrix, contains('OPSHUB_VISUAL_SMOKE_WARRANTY_RECEIPT'));
       expect(testMatrix, contains('the cover page is only a curated subset'));
       expect(
@@ -936,10 +977,6 @@ void main() {
           (count: 1, reason: 'cached image placeholder'),
       'lib/features/offset_adjustment/presentation/screens/offset_adjustment_screen.dart':
           (count: 1, reason: 'inline refresh progress'),
-      'lib/features/settings/presentation/screens/settings_screen.dart': (
-        count: 1,
-        reason: 'log action progress',
-      ),
       'lib/features/fifo/presentation/screens/fifo_history_screen.dart': (
         count: 1,
         reason: 'load-more row',
@@ -960,8 +997,8 @@ void main() {
             reason: 'inline refresh and ERP order verification actions',
           ),
       'lib/features/home/presentation/widgets/home_summary_page.dart': (
-        count: 1,
-        reason: 'toolbar refresh state',
+        count: 2,
+        reason: 'toolbar refresh and header chip action states',
       ),
       'lib/features/vietqr/presentation/widgets/payment_waiting_card.dart': (
         count: 1,

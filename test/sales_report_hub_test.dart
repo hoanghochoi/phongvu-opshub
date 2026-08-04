@@ -34,8 +34,12 @@ void main() {
   });
 
   testWidgets('Báo cáo opens a two-column order cockpit', (tester) async {
-    await tester.binding.setSurfaceSize(const Size(1200, 900));
-    addTearDown(() => tester.binding.setSurfaceSize(null));
+    tester.view.physicalSize = const Size(1200, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
 
     final authProvider = _FakeAuthProvider(
       const User(
@@ -86,23 +90,22 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('Báo cáo bán hàng'), findsOneWidget);
-    expect(find.text('Báo cáo mua thủ công'), findsOneWidget);
+    expect(find.text('Báo cáo thủ công'), findsOneWidget);
     expect(find.text('Báo cáo chưa mua'), findsOneWidget);
     expect(
-      tester.getTopLeft(find.text('Báo cáo mua thủ công')).dy,
+      tester.getTopLeft(find.text('Báo cáo thủ công')).dy,
       tester.getTopLeft(find.text('Báo cáo chưa mua')).dy,
     );
-    expect(find.text('Đã báo cáo'), findsOneWidget);
-    expect(find.text('Chưa báo cáo'), findsOneWidget);
+    expect(find.text('Đã báo cáo • 1'), findsOneWidget);
+    expect(find.text('Chưa báo cáo • 7.998'), findsOneWidget);
     expect(
-      tester.getTopLeft(find.text('Chưa báo cáo')).dx,
-      lessThan(tester.getTopLeft(find.text('Đã báo cáo')).dx),
+      tester.getTopLeft(find.text('Chưa báo cáo • 7.998')).dx,
+      lessThan(tester.getTopLeft(find.text('Đã báo cáo • 1')).dx),
     );
     expect(find.text('2607010001'), findsOneWidget);
     expect(find.text('2607010002'), findsOneWidget);
-    expect(find.text('CP62 • Sale CP62'), findsOneWidget);
+    expect(find.text('CP62 • Trần Thị B'), findsOneWidget);
     expect(find.textContaining('ĐỊA ĐIỂM KINH DOANH'), findsNothing);
-    expect(find.text('7.998'), findsWidgets);
     expect(find.text('Trang 1/400'), findsOneWidget);
     expect(find.text('Trước'), findsNothing);
     expect(find.text('Sau'), findsNothing);
@@ -117,8 +120,8 @@ void main() {
     expect(repository.lastOrdersQuery?.unreportedPage, 1);
     expect(repository.lastOrdersQuery?.limit, 20);
 
-    await tester.ensureVisible(find.text('Báo cáo mua thủ công'));
-    await tester.tap(find.text('Báo cáo mua thủ công'));
+    await tester.ensureVisible(find.text('Báo cáo thủ công'));
+    await tester.tap(find.text('Báo cáo thủ công'));
     await tester.pumpAndSettle();
 
     expect(find.byType(Dialog), findsOneWidget);
@@ -173,36 +176,40 @@ void main() {
 
     expect(
       find.byKey(const Key('sales-report-workspace-header')),
-      findsOneWidget,
+      findsNothing,
     );
     expect(find.text('Chờ báo cáo'), findsNothing);
     expect(find.text('Hoàn tất'), findsNothing);
-    expect(find.text('Đã mua (nhập tay)'), findsOneWidget);
-    expect(find.text('Chưa mua'), findsOneWidget);
+    expect(find.text('Báo cáo mua thủ công'), findsOneWidget);
+    expect(find.text('Báo cáo chưa mua'), findsOneWidget);
     expect(
-      tester.getTopLeft(find.text('Đã mua (nhập tay)')).dy,
-      tester.getTopLeft(find.text('Chưa mua')).dy,
+      tester.getTopLeft(find.text('Báo cáo mua thủ công')).dy,
+      tester.getTopLeft(find.text('Báo cáo chưa mua')).dy,
     );
-    expect(find.text('Chưa báo cáo (21)'), findsOneWidget);
-    expect(find.text('Đã báo cáo (1)'), findsOneWidget);
+    expect(find.text('Chưa báo cáo • 21'), findsOneWidget);
+    expect(find.text('Đã báo cáo • 1'), findsOneWidget);
     expect(find.text('2607010002'), findsOneWidget);
-    expect(find.text('2607010001'), findsNothing);
-
-    await tester.tap(find.text('Đã báo cáo (1)'));
-    await tester.pumpAndSettle();
-
     expect(find.text('2607010001'), findsOneWidget);
 
-    await tester.tap(find.text('Lọc'));
-    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.text('Đã báo cáo • 1'),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(find.text('2607010001'), findsOneWidget);
 
-    expect(find.text('Bộ lọc nâng cao'), findsOneWidget);
-    expect(find.text('Áp dụng'), findsOneWidget);
+    expect(find.text('Lọc'), findsNothing);
   });
 
   testWidgets('Báo cáo app route provides the sales report provider', (
     tester,
   ) async {
+    tester.view.physicalSize = const Size(1024, 768);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
     final authProvider = _FakeAuthProvider(
       const User(
         id: 'user-1',
@@ -226,13 +233,19 @@ void main() {
 
     expect(tester.takeException(), isNull);
     expect(repository.fetchOrdersCount, 1);
-    expect(find.text('Đã báo cáo'), findsOneWidget);
-    expect(find.text('Chưa báo cáo'), findsOneWidget);
+    expect(find.text('Đã báo cáo • 1'), findsOneWidget);
+    expect(find.text('Chưa báo cáo • 21'), findsOneWidget);
   });
 
   testWidgets('manager cockpit filters orders by date, showroom and user', (
     tester,
   ) async {
+    tester.view.physicalSize = const Size(1200, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
     final authProvider = _FakeAuthProvider(
       const User(
         id: 'manager-1',
@@ -260,7 +273,8 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Ngày: 01/07/2026'), findsOneWidget);
+    expect(find.text('Ngày'), findsOneWidget);
+    expect(find.text('01/07/2026'), findsOneWidget);
     expect(
       find.text(
         'Không chọn khoảng ngày: hệ thống mặc định lấy 30 ngày gần nhất.',
@@ -268,13 +282,13 @@ void main() {
       findsNothing,
     );
     expect(find.text('Showroom'), findsOneWidget);
-    expect(find.text('Tất cả'), findsWidgets);
-    expect(find.text('Nhân viên: Tất cả'), findsNothing);
-    expect(find.text('Lọc'), findsOneWidget);
+    expect(find.text('Tất cả showroom'), findsOneWidget);
+    expect(find.text('Nhân viên'), findsOneWidget);
+    expect(find.text('Tất cả nhân viên'), findsOneWidget);
     expect(repository.lastOrdersQuery?.startDate, DateTime(2026, 7, 1));
     expect(repository.lastOrdersQuery?.endDate, DateTime(2026, 7, 1));
 
-    await tester.tap(find.text('Ngày: 01/07/2026'));
+    await tester.tap(find.text('01/07/2026'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('7 ngày gần nhất'));
     await tester.tap(find.byKey(const Key('date-range-apply')));
@@ -282,16 +296,6 @@ void main() {
 
     expect(repository.lastOrdersQuery?.startDate, DateTime(2026, 6, 25));
     expect(repository.lastOrdersQuery?.endDate, DateTime(2026, 7, 1));
-
-    await tester.tap(find.text('Lọc'));
-    await tester.pumpAndSettle();
-
-    expect(find.text('Bộ lọc nâng cao'), findsOneWidget);
-    expect(find.text('Nhân viên'), findsOneWidget);
-    expect(find.text('Tất cả'), findsWidgets);
-
-    await tester.tap(find.byTooltip('Đóng bộ lọc'));
-    await tester.pumpAndSettle();
 
     await tester.tap(find.byType(AppCombobox<String>).first);
     await tester.pumpAndSettle();
@@ -303,6 +307,86 @@ void main() {
     expect(repository.lastOrdersQuery?.endDate, DateTime(2026, 7, 1));
     expect(repository.lastOrdersQuery?.reportedPage, 0);
     expect(repository.lastOrdersQuery?.unreportedPage, 0);
+  });
+
+  testWidgets('Báo cáo follows the Figma loaded geometry matrix', (
+    tester,
+  ) async {
+    final viewports = const [
+      Size(1440, 900),
+      Size(1024, 768),
+      Size(834, 1112),
+      Size(375, 812),
+    ];
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    for (final viewport in viewports) {
+      tester.view.physicalSize = viewport;
+      tester.view.devicePixelRatio = 1;
+      final authProvider = _FakeAuthProvider(
+        const User(
+          id: 'geometry-user',
+          email: 'sale@phongvu.vn',
+          role: 'USER',
+          organizationNodeId: 'org-store-cp01',
+          featureAccess: {'SALES_REPORT': true},
+        ),
+      );
+      await tester.pumpWidget(
+        MultiProvider(
+          providers: [
+            ChangeNotifierProvider<AuthProvider>.value(value: authProvider),
+            ChangeNotifierProvider<SalesReportProvider>(
+              create: (_) => SalesReportProvider(_FakeSalesReportRepository()),
+            ),
+          ],
+          child: const MaterialApp(home: Scaffold(body: SalesReportScreen())),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final controls = tester.getSize(
+        find.byKey(const Key('sales-report-controls')),
+      );
+      final compact = viewport.width < 600;
+      final horizontalPadding = viewport.width >= 1200
+          ? 64
+          : compact
+          ? 32
+          : 48;
+      final expectedWidth =
+          (viewport.width >= 1200 ? 1190 : viewport.width) - horizontalPadding;
+      expect(controls.width, expectedWidth);
+      expect(controls.height, viewport.width >= 1200 ? 132 : 228);
+      expect(
+        find.byKey(const Key('sales-report-workspace-header')),
+        viewport.width >= 1200 ? findsOneWidget : findsNothing,
+      );
+      expect(tester.takeException(), isNull);
+
+      final unreported = find.byKey(
+        const Key('sales-report-unreported-column'),
+      );
+      expect(unreported, findsOneWidget);
+      expect(
+        tester.getSize(unreported).height,
+        viewport.width >= 1200 ? 514 : 360,
+      );
+      if (viewport.width < 900) {
+        await tester.scrollUntilVisible(
+          find.text('Đã báo cáo • 1'),
+          300,
+          scrollable: find.byType(Scrollable).first,
+        );
+      }
+      expect(
+        find.byKey(const Key('sales-report-reported-column')),
+        findsOneWidget,
+      );
+    }
   });
 
   testWidgets('Báo cáo opens purchased dialog from unreported order', (
@@ -593,6 +677,12 @@ void main() {
   testWidgets('Báo cáo hub omits duplicate export and list actions', (
     tester,
   ) async {
+    tester.view.physicalSize = const Size(1024, 768);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
     final authProvider = _FakeAuthProvider(
       const User(
         id: 'admin-1',
@@ -633,14 +723,14 @@ void main() {
 
     expect(
       find.byKey(const Key('sales-report-workspace-header')),
-      findsOneWidget,
+      findsNothing,
     );
     expect(findsLegacyGradientHeader(), findsNothing);
     expect(find.text('Báo cáo chưa mua'), findsOneWidget);
     expect(find.text('Xuất file'), findsNothing);
     expect(find.text('Danh sách'), findsNothing);
-    expect(find.text('Đã báo cáo'), findsOneWidget);
-    expect(find.text('Chưa báo cáo'), findsOneWidget);
+    expect(find.text('Đã báo cáo • 1'), findsOneWidget);
+    expect(find.text('Chưa báo cáo • 21'), findsOneWidget);
   });
 
   testWidgets('Báo cáo form requires explicit behavior answers', (
