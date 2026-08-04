@@ -1,7 +1,7 @@
 # Execution Plan: OPS-44 Redesign Foundation Runtime And UI Retirement
 
 Date: 2026-08-03
-Last updated: 2026-08-04 (Đại Ca approved proposals; Support Chat Figma gap revision + composer proof)
+Last updated: 2026-08-04 (staging deploy and merged-phase cleanup audit)
 
 ## Status
 
@@ -17,11 +17,10 @@ proof; business, API, permission, platform và data behavior giữ nguyên.
 ## Context
 
 - Linear: OPS-44, related OPS-25 and OPS-34.
-- Git baseline: `origin/staging` at
-      `5f935de9b2417e1b7ba138026b875bf6329bfbbe`; the guarded execution branch
-      `codex/ops-44-execution-plan-v2` contains the native speaker phase source
-      commit `f2af57b8bca65ea5101df6ca3dcddcbe1a7ed5bc` and is not yet merged
-      into `staging`.
+- Git baseline: the native speaker phase was merged by PR #104 into
+      `staging` at exact SHA `3ee28f91e1ff6a46b61cda27693a0d230a63aab1`;
+      local `staging` and `origin/staging` are now equal at that SHA. The
+      follow-up proof branch is `codex/ops-44-release-proof-20260804`.
 - Figma file:
   `mFzSmQzlapSe3RSmUhvzll`; target pages Cover `0:1`, Foundation `13:5`,
   Desktop + Web `693:17492`, Android mobile `693:17493`, Android tablet `698:2`,
@@ -661,39 +660,59 @@ visual element/state.
       Home `5/5`, capability/bootstrap/unsupported/speaker IO suites pass,
       full Flutter `877` testDone events with exit `0`, analyzer clean, web
       release build and `app-staging-debug.apk` pass.
-- [ ] Deploy that exact SHA to staging, run authenticated Chrome comparison at
-      the complete viewport matrix against the exact Figma nodes, and capture
-      Windows/Android primary-platform plus iOS/iPadOS regression evidence.
+- [x] Deploy the exact merged SHA to staging; deploy workflow `30903488800`
+      and health checks pass.
+- [ ] Run authenticated Chrome comparison at the complete exact viewport
+      matrix against the approved Figma nodes, and capture Windows/Android
+      primary-platform plus iOS/iPadOS regression evidence. Current wide
+      smoke is recorded below but does not satisfy the exact viewport gate.
 - [ ] Record implementation/proof note in Linear before every forward status
       transition; leave OPS-44 In Progress until production deployment passes.
-- [ ] After a phase is merged and its worktree is clean, run the guarded
-      lifecycle cleanup; never delete the active dirty worktree or the unrelated
-      OPS-27 branch.
+- [x] After PR #104 merged, run the guarded lifecycle cleanup; staging is
+      synchronized and the OPS-44 implementation branch/ref is gone. The
+      unrelated OPS-27 worktree/branch was preserved.
 - [x] Delete `ARCHIVE — Web Responsive (empty · pending deletion)` after
       explicit Figma revision approval; read back the final seven-page inventory
       and confirm node `1174:4` no longer exists.
 
 #### Branch cleanup audit — 2026-08-04
 
-- The active implementation branch/worktree is `codex/ops-44-execution-plan-v2`
-  and the native speaker phase is committed at
-  `f2af57b8bca65ea5101df6ca3dcddcbe1a7ed5bc` (the current docs proof update
-  follows this runtime commit); the runtime source includes the approved
-  Support Chat gap revision, token convergence and mobile/tablet speaker
-  expansion, and it is not yet published/merged into `staging`.
-- Local `staging` is clean at the same base SHA. The separate `OPS-27`
-  worktree/branch is unrelated and is preserved.
-- Remote stale cleanup completed on 2026-08-04: the 11 remaining
-  `codex/ops-44-*` refs were verified against merged PRs (`#89`, `#90`,
-  `#92`–`#98`, `#101`–`#103`), each remote tip matched its merged PR
-  `headRefOid`, and no open PR or post-merge branch commit was present. The
-  refs were deleted with `git push origin --delete ...`, then removed from
-  local tracking refs with `git fetch origin --prune`; a fresh readback shows
-  no remote `codex/ops-44-*` branches. Active OPS-44, `staging`, `main` and
-  unrelated OPS-27 were not touched.
-- After the next approved phase is committed, PR-merged into `staging`, and
-  the task worktree is clean, run `scripts/task-lifecycle.mjs finish --execute`
-  from canonical `staging` before starting another task.
+- PR #104 (`codex/ops-44-execution-plan-v2` → `staging`) is merged; Release
+  Guard run `30903440654` passed and deploy run `30903488800` passed for
+  `3ee28f91e1ff6a46b61cda27693a0d230a63aab1`.
+- Lifecycle `finish` dry-run passed after reviewing only generated ignored
+  artifacts (`.dart_tool`, Flutter/Gradle outputs and platform ephemerals).
+  `finish --execute` fast-forwarded local staging and removed the registered
+  worktree metadata; Windows then rejected removal of the already-empty
+  directory. The local branch and remote ref were subsequently deleted only
+  after the merge/SHA checks, and `git fetch origin --prune` confirms no
+  `codex/ops-44-execution-plan-v2` ref remains.
+- Verified post-cleanup: `staging == origin/staging ==
+  3ee28f91e1ff6a46b61cda27693a0d230a63aab1`; only the unrelated OPS-27
+  worktree/branch remains. A zero-file directory at
+  `..\opshub-ops-44-phase0` is an OS cleanup residue and has no Git/worktree
+  registration or branch association.
+
+#### Staging deployment and Chrome audit — 2026-08-04
+
+- Staging health and deploy workflow are green for the exact merged SHA:
+  workflow `30903488800`, published version `2026.08.04.323` / build
+  `200323`; Android and Windows artifact hashes remain recorded in the native
+  speaker proof above.
+- Authenticated Chrome opened the staging Home route at
+  `https://opshub-staging.hoanghochoi.com/#/home`. The wide runtime view
+  loaded without console errors; the header/shell, Home cards, dark navigation
+  rail and Vietnamese copy are visible, and Web correctly has no speaker
+  control (Web remains list-only per product contract). This is a smoke
+  observation only: the extension viewport override did not change Chrome's
+  actual `1534×937` viewport, so it is not accepted as the required
+  `1440×900` evidence.
+- Required Chrome matrix remains open and must be re-run at exact
+  `375×812`, `834×1112`, `1024×768`, and `1440×900`, with runtime screenshot,
+  approved Figma node/revision, deployed SHA and a per-viewport verdict.
+  No new Figma gap was discovered in the observed Web Home state; if any
+  missing element/state appears at the exact matrix, stop and create a new
+  approved revision before changing runtime.
 
 - [x] Create OPS-44 Linear issue and record implementation start proof.
 - [x] Create guarded OPS-44 task worktree from live `origin/staging`.
@@ -833,7 +852,9 @@ visual element/state.
 
 ## Result
 
-Not complete. Local regression/build checkpoint is verified, but remote staging
-deploy, Chrome audit, remaining surfaces and platform proof are still pending.
-Record verified waves, unverified surfaces, residual risks and follow-up
-decisions before moving this plan to `docs/plans/completed/`.
+Not complete. Local regression/build, staging deploy and merged-phase cleanup
+are verified. Exact authenticated Chrome matrix, physical Android/Windows
+audio evidence, iOS/iPadOS runtime evidence, Linear proof/status transition and
+production deployment remain pending. Record each verified/unverified surface,
+residual risk and next step before moving this plan to
+`docs/plans/completed/`.
