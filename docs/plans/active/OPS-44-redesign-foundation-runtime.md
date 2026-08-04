@@ -1,7 +1,7 @@
 # Execution Plan: OPS-44 Redesign Foundation Runtime And UI Retirement
 
 Date: 2026-08-03
-Last updated: 2026-08-04 (staging deploy 325 and authenticated Chrome matrix smoke)
+Last updated: 2026-08-04 (continuation audit: current staging/Figma/route-owner reconciliation)
 
 ## Status
 
@@ -18,12 +18,12 @@ proof; business, API, permission, platform và data behavior giữ nguyên.
 
 - Linear: OPS-44, related OPS-25 and OPS-34.
 - Git baseline: PR #104 merged the native speaker phase at
-      `3ee28f91e1ff6a46b61cda27693a0d230a63aab1`; docs/proof PR #105 and
-      PR #106, then docs-only PR #107, are merged. The current `staging` and
-      `origin/staging` SHA is `144df4da5e7ff2faac5c5847f2bec18a8ed00989`;
-      runtime deploy source remains `f7d90a7a0a56ed7be485d1c7e951690f426ab775`.
-      All prior OPS-44 phase branches have been cleaned; this Chrome-proof
-      refresh starts from that exact live SHA.
+      `3ee28f91e1ff6a46b61cda27693a0d230a63aab1`; docs/proof PRs #105–#108
+      are merged. The current `staging` and `origin/staging` SHA is
+      `13d2b2d00ce1b503fbdc2ea2b606c42d66bf2089`; staging deploy source remains
+      `f7d90a7a0a56ed7be485d1c7e951690f426ab775`. All prior OPS-44 phase
+      branches have been cleaned; the continuation audit starts from this
+      exact live SHA.
 - Figma file:
   `mFzSmQzlapSe3RSmUhvzll`; target pages Cover `0:1`, Foundation `13:5`,
   Desktop + Web `693:17492`, Android mobile `693:17493`, Android tablet `698:2`,
@@ -36,6 +36,27 @@ proof; business, API, permission, platform và data behavior giữ nguyên.
   `/fifo/inventory-import` alias. Post-migration target is 7 canonical pages.
 - Runtime authority: `AGENTS.md`, `docs/WORKFLOW.md`, product UI contract,
   redesign workflow, `AppRouter` and existing tests.
+
+## Continuation audit — 2026-08-04
+
+- Repository checkpoint: canonical `staging` is clean and equals
+  `origin/staging` at `13d2b2d00ce1b503fbdc2ea2b606c42d66bf2089`. The only
+  preserved unrelated worktree is `OPS-27`; the next OPS-44 continuation uses
+  a guarded task worktree from this SHA.
+- Live Figma root readback is exactly seven pages: Cover `0:1`, Foundation
+  `13:5`, Desktop + Web `693:17492`, Android mobile `693:17493`, Android
+  tablet `698:2`, iOS mobile `1174:2`, iPadOS tablet `1174:3`. The deleted
+  page `1174:4` is absent from the root inventory.
+- Figma route-owner audit found no new runtime-visible gap: Desktop/Web has
+  44 visible owners including `/shell-topbar`; Android mobile, iOS and iPadOS
+  each have all 43 canonical owners; Android tablet has all 43 owners across
+  nested Portrait/Landscape rail frames. `/reports` and
+  `/fifo/inventory-import` remain behavior aliases without duplicate owners.
+- No Figma write is authorized by this audit because every inspected runtime
+  surface already has an approved node/proposal. If Chrome or platform proof
+  exposes a new visible element/state, add it to the Figma gap ledger first,
+  run metadata/screenshot/design-context readback, obtain approval, then edit
+  runtime.
 
 ## Scope
 
@@ -854,6 +875,44 @@ visual element/state.
       primary-platform proof confirms no active consumer needs the compatibility
       layer.
 - [ ] Record final Linear implementation/proof note and move plan to completed.
+
+#### Continuation Chrome handoff — 2026-08-04
+
+- Authenticated Chrome was connected to the protected staging tab and left on
+  `/#/home` for the next QA pass. Direct dark-mode observations covered
+  Settings, the application-info dialog, Organization edit dialog, FIFO Check,
+  Feedback, Notifications and API Connections; no raw white dialog or dark
+  title drift was observed inside those app surfaces.
+- The extension screenshot output showed a `1024×588` bitmap while the page's
+  Flutter view and document measured `1024×768` with no horizontal overflow.
+  The apparent white right/bottom margin is therefore treated as a browser
+  capture/device-scale mismatch, not as accepted runtime visual evidence. The
+  exact matrix must be re-captured after the viewport control is corrected.
+- One non-fatal startup warning was observed (`prepareServiceWorker` exceeded
+  4000 ms); no application console error was observed. This remains a release
+  residual until a clean exact-matrix run proves it absent or classifies it as
+  infrastructure-only.
+
+#### Corrected Chrome viewport capture — 2026-08-04
+
+- Reconnected to the authenticated staging tab and applied the temporary
+  explicit `1024 × 768` viewport override. The screenshot now fills the full
+  canvas; the earlier roughly two-thirds app image with white right/bottom
+  margins was caused by the default extension capture scale, not a runtime
+  layout defect. The override is temporary and is reset after capture.
+- The expanded route smoke was rerun against staging at that exact viewport:
+  all 39 authenticated routes resolved (`39/39`), `/reports` resolved to
+  `/sales-reports`, Flutter view and document width/height matched
+  `1024 × 768`, and the visible-overflow audit was empty. `body.scrollWidth`
+  still reports `1112` on several data-heavy routes, but the authoritative
+  `documentElement.scrollWidth` remains `1024`; the only negative-coordinate
+  nodes are hidden Flutter announcement semantics and are excluded by the
+  reviewed smoke rule.
+- Fresh route pass recorded zero Chrome console errors and zero warnings. A
+  corrected authenticated Home screenshot was captured at `1024 × 768`.
+  Existing Figma Desktop/Web and Dark owners remain authoritative; this
+  capture correction exposed no new visible element or state, so no Figma
+  revision is required.
 
 ## Decisions
 
