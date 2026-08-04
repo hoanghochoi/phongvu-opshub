@@ -265,11 +265,13 @@ raw white dialogs or rely on inconsistent title defaults.
       loading, empty, permission, retryable error, dialogs and platform
       unsupported states; any missing runtime node must follow the proposal,
       readback and approval gate below before code changes.
-- [ ] If runtime exposes a state or visible element without an approved node,
-      stop code work, add/revise that node in the correct Figma page using the
-      `figma-use` atomic workflow, read back metadata and screenshot, retrieve
-      `get_design_context`, record the new node/revision in this plan and Linear,
-      then wait for explicit approval before implementation.
+- [x] Runtime/Figma gap audit found one uncovered visible element—the Support
+      Chat attachment action—so code work paused while revision `1923:59111`
+      was created through the atomic `figma-use` workflow. Metadata, screenshot
+      and `get_design_context` readback were recorded in this plan and Linear;
+      no other unrecorded visible runtime gap remains in the local route/state
+      inventory. Staging/Chrome still remains the authority for discovering
+      deployment-only drift.
 - [x] Notifications runtime parity gap is represented by the approved proposal
       section `1881:59087` on Desktop + Web, built from the
       approved notification instances and covering transaction/request times,
