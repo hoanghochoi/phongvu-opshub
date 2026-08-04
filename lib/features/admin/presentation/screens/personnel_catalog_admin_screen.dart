@@ -245,7 +245,7 @@ class _PersonnelCatalogAdminScreenState
                   return _PersonnelCard(
                     item: item,
                     icon: Icons.apartment_outlined,
-                    color: AppColors.info,
+                    color: AppColors.infoOf(context),
                     metadata: '${item.userCount} người dùng',
                     onEdit: () => _openDepartmentEditor(item),
                     onDelete: item.isSystem
@@ -447,7 +447,9 @@ class _PersonnelCard extends StatelessWidget {
                 Text(
                   '${item.isActive ? 'Đang bật' : 'Đang tắt'}${item.isSystem ? ' • hệ thống' : ''}',
                   style: AppTextStyles.labelS.copyWith(
-                    color: item.isActive ? AppColors.success : AppColors.error,
+                    color: item.isActive
+                        ? AppColors.successOf(context)
+                        : AppColors.errorOf(context),
                   ),
                 ),
               ],

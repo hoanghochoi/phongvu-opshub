@@ -350,7 +350,9 @@ class _QuickActionLinksAdminScreenState
                 padding: const EdgeInsets.only(bottom: 12),
                 child: Text(
                   _error!,
-                  style: AppTextStyles.bodyM.copyWith(color: AppColors.error),
+                  style: AppTextStyles.bodyM.copyWith(
+                    color: AppColors.errorOf(context),
+                  ),
                 ),
               ),
             Align(

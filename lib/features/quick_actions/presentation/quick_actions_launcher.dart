@@ -150,7 +150,7 @@ class _QuickActionsLauncherState extends State<QuickActionsLauncher>
         child: Focus(
           focusNode: _buttonFocus,
           child: Material(
-            color: AppColors.primary,
+            color: AppColors.primaryOf(context),
             elevation: widget.elevation,
             borderRadius: AppRadius.allLg,
             child: InkWell(
@@ -161,7 +161,7 @@ class _QuickActionsLauncherState extends State<QuickActionsLauncher>
                 dimension: widget.buttonSize,
                 child: Icon(
                   Icons.bolt_rounded,
-                  color: AppColors.surface,
+                  color: AppColors.primaryForegroundOf(context),
                   size: widget.buttonSize >= 64 ? 34 : 30,
                 ),
               ),
@@ -513,7 +513,7 @@ class _QuickActionTile extends StatelessWidget {
           ? Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(action.icon, color: AppColors.primary),
+                Icon(action.icon, color: AppColors.primaryOf(context)),
                 const SizedBox(height: 6),
                 Text(
                   action.label,
@@ -528,7 +528,7 @@ class _QuickActionTile extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 14),
               child: Row(
                 children: [
-                  Icon(action.icon, color: AppColors.primary),
+                  Icon(action.icon, color: AppColors.primaryOf(context)),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(action.label, style: AppTextStyles.labelM),

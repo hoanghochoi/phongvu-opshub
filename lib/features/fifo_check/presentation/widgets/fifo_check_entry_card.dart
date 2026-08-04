@@ -113,7 +113,9 @@ class FifoCheckEntryCard extends StatelessWidget {
     if (matches.isEmpty) {
       return SelectableText(
         content,
-        style: AppTextStyles.bodyM.copyWith(color: AppColors.surface),
+        style: AppTextStyles.bodyM.copyWith(
+          color: AppColors.primaryForegroundOf(context),
+        ),
       );
     }
 
@@ -127,7 +129,9 @@ class FifoCheckEntryCard extends StatelessWidget {
         spans.add(
           TextSpan(
             text: content.substring(lastIndex, match.start),
-            style: AppTextStyles.bodyM.copyWith(color: AppColors.surface),
+            style: AppTextStyles.bodyM.copyWith(
+              color: AppColors.primaryForegroundOf(context),
+            ),
           ),
         );
       }
@@ -136,7 +140,9 @@ class FifoCheckEntryCard extends StatelessWidget {
       spans.add(
         TextSpan(
           text: '${match.group(1)!}: ',
-          style: AppTextStyles.labelM.copyWith(color: AppColors.surface),
+          style: AppTextStyles.labelM.copyWith(
+            color: AppColors.primaryForegroundOf(context),
+          ),
         ),
       );
 
@@ -147,7 +153,7 @@ class FifoCheckEntryCard extends StatelessWidget {
         TextSpan(
           text: value,
           style: AppTextStyles.labelM.copyWith(
-            color: AppColors.warning,
+            color: AppColors.warningOf(context),
             decoration: TextDecoration.underline,
           ),
         ),
@@ -161,7 +167,9 @@ class FifoCheckEntryCard extends StatelessWidget {
       spans.add(
         TextSpan(
           text: content.substring(lastIndex),
-          style: AppTextStyles.bodyM.copyWith(color: AppColors.surface),
+          style: AppTextStyles.bodyM.copyWith(
+            color: AppColors.primaryForegroundOf(context),
+          ),
         ),
       );
     }
@@ -199,36 +207,28 @@ class FifoCheckEntryCard extends StatelessWidget {
                   margin: const EdgeInsets.only(bottom: 8),
                   decoration: BoxDecoration(
                     color: entry.content.contains('✅')
-                        ? (Theme.of(context).brightness == Brightness.dark
-                              ? AppColors.success.withValues(alpha: 0.15)
-                              : AppColors.success.withValues(alpha: 0.08))
+                        ? AppColors.successOf(context).withValues(alpha: 0.12)
                         : entry.content.contains('❌')
-                        ? (Theme.of(context).brightness == Brightness.dark
-                              ? AppColors.error.withValues(alpha: 0.15)
-                              : AppColors.error.withValues(alpha: 0.08))
-                        : (Theme.of(context).brightness == Brightness.dark
-                              ? AppColors.darkNeutral100
-                              : AppColors.neutral200),
+                        ? AppColors.errorOf(context).withValues(alpha: 0.12)
+                        : AppColors.neutral200Of(context),
                     borderRadius: BorderRadius.circular(
                       AppLayoutTokens.cardRadius,
                     ),
                     border: Border.all(
                       color: entry.content.contains('✅')
-                          ? AppColors.success
+                          ? AppColors.successOf(context)
                           : entry.content.contains('❌')
-                          ? AppColors.error
-                          : (Theme.of(context).brightness == Brightness.dark
-                                ? AppColors.neutral700
-                                : AppColors.neutral400),
+                          ? AppColors.errorOf(context)
+                          : AppColors.neutral400Of(context),
                     ),
                   ),
                   child: Text(
                     entry.content,
                     style: AppTextStyles.labelL.copyWith(
                       color: entry.content.contains('✅')
-                          ? AppColors.success
+                          ? AppColors.successOf(context)
                           : entry.content.contains('❌')
-                          ? AppColors.error
+                          ? AppColors.errorOf(context)
                           : Theme.of(context).colorScheme.onSurface,
                     ),
                   ),
@@ -250,13 +250,14 @@ class FifoCheckEntryCard extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: Theme.of(context).brightness == Brightness.dark
-                        ? AppColors.warning.withValues(alpha: 0.15)
-                        : AppColors.warning.withValues(alpha: 0.08),
+                    color: AppColors.warningOf(context).withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(
                       AppLayoutTokens.cardRadius,
                     ),
-                    border: Border.all(color: AppColors.warning, width: 1.5),
+                    border: Border.all(
+                      color: AppColors.warningOf(context),
+                      width: 1.5,
+                    ),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -265,7 +266,7 @@ class FifoCheckEntryCard extends StatelessWidget {
                         children: [
                           Icon(
                             Icons.lightbulb_outline,
-                            color: AppColors.warning,
+                            color: AppColors.warningOf(context),
                             size: 18,
                           ),
                           const SizedBox(width: 6),
@@ -273,7 +274,7 @@ class FifoCheckEntryCard extends StatelessWidget {
                             child: Text(
                               'Gợi ý — Sản phẩm cần lấy trước:',
                               style: AppTextStyles.labelM.copyWith(
-                                color: AppColors.warning,
+                                color: AppColors.warningOf(context),
                               ),
                             ),
                           ),
@@ -318,9 +319,7 @@ class FifoCheckEntryCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: entry.isUserInput
               ? Theme.of(context).colorScheme.primary
-              : (Theme.of(context).brightness == Brightness.dark
-                    ? AppColors.darkNeutral100
-                    : AppColors.neutral300),
+              : AppColors.neutral300Of(context),
           borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
         ),
         constraints: BoxConstraints(
@@ -343,7 +342,9 @@ class FifoCheckEntryCard extends StatelessWidget {
                   timeFormat.format(entry.timestamp),
                   style: AppTextStyles.caption.copyWith(
                     color: entry.isUserInput
-                        ? AppColors.surface.withValues(alpha: 0.70)
+                        ? AppColors.primaryForegroundOf(
+                            context,
+                          ).withValues(alpha: 0.70)
                         : Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
                 ),
@@ -363,10 +364,10 @@ class FifoCheckEntryCard extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(width: 8),
-                  const Icon(
+                  Icon(
                     Icons.check_circle,
                     size: 14,
-                    color: AppColors.success,
+                    color: AppColors.successOf(context),
                   ),
                 ],
               ],

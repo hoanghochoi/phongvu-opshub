@@ -197,21 +197,21 @@ class _SalesReportAdminScreenState extends State<SalesReportAdminScreen> {
             chips: [
               AppStatusChip(
                 label: '${provider.adminTotal} báo cáo',
-                color: AppColors.primary,
+                color: AppColors.primaryOf(context),
               ),
               AppStatusChip(
                 label: 'Trang ${provider.adminPage + 1}',
-                color: AppColors.neutral600,
+                color: AppColors.neutral600Of(context),
               ),
               AppStatusChip(
                 label: _reportTypeLabel(_reportType),
-                color: AppColors.success,
+                color: AppColors.successOf(context),
               ),
               if (showStoreFilter)
                 AppStatusChip(
                   label:
                       'Showroom: ${_storeFilterLabel(_storeCode, storeOptions)}',
-                  color: AppColors.neutral600,
+                  color: AppColors.neutral600Of(context),
                 ),
             ],
           ),
@@ -696,8 +696,8 @@ class _SalesReportAdminTile extends StatelessWidget {
                 ? Icons.person_search_outlined
                 : Icons.receipt_long_outlined,
             color: orderCode == null || orderCode.isEmpty
-                ? AppColors.warning
-                : AppColors.success,
+                ? AppColors.warningOf(context)
+                : AppColors.successOf(context),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -720,7 +720,7 @@ class _SalesReportAdminTile extends StatelessWidget {
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: AppTextStyles.bodyM.copyWith(
-                    color: AppColors.neutral600,
+                    color: AppColors.neutral600Of(context),
                   ),
                 ),
                 if (submittedAt.isNotEmpty) ...[
@@ -728,7 +728,7 @@ class _SalesReportAdminTile extends StatelessWidget {
                   Text(
                     submittedAt,
                     style: AppTextStyles.labelS.copyWith(
-                      color: AppColors.neutral500,
+                      color: AppColors.neutral500Of(context),
                     ),
                   ),
                 ],
@@ -745,7 +745,7 @@ class _SalesReportAdminTile extends StatelessWidget {
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: AppTextStyles.labelS.copyWith(
-                      color: AppColors.neutral600,
+                      color: AppColors.neutral600Of(context),
                     ),
                   ),
                 ],
@@ -766,7 +766,7 @@ class _SalesReportAdminTile extends StatelessWidget {
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: AppTextStyles.labelS.copyWith(
-                      color: AppColors.neutral600,
+                      color: AppColors.neutral600Of(context),
                     ),
                   ),
                 ],

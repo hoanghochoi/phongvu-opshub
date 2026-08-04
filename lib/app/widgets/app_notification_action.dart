@@ -25,6 +25,9 @@ class AppNotificationIconButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final effectiveBadgeColor = badgeColor == AppColors.warning
+        ? AppColors.warningOf(context)
+        : AppColors.adaptOf(context, badgeColor);
     final notificationIcon = Stack(
       clipBehavior: Clip.none,
       children: [
@@ -37,7 +40,7 @@ class AppNotificationIconButton extends StatelessWidget {
               constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
               padding: const EdgeInsets.symmetric(horizontal: 4),
               decoration: BoxDecoration(
-                color: badgeColor,
+                color: effectiveBadgeColor,
                 borderRadius: BorderRadius.circular(10),
               ),
               alignment: Alignment.center,

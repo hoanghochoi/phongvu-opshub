@@ -173,7 +173,13 @@ class BrandHeader extends StatelessWidget {
     return Column(
       crossAxisAlignment: alignment,
       children: [
-        const AppLogo(size: 56, borderRadius: AppRadius.md),
+        AppLogo(
+          size: 56,
+          borderRadius: AppRadius.md,
+          strokeColor: compact
+              ? AppColors.textPrimaryOf(context)
+              : AppColors.sidebarTextOf(context),
+        ),
         SizedBox(height: compact ? 6 : 18),
         Text(
           AppBrand.title,

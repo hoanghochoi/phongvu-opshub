@@ -179,14 +179,10 @@ class AppStatePanel extends StatelessWidget {
 
   Color _iconTileColor(BuildContext context, Color toneColor) {
     if (tone == AppStateTone.neutral) {
-      return AppColors.isDark(context)
-          ? AppColors.darkNeutral100
-          : AppColors.neutral50;
+      return AppColors.neutral50Of(context);
     }
     if (tone == AppStateTone.error) {
-      return AppColors.isDark(context)
-          ? AppColors.darkErrorSurface
-          : AppColors.errorSurface;
+      return AppColors.errorSurfaceOf(context);
     }
     return toneColor.withValues(alpha: 0.10);
   }
@@ -334,10 +330,10 @@ class _AppSkeletonCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final baseColor = AppColors.isDark(context)
         ? AppColors.darkRaised
-        : AppColors.neutral100;
+        : AppColors.neutral100Of(context);
     final highlightColor = AppColors.isDark(context)
         ? AppColors.darkBorder
-        : AppColors.neutral200;
+        : AppColors.neutral200Of(context);
 
     return Card(
       elevation: 0,

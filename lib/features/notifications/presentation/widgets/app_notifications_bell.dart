@@ -202,9 +202,9 @@ class AppNotificationsContent extends StatelessWidget {
           children: [
             Row(
               children: [
-                const Icon(
+                Icon(
                   Icons.notifications_none_rounded,
-                  color: AppColors.primary500,
+                  color: AppColors.primaryOf(context),
                 ),
                 const SizedBox(width: 8),
                 Expanded(
@@ -841,7 +841,9 @@ class _OffsetAdjustmentNotificationTile extends StatelessWidget {
       contentPadding: EdgeInsets.zero,
       leading: Icon(
         rejected ? Icons.error_outline_rounded : _offsetTypeIcon(request.type),
-        color: rejected ? AppColors.error : AppColors.warning,
+        color: rejected
+            ? AppColors.errorOf(context)
+            : AppColors.warningOf(context),
       ),
       title: SelectableText(
         rejected
@@ -911,7 +913,9 @@ class _StatementOrderNotificationTile extends StatelessWidget {
       contentPadding: EdgeInsets.zero,
       leading: Icon(
         rejected ? Icons.error_outline_rounded : Icons.swap_horiz_rounded,
-        color: rejected ? AppColors.error : AppColors.warning,
+        color: rejected
+            ? AppColors.errorOf(context)
+            : AppColors.warningOf(context),
       ),
       title: SelectableText(_title, style: AppTextStyles.labelM),
       subtitle: Padding(

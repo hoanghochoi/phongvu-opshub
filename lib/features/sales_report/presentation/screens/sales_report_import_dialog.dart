@@ -244,9 +244,9 @@ class _SalesReportImportDialogState extends State<_SalesReportImportDialog> {
               padding: const EdgeInsets.fromLTRB(24, 18, 12, 14),
               child: Row(
                 children: [
-                  const Icon(
+                  Icon(
                     Icons.upload_file_rounded,
-                    color: AppColors.primary,
+                    color: AppColors.primaryOf(context),
                   ),
                   const SizedBox(width: 12),
                   const Expanded(
@@ -359,8 +359,8 @@ class _TemplateHelp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => AppSurfaceCard(
-    backgroundColor: AppColors.primary.withValues(alpha: 0.05),
-    borderColor: AppColors.primary.withValues(alpha: 0.16),
+    backgroundColor: AppColors.primarySurfaceOf(context),
+    borderColor: AppColors.primaryOf(context).withValues(alpha: 0.28),
     child: const Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -388,7 +388,7 @@ class _FilePanel extends StatelessWidget {
   Widget build(BuildContext context) => AppSurfaceCard(
     child: Row(
       children: [
-        const Icon(Icons.table_view_outlined, color: AppColors.success),
+        Icon(Icons.table_view_outlined, color: AppColors.successOf(context)),
         const SizedBox(width: 12),
         Expanded(
           child: Column(
@@ -442,27 +442,27 @@ class _PreviewPanel extends StatelessWidget {
             _CountChip(
               label: 'Hợp lệ',
               value: preview.validRows,
-              color: AppColors.success,
+              color: AppColors.successOf(context),
             ),
             _CountChip(
               label: 'Đã mua',
               value: preview.purchasedRows,
-              color: AppColors.neutral600,
+              color: AppColors.neutral600Of(context),
             ),
             _CountChip(
               label: 'Bị trùng',
               value: preview.duplicateRows,
-              color: AppColors.warning,
+              color: AppColors.warningOf(context),
             ),
             _CountChip(
               label: 'Không hợp lệ',
               value: preview.invalidRows,
-              color: AppColors.error,
+              color: AppColors.errorOf(context),
             ),
             _CountChip(
               label: 'Chưa phân công',
               value: preview.unassignedRows,
-              color: AppColors.warning,
+              color: AppColors.warningOf(context),
             ),
           ],
         ),
@@ -508,12 +508,16 @@ class _RowIssueTile extends StatelessWidget {
         for (final error in row.errors)
           Text(
             'Lỗi: $error',
-            style: AppTextStyles.bodyS.copyWith(color: AppColors.error),
+            style: AppTextStyles.bodyS.copyWith(
+              color: AppColors.errorOf(context),
+            ),
           ),
         for (final warning in row.warnings)
           Text(
             'Lưu ý: $warning',
-            style: AppTextStyles.bodyS.copyWith(color: AppColors.warning),
+            style: AppTextStyles.bodyS.copyWith(
+              color: AppColors.warningOf(context),
+            ),
           ),
       ],
     ),
@@ -528,10 +532,10 @@ class _ImportResultPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Column(
     children: [
-      const Icon(
+      Icon(
         Icons.check_circle_rounded,
         size: 64,
-        color: AppColors.success,
+        color: AppColors.successOf(context),
       ),
       const SizedBox(height: 12),
       const Text('Đã nhập dữ liệu', style: AppTextStyles.headingM),
@@ -550,23 +554,23 @@ class _ImportResultPanel extends StatelessWidget {
           _CountChip(
             label: 'Đã nhập',
             value: result.importedRows,
-            color: AppColors.success,
+            color: AppColors.successOf(context),
           ),
           _CountChip(label: 'Đã mua', value: result.purchasedRows),
           _CountChip(
             label: 'Bị trùng',
             value: result.duplicateRows,
-            color: AppColors.warning,
+            color: AppColors.warningOf(context),
           ),
           _CountChip(
             label: 'Không hợp lệ',
             value: result.invalidRows,
-            color: AppColors.error,
+            color: AppColors.errorOf(context),
           ),
           _CountChip(
             label: 'Chưa phân công',
             value: result.unassignedRows,
-            color: AppColors.warning,
+            color: AppColors.warningOf(context),
           ),
         ],
       ),
@@ -584,8 +588,8 @@ class _CountChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Chip(
     avatar: CircleAvatar(
-      backgroundColor: color ?? AppColors.neutral600,
-      foregroundColor: AppColors.surface,
+      backgroundColor: color ?? AppColors.neutral600Of(context),
+      foregroundColor: AppColors.primaryForegroundOf(context),
       child: Text('$value'),
     ),
     label: Text(label),
@@ -599,12 +603,12 @@ class _ErrorPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => AppSurfaceCard(
-    backgroundColor: AppColors.error.withValues(alpha: 0.06),
-    borderColor: AppColors.error.withValues(alpha: 0.25),
+    backgroundColor: AppColors.errorSurfaceOf(context),
+    borderColor: AppColors.errorOf(context).withValues(alpha: 0.35),
     child: Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Icon(Icons.error_outline_rounded, color: AppColors.error),
+        Icon(Icons.error_outline_rounded, color: AppColors.errorOf(context)),
         const SizedBox(width: 10),
         Expanded(child: Text(message, style: AppTextStyles.bodyM)),
       ],

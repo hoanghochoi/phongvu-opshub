@@ -184,11 +184,11 @@ class _RoleHeader extends StatelessWidget {
                 children: [
                   AppStatusChip(
                     label: loading ? 'Đang tải vai trò' : '$roleCount vai trò',
-                    color: AppColors.primary,
+                    color: AppColors.primaryOf(context),
                   ),
-                  const AppStatusChip(
+                  AppStatusChip(
                     label: 'Chỉ đọc',
-                    color: AppColors.neutral700,
+                    color: AppColors.neutral700Of(context),
                   ),
                 ],
               ),
@@ -237,6 +237,11 @@ class _RoleCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final roleColor = switch (role.value) {
+      'SUPER_ADMIN' => AppColors.accentOf(context),
+      'ADMIN' => AppColors.infoOf(context),
+      _ => AppColors.neutral600Of(context),
+    };
     return AppSurfaceCard(
       padding: const EdgeInsets.all(14),
       child: Row(
@@ -245,10 +250,10 @@ class _RoleCard extends StatelessWidget {
             width: 44,
             height: 44,
             decoration: BoxDecoration(
-              color: role.color.withValues(alpha: 0.11),
+              color: roleColor.withValues(alpha: 0.11),
               borderRadius: BorderRadius.circular(AppRadius.sm),
             ),
-            child: Icon(role.icon, color: role.color, size: 22),
+            child: Icon(role.icon, color: roleColor, size: 22),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -281,7 +286,9 @@ class _RoleCard extends StatelessWidget {
           const SizedBox(width: 10),
           AppStatusChip(
             label: role.isSystem ? 'Hệ thống' : 'Tùy chỉnh',
-            color: role.isSystem ? AppColors.primary : AppColors.neutral700,
+            color: role.isSystem
+                ? AppColors.primaryOf(context)
+                : AppColors.neutral700Of(context),
           ),
         ],
       ),

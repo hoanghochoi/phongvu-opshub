@@ -467,7 +467,9 @@ class _ApiConnectionAdminScreenState extends State<ApiConnectionAdminScreen> {
               AppDialogConfirmButton(
                 onPressed: () => Navigator.of(dialogContext).pop(true),
                 label: confirmLabel,
-                backgroundColor: destructive ? AppColors.error : null,
+                backgroundColor: destructive
+                    ? AppColors.errorOf(dialogContext)
+                    : null,
               ),
             ],
           ),
@@ -1201,7 +1203,7 @@ class _ApiConnectionSwitch extends StatelessWidget {
   Widget build(BuildContext context) {
     final trackColor = value
         ? AppColors.primaryOf(context)
-        : AppColors.neutral300;
+        : AppColors.borderOf(context);
     return Semantics(
       button: true,
       toggled: value,
@@ -1220,17 +1222,17 @@ class _ApiConnectionSwitch extends StatelessWidget {
               height: 24,
               padding: const EdgeInsets.all(4),
               decoration: BoxDecoration(
-                color: enabled ? trackColor : AppColors.neutral200,
+                color: enabled ? trackColor : AppColors.subtleBorderOf(context),
                 borderRadius: AppRadius.allPill,
               ),
               child: Align(
                 alignment: value ? Alignment.centerRight : Alignment.centerLeft,
-                child: const SizedBox(
+                child: SizedBox(
                   width: 16,
                   height: 16,
                   child: DecoratedBox(
                     decoration: BoxDecoration(
-                      color: AppColors.surface,
+                      color: AppColors.cardOf(context),
                       shape: BoxShape.circle,
                     ),
                   ),

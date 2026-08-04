@@ -1,7 +1,7 @@
 # Execution Plan: OPS-44 Redesign Foundation Runtime And UI Retirement
 
 Date: 2026-08-03
-Last updated: 2026-08-04 (continuation audit: current staging/Figma/route-owner reconciliation)
+Last updated: 2026-08-05 (Execution plan v2 continuation contract + Order Command correction)
 
 ## Status
 
@@ -20,10 +20,11 @@ proof; business, API, permission, platform và data behavior giữ nguyên.
 - Git baseline: PR #104 merged the native speaker phase at
       `3ee28f91e1ff6a46b61cda27693a0d230a63aab1`; docs/proof PRs #105–#108
       are merged. The current `staging` and `origin/staging` SHA is
-      `13d2b2d00ce1b503fbdc2ea2b606c42d66bf2089`; staging deploy source remains
-      `f7d90a7a0a56ed7be485d1c7e951690f426ab775`. All prior OPS-44 phase
-      branches have been cleaned; the continuation audit starts from this
-      exact live SHA.
+      `424eaacce1a3b4d5b27eddf05af1e7c2cbe6bf7d`; the current continuation
+      checkpoint is the intentionally dirty local branch
+      `codex/ops-44-home-wide-header-parity` in the guarded worktree. All prior
+      merged OPS-44 phase branches have been cleaned; this checkpoint must be
+      committed/verified before its own lifecycle cleanup.
 - Figma file:
   `mFzSmQzlapSe3RSmUhvzll`; target pages Cover `0:1`, Foundation `13:5`,
   Desktop + Web `693:17492`, Android mobile `693:17493`, Android tablet `698:2`,
@@ -987,3 +988,572 @@ state-by-state screenshot comparison, physical Android/Windows audio evidence,
 iOS/iPadOS runtime evidence, legacy visual retirement sign-off and production
 deployment remain pending. Record each verified/unverified surface, residual
 risk and next step before moving this plan to `docs/plans/completed/`.
+
+## Home wide parity correction — 2026-08-04
+
+Authenticated staging was rechecked in Light mode at the approved Home route
+after the user reported a visible mismatch. The stable runtime state is a real
+visual drift, not a theme/capture-only issue:
+
+- Figma `326:2698` (`/home · App Shell Desktop · Loaded · Runtime scroll`) maps
+  `326:2732` → `HomeSummaryHeader`, `326:2821`/`326:2868`/`326:2749` → section
+  headers, `326:2867` → `ReportProgressPanel`, `326:2818` → sales metric grid,
+  `326:3025` → KPI metric grid, `326:3119` → behavior grid and `326:3181` →
+  finance grid.
+- Wide header target is `1126×166`, with 48px avatar, 18/26 greeting,
+  14/20 subtitle and 26px scope/date/update chips. The current runtime wide
+  header is 64px and renders a duplicate page title instead.
+- Sales target uses six 174.33×182 cards with 16px padding, 36px info icon
+  tile, 14/20 semibold title, 18/26 value, status pill and 13/18 helper copy.
+  Current runtime uses iconless 104px cards, so this is an implementation gap.
+- KPI target is 5/5/4 cards at 164/136/136px; behavior is 4/4 at 136px and
+  finance is 5 cards at 164px. Existing provider/API/detail interactions and
+  Vietnamese copy remain protected.
+- Product authority still requires both `Tổng quan cá nhân` and
+  `Tổng quan Miền/Vùng/Cửa hàng` goal cards. The approved Figma frame exposes
+  one reusable `Goal Progress` instance, so implementation may reuse that
+  approved component for both cards; no business state is removed or merged.
+
+Required Chrome comparison matrix for this wave: Light and Dark at
+`1440×900` wide plus regression checks at `1024×768`, `834×1112` and
+`375×812`; loaded, loading, empty, permission/unavailable and retryable error
+states remain downstream proof gates.
+
+### Figma route-inventory cleanup — 2026-08-04
+
+After the route-owner audit, the unified Desktop/Web page retained one Home
+loaded owner (`326:2698`) plus the four Windows state owners
+(`1277:117203`, `1277:117334`, `1277:117458`, `1277:117594`). The following
+mistaken duplicates were removed from Figma and read back absent:
+
+- Desktop Home responsive proof frames `1444:32260`, `1444:131815`.
+- Duplicate Web Home runtime frame `1204:354`.
+- 54 `Archived / Web Responsive / …` route/state frames that remained on the
+  unified page after the old Web page was consolidated.
+- Android Home 412×915 responsive proof `1443:21701`; compact Home authority
+  remains `331:3160`.
+- Obsolete Web Responsive guide/runtime references `1174:31544`, `1204:2`,
+  `1204:158`, `1204:492` and the stale dark runtime reference `1796:16408`.
+
+This is a Figma-only cleanup; runtime routes and platform behavior are
+unchanged. Desktop/Web now has a single Home loaded source, while platform
+states remain explicit and are not inferred from another viewport.
+
+## Execution plan v2 addendum — shared App Logo and Windows state composition — 2026-08-05
+
+This addendum is part of the active OPS-44 execution plan. It records the
+previously approved logo contract and the newly verified Figma/runtime gaps;
+the logo foundation readback is now complete, while Windows state composition
+and full cross-viewport visual closure remain open.
+
+### Foundation logo contract (must be completed before shell/state closure)
+
+- [x] Keep exactly one reusable Figma `App Logo` component set on `Foundation`
+      (`1590:139700`) with the approved platform size lanes:
+      `Size=Small` `1590:139697` = 32×32, `Size=Medium` `1590:139698` =
+      44×44, and `Size=Large` `1590:139699` = 56×56.
+- [x] Preserve the approved logo rule on every variant: 1px visible stroke
+      aligned `INSIDE`; do not recreate the outline in a shell instance or
+      add a second border layer.
+- [x] Revise/read back the stroke semantic for the navigation surface. The
+      three masters now bind to `component/color/navigation/content` (`8:158`)
+      for both Light/Dark navigation surfaces; the prior Large binding to
+      `color/semantic/text/primary` (`8:79`) was removed. If the logo is also
+      required on a non-navigation surface, add an explicit Foundation surface
+      variant rather than inferring a context-dependent stroke in screen code.
+- [x] Audit every Figma consumer after the master revision: Desktop/Web
+      `Breakpoint=Desktop` shell/state owners use 56px, Tablet/rail and
+      iPadOS/Web rail owners use 44px, and compact/mobile consumers use the
+      approved 32px lane where a logo is visible. Read back metadata and
+      screenshots for Light and Dark; no consumer may keep an old override.
+- [ ] Mirror the same single-component contract in Flutter. `AppLogo` must
+      receive the surface-aware stroke token, Desktop/Tablet/Mobile shell
+      consumers must use the approved size lane, and the temporary Desktop
+      `DecoratedBox` overlay in `AppShell` must be removed. The current mobile
+      drawer `42px` call is not one of the approved Figma lanes and must be
+      resolved through the exact revised node before editing.
+- [ ] Add widget/golden proof for stroke alignment/visibility and geometry at
+      56/44/32px in Light and Dark, plus affected `AppShell`, auth-brand and
+      route-state consumers. Existing size-only assertions are insufficient.
+
+Figma readback proof completed 2026-08-05: masters `1590:139697`,
+`1590:139698`, `1590:139699` report sizes 32/44/56, `strokeAlign=INSIDE`,
+`strokeWeight=1`, visible stroke and `VariableID:8:158`; shell instances
+`229:841`/`229:60` report Large=56 and Medium=44. Runtime/widget proof passed
+for AppLogo, AppShell route replacement, auth shell and Home (57 tests total).
+Remaining logo gate is Light/Dark golden/Chrome evidence at every affected
+viewport, including compact/mobile lane confirmation.
+
+### Windows route-state composition gap (Figma-first, before runtime edit)
+
+- [ ] Keep the shared `platform-shell` main component `229:841`, but revise
+      the route-state composition so route title/description are not duplicated
+      as raw siblings below the shell topbar. The current 20 simple Windows
+      states (`/home`, Payment Monitor, Sao ke, Feedback and Help) all use raw
+      `runtime-state-panel` frames instead of the Foundation `State Panel`
+      component set `115:258` or `Status Banner` set `120:364`; loading states
+      also omit the required shared `Phosphor / SpinnerGap` instance.
+- [ ] Create/revise exact Foundation-backed state nodes for every affected
+      state and viewport, including semantic icon, title/body, action geometry,
+      offline/unsupported and long Vietnamese copy. Reuse existing Foundation
+      primitives; do not invent a route, permission or business state.
+- [ ] Read back each revised node with `get_metadata`, `get_screenshot` and
+      `get_design_context`, record the node map here/Linear, obtain approval,
+      then migrate the 20 state owners. The 14 Sales Report modal owners remain
+      on their existing fixed-header/scroll-body pattern unless a separate
+      approved gap is found.
+
+### Windows state proposal readback — 2026-08-05
+
+The exact missing composition was created as a Figma proposal before any
+runtime edit. It reuses the existing `platform-shell` main component and
+Foundation `State Panel` variants; it does not add routes, permissions, API
+states or business behavior. Đại Ca approved the centered revision on
+2026-08-05; the Figma section now carries the `APPROVED` authority name and
+runtime migration is unblocked for this exact node map.
+
+- [x] Existing owners were read back from `Screens — Desktop · Windows + Web`:
+      Home `1277:117203/117334/117458/117594`, Payment Monitor
+      `1277:117732/117863/117987/118123`, Sao ke
+      `1277:118261/118392/118516/118652`, Feedback
+      `1277:118776/118902/119026/119150`, and Help content
+      `1277:119286/119417/119543/119679`. Each had the shared shell plus raw
+      route title/description and raw `runtime-state-panel`; Loading had no
+      Foundation `SpinnerGap` composition.
+- [x] Created proposal section `1967:57694` at the unified Desktop/Web page,
+      with 20 exact 1440×900 Windows owners. Every owner contains shared
+      `platform-shell` `229:841`, a `route_viewport / Foundation State Panel
+      slot` at `250,72` sized `1190×828`, and one Foundation state instance
+      centered inside that slot; route title/description are overridden in the
+      shell topbar and are not duplicated below it.
+- [x] Readback passed through `get_metadata`, `get_screenshot` and
+      `get_design_context`. Section metadata reports 20 composition frames;
+      Home Loading screenshot is `f4e1a405-e9f7-4cd1-9aaa-a9d5621160c7.png`,
+      full proposal screenshot is
+      `548b0d60-063f-4bd9-8a15-f9d8a33522b7.png` (6000×5080 source).
+- [x] Centering correction read back on 2026-08-05: all 20 Foundation State
+      Panel instances use `x=355` inside the `1190px` route viewport, which
+      centers the `480px` panel horizontally. Vertical centering is explicit
+      per variant height: `y=342` for 144px panels, `y=332` for 164px panels,
+      and `y=304` for 220px panels. Metadata confirms every instance remains
+      inside its route viewport; the full-section render shows the same visual
+      center across Home, Payment Monitor, Sao kê, Feedback and Help states.
+- [x] Obtain explicit proposal/revision approval for `1967:57694`; Figma
+      section `1967:57694` is now named
+      `APPROVED — Windows route-state composition · Foundation State Panel`,
+      and approval/readback was recorded in Linear on 2026-08-05.
+
+Approval readback on 2026-08-05 confirms the revised section name, centered
+coordinates and unchanged 20-frame hierarchy. This approval applies only to
+the exact Windows route-state composition; it does not approve unrelated
+visual drift or a new Figma state.
+
+#### Exact route/state node map
+
+| Route | State | Composition frame | Foundation instance | Variant/source |
+| --- | --- | --- | --- | --- |
+| `/home` | Loading | `1967:57695` | `1967:57815` | Loading `115:50` |
+| `/home` | Empty | `1967:57822` | `1967:57942` | Neutral `114:2`, action hidden |
+| `/home` | Error | `1967:57952` | `1967:58072` | Error `115:38` |
+| `/home` | PartialOffline | `1967:58082` | `1967:58202` | Offline `1277:121515`, action hidden |
+| `/payment-monitor` | Loading | `1967:58212` | `1967:58332` | Loading `115:50` |
+| `/payment-monitor` | Empty | `1967:58339` | `1967:58459` | Filtered Empty `1277:121503`, action hidden |
+| `/payment-monitor` | Error | `1967:58469` | `1967:58589` | Error `115:38` |
+| `/payment-monitor` | Unsupported | `1967:58599` | `1967:58719` | Unsupported `1277:121551` |
+| `/bank-statement` | Loading | `1967:58727` | `1967:58847` | Loading `115:50` |
+| `/bank-statement` | Empty | `1967:58854` | `1967:58974` | Neutral `114:2`, action hidden |
+| `/bank-statement` | Error | `1967:58984` | `1967:59104` | Error `115:38` |
+| `/bank-statement` | AutoSearch | `1967:59114` | `1967:59234` | Loading `115:50` |
+| `/feedback` | Ready | `1967:59241` | `1967:59361` | Info `115:2` |
+| `/feedback` | Uploading | `1967:59371` | `1967:59491` | Loading `115:50` |
+| `/feedback` | Success | `1967:59498` | `1967:59618` | Success `115:14`, action hidden |
+| `/feedback` | Error | `1967:59628` | `1967:59748` | Error `115:38` |
+| `/admin/help-content` | Loading | `1967:59758` | `1967:59878` | Loading `115:50` |
+| `/admin/help-content` | Empty | `1967:59885` | `1967:60005` | Neutral `114:2` |
+| `/admin/help-content` | Error | `1967:60015` | `1967:60135` | Error `115:38` |
+| `/admin/help-content` | DirtyClose | `1967:60145` | `1967:60265` | Warning `115:26` |
+
+The title, message and action copy in the proposal were copied from the
+existing owner readback. The only structural change is replacing the raw
+panel with the shared Foundation instance and moving route context into the
+shared shell slot. The 14 Sales Report modal owners remain outside this wave.
+
+### Phase execution and safe cleanup
+
+- [ ] Run the logo/state wave on its own `codex/ops-44-*` task branch from the
+      exact live `origin/staging` SHA; preserve the current dirty Home parity
+      checkpoint until its diff is committed or explicitly abandoned.
+- [ ] Before every visual edit: capture branch/SHA/worktree/diff checkpoint,
+      verify exact Figma node/revision and node map, then run focused geometry
+      proof before any downstream build or staging audit.
+- [ ] After the wave is merged and staging proof is recorded, run guarded
+      `scripts/task-lifecycle.mjs finish --execute`, verify the merged PR/SHA,
+      remove only the registered OPS-44 task worktree/local branch, and run
+      `git fetch origin --prune`. Never delete the preserved OPS-27 worktree or
+      a dirty/unmerged branch, and never force-push or bypass the lifecycle gate.
+
+## Logo audit correction — Đại Ca confirmation — 2026-08-05
+
+This section is an explicit implementation-plan correction from the latest
+shell audit. It is a blocker for visual closure, not a license to infer a new
+logo treatment in runtime code.
+
+### Observed mismatch and root cause
+
+- Figma already has one shared `App Logo` component set `1590:139700` with
+  `Small=32`, `Medium=44` and `Large=56`; every master is intended to keep a
+  1px `strokeAlign=INSIDE` outline.
+- The Large master was previously bound to `color/semantic/text/primary`
+  (`8:79`). On the Light navigation surface `#111827`, that stroke was nearly
+  the same color as the sidebar and visually disappeared.
+- Flutter `AppLogo` previously resolved `textPrimary` for every surface. The
+  Desktop shell then added a separate `DecoratedBox` white outline as a
+  workaround, violating the decision that one shared logo component owns the
+  stroke.
+- The mobile drawer used `42px`, which is not one of the approved Figma size
+  lanes. The current checkpoint has moved that call to `44px`, but compact
+  `<600` still needs an explicit `32px` consumer map; it must not be treated as
+  complete until the exact compact node and responsive rule are proven.
+- Existing tests asserted only widget dimensions; they did not prove stroke
+  visibility/contrast, Light/Dark surface semantics, or all shell/auth
+  consumers.
+
+### Authority decision and ordered work
+
+1. Keep exactly one Figma master set (`1590:139700`) and bind all three
+   variants to `component/color/navigation/content` (`8:158`) for navigation
+   surfaces in both Light and Dark. If a non-navigation surface needs a
+   different stroke, add an explicit Foundation surface variant first; do not
+   branch stroke colors in a route screen.
+2. Mirror that contract in Flutter through the shared `AppLogo` API with a
+   surface-aware stroke token. Remove the Desktop `DecoratedBox` overlay and
+   map consumers by the approved lane: Desktop/Web sidebar `56px`, Tablet/rail
+   `44px`, compact/mobile drawer `32px` (unless an exact approved node records
+   a different platform surface). Preserve auth/logo behavior and all
+   business, route, permission, platform and data contracts.
+3. Add geometry and contrast proof for `56/44/32px` in Light and Dark, covering
+   the shared component plus Desktop sidebar, Tablet rail, compact drawer,
+   auth brand and route-state shell consumers. Size-only assertions are not
+   sufficient; proof must show the 1px inside stroke is visible on the actual
+   navigation surface.
+4. Re-run the strict downstream gate after any visual change: exact Figma
+   node/revision and node map → widget/golden proof → exact-SHA build →
+   staging deploy → authenticated Chrome comparison at
+   `375×812`, `834×1112`, `1024×768` and `1440×900`, in Light and Dark. A
+   failed or stale proof keeps OPS-44 open and blocks legacy-UI retirement.
+
+### Current checkpoint and residual risk
+
+- Figma master repair and readback are complete: `1590:139697`/`98`/`99`
+  report `32/44/56`, `strokeAlign=INSIDE`, `strokeWeight=1`, visible stroke and
+  `VariableID:8:158`; shell consumers `229:841` and `229:60` report
+  `Large=56` and `Medium=44`.
+- The current OPS-44 working tree removes the Desktop overlay, passes the
+  navigation stroke explicitly to `AppLogo`, and uses `56px` Desktop plus
+  `44px` Tablet/rail. Prior focused AppLogo/AppShell/auth/Home proof is
+  `57/57`; full analyzer/regression proof is recorded in the checkpoint.
+- Compact/mobile responsive logo mapping, Light/Dark golden contrast and the
+  authenticated Chrome matrix remain open. Do not mark the logo foundation or
+  OPS-44 visually complete until those proofs are captured and read back.
+
+## Execution continuation — Dark mode remediation and Home goal parity — 2026-08-05
+
+This continuation reopens the visual audit after Đại Ca's authenticated/runtime
+captures showed that the earlier local Dark semantic proof was incomplete. The
+captures are treated as failed visual evidence, not as a product change. The
+Figma file remains the visual source of truth; business, API, permission,
+route, platform and data behavior remain protected.
+
+### Exact authority and node map before runtime edit
+
+| Surface/state | Figma authority | Flutter scope | Required visual mapping |
+| --- | --- | --- | --- |
+| Home Light loaded | `326:2698` → shell `326:2699`, content `326:2731`, header `326:2732` | `AppShell`, `HomeScreen`, `HomeSummaryPage` | 1190×828 viewport; 1126×166 header; progress overview `326:2867`; sales/KPI/behavior/finance rows `326:2818`, `326:3025`, `326:3119`, `326:3181`; shared `Home Metric Card`/`Progress Ring`/`Goal Progress` instances |
+| Home Dark loaded | `1874:123632` → shell `1874:123633`, content `1874:123634`, header `1874:123635` | same consumers, Dark semantic mode | same geometry as Light; canvas/card/text/border/icon values resolve through Dark tokens, with no raw Light surface or dark-on-dark text |
+| Sao kê Dark loaded | `1874:129947` → content `1874:129949`, filters `1874:129952`, list `1874:129964`, pagination `1874:129968` | `BankStatementScreen`, shared fields/cards/pagination | `1190×828` content, 1126px filter/list lane, Dark input/card/border/text semantics, actions remain visible |
+| Organization Dark edit | `1874:125723` → content `1874:125725`, modal `1874:125758` | `OrganizationTreeAdminScreen`, shared dialog/form primitives | Dark scrim, `960×760` editor, shared field/button surfaces, readable labels and fixed dialog actions |
+| Admin modal/state states | `1874:131679`, `1874:131712`, `1874:131499`, `1874:131524`, `1874:131745` | Admin Users/Features/Organization dialog consumers | shared dialog shell/body/actions; no raw white list rows or inconsistent black/white titles |
+| Approved Windows route states | `1967:57694` → 20 centered owners | shared state/shell consumers | Foundation State Panel centered at `x=355`, `y=342/332/304`; route context remains in shared shell |
+
+### Findings from the user captures
+
+- Dark admin dialogs still render Light surfaces in list/checkbox/result rows;
+  the white blocks are not approved Dark card/input tokens.
+- Several dialog titles and helper labels resolve through mixed defaults, so
+  some text is dark on Dark surfaces while other titles are light.
+- Organization and feedback/media overlays need the shared Dark dialog/scrim
+  and placeholder surface; no feature-local white dialog or image fallback may
+  remain.
+- Home runtime does not match `326:2698`/`1874:123632`: header/card hierarchy,
+  card icon tiles, progress/goal composition and section geometry drift from the
+  approved source. The existing provider, realtime, speaker, refresh and detail
+  behavior stays unchanged.
+
+### Ordered implementation phases
+
+1. **Dark foundation sweep** — audit `AppColors`, `AppTheme`, `AppShell`,
+   `AppCombobox`, state/dialog/card/button/input primitives and every affected
+   consumer for raw Light tokens. Replace them with context-aware shared tokens;
+   add regression coverage for Dark surfaces, title/body contrast, scrim,
+   checkbox/list rows, focus and action states. Do not add feature-local theme
+   variants.
+2. **Dark route-state closure** — migrate the approved 20 Windows state owners
+   to `1967:57694` after the foundation sweep, preserving state/business
+   behavior and the centered `route_viewport` composition.
+3. **Home runtime parity** — replace the old Home visual path with the exact
+   `326:2698`/`1874:123632` structure: header, progress rings, both Goal
+   Progress cards (personal + region/area/store), sales/KPI/behavior/finance
+   metric grids, section headers, icons and responsive rows. Reuse shared
+   components/tokens and keep all Home provider/API/permission/realtime/detail
+   contracts intact.
+4. **Goal proof and follow-up** — verify personal/scope goal selection, empty
+   target, loading/error and permission variants against the approved Goal
+   Progress source; then rerun full Home and affected-consumer proof.
+
+### Verification matrix and stop conditions
+
+- Before each visual edit: exact Figma metadata + screenshot + design-context
+  readback, node map update, dirty-worktree checkpoint.
+- Local proof: focused Dark primitive/dialog/admin/Sao kê/Home tests, geometry
+  assertions at `375×812`, `834×1112`, `1024×768`, `1440×900`, migration guard,
+  `flutter analyze --no-pub`, `flutter test --no-pub`, `flutter build web
+  --release --no-pub --no-wasm-dry-run`, `dart format` and `git diff --check`.
+- Downstream proof: exact tested SHA → staging deploy → authenticated Chrome
+  Light/Dark screenshot comparison at all four viewports; repeat every
+  downstream gate after a visual fix.
+- Stop if any visible element lacks an approved node, if a raw white/light
+  surface remains in Dark, if text/icon contrast is insufficient, or if Home
+  behavior changes. OPS-44 stays open until the runtime evidence passes.
+
+## Dark Figma legacy-route audit — 2026-08-05
+
+The Dark coverage board `1874:35444` was read back with 121 top-level owners
+and compared against the canonical unified page `693:17492` and the approved
+Dark Home source `1874:123632`. The audit separates canonical Desktop/Windows
+owners from Web/runtime clones so the file cannot present a retired Web layout
+as an implementation target.
+
+### Confirmed canonical owners to keep
+
+- `1874:123632` — Dark Home Desktop loaded source. It uses the shared
+  `App Shell / Home / Full Content` (`1874:123633`), the 1126×166 header,
+  progress rings, Goal Progress, metric-card/icon rows and the approved
+  responsive content spec. Its `Runtime scroll` suffix describes scrolling
+  behavior; it is not the old Web clone and must not be deleted.
+- The remaining Dark Desktop/App Shell route owners for Operations, Sao kê,
+  admin, dialogs and the Windows responsive proofs remain in place until each
+  has exact node/context proof or an approved replacement. The obsolete
+  Windows state instances are tracked in the cleanup section below and are no
+  longer part of the visual authority set.
+
+### Confirmed legacy/duplicate owners removed
+
+The following Dark nodes were Web-specific or explicitly runtime-only clones.
+They had no authority once Web adopted the unified Desktop/Windows source and
+were removed so they cannot be used as visual references:
+
+| Node | Reason | Action |
+| --- | --- | --- |
+| `1874:146023` | `/home · Web 1440 · Loaded · Runtime`; old `OpsHub Web` shell and flat metric cards; screenshot/context differs from `1874:123632` | removed |
+| `1874:146119` | `/operations · Web 1024 · Loaded`; Web-only responsive duplicate | removed |
+| `1874:148062` | `/operations · Web 1280 · Loaded`; Web-only responsive duplicate | removed |
+| `1874:148096` | `/operations · Web 1920 · Loaded`; Web-only responsive duplicate | removed |
+| `1874:148130` | `/shell-topbar · Web · 1440 · Runtime actions`; runtime-only shell reference | removed |
+| `1874:148142` | `/fifo-check · Web · 1024 · Loaded · R1`; Web-only FIFO clone | removed |
+| `1874:148163` | `/fifo-check · Web · 1024 · Serial result · R1`; Web-only FIFO state clone | removed |
+
+Deletion was limited to these exact top-level Dark nodes. No runtime route,
+business logic, permissions or Web behavior is changed. Figma version-history
+and `commitUndo` APIs are unsupported in MCP; the delete script was guarded by
+exact parent/name checks and returned all removed IDs. Post-delete proof is
+board metadata (`114` children, all seven IDs absent, no remaining top-level
+Web/Runtime clone) plus the board screenshot recorded in Linear comment
+`3f5cf40c-7fc2-4285-9e51-d3b01b642bec`. Unique Desktop routes without an
+approved Dark target are not silently deleted; they remain a design/revision
+gate for a later Figma proposal.
+
+### Dark Windows state clone cleanup — completed
+
+The same board also contained 20 old Dark Windows state instances with a raw
+runtime composition and failed contrast (for example, Home Loading
+`1874:142635` rendered a dark-on-dark state title inside a light-border
+panel). The approved replacement composition is `1967:57694` (20 centered
+Foundation-backed owners). These exact old state owners were removed after
+parent/name checks and read back absent:
+
+- Home: `1874:142635`, `1874:142759`, `1874:142883`, `1874:143009`.
+- Payment Monitor: `1874:143133`, `1874:143257`, `1874:143381`, `1874:143507`.
+- Sao kê: `1874:143631`, `1874:143755`, `1874:143879`, `1874:144005`.
+- Feedback: `1874:144129`, `1874:144255`, `1874:144379`, `1874:144503`.
+- Help content: `1874:144629`, `1874:144753`, `1874:144879`, `1874:145005`.
+
+Readback: Dark board top-level count is now `94`; all 20 IDs are absent;
+approved proposal `1967:57694` and canonical Home `1874:123632` remain. The
+two Home Windows responsive proofs (`1874:145607`, `1874:145695`) are retained
+as explicit viewport evidence, not state owners. This cleanup retires only
+obsolete Figma references. The approved section is a composition authority;
+Dark semantic styling still needs its own exact readback before runtime
+migration. Unique Dark routes with raw light surfaces (admin dialogs, support
+chats, API connections and similar) remain blocked for target revision rather
+than being inferred from these deleted states.
+
+### Follow-up gate — Sales Report Order Command
+
+After Dark foundation/state closure, repair the approved Sales Report Order
+Command alignment. The Android Tablet Ready/PendingPayment variants still have
+708px content inside a 720px slot and need the verified `+6px` offset; the
+previous direct `x` mutation was overwritten by auto-layout. Inspect and fix
+the parent `layoutMode`/axis alignment, then read back metadata and screenshot
+for Android Tablet (`1242:35190` family) and iPadOS (`1246:35945` family)
+before runtime/UI completion. This follow-up does not change order workflow or
+business behavior.
+
+## Execution continuation — 2026-08-05 current checkpoint
+
+The continuation is running on the existing dirty task worktree so the prior
+Home/logo checkpoint is preserved:
+
+- Branch/worktree: `codex/ops-44-home-wide-header-parity` at
+  `C:\Users\ASUS1\Documents\flutter_projects\opshub-ops-44-home-wide-header`.
+- HEAD and `origin/staging`: `424eaacce1a3b4d5b27eddf05af1e7c2cbe6bf7d`.
+- Dirty scope is limited to the Home wide-parity, shared AppLogo/shell/auth
+  checkpoint, tests and this plan; the unrelated OPS-27 worktree remains
+  untouched. Do not delete this branch/worktree until its PR has merged and
+  the guarded lifecycle `finish --execute` gate passes.
+- Local proof at this checkpoint: `flutter analyze --no-pub` passes; focused
+  AppLogo/AppShell/auth/Home proof passes `57/57`; `git diff --check` passes.
+
+Figma cleanup proof completed before runtime edits:
+
+- Dark board `1874:35444` now has `94` top-level owners after removing seven
+  Web/runtime clones and twenty obsolete Dark Windows state owners. Canonical
+  Home `1874:123632` and approved composition proposal `1967:57694` remain.
+- The remaining raw-light Dark dialog/route owners are explicit Figma
+  revision gates, not visual references. If they lack exact approved nodes,
+  create a proposal from Foundation components, read back metadata + screenshot
+  + design context, record the complete node map and obtain approval before
+  touching the corresponding Flutter surface.
+
+Next ordered work:
+
+1. Create/read back the missing Dark dialog/media/admin target proposal and
+   update Linear/this plan; do not infer from the old runtime surfaces.
+2. Finish the approved Home/logo runtime checkpoint and add Light/Dark
+   56/44/32px golden/contrast proof.
+3. Migrate the approved centered Windows state consumers only after the exact
+   Dark semantic target is available.
+4. Fix Sales Report Order Command through parent auto-layout alignment and
+   verify both platform families.
+5. Run exact-SHA build/staging/Chrome/platform gates, record Linear proof, then
+   clean only the merged OPS-44 branch/worktree with the guarded lifecycle
+   command. The active plan stays open until production deployment and legacy
+   retirement are proven.
+
+## Execution continuation — Dark semantic sweep + Sales Report Order Command — 2026-08-05
+
+### Implemented scope
+
+- Shared Dark foundation now exposes context-aware neutral scale helpers and a
+  base-token adapter for shared chips, status pills, feature tiles, notification
+  badges, skeletons, toasts and state panels. Light values remain unchanged;
+  QR/image/camera foregrounds that intentionally require white/black contrast
+  remain explicit and are not remapped.
+- Runtime Dark consumers were swept across FIFO/FIFO Check, Admin
+  policy/role/feature/import/personnel, Contract Appendix, Sales Report
+  admin/import/not-purchased, Payment Monitor/history, Help admin, Notifications,
+  Home trend, Offset, Sort, VietQR, Warranty, Settings and Quick Actions.
+  Changes are semantic-token substitutions only; provider/API/permission/route,
+  workflow and Vietnamese copy contracts are untouched.
+- Sales Report Order Command remains the single approved visual path. Runtime
+  keeps input + QR scan + primary action on one row at compact/medium/desktop,
+  uses the approved 222px action for NeedsCheck/Checking and 202px action for
+  Ready/PendingPayment with the Wide/Tablet parent padding (`4px`/`6px`).
+  Android compact keeps status as input supporting text; iOS/iPadOS uses the
+  approved 44pt scan control and status text below the command row. Geometry
+  proof covers `375×812` and `1024×768` plus checked-state action sizing.
+
+### Authority / node map
+
+- Figma file `mFzSmQzlapSe3RSmUhvzll`; Dark route board `1874:35444` was read
+  back as the canonical Dark coverage board. The unified page remains
+  `Screens — Desktop · Windows + Web`; no route/frame was invented or added.
+- Sales Report Order Command Foundation masters read back as component sets:
+  Wide `1237:32820` (Ready `1237:32775`, pending `1237:32801`), Android Tablet
+  `1242:35190` (Ready `1242:35199`, pending `1242:35205`), Android Mobile
+  `1242:34112`, iOS `1244:35494`, iPadOS `1246:35945`. Parent auto-layout
+  padding is the authority (`4px` Wide, `6px` Tablet); direct child x-offsets
+  are not used.
+- Figma metadata/design-context readback confirms input, scan, status and
+  action geometry; all five platform families remain present. This pass did
+  not alter business states or create duplicate route owners.
+
+### Local verification
+
+- `flutter analyze --no-pub`: pass.
+- Focused theme/state/Sales Report suite: pass; Sales Report hub is `42/42`,
+  shared Dark/state tests pass, and the new Dark Order Command control test
+  passes.
+- Full `flutter test --no-pub --reporter compact`: exit code `0`, `747` passed,
+  `3` existing skips, zero failures. The earlier expanded-reporter timeout was
+  an output-pipe timeout and was superseded by this successful compact run.
+- After the Order Command width/state correction, the focused Sales Report
+  suite passes `32/32` including iOS/iPadOS geometry; the combined
+  Dark/theme/logo/Sales proof passes `41/41`.
+- `flutter build web --release --no-pub`: pass; Wasm dry run also succeeded.
+- `dart format` and `git diff --check`: rerun after the final patch; no known
+  formatting or whitespace errors.
+
+### Remaining gate / risk
+
+- Worktree is intentionally dirty and has not been committed, pushed, merged,
+  deployed or promoted. Staging and authenticated Chrome comparison remain
+  required at `375×812`, `834×1112`, `1024×768`, `1440×900` in Light/Dark, plus
+  Windows/Android primary evidence and iOS/iPadOS regression evidence.
+- The semantic sweep is locally verified but has no staging screenshot proof;
+  any unapproved Chrome drift remains a blocker. OPS-44 stays open and must not
+  move to Done until production deployment and legacy visual retirement pass.
+
+### Next step
+
+Create the exact-SHA PR to `staging`, deploy that SHA, then run the authenticated
+Chrome matrix and record per-viewport Figma/runtime verdicts before any cleanup
+or status transition.
+
+## Execution plan v2 continuation contract — 2026-08-05
+
+The remaining phases are executed as bounded waves and may be marked complete
+only with the evidence below. A phase is not considered complete merely because
+local tests pass.
+
+### Figma gap protocol (mandatory for every remaining wave)
+
+If a stable runtime audit exposes a visible element, state, platform variant or
+responsive constraint that has no exact approved Figma node, stop that visual
+edit. Inspect the existing Foundation component/library first, create or revise
+the target in the canonical Figma page using shared components/tokens, then run
+`get_metadata` → `get_screenshot` → `get_design_context` readback. Record the
+complete node map (viewport/state, geometry, tokens, typography, copy, icon,
+behavior and responsive rule) in this plan and Linear, obtain explicit approval,
+and only then mirror the node in Flutter. Never infer from legacy runtime,
+screenshots alone or a guessed spacing/token value. Re-run geometry tests, build,
+staging deploy and Chrome comparison after every approved revision.
+
+### Bounded phase and cleanup gate
+
+1. Phase A — finish current Dark/Sales/Home/logo implementation proof and create
+   the exact-SHA PR; keep the dirty checkpoint until the PR source is verified.
+2. Phase B — deploy the merged SHA to staging and audit authenticated Chrome at
+   `375×812`, `834×1112`, `1024×768`, `1440×900` in Light/Dark, covering every
+   affected loaded/loading/empty/error/dialog/permission state.
+3. Phase C — capture Windows/Android primary evidence and iOS/iPadOS regression
+   evidence; classify every drift as a code fix or the Figma-gap protocol above.
+4. Phase D — prove no migrated route can render a legacy visual path, record the
+   final Linear implementation/proof note, promote to production, and only then
+   move OPS-44 to Done.
+
+After each merged wave, run the guarded lifecycle `finish --execute` from the
+clean canonical `staging` worktree with the exact PR/branch/worktree arguments.
+The gate must verify merged SHA, clean task worktree and branch ownership before
+removing anything. Remote branches are deleted only as a separate reviewed
+publication action; never remove the preserved OPS-27 worktree or a dirty,
+unmerged task branch.

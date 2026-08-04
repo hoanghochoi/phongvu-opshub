@@ -98,12 +98,12 @@ class FifoHistorySearchBar extends StatelessWidget {
               children: [
                 AppStatusChip(
                   label: '$totalCount bản ghi',
-                  color: AppColors.info,
+                  color: AppColors.infoOf(context),
                 ),
                 if (hasFilter)
-                  const AppStatusChip(
+                  AppStatusChip(
                     label: 'Đang lọc',
-                    color: AppColors.warning,
+                    color: AppColors.warningOf(context),
                   ),
               ],
             ),

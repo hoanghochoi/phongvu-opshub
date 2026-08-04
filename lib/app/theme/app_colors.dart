@@ -171,6 +171,38 @@ class AppColors {
   static Color textMutedOf(BuildContext context) =>
       isDark(context) ? darkTextMuted : textMuted;
 
+  /// Context-aware neutral scale for feature screens that need a neutral
+  /// status/text token without leaking the Light-mode hex value into Dark.
+  static Color neutral900Of(BuildContext context) =>
+      isDark(context) ? darkTextPrimary : neutral900;
+
+  static Color neutral800Of(BuildContext context) =>
+      isDark(context) ? darkTextPrimary : neutral800;
+
+  static Color neutral700Of(BuildContext context) =>
+      isDark(context) ? darkTextSecondary : neutral700;
+
+  static Color neutral600Of(BuildContext context) =>
+      isDark(context) ? darkTextSecondary : neutral600;
+
+  static Color neutral500Of(BuildContext context) =>
+      isDark(context) ? darkTextMuted : neutral500;
+
+  static Color neutral400Of(BuildContext context) =>
+      isDark(context) ? darkTextMuted : neutral400;
+
+  static Color neutral300Of(BuildContext context) =>
+      isDark(context) ? darkBorder : neutral300;
+
+  static Color neutral200Of(BuildContext context) =>
+      isDark(context) ? darkDivider : neutral200;
+
+  static Color neutral100Of(BuildContext context) =>
+      isDark(context) ? darkNeutral100 : neutral100;
+
+  static Color neutral50Of(BuildContext context) =>
+      isDark(context) ? darkSurface : neutral50;
+
   static Color borderOf(BuildContext context) =>
       isDark(context) ? darkBorder : border;
 
@@ -258,4 +290,25 @@ class AppColors {
 
   static Color speakerOffSurfaceOf(BuildContext context) =>
       isDark(context) ? darkSpeakerOffSurface : speakerOffSurface;
+
+  /// Adapts a base token passed through shared components to its Dark semantic
+  /// counterpart. Explicit context-aware tokens remain unchanged.
+  static Color adaptOf(BuildContext context, Color color) {
+    if (!isDark(context)) return color;
+    return switch (color) {
+      primary || primary400 || primary500 || primary600 => darkPrimary,
+      secondary => darkSecondary,
+      info => darkInfo,
+      success => darkSuccess,
+      warning => darkWarning,
+      error => darkError,
+      accent => darkAccent,
+      neutral900 || neutral800 => darkTextPrimary,
+      neutral700 || neutral600 => darkTextSecondary,
+      neutral500 || neutral400 => darkTextMuted,
+      neutral300 || neutral200 => darkBorder,
+      neutral100 || neutral50 => darkNeutral100,
+      _ => color,
+    };
+  }
 }

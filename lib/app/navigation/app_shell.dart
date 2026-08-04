@@ -894,7 +894,11 @@ class _MobileNavigationDrawer extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 18),
               child: Row(
                 children: [
-                  const AppLogo(size: 42, borderRadius: AppRadius.md),
+                  AppLogo(
+                    size: 44,
+                    borderRadius: AppRadius.md,
+                    strokeColor: AppColors.sidebarTextOf(context),
+                  ),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Column(
@@ -1064,29 +1068,11 @@ class _DesktopSidebar extends StatelessWidget {
                   child: Row(
                     key: const ValueKey('desktop-sidebar-brand'),
                     children: [
-                      SizedBox(
-                        width: 56,
-                        height: 56,
-                        child: Stack(
-                          fit: StackFit.expand,
-                          children: [
-                            const AppLogo(
-                              key: ValueKey('desktop-sidebar-logo'),
-                              size: 56,
-                              borderRadius: 12,
-                            ),
-                            IgnorePointer(
-                              child: DecoratedBox(
-                                decoration: BoxDecoration(
-                                  border: Border.all(
-                                    color: AppColors.sidebarTextOf(context),
-                                  ),
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
+                      AppLogo(
+                        key: const ValueKey('desktop-sidebar-logo'),
+                        size: 56,
+                        borderRadius: 12,
+                        strokeColor: AppColors.sidebarTextOf(context),
                       ),
                       const SizedBox(width: 8),
                       Expanded(
@@ -1259,9 +1245,13 @@ class _TabletRail extends StatelessWidget {
       child: SafeArea(
         child: Column(
           children: [
-            const Padding(
+            Padding(
               padding: EdgeInsets.symmetric(vertical: 16),
-              child: AppLogo(size: 44, borderRadius: AppRadius.md),
+              child: AppLogo(
+                size: 44,
+                borderRadius: AppRadius.md,
+                strokeColor: AppColors.sidebarTextOf(context),
+              ),
             ),
             Expanded(
               child: ListView.separated(

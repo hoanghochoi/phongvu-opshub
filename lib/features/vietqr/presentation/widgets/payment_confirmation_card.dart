@@ -18,7 +18,9 @@ class PaymentConfirmationCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final confirmed = confirmation.confirmed;
-    final color = confirmed ? AppColors.success : AppColors.warning;
+    final color = confirmed
+        ? AppColors.successOf(context)
+        : AppColors.warningOf(context);
     final title = confirmed
         ? 'Đã xác nhận thanh toán'
         : _statusTitle(confirmation.reason);

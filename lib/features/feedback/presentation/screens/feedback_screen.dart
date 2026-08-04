@@ -69,7 +69,7 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
     if (mounted) {
       _showSnackBar(
         'Mỗi góp ý đính kèm tối đa $_maxImages ảnh.',
-        color: AppColors.warning,
+        color: AppColors.warningOf(context),
       );
     }
     return false;
@@ -100,7 +100,7 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
       if (truncated > 0 && mounted) {
         _showSnackBar(
           'Đã giữ $_maxImages ảnh đầu tiên theo giới hạn hệ thống.',
-          color: AppColors.warning,
+          color: AppColors.warningOf(context),
         );
       }
     } catch (error, stackTrace) {
@@ -113,7 +113,7 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
       if (mounted) {
         _showSnackBar(
           'Chưa chọn được ảnh. Vui lòng thử lại.',
-          color: AppColors.error,
+          color: AppColors.errorOf(context),
         );
       }
     }
@@ -140,7 +140,7 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
       if (mounted) {
         _showSnackBar(
           'Chưa chụp được ảnh. Vui lòng thử lại.',
-          color: AppColors.error,
+          color: AppColors.errorOf(context),
         );
       }
     }
@@ -250,7 +250,7 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
         if (!mounted) return;
         _showSnackBar(
           'Đã gửi góp ý. Cảm ơn bạn đã giúp OpsHub tốt hơn!',
-          color: AppColors.success,
+          color: AppColors.successOf(context),
         );
         _functionController.clear();
         _descriptionController.clear();
@@ -271,7 +271,7 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
       if (mounted) {
         _showSnackBar(
           'Chưa gửi được góp ý. Vui lòng thử lại.',
-          color: AppColors.error,
+          color: AppColors.errorOf(context),
         );
       }
     } catch (error, stackTrace) {
@@ -289,7 +289,7 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
       if (mounted) {
         _showSnackBar(
           'Chưa gửi được góp ý. Kiểm tra kết nối rồi thử lại.',
-          color: AppColors.error,
+          color: AppColors.errorOf(context),
         );
       }
     } finally {
@@ -388,18 +388,22 @@ class _FeedbackHeader extends StatelessWidget {
     final chips = <Widget>[
       AppStatusChip(
         label: isSubmitting ? 'Đang gửi' : 'Sẵn sàng gửi',
-        color: isSubmitting ? AppColors.warning : AppColors.info,
-        backgroundColor: AppColors.infoSurface,
+        color: isSubmitting
+            ? AppColors.warningOf(context)
+            : AppColors.infoOf(context),
+        backgroundColor: AppColors.infoSurfaceOf(context),
       ),
       AppStatusChip(
         label: '$imageCount/$maxImages ảnh',
-        color: imageCount >= maxImages ? AppColors.warning : AppColors.info,
-        backgroundColor: AppColors.infoSurface,
+        color: imageCount >= maxImages
+            ? AppColors.warningOf(context)
+            : AppColors.infoOf(context),
+        backgroundColor: AppColors.infoSurfaceOf(context),
       ),
-      const AppStatusChip(
+      AppStatusChip(
         label: 'Tối đa 20 ảnh',
-        color: AppColors.info,
-        backgroundColor: AppColors.infoSurface,
+        color: AppColors.infoOf(context),
+        backgroundColor: AppColors.infoSurfaceOf(context),
       ),
     ];
     return Column(
@@ -923,7 +927,7 @@ class _FeedbackImageSlot extends StatelessWidget {
                   child: Material(
                     color: enabled
                         ? AppColors.errorOf(context)
-                        : AppColors.neutral400,
+                        : AppColors.textMutedOf(context),
                     shape: const CircleBorder(),
                     child: InkWell(
                       onTap: enabled ? onRemove : null,

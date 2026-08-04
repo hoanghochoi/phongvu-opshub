@@ -512,7 +512,7 @@ class _VietQrScreenState extends State<VietQrScreen>
           context,
           SnackBar(
             content: Text('Chưa tạo được mã QR. Vui lòng thử lại.'),
-            backgroundColor: AppColors.error,
+            backgroundColor: AppColors.errorOf(context),
           ),
         );
       }
@@ -845,9 +845,9 @@ class _VietQrScreenState extends State<VietQrScreen>
         _hasShownPaymentReceived = true;
         AppToast.show(
           context,
-          const SnackBar(
+          SnackBar(
             content: Text('Đã nhận thanh toán'),
-            backgroundColor: AppColors.success,
+            backgroundColor: AppColors.successOf(context),
           ),
         );
       } else if (showFeedback) {
@@ -870,7 +870,7 @@ class _VietQrScreenState extends State<VietQrScreen>
             context,
             SnackBar(
               content: Text('Chưa kiểm tra được thanh toán. Vui lòng thử lại.'),
-              backgroundColor: AppColors.error,
+              backgroundColor: AppColors.errorOf(context),
             ),
           );
         }
@@ -1112,9 +1112,9 @@ class _VietQrScreenState extends State<VietQrScreen>
     if (shouldShowSnack && mounted) {
       AppToast.show(
         context,
-        const SnackBar(
+        SnackBar(
           content: Text('Đã nhận thanh toán'),
-          backgroundColor: AppColors.success,
+          backgroundColor: AppColors.successOf(context),
         ),
       );
     }
@@ -1283,7 +1283,7 @@ class _VietQrScreenState extends State<VietQrScreen>
           context,
           SnackBar(
             content: Text('Chưa quét được mã đơn. Vui lòng thử lại.'),
-            backgroundColor: AppColors.error,
+            backgroundColor: AppColors.errorOf(context),
           ),
         );
       }
@@ -1363,7 +1363,7 @@ class _VietQrScreenState extends State<VietQrScreen>
           context,
           SnackBar(
             content: Text('Chưa lưu được ảnh QR. Vui lòng thử lại.'),
-            backgroundColor: AppColors.error,
+            backgroundColor: AppColors.errorOf(context),
           ),
         );
       }
@@ -1723,13 +1723,13 @@ class _VietQrScreenState extends State<VietQrScreen>
                     vertical: 4,
                   ),
                   decoration: BoxDecoration(
-                    color: AppColors.primary500.withValues(alpha: 0.10),
+                    color: AppColors.primaryOf(context).withValues(alpha: 0.10),
                     borderRadius: BorderRadius.circular(AppRadius.pill),
                   ),
                   child: Text(
                     '$historyCount',
                     style: AppTextStyles.labelM.copyWith(
-                      color: AppColors.primary500,
+                      color: AppColors.primaryOf(context),
                     ),
                   ),
                 ),
@@ -1738,7 +1738,9 @@ class _VietQrScreenState extends State<VietQrScreen>
           const SizedBox(height: 8),
           Text(
             'Chạm vào mã còn hạn để xem lại QR. Mã hết hạn vẫn hiển thị trạng thái để đối chiếu.',
-            style: AppTextStyles.bodyM.copyWith(color: AppColors.neutral500),
+            style: AppTextStyles.bodyM.copyWith(
+              color: AppColors.neutral500Of(context),
+            ),
           ),
           const SizedBox(height: 16),
           if (_isHistoryLoading)
@@ -1805,10 +1807,10 @@ class _VietQrScreenState extends State<VietQrScreen>
     return AppSurfaceCard(
       onTap: canOpen ? () => _selectHistoryEntry(entry) : null,
       backgroundColor: canOpen
-          ? AppColors.primary500.withValues(alpha: 0.06)
+          ? AppColors.primaryOf(context).withValues(alpha: 0.10)
           : null,
       borderColor: canOpen
-          ? AppColors.primary500.withValues(alpha: 0.18)
+          ? AppColors.primaryOf(context).withValues(alpha: 0.28)
           : null,
       child: LayoutBuilder(
         builder: (context, constraints) {
@@ -1829,14 +1831,14 @@ class _VietQrScreenState extends State<VietQrScreen>
                 Text(
                   '$createdLabel • ${canOpen ? 'Còn hạn đến $expiryLabel' : 'Hết hạn lúc $expiryLabel'}',
                   style: AppTextStyles.bodyM.copyWith(
-                    color: AppColors.neutral500,
+                    color: AppColors.neutral500Of(context),
                   ),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   'Số tiền: $amountLabel',
                   style: AppTextStyles.bodyM.copyWith(
-                    color: AppColors.neutral500,
+                    color: AppColors.neutral500Of(context),
                   ),
                 ),
               ],
@@ -1880,9 +1882,9 @@ class _VietQrScreenState extends State<VietQrScreen>
                     ),
                     if (canOpen) ...[
                       const SizedBox(width: 8),
-                      const Icon(
+                      Icon(
                         Icons.chevron_right_rounded,
-                        color: AppColors.primary500,
+                        color: AppColors.primaryOf(context),
                       ),
                     ],
                   ],
@@ -1898,9 +1900,9 @@ class _VietQrScreenState extends State<VietQrScreen>
               _buildStatusChip(context, statusLabel, statusTone),
               if (canOpen) ...[
                 const SizedBox(width: 8),
-                const Icon(
+                Icon(
                   Icons.chevron_right_rounded,
-                  color: AppColors.primary500,
+                  color: AppColors.primaryOf(context),
                 ),
               ],
             ],

@@ -244,12 +244,12 @@ class _InventoryImportHeader extends StatelessWidget {
         ? 'Chưa chọn file'
         : 'Sẵn sàng cập nhật';
     final statusColor = isUploading
-        ? AppColors.info
+        ? AppColors.infoOf(context)
         : hasResult
-        ? AppColors.success
+        ? AppColors.successOf(context)
         : selectedFile == null
-        ? AppColors.warning
-        : AppColors.primary;
+        ? AppColors.warningOf(context)
+        : AppColors.primaryOf(context);
 
     return Column(
       key: const Key('inventory-import-header'),
@@ -260,7 +260,7 @@ class _InventoryImportHeader extends StatelessWidget {
         Text(
           'Nhập file tồn kho vật lý để bổ sung dữ liệu FIFO thủ công.',
           style: AppTextStyles.bodyM.copyWith(
-            color: AppColors.neutral600,
+            color: AppColors.textMutedOf(context),
             height: 1.35,
           ),
         ),
@@ -274,15 +274,15 @@ class _InventoryImportHeader extends StatelessWidget {
               color: statusColor,
               backgroundColor: statusColor.withValues(alpha: 0.10),
             ),
-            const AppStatusChip(
+            AppStatusChip(
               label: 'Excel .xlsx/.xls',
-              color: AppColors.info,
-              backgroundColor: AppColors.infoSurface,
+              color: AppColors.infoOf(context),
+              backgroundColor: AppColors.infoSurfaceOf(context),
             ),
-            const AppStatusChip(
+            AppStatusChip(
               label: 'Không ghi đè trạng thái xuất',
-              color: AppColors.success,
-              backgroundColor: AppColors.successSurface,
+              color: AppColors.successOf(context),
+              backgroundColor: AppColors.successSurfaceOf(context),
             ),
           ],
         ),
@@ -314,7 +314,10 @@ class _UploadPanel extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Icon(Icons.table_chart_outlined, color: AppColors.info),
+              Icon(
+                Icons.table_chart_outlined,
+                color: AppColors.infoOf(context),
+              ),
               const SizedBox(width: AppLayoutTokens.formInlineGap),
               Expanded(
                 child: Column(
@@ -328,8 +331,8 @@ class _UploadPanel extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: AppTextStyles.bodyM.copyWith(
                         color: file == null
-                            ? AppColors.neutral500
-                            : AppColors.neutral800,
+                            ? AppColors.textMutedOf(context)
+                            : AppColors.textPrimaryOf(context),
                       ),
                     ),
                     if (file != null) ...[
@@ -341,12 +344,12 @@ class _UploadPanel extends StatelessWidget {
                           AppInfoChip(
                             Icons.insert_drive_file_outlined,
                             _extensionOf(file!.name).toUpperCase(),
-                            color: AppColors.info,
+                            color: AppColors.infoOf(context),
                           ),
                           AppInfoChip(
                             Icons.data_usage_rounded,
                             _formatFileSize(file!.size),
-                            color: AppColors.neutral600,
+                            color: AppColors.textMutedOf(context),
                           ),
                         ],
                       ),
@@ -394,8 +397,8 @@ class _ImportErrorPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     return AppSurfaceCard(
       key: const Key('inventory-import-error-panel'),
-      borderColor: AppColors.error.withValues(alpha: 0.24),
-      backgroundColor: AppColors.errorSurface,
+      borderColor: AppColors.errorOf(context).withValues(alpha: 0.36),
+      backgroundColor: AppColors.errorSurfaceOf(context),
       child: AppStatePanel.error(
         title: message,
         message: 'Kiểm tra lại mẫu file hoặc thử cập nhật lại.',
@@ -422,7 +425,7 @@ class _ResultPanel extends StatelessWidget {
         children: [
           Row(
             children: [
-              const Icon(Icons.task_alt_rounded, color: AppColors.success),
+              Icon(Icons.task_alt_rounded, color: AppColors.successOf(context)),
               const SizedBox(width: AppLayoutTokens.formInlineGap),
               Expanded(
                 child: Text(
@@ -449,8 +452,8 @@ class _ResultPanel extends StatelessWidget {
                 for (final code in result.srCodes)
                   AppStatusChip(
                     label: code,
-                    color: AppColors.primary,
-                    backgroundColor: AppColors.primarySurface,
+                    color: AppColors.primaryOf(context),
+                    backgroundColor: AppColors.primarySurfaceOf(context),
                   ),
               ],
             ),
@@ -472,25 +475,25 @@ class _ResultMetrics extends StatelessWidget {
         label: 'Tổng dòng',
         value: '${result.totalRows}',
         icon: Icons.format_list_numbered_rounded,
-        color: AppColors.neutral700,
+        color: AppColors.textSecondaryOf(context),
       ),
       _MetricData(
         label: 'Dòng hợp lệ',
         value: '${result.importedRows}',
         icon: Icons.check_circle_outline_rounded,
-        color: AppColors.success,
+        color: AppColors.successOf(context),
       ),
       _MetricData(
         label: 'Dòng bỏ qua',
         value: '${result.skippedRows}',
         icon: Icons.skip_next_outlined,
-        color: AppColors.warning,
+        color: AppColors.warningOf(context),
       ),
       _MetricData(
         label: 'Dòng ngừng active',
         value: '${result.deactivatedRows}',
         icon: Icons.inventory_rounded,
-        color: AppColors.info,
+        color: AppColors.infoOf(context),
       ),
     ];
 
@@ -542,7 +545,7 @@ class _MetricTile extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     softWrap: false,
                     style: AppTextStyles.labelS.copyWith(
-                      color: AppColors.neutral600,
+                      color: AppColors.textMutedOf(context),
                     ),
                   ),
                 ],

@@ -86,8 +86,8 @@ class _PaymentMonitorScreenState extends State<PaymentMonitorScreen> {
                               ? Icons.volume_up_rounded
                               : Icons.volume_off_rounded,
                           color: monitor.isSpeakerEnabled
-                              ? AppColors.success
-                              : AppColors.neutral500,
+                              ? AppColors.successOf(context)
+                              : AppColors.neutral500Of(context),
                         ),
                         const SizedBox(width: 10),
                         Expanded(
@@ -145,9 +145,9 @@ class _PaymentMonitorScreenState extends State<PaymentMonitorScreen> {
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Icon(
+                        Icon(
                           Icons.volume_off_rounded,
-                          color: AppColors.warning,
+                          color: AppColors.warningOf(context),
                         ),
                         const SizedBox(width: 10),
                         Expanded(
@@ -405,7 +405,9 @@ class _SyncStatusPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = monitor.isActive ? AppColors.success : AppColors.neutral500;
+    final color = monitor.isActive
+        ? AppColors.successOf(context)
+        : AppColors.neutral500Of(context);
     final baseLabel = monitor.isLoading
         ? 'Đang cập nhật giao dịch'
         : monitor.isActive
@@ -438,19 +440,21 @@ class _SpeakerPowerWarning extends StatelessWidget {
   Widget build(BuildContext context) {
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: AppColors.warningSurface.withValues(alpha: 0.56),
+        color: AppColors.warningSurfaceOf(context).withValues(alpha: 0.56),
         borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
-        border: Border.all(color: AppColors.warning.withValues(alpha: 0.22)),
+        border: Border.all(
+          color: AppColors.warningOf(context).withValues(alpha: 0.22),
+        ),
       ),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Icon(
+            Icon(
               Icons.power_settings_new_rounded,
               size: 18,
-              color: AppColors.warning,
+              color: AppColors.warningOf(context),
             ),
             const SizedBox(width: 8),
             Expanded(
@@ -681,15 +685,15 @@ class _SpeakerErrorCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return AppSurfaceCard(
       padding: const EdgeInsets.all(14),
-      backgroundColor: AppColors.error.withValues(alpha: 0.08),
-      borderColor: AppColors.error.withValues(alpha: 0.20),
+      backgroundColor: AppColors.errorSurfaceOf(context),
+      borderColor: AppColors.errorOf(context).withValues(alpha: 0.32),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Icon(Icons.volume_off_rounded, color: AppColors.error),
+              Icon(Icons.volume_off_rounded, color: AppColors.errorOf(context)),
               const SizedBox(width: 10),
               Expanded(
                 child: Column(
@@ -701,7 +705,7 @@ class _SpeakerErrorCard extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       softWrap: false,
                       style: AppTextStyles.labelM.copyWith(
-                        color: AppColors.error,
+                        color: AppColors.errorOf(context),
                       ),
                     ),
                     const SizedBox(height: 4),
@@ -751,7 +755,7 @@ class _EmptyTransactions extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
                 textAlign: TextAlign.center,
                 style: AppTextStyles.labelM.copyWith(
-                  color: AppColors.neutral500,
+                  color: AppColors.neutral500Of(context),
                 ),
               ),
             ),

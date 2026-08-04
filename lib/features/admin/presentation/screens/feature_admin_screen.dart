@@ -489,11 +489,11 @@ class _FeatureAdminScreenState extends State<FeatureAdminScreen>
             color: AppColors.transparent,
             child: TabBar(
               controller: _tabController,
-              labelColor: AppColors.primary,
+              labelColor: AppColors.primaryOf(context),
               unselectedLabelColor: Theme.of(
                 context,
               ).colorScheme.onSurfaceVariant,
-              indicatorColor: AppColors.primary,
+              indicatorColor: AppColors.primaryOf(context),
               dividerColor: Theme.of(context).dividerColor,
               tabs: const [
                 Tab(text: 'Tính năng'),
@@ -630,7 +630,9 @@ class _FeatureCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = feature.isActive ? AppColors.info : AppColors.neutral500;
+    final color = feature.isActive
+        ? AppColors.infoOf(context)
+        : AppColors.neutral500Of(context);
     return AppSurfaceCard(
       padding: const EdgeInsets.all(14),
       child: Row(
@@ -671,8 +673,8 @@ class _FeatureCard extends StatelessWidget {
                   '${feature.isActive ? 'Đang bật' : 'Đang tắt'}${feature.isSystem ? ' • hệ thống' : ''}',
                   style: AppTextStyles.labelS.copyWith(
                     color: feature.isActive
-                        ? AppColors.success
-                        : AppColors.error,
+                        ? AppColors.successOf(context)
+                        : AppColors.errorOf(context),
                   ),
                 ),
               ],
@@ -816,7 +818,9 @@ class _NodeAssignmentCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = assignment.enabled ? AppColors.success : AppColors.error;
+    final color = assignment.enabled
+        ? AppColors.successOf(context)
+        : AppColors.errorOf(context);
     final typeTitle = AdminOrganizationNodeTypes.titleOf(assignment.nodeType);
     final scope = assignment.scopeRootNodeName ?? assignment.scopeRootNodeId;
     return AppSurfaceCard(
@@ -988,7 +992,9 @@ class _RuleCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = rule.enabled ? AppColors.success : AppColors.error;
+    final color = rule.enabled
+        ? AppColors.successOf(context)
+        : AppColors.errorOf(context);
     return AppSurfaceCard(
       padding: const EdgeInsets.all(14),
       child: Row(

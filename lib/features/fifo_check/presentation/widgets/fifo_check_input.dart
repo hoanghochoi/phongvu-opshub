@@ -54,7 +54,7 @@ class _FifoCheckInputState extends State<FifoCheckInput> {
             context,
             SnackBar(
               content: Text(fifoCheckProvider.error!),
-              backgroundColor: AppColors.error,
+              backgroundColor: AppColors.errorOf(context),
             ),
           );
           fifoCheckProvider.clearError();
@@ -66,7 +66,7 @@ class _FifoCheckInputState extends State<FifoCheckInput> {
           context,
           SnackBar(
             content: Text('Chưa quét được mã. Vui lòng thử lại.'),
-            backgroundColor: AppColors.error,
+            backgroundColor: AppColors.errorOf(context),
           ),
         );
       }
@@ -81,11 +81,11 @@ class _FifoCheckInputState extends State<FifoCheckInput> {
     if (!Validators.isValidFifoCheckInput(input)) {
       AppToast.show(
         context,
-        const SnackBar(
+        SnackBar(
           content: Text(
             'Nội dung chưa đúng. Nhập SKU, SKU + số lượng, hoặc serial.\nVí dụ: ABC123 hoặc ABC123 10',
           ),
-          backgroundColor: AppColors.warning,
+          backgroundColor: AppColors.warningOf(context),
         ),
       );
       return;
@@ -105,7 +105,7 @@ class _FifoCheckInputState extends State<FifoCheckInput> {
         context,
         SnackBar(
           content: Text(fifoCheckProvider.error!),
-          backgroundColor: AppColors.error,
+          backgroundColor: AppColors.errorOf(context),
         ),
       );
       fifoCheckProvider.clearError();

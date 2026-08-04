@@ -117,6 +117,11 @@ class AppFeatureTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final actionColor = AppColors.adaptOf(context, action.color);
+    final iconColor = AppColors.adaptOf(
+      context,
+      action.iconColor ?? actionColor,
+    );
     return Semantics(
       button: true,
       enabled: action.onTap != null,
@@ -146,11 +151,7 @@ class AppFeatureTile extends StatelessWidget {
                         AppColors.infoSurfaceOf(context),
                     borderRadius: AppRadius.allMd,
                   ),
-                  child: Icon(
-                    action.icon,
-                    color: action.iconColor ?? action.color,
-                    size: 24,
-                  ),
+                  child: Icon(action.icon, color: iconColor, size: 24),
                 ),
                 const SizedBox(width: 12),
                 Expanded(

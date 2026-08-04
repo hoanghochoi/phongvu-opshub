@@ -34,18 +34,18 @@ class PaymentDeliveryMetricsChip extends StatelessWidget {
     final deltaMs = metrics?.deltaMs;
     final trend = metrics?.trend ?? PaymentDeliveryMetricTrend.unknown;
     final statusColor = hasError && metrics == null
-        ? AppColors.error
+        ? AppColors.errorOf(context)
         : AppColors.textPrimaryOf(context);
     final trendColor = hasError && metrics == null
-        ? AppColors.error
+        ? AppColors.errorOf(context)
         : _trendColor(context, trend);
     final pillBackgroundColor = hasError && metrics == null
-        ? AppColors.error.withValues(alpha: 0.12)
+        ? AppColors.errorOf(context).withValues(alpha: 0.12)
         : statusColor.withValues(
             alpha: AppColors.isDark(context) ? 0.18 : 0.08,
           );
     final pillBorderColor = hasError && metrics == null
-        ? AppColors.error.withValues(alpha: 0.28)
+        ? AppColors.errorOf(context).withValues(alpha: 0.28)
         : statusColor.withValues(
             alpha: AppColors.isDark(context) ? 0.28 : 0.14,
           );
@@ -282,8 +282,8 @@ class PaymentDeliveryMetricsChip extends StatelessWidget {
 
   Color _trendColor(BuildContext context, PaymentDeliveryMetricTrend trend) {
     return switch (trend) {
-      PaymentDeliveryMetricTrend.down => AppColors.success,
-      PaymentDeliveryMetricTrend.up => AppColors.warning,
+      PaymentDeliveryMetricTrend.down => AppColors.successOf(context),
+      PaymentDeliveryMetricTrend.up => AppColors.warningOf(context),
       PaymentDeliveryMetricTrend.flat => AppColors.textSecondaryOf(context),
       PaymentDeliveryMetricTrend.unknown => AppColors.textSecondaryOf(context),
     };
@@ -378,17 +378,17 @@ class _PaymentDeliveryHistoryContent extends StatelessWidget {
     return Column(
       children: [
         if (provider.isHistoryLoading)
-          const _HistoryInlineNotice(
+          _HistoryInlineNotice(
             icon: Icons.sync_rounded,
             text: 'Đang cập nhật lịch sử...',
-            color: AppColors.info,
+            color: AppColors.infoOf(context),
           )
         else if (provider.historyErrorMessage != null)
-          const _HistoryInlineNotice(
+          _HistoryInlineNotice(
             icon: Icons.error_outline_rounded,
             text:
                 'Chưa cập nhật được lịch sử mới. Đang hiển thị dữ liệu gần nhất.',
-            color: AppColors.warning,
+            color: AppColors.warningOf(context),
           ),
         Expanded(
           child: ListView.separated(
@@ -415,7 +415,7 @@ class _HistoryItemTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final statusText = _statusText(item.status);
-    final statusColor = _statusColor(item);
+    final statusColor = _statusColor(context, item);
     final errorText = _errorText(item);
 
     return DecoratedBox(
@@ -463,7 +463,7 @@ class _HistoryItemTile extends StatelessWidget {
                 SelectableText(
                   '${_moneyFormat.format(item.amount)}đ',
                   style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                    color: AppColors.success,
+                    color: AppColors.successOf(context),
                     fontWeight: FontWeight.w700,
                   ),
                 ),
@@ -510,7 +510,7 @@ class _HistoryItemTile extends StatelessWidget {
               SelectableText(
                 errorText,
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: AppColors.error,
+                  color: AppColors.errorOf(context),
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -537,14 +537,20 @@ class _HistoryItemTile extends StatelessWidget {
     };
   }
 
-  Color _statusColor(PaymentDeliveryHistoryItem item) {
+  Color _statusColor(BuildContext context, PaymentDeliveryHistoryItem item) {
     if (item.status.toUpperCase() == 'PLAYED' && !item.hasError) {
-      return AppColors.success;
+      return AppColors.successOf(context);
     }
-    if (item.status.toUpperCase() == 'STREAM_STARTED') return AppColors.info;
-    if (item.status.toUpperCase() == 'SILENCED') return AppColors.neutral500;
-    if (item.status.toUpperCase() == 'PLAYED') return AppColors.warning;
-    return AppColors.error;
+    if (item.status.toUpperCase() == 'STREAM_STARTED') {
+      return AppColors.infoOf(context);
+    }
+    if (item.status.toUpperCase() == 'SILENCED') {
+      return AppColors.neutral500Of(context);
+    }
+    if (item.status.toUpperCase() == 'PLAYED') {
+      return AppColors.warningOf(context);
+    }
+    return AppColors.errorOf(context);
   }
 
   String? _errorText(PaymentDeliveryHistoryItem item) {

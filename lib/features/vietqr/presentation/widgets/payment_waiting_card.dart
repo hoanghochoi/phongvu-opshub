@@ -10,7 +10,7 @@ class PaymentWaitingCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const color = AppColors.primary600;
+    final color = AppColors.primaryOf(context);
 
     return AppSurfaceCard(
       backgroundColor: color.withValues(alpha: 0.08),
@@ -22,7 +22,7 @@ class PaymentWaitingCard extends StatelessWidget {
             dimension: 24,
             child: isChecking
                 ? const CircularProgressIndicator(strokeWidth: 2.4)
-                : const Icon(Icons.sync_rounded, color: color),
+                : Icon(Icons.sync_rounded, color: color),
           ),
           const SizedBox(width: 10),
           Expanded(
@@ -34,7 +34,7 @@ class PaymentWaitingCard extends StatelessWidget {
                   style: AppTextStyles.labelM.copyWith(color: color),
                 ),
                 const SizedBox(height: 4),
-                const Text(
+                Text(
                   'Màn hình sẽ tự đổi trạng thái khi tìm thấy giao dịch khớp.',
                   style: AppTextStyles.bodyM,
                 ),

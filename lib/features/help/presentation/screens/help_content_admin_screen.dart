@@ -876,9 +876,9 @@ class _HelpContentPageListItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final statusColor = switch (page.visibility) {
-      HelpPageVisibility.draft => AppColors.warning,
-      HelpPageVisibility.public => AppColors.success,
-      HelpPageVisibility.private => AppColors.info,
+      HelpPageVisibility.draft => AppColors.warningOf(context),
+      HelpPageVisibility.public => AppColors.successOf(context),
+      HelpPageVisibility.private => AppColors.infoOf(context),
     };
     final statusIcon = switch (page.visibility) {
       HelpPageVisibility.draft => Icons.edit_note_outlined,
@@ -887,10 +887,10 @@ class _HelpContentPageListItem extends StatelessWidget {
     };
 
     final borderColor = selected
-        ? AppColors.primary.withValues(alpha: 0.30)
+        ? AppColors.primaryOf(context).withValues(alpha: 0.30)
         : AppColors.borderOf(context);
     final backgroundColor = selected
-        ? AppColors.primary.withValues(alpha: 0.06)
+        ? AppColors.primaryOf(context).withValues(alpha: 0.10)
         : AppColors.cardOf(context);
 
     return InkWell(
@@ -1104,10 +1104,10 @@ class _HelpContentEditorCard extends StatelessWidget {
             ),
             DecoratedBox(
               decoration: BoxDecoration(
-                color: AppColors.info.withValues(alpha: 0.06),
+                color: AppColors.infoSurfaceOf(context),
                 borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
                 border: Border.all(
-                  color: AppColors.info.withValues(alpha: 0.18),
+                  color: AppColors.infoOf(context).withValues(alpha: 0.28),
                 ),
               ),
               child: Padding(
@@ -1172,18 +1172,18 @@ class _HelpContentMetaWrap extends StatelessWidget {
         if (page.updatedByEmail != null)
           AppStatusChip(
             label: 'Cập nhật bởi ${page.updatedByEmail}',
-            color: AppColors.info,
+            color: AppColors.infoOf(context),
           ),
         if (page.updatedAt != null)
           AppStatusChip(
             label:
                 'Lưu lúc ${DateFormat('HH:mm dd/MM').format(page.updatedAt!.toLocal())}',
-            color: AppColors.neutral700,
+            color: AppColors.neutral700Of(context),
           ),
         if (page.seededFromDocsAt != null)
           AppStatusChip(
             label: 'Có seed từ docs/help',
-            color: AppColors.secondary,
+            color: AppColors.secondaryOf(context),
           ),
       ],
     );

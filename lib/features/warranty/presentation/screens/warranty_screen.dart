@@ -77,7 +77,7 @@ class _WarrantyScreenState extends State<WarrantyScreen> {
     if (mounted) {
       _showSnackBar(
         'Mỗi biên nhận đính kèm tối đa $_maxImages ảnh.',
-        AppColors.warning,
+        AppColors.warningOf(context),
       );
     }
     return false;
@@ -110,7 +110,7 @@ class _WarrantyScreenState extends State<WarrantyScreen> {
           if (truncated > 0 && mounted) {
             _showSnackBar(
               'Đã giữ $_maxImages ảnh đầu tiên theo giới hạn hệ thống.',
-              AppColors.warning,
+              AppColors.warningOf(context),
             );
           }
         }
@@ -140,7 +140,10 @@ class _WarrantyScreenState extends State<WarrantyScreen> {
         },
       );
       if (mounted) {
-        _showSnackBar('Chưa thêm được ảnh. Vui lòng thử lại.', AppColors.error);
+        _showSnackBar(
+          'Chưa thêm được ảnh. Vui lòng thử lại.',
+          AppColors.errorOf(context),
+        );
       }
     }
   }
@@ -158,7 +161,7 @@ class _WarrantyScreenState extends State<WarrantyScreen> {
           context,
           SnackBar(
             content: Text('Chưa quét được mã. Vui lòng thử lại.'),
-            backgroundColor: AppColors.error,
+            backgroundColor: AppColors.errorOf(context),
           ),
         );
       }
@@ -211,7 +214,10 @@ class _WarrantyScreenState extends State<WarrantyScreen> {
     if (!(_formKey.currentState?.validate() ?? false)) return;
 
     if (_images.isEmpty) {
-      _showSnackBar('Vui lòng chọn ít nhất 1 hình ảnh', AppColors.warning);
+      _showSnackBar(
+        'Vui lòng chọn ít nhất 1 hình ảnh',
+        AppColors.warningOf(context),
+      );
       return;
     }
 
@@ -221,9 +227,10 @@ class _WarrantyScreenState extends State<WarrantyScreen> {
         'Warranty save blocked by image limit',
         context: {'imageCount': _images.length, 'maxImages': _maxImages},
       );
+      if (!mounted) return;
       _showSnackBar(
         'Mỗi biên nhận đính kèm tối đa $_maxImages ảnh.',
-        AppColors.warning,
+        AppColors.warningOf(context),
       );
       return;
     }
@@ -235,9 +242,9 @@ class _WarrantyScreenState extends State<WarrantyScreen> {
     if (userEmail.isEmpty) {
       AppToast.show(
         context,
-        const SnackBar(
+        SnackBar(
           content: Text('Bạn cần đăng nhập lại để lưu biên nhận.'),
-          backgroundColor: AppColors.error,
+          backgroundColor: AppColors.errorOf(context),
         ),
       );
       return;
@@ -259,9 +266,9 @@ class _WarrantyScreenState extends State<WarrantyScreen> {
           context: context,
           barrierDismissible: true,
           builder: (context) => AlertDialog(
-            icon: const Icon(
+            icon: Icon(
               Icons.check_circle,
-              color: AppColors.success,
+              color: AppColors.successOf(context),
               size: 64,
             ),
             title: const Text('Đã lưu biên nhận'),
@@ -286,7 +293,11 @@ class _WarrantyScreenState extends State<WarrantyScreen> {
           context: context,
           barrierDismissible: true,
           builder: (context) => AlertDialog(
-            icon: const Icon(Icons.error, color: AppColors.error, size: 64),
+            icon: Icon(
+              Icons.error,
+              color: AppColors.errorOf(context),
+              size: 64,
+            ),
             title: const Text('Chưa lưu được biên nhận'),
             content: Text(
               warrantyProvider.errorMessage ??

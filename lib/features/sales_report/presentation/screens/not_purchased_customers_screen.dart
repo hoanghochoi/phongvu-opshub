@@ -845,10 +845,15 @@ class _PageHeader extends StatelessWidget {
             contactGracePeriodActive
                 ? 'Tạm hiển thị toàn bộ khách chưa mua${contactGracePeriodEndsAt == null ? '' : ' đến ${DateFormat('HH:mm dd/MM/yyyy').format(contactGracePeriodEndsAt!.toLocal())}'}'
                 : 'Theo dõi khách chưa mua có thông tin liên hệ hợp lệ.',
-            style: AppTextStyles.bodyS.copyWith(color: AppColors.neutral600),
+            style: AppTextStyles.bodyS.copyWith(
+              color: AppColors.neutral600Of(context),
+            ),
           ),
           const SizedBox(height: 10),
-          AppStatusChip(label: '$total hồ sơ', color: AppColors.info),
+          AppStatusChip(
+            label: '$total hồ sơ',
+            color: AppColors.infoOf(context),
+          ),
         ],
       );
       final actions = Wrap(
@@ -915,7 +920,7 @@ class _FollowUpCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final tone = _careColor(item.careAgeDays);
+    final tone = _careColor(context, item.careAgeDays);
     final contact = item.contactSummary;
     return AppSurfaceCard(
       onTap: onTap,
@@ -1360,12 +1365,15 @@ class _DialogHeader extends StatelessWidget {
           width: 44,
           height: 44,
           decoration: BoxDecoration(
-            color: _careColor(item.careAgeDays).withValues(alpha: 0.12),
+            color: _careColor(
+              context,
+              item.careAgeDays,
+            ).withValues(alpha: 0.12),
             borderRadius: BorderRadius.circular(12),
           ),
           child: Icon(
             Icons.person_search_rounded,
-            color: _careColor(item.careAgeDays),
+            color: _careColor(context, item.careAgeDays),
           ),
         ),
         const SizedBox(width: 12),
@@ -1386,7 +1394,7 @@ class _DialogHeader extends StatelessWidget {
                   child: Text(
                     '${item.contactSummary} • ${item.categoryNames.join(', ')}',
                     style: AppTextStyles.bodyS.copyWith(
-                      color: AppColors.primary,
+                      color: AppColors.primaryOf(context),
                       decoration: TextDecoration.underline,
                     ),
                     maxLines: 2,
@@ -1437,8 +1445,8 @@ class _FirstContactCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => AppSurfaceCard(
-    backgroundColor: AppColors.warning.withValues(alpha: 0.06),
-    borderColor: AppColors.warning.withValues(alpha: 0.24),
+    backgroundColor: AppColors.warningOf(context).withValues(alpha: 0.10),
+    borderColor: AppColors.warningOf(context).withValues(alpha: 0.28),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1512,7 +1520,7 @@ class _NewFollowUpCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => AppSurfaceCard(
-    borderColor: AppColors.primary.withValues(alpha: 0.32),
+    borderColor: AppColors.primaryOf(context).withValues(alpha: 0.32),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -1625,7 +1633,7 @@ class _InfoLine extends StatelessWidget {
     child: Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon, size: 17, color: AppColors.neutral600),
+        Icon(icon, size: 17, color: AppColors.neutral600Of(context)),
         const SizedBox(width: 7),
         Expanded(
           child: Text(
@@ -1761,10 +1769,10 @@ Future<void> _contactCustomer(
   }
 }
 
-Color _careColor(int days) => switch (days) {
-  <= 1 => AppColors.success,
-  <= 3 => AppColors.warning,
-  _ => AppColors.error,
+Color _careColor(BuildContext context, int days) => switch (days) {
+  <= 1 => AppColors.successOf(context),
+  <= 3 => AppColors.warningOf(context),
+  _ => AppColors.errorOf(context),
 };
 
 String _date(DateTime? value) => value == null

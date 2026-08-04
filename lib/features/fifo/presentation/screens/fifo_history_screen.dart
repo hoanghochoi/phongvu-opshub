@@ -449,7 +449,9 @@ class _FifoHistoryHeader extends StatelessWidget {
             const SizedBox(height: 4),
             Text(
               'Tra cứu lịch sử kiểm tra và sắp xếp FIFO theo người dùng.',
-              style: AppTextStyles.bodyM.copyWith(color: AppColors.neutral600),
+              style: AppTextStyles.bodyM.copyWith(
+                color: AppColors.neutral600Of(context),
+              ),
             ),
             const SizedBox(height: 10),
             Wrap(
@@ -458,7 +460,7 @@ class _FifoHistoryHeader extends StatelessWidget {
               children: [
                 AppStatusChip(
                   label: 'Kiểm tra $checkTotal',
-                  color: AppColors.info,
+                  color: AppColors.infoOf(context),
                 ),
                 AppStatusChip(
                   label: 'Sắp xếp $sortTotal',

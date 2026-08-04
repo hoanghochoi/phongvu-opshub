@@ -22,22 +22,24 @@ class PaymentSuccessPanel extends StatelessWidget {
     final payer = _payerLabel();
 
     return AppSurfaceCard(
-      backgroundColor: AppColors.success.withValues(alpha: 0.08),
-      borderColor: AppColors.success.withValues(alpha: 0.20),
+      backgroundColor: AppColors.successSurfaceOf(context),
+      borderColor: AppColors.successOf(context).withValues(alpha: 0.32),
       padding: const EdgeInsets.all(20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Icon(
+          Icon(
             Icons.check_circle_rounded,
-            color: AppColors.success,
+            color: AppColors.successOf(context),
             size: 92,
           ),
           const SizedBox(height: 10),
           Text(
             'Đã nhận thanh toán',
             textAlign: TextAlign.center,
-            style: AppTextStyles.headingM.copyWith(color: AppColors.success),
+            style: AppTextStyles.headingM.copyWith(
+              color: AppColors.successOf(context),
+            ),
           ),
           const SizedBox(height: AppLayoutTokens.formFieldGap),
           if (payer.isNotEmpty)

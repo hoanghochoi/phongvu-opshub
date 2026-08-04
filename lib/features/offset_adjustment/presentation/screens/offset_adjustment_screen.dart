@@ -904,7 +904,7 @@ class _OffsetCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final statusColor = _statusColor(item.status);
+    final statusColor = _statusColor(context, item.status);
     final submittedAt = item.submittedAt;
     final submittedText = submittedAt == null
         ? ''
@@ -948,7 +948,9 @@ class _OffsetCard extends StatelessWidget {
             const SizedBox(height: 6),
             Text(
               'Cần nhập Mã CT và xác nhận riêng.',
-              style: AppTextStyles.labelS.copyWith(color: AppColors.warning),
+              style: AppTextStyles.labelS.copyWith(
+                color: AppColors.warningOf(context),
+              ),
             ),
           ],
           const SizedBox(height: 6),
@@ -989,12 +991,12 @@ class _OffsetCard extends StatelessWidget {
               ),
               AppStatusChip(
                 label: OffsetAdjustmentType.label(item.type),
-                color: AppColors.info,
+                color: AppColors.infoOf(context),
               ),
               if (item.isSingleOrder && item.singleOrderReuseCount != null)
                 AppStatusChip(
                   label: '${item.singleOrderReuseCount} lần',
-                  color: AppColors.warning,
+                  color: AppColors.warningOf(context),
                 ),
             ],
           ),
@@ -1002,7 +1004,9 @@ class _OffsetCard extends StatelessWidget {
             const SizedBox(height: 8),
             Text(
               item.rejectReason!,
-              style: AppTextStyles.labelM.copyWith(color: AppColors.warning),
+              style: AppTextStyles.labelM.copyWith(
+                color: AppColors.warningOf(context),
+              ),
             ),
           ],
         ],
@@ -1022,7 +1026,7 @@ class _InlineInfo extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, size: 16, color: AppColors.neutral500),
+        Icon(icon, size: 16, color: AppColors.neutral500Of(context)),
         const SizedBox(width: 4),
         Text(text, style: AppTextStyles.labelS),
       ],
@@ -1431,11 +1435,11 @@ class ThousandsSeparatorInputFormatter extends TextInputFormatter {
   }
 }
 
-Color _statusColor(String status) {
+Color _statusColor(BuildContext context, String status) {
   return switch (status) {
-    OffsetAdjustmentStatus.approved => AppColors.success,
-    OffsetAdjustmentStatus.rejected => AppColors.warning,
-    _ => AppColors.error,
+    OffsetAdjustmentStatus.approved => AppColors.successOf(context),
+    OffsetAdjustmentStatus.rejected => AppColors.warningOf(context),
+    _ => AppColors.errorOf(context),
   };
 }
 

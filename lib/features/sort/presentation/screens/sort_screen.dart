@@ -73,12 +73,12 @@ class _SortScreenState extends State<SortScreen> {
     if (_looksLikeSerial(text)) {
       AppToast.show(
         context,
-        const SnackBar(
+        SnackBar(
           content: Text(
             'Sắp xếp chỉ hỗ trợ SKU hoặc BIN.\nNếu cần kiểm tra serial, vui lòng dùng Kiểm tra FIFO.',
           ),
           duration: Duration(seconds: 3),
-          backgroundColor: AppColors.warning,
+          backgroundColor: AppColors.warningOf(context),
         ),
       );
       return;
@@ -98,7 +98,10 @@ class _SortScreenState extends State<SortScreen> {
       if (error != null) {
         AppToast.show(
           context,
-          SnackBar(content: Text(error), backgroundColor: AppColors.error),
+          SnackBar(
+            content: Text(error),
+            backgroundColor: AppColors.errorOf(context),
+          ),
         );
       }
     }
@@ -255,8 +258,8 @@ class _SortResultPanel extends StatelessWidget {
     final error = provider.error;
     if (error != null) {
       return AppSurfaceCard(
-        borderColor: AppColors.error.withValues(alpha: 0.24),
-        backgroundColor: AppColors.errorSurface,
+        borderColor: AppColors.errorOf(context).withValues(alpha: 0.36),
+        backgroundColor: AppColors.errorSurfaceOf(context),
         child: AppStatePanel.error(
           title: error,
           message: 'Kiểm tra lại SKU/BIN hoặc thử gửi lại.',
@@ -310,8 +313,8 @@ class _SortResultPanel extends StatelessWidget {
                   const SizedBox(width: 8),
                   AppStatusChip(
                     label: '${groups.length} nhóm',
-                    color: AppColors.info,
-                    backgroundColor: AppColors.infoSurface,
+                    color: AppColors.infoOf(context),
+                    backgroundColor: AppColors.infoSurfaceOf(context),
                   ),
                 ],
               ),

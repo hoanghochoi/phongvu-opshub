@@ -108,10 +108,16 @@ class _AppToastOverlayState extends State<_AppToastOverlay>
     final backgroundColor =
         widget.snackBar.backgroundColor ??
         snackBarTheme.backgroundColor ??
-        AppColors.neutral800;
+        (AppColors.isDark(context)
+            ? AppColors.darkRaised
+            : AppColors.neutral800);
     final contentStyle =
         snackBarTheme.contentTextStyle ??
-        AppTextStyles.bodyM.copyWith(color: AppColors.neutral100);
+        AppTextStyles.bodyM.copyWith(
+          color: AppColors.isDark(context)
+              ? AppColors.darkTextPrimary
+              : AppColors.neutral100,
+        );
 
     return Positioned(
       key: const Key('app-toast-position'),
