@@ -17,9 +17,10 @@ proof; business, API, permission, platform và data behavior giữ nguyên.
 ## Context
 
 - Linear: OPS-44, related OPS-25 and OPS-34.
-- Git baseline: `codex/ops-44-execution-plan-v2` at
-  `5f935de9b2417e1b7ba138026b875bf6329bfbbe`, equal to live `origin/staging`;
-  current work remains uncommitted in the guarded worktree.
+- Git baseline: `origin/staging` at
+      `5f935de9b2417e1b7ba138026b875bf6329bfbbe`; the guarded execution branch
+      `codex/ops-44-execution-plan-v2` now has local checkpoint commit
+      `1224a8ad228d04c63bac55e502fca2ba26971050` and a clean worktree.
 - Figma file:
   `mFzSmQzlapSe3RSmUhvzll`; target pages Cover `0:1`, Foundation `13:5`,
   Desktop + Web `693:17492`, Android mobile `693:17493`, Android tablet `698:2`,
@@ -398,13 +399,14 @@ until the replacement has affected-consumer proof.
       `design_system_migration_guard_test.dart` + `feedback_screen_test.dart`
       pass; analyzer, format and diff checks pass.
 - [ ] Full Flutter regression residuals after the Settings wave (fresh exact
-      dirty-worktree run): `flutter test --no-pub --reporter json` records
-      `868` testDone events = `867` success + `1` error. Bank Statement,
-      AppStatePanel, Not Purchased and Sales Reports regressions are clean;
-      the only residual is Windows Home speaker status (pending Figma proposal
-      `1888:59111`). The Sales Report hub suite remains `27/27`; the broader
-      affected wave suite is `109/109`. Full regression is still release-red
-      until the approved Home node is implemented and the exact run is green.
+      checkpoint run): `flutter test --no-pub --reporter json` records `868`
+      testDone events = `867` success + `1` error. The direct redesign/route
+      suite on checkpoint `1224a8ad` passes `107/107`, and the Sales Reports
+      suite passes `28/28`; Bank Statement, AppStatePanel and Not Purchased
+      regressions are clean. The only residual is Windows Home speaker status
+      (pending Figma proposal `1888:59111`). Full regression is still
+      release-red until the approved Home node is implemented and the exact run
+      is green.
 - [ ] Migrate remaining route groups in bounded waves (shell/auth/system,
       operations, FIFO, sales/finance, warranty, admin and long-tail) with one
       production visual path per migrated surface; remove legacy visual
@@ -431,8 +433,8 @@ until the replacement has affected-consumer proof.
 #### Branch cleanup audit — 2026-08-04
 
 - The active implementation branch/worktree is `codex/ops-44-execution-plan-v2`
-  at the staging base with dirty, uncommitted changes; it must remain intact
-  until the current phase is committed and reviewed.
+  at checkpoint commit `1224a8ad228d04c63bac55e502fca2ba26971050`; it is clean
+  locally but not yet published/merged into `staging`.
 - Local `staging` is clean at the same base SHA. The separate `OPS-27`
   worktree/branch is unrelated and is preserved.
 - Remote OPS-44 feature branches for merged PRs `#83`–`#103` are stale
