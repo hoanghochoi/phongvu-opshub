@@ -163,7 +163,7 @@ until the replacement has affected-consumer proof.
       `flutter analyze --no-pub`, `git diff --check`, and
       `flutter build web --release --no-pub --no-wasm-dry-run` pass. Full
       regression is rerun after the Home speaker chip/icon and dark surface
-      remediation: `flutter test --no-pub --reporter json` is `869/869`
+      remediation: `flutter test --no-pub --reporter json` is `875/875`
       successful with zero failures. Authenticated staging Chrome comparison
       remains downstream.
 
@@ -597,10 +597,9 @@ readback.
       regressions are clean. The only residual recorded at that checkpoint was
       Windows Home speaker status against proposal `1888:59111`; the approved
       chip/icon implementation and focused test now pass, so the full exact
-      regression rerun on the current worktree is now green: `869/869`
+      regression rerun on the current worktree is now green: `875/875`
       successful, zero failures. Keep the historical checkpoint text above for
-      traceability; the release gate still requires the exact final SHA build
-      and staging/Chrome proof.
+      traceability; the release gate still requires staging/Chrome proof.
 - [x] Exact HEAD rerun on 2026-08-04 (`88112a73`) confirms the same bounded
       residual: `flutter test --no-pub --reporter json` emits `868` testDone
       events with `867` `success` and `1` `error`; the error is the Windows Home
@@ -618,9 +617,11 @@ readback.
 
 ### Phase 5 — release and safe cleanup gates
 
-- [ ] Run focused widget/golden geometry proof, `flutter analyze`, affected
+- [x] Run focused widget/golden geometry proof, `flutter analyze`, affected
       consumer tests, full Flutter regression, web release/Wasm build and
-      `git diff --check` on the exact tested SHA.
+      `git diff --check` on exact SHA `3f1b46b384b1ba266623fcc1f5b5856da86f948f`:
+      Support Chat `6/6`, migration guard `21/21`, full Flutter `875/875`,
+      analyzer clean, web release build pass and clean worktree.
 - [ ] Deploy that exact SHA to staging, run authenticated Chrome comparison at
       the complete viewport matrix against the exact Figma nodes, and capture
       Windows/Android primary-platform plus iOS/iPadOS regression evidence.
@@ -635,8 +636,9 @@ readback.
 #### Branch cleanup audit — 2026-08-04
 
 - The active implementation branch/worktree is `codex/ops-44-execution-plan-v2`
-  at clean head `73c3a77376a3ce3e71fc3a58b83d3c4b9e2bef9f` (runtime checkpoint
-  `1224a8ad228d04c63bac55e502fca2ba26971050`); it is not yet
+  at clean head `3f1b46b384b1ba266623fcc1f5b5856da86f948f` (runtime checkpoint
+  includes the committed Support Chat Figma gap revision and token convergence);
+  it is not yet
   published/merged into `staging`.
 - Local `staging` is clean at the same base SHA. The separate `OPS-27`
   worktree/branch is unrelated and is preserved.
