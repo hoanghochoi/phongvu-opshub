@@ -1557,3 +1557,156 @@ The gate must verify merged SHA, clean task worktree and branch ownership before
 removing anything. Remote branches are deleted only as a separate reviewed
 publication action; never remove the preserved OPS-27 worktree or a dirty,
 unmerged task branch.
+
+## Figma gap readback — Home finance compatibility cards — 2026-08-05
+
+Runtime audit found two visible compatibility metrics with no exact node in the
+approved Finance source `326:3181`: `HomeSummary.totalStatementsTracked`
+(`Sao kê đang theo dõi`) and `HomeSummary.totalStatementsUnfollowed`
+(`Sao kê đã bỏ theo dõi`). Per the gap protocol, the target was added to the
+canonical pages before any runtime visual cutover:
+
+- Foundation icon masters were added to `FOUNDATION / Icons — Phosphor`
+  (`683:20`): `1994:55498` `__Icon / Phosphor / Eye` and `1994:55501`
+  `__Icon / Phosphor / EyeSlash`, both 20×20 official Phosphor Core Regular
+  vectors in the existing #2563EB icon treatment.
+- Desktop/Web proposal section `1995:57158` (`1180×420`,
+  `PROPOSAL — Home finance compatibility cards`) reuses the approved
+  `_Screen / Home Metric Card` component `275:1050` and maps:
+  `1995:57161` → `Sao kê đang theo dõi`, value `48`, Eye Regular, delta and
+  supporting copy `Dùng để tính tỷ lệ`; `1995:57175` → `Sao kê đã bỏ theo dõi`,
+  value `12`, EyeSlash Regular, delta and supporting copy `Không tính đối
+  chiếu đơn`. Proposal footer records the runtime fields and the fact that
+  `326:3181` remains a five-card approved source.
+- Readback passed: page `693:17492` inspection, Foundation metadata, proposal
+  metadata, screenshots and `get_design_context` for both proposal card nodes.
+  The Figma Plugin runtime does not support `saveVersionHistoryAsync`, so a
+  version-history checkpoint must be created by the Figma UI/owner as part of
+  explicit proposal approval; the node proposal itself is present and
+  reviewable.
+
+Approval gate: keep the two compatibility cards as protected runtime behavior,
+but do not claim visual completion, remove the gap ledger, or advance OPS-44
+until Đại Ca explicitly approves proposal `1995:57158` (and its exact revision)
+and the downstream runtime/staging/Chrome proof is rerun.
+
+## Branch cleanup continuation — 2026-08-05
+
+- PR #111 was read back as `MERGED`, base `staging`, merge SHA
+  `cbafa85aca7e86b188de34040271bfb765d38997`; no open PR referenced
+  `codex/ops-44-home-wide-header-parity`, so its remote branch was deleted and
+  `git fetch origin --prune` confirms no `origin/codex/ops-44*` refs remain.
+- Canonical `staging` remains clean and equal to `origin/staging` at the same
+  SHA. The active dirty branch `codex/ops-44-home-parity-dark-sales` is kept
+  because it contains the uncommitted Home icon/proof wave; it must not be
+  deleted before PR/merge and the guarded lifecycle finish gate. OPS-27's
+  worktree/branch remains untouched.
+- Several old OPS-44 directory names were inspected and contain zero files,
+  zero subdirectories and no `.git`/worktree registration. They are OS-level
+  empty-directory residue only; no branch or Git state is associated with
+  them.
+
+## Execution continuation — Home wide composition parity + final Dark/Sales audit — 2026-08-05
+
+This wave starts from exact `origin/staging` SHA `cbafa85aca7e86b188de34040271bfb765d38997`
+on task branch `codex/ops-44-home-parity-dark-sales`.
+
+### Approved node map before the first production UI edit
+
+- Desktop/Web Home `326:2698` → `HomeScreen`/`HomeSummaryPage` and shared
+  `AppShell`; wide content lane `1126×828` inside the `1440×900` shell.
+- Home header `326:2732` → `HomeSummaryHeader`; `1126×166`, 48px avatar,
+  greeting/subtitle and scope/date/update controls. Existing provider refresh,
+  scope/date selection, speaker action and warning behavior are protected.
+- Overview `326:2821` + progress row `326:2867` → shared section heading,
+  two `Progress Ring` cards and one desktop `Goal Progress` card. Wide cards
+  are `364.67×248`, `364.67×248`, and `364.67×208`; expanded `713:19442`
+  uses three `285.33px` columns; medium `713:18949`/`713:18951` stacks rings
+  and both goal states; compact `331:3219`/`331:3235`/`331:3249`/
+  `331:3263` stacks both goal cards.
+- Sales metric row `326:2818` → `SummaryCardGrid`: six `174.33×182` wide
+  cards with the approved 36px icon tile and 24px semantic icon. The same
+  metric family maps to expanded `713:19452` (3 columns × 146px), medium
+  `713:18962` (single column × 136px) and compact `331:3335` (2 columns ×
+  184px). KPI, behavior and finance groups use the corresponding approved
+  row maps in `326:3025`, `326:3119`, `326:3181` and the tablet/mobile
+  descendants; no legacy 104px iconless card path is allowed.
+- Dark Home `1874:123632` is the exact Dark semantic counterpart for the wide
+  loaded state. Dark canvas/surface/card/border/text mappings remain shared
+  tokens; no Light frame is edited.
+- Icon authority readback for every Home metric group confirmed the runtime
+  Material/icon-semantic drift. Figma `326:2818` maps the sales row to
+  `CurrencyCircleDollar`, `Receipt`, `ArrowsLeftRight`, `CheckCircle`,
+  `ClockCounterClockwise`, and `SortAscending`; `326:3025` maps KPI cards to
+  `Buildings`, `UserCircle`, `Gift`, `GraduationCap`, `HandCoins`,
+  `CheckCircle`, `ShieldCheck`, `Laptop`, `DesktopTower`, `Cpu`, `AppleLogo`,
+  `Monitor`, `Printer`, and `Package`; `326:3119` maps behavior cards to
+  `MagnifyingGlass`, `ClockCounterClockwise`, `Receipt`, `ShieldCheck`,
+  `SquaresFour`, `Info`, `Bell`, and `DownloadSimple`; `326:3181` maps
+  finance cards to `CurrencyCircleDollar`, `Receipt`, `Notepad`,
+  `WarningCircle`, and `ArrowsLeftRight`. All Figma-covered runtime consumers
+  now use the approved Phosphor Regular vectors; the two compatibility-only
+  statement tracking cards remain outside the approved finance node and are
+  tracked as a Figma authority gap. No business or navigation behavior
+  changes.
+- Sales Report Order Command remains governed by Foundation component sets
+  `1237:32820`, `1242:35190`, `1242:34112`, `1244:35494`, `1246:35945`.
+  This wave re-runs the exact wide/tablet/mobile/iOS/iPadOS geometry proof
+  after Home changes; command input, scan, status, action width, and same-row
+  behavior remain unchanged.
+
+### Implementation boundaries
+
+- Remove only the legacy Home composition drift: extra wide `Tiến độ hoạt động`
+  heading, two simultaneous desktop goal cards, 104px iconless metric cards,
+  and unapproved grouping/column behavior. Preserve all provider/API,
+  permission, route, detail-dialog, refresh, realtime, speaker and logging
+  behavior.
+- Use one shared metric-card implementation with the Figma icon tile and
+  responsive row rules; do not add feature-local tokens or a fallback visual
+  path. Compact/medium/expanded/wide use the approved breakpoint matrix.
+- If Chrome exposes a visible state not covered by the node map, stop that
+  visual edit and apply the Figma gap protocol above before changing runtime.
+
+### Proof target
+
+Focused Home geometry/state tests, Sales Report Order Command suite, full
+Flutter regression, analyzer, format/diff checks and web release build must
+pass before PR. After merge/deploy, authenticated Chrome must compare Light and
+Dark at `375×812`, `834×1112`, `1024×768`, `1440×900`, then record Windows/
+Android primary and iOS/iPadOS regression evidence. OPS-44 remains `Ready for
+QA`; no Done transition is allowed before production deployment and legacy
+visual-retirement proof.
+
+### Current local proof — 2026-08-05
+
+- Home geometry/state focused proof passes `33/33`; the desktop composition now
+  keeps the approved two ring cards plus one `Doanh số cá nhân` goal card,
+  removes the legacy wide progress heading/duplicate goal slot, and uses the
+  approved icon-tile metric cards across wide/expanded/medium/compact lanes.
+  Provider/API/permission/route/realtime/detail-dialog/speaker/AppLogger
+  behavior remains covered by the existing Home suite.
+- Sales Report Order Command focused proof passes `32/32`; the same-row input,
+  scan and primary action geometry remains intact after the Home wave, including
+  compact, tablet, desktop and iOS/iPadOS cases.
+- Dark/theme/logo/shell/Sales affected proof remains `83/83`; full Flutter
+  regression passes `748` tests with `3` existing skips and zero failures after
+  the exact icon correction.
+  `flutter analyze --no-pub` reports no issues, `dart format` completed, and
+  `git diff --check` passes the content diff.
+- `flutter build web --release` passes for this exact worktree; the build's
+  Wasm dry run also succeeds. A direct `flutter build web --release --wasm`
+  invocation exceeded the local four-minute command limit and is therefore not
+  claimed as a standalone Wasm build pass.
+
+### Remaining visual/release risk
+
+- The approved desktop Home node shows the staff-state goal card without the
+  manager-only sales-assignee picker. The picker is retained because existing
+  manager behavior/tests require selecting an SA and changing only sales KPIs;
+  its manager role/state authority still needs an exact Figma state readback
+  before the visual wave can be called complete.
+- No staging deploy or authenticated Chrome comparison has been run for this
+  uncommitted wave. Required Light/Dark matrix remains `375×812`, `834×1112`,
+  `1024×768`, and `1440×900`, followed by platform evidence, legacy-retirement
+  proof, production deployment, and only then a possible OPS-44 Done transition.
