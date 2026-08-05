@@ -1467,6 +1467,15 @@ describe('UserService admin store management', () => {
     );
   });
 
+  it('uses Vietnamese unit copy when an organization name is missing', async () => {
+    await expect(
+      service.adminCreateOrganizationNode(superAdmin, {
+        type: 'BLOCK',
+        parentId: 'org-domain-phongvu-vn',
+      }),
+    ).rejects.toThrow('Tên đơn vị không được để trống');
+  });
+
   it('syncs UI-created Lv5 positions and assigns their parent area scope', async () => {
     installUserScopeTreeMock();
 

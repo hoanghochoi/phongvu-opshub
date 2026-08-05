@@ -360,7 +360,7 @@ export class FeatureService implements OnModuleInit {
       throw new BadRequestException('Không được xóa tính năng hệ thống');
     }
     if (feature._count.rules > 0) {
-      throw new BadRequestException('Tính năng đang có rule, không thể xóa');
+      throw new BadRequestException('Tính năng đang có quy tắc, không thể xóa');
     }
     if (feature._count.userAssignments > 0) {
       throw new BadRequestException(
@@ -369,7 +369,7 @@ export class FeatureService implements OnModuleInit {
     }
     if (feature._count.nodeAssignments > 0) {
       throw new BadRequestException(
-        'Tính năng đang được gán cho node tổ chức, không thể xóa',
+        'Tính năng đang được gán cho đơn vị tổ chức, không thể xóa',
       );
     }
     await this.prisma.featureDefinition.delete({ where: { code } });
@@ -427,7 +427,7 @@ export class FeatureService implements OnModuleInit {
     const current = await this.prisma.featureAccessRule.findUnique({
       where: { id },
     });
-    if (!current) throw new NotFoundException('Không tìm thấy rule');
+    if (!current) throw new NotFoundException('Không tìm thấy quy tắc');
     const data = await this.normalizeRuleInput(
       { ...current, ...body },
       current,
@@ -490,7 +490,7 @@ export class FeatureService implements OnModuleInit {
     const nodeIds = this.normalizeRequiredTextList(
       body.organizationNodeIds ?? body.organizationNodeId,
       80,
-      'Chọn ít nhất một node tổ chức',
+      'Chọn ít nhất một đơn vị tổ chức',
     );
     const featureCodes = await this.normalizeFeatureTreeCodeList(
       body.featureTreeCodes ?? body.featureCodes ?? [],
@@ -579,7 +579,7 @@ export class FeatureService implements OnModuleInit {
       await this.prisma.organizationNodeFeatureAssignment.findUnique({
         where: { id },
       });
-    if (!current) throw new NotFoundException('Không tìm thấy quyền node');
+    if (!current) throw new NotFoundException('Không tìm thấy quyền đơn vị');
     const updated = await this.prisma.organizationNodeFeatureAssignment.update({
       where: { id },
       data: {
@@ -624,7 +624,7 @@ export class FeatureService implements OnModuleInit {
       await this.prisma.organizationNodeFeatureAssignment.findUnique({
         where: { id },
       });
-    if (!current) throw new NotFoundException('Không tìm thấy quyền node');
+    if (!current) throw new NotFoundException('Không tìm thấy quyền đơn vị');
     await this.prisma.organizationNodeFeatureAssignment.delete({
       where: { id },
     });
@@ -784,13 +784,11 @@ export class FeatureService implements OnModuleInit {
     const byId = new Map(nodes.map((node) => [node.id, node]));
     const node = byId.get(nodeId);
     if (!node || !node.isActive) {
-      throw new BadRequestException('Node tổ chức không tồn tại hoặc đã tắt');
+      throw new BadRequestException('Đơn vị tổ chức không tồn tại hoặc đã tắt');
     }
     const scopeRootNodeId = this.rootNodeIdForNode(nodes, nodeId);
     if (!scopeRootNodeId) {
-      throw new BadRequestException(
-        'Không xác định được root của node tổ chức',
-      );
+      throw new BadRequestException('Không xác định được đơn vị tổ chức gốc');
     }
     const nodeType = this.normalizeNodeType(node.type);
     const nodeKey = this.nodeFeatureKey(node);
@@ -911,7 +909,7 @@ export class FeatureService implements OnModuleInit {
     const key = String(value || '')
       .trim()
       .toUpperCase();
-    if (!key) throw new BadRequestException('Mã node tổ chức không hợp lệ');
+    if (!key) throw new BadRequestException('Mã đơn vị tổ chức không hợp lệ');
     return key;
   }
 
@@ -1197,7 +1195,7 @@ export class FeatureService implements OnModuleInit {
     });
 
     if (dataList.length > 500) {
-      throw new BadRequestException('Tối đa 500 rules mỗi lần tạo');
+      throw new BadRequestException('Tối đa 500 quy tắc mỗi lần tạo');
     }
 
     for (const data of dataList) {
@@ -1411,7 +1409,9 @@ export class FeatureService implements OnModuleInit {
         select: { id: true, isActive: true },
       });
       if (!organizationNode || !organizationNode.isActive) {
-        throw new BadRequestException('Node tổ chức không tồn tại hoặc đã tắt');
+        throw new BadRequestException(
+          'Đơn vị tổ chức không tồn tại hoặc đã tắt',
+        );
       }
     }
     if (data.storeCode) {
