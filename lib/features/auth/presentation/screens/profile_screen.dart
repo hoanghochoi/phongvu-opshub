@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:provider/provider.dart';
 import 'package:phongvu_opshub/app/widgets/app_toast.dart';
 
@@ -645,11 +646,14 @@ class _ProfileActions extends StatelessWidget {
           height: 48,
           child: AppSecondaryButton(
             onPressed: isLoading ? null : onChangePassword,
-            icon: Icons.lock_reset_outlined,
+            icon: PhosphorIconsRegular.lockKey,
             label: 'Đổi mật khẩu',
             size: AppButtonSize.medium,
             height: 48,
             expand: true,
+            textStyle: AppTextStyles.labelS,
+            iconSize: 18,
+            padding: const EdgeInsets.symmetric(horizontal: 10),
           ),
         ),
         const SizedBox(width: 8),
@@ -805,12 +809,15 @@ class _ProfileLogoutButton extends StatelessWidget {
     final danger = AppColors.errorOf(context);
     return AppSecondaryButton(
       onPressed: onPressed,
-      icon: Icons.logout_rounded,
+      icon: PhosphorIconsRegular.signOut,
       label: 'Đăng xuất',
       foregroundColor: danger,
       borderColor: danger,
       expand: false,
       size: AppButtonSize.medium,
+      textStyle: AppTextStyles.labelS,
+      iconSize: 20,
+      padding: const EdgeInsets.symmetric(horizontal: 10),
     );
   }
 }

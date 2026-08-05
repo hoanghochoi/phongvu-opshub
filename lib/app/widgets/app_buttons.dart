@@ -132,6 +132,8 @@ class AppSecondaryButton extends StatelessWidget {
   final double? height;
   final double radius;
   final TextStyle? textStyle;
+  final double? iconSize;
+  final EdgeInsetsGeometry? padding;
   final Color? backgroundColor;
   final Color? disabledBackgroundColor;
 
@@ -149,6 +151,8 @@ class AppSecondaryButton extends StatelessWidget {
     this.height,
     this.radius = AppButtonMetrics.radius,
     this.textStyle,
+    this.iconSize,
+    this.padding,
     this.backgroundColor,
     this.disabledBackgroundColor,
   });
@@ -187,7 +191,7 @@ class AppSecondaryButton extends StatelessWidget {
             double.infinity,
             height ?? AppButtonMetrics.heightFor(size),
           ),
-          padding: AppButtonMetrics.horizontalPadding,
+          padding: padding ?? AppButtonMetrics.horizontalPadding,
         ).copyWith(
           side: WidgetStateProperty.resolveWith<BorderSide?>((states) {
             if (states.contains(WidgetState.focused)) {
@@ -210,15 +214,42 @@ class AppSecondaryButton extends StatelessWidget {
         child: buttonLabel,
       );
     }
+    if (iconSize != null || padding != null) {
+      return OutlinedButton(
+        onPressed: isLoading ? null : onPressed,
+        style: buttonStyle,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (isLoading)
+              SizedBox(
+                width: iconSize ?? 20,
+                height: iconSize ?? 20,
+                child: const CircularProgressIndicator(strokeWidth: 2),
+              )
+            else if (icon != null)
+              Icon(icon, size: iconSize),
+            if (isLoading || icon != null) const SizedBox(width: 6),
+            Flexible(
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: buttonLabel,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
     return OutlinedButton.icon(
       onPressed: isLoading ? null : onPressed,
       icon: isLoading
-          ? const SizedBox(
-              width: 20,
-              height: 20,
+          ? SizedBox(
+              width: iconSize ?? 20,
+              height: iconSize ?? 20,
               child: CircularProgressIndicator(strokeWidth: 2),
             )
-          : Icon(icon),
+          : Icon(icon, size: iconSize),
       label: buttonLabel,
       style: buttonStyle,
     );

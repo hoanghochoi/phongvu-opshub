@@ -1793,3 +1793,31 @@ focused tests, `flutter analyze --no-pub`, `git diff --check`, and
   the four-viewport Light/Dark/state matrix remains unverified until that
   authentication gate is satisfied or the exact worktree SHA is deployed by
   an explicitly authorized staging action.
+
+### Exact staging Chrome audit and Profile remediation — 2026-08-06
+
+- Canonical `staging` was clean at
+  `4aa9589fc1fa504e44d3aed9ec5c9429bb865d4e`; workflow
+  [Deploy OpsHub Staging #31047971355](https://github.com/hoanghochoi/phongvu-opshub/actions/runs/31047971355)
+  completed successfully for that exact SHA. Staging health returned `200`,
+  web metadata returned `2026.08.05.340 / 200340`, and the bootstrap query
+  contained the exact SHA.
+- Authenticated Chrome Home proof covered Light/Dark at `375×812`,
+  `834×1112`, `1024×768` and `1440×900`; shell selected state, responsive
+  overview progress bars, header chips, scope dropdown, anchored shared date
+  picker, settings theme selection, and read-aloud history modal were exercised.
+  At each viewport `document.body.scrollWidth` equaled the viewport width.
+- Chrome exposed a real Profile defect on both Light and Dark desktop states:
+  the fixed 138px/116px action lanes rendered `Đổi mật ...` and `Đăng...`.
+  Exact Figma readback of `306:3227` and `306:3219` confirms 48px actions,
+  12px `labelSmall` copy, 18px/20px icons and the fixed widths.
+- Remediation in `ProfileScreen` uses the approved Phosphor `LockKey` and
+  `SignOut` icons, `AppTextStyles.labelS`, and fixed-width-safe shared
+  `AppSecondaryButton` icon/padding overrides with a fitted content row. The
+  shared button keeps existing defaults for all other consumers.
+- Fresh local proof after remediation: Profile suite `4/4`, shared button
+  suite `3/3`, `flutter analyze --no-pub` pass, and `git diff --check` pass.
+  Staging deploy/Chrome rerun for this remediation remains downstream.
+- The shell navigation no longer contains an `Hỗ trợ` item; an independent
+  support FAB remains visible and is recorded as a product-scope question,
+  not silently removed without authority.
