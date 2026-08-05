@@ -182,7 +182,6 @@ class _AppShellState extends State<AppShell> {
                   user: user,
                   version: _version,
                   onNavigate: _navigate,
-                  onSupport: () => _openSupport(context),
                   onLogout: () => _logout(context),
                   onAppInfo: () => _showAppInfoDialog(context),
                   child: widget.child,
@@ -194,7 +193,6 @@ class _AppShellState extends State<AppShell> {
                   activeDestination: activeDestination,
                   version: _version,
                   onNavigate: _navigate,
-                  onSupport: () => _openSupport(context),
                   child: widget.child,
                 ),
           if (width >= AppLayoutTokens.tabletBreakpoint &&
@@ -583,7 +581,6 @@ class _WideShell extends StatelessWidget {
   final User? user;
   final String version;
   final ValueChanged<AppNavDestination> onNavigate;
-  final VoidCallback onSupport;
   final VoidCallback onLogout;
   final VoidCallback onAppInfo;
   final Widget child;
@@ -596,7 +593,6 @@ class _WideShell extends StatelessWidget {
     required this.user,
     required this.version,
     required this.onNavigate,
-    required this.onSupport,
     required this.onLogout,
     required this.onAppInfo,
     required this.child,
@@ -629,8 +625,6 @@ class _WideShell extends StatelessWidget {
                   location: location,
                   activeDestination: activeDestination,
                   user: user,
-                  showAccountDetails: isDesktop,
-                  onSupport: onSupport,
                   onLogout: onLogout,
                   onAppInfo: onAppInfo,
                 ),
@@ -655,7 +649,6 @@ class _MobileShell extends StatelessWidget {
   final AppNavDestination activeDestination;
   final String version;
   final ValueChanged<AppNavDestination> onNavigate;
-  final VoidCallback onSupport;
   final Widget child;
 
   const _MobileShell({
@@ -665,7 +658,6 @@ class _MobileShell extends StatelessWidget {
     required this.activeDestination,
     required this.version,
     required this.onNavigate,
-    required this.onSupport,
     required this.child,
   });
 
@@ -685,16 +677,47 @@ class _MobileShell extends StatelessWidget {
     final selectedIndex = _selectedMobileIndex(
       quickActionsIndex: showQuickActions ? quickActionsIndex : null,
     );
+    final selectedNavigationColor = AppColors.selectedNavigationOf(context);
+    final unselectedNavigationColor = AppColors.textMutedOf(context);
     final mobileTheme = Theme.of(context).copyWith(
       navigationBarTheme: compactMobile
           ? NavigationBarThemeData(
               height: bottomNavHeight,
-              iconTheme: const WidgetStatePropertyAll(IconThemeData(size: 22)),
-              labelTextStyle: const WidgetStatePropertyAll(
-                AppTextStyles.caption,
+              indicatorColor: AppColors.sidebarSelectedOf(context),
+              iconTheme: WidgetStateProperty.resolveWith(
+                (states) => IconThemeData(
+                  size: 22,
+                  color: states.contains(WidgetState.selected)
+                      ? selectedNavigationColor
+                      : unselectedNavigationColor,
+                ),
+              ),
+              labelTextStyle: WidgetStateProperty.resolveWith(
+                (states) => AppTextStyles.caption.copyWith(
+                  color: states.contains(WidgetState.selected)
+                      ? selectedNavigationColor
+                      : unselectedNavigationColor,
+                ),
               ),
             )
-          : NavigationBarThemeData(height: bottomNavHeight),
+          : NavigationBarThemeData(
+              height: bottomNavHeight,
+              indicatorColor: AppColors.sidebarSelectedOf(context),
+              iconTheme: WidgetStateProperty.resolveWith(
+                (states) => IconThemeData(
+                  color: states.contains(WidgetState.selected)
+                      ? selectedNavigationColor
+                      : unselectedNavigationColor,
+                ),
+              ),
+              labelTextStyle: WidgetStateProperty.resolveWith(
+                (states) => AppTextStyles.labelS.copyWith(
+                  color: states.contains(WidgetState.selected)
+                      ? selectedNavigationColor
+                      : unselectedNavigationColor,
+                ),
+              ),
+            ),
     );
     return Theme(
       data: mobileTheme,
@@ -728,13 +751,7 @@ class _MobileShell extends StatelessWidget {
               color: AppColors.textPrimaryOf(context),
             ),
           ),
-          actions: [
-            IconButton(
-              tooltip: 'Hỗ trợ',
-              onPressed: onSupport,
-              icon: const Icon(PhosphorIconsRegular.headset),
-            ),
-          ],
+          actions: const [],
         ),
         body: _ShellAccessSyncSurface(
           child: _RouteViewport(location: location, child: child),
@@ -981,7 +998,7 @@ class _MobileDrawerItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final foreground = selected
-        ? AppColors.primaryOf(context)
+        ? AppColors.selectedNavigationOf(context)
         : AppColors.sidebarTextOf(context);
     return Material(
       color: selected
@@ -1279,7 +1296,7 @@ class _TabletRail extends StatelessWidget {
                           child: Icon(
                             destination.icon,
                             color: selected
-                                ? AppColors.primaryOf(context)
+                                ? AppColors.selectedNavigationOf(context)
                                 : AppColors.sidebarMutedOf(context),
                           ),
                         ),
@@ -1309,7 +1326,7 @@ class _SidebarItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final selectedForeground = AppColors.primaryOf(context);
+    final selectedForeground = AppColors.selectedNavigationOf(context);
     final selectedBackground = AppColors.sidebarSelectedOf(context);
     final foreground = selected
         ? selectedForeground
@@ -1371,8 +1388,6 @@ class _ShellTopBar extends StatelessWidget {
   final String location;
   final AppNavDestination activeDestination;
   final User? user;
-  final bool showAccountDetails;
-  final VoidCallback onSupport;
   final VoidCallback onLogout;
   final VoidCallback onAppInfo;
 
@@ -1380,8 +1395,6 @@ class _ShellTopBar extends StatelessWidget {
     required this.location,
     required this.activeDestination,
     required this.user,
-    required this.showAccountDetails,
-    required this.onSupport,
     required this.onLogout,
     required this.onAppInfo,
   });
@@ -1430,20 +1443,11 @@ class _ShellTopBar extends StatelessWidget {
                         ],
                       ),
               ),
-              _ShellTopBarAction(
-                tooltip: 'Hỗ trợ',
-                label: 'Hỗ trợ',
-                icon: PhosphorIconsRegular.headset,
-                onPressed: onSupport,
-                compact: compactActions,
-              ),
               if (!compactActions) const _ShellMetricsPill(),
               AppNotificationsBell(showLabel: !compactActions),
               const SizedBox(width: 8),
               _AccountMenuButton(
                 user: user,
-                showDetails: showAccountDetails && !compactActions,
-                showLabel: !compactActions,
                 onLogout: onLogout,
                 onAppInfo: onAppInfo,
               ),
@@ -1504,15 +1508,11 @@ class _AccountMenuButton extends StatelessWidget {
   static const double _avatarSize = 42;
 
   final User? user;
-  final bool showDetails;
-  final bool showLabel;
   final VoidCallback onLogout;
   final VoidCallback onAppInfo;
 
   const _AccountMenuButton({
     required this.user,
-    required this.showDetails,
-    this.showLabel = false,
     required this.onLogout,
     required this.onAppInfo,
   });
@@ -1520,10 +1520,6 @@ class _AccountMenuButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cleanName = _accountDisplayName(user);
-    final storeLabel = user?.assignedStoreHeaderInfo.trim();
-    final srLabel = storeLabel?.isNotEmpty == true
-        ? 'SR: $storeLabel'
-        : 'SR: Chưa gán showroom';
     final initials = cleanName.trim().isNotEmpty
         ? cleanName.trim().characters.first.toUpperCase()
         : '?';
@@ -1572,73 +1568,7 @@ class _AccountMenuButton extends StatelessWidget {
           ),
         ),
       ],
-      child: showLabel
-          ? const _ShellTopBarAction(
-              tooltip: 'Tài khoản',
-              label: 'Tài khoản',
-              icon: PhosphorIconsRegular.userCircle,
-              onPressed: null,
-              showTooltip: false,
-            )
-          : showDetails
-          ? _accountIdentity(
-              context,
-              cleanName: cleanName,
-              srLabel: srLabel,
-              initials: initials,
-            )
-          : _AccountAvatar(initials: initials, size: _avatarSize),
-    );
-  }
-
-  Widget _accountIdentity(
-    BuildContext context, {
-    required String cleanName,
-    required String srLabel,
-    required String initials,
-  }) {
-    return ConstrainedBox(
-      constraints: const BoxConstraints(maxWidth: 230),
-      child: SizedBox(
-        height: _avatarSize,
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _AccountAvatar(initials: initials, size: _avatarSize),
-            const SizedBox(width: 10),
-            Flexible(
-              child: SizedBox(
-                height: _avatarSize,
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      cleanName,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: AppTextStyles.labelS.copyWith(
-                        color: AppColors.textPrimaryOf(context),
-                        height: 1.12,
-                      ),
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      srLabel,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: AppTextStyles.caption.copyWith(
-                        color: AppColors.textMutedOf(context),
-                        height: 1.10,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
+      child: _AccountAvatar(initials: initials, size: _avatarSize),
     );
   }
 
@@ -1648,58 +1578,6 @@ class _AccountMenuButton extends StatelessWidget {
     final email = user?.email.trim();
     if (email?.isNotEmpty == true) return email!;
     return 'Tài khoản';
-  }
-}
-
-class _ShellTopBarAction extends StatelessWidget {
-  final String tooltip;
-  final String label;
-  final IconData icon;
-  final VoidCallback? onPressed;
-  final bool showTooltip;
-  final bool compact;
-
-  const _ShellTopBarAction({
-    required this.tooltip,
-    required this.label,
-    required this.icon,
-    required this.onPressed,
-    this.showTooltip = true,
-    this.compact = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final action = Material(
-      color: AppColors.canvasOf(context),
-      borderRadius: AppRadius.allSm,
-      child: InkWell(
-        onTap: onPressed,
-        borderRadius: AppRadius.allSm,
-        child: Padding(
-          padding: EdgeInsets.symmetric(
-            horizontal: compact ? 12 : 10,
-            vertical: 8,
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, size: 18, color: AppColors.textPrimaryOf(context)),
-              if (!compact) ...[
-                const SizedBox(width: 6),
-                Text(
-                  label,
-                  style: AppTextStyles.labelS.copyWith(
-                    color: AppColors.textPrimaryOf(context),
-                  ),
-                ),
-              ],
-            ],
-          ),
-        ),
-      ),
-    );
-    return showTooltip ? Tooltip(message: tooltip, child: action) : action;
   }
 }
 
@@ -1717,7 +1595,7 @@ class _AccountAvatar extends StatelessWidget {
       alignment: Alignment.center,
       decoration: BoxDecoration(
         color: AppColors.primarySurfaceOf(context),
-        borderRadius: AppRadius.allMd,
+        shape: BoxShape.circle,
         border: Border.all(color: AppColors.borderOf(context)),
       ),
       child: Text(

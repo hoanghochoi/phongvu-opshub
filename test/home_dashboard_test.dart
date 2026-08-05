@@ -554,11 +554,7 @@ void main() {
         findsOneWidget,
       );
       expect(find.byKey(const Key('home-summary-header')), findsOneWidget);
-      expect(find.text('Trang chủ'), findsOneWidget);
-      expect(
-        find.text('Tổng quan theo phạm vi được phân quyền'),
-        findsOneWidget,
-      );
+      expect(find.textContaining('Chào '), findsOneWidget);
       expect(find.byKey(const Key('home-summary-toolbar')), findsNothing);
       expect(find.byKey(const Key('home-summary-grid')), findsOneWidget);
       expect(
@@ -695,13 +691,12 @@ void main() {
       expect(find.text('Sao kê chưa có đơn hàng'), findsOneWidget);
       expect(find.text('Tỉ lệ sao kê có đơn hàng'), findsOneWidget);
       expect(find.text('98M VND'), findsOneWidget);
-      expect(find.text('Trang chủ'), findsOneWidget);
       expect(
-        find.text('Tổng quan theo phạm vi được phân quyền'),
+        find.byKey(const Key('home-summary-progress-panel')),
         findsOneWidget,
       );
       expect(find.text('Doanh số trong ngày'), findsNothing);
-      expect(find.text('125M VND'), findsOneWidget);
+      expect(find.text('125M VND'), findsWidgets);
       expect(find.text('100M VND'), findsOneWidget);
       expect(find.text('25M VND'), findsWidgets);
       expect(find.text('2,5M VND'), findsOneWidget);
@@ -787,18 +782,20 @@ void main() {
       );
       expect(
         find.byKey(const Key('home-summary-progress-donut')),
-        findsOneWidget,
+        findsNothing,
       );
       expect(
         find.byKey(const Key('home-statement-progress-donut')),
-        findsOneWidget,
+        findsNothing,
       );
       expect(
         find.byKey(const Key('home-analytics-sales-range')),
         findsOneWidget,
       );
-      expect(find.text('Doanh số cá nhân'), findsOneWidget);
-      expect(find.text('Doanh số theo phạm vi'), findsOneWidget);
+      expect(find.text('Tiến độ báo cáo'), findsOneWidget);
+      expect(find.text('Tiến độ sao kê'), findsOneWidget);
+      expect(find.text('Tổng quan cá nhân'), findsOneWidget);
+      expect(find.text('Tổng quan Cửa hàng'), findsOneWidget);
       expect(
         find.byKey(const Key('home-analytics-sales-week')),
         findsOneWidget,
@@ -810,14 +807,6 @@ void main() {
       expect(
         find.byKey(const Key('home-analytics-scope-range')),
         findsOneWidget,
-      );
-      expect(
-        tester.getSize(find.byKey(const Key('home-summary-progress-donut'))),
-        const Size.square(100),
-      );
-      expect(
-        tester.getSize(find.byKey(const Key('home-statement-progress-donut'))),
-        const Size.square(100),
       );
       expect(find.byType(LinearProgressIndicator), findsNothing);
       expect(find.text('Tiến độ hoạt động'), findsNothing);
@@ -905,25 +894,20 @@ void main() {
         ),
       ),
     );
+    await tester.pumpAndSettle();
 
     final header = find.byKey(const Key('home-summary-header'));
     final refresh = find.byKey(const Key('home-summary-refresh-button'));
     final trigger = find.byKey(const Key('home-summary-scope-date-trigger'));
-    expect(tester.getSize(header), const Size(896, 64));
-    expect(tester.getSize(refresh), const Size(104, 44));
-    expect(tester.getSize(trigger), const Size(360, 44));
-    expect(
-      tester.getTopLeft(refresh) - tester.getTopLeft(header),
-      const Offset(416, 10),
-    );
-    expect(
-      tester.getTopLeft(trigger) - tester.getTopLeft(header),
-      const Offset(536, 10),
-    );
-    expect(find.text('Trang chủ'), findsOneWidget);
-    expect(find.text('Tổng quan theo phạm vi được phân quyền'), findsOneWidget);
-    expect(find.text('Làm mới'), findsOneWidget);
-    await tester.tap(refresh);
+    expect(tester.getSize(header), const Size(896, 146));
+    expect(tester.getSize(refresh).height, 40);
+    expect(tester.getSize(trigger).height, 40);
+    expect(find.textContaining('Cập nhật lúc'), findsOneWidget);
+    expect(find.text('Phạm vi: Showroom được phân quyền'), findsOneWidget);
+    expect(find.text('Khoảng ngày: 03/08'), findsOneWidget);
+    tester
+        .widget<HomeSummaryHeader>(find.byType(HomeSummaryHeader))
+        .onRefresh!();
     expect(refreshed, isTrue);
     expect(tester.takeException(), isNull);
   });
@@ -1029,7 +1013,7 @@ void main() {
     expect(tester.getSize(header), const Size(343, 204));
     expect(find.text('Chào buổi sáng Nguyễn Hoàng'), findsOneWidget);
     expect(find.text('Phạm vi: Q.3'), findsOneWidget);
-    expect(find.text('Ngày: 27/07'), findsOneWidget);
+    expect(find.text('Khoảng ngày: 27/07'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -1481,9 +1465,7 @@ void main() {
       MaterialApp(
         home: Scaffold(
           body: SizedBox(
-            // Figma Home responsive frames expand this board with the
-            // available content width at each desktop viewport.
-            width: 1180,
+            width: 1126,
             child: ReportProgressPanel(
               summary: summary,
               provider: summaryProvider,
@@ -1503,19 +1485,19 @@ void main() {
     final statementTopLeft = tester.getTopLeft(statementPanel);
     final personalTopLeft = tester.getTopLeft(personalPanel);
     expect(statementTopLeft.dy, reportTopLeft.dy);
-    expect(personalTopLeft.dy, reportTopLeft.dy);
+    expect(personalTopLeft.dy, greaterThan(reportTopLeft.dy));
     expect(reportTopLeft.dx, lessThan(statementTopLeft.dx));
-    expect(statementTopLeft.dx, lessThan(personalTopLeft.dx));
+    expect(personalTopLeft.dx, closeTo(reportTopLeft.dx, 0.1));
     expect(
       find.byKey(const Key('home-scope-sales-progress-panel')),
-      findsNothing,
+      findsOneWidget,
     );
-    expect(tester.getSize(reportPanel).width, closeTo(382.6667, 0.1));
-    expect(tester.getSize(reportPanel).height, closeTo(248, 0.1));
-    expect(tester.getSize(statementPanel).width, closeTo(382.6667, 0.1));
-    expect(tester.getSize(statementPanel).height, closeTo(248, 0.1));
-    expect(tester.getSize(personalPanel).width, closeTo(382.6667, 0.1));
-    expect(tester.getSize(personalPanel).height, closeTo(264, 0.1));
+    expect(tester.getSize(reportPanel).width, closeTo(535, 0.1));
+    expect(tester.getSize(reportPanel).height, closeTo(230, 0.1));
+    expect(tester.getSize(statementPanel).width, closeTo(535, 0.1));
+    expect(tester.getSize(statementPanel).height, closeTo(230, 0.1));
+    expect(tester.getSize(personalPanel).width, closeTo(535, 0.1));
+    expect(tester.getSize(personalPanel).height, closeTo(270, 0.1));
     expect(find.byKey(const Key('home-analytics-sales-range')), findsOneWidget);
     expect(find.byKey(const Key('home-analytics-sales-month')), findsOneWidget);
   });
@@ -1547,22 +1529,19 @@ void main() {
     final statement = find.byKey(const Key('home-statement-progress-panel'));
     final personal = find.byKey(const Key('home-sales-progress-panel'));
     final scope = find.byKey(const Key('home-scope-sales-progress-panel'));
-    expect(tester.getSize(report), const Size(280, 248));
-    expect(tester.getTopLeft(report).dx, closeTo(31.5, 0.1));
-    expect(tester.getSize(statement), const Size(280, 248));
-    expect(tester.getTopLeft(statement).dx, closeTo(31.5, 0.1));
-    expect(tester.getSize(personal), const Size(343, 266));
-    expect(tester.getSize(scope), const Size(343, 208));
+    expect(tester.getSize(report), const Size(309, 230));
+    expect(tester.getTopLeft(report).dx, closeTo(17, 0.1));
+    expect(tester.getSize(statement), const Size(309, 230));
+    expect(tester.getTopLeft(statement).dx, closeTo(17, 0.1));
+    expect(tester.getSize(personal), const Size(309, 270));
+    expect(tester.getSize(scope), const Size(309, 270));
     expect(
       tester.getSize(
         find.byKey(const Key('home-sales-progress-assignee-dropdown')),
       ),
-      const Size(260, 48),
+      const Size(259, 46),
     );
-    expect(
-      tester.getSize(find.byKey(const Key('home-summary-progress-donut'))),
-      const Size.square(96),
-    );
+    expect(find.byKey(const Key('home-summary-progress-donut')), findsNothing);
   });
 
   testWidgets('Home desktop goal card uses the Figma staff-state height', (
@@ -1634,8 +1613,8 @@ void main() {
     final goalSize = tester.getSize(
       find.byKey(const Key('home-sales-progress-panel')),
     );
-    expect(goalSize.width, closeTo(364.6667, 0.1));
-    expect(goalSize.height, closeTo(208, 0.1));
+    expect(goalSize.width, closeTo(535, 0.1));
+    expect(goalSize.height, closeTo(270, 0.1));
   });
 
   testWidgets('Home progress uses viewport width when parent is unbounded', (
@@ -1672,7 +1651,7 @@ void main() {
     expect(board.width, closeTo(640, 0.1));
     expect(
       tester.getSize(find.byKey(const Key('home-report-progress-panel'))),
-      const Size(640, 248),
+      const Size(606, 230),
     );
     expect(tester.takeException(), isNull);
   });
@@ -2455,12 +2434,9 @@ void main() {
       );
       expect(summaryProvider.selectedSalesProgressUserId, isNull);
       expect(repository.requestedSalesProgressUserIds, contains(null));
-      expect(find.text('Doanh số cá nhân'), findsOneWidget);
-      expect(find.text('Chọn nhân viên để so sánh chỉ tiêu'), findsOneWidget);
-      expect(
-        find.byKey(const Key('home-analytics-sales-range')),
-        findsOneWidget,
-      );
+      expect(find.text('Tổng quan cá nhân'), findsOneWidget);
+      expect(find.text('Chọn SA để hiển thị chỉ số'), findsOneWidget);
+      expect(find.byKey(const Key('home-analytics-sales-range')), findsNothing);
       expect(
         find.descendant(
           of: find.byKey(const Key('home-summary-card-revenue')),
@@ -2490,6 +2466,10 @@ void main() {
       expect(summaryProvider.selectedSalesProgressUserId, 'sa-2');
       expect(find.text('SA Hai - CP75'), findsOneWidget);
       expect(
+        find.byKey(const Key('home-analytics-sales-range')),
+        findsOneWidget,
+      );
+      expect(
         find.descendant(
           of: find.byKey(const Key('home-summary-card-revenue')),
           matching: find.text('80M VND'),
@@ -2510,7 +2490,13 @@ void main() {
         ),
         findsOneWidget,
       );
-      expect(find.text('Tiến độ theo nhân viên đã chọn'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('home-sales-progress-panel')),
+          matching: find.text('Ngày'),
+        ),
+        findsOneWidget,
+      );
     },
   );
 

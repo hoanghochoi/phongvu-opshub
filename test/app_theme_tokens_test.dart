@@ -112,6 +112,7 @@ void main() {
   test('dark theme keeps context-aware foundation colors', () {
     final theme = AppTheme.darkTheme;
 
+    expect(AppColors.darkPrimary, const Color(0xFF8EA0FF));
     expect(theme.textTheme.bodyMedium?.fontFamily, 'Be Vietnam Pro');
     expect(theme.colorScheme.primary, AppColors.darkPrimary);
     expect(theme.colorScheme.secondary, AppColors.darkSecondary);

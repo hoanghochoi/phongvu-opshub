@@ -336,18 +336,9 @@ void main() {
     expect(find.text('Showroom CP01'), findsOneWidget);
   });
 
-  testWidgets('Home support icon opens QR and group link dialog', (
+  testWidgets('Home shell removes the support action from the topbar', (
     tester,
   ) async {
-    SharedPreferences.setMockInitialValues({});
-    FlutterSecureStorage.setMockInitialValues({});
-    PackageInfo.setMockInitialValues(
-      appName: 'PhongVu OpsHub',
-      packageName: 'com.example.phongvu_opshub',
-      version: '1.1.1',
-      buildNumber: '2',
-      buildSignature: '',
-    );
     final authProvider = _FakeAuthProvider(
       const User(
         id: 'user-1',
@@ -367,23 +358,8 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byTooltip('Hỗ trợ'));
-    await tester.pumpAndSettle();
-
-    expect(find.text('Hỗ trợ OpsHub'), findsOneWidget);
-    expect(find.textContaining('link.seatalk.io/group/open'), findsNothing);
-    expect(find.text('Sao chép liên kết'), findsOneWidget);
-    expect(find.text('Mở group'), findsOneWidget);
-    expect(
-      find.byWidgetPredicate(
-        (widget) =>
-            widget is Image &&
-            widget.image is AssetImage &&
-            (widget.image as AssetImage).assetName ==
-                'data/group_invitation.jpg',
-      ),
-      findsOneWidget,
-    );
+    expect(find.byTooltip('Hỗ trợ'), findsNothing);
+    expect(tester.takeException(), isNull);
   });
 }
 

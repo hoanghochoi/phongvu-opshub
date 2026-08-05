@@ -108,9 +108,11 @@ class AppColors {
   }
 
   // ── Dark-mode variants ────────────────────────────────────────────
-  static const Color darkPrimary = Color(0xFF6EB6FF);
-  static const Color darkPrimaryHover = Color(0xFF93C5FD);
-  static const Color darkPrimaryPressed = Color(0xFF25476F);
+  // Figma Dark semantic `action/primary/default` and the selected
+  // navigation content token (VariableID:8:88).
+  static const Color darkPrimary = Color(0xFF8EA0FF);
+  static const Color darkPrimaryHover = Color(0xFFAAB6FF);
+  static const Color darkPrimaryPressed = Color(0xFF6F83F7);
   static const Color darkPrimarySurface = Color(0xFF071D33);
   static const Color darkSecondary = Color(0xFF5EEAD4);
   static const Color darkSecondarySurface = Color(0xFF0B2E2A);
@@ -210,6 +212,11 @@ class AppColors {
       isDark(context) ? darkDivider : divider;
 
   static Color primaryOf(BuildContext context) =>
+      isDark(context) ? darkPrimary : primary;
+
+  /// Foreground for selected navigation content. Keeping this separate from
+  /// generic action colors makes the light/dark shell contract explicit.
+  static Color selectedNavigationOf(BuildContext context) =>
       isDark(context) ? darkPrimary : primary;
 
   /// Foreground used on a filled primary action. Dark mode follows Figma's

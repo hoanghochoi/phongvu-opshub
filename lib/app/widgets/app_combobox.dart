@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 import '../../core/logging/app_logger.dart';
 import '../theme/app_colors.dart';
@@ -234,7 +235,9 @@ class _AppComboboxState<T> extends State<AppCombobox<T>> {
       child: IconButton(
         tooltip: _isOpen ? 'Đóng danh sách' : 'Mở danh sách',
         icon: Icon(
-          _isOpen ? Icons.keyboard_arrow_up_rounded : Icons.search_rounded,
+          _isOpen
+              ? PhosphorIconsRegular.caretUp
+              : PhosphorIconsRegular.magnifyingGlass,
           size: 20,
         ),
         onPressed: widget.enabled ? _toggleOverlayFromSuffix : null,

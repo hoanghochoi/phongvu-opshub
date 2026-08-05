@@ -6,6 +6,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:phongvu_opshub/app/navigation/app_router.dart';
 import 'package:phongvu_opshub/app/navigation/app_shell.dart';
 import 'package:phongvu_opshub/app/theme/app_colors.dart';
+import 'package:phongvu_opshub/app/theme/app_theme.dart';
 import 'package:phongvu_opshub/app/widgets/app_layout.dart';
 import 'package:phongvu_opshub/core/logging/app_logger.dart';
 import 'package:phongvu_opshub/core/network/api_client.dart';
@@ -634,13 +635,13 @@ void main() {
     expect(appBar.backgroundColor, AppColors.surface);
     expect(appBar.foregroundColor, AppColors.onSurface);
     expect(find.byTooltip('Mở menu'), findsOneWidget);
-    expect(find.byTooltip('Hỗ trợ'), findsOneWidget);
+    expect(find.byTooltip('Hỗ trợ'), findsNothing);
     expect(find.text('Trang chủ'), findsWidgets);
     expect(find.textContaining('TB '), findsNothing);
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('desktop shell keeps support and notifications on the topbar', (
+  testWidgets('desktop shell keeps notifications and avatar on the topbar', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(1200, 900);
@@ -670,11 +671,10 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byType(AppNotificationsBell), findsOneWidget);
-    expect(find.byTooltip('Hỗ trợ'), findsOneWidget);
+    expect(find.byTooltip('Hỗ trợ'), findsNothing);
     expect(find.byTooltip('Tài khoản'), findsOneWidget);
     expect(find.text('Làm mới'), findsNothing);
     expect(find.textContaining('Web ·'), findsNothing);
-    expect(find.text('Hỗ trợ'), findsNothing);
     expect(find.text('Thông báo'), findsNothing);
     expect(find.text('Tài khoản'), findsNothing);
 
@@ -716,10 +716,9 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.byTooltip('Hỗ trợ'), findsOneWidget);
+    expect(find.byTooltip('Hỗ trợ'), findsNothing);
     expect(find.byTooltip('Thông báo'), findsOneWidget);
     expect(find.byTooltip('Tài khoản'), findsOneWidget);
-    expect(find.text('Hỗ trợ'), findsNothing);
     expect(find.byType(AppNotificationsBell), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
@@ -782,6 +781,12 @@ void main() {
     final selectedItem = tester.widget<Material>(
       find.byKey(const ValueKey('sidebar-item-home')),
     );
+    final selectedLabel = tester.widget<Text>(
+      find.descendant(
+        of: find.byKey(const ValueKey('sidebar-item-home')),
+        matching: find.text('Trang chủ'),
+      ),
+    );
     final selectedIndicator = _sidebarIndicator(tester, 'home');
     final unselectedIndicator = _sidebarIndicator(tester, 'fifoCheck');
     final overviewGroup = find.byKey(const ValueKey('sidebar-group-overview'));
@@ -840,9 +845,80 @@ void main() {
       lessThan(tester.getTopLeft(configurationGroup).dy),
     );
     expect(selectedItem.color, AppColors.sidebarSelected);
+    expect(selectedLabel.style?.color, AppColors.primary);
     expect(tester.getSize(selectedIndicatorFinder), const Size(4, 28));
     expect(_indicatorColor(selectedIndicator), isNot(AppColors.transparent));
     expect(_indicatorColor(unselectedIndicator), AppColors.transparent);
+  });
+
+  testWidgets('dark desktop sidebar uses the blue selected content token', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1200, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      ChangeNotifierProvider<AuthProvider>.value(
+        value: _FakeAuthProvider(_shellUser),
+        child: MaterialApp(
+          theme: AppTheme.darkTheme,
+          home: const AppShell(
+            location: '/home',
+            child: _RouteMarker(label: 'home-route-marker'),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final selectedLabel = tester.widget<Text>(
+      find.descendant(
+        of: find.byKey(const ValueKey('sidebar-item-home')),
+        matching: find.text('Trang chủ'),
+      ),
+    );
+    expect(selectedLabel.style?.color, AppColors.darkPrimary);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('dark mobile navigation uses the blue selected content token', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      ChangeNotifierProvider<AuthProvider>.value(
+        value: _FakeAuthProvider(_shellUser),
+        child: MaterialApp(
+          theme: AppTheme.darkTheme,
+          home: const AppShell(
+            location: '/home',
+            child: _RouteMarker(label: 'home-route-marker'),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final navigation = tester.widget<NavigationBar>(
+      find.byKey(const Key('mobile-bottom-navigation')),
+    );
+    final theme = NavigationBarTheme.of(
+      tester.element(find.byKey(const Key('mobile-bottom-navigation'))),
+    );
+    final selectedLabelStyle = theme.labelTextStyle?.resolve({
+      WidgetState.selected,
+    });
+    final selectedIconStyle = theme.iconTheme?.resolve({WidgetState.selected});
+    expect(selectedLabelStyle?.color, AppColors.darkPrimary);
+    expect(selectedIconStyle?.color, AppColors.darkPrimary);
+    expect(navigation.selectedIndex, 0);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('admin surface headers follow their Figma page titles', (
@@ -869,7 +945,7 @@ void main() {
 
     await tester.pumpWidget(buildShell('/admin/support-chats'));
     await tester.pumpAndSettle();
-    expect(find.text('Hỗ trợ'), findsNWidgets(2));
+    expect(find.text('Hỗ trợ'), findsOneWidget);
     expect(find.text('Quản lý hội thoại khách hàng'), findsOneWidget);
 
     await tester.pumpWidget(buildShell('/admin/api-connections'));
