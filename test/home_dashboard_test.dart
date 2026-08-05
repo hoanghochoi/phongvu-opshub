@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:go_router/go_router.dart';
 import 'package:phongvu_opshub/core/formatting/money_formatters.dart';
 import 'package:phongvu_opshub/core/logging/app_logger.dart';
@@ -796,8 +797,8 @@ void main() {
         find.byKey(const Key('home-analytics-sales-range')),
         findsOneWidget,
       );
-      expect(find.text('Tổng quan cá nhân'), findsOneWidget);
-      expect(find.text('Tổng quan Cửa hàng'), findsOneWidget);
+      expect(find.text('Doanh số cá nhân'), findsOneWidget);
+      expect(find.text('Doanh số theo phạm vi'), findsOneWidget);
       expect(
         find.byKey(const Key('home-analytics-sales-week')),
         findsOneWidget,
@@ -819,7 +820,7 @@ void main() {
         const Size.square(100),
       );
       expect(find.byType(LinearProgressIndicator), findsNothing);
-      expect(find.text('Tiến độ hoạt động'), findsOneWidget);
+      expect(find.text('Tiến độ hoạt động'), findsNothing);
       expect(
         tester
             .getTopLeft(find.byKey(const Key('home-summary-progress-panel')))
@@ -1498,23 +1499,25 @@ void main() {
       const Key('home-statement-progress-panel'),
     );
     final personalPanel = find.byKey(const Key('home-sales-progress-panel'));
-    final scopePanel = find.byKey(const Key('home-scope-sales-progress-panel'));
     final reportTopLeft = tester.getTopLeft(reportPanel);
     final statementTopLeft = tester.getTopLeft(statementPanel);
     final personalTopLeft = tester.getTopLeft(personalPanel);
-    final scopeTopLeft = tester.getTopLeft(scopePanel);
     expect(statementTopLeft.dy, reportTopLeft.dy);
-    expect(personalTopLeft.dy, greaterThan(reportTopLeft.dy));
-    expect(scopeTopLeft.dy, personalTopLeft.dy);
+    expect(personalTopLeft.dy, reportTopLeft.dy);
     expect(reportTopLeft.dx, lessThan(statementTopLeft.dx));
-    expect(reportTopLeft.dx, personalTopLeft.dx);
-    expect(statementTopLeft.dx, scopeTopLeft.dx);
-    expect(tester.getSize(reportPanel), const Size(582, 200));
-    expect(tester.getSize(statementPanel), const Size(582, 200));
-    expect(tester.getSize(personalPanel), const Size(582, 264));
-    expect(tester.getSize(scopePanel), const Size(582, 264));
+    expect(statementTopLeft.dx, lessThan(personalTopLeft.dx));
+    expect(
+      find.byKey(const Key('home-scope-sales-progress-panel')),
+      findsNothing,
+    );
+    expect(tester.getSize(reportPanel).width, closeTo(382.6667, 0.1));
+    expect(tester.getSize(reportPanel).height, closeTo(248, 0.1));
+    expect(tester.getSize(statementPanel).width, closeTo(382.6667, 0.1));
+    expect(tester.getSize(statementPanel).height, closeTo(248, 0.1));
+    expect(tester.getSize(personalPanel).width, closeTo(382.6667, 0.1));
+    expect(tester.getSize(personalPanel).height, closeTo(264, 0.1));
     expect(find.byKey(const Key('home-analytics-sales-range')), findsOneWidget);
-    expect(find.byKey(const Key('home-analytics-scope-month')), findsOneWidget);
+    expect(find.byKey(const Key('home-analytics-sales-month')), findsOneWidget);
   });
 
   testWidgets('Home progress matches compact Figma analytics geometry', (
@@ -1562,6 +1565,79 @@ void main() {
     );
   });
 
+  testWidgets('Home desktop goal card uses the Figma staff-state height', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    const summary = HomeSummary(
+      date: '2026-07-27',
+      available: true,
+      scope: 'OWN',
+      scopeLabel: 'Phạm vi cá nhân',
+      scopeDetail: 'Q.3',
+      coverageLabel: 'Tỉ lệ báo cáo',
+      totalRevenue: 128400000,
+      totalOrders: 32,
+      totalReports: 26,
+      reportedOrders: 26,
+      notPurchasedReports: 0,
+      unreportedOrders: 6,
+      coverageRate: 81.25,
+      personalSalesProgress: HomeSalesProgress(
+        status: 'AVAILABLE',
+        scope: 'PERSONAL',
+        missingStoreCodes: [],
+        day: HomeSalesProgressPeriod(
+          actual: 128000000,
+          target: 160000000,
+          percentage: 80,
+        ),
+        range: HomeSalesProgressPeriod(
+          actual: 128000000,
+          target: 160000000,
+          percentage: 80,
+        ),
+        week: HomeSalesProgressPeriod(
+          actual: 128000000,
+          target: 160000000,
+          percentage: 80,
+        ),
+        month: HomeSalesProgressPeriod(
+          actual: 128000000,
+          target: 160000000,
+          percentage: 80,
+        ),
+      ),
+      refreshedAt: null,
+    );
+    final provider = HomeSummaryProvider(
+      _FakeHomeSummaryRepository(summary: summary),
+    );
+    addTearDown(provider.dispose);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 1126,
+            child: ReportProgressPanel(summary: summary, provider: provider),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final goalSize = tester.getSize(
+      find.byKey(const Key('home-sales-progress-panel')),
+    );
+    expect(goalSize.width, closeTo(364.6667, 0.1));
+    expect(goalSize.height, closeTo(208, 0.1));
+  });
+
   testWidgets('Home progress uses viewport width when parent is unbounded', (
     tester,
   ) async {
@@ -1596,7 +1672,7 @@ void main() {
     expect(board.width, closeTo(640, 0.1));
     expect(
       tester.getSize(find.byKey(const Key('home-report-progress-panel'))),
-      const Size(640, 200),
+      const Size(640, 248),
     );
     expect(tester.takeException(), isNull);
   });
@@ -1634,6 +1710,53 @@ void main() {
       ),
     );
 
+    expect(
+      tester
+          .widget<Icon>(find.byKey(const Key('home-summary-card-revenue-icon')))
+          .icon,
+      PhosphorIconsRegular.currencyCircleDollar,
+    );
+    expect(
+      tester
+          .widget<Icon>(
+            find.byKey(const Key('home-summary-card-totalOrders-icon')),
+          )
+          .icon,
+      PhosphorIconsRegular.receipt,
+    );
+    expect(
+      tester
+          .widget<Icon>(
+            find.byKey(const Key('home-summary-card-averageOrderValue-icon')),
+          )
+          .icon,
+      PhosphorIconsRegular.arrowsLeftRight,
+    );
+    expect(
+      tester
+          .widget<Icon>(
+            find.byKey(const Key('home-summary-card-completedRevenue-icon')),
+          )
+          .icon,
+      PhosphorIconsRegular.checkCircle,
+    );
+    expect(
+      tester
+          .widget<Icon>(
+            find.byKey(const Key('home-summary-card-pendingRevenue-icon')),
+          )
+          .icon,
+      PhosphorIconsRegular.clockCounterClockwise,
+    );
+    expect(
+      tester
+          .widget<Icon>(
+            find.byKey(const Key('home-summary-card-conversionRate-icon')),
+          )
+          .icon,
+      PhosphorIconsRegular.sortAscending,
+    );
+
     final first = tester.getTopLeft(
       find.byKey(const Key('home-summary-card-revenue')),
     );
@@ -1648,7 +1771,7 @@ void main() {
     );
     expect(
       tester.getSize(find.byKey(const Key('home-summary-card-revenue'))).width,
-      closeTo(190, 1),
+      closeTo(186.7, 1),
     );
     expect(completedRevenue.dy, first.dy);
     expect(completedRevenue.dx, greaterThan(first.dx));
@@ -1741,12 +1864,114 @@ void main() {
             find.byKey(const Key('home-summary-card-businessCustomerRevenue')),
           )
           .width,
-      closeTo(230.4, 1),
+      closeTo(227.2, 1),
     );
     expect(insurance.dy, greaterThan(business.dy));
     expect(laptop.dy, insurance.dy);
     expect(laptop.dx, greaterThan(insurance.dx));
     expect(accessories.dy, greaterThan(laptop.dy));
+  });
+
+  testWidgets('Home metric groups use the approved Figma Phosphor icon map', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1280, 1800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    const summary = HomeSummary(
+      date: '2026-07-06',
+      available: true,
+      scope: 'OWN',
+      scopeLabel: 'Phạm vi cá nhân',
+      scopeDetail: 'CP01',
+      coverageLabel: 'Tỉ lệ báo cáo',
+      totalRevenue: 1000000,
+      totalOrders: 10,
+      totalReports: 8,
+      reportedOrders: 6,
+      notPurchasedReports: 3,
+      unreportedOrders: 4,
+      businessCustomerRevenue: 600000,
+      personalCustomerRevenue: 400000,
+      examScorePromotionCount: 1,
+      studentPromotionCount: 2,
+      installmentNeedCount: 3,
+      successfulInstallmentCount: 4,
+      extendedInsuranceQuantity: 5,
+      laptopQuantity: 6,
+      pcQuantity: 7,
+      assembledPcQuantity: 1,
+      appleQuantity: 8,
+      monitorQuantity: 9,
+      printerQuantity: 10,
+      accessoriesQuantity: 11,
+      coverageRate: 60,
+      consultedSolutionRate: 40,
+      experiencedRate: 50,
+      zaloRate: 60,
+      appDownloadRate: 70,
+      totalTransferredAmount: 800000,
+      totalStatements: 12,
+      totalStatementsTracked: 10,
+      totalStatementsUnfollowed: 2,
+      totalStatementsWithOrder: 8,
+      totalStatementsWithoutOrder: 4,
+      statementOrderRate: 66.7,
+      refreshedAt: null,
+    );
+    final provider = HomeSummaryProvider(
+      _FakeHomeSummaryRepository(summary: summary),
+    );
+    addTearDown(provider.dispose);
+    provider.syncAuth(_staffUser(), isInitialized: true);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SingleChildScrollView(
+            child: SizedBox(
+              width: 1200,
+              child: Column(
+                children: [
+                  SummaryCardGrid(summary: summary),
+                  MainKpiSummaryCardGrid(summary: summary, provider: provider),
+                  SalesBehaviorSummaryCardGrid(
+                    summary: summary,
+                    provider: provider,
+                  ),
+                  FinanceSummaryCardGrid(summary: summary, provider: provider),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    IconData iconFor(String metricKey) => tester
+        .widget<Icon>(find.byKey(Key('home-summary-card-$metricKey-icon')))
+        .icon!;
+
+    expect(iconFor('personalCustomerRevenue'), PhosphorIconsRegular.userCircle);
+    expect(iconFor('examScorePromotionCount'), PhosphorIconsRegular.gift);
+    expect(
+      iconFor('extendedInsuranceQuantity'),
+      PhosphorIconsRegular.shieldCheck,
+    );
+    expect(
+      iconFor('notPurchasedReports'),
+      PhosphorIconsRegular.magnifyingGlass,
+    );
+    expect(iconFor('consultedSolutionRate'), PhosphorIconsRegular.squaresFour);
+    expect(iconFor('experiencedRate'), PhosphorIconsRegular.info);
+    expect(iconFor('zaloRate'), PhosphorIconsRegular.bell);
+    expect(iconFor('totalStatementsWithOrder'), PhosphorIconsRegular.notepad);
+    expect(
+      iconFor('totalStatementsWithoutOrder'),
+      PhosphorIconsRegular.warningCircle,
+    );
   });
 
   testWidgets('Home KPI grid keeps two columns on narrow mobile width', (
@@ -2230,7 +2455,7 @@ void main() {
       );
       expect(summaryProvider.selectedSalesProgressUserId, isNull);
       expect(repository.requestedSalesProgressUserIds, contains(null));
-      expect(find.text('Tổng quan cá nhân'), findsOneWidget);
+      expect(find.text('Doanh số cá nhân'), findsOneWidget);
       expect(find.text('Chọn nhân viên để so sánh chỉ tiêu'), findsOneWidget);
       expect(
         find.byKey(const Key('home-analytics-sales-range')),

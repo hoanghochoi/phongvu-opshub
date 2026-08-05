@@ -2049,6 +2049,14 @@ test\feedback_admin_redesign_test.dart --reporter expanded` (8 tests), full
   and helper geometry read back at each width; metadata, isolated screenshot
   and `get_design_context` pass. No Settings code was changed; implementation
   remains blocked until explicit Figma approval.
+- `OPS-44`/`HOME-FINANCE-COMPATIBILITY-FIGMA-GAP-R1`, 2026-08-05: runtime
+  Home finance exposes two protected compatibility metrics not present in the
+  approved five-card source `326:3181`. Figma now contains official Phosphor
+  Eye/EyeSlash masters `1994:55498`/`1994:55501` in Foundation `683:20` and
+  proposal `1995:57158` with card nodes `1995:57161`/`1995:57175`; metadata,
+  screenshots and `get_design_context` readback pass. Runtime behavior is not
+  changed by the proposal and visual completion remains blocked on explicit
+  proposal/revision approval plus staging/Chrome proof.
 - `OPS-44`/`PROFILE-FIGMA-R1`, 2026-08-04: Profile now uses the approved
   Desktop/Web, Android mobile and Android tablet node maps (`305:3111`,
   `305:3148`, `839:2666`, `839:2854`) for content, header, session, edit and

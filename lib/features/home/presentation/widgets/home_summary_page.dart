@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_radius.dart';
@@ -1048,7 +1049,7 @@ class SummaryCardGrid extends StatelessWidget {
     final cards = [
       SummaryCard(
         metricKey: 'revenue',
-        icon: Icons.payments_outlined,
+        icon: PhosphorIconsRegular.currencyCircleDollar,
         title: 'Giá trị bán (đã bao gồm VAT)',
         value: formatCompactVndAmount(summary.totalRevenue),
         trend: const SummaryTrend.neutral('Theo đơn hàng ERP'),
@@ -1057,7 +1058,7 @@ class SummaryCardGrid extends StatelessWidget {
       ),
       SummaryCard(
         metricKey: 'totalOrders',
-        icon: Icons.shopping_bag_outlined,
+        icon: PhosphorIconsRegular.receipt,
         title: 'Đơn bán',
         value: _integerLabel(summary.totalOrders),
         trend: const SummaryTrend.neutral('Theo phạm vi'),
@@ -1066,7 +1067,7 @@ class SummaryCardGrid extends StatelessWidget {
       ),
       SummaryCard(
         metricKey: 'averageOrderValue',
-        icon: Icons.show_chart_rounded,
+        icon: PhosphorIconsRegular.arrowsLeftRight,
         title: 'Trung bình đơn hàng (đã bao gồm VAT)',
         value: formatCompactVndAmount(summary.averageOrderValue),
         trend: const SummaryTrend.neutral('Giá trị/đơn'),
@@ -1075,7 +1076,7 @@ class SummaryCardGrid extends StatelessWidget {
       ),
       SummaryCard(
         metricKey: 'completedRevenue',
-        icon: Icons.verified_outlined,
+        icon: PhosphorIconsRegular.checkCircle,
         title: 'Hoàn thành (đã bao gồm VAT)',
         value: formatCompactVndAmount(summary.completedRevenue),
         trend: const SummaryTrend.success('Đã hoàn tất'),
@@ -1084,7 +1085,7 @@ class SummaryCardGrid extends StatelessWidget {
       ),
       SummaryCard(
         metricKey: 'pendingRevenue',
-        icon: Icons.pending_actions_outlined,
+        icon: PhosphorIconsRegular.clockCounterClockwise,
         title: 'Chờ hoàn thành (đã bao gồm VAT)',
         value: formatCompactVndAmount(summary.pendingRevenue),
         trend: summary.pendingRevenue > 0
@@ -1095,7 +1096,7 @@ class SummaryCardGrid extends StatelessWidget {
       ),
       SummaryCard(
         metricKey: 'conversionRate',
-        icon: Icons.swap_horiz_rounded,
+        icon: PhosphorIconsRegular.sortAscending,
         title: 'Tỉ lệ chuyển đổi',
         value: _percentLabel(summary.conversionRate),
         trend: SummaryTrend.conversion(summary.conversionRate),
@@ -1109,6 +1110,9 @@ class SummaryCardGrid extends StatelessWidget {
       cards: cards,
       wideColumns: 6,
       rowHeights: const [182],
+      expandedRowHeights: const [146],
+      mediumRowHeights: const [136],
+      compactRowHeights: const [184],
     );
   }
 }
@@ -1128,7 +1132,7 @@ class MainKpiSummaryCardGrid extends StatelessWidget {
     final firstRow = [
       SummaryCard(
         metricKey: 'businessCustomerRevenue',
-        icon: Icons.business_center_outlined,
+        icon: PhosphorIconsRegular.buildings,
         title: 'Khách doanh nghiệp (đã bao gồm VAT)',
         value: formatCompactVndAmount(summary.businessCustomerRevenue),
         trend: const SummaryTrend.neutral('Theo báo cáo'),
@@ -1136,7 +1140,7 @@ class MainKpiSummaryCardGrid extends StatelessWidget {
       ),
       SummaryCard(
         metricKey: 'personalCustomerRevenue',
-        icon: Icons.person_outline_rounded,
+        icon: PhosphorIconsRegular.userCircle,
         title: 'Khách cá nhân (đã bao gồm VAT)',
         value: formatCompactVndAmount(summary.personalCustomerRevenue),
         trend: const SummaryTrend.neutral('Theo báo cáo'),
@@ -1144,7 +1148,7 @@ class MainKpiSummaryCardGrid extends StatelessWidget {
       ),
       SummaryCard(
         metricKey: 'examScorePromotionCount',
-        icon: Icons.redeem_outlined,
+        icon: PhosphorIconsRegular.gift,
         title: 'CTKM đổi điểm thi',
         value: _integerLabel(summary.examScorePromotionCount),
         trend: const SummaryTrend.neutral('Theo báo cáo'),
@@ -1152,7 +1156,7 @@ class MainKpiSummaryCardGrid extends StatelessWidget {
       ),
       SummaryCard(
         metricKey: 'studentPromotionCount',
-        icon: Icons.school_outlined,
+        icon: PhosphorIconsRegular.graduationCap,
         title: 'CTKM HSSV',
         value: _integerLabel(summary.studentPromotionCount),
         trend: const SummaryTrend.neutral('Theo báo cáo'),
@@ -1160,7 +1164,7 @@ class MainKpiSummaryCardGrid extends StatelessWidget {
       ),
       SummaryCard(
         metricKey: 'installmentNeedCount',
-        icon: Icons.request_quote_outlined,
+        icon: PhosphorIconsRegular.handCoins,
         title: 'Nhu cầu trả góp',
         value: _integerLabel(summary.installmentNeedCount),
         trend: const SummaryTrend.neutral('Theo báo cáo'),
@@ -1170,7 +1174,7 @@ class MainKpiSummaryCardGrid extends StatelessWidget {
       ),
       SummaryCard(
         metricKey: 'successfulInstallmentCount',
-        icon: Icons.verified_user_outlined,
+        icon: PhosphorIconsRegular.checkCircle,
         title: 'Trả góp thành công',
         value: _integerLabel(summary.successfulInstallmentCount),
         trend: const SummaryTrend.success('Có đơn trả góp'),
@@ -1180,7 +1184,7 @@ class MainKpiSummaryCardGrid extends StatelessWidget {
     final secondRow = [
       SummaryCard(
         metricKey: 'extendedInsuranceQuantity',
-        icon: Icons.health_and_safety_outlined,
+        icon: PhosphorIconsRegular.shieldCheck,
         title: 'Bảo hiểm mở rộng',
         value: _integerLabel(summary.extendedInsuranceQuantity),
         trend: const SummaryTrend.neutral('Theo lượng'),
@@ -1188,7 +1192,7 @@ class MainKpiSummaryCardGrid extends StatelessWidget {
       ),
       SummaryCard(
         metricKey: 'laptopQuantity',
-        icon: Icons.laptop_mac_outlined,
+        icon: PhosphorIconsRegular.laptop,
         title: 'Laptop',
         value: _integerLabel(summary.laptopQuantity),
         trend: const SummaryTrend.neutral('Theo lượng'),
@@ -1196,7 +1200,7 @@ class MainKpiSummaryCardGrid extends StatelessWidget {
       ),
       SummaryCard(
         metricKey: 'pcQuantity',
-        icon: Icons.desktop_windows_outlined,
+        icon: PhosphorIconsRegular.desktopTower,
         title: 'PC bộ',
         value: _integerLabel(summary.pcQuantity),
         trend: const SummaryTrend.neutral('Theo lượng'),
@@ -1204,7 +1208,7 @@ class MainKpiSummaryCardGrid extends StatelessWidget {
       ),
       SummaryCard(
         metricKey: 'assembledPcQuantity',
-        icon: Icons.memory_outlined,
+        icon: PhosphorIconsRegular.cpu,
         title: 'PC ráp',
         value: _integerLabel(summary.assembledPcQuantity),
         trend: const SummaryTrend.neutral('Theo bộ ráp'),
@@ -1212,7 +1216,7 @@ class MainKpiSummaryCardGrid extends StatelessWidget {
       ),
       SummaryCard(
         metricKey: 'appleQuantity',
-        icon: Icons.devices_other_outlined,
+        icon: PhosphorIconsRegular.appleLogo,
         title: 'Apple',
         value: _integerLabel(summary.appleQuantity),
         trend: const SummaryTrend.neutral('iPhone/MacBook/iPad'),
@@ -1220,7 +1224,7 @@ class MainKpiSummaryCardGrid extends StatelessWidget {
       ),
       SummaryCard(
         metricKey: 'monitorQuantity',
-        icon: Icons.monitor_outlined,
+        icon: PhosphorIconsRegular.monitor,
         title: 'Màn hình',
         value: _integerLabel(summary.monitorQuantity),
         trend: const SummaryTrend.neutral('Theo lượng'),
@@ -1228,7 +1232,7 @@ class MainKpiSummaryCardGrid extends StatelessWidget {
       ),
       SummaryCard(
         metricKey: 'printerQuantity',
-        icon: Icons.print_outlined,
+        icon: PhosphorIconsRegular.printer,
         title: 'Máy in',
         value: _integerLabel(summary.printerQuantity),
         trend: const SummaryTrend.neutral('Theo lượng'),
@@ -1236,7 +1240,7 @@ class MainKpiSummaryCardGrid extends StatelessWidget {
       ),
       SummaryCard(
         metricKey: 'accessoriesQuantity',
-        icon: Icons.cable_outlined,
+        icon: PhosphorIconsRegular.package,
         title: 'Phụ kiện',
         value: _integerLabel(summary.accessoriesQuantity),
         trend: const SummaryTrend.neutral('Theo lượng'),
@@ -1249,6 +1253,9 @@ class MainKpiSummaryCardGrid extends StatelessWidget {
       cards: [...firstRow, ...secondRow],
       wideColumns: 5,
       rowHeights: const [164, 136, 136],
+      expandedRowHeights: const [146],
+      mediumRowHeights: const [136],
+      compactRowHeights: const [184],
     );
   }
 }
@@ -1268,7 +1275,7 @@ class SalesBehaviorSummaryCardGrid extends StatelessWidget {
     final cards = [
       SummaryCard(
         metricKey: 'notPurchasedReports',
-        icon: Icons.person_search_outlined,
+        icon: PhosphorIconsRegular.magnifyingGlass,
         title: 'Khách chưa mua',
         value: _integerLabel(summary.notPurchasedReports),
         trend: const SummaryTrend.neutral('Theo báo cáo'),
@@ -1282,7 +1289,7 @@ class SalesBehaviorSummaryCardGrid extends StatelessWidget {
       ),
       SummaryCard(
         metricKey: 'unreportedOrders',
-        icon: Icons.assignment_late_outlined,
+        icon: PhosphorIconsRegular.clockCounterClockwise,
         title: 'Đơn chưa báo cáo',
         value: _integerLabel(summary.unreportedOrders),
         trend: summary.unreportedOrders > 0
@@ -1298,7 +1305,7 @@ class SalesBehaviorSummaryCardGrid extends StatelessWidget {
       ),
       SummaryCard(
         metricKey: 'reportedOrders',
-        icon: Icons.fact_check_outlined,
+        icon: PhosphorIconsRegular.receipt,
         title: 'Báo cáo đã mua',
         value: _integerLabel(summary.reportedOrders),
         trend: const SummaryTrend.success('đã ghi nhận'),
@@ -1312,7 +1319,7 @@ class SalesBehaviorSummaryCardGrid extends StatelessWidget {
       ),
       SummaryCard(
         metricKey: 'coverageRate',
-        icon: Icons.percent_rounded,
+        icon: PhosphorIconsRegular.shieldCheck,
         title: summary.resolvedCoverageLabel,
         value: _percentLabel(summary.coverageRate),
         trend: SummaryTrend.coverage(summary.coverageRate),
@@ -1320,7 +1327,7 @@ class SalesBehaviorSummaryCardGrid extends StatelessWidget {
       ),
       SummaryCard(
         metricKey: 'consultedSolutionRate',
-        icon: Icons.psychology_alt_outlined,
+        icon: PhosphorIconsRegular.squaresFour,
         title: 'Tỉ lệ 3 giải pháp',
         value: _percentLabel(summary.consultedSolutionRate),
         trend: SummaryTrend.yesRate(summary.consultedSolutionRate),
@@ -1328,7 +1335,7 @@ class SalesBehaviorSummaryCardGrid extends StatelessWidget {
       ),
       SummaryCard(
         metricKey: 'experiencedRate',
-        icon: Icons.touch_app_outlined,
+        icon: PhosphorIconsRegular.info,
         title: 'Tỉ lệ trải nghiệm',
         value: _percentLabel(summary.experiencedRate),
         trend: SummaryTrend.yesRate(summary.experiencedRate),
@@ -1336,7 +1343,7 @@ class SalesBehaviorSummaryCardGrid extends StatelessWidget {
       ),
       SummaryCard(
         metricKey: 'zaloRate',
-        icon: Icons.qr_code_2_outlined,
+        icon: PhosphorIconsRegular.bell,
         title: 'Tỉ lệ Zalo OA',
         value: _percentLabel(summary.zaloRate),
         trend: SummaryTrend.yesRate(summary.zaloRate),
@@ -1344,7 +1351,7 @@ class SalesBehaviorSummaryCardGrid extends StatelessWidget {
       ),
       SummaryCard(
         metricKey: 'appDownloadRate',
-        icon: Icons.download_for_offline_outlined,
+        icon: PhosphorIconsRegular.downloadSimple,
         title: 'Tỉ lệ tải App',
         value: _percentLabel(summary.appDownloadRate),
         trend: SummaryTrend.yesRate(summary.appDownloadRate),
@@ -1357,6 +1364,9 @@ class SalesBehaviorSummaryCardGrid extends StatelessWidget {
       cards: cards,
       wideColumns: 4,
       rowHeights: const [136, 136],
+      expandedRowHeights: const [146],
+      mediumRowHeights: const [136],
+      compactRowHeights: const [184],
     );
   }
 }
@@ -1376,7 +1386,7 @@ class FinanceSummaryCardGrid extends StatelessWidget {
     final cards = [
       SummaryCard(
         metricKey: 'totalTransferredAmount',
-        icon: Icons.account_balance_wallet_outlined,
+        icon: PhosphorIconsRegular.currencyCircleDollar,
         title: 'Tiền chuyển khoản',
         value: formatCompactVndAmount(summary.totalTransferredAmount),
         trend: const SummaryTrend.neutral('Theo phạm vi'),
@@ -1384,7 +1394,7 @@ class FinanceSummaryCardGrid extends StatelessWidget {
       ),
       SummaryCard(
         metricKey: 'totalStatements',
-        icon: Icons.receipt_long_outlined,
+        icon: PhosphorIconsRegular.receipt,
         title: 'Sao kê',
         value: _integerLabel(summary.totalStatements),
         trend: const SummaryTrend.neutral('Trong ngày'),
@@ -1392,7 +1402,7 @@ class FinanceSummaryCardGrid extends StatelessWidget {
       ),
       SummaryCard(
         metricKey: 'totalStatementsTracked',
-        icon: Icons.visibility_outlined,
+        icon: PhosphorIconsRegular.eye,
         title: 'Sao kê đang theo dõi',
         value: _integerLabel(summary.totalStatementsTracked),
         trend: const SummaryTrend.neutral('Dùng để tính tỷ lệ'),
@@ -1400,7 +1410,7 @@ class FinanceSummaryCardGrid extends StatelessWidget {
       ),
       SummaryCard(
         metricKey: 'totalStatementsUnfollowed',
-        icon: Icons.visibility_off_outlined,
+        icon: PhosphorIconsRegular.eyeSlash,
         title: 'Sao kê đã bỏ theo dõi',
         value: _integerLabel(summary.totalStatementsUnfollowed),
         trend: const SummaryTrend.neutral('Không tính đối chiếu đơn'),
@@ -1408,7 +1418,7 @@ class FinanceSummaryCardGrid extends StatelessWidget {
       ),
       SummaryCard(
         metricKey: 'totalStatementsWithOrder',
-        icon: Icons.task_alt_rounded,
+        icon: PhosphorIconsRegular.notepad,
         title: 'Sao kê có đơn hàng',
         value: _integerLabel(summary.totalStatementsWithOrder),
         trend: const SummaryTrend.success('đã đối chiếu'),
@@ -1416,7 +1426,7 @@ class FinanceSummaryCardGrid extends StatelessWidget {
       ),
       SummaryCard(
         metricKey: 'totalStatementsWithoutOrder',
-        icon: Icons.assignment_late_outlined,
+        icon: PhosphorIconsRegular.warningCircle,
         title: 'Sao kê chưa có đơn hàng',
         value: _integerLabel(summary.totalStatementsWithoutOrder),
         trend: summary.totalStatementsWithoutOrder > 0
@@ -1432,7 +1442,7 @@ class FinanceSummaryCardGrid extends StatelessWidget {
       ),
       SummaryCard(
         metricKey: 'statementOrderRate',
-        icon: Icons.percent_rounded,
+        icon: PhosphorIconsRegular.arrowsLeftRight,
         title: 'Tỉ lệ sao kê có đơn hàng',
         value: _percentLabel(summary.statementOrderRate),
         trend: SummaryTrend.statementOrder(summary.statementOrderRate),
@@ -1445,6 +1455,9 @@ class FinanceSummaryCardGrid extends StatelessWidget {
       cards: cards,
       wideColumns: 5,
       rowHeights: const [164],
+      expandedRowHeights: const [146],
+      mediumRowHeights: const [136],
+      compactRowHeights: const [184],
     );
   }
 }
@@ -1455,12 +1468,18 @@ class _SummaryMetricGrid extends StatelessWidget {
     required this.cards,
     this.wideColumns = 6,
     this.rowHeights,
+    this.expandedRowHeights,
+    this.mediumRowHeights,
+    this.compactRowHeights,
   });
 
   final Key gridKey;
   final List<SummaryCard> cards;
   final int wideColumns;
   final List<double>? rowHeights;
+  final List<double>? expandedRowHeights;
+  final List<double>? mediumRowHeights;
+  final List<double>? compactRowHeights;
 
   @override
   Widget build(BuildContext context) {
@@ -1470,12 +1489,20 @@ class _SummaryMetricGrid extends StatelessWidget {
         final width = constraints.maxWidth;
         final maxColumns = width >= 1100
             ? math.min(wideColumns, cards.length)
-            : width >= 760
+            : width >= 880
             ? math.min(3, cards.length)
+            : width >= 600
+            ? 1
             : math.min(2, cards.length);
         final rows = _balancedRows(cards, maxColumns);
-        final gap = AppLayoutTokens.cardGap;
-        final wide = width >= 1100;
+        const gap = 16.0;
+        final rowHeightsForWidth = width >= 1100
+            ? rowHeights
+            : width >= 880
+            ? expandedRowHeights
+            : width >= 600
+            ? mediumRowHeights
+            : compactRowHeights;
 
         return Column(
           key: gridKey,
@@ -1492,22 +1519,12 @@ class _SummaryMetricGrid extends StatelessWidget {
                     if (columnIndex > 0) SizedBox(width: gap),
                     Expanded(
                       child: SizedBox(
-                        height: rowHeights == null
-                            ? width >= 600
-                                  ? 182
-                                  : 120
-                            : wide
-                            ? rowHeights![math.min(
+                        height: rowHeightsForWidth == null
+                            ? 136
+                            : rowHeightsForWidth[math.min(
                                 rowIndex,
-                                rowHeights!.length - 1,
-                              )]
-                            : math.max(
-                                rowHeights![math.min(
-                                  rowIndex,
-                                  rowHeights!.length - 1,
-                                )],
-                                182,
-                              ),
+                                rowHeightsForWidth.length - 1,
+                              )],
                         child: rows[rowIndex][columnIndex],
                       ),
                     ),
@@ -1573,12 +1590,94 @@ class SummaryCard extends StatelessWidget {
             : dense
             ? 32.0
             : 36.0;
-        final iconSize = compact ? 18.0 : 22.0;
+        final iconSize = compact
+            ? 18.0
+            : dense
+            ? 22.0
+            : 24.0;
+        if (compact) {
+          return AppSurfaceCard(
+            key: Key('home-summary-card-$metricKey'),
+            borderColor: AppColors.borderOf(context),
+            backgroundColor: AppColors.raisedOf(context),
+            padding: const EdgeInsets.all(8),
+            radius: AppRadius.lg,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Container(
+                  width: iconDimension,
+                  height: iconDimension,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: AppColors.infoSurfaceOf(context),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(
+                    icon,
+                    key: Key('home-summary-card-$metricKey-icon'),
+                    color: AppColors.primaryOf(context),
+                    size: iconSize,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _SummaryCardTextAction(
+                        key: Key('home-summary-card-$metricKey-title-action'),
+                        onTap: onTextTap,
+                        tooltip: textTapTooltip,
+                        child: Text(
+                          title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppTextStyles.labelS.copyWith(
+                            color: AppColors.textPrimaryOf(context),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      _SummaryCardTextAction(
+                        key: Key('home-summary-card-$metricKey-value-action'),
+                        onTap: onTextTap,
+                        tooltip: textTapTooltip,
+                        child: Wrap(
+                          spacing: 6,
+                          runSpacing: 2,
+                          children: [
+                            Text(
+                              value,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: AppTextStyles.labelM.copyWith(
+                                color: AppColors.textPrimaryOf(context),
+                              ),
+                            ),
+                            _SummaryTrendPill(trend: trend),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
         return AppSurfaceCard(
           key: Key('home-summary-card-$metricKey'),
           borderColor: AppColors.borderOf(context),
           backgroundColor: AppColors.raisedOf(context),
-          padding: const EdgeInsets.all(16),
+          padding: EdgeInsets.all(
+            compact
+                ? 8
+                : dense
+                ? 12
+                : 16,
+          ),
           radius: AppRadius.lg,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1647,7 +1746,7 @@ class SummaryCard extends StatelessWidget {
                   ],
                 ),
               ),
-              if (!compact && !dense) ...[
+              if (!compact) ...[
                 const Spacer(),
                 Text(
                   helperText ?? _summaryCardHelperText(trend),
@@ -2599,33 +2698,33 @@ class ReportProgressPanel extends StatelessWidget {
     final reported = summary.totalOrders <= 0
         ? 0.0
         : summary.reportedOrders / summary.totalOrders * 100;
-    final cards = <_AnalyticsCardSpec>[
+    final progressCards = <_AnalyticsCardSpec>[
       if (summary.salesAvailable)
         _AnalyticsCardSpec(
           compactHeight: 248,
-          expandedHeight: 200,
+          expandedHeight: 248,
           card: _AnalyticsDonutCard(
             cardKey: const Key('home-report-progress-panel'),
             title: 'Tiến độ báo cáo',
             subtitle:
                 'Đã báo cáo ${summary.reportedOrders}/${summary.totalOrders} đơn',
             percentage: summary.coverageRate,
-            color: AppColors.primaryOf(context),
+            color: AppColors.successOf(context),
             primaryLegend: 'Đã báo cáo · ${summary.reportedOrders} đơn',
-            secondaryLegend: 'Cần xử lý · ${summary.unreportedOrders} đơn',
+            secondaryLegend: 'Chưa báo cáo · ${summary.unreportedOrders} đơn',
             primaryPercent: reported,
           ),
         ),
       if (summary.financeAvailable)
         _AnalyticsCardSpec(
           compactHeight: 248,
-          expandedHeight: 200,
+          expandedHeight: 248,
           card: _AnalyticsDonutCard(
             cardKey: const Key('home-statement-progress-panel'),
             title: 'Tiến độ sao kê',
             subtitle: 'Đối chiếu sao kê với đơn hàng',
             percentage: summary.statementOrderRate,
-            color: AppColors.successOf(context),
+            color: AppColors.infoOf(context),
             primaryLegend:
                 'Có đơn · ${summary.totalStatementsWithOrder} sao kê',
             secondaryLegend:
@@ -2633,15 +2732,18 @@ class ReportProgressPanel extends StatelessWidget {
             primaryPercent: summary.statementOrderRate,
           ),
         ),
+    ];
+    final goalCards = <_AnalyticsCardSpec>[
       if (summary.salesAvailable &&
           (summary.personalSalesProgress.isApplicable ||
               summary.salesProgressAssignees.isNotEmpty))
         _AnalyticsCardSpec(
           compactHeight: summary.salesProgressAssignees.isEmpty ? 208 : 266,
-          expandedHeight: 264,
+          expandedHeight: summary.salesProgressAssignees.isEmpty ? 208 : 264,
           card: _AnalyticsPeriodCard(
             cardKey: const Key('home-sales-progress-panel'),
-            title: 'Tổng quan cá nhân',
+            title: 'Doanh số cá nhân',
+            compactTitle: 'Doanh số cá nhân',
             subtitle: summary.selectedSalesProgressUserId == null
                 ? 'Chọn nhân viên để so sánh chỉ tiêu'
                 : 'Tiến độ theo nhân viên đã chọn',
@@ -2657,10 +2759,11 @@ class ReportProgressPanel extends StatelessWidget {
       if (summary.salesAvailable && summary.scopeSalesProgress.isApplicable)
         _AnalyticsCardSpec(
           compactHeight: 208,
-          expandedHeight: 264,
+          expandedHeight: 208,
           card: _AnalyticsPeriodCard(
             cardKey: const Key('home-scope-sales-progress-panel'),
-            title: _scopeSalesProgressTitle(summary),
+            title: 'Doanh số theo phạm vi',
+            compactTitle: 'Doanh số theo phạm vi',
             subtitle: summary.scopeSalesProgress.hasTarget
                 ? 'Tiến độ theo phạm vi được phân quyền'
                 : 'Thiếu chỉ tiêu: ${summary.scopeSalesProgress.missingStoreCodes.join(', ')}',
@@ -2669,7 +2772,9 @@ class ReportProgressPanel extends StatelessWidget {
           ),
         ),
     ];
-    if (cards.isEmpty) return const SizedBox.shrink();
+    if (progressCards.isEmpty && goalCards.isEmpty) {
+      return const SizedBox.shrink();
+    }
     return LayoutBuilder(
       builder: (context, constraints) {
         // The responsive Home frames use the full content width at each
@@ -2686,9 +2791,17 @@ class ReportProgressPanel extends StatelessWidget {
           math.max(0.0, math.min(boundedParentWidth, viewportWidth)),
         );
         final compact = boardWidth < AppLayoutTokens.compactBreakpoint;
-        final columns = boardWidth >= 760 ? 2 : 1;
+        // Desktop/expanded uses one Goal Progress slot beside the two rings;
+        // compact and medium stack both approved personal/scope goal states.
+        final visibleGoalCards = boardWidth >= 880
+            ? goalCards.take(1)
+            : goalCards;
+        final cards = [...progressCards, ...visibleGoalCards];
+        final columns = boardWidth >= 880 ? 3 : 1;
         final gap = 16.0;
-        final width = (boardWidth - gap * (columns - 1)) / columns;
+        final width = columns == 1
+            ? boardWidth
+            : (boardWidth - gap * (columns - 1)) / columns;
         return Align(
           alignment: Alignment.centerLeft,
           child: SizedBox(
@@ -2697,22 +2810,6 @@ class ReportProgressPanel extends StatelessWidget {
               key: const Key('home-summary-progress-panel'),
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  compact ? 'Tổng quan' : 'Tiến độ hoạt động',
-                  style: compact
-                      ? AppTextStyles.headingS
-                      : AppTextStyles.pageTitle,
-                ),
-                if (!compact) ...[
-                  const SizedBox(height: 6),
-                  Text(
-                    'Báo cáo, sao kê và tiến độ chỉ tiêu theo phạm vi hiện tại.',
-                    style: AppTextStyles.bodyS.copyWith(
-                      color: AppColors.textSecondaryOf(context),
-                    ),
-                  ),
-                ],
-                SizedBox(height: compact ? 16 : 18),
                 Wrap(
                   spacing: gap,
                   runSpacing: gap,
@@ -2797,7 +2894,7 @@ class _AnalyticsDonutCard extends StatelessWidget {
                       const SizedBox(height: 10),
                       _AnalyticsLegend(
                         label: secondaryLegend,
-                        color: AppColors.warningOf(context),
+                        color: AppColors.errorOf(context),
                       ),
                       const SizedBox(height: 18),
                       _AnalyticsBar(value: primaryPercent, color: color),
@@ -2821,6 +2918,7 @@ class _AnalyticsPeriodCard extends StatelessWidget {
   const _AnalyticsPeriodCard({
     required this.cardKey,
     required this.title,
+    this.compactTitle,
     required this.subtitle,
     required this.color,
     required this.progress,
@@ -2830,6 +2928,7 @@ class _AnalyticsPeriodCard extends StatelessWidget {
   });
   final Key cardKey;
   final String title, subtitle;
+  final String? compactTitle;
   final Color color;
   final HomeSalesProgress progress;
   final List<HomeSalesProgressAssignee> assignees;
@@ -2841,7 +2940,7 @@ class _AnalyticsPeriodCard extends StatelessWidget {
     return compact
         ? _CompactGoalCard(
             cardKey: cardKey,
-            title: title,
+            title: compactTitle ?? title,
             progress: progress,
             assignees: assignees,
             selectedAssigneeId: selectedAssigneeId,
@@ -3307,21 +3406,6 @@ class _AnalyticsPeriod extends StatelessWidget {
   }
 }
 
-String _scopeSalesProgressTitle(HomeSummary summary) {
-  final scope = summary.scope.trim().toUpperCase();
-  final label = summary.resolvedScopeLabel.toLowerCase();
-  if (scope == 'ALL') return 'Tổng quan toàn hệ thống';
-  if (scope == 'OWN') return 'Tổng quan Cửa hàng';
-  if (label.contains('miền')) return 'Tổng quan Miền';
-  if (label.contains('vùng')) return 'Tổng quan Vùng';
-  if (label.contains('showroom') ||
-      label.contains('cửa hàng') ||
-      label.contains('sr')) {
-    return 'Tổng quan Cửa hàng';
-  }
-  return 'Tổng quan Miền/Vùng/Cửa hàng';
-}
-
 class _ProgressDonut extends StatelessWidget {
   const _ProgressDonut({
     super.key,
@@ -3342,7 +3426,7 @@ class _ProgressDonut extends StatelessWidget {
       child: CustomPaint(
         painter: _CoverageDonutPainter(
           value: ((percentage ?? 0) / 100).clamp(0.0, 1.0),
-          trackColor: AppColors.subtleBorderOf(context),
+          trackColor: AppColors.borderOf(context),
           valueColor: color,
         ),
         child: Center(
