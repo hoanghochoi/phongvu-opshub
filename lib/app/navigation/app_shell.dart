@@ -740,7 +740,10 @@ class _MobileShell extends StatelessWidget {
             builder: (context) => IconButton(
               tooltip: 'Mở menu',
               onPressed: () => Scaffold.of(context).openDrawer(),
-              icon: const Icon(PhosphorIconsRegular.list),
+              icon: Icon(
+                PhosphorIconsRegular.list,
+                color: AppColors.textPrimaryOf(context),
+              ),
             ),
           ),
           title: Text(
