@@ -670,7 +670,7 @@ export class UserService implements OnModuleInit {
     void userId;
     void storeCode;
     throw new GoneException(
-      'Luồng tự chọn SR đã ngừng. Vui lòng liên hệ super_admin để được gán node tổ chức.',
+      'Luồng tự chọn SR đã ngừng. Vui lòng liên hệ quản trị hệ thống để được gán đơn vị tổ chức.',
     );
   }
 
@@ -1326,7 +1326,7 @@ export class UserService implements OnModuleInit {
       }
       if (candidates.length > 1) {
         throw new BadRequestException(
-          `mã node lv${level} bị trùng/mơ hồ: ${value}`,
+          `mã đơn vị Lv${level} bị trùng hoặc mơ hồ: ${value}`,
         );
       }
       previous = candidates[0];
@@ -1334,7 +1334,7 @@ export class UserService implements OnModuleInit {
     }
 
     if (!target) {
-      throw new BadRequestException('thiếu node tổ chức');
+      throw new BadRequestException('Thiếu đơn vị tổ chức');
     }
     await this.assertOrganizationNodeAssignableByAdmin(admin, target.id);
     return target;
@@ -1752,7 +1752,7 @@ export class UserService implements OnModuleInit {
       where: { id },
       include: { stores: { take: 1, orderBy: { storeId: 'asc' } } },
     });
-    if (!current) throw new NotFoundException('Không tìm thấy node tổ chức');
+    if (!current) throw new NotFoundException('Không tìm thấy đơn vị tổ chức');
 
     if (this.isDomainAdmin(admin) && this.isStoreNodeType(current.type)) {
       return this.updateShowroomMapCredentialFromTree(admin, current, body);
@@ -1767,7 +1767,7 @@ export class UserService implements OnModuleInit {
         data.parentId !== current.parentId
       ) {
         throw new BadRequestException(
-          'Không được đổi mã, loại hoặc cha của node hệ thống',
+          'Không được đổi mã, loại hoặc đơn vị cha của đơn vị hệ thống',
         );
       }
     }
@@ -1811,14 +1811,14 @@ export class UserService implements OnModuleInit {
       where: { id },
       include: { _count: { select: { children: true } } },
     });
-    if (!node) throw new NotFoundException('Không tìm thấy node tổ chức');
+    if (!node) throw new NotFoundException('Không tìm thấy đơn vị tổ chức');
     if (node.isSystem) {
-      throw new BadRequestException('Không được xóa node tổ chức hệ thống');
+      throw new BadRequestException('Không được xóa đơn vị tổ chức hệ thống');
     }
     const references = await this.organizationNodeReferenceCounts(id);
     const blockers: string[] = [];
     if (node._count.children > 0) {
-      blockers.push(node._count.children + ' node con');
+      blockers.push(node._count.children + ' đơn vị con');
     }
     if (references.users > 0) blockers.push(references.users + ' user');
     if (references.stores > 0) blockers.push(references.stores + ' SR');
@@ -1831,15 +1831,15 @@ export class UserService implements OnModuleInit {
     if (references.regions > 0) blockers.push(references.regions + ' Miền');
     if (references.areas > 0) blockers.push(references.areas + ' Vùng');
     if (references.featureRules > 0) {
-      blockers.push(references.featureRules + ' rule tính năng');
+      blockers.push(references.featureRules + ' quy tắc tính năng');
     }
     if (references.nodeFeatureAssignments > 0) {
       blockers.push(
-        references.nodeFeatureAssignments + ' quyền tính năng node',
+        references.nodeFeatureAssignments + ' quyền tính năng đơn vị',
       );
     }
     if (references.policyRules > 0) {
-      blockers.push(references.policyRules + ' rule policy');
+      blockers.push(references.policyRules + ' quy tắc chính sách');
     }
     if (blockers.length > 0) {
       this.logger.warn(
@@ -1851,7 +1851,7 @@ export class UserService implements OnModuleInit {
           blockers.join('|'),
       );
       throw new BadRequestException(
-        'Không thể xóa node tổ chức vì còn ' + blockers.join(', '),
+        'Không thể xóa đơn vị tổ chức vì còn ' + blockers.join(', '),
       );
     }
     await this.prisma.organizationNode.delete({ where: { id } });
@@ -1878,7 +1878,7 @@ export class UserService implements OnModuleInit {
     }
     const displayName = this.normalizeRequiredText(
       input.displayName ?? input.storeName ?? current?.displayName,
-      'Tên node tổ chức không được để trống',
+      'Tên đơn vị không được để trống',
       120,
     );
     const emailDomain = this.isDomainNodeType(type)
@@ -1943,7 +1943,7 @@ export class UserService implements OnModuleInit {
       );
     }
     if (!ORG_TYPES.has(type)) {
-      throw new BadRequestException('Loại node tổ chức không hợp lệ');
+      throw new BadRequestException('Loại đơn vị tổ chức không hợp lệ');
     }
     return type;
   }
@@ -1992,7 +1992,7 @@ export class UserService implements OnModuleInit {
       .toUpperCase()
       .replace(/[^A-Z0-9_]/g, '_');
     if (!/^[A-Z][A-Z0-9_]{1,79}$/.test(code)) {
-      throw new BadRequestException('Mã node tổ chức không hợp lệ');
+      throw new BadRequestException('Mã đơn vị tổ chức không hợp lệ');
     }
     return code;
   }
@@ -2060,14 +2060,14 @@ export class UserService implements OnModuleInit {
     if (type === ORG_TYPE_LV0_DOMAIN) return null;
     const parentId = String(parentIdInput ?? current?.parentId ?? '').trim();
     if (!parentId) {
-      throw new BadRequestException('Node cha không được để trống');
+      throw new BadRequestException('Đơn vị cha không được để trống');
     }
     const parent = await this.prisma.organizationNode.findUnique({
       where: { id: parentId },
       select: { id: true, type: true, isActive: true },
     });
     if (!parent || !parent.isActive) {
-      throw new BadRequestException('Node cha không hợp lệ');
+      throw new BadRequestException('Đơn vị cha không hợp lệ');
     }
     this.assertOrganizationParentType(type, parent.type);
     return parent.id;
@@ -2080,7 +2080,7 @@ export class UserService implements OnModuleInit {
     const parentLevel = this.organizationNodeLevel(normalizedParentType);
     if (parentLevel < childLevel) return;
     throw new BadRequestException(
-      `${this.organizationNodeTypeLabel(type)} phải nằm dưới node cấp cao hơn`,
+      `${this.organizationNodeTypeLabel(type)} phải nằm dưới đơn vị cấp cao hơn`,
     );
   }
 
@@ -2101,7 +2101,7 @@ export class UserService implements OnModuleInit {
 
   private async assertNoOrganizationCycle(id: string, parentId: string) {
     if (id === parentId)
-      throw new BadRequestException('Node không thể là cha của chính nó');
+      throw new BadRequestException('Đơn vị không thể là cha của chính nó');
     let cursor: string | null = parentId;
     for (let i = 0; i < 50 && cursor; i += 1) {
       const parent: { id: string; parentId: string | null } | null =
@@ -2301,7 +2301,7 @@ export class UserService implements OnModuleInit {
         },
       },
     });
-    if (!node) throw new NotFoundException('Không tìm thấy node tổ chức');
+    if (!node) throw new NotFoundException('Không tìm thấy đơn vị tổ chức');
     return this.toOrganizationNodeDto(node);
   }
 
@@ -2380,7 +2380,7 @@ export class UserService implements OnModuleInit {
         existing?.organizationNodeId &&
         existing.organizationNodeId !== node.id
       ) {
-        throw new BadRequestException('SR đã được gắn với node tổ chức khác');
+        throw new BadRequestException('SR đã được gắn với đơn vị tổ chức khác');
       }
       currentStore = existing;
     }
@@ -2456,7 +2456,7 @@ export class UserService implements OnModuleInit {
     const rawDisplayName = String(node.displayName || '').trim();
     const displayName = this.normalizeRequiredText(
       rawDisplayName || node.name || businessCode,
-      'Tên node tổ chức không được để trống',
+      'Tên đơn vị không được để trống',
       120,
     );
     if (!rawDisplayName) {
@@ -2792,7 +2792,7 @@ export class UserService implements OnModuleInit {
       const currentText = currentValue === undefined ? null : currentValue;
       if (nextValue !== currentText) changes.push(label);
     };
-    compareText('code', node.code, 'mã node', 80);
+    compareText('code', node.code, 'mã đơn vị', 80);
     compareText('businessCode', node.businessCode, 'mã SR', 80);
     compareText('storeId', store.storeId, 'mã SR', 80);
     compareText('displayName', node.displayName, 'tên showroom', 120);
@@ -4908,7 +4908,7 @@ export class UserService implements OnModuleInit {
     }
     if (store._count.featureAccessRules > 0) {
       throw new BadRequestException(
-        'Store đang có rule tính năng, không thể xóa',
+        'Cửa hàng đang có quy tắc tính năng, không thể xóa',
       );
     }
 
@@ -5517,7 +5517,7 @@ export class UserService implements OnModuleInit {
       const nodeId = String(item ?? '').trim();
       if (!nodeId || seen.has(nodeId)) continue;
       if (nodeId.length > 80) {
-        throw new BadRequestException('Node tổ chức không hợp lệ');
+        throw new BadRequestException('Đơn vị tổ chức không hợp lệ');
       }
       seen.add(nodeId);
       result.push(nodeId);
@@ -5707,7 +5707,7 @@ export class UserService implements OnModuleInit {
           organizationNodeId: options.current.organizationNodeId ?? null,
         };
       }
-      throw new BadRequestException('Vui lòng chọn node tổ chức');
+      throw new BadRequestException('Vui lòng chọn đơn vị tổ chức');
     }
 
     return this.resolveScopeLocationFromOrganizationNode(
@@ -5723,10 +5723,10 @@ export class UserService implements OnModuleInit {
     workScopeType: string,
   ) {
     const nodeId = String(nodeIdInput || '').trim();
-    if (!nodeId) throw new BadRequestException('Vui lòng chọn node tổ chức');
+    if (!nodeId) throw new BadRequestException('Vui lòng chọn đơn vị tổ chức');
     const context = await this.organizationScopeContext(nodeId);
     if (workScopeType === STORE_SCOPE && !context.storeNodeId) {
-      throw new BadRequestException('Vui lòng chọn node showroom');
+      throw new BadRequestException('Vui lòng chọn showroom');
     }
     await this.assertOrganizationNodeAssignableByAdmin(
       admin,
@@ -5842,7 +5842,7 @@ export class UserService implements OnModuleInit {
     const byId = new Map(nodes.map((node) => [node.id, node]));
     const node = byId.get(nodeId);
     if (!node || !node.isActive) {
-      throw new BadRequestException('Node tổ chức không tồn tại hoặc đã tắt');
+      throw new BadRequestException('Đơn vị tổ chức không tồn tại hoặc đã tắt');
     }
     const ancestors: typeof nodes = [];
     let cursor: (typeof nodes)[number] | null = node;
