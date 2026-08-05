@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'helpers/legacy_widget_finders.dart';
@@ -75,6 +76,18 @@ void main() {
       expect(find.text('Thông tin tài khoản'), findsOneWidget);
       expect(find.text('Phiên đăng nhập'), findsOneWidget);
       expect(find.text('Đăng xuất'), findsOneWidget);
+      expect(
+        tester
+            .renderObject<RenderParagraph>(find.text('Đăng xuất'))
+            .didExceedMaxLines,
+        isFalse,
+      );
+      expect(
+        tester
+            .renderObject<RenderParagraph>(find.text('Đổi mật khẩu'))
+            .didExceedMaxLines,
+        isFalse,
+      );
       expect(find.text('Quản lý Cửa hàng'), findsWidgets);
       expect(find.text('Cây tổ chức'), findsOneWidget);
       expect(find.textContaining('CP62 - Phan Đăng Lưu'), findsOneWidget);
