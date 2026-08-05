@@ -905,6 +905,10 @@ void main() {
     expect(find.textContaining('Cập nhật lúc'), findsOneWidget);
     expect(find.text('Phạm vi: Showroom được phân quyền'), findsOneWidget);
     expect(find.text('Khoảng ngày: 03/08'), findsOneWidget);
+    final headerRect = tester.getRect(header);
+    final refreshRect = tester.getRect(refresh);
+    expect(refreshRect.width, lessThan(headerRect.width));
+    expect(refreshRect.bottom, lessThanOrEqualTo(headerRect.bottom));
     tester
         .widget<HomeSummaryHeader>(find.byType(HomeSummaryHeader))
         .onRefresh!();

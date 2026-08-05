@@ -384,6 +384,7 @@ class HomeSummaryHeader extends StatelessWidget {
       builder: (context, constraints) {
         final mobile = constraints.maxWidth < AppLayoutTokens.compactBreakpoint;
         final controls = _HomeScopeDateControl(
+          availableWidth: math.max(0.0, constraints.maxWidth - 38),
           selectedScope: selectedScope,
           selectedScopeLabel: selectedScopeLabel.isEmpty
               ? scopeLabel
@@ -398,7 +399,9 @@ class HomeSummaryHeader extends StatelessWidget {
             return LayoutBuilder(
               builder: (context, controlConstraints) {
                 final controlWidth = controlConstraints.hasBoundedWidth
-                    ? controlConstraints.maxWidth
+                    ? (mobile
+                          ? controlConstraints.maxWidth
+                          : math.max(0.0, constraints.maxWidth - 38))
                     : constraints.maxWidth;
                 final halfWidth = math.max(0.0, (controlWidth - 8) / 2);
                 final compactDesktop =
@@ -406,27 +409,83 @@ class HomeSummaryHeader extends StatelessWidget {
                 final desktopSlotWidth = compactDesktop
                     ? math.max(0.0, (controlWidth - (8 * 3) - 152) / 3)
                     : null;
+                double desktopChipWidth(
+                  String label, {
+                  bool showCaret = false,
+                  IconData? leadingIcon,
+                }) {
+                  final intrinsicWidth = _homeHeaderChipWidth(
+                    context,
+                    label,
+                    showCaret: showCaret,
+                    leadingIcon: leadingIcon,
+                  );
+                  return desktopSlotWidth == null
+                      ? intrinsicWidth
+                      : math.min(intrinsicWidth, desktopSlotWidth);
+                }
+
+                final scopeChipLabel =
+                    'Phạm vi: ${_shortScopeLabel(scopeLabel)}';
+                final dateChipLabel =
+                    'Khoảng ngày: ${_homeRangeShortLabel(selectedStartDate, selectedEndDate)}';
+                final rawScopeWidth = desktopChipWidth(
+                  scopeChipLabel,
+                  showCaret: true,
+                );
+                final rawDateWidth = desktopChipWidth(
+                  dateChipLabel,
+                  showCaret: true,
+                );
+                final rawUpdateWidth = desktopChipWidth(
+                  updatedLabel,
+                  leadingIcon: PhosphorIconsRegular.info,
+                );
+                late final double scopeWidth;
+                late final double dateWidth;
+                late final double updateWidth;
+                if (mobile) {
+                  scopeWidth = halfWidth;
+                  dateWidth = halfWidth;
+                  updateWidth = controlWidth;
+                } else if (desktopSlotWidth != null) {
+                  scopeWidth = rawScopeWidth;
+                  dateWidth = rawDateWidth;
+                  updateWidth = rawUpdateWidth;
+                } else {
+                  // Keep all three HUG chips on the fixed desktop control row;
+                  // only cap a label when its content would consume the
+                  // remaining lane at a medium width.
+                  updateWidth = math.min(rawUpdateWidth, controlWidth * .32);
+                  dateWidth = math.min(rawDateWidth, controlWidth * .30);
+                  scopeWidth = math.min(
+                    rawScopeWidth,
+                    math.max(0.0, controlWidth - dateWidth - updateWidth - 16),
+                  );
+                }
                 final scopeChip = KeyedSubtree(
                   key: const Key('home-summary-scope-date-trigger'),
                   child: KeyedSubtree(
                     key: const Key('home-summary-date-range'),
                     child: KeyedSubtree(
                       key: const Key('home-summary-scope-pill'),
-                      child: _HomeHeaderChip(
-                        label: 'Phạm vi: ${_shortScopeLabel(scopeLabel)}',
-                        onTap: open,
-                        showCaret: true,
-                        maxWidth: mobile ? halfWidth : desktopSlotWidth,
+                      child: SizedBox(
+                        width: scopeWidth,
+                        child: _HomeHeaderChip(
+                          label: scopeChipLabel,
+                          onTap: open,
+                          showCaret: true,
+                          maxWidth: mobile ? halfWidth : scopeWidth,
+                        ),
                       ),
                     ),
                   ),
                 );
                 final dateChip = _HomeHeaderChip(
-                  label:
-                      'Khoảng ngày: ${_homeRangeShortLabel(selectedStartDate, selectedEndDate)}',
+                  label: dateChipLabel,
                   onTap: open,
                   showCaret: true,
-                  maxWidth: mobile ? halfWidth : desktopSlotWidth,
+                  maxWidth: mobile ? halfWidth : dateWidth,
                 );
                 final updateChip = _HomeHeaderChip(
                   key: const Key('home-summary-refresh-button'),
@@ -434,7 +493,7 @@ class HomeSummaryHeader extends StatelessWidget {
                   onTap: onRefresh,
                   busy: isRefreshing,
                   leadingIcon: PhosphorIconsRegular.info,
-                  maxWidth: mobile ? controlWidth : desktopSlotWidth,
+                  maxWidth: mobile ? controlWidth : updateWidth,
                 );
                 if (mobile) {
                   final mobileUpdateAndAction = action == null
@@ -463,17 +522,33 @@ class HomeSummaryHeader extends StatelessWidget {
                     ],
                   );
                 }
-                return Wrap(
-                  key: const Key('home-summary-controls'),
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    scopeChip,
-                    dateChip,
-                    updateChip,
-                    if (action != null) action!,
-                  ],
-                );
+                final desktopChildren = [
+                  scopeChip,
+                  SizedBox(width: dateWidth, child: dateChip),
+                  SizedBox(width: updateWidth, child: updateChip),
+                  if (action != null) action!,
+                ];
+                return action == null
+                    ? Row(
+                        key: const Key('home-summary-controls'),
+                        mainAxisSize: MainAxisSize.max,
+                        children: [
+                          for (
+                            var index = 0;
+                            index < desktopChildren.length;
+                            index++
+                          ) ...[
+                            if (index > 0) const SizedBox(width: 8),
+                            desktopChildren[index],
+                          ],
+                        ],
+                      )
+                    : Wrap(
+                        key: const Key('home-summary-controls'),
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: desktopChildren,
+                      );
               },
             );
           },
@@ -617,6 +692,7 @@ class HomeSummaryHeader extends StatelessWidget {
 
 class _HomeScopeDateControl extends StatelessWidget {
   const _HomeScopeDateControl({
+    required this.availableWidth,
     required this.selectedScope,
     required this.selectedScopeLabel,
     required this.scopeOptions,
@@ -628,6 +704,7 @@ class _HomeScopeDateControl extends StatelessWidget {
     this.action,
   });
 
+  final double availableWidth;
   final String selectedScope;
   final String selectedScopeLabel;
   final List<HomeSummaryScopeOption> scopeOptions;
@@ -669,7 +746,7 @@ class _HomeScopeDateControl extends StatelessWidget {
       controller.open(position: Offset(menuLeft - anchorLeft, anchorHeight));
     }
 
-    return MenuAnchor(
+    final menuAnchor = MenuAnchor(
       key: menuAnchorKey,
       // Keep the explicitly calculated panel width. Flutter's default
       // unconstrained menu wrapper can otherwise grow the surface past the
@@ -748,7 +825,28 @@ class _HomeScopeDateControl extends StatelessWidget {
         ),
       ],
     );
+    return SizedBox(width: availableWidth, child: menuAnchor);
   }
+}
+
+double _homeHeaderChipWidth(
+  BuildContext context,
+  String label, {
+  bool showCaret = false,
+  IconData? leadingIcon,
+}) {
+  final painter = TextPainter(
+    text: TextSpan(
+      text: label,
+      style: AppTextStyles.bodyS.copyWith(height: 18 / 13),
+    ),
+    textDirection: Directionality.of(context),
+    maxLines: 1,
+  )..layout();
+  return 24 +
+      painter.width +
+      (leadingIcon == null ? 0 : 24) +
+      (showCaret ? 24 : 0);
 }
 
 class _HomeHeaderChip extends StatelessWidget {
