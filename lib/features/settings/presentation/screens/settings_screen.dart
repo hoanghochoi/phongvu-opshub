@@ -401,6 +401,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Widget _buildThemeSelector(BuildContext context) {
     final currentMode = context.watch<ThemeProvider>().mode;
+    final compactOptions =
+        MediaQuery.sizeOf(context).width < AppLayoutTokens.desktopBreakpoint;
 
     return AppSurfaceCard(
       key: const Key('settings-theme-card'),
@@ -446,6 +448,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   activeIcon: Icons.light_mode,
                   label: 'Sáng',
                   isActive: currentMode == ThemeMode.light,
+                  compact: compactOptions,
                 ),
                 _buildThemeOption(
                   context,
@@ -454,6 +457,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   activeIcon: Icons.dark_mode,
                   label: 'Tối',
                   isActive: currentMode == ThemeMode.dark,
+                  compact: compactOptions,
                 ),
                 _buildThemeOption(
                   context,
@@ -462,6 +466,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   activeIcon: Icons.settings_brightness,
                   label: 'Hệ thống',
                   isActive: currentMode == ThemeMode.system,
+                  compact: compactOptions,
                 ),
               ],
             ),
@@ -478,6 +483,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     required IconData activeIcon,
     required String label,
     required bool isActive,
+    required bool compact,
   }) {
     final themeProvider = context.read<ThemeProvider>();
     final inactiveColor = Theme.of(context).colorScheme.onSurfaceVariant;
@@ -507,15 +513,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 color: isActive ? AppColors.infoOf(context) : inactiveColor,
                 size: 18,
               ),
-              const SizedBox(width: 8),
+              SizedBox(width: compact ? 4 : 8),
               Flexible(
-                child: Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppTextStyles.bodyS.copyWith(
-                    fontWeight: isActive ? FontWeight.w600 : FontWeight.w400,
-                    color: isActive ? AppColors.infoOf(context) : inactiveColor,
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    softWrap: false,
+                    style: AppTextStyles.bodyS.copyWith(
+                      fontWeight: isActive ? FontWeight.w600 : FontWeight.w400,
+                      color: isActive
+                          ? AppColors.infoOf(context)
+                          : inactiveColor,
+                    ),
                   ),
                 ),
               ),

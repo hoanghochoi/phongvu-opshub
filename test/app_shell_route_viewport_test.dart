@@ -16,6 +16,7 @@ import 'package:phongvu_opshub/features/auth/presentation/providers/auth_provide
 import 'package:phongvu_opshub/features/bank_statement/data/bank_statement_repository.dart';
 import 'package:phongvu_opshub/features/bank_statement/domain/bank_statement_transaction.dart';
 import 'package:phongvu_opshub/features/notifications/presentation/providers/app_notifications_provider.dart';
+import 'package:phongvu_opshub/features/notifications/presentation/screens/notifications_screen.dart';
 import 'package:phongvu_opshub/features/notifications/presentation/widgets/app_notifications_bell.dart';
 import 'package:phongvu_opshub/features/offset_adjustment/data/offset_adjustment_repository.dart';
 import 'package:phongvu_opshub/features/offset_adjustment/domain/offset_adjustment.dart';
@@ -89,6 +90,79 @@ void main() {
     expect(find.byKey(const ValueKey('route-/operations')), findsOneWidget);
     expect(find.text('home-route-marker'), findsNothing);
     expect(find.text('operations-route-marker'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('tablet route content receives the shell content width', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1024, 768);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final authProvider = _FakeAuthProvider(_shellUser);
+    var observedChildWidth = -1.0;
+    await tester.pumpWidget(
+      ChangeNotifierProvider<AuthProvider>.value(
+        value: authProvider,
+        child: MaterialApp(
+          home: AppShell(
+            location: '/notifications',
+            child: AppResponsiveScrollView(
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  observedChildWidth = constraints.maxWidth;
+                  return const SizedBox(height: 24);
+                },
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      tester.getSize(find.byKey(const ValueKey('route-/notifications'))).width,
+      936,
+    );
+    expect(observedChildWidth, lessThanOrEqualTo(888));
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('notifications route keeps its tablet scroll extent bounded', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1024, 768);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final authProvider = _FakeAuthProvider(_shellUser);
+    final notificationsProvider = _FakeAppNotificationsProvider();
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider<AuthProvider>.value(value: authProvider),
+          ChangeNotifierProvider<AppNotificationsProvider>.value(
+            value: notificationsProvider,
+          ),
+        ],
+        child: const MaterialApp(
+          home: AppShell(
+            location: '/notifications',
+            child: NotificationsScreen(),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      tester.getSize(find.byKey(const ValueKey('route-/notifications'))).width,
+      936,
+    );
     expect(tester.takeException(), isNull);
   });
 
