@@ -122,7 +122,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Tài khoản'), findsOneWidget);
+    expect(find.byTooltip('Tài khoản'), findsOneWidget);
     expect(find.text('Dai Ca'), findsNothing);
     expect(find.text('SR: PV001 - PV Test'), findsNothing);
   });

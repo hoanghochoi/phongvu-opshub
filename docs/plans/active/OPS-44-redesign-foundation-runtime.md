@@ -1710,3 +1710,86 @@ visual-retirement proof.
   uncommitted wave. Required Light/Dark matrix remains `375×812`, `834×1112`,
   `1024×768`, and `1440×900`, followed by platform evidence, legacy-retirement
   proof, production deployment, and only then a possible OPS-44 Done transition.
+
+## Approved Home proposal addendum — 2026-08-05
+
+Đại Ca approved the current Home proposal as the visual authority for this
+implementation wave. The exact Figma frames are Light `2003:144150` and Dark
+`2003:144247`; no legacy runtime composition may be used as a visual fallback.
+
+### Exact node map and protected states
+
+- Shared shell: `229:851`; desktop notification `2091:55501`, compact
+  notification `2091:146729`, avatar `229:855`.
+- Home header: Light `2009:58479`, Dark `2010:58453`; scope/date/update chips
+  use HUG width and the loading icon replaces the info icon in-place.
+- Overview: Light `2003:144157`, Dark `2003:144254`; 2 columns × 2 rows with
+  progress bars, preserving day/week/month, personal/store, empty/loading,
+  unavailable and retryable-error behavior.
+- Notification badge set: `2100:56208`; variants `2100:56202` (7),
+  `2100:56204` (99), and `2100:56206` (99+). Runtime contract remains hidden
+  at zero and capped at `99+` above 99.
+- Dark selected navigation content is the semantic action-primary token; it
+  must resolve to the approved blue counterpart in dark mode just as Light
+  selected content resolves to brand blue.
+- Fresh Figma readback on 2026-08-05 reran `get_design_context` and
+  `get_screenshot` for Light `2003:144150` and Dark `2003:144247`; both frames
+  resolve to the approved Home shell/header and 2×2 progress-bar overview,
+  with HUG scope/date/update chips, in-place loading icon variant, notification
+  badge preview and the shared avatar/FAB stack. No new Figma gap was found;
+  the readback is authority confirmation only and does not authorize a runtime
+  fallback to the deployed baseline.
+
+### Required Chrome proof matrix
+
+Authenticated Chrome comparison must cover `375×812`, `834×1112`, `1024×768`,
+and `1440×900` in both Light and Dark for loaded, loading, empty,
+unavailable/permission, and retryable-error states where the route exposes
+them. Capture the exact viewport dimensions, screenshot, console result, and
+selected-nav/header/shell state for each run. Re-run widget/golden geometry,
+focused tests, `flutter analyze --no-pub`, `git diff --check`, and
+`flutter build web --release` after every visual fix.
+
+### Local proof for Dark selected-navigation fix — 2026-08-05
+
+- `AppColors.darkPrimary` now resolves to the approved `#8EA0FF` token;
+  Dark hover/pressed values are aligned to `#AAB6FF`/`#6F83F7`.
+- Focused theme and shell proof passes `29/29`, including a Dark desktop
+  assertion that selected `Trang chủ` text uses `AppColors.darkPrimary`.
+- `flutter analyze --no-pub` reports no issues; `git diff --check` passes;
+  `flutter build web --release` succeeds (including the Wasm dry run).
+- Authenticated staging/Chrome proof remains open because staging still needs
+  the branch/deployed SHA; these local results do not claim the full OPS-44
+  visual matrix complete.
+
+### Local follow-up proof — selected navigation and responsive header — 2026-08-05
+
+- Dark selected navigation now uses one explicit `selectedNavigationOf` token
+  across desktop sidebar, tablet rail, mobile drawer and mobile bottom nav;
+  Light/Dark shell assertions both pass, including the Dark `#8EA0FF` label.
+- Header controls now measure their rendered content lane before sizing chips;
+  compact Android controls and the optional speaker action stay in-bounds,
+  while medium widths cap long chips so the action remains on the same row.
+- Full `flutter test --no-pub --reporter json` completed with
+  `{"success":true,"type":"done"}`; `flutter analyze --no-pub`,
+  `git diff --check`, and `flutter build web --release` also pass.
+- Staging deploy and authenticated Chrome matrix remain open; no commit,
+  push, or release claim is made from this local worktree.
+
+### Chrome audit checkpoint — 2026-08-05
+
+- Connected Chrome to `https://opshub-staging.hoanghochoi.com/#/home` and
+  confirmed the deployed bootstrap query is SHA `b0a0b0a3d274d0cd2a929cda1199a1c390169865`,
+  equal to `HEAD`/`origin/staging` but not to the dirty worktree contents.
+- The authenticated staging screenshot at the compact `375×812` viewport is
+  baseline UI (donut overview, Support topbar action and text account action),
+  so it is explicitly invalid as proof for the current uncommitted proposal
+  wave. The browser reported no runtime console errors beyond Flutter service
+  worker bootstrap debug messages.
+- Served the current release artifact at `http://127.0.0.1:5174`; protected
+  `/home` correctly redirects to `/login` because this local origin has no
+  authenticated session. No cookie, storage or credential bypass was used.
+- Chrome local tab is retained at the login screen for an explicit user sign-in;
+  the four-viewport Light/Dark/state matrix remains unverified until that
+  authentication gate is satisfied or the exact worktree SHA is deployed by
+  an explicitly authorized staging action.

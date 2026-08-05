@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:phongvu_opshub/app/theme/app_colors.dart';
 import 'package:phongvu_opshub/app/theme/app_theme.dart';
 import 'package:provider/provider.dart';
@@ -82,7 +83,9 @@ void main() {
       );
 
       final label = tester.widget<Text>(find.text('--'));
-      final icon = tester.widget<Icon>(find.byIcon(Icons.timer_outlined));
+      final icon = tester.widget<Icon>(
+        find.byIcon(PhosphorIconsRegular.clockCounterClockwise),
+      );
 
       expect(label.style?.color, AppColors.onSurface);
       expect(icon.color, AppColors.onSurface);

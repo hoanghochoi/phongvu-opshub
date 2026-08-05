@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:provider/provider.dart';
 
 import '../../../../app/theme/app_colors.dart';
@@ -69,8 +70,8 @@ class PaymentDeliveryMetricsChip extends StatelessWidget {
     final compactIcon = deltaMs != null
         ? _trendIcon(trend)
         : hasError && metrics == null
-        ? Icons.error_outline_rounded
-        : Icons.timer_outlined;
+        ? PhosphorIconsRegular.warningCircle
+        : PhosphorIconsRegular.clockCounterClockwise;
     final compactColor = deltaMs != null ? trendColor : statusColor;
 
     return Padding(
@@ -81,9 +82,9 @@ class PaymentDeliveryMetricsChip extends StatelessWidget {
           button: true,
           label: 'Mở lịch sử tốc độ đọc loa',
           child: ConstrainedBox(
-            constraints: const BoxConstraints(minHeight: 36).copyWith(
-              minWidth: compact ? 76 : 88,
-              maxWidth: compact ? 108 : 156,
+            constraints: const BoxConstraints(minHeight: 40).copyWith(
+              minWidth: compact ? 76 : 89,
+              maxWidth: compact ? 108 : 180,
             ),
             child: DecoratedBox(
               decoration: BoxDecoration(
@@ -140,7 +141,7 @@ class PaymentDeliveryMetricsChip extends StatelessWidget {
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               Icon(
-                                Icons.timer_outlined,
+                                PhosphorIconsRegular.clockCounterClockwise,
                                 size: 17,
                                 color: statusColor,
                               ),
@@ -273,10 +274,10 @@ class PaymentDeliveryMetricsChip extends StatelessWidget {
 
   IconData _trendIcon(PaymentDeliveryMetricTrend trend) {
     return switch (trend) {
-      PaymentDeliveryMetricTrend.down => Icons.trending_down_rounded,
-      PaymentDeliveryMetricTrend.up => Icons.trending_up_rounded,
-      PaymentDeliveryMetricTrend.flat => Icons.trending_flat_rounded,
-      PaymentDeliveryMetricTrend.unknown => Icons.remove_rounded,
+      PaymentDeliveryMetricTrend.down => PhosphorIconsRegular.trendDown,
+      PaymentDeliveryMetricTrend.up => PhosphorIconsRegular.trendUp,
+      PaymentDeliveryMetricTrend.flat => PhosphorIconsRegular.minus,
+      PaymentDeliveryMetricTrend.unknown => PhosphorIconsRegular.minus,
     };
   }
 

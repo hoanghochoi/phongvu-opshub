@@ -996,10 +996,6 @@ void main() {
             count: 2,
             reason: 'inline refresh and ERP order verification actions',
           ),
-      'lib/features/home/presentation/widgets/home_summary_page.dart': (
-        count: 2,
-        reason: 'toolbar refresh and header chip action states',
-      ),
       'lib/features/vietqr/presentation/widgets/payment_waiting_card.dart': (
         count: 1,
         reason: 'payment waiting status',
