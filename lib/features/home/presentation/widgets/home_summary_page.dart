@@ -846,7 +846,8 @@ double _homeHeaderChipWidth(
   return 24 +
       painter.width +
       (leadingIcon == null ? 0 : 24) +
-      (showCaret ? 24 : 0);
+      (showCaret ? 24 : 0) +
+      16;
 }
 
 class _HomeHeaderChip extends StatelessWidget {
