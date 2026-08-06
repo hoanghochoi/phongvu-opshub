@@ -141,6 +141,7 @@ void main() {
 
       final authProvider = _FakeAuthProvider(_shellUser);
       var observedChildWidth = -1.0;
+      var observedMediaSize = Size.zero;
       await tester.pumpWidget(
         ChangeNotifierProvider<AuthProvider>.value(
           value: authProvider,
@@ -151,6 +152,7 @@ void main() {
                 child: LayoutBuilder(
                   builder: (context, constraints) {
                     observedChildWidth = constraints.maxWidth;
+                    observedMediaSize = MediaQuery.sizeOf(context);
                     return const SizedBox(height: 24);
                   },
                 ),
@@ -167,7 +169,8 @@ void main() {
             .width,
         1190,
       );
-      expect(observedChildWidth, lessThanOrEqualTo(1116));
+      expect(observedChildWidth, lessThanOrEqualTo(1132));
+      expect(observedMediaSize, const Size(1190, 828));
       expect(tester.takeException(), isNull);
     },
   );

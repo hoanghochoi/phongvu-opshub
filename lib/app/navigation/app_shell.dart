@@ -1051,6 +1051,9 @@ class _RouteViewport extends StatelessWidget {
         final height = constraints.hasBoundedHeight
             ? constraints.maxHeight
             : mediaSize.height;
+        final routeMediaQuery = MediaQuery.of(context).copyWith(
+          size: Size(width, height),
+        );
         return SizedBox(
           width: width,
           height: height,
@@ -1059,7 +1062,10 @@ class _RouteViewport extends StatelessWidget {
             child: ClipRect(
               child: RepaintBoundary(
                 key: ValueKey('route-$location'),
-                child: SizedBox(width: width, height: height, child: child),
+                child: MediaQuery(
+                  data: routeMediaQuery,
+                  child: SizedBox(width: width, height: height, child: child),
+                ),
               ),
             ),
           ),
