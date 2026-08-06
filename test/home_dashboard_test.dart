@@ -1957,6 +1957,70 @@ void main() {
     );
   });
 
+  testWidgets('Home finance delta pills keep long labels visible', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1200, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    const summary = HomeSummary(
+      date: '2026-07-06',
+      available: true,
+      scope: 'OWN',
+      scopeLabel: 'Phạm vi cá nhân',
+      scopeDetail: 'CP01',
+      coverageLabel: 'Tỉ lệ báo cáo',
+      totalRevenue: 0,
+      totalOrders: 0,
+      totalReports: 0,
+      reportedOrders: 0,
+      unreportedOrders: 0,
+      coverageRate: 0,
+      financeAvailable: true,
+      totalStatementsTracked: 48,
+      totalStatementsUnfollowed: 12,
+      refreshedAt: null,
+    );
+    final provider = HomeSummaryProvider(
+      _FakeHomeSummaryRepository(summary: summary),
+    );
+    addTearDown(provider.dispose);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SingleChildScrollView(
+            child: SizedBox(
+              width: 1200,
+              child: FinanceSummaryCardGrid(
+                summary: summary,
+                provider: provider,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final pill = find.byKey(
+      const Key('home-summary-card-Không tính đối chiếu đơn-trend-pill'),
+    );
+    expect(pill, findsOneWidget);
+    expect(tester.getSize(pill).width, greaterThan(150));
+    final label = tester.widget<Text>(
+      find.descendant(
+        of: pill,
+        matching: find.text('Không tính đối chiếu đơn'),
+      ),
+    );
+    expect(label.maxLines, 1);
+    expect(label.overflow, isNull);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('Home KPI grid keeps two columns on narrow mobile width', (
     tester,
   ) async {
