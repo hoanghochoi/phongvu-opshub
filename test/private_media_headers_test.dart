@@ -1,3 +1,4 @@
+import 'package:cached_network_image_platform_interface/cached_network_image_platform_interface.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:phongvu_opshub/core/network/api_client.dart';
 import 'package:phongvu_opshub/core/network/private_media_headers.dart';
@@ -74,5 +75,22 @@ void main() {
         isEmpty,
       );
     });
+  });
+
+  test('private media uses the web renderer that preserves auth headers', () {
+    const apiBaseUrl = 'https://opshub.example.test/api';
+    const privateUrl =
+        'https://opshub.example.test/api/media/123e4567-e89b-42d3-a456-426614174000';
+    const legacyUrl =
+        'https://opshub.example.test/uploads/warranty/legacy-photo.jpg';
+
+    expect(
+      privateMediaImageRenderMethodForWeb(privateUrl, apiBaseUrl: apiBaseUrl),
+      ImageRenderMethodForWeb.HttpGet,
+    );
+    expect(
+      privateMediaImageRenderMethodForWeb(legacyUrl, apiBaseUrl: apiBaseUrl),
+      ImageRenderMethodForWeb.HtmlImage,
+    );
   });
 }

@@ -1,3 +1,6 @@
+import 'package:cached_network_image_platform_interface/cached_network_image_platform_interface.dart'
+    show ImageRenderMethodForWeb;
+
 import '../constants/api_constants.dart';
 import 'api_client.dart';
 
@@ -19,6 +22,17 @@ Map<String, String> privateMediaHeaders(
   if (token == null || token.isEmpty) return const <String, String>{};
 
   return <String, String>{'Authorization': 'Bearer $token'};
+}
+
+/// Uses the web renderer that can carry headers for protected media while
+/// keeping legacy public uploads on the browser's native image path.
+ImageRenderMethodForWeb privateMediaImageRenderMethodForWeb(
+  String url, {
+  String apiBaseUrl = ApiConstants.baseUrl,
+}) {
+  return isProtectedPrivateMediaUrl(url, apiBaseUrl: apiBaseUrl)
+      ? ImageRenderMethodForWeb.HttpGet
+      : ImageRenderMethodForWeb.HtmlImage;
 }
 
 bool isProtectedPrivateMediaUrl(

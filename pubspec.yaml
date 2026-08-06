@@ -102,6 +102,7 @@ dependencies:
 
   # Cached network images
   cached_network_image: ^3.4.1
+  cached_network_image_platform_interface: ^4.1.1
   qr_flutter: ^4.1.0
   flutter_secure_storage: ^10.2.0
   file_picker: ^11.0.2

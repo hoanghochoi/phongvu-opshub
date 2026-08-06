@@ -1057,6 +1057,9 @@ class _ImageContent extends StatelessWidget {
       return CachedNetworkImage(
         imageUrl: imageSource,
         httpHeaders: privateMediaHeaders(imageSource),
+        imageRenderMethodForWeb: privateMediaImageRenderMethodForWeb(
+          imageSource,
+        ),
         fit: BoxFit.cover,
         memCacheWidth: 800,
         memCacheHeight: 800,

@@ -447,6 +447,9 @@ class _FeedbackImageThumbnail extends StatelessWidget {
             child: CachedNetworkImage(
               imageUrl: imageUrl,
               httpHeaders: privateMediaHeaders(imageUrl),
+              imageRenderMethodForWeb: privateMediaImageRenderMethodForWeb(
+                imageUrl,
+              ),
               fit: BoxFit.cover,
               memCacheWidth: 360,
               memCacheHeight: 360,
@@ -532,6 +535,8 @@ Future<void> _showFeedbackImagePreview(
                   child: CachedNetworkImage(
                     imageUrl: imageUrl,
                     httpHeaders: privateMediaHeaders(imageUrl),
+                    imageRenderMethodForWeb:
+                        privateMediaImageRenderMethodForWeb(imageUrl),
                     fit: BoxFit.contain,
                     placeholder: (context, url) =>
                         const Center(child: CircularProgressIndicator()),
