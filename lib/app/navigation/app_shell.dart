@@ -1042,16 +1042,29 @@ class _RouteViewport extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox.expand(
-      child: ColoredBox(
-        color: AppColors.canvasOf(context),
-        child: ClipRect(
-          child: RepaintBoundary(
-            key: ValueKey('route-$location'),
-            child: child,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final mediaSize = MediaQuery.sizeOf(context);
+        final width = constraints.hasBoundedWidth
+            ? constraints.maxWidth
+            : mediaSize.width;
+        final height = constraints.hasBoundedHeight
+            ? constraints.maxHeight
+            : mediaSize.height;
+        return SizedBox(
+          width: width,
+          height: height,
+          child: ColoredBox(
+            color: AppColors.canvasOf(context),
+            child: ClipRect(
+              child: RepaintBoundary(
+                key: ValueKey('route-$location'),
+                child: SizedBox(width: width, height: height, child: child),
+              ),
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 }

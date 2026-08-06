@@ -131,6 +131,47 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets(
+    'wide AppResponsiveContent route stays inside the desktop shell',
+    (tester) async {
+      tester.view.physicalSize = const Size(1440, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final authProvider = _FakeAuthProvider(_shellUser);
+      var observedChildWidth = -1.0;
+      await tester.pumpWidget(
+        ChangeNotifierProvider<AuthProvider>.value(
+          value: authProvider,
+          child: MaterialApp(
+            home: AppShell(
+              location: '/sales-reports',
+              child: AppResponsiveContent(
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    observedChildWidth = constraints.maxWidth;
+                    return const SizedBox(height: 24);
+                  },
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        tester
+            .getSize(find.byKey(const ValueKey('route-/sales-reports')))
+            .width,
+        1190,
+      );
+      expect(observedChildWidth, lessThanOrEqualTo(1116));
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   testWidgets('notifications route keeps its tablet scroll extent bounded', (
     tester,
   ) async {
