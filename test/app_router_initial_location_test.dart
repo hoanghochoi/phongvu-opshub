@@ -26,6 +26,15 @@ void main() {
       );
     });
 
+    test('maps a root hash entry to home', () {
+      expect(
+        AppRouter.initialLocationForUri(
+          Uri.parse('https://opshub-staging.hoanghochoi.com/#/'),
+        ),
+        '/home',
+      );
+    });
+
     test('uses home for an ordinary root entry', () {
       expect(
         AppRouter.initialLocationForUri(

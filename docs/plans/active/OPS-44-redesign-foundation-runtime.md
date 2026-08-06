@@ -1180,9 +1180,10 @@ shared shell slot. The 14 Sales Report modal owners remain outside this wave.
 
 ### Phase execution and safe cleanup
 
-- [ ] Run the logo/state wave on its own `codex/ops-44-*` task branch from the
-      exact live `origin/staging` SHA; preserve the current dirty Home parity
-      checkpoint until its diff is committed or explicitly abandoned.
+- [x] Start the logo/state wave on `codex/ops-44-full-chrome-audit` from the
+      exact live `origin/staging` SHA `eb9e940a7e1528346f7efa105c43059b0dddf79b`;
+      the prior merged overflow wave was cleaned through the guarded lifecycle
+      before this worktree was created.
 - [ ] Before every visual edit: capture branch/SHA/worktree/diff checkpoint,
       verify exact Figma node/revision and node map, then run focused geometry
       proof before any downstream build or staging audit.
@@ -1191,6 +1192,25 @@ shared shell slot. The 14 Sales Report modal owners remain outside this wave.
       remove only the registered OPS-44 task worktree/local branch, and run
       `git fetch origin --prune`. Never delete the preserved OPS-27 worktree or
       a dirty/unmerged branch, and never force-push or bypass the lifecycle gate.
+
+#### Full audit continuation — 2026-08-06
+
+- Figma proposal `1995:57158` is now explicitly approved by Đại Ca. The two
+  authority text nodes (`1995:57160`, `1995:57189`) read back as `Approved
+  authority`; geometry and the two approved card instances are unchanged.
+- The compact shell logo consumer now uses the approved `32×32` lane and has a
+  stable `mobile-drawer-logo` key; the tablet rail remains `44×44` and the
+  desktop sidebar remains `56×56`. Focused AppShell/AppLogo proof passes
+  `29/29`, analyzer is clean, and `git diff --check` passes.
+- Route/modal inventory confirms 45 router declarations, 40 authenticated
+  smoke routes, and the shared/feature overlay call sites are catalogued in
+  the route audit. The loaded-state staging smoke is not sufficient to close
+  the per-state gate: loading, empty, retryable error, permission/unsupported,
+  dialogs and modal interactions still need authenticated Chrome evidence.
+- Chrome extension is currently unavailable in this session; the only
+  connected surface is In-app Browser, which cannot substitute for the
+  explicitly requested Chrome audit. No Chrome pass is claimed until the
+  extension is connected.
 
 ## Logo audit correction — Đại Ca confirmation — 2026-08-05
 
@@ -1582,13 +1602,16 @@ canonical pages before any runtime visual cutover:
   metadata, screenshots and `get_design_context` for both proposal card nodes.
   The Figma Plugin runtime does not support `saveVersionHistoryAsync`, so a
   version-history checkpoint must be created by the Figma UI/owner as part of
-  explicit proposal approval; the node proposal itself is present and
-  reviewable.
+  explicit proposal approval; the node proposal is present and reviewable.
 
-Approval gate: keep the two compatibility cards as protected runtime behavior,
-but do not claim visual completion, remove the gap ledger, or advance OPS-44
-until Đại Ca explicitly approves proposal `1995:57158` (and its exact revision)
-and the downstream runtime/staging/Chrome proof is rerun.
+Approval recorded 2026-08-06: Đại Ca approved proposal `1995:57158` and its
+current revision. The proposal note and authority footer now explicitly say
+`Approved authority`, preserve the two protected runtime metrics, and state
+that no route, permission, or business behavior is introduced. The approval
+readback re-ran `get_design_context`, `get_metadata`, and `get_screenshot`; the
+section geometry and component instances remain unchanged. The two-card gap
+ledger may now be closed only after the downstream runtime geometry, exact-SHA
+staging, and authenticated Chrome comparison pass.
 
 ## Branch cleanup continuation — 2026-08-05
 
@@ -1821,3 +1844,34 @@ focused tests, `flutter analyze --no-pub`, `git diff --check`, and
 - The shell navigation no longer contains an `Hỗ trợ` item; an independent
   support FAB remains visible and is recorded as a product-scope question,
   not silently removed without authority.
+
+### Exact staging deploy and Chrome QA — 2026-08-06
+
+- Canonical `staging` is clean and equals `origin/staging` at
+  `eb1f75519574feb8f55399d9a311db348918f31f`. Deploy workflow [Deploy OpsHub
+  Staging #31055169680](https://github.com/hoanghochoi/phongvu-opshub/actions/runs/31055169680)
+  completed successfully with that exact `headSha`. Staging `/health` returns
+  `200 / ok`, `/api/app-version` returns build `200343` version
+  `2026.08.05.343`, and the served bootstrap HTML contains the exact 40-byte
+  SHA; release notes identify `Staging GitHub eb1f755`.
+- Authenticated Chrome route smoke on the deployed SHA covered all 40
+  authenticated routes at `375×812`, `834×1112`, `1024×768` and `1440×900` in
+  Dark (160 route/viewport runs); all navigations completed and `/reports`
+  redirected to `/sales-reports`. The earlier same-deploy Light run covered
+  the same 40-route × 4-viewport matrix. No console errors or warnings were
+  observed in either theme batch.
+- Compact/medium/expanded/wide screenshots confirmed the shared shell, dark
+  selected `Trang chủ` state, circular avatar, full-stroke logo, notification
+  action, independent support FAB and responsive Home/header composition. The
+  Home scope/date/update controls remained in-bounds; the deployed settings
+  screen keeps `Hệ thống` readable at compact/medium widths.
+- A browser DOM width probe reported a Flutter Web shell artifact on data-heavy
+  expanded/wide routes (`body.scrollWidth` `1112` at `1024` and `1690` at
+  `1440` while `documentElement.scrollWidth` stayed at the viewport width).
+  `body`/`html` remained `overflow:hidden` and screenshots showed no visible
+  horizontal clipping; retain this as a follow-up observation, not a shared
+  layout change, until a visual failure is reproduced.
+- This deploy/route smoke does not close the full OPS-44 visual gate: loading,
+  empty, retryable-error, permission/unsupported and the complete dialog/modal
+  inventory still require explicit state setup and Figma-node evidence before
+  production promotion or `Done`.

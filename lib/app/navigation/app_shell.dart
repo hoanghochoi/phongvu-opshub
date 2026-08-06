@@ -915,7 +915,8 @@ class _MobileNavigationDrawer extends StatelessWidget {
               child: Row(
                 children: [
                   AppLogo(
-                    size: 44,
+                    key: const ValueKey('mobile-drawer-logo'),
+                    size: 32,
                     borderRadius: AppRadius.md,
                     strokeColor: AppColors.sidebarTextOf(context),
                   ),

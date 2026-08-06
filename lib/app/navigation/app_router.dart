@@ -68,6 +68,7 @@ class AppRouter {
 
   static String initialLocationForUri(Uri uri) {
     final fragment = uri.fragment.trim();
+    if (fragment == '/') return '/home';
     if (fragment.startsWith('/')) return fragment;
     if (uri.path == '/help') return '/help';
     return '/home';
