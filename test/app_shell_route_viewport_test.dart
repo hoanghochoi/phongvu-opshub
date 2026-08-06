@@ -482,6 +482,10 @@ void main() {
     await tester.tap(find.byTooltip('Mở menu'));
     await tester.pumpAndSettle();
 
+    expect(
+      tester.getSize(find.byKey(const ValueKey('mobile-drawer-logo'))),
+      const Size.square(32),
+    );
     expect(find.text('Version 2026.07.03.87'), findsOneWidget);
     expect(find.text('Dev: Hoàng Học Hỏi'), findsOneWidget);
     expect(find.textContaining('© '), findsOneWidget);

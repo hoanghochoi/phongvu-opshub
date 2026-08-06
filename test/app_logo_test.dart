@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:phongvu_opshub/app/theme/app_theme.dart';
 import 'package:phongvu_opshub/app/theme/app_colors.dart';
 import 'package:phongvu_opshub/app/widgets/app_logo.dart';
 
@@ -52,5 +53,25 @@ void main() {
     expect(border.top.width, 1);
     expect(border.top.style, BorderStyle.solid);
     expect(border.left.color, AppColors.sidebarText);
+  });
+
+  testWidgets('AppLogo resolves its fallback stroke per theme', (tester) async {
+    Future<Color> renderAndRead(ThemeData theme) async {
+      await tester.pumpWidget(
+        MaterialApp(theme: theme, home: const AppLogo(size: 32)),
+      );
+      await tester.pumpAndSettle();
+      final container = tester.widget<Container>(
+        find.descendant(
+          of: find.byType(AppLogo),
+          matching: find.byType(Container),
+        ),
+      );
+      final decoration = container.decoration! as BoxDecoration;
+      return (decoration.border! as Border).top.color;
+    }
+
+    expect(await renderAndRead(AppTheme.lightTheme), AppColors.onSurface);
+    expect(await renderAndRead(AppTheme.darkTheme), AppColors.darkTextPrimary);
   });
 }
