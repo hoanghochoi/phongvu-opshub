@@ -18,6 +18,12 @@ void main() {
     await tester.pumpWidget(const MaterialApp(home: FeedbackScreen()));
     await tester.pump();
 
+    expect(find.byKey(const Key('feedback-ready-state')), findsOneWidget);
+    expect(find.byKey(const Key('feedback-form-card')), findsNothing);
+    expect(find.text('Gửi phản hồi'), findsNWidgets(2));
+    await tester.tap(find.text('Gửi phản hồi').last);
+    await tester.pump();
+
     expect(find.byKey(const Key('feedback-header')), findsOneWidget);
     expect(find.byKey(const Key('feedback-form-card')), findsOneWidget);
     expect(find.byType(Scaffold), findsNothing);
@@ -52,7 +58,11 @@ void main() {
       tester.view
         ..physicalSize = size
         ..devicePixelRatio = 1;
-      await tester.pumpWidget(const MaterialApp(home: FeedbackScreen()));
+      await tester.pumpWidget(
+        MaterialApp(key: ValueKey(size), home: const FeedbackScreen()),
+      );
+      await tester.pump();
+      await tester.tap(find.text('Gửi phản hồi').last);
       await tester.pump();
       final form = find.byKey(const Key('feedback-form-card'));
       expect(tester.getSize(form), expected);

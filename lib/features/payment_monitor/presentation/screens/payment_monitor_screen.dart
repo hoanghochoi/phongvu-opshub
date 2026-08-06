@@ -45,6 +45,41 @@ class _PaymentMonitorScreenState extends State<PaymentMonitorScreen> {
     final canUsePaymentSpeaker = monitor.canUsePaymentSpeaker;
     final speakerSelectionNotice = monitor.speakerSelectionNotice;
 
+    final hasScopedState =
+        monitor.hasMonitorScope && monitor.latestTransactions.isEmpty;
+    if (hasScopedState && monitor.isLoading) {
+      return _buildStateContent(
+        monitor,
+        const AppStatePanel.loading(
+          title: 'Đang tải giao dịch',
+          message:
+              'Hệ thống đang lấy giao dịch thành công theo phạm vi đã chọn.',
+        ),
+      );
+    }
+    if (hasScopedState && monitor.errorMessage != null) {
+      return _buildStateContent(
+        monitor,
+        AppStatePanel.error(
+          title: 'Chưa cập nhật được giao dịch',
+          message: monitor.errorMessage,
+          actionLabel: 'Thử lại',
+          actionIcon: Icons.refresh_rounded,
+          onAction: () => monitor.refreshNow(),
+        ),
+      );
+    }
+    if (hasScopedState) {
+      return _buildStateContent(
+        monitor,
+        const AppStatePanel.empty(
+          title: 'Chưa có giao dịch phù hợp',
+          message: 'Thay đổi bộ lọc hoặc chờ giao dịch mới.',
+          icon: Icons.receipt_long_outlined,
+        ),
+      );
+    }
+
     return AppResponsiveContent(
       onRefresh: monitor.refreshNow,
       refreshLogSource: 'PaymentMonitor',
@@ -338,6 +373,23 @@ class _PaymentMonitorScreenState extends State<PaymentMonitorScreen> {
             'Chưa tải được danh sách showroom. Vui lòng thử lại.';
       });
     }
+  }
+
+  Widget _buildStateContent(PaymentMonitorProvider monitor, Widget statePanel) {
+    return AppResponsiveContent(
+      onRefresh: monitor.refreshNow,
+      refreshLogSource: 'PaymentMonitor',
+      refreshLogContext: () => {
+        'transactionCount': monitor.latestTransactions.length,
+        'isLoading': monitor.isLoading,
+        'hasMonitorScope': monitor.hasMonitorScope,
+      },
+      child: ConstrainedBox(
+        key: const Key('payment-monitor-state-panel'),
+        constraints: const BoxConstraints(minHeight: 560),
+        child: Center(child: statePanel),
+      ),
+    );
   }
 }
 

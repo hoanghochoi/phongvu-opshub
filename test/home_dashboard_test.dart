@@ -430,6 +430,48 @@ void main() {
     AppLogger.instance.setUploadsEnabledForTesting(true);
   });
 
+  testWidgets('Home medium loading state stays within the viewport', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(834, 1112);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final authProvider = _FakeAuthProvider(_staffUser());
+    final repository = _DeferredSummaryHomeSummaryRepository(
+      summary: _homeSummary(),
+    );
+    final summaryProvider = HomeSummaryProvider(repository);
+    addTearDown(summaryProvider.dispose);
+    summaryProvider.syncAuth(authProvider.user, isInitialized: true);
+
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider<AuthProvider>.value(value: authProvider),
+          ChangeNotifierProvider<HomeSummaryProvider>.value(
+            value: summaryProvider,
+          ),
+        ],
+        child: const MaterialApp(home: HomeScreen()),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.byKey(const Key('home-summary-loading')), findsOneWidget);
+    expect(
+      tester.getSize(find.byKey(const Key('home-summary-page'))).width,
+      lessThanOrEqualTo(834),
+    );
+    expect(tester.takeException(), isNull);
+
+    repository.summaryRequest.complete(_homeSummary());
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets(
     'Home dashboard renders scoped summary cards and progress panel',
     (tester) async {
@@ -2889,6 +2931,24 @@ class _DeferredScopeHomeSummaryRepository extends _FakeHomeSummaryRepository {
     scopeRequests.add(request);
     return request.future;
   }
+}
+
+class _DeferredSummaryHomeSummaryRepository extends _FakeHomeSummaryRepository {
+  final Completer<HomeSummary> summaryRequest = Completer<HomeSummary>();
+
+  _DeferredSummaryHomeSummaryRepository({required super.summary});
+
+  @override
+  Future<HomeSummary> fetchSummary({
+    String? date,
+    String? startDate,
+    String? endDate,
+    String? scope,
+    String? organizationNodeId,
+    String? salesProgressUserId,
+    String? cacheIdentity,
+    bool forceRefresh = false,
+  }) => summaryRequest.future;
 }
 
 Future<void> _pumpUntil(WidgetTester tester, bool Function() condition) async {

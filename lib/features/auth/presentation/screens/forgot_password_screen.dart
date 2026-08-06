@@ -312,6 +312,8 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   }
 
   Widget _confirmPasswordField(AuthProvider authProvider) {
+    final compact =
+        MediaQuery.sizeOf(context).width < AppLayoutTokens.compactBreakpoint;
     return AppFormTextInput(
       controller: _confirmPasswordController,
       enabled: !authProvider.isLoading,
@@ -319,7 +321,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
       textInputAction: TextInputAction.done,
       autofillHints: const [AutofillHints.newPassword],
       onFieldSubmitted: (_) => authProvider.isLoading ? null : _submit(context),
-      label: 'Nhập lại mật khẩu mới',
+      label: compact ? 'Nhập lại mật khẩu' : 'Nhập lại mật khẩu mới',
       suffixIcon: IconButton(
         onPressed: authProvider.isLoading
             ? null

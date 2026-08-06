@@ -642,21 +642,17 @@ class _SalesReportControls extends StatelessWidget {
           height: 40,
           child: AppSecondaryButton(
             onPressed: provider.isLoadingOrders ? null : onOpenAdvancedFilters,
-            label: filterActive ? 'Đang lọc • $activeFilterCount' : 'Lọc',
+            icon: Icons.filter_alt_outlined,
+            label: filterActive ? 'Lọc ($activeFilterCount)' : 'Lọc',
             size: AppButtonSize.small,
             height: 40,
-            expand: false,
-            radius: AppRadius.xl,
             textStyle: AppTextStyles.labelM,
             foregroundColor: filterActive
-                ? AppColors.textSecondaryOf(context)
-                : AppColors.successOf(context),
+                ? AppColors.primaryOf(context)
+                : AppColors.textSecondaryOf(context),
             borderColor: filterActive
-                ? AppColors.textSecondaryOf(context)
-                : AppColors.successOf(context),
-            backgroundColor: filterActive
-                ? AppColors.speakerOffSurfaceOf(context)
-                : AppColors.successSurfaceOf(context),
+                ? AppColors.primaryOf(context)
+                : AppColors.borderOf(context),
           ),
         );
 
@@ -671,6 +667,7 @@ class _SalesReportControls extends StatelessWidget {
               onPressed: onPressed,
               label: label,
               size: AppButtonSize.medium,
+              textStyle: AppTextStyles.labelM,
             ),
           );
         }
@@ -2031,13 +2028,7 @@ class _OrderCheckCard extends StatelessWidget {
               final ios = Theme.of(context).platform == TargetPlatform.iOS;
               final scanSize = ios ? 44.0 : 48.0;
               final gap = compact ? 8.0 : 12.0;
-              final actionWidth = compact
-                  ? 156.0
-                  : ios
-                  ? 222.0
-                  : checked
-                  ? 202.0
-                  : 222.0;
+              final actionWidth = scanSize;
               final statusInRow = checked && !compact && !ios;
               final statusWidth = checked
                   ? (provider.checkedOrder?.isPendingPayment == true
@@ -2108,29 +2099,15 @@ class _OrderCheckCard extends StatelessWidget {
                 tooltip: 'Quét mã đơn hàng',
                 dimension: scanSize,
               );
-              final action = checked
-                  ? AppSecondaryButton(
-                      key: const ValueKey('sales-report-order-check-action'),
-                      onPressed: provider.isCheckingOrder
-                          ? null
-                          : onCheckAnother,
-                      label: 'Kiểm tra đơn khác',
-                      size: AppButtonSize.medium,
-                      height: 48,
-                    )
-                  : AppSecondaryButton(
-                      key: const ValueKey('sales-report-order-check-action'),
-                      onPressed: provider.isCheckingOrder ? null : onCheck,
-                      label: 'Kiểm tra đơn hàng',
-                      isLoading: provider.isCheckingOrder,
-                      loadingLabel: 'Đang kiểm tra...',
-                      size: AppButtonSize.medium,
-                      height: 48,
-                      foregroundColor: AppColors.primaryForegroundOf(context),
-                      borderColor: AppColors.primaryOf(context),
-                      backgroundColor: AppColors.primaryOf(context),
-                      disabledBackgroundColor: AppColors.borderOf(context),
-                    );
+              final action = AppIconAction(
+                key: const ValueKey('sales-report-order-check-action'),
+                onPressed: checked ? onCheckAnother : onCheck,
+                icon: Icons.search_rounded,
+                tooltip: checked ? 'Kiểm tra đơn khác' : 'Kiểm tra đơn hàng',
+                isLoading: provider.isCheckingOrder,
+                filled: true,
+                dimension: scanSize,
+              );
               final status = checked
                   ? _OrderCheckStatus(
                       pendingPayment:

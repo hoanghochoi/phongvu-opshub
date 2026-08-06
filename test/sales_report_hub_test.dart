@@ -358,7 +358,7 @@ void main() {
     await tester.tap(find.text('CP01 - Phong Vu CP01'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Đang lọc • 1'), findsOneWidget);
+    expect(find.text('Lọc (1)'), findsOneWidget);
     expect(tester.getSize(trigger), const Size(152, 40));
   });
 
@@ -594,8 +594,8 @@ void main() {
     final position = tester.state<ScrollableState>(scrollable).position;
     position.jumpTo(position.maxScrollExtent);
 
-    final checkButton = tester.widget<AppSecondaryButton>(
-      find.widgetWithText(AppSecondaryButton, 'Kiểm tra đơn hàng'),
+    final checkButton = tester.widget<AppIconAction>(
+      find.byKey(const ValueKey('sales-report-order-check-action')),
     );
     checkButton.onPressed!.call();
     await tester.pump(const Duration(seconds: 1));
@@ -659,7 +659,7 @@ void main() {
       '2607010002',
     );
     await tester.tap(
-      find.widgetWithText(AppSecondaryButton, 'Kiểm tra đơn hàng'),
+      find.byKey(const ValueKey('sales-report-order-check-action')),
     );
     await tester.pump(const Duration(seconds: 1));
     await tester.pump();
@@ -713,7 +713,7 @@ void main() {
       '2607010002',
     );
     await tester.tap(
-      find.widgetWithText(AppSecondaryButton, 'Kiểm tra đơn hàng'),
+      find.byKey(const ValueKey('sales-report-order-check-action')),
     );
     await tester.pump(const Duration(seconds: 1));
     await tester.pump();
@@ -825,9 +825,9 @@ void main() {
       expect(row, findsOneWidget);
       expect(tester.getSize(row).width, lessThanOrEqualTo(720));
       final checkAction = tester.getSize(
-        find.widgetWithText(AppSecondaryButton, 'Kiểm tra đơn hàng'),
+        find.byKey(const ValueKey('sales-report-order-check-action')),
       );
-      expect(checkAction.width, viewport.width < 600 ? 156 : 222);
+      expect(checkAction.width, viewport.width < 600 ? 48 : 48);
       expect(
         tester.getSize(find.byType(AppIconAction).first).width,
         viewport.width < 600 ? 48 : 48,
@@ -838,17 +838,17 @@ void main() {
           '2607010001',
         );
         await tester.tap(
-          find.widgetWithText(AppSecondaryButton, 'Kiểm tra đơn hàng'),
+          find.byKey(const ValueKey('sales-report-order-check-action')),
         );
         await tester.pump(const Duration(seconds: 1));
         await tester.pumpAndSettle();
         expect(
           tester
               .getSize(
-                find.widgetWithText(AppSecondaryButton, 'Kiểm tra đơn khác'),
+                find.byKey(const ValueKey('sales-report-order-check-action')),
               )
               .width,
-          202,
+          48,
         );
         expect(find.text('Đã kiểm tra'), findsOneWidget);
       }
@@ -950,7 +950,7 @@ void main() {
               find.byKey(const ValueKey('sales-report-order-check-action')),
             )
             .width,
-        viewport.width < 600 ? 156 : 222,
+        44,
       );
 
       expect(tester.takeException(), isNull);

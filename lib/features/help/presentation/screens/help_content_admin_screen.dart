@@ -59,6 +59,7 @@ class _HelpContentAdminScreenState extends State<HelpContentAdminScreen> {
   String? _selectedParentKey;
   HelpPageVisibility _visibility = HelpPageVisibility.draft;
   bool _isCreating = true;
+  bool _editorVisible = false;
 
   @override
   void initState() {
@@ -115,7 +116,7 @@ class _HelpContentAdminScreenState extends State<HelpContentAdminScreen> {
           logEvent: logOpenEditor,
         );
       } else {
-        _startCreateDraft(logEvent: false);
+        _startCreateDraft(logEvent: false, openEditor: false);
       }
 
       await AppLogger.instance.info(
@@ -338,9 +339,10 @@ class _HelpContentAdminScreenState extends State<HelpContentAdminScreen> {
     }
   }
 
-  void _startCreateDraft({bool logEvent = true}) {
+  void _startCreateDraft({bool logEvent = true, bool openEditor = true}) {
     setState(() {
       _isCreating = true;
+      _editorVisible = openEditor;
       _selectedKey = null;
       _selectedParentKey = null;
       _visibility = HelpPageVisibility.draft;
@@ -367,6 +369,7 @@ class _HelpContentAdminScreenState extends State<HelpContentAdminScreen> {
   void _applyPageToEditor(HelpContentPage page, {bool logEvent = true}) {
     setState(() {
       _isCreating = false;
+      _editorVisible = true;
       _selectedKey = page.key;
       _selectedParentKey = page.parentKey;
       _visibility = page.visibility;
@@ -571,6 +574,8 @@ class _HelpContentAdminScreenState extends State<HelpContentAdminScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final showEmptyState =
+        !_loading && _errorMessage == null && _pages.isEmpty && !_editorVisible;
     return AppResponsiveScrollView(
       onRefresh: () => _load(reason: 'pull_refresh', logOpenEditor: false),
       refreshLogSource: 'HelpContentAdmin',
@@ -582,41 +587,44 @@ class _HelpContentAdminScreenState extends State<HelpContentAdminScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _HelpContentHeader(
-            loading: _loading,
-            saving: _saving,
-            restoring: _restoring,
-            totalPages: _pages.length,
-            publicCount: _pages
-                .where((page) => page.visibility == HelpPageVisibility.public)
-                .length,
-            privateCount: _pages
-                .where((page) => page.visibility == HelpPageVisibility.private)
-                .length,
-            draftCount: _pages.where((page) => !page.isPublished).length,
-            updatedAt: _pages.isEmpty
-                ? null
-                : _pages
-                      .map((page) => page.updatedAt)
-                      .whereType<DateTime>()
-                      .fold<DateTime?>(null, (latest, value) {
-                        if (latest == null || value.isAfter(latest)) {
-                          return value;
-                        }
-                        return latest;
-                      }),
-            onRefresh: _loading
-                ? null
-                : () => _load(reason: 'manual_refresh', logOpenEditor: false),
-            onCreatePage: _saving || _restoring || _uploadingAsset
-                ? null
-                : _startCreateDraft,
-            onRestoreFromDocs:
-                _loading || _saving || _restoring || _uploadingAsset
-                ? null
-                : _restoreFromDocs,
-          ),
-          const SizedBox(height: AppLayoutTokens.cardGap),
+          if (!showEmptyState)
+            _HelpContentHeader(
+              loading: _loading,
+              saving: _saving,
+              restoring: _restoring,
+              totalPages: _pages.length,
+              publicCount: _pages
+                  .where((page) => page.visibility == HelpPageVisibility.public)
+                  .length,
+              privateCount: _pages
+                  .where(
+                    (page) => page.visibility == HelpPageVisibility.private,
+                  )
+                  .length,
+              draftCount: _pages.where((page) => !page.isPublished).length,
+              updatedAt: _pages.isEmpty
+                  ? null
+                  : _pages
+                        .map((page) => page.updatedAt)
+                        .whereType<DateTime>()
+                        .fold<DateTime?>(null, (latest, value) {
+                          if (latest == null || value.isAfter(latest)) {
+                            return value;
+                          }
+                          return latest;
+                        }),
+              onRefresh: _loading
+                  ? null
+                  : () => _load(reason: 'manual_refresh', logOpenEditor: false),
+              onCreatePage: _saving || _restoring || _uploadingAsset
+                  ? null
+                  : _startCreateDraft,
+              onRestoreFromDocs:
+                  _loading || _saving || _restoring || _uploadingAsset
+                  ? null
+                  : _restoreFromDocs,
+            ),
+          if (!showEmptyState) const SizedBox(height: AppLayoutTokens.cardGap),
           _buildBody(),
         ],
       ),
@@ -641,6 +649,23 @@ class _HelpContentAdminScreenState extends State<HelpContentAdminScreen> {
           actionLabel: 'Thử lại',
           actionIcon: Icons.refresh_rounded,
           onAction: () => _load(reason: 'retry', logOpenEditor: false),
+        ),
+      );
+    }
+
+    if (_pages.isEmpty && !_editorVisible) {
+      return ConstrainedBox(
+        key: const Key('help-content-empty-state'),
+        constraints: const BoxConstraints(minHeight: 560),
+        child: Center(
+          child: AppStatePanel.empty(
+            title: 'Chưa có trang hướng dẫn',
+            message: 'Tạo trang đầu tiên để bắt đầu.',
+            icon: Icons.menu_book_outlined,
+            actionLabel: 'Tạo trang',
+            actionIcon: Icons.add_rounded,
+            onAction: _startCreateDraft,
+          ),
         ),
       );
     }

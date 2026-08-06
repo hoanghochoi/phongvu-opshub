@@ -80,6 +80,65 @@ void main() {
       debugDefaultTargetPlatformOverride = null;
     }
   });
+
+  testWidgets('empty payment monitor uses the approved centered state panel', (
+    tester,
+  ) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.windows;
+    try {
+      await tester.binding.setSurfaceSize(const Size(1200, 900));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+
+      final repository = _WidgetPaymentMonitorRepository(
+        returnTransactions: false,
+      );
+      final provider = PaymentMonitorProvider(
+        repository,
+        _FakePaymentSpeaker(),
+        null,
+        const Duration(milliseconds: 1),
+        null,
+        const Duration(minutes: 5),
+      );
+      addTearDown(provider.dispose);
+
+      await tester.runAsync(() async {
+        await Future<void>.delayed(Duration.zero);
+        provider.syncAuth(_paymentUser, isInitialized: true);
+        await _waitUntil(
+          () => repository.fetchCount > 0 && !provider.isLoading,
+        );
+      });
+
+      await tester.pumpWidget(
+        MultiProvider(
+          providers: [
+            ChangeNotifierProvider<AuthProvider>.value(
+              value: _FakeAuthProvider(_paymentUser),
+            ),
+            ChangeNotifierProvider<PaymentMonitorProvider>.value(
+              value: provider,
+            ),
+          ],
+          child: const MaterialApp(home: PaymentMonitorScreen()),
+        ),
+      );
+      await tester.pump();
+
+      expect(
+        find.byKey(const Key('payment-monitor-state-panel')),
+        findsOneWidget,
+      );
+      expect(find.text('Chưa có giao dịch phù hợp'), findsOneWidget);
+      expect(
+        find.text('Thay đổi bộ lọc hoặc chờ giao dịch mới.'),
+        findsOneWidget,
+      );
+      expect(find.text('Giao dịch tiền vào'), findsNothing);
+    } finally {
+      debugDefaultTargetPlatformOverride = null;
+    }
+  });
 }
 
 const _paymentUser = User(
@@ -112,8 +171,10 @@ class _FakeAuthProvider extends AuthProvider {
 class _WidgetPaymentMonitorRepository extends PaymentMonitorRepository {
   int fetchCount = 0;
   final List<String?> requestedStoreIds = [];
+  final bool returnTransactions;
 
-  _WidgetPaymentMonitorRepository() : super(ApiClient());
+  _WidgetPaymentMonitorRepository({this.returnTransactions = true})
+    : super(ApiClient());
 
   @override
   Future<StoredPaymentTransactionsPage> fetchStoredTransactions({
@@ -131,10 +192,12 @@ class _WidgetPaymentMonitorRepository extends PaymentMonitorRepository {
     fetchCount += 1;
     requestedStoreIds.add(storeIds ?? storeId);
     return StoredPaymentTransactionsPage(
-      transactions: [_paymentTransaction],
+      transactions: returnTransactions
+          ? [_paymentTransaction]
+          : const <MapPaymentTransaction>[],
       page: page,
       limit: limit,
-      total: 1,
+      total: returnTransactions ? 1 : 0,
       canReviewOrderTransfers: false,
     );
   }
