@@ -13,6 +13,7 @@ import '../../../../app/theme/app_radius.dart';
 import '../../../../app/widgets/app_buttons.dart';
 import '../../../../app/widgets/app_layout.dart';
 import '../../../../app/widgets/app_chips.dart';
+import '../../../../app/widgets/app_state_widgets.dart';
 import '../../../../core/constants/api_constants.dart';
 import '../../../../core/logging/app_logger.dart';
 import '../../../../core/network/api_client.dart';
@@ -39,6 +40,7 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
   final List<File> _images = [];
   final ImagePicker _picker = ImagePicker();
   bool _isSubmitting = false;
+  bool _showForm = false;
 
   @override
   void initState() {
@@ -306,6 +308,8 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (!_showForm) return _buildReadyState();
+
     final viewportWidth = MediaQuery.sizeOf(context).width;
     final isWide = viewportWidth >= AppLayoutTokens.desktopBreakpoint;
     final horizontalPadding = isWide ? 32.0 : 16.0;
@@ -363,6 +367,33 @@ class _FeedbackScreenState extends State<FeedbackScreen> {
                 ],
               ),
             ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildReadyState() {
+    return AppResponsiveContent(
+      child: ConstrainedBox(
+        key: const Key('feedback-ready-state'),
+        constraints: const BoxConstraints(minHeight: 560),
+        child: Center(
+          child: AppStatePanel(
+            icon: PhosphorIconsRegular.info,
+            title: 'Gửi phản hồi',
+            message: 'Mô tả vấn đề và đính kèm ảnh khi cần.',
+            tone: AppStateTone.info,
+            actionLabel: 'Gửi phản hồi',
+            onAction: () {
+              setState(() => _showForm = true);
+              unawaited(
+                AppLogger.instance.info(
+                  'Feedback',
+                  'Suggestion editor opened from ready state',
+                ),
+              );
+            },
           ),
         ),
       ),

@@ -387,6 +387,7 @@ class AppIconAction extends StatelessWidget {
   final VoidCallback? onPressed;
   final IconData icon;
   final String tooltip;
+  final bool isLoading;
   final bool filled;
   final Color? backgroundColor;
   final Color? foregroundColor;
@@ -397,6 +398,7 @@ class AppIconAction extends StatelessWidget {
     required this.onPressed,
     required this.icon,
     required this.tooltip,
+    this.isLoading = false,
     this.filled = false,
     this.backgroundColor,
     this.foregroundColor,
@@ -419,8 +421,16 @@ class AppIconAction extends StatelessWidget {
     return SizedBox.square(
       dimension: dimension,
       child: IconButton(
-        onPressed: onPressed,
-        icon: Icon(icon),
+        onPressed: isLoading ? null : onPressed,
+        icon: isLoading
+            ? SizedBox.square(
+                dimension: dimension * 0.42,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: foreground,
+                ),
+              )
+            : Icon(icon),
         tooltip: tooltip,
         color: foreground,
         style: IconButton.styleFrom(

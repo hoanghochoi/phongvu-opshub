@@ -358,7 +358,7 @@ class _QuickActionLinksAdminScreenState
             Align(
               alignment: Alignment.centerRight,
               child: SizedBox(
-                width: 156,
+                width: 180,
                 child: AppPrimaryButton(
                   onPressed: _save,
                   icon: Icons.save_outlined,
