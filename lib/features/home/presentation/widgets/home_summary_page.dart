@@ -1649,20 +1649,12 @@ class SummaryCard extends StatelessWidget {
                         key: Key('home-summary-card-$metricKey-value-action'),
                         onTap: onTextTap,
                         tooltip: textTapTooltip,
-                        child: Wrap(
-                          spacing: 6,
-                          runSpacing: 2,
-                          children: [
-                            Text(
-                              value,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: AppTextStyles.labelM.copyWith(
-                                color: AppColors.textPrimaryOf(context),
-                              ),
-                            ),
-                            _SummaryTrendPill(trend: trend),
-                          ],
+                        child: _SummaryValueRow(
+                          value: value,
+                          trend: trend,
+                          style: AppTextStyles.labelM.copyWith(
+                            color: AppColors.textPrimaryOf(context),
+                          ),
                         ),
                       ),
                     ],
@@ -1713,7 +1705,7 @@ class SummaryCard extends StatelessWidget {
                       tooltip: textTapTooltip,
                       child: Text(
                         title,
-                        maxLines: compact ? 1 : 2,
+                        maxLines: dense ? 1 : 2,
                         overflow: TextOverflow.ellipsis,
                         style: AppTextStyles.labelM.copyWith(
                           color: AppColors.textPrimaryOf(context),
@@ -1734,28 +1726,19 @@ class SummaryCard extends StatelessWidget {
                 key: Key('home-summary-card-$metricKey-value-action'),
                 onTap: onTextTap,
                 tooltip: textTapTooltip,
-                child: Wrap(
-                  spacing: 8,
-                  runSpacing: 4,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: [
-                    Text(
-                      value,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: AppTextStyles.headingS.copyWith(
-                        color: AppColors.textPrimaryOf(context),
-                      ),
-                    ),
-                    _SummaryTrendPill(trend: trend),
-                  ],
+                child: _SummaryValueRow(
+                  value: value,
+                  trend: trend,
+                  style: AppTextStyles.headingS.copyWith(
+                    color: AppColors.textPrimaryOf(context),
+                  ),
                 ),
               ),
               if (!compact) ...[
-                const Spacer(),
+                const SizedBox(height: 8),
                 Text(
                   helperText ?? _summaryCardHelperText(trend),
-                  maxLines: dense ? 1 : 2,
+                  maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: AppTextStyles.bodyS.copyWith(
                     color: AppColors.textSecondaryOf(context),
@@ -1767,6 +1750,41 @@ class SummaryCard extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+class _SummaryValueRow extends StatelessWidget {
+  const _SummaryValueRow({
+    required this.value,
+    required this.trend,
+    required this.style,
+  });
+
+  final String value;
+  final SummaryTrend trend;
+  final TextStyle style;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: double.infinity,
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.centerLeft,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Text(value, maxLines: 1, softWrap: false, style: style),
+              const SizedBox(width: 8),
+              _SummaryTrendPill(trend: trend),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
@@ -1793,18 +1811,28 @@ class _SummaryTrendPill extends StatelessWidget {
     final foreground = isWarning
         ? AppColors.warningOf(context)
         : AppColors.secondaryOf(context);
-    return Container(
-      constraints: const BoxConstraints(maxWidth: 150),
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: background,
-        borderRadius: AppRadius.allPill,
-      ),
-      child: Text(
-        trend.label,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: AppTextStyles.labelSmallSubtle.copyWith(color: foreground),
+    return LayoutBuilder(
+      builder: (context, _) => Container(
+        key: Key('home-summary-card-${trend.label}-trend-pill'),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: background,
+          borderRadius: AppRadius.allPill,
+        ),
+        child: Align(
+          alignment: Alignment.centerLeft,
+          widthFactor: 1,
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              trend.label,
+              maxLines: 1,
+              softWrap: false,
+              style: AppTextStyles.labelSmallSubtle.copyWith(color: foreground),
+            ),
+          ),
+        ),
       ),
     );
   }
