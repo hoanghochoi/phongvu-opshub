@@ -408,7 +408,6 @@ class HomeSummaryHeader extends StatelessWidget {
                           ? controlConstraints.maxWidth
                           : math.max(0.0, constraints.maxWidth - 38))
                     : constraints.maxWidth;
-                final halfWidth = math.max(0.0, (controlWidth - 8) / 2);
                 final compactDesktop =
                     !mobile && action != null && controlWidth < 900;
                 final desktopSlotWidth = compactDesktop
@@ -450,8 +449,8 @@ class HomeSummaryHeader extends StatelessWidget {
                 late final double dateWidth;
                 late final double updateWidth;
                 if (mobile) {
-                  scopeWidth = halfWidth;
-                  dateWidth = halfWidth;
+                  scopeWidth = controlWidth;
+                  dateWidth = controlWidth;
                   updateWidth = controlWidth;
                 } else if (desktopSlotWidth != null) {
                   scopeWidth = rawScopeWidth;
@@ -480,7 +479,7 @@ class HomeSummaryHeader extends StatelessWidget {
                           label: scopeChipLabel,
                           onTap: open,
                           showCaret: true,
-                          maxWidth: mobile ? halfWidth : scopeWidth,
+                          maxWidth: scopeWidth,
                         ),
                       ),
                     ),
@@ -490,7 +489,7 @@ class HomeSummaryHeader extends StatelessWidget {
                   label: dateChipLabel,
                   onTap: open,
                   showCaret: true,
-                  maxWidth: mobile ? halfWidth : dateWidth,
+                  maxWidth: dateWidth,
                 );
                 final updateChip = _HomeHeaderChip(
                   key: const Key('home-summary-refresh-button'),
@@ -502,7 +501,7 @@ class HomeSummaryHeader extends StatelessWidget {
                 );
                 if (mobile) {
                   final mobileUpdateAndAction = action == null
-                      ? Wrap(spacing: 8, runSpacing: 8, children: [updateChip])
+                      ? SizedBox(width: controlWidth, child: updateChip)
                       : Row(
                           children: [
                             Expanded(child: updateChip),
@@ -514,15 +513,18 @@ class HomeSummaryHeader extends StatelessWidget {
                     key: const Key('home-summary-controls'),
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(
-                        mainAxisSize: MainAxisSize.max,
-                        children: [
-                          SizedBox(width: halfWidth, child: scopeChip),
-                          const SizedBox(width: 8),
-                          SizedBox(width: halfWidth, child: dateChip),
-                        ],
+                      SizedBox(
+                        key: const Key('home-summary-scope-control'),
+                        width: controlWidth,
+                        child: scopeChip,
                       ),
-                      const SizedBox(height: 56),
+                      const SizedBox(height: 8),
+                      SizedBox(
+                        key: const Key('home-summary-date-control'),
+                        width: controlWidth,
+                        child: dateChip,
+                      ),
+                      const SizedBox(height: 8),
                       mobileUpdateAndAction,
                     ],
                   );

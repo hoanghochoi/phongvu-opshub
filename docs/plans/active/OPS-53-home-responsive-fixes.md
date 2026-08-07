@@ -2,17 +2,41 @@
 
 ## Status
 
-Active — the original Figma node-map approval and R2 candidate are superseded
-by the Foundation-backed R3 shell revision. Đại Ca explicitly directed that
-the Foundation app bars are authoritative; implementation and proof are now
-in progress on the task branch.
+Active — the Foundation-backed R3 shell revision remains authoritative. Đại Ca
+approved the compact Variant A two-row control revision and authorized the
+implementation → PR → staging merge → lifecycle cleanup flow.
 
 ## Checkpoint
 
-- Canonical `staging` and task branch start at `a8cda2637355d715a1671d4cfd3ce74d0a5d035d`.
-- Task worktree: `phongvu-opshub-ops-53`.
-- Branch: `codex/ops-53-home-responsive-fixes`.
-- Worktree was clean before this plan file was added.
+- Canonical `staging` and task branch start at
+  `d5483d2a00b4a7f87d4986024e3b4f6309ac4c38`.
+- Canonical worktree was clean and `origin/staging` matched before start.
+- Task worktree: `opshub-ops-53-compact-long-label`.
+- Branch: `codex/ops-53-compact-long-label`.
+- Task worktree is clean before implementation.
+
+## Approved incremental scope — compact Variant A
+
+Figma file `mFzSmQzlapSe3RSmUhvzll`, exact approved nodes:
+
+- [Light Variant A — 375×812](https://www.figma.com/design/mFzSmQzlapSe3RSmUhvzll?node-id=2182-61297)
+  (`2182:61297`)
+- [Dark Variant A — 375×812](https://www.figma.com/design/mFzSmQzlapSe3RSmUhvzll?node-id=2182-61399)
+  (`2182:61399`)
+
+Node map for the changed compact controls:
+
+| Visible element/state | Exact geometry/copy | Shared Flutter mapping |
+| --- | --- | --- |
+| Dashboard controls lane, Light/Dark, loaded long-copy | `x=17`, `y=125`, `w=303`, `h=136`; `surface/sunken`, radius 8, 40px controls, 8px row gap | `HomeSummaryHeader` → `_HomeScopeDateControl` inside the compact header |
+| Scope control | Full lane width `303×40`, `y=0`; `Phạm vi: Toàn hệ thống`; caret 16px | `_HomeHeaderChip` with `showCaret: true`, shared `AppTextStyles.bodyS`, `AppColors.chipBackgroundOf` |
+| Date control | Full lane width `303×40`, `y=48`; `Khoảng ngày: Tất cả ngày`; caret 16px | `_HomeHeaderChip` with `showCaret: true`, canonical `AppDateRangeDropdown` behind the shared menu trigger |
+| Refresh metadata | Full lane width `303×40`, `y=96`; info icon 16px; Vietnamese update copy | Existing keyed `_HomeHeaderChip` refresh action and `AppLogger`/provider behavior unchanged |
+| Foundation shell and content | Foundation topbar, greeting, overview/cards, Light/Dark surfaces | Existing shared shell/theme/widgets; no new local app bar or fallback path |
+
+The compact control lane is the only visual mutation in this follow-up. Scope
+selection, date-range behavior, refresh behavior, provider/API/permission
+contracts, and the approved Foundation shell remain protected.
 
 ## Figma scope — revision candidate R3
 
@@ -67,9 +91,9 @@ implemented and covered by shell regression proof.
 ## Approval gate
 
 The original node-map approval and R2 approval evidence are stale because R3
-materially changed the shell source. The Foundation-backed R3 node map is the
-approved visual authority for this task. Do not implement from the pre-R3
-frames.
+materially changed the shell source. The Foundation-backed R3 node map plus the
+approved compact Variant A nodes above are the visual authority. Do not
+implement from the pre-R3 frames or infer a missing compact geometry.
 
 ## Affected consumers and proof
 
@@ -93,11 +117,15 @@ frames.
 - Home loading/header/overview geometry is updated for the approved R3
   compact and medium states; long-copy and loading layouts have no test
   overflow.
-- Verified: affected shell tests `28` pass, Home tests `36` pass, full Flutter
-  suite `782` pass with `3` pre-existing skips, full analyzer pass, and
+- Variant A implementation now stacks the compact scope/date controls at
+  `y=0`/`y=48` and keeps refresh metadata at `y=96`, all full-width in the
+  approved compact lane; provider/date-picker/refresh behavior is unchanged.
+- Verified: Home tests `38` pass including Light/Dark Variant A geometry and
+  exact long-copy assertions, full Flutter suite `785` pass with `3`
+  pre-existing skips, `flutter analyze --no-pub` pass, and
   `flutter build web --release --no-pub` pass.
-- Remaining: commit/push/PR, staging deploy, authenticated Chrome matrix, and
-  Linear proof readback.
+- Remaining: commit/push/PR, staging deploy, authenticated Chrome matrix,
+  Linear proof readback, and lifecycle cleanup.
 
 ## Recovery
 

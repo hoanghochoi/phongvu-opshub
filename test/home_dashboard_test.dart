@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:go_router/go_router.dart';
+import 'package:phongvu_opshub/app/theme/app_theme.dart';
 import 'package:phongvu_opshub/core/formatting/money_formatters.dart';
 import 'package:phongvu_opshub/core/logging/app_logger.dart';
 import 'package:phongvu_opshub/core/network/api_client.dart';
@@ -1062,6 +1063,19 @@ void main() {
     expect(find.text('Phạm vi: Q.3'), findsOneWidget);
     expect(find.text('Khoảng ngày: 27/07'), findsOneWidget);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+    'Home compact Variant A keeps long controls full width in Light',
+    (tester) async {
+      await _pumpCompactVariantAHeader(tester, AppTheme.lightTheme);
+    },
+  );
+
+  testWidgets('Home compact Variant A keeps long controls full width in Dark', (
+    tester,
+  ) async {
+    await _pumpCompactVariantAHeader(tester, AppTheme.darkTheme);
   });
 
   testWidgets('Home behavior cards open detail tables in modal', (
@@ -2723,6 +2737,99 @@ List<String> _gridMetricKeys(WidgetTester tester, Key gridKey) {
       )
       .map((card) => card.metricKey)
       .toList(growable: false);
+}
+
+Future<void> _pumpCompactVariantAHeader(
+  WidgetTester tester,
+  ThemeData theme,
+) async {
+  tester.view.physicalSize = const Size(375, 812);
+  tester.view.devicePixelRatio = 1;
+  addTearDown(tester.view.resetPhysicalSize);
+  addTearDown(tester.view.resetDevicePixelRatio);
+
+  await tester.pumpWidget(
+    MaterialApp(
+      theme: theme,
+      home: Scaffold(
+        body: Center(
+          child: SizedBox(
+            width: 343,
+            child: HomeSummaryHeader(
+              summary: _homeSummary(),
+              greetingName: 'Nguyễn Hoàng',
+              greetingSubtitle: 'nhanvien@phongvu.vn · Showroom Phong Vũ Q.3',
+              greetingNow: () => DateTime(2026, 8, 3, 9),
+              selectedScope: 'ALL',
+              selectedScopeLabel: 'Toàn hệ thống',
+              scopeOptions: const [
+                HomeSummaryScopeOption(
+                  value: 'ALL',
+                  label: 'Toàn hệ thống',
+                  requestScope: 'ALL',
+                ),
+              ],
+              selectedStartDate: null,
+              selectedEndDate: null,
+              isRefreshing: false,
+              onScopeChanged: null,
+              onDateRangeChanged: (_, _) {},
+              onRefresh: () {},
+              warningMessage: null,
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+  await tester.pumpAndSettle();
+
+  final header = find.byKey(const Key('home-summary-header'));
+  final controls = find.byKey(const Key('home-summary-controls'));
+  final scope = find.byKey(const Key('home-summary-scope-control'));
+  final date = find.byKey(const Key('home-summary-date-control'));
+  final refresh = find.byKey(const Key('home-summary-refresh-button'));
+  final controlsRect = tester.getRect(controls);
+  final scopeRect = tester.getRect(scope);
+  final dateRect = tester.getRect(date);
+  final refreshRect = tester.getRect(refresh);
+
+  expect(tester.getSize(header), const Size(343, 288));
+  expect(controlsRect.height, closeTo(136, 0.1));
+  expect(scopeRect.left, closeTo(controlsRect.left, 0.1));
+  expect(scopeRect.width, closeTo(controlsRect.width, 0.1));
+  expect(dateRect.width, closeTo(controlsRect.width, 0.1));
+  expect(refreshRect.width, closeTo(controlsRect.width, 0.1));
+  expect(scopeRect.height, closeTo(40, 0.1));
+  expect(dateRect.height, closeTo(40, 0.1));
+  expect(scopeRect.top, closeTo(controlsRect.top, 0.1));
+  expect(dateRect.top, closeTo(scopeRect.top + 48, 0.1));
+  expect(refreshRect.top, closeTo(dateRect.top + 48, 0.1));
+  expect(find.text('Phạm vi: Toàn hệ thống'), findsOneWidget);
+  expect(find.text('Khoảng ngày: Tất cả ngày'), findsOneWidget);
+  expect(
+    tester
+        .widget<Text>(
+          find.descendant(
+            of: scope,
+            matching: find.text('Phạm vi: Toàn hệ thống'),
+          ),
+        )
+        .data,
+    'Phạm vi: Toàn hệ thống',
+  );
+  expect(
+    tester
+        .widget<Text>(
+          find.descendant(
+            of: date,
+            matching: find.text('Khoảng ngày: Tất cả ngày'),
+          ),
+        )
+        .data,
+    'Khoảng ngày: Tất cả ngày',
+  );
+  expect(tester.takeException(), isNull);
 }
 
 HomeSummary _homeSummary({int? projectionVersion}) {
