@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:phongvu_opshub/app/theme/app_colors.dart';
 import 'package:phongvu_opshub/core/network/api_client.dart';
 import 'package:phongvu_opshub/features/auth/data/repositories/auth_repository.dart';
@@ -12,6 +13,51 @@ import 'package:provider/provider.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
 void main() {
+  testWidgets('unavailable Windows launcher preserves approved FAB geometry', (
+    tester,
+  ) async {
+    const user = User(email: 'staff@phongvu.vn', role: 'USER');
+    const payload = QuickActionsPayload(
+      stores: [],
+      selectedStoreCode: null,
+      availableActionCodes: {},
+      links: {},
+    );
+
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider<AuthProvider>.value(
+            value: _FakeAuthProvider(user),
+          ),
+          ChangeNotifierProvider<QuickActionsProvider>.value(
+            value: _FakeQuickActionsProvider(payload),
+          ),
+        ],
+        child: const MaterialApp(
+          home: Scaffold(
+            body: QuickActionsLauncher(
+              menuAxis: Axis.vertical,
+              location: '/home',
+              visibleWhenUnavailable: true,
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final launcher = find.byKey(
+      const Key('quick-actions-launcher-unavailable'),
+    );
+    expect(tester.getSize(launcher), const Size.square(64));
+    expect(find.byTooltip('Chưa có thao tác nhanh khả dụng'), findsOneWidget);
+    final icon = tester.widget<Icon>(
+      find.byIcon(PhosphorIconsRegular.lightning),
+    );
+    expect(icon.size, 24);
+    expect(find.byKey(const Key('quick-actions-menu')), findsNothing);
+  });
+
   testWidgets('quick actions menu wraps eight actions into visible rows', (
     tester,
   ) async {

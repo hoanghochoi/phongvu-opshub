@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:flutter/services.dart';
 import '../../../app/theme/app_colors.dart';
 import '../../../app/theme/app_text_styles.dart';
@@ -340,7 +341,7 @@ class _QuickActionLinksAdminScreenState
                 suffixIcon: IconButton(
                   tooltip: 'Quét mã ${entry.value}',
                   onPressed: () => _scan(entry.key),
-                  icon: const Icon(Icons.qr_code_scanner_rounded),
+                  icon: const Icon(PhosphorIconsRegular.scan),
                 ),
               ),
               const SizedBox(height: 12),
@@ -361,7 +362,7 @@ class _QuickActionLinksAdminScreenState
                 width: 180,
                 child: AppPrimaryButton(
                   onPressed: _save,
-                  icon: Icons.save_outlined,
+                  icon: PhosphorIconsRegular.floppyDisk,
                   label: 'Lưu cấu hình',
                   isLoading: _saving,
                   loadingLabel: 'Đang lưu',

@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:phongvu_opshub/app/widgets/app_toast.dart';
 
 import '../../../../app/theme/app_colors.dart';
@@ -306,7 +307,7 @@ class _PolicyAdminScreenState extends State<PolicyAdminScreen> {
         title: _errorMessage!,
         message: 'Kiểm tra kết nối rồi thử tải lại dữ liệu chính sách.',
         actionLabel: 'Thử tải lại',
-        actionIcon: Icons.refresh,
+        actionIcon: PhosphorIconsRegular.arrowClockwise,
         onAction: _load,
       );
     }
@@ -321,7 +322,7 @@ class _PolicyAdminScreenState extends State<PolicyAdminScreen> {
       return const AppStatePanel.empty(
         title: 'Chưa có chính sách',
         message: 'Bấm nút thêm để tạo chính sách đầu tiên.',
-        icon: Icons.policy_outlined,
+        icon: PhosphorIconsRegular.shieldCheck,
       );
     }
     return ListView.separated(
@@ -371,7 +372,7 @@ class _PolicyAdminScreenState extends State<PolicyAdminScreen> {
               ? const AppStatePanel.empty(
                   title: 'Chưa có quy tắc',
                   message: 'Bấm nút thêm để tạo quy tắc đầu tiên.',
-                  icon: Icons.rule_folder_outlined,
+                  icon: PhosphorIconsRegular.folderOpen,
                 )
               : ListView.separated(
                   key: const Key('policy-admin-rule-list'),
@@ -400,7 +401,7 @@ class _PolicyAdminScreenState extends State<PolicyAdminScreen> {
       return const AppStatePanel.empty(
         title: 'Chưa có cấu hình',
         message: 'Bấm nút thêm để tạo cấu hình đầu tiên.',
-        icon: Icons.tune_outlined,
+        icon: PhosphorIconsRegular.slidersHorizontal,
       );
     }
     return ListView.separated(
@@ -535,23 +536,23 @@ class _PolicyAdminHeader extends StatelessWidget {
           children: [
             AppIconAction(
               onPressed: onRefresh,
-              icon: Icons.refresh,
+              icon: PhosphorIconsRegular.arrowClockwise,
               tooltip: 'Tải lại chính sách',
             ),
             AppIconAction(
               onPressed: onCreatePolicy,
-              icon: Icons.add_box_outlined,
+              icon: PhosphorIconsRegular.plusSquare,
               tooltip: 'Thêm chính sách',
               filled: true,
             ),
             AppIconAction(
               onPressed: onCreateRule,
-              icon: Icons.rule_folder_outlined,
+              icon: PhosphorIconsRegular.folderOpen,
               tooltip: 'Thêm quy tắc',
             ),
             AppIconAction(
               onPressed: onCreateSetting,
-              icon: Icons.settings_outlined,
+              icon: PhosphorIconsRegular.gear,
               tooltip: 'Thêm cấu hình',
             ),
           ],
@@ -601,8 +602,8 @@ class _PolicyCard extends StatelessWidget {
         children: [
           _PolicyIcon(
             icon: policy.isActive
-                ? Icons.policy_outlined
-                : Icons.block_outlined,
+                ? PhosphorIconsRegular.shieldCheck
+                : PhosphorIconsRegular.prohibit,
             color: policy.isActive
                 ? AppColors.infoOf(context)
                 : AppColors.errorOf(context),
@@ -702,8 +703,8 @@ class _PolicyRuleCard extends StatelessWidget {
         children: [
           _PolicyIcon(
             icon: rule.allowed
-                ? Icons.check_circle_outline
-                : Icons.block_outlined,
+                ? PhosphorIconsRegular.checkCircle
+                : PhosphorIconsRegular.prohibit,
             color: rule.allowed
                 ? AppColors.successOf(context)
                 : AppColors.errorOf(context),
@@ -790,7 +791,7 @@ class _SettingCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _PolicyIcon(
-            icon: Icons.tune_outlined,
+            icon: PhosphorIconsRegular.slidersHorizontal,
             color: AppColors.infoOf(context),
           ),
           const SizedBox(width: 12),
@@ -841,7 +842,7 @@ class _SettingCard extends StatelessWidget {
           const SizedBox(width: 12),
           AppIconAction(
             onPressed: onEdit,
-            icon: Icons.edit_outlined,
+            icon: PhosphorIconsRegular.pencilSimple,
             tooltip: 'Sửa cấu hình',
           ),
         ],
@@ -889,12 +890,12 @@ class _RowActions extends StatelessWidget {
       children: [
         AppIconAction(
           onPressed: onEdit,
-          icon: Icons.edit_outlined,
+          icon: PhosphorIconsRegular.pencilSimple,
           tooltip: 'Sửa',
         ),
         AppIconAction(
           onPressed: onDelete,
-          icon: Icons.delete_outline,
+          icon: PhosphorIconsRegular.trash,
           tooltip: deleteTooltip,
         ),
       ],
@@ -1370,7 +1371,7 @@ class _PolicyNodeSelectDialogState extends State<_PolicyNodeSelectDialog> {
             AppTextInput(
               controller: _searchController,
               label: 'Tìm đơn vị',
-              icon: Icons.search,
+              icon: PhosphorIconsRegular.magnifyingGlass,
               onChanged: (_) => setState(() {}),
             ),
             const SizedBox(height: 10),
@@ -1379,7 +1380,7 @@ class _PolicyNodeSelectDialogState extends State<_PolicyNodeSelectDialog> {
                   ? const AppStatePanel.empty(
                       title: 'Không tìm thấy đơn vị',
                       message: 'Thử đổi từ khóa tìm kiếm.',
-                      icon: Icons.search_off_rounded,
+                      icon: PhosphorIconsRegular.magnifyingGlassMinus,
                       compact: true,
                     )
                   : ListView.builder(

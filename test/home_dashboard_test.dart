@@ -1312,7 +1312,13 @@ void main() {
     expect(find.text('SA Ba'), findsOneWidget);
     expect(find.text('Mirae Asset'), findsOneWidget);
     expect(find.text('2607040003'), findsOneWidget);
-    expect(find.byIcon(Icons.check_circle_rounded), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('home-installment-need-details-dialog')),
+        matching: find.byIcon(PhosphorIconsRegular.checkCircle),
+      ),
+      findsOneWidget,
+    );
     expect(find.text('CP62'), findsOneWidget);
     expect(find.text('SA Bốn'), findsOneWidget);
     expect(find.text('MPOS'), findsOneWidget);
@@ -1445,7 +1451,7 @@ void main() {
                     id: 'reports',
                     title: 'Tổng hợp ngày',
                     description: 'Xem tổng hợp và chi tiết báo cáo',
-                    icon: Icons.description_outlined,
+                    icon: PhosphorIconsRegular.fileText,
                     color: Colors.teal,
                     onTap: () {},
                   ),

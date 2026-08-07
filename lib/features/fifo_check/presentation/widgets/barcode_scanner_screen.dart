@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:flutter/foundation.dart';
 
 import '../../../../app/theme/app_colors.dart';
@@ -361,7 +362,7 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
               const SizedBox(height: 12),
               AppSecondaryButton(
                 onPressed: () => unawaited(_retryCamera()),
-                icon: Icons.refresh_rounded,
+                icon: PhosphorIconsRegular.arrowClockwise,
                 label: 'Thử lại camera',
                 foregroundColor: AppColors.surface,
                 borderColor: AppColors.surface,
@@ -394,7 +395,7 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
         AppIconAction(
           key: const Key('barcode-manual-submit'),
           onPressed: () => unawaited(_submitManualCode()),
-          icon: Icons.check_rounded,
+          icon: PhosphorIconsRegular.check,
           tooltip: 'Hoàn thành',
           filled: true,
         ),
@@ -452,7 +453,7 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
           child: AppFormColumn(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Icon(Icons.keyboard_alt_outlined, size: 56),
+              const Icon(PhosphorIconsRegular.keyboard, size: 56),
               const Text(
                 'Thiết bị này chưa hỗ trợ quét bằng camera. Vui lòng nhập mã thủ công.',
                 textAlign: TextAlign.center,
@@ -481,12 +482,16 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen> {
           if (_supportsTorch)
             IconButton(
               tooltip: 'Bật/tắt đèn flash',
-              icon: Icon(_isTorchOn ? Icons.flash_on : Icons.flash_off),
+              icon: Icon(
+                _isTorchOn
+                    ? PhosphorIconsRegular.lightning
+                    : PhosphorIconsRegular.lightningSlash,
+              ),
               onPressed: () => unawaited(_toggleTorch()),
             ),
           IconButton(
             tooltip: 'Đổi camera',
-            icon: const Icon(Icons.flip_camera_ios),
+            icon: const Icon(PhosphorIconsRegular.cameraRotate),
             onPressed: () => unawaited(_switchCamera()),
           ),
         ],

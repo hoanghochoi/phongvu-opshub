@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 import '../theme/app_colors.dart';
 import '../theme/app_radius.dart';
@@ -68,7 +69,7 @@ class AppInfoChip extends StatelessWidget {
           ),
           if (onTap != null) ...[
             const SizedBox(width: 4),
-            Icon(Icons.copy_rounded, size: 12, color: displayColor),
+            Icon(PhosphorIconsRegular.copy, size: 12, color: displayColor),
           ],
         ],
       ),

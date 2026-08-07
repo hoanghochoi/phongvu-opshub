@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
@@ -284,7 +285,7 @@ class _BankStatementScreenState extends State<BankStatementScreen>
         if (provider.errorMessage != null) ...[
           const SizedBox(height: 10),
           AppStatusBanner(
-            icon: Icons.error_outline_rounded,
+            icon: PhosphorIconsRegular.warningCircle,
             title: 'Chưa tải được sao kê',
             message: provider.errorMessage!,
             tone: AppStateTone.error,
@@ -293,7 +294,7 @@ class _BankStatementScreenState extends State<BankStatementScreen>
         if (provider.exportMessage != null) ...[
           const SizedBox(height: 10),
           AppStatusBanner(
-            icon: Icons.download_done_rounded,
+            icon: PhosphorIconsRegular.downloadSimple,
             title: 'Xuất file',
             message: provider.exportMessage!,
             tone: AppStateTone.info,
@@ -303,8 +304,8 @@ class _BankStatementScreenState extends State<BankStatementScreen>
           const SizedBox(height: 10),
           AppStatusBanner(
             icon: provider.batchMessage!.success
-                ? Icons.check_circle_outline_rounded
-                : Icons.error_outline_rounded,
+                ? PhosphorIconsRegular.checkCircle
+                : PhosphorIconsRegular.warningCircle,
             title: provider.batchMessage!.success
                 ? 'Đã cập nhật theo dõi'
                 : 'Chưa bỏ theo dõi được',
@@ -342,7 +343,7 @@ class _BankStatementScreenState extends State<BankStatementScreen>
           hasScrollBody: false,
           child: AppStatePanel.empty(
             title: 'Chọn filter rồi bấm Tìm để tải giao dịch',
-            icon: Icons.manage_search_rounded,
+            icon: PhosphorIconsRegular.fileMagnifyingGlass,
           ),
         ),
       ];
@@ -353,7 +354,7 @@ class _BankStatementScreenState extends State<BankStatementScreen>
           hasScrollBody: false,
           child: AppStatePanel.empty(
             title: 'Không có giao dịch khớp filter',
-            icon: Icons.receipt_long_outlined,
+            icon: PhosphorIconsRegular.receipt,
           ),
         ),
       ];
@@ -390,13 +391,13 @@ class _BankStatementScreenState extends State<BankStatementScreen>
     if (!provider.hasSearched) {
       return const AppStatePanel.empty(
         title: 'Chọn filter rồi bấm Tìm để tải giao dịch',
-        icon: Icons.manage_search_rounded,
+        icon: PhosphorIconsRegular.fileMagnifyingGlass,
       );
     }
     if (provider.transactions.isEmpty) {
       return const AppStatePanel.empty(
         title: 'Không có giao dịch khớp filter',
-        icon: Icons.receipt_long_outlined,
+        icon: PhosphorIconsRegular.receipt,
       );
     }
     return ListView.builder(
@@ -514,14 +515,14 @@ class _FilterPanelState extends State<_FilterPanel> {
                     ),
                     child: Row(
                       children: [
-                        const Icon(Icons.filter_alt_outlined),
+                        const Icon(PhosphorIconsRegular.funnel),
                         const SizedBox(width: 8),
                         Text('Bộ lọc tìm kiếm', style: AppTextStyles.labelM),
                         const Spacer(),
                         Icon(
                           _isExpanded
-                              ? Icons.expand_less_rounded
-                              : Icons.expand_more_rounded,
+                              ? PhosphorIconsRegular.caretUp
+                              : PhosphorIconsRegular.caretDown,
                         ),
                       ],
                     ),
@@ -535,7 +536,7 @@ class _FilterPanelState extends State<_FilterPanel> {
                     controller: widget.statementNumberController,
                     focusNode: widget.statementNumberFocus,
                     label: 'Mã sao kê',
-                    icon: Icons.receipt_long_outlined,
+                    icon: PhosphorIconsRegular.receipt,
                     onChanged: widget.provider.setStatementNumber,
                     onSubmitted: (_) => _runSearch(collapseOnMobile: isMobile),
                   ),
@@ -544,7 +545,7 @@ class _FilterPanelState extends State<_FilterPanel> {
                     controller: widget.orderController,
                     focusNode: widget.orderFocus,
                     label: 'Mã đơn hàng',
-                    icon: Icons.tag_rounded,
+                    icon: PhosphorIconsRegular.tag,
                     onChanged: widget.provider.setOrder,
                     onSubmitted: (_) => _runSearch(collapseOnMobile: isMobile),
                   ),
@@ -555,7 +556,7 @@ class _FilterPanelState extends State<_FilterPanel> {
                     keyboardType: TextInputType.number,
                     inputFormatters: [ThousandsSeparatorInputFormatter()],
                     label: 'Số tiền',
-                    icon: Icons.payments_outlined,
+                    icon: PhosphorIconsRegular.money,
                     onChanged: widget.provider.setAmount,
                     onSubmitted: (_) => _runSearch(collapseOnMobile: isMobile),
                   ),
@@ -564,7 +565,7 @@ class _FilterPanelState extends State<_FilterPanel> {
                     controller: widget.contentController,
                     focusNode: widget.contentFocus,
                     label: 'Nội dung chuyển khoản',
-                    icon: Icons.notes_rounded,
+                    icon: PhosphorIconsRegular.note,
                     onChanged: widget.provider.setContent,
                     onSubmitted: (_) => _runSearch(collapseOnMobile: isMobile),
                   ),
@@ -572,7 +573,7 @@ class _FilterPanelState extends State<_FilterPanel> {
                   AppCombobox<String>.single(
                     value: widget.provider.orderStatus,
                     label: 'Trạng thái',
-                    icon: Icons.flag_outlined,
+                    icon: PhosphorIconsRegular.flag,
                     options: _orderStatusOptions,
                     allowClear: false,
                     onChanged: (value) {
@@ -616,7 +617,7 @@ class _FilterPanelState extends State<_FilterPanel> {
                       controller: widget.statementNumberController,
                       focusNode: widget.statementNumberFocus,
                       label: 'Mã sao kê',
-                      icon: Icons.receipt_long_outlined,
+                      icon: PhosphorIconsRegular.receipt,
                       onChanged: widget.provider.setStatementNumber,
                       onSubmitted: (_) =>
                           _runSearch(collapseOnMobile: isMobile),
@@ -628,7 +629,7 @@ class _FilterPanelState extends State<_FilterPanel> {
                       controller: widget.orderController,
                       focusNode: widget.orderFocus,
                       label: 'Mã đơn hàng',
-                      icon: Icons.tag_rounded,
+                      icon: PhosphorIconsRegular.tag,
                       onChanged: widget.provider.setOrder,
                       onSubmitted: (_) =>
                           _runSearch(collapseOnMobile: isMobile),
@@ -642,7 +643,7 @@ class _FilterPanelState extends State<_FilterPanel> {
                       keyboardType: TextInputType.number,
                       inputFormatters: [ThousandsSeparatorInputFormatter()],
                       label: 'Số tiền',
-                      icon: Icons.payments_outlined,
+                      icon: PhosphorIconsRegular.money,
                       onChanged: widget.provider.setAmount,
                       onSubmitted: (_) =>
                           _runSearch(collapseOnMobile: isMobile),
@@ -659,7 +660,7 @@ class _FilterPanelState extends State<_FilterPanel> {
                       controller: widget.contentController,
                       focusNode: widget.contentFocus,
                       label: 'Nội dung chuyển khoản',
-                      icon: Icons.notes_rounded,
+                      icon: PhosphorIconsRegular.note,
                       onChanged: widget.provider.setContent,
                       onSubmitted: (_) =>
                           _runSearch(collapseOnMobile: isMobile),
@@ -670,7 +671,7 @@ class _FilterPanelState extends State<_FilterPanel> {
                     child: AppCombobox<String>.single(
                       value: widget.provider.orderStatus,
                       label: 'Trạng thái',
-                      icon: Icons.flag_outlined,
+                      icon: PhosphorIconsRegular.flag,
                       options: _orderStatusOptions,
                       allowClear: false,
                       onChanged: (value) {
@@ -769,7 +770,7 @@ class _StatementListControls extends StatelessWidget {
             onPressed: provider.canBatchUnfollow
                 ? () => _confirmBatchUnfollow(context)
                 : null,
-            icon: Icons.visibility_off_outlined,
+            icon: PhosphorIconsRegular.eyeSlash,
             label: 'Bỏ theo dõi đã chọn',
             isLoading: provider.isBatchUpdatingOrderTracking,
             loadingLabel: 'Đang cập nhật',
@@ -822,7 +823,7 @@ class _StatementListControls extends StatelessWidget {
           ),
           AppDialogConfirmButton(
             onPressed: () => Navigator.of(dialogContext).pop(true),
-            icon: Icons.visibility_off_outlined,
+            icon: PhosphorIconsRegular.eyeSlash,
             label: 'Bỏ theo dõi',
           ),
         ],
@@ -862,7 +863,7 @@ class _StoreFilterButton extends StatelessWidget {
       values: values,
       options: options,
       emptyLabel: 'Showroom được gán',
-      icon: Icons.store_outlined,
+      icon: PhosphorIconsRegular.storefront,
       onMultiChanged: (selected) {
         if (selected.contains(_allStoresValue)) {
           provider.setStoreSelection(allStores: true, ids: const {});
@@ -907,7 +908,7 @@ class _LimitDropdown extends StatelessWidget {
     return AppCombobox<int>.single(
       value: provider.limit,
       label: 'Số dòng',
-      icon: Icons.format_list_numbered_rounded,
+      icon: PhosphorIconsRegular.listNumbers,
       options: const [10, 20, 50, 100]
           .map((value) => AppComboboxOption(value: value, label: '$value dòng'))
           .toList(),
@@ -934,7 +935,7 @@ class _FilterActionButtons extends StatelessWidget {
             onPressed: provider.canSearch
                 ? (onSearch ?? provider.search)
                 : null,
-            icon: Icons.search_rounded,
+            icon: PhosphorIconsRegular.magnifyingGlass,
             label: 'Tìm',
             isLoading: provider.isLoading,
           ),
@@ -957,7 +958,7 @@ class _ExportButton extends StatelessWidget {
       onPressed: provider.canSearch && !provider.isExporting
           ? () => _handleExport(context)
           : null,
-      icon: Icons.download_rounded,
+      icon: PhosphorIconsRegular.downloadSimple,
       label: _exportLabel,
     );
   }
@@ -1276,7 +1277,9 @@ class _StatementCardState extends State<_StatementCard> {
                   children: rows
                       .map(
                         (row) => ListTile(
-                          leading: const Icon(Icons.history_rounded),
+                          leading: const Icon(
+                            PhosphorIconsRegular.clockCounterClockwise,
+                          ),
                           title: Text(
                             row.changedByEmail ?? 'Không rõ người sửa',
                           ),
@@ -1424,12 +1427,12 @@ class _StatementCardState extends State<_StatementCard> {
                     ),
                     AppDialogSecondaryButton(
                       onPressed: saving ? null : () => review(approved: false),
-                      icon: Icons.close_rounded,
+                      icon: PhosphorIconsRegular.x,
                       label: 'Từ chối',
                     ),
                     AppDialogConfirmButton(
                       onPressed: saving ? null : () => review(approved: true),
-                      icon: Icons.check_rounded,
+                      icon: PhosphorIconsRegular.check,
                       label: 'Xác nhận',
                       isLoading: saving,
                     ),
@@ -1610,7 +1613,7 @@ class _IncomeTypePill extends StatelessWidget {
           ),
         ],
         child: AppStatusPill(
-          icon: Icons.arrow_drop_down_rounded,
+          icon: PhosphorIconsRegular.caretDown,
           label: transaction.incomeTypeLabel,
           color: color,
           isLoading: isUpdating,
@@ -1630,7 +1633,7 @@ class _IncomeTypePill extends StatelessWidget {
       child: Row(
         children: [
           Icon(
-            selected ? Icons.check_rounded : Icons.circle_outlined,
+            selected ? PhosphorIconsRegular.check : PhosphorIconsRegular.circle,
             size: 18,
           ),
           const SizedBox(width: 8),
@@ -1715,8 +1718,8 @@ class _OrderEditor extends StatelessWidget {
                         : null,
                     icon: Icon(
                       transaction.isFollowing
-                          ? Icons.visibility_off_outlined
-                          : Icons.visibility_outlined,
+                          ? PhosphorIconsRegular.eyeSlash
+                          : PhosphorIconsRegular.eye,
                     ),
                   ),
                 if (canReviewTransfer &&
@@ -1724,12 +1727,12 @@ class _OrderEditor extends StatelessWidget {
                   IconButton(
                     tooltip: 'Phê duyệt cập nhật mã đơn',
                     onPressed: !editing && !busy ? onReviewTransfer : null,
-                    icon: const Icon(Icons.fact_check_rounded),
+                    icon: const Icon(PhosphorIconsRegular.clipboardText),
                   ),
                 IconButton(
                   tooltip: 'Lịch sử chỉnh sửa',
                   onPressed: busy ? null : onHistory,
-                  icon: const Icon(Icons.history_rounded),
+                  icon: const Icon(PhosphorIconsRegular.clockCounterClockwise),
                 ),
                 IconButton(
                   tooltip: busy
@@ -1754,14 +1757,16 @@ class _OrderEditor extends StatelessWidget {
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
                       : Icon(
-                          editing ? Icons.check_rounded : Icons.edit_rounded,
+                          editing
+                              ? PhosphorIconsRegular.check
+                              : PhosphorIconsRegular.pencilSimple,
                         ),
                 ),
                 if (editing)
                   IconButton(
                     tooltip: 'Hủy sửa',
                     onPressed: busy ? null : onCancel,
-                    icon: const Icon(Icons.close_rounded),
+                    icon: const Icon(PhosphorIconsRegular.x),
                   ),
               ],
             ),

@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:provider/provider.dart';
 
 import '../../../app/theme/app_colors.dart';
@@ -102,35 +103,39 @@ Future<void> showSupportChatSurface(BuildContext context) async {
 
 class SupportChatBubble extends StatelessWidget {
   final VoidCallback onPressed;
+  final bool visibleWhenDisabled;
 
-  const SupportChatBubble({super.key, required this.onPressed});
+  const SupportChatBubble({
+    super.key,
+    required this.onPressed,
+    this.visibleWhenDisabled = false,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final enabled = context.select<SupportChatProvider, bool>(
-      (provider) => provider.enabled,
-    );
+    final provider = maybeSupportChatProvider(context, listen: true);
+    final enabled = provider?.enabled == true;
     final notificationUnread = _maybeAppNotificationsProvider(
       context,
       listen: true,
     )?.supportChatUnreadCount;
-    final unread =
-        notificationUnread ??
-        context.select<SupportChatProvider, int>(
-          (provider) => provider.unreadCount,
-        );
-    if (!enabled) return const SizedBox.shrink();
+    final unread = notificationUnread ?? provider?.unreadCount ?? 0;
+    if (!enabled && !visibleWhenDisabled) return const SizedBox.shrink();
     return Semantics(
       button: true,
       label: unread > 0 ? 'Mở hỗ trợ, có $unread tin chưa đọc' : 'Mở hỗ trợ',
       child: Badge.count(
         count: unread,
         isLabelVisible: unread > 0,
-        child: FloatingActionButton(
-          heroTag: null,
-          tooltip: 'Hỗ trợ',
-          onPressed: onPressed,
-          child: const Icon(Icons.support_agent_rounded),
+        child: SizedBox.square(
+          dimension: 64,
+          child: FloatingActionButton(
+            heroTag: null,
+            tooltip: 'Hỗ trợ',
+            onPressed: onPressed,
+            shape: const CircleBorder(),
+            child: const Icon(PhosphorIconsRegular.headset, size: 28),
+          ),
         ),
       ),
     );
@@ -408,7 +413,7 @@ class _SupportChatPanelState extends State<SupportChatPanel> {
                       if (widget.showCloseButton)
                         AppIconAction(
                           onPressed: () => Navigator.of(context).pop(),
-                          icon: Icons.close_rounded,
+                          icon: PhosphorIconsRegular.x,
                           tooltip: 'Đóng',
                         ),
                     ],
@@ -453,7 +458,7 @@ class _SupportChatPanelState extends State<SupportChatPanel> {
             : 'Chưa tải được cuộc trò chuyện',
         message: provider.errorMessage,
         actionLabel: 'Thử lại',
-        actionIcon: Icons.refresh_rounded,
+        actionIcon: PhosphorIconsRegular.arrowsClockwise,
         onAction: provider.isSuperAdmin && selectedId != null
             ? () => provider.openAdminConversation(selectedId)
             : provider.loadMine,
@@ -470,7 +475,7 @@ class _SupportChatPanelState extends State<SupportChatPanel> {
             message: provider.isSuperAdmin
                 ? 'Chọn một nhân viên trong hộp thư để xem nội dung.'
                 : 'Gửi nội dung cần hỗ trợ. Sẽ phản hồi khi có người tiếp nhận.',
-            icon: Icons.support_agent_rounded,
+            icon: PhosphorIconsRegular.headset,
           ),
         ),
       );
@@ -485,7 +490,7 @@ class _SupportChatPanelState extends State<SupportChatPanel> {
             padding: const EdgeInsets.only(bottom: 12),
             child: AppSecondaryButton(
               onPressed: provider.isLoading ? null : provider.loadOlderMessages,
-              icon: Icons.history_rounded,
+              icon: PhosphorIconsRegular.clockCounterClockwise,
               label: 'Tải tin nhắn trước',
               isLoading: provider.isLoading,
             ),
@@ -528,7 +533,7 @@ class _SupportChatPanelState extends State<SupportChatPanel> {
                               _images = const [];
                               _pendingClientMessageId = null;
                             }),
-                      icon: Icons.clear_rounded,
+                      icon: PhosphorIconsRegular.x,
                       tooltip: 'Bỏ ảnh đã chọn',
                     ),
                   ],
@@ -538,7 +543,7 @@ class _SupportChatPanelState extends State<SupportChatPanel> {
                 children: [
                   AppIconAction(
                     onPressed: provider.isSending ? null : _pickImages,
-                    icon: Icons.add_photo_alternate_outlined,
+                    icon: PhosphorIconsRegular.imageSquare,
                     tooltip: 'Đính kèm ảnh',
                     dimension: 40,
                   ),
@@ -642,7 +647,7 @@ class _SupportChatAdminScreenState extends State<SupportChatAdminScreen> {
     if (!provider.enabled || !provider.isSuperAdmin) {
       return const Center(
         child: AppStatePanel(
-          icon: Icons.lock_outline_rounded,
+          icon: PhosphorIconsRegular.lock,
           tone: AppStateTone.warning,
           title: 'Không có quyền mở hộp thư hỗ trợ',
           message: 'Tải lại tài khoản hoặc quay về trang chủ.',
@@ -739,7 +744,7 @@ class _SupportChatAdminScreenState extends State<SupportChatAdminScreen> {
                   title: 'Chưa tải được hộp thư hỗ trợ',
                   message: provider.errorMessage,
                   actionLabel: 'Thử lại',
-                  actionIcon: Icons.refresh_rounded,
+                  actionIcon: PhosphorIconsRegular.arrowsClockwise,
                   onAction: () =>
                       provider.loadAdminBucket(provider.adminBucket),
                 )
@@ -750,7 +755,7 @@ class _SupportChatAdminScreenState extends State<SupportChatAdminScreen> {
                     child: AppStatePanel.empty(
                       title: 'Chưa có cuộc trò chuyện',
                       message: 'Các yêu cầu phù hợp sẽ xuất hiện tại đây.',
-                      icon: Icons.mark_chat_unread_outlined,
+                      icon: PhosphorIconsRegular.chatCircleDots,
                     ),
                   ),
                 )
@@ -766,7 +771,7 @@ class _SupportChatAdminScreenState extends State<SupportChatAdminScreen> {
                         onPressed: provider.isLoading
                             ? null
                             : provider.loadMoreAdminConversations,
-                        icon: Icons.expand_more_rounded,
+                        icon: PhosphorIconsRegular.caretDown,
                         label: 'Tải thêm cuộc trò chuyện',
                         isLoading: provider.isLoading,
                       );
@@ -787,7 +792,7 @@ class _SupportChatAdminScreenState extends State<SupportChatAdminScreen> {
                         child: Row(
                           children: [
                             const CircleAvatar(
-                              child: Icon(Icons.person_outline_rounded),
+                              child: Icon(PhosphorIconsRegular.user),
                             ),
                             const SizedBox(width: 12),
                             Expanded(

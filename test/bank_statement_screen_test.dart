@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:phongvu_opshub/app/navigation/app_shell.dart';
 import 'package:phongvu_opshub/core/network/api_client.dart';
 import 'package:phongvu_opshub/features/auth/data/repositories/auth_repository.dart';
@@ -89,7 +90,7 @@ void main() {
     expect(find.text('Đối tác/Nội bộ'), findsOneWidget);
     expect(find.byTooltip('Giao dịch đang chờ Kế toán xác nhận'), findsWidgets);
     expect(find.byTooltip('Cập nhật mã đơn'), findsOneWidget);
-    expect(find.byIcon(Icons.swap_horiz_rounded), findsNothing);
+    expect(find.byIcon(PhosphorIconsRegular.arrowsLeftRight), findsNothing);
     expect(find.byTooltip('Phê duyệt cập nhật mã đơn'), findsOneWidget);
     expect(find.text('Đang theo dõi'), findsNWidgets(2));
 
@@ -249,14 +250,17 @@ void main() {
         of: card,
         matching: find.widgetWithIcon(
           IconButton,
-          Icons.visibility_off_outlined,
+          PhosphorIconsRegular.eyeSlash,
         ),
       ),
     );
     final reviewButton = tester.widget<IconButton>(
       find.descendant(
         of: card,
-        matching: find.widgetWithIcon(IconButton, Icons.fact_check_rounded),
+        matching: find.widgetWithIcon(
+          IconButton,
+          PhosphorIconsRegular.clipboardText,
+        ),
       ),
     );
 

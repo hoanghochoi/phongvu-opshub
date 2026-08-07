@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 import '../../../../app/widgets/app_buttons.dart';
 
@@ -15,9 +16,13 @@ class SalesReportExportMenuButton extends StatelessWidget {
   });
 
   static const _options = [
-    (type: 'HVTC', label: 'HVTC', icon: Icons.school_outlined),
-    (type: 'REVENUE', label: 'Doanh số', icon: Icons.payments_outlined),
-    (type: 'INSTALLMENT', label: 'Trả góp', icon: Icons.credit_card_outlined),
+    (type: 'HVTC', label: 'HVTC', icon: PhosphorIconsRegular.student),
+    (type: 'REVENUE', label: 'Doanh số', icon: PhosphorIconsRegular.money),
+    (
+      type: 'INSTALLMENT',
+      label: 'Trả góp',
+      icon: PhosphorIconsRegular.creditCard,
+    ),
   ];
 
   @override
@@ -40,7 +45,7 @@ class SalesReportExportMenuButton extends StatelessWidget {
               controller.open();
             }
           },
-          icon: Icons.download_rounded,
+          icon: PhosphorIconsRegular.downloadSimple,
           label: 'Xuất file',
           isLoading: isExporting,
           loadingLabel: 'Đang xuất',

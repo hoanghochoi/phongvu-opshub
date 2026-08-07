@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:phongvu_opshub/app/widgets/app_toast.dart';
@@ -647,7 +648,7 @@ class _HelpContentAdminScreenState extends State<HelpContentAdminScreen> {
           title: 'Chưa tải được nội dung hướng dẫn',
           message: _errorMessage,
           actionLabel: 'Thử lại',
-          actionIcon: Icons.refresh_rounded,
+          actionIcon: PhosphorIconsRegular.arrowClockwise,
           onAction: () => _load(reason: 'retry', logOpenEditor: false),
         ),
       );
@@ -661,9 +662,9 @@ class _HelpContentAdminScreenState extends State<HelpContentAdminScreen> {
           child: AppStatePanel.empty(
             title: 'Chưa có trang hướng dẫn',
             message: 'Tạo trang đầu tiên để bắt đầu.',
-            icon: Icons.menu_book_outlined,
+            icon: PhosphorIconsRegular.bookOpen,
             actionLabel: 'Tạo trang',
-            actionIcon: Icons.add_rounded,
+            actionIcon: PhosphorIconsRegular.plus,
             onAction: _startCreateDraft,
           ),
         ),
@@ -777,7 +778,7 @@ class _HelpContentHeader extends StatelessWidget {
         width: 86,
         child: AppSecondaryButton(
           onPressed: onRefresh,
-          icon: Icons.refresh_rounded,
+          icon: PhosphorIconsRegular.arrowClockwise,
           label: 'Tải lại',
           isLoading: loading,
           loadingLabel: 'Đang tải',
@@ -788,7 +789,7 @@ class _HelpContentHeader extends StatelessWidget {
         width: 98,
         child: AppPrimaryButton(
           onPressed: onCreatePage,
-          icon: Icons.note_add_outlined,
+          icon: PhosphorIconsRegular.filePlus,
           label: 'Tạo trang',
         ),
       ),
@@ -796,7 +797,7 @@ class _HelpContentHeader extends StatelessWidget {
         width: 156,
         child: AppPrimaryButton(
           onPressed: onRestoreFromDocs,
-          icon: Icons.restore_page_outlined,
+          icon: PhosphorIconsRegular.fileArrowUp,
           label: 'Khôi phục từ docs',
           isLoading: restoring,
           loadingLabel: 'Đang khôi phục',
@@ -847,7 +848,7 @@ class _HelpContentPageListCard extends StatelessWidget {
                 width: 148,
                 child: AppSecondaryButton(
                   onPressed: onCreatePage,
-                  icon: Icons.add_rounded,
+                  icon: PhosphorIconsRegular.plus,
                   label: 'Trang mới',
                   expand: false,
                 ),
@@ -859,7 +860,7 @@ class _HelpContentPageListCard extends StatelessWidget {
             const AppStatePanel.empty(
               title: 'Chưa có trang hướng dẫn',
               message: 'Tạo trang đầu tiên hoặc khôi phục từ docs/help.',
-              icon: Icons.menu_book_outlined,
+              icon: PhosphorIconsRegular.bookOpen,
             )
           else
             Column(
@@ -906,9 +907,9 @@ class _HelpContentPageListItem extends StatelessWidget {
       HelpPageVisibility.private => AppColors.infoOf(context),
     };
     final statusIcon = switch (page.visibility) {
-      HelpPageVisibility.draft => Icons.edit_note_outlined,
-      HelpPageVisibility.public => Icons.public_rounded,
-      HelpPageVisibility.private => Icons.lock_outline_rounded,
+      HelpPageVisibility.draft => PhosphorIconsRegular.notePencil,
+      HelpPageVisibility.public => PhosphorIconsRegular.globe,
+      HelpPageVisibility.private => PhosphorIconsRegular.lock,
     };
 
     final borderColor = selected
@@ -1153,7 +1154,7 @@ class _HelpContentEditorCard extends StatelessWidget {
                       width: 240,
                       child: AppSecondaryButton(
                         onPressed: onUploadImage,
-                        icon: Icons.add_photo_alternate_outlined,
+                        icon: PhosphorIconsRegular.imageSquare,
                         label: 'Tải ảnh và chèn',
                         isLoading: isUploadingAsset,
                         loadingLabel: 'Đang tải ảnh',
@@ -1169,8 +1170,8 @@ class _HelpContentEditorCard extends StatelessWidget {
               child: AppPrimaryButton(
                 onPressed: onSave,
                 icon: isCreating
-                    ? Icons.note_add_outlined
-                    : Icons.save_outlined,
+                    ? PhosphorIconsRegular.filePlus
+                    : PhosphorIconsRegular.floppyDisk,
                 label: isCreating ? 'Tạo trang' : 'Lưu thay đổi',
                 isLoading: isSaving,
                 loadingLabel: 'Đang lưu',

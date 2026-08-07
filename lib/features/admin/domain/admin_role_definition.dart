@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 import '../../../app/theme/app_colors.dart';
 
@@ -45,10 +46,10 @@ class AdminRoleDefinition {
 
   static IconData _iconFor(String code) {
     return switch (code) {
-      'SUPER_ADMIN' => Icons.verified_user_outlined,
-      'ADMIN' => Icons.admin_panel_settings_outlined,
-      'USER' => Icons.badge_outlined,
-      _ => Icons.security_outlined,
+      'SUPER_ADMIN' => PhosphorIconsRegular.shieldCheck,
+      'ADMIN' => PhosphorIconsRegular.shield,
+      'USER' => PhosphorIconsRegular.identificationBadge,
+      _ => PhosphorIconsRegular.shield,
     };
   }
 
@@ -70,21 +71,21 @@ class AdminRoles {
       value: 'SUPER_ADMIN',
       title: 'Quản trị toàn hệ thống',
       description: 'Toàn quyền hệ thống',
-      icon: Icons.verified_user_outlined,
+      icon: PhosphorIconsRegular.shieldCheck,
       color: AppColors.accent,
     ),
     AdminRoleDefinition(
       value: 'ADMIN',
       title: 'Quản trị viên',
       description: 'Quản trị theo phạm vi cây tổ chức',
-      icon: Icons.admin_panel_settings_outlined,
+      icon: PhosphorIconsRegular.shield,
       color: AppColors.info,
     ),
     AdminRoleDefinition(
       value: 'USER',
       title: 'Nhân viên',
       description: 'Quyền thao tác hằng ngày',
-      icon: Icons.badge_outlined,
+      icon: PhosphorIconsRegular.identificationBadge,
       color: AppColors.neutral600,
     ),
   ];

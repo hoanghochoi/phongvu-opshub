@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:phongvu_opshub/app/widgets/app_toast.dart';
 
 import '../../../../app/theme/app_radius.dart';
@@ -549,7 +550,7 @@ class _RelatedPolicyReminder extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Icon(
-                  Icons.policy_outlined,
+                  PhosphorIconsRegular.shieldCheck,
                   size: 18,
                   color: theme.colorScheme.primary,
                 ),
@@ -620,7 +621,7 @@ class _ParentFeatureVetoWarning extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Icon(
-                  Icons.lock_outline,
+                  PhosphorIconsRegular.lock,
                   size: 18,
                   color: theme.colorScheme.error,
                 ),

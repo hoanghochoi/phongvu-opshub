@@ -131,7 +131,7 @@ class HomeSummaryPage extends StatelessWidget {
             title: 'Chưa tải được dashboard',
             message: provider.errorMessage,
             actionLabel: 'Thử lại',
-            actionIcon: Icons.refresh_rounded,
+            actionIcon: PhosphorIconsRegular.arrowClockwise,
             onAction: provider.canRefresh
                 ? () => unawaited(provider.refreshNow())
                 : null,
@@ -682,7 +682,7 @@ class HomeSummaryHeader extends StatelessWidget {
             if (warningMessage != null) ...[
               const SizedBox(height: 12),
               AppStatusBanner(
-                icon: Icons.sync_problem_rounded,
+                icon: PhosphorIconsRegular.warning,
                 title: 'Đang hiển thị dữ liệu gần nhất',
                 message: warningMessage!,
                 tone: AppStateTone.warning,
@@ -786,7 +786,7 @@ class _HomeScopeDateControl extends StatelessWidget {
                       key: const Key('home-summary-scope-combobox'),
                       label: 'Phạm vi',
                       value: selectedValue,
-                      icon: Icons.store_outlined,
+                      icon: PhosphorIconsRegular.storefront,
                       dense: true,
                       enabled: canSelect,
                       allowClear: false,
@@ -1015,7 +1015,7 @@ class _ScopeSelectorField extends StatelessWidget {
       child: AppCombobox<String>.single(
         label: 'Phạm vi',
         value: selectedValue,
-        icon: Icons.store_outlined,
+        icon: PhosphorIconsRegular.storefront,
         dense: true,
         enabled: canSelect,
         allowClear: false,
@@ -2092,7 +2092,7 @@ class _SalesBehaviorDetailsDialogState
                   IconButton(
                     tooltip: 'Đóng',
                     onPressed: () => Navigator.of(context).pop(),
-                    icon: const Icon(Icons.close_rounded, size: 20),
+                    icon: const Icon(PhosphorIconsRegular.x, size: 20),
                   ),
                 ],
               ),
@@ -2258,7 +2258,7 @@ class _InstallmentNeedDetailsDialogState
                   IconButton(
                     tooltip: 'Đóng',
                     onPressed: () => Navigator.of(context).pop(),
-                    icon: const Icon(Icons.close_rounded, size: 20),
+                    icon: const Icon(PhosphorIconsRegular.x, size: 20),
                   ),
                 ],
               ),
@@ -2575,7 +2575,7 @@ class _DetailsLoadMoreFooter extends StatelessWidget {
           AppSecondaryButton(
             key: const Key('home-details-load-more-button'),
             onPressed: isLoading ? null : onLoadMore,
-            icon: Icons.expand_more_rounded,
+            icon: PhosphorIconsRegular.caretDown,
             label: 'Xem thêm',
             isLoading: isLoading,
             loadingLabel: 'Đang tải thêm',
@@ -2627,7 +2627,7 @@ class _InstallmentNeedDetailsDataTable extends StatelessWidget {
               DataCell(
                 row.successful
                     ? Icon(
-                        Icons.check_circle_rounded,
+                        PhosphorIconsRegular.checkCircle,
                         color: AppColors.successOf(context),
                         size: 18,
                       )
@@ -2671,21 +2671,21 @@ class SummaryTrend {
   const SummaryTrend.success(String label)
     : this._(
         label: label,
-        icon: Icons.trending_up_rounded,
+        icon: PhosphorIconsRegular.trendUp,
         tone: SummaryTrendTone.success,
       );
 
   const SummaryTrend.warning(String label)
     : this._(
         label: label,
-        icon: Icons.trending_up_rounded,
+        icon: PhosphorIconsRegular.trendUp,
         tone: SummaryTrendTone.warning,
       );
 
   const SummaryTrend.neutral(String label)
     : this._(
         label: label,
-        icon: Icons.remove_rounded,
+        icon: PhosphorIconsRegular.minus,
         tone: SummaryTrendTone.neutral,
       );
 

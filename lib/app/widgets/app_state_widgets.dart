@@ -52,7 +52,7 @@ class AppStatePanel extends StatelessWidget {
   const AppStatePanel.empty({
     super.key,
     required this.title,
-    this.icon = Icons.inbox_rounded,
+    this.icon = PhosphorIconsRegular.tray,
     this.message,
     this.actionLabel,
     this.actionIcon,
@@ -64,7 +64,7 @@ class AppStatePanel extends StatelessWidget {
   const AppStatePanel.error({
     super.key,
     required this.title,
-    this.icon = Icons.error_outline_rounded,
+    this.icon = PhosphorIconsRegular.warningCircle,
     this.message,
     this.actionLabel,
     this.actionIcon,
@@ -78,7 +78,7 @@ class AppStatePanel extends StatelessWidget {
     required this.title,
     this.message,
     this.compact = false,
-  }) : icon = Icons.hourglass_top_rounded,
+  }) : icon = PhosphorIconsRegular.hourglassHigh,
        tone = AppStateTone.info,
        actionLabel = null,
        actionIcon = null,
@@ -255,7 +255,10 @@ class AppStatusBanner extends StatelessWidget {
                                   strokeWidth: 2,
                                 ),
                               )
-                            : const Icon(Icons.refresh_rounded, size: 18),
+                            : const Icon(
+                                PhosphorIconsRegular.arrowClockwise,
+                                size: 18,
+                              ),
                         label: Text(actionLabel!),
                       ),
                     ),

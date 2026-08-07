@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:go_router/go_router.dart';
@@ -462,7 +463,7 @@ class _SessionExpiredDialogGateState extends State<_SessionExpiredDialogGate> {
               FilledButton.icon(
                 onPressed: () =>
                     Navigator.of(dialogContext, rootNavigator: true).pop(),
-                icon: const Icon(Icons.login_rounded),
+                icon: const Icon(PhosphorIconsRegular.signIn),
                 label: const Text('Đăng nhập lại'),
               ),
             ],

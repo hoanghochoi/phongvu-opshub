@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_text_styles.dart';
@@ -37,7 +38,7 @@ class SalesReportWorkspaceHeader extends StatelessWidget {
               if (canPop) ...[
                 AppIconAction(
                   onPressed: () => navigator.maybePop(),
-                  icon: Icons.arrow_back_rounded,
+                  icon: PhosphorIconsRegular.arrowLeft,
                   tooltip: 'Quay lại',
                 ),
                 const SizedBox(width: 8),

@@ -140,6 +140,10 @@ class _AppShellState extends State<AppShell> {
       mediaQuery.viewInsets.bottom,
     );
     final shellUsesRail = width >= AppLayoutTokens.compactBreakpoint;
+    final windowsHomeStack =
+        !kIsWeb &&
+        defaultTargetPlatform == TargetPlatform.windows &&
+        widget.location == '/home';
     final layout = shellUsesRail
         ? width >= AppLayoutTokens.desktopBreakpoint
               ? 'desktop'
@@ -205,31 +209,38 @@ class _AppShellState extends State<AppShell> {
             shell,
             if (shellUsesRail &&
                 widget.location != '/admin/support-chats' &&
-                (supportChat?.enabled == true ||
-                    (!kIsWeb &&
-                        defaultTargetPlatform == TargetPlatform.windows &&
-                        widget.location == '/home')))
+                (supportChat?.enabled == true || windowsHomeStack))
               Positioned(
-                right: width >= AppLayoutTokens.tabletBreakpoint ? 24 : 16,
+                right: windowsHomeStack
+                    ? width >= AppLayoutTokens.desktopBreakpoint
+                          ? 16
+                          : 24
+                    : width >= AppLayoutTokens.tabletBreakpoint
+                    ? 24
+                    : 16,
                 bottom:
-                    (width >= AppLayoutTokens.tabletBreakpoint ? 32 : 116) +
+                    (windowsHomeStack
+                        ? width >= AppLayoutTokens.desktopBreakpoint
+                              ? 24
+                              : 32
+                        : width >= AppLayoutTokens.tabletBreakpoint
+                        ? 32
+                        : 116) +
                     floatingBottomInset,
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    if (!kIsWeb &&
-                        defaultTargetPlatform == TargetPlatform.windows &&
-                        widget.location == '/home')
+                    if (windowsHomeStack)
                       QuickActionsLauncher(
                         menuAxis: Axis.vertical,
                         location: widget.location,
+                        visibleWhenUnavailable: true,
                       ),
-                    if (!kIsWeb &&
-                        defaultTargetPlatform == TargetPlatform.windows &&
-                        widget.location == '/home' &&
-                        supportChat?.enabled == true)
-                      const SizedBox(height: 12),
-                    SupportChatBubble(onPressed: () => _openSupport(context)),
+                    if (windowsHomeStack) const SizedBox(height: 12),
+                    SupportChatBubble(
+                      onPressed: () => _openSupport(context),
+                      visibleWhenDisabled: windowsHomeStack,
+                    ),
                   ],
                 ),
               ),
@@ -354,7 +365,7 @@ class _AppShellState extends State<AppShell> {
         title: Row(
           children: [
             Icon(
-              Icons.support_agent_rounded,
+              PhosphorIconsRegular.headset,
               color: AppColors.primaryOf(dialogContext),
             ),
             const SizedBox(width: 12),
@@ -412,12 +423,12 @@ class _AppShellState extends State<AppShell> {
           ),
           AppDialogSecondaryButton(
             onPressed: () => _copySupportGroupLink(dialogContext),
-            icon: Icons.copy_rounded,
+            icon: PhosphorIconsRegular.copy,
             label: 'Sao chép liên kết',
           ),
           AppDialogConfirmButton(
             onPressed: () => _openSupportGroupLink(dialogContext),
-            icon: Icons.open_in_new_rounded,
+            icon: PhosphorIconsRegular.arrowSquareOut,
             label: 'Mở group',
           ),
         ],
@@ -526,7 +537,10 @@ class _AppShellState extends State<AppShell> {
       builder: (dialogContext) => AlertDialog(
         title: Row(
           children: [
-            Icon(Icons.info_outline, color: AppColors.primaryOf(dialogContext)),
+            Icon(
+              PhosphorIconsRegular.info,
+              color: AppColors.primaryOf(dialogContext),
+            ),
             const SizedBox(width: 12),
             const Expanded(child: Text('Thông tin ứng dụng')),
           ],
@@ -891,7 +905,7 @@ class _ShellAccessSyncSurface extends StatelessWidget {
         Padding(
           padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
           child: AppStatusBanner(
-            icon: Icons.cloud_off_rounded,
+            icon: PhosphorIconsRegular.cloudSlash,
             title: 'Quyền truy cập chưa được cập nhật',
             message: '$warning $lastSyncedText',
             tone: AppStateTone.warning,
@@ -921,13 +935,13 @@ class _MobileNotificationDestinationIcon extends StatelessWidget {
     try {
       notifications = context.watch<AppNotificationsProvider>();
     } on ProviderNotFoundException {
-      return const Icon(Icons.notifications_none_rounded);
+      return const Icon(PhosphorIconsRegular.bell);
     }
 
     return Badge(
       isLabelVisible: notifications.count > 0,
-      label: Text('${notifications.count}'),
-      child: const Icon(Icons.notifications_none_rounded),
+      label: Text(notifications.count > 99 ? '99+' : '${notifications.count}'),
+      child: const Icon(PhosphorIconsRegular.bell),
     );
   }
 }
@@ -1668,28 +1682,28 @@ class _AccountMenuButton extends StatelessWidget {
         const PopupMenuItem(
           value: _AccountAction.profile,
           child: ListTile(
-            leading: Icon(Icons.person_outline),
+            leading: Icon(PhosphorIconsRegular.user),
             title: Text('Thông tin cá nhân'),
           ),
         ),
         const PopupMenuItem(
           value: _AccountAction.settings,
           child: ListTile(
-            leading: Icon(Icons.settings_outlined),
+            leading: Icon(PhosphorIconsRegular.gear),
             title: Text('Cài đặt'),
           ),
         ),
         const PopupMenuItem(
           value: _AccountAction.appInfo,
           child: ListTile(
-            leading: Icon(Icons.info_outline),
+            leading: Icon(PhosphorIconsRegular.info),
             title: Text('Thông tin ứng dụng'),
           ),
         ),
         const PopupMenuItem(
           value: _AccountAction.logout,
           child: ListTile(
-            leading: Icon(Icons.logout_rounded),
+            leading: Icon(PhosphorIconsRegular.signOut),
             title: Text('Đăng xuất'),
           ),
         ),

@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:provider/provider.dart';
 import 'package:phongvu_opshub/app/widgets/app_toast.dart';
 
@@ -340,7 +341,7 @@ class _OrganizationTreeAdminScreenState
                 title: _loadError!,
                 message: 'Kiểm tra kết nối rồi thử tải lại cây tổ chức.',
                 actionLabel: 'Thử tải lại',
-                actionIcon: Icons.refresh_outlined,
+                actionIcon: PhosphorIconsRegular.arrowClockwise,
                 onAction: () => unawaited(_load()),
               ),
             )
@@ -495,14 +496,14 @@ class _OrganizationTreeHeader extends StatelessWidget {
           children: [
             AppIconAction(
               onPressed: loading ? null : () => unawaited(onReload()),
-              icon: Icons.refresh_outlined,
+              icon: PhosphorIconsRegular.arrowClockwise,
               tooltip: 'Tải lại',
             ),
             if (canEditStructure) ...[
               const SizedBox(width: 8),
               AppIconAction(
                 onPressed: loading ? null : onAdd,
-                icon: Icons.add_outlined,
+                icon: PhosphorIconsRegular.plus,
                 tooltip: 'Thêm đơn vị',
               ),
             ],
@@ -516,7 +517,7 @@ class _OrganizationTreeHeader extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Icon(
-                    Icons.account_tree_outlined,
+                    PhosphorIconsRegular.treeStructure,
                     color: AppColors.primaryOf(context),
                   ),
                   const SizedBox(width: 12),
@@ -532,7 +533,7 @@ class _OrganizationTreeHeader extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Icon(
-              Icons.account_tree_outlined,
+              PhosphorIconsRegular.treeStructure,
               color: AppColors.primaryOf(context),
             ),
             const SizedBox(width: 12),
@@ -575,7 +576,7 @@ class _OrganizationTreePanel extends StatelessWidget {
             controller: searchController,
             label: 'Tìm đơn vị',
             hintText: 'Mã nghiệp vụ, viết tắt hoặc tên đơn vị',
-            icon: Icons.search,
+            icon: PhosphorIconsRegular.magnifyingGlass,
             textInputAction: TextInputAction.search,
             onChanged: onSearchChanged,
             onSubmitted: onSearchSubmitted,
@@ -583,7 +584,7 @@ class _OrganizationTreePanel extends StatelessWidget {
                 ? null
                 : AppIconAction(
                     onPressed: onClearSearch,
-                    icon: Icons.close_rounded,
+                    icon: PhosphorIconsRegular.x,
                     tooltip: 'Xóa tìm kiếm',
                   ),
           ),
@@ -621,7 +622,7 @@ class _OrganizationTreeList extends StatelessWidget {
       return AppStatePanel.empty(
         title: hasSearch ? 'Không tìm thấy đơn vị' : 'Chưa có đơn vị tổ chức',
         message: hasSearch ? null : 'Bấm nút thêm để tạo đơn vị đầu tiên.',
-        icon: Icons.account_tree_outlined,
+        icon: PhosphorIconsRegular.treeStructure,
       );
     }
     final byParent = <String?, List<AdminOrganizationNode>>{};
@@ -706,7 +707,7 @@ class _TreeNodeTile extends StatelessWidget {
       trailing: node.isActive
           ? null
           : Icon(
-              Icons.block_outlined,
+              PhosphorIconsRegular.prohibit,
               color: AppColors.errorOf(context),
               size: 18,
             ),
@@ -767,7 +768,7 @@ class _OrganizationNodeDetail extends StatelessWidget {
     if (node == null) {
       return const AppStatePanel.empty(
         key: Key('organization-tree-detail-empty-state'),
-        icon: Icons.account_tree_outlined,
+        icon: PhosphorIconsRegular.treeStructure,
         title: 'Chưa chọn đơn vị',
         message: 'Chọn đơn vị để xem chi tiết.',
       );
@@ -868,25 +869,25 @@ class _OrganizationNodeDetail extends StatelessWidget {
                 if (canManageFeatures)
                   AppSecondaryButton(
                     onPressed: onManageFeatures,
-                    icon: Icons.account_tree_outlined,
+                    icon: PhosphorIconsRegular.treeStructure,
                     label: 'Tính năng',
                   ),
                 if (canAddChild)
                   AppSecondaryButton(
                     onPressed: onAddChild,
-                    icon: Icons.add_outlined,
+                    icon: PhosphorIconsRegular.plus,
                     label: 'Thêm con',
                   ),
                 if (canEdit)
                   AppSecondaryButton(
                     onPressed: onEdit,
-                    icon: Icons.edit_outlined,
+                    icon: PhosphorIconsRegular.pencilSimple,
                     label: 'Sửa',
                   ),
                 if (canDelete)
                   AppSecondaryButton(
                     onPressed: onDelete,
-                    icon: Icons.delete_outline,
+                    icon: PhosphorIconsRegular.trash,
                     label: 'Xóa',
                   ),
               ],
@@ -1348,15 +1349,15 @@ class _OrganizationNodeEditorDialogState
 
 IconData _iconForType(String type) {
   return switch (AdminOrganizationNode.canonicalType(type)) {
-    'LV0_DOMAIN' => Icons.language_outlined,
-    'LV1_BLOCK' => Icons.account_tree_outlined,
-    'LV2_DEPARTMENT' => Icons.apartment_outlined,
-    'LV2_REGION' => Icons.public_outlined,
-    'LV3_AREA' => Icons.map_outlined,
-    'LV3_UNIT' => Icons.hub_outlined,
-    'LV4_STORE' => Icons.store_mall_directory_outlined,
-    'LV5_POSITION' => Icons.badge_outlined,
-    _ => Icons.account_tree_outlined,
+    'LV0_DOMAIN' => PhosphorIconsRegular.globe,
+    'LV1_BLOCK' => PhosphorIconsRegular.treeStructure,
+    'LV2_DEPARTMENT' => PhosphorIconsRegular.buildings,
+    'LV2_REGION' => PhosphorIconsRegular.globe,
+    'LV3_AREA' => PhosphorIconsRegular.mapTrifold,
+    'LV3_UNIT' => PhosphorIconsRegular.graph,
+    'LV4_STORE' => PhosphorIconsRegular.storefront,
+    'LV5_POSITION' => PhosphorIconsRegular.identificationBadge,
+    _ => PhosphorIconsRegular.treeStructure,
   };
 }
 

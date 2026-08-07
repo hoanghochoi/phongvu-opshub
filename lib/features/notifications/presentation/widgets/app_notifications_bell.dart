@@ -203,7 +203,7 @@ class AppNotificationsContent extends StatelessWidget {
             Row(
               children: [
                 Icon(
-                  Icons.notifications_none_rounded,
+                  PhosphorIconsRegular.bell,
                   color: AppColors.primaryOf(context),
                 ),
                 const SizedBox(width: 8),
@@ -218,13 +218,13 @@ class AppNotificationsContent extends StatelessWidget {
                           await provider.load();
                           await provider.markVisibleNotificationsRead();
                         },
-                  icon: const Icon(Icons.refresh_rounded),
+                  icon: const Icon(PhosphorIconsRegular.arrowClockwise),
                 ),
                 if (onClose != null)
                   IconButton(
                     tooltip: 'Đóng',
                     onPressed: onClose,
-                    icon: const Icon(Icons.close_rounded),
+                    icon: const Icon(PhosphorIconsRegular.x),
                   ),
               ],
             ),
@@ -317,7 +317,7 @@ class AppNotificationsContent extends StatelessWidget {
               AppDialogConfirmButton(
                 onPressed: () =>
                     Navigator.of(dialogContext).pop(controller.text.trim()),
-                icon: Icons.close_rounded,
+                icon: PhosphorIconsRegular.x,
                 label: 'Từ chối',
               ),
             ],
@@ -426,7 +426,7 @@ class _NotificationsInboxHeader extends StatelessWidget {
             borderRadius: AppRadius.allSm,
           ),
           child: Icon(
-            Icons.notifications_none_rounded,
+            PhosphorIconsRegular.bell,
             color: AppColors.infoOf(context),
           ),
         ),
@@ -434,7 +434,7 @@ class _NotificationsInboxHeader extends StatelessWidget {
         Expanded(child: Text('Thông báo', style: AppTextStyles.labelL)),
         AppIconAction(
           tooltip: 'Tải lại thông báo',
-          icon: Icons.refresh_rounded,
+          icon: PhosphorIconsRegular.arrowClockwise,
           filled: false,
           onPressed: isLoading ? null : onReload,
         ),
@@ -589,7 +589,7 @@ class _FullPageStatementNotificationCard extends StatelessWidget {
                   width: 96,
                   child: AppSecondaryButton(
                     onPressed: onReject,
-                    icon: Icons.close_rounded,
+                    icon: PhosphorIconsRegular.x,
                     label: 'Từ chối',
                     expand: false,
                     size: AppButtonSize.medium,
@@ -601,7 +601,7 @@ class _FullPageStatementNotificationCard extends StatelessWidget {
                   width: 115,
                   child: AppPrimaryButton(
                     onPressed: onApprove,
-                    icon: Icons.check_rounded,
+                    icon: PhosphorIconsRegular.check,
                     label: 'Xác nhận',
                     size: AppButtonSize.medium,
                   ),
@@ -840,7 +840,9 @@ class _OffsetAdjustmentNotificationTile extends StatelessWidget {
     return ListTile(
       contentPadding: EdgeInsets.zero,
       leading: Icon(
-        rejected ? Icons.error_outline_rounded : _offsetTypeIcon(request.type),
+        rejected
+            ? PhosphorIconsRegular.warningCircle
+            : _offsetTypeIcon(request.type),
         color: rejected
             ? AppColors.errorOf(context)
             : AppColors.warningOf(context),
@@ -873,7 +875,7 @@ class _OffsetAdjustmentNotificationTile extends StatelessWidget {
           ],
         ],
       ),
-      trailing: const Icon(Icons.chevron_right_rounded),
+      trailing: const Icon(PhosphorIconsRegular.caretRight),
       onTap: onOpen,
     );
   }
@@ -912,7 +914,9 @@ class _StatementOrderNotificationTile extends StatelessWidget {
     return ListTile(
       contentPadding: EdgeInsets.zero,
       leading: Icon(
-        rejected ? Icons.error_outline_rounded : Icons.swap_horiz_rounded,
+        rejected
+            ? PhosphorIconsRegular.warningCircle
+            : PhosphorIconsRegular.arrowsLeftRight,
         color: rejected
             ? AppColors.errorOf(context)
             : AppColors.warningOf(context),
@@ -961,12 +965,12 @@ class _StatementOrderNotificationTile extends StatelessWidget {
                 children: [
                   AppDialogSecondaryButton(
                     onPressed: onReject,
-                    icon: Icons.close_rounded,
+                    icon: PhosphorIconsRegular.x,
                     label: 'Từ chối',
                   ),
                   AppDialogConfirmButton(
                     onPressed: onApprove,
-                    icon: Icons.check_rounded,
+                    icon: PhosphorIconsRegular.check,
                     label: 'Xác nhận',
                   ),
                 ],
@@ -1009,10 +1013,10 @@ class _StatementOrderNotificationTile extends StatelessWidget {
 
 IconData _offsetTypeIcon(String type) {
   return switch (type) {
-    OffsetAdjustmentType.singleOrder => Icons.swap_calls_rounded,
-    OffsetAdjustmentType.vnpayQroff => Icons.qr_code_2_rounded,
-    OffsetAdjustmentType.zaloPay => Icons.account_balance_wallet_outlined,
-    OffsetAdjustmentType.shopeePay => Icons.shopping_bag_outlined,
-    _ => Icons.dataset_outlined,
+    OffsetAdjustmentType.singleOrder => PhosphorIconsRegular.arrowsDownUp,
+    OffsetAdjustmentType.vnpayQroff => PhosphorIconsRegular.qrCode,
+    OffsetAdjustmentType.zaloPay => PhosphorIconsRegular.wallet,
+    OffsetAdjustmentType.shopeePay => PhosphorIconsRegular.shoppingBag,
+    _ => PhosphorIconsRegular.database,
   };
 }

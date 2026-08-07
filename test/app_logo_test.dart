@@ -7,6 +7,13 @@ import 'package:phongvu_opshub/app/widgets/app_logo.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
+  testWidgets('AppLogo preloads the active brand asset before first shell', (
+    tester,
+  ) async {
+    final loaded = await tester.runAsync(AppLogo.preload);
+    expect(loaded, isTrue);
+  });
+
   testWidgets('AppLogo keeps the approved size lanes and inside stroke', (
     tester,
   ) async {

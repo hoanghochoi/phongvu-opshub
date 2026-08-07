@@ -228,7 +228,9 @@ class _WarrantyDetailsScreenState extends State<WarrantyDetailsScreen> {
           title: Row(
             children: [
               Icon(
-                isPermanentlyDenied ? Icons.settings : Icons.info_outline,
+                isPermanentlyDenied
+                    ? PhosphorIconsRegular.gear
+                    : PhosphorIconsRegular.info,
                 color: AppColors.warningOf(context),
               ),
               const SizedBox(width: AppLayoutTokens.formInlineGap),
@@ -280,7 +282,7 @@ class _WarrantyDetailsScreenState extends State<WarrantyDetailsScreen> {
                   Navigator.of(context).pop();
                   openAppSettings();
                 },
-                icon: Icons.settings_outlined,
+                icon: PhosphorIconsRegular.gear,
                 label: 'Mở Cài đặt',
               ),
             AppDialogCancelButton(
@@ -749,7 +751,11 @@ class _PhonePermissionHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Icon(Icons.phone_android, size: 16, color: AppColors.infoOf(context)),
+        Icon(
+          PhosphorIconsRegular.deviceMobile,
+          size: 16,
+          color: AppColors.infoOf(context),
+        ),
         const SizedBox(width: 6),
         Text(
           'Tùy theo hãng điện thoại:',
@@ -916,7 +922,7 @@ class _ImageSection extends StatelessWidget {
     if (images.isEmpty) {
       return const AppStatePanel.empty(
         title: 'Không có hình ảnh',
-        icon: Icons.image_not_supported_outlined,
+        icon: PhosphorIconsRegular.imageBroken,
         compact: true,
       );
     }
@@ -1004,7 +1010,7 @@ class _ImageCard extends StatelessWidget {
               child: IconButton(
                 tooltip: 'Tải về',
                 onPressed: onDownload,
-                icon: const Icon(Icons.download_rounded),
+                icon: const Icon(PhosphorIconsRegular.downloadSimple),
                 color: AppColors.surface,
                 style: IconButton.styleFrom(
                   backgroundColor: AppColors.neutral900.withValues(alpha: 0.62),
@@ -1115,7 +1121,7 @@ class _BrokenImagePlaceholder extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(
-              Icons.broken_image,
+              PhosphorIconsRegular.imageBroken,
               size: 48,
               color: AppColors.errorOf(context),
             ),
@@ -1202,7 +1208,7 @@ class _ImageViewerToolbar extends StatelessWidget {
           children: [
             IconButton(
               onPressed: onBack,
-              icon: const Icon(Icons.arrow_back_rounded),
+              icon: const Icon(PhosphorIconsRegular.arrowLeft),
               tooltip: 'Quay lại',
               color: AppColors.surface,
             ),
@@ -1221,7 +1227,7 @@ class _ImageViewerToolbar extends StatelessWidget {
             const SizedBox(width: 4),
             IconButton(
               onPressed: onDownload,
-              icon: const Icon(Icons.download_rounded),
+              icon: const Icon(PhosphorIconsRegular.downloadSimple),
               tooltip: 'Tải về',
               color: AppColors.surface,
             ),

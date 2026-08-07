@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import 'package:phongvu_opshub/app/widgets/app_toast.dart';
@@ -189,7 +190,7 @@ class _WarrantyScreenState extends State<WarrantyScreen> {
         child: Wrap(
           children: [
             ListTile(
-              leading: const Icon(Icons.photo_camera),
+              leading: const Icon(PhosphorIconsRegular.camera),
               title: const Text('Chụp ảnh'),
               onTap: () {
                 Navigator.pop(context);
@@ -197,7 +198,7 @@ class _WarrantyScreenState extends State<WarrantyScreen> {
               },
             ),
             ListTile(
-              leading: const Icon(Icons.photo_library),
+              leading: const Icon(PhosphorIconsRegular.images),
               title: const Text('Chọn từ thư viện'),
               onTap: () {
                 Navigator.pop(context);
@@ -267,7 +268,7 @@ class _WarrantyScreenState extends State<WarrantyScreen> {
           barrierDismissible: true,
           builder: (context) => AlertDialog(
             icon: Icon(
-              Icons.check_circle,
+              PhosphorIconsRegular.checkCircle,
               color: AppColors.successOf(context),
               size: 64,
             ),
@@ -294,7 +295,7 @@ class _WarrantyScreenState extends State<WarrantyScreen> {
           barrierDismissible: true,
           builder: (context) => AlertDialog(
             icon: Icon(
-              Icons.error,
+              PhosphorIconsRegular.warningCircle,
               color: AppColors.errorOf(context),
               size: 64,
             ),
@@ -348,10 +349,10 @@ class _WarrantyScreenState extends State<WarrantyScreen> {
                     onChanged: _validateReceipt,
                     label: 'Số biên nhận / mã sửa chữa',
                     hintText: 'CPxx-Jxxxxxxxx hoặc ST-123456',
-                    icon: Icons.receipt_long,
+                    icon: PhosphorIconsRegular.receipt,
                     errorText: _receiptError,
                     suffixIcon: AppIconAction(
-                      icon: Icons.qr_code_scanner,
+                      icon: PhosphorIconsRegular.scan,
                       onPressed: _scanBarcode,
                       tooltip: 'Quét mã',
                     ),
@@ -372,7 +373,7 @@ class _WarrantyScreenState extends State<WarrantyScreen> {
                     onPressed: _images.length >= _maxImages
                         ? null
                         : _showImageSourceDialog,
-                    icon: Icons.add_photo_alternate,
+                    icon: PhosphorIconsRegular.imageSquare,
                     label: 'Thêm hình ảnh',
                   ),
                   const SizedBox(height: AppLayoutTokens.formFieldGap),
@@ -383,7 +384,7 @@ class _WarrantyScreenState extends State<WarrantyScreen> {
                     builder: (context, warrantyProvider, child) {
                       return AppPrimaryButton(
                         onPressed: _saveWarranty,
-                        icon: Icons.save_outlined,
+                        icon: PhosphorIconsRegular.floppyDisk,
                         label: 'Lưu',
                         isLoading: warrantyProvider.isLoading,
                         loadingLabel: 'Đang lưu...',
@@ -430,7 +431,7 @@ class _WarrantyUploadHeader extends StatelessWidget {
               borderRadius: BorderRadius.circular(AppLayoutTokens.cardRadius),
             ),
             child: Icon(
-              Icons.add_photo_alternate_rounded,
+              PhosphorIconsRegular.imageSquare,
               color: AppColors.successOf(context),
             ),
           );
@@ -550,7 +551,7 @@ class _ImageGrid extends StatelessWidget {
                   ),
                   padding: const EdgeInsets.all(4),
                   child: const Icon(
-                    Icons.close,
+                    PhosphorIconsRegular.x,
                     color: AppColors.surface,
                     size: 20,
                   ),

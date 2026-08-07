@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
@@ -120,7 +121,7 @@ class _OffsetAdjustmentScreenState extends State<OffsetAdjustmentScreen> {
         if (provider.errorMessage != null) ...[
           const SizedBox(height: 16),
           AppStatusBanner(
-            icon: Icons.error_outline_rounded,
+            icon: PhosphorIconsRegular.warningCircle,
             title: 'Chưa thực hiện được',
             message: provider.errorMessage!,
             tone: AppStateTone.error,
@@ -129,7 +130,7 @@ class _OffsetAdjustmentScreenState extends State<OffsetAdjustmentScreen> {
         if (provider.successMessage != null) ...[
           const SizedBox(height: 16),
           AppStatusBanner(
-            icon: Icons.check_circle_outline_rounded,
+            icon: PhosphorIconsRegular.checkCircle,
             title: 'Đã cập nhật',
             message: provider.successMessage!,
             tone: AppStateTone.success,
@@ -161,14 +162,14 @@ class _OffsetAdjustmentScreenState extends State<OffsetAdjustmentScreen> {
     }
     if (!provider.hasSearched) {
       return const AppStatePanel.empty(
-        icon: Icons.swap_horiz_rounded,
+        icon: PhosphorIconsRegular.arrowsLeftRight,
         title: 'Chưa có dữ liệu',
         message: 'Chọn bộ lọc để tải hồ sơ cấn trừ.',
       );
     }
     if (provider.items.isEmpty) {
       return const AppStatePanel.empty(
-        icon: Icons.inbox_outlined,
+        icon: PhosphorIconsRegular.tray,
         title: 'Không có hồ sơ cấn trừ',
         message: 'Chưa có hồ sơ phù hợp với bộ lọc hiện tại.',
       );
@@ -373,25 +374,25 @@ class _ActionBar extends StatelessWidget {
             _createButton(
               context,
               OffsetAdjustmentType.singleOrder,
-              Icons.swap_calls_rounded,
+              PhosphorIconsRegular.arrowsDownUp,
               buttonWidth,
             ),
             _createButton(
               context,
               OffsetAdjustmentType.vnpayQroff,
-              Icons.qr_code_2_rounded,
+              PhosphorIconsRegular.qrCode,
               buttonWidth,
             ),
             _createButton(
               context,
               OffsetAdjustmentType.zaloPay,
-              Icons.account_balance_wallet_outlined,
+              PhosphorIconsRegular.wallet,
               buttonWidth,
             ),
             _createButton(
               context,
               OffsetAdjustmentType.shopeePay,
-              Icons.shopping_bag_outlined,
+              PhosphorIconsRegular.shoppingBag,
               buttonWidth,
             ),
           ],
@@ -460,14 +461,14 @@ class _FilterPanelState extends State<_FilterPanel> {
                     ),
                     child: Row(
                       children: [
-                        const Icon(Icons.filter_alt_outlined),
+                        const Icon(PhosphorIconsRegular.funnel),
                         const SizedBox(width: 8),
                         Text('Bộ lọc cấn trừ', style: AppTextStyles.labelM),
                         const Spacer(),
                         Icon(
                           _isExpanded
-                              ? Icons.expand_less_rounded
-                              : Icons.expand_more_rounded,
+                              ? PhosphorIconsRegular.caretUp
+                              : PhosphorIconsRegular.caretDown,
                         ),
                       ],
                     ),
@@ -559,7 +560,7 @@ class _FilterPanelState extends State<_FilterPanel> {
       return InputDecorator(
         decoration: appInputDecoration(
           label: 'Showroom',
-          icon: Icons.storefront_outlined,
+          icon: PhosphorIconsRegular.storefront,
         ),
         child: Text(
           widget.provider.stores.isEmpty
@@ -572,7 +573,7 @@ class _FilterPanelState extends State<_FilterPanel> {
     }
     return AppCombobox<String>.multi(
       label: 'Showroom',
-      icon: Icons.storefront_outlined,
+      icon: PhosphorIconsRegular.storefront,
       values: widget.provider.selectedStoreIds,
       emptyLabel: widget.provider.canReview
           ? 'Tất cả showroom'
@@ -598,7 +599,7 @@ class _FilterPanelState extends State<_FilterPanel> {
     return AppCombobox<String>.single(
       value: widget.provider.type,
       label: 'Loại',
-      icon: Icons.category_outlined,
+      icon: PhosphorIconsRegular.shapes,
       options: const [
         AppComboboxOption(value: 'ALL', label: 'Tất cả loại'),
         AppComboboxOption(
@@ -627,7 +628,7 @@ class _FilterPanelState extends State<_FilterPanel> {
     return AppCombobox<String>.single(
       value: widget.provider.status,
       label: 'Trạng thái',
-      icon: Icons.flag_outlined,
+      icon: PhosphorIconsRegular.flag,
       options: const [
         AppComboboxOption(value: 'ALL', label: 'Tất cả trạng thái'),
         AppComboboxOption(
@@ -652,7 +653,7 @@ class _FilterPanelState extends State<_FilterPanel> {
     return AppTextInput(
       controller: widget.orderController,
       label: 'Mã đơn',
-      icon: Icons.tag_rounded,
+      icon: PhosphorIconsRegular.tag,
       onChanged: widget.provider.setOrder,
     );
   }
@@ -663,7 +664,7 @@ class _FilterPanelState extends State<_FilterPanel> {
       keyboardType: TextInputType.number,
       inputFormatters: [ThousandsSeparatorInputFormatter()],
       label: 'Số tiền',
-      icon: Icons.payments_outlined,
+      icon: PhosphorIconsRegular.money,
       onChanged: widget.provider.setAmount,
     );
   }
@@ -679,7 +680,7 @@ class _OffsetLimitDropdown extends StatelessWidget {
     return AppCombobox<int>.single(
       value: provider.limit,
       label: 'Số dòng',
-      icon: Icons.format_list_numbered_rounded,
+      icon: PhosphorIconsRegular.listNumbers,
       options: const [10, 20, 50, 100]
           .map((value) => AppComboboxOption(value: value, label: '$value dòng'))
           .toList(),
@@ -751,7 +752,7 @@ class _OffsetListControls extends StatelessWidget {
       onPressed: provider.canBatchComplete
           ? () => _confirmBatchComplete(context)
           : null,
-      icon: Icons.done_all_rounded,
+      icon: PhosphorIconsRegular.checks,
       label: 'Xác nhận đã chọn',
       isLoading: provider.isSaving,
       loadingLabel: 'Đang xác nhận',
@@ -803,7 +804,7 @@ class _OffsetListControls extends StatelessWidget {
           ),
           AppDialogConfirmButton(
             onPressed: () => Navigator.of(dialogContext).pop(true),
-            icon: Icons.done_all_rounded,
+            icon: PhosphorIconsRegular.checks,
             label: 'Xác nhận',
           ),
         ],
@@ -825,7 +826,7 @@ class _FilterActions extends StatelessWidget {
         Expanded(
           child: AppPrimaryButton(
             onPressed: provider.isLoading ? null : provider.search,
-            icon: Icons.search_rounded,
+            icon: PhosphorIconsRegular.magnifyingGlass,
             label: 'Tìm',
             isLoading: provider.isLoading,
             size: AppButtonSize.medium,
@@ -848,7 +849,7 @@ class _ExportMenuButton extends StatelessWidget {
     return MenuAnchor(
       menuChildren: [
         MenuItemButton(
-          leadingIcon: const Icon(Icons.dataset_outlined),
+          leadingIcon: const Icon(PhosphorIconsRegular.database),
           onPressed: provider.isExporting
               ? null
               : () => provider.exportCsv(type: 'ALL'),
@@ -872,7 +873,7 @@ class _ExportMenuButton extends StatelessWidget {
               controller.open();
             }
           },
-          icon: Icons.download_rounded,
+          icon: PhosphorIconsRegular.downloadSimple,
           label: 'Xuất file',
           isLoading: provider.isExporting,
           loadingLabel: 'Đang xuất',
@@ -959,23 +960,26 @@ class _OffsetCard extends StatelessWidget {
             runSpacing: 4,
             children: [
               _InlineInfo(
-                icon: Icons.storefront_outlined,
+                icon: PhosphorIconsRegular.storefront,
                 text: item.storeCode,
               ),
               if (item.sellingStores.isNotEmpty)
                 _InlineInfo(
-                  icon: Icons.storefront_outlined,
+                  icon: PhosphorIconsRegular.storefront,
                   text: _sellingStoresLabel(item.sellingStores),
                 ),
               _InlineInfo(
-                icon: Icons.payments_outlined,
+                icon: PhosphorIconsRegular.money,
                 text: money.format(item.amount),
               ),
               if (submittedText.isNotEmpty)
-                _InlineInfo(icon: Icons.schedule_rounded, text: submittedText),
+                _InlineInfo(
+                  icon: PhosphorIconsRegular.clock,
+                  text: submittedText,
+                ),
               if ((item.transactionCode ?? '').isNotEmpty)
                 _InlineInfo(
-                  icon: Icons.confirmation_number_outlined,
+                  icon: PhosphorIconsRegular.ticket,
                   text: item.transactionCode!,
                 ),
             ],
@@ -1103,18 +1107,18 @@ class _OffsetDetailDialog extends StatelessWidget {
         if (item.canResubmit)
           AppDialogConfirmButton(
             onPressed: onResubmit,
-            icon: Icons.edit_rounded,
+            icon: PhosphorIconsRegular.pencilSimple,
             label: 'Sửa lại',
           ),
         if (canReview && item.status == OffsetAdjustmentStatus.pending) ...[
           AppDialogSecondaryButton(
             onPressed: onReject,
-            icon: Icons.close_rounded,
+            icon: PhosphorIconsRegular.x,
             label: 'Từ chối',
           ),
           AppDialogConfirmButton(
             onPressed: onComplete,
-            icon: Icons.check_rounded,
+            icon: PhosphorIconsRegular.check,
             label: 'Hoàn thành',
           ),
         ],
@@ -1257,7 +1261,7 @@ class _OffsetInputDialogState extends State<_OffsetInputDialog> {
                   child: AppCombobox<String>.single(
                     value: _editContentKind,
                     label: 'Nội dung cần sửa',
-                    icon: Icons.edit_note_rounded,
+                    icon: PhosphorIconsRegular.notePencil,
                     options: OffsetEditContentKind.values
                         .map(
                           (kind) => AppComboboxOption(
@@ -1284,7 +1288,7 @@ class _OffsetInputDialogState extends State<_OffsetInputDialog> {
                 child: AppTextInput(
                   controller: _amountController,
                   label: 'Số tiền',
-                  icon: Icons.payments_outlined,
+                  icon: PhosphorIconsRegular.money,
                   keyboardType: TextInputType.number,
                   inputFormatters: [ThousandsSeparatorInputFormatter()],
                 ),
@@ -1303,7 +1307,7 @@ class _OffsetInputDialogState extends State<_OffsetInputDialog> {
         ),
         AppDialogConfirmButton(
           onPressed: _saving ? null : _submit,
-          icon: Icons.save_rounded,
+          icon: PhosphorIconsRegular.floppyDisk,
           label: 'Lưu',
           isLoading: _saving,
         ),
@@ -1445,11 +1449,11 @@ Color _statusColor(BuildContext context, String status) {
 
 IconData _typeIcon(String type) {
   return switch (type) {
-    OffsetAdjustmentType.singleOrder => Icons.swap_calls_rounded,
-    OffsetAdjustmentType.vnpayQroff => Icons.qr_code_2_rounded,
-    OffsetAdjustmentType.zaloPay => Icons.account_balance_wallet_outlined,
-    OffsetAdjustmentType.shopeePay => Icons.shopping_bag_outlined,
-    _ => Icons.dataset_outlined,
+    OffsetAdjustmentType.singleOrder => PhosphorIconsRegular.arrowsDownUp,
+    OffsetAdjustmentType.vnpayQroff => PhosphorIconsRegular.qrCode,
+    OffsetAdjustmentType.zaloPay => PhosphorIconsRegular.wallet,
+    OffsetAdjustmentType.shopeePay => PhosphorIconsRegular.shoppingBag,
+    _ => PhosphorIconsRegular.database,
   };
 }
 

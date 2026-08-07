@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:flutter/services.dart';
 
 import '../../../core/logging/app_logger.dart';
@@ -583,7 +584,10 @@ class _DateRangePickerState extends State<DateRangePicker> {
       ),
       child: Row(
         children: [
-          Icon(Icons.date_range_rounded, color: AppColors.primaryOf(context)),
+          Icon(
+            PhosphorIconsRegular.calendarDots,
+            color: AppColors.primaryOf(context),
+          ),
           const SizedBox(width: 10),
           Expanded(
             child: Column(
@@ -611,7 +615,7 @@ class _DateRangePickerState extends State<DateRangePicker> {
               key: const Key('date-range-close'),
               tooltip: 'Đóng không lưu',
               onPressed: widget.onCancel,
-              icon: const Icon(Icons.close_rounded),
+              icon: const Icon(PhosphorIconsRegular.x),
             ),
         ],
       ),
@@ -693,7 +697,10 @@ class _DateRangePickerState extends State<DateRangePicker> {
                     TextButton.icon(
                       key: const Key('date-range-clear'),
                       onPressed: _clearDraft,
-                      icon: const Icon(Icons.filter_alt_off_rounded, size: 18),
+                      icon: const Icon(
+                        PhosphorIconsRegular.funnelSimpleX,
+                        size: 18,
+                      ),
                       label: const Text('Xóa bộ lọc'),
                     ),
                   const Spacer(),
@@ -922,7 +929,7 @@ class _PresetButton extends StatelessWidget {
             Text(preset.label, style: AppTextStyles.labelM),
           if (selected) ...[
             const SizedBox(width: 8),
-            const Icon(Icons.chevron_right_rounded, size: 18),
+            const Icon(PhosphorIconsRegular.caretRight, size: 18),
           ],
         ],
       ),
@@ -1046,7 +1053,7 @@ class _MonthCalendarState extends State<_MonthCalendar> {
           onPressed: canPrevious
               ? () => widget.onMonthChanged(_addMonths(widget.month, -1))
               : null,
-          icon: const Icon(Icons.chevron_left_rounded),
+          icon: const Icon(PhosphorIconsRegular.caretLeft),
         ),
         Expanded(
           child: DropdownButtonHideUnderline(
@@ -1099,7 +1106,7 @@ class _MonthCalendarState extends State<_MonthCalendar> {
           onPressed: canNext
               ? () => widget.onMonthChanged(_addMonths(widget.month, 1))
               : null,
-          icon: const Icon(Icons.chevron_right_rounded),
+          icon: const Icon(PhosphorIconsRegular.caretRight),
         ),
       ],
     );

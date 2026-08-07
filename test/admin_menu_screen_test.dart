@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:phongvu_opshub/core/network/api_client.dart';
 import 'helpers/legacy_widget_finders.dart';
 import 'package:phongvu_opshub/features/admin/presentation/screens/admin_menu_screen.dart';
@@ -117,7 +118,7 @@ void main() {
 
     expect(find.text('Quản lý doanh số'), findsOneWidget);
     expect(find.text('Chỉ tiêu theo tháng và showroom'), findsOneWidget);
-    expect(find.byIcon(Icons.query_stats_rounded), findsOneWidget);
+    expect(find.byIcon(PhosphorIconsRegular.chartLineUp), findsOneWidget);
   });
 
   testWidgets('Admin menu owns the sales report list and export entry', (
@@ -140,7 +141,7 @@ void main() {
 
     expect(find.text('Danh sách báo cáo bán hàng'), findsOneWidget);
     expect(find.text('Lọc danh sách và xuất file'), findsOneWidget);
-    expect(find.byIcon(Icons.table_chart_outlined), findsOneWidget);
+    expect(find.byIcon(PhosphorIconsRegular.table), findsOneWidget);
   });
 
   testWidgets('Admin menu shows help management for super admin only', (

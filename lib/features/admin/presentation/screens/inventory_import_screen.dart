@@ -1,5 +1,6 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_text_styles.dart';
@@ -315,7 +316,7 @@ class _UploadPanel extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Icon(
-                Icons.table_chart_outlined,
+                PhosphorIconsRegular.table,
                 color: AppColors.infoOf(context),
               ),
               const SizedBox(width: AppLayoutTokens.formInlineGap),
@@ -342,12 +343,12 @@ class _UploadPanel extends StatelessWidget {
                         runSpacing: 8,
                         children: [
                           AppInfoChip(
-                            Icons.insert_drive_file_outlined,
+                            PhosphorIconsRegular.file,
                             _extensionOf(file!.name).toUpperCase(),
                             color: AppColors.infoOf(context),
                           ),
                           AppInfoChip(
-                            Icons.data_usage_rounded,
+                            PhosphorIconsRegular.chartDonut,
                             _formatFileSize(file!.size),
                             color: AppColors.textMutedOf(context),
                           ),
@@ -364,12 +365,12 @@ class _UploadPanel extends StatelessWidget {
             children: [
               AppSecondaryButton(
                 onPressed: isUploading ? null : onPickFile,
-                icon: Icons.folder_open_outlined,
+                icon: PhosphorIconsRegular.folderOpen,
                 label: 'Chọn file',
               ),
               AppPrimaryButton(
                 onPressed: onUpload,
-                icon: Icons.upload_file_outlined,
+                icon: PhosphorIconsRegular.fileArrowUp,
                 label: 'Cập nhật tồn kho',
                 isLoading: isUploading,
                 loadingLabel: 'Đang cập nhật',
@@ -403,7 +404,7 @@ class _ImportErrorPanel extends StatelessWidget {
         title: message,
         message: 'Kiểm tra lại mẫu file hoặc thử cập nhật lại.',
         actionLabel: canRetry ? 'Thử cập nhật lại' : null,
-        actionIcon: Icons.refresh_rounded,
+        actionIcon: PhosphorIconsRegular.arrowClockwise,
         onAction: canRetry ? onRetry : null,
         compact: true,
       ),
@@ -425,7 +426,10 @@ class _ResultPanel extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(Icons.task_alt_rounded, color: AppColors.successOf(context)),
+              Icon(
+                PhosphorIconsRegular.checkSquare,
+                color: AppColors.successOf(context),
+              ),
               const SizedBox(width: AppLayoutTokens.formInlineGap),
               Expanded(
                 child: Text(
@@ -443,7 +447,10 @@ class _ResultPanel extends StatelessWidget {
           Text('Showroom trong file', style: AppTextStyles.labelM),
           const SizedBox(height: 8),
           if (result.srCodes.isEmpty)
-            const AppInfoChip(Icons.storefront_outlined, 'Chưa có showroom')
+            const AppInfoChip(
+              PhosphorIconsRegular.storefront,
+              'Chưa có showroom',
+            )
           else
             Wrap(
               spacing: 8,
@@ -474,25 +481,25 @@ class _ResultMetrics extends StatelessWidget {
       _MetricData(
         label: 'Tổng dòng',
         value: '${result.totalRows}',
-        icon: Icons.format_list_numbered_rounded,
+        icon: PhosphorIconsRegular.listNumbers,
         color: AppColors.textSecondaryOf(context),
       ),
       _MetricData(
         label: 'Dòng hợp lệ',
         value: '${result.importedRows}',
-        icon: Icons.check_circle_outline_rounded,
+        icon: PhosphorIconsRegular.checkCircle,
         color: AppColors.successOf(context),
       ),
       _MetricData(
         label: 'Dòng bỏ qua',
         value: '${result.skippedRows}',
-        icon: Icons.skip_next_outlined,
+        icon: PhosphorIconsRegular.skipForward,
         color: AppColors.warningOf(context),
       ),
       _MetricData(
         label: 'Dòng ngừng active',
         value: '${result.deactivatedRows}',
-        icon: Icons.inventory_rounded,
+        icon: PhosphorIconsRegular.package,
         color: AppColors.infoOf(context),
       ),
     ];

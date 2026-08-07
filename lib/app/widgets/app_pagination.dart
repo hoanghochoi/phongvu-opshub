@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 import '../theme/app_text_styles.dart';
 
@@ -32,7 +33,7 @@ class AppPaginationControls extends StatelessWidget {
         IconButton(
           tooltip: 'Trang trước',
           onPressed: onPrevious,
-          icon: const Icon(Icons.chevron_left_rounded),
+          icon: const Icon(PhosphorIconsRegular.caretLeft),
         ),
         Expanded(
           child: Center(
@@ -48,13 +49,13 @@ class AppPaginationControls extends StatelessWidget {
         IconButton(
           tooltip: 'Trang sau',
           onPressed: onNext,
-          icon: const Icon(Icons.chevron_right_rounded),
+          icon: const Icon(PhosphorIconsRegular.caretRight),
         ),
         if (onRefresh != null)
           IconButton(
             tooltip: 'Làm mới',
             onPressed: isRefreshing ? null : onRefresh,
-            icon: const Icon(Icons.refresh_rounded),
+            icon: const Icon(PhosphorIconsRegular.arrowClockwise),
           ),
       ],
     );

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:phongvu_opshub/app/theme/app_colors.dart';
 import 'package:phongvu_opshub/app/theme/app_radius.dart';
 import 'package:phongvu_opshub/app/theme/app_text_styles.dart';
@@ -174,7 +175,7 @@ void main() {
             title: 'Chức năng',
             actions: [
               AppFeatureAction(
-                icon: Icons.apps_outlined,
+                icon: PhosphorIconsRegular.squaresFour,
                 title: 'Công cụ',
                 description: 'Mô tả',
                 color: AppColors.darkPrimary,

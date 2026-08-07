@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:flutter/services.dart';
 import 'package:phongvu_opshub/app/widgets/app_toast.dart';
 
@@ -297,7 +298,7 @@ class _SortItemCard extends StatelessWidget {
                       children: [
                         if (item.serial.isNotEmpty)
                           AppInfoChip(
-                            Icons.qr_code_rounded,
+                            PhosphorIconsRegular.qrCode,
                             item.serial,
                             key: ValueKey('sort-copy-serial-${item.id}'),
                             tooltip: 'Sao chép serial',
@@ -311,14 +312,17 @@ class _SortItemCard extends StatelessWidget {
                               ),
                             ),
                           ),
-                        AppInfoChip(Icons.inventory_2_outlined, item.sku),
+                        AppInfoChip(PhosphorIconsRegular.package, item.sku),
                         if (item.date.isNotEmpty)
-                          AppInfoChip(Icons.calendar_today_outlined, item.date),
+                          AppInfoChip(
+                            PhosphorIconsRegular.calendarBlank,
+                            item.date,
+                          ),
                         if (ageLabel != null)
-                          AppInfoChip(Icons.timelapse_rounded, ageLabel),
+                          AppInfoChip(PhosphorIconsRegular.timer, ageLabel),
                         if (item.bin.isNotEmpty)
                           AppInfoChip(
-                            Icons.location_on_outlined,
+                            PhosphorIconsRegular.mapPin,
                             item.bin,
                             key: ValueKey('sort-copy-location-${item.id}'),
                             tooltip: 'Sao chép vị trí',
@@ -333,7 +337,10 @@ class _SortItemCard extends StatelessWidget {
                             ),
                           ),
                         if (item.zone.isNotEmpty)
-                          AppInfoChip(Icons.map_outlined, item.zone),
+                          AppInfoChip(
+                            PhosphorIconsRegular.mapTrifold,
+                            item.zone,
+                          ),
                       ],
                     ),
                     const SizedBox(height: 8),

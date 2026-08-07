@@ -313,7 +313,7 @@ class _PaymentDeliveryHistoryDialog extends StatelessWidget {
         return AlertDialog(
           title: const Row(
             children: [
-              Icon(Icons.history_rounded),
+              Icon(PhosphorIconsRegular.clockCounterClockwise),
               SizedBox(width: 8),
               Expanded(child: Text('Lịch sử đọc loa')),
             ],
@@ -332,7 +332,7 @@ class _PaymentDeliveryHistoryDialog extends StatelessWidget {
               onPressed: provider.isHistoryLoading
                   ? null
                   : () => provider.loadHistory(),
-              icon: Icons.refresh_rounded,
+              icon: PhosphorIconsRegular.arrowClockwise,
               label: 'Tải lại',
             ),
             AppDialogCancelButton(
@@ -368,7 +368,7 @@ class _PaymentDeliveryHistoryContent extends StatelessWidget {
     }
     if (provider.historyItems.isEmpty) {
       return const AppStatePanel.empty(
-        icon: Icons.volume_off_rounded,
+        icon: PhosphorIconsRegular.speakerSlash,
         title: 'Chưa có giao dịch đọc loa gần đây',
         message:
             'Khi loa bắt đầu đọc, bị tắt, hoặc lỗi phát, giao dịch sẽ xuất hiện ở đây.',
@@ -380,13 +380,13 @@ class _PaymentDeliveryHistoryContent extends StatelessWidget {
       children: [
         if (provider.isHistoryLoading)
           _HistoryInlineNotice(
-            icon: Icons.sync_rounded,
+            icon: PhosphorIconsRegular.arrowsClockwise,
             text: 'Đang cập nhật lịch sử...',
             color: AppColors.infoOf(context),
           )
         else if (provider.historyErrorMessage != null)
           _HistoryInlineNotice(
-            icon: Icons.error_outline_rounded,
+            icon: PhosphorIconsRegular.warningCircle,
             text:
                 'Chưa cập nhật được lịch sử mới. Đang hiển thị dữ liệu gần nhất.',
             color: AppColors.warningOf(context),

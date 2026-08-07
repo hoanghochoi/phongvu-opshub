@@ -3,6 +3,33 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('runtime UI uses Phosphor icons instead of Material Icons', () {
+    final violations = <String>[];
+    final materialIconPattern = RegExp(r'\bIcons\.');
+    final files = Directory('lib')
+        .listSync(recursive: true)
+        .whereType<File>()
+        .where((file) => file.path.endsWith('.dart'));
+
+    for (final file in files) {
+      final normalizedPath = file.path.replaceAll(r'\', '/');
+      final lines = file.readAsLinesSync();
+      for (var index = 0; index < lines.length; index += 1) {
+        if (materialIconPattern.hasMatch(lines[index])) {
+          violations.add('$normalizedPath:${index + 1}');
+        }
+      }
+    }
+
+    expect(
+      violations,
+      isEmpty,
+      reason:
+          'Production UI icons must use the approved Phosphor family.\n'
+          '${violations.join('\n')}',
+    );
+  });
+
   test('app text selection and dialog dismissal contracts stay global', () {
     final appSource = File('lib/app/app.dart').readAsStringSync();
     expect(

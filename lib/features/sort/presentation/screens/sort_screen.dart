@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:provider/provider.dart';
 import 'package:phongvu_opshub/app/widgets/app_toast.dart';
 
@@ -191,7 +192,7 @@ class _SortCommandCard extends StatelessWidget {
             enabled: !isLoading,
             label: 'SKU hoặc BIN',
             hintText: 'Nhập SKU hoặc BIN',
-            icon: Icons.inventory_2_outlined,
+            icon: PhosphorIconsRegular.package,
             textCapitalization: TextCapitalization.characters,
             textInputAction: TextInputAction.search,
             onSubmitted: (_) => onSubmit(),
@@ -201,13 +202,13 @@ class _SortCommandCard extends StatelessWidget {
             children: [
               AppIconAction(
                 onPressed: isLoading ? null : onScan,
-                icon: Icons.qr_code_scanner_rounded,
+                icon: PhosphorIconsRegular.scan,
                 tooltip: 'Quét mã',
               ),
               const SizedBox(width: AppLayoutTokens.formInlineGap),
               AppIconAction(
                 onPressed: isLoading ? null : onSubmit,
-                icon: Icons.search_rounded,
+                icon: PhosphorIconsRegular.magnifyingGlass,
                 tooltip: 'Tìm hàng để sắp xếp',
                 filled: true,
               ),
@@ -264,7 +265,7 @@ class _SortResultPanel extends StatelessWidget {
           title: error,
           message: 'Kiểm tra lại SKU/BIN hoặc thử gửi lại.',
           actionLabel: 'Đóng thông báo',
-          actionIcon: Icons.close_rounded,
+          actionIcon: PhosphorIconsRegular.x,
           onAction: provider.clearError,
         ),
       );
@@ -274,7 +275,7 @@ class _SortResultPanel extends StatelessWidget {
     if (groups == null || groups.isEmpty) {
       return const AppSurfaceCard(
         child: AppStatePanel(
-          icon: Icons.inventory_2_outlined,
+          icon: PhosphorIconsRegular.package,
           title: 'Chưa có kết quả sắp xếp',
           message: 'Nhập SKU hoặc BIN để xem vị trí hàng hóa.',
         ),

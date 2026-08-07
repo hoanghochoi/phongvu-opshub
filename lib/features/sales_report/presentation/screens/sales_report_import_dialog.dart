@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_text_styles.dart';
@@ -245,7 +246,7 @@ class _SalesReportImportDialogState extends State<_SalesReportImportDialog> {
               child: Row(
                 children: [
                   Icon(
-                    Icons.upload_file_rounded,
+                    PhosphorIconsRegular.fileArrowUp,
                     color: AppColors.primaryOf(context),
                   ),
                   const SizedBox(width: 12),
@@ -269,7 +270,7 @@ class _SalesReportImportDialogState extends State<_SalesReportImportDialog> {
                     onPressed: _busy
                         ? null
                         : () => Navigator.pop(context, result != null),
-                    icon: const Icon(Icons.close_rounded),
+                    icon: const Icon(PhosphorIconsRegular.x),
                   ),
                 ],
               ),
@@ -308,7 +309,7 @@ class _SalesReportImportDialogState extends State<_SalesReportImportDialog> {
                     ? [
                         AppPrimaryButton(
                           onPressed: () => Navigator.pop(context, true),
-                          icon: Icons.check_rounded,
+                          icon: PhosphorIconsRegular.check,
                           label: 'Hoàn tất',
                         ),
                       ]
@@ -317,19 +318,19 @@ class _SalesReportImportDialogState extends State<_SalesReportImportDialog> {
                           onPressed: _busy
                               ? null
                               : () => Navigator.pop(context, false),
-                          icon: Icons.close_rounded,
+                          icon: PhosphorIconsRegular.x,
                           label: 'Đóng',
                         ),
                         if (_file == null)
                           AppPrimaryButton(
                             onPressed: _busy ? null : _pickFile,
-                            icon: Icons.attach_file_rounded,
+                            icon: PhosphorIconsRegular.paperclip,
                             label: 'Chọn file Excel',
                           )
                         else if (preview == null)
                           AppPrimaryButton(
                             onPressed: _busy ? null : _previewFile,
-                            icon: Icons.preview_rounded,
+                            icon: PhosphorIconsRegular.eye,
                             label: 'Xem trước dữ liệu',
                             isLoading: _busy,
                             loadingLabel: 'Đang kiểm tra file...',
@@ -339,7 +340,7 @@ class _SalesReportImportDialogState extends State<_SalesReportImportDialog> {
                             onPressed: preview.canCommit && !_busy
                                 ? _commit
                                 : null,
-                            icon: Icons.cloud_upload_outlined,
+                            icon: PhosphorIconsRegular.cloudArrowUp,
                             label: 'Nhập ${preview.validRows} dòng hợp lệ',
                             isLoading: _busy,
                             loadingLabel: 'Đang nhập dữ liệu...',
@@ -388,7 +389,7 @@ class _FilePanel extends StatelessWidget {
   Widget build(BuildContext context) => AppSurfaceCard(
     child: Row(
       children: [
-        Icon(Icons.table_view_outlined, color: AppColors.successOf(context)),
+        Icon(PhosphorIconsRegular.table, color: AppColors.successOf(context)),
         const SizedBox(width: 12),
         Expanded(
           child: Column(
@@ -410,7 +411,9 @@ class _FilePanel extends StatelessWidget {
         ),
         AppLinkButton(
           onPressed: onPick,
-          icon: file == null ? Icons.attach_file : Icons.swap_horiz,
+          icon: file == null
+              ? PhosphorIconsRegular.paperclip
+              : PhosphorIconsRegular.arrowsLeftRight,
           label: file == null ? 'Chọn file' : 'Đổi file',
           compact: true,
         ),
@@ -533,7 +536,7 @@ class _ImportResultPanel extends StatelessWidget {
   Widget build(BuildContext context) => Column(
     children: [
       Icon(
-        Icons.check_circle_rounded,
+        PhosphorIconsRegular.checkCircle,
         size: 64,
         color: AppColors.successOf(context),
       ),
@@ -608,7 +611,10 @@ class _ErrorPanel extends StatelessWidget {
     child: Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(Icons.error_outline_rounded, color: AppColors.errorOf(context)),
+        Icon(
+          PhosphorIconsRegular.warningCircle,
+          color: AppColors.errorOf(context),
+        ),
         const SizedBox(width: 10),
         Expanded(child: Text(message, style: AppTextStyles.bodyM)),
       ],

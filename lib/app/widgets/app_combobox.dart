@@ -214,7 +214,7 @@ class _AppComboboxState<T> extends State<AppCombobox<T>> {
     if (widget.allowClear && widget.enabled && hasSelection && !_isOpen) {
       return IconButton(
         tooltip: 'Xóa lựa chọn',
-        icon: const Icon(Icons.close_rounded, size: 18),
+        icon: const Icon(PhosphorIconsRegular.x, size: 18),
         onPressed: () {
           if (widget.multiSelect) {
             widget.onMultiChanged?.call(<T>{});
@@ -509,7 +509,7 @@ class _AppComboboxState<T> extends State<AppCombobox<T>> {
                           ? AppColors.primarySurfaceOf(context)
                           : AppColors.overlayOf(context),
                       leading: selected
-                          ? const Icon(Icons.check_rounded, size: 18)
+                          ? const Icon(PhosphorIconsRegular.check, size: 18)
                           : const SizedBox(width: 18),
                       title: Text(
                         option.label,
@@ -744,7 +744,7 @@ class _ClearSelectionTile extends StatelessWidget {
       dense: true,
       tileColor: AppColors.overlayOf(context),
       leading: selected
-          ? const Icon(Icons.check_rounded, size: 18)
+          ? const Icon(PhosphorIconsRegular.check, size: 18)
           : const SizedBox(width: 18),
       title: Text(
         label,

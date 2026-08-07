@@ -21,7 +21,9 @@ void main() {
       ),
     );
 
-    final icon = tester.widget<Icon>(find.byIcon(Icons.error_outline_rounded));
+    final icon = tester.widget<Icon>(
+      find.byIcon(PhosphorIconsRegular.warningCircle),
+    );
     expect(icon.color, AppColors.darkError);
     final title = tester.widget<Text>(find.text('Không thể tải dữ liệu'));
     expect(title.style?.color, AppColors.darkError);

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:intl/intl.dart';
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_text_styles.dart';
@@ -29,7 +30,7 @@ class PaymentSuccessPanel extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Icon(
-            Icons.check_circle_rounded,
+            PhosphorIconsRegular.checkCircle,
             color: AppColors.successOf(context),
             size: 92,
           ),

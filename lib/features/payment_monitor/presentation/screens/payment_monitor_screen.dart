@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
@@ -64,7 +65,7 @@ class _PaymentMonitorScreenState extends State<PaymentMonitorScreen> {
           title: 'Chưa cập nhật được giao dịch',
           message: monitor.errorMessage,
           actionLabel: 'Thử lại',
-          actionIcon: Icons.refresh_rounded,
+          actionIcon: PhosphorIconsRegular.arrowClockwise,
           onAction: () => monitor.refreshNow(),
         ),
       );
@@ -75,7 +76,7 @@ class _PaymentMonitorScreenState extends State<PaymentMonitorScreen> {
         const AppStatePanel.empty(
           title: 'Chưa có giao dịch phù hợp',
           message: 'Thay đổi bộ lọc hoặc chờ giao dịch mới.',
-          icon: Icons.receipt_long_outlined,
+          icon: PhosphorIconsRegular.receipt,
         ),
       );
     }
@@ -118,8 +119,8 @@ class _PaymentMonitorScreenState extends State<PaymentMonitorScreen> {
                       children: [
                         Icon(
                           monitor.isSpeakerEnabled
-                              ? Icons.volume_up_rounded
-                              : Icons.volume_off_rounded,
+                              ? PhosphorIconsRegular.speakerHigh
+                              : PhosphorIconsRegular.speakerSlash,
                           color: monitor.isSpeakerEnabled
                               ? AppColors.successOf(context)
                               : AppColors.neutral500Of(context),
@@ -146,7 +147,7 @@ class _PaymentMonitorScreenState extends State<PaymentMonitorScreen> {
                     const SizedBox(height: 10),
                     AppCombobox<String>.single(
                       label: 'Giọng đọc',
-                      icon: Icons.record_voice_over_outlined,
+                      icon: PhosphorIconsRegular.microphone,
                       value: monitor.speakerVoicePresetId,
                       options: monitor.speakerVoicePresetOptions
                           .map(
@@ -181,7 +182,7 @@ class _PaymentMonitorScreenState extends State<PaymentMonitorScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Icon(
-                          Icons.volume_off_rounded,
+                          PhosphorIconsRegular.speakerSlash,
                           color: AppColors.warningOf(context),
                         ),
                         const SizedBox(width: 10),
@@ -241,7 +242,7 @@ class _PaymentMonitorScreenState extends State<PaymentMonitorScreen> {
           if (monitor.errorMessage != null) ...[
             const SizedBox(height: 12),
             _StatusCard(
-              icon: Icons.error_outline_rounded,
+              icon: PhosphorIconsRegular.warningCircle,
               tone: AppStateTone.error,
               title: 'Chưa cập nhật được giao dịch',
               message: monitor.errorMessage!,
@@ -422,7 +423,7 @@ class _SuperAdminStoreSelector extends StatelessWidget {
         title: 'Chưa tải được danh sách showroom',
         message: errorMessage,
         actionLabel: 'Thử lại',
-        actionIcon: Icons.refresh_rounded,
+        actionIcon: PhosphorIconsRegular.arrowClockwise,
         onAction: onRetry,
         compact: true,
       );
@@ -436,7 +437,7 @@ class _SuperAdminStoreSelector extends StatelessWidget {
     }
     return AppCombobox<String>.single(
       label: 'Showroom cần xem',
-      icon: Icons.store_outlined,
+      icon: PhosphorIconsRegular.storefront,
       value: monitor.storeOverride,
       options: options,
       emptyLabel: 'Chọn showroom cần xem',
@@ -477,7 +478,7 @@ class _SyncStatusPill extends StatelessWidget {
         : baseLabel;
 
     return AppStatusPill(
-      icon: Icons.sync_rounded,
+      icon: PhosphorIconsRegular.arrowsClockwise,
       label: label,
       color: color,
       isLoading: monitor.isLoading,
@@ -504,7 +505,7 @@ class _SpeakerPowerWarning extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Icon(
-              Icons.power_settings_new_rounded,
+              PhosphorIconsRegular.power,
               size: 18,
               color: AppColors.warningOf(context),
             ),
@@ -574,7 +575,7 @@ class _TransactionFilters extends StatelessWidget {
                 AppCombobox<int>.single(
                   label: 'Số dòng hiển thị',
                   value: monitor.pageSize,
-                  icon: Icons.format_list_numbered_rounded,
+                  icon: PhosphorIconsRegular.listNumbers,
                   dense: true,
                   options: _pageSizeOptions,
                   allowClear: false,
@@ -745,7 +746,10 @@ class _SpeakerErrorCard extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(Icons.volume_off_rounded, color: AppColors.errorOf(context)),
+              Icon(
+                PhosphorIconsRegular.speakerSlash,
+                color: AppColors.errorOf(context),
+              ),
               const SizedBox(width: 10),
               Expanded(
                 child: Column(
@@ -779,7 +783,7 @@ class _SpeakerErrorCard extends StatelessWidget {
               constraints: const BoxConstraints(maxWidth: 220),
               child: AppSecondaryButton(
                 onPressed: onRestart,
-                icon: Icons.restart_alt_rounded,
+                icon: PhosphorIconsRegular.arrowCounterClockwise,
                 label: 'Khởi động lại app',
               ),
             ),
@@ -816,7 +820,7 @@ class _EmptyTransactions extends StatelessWidget {
 
         return AppStatePanel.empty(
           title: 'Chưa có giao dịch trong khoảng ngày đã chọn',
-          icon: Icons.receipt_long_outlined,
+          icon: PhosphorIconsRegular.receipt,
           compact: constraints.maxHeight < 180,
         );
       },

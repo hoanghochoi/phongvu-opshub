@@ -42,6 +42,7 @@ class AppPrimaryButton extends StatelessWidget {
   final double? height;
   final double radius;
   final TextStyle? textStyle;
+  final EdgeInsetsGeometry? padding;
 
   const AppPrimaryButton({
     super.key,
@@ -54,6 +55,7 @@ class AppPrimaryButton extends StatelessWidget {
     this.height,
     this.radius = AppButtonMetrics.radius,
     this.textStyle,
+    this.padding,
   });
 
   @override
@@ -69,7 +71,7 @@ class AppPrimaryButton extends StatelessWidget {
             borderRadius: BorderRadius.circular(radius),
           ),
           textStyle: textStyle ?? AppTextStyles.labelL,
-          padding: AppButtonMetrics.horizontalPadding,
+          padding: padding ?? AppButtonMetrics.horizontalPadding,
           minimumSize: Size(0, height ?? AppButtonMetrics.heightFor(size)),
           maximumSize: Size(
             double.infinity,

@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../app/theme/app_colors.dart';
@@ -785,16 +786,16 @@ class _UpdatePromptOverlay extends StatelessWidget {
                   if (showManualUpdate)
                     AppDialogSecondaryButton(
                       onPressed: runningUpdateAction ? null : onManualUpdate,
-                      icon: Icons.open_in_new_rounded,
+                      icon: PhosphorIconsRegular.arrowSquareOut,
                       label: 'Cập nhật thủ công',
                     ),
                   AppDialogConfirmButton(
                     onPressed: runningUpdateAction ? null : onUpdate,
                     icon: hasError
-                        ? Icons.refresh_rounded
+                        ? PhosphorIconsRegular.arrowClockwise
                         : shouldReload
-                        ? Icons.refresh_rounded
-                        : Icons.system_update_alt_rounded,
+                        ? PhosphorIconsRegular.arrowClockwise
+                        : PhosphorIconsRegular.downloadSimple,
                     label: hasError
                         ? 'Thử lại'
                         : shouldReload

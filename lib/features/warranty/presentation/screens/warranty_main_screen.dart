@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../app/theme/app_colors.dart';
@@ -12,14 +13,14 @@ class WarrantyMainScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final actions = [
       AppFeatureAction(
-        icon: Icons.add_photo_alternate_rounded,
+        icon: PhosphorIconsRegular.imageSquare,
         title: 'Lưu hình ảnh',
         description: 'Ghi nhận bảo hành/sửa chữa',
         color: AppColors.successOf(context),
         onTap: () => context.push('/warranty'),
       ),
       AppFeatureAction(
-        icon: Icons.search_rounded,
+        icon: PhosphorIconsRegular.magnifyingGlass,
         title: 'Xem lại hình ảnh',
         description: 'Tìm theo biên nhận',
         color: AppColors.secondaryOf(context),

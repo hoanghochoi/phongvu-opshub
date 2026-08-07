@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:provider/provider.dart';
 
 import '../../../../app/theme/app_colors.dart';
@@ -241,7 +242,7 @@ class _SalesReportAdminScreenState extends State<SalesReportAdminScreen> {
           const SizedBox(height: AppLayoutTokens.cardGap),
           if (provider.errorMessage != null) ...[
             AppStatusBanner(
-              icon: Icons.error_outline_rounded,
+              icon: PhosphorIconsRegular.warningCircle,
               title: 'Chưa tải được dữ liệu',
               message: provider.errorMessage!,
               tone: AppStateTone.error,
@@ -410,7 +411,7 @@ class _SalesReportAdminToolbar extends StatelessWidget {
               width: compact ? double.infinity : 120,
               child: AppSecondaryButton(
                 onPressed: isLoading ? null : onReload,
-                icon: Icons.refresh_rounded,
+                icon: PhosphorIconsRegular.arrowClockwise,
                 label: 'Tải lại',
                 isLoading: isLoading,
               ),
@@ -512,7 +513,7 @@ class _ReportTypeFilter extends StatelessWidget {
           label: 'Loại',
           value: value == 'ALL' ? null : value,
           emptyLabel: 'Tất cả',
-          icon: Icons.tune_rounded,
+          icon: PhosphorIconsRegular.slidersHorizontal,
           options: const [
             AppComboboxOption(value: 'PURCHASED', label: 'Mua hàng'),
             AppComboboxOption(value: 'NOT_PURCHASED', label: 'Chưa mua hàng'),
@@ -551,7 +552,7 @@ class _StoreFilter extends StatelessWidget {
       label: 'Showroom',
       value: value,
       emptyLabel: isLoading ? 'Đang tải showroom' : 'Tất cả showroom',
-      icon: Icons.storefront_outlined,
+      icon: PhosphorIconsRegular.storefront,
       helperText: helperText,
       enabled: enabled,
       options: options,
@@ -567,7 +568,7 @@ class _StoreFilter extends StatelessWidget {
           message: 'Tải lại danh sách showroom',
           child: IconButton.outlined(
             onPressed: isLoading ? null : () => unawaited(onRetry()),
-            icon: const Icon(Icons.refresh_rounded),
+            icon: const Icon(PhosphorIconsRegular.arrowClockwise),
           ),
         ),
       ],
@@ -693,8 +694,8 @@ class _SalesReportAdminTile extends StatelessWidget {
         children: [
           Icon(
             orderCode == null || orderCode.isEmpty
-                ? Icons.person_search_outlined
-                : Icons.receipt_long_outlined,
+                ? PhosphorIconsRegular.userFocus
+                : PhosphorIconsRegular.receipt,
             color: orderCode == null || orderCode.isEmpty
                 ? AppColors.warningOf(context)
                 : AppColors.successOf(context),

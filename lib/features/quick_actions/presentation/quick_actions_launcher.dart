@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:provider/provider.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
@@ -22,6 +23,7 @@ class QuickActionsLauncher extends StatefulWidget {
   final String location;
   final double buttonSize;
   final double elevation;
+  final bool visibleWhenUnavailable;
 
   const QuickActionsLauncher({
     super.key,
@@ -29,6 +31,7 @@ class QuickActionsLauncher extends StatefulWidget {
     required this.location,
     this.buttonSize = 64,
     this.elevation = 8,
+    this.visibleWhenUnavailable = false,
   });
 
   static bool isAvailable(BuildContext context) {
@@ -59,14 +62,14 @@ class QuickActionsLauncher extends StatefulWidget {
         const _QuickAction(
           'FIFO',
           'Kiểm tra FIFO',
-          Icons.inventory_2_outlined,
+          PhosphorIconsRegular.package,
           route: '/fifo-check',
         ),
       if (can('QUICK_ACTION_VIETQR', 'VIETQR'))
         const _QuickAction(
           'VIETQR',
           'VietQR',
-          Icons.qr_code_2_rounded,
+          PhosphorIconsRegular.qrCode,
           route: '/vietqr',
         ),
       if (user?.canUseFeature('QUICK_ACTION_FOLLOW_UP') == true &&
@@ -75,32 +78,40 @@ class QuickActionsLauncher extends StatefulWidget {
         const _QuickAction(
           'FOLLOW_UP',
           'Chăm sóc lại',
-          Icons.support_agent_rounded,
+          PhosphorIconsRegular.headset,
           route: '/sales-reports/follow-up-cases',
         ),
       if (can('QUICK_ACTION_SALES_REPORT', 'SALES_REPORT'))
         const _QuickAction(
           'SALES_REPORT',
           'Báo cáo bán hàng',
-          Icons.assessment_outlined,
+          PhosphorIconsRegular.chartBar,
           route: '/sales-reports',
         ),
       if (user?.canUseFeature('QUICK_ACTION_APP_DOWNLOAD') == true &&
           qr.contains('APP_DOWNLOAD'))
-        const _QuickAction('APP_DOWNLOAD', 'Tải app', Icons.download_rounded),
+        const _QuickAction(
+          'APP_DOWNLOAD',
+          'Tải app',
+          PhosphorIconsRegular.downloadSimple,
+        ),
       if (user?.canUseFeature('QUICK_ACTION_CHECK_IN') == true &&
           qr.contains('CHECK_IN'))
-        const _QuickAction('CHECK_IN', 'Check-in', Icons.how_to_reg_outlined),
+        const _QuickAction(
+          'CHECK_IN',
+          'Check-in',
+          PhosphorIconsRegular.userCheck,
+        ),
       if (user?.canUseFeature('QUICK_ACTION_ZALO_OA') == true &&
           qr.contains('ZALO_OA'))
         const _QuickAction(
           'ZALO_OA',
           'Zalo OA',
-          Icons.chat_bubble_outline_rounded,
+          PhosphorIconsRegular.chatCircle,
         ),
       if (user?.canUseFeature('QUICK_ACTION_GOOGLE_MAP') == true &&
           qr.contains('GOOGLE_MAP'))
-        const _QuickAction('GOOGLE_MAP', 'GG Map', Icons.location_on_outlined),
+        const _QuickAction('GOOGLE_MAP', 'GG Map', PhosphorIconsRegular.mapPin),
     ];
   }
 
@@ -141,7 +152,31 @@ class _QuickActionsLauncherState extends State<QuickActionsLauncher>
   @override
   Widget build(BuildContext context) {
     final actions = QuickActionsLauncher._actionsForContext(context);
-    if (actions.isEmpty) return const SizedBox.shrink();
+    if (actions.isEmpty) {
+      if (!widget.visibleWhenUnavailable) return const SizedBox.shrink();
+      return Semantics(
+        button: true,
+        enabled: false,
+        label: 'Thao tác nhanh chưa khả dụng',
+        child: Tooltip(
+          message: 'Chưa có thao tác nhanh khả dụng',
+          child: Material(
+            color: AppColors.primaryOf(context),
+            elevation: widget.elevation,
+            borderRadius: AppRadius.allLg,
+            child: SizedBox.square(
+              key: const Key('quick-actions-launcher-unavailable'),
+              dimension: widget.buttonSize,
+              child: Icon(
+                PhosphorIconsRegular.lightning,
+                color: AppColors.primaryForegroundOf(context),
+                size: widget.buttonSize >= 64 ? 24 : 20,
+              ),
+            ),
+          ),
+        ),
+      );
+    }
     return CompositedTransformTarget(
       link: _link,
       child: Semantics(
@@ -160,9 +195,9 @@ class _QuickActionsLauncherState extends State<QuickActionsLauncher>
               child: SizedBox.square(
                 dimension: widget.buttonSize,
                 child: Icon(
-                  Icons.bolt_rounded,
+                  PhosphorIconsRegular.lightning,
                   color: AppColors.primaryForegroundOf(context),
-                  size: widget.buttonSize >= 64 ? 34 : 30,
+                  size: widget.buttonSize >= 64 ? 24 : 20,
                 ),
               ),
             ),

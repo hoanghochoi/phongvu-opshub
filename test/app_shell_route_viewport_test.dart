@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:phongvu_opshub/app/navigation/app_router.dart';
 import 'package:phongvu_opshub/app/navigation/app_shell.dart';
 import 'package:phongvu_opshub/app/theme/app_colors.dart';
@@ -23,6 +24,8 @@ import 'package:phongvu_opshub/features/offset_adjustment/data/offset_adjustment
 import 'package:phongvu_opshub/features/offset_adjustment/domain/offset_adjustment.dart';
 import 'package:phongvu_opshub/features/quick_actions/data/quick_actions_repository.dart';
 import 'package:phongvu_opshub/features/quick_actions/presentation/quick_actions_provider.dart';
+import 'package:phongvu_opshub/features/support_chat/data/support_chat_repository.dart';
+import 'package:phongvu_opshub/features/support_chat/presentation/providers/support_chat_provider.dart';
 import 'package:phongvu_opshub/features/support_chat/presentation/support_chat_surface.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -731,6 +734,162 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('mobile notification destination caps unread count at 99+', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final authProvider = _FakeAuthProvider(_shellUser);
+    final notificationsProvider = _FakeAppNotificationsProvider(count: 100);
+
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider<AuthProvider>.value(value: authProvider),
+          ChangeNotifierProvider<AppNotificationsProvider>.value(
+            value: notificationsProvider,
+          ),
+        ],
+        child: const MaterialApp(
+          home: AppShell(
+            location: '/home',
+            child: _RouteMarker(label: 'home-route-marker'),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final destination = find.descendant(
+      of: find.byKey(const Key('mobile-bottom-navigation')),
+      matching: find.byIcon(PhosphorIconsRegular.bell),
+    );
+    expect(destination, findsWidgets);
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('mobile-bottom-navigation')),
+        matching: find.text('99+'),
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('100'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Windows Home matches approved quick and support FAB stack', (
+    tester,
+  ) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.windows;
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    try {
+      final authProvider = _FakeAuthProvider(_quickActionsUser);
+      final quickActionsProvider = _FakeQuickActionsProvider(
+        _quickActionsPayload,
+      );
+      final supportChatProvider = SupportChatProvider(
+        SupportChatRepository(ApiClient()),
+      );
+      addTearDown(supportChatProvider.dispose);
+      await supportChatProvider.syncAuth(_quickActionsUser, enabled: true);
+      await tester.pumpWidget(
+        MultiProvider(
+          providers: [
+            ChangeNotifierProvider<AuthProvider>.value(value: authProvider),
+            ChangeNotifierProvider<QuickActionsProvider>.value(
+              value: quickActionsProvider,
+            ),
+            ChangeNotifierProvider<SupportChatProvider>.value(
+              value: supportChatProvider,
+            ),
+          ],
+          child: const MaterialApp(
+            home: AppShell(
+              location: '/home',
+              child: _RouteMarker(label: 'home-route-marker'),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final quick = find.byKey(const Key('quick-actions-launcher'));
+      final support = find.byType(SupportChatBubble);
+      expect(tester.getSize(quick), const Size.square(64));
+      expect(tester.getSize(support), const Size.square(64));
+      expect(find.byIcon(PhosphorIconsRegular.lightning), findsOneWidget);
+      expect(find.byIcon(PhosphorIconsRegular.headset), findsOneWidget);
+
+      final quickRect = tester.getRect(quick);
+      final supportRect = tester.getRect(support);
+      expect(supportRect.right, 1424);
+      expect(supportRect.bottom, 876);
+      expect(supportRect.top - quickRect.bottom, 12);
+      expect(
+        tester.widget<Icon>(find.byIcon(PhosphorIconsRegular.lightning)).size,
+        24,
+      );
+      expect(
+        tester.widget<Icon>(find.byIcon(PhosphorIconsRegular.headset)).size,
+        28,
+      );
+      expect(tester.takeException(), isNull);
+    } finally {
+      debugDefaultTargetPlatformOverride = null;
+    }
+  });
+
+  testWidgets('non-Windows support FAB keeps its existing desktop offset', (
+    tester,
+  ) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.linux;
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    try {
+      final supportChatProvider = SupportChatProvider(
+        SupportChatRepository(ApiClient()),
+      );
+      addTearDown(supportChatProvider.dispose);
+      await supportChatProvider.syncAuth(_shellUser, enabled: true);
+      await tester.pumpWidget(
+        MultiProvider(
+          providers: [
+            ChangeNotifierProvider<AuthProvider>.value(
+              value: _FakeAuthProvider(_shellUser),
+            ),
+            ChangeNotifierProvider<SupportChatProvider>.value(
+              value: supportChatProvider,
+            ),
+          ],
+          child: const MaterialApp(
+            home: AppShell(
+              location: '/operations',
+              child: _RouteMarker(label: 'operations-route-marker'),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final supportRect = tester.getRect(find.byType(SupportChatBubble));
+      expect(supportRect.right, 1416);
+      expect(supportRect.bottom, 868);
+      expect(find.byKey(const Key('quick-actions-launcher')), findsNothing);
+      expect(tester.takeException(), isNull);
+    } finally {
+      debugDefaultTargetPlatformOverride = null;
+    }
+  });
+
   testWidgets('mobile shell matches the Figma compact topbar', (tester) async {
     tester.view.physicalSize = const Size(390, 844);
     tester.view.devicePixelRatio = 1;
@@ -1346,11 +1505,13 @@ class _LoggedOutAuthProvider extends AuthProvider {
 }
 
 class _FakeAppNotificationsProvider extends AppNotificationsProvider {
+  final int currentCount;
   int loadCalls = 0;
   int markReadCalls = 0;
 
-  _FakeAppNotificationsProvider()
-    : super(
+  _FakeAppNotificationsProvider({int count = 0})
+    : currentCount = count,
+      super(
         BankStatementRepository(ApiClient()),
         offsetAdjustmentRepository: OffsetAdjustmentRepository(ApiClient()),
       );
@@ -1362,10 +1523,10 @@ class _FakeAppNotificationsProvider extends AppNotificationsProvider {
   bool get isLoading => false;
 
   @override
-  int get count => 0;
+  int get count => currentCount;
 
   @override
-  int get totalCount => 0;
+  int get totalCount => currentCount;
 
   @override
   bool get canReviewStatementOrderTransfers => false;
