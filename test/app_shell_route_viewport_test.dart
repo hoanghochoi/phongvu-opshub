@@ -7,6 +7,7 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:phongvu_opshub/app/navigation/app_router.dart';
 import 'package:phongvu_opshub/app/navigation/app_shell.dart';
 import 'package:phongvu_opshub/app/theme/app_colors.dart';
+import 'package:phongvu_opshub/app/theme/app_radius.dart';
 import 'package:phongvu_opshub/app/theme/app_theme.dart';
 import 'package:phongvu_opshub/app/widgets/app_layout.dart';
 import 'package:phongvu_opshub/app/widgets/app_notification_action.dart';
@@ -482,6 +483,15 @@ void main() {
       expect(navRect.contains(quickActionsRect.topLeft), isTrue);
       expect(navRect.contains(quickActionsRect.bottomRight), isTrue);
       expect(quickActionsRect.size, const Size.square(46));
+      final quickActionsSurface = tester.widget<Material>(
+        find.byKey(const Key('quick-actions-launcher-surface')),
+      );
+      final compactShape = quickActionsSurface.shape;
+      expect(compactShape, isA<RoundedRectangleBorder>());
+      expect(
+        (compactShape! as RoundedRectangleBorder).borderRadius,
+        AppRadius.allLg,
+      );
 
       final destinationCenters = tester
           .widgetList<NavigationDestination>(destinationFinder)
@@ -796,7 +806,11 @@ void main() {
       final supportChatProvider = SupportChatProvider(
         SupportChatRepository(ApiClient()),
       );
+      final notificationsProvider = _FakeAppNotificationsProvider(
+        supportCount: 2,
+      );
       addTearDown(supportChatProvider.dispose);
+      addTearDown(notificationsProvider.dispose);
       await supportChatProvider.syncAuth(_quickActionsUser, enabled: true);
       await tester.pumpWidget(
         MultiProvider(
@@ -807,6 +821,9 @@ void main() {
             ),
             ChangeNotifierProvider<SupportChatProvider>.value(
               value: supportChatProvider,
+            ),
+            ChangeNotifierProvider<AppNotificationsProvider>.value(
+              value: notificationsProvider,
             ),
           ],
           child: const MaterialApp(
@@ -825,6 +842,44 @@ void main() {
       expect(tester.getSize(support), const Size.square(64));
       expect(find.byIcon(PhosphorIconsRegular.lightning), findsOneWidget);
       expect(find.byIcon(PhosphorIconsRegular.headset), findsOneWidget);
+
+      final quickSurface = tester.widget<Material>(
+        find.byKey(const Key('quick-actions-launcher-surface')),
+      );
+      final quickSurfaceContext = tester.element(
+        find.byKey(const Key('quick-actions-launcher-surface')),
+      );
+      expect(quickSurface.shape, isA<CircleBorder>());
+      expect(quickSurface.color, AppColors.primaryOf(quickSurfaceContext));
+      expect(
+        tester.widget<Icon>(find.byIcon(PhosphorIconsRegular.lightning)).color,
+        AppColors.primaryForegroundOf(quickSurfaceContext),
+      );
+      final supportFab = tester.widget<FloatingActionButton>(
+        find.byKey(const Key('support-chat-bubble-fab')),
+      );
+      final supportFabContext = tester.element(
+        find.byKey(const Key('support-chat-bubble-fab')),
+      );
+      expect(supportFab.shape, isA<CircleBorder>());
+      expect(
+        supportFab.backgroundColor,
+        AppColors.primaryOf(supportFabContext),
+      );
+      expect(
+        supportFab.foregroundColor,
+        AppColors.primaryForegroundOf(supportFabContext),
+      );
+      final supportBadge = find.descendant(
+        of: support,
+        matching: find.byType(Badge),
+      );
+      expect(supportBadge, findsOneWidget);
+      expect(tester.widget<Badge>(supportBadge).isLabelVisible, isTrue);
+      expect(
+        find.descendant(of: supportBadge, matching: find.text('2')),
+        findsOneWidget,
+      );
 
       final quickRect = tester.getRect(quick);
       final supportRect = tester.getRect(support);
@@ -1506,11 +1561,13 @@ class _LoggedOutAuthProvider extends AuthProvider {
 
 class _FakeAppNotificationsProvider extends AppNotificationsProvider {
   final int currentCount;
+  final int currentSupportCount;
   int loadCalls = 0;
   int markReadCalls = 0;
 
-  _FakeAppNotificationsProvider({int count = 0})
+  _FakeAppNotificationsProvider({int count = 0, int supportCount = 0})
     : currentCount = count,
+      currentSupportCount = supportCount,
       super(
         BankStatementRepository(ApiClient()),
         offsetAdjustmentRepository: OffsetAdjustmentRepository(ApiClient()),
@@ -1527,6 +1584,9 @@ class _FakeAppNotificationsProvider extends AppNotificationsProvider {
 
   @override
   int get totalCount => currentCount;
+
+  @override
+  int get supportChatUnreadCount => currentSupportCount;
 
   @override
   bool get canReviewStatementOrderTransfers => false;

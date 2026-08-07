@@ -104,11 +104,13 @@ Future<void> showSupportChatSurface(BuildContext context) async {
 class SupportChatBubble extends StatelessWidget {
   final VoidCallback onPressed;
   final bool visibleWhenDisabled;
+  final bool usePrimaryStyle;
 
   const SupportChatBubble({
     super.key,
     required this.onPressed,
     this.visibleWhenDisabled = false,
+    this.usePrimaryStyle = false,
   });
 
   @override
@@ -130,10 +132,17 @@ class SupportChatBubble extends StatelessWidget {
         child: SizedBox.square(
           dimension: 64,
           child: FloatingActionButton(
+            key: const Key('support-chat-bubble-fab'),
             heroTag: null,
             tooltip: 'Hỗ trợ',
             onPressed: onPressed,
             shape: const CircleBorder(),
+            backgroundColor: usePrimaryStyle
+                ? AppColors.primaryOf(context)
+                : null,
+            foregroundColor: usePrimaryStyle
+                ? AppColors.primaryForegroundOf(context)
+                : null,
             child: const Icon(PhosphorIconsRegular.headset, size: 28),
           ),
         ),
