@@ -100,7 +100,11 @@ class HomeSummaryPage extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             header,
-            const SizedBox(height: AppLayoutTokens.cardGap),
+            SizedBox(
+              height: constraints.maxWidth >= 1100
+                  ? AppLayoutTokens.homeWideHeaderBodyGap
+                  : AppLayoutTokens.cardGap,
+            ),
             if (canOwnScroll) Expanded(child: body) else body,
           ],
         );
@@ -2916,7 +2920,9 @@ class _ApprovedReportProgressPanel extends StatelessWidget {
                 missingLabel: 'Còn thiếu',
                 missingValue: '${summary.unreportedOrders} đơn',
                 color: AppColors.successOf(context),
-                surfaceColor: AppColors.successSurfaceOf(context),
+                surfaceColor: AppColors.homeOverviewSuccessSurfaceOf(context),
+                borderColor: AppColors.homeOverviewSuccessBorderOf(context),
+                trackColor: AppColors.homeOverviewSuccessTrackOf(context),
               ),
             ),
           if (summary.financeAvailable)
@@ -2931,7 +2937,9 @@ class _ApprovedReportProgressPanel extends StatelessWidget {
                 missingLabel: 'Chưa có đơn',
                 missingValue: '${summary.totalStatementsWithoutOrder} sao kê',
                 color: AppColors.infoOf(context),
-                surfaceColor: AppColors.infoSurfaceOf(context),
+                surfaceColor: AppColors.homeOverviewInfoSurfaceOf(context),
+                borderColor: AppColors.homeOverviewInfoBorderOf(context),
+                trackColor: AppColors.homeOverviewInfoTrackOf(context),
               ),
             ),
           if (summary.salesAvailable)
@@ -2943,6 +2951,8 @@ class _ApprovedReportProgressPanel extends StatelessWidget {
                 color: AppColors.accentOf(context),
                 progress: summary.personalSalesProgress,
                 keyPrefix: 'sales',
+                surfaceColor: AppColors.homeOverviewPersonalSurfaceOf(context),
+                borderColor: AppColors.homeOverviewPersonalBorderOf(context),
                 assignees: summary.salesProgressAssignees,
                 selectedAssigneeId: summary.selectedSalesProgressUserId,
                 showAssignee: summary.salesProgressAssignees.isNotEmpty,
@@ -2961,6 +2971,8 @@ class _ApprovedReportProgressPanel extends StatelessWidget {
                 color: AppColors.primaryOf(context),
                 progress: summary.scopeSalesProgress,
                 keyPrefix: 'scope',
+                surfaceColor: AppColors.homeOverviewScopeSurfaceOf(context),
+                borderColor: AppColors.homeOverviewScopeBorderOf(context),
                 missingStoreCodes: summary.scopeSalesProgress.missingStoreCodes,
               ),
             ),
@@ -2969,7 +2981,7 @@ class _ApprovedReportProgressPanel extends StatelessWidget {
 
         return Material(
           key: const Key('home-summary-progress-panel'),
-          color: AppColors.raisedOf(context),
+          color: AppColors.homeOverviewSurfaceOf(context),
           borderRadius: AppRadius.allCardFigma,
           child: Container(
             width: boardWidth,
@@ -2980,7 +2992,9 @@ class _ApprovedReportProgressPanel extends StatelessWidget {
               24,
             ),
             decoration: BoxDecoration(
-              border: Border.all(color: AppColors.borderOf(context)),
+              border: Border.all(
+                color: AppColors.homeOverviewBorderOf(context),
+              ),
               borderRadius: AppRadius.allCardFigma,
             ),
             child: Column(
@@ -3027,6 +3041,8 @@ class _OverviewProgressCard extends StatelessWidget {
     required this.missingValue,
     required this.color,
     required this.surfaceColor,
+    required this.borderColor,
+    required this.trackColor,
   });
 
   final Key cardKey;
@@ -3038,20 +3054,20 @@ class _OverviewProgressCard extends StatelessWidget {
   final String missingValue;
   final Color color;
   final Color surfaceColor;
+  final Color borderColor;
+  final Color trackColor;
 
   @override
   Widget build(BuildContext context) {
     final value = (percentage ?? 0).clamp(0, 100).toDouble();
     return Material(
       key: cardKey,
-      color: surfaceColor.withValues(
-        alpha: AppColors.isDark(context) ? 0.18 : 0.42,
-      ),
+      color: surfaceColor,
       borderRadius: AppRadius.allCardFigma,
       child: Container(
         padding: const EdgeInsets.fromLTRB(24, 16, 24, 14),
         decoration: BoxDecoration(
-          border: Border.all(color: color.withValues(alpha: 0.34)),
+          border: Border.all(color: borderColor),
           borderRadius: AppRadius.allCardFigma,
         ),
         child: Column(
@@ -3084,6 +3100,7 @@ class _OverviewProgressCard extends StatelessWidget {
               key: Key('${cardKey.toString()}-bar'),
               value: value,
               color: color,
+              trackColor: trackColor,
             ),
             const SizedBox(height: 14),
             _OverviewLegendRow(
@@ -3111,6 +3128,8 @@ class _OverviewGoalCard extends StatelessWidget {
     required this.color,
     required this.progress,
     required this.keyPrefix,
+    required this.surfaceColor,
+    required this.borderColor,
     this.assignees = const [],
     this.selectedAssigneeId,
     this.showAssignee = false,
@@ -3123,6 +3142,8 @@ class _OverviewGoalCard extends StatelessWidget {
   final Color color;
   final HomeSalesProgress progress;
   final String keyPrefix;
+  final Color surfaceColor;
+  final Color borderColor;
   final List<HomeSalesProgressAssignee> assignees;
   final String? selectedAssigneeId;
   final bool showAssignee;
@@ -3135,14 +3156,12 @@ class _OverviewGoalCard extends StatelessWidget {
     final showEmpty = showAssignee && !hasSelected;
     return Material(
       key: cardKey,
-      color: AppColors.accentOf(
-        context,
-      ).withValues(alpha: AppColors.isDark(context) ? 0.16 : 0.06),
+      color: surfaceColor,
       borderRadius: AppRadius.allCardFigma,
       child: Container(
         padding: const EdgeInsets.fromLTRB(24, 16, 24, 14),
         decoration: BoxDecoration(
-          border: Border.all(color: color.withValues(alpha: 0.34)),
+          border: Border.all(color: borderColor),
           borderRadius: AppRadius.allCardFigma,
         ),
         child: Column(
@@ -3258,10 +3277,12 @@ class _OverviewProgressBar extends StatelessWidget {
     super.key,
     required this.value,
     required this.color,
+    this.trackColor,
   });
 
   final double value;
   final Color color;
+  final Color? trackColor;
 
   @override
   Widget build(BuildContext context) {
@@ -3272,7 +3293,7 @@ class _OverviewProgressBar extends StatelessWidget {
             Container(
               height: 12,
               decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.18),
+                color: trackColor ?? color.withValues(alpha: 0.18),
                 borderRadius: BorderRadius.circular(6),
               ),
             ),

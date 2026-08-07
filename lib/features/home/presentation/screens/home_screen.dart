@@ -46,12 +46,14 @@ class _HomeScreenState extends State<HomeScreen> {
     );
 
     if (homeSummaryProvider != null) {
+      final homeRouteWidth = MediaQuery.sizeOf(context).width;
       return AppResponsiveContent(
         // The approved Desktop/Web Home frame reserves a 1,190px shell lane
         // (250px navigation + 1,190px content). Keeping this route's max width
         // explicit lets the 32px wide gutters resolve to the Figma 1,126px
         // content board without changing shared layout defaults.
         maxWidth: AppLayoutTokens.salesReportMaxWidth,
+        padding: AppLayoutTokens.homePagePaddingFor(homeRouteWidth),
         onRefresh: homeSummaryProvider.canRefresh
             ? homeSummaryProvider.refreshNow
             : AppRefreshCallbacks.noop,
