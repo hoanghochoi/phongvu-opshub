@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 import '../theme/app_colors.dart';
 import 'app_buttons.dart';
@@ -8,7 +9,7 @@ Future<bool> showLogoutConfirmationDialog(BuildContext context) async {
     context: context,
     builder: (dialogContext) => AlertDialog(
       icon: Icon(
-        Icons.logout_rounded,
+        PhosphorIconsRegular.signOut,
         color: AppColors.errorOf(dialogContext),
       ),
       title: const Text('Xác nhận đăng xuất'),
@@ -21,7 +22,7 @@ Future<bool> showLogoutConfirmationDialog(BuildContext context) async {
           onPressed: () => Navigator.of(dialogContext).pop(false),
         ),
         AppDialogConfirmButton(
-          icon: Icons.logout_rounded,
+          icon: PhosphorIconsRegular.signOut,
           label: 'Đăng xuất',
           backgroundColor: AppColors.errorOf(dialogContext),
           onPressed: () => Navigator.of(dialogContext).pop(true),

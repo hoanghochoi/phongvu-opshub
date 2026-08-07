@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_text_styles.dart';
 import '../../../../app/widgets/app_cards.dart';
@@ -22,7 +23,7 @@ class PaymentWaitingCard extends StatelessWidget {
             dimension: 24,
             child: isChecking
                 ? const CircularProgressIndicator(strokeWidth: 2.4)
-                : Icon(Icons.sync_rounded, color: color),
+                : Icon(PhosphorIconsRegular.arrowsClockwise, color: color),
           ),
           const SizedBox(width: 10),
           Expanded(

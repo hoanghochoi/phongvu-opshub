@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:phongvu_opshub/app/widgets/app_toast.dart';
 
 import '../../../../app/theme/app_colors.dart';
@@ -464,19 +465,19 @@ class _FeatureAdminScreenState extends State<FeatureAdminScreen>
                 children: [
                   AppPrimaryButton(
                     onPressed: _loading ? null : () => _openFeatureEditor(),
-                    icon: Icons.add_box_outlined,
+                    icon: PhosphorIconsRegular.plusSquare,
                     label: 'Thêm tính năng',
                   ),
                   AppSecondaryButton(
                     onPressed: _loading
                         ? null
                         : () => _openNodeAssignmentEditor(),
-                    icon: Icons.account_tree_outlined,
+                    icon: PhosphorIconsRegular.treeStructure,
                     label: 'Gán đơn vị',
                   ),
                   AppSecondaryButton(
                     onPressed: _loading ? null : () => _openRuleEditor(),
-                    icon: Icons.rule_folder_outlined,
+                    icon: PhosphorIconsRegular.folderOpen,
                     label: 'Thêm quy tắc cũ',
                   ),
                 ],
@@ -575,7 +576,7 @@ class _FeatureList extends StatelessWidget {
       return const AppStatePanel.empty(
         title: 'Chưa có tính năng',
         message: 'Bấm nút thêm để tạo tính năng đầu tiên.',
-        icon: Icons.toggle_off_outlined,
+        icon: PhosphorIconsRegular.toggleLeft,
       );
     }
     return AppResponsiveContent(
@@ -644,7 +645,11 @@ class _FeatureCard extends StatelessWidget {
               color: color.withValues(alpha: 0.11),
               borderRadius: BorderRadius.circular(AppRadius.sm),
             ),
-            child: Icon(Icons.toggle_on_outlined, color: color, size: 24),
+            child: Icon(
+              PhosphorIconsRegular.toggleRight,
+              color: color,
+              size: 24,
+            ),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -683,13 +688,13 @@ class _FeatureCard extends StatelessWidget {
           const SizedBox(width: 10),
           AppIconAction(
             onPressed: onEdit,
-            icon: Icons.edit_outlined,
+            icon: PhosphorIconsRegular.pencilSimple,
             tooltip: 'Sửa',
           ),
           const SizedBox(width: 8),
           AppIconAction(
             onPressed: onDelete,
-            icon: Icons.delete_outline,
+            icon: PhosphorIconsRegular.trash,
             tooltip: feature.isSystem ? 'Tính năng hệ thống' : 'Xóa',
           ),
         ],
@@ -763,7 +768,7 @@ class _NodeAssignmentList extends StatelessWidget {
                   width: 150,
                   child: AppSecondaryButton(
                     onPressed: onAdd,
-                    icon: Icons.account_tree_outlined,
+                    icon: PhosphorIconsRegular.treeStructure,
                     label: 'Gán đơn vị',
                   ),
                 ),
@@ -776,7 +781,7 @@ class _NodeAssignmentList extends StatelessWidget {
                 ? const AppStatePanel.empty(
                     title: 'Chưa có quyền theo đơn vị',
                     message: 'Bấm Gán đơn vị để thiết lập phạm vi sử dụng.',
-                    icon: Icons.account_tree_outlined,
+                    icon: PhosphorIconsRegular.treeStructure,
                   )
                 : ListView.separated(
                     physics: const AlwaysScrollableScrollPhysics(),
@@ -834,7 +839,11 @@ class _NodeAssignmentCard extends StatelessWidget {
               color: color.withValues(alpha: 0.11),
               borderRadius: BorderRadius.circular(AppRadius.sm),
             ),
-            child: Icon(Icons.account_tree_outlined, color: color, size: 24),
+            child: Icon(
+              PhosphorIconsRegular.treeStructure,
+              color: color,
+              size: 24,
+            ),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -875,13 +884,13 @@ class _NodeAssignmentCard extends StatelessWidget {
           const SizedBox(width: 8),
           AppIconAction(
             onPressed: onEdit,
-            icon: Icons.edit_outlined,
+            icon: PhosphorIconsRegular.pencilSimple,
             tooltip: 'Sửa nhóm đơn vị',
           ),
           const SizedBox(width: 8),
           AppIconAction(
             onPressed: onDelete,
-            icon: Icons.delete_outline,
+            icon: PhosphorIconsRegular.trash,
             tooltip: 'Xóa quyền đơn vị',
           ),
         ],
@@ -950,7 +959,7 @@ class _RuleList extends StatelessWidget {
                 ? const AppStatePanel.empty(
                     title: 'Chưa có quy tắc cũ',
                     message: 'Chưa có ngoại lệ quyền nào cần hiển thị.',
-                    icon: Icons.rule_folder_outlined,
+                    icon: PhosphorIconsRegular.folderOpen,
                   )
                 : ListView.separated(
                     physics: const AlwaysScrollableScrollPhysics(),
@@ -1007,7 +1016,9 @@ class _RuleCard extends StatelessWidget {
               borderRadius: BorderRadius.circular(AppRadius.sm),
             ),
             child: Icon(
-              rule.enabled ? Icons.check_circle_outline : Icons.block_outlined,
+              rule.enabled
+                  ? PhosphorIconsRegular.checkCircle
+                  : PhosphorIconsRegular.prohibit,
               color: color,
             ),
           ),
@@ -1048,13 +1059,13 @@ class _RuleCard extends StatelessWidget {
           const SizedBox(width: 10),
           AppIconAction(
             onPressed: onEdit,
-            icon: Icons.edit_outlined,
+            icon: PhosphorIconsRegular.pencilSimple,
             tooltip: 'Sửa quy tắc',
           ),
           const SizedBox(width: 8),
           AppIconAction(
             onPressed: onDelete,
-            icon: Icons.delete_outline,
+            icon: PhosphorIconsRegular.trash,
             tooltip: 'Xóa quy tắc',
           ),
         ],
@@ -1792,7 +1803,7 @@ class _MultiSelectDialogState extends State<_MultiSelectDialog> {
             AppTextInput(
               controller: _searchController,
               label: 'Tìm kiếm',
-              icon: Icons.search,
+              icon: PhosphorIconsRegular.magnifyingGlass,
               onChanged: (_) => setState(() {}),
             ),
             const SizedBox(height: 10),
@@ -1801,7 +1812,7 @@ class _MultiSelectDialogState extends State<_MultiSelectDialog> {
                   ? const AppStatePanel.empty(
                       title: 'Không tìm thấy dữ liệu',
                       message: 'Thử đổi từ khóa tìm kiếm.',
-                      icon: Icons.search_off_rounded,
+                      icon: PhosphorIconsRegular.magnifyingGlassMinus,
                       compact: true,
                     )
                   : ListView.builder(

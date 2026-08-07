@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:provider/provider.dart';
 import 'package:phongvu_opshub/app/widgets/app_toast.dart';
 import '../providers/fifo_check_provider.dart';
@@ -128,7 +129,7 @@ class _FifoCheckInputState extends State<FifoCheckInput> {
               // Nút quét barcode/QR code
               AppIconAction(
                 onPressed: isLoading ? null : _scanBarcode,
-                icon: Icons.qr_code_scanner,
+                icon: PhosphorIconsRegular.scan,
                 tooltip: 'Quét mã',
               ),
               const SizedBox(width: AppLayoutTokens.formInlineGap),
@@ -138,7 +139,7 @@ class _FifoCheckInputState extends State<FifoCheckInput> {
                   focusNode: _focusNode,
                   enabled: !isLoading,
                   label: 'SKU hoặc serial',
-                  icon: Icons.inventory_2_outlined,
+                  icon: PhosphorIconsRegular.package,
                   hintText: 'VD: ABC123 3',
                   onSubmitted: (_) => _submitFifoCheck(),
                 ),
@@ -146,7 +147,7 @@ class _FifoCheckInputState extends State<FifoCheckInput> {
               const SizedBox(width: AppLayoutTokens.formInlineGap),
               AppIconAction(
                 onPressed: isLoading ? null : _submitFifoCheck,
-                icon: Icons.send,
+                icon: PhosphorIconsRegular.paperPlaneTilt,
                 tooltip: 'Kiểm tra',
               ),
             ],

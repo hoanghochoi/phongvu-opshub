@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:intl/intl.dart';
 import 'package:phongvu_opshub/app/widgets/app_toast.dart';
 
@@ -43,7 +44,7 @@ class BankStatementTransactionDetailsLauncher extends StatelessWidget {
               Expanded(child: child),
               const Padding(
                 padding: EdgeInsets.only(top: 2),
-                child: Icon(Icons.open_in_new_rounded, size: 19),
+                child: Icon(PhosphorIconsRegular.arrowSquareOut, size: 19),
               ),
             ],
           ),

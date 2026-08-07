@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'helpers/legacy_widget_finders.dart';
 import 'package:phongvu_opshub/core/logging/app_logger.dart';
 import 'package:phongvu_opshub/core/network/api_client.dart';
@@ -34,7 +35,7 @@ void main() {
           value: 'SUPER_ADMIN',
           title: 'Quản trị toàn hệ thống',
           description: 'Toàn quyền hệ thống',
-          icon: Icons.verified_user_outlined,
+          icon: PhosphorIconsRegular.shieldCheck,
           color: Colors.deepPurple,
           isSystem: true,
         ),
@@ -42,7 +43,7 @@ void main() {
           value: 'ADMIN',
           title: 'Quản trị viên',
           description: 'Quản trị theo phạm vi cây tổ chức',
-          icon: Icons.admin_panel_settings_outlined,
+          icon: PhosphorIconsRegular.shieldChevron,
           color: Colors.blue,
         ),
       ],

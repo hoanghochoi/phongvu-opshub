@@ -4,6 +4,7 @@ import 'dart:math' as math;
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../app/theme/app_colors.dart';
@@ -143,7 +144,7 @@ class _FeedbackAdminScreenState extends State<FeedbackAdminScreen> {
         title: _errorMessage!,
         message: 'Kiểm tra kết nối rồi thử tải lại danh sách góp ý.',
         actionLabel: 'Thử tải lại',
-        actionIcon: Icons.refresh,
+        actionIcon: PhosphorIconsRegular.arrowClockwise,
         onAction: _load,
       );
     }
@@ -152,9 +153,9 @@ class _FeedbackAdminScreenState extends State<FeedbackAdminScreen> {
       return AppStatePanel.empty(
         title: 'Chưa có góp ý',
         message: 'Góp ý mới từ nhân viên sẽ xuất hiện tại đây.',
-        icon: Icons.lightbulb_outline_rounded,
+        icon: PhosphorIconsRegular.lightbulb,
         actionLabel: 'Tải lại',
-        actionIcon: Icons.refresh,
+        actionIcon: PhosphorIconsRegular.arrowClockwise,
         onAction: _load,
       );
     }
@@ -234,7 +235,7 @@ class _FeedbackAdminHeader extends StatelessWidget {
           alignment: Alignment.centerRight,
           child: AppIconAction(
             onPressed: onRefresh,
-            icon: Icons.refresh,
+            icon: PhosphorIconsRegular.arrowClockwise,
             tooltip: 'Tải lại danh sách góp ý',
           ),
         ),
@@ -522,7 +523,7 @@ Future<void> _showFeedbackImagePreview(
                     IconButton(
                       tooltip: 'Đóng',
                       onPressed: () => Navigator.of(dialogContext).pop(),
-                      icon: const Icon(Icons.close),
+                      icon: const Icon(PhosphorIconsRegular.x),
                     ),
                   ],
                 ),
@@ -578,7 +579,7 @@ class _FeedbackImageErrorPlaceholder extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
-              Icons.broken_image_outlined,
+              PhosphorIconsRegular.imageBroken,
               color: Theme.of(context).colorScheme.error,
             ),
             const SizedBox(height: 6),

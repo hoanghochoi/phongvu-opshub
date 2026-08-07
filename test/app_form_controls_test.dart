@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:phongvu_opshub/app/widgets/app_cards.dart';
 import 'package:phongvu_opshub/app/widgets/app_combobox.dart';
 import 'package:phongvu_opshub/app/widgets/app_inputs.dart';
@@ -26,14 +27,14 @@ void main() {
           body: AppTextInput(
             controller: controller,
             label: 'Mã đơn hàng',
-            icon: Icons.tag_rounded,
+            icon: PhosphorIconsRegular.tag,
           ),
         ),
       ),
     );
 
     expect(find.text('Mã đơn hàng'), findsOneWidget);
-    expect(find.byIcon(Icons.tag_rounded), findsOneWidget);
+    expect(find.byIcon(PhosphorIconsRegular.tag), findsOneWidget);
     expect(find.text('26062512345678'), findsOneWidget);
   });
 
@@ -172,7 +173,7 @@ void main() {
             child: AppFormTextInput(
               controller: controller,
               label: 'Số điện thoại',
-              icon: Icons.phone_outlined,
+              icon: PhosphorIconsRegular.phone,
               validator: (value) =>
                   (value ?? '').trim().isEmpty ? 'Vui lòng nhập SĐT' : null,
             ),
@@ -196,7 +197,7 @@ void main() {
             home: Scaffold(
               body: AppCombobox<String>.single(
                 label: 'Trạng thái',
-                icon: Icons.flag_outlined,
+                icon: PhosphorIconsRegular.flag,
                 value: value,
                 options: const [
                   AppComboboxOption(value: 'ALL', label: 'Tất cả'),
@@ -384,7 +385,7 @@ void main() {
               home: Scaffold(
                 body: AppCombobox<String>.multi(
                   label: 'Showroom',
-                  icon: Icons.store_outlined,
+                  icon: PhosphorIconsRegular.storefront,
                   values: values,
                   emptyLabel: 'Showroom được gán',
                   options: const [
@@ -461,7 +462,7 @@ void main() {
           body: AppReadOnlyField(
             value: 'Nhân viên',
             label: 'Quyền hệ thống',
-            icon: Icons.lock_outline,
+            icon: PhosphorIconsRegular.lock,
           ),
         ),
       ),
@@ -469,7 +470,7 @@ void main() {
 
     expect(find.text('Quyền hệ thống'), findsOneWidget);
     expect(find.text('Nhân viên'), findsOneWidget);
-    expect(find.byIcon(Icons.lock_outline), findsOneWidget);
+    expect(find.byIcon(PhosphorIconsRegular.lock), findsOneWidget);
     expect(
       tester.widget<TextFormField>(find.byType(TextFormField)).enabled,
       isFalse,

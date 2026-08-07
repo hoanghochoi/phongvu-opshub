@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:phongvu_opshub/features/app_update/data/app_update_realtime_connection.dart';
 import 'package:phongvu_opshub/features/app_update/data/app_update_service.dart';
 import 'package:phongvu_opshub/features/app_update/data/app_self_update_service.dart';
@@ -166,8 +167,8 @@ void main() {
       ),
       findsNothing,
     );
-    expect(find.byIcon(Icons.refresh_rounded), findsOneWidget);
-    expect(find.byIcon(Icons.download_rounded), findsNothing);
+    expect(find.byIcon(PhosphorIconsRegular.arrowClockwise), findsOneWidget);
+    expect(find.byIcon(PhosphorIconsRegular.downloadSimple), findsNothing);
 
     expect(reloadCount, 1);
     expect(installedResult, isNull);

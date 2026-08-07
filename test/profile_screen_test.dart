@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'helpers/legacy_widget_finders.dart';
 import 'package:phongvu_opshub/core/logging/app_logger.dart';
 import 'package:phongvu_opshub/core/network/api_client.dart';
@@ -186,6 +187,54 @@ void main() {
       tester.getSize(find.byKey(const Key('profile-info-card'))).width,
       343,
     );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('compact password dialog matches approved REVIEW nodes', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(375, 812);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    SharedPreferences.setMockInitialValues({
+      AppStorageKeys.shared('user_email'): 'staff@example.com',
+      AppStorageKeys.shared('user_name'): 'Hoàng',
+      AppStorageKeys.shared('user_lastName'): 'Nguyễn',
+      AppStorageKeys.shared('user_role'): 'USER',
+      AppStorageKeys.shared('user_organizationNodeName'): 'Quản lý Cửa hàng',
+    });
+    _seedSecureToken();
+
+    await tester.pumpWidget(
+      ChangeNotifierProvider<AuthProvider>(
+        create: (_) => AuthProvider(AuthRepository(ApiClient())),
+        child: const MaterialApp(home: ProfileScreen()),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Đổi mật khẩu').first);
+    await tester.pumpAndSettle();
+
+    final dialogSurface = find.descendant(
+      of: find.byType(Dialog),
+      matching: find.byWidgetPredicate(
+        (widget) => widget is Material && widget.type == MaterialType.card,
+      ),
+    );
+    expect(dialogSurface, findsOneWidget);
+    expect(tester.getSize(dialogSurface).width, 343);
+    expect(find.text('Nhập lại mật khẩu'), findsOneWidget);
+    expect(find.text('Nhập lại mật khẩu mới'), findsNothing);
+    expect(find.byTooltip('Hiện mật khẩu hiện tại'), findsOneWidget);
+    expect(find.byTooltip('Hiện mật khẩu mới'), findsOneWidget);
+    expect(find.byTooltip('Hiện mật khẩu nhập lại'), findsOneWidget);
+    expect(find.byIcon(PhosphorIconsRegular.eye), findsNWidgets(3));
+
+    await tester.tap(find.byTooltip('Hiện mật khẩu nhập lại'));
+    await tester.pump();
+    expect(find.byTooltip('Ẩn mật khẩu nhập lại'), findsOneWidget);
+    expect(find.byIcon(PhosphorIconsRegular.eyeSlash), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../core/config/app_brand.dart';
@@ -6,6 +8,31 @@ import '../theme/app_colors.dart';
 class AppLogo extends StatelessWidget {
   static String get imageAsset => AppBrand.logoAsset;
   static String get paddedImageAsset => AppBrand.paddedLogoAsset;
+
+  static Future<bool> preload({
+    Duration timeout = const Duration(seconds: 3),
+  }) async {
+    final stream = AssetImage(imageAsset).resolve(ImageConfiguration.empty);
+    final completer = Completer<bool>();
+    late final ImageStreamListener listener;
+    listener = ImageStreamListener(
+      (_, _) {
+        if (!completer.isCompleted) completer.complete(true);
+        stream.removeListener(listener);
+      },
+      onError: (_, _) {
+        if (!completer.isCompleted) completer.complete(false);
+        stream.removeListener(listener);
+      },
+    );
+    stream.addListener(listener);
+    try {
+      return await completer.future.timeout(timeout);
+    } on TimeoutException {
+      stream.removeListener(listener);
+      return false;
+    }
+  }
 
   final double size;
   final double borderRadius;

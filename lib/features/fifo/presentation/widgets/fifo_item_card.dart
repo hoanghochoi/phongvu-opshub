@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:intl/intl.dart';
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_radius.dart';
@@ -73,8 +74,8 @@ class FifoItemCard extends StatelessWidget {
                   if (hasItems)
                     Icon(
                       isExpanded
-                          ? Icons.keyboard_arrow_up_rounded
-                          : Icons.keyboard_arrow_down_rounded,
+                          ? PhosphorIconsRegular.caretUp
+                          : PhosphorIconsRegular.caretDown,
                       color: AppColors.neutral500Of(context),
                     ),
                 ],
@@ -199,10 +200,12 @@ class FifoItemCard extends StatelessWidget {
             spacing: 12,
             runSpacing: 4,
             children: [
-              if (serial.isNotEmpty) AppInfoChip(Icons.qr_code, serial),
-              if (bin.isNotEmpty) AppInfoChip(Icons.inventory_2_outlined, bin),
+              if (serial.isNotEmpty)
+                AppInfoChip(PhosphorIconsRegular.qrCode, serial),
+              if (bin.isNotEmpty)
+                AppInfoChip(PhosphorIconsRegular.package, bin),
               if (importDate.isNotEmpty)
-                AppInfoChip(Icons.calendar_today, importDate),
+                AppInfoChip(PhosphorIconsRegular.calendarBlank, importDate),
             ],
           ),
         ],

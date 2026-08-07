@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
@@ -62,7 +63,7 @@ class _ContractAppendixScreenState extends State<ContractAppendixScreen>
           if (provider.errorMessage != null) ...[
             const SizedBox(height: 16),
             AppStatusBanner(
-              icon: Icons.error_outline_rounded,
+              icon: PhosphorIconsRegular.warningCircle,
               title: 'Chưa thực hiện được',
               message: provider.errorMessage!,
               tone: AppStateTone.error,
@@ -71,7 +72,7 @@ class _ContractAppendixScreenState extends State<ContractAppendixScreen>
           if (provider.successMessage != null) ...[
             const SizedBox(height: 16),
             AppStatusBanner(
-              icon: Icons.check_circle_outline_rounded,
+              icon: PhosphorIconsRegular.checkCircle,
               title: 'Đã cập nhật',
               message: provider.successMessage!,
               tone: AppStateTone.success,
@@ -205,7 +206,7 @@ class _CreateWorkspace extends StatelessWidget {
         if (provider.draft == null)
           const AppSurfaceCard(
             child: AppStatePanel.empty(
-              icon: Icons.description_outlined,
+              icon: PhosphorIconsRegular.fileText,
               title: 'Chưa có bảng phụ lục',
               message: 'Nhập mã đơn hàng và chọn “Lấy thông tin” để bắt đầu.',
               compact: true,
@@ -257,7 +258,7 @@ class _OrderCommandBar extends StatelessWidget {
               onSubmitted: (_) => onSubmit(),
               label: 'Mã đơn hàng',
               hintText: 'Nhập mã đơn hàng',
-              icon: Icons.search_rounded,
+              icon: PhosphorIconsRegular.magnifyingGlass,
             ),
           ),
           const SizedBox(width: 12),
@@ -292,7 +293,7 @@ class _DocumentWorkspace extends StatelessWidget {
       children: [
         if (document.unresolvedTaxCount > 0) ...[
           AppStatusBanner(
-            icon: Icons.percent_rounded,
+            icon: PhosphorIconsRegular.percent,
             title: 'Cần chọn thuế',
             message:
                 'Chưa xác định được thuế cho ${document.unresolvedTaxCount} '
@@ -326,7 +327,7 @@ class _DocumentWorkspace extends StatelessWidget {
                   AppSecondaryButton(
                     key: const Key('contract-appendix-refresh-button'),
                     onPressed: provider.isBusy ? null : () => _refresh(context),
-                    icon: Icons.calculate_outlined,
+                    icon: PhosphorIconsRegular.calculator,
                     label: 'Cập nhật xem trước',
                     isLoading: provider.isRefreshingPreview,
                     size: AppButtonSize.medium,
@@ -334,7 +335,7 @@ class _DocumentWorkspace extends StatelessWidget {
                   AppPrimaryButton(
                     key: const Key('contract-appendix-save-button'),
                     onPressed: provider.isBusy ? null : () => _save(context),
-                    icon: Icons.save_outlined,
+                    icon: PhosphorIconsRegular.floppyDisk,
                     label: 'Lưu phụ lục',
                     isLoading: provider.isSaving,
                     size: AppButtonSize.medium,
@@ -344,7 +345,7 @@ class _DocumentWorkspace extends StatelessWidget {
                     onPressed: provider.canCopy && !provider.isCopying
                         ? () => _copy(context)
                         : null,
-                    icon: Icons.copy_all_outlined,
+                    icon: PhosphorIconsRegular.copy,
                     label: 'Sao chép bảng',
                     isLoading: provider.isCopying,
                     size: AppButtonSize.medium,
@@ -1051,7 +1052,7 @@ class _HistoryWorkspace extends StatelessWidget {
                   textInputAction: TextInputAction.search,
                   onSubmitted: (_) => _search(context),
                   label: 'Tìm theo mã đơn',
-                  icon: Icons.search_rounded,
+                  icon: PhosphorIconsRegular.magnifyingGlass,
                 ),
               ),
               const SizedBox(width: 10),
@@ -1080,7 +1081,7 @@ class _HistoryWorkspace extends StatelessWidget {
         else if (provider.history.isEmpty)
           const AppSurfaceCard(
             child: AppStatePanel.empty(
-              icon: Icons.history_rounded,
+              icon: PhosphorIconsRegular.clockCounterClockwise,
               title: 'Chưa có phụ lục trong 30 ngày',
               message: 'Các phụ lục đã lưu sẽ xuất hiện tại đây.',
               compact: true,
@@ -1155,7 +1156,7 @@ class _HistoryCard extends StatelessWidget {
               borderRadius: AppRadius.allMd,
             ),
             child: Icon(
-              Icons.description_outlined,
+              PhosphorIconsRegular.fileText,
               color: AppColors.primaryOf(context),
             ),
           ),
@@ -1198,7 +1199,7 @@ class _HistoryCard extends StatelessWidget {
           IconButton(
             tooltip: 'Xem phụ lục',
             onPressed: busy ? null : onOpen,
-            icon: const Icon(Icons.chevron_right_rounded),
+            icon: const Icon(PhosphorIconsRegular.caretRight),
           ),
         ],
       ),
@@ -1250,7 +1251,7 @@ class _HistoryDetailDialog extends StatelessWidget {
                   IconButton(
                     tooltip: 'Đóng',
                     onPressed: () => Navigator.of(context).pop(),
-                    icon: const Icon(Icons.close_rounded),
+                    icon: const Icon(PhosphorIconsRegular.x),
                   ),
                 ],
               ),
@@ -1281,7 +1282,7 @@ class _HistoryDetailDialog extends StatelessWidget {
                       onPressed: provider.isCopying
                           ? null
                           : () => _copy(context, provider),
-                      icon: Icons.copy_all_outlined,
+                      icon: PhosphorIconsRegular.copy,
                       label: 'Sao chép bảng',
                       isLoading: provider.isCopying,
                     ),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:flutter/services.dart';
 import 'package:phongvu_opshub/app/widgets/app_toast.dart';
 import '../../../../app/theme/app_colors.dart';
@@ -94,8 +95,8 @@ class _FifoSkuItemCardState extends State<FifoSkuItemCard> {
                   padding: const EdgeInsets.all(4),
                   child: Icon(
                     widget.skuItem.isChecked
-                        ? Icons.check_circle
-                        : Icons.check_circle_outline,
+                        ? PhosphorIconsRegular.checkCircle
+                        : PhosphorIconsRegular.checkCircle,
                     color: widget.skuItem.isChecked
                         ? AppColors.successOf(context)
                         : onSurfaceVariant,
@@ -140,7 +141,7 @@ class _FifoSkuItemCardState extends State<FifoSkuItemCard> {
                     ),
                   ),
                   Icon(
-                    Icons.copy,
+                    PhosphorIconsRegular.copy,
                     size: 14,
                     color: onSurfaceVariant.withValues(alpha: 0.5),
                   ),
@@ -174,7 +175,7 @@ class _FifoSkuItemCardState extends State<FifoSkuItemCard> {
                     ),
                   ),
                   Icon(
-                    Icons.copy,
+                    PhosphorIconsRegular.copy,
                     size: 14,
                     color: onSurfaceVariant.withValues(alpha: 0.5),
                   ),

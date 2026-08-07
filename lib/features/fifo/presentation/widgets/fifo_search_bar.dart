@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/widgets/app_buttons.dart';
 import '../../../../app/widgets/app_chips.dart';
@@ -33,7 +34,7 @@ class FifoHistorySearchBar extends StatelessWidget {
       controller: searchController,
       label: 'Tìm kiếm',
       hintText: 'SKU, serial hoặc người dùng',
-      icon: Icons.search,
+      icon: PhosphorIconsRegular.magnifyingGlass,
       dense: true,
       onSubmitted: (_) => onSearch(),
       textInputAction: TextInputAction.search,
@@ -43,7 +44,7 @@ class FifoHistorySearchBar extends StatelessWidget {
       controller: userFilterController,
       label: 'Người dùng',
       hintText: 'Email người dùng',
-      icon: Icons.person_outline,
+      icon: PhosphorIconsRegular.user,
       dense: true,
       onSubmitted: (_) => onSearch(),
       textInputAction: TextInputAction.search,
@@ -53,7 +54,7 @@ class FifoHistorySearchBar extends StatelessWidget {
       children: [
         AppIconAction(
           onPressed: onSearch,
-          icon: Icons.search,
+          icon: PhosphorIconsRegular.magnifyingGlass,
           tooltip: 'Tìm lịch sử',
           filled: true,
         ),
@@ -61,7 +62,7 @@ class FifoHistorySearchBar extends StatelessWidget {
           const SizedBox(width: AppLayoutTokens.formInlineGap),
           AppIconAction(
             onPressed: onClearFilter,
-            icon: Icons.filter_alt_off_outlined,
+            icon: PhosphorIconsRegular.funnelSimpleX,
             tooltip: 'Xóa bộ lọc',
           ),
         ],

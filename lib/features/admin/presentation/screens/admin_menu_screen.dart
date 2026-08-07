@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
@@ -35,7 +36,7 @@ class AdminMenuScreen extends StatelessWidget {
     final administrationActions = [
       if (canUse('ADMIN_USERS'))
         AppFeatureAction(
-          icon: Icons.people_alt_outlined,
+          icon: PhosphorIconsRegular.usersThree,
           title: 'Quản lý người dùng',
           description: 'Tài khoản và phạm vi',
           color: AppColors.infoOf(context),
@@ -43,7 +44,7 @@ class AdminMenuScreen extends StatelessWidget {
         ),
       if (canUse('ADMIN_ROLES'))
         AppFeatureAction(
-          icon: Icons.admin_panel_settings_outlined,
+          icon: PhosphorIconsRegular.shield,
           title: 'Quản lý vai trò',
           description: 'Quyền hệ thống',
           color: AppColors.accentOf(context),
@@ -51,7 +52,7 @@ class AdminMenuScreen extends StatelessWidget {
         ),
       if (canUse('ADMIN_ORG_TREE'))
         AppFeatureAction(
-          icon: Icons.account_tree_outlined,
+          icon: PhosphorIconsRegular.treeStructure,
           title: 'Cơ cấu tổ chức',
           description: 'Cây tổ chức cấp 0-5',
           color: AppColors.infoOf(context),
@@ -59,7 +60,7 @@ class AdminMenuScreen extends StatelessWidget {
         ),
       if (canUse('ADMIN_POLICIES'))
         AppFeatureAction(
-          icon: Icons.policy_outlined,
+          icon: PhosphorIconsRegular.shieldCheck,
           title: 'Quản lý chính sách',
           description: 'Quyền và cấu hình hệ thống',
           color: AppColors.warningOf(context),
@@ -67,7 +68,7 @@ class AdminMenuScreen extends StatelessWidget {
         ),
       if (canUse('ADMIN_FEATURES'))
         AppFeatureAction(
-          icon: Icons.tune_outlined,
+          icon: PhosphorIconsRegular.slidersHorizontal,
           title: 'Quản lý tính năng',
           description: 'Tính năng và quyền truy cập',
           color: AppColors.accentOf(context),
@@ -75,7 +76,7 @@ class AdminMenuScreen extends StatelessWidget {
         ),
       if (canUse('ADMIN_PERSONNEL'))
         AppFeatureAction(
-          icon: Icons.badge_outlined,
+          icon: PhosphorIconsRegular.identificationBadge,
           title: 'Danh mục nhân sự',
           description: 'Phòng ban và chức danh',
           color: AppColors.infoOf(context),
@@ -83,7 +84,7 @@ class AdminMenuScreen extends StatelessWidget {
         ),
       if (canUse('ADMIN_SALES_TARGETS'))
         AppFeatureAction(
-          icon: Icons.query_stats_rounded,
+          icon: PhosphorIconsRegular.chartLineUp,
           title: 'Quản lý doanh số',
           description: 'Chỉ tiêu theo tháng và showroom',
           color: AppColors.secondaryOf(context),
@@ -91,7 +92,7 @@ class AdminMenuScreen extends StatelessWidget {
         ),
       if (canUse('ADMIN_QUICK_ACTION_CODES') && (isSuperAdmin || managerRole))
         AppFeatureAction(
-          icon: Icons.qr_code_2_rounded,
+          icon: PhosphorIconsRegular.qrCode,
           title: 'Quản lý mã',
           description: 'Liên kết QR theo showroom',
           color: AppColors.primaryOf(context),
@@ -99,7 +100,7 @@ class AdminMenuScreen extends StatelessWidget {
         ),
       if (canUse('ADMIN_SALES_REPORTS'))
         AppFeatureAction(
-          icon: Icons.table_chart_outlined,
+          icon: PhosphorIconsRegular.table,
           title: 'Danh sách báo cáo bán hàng',
           description: 'Lọc danh sách và xuất file',
           color: AppColors.secondaryOf(context),
@@ -120,7 +121,7 @@ class AdminMenuScreen extends StatelessWidget {
         ),
       if (isSuperAdmin && supportChatEnabled)
         AppFeatureAction(
-          icon: Icons.support_agent_rounded,
+          icon: PhosphorIconsRegular.headset,
           title: 'Hỗ trợ nhân viên',
           description: 'Hộp thư hỗ trợ nội bộ',
           color: AppColors.infoOf(context),
@@ -128,7 +129,7 @@ class AdminMenuScreen extends StatelessWidget {
         ),
       if (isSuperAdmin)
         AppFeatureAction(
-          icon: Icons.api_rounded,
+          icon: PhosphorIconsRegular.plugsConnected,
           title: 'Quản lý kết nối API',
           description: 'Client và khóa ngân hàng',
           color: AppColors.warningOf(context),
@@ -145,7 +146,7 @@ class AdminMenuScreen extends StatelessWidget {
         ),
       if (isSuperAdmin)
         AppFeatureAction(
-          icon: Icons.menu_book_outlined,
+          icon: PhosphorIconsRegular.bookOpen,
           title: 'Quản lý hướng dẫn',
           description: 'Nội dung runtime công khai',
           color: AppColors.secondaryOf(context),
@@ -153,7 +154,7 @@ class AdminMenuScreen extends StatelessWidget {
         ),
       if (isSuperAdmin)
         AppFeatureAction(
-          icon: Icons.lightbulb_outline_rounded,
+          icon: PhosphorIconsRegular.lightbulb,
           title: 'Danh sách góp ý',
           description: 'Góp ý nội bộ',
           color: AppColors.secondaryOf(context),
@@ -163,7 +164,7 @@ class AdminMenuScreen extends StatelessWidget {
     final fifoActions = [
       if (canUse('FIFO_IMPORT'))
         AppFeatureAction(
-          icon: Icons.inventory_2_outlined,
+          icon: PhosphorIconsRegular.package,
           title: 'Cập nhật tồn kho',
           description: 'Nhập dữ liệu tồn kho FIFO',
           color: AppColors.infoOf(context),
@@ -171,7 +172,7 @@ class AdminMenuScreen extends StatelessWidget {
         ),
       if (canUse('FIFO'))
         AppFeatureAction(
-          icon: Icons.history_rounded,
+          icon: PhosphorIconsRegular.clockCounterClockwise,
           title: 'Lịch sử FIFO',
           description: 'Tra cứu lịch sử kiểm tra và sắp xếp',
           color: AppColors.secondaryOf(context),
@@ -195,7 +196,7 @@ class AdminMenuScreen extends StatelessWidget {
             const AppStatePanel.empty(
               title: 'Chưa có tính năng quản trị',
               message: 'Liên hệ quản trị viên để được cấp quyền phù hợp.',
-              icon: Icons.admin_panel_settings_outlined,
+              icon: PhosphorIconsRegular.shield,
             )
           else ...[
             if (administrationActions.isNotEmpty)
@@ -328,7 +329,7 @@ class _AdminFeatureTile extends StatelessWidget {
                 ),
               ),
               Icon(
-                Icons.chevron_right_rounded,
+                PhosphorIconsRegular.caretRight,
                 color: AppColors.primaryOf(context),
                 size: 20,
               ),

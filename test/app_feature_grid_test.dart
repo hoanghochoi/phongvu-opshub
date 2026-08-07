@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:phongvu_opshub/app/widgets/app_feature_grid.dart';
 
 void main() {
@@ -45,35 +46,35 @@ void main() {
 Widget _fixture({double? contentWidth, int actionCount = 2}) {
   final allActions = const [
     AppFeatureAction(
-      icon: Icons.qr_code,
+      icon: PhosphorIconsRegular.qrCode,
       title: 'VietQR',
       description: 'Tạo mã chuyển khoản',
       color: Colors.blue,
       onTap: null,
     ),
     AppFeatureAction(
-      icon: Icons.description_outlined,
+      icon: PhosphorIconsRegular.fileText,
       title: 'Báo cáo',
       description: 'Theo dõi báo cáo',
       color: Colors.green,
       onTap: null,
     ),
     AppFeatureAction(
-      icon: Icons.article_outlined,
+      icon: PhosphorIconsRegular.article,
       title: 'Phụ lục',
       description: 'Tạo bảng hàng hóa',
       color: Colors.indigo,
       onTap: null,
     ),
     AppFeatureAction(
-      icon: Icons.headset,
+      icon: PhosphorIconsRegular.headset,
       title: 'Chăm sóc lại',
       description: 'Theo dõi khách hàng',
       color: Colors.orange,
       onTap: null,
     ),
     AppFeatureAction(
-      icon: Icons.payments_outlined,
+      icon: PhosphorIconsRegular.money,
       title: 'Tiền vào',
       description: 'Theo dõi thanh toán',
       color: Colors.purple,

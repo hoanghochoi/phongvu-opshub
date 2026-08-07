@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_radius.dart';
@@ -99,7 +100,7 @@ class _RoleAdminScreenState extends State<RoleAdminScreen> {
         title: _errorMessage!,
         message: 'Kiểm tra kết nối rồi thử tải lại danh sách vai trò.',
         actionLabel: 'Thử tải lại',
-        actionIcon: Icons.refresh,
+        actionIcon: PhosphorIconsRegular.arrowClockwise,
         onAction: _load,
       );
     }
@@ -108,9 +109,9 @@ class _RoleAdminScreenState extends State<RoleAdminScreen> {
       return AppStatePanel.empty(
         title: 'Chưa có vai trò',
         message: 'Hệ thống chưa trả về vai trò nào cho phạm vi quản trị.',
-        icon: Icons.admin_panel_settings_outlined,
+        icon: PhosphorIconsRegular.shield,
         actionLabel: 'Tải lại',
-        actionIcon: Icons.refresh,
+        actionIcon: PhosphorIconsRegular.arrowClockwise,
         onAction: _load,
       );
     }
@@ -196,7 +197,7 @@ class _RoleHeader extends StatelessWidget {
           );
           final refreshButton = AppIconAction(
             onPressed: onRefresh,
-            icon: Icons.refresh,
+            icon: PhosphorIconsRegular.arrowClockwise,
             tooltip: 'Tải lại danh sách vai trò',
           );
 

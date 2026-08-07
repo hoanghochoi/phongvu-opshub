@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:provider/provider.dart';
 
 import '../../../../app/navigation/app_nav_model.dart';
@@ -226,7 +227,7 @@ class _HomeCommandPanel extends StatelessWidget {
                   Row(
                     children: [
                       Icon(
-                        Icons.store_outlined,
+                        PhosphorIconsRegular.storefront,
                         color: AppColors.textMutedOf(context),
                         size: 16,
                       ),
@@ -315,7 +316,9 @@ class _HomeSpeakerStatusButton extends StatelessWidget {
     final backgroundColor = speakerEnabled
         ? AppColors.successSurfaceOf(context)
         : AppColors.speakerOffSurfaceOf(context);
-    final icon = speakerEnabled ? Icons.volume_up : Icons.volume_off;
+    final icon = speakerEnabled
+        ? PhosphorIconsRegular.speakerHigh
+        : PhosphorIconsRegular.speakerSlash;
 
     void toggleSpeaker() {
       unawaited(

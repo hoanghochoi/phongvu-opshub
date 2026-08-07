@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../app/theme/app_colors.dart';
@@ -220,7 +221,7 @@ class _SalesTargetAdminScreenState extends State<SalesTargetAdminScreen> {
                 IconButton(
                   tooltip: 'Tháng trước',
                   onPressed: _loading ? null : () => _moveMonth(-1),
-                  icon: const Icon(Icons.chevron_left_rounded),
+                  icon: const Icon(PhosphorIconsRegular.caretLeft),
                 ),
                 Expanded(
                   child: Column(
@@ -241,7 +242,7 @@ class _SalesTargetAdminScreenState extends State<SalesTargetAdminScreen> {
                 IconButton(
                   tooltip: 'Tháng sau',
                   onPressed: _loading ? null : () => _moveMonth(1),
-                  icon: const Icon(Icons.chevron_right_rounded),
+                  icon: const Icon(PhosphorIconsRegular.caretRight),
                 ),
               ],
             ),
@@ -258,7 +259,7 @@ class _SalesTargetAdminScreenState extends State<SalesTargetAdminScreen> {
               title: 'Chưa tải được chỉ tiêu',
               message: _error,
               actionLabel: 'Thử lại',
-              actionIcon: Icons.refresh_rounded,
+              actionIcon: PhosphorIconsRegular.arrowClockwise,
               onAction: _load,
             )
           else if (_items.isEmpty)
@@ -280,7 +281,7 @@ class _SalesTargetAdminScreenState extends State<SalesTargetAdminScreen> {
               alignment: Alignment.centerRight,
               child: AppPrimaryButton(
                 label: _saving ? 'Đang lưu...' : 'Lưu chỉ tiêu',
-                icon: Icons.save_outlined,
+                icon: PhosphorIconsRegular.floppyDisk,
                 onPressed: _saving ? null : _save,
               ),
             ),

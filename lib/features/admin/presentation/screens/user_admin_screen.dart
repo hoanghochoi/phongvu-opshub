@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:provider/provider.dart';
 import 'package:phongvu_opshub/app/widgets/app_toast.dart';
 
@@ -410,7 +411,7 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
                   AppFormTextInput(
                     controller: passwordController,
                     label: 'Mật khẩu mới',
-                    icon: Icons.lock_rounded,
+                    icon: PhosphorIconsRegular.lock,
                     obscureText: obscurePassword,
                     autofillHints: const [AutofillHints.newPassword],
                     suffixIcon: IconButton(
@@ -419,8 +420,8 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
                       ),
                       icon: Icon(
                         obscurePassword
-                            ? Icons.visibility_rounded
-                            : Icons.visibility_off_rounded,
+                            ? PhosphorIconsRegular.eye
+                            : PhosphorIconsRegular.eyeSlash,
                       ),
                     ),
                     validator: (value) =>
@@ -429,7 +430,7 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
                   AppFormTextInput(
                     controller: confirmController,
                     label: 'Nhập lại mật khẩu mới',
-                    icon: Icons.lock_reset_rounded,
+                    icon: PhosphorIconsRegular.password,
                     obscureText: obscureConfirm,
                     autofillHints: const [AutofillHints.newPassword],
                     suffixIcon: IconButton(
@@ -438,8 +439,8 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
                       ),
                       icon: Icon(
                         obscureConfirm
-                            ? Icons.visibility_rounded
-                            : Icons.visibility_off_rounded,
+                            ? PhosphorIconsRegular.eye
+                            : PhosphorIconsRegular.eyeSlash,
                       ),
                     ),
                     validator: (value) {
@@ -644,7 +645,7 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
         width: 150,
         child: AppSecondaryButton(
           onPressed: _resetFilters,
-          icon: Icons.filter_alt_off_outlined,
+          icon: PhosphorIconsRegular.funnelSimpleX,
           label: 'Xóa bộ lọc',
         ),
       ),
@@ -725,14 +726,14 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
                     children: [
                       AppSecondaryButton(
                         onPressed: _importing ? null : _importUsers,
-                        icon: Icons.upload_file_outlined,
+                        icon: PhosphorIconsRegular.fileArrowUp,
                         label: 'Nhập danh sách',
                         isLoading: _importing,
                         loadingLabel: 'Đang nhập dữ liệu',
                       ),
                       AppPrimaryButton(
                         onPressed: () => _openEditor(),
-                        icon: Icons.person_add_alt_1_outlined,
+                        icon: PhosphorIconsRegular.userPlus,
                         label: 'Thêm người dùng',
                       ),
                     ],
@@ -751,10 +752,10 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
                   controller: _searchController,
                   label: 'Tìm người dùng',
                   hintText: 'Tìm trực tiếp trong hệ thống',
-                  icon: Icons.search,
+                  icon: PhosphorIconsRegular.magnifyingGlass,
                   suffixIcon: AppIconAction(
                     onPressed: _loading ? null : _load,
-                    icon: Icons.refresh,
+                    icon: PhosphorIconsRegular.arrowClockwise,
                     tooltip: 'Tải lại danh sách',
                   ),
                   onSubmitted: (_) => _runSearchNow(),
@@ -772,9 +773,9 @@ class _UserAdminScreenState extends State<UserAdminScreen> {
                 ? AppStatePanel.empty(
                     title: 'Không tìm thấy người dùng',
                     message: 'Thử đổi từ khóa hoặc xóa bộ lọc hiện tại.',
-                    icon: Icons.person_search_outlined,
+                    icon: PhosphorIconsRegular.userFocus,
                     actionLabel: 'Xóa bộ lọc',
-                    actionIcon: Icons.filter_alt_off_outlined,
+                    actionIcon: PhosphorIconsRegular.funnelSimpleX,
                     onAction: _resetFilters,
                   )
                 : LayoutBuilder(
@@ -899,21 +900,21 @@ class _UserListItem extends StatelessWidget {
         if (canResetPassword) ...[
           AppIconAction(
             onPressed: onResetPassword,
-            icon: Icons.lock_reset_outlined,
+            icon: PhosphorIconsRegular.password,
             tooltip: 'Đặt lại mật khẩu',
           ),
           const SizedBox(width: 8),
         ],
         AppIconAction(
           onPressed: onEdit,
-          icon: Icons.edit_outlined,
+          icon: PhosphorIconsRegular.pencilSimple,
           tooltip: 'Sửa người dùng',
         ),
         if (canDelete) ...[
           const SizedBox(width: 8),
           AppIconAction(
             onPressed: onDelete,
-            icon: Icons.delete_outline,
+            icon: PhosphorIconsRegular.trash,
             tooltip: 'Xóa tài khoản đã khóa',
           ),
         ],
@@ -1034,10 +1035,10 @@ class _UserImportResultDialog extends StatelessWidget {
                         ),
                         leading: Icon(
                           row.welcomeEmailError?.isNotEmpty == true
-                              ? Icons.mark_email_unread_outlined
+                              ? PhosphorIconsRegular.envelopeSimpleOpen
                               : row.action == 'created'
-                              ? Icons.person_add_alt_1_outlined
-                              : Icons.manage_accounts_outlined,
+                              ? PhosphorIconsRegular.userPlus
+                              : PhosphorIconsRegular.userGear,
                           color: row.welcomeEmailError?.isNotEmpty == true
                               ? AppColors.errorOf(context)
                               : AppColors.successOf(context),
@@ -1336,7 +1337,7 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
                   dense: true,
                   contentPadding: const EdgeInsets.symmetric(horizontal: 10),
                   leading: Icon(
-                    Icons.check_circle_outline,
+                    PhosphorIconsRegular.checkCircle,
                     color: AppColors.successOf(context),
                     size: 18,
                   ),
@@ -1590,7 +1591,7 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
                     AppTextInput(
                       controller: searchController,
                       label: 'Tìm đơn vị, mã showroom, tên miền',
-                      icon: Icons.search_rounded,
+                      icon: PhosphorIconsRegular.magnifyingGlass,
                       autofocus: true,
                       onChanged: (value) => setDialogState(() => query = value),
                     ),
@@ -1635,7 +1636,7 @@ class _UserEditorDialogState extends State<_UserEditorDialog> {
                                   context,
                                 ),
                                 secondary: Icon(
-                                  Icons.public_rounded,
+                                  PhosphorIconsRegular.globe,
                                   color: AppColors.primaryOf(context),
                                 ),
                                 title: Text(
@@ -1934,7 +1935,7 @@ class _OrganizationNodeSelector extends StatelessWidget {
       child: InputDecorator(
         decoration: appInputDecoration(
           label: label,
-          suffixIcon: const Icon(Icons.search_rounded),
+          suffixIcon: const Icon(PhosphorIconsRegular.magnifyingGlass),
         ),
         child: Row(
           children: [

@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -572,7 +573,7 @@ class _NotPurchasedCustomersScreenState
               final search = AppTextInput(
                 controller: _searchController,
                 label: 'Tìm theo tên, điện thoại hoặc Zalo',
-                icon: Icons.search_rounded,
+                icon: PhosphorIconsRegular.magnifyingGlass,
                 onChanged: _searchChanged,
               );
               final filters = _FollowUpStatusTabs(
@@ -610,7 +611,7 @@ class _NotPurchasedCustomersScreenState
                                 ? 'Đang tải danh sách showroom'
                                 : 'Tất cả showroom',
                             helperText: _storeError,
-                            icon: Icons.storefront_outlined,
+                            icon: PhosphorIconsRegular.storefront,
                             enabled: !_storeLoading,
                             options: _storeOptions,
                             onChanged: (value) {
@@ -634,7 +635,9 @@ class _NotPurchasedCustomersScreenState
                               onPressed: _storeLoading
                                   ? null
                                   : () => unawaited(_loadSuperAdminStores()),
-                              icon: const Icon(Icons.refresh_rounded),
+                              icon: const Icon(
+                                PhosphorIconsRegular.arrowsClockwise,
+                              ),
                             ),
                           ),
                         ],
@@ -864,7 +867,7 @@ class _PageHeader extends StatelessWidget {
           if (onExportHistory != null)
             AppSecondaryButton(
               onPressed: onExportHistory,
-              icon: Icons.download_rounded,
+              icon: PhosphorIconsRegular.downloadSimple,
               label: 'Tải lịch sử chăm sóc',
               isLoading: exportingHistory,
               loadingLabel: 'Đang tạo file...',
@@ -882,6 +885,45 @@ class _PageHeader extends StatelessWidget {
             ),
         ],
       );
+      final compactActions = Row(
+        children: [
+          if (onExportHistory != null)
+            Flexible(
+              flex: onImport == null ? 1 : 211,
+              fit: onImport == null ? FlexFit.loose : FlexFit.tight,
+              child: SizedBox(
+                width: onImport == null ? 211 : double.infinity,
+                height: 48,
+                child: AppSecondaryButton(
+                  onPressed: onExportHistory,
+                  icon: PhosphorIconsRegular.downloadSimple,
+                  label: 'Tải lịch sử chăm sóc',
+                  isLoading: exportingHistory,
+                  loadingLabel: 'Đang tạo file...',
+                  expand: true,
+                  size: AppButtonSize.medium,
+                  height: 48,
+                  textStyle: AppTextStyles.labelM,
+                ),
+              ),
+            ),
+          if (onExportHistory != null && onImport != null)
+            const SizedBox(width: 8),
+          if (onImport != null)
+            Expanded(
+              flex: onExportHistory == null ? 1 : 124,
+              child: SizedBox(
+                height: 48,
+                child: AppPrimaryButton(
+                  onPressed: onImport,
+                  label: 'Nhập Excel',
+                  size: AppButtonSize.medium,
+                  height: 48,
+                ),
+              ),
+            ),
+        ],
+      );
       if (compact) {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -889,7 +931,7 @@ class _PageHeader extends StatelessWidget {
             summary,
             if (onExportHistory != null || onImport != null) ...[
               const SizedBox(height: 12),
-              Align(alignment: Alignment.centerRight, child: actions),
+              compactActions,
             ],
           ],
         );
@@ -941,23 +983,23 @@ class _FollowUpCard extends StatelessWidget {
               ),
               AppLinkButton(
                 onPressed: onTap,
-                icon: Icons.open_in_new_rounded,
+                icon: PhosphorIconsRegular.arrowSquareOut,
                 label: 'Mở hồ sơ',
                 compact: true,
               ),
             ],
           ),
           const SizedBox(height: 6),
-          _InfoLine(icon: Icons.call_outlined, text: contact),
+          _InfoLine(icon: PhosphorIconsRegular.phone, text: contact),
           _InfoLine(
-            icon: Icons.category_outlined,
+            icon: PhosphorIconsRegular.shapes,
             text: item.categoryNames.isEmpty
                 ? 'Chưa có ngành hàng'
                 : item.categoryNames.join(', '),
           ),
           if (showStore && (item.storeCode ?? '').trim().isNotEmpty)
             _InfoLine(
-              icon: Icons.storefront_outlined,
+              icon: PhosphorIconsRegular.storefront,
               text: 'Mã showroom: ${item.storeCode}',
             ),
           const SizedBox(height: 10),
@@ -1248,7 +1290,7 @@ class _FollowUpCaseDialogState extends State<_FollowUpCaseDialog> {
                               _purchaseMode = false;
                               _outcome = _outcomeNotPurchased;
                             }),
-                            icon: Icons.arrow_back_rounded,
+                            icon: PhosphorIconsRegular.arrowLeft,
                             label: 'Quay lại lịch sử chăm sóc',
                           ),
                         ),
@@ -1326,7 +1368,7 @@ class _FollowUpCaseDialogState extends State<_FollowUpCaseDialog> {
                       else if (_case.canReopen)
                         AppPrimaryButton(
                           onPressed: _saving ? null : _reopen,
-                          icon: Icons.unarchive_outlined,
+                          icon: PhosphorIconsRegular.trayArrowUp,
                           label: 'Mở lại để tiếp tục chăm sóc',
                           isLoading: _saving,
                         ),
@@ -1372,7 +1414,7 @@ class _DialogHeader extends StatelessWidget {
             borderRadius: BorderRadius.circular(12),
           ),
           child: Icon(
-            Icons.person_search_rounded,
+            PhosphorIconsRegular.userFocus,
             color: _careColor(context, item.careAgeDays),
           ),
         ),
@@ -1408,7 +1450,7 @@ class _DialogHeader extends StatelessWidget {
         IconButton(
           tooltip: 'Liên hệ khách hàng',
           onPressed: busy ? null : onContact,
-          icon: const Icon(Icons.call_outlined),
+          icon: const Icon(PhosphorIconsRegular.phone),
         ),
         if (onAssign != null && item.assignmentCandidates.isNotEmpty)
           PopupMenuButton<String>(
@@ -1426,12 +1468,12 @@ class _DialogHeader extends StatelessWidget {
                   ),
                 ),
             ],
-            icon: const Icon(Icons.assignment_ind_outlined),
+            icon: const Icon(PhosphorIconsRegular.identificationCard),
           ),
         IconButton(
           tooltip: 'Đóng',
           onPressed: busy ? null : onClose,
-          icon: const Icon(Icons.close_rounded),
+          icon: const Icon(PhosphorIconsRegular.x),
         ),
       ],
     ),
@@ -1533,28 +1575,28 @@ class _NewFollowUpCard extends StatelessWidget {
             _OutcomeChip(
               value: _outcomePurchased,
               label: 'Mua hàng',
-              icon: Icons.shopping_cart_checkout_rounded,
+              icon: PhosphorIconsRegular.shoppingCart,
               selected: outcome == _outcomePurchased,
               onSelected: onOutcomeChanged,
             ),
             _OutcomeChip(
               value: _outcomeNotPurchased,
               label: 'Chưa mua',
-              icon: Icons.schedule_rounded,
+              icon: PhosphorIconsRegular.clock,
               selected: outcome == _outcomeNotPurchased,
               onSelected: onOutcomeChanged,
             ),
             _OutcomeChip(
               value: _outcomePurchasedElsewhere,
               label: 'Đã mua nơi khác',
-              icon: Icons.store_mall_directory_outlined,
+              icon: PhosphorIconsRegular.storefront,
               selected: outcome == _outcomePurchasedElsewhere,
               onSelected: onOutcomeChanged,
             ),
             _OutcomeChip(
               value: _outcomeNoLongerInterested,
               label: 'Hết nhu cầu',
-              icon: Icons.do_not_disturb_alt_outlined,
+              icon: PhosphorIconsRegular.prohibit,
               selected: outcome == _outcomeNoLongerInterested,
               onSelected: onOutcomeChanged,
             ),
@@ -1564,7 +1606,7 @@ class _NewFollowUpCard extends StatelessWidget {
           const SizedBox(height: 14),
           AppCombobox<String>.single(
             label: 'Lý do chưa mua hàng',
-            icon: Icons.help_outline_rounded,
+            icon: PhosphorIconsRegular.question,
             value: reason,
             allowClear: false,
             enabled: !saving,
@@ -1579,7 +1621,7 @@ class _NewFollowUpCard extends StatelessWidget {
             AppTextInput(
               controller: otherReasonController,
               label: 'Nhập lý do khác',
-              icon: Icons.edit_note_rounded,
+              icon: PhosphorIconsRegular.notePencil,
               maxLines: 3,
             ),
           ],
@@ -1587,7 +1629,7 @@ class _NewFollowUpCard extends StatelessWidget {
         const SizedBox(height: 16),
         AppPrimaryButton(
           onPressed: saving ? null : onSave,
-          icon: Icons.save_outlined,
+          icon: PhosphorIconsRegular.floppyDisk,
           label: 'Lưu lần chăm sóc',
           isLoading: saving,
           loadingLabel: 'Đang lưu...',
@@ -1668,7 +1710,7 @@ Future<void> _contactCustomer(
             mainAxisSize: MainAxisSize.min,
             children: [
               ListTile(
-                leading: const Icon(Icons.call_outlined),
+                leading: const Icon(PhosphorIconsRegular.phone),
                 title: const Text('Gọi điện thoại'),
                 subtitle: Text(phone),
                 onTap: () async {
@@ -1678,7 +1720,7 @@ Future<void> _contactCustomer(
               ),
               if (item.hasPersonalZalo)
                 ListTile(
-                  leading: const Icon(Icons.chat_bubble_outline_rounded),
+                  leading: const Icon(PhosphorIconsRegular.chatCircle),
                   title: const Text('Mở Zalo cá nhân'),
                   subtitle: Text(phone),
                   onTap: () async {
@@ -1692,7 +1734,7 @@ Future<void> _contactCustomer(
                 ),
               if (item.hasZaloOa)
                 ListTile(
-                  leading: const Icon(Icons.forum_outlined),
+                  leading: const Icon(PhosphorIconsRegular.chatsCircle),
                   title: const Text('Khách có kênh Zalo OA'),
                   subtitle: const Text('Liên hệ qua Zalo OA của showroom'),
                   onTap: () {

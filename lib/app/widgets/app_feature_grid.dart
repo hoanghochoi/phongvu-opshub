@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 import '../theme/app_radius.dart';
 import '../theme/app_colors.dart';
@@ -182,7 +183,7 @@ class AppFeatureTile extends StatelessWidget {
                 ),
                 const SizedBox(width: 12),
                 Icon(
-                  Icons.chevron_right_rounded,
+                  PhosphorIconsRegular.caretRight,
                   size: 20,
                   color: AppColors.primaryOf(context),
                 ),

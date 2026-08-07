@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../app/widgets/app_cards.dart';
@@ -49,13 +50,13 @@ class _PaymentMonitorUnsupportedScreenState
           AppSurfaceCard(
             key: const Key('payment-monitor-unsupported-card'),
             child: AppStatePanel(
-              icon: Icons.web_asset_off_outlined,
+              icon: PhosphorIconsRegular.browser,
               title: 'Chưa hỗ trợ trên web',
               message:
                   'Web chỉ dùng để xem danh sách tiền vào. Muốn bật đọc loa, hãy dùng app Android, iOS, iPadOS hoặc Windows.',
               tone: AppStateTone.warning,
               actionLabel: 'Về trang chủ',
-              actionIcon: Icons.home_rounded,
+              actionIcon: PhosphorIconsRegular.house,
               onAction: () => context.go('/home'),
             ),
           ),

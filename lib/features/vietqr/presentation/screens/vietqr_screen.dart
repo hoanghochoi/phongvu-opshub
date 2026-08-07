@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
@@ -1399,7 +1400,7 @@ class _VietQrScreenState extends State<VietQrScreen>
         title: 'Chưa tải được danh sách showroom',
         message: _storeOptionsErrorMessage!,
         actionLabel: 'Thử lại',
-        actionIcon: Icons.refresh_rounded,
+        actionIcon: PhosphorIconsRegular.arrowClockwise,
         onAction: () => unawaited(_syncAccessibleStoreOptions(user)),
         compact: true,
       );
@@ -1421,7 +1422,7 @@ class _VietQrScreenState extends State<VietQrScreen>
         label: 'Mã showroom',
         value: selectedStoreCode,
         hintText: 'Chọn showroom tạo QR',
-        icon: Icons.store_outlined,
+        icon: PhosphorIconsRegular.storefront,
         options: storeOptions
             .map(
               (store) => AppComboboxOption<String>(
@@ -1446,7 +1447,7 @@ class _VietQrScreenState extends State<VietQrScreen>
     return AppFormTextInput(
       controller: _storeCodeController,
       label: 'Mã showroom',
-      icon: Icons.store_outlined,
+      icon: PhosphorIconsRegular.storefront,
       readOnly: true,
       validator: (value) {
         if (value == null || value.trim().isEmpty) {
@@ -1529,7 +1530,7 @@ class _VietQrScreenState extends State<VietQrScreen>
             controller: _amountController,
             label: 'Số tiền',
             hintText: 'Để trống nếu người chuyển tự nhập',
-            icon: Icons.payments_outlined,
+            icon: PhosphorIconsRegular.money,
             suffixText: 'VND',
             keyboardType: TextInputType.number,
             inputFormatters: [FilteringTextInputFormatter.digitsOnly],
@@ -1550,11 +1551,11 @@ class _VietQrScreenState extends State<VietQrScreen>
             controller: _orderCodeController,
             label: 'Mã đơn / nội dung',
             hintText: 'Có thể để trống để người chuyển tự nhập',
-            icon: Icons.receipt_long_outlined,
+            icon: PhosphorIconsRegular.receipt,
             suffixIcon: AppIconAction(
               tooltip: 'Quét mã đơn',
               onPressed: _isLoading ? null : _scanOrderCode,
-              icon: Icons.qr_code_scanner_rounded,
+              icon: PhosphorIconsRegular.scan,
             ),
             textCapitalization: TextCapitalization.characters,
           ),
@@ -1565,13 +1566,13 @@ class _VietQrScreenState extends State<VietQrScreen>
             controller: _previewContentController,
             label: 'Nội dung chuyển khoản',
             hintText: 'Người chuyển tự nhập nếu ô này trống',
-            icon: Icons.lock_outline,
+            icon: PhosphorIconsRegular.lock,
             readOnly: true,
           ),
           const SizedBox(height: AppLayoutTokens.formSectionGap),
           AppPrimaryButton(
             onPressed: _createQr,
-            icon: Icons.qr_code_2_rounded,
+            icon: PhosphorIconsRegular.qrCode,
             label: 'Tạo mã QR',
             isLoading: _isLoading,
             loadingLabel: 'Đang tạo...',
@@ -1602,14 +1603,14 @@ class _VietQrScreenState extends State<VietQrScreen>
           )
         else if (expired)
           AppStatusBanner(
-            icon: Icons.schedule_rounded,
+            icon: PhosphorIconsRegular.clock,
             title: 'QR đã hết hạn 15 phút',
             message: 'Hãy tạo mã mới để tiếp tục.',
             tone: AppStateTone.warning,
           )
         else
           AppStatusBanner(
-            icon: Icons.timelapse_rounded,
+            icon: PhosphorIconsRegular.timer,
             title: 'QR còn hạn đến $expiryLabel',
             message:
                 'Mã này vẫn xem lại được từ lịch sử trong thời gian còn hạn.',
@@ -1633,7 +1634,7 @@ class _VietQrScreenState extends State<VietQrScreen>
           const SizedBox(height: 16),
           AppPrimaryButton(
             onPressed: _confirmPayment,
-            icon: Icons.sync_rounded,
+            icon: PhosphorIconsRegular.arrowsClockwise,
             label: 'Kiểm tra ngay',
             isLoading: _isCheckingPayment,
             loadingLabel: 'Đang kiểm tra...',
@@ -1641,7 +1642,7 @@ class _VietQrScreenState extends State<VietQrScreen>
           const SizedBox(height: 10),
           AppPrimaryButton(
             onPressed: _saveQrImage,
-            icon: Icons.download_rounded,
+            icon: PhosphorIconsRegular.downloadSimple,
             label: 'Tải ảnh QR',
             isLoading: _isSaving,
             loadingLabel: 'Đang lưu...',
@@ -1650,13 +1651,13 @@ class _VietQrScreenState extends State<VietQrScreen>
         ],
         AppSecondaryButton(
           onPressed: _createNewQr,
-          icon: Icons.add_rounded,
+          icon: PhosphorIconsRegular.plus,
           label: 'Tạo mã mới',
         ),
         const SizedBox(height: 10),
         AppSecondaryButton(
           onPressed: () => context.pop(),
-          icon: Icons.arrow_back_rounded,
+          icon: PhosphorIconsRegular.arrowLeft,
           label: 'Quay lại',
         ),
       ],
@@ -1754,7 +1755,7 @@ class _VietQrScreenState extends State<VietQrScreen>
               title: 'Chưa tải được lịch sử',
               message: _historyErrorMessage!,
               actionLabel: 'Thử lại',
-              actionIcon: Icons.refresh_rounded,
+              actionIcon: PhosphorIconsRegular.arrowClockwise,
               onAction: historyScope.isEmpty
                   ? null
                   : () => unawaited(_loadHistory(historyScope)),
@@ -1883,7 +1884,7 @@ class _VietQrScreenState extends State<VietQrScreen>
                     if (canOpen) ...[
                       const SizedBox(width: 8),
                       Icon(
-                        Icons.chevron_right_rounded,
+                        PhosphorIconsRegular.caretRight,
                         color: AppColors.primaryOf(context),
                       ),
                     ],
@@ -1901,7 +1902,7 @@ class _VietQrScreenState extends State<VietQrScreen>
               if (canOpen) ...[
                 const SizedBox(width: 8),
                 Icon(
-                  Icons.chevron_right_rounded,
+                  PhosphorIconsRegular.caretRight,
                   color: AppColors.primaryOf(context),
                 ),
               ],
@@ -1929,12 +1930,12 @@ class _VietQrScreenState extends State<VietQrScreen>
         children: [
           Icon(
             tone == AppStateTone.success
-                ? Icons.check_circle_rounded
+                ? PhosphorIconsRegular.checkCircle
                 : tone == AppStateTone.warning
-                ? Icons.schedule_rounded
+                ? PhosphorIconsRegular.clock
                 : tone == AppStateTone.error
-                ? Icons.error_outline_rounded
-                : Icons.timelapse_rounded,
+                ? PhosphorIconsRegular.warningCircle
+                : PhosphorIconsRegular.timer,
             size: 14,
             color: tone.colorOf(context),
           ),
@@ -2000,16 +2001,16 @@ class _VietQrScreenState extends State<VietQrScreen>
   }
 
   IconData _historyStatusIcon(VietQrHistoryEntry entry, DateTime now) {
-    if (entry.isConfirmed) return Icons.check_circle_rounded;
+    if (entry.isConfirmed) return PhosphorIconsRegular.checkCircle;
     final statusCode = entry.statusCode(now);
     return switch (statusCode) {
-      'EXPIRED' => Icons.schedule_rounded,
-      'AMBIGUOUS' => Icons.warning_amber_rounded,
-      'NOT_FOUND' => Icons.search_off_rounded,
-      'MANUAL_REVIEW' => Icons.info_outline_rounded,
-      'FAILED' => Icons.error_outline_rounded,
-      'PENDING' => Icons.timelapse_rounded,
-      _ => Icons.timelapse_rounded,
+      'EXPIRED' => PhosphorIconsRegular.clock,
+      'AMBIGUOUS' => PhosphorIconsRegular.warning,
+      'NOT_FOUND' => PhosphorIconsRegular.magnifyingGlassMinus,
+      'MANUAL_REVIEW' => PhosphorIconsRegular.info,
+      'FAILED' => PhosphorIconsRegular.warningCircle,
+      'PENDING' => PhosphorIconsRegular.timer,
+      _ => PhosphorIconsRegular.timer,
     };
   }
 

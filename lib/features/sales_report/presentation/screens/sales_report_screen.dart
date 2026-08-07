@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:provider/provider.dart';
 import 'package:phongvu_opshub/app/widgets/app_toast.dart';
 
@@ -422,7 +423,7 @@ class _SalesReportCockpitState extends State<_SalesReportCockpit> {
             SizedBox(height: wide ? 16 : 12),
             if (provider.errorMessage != null) ...[
               AppStatusBanner(
-                icon: Icons.error_outline_rounded,
+                icon: PhosphorIconsRegular.warningCircle,
                 title: 'Chưa tải đủ dữ liệu',
                 message: provider.errorMessage!,
                 tone: AppStateTone.error,
@@ -580,7 +581,7 @@ class _SalesReportControls extends StatelessWidget {
                 label: 'Showroom',
                 value: provider.ordersStoreCode,
                 emptyLabel: 'Tất cả showroom',
-                icon: Icons.store_outlined,
+                icon: PhosphorIconsRegular.storefront,
                 options: provider.orderStoreOptions
                     .map(
                       (option) => AppComboboxOption<String>(
@@ -603,7 +604,7 @@ class _SalesReportControls extends StatelessWidget {
                 label: 'Nhân viên',
                 value: provider.ordersUserEmail,
                 emptyLabel: 'Tất cả nhân viên',
-                icon: Icons.person_outline_rounded,
+                icon: PhosphorIconsRegular.user,
                 options: provider.orderUserOptions
                     .map(
                       (option) => AppComboboxOption<String>(
@@ -625,7 +626,7 @@ class _SalesReportControls extends StatelessWidget {
           message: 'Tải lại danh sách',
           child: AppSecondaryButton(
             onPressed: provider.isLoadingOrders ? null : onReload,
-            icon: Icons.refresh_rounded,
+            icon: PhosphorIconsRegular.arrowsClockwise,
             label: 'Tải lại',
             isLoading: provider.isLoadingOrders,
             size: AppButtonSize.medium,
@@ -642,7 +643,7 @@ class _SalesReportControls extends StatelessWidget {
           height: 40,
           child: AppSecondaryButton(
             onPressed: provider.isLoadingOrders ? null : onOpenAdvancedFilters,
-            icon: Icons.filter_alt_outlined,
+            icon: PhosphorIconsRegular.funnel,
             label: filterActive ? 'Lọc ($activeFilterCount)' : 'Lọc',
             size: AppButtonSize.small,
             height: 40,
@@ -668,6 +669,9 @@ class _SalesReportControls extends StatelessWidget {
               label: label,
               size: AppButtonSize.medium,
               textStyle: AppTextStyles.labelM,
+              padding: compact
+                  ? const EdgeInsets.symmetric(horizontal: 12)
+                  : null,
             ),
           );
         }
@@ -720,18 +724,23 @@ class _SalesReportControls extends StatelessWidget {
             ? compact
                   ? Row(
                       key: const Key('sales-report-manual-actions'),
-                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        actionButton(
-                          label: 'Báo cáo mua thủ công',
-                          onPressed: onPurchased,
-                          width: 181,
+                        Expanded(
+                          flex: 181,
+                          child: actionButton(
+                            label: 'Báo cáo mua thủ công',
+                            onPressed: onPurchased,
+                            width: double.infinity,
+                          ),
                         ),
                         const SizedBox(width: 8),
-                        actionButton(
-                          label: 'Báo cáo chưa mua',
-                          onPressed: onNotPurchased,
-                          width: 154,
+                        Expanded(
+                          flex: 154,
+                          child: actionButton(
+                            label: 'Báo cáo chưa mua',
+                            onPressed: onNotPurchased,
+                            width: double.infinity,
+                          ),
                         ),
                       ],
                     )
@@ -768,17 +777,7 @@ class _SalesReportControls extends StatelessWidget {
                 padding: EdgeInsets.symmetric(horizontal: compact ? 16 : 0),
                 child: dateRangeFilter,
               ),
-              if (canSubmitReports) ...[
-                const SizedBox(height: 12),
-                if (compact)
-                  SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    physics: const NeverScrollableScrollPhysics(),
-                    child: actions,
-                  )
-                else
-                  actions,
-              ],
+              if (canSubmitReports) ...[const SizedBox(height: 12), actions],
               if (isManagedScope) ...[
                 const SizedBox(height: 12),
                 Align(
@@ -843,7 +842,7 @@ class _ReadonlyFilterField extends StatelessWidget {
                     ),
                   ),
                   Icon(
-                    Icons.keyboard_arrow_down_rounded,
+                    PhosphorIconsRegular.caretDown,
                     size: 24,
                     color: AppColors.textSecondaryOf(context),
                   ),
@@ -891,7 +890,7 @@ class _AdvancedFilterSheet extends StatelessWidget {
                   IconButton(
                     tooltip: 'Đóng bộ lọc',
                     onPressed: () => Navigator.of(context).pop(false),
-                    icon: const Icon(Icons.close_rounded),
+                    icon: const Icon(PhosphorIconsRegular.x),
                   ),
                 ],
               ),
@@ -910,7 +909,7 @@ class _AdvancedFilterSheet extends StatelessWidget {
                   label: 'Showroom',
                   value: provider.ordersStoreCode,
                   emptyLabel: 'Tất cả',
-                  icon: Icons.store_outlined,
+                  icon: PhosphorIconsRegular.storefront,
                   options: provider.orderStoreOptions
                       .map(
                         (option) => AppComboboxOption<String>(
@@ -938,7 +937,7 @@ class _AdvancedFilterSheet extends StatelessWidget {
                   label: 'Nhân viên',
                   value: provider.ordersUserEmail,
                   emptyLabel: 'Tất cả',
-                  icon: Icons.person_outline_rounded,
+                  icon: PhosphorIconsRegular.user,
                   options: provider.orderUserOptions
                       .map(
                         (option) => AppComboboxOption<String>(
@@ -959,7 +958,7 @@ class _AdvancedFilterSheet extends StatelessWidget {
               const SizedBox(height: AppLayoutTokens.sectionGap),
               AppPrimaryButton(
                 onPressed: () => Navigator.of(context).pop(true),
-                icon: Icons.check_rounded,
+                icon: PhosphorIconsRegular.check,
                 label: 'Áp dụng',
               ),
             ],
@@ -1777,8 +1776,8 @@ class _SalesReportFormScreenState extends State<SalesReportFormScreen> {
       title: title,
       subtitle: '',
       icon: _isPurchased
-          ? Icons.receipt_long_outlined
-          : Icons.person_search_outlined,
+          ? PhosphorIconsRegular.receipt
+          : PhosphorIconsRegular.userFocus,
       chips: [
         AppStatusChip(
           label: _isPurchased ? 'Mua hàng' : 'Chưa mua hàng',
@@ -1826,7 +1825,7 @@ class _SalesReportFormScreenState extends State<SalesReportFormScreen> {
             ),
           if (provider.errorMessage != null)
             AppStatusBanner(
-              icon: Icons.error_outline_rounded,
+              icon: PhosphorIconsRegular.warningCircle,
               title: 'Chưa thực hiện được',
               message: provider.errorMessage!,
               tone: AppStateTone.error,
@@ -1947,7 +1946,7 @@ class _SalesReportFormScreenState extends State<SalesReportFormScreen> {
                     !canEditReportBody
                 ? null
                 : _submit,
-            icon: Icons.send_rounded,
+            icon: PhosphorIconsRegular.paperPlaneTilt,
             label: 'Gửi báo cáo',
             isLoading: provider.isSubmitting,
             loadingLabel: 'Đang gửi...',
@@ -2094,7 +2093,7 @@ class _OrderCheckCard extends StatelessWidget {
                 ),
               );
               final scan = AppIconAction(
-                icon: Icons.qr_code_scanner_rounded,
+                icon: PhosphorIconsRegular.scan,
                 onPressed: checked || provider.isCheckingOrder ? null : onScan,
                 tooltip: 'Quét mã đơn hàng',
                 dimension: scanSize,
@@ -2102,7 +2101,7 @@ class _OrderCheckCard extends StatelessWidget {
               final action = AppIconAction(
                 key: const ValueKey('sales-report-order-check-action'),
                 onPressed: checked ? onCheckAnother : onCheck,
-                icon: Icons.search_rounded,
+                icon: PhosphorIconsRegular.magnifyingGlass,
                 tooltip: checked ? 'Kiểm tra đơn khác' : 'Kiểm tra đơn hàng',
                 isLoading: provider.isCheckingOrder,
                 filled: true,
@@ -2210,7 +2209,7 @@ class _OrderSummaryCard extends StatelessWidget {
           Row(
             children: [
               Icon(
-                Icons.verified_outlined,
+                PhosphorIconsRegular.sealCheck,
                 color: AppColors.successOf(context),
               ),
               SizedBox(width: 8),
@@ -2288,7 +2287,7 @@ class _CustomerSection extends StatelessWidget {
             key: const ValueKey('sales-report-customer-name-field'),
             controller: nameController,
             label: 'Tên khách hàng',
-            icon: Icons.person_outline_rounded,
+            icon: PhosphorIconsRegular.user,
             textCapitalization: TextCapitalization.words,
             maxLength: 120,
             counterText: '',
@@ -2301,7 +2300,7 @@ class _CustomerSection extends StatelessWidget {
             key: const ValueKey('sales-report-customer-phone-field'),
             controller: phoneController,
             label: 'Số điện thoại khách hàng',
-            icon: Icons.phone_outlined,
+            icon: PhosphorIconsRegular.phone,
             keyboardType: isPurchased
                 ? TextInputType.phone
                 : TextInputType.number,
@@ -2339,7 +2338,7 @@ class _CustomerSection extends StatelessWidget {
             AppFormTextInput(
               controller: zaloContactController,
               label: 'Zalo cá nhân của khách hàng',
-              icon: Icons.chat_bubble_outline_rounded,
+              icon: PhosphorIconsRegular.chatCircle,
               maxLength: 120,
               counterText: '',
               helperText:
@@ -2375,7 +2374,7 @@ class _CustomerSection extends StatelessWidget {
             key: const ValueKey('sales-report-customer-need-field'),
             controller: needController,
             label: 'Khách hàng tìm sản phẩm gì?',
-            icon: Icons.search_outlined,
+            icon: PhosphorIconsRegular.magnifyingGlass,
             minLines: 2,
             maxLines: 4,
             maxLength: _customerNeedMaxLength,
@@ -2408,7 +2407,7 @@ class _CustomerContactChannelPicker extends StatelessWidget {
     return InputDecorator(
       decoration: appInputDecoration(
         label: 'Kênh liên hệ Zalo',
-        icon: Icons.chat_bubble_outline_rounded,
+        icon: PhosphorIconsRegular.chatCircle,
         helperText: 'Có thể chọn một, cả hai hoặc để trống.',
       ).copyWith(alignLabelWithHint: true),
       child: Column(
@@ -2472,7 +2471,7 @@ class _CustomerTypePicker extends StatelessWidget {
         return InputDecorator(
           decoration: appInputDecoration(
             label: 'Loại khách hàng',
-            icon: Icons.badge_outlined,
+            icon: PhosphorIconsRegular.identificationBadge,
             errorText: field.errorText,
           ).copyWith(alignLabelWithHint: true),
           child: Column(
@@ -2542,7 +2541,7 @@ class _PromotionPicker extends StatelessWidget {
       builder: (field) => InputDecorator(
         decoration: appInputDecoration(
           label: isRequired ? 'CTKM áp dụng *' : 'CTKM áp dụng',
-          icon: Icons.local_offer_outlined,
+          icon: PhosphorIconsRegular.tag,
           errorText: field.errorText,
         ).copyWith(alignLabelWithHint: true),
         child: Column(
@@ -2600,7 +2599,7 @@ class _CategoryMultiPicker extends StatelessWidget {
           decoration:
               appInputDecoration(
                 label: 'Ngành hàng',
-                icon: isLoading ? null : Icons.category_outlined,
+                icon: isLoading ? null : PhosphorIconsRegular.shapes,
                 errorText: errorText,
               ).copyWith(
                 alignLabelWithHint: true,
@@ -2612,7 +2611,7 @@ class _CategoryMultiPicker extends StatelessWidget {
                           child: CircularProgressIndicator(strokeWidth: 2),
                         ),
                       )
-                    : const Icon(Icons.category_outlined),
+                    : const Icon(PhosphorIconsRegular.shapes),
               ),
           child: categories.isEmpty
               ? Text(
@@ -2719,7 +2718,7 @@ class _InstallmentSection extends StatelessWidget {
               key: const ValueKey('sales-report-installment-loan-amount'),
               controller: loanController,
               label: 'Số tiền vay',
-              icon: Icons.payments_outlined,
+              icon: PhosphorIconsRegular.money,
               keyboardType: TextInputType.number,
               inputFormatters: [VietnameseThousandsSeparatorInputFormatter()],
               suffixText: 'VND',
@@ -2762,7 +2761,7 @@ class _InstallmentApprovalPicker extends StatelessWidget {
         return InputDecorator(
           decoration: appInputDecoration(
             label: 'Hồ sơ được duyệt không',
-            icon: Icons.fact_check_outlined,
+            icon: PhosphorIconsRegular.clipboardText,
             errorText: field.errorText,
           ).copyWith(alignLabelWithHint: true),
           child: Column(
@@ -2813,7 +2812,7 @@ class _InstallmentNoReasonPicker extends StatelessWidget {
         return InputDecorator(
           decoration: appInputDecoration(
             label: 'Lý do không trả góp',
-            icon: Icons.report_problem_outlined,
+            icon: PhosphorIconsRegular.warning,
             errorText: field.errorText,
           ).copyWith(alignLabelWithHint: true),
           child: Column(
@@ -2868,7 +2867,7 @@ class _InstallmentPartnerPicker extends StatelessWidget {
         return InputDecorator(
           decoration: appInputDecoration(
             label: 'Đối tác trả góp',
-            icon: Icons.account_balance_outlined,
+            icon: PhosphorIconsRegular.bank,
             errorText: field.errorText,
           ).copyWith(alignLabelWithHint: true),
           child: Column(
@@ -3007,7 +3006,7 @@ class _AnswerDropdown extends StatelessWidget {
             return InputDecorator(
               decoration: appInputDecoration(
                 label: label,
-                icon: Icons.checklist_outlined,
+                icon: PhosphorIconsRegular.listChecks,
                 errorText: field.errorText,
               ).copyWith(alignLabelWithHint: true),
               child: Column(
@@ -3077,7 +3076,7 @@ class _NotPurchasedSection extends StatelessWidget {
               return InputDecorator(
                 decoration: appInputDecoration(
                   label: 'Lý do KH không mua hàng',
-                  icon: Icons.help_outline_rounded,
+                  icon: PhosphorIconsRegular.question,
                   errorText: field.errorText,
                 ).copyWith(alignLabelWithHint: true),
                 child: Column(

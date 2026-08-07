@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:phongvu_opshub/app/navigation/app_shell.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:phongvu_opshub/app/widgets/app_feature_grid.dart';
@@ -157,7 +158,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Loa đang bật'), findsOneWidget);
-      expect(find.byIcon(Icons.volume_up), findsOneWidget);
+      expect(find.byIcon(PhosphorIconsRegular.speakerHigh), findsOneWidget);
       expect(
         tester.getSize(find.byKey(const Key('home-speaker-status-toggle'))),
         const Size(152, 40),
@@ -183,7 +184,7 @@ void main() {
       expect(paymentProvider.speakerToggleCalls, 1);
       expect(paymentProvider.lastSpeakerValue, isFalse);
       expect(find.text('Loa đang tắt'), findsOneWidget);
-      expect(find.byIcon(Icons.volume_off), findsOneWidget);
+      expect(find.byIcon(PhosphorIconsRegular.speakerSlash), findsOneWidget);
       debugDefaultTargetPlatformOverride = null;
     },
   );
@@ -251,7 +252,7 @@ void main() {
 
     expect(find.byKey(const Key('home-summary-header')), findsOneWidget);
     expect(find.text('Loa đang bật'), findsOneWidget);
-    expect(find.byIcon(Icons.volume_up), findsOneWidget);
+    expect(find.byIcon(PhosphorIconsRegular.speakerHigh), findsOneWidget);
     expect(
       tester.getSize(find.byKey(const Key('home-speaker-status-toggle'))),
       const Size(152, 40),
@@ -269,7 +270,7 @@ void main() {
     expect(paymentProvider.speakerToggleCalls, 1);
     expect(paymentProvider.lastSpeakerValue, isFalse);
     expect(find.text('Loa đang tắt'), findsOneWidget);
-    expect(find.byIcon(Icons.volume_off), findsOneWidget);
+    expect(find.byIcon(PhosphorIconsRegular.speakerSlash), findsOneWidget);
     debugDefaultTargetPlatformOverride = null;
   });
 

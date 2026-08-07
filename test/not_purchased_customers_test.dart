@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:phongvu_opshub/app/widgets/app_buttons.dart';
 import 'package:provider/provider.dart';
 import 'package:phongvu_opshub/core/network/api_client.dart';
 import 'package:phongvu_opshub/core/network/api_exception.dart';
@@ -16,6 +17,121 @@ import 'package:phongvu_opshub/features/sales_report/domain/sales_report.dart';
 import 'package:phongvu_opshub/features/sales_report/presentation/screens/not_purchased_customers_screen.dart';
 
 void main() {
+  testWidgets('compact follow-up actions match approved Figma geometry', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(375, 812);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final repository = _FakeFollowUpRepository(
+      _case(customerPhone: '0900000000', customerZaloContact: null),
+      managedScope: true,
+    );
+    final authProvider = _FakeAuthProvider(
+      const User(
+        email: 'manager@phongvu.com',
+        role: 'USER',
+        featureAccess: {'ADMIN_SALES_REPORTS': true},
+      ),
+    );
+
+    await tester.pumpWidget(
+      ChangeNotifierProvider<AuthProvider>.value(
+        value: authProvider,
+        child: MaterialApp(
+          home: Scaffold(
+            body: NotPurchasedCustomersScreen(
+              repository: repository,
+              historySaver: ({required fileName, required bytes}) async =>
+                  fileName,
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final exportAction = find.widgetWithText(
+      AppSecondaryButton,
+      'Tải lịch sử chăm sóc',
+    );
+    final importAction = find.widgetWithText(AppPrimaryButton, 'Nhập Excel');
+    expect(tester.getSize(exportAction), const Size(211, 48));
+    expect(tester.getSize(importAction), const Size(124, 48));
+    expect(
+      tester.getTopLeft(importAction).dx - tester.getTopRight(exportAction).dx,
+      8,
+    );
+    expect(find.text('Tải lịch sử chăm sóc'), findsOneWidget);
+    expect(find.text('Nhập Excel'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+
+    for (final width in const [360.0, 320.0]) {
+      tester.view.physicalSize = Size(width, 812);
+      await tester.pumpAndSettle();
+      final exportRect = tester.getRect(exportAction);
+      final importRect = tester.getRect(importAction);
+      expect(importRect.left - exportRect.right, 8);
+      expect(importRect.right, lessThanOrEqualTo(width - 16));
+      expect(tester.takeException(), isNull);
+    }
+  });
+
+  testWidgets('narrow compact follow-up preserves single-action variants', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(320, 812);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final item = _case(customerPhone: '0900000000', customerZaloContact: null);
+    final authProvider = _FakeAuthProvider(
+      const User(
+        email: 'manager@phongvu.com',
+        role: 'USER',
+        featureAccess: {'ADMIN_SALES_REPORTS': true},
+      ),
+    );
+
+    await tester.pumpWidget(
+      ChangeNotifierProvider<AuthProvider>.value(
+        value: authProvider,
+        child: MaterialApp(
+          home: Scaffold(
+            body: NotPurchasedCustomersScreen(
+              repository: _FakeFollowUpRepository(item),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final importAction = find.widgetWithText(AppPrimaryButton, 'Nhập Excel');
+    expect(tester.getSize(importAction), const Size(288, 48));
+    expect(find.text('Tải lịch sử chăm sóc'), findsNothing);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: NotPurchasedCustomersScreen(
+            repository: _FakeFollowUpRepository(item, managedScope: true),
+            historySaver: ({required fileName, required bytes}) async =>
+                fileName,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final exportAction = find.widgetWithText(
+      AppSecondaryButton,
+      'Tải lịch sử chăm sóc',
+    );
+    expect(tester.getSize(exportAction), const Size(211, 48));
+    expect(find.text('Nhập Excel'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('quản lý xem trước và nhập Excel ngay tại Chăm sóc lại', (
     tester,
   ) async {

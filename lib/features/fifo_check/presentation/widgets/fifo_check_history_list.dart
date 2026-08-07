@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:provider/provider.dart';
 import '../../../../app/widgets/app_state_widgets.dart';
 import '../providers/fifo_check_provider.dart';
@@ -17,7 +18,7 @@ class FifoCheckHistoryList extends StatelessWidget {
           return const AppStatePanel.empty(
             title: 'Nhập SKU hoặc serial để kiểm tra FIFO',
             message: 'Có thể nhập thêm số lượng, ví dụ ABC123 10.',
-            icon: Icons.inventory_2_outlined,
+            icon: PhosphorIconsRegular.package,
           );
         }
 

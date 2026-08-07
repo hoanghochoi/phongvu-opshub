@@ -4,6 +4,7 @@ import 'dart:ui' show Tristate;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:phongvu_opshub/app/navigation/app_shell.dart';
 import 'package:phongvu_opshub/core/logging/app_logger.dart';
 import 'package:phongvu_opshub/core/network/api_client.dart';
@@ -22,6 +23,24 @@ void main() {
 
   setUp(() => AppLogger.instance.setUploadsEnabledForTesting(false));
   tearDown(() => AppLogger.instance.setUploadsEnabledForTesting(true));
+
+  testWidgets('fallback support launcher preserves approved FAB geometry', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SupportChatBubble(visibleWhenDisabled: true, onPressed: () {}),
+        ),
+      ),
+    );
+
+    final bubble = find.byType(SupportChatBubble);
+    expect(tester.getSize(bubble), const Size.square(64));
+    expect(find.byTooltip('Hỗ trợ'), findsOneWidget);
+    final icon = tester.widget<Icon>(find.byIcon(PhosphorIconsRegular.headset));
+    expect(icon.size, 28);
+  });
 
   testWidgets('compact admin can return to inbox and keeps requester context', (
     tester,

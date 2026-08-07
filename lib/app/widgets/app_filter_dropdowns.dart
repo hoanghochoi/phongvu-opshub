@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:flutter/services.dart';
 
 import '../../core/utils/date_range_defaults.dart';
@@ -77,7 +78,7 @@ class AppDateRangeDropdown extends StatelessWidget {
                         ),
                       ),
                       Icon(
-                        Icons.keyboard_arrow_down_rounded,
+                        PhosphorIconsRegular.caretDown,
                         size: 24,
                         color: AppColors.textSecondaryOf(context),
                       ),
@@ -90,7 +91,7 @@ class AppDateRangeDropdown extends StatelessWidget {
         : Builder(
             builder: (buttonContext) => OutlinedButton.icon(
               key: const Key('open-date-range-picker'),
-              icon: const Icon(Icons.date_range_rounded, size: 18),
+              icon: const Icon(PhosphorIconsRegular.calendarDots, size: 18),
               style: _filterButtonStyle(),
               label: Text(
                 '$label: ${_rangeLabel(start, end)}',
@@ -176,7 +177,7 @@ class AppDateTextField extends StatelessWidget {
           ? null
           : IconButton(
               tooltip: 'Chọn ngày',
-              icon: const Icon(Icons.calendar_today_rounded),
+              icon: const Icon(PhosphorIconsRegular.calendarBlank),
               onPressed: onPickDate,
             ),
     );

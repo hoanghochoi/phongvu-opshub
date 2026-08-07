@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
@@ -47,7 +48,7 @@ class _OperationsScreenState extends State<OperationsScreen> {
           if (sections.isEmpty)
             const AppStatePanel.empty(
               key: Key('operations-empty-state'),
-              icon: Icons.apps_outlined,
+              icon: PhosphorIconsRegular.squaresFour,
               title: 'Chưa có công cụ khả dụng',
               message:
                   'Vui lòng liên hệ quản lý để kiểm tra phân quyền truy cập.',

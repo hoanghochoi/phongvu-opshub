@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:intl/intl.dart';
 import 'package:phongvu_opshub/app/widgets/app_toast.dart';
 
@@ -106,7 +107,7 @@ class _PaymentTransactionTileState extends State<PaymentTransactionTile> {
                 context,
               ).withValues(alpha: 0.12),
               child: Icon(
-                Icons.payments_rounded,
+                PhosphorIconsRegular.money,
                 color: AppColors.successOf(context),
               ),
             ),
@@ -146,7 +147,7 @@ class _PaymentTransactionTileState extends State<PaymentTransactionTile> {
               ),
             ),
             const SizedBox(width: 8),
-            const Icon(Icons.chevron_right_rounded),
+            const Icon(PhosphorIconsRegular.caretRight),
           ],
         ),
       );
@@ -300,7 +301,7 @@ class _PaymentTransactionTileState extends State<PaymentTransactionTile> {
                 );
                 if (dialogContext.mounted) Navigator.of(dialogContext).pop();
               },
-              icon: Icons.close_rounded,
+              icon: PhosphorIconsRegular.x,
               label: 'Từ chối',
             ),
             AppDialogConfirmButton(
@@ -308,7 +309,7 @@ class _PaymentTransactionTileState extends State<PaymentTransactionTile> {
                 await widget.onApproveTransfer(requestId);
                 if (dialogContext.mounted) Navigator.of(dialogContext).pop();
               },
-              icon: Icons.check_rounded,
+              icon: PhosphorIconsRegular.check,
               label: 'Duyệt',
             ),
           ],
@@ -352,7 +353,7 @@ class _PaymentTransactionTileState extends State<PaymentTransactionTile> {
                 return const AppStatePanel.empty(
                   title: 'Chưa có lịch sử chỉnh sửa',
                   message: 'Các lần cập nhật mã đơn sẽ xuất hiện tại đây.',
-                  icon: Icons.history_rounded,
+                  icon: PhosphorIconsRegular.clockCounterClockwise,
                   compact: true,
                 );
               }
@@ -475,8 +476,8 @@ class _PaymentOrderEditor extends StatelessWidget {
                         : null,
                     icon: Icon(
                       transaction.isFollowing
-                          ? Icons.visibility_off_outlined
-                          : Icons.visibility_outlined,
+                          ? PhosphorIconsRegular.eyeSlash
+                          : PhosphorIconsRegular.eye,
                     ),
                   ),
                 if (canReviewTransfer &&
@@ -484,12 +485,12 @@ class _PaymentOrderEditor extends StatelessWidget {
                   IconButton(
                     tooltip: 'Phê duyệt cập nhật mã đơn',
                     onPressed: !editing && !busy ? onReviewTransfer : null,
-                    icon: const Icon(Icons.fact_check_rounded),
+                    icon: const Icon(PhosphorIconsRegular.clipboardText),
                   ),
                 IconButton(
                   tooltip: 'Lịch sử chỉnh sửa',
                   onPressed: busy ? null : onHistory,
-                  icon: const Icon(Icons.history_rounded),
+                  icon: const Icon(PhosphorIconsRegular.clockCounterClockwise),
                 ),
                 IconButton(
                   tooltip: busy
@@ -514,14 +515,16 @@ class _PaymentOrderEditor extends StatelessWidget {
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
                       : Icon(
-                          editing ? Icons.check_rounded : Icons.edit_rounded,
+                          editing
+                              ? PhosphorIconsRegular.check
+                              : PhosphorIconsRegular.pencilSimple,
                         ),
                 ),
                 if (editing)
                   IconButton(
                     tooltip: 'Hủy sửa',
                     onPressed: busy ? null : onCancel,
-                    icon: const Icon(Icons.close_rounded),
+                    icon: const Icon(PhosphorIconsRegular.x),
                   ),
               ],
             ),

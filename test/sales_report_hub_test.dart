@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:phongvu_opshub/app/navigation/app_router.dart';
 import 'package:phongvu_opshub/app/theme/app_colors.dart';
 import 'package:phongvu_opshub/app/theme/app_theme.dart';
@@ -184,6 +185,29 @@ void main() {
     expect(find.text('Hoàn tất'), findsNothing);
     expect(find.text('Báo cáo mua thủ công'), findsOneWidget);
     expect(find.text('Báo cáo chưa mua'), findsOneWidget);
+    final purchasedAction = find.widgetWithText(
+      AppPrimaryButton,
+      'Báo cáo mua thủ công',
+    );
+    final notPurchasedAction = find.widgetWithText(
+      AppPrimaryButton,
+      'Báo cáo chưa mua',
+    );
+    expect(tester.getSize(purchasedAction), const Size(181, 48));
+    expect(tester.getSize(notPurchasedAction), const Size(154, 48));
+    expect(
+      tester.getTopLeft(notPurchasedAction).dx -
+          tester.getTopRight(purchasedAction).dx,
+      8,
+    );
+    expect(
+      tester.widget<AppPrimaryButton>(purchasedAction).padding,
+      const EdgeInsets.symmetric(horizontal: 12),
+    );
+    expect(
+      tester.widget<AppPrimaryButton>(notPurchasedAction).padding,
+      const EdgeInsets.symmetric(horizontal: 12),
+    );
     expect(
       tester.getTopLeft(find.text('Báo cáo mua thủ công')).dy,
       tester.getTopLeft(find.text('Báo cáo chưa mua')).dy,
@@ -201,6 +225,18 @@ void main() {
     expect(find.text('2607010001'), findsOneWidget);
 
     expect(find.text('Lọc'), findsNothing);
+
+    for (final width in const [360.0, 320.0]) {
+      tester.view.physicalSize = Size(width, 812);
+      await tester.pumpAndSettle();
+      final row = find.byKey(const Key('sales-report-manual-actions'));
+      expect(tester.getSize(row).width, width - 32);
+      final firstRect = tester.getRect(purchasedAction);
+      final secondRect = tester.getRect(notPurchasedAction);
+      expect(secondRect.left - firstRect.right, 8);
+      expect(secondRect.right, lessThanOrEqualTo(width - 16));
+      expect(tester.takeException(), isNull);
+    }
   });
 
   testWidgets('Báo cáo app route provides the sales report provider', (
@@ -347,7 +383,7 @@ void main() {
     final trigger = find.byKey(const Key('sales-report-managed-filter'));
     expect(trigger, findsOneWidget);
     expect(find.text('Lọc'), findsOneWidget);
-    expect(find.byIcon(Icons.tune_rounded), findsNothing);
+    expect(find.byIcon(PhosphorIconsRegular.slidersHorizontal), findsNothing);
     expect(tester.getSize(trigger), const Size(152, 40));
 
     await tester.tap(trigger);

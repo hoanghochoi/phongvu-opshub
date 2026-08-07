@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 
@@ -324,7 +325,7 @@ class _ApiConnectionAdminScreenState extends State<ApiConnectionAdminScreen> {
                   const SnackBar(content: Text('Đã sao chép khóa công khai.')),
                 );
               },
-              icon: Icons.copy_rounded,
+              icon: PhosphorIconsRegular.copy,
               label: 'Sao chép khóa',
             ),
           ],
@@ -363,7 +364,7 @@ class _ApiConnectionAdminScreenState extends State<ApiConnectionAdminScreen> {
                 ClipboardData(text: created.client.clientId),
               );
             },
-            icon: Icons.copy_rounded,
+            icon: PhosphorIconsRegular.copy,
             label: 'Sao chép Client ID',
           ),
           AppDialogSecondaryButton(
@@ -372,7 +373,7 @@ class _ApiConnectionAdminScreenState extends State<ApiConnectionAdminScreen> {
                 ClipboardData(text: created.clientSecret),
               );
             },
-            icon: Icons.key_rounded,
+            icon: PhosphorIconsRegular.key,
             label: 'Sao chép secret',
           ),
           AppDialogConfirmButton(
@@ -498,7 +499,7 @@ class _ApiConnectionAdminScreenState extends State<ApiConnectionAdminScreen> {
           title: 'Chưa tải được kết nối API',
           message: _error ?? 'Vui lòng thử lại.',
           actionLabel: 'Thử lại',
-          actionIcon: Icons.refresh_rounded,
+          actionIcon: PhosphorIconsRegular.arrowClockwise,
           onAction: _load,
         ),
       );
@@ -537,7 +538,7 @@ class _ApiConnectionAdminScreenState extends State<ApiConnectionAdminScreen> {
               title: 'Dữ liệu đang hiển thị có thể chưa mới nhất',
               message: _error!,
               actionLabel: 'Tải lại',
-              actionIcon: Icons.refresh_rounded,
+              actionIcon: PhosphorIconsRegular.arrowClockwise,
               onAction: _load,
             ),
           ],
@@ -600,7 +601,7 @@ class _ApiConnectionUnsupportedState extends StatelessWidget {
       child: SizedBox(
         height: 236,
         child: const AppStatePanel(
-          icon: Icons.devices_other_rounded,
+          icon: PhosphorIconsRegular.devices,
           title: 'Thiết bị chưa hỗ trợ quản lý kết nối',
           message: 'Vui lòng dùng OpsHub trên Windows hoặc Web để tiếp tục.',
           compact: true,

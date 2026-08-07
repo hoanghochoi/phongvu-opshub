@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/intl.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:phongvu_opshub/features/bank_statement/domain/bank_statement_transaction.dart';
 import 'package:phongvu_opshub/features/payment_monitor/domain/map_payment_transaction.dart';
 import 'package:phongvu_opshub/features/payment_monitor/presentation/providers/payment_monitor_provider.dart';
@@ -185,7 +186,7 @@ void main() {
       );
 
       expect(find.byTooltip('Cập nhật mã đơn'), findsOneWidget);
-      expect(find.byIcon(Icons.swap_horiz_rounded), findsNothing);
+      expect(find.byIcon(PhosphorIconsRegular.arrowsLeftRight), findsNothing);
     },
   );
 

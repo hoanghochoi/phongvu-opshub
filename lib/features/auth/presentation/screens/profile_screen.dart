@@ -577,12 +577,12 @@ class _ProfileEditCard extends StatelessWidget {
           _ProfileInputField(
             controller: firstNameController,
             label: 'Tên',
-            icon: Icons.person_outline,
+            icon: PhosphorIconsRegular.user,
           ),
           _ProfileInputField(
             controller: lastNameController,
             label: 'Họ',
-            icon: Icons.badge_outlined,
+            icon: PhosphorIconsRegular.identificationBadge,
           ),
           _ProfileActions(
             isLoading: isLoading,
@@ -693,22 +693,22 @@ class _ProfileInfoCard extends StatelessWidget {
         children: [
           Text('Thông tin tài khoản', style: AppTextStyles.labelL),
           _ProfileInfoRow(
-            icon: Icons.email_outlined,
+            icon: PhosphorIconsRegular.envelope,
             label: 'Email',
             value: user?.email ?? 'Chưa có email',
           ),
           _ProfileInfoRow(
-            icon: Icons.verified_user_outlined,
+            icon: PhosphorIconsRegular.shieldCheck,
             label: 'Vai trò',
             value: User.roleDisplayName(user?.role),
           ),
           _ProfileInfoRow(
-            icon: Icons.account_tree_outlined,
+            icon: PhosphorIconsRegular.treeStructure,
             label: 'Cây tổ chức',
             value: organizationNodeLabel ?? 'Chưa gán cây tổ chức',
           ),
           _ProfileInfoRow(
-            icon: Icons.store_outlined,
+            icon: PhosphorIconsRegular.storefront,
             label: 'Showroom được gán',
             value: storeDetails?.isNotEmpty == true
                 ? storeDetails!
@@ -833,7 +833,7 @@ class _ProfileAvatarAction extends StatelessWidget {
     child: IconButton(
       tooltip: 'Cập nhật avatar',
       onPressed: onPressed,
-      icon: const Icon(Icons.camera_alt_outlined, size: 16),
+      icon: const Icon(PhosphorIconsRegular.camera, size: 16),
       color: AppColors.primaryForegroundOf(context),
       style: IconButton.styleFrom(
         backgroundColor: AppColors.primaryOf(context),
@@ -909,7 +909,14 @@ class _ChangePasswordDialogState extends State<_ChangePasswordDialog> {
   @override
   Widget build(BuildContext context) {
     final isLoading = context.watch<AuthProvider>().isLoading;
+    final compact = MediaQuery.sizeOf(context).width < 600;
     return AlertDialog(
+      insetPadding: EdgeInsets.all(compact ? 16 : 40),
+      titlePadding: compact ? const EdgeInsets.fromLTRB(16, 16, 16, 0) : null,
+      contentPadding: compact ? const EdgeInsets.fromLTRB(16, 20, 16, 0) : null,
+      actionsPadding: compact
+          ? const EdgeInsets.fromLTRB(16, 20, 16, 16)
+          : null,
       title: const Text('Đổi mật khẩu'),
       content: SizedBox(
         width: 420,
@@ -924,8 +931,11 @@ class _ChangePasswordDialogState extends State<_ChangePasswordDialog> {
                   enabled: !isLoading,
                   obscureText: _obscureCurrent,
                   label: 'Mật khẩu hiện tại',
-                  icon: Icons.lock_outline,
+                  icon: PhosphorIconsRegular.lock,
                   suffixIcon: IconButton(
+                    tooltip: _obscureCurrent
+                        ? 'Hiện mật khẩu hiện tại'
+                        : 'Ẩn mật khẩu hiện tại',
                     onPressed: isLoading
                         ? null
                         : () => setState(
@@ -933,8 +943,8 @@ class _ChangePasswordDialogState extends State<_ChangePasswordDialog> {
                           ),
                     icon: Icon(
                       _obscureCurrent
-                          ? Icons.visibility_outlined
-                          : Icons.visibility_off_outlined,
+                          ? PhosphorIconsRegular.eye
+                          : PhosphorIconsRegular.eyeSlash,
                     ),
                   ),
                   validator: (value) => (value ?? '').isEmpty
@@ -946,15 +956,18 @@ class _ChangePasswordDialogState extends State<_ChangePasswordDialog> {
                   enabled: !isLoading,
                   obscureText: _obscureNew,
                   label: 'Mật khẩu mới',
-                  icon: Icons.lock_reset_outlined,
+                  icon: PhosphorIconsRegular.password,
                   suffixIcon: IconButton(
+                    tooltip: _obscureNew
+                        ? 'Hiện mật khẩu mới'
+                        : 'Ẩn mật khẩu mới',
                     onPressed: isLoading
                         ? null
                         : () => setState(() => _obscureNew = !_obscureNew),
                     icon: Icon(
                       _obscureNew
-                          ? Icons.visibility_outlined
-                          : Icons.visibility_off_outlined,
+                          ? PhosphorIconsRegular.eye
+                          : PhosphorIconsRegular.eyeSlash,
                     ),
                   ),
                   validator: (value) =>
@@ -964,9 +977,12 @@ class _ChangePasswordDialogState extends State<_ChangePasswordDialog> {
                   controller: _confirmController,
                   enabled: !isLoading,
                   obscureText: _obscureConfirm,
-                  label: 'Nhập lại mật khẩu mới',
-                  icon: Icons.lock_reset_outlined,
+                  label: 'Nhập lại mật khẩu',
+                  icon: PhosphorIconsRegular.password,
                   suffixIcon: IconButton(
+                    tooltip: _obscureConfirm
+                        ? 'Hiện mật khẩu nhập lại'
+                        : 'Ẩn mật khẩu nhập lại',
                     onPressed: isLoading
                         ? null
                         : () => setState(
@@ -974,8 +990,8 @@ class _ChangePasswordDialogState extends State<_ChangePasswordDialog> {
                           ),
                     icon: Icon(
                       _obscureConfirm
-                          ? Icons.visibility_outlined
-                          : Icons.visibility_off_outlined,
+                          ? PhosphorIconsRegular.eye
+                          : PhosphorIconsRegular.eyeSlash,
                     ),
                   ),
                   validator: (value) => value != _newController.text

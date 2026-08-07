@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:phongvu_opshub/app/widgets/app_toast.dart';
 
 import '../../../../app/theme/app_colors.dart';
@@ -232,7 +233,7 @@ class _PersonnelCatalogAdminScreenState
                   title: _loadError!,
                   message: 'Kiểm tra kết nối rồi thử tải lại danh mục.',
                   actionLabel: 'Thử tải lại',
-                  actionIcon: Icons.refresh_rounded,
+                  actionIcon: PhosphorIconsRegular.arrowClockwise,
                   onAction: _load,
                 ),
               )
@@ -244,7 +245,7 @@ class _PersonnelCatalogAdminScreenState
                   final item = _departments[index];
                   return _PersonnelCard(
                     item: item,
-                    icon: Icons.apartment_outlined,
+                    icon: PhosphorIconsRegular.buildings,
                     color: AppColors.infoOf(context),
                     metadata: '${item.userCount} người dùng',
                     onEdit: () => _openDepartmentEditor(item),
@@ -263,7 +264,7 @@ class _PersonnelCatalogAdminScreenState
                   final department = _departmentTitle(item.departmentCode);
                   return _PersonnelCard(
                     item: item,
-                    icon: Icons.badge_outlined,
+                    icon: PhosphorIconsRegular.identificationBadge,
                     color: AppColors.accent,
                     metadata: [
                       department,
@@ -328,12 +329,12 @@ class _PersonnelCatalogHeader extends StatelessWidget {
           children: [
             AppPrimaryButton(
               onPressed: loading ? null : onAddDepartment,
-              icon: Icons.apartment_outlined,
+              icon: PhosphorIconsRegular.buildings,
               label: 'Thêm phòng ban',
             ),
             AppPrimaryButton(
               onPressed: loading ? null : onAddJobRole,
-              icon: Icons.badge_outlined,
+              icon: PhosphorIconsRegular.identificationBadge,
               label: 'Thêm chức danh',
             ),
           ],
@@ -361,7 +362,7 @@ class _CatalogList extends StatelessWidget {
         child: AppStatePanel.empty(
           title: emptyText,
           message: 'Dùng nút thêm ở đầu màn hình để tạo dữ liệu.',
-          icon: Icons.badge_outlined,
+          icon: PhosphorIconsRegular.identificationBadge,
         ),
       );
     }
@@ -458,13 +459,13 @@ class _PersonnelCard extends StatelessWidget {
           const SizedBox(width: 10),
           AppIconAction(
             onPressed: onEdit,
-            icon: Icons.edit_outlined,
+            icon: PhosphorIconsRegular.pencilSimple,
             tooltip: 'Sửa',
           ),
           const SizedBox(width: 8),
           AppIconAction(
             onPressed: onDelete,
-            icon: Icons.delete_outline,
+            icon: PhosphorIconsRegular.trash,
             tooltip: item.isSystem ? 'Dòng hệ thống' : 'Xóa',
           ),
         ],

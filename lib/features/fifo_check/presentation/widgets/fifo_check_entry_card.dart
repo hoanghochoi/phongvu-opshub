@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:phongvu_opshub/app/widgets/app_toast.dart';
@@ -265,7 +266,7 @@ class FifoCheckEntryCard extends StatelessWidget {
                       Row(
                         children: [
                           Icon(
-                            Icons.lightbulb_outline,
+                            PhosphorIconsRegular.lightbulb,
                             color: AppColors.warningOf(context),
                             size: 18,
                           ),
@@ -357,7 +358,7 @@ class FifoCheckEntryCard extends StatelessWidget {
                     child: Padding(
                       padding: const EdgeInsets.all(2),
                       child: Icon(
-                        Icons.copy,
+                        PhosphorIconsRegular.copy,
                         size: 12,
                         color: Theme.of(context).colorScheme.onSurfaceVariant,
                       ),
@@ -365,7 +366,7 @@ class FifoCheckEntryCard extends StatelessWidget {
                   ),
                   const SizedBox(width: 8),
                   Icon(
-                    Icons.check_circle,
+                    PhosphorIconsRegular.checkCircle,
                     size: 14,
                     color: AppColors.successOf(context),
                   ),

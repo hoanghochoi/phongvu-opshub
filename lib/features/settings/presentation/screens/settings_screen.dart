@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:provider/provider.dart';
 import 'package:phongvu_opshub/app/widgets/app_toast.dart';
 
@@ -251,7 +252,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const SizedBox(height: AppLayoutTokens.formInlineGap),
           AppCombobox<String>.single(
             label: 'Giọng đọc trên máy này',
-            icon: Icons.record_voice_over_outlined,
+            icon: PhosphorIconsRegular.microphone,
             value: monitor.speakerVoicePresetId,
             options: monitor.speakerVoicePresetOptions
                 .map(
@@ -444,8 +445,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 _buildThemeOption(
                   context,
                   mode: ThemeMode.light,
-                  icon: Icons.light_mode_outlined,
-                  activeIcon: Icons.light_mode,
+                  icon: PhosphorIconsRegular.sun,
+                  activeIcon: PhosphorIconsRegular.sun,
                   label: 'Sáng',
                   isActive: currentMode == ThemeMode.light,
                   compact: compactOptions,
@@ -453,8 +454,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 _buildThemeOption(
                   context,
                   mode: ThemeMode.dark,
-                  icon: Icons.dark_mode_outlined,
-                  activeIcon: Icons.dark_mode,
+                  icon: PhosphorIconsRegular.moon,
+                  activeIcon: PhosphorIconsRegular.moon,
                   label: 'Tối',
                   isActive: currentMode == ThemeMode.dark,
                   compact: compactOptions,
@@ -462,8 +463,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 _buildThemeOption(
                   context,
                   mode: ThemeMode.system,
-                  icon: Icons.settings_brightness_outlined,
-                  activeIcon: Icons.settings_brightness,
+                  icon: PhosphorIconsRegular.sunDim,
+                  activeIcon: PhosphorIconsRegular.sunDim,
                   label: 'Hệ thống',
                   isActive: currentMode == ThemeMode.system,
                   compact: compactOptions,

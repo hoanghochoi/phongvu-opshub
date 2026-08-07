@@ -2,18 +2,37 @@
 
 ## Status
 
-Active — the Foundation-backed R3 shell revision remains authoritative. Đại Ca
-approved the compact Variant A two-row control revision and authorized the
-implementation → PR → staging merge → lifecycle cleanup flow.
+Active — final residual implementation and local verification are complete.
+Đại Ca approved the four REVIEW nodes, authorized self-approval for any
+additional OPS-53 nodes, and authorized one accumulated PR → staging merge →
+authenticated Chrome audit → lifecycle cleanup flow.
 
 ## Checkpoint
 
-- Canonical `staging` and task branch start at
-  `d5483d2a00b4a7f87d4986024e3b4f6309ac4c38`.
+- Canonical `staging` and the current task branch start at
+  `dd637d4afe70e129b7d34a8985ac841f15461247`.
 - Canonical worktree was clean and `origin/staging` matched before start.
-- Task worktree: `opshub-ops-53-compact-long-label`.
-- Branch: `codex/ops-53-compact-long-label`.
+- Task worktree: `phongvu-opshub-ops-53-final-residuals`.
+- Branch: `codex/ops-53-final-residual-fixes`.
 - Task worktree is clean before implementation.
+
+## Approved final residual scope
+
+- Follow-up Light `2190:151155` and Dark `2190:151217`.
+- Profile password dialog Light `2194:23395` and Dark `2195:23521`.
+- Sales Reports compact row `380:8036`; notification unread variants
+  `2100:56208`.
+- Quick Actions compact component `406:16778`, Support topbar action `228:675`,
+  and Windows Home FAB stack `1771:100236` / `2003:144239` /
+  `2003:144331`.
+- Replace every production Material `Icons.*` usage with a semantic
+  `PhosphorIconsRegular` equivalent, migrate icon assertions/fixtures, and add
+  a repository guard against regressions.
+- Preserve the approved Windows Home `64×64` Lightning/Headset stack with a
+  `12px` gap even when quick actions or in-app support are unavailable; denied
+  actions remain disabled and Support retains the existing Seatalk fallback.
+- Restore first-shell logo rendering by preloading the active brand asset
+  before `runApp`, with sanitized start/success/failure logs and a timeout.
 
 ## Approved incremental scope — compact Variant A
 
@@ -120,12 +139,24 @@ implement from the pre-R3 frames or infer a missing compact geometry.
 - Variant A implementation now stacks the compact scope/date controls at
   `y=0`/`y=48` and keeps refresh metadata at `y=96`, all full-width in the
   approved compact lane; provider/date-picker/refresh behavior is unchanged.
-- Verified: Home tests `38` pass including Light/Dark Variant A geometry and
-  exact long-copy assertions, full Flutter suite `785` pass with `3`
-  pre-existing skips, `flutter analyze --no-pub` pass, and
-  `flutter build web --release --no-pub` pass.
-- Remaining: commit/push/PR, staging deploy, authenticated Chrome matrix,
-  Linear proof readback, and lifecycle cleanup.
+- Final residuals implemented: notification count caps at `99+`; compact
+  Sales Reports and Follow-up action rows match the approved `375px` geometry
+  and shrink safely at `360px`/`320px`; password dialog copy/geometry and eye
+  controls match the four approved REVIEW nodes.
+- Quick/Support Windows Home stack is fixed at `64×64`, Lightning `24px`,
+  Headset `28px`, `12px` gap, right `16px`, bottom `24px`; non-Windows and
+  non-Home Support offsets retain their previous contract.
+- Material icon migration completed across `65` production Dart files and all
+  affected tests; `rg '\bIcons\.' lib test --glob '*.dart'` returns no hits.
+- Verified on the final runtime/test diff: `flutter analyze --no-pub` pass;
+  full Flutter suite `768` pass with `3` skips; Web release build pass; Windows
+  release build pass; independent final code review reports no blocker.
+- Android release proof is signing-blocked because the local keystore variables
+  are absent. Android debug Gradle produced both production and staging APKs,
+  although Flutter's wrapper returned non-zero because it did not recognize
+  the flavor-specific output names.
+- Remaining: Linear implementation/proof note and readback, commit/push/PR,
+  staging CI/deploy, authenticated Chrome matrix, and lifecycle cleanup.
 
 ## Recovery
 

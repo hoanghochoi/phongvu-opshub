@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:provider/provider.dart';
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_text_styles.dart';
@@ -335,7 +336,7 @@ class _FifoHistoryScreenState extends State<FifoHistoryScreen>
           title: error,
           message: 'Kiểm tra kết nối rồi thử tải lại.',
           actionLabel: 'Thử tải lại',
-          actionIcon: Icons.refresh_outlined,
+          actionIcon: PhosphorIconsRegular.arrowClockwise,
           onAction: onRefresh,
           compact: true,
         ),
@@ -348,7 +349,7 @@ class _FifoHistoryScreenState extends State<FifoHistoryScreen>
           title: _searchQuery != null || _filterUser != null
               ? 'Không tìm thấy kết quả'
               : 'Chưa có lịch sử',
-          icon: Icons.inbox_rounded,
+          icon: PhosphorIconsRegular.tray,
           actionLabel: 'Tải lại',
           onAction: onRefresh,
           compact: true,
@@ -371,7 +372,7 @@ class _FifoHistoryScreenState extends State<FifoHistoryScreen>
                     ? const CircularProgressIndicator()
                     : AppDialogSecondaryButton(
                         onPressed: onLoadMore,
-                        icon: Icons.expand_more,
+                        icon: PhosphorIconsRegular.caretDown,
                         label: 'Xem thêm',
                       ),
               ),
@@ -472,7 +473,7 @@ class _FifoHistoryHeader extends StatelessWidget {
         );
         final action = AppIconAction(
           onPressed: loading ? null : () => unawaited(onReload()),
-          icon: Icons.refresh_outlined,
+          icon: PhosphorIconsRegular.arrowClockwise,
           tooltip: 'Tải lại lịch sử',
         );
         if (compact) {
