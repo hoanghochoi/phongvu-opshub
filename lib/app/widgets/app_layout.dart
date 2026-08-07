@@ -58,6 +58,13 @@ class AppLayoutTokens {
   static const double compactActionHeight = 44;
   static const double iconTouchTarget = 48;
   static const double listItemTouchTarget = 56;
+  static const EdgeInsets homeWidePagePadding = EdgeInsets.fromLTRB(
+    32,
+    32,
+    32,
+    24,
+  );
+  static const double homeWideHeaderBodyGap = 18;
 
   static EdgeInsets pagePaddingFor(double width) {
     // Figma screen pages define 16 px compact, 24 px medium/expanded and
@@ -70,6 +77,14 @@ class AppLayoutTokens {
       return const EdgeInsets.fromLTRB(24, 16, 24, 16);
     }
     return const EdgeInsets.fromLTRB(16, 16, 16, 16);
+  }
+
+  static EdgeInsets homePagePaddingFor(double routeWidth) {
+    // The wide Home Figma frame is a 1,190px shell content lane inside a
+    // 1,440px window. Route MediaQuery is intentionally shell-bounded, so the
+    // normal breakpoint helper would misclassify this lane as tablet.
+    if (routeWidth >= salesReportMaxWidth) return homeWidePagePadding;
+    return pagePaddingFor(routeWidth);
   }
 
   static int formColumnsFor(double width) => width >= tabletBreakpoint ? 2 : 1;

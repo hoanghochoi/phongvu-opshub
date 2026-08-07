@@ -142,6 +142,34 @@ class AppColors {
   static const Color speakerOffSurface = Color(0xFFE5E9F0);
   static const Color darkSpeakerOffSurface = darkNeutral100;
 
+  // Home proposal `2003:144157`/`2003:144254` semantic surfaces. These are
+  // shared tokens so the migrated Home surface does not derive visual colors
+  // from unrelated global status alpha blends.
+  static const Color homeOverviewSurface = Color(0xFFFFFFFF);
+  static const Color homeOverviewBorder = Color(0xFFD6E0ED);
+  static const Color homeOverviewSuccessSurface = Color(0xFFF2FBF7);
+  static const Color homeOverviewSuccessBorder = Color(0xFF99D1BF);
+  static const Color homeOverviewSuccessTrack = Color(0xFFD1E5DB);
+  static const Color homeOverviewInfoSurface = Color(0xFFF2F7FF);
+  static const Color homeOverviewInfoBorder = Color(0xFFB2CFFF);
+  static const Color homeOverviewInfoTrack = Color(0xFFD8E4F7);
+  static const Color homeOverviewPersonalSurface = Color(0xFFFBF6FF);
+  static const Color homeOverviewPersonalBorder = Color(0xFFE0C2FF);
+  static const Color homeOverviewScopeSurface = Color(0xFFF2F7FF);
+  static const Color homeOverviewScopeBorder = Color(0xFFB2CFFF);
+  static const Color darkHomeOverviewSurface = Color(0xFF111827);
+  static const Color darkHomeOverviewBorder = Color(0xFF475469);
+  static const Color darkHomeOverviewSuccessSurface = Color(0xFF142624);
+  static const Color darkHomeOverviewSuccessBorder = Color(0xFF2E6B5C);
+  static const Color darkHomeOverviewSuccessTrack = Color(0xFF294F47);
+  static const Color darkHomeOverviewInfoSurface = Color(0xFF142438);
+  static const Color darkHomeOverviewInfoBorder = Color(0xFF406BAD);
+  static const Color darkHomeOverviewInfoTrack = Color(0xFF38578C);
+  static const Color darkHomeOverviewPersonalSurface = Color(0xFF261A38);
+  static const Color darkHomeOverviewPersonalBorder = Color(0xFF734DA1);
+  static const Color darkHomeOverviewScopeSurface = Color(0xFF142438);
+  static const Color darkHomeOverviewScopeBorder = Color(0xFF406BAD);
+
   /// Figma `Input background` (VariableID:8:148) in Dark mode.
   static const Color darkInput = Color(0xFF111827);
   static const Color darkNeutral100 = Color(0xFF2D2D2D);
@@ -250,6 +278,50 @@ class AppColors {
 
   static Color infoSurfaceOf(BuildContext context) =>
       isDark(context) ? darkInfoSurface : infoSurface;
+
+  static Color homeOverviewSurfaceOf(BuildContext context) =>
+      isDark(context) ? darkHomeOverviewSurface : homeOverviewSurface;
+
+  static Color homeOverviewBorderOf(BuildContext context) =>
+      isDark(context) ? darkHomeOverviewBorder : homeOverviewBorder;
+
+  static Color homeOverviewSuccessSurfaceOf(BuildContext context) =>
+      isDark(context)
+      ? darkHomeOverviewSuccessSurface
+      : homeOverviewSuccessSurface;
+
+  static Color homeOverviewSuccessBorderOf(BuildContext context) =>
+      isDark(context)
+      ? darkHomeOverviewSuccessBorder
+      : homeOverviewSuccessBorder;
+
+  static Color homeOverviewSuccessTrackOf(BuildContext context) =>
+      isDark(context) ? darkHomeOverviewSuccessTrack : homeOverviewSuccessTrack;
+
+  static Color homeOverviewInfoSurfaceOf(BuildContext context) =>
+      isDark(context) ? darkHomeOverviewInfoSurface : homeOverviewInfoSurface;
+
+  static Color homeOverviewInfoBorderOf(BuildContext context) =>
+      isDark(context) ? darkHomeOverviewInfoBorder : homeOverviewInfoBorder;
+
+  static Color homeOverviewInfoTrackOf(BuildContext context) =>
+      isDark(context) ? darkHomeOverviewInfoTrack : homeOverviewInfoTrack;
+
+  static Color homeOverviewPersonalSurfaceOf(BuildContext context) =>
+      isDark(context)
+      ? darkHomeOverviewPersonalSurface
+      : homeOverviewPersonalSurface;
+
+  static Color homeOverviewPersonalBorderOf(BuildContext context) =>
+      isDark(context)
+      ? darkHomeOverviewPersonalBorder
+      : homeOverviewPersonalBorder;
+
+  static Color homeOverviewScopeSurfaceOf(BuildContext context) =>
+      isDark(context) ? darkHomeOverviewScopeSurface : homeOverviewScopeSurface;
+
+  static Color homeOverviewScopeBorderOf(BuildContext context) =>
+      isDark(context) ? darkHomeOverviewScopeBorder : homeOverviewScopeBorder;
 
   static Color successSurfaceOf(BuildContext context) =>
       isDark(context) ? darkSuccessSurface : successSurface;

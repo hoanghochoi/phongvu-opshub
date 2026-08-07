@@ -23,6 +23,21 @@ void main() {
     );
   });
 
+  test('Home wide shell lane keeps the approved 32px desktop gutters', () {
+    expect(
+      AppLayoutTokens.homePagePaddingFor(1190),
+      AppLayoutTokens.homeWidePagePadding,
+    );
+    expect(
+      AppLayoutTokens.homePagePaddingFor(936),
+      const EdgeInsets.fromLTRB(24, 16, 24, 16),
+    );
+    expect(
+      AppLayoutTokens.homePagePaddingFor(375),
+      const EdgeInsets.fromLTRB(16, 16, 16, 16),
+    );
+  });
+
   testWidgets('AppResponsiveContent bounds desktop content width', (
     tester,
   ) async {

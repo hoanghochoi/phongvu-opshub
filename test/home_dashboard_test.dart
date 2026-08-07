@@ -8,6 +8,7 @@ import 'package:phongvu_opshub/core/formatting/money_formatters.dart';
 import 'package:phongvu_opshub/core/logging/app_logger.dart';
 import 'package:phongvu_opshub/core/network/api_client.dart';
 import 'package:phongvu_opshub/core/network/realtime_connection_manager.dart';
+import 'package:phongvu_opshub/app/widgets/app_layout.dart';
 import 'package:phongvu_opshub/features/auth/data/repositories/auth_repository.dart';
 import 'package:phongvu_opshub/features/auth/domain/entities/store_branch.dart';
 import 'package:phongvu_opshub/features/auth/domain/entities/user.dart';
@@ -1661,6 +1662,45 @@ void main() {
     );
     expect(goalSize.width, closeTo(535, 0.1));
     expect(goalSize.height, closeTo(270, 0.1));
+  });
+
+  testWidgets('Home wide proposal keeps the approved shell geometry', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1190, 828);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final provider = HomeSummaryProvider(
+      _FakeHomeSummaryRepository(
+        summary: _managerSalesProgressSummary('sa-1', includeFinance: true),
+      ),
+    );
+    addTearDown(provider.dispose);
+    provider.syncAuth(_staffUser(), isInitialized: true);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: AppResponsiveContent(
+            maxWidth: AppLayoutTokens.salesReportMaxWidth,
+            padding: AppLayoutTokens.homePagePaddingFor(1190),
+            child: HomeSummaryPage(provider: provider),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final header = tester.getRect(find.byKey(const Key('home-summary-header')));
+    final overview = tester.getRect(
+      find.byKey(const Key('home-summary-progress-panel')),
+    );
+    expect(header, const Rect.fromLTWH(32, 32, 1126, 146));
+    expect(overview.left, 32);
+    expect(overview.width, 1126);
+    expect(overview.top, 196);
   });
 
   testWidgets('Home progress uses viewport width when parent is unbounded', (
