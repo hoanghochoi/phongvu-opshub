@@ -749,20 +749,47 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final appBarFinder = find.byType(AppBar);
-    final appBar = tester.widget<AppBar>(appBarFinder);
     expect(
-      tester.getSize(appBarFinder).height,
-      AppLayoutTokens.shellTopBarHeight,
+      tester.getSize(find.byKey(const ValueKey('mobile-shell-topbar'))),
+      const Size(390, 72),
     );
-    expect(appBar.backgroundColor, AppColors.surface);
-    expect(appBar.foregroundColor, AppColors.onSurface);
     expect(find.byTooltip('Mở menu'), findsOneWidget);
     expect(find.byTooltip('Thông báo'), findsOneWidget);
     expect(find.byType(AppNotificationIconButton), findsOneWidget);
     expect(find.byTooltip('Hỗ trợ'), findsNothing);
     expect(find.text('Trang chủ'), findsWidgets);
     expect(find.textContaining('TB '), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('compact Foundation topbar keeps the bell at 375px', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(375, 812);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      ChangeNotifierProvider<AuthProvider>.value(
+        value: _FakeAuthProvider(_shellUser),
+        child: const MaterialApp(
+          home: AppShell(
+            location: '/home',
+            child: _RouteMarker(label: 'home-route-marker'),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final topbar = find.byKey(const ValueKey('mobile-shell-topbar'));
+    final menu = find.byTooltip('Mở menu');
+    final notifications = find.byTooltip('Thông báo');
+    expect(tester.getSize(topbar), const Size(375, 72));
+    expect(tester.getSize(notifications), const Size(48, 48));
+    expect(tester.getTopLeft(menu).dx, closeTo(12, 0.1));
+    expect(tester.getTopLeft(notifications).dx, closeTo(315, 0.1));
     expect(tester.takeException(), isNull);
   });
 
