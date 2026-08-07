@@ -158,6 +158,29 @@ class _AppShellState extends State<AppShell> {
     final interceptAndroidBack =
         !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
 
+    final shell = shellUsesRail
+        ? _WideShell(
+            layout: layout,
+            location: widget.location,
+            destinations: sidebarDestinations,
+            activeDestination: activeDestination,
+            user: user,
+            version: _version,
+            onNavigate: _navigate,
+            onLogout: () => _logout(context),
+            onAppInfo: () => _showAppInfoDialog(context),
+            child: widget.child,
+          )
+        : _MobileShell(
+            location: widget.location,
+            drawerDestinations: sidebarDestinations,
+            destinations: mobileDestinations,
+            activeDestination: activeDestination,
+            version: _version,
+            onNavigate: _navigate,
+            child: widget.child,
+          );
+
     return PopScope(
       canPop: interceptAndroidBack ? false : widget.location != '/home',
       onPopInvokedWithResult: (didPop, result) async {
@@ -173,61 +196,45 @@ class _AppShellState extends State<AppShell> {
           }
         }
       },
-      child: Stack(
-        children: [
-          shellUsesRail
-              ? _WideShell(
-                  layout: layout,
-                  location: widget.location,
-                  destinations: sidebarDestinations,
-                  activeDestination: activeDestination,
-                  user: user,
-                  version: _version,
-                  onNavigate: _navigate,
-                  onLogout: () => _logout(context),
-                  onAppInfo: () => _showAppInfoDialog(context),
-                  child: widget.child,
-                )
-              : _MobileShell(
-                  location: widget.location,
-                  drawerDestinations: sidebarDestinations,
-                  destinations: mobileDestinations,
-                  activeDestination: activeDestination,
-                  version: _version,
-                  onNavigate: _navigate,
-                  child: widget.child,
+      child: SizedBox(
+        width: width,
+        height: mediaQuery.size.height,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            shell,
+            if (shellUsesRail &&
+                widget.location != '/admin/support-chats' &&
+                (supportChat?.enabled == true ||
+                    (!kIsWeb &&
+                        defaultTargetPlatform == TargetPlatform.windows &&
+                        widget.location == '/home')))
+              Positioned(
+                right: width >= AppLayoutTokens.tabletBreakpoint ? 24 : 16,
+                bottom:
+                    (width >= AppLayoutTokens.tabletBreakpoint ? 32 : 116) +
+                    floatingBottomInset,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (!kIsWeb &&
+                        defaultTargetPlatform == TargetPlatform.windows &&
+                        widget.location == '/home')
+                      QuickActionsLauncher(
+                        menuAxis: Axis.vertical,
+                        location: widget.location,
+                      ),
+                    if (!kIsWeb &&
+                        defaultTargetPlatform == TargetPlatform.windows &&
+                        widget.location == '/home' &&
+                        supportChat?.enabled == true)
+                      const SizedBox(height: 12),
+                    SupportChatBubble(onPressed: () => _openSupport(context)),
+                  ],
                 ),
-          if (shellUsesRail &&
-              widget.location != '/admin/support-chats' &&
-              (supportChat?.enabled == true ||
-                  (!kIsWeb &&
-                      defaultTargetPlatform == TargetPlatform.windows &&
-                      widget.location == '/home')))
-            Positioned(
-              right: width >= AppLayoutTokens.tabletBreakpoint ? 24 : 16,
-              bottom:
-                  (width >= AppLayoutTokens.tabletBreakpoint ? 32 : 116) +
-                  floatingBottomInset,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (!kIsWeb &&
-                      defaultTargetPlatform == TargetPlatform.windows &&
-                      widget.location == '/home')
-                    QuickActionsLauncher(
-                      menuAxis: Axis.vertical,
-                      location: widget.location,
-                    ),
-                  if (!kIsWeb &&
-                      defaultTargetPlatform == TargetPlatform.windows &&
-                      widget.location == '/home' &&
-                      supportChat?.enabled == true)
-                    const SizedBox(height: 12),
-                  SupportChatBubble(onPressed: () => _openSupport(context)),
-                ],
               ),
-            ),
-        ],
+          ],
+        ),
       ),
     );
   }

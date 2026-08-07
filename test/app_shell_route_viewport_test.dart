@@ -63,7 +63,10 @@ void main() {
         child: const MaterialApp(
           home: AppShell(
             location: '/home',
-            child: _RouteMarker(label: 'home-route-marker'),
+            child: SizedBox(
+              width: 845,
+              child: _RouteMarker(label: 'home-route-marker'),
+            ),
           ),
         ),
       ),
@@ -776,7 +779,10 @@ void main() {
         child: const MaterialApp(
           home: AppShell(
             location: '/home',
-            child: _RouteMarker(label: 'home-route-marker'),
+            child: SizedBox(
+              width: 845,
+              child: _RouteMarker(label: 'home-route-marker'),
+            ),
           ),
         ),
       ),
