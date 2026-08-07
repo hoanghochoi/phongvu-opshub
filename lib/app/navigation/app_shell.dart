@@ -731,55 +731,7 @@ class _MobileShell extends StatelessWidget {
           version: version,
           onNavigate: onNavigate,
         ),
-        appBar: AppBar(
-          key: const ValueKey('mobile-shell-topbar'),
-          toolbarHeight: AppLayoutTokens.shellTopBarHeight,
-          backgroundColor: AppColors.raisedOf(context),
-          foregroundColor: AppColors.textPrimaryOf(context),
-          surfaceTintColor: AppColors.raisedOf(context),
-          elevation: 0,
-          scrolledUnderElevation: 0,
-          shadowColor: AppColors.transparent,
-          shape: Border.all(color: AppColors.borderOf(context)),
-          centerTitle: true,
-          titleSpacing: 0,
-          leadingWidth: 60,
-          leading: Builder(
-            builder: (context) => Padding(
-              padding: const EdgeInsets.only(left: 12),
-              child: SizedBox.square(
-                dimension: 48,
-                child: IconButton(
-                  padding: EdgeInsets.zero,
-                  tooltip: 'Mở menu',
-                  onPressed: () => Scaffold.of(context).openDrawer(),
-                  icon: Icon(
-                    PhosphorIconsRegular.list,
-                    color: AppColors.textPrimaryOf(context),
-                  ),
-                ),
-              ),
-            ),
-          ),
-          title: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: Text(
-              header.title,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.center,
-              style: AppTextStyles.headingS.copyWith(
-                color: AppColors.textPrimaryOf(context),
-              ),
-            ),
-          ),
-          actions: const [
-            Padding(
-              padding: EdgeInsets.only(right: 12),
-              child: _FoundationNotificationAction(),
-            ),
-          ],
-        ),
+        appBar: _FoundationCompactShellTopBar(title: header.title),
         body: _ShellAccessSyncSurface(
           child: _RouteViewport(location: location, child: child),
         ),
@@ -833,6 +785,67 @@ class _MobileShell extends StatelessWidget {
           : directIndex;
     }
     return 0;
+  }
+}
+
+class _FoundationCompactShellTopBar extends StatelessWidget
+    implements PreferredSizeWidget {
+  final String title;
+
+  const _FoundationCompactShellTopBar({required this.title});
+
+  @override
+  Size get preferredSize =>
+      const Size.fromHeight(AppLayoutTokens.shellTopBarHeight);
+
+  @override
+  Widget build(BuildContext context) {
+    final surface = AppColors.raisedOf(context);
+    final foreground = AppColors.textPrimaryOf(context);
+    return Material(
+      color: surface,
+      child: Container(
+        key: const ValueKey('mobile-shell-topbar'),
+        height: preferredSize.height,
+        // The 1px Foundation border is inside the 375px frame. Keep the
+        // visible controls at the source-node x=12 / x=315 positions.
+        padding: const EdgeInsets.symmetric(horizontal: 11),
+        decoration: BoxDecoration(
+          color: surface,
+          border: Border.all(color: AppColors.borderOf(context)),
+        ),
+        child: Row(
+          children: [
+            Builder(
+              builder: (context) => SizedBox.square(
+                dimension: 48,
+                child: IconButton(
+                  padding: EdgeInsets.zero,
+                  tooltip: 'Mở menu',
+                  onPressed: () => Scaffold.of(context).openDrawer(),
+                  icon: Icon(PhosphorIconsRegular.list, color: foreground),
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: AppTextStyles.headingS.copyWith(color: foreground),
+              ),
+            ),
+            const SizedBox(width: 12),
+            const SizedBox.square(
+              dimension: 48,
+              child: _FoundationNotificationAction(),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 
