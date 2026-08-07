@@ -240,6 +240,7 @@ class _AppShellState extends State<AppShell> {
                     SupportChatBubble(
                       onPressed: () => _openSupport(context),
                       visibleWhenDisabled: windowsHomeStack,
+                      usePrimaryStyle: windowsHomeStack,
                     ),
                   ],
                 ),

@@ -152,6 +152,9 @@ class _QuickActionsLauncherState extends State<QuickActionsLauncher>
   @override
   Widget build(BuildContext context) {
     final actions = QuickActionsLauncher._actionsForContext(context);
+    final launcherShape = widget.buttonSize >= 64
+        ? const CircleBorder()
+        : RoundedRectangleBorder(borderRadius: AppRadius.allLg);
     if (actions.isEmpty) {
       if (!widget.visibleWhenUnavailable) return const SizedBox.shrink();
       return Semantics(
@@ -161,9 +164,11 @@ class _QuickActionsLauncherState extends State<QuickActionsLauncher>
         child: Tooltip(
           message: 'Chưa có thao tác nhanh khả dụng',
           child: Material(
+            key: const Key('quick-actions-launcher-surface'),
             color: AppColors.primaryOf(context),
             elevation: widget.elevation,
-            borderRadius: AppRadius.allLg,
+            shape: launcherShape,
+            clipBehavior: Clip.antiAlias,
             child: SizedBox.square(
               key: const Key('quick-actions-launcher-unavailable'),
               dimension: widget.buttonSize,
@@ -185,12 +190,14 @@ class _QuickActionsLauncherState extends State<QuickActionsLauncher>
         child: Focus(
           focusNode: _buttonFocus,
           child: Material(
+            key: const Key('quick-actions-launcher-surface'),
             color: AppColors.primaryOf(context),
             elevation: widget.elevation,
-            borderRadius: AppRadius.allLg,
+            shape: launcherShape,
+            clipBehavior: Clip.antiAlias,
             child: InkWell(
               key: const Key('quick-actions-launcher'),
-              borderRadius: AppRadius.allLg,
+              customBorder: launcherShape,
               onTap: _toggleMenu,
               child: SizedBox.square(
                 dimension: widget.buttonSize,

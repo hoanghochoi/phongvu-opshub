@@ -38,6 +38,12 @@ void main() {
     final bubble = find.byType(SupportChatBubble);
     expect(tester.getSize(bubble), const Size.square(64));
     expect(find.byTooltip('Hỗ trợ'), findsOneWidget);
+    final fab = tester.widget<FloatingActionButton>(
+      find.byKey(const Key('support-chat-bubble-fab')),
+    );
+    expect(fab.shape, isA<CircleBorder>());
+    expect(fab.backgroundColor, isNull);
+    expect(fab.foregroundColor, isNull);
     final icon = tester.widget<Icon>(find.byIcon(PhosphorIconsRegular.headset));
     expect(icon.size, 28);
   });

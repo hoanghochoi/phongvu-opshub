@@ -51,6 +51,10 @@ void main() {
     );
     expect(tester.getSize(launcher), const Size.square(64));
     expect(find.byTooltip('Chưa có thao tác nhanh khả dụng'), findsOneWidget);
+    final surface = tester.widget<Material>(
+      find.byKey(const Key('quick-actions-launcher-surface')),
+    );
+    expect(surface.shape, isA<CircleBorder>());
     final icon = tester.widget<Icon>(
       find.byIcon(PhosphorIconsRegular.lightning),
     );

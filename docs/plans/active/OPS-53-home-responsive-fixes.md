@@ -2,7 +2,8 @@
 
 ## Status
 
-Active — final residual implementation and local verification are complete.
+Active — authenticated staging audit found one final Windows FAB visual parity
+gap; the corrective branch is in implementation and verification.
 Đại Ca approved the four REVIEW nodes, authorized self-approval for any
 additional OPS-53 nodes, and authorized one accumulated PR → staging merge →
 authenticated Chrome audit → lifecycle cleanup flow.
@@ -148,9 +149,22 @@ implement from the pre-R3 frames or infer a missing compact geometry.
   non-Home Support offsets retain their previous contract.
 - Material icon migration completed across `65` production Dart files and all
   affected tests; `rg '\bIcons\.' lib test --glob '*.dart'` returns no hits.
-- Verified on the final runtime/test diff: `flutter analyze --no-pub` pass;
-  full Flutter suite `768` pass with `3` skips; Web release build pass; Windows
-  release build pass; independent final code review reports no blocker.
+- The post-merge audit re-read Quick Actions `406:16778`, Support `228:675`,
+  and Windows stack `1771:100236` / `2003:144239` / `2003:144331`. It found
+  that the Windows Quick Action still inherited the compact 20px rounded
+  rectangle and Windows Support retained the default light FAB colors. The
+  corrective branch makes the 64px Quick Action circular and gives the Windows
+  Support FAB the approved primary surface/foreground while preserving the
+  compact bottom-navigation shape and non-Windows Support styling.
+- Pre-corrective proof for merged PR #134 / staging SHA `6de35c2a`:
+  `flutter analyze --no-pub` pass; full Flutter suite `768` pass with `3`
+  skips; Web release build pass; Windows release build pass; independent code
+  review reported no blocker.
+- The corrective candidate must rerun analyzer, the focused shared-shell/Quick/
+  Support tests, the full Flutter suite, Web release build, Windows release
+  build, Material-icon guard/scan, and independent review on one unchanged
+  fingerprint before publication. Staging Chrome proof is rerun only after the
+  corrective merge is deployed at its exact SHA.
 - Android release proof is signing-blocked because the local keystore variables
   are absent. Android debug Gradle produced both production and staging APKs,
   although Flutter's wrapper returned non-zero because it did not recognize
