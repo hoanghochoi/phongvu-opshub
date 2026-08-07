@@ -270,6 +270,73 @@ class AppStatusBanner extends StatelessWidget {
   }
 }
 
+class AppLoadingBanner extends StatelessWidget {
+  const AppLoadingBanner({
+    super.key,
+    required this.message,
+    this.trailingLabel,
+  });
+
+  final String message;
+  final String? trailingLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    final infoColor = AppColors.infoOf(context);
+    return Semantics(
+      label: 'Đang tải',
+      liveRegion: true,
+      child: Container(
+        constraints: const BoxConstraints(minHeight: 56),
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        decoration: BoxDecoration(
+          color: infoColor.withValues(alpha: 0.08),
+          border: Border.all(color: infoColor.withValues(alpha: 0.24)),
+          borderRadius: AppRadius.allMd,
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            SizedBox.square(
+              dimension: 16,
+              child: Icon(
+                PhosphorIconsRegular.spinnerGap,
+                size: 16,
+                color: infoColor,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                message,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppTextStyles.bodyS.copyWith(
+                  color: AppColors.textSecondaryOf(context),
+                ),
+              ),
+            ),
+            if (trailingLabel != null) ...[
+              const SizedBox(width: 12),
+              Flexible(
+                child: Text(
+                  trailingLabel!,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.right,
+                  style: AppTextStyles.caption.copyWith(
+                    color: AppColors.textMutedOf(context),
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class AppListSkeleton extends StatelessWidget {
   final int itemCount;
   final bool showLeading;
