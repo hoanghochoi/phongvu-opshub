@@ -8,6 +8,7 @@ import 'package:phongvu_opshub/app/navigation/app_shell.dart';
 import 'package:phongvu_opshub/app/theme/app_colors.dart';
 import 'package:phongvu_opshub/app/theme/app_theme.dart';
 import 'package:phongvu_opshub/app/widgets/app_layout.dart';
+import 'package:phongvu_opshub/app/widgets/app_notification_action.dart';
 import 'package:phongvu_opshub/core/logging/app_logger.dart';
 import 'package:phongvu_opshub/core/network/api_client.dart';
 import 'package:phongvu_opshub/features/auth/data/repositories/auth_repository.dart';
@@ -690,7 +691,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('mobile shell omits the header notification bell', (
+  testWidgets('mobile shell keeps the Foundation notification action', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(390, 844);
@@ -720,7 +721,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Thông báo'), findsOneWidget);
-    expect(find.byType(AppNotificationsBell), findsNothing);
+    expect(find.byType(AppNotificationIconButton), findsOneWidget);
     expect(find.byType(SupportChatBubble), findsNothing);
     expect(notificationsProvider.loadCalls, 0);
     expect(notificationsProvider.markReadCalls, 0);
@@ -757,6 +758,8 @@ void main() {
     expect(appBar.backgroundColor, AppColors.surface);
     expect(appBar.foregroundColor, AppColors.onSurface);
     expect(find.byTooltip('Mở menu'), findsOneWidget);
+    expect(find.byTooltip('Thông báo'), findsOneWidget);
+    expect(find.byType(AppNotificationIconButton), findsOneWidget);
     expect(find.byTooltip('Hỗ trợ'), findsNothing);
     expect(find.text('Trang chủ'), findsWidgets);
     expect(find.textContaining('TB '), findsNothing);
@@ -841,12 +844,57 @@ void main() {
     expect(find.byTooltip('Hỗ trợ'), findsNothing);
     expect(find.byTooltip('Thông báo'), findsOneWidget);
     expect(find.byTooltip('Tài khoản'), findsOneWidget);
-    expect(find.byType(AppNotificationsBell), findsOneWidget);
+    expect(find.byType(AppNotificationIconButton), findsOneWidget);
+    expect(find.byType(AppNotificationsBell), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('834px medium shell uses Foundation rail and topbar', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(834, 1112);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider<AuthProvider>.value(
+            value: _FakeAuthProvider(_shellUser),
+          ),
+          ChangeNotifierProvider<AppNotificationsProvider>.value(
+            value: _FakeAppNotificationsProvider(),
+          ),
+        ],
+        child: const MaterialApp(
+          home: AppShell(
+            location: '/home',
+            child: _RouteMarker(label: 'home-route-marker'),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      tester.getSize(find.byKey(const ValueKey('tablet-shell-rail'))),
+      const Size(88, 1112),
+    );
+    expect(
+      tester.getSize(find.byKey(const ValueKey('tablet-shell-topbar'))),
+      const Size(746, 72),
+    );
+    expect(find.byKey(const Key('mobile-bottom-navigation')), findsNothing);
+    expect(find.byType(AppNotificationIconButton), findsOneWidget);
+    expect(find.byTooltip('Tài khoản'), findsOneWidget);
+    expect(find.text('Trang chủ'), findsOneWidget);
+    expect(find.text('Tổng quan vận hành'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
   testWidgets(
-    'Operations shell does not render audit labels or screen-local refresh',
+    'Operations shell uses the Foundation route context without audit labels',
     (tester) async {
       tester.view.physicalSize = const Size(1024, 900);
       tester.view.devicePixelRatio = 1;
@@ -869,7 +917,7 @@ void main() {
 
       expect(find.textContaining('Web ·'), findsNothing);
       expect(find.text('Làm mới'), findsNothing);
-      expect(find.text('Công cụ nghiệp vụ theo quyền'), findsNothing);
+      expect(find.text('Công cụ nghiệp vụ theo quyền'), findsOneWidget);
       expect(tester.takeException(), isNull);
     },
   );

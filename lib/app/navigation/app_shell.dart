@@ -29,6 +29,7 @@ import '../widgets/app_buttons.dart';
 import '../widgets/app_layout.dart';
 import '../widgets/app_logout_confirmation_dialog.dart';
 import '../widgets/app_logo.dart';
+import '../widgets/app_notification_action.dart';
 import '../widgets/app_state_widgets.dart';
 import 'app_nav_model.dart';
 
@@ -138,7 +139,8 @@ class _AppShellState extends State<AppShell> {
       mediaQuery.padding.bottom,
       mediaQuery.viewInsets.bottom,
     );
-    final layout = width >= AppLayoutTokens.tabletBreakpoint
+    final shellUsesRail = width >= AppLayoutTokens.compactBreakpoint;
+    final layout = shellUsesRail
         ? width >= AppLayoutTokens.desktopBreakpoint
               ? 'desktop'
               : 'tablet'
@@ -173,7 +175,7 @@ class _AppShellState extends State<AppShell> {
       },
       child: Stack(
         children: [
-          width >= AppLayoutTokens.tabletBreakpoint
+          shellUsesRail
               ? _WideShell(
                   layout: layout,
                   location: widget.location,
@@ -195,7 +197,7 @@ class _AppShellState extends State<AppShell> {
                   onNavigate: _navigate,
                   child: widget.child,
                 ),
-          if (width >= AppLayoutTokens.tabletBreakpoint &&
+          if (shellUsesRail &&
               widget.location != '/admin/support-chats' &&
               (supportChat?.enabled == true ||
                   (!kIsWeb &&
@@ -735,26 +737,48 @@ class _MobileShell extends StatelessWidget {
           backgroundColor: AppColors.raisedOf(context),
           foregroundColor: AppColors.textPrimaryOf(context),
           surfaceTintColor: AppColors.raisedOf(context),
+          elevation: 0,
+          scrolledUnderElevation: 0,
+          shadowColor: AppColors.transparent,
+          shape: Border.all(color: AppColors.borderOf(context)),
           centerTitle: true,
+          titleSpacing: 0,
+          leadingWidth: 60,
           leading: Builder(
-            builder: (context) => IconButton(
-              tooltip: 'Mở menu',
-              onPressed: () => Scaffold.of(context).openDrawer(),
-              icon: Icon(
-                PhosphorIconsRegular.list,
+            builder: (context) => Padding(
+              padding: const EdgeInsets.only(left: 12),
+              child: SizedBox.square(
+                dimension: 48,
+                child: IconButton(
+                  padding: EdgeInsets.zero,
+                  tooltip: 'Mở menu',
+                  onPressed: () => Scaffold.of(context).openDrawer(),
+                  icon: Icon(
+                    PhosphorIconsRegular.list,
+                    color: AppColors.textPrimaryOf(context),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          title: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: Text(
+              header.title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: AppTextStyles.headingS.copyWith(
                 color: AppColors.textPrimaryOf(context),
               ),
             ),
           ),
-          title: Text(
-            header.title,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: AppTextStyles.headingS.copyWith(
-              color: AppColors.textPrimaryOf(context),
+          actions: const [
+            Padding(
+              padding: EdgeInsets.only(right: 12),
+              child: _FoundationNotificationAction(),
             ),
-          ),
-          actions: const [],
+          ],
         ),
         body: _ShellAccessSyncSurface(
           child: _RouteViewport(location: location, child: child),
@@ -884,6 +908,28 @@ class _MobileNotificationDestinationIcon extends StatelessWidget {
       isLabelVisible: notifications.count > 0,
       label: Text('${notifications.count}'),
       child: const Icon(Icons.notifications_none_rounded),
+    );
+  }
+}
+
+class _FoundationNotificationAction extends StatelessWidget {
+  const _FoundationNotificationAction();
+
+  @override
+  Widget build(BuildContext context) {
+    var count = 0;
+    try {
+      final notifications = context.watch<AppNotificationsProvider>();
+      if (notifications.isEnabled) count = notifications.count;
+    } on ProviderNotFoundException {
+      // Lightweight shell tests can omit the notifications provider. The
+      // Foundation action remains visible and safely becomes a no-op.
+    }
+
+    return AppNotificationIconButton(
+      count: count,
+      tooltip: count > 0 ? '$count thông báo mới' : 'Thông báo',
+      onPressed: () => unawaited(AppNotificationsBell.showPanel(context)),
     );
   }
 }
@@ -1051,9 +1097,9 @@ class _RouteViewport extends StatelessWidget {
         final height = constraints.hasBoundedHeight
             ? constraints.maxHeight
             : mediaSize.height;
-        final routeMediaQuery = MediaQuery.of(context).copyWith(
-          size: Size(width, height),
-        );
+        final routeMediaQuery = MediaQuery.of(
+          context,
+        ).copyWith(size: Size(width, height));
         return SizedBox(
           width: width,
           height: height,
@@ -1280,6 +1326,7 @@ class _TabletRail extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
+      key: const ValueKey('tablet-shell-rail'),
       width: AppLayoutTokens.tabletRailWidth,
       color: AppColors.sidebarSurfaceOf(context),
       child: SafeArea(
@@ -1425,8 +1472,10 @@ class _ShellTopBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final header = _shellHeaderFor(location, activeDestination);
-    final figmaTopBarTarget = location == '/operations' || location == '/home';
+    final foundationTabletTopBar =
+        MediaQuery.sizeOf(context).width < AppLayoutTokens.desktopBreakpoint;
     return Container(
+      key: const ValueKey('tablet-shell-topbar'),
       height: AppLayoutTokens.shellTopBarHeight,
       decoration: BoxDecoration(
         color: AppColors.raisedOf(context),
@@ -1437,14 +1486,48 @@ class _ShellTopBar extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 24),
       child: LayoutBuilder(
         builder: (context, constraints) {
+          if (foundationTabletTopBar) {
+            return Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _ShellTitleText(title: header.title),
+                      const SizedBox(height: 2),
+                      Text(
+                        header.description,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTextStyles.bodyS.copyWith(
+                          color: AppColors.textMutedOf(context),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const _FoundationNotificationAction(),
+                const SizedBox(width: 16),
+                _AccountMenuButton(
+                  user: user,
+                  onLogout: onLogout,
+                  onAppInfo: onAppInfo,
+                ),
+              ],
+            );
+          }
+
           // The Figma tablet rail has room for the three retained actions,
           // but not their desktop labels or delivery-metrics pill.
+          final desktopTopBarTarget =
+              location == '/operations' || location == '/home';
           final compactActions =
-              constraints.maxWidth < (figmaTopBarTarget ? 960 : 880);
+              constraints.maxWidth < (desktopTopBarTarget ? 960 : 880);
           return Row(
             children: [
               Expanded(
-                child: figmaTopBarTarget
+                child: desktopTopBarTarget
                     ? Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [_ShellTitleText(title: header.title)],

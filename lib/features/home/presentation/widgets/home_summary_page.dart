@@ -115,12 +115,10 @@ class HomeSummaryPage extends StatelessWidget {
   List<Widget> _buildSummaryContent(HomeSummary? summary) {
     if (provider.isInitialLoading) {
       return [
-        _buildStateCard(
+        AppLoadingBanner(
           key: const Key('home-summary-loading'),
-          child: const AppStatePanel.loading(
-            title: 'Đang tải dashboard',
-            message: 'Hệ thống đang tổng hợp số liệu theo phạm vi đã chọn.',
-          ),
+          message: 'Đang tải dữ liệu dashboard…',
+          trailingLabel: 'Đang tải',
         ),
       ];
     }
@@ -387,6 +385,9 @@ class HomeSummaryHeader extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final mobile = constraints.maxWidth < AppLayoutTokens.compactBreakpoint;
+        final medium =
+            !mobile &&
+            MediaQuery.sizeOf(context).width < AppLayoutTokens.tabletBreakpoint;
         final controls = _HomeScopeDateControl(
           availableWidth: math.max(0.0, constraints.maxWidth - 38),
           selectedScope: selectedScope,
@@ -521,7 +522,7 @@ class HomeSummaryHeader extends StatelessWidget {
                           SizedBox(width: halfWidth, child: dateChip),
                         ],
                       ),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 56),
                       mobileUpdateAndAction,
                     ],
                   );
@@ -560,8 +561,8 @@ class HomeSummaryHeader extends StatelessWidget {
         final visualHeader = mobile
             ? Container(
                 key: const Key('home-summary-header'),
-                height: 204,
-                padding: const EdgeInsets.all(18),
+                height: 288,
+                padding: const EdgeInsets.all(17),
                 decoration: BoxDecoration(
                   color: AppColors.raisedOf(context),
                   border: Border.all(color: AppColors.borderOf(context)),
@@ -578,6 +579,7 @@ class HomeSummaryHeader extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         _HomeSummaryAvatar(name: greetingName),
                         const SizedBox(width: 12),
@@ -587,7 +589,7 @@ class HomeSummaryHeader extends StatelessWidget {
                             children: [
                               Text(
                                 greetingLabel,
-                                maxLines: 1,
+                                maxLines: 2,
                                 overflow: TextOverflow.ellipsis,
                                 style: AppTextStyles.headingS.copyWith(
                                   color: AppColors.textPrimaryOf(context),
@@ -596,7 +598,7 @@ class HomeSummaryHeader extends StatelessWidget {
                               const SizedBox(height: 2),
                               Text(
                                 greetingSubtitle ?? scopeLabel,
-                                maxLines: 1,
+                                maxLines: 2,
                                 overflow: TextOverflow.ellipsis,
                                 style: AppTextStyles.bodyM.copyWith(
                                   color: AppColors.textSecondaryOf(context),
@@ -614,7 +616,7 @@ class HomeSummaryHeader extends StatelessWidget {
               )
             : Container(
                 key: const Key('home-summary-header'),
-                height: 146,
+                height: medium ? 204 : 146,
                 padding: const EdgeInsets.fromLTRB(18, 18, 18, 26),
                 decoration: BoxDecoration(
                   color: AppColors.raisedOf(context),
@@ -2901,7 +2903,7 @@ class _ApprovedReportProgressPanel extends StatelessWidget {
         );
         final desktop = boardWidth >= AppLayoutTokens.tabletBreakpoint;
         const gap = 16.0;
-        final horizontalPadding = desktop ? 40.0 : 32.0;
+        final horizontalPadding = desktop ? 40.0 : 0.0;
         final contentWidth = math.max(0.0, boardWidth - horizontalPadding);
         final columns = desktop ? 2 : 1;
         final cardWidth = columns == 1
@@ -2910,7 +2912,7 @@ class _ApprovedReportProgressPanel extends StatelessWidget {
         final cards = <_OverviewCardSpec>[
           if (summary.salesAvailable)
             _OverviewCardSpec(
-              height: 230,
+              height: desktop ? 230 : 166,
               card: _OverviewProgressCard(
                 cardKey: const Key('home-report-progress-panel'),
                 title: 'Tiến độ báo cáo',
@@ -2927,7 +2929,7 @@ class _ApprovedReportProgressPanel extends StatelessWidget {
             ),
           if (summary.financeAvailable)
             _OverviewCardSpec(
-              height: 230,
+              height: desktop ? 230 : 166,
               card: _OverviewProgressCard(
                 cardKey: const Key('home-statement-progress-panel'),
                 title: 'Tiến độ sao kê',
@@ -2944,7 +2946,9 @@ class _ApprovedReportProgressPanel extends StatelessWidget {
             ),
           if (summary.salesAvailable)
             _OverviewCardSpec(
-              height: 270,
+              height: desktop
+                  ? 270
+                  : (summary.salesProgressAssignees.isNotEmpty ? 266 : 208),
               card: _OverviewGoalCard(
                 cardKey: const Key('home-sales-progress-panel'),
                 title: 'Tổng quan cá nhân',
@@ -2964,7 +2968,7 @@ class _ApprovedReportProgressPanel extends StatelessWidget {
             ),
           if (summary.salesAvailable)
             _OverviewCardSpec(
-              height: 270,
+              height: desktop ? 270 : (boardWidth < 600 ? 360 : 280),
               card: _OverviewGoalCard(
                 cardKey: const Key('home-scope-sales-progress-panel'),
                 title: 'Tổng quan Cửa hàng',
@@ -2985,12 +2989,7 @@ class _ApprovedReportProgressPanel extends StatelessWidget {
           borderRadius: AppRadius.allCardFigma,
           child: Container(
             width: boardWidth,
-            padding: EdgeInsets.fromLTRB(
-              desktop ? 22 : 16,
-              16,
-              desktop ? 16 : 16,
-              24,
-            ),
+            padding: EdgeInsets.only(top: 16, bottom: 24),
             decoration: BoxDecoration(
               border: Border.all(
                 color: AppColors.homeOverviewBorderOf(context),
@@ -3000,7 +2999,12 @@ class _ApprovedReportProgressPanel extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Tổng quan', style: AppTextStyles.headingM),
+                Padding(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: desktop ? 0 : (boardWidth < 600 ? 16 : 24),
+                  ),
+                  child: Text('Tổng quan', style: AppTextStyles.headingM),
+                ),
                 const SizedBox(height: 16),
                 Wrap(
                   spacing: gap,
@@ -3065,7 +3069,7 @@ class _OverviewProgressCard extends StatelessWidget {
       color: surfaceColor,
       borderRadius: AppRadius.allCardFigma,
       child: Container(
-        padding: const EdgeInsets.fromLTRB(24, 16, 24, 14),
+        padding: const EdgeInsets.fromLTRB(24, 15, 24, 12),
         decoration: BoxDecoration(
           border: Border.all(color: borderColor),
           borderRadius: AppRadius.allCardFigma,
@@ -3078,7 +3082,7 @@ class _OverviewProgressCard extends StatelessWidget {
               textAlign: TextAlign.center,
               style: AppTextStyles.headingS,
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 8),
             Row(
               children: [
                 Expanded(
@@ -3095,20 +3099,20 @@ class _OverviewProgressCard extends StatelessWidget {
                 ),
               ],
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 6),
             _OverviewProgressBar(
               key: Key('${cardKey.toString()}-bar'),
               value: value,
               color: color,
               trackColor: trackColor,
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: 8),
             _OverviewLegendRow(
               label: completedLabel,
               value: '$completedValue (${_percentLabel(value)})',
               color: color,
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 4),
             _OverviewLegendRow(
               label: missingLabel,
               value: '$missingValue (${_percentLabel(100 - value)})',
@@ -3159,7 +3163,7 @@ class _OverviewGoalCard extends StatelessWidget {
       color: surfaceColor,
       borderRadius: AppRadius.allCardFigma,
       child: Container(
-        padding: const EdgeInsets.fromLTRB(24, 16, 24, 14),
+        padding: const EdgeInsets.fromLTRB(24, 15, 24, 12),
         decoration: BoxDecoration(
           border: Border.all(color: borderColor),
           borderRadius: AppRadius.allCardFigma,
@@ -3172,7 +3176,7 @@ class _OverviewGoalCard extends StatelessWidget {
               textAlign: TextAlign.center,
               style: AppTextStyles.headingS,
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 8),
             if (showAssignee)
               SizedBox(
                 height: 46,
@@ -3185,7 +3189,7 @@ class _OverviewGoalCard extends StatelessWidget {
             if (showEmpty)
               Expanded(child: _OverviewEmptySelection())
             else ...[
-              if (showAssignee) const SizedBox(height: 10),
+              if (showAssignee) const SizedBox(height: 8),
               Expanded(
                 child: Row(
                   children: [
@@ -3218,7 +3222,7 @@ class _OverviewGoalCard extends StatelessWidget {
                 padding: const EdgeInsets.only(top: 6),
                 child: Text(
                   'Thiếu chỉ tiêu: ${missingStoreCodes.join(', ')}',
-                  maxLines: 1,
+                  maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   textAlign: TextAlign.center,
                   style: AppTextStyles.caption.copyWith(

@@ -1015,7 +1015,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('Home Android header follows Figma node 331:3184 geometry', (
+  testWidgets('Home compact header follows approved R3 geometry', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(375, 812);
@@ -1057,7 +1057,7 @@ void main() {
     );
 
     final header = find.byKey(const Key('home-summary-header'));
-    expect(tester.getSize(header), const Size(343, 204));
+    expect(tester.getSize(header), const Size(343, 288));
     expect(find.text('Chào buổi sáng Nguyễn Hoàng'), findsOneWidget);
     expect(find.text('Phạm vi: Q.3'), findsOneWidget);
     expect(find.text('Khoảng ngày: 27/07'), findsOneWidget);
@@ -1549,7 +1549,7 @@ void main() {
     expect(find.byKey(const Key('home-analytics-sales-month')), findsOneWidget);
   });
 
-  testWidgets('Home progress matches compact Figma analytics geometry', (
+  testWidgets('Home progress matches compact approved R3 geometry', (
     tester,
   ) async {
     final summary = _managerSalesProgressSummary('sa-1', includeFinance: true);
@@ -1576,17 +1576,17 @@ void main() {
     final statement = find.byKey(const Key('home-statement-progress-panel'));
     final personal = find.byKey(const Key('home-sales-progress-panel'));
     final scope = find.byKey(const Key('home-scope-sales-progress-panel'));
-    expect(tester.getSize(report), const Size(309, 230));
-    expect(tester.getTopLeft(report).dx, closeTo(17, 0.1));
-    expect(tester.getSize(statement), const Size(309, 230));
-    expect(tester.getTopLeft(statement).dx, closeTo(17, 0.1));
-    expect(tester.getSize(personal), const Size(309, 270));
-    expect(tester.getSize(scope), const Size(309, 270));
+    expect(tester.getSize(report), const Size(341, 166));
+    expect(tester.getTopLeft(report).dx, closeTo(1, 0.1));
+    expect(tester.getSize(statement), const Size(341, 166));
+    expect(tester.getTopLeft(statement).dx, closeTo(1, 0.1));
+    expect(tester.getSize(personal), const Size(341, 266));
+    expect(tester.getSize(scope), const Size(341, 360));
     expect(
       tester.getSize(
         find.byKey(const Key('home-sales-progress-assignee-dropdown')),
       ),
-      const Size(259, 46),
+      const Size(291, 46),
     );
     expect(find.byKey(const Key('home-summary-progress-donut')), findsNothing);
   });
@@ -1703,7 +1703,7 @@ void main() {
     expect(overview.top, 196);
   });
 
-  testWidgets('Home progress uses viewport width when parent is unbounded', (
+  testWidgets('Home progress uses viewport width with approved R3 geometry', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(640, 800);
@@ -1737,7 +1737,7 @@ void main() {
     expect(board.width, closeTo(640, 0.1));
     expect(
       tester.getSize(find.byKey(const Key('home-report-progress-panel'))),
-      const Size(606, 230),
+      const Size(638, 166),
     );
     expect(tester.takeException(), isNull);
   });
