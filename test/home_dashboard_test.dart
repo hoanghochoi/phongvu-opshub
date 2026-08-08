@@ -614,8 +614,16 @@ void main() {
         findsOneWidget,
       );
       expect(
-        find.byKey(const Key('home-summary-scope-date-trigger')),
+        find.byKey(const Key('home-summary-scope-trigger')),
         findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('home-summary-date-control')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('home-summary-scope-date-trigger')),
+        findsNothing,
       );
       expect(
         find.byKey(const Key('home-summary-refresh-button')),
@@ -889,7 +897,7 @@ void main() {
 
       expect(
         tester.getTopLeft(find.byKey(const Key('home-summary-header'))).dy,
-        closeTo(headerTopBefore, 0.1),
+        lessThan(headerTopBefore),
       );
       expect(
         tester
@@ -942,13 +950,18 @@ void main() {
 
     final header = find.byKey(const Key('home-summary-header'));
     final refresh = find.byKey(const Key('home-summary-refresh-button'));
-    final trigger = find.byKey(const Key('home-summary-scope-date-trigger'));
+    final trigger = find.byKey(const Key('home-summary-scope-trigger'));
+    final date = find.byKey(const Key('home-summary-date-control'));
     expect(tester.getSize(header), const Size(896, 146));
     expect(tester.getSize(refresh).height, 40);
     expect(tester.getSize(trigger).height, 40);
+    expect(tester.getSize(date).height, 40);
+    expect(tester.getSize(trigger).width, 220);
+    expect(tester.getSize(date).width, 220);
+    expect(tester.getSize(refresh).width, 180);
     expect(find.textContaining('Cập nhật lúc'), findsOneWidget);
     expect(find.text('Phạm vi: Showroom được phân quyền'), findsOneWidget);
-    expect(find.text('Khoảng ngày: 03/08'), findsOneWidget);
+    expect(find.text('Khoảng ngày: 03/08/2026'), findsOneWidget);
     final headerRect = tester.getRect(header);
     final refreshRect = tester.getRect(refresh);
     expect(refreshRect.width, lessThan(headerRect.width));
@@ -967,6 +980,7 @@ void main() {
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
+    String? changedScope;
 
     await tester.pumpWidget(
       MaterialApp(
@@ -993,7 +1007,7 @@ void main() {
                 selectedStartDate: DateTime(2026, 8, 3),
                 selectedEndDate: DateTime(2026, 8, 3),
                 isRefreshing: false,
-                onScopeChanged: (_) {},
+                onScopeChanged: (value) => changedScope = value,
                 onDateRangeChanged: (_, _) {},
                 onRefresh: () {},
                 warningMessage: null,
@@ -1005,14 +1019,20 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byKey(const Key('home-summary-scope-date-trigger')));
+    await tester.tap(find.byKey(const Key('home-summary-scope-trigger')));
     await tester.pumpAndSettle();
 
     final menu = find.byKey(const Key('home-summary-scope-menu'));
     final menuRect = tester.getRect(menu);
     expect(menuRect.left, greaterThanOrEqualTo(16));
     expect(menuRect.right, lessThanOrEqualTo(624));
-    expect(menuRect.width, closeTo(608, 0.1));
+    expect(menuRect.width, lessThanOrEqualTo(220));
+    expect(find.text('Toàn hệ thống'), findsWidgets);
+    expect(find.text('Phạm vi cá nhân'), findsOneWidget);
+    await tester.tap(find.text('Phạm vi cá nhân'));
+    await tester.pumpAndSettle();
+    expect(changedScope, 'OWN');
+    expect(find.byKey(const Key('home-summary-scope-menu')), findsNothing);
     expect(tester.takeException(), isNull);
   });
 
@@ -1061,7 +1081,7 @@ void main() {
     expect(tester.getSize(header), const Size(343, 288));
     expect(find.text('Chào buổi sáng Nguyễn Hoàng'), findsOneWidget);
     expect(find.text('Phạm vi: Q.3'), findsOneWidget);
-    expect(find.text('Khoảng ngày: 27/07'), findsOneWidget);
+    expect(find.text('Khoảng ngày: 27/07/2026'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -1560,11 +1580,11 @@ void main() {
       findsOneWidget,
     );
     expect(tester.getSize(reportPanel).width, closeTo(535, 0.1));
-    expect(tester.getSize(reportPanel).height, closeTo(230, 0.1));
+    expect(tester.getSize(reportPanel).height, closeTo(206, 0.1));
     expect(tester.getSize(statementPanel).width, closeTo(535, 0.1));
-    expect(tester.getSize(statementPanel).height, closeTo(230, 0.1));
+    expect(tester.getSize(statementPanel).height, closeTo(206, 0.1));
     expect(tester.getSize(personalPanel).width, closeTo(535, 0.1));
-    expect(tester.getSize(personalPanel).height, closeTo(270, 0.1));
+    expect(tester.getSize(personalPanel).height, closeTo(264, 0.1));
     expect(find.byKey(const Key('home-analytics-sales-range')), findsOneWidget);
     expect(find.byKey(const Key('home-analytics-sales-month')), findsOneWidget);
   });
@@ -1603,12 +1623,92 @@ void main() {
     expect(tester.getSize(personal), const Size(341, 266));
     expect(tester.getSize(scope), const Size(341, 360));
     expect(
+      find.descendant(of: scope, matching: find.text('Ngày')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: scope, matching: find.text('Khoảng chọn')),
+      findsNothing,
+    );
+    expect(
       tester.getSize(
         find.byKey(const Key('home-sales-progress-assignee-dropdown')),
       ),
-      const Size(291, 46),
+      const Size(299, 46),
     );
     expect(find.byKey(const Key('home-summary-progress-donut')), findsNothing);
+  });
+
+  testWidgets('Home compact empty-SA overview has no trailing filler', (
+    tester,
+  ) async {
+    final summary = _managerSalesProgressSummary(null, includeFinance: true);
+    final provider = HomeSummaryProvider(
+      _FakeHomeSummaryRepository(summary: summary),
+    );
+    addTearDown(provider.dispose);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SingleChildScrollView(
+            child: SizedBox(
+              width: 343,
+              child: ReportProgressPanel(summary: summary, provider: provider),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      tester.getSize(find.byKey(const Key('home-summary-progress-panel'))),
+      const Size(343, 996),
+    );
+    expect(
+      tester.getSize(find.byKey(const Key('home-sales-progress-panel'))),
+      const Size(341, 208),
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Home expanded overview uses approved two-column geometry', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1024, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final summary = _managerSalesProgressSummary('sa-1', includeFinance: true);
+    final provider = HomeSummaryProvider(
+      _FakeHomeSummaryRepository(summary: summary),
+    );
+    addTearDown(provider.dispose);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 888,
+            child: ReportProgressPanel(summary: summary, provider: provider),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final report = find.byKey(const Key('home-report-progress-panel'));
+    final statement = find.byKey(const Key('home-statement-progress-panel'));
+    final personal = find.byKey(const Key('home-sales-progress-panel'));
+    final scope = find.byKey(const Key('home-scope-sales-progress-panel'));
+    expect(tester.getSize(report), const Size(436, 166));
+    expect(tester.getSize(statement), const Size(436, 166));
+    expect(tester.getSize(personal), const Size(436, 280));
+    expect(tester.getSize(scope), const Size(436, 280));
+    expect(tester.getTopLeft(report).dy, tester.getTopLeft(statement).dy);
+    expect(tester.getTopLeft(personal).dy, tester.getTopLeft(scope).dy);
   });
 
   testWidgets('Home desktop goal card uses the Figma staff-state height', (
@@ -1681,7 +1781,7 @@ void main() {
       find.byKey(const Key('home-sales-progress-panel')),
     );
     expect(goalSize.width, closeTo(535, 0.1));
-    expect(goalSize.height, closeTo(270, 0.1));
+    expect(goalSize.height, closeTo(264, 0.1));
   });
 
   testWidgets('Home wide proposal keeps the approved shell geometry', (
@@ -2272,9 +2372,7 @@ void main() {
     expect(find.text('Tài chính'), findsNothing);
     expect(find.byKey(const Key('home-finance-summary-grid')), findsNothing);
 
-    await tester.tap(find.byKey(const Key('home-summary-scope-pill')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const Key('home-summary-scope-combobox')));
+    await tester.tap(find.byKey(const Key('home-summary-scope-trigger')));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Phạm vi cá nhân').last);
     await tester.pumpAndSettle();
@@ -2372,9 +2470,7 @@ void main() {
       expect(summaryProvider.selectedScope, 'ALL');
       expect(find.textContaining('Toàn hệ thống'), findsWidgets);
 
-      await tester.tap(find.byKey(const Key('home-summary-scope-pill')));
-      await tester.pumpAndSettle();
-      await tester.tap(find.byKey(const Key('home-summary-scope-combobox')));
+      await tester.tap(find.byKey(const Key('home-summary-scope-trigger')));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Vùng: Hồ Chí Minh').last);
       await tester.pumpAndSettle();
@@ -2463,9 +2559,7 @@ void main() {
 
     expect(repository.requestedNodeIds, contains('org-area-hcm'));
 
-    await tester.tap(find.byKey(const Key('home-summary-scope-pill')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const Key('home-summary-scope-combobox')));
+    await tester.tap(find.byKey(const Key('home-summary-scope-trigger')));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Showroom: CP75').last);
     await tester.pumpAndSettle();
@@ -2550,9 +2644,7 @@ void main() {
     expect(find.textContaining('Tất cả SR được gán'), findsWidgets);
     expect(find.text('22M VND'), findsOneWidget);
 
-    await tester.tap(find.byKey(const Key('home-summary-scope-pill')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const Key('home-summary-scope-combobox')));
+    await tester.tap(find.byKey(const Key('home-summary-scope-trigger')));
     await tester.pumpAndSettle();
 
     expect(find.text('Showroom: CP75'), findsWidgets);
@@ -2805,7 +2897,8 @@ Future<void> _pumpCompactVariantAHeader(
   expect(scopeRect.left, closeTo(controlsRect.left, 0.1));
   expect(scopeRect.width, closeTo(controlsRect.width, 0.1));
   expect(dateRect.width, closeTo(controlsRect.width, 0.1));
-  expect(refreshRect.width, closeTo(controlsRect.width, 0.1));
+  expect(refreshRect.width, closeTo(171, 0.1));
+  expect(refreshRect.left, closeTo(controlsRect.left, 0.1));
   expect(scopeRect.height, closeTo(40, 0.1));
   expect(dateRect.height, closeTo(40, 0.1));
   expect(scopeRect.top, closeTo(controlsRect.top, 0.1));

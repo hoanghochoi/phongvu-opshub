@@ -93,6 +93,86 @@ void main() {
     );
   });
 
+  testWidgets('login stays centered in an asymmetric iOS PWA safe area', (
+    WidgetTester tester,
+  ) async {
+    tester.view
+      ..physicalSize = const Size(390, 844)
+      ..devicePixelRatio = 1
+      ..padding = const FakeViewPadding(top: 47, right: 28, bottom: 34);
+    addTearDown(tester.view.reset);
+
+    await _pumpAuthScreen(tester, const EmailCheckScreen());
+
+    final cardRect = tester.getRect(find.byType(LoginCard));
+    final logoRect = tester.getRect(find.byType(AppLogo).first);
+    expect(cardRect.center.dx, closeTo(195, 0.1));
+    expect(logoRect.center.dx, closeTo(195, 0.1));
+    expect(cardRect.width, 360);
+    expect(logoRect.top, closeTo(24, 0.1));
+    expect(cardRect.top, closeTo(156, 0.1));
+    expect(tester.takeException(), isNull);
+  });
+
+  test('auth safe-area mirrors the larger landscape PWA inset', () {
+    expect(
+      authSymmetricHorizontalSafeInset(
+        const Size(844, 390),
+        const EdgeInsets.only(left: 47, right: 28, bottom: 21),
+      ),
+      47,
+    );
+    expect(
+      authSymmetricHorizontalSafeInset(
+        const Size(390, 844),
+        const EdgeInsets.only(top: 47, right: 28, bottom: 34),
+      ),
+      0,
+    );
+  });
+
+  test('auth layout only treats phone-sized mobile web as a PWA phone', () {
+    expect(
+      authUsesPhonePwaLayout(
+        const Size(844, 390),
+        isWeb: true,
+        platform: TargetPlatform.iOS,
+      ),
+      isTrue,
+    );
+    expect(
+      authUsesPhonePwaLayout(
+        const Size(1024, 599),
+        isWeb: true,
+        platform: TargetPlatform.windows,
+      ),
+      isFalse,
+    );
+    expect(
+      authUsesPhonePwaLayout(
+        const Size(1024, 768),
+        isWeb: true,
+        platform: TargetPlatform.iOS,
+      ),
+      isFalse,
+    );
+  });
+
+  testWidgets('wide short desktop keeps the desktop auth shell', (
+    WidgetTester tester,
+  ) async {
+    tester.view
+      ..physicalSize = const Size(1024, 599)
+      ..devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+
+    await _pumpAuthScreen(tester, const EmailCheckScreen());
+
+    expect(find.byType(AuthBrandPanel), findsOneWidget);
+    expect(find.byType(MobileBrandHeader), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('registration keeps its last input above the mobile keyboard', (
     WidgetTester tester,
   ) async {

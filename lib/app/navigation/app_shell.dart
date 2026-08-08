@@ -1211,7 +1211,7 @@ class _DesktopSidebar extends StatelessWidget {
                                 height: 1,
                               ),
                             ),
-                            const SizedBox(height: 1),
+                            const SizedBox(height: 4),
                             Text(
                               'Kết nối nguồn lực.\nĐồng bộ vận hành.',
                               maxLines: 2,
@@ -1221,7 +1221,7 @@ class _DesktopSidebar extends StatelessWidget {
                                   context,
                                 ).withValues(alpha: 0.78),
                                 fontSize: 12,
-                                height: 1,
+                                height: 17 / 12,
                               ),
                             ),
                           ],

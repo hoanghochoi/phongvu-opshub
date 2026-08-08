@@ -630,6 +630,10 @@ class _SalesReportControls extends StatelessWidget {
             label: 'Tải lại',
             isLoading: provider.isLoadingOrders,
             size: AppButtonSize.medium,
+            radius: compact ? 10 : AppButtonMetrics.radius,
+            padding: compact
+                ? const EdgeInsets.symmetric(horizontal: 12)
+                : null,
           ),
         );
         final activeFilterCount = <String?>[
@@ -640,14 +644,18 @@ class _SalesReportControls extends StatelessWidget {
         final filterButton = SizedBox(
           key: const Key('sales-report-managed-filter'),
           width: 152,
-          height: 40,
+          height: 48,
           child: AppSecondaryButton(
             onPressed: provider.isLoadingOrders ? null : onOpenAdvancedFilters,
             icon: PhosphorIconsRegular.funnel,
             label: filterActive ? 'Lọc ($activeFilterCount)' : 'Lọc',
-            size: AppButtonSize.small,
-            height: 40,
+            size: AppButtonSize.medium,
+            height: 48,
             textStyle: AppTextStyles.labelM,
+            radius: compact ? 10 : AppButtonMetrics.radius,
+            padding: compact
+                ? const EdgeInsets.symmetric(horizontal: 12)
+                : null,
             foregroundColor: filterActive
                 ? AppColors.primaryOf(context)
                 : AppColors.textSecondaryOf(context),
@@ -668,6 +676,7 @@ class _SalesReportControls extends StatelessWidget {
               onPressed: onPressed,
               label: label,
               size: AppButtonSize.medium,
+              radius: compact ? 10 : AppButtonMetrics.radius,
               textStyle: AppTextStyles.labelM,
               padding: compact
                   ? const EdgeInsets.symmetric(horizontal: 12)
@@ -700,7 +709,7 @@ class _SalesReportControls extends StatelessWidget {
                   Padding(
                     padding: const EdgeInsets.only(top: 28),
                     child: actionButton(
-                      label: 'Báo cáo thủ công',
+                      label: 'Mua thủ công',
                       onPressed: canSubmitReports ? onPurchased : null,
                       width: 160,
                     ),
@@ -709,7 +718,7 @@ class _SalesReportControls extends StatelessWidget {
                   Padding(
                     padding: const EdgeInsets.only(top: 28),
                     child: actionButton(
-                      label: 'Báo cáo chưa mua',
+                      label: 'Chưa mua',
                       onPressed: canSubmitReports ? onNotPurchased : null,
                       width: 153,
                     ),
@@ -726,18 +735,16 @@ class _SalesReportControls extends StatelessWidget {
                       key: const Key('sales-report-manual-actions'),
                       children: [
                         Expanded(
-                          flex: 181,
                           child: actionButton(
-                            label: 'Báo cáo mua thủ công',
+                            label: 'Mua thủ công',
                             onPressed: onPurchased,
                             width: double.infinity,
                           ),
                         ),
                         const SizedBox(width: 8),
                         Expanded(
-                          flex: 154,
                           child: actionButton(
-                            label: 'Báo cáo chưa mua',
+                            label: 'Chưa mua',
                             onPressed: onNotPurchased,
                             width: double.infinity,
                           ),
@@ -749,7 +756,7 @@ class _SalesReportControls extends StatelessWidget {
                       children: [
                         Expanded(
                           child: actionButton(
-                            label: 'Báo cáo mua thủ công',
+                            label: 'Mua thủ công',
                             onPressed: onPurchased,
                             width: double.infinity,
                           ),
@@ -757,7 +764,7 @@ class _SalesReportControls extends StatelessWidget {
                         const SizedBox(width: 8),
                         Expanded(
                           child: actionButton(
-                            label: 'Báo cáo chưa mua',
+                            label: 'Chưa mua',
                             onPressed: onNotPurchased,
                             width: double.infinity,
                           ),
@@ -769,6 +776,7 @@ class _SalesReportControls extends StatelessWidget {
         return AppSurfaceCard(
           key: const Key('sales-report-controls'),
           margin: EdgeInsets.zero,
+          radius: 14,
           padding: const EdgeInsets.symmetric(vertical: 16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -777,27 +785,39 @@ class _SalesReportControls extends StatelessWidget {
                 padding: EdgeInsets.symmetric(horizontal: compact ? 16 : 0),
                 child: dateRangeFilter,
               ),
-              if (canSubmitReports) ...[const SizedBox(height: 12), actions],
-              if (isManagedScope) ...[
+              if (canSubmitReports) ...[
                 const SizedBox(height: 12),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: Padding(
-                    padding: EdgeInsets.symmetric(horizontal: compact ? 16 : 0),
-                    child: filterButton,
-                  ),
+                Padding(
+                  padding: EdgeInsets.symmetric(horizontal: compact ? 16 : 0),
+                  child: actions,
                 ),
               ],
               const SizedBox(height: 12),
-              Align(
-                alignment: Alignment.centerRight,
-                child: Padding(
-                  padding: EdgeInsets.symmetric(horizontal: compact ? 16 : 0),
-                  child: SizedBox(
-                    width: compact ? double.infinity : 180,
-                    child: reloadButton,
-                  ),
-                ),
+              Padding(
+                padding: EdgeInsets.symmetric(horizontal: compact ? 16 : 0),
+                child: isManagedScope
+                    ? Row(
+                        key: const Key('sales-report-filter-reload-row'),
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          if (compact)
+                            Expanded(child: filterButton)
+                          else
+                            filterButton,
+                          const SizedBox(width: 8),
+                          if (compact)
+                            Expanded(child: reloadButton)
+                          else
+                            SizedBox(width: 180, child: reloadButton),
+                        ],
+                      )
+                    : Align(
+                        alignment: Alignment.centerRight,
+                        child: SizedBox(
+                          width: compact ? double.infinity : 180,
+                          child: reloadButton,
+                        ),
+                      ),
               ),
             ],
           ),
@@ -2008,13 +2028,9 @@ class _OrderCheckCard extends StatelessWidget {
     final provider = context.watch<SalesReportProvider>();
     final checked = provider.checkedOrder != null;
     return AppSurfaceCard(
-      // The approved command masters own the horizontal lane. Keep the card
-      // padding vertical-only so the input/scan/action row can align to the
-      // 720/358/343px Figma content width instead of being shifted inward by
-      // the generic 16px card inset.
-      padding: const EdgeInsets.symmetric(
-        vertical: AppLayoutTokens.cardPadding,
-      ),
+      key: const ValueKey('sales-report-order-command-card'),
+      padding: const EdgeInsets.all(AppLayoutTokens.cardPadding),
+      radius: 14,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -2097,6 +2113,7 @@ class _OrderCheckCard extends StatelessWidget {
                 onPressed: checked || provider.isCheckingOrder ? null : onScan,
                 tooltip: 'Quét mã đơn hàng',
                 dimension: scanSize,
+                radius: ios ? 16 : AppButtonMetrics.radius,
               );
               final action = AppIconAction(
                 key: const ValueKey('sales-report-order-check-action'),
@@ -2105,6 +2122,7 @@ class _OrderCheckCard extends StatelessWidget {
                 tooltip: checked ? 'Kiểm tra đơn khác' : 'Kiểm tra đơn hàng',
                 isLoading: provider.isCheckingOrder,
                 filled: true,
+                foregroundColor: AppColors.primaryForegroundOf(context),
                 dimension: scanSize,
               );
               final status = checked

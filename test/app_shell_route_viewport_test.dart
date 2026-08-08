@@ -16,6 +16,8 @@ import 'package:phongvu_opshub/core/network/api_client.dart';
 import 'package:phongvu_opshub/features/auth/data/repositories/auth_repository.dart';
 import 'package:phongvu_opshub/features/auth/domain/entities/user.dart';
 import 'package:phongvu_opshub/features/auth/presentation/providers/auth_provider.dart';
+import 'package:phongvu_opshub/features/home/presentation/providers/home_summary_provider.dart';
+import 'package:phongvu_opshub/features/home/presentation/widgets/home_summary_page.dart';
 import 'package:phongvu_opshub/features/bank_statement/data/bank_statement_repository.dart';
 import 'package:phongvu_opshub/features/bank_statement/domain/bank_statement_transaction.dart';
 import 'package:phongvu_opshub/features/notifications/presentation/providers/app_notifications_provider.dart';
@@ -182,6 +184,135 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+
+  testWidgets('Home controls keep approved widths inside real shell lanes', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final authProvider = _FakeAuthProvider(_shellUser);
+
+    for (final entry in const [
+      (viewport: Size(834, 1112), widths: [220.0, 220.0, 180.0]),
+      (viewport: Size(1024, 768), widths: [220.0, 220.0, 180.0]),
+      (viewport: Size(1440, 900), widths: [324.0, 296.0, 280.0]),
+    ]) {
+      tester.view.physicalSize = entry.viewport;
+      await tester.pumpWidget(
+        ChangeNotifierProvider<AuthProvider>.value(
+          value: authProvider,
+          child: MaterialApp(
+            home: AppShell(
+              location: '/home',
+              child: Builder(
+                builder: (context) {
+                  final routeWidth = MediaQuery.sizeOf(context).width;
+                  return AppResponsiveContent(
+                    maxWidth: AppLayoutTokens.salesReportMaxWidth,
+                    padding: AppLayoutTokens.homePagePaddingFor(routeWidth),
+                    child: _testHomeHeader(),
+                  );
+                },
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        tester
+            .getSize(find.byKey(const Key('home-summary-scope-control')))
+            .width,
+        entry.widths[0],
+      );
+      expect(
+        tester
+            .getSize(find.byKey(const Key('home-summary-date-control')))
+            .width,
+        entry.widths[1],
+      );
+      expect(
+        tester
+            .getSize(find.byKey(const Key('home-summary-refresh-button')))
+            .width,
+        entry.widths[2],
+      );
+      final scopeRect = tester.getRect(
+        find.byKey(const Key('home-summary-scope-control')),
+      );
+      final dateRect = tester.getRect(
+        find.byKey(const Key('home-summary-date-control')),
+      );
+      final refreshRect = tester.getRect(
+        find.byKey(const Key('home-summary-refresh-button')),
+      );
+      expect(dateRect.left - scopeRect.right, closeTo(12, 0.1));
+      expect(refreshRect.left - dateRect.right, closeTo(12, 0.1));
+      expect(tester.takeException(), isNull);
+    }
+  });
+
+  testWidgets('Home optional action fits medium and wide shell lanes', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final authProvider = _FakeAuthProvider(_shellUser);
+
+    for (final viewport in const [Size(834, 1112), Size(1440, 900)]) {
+      tester.view.physicalSize = viewport;
+      await tester.pumpWidget(
+        ChangeNotifierProvider<AuthProvider>.value(
+          value: authProvider,
+          child: MaterialApp(
+            home: AppShell(
+              location: '/home',
+              child: Builder(
+                builder: (context) {
+                  final routeWidth = MediaQuery.sizeOf(context).width;
+                  return AppResponsiveContent(
+                    maxWidth: AppLayoutTokens.salesReportMaxWidth,
+                    padding: AppLayoutTokens.homePagePaddingFor(routeWidth),
+                    child: _testHomeHeader(
+                      action: const SizedBox(
+                        key: Key('home-test-optional-action'),
+                        height: 40,
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final controlsRect = tester.getRect(
+        find.byKey(const Key('home-summary-controls')),
+      );
+      final headerRect = tester.getRect(
+        find.byKey(const Key('home-summary-header')),
+      );
+      expect(
+        tester
+            .getSize(find.byKey(const Key('home-test-optional-action')))
+            .width,
+        152,
+      );
+      expect(controlsRect.right, lessThanOrEqualTo(headerRect.right - 18));
+      if (viewport.width == 1440) {
+        expect(
+          tester
+              .getSize(find.byKey(const Key('home-summary-refresh-button')))
+              .width,
+          280,
+        );
+      }
+      expect(tester.takeException(), isNull);
+    }
+  });
 
   testWidgets('notifications route keeps its tablet scroll extent bounded', (
     tester,
@@ -1234,7 +1365,14 @@ void main() {
     expect(find.text('PhongVu OpsHub'), findsOneWidget);
     expect(find.text('Kết nối nguồn lực.\nĐồng bộ vận hành.'), findsOneWidget);
     final desktopBrand = find.byKey(const ValueKey('desktop-sidebar-brand'));
+    final brandTitle = find.text('PhongVu OpsHub');
+    final brandSlogan = find.text('Kết nối nguồn lực.\nĐồng bộ vận hành.');
     expect(tester.getTopLeft(desktopBrand), const Offset(12, 12));
+    expect(
+      tester.getTopLeft(brandSlogan).dy - tester.getBottomLeft(brandTitle).dy,
+      closeTo(4, 0.1),
+    );
+    expect(tester.getSize(desktopBrand).height, 56);
     expect(
       tester.getSize(find.byKey(const ValueKey('desktop-sidebar-logo'))),
       const Size.square(56),
@@ -1408,6 +1546,32 @@ void main() {
     );
     expect(tester.takeException(), isNull);
   });
+}
+
+HomeSummaryHeader _testHomeHeader({Widget? action}) {
+  return HomeSummaryHeader(
+    summary: null,
+    greetingName: 'Nguyễn Hoàng',
+    greetingSubtitle: 'nhanvien@phongvu.vn · Showroom Phong Vũ Q.3',
+    greetingNow: () => DateTime(2026, 8, 8, 9),
+    selectedScope: 'ALL',
+    selectedScopeLabel: 'Toàn hệ thống',
+    scopeOptions: const [
+      HomeSummaryScopeOption(
+        value: 'ALL',
+        label: 'Toàn hệ thống',
+        requestScope: 'ALL',
+      ),
+    ],
+    selectedStartDate: DateTime(2026, 8, 3),
+    selectedEndDate: DateTime(2026, 8, 3),
+    isRefreshing: false,
+    onScopeChanged: null,
+    onDateRangeChanged: (_, _) {},
+    onRefresh: () {},
+    warningMessage: null,
+    action: action,
+  );
 }
 
 class _RouteMarker extends StatelessWidget {

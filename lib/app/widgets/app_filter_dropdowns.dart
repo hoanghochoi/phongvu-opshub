@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 
 import '../../core/utils/date_range_defaults.dart';
 import '../theme/app_colors.dart';
+import '../theme/app_radius.dart';
 import '../theme/app_text_styles.dart';
 import 'app_inputs.dart';
 import 'app_layout.dart';
@@ -30,6 +31,10 @@ class AppDateRangeDropdown extends StatelessWidget {
   /// 48px outlined control) instead of the legacy compact button.
   final bool fieldStyle;
 
+  /// Renders the canonical picker as a 40px inline filter surface. The picker
+  /// itself remains the shared [DateRangePicker]; only its trigger changes.
+  final bool inlineSurfaceStyle;
+
   const AppDateRangeDropdown({
     super.key,
     required this.label,
@@ -44,12 +49,58 @@ class AppDateRangeDropdown extends StatelessWidget {
     this.lastDate,
     this.selectableDayPredicate,
     this.fieldStyle = false,
+    this.inlineSurfaceStyle = false,
   });
 
   @override
   Widget build(BuildContext context) {
     final helperText = _emptyRangeHelperText();
-    final trigger = fieldStyle
+    final trigger = inlineSurfaceStyle
+        ? Builder(
+            builder: (buttonContext) => Semantics(
+              button: true,
+              label: '$label: ${_rangeLabel(start, end)}',
+              child: Material(
+                color: AppColors.transparent,
+                borderRadius: AppRadius.allSm,
+                child: InkWell(
+                  key: const Key('open-date-range-picker'),
+                  borderRadius: AppRadius.allSm,
+                  onTap: () => _openPicker(buttonContext),
+                  child: Container(
+                    height: 40,
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    decoration: BoxDecoration(
+                      color: AppColors.chipBackgroundOf(context),
+                      borderRadius: AppRadius.allSm,
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            '$label: ${_rangeLabel(start, end)}',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppTextStyles.bodyS.copyWith(
+                              color: AppColors.textSecondaryOf(context),
+                              height: 18 / 13,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Icon(
+                          PhosphorIconsRegular.caretDown,
+                          size: 16,
+                          color: AppColors.textSecondaryOf(context),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          )
+        : fieldStyle
         ? Builder(
             builder: (buttonContext) => Semantics(
               button: true,
@@ -101,6 +152,7 @@ class AppDateRangeDropdown extends StatelessWidget {
             ),
           );
     return Column(
+      mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         if (fieldStyle) ...[
