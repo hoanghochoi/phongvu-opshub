@@ -180,7 +180,7 @@ class _AppComboboxState<T> extends State<AppCombobox<T>> {
     ValueChanged<T?>? didChange,
   ) {
     _formDidChange = didChange;
-    final field = TapRegion(
+    return TapRegion(
       groupId: _tapRegionGroup,
       onTapOutside: _handleTapOutside,
       child: CompositedTransformTarget(
@@ -201,12 +201,13 @@ class _AppComboboxState<T> extends State<AppCombobox<T>> {
               onTap: _openOverlay,
               onSubmitted: (_) => _chooseHighlighted(didChange),
               decoration: appInputDecoration(
-                label: widget.showLabel ? widget.label : null,
+                label: widget.label,
                 icon: widget.icon,
-                hintText: _isOpen ? widget.hintText : widget.hintText,
+                hintText: widget.hintText,
                 helperText: widget.helperText,
                 errorText: errorText,
                 dense: widget.dense,
+                visuallyHideLabel: !widget.showLabel,
                 suffixIcon: _suffixIcon(didChange),
                 fixedHeight: widget.fixedHeight,
               ),
@@ -215,8 +216,6 @@ class _AppComboboxState<T> extends State<AppCombobox<T>> {
         ),
       ),
     );
-    if (widget.showLabel) return field;
-    return Semantics(label: widget.label, textField: true, child: field);
   }
 
   Widget _suffixIcon(ValueChanged<T?>? didChange) {

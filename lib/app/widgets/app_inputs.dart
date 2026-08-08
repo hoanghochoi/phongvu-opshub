@@ -36,11 +36,18 @@ InputDecoration appInputDecoration({
   String? suffixText,
   String? errorText,
   bool dense = false,
+  bool visuallyHideLabel = false,
   Widget? suffixIcon,
   double? fixedHeight,
 }) {
   return InputDecoration(
     labelText: label,
+    labelStyle: visuallyHideLabel
+        ? const TextStyle(fontSize: 0, height: 0, color: Colors.transparent)
+        : null,
+    floatingLabelBehavior: visuallyHideLabel
+        ? FloatingLabelBehavior.never
+        : null,
     hintText: hintText,
     helperText: helperText,
     suffixText: suffixText,

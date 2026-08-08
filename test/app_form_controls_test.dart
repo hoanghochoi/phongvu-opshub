@@ -1,3 +1,5 @@
+import 'dart:ui' show Tristate;
+
 import 'package:flutter/gestures.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -258,12 +260,20 @@ void main() {
     );
 
     final field = tester.widget<TextField>(find.byType(TextField));
-    expect(field.decoration?.labelText, isNull);
+    expect(field.decoration?.labelText, 'Nhân viên');
+    expect(
+      field.decoration?.floatingLabelBehavior,
+      FloatingLabelBehavior.never,
+    );
     expect(field.decoration?.constraints?.maxHeight, 48);
     expect(tester.getSize(find.byType(TextField)).height, 48);
-    expect(find.text('Nhân viên'), findsOneWidget);
+    expect(find.text('Nhân viên'), findsNWidgets(2));
+    expect(field.decoration?.labelStyle?.fontSize, 0);
+    expect(field.decoration?.labelStyle?.height, 0);
     expect(find.byIcon(PhosphorIconsRegular.caretDown), findsOneWidget);
-    expect(find.bySemanticsLabel(RegExp('Nhân viên')), findsWidgets);
+    final fieldSemantics = tester.getSemantics(find.byType(EditableText));
+    expect(fieldSemantics.flagsCollection.isTextField, isTrue);
+    expect(fieldSemantics.flagsCollection.isEnabled, Tristate.isTrue);
     semantics.dispose();
   });
 
