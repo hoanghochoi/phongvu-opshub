@@ -327,7 +327,30 @@ void main() {
     final showroomFilter = tester.widget<AppCombobox<String>>(
       find.byType(AppCombobox<String>).first,
     );
-    expect(showroomFilter.menuWidth, 280);
+    final employeeFilter = tester.widget<AppCombobox<String>>(
+      find.byType(AppCombobox<String>).at(1),
+    );
+    expect(showroomFilter.menuWidth, 180);
+    expect(employeeFilter.menuWidth, 220);
+    expect(showroomFilter.showLabel, isFalse);
+    expect(employeeFilter.showLabel, isFalse);
+    expect(showroomFilter.fixedHeight, 48);
+    expect(employeeFilter.fixedHeight, 48);
+    expect(showroomFilter.closedIcon, PhosphorIconsRegular.caretDown);
+    expect(employeeFilter.closedIcon, PhosphorIconsRegular.caretDown);
+    final searchFields = find.byType(TextField);
+    expect(searchFields, findsNWidgets(2));
+    expect(tester.getSize(searchFields.first).height, 48);
+    expect(tester.getSize(searchFields.at(1)).height, 48);
+    expect(
+      tester.getTopLeft(searchFields.first).dy,
+      tester.getTopLeft(searchFields.at(1)).dy,
+    );
+    final reloadButton = find.widgetWithText(AppSecondaryButton, 'Tải lại');
+    expect(
+      tester.getTopLeft(searchFields.first).dy,
+      tester.getTopLeft(reloadButton).dy,
+    );
     expect(repository.lastOrdersQuery?.startDate, DateTime(2026, 7, 1));
     expect(repository.lastOrdersQuery?.endDate, DateTime(2026, 7, 1));
 
@@ -350,6 +373,14 @@ void main() {
     expect(repository.lastOrdersQuery?.endDate, DateTime(2026, 7, 1));
     expect(repository.lastOrdersQuery?.reportedPage, 0);
     expect(repository.lastOrdersQuery?.unreportedPage, 0);
+
+    await tester.tap(find.byType(AppCombobox<String>).at(1));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Sale CP01 - sale.cp01@phongvu.vn'));
+    await tester.pumpAndSettle();
+
+    expect(repository.lastOrdersQuery?.storeCode, 'CP01');
+    expect(repository.lastOrdersQuery?.userEmail, 'sale.cp01@phongvu.vn');
   });
 
   testWidgets('managed filter follows approved compact trigger states', (
@@ -425,6 +456,59 @@ void main() {
     expect(find.text('Lọc (1)'), findsOneWidget);
     expect(tester.getSize(trigger), const Size(159, 48));
   });
+
+  testWidgets(
+    'desktop command bar uses available content width instead of window width',
+    (tester) async {
+      tester.view.physicalSize = const Size(1200, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+      final authProvider = _FakeAuthProvider(
+        const User(
+          id: 'manager-1',
+          email: 'manager@phongvu.vn',
+          role: 'USER',
+          organizationNodeId: 'org-store-cp01',
+          featureAccess: {'SALES_REPORT': true, 'ADMIN_SALES_REPORTS': true},
+        ),
+      );
+
+      await tester.pumpWidget(
+        MultiProvider(
+          providers: [
+            ChangeNotifierProvider<AuthProvider>.value(value: authProvider),
+            ChangeNotifierProvider<SalesReportProvider>(
+              create: (_) => SalesReportProvider(
+                _FakeSalesReportRepository(managedScope: true),
+              ),
+            ),
+          ],
+          child: const MaterialApp(
+            home: Scaffold(
+              body: Align(
+                alignment: Alignment.topLeft,
+                child: SizedBox(width: 1000, child: SalesReportScreen()),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        tester.getSize(find.byKey(const Key('sales-report-controls'))).height,
+        228,
+      );
+      expect(
+        find.byKey(const Key('sales-report-managed-filter')),
+        findsOneWidget,
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets('Báo cáo follows the Figma loaded geometry matrix', (
     tester,

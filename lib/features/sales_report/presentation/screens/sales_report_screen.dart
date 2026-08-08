@@ -565,8 +565,19 @@ class _SalesReportControls extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final wide = MediaQuery.sizeOf(context).width >= 1200;
+        final wide = constraints.maxWidth >= 1126;
         final compact = constraints.maxWidth < 600;
+        Widget labeledFilter({required String label, required Widget child}) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(label, style: AppTextStyles.labelM),
+              const SizedBox(height: 8),
+              SizedBox(height: 48, child: child),
+            ],
+          );
+        }
+
         final dateRangeFilter = AppDateRangeDropdown(
           key: const Key('sales-report-orders-date-range'),
           label: 'Ngày',
@@ -577,23 +588,31 @@ class _SalesReportControls extends StatelessWidget {
           fieldStyle: true,
         );
         final storeFilter = isManagedScope
-            ? AppCombobox<String>.single(
+            ? labeledFilter(
                 label: 'Showroom',
-                value: provider.ordersStoreCode,
-                emptyLabel: 'Tất cả showroom',
-                icon: PhosphorIconsRegular.storefront,
-                menuWidth: 280,
-                options: provider.orderStoreOptions
-                    .map(
-                      (option) => AppComboboxOption<String>(
-                        value: option.value,
-                        label: option.label,
-                        searchKeywords: [option.value, option.label],
-                      ),
-                    )
-                    .toList(growable: false),
-                onChanged: (value) => unawaited(
-                  provider.setOrderFilters(storeCode: value, updateStore: true),
+                child: AppCombobox<String>.single(
+                  label: 'Showroom',
+                  value: provider.ordersStoreCode,
+                  emptyLabel: 'Tất cả showroom',
+                  showLabel: false,
+                  fixedHeight: 48,
+                  closedIcon: PhosphorIconsRegular.caretDown,
+                  menuWidth: wide ? 180 : 280,
+                  options: provider.orderStoreOptions
+                      .map(
+                        (option) => AppComboboxOption<String>(
+                          value: option.value,
+                          label: option.label,
+                          searchKeywords: [option.value, option.label],
+                        ),
+                      )
+                      .toList(growable: false),
+                  onChanged: (value) => unawaited(
+                    provider.setOrderFilters(
+                      storeCode: value,
+                      updateStore: true,
+                    ),
+                  ),
                 ),
               )
             : const _ReadonlyFilterField(
@@ -601,22 +620,31 @@ class _SalesReportControls extends StatelessWidget {
                 value: 'Showroom của tôi',
               );
         final userFilter = isManagedScope
-            ? AppCombobox<String>.single(
+            ? labeledFilter(
                 label: 'Nhân viên',
-                value: provider.ordersUserEmail,
-                emptyLabel: 'Tất cả nhân viên',
-                icon: PhosphorIconsRegular.user,
-                options: provider.orderUserOptions
-                    .map(
-                      (option) => AppComboboxOption<String>(
-                        value: option.value,
-                        label: option.label,
-                        searchKeywords: [option.value, option.label],
-                      ),
-                    )
-                    .toList(growable: false),
-                onChanged: (value) => unawaited(
-                  provider.setOrderFilters(userEmail: value, updateUser: true),
+                child: AppCombobox<String>.single(
+                  label: 'Nhân viên',
+                  value: provider.ordersUserEmail,
+                  emptyLabel: 'Tất cả nhân viên',
+                  showLabel: false,
+                  fixedHeight: 48,
+                  closedIcon: PhosphorIconsRegular.caretDown,
+                  menuWidth: wide ? 220 : null,
+                  options: provider.orderUserOptions
+                      .map(
+                        (option) => AppComboboxOption<String>(
+                          value: option.value,
+                          label: option.label,
+                          searchKeywords: [option.value, option.label],
+                        ),
+                      )
+                      .toList(growable: false),
+                  onChanged: (value) => unawaited(
+                    provider.setOrderFilters(
+                      userEmail: value,
+                      updateUser: true,
+                    ),
+                  ),
                 ),
               )
             : const _ReadonlyFilterField(

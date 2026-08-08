@@ -1654,20 +1654,24 @@ export class SalesReportsService implements OnApplicationBootstrap {
           }
         : reportDateScopeWhere,
     );
-    const baseReportedWhere = this.andWhere(
-      baseReportScopeWhere,
-      this.visibleSalesReportWhere(),
-      this.reportedOrderDateWhere(filters.dateRange),
-      {
-        reportType: REPORT_TYPE_PURCHASED,
-        orderCode: { not: null },
-      },
-    );
-    const baseCacheDateWhere = this.andOrderCacheWhere(
-      baseOrderScopeWhere,
-      this.visibleOrderCacheWhere(),
-      this.orderCacheDateWhere(filters.dateRange),
-    );
+    const reportOptionWhere = adminView
+      ? this.andWhere(
+          baseReportScopeWhere,
+          this.visibleSalesReportWhere(),
+          {
+            reportType: REPORT_TYPE_PURCHASED,
+            orderCode: { not: null },
+          },
+          filters.storeCode ? { storeCode: filters.storeCode } : {},
+        )
+      : { id: '__NO_ADMIN_OPTIONS__' };
+    const cacheOptionWhere = adminView
+      ? this.andOrderCacheWhere(
+          baseOrderScopeWhere,
+          this.visibleOrderCacheWhere(),
+          filters.storeCode ? { storeCode: filters.storeCode } : {},
+        )
+      : { id: '__NO_ADMIN_OPTIONS__' };
     const reportedCodeRows = await this.prisma.salesReport.findMany({
       where: reportedWhere,
       select: { orderCode: true },
@@ -1715,7 +1719,7 @@ export class SalesReportsService implements OnApplicationBootstrap {
         take: filters.limit,
       }),
       this.prisma.salesReport.findMany({
-        where: baseReportedWhere,
+        where: reportOptionWhere,
         select: {
           storeCode: true,
           storeName: true,
@@ -1725,7 +1729,7 @@ export class SalesReportsService implements OnApplicationBootstrap {
         take: 10_000,
       }),
       this.prisma.salesReportErpOrderCache.findMany({
-        where: baseCacheDateWhere,
+        where: cacheOptionWhere,
         select: {
           storeCode: true,
           storeName: true,

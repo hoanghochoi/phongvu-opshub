@@ -222,6 +222,51 @@ void main() {
     expect(value, 'PENDING');
   });
 
+  testWidgets('AppCombobox supports an external label and fixed field height', (
+    tester,
+  ) async {
+    final semantics = tester.ensureSemantics();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text('Nhân viên'),
+              const SizedBox(height: 8),
+              SizedBox(
+                height: 48,
+                child: AppCombobox<String>.single(
+                  label: 'Nhân viên',
+                  showLabel: false,
+                  fixedHeight: 48,
+                  closedIcon: PhosphorIconsRegular.caretDown,
+                  value: null,
+                  options: const [
+                    AppComboboxOption(
+                      value: 'sale.cp01@phongvu.vn',
+                      label: 'Sale CP01',
+                    ),
+                  ],
+                  onChanged: (_) {},
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    final field = tester.widget<TextField>(find.byType(TextField));
+    expect(field.decoration?.labelText, isNull);
+    expect(field.decoration?.constraints?.maxHeight, 48);
+    expect(tester.getSize(find.byType(TextField)).height, 48);
+    expect(find.text('Nhân viên'), findsOneWidget);
+    expect(find.byIcon(PhosphorIconsRegular.caretDown), findsOneWidget);
+    expect(find.bySemanticsLabel(RegExp('Nhân viên')), findsWidgets);
+    semantics.dispose();
+  });
+
   testWidgets(
     'AppCombobox suffix icon opens and closes the dropdown without racing focus',
     (tester) async {
