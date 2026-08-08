@@ -54,6 +54,9 @@ class AppCombobox<T> extends StatefulWidget {
   final bool enabled;
   final bool dense;
   final bool allowClear;
+  final bool showLabel;
+  final double? fixedHeight;
+  final IconData closedIcon;
   final double? menuWidth;
   final double? maxMenuHeight;
   final TextCapitalization textCapitalization;
@@ -72,6 +75,9 @@ class AppCombobox<T> extends StatefulWidget {
     this.enabled = true,
     this.dense = false,
     this.allowClear = true,
+    this.showLabel = true,
+    this.fixedHeight,
+    this.closedIcon = PhosphorIconsRegular.magnifyingGlass,
     this.menuWidth,
     this.maxMenuHeight,
     this.textCapitalization = TextCapitalization.none,
@@ -92,6 +98,9 @@ class AppCombobox<T> extends StatefulWidget {
     this.enabled = true,
     this.dense = false,
     this.allowClear = true,
+    this.showLabel = true,
+    this.fixedHeight,
+    this.closedIcon = PhosphorIconsRegular.magnifyingGlass,
     this.menuWidth,
     this.maxMenuHeight,
     this.textCapitalization = TextCapitalization.none,
@@ -171,7 +180,7 @@ class _AppComboboxState<T> extends State<AppCombobox<T>> {
     ValueChanged<T?>? didChange,
   ) {
     _formDidChange = didChange;
-    return TapRegion(
+    final field = TapRegion(
       groupId: _tapRegionGroup,
       onTapOutside: _handleTapOutside,
       child: CompositedTransformTarget(
@@ -192,19 +201,22 @@ class _AppComboboxState<T> extends State<AppCombobox<T>> {
               onTap: _openOverlay,
               onSubmitted: (_) => _chooseHighlighted(didChange),
               decoration: appInputDecoration(
-                label: widget.label,
+                label: widget.showLabel ? widget.label : null,
                 icon: widget.icon,
                 hintText: _isOpen ? widget.hintText : widget.hintText,
                 helperText: widget.helperText,
                 errorText: errorText,
                 dense: widget.dense,
                 suffixIcon: _suffixIcon(didChange),
+                fixedHeight: widget.fixedHeight,
               ),
             ),
           ),
         ),
       ),
     );
+    if (widget.showLabel) return field;
+    return Semantics(label: widget.label, textField: true, child: field);
   }
 
   Widget _suffixIcon(ValueChanged<T?>? didChange) {
@@ -235,9 +247,7 @@ class _AppComboboxState<T> extends State<AppCombobox<T>> {
       child: IconButton(
         tooltip: _isOpen ? 'Đóng danh sách' : 'Mở danh sách',
         icon: Icon(
-          _isOpen
-              ? PhosphorIconsRegular.caretUp
-              : PhosphorIconsRegular.magnifyingGlass,
+          _isOpen ? PhosphorIconsRegular.caretUp : widget.closedIcon,
           size: 20,
         ),
         onPressed: widget.enabled ? _toggleOverlayFromSuffix : null,

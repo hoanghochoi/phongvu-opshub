@@ -1354,6 +1354,111 @@ describe('SalesReportsService', () => {
     });
   });
 
+  it('keeps authorized employee options when the selected date has no orders', async () => {
+    const { service, prisma } = createHarness();
+    prisma.salesReport.count.mockResolvedValue(0);
+    prisma.salesReport.findMany
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([
+        {
+          storeCode: 'CP01',
+          storeName: 'Quận 1',
+          createdByEmail: 'sale.cp01@phongvu.vn',
+          createdByName: 'Sale CP01',
+        },
+      ]);
+    prisma.salesReportErpOrderCache.count.mockResolvedValue(0);
+    prisma.salesReportErpOrderCache.findMany
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([
+        {
+          storeCode: 'CP01',
+          storeName: 'Quận 1',
+          consultantEmail: 'sale.cp02@phongvu.vn',
+          consultantName: 'Sale CP02',
+          sellerEmail: null,
+          sellerName: null,
+          sourceUserEmail: null,
+        },
+      ]);
+    prisma.store.findMany.mockResolvedValue([
+      { storeId: 'CP01', storeName: 'Quận 1' },
+    ]);
+
+    const result = await service.orderCockpit(
+      { ...userFixture(), role: 'SUPER_ADMIN' },
+      { date: '2026-08-08', storeCode: 'CP01' },
+    );
+
+    expect(result.reportedOrders).toEqual([]);
+    expect(result.unreportedOrders).toEqual([]);
+    expect(result.userOptions).toEqual([
+      {
+        value: 'sale.cp01@phongvu.vn',
+        label: 'Sale CP01 - sale.cp01@phongvu.vn',
+      },
+      {
+        value: 'sale.cp02@phongvu.vn',
+        label: 'Sale CP02 - sale.cp02@phongvu.vn',
+      },
+    ]);
+    const reportOptionWhere = JSON.stringify(
+      prisma.salesReport.findMany.mock.calls[2][0].where,
+    );
+    const cacheOptionWhere = JSON.stringify(
+      prisma.salesReportErpOrderCache.findMany.mock.calls[2][0].where,
+    );
+    expect(reportOptionWhere).toContain('CP01');
+    expect(cacheOptionWhere).toContain('CP01');
+    expect(reportOptionWhere).not.toContain('2026-08-08');
+    expect(cacheOptionWhere).not.toContain('2026-08-08');
+  });
+
+  it('keeps an outside employee filter intersected with the manager scope', async () => {
+    const { service, prisma } = createHarness();
+    const manager = storeManagerFixture('CP01');
+    prisma.user.findUnique.mockResolvedValue(manager);
+    prisma.salesReport.count.mockResolvedValue(0);
+    prisma.salesReport.findMany
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([
+        {
+          storeCode: 'CP01',
+          storeName: 'Quận 1',
+          createdByEmail: 'sale.cp01@phongvu.vn',
+          createdByName: 'Sale CP01',
+        },
+      ]);
+    prisma.salesReportErpOrderCache.count.mockResolvedValue(0);
+    prisma.salesReportErpOrderCache.findMany
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([]);
+
+    const result = await service.orderCockpit(
+      { id: manager.id, email: manager.email, role: 'USER' },
+      { date: '2026-08-08', userEmail: 'outside@phongvu.vn' },
+    );
+
+    expect(result.reportedOrders).toEqual([]);
+    expect(result.unreportedOrders).toEqual([]);
+    expect(result.selectedUserEmail).toBe('outside@phongvu.vn');
+    expect(result.userOptions).toEqual([
+      {
+        value: 'sale.cp01@phongvu.vn',
+        label: 'Sale CP01 - sale.cp01@phongvu.vn',
+      },
+    ]);
+    const reportedWhere = JSON.stringify(
+      prisma.salesReport.findMany.mock.calls[1][0].where,
+    );
+    expect(reportedWhere).toContain('CP01');
+    expect(reportedWhere).toContain('outside@phongvu.vn');
+  });
+
   it('keeps empty-date showroom options inside a manager assigned scope', async () => {
     const { service, prisma } = createHarness();
     const manager = storeManagerFixture('CP01');
