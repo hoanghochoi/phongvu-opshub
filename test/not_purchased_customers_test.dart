@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:phongvu_opshub/app/widgets/app_buttons.dart';
+import 'package:phongvu_opshub/app/widgets/app_filter_dropdowns.dart';
 import 'package:provider/provider.dart';
 import 'package:phongvu_opshub/core/network/api_client.dart';
 import 'package:phongvu_opshub/core/network/api_exception.dart';
@@ -76,6 +77,78 @@ void main() {
       expect(importRect.right, lessThanOrEqualTo(width - 16));
       expect(tester.takeException(), isNull);
     }
+  });
+
+  testWidgets('desktop follow-up actions and date filter share Home geometry', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final repository = _FakeFollowUpRepository(
+      _case(customerPhone: '0900000000', customerZaloContact: null),
+      managedScope: true,
+    );
+    final authProvider = _FakeAuthProvider(
+      const User(
+        email: 'manager@phongvu.com',
+        role: 'USER',
+        featureAccess: {'ADMIN_SALES_REPORTS': true},
+      ),
+    );
+
+    await tester.pumpWidget(
+      ChangeNotifierProvider<AuthProvider>.value(
+        value: authProvider,
+        child: MaterialApp(
+          home: Scaffold(
+            body: NotPurchasedCustomersScreen(
+              repository: repository,
+              historySaver: ({required fileName, required bytes}) async =>
+                  fileName,
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final exportAction = find.widgetWithText(
+      AppSecondaryButton,
+      'Tải lịch sử chăm sóc',
+    );
+    final importAction = find.widgetWithText(AppPrimaryButton, 'Nhập Excel');
+
+    for (final viewport in const [
+      Size(834, 1112),
+      Size(1024, 768),
+      Size(1440, 900),
+    ]) {
+      tester.view.physicalSize = viewport;
+      await tester.pumpAndSettle();
+      final exportRect = tester.getRect(exportAction);
+      final importRect = tester.getRect(importAction);
+      expect(exportRect.height, 48);
+      expect(importRect.height, 48);
+      expect(importRect.top, exportRect.top);
+      expect(
+        tester.getSize(find.byKey(const Key('open-date-range-picker'))).height,
+        40,
+      );
+      expect(tester.takeException(), isNull);
+    }
+
+    final dateFilter = tester.widget<AppDateRangeDropdown>(
+      find.byType(AppDateRangeDropdown),
+    );
+    expect(dateFilter.inlineSurfaceStyle, isTrue);
+    expect(dateFilter.showEmptyRangeHelperText, isTrue);
+    expect(
+      find.text('Không chọn khoảng ngày: hệ thống lấy 30 ngày gần nhất.'),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('narrow compact follow-up preserves single-action variants', (

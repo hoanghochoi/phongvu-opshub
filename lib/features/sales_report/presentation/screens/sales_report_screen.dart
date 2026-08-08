@@ -582,6 +582,7 @@ class _SalesReportControls extends StatelessWidget {
                 value: provider.ordersStoreCode,
                 emptyLabel: 'Tất cả showroom',
                 icon: PhosphorIconsRegular.storefront,
+                menuWidth: 280,
                 options: provider.orderStoreOptions
                     .map(
                       (option) => AppComboboxOption<String>(

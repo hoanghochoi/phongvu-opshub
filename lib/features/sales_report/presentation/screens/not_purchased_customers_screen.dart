@@ -597,6 +597,7 @@ class _NotPurchasedCustomersScreenState
                 onChanged: (start, end) => unawaited(_setDateRange(start, end)),
                 emptyRangeHelperText:
                     'Không chọn khoảng ngày: hệ thống lấy 30 ngày gần nhất.',
+                inlineSurfaceStyle: true,
                 firstDate: DateTime(2020),
                 lastDate: (widget.now ?? DateTime.now)(),
               );
@@ -880,7 +881,7 @@ class _PageHeader extends StatelessWidget {
               child: AppPrimaryButton(
                 onPressed: onImport,
                 label: 'Nhập Excel',
-                size: AppButtonSize.small,
+                size: AppButtonSize.medium,
               ),
             ),
         ],

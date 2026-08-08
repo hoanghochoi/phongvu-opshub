@@ -1609,6 +1609,9 @@ export class SalesReportsService implements OnApplicationBootstrap {
     const baseOrderScopeWhere = adminView
       ? await this.resolveAdminOrderCacheScopeWhere(user)
       : this.resolveUserOrderCacheScopeWhere(user, context);
+    const authorizedStoreOptions = adminView
+      ? await this.orderCockpitAuthorizedStoreOptions(user)
+      : [];
     const reportScopeWhere = this.andWhere(
       baseReportScopeWhere,
       this.orderCockpitReportFilterWhere(filters),
@@ -1740,9 +1743,13 @@ export class SalesReportsService implements OnApplicationBootstrap {
       reportOptionRows ?? [],
       cacheOptionRows ?? [],
     );
+    const storeOptions = this.mergeOrderCockpitStoreOptions(
+      authorizedStoreOptions,
+      filterOptions.stores,
+    );
 
     this.logger.log(
-      `Sales report order cockpit loaded from cache: user=${this.safeUserLabel(user)} startDate=${filters.startDate} endDate=${filters.endDate} admin=${adminView} hasStoreFilter=${Boolean(filters.storeCode)} hasUserFilter=${Boolean(filters.userEmail)} scopedCacheCodes=${scopedCacheCodes.length} reportedCodeMatches=${reportedCodes.length} storeOptionCount=${filterOptions.stores.length} userOptionCount=${filterOptions.users.length} reported=${reportedOrders.length}/${reportedTotal} unreported=${unreportedOrders.length}/${unreportedTotal} reportedPage=${filters.reportedPage} unreportedPage=${filters.unreportedPage} limit=${filters.limit}`,
+      `Sales report order cockpit loaded from cache: user=${this.safeUserLabel(user)} startDate=${filters.startDate} endDate=${filters.endDate} admin=${adminView} hasStoreFilter=${Boolean(filters.storeCode)} hasUserFilter=${Boolean(filters.userEmail)} scopedCacheCodes=${scopedCacheCodes.length} reportedCodeMatches=${reportedCodes.length} storeOptionCount=${storeOptions.length} userOptionCount=${filterOptions.users.length} reported=${reportedOrders.length}/${reportedTotal} unreported=${unreportedOrders.length}/${unreportedTotal} reportedPage=${filters.reportedPage} unreportedPage=${filters.unreportedPage} limit=${filters.limit}`,
     );
     return {
       // Giữ `date` trong response để client cũ tiếp tục đọc được ngày cuối.
@@ -1756,7 +1763,7 @@ export class SalesReportsService implements OnApplicationBootstrap {
       scope: adminView ? 'MANAGED_SCOPE' : 'OWN',
       selectedStoreCode: filters.storeCode,
       selectedUserEmail: filters.userEmail,
-      storeOptions: adminView ? filterOptions.stores : [],
+      storeOptions,
       userOptions: adminView ? filterOptions.users : [],
       limit: filters.limit,
       reportedPage: filters.reportedPage,
@@ -2427,6 +2434,44 @@ export class SalesReportsService implements OnApplicationBootstrap {
         .map(([value, label]) => ({ value, label }))
         .sort((left, right) => left.label.localeCompare(right.label));
     return { stores: toOptions(stores), users: toOptions(users) };
+  }
+
+  private async orderCockpitAuthorizedStoreOptions(user: any) {
+    const stores = isSuperAdminRole(user?.role)
+      ? await this.prisma.store.findMany({
+          orderBy: { storeId: 'asc' },
+          select: { storeId: true, storeName: true },
+        })
+      : await this.resolveUserStores(user);
+    const options = new Map<string, string>();
+    for (const store of stores) {
+      const code = this.normalizeStoreCode(store?.storeId);
+      if (!code) continue;
+      const name = this.optionalText(store?.storeName, 120);
+      options.set(
+        code,
+        name && name.toUpperCase() !== code ? `${code} - ${name}` : code,
+      );
+    }
+    return Array.from(options.entries())
+      .map(([value, label]) => ({ value, label }))
+      .sort((left, right) => left.label.localeCompare(right.label));
+  }
+
+  private mergeOrderCockpitStoreOptions(
+    authorized: Array<{ value: string; label: string }>,
+    dated: Array<{ value: string; label: string }>,
+  ) {
+    const merged = new Map<string, string>();
+    for (const option of authorized) {
+      merged.set(option.value, option.label);
+    }
+    for (const option of dated) {
+      if (merged.has(option.value)) merged.set(option.value, option.label);
+    }
+    return Array.from(merged.entries())
+      .map(([value, label]) => ({ value, label }))
+      .sort((left, right) => left.label.localeCompare(right.label));
   }
 
   async syncErpOrderCachePage(input: {

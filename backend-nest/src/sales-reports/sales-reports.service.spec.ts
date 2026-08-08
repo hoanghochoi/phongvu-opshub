@@ -1326,6 +1326,77 @@ describe('SalesReportsService', () => {
     expect(JSON.stringify(cacheFindArgs.where)).not.toContain('storeCode');
   });
 
+  it('keeps canonical showroom options when the selected date has no orders', async () => {
+    const { service, prisma } = createHarness();
+    prisma.salesReport.count.mockResolvedValue(0);
+    prisma.salesReport.findMany.mockResolvedValue([]);
+    prisma.salesReportErpOrderCache.count.mockResolvedValue(0);
+    prisma.salesReportErpOrderCache.findMany.mockResolvedValue([]);
+    prisma.store.findMany.mockResolvedValue([
+      { storeId: 'CP01', storeName: 'Quận 1' },
+      { storeId: 'CP02', storeName: 'Quận 2' },
+    ]);
+
+    const result = await service.orderCockpit(
+      { ...userFixture(), role: 'SUPER_ADMIN' },
+      { date: '2026-08-08' },
+    );
+
+    expect(result.reportedOrders).toEqual([]);
+    expect(result.unreportedOrders).toEqual([]);
+    expect(result.storeOptions).toEqual([
+      { value: 'CP01', label: 'CP01 - Quận 1' },
+      { value: 'CP02', label: 'CP02 - Quận 2' },
+    ]);
+    expect(prisma.store.findMany).toHaveBeenCalledWith({
+      orderBy: { storeId: 'asc' },
+      select: { storeId: true, storeName: true },
+    });
+  });
+
+  it('keeps empty-date showroom options inside a manager assigned scope', async () => {
+    const { service, prisma } = createHarness();
+    const manager = storeManagerFixture('CP01');
+    prisma.user.findUnique.mockResolvedValue(manager);
+    prisma.salesReport.count.mockResolvedValue(0);
+    prisma.salesReport.findMany.mockResolvedValue([]);
+    prisma.salesReportErpOrderCache.count.mockResolvedValue(0);
+    prisma.salesReportErpOrderCache.findMany.mockResolvedValue([]);
+
+    const result = await service.orderCockpit(
+      { id: manager.id, email: manager.email, role: 'USER' },
+      { date: '2026-08-08' },
+    );
+
+    expect(result.storeOptions).toEqual([{ value: 'CP01', label: 'CP01' }]);
+    expect(prisma.store.findMany).not.toHaveBeenCalled();
+  });
+
+  it('keeps an outside showroom filter intersected with the manager scope', async () => {
+    const { service, prisma } = createHarness();
+    const manager = storeManagerFixture('CP01');
+    prisma.user.findUnique.mockResolvedValue(manager);
+    prisma.salesReport.count.mockResolvedValue(0);
+    prisma.salesReport.findMany.mockResolvedValue([]);
+    prisma.salesReportErpOrderCache.count.mockResolvedValue(0);
+    prisma.salesReportErpOrderCache.findMany.mockResolvedValue([]);
+
+    const result = await service.orderCockpit(
+      { id: manager.id, email: manager.email, role: 'USER' },
+      { date: '2026-08-08', storeCode: 'CP99' },
+    );
+
+    expect(result.reportedOrders).toEqual([]);
+    expect(result.unreportedOrders).toEqual([]);
+    expect(result.storeOptions).toEqual([{ value: 'CP01', label: 'CP01' }]);
+    const reportWhere = JSON.stringify(
+      prisma.salesReport.findMany.mock.calls[0][0].where,
+    );
+    expect(reportWhere).toContain('CP01');
+    expect(reportWhere).toContain('CP99');
+    expect(prisma.store.findMany).not.toHaveBeenCalled();
+  });
+
   it('lets store managers see cached unreported orders in their showroom scope', async () => {
     const { service, prisma } = createHarness();
     const manager = storeManagerFixture('CP01');
