@@ -271,9 +271,19 @@ void main() {
     expect(field.decoration?.labelStyle?.fontSize, 0);
     expect(field.decoration?.labelStyle?.height, 0);
     expect(find.byIcon(PhosphorIconsRegular.caretDown), findsOneWidget);
+    final fieldRect = tester.getRect(find.byType(TextField));
+    final buttonRect = tester.getRect(find.byType(IconButton));
+    expect(
+      buttonRect,
+      Rect.fromLTWH(fieldRect.right - 48, fieldRect.top, 48, 48),
+    );
     final fieldSemantics = tester.getSemantics(find.byType(EditableText));
+    expect(fieldSemantics.label, 'Nhân viên');
     expect(fieldSemantics.flagsCollection.isTextField, isTrue);
     expect(fieldSemantics.flagsCollection.isEnabled, Tristate.isTrue);
+    final buttonSemantics = tester.getSemantics(find.byType(IconButton));
+    expect(buttonSemantics.tooltip, 'Mở danh sách');
+    expect(buttonSemantics.flagsCollection.isButton, isTrue);
     semantics.dispose();
   });
 
