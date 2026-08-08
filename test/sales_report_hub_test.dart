@@ -320,9 +320,9 @@ void main() {
       ),
       findsNothing,
     );
-    expect(find.text('Showroom'), findsOneWidget);
+    expect(find.text('Showroom'), findsNWidgets(2));
     expect(find.text('Tất cả showroom'), findsOneWidget);
-    expect(find.text('Nhân viên'), findsOneWidget);
+    expect(find.text('Nhân viên'), findsNWidgets(2));
     expect(find.text('Tất cả nhân viên'), findsOneWidget);
     final showroomFilter = tester.widget<AppCombobox<String>>(
       find.byType(AppCombobox<String>).first,
