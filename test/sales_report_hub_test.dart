@@ -324,6 +324,10 @@ void main() {
     expect(find.text('Tất cả showroom'), findsOneWidget);
     expect(find.text('Nhân viên'), findsOneWidget);
     expect(find.text('Tất cả nhân viên'), findsOneWidget);
+    final showroomFilter = tester.widget<AppCombobox<String>>(
+      find.byType(AppCombobox<String>).first,
+    );
+    expect(showroomFilter.menuWidth, 280);
     expect(repository.lastOrdersQuery?.startDate, DateTime(2026, 7, 1));
     expect(repository.lastOrdersQuery?.endDate, DateTime(2026, 7, 1));
 
