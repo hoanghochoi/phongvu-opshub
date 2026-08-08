@@ -180,6 +180,47 @@ class _AppComboboxState<T> extends State<AppCombobox<T>> {
     ValueChanged<T?>? didChange,
   ) {
     _formDidChange = didChange;
+    final suffixIcon = _suffixIcon(didChange);
+    final field = TextField(
+      key: _fieldKey,
+      controller: _controller,
+      focusNode: _focusNode,
+      enabled: widget.enabled,
+      readOnly: false,
+      textCapitalization: widget.textCapitalization,
+      textInputAction: TextInputAction.search,
+      contextMenuBuilder: appTextInputContextMenuBuilder(),
+      style: AppTextStyles.bodyM,
+      onTap: _openOverlay,
+      onSubmitted: (_) => _chooseHighlighted(didChange),
+      decoration: appInputDecoration(
+        label: widget.label,
+        icon: widget.icon,
+        hintText: widget.hintText,
+        helperText: widget.helperText,
+        errorText: errorText,
+        dense: widget.dense,
+        visuallyHideLabel: !widget.showLabel,
+        suffixIcon: widget.showLabel ? suffixIcon : const SizedBox.shrink(),
+        fixedHeight: widget.fixedHeight,
+      ),
+    );
+    final accessibleField = widget.showLabel
+        ? field
+        : Stack(
+            children: [
+              MergeSemantics(
+                child: Semantics(label: widget.label, child: field),
+              ),
+              Positioned(
+                top: 0,
+                right: 0,
+                bottom: 0,
+                width: AppInputMetrics.iconBoxSize,
+                child: suffixIcon,
+              ),
+            ],
+          );
     return TapRegion(
       groupId: _tapRegionGroup,
       onTapOutside: _handleTapOutside,
@@ -187,32 +228,7 @@ class _AppComboboxState<T> extends State<AppCombobox<T>> {
         link: _layerLink,
         child: Focus(
           onKeyEvent: _handleKeyEvent,
-          child: SelectionContainer.disabled(
-            child: TextField(
-              key: _fieldKey,
-              controller: _controller,
-              focusNode: _focusNode,
-              enabled: widget.enabled,
-              readOnly: false,
-              textCapitalization: widget.textCapitalization,
-              textInputAction: TextInputAction.search,
-              contextMenuBuilder: appTextInputContextMenuBuilder(),
-              style: AppTextStyles.bodyM,
-              onTap: _openOverlay,
-              onSubmitted: (_) => _chooseHighlighted(didChange),
-              decoration: appInputDecoration(
-                label: widget.label,
-                icon: widget.icon,
-                hintText: widget.hintText,
-                helperText: widget.helperText,
-                errorText: errorText,
-                dense: widget.dense,
-                visuallyHideLabel: !widget.showLabel,
-                suffixIcon: _suffixIcon(didChange),
-                fixedHeight: widget.fixedHeight,
-              ),
-            ),
-          ),
+          child: SelectionContainer.disabled(child: accessibleField),
         ),
       ),
     );
