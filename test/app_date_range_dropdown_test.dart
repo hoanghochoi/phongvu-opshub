@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:phongvu_opshub/app/widgets/app_filter_dropdowns.dart';
 import 'package:phongvu_opshub/app/widgets/date_range_picker/date_range_picker.dart';
 import 'package:phongvu_opshub/core/logging/app_logger.dart';
@@ -200,6 +201,48 @@ void main() {
     expect(popoverTopLeft.dy, greaterThanOrEqualTo(triggerBottom));
     expect(popoverTopLeft.dy - triggerBottom, lessThanOrEqualTo(12));
     expect(popoverTopLeft.dx, greaterThanOrEqualTo(12));
+  });
+
+  testWidgets('inline surface keeps the canonical picker and 40px geometry', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 900);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Align(
+            alignment: Alignment.topCenter,
+            child: SizedBox(
+              width: 292,
+              child: AppDateRangeDropdown(
+                label: 'Khoảng ngày',
+                start: DateTime(2026, 8, 3),
+                end: DateTime(2026, 8, 3),
+                now: () => DateTime(2026, 8, 8),
+                inlineSurfaceStyle: true,
+                showEmptyRangeHelperText: false,
+                onChanged: (_, _) {},
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final trigger = find.byKey(const Key('open-date-range-picker'));
+    expect(tester.getSize(trigger), const Size(292, 40));
+    expect(find.text('Khoảng ngày: 03/08/2026'), findsOneWidget);
+    expect(find.byIcon(PhosphorIconsRegular.caretDown), findsOneWidget);
+    expect(find.textContaining('Có thể để trống'), findsNothing);
+
+    await tester.tap(trigger);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('date-range-popover')), findsOneWidget);
+    expect(find.byKey(const Key('date-range-desktop')), findsOneWidget);
   });
 
   testWidgets('outside dismiss and close do not update filter', (tester) async {

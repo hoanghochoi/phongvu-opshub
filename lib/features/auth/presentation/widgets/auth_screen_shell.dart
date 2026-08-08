@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
@@ -9,6 +10,25 @@ import '../../../../app/theme/app_text_styles.dart';
 import '../../../../app/widgets/app_layout.dart';
 import '../../../../app/widgets/app_logo.dart';
 import '../../../../core/config/app_brand.dart';
+
+double authSymmetricHorizontalSafeInset(
+  Size mediaSize,
+  EdgeInsets mediaPadding,
+) {
+  return mediaSize.width > mediaSize.height
+      ? math.max(mediaPadding.left, mediaPadding.right)
+      : 0.0;
+}
+
+bool authUsesPhonePwaLayout(
+  Size mediaSize, {
+  required bool isWeb,
+  required TargetPlatform platform,
+}) {
+  return isWeb &&
+      (platform == TargetPlatform.iOS || platform == TargetPlatform.android) &&
+      mediaSize.shortestSide < AppLayoutTokens.compactBreakpoint;
+}
 
 class AuthScreenShell extends StatelessWidget {
   final Widget child;
@@ -58,40 +78,59 @@ class AuthPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final mediaSize = MediaQuery.sizeOf(context);
+    final mediaPadding = MediaQuery.paddingOf(context);
+    final horizontalSafeInset = authSymmetricHorizontalSafeInset(
+      mediaSize,
+      mediaPadding,
+    );
+    final usesPhonePwaLayout = authUsesPhonePwaLayout(
+      mediaSize,
+      isWeb: kIsWeb,
+      platform: defaultTargetPlatform,
+    );
     return Scaffold(
       backgroundColor: AppColors.canvasOf(context),
       body: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final isDesktop =
-                constraints.maxWidth >= AppLayoutTokens.authDesktopBreakpoint;
-            if (!isDesktop) {
-              return AuthFormPanel(
-                maxWidth: maxWidth,
-                mobile: true,
-                child: child,
+        top: false,
+        left: false,
+        right: false,
+        child: Padding(
+          padding: EdgeInsets.symmetric(horizontal: horizontalSafeInset),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final isDesktop =
+                  constraints.maxWidth >=
+                      AppLayoutTokens.authDesktopBreakpoint &&
+                  !usesPhonePwaLayout;
+              if (!isDesktop) {
+                return AuthFormPanel(
+                  maxWidth: maxWidth,
+                  mobile: true,
+                  child: child,
+                );
+              }
+
+              final formPanelWidth = math.max(
+                AppLayoutTokens.authFormPanelMinWidth,
+                constraints.maxWidth - 820,
               );
-            }
+              final brandPanelWidth = constraints.maxWidth - formPanelWidth;
 
-            final formPanelWidth = math.max(
-              AppLayoutTokens.authFormPanelMinWidth,
-              constraints.maxWidth - 820,
-            );
-            final brandPanelWidth = constraints.maxWidth - formPanelWidth;
-
-            return Row(
-              children: [
-                SizedBox(
-                  width: brandPanelWidth,
-                  child: AuthBrandPanel(highlights: highlights),
-                ),
-                SizedBox(
-                  width: formPanelWidth,
-                  child: AuthFormPanel(maxWidth: maxWidth, child: child),
-                ),
-              ],
-            );
-          },
+              return Row(
+                children: [
+                  SizedBox(
+                    width: brandPanelWidth,
+                    child: AuthBrandPanel(highlights: highlights),
+                  ),
+                  SizedBox(
+                    width: formPanelWidth,
+                    child: AuthFormPanel(maxWidth: maxWidth, child: child),
+                  ),
+                ],
+              );
+            },
+          ),
         ),
       ),
     );
@@ -190,6 +229,8 @@ class BrandHeader extends StatelessWidget {
         Text(
           AppBrand.slogan,
           textAlign: centered ? TextAlign.center : TextAlign.start,
+          maxLines: compact ? 1 : null,
+          softWrap: !compact,
           style: (compact ? AppTextStyles.bodyS : AppTextStyles.bodyL).copyWith(
             color: mutedColor,
           ),
@@ -292,13 +333,13 @@ class AuthFormPanel extends StatelessWidget {
               children: [
                 if (mobile) ...[
                   const MobileBrandHeader(),
-                  const SizedBox(height: AppLayoutTokens.sectionGap),
+                  const SizedBox(height: 20),
                 ],
                 ConstrainedBox(
                   constraints: BoxConstraints(maxWidth: maxWidth),
                   child: SizedBox(width: double.infinity, child: child),
                 ),
-                const SizedBox(height: AppLayoutTokens.formSectionGap),
+                SizedBox(height: mobile ? 20 : AppLayoutTokens.formSectionGap),
                 const AuthFooter(),
               ],
             ),

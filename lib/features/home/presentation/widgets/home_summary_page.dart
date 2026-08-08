@@ -43,16 +43,6 @@ class HomeSummaryPage extends StatelessWidget {
     final summary = provider.summary;
     final content = _buildSummaryContent(summary);
 
-    final scrollableContent = <Widget>[
-      // Keep the metrics dashboard tree stable: overview, KPI grids, footer.
-      ...content,
-      if (footer != null) ...[
-        const SizedBox(height: AppLayoutTokens.cardGap),
-        footer!,
-      ],
-      const SizedBox(height: 20),
-    ];
-
     return LayoutBuilder(
       builder: (context, constraints) {
         final header = HomeSummaryHeader(
@@ -79,34 +69,34 @@ class HomeSummaryPage extends StatelessWidget {
               : summary?.resolvedFreshnessWarning,
           action: headerAction,
         );
-        final canOwnScroll =
-            constraints.hasBoundedHeight && constraints.maxHeight.isFinite;
-        final body = canOwnScroll
-            ? SingleChildScrollView(
-                key: const Key('home-summary-scroll-body'),
-                physics: const AlwaysScrollableScrollPhysics(),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: scrollableContent,
-                ),
-              )
-            : Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: scrollableContent,
-              );
-
-        return Column(
+        final pageChildren = <Widget>[
+          header,
+          SizedBox(
+            height: constraints.maxWidth >= 1100
+                ? AppLayoutTokens.homeWideHeaderBodyGap
+                : AppLayoutTokens.cardGap,
+          ),
+          // Header and metrics share one scroll surface so the greeting/filter
+          // card never remains pinned above the dashboard body.
+          ...content,
+          if (footer != null) ...[
+            const SizedBox(height: AppLayoutTokens.cardGap),
+            footer!,
+          ],
+          const SizedBox(height: 20),
+        ];
+        final page = Column(
           key: const Key('home-summary-page'),
           crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            header,
-            SizedBox(
-              height: constraints.maxWidth >= 1100
-                  ? AppLayoutTokens.homeWideHeaderBodyGap
-                  : AppLayoutTokens.cardGap,
-            ),
-            if (canOwnScroll) Expanded(child: body) else body,
-          ],
+          children: pageChildren,
+        );
+        final canOwnScroll =
+            constraints.hasBoundedHeight && constraints.maxHeight.isFinite;
+        if (!canOwnScroll) return page;
+        return SingleChildScrollView(
+          key: const Key('home-summary-scroll-body'),
+          physics: const AlwaysScrollableScrollPhysics(),
+          child: page,
         );
       },
     );
@@ -385,11 +375,9 @@ class HomeSummaryHeader extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final mobile = constraints.maxWidth < AppLayoutTokens.compactBreakpoint;
-        final medium =
-            !mobile &&
-            MediaQuery.sizeOf(context).width < AppLayoutTokens.tabletBreakpoint;
-        final controls = _HomeScopeDateControl(
+        final controls = _HomeInlineFilters(
           availableWidth: math.max(0.0, constraints.maxWidth - 38),
+          mobile: mobile,
           selectedScope: selectedScope,
           selectedScopeLabel: selectedScopeLabel.isEmpty
               ? scopeLabel
@@ -399,166 +387,10 @@ class HomeSummaryHeader extends StatelessWidget {
           selectedEndDate: selectedEndDate,
           onScopeChanged: onScopeChanged,
           onDateRangeChanged: onDateRangeChanged,
+          updatedLabel: updatedLabel,
+          isRefreshing: isRefreshing,
+          onRefresh: onRefresh,
           action: action,
-          builder: (context, open) {
-            return LayoutBuilder(
-              builder: (context, controlConstraints) {
-                final controlWidth = controlConstraints.hasBoundedWidth
-                    ? (mobile
-                          ? controlConstraints.maxWidth
-                          : math.max(0.0, constraints.maxWidth - 38))
-                    : constraints.maxWidth;
-                final compactDesktop =
-                    !mobile && action != null && controlWidth < 900;
-                final desktopSlotWidth = compactDesktop
-                    ? math.max(0.0, (controlWidth - (8 * 3) - 152) / 3)
-                    : null;
-                double desktopChipWidth(
-                  String label, {
-                  bool showCaret = false,
-                  IconData? leadingIcon,
-                }) {
-                  final intrinsicWidth = _homeHeaderChipWidth(
-                    context,
-                    label,
-                    showCaret: showCaret,
-                    leadingIcon: leadingIcon,
-                  );
-                  return desktopSlotWidth == null
-                      ? intrinsicWidth
-                      : math.min(intrinsicWidth, desktopSlotWidth);
-                }
-
-                final scopeChipLabel =
-                    'Phạm vi: ${_shortScopeLabel(scopeLabel)}';
-                final dateChipLabel =
-                    'Khoảng ngày: ${_homeRangeShortLabel(selectedStartDate, selectedEndDate)}';
-                final rawScopeWidth = desktopChipWidth(
-                  scopeChipLabel,
-                  showCaret: true,
-                );
-                final rawDateWidth = desktopChipWidth(
-                  dateChipLabel,
-                  showCaret: true,
-                );
-                final rawUpdateWidth = desktopChipWidth(
-                  updatedLabel,
-                  leadingIcon: PhosphorIconsRegular.info,
-                );
-                late final double scopeWidth;
-                late final double dateWidth;
-                late final double updateWidth;
-                if (mobile) {
-                  scopeWidth = controlWidth;
-                  dateWidth = controlWidth;
-                  updateWidth = controlWidth;
-                } else if (desktopSlotWidth != null) {
-                  scopeWidth = rawScopeWidth;
-                  dateWidth = rawDateWidth;
-                  updateWidth = rawUpdateWidth;
-                } else {
-                  // Keep all three HUG chips on the fixed desktop control row;
-                  // only cap a label when its content would consume the
-                  // remaining lane at a medium width.
-                  updateWidth = math.min(rawUpdateWidth, controlWidth * .32);
-                  dateWidth = math.min(rawDateWidth, controlWidth * .30);
-                  scopeWidth = math.min(
-                    rawScopeWidth,
-                    math.max(0.0, controlWidth - dateWidth - updateWidth - 16),
-                  );
-                }
-                final scopeChip = KeyedSubtree(
-                  key: const Key('home-summary-scope-date-trigger'),
-                  child: KeyedSubtree(
-                    key: const Key('home-summary-date-range'),
-                    child: KeyedSubtree(
-                      key: const Key('home-summary-scope-pill'),
-                      child: SizedBox(
-                        width: scopeWidth,
-                        child: _HomeHeaderChip(
-                          label: scopeChipLabel,
-                          onTap: open,
-                          showCaret: true,
-                          maxWidth: scopeWidth,
-                        ),
-                      ),
-                    ),
-                  ),
-                );
-                final dateChip = _HomeHeaderChip(
-                  label: dateChipLabel,
-                  onTap: open,
-                  showCaret: true,
-                  maxWidth: dateWidth,
-                );
-                final updateChip = _HomeHeaderChip(
-                  key: const Key('home-summary-refresh-button'),
-                  label: updatedLabel,
-                  onTap: onRefresh,
-                  busy: isRefreshing,
-                  leadingIcon: PhosphorIconsRegular.info,
-                  maxWidth: mobile ? controlWidth : updateWidth,
-                );
-                if (mobile) {
-                  final mobileUpdateAndAction = action == null
-                      ? SizedBox(width: controlWidth, child: updateChip)
-                      : Row(
-                          children: [
-                            Expanded(child: updateChip),
-                            const SizedBox(width: 8),
-                            SizedBox(width: 152, child: action!),
-                          ],
-                        );
-                  return Column(
-                    key: const Key('home-summary-controls'),
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      SizedBox(
-                        key: const Key('home-summary-scope-control'),
-                        width: controlWidth,
-                        child: scopeChip,
-                      ),
-                      const SizedBox(height: 8),
-                      SizedBox(
-                        key: const Key('home-summary-date-control'),
-                        width: controlWidth,
-                        child: dateChip,
-                      ),
-                      const SizedBox(height: 8),
-                      mobileUpdateAndAction,
-                    ],
-                  );
-                }
-                final desktopChildren = [
-                  scopeChip,
-                  SizedBox(width: dateWidth, child: dateChip),
-                  SizedBox(width: updateWidth, child: updateChip),
-                  if (action != null) action!,
-                ];
-                return action == null
-                    ? Row(
-                        key: const Key('home-summary-controls'),
-                        mainAxisSize: MainAxisSize.max,
-                        children: [
-                          for (
-                            var index = 0;
-                            index < desktopChildren.length;
-                            index++
-                          ) ...[
-                            if (index > 0) const SizedBox(width: 8),
-                            desktopChildren[index],
-                          ],
-                        ],
-                      )
-                    : Wrap(
-                        key: const Key('home-summary-controls'),
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: desktopChildren,
-                      );
-              },
-            );
-          },
         );
         final visualHeader = mobile
             ? Container(
@@ -618,7 +450,7 @@ class HomeSummaryHeader extends StatelessWidget {
               )
             : Container(
                 key: const Key('home-summary-header'),
-                height: medium ? 204 : 146,
+                height: 146,
                 padding: const EdgeInsets.fromLTRB(18, 18, 18, 26),
                 decoration: BoxDecoration(
                   color: AppColors.raisedOf(context),
@@ -698,9 +530,10 @@ class HomeSummaryHeader extends StatelessWidget {
   }
 }
 
-class _HomeScopeDateControl extends StatelessWidget {
-  const _HomeScopeDateControl({
+class _HomeInlineFilters extends StatelessWidget {
+  const _HomeInlineFilters({
     required this.availableWidth,
+    required this.mobile,
     required this.selectedScope,
     required this.selectedScopeLabel,
     required this.scopeOptions,
@@ -708,11 +541,14 @@ class _HomeScopeDateControl extends StatelessWidget {
     required this.selectedEndDate,
     required this.onScopeChanged,
     required this.onDateRangeChanged,
-    required this.builder,
+    required this.updatedLabel,
+    required this.isRefreshing,
+    required this.onRefresh,
     this.action,
   });
 
   final double availableWidth;
+  final bool mobile;
   final String selectedScope;
   final String selectedScopeLabel;
   final List<HomeSummaryScopeOption> scopeOptions;
@@ -720,142 +556,208 @@ class _HomeScopeDateControl extends StatelessWidget {
   final DateTime? selectedEndDate;
   final ValueChanged<String>? onScopeChanged;
   final void Function(DateTime? start, DateTime? end) onDateRangeChanged;
-  final Widget Function(BuildContext context, VoidCallback open) builder;
+  final String updatedLabel;
+  final bool isRefreshing;
+  final VoidCallback? onRefresh;
   final Widget? action;
 
   @override
   Widget build(BuildContext context) {
-    final canSelect = scopeOptions.length > 1 && onScopeChanged != null;
-    final selectedValue =
-        scopeOptions.any((option) => option.value == selectedScope)
-        ? selectedScope
-        : null;
-    // Keep the anchored menu inside the viewport. The desktop design uses a
-    // 720px surface, but that width must yield on compact desktop/mobile
-    // viewports instead of allowing the combobox/date fields to overflow.
-    final viewportWidth = MediaQuery.sizeOf(context).width;
-    final menuWidth = math.min(720.0, math.max(0.0, viewportWidth - 32));
-    final menuContentWidth = math.max(0.0, menuWidth - 32);
-    final scopeFieldWidth = math.min(320.0, menuContentWidth);
-    final dateFieldWidth = math.min(360.0, menuContentWidth);
-    final menuAnchorKey = GlobalKey();
+    Widget scopeControl(double width) => SizedBox(
+      key: const Key('home-summary-scope-control'),
+      width: width,
+      child: _HomeInlineScopeDropdown(
+        width: width,
+        selectedScope: selectedScope,
+        selectedScopeLabel: selectedScopeLabel,
+        scopeOptions: scopeOptions,
+        onScopeChanged: onScopeChanged,
+      ),
+    );
 
-    void openMenu(MenuController controller) {
-      if (controller.isOpen) return;
-      final anchorRenderObject = menuAnchorKey.currentContext
-          ?.findRenderObject();
-      final anchorBox = anchorRenderObject is RenderBox
-          ? anchorRenderObject
-          : null;
-      final anchorLeft = anchorBox?.localToGlobal(Offset.zero).dx ?? 0;
-      final anchorHeight = anchorBox?.size.height ?? 0;
-      final maxLeft = math.max(16.0, viewportWidth - menuWidth - 16);
-      final menuLeft = anchorLeft.clamp(16.0, maxLeft).toDouble();
-      controller.open(position: Offset(menuLeft - anchorLeft, anchorHeight));
+    Widget dateControl(double width) => SizedBox(
+      key: const Key('home-summary-date-control'),
+      width: width,
+      child: KeyedSubtree(
+        key: const Key('home-summary-date-range'),
+        child: AppDateRangeDropdown(
+          label: 'Khoảng ngày',
+          start: selectedStartDate,
+          end: selectedEndDate,
+          onChanged: onDateRangeChanged,
+          showEmptyRangeHelperText: false,
+          inlineSurfaceStyle: true,
+          now: DateTime.now,
+        ),
+      ),
+    );
+
+    final updateControl = _HomeHeaderChip(
+      key: const Key('home-summary-refresh-button'),
+      label: updatedLabel,
+      onTap: onRefresh,
+      busy: isRefreshing,
+      leadingIcon: PhosphorIconsRegular.info,
+      maxWidth: mobile ? availableWidth : null,
+    );
+    if (mobile) {
+      final metadataControl = SizedBox(
+        width: math.min(171, availableWidth),
+        child: updateControl,
+      );
+      return Column(
+        key: const Key('home-summary-controls'),
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          scopeControl(availableWidth),
+          const SizedBox(height: 8),
+          dateControl(availableWidth),
+          const SizedBox(height: 8),
+          if (action == null)
+            Align(alignment: Alignment.centerLeft, child: metadataControl)
+          else
+            Row(
+              children: [
+                Expanded(child: updateControl),
+                const SizedBox(width: 8),
+                SizedBox(width: 152, child: action!),
+              ],
+            ),
+        ],
+      );
     }
 
-    final menuAnchor = MenuAnchor(
-      key: menuAnchorKey,
-      // Keep the explicitly calculated panel width. Flutter's default
-      // unconstrained menu wrapper can otherwise grow the surface past the
-      // viewport on medium/compact web layouts.
+    const gap = 12.0;
+    const actionWidth = 152.0;
+    final reservedWidth = action == null ? 0.0 : actionWidth + gap;
+    const wideTargetWidths = [324.0, 296.0, 280.0];
+    const regularTargetWidths = [220.0, 220.0, 180.0];
+    final wideTargetTotal = wideTargetWidths.reduce((a, b) => a + b);
+    final canUseWideTargets =
+        availableWidth >= wideTargetTotal + gap * 2 + reservedWidth;
+    final targetWidths = canUseWideTargets
+        ? wideTargetWidths
+        : regularTargetWidths;
+    final controlsWidth = math.max(
+      0.0,
+      availableWidth - reservedWidth - gap * 2,
+    );
+    final targetTotal = targetWidths.reduce((a, b) => a + b);
+    final scale = math.min(1.0, controlsWidth / targetTotal);
+    final scopeWidth = targetWidths[0] * scale;
+    final dateWidth = targetWidths[1] * scale;
+    final updateWidth = targetWidths[2] * scale;
+
+    return Row(
+      key: const Key('home-summary-controls'),
+      children: [
+        scopeControl(scopeWidth),
+        const SizedBox(width: gap),
+        dateControl(dateWidth),
+        const SizedBox(width: gap),
+        SizedBox(width: updateWidth, child: updateControl),
+        if (action != null) ...[
+          const SizedBox(width: gap),
+          SizedBox(width: actionWidth, child: action!),
+        ],
+      ],
+    );
+  }
+}
+
+class _HomeInlineScopeDropdown extends StatelessWidget {
+  const _HomeInlineScopeDropdown({
+    required this.width,
+    required this.selectedScope,
+    required this.selectedScopeLabel,
+    required this.scopeOptions,
+    required this.onScopeChanged,
+  });
+
+  final double width;
+  final String selectedScope;
+  final String selectedScopeLabel;
+  final List<HomeSummaryScopeOption> scopeOptions;
+  final ValueChanged<String>? onScopeChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final canSelect = scopeOptions.length > 1 && onScopeChanged != null;
+    final viewportWidth = MediaQuery.sizeOf(context).width;
+    final menuWidth = math.min(
+      math.max(width, 220.0),
+      math.max(0.0, viewportWidth - 32),
+    );
+    return MenuAnchor(
       crossAxisUnconstrained: false,
+      alignmentOffset: const Offset(0, 4),
       style: const MenuStyle(
         padding: WidgetStatePropertyAll(EdgeInsets.zero),
         elevation: WidgetStatePropertyAll(2),
       ),
-      builder: (context, controller, _) => builder(context, () {
-        openMenu(controller);
-      }),
+      builder: (context, controller, _) => SizedBox(
+        width: width,
+        child: _HomeHeaderChip(
+          key: const Key('home-summary-scope-trigger'),
+          label: 'Phạm vi: ${_shortScopeLabel(selectedScopeLabel)}',
+          onTap: canSelect ? controller.open : null,
+          showCaret: canSelect,
+          maxWidth: width,
+        ),
+      ),
       menuChildren: [
         Material(
+          key: const Key('home-summary-scope-menu'),
           color: AppColors.raisedOf(context),
           child: SizedBox(
-            key: const Key('home-summary-scope-menu'),
             width: menuWidth,
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Wrap(
-                spacing: 12,
-                runSpacing: 12,
-                crossAxisAlignment: WrapCrossAlignment.end,
-                children: [
-                  SizedBox(
-                    width: scopeFieldWidth,
-                    child: AppCombobox<String>.single(
-                      key: const Key('home-summary-scope-combobox'),
-                      label: 'Phạm vi',
-                      value: selectedValue,
-                      icon: PhosphorIconsRegular.storefront,
-                      dense: true,
-                      enabled: canSelect,
-                      allowClear: false,
-                      emptyLabel: selectedScopeLabel,
-                      maxMenuHeight: 320,
-                      options: [
-                        for (final option in scopeOptions)
-                          AppComboboxOption<String>(
-                            value: option.value,
-                            label: option.label,
-                            subtitle: _ScopeSelectorField._scopeOptionSubtitle(
-                              option,
-                            ),
-                            searchKeywords: [
-                              option.value,
-                              option.label,
-                              option.requestScope,
-                              option.organizationNodeId ?? '',
-                            ],
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                for (final option in scopeOptions)
+                  MenuItemButton(
+                    onPressed: canSelect
+                        ? () => onScopeChanged?.call(option.value)
+                        : null,
+                    leadingIcon: Icon(
+                      option.value == selectedScope
+                          ? PhosphorIconsRegular.check
+                          : PhosphorIconsRegular.storefront,
+                      size: 18,
+                      color: option.value == selectedScope
+                          ? AppColors.primaryOf(context)
+                          : AppColors.textSecondaryOf(context),
+                    ),
+                    child: SizedBox(
+                      width: math.max(0.0, menuWidth - 64),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            option.label,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppTextStyles.bodyM,
                           ),
-                      ],
-                      onChanged: canSelect
-                          ? (value) {
-                              if (value != null) onScopeChanged?.call(value);
-                            }
-                          : null,
+                          if (_ScopeSelectorField._scopeOptionSubtitle(option)
+                              case final subtitle?)
+                            Text(
+                              subtitle,
+                              style: AppTextStyles.caption.copyWith(
+                                color: AppColors.textSecondaryOf(context),
+                              ),
+                            ),
+                        ],
+                      ),
                     ),
                   ),
-                  SizedBox(
-                    width: dateFieldWidth,
-                    child: AppDateRangeDropdown(
-                      label: 'Ngày',
-                      start: selectedStartDate,
-                      end: selectedEndDate,
-                      onChanged: onDateRangeChanged,
-                      showEmptyRangeHelperText: false,
-                      now: DateTime.now,
-                    ),
-                  ),
-                ],
-              ),
+              ],
             ),
           ),
         ),
       ],
     );
-    return SizedBox(width: availableWidth, child: menuAnchor);
   }
-}
-
-double _homeHeaderChipWidth(
-  BuildContext context,
-  String label, {
-  bool showCaret = false,
-  IconData? leadingIcon,
-}) {
-  final painter = TextPainter(
-    text: TextSpan(
-      text: label,
-      style: AppTextStyles.bodyS.copyWith(height: 18 / 13),
-    ),
-    textDirection: Directionality.of(context),
-    maxLines: 1,
-  )..layout();
-  return 24 +
-      painter.width +
-      (leadingIcon == null ? 0 : 24) +
-      (showCaret ? 24 : 0) +
-      16;
 }
 
 class _HomeHeaderChip extends StatelessWidget {
@@ -942,14 +844,6 @@ class _HomeHeaderChip extends StatelessWidget {
 String _shortScopeLabel(String label) {
   final trimmed = label.trim();
   return trimmed.isEmpty ? 'Showroom được phân quyền' : trimmed;
-}
-
-String _homeRangeShortLabel(DateTime? start, DateTime? end) {
-  if (start == null && end == null) return 'Tất cả ngày';
-  final startLabel = start == null ? null : DateFormat('dd/MM').format(start);
-  final endLabel = end == null ? null : DateFormat('dd/MM').format(end);
-  if (startLabel != null && startLabel == endLabel) return startLabel;
-  return [startLabel, endLabel].whereType<String>().join(' - ');
 }
 
 class _HomeSummaryAvatar extends StatelessWidget {
@@ -2903,18 +2797,20 @@ class _ApprovedReportProgressPanel extends StatelessWidget {
           AppLayoutTokens.salesReportMaxWidth,
           math.min(viewportWidth, boundedWidth),
         );
-        final desktop = boardWidth >= AppLayoutTokens.tabletBreakpoint;
+        final twoColumns = boardWidth >= 880;
+        final wide = boardWidth >= 1100;
         const gap = 16.0;
-        final horizontalPadding = desktop ? 40.0 : 0.0;
+        final singleColumnInset = !twoColumns;
+        final horizontalPadding = wide ? 40.0 : (singleColumnInset ? 2.0 : 0.0);
         final contentWidth = math.max(0.0, boardWidth - horizontalPadding);
-        final columns = desktop ? 2 : 1;
+        final columns = twoColumns ? 2 : 1;
         final cardWidth = columns == 1
             ? contentWidth
             : (contentWidth - gap) / columns;
         final cards = <_OverviewCardSpec>[
           if (summary.salesAvailable)
             _OverviewCardSpec(
-              height: desktop ? 230 : 166,
+              height: wide ? 206 : 166,
               card: _OverviewProgressCard(
                 cardKey: const Key('home-report-progress-panel'),
                 title: 'Tiến độ báo cáo',
@@ -2931,7 +2827,7 @@ class _ApprovedReportProgressPanel extends StatelessWidget {
             ),
           if (summary.financeAvailable)
             _OverviewCardSpec(
-              height: desktop ? 230 : 166,
+              height: wide ? 206 : 166,
               card: _OverviewProgressCard(
                 cardKey: const Key('home-statement-progress-panel'),
                 title: 'Tiến độ sao kê',
@@ -2948,9 +2844,16 @@ class _ApprovedReportProgressPanel extends StatelessWidget {
             ),
           if (summary.salesAvailable)
             _OverviewCardSpec(
-              height: desktop
-                  ? 270
-                  : (summary.salesProgressAssignees.isNotEmpty ? 266 : 208),
+              height: twoColumns
+                  ? (wide ? 264 : 280)
+                  : (summary.salesProgressAssignees.isNotEmpty &&
+                            summary.selectedSalesProgressUserId
+                                    ?.trim()
+                                    .isNotEmpty !=
+                                true
+                        ? 208
+                        : 266),
+              gapAfter: 12,
               card: _OverviewGoalCard(
                 cardKey: const Key('home-sales-progress-panel'),
                 title: 'Tổng quan cá nhân',
@@ -2970,7 +2873,9 @@ class _ApprovedReportProgressPanel extends StatelessWidget {
             ),
           if (summary.salesAvailable)
             _OverviewCardSpec(
-              height: desktop ? 270 : (boardWidth < 600 ? 360 : 280),
+              height: twoColumns
+                  ? (wide ? 264 : 280)
+                  : (boardWidth < 600 ? 360 : 280),
               card: _OverviewGoalCard(
                 cardKey: const Key('home-scope-sales-progress-panel'),
                 title: 'Tổng quan Cửa hàng',
@@ -2991,8 +2896,11 @@ class _ApprovedReportProgressPanel extends StatelessWidget {
           borderRadius: AppRadius.allCardFigma,
           child: Container(
             width: boardWidth,
-            padding: EdgeInsets.only(top: 16, bottom: 24),
-            decoration: BoxDecoration(
+            padding: EdgeInsets.only(
+              top: 16,
+              bottom: singleColumnInset ? 16 : 24,
+            ),
+            foregroundDecoration: BoxDecoration(
               border: Border.all(
                 color: AppColors.homeOverviewBorderOf(context),
               ),
@@ -3003,22 +2911,47 @@ class _ApprovedReportProgressPanel extends StatelessWidget {
               children: [
                 Padding(
                   padding: EdgeInsets.symmetric(
-                    horizontal: desktop ? 0 : (boardWidth < 600 ? 16 : 24),
+                    horizontal: boardWidth < 600 ? 16 : 24,
                   ),
                   child: Text('Tổng quan', style: AppTextStyles.headingM),
                 ),
-                const SizedBox(height: 16),
-                Wrap(
-                  spacing: gap,
-                  runSpacing: gap,
-                  children: [
-                    for (final spec in cards)
-                      SizedBox(
-                        width: cardWidth,
-                        height: spec.height,
-                        child: spec.card,
-                      ),
-                  ],
+                SizedBox(height: singleColumnInset ? 12 : 16),
+                Padding(
+                  padding: wide
+                      ? const EdgeInsets.only(left: 24, right: 16)
+                      : singleColumnInset
+                      ? const EdgeInsets.symmetric(horizontal: 1)
+                      : EdgeInsets.zero,
+                  child: twoColumns
+                      ? Wrap(
+                          spacing: gap,
+                          runSpacing: gap,
+                          children: [
+                            for (final spec in cards)
+                              SizedBox(
+                                width: cardWidth,
+                                height: spec.height,
+                                child: spec.card,
+                              ),
+                          ],
+                        )
+                      : Column(
+                          children: [
+                            for (
+                              var index = 0;
+                              index < cards.length;
+                              index++
+                            ) ...[
+                              SizedBox(
+                                width: cardWidth,
+                                height: cards[index].height,
+                                child: cards[index].card,
+                              ),
+                              if (index < cards.length - 1)
+                                SizedBox(height: cards[index].gapAfter),
+                            ],
+                          ],
+                        ),
                 ),
               ],
             ),
@@ -3030,10 +2963,15 @@ class _ApprovedReportProgressPanel extends StatelessWidget {
 }
 
 class _OverviewCardSpec {
-  const _OverviewCardSpec({required this.height, required this.card});
+  const _OverviewCardSpec({
+    required this.height,
+    required this.card,
+    this.gapAfter = 6,
+  });
 
   final double height;
   final Widget card;
+  final double gapAfter;
 }
 
 class _OverviewProgressCard extends StatelessWidget {
@@ -3160,81 +3098,122 @@ class _OverviewGoalCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final hasSelected = selectedAssigneeId?.trim().isNotEmpty == true;
     final showEmpty = showAssignee && !hasSelected;
-    return Material(
-      key: cardKey,
-      color: surfaceColor,
-      borderRadius: AppRadius.allCardFigma,
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(24, 15, 24, 12),
-        decoration: BoxDecoration(
-          border: Border.all(color: borderColor),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < 600;
+        final firstPeriodLabel = keyPrefix == 'scope' && !compact
+            ? 'Khoảng chọn'
+            : 'Ngày';
+        return Material(
+          key: cardKey,
+          color: surfaceColor,
           borderRadius: AppRadius.allCardFigma,
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              title,
-              textAlign: TextAlign.center,
-              style: AppTextStyles.headingS,
+          child: Container(
+            padding: EdgeInsets.fromLTRB(
+              compact ? 20 : 24,
+              15,
+              compact ? 20 : 24,
+              12,
             ),
-            const SizedBox(height: 8),
-            if (showAssignee)
-              SizedBox(
-                height: 46,
-                child: _SalesProgressAssigneeDropdown(
-                  assignees: assignees,
-                  selectedAssigneeId: selectedAssigneeId,
-                  onChanged: onAssigneeChanged,
-                ),
-              ),
-            if (showEmpty)
-              Expanded(child: _OverviewEmptySelection())
-            else ...[
-              if (showAssignee) const SizedBox(height: 8),
-              Expanded(
-                child: Row(
-                  children: [
-                    _OverviewPeriod(
-                      key: Key('home-analytics-$keyPrefix-range'),
-                      label: 'Ngày',
-                      period: progress.day,
-                      color: color,
-                    ),
-                    const SizedBox(width: 16),
-                    _OverviewPeriod(
-                      key: Key('home-analytics-$keyPrefix-week'),
-                      label: 'Tuần',
-                      period: progress.week,
-                      color: color,
-                    ),
-                    const SizedBox(width: 16),
-                    _OverviewPeriod(
-                      key: Key('home-analytics-$keyPrefix-month'),
-                      label: 'Tháng',
-                      period: progress.month,
-                      color: color,
-                    ),
-                  ],
-                ),
-              ),
-            ],
-            if (missingStoreCodes.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.only(top: 6),
-                child: Text(
-                  'Thiếu chỉ tiêu: ${missingStoreCodes.join(', ')}',
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
+            decoration: BoxDecoration(
+              border: Border.all(color: borderColor),
+              borderRadius: AppRadius.allCardFigma,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  title,
                   textAlign: TextAlign.center,
-                  style: AppTextStyles.caption.copyWith(
-                    color: AppColors.errorOf(context),
-                  ),
+                  style: AppTextStyles.headingS,
                 ),
-              ),
-          ],
-        ),
-      ),
+                SizedBox(height: showAssignee ? 17 : 15),
+                if (showAssignee)
+                  SizedBox(
+                    height: 46,
+                    child: _SalesProgressAssigneeDropdown(
+                      assignees: assignees,
+                      selectedAssigneeId: selectedAssigneeId,
+                      onChanged: onAssigneeChanged,
+                    ),
+                  ),
+                if (showEmpty)
+                  Expanded(child: _OverviewEmptySelection())
+                else ...[
+                  if (showAssignee) const SizedBox(height: 8),
+                  Expanded(
+                    child: compact && keyPrefix == 'scope'
+                        ? Column(
+                            children: [
+                              _OverviewPeriod(
+                                key: Key('home-analytics-$keyPrefix-range'),
+                                label: firstPeriodLabel,
+                                period: progress.day,
+                                color: color,
+                                dense: true,
+                              ),
+                              const SizedBox(height: 4),
+                              _OverviewPeriod(
+                                key: Key('home-analytics-$keyPrefix-week'),
+                                label: 'Tuần',
+                                period: progress.week,
+                                color: color,
+                                dense: true,
+                              ),
+                              const SizedBox(height: 4),
+                              _OverviewPeriod(
+                                key: Key('home-analytics-$keyPrefix-month'),
+                                label: 'Tháng',
+                                period: progress.month,
+                                color: color,
+                                dense: true,
+                              ),
+                            ],
+                          )
+                        : Row(
+                            children: [
+                              _OverviewPeriod(
+                                key: Key('home-analytics-$keyPrefix-range'),
+                                label: firstPeriodLabel,
+                                period: progress.day,
+                                color: color,
+                              ),
+                              const SizedBox(width: 16),
+                              _OverviewPeriod(
+                                key: Key('home-analytics-$keyPrefix-week'),
+                                label: 'Tuần',
+                                period: progress.week,
+                                color: color,
+                              ),
+                              const SizedBox(width: 16),
+                              _OverviewPeriod(
+                                key: Key('home-analytics-$keyPrefix-month'),
+                                label: 'Tháng',
+                                period: progress.month,
+                                color: color,
+                              ),
+                            ],
+                          ),
+                  ),
+                ],
+                if (missingStoreCodes.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 6),
+                    child: Text(
+                      'Thiếu chỉ tiêu: ${missingStoreCodes.join(', ')}',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.center,
+                      style: AppTextStyles.caption.copyWith(
+                        color: AppColors.errorOf(context),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }
@@ -3269,8 +3248,11 @@ class _OverviewEmptySelection extends StatelessWidget {
         const SizedBox(height: 18),
         Text(
           'Chọn SA để hiển thị chỉ số',
+          maxLines: 1,
+          softWrap: false,
           style: AppTextStyles.bodyS.copyWith(
             color: AppColors.textMutedOf(context),
+            height: 18 / 13,
           ),
         ),
       ],
@@ -3367,11 +3349,13 @@ class _OverviewPeriod extends StatelessWidget {
     required this.label,
     required this.period,
     required this.color,
+    this.dense = false,
   });
 
   final String label;
   final HomeSalesProgressPeriod period;
   final Color color;
+  final bool dense;
 
   @override
   Widget build(BuildContext context) {
@@ -3381,9 +3365,7 @@ class _OverviewPeriod extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(label, style: AppTextStyles.labelS),
-          const SizedBox(height: 8),
-          _OverviewProgressBar(value: percentage, color: color),
-          const SizedBox(height: 8),
+          SizedBox(height: dense ? 0 : 8),
           Text(
             formatCompactVndAmount(period.actual),
             maxLines: 1,
@@ -3392,12 +3374,14 @@ class _OverviewPeriod extends StatelessWidget {
               color: AppColors.textSecondaryOf(context),
             ),
           ),
-          const SizedBox(height: 2),
+          SizedBox(height: dense ? 0 : 8),
+          _OverviewProgressBar(value: percentage, color: color),
+          SizedBox(height: dense ? 0 : 8),
           Text(
             period.target == null
                 ? 'Chỉ tiêu: Chưa thiết lập'
                 : 'Mục tiêu ${formatCompactVndAmount(period.target!)}',
-            maxLines: 2,
+            maxLines: dense ? 1 : 2,
             overflow: TextOverflow.ellipsis,
             style: AppTextStyles.caption.copyWith(
               color: AppColors.textMutedOf(context),

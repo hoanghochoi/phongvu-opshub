@@ -7,6 +7,7 @@ import 'package:phongvu_opshub/app/navigation/app_router.dart';
 import 'package:phongvu_opshub/app/theme/app_colors.dart';
 import 'package:phongvu_opshub/app/theme/app_theme.dart';
 import 'package:phongvu_opshub/app/widgets/app_buttons.dart';
+import 'package:phongvu_opshub/app/widgets/app_cards.dart';
 import 'package:phongvu_opshub/app/widgets/app_combobox.dart';
 import 'helpers/legacy_widget_finders.dart';
 import 'package:go_router/go_router.dart';
@@ -93,11 +94,11 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('Báo cáo bán hàng'), findsOneWidget);
-    expect(find.text('Báo cáo thủ công'), findsOneWidget);
-    expect(find.text('Báo cáo chưa mua'), findsOneWidget);
+    expect(find.text('Mua thủ công'), findsOneWidget);
+    expect(find.text('Chưa mua'), findsOneWidget);
     expect(
-      tester.getTopLeft(find.text('Báo cáo thủ công')).dy,
-      tester.getTopLeft(find.text('Báo cáo chưa mua')).dy,
+      tester.getTopLeft(find.text('Mua thủ công')).dy,
+      tester.getTopLeft(find.text('Chưa mua')).dy,
     );
     expect(find.text('Đã báo cáo • 1'), findsOneWidget);
     expect(find.text('Chưa báo cáo • 7.998'), findsOneWidget);
@@ -123,8 +124,8 @@ void main() {
     expect(repository.lastOrdersQuery?.unreportedPage, 1);
     expect(repository.lastOrdersQuery?.limit, 20);
 
-    await tester.ensureVisible(find.text('Báo cáo thủ công'));
-    await tester.tap(find.text('Báo cáo thủ công'));
+    await tester.ensureVisible(find.text('Mua thủ công'));
+    await tester.tap(find.text('Mua thủ công'));
     await tester.pumpAndSettle();
 
     expect(find.byType(Dialog), findsOneWidget);
@@ -134,8 +135,8 @@ void main() {
     await tester.tap(find.byTooltip('Quay lại'));
     await tester.pumpAndSettle();
 
-    await tester.ensureVisible(find.text('Báo cáo chưa mua'));
-    await tester.tap(find.text('Báo cáo chưa mua'));
+    await tester.ensureVisible(find.text('Chưa mua'));
+    await tester.tap(find.text('Chưa mua'));
     await tester.pumpAndSettle();
 
     expect(find.byType(Dialog), findsOneWidget);
@@ -183,18 +184,18 @@ void main() {
     );
     expect(find.text('Chờ báo cáo'), findsNothing);
     expect(find.text('Hoàn tất'), findsNothing);
-    expect(find.text('Báo cáo mua thủ công'), findsOneWidget);
-    expect(find.text('Báo cáo chưa mua'), findsOneWidget);
+    expect(find.text('Mua thủ công'), findsOneWidget);
+    expect(find.text('Chưa mua'), findsOneWidget);
     final purchasedAction = find.widgetWithText(
       AppPrimaryButton,
-      'Báo cáo mua thủ công',
+      'Mua thủ công',
     );
     final notPurchasedAction = find.widgetWithText(
       AppPrimaryButton,
-      'Báo cáo chưa mua',
+      'Chưa mua',
     );
-    expect(tester.getSize(purchasedAction), const Size(181, 48));
-    expect(tester.getSize(notPurchasedAction), const Size(154, 48));
+    expect(tester.getSize(purchasedAction), const Size(151.5, 48));
+    expect(tester.getSize(notPurchasedAction), const Size(151.5, 48));
     expect(
       tester.getTopLeft(notPurchasedAction).dx -
           tester.getTopRight(purchasedAction).dx,
@@ -209,8 +210,8 @@ void main() {
       const EdgeInsets.symmetric(horizontal: 12),
     );
     expect(
-      tester.getTopLeft(find.text('Báo cáo mua thủ công')).dy,
-      tester.getTopLeft(find.text('Báo cáo chưa mua')).dy,
+      tester.getTopLeft(find.text('Mua thủ công')).dy,
+      tester.getTopLeft(find.text('Chưa mua')).dy,
     );
     expect(find.text('Chưa báo cáo • 21'), findsOneWidget);
     expect(find.text('Đã báo cáo • 1'), findsOneWidget);
@@ -230,7 +231,7 @@ void main() {
       tester.view.physicalSize = Size(width, 812);
       await tester.pumpAndSettle();
       final row = find.byKey(const Key('sales-report-manual-actions'));
-      expect(tester.getSize(row).width, width - 32);
+      expect(tester.getSize(row).width, width - 64);
       final firstRect = tester.getRect(purchasedAction);
       final secondRect = tester.getRect(notPurchasedAction);
       expect(secondRect.left - firstRect.right, 8);
@@ -350,7 +351,7 @@ void main() {
   testWidgets('managed filter follows approved compact trigger states', (
     tester,
   ) async {
-    tester.view.physicalSize = const Size(834, 1112);
+    tester.view.physicalSize = const Size(390, 844);
     tester.view.devicePixelRatio = 1;
     addTearDown(() {
       tester.view.resetPhysicalSize();
@@ -384,7 +385,30 @@ void main() {
     expect(trigger, findsOneWidget);
     expect(find.text('Lọc'), findsOneWidget);
     expect(find.byIcon(PhosphorIconsRegular.slidersHorizontal), findsNothing);
-    expect(tester.getSize(trigger), const Size(152, 40));
+    final reload = find.widgetWithText(AppSecondaryButton, 'Tải lại');
+    final filterReloadRow = find.byKey(
+      const Key('sales-report-filter-reload-row'),
+    );
+    expect(tester.getSize(filterReloadRow), const Size(326, 48));
+    expect(tester.getSize(trigger), const Size(159, 48));
+    expect(tester.getSize(reload), const Size(159, 48));
+    expect(
+      tester
+          .widget<AppSecondaryButton>(
+            find.descendant(
+              of: trigger,
+              matching: find.byType(AppSecondaryButton),
+            ),
+          )
+          .radius,
+      10,
+    );
+    expect(tester.widget<AppSecondaryButton>(reload).radius, 10);
+    expect(tester.getTopLeft(trigger).dy, tester.getTopLeft(reload).dy);
+    expect(
+      tester.getTopLeft(trigger).dx,
+      lessThan(tester.getTopLeft(reload).dx),
+    );
 
     await tester.tap(trigger);
     await tester.pumpAndSettle();
@@ -395,7 +419,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Lọc (1)'), findsOneWidget);
-    expect(tester.getSize(trigger), const Size(152, 40));
+    expect(tester.getSize(trigger), const Size(159, 48));
   });
 
   testWidgets('Báo cáo follows the Figma loaded geometry matrix', (
@@ -815,7 +839,7 @@ void main() {
       findsNothing,
     );
     expect(findsLegacyGradientHeader(), findsNothing);
-    expect(find.text('Báo cáo chưa mua'), findsOneWidget);
+    expect(find.text('Chưa mua'), findsOneWidget);
     expect(find.text('Xuất file'), findsNothing);
     expect(find.text('Danh sách'), findsNothing);
     expect(find.text('Đã báo cáo • 1'), findsOneWidget);
@@ -858,8 +882,16 @@ void main() {
       await tester.pumpAndSettle();
 
       final row = find.byKey(const ValueKey('sales-report-order-command-row'));
+      final card = find.byKey(
+        const ValueKey('sales-report-order-command-card'),
+      );
       expect(row, findsOneWidget);
       expect(tester.getSize(row).width, lessThanOrEqualTo(720));
+      final rowRect = tester.getRect(row);
+      final cardRect = tester.getRect(card);
+      expect(rowRect.left - cardRect.left, closeTo(16, 0.1));
+      expect(cardRect.right - rowRect.right, closeTo(16, 0.1));
+      expect(tester.widget<AppSurfaceCard>(card).radius, 14);
       final checkAction = tester.getSize(
         find.byKey(const ValueKey('sales-report-order-check-action')),
       );
@@ -978,6 +1010,9 @@ void main() {
       await tester.pumpAndSettle();
 
       final row = find.byKey(const ValueKey('sales-report-order-command-row'));
+      final card = find.byKey(
+        const ValueKey('sales-report-order-command-card'),
+      );
       expect(row, findsOneWidget);
       expect(tester.getSize(find.byType(AppIconAction).first).width, 44);
       expect(
@@ -987,6 +1022,24 @@ void main() {
             )
             .width,
         44,
+      );
+      final rowRect = tester.getRect(row);
+      final cardRect = tester.getRect(card);
+      expect(rowRect.left - cardRect.left, closeTo(16, 0.1));
+      expect(cardRect.right - rowRect.right, closeTo(16, 0.1));
+      final searchIcon = find.descendant(
+        of: find.byKey(const ValueKey('sales-report-order-check-action')),
+        matching: find.byIcon(PhosphorIconsRegular.magnifyingGlass),
+      );
+      expect(searchIcon, findsOneWidget);
+      expect(IconTheme.of(tester.element(searchIcon)).color, AppColors.surface);
+      expect(tester.widget<AppSurfaceCard>(card).radius, 14);
+      expect(
+        tester
+            .widgetList<AppIconAction>(find.byType(AppIconAction))
+            .first
+            .radius,
+        16,
       );
 
       expect(tester.takeException(), isNull);
