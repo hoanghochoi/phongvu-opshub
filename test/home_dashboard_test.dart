@@ -1723,7 +1723,7 @@ void main() {
     expect(tester.getSize(personal).width, 436);
     expect(tester.getSize(personal).height, lessThan(280));
     expect(tester.getSize(scope).width, 436);
-    expect(tester.getSize(scope).height, lessThan(280));
+    expect(tester.getSize(scope), tester.getSize(personal));
     expect(tester.getTopLeft(report).dy, tester.getTopLeft(statement).dy);
     expect(tester.getTopLeft(personal).dy, tester.getTopLeft(scope).dy);
     final scopeRange = find.byKey(const Key('home-analytics-scope-range'));
@@ -1787,6 +1787,7 @@ void main() {
     await tester.pumpAndSettle();
 
     final scope = find.byKey(const Key('home-scope-sales-progress-panel'));
+    final personal = find.byKey(const Key('home-sales-progress-panel'));
     final warning = find.descendant(
       of: scope,
       matching: find.textContaining('Thiếu chỉ tiêu: AP01'),
@@ -1808,6 +1809,8 @@ void main() {
       tester.getBottomRight(scope).dy,
       greaterThan(tester.getBottomRight(warning).dy),
     );
+    expect(tester.getSize(personal), tester.getSize(scope));
+    expect(tester.getBottomRight(personal).dy, tester.getBottomRight(scope).dy);
     expect(tester.takeException(), isNull);
   });
 
