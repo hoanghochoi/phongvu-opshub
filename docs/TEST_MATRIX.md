@@ -8,6 +8,33 @@ covered across wide `1440x900`, compact `390x844`, medium `768x1024` and
 expanded `1024x900` viewports (180 route/viewport checks). Older 88-check
 entries below are historical evidence and do not replace the OPS-44 gate.
 
+- `OPS-52`/`HOME-DASHBOARD-002`/`SALES-REPORT-001`, 2026-08-09,
+  `local_verified_with_staging_gaps`: Home
+  `studentPromotionCount` and `examScorePromotionCount` now count only
+  `PURCHASED` reports; a purchased report with both promotion codes increments
+  both, while `NOT_PURCHASED` promotion data remains stored and its installment
+  need/reason still contributes to the existing installment contract. A
+  separate Home SALES KPI contract version is written to every projection
+  grain. Startup checks price/KPI versions across all SALES grains and enqueues
+  the date for the existing atomic `GLOBAL`/`STORE`/`USER_STORE` rebuild.
+  Focused Nest proof passed 3 suites/177 tests. PostgreSQL proof passed 4/4:
+  the bounded migration timeout invokes scratch cleanup and environment restore
+  covers initially present/absent `DATABASE_URL`; four independent subordinate-
+  grain cases (missing/stale price and missing/stale KPI versions) selected all
+  four affected dates but not the all-current control. The primary date rebuilt
+  all three grains with versions `2/1`, promotion counts `1/1`, installment
+  count `2`, preserved the no-installment reason and retained both promotion
+  codes on the source `NOT_PURCHASED` report; scratch teardown passed.
+  Flutter Home passed 41/41 and analyze found no issues. After an offline
+  lockfile-exact `npm ci` and Prisma client generation, full Nest passed 103/103
+  suites with 1,122 passed tests and one intentional skip; all BIDV suites
+  loaded and passed, and Nest build passed. `package.json` and
+  `package-lock.json` remained unchanged; generated dependencies/client stay
+  ignored validation artifacts only.
+  Exact-SHA staging deploy, homogeneous worker rollout, projection/version
+  convergence, authenticated CP58 01-04/08 comparison, QA, and production
+  release remain required.
+
 - `OPS-40`/`SUPPORT-CHAT-001`, 2026-08-01,
   `local_verified_with_release_gaps`:
   lifecycle `START PASS` created `codex/ops-40-support-chat-phase-1` from exact

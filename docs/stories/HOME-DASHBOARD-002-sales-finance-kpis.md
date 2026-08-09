@@ -24,6 +24,13 @@ kê trên cùng Trang chủ, theo đúng một ngày và một phạm vi đang c
   dòng 2 gồm số lượng bảo hiểm mở rộng, laptop, PC bộ, PC ráp, Apple
   (iPhone, MacBook, iPad), màn hình, máy in và phụ kiện. Tablet/mobile được
   wrap theo breakpoint dashboard hiện có để không vỡ layout.
+- `Số lượng CTKM đổi điểm thi` chỉ đếm báo cáo `PURCHASED` chứa
+  `EXAM_SCORE_EXCHANGE`; `Số lượng CTKM HSSV` chỉ đếm báo cáo `PURCHASED`
+  chứa `STUDENT`. Một báo cáo mua hàng chứa cả hai mã tăng cả hai KPI. Báo cáo
+  `NOT_PURCHASED` vẫn lưu loại khách/CTKM nhưng không tham gia hai KPI này.
+- `Số lượng nhu cầu trả góp` tiếp tục đếm mọi báo cáo có
+  `installmentNeed = true`, gồm cả `PURCHASED` và `NOT_PURCHASED`; thay đổi
+  contract CTKM không được làm giảm KPI hoặc lý do không trả góp hiện hành.
 - Giá trị bán chỉ lấy `SalesReportErpOrderCache.grandTotal` VAT-inclusive theo
   ngày/scope đang chọn. Không fallback report snapshot/capture/shipment/item;
   thiếu hoặc invalid cho doanh thu 0 nhưng giữ count/fact đủ điều kiện. Không
@@ -115,11 +122,14 @@ báo cáo` + `Tiến độ sao kê` gộp bằng một phần ba chiều ngang, 
   từng metric phải bằng KPI aggregate trong cùng response. Chuỗi dùng cùng
   scope Bán hàng/SA đã chọn, bị omit khi Bán hàng không khả dụng và không làm
   đổi DTO của client cũ không opt in.
-- Derived SALES projection mang version contract giá. Khi startup gặp ngày có
-  aggregate version cũ/thiếu hoặc ngày chỉ có order/report fact, backend enqueue
-  union ngày đó qua projection queue. Aggregate replacement chạy trong
+- Derived SALES projection mang hai contract version độc lập cho giá và KPI.
+  Khi startup gặp ngày có bất kỳ SALES aggregate nào thiếu/sai một trong hai
+  version, thiếu GLOBAL aggregate, sai tổng GLOBAL hoặc ngày chỉ có source
+  fact/cache/report, backend enqueue union ngày đó qua projection queue.
+  Aggregate replacement tạo lại đủ `GLOBAL`, `STORE`, `USER_STORE` trong
   transaction hiện hữu nên generation lỗi giữ last-known-good; không rewrite
-  source rows, không Prisma migration/backfill.
+  source rows, không Prisma migration/backfill. Rollback semantics phải tăng
+  KPI contract version thêm một lần, không được giảm version cũ.
 - User có `Quản lý doanh số` theo node được cập nhật chỉ tiêu các SR trong
   subtree được cấp; SA nhận phần chỉ tiêu SR chia cho số SA active tại SR.
 

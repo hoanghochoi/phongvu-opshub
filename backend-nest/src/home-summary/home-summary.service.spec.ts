@@ -2558,8 +2558,12 @@ describe('HomeSummaryService', () => {
     const updates = JSON.parse(metricPayload as string);
     expect(updates[0].metrics).toMatchObject({
       salesPriceContractVersion: 2,
+      salesKpiContractVersion: 1,
       totalRevenue: 1080000,
       completedRevenue: 1080000,
+      examScorePromotionCount: 1,
+      studentPromotionCount: 1,
+      installmentNeedCount: 2,
     });
   });
 

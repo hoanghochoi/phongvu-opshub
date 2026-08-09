@@ -30,7 +30,12 @@ cho Google Form, đồng thời lưu dữ liệu đủ chuẩn để dashboard d
   hiển thị doanh số khách hàng doanh nghiệp, doanh số khách hàng cá nhân,
   số lượng CTKM đổi điểm thi, CTKM học sinh - sinh viên, nhu cầu trả góp,
   trả góp thành công, bảo hiểm mở rộng, laptop, PC bộ, PC ráp,
-  Apple (iPhone, MacBook, iPad), màn hình, máy in và phụ kiện. Nhóm
+  Apple (iPhone, MacBook, iPad), màn hình, máy in và phụ kiện. Hai KPI CTKM
+  chỉ đếm báo cáo mua hàng (`reportType = PURCHASED`) chứa mã
+  `EXAM_SCORE_EXCHANGE` hoặc `STUDENT`; một báo cáo mua hàng chứa cả hai mã
+  được cộng vào cả hai KPI. Báo cáo chưa mua vẫn lưu loại khách/CTKM và vẫn
+  tham gia KPI nhu cầu trả góp theo contract hiện hành, nhưng không làm tăng
+  hai KPI CTKM. Nhóm
   `Hành vi then chốt` hiển thị số khách chưa mua, số đơn chưa báo cáo,
   báo cáo đã mua, `Tỉ lệ báo cáo = số đơn đã báo cáo / tổng số đơn`, cùng các tỉ lệ
   `Có`/tổng báo cáo cho tư vấn 3 giải pháp, trải nghiệm, Zalo OA và tải App;
