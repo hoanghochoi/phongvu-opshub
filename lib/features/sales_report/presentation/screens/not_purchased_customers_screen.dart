@@ -10,6 +10,7 @@ import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../app/theme/app_colors.dart';
+import '../../../../app/theme/app_radius.dart';
 import '../../../../app/theme/app_text_styles.dart';
 import '../../../../app/widgets/app_buttons.dart';
 import '../../../../app/widgets/app_cards.dart';
@@ -48,6 +49,9 @@ typedef SalesReportFollowUpHistorySaver =
       required Uint8List bytes,
     });
 
+typedef SalesReportCategoryLoader =
+    Future<List<SalesReportCategoryGroup>> Function();
+
 const _reasonOptions = <String, String>{
   'NOT_SOLD': 'Chưa kinh doanh',
   'SERVICE': 'Dịch vụ',
@@ -64,6 +68,7 @@ class NotPurchasedCustomersScreen extends StatefulWidget {
   final SalesReportRepository? repository;
   final AuthRepository? authRepository;
   final Future<List<StoreBranch>> Function()? storeLoader;
+  final SalesReportCategoryLoader? categoryLoader;
   final RealtimeClient? realtimeClient;
   final Duration realtimeDebounce;
   final Duration realtimeMaxWait;
@@ -76,6 +81,7 @@ class NotPurchasedCustomersScreen extends StatefulWidget {
     this.repository,
     this.authRepository,
     this.storeLoader,
+    this.categoryLoader,
     this.realtimeClient,
     this.realtimeDebounce = const Duration(seconds: 2),
     this.realtimeMaxWait = const Duration(seconds: 5),
@@ -96,6 +102,7 @@ class _NotPurchasedCustomersScreenState
 
   late final SalesReportRepository _repository;
   late final Future<List<StoreBranch>> Function() _storeLoader;
+  late final SalesReportCategoryLoader _categoryLoader;
   late final RealtimeClient _realtimeClient;
   final _searchController = TextEditingController();
   SalesReportFollowUpPage? _data;
@@ -103,6 +110,8 @@ class _NotPurchasedCustomersScreenState
   String _status = 'OPEN';
   int _page = 0;
   bool _loading = false;
+  bool _loadQueued = false;
+  int? _queuedPage;
   String? _error;
   StreamSubscription<RealtimeEnvelope>? _realtimeEventSubscription;
   StreamSubscription<RealtimeSyncReason>? _realtimeSyncSubscription;
@@ -115,10 +124,15 @@ class _NotPurchasedCustomersScreenState
   bool _exportingHistory = false;
   bool _storeLoading = false;
   String? _storeError;
+  bool _categoryLoading = false;
+  String? _categoryError;
   String? _selectedStoreCode;
+  String? _selectedCategoryGroupId;
+  bool _advancedFiltersOpen = false;
   DateTime? _startDate;
   DateTime? _endDate;
   List<StoreBranch> _stores = const [];
+  List<SalesReportCategoryGroup> _categories = const [];
 
   @override
   void initState() {
@@ -126,6 +140,9 @@ class _NotPurchasedCustomersScreenState
     _repository = widget.repository ?? SalesReportRepository(ApiClient());
     final authRepository = widget.authRepository ?? AuthRepository(ApiClient());
     _storeLoader = widget.storeLoader ?? authRepository.getStores;
+    _categoryLoader =
+        widget.categoryLoader ??
+        () => _repository.fetchCategories(admin: _canImport);
     _realtimeClient =
         widget.realtimeClient ?? RealtimeConnectionManager.instance;
     _realtimeEventSubscription = _realtimeClient.events.listen(
@@ -150,7 +167,22 @@ class _NotPurchasedCustomersScreenState
         _canImport = canImport;
       });
     }
-    if (isSuperAdmin) unawaited(_loadSuperAdminStores());
+    if (isSuperAdmin) {
+      unawaited(_loadSuperAdminStores());
+    } else {
+      setState(() {
+        _stores = user?.assignedStores ?? const [];
+        _storeError = null;
+      });
+      unawaited(
+        AppLogger.instance.info(
+          'SalesReportFollowUp',
+          'Scoped showroom options resolved from authenticated profile',
+          context: {'count': _stores.length, 'isSuperAdmin': false},
+        ),
+      );
+    }
+    unawaited(_loadCategories());
   }
 
   Future<void> _loadSuperAdminStores() async {
@@ -194,6 +226,51 @@ class _NotPurchasedCustomersScreenState
       );
     } finally {
       if (mounted) setState(() => _storeLoading = false);
+    }
+  }
+
+  Future<void> _loadCategories() async {
+    if (_categoryLoading) return;
+    setState(() {
+      _categoryLoading = true;
+      _categoryError = null;
+    });
+    final startedAt = DateTime.now();
+    await AppLogger.instance.info(
+      'SalesReportFollowUp',
+      'Follow-up category filter load started',
+      context: {'usesAdminCatalog': _canImport},
+    );
+    try {
+      final categories = await _categoryLoader();
+      if (!mounted) return;
+      setState(() => _categories = categories);
+      await AppLogger.instance.info(
+        'SalesReportFollowUp',
+        'Follow-up category filter load succeeded',
+        context: {
+          'count': categories.length,
+          'durationMs': DateTime.now().difference(startedAt).inMilliseconds,
+        },
+      );
+    } catch (error, stackTrace) {
+      if (mounted) {
+        setState(
+          () => _categoryError =
+              'Chưa tải được danh sách ngành hàng. Vui lòng thử lại.',
+        );
+      }
+      await AppLogger.instance.error(
+        'SalesReportFollowUp',
+        'Follow-up category filter load failed',
+        error: error,
+        stackTrace: stackTrace,
+        context: {
+          'durationMs': DateTime.now().difference(startedAt).inMilliseconds,
+        },
+      );
+    } finally {
+      if (mounted) setState(() => _categoryLoading = false);
     }
   }
 
@@ -297,15 +374,32 @@ class _NotPurchasedCustomersScreenState
   }
 
   Future<void> _load({int? page}) async {
-    if (_loading) return;
+    if (_loading) {
+      _loadQueued = true;
+      _queuedPage = page ?? _queuedPage;
+      return;
+    }
     setState(() {
       _loading = true;
       _error = null;
       if (page != null) _page = page;
     });
     final startedAt = DateTime.now();
+    final requestedStatus = _status;
+    final requestedPage = _page;
+    final requestedSearch = _searchController.text;
+    final requestedStoreCode = _selectedStoreCode;
+    final requestedCategoryGroupId = _selectedCategoryGroupId;
     final effectiveStartDate = _effectiveStartDate;
     final effectiveEndDate = _effectiveEndDate;
+    bool requestMatchesCurrent() =>
+        requestedStatus == _status &&
+        requestedPage == _page &&
+        requestedSearch == _searchController.text &&
+        requestedStoreCode == _selectedStoreCode &&
+        requestedCategoryGroupId == _selectedCategoryGroupId &&
+        effectiveStartDate == _effectiveStartDate &&
+        effectiveEndDate == _effectiveEndDate;
     try {
       await AppLogger.instance.info(
         'SalesReportFollowUp',
@@ -315,21 +409,23 @@ class _NotPurchasedCustomersScreenState
           'page': _page,
           'hasSearch': _searchController.text.trim().isNotEmpty,
           'storeCode': _selectedStoreCode,
+          'categoryGroupId': _selectedCategoryGroupId,
           'startDate': _apiDate(effectiveStartDate),
           'endDate': _apiDate(effectiveEndDate),
           'usesImplicitDateRange': _startDate == null && _endDate == null,
         },
       );
       final result = await _repository.fetchFollowUpCases(
-        status: _status,
-        search: _searchController.text,
-        storeCode: _selectedStoreCode,
+        status: requestedStatus,
+        search: requestedSearch,
+        storeCode: requestedStoreCode,
+        categoryGroupId: requestedCategoryGroupId,
         startDate: effectiveStartDate,
         endDate: effectiveEndDate,
-        page: _page,
+        page: requestedPage,
       );
       if (!mounted) return;
-      setState(() => _data = result);
+      if (requestMatchesCurrent()) setState(() => _data = result);
       await AppLogger.instance.info(
         'SalesReportFollowUp',
         'Follow-up customer list load succeeded',
@@ -347,7 +443,7 @@ class _NotPurchasedCustomersScreenState
         },
       );
     } catch (error, stackTrace) {
-      if (mounted) {
+      if (mounted && requestMatchesCurrent()) {
         setState(
           () =>
               _error = 'Chưa tải được danh sách khách hàng. Vui lòng thử lại.',
@@ -367,6 +463,12 @@ class _NotPurchasedCustomersScreenState
     } finally {
       if (mounted) {
         setState(() => _loading = false);
+        if (_loadQueued) {
+          final queuedPage = _queuedPage;
+          _loadQueued = false;
+          _queuedPage = null;
+          unawaited(_load(page: queuedPage));
+        }
         if (_realtimeRefreshDirty && !_realtimeRefreshInFlight) {
           _scheduleRealtimeRefresh(immediate: true);
         }
@@ -461,6 +563,7 @@ class _NotPurchasedCustomersScreenState
       'startDate': _apiDate(startDate),
       'endDate': _apiDate(endDate),
       'storeCode': _selectedStoreCode,
+      'categoryGroupId': _selectedCategoryGroupId,
       'hasSearch': _searchController.text.trim().isNotEmpty,
     };
     try {
@@ -472,6 +575,7 @@ class _NotPurchasedCustomersScreenState
       final bytes = await _repository.exportFollowUpHistory(
         search: _searchController.text,
         storeCode: _selectedStoreCode,
+        categoryGroupId: _selectedCategoryGroupId,
         startDate: startDate,
         endDate: endDate,
       );
@@ -551,225 +655,322 @@ class _NotPurchasedCustomersScreenState
             )
             .toList(growable: false) ??
         const <SalesReportFollowUpCase>[];
-    return AppResponsiveScrollView(
-      onRefresh: _load,
-      refreshLogSource: 'SalesReportFollowUp',
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          _PageHeader(
-            total: data?.total ?? 0,
-            contactGracePeriodActive: data?.contactGracePeriodActive ?? false,
-            contactGracePeriodEndsAt: data?.contactGracePeriodEndsAt,
-            onImport: _canImport ? _openImport : null,
-            onExportHistory: data?.managedScope == true ? _exportHistory : null,
-            exportingHistory: _exportingHistory,
-          ),
-          const SizedBox(height: 16),
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final compact =
-                  constraints.maxWidth < AppLayoutTokens.compactBreakpoint;
-              final search = AppCommandTextInput(
-                controller: _searchController,
-                hintText: 'Tìm theo tên, điện thoại hoặc Zalo',
-                onChanged: _searchChanged,
-              );
-              final filters = _FollowUpStatusTabs(
-                status: _status,
-                onChanged: (status) {
-                  setState(() => _status = status);
-                  unawaited(
-                    AppLogger.instance.info(
-                      'SalesReportFollowUp',
-                      'Follow-up list status changed',
-                      context: {'status': status},
-                    ),
-                  );
-                  unawaited(_load(page: 0));
-                },
-              );
-              final dateRangeFilter = AppDateRangeDropdown(
-                label: 'Khoảng ngày',
-                start: _startDate,
-                end: _endDate,
-                onChanged: (start, end) => unawaited(_setDateRange(start, end)),
-                fieldStyle: true,
-                fieldLabelInside: true,
-                showEmptyRangeHelperText: false,
-                firstDate: DateTime(2020),
-                lastDate: (widget.now ?? DateTime.now)(),
-              );
-              final storeFilter = _isSuperAdmin
-                  ? Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        AppCombobox<String>.single(
-                          label: 'Mã showroom',
-                          value: _selectedStoreCode,
-                          emptyLabel: _storeLoading
-                              ? 'Đang tải danh sách showroom'
-                              : 'Tất cả showroom',
-                          icon: PhosphorIconsRegular.storefront,
-                          showLabel: false,
-                          fixedHeight: 48,
-                          closedIcon: PhosphorIconsRegular.caretDown,
-                          enabled: !_storeLoading,
-                          options: _storeOptions,
-                          onChanged: (value) {
-                            setState(() => _selectedStoreCode = value);
-                            unawaited(
-                              AppLogger.instance.info(
-                                'SalesReportFollowUp',
-                                'Super Admin showroom filter changed',
-                                context: {'storeCode': value},
-                              ),
-                            );
-                            unawaited(_load(page: 0));
-                          },
-                        ),
-                        if (_storeError != null) ...[
-                          const SizedBox(height: 8),
-                          Row(
-                            key: const Key('follow-up-store-error'),
-                            crossAxisAlignment: CrossAxisAlignment.center,
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  _storeError!,
-                                  style: AppTextStyles.bodyS.copyWith(
-                                    color: AppColors.errorOf(context),
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              AppLinkButton(
-                                key: const Key('follow-up-store-retry'),
-                                onPressed: _storeLoading
-                                    ? null
-                                    : () => unawaited(_loadSuperAdminStores()),
-                                icon: PhosphorIconsRegular.arrowsClockwise,
-                                label: 'Thử lại',
-                                tooltip: 'Tải lại danh sách showroom',
-                                compact: true,
-                              ),
-                            ],
-                          ),
-                        ],
-                      ],
-                    )
-                  : null;
-              final filterFields = <Widget>[
-                search,
-                dateRangeFilter,
-                if (storeFilter != null) storeFilter,
-              ];
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  filters,
-                  const SizedBox(height: 16),
-                  AppSurfaceCard(
-                    key: const Key('follow-up-filter-surface'),
-                    radius: 14,
-                    child: compact
-                        ? Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              for (
-                                var index = 0;
-                                index < filterFields.length;
-                                index++
-                              ) ...[
-                                if (index > 0) const SizedBox(height: 12),
-                                filterFields[index],
-                              ],
-                            ],
-                          )
-                        : Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              for (
-                                var index = 0;
-                                index < filterFields.length;
-                                index++
-                              ) ...[
-                                if (index > 0) const SizedBox(width: 12),
-                                Expanded(child: filterFields[index]),
-                              ],
-                            ],
-                          ),
+    return LayoutBuilder(
+      builder: (context, routeConstraints) => AppResponsiveScrollView(
+        maxWidth: AppLayoutTokens.commandWorkspaceMaxWidth,
+        padding: AppLayoutTokens.commandWorkspacePagePaddingFor(
+          routeConstraints.maxWidth,
+        ),
+        onRefresh: _load,
+        refreshLogSource: 'SalesReportFollowUp',
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _FollowUpStatusTabs(
+              status: _status,
+              onChanged: (status) {
+                setState(() => _status = status);
+                unawaited(
+                  AppLogger.instance.info(
+                    'SalesReportFollowUp',
+                    'Follow-up list status changed',
+                    context: {'status': status},
                   ),
-                ],
-              );
-            },
-          ),
-          const SizedBox(height: 16),
-          if (_loading && data == null)
-            AppStatePanel.loading(
-              title: _status == 'HISTORY'
-                  ? 'Đang tải lịch sử chăm sóc...'
-                  : 'Đang tải danh sách khách hàng...',
-            )
-          else if (_error != null)
-            AppStatePanel.error(
-              title: 'Chưa tải được danh sách',
-              message: _error,
-              actionLabel: 'Thử lại',
-              onAction: _load,
-            )
-          else if (data == null || visibleItems.isEmpty)
-            AppStatePanel.empty(
-              title: _status == 'OPEN'
-                  ? 'Không có khách hàng cần chăm sóc'
-                  : _status == 'HISTORY'
-                  ? 'Chưa có lịch sử chăm sóc'
-                  : 'Chưa có hồ sơ đã ẩn',
-              message: data?.contactGracePeriodActive == true
-                  ? 'Chưa có hồ sơ khách hàng chưa mua trong phạm vi được phân công.'
-                  : 'Màn hình chỉ hiển thị khách có số điện thoại hợp lệ hoặc đã lưu kênh Zalo cá nhân/Zalo OA.',
-              actionLabel: 'Tải lại',
-              onAction: _load,
-            )
-          else ...[
-            LayoutBuilder(
-              builder: (context, constraints) {
-                const gap = 16.0;
-                final width = constraints.maxWidth;
-                return Wrap(
-                  spacing: gap,
-                  runSpacing: gap,
-                  children: [
-                    for (final item in visibleItems)
-                      SizedBox(
-                        width: width,
-                        child: _FollowUpCard(
-                          item: item,
-                          showStore: data.managedScope,
-                          onTap: () => _openCase(item),
-                        ),
-                      ),
-                  ],
                 );
+                unawaited(_load(page: 0));
               },
             ),
             const SizedBox(height: 16),
-            AppPaginationControls(
-              pageIndex: data.page,
-              totalItems: data.total,
-              itemLabel: 'khách hàng',
-              onPrevious: data.page > 0 && !_loading
-                  ? () => _load(page: data.page - 1)
-                  : null,
-              onNext: data.hasMore && !_loading
-                  ? () => _load(page: data.page + 1)
-                  : null,
-              onRefresh: _loading ? null : _load,
-              isRefreshing: _loading,
+            _buildCommandSurface(
+              context,
+              compact:
+                  routeConstraints.maxWidth < AppLayoutTokens.compactBreakpoint,
+              canExport: data?.managedScope == true,
             ),
+            if (data != null) ...[
+              const SizedBox(height: 12),
+              _FollowUpResultSummary(data: data),
+            ],
+            const SizedBox(height: 16),
+            if (_loading && data == null)
+              AppStatePanel.loading(
+                title: _status == 'HISTORY'
+                    ? 'Đang tải lịch sử chăm sóc...'
+                    : 'Đang tải danh sách khách hàng...',
+              )
+            else if (_error != null)
+              AppStatePanel.error(
+                title: 'Chưa tải được danh sách',
+                message: _error,
+                actionLabel: 'Thử lại',
+                onAction: _load,
+              )
+            else if (data == null || visibleItems.isEmpty)
+              AppStatePanel.empty(
+                title: _status == 'OPEN'
+                    ? 'Không có khách hàng cần chăm sóc'
+                    : _status == 'HISTORY'
+                    ? 'Chưa có lịch sử chăm sóc'
+                    : 'Chưa có hồ sơ đã ẩn',
+                message: data?.contactGracePeriodActive == true
+                    ? 'Chưa có hồ sơ khách hàng chưa mua trong phạm vi được phân công.'
+                    : 'Màn hình chỉ hiển thị khách có số điện thoại hợp lệ hoặc đã lưu kênh Zalo cá nhân/Zalo OA.',
+                actionLabel: 'Tải lại',
+                onAction: _load,
+              )
+            else ...[
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  const gap = 16.0;
+                  final width = constraints.maxWidth;
+                  return Wrap(
+                    spacing: gap,
+                    runSpacing: gap,
+                    children: [
+                      for (final item in visibleItems)
+                        SizedBox(
+                          width: width,
+                          child: _FollowUpCard(
+                            item: item,
+                            showStore: data.managedScope,
+                            onTap: () => _openCase(item),
+                          ),
+                        ),
+                    ],
+                  );
+                },
+              ),
+              const SizedBox(height: 16),
+              AppPaginationControls(
+                pageIndex: data.page,
+                totalItems: data.total,
+                itemLabel: 'khách hàng',
+                onPrevious: data.page > 0 && !_loading
+                    ? () => _load(page: data.page - 1)
+                    : null,
+                onNext: data.hasMore && !_loading
+                    ? () => _load(page: data.page + 1)
+                    : null,
+                onRefresh: _loading ? null : _load,
+                isRefreshing: _loading,
+              ),
+            ],
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCommandSurface(
+    BuildContext context, {
+    required bool compact,
+    required bool canExport,
+  }) {
+    final search = AppCommandTextInput(
+      key: const Key('follow-up-search-filter'),
+      controller: _searchController,
+      hintText: 'Tìm theo tên, điện thoại hoặc Zalo',
+      semanticLabel: 'Tìm khách hàng theo tên, điện thoại hoặc Zalo',
+      onChanged: _searchChanged,
+    );
+    final dateRangeFilter = AppDateRangeDropdown(
+      label: 'Khoảng ngày',
+      start: _startDate,
+      end: _endDate,
+      onChanged: (start, end) => unawaited(_setDateRange(start, end)),
+      fieldStyle: true,
+      fieldLabelInside: true,
+      showEmptyRangeHelperText: false,
+      firstDate: DateTime(2020),
+      lastDate: (widget.now ?? DateTime.now)(),
+    );
+    final storeFilter = _FollowUpFilterField(
+      control: AppCombobox<String>.single(
+        key: const Key('follow-up-store-filter'),
+        label: 'Showroom',
+        value: _selectedStoreCode,
+        emptyLabel: _storeLoading
+            ? 'Đang tải danh sách showroom'
+            : _storeOptions.isEmpty
+            ? 'Chưa có showroom trong phạm vi'
+            : 'Tất cả showroom',
+        icon: PhosphorIconsRegular.storefront,
+        showLabel: false,
+        fixedHeight: 48,
+        closedIcon: PhosphorIconsRegular.caretDown,
+        enabled: !_storeLoading && _storeOptions.isNotEmpty,
+        options: _storeOptions,
+        onChanged: (value) {
+          setState(() => _selectedStoreCode = value);
+          unawaited(
+            AppLogger.instance.info(
+              'SalesReportFollowUp',
+              'Follow-up showroom filter changed',
+              context: {'storeCode': value, 'isSuperAdmin': _isSuperAdmin},
+            ),
+          );
+          unawaited(_load(page: 0));
+        },
+      ),
+      error: _storeError,
+      errorKey: const Key('follow-up-store-error'),
+      retryKey: const Key('follow-up-store-retry'),
+      retryTooltip: 'Tải lại danh sách showroom',
+      onRetry: _isSuperAdmin && !_storeLoading
+          ? () => unawaited(_loadSuperAdminStores())
+          : null,
+    );
+    final categoryFilter = _FollowUpFilterField(
+      control: AppCombobox<String>.single(
+        key: const Key('follow-up-category-filter'),
+        label: 'Ngành hàng',
+        value: _selectedCategoryGroupId,
+        emptyLabel: _categoryLoading
+            ? 'Đang tải danh sách ngành hàng'
+            : _categoryOptions.isEmpty
+            ? 'Chưa có ngành hàng khả dụng'
+            : 'Tất cả ngành hàng',
+        icon: PhosphorIconsRegular.squaresFour,
+        showLabel: false,
+        fixedHeight: 48,
+        closedIcon: PhosphorIconsRegular.caretDown,
+        enabled: !_categoryLoading && _categoryOptions.isNotEmpty,
+        options: _categoryOptions,
+        onChanged: (value) {
+          setState(() => _selectedCategoryGroupId = value);
+          unawaited(
+            AppLogger.instance.info(
+              'SalesReportFollowUp',
+              'Follow-up category filter changed',
+              context: {'categoryGroupId': value},
+            ),
+          );
+          unawaited(_load(page: 0));
+        },
+      ),
+      error: _categoryError,
+      errorKey: const Key('follow-up-category-error'),
+      retryKey: const Key('follow-up-category-retry'),
+      retryTooltip: 'Tải lại danh sách ngành hàng',
+      onRetry: _categoryLoading ? null : () => unawaited(_loadCategories()),
+    );
+    final advancedFilters = <Widget>[
+      dateRangeFilter,
+      storeFilter,
+      categoryFilter,
+    ];
+    final actions = _buildPermissionActions(
+      context,
+      compact: compact,
+      canExport: canExport,
+    );
+    return AppSurfaceCard(
+      key: const Key('follow-up-filter-surface'),
+      radius: AppRadius.cardFigma,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (compact) ...[
+            search,
+            const SizedBox(height: 12),
+            Semantics(
+              button: true,
+              expanded: _advancedFiltersOpen,
+              label: 'Tìm kiếm nâng cao',
+              child: AppSecondaryButton(
+                key: const Key('follow-up-advanced-filter-toggle'),
+                onPressed: () {
+                  setState(() => _advancedFiltersOpen = !_advancedFiltersOpen);
+                  unawaited(
+                    AppLogger.instance.info(
+                      'SalesReportFollowUp',
+                      'Follow-up advanced filters toggled',
+                      context: {'open': _advancedFiltersOpen},
+                    ),
+                  );
+                },
+                icon: _advancedFiltersOpen
+                    ? PhosphorIconsRegular.caretUp
+                    : PhosphorIconsRegular.caretDown,
+                label: 'Tìm kiếm nâng cao',
+                expand: true,
+                size: AppButtonSize.medium,
+                height: 48,
+              ),
+            ),
+            if (_advancedFiltersOpen)
+              for (final field in advancedFilters) ...[
+                const SizedBox(height: 12),
+                field,
+              ],
+          ] else
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(child: search),
+                for (final field in advancedFilters) ...[
+                  const SizedBox(width: 12),
+                  Expanded(child: field),
+                ],
+              ],
+            ),
+          if (actions != null) ...[const SizedBox(height: 12), actions],
         ],
       ),
+    );
+  }
+
+  Widget? _buildPermissionActions(
+    BuildContext context, {
+    required bool compact,
+    required bool canExport,
+  }) {
+    if (!canExport && !_canImport) return null;
+    final export = AppSecondaryButton(
+      key: const Key('follow-up-export-action'),
+      onPressed: canExport ? _exportHistory : null,
+      icon: PhosphorIconsRegular.downloadSimple,
+      label: 'Tải lịch sử chăm sóc',
+      isLoading: _exportingHistory,
+      loadingLabel: 'Đang tạo file...',
+      expand: true,
+      size: AppButtonSize.medium,
+      height: 48,
+    );
+    final import = AppPrimaryButton(
+      key: const Key('follow-up-import-action'),
+      onPressed: _canImport ? _openImport : null,
+      label: 'Nhập Excel',
+      size: AppButtonSize.medium,
+      height: 48,
+    );
+    if (compact) {
+      final stackActions =
+          _canImport &&
+          canExport &&
+          MediaQuery.textScalerOf(context).scale(14) > 17;
+      if (stackActions) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [export, const SizedBox(height: 8), import],
+        );
+      }
+      return Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          if (canExport) Expanded(flex: _canImport ? 5 : 1, child: export),
+          if (canExport && _canImport) const SizedBox(width: 8),
+          if (_canImport) Expanded(flex: canExport ? 3 : 1, child: import),
+        ],
+      );
+    }
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        if (canExport) SizedBox(width: 220, child: export),
+        if (canExport && _canImport) const SizedBox(width: 12),
+        if (_canImport) SizedBox(width: 140, child: import),
+      ],
     );
   }
 
@@ -788,8 +989,84 @@ class _NotPurchasedCustomersScreenState
         ),
       );
     }
+    final selected = _selectedStoreCode?.trim().toUpperCase();
+    if (selected != null && selected.isNotEmpty && seen.add(selected)) {
+      options.add(
+        AppComboboxOption<String>(
+          value: selected,
+          label: '$selected - Không còn trong phạm vi',
+          searchKeywords: [selected],
+        ),
+      );
+    }
     options.sort((a, b) => a.value.compareTo(b.value));
     return options;
+  }
+
+  List<AppComboboxOption<String>> get _categoryOptions {
+    final seen = <String>{};
+    final options = <AppComboboxOption<String>>[];
+    for (final category in _categories) {
+      final id = category.id.trim().toUpperCase();
+      if (id.isEmpty || !seen.add(id)) continue;
+      final vietnameseName = category.catGroupNameVi.trim();
+      final englishName = category.catGroupName.trim();
+      options.add(
+        AppComboboxOption<String>(
+          value: id,
+          label: vietnameseName.isEmpty ? id : vietnameseName,
+          subtitle: vietnameseName == englishName || englishName.isEmpty
+              ? null
+              : englishName,
+          searchKeywords: [id, vietnameseName, englishName],
+        ),
+      );
+    }
+    final selected = _selectedCategoryGroupId?.trim().toUpperCase();
+    if (selected != null && selected.isNotEmpty && seen.add(selected)) {
+      options.add(
+        AppComboboxOption<String>(
+          value: selected,
+          label: '$selected - Không còn khả dụng',
+          searchKeywords: [selected],
+        ),
+      );
+    }
+    options.sort((a, b) => a.label.compareTo(b.label));
+    return options;
+  }
+}
+
+class _FollowUpResultSummary extends StatelessWidget {
+  final SalesReportFollowUpPage data;
+
+  const _FollowUpResultSummary({required this.data});
+
+  @override
+  Widget build(BuildContext context) {
+    final graceEndsAt = data.contactGracePeriodEndsAt?.toLocal();
+    return Column(
+      key: const Key('follow-up-result-summary'),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        AppStatusChip(
+          key: const Key('follow-up-total-chip'),
+          label: '${data.total} hồ sơ',
+          color: AppColors.infoOf(context),
+        ),
+        if (data.contactGracePeriodActive && graceEndsAt != null) ...[
+          const SizedBox(height: 6),
+          Text(
+            'Tạm hiển thị toàn bộ khách chưa mua đến '
+            '${DateFormat('HH:mm dd/MM/yyyy').format(graceEndsAt)}.',
+            key: const Key('follow-up-contact-grace-message'),
+            style: AppTextStyles.bodyS.copyWith(
+              color: AppColors.textSecondaryOf(context),
+            ),
+          ),
+        ],
+      ],
+    );
   }
 }
 
@@ -810,29 +1087,36 @@ class _FollowUpStatusTabs extends StatelessWidget {
       children: [
         for (final tab in tabs)
           Expanded(
-            child: InkWell(
-              onTap: () => onChanged(tab.$1),
-              child: Container(
-                height: 52,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  border: Border(
-                    bottom: BorderSide(
-                      color: status == tab.$1
-                          ? AppColors.primaryOf(context)
-                          : AppColors.borderOf(context),
-                      width: status == tab.$1 ? 3 : 1,
+            child: Semantics(
+              button: true,
+              selected: status == tab.$1,
+              label: tab.$2,
+              child: InkWell(
+                onTap: () => onChanged(tab.$1),
+                child: Container(
+                  height: 52,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    border: Border(
+                      bottom: BorderSide(
+                        color: status == tab.$1
+                            ? AppColors.primaryOf(context)
+                            : AppColors.borderOf(context),
+                        width: status == tab.$1 ? 3 : 1,
+                      ),
                     ),
                   ),
-                ),
-                child: Text(
-                  tab.$2,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppTextStyles.labelM.copyWith(
-                    color: status == tab.$1
-                        ? AppColors.primaryOf(context)
-                        : AppColors.textSecondaryOf(context),
+                  child: ExcludeSemantics(
+                    child: Text(
+                      tab.$2,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTextStyles.labelM.copyWith(
+                        color: status == tab.$1
+                            ? AppColors.primaryOf(context)
+                            : AppColors.textSecondaryOf(context),
+                      ),
+                    ),
                   ),
                 ),
               ),
@@ -843,134 +1127,55 @@ class _FollowUpStatusTabs extends StatelessWidget {
   }
 }
 
-class _PageHeader extends StatelessWidget {
-  final int total;
-  final bool contactGracePeriodActive;
-  final DateTime? contactGracePeriodEndsAt;
-  final VoidCallback? onImport;
-  final VoidCallback? onExportHistory;
-  final bool exportingHistory;
+class _FollowUpFilterField extends StatelessWidget {
+  final Widget control;
+  final String? error;
+  final Key errorKey;
+  final Key retryKey;
+  final String retryTooltip;
+  final VoidCallback? onRetry;
 
-  const _PageHeader({
-    required this.total,
-    required this.contactGracePeriodActive,
-    required this.contactGracePeriodEndsAt,
-    required this.onImport,
-    required this.onExportHistory,
-    required this.exportingHistory,
+  const _FollowUpFilterField({
+    required this.control,
+    required this.error,
+    required this.errorKey,
+    required this.retryKey,
+    required this.retryTooltip,
+    required this.onRetry,
   });
 
   @override
-  Widget build(BuildContext context) => LayoutBuilder(
-    builder: (context, constraints) {
-      final compact = constraints.maxWidth < AppLayoutTokens.compactBreakpoint;
-      final summary = Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text('Chăm sóc lại', style: AppTextStyles.headingM),
-          const SizedBox(height: 4),
-          Text(
-            contactGracePeriodActive
-                ? 'Tạm hiển thị toàn bộ khách chưa mua${contactGracePeriodEndsAt == null ? '' : ' đến ${DateFormat('HH:mm dd/MM/yyyy').format(contactGracePeriodEndsAt!.toLocal())}'}'
-                : 'Theo dõi khách chưa mua có thông tin liên hệ hợp lệ.',
-            style: AppTextStyles.bodyS.copyWith(
-              color: AppColors.neutral600Of(context),
-            ),
-          ),
-          const SizedBox(height: 10),
-          AppStatusChip(
-            label: '$total hồ sơ',
-            color: AppColors.infoOf(context),
-          ),
-        ],
-      );
-      final actions = Wrap(
-        spacing: 8,
-        runSpacing: 8,
-        alignment: WrapAlignment.end,
-        children: [
-          if (onExportHistory != null)
-            AppSecondaryButton(
-              onPressed: onExportHistory,
-              icon: PhosphorIconsRegular.downloadSimple,
-              label: 'Tải lịch sử chăm sóc',
-              isLoading: exportingHistory,
-              loadingLabel: 'Đang tạo file...',
-              expand: false,
-              size: AppButtonSize.medium,
-            ),
-          if (onImport != null)
-            SizedBox(
-              width: 140,
-              child: AppPrimaryButton(
-                onPressed: onImport,
-                label: 'Nhập Excel',
-                size: AppButtonSize.medium,
-              ),
-            ),
-        ],
-      );
-      final compactActions = Row(
-        children: [
-          if (onExportHistory != null)
-            Flexible(
-              flex: onImport == null ? 1 : 211,
-              fit: onImport == null ? FlexFit.loose : FlexFit.tight,
-              child: SizedBox(
-                width: onImport == null ? 211 : double.infinity,
-                height: 48,
-                child: AppSecondaryButton(
-                  onPressed: onExportHistory,
-                  icon: PhosphorIconsRegular.downloadSimple,
-                  label: 'Tải lịch sử chăm sóc',
-                  isLoading: exportingHistory,
-                  loadingLabel: 'Đang tạo file...',
-                  expand: true,
-                  size: AppButtonSize.medium,
-                  height: 48,
-                  textStyle: AppTextStyles.labelM,
-                ),
-              ),
-            ),
-          if (onExportHistory != null && onImport != null)
-            const SizedBox(width: 8),
-          if (onImport != null)
-            Expanded(
-              flex: onExportHistory == null ? 1 : 124,
-              child: SizedBox(
-                height: 48,
-                child: AppPrimaryButton(
-                  onPressed: onImport,
-                  label: 'Nhập Excel',
-                  size: AppButtonSize.medium,
-                  height: 48,
-                ),
-              ),
-            ),
-        ],
-      );
-      if (compact) {
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      control,
+      if (error != null) ...[
+        const SizedBox(height: 8),
+        Row(
+          key: errorKey,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            summary,
-            if (onExportHistory != null || onImport != null) ...[
-              const SizedBox(height: 12),
-              compactActions,
-            ],
+            Expanded(
+              child: Text(
+                error!,
+                style: AppTextStyles.bodyS.copyWith(
+                  color: AppColors.errorOf(context),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            AppLinkButton(
+              key: retryKey,
+              onPressed: onRetry,
+              icon: PhosphorIconsRegular.arrowsClockwise,
+              label: 'Thử lại',
+              tooltip: retryTooltip,
+              compact: true,
+            ),
           ],
-        );
-      }
-      return Row(
-        children: [
-          Expanded(child: summary),
-          if (onExportHistory != null || onImport != null) ...[
-            const SizedBox(width: 12),
-            actions,
-          ],
-        ],
-      );
-    },
+        ),
+      ],
+    ],
   );
 }
 

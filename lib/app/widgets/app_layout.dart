@@ -88,6 +88,16 @@ class AppLayoutTokens {
     return pagePaddingFor(routeWidth);
   }
 
+  static EdgeInsets commandWorkspacePagePaddingFor(double routeWidth) {
+    // The approved wide command workspace is 1,132px inside the 1,190px
+    // shell route lane. Medium and expanded lanes keep the shared 24px gutter,
+    // while compact keeps the shared 16px gutter.
+    if (routeWidth >= commandWorkspaceMaxWidth) {
+      return const EdgeInsets.fromLTRB(29, 24, 29, 24);
+    }
+    return pagePaddingFor(routeWidth);
+  }
+
   static int formColumnsFor(double width) => width >= tabletBreakpoint ? 2 : 1;
 }
 

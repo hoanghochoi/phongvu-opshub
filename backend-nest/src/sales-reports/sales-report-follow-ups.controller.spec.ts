@@ -25,13 +25,23 @@ describe('SalesReportFollowUpsController security', () => {
 
     const result = await controller.exportHistory(
       { user: { id: 'manager-1' } },
-      { startDate: '2026-07-01', endDate: '2026-07-31' },
+      {
+        startDate: '2026-07-01',
+        endDate: '2026-07-31',
+        storeCode: 'CP01',
+        categoryGroupId: 'NH01',
+      },
       response as any,
     );
 
     expect(service.exportHistory).toHaveBeenCalledWith(
       { id: 'manager-1' },
-      { startDate: '2026-07-01', endDate: '2026-07-31' },
+      {
+        startDate: '2026-07-01',
+        endDate: '2026-07-31',
+        storeCode: 'CP01',
+        categoryGroupId: 'NH01',
+      },
     );
     expect(response.setHeader).toHaveBeenCalledWith(
       'Content-Disposition',

@@ -286,6 +286,152 @@ describe('SalesReportFollowUpsService', () => {
     expect(JSON.stringify(where)).not.toContain('customerZaloContact');
   });
 
+  it('lọc Staff theo showroom được gán và ngành hàng chính hoặc ngành hàng chọn thêm', async () => {
+    const row = {
+      id: 'case-scoped',
+      status: 'OPEN',
+      assigneeUserId: 'staff-1',
+      assigneeEmail: 'staff@phongvu.vn',
+      lastFollowUpAt: null,
+      followUpCount: 0,
+      priorityAt: new Date('2026-07-01T00:00:00Z'),
+      sourceReport: {
+        reportType: 'NOT_PURCHASED',
+        customerName: 'Khách A',
+        customerPhone: '0900000000',
+        customerContactChannels: ['PHONE'],
+        customerZaloContact: null,
+        categoryGroupId: 'NH01',
+        categoryGroupNameVi: 'Laptop',
+        categorySelections: [
+          {
+            categoryGroupId: 'NH02',
+            categoryGroupNameVi: 'Phụ kiện',
+            sortOrder: 1,
+          },
+        ],
+        submittedAt: new Date('2026-07-01T00:00:00Z'),
+        storeCode: 'CP01',
+      },
+      entries: [],
+    };
+    const findMany = jest
+      .fn()
+      .mockImplementation(({ select }: { select?: unknown }) =>
+        Promise.resolve(select ? [row] : [row]),
+      );
+    const prisma = {
+      user: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'staff-1',
+          email: 'staff@phongvu.vn',
+          role: 'USER',
+          jobRoleCode: 'SA',
+          store: { storeId: 'CP01' },
+          organizationAssignments: [],
+        }),
+      },
+      salesReportCategoryGroup: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'NH02',
+          isActive: true,
+        }),
+      },
+      salesReportFollowUpCase: { findMany },
+    };
+    const service = new SalesReportFollowUpsService(
+      prisma as any,
+      {} as any,
+      {} as any,
+    );
+
+    const result = await service.list(
+      { id: 'staff-1', email: 'staff@phongvu.vn', role: 'USER' },
+      {
+        status: 'OPEN',
+        storeCode: 'cp01',
+        categoryGroupId: 'nh02',
+      },
+    );
+
+    expect(result.managedScope).toBe(false);
+    expect(result.items).toHaveLength(1);
+    const serialized = JSON.stringify(findMany.mock.calls[0][0].where);
+    expect(serialized).toContain('assigneeUserId');
+    expect(serialized).toContain('CP01');
+    expect(serialized).toContain('NH02');
+    expect(serialized).toContain('categorySelections');
+    expect(prisma.salesReportCategoryGroup.findUnique).toHaveBeenCalledWith({
+      where: { id: 'NH02' },
+      select: { id: true, isActive: true },
+    });
+  });
+
+  it('chặn showroom rỗng hoặc stale ngoài scope thay vì bỏ lọc', async () => {
+    const findMany = jest.fn();
+    const principal = {
+      id: 'staff-1',
+      email: 'staff@phongvu.vn',
+      role: 'USER',
+      jobRoleCode: 'SA',
+      store: { storeId: 'CP01' },
+      organizationAssignments: [],
+    };
+    const prisma = {
+      user: { findUnique: jest.fn().mockResolvedValue(principal) },
+      salesReportFollowUpCase: { findMany },
+    };
+    const service = new SalesReportFollowUpsService(
+      prisma as any,
+      {} as any,
+      {} as any,
+    );
+    const user = { id: 'staff-1', email: 'staff@phongvu.vn', role: 'USER' };
+
+    await expect(service.list(user, { storeCode: '   ' })).rejects.toThrow(
+      'Bộ lọc showroom không hợp lệ',
+    );
+    await expect(service.list(user, { storeCode: 'CP99' })).rejects.toThrow(
+      'Showroom không còn trong phạm vi được phép xem',
+    );
+    expect(findMany).not.toHaveBeenCalled();
+  });
+
+  it('chặn ngành hàng rỗng hoặc không còn hoạt động trước khi truy vấn', async () => {
+    const findMany = jest.fn();
+    const prisma = {
+      user: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'admin-1',
+          email: 'admin@phongvu.vn',
+          role: 'SUPER_ADMIN',
+        }),
+      },
+      salesReportCategoryGroup: {
+        findUnique: jest.fn().mockResolvedValue(null),
+      },
+      salesReportFollowUpCase: { findMany },
+    };
+    const service = new SalesReportFollowUpsService(
+      prisma as any,
+      {} as any,
+      {} as any,
+    );
+    const user = {
+      id: 'admin-1',
+      email: 'admin@phongvu.vn',
+      role: 'SUPER_ADMIN',
+    };
+
+    await expect(service.list(user, { categoryGroupId: '' })).rejects.toThrow(
+      'Bộ lọc ngành hàng không hợp lệ',
+    );
+    await expect(
+      service.list(user, { categoryGroupId: 'NH99' }),
+    ).rejects.toThrow('Ngành hàng không còn khả dụng');
+    expect(findMany).not.toHaveBeenCalled();
+  });
+
   it('trả lịch sử chăm sóc gồm mọi trạng thái có ít nhất một lần chăm sóc', async () => {
     const row = {
       id: 'case-history',
@@ -492,6 +638,12 @@ describe('SalesReportFollowUpsService', () => {
         }),
       },
       salesReportFollowUpEntry: { findMany },
+      salesReportCategoryGroup: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'NH01',
+          isActive: true,
+        }),
+      },
     };
     const service = new SalesReportFollowUpsService(
       prisma as any,
@@ -505,6 +657,7 @@ describe('SalesReportFollowUpsService', () => {
         startDate: '2026-07-01',
         endDate: '2026-07-31',
         storeCode: 'CP01',
+        categoryGroupId: 'NH01',
         search: 'Khách A',
       },
     );
@@ -540,6 +693,8 @@ describe('SalesReportFollowUpsService', () => {
     expect(request.take).toBe(10_001);
     expect(JSON.stringify(request.where)).toContain('2026-06-30T17:00:00.000Z');
     expect(JSON.stringify(request.where)).toContain('CP01');
+    expect(JSON.stringify(request.where)).toContain('NH01');
+    expect(JSON.stringify(request.where)).toContain('categorySelections');
     expect(JSON.stringify(request.where)).toContain('Khách A');
   });
 

@@ -21,7 +21,7 @@ import 'package:phongvu_opshub/features/sales_report/domain/sales_report.dart';
 import 'package:phongvu_opshub/features/sales_report/presentation/screens/not_purchased_customers_screen.dart';
 
 void main() {
-  testWidgets('compact follow-up actions match approved Figma geometry', (
+  testWidgets('R4 compact mặc định thu gọn và mở đúng thứ tự bộ lọc', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(375, 812);
@@ -36,6 +36,9 @@ void main() {
       const User(
         email: 'manager@phongvu.com',
         role: 'USER',
+        assignedStores: [
+          StoreBranch(id: 'store-1', storeId: 'CP01', storeName: 'Quận 1'),
+        ],
         featureAccess: {'ADMIN_SALES_REPORTS': true},
       ),
     );
@@ -56,33 +59,71 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final exportAction = find.widgetWithText(
-      AppSecondaryButton,
-      'Tải lịch sử chăm sóc',
-    );
-    final importAction = find.widgetWithText(AppPrimaryButton, 'Nhập Excel');
-    expect(tester.getSize(exportAction), const Size(211, 48));
-    expect(tester.getSize(importAction), const Size(124, 48));
-    expect(
-      tester.getTopLeft(importAction).dx - tester.getTopRight(exportAction).dx,
-      8,
-    );
+    expect(find.text('Chăm sóc lại'), findsNothing);
+    expect(find.byType(AppCommandTextInput), findsOneWidget);
+    expect(find.text('Tìm kiếm nâng cao'), findsOneWidget);
+    expect(find.byType(AppDateRangeDropdown), findsNothing);
+    expect(find.byType(AppCombobox<String>), findsNothing);
     expect(find.text('Tải lịch sử chăm sóc'), findsOneWidget);
     expect(find.text('Nhập Excel'), findsOneWidget);
-    expect(tester.takeException(), isNull);
+    expect(
+      tester
+          .getSize(find.byKey(const Key('follow-up-advanced-filter-toggle')))
+          .height,
+      48,
+    );
 
-    for (final width in const [360.0, 320.0]) {
-      tester.view.physicalSize = Size(width, 812);
-      await tester.pumpAndSettle();
-      final exportRect = tester.getRect(exportAction);
-      final importRect = tester.getRect(importAction);
-      expect(importRect.left - exportRect.right, 8);
-      expect(importRect.right, lessThanOrEqualTo(width - 16));
-      expect(tester.takeException(), isNull);
-    }
+    await tester.tap(find.byKey(const Key('follow-up-advanced-filter-toggle')));
+    await tester.pumpAndSettle();
+    expect(find.byType(AppDateRangeDropdown), findsOneWidget);
+    expect(find.byType(AppCombobox<String>), findsNWidgets(2));
+    final date = tester.getRect(
+      find.byKey(const Key('open-date-range-picker')),
+    );
+    final showroom = tester.getRect(
+      find.byKey(const Key('follow-up-store-filter')),
+    );
+    final category = tester.getRect(
+      find.byKey(const Key('follow-up-category-filter')),
+    );
+    expect(date.height, 48);
+    expect(showroom.height, 48);
+    expect(category.height, 48);
+    expect(showroom.top - date.bottom, 12);
+    expect(category.top - showroom.bottom, 12);
+    expect(tester.takeException(), isNull);
   });
 
-  testWidgets('desktop follow-up actions and date filter share Home geometry', (
+  testWidgets('giữ truy vấn mới nhất khi đổi filter trong lúc đang tải', (
+    tester,
+  ) async {
+    final repository = _QueuedFollowUpRepository(
+      _case(customerPhone: '0900000000', customerZaloContact: null),
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: NotPurchasedCustomersScreen(repository: repository),
+        ),
+      ),
+    );
+    await tester.pump();
+    expect(repository.categories, [null]);
+
+    final category = tester.widget<AppCombobox<String>>(
+      find.byKey(const Key('follow-up-category-filter')),
+    );
+    category.onChanged?.call('NH01');
+    await tester.pump();
+    repository.firstRequest.complete();
+    await tester.pumpAndSettle();
+
+    expect(repository.categories, [null, 'NH01']);
+    expect(repository.pages, [0, 0]);
+  });
+
+  testWidgets('R4 desktop row1 và permission row2 đều cao 48px, căn giữa', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(1440, 900);
@@ -97,10 +138,12 @@ void main() {
       const User(
         email: 'manager@phongvu.com',
         role: 'USER',
+        assignedStores: [
+          StoreBranch(id: 'store-1', storeId: 'CP01', storeName: 'Quận 1'),
+        ],
         featureAccess: {'ADMIN_SALES_REPORTS': true},
       ),
     );
-
     await tester.pumpWidget(
       ChangeNotifierProvider<AuthProvider>.value(
         value: authProvider,
@@ -123,24 +166,38 @@ void main() {
     );
     final importAction = find.widgetWithText(AppPrimaryButton, 'Nhập Excel');
 
-    for (final viewport in const [
-      Size(834, 1112),
-      Size(1024, 768),
-      Size(1440, 900),
-    ]) {
-      tester.view.physicalSize = viewport;
-      await tester.pumpAndSettle();
-      final exportRect = tester.getRect(exportAction);
-      final importRect = tester.getRect(importAction);
-      expect(exportRect.height, 48);
-      expect(importRect.height, 48);
-      expect(importRect.top, exportRect.top);
-      expect(
-        tester.getSize(find.byKey(const Key('open-date-range-picker'))).height,
-        48,
-      );
-      expect(tester.takeException(), isNull);
-    }
+    final exportRect = tester.getRect(exportAction);
+    final importRect = tester.getRect(importAction);
+    final searchRect = tester.getRect(find.byType(AppCommandTextInput));
+    final dateRect = tester.getRect(
+      find.byKey(const Key('open-date-range-picker')),
+    );
+    final showroomRect = tester.getRect(
+      find.byKey(const Key('follow-up-store-filter')),
+    );
+    final categoryRect = tester.getRect(
+      find.byKey(const Key('follow-up-category-filter')),
+    );
+    expect(exportRect.height, 48);
+    expect(importRect.height, 48);
+    expect(importRect.top, exportRect.top);
+    expect(searchRect.height, 48);
+    expect(dateRect.height, 48);
+    expect(showroomRect.height, 48);
+    expect(categoryRect.height, 48);
+    expect(dateRect.top, searchRect.top);
+    expect(showroomRect.top, searchRect.top);
+    expect(categoryRect.top, searchRect.top);
+    expect(
+      (exportRect.center.dx + importRect.center.dx) / 2,
+      closeTo(
+        tester
+            .getRect(find.byKey(const Key('follow-up-filter-surface')))
+            .center
+            .dx,
+        50,
+      ),
+    );
 
     final dateFilter = tester.widget<AppDateRangeDropdown>(
       find.byType(AppDateRangeDropdown),
@@ -155,98 +212,134 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('Follow-up filters follow the R2 width and theme matrix', (
-    tester,
-  ) async {
-    const cases = <(Size, double, double?)>[
-      (Size(375, 812), 343, null),
-      (Size(768, 900), 720, null),
-      (Size(920, 900), 872, null),
-      (Size(1440, 900), 1126, 1190),
-    ];
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(tester.view.resetDevicePixelRatio);
-    final authProvider = _FakeAuthProvider(
-      const User(
-        email: 'super-admin@phongvu.com',
-        role: 'SUPER_ADMIN',
-        featureAccess: {'ADMIN_SALES_REPORTS': true},
-      ),
-    );
+  testWidgets(
+    'Follow-up filters follow the R4 route and command width matrix',
+    (tester) async {
+      const cases = <(Size, double, double)>[
+        (Size(375, 812), 375, 343),
+        (Size(834, 1112), 746, 698),
+        (Size(1024, 768), 936, 888),
+        (Size(1440, 900), 1190, 1132),
+      ];
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final authProvider = _FakeAuthProvider(
+        const User(
+          email: 'super-admin@phongvu.com',
+          role: 'SUPER_ADMIN',
+          featureAccess: {'ADMIN_SALES_REPORTS': true},
+        ),
+      );
 
-    for (final themeMode in [ThemeMode.light, ThemeMode.dark]) {
-      for (final (viewport, expectedWidth, availableWidth) in cases) {
-        tester.view.physicalSize = viewport;
-        tester.view.devicePixelRatio = 1;
-        final screen = NotPurchasedCustomersScreen(
-          repository: _FakeFollowUpRepository(
-            _case(customerPhone: '0900000000', customerZaloContact: null),
-            managedScope: true,
-          ),
-        );
-        await tester.pumpWidget(
-          ChangeNotifierProvider<AuthProvider>.value(
-            value: authProvider,
-            child: MaterialApp(
-              theme: AppTheme.lightTheme,
-              darkTheme: AppTheme.darkTheme,
-              themeMode: themeMode,
-              home: Scaffold(
-                body: availableWidth == null
-                    ? screen
-                    : Align(
-                        alignment: Alignment.topLeft,
-                        child: SizedBox(width: availableWidth, child: screen),
-                      ),
+      for (final themeMode in [ThemeMode.light, ThemeMode.dark]) {
+        for (final (viewport, routeWidth, expectedWidth) in cases) {
+          tester.view.physicalSize = viewport;
+          tester.view.devicePixelRatio = 1;
+          final screen = NotPurchasedCustomersScreen(
+            key: ValueKey('${themeMode.name}-${viewport.width}'),
+            repository: _FakeFollowUpRepository(
+              _case(customerPhone: '0900000000', customerZaloContact: null),
+              managedScope: true,
+            ),
+            storeLoader: () async => const [
+              StoreBranch(
+                id: 'store-1',
+                storeId: 'CP01',
+                storeName: 'Showroom có tên rất dài để kiểm tra rút gọn',
+              ),
+            ],
+          );
+          await tester.pumpWidget(
+            ChangeNotifierProvider<AuthProvider>.value(
+              value: authProvider,
+              child: MaterialApp(
+                theme: AppTheme.lightTheme,
+                darkTheme: AppTheme.darkTheme,
+                themeMode: themeMode,
+                home: Scaffold(
+                  body: Align(
+                    alignment: Alignment.topLeft,
+                    child: SizedBox(width: routeWidth, child: screen),
+                  ),
+                ),
               ),
             ),
-          ),
-        );
-        await tester.pumpAndSettle();
+          );
+          await tester.pumpAndSettle();
 
-        final surface = tester.getRect(
-          find.byKey(const Key('follow-up-filter-surface')),
-        );
-        final search = tester.getRect(find.byType(AppCommandTextInput));
-        final date = tester.getRect(
-          find.byKey(const Key('open-date-range-picker')),
-        );
-        final showroom = tester.getRect(find.byType(AppCombobox<String>));
-        expect(surface.width, expectedWidth);
-        expect(search.height, 48);
-        expect(date.height, 48);
-        expect(showroom.height, 48);
-        if (viewport.width < 600) {
-          expect(date.top - search.bottom, 12);
-          expect(showroom.top - date.bottom, 12);
-        } else {
-          expect(date.top, search.top);
-          expect(showroom.top, search.top);
+          final surface = tester.getRect(
+            find.byKey(const Key('follow-up-filter-surface')),
+          );
+          final search = tester.getRect(find.byType(AppCommandTextInput));
+          expect(surface.width, expectedWidth);
+          expect(search.height, 48);
+          if (viewport.width < 600) {
+            expect(find.byType(AppDateRangeDropdown), findsNothing);
+            expect(find.byType(AppCombobox<String>), findsNothing);
+            await tester.tap(
+              find.byKey(const Key('follow-up-advanced-filter-toggle')),
+            );
+            await tester.pumpAndSettle();
+            final date = tester.getRect(
+              find.byKey(const Key('open-date-range-picker')),
+            );
+            final showroom = tester.getRect(
+              find.byKey(const Key('follow-up-store-filter')),
+            );
+            final category = tester.getRect(
+              find.byKey(const Key('follow-up-category-filter')),
+            );
+            expect(
+              date.top - tester.getRect(find.text('Tìm kiếm nâng cao')).bottom,
+              greaterThanOrEqualTo(12),
+            );
+            expect(showroom.top - date.bottom, 12);
+            expect(category.top - showroom.bottom, 12);
+          } else {
+            final date = tester.getRect(
+              find.byKey(const Key('open-date-range-picker')),
+            );
+            final showroom = tester.getRect(
+              find.byKey(const Key('follow-up-store-filter')),
+            );
+            final category = tester.getRect(
+              find.byKey(const Key('follow-up-category-filter')),
+            );
+            expect(date.top, search.top);
+            expect(showroom.top, search.top);
+            expect(category.top, search.top);
+            expect(date.height, 48);
+            expect(showroom.height, 48);
+            expect(category.height, 48);
+          }
+          expect(
+            find.text('Không chọn khoảng ngày: hệ thống lấy 30 ngày gần nhất.'),
+            findsNothing,
+          );
+          expect(tester.takeException(), isNull);
         }
-        expect(
-          find.text('Không chọn khoảng ngày: hệ thống lấy 30 ngày gần nhất.'),
-          findsNothing,
-        );
-        expect(tester.takeException(), isNull);
       }
-    }
-  });
+    },
+  );
 
-  testWidgets('narrow compact follow-up preserves single-action variants', (
+  testWidgets('Staff thấy showroom duy nhất nhưng không có permission action', (
     tester,
   ) async {
-    tester.view.physicalSize = const Size(320, 812);
+    tester.view.physicalSize = const Size(375, 812);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
     final item = _case(customerPhone: '0900000000', customerZaloContact: null);
     final authProvider = _FakeAuthProvider(
       const User(
-        email: 'manager@phongvu.com',
+        email: 'staff@phongvu.com',
         role: 'USER',
-        featureAccess: {'ADMIN_SALES_REPORTS': true},
+        assignedStores: [
+          StoreBranch(id: 'store-1', storeId: 'CP01', storeName: 'Quận 1'),
+        ],
       ),
     );
+    var globalStoreLoaderCalls = 0;
 
     await tester.pumpWidget(
       ChangeNotifierProvider<AuthProvider>.value(
@@ -255,34 +348,27 @@ void main() {
           home: Scaffold(
             body: NotPurchasedCustomersScreen(
               repository: _FakeFollowUpRepository(item),
+              storeLoader: () async {
+                globalStoreLoaderCalls++;
+                return const [];
+              },
             ),
           ),
         ),
       ),
     );
     await tester.pumpAndSettle();
-    final importAction = find.widgetWithText(AppPrimaryButton, 'Nhập Excel');
-    expect(tester.getSize(importAction), const Size(288, 48));
     expect(find.text('Tải lịch sử chăm sóc'), findsNothing);
-
-    await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          body: NotPurchasedCustomersScreen(
-            repository: _FakeFollowUpRepository(item, managedScope: true),
-            historySaver: ({required fileName, required bytes}) async =>
-                fileName,
-          ),
-        ),
-      ),
-    );
-    await tester.pumpAndSettle();
-    final exportAction = find.widgetWithText(
-      AppSecondaryButton,
-      'Tải lịch sử chăm sóc',
-    );
-    expect(tester.getSize(exportAction), const Size(211, 48));
     expect(find.text('Nhập Excel'), findsNothing);
+    await tester.tap(find.byKey(const Key('follow-up-advanced-filter-toggle')));
+    await tester.pumpAndSettle();
+    final showroom = tester.widget<AppCombobox<String>>(
+      find.byKey(const Key('follow-up-store-filter')),
+    );
+    expect(showroom.options, hasLength(1));
+    expect(showroom.options.single.value, 'CP01');
+    expect(showroom.enabled, isTrue);
+    expect(globalStoreLoaderCalls, 0);
     expect(tester.takeException(), isNull);
   });
 
@@ -414,6 +500,12 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    await tester.tap(find.byKey(const Key('follow-up-category-filter')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Phụ kiện').last);
+    await tester.pumpAndSettle();
+    expect(repository.lastCategoryGroupId, 'NH02');
+
     expect(find.text('Tải lịch sử chăm sóc'), findsOneWidget);
     await tester.tap(find.text('Tải lịch sử chăm sóc'));
     await tester.pump();
@@ -422,6 +514,7 @@ void main() {
     expect(repository.exportCalls, 1);
     expect(repository.lastExportStartDate, DateTime(2026, 6, 28));
     expect(repository.lastExportEndDate, DateTime(2026, 7, 27));
+    expect(repository.lastExportCategoryGroupId, 'NH02');
     expect(savedFileName, 'opshub-lich-su-cham-soc-20260628-20260727.xlsx');
     expect(savedBytes, orderedEquals(const [1, 2, 3]));
     expect(find.text('Đã tải lịch sử chăm sóc.'), findsOneWidget);
@@ -608,8 +701,8 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Mã showroom'), findsOneWidget);
-    await tester.tap(find.byType(TextField).last);
+    expect(find.text('Chăm sóc lại'), findsNothing);
+    await tester.tap(find.byKey(const Key('follow-up-store-filter')));
     await tester.pumpAndSettle();
     await tester.tap(find.text('CP02 - Quận 2').last);
     await tester.pumpAndSettle();
@@ -662,7 +755,9 @@ void main() {
     await tester.pumpAndSettle();
 
     const errorMessage = 'Chưa tải được danh sách showroom. Vui lòng thử lại.';
-    final fieldFinder = find.byType(AppCombobox<String>);
+    await tester.tap(find.byKey(const Key('follow-up-advanced-filter-toggle')));
+    await tester.pumpAndSettle();
+    final fieldFinder = find.byKey(const Key('follow-up-store-filter'));
     final fieldRect = tester.getRect(fieldFinder);
     final errorRect = tester.getRect(
       find.byKey(const Key('follow-up-store-error')),
@@ -679,9 +774,66 @@ void main() {
     expect(loadCount, 2);
     expect(find.text(errorMessage), findsNothing);
     expect(tester.getRect(fieldFinder).height, 48);
-    await tester.tap(find.byType(TextField).last);
+    await tester.tap(fieldFinder);
     await tester.pumpAndSettle();
     expect(find.text('CP02 - Quận 2'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('lỗi ngành hàng có retry và giữ được nhãn dài trong combobox', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1024, 768);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    var loadCount = 0;
+    const longLabel =
+        'Thiết bị giải trí và kỹ thuật số dành cho khách hàng doanh nghiệp';
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: NotPurchasedCustomersScreen(
+            repository: _FakeFollowUpRepository(
+              _case(customerPhone: '0900000000', customerZaloContact: null),
+            ),
+            categoryLoader: () async {
+              loadCount++;
+              if (loadCount == 1) throw Exception('category unavailable');
+              return const [
+                SalesReportCategoryGroup(
+                  id: 'NH-LONG',
+                  catGroupName: 'Entertainment and Digital devices',
+                  catGroupNameVi: longLabel,
+                ),
+              ];
+            },
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('Chưa tải được danh sách ngành hàng. Vui lòng thử lại.'),
+      findsOneWidget,
+    );
+    expect(
+      tester.getRect(find.byKey(const Key('follow-up-category-filter'))).height,
+      48,
+    );
+    await tester.tap(find.byKey(const Key('follow-up-category-retry')));
+    await tester.pumpAndSettle();
+    expect(loadCount, 2);
+    expect(
+      find.text('Chưa tải được danh sách ngành hàng. Vui lòng thử lại.'),
+      findsNothing,
+    );
+
+    await tester.tap(find.byKey(const Key('follow-up-category-filter')));
+    await tester.pumpAndSettle();
+    expect(find.text(longLabel), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -711,7 +863,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Chăm sóc lại'), findsOneWidget);
+    expect(find.text('Chăm sóc lại'), findsNothing);
     expect(find.text('Nguyễn Văn A'), findsOneWidget);
     expect(find.text('zalo-khach-a'), findsOneWidget);
 
@@ -770,6 +922,7 @@ void main() {
       find.textContaining('Tạm hiển thị toàn bộ khách chưa mua'),
       findsOneWidget,
     );
+    expect(find.byKey(const Key('follow-up-total-chip')), findsOneWidget);
   });
 
   testWidgets('hiển thị hồ sơ có kênh Zalo OA dù không có số điện thoại', (
@@ -974,12 +1127,15 @@ class _FakeFollowUpRepository extends SalesReportRepository {
   int detailCalls = 0;
   int listCalls = 0;
   String? lastStoreCode;
+  String? lastCategoryGroupId;
   String? lastStatus;
   DateTime? lastStartDate;
   DateTime? lastEndDate;
   int exportCalls = 0;
   DateTime? lastExportStartDate;
   DateTime? lastExportEndDate;
+  String? lastExportStoreCode;
+  String? lastExportCategoryGroupId;
   int previewCalls = 0;
   int commitCalls = 0;
 
@@ -996,6 +1152,7 @@ class _FakeFollowUpRepository extends SalesReportRepository {
     String status = 'OPEN',
     String? search,
     String? storeCode,
+    String? categoryGroupId,
     DateTime? startDate,
     DateTime? endDate,
     int page = 0,
@@ -1003,6 +1160,7 @@ class _FakeFollowUpRepository extends SalesReportRepository {
   }) async {
     listCalls += 1;
     lastStoreCode = storeCode;
+    lastCategoryGroupId = categoryGroupId;
     lastStatus = status;
     lastStartDate = startDate;
     lastEndDate = endDate;
@@ -1022,14 +1180,33 @@ class _FakeFollowUpRepository extends SalesReportRepository {
   Future<Uint8List> exportFollowUpHistory({
     String? search,
     String? storeCode,
+    String? categoryGroupId,
     required DateTime startDate,
     required DateTime endDate,
   }) async {
     exportCalls += 1;
+    lastExportStoreCode = storeCode;
+    lastExportCategoryGroupId = categoryGroupId;
     lastExportStartDate = startDate;
     lastExportEndDate = endDate;
     return Uint8List.fromList(const [1, 2, 3]);
   }
+
+  @override
+  Future<List<SalesReportCategoryGroup>> fetchCategories({
+    bool admin = false,
+  }) async => const [
+    SalesReportCategoryGroup(
+      id: 'NH01',
+      catGroupName: 'Laptop',
+      catGroupNameVi: 'Laptop',
+    ),
+    SalesReportCategoryGroup(
+      id: 'NH02',
+      catGroupName: 'Accessories',
+      catGroupNameVi: 'Phụ kiện',
+    ),
+  ];
 
   @override
   Future<SalesReportFollowUpCase> fetchFollowUpCase(String id) async {
@@ -1055,6 +1232,40 @@ class _FakeFollowUpRepository extends SalesReportRepository {
   }) async {
     commitCalls += 1;
     return _importPreview(batchId: 'batch-1', importedRows: 1);
+  }
+}
+
+class _QueuedFollowUpRepository extends _FakeFollowUpRepository {
+  final Completer<void> firstRequest = Completer<void>();
+  final List<String?> categories = [];
+  final List<int> pages = [];
+
+  _QueuedFollowUpRepository(super.item);
+
+  @override
+  Future<SalesReportFollowUpPage> fetchFollowUpCases({
+    String status = 'OPEN',
+    String? search,
+    String? storeCode,
+    String? categoryGroupId,
+    DateTime? startDate,
+    DateTime? endDate,
+    int page = 0,
+    int limit = 20,
+  }) async {
+    categories.add(categoryGroupId);
+    pages.add(page);
+    if (categories.length == 1) await firstRequest.future;
+    return super.fetchFollowUpCases(
+      status: status,
+      search: search,
+      storeCode: storeCode,
+      categoryGroupId: categoryGroupId,
+      startDate: startDate,
+      endDate: endDate,
+      page: page,
+      limit: limit,
+    );
   }
 }
 

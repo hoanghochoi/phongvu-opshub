@@ -645,6 +645,17 @@ Recent focused evidence:
   `Mã SR / Showroom` chỉ cho Super Admin; chọn SR truyền `storeCode` vào API,
   reset về trang đầu và giữ nguyên scope của các vai trò khác. Validation:
   focused Flutter follow-up widget test và affected-runtime guard.
+- `OPS-53 R4`, 2026-08-09: Follow-up thay bộ lọc Super-only cũ bằng command bar
+  scope-aware. Staff/Managed lấy showroom từ `assignedStores` đã scope trong
+  profile và không gọi catalog `/stores`; Super dùng catalog được xác thực.
+  Nest list/XLSX cùng nhận `storeCode` + `categoryGroupId`, kiểm tra giá trị
+  rỗng/stale/unauthorized fail-closed và lọc ngành hàng theo primary
+  `categoryGroupId` hoặc `categorySelections`. UI compact mặc định collapsed;
+  open theo ngày → showroom → ngành hàng; tablet/desktop giữ hàng 4 control và
+  hàng action theo effective permission tại command widths 343/698/888/1132.
+  Focused local proof: Follow-up Flutter 22/22; Nest controller/service/DTO
+  24/24. Analyzer, full Flutter/Nest suites, Web build và exact-SHA staging
+  Chrome/Figma audit vẫn phải ghi lại sau khi hoàn tất downstream proof.
 
 - `AUTH-004`, 2026-07-15: passive production evidence showed healthy resource
   headroom while HTTP 429 reached 8,814/13,416 requests in 30 minutes;

@@ -444,6 +444,11 @@ export class ListSalesReportFollowUpCasesDto {
   @IsOptional()
   @IsString()
   @MaxLength(80)
+  categoryGroupId?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
   assigneeUserId?: string;
 
   @IsOptional()
@@ -484,6 +489,11 @@ export class ExportSalesReportFollowUpHistoryDto {
   @IsString()
   @MaxLength(40)
   storeCode?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  categoryGroupId?: string;
 
   @IsOptional()
   @IsString()
