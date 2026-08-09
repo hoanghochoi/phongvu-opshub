@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
@@ -2904,12 +2905,24 @@ class _ApprovedReportProgressPanel extends StatelessWidget {
                       ? const EdgeInsets.symmetric(horizontal: 1)
                       : EdgeInsets.zero,
                   child: twoColumns
-                      ? Wrap(
-                          spacing: gap,
-                          runSpacing: gap,
+                      ? Column(
                           children: [
-                            for (final spec in cards)
-                              SizedBox(width: cardWidth, child: spec.card),
+                            for (
+                              var index = 0;
+                              index < cards.length;
+                              index += 2
+                            ) ...[
+                              _EqualHeightOverviewRow(
+                                gap: gap,
+                                children: [
+                                  cards[index].card,
+                                  if (index + 1 < cards.length)
+                                    cards[index + 1].card,
+                                ],
+                              ),
+                              if (index + 2 < cards.length)
+                                SizedBox(height: gap),
+                            ],
                           ],
                         )
                       : Column(
@@ -2935,6 +2948,114 @@ class _ApprovedReportProgressPanel extends StatelessWidget {
         );
       },
     );
+  }
+}
+
+class _EqualHeightOverviewRow extends MultiChildRenderObjectWidget {
+  const _EqualHeightOverviewRow({required this.gap, required super.children});
+
+  final double gap;
+
+  @override
+  RenderObject createRenderObject(BuildContext context) {
+    return _RenderEqualHeightOverviewRow(gap: gap);
+  }
+
+  @override
+  void updateRenderObject(
+    BuildContext context,
+    _RenderEqualHeightOverviewRow renderObject,
+  ) {
+    renderObject.gap = gap;
+  }
+}
+
+class _EqualHeightOverviewParentData
+    extends ContainerBoxParentData<RenderBox> {}
+
+class _RenderEqualHeightOverviewRow extends RenderBox
+    with
+        ContainerRenderObjectMixin<RenderBox, _EqualHeightOverviewParentData>,
+        RenderBoxContainerDefaultsMixin<
+          RenderBox,
+          _EqualHeightOverviewParentData
+        > {
+  _RenderEqualHeightOverviewRow({required double gap}) : _gap = gap;
+
+  double _gap;
+
+  set gap(double value) {
+    if (_gap == value) return;
+    _gap = value;
+    markNeedsLayout();
+  }
+
+  @override
+  void setupParentData(RenderBox child) {
+    if (child.parentData is! _EqualHeightOverviewParentData) {
+      child.parentData = _EqualHeightOverviewParentData();
+    }
+  }
+
+  @override
+  Size computeDryLayout(BoxConstraints constraints) {
+    final childWidth = math.max(0.0, (constraints.maxWidth - _gap) / 2);
+    final childConstraints = BoxConstraints.tightFor(
+      width: childWidth,
+    ).copyWith(minHeight: 0, maxHeight: double.infinity);
+    var maxHeight = 0.0;
+    var child = firstChild;
+    while (child != null) {
+      maxHeight = math.max(
+        maxHeight,
+        child.getDryLayout(childConstraints).height,
+      );
+      final parentData = child.parentData! as _EqualHeightOverviewParentData;
+      child = parentData.nextSibling;
+    }
+    return constraints.constrain(Size(constraints.maxWidth, maxHeight));
+  }
+
+  @override
+  void performLayout() {
+    final childWidth = math.max(0.0, (constraints.maxWidth - _gap) / 2);
+    final looseChildConstraints = BoxConstraints.tightFor(
+      width: childWidth,
+    ).copyWith(minHeight: 0, maxHeight: double.infinity);
+    var maxHeight = 0.0;
+    var child = firstChild;
+    while (child != null) {
+      child.layout(looseChildConstraints, parentUsesSize: true);
+      maxHeight = math.max(maxHeight, child.size.height);
+      final parentData = child.parentData! as _EqualHeightOverviewParentData;
+      child = parentData.nextSibling;
+    }
+
+    final rowHeight = constraints.constrainHeight(maxHeight);
+    final tightChildConstraints = BoxConstraints.tightFor(
+      width: childWidth,
+      height: rowHeight,
+    );
+    var x = 0.0;
+    child = firstChild;
+    while (child != null) {
+      child.layout(tightChildConstraints, parentUsesSize: true);
+      final parentData = child.parentData! as _EqualHeightOverviewParentData;
+      parentData.offset = Offset(x, 0);
+      x += childWidth + _gap;
+      child = parentData.nextSibling;
+    }
+    size = constraints.constrain(Size(constraints.maxWidth, rowHeight));
+  }
+
+  @override
+  void paint(PaintingContext context, Offset offset) {
+    defaultPaint(context, offset);
+  }
+
+  @override
+  bool hitTestChildren(BoxHitTestResult result, {required Offset position}) {
+    return defaultHitTestChildren(result, position: position);
   }
 }
 
