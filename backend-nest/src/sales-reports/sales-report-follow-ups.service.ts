@@ -77,18 +77,26 @@ export class SalesReportFollowUpsService {
     const limit = Math.min(100, Math.max(1, Number(query.limit) || 20));
     const search = this.text(query.search, 120);
     const storeCode = this.storeCode(query.storeCode);
+    const categoryGroupId = this.categoryGroupId(query.categoryGroupId);
     const assigneeUserId = this.text(query.assigneeUserId, 80);
     const contactGracePeriod = this.contactGracePeriod();
     const dateRange = this.followUpDateRange(query.startDate, query.endDate);
 
-    if (!manager && (storeCode || assigneeUserId)) {
+    this.assertNonEmptyFilter(query.storeCode, storeCode, 'showroom');
+    this.assertNonEmptyFilter(
+      query.categoryGroupId,
+      categoryGroupId,
+      'ngành hàng',
+    );
+    if (!manager && assigneeUserId) {
       throw new ForbiddenException(
         'Tài khoản chỉ được xem danh sách khách hàng đang được phân công cho mình.',
       );
     }
-    if (manager && storeCode) {
-      await this.assertStoreAllowed(user, principal, storeCode);
+    if (storeCode) {
+      await this.assertFilterStoreAllowed(user, principal, storeCode);
     }
+    if (categoryGroupId) await this.assertCategoryAllowed(categoryGroupId);
 
     const parts: Prisma.SalesReportFollowUpCaseWhereInput[] = [
       scopeWhere,
@@ -131,6 +139,16 @@ export class SalesReportFollowUpsService {
       },
     ];
     if (storeCode) parts.push({ sourceReport: { storeCode } });
+    if (categoryGroupId) {
+      parts.push({
+        sourceReport: {
+          OR: [
+            { categoryGroupId },
+            { categorySelections: { some: { categoryGroupId } } },
+          ],
+        },
+      });
+    }
     if (assigneeUserId) parts.push({ assigneeUserId });
     if (search) {
       parts.push({
@@ -204,7 +222,7 @@ export class SalesReportFollowUpsService {
         })
       : [];
     this.logger.log(
-      `Follow-up case list succeeded: user=${this.safeUser(user)} manager=${manager} status=${status} startDate=${dateRange.startDate} endDate=${dateRange.endDate} contactGraceActive=${contactGracePeriod.active} contactGraceUntil=${contactGracePeriod.endsAt?.toISOString() ?? 'none'} count=${rows.length}/${total} excludedInvalidContact=${contactCandidates.length - total} page=${page} durationMs=${Date.now() - startedAt}`,
+      `Follow-up case list succeeded: user=${this.safeUser(user)} manager=${manager} status=${status} startDate=${dateRange.startDate} endDate=${dateRange.endDate} store=${storeCode ?? 'all-authorized'} category=${categoryGroupId ?? 'all'} contactGraceActive=${contactGracePeriod.active} contactGraceUntil=${contactGracePeriod.endsAt?.toISOString() ?? 'none'} count=${rows.length}/${total} excludedInvalidContact=${contactCandidates.length - total} page=${page} durationMs=${Date.now() - startedAt}`,
     );
     return {
       items: rows.map((row) => this.toCaseDto(row, user, principal, manager)),
@@ -227,8 +245,15 @@ export class SalesReportFollowUpsService {
     const dateRange = this.followUpDateRange(query.startDate, query.endDate);
     const search = this.text(query.search, 120);
     const storeCode = this.storeCode(query.storeCode);
+    const categoryGroupId = this.categoryGroupId(query.categoryGroupId);
+    this.assertNonEmptyFilter(query.storeCode, storeCode, 'showroom');
+    this.assertNonEmptyFilter(
+      query.categoryGroupId,
+      categoryGroupId,
+      'ngành hàng',
+    );
     this.logger.log(
-      `Follow-up history export started: user=${this.safeUser(user)} manager=${manager} startDate=${dateRange.startDate} endDate=${dateRange.endDate} store=${storeCode ?? 'managed-scope'} hasSearch=${Boolean(search)}`,
+      `Follow-up history export started: user=${this.safeUser(user)} manager=${manager} startDate=${dateRange.startDate} endDate=${dateRange.endDate} store=${storeCode ?? 'managed-scope'} category=${categoryGroupId ?? 'all'} hasSearch=${Boolean(search)}`,
     );
 
     try {
@@ -239,13 +264,24 @@ export class SalesReportFollowUpsService {
       }
       const scopeWhere = await this.scopeWhere(user, principal, manager);
       if (storeCode) {
-        await this.assertStoreAllowed(user, principal, storeCode);
+        await this.assertFilterStoreAllowed(user, principal, storeCode);
       }
+      if (categoryGroupId) await this.assertCategoryAllowed(categoryGroupId);
       const caseParts: Prisma.SalesReportFollowUpCaseWhereInput[] = [
         scopeWhere,
         { sourceReport: { reportType: 'NOT_PURCHASED' } },
       ];
       if (storeCode) caseParts.push({ sourceReport: { storeCode } });
+      if (categoryGroupId) {
+        caseParts.push({
+          sourceReport: {
+            OR: [
+              { categoryGroupId },
+              { categorySelections: { some: { categoryGroupId } } },
+            ],
+          },
+        });
+      }
       if (search) {
         caseParts.push({
           sourceReport: {
@@ -776,6 +812,34 @@ export class SalesReportFollowUpsService {
     }
   }
 
+  private async assertFilterStoreAllowed(
+    user: any,
+    principal: any,
+    value: unknown,
+  ) {
+    const storeCode = this.storeCode(value);
+    if (!storeCode) {
+      throw new BadRequestException(
+        'Showroom không hợp lệ. Vui lòng chọn lại.',
+      );
+    }
+    if (isSuperAdminRole(user?.role ?? principal?.role)) {
+      const store = await this.prisma.store.findUnique({
+        where: { storeId: storeCode },
+        select: { storeId: true },
+      });
+      if (store) return;
+      throw new ForbiddenException(
+        'Showroom không còn trong phạm vi được phép xem. Vui lòng chọn lại.',
+      );
+    }
+    if (!this.principalStoreCodes(principal).includes(storeCode)) {
+      throw new ForbiddenException(
+        'Showroom không còn trong phạm vi được phép xem. Vui lòng chọn lại.',
+      );
+    }
+  }
+
   private async assertStoreAllowed(user: any, principal: any, value: unknown) {
     if (isSuperAdminRole(user?.role ?? principal?.role)) return;
     const storeCode = this.storeCode(value);
@@ -787,6 +851,17 @@ export class SalesReportFollowUpsService {
         'Hồ sơ không thuộc showroom hoặc node bạn được phân công.',
       );
     }
+  }
+
+  private async assertCategoryAllowed(categoryGroupId: string) {
+    const category = await this.prisma.salesReportCategoryGroup.findUnique({
+      where: { id: categoryGroupId },
+      select: { id: true, isActive: true },
+    });
+    if (category?.isActive) return;
+    throw new BadRequestException(
+      'Ngành hàng không còn khả dụng. Vui lòng chọn lại.',
+    );
   }
 
   private principalStoreCodes(principal: any) {
@@ -1216,6 +1291,22 @@ export class SalesReportFollowUpsService {
 
   private storeCode(value: unknown) {
     return this.text(value, 40)?.toUpperCase() ?? null;
+  }
+
+  private categoryGroupId(value: unknown) {
+    return this.text(value, 80)?.toUpperCase() ?? null;
+  }
+
+  private assertNonEmptyFilter(
+    requestedValue: unknown,
+    normalizedValue: string | null,
+    label: string,
+  ) {
+    if (requestedValue !== undefined && !normalizedValue) {
+      throw new BadRequestException(
+        `Bộ lọc ${label} không hợp lệ. Vui lòng chọn lại.`,
+      );
+    }
   }
 
   private orderLogPart(value: unknown) {

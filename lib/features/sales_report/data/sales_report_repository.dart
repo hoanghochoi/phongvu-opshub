@@ -96,6 +96,7 @@ class SalesReportRepository {
     String status = 'OPEN',
     String? search,
     String? storeCode,
+    String? categoryGroupId,
     DateTime? startDate,
     DateTime? endDate,
     int page = 0,
@@ -107,6 +108,8 @@ class SalesReportRepository {
         'status': status,
         if ((search ?? '').trim().isNotEmpty) 'search': search!.trim(),
         if ((storeCode ?? '').trim().isNotEmpty) 'storeCode': storeCode!.trim(),
+        if ((categoryGroupId ?? '').trim().isNotEmpty)
+          'categoryGroupId': categoryGroupId!.trim(),
         if (startDate != null) 'startDate': _apiDate(startDate),
         if (endDate != null) 'endDate': _apiDate(endDate),
         'page': '$page',
@@ -119,6 +122,7 @@ class SalesReportRepository {
   Future<Uint8List> exportFollowUpHistory({
     String? search,
     String? storeCode,
+    String? categoryGroupId,
     required DateTime startDate,
     required DateTime endDate,
   }) async {
@@ -127,6 +131,8 @@ class SalesReportRepository {
       queryParameters: {
         if ((search ?? '').trim().isNotEmpty) 'search': search!.trim(),
         if ((storeCode ?? '').trim().isNotEmpty) 'storeCode': storeCode!.trim(),
+        if ((categoryGroupId ?? '').trim().isNotEmpty)
+          'categoryGroupId': categoryGroupId!.trim(),
         'startDate': _apiDate(startDate),
         'endDate': _apiDate(endDate),
       },

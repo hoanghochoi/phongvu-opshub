@@ -38,9 +38,17 @@ Cho phép nhân viên bán hàng theo dõi và chăm sóc lại từng lượt b
 - Quản lý chỉ được phân công cho nhân viên bán hàng đang hoạt động trong cùng
   showroom.
 - Sau khi phân công, người nhận mới là người phụ trách hồ sơ.
-- Super Admin có thể lọc danh sách theo `Mã SR / Showroom`; mặc định là tất cả
-  showroom trong phạm vi toàn hệ thống. Khi đổi SR, danh sách và phân trang tải
-  lại theo `storeCode` đã chọn; các vai trò khác không thấy bộ lọc toàn hệ thống.
+- Bộ lọc `Showroom` luôn hiển thị, kể cả khi chỉ có một lựa chọn. Nhân viên chỉ
+  nhận showroom được gán trong profile và backend vẫn giao với scope hồ sơ đang
+  phân công; Store/Area/Region Manager chỉ nhận showroom trong node/store được
+  quản lý hoặc gán; Super Admin nhận catalog showroom được phép. Option ở client
+  chỉ phục vụ trải nghiệm chọn, không phải chốt phân quyền. Backend chuẩn hóa và
+  kiểm tra `storeCode` trong role scope; giá trị rỗng, không hợp lệ hoặc đã stale
+  không được bỏ qua thành `Tất cả showroom`.
+- Bộ lọc `Ngành hàng` là một lựa chọn, mặc định `Tất cả ngành hàng`, và khớp khi
+  báo cáo có `categoryGroupId` chính hoặc cùng mã trong `categorySelections`.
+  Danh sách và file XLSX dùng cùng `categoryGroupId` và điều kiện lọc; ngành
+  hàng rỗng/không còn active bị chặn fail-closed.
 
 ## Thứ tự và cảnh báo
 
@@ -50,6 +58,12 @@ Cho phép nhân viên bán hàng theo dõi và chăm sóc lại từng lượt b
 
 ## Lọc ngày và tải lịch sử chăm sóc
 
+- Header shell là tiêu đề `Chăm sóc lại` duy nhất; nội dung không lặp title hoặc
+  subtitle. Thanh trạng thái `Cần chăm sóc` / `Lịch sử` / `Đã ẩn` đứng riêng
+  phía trên command bar. Ở tablet/desktop, hàng đầu là tìm kiếm, khoảng ngày,
+  showroom và ngành hàng; hàng hai chỉ chứa thao tác theo quyền. Ở compact,
+  mặc định chỉ hiện tìm kiếm và nút `Tìm kiếm nâng cao`; mở nút mới hiện lần
+  lượt khoảng ngày, showroom và ngành hàng.
 - Bộ lọc khoảng ngày dùng DateRangePicker chung và áp dụng cho cả `Cần chăm
   sóc`, `Lịch sử chăm sóc` và `Đã ẩn`. Hồ sơ được đối chiếu theo
   `lastFollowUpAt`; nếu chưa từng chăm sóc thì dùng `submittedAt` của báo cáo
@@ -59,8 +73,11 @@ Cho phép nhân viên bán hàng theo dõi và chăm sóc lại từng lượt b
 - Store/Area/Region Manager và Super Admin thấy thao tác `Tải lịch sử chăm sóc`.
   Backend vẫn kiểm tra managed scope; nhân viên bán hàng không thấy nút và
   không được gọi trực tiếp endpoint tải file.
-- File XLSX không phụ thuộc tab đang mở, nhưng giữ keyword và showroom đang
-  chọn. Mỗi lượt chăm sóc có `contactedAt` trong khoảng ngày là một dòng; file
+- `Nhập Excel` chỉ hiện khi effective feature access có
+  `ADMIN_SALES_REPORTS`, kể cả tài khoản managed được cấp capability; Staff
+  thông thường không có action nào trong hàng thao tác.
+- File XLSX không phụ thuộc tab đang mở, nhưng giữ keyword, showroom và ngành
+  hàng đang chọn. Mỗi lượt chăm sóc có `contactedAt` trong khoảng ngày là một dòng; file
   chứa tối đa 10.000 lượt và yêu cầu thu hẹp khoảng ngày khi vượt giới hạn.
   Với lượt có kết quả `PURCHASED`, file thêm cột `Doanh số` cạnh `Mã đơn mua`,
   lấy nguyên `erpGrandTotal` đã lưu trên báo cáo mua hàng; các kết quả khác để
