@@ -5,10 +5,9 @@ import 'package:phongvu_opshub/app/widgets/app_toast.dart';
 
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_text_styles.dart';
-import '../../../../app/widgets/app_buttons.dart';
 import '../../../../app/widgets/app_cards.dart';
 import '../../../../app/widgets/app_chips.dart';
-import '../../../../app/widgets/app_inputs.dart';
+import '../../../../app/widgets/app_command_bar.dart';
 import '../../../../app/widgets/app_layout.dart';
 import '../../../../app/widgets/app_state_widgets.dart';
 import '../../../auth/presentation/providers/auth_provider.dart';
@@ -113,7 +112,7 @@ class _SortScreenState extends State<SortScreen> {
     return Consumer<SortProvider>(
       builder: (context, provider, child) {
         return AppResponsiveContent(
-          maxWidth: AppLayoutTokens.pageMaxWidth,
+          maxWidth: AppLayoutTokens.commandWorkspaceMaxWidth,
           onRefresh: AppRefreshCallbacks.noop,
           refreshLogSource: 'Sort',
           refreshLogContext: () => {
@@ -180,62 +179,19 @@ class _SortCommandCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AppSurfaceCard(
+    return AppCommandBar(
       key: const Key('sort-fifo-command-card'),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final compact =
-              constraints.maxWidth < AppLayoutTokens.compactBreakpoint;
-          final input = AppTextInput(
-            controller: controller,
-            focusNode: focusNode,
-            enabled: !isLoading,
-            label: 'SKU hoặc BIN',
-            hintText: 'Nhập SKU hoặc BIN',
-            icon: PhosphorIconsRegular.package,
-            textCapitalization: TextCapitalization.characters,
-            textInputAction: TextInputAction.search,
-            onSubmitted: (_) => onSubmit(),
-          );
-          final actions = Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              AppIconAction(
-                onPressed: isLoading ? null : onScan,
-                icon: PhosphorIconsRegular.scan,
-                tooltip: 'Quét mã',
-              ),
-              const SizedBox(width: AppLayoutTokens.formInlineGap),
-              AppIconAction(
-                onPressed: isLoading ? null : onSubmit,
-                icon: PhosphorIconsRegular.magnifyingGlass,
-                tooltip: 'Tìm hàng để sắp xếp',
-                filled: true,
-              ),
-            ],
-          );
-
-          if (compact) {
-            return Row(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Expanded(child: input),
-                const SizedBox(width: AppLayoutTokens.formInlineGap),
-                actions,
-              ],
-            );
-          }
-
-          return Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Expanded(child: input),
-              const SizedBox(width: AppLayoutTokens.formInlineGap),
-              actions,
-            ],
-          );
-        },
-      ),
+      controller: controller,
+      focusNode: focusNode,
+      isLoading: isLoading,
+      label: 'SKU hoặc BIN',
+      hintText: 'SKU hoặc BIN',
+      textCapitalization: TextCapitalization.characters,
+      onSubmitted: (_) => onSubmit(),
+      onScan: onScan,
+      onPrimaryAction: onSubmit,
+      scanTooltip: 'Quét mã',
+      primaryActionTooltip: 'Tìm hàng để sắp xếp',
     );
   }
 }

@@ -15,7 +15,7 @@ import '../../../../app/theme/app_text_styles.dart';
 import '../../../../app/widgets/app_buttons.dart';
 import '../../../../app/widgets/app_cards.dart';
 import '../../../../app/widgets/app_chips.dart';
-import '../../../../app/widgets/app_inputs.dart';
+import '../../../../app/widgets/app_command_bar.dart';
 import '../../../../app/widgets/app_layout.dart';
 import '../../../../app/widgets/app_state_widgets.dart';
 import '../../../../core/logging/app_logger.dart';
@@ -249,11 +249,9 @@ class _CheckWarrantyScreenState extends State<CheckWarrantyScreen> {
   Widget build(BuildContext context) {
     final viewportWidth = MediaQuery.sizeOf(context).width;
     final isWide = viewportWidth >= AppLayoutTokens.desktopBreakpoint;
-    final pagePadding = isWide
-        ? const EdgeInsets.fromLTRB(32, 32, 32, 24)
-        : const EdgeInsets.fromLTRB(16, 16, 16, 16);
+    final pagePadding = AppLayoutTokens.pagePaddingFor(viewportWidth);
     return AppResponsiveContent(
-      maxWidth: isWide ? double.infinity : 375,
+      maxWidth: AppLayoutTokens.commandWorkspaceMaxWidth,
       padding: pagePadding,
       alignment: Alignment.topLeft,
       child: Consumer<WarrantyProvider>(
@@ -416,37 +414,46 @@ class _WarrantyLookupActions extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final compactPhone = MediaQuery.sizeOf(context).width < 600;
-    return SizedBox(
-      key: const Key('warranty-lookup-actions'),
-      height: 48,
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 120,
-            child: AppSecondaryButton(
-              key: const Key('warranty-lookup-refresh'),
-              onPressed: isLoading ? null : onRefresh,
-              icon: PhosphorIconsRegular.arrowCounterClockwise,
-              label: 'Tải lại',
-              size: AppButtonSize.medium,
-            ),
-          ),
-          const SizedBox(width: 12),
-          SizedBox(
-            width: 151,
-            child: AppSecondaryButton(
-              key: const Key('warranty-lookup-back'),
-              onPressed: onBackToHub,
-              icon: PhosphorIconsRegular.arrowLeft,
-              label: 'Về bảo hành',
-              size: compactPhone ? AppButtonSize.medium : AppButtonSize.small,
-            ),
-          ),
-        ],
+    final compactPhone =
+        MediaQuery.sizeOf(context).width < AppLayoutTokens.compactBreakpoint;
+    Widget action({
+      required Key key,
+      required String label,
+      required IconData icon,
+      required VoidCallback? onPressed,
+    }) => SizedBox(
+      width: compactPhone ? double.infinity : 140,
+      child: AppSecondaryButton(
+        key: key,
+        onPressed: onPressed,
+        icon: icon,
+        label: label,
+        size: AppButtonSize.medium,
       ),
+    );
+    final refresh = action(
+      key: const Key('warranty-lookup-refresh'),
+      label: 'Tải lại',
+      icon: PhosphorIconsRegular.arrowCounterClockwise,
+      onPressed: isLoading ? null : onRefresh,
+    );
+    final back = action(
+      key: const Key('warranty-lookup-back'),
+      label: 'Quay lại',
+      icon: PhosphorIconsRegular.arrowLeft,
+      onPressed: onBackToHub,
+    );
+    if (compactPhone) {
+      return Column(
+        key: const Key('warranty-lookup-actions'),
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [refresh, const SizedBox(height: 12), back],
+      );
+    }
+    return Row(
+      key: const Key('warranty-lookup-actions'),
+      mainAxisSize: MainAxisSize.min,
+      children: [refresh, const SizedBox(width: 12), back],
     );
   }
 }
@@ -472,53 +479,30 @@ class _WarrantySearchCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AppSurfaceCard(
+    return AppCommandBar(
       key: const Key('warranty-lookup-search-card'),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          Expanded(
-            child: SizedBox(
-              height: 76,
-              child: AppTextInput(
-                key: const Key('warranty-lookup-input'),
-                controller: controller,
-                focusNode: focusNode,
-                enabled: !isLoading,
-                textCapitalization: TextCapitalization.characters,
-                label: 'Biên nhận',
-                hintText: 'CPxx-Jxxxxxxxx hoặc ST-123456',
-                suffixIcon: isSearchMode
-                    ? IconButton(
-                        key: const Key('warranty-lookup-clear'),
-                        icon: const Icon(PhosphorIconsRegular.x),
-                        onPressed: isLoading ? null : onClear,
-                        tooltip: 'Xóa tìm kiếm',
-                      )
-                    : null,
-                onSubmitted: (_) => onSearch(),
-              ),
-            ),
-          ),
-          const SizedBox(width: 12),
-          AppIconAction(
-            key: const Key('warranty-lookup-scan'),
-            icon: PhosphorIconsRegular.qrCode,
-            onPressed: isLoading ? null : onScan,
-            tooltip: 'Quét mã',
-          ),
-          const SizedBox(width: 12),
-          AppIconAction(
-            key: const Key('warranty-lookup-submit'),
-            onPressed: isLoading ? null : onSearch,
-            icon: isLoading
-                ? PhosphorIconsRegular.spinnerGap
-                : PhosphorIconsRegular.magnifyingGlass,
-            tooltip: isLoading ? 'Đang tìm' : 'Tìm',
-            filled: true,
-          ),
-        ],
-      ),
+      controller: controller,
+      focusNode: focusNode,
+      isLoading: isLoading,
+      label: 'Biên nhận',
+      hintText: 'Biên nhận',
+      textCapitalization: TextCapitalization.characters,
+      onSubmitted: (_) => onSearch(),
+      onScan: onScan,
+      onPrimaryAction: onSearch,
+      scanTooltip: 'Quét mã',
+      primaryActionTooltip: 'Tìm',
+      inputKey: const Key('warranty-lookup-input'),
+      scanKey: const Key('warranty-lookup-scan'),
+      primaryActionKey: const Key('warranty-lookup-submit'),
+      suffixIcon: isSearchMode
+          ? IconButton(
+              key: const Key('warranty-lookup-clear'),
+              icon: const Icon(PhosphorIconsRegular.x),
+              onPressed: isLoading ? null : onClear,
+              tooltip: 'Xóa tìm kiếm',
+            )
+          : null,
     );
   }
 }

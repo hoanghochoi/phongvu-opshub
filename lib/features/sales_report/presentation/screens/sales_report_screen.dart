@@ -347,55 +347,6 @@ class _SalesReportCockpit extends StatefulWidget {
 }
 
 class _SalesReportCockpitState extends State<_SalesReportCockpit> {
-  Future<void> _openAdvancedFilters() async {
-    final user = context.read<AuthProvider>().user;
-    await AppLogger.instance.info(
-      'SalesReport',
-      'Sales report advanced filter sheet opened',
-      context: {
-        'userId': user?.id,
-        'storeId': user?.storeId,
-        'managedScope': widget.provider.orderCockpit?.scope == 'MANAGED_SCOPE',
-      },
-    );
-    if (!mounted) return;
-    final applied = await showModalBottomSheet<bool>(
-      context: context,
-      isScrollControlled: true,
-      showDragHandle: true,
-      backgroundColor: AppColors.overlayOf(context),
-      builder: (context) {
-        return ChangeNotifierProvider<SalesReportProvider>.value(
-          value: widget.provider,
-          child: Consumer<SalesReportProvider>(
-            builder: (context, provider, _) {
-              return _AdvancedFilterSheet(
-                provider: provider,
-                onSelectDateRange: widget.onSelectDateRange,
-              );
-            },
-          ),
-        );
-      },
-    );
-    if (!mounted) return;
-    await AppLogger.instance.info(
-      'SalesReport',
-      applied == true
-          ? 'Sales report advanced filter sheet applied'
-          : 'Sales report advanced filter sheet dismissed',
-      context: {
-        'userId': user?.id,
-        'storeId': user?.storeId,
-        'hasExplicitDateRange':
-            widget.provider.ordersStartDate != null ||
-            widget.provider.ordersEndDate != null,
-        'storeSelected': widget.provider.ordersStoreCode != null,
-        'userSelected': widget.provider.ordersUserEmail != null,
-      },
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final provider = widget.provider;
@@ -406,10 +357,6 @@ class _SalesReportCockpitState extends State<_SalesReportCockpit> {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            if (wide) ...[
-              const _SalesReportHubHeader(),
-              const SizedBox(height: 16),
-            ],
             _SalesReportControls(
               provider: provider,
               isManagedScope: cockpit?.scope == 'MANAGED_SCOPE',
@@ -418,7 +365,6 @@ class _SalesReportCockpitState extends State<_SalesReportCockpit> {
               onNotPurchased: widget.onNotPurchased,
               onSelectDateRange: widget.onSelectDateRange,
               onReload: widget.onReload,
-              onOpenAdvancedFilters: _openAdvancedFilters,
             ),
             SizedBox(height: wide ? 16 : 12),
             if (provider.errorMessage != null) ...[
@@ -520,26 +466,6 @@ class _SalesReportCockpitState extends State<_SalesReportCockpit> {
   }
 }
 
-class _SalesReportHubHeader extends StatelessWidget {
-  const _SalesReportHubHeader();
-
-  @override
-  Widget build(BuildContext context) {
-    return const Column(
-      key: Key('sales-report-workspace-header'),
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text('Báo cáo bán hàng', style: AppTextStyles.headingM),
-        SizedBox(height: 4),
-        Text(
-          'Đơn chưa báo cáo và đã báo cáo theo cùng phạm vi đang chọn.',
-          style: AppTextStyles.bodyS,
-        ),
-      ],
-    );
-  }
-}
-
 class _SalesReportControls extends StatelessWidget {
   final SalesReportProvider provider;
   final bool isManagedScope;
@@ -548,7 +474,6 @@ class _SalesReportControls extends StatelessWidget {
   final VoidCallback? onNotPurchased;
   final void Function(DateTime? start, DateTime? end) onSelectDateRange;
   final VoidCallback onReload;
-  final VoidCallback onOpenAdvancedFilters;
 
   const _SalesReportControls({
     required this.provider,
@@ -558,7 +483,6 @@ class _SalesReportControls extends StatelessWidget {
     required this.onNotPurchased,
     required this.onSelectDateRange,
     required this.onReload,
-    required this.onOpenAdvancedFilters,
   });
 
   @override
@@ -567,17 +491,6 @@ class _SalesReportControls extends StatelessWidget {
       builder: (context, constraints) {
         final wide = constraints.maxWidth >= 1126;
         final compact = constraints.maxWidth < 600;
-        Widget labeledFilter({required String label, required Widget child}) {
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(label, style: AppTextStyles.labelM),
-              const SizedBox(height: 8),
-              SizedBox(height: 48, child: child),
-            ],
-          );
-        }
-
         final dateRangeFilter = AppDateRangeDropdown(
           key: const Key('sales-report-orders-date-range'),
           label: 'Ngày',
@@ -586,74 +499,68 @@ class _SalesReportControls extends StatelessWidget {
           onChanged: onSelectDateRange,
           now: () => provider.currentDate,
           fieldStyle: true,
+          fieldLabelInside: true,
         );
         final storeFilter = isManagedScope
-            ? labeledFilter(
+            ? AppCombobox<String>.single(
+                key: const Key('sales-report-orders-store'),
                 label: 'Showroom',
-                child: AppCombobox<String>.single(
-                  label: 'Showroom',
-                  value: provider.ordersStoreCode,
-                  emptyLabel: 'Tất cả showroom',
-                  showLabel: false,
-                  fixedHeight: 48,
-                  closedIcon: PhosphorIconsRegular.caretDown,
-                  menuWidth: wide ? 180 : 280,
-                  options: provider.orderStoreOptions
-                      .map(
-                        (option) => AppComboboxOption<String>(
-                          value: option.value,
-                          label: option.label,
-                          searchKeywords: [option.value, option.label],
-                        ),
-                      )
-                      .toList(growable: false),
-                  onChanged: (value) => unawaited(
-                    provider.setOrderFilters(
-                      storeCode: value,
-                      updateStore: true,
-                    ),
-                  ),
+                value: provider.ordersStoreCode,
+                emptyLabel: 'Tất cả showroom',
+                showLabel: false,
+                fixedHeight: 48,
+                closedIcon: PhosphorIconsRegular.caretDown,
+                menuWidth: wide ? 180 : 280,
+                options: provider.orderStoreOptions
+                    .map(
+                      (option) => AppComboboxOption<String>(
+                        value: option.value,
+                        label: option.label,
+                        searchKeywords: [option.value, option.label],
+                      ),
+                    )
+                    .toList(growable: false),
+                onChanged: (value) => unawaited(
+                  provider.setOrderFilters(storeCode: value, updateStore: true),
                 ),
               )
             : const _ReadonlyFilterField(
+                key: Key('sales-report-orders-store'),
                 label: 'Showroom',
                 value: 'Showroom của tôi',
               );
         final userFilter = isManagedScope
-            ? labeledFilter(
+            ? AppCombobox<String>.single(
+                key: const Key('sales-report-orders-user'),
                 label: 'Nhân viên',
-                child: AppCombobox<String>.single(
-                  label: 'Nhân viên',
-                  value: provider.ordersUserEmail,
-                  emptyLabel: 'Tất cả nhân viên',
-                  showLabel: false,
-                  fixedHeight: 48,
-                  closedIcon: PhosphorIconsRegular.caretDown,
-                  menuWidth: wide ? 220 : null,
-                  options: provider.orderUserOptions
-                      .map(
-                        (option) => AppComboboxOption<String>(
-                          value: option.value,
-                          label: option.label,
-                          searchKeywords: [option.value, option.label],
-                        ),
-                      )
-                      .toList(growable: false),
-                  onChanged: (value) => unawaited(
-                    provider.setOrderFilters(
-                      userEmail: value,
-                      updateUser: true,
-                    ),
-                  ),
+                value: provider.ordersUserEmail,
+                emptyLabel: 'Tất cả nhân viên',
+                showLabel: false,
+                fixedHeight: 48,
+                closedIcon: PhosphorIconsRegular.caretDown,
+                menuWidth: wide ? 220 : null,
+                options: provider.orderUserOptions
+                    .map(
+                      (option) => AppComboboxOption<String>(
+                        value: option.value,
+                        label: option.label,
+                        searchKeywords: [option.value, option.label],
+                      ),
+                    )
+                    .toList(growable: false),
+                onChanged: (value) => unawaited(
+                  provider.setOrderFilters(userEmail: value, updateUser: true),
                 ),
               )
             : const _ReadonlyFilterField(
+                key: Key('sales-report-orders-user'),
                 label: 'Nhân viên',
                 value: 'Nhân viên của tôi',
               );
         final reloadButton = Tooltip(
           message: 'Tải lại danh sách',
           child: AppSecondaryButton(
+            key: const Key('sales-report-reload-action'),
             onPressed: provider.isLoadingOrders ? null : onReload,
             icon: PhosphorIconsRegular.arrowsClockwise,
             label: 'Tải lại',
@@ -665,188 +572,103 @@ class _SalesReportControls extends StatelessWidget {
                 : null,
           ),
         );
-        final activeFilterCount = <String?>[
-          provider.ordersStoreCode,
-          provider.ordersUserEmail,
-        ].where((value) => value?.trim().isNotEmpty == true).length;
-        final filterActive = activeFilterCount > 0;
-        final filterButton = SizedBox(
-          key: const Key('sales-report-managed-filter'),
-          width: 152,
-          height: 48,
-          child: AppSecondaryButton(
-            onPressed: provider.isLoadingOrders ? null : onOpenAdvancedFilters,
-            icon: PhosphorIconsRegular.funnel,
-            label: filterActive ? 'Lọc ($activeFilterCount)' : 'Lọc',
+
+        Widget actionButton({
+          required Key key,
+          required String label,
+          required VoidCallback? onPressed,
+        }) {
+          return AppPrimaryButton(
+            key: key,
+            onPressed: onPressed,
+            label: label,
             size: AppButtonSize.medium,
-            height: 48,
-            textStyle: AppTextStyles.labelM,
             radius: compact ? 10 : AppButtonMetrics.radius,
+            textStyle: AppTextStyles.labelM,
             padding: compact
                 ? const EdgeInsets.symmetric(horizontal: 12)
                 : null,
-            foregroundColor: filterActive
-                ? AppColors.primaryOf(context)
-                : AppColors.textSecondaryOf(context),
-            borderColor: filterActive
-                ? AppColors.primaryOf(context)
-                : AppColors.borderOf(context),
-          ),
-        );
-
-        Widget actionButton({
-          required String label,
-          required VoidCallback? onPressed,
-          required double width,
-        }) {
-          return SizedBox(
-            width: width,
-            child: AppPrimaryButton(
-              onPressed: onPressed,
-              label: label,
-              size: AppButtonSize.medium,
-              radius: compact ? 10 : AppButtonMetrics.radius,
-              textStyle: AppTextStyles.labelM,
-              padding: compact
-                  ? const EdgeInsets.symmetric(horizontal: 12)
-                  : null,
-            ),
           );
         }
 
-        if (wide) {
+        final purchasedAction = actionButton(
+          key: const Key('sales-report-purchased-action'),
+          label: 'Mua thủ công',
+          onPressed: canSubmitReports ? onPurchased : null,
+        );
+        final notPurchasedAction = actionButton(
+          key: const Key('sales-report-not-purchased-action'),
+          label: 'Chưa mua',
+          onPressed: canSubmitReports ? onNotPurchased : null,
+        );
+
+        if (compact) {
           return AppSurfaceCard(
             key: const Key('sales-report-controls'),
             margin: EdgeInsets.zero,
-            padding: const EdgeInsets.only(left: 15, top: 15, bottom: 15),
-            child: SizedBox(
-              height: 102,
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  SizedBox(width: 220, child: dateRangeFilter),
-                  const SizedBox(width: 12),
-                  SizedBox(width: 180, child: storeFilter),
-                  const SizedBox(width: 12),
-                  SizedBox(width: 220, child: userFilter),
-                  const SizedBox(width: 12),
-                  Padding(
-                    padding: const EdgeInsets.only(top: 28),
-                    child: SizedBox(width: 120, child: reloadButton),
+            radius: 14,
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                dateRangeFilter,
+                const SizedBox(height: 12),
+                storeFilter,
+                const SizedBox(height: 12),
+                userFilter,
+                if (canSubmitReports) ...[
+                  const SizedBox(height: 12),
+                  KeyedSubtree(
+                    key: const Key('sales-report-manual-actions'),
+                    child: purchasedAction,
                   ),
-                  const SizedBox(width: 12),
-                  Padding(
-                    padding: const EdgeInsets.only(top: 28),
-                    child: actionButton(
-                      label: 'Mua thủ công',
-                      onPressed: canSubmitReports ? onPurchased : null,
-                      width: 160,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Padding(
-                    padding: const EdgeInsets.only(top: 28),
-                    child: actionButton(
-                      label: 'Chưa mua',
-                      onPressed: canSubmitReports ? onNotPurchased : null,
-                      width: 153,
-                    ),
-                  ),
+                  const SizedBox(height: 12),
+                  notPurchasedAction,
                 ],
-              ),
+                const SizedBox(height: 12),
+                reloadButton,
+              ],
             ),
           );
         }
-
-        final actions = canSubmitReports
-            ? compact
-                  ? Row(
-                      key: const Key('sales-report-manual-actions'),
-                      children: [
-                        Expanded(
-                          child: actionButton(
-                            label: 'Mua thủ công',
-                            onPressed: onPurchased,
-                            width: double.infinity,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: actionButton(
-                            label: 'Chưa mua',
-                            onPressed: onNotPurchased,
-                            width: double.infinity,
-                          ),
-                        ),
-                      ],
-                    )
-                  : Row(
-                      key: const Key('sales-report-manual-actions'),
-                      children: [
-                        Expanded(
-                          child: actionButton(
-                            label: 'Mua thủ công',
-                            onPressed: onPurchased,
-                            width: double.infinity,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: actionButton(
-                            label: 'Chưa mua',
-                            onPressed: onNotPurchased,
-                            width: double.infinity,
-                          ),
-                        ),
-                      ],
-                    )
-            : const SizedBox.shrink();
 
         return AppSurfaceCard(
           key: const Key('sales-report-controls'),
           margin: EdgeInsets.zero,
           radius: 14,
-          padding: const EdgeInsets.symmetric(vertical: 16),
+          padding: const EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Padding(
-                padding: EdgeInsets.symmetric(horizontal: compact ? 16 : 0),
-                child: dateRangeFilter,
-              ),
-              if (canSubmitReports) ...[
-                const SizedBox(height: 12),
-                Padding(
-                  padding: EdgeInsets.symmetric(horizontal: compact ? 16 : 0),
-                  child: actions,
+              SizedBox(
+                height: 48,
+                child: Row(
+                  key: const Key('sales-report-filter-row'),
+                  children: [
+                    Expanded(child: dateRangeFilter),
+                    const SizedBox(width: 12),
+                    Expanded(child: storeFilter),
+                    const SizedBox(width: 12),
+                    Expanded(child: userFilter),
+                  ],
                 ),
-              ],
+              ),
               const SizedBox(height: 12),
-              Padding(
-                padding: EdgeInsets.symmetric(horizontal: compact ? 16 : 0),
-                child: isManagedScope
-                    ? Row(
-                        key: const Key('sales-report-filter-reload-row'),
-                        mainAxisAlignment: MainAxisAlignment.end,
-                        children: [
-                          if (compact)
-                            Expanded(child: filterButton)
-                          else
-                            filterButton,
-                          const SizedBox(width: 8),
-                          if (compact)
-                            Expanded(child: reloadButton)
-                          else
-                            SizedBox(width: 180, child: reloadButton),
-                        ],
-                      )
-                    : Align(
-                        alignment: Alignment.centerRight,
-                        child: SizedBox(
-                          width: compact ? double.infinity : 180,
-                          child: reloadButton,
-                        ),
-                      ),
+              Row(
+                key: const Key('sales-report-action-row'),
+                children: [
+                  if (canSubmitReports) ...[
+                    SizedBox(
+                      key: const Key('sales-report-manual-actions'),
+                      width: 161,
+                      child: purchasedAction,
+                    ),
+                    const SizedBox(width: 12),
+                    SizedBox(width: 161, child: notPurchasedAction),
+                    const SizedBox(width: 12),
+                  ],
+                  SizedBox(width: 167, child: reloadButton),
+                ],
               ),
             ],
           ),
@@ -860,157 +682,45 @@ class _ReadonlyFilterField extends StatelessWidget {
   final String label;
   final String value;
 
-  const _ReadonlyFilterField({required this.label, required this.value});
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Text(label, style: AppTextStyles.labelM),
-        const SizedBox(height: 8),
-        SizedBox(
-          height: 48,
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.borderOf(context)),
-              color: AppColors.cardOf(context),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      value,
-                      overflow: TextOverflow.ellipsis,
-                      style: AppTextStyles.bodyM.copyWith(
-                        color: AppColors.textMutedOf(context),
-                      ),
-                    ),
-                  ),
-                  Icon(
-                    PhosphorIconsRegular.caretDown,
-                    size: 24,
-                    color: AppColors.textSecondaryOf(context),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _AdvancedFilterSheet extends StatelessWidget {
-  final SalesReportProvider provider;
-  final void Function(DateTime? start, DateTime? end) onSelectDateRange;
-
-  const _AdvancedFilterSheet({
-    required this.provider,
-    required this.onSelectDateRange,
+  const _ReadonlyFilterField({
+    super.key,
+    required this.label,
+    required this.value,
   });
 
   @override
   Widget build(BuildContext context) {
-    final managedScope = provider.orderCockpit?.scope == 'MANAGED_SCOPE';
-    final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
-    return SafeArea(
-      child: Padding(
-        padding: EdgeInsets.fromLTRB(16, 0, 16, 16 + bottomInset),
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      'Bộ lọc nâng cao',
-                      style: AppTextStyles.headingS.copyWith(
-                        color: AppColors.textPrimaryOf(context),
-                      ),
+    return Semantics(
+      label: '$label: $value',
+      readOnly: true,
+      child: SizedBox(
+        height: 48,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppColors.borderOf(context)),
+            color: AppColors.cardOf(context),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    value,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTextStyles.bodyM.copyWith(
+                      color: AppColors.textMutedOf(context),
                     ),
                   ),
-                  IconButton(
-                    tooltip: 'Đóng bộ lọc',
-                    onPressed: () => Navigator.of(context).pop(false),
-                    icon: const Icon(PhosphorIconsRegular.x),
-                  ),
-                ],
-              ),
-              const SizedBox(height: AppLayoutTokens.formInlineGap),
-              AppDateRangeDropdown(
-                key: const Key('sales-report-orders-date-range-advanced'),
-                label: 'Ngày',
-                start: provider.ordersStartDate,
-                end: provider.ordersEndDate,
-                onChanged: onSelectDateRange,
-                now: () => provider.currentDate,
-              ),
-              const SizedBox(height: AppLayoutTokens.formInlineGap),
-              if (managedScope)
-                AppCombobox<String>.single(
-                  label: 'Showroom',
-                  value: provider.ordersStoreCode,
-                  emptyLabel: 'Tất cả',
-                  icon: PhosphorIconsRegular.storefront,
-                  options: provider.orderStoreOptions
-                      .map(
-                        (option) => AppComboboxOption<String>(
-                          value: option.value,
-                          label: option.label,
-                          searchKeywords: [option.value, option.label],
-                        ),
-                      )
-                      .toList(growable: false),
-                  onChanged: (value) => unawaited(
-                    provider.setOrderFilters(
-                      storeCode: value,
-                      updateStore: true,
-                    ),
-                  ),
-                )
-              else
-                const _ReadonlyFilterField(
-                  label: 'Showroom',
-                  value: 'Showroom của tôi',
                 ),
-              if (managedScope) ...[
-                const SizedBox(height: AppLayoutTokens.formInlineGap),
-                AppCombobox<String>.single(
-                  label: 'Nhân viên',
-                  value: provider.ordersUserEmail,
-                  emptyLabel: 'Tất cả',
-                  icon: PhosphorIconsRegular.user,
-                  options: provider.orderUserOptions
-                      .map(
-                        (option) => AppComboboxOption<String>(
-                          value: option.value,
-                          label: option.label,
-                          searchKeywords: [option.value, option.label],
-                        ),
-                      )
-                      .toList(growable: false),
-                  onChanged: (value) => unawaited(
-                    provider.setOrderFilters(
-                      userEmail: value,
-                      updateUser: true,
-                    ),
-                  ),
+                Icon(
+                  PhosphorIconsRegular.caretDown,
+                  size: 24,
+                  color: AppColors.textSecondaryOf(context),
                 ),
               ],
-              const SizedBox(height: AppLayoutTokens.sectionGap),
-              AppPrimaryButton(
-                onPressed: () => Navigator.of(context).pop(true),
-                icon: PhosphorIconsRegular.check,
-                label: 'Áp dụng',
-              ),
-            ],
+            ),
           ),
         ),
       ),

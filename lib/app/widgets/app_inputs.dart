@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../theme/app_colors.dart';
+import '../theme/app_radius.dart';
 import '../theme/app_text_styles.dart';
 import 'app_dialogs.dart';
 import 'app_layout.dart';
@@ -39,7 +41,14 @@ InputDecoration appInputDecoration({
   bool visuallyHideLabel = false,
   Widget? suffixIcon,
   double? fixedHeight,
+  Color? borderColor,
 }) {
+  final scopedBorder = borderColor == null
+      ? null
+      : OutlineInputBorder(
+          borderRadius: AppRadius.allMd,
+          borderSide: BorderSide(color: borderColor),
+        );
   return InputDecoration(
     labelText: label,
     labelStyle: visuallyHideLabel
@@ -70,6 +79,9 @@ InputDecoration appInputDecoration({
     constraints: fixedHeight == null
         ? const BoxConstraints(minHeight: AppInputMetrics.height)
         : BoxConstraints.tightFor(height: fixedHeight),
+    border: scopedBorder,
+    enabledBorder: scopedBorder,
+    disabledBorder: scopedBorder,
   );
 }
 
@@ -100,6 +112,7 @@ class AppTextInput extends StatelessWidget {
   final Widget? suffixIcon;
   final bool showLabel;
   final double? fixedHeight;
+  final Color? borderColor;
 
   const AppTextInput({
     super.key,
@@ -129,6 +142,7 @@ class AppTextInput extends StatelessWidget {
     this.suffixIcon,
     this.showLabel = true,
     this.fixedHeight,
+    this.borderColor,
   });
 
   @override
@@ -165,6 +179,7 @@ class AppTextInput extends StatelessWidget {
         dense: dense,
         suffixIcon: suffixIcon,
         fixedHeight: fixedHeight,
+        borderColor: borderColor,
       ),
     );
     return SelectionContainer.disabled(
@@ -180,34 +195,48 @@ class AppCommandTextInput extends StatelessWidget {
   final FocusNode? focusNode;
   final bool enabled;
   final String hintText;
+  final String? semanticLabel;
   final TextCapitalization textCapitalization;
   final TextInputAction? textInputAction;
+  final ValueChanged<String>? onChanged;
   final ValueChanged<String>? onSubmitted;
+  final Widget? suffixIcon;
 
   const AppCommandTextInput({
     super.key,
     required this.controller,
     required this.hintText,
+    this.semanticLabel,
     this.focusNode,
     this.enabled = true,
     this.textCapitalization = TextCapitalization.none,
     this.textInputAction,
+    this.onChanged,
     this.onSubmitted,
+    this.suffixIcon,
   });
 
   @override
   Widget build(BuildContext context) {
-    return AppTextInput(
+    final field = AppTextInput(
       controller: controller,
       label: '',
       focusNode: focusNode,
       enabled: enabled,
       textCapitalization: textCapitalization,
       textInputAction: textInputAction,
+      onChanged: onChanged,
       onSubmitted: onSubmitted,
       hintText: hintText,
       showLabel: false,
       fixedHeight: AppInputMetrics.height,
+      suffixIcon: suffixIcon,
+      borderColor: AppColors.commandInputBorderOf(context),
+    );
+    final accessibleLabel = semanticLabel?.trim();
+    if (accessibleLabel == null || accessibleLabel.isEmpty) return field;
+    return MergeSemantics(
+      child: Semantics(label: accessibleLabel, child: field),
     );
   }
 }

@@ -15,7 +15,7 @@ import '../../../../app/theme/app_radius.dart';
 import '../../../../app/theme/app_text_styles.dart';
 import '../../../../app/widgets/app_cards.dart';
 import '../../../../app/widgets/app_chips.dart';
-import '../../../../app/widgets/app_inputs.dart';
+import '../../../../app/widgets/app_command_bar.dart';
 import '../../../../app/widgets/app_layout.dart';
 import '../../../../app/widgets/app_state_widgets.dart';
 import '../../domain/entities/fifo_check_result.dart';
@@ -180,15 +180,12 @@ class _FifoCheckScreenState extends State<FifoCheckScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final wideLayout =
-        MediaQuery.sizeOf(context).width >= AppLayoutTokens.tabletBreakpoint;
+    final viewportWidth = MediaQuery.sizeOf(context).width;
     return Consumer<FifoProvider>(
       builder: (context, provider, _) {
         return AppResponsiveContent(
-          maxWidth: AppLayoutTokens.pageMaxWidth,
-          padding: wideLayout
-              ? const EdgeInsets.fromLTRB(32, 16, 32, 16)
-              : const EdgeInsets.all(16),
+          maxWidth: AppLayoutTokens.commandWorkspaceMaxWidth,
+          padding: AppLayoutTokens.pagePaddingFor(viewportWidth),
           onRefresh: _refreshScreen,
           refreshLogSource: 'FIFO',
           refreshLogContext: () => {
@@ -200,7 +197,7 @@ class _FifoCheckScreenState extends State<FifoCheckScreen> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               SizedBox(
-                height: 200,
+                height: _recentSearches.isEmpty ? 172 : 204,
                 child: _FifoCommandCard(
                   controller: _controller,
                   focusNode: _focusNode,
@@ -229,74 +226,6 @@ class _FifoCheckScreenState extends State<FifoCheckScreen> {
           ),
         );
       },
-    );
-  }
-}
-
-/// FIFO-specific surface geometry from the approved command/result frames.
-/// Shared [AppSurfaceCard] intentionally keeps its legacy radius for other
-/// consumers; this migrated surface uses the exact 14 px frame radius.
-class _FifoFrame extends StatelessWidget {
-  final Widget child;
-  final Color backgroundColor;
-
-  const _FifoFrame({
-    super.key,
-    required this.child,
-    required this.backgroundColor,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final radius = BorderRadius.circular(14);
-    return Container(
-      decoration: BoxDecoration(
-        color: backgroundColor,
-        border: Border.all(color: AppColors.subtleBorderOf(context)),
-        borderRadius: radius,
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Material(type: MaterialType.transparency, child: child),
-    );
-  }
-}
-
-class _FifoIconAction extends StatelessWidget {
-  final VoidCallback? onPressed;
-  final IconData icon;
-  final String tooltip;
-  final bool filled;
-
-  const _FifoIconAction({
-    required this.onPressed,
-    required this.icon,
-    required this.tooltip,
-    this.filled = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox.square(
-      dimension: 48,
-      child: IconButton(
-        onPressed: onPressed,
-        icon: Icon(icon, size: filled ? 20 : 24),
-        tooltip: tooltip,
-        color: filled
-            ? AppColors.primaryForegroundOf(context)
-            : AppColors.secondaryOf(context),
-        style: IconButton.styleFrom(
-          backgroundColor: filled
-              ? AppColors.primaryOf(context)
-              : AppColors.secondaryOf(context).withValues(alpha: 0.10),
-          disabledBackgroundColor: AppColors.borderOf(context),
-          disabledForegroundColor: AppColors.textMutedOf(context),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-          padding: EdgeInsets.zero,
-        ),
-      ),
     );
   }
 }
@@ -380,121 +309,48 @@ class _FifoCommandCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return _FifoFrame(
-      key: const Key('fifo-check-command-card'),
-      backgroundColor: AppColors.canvasOf(context),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final inputRight =
-              16 +
-              48 +
-              AppLayoutTokens.formInlineGap +
-              48 +
-              AppLayoutTokens.formInlineGap;
-          final includeExportedToggle = _FifoSwitchRow(
-            value: includeExported,
+    final recentSearchBar = showRecentSearches && recentSearches.isNotEmpty
+        ? _RecentSearchChips(
+            searches: recentSearches,
             enabled: !isLoading,
-            onChanged: onIncludeExportedChanged,
-          );
-          final actions = Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _FifoIconAction(
-                onPressed: isLoading ? null : onScan,
-                icon: PhosphorIconsRegular.qrCode,
-                tooltip: 'Quét mã',
-              ),
-              const SizedBox(width: AppLayoutTokens.formInlineGap),
-              _FifoIconAction(
-                onPressed: isLoading ? null : onSearch,
-                icon: PhosphorIconsRegular.magnifyingGlass,
-                tooltip: 'Tìm FIFO',
-                filled: true,
-              ),
-            ],
-          );
-          final recentSearchBar =
-              showRecentSearches && recentSearches.isNotEmpty
-              ? _RecentSearchChips(
-                  searches: recentSearches,
-                  enabled: !isLoading,
-                  onSelected: onRecentSearchSelected,
-                )
-              : const SizedBox.shrink();
-
-          return Stack(
-            clipBehavior: Clip.none,
-            children: [
-              Positioned(
-                left: -1,
-                right: -1,
-                top: -1,
-                height: 108,
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: AppColors.cardOf(context),
-                    border: Border.all(
-                      color: AppColors.subtleBorderOf(context),
-                    ),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Stack(
-                    children: [
-                      Positioned(
-                        top: 16,
-                        left: 16,
-                        right: inputRight,
-                        height: 20,
-                        child: Text(
-                          'SKU hoặc serial',
-                          style: AppTextStyles.labelM.copyWith(
-                            color: AppColors.textPrimaryOf(context),
-                          ),
-                        ),
-                      ),
-                      Positioned(
-                        top: 44,
-                        left: 16,
-                        right: inputRight,
-                        height: 48,
-                        child: AppCommandTextInput(
-                          controller: controller,
-                          focusNode: focusNode,
-                          enabled: !isLoading,
-                          hintText: 'SKU-12345',
-                          textCapitalization: TextCapitalization.characters,
-                          textInputAction: TextInputAction.search,
-                          onSubmitted: (_) => onSearch(),
-                        ),
-                      ),
-                      Positioned(
-                        top: 44,
-                        right: 16,
-                        height: 48,
-                        child: actions,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              if (showRecentSearches && recentSearches.isNotEmpty)
-                Positioned(
-                  top: 115,
-                  left: 15,
-                  right: 15,
-                  height: 24,
-                  child: recentSearchBar,
-                ),
-              Positioned(
-                top: 147,
-                left: 15,
-                right: 15,
-                height: 52,
-                child: includeExportedToggle,
-              ),
-            ],
-          );
-        },
+            onSelected: onRecentSearchSelected,
+          )
+        : null;
+    return Material(
+      key: const Key('fifo-check-command-card'),
+      type: MaterialType.transparency,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          AppCommandBar(
+            key: const Key('fifo-check-command-bar'),
+            controller: controller,
+            focusNode: focusNode,
+            isLoading: isLoading,
+            label: 'SKU hoặc serial',
+            hintText: 'SKU-12345',
+            textCapitalization: TextCapitalization.characters,
+            onSubmitted: (_) => onSearch(),
+            onScan: onScan,
+            onPrimaryAction: onSearch,
+            scanTooltip: 'Quét mã',
+            primaryActionTooltip: 'Tìm FIFO',
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            key: const Key('fifo-check-exported-toggle'),
+            height: 48,
+            child: _FifoSwitchRow(
+              value: includeExported,
+              enabled: !isLoading,
+              onChanged: onIncludeExportedChanged,
+            ),
+          ),
+          if (recentSearchBar != null) ...[
+            const SizedBox(height: 8),
+            SizedBox(height: 24, child: recentSearchBar),
+          ],
+        ],
       ),
     );
   }
@@ -575,9 +431,12 @@ class _FifoResultPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (provider.isLoading) {
-      return _FifoFrame(
-        key: Key('fifo-check-results'),
+      return AppSurfaceCard(
+        key: const Key('fifo-check-results'),
         backgroundColor: AppColors.cardOf(context),
+        borderColor: AppColors.subtleBorderOf(context),
+        radius: 14,
+        padding: const EdgeInsets.symmetric(horizontal: 1),
         child: AppStatePanel.loading(
           title: 'Đang kiểm tra FIFO',
           message: 'OpsHub đang đối chiếu thứ tự FIFO theo SKU/serial.',
@@ -585,9 +444,12 @@ class _FifoResultPanel extends StatelessWidget {
       );
     }
 
-    return _FifoFrame(
+    return AppSurfaceCard(
       key: const Key('fifo-check-results'),
       backgroundColor: AppColors.cardOf(context),
+      borderColor: AppColors.subtleBorderOf(context),
+      radius: 14,
+      padding: const EdgeInsets.symmetric(horizontal: 1),
       child: _ResultBody(
         result: provider.result,
         exportingIds: provider.exportingIds,

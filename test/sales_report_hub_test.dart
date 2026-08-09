@@ -91,9 +91,9 @@ void main() {
     expect(repository.fetchOrdersCount, 1);
     expect(
       find.byKey(const Key('sales-report-workspace-header')),
-      findsOneWidget,
+      findsNothing,
     );
-    expect(find.text('Báo cáo bán hàng'), findsOneWidget);
+    expect(find.text('Báo cáo bán hàng'), findsNothing);
     expect(find.text('Mua thủ công'), findsOneWidget);
     expect(find.text('Chưa mua'), findsOneWidget);
     expect(
@@ -144,7 +144,7 @@ void main() {
     expect(router.routeInformationProvider.value.uri.path, '/');
   });
 
-  testWidgets('Báo cáo mobile uses compact hero, tabs and filter sheet', (
+  testWidgets('Báo cáo mobile stacks the approved direct controls', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(375, 812);
@@ -194,13 +194,39 @@ void main() {
       AppPrimaryButton,
       'Chưa mua',
     );
-    expect(tester.getSize(purchasedAction), const Size(151.5, 48));
-    expect(tester.getSize(notPurchasedAction), const Size(151.5, 48));
-    expect(
-      tester.getTopLeft(notPurchasedAction).dx -
-          tester.getTopRight(purchasedAction).dx,
-      8,
-    );
+    final controls = find.byKey(const Key('sales-report-controls'));
+    final dateFilter = find.byKey(const Key('sales-report-orders-date-range'));
+    final storeFilter = find.byKey(const Key('sales-report-orders-store'));
+    final userFilter = find.byKey(const Key('sales-report-orders-user'));
+    final reloadAction = find.byKey(const Key('sales-report-reload-action'));
+    for (final control in [
+      dateFilter,
+      storeFilter,
+      userFilter,
+      purchasedAction,
+      notPurchasedAction,
+      reloadAction,
+    ]) {
+      expect(tester.getSize(control), const Size(311, 48));
+    }
+    expect(tester.getSize(controls), const Size(343, 380));
+    expect(tester.getRect(dateFilter).left - tester.getRect(controls).left, 16);
+    expect(tester.getRect(dateFilter).top - tester.getRect(controls).top, 16);
+    final compactLane = [
+      dateFilter,
+      storeFilter,
+      userFilter,
+      purchasedAction,
+      notPurchasedAction,
+      reloadAction,
+    ];
+    for (var index = 1; index < compactLane.length; index += 1) {
+      expect(
+        tester.getRect(compactLane[index]).top -
+            tester.getRect(compactLane[index - 1]).bottom,
+        12,
+      );
+    }
     expect(
       tester.widget<AppPrimaryButton>(purchasedAction).padding,
       const EdgeInsets.symmetric(horizontal: 12),
@@ -210,8 +236,8 @@ void main() {
       const EdgeInsets.symmetric(horizontal: 12),
     );
     expect(
-      tester.getTopLeft(find.text('Mua thủ công')).dy,
-      tester.getTopLeft(find.text('Chưa mua')).dy,
+      tester.getTopLeft(notPurchasedAction).dy,
+      greaterThan(tester.getBottomLeft(purchasedAction).dy),
     );
     expect(find.text('Chưa báo cáo • 21'), findsOneWidget);
     expect(find.text('Đã báo cáo • 1'), findsOneWidget);
@@ -230,11 +256,11 @@ void main() {
     for (final width in const [360.0, 320.0]) {
       tester.view.physicalSize = Size(width, 812);
       await tester.pumpAndSettle();
-      final row = find.byKey(const Key('sales-report-manual-actions'));
-      expect(tester.getSize(row).width, width - 64);
+      expect(tester.getSize(purchasedAction).width, width - 64);
+      expect(tester.getSize(notPurchasedAction).width, width - 64);
       final firstRect = tester.getRect(purchasedAction);
       final secondRect = tester.getRect(notPurchasedAction);
-      expect(secondRect.left - firstRect.right, 8);
+      expect(secondRect.top - firstRect.bottom, 12);
       expect(secondRect.right, lessThanOrEqualTo(width - 16));
       expect(tester.takeException(), isNull);
     }
@@ -312,17 +338,14 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Ngày'), findsOneWidget);
-    expect(find.text('01/07/2026'), findsOneWidget);
+    expect(find.text('Ngày: 01/07/2026'), findsOneWidget);
     expect(
       find.text(
         'Không chọn khoảng ngày: hệ thống mặc định lấy 30 ngày gần nhất.',
       ),
       findsNothing,
     );
-    expect(find.text('Showroom'), findsNWidgets(2));
     expect(find.text('Tất cả showroom'), findsOneWidget);
-    expect(find.text('Nhân viên'), findsNWidgets(2));
     expect(find.text('Tất cả nhân viên'), findsOneWidget);
     final showroomFilter = tester.widget<AppCombobox<String>>(
       find.byType(AppCombobox<String>).first,
@@ -348,13 +371,13 @@ void main() {
     );
     final reloadButton = find.widgetWithText(AppSecondaryButton, 'Tải lại');
     expect(
-      tester.getTopLeft(searchFields.first).dy,
       tester.getTopLeft(reloadButton).dy,
+      greaterThan(tester.getBottomLeft(searchFields.first).dy),
     );
     expect(repository.lastOrdersQuery?.startDate, DateTime(2026, 7, 1));
     expect(repository.lastOrdersQuery?.endDate, DateTime(2026, 7, 1));
 
-    await tester.tap(find.text('01/07/2026'));
+    await tester.tap(find.byKey(const Key('open-date-range-picker')));
     await tester.pumpAndSettle();
     await tester.tap(find.text('7 ngày gần nhất'));
     await tester.tap(find.byKey(const Key('date-range-apply')));
@@ -383,79 +406,89 @@ void main() {
     expect(repository.lastOrdersQuery?.userEmail, 'sale.cp01@phongvu.vn');
   });
 
-  testWidgets('managed filter follows approved compact trigger states', (
-    tester,
-  ) async {
-    tester.view.physicalSize = const Size(390, 844);
-    tester.view.devicePixelRatio = 1;
-    addTearDown(() {
-      tester.view.resetPhysicalSize();
-      tester.view.resetDevicePixelRatio();
-    });
-    final authProvider = _FakeAuthProvider(
-      const User(
-        id: 'manager-1',
-        email: 'manager@phongvu.vn',
-        role: 'USER',
-        organizationNodeId: 'org-store-cp01',
-        featureAccess: {'SALES_REPORT': true, 'ADMIN_SALES_REPORTS': true},
-      ),
-    );
-    final repository = _FakeSalesReportRepository(managedScope: true);
+  testWidgets(
+    'managed compact filters stay direct and preserve provider state',
+    (tester) async {
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+      final authProvider = _FakeAuthProvider(
+        const User(
+          id: 'manager-1',
+          email: 'manager@phongvu.vn',
+          role: 'USER',
+          organizationNodeId: 'org-store-cp01',
+          featureAccess: {'SALES_REPORT': true, 'ADMIN_SALES_REPORTS': true},
+        ),
+      );
+      final repository = _FakeSalesReportRepository(managedScope: true);
 
-    await tester.pumpWidget(
-      MultiProvider(
-        providers: [
-          ChangeNotifierProvider<AuthProvider>.value(value: authProvider),
-          ChangeNotifierProvider<SalesReportProvider>(
-            create: (_) => SalesReportProvider(repository),
-          ),
-        ],
-        child: const MaterialApp(home: Scaffold(body: SalesReportScreen())),
-      ),
-    );
-    await tester.pumpAndSettle();
-
-    final trigger = find.byKey(const Key('sales-report-managed-filter'));
-    expect(trigger, findsOneWidget);
-    expect(find.text('Lọc'), findsOneWidget);
-    expect(find.byIcon(PhosphorIconsRegular.slidersHorizontal), findsNothing);
-    final reload = find.widgetWithText(AppSecondaryButton, 'Tải lại');
-    final filterReloadRow = find.byKey(
-      const Key('sales-report-filter-reload-row'),
-    );
-    expect(tester.getSize(filterReloadRow), const Size(326, 48));
-    expect(tester.getSize(trigger), const Size(159, 48));
-    expect(tester.getSize(reload), const Size(159, 48));
-    expect(
-      tester
-          .widget<AppSecondaryButton>(
-            find.descendant(
-              of: trigger,
-              matching: find.byType(AppSecondaryButton),
+      await tester.pumpWidget(
+        MultiProvider(
+          providers: [
+            ChangeNotifierProvider<AuthProvider>.value(value: authProvider),
+            ChangeNotifierProvider<SalesReportProvider>(
+              create: (_) => SalesReportProvider(repository),
             ),
-          )
-          .radius,
-      10,
-    );
-    expect(tester.widget<AppSecondaryButton>(reload).radius, 10);
-    expect(tester.getTopLeft(trigger).dy, tester.getTopLeft(reload).dy);
-    expect(
-      tester.getTopLeft(trigger).dx,
-      lessThan(tester.getTopLeft(reload).dx),
-    );
+          ],
+          child: const MaterialApp(home: Scaffold(body: SalesReportScreen())),
+        ),
+      );
+      await tester.pumpAndSettle();
 
-    await tester.tap(trigger);
-    await tester.pumpAndSettle();
-    expect(find.text('Bộ lọc nâng cao'), findsOneWidget);
-    await tester.tap(find.byType(AppCombobox<String>).first);
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('CP01 - Phong Vu CP01'));
-    await tester.pumpAndSettle();
+      expect(
+        find.byKey(const Key('sales-report-managed-filter')),
+        findsNothing,
+      );
+      expect(find.textContaining('Bộ lọc nâng cao'), findsNothing);
+      expect(find.textContaining(RegExp(r'^Lọc(?: \(\d+\))?$')), findsNothing);
+      final controls = find.byKey(const Key('sales-report-controls'));
+      final dateFilter = find.byKey(
+        const Key('sales-report-orders-date-range'),
+      );
+      final storeFilter = find.byKey(const Key('sales-report-orders-store'));
+      final userFilter = find.byKey(const Key('sales-report-orders-user'));
+      final purchased = find.byKey(const Key('sales-report-purchased-action'));
+      final notPurchased = find.byKey(
+        const Key('sales-report-not-purchased-action'),
+      );
+      final reload = find.byKey(const Key('sales-report-reload-action'));
+      final compactLane = [
+        dateFilter,
+        storeFilter,
+        userFilter,
+        purchased,
+        notPurchased,
+        reload,
+      ];
+      expect(tester.getSize(controls), const Size(358, 380));
+      for (final control in compactLane) {
+        expect(tester.getSize(control), const Size(326, 48));
+      }
+      for (var index = 1; index < compactLane.length; index += 1) {
+        expect(
+          tester.getRect(compactLane[index]).top -
+              tester.getRect(compactLane[index - 1]).bottom,
+          12,
+        );
+      }
 
-    expect(find.text('Lọc (1)'), findsOneWidget);
-    expect(tester.getSize(trigger), const Size(159, 48));
-  });
+      await tester.tap(storeFilter);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('CP01 - Phong Vu CP01'));
+      await tester.pumpAndSettle();
+      expect(repository.lastOrdersQuery?.storeCode, 'CP01');
+
+      await tester.tap(userFilter);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Sale CP01 - sale.cp01@phongvu.vn'));
+      await tester.pumpAndSettle();
+      expect(repository.lastOrdersQuery?.userEmail, 'sale.cp01@phongvu.vn');
+    },
+  );
 
   testWidgets(
     'desktop command bar uses available content width instead of window width',
@@ -500,11 +533,11 @@ void main() {
 
       expect(
         tester.getSize(find.byKey(const Key('sales-report-controls'))).height,
-        228,
+        140,
       );
       expect(
         find.byKey(const Key('sales-report-managed-filter')),
-        findsOneWidget,
+        findsNothing,
       );
       expect(tester.takeException(), isNull);
     },
@@ -515,8 +548,8 @@ void main() {
   ) async {
     final viewports = const [
       Size(1440, 900),
-      Size(1024, 768),
-      Size(834, 1112),
+      Size(920, 900),
+      Size(768, 900),
       Size(375, 812),
     ];
     addTearDown(() {
@@ -524,69 +557,123 @@ void main() {
       tester.view.resetDevicePixelRatio();
     });
 
-    for (final viewport in viewports) {
-      tester.view.physicalSize = viewport;
-      tester.view.devicePixelRatio = 1;
-      final authProvider = _FakeAuthProvider(
-        const User(
-          id: 'geometry-user',
-          email: 'sale@phongvu.vn',
-          role: 'USER',
-          organizationNodeId: 'org-store-cp01',
-          featureAccess: {'SALES_REPORT': true},
-        ),
-      );
-      await tester.pumpWidget(
-        MultiProvider(
-          providers: [
-            ChangeNotifierProvider<AuthProvider>.value(value: authProvider),
-            ChangeNotifierProvider<SalesReportProvider>(
-              create: (_) => SalesReportProvider(_FakeSalesReportRepository()),
+    for (final themeMode in [ThemeMode.light, ThemeMode.dark]) {
+      for (final viewport in viewports) {
+        tester.view.physicalSize = viewport;
+        tester.view.devicePixelRatio = 1;
+        final authProvider = _FakeAuthProvider(
+          const User(
+            id: 'geometry-user',
+            email: 'sale@phongvu.vn',
+            role: 'USER',
+            organizationNodeId: 'org-store-cp01',
+            featureAccess: {'SALES_REPORT': true},
+          ),
+        );
+        await tester.pumpWidget(
+          MultiProvider(
+            providers: [
+              ChangeNotifierProvider<AuthProvider>.value(value: authProvider),
+              ChangeNotifierProvider<SalesReportProvider>(
+                create: (_) =>
+                    SalesReportProvider(_FakeSalesReportRepository()),
+              ),
+            ],
+            child: MaterialApp(
+              theme: AppTheme.lightTheme,
+              darkTheme: AppTheme.darkTheme,
+              themeMode: themeMode,
+              home: const Scaffold(body: SalesReportScreen()),
             ),
-          ],
-          child: const MaterialApp(home: Scaffold(body: SalesReportScreen())),
-        ),
-      );
-      await tester.pumpAndSettle();
+          ),
+        );
+        await tester.pumpAndSettle();
 
-      final controls = tester.getSize(
-        find.byKey(const Key('sales-report-controls')),
-      );
-      final compact = viewport.width < 600;
-      final horizontalPadding = viewport.width >= 1200
-          ? 64
-          : compact
-          ? 32
-          : 48;
-      final expectedWidth =
-          (viewport.width >= 1200 ? 1190 : viewport.width) - horizontalPadding;
-      expect(controls.width, expectedWidth);
-      expect(controls.height, viewport.width >= 1200 ? 132 : 228);
-      expect(
-        find.byKey(const Key('sales-report-workspace-header')),
-        viewport.width >= 1200 ? findsOneWidget : findsNothing,
-      );
-      expect(tester.takeException(), isNull);
+        final controls = tester.getSize(
+          find.byKey(const Key('sales-report-controls')),
+        );
+        final compact = viewport.width < 600;
+        final horizontalPadding = viewport.width >= 1200
+            ? 64
+            : compact
+            ? 32
+            : 48;
+        final expectedWidth =
+            (viewport.width >= 1200 ? 1190 : viewport.width) -
+            horizontalPadding;
+        expect(controls.width, expectedWidth);
+        expect(controls.height, compact ? 380 : 140);
+        expect(
+          find.byKey(const Key('sales-report-workspace-header')),
+          findsNothing,
+        );
+        final purchased = tester.getRect(
+          find.widgetWithText(AppPrimaryButton, 'Mua thủ công'),
+        );
+        final notPurchased = tester.getRect(
+          find.widgetWithText(AppPrimaryButton, 'Chưa mua'),
+        );
+        final reload = tester.getRect(
+          find.widgetWithText(AppSecondaryButton, 'Tải lại'),
+        );
+        final dateFilter = tester.getRect(
+          find.byKey(const Key('sales-report-orders-date-range')),
+        );
+        final storeFilter = tester.getRect(
+          find.byKey(const Key('sales-report-orders-store')),
+        );
+        final userFilter = tester.getRect(
+          find.byKey(const Key('sales-report-orders-user')),
+        );
+        expect(dateFilter.height, 48);
+        expect(storeFilter.height, 48);
+        expect(userFilter.height, 48);
+        expect(purchased.height, 48);
+        expect(notPurchased.height, 48);
+        expect(reload.height, 48);
+        if (compact) {
+          expect(dateFilter.width, controls.width - 32);
+          expect(storeFilter.width, controls.width - 32);
+          expect(userFilter.width, controls.width - 32);
+          expect(storeFilter.top - dateFilter.bottom, 12);
+          expect(userFilter.top - storeFilter.bottom, 12);
+          expect(purchased.width, controls.width - 32);
+          expect(notPurchased.width, controls.width - 32);
+          expect(reload.width, controls.width - 32);
+          expect(notPurchased.top - purchased.bottom, 12);
+          expect(reload.top, greaterThan(purchased.bottom));
+        } else {
+          expect(storeFilter.left - dateFilter.right, closeTo(12, 0.001));
+          expect(userFilter.left - storeFilter.right, closeTo(12, 0.001));
+          expect(storeFilter.top, dateFilter.top);
+          expect(userFilter.top, dateFilter.top);
+          expect(notPurchased.left - purchased.right, 12);
+          expect(reload.left - notPurchased.right, 12);
+          expect(reload.left, greaterThan(notPurchased.right));
+          expect(reload.top, purchased.top);
+        }
+        expect(tester.takeException(), isNull);
 
-      final unreported = find.byKey(
-        const Key('sales-report-unreported-column'),
-      );
-      expect(unreported, findsOneWidget);
-      expect(
-        tester.getSize(unreported).height,
-        viewport.width >= 1200 ? 514 : 360,
-      );
-      if (viewport.width < 900) {
-        await tester.scrollUntilVisible(
-          find.text('Đã báo cáo • 1'),
-          300,
-          scrollable: find.byType(Scrollable).first,
+        final unreported = find.byKey(
+          const Key('sales-report-unreported-column'),
+        );
+        expect(unreported, findsOneWidget);
+        expect(
+          tester.getSize(unreported).height,
+          viewport.width >= 1200 ? 514 : 360,
+        );
+        if (viewport.width < 900) {
+          await tester.scrollUntilVisible(
+            find.text('Đã báo cáo • 1'),
+            300,
+            scrollable: find.byType(Scrollable).first,
+          );
+        }
+        expect(
+          find.byKey(const Key('sales-report-reported-column')),
+          findsOneWidget,
         );
       }
-      expect(
-        find.byKey(const Key('sales-report-reported-column')),
-        findsOneWidget,
-      );
     }
   });
 

@@ -84,6 +84,13 @@ class AppColors {
   static const Color customerQrBackground = surface;
   static const Color customerQrForeground = shadow;
 
+  // ── Operational command composition ─────────────────────────────
+  // Component 216:633 keeps these semantics local to command bars so the
+  // broader form/button themes do not change for unrelated consumers.
+  static const Color commandInputBorder = Color(0xFF667085);
+  static const Color commandQrSurface = secondarySurface;
+  static const Color commandQrForeground = secondary;
+
   // ── Navigation ──────────────────────────────────────────────────
   static const Color sidebarSurface = Color(0xFF101828);
   static const Color sidebarText = Color(0xFFFFFFFF);
@@ -141,6 +148,9 @@ class AppColors {
   static const Color darkChipBg = Color(0xFF2A2A2A);
   static const Color speakerOffSurface = Color(0xFFE5E9F0);
   static const Color darkSpeakerOffSurface = darkNeutral100;
+  static const Color darkCommandInputBorder = Color(0xFF64748B);
+  static const Color darkCommandQrSurface = darkSuccessSurface;
+  static const Color darkCommandQrForeground = darkSecondary;
 
   // Home proposal `2003:144157`/`2003:144254` semantic surfaces. These are
   // shared tokens so the migrated Home surface does not derive visual colors
@@ -238,6 +248,18 @@ class AppColors {
 
   static Color subtleBorderOf(BuildContext context) =>
       isDark(context) ? darkDivider : divider;
+
+  static Color commandBorderOf(BuildContext context) =>
+      isDark(context) ? darkBorder : divider;
+
+  static Color commandInputBorderOf(BuildContext context) =>
+      isDark(context) ? darkCommandInputBorder : commandInputBorder;
+
+  static Color commandQrSurfaceOf(BuildContext context) =>
+      isDark(context) ? darkCommandQrSurface : commandQrSurface;
+
+  static Color commandQrForegroundOf(BuildContext context) =>
+      isDark(context) ? darkCommandQrForeground : commandQrForeground;
 
   static Color primaryOf(BuildContext context) =>
       isDark(context) ? darkPrimary : primary;

@@ -31,6 +31,10 @@ class AppDateRangeDropdown extends StatelessWidget {
   /// 48px outlined control) instead of the legacy compact button.
   final bool fieldStyle;
 
+  /// Keeps [fieldStyle] geometry while placing the label inside the field.
+  /// This is used by compact filter rows that must remain exactly 48px high.
+  final bool fieldLabelInside;
+
   /// Renders the canonical picker as a 40px inline filter surface. The picker
   /// itself remains the shared [DateRangePicker]; only its trigger changes.
   final bool inlineSurfaceStyle;
@@ -49,6 +53,7 @@ class AppDateRangeDropdown extends StatelessWidget {
     this.lastDate,
     this.selectableDayPredicate,
     this.fieldStyle = false,
+    this.fieldLabelInside = false,
     this.inlineSurfaceStyle = false,
   });
 
@@ -121,7 +126,9 @@ class AppDateRangeDropdown extends StatelessWidget {
                     children: [
                       Expanded(
                         child: Text(
-                          _rangeLabel(start, end),
+                          fieldLabelInside
+                              ? '$label: ${_rangeLabel(start, end)}'
+                              : _rangeLabel(start, end),
                           overflow: TextOverflow.ellipsis,
                           style: AppTextStyles.bodyM.copyWith(
                             color: AppColors.textMutedOf(context),
@@ -155,7 +162,7 @@ class AppDateRangeDropdown extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (fieldStyle) ...[
+        if (fieldStyle && !fieldLabelInside) ...[
           Text(label, style: AppTextStyles.labelM),
           const SizedBox(height: 8),
         ],
