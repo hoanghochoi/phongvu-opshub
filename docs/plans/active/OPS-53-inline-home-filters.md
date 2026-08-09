@@ -1,5 +1,21 @@
 # OPS-53 — Inline Home filters, intrinsic overview, scrolling header
 
+## Corrective Home node-map delta — 2026-08-09
+
+- Remove the standalone `Bán hàng` heading and its helper copy from Home; both
+  are absent from approved nodes `2203:2/99`, `2204:2/85`, `2205:2/91`, and
+  `2204:151839/152140`.
+- All four Overview cards size from visible content. Expanded/wide rows share
+  the taller intrinsic height; compact/medium stack. No fixed trailing filler.
+- `Tổng quan Cửa hàng` keeps three period columns at expanded/wide and stacked
+  periods at compact. Label, amount, progress, target, and missing-target copy
+  flow without overlap for long Vietnamese data.
+- Flutter mapping stays `_ApprovedReportProgressPanel` plus existing semantic
+  surface/progress/text tokens. Preserve provider/API/permission behavior.
+- Chrome matrix: `375×812`, `834×1112`, `1024×768`, `1440×900`, Light/Dark.
+  Geometry proof covers copy absence, intrinsic heights, store no-overlap,
+  long missing-target copy, and horizontal overflow.
+
 ## Checkpoint
 
 - Branch: `codex/ops-53-inline-home-filters`
