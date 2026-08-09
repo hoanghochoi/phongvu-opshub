@@ -2844,6 +2844,7 @@ class _ApprovedReportProgressPanel extends StatelessWidget {
                 keyPrefix: 'sales',
                 surfaceColor: AppColors.homeOverviewPersonalSurfaceOf(context),
                 borderColor: AppColors.homeOverviewPersonalBorderOf(context),
+                compactLayout: boardWidth < 600,
                 assignees: summary.salesProgressAssignees,
                 selectedAssigneeId: summary.selectedSalesProgressUserId,
                 showAssignee: summary.salesProgressAssignees.isNotEmpty,
@@ -2863,6 +2864,7 @@ class _ApprovedReportProgressPanel extends StatelessWidget {
                 keyPrefix: 'scope',
                 surfaceColor: AppColors.homeOverviewScopeSurfaceOf(context),
                 borderColor: AppColors.homeOverviewScopeBorderOf(context),
+                compactLayout: boardWidth < 600,
                 missingStoreCodes: summary.scopeSalesProgress.missingStoreCodes,
               ),
             ),
@@ -3043,6 +3045,7 @@ class _OverviewGoalCard extends StatelessWidget {
     required this.keyPrefix,
     required this.surfaceColor,
     required this.borderColor,
+    required this.compactLayout,
     this.assignees = const [],
     this.selectedAssigneeId,
     this.showAssignee = false,
@@ -3057,6 +3060,7 @@ class _OverviewGoalCard extends StatelessWidget {
   final String keyPrefix;
   final Color surfaceColor;
   final Color borderColor;
+  final bool compactLayout;
   final List<HomeSalesProgressAssignee> assignees;
   final String? selectedAssigneeId;
   final bool showAssignee;
@@ -3069,8 +3073,7 @@ class _OverviewGoalCard extends StatelessWidget {
     final showEmpty = showAssignee && !hasSelected;
     return LayoutBuilder(
       builder: (context, constraints) {
-        final compact = constraints.maxWidth < 600;
-        final firstPeriodLabel = keyPrefix == 'scope' && !compact
+        final firstPeriodLabel = keyPrefix == 'scope' && !compactLayout
             ? 'Khoảng chọn'
             : 'Ngày';
         return Material(
@@ -3079,9 +3082,9 @@ class _OverviewGoalCard extends StatelessWidget {
           borderRadius: AppRadius.allCardFigma,
           child: Container(
             padding: EdgeInsets.fromLTRB(
-              compact ? 20 : 24,
+              compactLayout ? 20 : 24,
               15,
-              compact ? 20 : 24,
+              compactLayout ? 20 : 24,
               12,
             ),
             decoration: BoxDecoration(
@@ -3110,7 +3113,7 @@ class _OverviewGoalCard extends StatelessWidget {
                   const SizedBox(height: 92, child: _OverviewEmptySelection())
                 else ...[
                   if (showAssignee) const SizedBox(height: 8),
-                  if (compact && keyPrefix == 'scope')
+                  if (compactLayout && keyPrefix == 'scope')
                     Column(
                       children: [
                         _OverviewPeriod(
