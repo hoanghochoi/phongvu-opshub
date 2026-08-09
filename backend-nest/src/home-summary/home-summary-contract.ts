@@ -1,0 +1,1 @@
+export const HOME_SALES_KPI_CONTRACT_VERSION = 1;

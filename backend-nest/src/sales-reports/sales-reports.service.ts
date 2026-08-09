@@ -4701,13 +4701,6 @@ export class SalesReportsService implements OnApplicationBootstrap {
     let examScorePromotionCount = 0;
     let studentPromotionCount = 0;
     for (const row of rows) {
-      const promotionCodes = this.cleanPromotionCodes(row.promotionCodes);
-      if (promotionCodes.includes('EXAM_SCORE_EXCHANGE')) {
-        examScorePromotionCount += 1;
-      }
-      if (promotionCodes.includes('STUDENT')) {
-        studentPromotionCount += 1;
-      }
       const hasInstallmentNeed = row.installmentNeed === true;
       if (hasInstallmentNeed) {
         installmentNeedTotalCount += 1;
@@ -4723,6 +4716,13 @@ export class SalesReportsService implements OnApplicationBootstrap {
         }
       }
       if (row.reportType !== REPORT_TYPE_PURCHASED) continue;
+      const promotionCodes = this.cleanPromotionCodes(row.promotionCodes);
+      if (promotionCodes.includes('EXAM_SCORE_EXCHANGE')) {
+        examScorePromotionCount += 1;
+      }
+      if (promotionCodes.includes('STUDENT')) {
+        studentPromotionCount += 1;
+      }
       const key =
         normalizeRevenueOrderCode(row.orderCode) ??
         String(row.erpOrderId ?? row.id ?? '').trim();

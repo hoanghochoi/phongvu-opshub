@@ -3576,20 +3576,37 @@ describe('SalesReportsService', () => {
     expect(rows[1][13]).toBe('Khách từ chối: Lãi suất/Phí trả góp cao: 1');
   });
 
-  it('summarizes promotion counts for Home main KPIs', () => {
+  it('counts Home promotion KPIs from purchased reports while retaining installment needs from both report types', () => {
     const { service } = createHarness();
 
     const summary = service.summarizeSalesRevenueRows([
-      { ...exportReportFixture(), promotionCodes: ['EXAM_SCORE_EXCHANGE'] },
-      { ...exportReportFixture(), promotionCodes: ['STUDENT'] },
       {
         ...exportReportFixture(),
         promotionCodes: ['EXAM_SCORE_EXCHANGE', 'STUDENT'],
       },
+      {
+        ...exportReportFixture(),
+        id: 'report-not-purchased-promotion-installment',
+        reportType: 'NOT_PURCHASED',
+        orderCode: null,
+        erpGrandTotal: null,
+        promotionCodes: ['EXAM_SCORE_EXCHANGE', 'STUDENT'],
+        installmentNeed: true,
+        installmentNoInstallmentReason: 'HIGH_INTEREST_OR_FEE',
+      },
     ]);
 
-    expect(summary.examScorePromotionCount).toBe(2);
-    expect(summary.studentPromotionCount).toBe(2);
+    expect(summary.installmentNeedTotalCount).toBe(2);
+    expect(summary.noInstallmentReasons).toEqual(
+      new Map([['Khách từ chối: Lãi suất/Phí trả góp cao', 1]]),
+    );
+    expect({
+      examScorePromotionCount: summary.examScorePromotionCount,
+      studentPromotionCount: summary.studentPromotionCount,
+    }).toEqual({
+      examScorePromotionCount: 1,
+      studentPromotionCount: 1,
+    });
   });
 
   it('fails closed on missing or invalid cache revenue while preserving unique orders and item facts', () => {

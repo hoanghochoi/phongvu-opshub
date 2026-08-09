@@ -37,6 +37,7 @@ import {
   GetHomeSummaryDetailsV2QueryDto,
   GetHomeSummaryQueryDto,
 } from './home-summary.dto';
+import { HOME_SALES_KPI_CONTRACT_VERSION } from './home-summary-contract';
 
 const REPORT_TYPE_PURCHASED = 'PURCHASED';
 const REPORT_TYPE_NOT_PURCHASED = 'NOT_PURCHASED';
@@ -2063,6 +2064,7 @@ export class HomeSummaryService {
       );
       const metrics: Prisma.InputJsonObject = {
         salesPriceContractVersion: SALES_PRICE_CONTRACT_VERSION,
+        salesKpiContractVersion: HOME_SALES_KPI_CONTRACT_VERSION,
         totalRevenue: bucket.totalRevenue,
         completedRevenue: bucket.completedRevenue,
         businessCustomerRevenue: main.businessRevenue,

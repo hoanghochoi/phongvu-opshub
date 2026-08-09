@@ -39,7 +39,7 @@ describe('HomeSummaryProjectionService', () => {
     return { service, prisma, homeSummary, redis };
   }
 
-  it('re-enqueues pending-payment, raw completed-only, and stale sales-price-contract dates before the startup cycle', async () => {
+  it('re-enqueues pending-payment, raw completed-only, and stale sales-contract dates across every grain before the startup cycle', async () => {
     const { service, prisma } = createHarness();
     prisma.$queryRaw
       .mockResolvedValueOnce([
@@ -49,6 +49,9 @@ describe('HomeSummaryProjectionService', () => {
       ])
       .mockResolvedValueOnce([{ dateKey: '2026-07-18' }]);
     jest.spyOn(service as any, 'runCycle').mockResolvedValue(undefined);
+    const logSpy = jest
+      .spyOn((service as any).logger, 'log')
+      .mockImplementation(() => undefined);
 
     await (service as any).runStartupCycle();
 
@@ -86,7 +89,15 @@ describe('HomeSummaryProjectionService', () => {
     expect(prisma.$queryRaw.mock.calls[0][0].sql).toContain(
       'salesPriceContractVersion',
     );
+    expect(prisma.$queryRaw.mock.calls[0][0].sql).toContain(
+      'salesKpiContractVersion',
+    );
+    expect(prisma.$queryRaw.mock.calls[0][0].sql).toContain(
+      'aggregate_contract_state',
+    );
+    expect(prisma.$queryRaw.mock.calls[0][0].sql).toContain('BOOL_OR');
     expect(prisma.$queryRaw.mock.calls[0][0].values).toContain('2');
+    expect(prisma.$queryRaw.mock.calls[0][0].values).toContain('1');
     expect(prisma.$queryRaw.mock.calls[0][0].sql).toContain(
       "INTERVAL '7 hours'",
     );
@@ -110,6 +121,16 @@ describe('HomeSummaryProjectionService', () => {
     );
     expect(prisma.$executeRaw.mock.calls[3][0].sql).toContain(
       "'TRACKING_STATUS_BACKFILL', 'FINANCE'",
+    );
+    expect(logSpy).toHaveBeenCalledWith(
+      expect.stringContaining(
+        'Home projection startup reconciliation started: reason=sales_contract_versions salesPriceContractVersion=2 salesKpiContractVersion=1',
+      ),
+    );
+    expect(logSpy).toHaveBeenCalledWith(
+      expect.stringContaining(
+        'Home projection startup reconciliation succeeded: reason=sales_contract_versions salesPriceContractVersion=2 salesKpiContractVersion=1 dates=3 trackingDates=1',
+      ),
     );
     expect((service as any).runCycle).toHaveBeenCalledWith('startup');
   });
@@ -155,7 +176,7 @@ describe('HomeSummaryProjectionService', () => {
 
     expect((service as any).logger.error).toHaveBeenCalledWith(
       expect.stringContaining(
-        'Home projection startup reconciliation failed: reason=sales_price_contract version=2',
+        'Home projection startup reconciliation failed: reason=sales_contract_versions salesPriceContractVersion=2 salesKpiContractVersion=1',
       ),
     );
     expect((service as any).runCycle).toHaveBeenCalledWith('startup');

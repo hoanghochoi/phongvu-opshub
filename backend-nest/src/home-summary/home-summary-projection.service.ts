@@ -12,6 +12,7 @@ import { withPostgresDeadlockRetry } from '../common/postgres-deadlock-retry';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
 import { SALES_PRICE_CONTRACT_VERSION } from '../sales-reports/sales-report-revenue';
+import { HOME_SALES_KPI_CONTRACT_VERSION } from './home-summary-contract';
 import { HomeSummaryService } from './home-summary.service';
 
 const HOME_SUMMARY_UPDATED_CHANNEL = 'HOME_SUMMARY_UPDATED';
@@ -156,7 +157,7 @@ export class HomeSummaryProjectionService
   private async runStartupCycle() {
     const startedAt = Date.now();
     this.logger.log(
-      `Home projection startup reconciliation started: reason=sales_price_contract version=${SALES_PRICE_CONTRACT_VERSION}`,
+      `Home projection startup reconciliation started: reason=sales_contract_versions salesPriceContractVersion=${SALES_PRICE_CONTRACT_VERSION} salesKpiContractVersion=${HOME_SALES_KPI_CONTRACT_VERSION}`,
     );
     try {
       const affectedDates = await this.prisma.$queryRaw<
@@ -184,9 +185,6 @@ export class HomeSummaryProjectionService
           SELECT DISTINCT "summaryDate" AS summary_date
           FROM "HomeSummaryDailyAggregate"
           WHERE "projectionKind" = 'SALES'
-            AND "dimensionType" = 'GLOBAL'
-            AND "dimensionKey" = ''
-            AND "storeCode" = ''
         ), expected AS (
           SELECT candidate.summary_date,
             COUNT(*) FILTER (WHERE NOT fact."isPaymentPending")::int AS total_orders,
@@ -200,6 +198,19 @@ export class HomeSummaryProjectionService
           LEFT JOIN "HomeSummaryOrderFact" AS fact
             ON (fact."summaryDate" + INTERVAL '7 hours')::date = candidate.summary_date
           GROUP BY candidate.summary_date
+        ), aggregate_contract_state AS (
+          SELECT "summaryDate" AS summary_date,
+            BOOL_OR(
+              COALESCE("metrics"->>'salesPriceContractVersion', '') <>
+                ${String(SALES_PRICE_CONTRACT_VERSION)}
+            ) AS has_stale_price_contract,
+            BOOL_OR(
+              COALESCE("metrics"->>'salesKpiContractVersion', '') <>
+                ${String(HOME_SALES_KPI_CONTRACT_VERSION)}
+            ) AS has_stale_kpi_contract
+          FROM "HomeSummaryDailyAggregate"
+          WHERE "projectionKind" = 'SALES'
+          GROUP BY "summaryDate"
         )
         SELECT expected.summary_date::text AS "dateKey"
         FROM expected
@@ -209,14 +220,14 @@ export class HomeSummaryProjectionService
           AND aggregate."dimensionType" = 'GLOBAL'
           AND aggregate."dimensionKey" = ''
           AND aggregate."storeCode" = ''
+        LEFT JOIN aggregate_contract_state AS contract_state
+          ON contract_state.summary_date = expected.summary_date
         WHERE aggregate."id" IS NULL
           OR aggregate."totalOrders" <> expected.total_orders
           OR aggregate."reportedOrders" <> expected.reported_orders
           OR aggregate."orderRevenueAmount" <> expected.order_revenue
-          OR COALESCE(
-            aggregate."metrics"->>'salesPriceContractVersion',
-            ''
-          ) <> ${String(SALES_PRICE_CONTRACT_VERSION)}
+          OR COALESCE(contract_state.has_stale_price_contract, FALSE)
+          OR COALESCE(contract_state.has_stale_kpi_contract, FALSE)
         ORDER BY expected.summary_date
       `);
       for (const affectedDate of affectedDates) {
@@ -266,11 +277,11 @@ export class HomeSummaryProjectionService
         );
       }
       this.logger.log(
-        `Home projection startup reconciliation succeeded: reason=sales_price_contract version=${SALES_PRICE_CONTRACT_VERSION} dates=${affectedDates.length} trackingDates=${financeTrackingDates.length} durationMs=${Date.now() - startedAt}`,
+        `Home projection startup reconciliation succeeded: reason=sales_contract_versions salesPriceContractVersion=${SALES_PRICE_CONTRACT_VERSION} salesKpiContractVersion=${HOME_SALES_KPI_CONTRACT_VERSION} dates=${affectedDates.length} trackingDates=${financeTrackingDates.length} durationMs=${Date.now() - startedAt}`,
       );
     } catch (error) {
       this.logger.error(
-        `Home projection startup reconciliation failed: reason=sales_price_contract version=${SALES_PRICE_CONTRACT_VERSION} durationMs=${Date.now() - startedAt} error=${safeLogError(error)}`,
+        `Home projection startup reconciliation failed: reason=sales_contract_versions salesPriceContractVersion=${SALES_PRICE_CONTRACT_VERSION} salesKpiContractVersion=${HOME_SALES_KPI_CONTRACT_VERSION} durationMs=${Date.now() - startedAt} error=${safeLogError(error)}`,
       );
     }
     await this.runCycle('startup');
