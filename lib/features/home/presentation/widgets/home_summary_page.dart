@@ -171,13 +171,6 @@ class HomeSummaryPage extends StatelessWidget {
       ReportProgressPanel(summary: summary, provider: provider),
       const SizedBox(height: AppLayoutTokens.sectionGap),
       if (summary.salesAvailable) ...[
-        const _SummarySectionHeader(
-          key: Key('home-sales-section-header'),
-          title: 'Bán hàng',
-          description:
-              'Các chỉ số bán hàng hiển thị theo quyền và phạm vi được chọn.',
-        ),
-        const SizedBox(height: AppLayoutTokens.cardGap),
         const _SummarySubsectionHeader(
           title: 'Doanh số',
           description:
@@ -2810,7 +2803,6 @@ class _ApprovedReportProgressPanel extends StatelessWidget {
         final cards = <_OverviewCardSpec>[
           if (summary.salesAvailable)
             _OverviewCardSpec(
-              height: wide ? 206 : 166,
               card: _OverviewProgressCard(
                 cardKey: const Key('home-report-progress-panel'),
                 title: 'Tiến độ báo cáo',
@@ -2827,7 +2819,6 @@ class _ApprovedReportProgressPanel extends StatelessWidget {
             ),
           if (summary.financeAvailable)
             _OverviewCardSpec(
-              height: wide ? 206 : 166,
               card: _OverviewProgressCard(
                 cardKey: const Key('home-statement-progress-panel'),
                 title: 'Tiến độ sao kê',
@@ -2844,15 +2835,6 @@ class _ApprovedReportProgressPanel extends StatelessWidget {
             ),
           if (summary.salesAvailable)
             _OverviewCardSpec(
-              height: twoColumns
-                  ? (wide ? 264 : 280)
-                  : (summary.salesProgressAssignees.isNotEmpty &&
-                            summary.selectedSalesProgressUserId
-                                    ?.trim()
-                                    .isNotEmpty !=
-                                true
-                        ? 208
-                        : 266),
               gapAfter: 12,
               card: _OverviewGoalCard(
                 cardKey: const Key('home-sales-progress-panel'),
@@ -2873,9 +2855,6 @@ class _ApprovedReportProgressPanel extends StatelessWidget {
             ),
           if (summary.salesAvailable)
             _OverviewCardSpec(
-              height: twoColumns
-                  ? (wide ? 264 : 280)
-                  : (boardWidth < 600 ? 360 : 280),
               card: _OverviewGoalCard(
                 cardKey: const Key('home-scope-sales-progress-panel'),
                 title: 'Tổng quan Cửa hàng',
@@ -2928,11 +2907,7 @@ class _ApprovedReportProgressPanel extends StatelessWidget {
                           runSpacing: gap,
                           children: [
                             for (final spec in cards)
-                              SizedBox(
-                                width: cardWidth,
-                                height: spec.height,
-                                child: spec.card,
-                              ),
+                              SizedBox(width: cardWidth, child: spec.card),
                           ],
                         )
                       : Column(
@@ -2944,7 +2919,6 @@ class _ApprovedReportProgressPanel extends StatelessWidget {
                             ) ...[
                               SizedBox(
                                 width: cardWidth,
-                                height: cards[index].height,
                                 child: cards[index].card,
                               ),
                               if (index < cards.length - 1)
@@ -2963,13 +2937,8 @@ class _ApprovedReportProgressPanel extends StatelessWidget {
 }
 
 class _OverviewCardSpec {
-  const _OverviewCardSpec({
-    required this.height,
-    required this.card,
-    this.gapAfter = 6,
-  });
+  const _OverviewCardSpec({required this.card, this.gapAfter = 6});
 
-  final double height;
   final Widget card;
   final double gapAfter;
 }
@@ -3138,63 +3107,63 @@ class _OverviewGoalCard extends StatelessWidget {
                     ),
                   ),
                 if (showEmpty)
-                  Expanded(child: _OverviewEmptySelection())
+                  const SizedBox(height: 92, child: _OverviewEmptySelection())
                 else ...[
                   if (showAssignee) const SizedBox(height: 8),
-                  Expanded(
-                    child: compact && keyPrefix == 'scope'
-                        ? Column(
-                            children: [
-                              _OverviewPeriod(
-                                key: Key('home-analytics-$keyPrefix-range'),
-                                label: firstPeriodLabel,
-                                period: progress.day,
-                                color: color,
-                                dense: true,
-                              ),
-                              const SizedBox(height: 4),
-                              _OverviewPeriod(
-                                key: Key('home-analytics-$keyPrefix-week'),
-                                label: 'Tuần',
-                                period: progress.week,
-                                color: color,
-                                dense: true,
-                              ),
-                              const SizedBox(height: 4),
-                              _OverviewPeriod(
-                                key: Key('home-analytics-$keyPrefix-month'),
-                                label: 'Tháng',
-                                period: progress.month,
-                                color: color,
-                                dense: true,
-                              ),
-                            ],
-                          )
-                        : Row(
-                            children: [
-                              _OverviewPeriod(
-                                key: Key('home-analytics-$keyPrefix-range'),
-                                label: firstPeriodLabel,
-                                period: progress.day,
-                                color: color,
-                              ),
-                              const SizedBox(width: 16),
-                              _OverviewPeriod(
-                                key: Key('home-analytics-$keyPrefix-week'),
-                                label: 'Tuần',
-                                period: progress.week,
-                                color: color,
-                              ),
-                              const SizedBox(width: 16),
-                              _OverviewPeriod(
-                                key: Key('home-analytics-$keyPrefix-month'),
-                                label: 'Tháng',
-                                period: progress.month,
-                                color: color,
-                              ),
-                            ],
-                          ),
-                  ),
+                  if (compact && keyPrefix == 'scope')
+                    Column(
+                      children: [
+                        _OverviewPeriod(
+                          key: Key('home-analytics-$keyPrefix-range'),
+                          label: firstPeriodLabel,
+                          period: progress.day,
+                          color: color,
+                          dense: true,
+                        ),
+                        const SizedBox(height: 8),
+                        _OverviewPeriod(
+                          key: Key('home-analytics-$keyPrefix-week'),
+                          label: 'Tuần',
+                          period: progress.week,
+                          color: color,
+                          dense: true,
+                        ),
+                        const SizedBox(height: 8),
+                        _OverviewPeriod(
+                          key: Key('home-analytics-$keyPrefix-month'),
+                          label: 'Tháng',
+                          period: progress.month,
+                          color: color,
+                          dense: true,
+                        ),
+                      ],
+                    )
+                  else
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _OverviewPeriod(
+                          key: Key('home-analytics-$keyPrefix-range'),
+                          label: firstPeriodLabel,
+                          period: progress.day,
+                          color: color,
+                        ),
+                        const SizedBox(width: 16),
+                        _OverviewPeriod(
+                          key: Key('home-analytics-$keyPrefix-week'),
+                          label: 'Tuần',
+                          period: progress.week,
+                          color: color,
+                        ),
+                        const SizedBox(width: 16),
+                        _OverviewPeriod(
+                          key: Key('home-analytics-$keyPrefix-month'),
+                          label: 'Tháng',
+                          period: progress.month,
+                          color: color,
+                        ),
+                      ],
+                    ),
                 ],
                 if (missingStoreCodes.isNotEmpty)
                   Padding(
@@ -3360,36 +3329,35 @@ class _OverviewPeriod extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final percentage = (period.percentage ?? 0).clamp(0, 100).toDouble();
-    return Expanded(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(label, style: AppTextStyles.labelS),
-          SizedBox(height: dense ? 0 : 8),
-          Text(
-            formatCompactVndAmount(period.actual),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: AppTextStyles.caption.copyWith(
-              color: AppColors.textSecondaryOf(context),
-            ),
+    final content = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: AppTextStyles.labelS),
+        SizedBox(height: dense ? 0 : 8),
+        Text(
+          formatCompactVndAmount(period.actual),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: AppTextStyles.caption.copyWith(
+            color: AppColors.textSecondaryOf(context),
           ),
-          SizedBox(height: dense ? 0 : 8),
-          _OverviewProgressBar(value: percentage, color: color),
-          SizedBox(height: dense ? 0 : 8),
-          Text(
-            period.target == null
-                ? 'Chỉ tiêu: Chưa thiết lập'
-                : 'Mục tiêu ${formatCompactVndAmount(period.target!)}',
-            maxLines: dense ? 1 : 2,
-            overflow: TextOverflow.ellipsis,
-            style: AppTextStyles.caption.copyWith(
-              color: AppColors.textMutedOf(context),
-            ),
+        ),
+        SizedBox(height: dense ? 0 : 8),
+        _OverviewProgressBar(value: percentage, color: color),
+        SizedBox(height: dense ? 0 : 8),
+        Text(
+          period.target == null
+              ? 'Chỉ tiêu: Chưa thiết lập'
+              : 'Mục tiêu ${formatCompactVndAmount(period.target!)}',
+          maxLines: dense ? 1 : 2,
+          overflow: TextOverflow.ellipsis,
+          style: AppTextStyles.caption.copyWith(
+            color: AppColors.textMutedOf(context),
           ),
-        ],
-      ),
+        ),
+      ],
     );
+    return dense ? content : Expanded(child: content);
   }
 }
 

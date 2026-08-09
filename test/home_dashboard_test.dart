@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -683,7 +684,13 @@ void main() {
           .where((child) => child is! SizedBox)
           .toList();
       expect(structuredChildren[0], isA<HomeSummaryHeader>());
-      expect(find.text('Bán hàng'), findsOneWidget);
+      expect(find.text('Bán hàng'), findsNothing);
+      expect(
+        find.text(
+          'Các chỉ số bán hàng hiển thị theo quyền và phạm vi được chọn.',
+        ),
+        findsNothing,
+      );
       expect(find.text('Doanh số'), findsOneWidget);
       expect(find.text('KPI chính'), findsOneWidget);
       expect(find.text('Hành vi then chốt'), findsOneWidget);
@@ -866,11 +873,7 @@ void main() {
         tester
             .getTopLeft(find.byKey(const Key('home-summary-progress-panel')))
             .dy,
-        lessThan(
-          tester
-              .getTopLeft(find.byKey(const Key('home-sales-section-header')))
-              .dy,
-        ),
+        lessThan(tester.getTopLeft(find.text('Doanh số')).dy),
       );
       expect(find.byKey(const Key('home-operations-shortcut')), findsNothing);
       expect(find.text('Công cụ nhanh'), findsNothing);
@@ -1580,11 +1583,14 @@ void main() {
       findsOneWidget,
     );
     expect(tester.getSize(reportPanel).width, closeTo(535, 0.1));
-    expect(tester.getSize(reportPanel).height, closeTo(206, 0.1));
+    expect(tester.getSize(reportPanel).height, lessThan(206));
     expect(tester.getSize(statementPanel).width, closeTo(535, 0.1));
-    expect(tester.getSize(statementPanel).height, closeTo(206, 0.1));
+    expect(
+      tester.getSize(statementPanel).height,
+      tester.getSize(reportPanel).height,
+    );
     expect(tester.getSize(personalPanel).width, closeTo(535, 0.1));
-    expect(tester.getSize(personalPanel).height, closeTo(264, 0.1));
+    expect(tester.getSize(personalPanel).height, lessThan(264));
     expect(find.byKey(const Key('home-analytics-sales-range')), findsOneWidget);
     expect(find.byKey(const Key('home-analytics-sales-month')), findsOneWidget);
   });
@@ -1616,12 +1622,15 @@ void main() {
     final statement = find.byKey(const Key('home-statement-progress-panel'));
     final personal = find.byKey(const Key('home-sales-progress-panel'));
     final scope = find.byKey(const Key('home-scope-sales-progress-panel'));
-    expect(tester.getSize(report), const Size(341, 166));
+    expect(tester.getSize(report).width, 341);
+    expect(tester.getSize(report).height, lessThan(166));
     expect(tester.getTopLeft(report).dx, closeTo(1, 0.1));
-    expect(tester.getSize(statement), const Size(341, 166));
+    expect(tester.getSize(statement), tester.getSize(report));
     expect(tester.getTopLeft(statement).dx, closeTo(1, 0.1));
-    expect(tester.getSize(personal), const Size(341, 266));
-    expect(tester.getSize(scope), const Size(341, 360));
+    expect(tester.getSize(personal).width, 341);
+    expect(tester.getSize(personal).height, lessThan(266));
+    expect(tester.getSize(scope).width, 341);
+    expect(tester.getSize(scope).height, lessThan(360));
     expect(
       find.descendant(of: scope, matching: find.text('Ngày')),
       findsOneWidget,
@@ -1662,13 +1671,18 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(
-      tester.getSize(find.byKey(const Key('home-summary-progress-panel'))),
-      const Size(343, 996),
+    final board = tester.getRect(
+      find.byKey(const Key('home-summary-progress-panel')),
     );
+    final scope = tester.getRect(
+      find.byKey(const Key('home-scope-sales-progress-panel')),
+    );
+    expect(board.width, 343);
+    expect(board.height, lessThan(996));
+    expect(board.bottom - scope.bottom, closeTo(16, 0.1));
     expect(
-      tester.getSize(find.byKey(const Key('home-sales-progress-panel'))),
-      const Size(341, 208),
+      tester.getSize(find.byKey(const Key('home-sales-progress-panel'))).height,
+      greaterThan(0),
     );
     expect(tester.takeException(), isNull);
   });
@@ -1703,15 +1717,92 @@ void main() {
     final statement = find.byKey(const Key('home-statement-progress-panel'));
     final personal = find.byKey(const Key('home-sales-progress-panel'));
     final scope = find.byKey(const Key('home-scope-sales-progress-panel'));
-    expect(tester.getSize(report), const Size(436, 166));
-    expect(tester.getSize(statement), const Size(436, 166));
-    expect(tester.getSize(personal), const Size(436, 280));
-    expect(tester.getSize(scope), const Size(436, 280));
+    expect(tester.getSize(report).width, 436);
+    expect(tester.getSize(report).height, lessThan(166));
+    expect(tester.getSize(statement), tester.getSize(report));
+    expect(tester.getSize(personal).width, 436);
+    expect(tester.getSize(personal).height, lessThan(280));
+    expect(tester.getSize(scope).width, 436);
+    expect(tester.getSize(scope).height, lessThan(280));
     expect(tester.getTopLeft(report).dy, tester.getTopLeft(statement).dy);
     expect(tester.getTopLeft(personal).dy, tester.getTopLeft(scope).dy);
   });
 
-  testWidgets('Home desktop goal card uses the Figma staff-state height', (
+  testWidgets('Home store overview flows long target warning below periods', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    final summary = _managerSalesProgressSummary(
+      'sa-1',
+      includeFinance: true,
+      missingStoreCodes: const [
+        'AP01',
+        'CH1001',
+        'CP01',
+        'CP02',
+        'CP05',
+        'CP07',
+        'CP08',
+        'CP14',
+        'CP15',
+        'CP18',
+        'CP20',
+        'CP25',
+        'CP28',
+        'CP32',
+        'CP34',
+        'CP37',
+        'CP40',
+        'CP46',
+      ],
+    );
+    final provider = HomeSummaryProvider(
+      _FakeHomeSummaryRepository(summary: summary),
+    );
+    addTearDown(provider.dispose);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 1126,
+            child: ReportProgressPanel(summary: summary, provider: provider),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final scope = find.byKey(const Key('home-scope-sales-progress-panel'));
+    final warning = find.descendant(
+      of: scope,
+      matching: find.textContaining('Thiếu chỉ tiêu: AP01'),
+    );
+    expect(warning, findsOneWidget);
+    final targetBottom = [
+      tester
+          .getBottomRight(find.byKey(const Key('home-analytics-scope-range')))
+          .dy,
+      tester
+          .getBottomRight(find.byKey(const Key('home-analytics-scope-week')))
+          .dy,
+      tester
+          .getBottomRight(find.byKey(const Key('home-analytics-scope-month')))
+          .dy,
+    ].reduce(math.max);
+    expect(tester.getTopLeft(warning).dy, greaterThan(targetBottom));
+    expect(
+      tester.getBottomRight(scope).dy,
+      greaterThan(tester.getBottomRight(warning).dy),
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Home desktop goal card hugs the staff-state content', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(1440, 900);
@@ -1781,7 +1872,7 @@ void main() {
       find.byKey(const Key('home-sales-progress-panel')),
     );
     expect(goalSize.width, closeTo(535, 0.1));
-    expect(goalSize.height, closeTo(264, 0.1));
+    expect(goalSize.height, lessThan(264));
   });
 
   testWidgets('Home wide proposal keeps the approved shell geometry', (
@@ -1855,10 +1946,11 @@ void main() {
       find.byKey(const Key('home-summary-progress-panel')),
     );
     expect(board.width, closeTo(640, 0.1));
-    expect(
-      tester.getSize(find.byKey(const Key('home-report-progress-panel'))),
-      const Size(638, 166),
+    final report = tester.getSize(
+      find.byKey(const Key('home-report-progress-panel')),
     );
+    expect(report.width, 638);
+    expect(report.height, lessThan(166));
     expect(tester.takeException(), isNull);
   });
 
@@ -3235,6 +3327,7 @@ HomeSummary _managerSalesProgressSummary(
   String? selectedUserId, {
   List<HomeSalesProgressAssignee>? assignees,
   bool includeFinance = false,
+  List<String> missingStoreCodes = const [],
 }) {
   final resolvedAssignees =
       assignees ??
@@ -3313,26 +3406,26 @@ HomeSummary _managerSalesProgressSummary(
     statementOrderRate: includeFinance ? 80 : 0,
     salesProgress: personalProgress,
     personalSalesProgress: personalProgress,
-    scopeSalesProgress: const HomeSalesProgress(
+    scopeSalesProgress: HomeSalesProgress(
       status: 'AVAILABLE',
       scope: 'MANAGED',
-      missingStoreCodes: [],
-      day: HomeSalesProgressPeriod(
+      missingStoreCodes: missingStoreCodes,
+      day: const HomeSalesProgressPeriod(
         actual: 3000000,
         target: 6000000,
         percentage: 50,
       ),
-      range: HomeSalesProgressPeriod(
+      range: const HomeSalesProgressPeriod(
         actual: 3000000,
         target: 6000000,
         percentage: 50,
       ),
-      week: HomeSalesProgressPeriod(
+      week: const HomeSalesProgressPeriod(
         actual: 15000000,
         target: 30000000,
         percentage: 50,
       ),
-      month: HomeSalesProgressPeriod(
+      month: const HomeSalesProgressPeriod(
         actual: 60000000,
         target: 120000000,
         percentage: 50,
