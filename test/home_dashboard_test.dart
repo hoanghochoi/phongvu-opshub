@@ -1726,6 +1726,15 @@ void main() {
     expect(tester.getSize(scope).height, lessThan(280));
     expect(tester.getTopLeft(report).dy, tester.getTopLeft(statement).dy);
     expect(tester.getTopLeft(personal).dy, tester.getTopLeft(scope).dy);
+    final scopeRange = find.byKey(const Key('home-analytics-scope-range'));
+    final scopeWeek = find.byKey(const Key('home-analytics-scope-week'));
+    final scopeMonth = find.byKey(const Key('home-analytics-scope-month'));
+    expect(tester.getTopLeft(scopeRange).dy, tester.getTopLeft(scopeWeek).dy);
+    expect(tester.getTopLeft(scopeWeek).dy, tester.getTopLeft(scopeMonth).dy);
+    expect(
+      find.descendant(of: scope, matching: find.text('Khoảng chọn')),
+      findsOneWidget,
+    );
   });
 
   testWidgets('Home store overview flows long target warning below periods', (
