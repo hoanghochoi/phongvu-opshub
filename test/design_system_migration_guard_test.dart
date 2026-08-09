@@ -579,6 +579,109 @@ void main() {
     );
   });
 
+  test('operational command bars stay on the canonical shared composition', () {
+    final sharedCommandBar = File(
+      [
+        'lib',
+        'app',
+        'widgets',
+        'app_command_bar.dart',
+      ].join(Platform.pathSeparator),
+    );
+    expect(sharedCommandBar.existsSync(), isTrue);
+    expect(
+      sharedCommandBar.readAsStringSync(),
+      contains('class AppCommandBar'),
+    );
+    expect(
+      sharedCommandBar.readAsStringSync(),
+      contains('final bool isLoading'),
+    );
+    expect(
+      sharedCommandBar.readAsStringSync(),
+      contains('PhosphorIconsRegular.spinnerGap'),
+    );
+
+    final targetPaths = [
+      [
+        'lib',
+        'features',
+        'fifo',
+        'presentation',
+        'screens',
+        'fifo_check_screen.dart',
+      ],
+      [
+        'lib',
+        'features',
+        'sort',
+        'presentation',
+        'screens',
+        'sort_screen.dart',
+      ],
+      [
+        'lib',
+        'features',
+        'warranty',
+        'presentation',
+        'screens',
+        'check_warranty_screen.dart',
+      ],
+    ];
+    for (final segments in targetPaths) {
+      final source = File(
+        segments.join(Platform.pathSeparator),
+      ).readAsStringSync();
+      expect(source, contains('AppCommandBar('), reason: segments.join('/'));
+      expect(source, isNot(contains('AppIconAction(')));
+      expect(source, isNot(contains('class _FifoFrame')));
+      expect(source, isNot(contains('class _FifoIconAction')));
+    }
+
+    expect(
+      File(
+        [
+          'lib',
+          'features',
+          'fifo_check',
+          'presentation',
+          'widgets',
+          'fifo_check_input.dart',
+        ].join(Platform.pathSeparator),
+      ).existsSync(),
+      isFalse,
+      reason: 'The unreachable legacy FIFO command bar must stay retired.',
+    );
+    expect(
+      File(
+        [
+          'lib',
+          'features',
+          'fifo_check',
+          'presentation',
+          'widgets',
+          'barcode_scanner_screen.dart',
+        ].join(Platform.pathSeparator),
+      ).existsSync(),
+      isTrue,
+      reason: 'The shared scanner module remains an active consumer contract.',
+    );
+
+    final salesControls = File(
+      [
+        'lib',
+        'features',
+        'sales_report',
+        'presentation',
+        'screens',
+        'sales_report_screen.dart',
+      ].join(Platform.pathSeparator),
+    ).readAsStringSync();
+    expect(salesControls, isNot(contains('class _AdvancedFilterSheet')));
+    expect(salesControls, isNot(contains('sales-report-managed-filter')));
+    expect(salesControls, isNot(contains('Bộ lọc nâng cao')));
+  });
+
   test('feature routes do not nest local Scaffold shells', () {
     const allowedScaffoldFiles = <String, String>{
       'lib/features/auth/presentation/widgets/auth_screen_shell.dart':

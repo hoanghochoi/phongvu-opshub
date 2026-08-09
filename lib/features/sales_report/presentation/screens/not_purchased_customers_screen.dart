@@ -569,11 +569,10 @@ class _NotPurchasedCustomersScreenState
           LayoutBuilder(
             builder: (context, constraints) {
               final compact =
-                  constraints.maxWidth < AppLayoutTokens.tabletBreakpoint;
-              final search = AppTextInput(
+                  constraints.maxWidth < AppLayoutTokens.compactBreakpoint;
+              final search = AppCommandTextInput(
                 controller: _searchController,
-                label: 'Tìm theo tên, điện thoại hoặc Zalo',
-                icon: PhosphorIconsRegular.magnifyingGlass,
+                hintText: 'Tìm theo tên, điện thoại hoặc Zalo',
                 onChanged: _searchChanged,
               );
               final filters = _FollowUpStatusTabs(
@@ -595,86 +594,111 @@ class _NotPurchasedCustomersScreenState
                 start: _startDate,
                 end: _endDate,
                 onChanged: (start, end) => unawaited(_setDateRange(start, end)),
-                emptyRangeHelperText:
-                    'Không chọn khoảng ngày: hệ thống lấy 30 ngày gần nhất.',
-                inlineSurfaceStyle: true,
+                fieldStyle: true,
+                fieldLabelInside: true,
+                showEmptyRangeHelperText: false,
                 firstDate: DateTime(2020),
                 lastDate: (widget.now ?? DateTime.now)(),
               );
               final storeFilter = _isSuperAdmin
-                  ? Row(
+                  ? Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        Expanded(
-                          child: AppCombobox<String>.single(
-                            label: 'Mã showroom',
-                            value: _selectedStoreCode,
-                            emptyLabel: _storeLoading
-                                ? 'Đang tải danh sách showroom'
-                                : 'Tất cả showroom',
-                            helperText: _storeError,
-                            icon: PhosphorIconsRegular.storefront,
-                            enabled: !_storeLoading,
-                            options: _storeOptions,
-                            onChanged: (value) {
-                              setState(() => _selectedStoreCode = value);
-                              unawaited(
-                                AppLogger.instance.info(
-                                  'SalesReportFollowUp',
-                                  'Super Admin showroom filter changed',
-                                  context: {'storeCode': value},
-                                ),
-                              );
-                              unawaited(_load(page: 0));
-                            },
-                          ),
+                        AppCombobox<String>.single(
+                          label: 'Mã showroom',
+                          value: _selectedStoreCode,
+                          emptyLabel: _storeLoading
+                              ? 'Đang tải danh sách showroom'
+                              : 'Tất cả showroom',
+                          icon: PhosphorIconsRegular.storefront,
+                          showLabel: false,
+                          fixedHeight: 48,
+                          closedIcon: PhosphorIconsRegular.caretDown,
+                          enabled: !_storeLoading,
+                          options: _storeOptions,
+                          onChanged: (value) {
+                            setState(() => _selectedStoreCode = value);
+                            unawaited(
+                              AppLogger.instance.info(
+                                'SalesReportFollowUp',
+                                'Super Admin showroom filter changed',
+                                context: {'storeCode': value},
+                              ),
+                            );
+                            unawaited(_load(page: 0));
+                          },
                         ),
                         if (_storeError != null) ...[
-                          const SizedBox(width: 8),
-                          Tooltip(
-                            message: 'Tải lại danh sách showroom',
-                            child: IconButton.outlined(
-                              onPressed: _storeLoading
-                                  ? null
-                                  : () => unawaited(_loadSuperAdminStores()),
-                              icon: const Icon(
-                                PhosphorIconsRegular.arrowsClockwise,
+                          const SizedBox(height: 8),
+                          Row(
+                            key: const Key('follow-up-store-error'),
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  _storeError!,
+                                  style: AppTextStyles.bodyS.copyWith(
+                                    color: AppColors.errorOf(context),
+                                  ),
+                                ),
                               ),
-                            ),
+                              const SizedBox(width: 8),
+                              AppLinkButton(
+                                key: const Key('follow-up-store-retry'),
+                                onPressed: _storeLoading
+                                    ? null
+                                    : () => unawaited(_loadSuperAdminStores()),
+                                icon: PhosphorIconsRegular.arrowsClockwise,
+                                label: 'Thử lại',
+                                tooltip: 'Tải lại danh sách showroom',
+                                compact: true,
+                              ),
+                            ],
                           ),
                         ],
                       ],
                     )
                   : null;
-              if (compact) {
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    filters,
-                    const SizedBox(height: 16),
-                    search,
-                    const SizedBox(height: 16),
-                    dateRangeFilter,
-                    if (storeFilter != null) ...[
-                      const SizedBox(height: 12),
-                      storeFilter,
-                    ],
-                  ],
-                );
-              }
+              final filterFields = <Widget>[
+                search,
+                dateRangeFilter,
+                if (storeFilter != null) storeFilter,
+              ];
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Row(children: [Expanded(child: filters)]),
+                  filters,
                   const SizedBox(height: 16),
-                  Wrap(
-                    spacing: 12,
-                    runSpacing: 12,
-                    children: [
-                      SizedBox(width: 420, child: search),
-                      SizedBox(width: 360, child: dateRangeFilter),
-                      if (storeFilter != null)
-                        SizedBox(width: 360, child: storeFilter),
-                    ],
+                  AppSurfaceCard(
+                    key: const Key('follow-up-filter-surface'),
+                    radius: 14,
+                    child: compact
+                        ? Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              for (
+                                var index = 0;
+                                index < filterFields.length;
+                                index++
+                              ) ...[
+                                if (index > 0) const SizedBox(height: 12),
+                                filterFields[index],
+                              ],
+                            ],
+                          )
+                        : Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              for (
+                                var index = 0;
+                                index < filterFields.length;
+                                index++
+                              ) ...[
+                                if (index > 0) const SizedBox(width: 12),
+                                Expanded(child: filterFields[index]),
+                              ],
+                            ],
+                          ),
                   ),
                 ],
               );

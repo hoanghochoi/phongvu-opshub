@@ -25,6 +25,7 @@ class AppLayoutTokens {
 
   /// Wide Sales Reports Figma content lane (1190px shell viewport).
   static const double salesReportMaxWidth = 1190;
+  static const double commandWorkspaceMaxWidth = 1190;
   static const double sidebarWidth = 250;
   static const double tabletRailWidth = 88;
   static const double shellTopBarHeight = 72;

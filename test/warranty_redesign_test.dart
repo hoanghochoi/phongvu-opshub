@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:phongvu_opshub/app/navigation/app_shell.dart';
+import 'package:phongvu_opshub/app/theme/app_theme.dart';
 import 'package:phongvu_opshub/app/widgets/app_layout.dart';
 import 'helpers/legacy_widget_finders.dart';
 import 'package:phongvu_opshub/core/logging/app_logger.dart';
@@ -117,6 +119,7 @@ void main() {
   testWidgets('Warranty lookup renders content-only search and receipts', (
     tester,
   ) async {
+    final semantics = tester.ensureSemantics();
     tester.view.physicalSize = const Size(1200, 900);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
@@ -137,7 +140,50 @@ void main() {
     expect(find.text('Xem lại biên nhận'), findsOneWidget);
     expect(find.text('CP01-J12345678'), findsOneWidget);
     expect(find.text('1 kết quả'), findsOneWidget);
+    final fieldSemantics = tester.getSemantics(find.byType(EditableText));
+    expect(fieldSemantics.label, startsWith('Biên nhận'));
+    expect(fieldSemantics.flagsCollection.isTextField, isTrue);
     expect(warrantyProvider.listCallCount, 1);
+    expect(tester.takeException(), isNull);
+    semantics.dispose();
+  });
+
+  testWidgets('Warranty search and clear reach WarrantyProvider', (
+    tester,
+  ) async {
+    final warrantyProvider = _FakeWarrantyProvider(receipts: _warrantyReceipts);
+
+    await tester.pumpWidget(_buildWarrantyLookupApp(warrantyProvider));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(
+      find.byKey(const Key('warranty-lookup-input')),
+      'cp01-j12345678',
+    );
+    await tester.tap(find.byKey(const Key('warranty-lookup-submit')));
+    await tester.pumpAndSettle();
+
+    expect(warrantyProvider.searchCallCount, 1);
+    expect(warrantyProvider.lastSearchReceiptNumber, 'CP01-J12345678');
+    expect(find.byKey(const Key('warranty-lookup-clear')), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('warranty-lookup-clear')));
+    await tester.pumpAndSettle();
+
+    expect(warrantyProvider.listCallCount, 2);
+    expect(
+      tester
+          .widget<TextField>(
+            find.descendant(
+              of: find.byKey(const Key('warranty-lookup-input')),
+              matching: find.byType(TextField),
+            ),
+          )
+          .controller
+          ?.text,
+      isEmpty,
+    );
+    expect(find.byKey(const Key('warranty-lookup-clear')), findsNothing);
     expect(tester.takeException(), isNull);
   });
 
@@ -156,11 +202,11 @@ void main() {
 
     _expectRectClose(
       tester.getRect(find.byKey(const Key('warranty-lookup-actions'))),
-      const Rect.fromLTWH(16, 56, 283, 48),
+      const Rect.fromLTWH(16, 56, 343, 108),
     );
     _expectRectClose(
       tester.getRect(find.byKey(const Key('warranty-lookup-search-card'))),
-      const Rect.fromLTWH(16, 150, 343, 108),
+      const Rect.fromLTWH(16, 210, 343, 108),
     );
     final inputRect = tester.getRect(
       find.byKey(const Key('warranty-lookup-input')),
@@ -176,12 +222,12 @@ void main() {
     expect(scanRect.top, closeTo(submitRect.top, 0.5));
     _expectRectClose(
       tester.getRect(find.byKey(const Key('warranty-receipt-card'))),
-      const Rect.fromLTWH(16, 274, 343, 112),
+      const Rect.fromLTWH(16, 334, 343, 112),
     );
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('Warranty lookup stays a 343px task column on Android tablet', (
+  testWidgets('Warranty lookup expands across the medium command lane', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(834, 1112);
@@ -198,11 +244,11 @@ void main() {
 
     _expectRectClose(
       tester.getRect(find.byKey(const Key('warranty-lookup-search-card'))),
-      const Rect.fromLTWH(16, 150, 343, 108),
+      const Rect.fromLTWH(24, 150, 786, 108),
     );
     _expectRectClose(
       tester.getRect(find.byKey(const Key('warranty-receipt-card'))),
-      const Rect.fromLTWH(16, 274, 343, 112),
+      const Rect.fromLTWH(24, 274, 786, 112),
     );
     expect(tester.takeException(), isNull);
   });
@@ -225,17 +271,66 @@ void main() {
 
     _expectRectClose(
       tester.getRect(find.byKey(const Key('warranty-lookup-actions'))),
-      const Rect.fromLTWH(838, 96, 283, 48),
+      const Rect.fromLTWH(829, 88, 292, 48),
     );
     _expectRectClose(
       tester.getRect(find.byKey(const Key('warranty-lookup-search-card'))),
-      const Rect.fromLTWH(32, 148, 1126, 108),
+      const Rect.fromLTWH(32, 140, 1126, 108),
     );
     _expectRectClose(
       tester.getRect(find.byKey(const Key('warranty-receipt-card'))),
-      const Rect.fromLTWH(32, 272, 1126, 104),
+      const Rect.fromLTWH(32, 264, 1126, 104),
     );
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Warranty command bar follows the R2 width and theme matrix', (
+    tester,
+  ) async {
+    const cases = <(Size, double, double?)>[
+      (Size(375, 812), 343, null),
+      (Size(768, 900), 720, null),
+      (Size(920, 900), 872, null),
+      (Size(1440, 900), 1126, 1190),
+    ];
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    for (final themeMode in [ThemeMode.light, ThemeMode.dark]) {
+      for (final (viewport, expectedWidth, availableWidth) in cases) {
+        tester.view.physicalSize = viewport;
+        tester.view.devicePixelRatio = 1;
+        await tester.pumpWidget(
+          _buildWarrantyLookupApp(
+            _FakeWarrantyProvider(receipts: _warrantyReceipts),
+            availableWidth: availableWidth,
+            themeMode: themeMode,
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        final bar = tester.getRect(
+          find.byKey(const Key('warranty-lookup-search-card')),
+        );
+        final input = tester.getRect(
+          find.byKey(const Key('warranty-lookup-input')),
+        );
+        final scan = tester.getRect(
+          find.byKey(const Key('warranty-lookup-scan')),
+        );
+        final search = tester.getRect(
+          find.byKey(const Key('warranty-lookup-submit')),
+        );
+        expect(bar.width, expectedWidth);
+        expect(bar.height, 108);
+        expect(input.height, 48);
+        expect(scan.size, const Size(48, 48));
+        expect(search.size, const Size(48, 48));
+        expect(scan.left, greaterThan(input.right));
+        expect(search.left, greaterThan(scan.right));
+        expect(tester.takeException(), isNull);
+      }
+    }
   });
 
   testWidgets('Warranty lookup maps compact loading empty and error states', (
@@ -252,6 +347,10 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 20));
     expect(find.byKey(const Key('warranty-lookup-loading')), findsOneWidget);
+    expect(find.byIcon(PhosphorIconsRegular.spinnerGap), findsOneWidget);
+    expect(find.byIcon(PhosphorIconsRegular.magnifyingGlass), findsNothing);
+    expect(find.byTooltip('Đang tìm kiếm'), findsOneWidget);
+    expect(tester.widget<TextField>(find.byType(TextField)).enabled, isFalse);
 
     await tester.pumpWidget(_buildWarrantyLookupApp(_FakeWarrantyProvider()));
     await tester.pumpAndSettle();
@@ -441,6 +540,7 @@ Widget _buildWarrantyUploadApp() {
 Widget _buildWarrantyLookupApp(
   _FakeWarrantyProvider warrantyProvider, {
   double? availableWidth,
+  ThemeMode themeMode = ThemeMode.light,
 }) {
   final screen = MultiProvider(
     providers: [
@@ -449,12 +549,18 @@ Widget _buildWarrantyLookupApp(
       ),
       ChangeNotifierProvider<WarrantyProvider>.value(value: warrantyProvider),
     ],
-    child: const MaterialApp(
-      home: AppMobileTypographyDensity(child: CheckWarrantyScreen()),
+    child: MaterialApp(
+      theme: AppTheme.lightTheme,
+      darkTheme: AppTheme.darkTheme,
+      themeMode: themeMode,
+      home: const AppMobileTypographyDensity(child: CheckWarrantyScreen()),
     ),
   );
   if (availableWidth == null) return screen;
   return MaterialApp(
+    theme: AppTheme.lightTheme,
+    darkTheme: AppTheme.darkTheme,
+    themeMode: themeMode,
     home: Align(
       alignment: Alignment.topLeft,
       child: SizedBox(
@@ -557,6 +663,7 @@ class _FakeWarrantyProvider extends WarrantyProvider {
   int listCallCount = 0;
   int searchCallCount = 0;
   int detailCallCount = 0;
+  String? lastSearchReceiptNumber;
 
   _FakeWarrantyProvider({
     List<Map<String, dynamic>> receipts = const [],
@@ -594,6 +701,7 @@ class _FakeWarrantyProvider extends WarrantyProvider {
     required String receiptNumber,
   }) async {
     searchCallCount++;
+    lastSearchReceiptNumber = receiptNumber;
     fakeReceipts = fakeReceipts
         .where((receipt) => receipt['receipt']?.toString() == receiptNumber)
         .toList(growable: false);

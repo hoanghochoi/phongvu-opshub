@@ -1,6 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:phongvu_opshub/app/theme/app_theme.dart';
 import 'helpers/legacy_widget_finders.dart';
 import 'package:phongvu_opshub/core/logging/app_logger.dart';
 import 'package:phongvu_opshub/core/network/api_client.dart';
@@ -37,6 +41,7 @@ void main() {
   });
 
   testWidgets('FIFO check renders content-only empty state', (tester) async {
+    final semantics = tester.ensureSemantics();
     tester.view.physicalSize = const Size(1280, 900);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
@@ -55,9 +60,13 @@ void main() {
     expect(find.text('SKU-12345'), findsOneWidget);
     expect(find.byTooltip('Quét mã'), findsOneWidget);
     expect(find.byTooltip('Tìm FIFO'), findsOneWidget);
+    final fieldSemantics = tester.getSemantics(find.byType(EditableText));
+    expect(fieldSemantics.label, startsWith('SKU hoặc serial'));
+    expect(fieldSemantics.flagsCollection.isTextField, isTrue);
     expect(findsLegacyGradientHeader(), findsNothing);
     expect(find.byType(Scaffold), findsNothing);
     expect(tester.takeException(), isNull);
+    semantics.dispose();
   });
 
   testWidgets('FIFO check keeps mobile scan and search beside input', (
@@ -89,7 +98,7 @@ void main() {
     addTearDown(tester.view.resetDevicePixelRatio);
 
     await tester.pumpWidget(
-      _wrapFifoCheck(_FakeFifoRepository(), contentWidth: 936),
+      _wrapFifoCheck(_FakeFifoRepository(), contentWidth: 920),
     );
 
     final commandCard = tester.getRect(
@@ -103,7 +112,7 @@ void main() {
     final searchRect = tester.getRect(find.byTooltip('Tìm FIFO'));
 
     expect(commandCard.width, 872);
-    expect(commandCard.height, 200);
+    expect(commandCard.height, 172);
     expect(resultPanel.width, 872);
     expect(resultPanel.height, 340);
     expect((resultPanel.top - commandCard.bottom).abs(), 16);
@@ -113,6 +122,53 @@ void main() {
     expect(scanRect.left, greaterThan(inputRect.right));
     expect(searchRect.left, greaterThan(scanRect.right));
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('FIFO command bar follows the R2 width and theme matrix', (
+    tester,
+  ) async {
+    const cases = <(Size, double, double?)>[
+      (Size(375, 812), 343, null),
+      (Size(768, 900), 720, null),
+      (Size(920, 900), 872, null),
+      (Size(1200, 900), 1126, 1190),
+    ];
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    for (final themeMode in [ThemeMode.light, ThemeMode.dark]) {
+      for (final (viewport, expectedWidth, contentWidth) in cases) {
+        tester.view.physicalSize = viewport;
+        tester.view.devicePixelRatio = 1;
+        await tester.pumpWidget(
+          _wrapFifoCheck(
+            _FakeFifoRepository(),
+            contentWidth: contentWidth,
+            themeMode: themeMode,
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        final bar = tester.getRect(
+          find.byKey(const Key('fifo-check-command-bar')),
+        );
+        final input = tester.getRect(find.byType(TextField));
+        final scan = tester.getRect(find.byTooltip('Quét mã'));
+        final search = tester.getRect(find.byTooltip('Tìm FIFO'));
+        final toggle = tester.getRect(
+          find.byKey(const Key('fifo-check-exported-toggle')),
+        );
+        expect(bar.width, expectedWidth);
+        expect(bar.height, 108);
+        expect(input.height, 48);
+        expect(scan.size, const Size(48, 48));
+        expect(search.size, const Size(48, 48));
+        expect(scan.left, greaterThan(input.right));
+        expect(search.left, greaterThan(scan.right));
+        expect(toggle.top - bar.bottom, 16);
+        expect(tester.takeException(), isNull);
+      }
+    }
   });
 
   testWidgets('FIFO serial correct follows approved mobile and web geometry', (
@@ -151,7 +207,7 @@ void main() {
 
     tester.view.physicalSize = const Size(1024, 900);
     await tester.pumpWidget(
-      _wrapFifoCheck(_FakeFifoRepository(), contentWidth: 936),
+      _wrapFifoCheck(_FakeFifoRepository(), contentWidth: 920),
     );
     await tester.enterText(find.byType(TextField), 'SN001');
     await tester.tap(find.byTooltip('Tìm FIFO'));
@@ -169,6 +225,52 @@ void main() {
     );
     expect(find.textContaining('Khu:'), findsOneWidget);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('FIFO provider loading maps to the canonical command state', (
+    tester,
+  ) async {
+    final completer = Completer<FifoCheckResult>();
+    await tester.pumpWidget(
+      _wrapFifoCheck(_FakeFifoRepository(checkCompleter: completer)),
+    );
+    await tester.enterText(find.byType(TextField), 'SN001');
+    await tester.tap(find.byTooltip('Tìm FIFO'));
+    await tester.pump();
+
+    final commandBar = find.byKey(const Key('fifo-check-command-bar'));
+    expect(
+      find.descendant(
+        of: commandBar,
+        matching: find.byIcon(PhosphorIconsRegular.spinnerGap),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: commandBar,
+        matching: find.byIcon(PhosphorIconsRegular.magnifyingGlass),
+      ),
+      findsNothing,
+    );
+    expect(find.byTooltip('Đang tìm kiếm'), findsOneWidget);
+    expect(tester.widget<TextField>(find.byType(TextField)).enabled, isFalse);
+
+    completer.complete(
+      FifoCheckResult(
+        mode: 'serial',
+        query: 'SN001',
+        srCode: 'SR01',
+        includeExported: false,
+        status: 'correct',
+        message: 'Đúng FIFO. Lấy sản phẩm này.',
+        items: const [],
+        item: _fifoItem,
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byTooltip('Tìm FIFO'), findsOneWidget);
+    expect(tester.widget<TextField>(find.byType(TextField)).enabled, isTrue);
   });
 
   testWidgets(
@@ -420,10 +522,17 @@ void main() {
   );
 }
 
-Widget _wrapFifoCheck(_FakeFifoRepository repository, {double? contentWidth}) {
+Widget _wrapFifoCheck(
+  _FakeFifoRepository repository, {
+  double? contentWidth,
+  ThemeMode themeMode = ThemeMode.light,
+}) {
   return ChangeNotifierProvider<FifoProvider>(
     create: (_) => FifoProvider(repository),
     child: MaterialApp(
+      theme: AppTheme.lightTheme,
+      darkTheme: AppTheme.darkTheme,
+      themeMode: themeMode,
       home: contentWidth == null
           ? const FifoCheckScreen()
           : Center(
@@ -437,11 +546,15 @@ Widget _wrapFifoCheck(_FakeFifoRepository repository, {double? contentWidth}) {
 }
 
 class _FakeFifoRepository extends FifoRepository {
-  _FakeFifoRepository({this.skuMode = false, this.status = 'correct'})
-    : super(ApiClient());
+  _FakeFifoRepository({
+    this.skuMode = false,
+    this.status = 'correct',
+    this.checkCompleter,
+  }) : super(ApiClient());
 
   final bool skuMode;
   final String status;
+  final Completer<FifoCheckResult>? checkCompleter;
 
   String? lastText;
   bool? lastIncludeExported;
@@ -453,6 +566,8 @@ class _FakeFifoRepository extends FifoRepository {
   }) async {
     lastText = text;
     lastIncludeExported = includeExported;
+
+    if (checkCompleter != null) return checkCompleter!.future;
 
     if (skuMode) {
       return FifoCheckResult(

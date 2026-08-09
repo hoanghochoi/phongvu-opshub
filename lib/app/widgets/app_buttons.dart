@@ -393,8 +393,11 @@ class AppIconAction extends StatelessWidget {
   final bool filled;
   final Color? backgroundColor;
   final Color? foregroundColor;
+  final Color? disabledBackgroundColor;
+  final Color? disabledForegroundColor;
   final double dimension;
   final double radius;
+  final double? iconSize;
 
   const AppIconAction({
     super.key,
@@ -405,8 +408,11 @@ class AppIconAction extends StatelessWidget {
     this.filled = false,
     this.backgroundColor,
     this.foregroundColor,
+    this.disabledBackgroundColor,
+    this.disabledForegroundColor,
     this.dimension = AppButtonMetrics.iconSize,
     this.radius = AppButtonMetrics.radius,
+    this.iconSize,
   });
 
   @override
@@ -434,14 +440,16 @@ class AppIconAction extends StatelessWidget {
                   color: foreground,
                 ),
               )
-            : Icon(icon),
+            : Icon(icon, size: iconSize),
         tooltip: tooltip,
         color: foreground,
         style: IconButton.styleFrom(
           foregroundColor: foreground,
           backgroundColor: background,
-          disabledBackgroundColor: AppColors.borderOf(context),
-          disabledForegroundColor: AppColors.textMutedOf(context),
+          disabledBackgroundColor:
+              disabledBackgroundColor ?? AppColors.borderOf(context),
+          disabledForegroundColor:
+              disabledForegroundColor ?? AppColors.textMutedOf(context),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(radius),
           ),

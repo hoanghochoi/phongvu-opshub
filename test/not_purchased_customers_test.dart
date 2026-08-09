@@ -4,7 +4,10 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:phongvu_opshub/app/widgets/app_buttons.dart';
+import 'package:phongvu_opshub/app/widgets/app_combobox.dart';
 import 'package:phongvu_opshub/app/widgets/app_filter_dropdowns.dart';
+import 'package:phongvu_opshub/app/widgets/app_inputs.dart';
+import 'package:phongvu_opshub/app/theme/app_theme.dart';
 import 'package:provider/provider.dart';
 import 'package:phongvu_opshub/core/network/api_client.dart';
 import 'package:phongvu_opshub/core/network/api_exception.dart';
@@ -134,7 +137,7 @@ void main() {
       expect(importRect.top, exportRect.top);
       expect(
         tester.getSize(find.byKey(const Key('open-date-range-picker'))).height,
-        40,
+        48,
       );
       expect(tester.takeException(), isNull);
     }
@@ -142,13 +145,91 @@ void main() {
     final dateFilter = tester.widget<AppDateRangeDropdown>(
       find.byType(AppDateRangeDropdown),
     );
-    expect(dateFilter.inlineSurfaceStyle, isTrue);
-    expect(dateFilter.showEmptyRangeHelperText, isTrue);
+    expect(dateFilter.fieldStyle, isTrue);
+    expect(dateFilter.fieldLabelInside, isTrue);
+    expect(dateFilter.showEmptyRangeHelperText, isFalse);
     expect(
       find.text('Không chọn khoảng ngày: hệ thống lấy 30 ngày gần nhất.'),
-      findsOneWidget,
+      findsNothing,
     );
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Follow-up filters follow the R2 width and theme matrix', (
+    tester,
+  ) async {
+    const cases = <(Size, double, double?)>[
+      (Size(375, 812), 343, null),
+      (Size(768, 900), 720, null),
+      (Size(920, 900), 872, null),
+      (Size(1440, 900), 1126, 1190),
+    ];
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final authProvider = _FakeAuthProvider(
+      const User(
+        email: 'super-admin@phongvu.com',
+        role: 'SUPER_ADMIN',
+        featureAccess: {'ADMIN_SALES_REPORTS': true},
+      ),
+    );
+
+    for (final themeMode in [ThemeMode.light, ThemeMode.dark]) {
+      for (final (viewport, expectedWidth, availableWidth) in cases) {
+        tester.view.physicalSize = viewport;
+        tester.view.devicePixelRatio = 1;
+        final screen = NotPurchasedCustomersScreen(
+          repository: _FakeFollowUpRepository(
+            _case(customerPhone: '0900000000', customerZaloContact: null),
+            managedScope: true,
+          ),
+        );
+        await tester.pumpWidget(
+          ChangeNotifierProvider<AuthProvider>.value(
+            value: authProvider,
+            child: MaterialApp(
+              theme: AppTheme.lightTheme,
+              darkTheme: AppTheme.darkTheme,
+              themeMode: themeMode,
+              home: Scaffold(
+                body: availableWidth == null
+                    ? screen
+                    : Align(
+                        alignment: Alignment.topLeft,
+                        child: SizedBox(width: availableWidth, child: screen),
+                      ),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        final surface = tester.getRect(
+          find.byKey(const Key('follow-up-filter-surface')),
+        );
+        final search = tester.getRect(find.byType(AppCommandTextInput));
+        final date = tester.getRect(
+          find.byKey(const Key('open-date-range-picker')),
+        );
+        final showroom = tester.getRect(find.byType(AppCombobox<String>));
+        expect(surface.width, expectedWidth);
+        expect(search.height, 48);
+        expect(date.height, 48);
+        expect(showroom.height, 48);
+        if (viewport.width < 600) {
+          expect(date.top - search.bottom, 12);
+          expect(showroom.top - date.bottom, 12);
+        } else {
+          expect(date.top, search.top);
+          expect(showroom.top, search.top);
+        }
+        expect(
+          find.text('Không chọn khoảng ngày: hệ thống lấy 30 ngày gần nhất.'),
+          findsNothing,
+        );
+        expect(tester.takeException(), isNull);
+      }
+    }
   });
 
   testWidgets('narrow compact follow-up preserves single-action variants', (
@@ -535,6 +616,73 @@ void main() {
 
     expect(repository.lastStoreCode, 'CP02');
     await realtime.dispose();
+  });
+
+  testWidgets('Lỗi tải showroom hiển ngoài trường 48px và thử lại thành công', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final repository = _FakeFollowUpRepository(
+      _case(customerPhone: '0900000000', customerZaloContact: null),
+    );
+    final realtime = _FakeRealtimeClient();
+    addTearDown(realtime.dispose);
+    final authProvider = _FakeAuthProvider(
+      const User(email: 'admin@phongvu.com', role: 'SUPER_ADMIN'),
+    );
+    var loadCount = 0;
+
+    await tester.pumpWidget(
+      ChangeNotifierProvider<AuthProvider>.value(
+        value: authProvider,
+        child: MaterialApp(
+          home: Scaffold(
+            body: NotPurchasedCustomersScreen(
+              repository: repository,
+              realtimeClient: realtime,
+              storeLoader: () async {
+                loadCount++;
+                if (loadCount == 1) throw Exception('store unavailable');
+                return const [
+                  StoreBranch(
+                    id: 'store-2',
+                    storeId: 'CP02',
+                    storeName: 'Quận 2',
+                  ),
+                ];
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    const errorMessage = 'Chưa tải được danh sách showroom. Vui lòng thử lại.';
+    final fieldFinder = find.byType(AppCombobox<String>);
+    final fieldRect = tester.getRect(fieldFinder);
+    final errorRect = tester.getRect(
+      find.byKey(const Key('follow-up-store-error')),
+    );
+    expect(loadCount, 1);
+    expect(find.text(errorMessage), findsOneWidget);
+    expect(fieldRect.height, 48);
+    expect(errorRect.top, greaterThanOrEqualTo(fieldRect.bottom + 8));
+    expect(tester.takeException(), isNull);
+
+    await tester.tap(find.byKey(const Key('follow-up-store-retry')));
+    await tester.pumpAndSettle();
+
+    expect(loadCount, 2);
+    expect(find.text(errorMessage), findsNothing);
+    expect(tester.getRect(fieldFinder).height, 48);
+    await tester.tap(find.byType(TextField).last);
+    await tester.pumpAndSettle();
+    expect(find.text('CP02 - Quận 2'), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('trong grace vẫn hiện khách chỉ có Zalo và mở lịch sử chăm sóc', (
