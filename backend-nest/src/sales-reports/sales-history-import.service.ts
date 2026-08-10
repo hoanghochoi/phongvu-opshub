@@ -9,7 +9,7 @@ import {
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { createHash, randomUUID } from 'node:crypto';
-import { appendFile, open, readdir, stat, unlink } from 'node:fs/promises';
+import { open, readdir, stat, unlink } from 'node:fs/promises';
 import { extname } from 'node:path';
 import { join } from 'node:path';
 import { safeLogError } from '../common/log-sanitizer';
@@ -202,16 +202,20 @@ export class SalesHistoryImportService
           'Tiến trình tải lên đã thay đổi. OpsHub sẽ tiếp tục từ phần đã nhận.',
         );
       }
-      const existingSize = await stat(job.artifactPath)
-        .then((value) => value.size)
-        .catch(() => 0);
-      if (existingSize !== offset) {
+      const handle = await open(job.artifactPath, 'r+').catch(() => null);
+      if (!handle) {
         throw new BadRequestException(
-          'Tệp tạm chưa đồng bộ. Vui lòng hủy tác vụ và chọn lại tệp.',
+          'Không mở được tệp tạm. Vui lòng hủy tác vụ và chọn lại tệp.',
         );
       }
       try {
-        await appendFile(job.artifactPath, bytes);
+        const existingSize = (await handle.stat()).size;
+        if (existingSize !== offset) {
+          throw new BadRequestException(
+            'Tệp tạm chưa đồng bộ. Vui lòng hủy tác vụ và chọn lại tệp.',
+          );
+        }
+        await handle.write(bytes, 0, bytes.length, offset);
         const updated = await tx.salesHistoryImportJob.updateMany({
           where: {
             id,
@@ -225,12 +229,10 @@ export class SalesHistoryImportService
           throw new Error('upload_offset_changed');
         }
       } catch (error) {
-        const handle = await open(job.artifactPath, 'r+').catch(() => null);
-        if (handle) {
-          await handle.truncate(offset).catch(() => undefined);
-          await handle.close().catch(() => undefined);
-        }
+        await handle.truncate(offset).catch(() => undefined);
         throw error;
+      } finally {
+        await handle.close().catch(() => undefined);
       }
       return tx.salesHistoryImportJob.findUnique({ where: { id } });
     });
