@@ -139,6 +139,60 @@ void main() {
     expect(summary.appDownloadRate, 100);
   });
 
+  test('Home summary parses month and year comparison payloads', () {
+    final summary = HomeSummary.fromJson({
+      'date': '2026-08-10',
+      'available': true,
+      'scope': 'OWN',
+      'scopeLabel': 'Phạm vi cá nhân',
+      'coverageLabel': 'Tỉ lệ báo cáo',
+      'comparisons': {
+        'previousMonth': {
+          'startDate': '2026-07-10',
+          'endDate': '2026-07-10',
+          'source': 'OPSHUB',
+          'complete': true,
+          'metrics': {
+            'totalRevenue': {
+              'status': 'AVAILABLE',
+              'value': 100000000,
+              'deltaPercent': 25,
+            },
+          },
+        },
+        'previousYear': {
+          'startDate': '2025-08-10',
+          'endDate': '2025-08-10',
+          'source': 'HYBRID_CSV',
+          'complete': false,
+          'metrics': {
+            'totalRevenue': {'status': 'NEW', 'value': 0, 'deltaPercent': null},
+          },
+        },
+      },
+    });
+
+    expect(summary.comparisons?.previousMonth.source, 'OPSHUB');
+    expect(summary.comparisons?.previousMonth.complete, isTrue);
+    expect(
+      summary.comparisons?.previousMonth.metric('totalRevenue').value,
+      100000000,
+    );
+    expect(
+      summary.comparisons?.previousMonth.metric('totalRevenue').deltaPercent,
+      25,
+    );
+    expect(summary.comparisons?.previousYear.source, 'HYBRID_CSV');
+    expect(
+      summary.comparisons?.previousYear.metric('totalRevenue').isNew,
+      isTrue,
+    );
+    expect(
+      summary.comparisons?.previousYear.metric('totalOrders').isUnavailable,
+      isTrue,
+    );
+  });
+
   test('Home details v2 parses typed unreported order page', () {
     final details = HomeSummaryDetailsPage<HomeUnreportedOrderDetail>.fromJson(
       {
@@ -276,6 +330,65 @@ void main() {
     },
   );
 
+  testWidgets(
+    'Home realtime refreshes once for independently shifted comparison ranges',
+    (tester) async {
+      final realtime = _FakeRealtimeClient();
+      final repository = _FakeHomeSummaryRepository(
+        summary: _homeSummary(projectionVersion: 100),
+      );
+      final provider = HomeSummaryProvider(
+        repository,
+        now: () => DateTime(2026, 7, 14, 10),
+        realtimeClient: realtime,
+      );
+      addTearDown(provider.dispose);
+      addTearDown(realtime.dispose);
+      provider.syncAuth(_staffUser(), isInitialized: true);
+      await tester.pump();
+      await tester.pump();
+      final initialRequests = repository.requestedScopes.length;
+
+      for (final event in [
+        ('previous-month', '2026-06-14', 101),
+        ('previous-year', '2025-07-14', 102),
+      ]) {
+        realtime.addEvent(
+          RealtimeEnvelope(
+            version: 2,
+            kind: 'HOME_SUMMARY_UPDATED',
+            id: event.$1,
+            topic: 'home.summary',
+            sequence: event.$3,
+            timestamp: DateTime.utc(2026, 7, 14, 10, 30),
+            data: {
+              'affectedDates': [event.$2],
+              'projectionVersion': event.$3,
+            },
+          ),
+        );
+      }
+      realtime.addEvent(
+        RealtimeEnvelope(
+          version: 2,
+          kind: 'HOME_SUMMARY_UPDATED',
+          id: 'unrelated',
+          topic: 'home.summary',
+          sequence: 103,
+          timestamp: DateTime.utc(2026, 7, 14, 10, 30),
+          data: const {
+            'affectedDates': ['2025-07-13'],
+            'projectionVersion': 103,
+          },
+        ),
+      );
+
+      await tester.pump(const Duration(milliseconds: 500));
+      await tester.pump();
+      expect(repository.requestedScopes.length, initialRequests + 1);
+    },
+  );
+
   testWidgets('Home route reuses at 59 seconds and revalidates at 60', (
     tester,
   ) async {
@@ -405,6 +518,32 @@ void main() {
     },
   );
 
+  testWidgets('Home ignores a deferred summary after provider disposal', (
+    tester,
+  ) async {
+    final repository = _DeferredSummaryHomeSummaryRepository(
+      summary: _homeSummary(),
+    );
+    final provider = HomeSummaryProvider(
+      repository,
+      now: () => DateTime(2026, 7, 14, 10),
+    );
+    var notifications = 0;
+    provider.addListener(() => notifications += 1);
+
+    provider.syncAuth(_staffUser(), isInitialized: true);
+    await _pumpUntil(tester, () => repository.summaryRequestCount == 1);
+    final notificationsBeforeDispose = notifications;
+
+    provider.dispose();
+    repository.summaryRequest.complete(_homeSummary(projectionVersion: 101));
+    await tester.pump();
+    await tester.pump();
+
+    expect(notifications, notificationsBeforeDispose);
+    expect(provider.summary, isNull);
+  });
+
   test('Compact VND formatter keeps long dashboard amounts short', () {
     expect(formatCompactVndAmount(365741), '365.741 VND');
     expect(formatCompactVndAmount(125000000), '125M VND');
@@ -476,107 +615,311 @@ void main() {
   });
 
   testWidgets(
-    'Home dashboard renders scoped summary cards and progress panel',
+    'Home comparison rows keep approved geometry across breakpoints',
     (tester) async {
-      final authProvider = _FakeAuthProvider(_staffUser());
-      final summaryProvider = HomeSummaryProvider(
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final provider = HomeSummaryProvider(
         _FakeHomeSummaryRepository(
-          summary: HomeSummary(
-            date: '2026-07-04',
-            available: true,
-            scope: 'OWN',
-            scopeLabel: 'Phạm vi cá nhân',
-            scopeDetail: '2 showroom: CP75, CP62',
-            coverageLabel: 'Tỉ lệ báo cáo',
-            totalRevenue: 125000000,
-            totalOrders: 42,
-            totalReports: 38,
-            reportedOrders: 35,
-            notPurchasedReports: 12,
-            unreportedOrders: 7,
-            averageOrderValue: 2500000,
-            completedRevenue: 100000000,
-            pendingRevenue: 25000000,
-            businessCustomerRevenue: 60000000,
-            personalCustomerRevenue: 65000000,
-            examScorePromotionCount: 3,
-            studentPromotionCount: 4,
-            installmentNeedCount: 5,
-            successfulInstallmentCount: 2,
-            extendedInsuranceQuantity: 7,
-            laptopQuantity: 8,
-            pcQuantity: 9,
-            assembledPcQuantity: 1,
-            appleQuantity: 6,
-            monitorQuantity: 10,
-            printerQuantity: 11,
-            accessoriesQuantity: 12,
-            coverageRate: 83.33,
-            conversionRate: 110.53,
-            consultedSolutionRate: 75,
-            experiencedRate: 50,
-            zaloRate: 25,
-            appDownloadRate: 100,
-            financeAvailable: true,
-            totalTransferredAmount: 98000000,
-            totalStatements: 24,
-            totalStatementsWithOrder: 18,
-            totalStatementsWithoutOrder: 6,
-            statementOrderRate: 75,
-            salesProgress: const HomeSalesProgress(
-              status: 'AVAILABLE',
-              scope: 'PERSONAL_SA',
-              missingStoreCodes: [],
-              day: HomeSalesProgressPeriod(
-                actual: 125000000,
-                target: 100000000,
-                percentage: 125,
-              ),
-              range: HomeSalesProgressPeriod(
-                actual: 125000000,
-                target: 100000000,
-                percentage: 125,
-              ),
-              week: HomeSalesProgressPeriod(
-                actual: 350000000,
-                target: 700000000,
-                percentage: 50,
-              ),
-              month: HomeSalesProgressPeriod(
-                actual: 1200000000,
-                target: 3000000000,
-                percentage: 40,
-              ),
-            ),
-            scopeSalesProgress: const HomeSalesProgress(
-              status: 'AVAILABLE',
-              scope: 'MANAGED',
-              missingStoreCodes: [],
-              day: HomeSalesProgressPeriod(
-                actual: 200000000,
-                target: 300000000,
-                percentage: 66.67,
-              ),
-              range: HomeSalesProgressPeriod(
-                actual: 200000000,
-                target: 300000000,
-                percentage: 66.67,
-              ),
-              week: HomeSalesProgressPeriod(
-                actual: 900000000,
-                target: 1400000000,
-                percentage: 64.29,
-              ),
-              month: HomeSalesProgressPeriod(
-                actual: 2400000000,
-                target: 6000000000,
-                percentage: 40,
-              ),
-            ),
-            refreshedAt: DateTime.parse('2026-07-04T03:15:00.000Z'),
+          summary: _homeSummary(
+            comparisons: _homeComparisonProof(),
+            withMetrics: true,
           ),
         ),
       );
+      addTearDown(provider.dispose);
+      provider.syncAuth(_staffUser(), isInitialized: true);
+
+      for (final width in [
+        375.0,
+        640.0,
+        899.0,
+        900.0,
+        1024.0,
+        1199.0,
+        1200.0,
+        1280.0,
+      ]) {
+        tester.view.physicalSize = Size(width, 900);
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: SingleChildScrollView(
+                child: AnimatedBuilder(
+                  animation: provider,
+                  builder: (context, _) => HomeSummaryPage(provider: provider),
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        final comparisonWidgets = find.byWidgetPredicate((widget) {
+          final key = widget.key;
+          return key is ValueKey<String> &&
+              key.value.startsWith('home-summary-card-') &&
+              key.value.endsWith('-comparisons');
+        });
+        expect(comparisonWidgets, findsNWidgets(28));
+        expect(
+          tester
+              .getSize(
+                find.byKey(const Key('home-summary-card-revenue-comparisons')),
+              )
+              .height,
+          36,
+        );
+        expect(
+          tester
+              .widget<Icon>(
+                find.descendant(
+                  of: find.byKey(
+                    const Key('home-summary-card-revenue-t-minus-1'),
+                  ),
+                  matching: find.byIcon(
+                    PhosphorIconsRegular.clockCounterClockwise,
+                  ),
+                ),
+              )
+              .size,
+          12,
+        );
+        final first = tester.getTopLeft(
+          find.byKey(const Key('home-summary-card-revenue')),
+        );
+        final second = tester.getTopLeft(
+          find.byKey(const Key('home-summary-card-totalOrders')),
+        );
+        if (width >= 600 && width < 900) {
+          expect(second.dy, greaterThan(first.dy), reason: 'viewport $width');
+        } else {
+          expect(second.dy, first.dy, reason: 'viewport $width');
+        }
+        final fourth = tester.getTopLeft(
+          find.byKey(const Key('home-summary-card-completedRevenue')),
+        );
+        if (width >= 900 && width < 1200) {
+          expect(fourth.dy, greaterThan(first.dy), reason: 'viewport $width');
+        } else if (width >= 1200) {
+          expect(fourth.dy, first.dy, reason: 'viewport $width');
+        }
+        expect(tester.takeException(), isNull, reason: 'viewport $width');
+      }
+    },
+  );
+
+  testWidgets(
+    'Home comparison rows preserve scaled text and accessible semantics at 2x',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(375, 1200);
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final semantics = tester.ensureSemantics();
+      final summary = _homeSummary(
+        comparisons: _homeComparisonProof(),
+        withMetrics: true,
+      );
+
+      await tester.pumpWidget(
+        MediaQuery(
+          data: const MediaQueryData(textScaler: TextScaler.linear(2)),
+          child: MaterialApp(
+            home: Scaffold(
+              body: SingleChildScrollView(
+                child: SummaryCardGrid(summary: summary),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final row = find.byKey(const Key('home-summary-card-revenue-t-minus-1'));
+      expect(row, findsOneWidget);
+      expect(
+        find.descendant(of: row, matching: find.byType(FittedBox)),
+        findsNothing,
+      );
+      expect(
+        find.bySemanticsLabel(RegExp(r'^Tháng liền trước:')),
+        findsWidgets,
+      );
+      expect(find.bySemanticsLabel(RegExp(r'Nguồn: OpsHub$')), findsWidgets);
+      expect(
+        find.bySemanticsLabel(RegExp(r'^Cùng kỳ năm trước:')),
+        findsWidgets,
+      );
+      expect(tester.takeException(), isNull);
+      semantics.dispose();
+    },
+  );
+
+  testWidgets(
+    'Home comparison source tooltip is keyboard focusable and keeps semantics',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1200, 600);
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final semantics = tester.ensureSemantics();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SummaryCardGrid(
+              summary: _homeSummary(
+                comparisons: _homeComparisonProof(),
+                withMetrics: true,
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final row = find.byKey(const Key('home-summary-card-revenue-t-minus-1'));
+      final focusable = find.descendant(
+        of: row,
+        matching: find.byType(FocusableActionDetector),
+      );
+      expect(focusable, findsOneWidget);
+      expect(
+        find.descendant(of: row, matching: find.byTooltip('Nguồn: OpsHub')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: row,
+          matching: find.bySemanticsLabel(
+            RegExp(r'^Tháng liền trước:.*Nguồn: OpsHub$'),
+          ),
+        ),
+        findsOneWidget,
+      );
+
+      tester
+          .widget<FocusableActionDetector>(focusable)
+          .focusNode!
+          .requestFocus();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      final focused = find.byWidgetPredicate(
+        (widget) =>
+            widget is Focus && widget.focusNode?.hasPrimaryFocus == true,
+      );
+      expect(find.descendant(of: row, matching: focused), findsOneWidget);
+      expect(find.text('Nguồn: OpsHub'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      semantics.dispose();
+    },
+  );
+
+  testWidgets(
+    'Home dashboard renders scoped summary cards and progress panel',
+    (tester) async {
+      final authProvider = _FakeAuthProvider(_staffUser());
+      final repository = _FakeHomeSummaryRepository(
+        summary: HomeSummary(
+          date: '2026-07-04',
+          available: true,
+          scope: 'OWN',
+          scopeLabel: 'Phạm vi cá nhân',
+          scopeDetail: '2 showroom: CP75, CP62',
+          coverageLabel: 'Tỉ lệ báo cáo',
+          totalRevenue: 125000000,
+          totalOrders: 42,
+          totalReports: 38,
+          reportedOrders: 35,
+          notPurchasedReports: 12,
+          unreportedOrders: 7,
+          averageOrderValue: 2500000,
+          completedRevenue: 100000000,
+          pendingRevenue: 25000000,
+          businessCustomerRevenue: 60000000,
+          personalCustomerRevenue: 65000000,
+          examScorePromotionCount: 3,
+          studentPromotionCount: 4,
+          installmentNeedCount: 5,
+          successfulInstallmentCount: 2,
+          extendedInsuranceQuantity: 7,
+          laptopQuantity: 8,
+          pcQuantity: 9,
+          assembledPcQuantity: 1,
+          appleQuantity: 6,
+          monitorQuantity: 10,
+          printerQuantity: 11,
+          accessoriesQuantity: 12,
+          coverageRate: 83.33,
+          conversionRate: 110.53,
+          consultedSolutionRate: 75,
+          experiencedRate: 50,
+          zaloRate: 25,
+          appDownloadRate: 100,
+          financeAvailable: true,
+          totalTransferredAmount: 98000000,
+          totalStatements: 24,
+          totalStatementsWithOrder: 18,
+          totalStatementsWithoutOrder: 6,
+          statementOrderRate: 75,
+          comparisons: _homeComparisonProof(),
+          salesProgress: const HomeSalesProgress(
+            status: 'AVAILABLE',
+            scope: 'PERSONAL_SA',
+            missingStoreCodes: [],
+            day: HomeSalesProgressPeriod(
+              actual: 125000000,
+              target: 100000000,
+              percentage: 125,
+            ),
+            range: HomeSalesProgressPeriod(
+              actual: 125000000,
+              target: 100000000,
+              percentage: 125,
+            ),
+            week: HomeSalesProgressPeriod(
+              actual: 350000000,
+              target: 700000000,
+              percentage: 50,
+            ),
+            month: HomeSalesProgressPeriod(
+              actual: 1200000000,
+              target: 3000000000,
+              percentage: 40,
+            ),
+          ),
+          scopeSalesProgress: const HomeSalesProgress(
+            status: 'AVAILABLE',
+            scope: 'MANAGED',
+            missingStoreCodes: [],
+            day: HomeSalesProgressPeriod(
+              actual: 200000000,
+              target: 300000000,
+              percentage: 66.67,
+            ),
+            range: HomeSalesProgressPeriod(
+              actual: 200000000,
+              target: 300000000,
+              percentage: 66.67,
+            ),
+            week: HomeSalesProgressPeriod(
+              actual: 900000000,
+              target: 1400000000,
+              percentage: 64.29,
+            ),
+            month: HomeSalesProgressPeriod(
+              actual: 2400000000,
+              target: 6000000000,
+              percentage: 40,
+            ),
+          ),
+          refreshedAt: DateTime.parse('2026-07-04T03:15:00.000Z'),
+        ),
+      );
+      final summaryProvider = HomeSummaryProvider(repository);
       addTearDown(summaryProvider.dispose);
       summaryProvider.syncAuth(authProvider.user, isInitialized: true);
 
@@ -594,6 +937,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byKey(const Key('home-summary-page')), findsOneWidget);
+      expect(repository.requestedIncludeComparisons, everyElement(isTrue));
       expect(
         find.byKey(const Key('home-summary-pull-refresh')),
         findsOneWidget,
@@ -654,6 +998,55 @@ void main() {
         find.byKey(const Key('home-summary-card-pendingRevenue')),
         findsOneWidget,
       );
+      final comparisonWidgets = find.byWidgetPredicate((widget) {
+        final key = widget.key;
+        return key is ValueKey<String> &&
+            key.value.startsWith('home-summary-card-') &&
+            key.value.endsWith('-comparisons');
+      });
+      expect(comparisonWidgets, findsNWidgets(28));
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('home-finance-summary-grid')),
+          matching: comparisonWidgets,
+        ),
+        findsNothing,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('home-summary-card-revenue-t-minus-1')),
+          matching: find.byIcon(PhosphorIconsRegular.clockCounterClockwise),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('home-summary-card-revenue-n-minus-1')),
+          matching: find.byIcon(PhosphorIconsRegular.arrowsLeftRight),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('home-summary-card-revenue-t-minus-1')),
+          matching: find.text('Mới'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('home-summary-card-totalOrders-t-minus-1')),
+          matching: find.text('42 · 0%'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('home-summary-card-revenue-n-minus-1')),
+          matching: find.text('Chưa có dữ liệu'),
+        ),
+        findsOneWidget,
+      );
       expect(
         find.descendant(
           of: find.byKey(const Key('home-summary-card-conversionRate')),
@@ -702,8 +1095,8 @@ void main() {
       expect(find.text('Trung bình đơn hàng (đã bao gồm VAT)'), findsOneWidget);
       expect(find.text('Hoàn thành (đã bao gồm VAT)'), findsOneWidget);
       expect(find.text('Chờ hoàn thành (đã bao gồm VAT)'), findsOneWidget);
-      expect(find.text('Theo đơn hàng ERP'), findsOneWidget);
-      expect(find.text('Đã hoàn tất'), findsOneWidget);
+      expect(find.text('Theo đơn hàng ERP'), findsNothing);
+      expect(find.text('Đã hoàn tất'), findsNothing);
       expect(find.text('Khách doanh nghiệp (đã bao gồm VAT)'), findsOneWidget);
       expect(find.text('Khách cá nhân (đã bao gồm VAT)'), findsOneWidget);
       expect(find.text('CTKM đổi điểm thi'), findsOneWidget);
@@ -3035,7 +3428,37 @@ Future<void> _pumpCompactVariantAHeader(
   expect(tester.takeException(), isNull);
 }
 
-HomeSummary _homeSummary({int? projectionVersion}) {
+HomeSummaryComparisons _homeComparisonProof() {
+  return const HomeSummaryComparisons(
+    previousMonth: HomeSummaryComparisonPeriod(
+      startDate: '2026-07-04',
+      endDate: '2026-07-04',
+      source: 'OPSHUB',
+      complete: true,
+      metrics: {
+        'totalRevenue': HomeSummaryComparisonMetric(status: 'NEW', value: 0),
+        'totalOrders': HomeSummaryComparisonMetric(
+          status: 'AVAILABLE',
+          value: 42,
+          deltaPercent: 0,
+        ),
+      },
+    ),
+    previousYear: HomeSummaryComparisonPeriod(
+      startDate: '2025-08-04',
+      endDate: '2025-08-04',
+      source: 'HYBRID_CSV',
+      complete: false,
+      metrics: {'totalRevenue': HomeSummaryComparisonMetric.unavailable()},
+    ),
+  );
+}
+
+HomeSummary _homeSummary({
+  int? projectionVersion,
+  HomeSummaryComparisons? comparisons,
+  bool withMetrics = false,
+}) {
   return HomeSummary(
     date: '2026-07-06',
     available: true,
@@ -3043,12 +3466,13 @@ HomeSummary _homeSummary({int? projectionVersion}) {
     scopeLabel: 'Phạm vi cá nhân',
     scopeDetail: 'CP01',
     coverageLabel: 'Tỉ lệ báo cáo',
-    totalRevenue: 0,
-    totalOrders: 0,
-    totalReports: 0,
-    reportedOrders: 0,
+    totalRevenue: withMetrics ? 1 : 0,
+    totalOrders: withMetrics ? 1 : 0,
+    totalReports: withMetrics ? 1 : 0,
+    reportedOrders: withMetrics ? 1 : 0,
     unreportedOrders: 0,
-    coverageRate: 0,
+    coverageRate: withMetrics ? 100 : 0,
+    comparisons: comparisons,
     refreshedAt: DateTime.parse('2026-07-06T03:15:00.000Z'),
     freshness: projectionVersion == null
         ? null
@@ -3084,6 +3508,7 @@ class _FakeHomeSummaryRepository extends HomeSummaryRepository {
   final List<String?> requestedDetailCursors = [];
   final List<int> requestedDetailLimits = [];
   final List<bool> requestedForceRefreshes = [];
+  final List<bool> requestedIncludeComparisons = [];
 
   _FakeHomeSummaryRepository({
     required this.summary,
@@ -3107,11 +3532,13 @@ class _FakeHomeSummaryRepository extends HomeSummaryRepository {
     String? salesProgressUserId,
     String? cacheIdentity,
     bool forceRefresh = false,
+    bool includeComparisons = false,
   }) async {
     requestedScopes.add(scope);
     requestedNodeIds.add(organizationNodeId);
     requestedSalesProgressUserIds.add(salesProgressUserId);
     requestedForceRefreshes.add(forceRefresh);
+    requestedIncludeComparisons.add(includeComparisons);
     if (salesProgressUserId != null &&
         salesProgressUserSummaries.containsKey(salesProgressUserId)) {
       return salesProgressUserSummaries[salesProgressUserId]!;
@@ -3285,6 +3712,7 @@ class _DeferredScopeHomeSummaryRepository extends _FakeHomeSummaryRepository {
 
 class _DeferredSummaryHomeSummaryRepository extends _FakeHomeSummaryRepository {
   final Completer<HomeSummary> summaryRequest = Completer<HomeSummary>();
+  int summaryRequestCount = 0;
 
   _DeferredSummaryHomeSummaryRepository({required super.summary});
 
@@ -3298,7 +3726,11 @@ class _DeferredSummaryHomeSummaryRepository extends _FakeHomeSummaryRepository {
     String? salesProgressUserId,
     String? cacheIdentity,
     bool forceRefresh = false,
-  }) => summaryRequest.future;
+    bool includeComparisons = false,
+  }) {
+    summaryRequestCount += 1;
+    return summaryRequest.future;
+  }
 }
 
 Future<void> _pumpUntil(WidgetTester tester, bool Function() condition) async {

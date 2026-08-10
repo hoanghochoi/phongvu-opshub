@@ -42,4 +42,13 @@ class AppPlatformCapabilities {
     final effectivePlatform = platform ?? defaultTargetPlatform;
     return effectiveIsWeb || effectivePlatform == TargetPlatform.windows;
   }
+
+  static bool isSalesHistoryImportSupported({
+    bool? isWeb,
+    TargetPlatform? platform,
+  }) {
+    final effectiveIsWeb = isWeb ?? kIsWeb;
+    final effectivePlatform = platform ?? defaultTargetPlatform;
+    return effectiveIsWeb || effectivePlatform == TargetPlatform.windows;
+  }
 }

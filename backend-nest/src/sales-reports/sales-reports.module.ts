@@ -11,6 +11,8 @@ import { SalesReportFollowUpsService } from './sales-report-follow-ups.service';
 import { SalesReportImportParserService } from './sales-report-import-parser.service';
 import { SalesReportImportService } from './sales-report-import.service';
 import { SalesReportCategoryBackfillService } from './sales-report-category-backfill.service';
+import { SalesHistoryImportParserService } from './sales-history-import-parser.service';
+import { SalesHistoryImportService } from './sales-history-import.service';
 
 @Module({
   imports: [PrismaModule, RedisModule],
@@ -24,6 +26,8 @@ import { SalesReportCategoryBackfillService } from './sales-report-category-back
     SalesReportImportParserService,
     SalesReportImportService,
     SalesReportCategoryBackfillService,
+    SalesHistoryImportParserService,
+    SalesHistoryImportService,
   ],
   exports: [
     SalesReportErpService,

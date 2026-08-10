@@ -131,6 +131,24 @@ class ApiConstants {
       '/sales-reports/import/preview';
   static const String salesReportsImportCommitEndpoint =
       '/sales-reports/import/commit';
+  static const String salesHistoryImportJobsEndpoint =
+      '/sales-reports/history-import/jobs';
+  static String salesHistoryImportJobEndpoint(String id) =>
+      '$salesHistoryImportJobsEndpoint/$id';
+  static String salesHistoryImportCancelEndpoint(String id) =>
+      '${salesHistoryImportJobEndpoint(id)}/cancel';
+  static String salesHistoryImportChunkEndpoint(String id) =>
+      '${salesHistoryImportJobEndpoint(id)}/chunks';
+  static String salesHistoryImportCompleteEndpoint(String id) =>
+      '${salesHistoryImportJobEndpoint(id)}/complete';
+  static String salesHistoryImportQuarantineEndpoint(String id) =>
+      '${salesHistoryImportJobEndpoint(id)}/quarantine';
+  static const String salesHistoryVersionsEndpoint =
+      '/sales-reports/history-import/versions';
+  static String salesHistoryVersionActivateEndpoint(String id) =>
+      '$salesHistoryVersionsEndpoint/$id/activate';
+  static String salesHistoryVersionRollbackEndpoint(String id) =>
+      '$salesHistoryVersionsEndpoint/$id/rollback';
   static const String salesReportFollowUpCasesEndpoint =
       '/sales-reports/follow-up-cases';
   static const String salesReportFollowUpHistoryExportEndpoint =

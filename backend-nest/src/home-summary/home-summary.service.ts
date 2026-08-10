@@ -139,6 +139,88 @@ type HomeSummaryResponse = SalesReportOperatingSummary & {
   appDownloadRate: number;
   freshness: HomeSummaryFreshnessResponse | null;
   dailySeries?: HomeSummaryDailyPoint[];
+  comparisons?: HomeSummaryComparisonsResponse;
+};
+
+const HOME_SALES_COMPARISON_METRIC_KEYS = [
+  'totalRevenue',
+  'totalOrders',
+  'averageOrderValue',
+  'completedRevenue',
+  'pendingRevenue',
+  'conversionRate',
+  'businessCustomerRevenue',
+  'personalCustomerRevenue',
+  'examScorePromotionCount',
+  'studentPromotionCount',
+  'installmentNeedCount',
+  'successfulInstallmentCount',
+  'extendedInsuranceQuantity',
+  'laptopQuantity',
+  'pcQuantity',
+  'assembledPcQuantity',
+  'appleQuantity',
+  'monitorQuantity',
+  'printerQuantity',
+  'accessoriesQuantity',
+  'notPurchasedReports',
+  'unreportedOrders',
+  'reportedOrders',
+  'coverageRate',
+  'consultedSolutionRate',
+  'experiencedRate',
+  'zaloRate',
+  'appDownloadRate',
+] as const;
+
+type HomeSalesComparisonMetricKey =
+  (typeof HOME_SALES_COMPARISON_METRIC_KEYS)[number];
+
+const CSV_SUPPORTED_COMPARISON_METRICS = new Set<HomeSalesComparisonMetricKey>([
+  'totalRevenue',
+  'totalOrders',
+  'averageOrderValue',
+  'extendedInsuranceQuantity',
+  'laptopQuantity',
+  'pcQuantity',
+  'assembledPcQuantity',
+  'appleQuantity',
+  'monitorQuantity',
+  'printerQuantity',
+  'accessoriesQuantity',
+]);
+
+const METRIC_COMPARISON_QUANTITY_KEYS = [
+  'extendedInsuranceQuantity',
+  'laptopQuantity',
+  'pcQuantity',
+  'assembledPcQuantity',
+  'appleQuantity',
+  'monitorQuantity',
+  'printerQuantity',
+  'accessoriesQuantity',
+] as const;
+
+type HomeSummaryComparisonMetricResponse = {
+  value: number | null;
+  deltaPercent: number | null;
+  status: 'AVAILABLE' | 'NEW' | 'UNAVAILABLE';
+};
+
+type HomeSummaryComparisonPeriodResponse = {
+  startDate: string;
+  endDate: string;
+  source: 'OPSHUB' | 'HYBRID_CSV' | 'UNAVAILABLE';
+  complete: boolean;
+  metrics: Record<
+    HomeSalesComparisonMetricKey,
+    HomeSummaryComparisonMetricResponse
+  >;
+};
+
+type HomeSummaryComparisonsResponse = {
+  previousMonth: HomeSummaryComparisonPeriodResponse;
+  previousYear: HomeSummaryComparisonPeriodResponse;
 };
 
 type HomeSummaryDailyPoint = {
@@ -624,6 +706,7 @@ export class HomeSummaryService {
     range: SummaryDateRange,
     source: HomeSummaryInFlightEntry['source'],
   ) {
+    const cacheRange = this.summaryCacheCoverageRange(range, query);
     let inFlight: HomeSummaryInFlightEntry;
     const promise = this.computeSummary(user, query)
       .then((response) => {
@@ -633,7 +716,7 @@ export class HomeSummaryService {
           );
           return response;
         }
-        this.storeSummaryResponseCache(cacheKey, response, range);
+        this.storeSummaryResponseCache(cacheKey, response, cacheRange);
         this.logger.log(
           `Home summary cache stored: key=${cacheLabel} source=${source} ttlMs=${HOME_SUMMARY_RESPONSE_CACHE_TTL_MS}`,
         );
@@ -646,8 +729,8 @@ export class HomeSummaryService {
       });
     inFlight = {
       promise,
-      startDate: range.startDate,
-      endDate: range.endDate,
+      startDate: cacheRange.startDate,
+      endDate: cacheRange.endDate,
       invalidated: false,
       source,
     };
@@ -699,6 +782,7 @@ export class HomeSummaryService {
     legacyResponse: HomeSummaryResponse,
     context: HomeSummaryComputationContext,
   ) {
+    const cacheRange = this.summaryCacheCoverageRange(range, query);
     let inFlight: HomeSummaryInFlightEntry;
     const startedAt = Date.now();
     const promise = this.extendLegacySummaryWithDailySeries(
@@ -715,7 +799,7 @@ export class HomeSummaryService {
           );
           return response;
         }
-        this.storeSummaryResponseCache(cacheKey, response, range);
+        this.storeSummaryResponseCache(cacheKey, response, cacheRange);
         this.logger.log(
           `Home summary daily cache extension stored: key=${cacheLabel} scope=${context.salesMetricsScope.scope} points=${response.dailySeries?.length ?? 0} durationMs=${Date.now() - startedAt}`,
         );
@@ -728,8 +812,8 @@ export class HomeSummaryService {
       });
     inFlight = {
       promise,
-      startDate: range.startDate,
-      endDate: range.endDate,
+      startDate: cacheRange.startDate,
+      endDate: cacheRange.endDate,
       invalidated: false,
       source: 'daily_extension',
     };
@@ -875,10 +959,13 @@ export class HomeSummaryService {
   private async computeSummary(
     user: any,
     query: GetHomeSummaryQueryDto,
+    options: { skipComparisons?: boolean } = {},
   ): Promise<HomeSummaryResponse> {
     const startedAt = Date.now();
     const range = this.parseSummaryRange(query);
     const includeDailySeries = query.includeDailySeries === 'true';
+    const includeComparisons =
+      query.includeComparisons === 'true' && options.skipComparisons !== true;
     const dailySeriesDates = includeDailySeries
       ? this.rangeDateKeys(range.startDate, range.endDate)
       : [];
@@ -907,7 +994,7 @@ export class HomeSummaryService {
       80,
     );
     this.logger.log(
-      `Home summary load started: user=${this.safeUserLabel(user)} startDate=${range.startDate} endDate=${range.endDate} scopeFilter=${requestedScope} salesProgressUserId=${requestedSalesProgressUserId || 'none'} includeDailySeries=${includeDailySeries} dailySeriesDays=${dailySeriesDates.length}`,
+      `Home summary load started: user=${this.safeUserLabel(user)} startDate=${range.startDate} endDate=${range.endDate} scopeFilter=${requestedScope} salesProgressUserId=${requestedSalesProgressUserId || 'none'} includeDailySeries=${includeDailySeries} includeComparisons=${includeComparisons} dailySeriesDays=${dailySeriesDates.length}`,
     );
     const sectionAccessStartedAt = Date.now();
     const { salesAvailable, financeAvailable } =
@@ -1291,6 +1378,15 @@ export class HomeSummaryService {
       unavailableMessage: null,
       ...(dailySeries ? { dailySeries } : {}),
     };
+    if (includeComparisons && salesAvailable) {
+      response.comparisons = await this.buildComparisons(
+        contextUser,
+        query,
+        range,
+        response,
+        salesMetricsScope,
+      );
+    }
     this.projectionVersionsByResponse.set(response, projectionVersionsByDate);
     this.computationContextByResponse.set(response, {
       useProjection,
@@ -1301,7 +1397,7 @@ export class HomeSummaryService {
       `Home summary stage timings: user=${this.safeUserLabel(contextUser)} contextDurationMs=${contextDurationMs} sectionAccessDurationMs=${sectionAccessDurationMs} scopeDurationMs=${scopeDurationMs} projectionPreparationDurationMs=${projectionPreparationDurationMs} salesProgressDurationMs=${salesProgressDurationMs} projectionMetricsDurationMs=${projectionMetricsDurationMs} durationMs=${Date.now() - startedAt}`,
     );
     this.logger.log(
-      `Home summary load succeeded: user=${this.safeUserLabel(user)} startDate=${range.startDate} endDate=${range.endDate} scopeFilter=${requestedScope} scope=${scope.scope} salesMetricsScope=${salesMetricsScope.scope} selectedSalesProgressUserId=${salesProgressBundle.selectedUserId || 'none'} salesProgressAssignees=${salesProgressBundle.assignees.length} salesAvailable=${salesAvailable} financeAvailable=${financeAvailable} includeDailySeries=${includeDailySeries} dailySeriesPoints=${dailySeries?.length ?? 0} totalRevenue=${totalRevenue} completedRevenue=${completedRevenue} pendingRevenue=${pendingRevenue} businessCustomerRevenue=${mainKpis.businessCustomerRevenue} personalCustomerRevenue=${mainKpis.personalCustomerRevenue} installmentNeedCount=${mainKpis.installmentNeedCount} successfulInstallmentCount=${mainKpis.successfulInstallmentCount} laptopQuantity=${mainKpis.laptopQuantity} pcQuantity=${mainKpis.pcQuantity} assembledPcQuantity=${mainKpis.assembledPcQuantity} appleQuantity=${mainKpis.appleQuantity} totalOrders=${totalOrders} averageOrderValue=${averageOrderValue} totalReports=${totalReports} reportedOrders=${reportedOrders} notPurchasedReports=${notPurchasedReports} consultedYes=${behaviorYesCounts.consultedSolution} experiencedYes=${behaviorYesCounts.experienced} zaloYes=${behaviorYesCounts.zalo} appDownloadYes=${behaviorYesCounts.appDownload} totalStatements=${totalStatements} statementsWithOrder=${totalStatementsWithOrder} projectionVersion=${freshness?.projectionVersion ?? 'legacy'} projectionLagSeconds=${freshness?.projectionLagSeconds ?? 'legacy'} isStale=${freshness?.isStale ?? false} durationMs=${Date.now() - startedAt}`,
+      `Home summary load succeeded: user=${this.safeUserLabel(user)} startDate=${range.startDate} endDate=${range.endDate} scopeFilter=${requestedScope} scope=${scope.scope} salesMetricsScope=${salesMetricsScope.scope} selectedSalesProgressUserId=${salesProgressBundle.selectedUserId || 'none'} salesProgressAssignees=${salesProgressBundle.assignees.length} salesAvailable=${salesAvailable} financeAvailable=${financeAvailable} includeDailySeries=${includeDailySeries} includeComparisons=${includeComparisons} comparisonMonthComplete=${response.comparisons?.previousMonth.complete ?? 'not_requested'} comparisonYearComplete=${response.comparisons?.previousYear.complete ?? 'not_requested'} dailySeriesPoints=${dailySeries?.length ?? 0} totalRevenue=${totalRevenue} completedRevenue=${completedRevenue} pendingRevenue=${pendingRevenue} businessCustomerRevenue=${mainKpis.businessCustomerRevenue} personalCustomerRevenue=${mainKpis.personalCustomerRevenue} installmentNeedCount=${mainKpis.installmentNeedCount} successfulInstallmentCount=${mainKpis.successfulInstallmentCount} laptopQuantity=${mainKpis.laptopQuantity} pcQuantity=${mainKpis.pcQuantity} assembledPcQuantity=${mainKpis.assembledPcQuantity} appleQuantity=${mainKpis.appleQuantity} totalOrders=${totalOrders} averageOrderValue=${averageOrderValue} totalReports=${totalReports} reportedOrders=${reportedOrders} notPurchasedReports=${notPurchasedReports} consultedYes=${behaviorYesCounts.consultedSolution} experiencedYes=${behaviorYesCounts.experienced} zaloYes=${behaviorYesCounts.zalo} appDownloadYes=${behaviorYesCounts.appDownload} totalStatements=${totalStatements} statementsWithOrder=${totalStatementsWithOrder} projectionVersion=${freshness?.projectionVersion ?? 'legacy'} projectionLagSeconds=${freshness?.projectionLagSeconds ?? 'legacy'} isStale=${freshness?.isStale ?? false} durationMs=${Date.now() - startedAt}`,
     );
     return response;
   }
@@ -3819,6 +3915,381 @@ export class HomeSummaryService {
     };
   }
 
+  private async buildComparisons(
+    user: any,
+    query: GetHomeSummaryQueryDto,
+    currentRange: SummaryDateRange,
+    current: HomeSummaryResponse,
+    scope: SalesReportSummaryScopeDescriptor,
+  ): Promise<HomeSummaryComparisonsResponse> {
+    const previousMonthRange = this.shiftSummaryRange(currentRange, -1, 0);
+    const previousYearRange = this.shiftSummaryRange(currentRange, 0, -1);
+    const [previousMonth, previousYear] = await Promise.all([
+      this.buildComparisonPeriod(
+        user,
+        query,
+        current,
+        previousMonthRange,
+        scope,
+      ),
+      this.buildComparisonPeriod(
+        user,
+        query,
+        current,
+        previousYearRange,
+        scope,
+      ),
+    ]);
+    return { previousMonth, previousYear };
+  }
+
+  private async buildComparisonPeriod(
+    user: any,
+    query: GetHomeSummaryQueryDto,
+    current: HomeSummaryResponse,
+    range: SummaryDateRange,
+    scope: SalesReportSummaryScopeDescriptor,
+  ): Promise<HomeSummaryComparisonPeriodResponse> {
+    const startedAt = Date.now();
+    try {
+      const csvComposition = await this.overlayActiveCsvHistory(range, scope);
+      let values: Record<HomeSalesComparisonMetricKey, number>;
+      let source: HomeSummaryComparisonPeriodResponse['source'];
+      let unavailable: Set<HomeSalesComparisonMetricKey>;
+      if (csvComposition) {
+        values = csvComposition.values;
+        source = csvComposition.source;
+        unavailable = csvComposition.unavailable;
+      } else {
+        const previous = await this.computeSummary(
+          user,
+          {
+            ...query,
+            date: undefined,
+            startDate: range.startDate,
+            endDate: range.endDate,
+            includeDailySeries: 'false',
+            includeComparisons: 'false',
+          },
+          { skipComparisons: true },
+        );
+        if (!previous.available || !previous.salesAvailable) {
+          return this.unavailableComparisonPeriod(range);
+        }
+        values = this.comparisonValues(previous);
+        source = 'OPSHUB';
+        unavailable = new Set<HomeSalesComparisonMetricKey>();
+      }
+      const currentValues = this.comparisonValues(current);
+      const metrics = {} as Record<
+        HomeSalesComparisonMetricKey,
+        HomeSummaryComparisonMetricResponse
+      >;
+      for (const key of HOME_SALES_COMPARISON_METRIC_KEYS) {
+        metrics[key] = unavailable.has(key)
+          ? { value: null, deltaPercent: null, status: 'UNAVAILABLE' }
+          : this.comparisonMetric(currentValues[key], values[key]);
+      }
+      this.logger.log(
+        `Home comparison period loaded: startDate=${range.startDate} endDate=${range.endDate} source=${source} unavailableMetrics=${unavailable.size} durationMs=${Date.now() - startedAt}`,
+      );
+      return {
+        startDate: range.startDate,
+        endDate: range.endDate,
+        source,
+        complete: unavailable.size === 0,
+        metrics,
+      };
+    } catch (error) {
+      this.logger.warn(
+        `Home comparison period unavailable: startDate=${range.startDate} endDate=${range.endDate} error=${safeLogError(error)} durationMs=${Date.now() - startedAt}`,
+      );
+      return this.unavailableComparisonPeriod(range);
+    }
+  }
+
+  private async overlayActiveCsvHistory(
+    range: SummaryDateRange,
+    scope: SalesReportSummaryScopeDescriptor,
+  ) {
+    let stores = this.normalizedStoreCodes(scope.allowedStoreCodes);
+    if (scope.scope === 'ALL') {
+      stores = this.normalizedStoreCodes(
+        (await this.prisma.store.findMany({ select: { storeId: true } })).map(
+          (store) => store.storeId,
+        ),
+      );
+    }
+    const active = await this.prisma.salesHistoryActiveGrain.findMany({
+      where: {
+        summaryDate: {
+          gte: this.dateOnlyUtc(range.startDate),
+          lte: this.dateOnlyUtc(range.endDate),
+        },
+        ...(stores.length > 0 ? { storeCode: { in: stores } } : {}),
+      },
+      select: {
+        summaryDate: true,
+        storeCode: true,
+        currentVersionId: true,
+      },
+    });
+    if (active.length === 0) return null;
+    const unavailable = new Set<HomeSalesComparisonMetricKey>(
+      HOME_SALES_COMPARISON_METRIC_KEYS.filter(
+        (key) => !CSV_SUPPORTED_COMPARISON_METRICS.has(key),
+      ),
+    );
+    const storeDimension =
+      scope.scope === 'ALL' || scope.scope === 'MANAGED_SCOPE';
+    const csvDimensionType = storeDimension ? 'STORE' : 'USER_STORE';
+    const csvDimensionKey = storeDimension
+      ? ''
+      : this.optionalText(scope.ownUserId, 120) || '__NO_CSV_USER__';
+    const projectionDimensionKey = storeDimension
+      ? ''
+      : this.personalEmail(scope) || '__NO_PROJECTED_USER__';
+    const versionIds = Array.from(
+      new Set(active.map((grain) => grain.currentVersionId)),
+    );
+    const expectedStores = stores.length
+      ? stores
+      : Array.from(new Set(active.map((grain) => grain.storeCode))).sort();
+    const expectedGrains = new Set(
+      this.rangeDateKeys(range.startDate, range.endDate).flatMap((date) =>
+        expectedStores.map((storeCode) => `${date}|${storeCode}`),
+      ),
+    );
+    const activeVersionByGrain = new Map(
+      active.map((grain) => [
+        `${this.dateOnlyKey(grain.summaryDate)}|${grain.storeCode}`,
+        grain.currentVersionId,
+      ]),
+    );
+    const covered = new Set(
+      Array.from(expectedGrains).filter((key) => activeVersionByGrain.has(key)),
+    );
+    const uncovered = new Set(
+      Array.from(expectedGrains).filter((key) => !covered.has(key)),
+    );
+    const csvRows = await this.prisma.salesHistoryAggregate.findMany({
+      where: {
+        versionId: { in: versionIds },
+        summaryDate: {
+          gte: this.dateOnlyUtc(range.startDate),
+          lte: this.dateOnlyUtc(range.endDate),
+        },
+        storeCode: { in: expectedStores },
+        dimensionType: csvDimensionType,
+        dimensionKey: csvDimensionKey,
+      },
+    });
+    const projectionRows =
+      uncovered.size === 0
+        ? []
+        : await this.prisma.homeSummaryDailyAggregate.findMany({
+            where: {
+              summaryDate: {
+                gte: this.dateOnlyUtc(range.startDate),
+                lte: this.dateOnlyUtc(range.endDate),
+              },
+              projectionKind: 'SALES',
+              dimensionType: csvDimensionType,
+              dimensionKey: projectionDimensionKey,
+              storeCode: { in: expectedStores },
+            },
+            select: {
+              summaryDate: true,
+              storeCode: true,
+              totalOrders: true,
+              metrics: true,
+            },
+          });
+    const csvByGrain = new Map(
+      csvRows
+        .filter(
+          (row) =>
+            activeVersionByGrain.get(
+              `${this.dateOnlyKey(row.summaryDate)}|${row.storeCode}`,
+            ) === row.versionId,
+        )
+        .map((row) => [
+          `${this.dateOnlyKey(row.summaryDate)}|${row.storeCode}`,
+          row,
+        ]),
+    );
+    if (Array.from(covered).some((key) => !csvByGrain.has(key))) {
+      CSV_SUPPORTED_COMPARISON_METRICS.forEach((key) => unavailable.add(key));
+    }
+    const projectionByGrain = new Map(
+      projectionRows.map((row) => [
+        `${this.dateOnlyKey(row.summaryDate)}|${row.storeCode}`,
+        row,
+      ]),
+    );
+    if (Array.from(uncovered).some((key) => !projectionByGrain.has(key))) {
+      CSV_SUPPORTED_COMPARISON_METRICS.forEach((key) => unavailable.add(key));
+    }
+    const csvTotals = this.emptyCsvComparisonTotals();
+    for (const row of csvByGrain.values()) {
+      csvTotals.totalRevenue += Number(row.totalRevenue);
+      csvTotals.totalOrders += row.totalOrders;
+      for (const key of METRIC_COMPARISON_QUANTITY_KEYS) {
+        csvTotals[key] += row[key];
+      }
+    }
+    const projectionTotals = this.emptyCsvComparisonTotals();
+    for (const [key, row] of projectionByGrain) {
+      if (!uncovered.has(key)) continue;
+      if (
+        typeof row.totalOrders !== 'number' ||
+        !Number.isFinite(row.totalOrders)
+      ) {
+        unavailable.add('totalOrders');
+      } else {
+        projectionTotals.totalOrders += row.totalOrders;
+      }
+      const metrics = this.jsonMetricRecord(row.metrics);
+      const totalRevenue = metrics.totalRevenue;
+      if (typeof totalRevenue !== 'number' || !Number.isFinite(totalRevenue)) {
+        unavailable.add('totalRevenue');
+      } else {
+        projectionTotals.totalRevenue += totalRevenue;
+      }
+      for (const key of METRIC_COMPARISON_QUANTITY_KEYS) {
+        const value = metrics[key];
+        if (typeof value !== 'number' || !Number.isFinite(value)) {
+          unavailable.add(key);
+        } else {
+          projectionTotals[key] += value;
+        }
+      }
+    }
+    if (unavailable.has('totalRevenue') || unavailable.has('totalOrders')) {
+      unavailable.add('averageOrderValue');
+    }
+    const values = Object.fromEntries(
+      HOME_SALES_COMPARISON_METRIC_KEYS.map((key) => [key, 0]),
+    ) as Record<HomeSalesComparisonMetricKey, number>;
+    values.totalRevenue = Math.max(
+      0,
+      projectionTotals.totalRevenue + csvTotals.totalRevenue,
+    );
+    values.totalOrders = Math.max(
+      0,
+      projectionTotals.totalOrders + csvTotals.totalOrders,
+    );
+    for (const key of METRIC_COMPARISON_QUANTITY_KEYS) {
+      values[key] = Math.max(0, projectionTotals[key] + csvTotals[key]);
+    }
+    values.averageOrderValue = values.totalOrders
+      ? Math.round(values.totalRevenue / values.totalOrders)
+      : 0;
+    return { values, source: 'HYBRID_CSV' as const, unavailable };
+  }
+
+  private comparisonValues(response: HomeSummaryResponse) {
+    return Object.fromEntries(
+      HOME_SALES_COMPARISON_METRIC_KEYS.map((key) => [
+        key,
+        Number(response[key] ?? 0),
+      ]),
+    ) as Record<HomeSalesComparisonMetricKey, number>;
+  }
+
+  private comparisonMetric(
+    current: number,
+    previous: number,
+  ): HomeSummaryComparisonMetricResponse {
+    if (previous === 0 && current > 0) {
+      return { value: previous, deltaPercent: null, status: 'NEW' };
+    }
+    const deltaPercent =
+      previous === 0
+        ? 0
+        : Number(
+            (((current - previous) / Math.abs(previous)) * 100).toFixed(2),
+          );
+    return { value: previous, deltaPercent, status: 'AVAILABLE' };
+  }
+
+  private unavailableComparisonPeriod(
+    range: Pick<SummaryDateRange, 'startDate' | 'endDate'>,
+  ): HomeSummaryComparisonPeriodResponse {
+    return {
+      startDate: range.startDate,
+      endDate: range.endDate,
+      source: 'UNAVAILABLE',
+      complete: false,
+      metrics: Object.fromEntries(
+        HOME_SALES_COMPARISON_METRIC_KEYS.map((key) => [
+          key,
+          { value: null, deltaPercent: null, status: 'UNAVAILABLE' },
+        ]),
+      ) as Record<
+        HomeSalesComparisonMetricKey,
+        HomeSummaryComparisonMetricResponse
+      >,
+    };
+  }
+
+  private shiftSummaryRange(
+    range: Pick<SummaryDateRange, 'startDate' | 'endDate'>,
+    monthDelta: number,
+    yearDelta: number,
+  ): SummaryDateRange {
+    const startDate = this.shiftDateOnly(
+      range.startDate,
+      monthDelta,
+      yearDelta,
+    );
+    const endDate = this.shiftDateOnly(range.endDate, monthDelta, yearDelta);
+    return {
+      startDate,
+      endDate,
+      legacyDate: null,
+      start: this.dateOnlyUtc(startDate),
+      end: new Date(`${endDate}T23:59:59.999Z`),
+    };
+  }
+
+  private shiftDateOnly(value: string, monthDelta: number, yearDelta: number) {
+    const source = this.dateOnlyUtc(value);
+    const targetMonthIndex =
+      source.getUTCFullYear() * 12 +
+      source.getUTCMonth() +
+      monthDelta +
+      yearDelta * 12;
+    const year = Math.floor(targetMonthIndex / 12);
+    const month = ((targetMonthIndex % 12) + 12) % 12;
+    const day = Math.min(
+      source.getUTCDate(),
+      new Date(Date.UTC(year, month + 1, 0)).getUTCDate(),
+    );
+    return `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+  }
+
+  private emptyCsvComparisonTotals() {
+    return {
+      totalRevenue: 0,
+      totalOrders: 0,
+      extendedInsuranceQuantity: 0,
+      laptopQuantity: 0,
+      pcQuantity: 0,
+      assembledPcQuantity: 0,
+      appleQuantity: 0,
+      monitorQuantity: 0,
+      printerQuantity: 0,
+      accessoriesQuantity: 0,
+    };
+  }
+
+  private jsonMetricRecord(value: Prisma.JsonValue) {
+    return value && typeof value === 'object' && !Array.isArray(value)
+      ? (value as Record<string, unknown>)
+      : {};
+  }
+
   private async loadProjectionMetrics(
     range: SummaryDateRange,
     scope: SalesReportSummaryScopeDescriptor,
@@ -4003,17 +4474,24 @@ export class HomeSummaryService {
       this.optionalText(user?.email, 160) ||
       this.optionalText(user?.personnelCode, 80) ||
       'anonymous';
+    const accessIdentity = [
+      user?.tokenVersion ?? 0,
+      user?.authSession?.sessionVersion ?? 0,
+      user?.accessVersion ?? 0,
+    ].join('|');
     const canonicalKey = JSON.stringify([
-      'v4',
+      'v6',
       userKey,
+      accessIdentity,
       range.startDate,
       range.endDate,
       this.parseScopeParam(query.scope),
       this.optionalText(query.organizationNodeId, 80) || '',
       this.optionalText(query.salesProgressUserId, 80) || '',
       query.includeDailySeries === 'true',
+      query.includeComparisons === 'true',
     ]);
-    return `v4:${createHash('sha256').update(canonicalKey).digest('hex')}`;
+    return `v6:${createHash('sha256').update(canonicalKey).digest('hex')}`;
   }
 
   private salesProgressBundleCacheKey(
@@ -4093,6 +4571,24 @@ export class HomeSummaryService {
       projectionVersionsByDate,
       response,
     });
+  }
+
+  private summaryCacheCoverageRange(
+    range: Pick<SummaryDateRange, 'startDate' | 'endDate'>,
+    query: GetHomeSummaryQueryDto,
+  ) {
+    if (query.includeComparisons !== 'true') return range;
+    const previousYear = this.shiftSummaryRange(range, 0, -1);
+    return {
+      startDate:
+        previousYear.startDate < range.startDate
+          ? previousYear.startDate
+          : range.startDate,
+      endDate:
+        previousYear.endDate > range.endDate
+          ? previousYear.endDate
+          : range.endDate,
+    };
   }
 
   private async computeScopeOptions(

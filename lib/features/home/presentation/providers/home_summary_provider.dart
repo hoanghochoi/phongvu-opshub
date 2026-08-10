@@ -102,6 +102,7 @@ class HomeSummaryProvider extends ChangeNotifier {
   bool _isRouteActive = true;
   bool _isForeground = true;
   bool _sessionBootstrapPending = false;
+  bool _disposed = false;
   String? _errorMessage;
   String? _syncedSessionKey;
   int _requestToken = 0;
@@ -319,7 +320,7 @@ class HomeSummaryProvider extends ChangeNotifier {
       final options = (await _repository.fetchScopeOptions(
         cacheIdentity: _cacheIdentity(user),
       )).map(HomeSummaryScopeOption.fromDto).toList(growable: false);
-      if (_syncedSessionKey != expectedSessionKey) {
+      if (_disposed || _syncedSessionKey != expectedSessionKey) {
         await _logDiscardedScopeOptions(user, reason);
         return false;
       }
@@ -341,7 +342,7 @@ class HomeSummaryProvider extends ChangeNotifier {
       );
       return true;
     } on ApiException catch (error) {
-      if (_syncedSessionKey != expectedSessionKey) {
+      if (_disposed || _syncedSessionKey != expectedSessionKey) {
         await _logDiscardedScopeOptions(user, reason);
         return false;
       }
@@ -360,7 +361,7 @@ class HomeSummaryProvider extends ChangeNotifier {
       );
       return true;
     } catch (error, stackTrace) {
-      if (_syncedSessionKey != expectedSessionKey) {
+      if (_disposed || _syncedSessionKey != expectedSessionKey) {
         await _logDiscardedScopeOptions(user, reason);
         return false;
       }
@@ -637,6 +638,7 @@ class HomeSummaryProvider extends ChangeNotifier {
   }
 
   Future<bool> _loadSummary({required String reason}) async {
+    if (_disposed) return false;
     final user = _user;
     if (user == null) return false;
 
@@ -665,6 +667,7 @@ class HomeSummaryProvider extends ChangeNotifier {
         'cached': hadCachedSummary,
       },
     );
+    if (_disposed || requestToken != _requestToken) return false;
 
     try {
       final summary = await _repository.fetchSummary(
@@ -675,8 +678,9 @@ class HomeSummaryProvider extends ChangeNotifier {
         salesProgressUserId: _selectedSalesProgressUserId,
         cacheIdentity: _cacheIdentity(user),
         forceRefresh: _shouldForceNetworkForReason(reason),
+        includeComparisons: true,
       );
-      if (requestToken != _requestToken) return false;
+      if (_disposed || requestToken != _requestToken) return false;
 
       _summary = summary;
       _lastSuccessfulLoadAt = _repository.lastSummaryFetchedAt ?? _now();
@@ -740,11 +744,17 @@ class HomeSummaryProvider extends ChangeNotifier {
           'projectionLagSeconds': summary.freshness?.projectionLagSeconds,
           'projectionVersion': summary.freshness?.projectionVersion,
           'isStale': summary.isStale,
+          'hasComparisons': summary.comparisons != null,
+          'previousMonthComplete':
+              summary.comparisons?.previousMonth.complete ?? false,
+          'previousYearComplete':
+              summary.comparisons?.previousYear.complete ?? false,
+          'previousYearSource': summary.comparisons?.previousYear.source,
         },
       );
       return true;
     } on ApiException catch (error) {
-      if (requestToken != _requestToken) return false;
+      if (_disposed || requestToken != _requestToken) return false;
       _errorMessage = error.message;
       await AppLogger.instance.warn(
         'HomeSummary',
@@ -763,7 +773,7 @@ class HomeSummaryProvider extends ChangeNotifier {
         },
       );
     } catch (error, stackTrace) {
-      if (requestToken != _requestToken) return false;
+      if (_disposed || requestToken != _requestToken) return false;
       _errorMessage = 'Chưa tải được dashboard. Vui lòng thử lại.';
       await AppLogger.instance.error(
         'HomeSummary',
@@ -784,7 +794,7 @@ class HomeSummaryProvider extends ChangeNotifier {
         upload: true,
       );
     } finally {
-      if (requestToken == _requestToken) {
+      if (!_disposed && requestToken == _requestToken) {
         _isLoading = false;
         _isRefreshing = false;
         notifyListeners();
@@ -794,7 +804,8 @@ class HomeSummaryProvider extends ChangeNotifier {
   }
 
   void _handleRealtimeEnvelope(RealtimeEnvelope envelope) {
-    if (envelope.kind != 'HOME_SUMMARY_UPDATED' ||
+    if (_disposed ||
+        envelope.kind != 'HOME_SUMMARY_UPDATED' ||
         envelope.topic != 'home.summary' ||
         _user == null) {
       return;
@@ -862,7 +873,7 @@ class HomeSummaryProvider extends ChangeNotifier {
   }
 
   void _handleRealtimeSyncRequest(RealtimeSyncReason reason) {
-    if (_user == null) return;
+    if (_disposed || _user == null) return;
     _scheduleRealtimeRefresh(
       reason: switch (reason) {
         RealtimeSyncReason.reconnected => 'realtime_reconnected',
@@ -877,6 +888,7 @@ class HomeSummaryProvider extends ChangeNotifier {
     bool force = false,
     bool immediate = false,
   }) {
+    if (_disposed) return;
     _pendingRealtimeReason = force ? reason : _pendingRealtimeReason ?? reason;
     if (force) _pendingAffectedDates.clear();
     if (!_isRouteActive || !_isForeground) {
@@ -912,7 +924,7 @@ class HomeSummaryProvider extends ChangeNotifier {
 
   Future<void> _refreshFromRealtime() async {
     _cancelRealtimeRefreshTimers();
-    if (_user == null) return;
+    if (_disposed || _user == null) return;
     if (!_isRouteActive || !_isForeground) return;
     final reason = _pendingRealtimeReason ?? 'realtime_sync';
     final pendingVersions = Map<String, int>.from(
@@ -949,6 +961,7 @@ class HomeSummaryProvider extends ChangeNotifier {
       },
     );
     final succeeded = await _loadSummary(reason: reason);
+    if (_disposed) return;
     if (succeeded) {
       for (final entry in pendingVersions.entries) {
         final applied = _lastAppliedProjectionVersionByDate[entry.key] ?? -1;
@@ -973,15 +986,39 @@ class HomeSummaryProvider extends ChangeNotifier {
   }
 
   bool _overlapsSelectedRange(Set<String> affectedDates) {
-    final start = resolvedStartDate;
-    final end = resolvedEndDate;
+    final ranges = <(DateTime, DateTime)>[
+      (resolvedStartDate, resolvedEndDate),
+      (
+        _shiftComparisonDate(resolvedStartDate, monthDelta: -1),
+        _shiftComparisonDate(resolvedEndDate, monthDelta: -1),
+      ),
+      (
+        _shiftComparisonDate(resolvedStartDate, yearDelta: -1),
+        _shiftComparisonDate(resolvedEndDate, yearDelta: -1),
+      ),
+    ];
     for (final value in affectedDates) {
       final parsed = DateTime.tryParse(value);
       if (parsed == null) continue;
       final date = _normalizeDate(parsed);
-      if (!date.isBefore(start) && !date.isAfter(end)) return true;
+      for (final range in ranges) {
+        if (!date.isBefore(range.$1) && !date.isAfter(range.$2)) return true;
+      }
     }
     return false;
+  }
+
+  DateTime _shiftComparisonDate(
+    DateTime value, {
+    int monthDelta = 0,
+    int yearDelta = 0,
+  }) {
+    final monthIndex =
+        value.year * 12 + value.month - 1 + monthDelta + yearDelta * 12;
+    final year = monthIndex ~/ 12;
+    final month = monthIndex % 12 + 1;
+    final lastDay = DateTime(year, month + 1, 0).day;
+    return DateTime(year, month, value.day > lastDay ? lastDay : value.day);
   }
 
   static int? _intOf(Object? value) {
@@ -1115,6 +1152,8 @@ class HomeSummaryProvider extends ChangeNotifier {
 
   @override
   void dispose() {
+    _disposed = true;
+    _requestToken += 1;
     _cancelRealtimeRefreshTimers();
     unawaited(_realtimeEventSubscription?.cancel());
     unawaited(_realtimeSyncSubscription?.cancel());

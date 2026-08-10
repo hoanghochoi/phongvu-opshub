@@ -1,0 +1,9 @@
+DROP TABLE IF EXISTS "SalesHistoryActivationGrain";
+DROP TABLE IF EXISTS "SalesHistoryActivation";
+DROP TABLE IF EXISTS "SalesHistoryActiveGrain";
+DROP TABLE IF EXISTS "SalesHistoryAggregate";
+DROP TABLE IF EXISTS "SalesHistoryCoverage";
+DROP TABLE IF EXISTS "SalesHistoryImportOrderStage";
+DROP TABLE IF EXISTS "SalesHistoryImportGrainStage";
+DROP TABLE IF EXISTS "SalesHistoryImportJob";
+DROP TABLE IF EXISTS "SalesHistoryVersion";

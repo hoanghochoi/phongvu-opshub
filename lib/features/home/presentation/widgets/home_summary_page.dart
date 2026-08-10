@@ -1014,6 +1014,8 @@ class SummaryCardGrid extends StatelessWidget {
       expandedRowHeights: const [146],
       mediumRowHeights: const [136],
       compactRowHeights: const [184],
+      showComparisons: true,
+      comparisons: summary.comparisons,
     );
   }
 }
@@ -1157,6 +1159,8 @@ class MainKpiSummaryCardGrid extends StatelessWidget {
       expandedRowHeights: const [146],
       mediumRowHeights: const [136],
       compactRowHeights: const [184],
+      showComparisons: true,
+      comparisons: summary.comparisons,
     );
   }
 }
@@ -1268,6 +1272,8 @@ class SalesBehaviorSummaryCardGrid extends StatelessWidget {
       expandedRowHeights: const [146],
       mediumRowHeights: const [136],
       compactRowHeights: const [184],
+      showComparisons: true,
+      comparisons: summary.comparisons,
     );
   }
 }
@@ -1372,6 +1378,8 @@ class _SummaryMetricGrid extends StatelessWidget {
     this.expandedRowHeights,
     this.mediumRowHeights,
     this.compactRowHeights,
+    this.showComparisons = false,
+    this.comparisons,
   });
 
   final Key gridKey;
@@ -1381,6 +1389,8 @@ class _SummaryMetricGrid extends StatelessWidget {
   final List<double>? expandedRowHeights;
   final List<double>? mediumRowHeights;
   final List<double>? compactRowHeights;
+  final bool showComparisons;
+  final HomeSummaryComparisons? comparisons;
 
   @override
   Widget build(BuildContext context) {
@@ -1388,24 +1398,28 @@ class _SummaryMetricGrid extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final width = constraints.maxWidth;
-        final maxColumns = width >= 1100
+        final maxColumns = width >= AppLayoutTokens.desktopBreakpoint
             ? math.min(wideColumns, cards.length)
-            : width >= 880
+            : width >= AppLayoutTokens.tabletBreakpoint
             ? math.min(3, cards.length)
-            : width >= 600
+            : width >= AppLayoutTokens.compactBreakpoint
             ? 1
             : math.min(2, cards.length);
         final rows = _balancedRows(cards, maxColumns);
         const gap = 16.0;
-        final rowHeightsForWidth = width >= 1100
+        final rowHeightsForWidth = width >= AppLayoutTokens.desktopBreakpoint
             ? rowHeights
-            : width >= 880
+            : width >= AppLayoutTokens.tabletBreakpoint
             ? expandedRowHeights
-            : width >= 600
+            : width >= AppLayoutTokens.compactBreakpoint
             ? mediumRowHeights
             : compactRowHeights;
+        final textScale = MediaQuery.textScalerOf(context).scale(10) / 10;
+        final comparisonHeightAdjustment = showComparisons
+            ? 120.0 * (textScale.clamp(1.0, 2.0) - 1.0)
+            : 0.0;
 
-        return Column(
+        final grid = Column(
           key: gridKey,
           children: [
             for (var rowIndex = 0; rowIndex < rows.length; rowIndex++) ...[
@@ -1420,12 +1434,14 @@ class _SummaryMetricGrid extends StatelessWidget {
                     if (columnIndex > 0) SizedBox(width: gap),
                     Expanded(
                       child: SizedBox(
-                        height: rowHeightsForWidth == null
-                            ? 136
-                            : rowHeightsForWidth[math.min(
-                                rowIndex,
-                                rowHeightsForWidth.length - 1,
-                              )],
+                        height:
+                            (rowHeightsForWidth == null
+                                ? 136
+                                : rowHeightsForWidth[math.min(
+                                    rowIndex,
+                                    rowHeightsForWidth.length - 1,
+                                  )]) +
+                            comparisonHeightAdjustment,
                         child: rows[rowIndex][columnIndex],
                       ),
                     ),
@@ -1435,6 +1451,8 @@ class _SummaryMetricGrid extends StatelessWidget {
             ],
           ],
         );
+        if (!showComparisons) return grid;
+        return _HomeComparisonScope(comparisons: comparisons, child: grid);
       },
     );
   }
@@ -1482,6 +1500,14 @@ class SummaryCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
+        final comparisonScope = _HomeComparisonScope.maybeOf(context);
+        final showComparisons = comparisonScope != null;
+        final comparisonMetricKey = metricKey == 'revenue'
+            ? 'totalRevenue'
+            : metricKey;
+        final comparisons = comparisonScope?.comparisons?.forMetric(
+          comparisonMetricKey,
+        );
         final compact =
             constraints.hasBoundedHeight && constraints.maxHeight < 120;
         final dense =
@@ -1548,11 +1574,20 @@ class SummaryCard extends StatelessWidget {
                         child: _SummaryValueRow(
                           value: value,
                           trend: trend,
+                          showTrend: !showComparisons,
                           style: AppTextStyles.labelM.copyWith(
                             color: AppColors.textPrimaryOf(context),
                           ),
                         ),
                       ),
+                      if (showComparisons) ...[
+                        const SizedBox(height: 2),
+                        _SummaryPeriodComparisons(
+                          metricKey: metricKey,
+                          comparisons: comparisons,
+                          compact: true,
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -1625,23 +1660,31 @@ class SummaryCard extends StatelessWidget {
                 child: _SummaryValueRow(
                   value: value,
                   trend: trend,
+                  showTrend: !showComparisons,
                   style: AppTextStyles.headingS.copyWith(
                     color: AppColors.textPrimaryOf(context),
                   ),
                 ),
               ),
-              if (!compact) ...[
-                const SizedBox(height: 8),
-                Text(
-                  helperText ?? _summaryCardHelperText(trend),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppTextStyles.bodyS.copyWith(
-                    color: AppColors.textSecondaryOf(context),
-                    height: 18 / 13,
+              if (!compact)
+                if (showComparisons) ...[
+                  SizedBox(height: dense ? 4 : 12),
+                  _SummaryPeriodComparisons(
+                    metricKey: metricKey,
+                    comparisons: comparisons,
                   ),
-                ),
-              ],
+                ] else ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    helperText ?? _summaryCardHelperText(trend),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTextStyles.bodyS.copyWith(
+                      color: AppColors.textSecondaryOf(context),
+                      height: 18 / 13,
+                    ),
+                  ),
+                ],
             ],
           ),
         );
@@ -1650,16 +1693,234 @@ class SummaryCard extends StatelessWidget {
   }
 }
 
+class _HomeComparisonScope extends InheritedWidget {
+  const _HomeComparisonScope({required this.comparisons, required super.child});
+
+  final HomeSummaryComparisons? comparisons;
+
+  static _HomeComparisonScope? maybeOf(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<_HomeComparisonScope>();
+
+  @override
+  bool updateShouldNotify(_HomeComparisonScope oldWidget) =>
+      comparisons != oldWidget.comparisons;
+}
+
+class _SummaryPeriodComparisons extends StatelessWidget {
+  const _SummaryPeriodComparisons({
+    required this.metricKey,
+    required this.comparisons,
+    this.compact = false,
+  });
+
+  final String metricKey;
+  final HomeSummaryMetricComparisons? comparisons;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    const unavailable = HomeSummaryComparisonMetric.unavailable();
+    final textScale = MediaQuery.textScalerOf(context).scale(10) / 10;
+    return SizedBox(
+      key: Key('home-summary-card-$metricKey-comparisons'),
+      height: textScale <= 1 ? (compact ? 28 : 36) : null,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          _SummaryComparisonRow(
+            key: Key('home-summary-card-$metricKey-t-minus-1'),
+            metricKey: metricKey,
+            icon: PhosphorIconsRegular.clockCounterClockwise,
+            shortLabel: 'T−1',
+            semanticLabel: 'Tháng liền trước',
+            metric: comparisons?.previousMonth ?? unavailable,
+            source: comparisons?.previousMonthSource ?? 'UNAVAILABLE',
+            compact: compact,
+          ),
+          SizedBox(height: compact ? 2 : 4),
+          _SummaryComparisonRow(
+            key: Key('home-summary-card-$metricKey-n-minus-1'),
+            metricKey: metricKey,
+            icon: PhosphorIconsRegular.arrowsLeftRight,
+            shortLabel: 'N−1',
+            semanticLabel: 'Cùng kỳ năm trước',
+            metric: comparisons?.previousYear ?? unavailable,
+            source: comparisons?.previousYearSource ?? 'UNAVAILABLE',
+            compact: compact,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SummaryComparisonRow extends StatefulWidget {
+  const _SummaryComparisonRow({
+    super.key,
+    required this.metricKey,
+    required this.icon,
+    required this.shortLabel,
+    required this.semanticLabel,
+    required this.metric,
+    required this.source,
+    required this.compact,
+  });
+
+  final String metricKey;
+  final IconData icon;
+  final String shortLabel;
+  final String semanticLabel;
+  final HomeSummaryComparisonMetric metric;
+  final String source;
+  final bool compact;
+
+  @override
+  State<_SummaryComparisonRow> createState() => _SummaryComparisonRowState();
+}
+
+class _SummaryComparisonRowState extends State<_SummaryComparisonRow> {
+  final GlobalKey<TooltipState> _tooltipKey = GlobalKey<TooltipState>();
+  final FocusNode _sourceFocusNode = FocusNode();
+
+  @override
+  void dispose() {
+    _sourceFocusNode.dispose();
+    super.dispose();
+  }
+
+  void _handleFocusChange(bool hasFocus) {
+    if (hasFocus) {
+      _tooltipKey.currentState?.ensureTooltipVisible();
+      return;
+    }
+    Tooltip.dismissAllToolTips();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final value = _comparisonMetricText(widget.metricKey, widget.metric);
+    final sourceLabel = _comparisonSourceLabel(widget.source);
+    return Tooltip(
+      key: _tooltipKey,
+      message: 'Nguồn: $sourceLabel',
+      child: FocusableActionDetector(
+        focusNode: _sourceFocusNode,
+        onFocusChange: _handleFocusChange,
+        child: Semantics(
+          label: '${widget.semanticLabel}: $value. Nguồn: $sourceLabel',
+          container: true,
+          excludeSemantics: true,
+          child: SizedBox(
+            height: MediaQuery.textScalerOf(context).scale(10) <= 10
+                ? (widget.compact ? 13 : 16)
+                : null,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(
+                  widget.icon,
+                  size: 12,
+                  color: AppColors.textSecondaryOf(context),
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  widget.shortLabel,
+                  style: AppTextStyles.labelSmallSubtle.copyWith(
+                    color: AppColors.textSecondaryOf(context),
+                    fontSize: 9,
+                    height: 1.2,
+                  ),
+                ),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: Align(
+                    alignment: Alignment.topRight,
+                    child: Text(
+                      value,
+                      maxLines: 2,
+                      textAlign: TextAlign.right,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTextStyles.labelSmallSubtle.copyWith(
+                        color: AppColors.textPrimaryOf(context),
+                        fontSize: 10,
+                        height: 1.3,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+String _comparisonSourceLabel(String source) => switch (source) {
+  'OPSHUB' => 'OpsHub',
+  'CSV' => 'Tệp CSV đã kích hoạt',
+  'HYBRID_CSV' => 'OpsHub kết hợp tệp CSV',
+  _ => 'Chưa xác định',
+};
+
+const _comparisonMoneyMetrics = {
+  'revenue',
+  'totalRevenue',
+  'averageOrderValue',
+  'completedRevenue',
+  'pendingRevenue',
+  'businessCustomerRevenue',
+  'personalCustomerRevenue',
+};
+
+const _comparisonPercentMetrics = {
+  'conversionRate',
+  'coverageRate',
+  'consultedSolutionRate',
+  'experiencedRate',
+  'zaloRate',
+  'appDownloadRate',
+};
+
+String _comparisonMetricText(
+  String metricKey,
+  HomeSummaryComparisonMetric metric,
+) {
+  if (metric.isUnavailable) return 'Chưa có dữ liệu';
+  if (metric.isNew) return 'Mới';
+  final rawValue = metric.value ?? 0;
+  final value = _comparisonMoneyMetrics.contains(metricKey)
+      ? formatCompactVndAmount(rawValue)
+      : _comparisonPercentMetrics.contains(metricKey)
+      ? _percentLabel(rawValue.toDouble())
+      : _integerLabel(rawValue.round());
+  final delta = metric.deltaPercent ?? 0;
+  final direction = delta > 0
+      ? '↑'
+      : delta < 0
+      ? '↓'
+      : '';
+  final absolute = delta.abs();
+  final deltaNumber = absolute
+      .toStringAsFixed(absolute % 1 == 0 ? 0 : 1)
+      .replaceAll('.', ',');
+  return '$value · $direction$deltaNumber%';
+}
+
 class _SummaryValueRow extends StatelessWidget {
   const _SummaryValueRow({
     required this.value,
     required this.trend,
     required this.style,
+    this.showTrend = true,
   });
 
   final String value;
   final SummaryTrend trend;
   final TextStyle style;
+  final bool showTrend;
 
   @override
   Widget build(BuildContext context) {
@@ -1675,8 +1936,10 @@ class _SummaryValueRow extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Text(value, maxLines: 1, softWrap: false, style: style),
-              const SizedBox(width: 8),
-              _SummaryTrendPill(trend: trend),
+              if (showTrend) ...[
+                const SizedBox(width: 8),
+                _SummaryTrendPill(trend: trend),
+              ],
             ],
           ),
         ),

@@ -17,6 +17,7 @@ import '../../../../app/widgets/app_state_widgets.dart';
 import '../../../../core/formatting/money_formatters.dart';
 import '../../../../core/logging/app_logger.dart';
 import '../../../../core/network/api_client.dart';
+import '../../../../core/platform/app_platform_capabilities.dart';
 import '../../../auth/data/repositories/auth_repository.dart';
 import '../../../auth/domain/entities/store_branch.dart';
 import '../../../auth/domain/entities/user.dart';
@@ -24,6 +25,7 @@ import '../../../auth/presentation/providers/auth_provider.dart';
 import '../../domain/sales_report.dart';
 import '../providers/sales_report_provider.dart';
 import '../widgets/sales_report_export_menu.dart';
+import 'sales_history_import_dialog.dart';
 
 class SalesReportAdminScreen extends StatefulWidget {
   final AuthRepository? authRepository;
@@ -85,6 +87,11 @@ class _SalesReportAdminScreenState extends State<SalesReportAdminScreen> {
       query: _query(limit: provider.adminLimit, exportType: exportType),
     );
   }
+
+  Future<void> _openHistoryImport() => showSalesHistoryImportDialog(
+    context: context,
+    provider: context.read<SalesReportProvider>(),
+  );
 
   void _setDateRange(DateTime? start, DateTime? end) {
     setState(() {
@@ -238,6 +245,9 @@ class _SalesReportAdminScreenState extends State<SalesReportAdminScreen> {
             onReload: () => _reload(),
             onReloadStores: () => _loadSuperAdminStoreOptions(user),
             onExport: _export,
+            showHistoryImport:
+                AppPlatformCapabilities.isSalesHistoryImportSupported(),
+            onHistoryImport: _openHistoryImport,
           ),
           const SizedBox(height: AppLayoutTokens.cardGap),
           if (provider.errorMessage != null) ...[
@@ -339,6 +349,8 @@ class _SalesReportAdminToolbar extends StatelessWidget {
   final Future<void> Function() onReload;
   final Future<void> Function() onReloadStores;
   final SalesReportExportCallback onExport;
+  final bool showHistoryImport;
+  final Future<void> Function() onHistoryImport;
 
   const _SalesReportAdminToolbar({
     required this.reportType,
@@ -358,6 +370,8 @@ class _SalesReportAdminToolbar extends StatelessWidget {
     required this.onReload,
     required this.onReloadStores,
     required this.onExport,
+    required this.showHistoryImport,
+    required this.onHistoryImport,
   });
 
   @override
@@ -416,6 +430,17 @@ class _SalesReportAdminToolbar extends StatelessWidget {
                 isLoading: isLoading,
               ),
             ),
+            if (showHistoryImport)
+              SizedBox(
+                width: compact ? double.infinity : 154,
+                child: AppSecondaryButton(
+                  key: const Key('sales-history-import-action'),
+                  onPressed: isLoading ? null : onHistoryImport,
+                  icon: PhosphorIconsRegular.uploadSimple,
+                  label: 'Nhập CSV lịch sử',
+                  size: AppButtonSize.medium,
+                ),
+              ),
             SizedBox(
               width: compact ? double.infinity : 132,
               child: SalesReportExportMenuButton(
@@ -451,13 +476,10 @@ class _SalesReportAdminToolbar extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: AppLayoutTokens.formInlineGap),
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  actions.first,
-                  const SizedBox(width: AppLayoutTokens.formInlineGap),
-                  actions.last,
-                ],
+              Wrap(
+                spacing: AppLayoutTokens.formInlineGap,
+                runSpacing: AppLayoutTokens.formInlineGap,
+                children: actions,
               ),
             ],
           );
