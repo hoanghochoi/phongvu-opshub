@@ -1005,7 +1005,7 @@ model SupportConversation {
   status              String               @default("OPEN")
   revision            BigInt               @default(0)
   lastMessageSequence BigInt               @default(0)
-  unassignedSince     DateTime?             @default(now())
+  unassignedSince     DateTime?            @default(now())
   lastMessageAt       DateTime?
   resolvedAt          DateTime?
   createdAt           DateTime             @default(now())
@@ -1156,6 +1156,189 @@ model SalesReportImportBatch {
   @@index([fileHash, createdAt])
   @@index([importedByUserId, createdAt])
   @@index([status, createdAt])
+}
+
+// Immutable, aggregate-only history used by Home period comparisons. Raw
+// uploads and row-level PII are never persisted in these tables.
+model SalesHistoryImportJob {
+  id                String                         @id @default(uuid())
+  status            String                         @default("QUEUED")
+  sourceHash        String?
+  encoding          String?
+  delimiter         String?
+  uploadedBytes     BigInt                         @default(0)
+  expectedBytes     BigInt                         @default(0)
+  totalRows         Int                            @default(0)
+  cleanRows         Int                            @default(0)
+  quarantinedRows   Int                            @default(0)
+  cleanGrains       Int                            @default(0)
+  quarantinedGrains Int                            @default(0)
+  failureCode       String?
+  failureMessage    String?
+  requestedByUserId String?
+  artifactPath      String?
+  workerId          String?
+  leaseExpiresAt    DateTime?
+  heartbeatAt       DateTime?
+  attemptCount      Int                            @default(0)
+  claimToken        BigInt                         @default(0)
+  versionId         String?                        @unique
+  version           SalesHistoryVersion?           @relation(fields: [versionId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  stagedGrains      SalesHistoryImportGrainStage[]
+  stagedOrders      SalesHistoryImportOrderStage[]
+  cancelRequestedAt DateTime?
+  startedAt         DateTime?
+  completedAt       DateTime?
+  createdAt         DateTime                       @default(now())
+  updatedAt         DateTime                       @updatedAt
+
+  @@index([status, createdAt])
+  @@index([status, leaseExpiresAt, createdAt])
+  @@index([requestedByUserId, createdAt])
+}
+
+model SalesHistoryImportGrainStage {
+  id          String                @id @default(uuid())
+  jobId       String
+  job         SalesHistoryImportJob @relation(fields: [jobId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  summaryDate DateTime              @db.Date
+  storeCode   String
+  rowCount    Int                   @default(0)
+  invalidRows Int                   @default(0)
+  reasonCodes String[]              @default([])
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
+
+  @@unique([jobId, summaryDate, storeCode])
+  @@index([jobId, invalidRows])
+}
+
+model SalesHistoryImportOrderStage {
+  id                        String                @id @default(uuid())
+  jobId                     String
+  job                       SalesHistoryImportJob @relation(fields: [jobId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  summaryDate               DateTime              @db.Date
+  storeCode                 String
+  userId                    String
+  orderHash                 String
+  totalRevenue              BigInt                @default(0)
+  extendedInsuranceQuantity Int                   @default(0)
+  laptopQuantity            Int                   @default(0)
+  pcQuantity                Int                   @default(0)
+  assembledPcQuantity       Int                   @default(0)
+  appleQuantity             Int                   @default(0)
+  monitorQuantity           Int                   @default(0)
+  printerQuantity           Int                   @default(0)
+  accessoriesQuantity       Int                   @default(0)
+  createdAt                 DateTime              @default(now())
+  updatedAt                 DateTime              @updatedAt
+
+  @@unique([jobId, summaryDate, storeCode, userId, orderHash])
+  @@index([jobId, summaryDate, storeCode])
+}
+
+model SalesHistoryVersion {
+  id              String   @id @default(uuid())
+  sourceHash      String
+  rowCount        Int
+  cleanRowCount   Int
+  quarantinedRows Int
+  cleanGrainCount Int
+  quarantineCount Int
+  rangeStart      DateTime @db.Date
+  rangeEnd        DateTime @db.Date
+  createdByUserId String?
+  createdAt       DateTime @default(now())
+
+  job          SalesHistoryImportJob?
+  coverage     SalesHistoryCoverage[]
+  aggregates   SalesHistoryAggregate[]
+  activeGrains SalesHistoryActiveGrain[] @relation("SalesHistoryCurrentVersion")
+  activations  SalesHistoryActivation[]
+
+  @@index([createdAt])
+  @@index([rangeStart, rangeEnd])
+}
+
+model SalesHistoryCoverage {
+  id              String              @id @default(uuid())
+  versionId       String
+  version         SalesHistoryVersion @relation(fields: [versionId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  summaryDate     DateTime            @db.Date
+  storeCode       String
+  status          String
+  rowCount        Int                 @default(0)
+  quarantinedRows Int                 @default(0)
+  reasonCodes     String[]            @default([])
+  createdAt       DateTime            @default(now())
+
+  @@unique([versionId, summaryDate, storeCode])
+  @@index([summaryDate, storeCode, status])
+}
+
+model SalesHistoryAggregate {
+  id                        String              @id @default(uuid())
+  versionId                 String
+  version                   SalesHistoryVersion @relation(fields: [versionId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  summaryDate               DateTime            @db.Date
+  storeCode                 String
+  dimensionType             String              @default("STORE")
+  dimensionKey              String              @default("")
+  totalRevenue              BigInt              @default(0)
+  totalOrders               Int                 @default(0)
+  extendedInsuranceQuantity Int                 @default(0)
+  laptopQuantity            Int                 @default(0)
+  pcQuantity                Int                 @default(0)
+  assembledPcQuantity       Int                 @default(0)
+  appleQuantity             Int                 @default(0)
+  monitorQuantity           Int                 @default(0)
+  printerQuantity           Int                 @default(0)
+  accessoriesQuantity       Int                 @default(0)
+  createdAt                 DateTime            @default(now())
+
+  @@unique([versionId, summaryDate, storeCode, dimensionType, dimensionKey])
+  @@index([summaryDate, storeCode, dimensionType, dimensionKey])
+}
+
+model SalesHistoryActiveGrain {
+  id               String              @id @default(uuid())
+  summaryDate      DateTime            @db.Date
+  storeCode        String
+  currentVersionId String
+  currentVersion   SalesHistoryVersion @relation("SalesHistoryCurrentVersion", fields: [currentVersionId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  activatedAt      DateTime            @default(now())
+  updatedAt        DateTime            @updatedAt
+
+  @@unique([summaryDate, storeCode])
+  @@index([currentVersionId, summaryDate])
+}
+
+model SalesHistoryActivation {
+  id          String              @id @default(uuid())
+  versionId   String
+  version     SalesHistoryVersion @relation(fields: [versionId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  action      String
+  actorUserId String?
+  grainCount  Int
+  createdAt   DateTime            @default(now())
+
+  grains SalesHistoryActivationGrain[]
+
+  @@index([versionId, createdAt])
+}
+
+model SalesHistoryActivationGrain {
+  id            String                 @id @default(uuid())
+  activationId  String
+  activation    SalesHistoryActivation @relation(fields: [activationId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  summaryDate   DateTime               @db.Date
+  storeCode     String
+  fromVersionId String?
+  toVersionId   String?
+  createdAt     DateTime               @default(now())
+
+  @@unique([activationId, summaryDate, storeCode])
+  @@index([summaryDate, storeCode, createdAt])
 }
 
 model SalesReport {

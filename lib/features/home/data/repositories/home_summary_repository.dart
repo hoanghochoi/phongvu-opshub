@@ -69,6 +69,7 @@ class HomeSummaryRepository {
     String? salesProgressUserId,
     String? cacheIdentity,
     bool forceRefresh = false,
+    bool includeComparisons = false,
   }) async {
     final queryParameters = _buildSummaryQueryParameters(
       date: date,
@@ -77,6 +78,7 @@ class HomeSummaryRepository {
       scope: scope,
       organizationNodeId: organizationNodeId,
       salesProgressUserId: salesProgressUserId,
+      includeComparisons: includeComparisons,
     );
     final normalizedIdentity = cacheIdentity?.trim();
     if (normalizedIdentity == null || normalizedIdentity.isEmpty) {
@@ -315,6 +317,7 @@ class HomeSummaryRepository {
     String? scope,
     String? organizationNodeId,
     String? salesProgressUserId,
+    bool includeComparisons = false,
   }) {
     final queryParameters = <String, String>{};
     final normalizedDate = date?.trim();
@@ -343,6 +346,9 @@ class HomeSummaryRepository {
     if (normalizedSalesProgressUserId != null &&
         normalizedSalesProgressUserId.isNotEmpty) {
       queryParameters['salesProgressUserId'] = normalizedSalesProgressUserId;
+    }
+    if (includeComparisons) {
+      queryParameters['includeComparisons'] = 'true';
     }
     return queryParameters;
   }

@@ -1,6 +1,8 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:phongvu_opshub/app/navigation/app_router.dart';
@@ -14,6 +16,7 @@ import 'package:go_router/go_router.dart';
 import 'package:phongvu_opshub/core/logging/app_logger.dart';
 import 'package:phongvu_opshub/core/network/api_client.dart';
 import 'package:phongvu_opshub/core/network/realtime_connection_manager.dart';
+import 'package:phongvu_opshub/core/platform/app_platform_capabilities.dart';
 import 'package:phongvu_opshub/features/auth/data/repositories/auth_repository.dart';
 import 'package:phongvu_opshub/features/auth/domain/entities/store_branch.dart';
 import 'package:phongvu_opshub/features/auth/domain/entities/user.dart';
@@ -22,6 +25,7 @@ import 'package:phongvu_opshub/features/sales_report/data/sales_report_repositor
 import 'package:phongvu_opshub/features/sales_report/domain/sales_report.dart';
 import 'package:phongvu_opshub/features/sales_report/presentation/providers/sales_report_provider.dart';
 import 'package:phongvu_opshub/features/sales_report/presentation/screens/sales_report_admin_screen.dart';
+import 'package:phongvu_opshub/features/sales_report/presentation/screens/sales_history_import_dialog.dart';
 import 'package:phongvu_opshub/features/sales_report/presentation/screens/sales_report_screen.dart';
 import 'package:phongvu_opshub/features/sales_report/presentation/widgets/sales_report_export_menu.dart';
 import 'package:provider/provider.dart';
@@ -36,6 +40,483 @@ void main() {
   tearDown(() {
     AppLogger.instance.setUploadsEnabledForTesting(true);
   });
+
+  test('Sales history import supports only Web and Windows', () {
+    expect(
+      AppPlatformCapabilities.isSalesHistoryImportSupported(
+        isWeb: true,
+        platform: TargetPlatform.linux,
+      ),
+      isTrue,
+    );
+    expect(
+      AppPlatformCapabilities.isSalesHistoryImportSupported(
+        isWeb: false,
+        platform: TargetPlatform.windows,
+      ),
+      isTrue,
+    );
+    expect(
+      AppPlatformCapabilities.isSalesHistoryImportSupported(
+        isWeb: false,
+        platform: TargetPlatform.linux,
+      ),
+      isFalse,
+    );
+    expect(
+      AppPlatformCapabilities.isSalesHistoryImportSupported(
+        isWeb: false,
+        platform: TargetPlatform.android,
+      ),
+      isFalse,
+    );
+  });
+
+  test(
+    'Sales history import provider completes ready/activate/rollback flow',
+    () async {
+      final readyJob = SalesHistoryImportJob.fromJson({
+        'id': 'job-1',
+        'status': 'READY',
+        'uploadedBytes': 128,
+        'totalRows': 10,
+        'cleanRows': 8,
+        'quarantinedRows': 2,
+        'cleanGrains': 1,
+        'quarantinedGrains': 1,
+        'cancelRequested': false,
+        'versionId': 'version-1',
+        'coverage': [
+          {
+            'date': '2025-08-10',
+            'storeCode': 'CP01',
+            'status': 'CLEAN',
+            'rowCount': 8,
+            'quarantinedRows': 0,
+            'reasonCodes': <String>[],
+          },
+        ],
+      });
+      final repository = _FakeHistorySalesReportRepository(readyJob);
+      final provider = SalesReportProvider(
+        repository,
+        isWeb: false,
+        platform: TargetPlatform.windows,
+        historyPollInterval: const Duration(milliseconds: 1),
+      );
+      addTearDown(provider.dispose);
+
+      final started = await provider.startHistoryImport(
+        SalesReportImportFile(
+          name: 'history.csv',
+          size: 128,
+          bytes: Uint8List.fromList([1, 2, 3]),
+        ),
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+
+      expect(started, isTrue);
+      expect(repository.enqueueHistoryCount, 1);
+      expect(provider.historyImportJob?.canActivate, isTrue);
+      expect(provider.historyImportJob?.coverage.single.storeCode, 'CP01');
+      expect(provider.isHistoryImportBusy, isFalse);
+      expect(provider.historyVersions.single.id, 'version-1');
+      expect(
+        provider.historyImportMessage,
+        'Đã kiểm tra xong. Xem phạm vi rồi kích hoạt phiên bản.',
+      );
+
+      expect(await provider.activateHistoryVersion('version-1'), isTrue);
+      expect(repository.activatedVersionIds, ['version-1']);
+      expect(
+        provider.historyImportMessage,
+        'Đã kích hoạt phiên bản dữ liệu lịch sử.',
+      );
+
+      expect(await provider.rollbackHistoryVersion('version-1'), isTrue);
+      expect(repository.rolledBackVersionIds, ['version-1']);
+      expect(
+        provider.historyImportMessage,
+        'Đã hoàn tác phiên bản dữ liệu lịch sử.',
+      );
+    },
+  );
+
+  test(
+    'Sales history provider blocks Android and Linux before repository calls',
+    () async {
+      final readyJob = SalesHistoryImportJob.fromJson({
+        'id': 'job-1',
+        'status': 'READY',
+        'uploadedBytes': 1,
+        'versionId': 'version-1',
+      });
+      for (final platform in [TargetPlatform.android, TargetPlatform.linux]) {
+        final repository = _FakeHistorySalesReportRepository(readyJob);
+        final provider = SalesReportProvider(
+          repository,
+          isWeb: false,
+          platform: platform,
+        );
+        addTearDown(provider.dispose);
+
+        expect(
+          await provider.startHistoryImport(
+            SalesReportImportFile(
+              name: 'history.csv',
+              size: 1,
+              bytes: Uint8List.fromList([1]),
+            ),
+          ),
+          isFalse,
+        );
+        await provider.loadHistoryVersions();
+        expect(await provider.activateHistoryVersion('version-1'), isFalse);
+        expect(await provider.rollbackHistoryVersion('version-1'), isFalse);
+
+        expect(repository.enqueueHistoryCount, 0);
+        expect(repository.fetchHistoryVersionsCount, 0);
+        expect(repository.activatedVersionIds, isEmpty);
+        expect(repository.rolledBackVersionIds, isEmpty);
+      }
+    },
+  );
+
+  test(
+    'Sales history polling retries a transient failure and then completes',
+    () async {
+      final queued = SalesHistoryImportJob.fromJson({
+        'id': 'job-1',
+        'status': 'QUEUED',
+        'uploadedBytes': 10,
+      });
+      final ready = SalesHistoryImportJob.fromJson({
+        'id': 'job-1',
+        'status': 'READY',
+        'uploadedBytes': 10,
+        'versionId': 'version-1',
+        'cleanRows': 1,
+        'cleanGrains': 1,
+      });
+      final repository = _RetryingHistorySalesReportRepository(queued, ready);
+      final provider = SalesReportProvider(
+        repository,
+        isWeb: false,
+        platform: TargetPlatform.windows,
+        historyPollInterval: const Duration(milliseconds: 1),
+      );
+      addTearDown(provider.dispose);
+
+      expect(
+        await provider.startHistoryImport(
+          SalesReportImportFile(
+            name: 'history.csv',
+            size: 10,
+            bytes: Uint8List.fromList([1]),
+          ),
+        ),
+        isTrue,
+      );
+      for (
+        var attempt = 0;
+        attempt < 100 && repository.fetchJobCount < 2;
+        attempt++
+      ) {
+        await Future<void>.delayed(const Duration(milliseconds: 5));
+      }
+
+      expect(repository.fetchJobCount, 2);
+      expect(provider.historyImportJob?.status, 'READY');
+      expect(provider.historyImportError, isNull);
+      expect(provider.isHistoryImportBusy, isFalse);
+    },
+  );
+
+  test(
+    'Sales history polling can explicitly reattach after retry exhaustion',
+    () async {
+      final queued = SalesHistoryImportJob.fromJson({
+        'id': 'job-reattach',
+        'status': 'QUEUED',
+        'uploadedBytes': 10,
+      });
+      final ready = SalesHistoryImportJob.fromJson({
+        'id': 'job-reattach',
+        'status': 'READY',
+        'uploadedBytes': 10,
+        'versionId': 'version-reattach',
+        'cleanRows': 1,
+        'cleanGrains': 1,
+      });
+      final repository = _ReattachHistorySalesReportRepository(queued, ready);
+      final provider = SalesReportProvider(
+        repository,
+        isWeb: false,
+        platform: TargetPlatform.windows,
+        historyPollInterval: const Duration(milliseconds: 1),
+        historyPollMaxTransientFailures: 1,
+      );
+      addTearDown(provider.dispose);
+
+      expect(
+        await provider.startHistoryImport(
+          SalesReportImportFile(
+            name: 'history.csv',
+            size: 10,
+            bytes: Uint8List.fromList([1]),
+          ),
+        ),
+        isTrue,
+      );
+      for (
+        var attempt = 0;
+        attempt < 100 && provider.isHistoryImportBusy;
+        attempt++
+      ) {
+        await Future<void>.delayed(const Duration(milliseconds: 2));
+      }
+
+      expect(provider.canRetryHistoryImportPolling, isTrue);
+      expect(provider.canDismissHistoryImport, isFalse);
+      expect(provider.historyImportError, contains('“Kiểm tra lại”'));
+
+      await provider.retryHistoryImportPolling();
+
+      expect(repository.fetchJobCount, 2);
+      expect(provider.historyImportJob?.status, 'READY');
+      expect(provider.historyImportError, isNull);
+      expect(provider.canDismissHistoryImport, isTrue);
+    },
+  );
+
+  testWidgets(
+    'Sales history upload exposes progress, blocks Escape, and cancels in flight',
+    (tester) async {
+      final repository = _DeferredUploadSalesReportRepository();
+      final provider = SalesReportProvider(
+        repository,
+        isWeb: false,
+        platform: TargetPlatform.windows,
+      );
+      addTearDown(provider.dispose);
+      final upload = provider.startHistoryImport(
+        SalesReportImportFile(
+          name: 'history.csv',
+          size: 100,
+          bytes: Uint8List.fromList(List.filled(100, 1)),
+        ),
+      );
+      await repository.uploadStarted.future;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Builder(
+            builder: (context) => TextButton(
+              onPressed: () => showSalesHistoryImportDialog(
+                context: context,
+                provider: provider,
+              ),
+              child: const Text('Mở nhập lịch sử'),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('Mở nhập lịch sử'));
+      await tester.pumpAndSettle();
+
+      expect(provider.historyImportUploadProgress, 0.5);
+      expect(find.byType(LinearProgressIndicator), findsOneWidget);
+      expect(
+        tester
+            .getSemantics(find.byType(LinearProgressIndicator))
+            .flagsCollection
+            .isLiveRegion,
+        isTrue,
+      );
+      final cancelButton = find.widgetWithText(AppPrimaryButton, 'Hủy tải');
+      expect(tester.getSize(cancelButton).height, greaterThanOrEqualTo(48));
+
+      await tester.tapAt(const Offset(4, 4));
+      await tester.pump();
+      expect(
+        find.byKey(const Key('sales-history-import-dialog')),
+        findsOneWidget,
+      );
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pump();
+      expect(
+        find.byKey(const Key('sales-history-import-dialog')),
+        findsOneWidget,
+      );
+
+      await tester.tap(cancelButton);
+      await tester.pumpAndSettle();
+      expect(await upload, isFalse);
+      expect(provider.isHistoryImportBusy, isFalse);
+      expect(provider.historyImportMessage, 'Đã hủy tải tệp.');
+    },
+  );
+
+  testWidgets(
+    'Sales history parsing and finalizing explain that the dialog cannot close',
+    (tester) async {
+      for (final status in const ['PARSING', 'FINALIZING']) {
+        final activeJob = SalesHistoryImportJob.fromJson({
+          'id': 'job-${status.toLowerCase()}',
+          'status': status,
+          'uploadedBytes': 10,
+          'totalRows': 4,
+        });
+        final repository = _DeferredPollingHistorySalesReportRepository(
+          activeJob,
+        );
+        final provider = SalesReportProvider(
+          repository,
+          isWeb: false,
+          platform: TargetPlatform.windows,
+          historyPollInterval: Duration.zero,
+        );
+
+        expect(
+          await provider.startHistoryImport(
+            SalesReportImportFile(
+              name: 'history.csv',
+              size: 10,
+              bytes: Uint8List.fromList([1]),
+            ),
+          ),
+          isTrue,
+        );
+        expect(provider.canDismissHistoryImport, isFalse);
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Builder(
+              builder: (context) => TextButton(
+                onPressed: () => showSalesHistoryImportDialog(
+                  context: context,
+                  provider: provider,
+                ),
+                child: const Text('Mở nhập lịch sử'),
+              ),
+            ),
+          ),
+        );
+        await tester.tap(find.text('Mở nhập lịch sử'));
+        await tester.pump();
+
+        final expected = status == 'PARSING'
+            ? 'Chưa thể đóng cửa sổ khi OpsHub đang kiểm tra dữ liệu. Hãy chờ hoàn tất hoặc chọn Hủy tải.'
+            : 'Chưa thể đóng cửa sổ khi OpsHub đang tạo phiên bản. Hãy chờ hoàn tất hoặc chọn Hủy tải.';
+        expect(find.text(expected), findsOneWidget);
+
+        repository.finishPolling();
+        await tester.pump();
+        provider.dispose();
+        await tester.pumpWidget(const SizedBox.shrink());
+        await tester.pumpAndSettle();
+      }
+    },
+  );
+
+  testWidgets('Sales history clean dialog dismisses from outside tap', (
+    tester,
+  ) async {
+    final provider = SalesReportProvider(
+      _FakeSalesReportRepository(),
+      isWeb: false,
+      platform: TargetPlatform.windows,
+    );
+    addTearDown(provider.dispose);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => TextButton(
+            onPressed: () => showSalesHistoryImportDialog(
+              context: context,
+              provider: provider,
+            ),
+            child: const Text('Mở nhập lịch sử'),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('Mở nhập lịch sử'));
+    await tester.pumpAndSettle();
+
+    await tester.tapAt(const Offset(4, 4));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('sales-history-import-dialog')), findsNothing);
+  });
+
+  testWidgets(
+    'Sales history import action is hidden on Linux and opens on Windows',
+    (tester) async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.linux;
+      addTearDown(() => debugDefaultTargetPlatformOverride = null);
+      final authProvider = _FakeAuthProvider(
+        const User(
+          id: 'admin-1',
+          email: 'lead@phongvu.vn',
+          role: 'USER',
+          organizationNodeId: 'org-area-hcm',
+          featureAccess: {'ADMIN_SALES_REPORTS': true},
+        ),
+      );
+      final linuxProvider = SalesReportProvider(
+        _FakeSalesReportRepository(),
+        now: () => DateTime(2026, 8, 10, 9),
+      );
+      addTearDown(linuxProvider.dispose);
+
+      Widget appFor(SalesReportProvider provider) => MultiProvider(
+        providers: [
+          ChangeNotifierProvider<AuthProvider>.value(value: authProvider),
+          ChangeNotifierProvider<SalesReportProvider>.value(value: provider),
+        ],
+        child: const MaterialApp(
+          home: Scaffold(body: SalesReportAdminScreen()),
+        ),
+      );
+
+      await tester.pumpWidget(appFor(linuxProvider));
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const Key('sales-history-import-action')),
+        findsNothing,
+      );
+
+      debugDefaultTargetPlatformOverride = TargetPlatform.windows;
+      final windowsProvider = SalesReportProvider(
+        _FakeSalesReportRepository(),
+        now: () => DateTime(2026, 8, 10, 9),
+      );
+      addTearDown(windowsProvider.dispose);
+      await tester.pumpWidget(appFor(windowsProvider));
+      await tester.pumpAndSettle();
+
+      final action = find.byKey(const Key('sales-history-import-action'));
+      expect(action, findsOneWidget);
+      await tester.tap(action);
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const Key('sales-history-import-dialog')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('sales-history-import-header')),
+        findsOneWidget,
+      );
+      expect(find.text('Nhập dữ liệu bán hàng lịch sử'), findsOneWidget);
+      expect(find.text('Chọn tệp'), findsOneWidget);
+      expect(find.text('Xem lịch sử'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      debugDefaultTargetPlatformOverride = null;
+    },
+  );
 
   testWidgets('Báo cáo opens a two-column order cockpit', (tester) async {
     tester.view.physicalSize = const Size(1200, 900);
@@ -2258,6 +2739,178 @@ class _FakeSalesReportRepository extends SalesReportRepository {
           'sellerName': 'Sale CP62',
         },
       ],
+    });
+  }
+}
+
+class _FakeHistorySalesReportRepository extends _FakeSalesReportRepository {
+  _FakeHistorySalesReportRepository(this.readyJob);
+
+  final SalesHistoryImportJob readyJob;
+  int enqueueHistoryCount = 0;
+  int fetchHistoryVersionsCount = 0;
+  final List<String> activatedVersionIds = [];
+  final List<String> rolledBackVersionIds = [];
+
+  @override
+  Future<SalesHistoryImportJob> enqueueHistoryImport(
+    SalesReportImportFile file, {
+    void Function(SalesHistoryImportJob job)? onJobChanged,
+    bool Function()? isCancelled,
+  }) async {
+    enqueueHistoryCount += 1;
+    onJobChanged?.call(readyJob);
+    return readyJob;
+  }
+
+  @override
+  Future<List<SalesHistoryVersion>> fetchHistoryVersions() async {
+    fetchHistoryVersionsCount += 1;
+    return [
+      SalesHistoryVersion(
+        id: readyJob.versionId!,
+        rowCount: readyJob.totalRows,
+        cleanRowCount: readyJob.cleanRows,
+        quarantinedRows: readyJob.quarantinedRows,
+        cleanGrainCount: readyJob.cleanGrains,
+        quarantineCount: readyJob.quarantinedGrains,
+        rangeStart: '2025-08-10',
+        rangeEnd: '2025-08-10',
+        activeGrainCount: 1,
+        lastAction: 'ACTIVATE',
+      ),
+    ];
+  }
+
+  @override
+  Future<void> activateHistoryVersion(String id) async {
+    activatedVersionIds.add(id);
+  }
+
+  @override
+  Future<void> rollbackHistoryVersion(String id) async {
+    rolledBackVersionIds.add(id);
+  }
+}
+
+class _RetryingHistorySalesReportRepository
+    extends _FakeHistorySalesReportRepository {
+  _RetryingHistorySalesReportRepository(super.queuedJob, this.completedJob);
+
+  final SalesHistoryImportJob completedJob;
+  int fetchJobCount = 0;
+
+  @override
+  Future<SalesHistoryImportJob> fetchHistoryImportJob(String id) async {
+    fetchJobCount += 1;
+    if (fetchJobCount == 1) throw StateError('temporary');
+    return completedJob;
+  }
+
+  @override
+  Future<List<SalesHistoryVersion>> fetchHistoryVersions() async => [
+    SalesHistoryVersion(
+      id: completedJob.versionId!,
+      rowCount: completedJob.totalRows,
+      cleanRowCount: completedJob.cleanRows,
+      quarantinedRows: completedJob.quarantinedRows,
+      cleanGrainCount: completedJob.cleanGrains,
+      quarantineCount: completedJob.quarantinedGrains,
+      rangeStart: '2025-08-10',
+      rangeEnd: '2025-08-10',
+      activeGrainCount: 0,
+    ),
+  ];
+}
+
+class _ReattachHistorySalesReportRepository
+    extends _FakeHistorySalesReportRepository {
+  _ReattachHistorySalesReportRepository(super.queuedJob, this.completedJob);
+
+  final SalesHistoryImportJob completedJob;
+  int fetchJobCount = 0;
+
+  @override
+  Future<SalesHistoryImportJob> fetchHistoryImportJob(String id) async {
+    fetchJobCount += 1;
+    if (fetchJobCount == 1) throw StateError('poll exhausted');
+    return completedJob;
+  }
+
+  @override
+  Future<List<SalesHistoryVersion>> fetchHistoryVersions() async => [
+    SalesHistoryVersion(
+      id: completedJob.versionId!,
+      rowCount: completedJob.totalRows,
+      cleanRowCount: completedJob.cleanRows,
+      quarantinedRows: completedJob.quarantinedRows,
+      cleanGrainCount: completedJob.cleanGrains,
+      quarantineCount: completedJob.quarantinedGrains,
+      rangeStart: '2025-08-10',
+      rangeEnd: '2025-08-10',
+      activeGrainCount: 0,
+    ),
+  ];
+}
+
+class _DeferredPollingHistorySalesReportRepository
+    extends _FakeHistorySalesReportRepository {
+  _DeferredPollingHistorySalesReportRepository(super.activeJob);
+
+  final Completer<SalesHistoryImportJob> _polling = Completer();
+
+  @override
+  Future<SalesHistoryImportJob> fetchHistoryImportJob(String id) =>
+      _polling.future;
+
+  void finishPolling() {
+    if (_polling.isCompleted) return;
+    _polling.complete(
+      SalesHistoryImportJob.fromJson({
+        'id': readyJob.id,
+        'status': 'CANCELLED',
+        'uploadedBytes': readyJob.uploadedBytes,
+      }),
+    );
+  }
+}
+
+class _DeferredUploadSalesReportRepository
+    extends _FakeHistorySalesReportRepository {
+  _DeferredUploadSalesReportRepository()
+    : super(
+        SalesHistoryImportJob.fromJson({
+          'id': 'job-uploading',
+          'status': 'UPLOADING',
+          'uploadedBytes': 50,
+          'expectedBytes': 100,
+        }),
+      );
+
+  final uploadStarted = Completer<void>();
+  final uploadCancelled = Completer<void>();
+
+  @override
+  Future<SalesHistoryImportJob> enqueueHistoryImport(
+    SalesReportImportFile file, {
+    void Function(SalesHistoryImportJob job)? onJobChanged,
+    bool Function()? isCancelled,
+  }) async {
+    onJobChanged?.call(readyJob);
+    if (!uploadStarted.isCompleted) uploadStarted.complete();
+    await uploadCancelled.future;
+    throw const SalesHistoryUploadCancelled();
+  }
+
+  @override
+  Future<SalesHistoryImportJob> cancelHistoryImport(String id) async {
+    if (!uploadCancelled.isCompleted) uploadCancelled.complete();
+    return SalesHistoryImportJob.fromJson({
+      'id': id,
+      'status': 'CANCELLED',
+      'uploadedBytes': 50,
+      'expectedBytes': 100,
+      'cancelRequested': true,
     });
   }
 }

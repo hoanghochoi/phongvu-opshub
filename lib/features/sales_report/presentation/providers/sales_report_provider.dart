@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import '../../../../core/logging/app_logger.dart';
 import '../../../../core/network/api_exception.dart';
 import '../../../../core/network/realtime_connection_manager.dart';
+import '../../../../core/platform/app_platform_capabilities.dart';
 import '../../../../core/utils/date_range_defaults.dart';
 import '../../../auth/domain/entities/user.dart';
 import '../../data/sales_report_repository.dart';
@@ -21,6 +22,11 @@ class SalesReportProvider extends ChangeNotifier {
   final RealtimeClient _realtimeClient;
   final Duration _realtimeDebounce;
   final Duration _realtimeMaxWait;
+  final bool _historyImportSupported;
+  final bool _historyImportIsWeb;
+  final TargetPlatform _historyImportPlatform;
+  final Duration _historyPollInterval;
+  final int _historyPollMaxTransientFailures;
 
   final List<SalesReportCategoryGroup> _categories = [];
   final List<Map<String, dynamic>> _adminItems = [];
@@ -32,6 +38,13 @@ class SalesReportProvider extends ChangeNotifier {
   bool _isSubmitting = false;
   bool _isLoadingAdminList = false;
   bool _isExporting = false;
+  bool _isHistoryImportBusy = false;
+  bool _isLoadingHistoryVersions = false;
+  bool _historyUploadCancelRequested = false;
+  SalesHistoryImportJob? _historyImportJob;
+  final List<SalesHistoryVersion> _historyVersions = [];
+  String? _historyImportError;
+  String? _historyImportMessage;
   String? _errorMessage;
   String? _successMessage;
   int _adminTotal = 0;
@@ -60,10 +73,23 @@ class SalesReportProvider extends ChangeNotifier {
     RealtimeClient? realtimeClient,
     Duration realtimeDebounce = const Duration(seconds: 2),
     Duration realtimeMaxWait = const Duration(seconds: 5),
+    bool? isWeb,
+    TargetPlatform? platform,
+    Duration historyPollInterval = const Duration(seconds: 1),
+    int historyPollMaxTransientFailures = 3,
   }) : _now = now ?? DateTime.now,
        _realtimeClient = realtimeClient ?? RealtimeConnectionManager.instance,
        _realtimeDebounce = realtimeDebounce,
-       _realtimeMaxWait = realtimeMaxWait {
+       _realtimeMaxWait = realtimeMaxWait,
+       _historyImportSupported =
+           AppPlatformCapabilities.isSalesHistoryImportSupported(
+             isWeb: isWeb,
+             platform: platform,
+           ),
+       _historyImportIsWeb = isWeb ?? kIsWeb,
+       _historyImportPlatform = platform ?? defaultTargetPlatform,
+       _historyPollInterval = historyPollInterval,
+       _historyPollMaxTransientFailures = historyPollMaxTransientFailures {
     _resetOrdersDateRangeToToday();
     _realtimeEventSubscription = _realtimeClient.events.listen(
       _handleRealtimeEnvelope,
@@ -116,6 +142,25 @@ class SalesReportProvider extends ChangeNotifier {
   bool get isSubmitting => _isSubmitting;
   bool get isLoadingAdminList => _isLoadingAdminList;
   bool get isExporting => _isExporting;
+  bool get isHistoryImportBusy => _isHistoryImportBusy;
+  bool get isLoadingHistoryVersions => _isLoadingHistoryVersions;
+  bool get isHistoryImportSupported => _historyImportSupported;
+  bool get canDismissHistoryImport =>
+      !_isHistoryImportBusy &&
+      (_historyImportJob == null || _historyImportJob!.isTerminal);
+  bool get canRetryHistoryImportPolling =>
+      !_isHistoryImportBusy &&
+      !_historyUploadCancelRequested &&
+      _historyImportError != null &&
+      _historyImportJob != null &&
+      !_historyImportJob!.isTerminal;
+  SalesHistoryImportJob? get historyImportJob => _historyImportJob;
+  List<SalesHistoryVersion> get historyVersions =>
+      List.unmodifiable(_historyVersions);
+  String? get historyImportError => _historyImportError;
+  String? get historyImportMessage => _historyImportMessage;
+  double get historyImportUploadProgress =>
+      _historyImportJob?.uploadProgress ?? 0;
   String? get errorMessage => _errorMessage;
   String? get successMessage => _successMessage;
   int get adminTotal => _adminTotal;
@@ -610,6 +655,427 @@ class SalesReportProvider extends ChangeNotifier {
     }
   }
 
+  Future<bool> startHistoryImport(SalesReportImportFile file) async {
+    if (!_historyImportSupported) {
+      _historyImportError =
+          'Chỉ có thể nhập dữ liệu lịch sử trên ứng dụng Windows hoặc trình duyệt web.';
+      _notifyHistoryListeners();
+      await AppLogger.instance.warn(
+        'SalesHistoryImport',
+        'Historical sales import blocked on unsupported platform',
+        context: {
+          'platform': _historyImportPlatform.name,
+          'isWeb': _historyImportIsWeb,
+        },
+      );
+      return false;
+    }
+    if (_isHistoryImportBusy) return false;
+    _isHistoryImportBusy = true;
+    _historyImportError = null;
+    _historyImportMessage = null;
+    _historyImportJob = null;
+    _historyUploadCancelRequested = false;
+    _notifyHistoryListeners();
+    final startedAt = DateTime.now();
+    final extension = file.name.toLowerCase().endsWith('.tsv') ? 'tsv' : 'csv';
+    await AppLogger.instance.info(
+      'SalesHistoryImport',
+      'Historical sales import upload started',
+      context: {
+        'format': extension,
+        'bytes': file.size,
+        'hasLocalPath': file.path?.isNotEmpty == true,
+        'platform': _historyImportPlatform.name,
+        'isWeb': _historyImportIsWeb,
+      },
+    );
+    try {
+      final job = await _repository.enqueueHistoryImport(
+        file,
+        isCancelled: () => _disposed || _historyUploadCancelRequested,
+        onJobChanged: (job) {
+          if (_disposed) return;
+          _historyImportJob = job;
+          if (job.status == 'UPLOADING') {
+            final percent = (job.uploadProgress * 100).round();
+            _historyImportMessage = 'Đang tải tệp… $percent%';
+          }
+          _notifyHistoryListeners();
+        },
+      );
+      if (_disposed) return false;
+      _historyImportJob = job;
+      _historyImportMessage = 'Đã tải tệp. OpsHub đang kiểm tra dữ liệu.';
+      _notifyHistoryListeners();
+      await AppLogger.instance.info(
+        'SalesHistoryImport',
+        'Historical sales import upload succeeded',
+        context: {
+          'jobId': job.id,
+          'status': job.status,
+          'uploadedBytes': job.uploadedBytes,
+          'durationMs': DateTime.now().difference(startedAt).inMilliseconds,
+        },
+      );
+      unawaited(_pollHistoryImport(job.id));
+      return true;
+    } on SalesHistoryUploadCancelled catch (error, stackTrace) {
+      if (_disposed) return false;
+      _isHistoryImportBusy = false;
+      _historyImportMessage = 'Đã hủy tải tệp.';
+      _notifyHistoryListeners();
+      await AppLogger.instance.info(
+        'SalesHistoryImport',
+        'Historical sales import upload cancelled',
+        context: {
+          'jobId': _historyImportJob?.id,
+          'uploadedBytes': _historyImportJob?.uploadedBytes,
+          'errorType': error.runtimeType.toString(),
+          'hasStackTrace': stackTrace.toString().isNotEmpty,
+        },
+      );
+      return false;
+    } catch (error, stackTrace) {
+      if (_disposed) return false;
+      _isHistoryImportBusy = false;
+      _historyImportError = _messageFor(
+        error,
+        'Chưa tải được tệp. Kiểm tra kết nối rồi thử lại.',
+      );
+      _notifyHistoryListeners();
+      await AppLogger.instance.error(
+        'SalesHistoryImport',
+        'Historical sales import upload failed',
+        error: error,
+        stackTrace: stackTrace,
+        context: {
+          'format': extension,
+          'durationMs': DateTime.now().difference(startedAt).inMilliseconds,
+        },
+      );
+      return false;
+    }
+  }
+
+  Future<void> _pollHistoryImport(String jobId) async {
+    var previousStatus = _historyImportJob?.status;
+    var transientFailures = 0;
+    try {
+      while (!_disposed && _historyImportJob?.id == jobId) {
+        final current = _historyImportJob;
+        if (current?.isTerminal == true) break;
+        await Future<void>.delayed(_historyPollInterval);
+        if (_disposed || _historyImportJob?.id != jobId) return;
+        SalesHistoryImportJob job;
+        try {
+          job = await _repository.fetchHistoryImportJob(jobId);
+          if (_disposed || _historyImportJob?.id != jobId) return;
+          transientFailures = 0;
+        } catch (error, stackTrace) {
+          transientFailures += 1;
+          await AppLogger.instance.warn(
+            'SalesHistoryImport',
+            'Historical sales import polling will retry',
+            context: {
+              'jobId': jobId,
+              'attempt': transientFailures,
+              'maxAttempts': _historyPollMaxTransientFailures,
+              'errorType': error.runtimeType.toString(),
+            },
+          );
+          if (_disposed || _historyImportJob?.id != jobId) return;
+          if (transientFailures < _historyPollMaxTransientFailures) continue;
+          Error.throwWithStackTrace(error, stackTrace);
+        }
+        _historyImportJob = job;
+        if (job.status != previousStatus) {
+          await AppLogger.instance.info(
+            'SalesHistoryImport',
+            'Historical sales import status changed',
+            context: {
+              'jobId': job.id,
+              'previousStatus': previousStatus,
+              'status': job.status,
+              'totalRows': job.totalRows,
+              'cleanGrains': job.cleanGrains,
+              'quarantinedGrains': job.quarantinedGrains,
+            },
+          );
+          previousStatus = job.status;
+        }
+        _notifyHistoryListeners();
+      }
+      final job = _historyImportJob;
+      if (job?.id != jobId) return;
+      _isHistoryImportBusy = false;
+      if (job?.status == 'READY') {
+        _historyImportMessage =
+            'Đã kiểm tra xong. Xem phạm vi rồi kích hoạt phiên bản.';
+        await loadHistoryVersions();
+      } else if (job?.status == 'CANCELLED') {
+        _historyImportMessage = 'Đã hủy nhập dữ liệu.';
+      } else if (job?.status == 'FAILED') {
+        _historyImportError =
+            job?.failureMessage ?? 'Chưa phân tích được tệp. Vui lòng thử lại.';
+      }
+      _notifyHistoryListeners();
+      await AppLogger.instance.info(
+        'SalesHistoryImport',
+        'Historical sales import processing finished',
+        context: {
+          'jobId': jobId,
+          'status': job?.status,
+          'totalRows': job?.totalRows,
+          'cleanRows': job?.cleanRows,
+          'quarantinedRows': job?.quarantinedRows,
+          'cleanGrains': job?.cleanGrains,
+          'quarantinedGrains': job?.quarantinedGrains,
+        },
+      );
+    } catch (error, stackTrace) {
+      if (_disposed || _historyImportJob?.id != jobId) return;
+      _isHistoryImportBusy = false;
+      final pollingError = _messageFor(error, 'Chưa cập nhật được tiến trình.');
+      _historyImportError =
+          '$pollingError Chọn “Kiểm tra lại” để kết nối lại tác vụ.';
+      _notifyHistoryListeners();
+      await AppLogger.instance.error(
+        'SalesHistoryImport',
+        'Historical sales import polling failed',
+        error: error,
+        stackTrace: stackTrace,
+        context: {'jobId': jobId, 'lastStatus': previousStatus},
+      );
+    }
+  }
+
+  Future<void> cancelHistoryImport() async {
+    if (!_guardHistoryImportPlatform()) return;
+    final job = _historyImportJob;
+    if (job == null) {
+      if (_isHistoryImportBusy) {
+        _historyUploadCancelRequested = true;
+        _historyImportMessage = 'Đang hủy tải tệp…';
+        _notifyHistoryListeners();
+      }
+      return;
+    }
+    if (job.isTerminal) return;
+    _historyUploadCancelRequested = true;
+    _repository.abortHistoryImportUpload(job.id);
+    _isHistoryImportBusy = false;
+    _historyImportMessage = 'Đang hủy tải tệp…';
+    _notifyHistoryListeners();
+    await AppLogger.instance.info(
+      'SalesHistoryImport',
+      'Historical sales import cancellation started',
+      context: {'jobId': job.id, 'status': job.status},
+    );
+    try {
+      final cancelled = await _repository.cancelHistoryImport(job.id);
+      if (_disposed) return;
+      _historyImportJob = cancelled;
+      _historyImportMessage = cancelled.status == 'CANCELLED'
+          ? 'Đã hủy tải tệp.'
+          : 'Đang dừng tác vụ nhập dữ liệu…';
+      _notifyHistoryListeners();
+      await AppLogger.instance.info(
+        'SalesHistoryImport',
+        'Historical sales import cancellation accepted',
+        context: {'jobId': job.id},
+      );
+    } catch (error, stackTrace) {
+      _historyImportError = _messageFor(
+        error,
+        'Chưa hủy được tác vụ. Vui lòng thử lại.',
+      );
+      _notifyHistoryListeners();
+      await AppLogger.instance.error(
+        'SalesHistoryImport',
+        'Historical sales import cancellation failed',
+        error: error,
+        stackTrace: stackTrace,
+        context: {'jobId': job.id},
+      );
+    }
+  }
+
+  Future<void> retryHistoryImportPolling() async {
+    if (!_guardHistoryImportPlatform() || !canRetryHistoryImportPolling) return;
+    final jobId = _historyImportJob!.id;
+    _isHistoryImportBusy = true;
+    _historyImportError = null;
+    _historyImportMessage = 'Đang kiểm tra lại tiến trình trên máy chủ…';
+    _notifyHistoryListeners();
+    await AppLogger.instance.info(
+      'SalesHistoryImport',
+      'Historical sales import polling reattached',
+      context: {'jobId': jobId, 'status': _historyImportJob?.status},
+    );
+    await _pollHistoryImport(jobId);
+  }
+
+  Future<void> loadHistoryVersions() async {
+    if (!_guardHistoryImportPlatform()) return;
+    _isLoadingHistoryVersions = true;
+    _historyImportError = null;
+    _notifyHistoryListeners();
+    try {
+      final versions = await _repository.fetchHistoryVersions();
+      _historyVersions
+        ..clear()
+        ..addAll(versions);
+      _notifyHistoryListeners();
+    } catch (error, stackTrace) {
+      _historyImportError = _messageFor(
+        error,
+        'Chưa tải được lịch sử phiên bản. Vui lòng thử lại.',
+      );
+      _notifyHistoryListeners();
+      await AppLogger.instance.error(
+        'SalesHistoryImport',
+        'Historical sales version list failed',
+        error: error,
+        stackTrace: stackTrace,
+      );
+    } finally {
+      _isLoadingHistoryVersions = false;
+      _notifyHistoryListeners();
+    }
+  }
+
+  Future<bool> activateHistoryVersion(String versionId) async {
+    if (!_guardHistoryImportPlatform()) return false;
+    if (_isHistoryImportBusy) return false;
+    _isHistoryImportBusy = true;
+    _historyImportError = null;
+    _notifyHistoryListeners();
+    final startedAt = DateTime.now();
+    await AppLogger.instance.info(
+      'SalesHistoryImport',
+      'Historical sales version activation started',
+      context: {'versionId': versionId},
+    );
+    try {
+      await _repository.activateHistoryVersion(versionId);
+      _historyImportMessage = 'Đã kích hoạt phiên bản dữ liệu lịch sử.';
+      await loadHistoryVersions();
+      await AppLogger.instance.info(
+        'SalesHistoryImport',
+        'Historical sales version activation succeeded',
+        context: {
+          'versionId': versionId,
+          'durationMs': DateTime.now().difference(startedAt).inMilliseconds,
+        },
+      );
+      return true;
+    } catch (error, stackTrace) {
+      _historyImportError = _messageFor(
+        error,
+        'Chưa kích hoạt được phiên bản. Vui lòng thử lại.',
+      );
+      await AppLogger.instance.error(
+        'SalesHistoryImport',
+        'Historical sales version activation failed',
+        error: error,
+        stackTrace: stackTrace,
+        context: {'versionId': versionId},
+      );
+      return false;
+    } finally {
+      _isHistoryImportBusy = false;
+      _notifyHistoryListeners();
+    }
+  }
+
+  Future<bool> rollbackHistoryVersion(String versionId) async {
+    if (!_guardHistoryImportPlatform()) return false;
+    if (_isHistoryImportBusy) return false;
+    _isHistoryImportBusy = true;
+    _historyImportError = null;
+    _notifyHistoryListeners();
+    final startedAt = DateTime.now();
+    await AppLogger.instance.info(
+      'SalesHistoryImport',
+      'Historical sales version rollback started',
+      context: {'versionId': versionId},
+    );
+    try {
+      await _repository.rollbackHistoryVersion(versionId);
+      _historyImportMessage = 'Đã hoàn tác phiên bản dữ liệu lịch sử.';
+      await loadHistoryVersions();
+      await AppLogger.instance.info(
+        'SalesHistoryImport',
+        'Historical sales version rollback succeeded',
+        context: {
+          'versionId': versionId,
+          'durationMs': DateTime.now().difference(startedAt).inMilliseconds,
+        },
+      );
+      return true;
+    } catch (error, stackTrace) {
+      _historyImportError = _messageFor(
+        error,
+        'Chưa hoàn tác được phiên bản. Vui lòng thử lại.',
+      );
+      await AppLogger.instance.error(
+        'SalesHistoryImport',
+        'Historical sales version rollback failed',
+        error: error,
+        stackTrace: stackTrace,
+        context: {'versionId': versionId},
+      );
+      return false;
+    } finally {
+      _isHistoryImportBusy = false;
+      _notifyHistoryListeners();
+    }
+  }
+
+  Future<void> saveHistoryQuarantineReport() async {
+    if (!_guardHistoryImportPlatform()) return;
+    final job = _historyImportJob;
+    if (job == null || job.quarantinedGrains == 0) return;
+    try {
+      final bytes = await _repository.downloadHistoryQuarantine(job.id);
+      final path = await FilePicker.saveFile(
+        dialogTitle: 'Lưu báo cáo dữ liệu cách ly',
+        fileName: 'opshub_du_lieu_cach_ly.csv',
+        type: FileType.custom,
+        allowedExtensions: const ['csv'],
+        bytes: bytes,
+        lockParentWindow: true,
+      );
+      _historyImportMessage = path == null
+          ? 'Đã hủy lưu báo cáo.'
+          : 'Đã lưu báo cáo dữ liệu cách ly.';
+      _notifyHistoryListeners();
+      await AppLogger.instance.info(
+        'SalesHistoryImport',
+        'Historical sales quarantine report saved',
+        context: {
+          'jobId': job.id,
+          'saved': path != null,
+          'bytes': bytes.length,
+        },
+      );
+    } catch (error, stackTrace) {
+      _historyImportError = _messageFor(
+        error,
+        'Chưa tải được báo cáo cách ly. Vui lòng thử lại.',
+      );
+      _notifyHistoryListeners();
+      await AppLogger.instance.error(
+        'SalesHistoryImport',
+        'Historical sales quarantine report failed',
+        error: error,
+        stackTrace: stackTrace,
+        context: {'jobId': job.id},
+      );
+    }
+  }
+
   Future<void> nextPage() async {
     if (canGoNext) await loadAdminList(page: _adminPage + 1);
   }
@@ -863,6 +1329,18 @@ class SalesReportProvider extends ChangeNotifier {
     return recipientIds.isEmpty && eventStores.isEmpty;
   }
 
+  bool _guardHistoryImportPlatform() {
+    if (_historyImportSupported) return true;
+    _historyImportError =
+        'Chỉ có thể nhập dữ liệu lịch sử trên ứng dụng Windows hoặc trình duyệt web.';
+    _notifyHistoryListeners();
+    return false;
+  }
+
+  void _notifyHistoryListeners() {
+    if (!_disposed) notifyListeners();
+  }
+
   void _cancelRealtimeTimers() {
     _realtimeDebounceTimer?.cancel();
     _realtimeDebounceTimer = null;
@@ -877,6 +1355,11 @@ class SalesReportProvider extends ChangeNotifier {
 
   @override
   void dispose() {
+    final historyJobId = _historyImportJob?.id;
+    if (historyJobId != null && !_historyImportJob!.isTerminal) {
+      _historyUploadCancelRequested = true;
+      _repository.abortHistoryImportUpload(historyJobId);
+    }
     _disposed = true;
     _ordersRealtimeActive = false;
     _cancelRealtimeTimers();

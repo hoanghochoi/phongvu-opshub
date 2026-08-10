@@ -397,8 +397,43 @@ describe('HomeSummaryService', () => {
       { startDate: '2026-07-04', endDate: '2026-07-04' },
     );
 
-    expect(key).toMatch(/^v4:[a-f0-9]{64}$/);
+    expect(key).toMatch(/^v6:[a-f0-9]{64}$/);
     expect(key).not.toContain('staff@phongvu.vn');
+  });
+
+  it('invalidates the response cache identity after access reassignment', () => {
+    const { service } = createHarness();
+    const query = { startDate: '2026-07-04', endDate: '2026-07-04' };
+    const before = (service as any).summaryResponseCacheKey(
+      {
+        id: 'user-1',
+        tokenVersion: 3,
+        accessVersion: 8,
+        authSession: { sessionVersion: 5 },
+      },
+      query,
+    );
+    const afterReassignment = (service as any).summaryResponseCacheKey(
+      {
+        id: 'user-1',
+        tokenVersion: 3,
+        accessVersion: 9,
+        authSession: { sessionVersion: 5 },
+      },
+      query,
+    );
+    const afterSessionRefresh = (service as any).summaryResponseCacheKey(
+      {
+        id: 'user-1',
+        tokenVersion: 3,
+        accessVersion: 9,
+        authSession: { sessionVersion: 6 },
+      },
+      query,
+    );
+
+    expect(afterReassignment).not.toBe(before);
+    expect(afterSessionRefresh).not.toBe(afterReassignment);
   });
 
   it('rate-limits repeated cache-hit diagnostics on the hot path', async () => {

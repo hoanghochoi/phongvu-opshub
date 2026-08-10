@@ -82,6 +82,34 @@ For an answer, explanation, review, diagnosis, plan, or status report:
 
 Discovery never grants authority to fix what it finds.
 
+### Explicit Issue Delivery Command
+
+When the user explicitly commands the agent to `xử lý issue`, treat that as
+authority to complete the normal issue delivery flow without pausing after
+implementation:
+
+1. Read the Linear issue and implement against its accepted product, design,
+   permission, security, platform, and affected-consumer authority.
+2. Run the issue's focused proof and repository-required validation. Continue
+   only when every required gate passes and the exact changeset remains current.
+3. Re-inspect the diff, commit it on the issue task branch, and push that task
+   branch. Never use this flow for a direct push to `staging` or `main`.
+4. Open a feature PR to `staging`, using the required issue-linked title/body,
+   then wait for required CI and review. Remediate failures and rerun stale
+   proof before proceeding.
+5. Squash-merge the approved PR into `staging` only after all merge gates pass.
+   This flow never authorizes a production promotion.
+6. From the clean canonical `staging` worktree, run
+   `scripts/task-lifecycle.mjs finish` as a dry-run and then rerun it with
+   `--execute`. Stop fail-closed if either lifecycle gate fails.
+
+Publication authority in this command is limited to the task branch, its PR,
+the guarded squash merge into `staging`, and local lifecycle cleanup. It does
+not waive Linear intake, Figma approval, tests, affected-consumer proof,
+security/review, CI, clean-worktree, exact-SHA, or release gates. Record
+implementation/proof in Linear before a forward status transition, and never
+mark an issue `Done` before a verified production deployment.
+
 ### Bounded Change
 
 1. Restate the observable outcome.

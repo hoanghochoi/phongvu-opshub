@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  Param,
   Post,
   Query,
   Request,
@@ -27,6 +28,8 @@ import {
 import { SalesReportsBigQuerySyncService } from './sales-reports-bigquery-sync.service';
 import { salesReportImportFileUploadOptions } from './sales-report-import-file-upload.options';
 import { SalesReportImportService } from './sales-report-import.service';
+import { SalesHistoryImportService } from './sales-history-import.service';
+import { salesHistoryImportChunkUploadOptions } from './sales-history-import-upload.options';
 import { SalesReportsService } from './sales-reports.service';
 
 @Controller('sales-reports')
@@ -36,6 +39,7 @@ export class SalesReportsController {
     private readonly service: SalesReportsService,
     private readonly bigQuerySync: SalesReportsBigQuerySyncService,
     private readonly importService: SalesReportImportService,
+    private readonly historyImportService: SalesHistoryImportService,
   ) {}
 
   @Get('categories')
@@ -87,6 +91,93 @@ export class SalesReportsController {
     @Body('expectedFileHash') expectedFileHash: string,
   ) {
     return this.importService.commit(req.user, file, expectedFileHash);
+  }
+
+  @Post('history-import/jobs')
+  @RequireFeature(FEATURE_KEYS.ADMIN_SALES_REPORTS)
+  createHistoryImportUpload(
+    @Request() req: any,
+    @Body() body: { fileName?: string; fileSize?: number },
+  ) {
+    return this.historyImportService.createUpload(
+      req.user,
+      body?.fileName,
+      body?.fileSize,
+    );
+  }
+
+  @Post('history-import/jobs/:id/chunks')
+  @RequireFeature(FEATURE_KEYS.ADMIN_SALES_REPORTS)
+  @UseInterceptors(
+    FileInterceptor('chunk', salesHistoryImportChunkUploadOptions),
+  )
+  appendHistoryImportChunk(
+    @Request() req: any,
+    @Param('id') id: string,
+    @Body('offset') offset: string,
+    @UploadedFile() chunk: Express.Multer.File,
+  ) {
+    return this.historyImportService.appendUploadChunk(
+      req.user,
+      id,
+      Number(offset),
+      chunk,
+    );
+  }
+
+  @Post('history-import/jobs/:id/complete')
+  @RequireFeature(FEATURE_KEYS.ADMIN_SALES_REPORTS)
+  completeHistoryImportUpload(@Request() req: any, @Param('id') id: string) {
+    return this.historyImportService.completeUpload(req.user, id);
+  }
+
+  @Get('history-import/jobs/:id')
+  @RequireFeature(FEATURE_KEYS.ADMIN_SALES_REPORTS)
+  historyImportJob(@Request() req: any, @Param('id') id: string) {
+    return this.historyImportService.getJob(req.user, id);
+  }
+
+  @Post('history-import/jobs/:id/cancel')
+  @RequireFeature(FEATURE_KEYS.ADMIN_SALES_REPORTS)
+  cancelHistoryImport(@Request() req: any, @Param('id') id: string) {
+    return this.historyImportService.cancelJob(req.user, id);
+  }
+
+  @Get('history-import/jobs/:id/quarantine')
+  @RequireFeature(FEATURE_KEYS.ADMIN_SALES_REPORTS)
+  async historyImportQuarantine(
+    @Request() req: any,
+    @Param('id') id: string,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const report = await this.historyImportService.quarantineReport(
+      req.user,
+      id,
+    );
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader(
+      'Content-Disposition',
+      'attachment; filename="opshub-du-lieu-cach-ly.csv"',
+    );
+    return new StreamableFile(report);
+  }
+
+  @Get('history-import/versions')
+  @RequireFeature(FEATURE_KEYS.ADMIN_SALES_REPORTS)
+  historyImportVersions(@Request() req: any, @Query('limit') limit?: string) {
+    return this.historyImportService.listVersions(req.user, Number(limit));
+  }
+
+  @Post('history-import/versions/:id/activate')
+  @RequireFeature(FEATURE_KEYS.ADMIN_SALES_REPORTS)
+  activateHistoryVersion(@Request() req: any, @Param('id') id: string) {
+    return this.historyImportService.activate(req.user, id);
+  }
+
+  @Post('history-import/versions/:id/rollback')
+  @RequireFeature(FEATURE_KEYS.ADMIN_SALES_REPORTS)
+  rollbackHistoryVersion(@Request() req: any, @Param('id') id: string) {
+    return this.historyImportService.rollback(req.user, id);
   }
 
   @Get()

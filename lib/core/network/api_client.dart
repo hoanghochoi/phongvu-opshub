@@ -680,6 +680,7 @@ class ApiClient {
     required Map<String, String> fields,
     required List<http.MultipartFile> files,
     Duration? timeout,
+    Future<void>? abortTrigger,
     bool allowRateLimitCooldownBypass = false,
   }) async {
     try {
@@ -697,7 +698,11 @@ class ApiClient {
       }
 
       // Create multipart request
-      final request = http.MultipartRequest('POST', url);
+      final request = http.AbortableMultipartRequest(
+        'POST',
+        url,
+        abortTrigger: abortTrigger,
+      );
 
       // Add JWT auth header
       if (requestAuthToken != null) {
@@ -711,9 +716,9 @@ class ApiClient {
       request.files.addAll(files);
 
       // Send request
-      final streamedResponse = await request.send().timeout(
-        timeout ?? ApiConstants.defaultTimeout,
-      );
+      final streamedResponse = await _client
+          .send(request)
+          .timeout(timeout ?? ApiConstants.defaultTimeout);
 
       // Convert streamed response to regular response
       final response = await http.Response.fromStream(streamedResponse);
