@@ -121,11 +121,7 @@ export class SalesHistoryImportService
       `${randomUUID()}.upload`,
     );
     const job = await this.prisma.$transaction(async (tx) => {
-      await tx.$queryRaw(Prisma.sql`
-        SELECT pg_advisory_xact_lock(
-          hashtextextended('sales-history-import-upload-admission', 0)
-        )
-      `);
+      await this.lockTransaction(tx, 'sales-history-import-upload-admission');
       const reserved = await tx.salesHistoryImportJob.aggregate({
         where: {
           artifactPath: { not: null },
@@ -183,9 +179,7 @@ export class SalesHistoryImportService
       throw new NotFoundException('Không tìm thấy tác vụ nhập dữ liệu.');
     await this.assertJobScope(user, scopedJob);
     const response = await this.prisma.$transaction(async (tx) => {
-      await tx.$queryRaw(Prisma.sql`
-        SELECT pg_advisory_xact_lock(hashtextextended(${`upload:${id}`}, 0))
-      `);
+      await this.lockTransaction(tx, `upload:${id}`);
       const job = await tx.salesHistoryImportJob.findUnique({ where: { id } });
       if (!job?.artifactPath || job.status !== 'UPLOADING') {
         throw new BadRequestException(
@@ -310,9 +304,7 @@ export class SalesHistoryImportService
       throw new NotFoundException('Không tìm thấy tác vụ nhập dữ liệu.');
     await this.assertJobScope(user, scopedJob);
     const cancelled = await this.prisma.$transaction(async (tx) => {
-      await tx.$queryRaw(Prisma.sql`
-        SELECT pg_advisory_xact_lock(hashtextextended(${`upload:${id}`}, 0))
-      `);
+      await this.lockTransaction(tx, `upload:${id}`);
       const job = await tx.salesHistoryImportJob.findUnique({ where: { id } });
       if (!job)
         throw new NotFoundException('Không tìm thấy tác vụ nhập dữ liệu.');
@@ -688,11 +680,7 @@ export class SalesHistoryImportService
   private async claimNextJob() {
     return this.prisma.$transaction(async (tx) => {
       const now = new Date();
-      await tx.$queryRaw(Prisma.sql`
-        SELECT pg_advisory_xact_lock(
-          hashtextextended('sales-history-import-global-claim', 0)
-        )
-      `);
+      await this.lockTransaction(tx, 'sales-history-import-global-claim');
       const globallyClaimed = await tx.salesHistoryImportJob.count({
         where: {
           status: { in: ['PARSING', 'FINALIZING'] },
@@ -705,11 +693,7 @@ export class SalesHistoryImportService
         orderBy: { createdAt: 'asc' },
       });
       if (!candidate?.artifactPath) return null;
-      await tx.$queryRaw(Prisma.sql`
-        SELECT pg_advisory_xact_lock(
-          hashtextextended(${`upload:${candidate.id}`}, 0)
-        )
-      `);
+      await this.lockTransaction(tx, `upload:${candidate.id}`);
       const leaseExpiresAt = new Date(now.getTime() + IMPORT_LEASE_MS);
       const claimed = await tx.salesHistoryImportJob.updateMany({
         where: { id: candidate.id, ...this.claimableJobsWhere(now) },
@@ -1286,12 +1270,17 @@ export class SalesHistoryImportService
         grainKey(right.summaryDate, right.storeCode),
       ),
     )) {
-      await tx.$queryRaw(Prisma.sql`
-        SELECT pg_advisory_xact_lock(
-          hashtextextended(${grainKey(grain.summaryDate, grain.storeCode)}, 0)
-        )
-      `);
+      await this.lockTransaction(
+        tx,
+        grainKey(grain.summaryDate, grain.storeCode),
+      );
     }
+  }
+
+  private async lockTransaction(tx: Prisma.TransactionClient, key: string) {
+    await tx.$executeRaw(Prisma.sql`
+      SELECT pg_advisory_xact_lock(hashtextextended(${key}, 0))
+    `);
   }
 
   private async assertClaim(

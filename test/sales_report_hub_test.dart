@@ -15,6 +15,7 @@ import 'helpers/legacy_widget_finders.dart';
 import 'package:go_router/go_router.dart';
 import 'package:phongvu_opshub/core/logging/app_logger.dart';
 import 'package:phongvu_opshub/core/network/api_client.dart';
+import 'package:phongvu_opshub/core/network/api_exception.dart';
 import 'package:phongvu_opshub/core/network/realtime_connection_manager.dart';
 import 'package:phongvu_opshub/core/platform/app_platform_capabilities.dart';
 import 'package:phongvu_opshub/features/auth/data/repositories/auth_repository.dart';
@@ -182,6 +183,105 @@ void main() {
     },
   );
 
+  testWidgets(
+    'Sales history 500 admission failure is Vietnamese and does not blame a file before a job exists',
+    (tester) async {
+      final provider = SalesReportProvider(
+        _ServerRejectedHistorySalesReportRepository(),
+        isWeb: false,
+        platform: TargetPlatform.windows,
+      );
+      addTearDown(provider.dispose);
+
+      expect(
+        await provider.startHistoryImport(
+          SalesReportImportFile(
+            name: 'history.csv',
+            size: 1,
+            bytes: Uint8List.fromList([1]),
+          ),
+        ),
+        isFalse,
+      );
+      expect(provider.historyImportJob, isNull);
+      expect(
+        provider.historyImportError,
+        'Máy chủ đang bận xử lý tác vụ nhập dữ liệu. Vui lòng thử lại sau ít phút.',
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Builder(
+            builder: (context) => TextButton(
+              onPressed: () => showSalesHistoryImportDialog(
+                context: context,
+                provider: provider,
+              ),
+              child: const Text('Mở nhập lịch sử'),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('Mở nhập lịch sử'));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text(
+          'Chưa tạo được tác vụ nhập dữ liệu. Vui lòng chờ ít phút rồi thử lại.',
+        ),
+        findsOneWidget,
+      );
+      expect(find.textContaining('Sửa tệp'), findsNothing);
+      expect(find.textContaining('Internal Server Error'), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'Sales history 500 after job creation keeps operation guidance and does not blame the file',
+    (tester) async {
+      final provider = SalesReportProvider(
+        _ServerRejectedHistoryAfterJobRepository(),
+        isWeb: false,
+        platform: TargetPlatform.windows,
+      );
+      addTearDown(provider.dispose);
+
+      expect(
+        await provider.startHistoryImport(
+          SalesReportImportFile(
+            name: 'history.csv',
+            size: 1,
+            bytes: Uint8List.fromList([1]),
+          ),
+        ),
+        isFalse,
+      );
+      expect(provider.historyImportJob, isNotNull);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Builder(
+            builder: (context) => TextButton(
+              onPressed: () => showSalesHistoryImportDialog(
+                context: context,
+                provider: provider,
+              ),
+              child: const Text('Mở nhập lịch sử'),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('Mở nhập lịch sử'));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text('Kiểm tra thông báo phía trên rồi thử lại.'),
+        findsOneWidget,
+      );
+      expect(find.textContaining('Sửa tệp'), findsNothing);
+    },
+  );
+
   test(
     'Sales history polling retries a transient failure and then completes',
     () async {
@@ -336,6 +436,16 @@ void main() {
       final cancelButton = find.widgetWithText(AppPrimaryButton, 'Hủy tải');
       expect(tester.getSize(cancelButton).height, greaterThanOrEqualTo(48));
 
+      await tester.tap(find.byTooltip('Đóng'));
+      await tester.pump();
+      expect(
+        find.text(
+          'Tác vụ chưa hoàn tất. Hãy tiếp tục theo dõi hoặc hủy tác vụ trước khi đóng.',
+        ),
+        findsOneWidget,
+      );
+      expect(find.textContaining('Sửa tệp'), findsNothing);
+
       await tester.tapAt(const Offset(4, 4));
       await tester.pump();
       expect(
@@ -349,12 +459,19 @@ void main() {
         find.byKey(const Key('sales-history-import-dialog')),
         findsOneWidget,
       );
+      expect(find.textContaining('Sửa tệp'), findsNothing);
 
       await tester.tap(cancelButton);
       await tester.pumpAndSettle();
       expect(await upload, isFalse);
       expect(provider.isHistoryImportBusy, isFalse);
       expect(provider.historyImportMessage, 'Đã hủy tải tệp.');
+      expect(
+        find.text(
+          'Tác vụ chưa hoàn tất. Hãy tiếp tục theo dõi hoặc hủy tác vụ trước khi đóng.',
+        ),
+        findsNothing,
+      );
     },
   );
 
@@ -2790,6 +2907,45 @@ class _FakeHistorySalesReportRepository extends _FakeSalesReportRepository {
   @override
   Future<void> rollbackHistoryVersion(String id) async {
     rolledBackVersionIds.add(id);
+  }
+}
+
+class _ServerRejectedHistorySalesReportRepository
+    extends _FakeSalesReportRepository {
+  @override
+  Future<SalesHistoryImportJob> enqueueHistoryImport(
+    SalesReportImportFile file, {
+    void Function(SalesHistoryImportJob job)? onJobChanged,
+    bool Function()? isCancelled,
+  }) {
+    throw ApiException('Internal Server Error', 500);
+  }
+}
+
+class _ServerRejectedHistoryAfterJobRepository
+    extends _FakeSalesReportRepository {
+  @override
+  Future<SalesHistoryImportJob> enqueueHistoryImport(
+    SalesReportImportFile file, {
+    void Function(SalesHistoryImportJob job)? onJobChanged,
+    bool Function()? isCancelled,
+  }) {
+    onJobChanged?.call(
+      SalesHistoryImportJob.fromJson({
+        'id': 'job-before-500',
+        'status': 'FAILED',
+        'uploadedBytes': 1,
+        'expectedBytes': 1,
+        'totalRows': 0,
+        'cleanRows': 0,
+        'quarantinedRows': 0,
+        'cleanGrains': 0,
+        'quarantinedGrains': 0,
+        'cancelRequested': false,
+        'coverage': const [],
+      }),
+    );
+    throw ApiException('Internal Server Error', 500);
   }
 }
 

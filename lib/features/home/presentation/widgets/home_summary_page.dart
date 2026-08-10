@@ -1015,6 +1015,7 @@ class SummaryCardGrid extends StatelessWidget {
       mediumRowHeights: const [136],
       compactRowHeights: const [184],
       showComparisons: true,
+      useRootViewportBreakpoints: true,
       comparisons: summary.comparisons,
     );
   }
@@ -1160,6 +1161,7 @@ class MainKpiSummaryCardGrid extends StatelessWidget {
       mediumRowHeights: const [136],
       compactRowHeights: const [184],
       showComparisons: true,
+      useRootViewportBreakpoints: true,
       comparisons: summary.comparisons,
     );
   }
@@ -1273,6 +1275,7 @@ class SalesBehaviorSummaryCardGrid extends StatelessWidget {
       mediumRowHeights: const [136],
       compactRowHeights: const [184],
       showComparisons: true,
+      useRootViewportBreakpoints: true,
       comparisons: summary.comparisons,
     );
   }
@@ -1379,6 +1382,7 @@ class _SummaryMetricGrid extends StatelessWidget {
     this.mediumRowHeights,
     this.compactRowHeights,
     this.showComparisons = false,
+    this.useRootViewportBreakpoints = false,
     this.comparisons,
   });
 
@@ -1390,6 +1394,7 @@ class _SummaryMetricGrid extends StatelessWidget {
   final List<double>? mediumRowHeights;
   final List<double>? compactRowHeights;
   final bool showComparisons;
+  final bool useRootViewportBreakpoints;
   final HomeSummaryComparisons? comparisons;
 
   @override
@@ -1398,20 +1403,35 @@ class _SummaryMetricGrid extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final width = constraints.maxWidth;
-        final maxColumns = width >= AppLayoutTokens.desktopBreakpoint
+        final view = View.of(context);
+        final viewportWidth = view.physicalSize.width / view.devicePixelRatio;
+        // The approved expanded/wide Home frames classify Sales grids from
+        // the root viewport because the AppShell narrows their content lane.
+        // Compact and medium layouts stay content-width-driven so Sales and
+        // Finance cross the mobile breakpoint together. Extremely narrow
+        // content must fall back to one card per row.
+        final breakpointWidth =
+            useRootViewportBreakpoints &&
+                viewportWidth >= AppLayoutTokens.tabletBreakpoint
+            ? viewportWidth
+            : width;
+        final maxColumns = width < 320
+            ? 1
+            : breakpointWidth >= AppLayoutTokens.desktopBreakpoint
             ? math.min(wideColumns, cards.length)
-            : width >= AppLayoutTokens.tabletBreakpoint
+            : breakpointWidth >= AppLayoutTokens.tabletBreakpoint
             ? math.min(3, cards.length)
-            : width >= AppLayoutTokens.compactBreakpoint
+            : breakpointWidth >= AppLayoutTokens.compactBreakpoint
             ? 1
             : math.min(2, cards.length);
         final rows = _balancedRows(cards, maxColumns);
         const gap = 16.0;
-        final rowHeightsForWidth = width >= AppLayoutTokens.desktopBreakpoint
+        final rowHeightsForWidth =
+            breakpointWidth >= AppLayoutTokens.desktopBreakpoint
             ? rowHeights
-            : width >= AppLayoutTokens.tabletBreakpoint
+            : breakpointWidth >= AppLayoutTokens.tabletBreakpoint
             ? expandedRowHeights
-            : width >= AppLayoutTokens.compactBreakpoint
+            : breakpointWidth >= AppLayoutTokens.compactBreakpoint
             ? mediumRowHeights
             : compactRowHeights;
         final textScale = MediaQuery.textScalerOf(context).scale(10) / 10;

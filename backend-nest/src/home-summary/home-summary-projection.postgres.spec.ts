@@ -7,6 +7,8 @@ import pg from 'pg';
 import { PrismaService } from '../prisma/prisma.service';
 import { SALES_PRICE_CONTRACT_VERSION } from '../sales-reports/sales-report-revenue';
 import { SalesReportsService } from '../sales-reports/sales-reports.service';
+import { SalesHistoryImportParserService } from '../sales-reports/sales-history-import-parser.service';
+import { SalesHistoryImportService } from '../sales-reports/sales-history-import.service';
 import { HOME_SALES_KPI_CONTRACT_VERSION } from './home-summary-contract';
 import { HomeSummaryProjectionService } from './home-summary-projection.service';
 import { HomeSummaryService } from './home-summary.service';
@@ -125,6 +127,7 @@ describePostgres('OPS-52 Home SALES KPI PostgreSQL reconciliation', () => {
   let pool: pg.Pool;
   let prisma: PrismaClient;
   let salesReports: SalesReportsService;
+  let historyImports: SalesHistoryImportService;
   let projection: HomeSummaryProjectionService;
   let created = false;
 
@@ -187,6 +190,10 @@ describePostgres('OPS-52 Home SALES KPI PostgreSQL reconciliation', () => {
       {} as any,
       {} as any,
     );
+    historyImports = new SalesHistoryImportService(
+      prisma as PrismaService,
+      new SalesHistoryImportParserService(),
+    );
     const homeSummary = new HomeSummaryService(
       prisma as PrismaService,
       salesReports,
@@ -207,6 +214,25 @@ describePostgres('OPS-52 Home SALES KPI PostgreSQL reconciliation', () => {
       await admin.query(`DROP DATABASE "${databaseName}"`);
     }
     await admin?.end().catch(() => undefined);
+  });
+
+  it('admits a history CSV through the adapter-pg transaction advisory lock', async () => {
+    const actor = await prisma.user.create({
+      data: {
+        email: `ops62-history-import-${randomUUID()}@example.test`,
+        password: 'test-only-password',
+        firstName: 'OPS-62',
+        role: 'SUPER_ADMIN',
+      },
+    });
+
+    await expect(
+      historyImports.createUpload({ id: actor.id }, 'history.csv', 1),
+    ).resolves.toMatchObject({
+      status: 'UPLOADING',
+      uploadedBytes: 0,
+      expectedBytes: 1,
+    });
   });
 
   it('queues every missing or stale subordinate SALES contract grain and atomically rebuilds the primary date with purchased-only promotion KPIs', async () => {

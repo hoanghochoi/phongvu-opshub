@@ -55,14 +55,46 @@ class _SalesHistoryImportDialog extends StatefulWidget {
 
 class _SalesHistoryImportDialogState extends State<_SalesHistoryImportDialog> {
   bool _showHistory = false;
-  String? _localError;
+  _LocalLifecycleError? _localError;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.provider.addListener(_clearResolvedDismissBlock);
+  }
+
+  @override
+  void didUpdateWidget(covariant _SalesHistoryImportDialog oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.provider == widget.provider) return;
+    oldWidget.provider.removeListener(_clearResolvedDismissBlock);
+    widget.provider.addListener(_clearResolvedDismissBlock);
+  }
+
+  @override
+  void dispose() {
+    widget.provider.removeListener(_clearResolvedDismissBlock);
+    super.dispose();
+  }
+
+  void _clearResolvedDismissBlock() {
+    if (!mounted ||
+        _localError?.kind != _LocalLifecycleErrorKind.dismissBlocked ||
+        !widget.provider.canDismissHistoryImport) {
+      return;
+    }
+    setState(() => _localError = null);
+  }
 
   void _requestClose() {
     if (!widget.provider.canDismissHistoryImport) {
       setState(() {
-        _localError = widget.provider.canRetryHistoryImportPolling
-            ? 'Tác vụ vẫn đang chạy. Chọn “Kiểm tra lại” để tiếp tục theo dõi hoặc hủy tác vụ trước khi đóng.'
-            : 'Tác vụ đang chạy. Hãy hủy tác vụ trước khi đóng cửa sổ này.';
+        _localError = _LocalLifecycleError(
+          kind: _LocalLifecycleErrorKind.dismissBlocked,
+          message: widget.provider.canRetryHistoryImportPolling
+              ? 'Tác vụ vẫn đang chạy. Chọn “Kiểm tra lại” để tiếp tục theo dõi hoặc hủy tác vụ trước khi đóng.'
+              : 'Tác vụ đang chạy. Hãy hủy tác vụ trước khi đóng cửa sổ này.',
+        );
       });
       return;
     }
@@ -96,8 +128,11 @@ class _SalesHistoryImportDialogState extends State<_SalesHistoryImportDialog> {
         selected.size <= 0 ||
         selected.size > _maxHistoryImportBytes) {
       setState(() {
-        _localError =
-            'Tệp chưa phù hợp. Chọn CSV/TSV không quá 200 MiB rồi thử lại.';
+        _localError = const _LocalLifecycleError(
+          kind: _LocalLifecycleErrorKind.validation,
+          message:
+              'Tệp chưa phù hợp. Chọn CSV/TSV không quá 200 MiB rồi thử lại.',
+        );
       });
       await AppLogger.instance.warn(
         'SalesHistoryImport',
@@ -220,7 +255,7 @@ class _ImportLifecycle extends StatelessWidget {
   });
 
   final SalesReportProvider provider;
-  final String? localError;
+  final _LocalLifecycleError? localError;
   final Future<void> Function() onPickFile;
   final Future<void> Function() onShowHistory;
   final VoidCallback onClose;
@@ -228,18 +263,25 @@ class _ImportLifecycle extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final job = provider.historyImportJob;
-    final error = localError ?? provider.historyImportError;
+    final error = localError?.message ?? provider.historyImportError;
+    final errorKind = error == null
+        ? null
+        : localError?.kind == _LocalLifecycleErrorKind.validation
+        ? _LifecycleErrorKind.localValidation
+        : localError?.kind == _LocalLifecycleErrorKind.dismissBlocked
+        ? _LifecycleErrorKind.dismissBlocked
+        : provider.canRetryHistoryImportPolling
+        ? _LifecycleErrorKind.polling
+        : job == null
+        ? _LifecycleErrorKind.admission
+        : _LifecycleErrorKind.operation;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Semantics(
           liveRegion: true,
           label: error ?? _jobTitle(job),
-          child: _LifecyclePanel(
-            job: job,
-            error: error,
-            canRetryPolling: provider.canRetryHistoryImportPolling,
-          ),
+          child: _LifecyclePanel(job: job, error: error, errorKind: errorKind),
         ),
         if (job?.status == 'UPLOADING') ...[
           const SizedBox(height: 8),
@@ -347,16 +389,33 @@ class _ImportLifecycle extends StatelessWidget {
   }
 }
 
+enum _LocalLifecycleErrorKind { validation, dismissBlocked }
+
+class _LocalLifecycleError {
+  const _LocalLifecycleError({required this.kind, required this.message});
+
+  final _LocalLifecycleErrorKind kind;
+  final String message;
+}
+
+enum _LifecycleErrorKind {
+  localValidation,
+  dismissBlocked,
+  admission,
+  polling,
+  operation,
+}
+
 class _LifecyclePanel extends StatelessWidget {
   const _LifecyclePanel({
     required this.job,
     required this.error,
-    required this.canRetryPolling,
+    required this.errorKind,
   });
 
   final SalesHistoryImportJob? job;
   final String? error;
-  final bool canRetryPolling;
+  final _LifecycleErrorKind? errorKind;
 
   @override
   Widget build(BuildContext context) {
@@ -368,11 +427,19 @@ class _LifecyclePanel extends StatelessWidget {
         ? AppStateTone.success
         : AppStateTone.neutral;
     final title = error ?? _jobTitle(job);
-    final detail = error != null
-        ? canRetryPolling
-              ? 'Tác vụ vẫn đang chạy và chưa thể đóng cửa sổ. Chọn “Kiểm tra lại” để tiếp tục theo dõi hoặc hủy tác vụ.'
-              : 'Sửa tệp rồi chọn lại để tiếp tục.'
-        : _jobDetail(job);
+    final detail = switch (errorKind) {
+      _LifecycleErrorKind.localValidation =>
+        'Sửa tệp rồi chọn lại để tiếp tục.',
+      _LifecycleErrorKind.dismissBlocked =>
+        'Tác vụ chưa hoàn tất. Hãy tiếp tục theo dõi hoặc hủy tác vụ trước khi đóng.',
+      _LifecycleErrorKind.admission =>
+        'Chưa tạo được tác vụ nhập dữ liệu. Vui lòng chờ ít phút rồi thử lại.',
+      _LifecycleErrorKind.polling =>
+        'Tác vụ vẫn đang chạy và chưa thể đóng cửa sổ. Chọn “Kiểm tra lại” để tiếp tục theo dõi hoặc hủy tác vụ.',
+      _LifecycleErrorKind.operation =>
+        'Kiểm tra thông báo phía trên rồi thử lại.',
+      null => _jobDetail(job),
+    };
     return AppSurfaceCard(
       backgroundColor: _toneSurface(context, tone),
       padding: const EdgeInsets.all(14),

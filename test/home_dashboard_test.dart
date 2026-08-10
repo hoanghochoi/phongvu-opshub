@@ -1892,6 +1892,11 @@ void main() {
   testWidgets('Home KPI grid keeps two cards per row on normal mobile width', (
     tester,
   ) async {
+    tester.view.physicalSize = const Size(390, 1000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
     const summary = HomeSummary(
       date: '2026-07-06',
       available: true,
@@ -2319,6 +2324,94 @@ void main() {
     expect(overview.top, 196);
   });
 
+  testWidgets(
+    'Home uses the 1440px viewport for wide Sales, KPI, and behavior rows inside a 1126px content lane',
+    (tester) async {
+      tester.view.physicalSize = const Size(1440, 1800);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final summary = _managerSalesProgressSummary(
+        'sa-1',
+        includeFinance: true,
+      );
+      final provider = HomeSummaryProvider(
+        _FakeHomeSummaryRepository(summary: summary),
+      );
+      addTearDown(provider.dispose);
+      provider.syncAuth(_staffUser(), isInitialized: true);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: AppResponsiveContent(
+              maxWidth: AppLayoutTokens.salesReportMaxWidth,
+              padding: AppLayoutTokens.homePagePaddingFor(1440),
+              child: HomeSummaryPage(provider: provider),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        tester.getSize(find.byKey(const Key('home-summary-grid'))).width,
+        1126,
+      );
+
+      Offset card(String metricKey) =>
+          tester.getTopLeft(find.byKey(Key('home-summary-card-$metricKey')));
+
+      // Sales: 6 cards on the single wide row.
+      expect(card('revenue').dy, card('conversionRate').dy);
+
+      // KPI: 5 / 5 / 4 cards in the approved wide desktop order.
+      expect(
+        card('businessCustomerRevenue').dy,
+        card('installmentNeedCount').dy,
+      );
+      expect(
+        card('successfulInstallmentCount').dy,
+        greaterThan(card('installmentNeedCount').dy),
+      );
+      expect(
+        card('successfulInstallmentCount').dy,
+        card('assembledPcQuantity').dy,
+      );
+      expect(
+        card('appleQuantity').dy,
+        greaterThan(card('assembledPcQuantity').dy),
+      );
+      expect(card('appleQuantity').dy, card('accessoriesQuantity').dy);
+
+      // Behavior: 4 / 4 cards on the approved wide rows.
+      expect(card('notPurchasedReports').dy, card('coverageRate').dy);
+      expect(
+        card('consultedSolutionRate').dy,
+        greaterThan(card('coverageRate').dy),
+      );
+      expect(card('consultedSolutionRate').dy, card('appDownloadRate').dy);
+
+      // Finance remains content-width-driven and Overview keeps its own path.
+      expect(
+        card('totalTransferredAmount').dy,
+        card('totalStatementsTracked').dy,
+      );
+      expect(
+        card('totalStatementsUnfollowed').dy,
+        greaterThan(card('totalStatementsTracked').dy),
+      );
+      expect(
+        tester
+            .getSize(find.byKey(const Key('home-summary-progress-panel')))
+            .width,
+        1126,
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   testWidgets('Home progress uses viewport width with approved R3 geometry', (
     tester,
   ) async {
@@ -2720,9 +2813,14 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('Home KPI grid keeps two columns on narrow mobile width', (
+  testWidgets('Home KPI grid falls back to one column below 320px', (
     tester,
   ) async {
+    tester.view.physicalSize = const Size(300, 1000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
     const summary = HomeSummary(
       date: '2026-07-06',
       available: true,
@@ -2742,7 +2840,12 @@ void main() {
     await tester.pumpWidget(
       const MaterialApp(
         home: Scaffold(
-          body: SizedBox(width: 300, child: SummaryCardGrid(summary: summary)),
+          body: SingleChildScrollView(
+            child: SizedBox(
+              width: 300,
+              child: SummaryCardGrid(summary: summary),
+            ),
+          ),
         ),
       ),
     );
@@ -2753,9 +2856,85 @@ void main() {
     final second = tester.getTopLeft(
       find.byKey(const Key('home-summary-card-totalOrders')),
     );
-    expect(second.dy, first.dy);
-    expect(second.dx, greaterThan(first.dx));
+    expect(second.dy, greaterThan(first.dy));
+    expect(second.dx, first.dx);
   });
+
+  testWidgets(
+    'Home full-page Sales and Finance grids share narrow and mobile content breakpoints',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final summary = _managerSalesProgressSummary(
+        'sa-1',
+        includeFinance: true,
+      );
+      final provider = HomeSummaryProvider(
+        _FakeHomeSummaryRepository(summary: summary),
+      );
+      addTearDown(provider.dispose);
+      provider.syncAuth(_staffUser(), isInitialized: true);
+
+      for (final entry in const [
+        (viewport: 300.0, sameRow: false),
+        (viewport: 599.0, sameRow: true),
+        (viewport: 600.0, sameRow: true),
+        (viewport: 648.0, sameRow: false),
+      ]) {
+        tester.view.physicalSize = Size(entry.viewport, 2200);
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: SingleChildScrollView(
+                child: AppResponsiveContent(
+                  maxWidth: AppLayoutTokens.salesReportMaxWidth,
+                  padding: AppLayoutTokens.homePagePaddingFor(entry.viewport),
+                  child: HomeSummaryPage(provider: provider),
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        final salesFirst = tester.getTopLeft(
+          find.byKey(const Key('home-summary-card-revenue')),
+        );
+        final salesSecond = tester.getTopLeft(
+          find.byKey(const Key('home-summary-card-totalOrders')),
+        );
+        final financeFirst = tester.getTopLeft(
+          find.byKey(const Key('home-summary-card-totalTransferredAmount')),
+        );
+        final financeSecond = tester.getTopLeft(
+          find.byKey(const Key('home-summary-card-totalStatements')),
+        );
+
+        if (entry.sameRow) {
+          expect(salesSecond.dy, salesFirst.dy, reason: '${entry.viewport}px');
+          expect(
+            financeSecond.dy,
+            financeFirst.dy,
+            reason: '${entry.viewport}px',
+          );
+        } else {
+          expect(
+            salesSecond.dy,
+            greaterThan(salesFirst.dy),
+            reason: '${entry.viewport}px',
+          );
+          expect(
+            financeSecond.dy,
+            greaterThan(financeFirst.dy),
+            reason: '${entry.viewport}px',
+          );
+        }
+        expect(tester.takeException(), isNull, reason: '${entry.viewport}px');
+      }
+    },
+  );
 
   testWidgets('Home dashboard shows neutral unavailable state from scope API', (
     tester,

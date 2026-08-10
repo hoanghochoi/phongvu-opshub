@@ -739,7 +739,7 @@ class SalesReportProvider extends ChangeNotifier {
     } catch (error, stackTrace) {
       if (_disposed) return false;
       _isHistoryImportBusy = false;
-      _historyImportError = _messageFor(
+      _historyImportError = _historyImportMessageFor(
         error,
         'Chưa tải được tệp. Kiểm tra kết nối rồi thử lại.',
       );
@@ -836,7 +836,10 @@ class SalesReportProvider extends ChangeNotifier {
     } catch (error, stackTrace) {
       if (_disposed || _historyImportJob?.id != jobId) return;
       _isHistoryImportBusy = false;
-      final pollingError = _messageFor(error, 'Chưa cập nhật được tiến trình.');
+      final pollingError = _historyImportMessageFor(
+        error,
+        'Chưa cập nhật được tiến trình.',
+      );
       _historyImportError =
           '$pollingError Chọn “Kiểm tra lại” để kết nối lại tác vụ.';
       _notifyHistoryListeners();
@@ -886,7 +889,7 @@ class SalesReportProvider extends ChangeNotifier {
         context: {'jobId': job.id},
       );
     } catch (error, stackTrace) {
-      _historyImportError = _messageFor(
+      _historyImportError = _historyImportMessageFor(
         error,
         'Chưa hủy được tác vụ. Vui lòng thử lại.',
       );
@@ -928,7 +931,7 @@ class SalesReportProvider extends ChangeNotifier {
         ..addAll(versions);
       _notifyHistoryListeners();
     } catch (error, stackTrace) {
-      _historyImportError = _messageFor(
+      _historyImportError = _historyImportMessageFor(
         error,
         'Chưa tải được lịch sử phiên bản. Vui lòng thử lại.',
       );
@@ -971,7 +974,7 @@ class SalesReportProvider extends ChangeNotifier {
       );
       return true;
     } catch (error, stackTrace) {
-      _historyImportError = _messageFor(
+      _historyImportError = _historyImportMessageFor(
         error,
         'Chưa kích hoạt được phiên bản. Vui lòng thử lại.',
       );
@@ -1015,7 +1018,7 @@ class SalesReportProvider extends ChangeNotifier {
       );
       return true;
     } catch (error, stackTrace) {
-      _historyImportError = _messageFor(
+      _historyImportError = _historyImportMessageFor(
         error,
         'Chưa hoàn tác được phiên bản. Vui lòng thử lại.',
       );
@@ -1061,7 +1064,7 @@ class SalesReportProvider extends ChangeNotifier {
         },
       );
     } catch (error, stackTrace) {
-      _historyImportError = _messageFor(
+      _historyImportError = _historyImportMessageFor(
         error,
         'Chưa tải được báo cáo cách ly. Vui lòng thử lại.',
       );
@@ -1087,6 +1090,16 @@ class SalesReportProvider extends ChangeNotifier {
   String _messageFor(Object error, String fallback) {
     if (error is ApiException) return error.message;
     return fallback;
+  }
+
+  String _historyImportMessageFor(Object error, String fallback) {
+    if (error is ApiException &&
+        error.statusCode != null &&
+        error.statusCode! >= 500 &&
+        error.statusCode! < 600) {
+      return 'Máy chủ đang bận xử lý tác vụ nhập dữ liệu. Vui lòng thử lại sau ít phút.';
+    }
+    return _messageFor(error, fallback);
   }
 
   String _timestampForFile() {

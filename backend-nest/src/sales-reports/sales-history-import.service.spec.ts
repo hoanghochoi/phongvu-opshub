@@ -1,5 +1,9 @@
 import { SalesHistoryImportService } from './sales-history-import.service';
 
+function advisoryLockKeys(executeRaw: jest.Mock) {
+  return executeRaw.mock.calls.map(([statement]) => statement.values[0]);
+}
+
 describe('SalesHistoryImportService activation lifecycle', () => {
   it('activates clean grains transactionally and emits one home invalidation', async () => {
     const firstDate = new Date('2025-08-10T00:00:00.000Z');
@@ -42,6 +46,7 @@ describe('SalesHistoryImportService activation lifecycle', () => {
         create: jest.fn().mockResolvedValue(undefined),
       },
       $queryRaw: jest.fn().mockResolvedValue([{ version: 101n }]),
+      $executeRaw: jest.fn().mockResolvedValue(1),
     };
     const prisma = {
       $transaction: jest.fn(async (operation: (client: any) => unknown) =>
@@ -88,7 +93,12 @@ describe('SalesHistoryImportService activation lifecycle', () => {
         },
       }),
     });
-    expect(tx.$queryRaw).toHaveBeenCalledTimes(3);
+    expect(tx.$queryRaw).toHaveBeenCalledTimes(1);
+    expect(tx.$executeRaw).toHaveBeenCalledTimes(2);
+    expect(advisoryLockKeys(tx.$executeRaw)).toEqual([
+      '2025-08-10|CP01',
+      '2025-08-11|CP02',
+    ]);
   });
 
   it('rolls back only grains still pointing at the selected version', async () => {
@@ -155,6 +165,7 @@ describe('SalesHistoryImportService activation lifecycle', () => {
         create: jest.fn().mockResolvedValue(undefined),
       },
       $queryRaw: jest.fn().mockResolvedValue([{ version: 102n }]),
+      $executeRaw: jest.fn().mockResolvedValue(1),
     };
     const prisma = {
       $transaction: jest.fn(async (operation: (client: any) => unknown) =>
@@ -208,7 +219,13 @@ describe('SalesHistoryImportService activation lifecycle', () => {
         },
       }),
     });
-    expect(tx.$queryRaw).toHaveBeenCalledTimes(4);
+    expect(tx.$queryRaw).toHaveBeenCalledTimes(1);
+    expect(tx.$executeRaw).toHaveBeenCalledTimes(3);
+    expect(advisoryLockKeys(tx.$executeRaw)).toEqual([
+      '2025-08-10|CP01',
+      '2025-08-11|CP02',
+      '2025-08-12|CP03',
+    ]);
   });
 
   it('fails closed when fresh scope was reassigned before activation', async () => {
@@ -311,7 +328,7 @@ describe('SalesHistoryImportService activation lifecycle', () => {
         findFirst: jest.fn().mockResolvedValue({ id: 'activation-original' }),
         create: jest.fn(),
       },
-      $queryRaw: jest.fn().mockResolvedValue([]),
+      $executeRaw: jest.fn().mockResolvedValue(1),
     };
     const prisma = {
       $transaction: jest.fn(async (operation: (client: any) => unknown) =>
@@ -336,7 +353,7 @@ describe('SalesHistoryImportService activation lifecycle', () => {
 describe('SalesHistoryImportService authorization and worker lifecycle', () => {
   it('enforces artifact quota before creating an upload job', async () => {
     const tx = {
-      $queryRaw: jest.fn().mockResolvedValue([]),
+      $executeRaw: jest.fn().mockResolvedValue(1),
       salesHistoryImportJob: {
         aggregate: jest.fn().mockResolvedValue({
           _sum: { expectedBytes: BigInt(220 * 1024 * 1024) },
@@ -362,6 +379,9 @@ describe('SalesHistoryImportService authorization and worker lifecycle', () => {
     await expect(
       service.createUpload({ id: 'admin-1' }, 'history.csv', 1024),
     ).rejects.toThrow('đang xử lý một tệp lớn khác');
+    expect(advisoryLockKeys(tx.$executeRaw)).toEqual([
+      'sales-history-import-upload-admission',
+    ]);
     expect(tx.salesHistoryImportJob.create).not.toHaveBeenCalled();
   });
 
@@ -503,7 +523,7 @@ describe('SalesHistoryImportService authorization and worker lifecycle', () => {
       attemptCount: 1,
     };
     const tx = {
-      $queryRaw: jest.fn().mockResolvedValue([]),
+      $executeRaw: jest.fn().mockResolvedValue(1),
       salesHistoryImportJob: {
         count: jest.fn().mockResolvedValue(0),
         findFirst: jest.fn().mockResolvedValue(stale),
@@ -522,7 +542,11 @@ describe('SalesHistoryImportService authorization and worker lifecycle', () => {
       id: 'job-1',
       attemptCount: 2,
     });
-    expect(tx.$queryRaw).toHaveBeenCalledTimes(2);
+    expect(tx.$executeRaw).toHaveBeenCalledTimes(2);
+    expect(advisoryLockKeys(tx.$executeRaw)).toEqual([
+      'sales-history-import-global-claim',
+      'upload:job-1',
+    ]);
     expect(tx.salesHistoryImportJob.count).toHaveBeenCalledWith({
       where: {
         status: { in: ['PARSING', 'FINALIZING'] },
@@ -572,7 +596,7 @@ describe('SalesHistoryImportService authorization and worker lifecycle', () => {
 
   it('does not claim when one unexpired lease already holds the global slot', async () => {
     const tx = {
-      $queryRaw: jest.fn().mockResolvedValue([]),
+      $executeRaw: jest.fn().mockResolvedValue(1),
       salesHistoryImportJob: {
         count: jest.fn().mockResolvedValue(1),
         findFirst: jest.fn(),
@@ -586,6 +610,10 @@ describe('SalesHistoryImportService authorization and worker lifecycle', () => {
     const service = new SalesHistoryImportService(prisma as any, {} as any);
 
     await expect((service as any).claimNextJob()).resolves.toBeNull();
+    expect(tx.$executeRaw).toHaveBeenCalledTimes(1);
+    expect(advisoryLockKeys(tx.$executeRaw)).toEqual([
+      'sales-history-import-global-claim',
+    ]);
     expect(tx.salesHistoryImportJob.findFirst).not.toHaveBeenCalled();
   });
 
@@ -694,7 +722,7 @@ describe('SalesHistoryImportService authorization and worker lifecycle', () => {
           .mockResolvedValueOnce({ ...job, status: 'CANCELLED' }),
         updateMany: jest.fn().mockResolvedValue({ count: 1 }),
       },
-      $queryRaw: jest.fn().mockResolvedValue(undefined),
+      $executeRaw: jest.fn().mockResolvedValue(1),
     };
     const prisma = {
       user: {
@@ -718,6 +746,7 @@ describe('SalesHistoryImportService authorization and worker lifecycle', () => {
       id: job.id,
       status: 'CANCELLED',
     });
+    expect(advisoryLockKeys(tx.$executeRaw)).toEqual([`upload:${job.id}`]);
     expect(tx.salesHistoryImportOrderStage.deleteMany).toHaveBeenCalledWith({
       where: { jobId: job.id },
     });
@@ -769,7 +798,7 @@ describe('SalesHistoryImportService authorization and worker lifecycle', () => {
           }),
         updateMany: jest.fn().mockResolvedValue({ count: 1 }),
       },
-      $queryRaw: jest.fn().mockResolvedValue(undefined),
+      $executeRaw: jest.fn().mockResolvedValue(1),
     };
     const prisma = {
       user: {
@@ -797,7 +826,10 @@ describe('SalesHistoryImportService authorization and worker lifecycle', () => {
       cancelRequested: true,
     });
 
-    expect(tx.$queryRaw).toHaveBeenCalledTimes(1);
+    expect(tx.$executeRaw).toHaveBeenCalledTimes(1);
+    expect(advisoryLockKeys(tx.$executeRaw)).toEqual([
+      `upload:${initialJob.id}`,
+    ]);
     expect(tx.salesHistoryImportJob.updateMany).toHaveBeenCalledWith({
       where: {
         id: initialJob.id,

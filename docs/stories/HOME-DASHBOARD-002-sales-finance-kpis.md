@@ -18,12 +18,13 @@ kê trên cùng Trang chủ, theo đúng một ngày và một phạm vi đang c
   `Số đơn bán`, `Trung bình đơn hàng (đã bao gồm VAT)`,
   `Hoàn thành (đã bao gồm VAT)`, `Chờ hoàn thành (đã bao gồm VAT)` và
   `Tỉ lệ chuyển đổi`.
-- Nhóm `KPI chính` hiển thị hai dòng trên desktop: dòng 1 gồm doanh số khách
-  hàng doanh nghiệp, doanh số khách hàng cá nhân, số lượng CTKM đổi điểm thi,
-  số lượng CTKM HSSV, số lượng nhu cầu trả góp và số lượng trả góp thành công;
-  dòng 2 gồm số lượng bảo hiểm mở rộng, laptop, PC bộ, PC ráp, Apple
-  (iPhone, MacBook, iPad), màn hình, máy in và phụ kiện. Tablet/mobile được
-  wrap theo breakpoint dashboard hiện có để không vỡ layout.
+- Nhóm `KPI chính` giữ thứ tự metric và trên desktop rộng hiển thị ba dòng theo
+  approved Home Figma: dòng 1 gồm doanh số khách hàng doanh nghiệp, doanh số
+  khách hàng cá nhân, số lượng CTKM đổi điểm thi, số lượng CTKM HSSV và số
+  lượng nhu cầu trả góp; dòng 2 gồm số lượng trả góp thành công, bảo hiểm mở
+  rộng, laptop, PC bộ và PC ráp; dòng 3 gồm Apple (iPhone, MacBook, iPad), màn
+  hình, máy in và phụ kiện. Tablet/mobile wrap tuần tự theo shared viewport
+  breakpoint, không đổi thứ tự metric hoặc hành vi card.
 - `Số lượng CTKM đổi điểm thi` chỉ đếm báo cáo `PURCHASED` chứa
   `EXAM_SCORE_EXCHANGE`; `Số lượng CTKM HSSV` chỉ đếm báo cáo `PURCHASED`
   chứa `STUDENT`. Một báo cáo mua hàng chứa cả hai mã tăng cả hai KPI. Báo cáo
