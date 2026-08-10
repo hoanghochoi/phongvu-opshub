@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:phongvu_opshub/core/network/api_client.dart';
+import 'package:phongvu_opshub/core/network/api_exception.dart';
 import 'package:phongvu_opshub/features/sales_report/data/sales_report_repository.dart';
 
 void main() {
@@ -154,6 +155,92 @@ void main() {
     },
   );
 
+  test(
+    'three committed chunks with lost responses resume without destructive cleanup',
+    () async {
+      const chunkBytes = 4 * 1024 * 1024;
+      final fileBytes = Uint8List(3 * chunkBytes);
+      var serverAcknowledgedBytes = 0;
+      var chunkRequests = 0;
+      var cancelRequests = 0;
+      var completeRequests = 0;
+      final fetchedOffsets = <int>[];
+      final client = ApiClient.test(
+        MockClient((request) async {
+          final path = request.url.path;
+          if (path.endsWith('/history-import/jobs') &&
+              request.method == 'POST') {
+            return _jsonResponse({
+              'id': 'job-response-losses',
+              'status': 'UPLOADING',
+              'uploadedBytes': 0,
+              'expectedBytes': fileBytes.length,
+            });
+          }
+          if (path.endsWith(
+            '/history-import/jobs/job-response-losses/chunks',
+          )) {
+            chunkRequests += 1;
+            serverAcknowledgedBytes += chunkBytes;
+            throw const SocketException('response lost after server commit');
+          }
+          if (path.endsWith('/history-import/jobs/job-response-losses') &&
+              request.method == 'GET') {
+            fetchedOffsets.add(serverAcknowledgedBytes);
+            return _jsonResponse({
+              'id': 'job-response-losses',
+              'status': 'UPLOADING',
+              'uploadedBytes': serverAcknowledgedBytes,
+              'expectedBytes': fileBytes.length,
+            });
+          }
+          if (path.endsWith(
+                '/history-import/jobs/job-response-losses/cancel',
+              ) &&
+              request.method == 'POST') {
+            cancelRequests += 1;
+            return _jsonResponse({
+              'id': 'job-response-losses',
+              'status': 'CANCELLED',
+              'uploadedBytes': serverAcknowledgedBytes,
+              'expectedBytes': fileBytes.length,
+            });
+          }
+          if (path.endsWith(
+                '/history-import/jobs/job-response-losses/complete',
+              ) &&
+              request.method == 'POST') {
+            completeRequests += 1;
+            return _jsonResponse({
+              'id': 'job-response-losses',
+              'status': 'QUEUED',
+              'uploadedBytes': serverAcknowledgedBytes,
+              'expectedBytes': fileBytes.length,
+            });
+          }
+          return http.Response('Not found', 404);
+        }),
+      );
+      addTearDown(client.dispose);
+
+      final job = await SalesReportRepository(client).enqueueHistoryImport(
+        SalesReportImportFile(
+          name: 'history.csv',
+          size: fileBytes.length,
+          bytes: fileBytes,
+        ),
+      );
+
+      expect(chunkRequests, 3);
+      expect(fetchedOffsets, [chunkBytes, 2 * chunkBytes, 3 * chunkBytes]);
+      expect(cancelRequests, 0);
+      expect(completeRequests, 1);
+      expect(serverAcknowledgedBytes, fileBytes.length);
+      expect(job.uploadedBytes, fileBytes.length);
+      expect(job.status, 'QUEUED');
+    },
+  );
+
   test('cancelling aborts an in-flight multipart upload promptly', () async {
     final transport = _AbortAwareClient();
     final client = ApiClient.test(transport);
@@ -185,6 +272,74 @@ void main() {
       completes,
     );
   });
+
+  test(
+    'permanent chunk upload failure cancels the admitted job before surfacing the error',
+    () async {
+      var chunkAttempts = 0;
+      var cancelRequests = 0;
+      final observedStatuses = <String>[];
+      final client = ApiClient.test(
+        MockClient((request) async {
+          final path = request.url.path;
+          if (path.endsWith('/history-import/jobs') &&
+              request.method == 'POST') {
+            return _jsonResponse({
+              'id': 'job-permanent-failure',
+              'status': 'UPLOADING',
+              'uploadedBytes': 0,
+              'expectedBytes': 4,
+            });
+          }
+          if (path.contains(
+            '/history-import/jobs/job-permanent-failure/chunks',
+          )) {
+            chunkAttempts += 1;
+            return http.Response('upload rejected', 500);
+          }
+          if (path.endsWith('/history-import/jobs/job-permanent-failure') &&
+              request.method == 'GET') {
+            return _jsonResponse({
+              'id': 'job-permanent-failure',
+              'status': 'UPLOADING',
+              'uploadedBytes': 0,
+              'expectedBytes': 4,
+            });
+          }
+          if (path.endsWith(
+                '/history-import/jobs/job-permanent-failure/cancel',
+              ) &&
+              request.method == 'POST') {
+            cancelRequests += 1;
+            return _jsonResponse({
+              'id': 'job-permanent-failure',
+              'status': 'CANCELLED',
+              'uploadedBytes': 0,
+              'expectedBytes': 4,
+            });
+          }
+          return http.Response('Not found', 404);
+        }),
+      );
+      addTearDown(client.dispose);
+
+      await expectLater(
+        SalesReportRepository(client).enqueueHistoryImport(
+          SalesReportImportFile(
+            name: 'history.csv',
+            size: 4,
+            bytes: Uint8List.fromList([1, 2, 3, 4]),
+          ),
+          onJobChanged: (job) => observedStatuses.add(job.status),
+        ),
+        throwsA(isA<ApiException>()),
+      );
+
+      expect(chunkAttempts, 3);
+      expect(cancelRequests, 1);
+      expect(observedStatuses.last, 'CANCELLED');
+    },
+  );
 }
 
 http.Response _jsonResponse(Map<String, Object?> body) => http.Response(

@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 
 import '../../../core/constants/api_constants.dart';
+import '../../../core/logging/app_logger.dart';
 import '../../../core/network/api_client.dart';
 import '../domain/sales_report.dart';
 import 'sales_report_file_reader.dart';
@@ -299,18 +300,64 @@ class SalesReportRepository {
           offset = job.uploadedBytes;
           transientFailures = 0;
           onJobChanged?.call(job);
-        } catch (_) {
+        } catch (error, stackTrace) {
           if (isCancelled?.call() == true || uploadAbort.isCompleted) {
             throw const SalesHistoryUploadCancelled();
           }
+          final previousAcknowledgedOffset = offset;
           transientFailures += 1;
           job = await fetchHistoryImportJob(job.id);
           onJobChanged?.call(job);
           offset = job.uploadedBytes;
+          if (offset > previousAcknowledgedOffset) {
+            transientFailures = 0;
+          }
           if (job.status == 'CANCELLED') {
             throw const SalesHistoryUploadCancelled();
           }
-          if (job.status != 'UPLOADING' || transientFailures >= 3) rethrow;
+          if (job.status != 'UPLOADING') {
+            Error.throwWithStackTrace(error, stackTrace);
+          }
+          if (transientFailures >= 3) {
+            await AppLogger.instance.warn(
+              'SalesHistoryImport',
+              'Historical sales import terminal upload failure cleanup started',
+              context: {
+                'jobId': job.id,
+                'status': job.status,
+                'uploadedBytes': job.uploadedBytes,
+                'attempts': transientFailures,
+                'uploadErrorType': error.runtimeType.toString(),
+              },
+            );
+            try {
+              job = await cancelHistoryImport(job.id);
+              onJobChanged?.call(job);
+              await AppLogger.instance.info(
+                'SalesHistoryImport',
+                'Historical sales import terminal upload failure cleanup succeeded',
+                context: {
+                  'jobId': job.id,
+                  'status': job.status,
+                  'uploadedBytes': job.uploadedBytes,
+                  'attempts': transientFailures,
+                },
+              );
+            } catch (cancelError) {
+              await AppLogger.instance.warn(
+                'SalesHistoryImport',
+                'Historical sales import terminal upload failure cleanup failed',
+                context: {
+                  'jobId': job.id,
+                  'status': job.status,
+                  'uploadedBytes': job.uploadedBytes,
+                  'attempts': transientFailures,
+                  'cancelErrorType': cancelError.runtimeType.toString(),
+                },
+              );
+            }
+            Error.throwWithStackTrace(error, stackTrace);
+          }
           await Future<void>.delayed(
             Duration(milliseconds: 250 * transientFailures),
           );

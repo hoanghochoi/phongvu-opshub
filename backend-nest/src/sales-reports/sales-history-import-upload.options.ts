@@ -7,6 +7,7 @@ import { diskStorage, memoryStorage, type Options } from 'multer';
 
 export const SALES_HISTORY_IMPORT_MAX_BYTES = 200 * 1024 * 1024;
 export const SALES_HISTORY_IMPORT_CHUNK_BYTES = 4 * 1024 * 1024;
+const SALES_HISTORY_IMPORT_CHUNK_PARSER_HEADROOM_BYTES = 64 * 1024;
 export const SALES_HISTORY_IMPORT_DIRECTORY = join(
   tmpdir(),
   'opshub-sales-history-imports',
@@ -48,5 +49,10 @@ export const salesHistoryImportUploadOptions: Options = {
 
 export const salesHistoryImportChunkUploadOptions: Options = {
   storage: memoryStorage(),
-  limits: { files: 1, fileSize: SALES_HISTORY_IMPORT_CHUNK_BYTES },
+  limits: {
+    files: 1,
+    fileSize:
+      SALES_HISTORY_IMPORT_CHUNK_BYTES +
+      SALES_HISTORY_IMPORT_CHUNK_PARSER_HEADROOM_BYTES,
+  },
 };
