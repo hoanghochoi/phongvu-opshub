@@ -161,8 +161,12 @@ cho Google Form, đồng thời lưu dữ liệu đủ chuẩn để dashboard d
   thái chi tiết.
 - Job trạng thái chạy mỗi 5 phút, mặc định tối đa 80 đơn/lượt với concurrency
   2 và Redis lease. Job rà cả đơn `PENDING` trong cache chưa báo cáo lẫn đơn
-  `Mua hàng` đã báo cáo; trong từng nhóm, ưu tiên ngày bán ERP gần nhất trước
-  rồi mới đến ngày xa hơn. Đơn `PENDING` chỉ bắt đầu được background sync sau
+  `Mua hàng` đã báo cáo. Điều kiện đủ 3 giờ, hết backoff và chưa đạt giới hạn
+  ngày phải được áp ngay trong truy vấn trước giới hạn candidate; row chưa đến
+  hạn không được chiếm cửa sổ làm row cũ bị đói lượt. Hai nguồn cache/report
+  được xen kẽ khi cấp pending quota; trong mỗi nguồn, đơn lâu chưa được thử lại
+  được ưu tiên, còn ngày bán ERP gần nhất là tie-breaker. Đơn `PENDING` chỉ bắt
+  đầu được background sync sau
   3 giờ kể từ `orderCreatedAt`. Theo ngày Việt Nam, background sync gọi tối đa 3
   lần cho mỗi đơn `PENDING`, mỗi lần cách nhau ít nhất 60 phút; gọi lỗi vẫn
   tiêu một lượt trong ngày. Đơn `COMPLETED` hoặc

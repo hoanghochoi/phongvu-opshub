@@ -1339,6 +1339,14 @@ test\sales_report_hub_test.dart` (19 tests), `flutter analyze --no-pub`, và
   service giữ guard `pending_age` để không gọi ERP khi timestamp thiếu hoặc chưa
   đủ tuổi. Log sync ghi `pendingMinAgeHours` và `skippedPendingAge`. Validation:
   focused `sales-reports.service.spec.ts`, `npm run build`, và `git diff --check`.
+- `OPS-61`/`SALES-REPORT-001`, 2026-08-10: Hotfix background ERP status sync
+  áp điều kiện due-now (đủ 3 giờ, hết backoff 60 phút, chưa đủ 3 lượt/ngày Việt
+  Nam) trong Prisma query trước `take`, ưu tiên row lâu chưa được thử lại và xen
+  kẽ pending cache/report để đơn đã báo cáo cũ không bị starvation. Guard
+  in-memory, batch/concurrency, Redis lease, quota showroom và completed cadence
+  được giữ nguyên. Regression test tái hiện cache có candidate nhưng reported
+  cũ vẫn nhận slot bounded. Validation: focused `sales-reports.service.spec.ts`,
+  full backend Jest, `npm run build`, và `git diff --check`.
 - `SALES-REPORT-001`, 2026-07-16: Sau `check-order`, đơn còn trạng thái chưa
   thanh toán phải khóa phần nhập và nút `Gửi báo cáo`, hiện đúng toast hướng dẫn
   vào SPOS thanh toán lại hoặc hủy đơn, đồng thời đưa phần thân modal về đầu.
