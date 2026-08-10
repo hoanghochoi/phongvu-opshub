@@ -271,8 +271,48 @@ void main() {
           result.combined.dataOffset + index * result.combined.blockAlign,
         ),
       ),
-      [100, 133, 100, 400, 500],
+      [100, 133, 100, 400, 500, 0, 0],
     );
+  });
+
+  test('preserves the final preset chunk trailing guard after crossfade', () {
+    final amount = _pcm16Wav(
+      sampleRateHz: 1000,
+      channels: 1,
+      frames: const [
+        [0],
+        [100],
+        [200],
+        [0],
+      ],
+    );
+    final currency = _pcm16Wav(
+      sampleRateHz: 1000,
+      channels: 1,
+      frames: const [
+        [0],
+        [300],
+        [400],
+        [0],
+        [0],
+        [0],
+      ],
+    );
+
+    final result = PaymentWavTools.combinePcm16SequenceWithCrossfade(
+      segments: [amount, currency],
+      crossfade: const Duration(milliseconds: 1),
+      silenceThresholdPcm: 1,
+    );
+    final samples = List.generate(
+      result.combined.frameCount,
+      (index) => _int16(
+        result.bytes,
+        result.combined.dataOffset + index * result.combined.blockAlign,
+      ),
+    );
+
+    expect(samples.sublist(samples.length - 3), [0, 0, 0]);
   });
 
   test('rejects unsupported WAV formats without crashing', () {

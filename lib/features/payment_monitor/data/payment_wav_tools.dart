@@ -382,7 +382,8 @@ class PaymentWavTools {
 
   /// Composes source WAVs that carry natural TTS padding. Intermediate chunks
   /// trim their boundary padding at [silenceThresholdPcm] and overlap by a
-  /// linear crossfade; the final chunk retains its natural non-zero fade tail.
+  /// linear crossfade; the final chunk retains its natural fade and trailing
+  /// silence guard so the audio output device can drain the currency ending.
   static PaymentWavSequenceResult combinePcm16SequenceWithCrossfade({
     required List<List<int>> segments,
     required Duration crossfade,
@@ -437,7 +438,7 @@ class PaymentWavTools {
       final start = index == 0
           ? firstAudible
           : math.max(0, firstAudible - crossfadeFrames);
-      final end = index == infos.length - 1 ? lastNonZero + 1 : lastAudible + 1;
+      final end = index == infos.length - 1 ? info.frameCount : lastAudible + 1;
       final length = end - start;
       if (length <= 0 || (segments.length > 1 && length < crossfadeFrames)) {
         throw const PaymentWavException(
