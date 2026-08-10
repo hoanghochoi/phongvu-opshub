@@ -2461,7 +2461,7 @@ describe('SalesReportsService', () => {
             orderCode: { not: null },
             erpLifecycleStatus: 'PENDING',
           }),
-          take: 50,
+          take: 200,
         }),
       );
       expect(prisma.salesReport.findMany).toHaveBeenNthCalledWith(
@@ -2555,6 +2555,169 @@ describe('SalesReportsService', () => {
         }),
       );
     } finally {
+      restoreEnv('ERP_ORDER_STATUS_SYNC_ENABLED', previous.enabled);
+      restoreEnv('ERP_ORDER_STATUS_CACHE_SYNC_ENABLED', previous.cache);
+      restoreEnv('ERP_ORDER_STATUS_SYNC_BATCH_SIZE', previous.batch);
+      restoreEnv('ERP_ORDER_STATUS_SYNC_STORE_LIMIT', previous.storeLimit);
+    }
+  });
+
+  it('filters pending rows that are not due before take and gives reported rows a fair slot', async () => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date('2026-07-10T02:00:00Z'));
+    const { service, prisma, erp } = createHarness();
+    const previous = {
+      enabled: process.env.ERP_ORDER_STATUS_SYNC_ENABLED,
+      cache: process.env.ERP_ORDER_STATUS_CACHE_SYNC_ENABLED,
+      batch: process.env.ERP_ORDER_STATUS_SYNC_BATCH_SIZE,
+      storeLimit: process.env.ERP_ORDER_STATUS_SYNC_STORE_LIMIT,
+    };
+    process.env.ERP_ORDER_STATUS_SYNC_ENABLED = 'true';
+    process.env.ERP_ORDER_STATUS_CACHE_SYNC_ENABLED = 'true';
+    process.env.ERP_ORDER_STATUS_SYNC_BATCH_SIZE = '2';
+    process.env.ERP_ORDER_STATUS_SYNC_STORE_LIMIT = '2';
+    const basePending = {
+      storeCode: 'CP62',
+      statusCheckedAt: new Date('2026-07-08T02:00:00Z'),
+      statusCheckAttemptedAt: new Date('2026-07-08T02:00:00Z'),
+      statusCheckAttemptDate: new Date('2026-07-08T00:00:00Z'),
+      statusCheckAttemptCount: 1,
+      statusCheckFailureCount: 0,
+      orderCreatedAt: new Date('2026-07-08T01:00:00Z'),
+    };
+    const cachePending = [
+      {
+        ...basePending,
+        orderCode: '2607082001',
+        lifecycleStatus: 'PENDING',
+        fetchedAt: new Date('2026-07-08T01:00:00Z'),
+      },
+      {
+        ...basePending,
+        orderCode: '2607082002',
+        lifecycleStatus: 'PENDING',
+        fetchedAt: new Date('2026-07-08T01:00:00Z'),
+      },
+    ];
+    const reportedPending = {
+      orderCode: '2607071001',
+      storeCode: 'CP62',
+      erpLifecycleStatus: 'PENDING',
+      erpStatusCheckedAt: new Date('2026-07-07T02:00:00Z'),
+      erpStatusCheckAttemptedAt: new Date('2026-07-07T02:00:00Z'),
+      erpStatusCheckAttemptDate: new Date('2026-07-07T00:00:00Z'),
+      erpStatusCheckAttemptCount: 1,
+      erpStatusCheckFailureCount: 0,
+      erpOrderCreatedAt: new Date('2026-07-07T01:00:00Z'),
+    };
+    prisma.salesReportErpOrderCache.findMany
+      .mockResolvedValueOnce(cachePending)
+      .mockResolvedValueOnce([]);
+    prisma.salesReport.findMany
+      .mockResolvedValueOnce([reportedPending])
+      .mockResolvedValueOnce([]);
+    erp.lookupOrderStatus.mockImplementation(async (orderCode: string) => ({
+      ...erpListOrderFixture(),
+      orderCode,
+      lifecycleStatus: 'COMPLETED',
+      hasReturnedFullItems: false,
+      returnedAfterTaxAmount: 0,
+      statusCheckedAt: new Date('2026-07-10T02:00:00Z'),
+    }));
+
+    try {
+      await expect(service.syncErpOrderStatuses('fairness')).resolves.toEqual({
+        skipped: false,
+        processed: 2,
+        changed: 2,
+        failed: 0,
+      });
+      expect(
+        erp.lookupOrderStatus.mock.calls.map(([orderCode]) => orderCode),
+      ).toEqual(['2607071001', '2607082001']);
+      expect(prisma.salesReportErpOrderCache.findMany).toHaveBeenNthCalledWith(
+        1,
+        expect.objectContaining({
+          where: expect.objectContaining({
+            AND: expect.arrayContaining([
+              expect.objectContaining({
+                OR: expect.arrayContaining([
+                  { statusCheckAttemptDate: null },
+                  expect.objectContaining({
+                    AND: expect.arrayContaining([
+                      {
+                        statusCheckAttemptDate: new Date(
+                          '2026-07-10T00:00:00Z',
+                        ),
+                      },
+                      { statusCheckAttemptCount: { lt: 3 } },
+                      expect.objectContaining({
+                        OR: expect.arrayContaining([
+                          { statusCheckAttemptedAt: null },
+                          {
+                            statusCheckAttemptedAt: {
+                              lte: new Date('2026-07-10T01:00:00Z'),
+                            },
+                          },
+                        ]),
+                      }),
+                    ]),
+                  }),
+                ]),
+              }),
+            ]),
+          }),
+          orderBy: expect.arrayContaining([
+            {
+              statusCheckAttemptDate: { sort: 'asc', nulls: 'first' },
+            },
+          ]),
+          take: 8,
+        }),
+      );
+      expect(prisma.salesReport.findMany).toHaveBeenNthCalledWith(
+        1,
+        expect.objectContaining({
+          where: expect.objectContaining({
+            erpLifecycleStatus: 'PENDING',
+            AND: expect.arrayContaining([
+              expect.objectContaining({
+                OR: expect.arrayContaining([
+                  { erpStatusCheckAttemptDate: null },
+                  expect.objectContaining({
+                    AND: expect.arrayContaining([
+                      {
+                        erpStatusCheckAttemptDate: new Date(
+                          '2026-07-10T00:00:00Z',
+                        ),
+                      },
+                      { erpStatusCheckAttemptCount: { lt: 3 } },
+                      expect.objectContaining({
+                        OR: expect.arrayContaining([
+                          { erpStatusCheckAttemptedAt: null },
+                          {
+                            erpStatusCheckAttemptedAt: {
+                              lte: new Date('2026-07-10T01:00:00Z'),
+                            },
+                          },
+                        ]),
+                      }),
+                    ]),
+                  }),
+                ]),
+              }),
+            ]),
+          }),
+          orderBy: expect.arrayContaining([
+            {
+              erpStatusCheckAttemptDate: { sort: 'asc', nulls: 'first' },
+            },
+          ]),
+          take: 8,
+        }),
+      );
+    } finally {
+      jest.useRealTimers();
       restoreEnv('ERP_ORDER_STATUS_SYNC_ENABLED', previous.enabled);
       restoreEnv('ERP_ORDER_STATUS_CACHE_SYNC_ENABLED', previous.cache);
       restoreEnv('ERP_ORDER_STATUS_SYNC_BATCH_SIZE', previous.batch);
@@ -2699,9 +2862,13 @@ describe('SalesReportsService', () => {
         expect.objectContaining({
           where: expect.objectContaining({
             erpLifecycleStatus: 'PENDING',
-            erpOrderCreatedAt: {
-              lte: new Date('2026-07-07T02:00:00Z'),
-            },
+            AND: expect.arrayContaining([
+              {
+                erpOrderCreatedAt: {
+                  lte: new Date('2026-07-07T02:00:00Z'),
+                },
+              },
+            ]),
           }),
         }),
       );
@@ -2910,7 +3077,7 @@ describe('SalesReportsService', () => {
     }
   });
 
-  it('prioritizes the newest sale date for pending and completed candidates', async () => {
+  it('uses newest sale date as the tie-breaker for pending and completed candidates', async () => {
     jest.useFakeTimers();
     jest.setSystemTime(new Date('2026-07-10T02:00:00Z'));
     const { service, prisma, erp } = createHarness();
