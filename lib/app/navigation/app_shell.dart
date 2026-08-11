@@ -765,14 +765,29 @@ class _MobileShell extends StatelessWidget {
             for (var index = 0; index <= destinations.length; index++) ...[
               if (showQuickActions && index == quickActionsIndex)
                 NavigationDestination(
-                  icon: QuickActionsLauncher(
-                    menuAxis: Axis.horizontal,
-                    location: location,
-                    buttonSize: compactMobile ? 46 : 52,
-                    elevation: compactMobile ? 3 : 4,
+                  key: const Key('mobile-quick-actions-destination'),
+                  icon: Transform.translate(
+                    // NavigationDestination raises its icon lane by 5.5 px.
+                    // Offset the 68 px Figma track back to the nav surface top.
+                    offset: const Offset(0, 5.5),
+                    child: SizedBox(
+                      key: const Key('mobile-quick-actions-track'),
+                      height: 68,
+                      child: Align(
+                        alignment: Alignment.topCenter,
+                        child: Padding(
+                          padding: const EdgeInsets.only(top: 10),
+                          child: QuickActionsLauncher(
+                            menuAxis: Axis.horizontal,
+                            location: location,
+                            buttonSize: 48,
+                            elevation: 0,
+                          ),
+                        ),
+                      ),
+                    ),
                   ),
                   label: '',
-                  tooltip: 'Thao tác nhanh',
                 ),
               if (index < destinations.length)
                 NavigationDestination(

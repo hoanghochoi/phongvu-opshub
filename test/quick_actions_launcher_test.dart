@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:phongvu_opshub/app/theme/app_colors.dart';
+import 'package:phongvu_opshub/app/theme/app_radius.dart';
+import 'package:phongvu_opshub/app/theme/app_theme.dart';
 import 'package:phongvu_opshub/core/network/api_client.dart';
 import 'package:phongvu_opshub/features/auth/data/repositories/auth_repository.dart';
 import 'package:phongvu_opshub/features/auth/domain/entities/user.dart';
@@ -60,6 +62,96 @@ void main() {
     );
     expect(icon.size, 24);
     expect(find.byKey(const Key('quick-actions-menu')), findsNothing);
+  });
+
+  testWidgets('compact launcher matches approved light geometry and states', (
+    tester,
+  ) async {
+    await _pumpCompactLauncher(tester, AppTheme.lightTheme);
+
+    final launcher = find.byKey(const Key('quick-actions-launcher'));
+    expect(tester.getSize(launcher), const Size.square(48));
+    expect(find.byTooltip('Thao tác nhanh'), findsOneWidget);
+    final semantics = tester.ensureSemantics();
+    expect(find.bySemanticsLabel('Mở Thao tác nhanh'), findsOneWidget);
+    semantics.dispose();
+
+    final surface = tester.widget<Material>(
+      find.byKey(const Key('quick-actions-launcher-surface')),
+    );
+    expect(surface.color, AppColors.transparent);
+    expect(surface.elevation, 0);
+    expect(surface.shape, isA<RoundedRectangleBorder>());
+    expect(
+      (surface.shape! as RoundedRectangleBorder).borderRadius,
+      AppRadius.allXl,
+    );
+    final icon = tester.widget<Icon>(
+      find.byIcon(PhosphorIconsRegular.lightning),
+    );
+    expect(icon.size, 20);
+    expect(icon.color, AppColors.surface);
+
+    var decoration = _launcherDecoration(tester);
+    expect(decoration.color, AppColors.primary500);
+    expect(decoration.borderRadius, AppRadius.allXl);
+    expect(decoration.boxShadow, hasLength(1));
+    final shadow = decoration.boxShadow!.single;
+    expect(shadow.color, const Color.fromRGBO(8, 18, 56, 0.2));
+    expect(shadow.offset, const Offset(0, 8));
+    expect(shadow.blurRadius, 18);
+    expect(shadow.spreadRadius, -4);
+
+    final gesture = await tester.startGesture(tester.getCenter(launcher));
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(_launcherDecoration(tester).color, AppColors.primary700);
+    await gesture.up();
+    await tester.pump();
+    expect(find.byKey(const Key('quick-actions-menu')), findsOneWidget);
+    expect(_launcherDecoration(tester).color, AppColors.primary700);
+
+    await tester.tapAt(const Offset(2, 2));
+    await tester.pump();
+    expect(find.byKey(const Key('quick-actions-menu')), findsNothing);
+
+    final focus = tester.widget<Focus>(
+      find.byKey(const Key('quick-actions-launcher-focus')),
+    );
+    focus.focusNode!.requestFocus();
+    await tester.pump();
+    decoration = _launcherDecoration(tester);
+    final border = decoration.border! as Border;
+    expect(border.top.color, AppColors.focus);
+    expect(border.top.width, 2);
+    expect(border.top.strokeAlign, BorderSide.strokeAlignOutside);
+  });
+
+  testWidgets('compact launcher resolves approved dark semantic states', (
+    tester,
+  ) async {
+    await _pumpCompactLauncher(tester, AppTheme.darkTheme);
+
+    final launcher = find.byKey(const Key('quick-actions-launcher'));
+    expect(_launcherDecoration(tester).color, AppColors.darkPrimary);
+    expect(
+      tester.widget<Icon>(find.byIcon(PhosphorIconsRegular.lightning)).color,
+      AppColors.surface,
+    );
+
+    final gesture = await tester.startGesture(tester.getCenter(launcher));
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(_launcherDecoration(tester).color, AppColors.darkPrimaryPressed);
+    await gesture.cancel();
+    await tester.pump();
+
+    final focus = tester.widget<Focus>(
+      find.byKey(const Key('quick-actions-launcher-focus')),
+    );
+    focus.focusNode!.requestFocus();
+    await tester.pump();
+    final border = _launcherDecoration(tester).border! as Border;
+    expect(border.top.color, AppColors.darkInfo);
+    expect(border.top.width, 2);
   });
 
   testWidgets('quick actions menu wraps eight actions into visible rows', (
@@ -290,6 +382,60 @@ void main() {
     expect(qr.eyeStyle.color, AppColors.customerQrForeground);
     expect(qr.dataModuleStyle.color, AppColors.customerQrForeground);
   });
+}
+
+Future<void> _pumpCompactLauncher(WidgetTester tester, ThemeData theme) async {
+  const user = User(
+    email: 'staff@phongvu.vn',
+    role: 'USER',
+    organizationNodeId: 'store-node',
+    featureAccess: {
+      'QUICK_ACTIONS': true,
+      'QUICK_ACTION_FIFO': true,
+      'FIFO': true,
+    },
+  );
+  const payload = QuickActionsPayload(
+    stores: [QuickActionStore(storeCode: 'HCM01', storeName: 'Showroom 1')],
+    selectedStoreCode: null,
+    availableActionCodes: {},
+    links: {},
+  );
+  await tester.pumpWidget(
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider<AuthProvider>.value(
+          value: _FakeAuthProvider(user),
+        ),
+        ChangeNotifierProvider<QuickActionsProvider>.value(
+          value: _FakeQuickActionsProvider(payload),
+        ),
+      ],
+      child: MaterialApp(
+        theme: theme,
+        home: const Scaffold(
+          body: Center(
+            child: QuickActionsLauncher(
+              menuAxis: Axis.horizontal,
+              location: '/home',
+              buttonSize: 48,
+              elevation: 0,
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+  await tester.pump();
+}
+
+BoxDecoration _launcherDecoration(WidgetTester tester) {
+  return tester
+          .widget<DecoratedBox>(
+            find.byKey(const Key('quick-actions-launcher-decoration')),
+          )
+          .decoration
+      as BoxDecoration;
 }
 
 class _FakeAuthProvider extends AuthProvider {
