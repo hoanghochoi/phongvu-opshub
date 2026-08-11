@@ -8,6 +8,26 @@ covered across wide `1440x900`, compact `390x844`, medium `768x1024` and
 expanded `1024x900` viewports (180 route/viewport checks). Older 88-check
 entries below are historical evidence and do not replace the OPS-44 gate.
 
+- `OPS-62`/`HOME-DASHBOARD-002`, 2026-08-12,
+  `local_verified_with_postgres_and_staging_gaps`: historical identity uses
+  normalized exact Email as the authoritative current-user match, exact HRM as
+  fallback only when Email has no unique match, and never requires the user's
+  current showroom. Missing/ambiguous identity and multi-user canonical orders
+  remain exactly once in STORE, omit USER_STORE attribution and mark the clean
+  grain `PERSONAL_COVERAGE_INCOMPLETE` without increasing quarantine. Home
+  personal CSV metrics are unavailable/0 if any winning active
+  version/date/showroom marker is incomplete; a complete winning grain with no
+  selected-user order is available 0, and stale/non-winning or legacy missing
+  markers do not block it. Focused Jest passed 3 suites with 101 tests;
+  disposable PostgreSQL 15 migration/adapter/cross-chunk/finalization proof
+  passed 9/9, including clean coverage, full STORE totals and sentinel-free
+  USER_STORE. Prisma validate/generate, Nest build, changed-file Prettier and
+  `git diff --check` passed. Full Nest passed 108/108 suites with 1,205 passed
+  and 6 PostgreSQL-gated skipped; affected Flutter passed 98/98, full Flutter
+  passed 850 with 3 skipped, analyze reported no issues, and Go realtime
+  passed. Exact-file staging READY/activation/Home spot check, CI and release
+  lifecycle remain required.
+
 - `OPS-62`/`HOME-DASHBOARD-002`, 2026-08-11: historical Sales import accepts
   the exact 34-column export as a dedicated adapter while preserving legacy
   wide/category inputs and the existing API/final aggregate. Proof covers VAT
@@ -280,18 +300,18 @@ entries below are historical evidence and do not replace the OPS-44 gate.
   work; standalone CLI parity remains `unverified` and out of scope.
 
 - `OPS-36`/`PAYMENT-STATEMENT-001`, 2026-07-28: Sao kê and Tiền vào use one
-existing-style order editor. Every new code is ERP-verified and active;
-existing codes may be replaced/cleared only on the same Vietnam day after all
-old codes are cancelled or fully returned. `UNFOLLOWED` blocks both PATCH and
-compatibility POST before ERP lookup. Compatibility POST auto-approves, emits
-an `APPROVED` realtime invalidation, and creates no new pending notification;
-legacy pending review remains. Tracking permissions/audit, filter, Home KPI,
-XLSX, and BigQuery consumers are covered. Proof: focused MAP `140/140`, full
-Nest `90 suites / 918 tests`, Nest build, Prisma validate/generate, focused
-Flutter `119/119`, full Flutter `635 passed / 3 skipped`, and Flutter analyze
-all passed. BigQuery DDL tests passed `3/3`; disposable PostgreSQL verified the
-5,000-row idempotent schema-v2 backfill, write-lock observation, revision,
-dedupe, tombstone, tracking rollback and layered rollback in `977 ms`.
+  existing-style order editor. Every new code is ERP-verified and active;
+  existing codes may be replaced/cleared only on the same Vietnam day after all
+  old codes are cancelled or fully returned. `UNFOLLOWED` blocks both PATCH and
+  compatibility POST before ERP lookup. Compatibility POST auto-approves, emits
+  an `APPROVED` realtime invalidation, and creates no new pending notification;
+  legacy pending review remains. Tracking permissions/audit, filter, Home KPI,
+  XLSX, and BigQuery consumers are covered. Proof: focused MAP `140/140`, full
+  Nest `90 suites / 918 tests`, Nest build, Prisma validate/generate, focused
+  Flutter `119/119`, full Flutter `635 passed / 3 skipped`, and Flutter analyze
+  all passed. BigQuery DDL tests passed `3/3`; disposable PostgreSQL verified the
+  5,000-row idempotent schema-v2 backfill, write-lock observation, revision,
+  dedupe, tombstone, tracking rollback and layered rollback in `977 ms`.
 
 - `OPS-30`, 2026-07-27: file `Tải lịch sử chăm sóc` thêm cột `Doanh số` cạnh
   `Mã đơn mua` cho các lượt chăm sóc có kết quả `PURCHASED`, lấy nguyên
@@ -2089,7 +2109,7 @@ test\feedback_admin_redesign_test.dart --reporter expanded` (8 tests), full
   Flutter routes correct/wrong/exported/display-reserved/not-found through the
   approved result geometry while preserving provider/export/copy behavior.
   Focused proof: `flutter test --no-pub test\\fifo_check_redesign_test.dart
-  --reporter expanded` (12 tests), targeted `dart analyze`, format check and
+--reporter expanded` (12 tests), targeted `dart analyze`, format check and
   `git diff --check` pass. Staging/Chrome/platform proof remains pending.
 - `OPS-44`/`DARK-ROUTE-COVERAGE-R1`, 2026-08-04: Figma board `1874:35444`
   contains 121 visible Desktop + Web route/state owners under explicit
@@ -2137,8 +2157,8 @@ test\feedback_admin_redesign_test.dart --reporter expanded` (8 tests), full
   uploading, success and recoverable error on Windows/tablet plus mobile
   validation/submitting/success/error. Focused proof:
   `flutter test --no-pub test\\feedback_screen_test.dart
-  test\\app_shell_route_viewport_test.dart test\\admin_menu_screen_test.dart
-  --reporter expanded` (30 tests), including compact/tablet/expanded/wide
+test\\app_shell_route_viewport_test.dart test\\admin_menu_screen_test.dart
+--reporter expanded` (30 tests), including compact/tablet/expanded/wide
   geometry assertions; `flutter analyze --no-pub`, format and
   `git diff --check` pass. Existing feedback validation, picker/camera,
   multipart upload, max-20 cap, AppLogger and success/error workflow remain
@@ -2715,12 +2735,12 @@ windows --debug --no-pub`, and `flutter build apk --debug --no-pub`. Gap:
   editing `HelpScreen` and aligned public/shell responsive geometry, shared
   Phosphor actions, semantic surfaces, state panels and Markdown typography.
   Proof: `flutter test --no-pub --reporter expanded test\\help_screen_test.dart
-  test\\app_shell_route_viewport_test.dart test\\app_router_initial_location_test.dart
-  test\\app_router_test.dart test\\app_nav_model_test.dart
-  test\\admin_menu_screen_test.dart test\\design_system_migration_guard_test.dart
-  test\\app_theme_tokens_test.dart` (86/86), `flutter analyze --no-pub`, Dart
+test\\app_shell_route_viewport_test.dart test\\app_router_initial_location_test.dart
+test\\app_router_test.dart test\\app_nav_model_test.dart
+test\\admin_menu_screen_test.dart test\\design_system_migration_guard_test.dart
+test\\app_theme_tokens_test.dart` (86/86), `flutter analyze --no-pub`, Dart
   format, `git diff --check`, and `flutter build web --release --no-pub
-  --no-wasm-dry-run`. Staging/Chrome/platform proof remains open.
+--no-wasm-dry-run`. Staging/Chrome/platform proof remains open.
 
 - UPDATE-004, 2026-07-09: Windows self-update now publishes
   `/OPSHUBRELAUNCH=1` in installer args and the Inno script only relaunches
@@ -3975,15 +3995,16 @@ removed all raw artifacts.
   published before backend success, as observed in this failed run. The client
   bundle is compatible here because there was no Flutter runtime diff, but a
   transactional publication/rollback full fix remains required separately.
+
 # OPS-39 BIDV H2H
 
-| Area | Required proof | Local status |
-| --- | --- | --- |
-| OAuth/PGP/admin secret safety | Parser/crypto/OAuth/admin Jest; no-store, redaction and dedicated-IP throttle checks | Pass: focused suites plus full Nest 98 suites / 1,065 tests; HTTP 200 metadata, no-store, BIDV/scope isolation, key-layout/decompression bounds and redacted serialization are covered |
-| Atomic ingress/projection | Valid/duplicate/conflict/mixed-invalid/rollback, lease/retry/dead-letter tests | Partial: unit proof covers oversize, REQUESTID conflict, stable identity locks, under-lock conflict recheck, eligibility and expired-lease reclaim; disposable PostgreSQL transaction/concurrency proof pending |
-| Migration | Fresh + upgraded scratch PostgreSQL, immutable audit, additive MAP fields | Partial: Prisma validate and static additive/rollback contract pass; fresh/upgraded PostgreSQL and rollback rehearsal blocked by unavailable local runtime |
-| Flutter Admin | Model/repository/screen/menu/router/platform/responsive tests and analyze | Pass: full Flutter 679 tests with 3 existing skips; focused Admin/UI proof and analyze pass |
-| Existing consumers | OPS-39 wrapper: MAP/Sao kê/VietQR/speaker/Home/BigQuery/auth/Admin/Go | Pass: final wrapper covers 13 Nest suites / 283 tests, 67 Flutter tests, Go, BigQuery, migration static contract and whitespace; BIDV showroom mapping is remark-suffix-only while existing MAP/Vietin account/VA mapping remains unchanged |
-| Dedicated host/deploy | Caddy validation, default deny and workflow/env proof | Partial: static Caddy/env isolation contract passes; real Caddy binary/runtime smoke unavailable |
-| Bank playbook | PDF render every page, reopen/text/secret scan | Pass: four A4 pages rendered, reopened and visually inspected; no live credential/private material included |
-| External | BIDV fixture, 10 QPS staging, full reconciliation | Blocked on external coordination |
+| Area                          | Required proof                                                                       | Local status                                                                                                                                                                                                                                |
+| ----------------------------- | ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| OAuth/PGP/admin secret safety | Parser/crypto/OAuth/admin Jest; no-store, redaction and dedicated-IP throttle checks | Pass: focused suites plus full Nest 98 suites / 1,065 tests; HTTP 200 metadata, no-store, BIDV/scope isolation, key-layout/decompression bounds and redacted serialization are covered                                                      |
+| Atomic ingress/projection     | Valid/duplicate/conflict/mixed-invalid/rollback, lease/retry/dead-letter tests       | Partial: unit proof covers oversize, REQUESTID conflict, stable identity locks, under-lock conflict recheck, eligibility and expired-lease reclaim; disposable PostgreSQL transaction/concurrency proof pending                             |
+| Migration                     | Fresh + upgraded scratch PostgreSQL, immutable audit, additive MAP fields            | Partial: Prisma validate and static additive/rollback contract pass; fresh/upgraded PostgreSQL and rollback rehearsal blocked by unavailable local runtime                                                                                  |
+| Flutter Admin                 | Model/repository/screen/menu/router/platform/responsive tests and analyze            | Pass: full Flutter 679 tests with 3 existing skips; focused Admin/UI proof and analyze pass                                                                                                                                                 |
+| Existing consumers            | OPS-39 wrapper: MAP/Sao kê/VietQR/speaker/Home/BigQuery/auth/Admin/Go                | Pass: final wrapper covers 13 Nest suites / 283 tests, 67 Flutter tests, Go, BigQuery, migration static contract and whitespace; BIDV showroom mapping is remark-suffix-only while existing MAP/Vietin account/VA mapping remains unchanged |
+| Dedicated host/deploy         | Caddy validation, default deny and workflow/env proof                                | Partial: static Caddy/env isolation contract passes; real Caddy binary/runtime smoke unavailable                                                                                                                                            |
+| Bank playbook                 | PDF render every page, reopen/text/secret scan                                       | Pass: four A4 pages rendered, reopened and visually inspected; no live credential/private material included                                                                                                                                 |
+| External                      | BIDV fixture, 10 QPS staging, full reconciliation                                    | Blocked on external coordination                                                                                                                                                                                                            |

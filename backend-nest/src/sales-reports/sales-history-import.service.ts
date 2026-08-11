@@ -41,6 +41,8 @@ const IMPORT_CLEANUP_INTERVAL_MS = 60 * 60 * 1000;
 const IMPORT_MAX_CONCURRENCY = 1;
 const IMPORT_ARTIFACT_BUDGET_BYTES = 220 * 1024 * 1024;
 const HISTORY_EVENT_TYPE = 'HOME_SUMMARY_UPDATED';
+const PERSONAL_COVERAGE_INCOMPLETE = 'PERSONAL_COVERAGE_INCOMPLETE';
+const NO_PERSONAL_ATTRIBUTION = '';
 const POSTGRES_BIGINT_MIN = -9_223_372_036_854_775_808n;
 const POSTGRES_BIGINT_MAX = 9_223_372_036_854_775_807n;
 const POSTGRES_INTEGER_MIN = -2_147_483_648;
@@ -74,7 +76,6 @@ type IdentityIndex = {
   storeCodes: Set<string>;
   byEmail: Map<string, string | null>;
   byPersonnelCode: Map<string, string | null>;
-  userStoreCodes: Map<string, Set<string>>;
 };
 
 type StagedOrder = Omit<SalesHistoryParsedRow, 'signedRevenue'> & {
@@ -965,15 +966,6 @@ export class SalesHistoryImportService
           select: {
             id: true,
             email: true,
-            store: { select: { storeId: true } },
-            organizationAssignments: {
-              where: { isActive: true },
-              include: {
-                organizationNode: {
-                  include: organizationNodeStoreTreeInclude(),
-                },
-              },
-            },
           },
         }),
         this.prisma.salesReport.findMany({
@@ -996,21 +988,8 @@ export class SalesHistoryImportService
       ]);
     const byEmail = new Map<string, string | null>();
     const byPersonnelCode = new Map<string, string | null>();
-    const userStoreCodes = new Map<string, Set<string>>();
     for (const user of users) {
       addUniqueIdentity(byEmail, user.email.toLowerCase(), user.id);
-      const userStores = new Set<string>();
-      const directStore = normalizeStoreCode(user.store?.storeId);
-      if (directStore) userStores.add(directStore);
-      for (const assignment of user.organizationAssignments ?? []) {
-        for (const store of storesForOrganizationNodeTree(
-          assignment.organizationNode,
-        )) {
-          const storeCode = normalizeStoreCode(store.storeId);
-          if (storeCode) userStores.add(storeCode);
-        }
-      }
-      userStoreCodes.set(user.id, userStores);
     }
     for (const row of reportIdentities) {
       if (row.createdByUserId && row.createdByPersonnelCode) {
@@ -1044,7 +1023,6 @@ export class SalesHistoryImportService
       ),
       byEmail,
       byPersonnelCode,
-      userStoreCodes,
     };
   }
 
@@ -1066,6 +1044,8 @@ export class SalesHistoryImportService
         }
       >();
       const validOrdersByKey = new Map<string, StagedOrder>();
+      let incompleteIdentityRows = 0;
+      let conflictingIdentityOrders = 0;
       for (const row of rows) {
         const { reasons, userId } = this.resolveRowIdentity(row, identities);
         if (!identities.storeCodes.has(row.storeCode))
@@ -1083,18 +1063,23 @@ export class SalesHistoryImportService
           grain.invalid += 1;
           reasons.forEach((reason) => grain.reasons.add(reason));
         } else {
+          const resolvedUserId = userId ?? NO_PERSONAL_ATTRIBUTION;
+          if (!resolvedUserId) {
+            incompleteIdentityRows += 1;
+            grain.reasons.add(PERSONAL_COVERAGE_INCOMPLETE);
+          }
           const orderHash = createHash('sha256')
             .update(`${row.date}|${row.storeCode}|${row.orderCode}`)
             .digest('hex');
           const orderKey = orderHash;
           const existing = validOrdersByKey.get(orderKey);
           if (existing) {
-            if (existing.userId !== userId) {
-              grain.invalid += 1;
-              grain.reasons.add('DATE_SHOWROOM_ORDER_IDENTITY_CONFLICT');
-              grainUpdates.set(key, grain);
-              continue;
-            }
+            const stableUserId =
+              existing.userId &&
+              resolvedUserId &&
+              existing.userId === resolvedUserId
+                ? existing.userId
+                : NO_PERSONAL_ATTRIBUTION;
             const signedRevenue =
               existing.signedRevenue + BigInt(row.signedRevenue!);
             const nextQuantities = { ...existing.quantities };
@@ -1114,6 +1099,11 @@ export class SalesHistoryImportService
               grainUpdates.set(key, grain);
               continue;
             }
+            if (!stableUserId && existing.userId !== resolvedUserId) {
+              conflictingIdentityOrders += 1;
+              grain.reasons.add(PERSONAL_COVERAGE_INCOMPLETE);
+            }
+            existing.userId = stableUserId;
             existing.signedRevenue = signedRevenue;
             existing.quantities = nextQuantities;
           } else {
@@ -1126,7 +1116,7 @@ export class SalesHistoryImportService
             validOrdersByKey.set(orderKey, {
               ...row,
               quantities: { ...row.quantities },
-              userId: userId!,
+              userId: resolvedUserId,
               orderHash,
               signedRevenue: BigInt(row.signedRevenue!),
             });
@@ -1177,35 +1167,58 @@ export class SalesHistoryImportService
           matches.push(existing);
           existingByOrderHash.set(existing.orderHash, matches);
         }
+        const incomingOrderHashes = stagedOrders.map((row) => row.orderHash);
         for (const row of stagedOrders) {
           const matches = existingByOrderHash.get(row.orderHash) ?? [];
-          const identityConflict = matches.some(
-            (existing) => existing.userId !== row.userId,
-          );
-          const numericOverflow = matches.some((existing) => {
-            if (!isPostgresBigInt(existing.totalRevenue + row.signedRevenue)) {
-              return true;
+          let combinedRevenue = row.signedRevenue;
+          const combinedQuantities = { ...row.quantities };
+          const resolvedUserIds = new Set<string>();
+          let personalCoverageIncomplete = !row.userId;
+          if (row.userId) resolvedUserIds.add(row.userId);
+          for (const existing of matches) {
+            combinedRevenue += existing.totalRevenue;
+            if (existing.userId) resolvedUserIds.add(existing.userId);
+            else personalCoverageIncomplete = true;
+            for (const metric of STAGE_QUANTITY_KEYS) {
+              combinedQuantities[metric] =
+                combinedQuantities[metric]! + existing[metric];
             }
-            const combinedQuantities = { ...row.quantities };
-            const columnOverflow = STAGE_QUANTITY_KEYS.some((metric) => {
-              const quantity = existing[metric] + row.quantities[metric]!;
-              combinedQuantities[metric] = quantity;
-              return !isPostgresInteger(quantity);
-            });
-            return (
-              columnOverflow ||
-              hasDerivedAssembledPcOverflow(combinedQuantities)
-            );
-          });
-          if (!identityConflict && !numericOverflow) continue;
-          const grain = grainUpdates.get(`${row.date}|${row.storeCode}`)!;
-          grain.invalid += 1;
-          grain.reasons.add(
-            identityConflict
-              ? 'DATE_SHOWROOM_ORDER_IDENTITY_CONFLICT'
-              : 'DATE_SHOWROOM_NUMERIC_OVERFLOW',
-          );
-          validOrdersByKey.delete(row.orderHash);
+          }
+          const numericOverflow =
+            !isPostgresBigInt(combinedRevenue) ||
+            STAGE_QUANTITY_KEYS.some(
+              (metric) => !isPostgresInteger(combinedQuantities[metric]!),
+            ) ||
+            hasDerivedAssembledPcOverflow(combinedQuantities);
+          if (numericOverflow) {
+            const grain = grainUpdates.get(`${row.date}|${row.storeCode}`)!;
+            grain.invalid += 1;
+            grain.reasons.add('DATE_SHOWROOM_NUMERIC_OVERFLOW');
+            validOrdersByKey.delete(row.orderHash);
+            continue;
+          }
+          if (resolvedUserIds.size !== 1) {
+            personalCoverageIncomplete = true;
+          }
+          if (personalCoverageIncomplete) {
+            if (matches.length > 0 && resolvedUserIds.size > 1) {
+              conflictingIdentityOrders += 1;
+            }
+            const grain = grainUpdates.get(`${row.date}|${row.storeCode}`)!;
+            grain.reasons.add(PERSONAL_COVERAGE_INCOMPLETE);
+            row.userId = NO_PERSONAL_ATTRIBUTION;
+          } else {
+            row.userId = Array.from(resolvedUserIds)[0];
+          }
+          row.signedRevenue = combinedRevenue;
+          row.quantities = combinedQuantities;
+        }
+        if (existingOrders.length > 0 && incomingOrderHashes.length > 0) {
+          await tx.$executeRaw(Prisma.sql`
+            DELETE FROM "SalesHistoryImportOrderStage"
+            WHERE "jobId" = ${jobId}
+              AND "orderHash" IN (${Prisma.join(incomingOrderHashes)})
+          `);
         }
       }
       const grainSql = Array.from(grainUpdates.values()).map(
@@ -1277,6 +1290,11 @@ export class SalesHistoryImportService
           "updatedAt" = CURRENT_TIMESTAMP
       `);
       }
+      if (incompleteIdentityRows > 0 || conflictingIdentityOrders > 0) {
+        this.logger.debug(
+          `Sales history personal attribution incomplete: jobId=${jobId} chunkRows=${rows.length} unmatchedRows=${incompleteIdentityRows} conflictingOrders=${conflictingIdentityOrders}`,
+        );
+      }
     });
   }
 
@@ -1285,31 +1303,21 @@ export class SalesHistoryImportService
     identities: IdentityIndex,
   ) {
     const reasons = new Set(row.errorCodes);
-    const emailUser = row.salespersonEmail
-      ? identities.byEmail.get(row.salespersonEmail)
+    const normalizedEmail = row.salespersonEmail?.trim().toLowerCase() || null;
+    const normalizedPersonnelCode =
+      row.salespersonCode?.trim().toUpperCase() || null;
+    const emailUser = normalizedEmail
+      ? identities.byEmail.get(normalizedEmail)
       : undefined;
-    const codeUser = row.salespersonCode
-      ? identities.byPersonnelCode.get(row.salespersonCode)
+    const codeUser = normalizedPersonnelCode
+      ? identities.byPersonnelCode.get(normalizedPersonnelCode)
       : undefined;
-    if (emailUser === null || codeUser === null)
-      reasons.add('AMBIGUOUS_SALESPERSON');
-    if (
-      row.salespersonEmail &&
-      row.salespersonCode &&
-      (!emailUser || !codeUser || emailUser !== codeUser)
-    ) {
-      reasons.add('SALESPERSON_IDENTITY_MISMATCH');
-    }
     const userId =
-      row.salespersonEmail && row.salespersonCode
-        ? emailUser && codeUser && emailUser === codeUser
-          ? emailUser
-          : null
-        : emailUser || codeUser || null;
-    if (!userId) reasons.add('UNKNOWN_SALESPERSON');
-    if (userId && !identities.userStoreCodes.get(userId)?.has(row.storeCode)) {
-      reasons.add('SALESPERSON_STORE_MISMATCH');
-    }
+      typeof emailUser === 'string'
+        ? emailUser
+        : typeof codeUser === 'string'
+          ? codeUser
+          : null;
     return { reasons, userId };
   }
 
@@ -1422,6 +1430,7 @@ export class SalesHistoryImportService
                  SUM(GREATEST(item."printerQuantity", 0))::integer,
                  SUM(GREATEST(item."accessoriesQuantity", 0))::integer
           FROM contributing_orders item
+          WHERE item."userId" <> ${NO_PERSONAL_ATTRIBUTION}
           GROUP BY item."summaryDate", item."storeCode", item."userId"
         )
         INSERT INTO "SalesHistoryAggregate" (

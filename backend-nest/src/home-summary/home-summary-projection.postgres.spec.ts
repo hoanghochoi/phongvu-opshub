@@ -363,6 +363,175 @@ describePostgres('OPS-52 Home SALES KPI PostgreSQL reconciliation', () => {
     );
   });
 
+  it('keeps STORE orders across missing or conflicting historical identities and omits partial USER_STORE attribution', async () => {
+    const actor = await prisma.user.create({
+      data: {
+        email: `ops62-email-primary-${randomUUID()}@example.test`,
+        password: 'test-only-password',
+        firstName: 'OPS-62',
+        role: 'SUPER_ADMIN',
+      },
+    });
+    const secondUser = await prisma.user.create({
+      data: {
+        email: `ops62-email-conflict-${randomUUID()}@example.test`,
+        password: 'test-only-password',
+        firstName: 'OPS-62 conflict',
+        role: 'USER',
+      },
+    });
+    const jobId = randomUUID();
+    const claimToken = 9n;
+    const summaryDate = new Date('2099-02-05T00:00:00.000Z');
+    await prisma.salesHistoryImportJob.create({
+      data: {
+        id: jobId,
+        status: 'PARSING',
+        expectedBytes: 1n,
+        uploadedBytes: 1n,
+        requestedByUserId: actor.id,
+        workerId: (historyImports as any).workerId,
+        claimToken,
+      },
+    });
+    const quantities = {
+      extendedInsuranceQuantity: 0,
+      laptopQuantity: 0,
+      pcQuantity: 0,
+      assembledPcQuantity: 0,
+      appleQuantity: 0,
+      monitorQuantity: 0,
+      printerQuantity: 0,
+      accessoriesQuantity: 0,
+      cpuQuantity: 0,
+      mainboardQuantity: 0,
+      memoryQuantity: 0,
+      storageQuantity: 0,
+      caseQuantity: 0,
+      psuQuantity: 0,
+    };
+    const historicalRow = (
+      rowNumber: number,
+      orderCode: string,
+      salespersonEmail: string,
+      signedRevenue: number,
+    ) => ({
+      rowNumber,
+      date: '2099-02-05',
+      storeCode: 'CP66',
+      orderCode,
+      salespersonEmail,
+      salespersonCode: null,
+      signedRevenue,
+      quantities: { ...quantities, laptopQuantity: 1 },
+      errorCodes: [],
+    });
+    const identities = {
+      storeCodes: new Set(['CP66']),
+      byEmail: new Map<string, string | null>([
+        [actor.email.toLowerCase(), actor.id],
+        [secondUser.email.toLowerCase(), secondUser.id],
+      ]),
+      byPersonnelCode: new Map<string, string | null>(),
+    };
+
+    await (historyImports as any).stageChunk(
+      jobId,
+      claimToken,
+      [historicalRow(2, '25070134938060', actor.email, 1_000)],
+      identities,
+    );
+    await (historyImports as any).stageChunk(
+      jobId,
+      claimToken,
+      [
+        historicalRow(3, '25070134938060', secondUser.email, 2_000),
+        historicalRow(4, '25070134938061', 'departed@example.test', 500),
+        historicalRow(5, '25070134938062', actor.email, 700),
+      ],
+      identities,
+    );
+
+    await expect(
+      prisma.salesHistoryImportGrainStage.findUniqueOrThrow({
+        where: {
+          jobId_summaryDate_storeCode: {
+            jobId,
+            summaryDate,
+            storeCode: 'CP66',
+          },
+        },
+      }),
+    ).resolves.toMatchObject({
+      rowCount: 4,
+      invalidRows: 0,
+      reasonCodes: expect.arrayContaining(['PERSONAL_COVERAGE_INCOMPLETE']),
+    });
+    const stagedOrders = await prisma.salesHistoryImportOrderStage.findMany({
+      where: { jobId },
+      orderBy: { totalRevenue: 'asc' },
+    });
+    expect(stagedOrders).toHaveLength(3);
+    expect(stagedOrders).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ userId: '', totalRevenue: 500n }),
+        expect.objectContaining({ userId: actor.id, totalRevenue: 700n }),
+        expect.objectContaining({ userId: '', totalRevenue: 3_000n }),
+      ]),
+    );
+
+    const finalized = await (historyImports as any).finalizeVersion(
+      { id: actor.id },
+      jobId,
+      'ops62-email-primary-proof',
+    );
+    await expect(
+      prisma.salesHistoryCoverage.findUniqueOrThrow({
+        where: {
+          versionId_summaryDate_storeCode: {
+            versionId: finalized.versionId,
+            summaryDate,
+            storeCode: 'CP66',
+          },
+        },
+      }),
+    ).resolves.toMatchObject({
+      status: 'CLEAN',
+      rowCount: 4,
+      quarantinedRows: 0,
+      reasonCodes: expect.arrayContaining(['PERSONAL_COVERAGE_INCOMPLETE']),
+    });
+    const aggregates = await prisma.salesHistoryAggregate.findMany({
+      where: { versionId: finalized.versionId },
+      orderBy: { dimensionType: 'asc' },
+    });
+    expect(aggregates).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          dimensionType: 'STORE',
+          dimensionKey: '',
+          totalRevenue: 4_200n,
+          totalOrders: 3,
+          laptopQuantity: 4,
+        }),
+        expect.objectContaining({
+          dimensionType: 'USER_STORE',
+          dimensionKey: actor.id,
+          totalRevenue: 700n,
+          totalOrders: 1,
+          laptopQuantity: 1,
+        }),
+      ]),
+    );
+    expect(
+      aggregates.some(
+        (aggregate) =>
+          aggregate.dimensionType === 'USER_STORE' &&
+          aggregate.dimensionKey === '',
+      ),
+    ).toBe(false);
+  });
+
   it('quarantines derived assembled-PC overflow while finalizing another clean grain', async () => {
     const actor = await prisma.user.create({
       data: {

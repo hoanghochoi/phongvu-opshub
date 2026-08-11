@@ -76,6 +76,11 @@ legacy parser shapes, import API, and final aggregate contract remain unchanged.
 - Export-adapter base: `a5a8b4f07a5bf56cbb00b60ef08672f05068159d`.
 - Export-adapter branch/worktree: `codex/ops-62-history-export-schema` at
   `C:\Users\ASUS1\Documents\flutter_projects\opshub-ops-62-export`.
+- Email-primary follow-up base: clean `origin/staging` SHA
+  `de68e31cedbc001f2c8c0f6ef7c302673d8852ba`.
+- Email-primary follow-up branch/worktree:
+  `codex/ops-62-history-email-primary-import` at
+  `C:\Users\ASUS1\Documents\flutter_projects\opshub-ops-62-email`.
 
 ## Plan
 
@@ -122,6 +127,23 @@ legacy parser shapes, import API, and final aggregate contract remain unchanged.
     crosses employees or storage bounds.
 19. Re-run immutable-diff code/security review, full affected proof, release
     builds, PR/CI, exact-SHA staging deploy, same-file QA, and guarded cleanup.
+20. Reproduce the exact-file staging identity failure after the export adapter:
+    all 98,473 rows parse, but the incomplete 200-user staging catalog causes
+    every one of 682 date/showroom grains to contain an identity rejection.
+21. Resolve historical personal attribution to the stable current user ID with
+    normalized exact Email as the authoritative lookup. Use exact HRM only as
+    fallback when Email has no unique current-user match, and never require the
+    employee's current showroom assignment. Unmatched identity remains eligible
+    for STORE totals without a USER_STORE dimension.
+22. Preserve one canonical STORE order when identity is missing or conflicting,
+    omit its USER_STORE attribution and mark the grain non-blockingly as
+    `PERSONAL_COVERAGE_INCOMPLETE`. Numeric/taxonomy/store errors still
+    quarantine; upload fencing, activation, permissions and API stay unchanged.
+23. Make Home personal CSV comparison unavailable when any winning grain has
+    incomplete personal coverage, while complete coverage with no order for the
+    selected user returns zero. Add unit and PostgreSQL-backed regressions, then
+    repeat the full proof, publication, exact-file staging activation and
+    lifecycle gates.
 
 ## Fourth regression progress
 
@@ -139,6 +161,41 @@ legacy parser shapes, import API, and final aggregate contract remain unchanged.
   Android staging debug.
 - Remaining: immutable final review, Linear proof, PR/CI, squash merge, exact
   merge-SHA deploy, same-file staging reconciliation and lifecycle cleanup.
+
+## Fifth staging regression — incomplete employee catalog
+
+- PR #159 was squash-merged and deployed at exact staging SHA
+  `de68e31cedbc001f2c8c0f6ef7c302673d8852ba`; its upload, artifact and export
+  parser fixes passed with the exact 58,179,129-byte file.
+- Staging job `022dd919-8510-490d-86c7-a0ef406a8ff8` acknowledged all bytes and
+  parsed all 98,473 rows, then failed because current identity resolution made
+  every date/showroom grain depend on the incomplete staging user catalog.
+- Sanitized reconciliation found zero unknown showroom rows, only 2,802 rows
+  matching a current staging email, and 95,671 rows whose historical employee
+  is absent from that environment. Production may contain more of those users.
+- Product decision from Đại Ca: import valid historical sales normally even
+  when the current environment lacks employees/SR; Email is the primary and
+  most accurate employee identity. Historical showroom totals must not depend
+  on current employment or current showroom assignment.
+- Accepted bounded representation: the existing non-FK staging `userId` field
+  carries the stable current user ID, or an empty non-person sentinel when
+  neither Email nor HRM resolves uniquely. The final STORE aggregate includes
+  both; USER_STORE excludes the sentinel. Missing/conflicting attribution sets
+  `PERSONAL_COVERAGE_INCOMPLETE` without increasing quarantined rows.
+- Local implementation now removes current-showroom identity dependencies,
+  consolidates missing/conflicting identities into exactly one sentinel order
+  across parser chunks, excludes the sentinel from USER_STORE, and makes Home
+  read incomplete coverage only for the active winning version/date/showroom.
+  Stale/non-winning markers do not block a complete active grain.
+- Focused proof passed 3 Jest suites with 101 tests; disposable PostgreSQL 15
+  migration/adapter/cross-chunk/finalization proof passed 9/9. Prisma validate
+  and generate, Nest build, changed-file Prettier and `git diff --check` passed.
+  Full Nest passed 108/108 suites with 1,205 passed and 6 PostgreSQL-gated
+  skipped. Affected Flutter passed 98/98, full Flutter passed 850 with 3
+  skipped, `flutter analyze` reported no issues, and Go realtime passed.
+- Remaining: independent code/security review, immutable fingerprint, Linear
+  implementation proof, PR/CI, exact-SHA staging deploy, exact-file `READY`
+  reconciliation, activation/Home N-1 spot check and lifecycle cleanup.
 
 ## Recovery
 
@@ -159,6 +216,10 @@ staged facts.
   API/final aggregate consumers.
 - Home historical Sales KPI totals, especially PC ráp calculated per canonical
   order before user/store aggregation.
+- Home historical STORE totals with incomplete employee catalogs and personal
+  USER_STORE comparisons keyed by stable user ID without depending on current
+  showroom assignment; incomplete personal coverage must never show a partial
+  personal total.
 - Home Sales metric sequences/actions/comparisons at compact, medium, expanded
   and wide viewports.
 - Finance and Overview remain visually and behaviorally unchanged.

@@ -3427,4 +3427,122 @@ describe('HomeSummaryService', () => {
     });
     expect(prisma.salesReport.findMany).not.toHaveBeenCalled();
   });
+
+  it('keeps a personal previous-year period unavailable when a winning active CSV grain lacks personal coverage', async () => {
+    const summaryDate = new Date('2025-08-10T00:00:00.000Z');
+    const prisma = {
+      salesHistoryActiveGrain: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            summaryDate,
+            storeCode: 'CP01',
+            currentVersionId: 'version-incomplete',
+          },
+        ]),
+      },
+      salesHistoryCoverage: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            versionId: 'version-incomplete',
+            summaryDate,
+            storeCode: 'CP01',
+          },
+        ]),
+      },
+      salesHistoryAggregate: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            versionId: 'version-incomplete',
+            summaryDate,
+            storeCode: 'CP01',
+            dimensionType: 'USER_STORE',
+            dimensionKey: 'user-1',
+            totalRevenue: 900n,
+            totalOrders: 1,
+            extendedInsuranceQuantity: 0,
+            laptopQuantity: 1,
+            pcQuantity: 0,
+            assembledPcQuantity: 0,
+            appleQuantity: 0,
+            monitorQuantity: 0,
+            printerQuantity: 0,
+            accessoriesQuantity: 0,
+          },
+        ]),
+      },
+      homeSummaryDailyAggregate: { findMany: jest.fn() },
+    };
+    const service = new HomeSummaryService(prisma as any, {} as any, {} as any);
+
+    const result = await (service as any).overlayActiveCsvHistory(
+      { startDate: '2025-08-10', endDate: '2025-08-10' },
+      {
+        scope: 'OWN',
+        ownUserId: 'user-1',
+        ownEmail: 'sale@phongvu.vn',
+        allowedStoreCodes: ['CP01'],
+      },
+    );
+
+    expect(Array.from(result.unavailable)).toEqual(
+      expect.arrayContaining(['totalRevenue', 'totalOrders']),
+    );
+    expect(result.values.totalRevenue).toBe(0);
+    expect(result.values.totalOrders).toBe(0);
+    expect(prisma.salesHistoryCoverage.findMany).toHaveBeenCalledWith({
+      where: expect.objectContaining({
+        versionId: { in: ['version-incomplete'] },
+        reasonCodes: { has: 'PERSONAL_COVERAGE_INCOMPLETE' },
+      }),
+      select: {
+        versionId: true,
+        summaryDate: true,
+        storeCode: true,
+      },
+    });
+  });
+
+  it('returns available zero for a personal-complete winning grain even when a stale version was incomplete', async () => {
+    const summaryDate = new Date('2025-08-10T00:00:00.000Z');
+    const prisma = {
+      salesHistoryActiveGrain: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            summaryDate,
+            storeCode: 'CP01',
+            currentVersionId: 'version-complete',
+          },
+        ]),
+      },
+      salesHistoryCoverage: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            versionId: 'version-stale',
+            summaryDate,
+            storeCode: 'CP01',
+          },
+        ]),
+      },
+      salesHistoryAggregate: { findMany: jest.fn().mockResolvedValue([]) },
+      homeSummaryDailyAggregate: { findMany: jest.fn() },
+    };
+    const service = new HomeSummaryService(prisma as any, {} as any, {} as any);
+
+    const result = await (service as any).overlayActiveCsvHistory(
+      { startDate: '2025-08-10', endDate: '2025-08-10' },
+      {
+        scope: 'OWN',
+        ownUserId: 'user-1',
+        ownEmail: 'sale@phongvu.vn',
+        allowedStoreCodes: ['CP01'],
+      },
+    );
+
+    expect(result.source).toBe('HYBRID_CSV');
+    expect(Array.from(result.unavailable)).not.toEqual(
+      expect.arrayContaining(['totalRevenue', 'totalOrders']),
+    );
+    expect(result.values.totalRevenue).toBe(0);
+    expect(result.values.totalOrders).toBe(0);
+  });
 });

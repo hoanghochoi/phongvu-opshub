@@ -4020,6 +4020,8 @@ export class HomeSummaryService {
         ),
       );
     }
+    const storeDimension =
+      scope.scope === 'ALL' || scope.scope === 'MANAGED_SCOPE';
     const active = await this.prisma.salesHistoryActiveGrain.findMany({
       where: {
         summaryDate: {
@@ -4040,8 +4042,6 @@ export class HomeSummaryService {
         (key) => !CSV_SUPPORTED_COMPARISON_METRICS.has(key),
       ),
     );
-    const storeDimension =
-      scope.scope === 'ALL' || scope.scope === 'MANAGED_SCOPE';
     const csvDimensionType = storeDimension ? 'STORE' : 'USER_STORE';
     const csvDimensionKey = storeDimension
       ? ''
@@ -4069,6 +4069,33 @@ export class HomeSummaryService {
     const covered = new Set(
       Array.from(expectedGrains).filter((key) => activeVersionByGrain.has(key)),
     );
+    const incompletePersonalCoverage = storeDimension
+      ? []
+      : await this.prisma.salesHistoryCoverage.findMany({
+          where: {
+            versionId: { in: versionIds },
+            summaryDate: {
+              gte: this.dateOnlyUtc(range.startDate),
+              lte: this.dateOnlyUtc(range.endDate),
+            },
+            storeCode: { in: expectedStores },
+            reasonCodes: { has: 'PERSONAL_COVERAGE_INCOMPLETE' },
+          },
+          select: {
+            versionId: true,
+            summaryDate: true,
+            storeCode: true,
+          },
+        });
+    const personalCoverageIncomplete = incompletePersonalCoverage.some(
+      (coverage) =>
+        activeVersionByGrain.get(
+          `${this.dateOnlyKey(coverage.summaryDate)}|${coverage.storeCode}`,
+        ) === coverage.versionId,
+    );
+    if (personalCoverageIncomplete) {
+      CSV_SUPPORTED_COMPARISON_METRICS.forEach((key) => unavailable.add(key));
+    }
     const uncovered = new Set(
       Array.from(expectedGrains).filter((key) => !covered.has(key)),
     );
@@ -4118,7 +4145,10 @@ export class HomeSummaryService {
           row,
         ]),
     );
-    if (Array.from(covered).some((key) => !csvByGrain.has(key))) {
+    if (
+      storeDimension &&
+      Array.from(covered).some((key) => !csvByGrain.has(key))
+    ) {
       CSV_SUPPORTED_COMPARISON_METRICS.forEach((key) => unavailable.add(key));
     }
     const projectionByGrain = new Map(
@@ -4185,6 +4215,11 @@ export class HomeSummaryService {
     values.averageOrderValue = values.totalOrders
       ? Math.round(values.totalRevenue / values.totalOrders)
       : 0;
+    if (personalCoverageIncomplete) {
+      CSV_SUPPORTED_COMPARISON_METRICS.forEach((key) => {
+        values[key] = 0;
+      });
+    }
     return { values, source: 'HYBRID_CSV' as const, unavailable };
   }
 
