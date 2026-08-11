@@ -267,7 +267,18 @@ class AppColors {
   /// Foreground for selected navigation content. Keeping this separate from
   /// generic action colors makes the light/dark shell contract explicit.
   static Color selectedNavigationOf(BuildContext context) =>
-      isDark(context) ? darkPrimary : primary;
+      isDark(context) ? darkPrimary : primary500;
+
+  /// Pressed state for the centered compact-navigation Quick Action.
+  static Color navigationPressedOf(BuildContext context) =>
+      isDark(context) ? darkPrimaryPressed : primary700;
+
+  /// Focus-ring token shared by interactive navigation controls.
+  static Color focusRingOf(BuildContext context) =>
+      isDark(context) ? darkInfo : focus;
+
+  /// The approved Lightning glyph remains white in both semantic modes.
+  static Color quickActionForegroundOf(BuildContext context) => surface;
 
   /// Foreground used on a filled primary action. Dark mode follows Figma's
   /// `text/inverse` value (`#050A28`) instead of a light label on blue.

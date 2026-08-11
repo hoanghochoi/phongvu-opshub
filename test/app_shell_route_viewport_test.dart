@@ -533,6 +533,17 @@ void main() {
       expect(find.text('Vận hành'), findsOneWidget);
       expect(find.text('Thông báo'), findsOneWidget);
       expect(find.text('Tài khoản'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('mobile-bottom-navigation')),
+          matching: find.byType(NavigationDestination),
+        ),
+        findsNWidgets(4),
+      );
+      expect(
+        find.byKey(const Key('mobile-quick-actions-destination')),
+        findsNothing,
+      );
 
       await tester.tap(find.text('Vận hành'));
       await tester.pumpAndSettle();
@@ -565,7 +576,7 @@ void main() {
     tester,
   ) async {
     debugDefaultTargetPlatformOverride = TargetPlatform.android;
-    tester.view.physicalSize = const Size(390, 844);
+    tester.view.physicalSize = const Size(375, 812);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
@@ -575,7 +586,7 @@ void main() {
       final quickActionsProvider = _FakeQuickActionsProvider(
         _quickActionsPayload,
       );
-      Widget buildShell(String location) => MultiProvider(
+      Widget buildShell(String location, {ThemeData? theme}) => MultiProvider(
         providers: [
           ChangeNotifierProvider<AuthProvider>.value(value: authProvider),
           ChangeNotifierProvider<QuickActionsProvider>.value(
@@ -583,6 +594,7 @@ void main() {
           ),
         ],
         child: MaterialApp(
+          theme: theme,
           home: AppMobileTypographyDensity(
             child: AppShell(
               location: location,
@@ -603,6 +615,9 @@ void main() {
       final quickActionsFinder = find.byKey(
         const Key('quick-actions-launcher'),
       );
+      final quickActionsTrack = find.byKey(
+        const Key('mobile-quick-actions-track'),
+      );
 
       expect(destinationFinder, findsNWidgets(5));
       expect(tester.getSize(navFinder).height, 76);
@@ -613,7 +628,9 @@ void main() {
       final quickActionsRect = tester.getRect(quickActionsFinder);
       expect(navRect.contains(quickActionsRect.topLeft), isTrue);
       expect(navRect.contains(quickActionsRect.bottomRight), isTrue);
-      expect(quickActionsRect.size, const Size.square(46));
+      expect(quickActionsRect.size, const Size.square(48));
+      expect(tester.getSize(quickActionsTrack).height, 68);
+      expect(quickActionsRect.top - navRect.top, closeTo(10, 0.1));
       final quickActionsSurface = tester.widget<Material>(
         find.byKey(const Key('quick-actions-launcher-surface')),
       );
@@ -621,8 +638,20 @@ void main() {
       expect(compactShape, isA<RoundedRectangleBorder>());
       expect(
         (compactShape! as RoundedRectangleBorder).borderRadius,
-        AppRadius.allLg,
+        AppRadius.allXl,
       );
+      expect(quickActionsSurface.color, AppColors.transparent);
+      final quickActionsDecoration = tester.widget<DecoratedBox>(
+        find.byKey(const Key('quick-actions-launcher-decoration')),
+      );
+      final quickActionsBox =
+          quickActionsDecoration.decoration as BoxDecoration;
+      expect(quickActionsBox.color, AppColors.primary500);
+      expect(quickActionsBox.borderRadius, AppRadius.allXl);
+      expect(quickActionsBox.boxShadow, hasLength(1));
+      expect(quickActionsBox.boxShadow!.single.offset, const Offset(0, 8));
+      expect(quickActionsBox.boxShadow!.single.blurRadius, 18);
+      expect(quickActionsBox.boxShadow!.single.spreadRadius, -4);
 
       final destinationCenters = tester
           .widgetList<NavigationDestination>(destinationFinder)
@@ -631,7 +660,7 @@ void main() {
       for (var index = 1; index < destinationCenters.length; index++) {
         expect(
           destinationCenters[index] - destinationCenters[index - 1],
-          closeTo(390 / 5, 0.5),
+          closeTo(375 / 5, 0.5),
         );
       }
 
@@ -644,6 +673,29 @@ void main() {
       await tester.pumpWidget(buildShell('/notifications'));
       await tester.pumpAndSettle();
       expect(tester.widget<NavigationBar>(navFinder).selectedIndex, 3);
+
+      await tester.pumpWidget(buildShell('/home', theme: AppTheme.darkTheme));
+      await tester.pumpAndSettle();
+      expect(
+        (tester
+                    .widget<DecoratedBox>(
+                      find.byKey(
+                        const Key('quick-actions-launcher-decoration'),
+                      ),
+                    )
+                    .decoration
+                as BoxDecoration)
+            .color,
+        AppColors.darkPrimary,
+      );
+      expect(
+        tester.widget<Icon>(find.byIcon(PhosphorIconsRegular.lightning)).color,
+        AppColors.surface,
+      );
+      expect(
+        tester.getRect(quickActionsFinder).top - tester.getRect(navFinder).top,
+        closeTo(10, 0.1),
+      );
       expect(tester.takeException(), isNull);
     } finally {
       debugDefaultTargetPlatformOverride = null;
@@ -1400,7 +1452,7 @@ void main() {
       lessThan(tester.getTopLeft(configurationGroup).dy),
     );
     expect(selectedItem.color, AppColors.sidebarSelected);
-    expect(selectedLabel.style?.color, AppColors.primary);
+    expect(selectedLabel.style?.color, AppColors.primary500);
     expect(tester.getSize(selectedIndicatorFinder), const Size(4, 28));
     expect(_indicatorColor(selectedIndicator), isNot(AppColors.transparent));
     expect(_indicatorColor(unselectedIndicator), AppColors.transparent);
