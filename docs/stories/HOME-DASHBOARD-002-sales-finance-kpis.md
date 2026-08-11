@@ -26,15 +26,21 @@ kê trên cùng Trang chủ, theo đúng một ngày và một phạm vi đang c
   hình, máy in và phụ kiện. Tablet/mobile wrap tuần tự theo shared viewport
   breakpoint, không đổi thứ tự metric hoặc hành vi card.
 - Import lịch sử từ exact Sales export 34 cột giữ nguyên API và aggregate Home:
-  dùng doanh thu VAT, HRM ID, 14 chữ số đầu order, taxonomy exact-ID và chỉ đếm
-  Apple cho iPhone/MacBook/iPad. PC ráp được tính theo canonical order bằng số
-  trực tiếp cộng phần bộ ráp từ minimum sáu linh kiện ròng không âm; category
-  biết nhưng ngoài KPI là 0, category không map được phải quarantine grain.
-  Scientific coefficient quá 16 chữ số có nghĩa, quantity/tổng order vượt biên
-  lưu trữ hoặc một canonical order map sang nhiều nhân viên cũng quarantine
-  toàn bộ grain ngày/showroom; tổng cuối theo grain cũng phải được preflight để
-  overflow chỉ quarantine grain đó và không làm fail các grain sạch khác.
-  Không làm tròn số và không tự gán nhân viên.
+  dùng doanh thu VAT, 14 chữ số đầu order, taxonomy exact-ID và chỉ đếm Apple
+  cho iPhone/MacBook/iPad. Current user được map bằng normalized exact Email;
+  exact HRM chỉ là fallback khi Email không có một match duy nhất, không kiểm
+  tra showroom hiện tại của nhân viên. PC ráp được tính theo canonical order
+  bằng số trực tiếp cộng phần bộ ráp từ minimum sáu linh kiện ròng không âm;
+  category biết nhưng ngoài KPI là 0, category không map được phải quarantine
+  grain. Identity thiếu/mơ hồ hoặc một canonical order map sang nhiều user vẫn
+  giữ đúng một STORE order, không tạo USER_STORE cho order đó và gắn marker
+  `PERSONAL_COVERAGE_INCOMPLETE` mà không tăng quarantine. Home personal trả
+  unavailable/0 cho KPI CSV hỗ trợ nếu winning grain nào có marker; coverage
+  đầy đủ nhưng user không có order trả available 0, version cũ không marker
+  vẫn là complete. Scientific coefficient quá 16 chữ số có nghĩa,
+  quantity/tổng order/tổng grain vượt biên, taxonomy sai hoặc showroom không
+  hợp lệ vẫn quarantine fail-closed mà không làm fail grain sạch khác. Không
+  làm tròn số và không tự gán nhân viên.
 - `Số lượng CTKM đổi điểm thi` chỉ đếm báo cáo `PURCHASED` chứa
   `EXAM_SCORE_EXCHANGE`; `Số lượng CTKM HSSV` chỉ đếm báo cáo `PURCHASED`
   chứa `STUDENT`. Một báo cáo mua hàng chứa cả hai mã tăng cả hai KPI. Báo cáo

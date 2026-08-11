@@ -1276,38 +1276,108 @@ describe('SalesHistoryImportService authorization and worker lifecycle', () => {
     expect(tx.salesHistoryVersion.create).not.toHaveBeenCalled();
   });
 
-  it('requires email and HRM to resolve to the same showroom-bound user', () => {
+  it('uses normalized email as the stable historical identity before HRM or current showroom', () => {
     const service = new SalesHistoryImportService({} as any, {} as any);
     const row = {
       date: '2025-08-10',
       storeCode: 'CP01',
       orderCode: 'ORDER-1',
-      salespersonEmail: 'sale@phongvu.vn',
+      salespersonEmail: ' Sale@PhongVu.vn ',
       salespersonCode: 'NV001',
       signedRevenue: 1000,
       quantities: {},
       errorCodes: [],
     };
-    const mismatch = (service as any).resolveRowIdentity(row, {
+    const emailWins = (service as any).resolveRowIdentity(row, {
       byEmail: new Map([['sale@phongvu.vn', 'user-1']]),
       byPersonnelCode: new Map([['NV001', 'user-2']]),
       userStoreCodes: new Map([
-        ['user-1', new Set(['CP01'])],
+        ['user-1', new Set(['CP02'])],
         ['user-2', new Set(['CP01'])],
       ]),
     });
-    expect(mismatch.userId).toBeNull();
-    expect(mismatch.reasons).toContain('SALESPERSON_IDENTITY_MISMATCH');
+    expect(emailWins.userId).toBe('user-1');
+    expect(emailWins.reasons).not.toContain('SALESPERSON_IDENTITY_MISMATCH');
+    expect(emailWins.reasons).not.toContain('SALESPERSON_STORE_MISMATCH');
 
-    const wrongStore = (service as any).resolveRowIdentity(
-      { ...row, salespersonCode: null },
+    const unknownHrmDoesNotOverrideEmail = (service as any).resolveRowIdentity(
+      {
+        ...row,
+        salespersonEmail: 'sale@phongvu.vn',
+        salespersonCode: 'OLD-001',
+      },
       {
         byEmail: new Map([['sale@phongvu.vn', 'user-1']]),
         byPersonnelCode: new Map(),
         userStoreCodes: new Map([['user-1', new Set(['CP02'])]]),
       },
     );
-    expect(wrongStore.reasons).toContain('SALESPERSON_STORE_MISMATCH');
+    expect(unknownHrmDoesNotOverrideEmail.userId).toBe('user-1');
+    expect(unknownHrmDoesNotOverrideEmail.reasons).not.toContain(
+      'SALESPERSON_IDENTITY_MISMATCH',
+    );
+
+    const personnelFallback = (service as any).resolveRowIdentity(
+      { ...row, salespersonEmail: 'departed@phongvu.vn' },
+      {
+        byEmail: new Map(),
+        byPersonnelCode: new Map([['NV001', 'user-2']]),
+        userStoreCodes: new Map([['user-2', new Set(['CP02'])]]),
+      },
+    );
+    expect(personnelFallback.userId).toBe('user-2');
+    expect(personnelFallback.reasons).not.toContain('UNKNOWN_SALESPERSON');
+    expect(personnelFallback.reasons).not.toContain(
+      'SALESPERSON_STORE_MISMATCH',
+    );
+
+    const ambiguousEmailFallsBackToPersonnel = (
+      service as any
+    ).resolveRowIdentity(
+      { ...row, salespersonEmail: 'shared@phongvu.vn' },
+      {
+        byEmail: new Map([['shared@phongvu.vn', null]]),
+        byPersonnelCode: new Map([['NV001', 'user-2']]),
+        userStoreCodes: new Map(),
+      },
+    );
+    expect(ambiguousEmailFallsBackToPersonnel.userId).toBe('user-2');
+    expect(ambiguousEmailFallsBackToPersonnel.reasons).not.toContain(
+      'AMBIGUOUS_SALESPERSON',
+    );
+  });
+
+  it('normalizes current-user email and historical personnel indexes without loading current showroom assignments', async () => {
+    const prisma = {
+      store: {
+        findMany: jest.fn().mockResolvedValue([{ storeId: ' cp01 ' }]),
+      },
+      user: {
+        findMany: jest
+          .fn()
+          .mockResolvedValue([{ id: 'user-1', email: ' Sale@PhongVu.vn ' }]),
+      },
+      salesReport: {
+        findMany: jest
+          .fn()
+          .mockResolvedValue([
+            { createdByUserId: 'user-1', createdByPersonnelCode: ' nv001 ' },
+          ]),
+      },
+      homeSummaryOrderFact: {
+        findMany: jest.fn().mockResolvedValue([]),
+      },
+    };
+    const service = new SalesHistoryImportService(prisma as any, {} as any);
+
+    const index = await (service as any).loadIdentityIndex();
+
+    expect(index.storeCodes).toEqual(new Set(['CP01']));
+    expect(index.byEmail.get('sale@phongvu.vn')).toBe('user-1');
+    expect(index.byPersonnelCode.get('NV001')).toBe('user-1');
+    expect(prisma.user.findMany).toHaveBeenCalledWith({
+      select: { id: true, email: true },
+    });
   });
 
   it('claims queued or expired jobs with a database lease CAS', async () => {
@@ -1776,7 +1846,7 @@ describe('SalesHistoryImportService historical export staging SQL', () => {
     expect(orderHashes[0]).toBe(orderHashes[1]);
   });
 
-  it('quarantines a canonical order when a later parser chunk resolves it to another valid user', async () => {
+  it('keeps a canonical order in STORE when a later chunk resolves another valid user and marks personal coverage incomplete', async () => {
     const orderHash = createHash('sha256')
       .update('2025-07-01|CP01|25070134938050')
       .digest('hex');
@@ -1845,8 +1915,65 @@ describe('SalesHistoryImportService historical export staging SQL', () => {
     const stagedValues = tx.$executeRaw.mock.calls
       .flatMap(([statement]: [any]) => statement.values ?? [])
       .flat(Infinity);
-    expect(stagedValues).toContain('DATE_SHOWROOM_ORDER_IDENTITY_CONFLICT');
+    expect(stagedValues).not.toContain('DATE_SHOWROOM_ORDER_IDENTITY_CONFLICT');
+    expect(stagedValues).toContain('PERSONAL_COVERAGE_INCOMPLETE');
     expect(stagedSql).toContain('SalesHistoryImportGrainStage');
+    expect(stagedSql).toContain('SalesHistoryImportOrderStage');
+  });
+
+  it('keeps unresolved or ambiguous historical identity in STORE and marks personal coverage without quarantining the grain', async () => {
+    const tx = {
+      $queryRaw: jest.fn().mockResolvedValue([{ id: 'job-1' }]),
+      $executeRaw: jest.fn().mockResolvedValue(1),
+    };
+    const prisma = {
+      $transaction: jest.fn(async (operation: (client: any) => unknown) =>
+        operation(tx),
+      ),
+    };
+    const service = new SalesHistoryImportService(prisma as any, {} as any);
+
+    await (service as any).stageChunk(
+      'job-1',
+      7n,
+      [
+        row({
+          salespersonEmail: 'departed@phongvu.vn',
+          salespersonCode: 'OLD-001',
+        }),
+        row({
+          rowNumber: 3,
+          orderCode: '25070134938051',
+          salespersonEmail: 'ambiguous@phongvu.vn',
+          salespersonCode: null,
+        }),
+      ],
+      {
+        storeCodes: new Set(['CP01']),
+        byEmail: new Map([['ambiguous@phongvu.vn', null]]),
+        byPersonnelCode: new Map(),
+        userStoreCodes: new Map(),
+      },
+    );
+
+    const grainStatement = tx.$executeRaw.mock.calls
+      .map(([statement]) => statement)
+      .find((statement) =>
+        sqlText(statement).includes('SalesHistoryImportGrainStage'),
+      );
+    expect(grainStatement).toBeTruthy();
+    expect(grainStatement.values).toEqual(
+      expect.arrayContaining([
+        2,
+        0,
+        expect.arrayContaining(['PERSONAL_COVERAGE_INCOMPLETE']),
+      ]),
+    );
+    expect(
+      tx.$executeRaw.mock.calls
+        .map(([statement]) => sqlText(statement))
+        .join('\n'),
+    ).toContain('SalesHistoryImportOrderStage');
   });
 
   it('quarantines within- and cross-chunk numeric overflows before a corrupt grain can activate', async () => {
@@ -2056,5 +2183,11 @@ describe('SalesHistoryImportService historical export staging SQL', () => {
     expect(aggregateSql).toContain(
       'SUM(item."finalAssembledPcQuantity")::integer',
     );
+    expect(aggregateSql).toContain('WHERE item."userId" <>');
+    expect(
+      statements.find(({ sql }) =>
+        sql.includes('INSERT INTO "SalesHistoryAggregate"'),
+      )!.statement.values,
+    ).toContain('');
   });
 });
