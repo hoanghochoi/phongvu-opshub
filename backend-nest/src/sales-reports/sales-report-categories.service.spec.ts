@@ -99,4 +99,24 @@ describe('SalesReportCategoriesService', () => {
       sourceLevel: 4,
     });
   });
+
+  it('provides an immutable exact-ID snapshot with deepest then Subcat 2 fallback', async () => {
+    const service = createService();
+
+    const snapshot = await service.exactCategoryTypeSnapshot();
+
+    expect(Object.isFrozen(snapshot)).toBe(true);
+    expect(snapshot.lookup('nh03-01-01-01', 'NH03-01-02')).toBe('cpu');
+    expect(snapshot.lookup('', 'nh03-01-02')).toBe('mainboard');
+    expect(snapshot.lookup('UNKNOWN', 'NH03-01-02')).toBe('mainboard');
+    expect(snapshot.lookup('NH03-01-01-01 extra', 'UNKNOWN')).toBeNull();
+  });
+
+  it('fails closed when a fallback Subcat 2 ID has conflicting exact types', async () => {
+    const service = createService();
+
+    const snapshot = await service.exactCategoryTypeSnapshot();
+
+    expect(snapshot.lookup('', 'NH06-96-02')).toBeNull();
+  });
 });

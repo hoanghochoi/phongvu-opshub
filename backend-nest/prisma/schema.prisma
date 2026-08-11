@@ -1230,10 +1230,17 @@ model SalesHistoryImportOrderStage {
   monitorQuantity           Int                   @default(0)
   printerQuantity           Int                   @default(0)
   accessoriesQuantity       Int                   @default(0)
+  cpuQuantity               Int                   @default(0)
+  mainboardQuantity         Int                   @default(0)
+  memoryQuantity            Int                   @default(0)
+  storageQuantity           Int                   @default(0)
+  caseQuantity              Int                   @default(0)
+  psuQuantity               Int                   @default(0)
   createdAt                 DateTime              @default(now())
   updatedAt                 DateTime              @updatedAt
 
   @@unique([jobId, summaryDate, storeCode, userId, orderHash])
+  @@index([jobId, orderHash])
   @@index([jobId, summaryDate, storeCode])
 }
 

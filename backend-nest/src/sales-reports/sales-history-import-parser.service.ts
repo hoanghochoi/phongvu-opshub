@@ -2,10 +2,18 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import { createHash } from 'node:crypto';
 import { createReadStream } from 'node:fs';
 import { TextDecoder } from 'node:util';
+import {
+  SalesReportCategoriesService,
+  SalesReportExactCategoryTypeSnapshot,
+} from './sales-report-categories.service';
 
 export const SALES_HISTORY_IMPORT_MAX_ROWS = 1_000_000;
 const PARSER_CHUNK_ROWS = 1_000;
 const MAX_RECORD_CHARACTERS = 1_048_576;
+const MAX_SAFE_SIGNIFICANT_DIGITS = 16;
+const MAX_NUMERIC_TEXT_CHARACTERS = 64;
+const POSTGRES_INTEGER_MIN = -2_147_483_648;
+const POSTGRES_INTEGER_MAX = 2_147_483_647;
 
 export type SalesHistoryMetricKey =
   | 'extendedInsuranceQuantity'
@@ -17,6 +25,18 @@ export type SalesHistoryMetricKey =
   | 'printerQuantity'
   | 'accessoriesQuantity';
 
+export type SalesHistoryComponentMetricKey =
+  | 'cpuQuantity'
+  | 'mainboardQuantity'
+  | 'memoryQuantity'
+  | 'storageQuantity'
+  | 'caseQuantity'
+  | 'psuQuantity';
+
+export type SalesHistoryQuantityKey =
+  | SalesHistoryMetricKey
+  | SalesHistoryComponentMetricKey;
+
 export type SalesHistoryParsedRow = {
   rowNumber: number;
   date: string;
@@ -25,7 +45,7 @@ export type SalesHistoryParsedRow = {
   salespersonEmail: string;
   salespersonCode: string;
   signedRevenue: number | null;
-  quantities: Record<SalesHistoryMetricKey, number | null>;
+  quantities: Record<SalesHistoryQuantityKey, number | null>;
   errorCodes: string[];
 };
 
@@ -34,6 +54,9 @@ export type SalesHistoryParseMetadata = {
   encoding: 'utf-8' | 'windows-1258';
   delimiter: ',' | '\t';
   totalRows: number;
+  sourceFormat: 'legacy-wide' | 'legacy-category' | 'historical-export';
+  mappedCategoryRows: number;
+  unmappedCategoryRows: number;
 };
 
 type ColumnKey =
@@ -50,8 +73,14 @@ type ColumnKey =
 
 type ResolvedColumns = {
   columns: Map<ColumnKey, number>;
-  metricRepresentation: 'wide' | 'category';
+  metricRepresentation: 'wide' | 'category' | 'historical-export';
+  categorySnapshot: SalesReportExactCategoryTypeSnapshot | null;
 };
+
+type HistoricalExportColumnKey =
+  | 'skuName'
+  | 'subcat2Id'
+  | 'subcatLowestLevelId';
 
 const METRIC_KEYS: SalesHistoryMetricKey[] = [
   'extendedInsuranceQuantity',
@@ -63,6 +92,95 @@ const METRIC_KEYS: SalesHistoryMetricKey[] = [
   'printerQuantity',
   'accessoriesQuantity',
 ];
+
+const COMPONENT_METRIC_KEYS: SalesHistoryComponentMetricKey[] = [
+  'cpuQuantity',
+  'mainboardQuantity',
+  'memoryQuantity',
+  'storageQuantity',
+  'caseQuantity',
+  'psuQuantity',
+];
+
+const HISTORICAL_EXPORT_HEADERS = [
+  'Report date',
+  'Channel',
+  'Store',
+  'Branch code',
+  'Customer full name',
+  'Order code',
+  'Export return branch ID',
+  'Order type',
+  'Email',
+  'HRM ID',
+  'Salesman',
+  'Customer ID',
+  'SKU',
+  'Doc ID',
+  'Sale point per item',
+  'SKU name',
+  'Dealer type',
+  'Brand name',
+  'Billing tax code',
+  'Cat group ID',
+  'Cat group name',
+  'Subcat 2 ID',
+  'Subcat 2 name',
+  'Subcat ID lowest level',
+  'Subcat name lowest level',
+  'Is delivery',
+  'Order note',
+  'Terminal code',
+  'Terminal name',
+  'Platform',
+  'Sale point',
+  'Quantity',
+  'Revenue',
+  'Revenue with VAT',
+] as const;
+
+const HISTORICAL_EXPORT_COLUMNS: Record<
+  ColumnKey | HistoricalExportColumnKey,
+  number
+> = {
+  date: 0,
+  storeCode: 3,
+  orderCode: 5,
+  email: 8,
+  personnelCode: 9,
+  salesman: 10,
+  revenue: 33,
+  category: 23,
+  quantity: 31,
+  extendedInsuranceQuantity: -1,
+  laptopQuantity: -1,
+  pcQuantity: -1,
+  assembledPcQuantity: -1,
+  appleQuantity: -1,
+  monitorQuantity: -1,
+  printerQuantity: -1,
+  accessoriesQuantity: -1,
+  skuName: 15,
+  subcat2Id: 21,
+  subcatLowestLevelId: 23,
+};
+
+const EXPORT_TYPE_METRICS: Record<string, SalesHistoryQuantityKey> = {
+  extendedInsurance: 'extendedInsuranceQuantity',
+  extendedinsurance: 'extendedInsuranceQuantity',
+  laptop: 'laptopQuantity',
+  pc: 'pcQuantity',
+  apple: 'appleQuantity',
+  monitor: 'monitorQuantity',
+  printer: 'printerQuantity',
+  accessories: 'accessoriesQuantity',
+  cpu: 'cpuQuantity',
+  mainboard: 'mainboardQuantity',
+  memory: 'memoryQuantity',
+  storage: 'storageQuantity',
+  case: 'caseQuantity',
+  psu: 'psuQuantity',
+};
 
 const HEADER_ALIASES: Record<string, ColumnKey> = {
   reportdate: 'date',
@@ -148,6 +266,8 @@ const CATEGORY_METRICS: Record<string, SalesHistoryMetricKey> = {
 
 @Injectable()
 export class SalesHistoryImportParserService {
+  constructor(private readonly categories: SalesReportCategoriesService) {}
+
   async parse(
     filePath: string,
     onRows: (rows: SalesHistoryParsedRow[]) => Promise<void>,
@@ -158,13 +278,15 @@ export class SalesHistoryImportParserService {
     let columns: ResolvedColumns | null = null;
     let rowNumber = 0;
     let totalRows = 0;
+    let mappedCategoryRows = 0;
+    let unmappedCategoryRows = 0;
     let pending: SalesHistoryParsedRow[] = [];
 
     const consume = async (record: string[]) => {
       rowNumber += 1;
       if (record.every((value) => value.trim() === '')) return;
       if (!columns) {
-        columns = this.resolveColumns(record);
+        columns = await this.resolveColumns(record);
         return;
       }
       totalRows += 1;
@@ -174,6 +296,13 @@ export class SalesHistoryImportParserService {
         );
       }
       const parsed = this.parseRow(record, rowNumber, columns);
+      if (columns.metricRepresentation === 'historical-export') {
+        if (parsed.errorCodes.includes('INVALID_CATEGORY')) {
+          unmappedCategoryRows += 1;
+        } else {
+          mappedCategoryRows += 1;
+        }
+      }
       if (!parsed.date || !parsed.storeCode) {
         throw new BadRequestException(
           `Dòng ${rowNumber} thiếu hoặc không đọc được Ngày báo cáo/Mã showroom. Tệp chưa được nhập để tránh sai phạm vi.`,
@@ -192,7 +321,9 @@ export class SalesHistoryImportParserService {
       for (const record of records.push(text)) await consume(record);
     }
     for (const record of records.finish()) await consume(record);
-    if (!columns) throw new BadRequestException('Tệp CSV/TSV chưa có header.');
+    const finalColumns = columns as ResolvedColumns | null;
+    if (!finalColumns)
+      throw new BadRequestException('Tệp CSV/TSV chưa có header.');
     if (pending.length > 0) {
       if (await isCancelled()) throw new ImportCancelledError();
       await onRows(pending);
@@ -200,7 +331,18 @@ export class SalesHistoryImportParserService {
     if (totalRows === 0) {
       throw new BadRequestException('Tệp CSV/TSV chưa có dòng dữ liệu.');
     }
-    return { ...detected, totalRows };
+    return {
+      ...detected,
+      totalRows,
+      sourceFormat:
+        finalColumns.metricRepresentation === 'historical-export'
+          ? 'historical-export'
+          : finalColumns.metricRepresentation === 'wide'
+            ? 'legacy-wide'
+            : 'legacy-category',
+      mappedCategoryRows,
+      unmappedCategoryRows,
+    };
   }
 
   private async detect(filePath: string) {
@@ -253,7 +395,18 @@ export class SalesHistoryImportParserService {
     };
   }
 
-  private resolveColumns(header: string[]): ResolvedColumns {
+  private async resolveColumns(header: string[]): Promise<ResolvedColumns> {
+    if (this.isHistoricalExportHeader(header)) {
+      const columns = new Map<ColumnKey, number>();
+      for (const [key, index] of Object.entries(HISTORICAL_EXPORT_COLUMNS)) {
+        if (index >= 0) columns.set(key as ColumnKey, index);
+      }
+      return {
+        columns,
+        metricRepresentation: 'historical-export',
+        categorySnapshot: await this.categories.exactCategoryTypeSnapshot(),
+      };
+    }
     const columns = new Map<ColumnKey, number>();
     header.forEach((value, index) => {
       const alias = HEADER_ALIASES[normalizeKey(value.replace(/^\uFEFF/, ''))];
@@ -288,7 +441,17 @@ export class SalesHistoryImportParserService {
     return {
       columns,
       metricRepresentation: hasCompleteWideMetrics ? 'wide' : 'category',
+      categorySnapshot: null,
     };
+  }
+
+  private isHistoricalExportHeader(header: string[]) {
+    return (
+      header.length === HISTORICAL_EXPORT_HEADERS.length &&
+      HISTORICAL_EXPORT_HEADERS.every(
+        (expected, index) => header[index]?.trim() === expected,
+      )
+    );
   }
 
   private parseRow(
@@ -301,23 +464,50 @@ export class SalesHistoryImportParserService {
       columns.has(key) ? String(record[columns.get(key)!] ?? '').trim() : '';
     const date = parseDateOnly(value('date'));
     const storeCode = normalizeStoreCode(value('storeCode'));
-    const orderCode = value('orderCode').replace(/\s+/g, '').slice(0, 120);
+    const rawOrderCode = value('orderCode').replace(/\s+/g, '').slice(0, 120);
+    const orderCode =
+      metricRepresentation === 'historical-export'
+        ? (value('orderCode').match(/^(\d{14})/)?.[1] ?? '')
+        : rawOrderCode;
     const salespersonEmail = value('email').toLowerCase().slice(0, 200);
     const salespersonCode = value('personnelCode').toUpperCase().slice(0, 80);
-    const signedRevenue = parseSignedInteger(value('revenue'));
-    const quantities = Object.fromEntries(
-      METRIC_KEYS.map((key) => [
+    const signedRevenue = parseSignedInteger(
+      value('revenue'),
+      metricRepresentation === 'historical-export',
+    );
+    const quantities = Object.fromEntries([
+      ...METRIC_KEYS.map((key) => [
         key,
-        metricRepresentation === 'wide' ? parseSignedInteger(value(key)) : 0,
+        metricRepresentation === 'wide' ? parseStageQuantity(value(key)) : 0,
       ]),
-    ) as Record<SalesHistoryMetricKey, number | null>;
+      ...COMPONENT_METRIC_KEYS.map((key) => [key, 0]),
+    ]) as Record<SalesHistoryQuantityKey, number | null>;
     const errorCodes: string[] = [];
     if (metricRepresentation === 'category') {
       const category = CATEGORY_METRICS[normalizeKey(value('category'))];
-      const quantity = parseSignedInteger(value('quantity'));
+      const quantity = parseStageQuantity(value('quantity'));
       if (!category) errorCodes.push('INVALID_CATEGORY');
       if (quantity === null) errorCodes.push('INVALID_QUANTITY');
       if (category) quantities[category] = quantity;
+    }
+    if (metricRepresentation === 'historical-export') {
+      const exportValue = (key: HistoricalExportColumnKey) =>
+        String(record[HISTORICAL_EXPORT_COLUMNS[key]] ?? '').trim();
+      const categoryType = resolved.categorySnapshot?.lookup(
+        exportValue('subcatLowestLevelId'),
+        exportValue('subcat2Id'),
+      );
+      const quantity = parseStageQuantity(value('quantity'), true);
+      if (!categoryType) errorCodes.push('INVALID_CATEGORY');
+      if (quantity === null) errorCodes.push('INVALID_QUANTITY');
+      const metric = categoryType ? EXPORT_TYPE_METRICS[categoryType] : null;
+      if (
+        metric &&
+        (metric !== 'appleQuantity' ||
+          this.isTargetAppleSku(exportValue('skuName')))
+      ) {
+        quantities[metric] = quantity;
+      }
     }
     if (!orderCode) errorCodes.push('MISSING_ORDER_CODE');
     if (!salespersonEmail && !salespersonCode) {
@@ -338,6 +528,13 @@ export class SalesHistoryImportParserService {
       quantities,
       errorCodes,
     };
+  }
+
+  private isTargetAppleSku(value: string) {
+    const skuName = normalizeKey(value);
+    return ['iphone', 'macbook', 'ipad'].some((target) =>
+      skuName.includes(target),
+    );
   }
 }
 
@@ -474,12 +671,52 @@ function parseDateOnly(value: string) {
   return `${parts.year}-${String(parts.month).padStart(2, '0')}-${String(parts.day).padStart(2, '0')}`;
 }
 
-function parseSignedInteger(value: string) {
+function parseSignedInteger(value: string, allowScientific = false) {
   const text = value.trim();
-  if (!text) return null;
+  if (!text || text.length > MAX_NUMERIC_TEXT_CHARACTERS) return null;
   const parenthesized = text.match(/^\(([^()]+)\)$/);
   const body = parenthesized ? parenthesized[1] : text;
   if (parenthesized && /^[+-]/.test(body)) return null;
+  if (allowScientific) {
+    const scientific = body.match(/^([+-]?)(\d+(?:[.,]\d+)?)[eE]([+-]?\d+)$/);
+    if (scientific) {
+      const sign = scientific[1] === '-' || parenthesized ? -1 : 1;
+      const coefficient = scientific[2].replace(',', '.');
+      const decimalIndex = coefficient.indexOf('.');
+      const decimalPlaces =
+        decimalIndex === -1 ? 0 : coefficient.length - decimalIndex - 1;
+      const digits = coefficient.replace('.', '');
+      const exponent = Number(scientific[3]);
+      if (!Number.isSafeInteger(exponent) || Math.abs(exponent) > 100) {
+        return null;
+      }
+      const scale = exponent - decimalPlaces;
+      const significantLength = digits.replace(/^0+/, '').length;
+      if (significantLength === 0) return 0;
+      if (
+        significantLength > MAX_SAFE_SIGNIFICANT_DIGITS ||
+        (scale >= 0 && significantLength + scale > MAX_SAFE_SIGNIFICANT_DIGITS)
+      ) {
+        return null;
+      }
+      let integer = BigInt(digits);
+      if (scale >= 0) {
+        integer *= 10n ** BigInt(scale);
+      } else {
+        const divisor = 10n ** BigInt(-scale);
+        if (integer % divisor !== 0n) return null;
+        integer /= divisor;
+      }
+      if (sign < 0) integer = -integer;
+      if (
+        integer > BigInt(Number.MAX_SAFE_INTEGER) ||
+        integer < BigInt(Number.MIN_SAFE_INTEGER)
+      ) {
+        return null;
+      }
+      return Number(integer);
+    }
+  }
   const signed = body.match(/^([+-]?)(\d[\d.,]*)$/);
   if (!signed) return null;
 
@@ -514,4 +751,16 @@ function parseSignedInteger(value: string) {
   const number = Number(integerDigits) * sign;
   if (!Number.isSafeInteger(number)) return null;
   return number;
+}
+
+function parseStageQuantity(value: string, allowScientific = false) {
+  const quantity = parseSignedInteger(value, allowScientific);
+  if (
+    quantity === null ||
+    quantity < POSTGRES_INTEGER_MIN ||
+    quantity > POSTGRES_INTEGER_MAX
+  ) {
+    return null;
+  }
+  return quantity;
 }

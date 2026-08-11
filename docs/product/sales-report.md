@@ -194,6 +194,25 @@ cho Google Form, đồng thời lưu dữ liệu đủ chuẩn để dashboard d
   snapshot report; chúng không được ghi đè, xóa hoặc suy lại canonical total.
   Detail-only thiếu cache giữ canonical total `null`, revenue fail closed về 0;
   durable zero-value exclusion chỉ được quyết định từ list-derived total.
+- Import doanh số lịch sử nhận thêm đúng mẫu export Sales 34 cột theo đúng tên
+  và thứ tự header; hai mẫu legacy vẫn giữ nguyên. Adapter chỉ đọc
+  `Revenue with VAT`, định danh nhân viên exact bằng `Email` và `HRM ID`, đồng
+  thời lấy đúng 14 chữ số liên tiếp ở đầu `Order code`. Dạng số khoa học chỉ
+  hợp lệ trong mẫu export, có tối đa 16 chữ số có nghĩa và kết quả là safe
+  integer; quantity phải nằm trong miền PostgreSQL integer. Tổng theo order
+  dùng bigint có kiểm tra biên. Nếu cùng canonical order map sang nhiều nhân
+  viên hoặc tổng order vượt biên lưu trữ thì toàn bộ grain ngày/showroom được
+  quarantine, không đếm đôi và không tự chọn nhân viên. Trước khi tạo version,
+  tổng revenue và mọi KPI theo grain cũng được kiểm tra bằng kiểu rộng; grain
+  vượt biên aggregate bị quarantine để các grain sạch khác vẫn hoàn tất. Mỗi
+  file dùng một snapshot taxonomy cache:
+  exact `Subcat ID lowest level` trước, không có match mới fallback exact
+  `Subcat 2 ID`; category đã biết nhưng không thuộc KPI tạo fact 0, category
+  không map được quarantine grain với `INVALID_CATEGORY`. KPI Apple chỉ cộng
+  SKU name chứa iPhone, MacBook hoặc iPad. PC ráp theo từng order chuẩn bằng
+  số lượng PC ráp trực tiếp cộng
+  `max(min(CPU, mainboard, memory, storage, case, PSU), 0)`, sau đó mới cộng
+  lên aggregate hiện hữu.
 - Doanh số tổng trên dashboard dùng contract cache trên theo ngày bán ERP
   (`orderCreatedAt`)/scope. Đơn chờ thanh toán vẫn giữ trong cache/cockpit để
   không mất dữ liệu cần báo cáo. Doanh số hoàn thành chỉ cộng báo cáo mua hàng
