@@ -113,42 +113,85 @@ export class SalesHistoryImportService
         'Chọn tệp CSV/TSV không quá 200 MiB rồi thử lại.',
       );
     }
-    const scope = await this.resolveFreshScope(user);
-    this.assertHasTargetScope(scope);
-    const requestedByUserId = cleanText(user?.id, 120);
+    const startedAt = Date.now();
+    this.logger.log(
+      `Sales history upload admission started: actor=${safeActor(user)} expectedBytes=${expectedBytes}`,
+    );
+    const jobId = randomUUID();
     const artifactPath = join(
       SALES_HISTORY_IMPORT_DIRECTORY,
-      `${randomUUID()}.upload`,
+      `${jobId}.upload`,
     );
-    const job = await this.prisma.$transaction(async (tx) => {
-      await this.lockTransaction(tx, 'sales-history-import-upload-admission');
-      const reserved = await tx.salesHistoryImportJob.aggregate({
-        where: {
-          artifactPath: { not: null },
-          status: { in: ['UPLOADING', 'QUEUED', 'PARSING', 'FINALIZING'] },
-        },
-        _sum: { expectedBytes: true },
+    let artifactProvisioned = false;
+    try {
+      const scope = await this.resolveFreshScope(user);
+      this.assertHasTargetScope(scope);
+      const requestedByUserId = cleanText(user?.id, 120);
+      const job = await this.prisma.$transaction(async (tx) => {
+        await this.lockTransaction(tx, 'sales-history-import-upload-admission');
+        const reserved = await tx.salesHistoryImportJob.aggregate({
+          where: {
+            artifactPath: { not: null },
+            status: { in: ['UPLOADING', 'QUEUED', 'PARSING', 'FINALIZING'] },
+          },
+          _sum: { expectedBytes: true },
+        });
+        const reservedBytes = Number(reserved._sum.expectedBytes ?? 0);
+        if (reservedBytes + expectedBytes > IMPORT_ARTIFACT_BUDGET_BYTES) {
+          throw new BadRequestException(
+            'Máy chủ đang xử lý một tệp lớn khác. Vui lòng thử lại sau ít phút.',
+          );
+        }
+        const handle = await open(artifactPath, 'wx', 0o600);
+        artifactProvisioned = true;
+        await handle.close();
+        return tx.salesHistoryImportJob.create({
+          data: {
+            id: jobId,
+            status: 'UPLOADING',
+            uploadedBytes: 0n,
+            expectedBytes: BigInt(expectedBytes),
+            requestedByUserId,
+            artifactPath,
+          },
+        });
       });
-      const reservedBytes = Number(reserved._sum.expectedBytes ?? 0);
-      if (reservedBytes + expectedBytes > IMPORT_ARTIFACT_BUDGET_BYTES) {
-        throw new BadRequestException(
-          'Máy chủ đang xử lý một tệp lớn khác. Vui lòng thử lại sau ít phút.',
-        );
+      artifactProvisioned = false;
+      this.logger.log(
+        `Sales history upload admitted: jobId=${job.id} actor=${safeActor(user)} expectedBytes=${expectedBytes} durationMs=${Date.now() - startedAt}`,
+      );
+      return this.toJobResponse(job);
+    } catch (error) {
+      if (artifactProvisioned) {
+        let persistedJob: any | null | undefined;
+        try {
+          persistedJob = await this.prisma.salesHistoryImportJob.findUnique({
+            where: { id: jobId },
+          });
+        } catch (reconciliationError) {
+          this.logger.warn(
+            `Sales history upload admission reconciliation unavailable: jobId=${jobId} actor=${safeActor(user)} error=${safeLogError(reconciliationError)}`,
+          );
+        }
+        if (persistedJob?.artifactPath === artifactPath) {
+          artifactProvisioned = false;
+          this.logger.warn(
+            `Sales history upload admission recovered after ambiguous transaction: jobId=${jobId} actor=${safeActor(user)} durationMs=${Date.now() - startedAt}`,
+          );
+          return this.toJobResponse(persistedJob);
+        } else if (persistedJob !== undefined) {
+          await unlink(artifactPath).catch((cleanupError) => {
+            this.logger.error(
+              `Sales history upload admission cleanup failed: jobId=${jobId} actor=${safeActor(user)} error=${safeLogError(cleanupError)}`,
+            );
+          });
+        }
       }
-      return tx.salesHistoryImportJob.create({
-        data: {
-          status: 'UPLOADING',
-          uploadedBytes: 0n,
-          expectedBytes: BigInt(expectedBytes),
-          requestedByUserId,
-          artifactPath,
-        },
-      });
-    });
-    this.logger.log(
-      `Sales history upload admitted: jobId=${job.id} actor=${safeActor(user)} expectedBytes=${expectedBytes}`,
-    );
-    return this.toJobResponse(job);
+      this.logger.warn(
+        `Sales history upload admission failed: actor=${safeActor(user)} expectedBytes=${expectedBytes} durationMs=${Date.now() - startedAt} error=${safeLogError(error)}`,
+      );
+      throw error;
+    }
   }
 
   async appendUploadChunk(
@@ -209,7 +252,26 @@ export class SalesHistoryImportService
             'Tệp tạm chưa đồng bộ. Vui lòng hủy tác vụ và chọn lại tệp.',
           );
         }
-        await handle.write(bytes, 0, bytes.length, offset);
+        let writtenBytes = 0;
+        while (writtenBytes < bytes.length) {
+          const remainingBytes = bytes.length - writtenBytes;
+          const result = await handle.write(
+            bytes,
+            writtenBytes,
+            remainingBytes,
+            offset + writtenBytes,
+          );
+          if (
+            !Number.isSafeInteger(result.bytesWritten) ||
+            result.bytesWritten <= 0 ||
+            result.bytesWritten > remainingBytes
+          ) {
+            throw new BadRequestException(
+              'Tệp tạm chưa đồng bộ. Vui lòng hủy tác vụ và chọn lại tệp.',
+            );
+          }
+          writtenBytes += result.bytesWritten;
+        }
         const updated = await tx.salesHistoryImportJob.updateMany({
           where: {
             id,
