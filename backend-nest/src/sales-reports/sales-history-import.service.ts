@@ -24,6 +24,7 @@ import {
   SalesHistoryImportParserService,
   SalesHistoryMetricKey,
   SalesHistoryParsedRow,
+  SalesHistoryQuantityKey,
 } from './sales-history-import-parser.service';
 import {
   SALES_HISTORY_IMPORT_CHUNK_BYTES,
@@ -40,7 +41,11 @@ const IMPORT_CLEANUP_INTERVAL_MS = 60 * 60 * 1000;
 const IMPORT_MAX_CONCURRENCY = 1;
 const IMPORT_ARTIFACT_BUDGET_BYTES = 220 * 1024 * 1024;
 const HISTORY_EVENT_TYPE = 'HOME_SUMMARY_UPDATED';
-const METRIC_KEYS: SalesHistoryMetricKey[] = [
+const POSTGRES_BIGINT_MIN = -9_223_372_036_854_775_808n;
+const POSTGRES_BIGINT_MAX = 9_223_372_036_854_775_807n;
+const POSTGRES_INTEGER_MIN = -2_147_483_648;
+const POSTGRES_INTEGER_MAX = 2_147_483_647;
+const STAGE_QUANTITY_KEYS: SalesHistoryQuantityKey[] = [
   'extendedInsuranceQuantity',
   'laptopQuantity',
   'pcQuantity',
@@ -49,6 +54,20 @@ const METRIC_KEYS: SalesHistoryMetricKey[] = [
   'monitorQuantity',
   'printerQuantity',
   'accessoriesQuantity',
+  'cpuQuantity',
+  'mainboardQuantity',
+  'memoryQuantity',
+  'storageQuantity',
+  'caseQuantity',
+  'psuQuantity',
+];
+const ASSEMBLED_PC_COMPONENT_KEYS: SalesHistoryQuantityKey[] = [
+  'cpuQuantity',
+  'mainboardQuantity',
+  'memoryQuantity',
+  'storageQuantity',
+  'caseQuantity',
+  'psuQuantity',
 ];
 
 type IdentityIndex = {
@@ -58,7 +77,11 @@ type IdentityIndex = {
   userStoreCodes: Map<string, Set<string>>;
 };
 
-type StagedOrder = SalesHistoryParsedRow & { userId: string };
+type StagedOrder = Omit<SalesHistoryParsedRow, 'signedRevenue'> & {
+  userId: string;
+  orderHash: string;
+  signedRevenue: bigint;
+};
 type FreshHistoryScope = {
   actorUserId: string;
   storeCodes: Set<string> | null;
@@ -874,7 +897,7 @@ export class SalesHistoryImportService
         claimToken,
       );
       this.logger.log(
-        `Sales history parsing succeeded: jobId=${jobId} versionId=${result.versionId} rows=${metadata.totalRows} cleanGrains=${result.cleanGrains} quarantinedGrains=${result.quarantinedGrains} durationMs=${Date.now() - startedAt}`,
+        `Sales history parsing succeeded: jobId=${jobId} versionId=${result.versionId} sourceFormat=${metadata.sourceFormat} rows=${metadata.totalRows} mappedCategoryRows=${metadata.mappedCategoryRows} unmappedCategoryRows=${metadata.unmappedCategoryRows} cleanGrains=${result.cleanGrains} quarantinedGrains=${result.quarantinedGrains} durationMs=${Date.now() - startedAt}`,
       );
     } catch (error) {
       if (error instanceof ImportClaimLostError) {
@@ -1042,7 +1065,7 @@ export class SalesHistoryImportService
           reasons: Set<string>;
         }
       >();
-      const validOrders: StagedOrder[] = [];
+      const validOrdersByKey = new Map<string, StagedOrder>();
       for (const row of rows) {
         const { reasons, userId } = this.resolveRowIdentity(row, identities);
         if (!identities.storeCodes.has(row.storeCode))
@@ -1060,9 +1083,130 @@ export class SalesHistoryImportService
           grain.invalid += 1;
           reasons.forEach((reason) => grain.reasons.add(reason));
         } else {
-          validOrders.push({ ...row, userId: userId! });
+          const orderHash = createHash('sha256')
+            .update(`${row.date}|${row.storeCode}|${row.orderCode}`)
+            .digest('hex');
+          const orderKey = orderHash;
+          const existing = validOrdersByKey.get(orderKey);
+          if (existing) {
+            if (existing.userId !== userId) {
+              grain.invalid += 1;
+              grain.reasons.add('DATE_SHOWROOM_ORDER_IDENTITY_CONFLICT');
+              grainUpdates.set(key, grain);
+              continue;
+            }
+            const signedRevenue =
+              existing.signedRevenue + BigInt(row.signedRevenue!);
+            const nextQuantities = { ...existing.quantities };
+            let numericOverflow = !isPostgresBigInt(signedRevenue);
+            for (const metric of STAGE_QUANTITY_KEYS) {
+              const quantity =
+                existing.quantities[metric]! + row.quantities[metric]!;
+              if (!isPostgresInteger(quantity)) numericOverflow = true;
+              nextQuantities[metric] = quantity;
+            }
+            if (
+              numericOverflow ||
+              hasDerivedAssembledPcOverflow(nextQuantities)
+            ) {
+              grain.invalid += 1;
+              grain.reasons.add('DATE_SHOWROOM_NUMERIC_OVERFLOW');
+              grainUpdates.set(key, grain);
+              continue;
+            }
+            existing.signedRevenue = signedRevenue;
+            existing.quantities = nextQuantities;
+          } else {
+            if (hasDerivedAssembledPcOverflow(row.quantities)) {
+              grain.invalid += 1;
+              grain.reasons.add('DATE_SHOWROOM_NUMERIC_OVERFLOW');
+              grainUpdates.set(key, grain);
+              continue;
+            }
+            validOrdersByKey.set(orderKey, {
+              ...row,
+              quantities: { ...row.quantities },
+              userId: userId!,
+              orderHash,
+              signedRevenue: BigInt(row.signedRevenue!),
+            });
+          }
         }
         grainUpdates.set(key, grain);
+      }
+      const stagedOrders = Array.from(validOrdersByKey.values());
+      if (stagedOrders.length > 0) {
+        const existingOrders = await tx.$queryRaw<
+          Array<{
+            orderHash: string;
+            userId: string;
+            totalRevenue: bigint;
+            extendedInsuranceQuantity: number;
+            laptopQuantity: number;
+            pcQuantity: number;
+            assembledPcQuantity: number;
+            appleQuantity: number;
+            monitorQuantity: number;
+            printerQuantity: number;
+            accessoriesQuantity: number;
+            cpuQuantity: number;
+            mainboardQuantity: number;
+            memoryQuantity: number;
+            storageQuantity: number;
+            caseQuantity: number;
+            psuQuantity: number;
+          }>
+        >(Prisma.sql`
+          SELECT "orderHash", "userId", "totalRevenue",
+                 "extendedInsuranceQuantity", "laptopQuantity", "pcQuantity",
+                 "assembledPcQuantity", "appleQuantity", "monitorQuantity",
+                 "printerQuantity", "accessoriesQuantity", "cpuQuantity",
+                 "mainboardQuantity", "memoryQuantity", "storageQuantity",
+                 "caseQuantity", "psuQuantity"
+          FROM "SalesHistoryImportOrderStage"
+          WHERE "jobId" = ${jobId}
+            AND "orderHash" IN (${Prisma.join(stagedOrders.map((row) => row.orderHash))})
+        `);
+        const existingByOrderHash = new Map<
+          string,
+          (typeof existingOrders)[number][]
+        >();
+        for (const existing of existingOrders) {
+          if (typeof existing.orderHash !== 'string') continue;
+          const matches = existingByOrderHash.get(existing.orderHash) ?? [];
+          matches.push(existing);
+          existingByOrderHash.set(existing.orderHash, matches);
+        }
+        for (const row of stagedOrders) {
+          const matches = existingByOrderHash.get(row.orderHash) ?? [];
+          const identityConflict = matches.some(
+            (existing) => existing.userId !== row.userId,
+          );
+          const numericOverflow = matches.some((existing) => {
+            if (!isPostgresBigInt(existing.totalRevenue + row.signedRevenue)) {
+              return true;
+            }
+            const combinedQuantities = { ...row.quantities };
+            const columnOverflow = STAGE_QUANTITY_KEYS.some((metric) => {
+              const quantity = existing[metric] + row.quantities[metric]!;
+              combinedQuantities[metric] = quantity;
+              return !isPostgresInteger(quantity);
+            });
+            return (
+              columnOverflow ||
+              hasDerivedAssembledPcOverflow(combinedQuantities)
+            );
+          });
+          if (!identityConflict && !numericOverflow) continue;
+          const grain = grainUpdates.get(`${row.date}|${row.storeCode}`)!;
+          grain.invalid += 1;
+          grain.reasons.add(
+            identityConflict
+              ? 'DATE_SHOWROOM_ORDER_IDENTITY_CONFLICT'
+              : 'DATE_SHOWROOM_NUMERIC_OVERFLOW',
+          );
+          validOrdersByKey.delete(row.orderHash);
+        }
       }
       const grainSql = Array.from(grainUpdates.values()).map(
         (grain) =>
@@ -1088,17 +1232,17 @@ export class SalesHistoryImportService
           "updatedAt" = CURRENT_TIMESTAMP
       `);
       }
-      const orderSql = validOrders.map((row) => {
-        const orderHash = createHash('sha256')
-          .update(`${row.date}|${row.storeCode}|${row.orderCode}`)
-          .digest('hex');
+      const orderSql = Array.from(validOrdersByKey.values()).map((row) => {
         return Prisma.sql`(
         gen_random_uuid()::text, ${jobId}, CAST(${row.date} AS date),
-        ${row.storeCode}, ${row.userId}, ${orderHash}, ${row.signedRevenue!},
+        ${row.storeCode}, ${row.userId}, ${row.orderHash}, ${row.signedRevenue},
         ${row.quantities.extendedInsuranceQuantity!}, ${row.quantities.laptopQuantity!},
         ${row.quantities.pcQuantity!}, ${row.quantities.assembledPcQuantity!},
         ${row.quantities.appleQuantity!}, ${row.quantities.monitorQuantity!},
         ${row.quantities.printerQuantity!}, ${row.quantities.accessoriesQuantity!},
+        ${row.quantities.cpuQuantity!}, ${row.quantities.mainboardQuantity!},
+        ${row.quantities.memoryQuantity!}, ${row.quantities.storageQuantity!},
+        ${row.quantities.caseQuantity!}, ${row.quantities.psuQuantity!},
         CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
       )`;
       });
@@ -1109,6 +1253,8 @@ export class SalesHistoryImportService
           "totalRevenue", "extendedInsuranceQuantity", "laptopQuantity",
           "pcQuantity", "assembledPcQuantity", "appleQuantity",
           "monitorQuantity", "printerQuantity", "accessoriesQuantity",
+          "cpuQuantity", "mainboardQuantity", "memoryQuantity",
+          "storageQuantity", "caseQuantity", "psuQuantity",
           "createdAt", "updatedAt"
         ) VALUES ${Prisma.join(orderSql)}
         ON CONFLICT ("jobId", "summaryDate", "storeCode", "userId", "orderHash")
@@ -1122,6 +1268,12 @@ export class SalesHistoryImportService
           "monitorQuantity" = "SalesHistoryImportOrderStage"."monitorQuantity" + EXCLUDED."monitorQuantity",
           "printerQuantity" = "SalesHistoryImportOrderStage"."printerQuantity" + EXCLUDED."printerQuantity",
           "accessoriesQuantity" = "SalesHistoryImportOrderStage"."accessoriesQuantity" + EXCLUDED."accessoriesQuantity",
+          "cpuQuantity" = "SalesHistoryImportOrderStage"."cpuQuantity" + EXCLUDED."cpuQuantity",
+          "mainboardQuantity" = "SalesHistoryImportOrderStage"."mainboardQuantity" + EXCLUDED."mainboardQuantity",
+          "memoryQuantity" = "SalesHistoryImportOrderStage"."memoryQuantity" + EXCLUDED."memoryQuantity",
+          "storageQuantity" = "SalesHistoryImportOrderStage"."storageQuantity" + EXCLUDED."storageQuantity",
+          "caseQuantity" = "SalesHistoryImportOrderStage"."caseQuantity" + EXCLUDED."caseQuantity",
+          "psuQuantity" = "SalesHistoryImportOrderStage"."psuQuantity" + EXCLUDED."psuQuantity",
           "updatedAt" = CURRENT_TIMESTAMP
       `);
       }
@@ -1171,6 +1323,7 @@ export class SalesHistoryImportService
       if (claimToken !== undefined) {
         await this.assertClaim(tx, jobId, claimToken);
       }
+      await this.quarantineAggregateNumericOverflows(tx, jobId);
       const grains = await tx.salesHistoryImportGrainStage.findMany({
         where: { jobId },
         orderBy: [{ summaryDate: 'asc' }, { storeCode: 'asc' }],
@@ -1226,7 +1379,18 @@ export class SalesHistoryImportService
           FROM "SalesHistoryImportGrainStage"
           WHERE "jobId" = ${jobId} AND "invalidRows" = 0
         ), contributing_orders AS (
-          SELECT stage.*
+          SELECT stage.*,
+                 (
+                   GREATEST(stage."assembledPcQuantity", 0)::bigint +
+                   GREATEST(
+                     LEAST(
+                       stage."cpuQuantity", stage."mainboardQuantity",
+                       stage."memoryQuantity", stage."storageQuantity",
+                       stage."caseQuantity", stage."psuQuantity"
+                     ),
+                     0
+                   )::bigint
+                 )::integer AS "finalAssembledPcQuantity"
           FROM "SalesHistoryImportOrderStage" stage
           JOIN clean_grains grain USING ("summaryDate", "storeCode")
           WHERE stage."jobId" = ${jobId} AND stage."totalRevenue" > 0
@@ -1238,7 +1402,7 @@ export class SalesHistoryImportService
                  COALESCE(SUM(GREATEST(item."extendedInsuranceQuantity", 0)), 0)::integer AS "extendedInsuranceQuantity",
                  COALESCE(SUM(GREATEST(item."laptopQuantity", 0)), 0)::integer AS "laptopQuantity",
                  COALESCE(SUM(GREATEST(item."pcQuantity", 0)), 0)::integer AS "pcQuantity",
-                 COALESCE(SUM(GREATEST(item."assembledPcQuantity", 0)), 0)::integer AS "assembledPcQuantity",
+                 COALESCE(SUM(item."finalAssembledPcQuantity"), 0)::integer AS "assembledPcQuantity",
                  COALESCE(SUM(GREATEST(item."appleQuantity", 0)), 0)::integer AS "appleQuantity",
                  COALESCE(SUM(GREATEST(item."monitorQuantity", 0)), 0)::integer AS "monitorQuantity",
                  COALESCE(SUM(GREATEST(item."printerQuantity", 0)), 0)::integer AS "printerQuantity",
@@ -1252,7 +1416,7 @@ export class SalesHistoryImportService
                  SUM(GREATEST(item."extendedInsuranceQuantity", 0))::integer,
                  SUM(GREATEST(item."laptopQuantity", 0))::integer,
                  SUM(GREATEST(item."pcQuantity", 0))::integer,
-                 SUM(GREATEST(item."assembledPcQuantity", 0))::integer,
+                 SUM(item."finalAssembledPcQuantity")::integer,
                  SUM(GREATEST(item."appleQuantity", 0))::integer,
                  SUM(GREATEST(item."monitorQuantity", 0))::integer,
                  SUM(GREATEST(item."printerQuantity", 0))::integer,
@@ -1298,6 +1462,52 @@ export class SalesHistoryImportService
         quarantinedGrains: quarantined.length,
       };
     });
+  }
+
+  private async quarantineAggregateNumericOverflows(
+    tx: Prisma.TransactionClient,
+    jobId: string,
+  ) {
+    await tx.$executeRaw(Prisma.sql`
+      WITH overflow_grains AS (
+        SELECT stage."summaryDate", stage."storeCode"
+        FROM "SalesHistoryImportOrderStage" stage
+        WHERE stage."jobId" = ${jobId} AND stage."totalRevenue" > 0
+        GROUP BY stage."summaryDate", stage."storeCode"
+        HAVING
+          SUM(stage."totalRevenue"::numeric) > CAST(${POSTGRES_BIGINT_MAX} AS numeric)
+          OR SUM(GREATEST(stage."extendedInsuranceQuantity", 0)::bigint) > ${POSTGRES_INTEGER_MAX}::bigint
+          OR SUM(GREATEST(stage."laptopQuantity", 0)::bigint) > ${POSTGRES_INTEGER_MAX}::bigint
+          OR SUM(GREATEST(stage."pcQuantity", 0)::bigint) > ${POSTGRES_INTEGER_MAX}::bigint
+          OR SUM(
+            GREATEST(stage."assembledPcQuantity", 0)::bigint +
+            GREATEST(
+              LEAST(
+                stage."cpuQuantity", stage."mainboardQuantity",
+                stage."memoryQuantity", stage."storageQuantity",
+                stage."caseQuantity", stage."psuQuantity"
+              ),
+              0
+            )::bigint
+          ) > ${POSTGRES_INTEGER_MAX}::bigint
+          OR SUM(GREATEST(stage."appleQuantity", 0)::bigint) > ${POSTGRES_INTEGER_MAX}::bigint
+          OR SUM(GREATEST(stage."monitorQuantity", 0)::bigint) > ${POSTGRES_INTEGER_MAX}::bigint
+          OR SUM(GREATEST(stage."printerQuantity", 0)::bigint) > ${POSTGRES_INTEGER_MAX}::bigint
+          OR SUM(GREATEST(stage."accessoriesQuantity", 0)::bigint) > ${POSTGRES_INTEGER_MAX}::bigint
+      )
+      UPDATE "SalesHistoryImportGrainStage" grain
+      SET "invalidRows" = GREATEST(grain."invalidRows", 1),
+          "reasonCodes" = ARRAY(
+            SELECT DISTINCT unnest(
+              grain."reasonCodes" || ARRAY['DATE_SHOWROOM_NUMERIC_OVERFLOW']::text[]
+            )
+          ),
+          "updatedAt" = CURRENT_TIMESTAMP
+      FROM overflow_grains overflow
+      WHERE grain."jobId" = ${jobId}
+        AND grain."summaryDate" = overflow."summaryDate"
+        AND grain."storeCode" = overflow."storeCode"
+    `);
   }
 
   private async enqueueHomeInvalidation(
@@ -1650,6 +1860,32 @@ function dateKey(value: Date) {
 
 function grainKey(date: Date, storeCode: string) {
   return `${dateKey(date)}|${storeCode}`;
+}
+
+function isPostgresBigInt(value: bigint) {
+  return value >= POSTGRES_BIGINT_MIN && value <= POSTGRES_BIGINT_MAX;
+}
+
+function isPostgresInteger(value: number) {
+  return (
+    Number.isSafeInteger(value) &&
+    value >= POSTGRES_INTEGER_MIN &&
+    value <= POSTGRES_INTEGER_MAX
+  );
+}
+
+function hasDerivedAssembledPcOverflow(
+  quantities: Record<SalesHistoryQuantityKey, number | null>,
+) {
+  const direct = Math.max(quantities.assembledPcQuantity ?? 0, 0);
+  const components = ASSEMBLED_PC_COMPONENT_KEYS.map(
+    (metric) => quantities[metric] ?? 0,
+  );
+  const assembledFromComponents = Math.max(Math.min(...components), 0);
+  return (
+    BigInt(direct) + BigInt(assembledFromComponents) >
+    BigInt(POSTGRES_INTEGER_MAX)
+  );
 }
 
 function cleanText(value: unknown, max: number) {

@@ -23,6 +23,10 @@ export type SalesReportDeepestCategoryMatchDto = {
   sourceLevel: number;
 };
 
+export type SalesReportExactCategoryTypeSnapshot = Readonly<{
+  lookup: (subcatLowestLevelId: unknown, subcat2Id: unknown) => string | null;
+}>;
+
 const CATEGORY_TRANSLATIONS: Record<string, string> = {
   Laptop: 'Laptop',
   PC: 'Máy tính bộ',
@@ -52,6 +56,8 @@ export class SalesReportCategoriesService {
     string,
     { categoryType: string; categoryGroupId: string }
   >();
+  private cachedTypeByLowestCategoryId = new Map<string, string>();
+  private cachedTypeBySubcat2Id = new Map<string, string>();
 
   constructor(private readonly prisma: PrismaService) {}
 
@@ -89,6 +95,23 @@ export class SalesReportCategoriesService {
       throw new BadRequestException('Vui lòng chọn ngành hàng hợp lệ.');
     }
     return categories;
+  }
+
+  async exactCategoryTypeSnapshot(): Promise<SalesReportExactCategoryTypeSnapshot> {
+    await this.ensureSynced();
+    const typeByLowestCategoryId = this.cachedTypeByLowestCategoryId;
+    const typeBySubcat2Id = this.cachedTypeBySubcat2Id;
+    return Object.freeze({
+      lookup: (subcatLowestLevelId: unknown, subcat2Id: unknown) => {
+        const lowestId = this.normalizeExactCategoryCode(subcatLowestLevelId);
+        if (lowestId) {
+          const lowestType = typeByLowestCategoryId.get(lowestId);
+          if (lowestType) return lowestType;
+        }
+        const subcatId = this.normalizeExactCategoryCode(subcat2Id);
+        return subcatId ? (typeBySubcat2Id.get(subcatId) ?? null) : null;
+      },
+    });
   }
 
   async matchTypeFromListingCategories(categories: unknown) {
@@ -166,6 +189,14 @@ export class SalesReportCategoriesService {
     );
     this.cachedCategories = groups;
     this.cachedDeepestCategoryByKey = this.buildDeepestCategoryMap(rows);
+    this.cachedTypeByLowestCategoryId = this.buildExactCategoryTypeMap(
+      rows,
+      'Subcat ID lowest level',
+    );
+    this.cachedTypeBySubcat2Id = this.buildExactCategoryTypeMap(
+      rows,
+      'Subcat 2 ID',
+    );
     this.lastSyncedAt = now;
     this.logger.log(`Sales report categories synced: count=${groups.length}`);
   }
@@ -269,6 +300,26 @@ export class SalesReportCategoriesService {
     );
   }
 
+  private buildExactCategoryTypeMap(
+    rows: Array<Record<string, string>>,
+    idColumn: 'Subcat ID lowest level' | 'Subcat 2 ID',
+  ) {
+    const typesById = new Map<string, Set<string>>();
+    for (const row of rows) {
+      const id = this.normalizeExactCategoryCode(row[idColumn]);
+      const type = this.normalizeCategoryType(row.Type);
+      if (!id || !type) continue;
+      const types = typesById.get(id) ?? new Set<string>();
+      types.add(type);
+      typesById.set(id, types);
+    }
+    return new Map(
+      Array.from(typesById.entries()).flatMap(([id, types]) =>
+        types.size === 1 ? [[id, Array.from(types)[0]]] : [],
+      ),
+    );
+  }
+
   private listingCategoryCandidates(categories: unknown) {
     const source = Array.isArray(categories)
       ? categories
@@ -363,6 +414,13 @@ export class SalesReportCategoriesService {
       .trim()
       .replace(/\s+/g, '');
     return text ? text.slice(0, 80) : null;
+  }
+
+  private normalizeExactCategoryCode(value: unknown) {
+    const text = String(value ?? '')
+      .trim()
+      .toUpperCase();
+    return text ? text.slice(0, 120) : '';
   }
 
   private normalizeTypeLookupKey(value: unknown) {

@@ -8,6 +8,7 @@ jest.mock('node:fs/promises', () => {
 });
 
 import { access, open, rm, stat, unlink } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
 import { SalesHistoryImportService } from './sales-history-import.service';
 
 function advisoryLockKeys(executeRaw: jest.Mock) {
@@ -1260,6 +1261,7 @@ describe('SalesHistoryImportService authorization and worker lifecycle', () => {
         ]),
       },
       salesHistoryVersion: { create: jest.fn() },
+      $executeRaw: jest.fn().mockResolvedValue(0),
     };
     const prisma = {
       $transaction: jest.fn(async (operation: (client: any) => unknown) =>
@@ -1637,5 +1639,422 @@ describe('SalesHistoryImportService authorization and worker lifecycle', () => {
     expect(
       tx.salesHistoryImportJob.updateMany.mock.calls[0][0].data,
     ).not.toHaveProperty('artifactPath');
+  });
+});
+
+describe('SalesHistoryImportService historical export staging SQL', () => {
+  const sqlText = (statement: any) =>
+    Array.isArray(statement?.strings)
+      ? statement.strings.join('?')
+      : String(statement?.sql ?? '');
+
+  const quantities = (overrides: Record<string, number> = {}) => ({
+    extendedInsuranceQuantity: 0,
+    laptopQuantity: 0,
+    pcQuantity: 0,
+    assembledPcQuantity: 0,
+    appleQuantity: 0,
+    monitorQuantity: 0,
+    printerQuantity: 0,
+    accessoriesQuantity: 0,
+    cpuQuantity: 0,
+    mainboardQuantity: 0,
+    memoryQuantity: 0,
+    storageQuantity: 0,
+    caseQuantity: 0,
+    psuQuantity: 0,
+    ...overrides,
+  });
+
+  const row = (overrides: Record<string, unknown> = {}) => ({
+    rowNumber: 2,
+    date: '2025-07-01',
+    storeCode: 'CP01',
+    orderCode: '25070134938050',
+    salespersonEmail: 'sale@phongvu.vn',
+    salespersonCode: 'NV001',
+    signedRevenue: 1_000,
+    quantities: quantities(),
+    errorCodes: [],
+    ...overrides,
+  });
+
+  const identities = {
+    storeCodes: new Set(['CP01']),
+    byEmail: new Map([['sale@phongvu.vn', 'user-1']]),
+    byPersonnelCode: new Map([['NV001', 'user-1']]),
+    userStoreCodes: new Map([['user-1', new Set(['CP01'])]]),
+  };
+
+  it('collapses canonical suffix lines in one chunk and accumulates components across chunk upserts', async () => {
+    const tx = {
+      $queryRaw: jest.fn().mockResolvedValue([{ id: 'job-1' }]),
+      $executeRaw: jest.fn().mockResolvedValue(1),
+    };
+    const prisma = {
+      $transaction: jest.fn(async (operation: (client: any) => unknown) =>
+        operation(tx),
+      ),
+    };
+    const service = new SalesHistoryImportService(prisma as any, {} as any);
+
+    await (service as any).stageChunk(
+      'job-1',
+      7n,
+      [
+        row({
+          signedRevenue: 100,
+          quantities: quantities({ cpuQuantity: 2 }),
+        }),
+        row({
+          rowNumber: 3,
+          signedRevenue: 200,
+          quantities: quantities({ mainboardQuantity: 3 }),
+        }),
+        row({
+          rowNumber: 4,
+          signedRevenue: 300,
+          quantities: quantities({ memoryQuantity: 4 }),
+        }),
+      ],
+      identities,
+    );
+    await (service as any).stageChunk(
+      'job-1',
+      7n,
+      [
+        row({
+          rowNumber: 5,
+          signedRevenue: 400,
+          quantities: quantities({ storageQuantity: 5 }),
+        }),
+        row({
+          rowNumber: 6,
+          signedRevenue: 500,
+          quantities: quantities({ caseQuantity: 6 }),
+        }),
+        row({
+          rowNumber: 7,
+          signedRevenue: 600,
+          quantities: quantities({ psuQuantity: 7 }),
+        }),
+      ],
+      identities,
+    );
+
+    const orderStatements = tx.$executeRaw.mock.calls
+      .map(([statement]) => statement)
+      .filter((statement) =>
+        sqlText(statement).includes(
+          'INSERT INTO "SalesHistoryImportOrderStage"',
+        ),
+      );
+    expect(orderStatements).toHaveLength(2);
+    expect(orderStatements[0].values).toEqual(
+      expect.arrayContaining([600n, 2, 3, 4]),
+    );
+    expect(orderStatements[1].values).toEqual(
+      expect.arrayContaining([1_500n, 5, 6, 7]),
+    );
+    for (const statement of orderStatements) {
+      expect(sqlText(statement)).toContain(
+        'ON CONFLICT ("jobId", "summaryDate", "storeCode", "userId", "orderHash")',
+      );
+      expect(sqlText(statement)).toContain(
+        '"cpuQuantity" = "SalesHistoryImportOrderStage"."cpuQuantity" + EXCLUDED."cpuQuantity"',
+      );
+      expect(sqlText(statement)).toContain(
+        '"psuQuantity" = "SalesHistoryImportOrderStage"."psuQuantity" + EXCLUDED."psuQuantity"',
+      );
+    }
+    const orderHashes = orderStatements.map((statement) =>
+      statement.values.find((value: unknown) =>
+        /^[a-f0-9]{64}$/.test(String(value)),
+      ),
+    );
+    expect(orderHashes[0]).toBeTruthy();
+    expect(orderHashes[0]).toBe(orderHashes[1]);
+  });
+
+  it('quarantines a canonical order when a later parser chunk resolves it to another valid user', async () => {
+    const orderHash = createHash('sha256')
+      .update('2025-07-01|CP01|25070134938050')
+      .digest('hex');
+    const tx = {
+      $queryRaw: jest
+        .fn()
+        .mockResolvedValueOnce([{ id: 'job-1' }])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([{ id: 'job-1' }])
+        .mockResolvedValueOnce([
+          {
+            orderHash,
+            userId: 'user-1',
+            totalRevenue: 100n,
+            ...quantities({ cpuQuantity: 1 }),
+          },
+        ]),
+      $executeRaw: jest.fn().mockResolvedValue(1),
+    };
+    const prisma = {
+      $transaction: jest.fn(async (operation: (client: any) => unknown) =>
+        operation(tx),
+      ),
+    };
+    const service = new SalesHistoryImportService(prisma as any, {} as any);
+    const conflictingIdentities = {
+      storeCodes: new Set(['CP01']),
+      byEmail: new Map([
+        ['sale@phongvu.vn', 'user-1'],
+        ['sale-2@phongvu.vn', 'user-2'],
+      ]),
+      byPersonnelCode: new Map([
+        ['NV001', 'user-1'],
+        ['NV002', 'user-2'],
+      ]),
+      userStoreCodes: new Map([
+        ['user-1', new Set(['CP01'])],
+        ['user-2', new Set(['CP01'])],
+      ]),
+    };
+
+    await (service as any).stageChunk(
+      'job-1',
+      7n,
+      [row({ signedRevenue: 100, quantities: quantities({ cpuQuantity: 1 }) })],
+      conflictingIdentities,
+    );
+    await (service as any).stageChunk(
+      'job-1',
+      7n,
+      [
+        row({
+          rowNumber: 3,
+          salespersonEmail: 'sale-2@phongvu.vn',
+          salespersonCode: 'NV002',
+          signedRevenue: 200,
+          quantities: quantities({ mainboardQuantity: 1 }),
+        }),
+      ],
+      conflictingIdentities,
+    );
+
+    const stagedSql = tx.$executeRaw.mock.calls
+      .map(([statement]: [any]) => sqlText(statement))
+      .join('\n');
+    const stagedValues = tx.$executeRaw.mock.calls
+      .flatMap(([statement]: [any]) => statement.values ?? [])
+      .flat(Infinity);
+    expect(stagedValues).toContain('DATE_SHOWROOM_ORDER_IDENTITY_CONFLICT');
+    expect(stagedSql).toContain('SalesHistoryImportGrainStage');
+  });
+
+  it('quarantines within- and cross-chunk numeric overflows before a corrupt grain can activate', async () => {
+    const orderHash = createHash('sha256')
+      .update('2025-07-01|CP01|25070134938050')
+      .digest('hex');
+    const tx = {
+      $queryRaw: jest
+        .fn()
+        .mockResolvedValueOnce([{ id: 'job-1' }])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([{ id: 'job-1' }])
+        .mockResolvedValueOnce([
+          {
+            orderHash,
+            userId: 'user-1',
+            totalRevenue: BigInt(Number.MAX_SAFE_INTEGER),
+            ...quantities({ laptopQuantity: 2_147_483_647 }),
+          },
+        ]),
+      $executeRaw: jest.fn().mockResolvedValue(1),
+    };
+    const prisma = {
+      $transaction: jest.fn(async (operation: (client: any) => unknown) =>
+        operation(tx),
+      ),
+    };
+    const service = new SalesHistoryImportService(prisma as any, {} as any);
+
+    await (service as any).stageChunk(
+      'job-1',
+      7n,
+      [
+        row({
+          signedRevenue: Number.MAX_SAFE_INTEGER,
+          quantities: quantities({ laptopQuantity: 2_147_483_647 }),
+        }),
+        row({
+          rowNumber: 3,
+          signedRevenue: 1,
+          quantities: quantities({ laptopQuantity: 1 }),
+        }),
+      ],
+      identities,
+    );
+    await (service as any).stageChunk(
+      'job-1',
+      7n,
+      [
+        row({
+          rowNumber: 4,
+          signedRevenue: 1,
+          quantities: quantities({ laptopQuantity: 1 }),
+        }),
+      ],
+      identities,
+    );
+
+    const stagedSql = tx.$executeRaw.mock.calls
+      .map(([statement]: [any]) => sqlText(statement))
+      .join('\n');
+    const stagedValues = tx.$executeRaw.mock.calls
+      .flatMap(([statement]: [any]) => statement.values ?? [])
+      .flat(Infinity);
+    expect(stagedValues).toContain('DATE_SHOWROOM_NUMERIC_OVERFLOW');
+    expect(stagedSql).toContain('invalidRows');
+  });
+
+  it('quarantines a derived assembled-PC total above PostgreSQL integer range', async () => {
+    const tx = {
+      $queryRaw: jest.fn().mockResolvedValue([{ id: 'job-1' }]),
+      $executeRaw: jest.fn().mockResolvedValue(1),
+    };
+    const prisma = {
+      $transaction: jest.fn(async (operation: (client: any) => unknown) =>
+        operation(tx),
+      ),
+    };
+    const service = new SalesHistoryImportService(prisma as any, {} as any);
+
+    await (service as any).stageChunk(
+      'job-1',
+      7n,
+      [
+        row({
+          signedRevenue: 1_000,
+          quantities: quantities({
+            assembledPcQuantity: 2_147_483_647,
+            cpuQuantity: 1,
+            mainboardQuantity: 1,
+            memoryQuantity: 1,
+            storageQuantity: 1,
+            caseQuantity: 1,
+            psuQuantity: 1,
+          }),
+        }),
+      ],
+      identities,
+    );
+
+    expect(tx.$executeRaw).toHaveBeenCalledTimes(1);
+    const grainStatement = tx.$executeRaw.mock.calls[0][0];
+    expect(sqlText(grainStatement)).toContain(
+      'INSERT INTO "SalesHistoryImportGrainStage"',
+    );
+    expect(grainStatement.values).toEqual(
+      expect.arrayContaining([1, ['DATE_SHOWROOM_NUMERIC_OVERFLOW']]),
+    );
+  });
+
+  it('quarantines an unmatched taxonomy grain while keeping the invalid row out of order stage', async () => {
+    const tx = {
+      $queryRaw: jest.fn().mockResolvedValue([{ id: 'job-1' }]),
+      $executeRaw: jest.fn().mockResolvedValue(1),
+    };
+    const prisma = {
+      $transaction: jest.fn(async (operation: (client: any) => unknown) =>
+        operation(tx),
+      ),
+    };
+    const service = new SalesHistoryImportService(prisma as any, {} as any);
+
+    await (service as any).stageChunk(
+      'job-1',
+      7n,
+      [row({ errorCodes: ['INVALID_CATEGORY'] })],
+      identities,
+    );
+
+    expect(tx.$executeRaw).toHaveBeenCalledTimes(1);
+    const grainStatement = tx.$executeRaw.mock.calls[0][0];
+    expect(sqlText(grainStatement)).toContain(
+      'INSERT INTO "SalesHistoryImportGrainStage"',
+    );
+    expect(grainStatement.values).toEqual(
+      expect.arrayContaining([1, ['INVALID_CATEGORY']]),
+    );
+  });
+
+  it('finalizes assembled PC as direct quantity plus the non-negative six-component minimum per order', async () => {
+    const summaryDate = new Date('2025-07-01T00:00:00.000Z');
+    const tx = {
+      user: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'admin-1',
+          role: 'SUPER_ADMIN',
+          store: null,
+          organizationAssignments: [],
+        }),
+      },
+      salesHistoryImportGrainStage: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            summaryDate,
+            storeCode: 'CP01',
+            rowCount: 6,
+            invalidRows: 0,
+            reasonCodes: [],
+          },
+        ]),
+        deleteMany: jest.fn().mockResolvedValue({ count: 1 }),
+      },
+      salesHistoryImportOrderStage: {
+        deleteMany: jest.fn().mockResolvedValue({ count: 1 }),
+      },
+      salesHistoryImportJob: {
+        findUnique: jest.fn().mockResolvedValue({
+          requestedByUserId: 'admin-1',
+        }),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+      },
+      salesHistoryVersion: {
+        create: jest.fn().mockResolvedValue({ id: 'version-1' }),
+      },
+      salesHistoryCoverage: {
+        createMany: jest.fn().mockResolvedValue({ count: 1 }),
+      },
+      $executeRaw: jest.fn().mockResolvedValue(1),
+    };
+    const prisma = {
+      $transaction: jest.fn(async (operation: (client: any) => unknown) =>
+        operation(tx),
+      ),
+    };
+    const service = new SalesHistoryImportService(prisma as any, {} as any);
+
+    await expect(
+      (service as any).finalizeVersion(
+        { id: 'admin-1' },
+        'job-1',
+        'source-hash',
+      ),
+    ).resolves.toMatchObject({ versionId: 'version-1', cleanGrains: 1 });
+
+    const statements = tx.$executeRaw.mock.calls.map(([statement]) => ({
+      sql: sqlText(statement).replace(/\s+/g, ' '),
+      statement,
+    }));
+    expect(statements[0].sql).toContain('WITH overflow_grains AS');
+    expect(statements[0].sql).toContain('DATE_SHOWROOM_NUMERIC_OVERFLOW');
+    const aggregateSql = statements.find(({ sql }) =>
+      sql.includes('INSERT INTO "SalesHistoryAggregate"'),
+    )!.sql;
+    expect(aggregateSql).toContain(
+      'GREATEST(stage."assembledPcQuantity", 0)::bigint + GREATEST( LEAST( stage."cpuQuantity", stage."mainboardQuantity", stage."memoryQuantity", stage."storageQuantity", stage."caseQuantity", stage."psuQuantity" ), 0 )::bigint',
+    );
+    expect(aggregateSql).toContain(
+      'SUM(item."finalAssembledPcQuantity")::integer',
+    );
   });
 });

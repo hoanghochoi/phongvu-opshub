@@ -6,6 +6,7 @@ import { Prisma, PrismaClient } from '@prisma/client';
 import pg from 'pg';
 import { PrismaService } from '../prisma/prisma.service';
 import { SALES_PRICE_CONTRACT_VERSION } from '../sales-reports/sales-report-revenue';
+import { SalesReportCategoriesService } from '../sales-reports/sales-report-categories.service';
 import { SalesReportsService } from '../sales-reports/sales-reports.service';
 import { SalesHistoryImportParserService } from '../sales-reports/sales-history-import-parser.service';
 import { SalesHistoryImportService } from '../sales-reports/sales-history-import.service';
@@ -192,7 +193,9 @@ describePostgres('OPS-52 Home SALES KPI PostgreSQL reconciliation', () => {
     );
     historyImports = new SalesHistoryImportService(
       prisma as PrismaService,
-      new SalesHistoryImportParserService(),
+      new SalesHistoryImportParserService(
+        new SalesReportCategoriesService(prisma as PrismaService),
+      ),
     );
     const homeSummary = new HomeSummaryService(
       prisma as PrismaService,
@@ -232,6 +235,342 @@ describePostgres('OPS-52 Home SALES KPI PostgreSQL reconciliation', () => {
       status: 'UPLOADING',
       uploadedBytes: 0,
       expectedBytes: 1,
+    });
+  });
+
+  it('stages one canonical order across parser chunks through adapter-pg without numeric coercion', async () => {
+    const actor = await prisma.user.create({
+      data: {
+        email: `ops62-history-stage-${randomUUID()}@example.test`,
+        password: 'test-only-password',
+        firstName: 'OPS-62',
+        role: 'SUPER_ADMIN',
+      },
+    });
+    const jobId = randomUUID();
+    const claimToken = 7n;
+    await prisma.salesHistoryImportJob.create({
+      data: {
+        id: jobId,
+        status: 'PARSING',
+        expectedBytes: 1n,
+        uploadedBytes: 1n,
+        requestedByUserId: actor.id,
+        workerId: (historyImports as any).workerId,
+        claimToken,
+      },
+    });
+    const quantities = (component: string, value: number) => ({
+      extendedInsuranceQuantity: 0,
+      laptopQuantity: 0,
+      pcQuantity: 0,
+      assembledPcQuantity: 0,
+      appleQuantity: 0,
+      monitorQuantity: 0,
+      printerQuantity: 0,
+      accessoriesQuantity: 0,
+      cpuQuantity: 0,
+      mainboardQuantity: 0,
+      memoryQuantity: 0,
+      storageQuantity: 0,
+      caseQuantity: 0,
+      psuQuantity: 0,
+      [component]: value,
+    });
+    const row = (component: string, value: number, revenue: number) => ({
+      rowNumber: 2,
+      date: '2099-02-02',
+      storeCode: 'CP62',
+      orderCode: '25070134938050',
+      salespersonEmail: actor.email,
+      salespersonCode: 'OPS62',
+      signedRevenue: revenue,
+      quantities: quantities(component, value),
+      errorCodes: [],
+    });
+    const identities = {
+      storeCodes: new Set(['CP62']),
+      byEmail: new Map([[actor.email, actor.id]]),
+      byPersonnelCode: new Map([['OPS62', actor.id]]),
+      userStoreCodes: new Map([[actor.id, new Set(['CP62'])]]),
+    };
+
+    await (historyImports as any).stageChunk(
+      jobId,
+      claimToken,
+      [row('cpuQuantity', 2, 900)],
+      identities,
+    );
+    await (historyImports as any).stageChunk(
+      jobId,
+      claimToken,
+      [row('mainboardQuantity', 3, 1_200)],
+      identities,
+    );
+
+    await expect(
+      prisma.salesHistoryImportOrderStage.findFirstOrThrow({
+        where: { jobId },
+      }),
+    ).resolves.toMatchObject({
+      userId: actor.id,
+      totalRevenue: 2_100n,
+      cpuQuantity: 2,
+      mainboardQuantity: 3,
+    });
+
+    const indexes = await prisma.$queryRaw<
+      Array<{ indexname: string; indexdef: string }>
+    >(Prisma.sql`
+      SELECT indexname, indexdef
+      FROM pg_indexes
+      WHERE schemaname = current_schema()
+        AND tablename = 'SalesHistoryImportOrderStage'
+    `);
+    expect(indexes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          indexname: 'SalesHistoryImportOrderStage_jobId_orderHash_idx',
+          indexdef: expect.stringContaining('("jobId", "orderHash")'),
+        }),
+      ]),
+    );
+
+    await prisma.salesHistoryImportOrderStage.createMany({
+      data: Array.from({ length: 5_000 }, (_, index) => ({
+        jobId,
+        summaryDate: new Date('2099-02-03T00:00:00.000Z'),
+        storeCode: 'CP62',
+        userId: actor.id,
+        orderHash: `ops62-scale-${index.toString().padStart(5, '0')}`,
+        totalRevenue: 1n,
+      })),
+    });
+    await prisma.$executeRaw(Prisma.sql`
+      ANALYZE "SalesHistoryImportOrderStage"
+    `);
+    const explain = await prisma.$queryRaw<Array<{ 'QUERY PLAN': unknown }>>(
+      Prisma.sql`
+        EXPLAIN (FORMAT JSON)
+        SELECT "orderHash", "userId"
+        FROM "SalesHistoryImportOrderStage"
+        WHERE "jobId" = ${jobId}
+          AND "orderHash" IN ('ops62-scale-04999')
+      `,
+    );
+    expect(JSON.stringify(explain)).toContain(
+      'SalesHistoryImportOrderStage_jobId_orderHash_idx',
+    );
+  });
+
+  it('quarantines derived assembled-PC overflow while finalizing another clean grain', async () => {
+    const actor = await prisma.user.create({
+      data: {
+        email: `ops62-history-derived-boundary-${randomUUID()}@example.test`,
+        password: 'test-only-password',
+        firstName: 'OPS-62',
+        role: 'SUPER_ADMIN',
+      },
+    });
+    const jobId = randomUUID();
+    const claimToken = 8n;
+    await prisma.salesHistoryImportJob.create({
+      data: {
+        id: jobId,
+        status: 'PARSING',
+        expectedBytes: 1n,
+        uploadedBytes: 1n,
+        requestedByUserId: actor.id,
+        workerId: (historyImports as any).workerId,
+        claimToken,
+      },
+    });
+    const quantities = (
+      assembledPcQuantity: number,
+      componentQuantity: number,
+    ) => ({
+      extendedInsuranceQuantity: 0,
+      laptopQuantity: 0,
+      pcQuantity: 0,
+      assembledPcQuantity,
+      appleQuantity: 0,
+      monitorQuantity: 0,
+      printerQuantity: 0,
+      accessoriesQuantity: 0,
+      cpuQuantity: componentQuantity,
+      mainboardQuantity: componentQuantity,
+      memoryQuantity: componentQuantity,
+      storageQuantity: componentQuantity,
+      caseQuantity: componentQuantity,
+      psuQuantity: componentQuantity,
+    });
+    const row = (
+      storeCode: string,
+      orderCode: string,
+      assembledPcQuantity: number,
+      componentQuantity: number,
+    ) => ({
+      rowNumber: 2,
+      date: '2099-02-04',
+      storeCode,
+      orderCode,
+      salespersonEmail: actor.email,
+      salespersonCode: 'OPS62-BOUNDARY',
+      signedRevenue: 1_000,
+      quantities: quantities(assembledPcQuantity, componentQuantity),
+      errorCodes: [],
+    });
+    const identities = {
+      storeCodes: new Set(['CP64', 'CP65']),
+      byEmail: new Map([[actor.email, actor.id]]),
+      byPersonnelCode: new Map([['OPS62-BOUNDARY', actor.id]]),
+      userStoreCodes: new Map([[actor.id, new Set(['CP64', 'CP65'])]]),
+    };
+
+    await (historyImports as any).stageChunk(
+      jobId,
+      claimToken,
+      [
+        row('CP64', '25070134938051', 1_073_741_823, 0),
+        row('CP64', '25070134938052', 1_073_741_824, 0),
+        row('CP65', '25070134938053', 1_073_741_824, 0),
+        row('CP65', '25070134938054', 1_073_741_824, 0),
+      ],
+      identities,
+    );
+
+    const badGrain =
+      await prisma.salesHistoryImportGrainStage.findUniqueOrThrow({
+        where: {
+          jobId_summaryDate_storeCode: {
+            jobId,
+            summaryDate: new Date('2099-02-04T00:00:00.000Z'),
+            storeCode: 'CP65',
+          },
+        },
+      });
+    expect(badGrain).toMatchObject({
+      invalidRows: 0,
+      reasonCodes: [],
+    });
+
+    const finalized = await (historyImports as any).finalizeVersion(
+      { id: actor.id },
+      jobId,
+      'ops62-derived-boundary-proof',
+    );
+    await expect(
+      prisma.salesHistoryAggregate.findUniqueOrThrow({
+        where: {
+          versionId_summaryDate_storeCode_dimensionType_dimensionKey: {
+            versionId: finalized.versionId,
+            summaryDate: new Date('2099-02-04T00:00:00.000Z'),
+            storeCode: 'CP64',
+            dimensionType: 'STORE',
+            dimensionKey: '',
+          },
+        },
+      }),
+    ).resolves.toMatchObject({
+      totalRevenue: 2_000n,
+      totalOrders: 2,
+      assembledPcQuantity: 2_147_483_647,
+    });
+    await expect(
+      prisma.salesHistoryCoverage.findUniqueOrThrow({
+        where: {
+          versionId_summaryDate_storeCode: {
+            versionId: finalized.versionId,
+            summaryDate: new Date('2099-02-04T00:00:00.000Z'),
+            storeCode: 'CP65',
+          },
+        },
+      }),
+    ).resolves.toMatchObject({
+      status: 'QUARANTINED',
+      reasonCodes: expect.arrayContaining(['DATE_SHOWROOM_NUMERIC_OVERFLOW']),
+    });
+  });
+
+  it('finalizes staged component facts into the canonical assembled-PC aggregate on PostgreSQL', async () => {
+    const actor = await prisma.user.create({
+      data: {
+        email: `ops62-history-finalize-${randomUUID()}@example.test`,
+        password: 'test-only-password',
+        firstName: 'OPS-62',
+        role: 'SUPER_ADMIN',
+      },
+    });
+    const jobId = randomUUID();
+    const summaryDate = new Date('2099-02-01T00:00:00.000Z');
+    await prisma.salesHistoryImportJob.create({
+      data: {
+        id: jobId,
+        status: 'FINALIZING',
+        expectedBytes: 1n,
+        uploadedBytes: 1n,
+        requestedByUserId: actor.id,
+      },
+    });
+    await prisma.salesHistoryImportGrainStage.create({
+      data: {
+        jobId,
+        summaryDate,
+        storeCode: 'CP62',
+        rowCount: 12,
+        invalidRows: 0,
+      },
+    });
+    await prisma.salesHistoryImportOrderStage.createMany({
+      data: [
+        {
+          jobId,
+          summaryDate,
+          storeCode: 'CP62',
+          userId: actor.id,
+          orderHash: 'ops62-components',
+          totalRevenue: 1_000n,
+          assembledPcQuantity: 1,
+          cpuQuantity: 2,
+          mainboardQuantity: 3,
+          memoryQuantity: 4,
+          storageQuantity: 5,
+          caseQuantity: 6,
+          psuQuantity: 7,
+        },
+        {
+          jobId,
+          summaryDate,
+          storeCode: 'CP62',
+          userId: actor.id,
+          orderHash: 'ops62-negative-direct',
+          totalRevenue: 1_000n,
+          assembledPcQuantity: -1,
+        },
+      ],
+    });
+
+    const finalized = await (historyImports as any).finalizeVersion(
+      { id: actor.id },
+      jobId,
+      'ops62-postgres-component-proof',
+    );
+    const aggregate = await prisma.salesHistoryAggregate.findUniqueOrThrow({
+      where: {
+        versionId_summaryDate_storeCode_dimensionType_dimensionKey: {
+          versionId: finalized.versionId,
+          summaryDate,
+          storeCode: 'CP62',
+          dimensionType: 'STORE',
+          dimensionKey: '',
+        },
+      },
+    });
+
+    expect(aggregate).toMatchObject({
+      totalRevenue: 2_000n,
+      totalOrders: 2,
+      assembledPcQuantity: 3,
     });
   });
 

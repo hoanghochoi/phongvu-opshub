@@ -8,6 +8,22 @@ covered across wide `1440x900`, compact `390x844`, medium `768x1024` and
 expanded `1024x900` viewports (180 route/viewport checks). Older 88-check
 entries below are historical evidence and do not replace the OPS-44 gate.
 
+- `OPS-62`/`HOME-DASHBOARD-002`, 2026-08-11: historical Sales import accepts
+  the exact 34-column export as a dedicated adapter while preserving legacy
+  wide/category inputs and the existing API/final aggregate. Proof covers VAT
+  revenue, HRM ID, canonical 14-digit orders, safe scientific integers,
+  exact-ID taxonomy precedence/snapshot reuse, target/non-target/unmapped
+  categories, six-component staging across chunks, quarantine, and per-order
+  assembled-PC aggregation. Exact 58,179,129-byte file proof parsed 98,473 rows:
+  98,262 taxonomy mapped, 211 taxonomy-only quarantine, and zero revenue,
+  quantity or order-code errors. Validation: focused parser/import `58/58`,
+  PostgreSQL fresh-migration/index/stage/adapter/finalization `8/8`, full Nest
+  `108/108` suites (`1,201` passed, `5` PostgreSQL-gated skipped), full Flutter `850`
+  passed/`3` skipped,
+  Flutter analyze, Go tests, Nest/Prisma builds, and Windows/Web/Android staging
+  builds passed. Changed TypeScript Prettier and `git diff --check` passed;
+  repository-wide Prettier remains a pre-existing CRLF baseline failure.
+
 - `OPS-52`/`HOME-DASHBOARD-002`/`SALES-REPORT-001`, 2026-08-09,
   `local_verified_with_staging_gaps`: Home
   `studentPromotionCount` and `examScorePromotionCount` now count only
