@@ -1,3 +1,13 @@
+jest.mock('node:fs/promises', () => {
+  const actual = jest.requireActual('node:fs/promises');
+  return {
+    ...actual,
+    open: jest.fn(actual.open),
+    unlink: jest.fn(actual.unlink),
+  };
+});
+
+import { access, open, rm, stat, unlink } from 'node:fs/promises';
 import { SalesHistoryImportService } from './sales-history-import.service';
 
 function advisoryLockKeys(executeRaw: jest.Mock) {
@@ -370,6 +380,9 @@ describe('SalesHistoryImportService authorization and worker lifecycle', () => {
           organizationAssignments: [],
         }),
       },
+      salesHistoryImportJob: {
+        findUnique: jest.fn().mockResolvedValue(null),
+      },
       $transaction: jest.fn(async (operation: (client: any) => unknown) =>
         operation(tx),
       ),
@@ -383,6 +396,786 @@ describe('SalesHistoryImportService authorization and worker lifecycle', () => {
       'sales-history-import-upload-admission',
     ]);
     expect(tx.salesHistoryImportJob.create).not.toHaveBeenCalled();
+  });
+
+  it('creates the admitted artifact before accepting the first chunk at offset zero', async () => {
+    let admittedJob: any;
+    const tx = {
+      $executeRaw: jest.fn().mockResolvedValue(1),
+      salesHistoryImportJob: {
+        aggregate: jest.fn().mockResolvedValue({
+          _sum: { expectedBytes: 0n },
+        }),
+        create: jest.fn(({ data }) => {
+          admittedJob = {
+            id: 'job-1',
+            ...data,
+            totalRows: null,
+            cleanRows: null,
+            quarantinedRows: null,
+            cleanGrains: null,
+            quarantinedGrains: null,
+            failureMessage: null,
+            versionId: null,
+            cancelRequestedAt: null,
+            createdAt: new Date(),
+            completedAt: null,
+          };
+          return admittedJob;
+        }),
+        findUnique: jest
+          .fn()
+          .mockImplementationOnce(() => admittedJob)
+          .mockImplementationOnce(() => ({
+            ...admittedJob,
+            uploadedBytes: 3n,
+          })),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+      },
+    };
+    const prisma = {
+      user: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'admin-1',
+          role: 'SUPER_ADMIN',
+          store: null,
+          organizationAssignments: [],
+        }),
+      },
+      salesHistoryImportJob: {
+        findUnique: jest.fn().mockImplementation(() => ({
+          ...admittedJob,
+          version: null,
+          stagedGrains: [],
+        })),
+      },
+      $transaction: jest.fn(async (operation: (client: any) => unknown) =>
+        operation(tx),
+      ),
+    };
+    const service = new SalesHistoryImportService(prisma as any, {} as any);
+
+    try {
+      await service.createUpload({ id: 'admin-1' }, 'history.csv', 3);
+      await expect(access(admittedJob.artifactPath)).resolves.toBeUndefined();
+      if (process.platform !== 'win32') {
+        expect((await stat(admittedJob.artifactPath)).mode & 0o077).toBe(0);
+      }
+
+      await expect(
+        service.appendUploadChunk({ id: 'admin-1' }, admittedJob.id, 0, {
+          buffer: Buffer.from('abc'),
+        } as any),
+      ).resolves.toMatchObject({ id: admittedJob.id, uploadedBytes: 3 });
+    } finally {
+      if (admittedJob?.artifactPath) {
+        await rm(admittedJob.artifactPath, { force: true });
+        await expect(access(admittedJob.artifactPath)).rejects.toMatchObject({
+          code: 'ENOENT',
+        });
+      }
+    }
+  });
+
+  it('removes the newly created artifact when persisting its upload job fails', async () => {
+    const mockOpen = jest.mocked(open);
+    const mockUnlink = jest.mocked(unlink);
+    const close = jest.fn().mockResolvedValue(undefined);
+    mockOpen.mockClear();
+    mockUnlink.mockClear();
+    mockOpen.mockImplementationOnce(async () => ({ close }) as any);
+    mockUnlink.mockImplementationOnce(async () => undefined);
+    const tx = {
+      $executeRaw: jest.fn().mockResolvedValue(1),
+      salesHistoryImportJob: {
+        aggregate: jest.fn().mockResolvedValue({
+          _sum: { expectedBytes: 0n },
+        }),
+        create: jest.fn().mockRejectedValue(new Error('database unavailable')),
+      },
+    };
+    const prisma = {
+      user: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'admin-1',
+          role: 'SUPER_ADMIN',
+          store: null,
+          organizationAssignments: [],
+        }),
+      },
+      salesHistoryImportJob: {
+        findUnique: jest.fn().mockResolvedValue(null),
+      },
+      $transaction: jest.fn(async (operation: (client: any) => unknown) =>
+        operation(tx),
+      ),
+    };
+    const service = new SalesHistoryImportService(prisma as any, {} as any);
+
+    await expect(
+      service.createUpload({ id: 'admin-1' }, 'history.csv', 3),
+    ).rejects.toThrow('database unavailable');
+    expect(mockOpen).toHaveBeenCalledWith(expect.any(String), 'wx', 0o600);
+    expect(close).toHaveBeenCalledTimes(1);
+    expect(mockUnlink).toHaveBeenCalledWith(expect.any(String));
+  });
+
+  it('recovers a committed admission when the transaction result is ambiguous', async () => {
+    const actualFs = jest.requireActual(
+      'node:fs/promises',
+    ) as typeof import('node:fs/promises');
+    const mockOpen = jest.mocked(open);
+    const mockUnlink = jest.mocked(unlink);
+    let admittedJob: any;
+    mockOpen.mockClear();
+    mockUnlink.mockClear();
+    mockOpen.mockImplementation(actualFs.open);
+    mockUnlink.mockImplementation(actualFs.unlink);
+    const tx = {
+      $executeRaw: jest.fn().mockResolvedValue(1),
+      salesHistoryImportJob: {
+        aggregate: jest.fn().mockResolvedValue({
+          _sum: { expectedBytes: 0n },
+        }),
+        create: jest.fn(({ data }) => {
+          admittedJob = {
+            ...data,
+            totalRows: null,
+            cleanRows: null,
+            quarantinedRows: null,
+            cleanGrains: null,
+            quarantinedGrains: null,
+            failureMessage: null,
+            versionId: null,
+            cancelRequestedAt: null,
+            createdAt: new Date(),
+            completedAt: null,
+          };
+          return admittedJob;
+        }),
+        findUnique: jest
+          .fn()
+          .mockImplementationOnce(() => admittedJob)
+          .mockImplementationOnce(() => ({
+            ...admittedJob,
+            uploadedBytes: 3n,
+          })),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+      },
+    };
+    let transactionCalls = 0;
+    const prisma = {
+      user: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'admin-1',
+          role: 'SUPER_ADMIN',
+          store: null,
+          organizationAssignments: [],
+        }),
+      },
+      salesHistoryImportJob: {
+        findUnique: jest.fn().mockImplementation(() => admittedJob),
+      },
+      $transaction: jest.fn(async (operation: (client: any) => unknown) => {
+        const result = await operation(tx);
+        if (transactionCalls++ === 0) {
+          throw new Error('transaction result unavailable');
+        }
+        return result;
+      }),
+    };
+    const service = new SalesHistoryImportService(prisma as any, {} as any);
+
+    try {
+      const recovered = await service.createUpload(
+        { id: 'admin-1' },
+        'history.csv',
+        3,
+      );
+      expect(recovered.id).toBe(admittedJob.id);
+      expect(tx.salesHistoryImportJob.create).toHaveBeenCalledTimes(1);
+      expect(mockUnlink).not.toHaveBeenCalled();
+      await expect(access(admittedJob.artifactPath)).resolves.toBeUndefined();
+
+      await expect(
+        service.appendUploadChunk({ id: 'admin-1' }, recovered.id, 0, {
+          buffer: Buffer.from('abc'),
+        } as any),
+      ).resolves.toMatchObject({ id: recovered.id, uploadedBytes: 3 });
+    } finally {
+      if (admittedJob?.artifactPath) {
+        await rm(admittedJob.artifactPath, { force: true });
+      }
+      mockOpen.mockImplementation(actualFs.open);
+      mockUnlink.mockImplementation(actualFs.unlink);
+    }
+  });
+
+  it('retains the artifact when ambiguous admission reconciliation is unavailable', async () => {
+    const actualFs = jest.requireActual(
+      'node:fs/promises',
+    ) as typeof import('node:fs/promises');
+    const mockOpen = jest.mocked(open);
+    const mockUnlink = jest.mocked(unlink);
+    let admittedJob: any;
+    mockOpen.mockClear();
+    mockUnlink.mockClear();
+    mockOpen.mockImplementation(actualFs.open);
+    mockUnlink.mockImplementation(actualFs.unlink);
+    const tx = {
+      $executeRaw: jest.fn().mockResolvedValue(1),
+      salesHistoryImportJob: {
+        aggregate: jest.fn().mockResolvedValue({
+          _sum: { expectedBytes: 0n },
+        }),
+        create: jest.fn(({ data }) => {
+          admittedJob = {
+            ...data,
+            totalRows: null,
+            cleanRows: null,
+            quarantinedRows: null,
+            cleanGrains: null,
+            quarantinedGrains: null,
+            failureMessage: null,
+            versionId: null,
+            cancelRequestedAt: null,
+            createdAt: new Date(),
+            completedAt: null,
+          };
+          return admittedJob;
+        }),
+      },
+    };
+    const prisma = {
+      user: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'admin-1',
+          role: 'SUPER_ADMIN',
+          store: null,
+          organizationAssignments: [],
+        }),
+      },
+      salesHistoryImportJob: {
+        findUnique: jest
+          .fn()
+          .mockRejectedValue(new Error('reconciliation unavailable')),
+      },
+      $transaction: jest.fn(async (operation: (client: any) => unknown) => {
+        await operation(tx);
+        throw new Error('transaction result unavailable');
+      }),
+    };
+    const service = new SalesHistoryImportService(prisma as any, {} as any);
+
+    try {
+      await expect(
+        service.createUpload({ id: 'admin-1' }, 'history.csv', 3),
+      ).rejects.toThrow('transaction result unavailable');
+      expect(tx.salesHistoryImportJob.create).toHaveBeenCalledTimes(1);
+      expect(prisma.salesHistoryImportJob.findUnique).toHaveBeenCalledWith({
+        where: { id: admittedJob.id },
+      });
+      expect(mockUnlink).not.toHaveBeenCalled();
+      await expect(access(admittedJob.artifactPath)).resolves.toBeUndefined();
+    } finally {
+      if (admittedJob?.artifactPath) {
+        await rm(admittedJob.artifactPath, { force: true });
+      }
+      mockOpen.mockImplementation(actualFs.open);
+      mockUnlink.mockImplementation(actualFs.unlink);
+    }
+  });
+
+  it('removes only the generated artifact when reconciliation finds another path', async () => {
+    const mockOpen = jest.mocked(open);
+    const mockUnlink = jest.mocked(unlink);
+    const close = jest.fn().mockResolvedValue(undefined);
+    let admittedJob: any;
+    let generatedArtifactPath: string | undefined;
+    const persistedArtifactPath = 'C:/tmp/existing-other.upload';
+    mockOpen.mockClear();
+    mockUnlink.mockClear();
+    mockOpen.mockImplementationOnce(async (path) => {
+      generatedArtifactPath = String(path);
+      return { close } as any;
+    });
+    mockUnlink.mockResolvedValueOnce(undefined);
+    const tx = {
+      $executeRaw: jest.fn().mockResolvedValue(1),
+      salesHistoryImportJob: {
+        aggregate: jest.fn().mockResolvedValue({
+          _sum: { expectedBytes: 0n },
+        }),
+        create: jest.fn(({ data }) => {
+          admittedJob = { ...data };
+          return admittedJob;
+        }),
+      },
+    };
+    const prisma = {
+      user: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'admin-1',
+          role: 'SUPER_ADMIN',
+          store: null,
+          organizationAssignments: [],
+        }),
+      },
+      salesHistoryImportJob: {
+        findUnique: jest.fn().mockImplementation(() => ({
+          ...admittedJob,
+          artifactPath: persistedArtifactPath,
+        })),
+      },
+      $transaction: jest.fn(async (operation: (client: any) => unknown) => {
+        await operation(tx);
+        throw new Error('transaction result unavailable');
+      }),
+    };
+    const service = new SalesHistoryImportService(prisma as any, {} as any);
+
+    await expect(
+      service.createUpload({ id: 'admin-1' }, 'history.csv', 3),
+    ).rejects.toThrow('transaction result unavailable');
+    expect(tx.salesHistoryImportJob.create).toHaveBeenCalledTimes(1);
+    expect(mockUnlink).toHaveBeenCalledTimes(1);
+    expect(mockUnlink).toHaveBeenCalledWith(generatedArtifactPath);
+    expect(mockUnlink).not.toHaveBeenCalledWith(persistedArtifactPath);
+  });
+
+  it('compensates a database admission failure by unlinking the exact real artifact', async () => {
+    const actualFs = jest.requireActual(
+      'node:fs/promises',
+    ) as typeof import('node:fs/promises');
+    const mockOpen = jest.mocked(open);
+    const mockUnlink = jest.mocked(unlink);
+    let artifactPath: string | undefined;
+    mockOpen.mockClear();
+    mockUnlink.mockClear();
+    mockOpen.mockImplementation(async (path, flags, mode) => {
+      artifactPath = String(path);
+      return actualFs.open(path, flags, mode);
+    });
+    mockUnlink.mockImplementation(actualFs.unlink);
+    const tx = {
+      $executeRaw: jest.fn().mockResolvedValue(1),
+      salesHistoryImportJob: {
+        aggregate: jest.fn().mockResolvedValue({
+          _sum: { expectedBytes: 0n },
+        }),
+        create: jest.fn().mockRejectedValue(new Error('database unavailable')),
+      },
+    };
+    const prisma = {
+      user: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'admin-1',
+          role: 'SUPER_ADMIN',
+          store: null,
+          organizationAssignments: [],
+        }),
+      },
+      salesHistoryImportJob: {
+        findUnique: jest.fn().mockResolvedValue(null),
+      },
+      $transaction: jest.fn(async (operation: (client: any) => unknown) =>
+        operation(tx),
+      ),
+    };
+    const service = new SalesHistoryImportService(prisma as any, {} as any);
+
+    try {
+      await expect(
+        service.createUpload({ id: 'admin-1' }, 'history.csv', 3),
+      ).rejects.toThrow('database unavailable');
+      expect(artifactPath).toEqual(expect.any(String));
+      expect(mockUnlink).toHaveBeenCalledWith(artifactPath);
+      await expect(access(artifactPath!)).rejects.toMatchObject({
+        code: 'ENOENT',
+      });
+    } finally {
+      if (artifactPath) await rm(artifactPath, { force: true });
+      mockOpen.mockImplementation(actualFs.open);
+      mockUnlink.mockImplementation(actualFs.unlink);
+    }
+  });
+
+  it('does not create a job when its artifact parent cannot be opened', async () => {
+    const mockOpen = jest.mocked(open);
+    const mockUnlink = jest.mocked(unlink);
+    const missingParent = Object.assign(new Error('ENOENT'), {
+      code: 'ENOENT',
+    });
+    mockOpen.mockClear();
+    mockUnlink.mockClear();
+    mockOpen.mockRejectedValueOnce(missingParent);
+    const tx = {
+      $executeRaw: jest.fn().mockResolvedValue(1),
+      salesHistoryImportJob: {
+        aggregate: jest.fn().mockResolvedValue({
+          _sum: { expectedBytes: 0n },
+        }),
+        create: jest.fn(),
+      },
+    };
+    const prisma = {
+      user: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'admin-1',
+          role: 'SUPER_ADMIN',
+          store: null,
+          organizationAssignments: [],
+        }),
+      },
+      salesHistoryImportJob: {
+        findUnique: jest.fn().mockResolvedValue(null),
+      },
+      $transaction: jest.fn(async (operation: (client: any) => unknown) =>
+        operation(tx),
+      ),
+    };
+    const service = new SalesHistoryImportService(prisma as any, {} as any);
+    const warn = jest.spyOn((service as any).logger, 'warn');
+
+    await expect(
+      service.createUpload({ id: 'admin-1' }, 'history.csv', 3),
+    ).rejects.toThrow('ENOENT');
+    expect(tx.salesHistoryImportJob.create).not.toHaveBeenCalled();
+    expect(mockUnlink).not.toHaveBeenCalled();
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining('admission failed'),
+    );
+  });
+
+  it('cleans up and logs when closing a newly created artifact fails', async () => {
+    const mockOpen = jest.mocked(open);
+    const mockUnlink = jest.mocked(unlink);
+    mockOpen.mockClear();
+    mockUnlink.mockClear();
+    mockOpen.mockImplementationOnce(
+      async () =>
+        ({
+          close: jest.fn().mockRejectedValue(new Error('close unavailable')),
+        }) as any,
+    );
+    mockUnlink.mockResolvedValueOnce(undefined);
+    const tx = {
+      $executeRaw: jest.fn().mockResolvedValue(1),
+      salesHistoryImportJob: {
+        aggregate: jest.fn().mockResolvedValue({
+          _sum: { expectedBytes: 0n },
+        }),
+        create: jest.fn(),
+      },
+    };
+    const prisma = {
+      user: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'admin-1',
+          role: 'SUPER_ADMIN',
+          store: null,
+          organizationAssignments: [],
+        }),
+      },
+      salesHistoryImportJob: {
+        findUnique: jest.fn().mockResolvedValue(null),
+      },
+      $transaction: jest.fn(async (operation: (client: any) => unknown) =>
+        operation(tx),
+      ),
+    };
+    const service = new SalesHistoryImportService(prisma as any, {} as any);
+    const warn = jest.spyOn((service as any).logger, 'warn');
+
+    await expect(
+      service.createUpload({ id: 'admin-1' }, 'history.csv', 3),
+    ).rejects.toThrow('close unavailable');
+    expect(tx.salesHistoryImportJob.create).not.toHaveBeenCalled();
+    expect(mockUnlink).toHaveBeenCalledWith(expect.any(String));
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining('admission failed'),
+    );
+  });
+
+  it('logs cleanup failure without masking the database admission failure', async () => {
+    const mockOpen = jest.mocked(open);
+    const mockUnlink = jest.mocked(unlink);
+    const close = jest.fn().mockResolvedValue(undefined);
+    mockOpen.mockClear();
+    mockUnlink.mockClear();
+    mockOpen.mockImplementationOnce(async () => ({ close }) as any);
+    mockUnlink.mockRejectedValueOnce(new Error('unlink unavailable'));
+    const tx = {
+      $executeRaw: jest.fn().mockResolvedValue(1),
+      salesHistoryImportJob: {
+        aggregate: jest.fn().mockResolvedValue({
+          _sum: { expectedBytes: 0n },
+        }),
+        create: jest.fn().mockRejectedValue(new Error('database unavailable')),
+      },
+    };
+    const prisma = {
+      user: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'admin-1',
+          role: 'SUPER_ADMIN',
+          store: null,
+          organizationAssignments: [],
+        }),
+      },
+      salesHistoryImportJob: {
+        findUnique: jest.fn().mockResolvedValue(null),
+      },
+      $transaction: jest.fn(async (operation: (client: any) => unknown) =>
+        operation(tx),
+      ),
+    };
+    const service = new SalesHistoryImportService(prisma as any, {} as any);
+    const error = jest.spyOn((service as any).logger, 'error');
+
+    await expect(
+      service.createUpload({ id: 'admin-1' }, 'history.csv', 3),
+    ).rejects.toThrow('database unavailable');
+    expect(error).toHaveBeenCalledWith(
+      expect.stringContaining('admission cleanup failed'),
+    );
+  });
+
+  it('persists a chunk across short writes before advancing the upload offset', async () => {
+    const bytes = Buffer.from('hello');
+    const job = {
+      id: 'job-1',
+      status: 'UPLOADING',
+      requestedByUserId: 'admin-1',
+      uploadedBytes: 0n,
+      expectedBytes: 5n,
+      artifactPath: 'C:/tmp/history.csv',
+      version: null,
+      stagedGrains: [],
+    };
+    const write = jest
+      .fn()
+      .mockResolvedValueOnce({ bytesWritten: 2 })
+      .mockResolvedValueOnce({ bytesWritten: 1 })
+      .mockResolvedValueOnce({ bytesWritten: 2 });
+    const handle = {
+      stat: jest.fn().mockResolvedValue({ size: 0 }),
+      write,
+      truncate: jest.fn().mockResolvedValue(undefined),
+      close: jest.fn().mockResolvedValue(undefined),
+    };
+    const tx = {
+      $executeRaw: jest.fn().mockResolvedValue(1),
+      salesHistoryImportJob: {
+        findUnique: jest
+          .fn()
+          .mockResolvedValueOnce(job)
+          .mockResolvedValueOnce({ ...job, uploadedBytes: 5n }),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+      },
+    };
+    const prisma = {
+      user: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'admin-1',
+          role: 'SUPER_ADMIN',
+          store: null,
+          organizationAssignments: [],
+        }),
+      },
+      salesHistoryImportJob: { findUnique: jest.fn().mockResolvedValue(job) },
+      $transaction: jest.fn(async (operation: (client: any) => unknown) =>
+        operation(tx),
+      ),
+    };
+    const mockOpen = jest.mocked(open);
+    mockOpen.mockClear();
+    mockOpen.mockImplementationOnce(async () => handle as any);
+    const service = new SalesHistoryImportService(prisma as any, {} as any);
+
+    await expect(
+      service.appendUploadChunk({ id: 'admin-1' }, 'job-1', 0, {
+        buffer: bytes,
+      } as any),
+    ).resolves.toMatchObject({ uploadedBytes: 5 });
+    expect(write).toHaveBeenCalledTimes(3);
+    expect(
+      write.mock.calls.map(([buffer, sourceOffset, length, position]) => ({
+        data: Buffer.from(buffer)
+          .subarray(sourceOffset, sourceOffset + length)
+          .toString(),
+        sourceOffset,
+        length,
+        position,
+      })),
+    ).toEqual([
+      { data: 'hello', sourceOffset: 0, length: 5, position: 0 },
+      { data: 'llo', sourceOffset: 2, length: 3, position: 2 },
+      { data: 'lo', sourceOffset: 3, length: 2, position: 3 },
+    ]);
+    expect(tx.salesHistoryImportJob.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { uploadedBytes: 5n } }),
+    );
+  });
+
+  it('rejects a zero-progress write without advancing the upload record or scheduling work', async () => {
+    const job = {
+      id: 'job-1',
+      status: 'UPLOADING',
+      requestedByUserId: 'admin-1',
+      uploadedBytes: 0n,
+      expectedBytes: 3n,
+      artifactPath: 'C:/tmp/history.csv',
+      version: null,
+      stagedGrains: [],
+    };
+    const handle = {
+      stat: jest.fn().mockResolvedValue({ size: 0 }),
+      write: jest.fn().mockResolvedValue({ bytesWritten: 0 }),
+      truncate: jest.fn().mockResolvedValue(undefined),
+      close: jest.fn().mockResolvedValue(undefined),
+    };
+    const tx = {
+      $executeRaw: jest.fn().mockResolvedValue(1),
+      salesHistoryImportJob: {
+        findUnique: jest.fn().mockResolvedValue(job),
+        updateMany: jest.fn(),
+      },
+    };
+    const prisma = {
+      user: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'admin-1',
+          role: 'SUPER_ADMIN',
+          store: null,
+          organizationAssignments: [],
+        }),
+      },
+      salesHistoryImportJob: { findUnique: jest.fn().mockResolvedValue(job) },
+      $transaction: jest.fn(async (operation: (client: any) => unknown) =>
+        operation(tx),
+      ),
+    };
+    const mockOpen = jest.mocked(open);
+    mockOpen.mockClear();
+    mockOpen.mockImplementationOnce(async () => handle as any);
+    const service = new SalesHistoryImportService(prisma as any, {} as any);
+    const schedulePump = jest.spyOn(service as any, 'schedulePump');
+
+    await expect(
+      service.appendUploadChunk({ id: 'admin-1' }, 'job-1', 0, {
+        buffer: Buffer.from('abc'),
+      } as any),
+    ).rejects.toThrow();
+    expect(tx.salesHistoryImportJob.updateMany).not.toHaveBeenCalled();
+    expect(schedulePump).not.toHaveBeenCalled();
+    expect(handle.truncate).toHaveBeenCalledWith(0);
+    expect(handle.close).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not make a short final chunk eligible for completion until every byte persists', async () => {
+    const job = {
+      id: 'job-1',
+      status: 'UPLOADING',
+      requestedByUserId: 'admin-1',
+      uploadedBytes: 0n,
+      expectedBytes: 5n,
+      artifactPath: 'C:/tmp/history.csv',
+      version: null,
+      stagedGrains: [],
+    };
+    const handle = {
+      stat: jest.fn().mockResolvedValue({ size: 0 }),
+      write: jest
+        .fn()
+        .mockResolvedValueOnce({ bytesWritten: 4 })
+        .mockResolvedValueOnce({ bytesWritten: 0 }),
+      truncate: jest.fn().mockResolvedValue(undefined),
+      close: jest.fn().mockResolvedValue(undefined),
+    };
+    const tx = {
+      $executeRaw: jest.fn().mockResolvedValue(1),
+      salesHistoryImportJob: {
+        findUnique: jest.fn().mockResolvedValue(job),
+        updateMany: jest.fn(),
+      },
+    };
+    const prisma = {
+      user: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'admin-1',
+          role: 'SUPER_ADMIN',
+          store: null,
+          organizationAssignments: [],
+        }),
+      },
+      salesHistoryImportJob: { findUnique: jest.fn().mockResolvedValue(job) },
+      $transaction: jest.fn(async (operation: (client: any) => unknown) =>
+        operation(tx),
+      ),
+    };
+    const mockOpen = jest.mocked(open);
+    mockOpen.mockClear();
+    mockOpen.mockImplementationOnce(async () => handle as any);
+    const service = new SalesHistoryImportService(prisma as any, {} as any);
+
+    await expect(
+      service.appendUploadChunk({ id: 'admin-1' }, 'job-1', 0, {
+        buffer: Buffer.from('final'),
+      } as any),
+    ).rejects.toThrow();
+    expect(handle.write).toHaveBeenCalledTimes(2);
+    expect(tx.salesHistoryImportJob.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('accepts only a fully acknowledged chunk replay and rejects a partial overlap', async () => {
+    const job = {
+      id: 'job-1',
+      status: 'UPLOADING',
+      requestedByUserId: 'admin-1',
+      uploadedBytes: 3n,
+      expectedBytes: 8n,
+      artifactPath: 'C:/tmp/history.csv',
+      version: null,
+      stagedGrains: [],
+    };
+    const tx = {
+      $executeRaw: jest.fn().mockResolvedValue(1),
+      salesHistoryImportJob: {
+        findUnique: jest.fn().mockResolvedValue(job),
+      },
+    };
+    const prisma = {
+      user: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'admin-1',
+          role: 'SUPER_ADMIN',
+          store: null,
+          organizationAssignments: [],
+        }),
+      },
+      salesHistoryImportJob: {
+        findUnique: jest.fn().mockResolvedValue(job),
+      },
+      $transaction: jest.fn(async (operation: (client: any) => unknown) =>
+        operation(tx),
+      ),
+    };
+    const service = new SalesHistoryImportService(prisma as any, {} as any);
+    const mockOpen = jest.mocked(open);
+    mockOpen.mockClear();
+
+    await expect(
+      service.appendUploadChunk({ id: 'admin-1' }, 'job-1', 1, {
+        buffer: Buffer.from('bc'),
+      } as any),
+    ).resolves.toMatchObject({ id: 'job-1', uploadedBytes: 3 });
+    await expect(
+      service.appendUploadChunk({ id: 'admin-1' }, 'job-1', 2, {
+        buffer: Buffer.from('cd'),
+      } as any),
+    ).rejects.toThrow('Tiến trình tải lên đã thay đổi');
+    expect(mockOpen).not.toHaveBeenCalled();
   });
 
   it('rejects an upload chunk on invalid fresh scope before disk mutation', async () => {

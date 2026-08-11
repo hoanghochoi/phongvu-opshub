@@ -22,6 +22,23 @@ must cancel and clean the admitted job before surfacing the actionable retry
 error. Server-advertised/negotiated chunk limits and real proxy-level multipart
 coverage remain the durable full-fix follow-up.
 
+## Third staging regression — artifact provisioning
+
+Staging build `2026.08.10.387+200387` at merge SHA
+`0cd987911279003772d0a7196f653f4ecd572596` reads the same 58,179,129-byte
+Windows CSV successfully, but every first-chunk attempt fails with
+`Không mở được tệp tạm`. Admission currently persists a random artifact path
+without creating the file, while the chunk writer opens that path with `r+`.
+The second hotfix correctly cancels the zero-byte job after three failures.
+
+The bounded third hotfix provisions the unique empty artifact before admission
+is reported successful, compensates filesystem state if the database operation
+fails, and preserves strict offset/idempotency semantics. Staging QA is limited
+to exactly one healthy API replica with no restart during upload because the
+current `/tmp` tmpfs remains container-local. Shared restart- and replica-safe
+storage requires a separate approved architecture decision and is not implied
+by this hotfix. That durable full-fix is tracked in Linear as `OPS-63`.
+
 ## Authority and checkpoint
 
 - Linear: OPS-62, related to OPS-58/59/60.
@@ -38,6 +55,10 @@ coverage remain the durable full-fix follow-up.
 - Second-hotfix branch/worktree:
   `codex/ops-62-history-chunk-boundary-hotfix` at
   `C:\Users\ASUS1\Documents\flutter_projects\opshub-ops-62-chunk`.
+- Third-hotfix base: clean `origin/staging` SHA
+  `0cd987911279003772d0a7196f653f4ecd572596`.
+- Third-hotfix branch/worktree: `codex/ops-62-history-artifact-path-hotfix` at
+  `C:\Users\ASUS1\Documents\flutter_projects\opshub-ops-62-artifact`.
 
 ## Plan
 
@@ -58,6 +79,16 @@ coverage remain the durable full-fix follow-up.
    logical guard; cancel/clean an admitted job after terminal upload failure.
 9. Re-run affected Nest/Flutter consumers and builds, independent review, PR,
    exact-SHA staging deploy, then retry the same 58 MB CSV past 0%.
+10. Reproduce admission followed by a missing first-chunk artifact, then create
+    the artifact before successful admission with cleanup on database failure.
+11. Preserve strict `r+` offset handling, cancellation, worker and TTL cleanup;
+    prove missing-parent and first-chunk behavior on a real filesystem.
+12. Before staging QA, verify one healthy API replica, zero stale nonterminal
+    import jobs and no API restart during the same-file upload.
+13. Reconcile an ambiguous transaction result by generated job ID before
+    filesystem compensation; return the durable job as recovered admission when
+    it owns the artifact, retain on unavailable reconciliation, and let TTL
+    cleanup reclaim true orphans. Create raw upload artifacts with mode `0600`.
 
 ## Recovery
 
@@ -94,3 +125,6 @@ formula, permission, action or responsive breakpoint policy.
 - Exact 4 MiB multipart acceptance, over-limit service rejection, permanent
   chunk-failure cancellation, and authenticated Windows staging proof with the
   same 58 MB file progressing beyond 0% without `File too large`.
+- Admission/first-chunk artifact creation, database-failure compensation,
+  strict offset/idempotency, cancel/worker/TTL removal, and exact-SHA single-
+  replica staging proof with the same file reaching its parser terminal state.
