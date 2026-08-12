@@ -248,7 +248,7 @@ function commandDefinition(command) {
   };
 }
 
-function runCommand(root, command) {
+export function runCommand(root, command) {
   const cwd = resolveCommandCwd(root, command);
   const started = Date.now();
   const result = spawnSync(command.executable, command.argv, {

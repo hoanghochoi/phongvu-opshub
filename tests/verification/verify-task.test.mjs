@@ -4,7 +4,7 @@ import { appendFileSync, mkdirSync, mkdtempSync, realpathSync, renameSync, rmSyn
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { collectChangedPaths, fingerprint, parseArgs, verifyTask, EXIT_CODES } from '../../scripts/verify-task.mjs';
+import { collectChangedPaths, fingerprint, parseArgs, runCommand, verifyTask, EXIT_CODES } from '../../scripts/verify-task.mjs';
 
 function git(cwd, args) {
   return execFileSync('git', args, { cwd, encoding: 'utf8', windowsHide: true }).trim();
@@ -114,6 +114,24 @@ test('fingerprint preserves staged and base-aware binary diff bytes', (t) => {
   writeFileSync(path.join(root, 'assets', 'staged.bin'), Buffer.from([0x03, 0x83, 0xfc]));
   const baseAwareSecond = fingerprint({ root, base });
   assert.notEqual(baseAwareFirst, baseAwareSecond);
+});
+
+test('structured command runner invokes Windows cmd files through the supported shell path', (t) => {
+  if (process.platform !== 'win32') {
+    t.skip('Windows command invocation contract');
+    return;
+  }
+  const root = repo(t);
+  const commandPath = path.join(root, 'probe.cmd');
+  writeFileSync(commandPath, '@echo off\r\nexit /b 0\r\n', 'utf8');
+  const result = runCommand(root, {
+    id: 'windows-cmd-probe',
+    cwd: '.',
+    executable: commandPath,
+    argv: [],
+  });
+  assert.equal(result.status, 'passed');
+  assert.equal(result.exitCode, 0);
 });
 
 test('command failure is classified as product failure and preserves structured definitions', (t) => {

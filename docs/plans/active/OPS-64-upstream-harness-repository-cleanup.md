@@ -341,6 +341,9 @@ god-helper.
   instead of a UTF-8-decoded string; add invalid-UTF-8 binary-diff regression
   coverage for unstaged, staged and base-aware changes (verification suite now
   13/13).
+- [x] Add Windows `.cmd`/`.bat` structured-command invocation coverage; the
+  runner exercises the supported shell path and preserves exit classification
+  (verification suite now 14/14 on Windows).
 - [ ] Publish `OPS-65` and `OPS-68` through the guarded feature-PR flow. Until
   their PRs merge into `staging` and `finish` passes, Phase 5+ mutations are
   blocked by lifecycle policy; no direct push or PR authority is assumed.
@@ -382,7 +385,7 @@ Phase 4 evidence:
 - Verified: runner syntax, dry-run JSON and normal JSON execution; structured
   command definitions are fingerprinted and invalid command contracts fail
   closed.
-- Extended proof: `node --test tests/verification/*.test.mjs` (11 pass),
+- Extended proof: `node --test tests/verification/*.test.mjs` (14 pass),
   `node scripts/verify-task-canary.mjs` (3/3 fixture canaries pass), and
   product-failure/stale-after-command cases both return their required exit
   codes. Canary fixtures run in disposable Git repositories and explicitly
@@ -397,7 +400,7 @@ Phase 4 evidence:
   `scripts/schema`, CLI release/build/promote/verify files and legacy test
   directories. A dedicated fixture proves these retirement paths select the
   `harness` profile instead of failing with an accidental unmatched-path
-  contract. Full verification tests remain 11/11 after this registry change.
+  contract. Full verification tests remain 14/14 after this registry change.
 
 Phase 3A disposition evidence:
 
@@ -419,9 +422,11 @@ Verification hardening evidence:
 - Commit `ef8995ec` makes `verify-task` fingerprint staged, unstaged and
   base-aware binary diffs from raw Git bytes; a temporary invalid-UTF-8 binary
   fixture changes the fingerprint as required.
-- `node --test tests/verification/*.test.mjs`: 13/13 pass;
+- `node --test tests/verification/*.test.mjs`: 14/14 pass;
   `node scripts/verify-task.mjs --base origin/staging --dry-run`: exit 0,
   stale=false; `git diff --check`: pass.
+- Windows `.cmd`/`.bat` structured-command invocation was exercised through
+  the supported shell path and returned a structured pass with exit code 0.
 
 Phase 7A groundwork evidence:
 - `flutter pub get --offline` completed successfully on the task worktree.
