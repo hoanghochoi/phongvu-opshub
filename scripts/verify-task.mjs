@@ -28,10 +28,10 @@ function normalizePath(value) {
   return String(value).trim().replaceAll('\\', '/').replace(/^\.\//, '');
 }
 
-function runGit(root, argv, { allowFailure = false } = {}) {
+function runGit(root, argv, { allowFailure = false, encoding = 'utf8' } = {}) {
   const result = spawnSync('git', argv, {
     cwd: root,
-    encoding: 'utf8',
+    encoding,
     windowsHide: true,
   });
   if (result.error) {
@@ -149,8 +149,15 @@ export function collectChangedPaths({ root = ROOT, base = null } = {}) {
   return [...new Set(outputs.flatMap(parseNameOnly))].sort();
 }
 
-function trackedDiff(root, args) {
-  return String(runGit(root, ['diff', '--binary', '--no-ext-diff', ...args, '--']).stdout || '');
+function trackedDiffBytes(root, args) {
+  const result = runGit(
+    root,
+    ['diff', '--binary', '--no-ext-diff', ...args, '--'],
+    { encoding: null },
+  );
+  return Buffer.isBuffer(result.stdout)
+    ? result.stdout
+    : Buffer.from(result.stdout || '');
 }
 
 function hashBytes(hash, bytes) {
@@ -180,9 +187,9 @@ export function fingerprint({
   const hash = createHash('sha256');
   hash.update(`base=${resolvedBase || ''}\nhead=${resolvedHead}\n`);
   hash.update(`commands=${JSON.stringify(commandDefinitions)}\n`);
-  if (resolvedBase) hash.update(trackedDiff(root, [resolvedBase, 'HEAD']));
-  hash.update(trackedDiff(root, []));
-  hash.update(trackedDiff(root, ['--cached']));
+  if (resolvedBase) hash.update(trackedDiffBytes(root, [resolvedBase, 'HEAD']));
+  hash.update(trackedDiffBytes(root, []));
+  hash.update(trackedDiffBytes(root, ['--cached']));
   const untracked = parseNameOnly(
     runGit(root, ['ls-files', '--others', '--exclude-standard']).stdout,
   );

@@ -82,6 +82,18 @@ test('fingerprint changes when untracked content changes', (t) => {
   assert.notEqual(first, fingerprint({ root }));
 });
 
+test('fingerprint preserves binary diff bytes for invalid UTF-8 changes', (t) => {
+  const root = repo(t);
+  mkdirSync(path.join(root, 'assets'), { recursive: true });
+  writeFileSync(path.join(root, 'assets', 'blob.bin'), Buffer.from([0xc0, 0x80, 0xff]));
+  git(root, ['add', '--all']);
+  git(root, ['commit', '--quiet', '-m', 'binary baseline']);
+  const first = fingerprint({ root });
+  writeFileSync(path.join(root, 'assets', 'blob.bin'), Buffer.from([0xc1, 0x81, 0xfe]));
+  const second = fingerprint({ root });
+  assert.notEqual(first, second);
+});
+
 test('command failure is classified as product failure and preserves structured definitions', (t) => {
   const root = repo(t);
   write(root, 'lib/home.dart', 'void main() { /* changed */ }\n');
