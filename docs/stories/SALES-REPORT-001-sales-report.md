@@ -93,9 +93,12 @@ lại hoặc Hủy đơn.` Không tạo báo cáo cho đến khi đơn được 
   loại; trả một phần giữ toàn bộ canonical cache `grandTotal` VAT-inclusive và
   không trừ giá trị trả.
 - Backend rà trạng thái mỗi 5 phút, mặc định tối đa 80 đơn với concurrency 2:
-  rà cả pending trong cache chưa báo cáo và pending đã báo cáo, ưu tiên ngày bán
-  gần nhất đến ngày xa nhất trong từng nhóm, đồng thời vẫn dành quota cho đơn
-  completed để bắt hoàn trả muộn. Pending chỉ bắt đầu được background sync sau
+  rà cả pending trong cache chưa báo cáo và pending đã báo cáo. Backend phải lọc
+  đủ 3 giờ, hết backoff và chưa đạt giới hạn ngày ngay trong query trước `take`,
+  rồi xen kẽ hai nguồn cache/report để không nguồn nào chiếm toàn bộ pending
+  quota. Trong mỗi nguồn, row lâu chưa được thử lại được ưu tiên; ngày bán gần
+  nhất chỉ là tie-breaker. Job vẫn dành quota cho đơn completed để bắt hoàn trả
+  muộn. Pending chỉ bắt đầu được background sync sau
   3 giờ kể từ ngày giờ bán ERP. Mỗi ngày Việt Nam, background gọi tối đa 3
   lần/đơn pending với khoảng cách ít nhất 60 phút; completed chỉ gọi lại sau 2
   ngày và quá 10 ngày từ ngày bán thì không gọi lại. Pending chuyển completed ở

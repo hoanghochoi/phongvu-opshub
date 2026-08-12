@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:phongvu_opshub/core/logging/app_logger.dart';
@@ -61,4 +62,40 @@ void main() {
     expect(PaymentWavTools.readInfo(result.prefixBytes).sampleRateHz, 22050);
     expect(result.voicePresetId, defaultPaymentAudioVoicePresetId);
   });
+
+  test('preserves the reviewed currency tail for every voice preset', () async {
+    final composer = PaymentAmountAudioComposerIo(
+      packDirectoryForTesting: Directory(
+        'windows/assets/payment_audio/local_preset_speaker_v1',
+      ),
+    );
+
+    for (final preset in paymentAudioVoicePresets) {
+      final result = await composer.compose(
+        amount: 1,
+        assetPackVersion: paymentAmountAudioPackVersion,
+        voicePresetId: preset.id,
+      );
+      final info = PaymentWavTools.readInfo(result.bytes);
+      final trailingSilentFrames = _trailingSilentFrames(result.bytes, info);
+      final trailingSilenceMs = trailingSilentFrames * 1000 / info.sampleRateHz;
+
+      expect(
+        trailingSilenceMs,
+        inInclusiveRange(180, 260),
+        reason: '${preset.id} must retain its reviewed natural currency tail',
+      );
+    }
+  });
+}
+
+int _trailingSilentFrames(Uint8List bytes, PaymentWavInfo info) {
+  final data = ByteData.sublistView(bytes);
+  var silentFrames = 0;
+  for (var frame = info.frameCount - 1; frame >= 0; frame -= 1) {
+    final offset = info.dataOffset + frame * info.blockAlign;
+    if (data.getInt16(offset, Endian.little) != 0) break;
+    silentFrames += 1;
+  }
+  return silentFrames;
 }

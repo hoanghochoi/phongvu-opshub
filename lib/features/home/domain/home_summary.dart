@@ -101,6 +101,7 @@ class HomeSummary {
   final DateTime? refreshedAt;
   final String? unavailableMessage;
   final HomeSummaryFreshness? freshness;
+  final HomeSummaryComparisons? comparisons;
 
   const HomeSummary({
     required this.date,
@@ -157,6 +158,7 @@ class HomeSummary {
     required this.refreshedAt,
     this.unavailableMessage,
     this.freshness,
+    this.comparisons,
   }) : startDate = startDate ?? date,
        endDate = endDate ?? date,
        personalSalesProgress = personalSalesProgress ?? salesProgress;
@@ -236,6 +238,7 @@ class HomeSummary {
       refreshedAt: _dateTimeOf(json['refreshedAt']),
       unavailableMessage: _nullableStringOf(json['unavailableMessage']),
       freshness: HomeSummaryFreshness.fromJson(json['freshness']),
+      comparisons: HomeSummaryComparisons.fromJson(json['comparisons']),
     );
   }
 
@@ -330,6 +333,133 @@ class HomeSummary {
     if (text == null || text.isEmpty) return null;
     return DateTime.tryParse(text);
   }
+}
+
+class HomeSummaryComparisonMetric {
+  const HomeSummaryComparisonMetric({
+    required this.status,
+    this.value,
+    this.deltaPercent,
+  });
+
+  const HomeSummaryComparisonMetric.unavailable()
+    : status = 'UNAVAILABLE',
+      value = null,
+      deltaPercent = null;
+
+  final String status;
+  final num? value;
+  final double? deltaPercent;
+
+  bool get isUnavailable => status == 'UNAVAILABLE' || value == null;
+  bool get isNew => status == 'NEW';
+
+  factory HomeSummaryComparisonMetric.fromJson(Object? value) {
+    if (value is! Map) {
+      return const HomeSummaryComparisonMetric.unavailable();
+    }
+    final json = Map<String, dynamic>.from(value);
+    final rawValue = json['value'];
+    final rawDelta = json['deltaPercent'];
+    return HomeSummaryComparisonMetric(
+      status: json['status']?.toString().trim().toUpperCase() ?? 'UNAVAILABLE',
+      value: rawValue is num ? rawValue : num.tryParse('$rawValue'),
+      deltaPercent: rawDelta is num
+          ? rawDelta.toDouble()
+          : double.tryParse('$rawDelta'),
+    );
+  }
+}
+
+class HomeSummaryMetricComparisons {
+  const HomeSummaryMetricComparisons({
+    required this.previousMonth,
+    required this.previousYear,
+    required this.previousMonthSource,
+    required this.previousYearSource,
+  });
+
+  final HomeSummaryComparisonMetric previousMonth;
+  final HomeSummaryComparisonMetric previousYear;
+  final String previousMonthSource;
+  final String previousYearSource;
+}
+
+class HomeSummaryComparisonPeriod {
+  const HomeSummaryComparisonPeriod({
+    required this.startDate,
+    required this.endDate,
+    required this.source,
+    required this.complete,
+    required this.metrics,
+  });
+
+  final String startDate;
+  final String endDate;
+  final String source;
+  final bool complete;
+  final Map<String, HomeSummaryComparisonMetric> metrics;
+
+  factory HomeSummaryComparisonPeriod.fromJson(Object? value) {
+    if (value is! Map) {
+      return const HomeSummaryComparisonPeriod(
+        startDate: '',
+        endDate: '',
+        source: 'UNAVAILABLE',
+        complete: false,
+        metrics: {},
+      );
+    }
+    final json = Map<String, dynamic>.from(value);
+    final rawMetrics = json['metrics'];
+    final metrics = <String, HomeSummaryComparisonMetric>{};
+    if (rawMetrics is Map) {
+      for (final entry in rawMetrics.entries) {
+        metrics[entry.key.toString()] = HomeSummaryComparisonMetric.fromJson(
+          entry.value,
+        );
+      }
+    }
+    return HomeSummaryComparisonPeriod(
+      startDate: json['startDate']?.toString() ?? '',
+      endDate: json['endDate']?.toString() ?? '',
+      source: json['source']?.toString() ?? 'UNAVAILABLE',
+      complete: json['complete'] == true,
+      metrics: Map.unmodifiable(metrics),
+    );
+  }
+
+  HomeSummaryComparisonMetric metric(String key) =>
+      metrics[key] ?? const HomeSummaryComparisonMetric.unavailable();
+}
+
+class HomeSummaryComparisons {
+  const HomeSummaryComparisons({
+    required this.previousMonth,
+    required this.previousYear,
+  });
+
+  final HomeSummaryComparisonPeriod previousMonth;
+  final HomeSummaryComparisonPeriod previousYear;
+
+  static HomeSummaryComparisons? fromJson(Object? value) {
+    if (value is! Map) return null;
+    final json = Map<String, dynamic>.from(value);
+    return HomeSummaryComparisons(
+      previousMonth: HomeSummaryComparisonPeriod.fromJson(
+        json['previousMonth'],
+      ),
+      previousYear: HomeSummaryComparisonPeriod.fromJson(json['previousYear']),
+    );
+  }
+
+  HomeSummaryMetricComparisons forMetric(String key) =>
+      HomeSummaryMetricComparisons(
+        previousMonth: previousMonth.metric(key),
+        previousYear: previousYear.metric(key),
+        previousMonthSource: previousMonth.source,
+        previousYearSource: previousYear.source,
+      );
 }
 
 class HomeSalesProgressAssignee {

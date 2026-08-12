@@ -161,8 +161,12 @@ cho Google Form, đồng thời lưu dữ liệu đủ chuẩn để dashboard d
   thái chi tiết.
 - Job trạng thái chạy mỗi 5 phút, mặc định tối đa 80 đơn/lượt với concurrency
   2 và Redis lease. Job rà cả đơn `PENDING` trong cache chưa báo cáo lẫn đơn
-  `Mua hàng` đã báo cáo; trong từng nhóm, ưu tiên ngày bán ERP gần nhất trước
-  rồi mới đến ngày xa hơn. Đơn `PENDING` chỉ bắt đầu được background sync sau
+  `Mua hàng` đã báo cáo. Điều kiện đủ 3 giờ, hết backoff và chưa đạt giới hạn
+  ngày phải được áp ngay trong truy vấn trước giới hạn candidate; row chưa đến
+  hạn không được chiếm cửa sổ làm row cũ bị đói lượt. Hai nguồn cache/report
+  được xen kẽ khi cấp pending quota; trong mỗi nguồn, đơn lâu chưa được thử lại
+  được ưu tiên, còn ngày bán ERP gần nhất là tie-breaker. Đơn `PENDING` chỉ bắt
+  đầu được background sync sau
   3 giờ kể từ `orderCreatedAt`. Theo ngày Việt Nam, background sync gọi tối đa 3
   lần cho mỗi đơn `PENDING`, mỗi lần cách nhau ít nhất 60 phút; gọi lỗi vẫn
   tiêu một lượt trong ngày. Đơn `COMPLETED` hoặc
@@ -190,6 +194,34 @@ cho Google Form, đồng thời lưu dữ liệu đủ chuẩn để dashboard d
   snapshot report; chúng không được ghi đè, xóa hoặc suy lại canonical total.
   Detail-only thiếu cache giữ canonical total `null`, revenue fail closed về 0;
   durable zero-value exclusion chỉ được quyết định từ list-derived total.
+- Import doanh số lịch sử nhận thêm đúng mẫu export Sales 34 cột theo đúng tên
+  và thứ tự header; hai mẫu legacy vẫn giữ nguyên. Adapter chỉ đọc
+  `Revenue with VAT`, định danh current user bằng normalized exact `Email` trước,
+  chỉ fallback exact `HRM ID` khi Email không có một match duy nhất và không
+  phụ thuộc showroom hiện tại của nhân viên. Adapter đồng thời lấy đúng 14 chữ
+  số liên tiếp ở đầu `Order code`. Dạng số khoa học chỉ
+  hợp lệ trong mẫu export, có tối đa 16 chữ số có nghĩa và kết quả là safe
+  integer; quantity phải nằm trong miền PostgreSQL integer. Tổng theo order
+  dùng bigint có kiểm tra biên. Khi nhân viên không map được, map mơ hồ hoặc
+  cùng canonical order map sang nhiều current user, order vẫn được giữ đúng một
+  lần trong aggregate `STORE`, bỏ attribution `USER_STORE` và grain sạch mang
+  marker `PERSONAL_COVERAGE_INCOMPLETE`; trường hợp này không tăng row/grain
+  quarantine. Home không hiển thị partial personal CSV: mọi KPI CSV hỗ trợ của
+  kỳ cá nhân là unavailable/0 nếu bất kỳ winning grain nào có marker; coverage
+  đầy đủ nhưng user được chọn không có order thì trả available 0. Version cũ
+  không có marker được coi là coverage cá nhân đầy đủ. Tổng order vượt biên,
+  taxonomy sai hoặc showroom không hợp lệ vẫn quarantine fail-closed. Trước khi
+  tạo version, tổng revenue và mọi KPI theo grain cũng được kiểm tra bằng kiểu
+  rộng; grain vượt biên aggregate bị quarantine để các grain sạch khác vẫn hoàn
+  tất. Mỗi
+  file dùng một snapshot taxonomy cache:
+  exact `Subcat ID lowest level` trước, không có match mới fallback exact
+  `Subcat 2 ID`; category đã biết nhưng không thuộc KPI tạo fact 0, category
+  không map được quarantine grain với `INVALID_CATEGORY`. KPI Apple chỉ cộng
+  SKU name chứa iPhone, MacBook hoặc iPad. PC ráp theo từng order chuẩn bằng
+  số lượng PC ráp trực tiếp cộng
+  `max(min(CPU, mainboard, memory, storage, case, PSU), 0)`, sau đó mới cộng
+  lên aggregate hiện hữu.
 - Doanh số tổng trên dashboard dùng contract cache trên theo ngày bán ERP
   (`orderCreatedAt`)/scope. Đơn chờ thanh toán vẫn giữ trong cache/cockpit để
   không mất dữ liệu cần báo cáo. Doanh số hoàn thành chỉ cộng báo cáo mua hàng

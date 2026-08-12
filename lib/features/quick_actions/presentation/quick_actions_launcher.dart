@@ -124,6 +124,8 @@ class _QuickActionsLauncherState extends State<QuickActionsLauncher>
   final LayerLink _link = LayerLink();
   final FocusNode _buttonFocus = FocusNode(debugLabel: 'quick-actions-button');
   OverlayEntry? _overlay;
+  bool _isPressed = false;
+  bool _hasFocus = false;
 
   @override
   void initState() {
@@ -152,9 +154,10 @@ class _QuickActionsLauncherState extends State<QuickActionsLauncher>
   @override
   Widget build(BuildContext context) {
     final actions = QuickActionsLauncher._actionsForContext(context);
-    final launcherShape = widget.buttonSize >= 64
+    final compact = widget.buttonSize < 64;
+    final launcherShape = !compact
         ? const CircleBorder()
-        : RoundedRectangleBorder(borderRadius: AppRadius.allLg);
+        : RoundedRectangleBorder(borderRadius: AppRadius.allXl);
     if (actions.isEmpty) {
       if (!widget.visibleWhenUnavailable) return const SizedBox.shrink();
       return Semantics(
@@ -187,31 +190,103 @@ class _QuickActionsLauncherState extends State<QuickActionsLauncher>
       child: Semantics(
         button: true,
         label: 'Mở Thao tác nhanh',
-        child: Focus(
-          focusNode: _buttonFocus,
-          child: Material(
-            key: const Key('quick-actions-launcher-surface'),
-            color: AppColors.primaryOf(context),
-            elevation: widget.elevation,
-            shape: launcherShape,
-            clipBehavior: Clip.antiAlias,
-            child: InkWell(
-              key: const Key('quick-actions-launcher'),
-              customBorder: launcherShape,
-              onTap: _toggleMenu,
-              child: SizedBox.square(
-                dimension: widget.buttonSize,
-                child: Icon(
-                  PhosphorIconsRegular.lightning,
-                  color: AppColors.primaryForegroundOf(context),
-                  size: widget.buttonSize >= 64 ? 24 : 20,
-                ),
-              ),
+        child: Tooltip(
+          message: 'Thao tác nhanh',
+          child: Focus(
+            key: const Key('quick-actions-launcher-focus'),
+            focusNode: _buttonFocus,
+            onFocusChange: compact ? _handleFocusChange : null,
+            child: compact
+                ? _buildCompactLauncher(context, launcherShape)
+                : _buildLegacyLauncher(context, launcherShape),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLegacyLauncher(BuildContext context, ShapeBorder shape) {
+    return Material(
+      key: const Key('quick-actions-launcher-surface'),
+      color: AppColors.primaryOf(context),
+      elevation: widget.elevation,
+      shape: shape,
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        key: const Key('quick-actions-launcher'),
+        customBorder: shape,
+        onTap: _toggleMenu,
+        child: SizedBox.square(
+          dimension: widget.buttonSize,
+          child: Icon(
+            PhosphorIconsRegular.lightning,
+            color: AppColors.primaryForegroundOf(context),
+            size: 24,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCompactLauncher(BuildContext context, ShapeBorder shape) {
+    final active = _isPressed || _overlay != null;
+    final background = active
+        ? AppColors.navigationPressedOf(context)
+        : AppColors.selectedNavigationOf(context);
+    return DecoratedBox(
+      key: const Key('quick-actions-launcher-decoration'),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: AppRadius.allXl,
+        border: _hasFocus
+            ? Border.all(
+                color: AppColors.focusRingOf(context),
+                width: 2,
+                strokeAlign: BorderSide.strokeAlignOutside,
+              )
+            : null,
+        boxShadow: const [
+          BoxShadow(
+            color: Color.fromRGBO(8, 18, 56, 0.2),
+            offset: Offset(0, 8),
+            blurRadius: 18,
+            spreadRadius: -4,
+          ),
+        ],
+      ),
+      child: Material(
+        key: const Key('quick-actions-launcher-surface'),
+        color: AppColors.transparent,
+        elevation: 0,
+        shape: shape,
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          key: const Key('quick-actions-launcher'),
+          customBorder: shape,
+          overlayColor: const WidgetStatePropertyAll(AppColors.transparent),
+          onHighlightChanged: _handleHighlightChanged,
+          onTap: _toggleMenu,
+          child: SizedBox.square(
+            dimension: widget.buttonSize,
+            child: Icon(
+              PhosphorIconsRegular.lightning,
+              color: AppColors.quickActionForegroundOf(context),
+              size: 20,
             ),
           ),
         ),
       ),
     );
+  }
+
+  void _handleHighlightChanged(bool pressed) {
+    if (_isPressed == pressed || !mounted) return;
+    setState(() => _isPressed = pressed);
+  }
+
+  void _handleFocusChange(bool focused) {
+    if (_hasFocus == focused || !mounted) return;
+    setState(() => _hasFocus = focused);
   }
 
   Future<void> _toggleMenu() async {

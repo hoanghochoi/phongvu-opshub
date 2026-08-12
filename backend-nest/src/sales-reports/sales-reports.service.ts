@@ -1054,7 +1054,8 @@ export class SalesReportsService implements OnApplicationBootstrap {
     };
     const seenOrderCodes = new Set<string>();
     const storeCounts = new Map<string, number>();
-    const pendingCandidates: ErpOrderStatusSyncCandidate[] = [];
+    const cachePendingCandidates: ErpOrderStatusSyncCandidate[] = [];
+    const reportedPendingCandidates: ErpOrderStatusSyncCandidate[] = [];
     const completedCandidates: ErpOrderStatusSyncCandidate[] = [];
 
     if (input.cacheSyncEnabled) {
@@ -1066,14 +1067,33 @@ export class SalesReportsService implements OnApplicationBootstrap {
             AND: [
               this.orderCacheStatusSyncDateWhere(cacheCutoff),
               { orderCreatedAt: { lte: pendingEligibilityCutoff } },
+              this.cachePendingStatusSyncDueWhere(now, {
+                pendingRecheckMinutes: input.pendingRecheckMinutes,
+                pendingDailyLimit: input.pendingDailyLimit,
+              }),
             ],
           },
           orderBy: [
-            { orderCreatedAt: 'desc' },
-            { statusCheckAttemptDate: 'asc' },
+            {
+              statusCheckAttemptDate: {
+                sort: 'asc',
+                nulls: Prisma.NullsOrder.first,
+              },
+            },
             { statusCheckAttemptCount: 'asc' },
-            { statusCheckAttemptedAt: 'asc' },
-            { statusCheckedAt: 'asc' },
+            {
+              statusCheckAttemptedAt: {
+                sort: 'asc',
+                nulls: Prisma.NullsOrder.first,
+              },
+            },
+            {
+              statusCheckedAt: {
+                sort: 'asc',
+                nulls: Prisma.NullsOrder.first,
+              },
+            },
+            { orderCreatedAt: 'desc' },
           ],
           take: input.batchSize * 4,
           select: {
@@ -1091,7 +1111,7 @@ export class SalesReportsService implements OnApplicationBootstrap {
         });
       for (const row of cachePendingRows) {
         const candidate = this.cacheOrderStatusSyncRow(row, 'cache_pending');
-        if (candidate) pendingCandidates.push(candidate);
+        if (candidate) cachePendingCandidates.push(candidate);
       }
     }
 
@@ -1100,16 +1120,38 @@ export class SalesReportsService implements OnApplicationBootstrap {
         reportType: REPORT_TYPE_PURCHASED,
         orderCode: { not: null },
         erpLifecycleStatus: 'PENDING',
-        erpOrderCreatedAt: { lte: pendingEligibilityCutoff },
+        AND: [
+          { erpOrderCreatedAt: { lte: pendingEligibilityCutoff } },
+          this.reportedPendingStatusSyncDueWhere(now, {
+            pendingRecheckMinutes: input.pendingRecheckMinutes,
+            pendingDailyLimit: input.pendingDailyLimit,
+          }),
+        ],
       },
       orderBy: [
-        { erpOrderCreatedAt: 'desc' },
-        { erpStatusCheckAttemptDate: 'asc' },
+        {
+          erpStatusCheckAttemptDate: {
+            sort: 'asc',
+            nulls: Prisma.NullsOrder.first,
+          },
+        },
         { erpStatusCheckAttemptCount: 'asc' },
-        { erpStatusCheckedAt: 'asc' },
+        {
+          erpStatusCheckAttemptedAt: {
+            sort: 'asc',
+            nulls: Prisma.NullsOrder.first,
+          },
+        },
+        {
+          erpStatusCheckedAt: {
+            sort: 'asc',
+            nulls: Prisma.NullsOrder.first,
+          },
+        },
+        { erpOrderCreatedAt: 'desc' },
         { submittedAt: 'asc' },
       ],
-      take: input.batchSize,
+      take: input.batchSize * 4,
       select: {
         orderCode: true,
         storeCode: true,
@@ -1127,8 +1169,13 @@ export class SalesReportsService implements OnApplicationBootstrap {
         row,
         'reported_pending',
       );
-      if (candidate) pendingCandidates.push(candidate);
+      if (candidate) reportedPendingCandidates.push(candidate);
     }
+
+    const pendingCandidates = this.fairPendingStatusSyncCandidates(
+      reportedPendingCandidates,
+      cachePendingCandidates,
+    );
 
     if (input.cacheSyncEnabled) {
       const cacheCompletedRows =
@@ -1206,7 +1253,6 @@ export class SalesReportsService implements OnApplicationBootstrap {
       if (selection.selected.length >= input.batchSize) return false;
       const orderCode = this.normalizeOrderCode(candidate.orderCode);
       if (!orderCode || seenOrderCodes.has(orderCode)) return false;
-      seenOrderCodes.add(orderCode);
       const skipReason = this.erpStatusSyncCandidateSkipReason(candidate, {
         now,
         completedCutoff,
@@ -1227,6 +1273,7 @@ export class SalesReportsService implements OnApplicationBootstrap {
         }
         return false;
       }
+      seenOrderCodes.add(orderCode);
       const storeKey =
         this.normalizeStoreCode(candidate.storeCode) ?? 'unknown';
       const storeCount = storeCounts.get(storeKey) ?? 0;
@@ -1281,6 +1328,19 @@ export class SalesReportsService implements OnApplicationBootstrap {
     takeFromCompleted(input.batchSize - selection.selected.length);
 
     return selection;
+  }
+
+  private fairPendingStatusSyncCandidates(
+    reported: ErpOrderStatusSyncCandidate[],
+    cache: ErpOrderStatusSyncCandidate[],
+  ) {
+    const candidates: ErpOrderStatusSyncCandidate[] = [];
+    const maxLength = Math.max(reported.length, cache.length);
+    for (let index = 0; index < maxLength; index += 1) {
+      if (index < reported.length) candidates.push(reported[index]);
+      if (index < cache.length) candidates.push(cache[index]);
+    }
+    return candidates;
   }
 
   private cacheOrderStatusSyncRow(
@@ -1367,6 +1427,68 @@ export class SalesReportsService implements OnApplicationBootstrap {
       OR: [
         { orderCreatedAt: { gte: cutoff } },
         { AND: [{ orderCreatedAt: null }, { fetchedAt: { gte: cutoff } }] },
+      ],
+    };
+  }
+
+  private cachePendingStatusSyncDueWhere(
+    now: Date,
+    input: {
+      pendingRecheckMinutes: number;
+      pendingDailyLimit: number;
+    },
+  ): Prisma.SalesReportErpOrderCacheWhereInput {
+    const attemptDate = this.vietnamAttemptDate(now);
+    const attemptedBefore = new Date(
+      now.getTime() - input.pendingRecheckMinutes * 60 * 1000,
+    );
+    return {
+      OR: [
+        { statusCheckAttemptDate: null },
+        { statusCheckAttemptDate: { not: attemptDate } },
+        {
+          AND: [
+            { statusCheckAttemptDate: attemptDate },
+            { statusCheckAttemptCount: { lt: input.pendingDailyLimit } },
+            {
+              OR: [
+                { statusCheckAttemptedAt: null },
+                { statusCheckAttemptedAt: { lte: attemptedBefore } },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+  }
+
+  private reportedPendingStatusSyncDueWhere(
+    now: Date,
+    input: {
+      pendingRecheckMinutes: number;
+      pendingDailyLimit: number;
+    },
+  ): Prisma.SalesReportWhereInput {
+    const attemptDate = this.vietnamAttemptDate(now);
+    const attemptedBefore = new Date(
+      now.getTime() - input.pendingRecheckMinutes * 60 * 1000,
+    );
+    return {
+      OR: [
+        { erpStatusCheckAttemptDate: null },
+        { erpStatusCheckAttemptDate: { not: attemptDate } },
+        {
+          AND: [
+            { erpStatusCheckAttemptDate: attemptDate },
+            { erpStatusCheckAttemptCount: { lt: input.pendingDailyLimit } },
+            {
+              OR: [
+                { erpStatusCheckAttemptedAt: null },
+                { erpStatusCheckAttemptedAt: { lte: attemptedBefore } },
+              ],
+            },
+          ],
+        },
       ],
     };
   }
@@ -3324,6 +3446,11 @@ export class SalesReportsService implements OnApplicationBootstrap {
   }
 
   private toCachedOrderCockpitDto(row: any) {
+    const employee = this.firstCockpitEmployee(
+      { name: row.consultantName, email: row.consultantEmail },
+      { name: row.sellerName, email: row.sellerEmail },
+      { name: null, email: row.sourceUserEmail },
+    );
     return {
       status: 'UNREPORTED',
       orderCode: row.orderCode,
@@ -3348,6 +3475,8 @@ export class SalesReportsService implements OnApplicationBootstrap {
       platformId: row.platformId,
       consultantCustomId: row.consultantCustomId,
       consultantName: row.consultantName,
+      employeeName: employee.name,
+      employeeEmail: employee.email,
       sellerName: row.sellerName,
       storeCode: row.storeCode,
       storeName: row.storeName,
@@ -3359,6 +3488,14 @@ export class SalesReportsService implements OnApplicationBootstrap {
 
   private toReportedOrderCockpitDto(row: any) {
     const report = this.toReportDto(row);
+    const employee = this.firstCockpitEmployee(
+      { name: row.createdByName, email: row.createdByEmail },
+      {
+        name: row.erpConsultantName ?? row.consultantName,
+        email: row.consultantEmail,
+      },
+      { name: row.sellerName, email: row.sellerEmail },
+    );
     return {
       status: 'REPORTED',
       orderCode: row.orderCode,
@@ -3381,14 +3518,31 @@ export class SalesReportsService implements OnApplicationBootstrap {
         : [],
       platformId: row.erpPlatformId,
       consultantCustomId: row.erpConsultantCustomId,
-      consultantName: row.erpConsultantName,
-      sellerName: null,
+      consultantName:
+        row.createdByName ?? row.erpConsultantName ?? row.consultantName ?? null,
+      employeeName: employee.name,
+      employeeEmail: employee.email,
+      sellerName: row.sellerName ?? null,
       storeCode: row.storeCode,
       storeName: row.storeName,
       fetchedAt: row.erpFetchedAt,
       reportedAt: row.submittedAt,
       report,
     };
+  }
+
+  private firstCockpitEmployee(
+    ...candidates: Array<{ name: unknown; email: unknown }>
+  ): { name: string | null; email: string | null } {
+    for (const candidate of candidates) {
+      const name =
+        typeof candidate.name === 'string' && candidate.name.trim()
+          ? candidate.name.trim()
+          : null;
+      const email = this.normalizeEmail(candidate.email);
+      if (name || email) return { name: name ?? email, email };
+    }
+    return { name: null, email: null };
   }
 
   private validateCreateBody(

@@ -50,6 +50,15 @@ export class GetHomeSummaryQueryDto extends HomeSummaryScopeQueryDto {
     message: 'Tùy chọn chuỗi theo ngày chỉ nhận true hoặc false.',
   })
   includeDailySeries?: 'true' | 'false';
+
+  @IsOptional()
+  @IsString({
+    message: 'Tùy chọn so sánh theo kỳ chỉ nhận true hoặc false.',
+  })
+  @IsIn(['true', 'false'], {
+    message: 'Tùy chọn so sánh theo kỳ chỉ nhận true hoặc false.',
+  })
+  includeComparisons?: 'true' | 'false';
 }
 
 export class GetHomeSummaryDetailsQueryDto extends HomeSummaryScopeQueryDto {

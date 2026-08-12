@@ -491,6 +491,7 @@ class _FakeHomeSummaryRepository extends HomeSummaryRepository {
     String? salesProgressUserId,
     String? cacheIdentity,
     bool forceRefresh = false,
+    bool includeComparisons = false,
   }) async {
     return summary;
   }

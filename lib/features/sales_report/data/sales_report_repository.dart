@@ -1,30 +1,45 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
 
 import '../../../core/constants/api_constants.dart';
+import '../../../core/logging/app_logger.dart';
 import '../../../core/network/api_client.dart';
 import '../domain/sales_report.dart';
+import 'sales_report_file_reader.dart';
+
+const _salesHistoryUploadChunkBytes = 4 * 1024 * 1024;
+
+class SalesHistoryUploadCancelled implements Exception {
+  const SalesHistoryUploadCancelled();
+}
 
 class SalesReportImportFile {
   final String name;
   final int size;
   final Uint8List? bytes;
   final String? path;
+  final Stream<List<int>>? readStream;
 
   const SalesReportImportFile({
     required this.name,
     required this.size,
     this.bytes,
     this.path,
+    this.readStream,
   });
 
-  bool get hasContent => bytes?.isNotEmpty == true || path?.isNotEmpty == true;
+  bool get hasContent =>
+      bytes?.isNotEmpty == true ||
+      path?.isNotEmpty == true ||
+      readStream != null;
 }
 
 class SalesReportRepository {
   final ApiClient _apiClient;
+  final Map<String, Completer<void>> _historyUploadAborts = {};
 
   SalesReportRepository(this._apiClient);
 
@@ -233,6 +248,200 @@ class SalesReportRepository {
     );
   }
 
+  Future<SalesHistoryImportJob> enqueueHistoryImport(
+    SalesReportImportFile file, {
+    void Function(SalesHistoryImportJob job)? onJobChanged,
+    bool Function()? isCancelled,
+  }) async {
+    final admittedResponse = await _apiClient.post(
+      ApiConstants.salesHistoryImportJobsEndpoint,
+      body: {'fileName': file.name, 'fileSize': file.size},
+    );
+    var job = SalesHistoryImportJob.fromJson(
+      jsonDecode(admittedResponse.body) as Map<String, dynamic>,
+    );
+    onJobChanged?.call(job);
+    final reader = _SalesHistoryUploadReader(file);
+    final uploadAbort = Completer<void>();
+    _historyUploadAborts[job.id] = uploadAbort;
+    try {
+      var offset = job.uploadedBytes;
+      var transientFailures = 0;
+      while (offset < file.size) {
+        if (isCancelled?.call() == true) {
+          await cancelHistoryImport(job.id).catchError((_) => job);
+          throw const SalesHistoryUploadCancelled();
+        }
+        final length = (file.size - offset).clamp(
+          0,
+          _salesHistoryUploadChunkBytes,
+        );
+        final bytes = await reader.read(offset, length);
+        if (bytes.isEmpty) {
+          throw ArgumentError('Không đọc được phần tiếp theo của tệp CSV/TSV.');
+        }
+        try {
+          final response = await _apiClient.postMultipart(
+            ApiConstants.salesHistoryImportChunkEndpoint(job.id),
+            fields: {'offset': '$offset'},
+            files: [
+              http.MultipartFile.fromBytes(
+                'chunk',
+                bytes,
+                filename: 'history.part',
+              ),
+            ],
+            timeout: const Duration(minutes: 2),
+            abortTrigger: uploadAbort.future,
+          );
+          job = SalesHistoryImportJob.fromJson(
+            jsonDecode(response.body) as Map<String, dynamic>,
+          );
+          offset = job.uploadedBytes;
+          transientFailures = 0;
+          onJobChanged?.call(job);
+        } catch (error, stackTrace) {
+          if (isCancelled?.call() == true || uploadAbort.isCompleted) {
+            throw const SalesHistoryUploadCancelled();
+          }
+          final previousAcknowledgedOffset = offset;
+          transientFailures += 1;
+          job = await fetchHistoryImportJob(job.id);
+          onJobChanged?.call(job);
+          offset = job.uploadedBytes;
+          if (offset > previousAcknowledgedOffset) {
+            transientFailures = 0;
+          }
+          if (job.status == 'CANCELLED') {
+            throw const SalesHistoryUploadCancelled();
+          }
+          if (job.status != 'UPLOADING') {
+            Error.throwWithStackTrace(error, stackTrace);
+          }
+          if (transientFailures >= 3) {
+            await AppLogger.instance.warn(
+              'SalesHistoryImport',
+              'Historical sales import terminal upload failure cleanup started',
+              context: {
+                'jobId': job.id,
+                'status': job.status,
+                'uploadedBytes': job.uploadedBytes,
+                'attempts': transientFailures,
+                'uploadErrorType': error.runtimeType.toString(),
+              },
+            );
+            try {
+              job = await cancelHistoryImport(job.id);
+              onJobChanged?.call(job);
+              await AppLogger.instance.info(
+                'SalesHistoryImport',
+                'Historical sales import terminal upload failure cleanup succeeded',
+                context: {
+                  'jobId': job.id,
+                  'status': job.status,
+                  'uploadedBytes': job.uploadedBytes,
+                  'attempts': transientFailures,
+                },
+              );
+            } catch (cancelError) {
+              await AppLogger.instance.warn(
+                'SalesHistoryImport',
+                'Historical sales import terminal upload failure cleanup failed',
+                context: {
+                  'jobId': job.id,
+                  'status': job.status,
+                  'uploadedBytes': job.uploadedBytes,
+                  'attempts': transientFailures,
+                  'cancelErrorType': cancelError.runtimeType.toString(),
+                },
+              );
+            }
+            Error.throwWithStackTrace(error, stackTrace);
+          }
+          await Future<void>.delayed(
+            Duration(milliseconds: 250 * transientFailures),
+          );
+        }
+      }
+      if (isCancelled?.call() == true) {
+        await cancelHistoryImport(job.id).catchError((_) => job);
+        throw const SalesHistoryUploadCancelled();
+      }
+      final completed = await _apiClient.post(
+        ApiConstants.salesHistoryImportCompleteEndpoint(job.id),
+        body: const {},
+      );
+      job = SalesHistoryImportJob.fromJson(
+        jsonDecode(completed.body) as Map<String, dynamic>,
+      );
+      onJobChanged?.call(job);
+      return job;
+    } finally {
+      await reader.close();
+      if (identical(_historyUploadAborts[job.id], uploadAbort)) {
+        _historyUploadAborts.remove(job.id);
+      }
+    }
+  }
+
+  void abortHistoryImportUpload(String jobId) {
+    final abort = _historyUploadAborts[jobId];
+    if (abort != null && !abort.isCompleted) abort.complete();
+  }
+
+  Future<SalesHistoryImportJob> fetchHistoryImportJob(String id) async {
+    final response = await _apiClient.get(
+      ApiConstants.salesHistoryImportJobEndpoint(id),
+    );
+    return SalesHistoryImportJob.fromJson(
+      jsonDecode(response.body) as Map<String, dynamic>,
+    );
+  }
+
+  Future<SalesHistoryImportJob> cancelHistoryImport(String id) async {
+    final response = await _apiClient.post(
+      ApiConstants.salesHistoryImportCancelEndpoint(id),
+      body: const {},
+    );
+    return SalesHistoryImportJob.fromJson(
+      jsonDecode(response.body) as Map<String, dynamic>,
+    );
+  }
+
+  Future<List<SalesHistoryVersion>> fetchHistoryVersions() async {
+    final response = await _apiClient.get(
+      ApiConstants.salesHistoryVersionsEndpoint,
+      queryParameters: const {'limit': '50'},
+    );
+    final data = jsonDecode(response.body);
+    if (data is! List) return const [];
+    return data
+        .whereType<Map>()
+        .map(
+          (value) =>
+              SalesHistoryVersion.fromJson(Map<String, dynamic>.from(value)),
+        )
+        .toList(growable: false);
+  }
+
+  Future<void> activateHistoryVersion(String id) => _apiClient.post(
+    ApiConstants.salesHistoryVersionActivateEndpoint(id),
+    body: const {},
+  );
+
+  Future<void> rollbackHistoryVersion(String id) => _apiClient.post(
+    ApiConstants.salesHistoryVersionRollbackEndpoint(id),
+    body: const {},
+  );
+
+  Future<Uint8List> downloadHistoryQuarantine(String jobId) async =>
+      Uint8List.fromList(
+        await _apiClient.getBytes(
+          ApiConstants.salesHistoryImportQuarantineEndpoint(jobId),
+          timeout: const Duration(minutes: 2),
+        ),
+      );
+
   Future<http.MultipartFile> _importFilePart(SalesReportImportFile file) async {
     final bytes = file.bytes;
     if (bytes != null && bytes.isNotEmpty) {
@@ -248,5 +457,98 @@ class SalesReportRepository {
   String _apiDate(DateTime value) {
     String two(int part) => part.toString().padLeft(2, '0');
     return '${value.year}-${two(value.month)}-${two(value.day)}';
+  }
+}
+
+class _SalesHistoryUploadReader {
+  _SalesHistoryUploadReader(this.file)
+    : _streamIterator = file.readStream == null
+          ? null
+          : StreamIterator<List<int>>(file.readStream!);
+
+  final SalesReportImportFile file;
+  final StreamIterator<List<int>>? _streamIterator;
+  Uint8List? _streamPart;
+  int _streamPartOffset = 0;
+  int _streamCursor = 0;
+  Uint8List? _currentChunk;
+  int _currentChunkOffset = 0;
+
+  Future<Uint8List> read(int offset, int length) async {
+    final bytes = file.bytes;
+    if (bytes != null && bytes.isNotEmpty) {
+      final end = (offset + length).clamp(0, bytes.length);
+      if (offset >= end) return Uint8List(0);
+      return Uint8List.sublistView(bytes, offset, end);
+    }
+    final path = file.path;
+    if (path != null && path.isNotEmpty) {
+      return readSalesReportFileChunk(path, offset, length);
+    }
+    if (_streamIterator == null) {
+      throw ArgumentError('Tệp CSV/TSV chưa có dữ liệu để tải lên.');
+    }
+    return _readStream(offset, length);
+  }
+
+  Future<Uint8List> _readStream(int offset, int length) async {
+    final iterator = _streamIterator;
+    if (iterator == null) {
+      throw ArgumentError('Tệp CSV/TSV chưa có luồng dữ liệu để tải lên.');
+    }
+    final current = _currentChunk;
+    if (current != null) {
+      final currentEnd = _currentChunkOffset + current.length;
+      if (offset >= _currentChunkOffset && offset < currentEnd) {
+        final start = offset - _currentChunkOffset;
+        final end = (start + length).clamp(0, current.length);
+        return Uint8List.sublistView(current, start, end);
+      }
+      if (offset == currentEnd) {
+        _currentChunk = null;
+      } else {
+        throw StateError(
+          'Không thể tiếp tục luồng tệp từ vị trí máy chủ yêu cầu.',
+        );
+      }
+    }
+    if (offset != _streamCursor) {
+      throw StateError(
+        'Không thể tiếp tục luồng tệp từ vị trí máy chủ yêu cầu.',
+      );
+    }
+
+    final builder = BytesBuilder(copy: false);
+    while (builder.length < length) {
+      var part = _streamPart;
+      if (part == null || _streamPartOffset >= part.length) {
+        if (!await iterator.moveNext()) break;
+        part = Uint8List.fromList(iterator.current);
+        _streamPart = part;
+        _streamPartOffset = 0;
+        if (part.isEmpty) continue;
+      }
+      final remaining = length - builder.length;
+      final take = (part.length - _streamPartOffset).clamp(0, remaining);
+      builder.add(
+        Uint8List.sublistView(
+          part,
+          _streamPartOffset,
+          _streamPartOffset + take,
+        ),
+      );
+      _streamPartOffset += take;
+      _streamCursor += take;
+    }
+    final chunk = builder.takeBytes();
+    _currentChunkOffset = offset;
+    _currentChunk = chunk;
+    return chunk;
+  }
+
+  Future<void> close() async {
+    await _streamIterator?.cancel();
+    _streamPart = null;
+    _currentChunk = null;
   }
 }

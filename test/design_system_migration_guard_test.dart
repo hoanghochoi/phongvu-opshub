@@ -1132,6 +1132,8 @@ void main() {
       ),
       'lib/features/sales_report/presentation/screens/sales_report_screen.dart':
           (count: 1, reason: 'form submit action'),
+      'lib/features/sales_report/presentation/screens/sales_history_import_dialog.dart':
+          (count: 1, reason: 'bounded chunk upload progress'),
     };
     final actual = <String, int>{};
     final indicatorPattern = RegExp(

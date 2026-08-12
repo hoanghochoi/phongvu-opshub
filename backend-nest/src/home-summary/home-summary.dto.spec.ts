@@ -40,6 +40,41 @@ describe('GetHomeSummaryQueryDto', () => {
     },
   );
 
+  it.each(['true', 'false'])(
+    'accepts the strict comparison value %s',
+    async (includeComparisons) => {
+      const pipe = createPipe();
+
+      await expect(
+        pipe.transform(
+          { includeComparisons },
+          { type: 'query', metatype: GetHomeSummaryQueryDto, data: '' },
+        ),
+      ).resolves.toMatchObject({ includeComparisons });
+    },
+  );
+
+  it.each(['TRUE', '1', 'yes', ''])(
+    'rejects the non-contract comparison value %s',
+    async (includeComparisons) => {
+      const pipe = createPipe();
+
+      await expect(
+        pipe.transform(
+          { includeComparisons },
+          { type: 'query', metatype: GetHomeSummaryQueryDto, data: '' },
+        ),
+      ).rejects.toMatchObject({
+        response: {
+          message: expect.arrayContaining([
+            'Tùy chọn so sánh theo kỳ chỉ nhận true hoặc false.',
+          ]),
+          statusCode: 400,
+        },
+      });
+    },
+  );
+
   it.each(['TRUE', '1', 'yes', ''])(
     'rejects the non-contract daily series value %s',
     async (includeDailySeries) => {
@@ -77,6 +112,28 @@ describe('GetHomeSummaryQueryDto', () => {
       response: {
         message: expect.arrayContaining([
           'property includeDailySeries should not exist',
+        ]),
+        statusCode: 400,
+      },
+    });
+  });
+
+  it('does not accept comparisons on detail routes', async () => {
+    const pipe = createPipe();
+
+    await expect(
+      pipe.transform(
+        { includeComparisons: 'true' },
+        {
+          type: 'query',
+          metatype: GetHomeSummaryDetailsQueryDto,
+          data: '',
+        },
+      ),
+    ).rejects.toMatchObject({
+      response: {
+        message: expect.arrayContaining([
+          'property includeComparisons should not exist',
         ]),
         statusCode: 400,
       },

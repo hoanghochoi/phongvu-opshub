@@ -167,6 +167,8 @@ class SalesReportOrderCockpitItem {
   final List<String> paymentMethods;
   final String? consultantCustomId;
   final String? consultantName;
+  final String? employeeName;
+  final String? employeeEmail;
   final String? sellerName;
   final String? storeCode;
   final String? storeName;
@@ -191,6 +193,8 @@ class SalesReportOrderCockpitItem {
     required this.paymentMethods,
     required this.consultantCustomId,
     required this.consultantName,
+    required this.employeeName,
+    required this.employeeEmail,
     required this.sellerName,
     required this.storeCode,
     required this.storeName,
@@ -241,6 +245,8 @@ class SalesReportOrderCockpitItem {
               .toList(),
       consultantCustomId: json['consultantCustomId']?.toString(),
       consultantName: json['consultantName']?.toString(),
+      employeeName: json['employeeName']?.toString(),
+      employeeEmail: json['employeeEmail']?.toString(),
       sellerName: json['sellerName']?.toString(),
       storeCode: json['storeCode']?.toString(),
       storeName: json['storeName']?.toString(),
@@ -583,6 +589,139 @@ class SalesReportImportPreview {
               ),
             )
             .toList(growable: false),
+      );
+}
+
+class SalesHistoryImportCoverage {
+  const SalesHistoryImportCoverage({
+    required this.date,
+    required this.storeCode,
+    required this.status,
+    required this.rowCount,
+    required this.quarantinedRows,
+    required this.reasonCodes,
+  });
+
+  final String date;
+  final String storeCode;
+  final String status;
+  final int rowCount;
+  final int quarantinedRows;
+  final List<String> reasonCodes;
+
+  factory SalesHistoryImportCoverage.fromJson(Map<String, dynamic> json) =>
+      SalesHistoryImportCoverage(
+        date: json['date']?.toString() ?? '',
+        storeCode: json['storeCode']?.toString() ?? '',
+        status: json['status']?.toString() ?? '',
+        rowCount: _salesReportInt(json['rowCount']),
+        quarantinedRows: _salesReportInt(json['quarantinedRows']),
+        reasonCodes: _salesReportStrings(json['reasonCodes']),
+      );
+}
+
+class SalesHistoryImportJob {
+  const SalesHistoryImportJob({
+    required this.id,
+    required this.status,
+    required this.uploadedBytes,
+    this.expectedBytes = 0,
+    required this.totalRows,
+    required this.cleanRows,
+    required this.quarantinedRows,
+    required this.cleanGrains,
+    required this.quarantinedGrains,
+    required this.cancelRequested,
+    required this.coverage,
+    this.failureMessage,
+    this.versionId,
+  });
+
+  final String id;
+  final String status;
+  final int uploadedBytes;
+  final int expectedBytes;
+  final int totalRows;
+  final int cleanRows;
+  final int quarantinedRows;
+  final int cleanGrains;
+  final int quarantinedGrains;
+  final bool cancelRequested;
+  final String? failureMessage;
+  final String? versionId;
+  final List<SalesHistoryImportCoverage> coverage;
+
+  bool get isTerminal =>
+      const {'READY', 'FAILED', 'CANCELLED'}.contains(status);
+  bool get canActivate => status == 'READY' && versionId?.isNotEmpty == true;
+  double get uploadProgress => expectedBytes <= 0
+      ? 0
+      : (uploadedBytes / expectedBytes).clamp(0, 1).toDouble();
+
+  factory SalesHistoryImportJob.fromJson(Map<String, dynamic> json) =>
+      SalesHistoryImportJob(
+        id: json['id']?.toString() ?? '',
+        status: json['status']?.toString() ?? '',
+        uploadedBytes: _salesReportInt(json['uploadedBytes']),
+        expectedBytes: _salesReportInt(json['expectedBytes']),
+        totalRows: _salesReportInt(json['totalRows']),
+        cleanRows: _salesReportInt(json['cleanRows']),
+        quarantinedRows: _salesReportInt(json['quarantinedRows']),
+        cleanGrains: _salesReportInt(json['cleanGrains']),
+        quarantinedGrains: _salesReportInt(json['quarantinedGrains']),
+        cancelRequested: json['cancelRequested'] == true,
+        failureMessage: json['failureMessage']?.toString(),
+        versionId: json['versionId']?.toString(),
+        coverage: (json['coverage'] as List? ?? const [])
+            .whereType<Map>()
+            .map(
+              (value) => SalesHistoryImportCoverage.fromJson(
+                Map<String, dynamic>.from(value),
+              ),
+            )
+            .toList(growable: false),
+      );
+}
+
+class SalesHistoryVersion {
+  const SalesHistoryVersion({
+    required this.id,
+    required this.rowCount,
+    required this.cleanRowCount,
+    required this.quarantinedRows,
+    required this.cleanGrainCount,
+    required this.quarantineCount,
+    required this.rangeStart,
+    required this.rangeEnd,
+    required this.activeGrainCount,
+    this.lastAction,
+  });
+
+  final String id;
+  final int rowCount;
+  final int cleanRowCount;
+  final int quarantinedRows;
+  final int cleanGrainCount;
+  final int quarantineCount;
+  final String rangeStart;
+  final String rangeEnd;
+  final int activeGrainCount;
+  final String? lastAction;
+
+  bool get isActive => activeGrainCount > 0;
+
+  factory SalesHistoryVersion.fromJson(Map<String, dynamic> json) =>
+      SalesHistoryVersion(
+        id: json['id']?.toString() ?? '',
+        rowCount: _salesReportInt(json['rowCount']),
+        cleanRowCount: _salesReportInt(json['cleanRowCount']),
+        quarantinedRows: _salesReportInt(json['quarantinedRows']),
+        cleanGrainCount: _salesReportInt(json['cleanGrainCount']),
+        quarantineCount: _salesReportInt(json['quarantineCount']),
+        rangeStart: json['rangeStart']?.toString() ?? '',
+        rangeEnd: json['rangeEnd']?.toString() ?? '',
+        activeGrainCount: _salesReportInt(json['activeGrainCount']),
+        lastAction: json['lastAction']?.toString(),
       );
 }
 
