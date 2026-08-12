@@ -154,6 +154,7 @@ describe('FifoService', () => {
       mode: 'serial',
       status: 'display_reserved',
       message: 'Hàng trưng bày chỉ định',
+      item: { bin_type: 'Hàng trưng bày chỉ định' },
     });
     expect(inventory.findOldestActiveForSku).not.toHaveBeenCalled();
   });
