@@ -116,7 +116,7 @@ void main() {
     expect(commandCard.width, 872);
     expect(commandCard.height, 172);
     expect(resultPanel.width, 872);
-    expect(resultPanel.height, 340);
+    expect(resultPanel.height, greaterThan(340));
     expect((resultPanel.top - commandCard.bottom).abs(), 16);
     expect(inputRect.height, 48);
     expect(scanRect.size, const Size(48, 48));

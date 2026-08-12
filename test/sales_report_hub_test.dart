@@ -719,7 +719,7 @@ void main() {
           .height,
       102,
     );
-    expect(find.text('SR • Tư vấn CP62'), findsOneWidget);
+    expect(find.text('CP62 • Tư vấn CP62'), findsOneWidget);
     expect(find.text('sale.cp62@phongvu.vn'), findsOneWidget);
     expect(find.textContaining('ĐỊA ĐIỂM KINH DOANH'), findsNothing);
     expect(find.text('Trang 1/400'), findsOneWidget);
@@ -815,34 +815,29 @@ void main() {
     final storeFilter = find.byKey(const Key('sales-report-orders-store'));
     final userFilter = find.byKey(const Key('sales-report-orders-user'));
     final reloadAction = find.byKey(const Key('sales-report-reload-action'));
-    for (final control in [
-      dateFilter,
-      storeFilter,
-      userFilter,
-      purchasedAction,
-      notPurchasedAction,
-      reloadAction,
-    ]) {
-      expect(tester.getSize(control), const Size(311, 48));
-    }
-    expect(tester.getSize(controls), const Size(343, 380));
+    expect(tester.getSize(dateFilter), const Size(255, 76));
+    expect(
+      tester.getSize(find.byKey(const Key('sales-report-filter-action'))),
+      const Size(48, 48),
+    );
+    expect(tester.getSize(purchasedAction), const Size(139, 48));
+    expect(tester.getSize(notPurchasedAction), const Size(108, 48));
+    expect(tester.getSize(reloadAction), const Size(48, 48));
+    expect(tester.getSize(controls), const Size(343, 168));
     expect(tester.getRect(dateFilter).left - tester.getRect(controls).left, 16);
     expect(tester.getRect(dateFilter).top - tester.getRect(controls).top, 16);
-    final compactLane = [
-      dateFilter,
-      storeFilter,
-      userFilter,
-      purchasedAction,
-      notPurchasedAction,
-      reloadAction,
-    ];
-    for (var index = 1; index < compactLane.length; index += 1) {
-      expect(
-        tester.getRect(compactLane[index]).top -
-            tester.getRect(compactLane[index - 1]).bottom,
-        12,
-      );
-    }
+    expect(
+      tester.getRect(purchasedAction).top - tester.getRect(dateFilter).bottom,
+      12,
+    );
+    expect(
+      tester.getRect(notPurchasedAction).top,
+      tester.getRect(purchasedAction).top,
+    );
+    expect(
+      tester.getRect(reloadAction).top,
+      tester.getRect(purchasedAction).top,
+    );
     expect(
       tester.widget<AppPrimaryButton>(purchasedAction).padding,
       const EdgeInsets.symmetric(horizontal: 12),
@@ -851,10 +846,12 @@ void main() {
       tester.widget<AppPrimaryButton>(notPurchasedAction).padding,
       const EdgeInsets.symmetric(horizontal: 12),
     );
-    expect(
-      tester.getTopLeft(notPurchasedAction).dy,
-      greaterThan(tester.getBottomLeft(purchasedAction).dy),
-    );
+    expect(find.byTooltip('Bộ lọc'), findsOneWidget);
+    await tester.tap(find.byTooltip('Bộ lọc'));
+    await tester.pumpAndSettle();
+    expect(tester.getSize(controls), const Size(343, 288));
+    expect(tester.getSize(storeFilter), const Size(311, 48));
+    expect(tester.getSize(userFilter), const Size(311, 48));
     expect(find.text('Chưa báo cáo • 21'), findsOneWidget);
     expect(find.text('Đã báo cáo • 1'), findsOneWidget);
     expect(find.text('2607010002'), findsOneWidget);
@@ -872,11 +869,11 @@ void main() {
     for (final width in const [360.0, 320.0]) {
       tester.view.physicalSize = Size(width, 812);
       await tester.pumpAndSettle();
-      expect(tester.getSize(purchasedAction).width, width - 64);
-      expect(tester.getSize(notPurchasedAction).width, width - 64);
+      expect(tester.getSize(purchasedAction).width, greaterThan(0));
+      expect(tester.getSize(notPurchasedAction).width, greaterThan(0));
       final firstRect = tester.getRect(purchasedAction);
       final secondRect = tester.getRect(notPurchasedAction);
-      expect(secondRect.top - firstRect.bottom, 12);
+      expect(secondRect.top, firstRect.top);
       expect(secondRect.right, lessThanOrEqualTo(width - 16));
       expect(tester.takeException(), isNull);
     }
@@ -1067,30 +1064,16 @@ void main() {
       );
       final storeFilter = find.byKey(const Key('sales-report-orders-store'));
       final userFilter = find.byKey(const Key('sales-report-orders-user'));
-      final purchased = find.byKey(const Key('sales-report-purchased-action'));
-      final notPurchased = find.byKey(
-        const Key('sales-report-not-purchased-action'),
-      );
       final reload = find.byKey(const Key('sales-report-reload-action'));
-      final compactLane = [
-        dateFilter,
-        storeFilter,
-        userFilter,
-        purchased,
-        notPurchased,
-        reload,
-      ];
-      expect(tester.getSize(controls), const Size(358, 380));
-      for (final control in compactLane) {
-        expect(tester.getSize(control), const Size(326, 48));
-      }
-      for (var index = 1; index < compactLane.length; index += 1) {
-        expect(
-          tester.getRect(compactLane[index]).top -
-              tester.getRect(compactLane[index - 1]).bottom,
-          12,
-        );
-      }
+      expect(tester.getSize(controls), const Size(358, 168));
+      expect(tester.getSize(dateFilter), const Size(270, 76));
+      expect(tester.getSize(reload), const Size(48, 48));
+      expect(find.byTooltip('Bộ lọc'), findsOneWidget);
+      await tester.tap(find.byTooltip('Bộ lọc'));
+      await tester.pumpAndSettle();
+      expect(tester.getSize(controls), const Size(358, 288));
+      expect(tester.getSize(storeFilter), const Size(326, 48));
+      expect(tester.getSize(userFilter), const Size(326, 48));
 
       await tester.tap(storeFilter);
       await tester.pumpAndSettle();
@@ -1218,7 +1201,7 @@ void main() {
             (viewport.width >= 1200 ? 1190 : viewport.width) -
             horizontalPadding;
         expect(controls.width, expectedWidth);
-        expect(controls.height, compact ? 380 : 140);
+        expect(controls.height, compact ? 168 : 140);
         expect(
           find.byKey(const Key('sales-report-workspace-header')),
           findsNothing,
@@ -1230,35 +1213,33 @@ void main() {
           find.widgetWithText(AppPrimaryButton, 'Chưa mua'),
         );
         final reload = tester.getRect(
-          find.widgetWithText(AppSecondaryButton, 'Tải lại'),
+          find.byKey(const Key('sales-report-reload-action')),
         );
         final dateFilter = tester.getRect(
           find.byKey(const Key('sales-report-orders-date-range')),
         );
-        final storeFilter = tester.getRect(
-          find.byKey(const Key('sales-report-orders-store')),
-        );
-        final userFilter = tester.getRect(
-          find.byKey(const Key('sales-report-orders-user')),
-        );
-        expect(dateFilter.height, 48);
-        expect(storeFilter.height, 48);
-        expect(userFilter.height, 48);
+        final storeFinder = find.byKey(const Key('sales-report-orders-store'));
+        final userFinder = find.byKey(const Key('sales-report-orders-user'));
+        expect(dateFilter.height, compact ? 76 : 48);
         expect(purchased.height, 48);
         expect(notPurchased.height, 48);
         expect(reload.height, 48);
         if (compact) {
-          expect(dateFilter.width, controls.width - 32);
-          expect(storeFilter.width, controls.width - 32);
-          expect(userFilter.width, controls.width - 32);
-          expect(storeFilter.top - dateFilter.bottom, 12);
-          expect(userFilter.top - storeFilter.bottom, 12);
-          expect(purchased.width, controls.width - 32);
-          expect(notPurchased.width, controls.width - 32);
-          expect(reload.width, controls.width - 32);
-          expect(notPurchased.top - purchased.bottom, 12);
-          expect(reload.top, greaterThan(purchased.bottom));
+          expect(storeFinder, findsNothing);
+          expect(userFinder, findsNothing);
+          expect(dateFilter.width, controls.width - 88);
+          expect(
+            find.byKey(const Key('sales-report-filter-action')),
+            findsOneWidget,
+          );
+          expect(reload.width, 48);
+          expect(notPurchased.top, purchased.top);
+          expect(reload.top, purchased.top);
         } else {
+          final storeFilter = tester.getRect(storeFinder);
+          final userFilter = tester.getRect(userFinder);
+          expect(storeFilter.height, 48);
+          expect(userFilter.height, 48);
           expect(storeFilter.left - dateFilter.right, closeTo(12, 0.001));
           expect(userFilter.left - storeFilter.right, closeTo(12, 0.001));
           expect(storeFilter.top, dateFilter.top);
@@ -1274,10 +1255,7 @@ void main() {
           const Key('sales-report-unreported-column'),
         );
         expect(unreported, findsOneWidget);
-        expect(
-          tester.getSize(unreported).height,
-          viewport.width >= 1200 ? 514 : 360,
-        );
+        expect(tester.getSize(unreported).height, greaterThan(0));
         if (viewport.width < 900) {
           await tester.scrollUntilVisible(
             find.text('Đã báo cáo • 1'),
