@@ -8,9 +8,9 @@ import 'package:phongvu_opshub/app/widgets/app_toast.dart';
 import '../../../../app/theme/app_colors.dart';
 import '../../../../app/theme/app_radius.dart';
 import '../../../../app/theme/app_text_styles.dart';
-import '../../../../app/widgets/app_cards.dart';
 import '../../../../app/widgets/app_chips.dart';
 import '../../../../app/widgets/app_layout.dart';
+import '../../../../app/widgets/app_inventory_result_card.dart';
 import '../../../../core/logging/app_logger.dart';
 import '../../../../core/utils/date_formatter.dart';
 import '../../../fifo_check/domain/entities/sku_group.dart';
@@ -244,131 +244,71 @@ class _SortItemCard extends StatelessWidget {
     final title = item.name.isNotEmpty ? item.name : item.sku;
     final ageLabel = DateFormatter.inventoryAgeLabel(item.date);
 
-    return AppSurfaceCard(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: EdgeInsets.zero,
-      child: IntrinsicHeight(
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Container(
-              width: 8,
-              decoration: BoxDecoration(
-                color: color,
-                borderRadius: const BorderRadius.horizontal(
-                  left: Radius.circular(AppRadius.sm),
-                ),
+    return AppInventoryResultCard(
+      title: title,
+      statusLabel: item.isChecked ? 'Đã xếp' : 'FIFO',
+      accentColor: color,
+      statusColor: item.isChecked ? AppColors.successOf(context) : null,
+      statusBackgroundColor: item.isChecked
+          ? AppColors.successSurfaceOf(context)
+          : null,
+      metadata: [
+        if (item.serial.isNotEmpty)
+          AppInventoryMetadata(
+            icon: PhosphorIconsRegular.qrCode,
+            text: item.serial,
+            key: ValueKey('sort-copy-serial-${item.id}'),
+            tooltip: 'Sao chép serial',
+            semanticsLabel: 'Serial ${item.serial}',
+            onTap: () => unawaited(
+              _copyMetadata(
+                context,
+                field: 'serial',
+                fieldLabel: 'serial',
+                value: item.serial,
               ),
             ),
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(
-                          child: Text(
-                            title,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: AppTextStyles.labelL.copyWith(
-                              color: Theme.of(context).colorScheme.onSurface,
-                            ),
-                          ),
-                        ),
-                        if (item.isChecked)
-                          AppStatusChip(
-                            label: 'Đã xếp',
-                            color: AppColors.successOf(context),
-                            backgroundColor: AppColors.successSurfaceOf(
-                              context,
-                            ),
-                          )
-                        else
-                          const AppStatusChip(label: 'FIFO'),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 6,
-                      children: [
-                        if (item.serial.isNotEmpty)
-                          AppInfoChip(
-                            PhosphorIconsRegular.qrCode,
-                            item.serial,
-                            key: ValueKey('sort-copy-serial-${item.id}'),
-                            tooltip: 'Sao chép serial',
-                            semanticsLabel: 'Serial ${item.serial}',
-                            onTap: () => unawaited(
-                              _copyMetadata(
-                                context,
-                                field: 'serial',
-                                fieldLabel: 'serial',
-                                value: item.serial,
-                              ),
-                            ),
-                          ),
-                        AppInfoChip(PhosphorIconsRegular.package, item.sku),
-                        if (item.date.isNotEmpty)
-                          AppInfoChip(
-                            PhosphorIconsRegular.calendarBlank,
-                            item.date,
-                          ),
-                        if (ageLabel != null)
-                          AppInfoChip(PhosphorIconsRegular.timer, ageLabel),
-                        if (item.bin.isNotEmpty)
-                          AppInfoChip(
-                            PhosphorIconsRegular.mapPin,
-                            item.bin,
-                            key: ValueKey('sort-copy-location-${item.id}'),
-                            tooltip: 'Sao chép vị trí',
-                            semanticsLabel: 'Vị trí ${item.bin}',
-                            onTap: () => unawaited(
-                              _copyMetadata(
-                                context,
-                                field: 'location',
-                                fieldLabel: 'vị trí',
-                                value: item.bin,
-                              ),
-                            ),
-                          ),
-                        if (item.zone.isNotEmpty)
-                          AppInfoChip(
-                            PhosphorIconsRegular.mapTrifold,
-                            item.zone,
-                          ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        Checkbox(
-                          value: item.isChecked,
-                          onChanged: (_) => _toggleItem(),
-                        ),
-                        Expanded(
-                          child: Text(
-                            item.isChecked
-                                ? 'Bỏ đánh dấu đã xếp'
-                                : 'Đánh dấu đã xếp',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            softWrap: false,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
+          ),
+        AppInventoryMetadata(
+          icon: PhosphorIconsRegular.package,
+          text: item.sku,
         ),
-      ),
+        if (item.date.isNotEmpty)
+          AppInventoryMetadata(
+            icon: PhosphorIconsRegular.calendarBlank,
+            text: item.date,
+          ),
+        if (ageLabel != null)
+          AppInventoryMetadata(
+            icon: PhosphorIconsRegular.timer,
+            text: ageLabel,
+          ),
+        if (item.bin.isNotEmpty)
+          AppInventoryMetadata(
+            icon: PhosphorIconsRegular.mapPin,
+            text: item.bin,
+            key: ValueKey('sort-copy-location-${item.id}'),
+            tooltip: 'Sao chép vị trí',
+            semanticsLabel: 'Vị trí ${item.bin}',
+            onTap: () => unawaited(
+              _copyMetadata(
+                context,
+                field: 'location',
+                fieldLabel: 'vị trí',
+                value: item.bin,
+              ),
+            ),
+          ),
+        if (item.zone.isNotEmpty)
+          AppInventoryMetadata(
+            icon: PhosphorIconsRegular.mapTrifold,
+            text: item.zone,
+          ),
+      ],
+      checked: item.isChecked,
+      uncheckedActionLabel: 'Đánh dấu đã xếp',
+      checkedActionLabel: 'Bỏ đánh dấu đã xếp',
+      onCheckedChanged: (_) => _toggleItem(),
     );
   }
 

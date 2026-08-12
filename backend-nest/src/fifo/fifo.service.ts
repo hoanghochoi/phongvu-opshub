@@ -50,6 +50,7 @@ type FifoItemResponse = {
   serial_number: string | null;
   bin: string;
   zone: string;
+  bin_type: string | null;
   import_date: string;
   count: number;
   exported: boolean;
@@ -325,6 +326,7 @@ export class FifoService {
       serial_number: item.serialNumber,
       bin: item.bin || '',
       zone: item.zone || '',
+      bin_type: item.binType,
       import_date: item.importDate
         ? this.formatDateDDMMYYYY(item.importDate)
         : 'N/A',

@@ -6,6 +6,7 @@ class FifoInventoryItem {
   final String serialNumber;
   final String bin;
   final String zone;
+  final String binType;
   final String importDate;
   final int count;
   final bool exported;
@@ -19,6 +20,7 @@ class FifoInventoryItem {
     required this.serialNumber,
     required this.bin,
     required this.zone,
+    this.binType = '',
     required this.importDate,
     required this.count,
     required this.exported,
@@ -38,6 +40,8 @@ class FifoInventoryItem {
           '',
       bin: json['bin']?.toString() ?? '',
       zone: json['zone']?.toString() ?? '',
+      binType:
+          json['bin_type']?.toString() ?? json['binType']?.toString() ?? '',
       importDate:
           json['import_date']?.toString() ??
           json['importDate']?.toString() ??
