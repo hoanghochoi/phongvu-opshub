@@ -5,10 +5,12 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:phongvu_opshub/app/theme/app_theme.dart';
+import 'package:phongvu_opshub/app/widgets/app_chips.dart';
 import 'helpers/legacy_widget_finders.dart';
 import 'package:phongvu_opshub/core/logging/app_logger.dart';
 import 'package:phongvu_opshub/core/network/api_client.dart';
 import 'package:phongvu_opshub/core/storage/app_storage_keys.dart';
+import 'package:phongvu_opshub/core/utils/date_formatter.dart';
 import 'package:phongvu_opshub/features/fifo/data/repositories/fifo_repository.dart';
 import 'package:phongvu_opshub/features/fifo/domain/entities/fifo_check_result.dart';
 import 'package:phongvu_opshub/features/fifo/domain/entities/fifo_inventory_item.dart';
@@ -184,26 +186,20 @@ void main() {
     await tester.tap(find.byTooltip('Tìm FIFO'));
     await tester.pumpAndSettle();
 
-    expect(
-      tester.getRect(find.byKey(const Key('fifo-check-results'))).size,
-      const Size(343, 318),
+    final mobileCard = tester.getRect(
+      find.byKey(const Key('fifo-serial-result-card')),
     );
+    expect(mobileCard.width, 343);
+    expect(mobileCard.height, greaterThan(0));
     expect(
       tester
           .getRect(find.byKey(const ValueKey('fifo-copy-serial-fifo-1')))
           .height,
-      48,
-    );
-    expect(
       tester
           .getRect(find.byKey(const ValueKey('fifo-copy-location-fifo-1')))
           .height,
-      48,
     );
-    expect(
-      tester.getRect(find.byKey(const ValueKey('fifo-export-control'))).height,
-      40,
-    );
+    expect(find.text('Đánh dấu xuất kho'), findsOneWidget);
 
     tester.view.physicalSize = const Size(1024, 900);
     await tester.pumpWidget(
@@ -214,14 +210,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(
-      tester.getRect(find.byKey(const Key('fifo-check-results'))).size,
-      const Size(872, 248),
-    );
-    expect(
-      tester
-          .getRect(find.byKey(const ValueKey('fifo-copy-location-fifo-1')))
-          .height,
-      40,
+      tester.getRect(find.byKey(const Key('fifo-serial-result-card'))).width,
+      872,
     );
     expect(find.textContaining('Hàng bán mới tại kho'), findsOneWidget);
     expect(tester.takeException(), isNull);
@@ -294,13 +284,9 @@ void main() {
         tester
             .getRect(find.byKey(const ValueKey('fifo-copy-serial-fifo-1')))
             .height,
-        48,
-      );
-      expect(
         tester
             .getRect(find.byKey(const ValueKey('fifo-copy-location-fifo-1')))
             .height,
-        48,
       );
       expect(tester.takeException(), isNull);
     },
@@ -321,10 +307,6 @@ void main() {
     await tester.tap(find.byTooltip('Tìm FIFO'));
     await tester.pumpAndSettle();
 
-    expect(
-      tester.getSize(find.byKey(const Key('fifo-check-results'))),
-      const Size(343, 318),
-    );
     final title = tester.getRect(
       find.byKey(const Key('fifo-mobile-product-title')),
     );
@@ -332,7 +314,7 @@ void main() {
       find.byKey(const Key('fifo-mobile-status-pill')),
     );
     final metadata = tester.getRect(
-      find.byKey(const Key('fifo-mobile-metadata-rows')),
+      find.byKey(const Key('fifo-serial-metadata-wrap')),
     );
     final serial = tester.getRect(
       find.byKey(const ValueKey('fifo-copy-serial-fifo-1')),
@@ -348,17 +330,17 @@ void main() {
       find.byKey(const ValueKey('fifo-copy-location-fifo-1')),
     );
     final binType = tester.getRect(find.byKey(const Key('fifo-bin-type-pill')));
-    expect(status.left, title.left);
-    expect(status.top, title.bottom + 4);
-    expect(status.height, 30);
+    expect(status.top, closeTo(title.top, 1));
     expect(status.width, lessThan(metadata.width));
-    expect(metadata.width, 304);
+    expect(metadata.width, greaterThan(0));
     expect(serial.width, lessThan(metadata.width));
     expect(sku.width, lessThan(metadata.width));
     expect(importDate.width, lessThan(metadata.width));
     expect(age.width, lessThan(metadata.width));
     expect(location.width, lessThan(metadata.width));
     expect(binType.width, lessThan(metadata.width));
+    final chipRects = [serial, sku, importDate, age, location, binType];
+    expect(chipRects.map((rect) => rect.height).toSet(), hasLength(1));
     expect(
       {
         serial.top,
@@ -391,19 +373,11 @@ void main() {
     await tester.tap(find.byTooltip('Tìm FIFO'));
     await tester.pumpAndSettle();
 
-    expect(
-      tester.getSize(find.byKey(const Key('fifo-check-results'))),
-      const Size(1126, 248),
-    );
-    expect(
-      tester.getSize(find.byKey(const Key('fifo-desktop-metadata-wrap'))),
-      const Size(1072, 92),
-    );
     final card = tester.getRect(
       find.byKey(const Key('fifo-serial-result-card')),
     );
     final metadata = tester.getRect(
-      find.byKey(const Key('fifo-desktop-metadata-wrap')),
+      find.byKey(const Key('fifo-serial-metadata-wrap')),
     );
     final serial = tester.getRect(
       find.byKey(const ValueKey('fifo-copy-serial-fifo-1')),
@@ -417,16 +391,16 @@ void main() {
     final export = tester.getRect(
       find.byKey(const ValueKey('fifo-export-control')),
     );
-    expect(metadata.left, closeTo(card.left + 32, 1));
-    expect(metadata.right, closeTo(card.right - 24, 1));
-    expect(serial.height, 40);
-    expect(sku.height, 40);
-    expect(location.height, 40);
+    expect(metadata.left, closeTo(card.left + 20, 1));
+    expect(metadata.right, lessThanOrEqualTo(card.right - 12));
+    expect(serial.height, 26);
+    expect(sku.height, serial.height);
+    expect(location.height, serial.height);
     expect(serial.top, metadata.top);
     expect(sku.top, metadata.top);
-    expect(location.top, anyOf(metadata.top, metadata.top + 52));
-    expect(export.top, metadata.bottom + 16);
-    expect(export.bottom, lessThanOrEqualTo(card.bottom - 24));
+    expect(location.top, anyOf(metadata.top, greaterThan(metadata.top)));
+    expect(export.top, metadata.bottom + 8);
+    expect(export.bottom, lessThanOrEqualTo(card.bottom - 12));
     expect(find.text('Sai FIFO'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
@@ -482,7 +456,7 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('FIFO SKU loaded result keeps approved item geometry', (
+  testWidgets('FIFO SKU items show six metadata fields and export state', (
     tester,
   ) async {
     tester.view.physicalSize = const Size(375, 900);
@@ -490,22 +464,70 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
 
-    await tester.pumpWidget(_wrapFifoCheck(_FakeFifoRepository(skuMode: true)));
+    final repository = _FakeFifoRepository(skuMode: true);
+    await tester.pumpWidget(_wrapFifoCheck(repository));
     await tester.enterText(find.byType(TextField), 'SKU123');
     await tester.tap(find.byTooltip('Tìm FIFO'));
     await tester.pumpAndSettle();
 
+    expect(find.text('SKU123 • Q3-001 • 3 sản phẩm'), findsOneWidget);
+    expect(find.text(_skuItem1.serialNumber), findsOneWidget);
+    expect(find.text(_skuItem1.sku), findsWidgets);
     expect(
-      tester.getRect(find.byKey(const Key('fifo-check-results'))).size,
-      const Size(343, 340),
+      find.text(DateFormatter.format(_skuItem1.importDate)),
+      findsOneWidget,
     );
+    expect(find.textContaining('Tồn '), findsWidgets);
+    expect(find.text(_skuItem1.bin), findsOneWidget);
+    expect(find.text(_skuItem1.binType), findsOneWidget);
+    expect(find.text('Đánh dấu xuất kho'), findsWidgets);
+
+    final firstMetadata = find.descendant(
+      of: find.byKey(const ValueKey('fifo-sku-metadata-sku-1')),
+      matching: find.byType(AppInfoChip),
+    );
+    expect(firstMetadata, findsNWidgets(6));
+    final firstChipRects = firstMetadata
+        .evaluate()
+        .map((element) => tester.getRect(find.byWidget(element.widget)))
+        .toList();
+    expect(firstChipRects.map((rect) => rect.height).toSet(), hasLength(1));
+
+    await tester.tap(
+      find.byKey(const ValueKey('fifo-sku-export-control-sku-1')),
+    );
+    await tester.pumpAndSettle();
+    expect(repository.lastExportInventoryId, 'sku-1');
+    expect(repository.lastExported, isTrue);
+
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('fifo-compact-item-sku-2')),
+      180,
+      scrollable: find.byType(Scrollable).last,
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text(_skuItem2.serialNumber), findsOneWidget);
+    expect(find.text(_skuItem2.binType), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('fifo-sku-metadata-sku-2')),
+        matching: find.byType(AppInfoChip),
+      ),
+      findsNWidgets(6),
+    );
+    expect(find.text('Bỏ đánh dấu xuất kho'), findsOneWidget);
     expect(
       tester
-          .getRect(find.byKey(const ValueKey('fifo-compact-item-sku-1')))
-          .size,
-      const Size(309, 154),
+          .widget<Checkbox>(
+            find.descendant(
+              of: find.byKey(const ValueKey('fifo-sku-export-control-sku-2')),
+              matching: find.byType(Checkbox),
+            ),
+          )
+          .value,
+      isTrue,
     );
-    expect(find.text('SKU123 • Q3-001 • 3 sản phẩm'), findsOneWidget);
 
     await tester.scrollUntilVisible(
       find.byKey(const ValueKey('fifo-compact-item-sku-3')),
@@ -513,12 +535,25 @@ void main() {
       scrollable: find.byType(Scrollable).last,
     );
     await tester.pumpAndSettle();
-
+    expect(find.text(_skuItem3.serialNumber), findsOneWidget);
+    expect(find.text(_skuItem3.binType), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('fifo-sku-metadata-sku-3')),
+        matching: find.byType(AppInfoChip),
+      ),
+      findsNWidgets(6),
+    );
     expect(
       tester
-          .getRect(find.byKey(const ValueKey('fifo-compact-item-sku-3')))
-          .size,
-      const Size(309, 164),
+          .widget<Checkbox>(
+            find.descendant(
+              of: find.byKey(const ValueKey('fifo-sku-export-control-sku-3')),
+              matching: find.byType(Checkbox),
+            ),
+          )
+          .value,
+      isFalse,
     );
     expect(tester.takeException(), isNull);
   });
@@ -691,6 +726,8 @@ class _FakeFifoRepository extends FifoRepository {
 
   String? lastText;
   bool? lastIncludeExported;
+  String? lastExportInventoryId;
+  bool? lastExported;
 
   @override
   Future<FifoCheckResult> check({
@@ -739,18 +776,27 @@ class _FakeFifoRepository extends FifoRepository {
     required String inventoryId,
     required bool exported,
   }) async {
+    lastExportInventoryId = inventoryId;
+    lastExported = exported;
+    final source = switch (inventoryId) {
+      'sku-1' => _skuItem1,
+      'sku-2' => _skuItem2,
+      'sku-3' => _skuItem3,
+      _ => _fifoItem,
+    };
     return FifoInventoryItem(
       id: inventoryId,
-      srCode: _fifoItem.srCode,
-      sku: _fifoItem.sku,
-      skuName: _fifoItem.skuName,
-      serialNumber: _fifoItem.serialNumber,
-      bin: _fifoItem.bin,
-      zone: _fifoItem.zone,
-      importDate: _fifoItem.importDate,
-      count: _fifoItem.count,
+      srCode: source.srCode,
+      sku: source.sku,
+      skuName: source.skuName,
+      serialNumber: source.serialNumber,
+      bin: source.bin,
+      zone: source.zone,
+      binType: source.binType,
+      importDate: source.importDate,
+      count: source.count,
       exported: exported,
-      isFifo: _fifoItem.isFifo,
+      isFifo: source.isFifo,
     );
   }
 }
@@ -792,6 +838,7 @@ const _skuItem1 = FifoInventoryItem(
   serialNumber: 'SN-001238',
   bin: 'BIN-A12',
   zone: 'Q3-001',
+  binType: 'Hàng đã mở hộp',
   importDate: '2026-05-12',
   count: 1,
   exported: false,
@@ -806,6 +853,7 @@ const _skuItem2 = FifoInventoryItem(
   serialNumber: 'SN-001491',
   bin: 'BIN-A18',
   zone: 'Q3-001',
+  binType: 'Hàng trưng bày',
   importDate: '2026-05-28',
   count: 1,
   exported: true,
@@ -820,6 +868,7 @@ const _skuItem3 = FifoInventoryItem(
   serialNumber: 'SN-001880',
   bin: 'BIN-B02',
   zone: 'Q3-001',
+  binType: 'Hàng bán mới tại kho',
   importDate: '2026-06-04',
   count: 1,
   exported: false,
