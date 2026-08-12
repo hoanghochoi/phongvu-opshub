@@ -139,8 +139,6 @@ class AppMetadataPill extends StatelessWidget {
     final radius = mobileDensity ? AppRadius.sm : AppRadius.pill;
     final foreground = AppColors.textSecondaryOf(context);
     final displayText = text.isEmpty ? 'Chưa có' : text;
-    final compactLongValue = mobileDensity && displayText.length > 14;
-
     Widget surface = Container(
       height: visualHeight,
       padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
@@ -153,28 +151,15 @@ class AppMetadataPill extends StatelessWidget {
         children: [
           Icon(icon, size: iconSize, color: foreground),
           SizedBox(width: gap),
-          Flexible(
-            child: ConstrainedBox(
-              constraints: BoxConstraints(
-                maxWidth: mobileDensity
-                    ? (onTap != null ? 80 : 120)
-                    : double.infinity,
-              ),
-              child: Text(
-                displayText,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                softWrap: false,
-                style:
-                    (mobileDensity
-                            ? AppTextStyles.labelSmallSubtle
-                            : AppTextStyles.labelM)
-                        .copyWith(
-                          color: foreground,
-                          fontSize: compactLongValue ? 10 : null,
-                        ),
-              ),
-            ),
+          Text(
+            displayText,
+            maxLines: 1,
+            softWrap: false,
+            style:
+                (mobileDensity
+                        ? AppTextStyles.labelSmallSubtle
+                        : AppTextStyles.labelM)
+                    .copyWith(color: foreground),
           ),
           if (onTap != null) ...[
             SizedBox(width: gap),
