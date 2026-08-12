@@ -344,6 +344,10 @@ god-helper.
 - [x] Add Windows `.cmd`/`.bat` structured-command invocation coverage; the
   runner exercises the supported shell path and preserves exit classification
   (verification suite now 14/14 on Windows).
+- [x] Preserve command stdout/stderr while classifying platform-level
+  command-not-found errors as environment failures (exit `5`), with actual
+  Windows `npm.cmd`/missing-command coverage. This prevents missing local
+  toolchains from being mislabeled as product failures.
 - [ ] Publish `OPS-65` and `OPS-68` through the guarded feature-PR flow. Until
   their PRs merge into `staging` and `finish` passes, Phase 5+ mutations are
   blocked by lifecycle policy; no direct push or PR authority is assumed.
@@ -427,6 +431,14 @@ Verification hardening evidence:
   stale=false; `git diff --check`: pass.
 - Windows `.cmd`/`.bat` structured-command invocation was exercised through
   the supported shell path and returned a structured pass with exit code 0.
+
+Environment classification evidence:
+
+- Commit pending in this checkpoint: actual full-profile runner proof returns
+  exit `5` for missing Nest CLI (`'nest' is not recognized...`) after Flutter,
+  docs, runner and release checks pass; fingerprint remains `stale=false`.
+- `node --test tests/verification/*.test.mjs`: 16/16 pass, including mocked
+  and actual Windows `npm.cmd` command-not-found cases.
 
 Phase 7A groundwork evidence:
 - `flutter pub get --offline` completed successfully on the task worktree.

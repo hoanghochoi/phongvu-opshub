@@ -223,6 +223,26 @@ function displayCommand(command) {
   return [displayExecutable(command.executable), ...command.argv].join(' ');
 }
 
+function commandOutput(result) {
+  return [result.stdout, result.stderr]
+    .filter((value) => value != null)
+    .map((value) => (Buffer.isBuffer(value) ? value.toString('utf8') : String(value)))
+    .join('\n');
+}
+
+export function classifyCommandResult(result) {
+  if (result.error) return 'environment-failure';
+  const output = commandOutput(result);
+  if (
+    /(?:is not recognized as an internal or external command|command not found|no such file or directory|cannot find the path specified)/i.test(
+      output,
+    )
+  ) {
+    return 'environment-failure';
+  }
+  return result.status === 0 ? 'passed' : 'failed';
+}
+
 function sanitizeCommandResult(root, result) {
   return {
     ...result,
@@ -256,9 +276,11 @@ export function runCommand(root, command) {
     encoding: 'utf8',
     windowsHide: true,
     shell: process.platform === 'win32' && /\.(?:cmd|bat)$/i.test(command.executable),
-    stdio: 'inherit',
+    stdio: ['inherit', 'pipe', 'pipe'],
   });
   const durationMs = Date.now() - started;
+  if (result.stdout) process.stdout.write(result.stdout);
+  if (result.stderr) process.stderr.write(result.stderr);
   if (result.error) {
     return {
       id: command.id,
@@ -272,15 +294,19 @@ export function runCommand(root, command) {
       error: String(result.error.message).slice(0, 240),
     };
   }
+  const status = classifyCommandResult(result);
   return {
     id: command.id,
     executable: displayExecutable(command.executable),
     argv: command.argv,
     command: displayCommand(command),
     cwd: displayCwd(root, cwd),
-    status: result.status === 0 ? 'passed' : 'failed',
+    status,
     exitCode: result.status,
     durationMs,
+    ...(status === 'environment-failure'
+      ? { error: commandOutput(result).trim().slice(-240) || 'command unavailable' }
+      : {}),
   };
 }
 

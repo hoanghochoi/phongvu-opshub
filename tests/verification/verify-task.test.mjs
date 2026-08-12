@@ -4,7 +4,7 @@ import { appendFileSync, mkdirSync, mkdtempSync, realpathSync, renameSync, rmSyn
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { collectChangedPaths, fingerprint, parseArgs, runCommand, verifyTask, EXIT_CODES } from '../../scripts/verify-task.mjs';
+import { classifyCommandResult, collectChangedPaths, fingerprint, parseArgs, runCommand, verifyTask, EXIT_CODES } from '../../scripts/verify-task.mjs';
 
 function git(cwd, args) {
   return execFileSync('git', args, { cwd, encoding: 'utf8', windowsHide: true }).trim();
@@ -132,6 +132,37 @@ test('structured command runner invokes Windows cmd files through the supported 
   });
   assert.equal(result.status, 'passed');
   assert.equal(result.exitCode, 0);
+});
+
+test('command-not-found output is classified as environment failure', () => {
+  assert.equal(
+    classifyCommandResult({
+      status: 1,
+      stdout: '',
+      stderr: "'missing-tool' is not recognized as an internal or external command",
+    }),
+    'environment-failure',
+  );
+  assert.equal(
+    classifyCommandResult({ status: 1, stdout: '', stderr: 'Assertion failed: expected 1' }),
+    'failed',
+  );
+});
+
+test('actual Windows npm command-not-found output is an environment failure', (t) => {
+  if (process.platform !== 'win32') {
+    t.skip('Windows npm command invocation contract');
+    return;
+  }
+  const root = repo(t);
+  write(root, 'package.json', '{"scripts":{"build":"opshub-command-that-does-not-exist"}}\n');
+  const result = runCommand(root, {
+    id: 'missing-npm-command',
+    cwd: '.',
+    executable: 'npm.cmd',
+    argv: ['run', 'build'],
+  });
+  assert.equal(result.status, 'environment-failure');
 });
 
 test('command failure is classified as product failure and preserves structured definitions', (t) => {
