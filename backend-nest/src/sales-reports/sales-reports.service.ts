@@ -3446,6 +3446,11 @@ export class SalesReportsService implements OnApplicationBootstrap {
   }
 
   private toCachedOrderCockpitDto(row: any) {
+    const employee = this.firstCockpitEmployee(
+      { name: row.consultantName, email: row.consultantEmail },
+      { name: row.sellerName, email: row.sellerEmail },
+      { name: null, email: row.sourceUserEmail },
+    );
     return {
       status: 'UNREPORTED',
       orderCode: row.orderCode,
@@ -3470,6 +3475,8 @@ export class SalesReportsService implements OnApplicationBootstrap {
       platformId: row.platformId,
       consultantCustomId: row.consultantCustomId,
       consultantName: row.consultantName,
+      employeeName: employee.name,
+      employeeEmail: employee.email,
       sellerName: row.sellerName,
       storeCode: row.storeCode,
       storeName: row.storeName,
@@ -3481,6 +3488,14 @@ export class SalesReportsService implements OnApplicationBootstrap {
 
   private toReportedOrderCockpitDto(row: any) {
     const report = this.toReportDto(row);
+    const employee = this.firstCockpitEmployee(
+      { name: row.createdByName, email: row.createdByEmail },
+      {
+        name: row.erpConsultantName ?? row.consultantName,
+        email: row.consultantEmail,
+      },
+      { name: row.sellerName, email: row.sellerEmail },
+    );
     return {
       status: 'REPORTED',
       orderCode: row.orderCode,
@@ -3503,14 +3518,31 @@ export class SalesReportsService implements OnApplicationBootstrap {
         : [],
       platformId: row.erpPlatformId,
       consultantCustomId: row.erpConsultantCustomId,
-      consultantName: row.erpConsultantName,
-      sellerName: null,
+      consultantName:
+        row.createdByName ?? row.erpConsultantName ?? row.consultantName ?? null,
+      employeeName: employee.name,
+      employeeEmail: employee.email,
+      sellerName: row.sellerName ?? null,
       storeCode: row.storeCode,
       storeName: row.storeName,
       fetchedAt: row.erpFetchedAt,
       reportedAt: row.submittedAt,
       report,
     };
+  }
+
+  private firstCockpitEmployee(
+    ...candidates: Array<{ name: unknown; email: unknown }>
+  ): { name: string | null; email: string | null } {
+    for (const candidate of candidates) {
+      const name =
+        typeof candidate.name === 'string' && candidate.name.trim()
+          ? candidate.name.trim()
+          : null;
+      const email = this.normalizeEmail(candidate.email);
+      if (name || email) return { name: name ?? email, email };
+    }
+    return { name: null, email: null };
   }
 
   private validateCreateBody(

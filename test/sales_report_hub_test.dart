@@ -706,12 +706,30 @@ void main() {
     );
     expect(find.text('2607010001'), findsOneWidget);
     expect(find.text('2607010002'), findsOneWidget);
-    expect(find.text('CP62 • Trần Thị B'), findsOneWidget);
+    expect(find.text('Báo cáo'), findsNothing);
+    expect(
+      tester
+          .getSize(find.byKey(const Key('sales-report-order-2607010001')))
+          .height,
+      102,
+    );
+    expect(
+      tester
+          .getSize(find.byKey(const Key('sales-report-order-2607010002')))
+          .height,
+      102,
+    );
+    expect(find.text('SR • Tư vấn CP62'), findsOneWidget);
+    expect(find.text('sale.cp62@phongvu.vn'), findsOneWidget);
     expect(find.textContaining('ĐỊA ĐIỂM KINH DOANH'), findsNothing);
     expect(find.text('Trang 1/400'), findsOneWidget);
     expect(find.text('Trước'), findsNothing);
     expect(find.text('Sau'), findsNothing);
     expect(find.byType(SegmentedButton<String>), findsNothing);
+
+    await tester.tap(find.text('2607010001'));
+    await tester.pumpAndSettle();
+    expect(find.byType(Dialog), findsNothing);
 
     await tester.ensureVisible(find.byTooltip('Trang sau'));
     await tester.tap(find.byTooltip('Trang sau'));
@@ -2841,6 +2859,9 @@ class _FakeSalesReportRepository extends SalesReportRepository {
           'terminalName':
               'CP62 - ĐỊA ĐIỂM KINH DOANH 62 - CÔNG TY CỔ PHẦN THƯƠNG MẠI',
           'reportedAt': '2026-07-01T02:30:00.000Z',
+          'employeeName': 'Người báo cáo',
+          'employeeEmail': 'reported@phongvu.vn',
+          'report': {'type': 'PURCHASED', 'createdByName': 'Người báo cáo'},
         },
       ],
       'unreportedOrders': [
@@ -2854,6 +2875,8 @@ class _FakeSalesReportRepository extends SalesReportRepository {
               'CP62 - ĐỊA ĐIỂM KINH DOANH 62 - CÔNG TY CỔ PHẦN THƯƠNG MẠI',
           'consultantName': 'Tư vấn CP62',
           'sellerName': 'Sale CP62',
+          'employeeName': 'Tư vấn CP62',
+          'employeeEmail': 'sale.cp62@phongvu.vn',
         },
       ],
     });

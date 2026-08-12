@@ -1162,11 +1162,36 @@ describe('SalesReportsService', () => {
     prisma.salesReport.findMany
       .mockResolvedValueOnce([{ orderCode: '2607010001' }])
       .mockResolvedValueOnce([
-        { ...exportReportFixture(), orderCode: '2607010001' },
+        {
+          ...exportReportFixture(),
+          orderCode: '2607010001',
+          createdByName: 'Report Creator',
+          createdByEmail: 'creator@phongvu.vn',
+          consultantName: 'Consultant Other',
+          consultantEmail: 'consultant.other@phongvu.vn',
+          sellerName: 'Seller Other',
+          sellerEmail: 'seller.other@phongvu.vn',
+        },
       ]);
     prisma.salesReportErpOrderCache.findMany
-      .mockResolvedValueOnce([erpOrderCacheFixture('2607010002')])
-      .mockResolvedValueOnce([erpOrderCacheFixture('2607010002')]);
+      .mockResolvedValueOnce([
+        {
+          ...erpOrderCacheFixture('2607010002'),
+          consultantName: 'Consultant Owner',
+          consultantEmail: 'consultant@phongvu.vn',
+          sellerName: 'Seller Other',
+          sellerEmail: 'seller@phongvu.vn',
+        },
+      ])
+      .mockResolvedValueOnce([
+        {
+          ...erpOrderCacheFixture('2607010002'),
+          consultantName: 'Consultant Owner',
+          consultantEmail: 'consultant@phongvu.vn',
+          sellerName: 'Seller Other',
+          sellerEmail: 'seller@phongvu.vn',
+        },
+      ]);
 
     const result = await service.orderCockpit(userFixture(), {
       startDate: '2026-06-25',
@@ -1176,8 +1201,14 @@ describe('SalesReportsService', () => {
     expect(erp.listRecentOrders).not.toHaveBeenCalled();
     expect(prisma.salesReportErpOrderCache.upsert).not.toHaveBeenCalled();
     expect(result.reportedOrders).toHaveLength(1);
+    expect(result.reportedOrders[0].employeeName).toBe('Report Creator');
+    expect(result.reportedOrders[0].employeeEmail).toBe('creator@phongvu.vn');
     expect(result.unreportedOrders).toHaveLength(1);
     expect(result.unreportedOrders[0].orderCode).toBe('2607010002');
+    expect(result.unreportedOrders[0].employeeName).toBe('Consultant Owner');
+    expect(result.unreportedOrders[0].employeeEmail).toBe(
+      'consultant@phongvu.vn',
+    );
     expect(result.scope).toBe('OWN');
     expect(result.syncSucceeded).toBe(true);
     expect(result.syncCount).toBe(0);

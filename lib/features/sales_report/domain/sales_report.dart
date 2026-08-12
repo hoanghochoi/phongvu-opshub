@@ -167,6 +167,8 @@ class SalesReportOrderCockpitItem {
   final List<String> paymentMethods;
   final String? consultantCustomId;
   final String? consultantName;
+  final String? employeeName;
+  final String? employeeEmail;
   final String? sellerName;
   final String? storeCode;
   final String? storeName;
@@ -191,6 +193,8 @@ class SalesReportOrderCockpitItem {
     required this.paymentMethods,
     required this.consultantCustomId,
     required this.consultantName,
+    required this.employeeName,
+    required this.employeeEmail,
     required this.sellerName,
     required this.storeCode,
     required this.storeName,
@@ -241,6 +245,8 @@ class SalesReportOrderCockpitItem {
               .toList(),
       consultantCustomId: json['consultantCustomId']?.toString(),
       consultantName: json['consultantName']?.toString(),
+      employeeName: json['employeeName']?.toString(),
+      employeeEmail: json['employeeEmail']?.toString(),
       sellerName: json['sellerName']?.toString(),
       storeCode: json['storeCode']?.toString(),
       storeName: json['storeName']?.toString(),
