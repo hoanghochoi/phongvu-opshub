@@ -439,8 +439,10 @@ Environment classification evidence:
   `npm ci --ignore-scripts` and generated the Prisma client with
   `npx prisma generate`, the exact final runner proof passed:
   `node scripts/verify-task.mjs --base origin/staging --full --json
-  tmp/verify-ops65-final-3aa74187.json` at
-  `HEAD=3aa74187d63856315ecb3f053736c8fa9462daf2`.
+  tmp/verify-ops65-final.json` after the final implementation commit. The
+  artifact's `baseSha` and `headSha` are the authoritative exact-SHA record;
+  they must be read back with the result rather than duplicated in this
+  fingerprinted plan file.
   All eight profiles (`harness`, `docs`, `verification-runner`, `release`,
   `flutter`, `nestjs`, `go-realtime`, `deployment`) returned code `0`, with
   matching before/after fingerprints and `stale=false`. The exact final
