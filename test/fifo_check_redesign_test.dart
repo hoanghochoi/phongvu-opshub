@@ -189,8 +189,12 @@ void main() {
     final mobileCard = tester.getRect(
       find.byKey(const Key('fifo-serial-result-card')),
     );
+    final mobileResults = tester.getRect(
+      find.byKey(const Key('fifo-check-results')),
+    );
     expect(mobileCard.width, 343);
     expect(mobileCard.height, greaterThan(0));
+    expect(mobileCard.height, lessThan(mobileResults.height));
     expect(
       tester
           .getRect(find.byKey(const ValueKey('fifo-copy-serial-fifo-1')))
@@ -400,7 +404,7 @@ void main() {
     expect(sku.top, metadata.top);
     expect(location.top, anyOf(metadata.top, greaterThan(metadata.top)));
     expect(export.top, metadata.bottom + 8);
-    expect(export.bottom, lessThanOrEqualTo(card.bottom - 12));
+    expect(card.bottom - export.bottom, closeTo(12, 1));
     expect(find.text('Sai FIFO'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });

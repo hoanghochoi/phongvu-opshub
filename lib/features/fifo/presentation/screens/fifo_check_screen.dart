@@ -435,13 +435,16 @@ class _FifoResultPanel extends StatelessWidget {
 
     if (provider.result?.isSerialMode == true &&
         provider.result?.item != null) {
-      return SizedBox(
+      return SingleChildScrollView(
         key: const Key('fifo-check-results'),
-        width: double.infinity,
-        child: _ResultBody(
-          result: provider.result,
-          exportingIds: provider.exportingIds,
-          onExportChanged: onExportChanged,
+        physics: const AlwaysScrollableScrollPhysics(),
+        child: SizedBox(
+          width: double.infinity,
+          child: _ResultBody(
+            result: provider.result,
+            exportingIds: provider.exportingIds,
+            onExportChanged: onExportChanged,
+          ),
         ),
       );
     }

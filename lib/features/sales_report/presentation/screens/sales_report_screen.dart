@@ -653,7 +653,7 @@ class _SalesReportControlsState extends State<_SalesReportControls> {
                   height: 76,
                   child: Row(
                     key: const Key('sales-report-compact-filter-row'),
-                    crossAxisAlignment: CrossAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
                       Expanded(child: dateRangeFilter),
                       const SizedBox(width: 8),

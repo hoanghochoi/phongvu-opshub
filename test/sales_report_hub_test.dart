@@ -820,6 +820,12 @@ void main() {
       tester.getSize(find.byKey(const Key('sales-report-filter-action'))),
       const Size(48, 48),
     );
+    expect(
+      tester
+          .getRect(find.byKey(const Key('sales-report-filter-action')))
+          .bottom,
+      tester.getRect(dateFilter).bottom,
+    );
     expect(tester.getSize(purchasedAction), const Size(139, 48));
     expect(tester.getSize(notPurchasedAction), const Size(108, 48));
     expect(tester.getSize(reloadAction), const Size(48, 48));
