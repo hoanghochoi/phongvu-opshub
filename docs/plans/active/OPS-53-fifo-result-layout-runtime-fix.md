@@ -2,8 +2,8 @@
 
 ## Checkpoint
 
-- Branch: `codex/ops-53-fifo-pill-intrinsic-wrap`
-- Base: `d102673cad1a3879ac535e56b213869db08a59c5` (exact `origin/staging`)
+- Branch: `codex/ops-53-fifo-metadata-alignment-full-sku-card`
+- Base: `0eaebfeaec2a90e9d37295dc35316dc709a543ec` (exact `origin/staging`)
 - Trigger: authenticated staging screenshots show metadata pills stacking,
   clipping and overlapping the export control.
 
@@ -15,6 +15,7 @@
 | Compact FIFO results | `2288:23647`, card `2288:23705` | compact serial body and SKU item cards | Card anatomy: accent 7; title then status pill on the same left axis with a 4px gap; pill visual 30; every pill shrink-wraps icon + gaps + copy + horizontal padding; the metadata container wraps complete pills by their intrinsic width. SKU repeats the same anatomy per item. |
 | Compact serial scrolled | `2289:23723`, card `2289:23734` | same compact body | Same pill and non-overlap geometry after command area scrolls away |
 | Shared compact pill | `2305:56165` | `AppMetadataPill`, `AppActionPill`, `_FifoBadge` | visual 30; label 12; icon 14; horizontal padding 10; gap 6; action hit target at least 48 |
+| Shared inventory card runtime reference | same approved FIFO nodes; proven consumer `SortSKUGroupWidget._SortItemCard` | `AppInventoryResultCard` consumed by Sort and FIFO Check | One anatomy for accent, title/status, aligned `AppInfoChip` metadata wrap and contextual checkbox action. SKU check renders every item with the full six-field card. |
 
 Visible elements covered: product title, status pill, serial/SKU/date/age/location/
 BIN-type pills, copy icons, status accent and export checkbox/label. FIFO/API,
@@ -39,6 +40,12 @@ permission, recent-search and export behavior remain unchanged.
   remaining run width is insufficient. Replace the fixed 84px title/status
   stack with natural column flow so the status pill follows the rendered title
   and shares its left edge.
+- Latest staging proof showed interactive metadata pills using a 48px outer
+  footprint beside 30px static pills, shifting their centerlines. Consolidate
+  both Sort and Check on one shared inventory result card and `AppInfoChip`
+  footprint. The SKU lookup path must no longer use its reduced three-field
+  card; every item renders the same full card as serial lookup, with the FIFO
+  Check export action preserved.
 
 ## Verification
 
