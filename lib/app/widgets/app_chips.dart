@@ -194,11 +194,17 @@ class AppMetadataPill extends StatelessWidget {
         child: InkWell(
           onTap: onTap,
           borderRadius: BorderRadius.circular(radius),
-          child: Center(child: surface),
+          child: Center(widthFactor: 1, heightFactor: 1, child: surface),
         ),
       ),
     );
-    final target = SizedBox(height: 48, child: surface);
+    // Compact surfaces reserve a 48dp layout track for the action target.
+    // Desktop wrap geometry is exactly 40px high in the approved FIFO card;
+    // InkWell keeps the full pill surface interactive without inflating a
+    // wrap run to 48px and clipping the second metadata row.
+    final target = mobileDensity
+        ? SizedBox(height: 48, child: surface)
+        : surface;
     return tooltip?.isNotEmpty == true
         ? Tooltip(message: tooltip!, child: target)
         : target;

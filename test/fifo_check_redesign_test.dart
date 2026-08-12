@@ -221,7 +221,7 @@ void main() {
       tester
           .getRect(find.byKey(const ValueKey('fifo-copy-location-fifo-1')))
           .height,
-      48,
+      40,
     );
     expect(find.textContaining('Hàng bán mới tại kho'), findsOneWidget);
     expect(tester.takeException(), isNull);
@@ -358,6 +358,34 @@ void main() {
       tester.getSize(find.byKey(const Key('fifo-desktop-metadata-wrap'))),
       const Size(1072, 92),
     );
+    final card = tester.getRect(
+      find.byKey(const Key('fifo-serial-result-card')),
+    );
+    final metadata = tester.getRect(
+      find.byKey(const Key('fifo-desktop-metadata-wrap')),
+    );
+    final serial = tester.getRect(
+      find.byKey(const ValueKey('fifo-copy-serial-fifo-1')),
+    );
+    final sku = tester.getRect(
+      find.byKey(const ValueKey('fifo-copy-sku-fifo-1')),
+    );
+    final location = tester.getRect(
+      find.byKey(const ValueKey('fifo-copy-location-fifo-1')),
+    );
+    final export = tester.getRect(
+      find.byKey(const ValueKey('fifo-export-control')),
+    );
+    expect(metadata.left, closeTo(card.left + 32, 1));
+    expect(metadata.right, closeTo(card.right - 24, 1));
+    expect(serial.height, 40);
+    expect(sku.height, 40);
+    expect(location.height, 40);
+    expect(serial.top, metadata.top);
+    expect(sku.top, metadata.top);
+    expect(location.top, anyOf(metadata.top, metadata.top + 52));
+    expect(export.top, metadata.bottom + 16);
+    expect(export.bottom, lessThanOrEqualTo(card.bottom - 24));
     expect(find.text('Sai FIFO'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
@@ -434,15 +462,23 @@ void main() {
       tester
           .getRect(find.byKey(const ValueKey('fifo-compact-item-sku-1')))
           .size,
-      const Size(311, 68),
+      const Size(309, 154),
     );
+    expect(find.text('SKU123 • Q3-001 • 3 sản phẩm'), findsOneWidget);
+
+    await tester.scrollUntilVisible(
+      find.byKey(const ValueKey('fifo-compact-item-sku-3')),
+      180,
+      scrollable: find.byType(Scrollable).last,
+    );
+    await tester.pumpAndSettle();
+
     expect(
       tester
           .getRect(find.byKey(const ValueKey('fifo-compact-item-sku-3')))
           .size,
-      const Size(311, 68),
+      const Size(309, 164),
     );
-    expect(find.text('SKU123 • Q3-001 • 3 sản phẩm'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 

@@ -539,7 +539,7 @@ class _SkuResultList extends StatelessWidget {
       builder: (context, constraints) {
         return ListView(
           physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(15, 13, 15, 16),
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
           children: [
             Text(
               '${result.query} • ${result.srCode} • ${result.items.length} sản phẩm',
@@ -551,7 +551,7 @@ class _SkuResultList extends StatelessWidget {
                 color: AppColors.textPrimaryOf(context),
               ),
             ),
-            const SizedBox(height: 62),
+            const SizedBox(height: 12),
             for (var index = 0; index < result.items.length; index++) ...[
               _FifoCompactItem(
                 key: ValueKey('fifo-compact-item-${result.items[index].id}'),
@@ -582,114 +582,97 @@ class _FifoCompactItem extends StatelessWidget {
     final badgeLabel = item.exported ? 'Đã xuất' : 'FIFO';
     final badgeTone = item.exported ? 'info' : 'success';
     final importDate = DateFormatter.format(item.importDate);
+    final productName = item.skuName.isNotEmpty ? item.skuName : item.sku;
+    final metadata = <Widget>[
+      AppMetadataPill(
+        icon: PhosphorIconsRegular.qrCode,
+        text: item.serialNumber,
+        mobileDensity: compact,
+      ),
+      AppMetadataPill(
+        icon: PhosphorIconsRegular.mapPin,
+        text: item.bin,
+        mobileDensity: compact,
+      ),
+      AppMetadataPill(
+        icon: PhosphorIconsRegular.calendarBlank,
+        text: importDate,
+        mobileDensity: compact,
+      ),
+    ];
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final badgeLeft = constraints.maxWidth >= 1000
-            ? constraints.maxWidth - 129
-            : constraints.maxWidth - 126;
-        return Container(
-          height: 68,
-          clipBehavior: Clip.antiAlias,
-          decoration: BoxDecoration(
-            color: AppColors.cardOf(context),
-            border: Border.all(color: AppColors.subtleBorderOf(context)),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Stack(
-            children: [
-              Positioned(
-                left: 47,
-                top: 7,
-                width: 130,
-                height: 20,
-                child: Text(
-                  item.skuName.isNotEmpty ? item.skuName : item.sku,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppTextStyles.bodyS.copyWith(
-                    fontSize: 13,
-                    height: 20 / 13,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.textPrimaryOf(context),
-                  ),
-                ),
-              ),
-              Positioned(
-                left: 47,
-                top: 27,
-                width: compact ? 132 : 200,
-                height: 36,
-                child: Column(
+    return Container(
+      key: ValueKey('fifo-sku-item-card-${item.id}'),
+      constraints: BoxConstraints(minHeight: compact ? 124 : 82),
+      padding: EdgeInsets.all(compact ? 12 : 16),
+      decoration: BoxDecoration(
+        color: AppColors.cardOf(context),
+        border: Border.all(color: AppColors.subtleBorderOf(context)),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: compact
+          ? Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      children: [
-                        Flexible(
-                          child: Text(
-                            item.serialNumber,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: AppTextStyles.bodyS.copyWith(
-                              fontSize: 12,
-                              height: 18 / 12,
-                              color: AppColors.textSecondaryOf(context),
-                            ),
-                          ),
-                        ),
-                        Text(
-                          ' • ',
-                          style: AppTextStyles.bodyS.copyWith(
-                            fontSize: 12,
-                            height: 18 / 12,
-                            color: AppColors.textSecondaryOf(context),
-                          ),
-                        ),
-                        Flexible(
-                          child: Text(
-                            item.bin,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: AppTextStyles.bodyS.copyWith(
-                              fontSize: 12,
-                              height: 18 / 12,
-                              color: AppColors.textSecondaryOf(context),
-                            ),
-                          ),
-                        ),
-                        if (!compact)
-                          Text(
-                            ' •',
-                            style: AppTextStyles.bodyS.copyWith(
-                              fontSize: 12,
-                              height: 18 / 12,
-                              color: AppColors.textSecondaryOf(context),
-                            ),
-                          ),
-                      ],
-                    ),
-                    Text(
-                      importDate,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: AppTextStyles.bodyS.copyWith(
-                        fontSize: 12,
-                        height: 18 / 12,
-                        color: AppColors.textSecondaryOf(context),
+                    Expanded(
+                      child: Text(
+                        productName,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTextStyles.labelM.copyWith(height: 20 / 14),
                       ),
+                    ),
+                    const SizedBox(width: 8),
+                    _FifoBadge(
+                      label: badgeLabel,
+                      tone: badgeTone,
+                      mobileDensity: true,
                     ),
                   ],
                 ),
-              ),
-              Positioned(
-                left: badgeLeft,
-                top: 13,
-                child: _FifoBadge(label: badgeLabel, tone: badgeTone),
-              ),
-            ],
-          ),
-        );
-      },
+                const SizedBox(height: 8),
+                Wrap(spacing: 8, runSpacing: 0, children: metadata),
+              ],
+            )
+          : Row(
+              children: [
+                SizedBox(
+                  width: 320,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        productName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTextStyles.labelM,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        item.binType.isEmpty
+                            ? 'Chưa có loại hàng'
+                            : item.binType,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTextStyles.bodyS.copyWith(
+                          color: AppColors.textSecondaryOf(context),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Wrap(spacing: 12, runSpacing: 12, children: metadata),
+                ),
+                const SizedBox(width: 12),
+                _FifoBadge(label: badgeLabel, tone: badgeTone),
+              ],
+            ),
     );
   }
 }
@@ -1139,6 +1122,7 @@ class _DesktopSerialResultBody extends StatelessWidget {
         const SizedBox(height: 16),
         SizedBox(
           key: const Key('fifo-desktop-metadata-wrap'),
+          width: double.infinity,
           height: 92,
           child: Wrap(
             spacing: 12,
