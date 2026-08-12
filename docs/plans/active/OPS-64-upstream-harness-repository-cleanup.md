@@ -394,7 +394,7 @@ Phase 7A groundwork evidence:
 - `flutter test --no-pub test/widget_test.dart --reporter compact` passed 2/2;
   existing app startup/session consumers remain green under the bootstrap.
 - Full Flutter suite after teardown hardening passed with exit `0`, zero failed
-  tests and zero `MissingPluginException` noise (`tmp/flutter-full-suite-after.json`; 
+  tests and zero `MissingPluginException` noise (`tmp/flutter-full-suite-after.json`;
   855 visible tests plus framework setup/teardown events). The initial run
   exposed one Windows directory-handle teardown error; it was fixed by the
   test-only flush/retry change. After adding save-file picker success/error
