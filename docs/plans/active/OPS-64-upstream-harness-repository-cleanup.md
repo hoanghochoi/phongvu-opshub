@@ -337,6 +337,9 @@ god-helper.
   and archive parity, two protocol-v1 decisions superseded by ADR 0029, 41
   already-authoritative targets, 27 deduplicated Linear follow-ups and 129
   historical-only records. The proof was read back before any status change.
+- [x] Harden verification fingerprinting to hash raw `git diff --binary` bytes
+  instead of a UTF-8-decoded string; add invalid-UTF-8 binary-diff regression
+  coverage (verification suite now 12/12).
 - [ ] Publish `OPS-65` and `OPS-68` through the guarded feature-PR flow. Until
   their PRs merge into `staging` and `finish` passes, Phase 5+ mutations are
   blocked by lifecycle policy; no direct push or PR authority is assumed.
@@ -409,6 +412,15 @@ Phase 3A disposition evidence:
   zero missing required targets and no absolute local paths or raw payloads.
 - Linear implementation/proof comment was recorded on `OPS-68` and read back;
   the issue remains Backlog because no status transition was authorized.
+
+Verification hardening evidence:
+
+- Commit `ef8995ec` makes `verify-task` fingerprint staged, unstaged and
+  base-aware binary diffs from raw Git bytes; a temporary invalid-UTF-8 binary
+  fixture changes the fingerprint as required.
+- `node --test tests/verification/*.test.mjs`: 12/12 pass;
+  `node scripts/verify-task.mjs --base origin/staging --dry-run`: exit 0,
+  stale=false; `git diff --check`: pass.
 
 Phase 7A groundwork evidence:
 - `flutter pub get --offline` completed successfully on the task worktree.
