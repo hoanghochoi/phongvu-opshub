@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:file_picker/src/platform/file_picker_platform_interface.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:phongvu_opshub/app/navigation/app_router.dart';
 import 'package:phongvu_opshub/app/theme/app_colors.dart';
@@ -30,6 +31,7 @@ import 'package:phongvu_opshub/features/sales_report/presentation/screens/sales_
 import 'package:phongvu_opshub/features/sales_report/presentation/screens/sales_report_screen.dart';
 import 'package:phongvu_opshub/features/sales_report/presentation/widgets/sales_report_export_menu.dart';
 import 'package:provider/provider.dart';
+import 'flutter_test_config.dart' show TestSaveFilePicker;
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -2224,6 +2226,34 @@ void main() {
     expect(find.byKey(const Key('to-calendar')), findsOneWidget);
   });
 
+  test('Sales report export reports picker success and failure', () async {
+    final previousPicker = FilePickerPlatform.instance;
+    final picker = TestSaveFilePicker(path: 'C:/tmp/opshub-revenue.xlsx');
+    FilePickerPlatform.instance = picker;
+    addTearDown(() => FilePickerPlatform.instance = previousPicker);
+
+    final repository = _FakeSalesReportRepository();
+    final provider = SalesReportProvider(repository);
+    await provider.exportXlsx(
+      query: const SalesReportQuery(exportType: 'REVENUE'),
+    );
+
+    expect(provider.successMessage, 'Đã xuất file.');
+    expect(picker.lastDialogTitle, 'Lưu file báo cáo bán hàng');
+    expect(picker.lastFileName, startsWith('opshub_bao_cao_doanh_so_'));
+    expect(picker.lastBytes, isNotNull);
+    provider.dispose();
+
+    FilePickerPlatform.instance = TestSaveFilePicker(
+      error: StateError('save dialog unavailable'),
+    );
+    final errorProvider = SalesReportProvider(_FakeSalesReportRepository());
+    await errorProvider.exportXlsx();
+
+    expect(errorProvider.errorMessage, 'Xuất file thất bại.');
+    errorProvider.dispose();
+  });
+
   testWidgets('Báo cáo bán hàng admin filters by assigned SR', (tester) async {
     await tester.binding.setSurfaceSize(const Size(1200, 900));
     addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -2720,6 +2750,7 @@ class _FakeSalesReportRepository extends SalesReportRepository {
   int fetchListCount = 0;
   int fetchOrdersCount = 0;
   int checkOrderCount = 0;
+  int exportXlsxCount = 0;
   SalesReportInput? lastInput;
   SalesReportQuery? lastListQuery;
   SalesReportOrdersQuery? lastOrdersQuery;
@@ -2764,6 +2795,12 @@ class _FakeSalesReportRepository extends SalesReportRepository {
       'limit': query.limit,
       'total': 0,
     };
+  }
+
+  @override
+  Future<Uint8List> exportXlsx(SalesReportQuery query) async {
+    exportXlsxCount += 1;
+    return Uint8List.fromList([0x50, 0x4b, 0x03, 0x04]);
   }
 
   @override

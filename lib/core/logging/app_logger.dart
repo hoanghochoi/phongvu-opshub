@@ -38,6 +38,18 @@ class AppLogger {
     _uploadsEnabled = enabled;
   }
 
+  /// Wait until all queued local file operations have released their handles.
+  ///
+  /// Flutter's shared test bootstrap uses an owned temporary application
+  /// support directory. Windows refuses to remove that directory while a
+  /// queued logger write or compaction still owns a file handle, so teardown
+  /// uses this hook before deleting the directory. This is test coordination
+  /// only; production callers do not need to await logger internals.
+  @visibleForTesting
+  Future<void> flushForTesting() async {
+    await _fileOperation;
+  }
+
   @visibleForTesting
   Map<String, Object?> buildUploadBodyForTesting(
     String level,
