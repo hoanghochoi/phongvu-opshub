@@ -332,6 +332,14 @@ god-helper.
   `OPS-72` (CI/noise), `OPS-73` (artifacts/toolchain), `OPS-74` (runtime
   waves), and `OPS-75` (final consolidation). All remain Backlog; no status
   transition or publication authority was inferred.
+- [x] Complete Phase 3A disposition on independent checkpoint
+  `codex/ops-68-disposition-ledger` / `0f4e21c6`: exactly 199 records, source
+  and archive parity, two protocol-v1 decisions superseded by ADR 0029, 41
+  already-authoritative targets, 27 deduplicated Linear follow-ups and 129
+  historical-only records. The proof was read back before any status change.
+- [ ] Publish `OPS-65` and `OPS-68` through the guarded feature-PR flow. Until
+  their PRs merge into `staging` and `finish` passes, Phase 5+ mutations are
+  blocked by lifecycle policy; no direct push or PR authority is assumed.
 
 ## Validation
 
@@ -386,6 +394,21 @@ Phase 4 evidence:
   directories. A dedicated fixture proves these retirement paths select the
   `harness` profile instead of failing with an accidental unmatched-path
   contract. Full verification tests remain 11/11 after this registry change.
+
+Phase 3A disposition evidence:
+
+- Branch/worktree: `codex/ops-68-disposition-ledger`, local commit `0f4e21c6`.
+- `python -m unittest discover -s tests/migration -p 'test_*.py' -q`: 8 pass.
+- `review-harness-disposition.py --input ...`: PASS, 199 records; ledger SHA
+  `918de42d98e02f14e21c0f2802b1c7f5d63bf426e3668fb8e961a94a7a5c9bee`.
+- Source archive SHA remained
+  `29951f9e16a6c69e4cbd6b8c697f23fa9ca88d513784c00b3dd35353a7ddd955` and
+  was unchanged before/after the immutable read. The canonical repository DB
+  was not opened or modified.
+- The sanitized ledger contains valid UTF-8, zero duplicate entity/id pairs,
+  zero missing required targets and no absolute local paths or raw payloads.
+- Linear implementation/proof comment was recorded on `OPS-68` and read back;
+  the issue remains Backlog because no status transition was authorized.
 
 Phase 7A groundwork evidence:
 - `flutter pub get --offline` completed successfully on the task worktree.
