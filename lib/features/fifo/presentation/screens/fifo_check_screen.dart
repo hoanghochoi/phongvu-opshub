@@ -17,6 +17,7 @@ import '../../../../app/widgets/app_cards.dart';
 import '../../../../app/widgets/app_chips.dart';
 import '../../../../app/widgets/app_command_bar.dart';
 import '../../../../app/widgets/app_layout.dart';
+import '../../../../app/widgets/app_inventory_result_card.dart';
 import '../../../../app/widgets/app_state_widgets.dart';
 import '../../domain/entities/fifo_check_result.dart';
 import '../../domain/entities/fifo_inventory_item.dart';
@@ -183,6 +184,13 @@ class _FifoCheckScreenState extends State<FifoCheckScreen> {
     final viewportWidth = MediaQuery.sizeOf(context).width;
     return Consumer<FifoProvider>(
       builder: (context, provider, _) {
+        final resultPanel = _FifoResultPanel(
+          provider: provider,
+          onExportChanged: (item, exported) async {
+            await provider.setExported(item, exported);
+            _showErrorIfNeeded();
+          },
+        );
         return AppResponsiveContent(
           maxWidth: AppLayoutTokens.commandWorkspaceMaxWidth,
           padding: AppLayoutTokens.pagePaddingFor(viewportWidth),
@@ -212,16 +220,7 @@ class _FifoCheckScreenState extends State<FifoCheckScreen> {
                 ),
               ),
               const SizedBox(height: 16),
-              SizedBox(
-                height: 340,
-                child: _FifoResultPanel(
-                  provider: provider,
-                  onExportChanged: (item, exported) async {
-                    await provider.setExported(item, exported);
-                    _showErrorIfNeeded();
-                  },
-                ),
-              ),
+              Expanded(child: resultPanel),
             ],
           ),
         );
@@ -369,46 +368,36 @@ class _RecentSearchChips extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final mobileDensity = MediaQuery.sizeOf(context).width < 600;
     return Semantics(
       container: true,
       label: 'Tra cứu gần đây',
       child: SingleChildScrollView(
         key: const Key('fifo-check-recent-searches'),
         scrollDirection: Axis.horizontal,
-        child: Container(
-          height: 24,
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          decoration: BoxDecoration(
-            color: AppColors.infoSurfaceOf(context),
-            borderRadius: BorderRadius.circular(AppRadius.sm),
-          ),
+        child: SizedBox(
+          height: mobileDensity ? 48 : 32,
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                'Tra cứu gần đây: ',
-                style: AppTextStyles.labelS.copyWith(
-                  color: AppColors.infoOf(context),
-                ),
+                'Tra cứu gần đây',
+                style:
+                    (mobileDensity
+                            ? AppTextStyles.labelS
+                            : AppTextStyles.labelM)
+                        .copyWith(color: AppColors.textSecondaryOf(context)),
               ),
+              SizedBox(width: mobileDensity ? 6 : 8),
               for (var index = 0; index < searches.length; index++) ...[
-                InkWell(
+                AppActionPill(
                   key: ValueKey('fifo-check-recent-${searches[index]}'),
-                  onTap: enabled ? () => onSelected(searches[index]) : null,
-                  child: Text(
-                    searches[index],
-                    style: AppTextStyles.labelS.copyWith(
-                      color: AppColors.infoOf(context),
-                    ),
-                  ),
+                  label: searches[index],
+                  mobileDensity: mobileDensity,
+                  onPressed: enabled ? () => onSelected(searches[index]) : null,
                 ),
                 if (index < searches.length - 1)
-                  Text(
-                    ' • ',
-                    style: AppTextStyles.labelS.copyWith(
-                      color: AppColors.infoOf(context),
-                    ),
-                  ),
+                  SizedBox(width: mobileDensity ? 6 : 8),
               ],
             ],
           ),
@@ -440,6 +429,22 @@ class _FifoResultPanel extends StatelessWidget {
         child: AppStatePanel.loading(
           title: 'Đang kiểm tra FIFO',
           message: 'OpsHub đang đối chiếu thứ tự FIFO theo SKU/serial.',
+        ),
+      );
+    }
+
+    if (provider.result?.isSerialMode == true &&
+        provider.result?.item != null) {
+      return SingleChildScrollView(
+        key: const Key('fifo-check-results'),
+        physics: const AlwaysScrollableScrollPhysics(),
+        child: SizedBox(
+          width: double.infinity,
+          child: _ResultBody(
+            result: provider.result,
+            exportingIds: provider.exportingIds,
+            onExportChanged: onExportChanged,
+          ),
         ),
       );
     }
@@ -520,193 +525,190 @@ class _SkuResultList extends StatelessWidget {
       );
     }
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        return ListView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(15, 13, 15, 16),
-          children: [
-            Text(
-              '${result.query} • ${result.srCode} • ${result.items.length} sản phẩm',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: AppTextStyles.labelL.copyWith(
-                fontSize: 16,
-                height: 20 / 16,
-                color: AppColors.textPrimaryOf(context),
-              ),
-            ),
-            const SizedBox(height: 62),
-            for (var index = 0; index < result.items.length; index++) ...[
-              _FifoCompactItem(
-                key: ValueKey('fifo-compact-item-${result.items[index].id}'),
-                item: result.items[index],
-                compact: constraints.maxWidth < 600,
-              ),
-              if (index < result.items.length - 1) const SizedBox(height: 10),
-            ],
-          ],
-        );
-      },
+    return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+      children: [
+        Text(
+          '${result.query} • ${result.srCode} • ${result.items.length} sản phẩm',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: AppTextStyles.labelL.copyWith(
+            fontSize: 16,
+            height: 20 / 16,
+            color: AppColors.textPrimaryOf(context),
+          ),
+        ),
+        const SizedBox(height: 12),
+        for (var index = 0; index < result.items.length; index++)
+          _FifoSkuResultCard(
+            key: ValueKey('fifo-compact-item-${result.items[index].id}'),
+            item: result.items[index],
+            rank: index,
+            total: result.items.length,
+            isBusy: exportingIds.contains(result.items[index].id),
+            onExportChanged: onExportChanged,
+          ),
+      ],
     );
   }
 }
 
-class _FifoCompactItem extends StatelessWidget {
+class _FifoSkuResultCard extends StatelessWidget {
   final FifoInventoryItem item;
-  final bool compact;
-  final String? badgeLabelOverride;
-  final String? badgeToneOverride;
+  final int rank;
+  final int total;
+  final bool isBusy;
+  final Future<void> Function(FifoInventoryItem item, bool exported)
+  onExportChanged;
 
-  const _FifoCompactItem({
+  const _FifoSkuResultCard({
     super.key,
     required this.item,
-    required this.compact,
-    this.badgeLabelOverride,
-    this.badgeToneOverride,
+    required this.rank,
+    required this.total,
+    required this.isBusy,
+    required this.onExportChanged,
   });
 
+  Future<void> _copyMetadata(
+    BuildContext context, {
+    required String field,
+    required String fieldLabel,
+    required String value,
+  }) async {
+    final startedAt = DateTime.now();
+    final logContext = <String, Object?>{
+      'field': field,
+      'inventoryId': item.id,
+      'valueLength': value.length,
+      'source': 'sku-result',
+    };
+    await AppLogger.instance.info(
+      'FIFO',
+      'FIFO SKU item metadata copy started',
+      context: logContext,
+    );
+    try {
+      await Clipboard.setData(ClipboardData(text: value));
+      await AppLogger.instance.info(
+        'FIFO',
+        'FIFO SKU item metadata copy succeeded',
+        context: {
+          ...logContext,
+          'durationMs': DateTime.now().difference(startedAt).inMilliseconds,
+        },
+      );
+      if (!context.mounted) return;
+      AppToast.show(
+        context,
+        SnackBar(content: Text('Đã sao chép $fieldLabel.')),
+      );
+    } catch (error, stackTrace) {
+      await AppLogger.instance.error(
+        'FIFO',
+        'FIFO SKU item metadata copy failed',
+        error: error,
+        stackTrace: stackTrace,
+        context: logContext,
+      );
+      if (!context.mounted) return;
+      AppToast.show(
+        context,
+        SnackBar(
+          content: Text('Chưa sao chép được $fieldLabel. Vui lòng thử lại.'),
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final badgeLabel =
-        badgeLabelOverride ?? (item.exported ? 'Đã xuất' : 'FIFO');
-    final badgeTone = badgeToneOverride ?? (item.exported ? 'info' : 'success');
     final importDate = DateFormatter.format(item.importDate);
+    final productName = item.skuName.isNotEmpty ? item.skuName : item.sku;
+    final age = DateFormatter.daysSince(item.importDate);
+    final ageLabel = age == null ? 'Tồn chưa rõ' : 'Tồn $age ngày';
+    final accent = item.exported
+        ? AppColors.neutral500Of(context)
+        : _fifoRankColor(context);
+    final statusColor = item.exported
+        ? AppColors.infoOf(context)
+        : AppColors.textSecondaryOf(context);
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final badgeLeft = constraints.maxWidth >= 1000
-            ? constraints.maxWidth - 129
-            : constraints.maxWidth - 126;
-        return Container(
-          height: 68,
-          clipBehavior: Clip.antiAlias,
-          decoration: BoxDecoration(
-            color: AppColors.cardOf(context),
-            border: Border.all(color: AppColors.subtleBorderOf(context)),
-            borderRadius: BorderRadius.circular(8),
+    return AppInventoryResultCard(
+      cardKey: ValueKey('fifo-sku-item-card-${item.id}'),
+      metadataWrapKey: ValueKey('fifo-sku-metadata-${item.id}'),
+      actionKey: ValueKey('fifo-sku-export-control-${item.id}'),
+      title: productName,
+      statusLabel: item.exported ? 'Đã xuất' : 'FIFO',
+      accentColor: accent,
+      statusColor: statusColor,
+      statusBackgroundColor: item.exported
+          ? AppColors.infoSurfaceOf(context)
+          : null,
+      metadata: [
+        AppInventoryMetadata(
+          icon: PhosphorIconsRegular.qrCode,
+          text: item.serialNumber,
+          key: ValueKey('fifo-sku-copy-serial-${item.id}'),
+          tooltip: 'Sao chép serial',
+          semanticsLabel: 'Serial ${item.serialNumber}',
+          onTap: () => unawaited(
+            _copyMetadata(
+              context,
+              field: 'serial',
+              fieldLabel: 'serial',
+              value: item.serialNumber,
+            ),
           ),
-          child: Stack(
-            children: [
-              Positioned(
-                left: 47,
-                top: 7,
-                width: 130,
-                height: 20,
-                child: Text(
-                  item.skuName.isNotEmpty ? item.skuName : item.sku,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppTextStyles.bodyS.copyWith(
-                    fontSize: 13,
-                    height: 20 / 13,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.textPrimaryOf(context),
-                  ),
-                ),
-              ),
-              Positioned(
-                left: 47,
-                top: 27,
-                width: compact ? 132 : 200,
-                height: 36,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Flexible(
-                          child: Text(
-                            item.serialNumber,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: AppTextStyles.bodyS.copyWith(
-                              fontSize: 12,
-                              height: 18 / 12,
-                              color: AppColors.textSecondaryOf(context),
-                            ),
-                          ),
-                        ),
-                        Text(
-                          ' • ',
-                          style: AppTextStyles.bodyS.copyWith(
-                            fontSize: 12,
-                            height: 18 / 12,
-                            color: AppColors.textSecondaryOf(context),
-                          ),
-                        ),
-                        Flexible(
-                          child: Text(
-                            item.bin,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: AppTextStyles.bodyS.copyWith(
-                              fontSize: 12,
-                              height: 18 / 12,
-                              color: AppColors.textSecondaryOf(context),
-                            ),
-                          ),
-                        ),
-                        if (!compact)
-                          Text(
-                            ' •',
-                            style: AppTextStyles.bodyS.copyWith(
-                              fontSize: 12,
-                              height: 18 / 12,
-                              color: AppColors.textSecondaryOf(context),
-                            ),
-                          ),
-                      ],
-                    ),
-                    Text(
-                      importDate,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: AppTextStyles.bodyS.copyWith(
-                        fontSize: 12,
-                        height: 18 / 12,
-                        color: AppColors.textSecondaryOf(context),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Positioned(
-                left: badgeLeft,
-                top: 13,
-                child: _FifoBadge(label: badgeLabel, tone: badgeTone),
-              ),
-            ],
+        ),
+        AppInventoryMetadata(
+          icon: PhosphorIconsRegular.package,
+          text: item.sku,
+        ),
+        AppInventoryMetadata(
+          icon: PhosphorIconsRegular.calendarBlank,
+          text: importDate,
+        ),
+        AppInventoryMetadata(icon: PhosphorIconsRegular.timer, text: ageLabel),
+        AppInventoryMetadata(
+          icon: PhosphorIconsRegular.mapPin,
+          text: item.bin,
+          key: ValueKey('fifo-sku-copy-location-${item.id}'),
+          tooltip: 'Sao chép vị trí',
+          semanticsLabel: 'Vị trí ${item.bin}',
+          onTap: () => unawaited(
+            _copyMetadata(
+              context,
+              field: 'location',
+              fieldLabel: 'vị trí',
+              value: item.bin,
+            ),
           ),
-        );
-      },
+        ),
+        AppInventoryMetadata(
+          icon: PhosphorIconsRegular.mapTrifold,
+          text: item.binType.isNotEmpty ? item.binType : item.zone,
+        ),
+      ],
+      checked: item.exported,
+      busy: isBusy,
+      uncheckedActionLabel: 'Đánh dấu xuất kho',
+      checkedActionLabel: 'Bỏ đánh dấu xuất kho',
+      onCheckedChanged: (exported) =>
+          unawaited(onExportChanged(item, exported)),
     );
   }
-}
 
-class _FifoBadge extends StatelessWidget {
-  final String label;
-  final String tone;
-
-  const _FifoBadge({required this.label, required this.tone});
-
-  @override
-  Widget build(BuildContext context) {
-    final color = AppColors.statusColorOf(context, tone);
-    return Container(
-      height: 24,
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: AppColors.statusSurfaceOf(context, tone),
-        borderRadius: BorderRadius.circular(AppRadius.sm),
-      ),
-      child: Text(
-        label,
-        maxLines: 1,
-        softWrap: false,
-        style: AppTextStyles.labelS.copyWith(color: color),
-      ),
-    );
+  Color _fifoRankColor(BuildContext context) {
+    if (total <= 1 || rank == 0) return AppColors.successOf(context);
+    final t = rank / (total - 1);
+    return Color.lerp(
+          AppColors.successOf(context),
+          AppColors.errorOf(context),
+          t,
+        ) ??
+        AppColors.errorOf(context);
   }
 }
 
@@ -726,7 +728,7 @@ class _SerialCorrectResult extends StatelessWidget {
     required this.item,
     required this.isBusy,
     required this.onExportChanged,
-    this.statusLabel = 'Đúng thứ tự FIFO',
+    this.statusLabel = 'Đúng FIFO',
     this.statusTone = 'success',
     this.itemBadgeLabel,
     this.itemBadgeTone,
@@ -787,136 +789,90 @@ class _SerialCorrectResult extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final compact = constraints.maxWidth < 600;
-        final age = DateFormatter.daysSince(item.importDate);
-        final ageLabel = age == null
-            ? 'Tuổi tồn: Chưa rõ'
-            : 'Tuổi tồn: $age ngày${!compact && result.srCode.isNotEmpty ? ' • Khu: ${result.srCode}' : ''}';
-        final secondButtonLeft = compact ? 167.0 : 171.0;
-        final secondButtonWidth = compact ? 143.0 : 128.0;
+    final age = DateFormatter.daysSince(item.importDate);
+    final ageLabel = age == null ? 'Tồn chưa rõ' : 'Tồn $age ngày';
+    final statusColor = AppColors.statusColorOf(context, statusTone);
 
-        return Stack(
-          children: [
-            Positioned(
-              left: 15,
-              right: 15,
-              top: 13,
-              height: 20,
-              child: Text(
-                'Serial ${result.query.isNotEmpty ? result.query : item.serialNumber}',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: AppTextStyles.labelL.copyWith(
-                  fontSize: 16,
-                  height: 20 / 16,
-                  color: AppColors.textPrimaryOf(context),
-                ),
-              ),
+    return AppInventoryResultCard(
+      cardKey: const Key('fifo-serial-result-card'),
+      titleKey: const Key('fifo-mobile-product-title'),
+      statusKey: const Key('fifo-mobile-status-pill'),
+      metadataWrapKey: const Key('fifo-serial-metadata-wrap'),
+      actionKey: const ValueKey('fifo-export-control'),
+      margin: EdgeInsets.zero,
+      title: item.skuName.isEmpty ? item.sku : item.skuName,
+      statusLabel: statusLabel,
+      accentColor: statusColor,
+      statusColor: statusColor,
+      statusBackgroundColor: AppColors.statusSurfaceOf(context, statusTone),
+      metadata: [
+        AppInventoryMetadata(
+          icon: PhosphorIconsRegular.qrCode,
+          text: item.serialNumber,
+          key: ValueKey('fifo-copy-serial-${item.id}'),
+          tooltip: 'Sao chép serial',
+          semanticsLabel: 'Sao chép serial ${item.serialNumber}',
+          onTap: () => unawaited(
+            _copyMetadata(
+              context,
+              field: 'serial',
+              fieldLabel: 'serial',
+              value: item.serialNumber,
             ),
-            Positioned(
-              left: 15,
-              top: 47,
-              height: 24,
-              child: _FifoBadge(label: statusLabel, tone: statusTone),
+          ),
+        ),
+        AppInventoryMetadata(
+          icon: PhosphorIconsRegular.package,
+          text: item.sku,
+          key: ValueKey('fifo-copy-sku-${item.id}'),
+          tooltip: 'Sao chép SKU',
+          semanticsLabel: 'Sao chép SKU ${item.sku}',
+          onTap: () => unawaited(
+            _copyMetadata(
+              context,
+              field: 'sku',
+              fieldLabel: 'SKU',
+              value: item.sku,
             ),
-            Positioned(
-              left: 15,
-              right: 15,
-              top: 95,
-              height: 68,
-              child: _FifoCompactItem(
-                item: item,
-                compact: compact,
-                badgeLabelOverride: itemBadgeLabel,
-                badgeToneOverride: itemBadgeTone,
-              ),
+          ),
+        ),
+        AppInventoryMetadata(
+          icon: PhosphorIconsRegular.calendarBlank,
+          text: DateFormatter.format(item.importDate),
+          key: const Key('fifo-import-date-pill'),
+        ),
+        AppInventoryMetadata(
+          icon: PhosphorIconsRegular.timer,
+          text: ageLabel,
+          key: const Key('fifo-age-pill'),
+        ),
+        AppInventoryMetadata(
+          icon: PhosphorIconsRegular.mapPin,
+          text: item.bin,
+          key: ValueKey('fifo-copy-location-${item.id}'),
+          tooltip: 'Sao chép vị trí',
+          semanticsLabel: 'Sao chép vị trí ${item.bin}',
+          onTap: () => unawaited(
+            _copyMetadata(
+              context,
+              field: 'location',
+              fieldLabel: 'vị trí',
+              value: item.bin,
             ),
-            Positioned(
-              left: 15,
-              right: 15,
-              top: 177,
-              height: 16,
-              child: Text(
-                ageLabel,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: AppTextStyles.bodyS.copyWith(
-                  fontSize: 12,
-                  height: 16 / 12,
-                  color: AppColors.textSecondaryOf(context),
-                ),
-              ),
-            ),
-            Positioned(
-              left: 15,
-              top: 203,
-              width: 144,
-              height: 48,
-              child: _FifoCopyButton(
-                key: ValueKey('fifo-copy-serial-${item.id}'),
-                label: 'Sao chép serial',
-                tooltip: 'Sao chép serial',
-                onPressed: () => unawaited(
-                  _copyMetadata(
-                    context,
-                    field: 'serial',
-                    fieldLabel: 'serial',
-                    value: item.serialNumber,
-                  ),
-                ),
-              ),
-            ),
-            Positioned(
-              left: secondButtonLeft,
-              top: 203,
-              width: secondButtonWidth,
-              height: 48,
-              child: _FifoCopyButton(
-                key: ValueKey('fifo-copy-location-${item.id}'),
-                label: 'Sao chép BIN',
-                tooltip: 'Sao chép vị trí',
-                onPressed: () => unawaited(
-                  _copyMetadata(
-                    context,
-                    field: 'location',
-                    fieldLabel: 'vị trí',
-                    value: item.bin,
-                  ),
-                ),
-              ),
-            ),
-            Positioned(
-              left: 15,
-              top: 271,
-              width: 48,
-              height: 48,
-              child: _FifoExportControl(
-                key: const ValueKey('fifo-export-control'),
-                value: item.exported,
-                enabled: !isBusy,
-                onChanged: (value) => unawaited(onExportChanged(item, value)),
-              ),
-            ),
-            Positioned(
-              left: 75,
-              right: 15,
-              top: 285,
-              height: 20,
-              child: Text(
-                item.exported ? 'Bỏ đánh dấu xuất kho' : 'Đánh dấu xuất kho',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: AppTextStyles.bodyM.copyWith(
-                  fontWeight: FontWeight.w500,
-                  color: AppColors.textPrimaryOf(context),
-                ),
-              ),
-            ),
-          ],
-        );
-      },
+          ),
+        ),
+        AppInventoryMetadata(
+          icon: PhosphorIconsRegular.mapTrifold,
+          text: item.binType.isNotEmpty ? item.binType : item.zone,
+          key: const Key('fifo-bin-type-pill'),
+        ),
+      ],
+      checked: item.exported,
+      busy: isBusy,
+      uncheckedActionLabel: 'Đánh dấu xuất kho',
+      checkedActionLabel: 'Bỏ đánh dấu xuất kho',
+      onCheckedChanged: (exported) =>
+          unawaited(onExportChanged(item, exported)),
     );
   }
 }
@@ -942,7 +898,7 @@ class _SerialWrongOrderResult extends StatelessWidget {
       item: item,
       isBusy: isBusy,
       onExportChanged: onExportChanged,
-      statusLabel: 'Sai thứ tự FIFO',
+      statusLabel: 'Sai FIFO',
       statusTone: 'error',
     );
   }
@@ -957,88 +913,6 @@ class _SerialNotFoundResult extends StatelessWidget {
       title: 'Không tìm thấy kết quả',
       message: 'Hãy đổi từ khóa hoặc bật hiển thị đã xuất kho để thử lại.',
       icon: PhosphorIconsRegular.magnifyingGlass,
-    );
-  }
-}
-
-class _FifoCopyButton extends StatelessWidget {
-  final String label;
-  final String tooltip;
-  final VoidCallback onPressed;
-
-  const _FifoCopyButton({
-    super.key,
-    required this.label,
-    required this.tooltip,
-    required this.onPressed,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Tooltip(
-      message: tooltip,
-      child: Semantics(
-        button: true,
-        label: tooltip,
-        child: Material(
-          color: AppColors.cardOf(context),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
-            side: BorderSide(color: AppColors.subtleBorderOf(context)),
-          ),
-          clipBehavior: Clip.antiAlias,
-          child: InkWell(
-            onTap: onPressed,
-            child: Center(
-              child: Text(
-                label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                softWrap: false,
-                style: AppTextStyles.labelM.copyWith(
-                  color: AppColors.primaryOf(context),
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _FifoExportControl extends StatelessWidget {
-  final bool value;
-  final bool enabled;
-  final ValueChanged<bool> onChanged;
-
-  const _FifoExportControl({
-    super.key,
-    required this.value,
-    required this.enabled,
-    required this.onChanged,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: AppColors.cardOf(context),
-        border: Border.all(color: AppColors.subtleBorderOf(context)),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Center(
-        child: SizedBox.square(
-          dimension: 20,
-          child: Checkbox(
-            value: value,
-            onChanged: enabled ? (next) => onChanged(next ?? false) : null,
-            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            visualDensity: VisualDensity.compact,
-            side: BorderSide(color: AppColors.neutral500Of(context)),
-          ),
-        ),
-      ),
     );
   }
 }
