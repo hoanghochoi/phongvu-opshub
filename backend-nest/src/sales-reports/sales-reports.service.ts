@@ -3470,6 +3470,8 @@ export class SalesReportsService implements OnApplicationBootstrap {
       platformId: row.platformId,
       consultantCustomId: row.consultantCustomId,
       consultantName: row.consultantName,
+      employeeEmail:
+        row.consultantEmail ?? row.sellerEmail ?? row.sourceUserEmail ?? null,
       sellerName: row.sellerName,
       storeCode: row.storeCode,
       storeName: row.storeName,
@@ -3503,8 +3505,11 @@ export class SalesReportsService implements OnApplicationBootstrap {
         : [],
       platformId: row.erpPlatformId,
       consultantCustomId: row.erpConsultantCustomId,
-      consultantName: row.erpConsultantName,
-      sellerName: null,
+      consultantName:
+        row.createdByName ?? row.erpConsultantName ?? row.consultantName ?? null,
+      employeeEmail:
+        row.createdByEmail ?? row.consultantEmail ?? row.sellerEmail ?? null,
+      sellerName: row.sellerName ?? null,
       storeCode: row.storeCode,
       storeName: row.storeName,
       fetchedAt: row.erpFetchedAt,

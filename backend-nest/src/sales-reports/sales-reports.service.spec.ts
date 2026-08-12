@@ -1178,6 +1178,7 @@ describe('SalesReportsService', () => {
     expect(result.reportedOrders).toHaveLength(1);
     expect(result.unreportedOrders).toHaveLength(1);
     expect(result.unreportedOrders[0].orderCode).toBe('2607010002');
+    expect(result.unreportedOrders[0].employeeEmail).toBe('sale@phongvu.vn');
     expect(result.scope).toBe('OWN');
     expect(result.syncSucceeded).toBe(true);
     expect(result.syncCount).toBe(0);

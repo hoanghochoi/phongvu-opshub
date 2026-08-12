@@ -890,14 +890,10 @@ class _OrderCockpitTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final money = formatVndAmount(order.grandTotal);
-    final reporter =
-        _cleanOrderLabel(order.sellerName) ??
-        _cleanOrderLabel(order.consultantName) ??
-        _cleanOrderLabel(order.consultantCustomId);
-    final subtitle = [
-      _cleanOrderLabel(order.storeCode),
-      _cleanOrderLabel(order.customerName) ?? reporter,
-    ].whereType<String>().join(' • ');
+    final employeeName = order.employeeName;
+    final employeeEmail = _cleanOrderLabel(order.employeeEmail);
+    final employeeLabel = employeeName ?? employeeEmail;
+    final storeCode = _cleanOrderLabel(order.storeCode);
     final badgeLabel = order.isReported
         ? _reportedOutcomeLabel(order.report)
         : money;
@@ -908,69 +904,79 @@ class _OrderCockpitTile extends StatelessWidget {
         ? AppColors.successSurfaceOf(context)
         : AppColors.warningSurfaceOf(context);
     return SizedBox(
-      height: 114,
+      key: Key('sales-report-order-${order.orderCode}'),
+      height: 102,
       child: AppSurfaceCard(
         margin: EdgeInsets.zero,
         onTap: onTap == null ? null : () => onTap!(order),
-        padding: const EdgeInsets.fromLTRB(15, 12, 15, 0),
-        child: Stack(
-          clipBehavior: Clip.none,
+        padding: const EdgeInsets.fromLTRB(15, 10, 12, 10),
+        child: Row(
           children: [
-            Positioned(
-              left: 0,
-              top: 0,
-              right: 0,
-              child: Text(
-                order.orderCode,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: AppTextStyles.labelL,
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          order.orderCode,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppTextStyles.labelL,
+                        ),
+                      ),
+                      if (badgeLabel.isNotEmpty) ...[
+                        const SizedBox(width: 8),
+                        DecoratedBox(
+                          decoration: BoxDecoration(
+                            color: badgeBackground,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
+                            child: Text(
+                              badgeLabel,
+                              style: AppTextStyles.labelS.copyWith(
+                                color: badgeColor,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                  if (employeeLabel != null || storeCode != null)
+                    Text(
+                      [storeCode, employeeLabel].whereType<String>().join(' • '),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTextStyles.bodyS.copyWith(
+                        color: AppColors.textSecondaryOf(context),
+                      ),
+                    ),
+                  if (employeeEmail != null)
+                    Text(
+                      employeeEmail,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTextStyles.bodyS.copyWith(
+                        color: AppColors.textMutedOf(context),
+                      ),
+                    ),
+                ],
               ),
             ),
-            if (subtitle.isNotEmpty)
-              Positioned(
-                left: 0,
-                top: 32,
-                right: 0,
-                child: Text(
-                  subtitle,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppTextStyles.bodyS.copyWith(
-                    color: AppColors.textSecondaryOf(context),
-                  ),
-                ),
-              ),
-            if (badgeLabel.isNotEmpty)
-              Positioned(
-                left: 0,
-                top: 60,
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: badgeBackground,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
-                    ),
-                    child: Text(
-                      badgeLabel,
-                      style: AppTextStyles.labelS.copyWith(color: badgeColor),
-                    ),
-                  ),
-                ),
-              ),
-            if (onTap != null)
-              Positioned(
-                right: -8,
-                bottom: -1,
-                child: AppLinkButton(
-                  onPressed: () => onTap!(order),
-                  label: 'Báo cáo',
-                ),
-              ),
+            const SizedBox(width: 8),
+            Icon(
+              PhosphorIconsRegular.caretRight,
+              size: 20,
+              color: AppColors.textSecondaryOf(context),
+            ),
           ],
         ),
       ),
