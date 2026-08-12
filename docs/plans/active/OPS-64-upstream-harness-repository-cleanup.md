@@ -439,7 +439,8 @@ Environment classification evidence:
   `npm ci --ignore-scripts` and generated the Prisma client with
   `npx prisma generate`, the exact final runner proof passed:
   `node scripts/verify-task.mjs --base origin/staging --full --json
-  tmp/final-verify-full.json` at `HEAD=66beb2cf1218b55747d7e7822e5305b0f9ad8336`.
+  tmp/verify-ops65-final-3aa74187.json` at
+  `HEAD=3aa74187d63856315ecb3f053736c8fa9462daf2`.
   All eight profiles (`harness`, `docs`, `verification-runner`, `release`,
   `flutter`, `nestjs`, `go-realtime`, `deployment`) returned code `0`, with
   matching before/after fingerprints and `stale=false`. The exact final
