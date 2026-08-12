@@ -183,6 +183,17 @@ class _FifoCheckScreenState extends State<FifoCheckScreen> {
     final viewportWidth = MediaQuery.sizeOf(context).width;
     return Consumer<FifoProvider>(
       builder: (context, provider, _) {
+        final resultPanel = _FifoResultPanel(
+          provider: provider,
+          onExportChanged: (item, exported) async {
+            await provider.setExported(item, exported);
+            _showErrorIfNeeded();
+          },
+        );
+        final contentSizedCompactSerial =
+            viewportWidth < 600 &&
+            provider.result?.isSerialMode == true &&
+            provider.result?.item != null;
         return AppResponsiveContent(
           maxWidth: AppLayoutTokens.commandWorkspaceMaxWidth,
           padding: AppLayoutTokens.pagePaddingFor(viewportWidth),
@@ -212,19 +223,13 @@ class _FifoCheckScreenState extends State<FifoCheckScreen> {
                 ),
               ),
               const SizedBox(height: 16),
-              SizedBox(
-                height: _fifoResultHeight(
-                  viewportWidth: viewportWidth,
-                  result: provider.result,
+              if (contentSizedCompactSerial)
+                resultPanel
+              else
+                SizedBox(
+                  height: _fifoResultHeight(result: provider.result),
+                  child: resultPanel,
                 ),
-                child: _FifoResultPanel(
-                  provider: provider,
-                  onExportChanged: (item, exported) async {
-                    await provider.setExported(item, exported);
-                    _showErrorIfNeeded();
-                  },
-                ),
-              ),
             ],
           ),
         );
@@ -232,12 +237,9 @@ class _FifoCheckScreenState extends State<FifoCheckScreen> {
     );
   }
 
-  double _fifoResultHeight({
-    required double viewportWidth,
-    required FifoCheckResult? result,
-  }) {
+  double _fifoResultHeight({required FifoCheckResult? result}) {
     if (result?.isSerialMode == true && result?.item != null) {
-      return viewportWidth < 600 ? 316 : 248;
+      return 248;
     }
     return 340;
   }
@@ -449,8 +451,9 @@ class _FifoResultPanel extends StatelessWidget {
 
     if (provider.result?.isSerialMode == true &&
         provider.result?.item != null) {
-      return SizedBox.expand(
+      return SizedBox(
         key: const Key('fifo-check-results'),
+        width: double.infinity,
         child: _ResultBody(
           result: provider.result,
           exportingIds: provider.exportingIds,
@@ -683,6 +686,7 @@ class _FifoBadge extends StatelessWidget {
   final bool mobileDensity;
 
   const _FifoBadge({
+    super.key,
     required this.label,
     required this.tone,
     this.mobileDensity = false,
@@ -805,53 +809,57 @@ class _SerialCorrectResult extends StatelessWidget {
           clipBehavior: Clip.antiAlias,
           child: Material(
             color: Colors.transparent,
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                SizedBox(
-                  width: compact ? 7 : 8,
-                  child: ColoredBox(color: accentColor),
-                ),
-                Expanded(
-                  child: Padding(
-                    padding: compact
-                        ? const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 12,
-                          )
-                        : const EdgeInsets.all(23),
-                    child: compact
-                        ? _CompactSerialResultBody(
-                            item: item,
-                            ageLabel: ageLabel,
-                            statusLabel: statusLabel,
-                            statusTone: statusTone,
-                            isBusy: isBusy,
-                            onCopy: (field, fieldLabel, value) => _copyMetadata(
-                              context,
-                              field: field,
-                              fieldLabel: fieldLabel,
-                              value: value,
-                            ),
-                            onExportChanged: onExportChanged,
-                          )
-                        : _DesktopSerialResultBody(
-                            item: item,
-                            ageLabel: ageLabel,
-                            statusLabel: statusLabel,
-                            statusTone: statusTone,
-                            isBusy: isBusy,
-                            onCopy: (field, fieldLabel, value) => _copyMetadata(
-                              context,
-                              field: field,
-                              fieldLabel: fieldLabel,
-                              value: value,
-                            ),
-                            onExportChanged: onExportChanged,
-                          ),
+            child: IntrinsicHeight(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  SizedBox(
+                    width: compact ? 7 : 8,
+                    child: ColoredBox(color: accentColor),
                   ),
-                ),
-              ],
+                  Expanded(
+                    child: Padding(
+                      padding: compact
+                          ? const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 12,
+                            )
+                          : const EdgeInsets.all(23),
+                      child: compact
+                          ? _CompactSerialResultBody(
+                              item: item,
+                              ageLabel: ageLabel,
+                              statusLabel: statusLabel,
+                              statusTone: statusTone,
+                              isBusy: isBusy,
+                              onCopy: (field, fieldLabel, value) =>
+                                  _copyMetadata(
+                                    context,
+                                    field: field,
+                                    fieldLabel: fieldLabel,
+                                    value: value,
+                                  ),
+                              onExportChanged: onExportChanged,
+                            )
+                          : _DesktopSerialResultBody(
+                              item: item,
+                              ageLabel: ageLabel,
+                              statusLabel: statusLabel,
+                              statusTone: statusTone,
+                              isBusy: isBusy,
+                              onCopy: (field, fieldLabel, value) =>
+                                  _copyMetadata(
+                                    context,
+                                    field: field,
+                                    fieldLabel: fieldLabel,
+                                    value: value,
+                                  ),
+                              onExportChanged: onExportChanged,
+                            ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         );
@@ -915,138 +923,73 @@ class _CompactSerialResultBody extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        SizedBox(
-          height: 84,
-          child: Stack(
-            children: [
-              Positioned(
-                left: 0,
-                right: 0,
-                top: 0,
-                height: 52,
-                child: Text(
-                  item.skuName.isEmpty ? item.sku : item.skuName,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppTextStyles.labelM.copyWith(height: 26 / 14),
-                ),
-              ),
-              Positioned(
-                left: 0,
-                top: 54,
-                child: _FifoBadge(
-                  label: statusLabel,
-                  tone: statusTone,
-                  mobileDensity: true,
-                ),
-              ),
-            ],
-          ),
+        Text(
+          key: const Key('fifo-mobile-product-title'),
+          item.skuName.isEmpty ? item.sku : item.skuName,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: AppTextStyles.labelM.copyWith(height: 26 / 14),
+        ),
+        const SizedBox(height: 4),
+        _FifoBadge(
+          key: const Key('fifo-mobile-status-pill'),
+          label: statusLabel,
+          tone: statusTone,
+          mobileDensity: true,
         ),
         const SizedBox(height: 4),
         SizedBox(
           key: const Key('fifo-mobile-metadata-rows'),
-          height: 160,
-          child: Column(
+          width: double.infinity,
+          child: Wrap(
+            spacing: 10,
+            runSpacing: 0,
             children: [
-              _MetadataTrack(
-                child: AppMetadataPill(
-                  key: ValueKey('fifo-copy-serial-${item.id}'),
-                  icon: PhosphorIconsRegular.qrCode,
-                  text: item.serialNumber,
-                  mobileDensity: true,
-                  tooltip: 'Sao chép serial',
-                  semanticsLabel: 'Sao chép serial ${item.serialNumber}',
-                  onTap: () =>
-                      unawaited(onCopy('serial', 'serial', item.serialNumber)),
-                ),
+              AppMetadataPill(
+                key: ValueKey('fifo-copy-serial-${item.id}'),
+                icon: PhosphorIconsRegular.qrCode,
+                text: item.serialNumber,
+                mobileDensity: true,
+                tooltip: 'Sao chép serial',
+                semanticsLabel: 'Sao chép serial ${item.serialNumber}',
+                onTap: () =>
+                    unawaited(onCopy('serial', 'serial', item.serialNumber)),
               ),
-              _MetadataTrack(
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    ClipRect(
-                      child: SizedBox(
-                        width: 125,
-                        child: Align(
-                          alignment: Alignment.centerLeft,
-                          child: AppMetadataPill(
-                            key: ValueKey('fifo-copy-sku-${item.id}'),
-                            icon: PhosphorIconsRegular.package,
-                            text: item.sku,
-                            mobileDensity: true,
-                            tooltip: 'Sao chép SKU',
-                            semanticsLabel: 'Sao chép SKU ${item.sku}',
-                            onTap: () =>
-                                unawaited(onCopy('sku', 'SKU', item.sku)),
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: ClipRect(
-                        child: SizedBox(
-                          width: 114,
-                          child: AppMetadataPill(
-                            icon: PhosphorIconsRegular.calendarBlank,
-                            text: DateFormatter.format(item.importDate),
-                            mobileDensity: true,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
+              AppMetadataPill(
+                key: ValueKey('fifo-copy-sku-${item.id}'),
+                icon: PhosphorIconsRegular.package,
+                text: item.sku,
+                mobileDensity: true,
+                tooltip: 'Sao chép SKU',
+                semanticsLabel: 'Sao chép SKU ${item.sku}',
+                onTap: () => unawaited(onCopy('sku', 'SKU', item.sku)),
               ),
-              _MetadataTrack(
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    SizedBox(
-                      width: 125,
-                      child: Align(
-                        alignment: Alignment.centerLeft,
-                        child: AppMetadataPill(
-                          icon: PhosphorIconsRegular.clock,
-                          text: ageLabel,
-                          mobileDensity: true,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: ClipRect(
-                        child: SizedBox(
-                          width: 167,
-                          child: AppMetadataPill(
-                            key: ValueKey('fifo-copy-location-${item.id}'),
-                            icon: PhosphorIconsRegular.mapPin,
-                            text: item.bin,
-                            mobileDensity: true,
-                            tooltip: 'Sao chép vị trí',
-                            semanticsLabel: 'Sao chép vị trí ${item.bin}',
-                            onTap: () => unawaited(
-                              onCopy('location', 'vị trí', item.bin),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
+              AppMetadataPill(
+                key: const Key('fifo-import-date-pill'),
+                icon: PhosphorIconsRegular.calendarBlank,
+                text: DateFormatter.format(item.importDate),
+                mobileDensity: true,
               ),
-              _MetadataTrack(
-                child: ClipRect(
-                  child: SizedBox(
-                    width: 183,
-                    child: AppMetadataPill(
-                      icon: PhosphorIconsRegular.mapTrifold,
-                      text: item.binType,
-                      mobileDensity: true,
-                    ),
-                  ),
-                ),
+              AppMetadataPill(
+                key: const Key('fifo-age-pill'),
+                icon: PhosphorIconsRegular.clock,
+                text: ageLabel,
+                mobileDensity: true,
+              ),
+              AppMetadataPill(
+                key: ValueKey('fifo-copy-location-${item.id}'),
+                icon: PhosphorIconsRegular.mapPin,
+                text: item.bin,
+                mobileDensity: true,
+                tooltip: 'Sao chép vị trí',
+                semanticsLabel: 'Sao chép vị trí ${item.bin}',
+                onTap: () => unawaited(onCopy('location', 'vị trí', item.bin)),
+              ),
+              AppMetadataPill(
+                key: const Key('fifo-bin-type-pill'),
+                icon: PhosphorIconsRegular.mapTrifold,
+                text: item.binType,
+                mobileDensity: true,
               ),
             ],
           ),
@@ -1059,20 +1002,6 @@ class _CompactSerialResultBody extends StatelessWidget {
           onExportChanged: onExportChanged,
         ),
       ],
-    );
-  }
-}
-
-class _MetadataTrack extends StatelessWidget {
-  final Widget child;
-
-  const _MetadataTrack({required this.child});
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: 40,
-      child: Align(alignment: Alignment.centerLeft, child: child),
     );
   }
 }

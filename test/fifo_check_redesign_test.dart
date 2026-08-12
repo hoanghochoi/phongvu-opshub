@@ -186,19 +186,19 @@ void main() {
 
     expect(
       tester.getRect(find.byKey(const Key('fifo-check-results'))).size,
-      const Size(343, 316),
+      const Size(343, 318),
     );
     expect(
       tester
           .getRect(find.byKey(const ValueKey('fifo-copy-serial-fifo-1')))
           .height,
-      40,
+      48,
     );
     expect(
       tester
           .getRect(find.byKey(const ValueKey('fifo-copy-location-fifo-1')))
           .height,
-      40,
+      48,
     );
     expect(
       tester.getRect(find.byKey(const ValueKey('fifo-export-control'))).height,
@@ -294,13 +294,13 @@ void main() {
         tester
             .getRect(find.byKey(const ValueKey('fifo-copy-serial-fifo-1')))
             .height,
-        40,
+        48,
       );
       expect(
         tester
             .getRect(find.byKey(const ValueKey('fifo-copy-location-fifo-1')))
             .height,
-        40,
+        48,
       );
       expect(tester.takeException(), isNull);
     },
@@ -323,11 +323,52 @@ void main() {
 
     expect(
       tester.getSize(find.byKey(const Key('fifo-check-results'))),
-      const Size(343, 316),
+      const Size(343, 318),
     );
+    final title = tester.getRect(
+      find.byKey(const Key('fifo-mobile-product-title')),
+    );
+    final status = tester.getRect(
+      find.byKey(const Key('fifo-mobile-status-pill')),
+    );
+    final metadata = tester.getRect(
+      find.byKey(const Key('fifo-mobile-metadata-rows')),
+    );
+    final serial = tester.getRect(
+      find.byKey(const ValueKey('fifo-copy-serial-fifo-1')),
+    );
+    final sku = tester.getRect(
+      find.byKey(const ValueKey('fifo-copy-sku-fifo-1')),
+    );
+    final importDate = tester.getRect(
+      find.byKey(const Key('fifo-import-date-pill')),
+    );
+    final age = tester.getRect(find.byKey(const Key('fifo-age-pill')));
+    final location = tester.getRect(
+      find.byKey(const ValueKey('fifo-copy-location-fifo-1')),
+    );
+    final binType = tester.getRect(find.byKey(const Key('fifo-bin-type-pill')));
+    expect(status.left, title.left);
+    expect(status.top, title.bottom + 4);
+    expect(status.height, 30);
+    expect(status.width, lessThan(metadata.width));
+    expect(metadata.width, 304);
+    expect(serial.width, lessThan(metadata.width));
+    expect(sku.width, lessThan(metadata.width));
+    expect(importDate.width, lessThan(metadata.width));
+    expect(age.width, lessThan(metadata.width));
+    expect(location.width, lessThan(metadata.width));
+    expect(binType.width, lessThan(metadata.width));
     expect(
-      tester.getSize(find.byKey(const Key('fifo-mobile-metadata-rows'))),
-      const Size(304, 160),
+      {
+        serial.top,
+        sku.top,
+        importDate.top,
+        age.top,
+        location.top,
+        binType.top,
+      }.length,
+      greaterThan(1),
     );
     expect(find.text('Sai FIFO'), findsOneWidget);
     expect(find.text('Có lỗi'), findsNothing);
