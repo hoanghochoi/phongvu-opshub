@@ -382,7 +382,17 @@ class _SalesReportCockpitState extends State<_SalesReportCockpit> {
                   : LayoutBuilder(
                       builder: (context, constraints) {
                         final twoColumns = constraints.maxWidth >= 900;
-                        final columnHeight = wide ? 514.0 : 360.0;
+                        final double columnHeight = twoColumns
+                            ? constraints.maxHeight
+                            : math.min(
+                                400.0,
+                                math.max(
+                                  0.0,
+                                  (constraints.maxHeight -
+                                          AppLayoutTokens.cardGap) /
+                                      2.0,
+                                ),
+                              );
                         final reported = _OrdersColumn(
                           title: 'Đã báo cáo',
                           count: provider.reportedOrdersTotal,
@@ -466,7 +476,7 @@ class _SalesReportCockpitState extends State<_SalesReportCockpit> {
   }
 }
 
-class _SalesReportControls extends StatelessWidget {
+class _SalesReportControls extends StatefulWidget {
   final SalesReportProvider provider;
   final bool isManagedScope;
   final bool canSubmitReports;
@@ -486,6 +496,13 @@ class _SalesReportControls extends StatelessWidget {
   });
 
   @override
+  State<_SalesReportControls> createState() => _SalesReportControlsState();
+}
+
+class _SalesReportControlsState extends State<_SalesReportControls> {
+  bool _filtersExpanded = false;
+
+  @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -494,24 +511,24 @@ class _SalesReportControls extends StatelessWidget {
         final dateRangeFilter = AppDateRangeDropdown(
           key: const Key('sales-report-orders-date-range'),
           label: 'Ngày',
-          start: provider.ordersStartDate,
-          end: provider.ordersEndDate,
-          onChanged: onSelectDateRange,
-          now: () => provider.currentDate,
+          start: widget.provider.ordersStartDate,
+          end: widget.provider.ordersEndDate,
+          onChanged: widget.onSelectDateRange,
+          now: () => widget.provider.currentDate,
           fieldStyle: true,
-          fieldLabelInside: true,
+          fieldLabelInside: !compact,
         );
-        final storeFilter = isManagedScope
+        final storeFilter = widget.isManagedScope
             ? AppCombobox<String>.single(
                 key: const Key('sales-report-orders-store'),
                 label: 'Showroom',
-                value: provider.ordersStoreCode,
+                value: widget.provider.ordersStoreCode,
                 emptyLabel: 'Tất cả showroom',
                 showLabel: false,
                 fixedHeight: 48,
                 closedIcon: PhosphorIconsRegular.caretDown,
                 menuWidth: wide ? 180 : 280,
-                options: provider.orderStoreOptions
+                options: widget.provider.orderStoreOptions
                     .map(
                       (option) => AppComboboxOption<String>(
                         value: option.value,
@@ -521,7 +538,10 @@ class _SalesReportControls extends StatelessWidget {
                     )
                     .toList(growable: false),
                 onChanged: (value) => unawaited(
-                  provider.setOrderFilters(storeCode: value, updateStore: true),
+                  widget.provider.setOrderFilters(
+                    storeCode: value,
+                    updateStore: true,
+                  ),
                 ),
               )
             : const _ReadonlyFilterField(
@@ -529,17 +549,17 @@ class _SalesReportControls extends StatelessWidget {
                 label: 'Showroom',
                 value: 'Showroom của tôi',
               );
-        final userFilter = isManagedScope
+        final userFilter = widget.isManagedScope
             ? AppCombobox<String>.single(
                 key: const Key('sales-report-orders-user'),
                 label: 'Nhân viên',
-                value: provider.ordersUserEmail,
+                value: widget.provider.ordersUserEmail,
                 emptyLabel: 'Tất cả nhân viên',
                 showLabel: false,
                 fixedHeight: 48,
                 closedIcon: PhosphorIconsRegular.caretDown,
                 menuWidth: wide ? 220 : null,
-                options: provider.orderUserOptions
+                options: widget.provider.orderUserOptions
                     .map(
                       (option) => AppComboboxOption<String>(
                         value: option.value,
@@ -549,7 +569,10 @@ class _SalesReportControls extends StatelessWidget {
                     )
                     .toList(growable: false),
                 onChanged: (value) => unawaited(
-                  provider.setOrderFilters(userEmail: value, updateUser: true),
+                  widget.provider.setOrderFilters(
+                    userEmail: value,
+                    updateUser: true,
+                  ),
                 ),
               )
             : const _ReadonlyFilterField(
@@ -557,21 +580,36 @@ class _SalesReportControls extends StatelessWidget {
                 label: 'Nhân viên',
                 value: 'Nhân viên của tôi',
               );
-        final reloadButton = Tooltip(
-          message: 'Tải lại danh sách',
-          child: AppSecondaryButton(
-            key: const Key('sales-report-reload-action'),
-            onPressed: provider.isLoadingOrders ? null : onReload,
-            icon: PhosphorIconsRegular.arrowsClockwise,
-            label: 'Tải lại',
-            isLoading: provider.isLoadingOrders,
-            size: AppButtonSize.medium,
-            radius: compact ? 10 : AppButtonMetrics.radius,
-            padding: compact
-                ? const EdgeInsets.symmetric(horizontal: 12)
-                : null,
-          ),
-        );
+        final reloadButton = compact
+            ? Tooltip(
+                message: 'Tải lại danh sách',
+                child: AppIconAction(
+                  key: const Key('sales-report-reload-action'),
+                  onPressed: widget.provider.isLoadingOrders
+                      ? null
+                      : widget.onReload,
+                  icon: PhosphorIconsRegular.arrowsClockwise,
+                  tooltip: 'Tải lại danh sách',
+                  isLoading: widget.provider.isLoadingOrders,
+                  iconSize: 20,
+                  dimension: 48,
+                  radius: 10,
+                ),
+              )
+            : Tooltip(
+                message: 'Tải lại danh sách',
+                child: AppSecondaryButton(
+                  key: const Key('sales-report-reload-action'),
+                  onPressed: widget.provider.isLoadingOrders
+                      ? null
+                      : widget.onReload,
+                  icon: PhosphorIconsRegular.arrowsClockwise,
+                  label: 'Tải lại',
+                  isLoading: widget.provider.isLoadingOrders,
+                  size: AppButtonSize.medium,
+                  radius: AppButtonMetrics.radius,
+                ),
+              );
 
         Widget actionButton({
           required Key key,
@@ -594,12 +632,12 @@ class _SalesReportControls extends StatelessWidget {
         final purchasedAction = actionButton(
           key: const Key('sales-report-purchased-action'),
           label: 'Mua thủ công',
-          onPressed: canSubmitReports ? onPurchased : null,
+          onPressed: widget.canSubmitReports ? widget.onPurchased : null,
         );
         final notPurchasedAction = actionButton(
           key: const Key('sales-report-not-purchased-action'),
           label: 'Chưa mua',
-          onPressed: canSubmitReports ? onNotPurchased : null,
+          onPressed: widget.canSubmitReports ? widget.onNotPurchased : null,
         );
 
         if (compact) {
@@ -611,22 +649,74 @@ class _SalesReportControls extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                dateRangeFilter,
-                const SizedBox(height: 12),
-                storeFilter,
-                const SizedBox(height: 12),
-                userFilter,
-                if (canSubmitReports) ...[
-                  const SizedBox(height: 12),
-                  KeyedSubtree(
-                    key: const Key('sales-report-manual-actions'),
-                    child: purchasedAction,
+                SizedBox(
+                  height: 76,
+                  child: Row(
+                    key: const Key('sales-report-compact-filter-row'),
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Expanded(child: dateRangeFilter),
+                      const SizedBox(width: 8),
+                      Semantics(
+                        button: true,
+                        label: 'Bộ lọc',
+                        toggled: _filtersExpanded,
+                        child: AppIconAction(
+                          key: const Key('sales-report-filter-action'),
+                          onPressed: () {
+                            final nextExpanded = !_filtersExpanded;
+                            setState(() => _filtersExpanded = nextExpanded);
+                            unawaited(
+                              AppLogger.instance.info(
+                                'SalesReport',
+                                'Compact Sales report filters toggled',
+                                context: {'expanded': nextExpanded},
+                              ),
+                            );
+                          },
+                          icon: PhosphorIconsRegular.funnelSimple,
+                          tooltip: 'Bộ lọc',
+                          dimension: 48,
+                          radius: 10,
+                          iconSize: 20,
+                        ),
+                      ),
+                    ],
                   ),
+                ),
+                if (_filtersExpanded) ...[
                   const SizedBox(height: 12),
-                  notPurchasedAction,
+                  storeFilter,
+                  const SizedBox(height: 12),
+                  userFilter,
                 ],
-                const SizedBox(height: 12),
-                reloadButton,
+                if (widget.canSubmitReports) const SizedBox(height: 12),
+                if (widget.canSubmitReports)
+                  LayoutBuilder(
+                    builder: (context, actionConstraints) {
+                      final designWidths = actionConstraints.maxWidth >= 311;
+                      return Row(
+                        key: const Key('sales-report-manual-actions'),
+                        children: designWidths
+                            ? [
+                                SizedBox(width: 139, child: purchasedAction),
+                                const SizedBox(width: 8),
+                                SizedBox(width: 108, child: notPurchasedAction),
+                                const SizedBox(width: 8),
+                                reloadButton,
+                              ]
+                            : [
+                                Expanded(child: purchasedAction),
+                                const SizedBox(width: 8),
+                                Expanded(child: notPurchasedAction),
+                                const SizedBox(width: 8),
+                                reloadButton,
+                              ],
+                      );
+                    },
+                  )
+                else
+                  Align(alignment: Alignment.centerRight, child: reloadButton),
               ],
             ),
           );
@@ -657,7 +747,7 @@ class _SalesReportControls extends StatelessWidget {
               Row(
                 key: const Key('sales-report-action-row'),
                 children: [
-                  if (canSubmitReports) ...[
+                  if (widget.canSubmitReports) ...[
                     SizedBox(
                       key: const Key('sales-report-manual-actions'),
                       width: 161,
@@ -890,9 +980,14 @@ class _OrderCockpitTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final money = formatVndAmount(order.grandTotal);
+    final storeCode = _cleanOrderLabel(order.storeCode);
     final employeeName = _cleanOrderLabel(order.employeeName);
     final employeeEmail = _cleanOrderLabel(order.employeeEmail);
     final employeeLabel = employeeName ?? employeeEmail;
+    final employeeLine = [
+      if (storeCode != null) storeCode,
+      if (employeeLabel != null) employeeLabel,
+    ].join(' • ');
     final badgeLabel = order.isReported
         ? _reportedOutcomeLabel(order.report)
         : money;
@@ -949,9 +1044,9 @@ class _OrderCockpitTile extends StatelessWidget {
                       ],
                     ],
                   ),
-                  if (employeeLabel != null)
+                  if (employeeLine.isNotEmpty)
                     Text(
-                      'SR • $employeeLabel',
+                      employeeLine,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: AppTextStyles.bodyS.copyWith(

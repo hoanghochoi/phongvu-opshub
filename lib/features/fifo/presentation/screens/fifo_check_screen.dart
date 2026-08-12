@@ -191,10 +191,6 @@ class _FifoCheckScreenState extends State<FifoCheckScreen> {
             _showErrorIfNeeded();
           },
         );
-        final contentSizedCompactSerial =
-            viewportWidth < 600 &&
-            provider.result?.isSerialMode == true &&
-            provider.result?.item != null;
         return AppResponsiveContent(
           maxWidth: AppLayoutTokens.commandWorkspaceMaxWidth,
           padding: AppLayoutTokens.pagePaddingFor(viewportWidth),
@@ -224,25 +220,12 @@ class _FifoCheckScreenState extends State<FifoCheckScreen> {
                 ),
               ),
               const SizedBox(height: 16),
-              if (contentSizedCompactSerial)
-                resultPanel
-              else
-                SizedBox(
-                  height: _fifoResultHeight(result: provider.result),
-                  child: resultPanel,
-                ),
+              Expanded(child: resultPanel),
             ],
           ),
         );
       },
     );
-  }
-
-  double _fifoResultHeight({required FifoCheckResult? result}) {
-    if (result?.isSerialMode == true && result?.item != null) {
-      return 248;
-    }
-    return 340;
   }
 }
 
