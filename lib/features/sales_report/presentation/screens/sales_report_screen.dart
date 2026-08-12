@@ -890,10 +890,9 @@ class _OrderCockpitTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final money = formatVndAmount(order.grandTotal);
-    final employeeName = order.employeeName;
+    final employeeName = _cleanOrderLabel(order.employeeName);
     final employeeEmail = _cleanOrderLabel(order.employeeEmail);
     final employeeLabel = employeeName ?? employeeEmail;
-    final storeCode = _cleanOrderLabel(order.storeCode);
     final badgeLabel = order.isReported
         ? _reportedOutcomeLabel(order.report)
         : money;
@@ -950,9 +949,9 @@ class _OrderCockpitTile extends StatelessWidget {
                       ],
                     ],
                   ),
-                  if (employeeLabel != null || storeCode != null)
+                  if (employeeLabel != null)
                     Text(
-                      [storeCode, employeeLabel].whereType<String>().join(' • '),
+                      'SR • $employeeLabel',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: AppTextStyles.bodyS.copyWith(

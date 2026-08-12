@@ -167,6 +167,7 @@ class SalesReportOrderCockpitItem {
   final List<String> paymentMethods;
   final String? consultantCustomId;
   final String? consultantName;
+  final String? employeeName;
   final String? employeeEmail;
   final String? sellerName;
   final String? storeCode;
@@ -192,6 +193,7 @@ class SalesReportOrderCockpitItem {
     required this.paymentMethods,
     required this.consultantCustomId,
     required this.consultantName,
+    required this.employeeName,
     required this.employeeEmail,
     required this.sellerName,
     required this.storeCode,
@@ -202,25 +204,6 @@ class SalesReportOrderCockpitItem {
   });
 
   bool get isReported => status == 'REPORTED';
-
-  String? get employeeName {
-    String? text(Object? value) {
-      final valueText = value?.toString().trim();
-      return valueText == null || valueText.isEmpty ? null : valueText;
-    }
-
-    if (isReported) {
-      return text(report?['createdByName']) ??
-          text(sellerName) ??
-          text(consultantName) ??
-          text(consultantCustomId) ??
-          employeeEmail;
-    }
-    return text(sellerName) ??
-        text(consultantName) ??
-        text(consultantCustomId) ??
-        employeeEmail;
-  }
 
   factory SalesReportOrderCockpitItem.fromJson(Map<String, dynamic> json) {
     DateTime? parseDate(Object? value) {
@@ -262,8 +245,7 @@ class SalesReportOrderCockpitItem {
               .toList(),
       consultantCustomId: json['consultantCustomId']?.toString(),
       consultantName: json['consultantName']?.toString(),
-      // DTO precedence: reported createdByEmail, then ERP consultant/seller;
-      // unreported consultantEmail, sellerEmail, then sourceUserEmail.
+      employeeName: json['employeeName']?.toString(),
       employeeEmail: json['employeeEmail']?.toString(),
       sellerName: json['sellerName']?.toString(),
       storeCode: json['storeCode']?.toString(),

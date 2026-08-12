@@ -37,12 +37,11 @@ not receive a tap callback or open a new route/modal.
 
 ## Data authority
 
-The backend DTO exposes `employeeEmail` from `createdByEmail` then
-`consultantEmail`/`sellerEmail` for reported rows; unreported rows use
-`consultantEmail`, `sellerEmail`, then `sourceUserEmail`. Names use
-`sellerName`, `consultantName`, `consultantCustomId` for cache rows and
-`createdByName`, then ERP consultant/seller names when reported. Empty names
-fall back to email only.
+The backend DTO exposes employee identity as an atomic `employeeName` +
+`employeeEmail` pair. Reported rows prefer report creator, then consultant,
+then seller; unreported rows prefer consultant, then seller, then source user.
+This prevents a name from one employee being paired with another employee's
+email. Empty names fall back to the selected candidate's email only.
 
 ## Progress
 
@@ -68,6 +67,9 @@ fall back to email only.
 - Protected consumers exercised: Sales Report cockpit DTO mapping, Dart domain
   parsing/name fallback, reported/unreported card rendering, pagination, and
   the existing unreported report-form callback.
+- Independent review findings were fixed before PR creation: the visible
+  employee row now uses literal `SR`, and deliberately different
+  seller/consultant fixtures verify atomic identity precedence for both states.
 - Residual risk: exact authenticated Chrome comparison at the full approved
   viewport matrix remains pending until this branch is merged and deployed to
   staging. Next step: review PR, run CI, deploy its merge SHA, then complete
