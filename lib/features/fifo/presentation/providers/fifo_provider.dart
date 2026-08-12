@@ -99,12 +99,7 @@ class FifoProvider extends ChangeNotifier {
     await AppLogger.instance.info(
       'FIFO',
       'FIFO export update started',
-      context: {
-        'inventoryId': item.id,
-        'sku': item.sku,
-        'serialNumber': item.serialNumber,
-        'exported': exported,
-      },
+      context: {'inventoryId': item.id, 'exported': exported},
     );
 
     try {

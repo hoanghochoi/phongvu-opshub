@@ -186,23 +186,23 @@ void main() {
 
     expect(
       tester.getRect(find.byKey(const Key('fifo-check-results'))).size,
-      const Size(343, 340),
+      const Size(343, 316),
     );
     expect(
       tester
           .getRect(find.byKey(const ValueKey('fifo-copy-serial-fifo-1')))
-          .size,
-      const Size(144, 48),
+          .height,
+      40,
     );
     expect(
       tester
           .getRect(find.byKey(const ValueKey('fifo-copy-location-fifo-1')))
-          .size,
-      const Size(143, 48),
+          .height,
+      40,
     );
     expect(
-      tester.getRect(find.byKey(const ValueKey('fifo-export-control'))).size,
-      const Size(48, 48),
+      tester.getRect(find.byKey(const ValueKey('fifo-export-control'))).height,
+      40,
     );
 
     tester.view.physicalSize = const Size(1024, 900);
@@ -215,15 +215,15 @@ void main() {
 
     expect(
       tester.getRect(find.byKey(const Key('fifo-check-results'))).size,
-      const Size(872, 340),
+      const Size(872, 248),
     );
     expect(
       tester
           .getRect(find.byKey(const ValueKey('fifo-copy-location-fifo-1')))
-          .size,
-      const Size(128, 48),
+          .height,
+      48,
     );
-    expect(find.textContaining('Khu:'), findsOneWidget);
+    expect(find.textContaining('Hàng bán mới tại kho'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -288,23 +288,79 @@ void main() {
       await tester.tap(find.byTooltip('Tìm FIFO'));
       await tester.pumpAndSettle();
 
-      expect(find.text('Sai thứ tự FIFO'), findsOneWidget);
+      expect(find.text('Sai FIFO'), findsOneWidget);
       expect(find.text('Chuột Logitech B100'), findsOneWidget);
       expect(
         tester
             .getRect(find.byKey(const ValueKey('fifo-copy-serial-fifo-1')))
-            .size,
-        const Size(144, 48),
+            .height,
+        40,
       );
       expect(
         tester
             .getRect(find.byKey(const ValueKey('fifo-copy-location-fifo-1')))
-            .size,
-        const Size(143, 48),
+            .height,
+        40,
       );
       expect(tester.takeException(), isNull);
     },
   );
+
+  testWidgets('FIFO R2 serial card matches approved mobile pill geometry', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(375, 812);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      _wrapFifoCheck(_FakeFifoRepository(status: 'wrong')),
+    );
+    await tester.enterText(find.byType(TextField), 'SN001');
+    await tester.tap(find.byTooltip('Tìm FIFO'));
+    await tester.pumpAndSettle();
+
+    expect(
+      tester.getSize(find.byKey(const Key('fifo-check-results'))),
+      const Size(343, 316),
+    );
+    expect(
+      tester.getSize(find.byKey(const Key('fifo-mobile-metadata-rows'))),
+      const Size(304, 160),
+    );
+    expect(find.text('Sai FIFO'), findsOneWidget);
+    expect(find.text('Có lỗi'), findsNothing);
+    expect(find.text('Hàng bán mới tại kho'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('FIFO R2 serial card matches approved desktop geometry', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1440, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      _wrapFifoCheck(_FakeFifoRepository(status: 'wrong'), contentWidth: 1190),
+    );
+    await tester.enterText(find.byType(TextField), 'SN001');
+    await tester.tap(find.byTooltip('Tìm FIFO'));
+    await tester.pumpAndSettle();
+
+    expect(
+      tester.getSize(find.byKey(const Key('fifo-check-results'))),
+      const Size(1126, 248),
+    );
+    expect(
+      tester.getSize(find.byKey(const Key('fifo-desktop-metadata-wrap'))),
+      const Size(1072, 92),
+    );
+    expect(find.text('Sai FIFO'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets('FIFO serial exported and display-reserved states keep actions', (
     tester,
@@ -331,7 +387,7 @@ void main() {
     await tester.tap(find.byTooltip('Tìm FIFO'));
     await tester.pumpAndSettle();
     expect(find.text('Hàng trưng bày chỉ định'), findsOneWidget);
-    expect(find.text('Trưng bày'), findsOneWidget);
+    expect(find.text('Hàng bán mới tại kho'), findsOneWidget);
     expect(find.text('Đánh dấu xuất kho'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
@@ -410,11 +466,11 @@ void main() {
 
     expect(repository.lastText, 'SN001');
     expect(repository.lastIncludeExported, isTrue);
-    expect(find.text('Đúng thứ tự FIFO'), findsOneWidget);
+    expect(find.text('Đúng FIFO'), findsOneWidget);
     expect(find.text('Chuột Logitech B100'), findsOneWidget);
     expect(find.text('SN001'), findsWidgets);
     expect(find.text('LK.04-A-03-a'), findsOneWidget);
-    expect(find.textContaining('Tuổi tồn:'), findsOneWidget);
+    expect(find.textContaining('Tồn '), findsOneWidget);
     expect(find.text('Đánh dấu xuất kho'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
@@ -516,7 +572,7 @@ void main() {
         'SN002',
         'SN003',
       ]);
-      expect(find.text('Đúng thứ tự FIFO'), findsOneWidget);
+      expect(find.text('Đúng FIFO'), findsOneWidget);
       expect(tester.takeException(), isNull);
     },
   );
@@ -630,6 +686,7 @@ const _fifoItem = FifoInventoryItem(
   serialNumber: 'SN001',
   bin: 'LK.04-A-03-a',
   zone: 'A1',
+  binType: 'Hàng bán mới tại kho',
   importDate: '2026-07-01',
   count: 1,
   exported: false,
