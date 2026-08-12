@@ -434,9 +434,17 @@ Verification hardening evidence:
 
 Environment classification evidence:
 
-- Commit pending in this checkpoint: actual full-profile runner proof returns
-  exit `5` for missing Nest CLI (`'nest' is not recognized...`) after Flutter,
-  docs, runner and release checks pass; fingerprint remains `stale=false`.
+- The first full-profile attempt correctly returned exit `5` for a missing local
+  Nest toolchain. After the task worktree installed dependencies with
+  `npm ci --ignore-scripts` and generated the Prisma client with
+  `npx prisma generate`, the exact final runner proof passed:
+  `node scripts/verify-task.mjs --base origin/staging --full --json
+  tmp/final-verify-full.json` at `HEAD=66beb2cf1218b55747d7e7822e5305b0f9ad8336`.
+  All eight profiles (`harness`, `docs`, `verification-runner`, `release`,
+  `flutter`, `nestjs`, `go-realtime`, `deployment`) returned code `0`, with
+  matching before/after fingerprints and `stale=false`. The exact final
+  fingerprint is emitted in the JSON artifact from the command above; it is
+  intentionally not copied into this fingerprinted plan file.
 - `node --test tests/verification/*.test.mjs`: 16/16 pass, including mocked
   and actual Windows `npm.cmd` command-not-found cases.
 
@@ -512,9 +520,10 @@ are local-only and retained; the canonical source remains untouched. Runtime
 code change in this slice is limited to the test-only `AppLogger.flushForTesting`
 coordination hook; production logging behavior is unchanged.
 The Linear implementation/proof note is recorded on `OPS-65`, but no status
-transition, commit, push, PR or production proof has occurred. Review the exact
-diff and run the lifecycle publication gates before opening the next child
-issue. Move this plan to
+transition, push, PR or production proof has occurred. The exact final SHA has
+passed the full local validation ladder for this slice. Review the exact diff
+and run the lifecycle publication gates before opening the next child issue.
+Move this plan to
 `docs/plans/completed/` only after the full initiative's final validation and
 production lifecycle are complete.
 
