@@ -339,7 +339,8 @@ god-helper.
   historical-only records. The proof was read back before any status change.
 - [x] Harden verification fingerprinting to hash raw `git diff --binary` bytes
   instead of a UTF-8-decoded string; add invalid-UTF-8 binary-diff regression
-  coverage (verification suite now 12/12).
+  coverage for unstaged, staged and base-aware changes (verification suite now
+  13/13).
 - [ ] Publish `OPS-65` and `OPS-68` through the guarded feature-PR flow. Until
   their PRs merge into `staging` and `finish` passes, Phase 5+ mutations are
   blocked by lifecycle policy; no direct push or PR authority is assumed.
@@ -418,7 +419,7 @@ Verification hardening evidence:
 - Commit `ef8995ec` makes `verify-task` fingerprint staged, unstaged and
   base-aware binary diffs from raw Git bytes; a temporary invalid-UTF-8 binary
   fixture changes the fingerprint as required.
-- `node --test tests/verification/*.test.mjs`: 12/12 pass;
+- `node --test tests/verification/*.test.mjs`: 13/13 pass;
   `node scripts/verify-task.mjs --base origin/staging --dry-run`: exit 0,
   stale=false; `git diff --check`: pass.
 

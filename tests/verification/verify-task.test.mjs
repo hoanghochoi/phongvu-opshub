@@ -94,6 +94,28 @@ test('fingerprint preserves binary diff bytes for invalid UTF-8 changes', (t) =>
   assert.notEqual(first, second);
 });
 
+test('fingerprint preserves staged and base-aware binary diff bytes', (t) => {
+  const root = repo(t);
+  mkdirSync(path.join(root, 'assets'), { recursive: true });
+  writeFileSync(path.join(root, 'assets', 'staged.bin'), Buffer.from([0x00, 0x80, 0xff]));
+  git(root, ['add', '--all']);
+  const stagedFirst = fingerprint({ root });
+  writeFileSync(path.join(root, 'assets', 'staged.bin'), Buffer.from([0x01, 0x81, 0xfe]));
+  git(root, ['add', '--all']);
+  const stagedSecond = fingerprint({ root });
+  assert.notEqual(stagedFirst, stagedSecond);
+
+  git(root, ['commit', '--quiet', '-m', 'binary staged']);
+  const base = git(root, ['rev-parse', 'HEAD']);
+  writeFileSync(path.join(root, 'assets', 'staged.bin'), Buffer.from([0x02, 0x82, 0xfd]));
+  git(root, ['add', '--all']);
+  git(root, ['commit', '--quiet', '-m', 'binary base-aware']);
+  const baseAwareFirst = fingerprint({ root, base });
+  writeFileSync(path.join(root, 'assets', 'staged.bin'), Buffer.from([0x03, 0x83, 0xfc]));
+  const baseAwareSecond = fingerprint({ root, base });
+  assert.notEqual(baseAwareFirst, baseAwareSecond);
+});
+
 test('command failure is classified as product failure and preserves structured definitions', (t) => {
   const root = repo(t);
   write(root, 'lib/home.dart', 'void main() { /* changed */ }\n');
