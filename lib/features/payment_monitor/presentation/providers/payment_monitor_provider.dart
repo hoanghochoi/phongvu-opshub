@@ -21,6 +21,7 @@ import '../../domain/payment_notification.dart';
 import '../../domain/payment_poll_policy.dart';
 
 part 'payment_monitor_query_state.dart';
+part 'payment_monitor_realtime_runtime.dart';
 
 class PaymentSpeakerError {
   final String storeCode;
@@ -65,8 +66,6 @@ class _DownloadedPaymentAudio {
 
 class PaymentMonitorProvider extends ChangeNotifier
     with PaymentMonitorProviderQueryState {
-  static const _backgroundRealtimeOwner = 'payment_speaker';
-  static const _realtimeRefreshDebounce = Duration(milliseconds: 500);
   static const _readyNotificationBatchLimit = 3;
   static const _readyNotificationMaxDrainBatches = 5;
   static const _startupNotificationLookback = Duration(minutes: 15);
@@ -111,14 +110,8 @@ class PaymentMonitorProvider extends ChangeNotifier
   @override
   final Set<String> _updatingOrderTrackingIds = {};
 
-  Timer? _realtimeRefreshTimer;
   Timer? _speakerReadyFallbackTimer;
-  StreamSubscription<RealtimeEnvelope>? _realtimeEventSubscription;
-  StreamSubscription<RealtimeSyncReason>? _realtimeSyncSubscription;
-  StreamSubscription<RealtimeEnvelope>?
-  _backgroundSpeakerRealtimeEventSubscription;
-  StreamSubscription<RealtimeSyncReason>?
-  _backgroundSpeakerRealtimeSyncSubscription;
+  late final PaymentMonitorRealtimeRuntime _realtimeRuntime;
   @override
   User? _user;
   @override
@@ -164,17 +157,11 @@ class PaymentMonitorProvider extends ChangeNotifier
   bool _isDrainingReadyNotifications = false;
   @override
   bool _canReviewOrderTransfers = false;
-  bool _isForeground = true;
-  bool _isSpeakerBackgroundRuntimeAllowed = false;
-  bool _isListViewActive = true;
-  bool _realtimeRefreshPending = false;
-  bool _realtimeRefreshShouldDrainReadyNotifications = false;
   DateTime? _lastRealtimeEventAt;
   final Set<String> _activeNotificationIds = {};
   int _authGeneration = 0;
   int _pollRequestToken = 0;
   int _speakerGeneration = 0;
-  RealtimeBackgroundConnectionLease? _backgroundRealtimeLease;
 
   PaymentMonitorProvider(
     this._repository,
@@ -191,25 +178,21 @@ class PaymentMonitorProvider extends ChangeNotifier
        _amountAudioComposer =
            amountAudioComposer ?? createPaymentAmountAudioComposer(),
        _realtimeClient = realtimeClient ?? RealtimeConnectionManager.instance {
-    _realtimeEventSubscription = _realtimeClient.events.listen(
-      _handleRealtimeEnvelope,
+    _realtimeRuntime = PaymentMonitorRealtimeRuntime(
+      realtimeClient: _realtimeClient,
+      onEnvelope: _handleRealtimeEnvelope,
+      onSyncRequest: _handleRealtimeSyncRequest,
+      onRefresh: _pollFromRealtimeRuntime,
+      shouldHoldBackgroundLease: () => _shouldHoldBackgroundRealtimeLease,
+      onLeaseChanged: _handleRealtimeLeaseChanged,
     );
-    _realtimeSyncSubscription = _realtimeClient.syncRequests.listen(
-      _handleRealtimeSyncRequest,
-    );
-    final realtimeClient = _realtimeClient;
-    if (realtimeClient is RealtimeBackgroundConnectionController) {
-      final backgroundClient =
-          realtimeClient as RealtimeBackgroundConnectionController;
-      _backgroundSpeakerRealtimeEventSubscription = backgroundClient
-          .backgroundSpeakerEvents
-          .listen(_handleRealtimeEnvelope);
-      _backgroundSpeakerRealtimeSyncSubscription = backgroundClient
-          .backgroundSpeakerSyncRequests
-          .listen(_handleRealtimeSyncRequest);
-    }
     _loadEnabledPreference();
   }
+
+  bool get _isForeground => _realtimeRuntime.isForeground;
+  bool get _isSpeakerBackgroundRuntimeAllowed =>
+      _realtimeRuntime.isSpeakerBackgroundRuntimeAllowed;
+  bool get _isListViewActive => _realtimeRuntime.isListViewActive;
 
   bool get isSpeakerEnabled => _isSpeakerEnabled;
   String get speakerVoicePresetId => _speakerVoicePresetId;
@@ -225,17 +208,12 @@ class PaymentMonitorProvider extends ChangeNotifier
     bool allowBackgroundSpeakerRuntime = false,
   }) {
     if (_isDisposed) return;
-    final foregroundChanged = _isForeground != isForeground;
-    final speakerBackgroundRuntimeChanged =
-        _isSpeakerBackgroundRuntimeAllowed != allowBackgroundSpeakerRuntime;
-    final listViewChanged = _isListViewActive != isListViewActive;
-    final becameListActive = !_isListViewActive && isListViewActive;
-    _isForeground = isForeground;
-    _isSpeakerBackgroundRuntimeAllowed = allowBackgroundSpeakerRuntime;
-    _isListViewActive = isListViewActive;
-    if (foregroundChanged ||
-        speakerBackgroundRuntimeChanged ||
-        listViewChanged) {
+    final runtimeChange = _realtimeRuntime.syncRuntime(
+      isForeground: isForeground,
+      isListViewActive: isListViewActive,
+      allowBackgroundSpeakerRuntime: allowBackgroundSpeakerRuntime,
+    );
+    if (runtimeChange.changed) {
       unawaited(
         AppLogger.instance.info(
           'PaymentMonitor',
@@ -252,21 +230,16 @@ class PaymentMonitorProvider extends ChangeNotifier
         ),
       );
     }
-    _syncBackgroundRealtimeLease(reason: 'runtime_changed');
     if (!_isSpeakerPreferenceLoaded || _user == null) return;
-    if (!_isForeground) {
-      _realtimeRefreshTimer?.cancel();
-      _realtimeRefreshTimer = null;
-    }
     if (!_isSpeakerRuntimeActive) {
       _stopSpeakerReadyFallback('speaker_runtime_paused');
       return;
     }
     _reconcile();
-    if (_isForeground && _realtimeRefreshPending && _isActive) {
+    if (_isForeground && _realtimeRuntime.refreshPending && _isActive) {
       _scheduleRealtimeRefresh(drainReadyNotifications: false);
     }
-    if (becameListActive && _isListViewActive && _isActive) {
+    if (runtimeChange.becameListActive && _isListViewActive && _isActive) {
       unawaited(
         _poll(
           force: true,
@@ -500,47 +473,33 @@ class PaymentMonitorProvider extends ChangeNotifier
       _isSpeakerBackgroundRuntimeAllowed &&
       _shouldReadPaymentSpeaker;
 
-  void _syncBackgroundRealtimeLease({required String reason}) {
-    final shouldHold = _shouldHoldBackgroundRealtimeLease;
-    if (shouldHold && _backgroundRealtimeLease == null) {
-      final realtimeClient = _realtimeClient;
-      if (realtimeClient is RealtimeBackgroundConnectionController) {
-        _backgroundRealtimeLease =
-            (realtimeClient as RealtimeBackgroundConnectionController)
-                .acquireBackgroundConnection(_backgroundRealtimeOwner);
-        unawaited(
-          AppLogger.instance.info(
-            'PaymentMonitor',
-            'Payment speaker background realtime lease acquired',
-            context: {
-              'reason': reason,
-              'storeId': _requestStoreId ?? _user?.storeId,
-              'foreground': _isForeground,
-              'speakerEnabled': _isSpeakerEnabled,
-            },
-          ),
-        );
-      }
-      return;
-    }
-    if (!shouldHold) _releaseBackgroundRealtimeLease(reason);
-  }
-
-  void _releaseBackgroundRealtimeLease(String reason) {
-    final lease = _backgroundRealtimeLease;
-    if (lease == null) return;
-    _backgroundRealtimeLease = null;
-    lease.release();
+  void _handleRealtimeLeaseChanged(String reason, bool acquired) {
     unawaited(
       AppLogger.instance.info(
         'PaymentMonitor',
-        'Payment speaker background realtime lease released',
+        acquired
+            ? 'Payment speaker background realtime lease acquired'
+            : 'Payment speaker background realtime lease released',
         context: {
           'reason': reason,
           'storeId': _requestStoreId ?? _user?.storeId,
           'foreground': _isForeground,
           'speakerEnabled': _isSpeakerEnabled,
         },
+      ),
+    );
+  }
+
+  void _pollFromRealtimeRuntime({
+    required bool drainReadyNotifications,
+    required String reason,
+  }) {
+    unawaited(
+      _poll(
+        force: true,
+        includeTotal: false,
+        reason: reason,
+        drainReadyNotifications: drainReadyNotifications,
       ),
     );
   }
@@ -746,7 +705,7 @@ class PaymentMonitorProvider extends ChangeNotifier
       _stop(reason: 'missing_scope');
       return;
     }
-    _syncBackgroundRealtimeLease(reason: 'eligibility_reconciled');
+    _realtimeRuntime.syncBackgroundLease(reason: 'eligibility_reconciled');
     if (!_isSpeakerRuntimeActive) {
       _stopSpeakerReadyFallback('speaker_runtime_paused');
       return;
@@ -816,13 +775,9 @@ class PaymentMonitorProvider extends ChangeNotifier
   void _stop({required String reason, bool clearError = true}) {
     _pollRequestToken += 1;
     _speakerGeneration += 1;
-    _releaseBackgroundRealtimeLease('monitor_stopped_$reason');
-    final hadPendingRealtimeRefresh =
-        _realtimeRefreshTimer != null || _realtimeRefreshPending;
-    _realtimeRefreshTimer?.cancel();
-    _realtimeRefreshTimer = null;
-    _realtimeRefreshPending = false;
-    _realtimeRefreshShouldDrainReadyNotifications = false;
+    final hadPendingRealtimeRefresh = _realtimeRuntime.refreshPending;
+    _realtimeRuntime.releaseBackgroundLease('monitor_stopped_$reason');
+    _realtimeRuntime.clearPendingRefresh();
     _stopSpeakerReadyFallback('stop_$reason');
     if (!_isActive &&
         !_isLoading &&
@@ -946,7 +901,7 @@ class PaymentMonitorProvider extends ChangeNotifier
         envelope.topic == 'payment.speaker';
     if (!isTransactionEvent && !isSpeakerEvent) return;
     if (isTransactionEvent && !_isForeground) {
-      _realtimeRefreshPending = true;
+      _realtimeRuntime.markRefreshPending();
       await AppLogger.instance.info(
         'PaymentMonitorRealtime',
         'Payment transaction realtime refresh deferred while UI is backgrounded',
@@ -1071,24 +1026,9 @@ class PaymentMonitorProvider extends ChangeNotifier
   }
 
   void _scheduleRealtimeRefresh({required bool drainReadyNotifications}) {
-    _realtimeRefreshPending = true;
-    _realtimeRefreshShouldDrainReadyNotifications |= drainReadyNotifications;
-    _realtimeRefreshTimer?.cancel();
-    _realtimeRefreshTimer = Timer(_realtimeRefreshDebounce, () {
-      if (!_isForeground) return;
-      final shouldDrainReadyNotifications =
-          _realtimeRefreshShouldDrainReadyNotifications;
-      _realtimeRefreshPending = false;
-      _realtimeRefreshShouldDrainReadyNotifications = false;
-      _poll(
-        force: true,
-        includeTotal: false,
-        reason: _isListViewActive
-            ? 'realtime_event'
-            : 'realtime_event_inactive_route',
-        drainReadyNotifications: shouldDrainReadyNotifications,
-      );
-    });
+    _realtimeRuntime.scheduleRefresh(
+      drainReadyNotifications: drainReadyNotifications,
+    );
   }
 
   Future<void> _handleStreamNotificationPayload(
@@ -2134,14 +2074,9 @@ class PaymentMonitorProvider extends ChangeNotifier
   @override
   void dispose() {
     _isDisposed = true;
-    _releaseBackgroundRealtimeLease('provider_disposed');
-    _realtimeRefreshTimer?.cancel();
+    _realtimeRuntime.dispose(reason: 'provider_disposed');
     _speakerReadyFallbackTimer?.cancel();
     _clearRowMessages(notify: false);
-    unawaited(_realtimeEventSubscription?.cancel());
-    unawaited(_realtimeSyncSubscription?.cancel());
-    unawaited(_backgroundSpeakerRealtimeEventSubscription?.cancel());
-    unawaited(_backgroundSpeakerRealtimeSyncSubscription?.cancel());
     super.dispose();
   }
 
