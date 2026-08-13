@@ -11,8 +11,8 @@ follow-up. OPS-74 runtime waves are in progress: OPS-81, OPS-82 and OPS-83 are
 merged and staging-deployed; OPS-84 query/list state and OPS-85
 realtime/background-lease are merged and staging-deployed; OPS-87 audio
 runtime and OPS-88 Payment Monitor actions are merged and staging-deployed;
-OPS-90 is the current Home Summary scope/access-runtime slice. OPS-89 cache
-runtime is merged and staging-deployed. Comparable timing baseline, remaining
+OPS-90 scope/access and OPS-91 projection runtime are the current Home Summary
+runtime slices; OPS-89 cache runtime is merged and staging-deployed. Comparable timing baseline, remaining
 runtime waves and production release remain open.
 
 ## Outcome
@@ -30,13 +30,15 @@ branch, and is not converted row-for-row into Markdown.
 ## Authority and checkpoint
 
 - Linear parent: `OPS-64`.
-- Current slice: `OPS-90` Home Summary scope/access resolution and selected
-  sales-metrics scope extraction, on a fresh lifecycle worktree created from
-  live `origin/staging@77ec6ff3482b3ff689e10af77b6981c1a96293d`. The focused
-  NestJS characterization matrix passed `83/83` before source edits. The
-  collaborator is being extracted behind the stable `HomeSummaryService`
-  facade; projection synchronization/loading, comparison/CSV overlay and
-  sales aggregation remain in the facade for later slices.
+- Current slice: `OPS-91` Home Summary projection runtime extraction, on a fresh
+  lifecycle worktree created from live `origin/staging@1891a7a961c738b36bbc307c00ff92ce2c651123`.
+  The focused NestJS characterization matrix passed `110/110` before and after
+  extraction; `npm run build` passed. Projection feature gating, freshness,
+  aggregate metrics and daily-series loading are owned by
+  `home-summary-projection.runtime.ts`; the stable `HomeSummaryService` facade
+  retains orchestration, comparison/CSV overlay, sales aggregation, legacy
+  sync and private compatibility wrappers. Affected Flutter Home proof passed
+  `60/60` after worktree dependency preflight.
   OPS-89 cache state, in-flight dedupe, refresh-ahead, daily-series extension,
   support caches, scope-option caching and projection invalidation remain in
   `home-summary-cache.runtime.ts`.
@@ -59,13 +61,14 @@ branch, and is not converted row-for-row into Markdown.
   the current lifecycle start gate passed.
 - Canonical staging worktree was clean. Existing worktrees were preserved and
   were not reset, removed, or rewritten.
-- Current implementation worktree: `../opshub-ops-90`.
-- OPS-90 branch: `codex/ops-90-home-summary-scope-access`.
+- Current implementation worktree: `../opshub-ops-91`.
+- OPS-91 branch: `codex/ops-91-home-summary-projection-runtime`.
 - OPS-89 implementation worktree/branch was cleaned after its squash merge;
   canonical staging and `origin/staging` are at
   `77ec6ff3482b3ff689e10af77b6981c1a96293d`.
-- OPS-90 compatibility wrappers are internal facade inspection points only;
-  they preserve characterization spies without widening the product API.
+- OPS-90 and OPS-91 compatibility wrappers are internal facade inspection
+  points only; they preserve characterization spies without widening the
+  product API.
 
 - OPS-68 implementation worktree:
   `../opshub-ops-68-disposition-ledger-fresh`.
@@ -719,17 +722,19 @@ Phase 9C runtime checkpoint (OPS-89, Home Summary cache runtime slice):
   remains the facade; routes, DTOs, DI tokens, permissions, data contracts and
   product computation callbacks are unchanged. Internal compatibility views
   keep existing characterization inspection points stable.
-- Remaining gates before publication: exact `verify-task` with
-  `stale=false`, affected Flutter Home/cache/details/comparison proof, final
-  staged diff review, Linear proof note, PR/CI, staging deploy and lifecycle
-  `finish --allow-ignored --execute` cleanup after squash merge.
+- PR #198 merged into `staging` at
+  `77ec6ff3482b3ff689e10af77b6981c1a96293d`; staging deploy run
+  `31735051035` passed and the guarded lifecycle cleanup completed. OPS-89 is
+  release-pending/Ready for QA until production deployment.
 
 Phase 9C runtime checkpoint (OPS-90, Home Summary scope/access slice):
 
-- Slice branch/worktree: `codex/ops-90-home-summary-scope-access` in
+- Historical slice branch/worktree: `codex/ops-90-home-summary-scope-access` in
   `../opshub-ops-90`, created from live `origin/staging@77ec6ff3482b3ff689e10af77b6981c1a96293d`.
-  Linear issue `OPS-90` is `In Progress`; the implementation checkpoint was
-  recorded before source edits. Canonical staging remains clean and unchanged.
+  PR #199 merged into `staging` at
+  `1891a7a961c738b36bbc307c00ff92ce2c651123`; staging deploy run
+  `31739803253` passed and the guarded lifecycle cleanup completed. Linear
+  `OPS-90` is `Ready for QA`; production deployment remains outstanding.
 - Baseline focused characterization passed `83/83` across the Home Summary
   service/controller/DTO suites. After extraction, the same matrix and
   `npm run build` pass `83/83` plus a clean compile.
@@ -738,9 +743,32 @@ Phase 9C runtime checkpoint (OPS-90, Home Summary scope/access slice):
   `home-summary-scope.runtime.ts`. `HomeSummaryService` retains the facade,
   private compatibility wrappers, existing logger/normalizer callbacks and
   all public routes, DTOs, DI tokens, permission and scope descriptor behavior.
-- Remaining gates before publication: focused/affected Flutter Home proof,
-  exact `verify-task` with `stale=false`, final diff review, Linear proof note,
-  PR/CI, staging deploy and lifecycle `finish --allow-ignored --execute`.
+- The slice preserved the facade/public contract and is complete through
+  staging QA tracking; no task worktree remains.
+
+Phase 9C runtime checkpoint (OPS-91, Home Summary projection runtime slice):
+
+- Slice branch/worktree: `codex/ops-91-home-summary-projection-runtime` in
+  `../opshub-ops-91`, created from live
+  `origin/staging@1891a7a961c738b36bbc307c00ff92ce2c651123`. Canonical staging
+  remained clean and unchanged; the implementation checkpoint was recorded in
+  Linear before source edits.
+- Baseline and post-extraction NestJS characterization both passed `110/110`
+  across Home Summary service/controller/DTO/projection/backfill/comparison
+  suites. `npm run build`, Prettier checks and `git diff --check` passed.
+- Extracted projection feature gating, freshness/readiness calculation,
+  projection version snapshots, aggregate metric loading and optional daily
+  series into `home-summary-projection.runtime.ts`. `HomeSummaryService`
+  retains the facade/orchestration, comparison/CSV overlay, sales aggregation,
+  legacy sync fallback and private compatibility wrappers; public routes, DTOs,
+  DI tokens, permissions and projection response contracts are unchanged.
+- Affected Flutter Home/cache/details/realtime/scope proof passed `60/60` after
+  `flutter pub get` preflight. Generated Flutter registrant/l10n changes were
+  kept out of the slice in a named local stash and are not part of the product
+  diff.
+- Exact `verify-task` and all focused/affected proof are now passing. Remaining
+  gates are final staged diff review, PR/CI, staging deploy and lifecycle
+  `finish --allow-ignored --execute` cleanup after squash merge.
 
 ## Validation
 
