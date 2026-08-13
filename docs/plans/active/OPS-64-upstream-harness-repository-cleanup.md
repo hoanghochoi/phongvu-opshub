@@ -7,9 +7,9 @@ Date: 2026-08-13
 Active — Phase 7B live shadow evidence and Phase 8 artifact/dependency/toolchain
 cleanup are merged in staging. Five live shadow observations pass; one
 historical contract gap (#182) was explicitly captured and fixed in the OPS-72
-follow-up. OPS-74 runtime waves have started; OPS-81 completes the Home
-KPI/summary section extraction slice. Comparable timing baseline, remaining
-runtime waves and production release remain open.
+follow-up. OPS-74 runtime waves have started; OPS-81 is merged and OPS-82
+completes the Home detail-renderer extraction slice. Comparable timing
+baseline, remaining runtime waves and production release remain open.
 
 ## Outcome
 
@@ -26,10 +26,10 @@ branch, and is not converted row-for-row into Markdown.
 ## Authority and checkpoint
 
 - Linear parent: `OPS-64`.
-- Current slice: `OPS-81` Home KPI/summary section characterization/extraction,
-  on a fresh lifecycle worktree created from the live `origin/staging`
-  checkpoint. OPS-72, OPS-73 and the OPS-74 header slice are merged at the
-  current checkpoint.
+- Current slice: `OPS-82` Home detail dialogs/tables/paging
+  characterization/extraction, on a fresh lifecycle worktree created from the
+  live `origin/staging` checkpoint. OPS-72, OPS-73, OPS-74 header and OPS-81
+  KPI/summary slices are merged at the current checkpoint.
 - Previous slice: `OPS-70` (Phase 5 protocol-v1 retirement and Harness producer
   cleanup) on a fresh lifecycle worktree created from the live `origin/staging`
   checkpoint.
@@ -543,6 +543,24 @@ Phase 9A runtime checkpoint (OPS-81):
   Flutter analyze command took 156,941 ms. Full standalone Home test invocation
   exceeded the local 120-second command timeout before this slice, so that
   timeout is retained as a harness limitation rather than a product failure.
+
+Phase 9A runtime checkpoint (OPS-82):
+
+- Slice branch/worktree: `codex/ops-82-home-details-dialogs-tables-paging` in
+  `../opshub-ops-82`, started from `origin/staging@880167d6e1cb01395e2ad674079e6ccb737b87bc`.
+- Extracted pure Home detail renderers into the same-library part file
+  `home_summary_detail_sections.dart`: detail tab pills, sales-behavior table,
+  installment table, typed data tables, load-more footer and display helpers.
+  Dialog state, provider calls, cursor append and load-generation guards remain
+  in `HomeSummaryPage` unchanged.
+- Baseline representative detail flow passed 1/1 before extraction, covering
+  both behavior tabs, cursor load-more and installment details. Post-extraction
+  focused proof passed the same flow 1/1 and the combined Home/header/cache/
+  details suite passed 60/60 visible Home tests plus repository/cache tests.
+  `dart format`, `git diff --check` and targeted Flutter analyze passed.
+- Generated localization/plugin files changed only in index metadata after
+  offline dependency setup; their content hashes match HEAD and they are not
+  part of the intended diff. No runtime plugin registration changed.
 
 ## Validation
 
