@@ -20,6 +20,8 @@ import '../../domain/map_payment_transaction.dart';
 import '../../domain/payment_notification.dart';
 import '../../domain/payment_poll_policy.dart';
 
+part 'payment_monitor_query_state.dart';
+
 class PaymentSpeakerError {
   final String storeCode;
   final String notificationId;
@@ -61,7 +63,8 @@ class _DownloadedPaymentAudio {
   });
 }
 
-class PaymentMonitorProvider extends ChangeNotifier {
+class PaymentMonitorProvider extends ChangeNotifier
+    with PaymentMonitorProviderQueryState {
   static const _backgroundRealtimeOwner = 'payment_speaker';
   static const _realtimeRefreshDebounce = Duration(milliseconds: 500);
   static const _readyNotificationBatchLimit = 3;
@@ -98,10 +101,14 @@ class PaymentMonitorProvider extends ChangeNotifier {
   final Set<String> _queuedStreamNotificationIds = {};
   final Queue<PaymentNotification> _streamNotificationQueue =
       Queue<PaymentNotification>();
+  @override
   final List<MapPaymentTransaction> _latestTransactions = [];
+  @override
   final Map<String, PaymentMonitorRowMessage> _rowMessages = {};
   final Map<String, Timer> _rowMessageTimers = {};
+  @override
   final Set<String> _updatingOrderIds = {};
+  @override
   final Set<String> _updatingOrderTrackingIds = {};
 
   Timer? _realtimeRefreshTimer;
@@ -112,20 +119,32 @@ class PaymentMonitorProvider extends ChangeNotifier {
   _backgroundSpeakerRealtimeEventSubscription;
   StreamSubscription<RealtimeSyncReason>?
   _backgroundSpeakerRealtimeSyncSubscription;
+  @override
   User? _user;
+  @override
   String? _storeOverride;
+  @override
   final Set<String> _selectedStoreIds = {};
   String? _clientId;
   DateTime? _notificationCheckpointAt;
+  @override
   bool _isActive = false;
   bool _isDisposed = false;
+  @override
   bool _isLoading = false;
+  @override
   String? _errorMessage;
+  @override
   DateTime? _lastCheckedAt;
+  @override
   DateTime _rangeStartDate = _todayInVietnam();
+  @override
   DateTime _rangeEndDate = _todayInVietnam();
+  @override
   int _pageIndex = 0;
+  @override
   int _pageSize = 10;
+  @override
   int _totalTransactions = 0;
   bool _loggedMonitorStarted = false;
   bool _isSpeakerEnabled = true;
@@ -133,6 +152,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
   bool _isSpeakerPreferenceLoaded = false;
   int _pollFailureCount = 0;
   DateTime? _nextPollAllowedAt;
+  @override
   PaymentSpeakerError? _speakerError;
   String? _lastSpeakerEligibilityLogKey;
   bool _refreshQueuedWhileLoading = false;
@@ -142,6 +162,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
   String? _queuedUserRefreshReason;
   bool _isDrainingStreamNotifications = false;
   bool _isDrainingReadyNotifications = false;
+  @override
   bool _canReviewOrderTransfers = false;
   bool _isForeground = true;
   bool _isSpeakerBackgroundRuntimeAllowed = false;
@@ -190,7 +211,6 @@ class PaymentMonitorProvider extends ChangeNotifier {
     _loadEnabledPreference();
   }
 
-  bool get isActive => _isActive;
   bool get isSpeakerEnabled => _isSpeakerEnabled;
   String get speakerVoicePresetId => _speakerVoicePresetId;
   PaymentAudioVoicePreset get speakerVoicePreset =>
@@ -198,32 +218,6 @@ class PaymentMonitorProvider extends ChangeNotifier {
       paymentAudioVoicePresets.first;
   List<PaymentAudioVoicePreset> get speakerVoicePresetOptions =>
       List.unmodifiable(paymentAudioVoicePresets);
-  bool get isLoading => _isLoading;
-  String? get errorMessage => _errorMessage;
-  DateTime? get lastCheckedAt => _lastCheckedAt;
-  String? get storeOverride => _storeOverride;
-  Set<String> get selectedStoreIds => Set.unmodifiable(_selectedStoreIds);
-  DateTime get selectedDate => _rangeStartDate;
-  DateTime get rangeStartDate => _rangeStartDate;
-  DateTime get rangeEndDate => _rangeEndDate;
-  int get pageIndex => _pageIndex;
-  int get pageSize => _pageSize;
-  int get totalTransactions => _totalTransactions;
-  PaymentSpeakerError? get speakerError => _speakerError;
-  bool get canGoPreviousPage => _pageIndex > 0;
-  bool get canGoNextPage => (_pageIndex + 1) * _pageSize < _totalTransactions;
-  bool get canMonitorOnThisDevice => _canMonitorOnThisDevice;
-  bool get hasMonitorScope => _hasMonitorScope;
-  bool get canConfigurePaymentSpeaker =>
-      _canUseSpeakerOnThisDevice && _userCanUsePaymentSpeakerFeature(_user);
-  bool get canUsePaymentSpeaker => _canUsePaymentSpeaker;
-  bool get canReviewOrderTransfers => _canReviewOrderTransfers;
-  Map<String, PaymentMonitorRowMessage> get rowMessages =>
-      Map.unmodifiable(_rowMessages);
-  bool isUpdatingOrders(String id) => _updatingOrderIds.contains(id);
-  bool isUpdatingOrderTracking(String id) =>
-      _updatingOrderTrackingIds.contains(id);
-  bool get isViewingMultipleStores => _effectiveListStoreIds.length > 1;
 
   void syncRuntime({
     required bool isForeground,
@@ -299,9 +293,6 @@ class PaymentMonitorProvider extends ChangeNotifier {
     }
     return null;
   }
-
-  List<MapPaymentTransaction> get latestTransactions =>
-      List.unmodifiable(_latestTransactions);
 
   void syncAuth(User? user, {required bool isInitialized}) {
     final previousUserKey = _userSessionKey(_user);
@@ -443,119 +434,6 @@ class PaymentMonitorProvider extends ChangeNotifier {
     );
   }
 
-  void setStoreOverride(String value) {
-    final normalized = value.trim().toUpperCase();
-    if (_storeOverride == normalized) return;
-    _storeOverride = normalized.isEmpty ? null : normalized;
-    _selectedStoreIds
-      ..clear()
-      ..addAll([if (_storeOverride?.isNotEmpty == true) _storeOverride!]);
-    _pageIndex = 0;
-    _restart(reason: 'store_override', userInitiated: true);
-  }
-
-  void setSelectedStoreIds(Set<String> values) {
-    final normalized = values
-        .map((value) => value.trim().toUpperCase())
-        .where((value) => value.isNotEmpty)
-        .toSet();
-    if (setEquals(_selectedStoreIds, normalized)) return;
-    _selectedStoreIds
-      ..clear()
-      ..addAll(normalized);
-    _storeOverride = normalized.length == 1 ? normalized.first : null;
-    _pageIndex = 0;
-    _restart(reason: 'store_selection', userInitiated: true);
-  }
-
-  void setSelectedDate(DateTime value) {
-    setDateRange(value, value);
-  }
-
-  void setDateRange(DateTime start, DateTime end) {
-    var normalizedStart = _normalizeVietnamDate(start);
-    var normalizedEnd = _normalizeVietnamDate(end);
-    if (normalizedEnd.isBefore(normalizedStart)) {
-      final swap = normalizedStart;
-      normalizedStart = normalizedEnd;
-      normalizedEnd = swap;
-    }
-    if (_isSameDate(_rangeStartDate, normalizedStart) &&
-        _isSameDate(_rangeEndDate, normalizedEnd)) {
-      return;
-    }
-    _rangeStartDate = normalizedStart;
-    _rangeEndDate = normalizedEnd;
-    _pageIndex = 0;
-    unawaited(
-      AppLogger.instance.info(
-        'PaymentMonitor',
-        'Payment monitor date range changed',
-        context: {
-          'storeId': _requestStoreId ?? _user?.storeId,
-          'startDate': _formatDateForApi(_rangeStartDate),
-          'endDate': _formatDateForApi(_rangeEndDate),
-        },
-      ),
-    );
-    _poll(
-      force: true,
-      bypassBackoff: true,
-      allowRateLimitCooldownBypass: true,
-      includeTotal: true,
-      reason: 'date_range',
-    );
-  }
-
-  void setPageSize(int value) {
-    if (_pageSize == value) return;
-    _pageSize = value;
-    _pageIndex = 0;
-    unawaited(
-      AppLogger.instance.info(
-        'PaymentMonitor',
-        'Payment monitor page size changed',
-        context: {
-          'storeId': _requestStoreId ?? _user?.storeId,
-          'limit': _pageSize,
-        },
-      ),
-    );
-    _poll(
-      force: true,
-      bypassBackoff: true,
-      allowRateLimitCooldownBypass: true,
-      includeTotal: true,
-      reason: 'page_size',
-    );
-  }
-
-  void nextPage() {
-    if (!canGoNextPage) return;
-    _pageIndex += 1;
-    unawaited(_logPageChanged('next'));
-    _poll(
-      force: true,
-      bypassBackoff: true,
-      allowRateLimitCooldownBypass: true,
-      includeTotal: true,
-      reason: 'next_page',
-    );
-  }
-
-  void previousPage() {
-    if (!canGoPreviousPage) return;
-    _pageIndex -= 1;
-    unawaited(_logPageChanged('previous'));
-    _poll(
-      force: true,
-      bypassBackoff: true,
-      allowRateLimitCooldownBypass: true,
-      includeTotal: true,
-      reason: 'previous_page',
-    );
-  }
-
   Future<void> _loadEnabledPreference() async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -595,12 +473,15 @@ class PaymentMonitorProvider extends ChangeNotifier {
     }
   }
 
+  @override
   bool get _canMonitorOnThisDevice =>
       AppPlatformCapabilities.isPaymentMonitorSupported();
 
+  @override
   bool get _canUseSpeakerOnThisDevice =>
       AppPlatformCapabilities.isPaymentSpeakerSupported();
 
+  @override
   bool get _canUsePaymentSpeaker {
     return _canUseSpeakerOnThisDevice &&
         _userCanUsePaymentSpeakerFeature(_user) &&
@@ -664,6 +545,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
     );
   }
 
+  @override
   bool get _hasMonitorScope {
     final user = _user;
     if (user == null || !user.canUseFeature('PAYMENT_MONITOR')) return false;
@@ -671,6 +553,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
     return _assignedStoreIdsFor(user).isNotEmpty;
   }
 
+  @override
   String? get _requestStoreId {
     final user = _user;
     if (user?.isSuperAdmin == true) return _storeOverride;
@@ -683,6 +566,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
     return selected.join(',');
   }
 
+  @override
   List<String> get _effectiveListStoreIds {
     final user = _user;
     if (user == null) return const [];
@@ -920,6 +804,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  @override
   void _restart({required String reason, bool userInitiated = false}) {
     _stop(reason: reason);
     _reconcile(
@@ -1379,6 +1264,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
     }
   }
 
+  @override
   Future<void> _poll({
     bool force = false,
     bool bypassBackoff = false,
@@ -3078,6 +2964,7 @@ class PaymentMonitorProvider extends ChangeNotifier {
     return DateTime(value.year, value.month, value.day);
   }
 
+  @override
   Future<void> _logPageChanged(String direction) {
     return AppLogger.instance.info(
       'PaymentMonitor',

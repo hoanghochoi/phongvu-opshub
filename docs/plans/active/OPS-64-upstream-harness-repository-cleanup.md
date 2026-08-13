@@ -7,10 +7,10 @@ Date: 2026-08-13
 Active — Phase 7B live shadow evidence and Phase 8 artifact/dependency/toolchain
 cleanup are merged in staging. Five live shadow observations pass; one
 historical contract gap (#182) was explicitly captured and fixed in the OPS-72
-follow-up. OPS-74 runtime waves have started; OPS-81, OPS-82 and the current
-OPS-83 Home analytics/progress extraction are verified on their slice branches.
-Comparable timing baseline, remaining runtime waves and production release
-remain open.
+follow-up. OPS-74 runtime waves are in progress: OPS-81, OPS-82 and OPS-83 are
+merged and staging-deployed; OPS-84 is the current Payment Monitor query-state
+slice. Comparable timing baseline, remaining runtime waves and production
+release remain open.
 
 ## Outcome
 
@@ -27,10 +27,10 @@ branch, and is not converted row-for-row into Markdown.
 ## Authority and checkpoint
 
 - Linear parent: `OPS-64`.
-- Current slice: `OPS-83` Home analytics/progress characterization/extraction,
-  on a fresh lifecycle worktree created from the live `origin/staging`
-  checkpoint. OPS-72, OPS-73, OPS-74 header, OPS-81 KPI/summary and OPS-82
-  detail-renderer slices are merged at the current checkpoint.
+- Current slice: `OPS-84` Payment Monitor query/list state extraction, on a fresh
+  lifecycle worktree created from the live `origin/staging` checkpoint.
+  OPS-72, OPS-73, OPS-74 header, OPS-81 KPI/summary, OPS-82 detail-renderer
+  and OPS-83 analytics/progress slices are merged at the current checkpoint.
 - Previous slice: `OPS-70` (Phase 5 protocol-v1 retirement and Harness producer
   cleanup) on a fresh lifecycle worktree created from the live `origin/staging`
   checkpoint.
@@ -562,6 +562,26 @@ Phase 9A runtime checkpoint (OPS-82):
 - Generated localization/plugin files changed only in index metadata after
   offline dependency setup; their content hashes match HEAD and they are not
   part of the intended diff. No runtime plugin registration changed.
+
+Phase 9B runtime checkpoint (OPS-84, query/list state slice):
+
+- Slice branch/worktree: `codex/ops-84-payment-monitor-query-state` in
+  `../opshub-ops-84-next`, started from live
+  `origin/staging@0076944e5410dbfb62af06a0d1094d577ee8f923` after the OPS-83
+  rerun-safe deployment hotfix and successful staging deploy.
+- Moved PaymentMonitorProvider's public query/list state getters and mutations
+  (store selection, date range, pagination, row state and latest transactions)
+  into the same-library part file
+  `payment_monitor_query_state.dart`. The provider facade, private state/helpers,
+  speaker/realtime APIs, normalization, polling, logs and behavior are unchanged.
+- Baseline before extraction was 119/119 across Payment Monitor, audio/realtime,
+  Bank Statement and VietQR consumers. After applying the extraction, the
+  affected suite passed 166/166 across 18 test files in one invocation; the
+  focused provider suite passed 48/48. The first failed invocation was a
+  command/dependency hydration timeout (no product assertion failure); after
+  `flutter pub get`, compact reporter execution passed.
+- `dart format` and `git diff --check` passed. Exact `verify-task` and
+  `flutter analyze --no-pub` remain final gates before publication.
 
 Phase 9A runtime checkpoint (OPS-83):
 
