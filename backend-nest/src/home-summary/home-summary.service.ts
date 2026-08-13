@@ -40,6 +40,7 @@ import {
 import { HOME_SALES_KPI_CONTRACT_VERSION } from './home-summary-contract';
 import { HomeSummaryCacheRuntime } from './home-summary-cache.runtime';
 import { HomeSummaryScopeRuntime } from './home-summary-scope.runtime';
+import { HomeSummaryProjectionRuntime } from './home-summary-projection.runtime';
 
 const REPORT_TYPE_PURCHASED = 'PURCHASED';
 const REPORT_TYPE_NOT_PURCHASED = 'NOT_PURCHASED';
@@ -218,7 +219,7 @@ type HomeSummaryComparisonsResponse = {
   previousYear: HomeSummaryComparisonPeriodResponse;
 };
 
-type HomeSummaryDailyPoint = {
+export type HomeSummaryDailyPoint = {
   date: string;
   totalRevenue: number;
   totalOrders: number;
@@ -226,7 +227,7 @@ type HomeSummaryDailyPoint = {
   totalReports: number;
 };
 
-type HomeSummaryFreshnessResponse = {
+export type HomeSummaryFreshnessResponse = {
   projectionGeneratedAt: Date;
   projectionLagSeconds: number;
   projectionVersion: number;
@@ -273,9 +274,9 @@ export type HomeSummaryProjectionSnapshot = {
   versionsByDate: Map<string, number>;
 };
 
-type HomeProjectionKind = 'SALES' | 'FINANCE';
+export type HomeProjectionKind = 'SALES' | 'FINANCE';
 
-type HomeProjectionMetrics = {
+export type HomeProjectionMetrics = {
   totalOrders: number;
   reportedOrders: number;
   totalReports: number;
@@ -308,7 +309,7 @@ type HomeProjectionMetrics = {
   totalStatementsWithoutOrder: number;
 };
 
-type HomeProjectionLoadResult = HomeProjectionMetrics & {
+export type HomeProjectionLoadResult = HomeProjectionMetrics & {
   dailySeries?: HomeSummaryDailyPoint[];
 };
 
@@ -443,6 +444,7 @@ export class HomeSummaryService {
   private readonly logger = new Logger(HomeSummaryService.name);
   private readonly cacheRuntime: HomeSummaryCacheRuntime;
   private readonly scopeRuntime: HomeSummaryScopeRuntime;
+  private readonly projectionRuntime: HomeSummaryProjectionRuntime;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -495,6 +497,27 @@ export class HomeSummaryService {
           cacheLabel,
         ),
     });
+    this.projectionRuntime = new HomeSummaryProjectionRuntime(
+      this.prisma,
+      this.logger,
+      {
+        getOrLoadSupportValue: (cacheName, key, label, loader) =>
+          this.cacheRuntime.getOrLoadSummarySupportValue(
+            cacheName,
+            key,
+            label,
+            loader,
+          ),
+        rangeDateKeys: (startDate, endDate) =>
+          this.rangeDateKeys(startDate, endDate),
+        dateOnlyUtc: (value) => this.dateOnlyUtc(value),
+        dateOnlyKey: (value) => this.dateOnlyKey(value),
+        normalizedStoreCodes: (values) => this.normalizedStoreCodes(values),
+        personalEmail: (scope) => this.personalEmail(scope),
+        loadProjectionFreshness: (range, requireSales, requireFinance) =>
+          this.loadProjectionFreshness(range, requireSales, requireFinance),
+      },
+    );
   }
 
   /**
@@ -3147,19 +3170,10 @@ export class HomeSummaryService {
     requireSales: boolean,
     requireFinance: boolean,
   ) {
-    const canonical = JSON.stringify([
-      'v1',
-      range.startDate,
-      range.endDate,
+    return this.projectionRuntime.loadProjectionFreshnessCached(
+      range,
       requireSales,
       requireFinance,
-    ]);
-    const key = createHash('sha256').update(canonical).digest('hex');
-    return this.cacheRuntime.getOrLoadSummarySupportValue(
-      'projection_freshness',
-      key,
-      'projection_freshness',
-      () => this.loadProjectionFreshness(range, requireSales, requireFinance),
     );
   }
 
@@ -3168,176 +3182,15 @@ export class HomeSummaryService {
     requireSales = true,
     requireFinance = true,
   ): Promise<HomeSummaryProjectionSnapshot> {
-    const startDate = this.dateOnlyUtc(range.startDate);
-    const endDate = this.dateOnlyUtc(range.endDate);
-    const states = await this.prisma.homeSummaryProjectionState.findMany({
-      where: { summaryDate: { gte: startDate, lte: endDate } },
-      orderBy: { summaryDate: 'asc' },
-    });
-    const stateByDate = new Map(
-      states.map((state) => [this.dateOnlyKey(state.summaryDate), state]),
+    return this.projectionRuntime.loadProjectionFreshness(
+      range,
+      requireSales,
+      requireFinance,
     );
-    const expectedDates = this.rangeDateKeys(range.startDate, range.endDate);
-    const missingDates = expectedDates.filter((date) => {
-      const state = stateByDate.get(date);
-      if (!state) return true;
-      // A source write marks its projection kind PENDING immediately, while the
-      // previous aggregate snapshot remains complete and readable. Only return
-      // 503 when that kind has never produced a complete snapshot.
-      if (requireSales && !state.salesGeneratedAt) {
-        return true;
-      }
-      if (requireFinance && !state.financeGeneratedAt) {
-        return true;
-      }
-      return false;
-    });
-    if (missingDates.length > 0) {
-      this.logger.warn(
-        `Home summary projection unavailable: startDate=${range.startDate} endDate=${range.endDate} missingCompleteDates=${missingDates.length}`,
-      );
-      throw new ServiceUnavailableException(
-        'Dữ liệu Trang chủ đang được chuẩn bị. Vui lòng thử lại sau ít phút.',
-      );
-    }
-
-    const nowMs = Date.now();
-    let projectionGeneratedAt = new Date(nowMs);
-    let projectionVersion = 0;
-    let projectionLagSeconds = 0;
-    let isStale = false;
-    const sourceUpdatedAtBySource: Record<string, Date> = {};
-    const setLatest = (source: string, value: Date | null) => {
-      if (!value) return;
-      const current = sourceUpdatedAtBySource[source];
-      if (!current || value > current) sourceUpdatedAtBySource[source] = value;
-    };
-    for (const date of expectedDates) {
-      const state = stateByDate.get(date)!;
-      const generatedCandidates = [
-        ...(requireSales && state.salesGeneratedAt
-          ? [state.salesGeneratedAt]
-          : []),
-        ...(requireFinance && state.financeGeneratedAt
-          ? [state.financeGeneratedAt]
-          : []),
-      ];
-      const generatedAt = generatedCandidates.reduce(
-        (oldest, value) => (value < oldest ? value : oldest),
-        generatedCandidates[0],
-      );
-      if (generatedAt < projectionGeneratedAt) {
-        projectionGeneratedAt = generatedAt;
-      }
-      projectionVersion = Math.max(
-        projectionVersion,
-        requireSales ? Number(state.salesProjectionVersion) : 0,
-        requireFinance ? Number(state.financeProjectionVersion) : 0,
-      );
-      setLatest('SALES_REPORT', state.salesReportSourceUpdatedAt);
-      setLatest('ERP_ORDER_CACHE', state.erpOrderCacheSourceUpdatedAt);
-      setLatest('MAP_VIETIN', state.mapVietinSourceUpdatedAt);
-      const freshnessPairs = [
-        ...(requireSales
-          ? [
-              {
-                generatedAt: state.salesGeneratedAt!,
-                sourceWatermarks: [
-                  state.salesReportSourceUpdatedAt,
-                  state.erpOrderCacheSourceUpdatedAt,
-                ],
-              },
-            ]
-          : []),
-        ...(requireFinance
-          ? [
-              {
-                generatedAt: state.financeGeneratedAt!,
-                sourceWatermarks: [state.mapVietinSourceUpdatedAt],
-              },
-            ]
-          : []),
-      ];
-      for (const pair of freshnessPairs) {
-        const sourceUpdatedAt = pair.sourceWatermarks
-          .filter((value): value is Date => value !== null)
-          .reduce<Date | null>(
-            (latest, value) => (!latest || value > latest ? value : latest),
-            null,
-          );
-        if (!sourceUpdatedAt) continue;
-        const projectedAfterSourceMs =
-          pair.generatedAt.getTime() - sourceUpdatedAt.getTime();
-        const pendingMs =
-          sourceUpdatedAt > pair.generatedAt
-            ? nowMs - sourceUpdatedAt.getTime()
-            : 0;
-        projectionLagSeconds = Math.max(
-          projectionLagSeconds,
-          Math.ceil(Math.max(projectedAfterSourceMs, pendingMs, 0) / 1000),
-        );
-        if (sourceUpdatedAt > pair.generatedAt && pendingMs > 15_000) {
-          isStale = true;
-        }
-      }
-    }
-    return {
-      freshness: {
-        projectionGeneratedAt,
-        projectionLagSeconds,
-        projectionVersion,
-        sourceUpdatedAtBySource,
-        isStale,
-      },
-      versionsByDate: new Map(
-        expectedDates.map((date) => [
-          date,
-          Math.max(
-            requireSales
-              ? Number(stateByDate.get(date)!.salesProjectionVersion)
-              : 0,
-            requireFinance
-              ? Number(stateByDate.get(date)!.financeProjectionVersion)
-              : 0,
-          ),
-        ]),
-      ),
-    };
   }
 
   private emptyProjectionMetrics(): HomeProjectionMetrics {
-    return {
-      totalOrders: 0,
-      reportedOrders: 0,
-      totalReports: 0,
-      notPurchasedReports: 0,
-      totalRevenue: 0,
-      completedRevenue: 0,
-      businessCustomerRevenue: 0,
-      personalCustomerRevenue: 0,
-      examScorePromotionCount: 0,
-      studentPromotionCount: 0,
-      installmentNeedCount: 0,
-      successfulInstallmentCount: 0,
-      extendedInsuranceQuantity: 0,
-      laptopQuantity: 0,
-      pcQuantity: 0,
-      assembledPcQuantity: 0,
-      appleQuantity: 0,
-      monitorQuantity: 0,
-      printerQuantity: 0,
-      accessoriesQuantity: 0,
-      consultedSolutionYes: 0,
-      experiencedYes: 0,
-      zaloYes: 0,
-      appDownloadYes: 0,
-      totalTransferredAmount: 0,
-      totalStatements: 0,
-      totalStatementsTracked: 0,
-      totalStatementsUnfollowed: 0,
-      totalStatementsWithOrder: 0,
-      totalStatementsWithoutOrder: 0,
-    };
+    return this.projectionRuntime.emptyProjectionMetrics();
   }
 
   private async buildComparisons(
@@ -3756,130 +3609,12 @@ export class HomeSummaryService {
     projectionKind: HomeProjectionKind,
     includeDailySeries = false,
   ): Promise<HomeProjectionLoadResult> {
-    const startedAt = Date.now();
-    const startDate = this.dateOnlyUtc(range.startDate);
-    const endDate = this.dateOnlyUtc(range.endDate);
-    const base = {
-      summaryDate: { gte: startDate, lte: endDate },
+    return this.projectionRuntime.loadProjectionMetrics(
+      range,
+      scope,
       projectionKind,
-    };
-    let where: Prisma.HomeSummaryDailyAggregateWhereInput;
-    if (scope.scope === 'ALL') {
-      where = {
-        ...base,
-        dimensionType: 'GLOBAL',
-        dimensionKey: '',
-        storeCode: '',
-      };
-    } else if (scope.scope === 'MANAGED_SCOPE') {
-      const stores = this.normalizedStoreCodes(scope.allowedStoreCodes);
-      where = {
-        ...base,
-        dimensionType: 'STORE',
-        storeCode: { in: stores.length ? stores : ['__NO_PROJECTED_STORE__'] },
-      };
-    } else {
-      const email = this.personalEmail(scope);
-      const stores = this.normalizedStoreCodes(scope.allowedStoreCodes);
-      where = {
-        ...base,
-        dimensionType: 'USER_STORE',
-        dimensionKey: email ?? '__NO_PROJECTED_USER__',
-        ...(stores.length > 0 ? { storeCode: { in: stores } } : {}),
-      };
-    }
-    if (includeDailySeries) {
-      this.logger.log(
-        `Home summary daily series load started: kind=${projectionKind} scope=${scope.scope} startDate=${range.startDate} endDate=${range.endDate}`,
-      );
-    }
-    let rows: Array<{
-      summaryDate?: Date;
-      totalOrders: number;
-      reportedOrders: number;
-      totalReports: number;
-      notPurchasedReports: number;
-      metrics: Prisma.JsonValue;
-    }>;
-    try {
-      rows = await this.prisma.homeSummaryDailyAggregate.findMany({
-        where,
-        select: {
-          ...(includeDailySeries ? { summaryDate: true } : {}),
-          totalOrders: true,
-          reportedOrders: true,
-          totalReports: true,
-          notPurchasedReports: true,
-          metrics: true,
-        },
-      });
-    } catch (error) {
-      if (includeDailySeries) {
-        this.logger.warn(
-          `Home summary daily series load failed: kind=${projectionKind} scope=${scope.scope} error=${safeLogError(error)} durationMs=${Date.now() - startedAt}`,
-        );
-      }
-      throw error;
-    }
-    const result: HomeProjectionLoadResult = this.emptyProjectionMetrics();
-    const metricKeys = Object.keys(result) as Array<
-      keyof HomeProjectionMetrics
-    >;
-    const dailyByDate = includeDailySeries
-      ? new Map(
-          this.rangeDateKeys(range.startDate, range.endDate).map((date) => [
-            date,
-            {
-              date,
-              totalRevenue: 0,
-              totalOrders: 0,
-              reportedOrders: 0,
-              totalReports: 0,
-            } satisfies HomeSummaryDailyPoint,
-          ]),
-        )
-      : null;
-    for (const row of rows) {
-      result.totalOrders += row.totalOrders;
-      result.reportedOrders += row.reportedOrders;
-      result.totalReports += row.totalReports;
-      result.notPurchasedReports += row.notPurchasedReports;
-      const metrics =
-        row.metrics &&
-        typeof row.metrics === 'object' &&
-        !Array.isArray(row.metrics)
-          ? (row.metrics as Record<string, unknown>)
-          : {};
-      const dailyPoint = row.summaryDate
-        ? dailyByDate?.get(this.dateOnlyKey(row.summaryDate))
-        : undefined;
-      if (dailyPoint) {
-        dailyPoint.totalOrders += row.totalOrders;
-        dailyPoint.reportedOrders += row.reportedOrders;
-        dailyPoint.totalReports += row.totalReports;
-        const dailyRevenue = Number(metrics.totalRevenue ?? 0);
-        if (Number.isFinite(dailyRevenue)) {
-          dailyPoint.totalRevenue += dailyRevenue;
-        }
-      }
-      for (const key of metricKeys) {
-        if (
-          key === 'totalOrders' ||
-          key === 'reportedOrders' ||
-          key === 'totalReports' ||
-          key === 'notPurchasedReports'
-        ) {
-          continue;
-        }
-        const value = Number(metrics[key] ?? 0);
-        if (Number.isFinite(value)) result[key] += value;
-      }
-    }
-    if (dailyByDate) result.dailySeries = Array.from(dailyByDate.values());
-    this.logger.log(
-      `Home projection metrics loaded: kind=${projectionKind} scope=${scope.scope} grains=${rows.length} startDate=${range.startDate} endDate=${range.endDate} includeDailySeries=${includeDailySeries} dailySeriesPoints=${result.dailySeries?.length ?? 0} durationMs=${Date.now() - startedAt}`,
+      includeDailySeries,
     );
-    return result;
   }
 
   private rangeDateKeys(startDate: string, endDate: string) {
@@ -3908,13 +3643,7 @@ export class HomeSummaryService {
   }
 
   private projectionEnabled() {
-    const raw = process.env.HOME_SUMMARY_PROJECTION_ENABLED;
-    if (raw === undefined && process.env.NODE_ENV === 'test') return false;
-    return (
-      String(raw ?? 'true')
-        .trim()
-        .toLowerCase() !== 'false'
-    );
+    return this.projectionRuntime.isEnabled();
   }
 
   private summaryResponseCacheEnabled() {
