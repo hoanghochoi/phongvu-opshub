@@ -41,7 +41,7 @@ describe('HomeSummaryService period comparison contract', () => {
     });
   });
 
-  it('keeps comparison opt-in in response cache identity and coverage', () => {
+  it('keeps comparison opt-in in response cache identity and separate coverage', () => {
     const user = { id: 'user-1' };
     const legacy = (service as any).summaryResponseCacheKey(user, {
       startDate: '2026-08-01',
@@ -54,11 +54,93 @@ describe('HomeSummaryService period comparison contract', () => {
     });
     expect(compared).not.toBe(legacy);
     expect(
-      (service as any).summaryCacheCoverageRange(
+      (service as any).summaryCacheCoverageRanges(
         { startDate: '2026-08-01', endDate: '2026-08-10' },
         { includeComparisons: 'true' },
       ),
-    ).toEqual({ startDate: '2025-08-01', endDate: '2026-08-10' });
+    ).toEqual([
+      { startDate: '2026-08-01', endDate: '2026-08-10' },
+      { startDate: '2025-08-01', endDate: '2025-08-10' },
+    ]);
+  });
+
+  it.each([
+    ['a normal-year short range', '2026-08-10', '2026-08-13'],
+    ['a leap-year boundary range', '2024-02-27', '2024-03-01'],
+  ])(
+    'keeps %s within the strict date guard for every cache period',
+    (_label, startDate, endDate) => {
+      const ranges = (service as any).summaryCacheCoverageRanges(
+        { startDate, endDate },
+        { includeComparisons: 'true' },
+      );
+
+      expect(ranges).toHaveLength(2);
+      expect(() =>
+        ranges.forEach((range: { startDate: string; endDate: string }) =>
+          (service as any).rangeDateKeys(range.startDate, range.endDate),
+        ),
+      ).not.toThrow();
+      expect(
+        ranges.flatMap((range: { startDate: string; endDate: string }) =>
+          (service as any).rangeDateKeys(range.startDate, range.endDate),
+        ),
+      ).toHaveLength(startDate === '2024-02-27' ? 7 : 8);
+    },
+  );
+
+  it.each([
+    ['365 days', '2025-01-01', '2025-12-31'],
+    ['366 days', '2024-01-01', '2024-12-31'],
+  ])('accepts the %s primary input range', (_label, startDate, endDate) => {
+    expect(() =>
+      (service as any).rangeDateKeys(startDate, endDate),
+    ).not.toThrow();
+  });
+
+  it('rejects a 367-day primary input range with the existing contract', () => {
+    expect(() =>
+      (service as any).rangeDateKeys('2025-01-01', '2026-01-02'),
+    ).toThrow('Khoảng ngày chỉ được tối đa 366 ngày.');
+  });
+
+  it('stores and invalidates both current and previous-year cache periods', async () => {
+    const previousCacheFlag = process.env.HOME_SUMMARY_RESPONSE_CACHE_ENABLED;
+    process.env.HOME_SUMMARY_RESPONSE_CACHE_ENABLED = 'true';
+    try {
+      const user = { id: 'user-1' };
+      const response = { freshness: { projectionVersion: 10 } } as any;
+      jest.spyOn(service as any, 'computeSummary').mockResolvedValue(response);
+
+      await service.getSummary(user, {
+        startDate: '2026-08-10',
+        endDate: '2026-08-13',
+        includeComparisons: 'true',
+      });
+
+      const entry = Array.from(
+        (service as any).summaryResponseCache.values(),
+      )[0] as {
+        coverageRanges: Array<{ startDate: string; endDate: string }>;
+      };
+      expect(entry.coverageRanges).toEqual([
+        { startDate: '2026-08-10', endDate: '2026-08-13' },
+        { startDate: '2025-08-10', endDate: '2025-08-13' },
+      ]);
+      expect(entry.coverageRanges).toHaveLength(2);
+
+      const invalidation = service.invalidateSummaryResponseCache([
+        { affectedDates: ['2025-08-12'], projectionVersion: 11 },
+      ]);
+      expect(invalidation.invalidatedCacheEntries).toBe(1);
+      expect((service as any).summaryResponseCache.size).toBe(0);
+    } finally {
+      if (previousCacheFlag === undefined) {
+        delete process.env.HOME_SUMMARY_RESPONSE_CACHE_ENABLED;
+      } else {
+        process.env.HOME_SUMMARY_RESPONSE_CACHE_ENABLED = previousCacheFlag;
+      }
+    }
   });
 
   it('uses fully covered active CSV without requiring OpsHub projections', async () => {
