@@ -1,0 +1,751 @@
+{
+  "schemaVersion": 1,
+  "mode": "historical-five-pr-sample",
+  "generatedAtUtc": "2026-08-13T08:12:22.618Z",
+  "repositoryHead": "737812769d92490e954cccece0fe0cc4c26a4323",
+  "requiredSampleCount": 5,
+  "sampleCount": 5,
+  "samples": [
+    {
+      "issue": "OPS-68",
+      "pullRequest": 176,
+      "parentSha": "1d57a9b13796182190b15f3014f728005278f98c",
+      "headSha": "ee74d0efb9b16cda0725d8940b0a1e544d0ba006",
+      "changedPaths": [
+        "docs/migrations/harness-v1-archive-manifest.json",
+        "docs/migrations/harness-v1-disposition-summary.md",
+        "docs/migrations/harness-v1-disposition.json",
+        "docs/migrations/harness-v1-linear-targets.json",
+        "docs/plans/active/OPS-64-upstream-harness-repository-cleanup.md",
+        "scripts/archive-harness-legacy.py",
+        "scripts/review-harness-disposition.py",
+        "scripts/verification-profiles.mjs",
+        "tests/migration/test_archive_harness_legacy.py",
+        "tests/migration/test_review_harness_disposition.py",
+        "tests/verification/verify-task.test.mjs"
+      ],
+      "autoSelectedProfiles": [
+        "harness",
+        "docs",
+        "verification-runner"
+      ],
+      "fullProfiles": [
+        "harness",
+        "docs",
+        "verification-runner",
+        "release",
+        "flutter",
+        "nestjs",
+        "go-realtime",
+        "deployment"
+      ],
+      "omittedProfiles": [
+        "release",
+        "flutter",
+        "nestjs",
+        "go-realtime",
+        "deployment"
+      ],
+      "autoAffectedConsumers": [
+        "affected-consumer-orchestrator",
+        "generic-verification-runner",
+        "product and release authority",
+        "repository documentation",
+        "repository-harness-adoption",
+        "task-lifecycle-and-affected-consumer-proof"
+      ],
+      "omittedConsumers": [
+        "Flutter API repositories",
+        "Flutter app",
+        "Flutter realtime clients",
+        "Flutter widget/unit/integration tests",
+        "Go realtime service",
+        "NestJS API",
+        "deployment manifests",
+        "production promotion guards",
+        "runtime configuration",
+        "staging release gates",
+        "task lifecycle"
+      ],
+      "autoExitCode": 0,
+      "fullExitCode": 0,
+      "status": "passed",
+      "classification": "shadow-observation",
+      "unmatchedPaths": [],
+      "fingerprint": {
+        "before": "fd70ee00e02ebc73e9532e4eeda9c67a8a14a261007bdac769cb9e102f407988",
+        "after": "fd70ee00e02ebc73e9532e4eeda9c67a8a14a261007bdac769cb9e102f407988",
+        "stale": false
+      },
+      "commandDefinitions": [
+        {
+          "id": "git-diff-check",
+          "cwd": ".",
+          "executable": "git",
+          "argv": [
+            "diff",
+            "--check"
+          ]
+        },
+        {
+          "id": "docs-diff-check",
+          "cwd": ".",
+          "executable": "git",
+          "argv": [
+            "diff",
+            "--check"
+          ]
+        },
+        {
+          "id": "runner-syntax",
+          "cwd": ".",
+          "executable": "node.exe",
+          "argv": [
+            "--check",
+            "scripts/verify-task.mjs"
+          ]
+        }
+      ],
+      "blockingChecksUnchanged": true,
+      "retryPolicy": {
+        "maxInfrastructureRetries": 1,
+        "fingerprintStableRequired": true,
+        "productFailureRetries": 0
+      },
+      "metrics": {
+        "firstActionableFailure": null,
+        "reruns": 0,
+        "humanIntervention": false,
+        "falsePositive": null,
+        "falseNegative": null,
+        "requiresCanaryReview": true
+      }
+    },
+    {
+      "issue": "OPS-69A",
+      "pullRequest": 177,
+      "parentSha": "ee74d0efb9b16cda0725d8940b0a1e544d0ba006",
+      "headSha": "ed409276d71f1d8c093f07bf394a08446371a391",
+      "changedPaths": [
+        "docs/migrations/harness-v1-archive-manifest.json",
+        "docs/migrations/harness-v1-authority-promotion.json",
+        "docs/migrations/harness-v1-disposition-summary.md",
+        "docs/migrations/harness-v1-disposition.json",
+        "docs/plans/active/OPS-64-upstream-harness-repository-cleanup.md",
+        "scripts/promote-harness-authority.py",
+        "scripts/review-harness-disposition.py",
+        "tests/migration/test_promote_harness_authority.py",
+        "tests/migration/test_review_harness_disposition.py"
+      ],
+      "autoSelectedProfiles": [
+        "harness",
+        "docs"
+      ],
+      "fullProfiles": [
+        "harness",
+        "docs",
+        "verification-runner",
+        "release",
+        "flutter",
+        "nestjs",
+        "go-realtime",
+        "deployment"
+      ],
+      "omittedProfiles": [
+        "verification-runner",
+        "release",
+        "flutter",
+        "nestjs",
+        "go-realtime",
+        "deployment"
+      ],
+      "autoAffectedConsumers": [
+        "product and release authority",
+        "repository documentation",
+        "repository-harness-adoption",
+        "task-lifecycle-and-affected-consumer-proof"
+      ],
+      "omittedConsumers": [
+        "Flutter API repositories",
+        "Flutter app",
+        "Flutter realtime clients",
+        "Flutter widget/unit/integration tests",
+        "Go realtime service",
+        "NestJS API",
+        "affected-consumer-orchestrator",
+        "deployment manifests",
+        "generic-verification-runner",
+        "production promotion guards",
+        "runtime configuration",
+        "staging release gates",
+        "task lifecycle"
+      ],
+      "autoExitCode": 0,
+      "fullExitCode": 0,
+      "status": "passed",
+      "classification": "shadow-observation",
+      "unmatchedPaths": [],
+      "fingerprint": {
+        "before": "52b9ff360b9dfaf44eca2b692404e69230ec978621414bee6ed791cae9241918",
+        "after": "52b9ff360b9dfaf44eca2b692404e69230ec978621414bee6ed791cae9241918",
+        "stale": false
+      },
+      "commandDefinitions": [
+        {
+          "id": "git-diff-check",
+          "cwd": ".",
+          "executable": "git",
+          "argv": [
+            "diff",
+            "--check"
+          ]
+        },
+        {
+          "id": "docs-diff-check",
+          "cwd": ".",
+          "executable": "git",
+          "argv": [
+            "diff",
+            "--check"
+          ]
+        }
+      ],
+      "blockingChecksUnchanged": true,
+      "retryPolicy": {
+        "maxInfrastructureRetries": 1,
+        "fingerprintStableRequired": true,
+        "productFailureRetries": 0
+      },
+      "metrics": {
+        "firstActionableFailure": null,
+        "reruns": 0,
+        "humanIntervention": false,
+        "falsePositive": null,
+        "falseNegative": null,
+        "requiresCanaryReview": true
+      }
+    },
+    {
+      "issue": "OPS-69B",
+      "pullRequest": 178,
+      "parentSha": "ed409276d71f1d8c093f07bf394a08446371a391",
+      "headSha": "e83c24bb7ae6cd83af379ec003818ad74b6fcbe0",
+      "changedPaths": [
+        "docs/plans/active/OPS-64-upstream-harness-repository-cleanup.md"
+      ],
+      "autoSelectedProfiles": [
+        "harness",
+        "docs"
+      ],
+      "fullProfiles": [
+        "harness",
+        "docs",
+        "verification-runner",
+        "release",
+        "flutter",
+        "nestjs",
+        "go-realtime",
+        "deployment"
+      ],
+      "omittedProfiles": [
+        "verification-runner",
+        "release",
+        "flutter",
+        "nestjs",
+        "go-realtime",
+        "deployment"
+      ],
+      "autoAffectedConsumers": [
+        "product and release authority",
+        "repository documentation",
+        "repository-harness-adoption",
+        "task-lifecycle-and-affected-consumer-proof"
+      ],
+      "omittedConsumers": [
+        "Flutter API repositories",
+        "Flutter app",
+        "Flutter realtime clients",
+        "Flutter widget/unit/integration tests",
+        "Go realtime service",
+        "NestJS API",
+        "affected-consumer-orchestrator",
+        "deployment manifests",
+        "generic-verification-runner",
+        "production promotion guards",
+        "runtime configuration",
+        "staging release gates",
+        "task lifecycle"
+      ],
+      "autoExitCode": 0,
+      "fullExitCode": 0,
+      "status": "passed",
+      "classification": "shadow-observation",
+      "unmatchedPaths": [],
+      "fingerprint": {
+        "before": "fc343dc91207254354d6be559d77fe278537cf516c4fd14b9432efe6c9c94a99",
+        "after": "fc343dc91207254354d6be559d77fe278537cf516c4fd14b9432efe6c9c94a99",
+        "stale": false
+      },
+      "commandDefinitions": [
+        {
+          "id": "git-diff-check",
+          "cwd": ".",
+          "executable": "git",
+          "argv": [
+            "diff",
+            "--check"
+          ]
+        },
+        {
+          "id": "docs-diff-check",
+          "cwd": ".",
+          "executable": "git",
+          "argv": [
+            "diff",
+            "--check"
+          ]
+        }
+      ],
+      "blockingChecksUnchanged": true,
+      "retryPolicy": {
+        "maxInfrastructureRetries": 1,
+        "fingerprintStableRequired": true,
+        "productFailureRetries": 0
+      },
+      "metrics": {
+        "firstActionableFailure": null,
+        "reruns": 0,
+        "humanIntervention": false,
+        "falsePositive": null,
+        "falseNegative": null,
+        "requiresCanaryReview": true
+      }
+    },
+    {
+      "issue": "OPS-70",
+      "pullRequest": 179,
+      "parentSha": "e83c24bb7ae6cd83af379ec003818ad74b6fcbe0",
+      "headSha": "ff8b9e9a1765d572a7ed5b72772f5c2b5ced4ea1",
+      "changedPaths": [
+        ".gitattributes",
+        ".github/workflows/harness-cli-release.yml",
+        ".github/workflows/harness-release.yml",
+        ".gitignore",
+        "AGENTS.md",
+        "README.md",
+        "docs/CONTEXT_RULES.md",
+        "docs/FEATURE_INTAKE.md",
+        "docs/GLOSSARY.md",
+        "docs/HARNESS.md",
+        "docs/HARNESS_AUDIT.md",
+        "docs/HARNESS_BACKLOG.md",
+        "docs/HARNESS_COMPONENTS.md",
+        "docs/HARNESS_MATURITY.md",
+        "docs/IMPROVEMENT_PROTOCOL.md",
+        "docs/README.md",
+        "docs/TEST_MATRIX.md",
+        "docs/TOOL_REGISTRY.md",
+        "docs/TRACE_SPEC.md",
+        "docs/WORKFLOW.md",
+        "docs/contracts/harness-local-authority-adapter-v1.md",
+        "docs/contracts/harness-orchestration-v1.md",
+        "docs/contracts/harness-strict-audit-v1.md",
+        "docs/decisions/README.md",
+        "docs/migrations/harness-v1-retirement-manifest.json",
+        "docs/plans/active/OPS-15-harness-upstream.md",
+        "docs/plans/active/OPS-64-upstream-harness-repository-cleanup.md",
+        "scripts/README.md",
+        "scripts/adapter/harness_local_authority_v1.py",
+        "scripts/adapter/harness_strict_audit_v1.py",
+        "scripts/bin/harness-cli.exe.sha256",
+        "scripts/bin/harness.exe.sha256",
+        "scripts/bootstrap-harness.ps1",
+        "scripts/bootstrap-harness.sh",
+        "scripts/build-harness-cli-release.sh",
+        "scripts/build-harness-release.sh",
+        "scripts/harness-cli-install-files.txt",
+        "scripts/harness-cli-release-changed.sh",
+        "scripts/harness-cli-release-tag",
+        "scripts/harness-epoch-transition.py",
+        "scripts/harness-release-changed.sh",
+        "scripts/install-harness.ps1",
+        "scripts/install-harness.sh",
+        "scripts/materialize-core-state.ps1",
+        "scripts/materialize-core-state.sh",
+        "scripts/promote-harness-cli-release-tag.sh",
+        "scripts/promote-harness-release-tag.sh",
+        "scripts/schema/001-init.sql",
+        "scripts/schema/002-story-verify.sql",
+        "scripts/schema/003-tool-registry.sql",
+        "scripts/schema/004-intervention.sql",
+        "scripts/schema/005-tool-extensions.sql",
+        "scripts/schema/006-changeset-applied.sql",
+        "scripts/schema/007-story-dependencies.sql",
+        "scripts/schema/008-story-hierarchy.sql",
+        "scripts/schema/009-improvement-identity.sql",
+        "scripts/schema/010-story-backlog-links.sql",
+        "scripts/schema/011-legacy-evidence-snapshots.sql",
+        "scripts/schema/012-review-finding-closure.sql",
+        "scripts/schema/013-changeset-content-sha.sql",
+        "scripts/schema/014-entity-revisions.sql",
+        "scripts/validate-changeset-rebuild.sh",
+        "scripts/validate-premerge.sh",
+        "scripts/verification-profiles.mjs",
+        "scripts/verify-core-snapshot.sh",
+        "scripts/verify-core-state-ownership.sh",
+        "scripts/verify-harness-cli-release-identity.sh",
+        "scripts/verify-harness-release-assets.sh",
+        "scripts/verify-harness-release-identity.sh",
+        "scripts/verify-harness-retirement.mjs",
+        "scripts/verify-materialized-core-parity.sh",
+        "scripts/verify-revision-coherence.sh",
+        "tests/README.md",
+        "tests/adapter/test_harness_strict_audit_v1.py",
+        "tests/bootstrap/test-bootstrap-harness.sh",
+        "tests/bootstrap/test-core-state-materialization.sh",
+        "tests/bootstrap/test-fresh-source-checkout.sh",
+        "tests/boundary/test-phase4-control-plane-freeze.sh",
+        "tests/boundary/test-phase5-optional-consumer-split.sh",
+        "tests/changesets/test-automatic-source-capture.sh",
+        "tests/ci/test-core-state-rebuild-gate.sh",
+        "tests/coherence/test-core-state-ownership.sh",
+        "tests/coherence/test-revision-coherence.sh",
+        "tests/core/assert-command-contract.sh",
+        "tests/core/assert-durable-state-boundary.sh",
+        "tests/core/assert-schema-replay-command-contract.sh",
+        "tests/core/harness-command-contract.txt",
+        "tests/core/test-core-boundary-contract.sh",
+        "tests/core/test-schema-replay-command-contract.sh",
+        "tests/docs/test-doc-contracts.sh",
+        "tests/fixtures/changesets/generic-rebuild/expected.json",
+        "tests/fixtures/changesets/generic-rebuild/negative/invalid-timestamp.changeset.jsonl",
+        "tests/fixtures/changesets/generic-rebuild/negative/missing-timestamp.changeset.jsonl",
+        "tests/fixtures/changesets/generic-rebuild/negative/unsupported-op.changeset.jsonl",
+        "tests/fixtures/changesets/generic-rebuild/positive/001-story-graph.changeset.jsonl",
+        "tests/fixtures/changesets/generic-rebuild/positive/002-local-id-remap-a.changeset.jsonl",
+        "tests/fixtures/changesets/generic-rebuild/positive/003-local-id-remap-b.changeset.jsonl",
+        "tests/fixtures/changesets/generic-rebuild/positive/004-tools.changeset.jsonl",
+        "tests/fixtures/harness/local-authority-adapter-v1.json",
+        "tests/fixtures/harness/local-strict-audit-baseline-v1.json",
+        "tests/installer/assert-agent-authority-contract.sh",
+        "tests/installer/assert-consumer-changeset-trackable.sh",
+        "tests/installer/assert-install-manifest-links.sh",
+        "tests/installer/test-cli-upgrade-candidate.sh",
+        "tests/installer/test-install-harness-modes.ps1",
+        "tests/installer/test-install-harness-modes.sh",
+        "tests/maintenance/test-harness-cli-release-classification.sh",
+        "tests/maintenance/test-harness-release-classification.sh",
+        "tests/protocol/smoke-native-artifact.ps1",
+        "tests/protocol/smoke-native-artifact.sh",
+        "tests/protocol/smoke-v0.1.14-artifact.ps1",
+        "tests/protocol/smoke-v0.1.14-artifact.sh",
+        "tests/release/download-v0.1.14-artifact.sh",
+        "tests/release/test-harness-cli-candidate.sh",
+        "tests/release/test-harness-release-asset-inventory.sh",
+        "tests/release/test-harness-release-identity-guard.sh",
+        "tests/release/test-harness-release-workflow-contract.sh",
+        "tests/release/test-post-merge-release-recovery.sh",
+        "tests/release/test-release-identity-guard.sh",
+        "tests/release/test-release-promotion-guard.sh",
+        "tests/release/test-release-workflow-contract.sh",
+        "tests/snapshot/test-core-snapshot-compaction.sh",
+        "tests/verification/verify-task.test.mjs",
+        "tests/workflow/test-repository-workflow.sh",
+        "tests/workflow/test-task-authority.sh",
+        "tests/worktrees/test-core-state-conflict-recovery.sh"
+      ],
+      "autoSelectedProfiles": [
+        "harness",
+        "docs",
+        "verification-runner",
+        "release"
+      ],
+      "fullProfiles": [
+        "harness",
+        "docs",
+        "verification-runner",
+        "release",
+        "flutter",
+        "nestjs",
+        "go-realtime",
+        "deployment"
+      ],
+      "omittedProfiles": [
+        "flutter",
+        "nestjs",
+        "go-realtime",
+        "deployment"
+      ],
+      "autoAffectedConsumers": [
+        "affected-consumer-orchestrator",
+        "generic-verification-runner",
+        "product and release authority",
+        "production promotion guards",
+        "repository documentation",
+        "repository-harness-adoption",
+        "staging release gates",
+        "task lifecycle",
+        "task-lifecycle-and-affected-consumer-proof"
+      ],
+      "omittedConsumers": [
+        "Flutter API repositories",
+        "Flutter app",
+        "Flutter realtime clients",
+        "Flutter widget/unit/integration tests",
+        "Go realtime service",
+        "NestJS API",
+        "deployment manifests",
+        "runtime configuration"
+      ],
+      "autoExitCode": 0,
+      "fullExitCode": 0,
+      "status": "passed",
+      "classification": "shadow-observation",
+      "unmatchedPaths": [],
+      "fingerprint": {
+        "before": "85b074c0e1fdf1a40b292a65f7d39410ae914f1f759c839209dfb65bfbb18278",
+        "after": "85b074c0e1fdf1a40b292a65f7d39410ae914f1f759c839209dfb65bfbb18278",
+        "stale": false
+      },
+      "commandDefinitions": [
+        {
+          "id": "git-diff-check",
+          "cwd": ".",
+          "executable": "git",
+          "argv": [
+            "diff",
+            "--check"
+          ]
+        },
+        {
+          "id": "docs-diff-check",
+          "cwd": ".",
+          "executable": "git",
+          "argv": [
+            "diff",
+            "--check"
+          ]
+        },
+        {
+          "id": "runner-syntax",
+          "cwd": ".",
+          "executable": "node.exe",
+          "argv": [
+            "--check",
+            "scripts/verify-task.mjs"
+          ]
+        },
+        {
+          "id": "release-diff-check",
+          "cwd": ".",
+          "executable": "git",
+          "argv": [
+            "diff",
+            "--check"
+          ]
+        }
+      ],
+      "blockingChecksUnchanged": true,
+      "retryPolicy": {
+        "maxInfrastructureRetries": 1,
+        "fingerprintStableRequired": true,
+        "productFailureRetries": 0
+      },
+      "metrics": {
+        "firstActionableFailure": null,
+        "reruns": 0,
+        "humanIntervention": false,
+        "falsePositive": null,
+        "falseNegative": null,
+        "requiresCanaryReview": true
+      }
+    },
+    {
+      "issue": "OPS-71",
+      "pullRequest": 180,
+      "parentSha": "ff8b9e9a1765d572a7ed5b72772f5c2b5ced4ea1",
+      "headSha": "6ff4899f631f55eb41c0a8b4f1b9a739138768fd",
+      "changedPaths": [
+        "docs/migrations/ops-71-plan-disposition.json",
+        "docs/plans/README.md",
+        "docs/plans/active/OPS-21-dependabot-remediation.md",
+        "docs/plans/active/OPS-26-transactional-production-release.md",
+        "docs/plans/active/OPS-27-brace-expansion-maintenance.md",
+        "docs/plans/active/OPS-29-promotion-self-check-hotfix.md",
+        "docs/plans/active/OPS-31-home-daily-series.md",
+        "docs/plans/active/OPS-38-codex-desktop-multi-agent.md",
+        "docs/plans/active/OPS-41-offset-erp-bulk-actions.md",
+        "docs/plans/active/OPS-44-redesign-foundation-runtime.md",
+        "docs/plans/active/OPS-53-employee-filter-command-bar.md",
+        "docs/plans/active/OPS-53-fifo-quick-action-parity.md",
+        "docs/plans/active/OPS-53-fifo-result-card-r2.md",
+        "docs/plans/active/OPS-53-fifo-result-layout-runtime-fix.md",
+        "docs/plans/active/OPS-53-home-responsive-fixes.md",
+        "docs/plans/active/OPS-53-inline-home-filters.md",
+        "docs/plans/active/OPS-53-r2-command-controls.md",
+        "docs/plans/active/OPS-53-r4-follow-up-scoped-filters.md",
+        "docs/plans/active/OPS-53-redesign-chrome-audit-consolidation.md",
+        "docs/plans/active/OPS-53-sales-report-clickable-cards.md",
+        "docs/plans/active/OPS-64-upstream-harness-repository-cleanup.md",
+        "docs/plans/active/README.md",
+        "docs/plans/active/ops-20-contract-appendix-tax.md",
+        "docs/plans/active/ops-24-postgres-deadlock-hotfix.md",
+        "docs/plans/active/ops-9-bigquery-export-snapshot-hotfix-v2.md",
+        "docs/plans/completed/OPS-21-dependabot-remediation.md",
+        "docs/plans/completed/OPS-26-transactional-production-release.md",
+        "docs/plans/completed/OPS-27-brace-expansion-maintenance.md",
+        "docs/plans/completed/OPS-29-promotion-self-check-hotfix.md",
+        "docs/plans/completed/OPS-31-home-daily-series.md",
+        "docs/plans/completed/OPS-38-codex-desktop-multi-agent.md",
+        "docs/plans/completed/OPS-41-offset-erp-bulk-actions.md",
+        "docs/plans/completed/OPS-44-redesign-foundation-runtime-history.md",
+        "docs/plans/completed/OPS-53-history-employee-filter-command-bar.md",
+        "docs/plans/completed/OPS-53-history-fifo-quick-action-parity.md",
+        "docs/plans/completed/OPS-53-history-fifo-result-card-r2.md",
+        "docs/plans/completed/OPS-53-history-fifo-result-layout-runtime-fix.md",
+        "docs/plans/completed/OPS-53-history-home-responsive-fixes.md",
+        "docs/plans/completed/OPS-53-history-inline-home-filters.md",
+        "docs/plans/completed/OPS-53-history-r2-command-controls.md",
+        "docs/plans/completed/OPS-53-history-r4-follow-up-scoped-filters.md",
+        "docs/plans/completed/OPS-53-history-sales-report-clickable-cards.md",
+        "docs/plans/completed/README.md",
+        "docs/plans/completed/ops-20-contract-appendix-tax.md",
+        "docs/plans/completed/ops-24-postgres-deadlock-hotfix.md",
+        "docs/plans/completed/ops-9-bigquery-export-snapshot-hotfix-v2.md",
+        "scripts/verification-profiles.mjs",
+        "scripts/verify-plan-disposition.mjs",
+        "tests/docs/test-doc-contracts.sh"
+      ],
+      "autoSelectedProfiles": [
+        "harness",
+        "docs",
+        "verification-runner"
+      ],
+      "fullProfiles": [
+        "harness",
+        "docs",
+        "verification-runner",
+        "release",
+        "flutter",
+        "nestjs",
+        "go-realtime",
+        "deployment"
+      ],
+      "omittedProfiles": [
+        "release",
+        "flutter",
+        "nestjs",
+        "go-realtime",
+        "deployment"
+      ],
+      "autoAffectedConsumers": [
+        "affected-consumer-orchestrator",
+        "generic-verification-runner",
+        "product and release authority",
+        "repository documentation",
+        "repository-harness-adoption",
+        "task-lifecycle-and-affected-consumer-proof"
+      ],
+      "omittedConsumers": [
+        "Flutter API repositories",
+        "Flutter app",
+        "Flutter realtime clients",
+        "Flutter widget/unit/integration tests",
+        "Go realtime service",
+        "NestJS API",
+        "deployment manifests",
+        "production promotion guards",
+        "runtime configuration",
+        "staging release gates",
+        "task lifecycle"
+      ],
+      "autoExitCode": 0,
+      "fullExitCode": 0,
+      "status": "passed",
+      "classification": "shadow-observation",
+      "unmatchedPaths": [],
+      "fingerprint": {
+        "before": "754746adc7edbe20724beb8cc62a69633ecc75b16861695c7e1e81ed0823f556",
+        "after": "754746adc7edbe20724beb8cc62a69633ecc75b16861695c7e1e81ed0823f556",
+        "stale": false
+      },
+      "commandDefinitions": [
+        {
+          "id": "git-diff-check",
+          "cwd": ".",
+          "executable": "git",
+          "argv": [
+            "diff",
+            "--check"
+          ]
+        },
+        {
+          "id": "docs-diff-check",
+          "cwd": ".",
+          "executable": "git",
+          "argv": [
+            "diff",
+            "--check"
+          ]
+        },
+        {
+          "id": "runner-syntax",
+          "cwd": ".",
+          "executable": "node.exe",
+          "argv": [
+            "--check",
+            "scripts/verify-task.mjs"
+          ]
+        }
+      ],
+      "blockingChecksUnchanged": true,
+      "retryPolicy": {
+        "maxInfrastructureRetries": 1,
+        "fingerprintStableRequired": true,
+        "productFailureRetries": 0
+      },
+      "metrics": {
+        "firstActionableFailure": null,
+        "reruns": 0,
+        "humanIntervention": false,
+        "falsePositive": null,
+        "falseNegative": null,
+        "requiresCanaryReview": true
+      }
+    }
+  ],
+  "aggregate": {
+    "allAutoSelectedProfiles": [
+      "docs",
+      "harness",
+      "release",
+      "verification-runner"
+    ],
+    "observedOmittedProfiles": [
+      "deployment",
+      "flutter",
+      "go-realtime",
+      "nestjs",
+      "release",
+      "verification-runner"
+    ],
+    "contractFailures": 0,
+    "productFailures": 0,
+    "staleFailures": 0,
+    "environmentFailures": 0,
+    "falseNegativesAccepted": 0,
+    "falsePositivesAccepted": 0,
+    "retryReruns": 0,
+    "firstActionableFailureMedianMs": null,
+    "medianTimeToActionableFailureMs": null,
+    "baselineMedianTimeToActionableFailureMs": null,
+    "rerunReductionPercent": null,
+    "timeToActionableFailureReductionPercent": null,
+    "targetStatus": "pending-live-shadow-data"
+  },
+  "interpretation": [
+    "Historical replay validates profile selection and fingerprint stability on five merged PRs.",
+    "The replay is not a substitute for five live PR shadow observations; no profile is promoted to blocking by this artifact.",
+    "Time-to-actionable-failure and rerun target percentages remain pending because historical CI timestamps are not equivalent to the required baseline metrics."
+  ]
+}
