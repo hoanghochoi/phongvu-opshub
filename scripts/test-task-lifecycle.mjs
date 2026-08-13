@@ -50,7 +50,7 @@ function createFixture() {
   git(seed, 'config', 'user.name', 'OpsHub Task Lifecycle Test');
   git(seed, 'config', 'user.email', 'opshub-task-lifecycle@example.invalid');
   write(path.join(seed, 'base.txt'), 'base\n');
-  write(path.join(seed, '.gitignore'), 'ignored-local.txt\n');
+  write(path.join(seed, '.gitignore'), 'ignored-local.txt\ngenerated/\nbuild/\n');
   git(seed, 'add', 'base.txt', '.gitignore');
   git(seed, 'commit', '-m', 'base');
   const baseSha = git(seed, 'rev-parse', 'HEAD');
@@ -400,6 +400,33 @@ test('finish blocks ignored artifacts unless deletion is explicitly allowed', (t
   assert.equal(result.stagingSha, pr.mergeCommit.oid);
   assert.equal(fs.existsSync(task.task), false);
   assert.equal(gitRefExists(fixture.canonical, `refs/heads/${task.branch}`), false);
+});
+
+test('finish handles a large ignored build tree without expanding every file', (t) => {
+  const fixture = createFixture();
+  t.after(() => cleanupFixture(fixture));
+  const task = createTask(fixture);
+  const pr = mergeTaskToRemote(fixture, task);
+  const generated = path.join(task.task, 'build', 'flutter_assets');
+  fs.mkdirSync(generated, { recursive: true });
+  for (let index = 0; index < 12000; index += 1) {
+    write(path.join(generated, `asset-${index}.bin`), 'x');
+  }
+  const finishArgs = [
+    'finish',
+    '--pr',
+    '18',
+    '--branch',
+    task.branch,
+    '--worktree',
+    task.task,
+    '--execute',
+  ];
+  assert.throws(
+    () => lifecycle(finishArgs, fixture, { getPullRequest: () => pr }),
+    /ignored artifact/,
+  );
+  assert.equal(fs.existsSync(task.task), true);
 });
 
 test('finish rejects protected branches before inspecting a deletion target', (t) => {

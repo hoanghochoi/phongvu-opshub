@@ -17,6 +17,10 @@ function run(command, args, { cwd, allowFailure = false } = {}) {
     cwd,
     encoding: 'utf8',
     windowsHide: true,
+    // A built Flutter/Nest worktree can contain thousands of ignored files.
+    // Lifecycle only needs directory-level ignored markers, so keep this
+    // subprocess bounded and avoid turning a safe cleanup into ENOBUFS.
+    maxBuffer: 16 * 1024 * 1024,
   });
 
   if (result.error) {
@@ -297,11 +301,15 @@ function inspectTaskWorktree(root, worktree, expectedBranch, { allowIgnored = fa
     blocked(`Task worktree checkout ${branch || '(detached)'}, không phải ${expectedBranch}.`);
   }
   const head = gitOutput(target, ['rev-parse', 'HEAD']).toLowerCase();
+  // `--untracked-files=all` expands every generated file under ignored
+  // directories and can exceed Node's subprocess buffer after a build. The
+  // normal/traditional mode still reports each ignored directory as `!! dir/`,
+  // which is all the lifecycle gate needs before an explicit --allow-ignored.
   const status = gitOutput(target, [
     'status',
     '--porcelain=v1',
-    '--untracked-files=all',
-    '--ignored',
+    '--untracked-files=normal',
+    '--ignored=traditional',
   ]);
   const entries = status ? status.split(/\r?\n/).filter(Boolean) : [];
   const dirty = entries.filter((entry) => !entry.startsWith('!! '));
