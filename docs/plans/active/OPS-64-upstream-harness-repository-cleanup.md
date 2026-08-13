@@ -415,6 +415,12 @@ Phase 7B implementation checkpoint (OPS-72):
 - Unit proof: `node --test tests/verification/*.test.mjs` — 22/22 pass,
   including shadow comparison, unknown-path contract, retry stability, stale
   retry and no-retry product failure cases.
+- Historical shadow evidence: `docs/migrations/ops-72-shadow-metrics.json`
+  replays PRs #176–#180 (OPS-68, OPS-69A/B, OPS-70, OPS-71): 5/5 pass,
+  exact parent/head and stable fingerprints, zero unmatched paths. The report
+  deliberately remains `pending-live-shadow-data`; historical replay does not
+  satisfy the five live PR observations or the rerun/time-to-actionable-failure
+  percentage targets.
 
 ## Validation
 

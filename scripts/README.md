@@ -58,6 +58,18 @@ the existing blocking release checks remain unchanged. Infrastructure failures
 may retry once only while the fingerprint is unchanged. Product/test failures
 are never retried, and any change during a retry is a stale-proof failure.
 
+For the OPS-72 evidence replay, run the collector from the repository root:
+
+```text
+node scripts/collect-ops72-shadow-metrics.mjs --output docs/migrations/ops-72-shadow-metrics.json
+```
+
+It checks out the five pinned merged-PR heads in temporary sibling worktrees,
+records exact parent/head/profile/fingerprint evidence, and removes those
+worktrees. The resulting report intentionally keeps `targetStatus` at
+`pending-live-shadow-data` until five live PR observations provide comparable
+rerun and time-to-actionable-failure measurements.
+
 ## Legacy boundary
 
 Protocol v1, the SQLite control plane, and `harness-cli` are end-of-life. The

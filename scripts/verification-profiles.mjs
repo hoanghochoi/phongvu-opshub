@@ -19,6 +19,7 @@ export const PROFILES = Object.freeze([
       /^docs\/(?:contracts|decisions|migrations|plans|templates)\//,
       /^scripts\/(?:adapter|schema)\//,
       /^\.gitattributes$/,
+      /^scripts\/collect-ops72-shadow-metrics\.mjs$/,
       /^scripts\/bootstrap-harness\.(?:ps1|sh)$/,
       /^scripts\/bin\/harness(?:-cli)?\.exe\.sha256$/,
       /^tests\/(?:README\.md|(?:bootstrap|fixtures|workflow)\/)/,
