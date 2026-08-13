@@ -34,7 +34,12 @@ const OWNER_RULES = Object.freeze([
 ]);
 
 function git(args) {
-  return execFileSync('git', args, { cwd: ROOT, encoding: 'utf8', windowsHide: true });
+  return execFileSync('git', args, {
+    cwd: ROOT,
+    encoding: 'utf8',
+    windowsHide: true,
+    maxBuffer: 16 * 1024 * 1024,
+  });
 }
 
 function pathsFromNul(output) {
