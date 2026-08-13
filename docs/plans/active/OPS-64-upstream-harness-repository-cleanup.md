@@ -7,9 +7,9 @@ Date: 2026-08-13
 Active — Phase 7B live shadow evidence and Phase 8 artifact/dependency/toolchain
 cleanup are merged in staging. Five live shadow observations pass; one
 historical contract gap (#182) was explicitly captured and fixed in the OPS-72
-follow-up. OPS-74 runtime waves have started with the Home header geometry
-characterization slice. Comparable timing baseline, remaining runtime waves
-and production release remain open.
+follow-up. OPS-74 runtime waves have started; OPS-81 completes the Home
+KPI/summary section extraction slice. Comparable timing baseline, remaining
+runtime waves and production release remain open.
 
 ## Outcome
 
@@ -26,9 +26,10 @@ branch, and is not converted row-for-row into Markdown.
 ## Authority and checkpoint
 
 - Linear parent: `OPS-64`.
-- Current slice: `OPS-74` Home header geometry characterization/extraction, on a
-  fresh lifecycle worktree created from the live `origin/staging` checkpoint.
-  OPS-72 and OPS-73 are merged at the current checkpoint.
+- Current slice: `OPS-81` Home KPI/summary section characterization/extraction,
+  on a fresh lifecycle worktree created from the live `origin/staging`
+  checkpoint. OPS-72, OPS-73 and the OPS-74 header slice are merged at the
+  current checkpoint.
 - Previous slice: `OPS-70` (Phase 5 protocol-v1 retirement and Harness producer
   cleanup) on a fresh lifecycle worktree created from the live `origin/staging`
   checkpoint.
@@ -522,6 +523,26 @@ Phase 9A runtime checkpoint (OPS-74):
 - Proof so far: `flutter pub get --offline`, geometry test 4/4, combined Home
   dashboard/viewport suite 82/82, `flutter analyze --no-pub` no issues. No
   runtime API, permission, data, platform or visual contract change is claimed.
+
+Phase 9A runtime checkpoint (OPS-81):
+
+- Slice branch/worktree: `codex/ops-81-home-kpi-summary-comparison` in
+  `../opshub-ops-81`, started from `origin/staging@0f251063524792421b8b3f3e8fe0a2ac2132b75e`.
+- Extracted `SummaryCardGrid` and `MainKpiSummaryCardGrid` into the same-library
+  part file `home_summary_metric_sections.dart`; public constructors, widget
+  keys, card ordering, callback wiring, comparisons, Vietnamese copy and
+  responsive geometry remain unchanged.
+- Baseline focused characterization passed: desktop KPI columns, metric icon
+  map, finance comparison labels, sub-320 fallback and behavior-detail modal.
+- Post-extraction proof passed: `home_summary_header_layout_test.dart` 4/4 and
+  `home_dashboard_test.dart` 53/53 in one invocation; affected realtime,
+  scope, cache/details and comparison consumers are included in that suite.
+  `dart format`, `git diff --check` and Flutter targeted analyze passed.
+  `scripts/verify-task.mjs --base origin/staging --profile flutter --json`
+  passed with `stale=false`, matching fingerprint before/after; the runner's
+  Flutter analyze command took 156,941 ms. Full standalone Home test invocation
+  exceeded the local 120-second command timeout before this slice, so that
+  timeout is retained as a harness limitation rather than a product failure.
 
 ## Validation
 
