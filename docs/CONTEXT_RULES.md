@@ -95,9 +95,10 @@ Before reporting:
 - Product, architecture, decision, and active-plan truth remains current.
 - Claims do not exceed the available evidence.
 
-## Compatibility Context
+## Archive Context
 
-SQLite intake, story, matrix, trace, scoring, audit, proposal, and changeset
-documents are retrieved only when a task explicitly targets the compatibility
-control plane or an external orchestrator requires them. Their presence in the
-repository does not make them default context.
+SQLite intake, story, matrix, trace, scoring, audit, proposal, changeset, and
+protocol-v1 material is historical migration evidence only. Retrieve it only to
+validate `docs/migrations/` or an explicitly authorized archive read. Its
+presence in Git history or local archive copies does not make it current task
+context or authority.

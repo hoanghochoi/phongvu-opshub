@@ -15,8 +15,8 @@ story-sized work, decisions, and validation proof close to the code.
 | `TEST_MATRIX.md` | Behavior-to-proof control panel |
 | `FEATURE_INTAKE.md` | Risk classification before code changes |
 | `ARCHITECTURE.md` | Current architecture map and boundary rules |
-| `HARNESS.md` | Human-agent collaboration loop |
-| `HARNESS_BACKLOG.md` | Process improvements found during work |
+| `HARNESS.md` | Human-agent collaboration loop and upstream core boundary |
+| `migrations/` | Sanitized legacy archive, disposition, promotion, and retirement evidence |
 
 ## Rule
 

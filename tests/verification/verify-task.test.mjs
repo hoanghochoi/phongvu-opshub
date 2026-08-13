@@ -63,8 +63,8 @@ test('harness profile owns legacy adapter, schema and CLI retirement paths', (t)
   const root = repo(t);
   for (const relative of [
     'scripts/adapter/harness_local_authority_v1.py',
+    'scripts/build-harness-release.sh',
     'scripts/schema/001-init.sql',
-    'scripts/build-harness-cli-release.sh',
     'scripts/review-harness-disposition.py',
     'tests/core/test-schema-replay-command-contract.sh',
   ]) {

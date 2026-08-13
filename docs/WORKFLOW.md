@@ -7,14 +7,11 @@ and process overhead.
 
 ## Repository Map
 
-- `AGENTS.md`: small entry map and authority boundary.
-- `README.md` and `docs/product/`: current product behavior.
-- `docs/ARCHITECTURE.md` and `docs/decisions/`: structural constraints and
-  lasting decisions.
-- `docs/plans/active/`: complex work currently in progress.
-- `docs/plans/completed/`: completed execution history worth retaining.
-- Project code, tests, CI, and runtime signals: executable and observable truth.
-- `scripts/README.md`: upstream Harness development and compatibility commands.
+`AGENTS.md` is the entry map. Current product behavior is in `README.md` and
+`docs/product/`; durable architecture decisions are in `docs/decisions/`;
+active/completed complex work is in `docs/plans/`; code, tests, CI, and runtime
+signals are executable truth. Use `docs/README.md` and `scripts/README.md` for
+targeted indexes and validation commands.
 
 Use `docs/README.md` for the map; prefer targeted search.
 
@@ -84,31 +81,13 @@ Discovery never grants authority to fix what it finds.
 
 ### Explicit Issue Delivery Command
 
-When the user explicitly commands the agent to `xử lý issue`, treat that as
-authority to complete the normal issue delivery flow without pausing after
-implementation:
-
-1. Read the Linear issue and implement against its accepted product, design,
-   permission, security, platform, and affected-consumer authority.
-2. Run the issue's focused proof and repository-required validation. Continue
-   only when every required gate passes and the exact changeset remains current.
-3. Re-inspect the diff, commit it on the issue task branch, and push that task
-   branch. Never use this flow for a direct push to `staging` or `main`.
-4. Open a feature PR to `staging`, using the required issue-linked title/body,
-   then wait for required CI and review. Remediate failures and rerun stale
-   proof before proceeding.
-5. Squash-merge the approved PR into `staging` only after all merge gates pass.
-   This flow never authorizes a production promotion.
-6. From the clean canonical `staging` worktree, run
-   `scripts/task-lifecycle.mjs finish` as a dry-run and then rerun it with
-   `--execute`. Stop fail-closed if either lifecycle gate fails.
-
-Publication authority in this command is limited to the task branch, its PR,
-the guarded squash merge into `staging`, and local lifecycle cleanup. It does
-not waive Linear intake, Figma approval, tests, affected-consumer proof,
-security/review, CI, clean-worktree, exact-SHA, or release gates. Record
-implementation/proof in Linear before a forward status transition, and never
-mark an issue `Done` before a verified production deployment.
+An explicit `xử lý issue` command authorizes the normal issue flow: read the
+accepted Linear authority, implement on an issue branch from live `staging`,
+run focused and repository proof, inspect/commit/push, open a PR to `staging`,
+and wait for CI/review. After squash merge, run the guarded lifecycle
+`finish` dry-run and `--execute`. This does not authorize direct pushes,
+production promotion, skipped review/security/affected-consumer gates, or a
+Linear `Done` status before production deployment.
 
 ### Bounded Change
 
@@ -138,29 +117,14 @@ evidence changes the approach.
 
 ## Completion Standard
 
-A change is complete only when:
+Complete means the requested outcome exists (or the blocker is explicit),
+current authority and plan progress are updated, behavior-appropriate proof
+has passed or is clearly disclosed, and the report separates verified facts,
+limitations, and unattempted work. Git/PR history, tests, runtime evidence,
+logs, metrics, and plan progress are preferred over manual claims.
 
-- the requested outcome exists or the blocker is explicit;
-- relevant product and design truth remains current;
-- behavior-appropriate proof has passed, or missing proof is disclosed without
-  overstating completion;
-- durable plan progress and result are current when a plan was required; and
-- the final report separates verified facts, limitations, and unattempted work.
+## Harness Boundary
 
-Git history, pull-request discussion, test artifacts, screenshots, videos,
-logs, metrics, and plan progress are preferred evidence because they arise from
-the work. Manual descriptions may add context but do not replace observed proof.
-
-## Legacy Compatibility Boundary
-
-The Rust CLI and SQLite durable layer remain retained only as read-only
-migration/archive evidence until the OPS-64 retirement gate passes. They are not
-current task, product or release authority. Do not initialize, refresh, compact,
-import or write `harness.db` from this upstream-aligned branch. The legacy CLI
-may be used only against a disposable WAL-safe archive copy for read/export
-proof.
-<!-- Legacy command details are retained in migration documents until Phase 5. -->
-If a migration or archive check explicitly needs the legacy CLI, point it at a
-disposable WAL-safe archive copy and record the exact artifact/checksum. Current
-repository validation uses `scripts/verify-task.mjs`; upstream Harness owns only
-repository install/update/status/doctor operations.
+Upstream Harness owns repository install/update/status/doctor only. The retired
+SQLite/protocol-v1 producer and any `harness.db` archive are migration evidence,
+not current task authority; current validation uses `scripts/verify-task.mjs`.

@@ -4,10 +4,9 @@ Date: 2026-08-13
 
 ## Status
 
-Active — Phase 2 disposable lifecycle proof, Phase 4 runner/canaries, and
-Phase 7A Flutter test-environment proof are verified. Phase 3A is merged and
-the current slice is Phase 3B promotion; protocol-v1 retirement, docs/plans
-cleanup, CI shadow runs, runtime waves and production release remain open.
+Active — Phase 5 protocol-v1 retirement is the current slice. Phase 0–4 and
+Phase 7A groundwork are verified/merged; docs/plans cleanup, CI shadow runs,
+artifact cleanup, runtime waves and production release remain open.
 
 ## Outcome
 
@@ -24,8 +23,9 @@ branch, and is not converted row-for-row into Markdown.
 ## Authority and checkpoint
 
 - Linear parent: `OPS-64`.
-- Current slice: `OPS-69` (Phase 3B current-authority promotion) on a fresh
-  lifecycle worktree created from the live `origin/staging` checkpoint.
+- Current slice: `OPS-70` (Phase 5 protocol-v1 retirement and Harness producer
+  cleanup) on a fresh lifecycle worktree created from the live `origin/staging`
+  checkpoint.
 - Previous slice: `OPS-65` (Phase 0 baseline/master plan), Phase 0-1 archive
   tooling, and Phase 2 upstream adoption; PR #175 is merged into `staging`.
 - Branch: `codex/ops-64-harness-cleanup-phase-0-1`.
@@ -48,6 +48,10 @@ branch, and is not converted row-for-row into Markdown.
   `ee74d0efb9b16cda0725d8940b0a1e544d0ba006`.
 - OPS-69 was created from that exact lifecycle checkpoint; it is not yet
   published or merged.
+- OPS-70 implementation worktree: `../opshub-ops-70-retire-protocol-v1`.
+- OPS-70 branch: `codex/ops-70-retire-protocol-v1-and-harness-producers`.
+- OPS-70 base SHA: `e83c24bb7ae6cd83af379ec003818ad74b6fcbe0`; canonical staging
+  and `origin/staging` matched it at task start.
 
 Before every later slice, repeat the lifecycle start gate and replace this
 checkpoint if the live `origin/staging` SHA changes. A proof run is stale when
@@ -73,7 +77,7 @@ authority changes during the run.
 
 ### Explicitly out of scope for this slice
 
-- Deleting legacy Harness files or release workflows.
+- Deleting the raw local archive or changing product/runtime behavior.
 - Writing, migrating, refreshing, or compacting the authoritative DB.
 - Runtime code or UI refactors.
 - Linear status transitions to `Done`, production deployment, direct pushes,
@@ -499,6 +503,30 @@ Phase 3B current-authority promotion evidence:
   both pass against the immutable copies; promotion generation and round-trip
   both pass. Exact-base `verify-task` and Linear proof read-back pass; only the
   guarded push/PR/merge lifecycle remains for this slice.
+
+Phase 5 retirement evidence (OPS-70):
+
+- The retirement manifest covers `96` legacy paths/groups and is checked by
+  `node scripts/verify-harness-retirement.mjs`. The validator inspects both
+  `HEAD` and the index, so staged deletions cannot evade disposition coverage;
+  database/archive deletion remains explicitly forbidden.
+- Removed OpsHub Harness producer surfaces include SQLite schema/adapters,
+  materialization/rebuild tools, protocol-v1 contracts, CLI/core release
+  workflows and their obsolete tests. The upstream installer now exposes one
+  `harness-v0.1.8` core payload; no `--with-cli` or compatibility bundle path
+  remains.
+- Current authority docs and `AGENTS.md` now describe the upstream binary as
+  the only Harness interface. The generic verification registry owns legacy
+  deletion paths during this transition, while current validation invokes only
+  `scripts/verify-task.mjs` and repository-native workflow tests.
+- Validation on the OPS-70 worktree: retirement validator PASS; docs contract
+  PASS; verification suite `16/16` PASS; migration suite `30/30` PASS; and
+  `git diff --check` PASS. The first migration run exposed a CRLF-normalized
+  fixture hash mismatch; restoring the tracked LF artifact removed the false
+  failure without changing migration data.
+- No `harness.db`, WAL/SHM file, archive copy, or runtime product file was
+  written or deleted. Fresh upstream binary lifecycle smoke remains a final
+  pre-merge gate and must be rerun on the exact published SHA.
 
 Verification hardening evidence:
 

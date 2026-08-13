@@ -8,41 +8,27 @@ Use this map to answer four questions before changing or deleting a test:
 4. What product or compatibility boundary must disappear before the test can
    be removed?
 
-The normal Linux entry point is `scripts/validate-premerge.sh`. It runs Rust
-workspace tests first and then the shell contracts listed below. Windows
-installer behavior runs separately in `.github/workflows/premerge.yml`.
+The normal entry point is `scripts/validate-premerge.sh`. It runs the
+retirement ledger, generic verification, migration evidence, documentation,
+and repository workflow contracts. Upstream Harness release/installer tests
+run in the upstream repository; OpsHub keeps only the consumer boundary and
+migration proof here.
 
 ## Current Core
 
 | Location | Protects | Failure visible to | Invocation | Removal boundary |
 | --- | --- | --- | --- | --- |
-| `crates/harness/tests/` | Core installation, latest-release handoff, provenance, agent-resolvable three-way updates, recovery, and clean architecture | Every default Harness installation | `cargo test --workspace --locked` | Remove only with the Rust `harness` maintenance product |
+| Upstream `harness` release checks | Core installation, provenance, status/doctor, and agent-resolvable three-way updates | Every default Harness installation | Disposable `harness-v0.1.8` smoke recorded in the active plan | Keep in the upstream repository; OpsHub does not fork or publish core tests |
 | `tests/workflow/` | Repository-centered read-only, bounded, durable-plan, and authority behavior | Agents and maintainers using the default workflow | Directly from `scripts/validate-premerge.sh` | Replace only with stronger real-agent outcome evaluation |
 | `tests/docs/test-doc-contracts.sh` | Current authority, documentation indexes, installation boundaries, and validation entry points remain coherent | Contributors and installed-core maintainers | Directly from `scripts/validate-premerge.sh` | Remove only after equivalent link and authority checks exist elsewhere |
-| `tests/boundary/test-phase5-optional-consumer-split.sh` | A fresh core does not install Symphony, SQLite lifecycle, traces, scoring, or evaluation machinery | Default core users | Directly from `scripts/validate-premerge.sh` | Remove when the core/optional-consumer boundary no longer exists |
-| `tests/maintenance/test-harness-release-classification.sh` | Core-affecting changes trigger the correct `harness` release | Core release maintainers | Directly from `scripts/validate-premerge.sh` | Remove with automated core releases |
-| `tests/release/test-harness-release-*` and `test-post-merge-release-recovery.sh` | Core asset inventory, source identity, workflow shape, and failed-release recovery | Users downloading native `harness` binaries | Directly from `scripts/validate-premerge.sh` | Remove with native core publication |
+| `scripts/verify-harness-retirement.mjs` | Every retired producer path has an explicit disposition and staged deletions cannot evade the ledger | OpsHub migration maintainers | Directly from `scripts/validate-premerge.sh` | Keep with the migration evidence |
 
-## Optional Compatibility CLI
+## Retired Compatibility Proof
 
-These tests are intentionally not evidence for the default repository workflow.
-They protect the published SQLite and protocol-v1 compatibility surface.
-
-| Location | Protects | Failure visible to | Invocation | Removal boundary |
-| --- | --- | --- | --- | --- |
-| `crates/harness-cli/` tests | CLI domain rules, SQLite persistence, replay, protocol operations, and legacy lifecycle behavior | Explicit `harness-cli` and protocol-v1 consumers | `cargo test --workspace --locked` | Versioned protocol/CLI retirement with consumer migration |
-| `tests/bootstrap/` | Fresh and existing checkouts can reconstruct the ignored local database from tracked state | Source maintainers and explicit CLI users | Directly from `scripts/validate-premerge.sh` | Removal of tracked SQLite reconstruction |
-| `tests/changesets/` | Source mutations produce deterministic semantic changesets | Protocol and rebuild consumers | Directly from `scripts/validate-premerge.sh` | Removal of semantic changesets from the compatibility contract |
-| `tests/ci/` | CI rejects core-state drift that cannot be rebuilt | Compatibility maintainers | Directly from `scripts/validate-premerge.sh` | Removal of tracked core state |
-| `tests/coherence/` | Schema versions, release pins, changesets, and reconstructed database state agree | Compatibility release maintainers | Directly from `scripts/validate-premerge.sh` | Removal of the SQLite release train |
-| `tests/core/` | Historical "core state" command, durable-state, and schema-replay contracts of `harness-cli` | Protocol-v1 consumers | Schema-replay contract is direct; assertion helpers are called by boundary tests | Rename or remove when protocol-v1 no longer uses this terminology |
-| `tests/boundary/test-phase4-control-plane-freeze.sh` | Accidental source-default lifecycle writes are rejected while explicit and machine compatibility writes still work | Source maintainers and protocol consumers | Directly from `scripts/validate-premerge.sh` | Completion of the compatibility-write migration |
-| `tests/installer/` compatibility cases | Optional CLI payload, upgrade, checksum, rollback, and Windows parity | Explicit CLI-profile installers | Linux direct plus Windows workflow | Retirement of the optional CLI installer profile |
-| `tests/protocol/` | Current and frozen native binaries retain the protocol-v1 JSON contract | Symphony and other protocol-v1 consumers | Native smoke direct; frozen-artifact scripts through release/upgrade tests | Versioned protocol-v1 retirement |
-| `tests/snapshot/` | Tracked database snapshots compact without losing replay equivalence | Compatibility maintainers | Directly from `scripts/validate-premerge.sh` | Removal of tracked snapshots |
-| `tests/worktrees/` | Conflicting tracked state from multiple worktrees has a documented recovery path | Compatibility maintainers using Git worktrees | Directly from `scripts/validate-premerge.sh` | Removal of tracked state from ordinary branches |
-| `tests/maintenance/test-harness-cli-release-classification.sh` | Compatibility-affecting changes trigger a CLI release | CLI release maintainers | Directly from `scripts/validate-premerge.sh` | Retirement of CLI publication |
-| `tests/release/test-harness-cli-candidate.sh` and legacy release guards | Candidate CLI artifacts preserve frozen upgrade and release contracts | CLI release maintainers and consumers | Reusable release workflows and upgrade tests | Retirement of CLI publication and its upgrade window |
+SQLite schemas, snapshots, changesets, protocol-v1 commands, and `harness-cli`
+release tests were retired in OPS-70 after archive/disposition and upstream
+adoption gates. Their source remains available through Git history and the
+sanitized migration manifest; it is not run by the current product.
 
 ## Historical Migration Proof
 
@@ -59,13 +45,11 @@ historical provenance alone is insufficient.
 
 ## Shared Support
 
-- `tests/fixtures/` contains inputs consumed by compatibility rebuild tests; it
-  is not an independently executable suite.
+- `tests/fixtures/` contains product and verification fixtures; it is not an
+  independently executable suite.
 - `tests/*/assert-*.sh` scripts are helpers. A zero direct-reference count does
   not prove they are unused because wrappers may resolve them relative to their
   own directory.
-- `tests/release/download-v0.1.14-artifact.sh` downloads the frozen initial CLI
-  artifact used to prove upgrade compatibility.
 
 When adding a test, place it under the product boundary it protects and update
 this map. Avoid phase-number names for new tests; name the observable invariant

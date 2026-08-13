@@ -10,16 +10,11 @@ Bootstrap the Rust `harness` CLI and install the Harness core into a target.
 Options:
   -d, --directory <path>  Target directory. Defaults to the current directory.
   -y, --yes              Accept defaults and skip prompts.
-      --with-cli         Add the optional CLI compatibility bundle: lifecycle
-                         docs, bootstrap scripts, schemas, ignore rules, and a
-                         checksum-verified platform binary.
+      --with-engineering-wisdom
+                         Add the explicit-only engineering-wisdom advisory
+                         skill. It is excluded from the default core.
       --merge            On protected-path conflict, keep existing files in
                          place and install only missing Harness files.
-      --upgrade-cli      Add the CLI bundle, replace the installed CLI after
-                         checksum verification, and refresh the marked
-                         AGENTS.md authority block. Requires --ref.
-      --ref <tag>        Immutable Harness release tag used for both template
-                         files and the CLI artifact (harness-cli-vX.Y.Z).
       --refresh-agent-shim
                          Refresh an existing AGENTS.md into the small Harness
                          shim after backing it up. Old Harness-generated files
@@ -31,31 +26,29 @@ Options:
                          Existing CLAUDE.md files get the block appended
                          after a backup; a stale block is refreshed in place.
       --override         On protected-path conflict, back up and replace
-                         AGENTS.md, docs/, and scripts/.
+                         AGENTS.md and docs/.
       --force            Overwrite existing files after backing them up.
       --dry-run          Show what would change without writing files.
   -h, --help             Show this help.
 
 Safety:
-  The default profile installs the repository-centered core plus the Rust
-  maintenance CLI. It performs no SQLite/control-plane download or database
-  write. If AGENTS.md, docs/, or scripts/
-  already exist, interactive installs ask
+  The installer installs the repository-centered core plus the Rust
+  maintenance CLI. It performs no compatibility CLI or SQLite/control-plane
+  download and no database write. If AGENTS.md or docs/ already exist,
+  interactive installs ask
   whether to merge missing files, override after backup, or stop. Merge is the
   safe update path for repositories that already have Harness: existing files
   stay in place and new Harness files are appended by path. Non-
   interactive installs stop unless --merge or --override is provided. If a
-  target .gitignore is changed only when --with-cli or --upgrade-cli selects
-  the compatibility bundle.
+  target .gitignore receives only the Rust maintenance binary rules.
 
 Examples:
   scripts/install-harness.sh
   scripts/install-harness.sh --directory /path/to/project --yes
-  scripts/install-harness.sh --directory /path/to/project --with-cli --yes
+  scripts/install-harness.sh --directory /path/to/project --with-engineering-wisdom --yes
   scripts/install-harness.sh ./my-project --force
   curl -fsSL https://raw.githubusercontent.com/hoangnb24/repository-harness/main/scripts/install-harness.sh | bash -s -- --yes
   curl -fsSL https://raw.githubusercontent.com/hoangnb24/repository-harness/main/scripts/install-harness.sh | bash -s -- --merge --yes
-  curl -fsSL https://raw.githubusercontent.com/hoangnb24/repository-harness/harness-cli-v0.1.14/scripts/install-harness.sh | bash -s -- --merge --upgrade-cli --ref harness-cli-v0.1.14 --yes
   curl -fsSL https://raw.githubusercontent.com/hoangnb24/repository-harness/main/scripts/install-harness.sh | bash -s -- --merge --refresh-agent-shim --yes
   curl -fsSL https://raw.githubusercontent.com/hoangnb24/repository-harness/main/scripts/install-harness.sh | bash -s -- --claude --yes
 EOF
@@ -118,11 +111,6 @@ copy_file() {
   local relative="$1"
   local target="$TARGET_DIR/$relative"
 
-  if [ "$relative" = ".gitignore" ] && [ -e "$target" ] && [ "$FORCE" -eq 0 ]; then
-    merge_gitignore "$target"
-    return
-  fi
-
   if [ -e "$target" ]; then
     if [ "$SOURCE_MODE" = "local" ] && [ "$SOURCE_ROOT/$relative" -ef "$target" ]; then
       log "skip     $relative (source file)"
@@ -159,38 +147,6 @@ copy_file() {
     log "created  $relative"
   fi
   CREATED=$((CREATED + 1))
-}
-
-merge_gitignore() {
-  local target="$1"
-  local marker="# Harness durable layer"
-  local rules="harness.db
-harness.db-wal
-harness.db-shm
-scripts/bin/harness-cli
-scripts/bin/harness-cli.exe"
-
-if [ -f "$target" ] &&
-   grep -Fxq "harness.db" "$target" &&
-   grep -Fxq "harness.db-wal" "$target" &&
-   grep -Fxq "harness.db-shm" "$target" &&
-   grep -Fxq "scripts/bin/harness-cli" "$target" &&
-   grep -Fxq "scripts/bin/harness-cli.exe" "$target"; then
-    log "skip     .gitignore (harness rules already present)"
-    SKIPPED=$((SKIPPED + 1))
-    return
-  fi
-
-  if [ "$DRY_RUN" -eq 1 ]; then
-    log "update   .gitignore (append harness rules)"
-  else
-    {
-      [ -s "$target" ] && printf '\n'
-      printf '%s\n%s\n' "$marker" "$rules"
-    } >> "$target"
-    log "updated  .gitignore (appended harness rules)"
-  fi
-  UPDATED=$((UPDATED + 1))
 }
 
 write_source_file() {
@@ -241,48 +197,6 @@ read_payload_manifest() {
 
   local url="$SOURCE_BASE_URL/$payload_manifest"
   curl -fsSL "$url" || fail "Could not download $url"
-}
-
-discover_schema_files() {
-  if [ "$SOURCE_MODE" = "local" ]; then
-    local schema_root="$SOURCE_ROOT/$SCHEMA_DIR"
-    [ -d "$schema_root" ] || fail "Schema directory missing: $schema_root"
-    find "$schema_root" -maxdepth 1 -type f -name '*.sql' -print |
-      while IFS= read -r path; do
-        printf '%s/%s\n' "$SCHEMA_DIR" "$(basename "$path")"
-      done |
-      sort
-    return
-  fi
-
-  case "$SOURCE_BASE_URL" in
-    file://*)
-      local source_root="${SOURCE_BASE_URL#file://}"
-      local schema_root="$source_root/$SCHEMA_DIR"
-      [ -d "$schema_root" ] || fail "Schema directory missing: $schema_root"
-      find "$schema_root" -maxdepth 1 -type f -name '*.sql' -print |
-        while IFS= read -r path; do
-          printf '%s/%s\n' "$SCHEMA_DIR" "$(basename "$path")"
-        done |
-        sort
-      ;;
-    https://raw.githubusercontent.com/*)
-      local raw_path="${SOURCE_BASE_URL#https://raw.githubusercontent.com/}"
-      local owner repo ref api_url
-      IFS=/ read -r owner repo ref _rest <<EOF
-$raw_path
-EOF
-      [ -n "${owner:-}" ] && [ -n "${repo:-}" ] && [ -n "${ref:-}" ] ||
-        fail "Cannot infer GitHub repository from $SOURCE_BASE_URL"
-      api_url="https://api.github.com/repos/$owner/$repo/git/trees/$ref?recursive=1"
-      curl -fsSL "$api_url" |
-        sed -n "s#.*\"path\": \"\\($SCHEMA_DIR/[^\"]*\\.sql\\)\".*#\\1#p" |
-        sort
-      ;;
-    *)
-      fail "Cannot discover remote schema files from $SOURCE_BASE_URL. Use a local source, file:// source, or raw.githubusercontent.com source."
-      ;;
-  esac
 }
 
 copy_manifest_files() {
@@ -565,7 +479,7 @@ write_claude_shim() {
   rm -f "$block_tmp"
 }
 
-detect_cli_platform() {
+detect_harness_platform() {
   local os arch
   os="$(uname -s)"
   arch="$(uname -m)"
@@ -576,7 +490,7 @@ detect_cli_platform() {
     Linux:x86_64)  printf 'linux-x64' ;;
     Linux:aarch64|Linux:arm64) printf 'linux-arm64' ;;
     *)
-      fail "Unsupported Harness CLI platform: $os/$arch."
+      fail "Unsupported Harness maintenance platform: $os/$arch."
       ;;
   esac
 }
@@ -588,7 +502,7 @@ sha256_file() {
   elif command -v sha256sum >/dev/null 2>&1; then
     sha256sum "$file" | awk '{ print $1 }'
   else
-    fail "shasum or sha256sum is required to verify the Harness CLI download"
+    fail "shasum or sha256sum is required to verify the Harness core download"
   fi
 }
 
@@ -596,40 +510,6 @@ download_file() {
   local url="$1"
   local target="$2"
   curl -fsSL "$url" -o "$target" || fail "Could not download $url"
-}
-
-read_cli_release_tag() {
-  local tag_file="scripts/harness-cli-release-tag"
-  local tag=""
-
-  if [ "$SOURCE_MODE" = "local" ]; then
-    if [ -f "$SOURCE_ROOT/$tag_file" ]; then
-      tag="$(awk 'NF && $1 !~ /^#/ { print $1; exit }' "$SOURCE_ROOT/$tag_file")"
-    fi
-  else
-    local tmp_file
-    tmp_file="$(mktemp)"
-    if curl -fsSL "$SOURCE_BASE_URL/$tag_file" -o "$tmp_file" 2>/dev/null; then
-      tag="$(awk 'NF && $1 !~ /^#/ { print $1; exit }' "$tmp_file")"
-    fi
-    rm -f "$tmp_file"
-  fi
-
-  printf '%s\n' "$tag"
-}
-
-default_cli_base_url() {
-  local release_tag="${HARNESS_CLI_RELEASE_TAG:-}"
-
-  if [ -z "$release_tag" ]; then
-    release_tag="$(read_cli_release_tag)"
-  fi
-
-  if [ -n "$release_tag" ] && [ "$release_tag" != "latest" ]; then
-    printf 'https://github.com/hoangnb24/repository-harness/releases/download/%s\n' "$release_tag"
-  else
-    printf 'https://github.com/hoangnb24/repository-harness/releases/latest/download\n'
-  fi
 }
 
 read_harness_release_tag() {
@@ -681,7 +561,7 @@ merge_core_gitignore() {
 stage_harness_core_cli() {
   CORE_STAGE_ROOT="$(mktemp -d)"
   CORE_STAGED_BINARY="$CORE_STAGE_ROOT/harness"
-  CORE_PLATFORM="${HARNESS_CORE_CLI_PLATFORM:-$(detect_cli_platform)}"
+  CORE_PLATFORM="${HARNESS_CORE_CLI_PLATFORM:-$(detect_harness_platform)}"
   CORE_BINARY_NAME="harness-$CORE_PLATFORM"
   if [ -n "${HARNESS_CORE_BINARY:-}" ]; then
     [ -x "$HARNESS_CORE_BINARY" ] || fail "HARNESS_CORE_BINARY is not executable: $HARNESS_CORE_BINARY"
@@ -776,232 +656,11 @@ install_harness_core() {
   [ "$command_status" -eq 0 ] || fail "harness $command failed with exit code $command_status"
 }
 
-prepare_cli_identity() {
-  CLI_PLATFORM="${HARNESS_CLI_PLATFORM:-$(detect_cli_platform)}"
-  CLI_BINARY_NAME="harness-cli-$CLI_PLATFORM"
-  CLI_TARGET_RELATIVE="scripts/bin/harness-cli"
-}
-
-cli_binary_is_preserved() {
-  [ -e "$TARGET_DIR/$CLI_TARGET_RELATIVE" ] &&
-    [ "$CONFLICT_ACTION" = "merge" ] &&
-    [ "$FORCE" -eq 0 ] &&
-    [ "$UPGRADE_CLI" -eq 0 ]
-}
-
-plan_harness_cli_binary() {
-  if cli_binary_is_preserved; then
-    log "skip     scripts/bin/harness-cli (merge keeps existing file)"
-    SKIPPED=$((SKIPPED + 1))
-    return 0
-  fi
-
-  log "download $CLI_BINARY_NAME -> scripts/bin/harness-cli"
-  log "verify   $CLI_BINARY_NAME.sha256"
-  if [ -e "$TARGET_DIR/$CLI_TARGET_RELATIVE" ]; then
-    UPDATED=$((UPDATED + 1))
-  else
-    CREATED=$((CREATED + 1))
-  fi
-}
-
-stage_harness_cli_binary() {
-  local stage_root="$1"
-  local binary_url checksum_url binary_tmp checksum_tmp expected actual
-
-  cli_binary_is_preserved && return 0
-
-  command -v curl >/dev/null 2>&1 || fail "curl is required to download the Harness CLI"
-
-  binary_url="$CLI_BASE_URL/$CLI_BINARY_NAME"
-  checksum_url="$binary_url.sha256"
-  binary_tmp="$stage_root/.binary/$CLI_BINARY_NAME"
-  checksum_tmp="$binary_tmp.sha256"
-  mkdir -p "$(dirname "$binary_tmp")"
-
-  download_file "$binary_url" "$binary_tmp"
-  download_file "$checksum_url" "$checksum_tmp"
-
-  expected="$(awk '{ print $1; exit }' "$checksum_tmp")"
-  [ -n "$expected" ] || fail "Checksum file is empty: $checksum_url"
-  actual="$(sha256_file "$binary_tmp")"
-  if [ "$actual" != "$expected" ]; then
-    fail "Checksum mismatch for $CLI_BINARY_NAME: expected $expected, got $actual"
-  fi
-  chmod 755 "$binary_tmp"
-}
-
-apply_staged_harness_cli_binary() {
-  local stage_root="$1"
-  local target="$TARGET_DIR/$CLI_TARGET_RELATIVE"
-  local binary_tmp="$stage_root/.binary/$CLI_BINARY_NAME"
-
-  if cli_binary_is_preserved; then
-    log "skip     scripts/bin/harness-cli (merge keeps existing file)"
-    SKIPPED=$((SKIPPED + 1))
-    return 0
-  fi
-
-  if [ -e "$target" ]; then
-    if [ "$FORCE" -eq 1 ] || [ "$UPGRADE_CLI" -eq 1 ]; then
-      mkdir -p "$BACKUP_DIR/scripts/bin"
-      cp -p "$target" "$BACKUP_DIR/scripts/bin/harness-cli"
-    fi
-    UPDATED=$((UPDATED + 1))
-    log "updated  scripts/bin/harness-cli"
-  else
-    CREATED=$((CREATED + 1))
-    log "created  scripts/bin/harness-cli"
-  fi
-
-  mkdir -p "$(dirname "$target")"
-  mv -f "$binary_tmp" "$target"
-  log "verified scripts/bin/harness-cli ($CLI_PLATFORM)"
-}
-
-read_cli_bundle_files() {
-  local manifest relative schema_count=0
-  manifest="$(read_payload_manifest "$CLI_PAYLOAD_MANIFEST")"
-  while IFS= read -r relative || [ -n "$relative" ]; do
-    relative="${relative%$'\r'}"
-    case "$relative" in
-      ""|\#*) continue ;;
-    esac
-    printf '%s\n' "$relative"
-  done <<EOF
-$manifest
-EOF
-
-  while IFS= read -r relative || [ -n "$relative" ]; do
-    [ -n "$relative" ] || continue
-    printf '%s\n' "$relative"
-    schema_count=$((schema_count + 1))
-  done <<EOF
-$(discover_schema_files)
-EOF
-  [ "$schema_count" -gt 0 ] || fail "No schema migrations found in $SCHEMA_DIR"
-}
-
-snapshot_cli_bundle_targets() {
-  local relative target snapshot
-  CLI_ROLLBACK_STATE="$CLI_STAGE_ROOT/.rollback-state"
-  CLI_ROLLBACK_ROOT="$CLI_STAGE_ROOT/.rollback"
-  : > "$CLI_ROLLBACK_STATE"
-  while IFS= read -r relative || [ -n "$relative" ]; do
-    [ -n "$relative" ] || continue
-    target="$TARGET_DIR/$relative"
-    if [ -e "$target" ]; then
-      snapshot="$CLI_ROLLBACK_ROOT/$relative"
-      mkdir -p "$(dirname "$snapshot")"
-      cp -p "$target" "$snapshot"
-      printf 'existing\t%s\n' "$relative" >> "$CLI_ROLLBACK_STATE"
-    else
-      printf 'absent\t%s\n' "$relative" >> "$CLI_ROLLBACK_STATE"
-    fi
-  done <<EOF
-$CLI_BUNDLE_FILES
-.gitignore
-$CLI_TARGET_RELATIVE
-EOF
-}
-
-rollback_cli_bundle() {
-  local state relative target snapshot
-  [ -f "${CLI_ROLLBACK_STATE:-}" ] || return 0
-  while IFS=$'\t' read -r state relative || [ -n "${state:-}" ]; do
-    [ -n "${relative:-}" ] || continue
-    target="$TARGET_DIR/$relative"
-    if [ "$state" = "existing" ]; then
-      snapshot="$CLI_ROLLBACK_ROOT/$relative"
-      mkdir -p "$(dirname "$target")"
-      cp -p "$snapshot" "$target"
-    else
-      rm -f "$target"
-    fi
-  done < "$CLI_ROLLBACK_STATE"
-  printf 'Warning: optional CLI bundle failed; restored its previous files.\n' >&2
-}
-
-cleanup_cli_bundle_on_exit() {
-  local exit_code=$?
-  trap - EXIT
-  if [ "${CLI_ROLLBACK_ARMED:-0}" -eq 1 ]; then
-    rollback_cli_bundle
-  fi
-  if [ -n "${CLI_STAGE_ROOT:-}" ] && [ -d "$CLI_STAGE_ROOT" ]; then
-    rm -rf "$CLI_STAGE_ROOT"
-  fi
-  exit "$exit_code"
-}
-
-install_cli_bundle() {
-  [ "$INSTALL_RUST_CLI" -eq 1 ] || return 0
-
-  local relative staged_target previous_source_mode previous_source_root
-  prepare_cli_identity
-  CLI_BUNDLE_FILES="$(read_cli_bundle_files)"
-
-  if [ "$DRY_RUN" -eq 1 ]; then
-    while IFS= read -r relative || [ -n "$relative" ]; do
-      [ -n "$relative" ] || continue
-      copy_file "$relative"
-    done <<EOF
-$CLI_BUNDLE_FILES
-EOF
-    merge_gitignore "$TARGET_DIR/.gitignore"
-    plan_harness_cli_binary
-    return 0
-  fi
-
-  CLI_STAGE_ROOT="$(mktemp -d)"
-  CLI_ROLLBACK_ARMED=0
-  trap cleanup_cli_bundle_on_exit EXIT
-  while IFS= read -r relative || [ -n "$relative" ]; do
-    [ -n "$relative" ] || continue
-    staged_target="$CLI_STAGE_ROOT/$relative"
-    mkdir -p "$(dirname "$staged_target")"
-    write_source_file "$relative" "$staged_target"
-  done <<EOF
-$CLI_BUNDLE_FILES
-EOF
-  stage_harness_cli_binary "$CLI_STAGE_ROOT"
-  snapshot_cli_bundle_targets
-
-  CLI_ROLLBACK_ARMED=1
-  previous_source_mode="$SOURCE_MODE"
-  previous_source_root="$SOURCE_ROOT"
-  SOURCE_MODE="local"
-  SOURCE_ROOT="$CLI_STAGE_ROOT"
-  while IFS= read -r relative || [ -n "$relative" ]; do
-    [ -n "$relative" ] || continue
-    copy_file "$relative"
-  done <<EOF
-$CLI_BUNDLE_FILES
-EOF
-  SOURCE_MODE="$previous_source_mode"
-  SOURCE_ROOT="$previous_source_root"
-
-  merge_gitignore "$TARGET_DIR/.gitignore"
-  apply_staged_harness_cli_binary "$CLI_STAGE_ROOT"
-  if [ -f "$TARGET_DIR/scripts/bootstrap-harness.sh" ]; then
-    chmod 755 "$TARGET_DIR/scripts/bootstrap-harness.sh"
-  fi
-
-  CLI_ROLLBACK_ARMED=0
-  trap - EXIT
-  rm -rf "$CLI_STAGE_ROOT"
-  CLI_STAGE_ROOT=""
-}
-
 check_protected_target_paths() {
   local conflicts=()
 
   [ -e "$TARGET_DIR/AGENTS.md" ] && conflicts+=("AGENTS.md")
   [ -e "$TARGET_DIR/docs" ] && conflicts+=("docs/")
-  if [ "$INSTALL_RUST_CLI" -eq 1 ] && [ -e "$TARGET_DIR/scripts" ]; then
-    conflicts+=("scripts/")
-  fi
-
   [ "${#conflicts[@]}" -gt 0 ] || return 0
 
   local joined=""
@@ -1038,7 +697,7 @@ check_protected_target_paths() {
     printf 'Warning: target already contains protected Harness paths: %s\n' "$joined"
     printf 'Choose how to continue:\n'
     printf '  1. Merge    Copy missing Harness files and skip existing files\n'
-    printf '  2. Override Back up and replace AGENTS.md, docs/, and scripts/\n'
+    printf '  2. Override Back up and replace AGENTS.md and docs/\n'
     printf '  3. Stop     Exit without writing files (recommended)\n'
   } > /dev/tty
   prompt_tty 'Choice [1/2/3, default 3]: '
@@ -1079,26 +738,20 @@ override_protected_target_paths() {
     log "removed  $protected (backup: ${BACKUP_DIR#$TARGET_DIR/}/$protected)"
   done
 
-  if [ "$INSTALL_RUST_CLI" -eq 1 ] && [ -e "$TARGET_DIR/scripts" ]; then
-    if [ "$DRY_RUN" -eq 1 ]; then
-      log "override scripts (backup first)"
-    else
-      mkdir -p "$BACKUP_DIR"
-      mv "$TARGET_DIR/scripts" "$BACKUP_DIR/scripts"
-      log "removed  scripts (backup: ${BACKUP_DIR#$TARGET_DIR/}/scripts)"
-    fi
-  fi
+}
+
+install_engineering_wisdom() {
+  [ "$INSTALL_ENGINEERING_WISDOM" -eq 1 ] || return 0
+  copy_manifest_files "$ENGINEERING_WISDOM_PAYLOAD_MANIFEST"
 }
 
 TARGET_INPUT="${HARNESS_TARGET_DIR:-$PWD}"
 YES=0
 FORCE=0
 DRY_RUN=0
-INSTALL_RUST_CLI=0
+INSTALL_ENGINEERING_WISDOM=0
 REFRESH_AGENT_SHIM=0
 INSTALL_CLAUDE_SHIM=0
-UPGRADE_CLI=0
-REQUESTED_REF=""
 REQUESTED_CONFLICT_ACTION=""
 POSITIONAL_TARGET=""
 
@@ -1113,8 +766,8 @@ while [ "$#" -gt 0 ]; do
       YES=1
       shift
       ;;
-    --with-cli)
-      INSTALL_RUST_CLI=1
+    --with-engineering-wisdom)
+      INSTALL_ENGINEERING_WISDOM=1
       shift
       ;;
     --force)
@@ -1124,15 +777,6 @@ while [ "$#" -gt 0 ]; do
     --merge)
       REQUESTED_CONFLICT_ACTION="merge"
       shift
-      ;;
-    --upgrade-cli)
-      UPGRADE_CLI=1
-      shift
-      ;;
-    --ref)
-      [ "$#" -ge 2 ] || fail "$1 requires an immutable Harness release tag"
-      REQUESTED_REF="$2"
-      shift 2
       ;;
     --refresh-agent-shim)
       REFRESH_AGENT_SHIM=1
@@ -1194,36 +838,11 @@ SOURCE_BASE_URL="${SOURCE_BASE_URL%/}"
 CORE_SOURCE_BASE_URL="${HARNESS_CORE_SOURCE_BASE_URL:-https://raw.githubusercontent.com/hoangnb24/repository-harness/main}"
 CORE_SOURCE_BASE_URL="${CORE_SOURCE_BASE_URL%/}"
 PAYLOAD_MANIFEST="scripts/harness-install-files.txt"
-CLI_PAYLOAD_MANIFEST="scripts/harness-cli-install-files.txt"
-SCHEMA_DIR="scripts/schema"
-CLI_BASE_URL="${HARNESS_CLI_BASE_URL:-}"
-CLI_BASE_URL="${CLI_BASE_URL%/}"
+ENGINEERING_WISDOM_PAYLOAD_MANIFEST="scripts/engineering-wisdom-install-files.txt"
 
-if [ "$UPGRADE_CLI" -eq 0 ] && [ -n "$REQUESTED_REF" ]; then
-  fail "--ref is valid only with --upgrade-cli"
-fi
-
-if [ "$UPGRADE_CLI" -eq 1 ]; then
-  INSTALL_RUST_CLI=1
-  [ -n "$REQUESTED_REF" ] || fail "--upgrade-cli requires --ref <harness-cli-vX.Y.Z>"
-  [[ "$REQUESTED_REF" =~ ^harness-cli-v[0-9]+\.[0-9]+\.[0-9]+([.-][A-Za-z0-9]+)*$ ]] ||
-    fail "--ref must be an immutable Harness CLI release tag such as harness-cli-v0.1.14"
-  SOURCE_MODE="remote"
-  SOURCE_ROOT=""
-  SOURCE_BASE_URL="${HARNESS_SOURCE_BASE_URL:-https://raw.githubusercontent.com/hoangnb24/repository-harness/$REQUESTED_REF}"
-  SOURCE_BASE_URL="${SOURCE_BASE_URL%/}"
-  CLI_BASE_URL="${HARNESS_CLI_BASE_URL:-https://github.com/hoangnb24/repository-harness/releases/download/$REQUESTED_REF}"
-  CLI_BASE_URL="${CLI_BASE_URL%/}"
-  REFRESH_AGENT_SHIM=1
-fi
-
-if [ "$UPGRADE_CLI" -eq 0 ] && [ -n "$SCRIPT_DIR" ] && [ -f "$SCRIPT_DIR/../AGENTS.md" ] && [ -f "$SCRIPT_DIR/../docs/HARNESS.md" ]; then
+if [ -n "$SCRIPT_DIR" ] && [ -f "$SCRIPT_DIR/../AGENTS.md" ] && [ -f "$SCRIPT_DIR/../docs/HARNESS.md" ]; then
   SOURCE_ROOT="$(cd "$SCRIPT_DIR/.." && pwd -P)"
   SOURCE_MODE="local"
-fi
-
-if [ "$INSTALL_RUST_CLI" -eq 1 ] && [ -z "$CLI_BASE_URL" ]; then
-  CLI_BASE_URL="$(default_cli_base_url)"
 fi
 
 if [ "$YES" -eq 0 ] && can_prompt; then
@@ -1268,23 +887,19 @@ else
   command -v curl >/dev/null 2>&1 || fail "curl is required for remote installation"
   log "Harness source: $SOURCE_BASE_URL"
 fi
-if [ "$INSTALL_RUST_CLI" -eq 1 ]; then
-  log "Harness profile: core+cli"
+log "Harness profile: core"
+if [ "$INSTALL_ENGINEERING_WISDOM" -eq 1 ]; then
+  log "Engineering wisdom: included (explicit opt-in)"
 else
-  log "Harness profile: core"
-fi
-if [ "$INSTALL_RUST_CLI" -eq 1 ]; then
-  log "Harness CLI source: $CLI_BASE_URL"
-else
-  log "Harness CLI source: skipped"
+  log "Engineering wisdom: excluded"
 fi
 log "Target project: $TARGET_DIR"
 
 install_harness_core
 
+install_engineering_wisdom
 refresh_agent_shim
 write_claude_shim
-install_cli_bundle
 
 log ""
 log "Done. Created: $CREATED, updated: $UPDATED, skipped: $SKIPPED."

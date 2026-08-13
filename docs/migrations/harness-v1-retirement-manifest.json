@@ -1,0 +1,197 @@
+{
+  "formatVersion": 1,
+  "initiative": "OPS-64",
+  "issue": "OPS-70",
+  "phase": "5",
+  "source": {
+    "baseSha": "e83c24bb7ae6cd83af379ec003818ad74b6fcbe0",
+    "upstreamTag": "harness-v0.1.8",
+    "decision": "docs/decisions/0029-adopt-upstream-repository-protocol-and-retire-protocol-v1.md"
+  },
+  "policy": {
+    "databaseWritten": false,
+    "databaseDeleted": false,
+    "rawArchiveDeleted": false,
+    "runtimeBehaviorChanged": false,
+    "upstreamCorePublishedByOpsHub": false,
+    "rollback": "Revert this PR; Git history and the local read-only archive remain available."
+  },
+  "dispositions": [
+    {
+      "id": "legacy-producer-workflows",
+      "disposition": "deleted",
+      "owner": "upstream-harness-consumer",
+      "reasonCode": "opshub-does-not-publish-harness-core-or-protocol-v1",
+      "paths": [
+        ".github/workflows/harness-cli-release.yml",
+        ".github/workflows/harness-release.yml"
+      ]
+    },
+    {
+      "id": "legacy-cli-and-state-tools",
+      "disposition": "deleted",
+      "owner": "upstream-harness-consumer",
+      "reasonCode": "protocol-v1-and-sqlite-producer-retired",
+      "paths": [
+        "scripts/adapter/harness_local_authority_v1.py",
+        "scripts/adapter/harness_strict_audit_v1.py",
+        "scripts/schema",
+        "scripts/bootstrap-harness.sh",
+        "scripts/bootstrap-harness.ps1",
+        "scripts/materialize-core-state.sh",
+        "scripts/materialize-core-state.ps1",
+        "scripts/build-harness-cli-release.sh",
+        "scripts/harness-cli-install-files.txt",
+        "scripts/harness-cli-release-changed.sh",
+        "scripts/harness-cli-release-tag",
+        "scripts/promote-harness-cli-release-tag.sh",
+        "scripts/verify-harness-cli-release-identity.sh",
+        "scripts/verify-core-snapshot.sh",
+        "scripts/verify-core-state-ownership.sh",
+        "scripts/verify-materialized-core-parity.sh",
+        "scripts/validate-changeset-rebuild.sh",
+        "scripts/verify-revision-coherence.sh",
+        "scripts/harness-epoch-transition.py",
+        "scripts/bin/harness-cli.exe.sha256"
+      ]
+    },
+    {
+      "id": "opshub-core-release-producers",
+      "disposition": "deleted",
+      "owner": "upstream-harness-consumer",
+      "reasonCode": "upstream-owns-core-release-publication",
+      "paths": [
+        "scripts/build-harness-release.sh",
+        "scripts/harness-release-changed.sh",
+        "scripts/promote-harness-release-tag.sh",
+        "scripts/verify-harness-release-assets.sh",
+        "scripts/verify-harness-release-identity.sh",
+        "scripts/bin/harness.exe.sha256"
+      ]
+    },
+    {
+      "id": "legacy-contract-and-guidance-docs",
+      "disposition": "deleted",
+      "owner": "upstream-harness-consumer",
+      "reasonCode": "historical-contracts-retained-in-git-history-and-migration-evidence",
+      "paths": [
+        "docs/contracts/harness-local-authority-adapter-v1.md",
+        "docs/contracts/harness-orchestration-v1.md",
+        "docs/contracts/harness-strict-audit-v1.md",
+        "docs/HARNESS_AUDIT.md",
+        "docs/HARNESS_BACKLOG.md",
+        "docs/HARNESS_COMPONENTS.md",
+        "docs/HARNESS_MATURITY.md",
+        "docs/IMPROVEMENT_PROTOCOL.md",
+        "docs/TRACE_SPEC.md",
+        "docs/TOOL_REGISTRY.md"
+      ]
+    },
+    {
+      "id": "legacy-compatibility-tests",
+      "disposition": "deleted",
+      "owner": "upstream-harness-consumer",
+      "reasonCode": "no-current-protocol-v1-consumer",
+      "paths": [
+        "tests/adapter",
+        "tests/bootstrap/test-bootstrap-harness.sh",
+        "tests/bootstrap/test-core-state-materialization.sh",
+        "tests/bootstrap/test-fresh-source-checkout.sh",
+        "tests/changesets",
+        "tests/ci/test-core-state-rebuild-gate.sh",
+        "tests/coherence",
+        "tests/core",
+        "tests/fixtures/changesets",
+        "tests/fixtures/harness",
+        "tests/protocol",
+        "tests/snapshot",
+        "tests/worktrees/test-core-state-conflict-recovery.sh",
+        "tests/installer/assert-consumer-changeset-trackable.sh",
+        "tests/installer/test-cli-upgrade-candidate.sh",
+        "tests/installer/assert-agent-authority-contract.sh",
+        "tests/installer/assert-install-manifest-links.sh",
+        "tests/installer/test-install-harness-modes.sh",
+        "tests/installer/test-install-harness-modes.ps1",
+        "tests/boundary/test-phase4-control-plane-freeze.sh",
+        "tests/boundary/test-phase5-optional-consumer-split.sh",
+        "tests/workflow/test-task-authority.sh",
+        "tests/maintenance/test-harness-cli-release-classification.sh",
+        "tests/release/test-release-identity-guard.sh",
+        "tests/release/test-release-promotion-guard.sh",
+        "tests/release/download-v0.1.14-artifact.sh",
+        "tests/release/test-harness-cli-candidate.sh",
+        "tests/release/test-harness-release-asset-inventory.sh",
+        "tests/release/test-harness-release-identity-guard.sh",
+        "tests/release/test-harness-release-workflow-contract.sh",
+        "tests/release/test-post-merge-release-recovery.sh",
+        "tests/release/test-release-workflow-contract.sh"
+      ]
+    },
+    {
+      "id": "upstream-core-installer",
+      "disposition": "rewritten",
+      "owner": "repository-harness-upstream",
+      "reasonCode": "adopt-exact-v0.1.8-consumer-installer",
+      "paths": [
+        "scripts/install-harness.sh",
+        "scripts/install-harness.ps1",
+        "scripts/harness-install-files.txt",
+        "scripts/harness-release-tag"
+      ]
+    },
+    {
+      "id": "current-authority-docs",
+      "disposition": "rewritten",
+      "owner": "opshub",
+      "reasonCode": "remove-retired-default-authority-and-preserve-archive-boundary",
+      "paths": [
+        "AGENTS.md",
+        "docs/WORKFLOW.md",
+        "docs/HARNESS.md",
+        "docs/README.md",
+        "docs/CONTEXT_RULES.md",
+        "docs/FEATURE_INTAKE.md",
+        "docs/GLOSSARY.md",
+        "docs/TEST_MATRIX.md",
+        "scripts/README.md",
+        "tests/README.md",
+        "tests/docs/test-doc-contracts.sh",
+        ".gitignore",
+        ".gitattributes"
+      ]
+    },
+    {
+      "id": "migration-and-history-evidence",
+      "disposition": "retained",
+      "owner": "opshub-migration-archive",
+      "reasonCode": "sanitized-evidence-and-rollback-guidance",
+      "paths": [
+        "docs/decisions/0029-adopt-upstream-repository-protocol-and-retire-protocol-v1.md",
+        "scripts/archive-harness-legacy.py",
+        "scripts/review-harness-disposition.py",
+        "scripts/promote-harness-authority.py",
+        "tests/migration"
+      ]
+    },
+    {
+      "id": "generic-verification",
+      "disposition": "retained",
+      "owner": "opshub-verification",
+      "reasonCode": "current-consumer-proof-replaces-story-verify",
+      "paths": [
+        "scripts/verify-task.mjs",
+        "scripts/verification-profiles.mjs",
+        "tests/verification"
+      ]
+    },
+    {
+      "id": "superseded-harness-plan",
+      "disposition": "deleted",
+      "owner": "opshub-cleanup",
+      "reasonCode": "superseded-by-OPS-64-master-plan",
+      "paths": [
+        "docs/plans/active/OPS-15-harness-upstream.md"
+      ]
+    }
+  ]
+}

@@ -29,8 +29,18 @@ EOF
 chmod +x "$fixture/src/task-status.sh"
 
 fingerprint() {
+  local digest_tool=sha256sum
+  command -v shasum >/dev/null 2>&1 && digest_tool='shasum -a 256'
   find "$fixture" -type f -print0 | LC_ALL=C sort -z |
-    xargs -0 shasum -a 256 | shasum -a 256 | awk '{print $1}'
+    xargs -0 $digest_tool | $digest_tool | awk '{print $1}'
+}
+
+file_hash() {
+  if command -v shasum >/dev/null 2>&1; then
+    shasum -a 256 "$1" | awk '{print $1}'
+  else
+    sha256sum "$1" | awk '{print $1}'
+  fi
 }
 
 assert_no_control_plane_state() {
@@ -126,16 +136,13 @@ mv "$plan" "$fixture/docs/plans/completed/team-time-zones.md"
 assert_no_control_plane_state
 
 # Judgment task: “simplify task permissions” has two product-significant
-# meanings in the canonical demo. Inspection identifies the ambiguity and the
-# application remains untouched while direction is absent.
-before_judgment=$(shasum -a 256 "$fixture/src/task-status.sh" | awk '{print $1}')
-grep -Fq 'allow every teammate to edit every task' "$root/docs/demo/README.md"
-grep -Fq 'keep ownership restrictions but simplify the permission code' \
-  "$root/docs/demo/README.md"
+# meanings. Inspection identifies the ambiguity and the application remains
+# untouched while direction is absent.
+before_judgment=$(file_hash "$fixture/src/task-status.sh")
 grep -Fq '`Add rate limiting` without a quota' "$root/docs/WORKFLOW.md"
 grep -Fq 'must stop' "$root/docs/WORKFLOW.md"
 grep -Fq 'configurable defaults are not authority' "$root/AGENTS.md"
-after_judgment=$(shasum -a 256 "$fixture/src/task-status.sh" | awk '{print $1}')
+after_judgment=$(file_hash "$fixture/src/task-status.sh")
 [[ "$before_judgment" == "$after_judgment" ]]
 assert_no_control_plane_state
 
