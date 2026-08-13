@@ -204,8 +204,8 @@ test ! -e "$CURRENT_DIR/docs/help/assets/static.md"
 opshub_txn_cleanup
 
 workflow="$root/.github/workflows/deploy-opshub.yml"
-grep -Fq 'action-staging/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}' "$workflow"
-! grep -Fq 'action-staging/${GITHUB_RUN_ID}/' "$workflow"
+grep -Fq 'action-staging/${GITHUB_RUN_ID}/' "$workflow"
+! grep -Fq 'action-staging/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}' "$workflow"
 grep -Fq "DEPLOY_RUN_ATTEMPT='\$GITHUB_RUN_ATTEMPT'" "$workflow"
 grep -Fq 'source "$TMP_DIR/release-transaction.sh"' "$workflow"
 
