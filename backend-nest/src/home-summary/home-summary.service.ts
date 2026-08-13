@@ -39,6 +39,7 @@ import {
 } from './home-summary.dto';
 import { HOME_SALES_KPI_CONTRACT_VERSION } from './home-summary-contract';
 import { HomeSummaryCacheRuntime } from './home-summary-cache.runtime';
+import { HomeSummaryScopeRuntime } from './home-summary-scope.runtime';
 
 const REPORT_TYPE_PURCHASED = 'PURCHASED';
 const REPORT_TYPE_NOT_PURCHASED = 'NOT_PURCHASED';
@@ -441,6 +442,7 @@ type HomeSalesMainKpiSummary = {
 export class HomeSummaryService {
   private readonly logger = new Logger(HomeSummaryService.name);
   private readonly cacheRuntime: HomeSummaryCacheRuntime;
+  private readonly scopeRuntime: HomeSummaryScopeRuntime;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -449,13 +451,25 @@ export class HomeSummaryService {
     @Optional() private readonly authContextService?: AuthContextService,
     @Optional() private readonly redis?: RedisService,
   ) {
+    this.scopeRuntime = new HomeSummaryScopeRuntime(
+      this.prisma,
+      this.featureService,
+      {
+        normalizeStoreCode: (value) => this.normalizeStoreCode(value),
+        normalizeEmail: (value) => this.normalizeEmail(value),
+        optionalText: (value, maxLength) => this.optionalText(value, maxLength),
+        normalizedStoreCodes: (values) => this.normalizedStoreCodes(values),
+      },
+    );
     this.cacheRuntime = new HomeSummaryCacheRuntime(this.logger, {
       isCacheEnabled: () => this.summaryResponseCacheEnabled(),
-      responseCacheKey: (user, query) => this.summaryResponseCacheKey(user, query),
+      responseCacheKey: (user, query) =>
+        this.summaryResponseCacheKey(user, query),
       parseSummaryRange: (query) => this.parseSummaryRange(query),
       summaryCacheCoverageRange: (range, query) =>
         this.summaryCacheCoverageRange(range, query),
-      rangeDateKeys: (startDate, endDate) => this.rangeDateKeys(startDate, endDate),
+      rangeDateKeys: (startDate, endDate) =>
+        this.rangeDateKeys(startDate, endDate),
       computeSummary: (user, query, options) =>
         this.computeSummary(user, query, options),
       extendLegacySummaryWithDailySeries: (
@@ -464,7 +478,14 @@ export class HomeSummaryService {
         range,
         legacyResponse,
         context,
-      ) => this.extendLegacySummaryWithDailySeries(user, query, range, legacyResponse, context),
+      ) =>
+        this.extendLegacySummaryWithDailySeries(
+          user,
+          query,
+          range,
+          legacyResponse,
+          context,
+        ),
       scopeOptionsCacheKey: (user) => this.scopeOptionsCacheKey(user),
       loadScopeOptions: (contextUser, user, cacheKey, cacheLabel) =>
         this.loadScopeOptionsFromSharedOrSource(
@@ -2652,15 +2673,11 @@ export class HomeSummaryService {
     scope: SalesReportSummaryScopeDescriptor;
     selectedUserId: string | null;
   }> {
-    const requested = this.optionalText(requestedUserId, 80);
-    if (!requested) return { scope, selectedUserId: null };
-    const assignees = await this.salesProgressAssigneesForScope(user, scope);
-    const selected = this.selectSalesProgressAssignee(assignees, requested);
-    if (!selected) return { scope, selectedUserId: null };
-    return {
-      scope: this.salesProgressScopeForAssignee(selected),
-      selectedUserId: selected.userId,
-    };
+    return this.scopeRuntime.resolveSelectedSalesMetricsScope(
+      user,
+      scope,
+      requestedUserId,
+    );
   }
 
   private async buildSalesProgressBundle(
@@ -2804,157 +2821,23 @@ export class HomeSummaryService {
     user: any,
     scope: SalesReportSummaryScopeDescriptor,
   ): Promise<SalesProgressAssignee[]> {
-    if (scope.scope !== 'MANAGED_SCOPE' && scope.scope !== 'ALL') return [];
-    const allowedStoreCodes = await this.salesProgressAssigneeStoreCodes(scope);
-    if (allowedStoreCodes.length === 0) return [];
-    const allowed = new Set(allowedStoreCodes);
-    const users = await this.prisma.user.findMany({
-      where: { status: 'yes', jobRoleCode: 'SA' },
-      include: {
-        store: {
-          include: {
-            area: { include: { region: true } },
-            organizationNode: true,
-          },
-        },
-        area: { include: { region: true } },
-        region: true,
-        organizationNode: {
-          include: organizationNodeStoreTreeInclude(),
-        },
-        organizationAssignments: {
-          where: { isActive: true },
-          orderBy: [
-            { isPrimary: Prisma.SortOrder.desc },
-            { createdAt: Prisma.SortOrder.asc },
-          ],
-          include: {
-            organizationNode: {
-              include: organizationNodeStoreTreeInclude(),
-            },
-          },
-        },
-      },
-    });
-    const assignees = users
-      .map((candidate: any) =>
-        this.salesProgressAssigneeFromUser(candidate, allowed, user),
-      )
-      .filter(
-        (value: SalesProgressAssignee | null): value is SalesProgressAssignee =>
-          value != null,
-      )
-      .sort((left, right) => {
-        if (left.isCurrentUser !== right.isCurrentUser) {
-          return left.isCurrentUser ? -1 : 1;
-        }
-        return left.label.localeCompare(right.label, 'vi');
-      });
-    return assignees;
-  }
-
-  private async salesProgressAssigneeStoreCodes(
-    scope: SalesReportSummaryScopeDescriptor,
-  ) {
-    const scopedStoreCodes = this.normalizedStoreCodes(scope.allowedStoreCodes);
-    if (scope.scope !== 'ALL' || scopedStoreCodes.length > 0) {
-      return scopedStoreCodes;
-    }
-    const stores = await this.prisma.store.findMany({
-      where: {
-        organizationNodeId: { not: null },
-        organizationNode: { isActive: true },
-      },
-      orderBy: { storeId: 'asc' },
-      select: { storeId: true },
-    });
-    return this.normalizedStoreCodes(stores.map((store) => store.storeId));
-  }
-
-  private salesProgressAssigneeFromUser(
-    candidate: any,
-    allowed: Set<string>,
-    currentUser: any,
-  ): SalesProgressAssignee | null {
-    const storeSources = this.storeSourcesForUser(candidate);
-    const storeCodes = this.normalizedStoreCodes(
-      storeSources.map((store) => store?.storeId),
-    ).filter((code) => allowed.has(code));
-    if (storeCodes.length === 0) return null;
-    const userId = this.optionalText(candidate?.id, 80);
-    if (!userId) return null;
-    const email = this.normalizeEmail(candidate?.email);
-    const firstName = this.optionalText(candidate?.firstName, 80);
-    const lastName = this.optionalText(candidate?.lastName, 80);
-    const fullName = [firstName, lastName].filter(Boolean).join(' ').trim();
-    return {
-      userId,
-      firstName,
-      lastName,
-      email,
-      storeCodes,
-      label: fullName || email || `Nhân viên ${storeCodes.join(', ')}`,
-      isCurrentUser: userId === this.optionalText(currentUser?.id, 80),
-      isSelected: false,
-    };
+    return this.scopeRuntime.salesProgressAssigneesForScope(user, scope);
   }
 
   private selectSalesProgressAssignee(
     assignees: SalesProgressAssignee[],
     requestedUserId: string | null,
   ) {
-    if (assignees.length === 0) return null;
-    const requested = this.optionalText(requestedUserId, 80);
-    if (requested) {
-      const found = assignees.find((assignee) => assignee.userId === requested);
-      if (found) return found;
-    }
-    return null;
+    return this.scopeRuntime.selectSalesProgressAssignee(
+      assignees,
+      requestedUserId,
+    );
   }
 
   private salesProgressScopeForAssignee(
     assignee: SalesProgressAssignee,
   ): SalesReportSummaryScopeDescriptor {
-    return {
-      available: true,
-      scope: 'OWN',
-      scopeLabel: 'Tổng quan cá nhân',
-      scopeDetail: assignee.storeCodes.join(', '),
-      unavailableMessage: null,
-      ownUserId: null,
-      ownEmail: assignee.email,
-      ownPersonnelCode: null,
-      allowedStoreCodes: assignee.storeCodes,
-    };
-  }
-
-  private storeSourcesForUser(user: any) {
-    const stores: any[] = [];
-    const pushStore = (store?: any | null) => {
-      const storeCode = this.normalizeStoreCode(store?.storeId);
-      if (!storeCode) return;
-      if (
-        stores.some(
-          (existing) =>
-            this.normalizeStoreCode(existing?.storeId) === storeCode,
-        )
-      ) {
-        return;
-      }
-      stores.push(store);
-    };
-    pushStore(user?.store);
-    for (const store of storesForOrganizationNodeTree(user?.organizationNode)) {
-      pushStore(store);
-    }
-    for (const assignment of user?.organizationAssignments ?? []) {
-      for (const store of storesForOrganizationNodeTree(
-        assignment?.organizationNode,
-      )) {
-        pushStore(store);
-      }
-    }
-    return stores;
+    return this.scopeRuntime.salesProgressScopeForAssignee(assignee);
   }
 
   private normalizedStoreCodes(values: Array<string | null | undefined>) {
@@ -3171,26 +3054,7 @@ export class HomeSummaryService {
   }
 
   private async resolveSectionAccess(user: any) {
-    const contextAccess = user?.__authContext?.featureAccess;
-    if (contextAccess && typeof contextAccess === 'object') {
-      return {
-        salesAvailable:
-          contextAccess[FEATURE_KEYS.HOME_DASHBOARD_SALES] === true,
-        financeAvailable:
-          contextAccess[FEATURE_KEYS.HOME_DASHBOARD_FINANCE] === true,
-      };
-    }
-    const [salesAvailable, financeAvailable] = await Promise.all([
-      this.featureService.canAccessFeature(
-        user,
-        FEATURE_KEYS.HOME_DASHBOARD_SALES,
-      ),
-      this.featureService.canAccessFeature(
-        user,
-        FEATURE_KEYS.HOME_DASHBOARD_FINANCE,
-      ),
-    ]);
-    return { salesAvailable, financeAvailable };
+    return this.scopeRuntime.resolveSectionAccess(user);
   }
 
   private reportedOrderDateWhere(dateRange: DateRange) {
