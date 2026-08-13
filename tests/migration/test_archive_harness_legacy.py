@@ -208,6 +208,61 @@ class ArchiveHarnessLegacyTest(unittest.TestCase):
                 )
             )
 
+    def test_validate_archive_requires_and_checks_linear_target_ledger(self) -> None:
+        disposition = self.export_disposition()
+        document = json.loads(disposition.read_text(encoding="utf-8"))
+        record = document["records"][0]
+        record["disposition"] = "linear-follow-up"
+        record["targetRef"] = "OPS-76"
+        disposition.write_text(
+            json.dumps(document, ensure_ascii=True, sort_keys=True, separators=(",", ":")) + "\n",
+            encoding="utf-8",
+        )
+        primary_db, secondary_db, manifest_path = self.archive(disposition)
+        with self.assertRaisesRegex(ValueError, "DISPOSITION_LINEAR_TARGETS_REQUIRED"):
+            MODULE.validate_archive(
+                namespace(
+                    manifest=manifest_path,
+                    disposition=disposition,
+                    primary_db=primary_db,
+                    secondary_db=secondary_db,
+                    repository_root=self.root,
+                )
+            )
+        target_ledger = self.root / "linear-targets.json"
+        target_ledger.write_text(
+            json.dumps({"formatVersion": 1, "targets": [{"id": "OPS-76"}]}) + "\n",
+            encoding="utf-8",
+        )
+        self.assertEqual(
+            MODULE.validate_archive(
+                namespace(
+                    manifest=manifest_path,
+                    disposition=disposition,
+                    primary_db=primary_db,
+                    secondary_db=secondary_db,
+                    repository_root=self.root,
+                    linear_targets=target_ledger,
+                )
+            ),
+            0,
+        )
+        target_ledger.write_text(
+            json.dumps({"formatVersion": 1, "targets": [{"id": "OPS-999"}]}) + "\n",
+            encoding="utf-8",
+        )
+        with self.assertRaisesRegex(ValueError, "DISPOSITION_LINEAR_TARGET_NOT_FOUND"):
+            MODULE.validate_archive(
+                namespace(
+                    manifest=manifest_path,
+                    disposition=disposition,
+                    primary_db=primary_db,
+                    secondary_db=secondary_db,
+                    repository_root=self.root,
+                    linear_targets=target_ledger,
+                )
+            )
+
     def test_archive_rejects_target_that_contains_source(self) -> None:
         disposition = self.export_disposition()
         args = namespace(

@@ -24,14 +24,23 @@ branch, and is not converted row-for-row into Markdown.
 ## Authority and checkpoint
 
 - Linear parent: `OPS-64`.
-- Current slice: `OPS-65` (Phase 0 baseline/master plan), Phase 0-1 archive
-  tooling, and Phase 2 upstream adoption on the `OPS-64` task branch.
+- Current slice: `OPS-68` (Phase 3A legacy disposition ledger) on a fresh
+  lifecycle worktree created from the live `origin/staging` checkpoint.
+- Previous slice: `OPS-65` (Phase 0 baseline/master plan), Phase 0-1 archive
+  tooling, and Phase 2 upstream adoption; PR #175 is merged into `staging`.
 - Branch: `codex/ops-64-harness-cleanup-phase-0-1`.
 - Exact base at task start: `6525b6e3805eb666a86066cfe98469d5dba4af53`.
 - `origin/staging` matched that SHA when the lifecycle start gate passed.
 - Canonical staging worktree was clean. Existing worktrees were preserved and
   were not reset, removed, or rewritten.
 - Implementation worktree: `../opshub-ops-64-harness-cleanup-phase-0-1`.
+
+- Current OPS-68 implementation worktree:
+  `../opshub-ops-68-disposition-ledger-fresh`.
+- Current OPS-68 branch: `codex/ops-68-disposition-ledger-fresh`.
+- Current OPS-68 base SHA: `1d57a9b13796182190b15f3014f728005278f98c`.
+- Current OPS-68 worktree was created through `scripts/task-lifecycle.mjs
+  start --execute`; it has not been pushed or opened as a PR.
 
 Before every later slice, repeat the lifecycle start gate and replace this
 checkpoint if the live `origin/staging` SHA changes. A proof run is stale when
@@ -332,11 +341,13 @@ god-helper.
   `OPS-72` (CI/noise), `OPS-73` (artifacts/toolchain), `OPS-74` (runtime
   waves), and `OPS-75` (final consolidation). All remain Backlog; no status
   transition or publication authority was inferred.
-- [x] Complete Phase 3A disposition on independent checkpoint
-  `codex/ops-68-disposition-ledger` / `0f4e21c6`: exactly 199 records, source
-  and archive parity, two protocol-v1 decisions superseded by ADR 0029, 41
+- [x] Complete Phase 3A disposition on the fresh lifecycle checkpoint
+  `codex/ops-68-disposition-ledger-fresh` from base
+  `1d57a9b13796182190b15f3014f728005278f98c`: exactly 199 records, source and
+  archive parity, two protocol-v1 decisions superseded by ADR 0029, 41
   already-authoritative targets, 27 deduplicated Linear follow-ups and 129
-  historical-only records. The proof was read back before any status change.
+  historical-only records. The proof was read back before any status change;
+  publication remains pending explicit push/PR authority.
 - [x] Harden verification fingerprinting to hash raw `git diff --binary` bytes
   instead of a UTF-8-decoded string; add invalid-UTF-8 binary-diff regression
   coverage for unstaged, staged and base-aware changes (verification suite now
@@ -348,9 +359,12 @@ god-helper.
   command-not-found errors as environment failures (exit `5`), with actual
   Windows `npm.cmd`/missing-command coverage. This prevents missing local
   toolchains from being mislabeled as product failures.
-- [ ] Publish `OPS-65` and `OPS-68` through the guarded feature-PR flow. Until
-  their PRs merge into `staging` and `finish` passes, Phase 5+ mutations are
-  blocked by lifecycle policy; no direct push or PR authority is assumed.
+- [x] Publish `OPS-65` through the guarded feature-PR flow: PR #175 merged into
+  `staging` at `1d57a9b13796182190b15f3014f728005278f98c`, and the post-merge
+  lifecycle finish gate passed.
+- [ ] Publish `OPS-68` through the guarded feature-PR flow. Until its PR merges
+  into `staging` and `finish` passes, Phase 5+ mutations are blocked by
+  lifecycle policy; no direct push or PR authority is assumed.
 
 ## Validation
 
@@ -408,14 +422,31 @@ Phase 4 evidence:
 
 Phase 3A disposition evidence:
 
-- Branch/worktree: `codex/ops-68-disposition-ledger`, local commit `0f4e21c6`.
-- `python -m unittest discover -s tests/migration -p 'test_*.py' -q`: 8 pass.
+- Branch/worktree: `codex/ops-68-disposition-ledger-fresh`, based on
+  `1d57a9b13796182190b15f3014f728005278f98c`; final local commit
+  `74e16ff63a51f73e6b4a2752135d291c7f0b9949`, and no remote publication has
+  occurred.
+- `python -m unittest discover -s tests/migration -p 'test_*.py' -q`: all
+  migration tests pass (archive and disposition review suites).
 - `review-harness-disposition.py --input ...`: PASS, 199 records; ledger SHA
-  `918de42d98e02f14e21c0f2802b1c7f5d63bf426e3668fb8e961a94a7a5c9bee`.
+  `aa1d2dcef48d5761861dac058cc521f7e9f97a915d0aa70cbdfcffacea3d2a00`.
+- `validate-archive` now requires a tracked `--linear-targets` ledger for
+  `OPS-*` references and rejects missing/duplicate/fabricated target IDs; the
+  live archive validation passed with all six declared Linear targets.
+- `node --test tests/verification/*.test.mjs`: 16/16 pass after adding the
+  disposition reviewer to the Harness profile. Exact-base dry-run
+  `node scripts/verify-task.mjs --base
+  1d57a9b13796182190b15f3014f728005278f98c --dry-run --json
+  tmp/ops68-verify.json` passed with profiles `harness`, `docs` and
+  `verification-runner`, 11 changed paths, and identical before/after
+  fingerprints (`stale=false`).
 - Source archive SHA remained
   `29951f9e16a6c69e4cbd6b8c697f23fa9ca88d513784c00b3dd35353a7ddd955` and
   was unchanged before/after the immutable read. The canonical repository DB
   was not opened or modified.
+- Both local archive copies were independently re-hashed and matched that
+  SHA; all six Linear targets (`OPS-67`, `OPS-72`, `OPS-76`, `OPS-77`,
+  `OPS-78`, `OPS-79`) were read back and exist.
 - The sanitized ledger contains valid UTF-8, zero duplicate entity/id pairs,
   zero missing required targets and no absolute local paths or raw payloads.
 - Linear implementation/proof comment was recorded on `OPS-68` and read back;
@@ -522,10 +553,11 @@ Archive copies
 are local-only and retained; the canonical source remains untouched. Runtime
 code change in this slice is limited to the test-only `AppLogger.flushForTesting`
 coordination hook; production logging behavior is unchanged.
-The Linear implementation/proof note is recorded on `OPS-65`, but no status
-transition, push, PR or production proof has occurred. The exact final SHA has
-passed the full local validation ladder for this slice. Review the exact diff
-and run the lifecycle publication gates before opening the next child issue.
+The Linear implementation/proof note is recorded on `OPS-65`, and OPS-65 PR
+#175 is merged into `staging`; it remains open until production deployment.
+OPS-68 has a local, read-only archive/disposition proof but no status
+transition, push, PR or production proof. Review the exact diff and run the
+lifecycle publication gates before opening the next child issue.
 Move this plan to
 `docs/plans/completed/` only after the full initiative's final validation and
 production lifecycle are complete.

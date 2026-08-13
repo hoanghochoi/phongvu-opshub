@@ -18,7 +18,7 @@ export const PROFILES = Object.freeze([
       /^scripts\/README\.md$/,
       /^docs\/(?:contracts|decisions|migrations|plans|templates)\//,
       /^scripts\/(?:adapter|schema)\//,
-      /^scripts\/(?:agent-harness-block|archive-harness|bootstrap-harness|build-harness|collect-harness|harness(?:-|$)|install-harness|materialize-core-state|promote-harness|verify-harness|verify-core|verify-materialized-core|validate-changeset|validate-contract|verify-revision-coherence)/,
+      /^scripts\/(?:agent-harness-block|archive-harness|bootstrap-harness|build-harness|collect-harness|harness(?:-|$)|install-harness|materialize-core-state|promote-harness|review-harness-disposition|verify-harness|verify-core|verify-materialized-core|validate-changeset|validate-contract|verify-revision-coherence)/,
       /^scripts\/(?:harness-cli|promote-harness-cli|verify-harness-cli|build-harness-cli|test-harness-cli)/,
       /^tests\/migration\//,
       /^tests\/(?:adapter|bootstrap|core|installer|maintenance)\//,
