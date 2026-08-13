@@ -1,13 +1,14 @@
 # Scripts
 
-This directory contains repository validation, installation, and optional
-compatibility-control-plane tools.
+This directory contains repository validation, upstream Harness installation,
+and explicitly isolated archive tooling.
 
 The default workflow is defined by `AGENTS.md` and `docs/WORKFLOW.md`. Normal
 questions and repository changes do not require a database, bootstrap, intake,
-story row, matrix query, trace, score, audit, or proposal. Use the CLI described
-below only when a user or external orchestrator explicitly selects the legacy
-SQLite contract.
+story row, matrix query, trace, score, audit, or proposal. The supported local
+Harness interface is the upstream core maintenance binary described below.
+The legacy SQLite CLI remains archive/compatibility-only and must never be
+used to refresh or write the authoritative repository state.
 
 ## Core Maintenance CLI
 
@@ -43,7 +44,34 @@ replacing an existing executable. A conflict retains the candidate under
 continue the pending version and replace the binary only after success.
 Repository executable and retained-candidate paths must not be symlinks.
 
-## Compatibility Harness CLI
+## Generic verification runner
+
+Use `scripts/verify-task.mjs` as the repository-owned changed-path entrypoint:
+
+```bash
+node scripts/verify-task.mjs
+node scripts/verify-task.mjs --base origin/staging --json tmp/verify-task.json
+node scripts/verify-task.mjs --base origin/staging --profile verification-runner --dry-run
+node scripts/verify-task.mjs --base origin/staging --full
+```
+
+Profiles live in `scripts/verification-profiles.mjs`. They declare owned path
+patterns, affected consumers, prerequisites, and structured `cwd` plus
+`executable`/`argv` commands. Explicit profiles are additive; an unknown
+changed path fails closed. The runner fingerprints the base/HEAD, working tree,
+index, untracked content, runner/config and command definitions before and
+after execution. A changed fingerprint returns exit `4` (stale); contract,
+product/test and environment failures return `2`, `3` and `5` respectively.
+`scripts/verify-task-canary.mjs` exercises three disposable repository fixtures
+without the legacy database or `harness-cli`.
+
+## Legacy Compatibility Harness CLI (archive-only)
+
+Everything in this section is retained for Phase 1 archive/export and rollback
+evidence. It is not a current repository interface. Never run it without an
+explicit `HARNESS_DB_PATH` pointing at a disposable WAL-safe archive copy, and
+never use `import brownfield`, `migrate`, materialization or a typed write from
+this upstream-aligned consumer branch.
 
 The Rust `harness-cli` is the primary interface for the optional SQLite durable
 layer. Installed projects receive the prebuilt binary at

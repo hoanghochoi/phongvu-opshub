@@ -287,32 +287,34 @@ Read in this order:
 4. `docs/stories/` for story packets and active backlog.
 5. `docs/TEST_MATRIX.md` for required proof and known gaps.
 6. `docs/decisions/` for durable tradeoffs.
-7. The local OpsHub `harness.db` plus Markdown docs are the authority. The
-   tracked preservation adapter and strict-audit wrapper are read-only: they
-   operate on a WAL-safe schema-12 snapshot plus an isolated schema-14 target
-   and sidecar, never on the writable canonical DB. The legacy compatibility
-   wrapper remains available only in the root legacy workspace, and no tracked
-   writable schema/state adapter exists on this upstream-aligned branch. Do not
-   write the authoritative DB from this branch. Use
-   `scripts/bin/harness-cli.exe query matrix` only for a disposable or already
-   migrated schema-14 DB; never run upstream `import brownfield` as a refresh
-   of the authoritative local DB. On Windows
+7. Git product behavior, ADRs, plans/stories, code, tests, CI and runtime
+   evidence are the repository authority; Linear owns initiative/issue
+   lifecycle and acceptance tracking. The local OpsHub `harness.db` is a
+   read-only migration input/archive only. The tracked preservation adapter
+   and strict-audit wrapper are read-only: they operate on a WAL-safe schema-12
+   snapshot plus an isolated schema-14 target and sidecar, never on the
+   writable canonical DB. No tracked writable schema/state adapter exists on
+   this upstream-aligned branch. Do not write, refresh, compact, or import the
+   authoritative DB from this branch. The legacy `harness-cli` is
+   archive/compatibility-only and may be used only against an explicitly
+   disposable archive copy for read/export proof; never run upstream
+   `import brownfield` as a refresh of the local archive. On Windows
    PowerShell, define the Git for Windows login shell once and use it for every
    Harness command in this guide; do not rely on whichever `bash.exe` happens
    to be first on `PATH`:
 
-   ```powershell
-   $gitBash = "${env:ProgramFiles}\Git\bin\bash.exe"
-   & $gitBash --login scripts/bin/harness-cli.exe query matrix
-   ```
+   Do not run a bare `scripts/bin/harness-cli.exe` command from this branch.
+   For an explicitly authorized archive read, set `HARNESS_DB_PATH` to the
+   exact copied archive database first and invoke the CLI through the Git Bash
+   entrypoint; never allow it to fall back to the repository root DB.
 
    Codex `Agent environment = Windows native` keeps this Git Bash entrypoint
    even when the integrated terminal shell is WSL. From a manually opened WSL
-   terminal, read-only checks against a disposable schema-14 DB may use
-   `scripts/bin/harness-cli.exe ...` from the mounted repo. Stored proof
-   commands are not automatically WSL-safe; keep mutation and proof gates on
-   the Windows-native Git Bash route unless their commands use a cross-platform
-   wrapper such as `bash scripts/validate ...`.
+   terminal, read-only checks against a disposable archive copy may use the
+   legacy CLI from the mounted repo. Stored proof commands are not
+   automatically WSL-safe; keep mutation and proof gates on the Windows-native
+   Git Bash route unless their commands use a cross-platform wrapper such as
+   `bash scripts/validate ...`.
 8. Runtime code under `lib/`, `backend-nest/`, `backend-go/`, and `deploy/`.
 
 ## Project Surfaces
@@ -335,22 +337,19 @@ Every implementation request goes through intake first:
 3. Check risk flags in `docs/FEATURE_INTAKE.md`.
 4. Choose lane: tiny, normal, or high-risk.
 5. Decide the minimum validation proof before editing code.
-6. When the durable harness DB is available, record meaningful intakes,
-   story/proof updates, decisions, backlog items, or traces through the
-   approved writable local compatibility adapter instead of hand-editing
-   structured operational records. No such writable adapter is tracked on
-   this upstream-aligned branch yet; the tracked preservation/parity and strict
-   wrappers are read-only and do not authorize DB writes. Switch to the
-   upstream CLI only after a writable schema/state adapter is approved.
-7. If a task ships a temporary Phase 1, defers accepted behavior, or leaves
-   technical debt, record it with
-   approved compatibility adapter's backlog command
-   (`--kind phase_followup|product_followup|tech_debt`)
-   before reporting done.
+6. Record meaningful intake, story/proof, decision, backlog, and follow-up
+   authority in repository documents/plan and the linked Linear issue, not in a
+   local Harness DB. Do not hand-edit a structured operational DB record or
+   invent a writable adapter on this branch. The archive ledger is evidence,
+   not a task queue or current authority.
+7. If a task ships a temporary phase, defers accepted behavior, or leaves
+   technical debt, record the follow-up in the active plan and linked Linear
+   child issue before reporting done. Do not use a legacy DB backlog command as
+   a substitute for that durable owner.
 8. Track the upstream Harness framework, protocol, schemas, docs, and tests in
-   Git so every branch inherits the same core. Keep only runtime databases,
-   WAL/SHM files, downloaded binaries, update state, and temporary backups
-   ignored according to the upstream consumer profile.
+   Git so every branch inherits the same core. Keep only local archive,
+   runtime databases, WAL/SHM files, downloaded binaries, update state, and
+   temporary backups ignored according to the upstream consumer profile.
 
 ## Existing Runtime Regression Gate
 
@@ -373,9 +372,10 @@ existing consumers before implementing the new behavior:
    is itself verification-sensitive. A rename is evaluated as delete plus add,
    so both the old and new paths must map to protected contracts.
 4. Before reporting done, run the declared consumer/orchestrator affected-proof
-   command. Run upstream `story verify <id>` only after the story is backed by
-   the approved schema/state adapter; until then, the current local DB can only
-   be audited from the legacy root workspace. The final check must happen after
+   command. The retired upstream `story verify <id>` command is not part of
+   the current repository protocol; use `scripts/verify-task.mjs` and the
+   tracked verification profile registry instead. The legacy DB can only be
+   audited read-only from an archive copy. The final check must happen after
    every source, test, documentation, contract, and Harness edit that
    participates in the fingerprint.
    Do not switch the execution backend between checkpoint and final check. In

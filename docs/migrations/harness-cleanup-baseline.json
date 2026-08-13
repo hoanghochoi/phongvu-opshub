@@ -1,0 +1,380 @@
+{
+  "formatVersion": 1,
+  "repository": {
+    "root": ".",
+    "branch": "codex/ops-64-harness-cleanup-phase-0-1",
+    "head": "6525b6e3805eb666a86066cfe98469d5dba4af53",
+    "originStaging": "6525b6e3805eb666a86066cfe98469d5dba4af53",
+    "rootFingerprint": "matches-git-root",
+    "status": [
+      "M docs/decisions/README.md",
+      " M pubspec.lock",
+      " M pubspec.yaml",
+      " M scripts/README.md",
+      " M scripts/agent-harness-block.md",
+      " M scripts/harness-install-files.txt",
+      " M scripts/harness-release-changed.sh",
+      " M scripts/harness-release-tag",
+      "?? .agents/skills/improve-harness/",
+      "?? docs/decisions/0029-adopt-upstream-repository-protocol-and-retire-protocol-v1.md",
+      "?? docs/migrations/",
+      "?? docs/plans/active/OPS-64-upstream-harness-repository-cleanup.md",
+      "?? docs/templates/application-runbook.md",
+      "?? docs/templates/harness-improvement.md",
+      "?? scripts/archive-harness-legacy.py",
+      "?? scripts/collect-harness-cleanup-baseline.mjs",
+      "?? scripts/verification-profiles.mjs",
+      "?? scripts/verify-task-canary.mjs",
+      "?? scripts/verify-task.mjs",
+      "?? test/flutter_test_config.dart",
+      "?? test/flutter_test_config_smoke_test.dart",
+      "?? tests/migration/",
+      "?? tests/verification/"
+    ],
+    "worktrees": [
+      {
+        "path": "<external-worktree:phongvu-opshub>",
+        "head": "6525b6e3805eb666a86066cfe98469d5dba4af53",
+        "branch": "staging"
+      },
+      {
+        "path": ".",
+        "head": "6525b6e3805eb666a86066cfe98469d5dba4af53",
+        "branch": "codex/ops-64-harness-cleanup-phase-0-1"
+      }
+    ]
+  },
+  "trackedInventory": {
+    "fileCount": 6039,
+    "docsCount": 239,
+    "activePlanCount": 32,
+    "activePlans": [
+      {
+        "path": "docs/plans/active/OPS-15-harness-upstream.md",
+        "lines": 113,
+        "bytes": 6977
+      },
+      {
+        "path": "docs/plans/active/ops-20-contract-appendix-tax.md",
+        "lines": 150,
+        "bytes": 6204
+      },
+      {
+        "path": "docs/plans/active/OPS-21-dependabot-remediation.md",
+        "lines": 221,
+        "bytes": 11482
+      },
+      {
+        "path": "docs/plans/active/ops-24-postgres-deadlock-hotfix.md",
+        "lines": 176,
+        "bytes": 9682
+      },
+      {
+        "path": "docs/plans/active/OPS-26-transactional-production-release.md",
+        "lines": 137,
+        "bytes": 6848
+      },
+      {
+        "path": "docs/plans/active/OPS-27-brace-expansion-maintenance.md",
+        "lines": 106,
+        "bytes": 5377
+      },
+      {
+        "path": "docs/plans/active/OPS-29-promotion-self-check-hotfix.md",
+        "lines": 105,
+        "bytes": 4478
+      },
+      {
+        "path": "docs/plans/active/OPS-31-home-daily-series.md",
+        "lines": 735,
+        "bytes": 42938
+      },
+      {
+        "path": "docs/plans/active/OPS-33-sales-price-contract.md",
+        "lines": 198,
+        "bytes": 10353
+      },
+      {
+        "path": "docs/plans/active/OPS-34-design-system-cleanup.md",
+        "lines": 188,
+        "bytes": 10303
+      },
+      {
+        "path": "docs/plans/active/OPS-38-codex-desktop-multi-agent.md",
+        "lines": 121,
+        "bytes": 5547
+      },
+      {
+        "path": "docs/plans/active/OPS-39-bankapis-hostnames.md",
+        "lines": 80,
+        "bytes": 2947
+      },
+      {
+        "path": "docs/plans/active/OPS-39-bidv-h2h-api.md",
+        "lines": 547,
+        "bytes": 30094
+      },
+      {
+        "path": "docs/plans/active/OPS-40-support-chat-phase-1.md",
+        "lines": 257,
+        "bytes": 14120
+      },
+      {
+        "path": "docs/plans/active/OPS-41-offset-erp-bulk-actions.md",
+        "lines": 157,
+        "bytes": 8694
+      },
+      {
+        "path": "docs/plans/active/OPS-42-api-only-staging-ingress.md",
+        "lines": 194,
+        "bytes": 9821
+      },
+      {
+        "path": "docs/plans/active/OPS-43-local-preset-speaker.md",
+        "lines": 150,
+        "bytes": 8049
+      },
+      {
+        "path": "docs/plans/active/OPS-44-redesign-foundation-runtime.md",
+        "lines": 1878,
+        "bytes": 122208
+      },
+      {
+        "path": "docs/plans/active/OPS-45-staging-public-verification.md",
+        "lines": 35,
+        "bytes": 1581
+      },
+      {
+        "path": "docs/plans/active/ops-52-purchased-promotion-kpis.md",
+        "lines": 135,
+        "bytes": 6688
+      },
+      {
+        "path": "docs/plans/active/OPS-53-employee-filter-command-bar.md",
+        "lines": 52,
+        "bytes": 2472
+      },
+      {
+        "path": "docs/plans/active/OPS-53-fifo-quick-action-parity.md",
+        "lines": 134,
+        "bytes": 7289
+      },
+      {
+        "path": "docs/plans/active/OPS-53-fifo-result-card-r2.md",
+        "lines": 56,
+        "bytes": 2608
+      },
+      {
+        "path": "docs/plans/active/OPS-53-fifo-result-layout-runtime-fix.md",
+        "lines": 57,
+        "bytes": 3957
+      },
+      {
+        "path": "docs/plans/active/OPS-53-home-responsive-fixes.md",
+        "lines": 180,
+        "bytes": 10453
+      },
+      {
+        "path": "docs/plans/active/OPS-53-inline-home-filters.md",
+        "lines": 162,
+        "bytes": 9467
+      },
+      {
+        "path": "docs/plans/active/OPS-53-r2-command-controls.md",
+        "lines": 242,
+        "bytes": 15836
+      },
+      {
+        "path": "docs/plans/active/OPS-53-r4-follow-up-scoped-filters.md",
+        "lines": 147,
+        "bytes": 9649
+      },
+      {
+        "path": "docs/plans/active/OPS-53-sales-report-clickable-cards.md",
+        "lines": 84,
+        "bytes": 4066
+      },
+      {
+        "path": "docs/plans/active/OPS-60-home-period-comparison-import.md",
+        "lines": 208,
+        "bytes": 11963
+      },
+      {
+        "path": "docs/plans/active/OPS-62-home-import-card-order-hotfix.md",
+        "lines": 250,
+        "bytes": 14844
+      },
+      {
+        "path": "docs/plans/active/ops-9-bigquery-export-snapshot-hotfix-v2.md",
+        "lines": 172,
+        "bytes": 9465
+      }
+    ],
+    "harnessSurfaceCount": 72,
+    "harnessSurface": [
+      ".github/workflows/harness-cli-release.yml",
+      ".github/workflows/harness-release.yml",
+      "docs/HARNESS.md",
+      "docs/contracts/harness-local-authority-adapter-v1.md",
+      "docs/contracts/harness-orchestration-v1.md",
+      "docs/contracts/harness-strict-audit-v1.md",
+      "scripts/adapter/harness_local_authority_v1.py",
+      "scripts/adapter/harness_strict_audit_v1.py",
+      "scripts/bin/harness-cli.exe.sha256",
+      "scripts/bin/harness.exe.sha256",
+      "scripts/harness-cli-install-files.txt",
+      "scripts/harness-cli-release-changed.sh",
+      "scripts/harness-cli-release-tag",
+      "scripts/harness-epoch-transition.py",
+      "scripts/harness-install-files.txt",
+      "scripts/harness-release-changed.sh",
+      "scripts/harness-release-tag",
+      "scripts/schema/001-init.sql",
+      "scripts/schema/002-story-verify.sql",
+      "scripts/schema/003-tool-registry.sql",
+      "scripts/schema/004-intervention.sql",
+      "scripts/schema/005-tool-extensions.sql",
+      "scripts/schema/006-changeset-applied.sql",
+      "scripts/schema/007-story-dependencies.sql",
+      "scripts/schema/008-story-hierarchy.sql",
+      "scripts/schema/009-improvement-identity.sql",
+      "scripts/schema/010-story-backlog-links.sql",
+      "scripts/schema/011-legacy-evidence-snapshots.sql",
+      "scripts/schema/012-review-finding-closure.sql",
+      "scripts/schema/013-changeset-content-sha.sql",
+      "scripts/schema/014-entity-revisions.sql",
+      "tests/adapter/test_harness_strict_audit_v1.py",
+      "tests/bootstrap/test-bootstrap-harness.sh",
+      "tests/bootstrap/test-core-state-materialization.sh",
+      "tests/bootstrap/test-fresh-source-checkout.sh",
+      "tests/coherence/test-core-state-ownership.sh",
+      "tests/coherence/test-revision-coherence.sh",
+      "tests/core/assert-command-contract.sh",
+      "tests/core/assert-durable-state-boundary.sh",
+      "tests/core/assert-schema-replay-command-contract.sh",
+      "tests/core/harness-command-contract.txt",
+      "tests/core/test-core-boundary-contract.sh",
+      "tests/core/test-schema-replay-command-contract.sh",
+      "tests/fixtures/harness/local-authority-adapter-v1.json",
+      "tests/fixtures/harness/local-strict-audit-baseline-v1.json",
+      "tests/installer/assert-agent-authority-contract.sh",
+      "tests/installer/assert-consumer-changeset-trackable.sh",
+      "tests/installer/assert-install-manifest-links.sh",
+      "tests/installer/test-cli-upgrade-candidate.sh",
+      "tests/installer/test-install-harness-modes.ps1",
+      "tests/installer/test-install-harness-modes.sh",
+      "tests/maintenance/test-harness-cli-release-classification.sh",
+      "tests/maintenance/test-harness-release-classification.sh",
+      "tests/maintenance/test-render-changelog-files.sh",
+      "tests/protocol/smoke-native-artifact.ps1",
+      "tests/protocol/smoke-native-artifact.sh",
+      "tests/protocol/smoke-v0.1.14-artifact.ps1",
+      "tests/protocol/smoke-v0.1.14-artifact.sh",
+      "tests/release/download-v0.1.14-artifact.sh",
+      "tests/release/test-harness-cli-candidate.sh",
+      "tests/release/test-harness-release-asset-inventory.sh",
+      "tests/release/test-harness-release-identity-guard.sh",
+      "tests/release/test-harness-release-workflow-contract.sh",
+      "tests/release/test-post-merge-release-recovery.sh",
+      "tests/release/test-release-identity-guard.sh",
+      "tests/release/test-release-promotion-guard.sh",
+      "tests/release/test-release-transaction.sh",
+      "tests/release/test-release-workflow-contract.sh",
+      "tests/release/test-staging-release-fingerprint.sh",
+      "tests/snapshot/test-core-snapshot-compaction.sh",
+      "tests/workflow/test-repository-workflow.sh",
+      "tests/workflow/test-task-authority.sh"
+    ],
+    "ignoredHarnessSurface": []
+  },
+  "legacyDatabase": {
+    "path": "harness.db",
+    "readOnlyRequired": true,
+    "expectedSchemaVersions": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12
+    ],
+    "expectedCounts": {
+      "intake": 92,
+      "story": 37,
+      "decision": 7,
+      "backlog": 27,
+      "trace": 36
+    },
+    "sourceHash": "recorded-by-read-only-archive-command"
+  },
+  "runtimeHotspots": [
+    {
+      "path": "backend-nest/src/user/user.service.ts",
+      "lines": 6618,
+      "bytes": 218789
+    },
+    {
+      "path": "backend-nest/src/sales-reports/sales-reports.service.ts",
+      "lines": 5736,
+      "bytes": 203682
+    },
+    {
+      "path": "backend-nest/src/map-vietin/map-vietin.service.ts",
+      "lines": 5586,
+      "bytes": 190668
+    },
+    {
+      "path": "backend-nest/src/home-summary/home-summary.service.ts",
+      "lines": 5095,
+      "bytes": 177116
+    },
+    {
+      "path": "lib/features/home/presentation/widgets/home_summary_page.dart",
+      "lines": 4620,
+      "bytes": 157012
+    },
+    {
+      "path": "lib/features/payment_monitor/presentation/providers/payment_monitor_provider.dart",
+      "lines": 3210,
+      "bytes": 112280
+    }
+  ],
+  "repeatedFriction": [
+    {
+      "id": "flutter-benign-plugin-exceptions",
+      "evidence": "MissingPluginException from path_provider/file_picker in test output",
+      "owner": "consumer-test-bootstrap",
+      "plannedIntervention": "shared Flutter test bootstrap with explicit plugin fakes"
+    },
+    {
+      "id": "cross-stack-rerun-noise",
+      "evidence": "full Flutter/backend suites repeatedly rerun after environment failures",
+      "owner": "repository-verification-runner",
+      "plannedIntervention": "changed-path profiles, failure classification and fingerprints"
+    },
+    {
+      "id": "sales-history-import-churn",
+      "evidence": "rapid follow-up fixes around CSV chunks, artifacts, schema and employee identity",
+      "owner": "sales-report-consumer-fixtures",
+      "plannedIntervention": "stable integration fixture and affected-consumer proof"
+    },
+    {
+      "id": "responsive-proof-followups",
+      "evidence": "repeated responsive/Figma follow-up fixes in OPS-44/OPS-53",
+      "owner": "docs-and-ui-release-proof",
+      "plannedIntervention": "canonical plan consolidation and explicit visual proof gates"
+    }
+  ],
+  "metrics": {
+    "medianTimeToActionableFailureSeconds": null,
+    "sameFingerprintReruns": null,
+    "benignPluginExceptionCount": null,
+    "note": "Populate from task logs in the Phase 0 evidence review; null is intentional until observed data is available."
+  }
+}

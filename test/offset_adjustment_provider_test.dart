@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'dart:typed_data';
 
+import 'package:file_picker/src/platform/file_picker_platform_interface.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:phongvu_opshub/core/logging/app_logger.dart';
 import 'package:phongvu_opshub/core/network/api_client.dart';
@@ -10,6 +12,7 @@ import 'package:phongvu_opshub/features/auth/domain/entities/user.dart';
 import 'package:phongvu_opshub/features/offset_adjustment/data/offset_adjustment_repository.dart';
 import 'package:phongvu_opshub/features/offset_adjustment/domain/offset_adjustment.dart';
 import 'package:phongvu_opshub/features/offset_adjustment/presentation/providers/offset_adjustment_provider.dart';
+import 'flutter_test_config.dart' show TestSaveFilePicker;
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -48,6 +51,37 @@ void main() {
         item.batchCompleteBlockedReason,
         'Cần nhập Mã CT và xác nhận riêng.',
       );
+    });
+
+    test('distinguishes export save success from picker failure', () async {
+      final previousPicker = FilePickerPlatform.instance;
+      final picker = TestSaveFilePicker(path: 'C:/tmp/opshub-can-tru.csv');
+      FilePickerPlatform.instance = picker;
+      addTearDown(() => FilePickerPlatform.instance = previousPicker);
+
+      final repository = _FakeOffsetAdjustmentRepository(canReview: true);
+      final provider = OffsetAdjustmentProvider(repository);
+      await provider.initialize(_accUser);
+      await provider.exportCsv();
+
+      expect(provider.successMessage, 'Đã xuất file.');
+      expect(picker.lastDialogTitle, 'Lưu file cấn trừ');
+      expect(picker.lastFileName, startsWith('opshub_can_tru_'));
+      expect(picker.lastBytes, isNotNull);
+      provider.dispose();
+
+      final errorPicker = TestSaveFilePicker(
+        error: StateError('save dialog unavailable'),
+      );
+      FilePickerPlatform.instance = errorPicker;
+      final errorProvider = OffsetAdjustmentProvider(
+        _FakeOffsetAdjustmentRepository(canReview: true),
+      );
+      await errorProvider.initialize(_accUser);
+      await errorProvider.exportCsv();
+
+      expect(errorProvider.errorMessage, 'Xuất file thất bại.');
+      errorProvider.dispose();
     });
   });
 
@@ -538,6 +572,7 @@ class _FakeOffsetAdjustmentRepository extends OffsetAdjustmentRepository {
   final List<List<OffsetAdjustment>>? _pages;
   int fetchListCount = 0;
   int createCount = 0;
+  int exportCsvCount = 0;
   int batchCompleteCount = 0;
   int batchCompleteProcessedCount = 0;
   Completer<int>? pendingBatchComplete;
@@ -601,6 +636,12 @@ class _FakeOffsetAdjustmentRepository extends OffsetAdjustmentRepository {
   Future<OffsetAdjustment> create(OffsetAdjustmentInput input) async {
     createCount += 1;
     return _offset(type: input.type, amount: input.amount);
+  }
+
+  @override
+  Future<Uint8List> exportCsv(OffsetAdjustmentQuery query) async {
+    exportCsvCount += 1;
+    return Uint8List.fromList([0xef, 0xbb, 0xbf, 0x63, 0x73, 0x76]);
   }
 
   @override

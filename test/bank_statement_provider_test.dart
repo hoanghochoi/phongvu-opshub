@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:typed_data';
 
+import 'package:file_picker/src/platform/file_picker_platform_interface.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:phongvu_opshub/core/logging/app_logger.dart';
 import 'package:phongvu_opshub/core/network/api_client.dart';
@@ -13,6 +14,7 @@ import 'package:phongvu_opshub/features/bank_statement/domain/bank_statement_tra
 import 'package:phongvu_opshub/features/bank_statement/presentation/providers/bank_statement_provider.dart';
 import 'package:phongvu_opshub/features/notifications/data/app_notification_read_store.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'flutter_test_config.dart' show TestSaveFilePicker;
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -723,6 +725,48 @@ void main() {
       expect(repository.exportCsvCount, 1);
       expect(repository.lastExportTransactionIds, ['tx-1', 'tx-3']);
 
+      provider.dispose();
+    });
+
+    test(
+      'distinguishes successful save-file selection from cancellation',
+      () async {
+        final previousPicker = FilePickerPlatform.instance;
+        final picker = TestSaveFilePicker(path: 'C:/tmp/opshub-sao-ke.xlsx');
+        FilePickerPlatform.instance = picker;
+        addTearDown(() => FilePickerPlatform.instance = previousPicker);
+
+        final repository = _FakeBankStatementRepository();
+        final provider = BankStatementProvider(repository);
+        await provider.initialize(_nationalManager);
+        provider.setOrderStatus('MISSING_ORDER');
+        await provider.search();
+        await provider.exportCsv();
+
+        expect(provider.exportMessage, 'Đã xuất file.');
+        expect(picker.lastDialogTitle, 'Lưu file sao kê');
+        expect(picker.lastFileName, startsWith('opshub_sao_ke_'));
+        expect(picker.lastBytes, isNotNull);
+        provider.dispose();
+      },
+    );
+
+    test('surfaces save-file picker errors without swallowing them', () async {
+      final previousPicker = FilePickerPlatform.instance;
+      FilePickerPlatform.instance = TestSaveFilePicker(
+        error: StateError('save dialog unavailable'),
+      );
+      addTearDown(() => FilePickerPlatform.instance = previousPicker);
+
+      final repository = _FakeBankStatementRepository();
+      final provider = BankStatementProvider(repository);
+      await provider.initialize(_nationalManager);
+      provider.setOrderStatus('MISSING_ORDER');
+      await provider.search();
+      await provider.exportCsv();
+
+      expect(provider.exportMessage, 'Xuất file thất bại.');
+      expect(repository.exportCsvCount, 1);
       provider.dispose();
     });
 

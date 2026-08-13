@@ -141,4 +141,19 @@ void main() {
     expect(uploadCalls, 2);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('Inventory import keeps the default picker cancellation quiet', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      const MaterialApp(home: InventoryImportScreen()),
+    );
+
+    await tester.tap(find.text('Chọn file'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Chưa chọn file Excel'), findsOneWidget);
+    expect(find.text('Vui lòng chọn file tồn kho trước khi cập nhật.'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
 }
