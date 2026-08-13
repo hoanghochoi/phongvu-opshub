@@ -7,9 +7,10 @@ Date: 2026-08-13
 Active — Phase 7B live shadow evidence and Phase 8 artifact/dependency/toolchain
 cleanup are merged in staging. Five live shadow observations pass; one
 historical contract gap (#182) was explicitly captured and fixed in the OPS-72
-follow-up. OPS-74 runtime waves have started; OPS-81 is merged and OPS-82
-completes the Home detail-renderer extraction slice. Comparable timing
-baseline, remaining runtime waves and production release remain open.
+follow-up. OPS-74 runtime waves have started; OPS-81, OPS-82 and the current
+OPS-83 Home analytics/progress extraction are verified on their slice branches.
+Comparable timing baseline, remaining runtime waves and production release
+remain open.
 
 ## Outcome
 
@@ -26,10 +27,10 @@ branch, and is not converted row-for-row into Markdown.
 ## Authority and checkpoint
 
 - Linear parent: `OPS-64`.
-- Current slice: `OPS-82` Home detail dialogs/tables/paging
-  characterization/extraction, on a fresh lifecycle worktree created from the
-  live `origin/staging` checkpoint. OPS-72, OPS-73, OPS-74 header and OPS-81
-  KPI/summary slices are merged at the current checkpoint.
+- Current slice: `OPS-83` Home analytics/progress characterization/extraction,
+  on a fresh lifecycle worktree created from the live `origin/staging`
+  checkpoint. OPS-72, OPS-73, OPS-74 header, OPS-81 KPI/summary and OPS-82
+  detail-renderer slices are merged at the current checkpoint.
 - Previous slice: `OPS-70` (Phase 5 protocol-v1 retirement and Harness producer
   cleanup) on a fresh lifecycle worktree created from the live `origin/staging`
   checkpoint.
@@ -561,6 +562,26 @@ Phase 9A runtime checkpoint (OPS-82):
 - Generated localization/plugin files changed only in index metadata after
   offline dependency setup; their content hashes match HEAD and they are not
   part of the intended diff. No runtime plugin registration changed.
+
+Phase 9A runtime checkpoint (OPS-83):
+
+- Slice branch/worktree: `codex/ops-83-home-analytics-progress` in
+  `../opshub-ops-83`, started from `origin/staging@1eeda4a5f38ae39585c8a5a881c16bc9293d5579`.
+- Extracted `ReportProgressPanel`, the approved overview/analytics renderers,
+  responsive layout coordinator, progress bars, assignee selector and donut
+  painter into the same-library part file
+  `home_summary_progress_sections.dart`. The public `ReportProgressPanel`
+  constructor, provider callback, widget keys, Vietnamese copy, geometry and
+  retained characterization-only legacy path are unchanged.
+- Focused characterization passed 53/53 in
+  `home_dashboard_test.dart` plus `home_summary_header_layout_test.dart` in
+  one invocation, covering Home dashboard summary/progress, readable sales
+  cards, compact R3 geometry, empty-SA state, expanded layout, long-target
+  warning, desktop sizing, viewport geometry and SA selection reload.
+- `dart format --output=none --set-exit-if-changed` passed for both widget
+  files; `git diff --check` passed; `flutter analyze --no-pub` passed with no
+  issues (238.3s). Affected-consumer `verify-task` remains the final exact
+  commit gate before publication.
 
 ## Validation
 
