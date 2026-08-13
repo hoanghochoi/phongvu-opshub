@@ -47,6 +47,7 @@ HEX_64 = re.compile(r"[0-9a-f]{64}\Z")
 GIT_REVISION = re.compile(r"[0-9a-f]{40}\Z")
 REASON_CODE = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*\Z")
 SOURCE_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:-]{0,127}\Z")
+LINEAR_ID = re.compile(r"OPS-[0-9]+\Z")
 ALLOWED_RESIDUAL_RISKS = {
     "same-physical-disk-not-off-host",
     "physical-disk-separation-unverified",
@@ -588,15 +589,33 @@ def validate_disposition_records_against_source(
 
 
 def validate_disposition_targets(
-    document: dict[str, Any], repository_root: Path
+    document: dict[str, Any],
+    repository_root: Path,
+    linear_targets: set[str] | None = None,
 ) -> None:
-    """Fail closed when a promoted target is missing or escapes the repository."""
+    """Fail closed when a promoted target is missing or escapes the repository.
+
+    Repository paths are checked against the supplied root.  Linear follow-up
+    references are intentionally external to the checkout and are validated
+    against the tracked target ledger by the Phase 3 reviewer instead of being
+    treated as filesystem paths here.
+    """
     root = repository_root.resolve()
     if not root.is_dir():
         raise ValueError(f"REPOSITORY_ROOT_NOT_FOUND:{root}")
     for record in document["records"]:
         target = record.get("targetRef")
         if target is None:
+            continue
+        if isinstance(target, str) and LINEAR_ID.fullmatch(target):
+            if linear_targets is None:
+                raise ValueError(
+                    f"DISPOSITION_LINEAR_TARGETS_REQUIRED:{record['entity']}:{record['sourceId']}:{target}"
+                )
+            if target not in linear_targets:
+                raise ValueError(
+                    f"DISPOSITION_LINEAR_TARGET_NOT_FOUND:{record['entity']}:{record['sourceId']}:{target}"
+                )
             continue
         safe_target = safe_repository_target(target, root)
         if safe_target != target:
@@ -781,6 +800,21 @@ def validate_manifest_document(document: dict[str, Any]) -> None:
     require_hash(document.get("dispositionSha256"), "ARCHIVE_DISPOSITION_SHA256")
 
 
+def read_linear_targets(path: Path) -> set[str]:
+    document = read_json_object(path)
+    if document.get("formatVersion") != 1 or not isinstance(document.get("targets"), list):
+        raise ValueError("LINEAR_TARGETS_DOCUMENT_INVALID")
+    result: set[str] = set()
+    for item in document["targets"]:
+        if not isinstance(item, dict) or not LINEAR_ID.fullmatch(str(item.get("id", ""))):
+            raise ValueError("LINEAR_TARGET_ID_INVALID")
+        target_id = str(item["id"])
+        if target_id in result:
+            raise ValueError(f"LINEAR_TARGET_DUPLICATE:{target_id}")
+        result.add(target_id)
+    return result
+
+
 def validate_archive(args: argparse.Namespace) -> int:
     manifest = read_json_object(args.manifest)
     validate_manifest_document(manifest)
@@ -788,7 +822,9 @@ def validate_archive(args: argparse.Namespace) -> int:
     validate_disposition_document(disposition_document)
     repository_root = getattr(args, "repository_root", None)
     if repository_root is not None:
-        validate_disposition_targets(disposition_document, repository_root)
+        linear_targets_path = getattr(args, "linear_targets", None)
+        linear_targets = read_linear_targets(linear_targets_path) if linear_targets_path else None
+        validate_disposition_targets(disposition_document, repository_root, linear_targets)
     if sha256(args.disposition) != manifest["dispositionSha256"]:
         raise ValueError("ARCHIVE_DISPOSITION_HASH_MISMATCH")
     if disposition_document["sourceDatabaseSha256"] != manifest["source"]["databaseSha256"]:
@@ -847,6 +883,11 @@ def parser() -> argparse.ArgumentParser:
         "--repository-root",
         type=Path,
         help="Optional repository root used to verify every non-null targetRef",
+    )
+    validate_archive_parser.add_argument(
+        "--linear-targets",
+        type=Path,
+        help="Tracked target ledger used to verify OPS-* targetRef values",
     )
     validate_archive_parser.set_defaults(handler=validate_archive)
     return root
