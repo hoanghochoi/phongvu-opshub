@@ -372,9 +372,11 @@ god-helper.
 - [x] Publish `OPS-68` through the guarded feature-PR flow: PR #176 merged into
   `staging` at `ee74d0efb9b16cda0725d8940b0a1e544d0ba006`, and the post-merge
   lifecycle `finish --execute` gate passed.
-- [ ] Publish `OPS-69` through the guarded feature-PR flow. Phase 3B remains
-  incomplete until the promotion artifact, exact-base proof, Linear note and
-  PR lifecycle gates all pass.
+- [x] Publish `OPS-69` through the guarded feature-PR flow. Draft PR `#177`
+  targets `staging` at head `97dcaac2767df6cd2b286c81a59d21174cb853d2`, based
+  on live `origin/staging` `ee74d0efb9b16cda0725d8940b0a1e544d0ba006`;
+  Release Guard passed and the Linear publication proof was read back. Review,
+  merge and post-merge lifecycle gates remain open.
 - [ ] Retire protocol-v1/SQLite producer surfaces only after the complete Phase
   3 promotion gate and canary evidence are accepted; no direct push or status
   transition is inferred.
@@ -469,8 +471,9 @@ Phase 3A disposition evidence:
 Phase 3B current-authority promotion evidence:
 
 - Branch/worktree: `codex/ops-69-current-authority-promotion-and-linear-follow-ups`,
-  based on `ee74d0efb9b16cda0725d8940b0a1e544d0ba006`; publication remains
-  pending the guarded PR flow.
+  based on `ee74d0efb9b16cda0725d8940b0a1e544d0ba006`; draft PR `#177`
+  (`https://github.com/hoanghochoi/phongvu-opshub/pull/177`) is open against
+  `staging` at head `97dcaac2767df6cd2b286c81a59d21174cb853d2`.
 - The final local commit SHA is recorded in the Linear proof note and the
   exact-base `verify-task` JSON output; the report's `repositoryRevision`
   remains the exact Phase 3B input checkpoint
