@@ -1,0 +1,102 @@
+{
+  "formatVersion": 1,
+  "issue": "OPS-73",
+  "phase": "nestjs-dependency-batch",
+  "batchId": "nestjs-001-remove-unowned-dev-dependencies",
+  "sourceRevision": "b2a2df9cd47e7f1007ad92872c7b8547353656dc",
+  "repository": {
+    "branch": "codex/ops-73-nestjs-artifact-dependency-audit",
+    "base": "origin/staging",
+    "baseSha": "b2a2df9cd47e7f1007ad92872c7b8547353656dc"
+  },
+  "candidates": [
+    {
+      "package": "source-map-support",
+      "previousConstraint": "^0.5.21",
+      "disposition": "remove-direct-dev-dependency",
+      "reasonCode": "no-repository-owned-import-or-script",
+      "runtimeImportCount": 0,
+      "testImportCount": 0,
+      "configOrScriptReferenceCount": 0,
+      "transitiveAfterRemoval": [
+        "node_modules/source-map-support@0.5.21",
+        "node_modules/jest-runner/node_modules/source-map-support@0.5.13",
+        "node_modules/@cspotcode/source-map-support@0.8.1"
+      ]
+    },
+    {
+      "package": "ts-loader",
+      "previousConstraint": "^9.5.2",
+      "disposition": "remove-direct-dev-dependency",
+      "reasonCode": "no-repository-owned-webpack-or-loader-owner",
+      "runtimeImportCount": 0,
+      "testImportCount": 0,
+      "configOrScriptReferenceCount": 0,
+      "lockEntryAfterRemoval": false
+    }
+  ],
+  "preservedOwners": [
+    "@nestjs/cli and @nestjs/schematics for nest-cli.json and build",
+    "prisma and @prisma/client for schema/client generation",
+    "sharp, @img/sharp-libvips-dev and node-gyp for Docker native-image build",
+    "node-addon-api as bcrypt transitive native dependency",
+    "jest, ts-jest, ts-node and tsconfig-paths for tests/scripts",
+    "eslint, prettier and typescript-eslint for lint/tooling"
+  ],
+  "files": [
+    {
+      "path": "backend-nest/package.json",
+      "beforeSha256": "39fd5647dc4fcb3efd1d4249aac4e89b1601249cd7d9ef605d6618a26dd1981b",
+      "afterSha256": "ab6959b6c8cf13e29a1833e33cc1a34bff7cebd1b7580011d9191f7bae411718",
+      "beforeBytes": 5537,
+      "afterBytes": 5473
+    },
+    {
+      "path": "backend-nest/package-lock.json",
+      "beforeSha256": "f044f78ca26fe94e4eb42678c0ddb13538af5983d210c49c8cf3f5a9480f8270",
+      "afterSha256": "50a430fda1adcc846b553fa04448ffabd7fdb741c9f7b87e48f786202c67ac6b",
+      "beforeBytes": 480805,
+      "afterBytes": 480092
+    },
+    {
+      "path": "scripts/collect-artifact-inventory.mjs",
+      "beforeSha256": "e802629c11c2afd65388f703c0da2a94d5153d75d7fd8065ba31e7b9d5d5ce00",
+      "afterSha256": "3acc6ab0b1105bb8696ebf0bd972f7f3ff666f3aa8894253f8577ac279a31747",
+      "beforeBytes": 6861,
+      "afterBytes": 6909
+    }
+  ],
+  "packageGraph": {
+    "beforeLockPackageEntryCount": 992,
+    "afterLockPackageEntryCount": 991,
+    "beforeDirectProductionCount": 27,
+    "afterDirectProductionCount": 27,
+    "beforeDirectDevCount": 36,
+    "afterDirectDevCount": 34,
+    "removedLockEntries": ["node_modules/ts-loader"],
+    "sourceMapSupportDirectEntryRemoved": true,
+    "sourceMapSupportTransitiveEntriesPreserved": true
+  },
+  "referenceScan": {
+    "command": "rg -n --hidden -S source-map-support|ts-loader backend-nest . -g !node_modules/** -g !dist/** -g !coverage/** -g !package-lock.json -g !package.json",
+    "repositoryOwnedRuntimeOrScriptMatches": 0,
+    "result": "pass"
+  },
+  "validation": {
+    "npmCiIgnoreScripts": "pass: 943 packages",
+    "prismaGenerate": "pass",
+    "prismaValidate": "pass",
+    "nestBuild": "pass",
+    "nestTests": "pass: 108 suites, 1205 tests, 6 skipped",
+    "securityDependencies": "pass: sharp 0.35.3, libvips 8.18.3",
+    "sharpDockerfileContract": "pass: x64+arm64",
+    "diffCheck": "pass",
+    "postBuildInventory": "pass after collector maxBuffer=16MiB hardening"
+  },
+  "rollback": {
+    "required": true,
+    "method": "git revert <implementation-commit>",
+    "sourceFilesRemainInHistory": true,
+    "revertCommit": null
+  }
+}

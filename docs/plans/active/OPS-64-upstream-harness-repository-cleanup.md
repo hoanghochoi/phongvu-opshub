@@ -5,9 +5,9 @@ Date: 2026-08-13
 ## Status
 
 Active — Phase 8 artifact/dependency/toolchain cleanup is the current slice
-(OPS-73 Flutter batch). Phase 0–7A groundwork and the Phase 7B shadow
-instrumentation are merged; live shadow metrics, remaining artifact batches,
-runtime waves and production release remain open.
+(OPS-73 NestJS dependency batch). Phase 0–7A groundwork and the Phase 7B
+shadow instrumentation are merged; live shadow metrics, remaining artifact
+batches, runtime waves and production release remain open.
 
 ## Outcome
 
@@ -24,19 +24,23 @@ branch, and is not converted row-for-row into Markdown.
 ## Authority and checkpoint
 
 - Linear parent: `OPS-64`.
-- Current slice: `OPS-73` (Phase 8 artifact/dependency/toolchain cleanup) on a
-  fresh lifecycle worktree created from the live `origin/staging` checkpoint.
+- Current slice: `OPS-73` (Phase 8 artifact/dependency/toolchain cleanup),
+  NestJS dependency batch, on a fresh lifecycle worktree created from the live
+  `origin/staging` checkpoint.
 - Previous slice: `OPS-70` (Phase 5 protocol-v1 retirement and Harness producer
   cleanup) on a fresh lifecycle worktree created from the live `origin/staging`
   checkpoint.
 - Previous slice: `OPS-65` (Phase 0 baseline/master plan), Phase 0-1 archive
   tooling, and Phase 2 upstream adoption; PR #175 is merged into `staging`.
-- Branch: `codex/ops-64-harness-cleanup-phase-0-1`.
-- Exact base at task start: `6525b6e3805eb666a86066cfe98469d5dba4af53`.
-- `origin/staging` matched that SHA when the lifecycle start gate passed.
+- Historical Phase 0-1 branch: `codex/ops-64-harness-cleanup-phase-0-1`;
+  its exact base was `6525b6e3805eb666a86066cfe98469d5dba4af53`.
+- Current OPS-73 NestJS branch: `codex/ops-73-nestjs-artifact-dependency-audit`.
+- Current OPS-73 NestJS base/HEAD checkpoint: `b2a2df9cd47e7f1007ad92872c7b8547353656dc`.
+- `origin/staging` matched `b2a2df9cd47e7f1007ad92872c7b8547353656dc` when the
+  current lifecycle start gate passed.
 - Canonical staging worktree was clean. Existing worktrees were preserved and
   were not reset, removed, or rewritten.
-- Implementation worktree: `../opshub-ops-64-harness-cleanup-phase-0-1`.
+- Current implementation worktree: `../opshub-ops-73-nestjs-artifact-audit`.
 
 - OPS-68 implementation worktree:
   `../opshub-ops-68-disposition-ledger-fresh`.
@@ -400,10 +404,10 @@ god-helper.
 
 Phase 8 inventory checkpoint (OPS-73):
 
-- [ ] Inventory-only slice: add `docs/migrations/ops-73-artifact-inventory.json`
+- [x] Inventory-only slice: add `docs/migrations/ops-73-artifact-inventory.json`
   with exact branch/HEAD, tracked/ignored paths, dependency manifests, asset
   hashes, runtime hotspots, owner rules and generated-file policy.
-- [ ] Validate the inventory with `scripts/verify-artifact-inventory.mjs`;
+- [x] Validate the inventory with `scripts/verify-artifact-inventory.mjs`;
   deletion batches must remain empty until an independent reference/build/
   package/migration/rollback review proves a candidate safe to remove.
 - [ ] Preserve `n8n/`, legacy runtime routes, platform assets and release
@@ -421,6 +425,24 @@ Flutter batch checkpoint:
   platform skips), inventory checks, and Windows debug build pass. The first
   unconstrained full-suite run exposed one existing polling timing race;
   concurrency=1 rerun passed and the named test passed independently.
+
+NestJS batch checkpoint:
+
+- [x] Candidate review found `source-map-support` and `ts-loader` without a
+  repository-owned import, config or script owner. `source-map-support` remains
+  available transitively through Jest/Terser; `ts-loader` has no remaining lock
+  entry.
+- [x] Removed only those two direct dev dependencies. Preserved Nest CLI,
+  Prisma, Sharp/native build, bcrypt, Jest, TypeScript and release owners. The
+  before/after graph, hashes, reference scan and rollback guidance are recorded
+  in `docs/migrations/ops-73-nestjs-dependency-batch.json`.
+- [x] Sequential proof passed after `npm ci`: Prisma generate/validate, Nest
+  build, 108 suites/1,205 tests with 6 skips, security dependency checks and
+  Sharp Dockerfile x64/arm64 contract.
+- [x] Hardened the artifact inventory Git collector with a bounded 16 MiB
+  subprocess buffer after a post-build ignored-output scan hit Windows
+  `spawnSync git ENOBUFS`; this keeps generated output ignored while making
+  repeatable inventory checks independent of build artifact volume.
 
 Phase 7B implementation checkpoint (OPS-72):
 
