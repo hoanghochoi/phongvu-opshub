@@ -41,6 +41,19 @@ instead of creating permanent plan documents.
   layer and hardened complete-plan drift, candidate trust, downgrade,
   installer-continuation, and executable-recovery boundaries.
 
+## OPS-71 retained history
+
+- The ten execution-complete OPS-20, OPS-21, OPS-24, OPS-26, OPS-27, OPS-29,
+  OPS-31, OPS-38, OPS-41 and OPS-9 plans were moved here after Linear and
+  production evidence were read back.
+- `OPS-44-redesign-foundation-runtime-history.md` retains the long visual
+  execution journal; the current release handoff is the active OPS-44 summary.
+- The nine `OPS-53-history-*.md` files retain node maps and local proof; the
+  active OPS-53 consolidation summary is the only current execution authority.
+
+These files are historical evidence. Current product/design policy remains in
+`docs/product/`, `docs/ui-redesign/`, and the active handoff plans.
+
 The Phase 3 entries are completed evidence checkpoints, not a claim that the
 full application runtime/interface loop is complete. Decision 0021 keeps the
 phase active until that loop has observable proof.

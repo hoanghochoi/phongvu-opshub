@@ -35,7 +35,9 @@ require tests/README.md '## Retired Compatibility Proof'
 require docs/decisions/0029-adopt-upstream-repository-protocol-and-retire-protocol-v1.md 'OpsHub is a consumer of upstream Harness.'
 require docs/migrations/harness-v1-retirement-manifest.json '"issue": "OPS-70"'
 require docs/migrations/harness-v1-retirement-manifest.json '"databaseWritten": false'
+require docs/migrations/ops-71-plan-disposition.json '"issue": "OPS-71"'
 require scripts/verify-harness-retirement.mjs 'HARNESS_RETIREMENT_FAILED'
+require scripts/verify-plan-disposition.mjs 'PLAN_DISPOSITION_FAILED'
 
 for file in AGENTS.md docs/WORKFLOW.md docs/HARNESS.md docs/CONTEXT_RULES.md; do
   reject "$file" 'scripts/bin/harness-cli query matrix --active --summary'
@@ -44,6 +46,7 @@ done
 
 [[ -x "$root/tests/workflow/test-repository-workflow.sh" ]] || exit 1
 node "$root/scripts/verify-harness-retirement.mjs" >/dev/null
+node "$root/scripts/verify-plan-disposition.mjs" >/dev/null
 require .github/workflows/release-guard-pr.yml 'Check patch whitespace'
 [[ ! -e "$root/.github/workflows/harness-cli-release.yml" ]]
 [[ ! -e "$root/.github/workflows/harness-release.yml" ]]

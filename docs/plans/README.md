@@ -33,8 +33,10 @@ or validation requirements. Keep local implementation choices in the plan.
 
 ## Active Plans
 
-- `application-legibility.md`: prove one complete real-consumer runtime,
-  reproduction, diagnosis, implementation, verification, and cleanup loop.
+- The current tree is indexed by `docs/plans/active/README.md` and classified
+  by `docs/migrations/ops-71-plan-disposition.json`.
+- `OPS-64-upstream-harness-repository-cleanup.md` is the master initiative;
+  later slices keep one canonical plan per issue and preserve release gaps.
 
 ## Completed Plans
 
@@ -56,3 +58,7 @@ agent resolution, and recovery boundaries.
 The self-update hardening plan is retained because it records the application
 orchestration boundary, full-plan freezing, candidate trust, installer
 continuation, and executable-skew recovery added after independent review.
+
+OPS-71 moved execution-complete plans and superseded OPS-44/OPS-53 journals to
+`completed/` only after recording their disposition and current canonical
+target. A plan with an open QA, UAT or production gate remains under `active/`.
