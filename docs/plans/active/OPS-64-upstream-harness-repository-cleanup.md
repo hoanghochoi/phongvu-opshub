@@ -10,9 +10,9 @@ historical contract gap (#182) was explicitly captured and fixed in the OPS-72
 follow-up. OPS-74 runtime waves are in progress: OPS-81, OPS-82 and OPS-83 are
 merged and staging-deployed; OPS-84 query/list state and OPS-85
 realtime/background-lease are merged and staging-deployed; OPS-87 audio
-runtime is merged and staging-deployed; OPS-88 is the current Payment Monitor
-actions slice. Comparable timing baseline, remaining runtime waves and
-production release remain open.
+runtime and OPS-88 Payment Monitor actions are merged and staging-deployed;
+OPS-89 is the current Home Summary cache-runtime slice. Comparable timing
+baseline, remaining runtime waves and production release remain open.
 
 ## Outcome
 
@@ -29,12 +29,14 @@ branch, and is not converted row-for-row into Markdown.
 ## Authority and checkpoint
 
 - Linear parent: `OPS-64`.
-- Current slice: `OPS-88` Payment Monitor order/action orchestration extraction,
-  on a fresh lifecycle worktree created from live
-  `origin/staging@9091728306215f2c1c629ad870435effc15551b5`. The
-  characterization matrix passed `111/111` before source edits. The provider
-  public facade remains stable while action callbacks and repository
-  orchestration move to `payment_monitor_action_runtime.dart`.
+- Current slice: `OPS-89` Home Summary response/support cache and invalidation
+  extraction, on a fresh lifecycle worktree created from live
+  `origin/staging@3cc4ce09cf24758165a993583aac3b4a97a52b96`. The focused
+  NestJS characterization matrix passed `110/110` before and after source
+  edits. `HomeSummaryService` remains the stable facade while cache state,
+  in-flight dedupe, refresh-ahead, daily-series extension, support caches,
+  scope-option caching and projection invalidation move to
+  `home-summary-cache.runtime.ts`.
   OPS-72, OPS-73, OPS-74 header, OPS-81 KPI/summary, OPS-82 detail-renderer
   and OPS-83 analytics/progress slices are merged at the current checkpoint.
 - Previous slice: `OPS-70` (Phase 5 protocol-v1 retirement and Harness producer
@@ -54,11 +56,11 @@ branch, and is not converted row-for-row into Markdown.
   the current lifecycle start gate passed.
 - Canonical staging worktree was clean. Existing worktrees were preserved and
   were not reset, removed, or rewritten.
-- Current implementation worktree: `../opshub-ops-88`.
-- OPS-88 branch: `codex/ops-88-payment-monitor-actions`.
-- OPS-88 generated Flutter/l10n/plugin hydration changes are preserved in an
-  explicit local stash and are not part of the intended diff; do not drop it
-  during lifecycle cleanup.
+- Current implementation worktree: `../opshub-ops-89`.
+- OPS-89 branch: `codex/ops-89-home-summary-service`.
+- OPS-89 compatibility views are internal facade accessors only; they preserve
+  the pre-extraction characterization inspection points without widening the
+  product API.
 
 - OPS-68 implementation worktree:
   `../opshub-ops-68-disposition-ledger-fresh`.
@@ -696,6 +698,26 @@ Phase 9A runtime checkpoint (OPS-83):
   files; `git diff --check` passed; `flutter analyze --no-pub` passed with no
   issues (238.3s). Affected-consumer `verify-task` remains the final exact
   commit gate before publication.
+
+Phase 9C runtime checkpoint (OPS-89, Home Summary cache runtime slice):
+
+- Slice branch/worktree: `codex/ops-89-home-summary-service` in
+  `../opshub-ops-89`, created from live
+  `origin/staging@3cc4ce09cf24758165a993583aac3b4a97a52b96`. Canonical
+  staging stayed clean and unchanged during implementation.
+- Baseline focused characterization passed `110/110` across the Home Summary
+  service/controller/DTO/projection/backfill/comparison suites. After
+  extraction, the same six suites and `npm run build` pass `110/110`.
+- Moved response cache, in-flight dedupe, refresh-ahead, daily-series
+  extension, projection invalidation, support-cache loading and scope-option
+  cache state into `home-summary-cache.runtime.ts`. `HomeSummaryService`
+  remains the facade; routes, DTOs, DI tokens, permissions, data contracts and
+  product computation callbacks are unchanged. Internal compatibility views
+  keep existing characterization inspection points stable.
+- Remaining gates before publication: exact `verify-task` with
+  `stale=false`, affected Flutter Home/cache/details/comparison proof, final
+  staged diff review, Linear proof note, PR/CI, staging deploy and lifecycle
+  `finish --allow-ignored --execute` cleanup after squash merge.
 
 ## Validation
 
