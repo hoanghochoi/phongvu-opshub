@@ -8,9 +8,9 @@ Active — Phase 7B live shadow evidence and Phase 8 artifact/dependency/toolcha
 cleanup are merged in staging. Five live shadow observations pass; one
 historical contract gap (#182) was explicitly captured and fixed in the OPS-72
 follow-up. OPS-74 runtime waves are in progress: OPS-81, OPS-82 and OPS-83 are
-merged and staging-deployed; OPS-84 is the current Payment Monitor query-state
-slice. Comparable timing baseline, remaining runtime waves and production
-release remain open.
+merged and staging-deployed; OPS-84 query/list state is merged and OPS-85 is
+the current Payment Monitor realtime/background-lease slice. Comparable timing
+baseline, remaining runtime waves and production release remain open.
 
 ## Outcome
 
@@ -27,8 +27,9 @@ branch, and is not converted row-for-row into Markdown.
 ## Authority and checkpoint
 
 - Linear parent: `OPS-64`.
-- Current slice: `OPS-84` Payment Monitor query/list state extraction, on a fresh
-  lifecycle worktree created from the live `origin/staging` checkpoint.
+- Current slice: `OPS-85` Payment Monitor realtime refresh/background-lease
+  extraction, on a fresh lifecycle worktree created from live
+  `origin/staging@323dd098bbe99a9184ed70dede69f9fb971aaae6`.
   OPS-72, OPS-73, OPS-74 header, OPS-81 KPI/summary, OPS-82 detail-renderer
   and OPS-83 analytics/progress slices are merged at the current checkpoint.
 - Previous slice: `OPS-70` (Phase 5 protocol-v1 retirement and Harness producer
@@ -582,6 +583,32 @@ Phase 9B runtime checkpoint (OPS-84, query/list state slice):
   `flutter pub get`, compact reporter execution passed.
 - `dart format` and `git diff --check` passed. Exact `verify-task` and
   `flutter analyze --no-pub` remain final gates before publication.
+
+Phase 9B runtime checkpoint (OPS-85, realtime refresh/background-lease slice):
+
+- Slice branch/worktree: `codex/ops-85-payment-monitor-realtime-lease` in
+  `../opshub-ops-85`, created by the guarded lifecycle start gate from live
+  `origin/staging@323dd098bbe99a9184ed70dede69f9fb971aaae6`. The canonical
+  `staging` worktree remained clean and unchanged during implementation.
+- Extracted realtime subscriptions, foreground/background runtime flags,
+  refresh debounce/pending state, and background speaker lease ownership into
+  the same-library part file `payment_monitor_realtime_runtime.dart`.
+  `PaymentMonitorProvider` remains the public facade and retains event
+  filtering, authorization, poll, audio, logging and affected-consumer
+  behavior. The coordinator receives callbacks and lease eligibility through
+  its constructor; it does not access provider globals.
+- Characterization baseline passed `48/48` in
+  `test/payment_monitor_provider_test.dart`. Post-extraction focused proof
+  passed `48/48`; the affected Payment Monitor/repository/transaction/audio,
+  Bank Statement provider and VietQR screen matrix passed `118/118`.
+- `dart analyze` for the provider passed; full `flutter analyze --no-pub`
+  passed with no issues. `dart format` passed. Generated plugin registrant
+  files were only dependency-hydration noise with byte-identical content and
+  are excluded from the intended diff.
+- Remaining gates before publication: exact `verify-task` from this branch,
+  final diff/fingerprint review, Linear proof note, PR/CI and staging deploy.
+  After squash merge, run lifecycle `finish --allow-ignored --execute` and
+  verify no OPS-85 worktree or local task branch remains before the next slice.
 
 Phase 9A runtime checkpoint (OPS-83):
 
