@@ -7,15 +7,12 @@ Date: 2026-08-13
 Active — Phase 7B live shadow evidence and Phase 8 artifact/dependency/toolchain
 cleanup are merged in staging. Five live shadow observations pass; one
 historical contract gap (#182) was explicitly captured and fixed in the OPS-72
-follow-up. OPS-74 runtime waves are in progress: OPS-81, OPS-82 and OPS-83 are
-merged and staging-deployed; OPS-84 query/list state and OPS-85
-realtime/background-lease are merged and staging-deployed; OPS-87 audio
-runtime and OPS-88 Payment Monitor actions are merged and staging-deployed;
-OPS-90 scope/access and OPS-91 projection runtime are merged and staging-
-deployed; OPS-89 cache runtime is merged and staging-deployed. OPS-80 Home
-cache-coverage hotfix is implemented and locally verified, pending PR,
-staging deploy and smoke proof. Comparable timing baseline, remaining runtime
-waves and production release remain open.
+follow-up. OPS-74 runtime waves are in progress: OPS-80 Home cache coverage,
+OPS-81, OPS-82, OPS-83, OPS-84, OPS-85, OPS-86, OPS-87, OPS-88, OPS-89,
+OPS-90 and OPS-91 are merged and staging-deployed. OPS-92 Sales Reports
+scope/query extraction is implemented on its lifecycle worktree and is in the
+final exact-proof/publication gate. Comparable timing baseline, remaining
+runtime waves and production release remain open.
 
 ## Outcome
 
@@ -32,15 +29,19 @@ branch, and is not converted row-for-row into Markdown.
 ## Authority and checkpoint
 
 - Linear parent: `OPS-64`.
-- Current slice: `OPS-80` Home Summary cache coverage hotfix, on a fresh
-  lifecycle worktree created from live `origin/staging@738f907c3b931536bb4cbe77b8f5204c7fb20882`.
-  The focused NestJS characterization matrix passed `110/110` before and after
-  extraction; `npm run build` passed. Projection feature gating, freshness,
-  aggregate metrics and daily-series loading are owned by
-  `home-summary-projection.runtime.ts`; the stable `HomeSummaryService` facade
-  retains orchestration, comparison/CSV overlay, sales aggregation, legacy
-  sync and private compatibility wrappers. Affected Flutter Home proof passed
-  `60/60` after worktree dependency preflight.
+- Current slice: `OPS-92` Sales Reports scope/query extraction, on the fresh
+  lifecycle worktree `../opshub-ops-92` and branch
+  `codex/ops-92-sales-reports-scope-query`, created from exact live
+  `origin/staging@f8c8ee27b6d4b95d950eb8ecd82d13cb454cfb44`. The extracted
+  constructor-injected `SalesReportsScopeQueryRuntime` owns feature/admin
+  access, user/store scope resolution, date/filter normalization, pagination
+  and report/order-cockpit query composition; `SalesReportsService` remains
+  the stable facade and parser/import, ERP, follow-up, BigQuery and export
+  owners remain outside the slice. Baseline and post-extraction NestJS
+  characterization both passed `232/232`; `npm run build`, the affected
+  Flutter sales-report/not-purchased/Home matrix (`72/72`),
+  `flutter analyze --no-pub`, Prettier and `git diff --check` passed. The
+  final exact commit proof, PR and staging deploy remain before cleanup.
   OPS-89 cache state, in-flight dedupe, refresh-ahead, daily-series extension,
   support caches, scope-option caching and projection invalidation remain in
   `home-summary-cache.runtime.ts`.
@@ -51,7 +52,9 @@ branch, and is not converted row-for-row into Markdown.
   unchanged; focused Home Summary proof passed `72/72`, all Home Summary Nest
   suites passed `119/119` with 6 skips, the Nest build passed, affected Flutter
   Home proof passed `60/60`, and exact-base full verification passed all eight
-  profiles with `stale=false`. The change is still pending PR/staging deploy.
+  profiles with `stale=false`. PR #201 merged into staging at
+  `5c3867fae35bd022a6a599283fce9a62032476e6`; deploy run `31750262557`
+  passed and the issue remains release-pending until production deployment.
 - Previous slice: `OPS-70` (Phase 5 protocol-v1 retirement and Harness producer
   cleanup) on a fresh lifecycle worktree created from the live `origin/staging`
   checkpoint.
@@ -69,8 +72,8 @@ branch, and is not converted row-for-row into Markdown.
   the current lifecycle start gate passed.
 - Canonical staging worktree was clean. Existing worktrees were preserved and
   were not reset, removed, or rewritten.
-- Current implementation worktree: `../opshub-ops-91`.
-- OPS-91 branch: `codex/ops-91-home-summary-projection-runtime`.
+- Current implementation worktree: `../opshub-ops-92`.
+- OPS-92 branch: `codex/ops-92-sales-reports-scope-query`.
 - OPS-89 implementation worktree/branch was cleaned after its squash merge;
   canonical staging and `origin/staging` are at
   `77ec6ff3482b3ff689e10af77b6981c1a96293d`.
@@ -777,6 +780,32 @@ Phase 9C runtime checkpoint (OPS-91, Home Summary projection runtime slice):
 - Exact `verify-task` and all focused/affected proof are now passing. Remaining
   gates are final staged diff review, PR/CI, staging deploy and lifecycle
   `finish --allow-ignored --execute` cleanup after squash merge.
+
+Phase 9D runtime checkpoint (OPS-92, Sales Reports scope/query slice):
+
+- Slice branch/worktree: `codex/ops-92-sales-reports-scope-query` in
+  `../opshub-ops-92`, started from exact live
+  `origin/staging@f8c8ee27b6d4b95d950eb8ecd82d13cb454cfb44`; canonical
+  staging stayed clean and unrelated OPS-68/OPS-72 metrics worktrees were
+  preserved.
+- Extracted feature/admin access, managed and user/store scope resolution,
+  store authorization, report/order-cockpit filter normalization, date-range
+  handling, pagination and Prisma where composition into the
+  constructor-injected same-library collaborator
+  `sales-reports-scope-query.runtime.ts`. `SalesReportsService` retains the
+  public facade, routes, DTOs, DI tokens, permissions, Vietnamese copy and
+  AppLogger context. Parser/import, ERP lookup/status, follow-up, BigQuery
+  sync and export/admin mutation orchestration remain in their existing
+  owners.
+- Baseline and post-extraction NestJS characterization both passed `232/232`
+  across the selected sales-report service/controller/DTO/import/follow-up/ERP/
+  BigQuery suites. `npm run build` passed. Affected Flutter sales-report,
+  not-purchased and Home cache consumers passed `72/72`; `flutter analyze
+  --no-pub`, Prettier and `git diff --check` passed.
+- Final gates: exact commit `verify-task` with `stale=false`, staged diff review,
+  Linear implementation/proof note, PR/CI, staging deploy, and guarded
+  lifecycle `finish --allow-ignored --execute` cleanup. No API, data,
+  permission, UI or platform behavior change is intended.
 
 ## Validation
 
