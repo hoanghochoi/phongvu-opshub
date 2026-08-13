@@ -9,8 +9,8 @@ cleanup are merged in staging. Five live shadow observations pass; one
 historical contract gap (#182) was explicitly captured and fixed in the OPS-72
 follow-up. OPS-74 runtime waves are in progress: OPS-81, OPS-82 and OPS-83 are
 merged and staging-deployed; OPS-84 query/list state and OPS-85
-realtime/background-lease are merged and staging-deployed; OPS-86 is the
-current Payment Monitor speaker-queue slice. Comparable timing baseline,
+realtime/background-lease are merged and staging-deployed; OPS-87 is the
+current Payment Monitor audio-runtime slice. Comparable timing baseline,
 remaining runtime waves and production release remain open.
 
 ## Outcome
@@ -28,9 +28,9 @@ branch, and is not converted row-for-row into Markdown.
 ## Authority and checkpoint
 
 - Linear parent: `OPS-64`.
-- Current slice: `OPS-86` Payment Monitor speaker stream queue/delivery
+- Current slice: `OPS-87` Payment Monitor audio preparation/playback/ack
   extraction, on a fresh lifecycle worktree created from live
-  `origin/staging@5c5500a77106f00fad3d0cb01ccc1ffa7909c9c9`.
+  `origin/staging@be86b0cbb1d37692bfc0fe81f4d53dc68b22bb36`.
   OPS-72, OPS-73, OPS-74 header, OPS-81 KPI/summary, OPS-82 detail-renderer
   and OPS-83 analytics/progress slices are merged at the current checkpoint.
 - Previous slice: `OPS-70` (Phase 5 protocol-v1 retirement and Harness producer
@@ -635,6 +635,39 @@ Phase 9B runtime checkpoint (OPS-86, speaker queue/delivery slice):
   full `flutter analyze --no-pub`, exact `verify-task` with `stale=false`,
   final staged diff review, Linear proof note, PR/CI, staging deploy and
   lifecycle `finish --allow-ignored --execute` cleanup after squash merge.
+
+Phase 9B runtime checkpoint (OPS-87, audio preparation/playback/ack slice):
+
+- Slice branch/worktree: `codex/ops-87-payment-monitor-audio-runtime` in
+  `../opshub-ops-87`, created by the guarded lifecycle start gate from live
+  `origin/staging@be86b0cbb1d37692bfc0fe81f4d53dc68b22bb36`. Canonical staging
+  remained clean and unchanged during implementation.
+- Characterization baseline passed `64/64` across the Payment Monitor
+  provider/repository, amount-audio-composer and speaker I/O suites. The
+  extracted coordinator is the same-library part
+  `payment_monitor_audio_runtime.dart`; it receives repository, speaker,
+  composer, retry delay, voice-preset, speaker-generation, acknowledgement
+  and terminal-state callbacks through its constructor. The provider remains
+  the public facade and retains queue/orchestration, speaker error state,
+  authorization and all public contracts.
+- Moved low-level server/local audio preparation, local preset composition and
+  claim handling, playback retry, stream-start/playback-failed/played/failed
+  acknowledgement, audio logging and error mapping into the coordinator.
+  Windows local preset, Android/iOS server stream, claim-409 suppression,
+  401/403 propagation, three-attempt retry semantics and Vietnamese error copy
+  remain unchanged. Order update/transfer/row-message actions remain in the
+  facade for a later slice.
+- Post-extraction affected matrix passed `118/118` in one invocation across
+  Payment Monitor provider/repository/transaction/audio, Bank Statement
+  provider and VietQR screen consumers. Full `flutter analyze --no-pub`,
+  `dart format` and `git diff --check` pass with no analyzer issues. Generated
+  plugin registrant files are dependency-hydration noise with byte-identical
+  content and are excluded from the intended diff.
+- Remaining gates before publication: exact `verify-task` with `stale=false`,
+  final staged diff/fingerprint review, Linear implementation/proof note, PR/
+  CI, staging deploy and lifecycle `finish --allow-ignored --execute` cleanup
+  after squash merge. No API, data, permission, UI or platform behavior
+  change is intended.
 
 Phase 9A runtime checkpoint (OPS-83):
 
