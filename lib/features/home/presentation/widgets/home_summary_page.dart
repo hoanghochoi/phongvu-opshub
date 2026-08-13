@@ -20,6 +20,7 @@ import '../../../../core/formatting/money_formatters.dart';
 import '../../../../core/logging/app_logger.dart';
 import '../../domain/home_summary.dart';
 import '../providers/home_summary_provider.dart';
+import 'home_summary_header_layout.dart';
 
 class HomeSummaryPage extends StatelessWidget {
   const HomeSummaryPage({
@@ -621,38 +622,22 @@ class _HomeInlineFilters extends StatelessWidget {
       );
     }
 
-    const gap = 12.0;
-    const actionWidth = 152.0;
-    final reservedWidth = action == null ? 0.0 : actionWidth + gap;
-    const wideTargetWidths = [324.0, 296.0, 280.0];
-    const regularTargetWidths = [220.0, 220.0, 180.0];
-    final wideTargetTotal = wideTargetWidths.reduce((a, b) => a + b);
-    final canUseWideTargets =
-        availableWidth >= wideTargetTotal + gap * 2 + reservedWidth;
-    final targetWidths = canUseWideTargets
-        ? wideTargetWidths
-        : regularTargetWidths;
-    final controlsWidth = math.max(
-      0.0,
-      availableWidth - reservedWidth - gap * 2,
+    final layout = HomeSummaryHeaderLayout.desktop(
+      availableWidth: availableWidth,
+      hasAction: action != null,
     );
-    final targetTotal = targetWidths.reduce((a, b) => a + b);
-    final scale = math.min(1.0, controlsWidth / targetTotal);
-    final scopeWidth = targetWidths[0] * scale;
-    final dateWidth = targetWidths[1] * scale;
-    final updateWidth = targetWidths[2] * scale;
 
     return Row(
       key: const Key('home-summary-controls'),
       children: [
-        scopeControl(scopeWidth),
-        const SizedBox(width: gap),
-        dateControl(dateWidth),
-        const SizedBox(width: gap),
-        SizedBox(width: updateWidth, child: updateControl),
+        scopeControl(layout.scopeWidth),
+        const SizedBox(width: HomeSummaryHeaderLayout.gap),
+        dateControl(layout.dateWidth),
+        const SizedBox(width: HomeSummaryHeaderLayout.gap),
+        SizedBox(width: layout.updateWidth, child: updateControl),
         if (action != null) ...[
-          const SizedBox(width: gap),
-          SizedBox(width: actionWidth, child: action!),
+          const SizedBox(width: HomeSummaryHeaderLayout.gap),
+          SizedBox(width: HomeSummaryHeaderLayout.actionWidth, child: action!),
         ],
       ],
     );

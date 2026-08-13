@@ -6,9 +6,10 @@ Date: 2026-08-13
 
 Active — Phase 7B live shadow evidence and Phase 8 artifact/dependency/toolchain
 cleanup are merged in staging. Five live shadow observations pass; one
-historical contract gap (#182) was explicitly captured and is being fixed in
-the OPS-72 follow-up. Comparable timing baseline, runtime waves and production
-release remain open.
+historical contract gap (#182) was explicitly captured and fixed in the OPS-72
+follow-up. OPS-74 runtime waves have started with the Home header geometry
+characterization slice. Comparable timing baseline, remaining runtime waves
+and production release remain open.
 
 ## Outcome
 
@@ -25,9 +26,9 @@ branch, and is not converted row-for-row into Markdown.
 ## Authority and checkpoint
 
 - Linear parent: `OPS-64`.
-- Current slice: `OPS-72` live shadow evidence follow-up, on a fresh lifecycle
-  worktree created from the live `origin/staging` checkpoint. OPS-73 artifact
-  cleanup batches are already merged at the current checkpoint.
+- Current slice: `OPS-74` Home header geometry characterization/extraction, on a
+  fresh lifecycle worktree created from the live `origin/staging` checkpoint.
+  OPS-72 and OPS-73 are merged at the current checkpoint.
 - Previous slice: `OPS-70` (Phase 5 protocol-v1 retirement and Harness producer
   cleanup) on a fresh lifecycle worktree created from the live `origin/staging`
   checkpoint.
@@ -507,6 +508,20 @@ Phase 7B live observation checkpoint (OPS-72):
 - Aggregate target status is `pending-live-timing-baseline`: timing and rerun
   reduction percentages are intentionally null until comparable baseline data
   exists. No profile is promoted to blocking by this evidence alone.
+
+Phase 9A runtime checkpoint (OPS-74):
+
+- Slice branch: `codex/ops-74-home-characterization-header`, started from
+  `origin/staging@b0537d8030db6e4a737911f6869b45776f877780`.
+- Extracted the pure `HomeSummaryHeaderLayout` desktop width contract from
+  `HomeSummaryPage` while preserving `HomeSummaryHeader`, widget keys,
+  Vietnamese copy, shared date-range picker, callbacks and responsive values.
+- Added four geometry tests covering wide, regular/action, narrow and action
+  threshold behavior. Existing Home dashboard and route viewport
+  characterization tests remain unchanged and pass.
+- Proof so far: `flutter pub get --offline`, geometry test 4/4, combined Home
+  dashboard/viewport suite 82/82, `flutter analyze --no-pub` no issues. No
+  runtime API, permission, data, platform or visual contract change is claimed.
 
 ## Validation
 
