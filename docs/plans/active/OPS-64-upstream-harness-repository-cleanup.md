@@ -9,9 +9,10 @@ cleanup are merged in staging. Five live shadow observations pass; one
 historical contract gap (#182) was explicitly captured and fixed in the OPS-72
 follow-up. OPS-74 runtime waves are in progress: OPS-81, OPS-82 and OPS-83 are
 merged and staging-deployed; OPS-84 query/list state and OPS-85
-realtime/background-lease are merged and staging-deployed; OPS-87 is the
-current Payment Monitor audio-runtime slice. Comparable timing baseline,
-remaining runtime waves and production release remain open.
+realtime/background-lease are merged and staging-deployed; OPS-87 audio
+runtime is merged and staging-deployed; OPS-88 is the current Payment Monitor
+actions slice. Comparable timing baseline, remaining runtime waves and
+production release remain open.
 
 ## Outcome
 
@@ -28,9 +29,12 @@ branch, and is not converted row-for-row into Markdown.
 ## Authority and checkpoint
 
 - Linear parent: `OPS-64`.
-- Current slice: `OPS-87` Payment Monitor audio preparation/playback/ack
-  extraction, on a fresh lifecycle worktree created from live
-  `origin/staging@be86b0cbb1d37692bfc0fe81f4d53dc68b22bb36`.
+- Current slice: `OPS-88` Payment Monitor order/action orchestration extraction,
+  on a fresh lifecycle worktree created from live
+  `origin/staging@9091728306215f2c1c629ad870435effc15551b5`. The
+  characterization matrix passed `111/111` before source edits. The provider
+  public facade remains stable while action callbacks and repository
+  orchestration move to `payment_monitor_action_runtime.dart`.
   OPS-72, OPS-73, OPS-74 header, OPS-81 KPI/summary, OPS-82 detail-renderer
   and OPS-83 analytics/progress slices are merged at the current checkpoint.
 - Previous slice: `OPS-70` (Phase 5 protocol-v1 retirement and Harness producer
@@ -50,7 +54,11 @@ branch, and is not converted row-for-row into Markdown.
   the current lifecycle start gate passed.
 - Canonical staging worktree was clean. Existing worktrees were preserved and
   were not reset, removed, or rewritten.
-- Current implementation worktree: `../opshub-ops-73-go-deployment-audit`.
+- Current implementation worktree: `../opshub-ops-88`.
+- OPS-88 branch: `codex/ops-88-payment-monitor-actions`.
+- OPS-88 generated Flutter/l10n/plugin hydration changes are preserved in an
+  explicit local stash and are not part of the intended diff; do not drop it
+  during lifecycle cleanup.
 
 - OPS-68 implementation worktree:
   `../opshub-ops-68-disposition-ledger-fresh`.
