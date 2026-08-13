@@ -4,9 +4,9 @@ Date: 2026-08-13
 
 ## Status
 
-Active — Phase 5 protocol-v1 retirement is the current slice. Phase 0–4 and
-Phase 7A groundwork are verified/merged; docs/plans cleanup, CI shadow runs,
-artifact cleanup, runtime waves and production release remain open.
+Active — Phase 6 docs/plans reconciliation is the current slice. Phase 0–5
+and Phase 7A groundwork are verified/merged; CI shadow runs, artifact cleanup,
+runtime waves and production release remain open.
 
 ## Outcome
 
@@ -23,7 +23,10 @@ branch, and is not converted row-for-row into Markdown.
 ## Authority and checkpoint
 
 - Linear parent: `OPS-64`.
-- Current slice: `OPS-70` (Phase 5 protocol-v1 retirement and Harness producer
+- Current slice: `OPS-71` (Phase 6 docs/plans reconciliation after protocol-v1
+  retirement) on a fresh lifecycle worktree created from the live
+  `origin/staging` checkpoint.
+- Previous slice: `OPS-70` (Phase 5 protocol-v1 retirement and Harness producer
   cleanup) on a fresh lifecycle worktree created from the live `origin/staging`
   checkpoint.
 - Previous slice: `OPS-65` (Phase 0 baseline/master plan), Phase 0-1 archive
@@ -52,6 +55,10 @@ branch, and is not converted row-for-row into Markdown.
 - OPS-70 branch: `codex/ops-70-retire-protocol-v1-and-harness-producers`.
 - OPS-70 base SHA: `e83c24bb7ae6cd83af379ec003818ad74b6fcbe0`; canonical staging
   and `origin/staging` matched it at task start.
+- OPS-70 squash merge: `ff8b9e9a1765d572a7ed5b72772f5c2b5ced4ea1`; lifecycle
+  `finish --execute` passed.
+- OPS-71 base SHA: `ff8b9e9a1765d572a7ed5b72772f5c2b5ced4ea1`; canonical staging,
+  `origin/staging` and the OPS-71 task worktree matched before cleanup.
 
 Before every later slice, repeat the lifecycle start gate and replace this
 checkpoint if the live `origin/staging` SHA changes. A proof run is stale when
@@ -381,9 +388,15 @@ god-helper.
   on live `origin/staging` `ee74d0efb9b16cda0725d8940b0a1e544d0ba006`;
   Release Guard passed and the Linear publication proof was read back. Review,
   merge and post-merge lifecycle gates remain open.
-- [ ] Retire protocol-v1/SQLite producer surfaces only after the complete Phase
-  3 promotion gate and canary evidence are accepted; no direct push or status
-  transition is inferred.
+- [x] Publish `OPS-70` through the guarded feature-PR flow. PR #179 merged
+  into `staging` at `ff8b9e9a1765d572a7ed5b72772f5c2b5ced4ea1`; retirement
+  validation and the post-merge lifecycle gate passed.
+- [x] Classify all 33 pre-slice active-tree files in the OPS-71 disposition
+  ledger. Ten Linear-Done execution plans moved to `completed/`; OPS-44 and
+  nine OPS-53 fragments were consolidated with history preserved.
+- [ ] Finish the remaining Phase 6 link/authority review and publish OPS-71.
+- [ ] Run Phase 7B CI shadow metrics, Phase 8 artifact cleanup, Phase 9 runtime
+  waves and Phase 10 final consolidation.
 
 ## Validation
 
@@ -638,7 +651,8 @@ Move this plan to
 `docs/plans/completed/` only after the full initiative's final validation and
 production lifecycle are complete.
 
-The baseline inventory counted 32 active plan files. They are intentionally
-not moved or deleted in this slice: Phase 6 must classify each plan against
-current Linear/release authority, and the OPS-44/OPS-53 fragments need a
-separate docs-only review before any consolidation mutation.
+The baseline inventory counted 32 active plan files. The current active tree
+has 15 files (14 current plans plus its README); all moved paths retain a
+one-to-one `sourcePath`, disposition and canonical target in the OPS-71 ledger.
+OPS-44 retains a release-pending handoff, while OPS-53 retains one active
+consolidation summary; neither Linear issue was closed by this cleanup.
