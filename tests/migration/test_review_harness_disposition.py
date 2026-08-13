@@ -61,6 +61,13 @@ class ReviewHarnessDispositionTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "DISPOSITION_DUPLICATE"):
             MODULE.validate(document, self.root, set())
 
+    def test_backlog_target_groups_do_not_overlap(self) -> None:
+        self.assertEqual(MODULE.BACKLOG_TARGETS["14"][0], "OPS-78")
+        self.assertEqual(MODULE.BACKLOG_TARGETS["17"][0], "OPS-78")
+        self.assertEqual(MODULE.BACKLOG_TARGETS["26"][0], "OPS-78")
+        for source_id in ("15", "16", "18", "19", "20", "21", "22", "23", "24", "25"):
+            self.assertEqual(MODULE.BACKLOG_TARGETS[source_id][0], "OPS-79")
+
     def test_validator_rejects_missing_entity_record(self) -> None:
         document = valid_document()
         records = document["records"]

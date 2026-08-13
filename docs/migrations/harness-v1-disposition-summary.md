@@ -12,7 +12,7 @@ row is imported into upstream schema 14.
 - Expected records: intake 92, story 37, decision 7, backlog 27, trace 36 (199 total).
 - Current disposition: `already-authoritative` 41, `superseded` 2,
   `linear-follow-up` 27, `historical-only` 129.
-- Ledger SHA-256: `aa1d2dcef48d5761861dac058cc521f7e9f97a915d0aa70cbdfcffacea3d2a00`.
+- Ledger SHA-256: `92f114684cb52823fe77d928674b7353e14edb931bf431f09e582435b5d35858`.
 - Archive copies are local and may share a physical disk; this is not an off-host backup.
 
 The disposition ledger ([harness-v1-disposition.json](harness-v1-disposition.json))
