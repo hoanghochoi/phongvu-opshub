@@ -348,6 +348,22 @@ test('workflow and policy preserve existing deploy consumers and never force pus
   assert.doesNotMatch(stagingWorkflow, /curl -fIs/);
   assert.match(stagingWorkflow, /<title>Tải ứng dụng PhongVu OpsHub<\/title>/);
   assert.doesNotMatch(stagingWorkflow, /CF-Access-Client-Id:/);
+  assert.match(
+    stagingWorkflow,
+    /action-staging\/\$\{GITHUB_RUN_ID\}\/android/,
+  );
+  assert.doesNotMatch(
+    stagingWorkflow,
+    /action-staging\/\$\{GITHUB_RUN_ID\}-\$\{GITHUB_RUN_ATTEMPT\}/,
+  );
+  assert.match(
+    productionWorkflow,
+    /action-staging\/\$\{GITHUB_RUN_ID\}\/android/,
+  );
+  assert.doesNotMatch(
+    productionWorkflow,
+    /action-staging\/\$\{GITHUB_RUN_ID\}-\$\{GITHUB_RUN_ATTEMPT\}/,
+  );
   assert.match(policy, /explicit\s+command in the current task/);
   assert.match(policy, /Never promote an\s+arbitrary task branch or SHA to `main`/);
   assert.match(policy, /Never force-push or delete `staging` or `main`/);

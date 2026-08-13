@@ -180,7 +180,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          staging_dir="${OPSHUB_REMOTE_APP_DIR}/action-staging/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}/android"
+          # Keep client artifacts under the run id only. A GitHub Actions rerun
+          # reuses the build job's uploaded files while incrementing
+          # GITHUB_RUN_ATTEMPT in the deploy job.
+          staging_dir="${OPSHUB_REMOTE_APP_DIR}/action-staging/${GITHUB_RUN_ID}/android"
           ssh opshub-staging "mkdir -p '$staging_dir'"
           scp 'build/app/outputs/flutter-apk/app-staging-release.apk' \
             "opshub-staging:${staging_dir}/${{ needs.prepare.outputs.apk_name }}"
@@ -435,7 +438,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          staging_dir="${OPSHUB_REMOTE_APP_DIR}/action-staging/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}/windows"
+          # Keep client artifacts under the run id only. A GitHub Actions rerun
+          # reuses the build job's uploaded files while incrementing
+          # GITHUB_RUN_ATTEMPT in the deploy job.
+          staging_dir="${OPSHUB_REMOTE_APP_DIR}/action-staging/${GITHUB_RUN_ID}/windows"
           ssh opshub-staging "mkdir -p '$staging_dir'"
           scp \
             'build/windows/x64/runner/${{ needs.prepare.outputs.windows_zip_name }}' \
@@ -562,7 +568,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          client_staging_dir="${OPSHUB_REMOTE_APP_DIR}/action-staging/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          client_staging_dir="${OPSHUB_REMOTE_APP_DIR}/action-staging/${GITHUB_RUN_ID}"
           ssh opshub-staging \
             "CLIENT_STAGING_DIR='$client_staging_dir' \
              APK_NAME='${{ needs.prepare.outputs.apk_name }}' \
@@ -600,7 +606,7 @@ jobs:
           WINDOWS_CHECKSUM_FILE_NAME: ${{ needs.prepare.outputs.windows_checksum_name }}
         run: |
           set -euo pipefail
-          client_staging_dir="${OPSHUB_REMOTE_APP_DIR}/action-staging/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          client_staging_dir="${OPSHUB_REMOTE_APP_DIR}/action-staging/${GITHUB_RUN_ID}"
           APK_FILE_SIZE_BYTES="$(ssh opshub-staging "stat -c%s '$client_staging_dir/android/${{ needs.prepare.outputs.apk_name }}'")"
           WINDOWS_INSTALLER_FILE_SIZE_BYTES="$(ssh opshub-staging "stat -c%s '$client_staging_dir/windows/${{ needs.prepare.outputs.windows_installer_name }}'")"
           WINDOWS_ZIP_FILE_SIZE_BYTES="$(ssh opshub-staging "stat -c%s '$client_staging_dir/windows/${{ needs.prepare.outputs.windows_zip_name }}'")"
@@ -643,7 +649,7 @@ jobs:
         run: |
           set -euo pipefail
           remote_release_dir="${OPSHUB_REMOTE_APP_DIR}/releases/${GITHUB_SHA}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
-          client_staging_dir="${OPSHUB_REMOTE_APP_DIR}/action-staging/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          client_staging_dir="${OPSHUB_REMOTE_APP_DIR}/action-staging/${GITHUB_RUN_ID}"
           android_update_url="${OPSHUB_DOWNLOAD_PUBLIC_BASE_URL}/downloads/${APK_NAME}"
           windows_update_url="${OPSHUB_DOWNLOAD_PUBLIC_BASE_URL}/downloads/${WINDOWS_INSTALLER_NAME}"
           downloads_dir="${OPSHUB_SSD_ROOT}/downloads"
@@ -1624,7 +1630,7 @@ jobs:
         run: |
           set -euo pipefail
           remote_release_dir="${OPSHUB_REMOTE_APP_DIR}/releases/${GITHUB_SHA}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
-          client_staging_dir="${OPSHUB_REMOTE_APP_DIR}/action-staging/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          client_staging_dir="${OPSHUB_REMOTE_APP_DIR}/action-staging/${GITHUB_RUN_ID}"
           tmp_dir="${OPSHUB_REMOTE_APP_DIR}/tmp/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           ssh opshub-staging \
             "REMOTE_RELEASE_DIR='$remote_release_dir' \
@@ -1836,7 +1842,7 @@ jobs:
         run: |
           set -euo pipefail
           remote_release_dir="${OPSHUB_REMOTE_APP_DIR}/releases/${GITHUB_SHA}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
-          client_staging_dir="${OPSHUB_REMOTE_APP_DIR}/action-staging/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          client_staging_dir="${OPSHUB_REMOTE_APP_DIR}/action-staging/${GITHUB_RUN_ID}"
           tmp_dir="${OPSHUB_REMOTE_APP_DIR}/tmp/${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
           ssh opshub-staging \
             "REMOTE_RELEASE_DIR='$remote_release_dir' \
