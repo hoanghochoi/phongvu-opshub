@@ -144,7 +144,11 @@ export const PROFILES = Object.freeze([
   },
   {
     id: 'deployment',
-    pathPatterns: [/^deploy\//, /^docker-compose\.yml$/],
+    pathPatterns: [
+      /^deploy\//,
+      /^docker-compose\.yml$/,
+      /^scripts\/(?:validate-ops39-caddy|verify-platform-security)\.mjs$/,
+    ],
     consumers: ['deployment manifests', 'runtime configuration'],
     prerequisites: ['deployment tooling'],
     commands: [
@@ -153,6 +157,18 @@ export const PROFILES = Object.freeze([
         cwd: '.',
         executable: 'git',
         argv: ['diff', '--check'],
+      },
+      {
+        id: 'ops39-caddy-contract',
+        cwd: '.',
+        executable: process.execPath,
+        argv: ['scripts/validate-ops39-caddy.mjs'],
+      },
+      {
+        id: 'platform-security-contract',
+        cwd: '.',
+        executable: process.execPath,
+        argv: ['scripts/verify-platform-security.mjs'],
       },
     ],
   },

@@ -1,0 +1,82 @@
+{
+  "formatVersion": 1,
+  "issue": "OPS-73",
+  "phase": "go-deployment-artifact-batch",
+  "batchId": "go-deploy-001-reviewed-no-deletion",
+  "sourceRevision": "ccff928f703c3a5dc0969798e6d02905d7c164ce",
+  "repository": {
+    "branch": "codex/ops-73-go-deployment-artifact-audit",
+    "base": "origin/staging",
+    "baseSha": "ccff928f703c3a5dc0969798e6d02905d7c164ce"
+  },
+  "inventory": {
+    "trackedPathCount": 5981,
+    "goPathCount": 16,
+    "deploymentPathCount": 38,
+    "ignoredPathCount": 0,
+    "deletionBatchCount": 0,
+    "artifactInventory": "docs/migrations/ops-73-artifact-inventory.json"
+  },
+  "goModuleReview": {
+    "directModules": [
+      "github.com/gin-gonic/gin",
+      "github.com/golang-jwt/jwt/v5",
+      "github.com/gorilla/websocket",
+      "github.com/redis/go-redis/v9"
+    ],
+    "directOwnerProof": {
+      "gin": "backend-go/server.go and HTTP middleware/routes",
+      "jwt": "backend-go/auth.go",
+      "websocket": "backend-go/hub.go and server.go",
+      "redis": "backend-go/redis_bridge.go"
+    },
+    "tidyNormalizedEqual": true,
+    "goModBytesChanged": false,
+    "goSumBytesChanged": false,
+    "disposition": "retain-all"
+  },
+  "deploymentOwnerReview": {
+    "runtimeReleaseAllowlist": "scripts/build-runtime-release.mjs",
+    "productionWorkflow": ".github/workflows/deploy-opshub.yml",
+    "stagingWorkflow": ".github/workflows/deploy-opshub-staging.yml",
+    "goContainer": "backend-go/Dockerfile",
+    "composeRuntime": "deploy/home-server/docker-compose.home.yml",
+    "transactionHelper": "deploy/home-server/release-transaction.sh",
+    "disposition": "retain-all",
+    "reasonCode": "operational-owner-or-rollback-contract-present"
+  },
+  "validatorAlignment": {
+    "scripts/validate-ops39-caddy.mjs": {
+      "beforeSha256": "dfd148609b4306f2b27682abce922c91ee730ea00b17811b065732f0a254e84f",
+      "afterSha256": "8b103c289dabb33d1f3564e96f295e61cee7f421036dc33d3c0f9012af1ae5f9",
+      "change": "assert current bankapis production/staging domains"
+    },
+    "scripts/verify-platform-security.mjs": {
+      "beforeSha256": "7daaedd0fb50c8f673f596c96c3c57efe249356ce9f53694f67999302d9d1ac4",
+      "afterSha256": "8ba20ed451031a352a4b181a6901ae77e77f72e44c492ff9019dc1b38feb32e4",
+      "change": "scope scaled API replica count to staff site before dedicated BIDV site"
+    }
+  },
+  "validation": {
+    "goTest": "pass: opshub-realtime",
+    "goVet": "pass",
+    "goModTidy": "normalized byte-equivalent; no module graph change",
+    "ops39CaddyContract": "pass",
+    "platformSecurityContract": "pass",
+    "ops40AffectedConsumerTests": "pass: 2 tests",
+    "staticTransactionRehearsal": "pass via WSL Git Bash",
+    "inventoryValidator": "pass",
+    "diffCheck": "pass"
+  },
+  "deletionDisposition": {
+    "status": "no-safe-deletion-candidate",
+    "retainedPaths": ["backend-go/", "deploy/home-server/", "deploy/staging/", "deploy/windows/"],
+    "reason": "Every reviewed path has a build, runtime, release, migration, smoke, or rollback owner; no operational artifact was removed."
+  },
+  "rollback": {
+    "required": true,
+    "method": "git revert <implementation-commit>",
+    "sourceFilesRemainInHistory": true,
+    "revertCommit": null
+  }
+}
