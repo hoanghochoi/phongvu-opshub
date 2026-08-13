@@ -8,9 +8,10 @@ Active — Phase 7B live shadow evidence and Phase 8 artifact/dependency/toolcha
 cleanup are merged in staging. Five live shadow observations pass; one
 historical contract gap (#182) was explicitly captured and fixed in the OPS-72
 follow-up. OPS-74 runtime waves are in progress: OPS-81, OPS-82 and OPS-83 are
-merged and staging-deployed; OPS-84 query/list state is merged and OPS-85 is
-the current Payment Monitor realtime/background-lease slice. Comparable timing
-baseline, remaining runtime waves and production release remain open.
+merged and staging-deployed; OPS-84 query/list state and OPS-85
+realtime/background-lease are merged and staging-deployed; OPS-86 is the
+current Payment Monitor speaker-queue slice. Comparable timing baseline,
+remaining runtime waves and production release remain open.
 
 ## Outcome
 
@@ -27,9 +28,9 @@ branch, and is not converted row-for-row into Markdown.
 ## Authority and checkpoint
 
 - Linear parent: `OPS-64`.
-- Current slice: `OPS-85` Payment Monitor realtime refresh/background-lease
+- Current slice: `OPS-86` Payment Monitor speaker stream queue/delivery
   extraction, on a fresh lifecycle worktree created from live
-  `origin/staging@323dd098bbe99a9184ed70dede69f9fb971aaae6`.
+  `origin/staging@5c5500a77106f00fad3d0cb01ccc1ffa7909c9c9`.
   OPS-72, OPS-73, OPS-74 header, OPS-81 KPI/summary, OPS-82 detail-renderer
   and OPS-83 analytics/progress slices are merged at the current checkpoint.
 - Previous slice: `OPS-70` (Phase 5 protocol-v1 retirement and Harness producer
@@ -609,6 +610,31 @@ Phase 9B runtime checkpoint (OPS-85, realtime refresh/background-lease slice):
   final diff/fingerprint review, Linear proof note, PR/CI and staging deploy.
   After squash merge, run lifecycle `finish --allow-ignored --execute` and
   verify no OPS-85 worktree or local task branch remains before the next slice.
+
+Phase 9B runtime checkpoint (OPS-86, speaker queue/delivery slice):
+
+- Slice branch/worktree: `codex/ops-86-payment-monitor-speaker-audio` in
+  `../opshub-ops-86`, created by the guarded lifecycle start gate from live
+  `origin/staging@5c5500a77106f00fad3d0cb01ccc1ffa7909c9c9` after OPS-85 was
+  squash-merged, staging-deployed and cleaned. The canonical staging worktree
+  remained clean and unchanged during implementation.
+- Narrowed the slice to stream queue/delivery orchestration: queue ordering,
+  local terminal/active/in-flight locks, duplicate suppression, drain
+  lifecycle and authorization cancellation now live in the constructor-
+  injected same-library part `payment_monitor_speaker_queue.dart`.
+  PaymentMonitorProvider remains the facade; stream parsing, eligibility,
+  silence, low-level audio preparation/playback and acknowledgement helpers
+  remain in the provider for the next bounded audio slice (OPS-87).
+- Baseline speaker/provider/audio characterization passed `55/55` (48
+  Payment Monitor provider tests plus audio composer/speaker suites). After
+  queue extraction, focused Payment Monitor provider proof passed `48/48`.
+- `dart format` and provider `dart analyze` pass. Generated plugin registrant
+  files changed only as dependency-hydration metadata noise with content hashes
+  equal to HEAD and are excluded from the intended diff.
+- Remaining gates before publication: affected Bank Statement/VietQR matrix,
+  full `flutter analyze --no-pub`, exact `verify-task` with `stale=false`,
+  final staged diff review, Linear proof note, PR/CI, staging deploy and
+  lifecycle `finish --allow-ignored --execute` cleanup after squash merge.
 
 Phase 9A runtime checkpoint (OPS-83):
 

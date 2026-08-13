@@ -22,6 +22,7 @@ import '../../domain/payment_poll_policy.dart';
 
 part 'payment_monitor_query_state.dart';
 part 'payment_monitor_realtime_runtime.dart';
+part 'payment_monitor_speaker_queue.dart';
 
 class PaymentSpeakerError {
   final String storeCode;
@@ -95,11 +96,7 @@ class PaymentMonitorProvider extends ChangeNotifier
   final Duration _playbackRetryDelay;
   final Duration _speakerReadyFallbackInterval;
   final RealtimeClient _realtimeClient;
-  final Set<String> _deliveryInFlightNotificationIds = {};
-  final Set<String> _terminalNotificationIds = {};
-  final Set<String> _queuedStreamNotificationIds = {};
-  final Queue<PaymentNotification> _streamNotificationQueue =
-      Queue<PaymentNotification>();
+  late final PaymentMonitorSpeakerQueue _speakerQueue;
   @override
   final List<MapPaymentTransaction> _latestTransactions = [];
   @override
@@ -153,12 +150,10 @@ class PaymentMonitorProvider extends ChangeNotifier
   bool _queuedRefreshDrainReadyNotifications = false;
   bool _queuedRefreshAllowRateLimitCooldownBypass = false;
   String? _queuedUserRefreshReason;
-  bool _isDrainingStreamNotifications = false;
   bool _isDrainingReadyNotifications = false;
   @override
   bool _canReviewOrderTransfers = false;
   DateTime? _lastRealtimeEventAt;
-  final Set<String> _activeNotificationIds = {};
   int _authGeneration = 0;
   int _pollRequestToken = 0;
   int _speakerGeneration = 0;
@@ -185,6 +180,22 @@ class PaymentMonitorProvider extends ChangeNotifier
       onRefresh: _pollFromRealtimeRuntime,
       shouldHoldBackgroundLease: () => _shouldHoldBackgroundRealtimeLease,
       onLeaseChanged: _handleRealtimeLeaseChanged,
+    );
+    _speakerQueue = PaymentMonitorSpeakerQueue(
+      isCurrentOperation: _isCurrentSpeakerOperation,
+      canUseSpeaker: () => _canUsePaymentSpeaker,
+      isSpeakerEnabled: () => _isSpeakerEnabled,
+      currentGeneration: () => _speakerGeneration,
+      eligibilityReason: _speakerEligibilityReason,
+      onSilence: _silenceStreamNotification,
+      onPlay: (notification, clientId) => _playReadyNotifications(
+        [notification],
+        clientId,
+        useStreamEndpoint: true,
+        activeNotificationIds: {notification.notificationId},
+        ownedDeliveryLocks: {notification.notificationId},
+        triggerSource: 'realtime_stream',
+      ),
     );
     _loadEnabledPreference();
   }
@@ -734,12 +745,7 @@ class PaymentMonitorProvider extends ChangeNotifier
         : null;
     _lastRealtimeEventAt = null;
     _loggedMonitorStarted = false;
-    _deliveryInFlightNotificationIds.clear();
-    _terminalNotificationIds.clear();
-    _queuedStreamNotificationIds.clear();
-    _activeNotificationIds.clear();
-    _streamNotificationQueue.clear();
-    _isDrainingStreamNotifications = false;
+    _speakerQueue.clear();
     _isDrainingReadyNotifications = false;
     _speakerError = null;
     _latestTransactions.clear();
@@ -799,12 +805,7 @@ class PaymentMonitorProvider extends ChangeNotifier
     _queuedRefreshDrainReadyNotifications = false;
     _queuedRefreshAllowRateLimitCooldownBypass = false;
     _queuedUserRefreshReason = null;
-    _deliveryInFlightNotificationIds.clear();
-    _terminalNotificationIds.clear();
-    _queuedStreamNotificationIds.clear();
-    _activeNotificationIds.clear();
-    _streamNotificationQueue.clear();
-    _isDrainingStreamNotifications = false;
+    _speakerQueue.clear();
     _isDrainingReadyNotifications = false;
     _lastRealtimeEventAt = null;
     _latestTransactions.clear();
@@ -1080,128 +1081,7 @@ class PaymentMonitorProvider extends ChangeNotifier
       return;
     }
 
-    _enqueueStreamNotification(notification, clientId);
-  }
-
-  void _enqueueStreamNotification(
-    PaymentNotification notification,
-    String clientId,
-  ) {
-    final isTerminal = _terminalNotificationIds.contains(
-      notification.notificationId,
-    );
-    final isQueued = _queuedStreamNotificationIds.contains(
-      notification.notificationId,
-    );
-    final isActive = _activeNotificationIds.contains(
-      notification.notificationId,
-    );
-    final isInFlight = _deliveryInFlightNotificationIds.contains(
-      notification.notificationId,
-    );
-    if (isTerminal || isQueued || isActive || isInFlight) {
-      unawaited(
-        AppLogger.instance.info(
-          'PaymentSpeaker',
-          'Payment speaker stream notification ignored because delivery is already in flight locally',
-          context: {
-            'notificationId': notification.notificationId,
-            'transactionId': notification.transactionId,
-            'storeCode': notification.storeCode,
-            'clientId': clientId,
-            'deliveryPath': 'stream',
-            'triggerSource': 'realtime_stream',
-            'dedupeHit': true,
-            'terminal': isTerminal,
-            'queued': isQueued,
-            'active': isActive,
-            'inFlight': isInFlight,
-          },
-        ),
-      );
-      return;
-    }
-    _queuedStreamNotificationIds.add(notification.notificationId);
-    _streamNotificationQueue.add(notification);
-    unawaited(
-      AppLogger.instance.info(
-        'PaymentMonitor',
-        'Payment speaker stream notification queued',
-        context: {
-          'notificationId': notification.notificationId,
-          'transactionId': notification.transactionId,
-          'storeCode': notification.storeCode,
-          'queueLength': _streamNotificationQueue.length,
-        },
-      ),
-    );
-    unawaited(_drainStreamNotifications(clientId));
-  }
-
-  Future<void> _drainStreamNotifications(String clientId) async {
-    if (_isDrainingStreamNotifications) return;
-    final speakerGeneration = _speakerGeneration;
-    _isDrainingStreamNotifications = true;
-    try {
-      while (_streamNotificationQueue.isNotEmpty &&
-          _isCurrentSpeakerOperation(speakerGeneration)) {
-        final notification = _streamNotificationQueue.removeFirst();
-        _queuedStreamNotificationIds.remove(notification.notificationId);
-        final ownsDeliveryLock = _deliveryInFlightNotificationIds.add(
-          notification.notificationId,
-        );
-        if (_terminalNotificationIds.contains(notification.notificationId) ||
-            _activeNotificationIds.contains(notification.notificationId) ||
-            !ownsDeliveryLock) {
-          if (ownsDeliveryLock) {
-            _deliveryInFlightNotificationIds.remove(
-              notification.notificationId,
-            );
-          }
-          continue;
-        }
-        if (!_canUsePaymentSpeaker) {
-          await AppLogger.instance.info(
-            'PaymentMonitor',
-            'Queued payment stream skipped because speaker became unavailable',
-            context: {
-              'notificationId': notification.notificationId,
-              'transactionId': notification.transactionId,
-              'storeCode': notification.storeCode,
-              'reason': _speakerEligibilityReason(),
-            },
-          );
-          _deliveryInFlightNotificationIds.remove(notification.notificationId);
-          continue;
-        }
-        if (!_isSpeakerEnabled) {
-          await _silenceStreamNotification(
-            notification,
-            clientId,
-            reason: 'speaker_disabled_after_queue',
-          );
-          _deliveryInFlightNotificationIds.remove(notification.notificationId);
-          continue;
-        }
-        _activeNotificationIds.add(notification.notificationId);
-        try {
-          await _playReadyNotifications(
-            [notification],
-            clientId,
-            useStreamEndpoint: true,
-            activeNotificationIds: {notification.notificationId},
-            ownedDeliveryLocks: {notification.notificationId},
-            triggerSource: 'realtime_stream',
-          );
-          if (!_isCurrentSpeakerOperation(speakerGeneration)) return;
-        } finally {
-          _activeNotificationIds.remove(notification.notificationId);
-          _deliveryInFlightNotificationIds.remove(notification.notificationId);
-        }
-      }
-    } finally {
-      _isDrainingStreamNotifications = false;
-    }
+    _speakerQueue.enqueue(notification, clientId);
   }
 
   @override
@@ -2152,7 +2032,7 @@ class PaymentMonitorProvider extends ChangeNotifier
 
     for (final notification in notifications) {
       if (!_isCurrentSpeakerAuthorization(speakerGeneration)) return;
-      if (_terminalNotificationIds.contains(notification.notificationId)) {
+      if (_speakerQueue.isTerminal(notification.notificationId)) {
         continue;
       }
       _setTerminalNotification(notification.notificationId);
@@ -2171,7 +2051,7 @@ class PaymentMonitorProvider extends ChangeNotifier
     required String reason,
   }) async {
     final speakerGeneration = _speakerGeneration;
-    if (_terminalNotificationIds.contains(notification.notificationId)) return;
+    if (_speakerQueue.isTerminal(notification.notificationId)) return;
     _setTerminalNotification(notification.notificationId);
     await AppLogger.instance.info(
       'PaymentSpeaker',
@@ -2242,7 +2122,7 @@ class PaymentMonitorProvider extends ChangeNotifier
 
     for (final notification in notifications) {
       if (!_isCurrentSpeakerOperation(speakerGeneration)) return;
-      if (_terminalNotificationIds.contains(notification.notificationId)) {
+      if (_speakerQueue.isTerminal(notification.notificationId)) {
         await AppLogger.instance.warn(
           'PaymentMonitor',
           'Payment notification skipped as already terminal locally',
@@ -2263,7 +2143,7 @@ class PaymentMonitorProvider extends ChangeNotifier
       );
       var deliveryLockAcquired = false;
       if (!ownsDeliveryLock) {
-        deliveryLockAcquired = _deliveryInFlightNotificationIds.add(
+        deliveryLockAcquired = _speakerQueue.acquireDeliveryLock(
           notification.notificationId,
         );
         if (!deliveryLockAcquired) {
@@ -2286,7 +2166,7 @@ class PaymentMonitorProvider extends ChangeNotifier
       final ownsActiveNotification = activeNotificationIds.contains(
         notification.notificationId,
       );
-      if (_activeNotificationIds.contains(notification.notificationId) &&
+      if (_speakerQueue.isActive(notification.notificationId) &&
           !ownsActiveNotification) {
         await AppLogger.instance.info(
           'PaymentMonitor',
@@ -2302,12 +2182,12 @@ class PaymentMonitorProvider extends ChangeNotifier
           },
         );
         if (deliveryLockAcquired) {
-          _deliveryInFlightNotificationIds.remove(notification.notificationId);
+          _speakerQueue.releaseDeliveryLock(notification.notificationId);
         }
         continue;
       }
       if (!ownsActiveNotification) {
-        _activeNotificationIds.add(notification.notificationId);
+        _speakerQueue.activate(notification.notificationId);
       }
       try {
         final played = await _playNotificationWithRetry(
@@ -2395,10 +2275,10 @@ class PaymentMonitorProvider extends ChangeNotifier
         notifyListeners();
       } finally {
         if (!ownsActiveNotification) {
-          _activeNotificationIds.remove(notification.notificationId);
+          _speakerQueue.deactivate(notification.notificationId);
         }
         if (deliveryLockAcquired) {
-          _deliveryInFlightNotificationIds.remove(notification.notificationId);
+          _speakerQueue.releaseDeliveryLock(notification.notificationId);
         }
       }
     }
@@ -2876,7 +2756,7 @@ class PaymentMonitorProvider extends ChangeNotifier
   }
 
   void _setTerminalNotification(String notificationId) {
-    _terminalNotificationIds.add(notificationId);
+    _speakerQueue.markTerminal(notificationId);
   }
 
   String _buildSpeakerErrorMessage(String safeError) {
