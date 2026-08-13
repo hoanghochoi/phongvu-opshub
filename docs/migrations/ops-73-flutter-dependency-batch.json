@@ -1,0 +1,95 @@
+{
+  "formatVersion": 1,
+  "issue": "OPS-73",
+  "phase": "flutter-dependency-batch",
+  "batchId": "flutter-001-remove-unused-cupertino-icons",
+  "sourceRevision": "252ac8bab2b0794ba42f9db8a420b6cdc79f0c83",
+  "repository": {
+    "branch": "codex/ops-73-flutter-artifact-dependency-audit",
+    "base": "origin/staging",
+    "baseSha": "252ac8bab2b0794ba42f9db8a420b6cdc79f0c83"
+  },
+  "candidate": {
+    "package": "cupertino_icons",
+    "previousConstraint": "^1.0.8",
+    "previousResolvedVersion": "1.0.8",
+    "reasonCode": "no-runtime-or-test-consumer",
+    "productionImportCount": 0,
+    "testImportCount": 0,
+    "symbolUsageCount": 0,
+    "generatedPluginOwner": false,
+    "historicalReferences": [
+      "app-audit-21072026.md",
+      "app-improve-implement-plan-12072026.md",
+      "docs/plans/active/OPS-64-upstream-harness-repository-cleanup.md"
+    ]
+  },
+  "files": [
+    {
+      "path": "pubspec.yaml",
+      "beforeSha256": "bf78e586b2239f38c1332e7bf4ed4681ebc4eaaf999cd666a0b8e4281ccb3f58",
+      "afterSha256": "e6d4776682ac19aa32af948d87ebf92605315bcb0cdd1f126956fd6c7fd16352",
+      "beforeBytes": 7900,
+      "afterBytes": 7746
+    },
+    {
+      "path": "pubspec.lock",
+      "beforeSha256": "054a45694e62fb3703f573475fe01904c01c63b3866947da131f4419d3a7314f",
+      "afterSha256": "cc31d9609fd760edd51a0b6db434f6e932edd593cce6ca142f2eec722501acd4",
+      "beforeBytes": 41704,
+      "afterBytes": 42840
+    }
+  ],
+  "inventoryBefore": {
+    "trackedPathCount": 5975,
+    "dependencyManifestCount": 7,
+    "assetCount": 153,
+    "deletionBatchCount": 0,
+    "sourceInventory": "docs/migrations/ops-73-artifact-inventory.json",
+    "sourceInventorySha256": "2f49a3590e5304d6d454e16d8c10f7d16f14a82f08e56e4c9f6e35ef6dc4c6f6"
+  },
+  "inventoryAfter": {
+    "trackedPathCount": 5976,
+    "dependencyManifestCount": 7,
+    "assetCount": 153,
+    "deletionBatchCount": 1,
+    "trackedDependencyManifests": [
+      "pubspec.yaml",
+      "pubspec.lock",
+      "backend-nest/package.json",
+      "backend-nest/package-lock.json",
+      "backend-go/go.mod",
+      "backend-go/go.sum",
+      "docker-compose.yml"
+    ],
+    "assetSetUnchanged": true,
+    "trackedPathCountBasis": "base tracked paths plus this batch artifact"
+  },
+  "referenceScan": {
+    "command": "rg -n --hidden -S cupertino_icons|CupertinoIcons -g !tmp/** -g !.dart_tool/** -g !build/** .",
+    "runtimeOrTestMatches": 0,
+    "historicalMatches": 3,
+    "result": "pass"
+  },
+  "preservedOwners": [
+    "Flutter/platform assets",
+    "Flutter build and release tooling",
+    "other direct dependencies and dev_dependencies"
+  ],
+  "rollback": {
+    "required": true,
+    "method": "git revert <implementation-commit>",
+    "sourceFilesRemainInHistory": true,
+    "revertCommit": null
+  },
+  "validation": {
+    "pubGetOffline": "pass",
+    "flutterAnalyze": "pass: No issues found",
+    "focusedFlutterTests": "pass: 94 tests",
+    "fullFlutterTests": "pass: 860 tests, 3 platform skips, concurrency=1",
+    "windowsDebugBuild": "pass: build/windows/x64/runner/Debug/phongvu_opshub.exe",
+    "inventoryValidator": "pass",
+    "inventoryTests": "pass: 2/2",
+    "initialParallelFullSuite": "known-race: 1 transient polling assertion; targeted rerun pass"
+  }
+}

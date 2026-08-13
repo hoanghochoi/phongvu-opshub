@@ -4,8 +4,9 @@ Date: 2026-08-13
 
 ## Status
 
-Active — Phase 6 docs/plans reconciliation is the current slice. Phase 0–5
-and Phase 7A groundwork are verified/merged; CI shadow runs, artifact cleanup,
+Active — Phase 8 artifact/dependency/toolchain cleanup is the current slice
+(OPS-73 Flutter batch). Phase 0–7A groundwork and the Phase 7B shadow
+instrumentation are merged; live shadow metrics, remaining artifact batches,
 runtime waves and production release remain open.
 
 ## Outcome
@@ -23,9 +24,8 @@ branch, and is not converted row-for-row into Markdown.
 ## Authority and checkpoint
 
 - Linear parent: `OPS-64`.
-- Current slice: `OPS-71` (Phase 6 docs/plans reconciliation after protocol-v1
-  retirement) on a fresh lifecycle worktree created from the live
-  `origin/staging` checkpoint.
+- Current slice: `OPS-73` (Phase 8 artifact/dependency/toolchain cleanup) on a
+  fresh lifecycle worktree created from the live `origin/staging` checkpoint.
 - Previous slice: `OPS-70` (Phase 5 protocol-v1 retirement and Harness producer
   cleanup) on a fresh lifecycle worktree created from the live `origin/staging`
   checkpoint.
@@ -408,6 +408,19 @@ Phase 8 inventory checkpoint (OPS-73):
   package/migration/rollback review proves a candidate safe to remove.
 - [ ] Preserve `n8n/`, legacy runtime routes, platform assets and release
   allowlist entries until their operational owner and rollback path are proven.
+
+Flutter batch checkpoint:
+
+- [x] Candidate review identifies `cupertino_icons` as unused: no production or
+  test imports/symbols, no generated plugin owner, and existing audit notes
+  already call for removal after a platform build.
+- [x] Remove only the direct dependency and lock entry; keep all consumer-owned
+  assets and build tooling. Record before/after inventory and revert guidance
+  in `docs/migrations/ops-73-flutter-dependency-batch.json`. Offline pub
+  resolution, analyzer, focused (94) and full Flutter tests (860 with 3
+  platform skips), inventory checks, and Windows debug build pass. The first
+  unconstrained full-suite run exposed one existing polling timing race;
+  concurrency=1 rerun passed and the named test passed independently.
 
 Phase 7B implementation checkpoint (OPS-72):
 
