@@ -21,6 +21,12 @@ export const EXIT_CODES = Object.freeze({
   ENVIRONMENT: 5,
 });
 
+export const RETRY_POLICY = Object.freeze({
+  maxInfrastructureRetries: 1,
+  fingerprintStableRequired: true,
+  productFailureRetries: 0,
+});
+
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SHA_RE = /^[0-9a-f]{40}$/i;
 
@@ -495,16 +501,34 @@ export function verifyTask({ root = ROOT, options = {}, runCommandFn = runComman
     }
   }
   let exitCode = EXIT_CODES.PASS;
+  let staleDuringRetry = false;
   if (!normalizedOptions.dryRun) {
-    for (const command of commands) {
-      const result = sanitizeCommandResult(root, runCommandFn(root, command));
-      commandResults.push(result);
-      if (result.status === 'environment-failure') {
-        exitCode = EXIT_CODES.ENVIRONMENT;
-        break;
-      }
-      if (result.status === 'failed') {
-        exitCode = EXIT_CODES.PRODUCT_FAILURE;
+    commandLoop: for (const command of commands) {
+      let infrastructureRetries = 0;
+      while (true) {
+        const result = sanitizeCommandResult(root, runCommandFn(root, command));
+        commandResults.push({
+          ...result,
+          attempt: infrastructureRetries + 1,
+        });
+        if (result.status === 'environment-failure') {
+          if (infrastructureRetries < RETRY_POLICY.maxInfrastructureRetries) {
+            const retryFingerprint = fingerprint({ root, base, head, commandDefinitions });
+            if (retryFingerprint !== beforeFingerprint) {
+              staleDuringRetry = true;
+              exitCode = EXIT_CODES.STALE;
+              break commandLoop;
+            }
+            infrastructureRetries += 1;
+            continue;
+          }
+          exitCode = EXIT_CODES.ENVIRONMENT;
+          break commandLoop;
+        }
+        if (result.status === 'failed') {
+          exitCode = EXIT_CODES.PRODUCT_FAILURE;
+          break commandLoop;
+        }
         break;
       }
     }
@@ -539,6 +563,8 @@ export function verifyTask({ root = ROOT, options = {}, runCommandFn = runComman
       code: exitCode,
       dryRun: normalizedOptions.dryRun,
       commands: commandResults,
+      retryPolicy: RETRY_POLICY,
+      staleDuringRetry,
     },
     fingerprint: {
       before: beforeFingerprint,

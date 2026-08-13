@@ -4,7 +4,7 @@ import { appendFileSync, mkdirSync, mkdtempSync, realpathSync, renameSync, rmSyn
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { classifyCommandResult, collectChangedPaths, fingerprint, parseArgs, runCommand, verifyTask, EXIT_CODES } from '../../scripts/verify-task.mjs';
+import { classifyCommandResult, collectChangedPaths, fingerprint, parseArgs, runCommand, verifyTask, EXIT_CODES, RETRY_POLICY } from '../../scripts/verify-task.mjs';
 
 function git(cwd, args) {
   return execFileSync('git', args, { cwd, encoding: 'utf8', windowsHide: true }).trim();
@@ -69,6 +69,20 @@ test('harness profile owns legacy adapter, schema and CLI retirement paths', (t)
     'tests/core/test-schema-replay-command-contract.sh',
   ]) {
     write(root, relative, 'retirement fixture\n');
+  }
+  const result = verifyTask({ root, options: { dryRun: true } });
+  assert.equal(result.exitCode, EXIT_CODES.PASS);
+  assert.ok(result.result.selectedProfiles.includes('harness'));
+});
+
+test('harness profile owns repository verification metadata and fixtures', (t) => {
+  const root = repo(t);
+  for (const relative of [
+    '.gitattributes',
+    'tests/workflow/test-task-authority.sh',
+    'tests/fixtures/harness/legacy.json',
+  ]) {
+    write(root, relative, 'verification fixture\n');
   }
   const result = verifyTask({ root, options: { dryRun: true } });
   assert.equal(result.exitCode, EXIT_CODES.PASS);
@@ -230,6 +244,98 @@ test('environment failure is distinct from a product/test failure', (t) => {
   });
   assert.equal(result.exitCode, EXIT_CODES.ENVIRONMENT);
   assert.equal(result.result.result.commands[0].status, 'environment-failure');
+});
+
+test('infrastructure failure retries once only when the fingerprint is unchanged', (t) => {
+  const root = repo(t);
+  write(root, 'backend-go/realtime.go', 'package realtime\n');
+  let calls = 0;
+  const result = verifyTask({
+    root,
+    options: { dryRun: false },
+    runCommandFn: (_root, command) => {
+      calls += 1;
+      if (calls === 1) {
+        return {
+          id: command.id,
+          executable: command.executable,
+          argv: command.argv,
+          command: `${command.executable} ${command.argv.join(' ')}`,
+          cwd: root,
+          status: 'environment-failure',
+          exitCode: null,
+          durationMs: 1,
+          error: 'temporary tool unavailable',
+        };
+      }
+      return {
+        id: command.id,
+        executable: command.executable,
+        argv: command.argv,
+        command: `${command.executable} ${command.argv.join(' ')}`,
+        cwd: root,
+        status: 'passed',
+        exitCode: 0,
+        durationMs: 1,
+      };
+    },
+  });
+  assert.equal(calls, 2);
+  assert.equal(result.exitCode, EXIT_CODES.PASS);
+  assert.deepEqual(result.result.result.commands.map((entry) => entry.attempt), [1, 2]);
+  assert.equal(result.result.result.retryPolicy.maxInfrastructureRetries, RETRY_POLICY.maxInfrastructureRetries);
+});
+
+test('infrastructure retry becomes stale when the worktree changes between attempts', (t) => {
+  const root = repo(t);
+  write(root, 'backend-go/realtime.go', 'package realtime\n');
+  const result = verifyTask({
+    root,
+    options: { dryRun: false },
+    runCommandFn: (_root, command) => {
+      appendFileSync(path.join(root, 'backend-go/realtime.go'), '// changed during retry\n');
+      return {
+        id: command.id,
+        executable: command.executable,
+        argv: command.argv,
+        command: `${command.executable} ${command.argv.join(' ')}`,
+        cwd: root,
+        status: 'environment-failure',
+        exitCode: null,
+        durationMs: 1,
+        error: 'temporary tool unavailable',
+      };
+    },
+  });
+  assert.equal(result.exitCode, EXIT_CODES.STALE);
+  assert.equal(result.result.result.staleDuringRetry, true);
+  assert.equal(result.result.result.commands.length, 1);
+});
+
+test('product failures are never retried', (t) => {
+  const root = repo(t);
+  write(root, 'backend-go/realtime.go', 'package realtime\n');
+  let calls = 0;
+  const result = verifyTask({
+    root,
+    options: { dryRun: false },
+    runCommandFn: (_root, command) => {
+      calls += 1;
+      return {
+        id: command.id,
+        executable: command.executable,
+        argv: command.argv,
+        command: `${command.executable} ${command.argv.join(' ')}`,
+        cwd: root,
+        status: 'failed',
+        exitCode: 17,
+        durationMs: 1,
+      };
+    },
+  });
+  assert.equal(calls, 1);
+  assert.equal(result.exitCode, EXIT_CODES.PRODUCT_FAILURE);
+  assert.equal(result.result.result.retryPolicy.productFailureRetries, 0);
 });
 
 test('fingerprint includes structured command definitions', (t) => {
