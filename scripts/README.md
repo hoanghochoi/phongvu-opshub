@@ -52,6 +52,12 @@ profiles are additive; fingerprints include Git state, runner/config hashes
 and command definitions. Exit codes are `0` pass, `2` contract, `3`
 product/test, `4` stale and `5` environment/infrastructure.
 
+CI uses `scripts/verify-task-shadow.mjs` in additive shadow mode. It compares
+auto-selected profiles with the full ladder and uploads a sanitized JSON report;
+the existing blocking release checks remain unchanged. Infrastructure failures
+may retry once only while the fingerprint is unchanged. Product/test failures
+are never retried, and any change during a retry is a stale-proof failure.
+
 ## Legacy boundary
 
 Protocol v1, the SQLite control plane, and `harness-cli` are end-of-life. The

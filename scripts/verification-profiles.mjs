@@ -18,6 +18,10 @@ export const PROFILES = Object.freeze([
       /^scripts\/README\.md$/,
       /^docs\/(?:contracts|decisions|migrations|plans|templates)\//,
       /^scripts\/(?:adapter|schema)\//,
+      /^\.gitattributes$/,
+      /^scripts\/bootstrap-harness\.(?:ps1|sh)$/,
+      /^scripts\/bin\/harness(?:-cli)?\.exe\.sha256$/,
+      /^tests\/(?:README\.md|(?:bootstrap|fixtures|workflow)\/)/,
       /^scripts\/(?:agent-harness-block|archive-harness|build-harness|collect-harness|harness(?:-|$)|install-harness|materialize-core-state|promote-harness|review-harness-disposition|verify-(?:core|harness|materialized|plan-disposition|revision)|validate-changeset-rebuild)/,
       /^tests\/(?:adapter|boundary|changesets|ci|coherence|core|protocol|snapshot|worktrees)\//,
       /^tests\/docs\/test-doc-contracts\.sh$/,
@@ -60,7 +64,7 @@ export const PROFILES = Object.freeze([
   },
   {
     id: 'verification-runner',
-    pathPatterns: [/^scripts\/verify-task(?:-canary)?\.mjs$/, /^scripts\/verification-profiles\.mjs$/, /^tests\/verification\//],
+    pathPatterns: [/^scripts\/verify-task(?:-(?:canary|shadow))?\.mjs$/, /^scripts\/verification-profiles\.mjs$/, /^tests\/verification\//],
     consumers: ['generic-verification-runner', 'affected-consumer-orchestrator'],
     prerequisites: ['Node.js', 'Git'],
     commands: [

@@ -394,9 +394,27 @@ god-helper.
 - [x] Classify all 33 pre-slice active-tree files in the OPS-71 disposition
   ledger. Ten Linear-Done execution plans moved to `completed/`; OPS-44 and
   nine OPS-53 fragments were consolidated with history preserved.
-- [ ] Finish the remaining Phase 6 link/authority review and publish OPS-71.
+- [x] Finish the remaining Phase 6 link/authority review and publish OPS-71.
 - [ ] Run Phase 7B CI shadow metrics, Phase 8 artifact cleanup, Phase 9 runtime
   waves and Phase 10 final consolidation.
+
+Phase 7B implementation checkpoint (OPS-72):
+
+- Added `scripts/verify-task-shadow.mjs`, which compares auto-selected profiles
+  to the full ladder without replacing existing blocking checks and emits a
+  schema-v1 sanitized report for CI artifacts/step summaries.
+- Added `.github/workflows/verify-task-shadow.yml` for pull requests into
+  `staging`; the shadow job is observational (`continue-on-error`) and does not
+  weaken Release Guard or product checks.
+- `verify-task` now permits at most one infrastructure retry only when the
+  fingerprint remains unchanged; product failures are never retried and a
+  changed worktree during retry returns stale exit code `4`.
+- Expanded the Harness profile to own repository verification fixtures and
+  metadata so retirement/verification paths remain fail-closed without false
+  unmatched-path failures.
+- Unit proof: `node --test tests/verification/*.test.mjs` — 22/22 pass,
+  including shadow comparison, unknown-path contract, retry stability, stale
+  retry and no-retry product failure cases.
 
 ## Validation
 

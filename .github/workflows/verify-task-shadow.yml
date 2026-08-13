@@ -1,0 +1,63 @@
+name: Verify Task Shadow
+
+on:
+  pull_request:
+    branches:
+      - staging
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verify-task-shadow-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  shadow:
+    name: Affected verification shadow
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out pull request
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          fetch-depth: 0
+
+      - name: Run additive profile shadow
+        id: shadow
+        continue-on-error: true
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          mkdir -p tmp
+          node scripts/verify-task-shadow.mjs \
+            --base "$BASE_SHA" \
+            --json tmp/verify-task-shadow.json
+
+      - name: Publish shadow report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: verify-task-shadow-${{ github.event.pull_request.number }}
+          path: tmp/verify-task-shadow.json
+          if-no-files-found: error
+
+      - name: Add shadow summary
+        if: always()
+        shell: bash
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const report = JSON.parse(fs.readFileSync('tmp/verify-task-shadow.json', 'utf8'));
+          const lines = [
+            '## Verify-task shadow',
+            '',
+            `- Status: ${report.status}`,
+            `- Auto profiles: ${(report.autoSelectedProfiles || []).join(', ') || 'none'}`,
+            `- Omitted full-ladder profiles: ${(report.omittedProfiles || []).join(', ') || 'none'}`,
+            `- Changed paths: ${(report.changedPaths || []).length}`,
+            `- Blocking checks unchanged: ${report.blockingChecksUnchanged}`,
+            `- Classification: ${report.classification}`,
+          ];
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${lines.join('\n')}\n`);
+          NODE
