@@ -59,14 +59,13 @@ import {
   YES_NO_REASON_CODES,
   ZALO_REASON_CODES,
 } from './sales-reports.dto';
+import { SalesReportsScopeQueryRuntime } from './sales-reports-scope-query.runtime';
 
 const REPORT_TYPE_PURCHASED = 'PURCHASED';
 const REPORT_TYPE_NOT_PURCHASED = 'NOT_PURCHASED';
 const EXPORT_TYPE_HVTC = 'HVTC';
 const EXPORT_TYPE_REVENUE = 'REVENUE';
 const EXPORT_TYPE_INSTALLMENT = 'INSTALLMENT';
-const DEFAULT_PAGE_SIZE = 20;
-const DEFAULT_ORDER_COCKPIT_LIMIT = 20;
 const DEFAULT_ORDER_CACHE_SYNC_LIMIT = 50;
 const MAX_ORDER_CACHE_SYNC_LIMIT = 50;
 const ORDER_CACHE_SYNC_INTERVAL_MS = 60 * 1000;
@@ -83,11 +82,6 @@ const ERP_STATUS_PENDING_RECHECK_MINUTES = 60;
 const ERP_STATUS_PENDING_MIN_AGE_HOURS = 3;
 const ERP_STATUS_COMPLETED_RECHECK_DAYS = 2;
 const ERP_STATUS_COMPLETED_MAX_AGE_DAYS = 10;
-const MANAGED_SALES_REPORT_JOB_ROLE_CODES = new Set([
-  'STORE_MANAGER',
-  'AREA_MANAGER',
-  'REGION_MANAGER',
-]);
 const PERSONAL_OR_STORE_HOME_SUMMARY_JOB_ROLE_CODES = new Set([
   'SA',
   'TECH',
@@ -334,6 +328,7 @@ const INSTALLMENT_NO_INSTALLMENT_REASON_LABELS: Record<string, string> = {
 @Injectable()
 export class SalesReportsService implements OnApplicationBootstrap {
   private readonly logger = new Logger(SalesReportsService.name);
+  private readonly scopeQueryRuntime: SalesReportsScopeQueryRuntime;
   private orderCacheSyncRunning = false;
   private erpStatusSyncRunning = false;
 
@@ -344,7 +339,21 @@ export class SalesReportsService implements OnApplicationBootstrap {
     @Optional()
     private readonly featureService?: FeatureService,
     @Optional() private readonly redisService?: RedisService,
-  ) {}
+  ) {
+    this.scopeQueryRuntime = new SalesReportsScopeQueryRuntime(
+      prisma,
+      featureService,
+      {
+        normalizeEmail: (value) => this.normalizeEmail(value),
+        normalizeStoreCode: (value) => this.normalizeStoreCode(value),
+        optionalText: (value, maxLength) => this.optionalText(value, maxLength),
+        safeUserLabel: (value) => this.safeUserLabel(value),
+        todayVietnamDate: () => this.todayVietnamDate(),
+        formatVietnamDate: (value) => this.formatVietnamDate(value),
+        warn: (message) => this.logger.warn(message),
+      },
+    );
+  }
 
   async categoriesForReport() {
     return this.categories.listCategories();
@@ -2435,97 +2444,19 @@ export class SalesReportsService implements OnApplicationBootstrap {
   private normalizeOrderCockpitFilters(
     query: ListSalesReportOrdersDto,
   ): SalesReportOrderCockpitFilters {
-    const legacyDate = this.parseDateParam(query.date);
-    const requestedStartDate =
-      this.parseDateParam(query.startDate) ?? legacyDate;
-    const requestedEndDate = this.parseDateParam(query.endDate) ?? legacyDate;
-    let startDate: string;
-    let endDate: string;
-    if (!requestedStartDate && !requestedEndDate) {
-      endDate = this.todayVietnamDate();
-      const implicitStart = new Date(`${endDate}T00:00:00.000+07:00`);
-      implicitStart.setDate(implicitStart.getDate() - 29);
-      startDate = this.formatVietnamDate(implicitStart);
-    } else {
-      const fallbackDate = requestedStartDate ?? requestedEndDate!;
-      startDate = requestedStartDate ?? fallbackDate;
-      endDate = requestedEndDate ?? fallbackDate;
-    }
-    if (startDate > endDate) {
-      throw new BadRequestException(
-        'Ngày kết thúc phải bằng hoặc sau ngày bắt đầu.',
-      );
-    }
-    const start = new Date(`${startDate}T00:00:00.000+07:00`);
-    const end = new Date(`${endDate}T00:00:00.000+07:00`);
-    end.setDate(end.getDate() + 1);
-    const normalizeNumber = (value: unknown, fallback: number) => {
-      const normalized = Math.trunc(Number(value ?? fallback));
-      return Number.isFinite(normalized) ? normalized : fallback;
-    };
-    const limit = Math.max(
-      1,
-      Math.min(100, normalizeNumber(query.limit, DEFAULT_ORDER_COCKPIT_LIMIT)),
-    );
-    return {
-      startDate,
-      endDate,
-      dateRange: { start, end },
-      storeCode: this.normalizeStoreCode(query.storeCode),
-      userEmail: this.normalizeEmail(query.userEmail),
-      limit,
-      reportedPage: Math.max(0, normalizeNumber(query.reportedPage, 0)),
-      unreportedPage: Math.max(0, normalizeNumber(query.unreportedPage, 0)),
-    };
+    return this.scopeQueryRuntime.normalizeOrderCockpitFilters(query);
   }
 
   private orderCockpitReportFilterWhere(
     filters: SalesReportOrderCockpitFilters,
   ): Prisma.SalesReportWhereInput {
-    return this.andWhere(
-      filters.storeCode ? { storeCode: filters.storeCode } : {},
-      filters.userEmail
-        ? {
-            createdByEmail: {
-              equals: filters.userEmail,
-              mode: 'insensitive',
-            },
-          }
-        : {},
-    );
+    return this.scopeQueryRuntime.orderCockpitReportFilterWhere(filters);
   }
 
   private orderCockpitCacheFilterWhere(
     filters: SalesReportOrderCockpitFilters,
   ): Prisma.SalesReportErpOrderCacheWhereInput {
-    const userWhere = filters.userEmail
-      ? {
-          OR: [
-            {
-              consultantEmail: {
-                equals: filters.userEmail,
-                mode: Prisma.QueryMode.insensitive,
-              },
-            },
-            {
-              sellerEmail: {
-                equals: filters.userEmail,
-                mode: Prisma.QueryMode.insensitive,
-              },
-            },
-            {
-              sourceUserEmail: {
-                equals: filters.userEmail,
-                mode: Prisma.QueryMode.insensitive,
-              },
-            },
-          ],
-        }
-      : {};
-    return this.andOrderCacheWhere(
-      filters.storeCode ? { storeCode: filters.storeCode } : {},
-      userWhere,
-    );
+    return this.scopeQueryRuntime.orderCockpitCacheFilterWhere(filters);
   }
 
   private orderCockpitFilterOptions(reportRows: any[], cacheRows: any[]) {
@@ -3242,94 +3173,7 @@ export class SalesReportsService implements OnApplicationBootstrap {
   }
 
   private async canViewAdminSalesReports(user: any) {
-    if (isSuperAdminRole(user?.role)) return true;
-    const contextFeatureAccess = user?.__authContext?.featureAccess;
-    const hasContextFeatureDecision =
-      contextFeatureAccess &&
-      typeof contextFeatureAccess === 'object' &&
-      Object.prototype.hasOwnProperty.call(
-        contextFeatureAccess,
-        FEATURE_KEYS.ADMIN_SALES_REPORTS,
-      );
-    if (hasContextFeatureDecision) {
-      if (contextFeatureAccess[FEATURE_KEYS.ADMIN_SALES_REPORTS] === true) {
-        return true;
-      }
-    } else if (this.featureService?.canAccessFeature) {
-      try {
-        const canAccess = await this.featureService.canAccessFeature(
-          user,
-          FEATURE_KEYS.ADMIN_SALES_REPORTS,
-        );
-        if (canAccess) return true;
-      } catch (error) {
-        this.logger.warn(
-          `Sales report admin feature check failed: user=${this.safeUserLabel(user)} error=${String(error)}`,
-        );
-      }
-    }
-    if (
-      !hasContextFeatureDecision &&
-      (user?.featureAccess?.[FEATURE_KEYS.ADMIN_SALES_REPORTS] === true ||
-        user?.resolvedFeatureAccess?.[FEATURE_KEYS.ADMIN_SALES_REPORTS] ===
-          true)
-    ) {
-      return true;
-    }
-    return this.hasManagedSalesReportScope(user);
-  }
-
-  private async hasManagedSalesReportScope(user: any) {
-    const authContext = user?.__authContext;
-    if (
-      authContext &&
-      typeof authContext === 'object' &&
-      Object.prototype.hasOwnProperty.call(authContext, 'scopeSnapshot')
-    ) {
-      return this.hasManagedSalesReportJobRole(authContext.scopeSnapshot);
-    }
-    if (this.hasManagedSalesReportJobRole(user)) return true;
-    if (!user?.id || !(this.prisma as any).user?.findUnique) return false;
-    try {
-      const savedUser = await this.prisma.user.findUnique({
-        where: { id: user.id },
-        select: {
-          jobRoleCode: true,
-          jobRole: {
-            select: {
-              code: true,
-            },
-          },
-        },
-      });
-      return this.hasManagedSalesReportJobRole(savedUser);
-    } catch (error) {
-      this.logger.warn(
-        `Sales report managed scope check failed: user=${this.safeUserLabel(user)} error=${String(error)}`,
-      );
-      return false;
-    }
-  }
-
-  private hasManagedSalesReportJobRole(user: any) {
-    const candidates = [
-      user?.jobRoleCode,
-      user?.jobRole?.code,
-      user?.jobRole?.businessCode,
-    ];
-    return candidates
-      .map((value) =>
-        String(value || '')
-          .trim()
-          .toUpperCase(),
-      )
-      .some(
-        (code) =>
-          MANAGED_SALES_REPORT_JOB_ROLE_CODES.has(code) ||
-          Array.from(MANAGED_SALES_REPORT_JOB_ROLE_CODES).some((roleCode) =>
-            code.endsWith(`_${roleCode}`),
-          ),
-      );
+    return this.scopeQueryRuntime.canViewAdminSalesReports(user);
   }
 
   private hasPersonalOrStoreHomeSummaryRole(user: any, context?: any) {
@@ -3356,93 +3200,34 @@ export class SalesReportsService implements OnApplicationBootstrap {
   }
 
   private resolveUserReportScopeWhere(user: any): Prisma.SalesReportWhereInput {
-    const email = this.normalizeEmail(user?.email);
-    const userId = this.optionalText(user?.id, 80);
-    const parts: Prisma.SalesReportWhereInput[] = [];
-    if (userId) parts.push({ createdByUserId: userId });
-    if (email)
-      parts.push({ createdByEmail: { equals: email, mode: 'insensitive' } });
-    if (parts.length === 0) {
-      throw new ForbiddenException('Tài khoản chưa có thông tin người dùng.');
-    }
-    return { OR: parts };
+    return this.scopeQueryRuntime.resolveUserReportScopeWhere(user);
   }
 
   private async resolveAdminOrderCacheScopeWhere(
     user: any,
   ): Promise<Prisma.SalesReportErpOrderCacheWhereInput> {
-    if (isSuperAdminRole(user?.role)) return {};
-    const allowedStores = await this.resolveUserStores(user);
-    const allowedStoreCodes = allowedStores.map((store) => store.storeId);
-    if (allowedStoreCodes.length === 0) {
-      throw new ForbiddenException('Tài khoản chưa được gán showroom.');
-    }
-    return { storeCode: this.storeCodeWhere(allowedStoreCodes) as any };
+    return this.scopeQueryRuntime.resolveAdminOrderCacheScopeWhere(user);
   }
 
   private resolveUserOrderCacheScopeWhere(
     user: any,
     context: Awaited<ReturnType<SalesReportsService['resolveUserSnapshot']>>,
   ): Prisma.SalesReportErpOrderCacheWhereInput {
-    const email = this.normalizeEmail(context.createdByEmail ?? user?.email);
-    const personnelCode = this.optionalText(
-      context.createdByPersonnelCode,
-      120,
+    return this.scopeQueryRuntime.resolveUserOrderCacheScopeWhere(
+      user,
+      context,
     );
-    const parts: Prisma.SalesReportErpOrderCacheWhereInput[] = [];
-    if (email) {
-      parts.push(
-        { consultantEmail: { equals: email, mode: 'insensitive' } },
-        { sellerEmail: { equals: email, mode: 'insensitive' } },
-        { sourceUserEmail: { equals: email, mode: 'insensitive' } },
-      );
-    }
-    if (personnelCode) {
-      parts.push(
-        { consultantCustomId: { equals: personnelCode, mode: 'insensitive' } },
-        { sellerId: { equals: personnelCode, mode: 'insensitive' } },
-      );
-    }
-    if (parts.length === 0) {
-      throw new ForbiddenException('Tài khoản chưa có thông tin người dùng.');
-    }
-    return { OR: parts };
   }
 
   private reportedOrderDateWhere(dateRange: { start: Date; end: Date }) {
-    return {
-      OR: [
-        {
-          erpOrderCreatedAt: {
-            gte: dateRange.start,
-            lt: dateRange.end,
-          },
-        },
-        {
-          AND: [
-            { erpOrderCreatedAt: null },
-            {
-              submittedAt: {
-                gte: dateRange.start,
-                lt: dateRange.end,
-              },
-            },
-          ],
-        },
-      ],
-    };
+    return this.scopeQueryRuntime.reportedOrderDateWhere(dateRange);
   }
 
   private orderCacheDateWhere(dateRange: {
     start: Date;
     end: Date;
   }): Prisma.SalesReportErpOrderCacheWhereInput {
-    return {
-      orderCreatedAt: {
-        gte: dateRange.start,
-        lt: dateRange.end,
-      },
-    };
+    return this.scopeQueryRuntime.orderCacheDateWhere(dateRange);
   }
 
   private toCachedOrderCockpitDto(row: any) {
@@ -3519,7 +3304,10 @@ export class SalesReportsService implements OnApplicationBootstrap {
       platformId: row.erpPlatformId,
       consultantCustomId: row.erpConsultantCustomId,
       consultantName:
-        row.createdByName ?? row.erpConsultantName ?? row.consultantName ?? null,
+        row.createdByName ??
+        row.erpConsultantName ??
+        row.consultantName ??
+        null,
       employeeName: employee.name,
       employeeEmail: employee.email,
       sellerName: row.sellerName ?? null,
@@ -3868,24 +3656,7 @@ export class SalesReportsService implements OnApplicationBootstrap {
   }
 
   private async canUseSalesReport(user: any) {
-    if (isSuperAdminRole(user?.role)) return true;
-    if (this.featureService?.canAccessFeature) {
-      try {
-        const canAccess = await this.featureService.canAccessFeature(
-          user,
-          FEATURE_KEYS.SALES_REPORT,
-        );
-        if (canAccess) return true;
-      } catch (error) {
-        this.logger.warn(
-          `Sales report feature check failed: user=${this.safeUserLabel(user)} error=${String(error)}`,
-        );
-      }
-    }
-    return (
-      user?.featureAccess?.[FEATURE_KEYS.SALES_REPORT] === true ||
-      user?.resolvedFeatureAccess?.[FEATURE_KEYS.SALES_REPORT] === true
-    );
+    return this.scopeQueryRuntime.canUseSalesReport(user);
   }
 
   private async assertOrderNotExcluded(orderCode: string | null) {
@@ -3913,11 +3684,11 @@ export class SalesReportsService implements OnApplicationBootstrap {
   }
 
   private visibleSalesReportWhere(): Prisma.SalesReportWhereInput {
-    return { erpExcludedAt: null };
+    return this.scopeQueryRuntime.visibleSalesReportWhere();
   }
 
   private visibleOrderCacheWhere(): Prisma.SalesReportErpOrderCacheWhereInput {
-    return { excludedAt: null };
+    return this.scopeQueryRuntime.visibleOrderCacheWhere();
   }
 
   private orderExclusionState(
@@ -4147,77 +3918,11 @@ export class SalesReportsService implements OnApplicationBootstrap {
     user: any,
     input: { requestedAllStores?: boolean; storeIds?: string[] },
   ): Promise<Prisma.SalesReportWhereInput> {
-    if (isSuperAdminRole(user?.role)) {
-      if (input.storeIds?.length) {
-        return { storeCode: this.storeCodeWhere(input.storeIds) };
-      }
-      return {};
-    }
-    const allowedStores = await this.resolveUserStores(user);
-    const allowedStoreCodes = allowedStores.map((store) => store.storeId);
-    const selected =
-      input.storeIds && input.storeIds.length > 0
-        ? input.storeIds
-        : allowedStoreCodes;
-    if (input.requestedAllStores && allowedStoreCodes.length === 0) {
-      throw new ForbiddenException('Tài khoản chưa được gán showroom.');
-    }
-    const invalid = selected.find(
-      (storeCode) => !allowedStoreCodes.includes(storeCode),
-    );
-    if (invalid) {
-      throw new ForbiddenException(
-        'Chỉ được xem báo cáo trong phạm vi được gán.',
-      );
-    }
-    return { storeCode: this.storeCodeWhere(selected) };
+    return this.scopeQueryRuntime.resolveAdminScopeWhere(user, input);
   }
 
   private async resolveUserStores(user: any) {
-    const storesByCode = new Map<string, any>();
-    const pushStore = (store: any) => {
-      const storeCode = String(store?.storeId || '')
-        .trim()
-        .toUpperCase();
-      if (storeCode && !storesByCode.has(storeCode)) {
-        storesByCode.set(storeCode, store);
-      }
-    };
-    if (user?.id) {
-      const savedUser =
-        user?.__authContext?.scopeSnapshot ??
-        (await this.prisma.user.findUnique({
-          where: { id: user.id },
-          include: {
-            store: true,
-            organizationAssignments: {
-              where: { isActive: true },
-              orderBy: [
-                { isPrimary: Prisma.SortOrder.desc },
-                { createdAt: Prisma.SortOrder.asc },
-              ],
-              include: {
-                organizationNode: {
-                  include: organizationNodeStoreTreeInclude(),
-                },
-              },
-            },
-          },
-        }));
-      pushStore(savedUser?.store);
-      for (const assignment of savedUser?.organizationAssignments ?? []) {
-        for (const store of storesForOrganizationNodeTree(
-          assignment.organizationNode,
-        )) {
-          pushStore(store);
-        }
-      }
-    }
-    const stores = Array.from(storesByCode.values());
-    if (stores.length === 0) {
-      throw new ForbiddenException('Tài khoản chưa được gán showroom.');
-    }
-    return stores;
+    return this.scopeQueryRuntime.resolveUserStores(user);
   }
 
   private async resolveHomeSummaryAssignments(user: any) {
@@ -4436,68 +4141,11 @@ export class SalesReportsService implements OnApplicationBootstrap {
   }
 
   private normalizeFilters(query: ListSalesReportsDto): SalesReportFilters {
-    return {
-      reportType:
-        query.reportType && query.reportType !== 'ALL'
-          ? this.normalizeEnum(query.reportType, SALES_REPORT_TYPES)
-          : null,
-      orderCode: this.optionalText(query.orderCode, 80),
-      categoryGroupId: this.optionalText(query.categoryGroupId, 40),
-      reporter: this.optionalText(query.reporter, 120),
-      storeIds: this.parseStoreCodes(query.storeIds),
-      requestedAllStores: query.allStores === 'true',
-      dateRange: this.parseDateRange(query.startDate, query.endDate),
-      page: Math.max(0, Number(query.page ?? 0)),
-      limit: Math.max(
-        1,
-        Math.min(100, Number(query.limit ?? DEFAULT_PAGE_SIZE)),
-      ),
-    };
+    return this.scopeQueryRuntime.normalizeFilters(query);
   }
 
   private buildFilterWhere(filters: SalesReportFilters) {
-    const parts: Prisma.SalesReportWhereInput[] = [];
-    if (filters.reportType) parts.push({ reportType: filters.reportType });
-    if (filters.orderCode) parts.push({ orderCode: filters.orderCode });
-    if (filters.categoryGroupId) {
-      parts.push({
-        OR: [
-          { categoryGroupId: filters.categoryGroupId },
-          {
-            categorySelections: {
-              some: { categoryGroupId: filters.categoryGroupId },
-            },
-          },
-        ],
-      });
-    }
-    if (filters.reporter) {
-      parts.push({
-        OR: [
-          {
-            createdByEmail: { contains: filters.reporter, mode: 'insensitive' },
-          },
-          {
-            createdByName: { contains: filters.reporter, mode: 'insensitive' },
-          },
-          {
-            createdByPersonnelCode: {
-              contains: filters.reporter,
-              mode: 'insensitive',
-            },
-          },
-        ],
-      });
-    }
-    if (filters.dateRange) {
-      parts.push({
-        submittedAt: {
-          gte: filters.dateRange.start,
-          lt: filters.dateRange.end,
-        },
-      });
-    }
-    return this.andWhere(...parts);
+    return this.scopeQueryRuntime.buildFilterWhere(filters);
   }
 
   private async attachCategoryTypes(erpOrder: SalesReportErpOrder) {
@@ -5149,21 +4797,11 @@ export class SalesReportsService implements OnApplicationBootstrap {
   }
 
   private parseStoreCodes(value: unknown) {
-    return String(value || '')
-      .split(',')
-      .map((item) => item.trim().toUpperCase())
-      .filter(Boolean)
-      .slice(0, 100);
+    return this.scopeQueryRuntime.parseStoreCodes(value);
   }
 
   private parseDateRange(startDate?: string, endDate?: string) {
-    const start = this.parseDateOnly(startDate);
-    const end = this.parseDateOnly(endDate);
-    if (!start && !end) return null;
-    const rangeStart = start ?? new Date('2000-01-01T00:00:00.000Z');
-    const rangeEnd = end ?? new Date();
-    rangeEnd.setDate(rangeEnd.getDate() + 1);
-    return { start: rangeStart, end: rangeEnd };
+    return this.scopeQueryRuntime.parseDateRange(startDate, endDate);
   }
 
   private parseDateParam(value?: string) {
@@ -5476,19 +5114,13 @@ export class SalesReportsService implements OnApplicationBootstrap {
   }
 
   private storeCodeWhere(storeCodes: string[]) {
-    return storeCodes.length === 1 ? storeCodes[0] : { in: storeCodes };
+    return this.scopeQueryRuntime.storeCodeWhere(storeCodes);
   }
 
   private andWhere(
     ...parts: Array<Prisma.SalesReportWhereInput | null | undefined>
   ) {
-    const filtered = parts.filter(
-      (part): part is Prisma.SalesReportWhereInput =>
-        Boolean(part && Object.keys(part).length > 0),
-    );
-    if (filtered.length === 0) return {};
-    if (filtered.length === 1) return filtered[0];
-    return { AND: filtered };
+    return this.scopeQueryRuntime.andWhere(...parts);
   }
 
   private andOrderCacheWhere(
@@ -5496,13 +5128,7 @@ export class SalesReportsService implements OnApplicationBootstrap {
       Prisma.SalesReportErpOrderCacheWhereInput | null | undefined
     >
   ) {
-    const filtered = parts.filter(
-      (part): part is Prisma.SalesReportErpOrderCacheWhereInput =>
-        Boolean(part && Object.keys(part).length > 0),
-    );
-    if (filtered.length === 0) return {};
-    if (filtered.length === 1) return filtered[0];
-    return { AND: filtered };
+    return this.scopeQueryRuntime.andOrderCacheWhere(...parts);
   }
 
   private answerLabel(code: string) {
