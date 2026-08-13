@@ -294,9 +294,12 @@ for source_id in map(str, range(3, 11)):
     BACKLOG_TARGETS[source_id] = ("OPS-76", "grouped-product-design-follow-up")
 for source_id in ("11", "12", "13"):
     BACKLOG_TARGETS[source_id] = ("OPS-77", "grouped-realtime-collaboration-follow-up")
+# Keep the Linear grouping explicit at the boundary where the two ranges
+# overlap numerically.  A broad ``range(15, 26)`` would silently overwrite
+# backlog 17, which belongs to the release/staging follow-up group.
 for source_id in ("14", "17", "26"):
     BACKLOG_TARGETS[source_id] = ("OPS-78", "grouped-release-staging-follow-up")
-for source_id in map(str, range(15, 26)):
+for source_id in ("15", "16", "18", "19", "20", "21", "22", "23", "24", "25"):
     BACKLOG_TARGETS[source_id] = ("OPS-79", "grouped-verification-guardrail-follow-up")
 BACKLOG_TARGETS["27"] = ("OPS-76", "grouped-product-design-follow-up")
 

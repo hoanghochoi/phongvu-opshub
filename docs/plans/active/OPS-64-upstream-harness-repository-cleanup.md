@@ -5,9 +5,9 @@ Date: 2026-08-13
 ## Status
 
 Active — Phase 2 disposable lifecycle proof, Phase 4 runner/canaries, and
-Phase 7A Flutter test-environment proof are verified. Phase 3 promotion,
-protocol-v1 retirement, docs/plans cleanup, CI shadow runs, runtime waves and
-production release remain open.
+Phase 7A Flutter test-environment proof are verified. Phase 3A is merged and
+the current slice is Phase 3B promotion; protocol-v1 retirement, docs/plans
+cleanup, CI shadow runs, runtime waves and production release remain open.
 
 ## Outcome
 
@@ -24,7 +24,7 @@ branch, and is not converted row-for-row into Markdown.
 ## Authority and checkpoint
 
 - Linear parent: `OPS-64`.
-- Current slice: `OPS-68` (Phase 3A legacy disposition ledger) on a fresh
+- Current slice: `OPS-69` (Phase 3B current-authority promotion) on a fresh
   lifecycle worktree created from the live `origin/staging` checkpoint.
 - Previous slice: `OPS-65` (Phase 0 baseline/master plan), Phase 0-1 archive
   tooling, and Phase 2 upstream adoption; PR #175 is merged into `staging`.
@@ -35,12 +35,19 @@ branch, and is not converted row-for-row into Markdown.
   were not reset, removed, or rewritten.
 - Implementation worktree: `../opshub-ops-64-harness-cleanup-phase-0-1`.
 
-- Current OPS-68 implementation worktree:
+- OPS-68 implementation worktree:
   `../opshub-ops-68-disposition-ledger-fresh`.
-- Current OPS-68 branch: `codex/ops-68-disposition-ledger-fresh`.
-- Current OPS-68 base SHA: `1d57a9b13796182190b15f3014f728005278f98c`.
-- Current OPS-68 worktree was created through `scripts/task-lifecycle.mjs
-  start --execute`; it has not been pushed or opened as a PR.
+- OPS-68 branch: `codex/ops-68-disposition-ledger-fresh`; PR #176 merged into
+  `staging` at `ee74d0efb9b16cda0725d8940b0a1e544d0ba006`, and its post-merge
+  lifecycle `finish --execute` gate passed.
+- Current OPS-69 implementation worktree:
+  `../opshub-ops-69-current-authority-promotion`.
+- Current OPS-69 branch:
+  `codex/ops-69-current-authority-promotion-and-linear-follow-ups`.
+- Current OPS-69 base SHA and live `origin/staging` checkpoint:
+  `ee74d0efb9b16cda0725d8940b0a1e544d0ba006`.
+- OPS-69 was created from that exact lifecycle checkpoint; it is not yet
+  published or merged.
 
 Before every later slice, repeat the lifecycle start gate and replace this
 checkpoint if the live `origin/staging` SHA changes. A proof run is stale when
@@ -362,9 +369,15 @@ god-helper.
 - [x] Publish `OPS-65` through the guarded feature-PR flow: PR #175 merged into
   `staging` at `1d57a9b13796182190b15f3014f728005278f98c`, and the post-merge
   lifecycle finish gate passed.
-- [ ] Publish `OPS-68` through the guarded feature-PR flow. Until its PR merges
-  into `staging` and `finish` passes, Phase 5+ mutations are blocked by
-  lifecycle policy; no direct push or PR authority is assumed.
+- [x] Publish `OPS-68` through the guarded feature-PR flow: PR #176 merged into
+  `staging` at `ee74d0efb9b16cda0725d8940b0a1e544d0ba006`, and the post-merge
+  lifecycle `finish --execute` gate passed.
+- [ ] Publish `OPS-69` through the guarded feature-PR flow. Phase 3B remains
+  incomplete until the promotion artifact, exact-base proof, Linear note and
+  PR lifecycle gates all pass.
+- [ ] Retire protocol-v1/SQLite producer surfaces only after the complete Phase
+  3 promotion gate and canary evidence are accepted; no direct push or status
+  transition is inferred.
 
 ## Validation
 
@@ -423,13 +436,14 @@ Phase 4 evidence:
 Phase 3A disposition evidence:
 
 - Branch/worktree: `codex/ops-68-disposition-ledger-fresh`, based on
-  `1d57a9b13796182190b15f3014f728005278f98c`; final local commit
-  `74e16ff63a51f73e6b4a2752135d291c7f0b9949`, and no remote publication has
-  occurred.
+  `1d57a9b13796182190b15f3014f728005278f98c`; PR #176 merged into `staging`
+  at `ee74d0efb9b16cda0725d8940b0a1e544d0ba006`, followed by a passing
+  lifecycle `finish --execute` gate.
 - `python -m unittest discover -s tests/migration -p 'test_*.py' -q`: all
   migration tests pass (archive and disposition review suites).
-- `review-harness-disposition.py --input ...`: PASS, 199 records; ledger SHA
-  `aa1d2dcef48d5761861dac058cc521f7e9f97a915d0aa70cbdfcffacea3d2a00`.
+- `review-harness-disposition.py --input ...`: PASS, 199 records; after
+  correcting the overlapping backlog mapping (`17 → OPS-78`), the ledger SHA
+  is `92f114684cb52823fe77d928674b7353e14edb931bf431f09e582435b5d35858`.
 - `validate-archive` now requires a tracked `--linear-targets` ledger for
   `OPS-*` references and rejects missing/duplicate/fabricated target IDs; the
   live archive validation passed with all six declared Linear targets.
@@ -451,6 +465,37 @@ Phase 3A disposition evidence:
   zero missing required targets and no absolute local paths or raw payloads.
 - Linear implementation/proof comment was recorded on `OPS-68` and read back;
   the issue remains Backlog because no status transition was authorized.
+
+Phase 3B current-authority promotion evidence:
+
+- Branch/worktree: `codex/ops-69-current-authority-promotion-and-linear-follow-ups`,
+  based on `ee74d0efb9b16cda0725d8940b0a1e544d0ba006`; publication remains
+  pending the guarded PR flow.
+- The final local commit SHA is recorded in the Linear proof note and the
+  exact-base `verify-task` JSON output; the report's `repositoryRevision`
+  remains the exact Phase 3B input checkpoint
+  `ee74d0efb9b16cda0725d8940b0a1e544d0ba006` so the artifact does not create a
+  self-referential commit-hash cycle.
+- Corrected ledger/archive linkage was revalidated against both immutable local
+  archive copies: `199` records, counts `92/37/7/27/36`, source DB SHA
+  `7b529ccf63f9e3709d04e5f470d524325d51c8d7030d18cb6e208d66bb3255e5`, and
+  archive copy SHA `29951f9e16a6c69e4cbd6b8c697f23fa9ca88d513784c00b3dd35353a7ddd955`.
+- `scripts/promote-harness-authority.py` generated and round-tripped the
+  payload-free `docs/migrations/harness-v1-authority-promotion.json` report:
+  `199` records, `70` target-bearing records, `34` Git destinations and six
+  existing Linear follow-up targets. Policy asserts archive read-only,
+  database-written false, raw-payload committed false and no row-for-row
+  Markdown migration.
+- The promotion report records `OPS-78` backlog coverage as `[14,17,26]` and
+  `OPS-79` coverage as `[15,16,18,19,20,21,22,23,24,25]`; the verifier now
+  rejects target manifests whose report IDs do not match the tracked ledger.
+- Promotion validation now recomputes the complete report from the ledger and
+  rejects semantic tampering or source/schema drift against the archive
+  manifest; regression coverage includes both failure classes.
+- Migration tests: `30/30` pass; archive validator and disposition reviewer
+  both pass against the immutable copies; promotion generation and round-trip
+  both pass. Exact-base `verify-task` and Linear proof read-back pass; only the
+  guarded push/PR/merge lifecycle remains for this slice.
 
 Verification hardening evidence:
 
@@ -555,9 +600,9 @@ code change in this slice is limited to the test-only `AppLogger.flushForTesting
 coordination hook; production logging behavior is unchanged.
 The Linear implementation/proof note is recorded on `OPS-65`, and OPS-65 PR
 #175 is merged into `staging`; it remains open until production deployment.
-OPS-68 has a local, read-only archive/disposition proof but no status
-transition, push, PR or production proof. Review the exact diff and run the
-lifecycle publication gates before opening the next child issue.
+OPS-68 is merged into `staging` with its lifecycle finish gate passed. OPS-69
+now carries the corrected Phase 3A hash linkage and Phase 3B promotion report;
+it is not complete until its exact final SHA is published, reviewed and merged.
 Move this plan to
 `docs/plans/completed/` only after the full initiative's final validation and
 production lifecycle are complete.
