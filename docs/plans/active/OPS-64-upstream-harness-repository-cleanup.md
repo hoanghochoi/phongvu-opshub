@@ -398,6 +398,17 @@ god-helper.
 - [ ] Run Phase 7B CI shadow metrics, Phase 8 artifact cleanup, Phase 9 runtime
   waves and Phase 10 final consolidation.
 
+Phase 8 inventory checkpoint (OPS-73):
+
+- [ ] Inventory-only slice: add `docs/migrations/ops-73-artifact-inventory.json`
+  with exact branch/HEAD, tracked/ignored paths, dependency manifests, asset
+  hashes, runtime hotspots, owner rules and generated-file policy.
+- [ ] Validate the inventory with `scripts/verify-artifact-inventory.mjs`;
+  deletion batches must remain empty until an independent reference/build/
+  package/migration/rollback review proves a candidate safe to remove.
+- [ ] Preserve `n8n/`, legacy runtime routes, platform assets and release
+  allowlist entries until their operational owner and rollback path are proven.
+
 Phase 7B implementation checkpoint (OPS-72):
 
 - Added `scripts/verify-task-shadow.mjs`, which compares auto-selected profiles
