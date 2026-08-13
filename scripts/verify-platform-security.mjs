@@ -232,15 +232,18 @@ for (const [expected, label] of [
 ]) {
   contains(caddy, expected, label);
 }
+const dedicatedBidvMarker = '\n# Dedicated BIDV H2H origin.';
+const staffCaddy = caddy.split(dedicatedBidvMarker, 1)[0];
+assert.ok(staffCaddy.length < caddy.length, 'Dedicated BIDV site marker is missing');
 assert.equal(
-  caddy.split('dynamic a api 3000').length - 1,
+  staffCaddy.split('dynamic a api 3000').length - 1,
   2,
-  'Caddy must discover every scaled API replica for both API routes',
+  'Staff Caddy site must discover every scaled API replica for both API routes',
 );
 assert.equal(
-  caddy.split('lb_policy round_robin').length - 1,
+  staffCaddy.split('lb_policy round_robin').length - 1,
   2,
-  'Caddy must distribute both API routes across discovered replicas',
+  'Staff Caddy site must distribute both API routes across discovered replicas',
 );
 excludes(caddy, 'reverse_proxy api:3000', 'single logical API upstream');
 

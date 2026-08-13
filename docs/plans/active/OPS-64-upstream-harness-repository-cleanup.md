@@ -5,7 +5,7 @@ Date: 2026-08-13
 ## Status
 
 Active — Phase 8 artifact/dependency/toolchain cleanup is the current slice
-(OPS-73 NestJS dependency batch). Phase 0–7A groundwork and the Phase 7B
+(OPS-73 Go/deployment review batch). Phase 0–7A groundwork and the Phase 7B
 shadow instrumentation are merged; live shadow metrics, remaining artifact
 batches, runtime waves and production release remain open.
 
@@ -25,8 +25,8 @@ branch, and is not converted row-for-row into Markdown.
 
 - Linear parent: `OPS-64`.
 - Current slice: `OPS-73` (Phase 8 artifact/dependency/toolchain cleanup),
-  NestJS dependency batch, on a fresh lifecycle worktree created from the live
-  `origin/staging` checkpoint.
+  Go/deployment review batch, on a fresh lifecycle worktree created from the
+  live `origin/staging` checkpoint.
 - Previous slice: `OPS-70` (Phase 5 protocol-v1 retirement and Harness producer
   cleanup) on a fresh lifecycle worktree created from the live `origin/staging`
   checkpoint.
@@ -34,13 +34,17 @@ branch, and is not converted row-for-row into Markdown.
   tooling, and Phase 2 upstream adoption; PR #175 is merged into `staging`.
 - Historical Phase 0-1 branch: `codex/ops-64-harness-cleanup-phase-0-1`;
   its exact base was `6525b6e3805eb666a86066cfe98469d5dba4af53`.
-- Current OPS-73 NestJS branch: `codex/ops-73-nestjs-artifact-dependency-audit`.
-- Current OPS-73 NestJS base/HEAD checkpoint: `b2a2df9cd47e7f1007ad92872c7b8547353656dc`.
-- `origin/staging` matched `b2a2df9cd47e7f1007ad92872c7b8547353656dc` when the
-  current lifecycle start gate passed.
+- Historical OPS-73 NestJS branch: `codex/ops-73-nestjs-artifact-dependency-audit`;
+  its base was `b2a2df9cd47e7f1007ad92872c7b8547353656dc` and PR #185 merged
+  into staging at `ccff928f703c3a5dc0969798e6d02905d7c164ce`.
+- Current OPS-73 Go/deployment branch: `codex/ops-73-go-deployment-artifact-audit`.
+- Current OPS-73 Go/deployment base/HEAD checkpoint:
+  `ccff928f703c3a5dc0969798e6d02905d7c164ce`.
+- `origin/staging` matched `ccff928f703c3a5dc0969798e6d02905d7c164ce` when
+  the current lifecycle start gate passed.
 - Canonical staging worktree was clean. Existing worktrees were preserved and
   were not reset, removed, or rewritten.
-- Current implementation worktree: `../opshub-ops-73-nestjs-artifact-audit`.
+- Current implementation worktree: `../opshub-ops-73-go-deployment-audit`.
 
 - OPS-68 implementation worktree:
   `../opshub-ops-68-disposition-ledger-fresh`.
@@ -443,6 +447,24 @@ NestJS batch checkpoint:
   subprocess buffer after a post-build ignored-output scan hit Windows
   `spawnSync git ENOBUFS`; this keeps generated output ignored while making
   repeatable inventory checks independent of build artifact volume.
+
+Go/deployment batch checkpoint:
+
+- [x] Re-collected the machine inventory at `ccff928f`; 5,981 tracked paths,
+  16 Go paths, 38 deployment paths and zero existing ignored paths were
+  recorded. The reviewed artifact is
+  `docs/migrations/ops-73-go-deployment-batch.json`.
+- [x] Reviewed every Go direct module and all deployment/runtime paths against
+  source imports, Docker/release allowlists, workflows, smoke checks and
+  rollback helpers. All candidates retain an operational owner; no safe
+  deletion candidate exists and no Go module graph change was made.
+- [x] Corrected two validator-only authority drifts without changing runtime:
+  OPS-39 now asserts the current `bankapis*.hoanghochoi.com` domains, and the
+  platform security replica count scopes to the staff Caddy site before the
+  dedicated BIDV site. Go tests/vet, Caddy/platform contracts, OPS-40 tests,
+  static transaction rehearsal and inventory validation pass.
+- [x] Retained `backend-go/`, `deploy/home-server/`, `deploy/staging/` and
+  `deploy/windows/`; deletion status is explicitly `no-safe-deletion-candidate`.
 
 Phase 7B implementation checkpoint (OPS-72):
 

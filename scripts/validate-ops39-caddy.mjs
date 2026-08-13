@@ -33,10 +33,10 @@ for (const forbidden of [
   );
 }
 assert.match(compose, /BIDV_H2H_DOMAIN: \$\{BIDV_H2H_DOMAIN:\?/);
-assert.match(productionEnv, /BIDV_H2H_DOMAIN=bidv\.opshub\.hoanghochoi\.com/);
+assert.match(productionEnv, /BIDV_H2H_DOMAIN=bankapis\.hoanghochoi\.com/);
 assert.match(
   stagingEnv,
-  /BIDV_H2H_DOMAIN=bidv-staging\.opshub\.hoanghochoi\.com/,
+  /BIDV_H2H_DOMAIN=bankapis-staging\.hoanghochoi\.com/,
 );
 for (const source of [productionEnv, stagingEnv]) {
   assert.match(source, /BIDV_H2H_INGEST_ENABLED=false/);
