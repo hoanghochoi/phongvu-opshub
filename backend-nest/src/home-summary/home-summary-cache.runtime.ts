@@ -3,6 +3,7 @@ import { logFingerprint, safeLogError } from '../common/log-sanitizer';
 import type { GetHomeSummaryQueryDto } from './home-summary.dto';
 import type {
   HomeSummaryComputationContext,
+  HomeSummaryCacheCoverageRange,
   HomeSummaryInFlightEntry,
   HomeSummaryProjectionInvalidation,
   HomeSummaryProjectionSnapshot,
@@ -43,15 +44,12 @@ type CacheRuntimeExtendDailySeries = (
 
 type CacheRuntimeCallbacks = {
   isCacheEnabled: () => boolean;
-  responseCacheKey: (
-    user: any,
-    query: GetHomeSummaryQueryDto,
-  ) => string;
+  responseCacheKey: (user: any, query: GetHomeSummaryQueryDto) => string;
   parseSummaryRange: (query: GetHomeSummaryQueryDto) => SummaryDateRange;
-  summaryCacheCoverageRange: (
+  summaryCacheCoverageRanges: (
     range: Pick<SummaryDateRange, 'startDate' | 'endDate'>,
     query: GetHomeSummaryQueryDto,
-  ) => Pick<SummaryDateRange, 'startDate' | 'endDate'>;
+  ) => HomeSummaryCacheCoverageRange[];
   rangeDateKeys: (startDate: string, endDate: string) => string[];
   computeSummary: CacheRuntimeComputeSummary;
   extendLegacySummaryWithDailySeries: CacheRuntimeExtendDailySeries;
@@ -271,7 +269,12 @@ export class HomeSummaryCacheRuntime {
     let coveredCacheEntries = 0;
     for (const [cacheKey, entry] of this.summaryResponseCache.entries()) {
       if (!this.cacheEntryNeedsInvalidation(entry, changedVersionsByDate)) {
-        if (this.rangeOverlapsDates(entry, changedVersionsByDate.keys())) {
+        if (
+          this.rangeOverlapsDates(
+            entry.coverageRanges,
+            changedVersionsByDate.keys(),
+          )
+        ) {
           coveredCacheEntries += 1;
         }
         continue;
@@ -287,7 +290,10 @@ export class HomeSummaryCacheRuntime {
         entry.invalidated ||
         (cached &&
           !this.cacheEntryNeedsInvalidation(cached, changedVersionsByDate)) ||
-        !this.rangeOverlapsDates(entry, changedVersionsByDate.keys())
+        !this.rangeOverlapsDates(
+          entry.coverageRanges,
+          changedVersionsByDate.keys(),
+        )
       ) {
         continue;
       }
@@ -358,15 +364,12 @@ export class HomeSummaryCacheRuntime {
       return pending;
     }
 
-    const pendingLoad = this.callbacks.loadScopeOptions(
-      contextUser,
-      user,
-      cacheKey,
-      cacheLabel,
-    ).then((response) => {
-      this.storeScopeOptionsCache(cacheKey, response);
-      return response;
-    });
+    const pendingLoad = this.callbacks
+      .loadScopeOptions(contextUser, user, cacheKey, cacheLabel)
+      .then((response) => {
+        this.storeScopeOptionsCache(cacheKey, response);
+        return response;
+      });
     this.scopeOptionsInFlight.set(cacheKey, pendingLoad);
     try {
       return await pendingLoad;
@@ -378,7 +381,10 @@ export class HomeSummaryCacheRuntime {
   }
 
   async getOrLoadSummarySupportValue<T>(
-    cacheName: 'projection_freshness' | 'principal_progress' | 'shared_scope_progress',
+    cacheName:
+      | 'projection_freshness'
+      | 'principal_progress'
+      | 'shared_scope_progress',
     key: string,
     label: string,
     loader: () => Promise<T>,
@@ -476,7 +482,10 @@ export class HomeSummaryCacheRuntime {
     range: SummaryDateRange,
     source: HomeSummaryInFlightEntry['source'],
   ) {
-    const cacheRange = this.callbacks.summaryCacheCoverageRange(range, query);
+    const coverageRanges = this.callbacks.summaryCacheCoverageRanges(
+      range,
+      query,
+    );
     let inFlight: HomeSummaryInFlightEntry;
     const promise = this.callbacks
       .computeSummary(user, query)
@@ -487,7 +496,7 @@ export class HomeSummaryCacheRuntime {
           );
           return response;
         }
-        this.storeSummaryResponseCache(cacheKey, response, cacheRange);
+        this.storeSummaryResponseCache(cacheKey, response, coverageRanges);
         this.logger.log(
           `Home summary cache stored: key=${cacheLabel} source=${source} ttlMs=${HOME_SUMMARY_RESPONSE_CACHE_TTL_MS}`,
         );
@@ -500,8 +509,9 @@ export class HomeSummaryCacheRuntime {
       });
     inFlight = {
       promise,
-      startDate: cacheRange.startDate,
-      endDate: cacheRange.endDate,
+      startDate: coverageRanges[0].startDate,
+      endDate: coverageRanges[0].endDate,
+      coverageRanges,
       invalidated: false,
       source,
     };
@@ -556,7 +566,10 @@ export class HomeSummaryCacheRuntime {
     legacyResponse: HomeSummaryResponse,
     context: HomeSummaryComputationContext,
   ) {
-    const cacheRange = this.callbacks.summaryCacheCoverageRange(range, query);
+    const coverageRanges = this.callbacks.summaryCacheCoverageRanges(
+      range,
+      query,
+    );
     let inFlight: HomeSummaryInFlightEntry;
     const startedAt = Date.now();
     const promise = this.callbacks
@@ -574,7 +587,7 @@ export class HomeSummaryCacheRuntime {
           );
           return response;
         }
-        this.storeSummaryResponseCache(cacheKey, response, cacheRange);
+        this.storeSummaryResponseCache(cacheKey, response, coverageRanges);
         this.logger.log(
           `Home summary daily cache extension stored: key=${cacheLabel} scope=${context.salesMetricsScope.scope} points=${response.dailySeries?.length ?? 0} durationMs=${Date.now() - startedAt}`,
         );
@@ -587,8 +600,9 @@ export class HomeSummaryCacheRuntime {
       });
     inFlight = {
       promise,
-      startDate: cacheRange.startDate,
-      endDate: cacheRange.endDate,
+      startDate: coverageRanges[0].startDate,
+      endDate: coverageRanges[0].endDate,
+      coverageRanges,
       invalidated: false,
       source: 'daily_extension',
     };
@@ -601,7 +615,7 @@ export class HomeSummaryCacheRuntime {
     changes: Map<string, number | null>,
   ) {
     for (const [date, version] of changes) {
-      if (date < entry.startDate || date > entry.endDate) continue;
+      if (!this.rangeOverlapsDates(entry.coverageRanges, [date])) continue;
       if (version === null) return true;
       const cachedVersion = entry.projectionVersionsByDate.get(date) ?? 0;
       if (cachedVersion < version) return true;
@@ -610,11 +624,15 @@ export class HomeSummaryCacheRuntime {
   }
 
   private rangeOverlapsDates(
-    range: Pick<SummaryDateRange, 'startDate' | 'endDate'>,
+    ranges: Array<Pick<SummaryDateRange, 'startDate' | 'endDate'>>,
     dates: Iterable<string>,
   ) {
     for (const date of dates) {
-      if (date >= range.startDate && date <= range.endDate) return true;
+      if (
+        ranges.some((range) => date >= range.startDate && date <= range.endDate)
+      ) {
+        return true;
+      }
     }
     return false;
   }
@@ -637,7 +655,7 @@ export class HomeSummaryCacheRuntime {
   private storeSummaryResponseCache(
     cacheKey: string,
     response: HomeSummaryResponse,
-    range: Pick<SummaryDateRange, 'startDate' | 'endDate'>,
+    range: HomeSummaryCacheCoverageRange[],
   ) {
     while (
       this.summaryResponseCache.size >= MAX_HOME_SUMMARY_RESPONSE_CACHE_ENTRIES
@@ -653,22 +671,25 @@ export class HomeSummaryCacheRuntime {
     const responseVersions = this.projectionVersionsByResponse.get(response);
     const fallbackVersion = response.freshness?.projectionVersion ?? 0;
     const projectionVersionsByDate = new Map<string, number>();
-    for (const date of this.callbacks.rangeDateKeys(
-      range.startDate,
-      range.endDate,
-    )) {
-      projectionVersionsByDate.set(
-        date,
-        responseVersions?.get(date) ?? fallbackVersion,
-      );
+    for (const coverageRange of range) {
+      for (const date of this.callbacks.rangeDateKeys(
+        coverageRange.startDate,
+        coverageRange.endDate,
+      )) {
+        projectionVersionsByDate.set(
+          date,
+          responseVersions?.get(date) ?? fallbackVersion,
+        );
+      }
     }
     this.summaryResponseCache.set(cacheKey, {
       expiresAt: storedAt + HOME_SUMMARY_RESPONSE_CACHE_TTL_MS,
       refreshAfter:
         storedAt + HOME_SUMMARY_RESPONSE_REFRESH_AHEAD_MIN_MS + refreshSpread,
       refreshAttempted: false,
-      startDate: range.startDate,
-      endDate: range.endDate,
+      startDate: range[0].startDate,
+      endDate: range[0].endDate,
+      coverageRanges: range,
       projectionVersionsByDate,
       response,
     });
@@ -679,7 +700,8 @@ export class HomeSummaryCacheRuntime {
     response: HomeSummaryScopeOptionResponse[],
   ) {
     while (
-      this.scopeOptionsCache.size >= MAX_HOME_SUMMARY_SCOPE_OPTIONS_CACHE_ENTRIES
+      this.scopeOptionsCache.size >=
+      MAX_HOME_SUMMARY_SCOPE_OPTIONS_CACHE_ENTRIES
     ) {
       const oldestKey = this.scopeOptionsCache.keys().next().value;
       if (!oldestKey) break;

@@ -11,9 +11,11 @@ follow-up. OPS-74 runtime waves are in progress: OPS-81, OPS-82 and OPS-83 are
 merged and staging-deployed; OPS-84 query/list state and OPS-85
 realtime/background-lease are merged and staging-deployed; OPS-87 audio
 runtime and OPS-88 Payment Monitor actions are merged and staging-deployed;
-OPS-90 scope/access and OPS-91 projection runtime are the current Home Summary
-runtime slices; OPS-89 cache runtime is merged and staging-deployed. Comparable timing baseline, remaining
-runtime waves and production release remain open.
+OPS-90 scope/access and OPS-91 projection runtime are merged and staging-
+deployed; OPS-89 cache runtime is merged and staging-deployed. OPS-80 Home
+cache-coverage hotfix is implemented and locally verified, pending PR,
+staging deploy and smoke proof. Comparable timing baseline, remaining runtime
+waves and production release remain open.
 
 ## Outcome
 
@@ -30,8 +32,8 @@ branch, and is not converted row-for-row into Markdown.
 ## Authority and checkpoint
 
 - Linear parent: `OPS-64`.
-- Current slice: `OPS-91` Home Summary projection runtime extraction, on a fresh
-  lifecycle worktree created from live `origin/staging@1891a7a961c738b36bbc307c00ff92ce2c651123`.
+- Current slice: `OPS-80` Home Summary cache coverage hotfix, on a fresh
+  lifecycle worktree created from live `origin/staging@738f907c3b931536bb4cbe77b8f5204c7fb20882`.
   The focused NestJS characterization matrix passed `110/110` before and after
   extraction; `npm run build` passed. Projection feature gating, freshness,
   aggregate metrics and daily-series loading are owned by
@@ -44,6 +46,12 @@ branch, and is not converted row-for-row into Markdown.
   `home-summary-cache.runtime.ts`.
   OPS-72, OPS-73, OPS-74 header, OPS-81 KPI/summary, OPS-82 detail-renderer
   and OPS-83 analytics/progress slices are merged at the current checkpoint.
+- OPS-80 replaces the single joined comparison cache interval with independent
+  primary and previous-year coverage ranges. Strict 366-day validation remains
+  unchanged; focused Home Summary proof passed `72/72`, all Home Summary Nest
+  suites passed `119/119` with 6 skips, the Nest build passed, affected Flutter
+  Home proof passed `60/60`, and exact-base full verification passed all eight
+  profiles with `stale=false`. The change is still pending PR/staging deploy.
 - Previous slice: `OPS-70` (Phase 5 protocol-v1 retirement and Harness producer
   cleanup) on a fresh lifecycle worktree created from the live `origin/staging`
   checkpoint.

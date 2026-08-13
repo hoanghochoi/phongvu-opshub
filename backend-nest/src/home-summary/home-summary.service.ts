@@ -235,12 +235,18 @@ export type HomeSummaryFreshnessResponse = {
   isStale: boolean;
 };
 
+export type HomeSummaryCacheCoverageRange = Pick<
+  SummaryDateRange,
+  'startDate' | 'endDate'
+>;
+
 export type HomeSummaryResponseCacheEntry = {
   expiresAt: number;
   refreshAfter: number;
   refreshAttempted: boolean;
   startDate: string;
   endDate: string;
+  coverageRanges: HomeSummaryCacheCoverageRange[];
   projectionVersionsByDate: Map<string, number>;
   response: HomeSummaryResponse;
 };
@@ -249,6 +255,7 @@ export type HomeSummaryInFlightEntry = {
   promise: Promise<HomeSummaryResponse>;
   startDate: string;
   endDate: string;
+  coverageRanges: HomeSummaryCacheCoverageRange[];
   invalidated: boolean;
   source: 'miss' | 'refresh_ahead' | 'daily_extension';
 };
@@ -468,8 +475,8 @@ export class HomeSummaryService {
       responseCacheKey: (user, query) =>
         this.summaryResponseCacheKey(user, query),
       parseSummaryRange: (query) => this.parseSummaryRange(query),
-      summaryCacheCoverageRange: (range, query) =>
-        this.summaryCacheCoverageRange(range, query),
+      summaryCacheCoverageRanges: (range, query) =>
+        this.summaryCacheCoverageRanges(range, query),
       rangeDateKeys: (startDate, endDate) =>
         this.rangeDateKeys(startDate, endDate),
       computeSummary: (user, query, options) =>
@@ -3725,22 +3732,18 @@ export class HomeSummaryService {
     return createHash('sha256').update(canonical).digest('hex');
   }
 
-  private summaryCacheCoverageRange(
+  private summaryCacheCoverageRanges(
     range: Pick<SummaryDateRange, 'startDate' | 'endDate'>,
     query: GetHomeSummaryQueryDto,
-  ) {
-    if (query.includeComparisons !== 'true') return range;
+  ): HomeSummaryCacheCoverageRange[] {
+    if (query.includeComparisons !== 'true') return [range];
     const previousYear = this.shiftSummaryRange(range, 0, -1);
-    return {
-      startDate:
-        previousYear.startDate < range.startDate
-          ? previousYear.startDate
-          : range.startDate,
-      endDate:
-        previousYear.endDate > range.endDate
-          ? previousYear.endDate
-          : range.endDate,
-    };
+    // Keep each period independent. Joining these two ranges makes a valid
+    // four-day request look like a 369-day range to the strict date guard.
+    return [
+      { startDate: range.startDate, endDate: range.endDate },
+      { startDate: previousYear.startDate, endDate: previousYear.endDate },
+    ];
   }
 
   private async computeScopeOptions(
