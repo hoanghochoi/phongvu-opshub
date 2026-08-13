@@ -4,6 +4,6 @@
 *.mjs text eol=lf
 *.ps1 text eol=crlf
 *.jsonl text eol=lf
+docs/migrations/*.json text eol=lf
 Dockerfile text eol=lf
-/scripts/schema/*.sql text eol=lf
 /windows/assets/payment_audio/local_preset_speaker_v1/**/*.wav filter=lfs diff=lfs merge=lfs -text

@@ -1,5 +1,9 @@
 # PhongVu OpsHub
 
+The default path requires no local database.
+Repository guidance and validation state are kept in Git, while any legacy
+`harness.db` is archive-only.
+
 PhongVu OpsHub is an internal operations app for Phong Vu staff. The Flutter app covers daily store and warehouse workflows: email/password registration and sign-in, FIFO check, FIFO sorting, warranty/repair image capture, staff suggestions, and admin FIFO history.
 
 ## Project Layout

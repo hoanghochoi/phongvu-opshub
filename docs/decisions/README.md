@@ -12,6 +12,6 @@ Use `docs/templates/decision.md` for new decisions.
 
 The local `harness.db` is a read-only migration/archive input, not a current
 decision authority. Record accepted decisions in Git under this directory and
-link their implementation/proof to the Linear issue. The legacy compatibility
-adapter is retained only for explicitly isolated archive checks and must not be
-used to create a parallel decision ledger.
+link their implementation/proof to the Linear issue. Protocol-v1/SQLite
+producer code is retired; only sanitized migration evidence and historical ADRs
+remain in the current tree.

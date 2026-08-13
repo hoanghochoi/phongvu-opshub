@@ -11,5 +11,5 @@
 | Product contract | Accepted behavior documented under `docs/product/` |
 | Story packet | Small implementation plan and evidence record under `docs/stories/` |
 | Feature intake | Classification step that turns a prompt into tiny, normal, or high-risk work before implementation begins |
-| Durable layer | Git product/architecture/docs/tests plus Linear lifecycle evidence; the local OpsHub `harness.db` is read-only migration/archive input and is not a current task authority |
+| Durable layer | Git product/architecture/docs/tests plus Linear lifecycle evidence; the local OpsHub `harness.db` and raw archive are read-only migration inputs and are not current task authority |
 | Trace | Structured record of what an agent did during a task: actions, files, errors, outcome, and harness friction |

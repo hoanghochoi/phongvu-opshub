@@ -289,32 +289,13 @@ Read in this order:
 6. `docs/decisions/` for durable tradeoffs.
 7. Git product behavior, ADRs, plans/stories, code, tests, CI and runtime
    evidence are the repository authority; Linear owns initiative/issue
-   lifecycle and acceptance tracking. The local OpsHub `harness.db` is a
-   read-only migration input/archive only. The tracked preservation adapter
-   and strict-audit wrapper are read-only: they operate on a WAL-safe schema-12
-   snapshot plus an isolated schema-14 target and sidecar, never on the
-   writable canonical DB. No tracked writable schema/state adapter exists on
-   this upstream-aligned branch. Do not write, refresh, compact, or import the
-   authoritative DB from this branch. The legacy `harness-cli` is
-   archive/compatibility-only and may be used only against an explicitly
-   disposable archive copy for read/export proof; never run upstream
-   `import brownfield` as a refresh of the local archive. On Windows
-   PowerShell, define the Git for Windows login shell once and use it for every
-   Harness command in this guide; do not rely on whichever `bash.exe` happens
-   to be first on `PATH`:
-
-   Do not run a bare `scripts/bin/harness-cli.exe` command from this branch.
-   For an explicitly authorized archive read, set `HARNESS_DB_PATH` to the
-   exact copied archive database first and invoke the CLI through the Git Bash
-   entrypoint; never allow it to fall back to the repository root DB.
-
-   Codex `Agent environment = Windows native` keeps this Git Bash entrypoint
-   even when the integrated terminal shell is WSL. From a manually opened WSL
-   terminal, read-only checks against a disposable archive copy may use the
-   legacy CLI from the mounted repo. Stored proof commands are not
-   automatically WSL-safe; keep mutation and proof gates on the Windows-native
-   Git Bash route unless their commands use a cross-platform wrapper such as
-   `bash scripts/validate ...`.
+   lifecycle and acceptance tracking. The upstream `harness` binary is the
+   only current Harness interface and owns repository guidance updates. The
+   local OpsHub `harness.db`, WAL/SHM files, old binaries, and raw archive are
+   read-only migration evidence kept outside the current control path. Do not
+   write, refresh, compact, import, or delete that archive from this branch.
+   The retired SQLite/protocol-v1 producer paths are documented only in ADR,
+   migration evidence, and Git history; they are not executable task tooling.
 8. Runtime code under `lib/`, `backend-nest/`, `backend-go/`, and `deploy/`.
 
 ## Project Surfaces

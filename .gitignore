@@ -101,7 +101,7 @@ exports/
 tmp/
 .screenshot/
 
-# Harness runtime state and downloaded binaries follow the upstream consumer profile.
+# Upstream Harness runtime state and downloaded binaries remain consumer-owned.
 harness.db
 harness.db-wal
 harness.db-shm
@@ -114,12 +114,8 @@ scripts/bin/harness-cli.exe
 .harness-backup/
 scripts/bin/.harness.*.tmp
 
-# Tracked Harness baseline and semantic changesets; other .harness state stays local.
+# No legacy schema/changeset/core-state files are tracked by the current tree.
 .harness/*
-!.harness/changesets/
-!.harness/changesets/*.changeset.jsonl
-!.harness/core-state/
-!.harness/core-state/manifest.json
 
 # Bỏ qua tệp hệ thống Windows bị lỗi
 nul

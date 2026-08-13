@@ -8,6 +8,9 @@ constraints, and feedback loops that let agents understand and improve it.
 
 The canonical task flow is in `docs/WORKFLOW.md`.
 
+For an ordinary repository task, start from the requested outcome and use the
+smallest relevant product, code, and validation authority.
+
 ## Mental Model
 
 ```text
@@ -140,37 +143,33 @@ A change is complete when:
 Git diffs, tests, CI, application interaction, screenshots, logs, metrics, and
 plan progress are evidence. Manually filled process fields are commentary.
 
-## Optional Compatibility Control Plane
+## End-Of-Life Boundary
 
-The implemented Rust CLI and SQLite layer remain available for historical state
-and external orchestration. They support intake, stories, proof matrices,
-decisions, traces, tools, interventions, audits, proposals, snapshots, and
-semantic changesets.
+The former SQLite `harness-cli` and machine protocol v1 are historical
+products. They are available only from immutable historical Git tags and the
+sanitized migration evidence under `docs/migrations/`. The current tree does
+not build, install, test, publish, or use that control plane.
 
-These capabilities are not the default workflow. Use them only when explicitly
-requested, when maintaining that compatibility surface, or when an external
-orchestrator's versioned contract requires them. Existing schemas and state
-remain supported during the workflow-decoupling compatibility window.
+The local `harness.db`, WAL/SHM files, downloaded legacy binaries, and raw
+archive copies are consumer-owned read-only migration inputs. This repository
+does not import, refresh, rewrite, or delete them. Current behavior and
+accepted decisions live in Git and Linear, not in a legacy database.
 
-In this source repository, human lifecycle writes against the default
-`harness.db` are frozen. Deliberate maintenance of preserved compatibility state
-must add the global `--compatibility-write` flag. Machine protocol-v1 JSON,
-installed consumers, explicit database paths, reads, replay, and recovery do
-not require that flag and retain their published behavior.
+The current local interface is the upstream `harness` maintenance binary:
 
-Reference material for that surface includes:
+```text
+scripts/bin/harness status [--json]
+scripts/bin/harness doctor [--json]
+scripts/bin/harness update --dry-run
+scripts/bin/harness update
+scripts/bin/harness update --continue --dry-run
+scripts/bin/harness update --continue
+scripts/bin/harness update --abort
+```
 
-- `docs/FEATURE_INTAKE.md`;
-- `docs/TEST_MATRIX.md`;
-- `docs/TRACE_SPEC.md`;
-- `docs/HARNESS_AUDIT.md`;
-- `docs/HARNESS_MATURITY.md`;
-- `docs/IMPROVEMENT_PROTOCOL.md`;
-- `docs/TOOL_REGISTRY.md`; and
-- `docs/contracts/harness-orchestration-v1.md`.
-
-Compatibility documentation cannot make those operations mandatory for an
-ordinary repository task.
+`scripts/verify-task.mjs` owns changed-path and affected-consumer proof for
+OpsHub. It is separate from the upstream repository updater and does not write
+Harness state.
 
 ## Consumer Boundary
 
