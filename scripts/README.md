@@ -70,6 +70,19 @@ worktrees. The resulting report intentionally keeps `targetStatus` at
 `pending-live-shadow-data` until five live PR observations provide comparable
 rerun and time-to-actionable-failure measurements.
 
+The five live observations are recorded in
+`docs/migrations/ops-72-live-shadow-evidence.json`. Validate the sanitized
+ledger with:
+
+```text
+node scripts/verify-ops72-live-shadow-evidence.mjs
+```
+
+Use `--raw-root <path>` to independently re-hash downloaded CI artifacts at
+`<path>/<run-id>/verify-task-shadow.json`; raw artifacts remain ignored and are
+never committed. Timing and optimization targets remain pending until a
+comparable baseline exists.
+
 ## Legacy boundary
 
 Protocol v1, the SQLite control plane, and `harness-cli` are end-of-life. The

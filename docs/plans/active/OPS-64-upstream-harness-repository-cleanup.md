@@ -4,10 +4,11 @@ Date: 2026-08-13
 
 ## Status
 
-Active — Phase 8 artifact/dependency/toolchain cleanup is the current slice
-(OPS-73 Go/deployment review batch). Phase 0–7A groundwork and the Phase 7B
-shadow instrumentation are merged; live shadow metrics, remaining artifact
-batches, runtime waves and production release remain open.
+Active — Phase 7B live shadow evidence and Phase 8 artifact/dependency/toolchain
+cleanup are merged in staging. Five live shadow observations pass; one
+historical contract gap (#182) was explicitly captured and is being fixed in
+the OPS-72 follow-up. Comparable timing baseline, runtime waves and production
+release remain open.
 
 ## Outcome
 
@@ -24,9 +25,9 @@ branch, and is not converted row-for-row into Markdown.
 ## Authority and checkpoint
 
 - Linear parent: `OPS-64`.
-- Current slice: `OPS-73` (Phase 8 artifact/dependency/toolchain cleanup),
-  Go/deployment review batch, on a fresh lifecycle worktree created from the
-  live `origin/staging` checkpoint.
+- Current slice: `OPS-72` live shadow evidence follow-up, on a fresh lifecycle
+  worktree created from the live `origin/staging` checkpoint. OPS-73 artifact
+  cleanup batches are already merged at the current checkpoint.
 - Previous slice: `OPS-70` (Phase 5 protocol-v1 retirement and Harness producer
   cleanup) on a fresh lifecycle worktree created from the live `origin/staging`
   checkpoint.
@@ -489,6 +490,23 @@ Phase 7B implementation checkpoint (OPS-72):
   deliberately remains `pending-live-shadow-data`; historical replay does not
   satisfy the five live PR observations or the rerun/time-to-actionable-failure
   percentage targets.
+
+Phase 7B live observation checkpoint (OPS-72):
+
+- Five live PR observations are tracked in
+  `docs/migrations/ops-72-live-shadow-evidence.json`: PRs #181, #183, #184,
+  #185 and #186. Each has a schema-v1 report hash, exact PR/base/report-head
+  SHAs, selected/full profiles, changed-path count, GitHub timing, unchanged
+  blocking-check marker, stale=false, zero unmatched paths and zero reruns.
+- PR #182's contract failure is retained separately with its original report
+  hash and unmatched `scripts/collect-ops72-shadow-metrics.mjs` path. It is
+  an accepted discovery of a missing profile, not an omitted failure.
+- `scripts/verification-profiles.mjs` now owns the collector and the new
+  `scripts/verify-ops72-live-shadow-evidence.mjs` validator. The artifact
+  verifier and focused tests are required before publication.
+- Aggregate target status is `pending-live-timing-baseline`: timing and rerun
+  reduction percentages are intentionally null until comparable baseline data
+  exists. No profile is promoted to blocking by this evidence alone.
 
 ## Validation
 
