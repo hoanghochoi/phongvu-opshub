@@ -59,6 +59,30 @@ test('explicit profile is additive and unknown paths fail closed', (t) => {
   assert.equal(failed.exitCode, EXIT_CODES.CONTRACT);
 });
 
+test('cross-stack verification uses one deduplicated all-toolchain preflight', (t) => {
+  const root = repo(t);
+  write(root, 'backend-nest/src/app.ts', 'export {}\n');
+  write(root, 'lib/home.dart', 'void main() {}\n');
+  const result = verifyTask({ root, options: { dryRun: true } });
+  assert.equal(result.exitCode, EXIT_CODES.PASS);
+  const definitions = result.result.commandDefinitions;
+  const preflights = definitions.filter((command) => command.id === 'toolchain-preflight');
+  assert.equal(preflights.length, 1);
+  assert.deepEqual(preflights[0].argv, [
+    'scripts/prepare-task-toolchain.mjs',
+    '--profile',
+    'all',
+  ]);
+  assert.ok(
+    definitions.findIndex((command) => command.id === 'toolchain-preflight') <
+      definitions.findIndex((command) => command.id === 'flutter-analyze'),
+  );
+  assert.ok(
+    definitions.findIndex((command) => command.id === 'toolchain-preflight') <
+      definitions.findIndex((command) => command.id === 'nestjs-build'),
+  );
+});
+
 test('harness profile owns legacy adapter, schema and CLI retirement paths', (t) => {
   const root = repo(t);
   for (const relative of [

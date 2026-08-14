@@ -21,6 +21,9 @@ try {
     python scripts/verify_payment_audio_assets.py `
       --pack windows/assets/payment_audio/piper_vi_vais1000_chunk_v1
   }
+  Invoke-NativeStep 'Prepare all runtime toolchains' {
+    node scripts/prepare-task-toolchain.mjs --profile all
+  }
   Invoke-NativeStep 'Analyze Flutter' { flutter analyze --no-pub }
   Invoke-NativeStep 'Test payment and affected Flutter consumers' {
     flutter test --no-pub `

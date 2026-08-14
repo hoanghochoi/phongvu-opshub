@@ -120,13 +120,13 @@ branches target `staging` and production promotion follows
 ## Fresh task toolchain preflight
 
 Fresh task worktrees intentionally do not carry ignored dependency directories.
-Prepare the local toolchain immediately after the lifecycle creates a branch
-when the task touches runtime code:
+The lifecycle prepares both runtime toolchains immediately after creating a
+task branch, so the normal command is sufficient:
 
 ```text
 node scripts/task-lifecycle.mjs start \
   --issue OPS-123 --slug short-description \
-  --worktree ..\opshub-ops-123 --prepare --prepare-profile all --execute
+  --worktree ..\opshub-ops-123 --execute
 ```
 
 `--prepare-profile nestjs` uses `backend-nest/package-lock.json`, Prisma
@@ -148,9 +148,11 @@ node scripts/prepare-task-toolchain.mjs --profile flutter --dry-run
 node scripts/prepare-task-toolchain.mjs --profile all --force
 ```
 
-The verification profile invokes the matching preflight before
-`flutter analyze --no-pub` or `npm run build`, so a fresh worktree cannot reach
-the analyzer/build with missing dependencies. Hydration is still fail-closed:
+The default lifecycle profile is `all`; `--prepare-profile nestjs|flutter` is
+reserved for an explicitly narrow task. Verification and affected-consumer
+profiles invoke the same `all` preflight before `flutter analyze --no-pub` or
+`npm run build`, so a fresh worktree cannot reach the analyzer/build with
+missing dependencies. Hydration is still fail-closed:
 a lockfile change, unexpected tracked mutation or non-ignored generated file is
 an environment failure. A failed prepare is an environment failure and the
 lifecycle removes the newly-created task worktree/branch, including reviewed

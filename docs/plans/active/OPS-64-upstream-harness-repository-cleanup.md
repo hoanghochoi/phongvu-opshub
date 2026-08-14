@@ -5,7 +5,8 @@ Date: 2026-08-13
 ## Status
 
 Active — Phase 7B live shadow evidence and Phase 8 artifact/dependency/toolchain
-cleanup are merged in staging. Five live shadow observations pass; one
+cleanup are merged in staging. OPS-105 mandatory all-toolchain preflight is the
+current workflow slice. Five live shadow observations pass; one
 historical contract gap (#182) was explicitly captured and fixed in the OPS-72
 follow-up. OPS-74 runtime waves are in progress: OPS-80 Home cache coverage,
 OPS-81, OPS-82, OPS-83, OPS-84, OPS-85, OPS-86, OPS-87, OPS-88, OPS-89,
@@ -1292,6 +1293,27 @@ Current live upstream retry evidence:
   Disposable v0.1.7 → v0.1.8 proof covered non-overlap, retained
   candidate/conflict, human resolution plus `--continue`, `--abort`, and
   dry-run immutability.
+
+## Workflow checkpoint (OPS-105 current mandatory toolchain preflight)
+
+- OPS-105 branch/worktree is `codex/ops-105-mandatory-toolchain-preflight` /
+  `../opshub-ops-105`, created by the guarded lifecycle from exact live
+  `origin/staging@db0fb30c24ed3421a7519e5a4f9ee0a7b2f4fc48`.
+- Cold worktree preparation with `--prepare --prepare-profile all` passed for
+  Nest/Prisma and Flutter package config before implementation. The lifecycle
+  now defaults to `prepare=true` and profile `all`; `finish` remains a cleanup
+  operation and no longer mistakes the default preparation state for a
+  start-only flag.
+- Toolchain schema is bumped to invalidate old readiness state. Readiness now
+  requires a readable Flutter package config and the npm install lock marker;
+  fingerprints include Node/npm/Flutter/Dart identity where applicable.
+- Verification profiles share one deduplicated `toolchain-preflight` command
+  using profile `all`. OPS-39/OPS-40 affected consumers and the payment audio
+  validator invoke the same preflight; release workflows replace ad-hoc
+  `flutter pub get` with the tracked preflight entrypoint.
+- A bounded retry covers a transient Prisma module-load failure only when the
+  toolchain fingerprint remains unchanged; product/schema failures do not
+  retry. Focused lifecycle/toolchain/verification proof is in progress.
 
 ## Result
 

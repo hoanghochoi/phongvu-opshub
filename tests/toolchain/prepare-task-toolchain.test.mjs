@@ -71,6 +71,30 @@ function flutterFixture(t) {
   return root;
 }
 
+function allFixture(t) {
+  const root = flutterFixture(t);
+  mkdirSync(path.join(root, 'backend-nest', 'prisma'), { recursive: true });
+  writeFileSync(
+    path.join(root, 'backend-nest', 'package.json'),
+    '{"name":"fixture"}\n',
+  );
+  writeFileSync(
+    path.join(root, 'backend-nest', 'package-lock.json'),
+    '{"lockfileVersion":3}\n',
+  );
+  writeFileSync(
+    path.join(root, 'backend-nest', 'prisma', 'schema.prisma'),
+    'datasource db { provider = "postgresql" }\n',
+  );
+  writeFileSync(
+    path.join(root, 'backend-nest', 'prisma.config.ts'),
+    'export default {};\n',
+  );
+  git(root, ['add', '--all']);
+  git(root, ['commit', '--quiet', '-m', 'all-toolchain fixture']);
+  return root;
+}
+
 function successfulStepFactory(calls) {
   return (root, step) => {
     calls.push(step.id);
@@ -107,6 +131,10 @@ function successfulStepFactory(calls) {
         ),
         '{}\n',
       );
+      writeFileSync(
+        path.join(root, 'backend-nest', 'node_modules', '.package-lock.json'),
+        '{}\n',
+      );
     }
     return {
       id: step.id,
@@ -118,21 +146,92 @@ function successfulStepFactory(calls) {
   };
 }
 
-test('parser defaults to nestjs and accepts all toolchain profiles', () => {
+test('parser defaults to all and accepts narrow toolchain profiles', () => {
   assert.deepEqual(
     parseArgs(['--dry-run', '--force', '--json', 'tmp/result.json']),
     {
-      profile: 'nestjs',
+      profile: 'all',
       dryRun: true,
       force: true,
       json: 'tmp/result.json',
       help: false,
     },
   );
-  assert.equal(parseArgs([]).profile, 'nestjs');
+  assert.equal(parseArgs([]).profile, 'all');
   assert.equal(parseArgs(['--profile', 'flutter']).profile, 'flutter');
   assert.equal(parseArgs(['--profile', 'all']).profile, 'all');
   assert.throws(() => parseArgs(['--profile', 'unknown']), /Profile không hỗ trợ/);
+});
+
+test('default prepare hydrates Nest and Flutter in one deterministic sequence', (t) => {
+  const root = allFixture(t);
+  const calls = [];
+  const result = prepareTaskToolchain({
+    root,
+    runStepFn: (currentRoot, step) => {
+      calls.push(step.id);
+      if (step.id === 'nestjs-prisma-generate') {
+        mkdirSync(path.join(currentRoot, 'backend-nest', 'node_modules', '.bin'), {
+          recursive: true,
+        });
+        mkdirSync(
+          path.join(currentRoot, 'backend-nest', 'node_modules', '@prisma', 'client'),
+          { recursive: true },
+        );
+        mkdirSync(
+          path.join(currentRoot, 'backend-nest', 'node_modules', '.prisma', 'client'),
+          { recursive: true },
+        );
+        writeFileSync(
+          path.join(
+            currentRoot,
+            'backend-nest',
+            'node_modules',
+            '.bin',
+            process.platform === 'win32' ? 'nest.cmd' : 'nest',
+          ),
+          '',
+        );
+        writeFileSync(
+          path.join(
+            currentRoot,
+            'backend-nest',
+            'node_modules',
+            '@prisma',
+            'client',
+            'package.json',
+          ),
+          '{}\n',
+        );
+        writeFileSync(
+          path.join(currentRoot, 'backend-nest', 'node_modules', '.package-lock.json'),
+          '{}\n',
+        );
+      }
+      if (step.id === 'flutter-pub-get') {
+        mkdirSync(path.join(currentRoot, '.dart_tool'), { recursive: true });
+        writeFileSync(
+          path.join(currentRoot, '.dart_tool', 'package_config.json'),
+          '{}\n',
+        );
+      }
+      return {
+        id: step.id,
+        status: 'passed',
+        exitCode: 0,
+        executable: step.executable,
+        argv: step.argv,
+      };
+    },
+  });
+  assert.equal(result.exitCode, EXIT_CODES.PASS);
+  assert.equal(result.result.status, 'prepared');
+  assert.deepEqual(calls, [
+    'nestjs-npm-ci',
+    'nestjs-prisma-generate',
+    'flutter-pub-get',
+  ]);
+  assert.equal(result.result.profiles.length, 2);
 });
 
 test('first prepare hydrates Nest/Prisma and second prepare is cached', (t) => {
@@ -140,7 +239,7 @@ test('first prepare hydrates Nest/Prisma and second prepare is cached', (t) => {
   const calls = [];
   const runStepFn = successfulStepFactory(calls);
 
-  const first = prepareTaskToolchain({ root, runStepFn });
+  const first = prepareTaskToolchain({ root, profile: 'nestjs', runStepFn });
   assert.equal(first.exitCode, EXIT_CODES.PASS);
   assert.equal(first.result.status, 'prepared');
   assert.deepEqual(calls, ['nestjs-npm-ci', 'nestjs-prisma-generate']);
@@ -151,6 +250,7 @@ test('first prepare hydrates Nest/Prisma and second prepare is cached', (t) => {
 
   const second = prepareTaskToolchain({
     root,
+    profile: 'nestjs',
     runStepFn: () => {
       throw new Error('cached prepare must not execute commands');
     },
@@ -159,17 +259,120 @@ test('first prepare hydrates Nest/Prisma and second prepare is cached', (t) => {
   assert.equal(second.result.status, 'cached');
 });
 
+test('partial Nest dependency loss invalidates the cached readiness', (t) => {
+  const root = fixture(t);
+  const calls = [];
+  const runStepFn = successfulStepFactory(calls);
+  prepareTaskToolchain({ root, profile: 'nestjs', runStepFn });
+  rmSync(path.join(root, 'backend-nest', 'node_modules', '.prisma', 'client'), {
+    recursive: true,
+    force: true,
+  });
+
+  const result = prepareTaskToolchain({ root, profile: 'nestjs', runStepFn });
+  assert.equal(result.exitCode, EXIT_CODES.PASS);
+  assert.equal(result.result.status, 'prepared');
+  assert.deepEqual(calls, [
+    'nestjs-npm-ci',
+    'nestjs-prisma-generate',
+    'nestjs-npm-ci',
+    'nestjs-prisma-generate',
+  ]);
+});
+
+test('transient Prisma module-load failure retries once with a stable fingerprint', (t) => {
+  const root = fixture(t);
+  const calls = [];
+  const success = successfulStepFactory([]);
+  let prismaAttempts = 0;
+  const result = prepareTaskToolchain({
+    root,
+    profile: 'nestjs',
+    runStepFn: (currentRoot, step) => {
+      calls.push(step.id);
+      if (step.id === 'nestjs-prisma-generate' && prismaAttempts++ === 0) {
+        return {
+          id: step.id,
+          status: 'environment-failure',
+          exitCode: 1,
+          executable: step.executable,
+          argv: step.argv,
+          error: "Error: Cannot find module '@prisma/studio-core/data/bff'",
+        };
+      }
+      return success(currentRoot, step);
+    },
+  });
+
+  assert.equal(result.exitCode, EXIT_CODES.PASS);
+  assert.equal(result.result.status, 'prepared');
+  assert.deepEqual(calls, [
+    'nestjs-npm-ci',
+    'nestjs-prisma-generate',
+    'nestjs-npm-ci',
+    'nestjs-prisma-generate',
+  ]);
+  assert.deepEqual(result.result.retries, [
+    {
+      step: 'nestjs-prisma-generate',
+      fromAttempt: 1,
+      toAttempt: 2,
+      reason: 'transient-prisma-module-load',
+    },
+  ]);
+});
+
+test('Prisma retry stops when the toolchain manifest changes mid-attempt', (t) => {
+  const root = fixture(t);
+  let failed = false;
+  const result = prepareTaskToolchain({
+    root,
+    profile: 'nestjs',
+    runStepFn: (_currentRoot, step) => {
+      if (step.id === 'nestjs-prisma-generate' && !failed) {
+        failed = true;
+        appendFileSync(
+          path.join(root, 'backend-nest', 'package-lock.json'),
+          '{"changed-during-retry":true}\n',
+        );
+        return {
+          id: step.id,
+          status: 'environment-failure',
+          exitCode: 1,
+          executable: step.executable,
+          argv: step.argv,
+          error: "Error: Cannot find module '@prisma/studio-core/data/bff'",
+        };
+      }
+      return {
+        id: step.id,
+        status: 'passed',
+        exitCode: 0,
+        executable: step.executable,
+        argv: step.argv,
+      };
+    },
+  });
+  assert.equal(result.exitCode, EXIT_CODES.ENVIRONMENT);
+  assert.equal(result.result.status, 'environment-failure');
+  assert.match(result.result.error, /manifest changed|stale/i);
+  assert.equal(
+    existsSync(path.join(root, 'tmp', 'opshub-toolchain-state.json')),
+    false,
+  );
+});
+
 test('lockfile changes invalidate the cached hydration fingerprint', (t) => {
   const root = fixture(t);
   const calls = [];
   const runStepFn = successfulStepFactory(calls);
-  prepareTaskToolchain({ root, runStepFn });
+  prepareTaskToolchain({ root, profile: 'nestjs', runStepFn });
   appendFileSync(
     path.join(root, 'backend-nest', 'package-lock.json'),
     '{"changed":true}\n',
   );
 
-  const result = prepareTaskToolchain({ root, runStepFn });
+  const result = prepareTaskToolchain({ root, profile: 'nestjs', runStepFn });
   assert.equal(result.exitCode, EXIT_CODES.PASS);
   assert.equal(result.result.status, 'prepared');
   assert.deepEqual(calls, [
@@ -182,7 +385,7 @@ test('lockfile changes invalidate the cached hydration fingerprint', (t) => {
 
 test('dry-run reports missing hydration without mutating state', (t) => {
   const root = fixture(t);
-  const result = prepareTaskToolchain({ root, dryRun: true });
+  const result = prepareTaskToolchain({ root, profile: 'nestjs', dryRun: true });
   assert.equal(result.exitCode, EXIT_CODES.PASS);
   assert.equal(result.result.status, 'planned');
   assert.equal(result.result.steps.length, 2);
@@ -196,6 +399,7 @@ test('command failure is classified as environment failure and does not write su
   const root = fixture(t);
   const result = prepareTaskToolchain({
     root,
+    profile: 'nestjs',
     runStepFn: (currentRoot, step) => ({
       id: step.id,
       status: 'environment-failure',
@@ -217,7 +421,7 @@ test('missing manifest is a contract failure', (t) => {
   const root = fixture(t);
   rmSync(path.join(root, 'backend-nest', 'prisma.config.ts'));
   assert.throws(
-    () => prepareTaskToolchain({ root }),
+    () => prepareTaskToolchain({ root, profile: 'nestjs' }),
     (error) => error.code === EXIT_CODES.CONTRACT,
   );
 });
@@ -226,6 +430,7 @@ test('state file stays sanitized and repository-relative', (t) => {
   const root = fixture(t);
   const result = prepareTaskToolchain({
     root,
+    profile: 'nestjs',
     runStepFn: successfulStepFactory([]),
   });
   assert.equal(result.exitCode, EXIT_CODES.PASS);

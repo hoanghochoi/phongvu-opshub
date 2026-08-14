@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
+import { prepareTaskToolchain } from "./prepare-task-toolchain.mjs";
 
 const root = process.cwd();
 const npm = process.platform === "win32" ? "npm.cmd" : "npm";
@@ -135,6 +136,16 @@ export function assertPathContracts(changedPaths) {
   }
 }
 
+export function ensureToolchain(rootPath = root) {
+  const result = prepareTaskToolchain({ root: rootPath, profile: "all" });
+  if (result.exitCode !== 0) {
+    throw new Error(
+      `OPS-40 toolchain preflight failed with exit ${result.exitCode}`,
+    );
+  }
+  return result;
+}
+
 const suites = [
   {
     name: "Nest Support Chat plus auth/feed/media/throttler/user consumers",
@@ -224,6 +235,9 @@ export function main(argv = process.argv.slice(2)) {
       throw new Error(`${relative} must keep SUPPORT_CHAT_ENABLED=false`);
     }
   }
+
+  console.log("\n[OPS-40] Preparing all runtime toolchains");
+  ensureToolchain();
 
   for (const suite of suites) {
     console.log(`\n[OPS-40] ${suite.name}`);

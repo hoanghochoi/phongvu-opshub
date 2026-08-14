@@ -117,7 +117,7 @@ jobs:
               exit 1
             fi
           done
-          flutter pub get
+          node scripts/prepare-task-toolchain.mjs --profile flutter --force
           flutter build apk --release \
             --flavor production \
             --build-name "${{ needs.prepare.outputs.version_name }}" \
@@ -188,7 +188,7 @@ jobs:
       - name: Build Windows release
         shell: pwsh
         run: |
-          flutter pub get
+          node scripts/prepare-task-toolchain.mjs --profile flutter --force
           flutter build windows --release `
             --build-name "${{ needs.prepare.outputs.windows_build_name }}" `
             --build-number "${{ needs.prepare.outputs.version_code }}" `
@@ -420,7 +420,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          flutter pub get
+          node scripts/prepare-task-toolchain.mjs --profile flutter --force
           flutter build web --release \
             --no-web-resources-cdn \
             --build-name "${{ needs.prepare.outputs.version_name }}" \

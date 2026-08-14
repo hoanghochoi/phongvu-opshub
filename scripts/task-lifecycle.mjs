@@ -57,8 +57,12 @@ function parseArgs(argv) {
     command,
     execute: false,
     allowIgnored: false,
-    prepare: false,
-    prepareProfile: 'nestjs',
+    // Every new task worktree starts without ignored dependency directories.
+    // Hydrate both runtime toolchains by default so a forgotten flag cannot
+    // defer an environment failure until the first build/test command.
+    prepare: true,
+    prepareExplicit: false,
+    prepareProfile: 'all',
     remote: 'origin',
   };
   const valueOptions = new Map([
@@ -83,12 +87,14 @@ function parseArgs(argv) {
     }
     if (argument === '--prepare') {
       options.prepare = true;
+      options.prepareExplicit = true;
       continue;
     }
     if (valueOptions.has(argument)) {
       const value = argv[index + 1];
       if (!value || value.startsWith('--')) blocked(`Thiếu giá trị cho ${argument}`);
       options[valueOptions.get(argument)] = value;
+      if (argument === '--prepare-profile') options.prepareExplicit = true;
       index += 1;
       continue;
     }
@@ -102,7 +108,7 @@ function printHelp(log) {
   log(`Usage:
   node scripts/task-lifecycle.mjs start \\
     --issue OPS-123 --slug short-description --worktree ..\\opshub-ops-123 \\
-    [--prepare [--prepare-profile nestjs|flutter|all]] [--execute]
+    [--prepare-profile nestjs|flutter|all] [--execute]
 
   node scripts/task-lifecycle.mjs finish \\
     --pr 123 --branch codex/ops-123-short-description \\
@@ -110,8 +116,11 @@ function printHelp(log) {
 
 Run both commands from the canonical clean staging worktree. The default is a
 dry-run. --execute may fast-forward local staging. start creates a task
-worktree/local branch; finish removes a clean merged task worktree/local branch.
-Remote branches are never deleted.`);
+worktree/local branch and hydrates both NestJS and Flutter toolchains by
+default; --prepare is retained as a compatibility flag and
+--prepare-profile can narrow the hydration when explicitly justified. finish
+removes a clean merged task worktree/local branch. Remote branches are never
+deleted.`);
 }
 
 function validateRemote(remote) {
@@ -460,7 +469,7 @@ function startTask(options, dependencies) {
 
 function finishTask(options, dependencies) {
   const { cwd, log, getPullRequest } = dependencies;
-  if (options.prepare) blocked('--prepare chỉ áp dụng cho lệnh start.');
+  if (options.prepareExplicit) blocked('--prepare chỉ áp dụng cho lệnh start.');
   const root = canonicalStaging(cwd);
   const finish = validateFinishOptions(options);
   const inspected = inspectTaskWorktree(root, options.worktree, finish.branch, {
