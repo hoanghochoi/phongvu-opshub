@@ -16,6 +16,7 @@ while IFS= read -r script; do
 done < <(find scripts tests -type f -name '*.sh' -print | LC_ALL=C sort)
 
 node scripts/verify-harness-retirement.mjs >/dev/null
+node scripts/verify-migration-eol.mjs
 node --test tests/verification/*.test.mjs
 python -m unittest discover -s tests/migration -p 'test_*.py'
 tests/docs/test-doc-contracts.sh
