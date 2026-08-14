@@ -1181,6 +1181,25 @@ describe('MapVietinService', () => {
     expect(paymentNotifications.createForTransaction).not.toHaveBeenCalled();
   });
 
+  it('does not cache or notify a transaction when persistence fails', async () => {
+    const row = globalTransaction('TXN-PERSISTENCE-FAILURE');
+    prisma.mapVietinTransaction.findUnique.mockResolvedValue(null);
+    prisma.mapVietinTransaction.upsert.mockRejectedValue(
+      new Error('database unavailable'),
+    );
+
+    await expect(
+      (service as any).persistTransactions('CP01', [row]),
+    ).rejects.toThrow('database unavailable');
+
+    await expect(
+      (service as any).persistTransactions('CP01', [row]),
+    ).rejects.toThrow('database unavailable');
+
+    expect(prisma.mapVietinTransaction.findUnique).toHaveBeenCalledTimes(4);
+    expect(paymentNotifications.createForTransaction).not.toHaveBeenCalled();
+  });
+
   it('serializes MAP and eFAST persistence before checking the exact fingerprint', async () => {
     const baseRow = {
       amount: 9146000,
@@ -2146,6 +2165,45 @@ describe('MapVietinService', () => {
         create: expect.objectContaining({ reason: 'AMBIGUOUS_ACCOUNT' }),
       }),
     );
+  });
+
+  it('uses a deterministic quarantine key and redacts sensitive provider fields', async () => {
+    const row = {
+      ...globalTransaction('TXN-QUARANTINE-SENSITIVE', '222'),
+      access_token: 'access-token-secret',
+      password: 'password-secret',
+      nested: { authorization: 'Bearer secret' },
+    };
+    prisma.mapVietinUnmappedTransaction.upsert.mockResolvedValue({});
+
+    const first = await (service as any).persistGlobalTransactions(
+      [row],
+      new Map(),
+    );
+    const firstCall = prisma.mapVietinUnmappedTransaction.upsert.mock.calls[0][0];
+
+    const second = await (service as any).persistGlobalTransactions(
+      [row],
+      new Map(),
+    );
+    const secondCall = prisma.mapVietinUnmappedTransaction.upsert.mock.calls[1][0];
+
+    expect(first).toEqual({
+      created: 0,
+      updated: 0,
+      unchanged: 0,
+      cacheHits: 0,
+      quarantined: 1,
+      sourceAccountMapped: 0,
+    });
+    expect(second).toEqual(first);
+    expect(firstCall.where).toEqual(secondCall.where);
+    expect(firstCall.create.unmappedKey).toBe(secondCall.create.unmappedKey);
+    expect(firstCall.create.rawData).toMatchObject({
+      access_token: '[REDACTED]',
+      password: '[REDACTED]',
+      nested: { authorization: '[REDACTED]' },
+    });
   });
 
   it('falls back to per-store sync when global credentials are missing', async () => {
