@@ -9,9 +9,9 @@ cleanup are merged in staging. Five live shadow observations pass; one
 historical contract gap (#182) was explicitly captured and fixed in the OPS-72
 follow-up. OPS-74 runtime waves are in progress: OPS-80 Home cache coverage,
 OPS-81, OPS-82, OPS-83, OPS-84, OPS-85, OPS-86, OPS-87, OPS-88, OPS-89,
-OPS-90 and OPS-91 are merged and staging-deployed. OPS-92 Sales Reports
-scope/query extraction is implemented on its lifecycle worktree and is in the
-final exact-proof/publication gate. Comparable timing baseline, remaining
+OPS-90, OPS-91 and OPS-92 are merged and staging-deployed. OPS-93 Sales
+Reports revenue/order aggregation extraction is implemented on its lifecycle
+worktree and is in the final exact-proof/publication gate. Comparable timing baseline, remaining
 runtime waves and production release remain open.
 
 ## Outcome
@@ -29,19 +29,20 @@ branch, and is not converted row-for-row into Markdown.
 ## Authority and checkpoint
 
 - Linear parent: `OPS-64`.
-- Current slice: `OPS-92` Sales Reports scope/query extraction, on the fresh
-  lifecycle worktree `../opshub-ops-92` and branch
-  `codex/ops-92-sales-reports-scope-query`, created from exact live
-  `origin/staging@f8c8ee27b6d4b95d950eb8ecd82d13cb454cfb44`. The extracted
-  constructor-injected `SalesReportsScopeQueryRuntime` owns feature/admin
-  access, user/store scope resolution, date/filter normalization, pagination
-  and report/order-cockpit query composition; `SalesReportsService` remains
-  the stable facade and parser/import, ERP, follow-up, BigQuery and export
-  owners remain outside the slice. Baseline and post-extraction NestJS
-  characterization both passed `232/232`; `npm run build`, the affected
-  Flutter sales-report/not-purchased/Home matrix (`72/72`),
-  `flutter analyze --no-pub`, Prettier and `git diff --check` passed. The
-  final exact commit proof, PR and staging deploy remain before cleanup.
+- Current slice: `OPS-93` Sales Reports revenue/order aggregation extraction,
+  on the fresh lifecycle worktree `../opshub-ops-93` and branch
+  `codex/ops-93-sales-reports-revenue-aggregation`, created from exact live
+  `origin/staging@c146b9cfca091136af8b046d8aa582b3c1f0e07e`. The extracted
+  constructor-injected `SalesReportsRevenueAggregationRuntime` owns canonical
+  revenue lookup, unique-order dedupe, customer-type revenue split,
+  installment/promotion counts, category quantities and assembled-PC
+  calculation; `SalesReportsService` remains the stable facade and
+  parser/import, ERP, follow-up, BigQuery and export owners remain outside the
+  slice. Baseline and post-extraction NestJS characterization both passed
+  `205/211` (six skipped); `npm run build`, the affected Flutter
+  sales-report/not-purchased/Home matrix (`72/72`), `flutter analyze --no-pub`,
+  Prettier and `git diff --check` passed. The final exact commit proof, PR and
+  staging deploy remain before cleanup.
   OPS-89 cache state, in-flight dedupe, refresh-ahead, daily-series extension,
   support caches, scope-option caching and projection invalidation remain in
   `home-summary-cache.runtime.ts`.
@@ -806,6 +807,30 @@ Phase 9D runtime checkpoint (OPS-92, Sales Reports scope/query slice):
   Linear implementation/proof note, PR/CI, staging deploy, and guarded
   lifecycle `finish --allow-ignored --execute` cleanup. No API, data,
   permission, UI or platform behavior change is intended.
+
+Phase 9D runtime checkpoint (OPS-93, Sales Reports revenue/order aggregation
+slice):
+
+- Slice branch/worktree: `codex/ops-93-sales-reports-revenue-aggregation` in
+  `../opshub-ops-93`, started from exact live
+  `origin/staging@c146b9cfca091136af8b046d8aa582b3c1f0e07e`; canonical staging
+  and the unrelated OPS-68/OPS-72 worktrees remain untouched.
+- Extracted pure revenue/order aggregation into the constructor-injected
+  `sales-reports-revenue-aggregation.runtime.ts`. `SalesReportsService` keeps
+  `summarizeSalesRevenueRows` as the stable facade, canonical revenue lookup,
+  order dedupe, customer split, installment and promotion metrics, category
+  quantities and assembled-PC semantics unchanged. Routes, DTOs, DI tokens,
+  permissions, API/data contracts, UI and Vietnamese copy are unchanged.
+- Baseline and post-extraction NestJS characterization both passed `205/211`
+  (six skipped); `npm run build`, affected Flutter sales-report,
+  not-purchased and Home cache consumers passed `72/72`,
+  `flutter analyze --no-pub`, Prettier and `git diff --check` passed. Flutter
+  generated hydration noise was kept in the named local stash
+  `ops93-local-flutter-generated` and is not part of the product diff.
+- Final gates: exact commit `verify-task` with `stale=false`, staged diff review,
+  Linear implementation/proof note, PR/CI, staging deploy, and guarded
+  lifecycle cleanup. No API, data, permission, UI or platform behavior change
+  is intended.
 
 ## Validation
 
