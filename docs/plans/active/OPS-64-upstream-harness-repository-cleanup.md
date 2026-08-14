@@ -11,9 +11,10 @@ follow-up. OPS-74 runtime waves are in progress: OPS-80 Home cache coverage,
 OPS-81, OPS-82, OPS-83, OPS-84, OPS-85, OPS-86, OPS-87, OPS-88, OPS-89,
 OPS-90, OPS-91, OPS-92, OPS-93, OPS-94, OPS-95 and OPS-96 are merged and
 staging-deployed. OPS-97 MAP Vietin sync scheduler/coordinator extraction is
-merged and staging-deployed. OPS-98 Nest/Prisma toolchain bootstrap is the
-current lifecycle slice. Comparable timing baseline, remaining runtime waves,
-Flutter toolchain policy and production release remain open.
+merged and staging-deployed. OPS-98 Nest/Prisma toolchain bootstrap is merged
+and staging-deployed. OPS-99 User/Auth characterization is the current
+lifecycle slice. Comparable timing baseline, remaining runtime waves, Flutter
+toolchain policy and production release remain open.
 
 ## Outcome
 
@@ -45,15 +46,21 @@ branch, and is not converted row-for-row into Markdown.
   deep-sweep state and single-flight leases; `MapVietinService` remains the
   stable facade and owns sync execution, persistence, statement policy and
   response mapping.
-- Current slice: `OPS-98` Nest/Prisma toolchain bootstrap, on the fresh
-  lifecycle worktree `../opshub-ops-98` and branch
-  `codex/ops-98-backend-nest-toolchain-bootstrap`, created from exact live
-  `origin/staging@73e1e2c77aa7e796e4cbd2ee614c4aa16ef5104a`. This slice adds an
-  idempotent `backend-nest` preflight (`npm ci --ignore-scripts` plus Prisma
-  generation), fingerprinted ignored state, and an optional lifecycle
-  `start --prepare` hook. Flutter dependency hydration is deliberately deferred
-  because `flutter pub get` can create tracked generated files; it needs a
-  separate reviewed gate.
+- Previous slice: `OPS-98` Nest/Prisma toolchain bootstrap, created from exact
+  live `origin/staging@73e1e2c77aa7e796e4cbd2ee614c4aa16ef5104a`, merged in PR
+  #209 at `b9fe4d6e0234ea3f89561978b8974e738b0f8dfb`, and staging-deployed by
+  run `31777758147`. The guarded lifecycle finish passed and the task worktree
+  and local/remote task branch were removed. Its preflight remains the tracked
+  remedy for fresh worktrees missing `backend-nest/node_modules` and Prisma
+  client output.
+- Current slice: `OPS-99` User/Auth characterization, on the fresh lifecycle
+  worktree `../opshub-ops-99` and branch `codex/ops-99-user-auth-characterization`,
+  created from exact live `origin/staging@b9fe4d6e0234ea3f89561978b8974e738b0f8dfb`.
+  This test-only slice covers the `UserService` profile DTO/update/avatar
+  compensation contract while preserving the public facade; admin mutation
+  characterization already present in the suite remains protected. The focused
+  suite currently passes `70/70` and the remaining affected-consumer, build and
+  publication gates are open.
   OPS-89 cache state, in-flight dedupe, refresh-ahead, daily-series extension,
   support caches, scope-option caching and projection invalidation remain in
   `home-summary-cache.runtime.ts`.
@@ -965,12 +972,15 @@ Phase 9E runtime checkpoint (OPS-97, MAP Vietin scheduler/coordinator slice):
   and are not part of the product diff. Publication and lifecycle gates remain
   open.
 
-## Workflow checkpoint (OPS-98, Nest/Prisma toolchain bootstrap)
+## Workflow checkpoint (OPS-98 complete; OPS-99 current User/Auth characterization)
 
-- Slice branch/worktree: `codex/ops-98-backend-nest-toolchain-bootstrap` in
-  `../opshub-ops-98`, started from exact live
-  `origin/staging@73e1e2c77aa7e796e4cbd2ee614c4aa16ef5104a`. The canonical
-  `staging` worktree and protected OPS-68/OPS-72 worktrees remain untouched.
+- OPS-98 slice branch/worktree was `codex/ops-98-backend-nest-toolchain-bootstrap`
+  in `../opshub-ops-98`, started from exact live
+  `origin/staging@73e1e2c77aa7e796e4cbd2ee614c4aa16ef5104a`. PR #209 merged at
+  `b9fe4d6e0234ea3f89561978b8974e738b0f8dfb`, staging deploy run
+  `31777758147` passed, and guarded lifecycle cleanup removed the task
+  worktree/local/remote branch. The canonical `staging` and protected
+  OPS-68/OPS-72 worktrees remain untouched.
 - Root cause: fresh task worktrees omit ignored `backend-nest/node_modules`
   and the generated Prisma client, so the first Nest build reports a late
   environment failure. The preflight now checks the package/lockfile and
@@ -989,13 +999,30 @@ Phase 9E runtime checkpoint (OPS-97, MAP Vietin scheduler/coordinator slice):
 - Actual worktree preflight with `--force` passed `npm ci --ignore-scripts` and
   Prisma generation; the immediate repeat returned `cached` with the same
   fingerprint `a245e03be67b0189c76f47f3b1b84bb4f9f2feeef1ec69d66acf45454e20e381`.
-- Exact runner against base checkpoint
+- Exact runner against the OPS-98 base checkpoint
   `73e1e2c77aa7e796e4cbd2ee614c4aa16ef5104a` selected
   `harness,docs,verification-runner,release,nestjs`, covered 8 paths, returned
   code `0` with `stale=false`; the authoritative base/head and before/after
   fingerprint are retained in the ignored `tmp/ops98-verify-final.json`
-  artifact. Publication and lifecycle cleanup remain open until the task is
-  published.
+  artifact. Publication, staging deployment and lifecycle cleanup completed
+  with the merged slice.
+
+## Workflow checkpoint (OPS-99, User/Auth characterization)
+
+- Slice branch/worktree: `codex/ops-99-user-auth-characterization` in
+  `../opshub-ops-99`, started from exact live
+  `origin/staging@b9fe4d6e0234ea3f89561978b8974e738b0f8dfb`. The canonical
+  `staging` worktree and protected OPS-68/OPS-72 worktrees remain untouched.
+- Scope is test-only characterization before Phase 9F collaborator extraction:
+  profile DTO/read, profile update trim/validation, avatar success and old
+  media cleanup, avatar database-failure rollback, and missing-file rejection.
+  Existing admin create/update/delete characterization remains in the same
+  suite; no public method, route, DTO, DI token, permission or runtime code
+  changed.
+- Focused proof currently passes `npx jest src/user/user.service.spec.ts
+  --runInBand` with `1` suite and `70/70` tests. Affected auth/session/access-
+  change and Flutter auth/profile/admin proof, Nest build/Prisma validation,
+  exact runner, publication and lifecycle cleanup remain open.
 
 ## Validation
 

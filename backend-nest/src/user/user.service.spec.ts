@@ -13,6 +13,10 @@ describe('UserService admin store management', () => {
   let policyService: any;
   let accessChangeService: any;
   let mailService: { sendMail: jest.Mock };
+  let uploadService: {
+    saveUserAvatar: jest.Mock;
+    discardPrivateMedia: jest.Mock;
+  };
 
   const superAdmin = {
     id: 'admin-1',
@@ -296,6 +300,10 @@ describe('UserService admin store management', () => {
       setPasswordForUserId: jest.fn().mockResolvedValue({ ok: true }),
     };
     mailService = { sendMail: jest.fn().mockResolvedValue(undefined) };
+    uploadService = {
+      saveUserAvatar: jest.fn(),
+      discardPrivateMedia: jest.fn().mockResolvedValue(undefined),
+    };
     process.env.JWT_SECRET = 'test-secret';
     policyService = {
       getAllowedEmailDomains: jest.fn(async (fallback: string[]) => [
@@ -334,7 +342,7 @@ describe('UserService admin store management', () => {
     };
     service = new UserService(
       prisma,
-      {} as any,
+      uploadService as any,
       passwordResetService as any,
       policyService,
       accessChangeService,
@@ -359,6 +367,117 @@ describe('UserService admin store management', () => {
     expect(prisma.user.create).not.toHaveBeenCalled();
     expect(prisma.user.update).not.toHaveBeenCalled();
     expect(prisma.user.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('maps the profile DTO and trims profile updates without changing the public contract', async () => {
+    prisma.user.findUnique.mockResolvedValueOnce({
+      id: 'user-1',
+      email: 'user@phongvu.vn',
+      firstName: 'Nguyen',
+      lastName: 'Van A',
+      role: 'USER',
+      status: 'yes',
+    });
+
+    const profile = await service.getProfile('user-1');
+
+    expect(profile).toEqual(
+      expect.objectContaining({
+        id: 'user-1',
+        email: 'user@phongvu.vn',
+        firstName: 'Nguyen',
+        lastName: 'Van A',
+        role: 'USER',
+      }),
+    );
+
+    prisma.user.update.mockResolvedValueOnce({
+      id: 'user-1',
+      email: 'user@phongvu.vn',
+      firstName: 'Tran',
+      lastName: 'Thi B',
+      role: 'USER',
+      status: 'yes',
+    });
+
+    const updated = await service.updateProfile('user-1', {
+      firstName: '  Tran ',
+      lastName: '  Thi B ',
+    });
+
+    expect(prisma.user.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'user-1' },
+        data: { firstName: 'Tran', lastName: 'Thi B' },
+      }),
+    );
+    expect(updated).toEqual(
+      expect.objectContaining({ firstName: 'Tran', lastName: 'Thi B' }),
+    );
+  });
+
+  it('rejects missing profile and blank profile names with Vietnamese errors', async () => {
+    prisma.user.findUnique.mockResolvedValueOnce(null);
+    await expect(service.getProfile('missing-user')).rejects.toThrow(
+      'Không tìm thấy người dùng',
+    );
+
+    await expect(
+      service.updateProfile('user-1', { firstName: '  ' }),
+    ).rejects.toThrow('Tên không được để trống');
+    expect(prisma.user.update).not.toHaveBeenCalled();
+  });
+
+  it('uploads an avatar, updates the user and discards the previous private media', async () => {
+    const file = { originalname: 'avatar.png' } as any;
+    prisma.user.findUnique.mockResolvedValueOnce({ avatarUrl: 'old-avatar' });
+    uploadService.saveUserAvatar.mockResolvedValueOnce('new-avatar');
+    prisma.user.update.mockResolvedValueOnce({
+      id: 'user-1',
+      email: 'user@phongvu.vn',
+      firstName: 'Nguyen',
+      role: 'USER',
+      status: 'yes',
+      avatarUrl: 'new-avatar',
+    });
+
+    const result = await service.updateAvatar('user-1', file);
+
+    expect(uploadService.saveUserAvatar).toHaveBeenCalledWith('user-1', file);
+    expect(prisma.user.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'user-1' },
+        data: { avatarUrl: 'new-avatar' },
+      }),
+    );
+    expect(uploadService.discardPrivateMedia).toHaveBeenCalledWith([
+      'old-avatar',
+    ]);
+    expect(result).toEqual(
+      expect.objectContaining({ id: 'user-1', avatarUrl: 'new-avatar' }),
+    );
+  });
+
+  it('discards a newly uploaded avatar when the user update fails', async () => {
+    const file = { originalname: 'avatar.png' } as any;
+    prisma.user.findUnique.mockResolvedValueOnce({ avatarUrl: null });
+    uploadService.saveUserAvatar.mockResolvedValueOnce('new-avatar');
+    prisma.user.update.mockRejectedValueOnce(new Error('database unavailable'));
+
+    await expect(service.updateAvatar('user-1', file)).rejects.toThrow(
+      'database unavailable',
+    );
+    expect(uploadService.discardPrivateMedia).toHaveBeenCalledWith([
+      'new-avatar',
+    ]);
+  });
+
+  it('rejects an avatar request without a file before touching storage', async () => {
+    await expect(service.updateAvatar('user-1')).rejects.toThrow(
+      'Vui lòng chọn ảnh đại diện',
+    );
+    expect(uploadService.saveUserAvatar).not.toHaveBeenCalled();
+    expect(prisma.user.findUnique).not.toHaveBeenCalled();
   });
 
   it('serializes access-sensitive catalog writes during module initialization', async () => {
