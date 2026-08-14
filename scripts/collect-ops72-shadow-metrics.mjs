@@ -68,6 +68,7 @@ function sampleReport(repositoryRoot, sample, sampleRoot) {
     commandDefinitions: report.commandDefinitions,
     blockingChecksUnchanged: report.blockingChecksUnchanged,
     retryPolicy: report.retryPolicy,
+    telemetry: report.telemetry || null,
     metrics: report.metrics,
   };
 }
@@ -110,7 +111,7 @@ export function collectShadowMetrics({
   }
 
   const report = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     mode: 'historical-five-pr-sample',
     generatedAtUtc: new Date().toISOString(),
     repositoryHead: git(repositoryRoot, ['rev-parse', 'HEAD']),
@@ -126,7 +127,9 @@ export function collectShadowMetrics({
       environmentFailures: reports.filter((item) => item.autoExitCode === 5 || item.fullExitCode === 5).length,
       falseNegativesAccepted: 0,
       falsePositivesAccepted: 0,
-      retryReruns: 0,
+      retryReruns: reports.reduce((total, item) => total + Number(item.telemetry?.retryCount || 0), 0),
+      telemetryCohorts: [...new Set(reports.map((item) => item.telemetry?.cohortId).filter(Boolean))].sort(),
+      observationsWithTelemetry: reports.filter((item) => item.telemetry !== null).length,
       firstActionableFailureMedianMs: null,
       medianTimeToActionableFailureMs: null,
       baselineMedianTimeToActionableFailureMs: null,
@@ -135,9 +138,9 @@ export function collectShadowMetrics({
       targetStatus: 'pending-live-shadow-data',
     },
     interpretation: [
-      'Historical replay validates profile selection and fingerprint stability on five merged PRs.',
+      'Historical replay validates profile selection, fingerprint stability and schema-v2 telemetry shape on five merged PRs.',
       'The replay is not a substitute for five live PR shadow observations; no profile is promoted to blocking by this artifact.',
-      'Time-to-actionable-failure and rerun target percentages remain pending because historical CI timestamps are not equivalent to the required baseline metrics.',
+      'Time-to-actionable-failure and rerun target percentages remain pending because historical CI timestamps are not equivalent to the required baseline metrics; collect five live observations with one cohort before comparing them.',
     ],
   };
   const target = path.resolve(output);

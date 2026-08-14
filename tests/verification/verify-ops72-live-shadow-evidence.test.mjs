@@ -25,3 +25,27 @@ test('OPS-72 verifier rejects stale accepted proof', () => {
   artifact.observations[0].stale = true;
   assert.throws(() => validateLiveEvidence(artifact), /stale must be false/);
 });
+
+test('OPS-72 verifier accepts optional schema-v2 telemetry on legacy evidence', () => {
+  const artifact = JSON.parse(readFileSync(path.join(root, 'docs/migrations/ops-72-live-shadow-evidence.json'), 'utf8'));
+  artifact.observations[0].telemetry = {
+    schemaVersion: 2,
+    cohortId: 'ops72-shadow-v2',
+    queuedAtUtc: '2026-08-14T18:00:00.000Z',
+    startedAtUtc: '2026-08-14T18:00:01.000Z',
+    completedAtUtc: '2026-08-14T18:00:03.000Z',
+    queueDurationMs: 1000,
+    executionDurationMs: 2000,
+    retryCount: 0,
+    autoRetryCount: 0,
+    fullRetryCount: 0,
+    firstActionableFailure: null,
+  };
+  assert.equal(validateLiveEvidence(artifact).passCount, 5);
+});
+
+test('OPS-72 verifier rejects malformed schema-v2 telemetry', () => {
+  const artifact = JSON.parse(readFileSync(path.join(root, 'docs/migrations/ops-72-live-shadow-evidence.json'), 'utf8'));
+  artifact.observations[0].telemetry = { schemaVersion: 1 };
+  assert.throws(() => validateLiveEvidence(artifact), /telemetry\.schemaVersion must be 2/);
+});

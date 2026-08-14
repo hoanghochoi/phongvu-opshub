@@ -28,6 +28,8 @@ jobs:
         continue-on-error: true
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          OPSHUB_SHADOW_QUEUED_AT_UTC: ${{ github.run_started_at }}
+          OPSHUB_SHADOW_COHORT_ID: ops72-live-v2
         run: |
           mkdir -p tmp
           node scripts/verify-task-shadow.mjs \
@@ -58,6 +60,10 @@ jobs:
             `- Changed paths: ${(report.changedPaths || []).length}`,
             `- Blocking checks unchanged: ${report.blockingChecksUnchanged}`,
             `- Classification: ${report.classification}`,
+            `- Shadow cohort: ${report.telemetry?.cohortId || 'unknown'}`,
+            `- Queue/start/end: ${report.telemetry?.queuedAtUtc || 'unknown'} / ${report.telemetry?.startedAtUtc || 'unknown'} / ${report.telemetry?.completedAtUtc || 'unknown'}`,
+            `- Retry count: ${report.telemetry?.retryCount ?? 'unknown'}`,
+            `- First actionable failure: ${report.telemetry?.firstActionableFailure?.category || 'none'}`,
           ];
           fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${lines.join('\n')}\n`);
           NODE

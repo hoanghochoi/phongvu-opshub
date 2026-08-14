@@ -4,20 +4,24 @@ Date: 2026-08-13
 
 ## Status
 
-Active — the current workflow checkpoint is OPS-111 on
-`origin/staging@ba6cba8ceba7f1b025d94d021f00071e411bd70a`. OPS-110 UserService
-import/welcome-email extraction is merged at this SHA; its focused proof,
-exact verification, staging deploy and guarded lifecycle cleanup passed, and
-Linear remains `Ready for QA` pending production. OPS-111 now closes the
-remaining dependency bootstrap loop: the shared execution gate, dependency
-only Nest fingerprint, Windows `ENOTEMPTY` quarantine/retry and raw build/test
-command coverage are implemented in the task worktree; publication and
-staging proof remain open. OPS-106 dependency integrity hardening, OPS-103
-UserService characterization, OPS-107 MAP characterization and the earlier
-runtime waves remain merged with production deployment still pending. Five
-live shadow observations pass; one historical contract gap (#182) was
-explicitly captured and fixed in the OPS-72 follow-up. MAP persistence
-extraction, remaining runtime waves and production release remain open.
+Active — the current workflow checkpoint is OPS-112 on
+`origin/staging@056e01b4230b7e6c2eeaf5059b9624e13e289694`. OPS-111 merged in
+PR #224 at `6ae638fa`, but its first staging deploy exposed a Docker-only
+path regression: the backend-only image context could not resolve the local
+worktree prebuild gate. OPS-113 repaired that boundary in PR #225, merged at
+the current SHA, and staging deploy `31832800738` passed client builds,
+backend Docker build/runtime switch, direct-origin routes and public
+health/version verification. Both merged task worktrees and local/remote
+feature branches were cleaned; Linear remains `Ready for QA` pending
+production. OPS-112 now records comparable schema-v2 shadow telemetry without
+promoting the affected matrix. Five accepted schema-v1 observations still
+validate selection/fingerprint safety, but do not establish the new comparable
+timing cohort; five fresh live schema-v2 observations are required before
+calculating optimization percentages. OPS-106 dependency integrity hardening,
+OPS-103 UserService characterization, OPS-107 MAP characterization and the
+earlier runtime waves remain merged with production deployment still pending.
+MAP persistence extraction, dependency-bootstrap enforcement, remaining
+runtime waves and production release remain open.
 
 ## Outcome
 
@@ -1453,28 +1457,45 @@ Current live upstream retry evidence:
   and restoring the facade implementation returns the prior behavior. No
   database or runtime data migration was required.
 
-## Workflow checkpoint (OPS-111 current; toolchain execution gate)
+## Workflow checkpoint (OPS-111 and OPS-113 complete; OPS-112 current)
 
-- OPS-111 is the current tooling slice. Its branch/worktree is
-  `codex/ops-111-toolchain-execution-gate` / `../opshub-ops-111`, created from
-  exact live `origin/staging@ba6cba8ceba7f1b025d94d021f00071e411bd70a`.
-  The intake checkpoint was captured twice with identical SHA-256
+- OPS-111 `codex/ops-111-toolchain-execution-gate` was created from exact
+  `origin/staging@ba6cba8ceba7f1b025d94d021f00071e411bd70a`, with identical
+  intake checkpoint SHA-256
   `d6a585ee1b1d2dfa7b1b7e6cb423b5ee05153beae6a1607ea2ce2e003adca9a6`.
-- The slice adds `scripts/run-with-toolchain.mjs`, lifecycle preflight hooks
-  for direct Nest build/test/start commands, explicit Flutter `--no-pub`
-  release gates and coverage tests. Nest hydration fingerprints only
-  dependency-relevant package fields; workflow script edits therefore do not
-  rerun `npm ci`. A Windows `ENOTEMPTY`/`rmdir` conflict quarantines the
-  ignored `node_modules` directory, retries once and cleans it after Prisma
-  readiness; symlink/rename failures remain fail-closed.
-- Proof currently passes: toolchain suites `33/33`, exact preflight on the
-  real worktree (943 packages and Prisma generated), cached repeat preflight
-  in about 1.3s, Nest build, and the full Nest suite `111/111` with
-  `1,236` passed and `6` skipped. Publication, exact affected runner, PR/CI,
-  staging deploy and guarded lifecycle cleanup remain required.
-- Rollback is the single OPS-111 revert/merge commit. The change affects only
-  dependency preparation and command execution gates; no product/API/UI/data
-  behavior changes.
+  PR #224 merged at `6ae638fafba1195611ceaf5b879255d2c0b1e93f`; Release Guard,
+  shadow verification and CodeQL passed; guarded lifecycle cleanup removed the
+  task worktree/local/remote branch. The shared gate, dependency-only Nest
+  fingerprint, Windows `ENOTEMPTY` quarantine/retry and direct Nest/Flutter
+  build/test coverage remain the current local-worktree authority.
+- Exact-SHA staging deploy `31829555645` failed only in the backend image
+  build: `backend-nest` is a self-contained Docker context, while the new
+  local `prebuild` hook resolved `../scripts/run-with-toolchain.mjs` as missing
+  `/scripts/run-with-toolchain.mjs`. Android, Windows and web artifacts passed;
+  the release trap restored `ba6cba8c` healthy. This was a deployment
+  regression, not a missing-dependency or product-runtime failure.
+- OPS-113 `codex/ops-113-docker-preflight-hotfix` was created from exact
+  `origin/staging@6ae638fa`, then merged in PR #225 at
+  `056e01b4230b7e6c2eeaf5059b9624e13e289694`. The Docker build now executes
+  the explicit `build` script with pre/post hooks suppressed only inside that
+  backend-only image; local `npm run build/test` retains the preflight hook.
+  Static coverage passed `6/6`; Docker-equivalent Sharp/security/Prisma/build
+  commands, local preflight build, full Nest `111/111` suites (`1,236` passed,
+  `6` skipped), and exact runner (`harness,nestjs`, `stale=false`) passed.
+  Staging deploy `31832800738` passed all build, Docker/runtime, route and
+  public health/version gates without rollback. Guarded lifecycle cleanup and
+  remote-branch deletion completed; Linear is `Ready for QA` pending
+  production.
+- OPS-112 `codex/ops-112-reconcile-shadow-baseline` now runs from exact live
+  `origin/staging@056e01b4230b7e6c2eeaf5059b9624e13e289694`. Its uncommitted
+  telemetry diff was temporarily stashed while OPS-113 advanced staging, then
+  restored after a clean fast-forward; no user work was overwritten. It adds
+  schema-v2 cohort id, queue/start/end timestamps, queue/execution durations,
+  total plus per-ladder retry counts, and first actionable failure timing to
+  shadow reports. Historical replays remain non-promoting; five new live
+  observations in one cohort are required before evaluating the 25%/30%
+  optimization targets. The next gates are focused telemetry tests, exact-base
+  verification, PR/CI, staging deploy and guarded lifecycle cleanup.
 
 ## Result
 
