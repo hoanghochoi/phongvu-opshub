@@ -19,7 +19,7 @@ export const PROFILES = Object.freeze([
       /^docs\/(?:contracts|decisions|migrations|plans|templates)\//,
       /^scripts\/(?:adapter|schema)\//,
       /^scripts\/(?:validate-contract-appendix\.sh|validate-ops-11-payment-audio\.ps1|validate-ops(?:39|40)-affected-consumers\.mjs)$/,
-      /^scripts\/prepare-task-toolchain\.mjs$/,
+      /^scripts\/(?:prepare-task-toolchain|run-with-toolchain)\.mjs$/,
       /^\.gitattributes$/,
       /^scripts\/bootstrap-harness\.(?:ps1|sh)$/,
       /^scripts\/bin\/harness(?:-cli)?\.exe\.sha256$/,
@@ -30,7 +30,7 @@ export const PROFILES = Object.freeze([
       /^tests\/migration\//,
       /^tests\/toolchain\//,
       /^tests\/(?:installer|maintenance|migration|verification)\//,
-      /^\.github\/workflows\/(?:post-merge-maintenance|release-guard-pr)/,
+      /^\.github\/workflows\/(?:build-windows-msix|deploy-opshub(?:-staging)?|post-merge-maintenance|release-guard-pr)\.yml$/,
     ],
     consumers: [
       'repository-harness-adoption',

@@ -18,10 +18,9 @@ PhongVu OpsHub is an internal operations app for Phong Vu staff. The Flutter app
 ## Flutter
 
 ```bash
-flutter pub get
-flutter analyze
-flutter test
-flutter run --dart-define=API_BASE_URL=http://localhost:3000
+node scripts/run-with-toolchain.mjs --profile flutter -- flutter analyze
+node scripts/run-with-toolchain.mjs --profile flutter -- flutter test
+node scripts/run-with-toolchain.mjs --profile flutter -- flutter run --dart-define=API_BASE_URL=http://localhost:3000
 ```
 
 If `API_BASE_URL` is not provided, the app falls back to the LAN development URL in `ApiConstants`.
@@ -33,11 +32,10 @@ copy .env.example .env
 # Replace both local password placeholders in .env before continuing.
 docker compose up -d
 
-cd backend-nest
-copy .env.example .env
-npm install
-npm run build
-npm run start:dev
+copy backend-nest/.env.example backend-nest/.env
+node scripts/run-with-toolchain.mjs --profile nestjs --preflight-only
+node scripts/run-with-toolchain.mjs --profile nestjs --cwd backend-nest -- npm run build
+node scripts/run-with-toolchain.mjs --profile nestjs --cwd backend-nest -- npm run start:dev
 ```
 
 The local database and Redis ports bind only to `127.0.0.1`. Keep the
