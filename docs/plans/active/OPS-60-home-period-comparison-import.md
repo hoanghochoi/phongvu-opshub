@@ -88,7 +88,7 @@ Out of scope:
 - [x] Run full validation and Windows/Web platform builds.
 - [x] Complete independent code, security and UI review waves with no remaining
   Blocker/High finding after remediation.
-- [ ] Record Linear proof and move OPS-60 to Ready for QA.
+- [x] Record Linear proof and move OPS-60 to `Ready for QA`.
 
 ## Implementation Checkpoint And Ownership
 
@@ -167,15 +167,17 @@ the Windows/Web import modal applies only where the platform contract permits.
   access versions so a role/showroom reassignment cannot reuse a response from
   the previous authorization snapshot.
 
-## Final Remediation Evidence In Progress
+## Final Implementation And Staging Evidence
 
-- Nest build passed after the chunk upload, quota and claim-token wiring.
-- Focused Dart analysis passed for the changed Home and Sales import surfaces.
-- Focused worker/authorization Jest passed 16/16, including quota-before-write,
-  invalid-scope-before-disk and stale-worker fencing regressions.
-- Full focused Home + Sales Jest and Flutter widget proof must be rerun after
-  the final test edits; platform builds, database migration smoke, generated
-  200 MiB/1,000,000-row load and staging visual proof remain pending.
+- PR #155 merged into `staging` at
+  `00a5c5b631719688fbf0474337ab5b2fb137dce3`; exact-SHA staging deploy run
+  `31403136393` passed its prepare, Android, Windows and deploy jobs.
+- Linear is `Ready for QA`; neither the merge nor staging deployment proves
+  production completion.
+- Nest build, full focused Home and Sales proof, Flutter proof, Go tests and
+  Windows/Web release builds passed before publication as recorded below.
+- Authenticated four-viewport Figma comparison and the actual maximum-size
+  200 MiB/1,000,000-row environment smoke remain staging QA gates.
 
 ## Validation
 
@@ -203,5 +205,8 @@ screenshots and an actual maximum-size 200 MiB/1,000,000-row environment smoke.
 Security review also records a Medium availability risk where a privileged user
 can reserve the global upload budget until cancellation/TTL; authorization,
 PII boundaries, bounded 4 MiB streaming, claim fencing and cleanup otherwise
-passed review. Next action: publish the task branch, merge its reviewed PR into
-`staging`, then run guarded lifecycle cleanup and staging QA.
+passed review. PR #155 is merged and exact-SHA staging deployment passed. Next
+action: complete the authenticated four-viewport Figma comparison and
+maximum-size import smoke, record the result in Linear, then continue the
+guarded production release handoff. OPS-60 remains open until those gates and
+production deployment pass.
