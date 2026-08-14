@@ -60,6 +60,10 @@ import {
   ZALO_REASON_CODES,
 } from './sales-reports.dto';
 import { SalesReportsScopeQueryRuntime } from './sales-reports-scope-query.runtime';
+import {
+  SalesReportsRevenueAggregationRuntime,
+  SalesReportsRevenueAggregationSummary,
+} from './sales-reports-revenue-aggregation.runtime';
 
 const REPORT_TYPE_PURCHASED = 'PURCHASED';
 const REPORT_TYPE_NOT_PURCHASED = 'NOT_PURCHASED';
@@ -329,6 +333,7 @@ const INSTALLMENT_NO_INSTALLMENT_REASON_LABELS: Record<string, string> = {
 export class SalesReportsService implements OnApplicationBootstrap {
   private readonly logger = new Logger(SalesReportsService.name);
   private readonly scopeQueryRuntime: SalesReportsScopeQueryRuntime;
+  private readonly revenueAggregationRuntime: SalesReportsRevenueAggregationRuntime;
   private orderCacheSyncRunning = false;
   private erpStatusSyncRunning = false;
 
@@ -353,6 +358,13 @@ export class SalesReportsService implements OnApplicationBootstrap {
         warn: (message) => this.logger.warn(message),
       },
     );
+    this.revenueAggregationRuntime = new SalesReportsRevenueAggregationRuntime({
+      cleanPromotionCodes: (value) => this.cleanPromotionCodes(value),
+      installmentNoInstallmentReasonLabel: (code) =>
+        this.installmentNoInstallmentReasonLabel(code),
+      normalizeSalesCategoryType: (value) =>
+        this.normalizeSalesCategoryType(value),
+    });
   }
 
   async categoriesForReport() {
@@ -4495,136 +4507,8 @@ export class SalesReportsService implements OnApplicationBootstrap {
   summarizeSalesRevenueRows(
     rows: any[],
     canonicalRevenue: CanonicalRevenueLookup = buildCanonicalRevenueLookup([]),
-  ) {
-    const uniquePurchased = new Map<string, any>();
-    const noInstallmentReasons = new Map<string, number>();
-    const successfulInstallmentOrderKeys = new Set<string>();
-    let installmentNeedTotalCount = 0;
-    let examScorePromotionCount = 0;
-    let studentPromotionCount = 0;
-    for (const row of rows) {
-      const hasInstallmentNeed = row.installmentNeed === true;
-      if (hasInstallmentNeed) {
-        installmentNeedTotalCount += 1;
-      }
-      if (hasInstallmentNeed && row.installmentNoInstallmentReason) {
-        const reasonCode = String(row.installmentNoInstallmentReason);
-        if (reasonCode !== 'NORMAL_INSTALLMENT') {
-          const label = this.installmentNoInstallmentReasonLabel(reasonCode);
-          noInstallmentReasons.set(
-            label,
-            (noInstallmentReasons.get(label) ?? 0) + 1,
-          );
-        }
-      }
-      if (row.reportType !== REPORT_TYPE_PURCHASED) continue;
-      const promotionCodes = this.cleanPromotionCodes(row.promotionCodes);
-      if (promotionCodes.includes('EXAM_SCORE_EXCHANGE')) {
-        examScorePromotionCount += 1;
-      }
-      if (promotionCodes.includes('STUDENT')) {
-        studentPromotionCount += 1;
-      }
-      const key =
-        normalizeRevenueOrderCode(row.orderCode) ??
-        String(row.erpOrderId ?? row.id ?? '').trim();
-      if (hasInstallmentNeed && key && this.isReportedInstallmentSuccess(row)) {
-        successfulInstallmentOrderKeys.add(key);
-      }
-      if (key && !uniquePurchased.has(key)) uniquePurchased.set(key, row);
-    }
-
-    const summary = {
-      orderCountUnique: uniquePurchased.size,
-      businessRevenue: 0,
-      personalRevenue: 0,
-      noInstallmentReasons,
-      installmentNeedTotalCount,
-      examScorePromotionCount,
-      studentPromotionCount,
-      successfulInstallmentOrderCount: successfulInstallmentOrderKeys.size,
-      laptopQuantity: 0,
-      pcQuantity: 0,
-      assembledPcQuantity: 0,
-      appleQuantity: 0,
-      monitorQuantity: 0,
-      printerQuantity: 0,
-      accessoriesQuantity: 0,
-      extendedInsuranceQuantity: 0,
-    };
-
-    for (const row of uniquePurchased.values()) {
-      const revenue = canonicalRevenueForOrder(canonicalRevenue, row.orderCode);
-      if (row.customerType === 'BUSINESS') {
-        summary.businessRevenue += revenue;
-      } else {
-        summary.personalRevenue += revenue;
-      }
-      const componentQuantities = new Map<string, number>();
-      for (const item of Array.isArray(row.items) ? row.items : []) {
-        const type = this.normalizeSalesCategoryType(item?.categoryType);
-        if (!type) continue;
-        const quantity = this.salesItemQuantity(item);
-        componentQuantities.set(
-          type,
-          (componentQuantities.get(type) ?? 0) + quantity,
-        );
-        if (type === 'laptop') summary.laptopQuantity += quantity;
-        if (type === 'pc') summary.pcQuantity += quantity;
-        if (type === 'apple' && this.isTargetAppleItem(item)) {
-          summary.appleQuantity += quantity;
-        }
-        if (type === 'monitor') summary.monitorQuantity += quantity;
-        if (type === 'printer') summary.printerQuantity += quantity;
-        if (type === 'accessories') summary.accessoriesQuantity += quantity;
-        if (type === 'extendedinsurance') {
-          summary.extendedInsuranceQuantity += quantity;
-        }
-      }
-      summary.assembledPcQuantity +=
-        this.assembledPcQuantity(componentQuantities);
-    }
-
-    return summary;
-  }
-
-  private assembledPcQuantity(componentQuantities: Map<string, number>) {
-    const requiredTypes = [
-      'cpu',
-      'mainboard',
-      'memory',
-      'storage',
-      'case',
-      'psu',
-    ];
-    const quantities = requiredTypes.map(
-      (type) => componentQuantities.get(type) ?? 0,
-    );
-    const minQuantity = Math.min(...quantities);
-    return Number.isFinite(minQuantity) && minQuantity > 0 ? minQuantity : 0;
-  }
-
-  private salesItemQuantity(item: any) {
-    const quantity = this.numberValue(item?.quantity);
-    return quantity !== null && quantity > 0 ? quantity : 1;
-  }
-
-  private normalizeSalesCategoryType(value: unknown) {
-    return String(value || '')
-      .trim()
-      .replace(/\s+/g, '')
-      .toLowerCase();
-  }
-
-  private isTargetAppleItem(item: any) {
-    const text = this.normalizeComparable(
-      [item?.name, item?.productTypeName, item?.productGroupName]
-        .filter(Boolean)
-        .join(' '),
-    );
-    return ['macbook', 'iphone', 'ipad'].some((keyword) =>
-      text.includes(keyword),
-    );
+  ): SalesReportsRevenueAggregationSummary {
+    return this.revenueAggregationRuntime.summarize(rows, canonicalRevenue);
   }
 
   private numberValue(value: unknown) {
@@ -4634,6 +4518,13 @@ export class SalesReportsService implements OnApplicationBootstrap {
         ? Number(value.replace(/,/g, ''))
         : Number(value);
     return Number.isFinite(number) ? Math.trunc(number) : null;
+  }
+
+  private normalizeSalesCategoryType(value: unknown) {
+    return String(value || '')
+      .trim()
+      .replace(/\s+/g, '')
+      .toLowerCase();
   }
 
   private salesReportExportNote({
