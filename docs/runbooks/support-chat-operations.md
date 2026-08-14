@@ -40,7 +40,13 @@ exact SHA, command exit code, purged counts and post-purge sentinel query; never
 copy raw message bodies, filenames, media URLs or credentials into proof logs.
 
 For a disposable local fresh/upgrade/rollback rehearsal, set
-`OPSHUB_POSTGRES_BIN` to a PostgreSQL `bin` directory and run
-`npm run verify:ops40:postgres`. The verifier creates an isolated cluster under
+`OPSHUB_POSTGRES_BIN` to a PostgreSQL `bin` directory and run the repository-root
+toolchain-gated command:
+
+```powershell
+node scripts/run-with-toolchain.mjs --profile nestjs --cwd backend-nest -- npm run verify:ops40:postgres
+```
+
+The verifier creates an isolated cluster under
 `%TEMP%`, binds only loopback on a random high port, and validates its cleanup
 target before deletion. It must never point at or reuse an existing cluster.

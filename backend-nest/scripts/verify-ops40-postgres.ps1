@@ -68,10 +68,10 @@ $started = $false
 New-Item -ItemType Directory -Path $tempRoot | Out-Null
 
 $freshSql = @'
-SELECT (to_regclass('"SupportConversation"') IS NOT NULL)::int || ':' ||
-       (SELECT is_nullable FROM information_schema.columns
+SELECT ((to_regclass('"SupportConversation"') IS NOT NULL)::int)::text || ':' ||
+       (SELECT is_nullable::text FROM information_schema.columns
         WHERE table_name='SupportConversation' AND column_name='requesterId') || ':' ||
-       (SELECT confdeltype FROM pg_constraint
+       (SELECT confdeltype::text FROM pg_constraint
         WHERE conname='SupportConversation_requesterId_fkey');
 '@
 $rollbackSql = @'
@@ -97,8 +97,12 @@ try {
     -h 127.0.0.1 -p $port -U postgres $database
   if ($LASTEXITCODE -ne 0) { throw "createdb failed: $LASTEXITCODE" }
 
-  $env:DATABASE_URL = "postgresql://postgres@127.0.0.1:$port/$database?schema=public"
-  & npx.cmd prisma migrate deploy
+  $env:DATABASE_URL = "postgresql://postgres@127.0.0.1:$port/${database}?schema=public"
+  & node ..\scripts\run-with-toolchain.mjs `
+    --root .. `
+    --profile nestjs `
+    --cwd backend-nest `
+    -- npx --no-install prisma migrate deploy
   if ($LASTEXITCODE -ne 0) {
     throw "fresh Prisma migration failed: $LASTEXITCODE"
   }
