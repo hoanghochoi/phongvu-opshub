@@ -32,6 +32,7 @@ import {
   AdminUserImportParseResult,
   AdminUserImportRow,
 } from './user-import-parser.service';
+import { UserProfileService } from './user-profile.service';
 import { logFingerprint, safeLogError } from '../common/log-sanitizer';
 import { AccessChangeService } from '../auth/access-change.service';
 
@@ -371,6 +372,7 @@ export class UserService implements OnModuleInit {
   private readonly logger = new Logger(UserService.name);
   private bigquery?: BigQuery;
   private storeOrganizationSyncInFlight: Promise<void> | null = null;
+  private readonly profileService: UserProfileService;
 
   constructor(
     private prisma: PrismaService,
@@ -381,6 +383,14 @@ export class UserService implements OnModuleInit {
     @Optional()
     private mailService?: OpshubMailService,
   ) {
+    this.profileService = new UserProfileService(
+      this.prisma,
+      this.uploadService,
+      {
+        include: () => this.userDtoInclude(),
+        toDto: (user) => this.toUserDto(user),
+      },
+    );
     if (getDataSyncSource() !== 'bigquery') {
       return;
     }
@@ -613,57 +623,18 @@ export class UserService implements OnModuleInit {
   }
 
   async getProfile(userId: string) {
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-      include: this.userDtoInclude(),
-    });
-    if (!user) throw new NotFoundException('Không tìm thấy người dùng');
-    return this.toUserDto(user);
+    return this.profileService.getProfile(userId);
   }
 
   async updateProfile(
     userId: string,
     body: { firstName?: string; lastName?: string },
   ) {
-    const firstName = body.firstName?.trim();
-    if (!firstName) {
-      throw new BadRequestException('Tên không được để trống');
-    }
-    const user = await this.prisma.user.update({
-      where: { id: userId },
-      data: {
-        firstName,
-        lastName: body.lastName?.trim() || null,
-      },
-      include: this.userDtoInclude(),
-    });
-    return this.toUserDto(user);
+    return this.profileService.updateProfile(userId, body);
   }
 
   async updateAvatar(userId: string, file?: Express.Multer.File) {
-    if (!file) {
-      throw new BadRequestException('Vui lòng chọn ảnh đại diện');
-    }
-    const previous = await this.prisma.user.findUnique({
-      where: { id: userId },
-      select: { avatarUrl: true },
-    });
-    const avatarUrl = await this.uploadService.saveUserAvatar(userId, file);
-    let user: any;
-    try {
-      user = await this.prisma.user.update({
-        where: { id: userId },
-        data: { avatarUrl },
-        include: this.userDtoInclude(),
-      });
-    } catch (error) {
-      await this.uploadService.discardPrivateMedia([avatarUrl]);
-      throw error;
-    }
-    if (previous?.avatarUrl && previous.avatarUrl !== avatarUrl) {
-      await this.uploadService.discardPrivateMedia([previous.avatarUrl]);
-    }
-    return this.toUserDto(user);
+    return this.profileService.updateAvatar(userId, file);
   }
 
   async selectStoreOnce(userId: string, storeCode: string) {

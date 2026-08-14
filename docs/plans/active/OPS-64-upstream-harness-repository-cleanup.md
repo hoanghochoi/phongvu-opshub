@@ -12,9 +12,10 @@ OPS-81, OPS-82, OPS-83, OPS-84, OPS-85, OPS-86, OPS-87, OPS-88, OPS-89,
 OPS-90, OPS-91, OPS-92, OPS-93, OPS-94, OPS-95 and OPS-96 are merged and
 staging-deployed. OPS-97 MAP Vietin sync scheduler/coordinator extraction is
 merged and staging-deployed. OPS-98 Nest/Prisma toolchain bootstrap is merged
-and staging-deployed. OPS-99 User/Auth characterization is the current
-lifecycle slice. Comparable timing baseline, remaining runtime waves, Flutter
-toolchain policy and production release remain open.
+and staging-deployed. OPS-99 User/Auth characterization is merged and
+staging-deployed; OPS-100 UserService profile collaborator extraction is the
+current lifecycle slice. Comparable timing baseline, remaining runtime waves,
+Flutter toolchain policy and production release remain open.
 
 ## Outcome
 
@@ -53,14 +54,20 @@ branch, and is not converted row-for-row into Markdown.
   and local/remote task branch were removed. Its preflight remains the tracked
   remedy for fresh worktrees missing `backend-nest/node_modules` and Prisma
   client output.
-- Current slice: `OPS-99` User/Auth characterization, on the fresh lifecycle
-  worktree `../opshub-ops-99` and branch `codex/ops-99-user-auth-characterization`,
-  created from exact live `origin/staging@b9fe4d6e0234ea3f89561978b8974e738b0f8dfb`.
-  This test-only slice covers the `UserService` profile DTO/update/avatar
-  compensation contract while preserving the public facade; admin mutation
-  characterization already present in the suite remains protected. The focused
-  suite currently passes `70/70` and the remaining affected-consumer, build and
-  publication gates are open.
+- Previous slice: `OPS-99` User/Auth characterization, created from exact live
+  `origin/staging@b9fe4d6e0234ea3f89561978b8974e738b0f8dfb`, merged in PR #210 at
+  `00a8021c5848abe8032dad1385cf65f139748aef`, and staging-deployed by run
+  `31780994964`. Linear is `Ready for QA`; the focused suite passed `70/70`,
+  affected Nest auth/session/access-change passed `177/177`, affected Flutter
+  auth/profile/admin passed `48`, and the exact runner reported `stale=false`.
+  This test-only slice preserved the public facade and left collaborator
+  extraction to the current slice.
+- Current slice: `OPS-100` UserService profile collaborator extraction, on the
+  fresh lifecycle worktree `../opshub-ops-100` and branch
+  `codex/ops-100-user-profile-collaborator`, created from exact live
+  `origin/staging@00a8021c5848abe8032dad1385cf65f139748aef`. This slice first
+  refreshes the OPS-99 checkpoint, then extracts only profile DTO/read, update
+  validation/trim and avatar media compensation behind the stable facade.
   OPS-89 cache state, in-flight dedupe, refresh-ahead, daily-series extension,
   support caches, scope-option caching and projection invalidation remain in
   `home-summary-cache.runtime.ts`.
@@ -1007,22 +1014,31 @@ Phase 9E runtime checkpoint (OPS-97, MAP Vietin scheduler/coordinator slice):
   artifact. Publication, staging deployment and lifecycle cleanup completed
   with the merged slice.
 
-## Workflow checkpoint (OPS-99, User/Auth characterization)
+## Workflow checkpoint (OPS-99 complete; OPS-100 current profile extraction)
 
-- Slice branch/worktree: `codex/ops-99-user-auth-characterization` in
+- OPS-99 slice branch/worktree was `codex/ops-99-user-auth-characterization` in
   `../opshub-ops-99`, started from exact live
-  `origin/staging@b9fe4d6e0234ea3f89561978b8974e738b0f8dfb`. The canonical
+  `origin/staging@b9fe4d6e0234ea3f89561978b8974e738b0f8dfb`. PR #210 merged at
+  `00a8021c5848abe8032dad1385cf65f139748aef`; staging deploy `31780994964`
+  passed, Linear is `Ready for QA`, and guarded lifecycle cleanup removed the
+  task worktree/local/remote branch. Focused UserService passed `70/70`,
+  affected Nest passed `177/177`, affected Flutter passed `48`, and the exact
+  runner passed with `stale=false`.
+
+## Workflow checkpoint (OPS-100, UserService profile collaborator)
+
+- Slice branch/worktree: `codex/ops-100-user-profile-collaborator` in
+  `../opshub-ops-100`, started from exact live
+  `origin/staging@00a8021c5848abe8032dad1385cf65f139748aef`. The canonical
   `staging` worktree and protected OPS-68/OPS-72 worktrees remain untouched.
-- Scope is test-only characterization before Phase 9F collaborator extraction:
-  profile DTO/read, profile update trim/validation, avatar success and old
-  media cleanup, avatar database-failure rollback, and missing-file rejection.
-  Existing admin create/update/delete characterization remains in the same
-  suite; no public method, route, DTO, DI token, permission or runtime code
-  changed.
-- Focused proof currently passes `npx jest src/user/user.service.spec.ts
-  --runInBand` with `1` suite and `70/70` tests. Affected auth/session/access-
-  change and Flutter auth/profile/admin proof, Nest build/Prisma validation,
-  exact runner, publication and lifecycle cleanup remain open.
+- Lifecycle `start --prepare --execute` created the worktree and completed the
+  Nest/Prisma preflight with fingerprint
+  `a245e03be67b0189c76f47f3b1b84bb4f9f2feeef1ec69d66acf45454e20e381`; the
+  ignored `backend-nest/node_modules` and generated Prisma client are local
+  task artifacts, not product changes.
+- Extraction and characterization proof are in progress; public facade and
+  affected consumers remain protected. Publication and lifecycle cleanup are
+  open until the final diff and exact runner pass.
 
 ## Validation
 
