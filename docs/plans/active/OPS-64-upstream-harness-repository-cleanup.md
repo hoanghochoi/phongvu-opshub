@@ -4,27 +4,24 @@ Date: 2026-08-13
 
 ## Status
 
-Active — Phase 7B live shadow evidence and Phase 8 artifact/dependency/toolchain
-cleanup are merged in staging. OPS-106 dependency-integrity hardening is the
-current workflow slice. Five live shadow observations pass; one
-historical contract gap (#182) was explicitly captured and fixed in the OPS-72
-follow-up. OPS-74 runtime waves through OPS-97, the Nest/Prisma bootstrap,
-User/Auth characterization and UserService profile/admin extraction are merged
-and staging-deployed. OPS-101 plan disposition is merged at
-`ad8a6de51b5b9e9eac93417cd3a87488ef1606c0`; OPS-102 admin mutation extraction
-is merged at `43708ec5d86968ec04882771563ca927fe3763f5` and Linear is
-`Ready for QA`. OPS-78 migration-EOL preflight is merged at
-`5b5d644644aa69b2b33fcfbd5442716ec41429c2`; its exact-SHA staging deploy is
-run `31790637975` passed. OPS-105 is merged at `628d79ef5c938f1c804c7c14e168737ba3755b7b`
-with staging deploy run `31804029517` passed. OPS-104 is merged at
-`1d251d8ed5a94c2d3746cb2aa28a7c45d7ffb237`; its exact-SHA staging deploy run
-`31807641556` passed. OPS-106 is the current dependency-integrity hardening
-slice. OPS-68 remains protected with its authoritative
-OPS-69 correction; OPS-72 remains `Ready for QA` with live timing baseline
-pending; its stale detached worktree was cleaned after preserving local stash
-backups. OPS-103 is backlogged
-until those gates are explicitly resolved. Comparable timing baseline, remaining
-runtime waves, Flutter toolchain policy and production release remain open.
+Active — the current workflow checkpoint is OPS-108 on live
+`origin/staging@100f2ad319e72bb0334c64c6a8de0ff85b3b8782`. OPS-106 dependency
+integrity hardening is merged by PR #218 at `39d2918f` with staging deploy run
+`31811539631` passed and Linear `Ready for QA`. OPS-103 UserService
+characterization is merged by PR #220 at `5d59ba51` with staging deploy run
+`31815294365` passed and Linear `Ready for QA`. OPS-107 MAP characterization is
+merged by PR #219 at `100f2ad3` with exact-SHA staging deploy run
+`31815315261` passed and Linear `Ready for QA`. All three task worktrees,
+local branches and remote branches were removed by guarded lifecycle cleanup;
+production deployment is still pending. Five live shadow observations pass;
+one historical contract gap (#182) was explicitly captured and fixed in the
+OPS-72 follow-up. OPS-74 runtime waves through OPS-97, the Nest/Prisma
+bootstrap, User/Auth characterization and UserService profile/admin extraction
+are merged and staging-deployed. OPS-68 remains protected with its
+authoritative OPS-69 correction; OPS-72 remains `Ready for QA` with live timing
+baseline pending. Dependency bootstrap closure, MAP persistence extraction,
+UserService import extraction, remaining runtime waves and production release
+remain open.
 
 ## Outcome
 
@@ -1065,7 +1062,7 @@ Phase 9E runtime checkpoint (OPS-97, MAP Vietin scheduler/coordinator slice):
   `Ready for QA`; authenticated QA and production deployment remain open, so
   no production completion is inferred.
 
-## Workflow checkpoint (OPS-102/OPS-78 complete; OPS-104 current)
+## Historical workflow checkpoint (OPS-102/OPS-78 complete; OPS-104 current at that time)
 
 - OPS-102 started from exact `origin/staging@ad8a6de51b5b9e9eac93417cd3a87488ef1606c0`.
   PR #213 squash-merged at `43708ec5d86968ec04882771563ca927fe3763f5`; the
@@ -1090,9 +1087,10 @@ Phase 9E runtime checkpoint (OPS-97, MAP Vietin scheduler/coordinator slice):
   it must not be merged, rebased or pushed; the authoritative execution is PR
   #176 plus OPS-69's correction. OPS-72's detached worktree at
   `6ff4899f631f55eb41c0a8b4f1b9a739138768fd` was reviewed, stashed and
-  cleaned; merged OPS-72 history on staging is canonical. OPS-103 has no
-  implementation worktree and remains
-  `Backlog` until a fresh live checkpoint is authorized.
+  cleaned; merged OPS-72 history on staging is canonical. At this historical
+  checkpoint OPS-103 had no implementation worktree and was `Backlog`; it was
+  later started from a fresh live checkpoint and is now merged/staging-deployed
+  as recorded in the current checkpoint below.
 - OPS-104 branch/worktree is `codex/ops-104-master-plan-reconcile` /
   `../opshub-ops-104`, created from exact
   `origin/staging@628d79ef5c938f1c804c7c14e168737ba3755b7b`.
@@ -1345,7 +1343,7 @@ Current live upstream retry evidence:
   candidate/conflict, human resolution plus `--continue`, `--abort`, and
   dry-run immutability.
 
-## Workflow checkpoint (OPS-104 complete; OPS-106 current dependency integrity)
+## Historical workflow checkpoint (OPS-104 complete; OPS-106 current at that time)
 
 - OPS-105 branch/worktree was `codex/ops-105-mandatory-toolchain-preflight` /
   `../opshub-ops-105`, created from exact live
@@ -1371,10 +1369,49 @@ Current live upstream retry evidence:
 - Focused toolchain tests passed `13/13`, verification tests `21/21`, lifecycle
   tests `16/16`, and the full runner passed all eight profiles with
   `stale=false`. The remaining gap—stale external package materialization
-  behind a readable marker—is tracked by OPS-106.
+  behind a readable marker—was tracked by OPS-106 and is now carried as a
+  follow-up in the current checkpoint.
 - OPS-104 branch/worktree is `codex/ops-104-master-plan-reconcile` /
   `../opshub-ops-104`, created from exact
   `origin/staging@628d79ef5c938f1c804c7c14e168737ba3755b7b`.
+
+## Workflow checkpoint (OPS-108 current; OPS-106/OPS-103/OPS-107 complete)
+
+- OPS-108 is the current docs-only reconciliation slice. Its branch/worktree
+  is `codex/ops-108-reconcile-master-plan-after-ops-106-103-107` /
+  `../opshub-ops-108`, created from exact live
+  `origin/staging@100f2ad319e72bb0334c64c6a8de0ff85b3b8782`. The canonical
+  staging worktree remained clean and the remote SHA stayed unchanged during
+  intake.
+- The intake checkpoint (branch, HEAD, status/untracked paths, tracked index
+  entries, worktree/index binary diff, file modes/deletions and untracked
+  content hashes) was captured twice independently with identical SHA-256
+  `64baaab93210f99dd8268e47616e54f9c8253baaa6afa1e04396521211052a65`.
+- OPS-108 task preflight completed for both profiles. The Nest result is
+  cached/ready with lockfile version 3, 61 direct dependencies, zero missing
+  direct or locked packages, Nest CLI and Prisma generated entrypoints. The
+  Flutter result is cached/ready with package-config schema 2, root package and
+  all 174 referenced package roots present. No tracked changes were produced;
+  only ignored task-local dependency/build state exists.
+- The initial lifecycle command exceeded the 180-second shell wrapper timeout
+  after hydration completed. The worktree was re-verified at the expected HEAD,
+  with both profiles cached and the live staging SHA unchanged; no rollback or
+  force cleanup was performed.
+- OPS-106 exact proof remains: toolchain tests `18/18`, lifecycle tests `16/16`,
+  Flutter analyze, Nest build, Go/release/deployment/security profiles and the
+  exact runner all passed with `stale=false`. Its remaining follow-up is
+  dependency-bootstrap closure for standalone command bypasses, shared Pub
+  cache races and deeper Flutter package materialization checks.
+- OPS-103 exact proof remains: UserService suite `73/73`, exact runner
+  `stale=false`, and staging deploy `31815294365`; residual work is extraction
+  of the import/welcome-email collaborator behind the stable facade.
+- OPS-107 exact proof remains: MAP service suite `153/153`, controller/provider/
+  sync suites passed, exact runner `stale=false`, and staging deploy
+  `31815315261`; residual work is extraction of persistence/canonical identity/
+  dedup/quarantine collaboration.
+- The next implementation slices are dependency-bootstrap closure, then the
+  named UserService and MAP extraction slices. No production completion is
+  inferred from staging merge or QA readiness.
 
 ## Result
 
@@ -1386,7 +1423,8 @@ local-only and retained; the canonical source remains read-only evidence.
 OPS-65 PR #175, OPS-68 PR #176, and OPS-69 PRs #177/#178 are merged into
 `staging`; each remains subject to its documented QA/production lifecycle
 gates. The current OPS-78 follow-up owns the Windows migration-EOL preflight,
-while OPS-106 owns dependency-integrity hardening.
+while OPS-106 owns the merged dependency-integrity hardening; the remaining
+dependency-bootstrap closure is a follow-up slice and not yet complete.
 Move this plan to
 `docs/plans/completed/` only after the full initiative's final validation and
 production lifecycle are complete.
@@ -1396,5 +1434,6 @@ has 16 files (15 current plans plus its README); all moved paths retain a
 one-to-one `sourcePath`, disposition and canonical target in the OPS-71 ledger.
 OPS-44 retains a release-pending handoff, while OPS-53 retains one active
 consolidation summary; neither Linear issue was closed by this cleanup.
-OPS-106 must update this checkpoint with its exact final SHA, PR, staging
-deploy and lifecycle cleanup proof before advancing beyond staging QA.
+The master plan must be moved to `docs/plans/completed/` only after all runtime,
+toolchain, docs and production-release gates in the initiative pass. Until then
+the current checkpoint above is the sole active execution authority.
