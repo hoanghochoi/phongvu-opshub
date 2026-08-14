@@ -33,10 +33,7 @@ import {
   storesForOrganizationNodeTree,
 } from '../common/organization-store-scope';
 import { buildRealtimeRedisEnvelope } from '../common/realtime-event';
-import {
-  isPostgresDeadlock,
-  withPostgresDeadlockRetry,
-} from '../common/postgres-deadlock-retry';
+import { isPostgresDeadlock } from '../common/postgres-deadlock-retry';
 import {
   SalesReportErpService,
   type SalesReportErpLifecycleStatus,
@@ -60,11 +57,7 @@ import {
   mapVietinIncomeTypeLabel,
   MAP_VIETIN_INCOME_TYPE,
 } from './income-type';
-import {
-  conflictingStatementProviderIdentifiers,
-  mergeStatementProviderIdentifiers,
-  resolveStoredStatementNumber,
-} from './statement-identifiers';
+import { resolveStoredStatementNumber } from './statement-identifiers';
 import {
   BankProviderHttpException,
   EfastSession,
@@ -75,6 +68,11 @@ import {
   MapVietinSyncCoordinator,
   type MapVietinSyncOptions,
 } from './map-vietin-sync.runtime';
+import {
+  MapVietinPersistenceRuntime,
+  type MapPersistStats,
+  type MapTransactionRow,
+} from './map-vietin-persistence.runtime';
 
 const MAP_CLIENT_ID = 'c4a59ac3630f6d8f1abe722eac7052b5';
 const MAP_SIGNATURE_KEY = '***REMOVED***';
@@ -95,13 +93,9 @@ const EFAST_DEFAULT_SESSION_TTL_SECONDS = 10 * 60;
 const EFAST_PUBLIC_KEY =
   'MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQCz1zqQHtHvKczHh58ePiRNgOyiHEx6lZDPlvwBTaHmkNlQyyJ06SIlMU1pmGKxILjT7n06nxG7LlFVUN5MkW/jwF39/+drkHM5B0kh+hPQygFjRq81yxvLwolt+Vq7h+CTU0Z1wkFABcTeQQldZkJlTpyx0c3+jq0o47wIFjq5fwIDAQAB';
 const MAP_SYNC_PAGE_SIZE = 100;
-const DEFAULT_MAP_SYNC_FINGERPRINT_CACHE_TTL_MS = 5 * 60 * 1000;
-const DEFAULT_MAP_SYNC_FINGERPRINT_CACHE_MAX_ENTRIES = 20_000;
-const MAX_MAP_SYNC_FINGERPRINT_CACHE_ENTRIES = 100_000;
 const DEFAULT_GLOBAL_SYNC_MAX_PAGES = 2;
 const DEFAULT_GLOBAL_SESSION_TTL_SECONDS = 10 * 60;
 const VIETNAM_UTC_OFFSET_HOURS = 7;
-const ORDER_SOURCE_AUTO = 'AUTO';
 const ORDER_SOURCE_MANUAL = 'MANUAL';
 const ORDER_SOURCE_OFFSET = 'OFFSET';
 const ORDER_SOURCE_ERP_REPLACEMENT = 'ERP_REPLACEMENT';
@@ -155,20 +149,7 @@ type MapSearchResponse = {
   code?: string;
 };
 
-type MapTransactionRow = Record<string, unknown>;
-
 type MapGlobalSyncOptions = MapVietinSyncOptions;
-
-type MapPersistStats = {
-  updated: number;
-  unchanged: number;
-  cacheHits: number;
-};
-
-type MapSyncFingerprintCacheEntry = {
-  fingerprint: string;
-  expiresAt: number;
-};
 
 type EfastStatus = {
   code?: string;
@@ -212,13 +193,9 @@ type UnmappedReason =
 @Injectable()
 export class MapVietinService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(MapVietinService.name);
-  private readonly mapSyncFingerprintCache = new Map<
-    string,
-    MapSyncFingerprintCacheEntry
-  >();
-  private mapPersistenceQueue: Promise<void> = Promise.resolve();
   private readonly providerRuntime: MapVietinProviderRuntime;
   private readonly syncCoordinator: MapVietinSyncCoordinator;
+  private readonly persistenceRuntime: MapVietinPersistenceRuntime;
   private readonly amountKeys = [
     'amount',
     'txnAmount',
@@ -338,6 +315,28 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
   ) {
     this.providerRuntime = providerRuntime ?? new MapVietinProviderRuntime();
     this.syncCoordinator = syncCoordinator ?? new MapVietinSyncCoordinator();
+    this.persistenceRuntime = new MapVietinPersistenceRuntime({
+      prisma: this.prisma,
+      paymentNotifications: this.paymentNotifications,
+      logger: this.logger,
+      amountKeys: this.amountKeys,
+      contentKeys: this.contentKeys,
+      statusKeys: this.statusKeys,
+      transactionNumberKeys: this.transactionNumberKeys,
+      transactionReferenceKeys: this.transactionReferenceKeys,
+      payerNameKeys: this.payerNameKeys,
+      payerAccountKeys: this.payerAccountKeys,
+      readAmount: (row) => this.readAmount(row),
+      isSuccessfulTransaction: (row) => this.isSuccessfulTransaction(row),
+      readFirstText: (row, keys) => this.readFirstText(row, keys),
+      readTransactionTime: (row) => this.readTransactionTime(row),
+      extractOrderCodesFromContent: (content) =>
+        this.extractOrderCodesFromContent(content),
+      isEfastMapTransactionRow: (row) => this.isEfastMapTransactionRow(row),
+      rawDataAsMapRow: (value) => this.rawDataAsMapRow(value),
+      readPositiveInt: (name, fallback) => this.readPositiveInt(name, fallback),
+      safeError: (error) => this.safeError(error),
+    });
     this.syncCoordinator.configure({
       logger: this.logger,
       isMapHistorySyncDisabled: () => this.isMapHistorySyncDisabled(),
@@ -346,7 +345,8 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
       globalSyncMaxPages: () => this.globalSyncMaxPages(),
       readPositiveInt: (name, fallback) => this.readPositiveInt(name, fallback),
       resetProviderBackoff: () => this.providerRuntime.resetBackoff(),
-      clearFingerprintCache: () => this.mapSyncFingerprintCache.clear(),
+      clearFingerprintCache: () =>
+        this.persistenceRuntime.clearFingerprintCache(),
       safeError: (error) => this.safeError(error),
       syncConfiguredStores: (options) => this.syncConfiguredStores(options),
       syncEfastTransactions: () => this.syncEfastTransactions(),
@@ -3204,495 +3204,7 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
     rows: unknown[],
     stats: MapPersistStats = { updated: 0, unchanged: 0, cacheHits: 0 },
   ) {
-    let releaseQueue!: () => void;
-    const previous = this.mapPersistenceQueue;
-    this.mapPersistenceQueue = new Promise<void>((resolve) => {
-      releaseQueue = resolve;
-    });
-    await previous;
-    try {
-      return await this.persistTransactionsUnlocked(storeCode, rows, stats);
-    } finally {
-      releaseQueue();
-    }
-  }
-
-  private async persistTransactionsUnlocked(
-    storeCode: string | null,
-    rows: unknown[],
-    stats: MapPersistStats,
-  ) {
-    let created = 0;
-    let withOrders = 0;
-    let withoutOrders = 0;
-    let manualProtected = 0;
-    let offsetProtected = 0;
-    let manualIncomeTypeProtected = 0;
-    let duplicateStatementSkipped = 0;
-    let duplicateFingerprintSkipped = 0;
-    let identifierEnriched = 0;
-    let identifierConflicts = 0;
-    let ambiguousFingerprintSkipped = 0;
-    let salesIncome = 0;
-    let partnerInternalIncome = 0;
-    for (const raw of rows) {
-      if (!raw || typeof raw !== 'object') continue;
-      const row = raw as MapTransactionRow;
-      const normalized = this.normalizeTransaction(storeCode, row);
-      if (!normalized) continue;
-      if (normalized.incomeType === MAP_VIETIN_INCOME_TYPE.PARTNER_INTERNAL) {
-        partnerInternalIncome += 1;
-      } else {
-        salesIncome += 1;
-      }
-      const syncFingerprint = this.mapSyncFingerprint(normalized);
-      if (
-        this.mapSyncFingerprintCacheHit(
-          normalized.transactionKey,
-          syncFingerprint,
-        )
-      ) {
-        stats.unchanged += 1;
-        stats.cacheHits += 1;
-        continue;
-      }
-      let existing = await this.prisma.mapVietinTransaction.findUnique({
-        where: { transactionKey: normalized.transactionKey },
-      });
-      if (!existing) {
-        const legacyTransactionKey = this.legacyTransactionKeyForRow(
-          storeCode,
-          row,
-        );
-        if (legacyTransactionKey !== normalized.transactionKey) {
-          existing = await this.prisma.mapVietinTransaction.findUnique({
-            where: { transactionKey: legacyTransactionKey },
-          });
-        }
-      }
-      if (!existing) {
-        const existingStatement = await this.findExistingTransactionByStatement(
-          normalized.transactionKey,
-          row,
-        );
-        if (existingStatement) {
-          duplicateStatementSkipped += 1;
-          const enrichment = await this.enrichStoredProviderIdentifiers(
-            existingStatement,
-            normalized,
-            'statement_identifier',
-          );
-          identifierEnriched += enrichment.updated ? 1 : 0;
-          stats.updated += enrichment.updated ? 1 : 0;
-          identifierConflicts += enrichment.conflict ? 1 : 0;
-          this.rememberMapSyncFingerprint(
-            normalized.transactionKey,
-            syncFingerprint,
-          );
-          continue;
-        }
-        const fingerprintResult =
-          await this.findExistingTransactionByBankFingerprint(
-            normalized.transactionKey,
-            normalized,
-            row,
-          );
-        if (fingerprintResult.ambiguousCount > 0) {
-          ambiguousFingerprintSkipped += 1;
-          this.logger.warn(
-            `MAP sync identifier enrichment stopped for ambiguous bank fingerprint: incoming=${normalized.transactionKey} store=${normalized.storeCode || 'null'} candidates=${fingerprintResult.ambiguousCount} source=${this.isEfastMapTransactionRow(row) ? 'VIETIN_EFAST' : 'MAP'}`,
-          );
-          this.rememberMapSyncFingerprint(
-            normalized.transactionKey,
-            syncFingerprint,
-          );
-          continue;
-        }
-        if (fingerprintResult.match) {
-          duplicateFingerprintSkipped += 1;
-          const enrichment = await this.enrichStoredProviderIdentifiers(
-            fingerprintResult.match,
-            normalized,
-            'bank_fingerprint',
-          );
-          identifierEnriched += enrichment.updated ? 1 : 0;
-          stats.updated += enrichment.updated ? 1 : 0;
-          identifierConflicts += enrichment.conflict ? 1 : 0;
-          this.logger.warn(
-            `MAP sync duplicate enriched by bank fingerprint: incoming=${normalized.transactionKey} existing=${fingerprintResult.match.transactionKey} store=${normalized.storeCode || 'null'} source=${this.isEfastMapTransactionRow(row) ? 'VIETIN_EFAST' : 'MAP'} enriched=${enrichment.updated} conflict=${enrichment.conflict}`,
-          );
-          this.rememberMapSyncFingerprint(
-            normalized.transactionKey,
-            syncFingerprint,
-          );
-          continue;
-        }
-      }
-      if (normalized.orders.length > 0) {
-        withOrders += 1;
-      } else {
-        withoutOrders += 1;
-      }
-      if (!existing) created += 1;
-      const preservesProtectedOrders =
-        existing?.orderSource === ORDER_SOURCE_MANUAL ||
-        existing?.orderSource === ORDER_SOURCE_OFFSET ||
-        existing?.orderSource === ORDER_SOURCE_ERP_REPLACEMENT;
-      const preservesManualIncomeType =
-        existing?.incomeTypeSource === INCOME_TYPE_SOURCE_MANUAL;
-      if (preservesManualIncomeType) manualIncomeTypeProtected += 1;
-      if (existing?.orderSource === ORDER_SOURCE_MANUAL) manualProtected += 1;
-      if (existing?.orderSource === ORDER_SOURCE_OFFSET) offsetProtected += 1;
-      const updateData = {
-        transactionNumber: normalized.transactionNumber,
-        amount: normalized.amount,
-        content: normalized.content,
-        ...(preservesManualIncomeType
-          ? {}
-          : {
-              incomeType: normalized.incomeType,
-              incomeTypeSource: INCOME_TYPE_SOURCE_AUTO,
-            }),
-        ...(preservesProtectedOrders
-          ? {}
-          : {
-              orders: normalized.orders,
-              orderSource: ORDER_SOURCE_AUTO,
-            }),
-        status: normalized.status,
-        paidAt: normalized.paidAt,
-        payerName: normalized.payerName,
-        payerAccount: normalized.payerAccount,
-        rawData: mergeStatementProviderIdentifiers(
-          normalized.rawData,
-          {
-            transactionNumber: existing?.transactionNumber,
-            rawData: existing?.rawData,
-          },
-          {
-            transactionNumber: normalized.transactionNumber,
-            rawData: normalized.rawData,
-          },
-        ) as Prisma.InputJsonObject,
-      };
-      const isNoOp =
-        existing && this.mapTransactionSyncIsNoOp(existing, updateData);
-      const stored = isNoOp
-        ? existing
-        : await withPostgresDeadlockRetry(
-            () =>
-              this.prisma.mapVietinTransaction.upsert({
-                where: {
-                  transactionKey:
-                    existing?.transactionKey ?? normalized.transactionKey,
-                },
-                create: normalized,
-                update: updateData,
-              }),
-            {
-              operation: 'map_vietin_ingest_upsert',
-              logger: this.logger,
-            },
-          );
-      if (isNoOp) {
-        stats.unchanged += 1;
-      } else if (existing) {
-        stats.updated += 1;
-      }
-      this.rememberMapSyncFingerprint(
-        normalized.transactionKey,
-        syncFingerprint,
-      );
-      if (
-        !existing &&
-        stored?.id &&
-        stored.storeCode &&
-        this.paymentNotifications
-      ) {
-        const storedWithStore = stored as typeof stored & { storeCode: string };
-        void this.paymentNotifications
-          .createForTransaction(storedWithStore)
-          .catch((error) => {
-            this.logger.warn(
-              `Payment notification failed for ${stored.id}: ${this.safeError(error)}`,
-            );
-          });
-      }
-    }
-    if (
-      created > 0 ||
-      stats.updated > 0 ||
-      duplicateStatementSkipped > 0 ||
-      duplicateFingerprintSkipped > 0 ||
-      ambiguousFingerprintSkipped > 0
-    ) {
-      const storeLabel = storeCode || 'null';
-      this.logger.log(
-        `MAP sync order extraction: store=${storeLabel} created=${created} updated=${stats.updated} unchanged=${stats.unchanged} withOrders=${withOrders} withoutOrders=${withoutOrders} salesIncome=${salesIncome} partnerInternalIncome=${partnerInternalIncome} manualProtected=${manualProtected} offsetProtected=${offsetProtected} manualIncomeTypeProtected=${manualIncomeTypeProtected} duplicateStatementSkipped=${duplicateStatementSkipped} duplicateFingerprintSkipped=${duplicateFingerprintSkipped} identifierEnriched=${identifierEnriched} identifierConflicts=${identifierConflicts} ambiguousFingerprintSkipped=${ambiguousFingerprintSkipped}`,
-      );
-    }
-    return created;
-  }
-
-  private mapTransactionSyncIsNoOp(
-    existing: Record<string, unknown>,
-    updateData: Record<string, unknown>,
-  ) {
-    return Object.entries(updateData).every(([key, value]) =>
-      this.mapSyncValueEquals(existing[key], value),
-    );
-  }
-
-  private async enrichStoredProviderIdentifiers(
-    existing: {
-      id: string;
-      transactionKey: string;
-      transactionNumber?: string | null;
-      rawData?: Prisma.JsonValue | null;
-    },
-    incoming: {
-      transactionNumber?: string | null;
-      rawData: Prisma.InputJsonObject;
-    },
-    reason: 'statement_identifier' | 'bank_fingerprint',
-  ) {
-    const conflicts = conflictingStatementProviderIdentifiers(
-      existing,
-      incoming,
-    );
-    if (conflicts.length > 0) {
-      this.logger.warn(
-        `MAP sync identifier enrichment conflict: transaction=${existing.id} reason=${reason} fields=${conflicts.join(',')}`,
-      );
-      return { updated: false, conflict: true };
-    }
-
-    const rawData = mergeStatementProviderIdentifiers(
-      existing.rawData,
-      existing,
-      incoming,
-    ) as Prisma.InputJsonObject;
-    if (this.mapSyncValueEquals(existing.rawData, rawData)) {
-      return { updated: false, conflict: false };
-    }
-
-    const statementNumber = resolveStoredStatementNumber({
-      transactionNumber: existing.transactionNumber,
-      rawData,
-    });
-    await this.prisma.$transaction(async (tx) => {
-      await tx.mapVietinTransaction.update({
-        where: { id: existing.id },
-        data: { rawData },
-      });
-      if (statementNumber) {
-        await tx.vietQrPaymentIntent.updateMany({
-          where: { matchedTransactionId: existing.id },
-          data: { matchedTransactionNumber: statementNumber },
-        });
-      }
-    });
-    this.logger.log(
-      `MAP sync identifier enrichment succeeded: transaction=${existing.id} reason=${reason} vietQrCanonicalUpdated=${Boolean(statementNumber)}`,
-    );
-    return { updated: true, conflict: false };
-  }
-
-  private mapSyncValueEquals(left: unknown, right: unknown): boolean {
-    if (left instanceof Date || right instanceof Date) {
-      if (!(left instanceof Date) || !(right instanceof Date)) return false;
-      return left.getTime() === right.getTime();
-    }
-    if (Array.isArray(left) || Array.isArray(right)) {
-      if (!Array.isArray(left) || !Array.isArray(right)) return false;
-      if (left.length !== right.length) return false;
-      return left.every((value, index) =>
-        this.mapSyncValueEquals(value, right[index]),
-      );
-    }
-    if (
-      left !== null &&
-      right !== null &&
-      typeof left === 'object' &&
-      typeof right === 'object'
-    ) {
-      return this.stableJson(left) === this.stableJson(right);
-    }
-    return left === right;
-  }
-
-  private stableJson(value: unknown): string {
-    const normalize = (input: unknown): unknown => {
-      if (Array.isArray(input)) return input.map(normalize);
-      if (input && typeof input === 'object') {
-        return Object.fromEntries(
-          Object.entries(input as Record<string, unknown>)
-            .sort(([left], [right]) => left.localeCompare(right))
-            .map(([key, nested]) => [key, normalize(nested)]),
-        );
-      }
-      return input;
-    };
-    return JSON.stringify(normalize(value));
-  }
-
-  private mapSyncFingerprint(normalized: Record<string, unknown>) {
-    return createHash('sha256')
-      .update(this.stableJson(normalized))
-      .digest('hex');
-  }
-
-  private mapSyncFingerprintCacheHit(key: string, fingerprint: string) {
-    const cached = this.mapSyncFingerprintCache.get(key);
-    if (!cached) return false;
-    if (cached.expiresAt <= Date.now() || cached.fingerprint !== fingerprint) {
-      this.mapSyncFingerprintCache.delete(key);
-      return false;
-    }
-    // Map giữ thứ tự chèn; đưa entry vừa dùng xuống cuối để có LRU giới hạn.
-    this.mapSyncFingerprintCache.delete(key);
-    this.mapSyncFingerprintCache.set(key, cached);
-    return true;
-  }
-
-  private rememberMapSyncFingerprint(key: string, fingerprint: string) {
-    const maxEntries = Math.min(
-      MAX_MAP_SYNC_FINGERPRINT_CACHE_ENTRIES,
-      this.readPositiveInt(
-        'MAP_VIETIN_SYNC_FINGERPRINT_CACHE_MAX_ENTRIES',
-        DEFAULT_MAP_SYNC_FINGERPRINT_CACHE_MAX_ENTRIES,
-      ),
-    );
-    while (this.mapSyncFingerprintCache.size >= maxEntries) {
-      const oldestKey = this.mapSyncFingerprintCache.keys().next().value as
-        | string
-        | undefined;
-      if (!oldestKey) break;
-      this.mapSyncFingerprintCache.delete(oldestKey);
-    }
-    this.mapSyncFingerprintCache.set(key, {
-      fingerprint,
-      expiresAt:
-        Date.now() +
-        this.readPositiveInt(
-          'MAP_VIETIN_SYNC_FINGERPRINT_CACHE_TTL_MS',
-          DEFAULT_MAP_SYNC_FINGERPRINT_CACHE_TTL_MS,
-        ),
-    });
-  }
-
-  private async findExistingTransactionByStatement(
-    transactionKey: string,
-    row: MapTransactionRow,
-  ) {
-    const identifiers = this.statementIdentifiersForRow(row);
-    if (identifiers.length === 0) return null;
-    const referenceWhere = identifiers.flatMap((identifier) => [
-      { transactionNumber: identifier },
-      {
-        rawData: {
-          path: ['txnReference'],
-          equals: identifier,
-        },
-      },
-      {
-        rawData: {
-          path: ['trxId'],
-          equals: identifier,
-        },
-      },
-      {
-        rawData: {
-          path: ['trxRefNo'],
-          equals: identifier,
-        },
-      },
-      {
-        rawData: {
-          path: ['providerIdentifiers', 'mapTransactionNumber'],
-          equals: identifier,
-        },
-      },
-      {
-        rawData: {
-          path: ['providerIdentifiers', 'efastTrxId'],
-          equals: identifier,
-        },
-      },
-      {
-        rawData: {
-          path: ['providerIdentifiers', 'efastTrxRefNo'],
-          equals: identifier,
-        },
-      },
-    ]);
-    return this.prisma.mapVietinTransaction.findFirst({
-      where: {
-        transactionKey: { not: transactionKey },
-        OR: referenceWhere,
-      },
-      select: {
-        id: true,
-        transactionKey: true,
-        transactionNumber: true,
-        storeCode: true,
-        rawData: true,
-      },
-    });
-  }
-
-  private async findExistingTransactionByBankFingerprint(
-    transactionKey: string,
-    normalized: {
-      storeCode: string | null;
-      amount: number;
-      content: string;
-      paidAt: Date | null;
-    },
-    row: MapTransactionRow,
-  ) {
-    if (
-      !normalized.storeCode ||
-      !normalized.paidAt ||
-      !normalized.content.trim()
-    ) {
-      return { match: null, ambiguousCount: 0 };
-    }
-    const incomingIsEfast = this.isEfastMapTransactionRow(row);
-    const candidates = await this.prisma.mapVietinTransaction.findMany({
-      where: {
-        transactionKey: { not: transactionKey },
-        storeCode: normalized.storeCode,
-        amount: normalized.amount,
-        paidAt: normalized.paidAt,
-        content: normalized.content,
-      },
-      select: {
-        id: true,
-        transactionKey: true,
-        transactionNumber: true,
-        storeCode: true,
-        rawData: true,
-      },
-      take: 5,
-    });
-    const oppositeSourceCandidates = candidates.filter((candidate) => {
-      const candidateRaw = this.rawDataAsMapRow(candidate.rawData);
-      const candidateIsEfast = candidateRaw
-        ? this.isEfastMapTransactionRow(candidateRaw)
-        : false;
-      return candidateIsEfast !== incomingIsEfast;
-    });
-    if (oppositeSourceCandidates.length !== 1) {
-      return {
-        match: null,
-        ambiguousCount:
-          oppositeSourceCandidates.length > 1
-            ? oppositeSourceCandidates.length
-            : 0,
-      };
-    }
-    return { match: oppositeSourceCandidates[0], ambiguousCount: 0 };
+    return this.persistenceRuntime.persistTransactions(storeCode, rows, stats);
   }
 
   private async persistGlobalTransactions(
@@ -3928,81 +3440,6 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
     return this.readText(row, 'source') === 'VIETIN_EFAST';
   }
 
-  private statementIdentifiersForRow(row: MapTransactionRow) {
-    const seen = new Set<string>();
-    const output: string[] = [];
-    const candidates = [
-      this.readFirstText(row, this.transactionNumberKeys),
-      this.readFirstText(row, this.transactionReferenceKeys),
-      this.readText(row, 'trxId'),
-      this.readText(row, 'trxRefNo'),
-      this.readText(row, 'numberOrder'),
-    ];
-    for (const candidate of candidates) {
-      const value = this.cleanText(candidate);
-      if (!value || seen.has(value)) continue;
-      seen.add(value);
-      output.push(value);
-    }
-    return output;
-  }
-
-  private canonicalStatementIdentifierForRow(row: MapTransactionRow) {
-    const candidates = this.isEfastMapTransactionRow(row)
-      ? [
-          this.readText(row, 'trxId'),
-          this.readFirstText(row, this.transactionNumberKeys),
-          this.readText(row, 'trxRefNo'),
-          this.readFirstText(row, this.transactionReferenceKeys),
-        ]
-      : [
-          this.readText(row, 'txnReference'),
-          this.readText(row, 'trxId'),
-          this.readText(row, 'trxRefNo'),
-          this.readFirstText(row, this.transactionNumberKeys),
-        ];
-    for (const candidate of candidates) {
-      const value = this.cleanText(candidate).toUpperCase();
-      if (value) return value;
-    }
-    return '';
-  }
-
-  private legacyTransactionKeyForRow(
-    storeCode: string | null,
-    row: MapTransactionRow,
-  ) {
-    const transactionNumber = this.readFirstText(
-      row,
-      this.transactionNumberKeys,
-    );
-    const amount = this.readAmount(row) ?? 0;
-    const paidAt = this.readTransactionTime(row);
-    const content = this.readFirstText(row, this.contentKeys);
-    const fallback = [
-      transactionNumber,
-      amount,
-      paidAt?.toISOString() ?? '',
-      content,
-    ].join('|');
-    const storeKey = storeCode || '__NO_STORE__';
-    const hash = createHash('sha256')
-      .update(`${storeKey}|${fallback}`)
-      .digest('hex');
-    return `${storeKey}:${hash}`;
-  }
-
-  private transactionKeyForIdentity(
-    storeCode: string | null,
-    identity: string,
-  ) {
-    const storeKey = storeCode || '__NO_STORE__';
-    const hash = createHash('sha256')
-      .update(`${storeKey}|${identity}`)
-      .digest('hex');
-    return `${storeKey}:${hash}`;
-  }
-
   private normalizeEfastTransactionDate(value: string) {
     const text = this.cleanText(value);
     if (!text) return '';
@@ -4110,50 +3547,7 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
     storeCode: string | null,
     row: MapTransactionRow,
   ) {
-    const amount = this.readAmount(row);
-    if (!amount || amount <= 0) return null;
-    if (!this.isSuccessfulTransaction(row)) return null;
-    const content = this.readFirstText(row, this.contentKeys);
-    const transactionNumber = this.readFirstText(
-      row,
-      this.transactionNumberKeys,
-    );
-    const paidAt = this.readTransactionTime(row);
-    const status = this.readFirstText(row, this.statusKeys);
-    const payerName = this.readFirstText(row, this.payerNameKeys);
-    const payerAccount = this.readFirstText(row, this.payerAccountKeys);
-    const orders = this.extractOrderCodesFromContent(content);
-    const canonicalStatementIdentifier =
-      this.canonicalStatementIdentifierForRow(row);
-    const fallback = [
-      transactionNumber,
-      amount,
-      paidAt?.toISOString() ?? '',
-      content,
-    ].join('|');
-    const identity = canonicalStatementIdentifier
-      ? `STATEMENT|${canonicalStatementIdentifier}`
-      : `FALLBACK|${fallback}`;
-
-    return {
-      storeCode,
-      transactionKey: this.transactionKeyForIdentity(storeCode, identity),
-      transactionNumber: transactionNumber || null,
-      amount,
-      content,
-      orders,
-      orderSource: ORDER_SOURCE_AUTO,
-      status: status || null,
-      paidAt,
-      payerName: payerName || null,
-      payerAccount: payerAccount || null,
-      incomeType: classifyMapVietinIncomeType(content, payerAccount),
-      incomeTypeSource: INCOME_TYPE_SOURCE_AUTO,
-      rawData: mergeStatementProviderIdentifiers(row, {
-        transactionNumber: transactionNumber || null,
-        rawData: row,
-      }) as Prisma.InputJsonObject,
-    };
+    return this.persistenceRuntime.normalizeTransaction(storeCode, row);
   }
 
   extractOrderCodesFromContent(content: string) {
