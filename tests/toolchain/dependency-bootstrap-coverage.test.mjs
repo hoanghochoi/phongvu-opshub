@@ -73,6 +73,22 @@ test('Nest package lifecycle commands keep the gate before build/test/start cons
   }
 });
 
+test('Docker Nest build is self-contained without weakening local lifecycle gates', () => {
+  const packageJson = JSON.parse(source('backend-nest/package.json'));
+  const dockerfile = source('backend-nest/Dockerfile');
+
+  assert.match(
+    packageJson.scripts.prebuild,
+    /run-with-toolchain\.mjs --root \.\. --profile nestjs --preflight-only/,
+    'local npm run build must keep the shared Nest toolchain gate',
+  );
+  assert.match(
+    dockerfile,
+    /npx prisma generate && npm run build --ignore-scripts/,
+    'the backend-only Docker context must execute Nest build without the local prebuild hook',
+  );
+});
+
 test('release Flutter builds disable the implicit Pub writer', () => {
   for (const relativePath of [
     '.github/workflows/build-windows-msix.yml',
