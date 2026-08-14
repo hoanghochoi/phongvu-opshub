@@ -46,8 +46,11 @@ test('collector writes a five-sample report without promoting pending metrics', 
       head,
     })),
   });
-  assert.equal(report.schemaVersion, 1);
+  assert.equal(report.schemaVersion, 2);
   assert.equal(report.sampleCount, 5);
   assert.equal(report.aggregate.targetStatus, 'pending-live-shadow-data');
   assert.ok(report.samples.every((sample) => sample.status === 'passed'));
+  assert.ok(report.samples.every((sample) => sample.telemetry?.schemaVersion === 2));
+  assert.deepEqual(report.aggregate.telemetryCohorts, ['ops72-shadow-v2']);
+  assert.equal(report.aggregate.observationsWithTelemetry, 5);
 });

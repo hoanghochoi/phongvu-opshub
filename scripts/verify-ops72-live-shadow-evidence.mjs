@@ -27,6 +27,26 @@ function assertStringArray(value, label) {
   assert(Array.isArray(value) && value.every((item) => typeof item === 'string'), `${label} must be a string array`);
 }
 
+function validateTelemetry(telemetry, label) {
+  assert(telemetry && typeof telemetry === 'object', `${label} must be an object`);
+  assert(telemetry.schemaVersion === 2, `${label}.schemaVersion must be 2`);
+  assert(typeof telemetry.cohortId === 'string' && /^[A-Za-z0-9._-]+$/.test(telemetry.cohortId), `${label}.cohortId is invalid`);
+  assertIso(telemetry.queuedAtUtc, `${label}.queuedAtUtc`);
+  assertIso(telemetry.startedAtUtc, `${label}.startedAtUtc`);
+  assertIso(telemetry.completedAtUtc, `${label}.completedAtUtc`);
+  for (const key of ['queueDurationMs', 'executionDurationMs', 'retryCount', 'autoRetryCount', 'fullRetryCount']) {
+    assert(Number.isInteger(telemetry[key]) && telemetry[key] >= 0, `${label}.${key} is invalid`);
+  }
+  if (telemetry.firstActionableFailure !== null) {
+    const failure = telemetry.firstActionableFailure;
+    assert(failure && typeof failure === 'object', `${label}.firstActionableFailure is invalid`);
+    assert(typeof failure.category === 'string' && failure.category.length > 0, `${label}.firstActionableFailure.category is invalid`);
+    assert(Number.isInteger(failure.exitCode), `${label}.firstActionableFailure.exitCode is invalid`);
+    assertIso(failure.observedAtUtc, `${label}.firstActionableFailure.observedAtUtc`);
+    assert(Number.isInteger(failure.elapsedMs) && failure.elapsedMs >= 0, `${label}.firstActionableFailure.elapsedMs is invalid`);
+  }
+}
+
 function validatePass(observation, index) {
   const label = `observations[${index}]`;
   assert(observation && typeof observation === 'object', `${label} must be an object`);
@@ -55,6 +75,7 @@ function validatePass(observation, index) {
   assertIso(observation.run.startedAt, `${label}.run.startedAt`);
   assertIso(observation.run.completedAt, `${label}.run.completedAt`);
   assert(Number.isInteger(observation.run.githubDurationMs) && observation.run.githubDurationMs >= 0, `${label}.run.githubDurationMs is invalid`);
+  if (observation.telemetry !== undefined) validateTelemetry(observation.telemetry, `${label}.telemetry`);
 }
 
 function validateExcluded(observation) {
