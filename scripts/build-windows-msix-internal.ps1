@@ -13,6 +13,7 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+$repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 
 function Assert-RequiredValue {
   param(
@@ -108,7 +109,11 @@ Write-Host "Building internal signed MSIX: $OutputName.msix"
 Write-Host "MSIX identity: $IdentityName"
 Write-Host "MSIX version: $MsixVersion"
 
-& dart @msixArgs
+& node (Join-Path $repoRoot 'scripts/run-with-toolchain.mjs') `
+  --root $repoRoot `
+  --profile flutter `
+  --cwd . `
+  -- dart.exe @msixArgs
 if ($LASTEXITCODE -ne 0) {
   throw "msix:create failed with exit code $LASTEXITCODE."
 }

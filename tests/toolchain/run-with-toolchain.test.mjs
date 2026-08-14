@@ -145,6 +145,37 @@ test('Windows command wrappers are represented as executable plus argv', (t) => 
   assert.deepEqual(result.result.command.argv, ['test']);
 });
 
+test('sensitive command arguments are redacted from proof output and fingerprint', (t) => {
+  const root = fixture(t);
+  const run = (password) =>
+    runWithToolchain({
+      root,
+      profile: 'flutter',
+      command: [
+        'dart',
+        'run',
+        'msix:create',
+        '--certificate-password',
+        password,
+        '--output-name=internal-msix',
+      ],
+      dryRun: true,
+      prepare: successfulPrepare,
+    });
+
+  const first = run('first-secret');
+  const second = run('second-secret');
+  assert.deepEqual(first.result.command.argv, [
+    'run',
+    'msix:create',
+    '--certificate-password',
+    '<redacted>',
+    '--output-name=internal-msix',
+  ]);
+  assert.equal(JSON.stringify(first.result).includes('first-secret'), false);
+  assert.equal(first.result.fingerprint, second.result.fingerprint);
+});
+
 test('preflight failure blocks the command and maps to environment exit code', (t) => {
   const root = fixture(t);
   let executions = 0;

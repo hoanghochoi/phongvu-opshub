@@ -264,6 +264,25 @@ test("release Flutter builds use the inline boundary and disable the implicit Pu
   }
 });
 
+test("Windows MSIX helpers use the inline Flutter boundary", () => {
+  for (const relativePath of [
+    "scripts/build-windows-msix-internal.ps1",
+    "scripts/build-windows-msix-store.ps1",
+  ]) {
+    const contents = source(relativePath);
+    assert.match(
+      contents,
+      /run-with-toolchain\.mjs[\s\S]*--profile flutter[\s\S]*--\s+dart\.exe\s+@msixArgs/,
+      `${relativePath} must hydrate Flutter before msix:create`,
+    );
+    assert.doesNotMatch(
+      contents,
+      /&\s+dart\s+@msixArgs/,
+      `${relativePath} must not invoke raw dart @msixArgs`,
+    );
+  }
+});
+
 test("existing worktree repair command remains documented", () => {
   const contents = source("scripts/README.md");
   assert.match(
