@@ -40,7 +40,7 @@ runs:
       uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25
       with:
         path: ${{ steps.paths.outputs.pub-cache }}
-        key: flutter-pub-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('**/pubspec.lock') }}
+        key: flutter-pub-v2-${{ runner.os }}-${{ runner.arch }}-${{ inputs.flutter-version }}-${{ inputs.flutter-revision }}-${{ hashFiles('pubspec.yaml', 'pubspec.lock', '.metadata') }}
 
     - name: Install pinned Flutter SDK
       if: steps.flutter-cache.outputs.cache-hit != 'true'

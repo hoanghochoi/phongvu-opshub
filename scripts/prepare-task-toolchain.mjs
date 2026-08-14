@@ -4,7 +4,7 @@ import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 export const EXIT_CODES = Object.freeze({
   PASS: 0,
@@ -14,7 +14,7 @@ export const EXIT_CODES = Object.freeze({
 
 // Bumped when hydration behavior/commands or readiness probes change so old
 // cached readiness is never trusted after a toolchain policy update.
-const SCHEMA_VERSION = 3;
+const SCHEMA_VERSION = 4;
 const PROFILE_ID = 'nestjs';
 const FLUTTER_PROFILE_ID = 'flutter';
 const ALL_PROFILE_ID = 'all';
@@ -227,6 +227,123 @@ function flutterExecutable() {
   return process.platform === 'win32' ? 'flutter.bat' : 'flutter';
 }
 
+function readJsonFile(filePath) {
+  try {
+    return JSON.parse(readFileSync(filePath, 'utf8'));
+  } catch {
+    return null;
+  }
+}
+
+function resolvePackageRoot(packageConfigPath, rootUri) {
+  if (typeof rootUri !== 'string' || rootUri.length === 0) return null;
+  try {
+    return fileURLToPath(new URL(rootUri, pathToFileURL(packageConfigPath)));
+  } catch {
+    return null;
+  }
+}
+
+function flutterPackageReadiness(root, packageConfigPath) {
+  const packageConfig = readJsonFile(packageConfigPath);
+  const packages = Array.isArray(packageConfig?.packages)
+    ? packageConfig.packages
+    : [];
+  const packageNames = new Set();
+  const missingPackages = [];
+  let rootPackage = false;
+
+  for (const entry of packages) {
+    const name = typeof entry?.name === 'string' ? entry.name : '<unnamed>';
+    if (packageNames.has(name)) {
+      missingPackages.push(`${name}:duplicate`);
+      continue;
+    }
+    packageNames.add(name);
+    const packageRoot = resolvePackageRoot(packageConfigPath, entry?.rootUri);
+    if (!packageRoot || !existsSync(packageRoot)) {
+      missingPackages.push(`${name}:root`);
+      continue;
+    }
+    if (!existsSync(path.join(packageRoot, 'pubspec.yaml'))) {
+      missingPackages.push(`${name}:pubspec`);
+    }
+    if (path.resolve(packageRoot) === path.resolve(root)) rootPackage = true;
+  }
+
+  return {
+    packageConfigVersion:
+      Number.isInteger(packageConfig?.configVersion) ? packageConfig.configVersion : null,
+    packageCount: packages.length,
+    packageConfigStructure:
+      packageConfig !== null && Array.isArray(packageConfig?.packages),
+    packageRoots: missingPackages.length === 0 && packages.length > 0,
+    rootPackage,
+    missingPackages: missingPackages.slice(0, 20),
+  };
+}
+
+function sanitizeDiagnostic(value, root = process.cwd()) {
+  let text = String(value || '');
+  const normalizedRoot = path.resolve(root);
+  text = text.replaceAll(normalizedRoot, '<worktree>');
+  text = text.replaceAll(normalizedRoot.replaceAll('\\', '/'), '<worktree>');
+  text = text.replace(/\b[A-Za-z]:[\\/][^\s'"<>]+/g, '<path>');
+  text = text.replace(/(^|[\s(])\/(?:Users|home|tmp|workspace|app)\/[^\s'"<>]+/g, '$1<path>');
+  return text.slice(-800);
+}
+
+function installedPackageReadiness(root) {
+  const backendRoot = path.resolve(root, 'backend-nest');
+  const packageJsonPath = path.join(backendRoot, 'package.json');
+  const packageLockPath = path.join(backendRoot, 'node_modules', '.package-lock.json');
+  const packageJson = readJsonFile(packageJsonPath);
+  const installedLock = readJsonFile(packageLockPath);
+  const nodeModules = path.dirname(packageLockPath);
+  const directDependencies = Object.keys({
+    ...(packageJson?.dependencies || {}),
+    ...(packageJson?.devDependencies || {}),
+  });
+  const missingDirectDependencies = directDependencies.filter(
+    (name) => !existsSync(path.join(nodeModules, ...name.split('/'), 'package.json')),
+  );
+  const missingLockPackages = [];
+  for (const [packagePath, metadata] of Object.entries(installedLock?.packages || {})) {
+    if (!packagePath.startsWith('node_modules/') || metadata?.link) continue;
+    const relativePackagePath = packagePath.slice('node_modules/'.length);
+    const packageJsonFile = path.join(
+      nodeModules,
+      ...relativePackagePath.split('/'),
+      'package.json',
+    );
+    if (!existsSync(packageJsonFile)) missingLockPackages.push(relativePackagePath);
+  }
+
+  const prismaClientPackage = path.join(
+    nodeModules,
+    '@prisma',
+    'client',
+    'package.json',
+  );
+  const prismaGeneratedRoot = path.join(nodeModules, '.prisma', 'client');
+  return {
+    packageLockReadable: installedLock !== null,
+    packageLockVersion:
+      Number.isInteger(installedLock?.lockfileVersion)
+        ? installedLock.lockfileVersion
+        : null,
+    installedPackageCount: Object.keys(installedLock?.packages || {}).length,
+    directDependencies: directDependencies.length,
+    missingDirectDependencies: missingDirectDependencies.slice(0, 20),
+    missingLockPackages: missingLockPackages.slice(0, 20),
+    nestCliEntry: existsSync(path.join(nodeModules, '@nestjs', 'cli', 'bin', 'nest.js')),
+    prismaPackage: existsSync(prismaClientPackage),
+    prismaClientEntry: existsSync(path.join(nodeModules, '@prisma', 'client', 'default.js')),
+    prismaGenerated: existsSync(path.join(prismaGeneratedRoot, 'index.js')),
+    prismaDefault: existsSync(path.join(prismaGeneratedRoot, 'default.js')),
+  };
+}
+
 function readinessForProfile(root, profile) {
   if (profile === FLUTTER_PROFILE_ID) {
     const packageConfigPath = path.resolve(
@@ -234,33 +351,35 @@ function readinessForProfile(root, profile) {
       '.dart_tool',
       'package_config.json',
     );
-    let packageConfigReadable = false;
-    try {
-      JSON.parse(readFileSync(packageConfigPath, 'utf8'));
-      packageConfigReadable = true;
-    } catch {
-      packageConfigReadable = false;
-    }
+    const packageConfig = flutterPackageReadiness(root, packageConfigPath);
     return {
       pubspec: existsSync(path.resolve(root, 'pubspec.yaml')),
       lockfile: existsSync(path.resolve(root, 'pubspec.lock')),
       packageConfig: existsSync(packageConfigPath),
-      packageConfigReadable,
+      packageConfigReadable: packageConfig.packageConfigStructure,
+      packageConfigVersion: packageConfig.packageConfigVersion,
+      packageCount: packageConfig.packageCount,
+      packageRoots: packageConfig.packageRoots,
+      rootPackage: packageConfig.rootPackage,
+      missingPackages: packageConfig.missingPackages,
     };
   }
   const nodeModules = path.resolve(root, 'backend-nest/node_modules');
   const nestBinary = path.join(nodeModules, '.bin', nestExecutable('nest'));
-  const prismaPackage = path.join(
-    nodeModules,
-    '@prisma',
-    'client',
-    'package.json',
-  );
-  const prismaGenerated = path.join(nodeModules, '.prisma', 'client');
+  const installed = installedPackageReadiness(root);
   return {
     nestBinary: existsSync(nestBinary),
-    prismaPackage: existsSync(prismaPackage),
-    prismaGenerated: existsSync(prismaGenerated),
+    packageLockReadable: installed.packageLockReadable,
+    packageLockVersion: installed.packageLockVersion,
+    installedPackageCount: installed.installedPackageCount,
+    directDependencies: installed.directDependencies,
+    missingDirectDependencies: installed.missingDirectDependencies,
+    missingLockPackages: installed.missingLockPackages,
+    nestCliEntry: installed.nestCliEntry,
+    prismaPackage: installed.prismaPackage,
+    prismaClientEntry: installed.prismaClientEntry,
+    prismaGenerated: installed.prismaGenerated,
+    prismaDefault: installed.prismaDefault,
     installLockfile: existsSync(path.join(nodeModules, '.package-lock.json')),
   };
 }
@@ -271,13 +390,24 @@ function isReadyForProfile(value, profile) {
       value.pubspec &&
       value.lockfile &&
       value.packageConfig &&
-      value.packageConfigReadable
+      value.packageConfigReadable &&
+      value.packageConfigVersion >= 2 &&
+      value.packageCount > 0 &&
+      value.packageRoots &&
+      value.rootPackage
     );
   }
   return (
     value.nestBinary &&
+    value.packageLockReadable &&
+    value.packageLockVersion >= 1 &&
+    value.missingDirectDependencies.length === 0 &&
+    value.missingLockPackages.length === 0 &&
+    value.nestCliEntry &&
     value.prismaPackage &&
+    value.prismaClientEntry &&
     value.prismaGenerated &&
+    value.prismaDefault &&
     value.installLockfile
   );
 }
@@ -316,6 +446,16 @@ function statusEntries(root) {
     }));
 }
 
+function snapshotGeneratedFiles(root, entries) {
+  const snapshots = new Map();
+  for (const entry of entries) {
+    if (entry.untracked || !isFlutterGeneratedTrackedPath(entry.path)) continue;
+    const absolutePath = path.resolve(root, entry.path);
+    if (existsSync(absolutePath)) snapshots.set(entry.path, readFileSync(absolutePath));
+  }
+  return snapshots;
+}
+
 function isFlutterGeneratedTrackedPath(relativePath) {
   return FLUTTER_GENERATED_TRACKED_PATHS.some((pattern) => pattern.test(relativePath));
 }
@@ -341,7 +481,21 @@ function restoreGeneratedPath(root, relativePath) {
   }
 }
 
-function reconcileFlutterGeneratedChanges(root, beforeEntries) {
+function restoreGeneratedBytes(root, relativePath, bytes) {
+  try {
+    writeFileSync(path.resolve(root, relativePath), bytes);
+  } catch (error) {
+    fail(
+      EXIT_CODES.ENVIRONMENT,
+      `Không thể khôi phục generated Flutter path ${relativePath}: ${sanitizeDiagnostic(
+        error?.message || error,
+        root,
+      )}`,
+    );
+  }
+}
+
+function reconcileFlutterGeneratedChanges(root, beforeEntries, beforeGeneratedFiles) {
   const beforeByPath = new Map(beforeEntries.map((entry) => [entry.path, entry]));
   const afterEntries = statusEntries(root);
   const introduced = [];
@@ -363,10 +517,25 @@ function reconcileFlutterGeneratedChanges(root, beforeEntries) {
       continue;
     }
     if (before) {
-      unsafe.push(`${after.path} (pre-existing user change was modified)`);
+      const beforeBytes = beforeGeneratedFiles.get(after.path);
+      const afterBytes = existsSync(path.resolve(root, after.path))
+        ? readFileSync(path.resolve(root, after.path))
+        : null;
+      if (beforeBytes && (!afterBytes || !beforeBytes.equals(afterBytes))) {
+        restoreGeneratedBytes(root, after.path, beforeBytes);
+        unsafe.push(`${after.path} (pre-existing user change was modified)`);
+      }
       continue;
     }
     restoreGeneratedPath(root, after.path);
+  }
+
+  for (const [relativePath, beforeBytes] of beforeGeneratedFiles) {
+    const absolutePath = path.resolve(root, relativePath);
+    const afterBytes = existsSync(absolutePath) ? readFileSync(absolutePath) : null;
+    if (afterBytes && beforeBytes.equals(afterBytes)) continue;
+    restoreGeneratedBytes(root, relativePath, beforeBytes);
+    unsafe.push(`${relativePath} (pre-existing user change was modified)`);
   }
 
   const remaining = statusEntries(root).filter((entry) => {
@@ -418,7 +587,7 @@ function runStep(root, step) {
       argv: step.argv,
       status: 'environment-failure',
       exitCode: null,
-      error: result.error.message.slice(0, 240),
+      error: sanitizeDiagnostic(result.error.message, root).slice(0, 240),
     };
   }
   return {
@@ -429,7 +598,7 @@ function runStep(root, step) {
     exitCode: result.status,
     ...(result.status === 0
       ? {}
-      : { error: `${stdout}\n${stderr}`.trim().slice(-240) }),
+      : { error: sanitizeDiagnostic(`${stdout}\n${stderr}`, root).slice(-240) }),
   };
 }
 
@@ -485,6 +654,21 @@ function isRetryablePrismaFailure(stepResult) {
   );
 }
 
+function isRetryableToolchainFailure(stepResult) {
+  if (isRetryablePrismaFailure(stepResult)) return true;
+  if (!['nestjs-npm-ci', 'flutter-pub-get'].includes(stepResult?.id)) {
+    return false;
+  }
+  return /(?:EINTEGRITY|ECONNRESET|ECONNREFUSED|ETIMEDOUT|EAI_AGAIN|ENOENT|EPERM|EBUSY|MODULE_NOT_FOUND|cannot find module|package .* not found|failed to materialize|failed to load)/i.test(
+    String(stepResult.error || ''),
+  );
+}
+
+function retryReason(stepResult) {
+  if (isRetryablePrismaFailure(stepResult)) return 'transient-prisma-module-load';
+  return 'transient-dependency-materialization';
+}
+
 function prepareSingleProfile({
   resolvedRoot,
   profile,
@@ -513,29 +697,40 @@ function prepareSingleProfile({
   if (dryRun) return { exitCode: EXIT_CODES.PASS, result };
 
   const beforeEntries = profile === FLUTTER_PROFILE_ID ? statusEntries(resolvedRoot) : null;
+  const beforeGeneratedFiles =
+    profile === FLUTTER_PROFILE_ID
+      ? snapshotGeneratedFiles(resolvedRoot, beforeEntries)
+      : null;
   result.steps = [];
   let attempt = 0;
   while (attempt < 2) {
     attempt += 1;
     let retry = false;
     for (const step of steps) {
-      const stepResult = runStepFn(resolvedRoot, step);
+      const rawStepResult = runStepFn(resolvedRoot, step);
+      const stepResult = {
+        ...rawStepResult,
+        ...(rawStepResult?.error
+          ? { error: sanitizeDiagnostic(rawStepResult.error, resolvedRoot) }
+          : {}),
+      };
       result.steps.push({ ...stepResult, attempt });
       if (profile === FLUTTER_PROFILE_ID) {
         try {
           result.worktree = reconcileFlutterGeneratedChanges(
             resolvedRoot,
             beforeEntries,
+            beforeGeneratedFiles,
           );
         } catch (error) {
           result.status = 'environment-failure';
-          result.error = String(error?.message || error).slice(0, 800);
+          result.error = sanitizeDiagnostic(error?.message || error, resolvedRoot);
           result.readiness = readinessForProfile(resolvedRoot, profile);
           return { exitCode: EXIT_CODES.ENVIRONMENT, result };
         }
       }
       if (stepResult.status !== 'passed') {
-        if (attempt === 1 && isRetryablePrismaFailure(stepResult)) {
+        if (attempt === 1 && isRetryableToolchainFailure(stepResult)) {
           const fingerprintAfterFailure = toolchainFingerprint(
             resolvedRoot,
             profile,
@@ -551,7 +746,7 @@ function prepareSingleProfile({
             step: step.id,
             fromAttempt: attempt,
             toAttempt: attempt + 1,
-            reason: 'transient-prisma-module-load',
+            reason: retryReason(stepResult),
           });
           retry = true;
           break;
@@ -681,7 +876,7 @@ export function main(
       schemaVersion: SCHEMA_VERSION,
       status: 'failed',
       code,
-      error: String(error?.message || error).slice(0, 500),
+      error: sanitizeDiagnostic(error?.message || error, root),
     };
     if (options?.json) {
       const outputPath = path.resolve(root, options.json);

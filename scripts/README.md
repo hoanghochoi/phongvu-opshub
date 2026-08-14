@@ -132,9 +132,14 @@ node scripts/task-lifecycle.mjs start \
 `--prepare-profile nestjs` uses `backend-nest/package-lock.json`, Prisma
 schema/config and the local Node platform as a fingerprint, then runs `npm ci
 --include=dev --ignore-scripts` followed by `npx --no-install prisma generate` when the
-fingerprint is not ready. `--prepare-profile flutter` fingerprints
-`pubspec.yaml`/`pubspec.lock` plus the Flutter revision in `.metadata`, then
-runs `flutter pub get --enforce-lockfile`.
+fingerprint is not ready. A cached Nest result is accepted only when the hidden
+install lock is valid, every locked package has its `package.json`, direct
+dependencies are present, and the generated Prisma entrypoints exist.
+`--prepare-profile flutter` fingerprints `pubspec.yaml`/`pubspec.lock` plus the
+Flutter revision in `.metadata`, then runs `flutter pub get --enforce-lockfile`.
+A cached Flutter result is accepted only when the package config has a valid
+schema, a root package for this worktree, and every referenced package root has
+its own `pubspec.yaml`; a stale package config therefore triggers hydration.
 Flutter's generated platform/l10n files are reconciled against a narrow
 allowlist and restored when they are created by hydration; unexpected tracked
 or non-ignored files fail closed. A repository-relative ignored state file at
@@ -154,6 +159,13 @@ profiles invoke the same `all` preflight before `flutter analyze --no-pub` or
 `npm run build`, so a fresh worktree cannot reach the analyzer/build with
 missing dependencies. Hydration is still fail-closed:
 a lockfile change, unexpected tracked mutation or non-ignored generated file is
-an environment failure. A failed prepare is an environment failure and the
+an environment failure. Known transient dependency materialization errors get
+one retry only when the manifest fingerprint is unchanged; product/test
+failures are never retried. A failed prepare is an environment failure and the
 lifecycle removes the newly-created task worktree/branch, including reviewed
 ignored output.
+
+GitHub Actions uses a versioned Pub cache key containing the runner, Flutter
+version/revision and the tracked `pubspec.yaml`, `pubspec.lock` and `.metadata`;
+changing the cache policy or Flutter SDK therefore cannot reuse an older cache
+silently.

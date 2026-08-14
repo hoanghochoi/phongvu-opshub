@@ -63,11 +63,16 @@ tiện”; release mà tiện quá thường là lúc rollback bắt đầu tậ
    Preflight mặc định dùng profile `all`; chỉ dùng
    `--prepare-profile nestjs|flutter` khi scope hẹp đã được ghi rõ. Preflight
    được fingerprint theo lockfile, Prisma schema/config, Flutter
-   `pubspec`/`.metadata` và toolchain; task đã sẵn sàng sẽ dùng kết quả
-   `cached`. Flutter hydration dùng `--enforce-lockfile`, khôi phục generated
-   tracked files trong allowlist và fail-closed với mọi thay đổi khác. Profile
-   verification cũng tự gọi preflight trước analyzer/build để task quên hook
-   vẫn dừng sớm với lỗi môi trường rõ ràng.
+   `pubspec`/`.metadata` và toolchain; task đã sẵn sàng chỉ dùng kết quả
+   `cached` sau khi kiểm tra dependency graph thực tế. Nest phải có hidden
+   install lock hợp lệ, mọi package đã lock và Prisma entrypoints; Flutter
+   phải có package config đúng schema, root package đúng worktree và mọi
+   package root còn `pubspec.yaml`. Flutter hydration dùng
+   `--enforce-lockfile`, khôi phục generated tracked files trong allowlist và
+   fail-closed với mọi thay đổi khác. Known transient materialization failure
+   chỉ được retry một lần khi fingerprint không đổi; lỗi product/test không
+   retry. Profile verification cũng tự gọi preflight trước analyzer/build để
+   task quên hook vẫn dừng sớm với lỗi môi trường rõ ràng.
 
 3. Chạy proof theo vùng thay đổi: Flutter (`flutter analyze`, `flutter test`),
    NestJS (`npm run build`, `npm test -- --runInBand`), Go (`go test ./...`) và
