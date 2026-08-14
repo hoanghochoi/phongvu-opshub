@@ -127,6 +127,12 @@ export const PROFILES = Object.freeze([
     prerequisites: ['Flutter SDK', 'pub dependencies'],
     commands: [
       {
+        id: 'flutter-toolchain-prepare',
+        cwd: '.',
+        executable: process.execPath,
+        argv: ['scripts/prepare-task-toolchain.mjs', '--profile', 'flutter'],
+      },
+      {
         id: 'flutter-analyze',
         cwd: '.',
         executable: process.platform === 'win32' ? 'flutter.bat' : 'flutter',

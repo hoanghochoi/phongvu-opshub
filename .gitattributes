@@ -5,5 +5,15 @@
 *.ps1 text eol=crlf
 *.jsonl text eol=lf
 docs/migrations/*.json text eol=lf
+lib/l10n/*.dart text eol=lf
+ios/Runner/GeneratedPluginRegistrant.h text eol=lf
+ios/Runner/GeneratedPluginRegistrant.m text eol=lf
+linux/flutter/generated_plugin_registrant.cc text eol=lf
+linux/flutter/generated_plugin_registrant.h text eol=lf
+linux/flutter/generated_plugins.cmake text eol=lf
+macos/Flutter/GeneratedPluginRegistrant.swift text eol=lf
+windows/flutter/generated_plugin_registrant.cc text eol=lf
+windows/flutter/generated_plugin_registrant.h text eol=lf
+windows/flutter/generated_plugins.cmake text eol=lf
 Dockerfile text eol=lf
 /windows/assets/payment_audio/local_preset_speaker_v1/**/*.wav filter=lfs diff=lfs merge=lfs -text

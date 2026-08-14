@@ -199,6 +199,39 @@ test('start --prepare invokes the hook and permits reviewed ignored toolchain ar
   assert.equal(git(worktree, 'branch', '--show-current'), 'codex/ops-19-prepare-hook');
 });
 
+test('start --prepare forwards the selected all-toolchain profile', (t) => {
+  const fixture = createFixture();
+  const worktree = path.join(fixture.root, 'ops-19-all');
+  t.after(() => {
+    if (fs.existsSync(worktree)) git(fixture.canonical, 'worktree', 'remove', '--force', worktree);
+    cleanupFixture(fixture);
+  });
+  const calls = [];
+
+  const result = lifecycle(
+    [
+      'start',
+      '--issue',
+      'OPS-19',
+      '--slug',
+      'prepare-all',
+      '--worktree',
+      worktree,
+      '--prepare',
+      '--prepare-profile',
+      'all',
+      '--execute',
+    ],
+    fixture,
+    {
+      prepareTaskWorktree: ({ profile }) => calls.push(profile),
+    },
+  );
+
+  assert.equal(result.prepared, true);
+  assert.deepEqual(calls, ['all']);
+});
+
 test('start --prepare dry-run does not invoke the prepare hook or create a task', (t) => {
   const fixture = createFixture();
   t.after(() => cleanupFixture(fixture));

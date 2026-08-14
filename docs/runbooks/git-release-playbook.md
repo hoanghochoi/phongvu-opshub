@@ -50,21 +50,24 @@ tiện”; release mà tiện quá thường là lúc rollback bắt đầu tậ
    Set-Location ..\opshub-ops-142
    ```
 
-   Với task NestJS, có thể thêm `--prepare --execute` để lifecycle tự bootstrap
-   `backend-nest/node_modules` và Prisma generated client ngay sau khi tạo
-   worktree:
+   Với task chạm runtime, thêm `--prepare --prepare-profile all --execute` để
+   lifecycle bootstrap cả `backend-nest/node_modules`/Prisma generated client
+   và Flutter package config ngay sau khi tạo worktree:
 
    ```powershell
    node scripts/task-lifecycle.mjs start `
      --issue OPS-142 `
      --slug fix-date-picker `
      --worktree ..\opshub-ops-142 `
-     --prepare --execute
+      --prepare --prepare-profile all --execute
    ```
 
-   Preflight được fingerprint theo lockfile, Prisma schema/config và Node
-   toolchain; task đã sẵn sàng sẽ dùng kết quả `cached`. Flutter hydration
-   không nằm trong hook này vì có thể tạo file tracked và cần gate riêng.
+   Preflight được fingerprint theo lockfile, Prisma schema/config, Flutter
+   `pubspec`/`.metadata` và toolchain; task đã sẵn sàng sẽ dùng kết quả
+   `cached`. Flutter hydration dùng `--enforce-lockfile`, khôi phục generated
+   tracked files trong allowlist và fail-closed với mọi thay đổi khác. Profile
+   verification cũng tự gọi preflight trước analyzer/build để task quên hook
+   vẫn dừng sớm với lỗi môi trường rõ ràng.
 
 3. Chạy proof theo vùng thay đổi: Flutter (`flutter analyze`, `flutter test`),
    NestJS (`npm run build`, `npm test -- --runInBand`), Go (`go test ./...`) và

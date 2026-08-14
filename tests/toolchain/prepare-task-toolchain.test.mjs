@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import {
   appendFileSync,
   existsSync,
@@ -17,6 +18,14 @@ import {
   parseArgs,
   prepareTaskToolchain,
 } from '../../scripts/prepare-task-toolchain.mjs';
+
+function git(cwd, args) {
+  return execFileSync('git', args, {
+    cwd,
+    encoding: 'utf8',
+    windowsHide: true,
+  }).trim();
+}
 
 function fixture(t) {
   const root = mkdtempSync(path.join(os.tmpdir(), 'opshub-toolchain-'));
@@ -38,6 +47,27 @@ function fixture(t) {
     path.join(root, 'backend-nest', 'prisma.config.ts'),
     'export default {};\n',
   );
+  return root;
+}
+
+function flutterFixture(t) {
+  const root = mkdtempSync(path.join(os.tmpdir(), 'opshub-flutter-toolchain-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  git(root, ['init', '--quiet']);
+  git(root, ['config', 'user.name', 'flutter-toolchain-test']);
+  git(root, ['config', 'user.email', 'flutter-toolchain@example.invalid']);
+  writeFileSync(path.join(root, 'pubspec.yaml'), 'name: fixture\nenvironment:\n  sdk: ">=3.0.0 <4.0.0"\n');
+  writeFileSync(path.join(root, 'pubspec.lock'), 'packages: {}\n');
+  writeFileSync(path.join(root, '.metadata'), 'version:\n  revision: fixture\n');
+  writeFileSync(path.join(root, 'README.md'), '# fixture\n');
+  writeFileSync(path.join(root, '.gitignore'), '.dart_tool/\ntmp/\n');
+  mkdirSync(path.join(root, 'lib', 'l10n'), { recursive: true });
+  writeFileSync(
+    path.join(root, 'lib', 'l10n', 'app_localizations.dart'),
+    '// checked-in generated baseline\n',
+  );
+  git(root, ['add', '--all']);
+  git(root, ['commit', '--quiet', '-m', 'fixture']);
   return root;
 }
 
@@ -88,7 +118,7 @@ function successfulStepFactory(calls) {
   };
 }
 
-test('parser defaults to nestjs and accepts dry-run/force/json', () => {
+test('parser defaults to nestjs and accepts all toolchain profiles', () => {
   assert.deepEqual(
     parseArgs(['--dry-run', '--force', '--json', 'tmp/result.json']),
     {
@@ -100,6 +130,9 @@ test('parser defaults to nestjs and accepts dry-run/force/json', () => {
     },
   );
   assert.equal(parseArgs([]).profile, 'nestjs');
+  assert.equal(parseArgs(['--profile', 'flutter']).profile, 'flutter');
+  assert.equal(parseArgs(['--profile', 'all']).profile, 'all');
+  assert.throws(() => parseArgs(['--profile', 'unknown']), /Profile không hỗ trợ/);
 });
 
 test('first prepare hydrates Nest/Prisma and second prepare is cached', (t) => {
@@ -202,4 +235,97 @@ test('state file stays sanitized and repository-relative', (t) => {
   );
   assert.equal(state.includes(root), false);
   assert.equal(state.includes('node_modules'), false);
+});
+
+test('Flutter preflight hydrates package config and restores generated tracked files', (t) => {
+  const root = flutterFixture(t);
+  const calls = [];
+  const result = prepareTaskToolchain({
+    root,
+    profile: 'flutter',
+    runStepFn: (currentRoot, step) => {
+      calls.push(step.id);
+      mkdirSync(path.join(currentRoot, '.dart_tool'), { recursive: true });
+      writeFileSync(
+        path.join(currentRoot, '.dart_tool', 'package_config.json'),
+        '{}\n',
+      );
+      mkdirSync(path.join(currentRoot, 'lib', 'l10n'), { recursive: true });
+      writeFileSync(
+        path.join(currentRoot, 'lib', 'l10n', 'app_localizations.dart'),
+        '// generated\n',
+      );
+      return {
+        id: step.id,
+        status: 'passed',
+        exitCode: 0,
+        executable: step.executable,
+        argv: step.argv,
+      };
+    },
+  });
+  assert.equal(result.exitCode, EXIT_CODES.PASS);
+  assert.equal(result.result.status, 'prepared');
+  assert.deepEqual(calls, ['flutter-pub-get']);
+  assert.ok(result.result.worktree.restoredPaths.includes('lib/l10n/app_localizations.dart'));
+  assert.equal(git(root, ['status', '--porcelain=v1', '--untracked-files=all']), '');
+
+  const cached = prepareTaskToolchain({
+    root,
+    profile: 'flutter',
+    runStepFn: () => {
+      throw new Error('cached Flutter preflight must not execute commands');
+    },
+  });
+  assert.equal(cached.exitCode, EXIT_CODES.PASS);
+  assert.equal(cached.result.status, 'cached');
+
+  appendFileSync(path.join(root, '.metadata'), 'channel: stable\n');
+  const refreshed = prepareTaskToolchain({
+    root,
+    profile: 'flutter',
+    runStepFn: (currentRoot, step) => {
+      mkdirSync(path.join(currentRoot, '.dart_tool'), { recursive: true });
+      writeFileSync(
+        path.join(currentRoot, '.dart_tool', 'package_config.json'),
+        '{}\n',
+      );
+      return {
+        id: step.id,
+        status: 'passed',
+        exitCode: 0,
+        executable: step.executable,
+        argv: step.argv,
+      };
+    },
+  });
+  assert.equal(refreshed.exitCode, EXIT_CODES.PASS);
+  assert.equal(refreshed.result.status, 'prepared');
+});
+
+test('Flutter preflight fails closed on unexpected tracked mutation', (t) => {
+  const root = flutterFixture(t);
+  const result = prepareTaskToolchain({
+    root,
+    profile: 'flutter',
+    runStepFn: (currentRoot, step) => {
+      mkdirSync(path.join(currentRoot, '.dart_tool'), { recursive: true });
+      writeFileSync(
+        path.join(currentRoot, '.dart_tool', 'package_config.json'),
+        '{}\n',
+      );
+      appendFileSync(path.join(currentRoot, 'README.md'), 'unexpected\n');
+      return {
+        id: step.id,
+        status: 'passed',
+        exitCode: 0,
+        executable: step.executable,
+        argv: step.argv,
+      };
+    },
+  });
+  assert.equal(result.exitCode, EXIT_CODES.ENVIRONMENT);
+  assert.equal(result.result.status, 'environment-failure');
+  assert.match(result.result.error, /outside generated allowlist|allowlist/);
+  assert.equal(existsSync(path.join(root, 'tmp', 'opshub-toolchain-state.json')), false);
 });

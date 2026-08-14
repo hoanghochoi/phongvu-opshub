@@ -29,6 +29,10 @@ export const RETRY_POLICY = Object.freeze({
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SHA_RE = /^[0-9a-f]{40}$/i;
+// Flutter/Nest toolchains can emit large diagnostics in a fresh worktree. Keep
+// the structured runner fail-closed while preventing Node's default
+// spawnSync pipe limit from turning a real command result into ENOBUFS.
+const COMMAND_MAX_BUFFER_BYTES = 16 * 1024 * 1024;
 
 function normalizePath(value) {
   return String(value).trim().replaceAll('\\', '/').replace(/^\.\//, '');
@@ -282,6 +286,7 @@ export function runCommand(root, command) {
     encoding: 'utf8',
     windowsHide: true,
     shell: process.platform === 'win32' && /\.(?:cmd|bat)$/i.test(command.executable),
+    maxBuffer: COMMAND_MAX_BUFFER_BYTES,
     stdio: ['inherit', 'pipe', 'pipe'],
   });
   const durationMs = Date.now() - started;
