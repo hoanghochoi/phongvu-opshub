@@ -1557,11 +1557,12 @@ Current live upstream retry evidence:
   runbook to the repository-root command, and adds static regression coverage.
   Docker/self-contained image commands and remote maintenance remain separate
   boundaries.
-- Current proof: PowerShell syntax, `git diff --check`, and focused dependency
-  boundary coverage pass. Full exact runner and disposable PostgreSQL proof
-  remain required before publication; this environment has no discovered
-  `OPSHUB_POSTGRES_BIN`, so the actual local PostgreSQL rehearsal is not yet
-  verified.
+- Current proof: PowerShell syntax, `git diff --check`, focused dependency
+  boundary coverage `10/10`, and exact `verify-task --base origin/staging`
+  pass with `stale=false` (profiles `harness,docs,nestjs`). The disposable
+  PostgreSQL rehearsal also passes fresh migration (`1:YES:n`), rollback
+  (`1:1:1:1`) and upgrade (`1:YES:n`); the temporary server/cluster were
+  cleaned after the run.
 
 ## Result
 
