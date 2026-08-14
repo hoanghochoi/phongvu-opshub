@@ -4,17 +4,14 @@ Date: 2026-08-13
 
 ## Status
 
-Active — the current workflow checkpoint is OPS-118 on
-`origin/staging@df10e6adb905e27d5547eff07a884e21efd7f435`. OPS-117's exact-SHA
-staging deploy passed and its Linear issue is `Ready for QA`; its task branch
-was cleaned after the merged PR. OPS-118 closes the remaining affected-
-consumer bypass found in OPS-39/OPS-40: those validators previously performed
-one detached preflight and then spawned raw Flutter/Nest commands. The slice
-routes each dependency-owning suite through `run-with-toolchain`, keeps Go,
-Node-only, Git, Docker and remote-maintenance boundaries unchanged, and adds
-structured coverage plus a real cold-worktree canary. Dependency enforcement,
-MAP response mapping, remaining runtime waves and production release remain
-open.
+Active — the current workflow checkpoint is OPS-119 on
+`origin/staging@c46dff3ae9379f663fcac3d8c960ce7c17361933`. OPS-118 closed the
+OPS-39/OPS-40 affected-consumer bypass: PR #231 merged at this SHA, staging
+deploy `31848065825` passed, Linear is `Ready for QA`, and its task
+worktree/local branch were cleaned by the guarded lifecycle finish. OPS-119
+closes the remaining local operational verifier path that could still invoke
+Prisma outside the Nest toolchain boundary. Docker/self-contained image,
+remote-maintenance and product/runtime behavior remain unchanged.
 
 ### OPS-114 checkpoint — dependency bootstrap enforcement
 
@@ -519,8 +516,13 @@ god-helper.
   #228/#229/#230 merged into `staging`; exact staging deploys passed and the
   task branches/worktrees were cleaned. Linear remains `Ready for QA` pending
   authenticated QA and production deployment.
-- [ ] Complete OPS-118 affected-consumer dependency boundary closure and
-  publish its exact cold-worktree proof.
+- [x] Complete OPS-118 affected-consumer dependency boundary closure. PR #231
+  merged into `staging` at `c46dff3ae9379f663fcac3d8c960ce7c17361933`; staging
+  deploy `31848065825` passed, exact cold-worktree proof and `stale=false`
+  runner evidence passed, Linear is `Ready for QA`, and lifecycle cleanup
+  removed the task worktree/local branch.
+- [ ] Complete OPS-119 operational local dependency-entrypoint closure and
+  publish its exact boundary proof.
 - [ ] Run Phase 7B CI shadow metrics, Phase 8 artifact cleanup, Phase 9 runtime
   waves and Phase 10 final consolidation.
 
@@ -1516,11 +1518,13 @@ Current live upstream retry evidence:
   optimization targets. The next gates are focused telemetry tests, exact-base
   verification, PR/CI, staging deploy and guarded lifecycle cleanup.
 
-## Workflow checkpoint (OPS-118 current; affected-consumer dependency boundary)
+## Workflow checkpoint (OPS-118 complete; OPS-119 current)
 
-- Branch/worktree: `codex/ops-118-close-affected-consumer-dependency-boundary` /
-  `../opshub-ops-118`, created by the guarded lifecycle start gate from exact
-  live `origin/staging@df10e6adb905e27d5547eff07a884e21efd7f435`.
+- OPS-118 branch/worktree was `codex/ops-118-close-affected-consumer-dependency-boundary` /
+  `../opshub-ops-118`, created from exact live
+  `origin/staging@df10e6adb905e27d5547eff07a884e21efd7f435`. PR #231 merged at
+  `c46dff3ae9379f663fcac3d8c960ce7c17361933`; staging deploy `31848065825`
+  passed and guarded lifecycle cleanup removed the task worktree/local branch.
 - The original OPS-39/OPS-40 validators performed one detached `all` preflight
   and then spawned raw Flutter/Nest commands. OPS-118 adds the shared
   `run-affected-consumer-suite.mjs` dispatcher; every Flutter/Nest suite now
@@ -1536,9 +1540,28 @@ Current live upstream retry evidence:
   locked packages and generated Prisma before the consumer suite. Sanitized
   evidence is retained in
   `docs/migrations/ops-118-dependency-boundary-canary.json`.
-- Remaining gates: final exact `verify-task` after this plan edit, PR/CI,
-  staging deploy and guarded lifecycle cleanup. The canary is observational
-  proof only until the slice is merged; no production completion is inferred.
+- OPS-118 final gates passed: exact `verify-task` after the final code/plan
+  state returned `stale=false`, PR #231 checks passed, staging deploy passed,
+  and the lifecycle finish gate passed. Authenticated QA and production
+  promotion remain open as required by the release lifecycle.
+
+## Workflow checkpoint (OPS-119 current; operational local dependency boundary)
+
+- Branch/worktree: `codex/ops-119-close-operational-local-dependency-entrypoints` /
+  `../opshub-ops-119`, created by the guarded lifecycle start gate from exact
+  live `origin/staging@c46dff3ae9379f663fcac3d8c960ce7c17361933` with the Nest
+  profile hydrated.
+- The remaining local `verify:ops40:postgres` verifier spawned raw `npx.cmd`
+  after creating its disposable database. OPS-119 routes that Prisma migration
+  through `run-with-toolchain` with `--no-install`, updates the support-chat
+  runbook to the repository-root command, and adds static regression coverage.
+  Docker/self-contained image commands and remote maintenance remain separate
+  boundaries.
+- Current proof: PowerShell syntax, `git diff --check`, and focused dependency
+  boundary coverage pass. Full exact runner and disposable PostgreSQL proof
+  remain required before publication; this environment has no discovered
+  `OPSHUB_POSTGRES_BIN`, so the actual local PostgreSQL rehearsal is not yet
+  verified.
 
 ## Result
 

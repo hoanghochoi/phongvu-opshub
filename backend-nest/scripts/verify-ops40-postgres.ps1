@@ -98,7 +98,11 @@ try {
   if ($LASTEXITCODE -ne 0) { throw "createdb failed: $LASTEXITCODE" }
 
   $env:DATABASE_URL = "postgresql://postgres@127.0.0.1:$port/$database?schema=public"
-  & npx.cmd prisma migrate deploy
+  & node ..\scripts\run-with-toolchain.mjs `
+    --root .. `
+    --profile nestjs `
+    --cwd backend-nest `
+    -- npx --no-install prisma migrate deploy
   if ($LASTEXITCODE -ne 0) {
     throw "fresh Prisma migration failed: $LASTEXITCODE"
   }

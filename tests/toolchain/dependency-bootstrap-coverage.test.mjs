@@ -206,6 +206,32 @@ test("Docker Nest build is self-contained without weakening local lifecycle gate
   );
 });
 
+test("local OPS-40 PostgreSQL verifier keeps Prisma behind the Nest boundary", () => {
+  const verifier = source("backend-nest/scripts/verify-ops40-postgres.ps1");
+  assert.match(
+    verifier,
+    /run-with-toolchain\.mjs[\s\S]*--profile nestjs[\s\S]*--cwd backend-nest[\s\S]*--\s+npx --no-install prisma migrate deploy/,
+    "the local PostgreSQL verifier must hydrate Nest before Prisma migration",
+  );
+  assert.doesNotMatch(
+    verifier,
+    /&\s+npx\.cmd\s+prisma migrate deploy/,
+    "the verifier must not spawn a raw local npx Prisma command",
+  );
+
+  const runbook = source("docs/runbooks/support-chat-operations.md");
+  assert.match(
+    runbook,
+    /node scripts\/run-with-toolchain\.mjs --profile nestjs --cwd backend-nest -- npm run verify:ops40:postgres/,
+    "the runbook must use the repository-root toolchain-gated command",
+  );
+  assert.doesNotMatch(
+    runbook,
+    /`npm run verify:ops40:postgres`/,
+    "the runbook must not advertise the raw local npm command",
+  );
+});
+
 test("release Flutter builds use the inline boundary and disable the implicit Pub writer", () => {
   for (const relativePath of [
     ".github/workflows/build-windows-msix.yml",
