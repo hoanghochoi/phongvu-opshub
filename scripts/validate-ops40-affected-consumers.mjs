@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
-import { prepareTaskToolchain } from "./prepare-task-toolchain.mjs";
+import { runAffectedConsumerSuite } from "./run-affected-consumer-suite.mjs";
 
 const root = process.cwd();
 const npm = process.platform === "win32" ? "npm.cmd" : "npm";
@@ -30,8 +30,12 @@ export const pathContracts = [
   /^docs\/(?:product|stories|plans|runbooks)\//,
   /^docs\/TEST_MATRIX\.md$/,
   /^scripts\/opshub-web-visual-smoke\.mjs$/,
+  /^scripts\/run-affected-consumer-suite\.mjs$/,
+  /^scripts\/validate-ops39-affected-consumers\.mjs$/,
   /^scripts\/validate-ops40-affected-consumers\.mjs$/,
   /^scripts\/validate-ops40-affected-consumers\.test\.mjs$/,
+  /^scripts\/verification-profiles\.mjs$/,
+  /^tests\/toolchain\/(?:dependency-bootstrap-coverage|run-affected-consumer-suite)\.test\.mjs$/,
 ];
 
 function run(command, args, cwd = root, capture = false) {
@@ -136,21 +140,12 @@ export function assertPathContracts(changedPaths) {
   }
 }
 
-export function ensureToolchain(rootPath = root) {
-  const result = prepareTaskToolchain({ root: rootPath, profile: "all" });
-  if (result.exitCode !== 0) {
-    throw new Error(
-      `OPS-40 toolchain preflight failed with exit ${result.exitCode}`,
-    );
-  }
-  return result;
-}
-
 const suites = [
   {
     name: "Nest Support Chat plus auth/feed/media/throttler/user consumers",
     cwd: path.join(root, "backend-nest"),
     command: npm,
+    toolchainProfile: "nestjs",
     args: [
       "test",
       "--",
@@ -175,6 +170,7 @@ const suites = [
     name: "OPS-40 migration and nullable-retention contract",
     cwd: path.join(root, "backend-nest"),
     command: npm,
+    toolchainProfile: "nestjs",
     args: ["run", "verify:ops40:migration"],
   },
   {
@@ -187,6 +183,7 @@ const suites = [
     name: "Flutter Support Chat plus protected shell/auth/feed/media consumers",
     cwd: root,
     command: flutter,
+    toolchainProfile: "flutter",
     args: [
       "test",
       "--no-pub",
@@ -236,12 +233,11 @@ export function main(argv = process.argv.slice(2)) {
     }
   }
 
-  console.log("\n[OPS-40] Preparing all runtime toolchains");
-  ensureToolchain();
-
   for (const suite of suites) {
-    console.log(`\n[OPS-40] ${suite.name}`);
-    run(suite.command, suite.args, suite.cwd);
+    runAffectedConsumerSuite(suite, {
+      root,
+      log: (message) => console.log(`[OPS-40] ${message}`),
+    });
   }
 
   console.log("\nOPS-40 AFFECTED CONSUMERS PASS");

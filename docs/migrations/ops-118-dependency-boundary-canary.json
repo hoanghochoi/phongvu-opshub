@@ -1,0 +1,41 @@
+{
+  "formatVersion": 1,
+  "issue": "OPS-118",
+  "sourceRevision": "df10e6adb905e27d5547eff07a884e21efd7f435",
+  "execution": {
+    "worktreeKind": "disposable-detached-exact-sha",
+    "preexistingDartTool": false,
+    "preexistingNestNodeModules": false,
+    "validators": [
+      {
+        "id": "OPS-40",
+        "status": "passed",
+        "nestSuites": 14,
+        "nestTests": 167,
+        "flutterTests": 137
+      },
+      {
+        "id": "OPS-39",
+        "status": "passed",
+        "nestSuites": 13,
+        "nestTests": 290,
+        "flutterTests": 75,
+        "go": "passed",
+        "caddyContract": "passed"
+      }
+    ],
+    "hydration": {
+      "nestjs": {
+        "status": "prepared",
+        "installedPackageCount": 943,
+        "prismaGenerated": true
+      },
+      "flutter": {
+        "status": "prepared",
+        "packageConfigVerified": true
+      }
+    },
+    "cleanup": "passed",
+    "rawPayloadCommitted": false
+  }
+}

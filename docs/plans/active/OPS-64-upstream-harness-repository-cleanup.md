@@ -4,20 +4,17 @@ Date: 2026-08-13
 
 ## Status
 
-Active — the current workflow checkpoint is OPS-114 on
-`origin/staging@b93ec7e4d15104a6afc428912324c72af4bbe9d0`. OPS-112 merged in
-PR #226 at that SHA and its guarded lifecycle finish removed the task
-worktree/local branch. OPS-111's Docker-only prebuild regression remains
-repaired by OPS-113 (PR #225, staging deploy `31832800738` passed); Docker
-continues to use its self-contained dependency boundary. OPS-114 closes the
-remaining local/CI bypass: an earlier standalone preflight must not authorize
-a raw Flutter/Nest command in a different worktree, job or shell block. The
-slice makes `run-with-toolchain` the execution boundary for repository-owned
-consumer commands, strengthens static coverage and adds cold-worktree proof;
-it does not share `node_modules` or `.dart_tool` between worktrees. OPS-112's
-schema-v2 shadow telemetry remains observational pending five comparable live
-observations. Dependency enforcement, MAP persistence extraction, remaining
-runtime waves and production release remain open.
+Active — the current workflow checkpoint is OPS-118 on
+`origin/staging@df10e6adb905e27d5547eff07a884e21efd7f435`. OPS-117's exact-SHA
+staging deploy passed and its Linear issue is `Ready for QA`; its task branch
+was cleaned after the merged PR. OPS-118 closes the remaining affected-
+consumer bypass found in OPS-39/OPS-40: those validators previously performed
+one detached preflight and then spawned raw Flutter/Nest commands. The slice
+routes each dependency-owning suite through `run-with-toolchain`, keeps Go,
+Node-only, Git, Docker and remote-maintenance boundaries unchanged, and adds
+structured coverage plus a real cold-worktree canary. Dependency enforcement,
+MAP response mapping, remaining runtime waves and production release remain
+open.
 
 ### OPS-114 checkpoint — dependency bootstrap enforcement
 
@@ -515,6 +512,15 @@ god-helper.
 - [x] Complete OPS-100 post-merge staging evidence. PR #211 merged at
   `6817cdfd60fe8dbbbc6f64a497765669dba4e562`; deploy `31783456149` passed
   and Linear is `Ready for QA` pending authenticated QA and production.
+- [x] Complete OPS-114 dependency bootstrap enforcement. PR #227 merged into
+  `staging` at `73251095bd9d7628a9d6e4f8b528516719081667`; focused toolchain
+  coverage and exact runner proof passed.
+- [x] Complete OPS-115/OPS-116/OPS-117 MAP runtime extraction waves. PRs
+  #228/#229/#230 merged into `staging`; exact staging deploys passed and the
+  task branches/worktrees were cleaned. Linear remains `Ready for QA` pending
+  authenticated QA and production deployment.
+- [ ] Complete OPS-118 affected-consumer dependency boundary closure and
+  publish its exact cold-worktree proof.
 - [ ] Run Phase 7B CI shadow metrics, Phase 8 artifact cleanup, Phase 9 runtime
   waves and Phase 10 final consolidation.
 
@@ -1510,6 +1516,30 @@ Current live upstream retry evidence:
   optimization targets. The next gates are focused telemetry tests, exact-base
   verification, PR/CI, staging deploy and guarded lifecycle cleanup.
 
+## Workflow checkpoint (OPS-118 current; affected-consumer dependency boundary)
+
+- Branch/worktree: `codex/ops-118-close-affected-consumer-dependency-boundary` /
+  `../opshub-ops-118`, created by the guarded lifecycle start gate from exact
+  live `origin/staging@df10e6adb905e27d5547eff07a884e21efd7f435`.
+- The original OPS-39/OPS-40 validators performed one detached `all` preflight
+  and then spawned raw Flutter/Nest commands. OPS-118 adds the shared
+  `run-affected-consumer-suite.mjs` dispatcher; every Flutter/Nest suite now
+  carries an explicit `flutter`/`nestjs` profile and is preflighted in its own
+  command boundary. Go, Node-only, Git, Docker and remote-maintenance commands
+  stay in their existing boundaries.
+- Focused proof passed: dependency-boundary/toolchain tests `14/14`, OPS-40
+  affected consumers `14 suites / 167 tests` plus Flutter `137` tests, and
+  OPS-39 affected consumers `13 suites / 290 tests` plus Flutter `75` tests;
+  Go/Caddy/whitespace contracts also passed. A corrected disposable canary
+  from the exact SHA, with no `.dart_tool` or `backend-nest/node_modules`, ran
+  both validators successfully; the first Nest hydration installed `943`
+  locked packages and generated Prisma before the consumer suite. Sanitized
+  evidence is retained in
+  `docs/migrations/ops-118-dependency-boundary-canary.json`.
+- Remaining gates: final exact `verify-task` after this plan edit, PR/CI,
+  staging deploy and guarded lifecycle cleanup. The canary is observational
+  proof only until the slice is merged; no production completion is inferred.
+
 ## Result
 
 Historical Phase 0-1 artifacts, the generic verification foundation/canaries,
@@ -1522,8 +1552,9 @@ OPS-65 PR #175, OPS-68 PR #176, and OPS-69 PRs #177/#178 are merged into
 gates. The current OPS-78 follow-up owns the Windows migration-EOL preflight,
 OPS-106 owns the merged dependency-integrity hardening, OPS-109 owns the
 merged dependency-bootstrap closure, OPS-110 owns the merged UserService
-import/welcome-email extraction, and OPS-111 owns the current toolchain
-execution gate and Windows dependency recovery.
+import/welcome-email extraction, OPS-111 owns the current toolchain execution
+gate and Windows dependency recovery, and OPS-118 owns the affected-consumer
+dependency boundary closure.
 Move this plan to
 `docs/plans/completed/` only after the full initiative's final validation and
 production lifecycle are complete.
