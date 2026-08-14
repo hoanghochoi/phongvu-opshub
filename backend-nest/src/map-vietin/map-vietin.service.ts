@@ -71,6 +71,10 @@ import {
   MapSession,
   MapVietinProviderRuntime,
 } from './map-vietin-provider.runtime';
+import {
+  MapVietinSyncCoordinator,
+  type MapVietinSyncOptions,
+} from './map-vietin-sync.runtime';
 
 const MAP_CLIENT_ID = 'c4a59ac3630f6d8f1abe722eac7052b5';
 const MAP_SIGNATURE_KEY = '***REMOVED***';
@@ -90,25 +94,10 @@ const EFAST_DEFAULT_MAX_PAGES = 1;
 const EFAST_DEFAULT_SESSION_TTL_SECONDS = 10 * 60;
 const EFAST_PUBLIC_KEY =
   'MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQCz1zqQHtHvKczHh58ePiRNgOyiHEx6lZDPlvwBTaHmkNlQyyJ06SIlMU1pmGKxILjT7n06nxG7LlFVUN5MkW/jwF39/+drkHM5B0kh+hPQygFjRq81yxvLwolt+Vq7h+CTU0Z1wkFABcTeQQldZkJlTpyx0c3+jq0o47wIFjq5fwIDAQAB';
-const EFAST_SYNC_START_HOUR_VN = 8;
-const EFAST_SYNC_END_HOUR_VN = 22;
-const EFAST_FAST_SYNC_DELAY_MIN_MS = 50 * 1000;
-const EFAST_FAST_SYNC_DELAY_MAX_MS = 60 * 1000;
-const EFAST_NIGHT_SYNC_DELAY_MS = 30 * 60 * 1000;
 const MAP_SYNC_PAGE_SIZE = 100;
-const MAP_SYNC_START_HOUR_VN = 7;
-const MAP_SYNC_END_HOUR_VN = 22;
-const DEFAULT_MAP_HISTORY_SYNC_DELAY_MIN_MS = 1000;
-const DEFAULT_MAP_HISTORY_SYNC_DELAY_MAX_MS = 2000;
-const MIN_MAP_HISTORY_SYNC_DELAY_MS = 500;
-const DEFAULT_MAP_DEEP_SWEEP_DELAY_MIN_MS = 30 * 1000;
-const DEFAULT_MAP_DEEP_SWEEP_DELAY_MAX_MS = 60 * 1000;
-const MIN_MAP_DEEP_SWEEP_DELAY_MS = 30 * 1000;
 const DEFAULT_MAP_SYNC_FINGERPRINT_CACHE_TTL_MS = 5 * 60 * 1000;
 const DEFAULT_MAP_SYNC_FINGERPRINT_CACHE_MAX_ENTRIES = 20_000;
 const MAX_MAP_SYNC_FINGERPRINT_CACHE_ENTRIES = 100_000;
-const MAP_HISTORY_SYNC_NIGHT_DELAY_MS = 30 * 60 * 1000;
-const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 const DEFAULT_GLOBAL_SYNC_MAX_PAGES = 2;
 const DEFAULT_GLOBAL_SESSION_TTL_SECONDS = 10 * 60;
 const VIETNAM_UTC_OFFSET_HOURS = 7;
@@ -168,16 +157,7 @@ type MapSearchResponse = {
 
 type MapTransactionRow = Record<string, unknown>;
 
-type MapGlobalSyncMode =
-  | 'fast_page'
-  | 'deep_sweep'
-  | 'session_recovery'
-  | 'manual';
-
-type MapGlobalSyncOptions = {
-  mode?: MapGlobalSyncMode;
-  maxPages?: number;
-};
+type MapGlobalSyncOptions = MapVietinSyncOptions;
 
 type MapPersistStats = {
   updated: number;
@@ -232,21 +212,13 @@ type UnmappedReason =
 @Injectable()
 export class MapVietinService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(MapVietinService.name);
-  private syncInProgress = false;
-  private efastSyncInProgress = false;
-  private lastSyncWindowOpen?: boolean;
-  private lastEfastSyncWindowOpen?: boolean;
-  private mapHistorySyncTimer?: NodeJS.Timeout;
-  private efastSyncTimer?: NodeJS.Timeout;
-  private mapHistorySyncStopped = false;
-  private efastSyncStopped = false;
-  private mapHistoryDeepSweepDueAt = 0;
   private readonly mapSyncFingerprintCache = new Map<
     string,
     MapSyncFingerprintCacheEntry
   >();
   private mapPersistenceQueue: Promise<void> = Promise.resolve();
   private readonly providerRuntime: MapVietinProviderRuntime;
+  private readonly syncCoordinator: MapVietinSyncCoordinator;
   private readonly amountKeys = [
     'amount',
     'txnAmount',
@@ -361,8 +333,24 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
     private salesReportErpService?: SalesReportErpService,
     @Optional()
     providerRuntime?: MapVietinProviderRuntime,
+    @Optional()
+    syncCoordinator?: MapVietinSyncCoordinator,
   ) {
     this.providerRuntime = providerRuntime ?? new MapVietinProviderRuntime();
+    this.syncCoordinator = syncCoordinator ?? new MapVietinSyncCoordinator();
+    this.syncCoordinator.configure({
+      logger: this.logger,
+      isMapHistorySyncDisabled: () => this.isMapHistorySyncDisabled(),
+      isEfastSyncEnabled: () => this.isEfastSyncEnabled(),
+      mapProviderBackoffUntil: () => this.mapProviderBackoffUntil,
+      globalSyncMaxPages: () => this.globalSyncMaxPages(),
+      readPositiveInt: (name, fallback) => this.readPositiveInt(name, fallback),
+      resetProviderBackoff: () => this.providerRuntime.resetBackoff(),
+      clearFingerprintCache: () => this.mapSyncFingerprintCache.clear(),
+      safeError: (error) => this.safeError(error),
+      syncConfiguredStores: (options) => this.syncConfiguredStores(options),
+      syncEfastTransactions: () => this.syncEfastTransactions(),
+    });
   }
 
   private get mapProviderBackoffUntil() {
@@ -374,32 +362,11 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
   }
 
   onModuleInit() {
-    this.mapHistorySyncStopped = false;
-    this.efastSyncStopped = false;
-    this.mapHistoryDeepSweepDueAt = 0;
-    this.providerRuntime.resetBackoff();
-    if (this.isMapHistorySyncDisabled()) {
-      this.logger.log(
-        'MAP history sync scheduler disabled by MAP_VIETIN_SYNC_ENABLED=false',
-      );
-    } else {
-      this.scheduleNextMapHistorySync(0);
-    }
-    this.scheduleNextEfastSync();
+    this.syncCoordinator.onModuleInit();
   }
 
   onModuleDestroy() {
-    this.mapHistorySyncStopped = true;
-    this.efastSyncStopped = true;
-    if (this.mapHistorySyncTimer) {
-      clearTimeout(this.mapHistorySyncTimer);
-      this.mapHistorySyncTimer = undefined;
-    }
-    if (this.efastSyncTimer) {
-      clearTimeout(this.efastSyncTimer);
-      this.efastSyncTimer = undefined;
-    }
-    this.mapSyncFingerprintCache.clear();
+    this.syncCoordinator.onModuleDestroy();
   }
 
   async searchTransactions(admin: any, input: SearchMapVietinTransactionsDto) {
@@ -1484,192 +1451,55 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
   }
 
   private scheduleNextMapHistorySync(delayOverrideMs?: number) {
-    if (this.mapHistorySyncStopped || this.isMapHistorySyncDisabled()) return;
-    const now = Date.now();
-    const normalDelayMs =
-      delayOverrideMs ?? this.nextMapHistorySyncDelayMs(new Date(now));
-    const backoffDelayMs = Math.max(0, this.mapProviderBackoffUntil - now);
-    const delayMs = Math.max(normalDelayMs, backoffDelayMs);
-    if (this.mapHistorySyncTimer) {
-      clearTimeout(this.mapHistorySyncTimer);
-    }
-    this.mapHistorySyncTimer = setTimeout(() => {
-      void this.runScheduledMapHistorySync();
-    }, delayMs);
-    this.mapHistorySyncTimer.unref?.();
-    this.logger.debug(
-      `Next MAP history sync scheduled in ${delayMs}ms mode=${this.mapHistoryDeepSweepDueAt <= now ? 'deep_sweep' : 'fast_page'} backoffMs=${backoffDelayMs}`,
-    );
+    this.syncCoordinator.scheduleNextMapHistorySync(delayOverrideMs);
   }
 
   private async runScheduledMapHistorySync() {
-    try {
-      const deepSweep = this.mapHistoryDeepSweepDueAt <= Date.now();
-      await this.syncConfiguredStores({
-        mode: deepSweep ? 'deep_sweep' : 'fast_page',
-        maxPages: deepSweep ? this.globalSyncMaxPages() : 1,
-      });
-    } catch (error) {
-      this.logger.warn(
-        `Scheduled MAP history sync failed: ${this.safeError(error).slice(0, 500)}`,
-      );
-    } finally {
-      this.scheduleNextMapHistorySync();
-    }
+    return this.syncCoordinator.runScheduledMapHistorySync();
   }
 
   private scheduleNextEfastSync() {
-    if (this.efastSyncStopped || !this.isEfastSyncEnabled()) return;
-    const delayMs = this.nextEfastSyncDelayMs();
-    if (this.efastSyncTimer) {
-      clearTimeout(this.efastSyncTimer);
-    }
-    this.efastSyncTimer = setTimeout(() => {
-      void this.runScheduledEfastSync();
-    }, delayMs);
-    this.efastSyncTimer.unref?.();
-    this.logger.debug(`Next VietinBank eFAST sync scheduled in ${delayMs}ms`);
+    this.syncCoordinator.scheduleNextEfastSync();
   }
 
   private async runScheduledEfastSync() {
-    try {
-      const inFastWindow = this.isWithinEfastFastSyncWindow();
-      if (this.lastEfastSyncWindowOpen !== inFastWindow) {
-        this.logger.log(
-          inFastWindow
-            ? 'VietinBank eFAST sync fast cadence active'
-            : 'VietinBank eFAST sync night cadence active',
-        );
-      }
-      this.lastEfastSyncWindowOpen = inFastWindow;
-      if (this.efastSyncInProgress) return;
-      this.efastSyncInProgress = true;
-      try {
-        await this.syncEfastTransactions();
-      } finally {
-        this.efastSyncInProgress = false;
-      }
-    } catch (error) {
-      this.logger.warn(
-        `Scheduled VietinBank eFAST sync failed: ${this.safeError(error).slice(0, 500)}`,
-      );
-    } finally {
-      this.scheduleNextEfastSync();
-    }
+    return this.syncCoordinator.runScheduledEfastSync();
   }
 
   private randomMapHistorySyncDelayMs() {
-    const configuredMin = this.readPositiveInt(
-      'MAP_VIETIN_SYNC_DELAY_MIN_MS',
-      DEFAULT_MAP_HISTORY_SYNC_DELAY_MIN_MS,
-    );
-    const configuredMax = this.readPositiveInt(
-      'MAP_VIETIN_SYNC_DELAY_MAX_MS',
-      DEFAULT_MAP_HISTORY_SYNC_DELAY_MAX_MS,
-    );
-    const min = Math.max(MIN_MAP_HISTORY_SYNC_DELAY_MS, configuredMin);
-    const max = Math.max(min, configuredMax);
-    const span = max - min;
-    return min + Math.floor(Math.random() * (span + 1));
+    return this.syncCoordinator.randomMapHistorySyncDelayMs();
   }
 
   private randomMapDeepSweepDelayMs() {
-    const configuredMin = this.readPositiveInt(
-      'MAP_VIETIN_DEEP_SWEEP_DELAY_MIN_MS',
-      DEFAULT_MAP_DEEP_SWEEP_DELAY_MIN_MS,
-    );
-    const configuredMax = this.readPositiveInt(
-      'MAP_VIETIN_DEEP_SWEEP_DELAY_MAX_MS',
-      DEFAULT_MAP_DEEP_SWEEP_DELAY_MAX_MS,
-    );
-    const min = Math.max(MIN_MAP_DEEP_SWEEP_DELAY_MS, configuredMin);
-    const max = Math.max(min, configuredMax);
-    return min + Math.floor(Math.random() * (max - min + 1));
+    return this.syncCoordinator.randomMapDeepSweepDelayMs();
   }
 
   private randomEfastFastSyncDelayMs() {
-    const span = EFAST_FAST_SYNC_DELAY_MAX_MS - EFAST_FAST_SYNC_DELAY_MIN_MS;
-    return (
-      EFAST_FAST_SYNC_DELAY_MIN_MS + Math.floor(Math.random() * (span + 1))
-    );
+    return this.syncCoordinator.randomEfastFastSyncDelayMs();
   }
 
   private nextMapHistorySyncDelayMs(value = new Date(Date.now())) {
-    if (this.isWithinMapSyncWindow(value)) {
-      return this.randomMapHistorySyncDelayMs();
-    }
-    return Math.min(
-      MAP_HISTORY_SYNC_NIGHT_DELAY_MS,
-      this.msUntilNextMapFastWindowStart(value),
-    );
+    return this.syncCoordinator.nextMapHistorySyncDelayMs(value);
   }
 
   private nextEfastSyncDelayMs(value = new Date(Date.now())) {
-    if (this.isWithinEfastFastSyncWindow(value)) {
-      const fastDelay = this.randomEfastFastSyncDelayMs();
-      const msUntilNight = this.msUntilEfastNightWindowStart(value);
-      return msUntilNight <= fastDelay
-        ? msUntilNight + EFAST_NIGHT_SYNC_DELAY_MS
-        : fastDelay;
-    }
-    return Math.min(
-      EFAST_NIGHT_SYNC_DELAY_MS,
-      this.msUntilNextEfastFastWindowStart(value),
-    );
+    return this.syncCoordinator.nextEfastSyncDelayMs(value);
   }
 
-  private msUntilNextMapFastWindowStart(value: Date) {
-    const vietnamTimeMs =
-      value.getTime() + VIETNAM_UTC_OFFSET_HOURS * 60 * 60 * 1000;
-    const vietnamDate = new Date(vietnamTimeMs);
-    const startTodayVietnamMs = Date.UTC(
-      vietnamDate.getUTCFullYear(),
-      vietnamDate.getUTCMonth(),
-      vietnamDate.getUTCDate(),
-      MAP_SYNC_START_HOUR_VN,
-      0,
-      0,
-      0,
-    );
-    const nextStartVietnamMs =
-      vietnamTimeMs < startTodayVietnamMs
-        ? startTodayVietnamMs
-        : startTodayVietnamMs + ONE_DAY_MS;
-    return Math.max(1, nextStartVietnamMs - vietnamTimeMs);
+  private isWithinMapSyncWindow(value = new Date(Date.now())) {
+    return this.syncCoordinator.isWithinMapSyncWindow(value);
   }
 
-  private msUntilNextEfastFastWindowStart(value: Date) {
-    const vietnamTimeMs = this.vietnamTimeMs(value);
-    const vietnamDate = new Date(vietnamTimeMs);
-    const startTodayVietnamMs = Date.UTC(
-      vietnamDate.getUTCFullYear(),
-      vietnamDate.getUTCMonth(),
-      vietnamDate.getUTCDate(),
-      EFAST_SYNC_START_HOUR_VN,
-      0,
-      0,
-      0,
-    );
-    const nextStartVietnamMs =
-      vietnamTimeMs < startTodayVietnamMs
-        ? startTodayVietnamMs
-        : startTodayVietnamMs + ONE_DAY_MS;
-    return Math.max(1, nextStartVietnamMs - vietnamTimeMs);
+  private isWithinEfastFastSyncWindow(value = new Date(Date.now())) {
+    return this.syncCoordinator.isWithinEfastFastSyncWindow(value);
   }
 
-  private msUntilEfastNightWindowStart(value: Date) {
-    const vietnamTimeMs = this.vietnamTimeMs(value);
-    const vietnamDate = new Date(vietnamTimeMs);
-    const nightStartVietnamMs = Date.UTC(
-      vietnamDate.getUTCFullYear(),
-      vietnamDate.getUTCMonth(),
-      vietnamDate.getUTCDate(),
-      EFAST_SYNC_END_HOUR_VN,
-      1,
-      0,
-      0,
-    );
-    return Math.max(1, nightStartVietnamMs - vietnamTimeMs);
+  private get mapHistoryDeepSweepDueAt() {
+    return this.syncCoordinator.mapHistoryDeepSweepDueAt;
+  }
+
+  private set mapHistoryDeepSweepDueAt(value: number) {
+    this.syncCoordinator.mapHistoryDeepSweepDueAt = value;
   }
 
   private isMapHistorySyncDisabled() {
@@ -1677,6 +1507,12 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
   }
 
   async syncConfiguredStores(options: MapGlobalSyncOptions = {}) {
+    return this.syncCoordinator.runConfiguredStores(options, (syncOptions) =>
+      this.executeConfiguredStores(syncOptions),
+    );
+  }
+
+  private async executeConfiguredStores(options: MapGlobalSyncOptions = {}) {
     if (this.isMapHistorySyncDisabled()) return;
     if (this.mapProviderBackoffUntil > Date.now()) {
       this.logger.debug(
@@ -1685,24 +1521,18 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
       return;
     }
     const inFastWindow = this.isWithinMapSyncWindow();
-    if (this.lastSyncWindowOpen !== inFastWindow) {
+    if (this.syncCoordinator.lastSyncWindowOpen !== inFastWindow) {
       this.logger.log(
         inFastWindow
           ? 'MAP sync fast cadence active'
           : 'MAP sync night cadence active',
       );
     }
-    this.lastSyncWindowOpen = inFastWindow;
-    if (this.syncInProgress) return;
-    this.syncInProgress = true;
-    try {
-      if (this.shouldUseGlobalSync()) {
-        await this.syncGlobalTransactions(options);
-      } else {
-        await this.syncPerStoreTransactions();
-      }
-    } finally {
-      this.syncInProgress = false;
+    this.syncCoordinator.lastSyncWindowOpen = inFastWindow;
+    if (this.shouldUseGlobalSync()) {
+      await this.syncGlobalTransactions(options);
+    } else {
+      await this.syncPerStoreTransactions();
     }
   }
 
@@ -1875,6 +1705,12 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
   }
 
   async syncEfastTransactions() {
+    return this.syncCoordinator.runEfastTransactions(() =>
+      this.executeEfastTransactions(),
+    );
+  }
+
+  private async executeEfastTransactions() {
     const now = new Date();
     const startedAt = Date.now();
     try {
@@ -5036,24 +4872,6 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
       String(vietnamDate.getUTCMonth() + 1).padStart(2, '0'),
       vietnamDate.getUTCFullYear(),
     ].join('/');
-  }
-
-  private isWithinMapSyncWindow(value = new Date(Date.now())) {
-    const vietnamHour = (value.getUTCHours() + VIETNAM_UTC_OFFSET_HOURS) % 24;
-    return (
-      vietnamHour >= MAP_SYNC_START_HOUR_VN &&
-      vietnamHour < MAP_SYNC_END_HOUR_VN
-    );
-  }
-
-  private isWithinEfastFastSyncWindow(value = new Date(Date.now())) {
-    const vietnamDate = new Date(this.vietnamTimeMs(value));
-    const minutes =
-      vietnamDate.getUTCHours() * 60 + vietnamDate.getUTCMinutes();
-    return (
-      minutes >= EFAST_SYNC_START_HOUR_VN * 60 &&
-      minutes <= EFAST_SYNC_END_HOUR_VN * 60
-    );
   }
 
   private vietnamTimeMs(value: Date) {

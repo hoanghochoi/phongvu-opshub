@@ -9,10 +9,10 @@ cleanup are merged in staging. Five live shadow observations pass; one
 historical contract gap (#182) was explicitly captured and fixed in the OPS-72
 follow-up. OPS-74 runtime waves are in progress: OPS-80 Home cache coverage,
 OPS-81, OPS-82, OPS-83, OPS-84, OPS-85, OPS-86, OPS-87, OPS-88, OPS-89,
-OPS-90, OPS-91, OPS-92, OPS-93, OPS-94 and OPS-95 are merged and
-staging-deployed. OPS-96 MAP Vietin HTTP/session/backoff extraction is the
-current lifecycle slice. Comparable timing baseline, remaining runtime waves
-and production release remain open.
+OPS-90, OPS-91, OPS-92, OPS-93, OPS-94, OPS-95 and OPS-96 are merged and
+staging-deployed. OPS-97 MAP Vietin sync scheduler/coordinator extraction is
+the current lifecycle slice. Comparable timing baseline, remaining runtime
+waves, toolchain bootstrap and production release remain open.
 
 ## Outcome
 
@@ -29,16 +29,22 @@ branch, and is not converted row-for-row into Markdown.
 ## Authority and checkpoint
 
 - Linear parent: `OPS-64`.
-- Current slice: `OPS-96` MAP Vietin HTTP/session/backoff extraction, on the
-  fresh lifecycle worktree `../opshub-ops-96` and branch
-  `codex/ops-96-map-vietin-http-session-backoff`, created from exact live
-  `origin/staging@e6a0085d1d40bdded5c019e72451ec42a5e496e9`. The planned
-  `MapVietinProviderRuntime` owns bounded provider transport, MAP/eFAST session
-  caching and provider backoff/retry-after state; `MapVietinService` remains
-  the stable facade and retains request builders, credential crypto, scheduler,
-  persistence, statement policy and response mapping. The intake checkpoint is
-  clean and byte-identical across two snapshots; source edits and focused proof
-  are committed on the task branch; publication gates remain open.
+- Previous slice: `OPS-96` MAP Vietin HTTP/session/backoff extraction, merged
+  into `staging` at `7a06f1272ae97f02d5fecc2c3a29e80a8db70f5a` after deploy
+  `31770320592` and guarded lifecycle cleanup. `MapVietinProviderRuntime`
+  owns bounded provider transport, MAP/eFAST session caching and provider
+  backoff/retry-after state; the service facade and public contract are intact.
+- Current slice: `OPS-97` MAP Vietin sync scheduler/coordinator extraction, on
+  the fresh lifecycle worktree `../opshub-ops-97` and branch
+  `codex/ops-97-map-vietin-sync-coordinator`, created from exact live
+  `origin/staging@7a06f1272ae97f02d5fecc2c3a29e80a8db70f5a`. The coordinator
+  owns timer lifecycle, MAP/eFAST windows and cadence, backoff-aware scheduling,
+  deep-sweep state and single-flight leases; `MapVietinService` remains the
+  stable facade and owns sync execution, persistence, statement policy and
+  response mapping. The intake checkpoint was clean and byte-identical across
+  two snapshots; source edits and focused proof are local to this worktree.
+  A repeated fresh-worktree toolchain failure was recorded as follow-up
+  `OPS-98`; it is not mixed into this runtime slice.
   OPS-89 cache state, in-flight dedupe, refresh-ahead, daily-series extension,
   support caches, scope-option caching and projection invalidation remain in
   `home-summary-cache.runtime.ts`.
@@ -444,8 +450,16 @@ god-helper.
   `e6a0085d1d40bdded5c019e72451ec42a5e496e9`; staging deploy `31767383719`
   passed and the post-merge lifecycle cleanup removed its worktree and local
   branch. Linear is `Ready for QA`; production deployment remains outstanding.
-- [ ] Complete OPS-96 MAP Vietin HTTP/session/backoff extraction from the exact
-  `origin/staging@e6a0085d1d40bdded5c019e72451ec42a5e496e9` checkpoint.
+- [x] Complete and publish OPS-96 MAP Vietin HTTP/session/backoff extraction
+  from the exact `origin/staging@e6a0085d1d40bdded5c019e72451ec42a5e496e9`
+  checkpoint. PR #207 merged at `7a06f1272ae97f02d5fecc2c3a29e80a8db70f5a`;
+  deploy `31770320592` and guarded lifecycle cleanup passed. Linear remains
+  `Ready for QA` until production deployment.
+- [ ] Complete OPS-97 MAP Vietin sync scheduler/coordinator extraction from the
+  exact `origin/staging@7a06f1272ae97f02d5fecc2c3a29e80a8db70f5a` checkpoint.
+- [ ] Start OPS-98 toolchain bootstrap only after OPS-97 publish and lifecycle
+  finish. It addresses fresh-worktree Nest/Prisma/Flutter preflight and must
+  remain a separate workflow slice.
 - [ ] Run Phase 7B CI shadow metrics, Phase 8 artifact cleanup, Phase 9 runtime
   waves and Phase 10 final consolidation.
 
@@ -910,6 +924,33 @@ Phase 9E runtime checkpoint (OPS-96, MAP Vietin provider slice):
   Prettier and `git diff --check` pass. Exact runner with additive `flutter`
   profile passes `harness,docs,nestjs,flutter`, `stale=false`, exit `0` and five
   changed paths; final publication, staging deploy and lifecycle cleanup remain
+  open.
+
+Phase 9E runtime checkpoint (OPS-97, MAP Vietin scheduler/coordinator slice):
+
+- Slice branch/worktree: `codex/ops-97-map-vietin-sync-coordinator` in
+  `../opshub-ops-97`, started from exact live
+  `origin/staging@7a06f1272ae97f02d5fecc2c3a29e80a8db70f5a`. The intake
+  checkpoint was captured twice with identical branch, status, tracked-index
+  and binary-diff hashes; the canonical `staging` worktree and the protected
+  OPS-68/OPS-72 worktrees were not changed.
+- Extracted timer ownership, MAP/eFAST fast/night window calculations,
+  randomized cadence, backoff-aware scheduling, deep-sweep due state, module
+  stop/dispose and single-flight MAP/eFAST leases into the constructor-configured
+  `MapVietinSyncCoordinator`. `MapVietinService` remains the public facade;
+  public sync methods delegate through coordinator leases while scheduler
+  callbacks call the facade, preserving existing Jest spies and contracts.
+- No route, DTO, DI token, permission, API/data contract, Vietnamese copy,
+  persistence, statement policy or response mapping changed. The existing
+  `mapHistoryDeepSweepDueAt` and scheduler inspection points remain delegated
+  compatibility views.
+- Focused characterization and coordinator proof passes `157/157`; all
+  MAP/Vietin and BigQuery affected Nest suites pass `207/207`; `npm run build`
+  and `npx prisma validate` pass. Exact runner after Flutter dependency
+  hydration passes profiles `nestjs,flutter`, 4 changed paths,
+  `stale=false`, and Flutter analyzer reports no issues. Hydration-generated
+  l10n/plugin files are isolated in local stash `ops97-local-flutter-generated`
+  and are not part of the product diff. Publication and lifecycle gates remain
   open.
 
 ## Validation
