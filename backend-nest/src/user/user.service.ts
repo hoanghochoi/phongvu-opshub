@@ -33,6 +33,10 @@ import {
   AdminUserImportRow,
 } from './user-import-parser.service';
 import { UserProfileService } from './user-profile.service';
+import {
+  PreparedAdminUserMutation,
+  UserAdminMutationService,
+} from './user-admin-mutation.service';
 import { logFingerprint, safeLogError } from '../common/log-sanitizer';
 import { AccessChangeService } from '../auth/access-change.service';
 
@@ -136,22 +140,6 @@ const DEFAULT_ROLE_DEFINITIONS = [
     description: 'Quyền thao tác hằng ngày',
   },
 ];
-
-type PreparedAdminUserMutation = {
-  email: string;
-  role: string;
-  workScopeType: string;
-  personnel: {
-    departmentCode?: string | null;
-    jobRoleCode?: string | null;
-    regionCode?: string | null;
-    areaCode?: string | null;
-    organizationNodeId?: string | null;
-  };
-  organizationNodeIds: string[];
-  createData: Record<string, unknown>;
-  updateData: Record<string, unknown>;
-};
 
 type PreparedAdminUserImport = {
   rowNumber: number;
@@ -373,6 +361,7 @@ export class UserService implements OnModuleInit {
   private bigquery?: BigQuery;
   private storeOrganizationSyncInFlight: Promise<void> | null = null;
   private readonly profileService: UserProfileService;
+  private readonly adminMutationService: UserAdminMutationService;
 
   constructor(
     private prisma: PrismaService,
@@ -389,6 +378,39 @@ export class UserService implements OnModuleInit {
       {
         include: () => this.userDtoInclude(),
         toDto: (user) => this.toUserDto(user),
+      },
+    );
+    this.adminMutationService = new UserAdminMutationService(
+      this.prisma,
+      this.accessChangeService,
+      {
+        assertAdmin: (admin) => this.assertAdmin(admin),
+        assertSuperAdminCanCreateUsers: (admin) =>
+          this.assertSuperAdminCanCreateUsers(admin),
+        assertSuperAdminCanDeleteUsers: (admin) =>
+          this.assertSuperAdminCanDeleteUsers(admin),
+        assertAdminCanUpdateUser: (admin, userId, current) =>
+          this.assertAdminCanUpdateUser(admin, userId, current),
+        prepareAdminUserMutation: (admin, body, current) =>
+          this.prepareAdminUserMutation(admin, body, current),
+        syncUserOrganizationAssignments: (userId, organizationNodeIds, admin) =>
+          this.syncUserOrganizationAssignments(
+            userId,
+            organizationNodeIds,
+            admin,
+          ),
+        userDtoInclude: () => this.userDtoInclude(),
+        toUserDto: (user) => this.toUserDto(user),
+        sendWelcomeEmail: (user, context) =>
+          this.sendWelcomeEmail(user, context),
+        userAccessFingerprint: (user) => this.userAccessFingerprint(user),
+        userDeleteBlockers: (userId) => this.userDeleteBlockers(userId),
+        userLogId: (admin) => this.userLogId(admin),
+        personnelCodeFor: (user) => this.personnelCodeFor(user),
+        normalizeRoleCode: (role, preserve) =>
+          this.normalizeRoleCode(role, preserve),
+        emailHash: (email) => logFingerprint(email),
+        logger: this.logger,
       },
     );
     if (getDataSyncSource() !== 'bigquery') {
@@ -707,142 +729,15 @@ export class UserService implements OnModuleInit {
   }
 
   async adminCreateUser(admin: any, body: any) {
-    await this.assertAdmin(admin);
-    await this.assertSuperAdminCanCreateUsers(admin);
-    const prepared = await this.prepareAdminUserMutation(admin, body, null);
-
-    const user = await this.prisma.user.create({
-      data: prepared.createData as any,
-      include: this.userDtoInclude(),
-    });
-    await this.syncUserOrganizationAssignments(
-      user.id,
-      prepared.organizationNodeIds,
-      admin,
-    );
-    const saved = await this.prisma.user.findUnique({
-      where: { id: user.id },
-      include: this.userDtoInclude(),
-    });
-    this.logger.log(
-      `Admin user created: emailHash=${logFingerprint(prepared.email)} role=${prepared.role} scope=${prepared.workScopeType} personnelCode=${this.personnelCodeFor(user) ?? 'none'}`,
-    );
-    const welcomeEmail = await this.sendWelcomeEmail(saved ?? user, {
-      source: 'admin-create',
-      admin,
-    });
-    return {
-      ...this.toUserDto(saved ?? user),
-      welcomeEmailSent: welcomeEmail.sent,
-      welcomeEmailError: welcomeEmail.error,
-    };
+    return this.adminMutationService.adminCreateUser(admin, body);
   }
 
   async adminUpdateUser(admin: any, userId: string, body: any) {
-    await this.assertAdmin(admin);
-    const current = await this.prisma.user.findUnique({
-      where: { id: userId },
-      include: this.userDtoInclude(),
-    });
-    if (!current) throw new NotFoundException('Không tìm thấy người dùng');
-
-    await this.assertAdminCanUpdateUser(admin, userId, current);
-    const prepared = await this.prepareAdminUserMutation(admin, body, current);
-
-    const updated = await this.prisma.user.update({
-      where: { id: userId },
-      data: prepared.updateData as any,
-      include: this.userDtoInclude(),
-    });
-    await this.syncUserOrganizationAssignments(
-      userId,
-      prepared.organizationNodeIds,
-      admin,
-    );
-    const saved = await this.prisma.user.findUnique({
-      where: { id: userId },
-      include: this.userDtoInclude(),
-    });
-    this.logger.log(
-      `Admin user updated: id=${userId} role=${prepared.role} scope=${prepared.workScopeType} personnelCode=${this.personnelCodeFor(updated) ?? 'none'}`,
-    );
-    if (
-      this.userAccessFingerprint(current) !==
-      this.userAccessFingerprint(saved ?? updated)
-    ) {
-      await this.accessChangeService.publishForUserIds(
-        [userId],
-        'user-access-updated',
-      );
-    }
-    return this.toUserDto(saved ?? updated);
+    return this.adminMutationService.adminUpdateUser(admin, userId, body);
   }
 
   async adminDeleteUser(admin: any, userId: string) {
-    await this.assertAdmin(admin);
-    await this.assertSuperAdminCanDeleteUsers(admin);
-    const id = String(userId || '').trim();
-    if (!id) throw new BadRequestException('Người dùng không hợp lệ');
-    if (admin?.id && admin.id === id) {
-      throw new BadRequestException(
-        'Không thể tự xóa tài khoản đang đăng nhập',
-      );
-    }
-
-    const current = await this.prisma.user.findUnique({
-      where: { id },
-      select: {
-        id: true,
-        email: true,
-        role: true,
-        status: true,
-      },
-    });
-    if (!current) throw new NotFoundException('Không tìm thấy người dùng');
-    if (this.normalizeRoleCode(current.role, true) === SUPER_ADMIN_ROLE) {
-      throw new BadRequestException(
-        'Không thể xóa tài khoản quản trị toàn hệ thống',
-      );
-    }
-    if (String(current.status || '').toLowerCase() !== 'no') {
-      throw new BadRequestException('Chỉ xóa được tài khoản đã khóa');
-    }
-
-    const blockers = await this.userDeleteBlockers(current.id);
-    if (blockers.length > 0) {
-      this.logger.warn(
-        `Admin user delete blocked: admin=${this.userLogId(admin)} targetUserId=${current.id} blockers=${blockers.join(',')}`,
-      );
-      throw new BadRequestException(
-        'Tài khoản đang có dữ liệu lịch sử, không thể xóa hoàn toàn: ' +
-          blockers.join(', '),
-      );
-    }
-
-    await this.prisma.$transaction(async (tx) => {
-      await tx.userPlatformSession.deleteMany({
-        where: { userId: current.id },
-      });
-      await tx.passwordResetToken.deleteMany({ where: { userId: current.id } });
-      await tx.emailVerificationCode.deleteMany({
-        where: { email: current.email },
-      });
-      await tx.adminPolicyRule.deleteMany({ where: { userId: current.id } });
-      await tx.featureAccessRule.deleteMany({ where: { userId: current.id } });
-      await tx.userFeatureAssignment.deleteMany({
-        where: { userId: current.id },
-      });
-      await tx.user.delete({ where: { id: current.id } });
-    });
-
-    this.logger.warn(
-      `Admin user deleted: admin=${this.userLogId(admin)} targetUserId=${current.id}`,
-    );
-    await this.accessChangeService.publishForUserIds(
-      [current.id],
-      'user-access-deleted',
-    );
-    return { deleted: true, id: current.id, email: current.email };
+    return this.adminMutationService.adminDeleteUser(admin, userId);
   }
 
   async adminImportUsers(admin: any, parsed: AdminUserImportParseResult) {
