@@ -28,15 +28,16 @@ import {
   organizationNodeStoreTreeInclude,
   storesForOrganizationNodeTree,
 } from '../common/organization-store-scope';
-import {
-  AdminUserImportParseResult,
-  AdminUserImportRow,
-} from './user-import-parser.service';
+import { AdminUserImportParseResult } from './user-import-parser.service';
 import { UserProfileService } from './user-profile.service';
 import {
   PreparedAdminUserMutation,
   UserAdminMutationService,
 } from './user-admin-mutation.service';
+import {
+  UserImportService,
+  UserWelcomeEmailService,
+} from './user-import.service';
 import { logFingerprint, safeLogError } from '../common/log-sanitizer';
 import { AccessChangeService } from '../auth/access-change.service';
 
@@ -140,19 +141,6 @@ const DEFAULT_ROLE_DEFINITIONS = [
     description: 'Quyền thao tác hằng ngày',
   },
 ];
-
-type PreparedAdminUserImport = {
-  rowNumber: number;
-  email: string;
-  action: 'created' | 'updated';
-  userId?: string;
-  role: string;
-  organizationNodeIds: string[];
-  organizationNodeId: string | null;
-  organizationNodeName: string | null;
-  createData?: Record<string, unknown>;
-  updateData?: Record<string, unknown>;
-};
 
 const DEFAULT_DEPARTMENT_DEFINITIONS = [
   {
@@ -362,6 +350,8 @@ export class UserService implements OnModuleInit {
   private storeOrganizationSyncInFlight: Promise<void> | null = null;
   private readonly profileService: UserProfileService;
   private readonly adminMutationService: UserAdminMutationService;
+  private readonly welcomeEmailService: UserWelcomeEmailService;
+  private readonly importService: UserImportService;
 
   constructor(
     private prisma: PrismaService,
@@ -370,7 +360,7 @@ export class UserService implements OnModuleInit {
     private policyService: PolicyService,
     private readonly accessChangeService: AccessChangeService,
     @Optional()
-    private mailService?: OpshubMailService,
+    mailService?: OpshubMailService,
   ) {
     this.profileService = new UserProfileService(
       this.prisma,
@@ -378,6 +368,44 @@ export class UserService implements OnModuleInit {
       {
         include: () => this.userDtoInclude(),
         toDto: (user) => this.toUserDto(user),
+      },
+    );
+    this.welcomeEmailService = new UserWelcomeEmailService(mailService, {
+      normalizeAccountEmail: (value) => this.normalizeAccountEmail(value),
+      userLogId: (user) => this.userLogId(user),
+      logger: this.logger,
+    });
+    this.importService = new UserImportService(
+      this.prisma,
+      this.accessChangeService,
+      this.welcomeEmailService,
+      {
+        assertAdmin: (admin) => this.assertAdmin(admin),
+        assertSuperAdminCanCreateUsers: (admin) =>
+          this.assertSuperAdminCanCreateUsers(admin),
+        seedDefaultOrganizationTree: () => this.seedDefaultOrganizationTree(),
+        syncStoreOrganizationNodes: (source) =>
+          this.syncStoreOrganizationNodes(source),
+        prepareAdminUserMutation: (admin, body, current) =>
+          this.prepareAdminUserMutation(admin, body, current),
+        assertAccountEmailAllowed: (email) =>
+          this.assertAccountEmailAllowed(email),
+        assertAdminCanUpdateUser: (admin, userId, current) =>
+          this.assertAdminCanUpdateUser(admin, userId, current),
+        assertOrganizationNodeAssignableByAdmin: (admin, nodeId) =>
+          this.assertOrganizationNodeAssignableByAdmin(admin, nodeId),
+        organizationNodeLevel: (type) => this.organizationNodeLevel(type),
+        normalizeStoreCode: (value) => this.normalizeStoreCode(value),
+        syncUserOrganizationAssignments: (userId, organizationNodeIds, admin) =>
+          this.syncUserOrganizationAssignments(
+            userId,
+            organizationNodeIds,
+            admin,
+          ),
+        userDtoInclude: () => this.userDtoInclude(),
+        personnelCodeFor: (user) => this.personnelCodeFor(user),
+        userLogId: (user) => this.userLogId(user),
+        logger: this.logger,
       },
     );
     this.adminMutationService = new UserAdminMutationService(
@@ -402,7 +430,7 @@ export class UserService implements OnModuleInit {
         userDtoInclude: () => this.userDtoInclude(),
         toUserDto: (user) => this.toUserDto(user),
         sendWelcomeEmail: (user, context) =>
-          this.sendWelcomeEmail(user, context),
+          this.welcomeEmailService.sendWelcomeEmail(user, context),
         userAccessFingerprint: (user) => this.userAccessFingerprint(user),
         userDeleteBlockers: (userId) => this.userDeleteBlockers(userId),
         userLogId: (admin) => this.userLogId(admin),
@@ -741,131 +769,7 @@ export class UserService implements OnModuleInit {
   }
 
   async adminImportUsers(admin: any, parsed: AdminUserImportParseResult) {
-    await this.assertAdmin(admin);
-    await this.assertSuperAdminCanCreateUsers(admin);
-    const startedAt = Date.now();
-    this.logger.log(
-      'Admin user import started: admin=' +
-        this.userLogId(admin) +
-        ' role=' +
-        admin.role +
-        ' rows=' +
-        parsed.rows.length +
-        ' skipped=' +
-        parsed.skippedRows,
-    );
-
-    try {
-      await this.seedDefaultOrganizationTree();
-      await this.syncStoreOrganizationNodes('admin-user-import');
-      const prepared = await this.prepareAdminUserImport(admin, parsed.rows);
-
-      await this.prisma.$transaction(async (tx) => {
-        for (const item of prepared) {
-          if (item.action === 'created') {
-            await tx.user.create({ data: item.createData as any });
-          } else if (item.userId) {
-            await tx.user.update({
-              where: { id: item.userId },
-              data: item.updateData as any,
-            });
-          }
-        }
-      });
-
-      const emails = prepared.map((item) => item.email);
-      const savedUsers = await this.prisma.user.findMany({
-        where: { email: { in: emails } },
-        include: this.userDtoInclude(),
-      });
-      const savedByEmail = new Map(
-        savedUsers.map((user) => [String(user.email).toLowerCase(), user]),
-      );
-      for (const item of prepared) {
-        const saved = savedByEmail.get(item.email);
-        if (!saved?.id) continue;
-        await this.syncUserOrganizationAssignments(
-          saved.id,
-          item.organizationNodeIds,
-          admin,
-        );
-      }
-      await this.accessChangeService.publishForUserIds(
-        prepared
-          .filter((item) => item.action === 'updated')
-          .map((item) => savedByEmail.get(item.email)?.id),
-        'user-access-import-updated',
-      );
-      const welcomeEmailSummary = await this.sendWelcomeEmailsForImport(
-        admin,
-        prepared,
-        savedByEmail,
-      );
-      const results = prepared.map((item) => {
-        const saved = savedByEmail.get(item.email);
-        return {
-          rowNumber: item.rowNumber,
-          email: item.email,
-          action: item.action,
-          welcomeEmailSent:
-            item.action === 'created' &&
-            welcomeEmailSummary.sentEmails.has(item.email),
-          welcomeEmailError:
-            item.action === 'created'
-              ? (welcomeEmailSummary.failedByEmail.get(item.email) ?? null)
-              : null,
-          role: saved?.role ?? item.role,
-          organizationNodeId:
-            saved?.organizationNodeId ?? item.organizationNodeId,
-          organizationNodeName:
-            saved?.organizationNode?.displayName ?? item.organizationNodeName,
-          personnelCode: saved ? this.personnelCodeFor(saved) : null,
-        };
-      });
-      const createdRows = results.filter(
-        (item) => item.action === 'created',
-      ).length;
-      const updatedRows = results.filter(
-        (item) => item.action === 'updated',
-      ).length;
-
-      this.logger.log(
-        'Admin user import completed: admin=' +
-          this.userLogId(admin) +
-          ' created=' +
-          createdRows +
-          ' updated=' +
-          updatedRows +
-          ' skipped=' +
-          parsed.skippedRows +
-          ' welcomeSent=' +
-          welcomeEmailSummary.sentRows +
-          ' welcomeFailed=' +
-          welcomeEmailSummary.failedRows +
-          ' durationMs=' +
-          (Date.now() - startedAt),
-      );
-      return {
-        totalRows: parsed.totalRows,
-        createdRows,
-        updatedRows,
-        skippedRows: parsed.skippedRows,
-        welcomeEmailSentRows: welcomeEmailSummary.sentRows,
-        welcomeEmailFailedRows: welcomeEmailSummary.failedRows,
-        results,
-      };
-    } catch (error) {
-      this.logger.error(
-        'Admin user import failed: admin=' +
-          this.userLogId(admin) +
-          ' rows=' +
-          parsed.rows.length +
-          ' durationMs=' +
-          (Date.now() - startedAt),
-        safeLogError(error),
-      );
-      throw error;
-    }
+    return this.importService.adminImportUsers(admin, parsed);
   }
 
   private async prepareAdminUserMutation(
@@ -1070,232 +974,6 @@ export class UserService implements OnModuleInit {
     }
   }
 
-  private async prepareAdminUserImport(
-    admin: any,
-    rows: AdminUserImportRow[],
-  ): Promise<PreparedAdminUserImport[]> {
-    const emails = rows.map((row) => row.email);
-    const existingUsers = await this.prisma.user.findMany({
-      where: { email: { in: emails } },
-      include: this.userDtoInclude(),
-    });
-    const existingByEmail = new Map(
-      existingUsers.map((user) => [String(user.email).toLowerCase(), user]),
-    );
-    const organizationNodes = await this.listActiveOrganizationNodesForImport();
-    const prepared: PreparedAdminUserImport[] = [];
-    const errors: string[] = [];
-
-    for (const row of rows) {
-      try {
-        await this.assertAccountEmailAllowed(row.email);
-        const nodes = await this.resolveImportOrganizationNodes(
-          admin,
-          row,
-          organizationNodes,
-        );
-        const node = nodes[0];
-        const current = existingByEmail.get(row.email) ?? null;
-        if (current) {
-          await this.assertAdminCanUpdateUser(admin, current.id, current);
-        }
-        const body = {
-          email: row.email,
-          firstName: row.fullName,
-          lastName: '',
-          role: row.role,
-          status: current ? undefined : 'yes',
-          organizationNodeIds: nodes.map((item) => item.id),
-        };
-        const mutation = await this.prepareAdminUserMutation(
-          admin,
-          body,
-          current,
-        );
-        prepared.push({
-          rowNumber: row.rowNumber,
-          email: row.email,
-          action: current ? 'updated' : 'created',
-          userId: current?.id,
-          role: mutation.role,
-          organizationNodeIds: mutation.organizationNodeIds,
-          organizationNodeId: mutation.personnel.organizationNodeId ?? node.id,
-          organizationNodeName: node.displayName,
-          createData: current ? undefined : mutation.createData,
-          updateData: current ? mutation.updateData : undefined,
-        });
-      } catch (error) {
-        errors.push(
-          `dòng ${row.rowNumber}: ${this.errorMessageForImport(error)}`,
-        );
-      }
-    }
-
-    if (errors.length > 0) {
-      const preview = errors.slice(0, 8).join('; ');
-      const suffix =
-        errors.length > 8 ? `; và ${errors.length - 8} lỗi khác` : '';
-      throw new BadRequestException(
-        `File nhân sự chưa hợp lệ: ${preview}${suffix}`,
-      );
-    }
-    return prepared;
-  }
-
-  private async listActiveOrganizationNodesForImport() {
-    return this.prisma.organizationNode.findMany({
-      where: { isActive: true },
-      select: {
-        id: true,
-        parentId: true,
-        type: true,
-        code: true,
-        businessCode: true,
-        displayName: true,
-        isActive: true,
-      },
-    });
-  }
-
-  private async resolveImportOrganizationNode(
-    admin: any,
-    row: AdminUserImportRow,
-    nodes: Array<{
-      id: string;
-      parentId: string | null;
-      type: string;
-      code: string;
-      businessCode: string | null;
-      displayName: string;
-      isActive: boolean;
-    }>,
-  ) {
-    const byId = new Map(nodes.map((node) => [node.id, node]));
-    let previous: (typeof nodes)[number] | null = null;
-    let target: (typeof nodes)[number] | null = null;
-
-    for (let level = 0; level < row.levelCodes.length; level += 1) {
-      const value = row.levelCodes[level];
-      if (!value) continue;
-      const candidates = nodes.filter(
-        (node) =>
-          node.isActive &&
-          this.organizationNodeLevel(node.type) === level &&
-          this.importNodeMatches(node, value) &&
-          (!previous ||
-            this.organizationNodeIsDescendantOf(node, previous, byId)),
-      );
-      if (candidates.length === 0) {
-        throw new BadRequestException(
-          `không tìm thấy node lv${level} với mã ${value}`,
-        );
-      }
-      if (candidates.length > 1) {
-        throw new BadRequestException(
-          `mã đơn vị Lv${level} bị trùng hoặc mơ hồ: ${value}`,
-        );
-      }
-      previous = candidates[0];
-      target = candidates[0];
-    }
-
-    if (!target) {
-      throw new BadRequestException('Thiếu đơn vị tổ chức');
-    }
-    await this.assertOrganizationNodeAssignableByAdmin(admin, target.id);
-    return target;
-  }
-
-  private async resolveImportOrganizationNodes(
-    admin: any,
-    row: AdminUserImportRow,
-    nodes: Array<{
-      id: string;
-      parentId: string | null;
-      type: string;
-      code: string;
-      businessCode: string | null;
-      displayName: string;
-      isActive: boolean;
-    }>,
-  ) {
-    if (!row.storeIds?.length) {
-      return [await this.resolveImportOrganizationNode(admin, row, nodes)];
-    }
-
-    const storeCodes = row.storeIds.map((value) =>
-      this.normalizeStoreCode(value),
-    );
-    const stores = await this.prisma.store.findMany({
-      where: { storeId: { in: storeCodes } },
-      include: { organizationNode: true },
-    });
-    const byCode = new Map(
-      stores.map((store) => [String(store.storeId).toUpperCase(), store]),
-    );
-    const resolvedNodes: Array<(typeof nodes)[number]> = [];
-    for (const storeCode of storeCodes) {
-      const store = byCode.get(storeCode);
-      if (!store?.organizationNodeId || !store.organizationNode) {
-        throw new BadRequestException(
-          `không tìm thấy showroom ${storeCode} trên cây tổ chức`,
-        );
-      }
-      await this.assertOrganizationNodeAssignableByAdmin(
-        admin,
-        store.organizationNodeId,
-      );
-      resolvedNodes.push({
-        id: store.organizationNode.id,
-        parentId: store.organizationNode.parentId,
-        type: store.organizationNode.type,
-        code: store.organizationNode.code,
-        businessCode: store.organizationNode.businessCode,
-        displayName: store.organizationNode.displayName,
-        isActive: store.organizationNode.isActive,
-      });
-    }
-    return resolvedNodes;
-  }
-
-  private organizationNodeIsDescendantOf(
-    node: { id: string; parentId: string | null },
-    ancestor: { id: string },
-    byId: Map<string, { id: string; parentId: string | null }>,
-  ) {
-    let cursor: { id: string; parentId: string | null } | undefined = node;
-    for (let guard = 0; cursor && guard < 50; guard += 1) {
-      if (cursor.id === ancestor.id) return true;
-      cursor = cursor.parentId ? byId.get(cursor.parentId) : undefined;
-    }
-    return false;
-  }
-
-  private importNodeMatches(
-    node: { code: string; businessCode: string | null },
-    value: string,
-  ) {
-    const keys = this.importLookupKeys(value);
-    const nodeKeys = [
-      ...this.importLookupKeys(node.code),
-      ...this.importLookupKeys(node.businessCode),
-    ];
-    return nodeKeys.some((key) => keys.has(key));
-  }
-
-  private importLookupKeys(value: unknown) {
-    const raw = String(value || '')
-      .trim()
-      .toUpperCase();
-    const normalized = raw.replace(/[^A-Z0-9_]/g, '_');
-    return new Set([raw, normalized].filter(Boolean));
-  }
-
-  private errorMessageForImport(error: unknown) {
-    if (error instanceof Error && error.message) return error.message;
-    return 'dòng dữ liệu không hợp lệ';
-  }
-
   private normalizeAccountEmail(value: unknown) {
     const email = String(value || '')
       .trim()
@@ -1325,79 +1003,6 @@ export class UserService implements OnModuleInit {
       throw new ForbiddenException(allowedEmailDomainMessage());
     }
     return email;
-  }
-
-  private async sendWelcomeEmailsForImport(
-    admin: any,
-    prepared: PreparedAdminUserImport[],
-    savedByEmail: Map<string, any>,
-  ) {
-    const sentEmails = new Set<string>();
-    const failedByEmail = new Map<string, string>();
-    for (const item of prepared) {
-      if (item.action !== 'created') continue;
-      const user = savedByEmail.get(item.email);
-      if (!user) {
-        failedByEmail.set(item.email, 'Không tìm thấy người dùng sau import');
-        continue;
-      }
-      const result = await this.sendWelcomeEmail(user, {
-        source: 'admin-import',
-        admin,
-        rowNumber: item.rowNumber,
-      });
-      if (result.sent) {
-        sentEmails.add(item.email);
-      } else {
-        failedByEmail.set(item.email, result.error || 'Không gửi được email');
-      }
-    }
-    return {
-      sentEmails,
-      failedByEmail,
-      sentRows: sentEmails.size,
-      failedRows: failedByEmail.size,
-    };
-  }
-
-  private async sendWelcomeEmail(
-    user: any,
-    context: { source: string; admin: any; rowNumber?: number },
-  ) {
-    const email = this.normalizeAccountEmail(user?.email);
-    if (!this.mailService) {
-      const error = 'Chưa cấu hình dịch vụ gửi email PhongVu OpsHub.';
-      this.logger.error(
-        `Welcome email failed: source=${context.source} emailHash=${logFingerprint(email)} reason=missing_mail_service`,
-      );
-      return { sent: false, error };
-    }
-    const displayName = String(user?.firstName || user?.name || email)
-      .trim()
-      .replace(/\s+/g, ' ');
-    try {
-      await this.mailService.sendMail({
-        to: email,
-        subject: 'Chào mừng bạn đến với PhongVu OpsHub',
-        text:
-          `Chào ${displayName},\n\n` +
-          'Tài khoản PhongVu OpsHub của bạn đã được tạo.\n' +
-          'Để đặt mật khẩu lần đầu, vui lòng mở ứng dụng và dùng chức năng Quên mật khẩu với email này theo hướng dẫn bên dưới:\n' +
-          'Windows và Android tải tại: https://opshub.hoanghochoi.com/download\n' +
-          'iOS: Mở trang https://opshub.hoanghochoi.com bằng trình duyệt Safari -> Share -> Add to Home Screen\n\n' +
-          'Nếu bạn không yêu cầu tài khoản này, vui lòng liên hệ quản trị viên.',
-      });
-      this.logger.log(
-        `Welcome email sent: source=${context.source} emailHash=${logFingerprint(email)} admin=${this.userLogId(context.admin)} row=${context.rowNumber ?? 'none'}`,
-      );
-      return { sent: true, error: null };
-    } catch (error) {
-      const message = this.errorMessageForImport(error);
-      this.logger.error(
-        `Welcome email failed: source=${context.source} emailHash=${logFingerprint(email)} admin=${this.userLogId(context.admin)} row=${context.rowNumber ?? 'none'} error=${safeLogError(message)}`,
-      );
-      return { sent: false, error: message };
-    }
   }
 
   private async userDeleteBlockers(userId: string) {

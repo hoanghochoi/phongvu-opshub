@@ -4,24 +4,22 @@ Date: 2026-08-13
 
 ## Status
 
-Active — the current workflow checkpoint is OPS-109 on live
-`origin/staging@fe936bdf8ff4d192fbb9e1248956fb0743353c19`. OPS-106 dependency
-integrity hardening is merged by PR #218 at `39d2918f` with staging deploy run
-`31811539631` passed and Linear `Ready for QA`. OPS-103 UserService
-characterization is merged by PR #220 at `5d59ba51` with staging deploy run
-`31815294365` passed and Linear `Ready for QA`. OPS-107 MAP characterization is
-merged by PR #219 at `100f2ad3` with exact-SHA staging deploy run
-`31815315261` passed and Linear `Ready for QA`. All three task worktrees,
-local branches and remote branches were removed by guarded lifecycle cleanup;
-production deployment is still pending. Five live shadow observations pass;
-one historical contract gap (#182) was explicitly captured and fixed in the
-OPS-72 follow-up. OPS-74 runtime waves through OPS-97, the Nest/Prisma
-bootstrap, User/Auth characterization and UserService profile/admin extraction
-are merged and staging-deployed. OPS-68 remains protected with its
-authoritative OPS-69 correction; OPS-72 remains `Ready for QA` with live timing
-baseline pending. OPS-109 now owns dependency-bootstrap closure; MAP
-persistence extraction, UserService import extraction, remaining runtime waves
-and production release remain open.
+Active — the current workflow checkpoint is OPS-110 on
+`origin/staging@229603e23d1bf6d408e5de38465dec55ca71db8f`. OPS-109 dependency
+bootstrap closure is merged by PR #222 at this exact SHA; its toolchain and
+coverage proof passed and Linear remains `Ready for QA`. OPS-106 dependency
+integrity hardening is merged by PR #218 at `39d2918f`; OPS-103 UserService
+characterization is merged by PR #220 at `5d59ba51`; OPS-107 MAP
+characterization is merged by PR #219 at `100f2ad3`. Their guarded lifecycle
+cleanup has completed and production deployment is still pending. Five live
+shadow observations pass; one historical contract gap (#182) was explicitly
+captured and fixed in the OPS-72 follow-up. OPS-74 runtime waves through
+OPS-109, the Nest/Prisma bootstrap, User/Auth characterization and UserService
+profile/admin extraction are merged; OPS-68 remains protected with its
+authoritative OPS-69 correction and OPS-72 remains `Ready for QA` with live
+timing baseline pending. OPS-110 owns UserService import/welcome-email
+extraction; MAP persistence extraction, remaining runtime waves and production
+release remain open.
 
 ## Outcome
 
@@ -1434,6 +1432,27 @@ Current live upstream retry evidence:
 - No product/runtime/API/UI behavior is changed. The remaining gate is exact
   final proof, PR/staging lifecycle and cleanup of this task worktree.
 
+## Workflow checkpoint (OPS-110 current; UserService import and welcome email)
+
+- OPS-110 is the current runtime slice. Its branch/worktree is
+  `codex/ops-110-extract-userservice-import-and-welcome-email` /
+  `../opshub-ops-110`, created from exact live
+  `origin/staging@229603e23d1bf6d408e5de38465dec55ca71db8f`. The intake
+  checkpoint was captured twice with identical SHA-256
+  `b12e1d8f4e0b41c00a2b3cc7fd133b48659cf8fb36a48dddaa23836d7193e1f1`.
+- The slice keeps `UserService` as the public facade and extracts import
+  preparation/persistence/access-change orchestration into
+  `UserImportService`; welcome-email delivery is isolated in
+  `UserWelcomeEmailService`. Routes, DTOs, DI tokens, permissions, response
+  shapes, organization resolution and access-change reasons are unchanged.
+- Characterization proof currently passes the UserService suite `73/73` and
+  the collaborator suite `4/4`; Nest build and `git diff --check` pass. The
+  exact affected runner, final staged diff review, PR/CI, staging deploy and
+  guarded lifecycle cleanup remain required before the slice can advance.
+- Rollback is the single OPS-110 merge commit; removing the two collaborators
+  and restoring the facade implementation returns the prior behavior. No
+  database or runtime data migration is required.
+
 ## Result
 
 Historical Phase 0-1 artifacts, the generic verification foundation/canaries,
@@ -1444,8 +1463,9 @@ local-only and retained; the canonical source remains read-only evidence.
 OPS-65 PR #175, OPS-68 PR #176, and OPS-69 PRs #177/#178 are merged into
 `staging`; each remains subject to its documented QA/production lifecycle
 gates. The current OPS-78 follow-up owns the Windows migration-EOL preflight,
-while OPS-106 owns the merged dependency-integrity hardening; the remaining
-dependency-bootstrap closure is a follow-up slice and not yet complete.
+OPS-106 owns the merged dependency-integrity hardening, OPS-109 owns the
+merged dependency-bootstrap closure, and OPS-110 owns the in-progress
+UserService import/welcome-email extraction.
 Move this plan to
 `docs/plans/completed/` only after the full initiative's final validation and
 production lifecycle are complete.
