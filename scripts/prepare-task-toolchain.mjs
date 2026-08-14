@@ -2,7 +2,18 @@
 
 import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import {
+  closeSync,
+  existsSync,
+  mkdirSync,
+  openSync,
+  readFileSync,
+  renameSync,
+  statSync,
+  unlinkSync,
+  writeFileSync,
+} from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
@@ -14,7 +25,7 @@ export const EXIT_CODES = Object.freeze({
 
 // Bumped when hydration behavior/commands or readiness probes change so old
 // cached readiness is never trusted after a toolchain policy update.
-const SCHEMA_VERSION = 4;
+const SCHEMA_VERSION = 5;
 const PROFILE_ID = 'nestjs';
 const FLUTTER_PROFILE_ID = 'flutter';
 const ALL_PROFILE_ID = 'all';
@@ -36,6 +47,19 @@ const FLUTTER_REQUIRED_FILES = [
   '.metadata',
 ];
 const COMMAND_MAX_BUFFER_BYTES = 16 * 1024 * 1024;
+const PUB_CACHE_LOCK_WAIT_MS = 5 * 60 * 1000;
+const PUB_CACHE_LOCK_STALE_MS = 15 * 60 * 1000;
+const PUB_CACHE_LOCK_POLL_MS = 250;
+const FLUTTER_PLATFORM_PACKAGE_DIRS = Object.freeze([
+  'android',
+  'darwin',
+  'ios',
+  'linux',
+  'macos',
+  'native_assets',
+  'web',
+  'windows',
+]);
 
 const FLUTTER_GENERATED_TRACKED_PATHS = Object.freeze([
   /^lib\/l10n\/.+\.dart$/,
@@ -65,6 +89,7 @@ export function parseArgs(argv) {
     dryRun: false,
     force: false,
     json: null,
+    root: null,
     help: false,
   };
 
@@ -95,6 +120,14 @@ export function parseArgs(argv) {
       if (!value || value.startsWith('--'))
         fail(EXIT_CODES.CONTRACT, 'Thiếu giá trị cho --json.');
       options.json = value;
+      index += 1;
+      continue;
+    }
+    if (argument === '--root') {
+      const value = argv[index + 1];
+      if (!value || value.startsWith('--'))
+        fail(EXIT_CODES.CONTRACT, 'Thiếu giá trị cho --root.');
+      options.root = value;
       index += 1;
       continue;
     }
@@ -216,7 +249,13 @@ function readState(root) {
 function writeState(root, state) {
   const statePath = relativeStatePath(root);
   mkdirSync(path.dirname(statePath), { recursive: true });
-  writeFileSync(statePath, `${JSON.stringify(state, null, 2)}\n`, 'utf8');
+  const temporaryPath = `${statePath}.${process.pid}.tmp`;
+  try {
+    writeFileSync(temporaryPath, `${JSON.stringify(state, null, 2)}\n`, 'utf8');
+    renameSync(temporaryPath, statePath);
+  } finally {
+    if (existsSync(temporaryPath)) unlinkSync(temporaryPath);
+  }
 }
 
 function nestExecutable(name) {
@@ -225,6 +264,113 @@ function nestExecutable(name) {
 
 function flutterExecutable() {
   return process.platform === 'win32' ? 'flutter.bat' : 'flutter';
+}
+
+function flutterPubCacheRoot() {
+  return path.resolve(
+    process.env.PUB_CACHE || path.join(os.homedir(), '.pub-cache'),
+  );
+}
+
+function flutterPubCacheLockPath() {
+  return path.join(flutterPubCacheRoot(), '.opshub-pub-cache.lock');
+}
+
+function processIsAlive(pid) {
+  if (!Number.isInteger(pid) || pid <= 0) return false;
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    return error?.code === 'EPERM';
+  }
+}
+
+function readLockMetadata(lockPath) {
+  try {
+    return JSON.parse(readFileSync(lockPath, 'utf8'));
+  } catch {
+    return null;
+  }
+}
+
+function stalePubCacheLock(lockPath) {
+  try {
+    const ageMs = Date.now() - statSync(lockPath).mtimeMs;
+    if (ageMs < PUB_CACHE_LOCK_STALE_MS) return false;
+    const metadata = readLockMetadata(lockPath);
+    return !processIsAlive(Number(metadata?.pid));
+  } catch {
+    return false;
+  }
+}
+
+function sleepSync(milliseconds) {
+  const signal = new Int32Array(new SharedArrayBuffer(4));
+  Atomics.wait(signal, 0, 0, milliseconds);
+}
+
+function acquireFlutterPubCacheLock(root) {
+  const lockPath = flutterPubCacheLockPath();
+  mkdirSync(path.dirname(lockPath), { recursive: true });
+  const startedAt = Date.now();
+  while (Date.now() - startedAt < PUB_CACHE_LOCK_WAIT_MS) {
+    try {
+      const descriptor = openSync(lockPath, 'wx', 0o600);
+      try {
+        writeFileSync(
+          lockPath,
+          `${JSON.stringify({ pid: process.pid, worktree: '<worktree>' })}\n`,
+          'utf8',
+        );
+      } finally {
+        closeSync(descriptor);
+      }
+      return lockPath;
+    } catch (error) {
+      if (error?.code !== 'EEXIST') {
+        fail(
+          EXIT_CODES.ENVIRONMENT,
+          `Không tạo được Flutter Pub cache lock: ${sanitizeDiagnostic(
+            error?.message || error,
+            root,
+          )}`,
+        );
+      }
+      if (stalePubCacheLock(lockPath)) {
+        try {
+          unlinkSync(lockPath);
+        } catch {
+          // Another hydrator may have acquired/replaced the lock; retry safely.
+        }
+        continue;
+      }
+      sleepSync(PUB_CACHE_LOCK_POLL_MS);
+    }
+  }
+  fail(
+    EXIT_CODES.ENVIRONMENT,
+    'Flutter Pub cache đang được hydrate bởi một tiến trình khác quá lâu; ' +
+      'xóa lock stale sau khi xác minh tiến trình rồi chạy lại preflight.',
+  );
+}
+
+function releaseFlutterPubCacheLock(lockPath) {
+  try {
+    if (existsSync(lockPath)) unlinkSync(lockPath);
+  } catch {
+    // The lock is a best-effort coordination file; the next stale check can recover it.
+  }
+}
+
+function runHydrationStep(root, step, runStepFn) {
+  if (step.id !== 'flutter-pub-get') return runStepFn(root, step);
+  const lockPath = acquireFlutterPubCacheLock(root);
+  try {
+    return runStepFn(root, step);
+  } finally {
+    releaseFlutterPubCacheLock(lockPath);
+  }
 }
 
 function readJsonFile(filePath) {
@@ -244,6 +390,31 @@ function resolvePackageRoot(packageConfigPath, rootUri) {
   }
 }
 
+function resolvePackageUri(packageRoot, packageUri) {
+  if (typeof packageUri !== 'string' || packageUri.length === 0) return null;
+  try {
+    const packageRootUri = pathToFileURL(
+      path.join(packageRoot, path.sep),
+    ).href;
+    return fileURLToPath(new URL(packageUri, packageRootUri));
+  } catch {
+    return null;
+  }
+}
+
+function isMaterializedPlatformPackage(packageRoot) {
+  let pubspec;
+  try {
+    pubspec = readFileSync(path.join(packageRoot, 'pubspec.yaml'), 'utf8');
+  } catch {
+    return false;
+  }
+  if (!/\bplugin\s*:/i.test(pubspec)) return false;
+  return FLUTTER_PLATFORM_PACKAGE_DIRS.some((directory) =>
+    existsSync(path.join(packageRoot, directory)),
+  );
+}
+
 function flutterPackageReadiness(root, packageConfigPath) {
   const packageConfig = readJsonFile(packageConfigPath);
   const packages = Array.isArray(packageConfig?.packages)
@@ -252,6 +423,7 @@ function flutterPackageReadiness(root, packageConfigPath) {
   const packageNames = new Set();
   const missingPackages = [];
   let rootPackage = false;
+  let packageUriRoots = packages.length > 0;
 
   for (const entry of packages) {
     const name = typeof entry?.name === 'string' ? entry.name : '<unnamed>';
@@ -268,6 +440,14 @@ function flutterPackageReadiness(root, packageConfigPath) {
     if (!existsSync(path.join(packageRoot, 'pubspec.yaml'))) {
       missingPackages.push(`${name}:pubspec`);
     }
+    const packageUri = resolvePackageUri(packageRoot, entry?.packageUri);
+    if (
+      (!packageUri || !existsSync(packageUri)) &&
+      !isMaterializedPlatformPackage(packageRoot)
+    ) {
+      packageUriRoots = false;
+      missingPackages.push(`${name}:packageUri-or-platform`);
+    }
     if (path.resolve(packageRoot) === path.resolve(root)) rootPackage = true;
   }
 
@@ -278,6 +458,7 @@ function flutterPackageReadiness(root, packageConfigPath) {
     packageConfigStructure:
       packageConfig !== null && Array.isArray(packageConfig?.packages),
     packageRoots: missingPackages.length === 0 && packages.length > 0,
+    packageUriRoots,
     rootPackage,
     missingPackages: missingPackages.slice(0, 20),
   };
@@ -360,6 +541,7 @@ function readinessForProfile(root, profile) {
       packageConfigVersion: packageConfig.packageConfigVersion,
       packageCount: packageConfig.packageCount,
       packageRoots: packageConfig.packageRoots,
+      packageUriRoots: packageConfig.packageUriRoots,
       rootPackage: packageConfig.rootPackage,
       missingPackages: packageConfig.missingPackages,
     };
@@ -394,6 +576,7 @@ function isReadyForProfile(value, profile) {
       value.packageConfigVersion >= 2 &&
       value.packageCount > 0 &&
       value.packageRoots &&
+      value.packageUriRoots &&
       value.rootPackage
     );
   }
@@ -707,7 +890,7 @@ function prepareSingleProfile({
     attempt += 1;
     let retry = false;
     for (const step of steps) {
-      const rawStepResult = runStepFn(resolvedRoot, step);
+      const rawStepResult = runHydrationStep(resolvedRoot, step, runStepFn);
       const stepResult = {
         ...rawStepResult,
         ...(rawStepResult?.error
@@ -841,6 +1024,7 @@ function help() {
     `  --profile nestjs|flutter|all  Prepare the selected local toolchain (default: all)\n` +
     `  --dry-run                    Report required steps without executing them\n` +
     `  --force                      Re-run hydration even when the fingerprint is cached\n` +
+    `  --root <path>                Repair/inspect an existing worktree from another cwd\n` +
     `  --json <path>          Write schema-v1 result JSON\n`
   );
 }
@@ -856,14 +1040,18 @@ export function main(
       console.log(help());
       return EXIT_CODES.PASS;
     }
+    const selectedRoot = options.root ? path.resolve(root, options.root) : root;
+    if (!existsSync(selectedRoot)) {
+      fail(EXIT_CODES.CONTRACT, `Worktree không tồn tại: ${options.root}`);
+    }
     const { exitCode, result } = prepareTaskToolchain({
-      root,
+      root: selectedRoot,
       profile: options.profile,
       dryRun: options.dryRun,
       force: options.force,
     });
     if (options.json) {
-      const outputPath = path.resolve(root, options.json);
+      const outputPath = path.resolve(selectedRoot, options.json);
       mkdirSync(path.dirname(outputPath), { recursive: true });
       writeFileSync(outputPath, `${JSON.stringify(result, null, 2)}\n`, 'utf8');
     }
@@ -879,7 +1067,10 @@ export function main(
       error: sanitizeDiagnostic(error?.message || error, root),
     };
     if (options?.json) {
-      const outputPath = path.resolve(root, options.json);
+      const outputPath = path.resolve(
+        options.root ? path.resolve(root, options.root) : root,
+        options.json,
+      );
       mkdirSync(path.dirname(outputPath), { recursive: true });
       writeFileSync(outputPath, `${JSON.stringify(result, null, 2)}\n`, 'utf8');
     }

@@ -208,12 +208,14 @@ test('parser defaults to all and accepts narrow toolchain profiles', () => {
       dryRun: true,
       force: true,
       json: 'tmp/result.json',
+      root: null,
       help: false,
     },
   );
   assert.equal(parseArgs([]).profile, 'all');
   assert.equal(parseArgs(['--profile', 'flutter']).profile, 'flutter');
   assert.equal(parseArgs(['--profile', 'all']).profile, 'all');
+  assert.equal(parseArgs(['--root', '..\\opshub-ops-123']).root, '..\\opshub-ops-123');
   assert.throws(() => parseArgs(['--profile', 'unknown']), /Profile không hỗ trợ/);
 });
 
@@ -711,6 +713,7 @@ test('Flutter cached readiness invalidates when a package root disappears', (t) 
   const externalPackage = mkdtempSync(path.join(os.tmpdir(), 'opshub-flutter-package-'));
   t.after(() => rmSync(externalPackage, { recursive: true, force: true }));
   writeFileSync(path.join(externalPackage, 'pubspec.yaml'), 'name: external_fixture\n');
+  mkdirSync(path.join(externalPackage, 'lib'), { recursive: true });
   const calls = [];
   const runStepFn = (currentRoot, step) => {
     calls.push(step.id);
@@ -757,6 +760,83 @@ test('Flutter cached readiness invalidates when a package root disappears', (t) 
   assert.equal(repaired.exitCode, EXIT_CODES.PASS);
   assert.equal(repaired.result.status, 'prepared');
   assert.deepEqual(calls, ['flutter-pub-get', 'flutter-pub-get']);
+});
+
+test('Flutter cached readiness invalidates when a packageUri directory disappears', (t) => {
+  const root = flutterFixture(t);
+  const externalPackage = mkdtempSync(path.join(os.tmpdir(), 'opshub-flutter-package-uri-'));
+  t.after(() => rmSync(externalPackage, { recursive: true, force: true }));
+  writeFileSync(path.join(externalPackage, 'pubspec.yaml'), 'name: external_fixture\n');
+  mkdirSync(path.join(externalPackage, 'lib'), { recursive: true });
+  const calls = [];
+  const runStepFn = (currentRoot, step) => {
+    calls.push(step.id);
+    writeFlutterPackageConfig(currentRoot, [
+      {
+        name: 'external_fixture',
+        rootUri: pathToFileURL(externalPackage).href,
+        packageUri: 'lib/',
+      },
+    ]);
+    return {
+      id: step.id,
+      status: 'passed',
+      exitCode: 0,
+      executable: step.executable,
+      argv: step.argv,
+    };
+  };
+
+  const first = prepareTaskToolchain({ root, profile: 'flutter', runStepFn });
+  assert.equal(first.exitCode, EXIT_CODES.PASS);
+  rmSync(path.join(externalPackage, 'lib'), { recursive: true, force: true });
+
+  const repaired = prepareTaskToolchain({
+    root,
+    profile: 'flutter',
+    runStepFn: (currentRoot, step) => {
+      mkdirSync(path.join(externalPackage, 'lib'), { recursive: true });
+      return runStepFn(currentRoot, step);
+    },
+  });
+  assert.equal(repaired.exitCode, EXIT_CODES.PASS);
+  assert.equal(repaired.result.status, 'prepared');
+  assert.deepEqual(calls, ['flutter-pub-get', 'flutter-pub-get']);
+});
+
+test('Flutter readiness accepts a materialized platform-only plugin without lib', (t) => {
+  const root = flutterFixture(t);
+  const pluginRoot = mkdtempSync(path.join(os.tmpdir(), 'opshub-flutter-platform-plugin-'));
+  t.after(() => rmSync(pluginRoot, { recursive: true, force: true }));
+  writeFileSync(
+    path.join(pluginRoot, 'pubspec.yaml'),
+    'name: platform_fixture\nflutter:\n  plugin:\n    platforms:\n      windows:\n        pluginClass: FixturePlugin\n',
+  );
+  mkdirSync(path.join(pluginRoot, 'windows'), { recursive: true });
+
+  const result = prepareTaskToolchain({
+    root,
+    profile: 'flutter',
+    runStepFn: (currentRoot, step) => {
+      writeFlutterPackageConfig(currentRoot, [
+        {
+          name: 'platform_fixture',
+          rootUri: pathToFileURL(pluginRoot).href,
+          packageUri: 'lib/',
+        },
+      ]);
+      return {
+        id: step.id,
+        status: 'passed',
+        exitCode: 0,
+        executable: step.executable,
+        argv: step.argv,
+      };
+    },
+  });
+
+  assert.equal(result.exitCode, EXIT_CODES.PASS);
+  assert.equal(result.result.readiness.packageUriRoots, true);
 });
 
 test('Flutter transient package materialization failure retries once', (t) => {

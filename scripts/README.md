@@ -139,7 +139,10 @@ dependencies are present, and the generated Prisma entrypoints exist.
 Flutter revision in `.metadata`, then runs `flutter pub get --enforce-lockfile`.
 A cached Flutter result is accepted only when the package config has a valid
 schema, a root package for this worktree, and every referenced package root has
-its own `pubspec.yaml`; a stale package config therefore triggers hydration.
+its own `pubspec.yaml` and materialized `packageUri` directory (or a declared
+platform-only plugin directory); a stale or partial package config therefore
+triggers hydration. Local Flutter hydration serializes writers to the shared
+Pub cache so parallel task worktrees cannot publish a partial cache hit.
 Flutter's generated platform/l10n files are reconciled against a narrow
 allowlist and restored when they are created by hydration; unexpected tracked
 or non-ignored files fail closed. A repository-relative ignored state file at
@@ -151,7 +154,15 @@ node scripts/prepare-task-toolchain.mjs --profile nestjs --json tmp/prepare.json
 node scripts/prepare-task-toolchain.mjs --profile nestjs --force
 node scripts/prepare-task-toolchain.mjs --profile flutter --dry-run
 node scripts/prepare-task-toolchain.mjs --profile all --force
+node scripts/prepare-task-toolchain.mjs --root ..\opshub-ops-123 --profile all --force
 ```
+
+The `--root` form is the repair/doctor command for an existing task worktree;
+it can be run from the canonical repository without changing directory. It
+hydrates the selected worktree, rechecks its actual package graph and rewrites
+only its ignored readiness state. Standalone validation scripts must run the
+same preflight before any Flutter or Nest command; Flutter test commands then
+use `--no-pub` so an implicit second dependency writer cannot bypass the gate.
 
 The default lifecycle profile is `all`; `--prepare-profile nestjs|flutter` is
 reserved for an explicitly narrow task. Verification and affected-consumer

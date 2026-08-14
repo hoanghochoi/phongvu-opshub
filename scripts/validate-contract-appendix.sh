@@ -3,6 +3,9 @@ set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
+cd "$root"
+node scripts/prepare-task-toolchain.mjs --profile all
+
 cd "$root/backend-nest"
 npm test -- --runInBand \
   erp/erp-authorized-request.spec.ts \
@@ -13,7 +16,7 @@ npm test -- --runInBand \
   contract-appendices/contract-appendices.controller.spec.ts
 
 cd "$root"
-flutter test \
+flutter test --no-pub \
   test/contract_appendix_core_test.dart \
   test/contract_appendix_screen_test.dart
 
