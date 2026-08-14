@@ -12,9 +12,9 @@ export const EXIT_CODES = Object.freeze({
   ENVIRONMENT: 5,
 });
 
-// Bumped when hydration behavior/commands change so old cached readiness is
-// never trusted after a toolchain policy update.
-const SCHEMA_VERSION = 2;
+// Bumped when hydration behavior/commands or readiness probes change so old
+// cached readiness is never trusted after a toolchain policy update.
+const SCHEMA_VERSION = 3;
 const PROFILE_ID = 'nestjs';
 const FLUTTER_PROFILE_ID = 'flutter';
 const ALL_PROFILE_ID = 'all';
@@ -61,7 +61,7 @@ function fail(code, message) {
 
 export function parseArgs(argv) {
   const options = {
-    profile: PROFILE_ID,
+    profile: ALL_PROFILE_ID,
     dryRun: false,
     force: false,
     json: null,
@@ -124,6 +124,53 @@ function requiredFilesForProfile(profile) {
   fail(EXIT_CODES.CONTRACT, `Không có manifest cho profile: ${profile}.`);
 }
 
+function executableVersion(executable, argv = ['--version']) {
+  const result = spawnSync(executable, argv, {
+    cwd: process.cwd(),
+    encoding: 'utf8',
+    windowsHide: true,
+    shell:
+      process.platform === 'win32' && /\.(?:cmd|bat)$/i.test(executable),
+    maxBuffer: 1024 * 1024,
+  });
+  if (result.error || result.status !== 0) return 'unavailable';
+  const output = String(result.stdout || result.stderr || '').trim();
+  if (argv.includes('--machine')) {
+    try {
+      const parsed = JSON.parse(output);
+      return JSON.stringify({
+        frameworkVersion: parsed.frameworkVersion || null,
+        frameworkRevision: parsed.frameworkRevision || null,
+        dartSdkVersion: parsed.dartSdkVersion || null,
+      });
+    } catch {
+      return output.slice(0, 240);
+    }
+  }
+  return output.split(/\r?\n/).slice(0, 3).join('\n').slice(0, 240);
+}
+
+function toolchainVersions(profile) {
+  const versions = {
+    node: process.version,
+    platform: process.platform,
+    arch: process.arch,
+  };
+  if (profile === PROFILE_ID) {
+    versions.npm = executableVersion(nestExecutable('npm'));
+  }
+  if (profile === FLUTTER_PROFILE_ID) {
+    versions.flutter = executableVersion(flutterExecutable(), [
+      '--version',
+      '--machine',
+    ]);
+    versions.dart = executableVersion(
+      process.platform === 'win32' ? 'dart.exe' : 'dart',
+    );
+  }
+  return versions;
+}
+
 export function toolchainFingerprint(root, profile = PROFILE_ID) {
   const requiredFiles = requiredFilesForProfile(profile);
   const files = Object.fromEntries(
@@ -137,9 +184,7 @@ export function toolchainFingerprint(root, profile = PROFILE_ID) {
       JSON.stringify({
         schemaVersion: SCHEMA_VERSION,
         profile,
-        node: process.version,
-        platform: process.platform,
-        arch: process.arch,
+        toolchain: toolchainVersions(profile),
         files,
       }),
     )
@@ -184,12 +229,23 @@ function flutterExecutable() {
 
 function readinessForProfile(root, profile) {
   if (profile === FLUTTER_PROFILE_ID) {
+    const packageConfigPath = path.resolve(
+      root,
+      '.dart_tool',
+      'package_config.json',
+    );
+    let packageConfigReadable = false;
+    try {
+      JSON.parse(readFileSync(packageConfigPath, 'utf8'));
+      packageConfigReadable = true;
+    } catch {
+      packageConfigReadable = false;
+    }
     return {
       pubspec: existsSync(path.resolve(root, 'pubspec.yaml')),
       lockfile: existsSync(path.resolve(root, 'pubspec.lock')),
-      packageConfig: existsSync(
-        path.resolve(root, '.dart_tool', 'package_config.json'),
-      ),
+      packageConfig: existsSync(packageConfigPath),
+      packageConfigReadable,
     };
   }
   const nodeModules = path.resolve(root, 'backend-nest/node_modules');
@@ -205,14 +261,25 @@ function readinessForProfile(root, profile) {
     nestBinary: existsSync(nestBinary),
     prismaPackage: existsSync(prismaPackage),
     prismaGenerated: existsSync(prismaGenerated),
+    installLockfile: existsSync(path.join(nodeModules, '.package-lock.json')),
   };
 }
 
 function isReadyForProfile(value, profile) {
   if (profile === FLUTTER_PROFILE_ID) {
-    return value.pubspec && value.lockfile && value.packageConfig;
+    return (
+      value.pubspec &&
+      value.lockfile &&
+      value.packageConfig &&
+      value.packageConfigReadable
+    );
   }
-  return value.nestBinary && value.prismaPackage && value.prismaGenerated;
+  return (
+    value.nestBinary &&
+    value.prismaPackage &&
+    value.prismaGenerated &&
+    value.installLockfile
+  );
 }
 
 function normalizedStatusPath(value) {
@@ -402,9 +469,20 @@ function resultBase(root, profile, fingerprint, options) {
     statePath: STATE_PATH,
     dryRun: options.dryRun,
     forced: options.force,
+    toolchain: toolchainVersions(profile),
+    retries: [],
     readiness: readinessForProfile(root, profile),
     steps: [],
   };
+}
+
+function isRetryablePrismaFailure(stepResult) {
+  return (
+    stepResult?.id === 'nestjs-prisma-generate' &&
+    /(?:MODULE_NOT_FOUND|cannot find module|failed to load)/i.test(
+      String(stepResult.error || ''),
+    )
+  );
 }
 
 function prepareSingleProfile({
@@ -436,27 +514,54 @@ function prepareSingleProfile({
 
   const beforeEntries = profile === FLUTTER_PROFILE_ID ? statusEntries(resolvedRoot) : null;
   result.steps = [];
-  for (const step of steps) {
-    const stepResult = runStepFn(resolvedRoot, step);
-    result.steps.push(stepResult);
-    if (profile === FLUTTER_PROFILE_ID) {
-      try {
-        result.worktree = reconcileFlutterGeneratedChanges(
-          resolvedRoot,
-          beforeEntries,
-        );
-      } catch (error) {
+  let attempt = 0;
+  while (attempt < 2) {
+    attempt += 1;
+    let retry = false;
+    for (const step of steps) {
+      const stepResult = runStepFn(resolvedRoot, step);
+      result.steps.push({ ...stepResult, attempt });
+      if (profile === FLUTTER_PROFILE_ID) {
+        try {
+          result.worktree = reconcileFlutterGeneratedChanges(
+            resolvedRoot,
+            beforeEntries,
+          );
+        } catch (error) {
+          result.status = 'environment-failure';
+          result.error = String(error?.message || error).slice(0, 800);
+          result.readiness = readinessForProfile(resolvedRoot, profile);
+          return { exitCode: EXIT_CODES.ENVIRONMENT, result };
+        }
+      }
+      if (stepResult.status !== 'passed') {
+        if (attempt === 1 && isRetryablePrismaFailure(stepResult)) {
+          const fingerprintAfterFailure = toolchainFingerprint(
+            resolvedRoot,
+            profile,
+          );
+          if (fingerprintAfterFailure !== fingerprint) {
+            result.status = 'environment-failure';
+            result.error =
+              'Toolchain manifest changed during Prisma retry; proof is stale.';
+            result.readiness = readinessForProfile(resolvedRoot, profile);
+            return { exitCode: EXIT_CODES.ENVIRONMENT, result };
+          }
+          result.retries.push({
+            step: step.id,
+            fromAttempt: attempt,
+            toAttempt: attempt + 1,
+            reason: 'transient-prisma-module-load',
+          });
+          retry = true;
+          break;
+        }
         result.status = 'environment-failure';
-        result.error = String(error?.message || error).slice(0, 800);
         result.readiness = readinessForProfile(resolvedRoot, profile);
         return { exitCode: EXIT_CODES.ENVIRONMENT, result };
       }
     }
-    if (stepResult.status !== 'passed') {
-      result.status = 'environment-failure';
-      result.readiness = readinessForProfile(resolvedRoot, profile);
-      return { exitCode: EXIT_CODES.ENVIRONMENT, result };
-    }
+    if (!retry) break;
   }
 
   result.readiness = readinessForProfile(resolvedRoot, profile);
@@ -480,7 +585,7 @@ function prepareSingleProfile({
 
 export function prepareTaskToolchain({
   root = process.cwd(),
-  profile = PROFILE_ID,
+  profile = ALL_PROFILE_ID,
   dryRun = false,
   force = false,
   runStepFn = runStep,
@@ -538,7 +643,7 @@ export function prepareTaskToolchain({
 function help() {
   return (
     `Usage: node scripts/prepare-task-toolchain.mjs [options]\n\n` +
-    `  --profile nestjs|flutter|all  Prepare the selected local toolchain (default: nestjs)\n` +
+    `  --profile nestjs|flutter|all  Prepare the selected local toolchain (default: all)\n` +
     `  --dry-run                    Report required steps without executing them\n` +
     `  --force                      Re-run hydration even when the fingerprint is cached\n` +
     `  --json <path>          Write schema-v1 result JSON\n`

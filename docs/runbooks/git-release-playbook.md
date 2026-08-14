@@ -50,19 +50,19 @@ tiện”; release mà tiện quá thường là lúc rollback bắt đầu tậ
    Set-Location ..\opshub-ops-142
    ```
 
-   Với task chạm runtime, thêm `--prepare --prepare-profile all --execute` để
-   lifecycle bootstrap cả `backend-nest/node_modules`/Prisma generated client
-   và Flutter package config ngay sau khi tạo worktree:
+   Lifecycle mặc định bootstrap cả `backend-nest/node_modules`/Prisma generated
+   client và Flutter package config ngay sau khi tạo worktree:
 
    ```powershell
    node scripts/task-lifecycle.mjs start `
      --issue OPS-142 `
      --slug fix-date-picker `
-     --worktree ..\opshub-ops-142 `
-      --prepare --prepare-profile all --execute
+     --worktree ..\opshub-ops-142 --execute
    ```
 
-   Preflight được fingerprint theo lockfile, Prisma schema/config, Flutter
+   Preflight mặc định dùng profile `all`; chỉ dùng
+   `--prepare-profile nestjs|flutter` khi scope hẹp đã được ghi rõ. Preflight
+   được fingerprint theo lockfile, Prisma schema/config, Flutter
    `pubspec`/`.metadata` và toolchain; task đã sẵn sàng sẽ dùng kết quả
    `cached`. Flutter hydration dùng `--enforce-lockfile`, khôi phục generated
    tracked files trong allowlist và fail-closed với mọi thay đổi khác. Profile

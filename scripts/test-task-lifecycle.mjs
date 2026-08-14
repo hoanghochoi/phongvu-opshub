@@ -113,6 +113,10 @@ function lifecycle(argv, fixture, overrides = {}) {
   return runTaskLifecycle(argv, {
     cwd: fixture.canonical,
     log: () => {},
+    // The fixture is intentionally repository-minimal; production lifecycle
+    // uses the real preflight script. Keep unit tests focused on lifecycle
+    // gates unless a test supplies an explicit preparation hook.
+    prepareTaskWorktree: overrides.prepareTaskWorktree || (() => {}),
     ...overrides,
   });
 }
@@ -161,7 +165,7 @@ test('start fast-forwards staging and creates the task at the exact remote head'
   assert.equal(git(worktree, 'branch', '--show-current'), 'codex/ops-19-fresh-task');
 });
 
-test('start --prepare invokes the hook and permits reviewed ignored toolchain artifacts', (t) => {
+test('start prepares the default all-toolchain profile and permits reviewed ignored artifacts', (t) => {
   const fixture = createFixture();
   const worktree = path.join(fixture.root, 'ops-19');
   t.after(() => {
@@ -179,7 +183,6 @@ test('start --prepare invokes the hook and permits reviewed ignored toolchain ar
       'prepare-hook',
       '--worktree',
       worktree,
-      '--prepare',
       '--execute',
     ],
     fixture,
@@ -193,7 +196,7 @@ test('start --prepare invokes the hook and permits reviewed ignored toolchain ar
   );
 
   assert.equal(result.prepared, true);
-  assert.deepEqual(calls, [{ preparedWorktree: worktree, profile: 'nestjs' }]);
+  assert.deepEqual(calls, [{ preparedWorktree: worktree, profile: 'all' }]);
   assert.equal(fs.existsSync(path.join(worktree, 'generated', 'node_modules-marker.txt')), true);
   assert.equal(git(worktree, 'rev-parse', 'HEAD'), fixture.baseSha);
   assert.equal(git(worktree, 'branch', '--show-current'), 'codex/ops-19-prepare-hook');

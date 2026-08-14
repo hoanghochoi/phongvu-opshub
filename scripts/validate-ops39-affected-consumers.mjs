@@ -1,9 +1,22 @@
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
+import { prepareTaskToolchain } from './prepare-task-toolchain.mjs';
 
 const root = process.cwd();
 const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
 const flutter = process.platform === 'win32' ? 'flutter.bat' : 'flutter';
+
+function ensureToolchain() {
+  console.log('\n[OPS-39] Preparing all runtime toolchains');
+  const result = prepareTaskToolchain({ root, profile: 'all' });
+  if (result.exitCode !== 0) {
+    throw new Error(
+      `OPS-39 toolchain preflight failed with exit ${result.exitCode}`,
+    );
+  }
+}
+
+ensureToolchain();
 
 const suites = [
   {

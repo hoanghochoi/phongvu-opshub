@@ -18,6 +18,7 @@ export const PROFILES = Object.freeze([
       /^scripts\/README\.md$/,
       /^docs\/(?:contracts|decisions|migrations|plans|templates)\//,
       /^scripts\/(?:adapter|schema)\//,
+      /^scripts\/(?:validate-ops-11-payment-audio\.ps1|validate-ops(?:39|40)-affected-consumers\.mjs)$/,
       /^scripts\/prepare-task-toolchain\.mjs$/,
       /^\.gitattributes$/,
       /^scripts\/bootstrap-harness\.(?:ps1|sh)$/,
@@ -127,10 +128,10 @@ export const PROFILES = Object.freeze([
     prerequisites: ['Flutter SDK', 'pub dependencies'],
     commands: [
       {
-        id: 'flutter-toolchain-prepare',
+        id: 'toolchain-preflight',
         cwd: '.',
         executable: process.execPath,
-        argv: ['scripts/prepare-task-toolchain.mjs', '--profile', 'flutter'],
+        argv: ['scripts/prepare-task-toolchain.mjs', '--profile', 'all'],
       },
       {
         id: 'flutter-analyze',
@@ -147,10 +148,10 @@ export const PROFILES = Object.freeze([
     prerequisites: ['Node.js', 'backend-nest dependencies'],
     commands: [
       {
-        id: 'nestjs-toolchain-prepare',
+        id: 'toolchain-preflight',
         cwd: '.',
         executable: process.execPath,
-        argv: ['scripts/prepare-task-toolchain.mjs', '--profile', 'nestjs'],
+        argv: ['scripts/prepare-task-toolchain.mjs', '--profile', 'all'],
       },
       {
         id: 'nestjs-build',
