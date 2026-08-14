@@ -2204,6 +2204,123 @@ describe('MapVietinService', () => {
       password: '[REDACTED]',
       nested: { authorization: '[REDACTED]' },
     });
+    expect(firstCall.update).toMatchObject({
+      reason: 'UNMAPPED_ACCOUNT',
+      virtualAccount: '222',
+      rawData: {
+        access_token: '[REDACTED]',
+        password: '[REDACTED]',
+        nested: { authorization: '[REDACTED]' },
+      },
+    });
+  });
+
+  it('quarantines a global row with a missing virtual account instead of persisting it', async () => {
+    prisma.mapVietinUnmappedTransaction.upsert.mockResolvedValue({});
+
+    await expect(
+      (service as any).persistGlobalTransactions(
+        [globalTransaction('TXN-MISSING-VIRTUAL-ACCOUNT', '')],
+        new Map(),
+      ),
+    ).resolves.toMatchObject({ created: 0, quarantined: 1 });
+
+    expect(prisma.mapVietinTransaction.upsert).not.toHaveBeenCalled();
+    expect(paymentNotifications.createForTransaction).not.toHaveBeenCalled();
+    expect(prisma.mapVietinUnmappedTransaction.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        create: expect.objectContaining({
+          reason: 'MISSING_VIRTUAL_ACCOUNT',
+          virtualAccount: null,
+        }),
+      }),
+    );
+  });
+
+  it('uses eFAST source account only after virtual account has no unique match', async () => {
+    const efastRow = {
+      source: 'VIETIN_EFAST',
+      trxId: 'TRX-SOURCE-FALLBACK',
+      transactionNumber: 'TRX-SOURCE-FALLBACK',
+      amount: 1250000,
+      transactionDescription: 'Khach chuyen tien',
+      tranTime: '21/05/2026 10:00:00',
+      transactionStatus: 'SUCCESS',
+      pmtId: 'VA-UNMAPPED',
+      efastCreditAccountNo: 'SOURCE-001',
+    };
+    prisma.mapVietinTransaction.findUnique.mockResolvedValue(null);
+    prisma.mapVietinTransaction.upsert.mockResolvedValue({
+      id: 'stored-source-fallback',
+      storeCode: 'CP01',
+    });
+    paymentNotifications.createForTransaction.mockResolvedValue({});
+
+    await expect(
+      (service as any).persistGlobalTransactions(
+        [efastRow],
+        new Map([
+          ['VAUNMAPPED', []],
+          ['SOURCE001', ['CP01']],
+        ]),
+      ),
+    ).resolves.toMatchObject({
+      created: 1,
+      quarantined: 0,
+      sourceAccountMapped: 1,
+    });
+
+    expect(prisma.mapVietinTransaction.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        create: expect.objectContaining({ storeCode: 'CP01' }),
+      }),
+    );
+
+    prisma.mapVietinTransaction.upsert.mockClear();
+    (service as any).persistenceRuntime.clearFingerprintCache();
+    await expect(
+      (service as any).persistGlobalTransactions(
+        [efastRow],
+        new Map([
+          ['VAUNMAPPED', ['CP02']],
+          ['SOURCE001', ['CP01']],
+        ]),
+      ),
+    ).resolves.toMatchObject({ sourceAccountMapped: 0 });
+    expect(prisma.mapVietinTransaction.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        create: expect.objectContaining({ storeCode: 'CP02' }),
+      }),
+    );
+  });
+
+  it('normalizes account index and remaps only unique unassigned eFAST accounts', async () => {
+    prisma.store.findMany.mockResolvedValue([
+      { storeId: 'CP01', transferAccountNumber: ' 123-45 ' },
+      { storeId: 'CP01', transferAccountNumber: '12345' },
+      { storeId: 'CP02', transferAccountNumber: '12345' },
+      { storeId: 'CP03', transferAccountNumber: '---' },
+    ]);
+    const index = await (service as any).loadStoreAccountIndex();
+    expect(index).toEqual(new Map([['12345', ['CP01', 'CP02']]]));
+
+    prisma.mapVietinTransaction.updateMany.mockResolvedValueOnce({ count: 2 });
+    await expect(
+      (service as any).reassignUnassignedEfastTransactions(
+        new Map([
+          ['12345', ['CP01']],
+          ['AMBIGUOUS', ['CP02', 'CP03']],
+        ]),
+      ),
+    ).resolves.toBe(2);
+
+    expect(prisma.mapVietinTransaction.updateMany).toHaveBeenCalledTimes(1);
+    expect(prisma.mapVietinTransaction.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ storeCode: null }),
+        data: { storeCode: 'CP01' },
+      }),
+    );
   });
 
   it('falls back to per-store sync when global credentials are missing', async () => {

@@ -73,6 +73,7 @@ import {
   type MapPersistStats,
   type MapTransactionRow,
 } from './map-vietin-persistence.runtime';
+import { MapVietinAccountRoutingRuntime } from './map-vietin-account-routing.runtime';
 
 const MAP_CLIENT_ID = 'c4a59ac3630f6d8f1abe722eac7052b5';
 const MAP_SIGNATURE_KEY = '***REMOVED***';
@@ -180,22 +181,13 @@ type EfastHistoryResponse = {
   nextPage?: number;
 };
 
-type StoreAccountRow = {
-  storeId: string;
-  transferAccountNumber?: string | null;
-};
-
-type UnmappedReason =
-  | 'MISSING_VIRTUAL_ACCOUNT'
-  | 'UNMAPPED_ACCOUNT'
-  | 'AMBIGUOUS_ACCOUNT';
-
 @Injectable()
 export class MapVietinService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(MapVietinService.name);
   private readonly providerRuntime: MapVietinProviderRuntime;
   private readonly syncCoordinator: MapVietinSyncCoordinator;
   private readonly persistenceRuntime: MapVietinPersistenceRuntime;
+  private readonly accountRoutingRuntime: MapVietinAccountRoutingRuntime;
   private readonly amountKeys = [
     'amount',
     'txnAmount',
@@ -336,6 +328,27 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
       rawDataAsMapRow: (value) => this.rawDataAsMapRow(value),
       readPositiveInt: (name, fallback) => this.readPositiveInt(name, fallback),
       safeError: (error) => this.safeError(error),
+    });
+    this.accountRoutingRuntime = new MapVietinAccountRoutingRuntime({
+      prisma: this.prisma,
+      logger: this.logger,
+      contentKeys: this.contentKeys,
+      transactionNumberKeys: this.transactionNumberKeys,
+      statusKeys: this.statusKeys,
+      payerNameKeys: this.payerNameKeys,
+      payerAccountKeys: this.payerAccountKeys,
+      readAmount: (row) => this.readAmount(row),
+      isSuccessfulTransaction: (row) => this.isSuccessfulTransaction(row),
+      readFirstText: (row, keys) => this.readFirstText(row, keys),
+      readTransactionTime: (row) => this.readTransactionTime(row),
+      isEfastMapTransactionRow: (row) => this.isEfastMapTransactionRow(row),
+      resolveGlobalVirtualAccount: (row) => this.resolveGlobalVirtualAccount(row),
+      resolveEfastSourceAccount: (row) => this.resolveEfastSourceAccount(row),
+      normalizeAccountNumber: (value) => this.normalizeAccountNumber(value),
+      scrubJson: (value) => this.scrubJson(value),
+      maskAccount: (value) => this.maskAccount(value),
+      persistTransactions: (storeCode, rows, stats) =>
+        this.persistTransactions(storeCode, rows, stats),
     });
     this.syncCoordinator.configure({
       logger: this.logger,
@@ -3211,168 +3224,9 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
     rows: unknown[],
     storeAccountIndex: Map<string, string[]>,
   ) {
-    let created = 0;
-    let updated = 0;
-    let unchanged = 0;
-    let cacheHits = 0;
-    let quarantined = 0;
-    let sourceAccountMapped = 0;
-    for (const raw of rows) {
-      if (!raw || typeof raw !== 'object') continue;
-      const row = raw as MapTransactionRow;
-      const amount = this.readAmount(row);
-      if (!amount || amount <= 0) continue;
-      if (!this.isSuccessfulTransaction(row)) continue;
-
-      const virtualAccount = this.resolveGlobalVirtualAccount(row);
-      const sourceAccount = this.resolveEfastSourceAccount(row);
-      const accountCandidates = this.isEfastMapTransactionRow(row)
-        ? [
-            { value: virtualAccount, sourceAccount: false },
-            { value: sourceAccount, sourceAccount: true },
-          ]
-        : [{ value: virtualAccount, sourceAccount: false }];
-      let accountKey = '';
-      let accountValue = '';
-      let storeCodes: string[] = [];
-      let matchedBySourceAccount = false;
-      for (const candidate of accountCandidates) {
-        const candidateKey = this.normalizeAccountNumber(candidate.value);
-        if (!candidateKey) continue;
-        if (!accountKey) {
-          accountKey = candidateKey;
-          accountValue = candidate.value;
-        }
-        const candidateStoreCodes = storeAccountIndex.get(candidateKey) || [];
-        if (candidateStoreCodes.length === 0) continue;
-        accountKey = candidateKey;
-        accountValue = candidate.value;
-        storeCodes = candidateStoreCodes;
-        matchedBySourceAccount = candidate.sourceAccount;
-        break;
-      }
-
-      if (storeCodes.length === 0) {
-        if (
-          this.isEfastMapTransactionRow(row) &&
-          !this.normalizeAccountNumber(virtualAccount)
-        ) {
-          const stats: MapPersistStats = {
-            updated: 0,
-            unchanged: 0,
-            cacheHits: 0,
-          };
-          created += await this.persistTransactions(null, [row], stats);
-          updated += stats.updated;
-          unchanged += stats.unchanged;
-          cacheHits += stats.cacheHits;
-          continue;
-        }
-        if (accountKey) {
-          await this.quarantineGlobalTransaction(
-            row,
-            'UNMAPPED_ACCOUNT',
-            accountValue,
-          );
-          quarantined += 1;
-          continue;
-        }
-        await this.quarantineGlobalTransaction(
-          row,
-          'MISSING_VIRTUAL_ACCOUNT',
-          virtualAccount,
-        );
-        quarantined += 1;
-        continue;
-      }
-      if (storeCodes.length > 1) {
-        await this.quarantineGlobalTransaction(
-          row,
-          'AMBIGUOUS_ACCOUNT',
-          accountValue,
-        );
-        quarantined += 1;
-        continue;
-      }
-      if (matchedBySourceAccount) sourceAccountMapped += 1;
-
-      const stats: MapPersistStats = {
-        updated: 0,
-        unchanged: 0,
-        cacheHits: 0,
-      };
-      created += await this.persistTransactions(storeCodes[0], [row], stats);
-      updated += stats.updated;
-      unchanged += stats.unchanged;
-      cacheHits += stats.cacheHits;
-    }
-    return {
-      created,
-      updated,
-      unchanged,
-      cacheHits,
-      quarantined,
-      sourceAccountMapped,
-    };
-  }
-
-  private async quarantineGlobalTransaction(
-    row: MapTransactionRow,
-    reason: UnmappedReason,
-    virtualAccount: string,
-  ) {
-    const amount = this.readAmount(row);
-    const content = this.readFirstText(row, this.contentKeys);
-    const transactionNumber = this.readFirstText(
-      row,
-      this.transactionNumberKeys,
-    );
-    const paidAt = this.readTransactionTime(row);
-    const status = this.readFirstText(row, this.statusKeys);
-    const payerName = this.readFirstText(row, this.payerNameKeys);
-    const payerAccount = this.readFirstText(row, this.payerAccountKeys);
-    const fallback = [
-      virtualAccount,
-      transactionNumber,
-      amount ?? '',
-      paidAt?.toISOString() ?? '',
-      content,
-    ].join('|');
-    const hash = createHash('sha256')
-      .update(`${reason}|${fallback}`)
-      .digest('hex');
-    const unmappedKey = `${reason}:${hash}`;
-
-    await this.prisma.mapVietinUnmappedTransaction.upsert({
-      where: { unmappedKey },
-      create: {
-        unmappedKey,
-        virtualAccount: virtualAccount || null,
-        reason,
-        transactionNumber: transactionNumber || null,
-        amount,
-        content,
-        status: status || null,
-        paidAt,
-        payerName: payerName || null,
-        payerAccount: payerAccount || null,
-        rawData: this.scrubJson(row) as Prisma.InputJsonObject,
-      },
-      update: {
-        virtualAccount: virtualAccount || null,
-        reason,
-        transactionNumber: transactionNumber || null,
-        amount,
-        content,
-        status: status || null,
-        paidAt,
-        payerName: payerName || null,
-        payerAccount: payerAccount || null,
-        rawData: this.scrubJson(row) as Prisma.InputJsonObject,
-      },
-    });
-    this.logger.warn(
-      `Global MAP transaction quarantined: ${reason} virtualAccount=${this.maskAccount(virtualAccount)}`,
+    return this.accountRoutingRuntime.persistGlobalTransactions(
+      rows,
+      storeAccountIndex,
     );
   }
 
@@ -3478,69 +3332,15 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
   }
 
   private async loadStoreAccountIndex() {
-    const stores = (await this.prisma.store.findMany({
-      where: { transferAccountNumber: { not: null } },
-      select: { storeId: true, transferAccountNumber: true },
-    })) as StoreAccountRow[];
-    const index = new Map<string, string[]>();
-    for (const store of stores) {
-      const accountKey = this.normalizeAccountNumber(
-        store.transferAccountNumber || '',
-      );
-      if (!accountKey) continue;
-      const storeCodes = index.get(accountKey) || [];
-      if (!storeCodes.includes(store.storeId)) storeCodes.push(store.storeId);
-      index.set(accountKey, storeCodes);
-    }
-    return index;
+    return this.accountRoutingRuntime.loadStoreAccountIndex();
   }
 
   private async reassignUnassignedEfastTransactions(
     storeAccountIndex: Map<string, string[]>,
   ) {
-    let remapped = 0;
-    let uniqueAccountCount = 0;
-    for (const [accountKey, storeCodes] of storeAccountIndex.entries()) {
-      if (storeCodes.length !== 1) continue;
-      uniqueAccountCount += 1;
-      const result = await this.prisma.mapVietinTransaction.updateMany({
-        where: {
-          storeCode: null,
-          AND: [
-            {
-              rawData: {
-                path: ['source'],
-                equals: 'VIETIN_EFAST',
-              },
-            },
-            {
-              OR: [
-                {
-                  rawData: {
-                    path: ['efastCreditAccountNo'],
-                    equals: accountKey,
-                  },
-                },
-                {
-                  rawData: {
-                    path: ['efastBankAccountNo'],
-                    equals: accountKey,
-                  },
-                },
-              ],
-            },
-          ],
-        },
-        data: { storeCode: storeCodes[0] },
-      });
-      remapped += result.count;
-    }
-    if (remapped > 0) {
-      this.logger.log(
-        `VietinBank eFAST account remap completed: uniqueAccounts=${uniqueAccountCount} remapped=${remapped}`,
-      );
-    }
-    return remapped;
+    return this.accountRoutingRuntime.reassignUnassignedEfastTransactions(
+      storeAccountIndex,
+    );
   }
 
   private normalizeTransaction(
