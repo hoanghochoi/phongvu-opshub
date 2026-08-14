@@ -13,9 +13,12 @@ OPS-90, OPS-91, OPS-92, OPS-93, OPS-94, OPS-95 and OPS-96 are merged and
 staging-deployed. OPS-97 MAP Vietin sync scheduler/coordinator extraction is
 merged and staging-deployed. OPS-98 Nest/Prisma toolchain bootstrap is merged
 and staging-deployed. OPS-99 User/Auth characterization is merged and
-staging-deployed; OPS-100 UserService profile collaborator extraction is the
-current lifecycle slice. Comparable timing baseline, remaining runtime waves,
-Flutter toolchain policy and production release remain open.
+staging-deployed. OPS-100 UserService profile collaborator extraction merged at
+`6817cdfd60fe8dbbbc6f64a497765669dba4e562`; exact-SHA staging deploy run
+`31783456149` passed and Linear is `Ready for QA`. OPS-101 plan-disposition
+reconciliation is the current docs-only lifecycle slice. Comparable timing
+baseline, remaining runtime waves, Flutter toolchain policy and production
+release remain open.
 
 ## Outcome
 
@@ -62,12 +65,15 @@ branch, and is not converted row-for-row into Markdown.
   auth/profile/admin passed `48`, and the exact runner reported `stale=false`.
   This test-only slice preserved the public facade and left collaborator
   extraction to the current slice.
-- Current slice: `OPS-100` UserService profile collaborator extraction, on the
-  fresh lifecycle worktree `../opshub-ops-100` and branch
-  `codex/ops-100-user-profile-collaborator`, created from exact live
-  `origin/staging@00a8021c5848abe8032dad1385cf65f139748aef`. This slice first
-  refreshes the OPS-99 checkpoint, then extracts only profile DTO/read, update
+- Previous slice: `OPS-100` UserService profile collaborator extraction,
+  created from exact live
+  `origin/staging@00a8021c5848abe8032dad1385cf65f139748aef`. PR #211 merged into
+  `staging` at `6817cdfd60fe8dbbbc6f64a497765669dba4e562`; exact-SHA staging
+  deploy run `31783456149` passed and Linear is `Ready for QA`. The slice
+  extracted only profile DTO/read, update
   validation/trim and avatar media compensation behind the stable facade.
+  The task worktree/local branch are absent after merge; production completion
+  is not inferred from that repository state.
   OPS-89 cache state, in-flight dedupe, refresh-ahead, daily-series extension,
   support caches, scope-option caching and projection invalidation remain in
   `home-summary-cache.runtime.ts`.
@@ -80,7 +86,8 @@ branch, and is not converted row-for-row into Markdown.
   Home proof passed `60/60`, and exact-base full verification passed all eight
   profiles with `stale=false`. PR #201 merged into staging at
   `5c3867fae35bd022a6a599283fce9a62032476e6`; deploy run `31750262557`
-  passed and the issue remains release-pending until production deployment.
+  passed. Linear remains `In Progress`; authenticated four-day smoke and
+  production deployment are still open.
 - Previous slice: `OPS-70` (Phase 5 protocol-v1 retirement and Harness producer
   cleanup) on a fresh lifecycle worktree created from the live `origin/staging`
   checkpoint.
@@ -482,10 +489,16 @@ god-helper.
   exact `origin/staging@7a06f1272ae97f02d5fecc2c3a29e80a8db70f5a` checkpoint.
   PR #208 merged at `73e1e2c77aa7e796e4cbd2ee614c4aa16ef5104a`; deploy and
   lifecycle finish passed; Linear remains `Ready for QA`.
-- [ ] Complete OPS-98 Nest/Prisma toolchain bootstrap from the exact
+- [x] Complete OPS-98 Nest/Prisma toolchain bootstrap from the exact
   `origin/staging@73e1e2c77aa7e796e4cbd2ee614c4aa16ef5104a` checkpoint. Flutter
   hydration remains a separate follow-up because generated tracked-file
   changes need their own contract and cleanup gate.
+- [x] Complete OPS-99 User/Auth characterization. PR #210 merged at
+  `00a8021c5848abe8032dad1385cf65f139748aef`, staging deploy `31780994964`
+  passed and Linear is `Ready for QA` pending production deployment.
+- [x] Complete OPS-100 post-merge staging evidence. PR #211 merged at
+  `6817cdfd60fe8dbbbc6f64a497765669dba4e562`; deploy `31783456149` passed
+  and Linear is `Ready for QA` pending authenticated QA and production.
 - [ ] Run Phase 7B CI shadow metrics, Phase 8 artifact cleanup, Phase 9 runtime
   waves and Phase 10 final consolidation.
 
@@ -1025,7 +1038,7 @@ Phase 9E runtime checkpoint (OPS-97, MAP Vietin scheduler/coordinator slice):
   affected Nest passed `177/177`, affected Flutter passed `48`, and the exact
   runner passed with `stale=false`.
 
-## Workflow checkpoint (OPS-100, UserService profile collaborator)
+## Workflow checkpoint (OPS-100 complete; OPS-101 current)
 
 - Slice branch/worktree: `codex/ops-100-user-profile-collaborator` in
   `../opshub-ops-100`, started from exact live
@@ -1036,9 +1049,15 @@ Phase 9E runtime checkpoint (OPS-97, MAP Vietin scheduler/coordinator slice):
   `a245e03be67b0189c76f47f3b1b84bb4f9f2feeef1ec69d66acf45454e20e381`; the
   ignored `backend-nest/node_modules` and generated Prisma client are local
   task artifacts, not product changes.
-- Extraction and characterization proof are in progress; public facade and
-  affected consumers remain protected. Publication and lifecycle cleanup are
-  open until the final diff and exact runner pass.
+- PR #211 merged into `staging` at
+  `6817cdfd60fe8dbbbc6f64a497765669dba4e562`; all PR checks passed. The task
+  worktree and local branch are absent. Exact-SHA staging deploy run
+  `31783456149` passed its Android, Windows, web, backend, route and health
+  gates. UserService regression passed `70/70`, affected Nest passed `177/177`,
+  affected Flutter passed `48`, Nest build and Prisma validation passed, and
+  the exact runner returned code `0` with `stale=false`. Linear is
+  `Ready for QA`; authenticated QA and production deployment remain open, so
+  no production completion is inferred.
 
 ## Validation
 
@@ -1294,7 +1313,7 @@ Move this plan to
 production lifecycle are complete.
 
 The baseline inventory counted 32 active plan files. The current active tree
-has 15 files (14 current plans plus its README); all moved paths retain a
+has 16 files (15 current plans plus its README); all moved paths retain a
 one-to-one `sourcePath`, disposition and canonical target in the OPS-71 ledger.
 OPS-44 retains a release-pending handoff, while OPS-53 retains one active
 consolidation summary; neither Linear issue was closed by this cleanup.

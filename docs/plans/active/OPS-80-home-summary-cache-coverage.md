@@ -41,8 +41,12 @@ creates a synthetic 369-day iterable.
 - [x] Checkpoint and Linear implementation note recorded.
 - [x] Cache coverage implementation.
 - [x] Regression and affected-consumer proof.
-- [ ] PR, staging deploy and authenticated smoke.
-- [ ] Lifecycle cleanup and final tracking note.
+- [x] PR #201 merged at `5c3867fae35bd022a6a599283fce9a62032476e6`;
+  exact-SHA staging deploy run `31750262557` passed.
+- [x] The task worktree and local branch are absent after the merge; the remote
+  feature branch remains a separate repository-maintenance action.
+- [ ] Authenticated production-equivalent smoke and final tracking note.
+- [ ] Production deployment and `Done` transition.
 
 ## Local proof before publication
 
@@ -55,5 +59,8 @@ creates a synthetic 369-day iterable.
   tmp/verify-ops80-final.json`: all 8 profiles pass, `stale=false`; the
   runner includes Flutter analyze, Nest build, Go tests and deployment/security
   contracts. The artifact is local proof and is not committed.
-- Remaining gate: publish PR to `staging`, exact-SHA staging deploy and
-  authenticated production-equivalent smoke for a four-day comparison request.
+- Current Linear status: `In Progress`. The merge and staging deployment do not
+  prove production completion.
+- Remaining gate: authenticated production-equivalent smoke for a four-day
+  comparison request, followed by the guarded release handoff and production
+  deployment.
