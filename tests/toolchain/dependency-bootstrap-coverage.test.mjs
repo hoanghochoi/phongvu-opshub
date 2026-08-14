@@ -218,6 +218,16 @@ test("local OPS-40 PostgreSQL verifier keeps Prisma behind the Nest boundary", (
     /&\s+npx\.cmd\s+prisma migrate deploy/,
     "the verifier must not spawn a raw local npx Prisma command",
   );
+  assert.match(
+    verifier,
+    /\$\{database\}\?schema=public/,
+    "the verifier must preserve the disposable database name in the URL",
+  );
+  assert.match(
+    verifier,
+    /is_nullable::text/,
+    "the verifier must cast PostgreSQL character metadata before concatenation",
+  );
 
   const runbook = source("docs/runbooks/support-chat-operations.md");
   assert.match(
