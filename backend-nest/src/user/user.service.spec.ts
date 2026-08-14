@@ -3074,6 +3074,136 @@ describe('UserService admin store management', () => {
     expect(prisma.user.create).not.toHaveBeenCalled();
   });
 
+  it('keeps an imported user when the welcome email fails and reports the row error', async () => {
+    const org = installUserScopeTreeMock();
+    org.saveNode({
+      id: 'org-store-cp62-pos-sa',
+      code: 'STORE_CP62_POS_SA',
+      businessCode: 'SA',
+      displayName: 'Nhân viên Bán hàng',
+      type: 'JOB_ROLE',
+      parentId: 'org-store-cp62',
+      isSystem: true,
+      isActive: true,
+      sortOrder: 10,
+    });
+    prisma.store.findMany.mockResolvedValue([]);
+    const saved = {
+      id: 'imported-user',
+      email: 'import-failed@phongvu.vn',
+      firstName: 'Import Failed',
+      lastName: null,
+      role: 'USER',
+      status: 'yes',
+      workScopeType: 'STORE',
+      storeId: 'store-62',
+      store,
+      organizationNodeId: 'org-store-cp62-pos-sa',
+      organizationNode: {
+        id: 'org-store-cp62-pos-sa',
+        displayName: 'Nhân viên Bán hàng',
+      },
+      userFeatureAssignments: [],
+    };
+    prisma.user.findMany
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([saved]);
+    mailService.sendMail.mockRejectedValueOnce(new Error('smtp unavailable'));
+
+    const result = await service.adminImportUsers(superAdmin, {
+      totalRows: 1,
+      skippedRows: 0,
+      rows: [
+        {
+          rowNumber: 2,
+          email: saved.email,
+          fullName: 'Import Failed',
+          role: 'USER',
+          levelCodes: ['DOMAIN_PHONGVU_VN', '', '', '', 'CP62', 'SA'],
+        },
+      ],
+    });
+
+    expect(result).toMatchObject({
+      createdRows: 1,
+      updatedRows: 0,
+      welcomeEmailSentRows: 0,
+      welcomeEmailFailedRows: 1,
+    });
+    expect(result.results).toEqual([
+      expect.objectContaining({
+        email: saved.email,
+        action: 'created',
+        welcomeEmailSent: false,
+        welcomeEmailError: expect.stringContaining('smtp unavailable'),
+      }),
+    ]);
+    expect(prisma.user.create).toHaveBeenCalled();
+    expect(mailService.sendMail).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not send welcome mail or publish access changes when import persistence fails', async () => {
+    const org = installUserScopeTreeMock();
+    org.saveNode({
+      id: 'org-store-cp62-pos-sa',
+      code: 'STORE_CP62_POS_SA',
+      businessCode: 'SA',
+      displayName: 'Nhân viên Bán hàng',
+      type: 'JOB_ROLE',
+      parentId: 'org-store-cp62',
+      isSystem: true,
+      isActive: true,
+      sortOrder: 10,
+    });
+    prisma.store.findMany.mockResolvedValue([]);
+    prisma.user.findMany.mockResolvedValueOnce([]);
+    prisma.$transaction.mockRejectedValueOnce(new Error('database unavailable'));
+
+    await expect(
+      service.adminImportUsers(superAdmin, {
+        totalRows: 1,
+        skippedRows: 0,
+        rows: [
+          {
+            rowNumber: 2,
+            email: 'import-db-failed@phongvu.vn',
+            fullName: 'Import DB Failed',
+            role: 'USER',
+            levelCodes: ['DOMAIN_PHONGVU_VN', '', '', '', 'CP62', 'SA'],
+          },
+        ],
+      }),
+    ).rejects.toThrow('database unavailable');
+    expect(prisma.user.create).not.toHaveBeenCalled();
+    expect(mailService.sendMail).not.toHaveBeenCalled();
+    expect(accessChangeService.publishForUserIds).not.toHaveBeenCalled();
+  });
+
+  it('rejects a missing import catalog node before opening the write transaction', async () => {
+    installUserScopeTreeMock();
+    prisma.store.findMany.mockResolvedValue([]);
+    prisma.user.findMany.mockResolvedValueOnce([]);
+
+    await expect(
+      service.adminImportUsers(superAdmin, {
+        totalRows: 1,
+        skippedRows: 0,
+        rows: [
+          {
+            rowNumber: 2,
+            email: 'missing-node@phongvu.vn',
+            fullName: 'Missing Node',
+            role: 'USER',
+            levelCodes: ['DOMAIN_PHONGVU_VN', '', '', '', 'CP99', 'SA'],
+          },
+        ],
+      }),
+    ).rejects.toThrow('không tìm thấy node lv4');
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+    expect(prisma.user.create).not.toHaveBeenCalled();
+    expect(prisma.user.update).not.toHaveBeenCalled();
+  });
+
   it('rejects ambiguous import node codes before writing users', async () => {
     const org = installUserScopeTreeMock();
     org.saveNode({
