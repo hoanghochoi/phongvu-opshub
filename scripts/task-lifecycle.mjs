@@ -57,6 +57,8 @@ function parseArgs(argv) {
     command,
     execute: false,
     allowIgnored: false,
+    prepare: false,
+    prepareProfile: 'nestjs',
     remote: 'origin',
   };
   const valueOptions = new Map([
@@ -66,6 +68,7 @@ function parseArgs(argv) {
     ['--slug', 'slug'],
     ['--pr', 'pr'],
     ['--branch', 'branch'],
+    ['--prepare-profile', 'prepareProfile'],
   ]);
 
   for (let index = 1; index < argv.length; index += 1) {
@@ -76,6 +79,10 @@ function parseArgs(argv) {
     }
     if (argument === '--allow-ignored') {
       options.allowIgnored = true;
+      continue;
+    }
+    if (argument === '--prepare') {
+      options.prepare = true;
       continue;
     }
     if (valueOptions.has(argument)) {
@@ -94,7 +101,7 @@ function parseArgs(argv) {
 function printHelp(log) {
   log(`Usage:
   node scripts/task-lifecycle.mjs start \\
-    --issue OPS-123 --slug short-description --worktree ..\\opshub-ops-123 [--execute]
+    --issue OPS-123 --slug short-description --worktree ..\\opshub-ops-123 [--prepare] [--execute]
 
   node scripts/task-lifecycle.mjs finish \\
     --pr 123 --branch codex/ops-123-short-description \\
@@ -229,6 +236,9 @@ function validateStartOptions(options, root) {
     blocked('--slug chỉ dùng chữ thường, số và dấu gạch nối.');
   }
   if (!options.worktree) blocked('Thiếu --worktree cho task mới.');
+  if (options.prepareProfile !== 'nestjs') {
+    blocked(`--prepare-profile không hỗ trợ: ${options.prepareProfile}.`);
+  }
 
   const branch = `codex/${issue.toLowerCase()}-${options.slug}`;
   const worktree = path.resolve(root, options.worktree);
@@ -323,14 +333,42 @@ function inspectTaskWorktree(root, worktree, expectedBranch, { allowIgnored = fa
   return { target, head, ignoredCount: ignored.length };
 }
 
-function rollbackNewTask({ root, worktree, branch }) {
+function rollbackNewTask({ root, worktree, branch, allowIgnored = false }) {
   const registered = registeredWorktrees(root);
   if (registered.has(pathKey(worktree))) {
     const dirty = gitOutput(worktree, ['status', '--porcelain=v1', '--untracked-files=all']);
     if (dirty) blocked(`Không thể rollback task mới vì worktree đã bẩn: ${worktree}`);
-    git(root, ['-c', 'core.longpaths=true', 'worktree', 'remove', '--', worktree]);
+    git(
+      root,
+      [
+        '-c',
+        'core.longpaths=true',
+        'worktree',
+        'remove',
+        ...(allowIgnored ? ['--force'] : []),
+        '--',
+        worktree,
+      ],
+    );
   }
   if (refExists(root, `refs/heads/${branch}`)) git(root, ['branch', '-D', branch]);
+}
+
+function prepareTaskWorktree({ worktree, profile, log }) {
+  const script = path.resolve(worktree, 'scripts/prepare-task-toolchain.mjs');
+  if (!fs.existsSync(script)) {
+    blocked(`Không tìm thấy preflight toolchain trong task worktree: ${script}`);
+  }
+  const result = run(
+    process.execPath,
+    ['scripts/prepare-task-toolchain.mjs', '--profile', profile],
+    { cwd: worktree, allowFailure: true },
+  );
+  if (result.status !== 0) {
+    const detail = (result.stderr || result.stdout || '').trim();
+    blocked(`Toolchain prepare thất bại: ${detail || `exit ${result.status}`}`);
+  }
+  log(`Toolchain prepare PASS: profile=${profile}`);
 }
 
 function printSync(log, sync, remote, execute) {
@@ -344,7 +382,7 @@ function printSync(log, sync, remote, execute) {
 }
 
 function startTask(options, dependencies) {
-  const { cwd, log, afterWorktreeCreated } = dependencies;
+  const { cwd, log, afterWorktreeCreated, prepareTaskWorktree: prepare } = dependencies;
   const root = canonicalStaging(cwd);
   if (options.allowIgnored) blocked('--allow-ignored chỉ áp dụng cho finish sau khi review artifact.');
   const task = validateStartOptions(options, root);
@@ -380,6 +418,15 @@ function startTask(options, dependencies) {
       blocked(`Task HEAD sai: expected=${sync.stagingSha} actual=${created.head}.`);
     }
     afterWorktreeCreated({ root, ...task, stagingSha: sync.stagingSha });
+    if (options.prepare) {
+      prepare({ worktree: task.worktree, profile: options.prepareProfile, log });
+      const prepared = inspectTaskWorktree(root, task.worktree, task.branch, {
+        allowIgnored: true,
+      });
+      if (prepared.head !== sync.stagingSha) {
+        blocked(`Task HEAD đổi trong lúc prepare: expected=${sync.stagingSha} actual=${prepared.head}.`);
+      }
+    }
     const liveAfterCreate = liveStagingSha(root, options.remote);
     if (liveAfterCreate !== sync.stagingSha) {
       blocked(
@@ -388,16 +435,28 @@ function startTask(options, dependencies) {
       );
     }
   } catch (error) {
-    rollbackNewTask({ root, worktree: task.worktree, branch: task.branch });
+    rollbackNewTask({
+      root,
+      worktree: task.worktree,
+      branch: task.branch,
+      allowIgnored: options.prepare,
+    });
     throw error;
   }
 
   log(`START PASS: ${task.branch} @ ${sync.stagingSha}`);
-  return { action: 'start', dryRun: false, ...task, stagingSha: sync.stagingSha };
+  return {
+    action: 'start',
+    dryRun: false,
+    prepared: options.prepare,
+    ...task,
+    stagingSha: sync.stagingSha,
+  };
 }
 
 function finishTask(options, dependencies) {
   const { cwd, log, getPullRequest } = dependencies;
+  if (options.prepare) blocked('--prepare chỉ áp dụng cho lệnh start.');
   const root = canonicalStaging(cwd);
   const finish = validateFinishOptions(options);
   const inspected = inspectTaskWorktree(root, options.worktree, finish.branch, {
@@ -485,6 +544,7 @@ export function runTaskLifecycle(argv, overrides = {}) {
     log: overrides.log || console.log,
     getPullRequest: overrides.getPullRequest || readPullRequest,
     afterWorktreeCreated: overrides.afterWorktreeCreated || (() => {}),
+    prepareTaskWorktree: overrides.prepareTaskWorktree || prepareTaskWorktree,
   };
   if (options.help) {
     printHelp(dependencies.log);

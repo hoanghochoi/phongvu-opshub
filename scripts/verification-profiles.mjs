@@ -18,6 +18,7 @@ export const PROFILES = Object.freeze([
       /^scripts\/README\.md$/,
       /^docs\/(?:contracts|decisions|migrations|plans|templates)\//,
       /^scripts\/(?:adapter|schema)\//,
+      /^scripts\/prepare-task-toolchain\.mjs$/,
       /^\.gitattributes$/,
       /^scripts\/bootstrap-harness\.(?:ps1|sh)$/,
       /^scripts\/bin\/harness(?:-cli)?\.exe\.sha256$/,
@@ -26,6 +27,7 @@ export const PROFILES = Object.freeze([
       /^tests\/(?:adapter|boundary|changesets|ci|coherence|core|protocol|snapshot|worktrees)\//,
       /^tests\/docs\/test-doc-contracts\.sh$/,
       /^tests\/migration\//,
+      /^tests\/toolchain\//,
       /^tests\/(?:installer|maintenance|migration|verification)\//,
       /^\.github\/workflows\/(?:post-merge-maintenance|release-guard-pr)/,
     ],
@@ -40,6 +42,12 @@ export const PROFILES = Object.freeze([
         cwd: '.',
         executable: 'git',
         argv: ['diff', '--check'],
+      },
+      {
+        id: 'toolchain-tests',
+        cwd: '.',
+        executable: process.execPath,
+        argv: ['--test', 'tests/toolchain/*.test.mjs'],
       },
     ],
   },
@@ -93,6 +101,12 @@ export const PROFILES = Object.freeze([
         executable: 'git',
         argv: ['diff', '--check'],
       },
+      {
+        id: 'task-lifecycle-tests',
+        cwd: '.',
+        executable: process.execPath,
+        argv: ['--test', 'scripts/test-task-lifecycle.mjs'],
+      },
     ],
   },
   {
@@ -120,6 +134,12 @@ export const PROFILES = Object.freeze([
     consumers: ['NestJS API', 'Flutter API repositories'],
     prerequisites: ['Node.js', 'backend-nest dependencies'],
     commands: [
+      {
+        id: 'nestjs-toolchain-prepare',
+        cwd: '.',
+        executable: process.execPath,
+        argv: ['scripts/prepare-task-toolchain.mjs', '--profile', 'nestjs'],
+      },
       {
         id: 'nestjs-build',
         cwd: 'backend-nest',
