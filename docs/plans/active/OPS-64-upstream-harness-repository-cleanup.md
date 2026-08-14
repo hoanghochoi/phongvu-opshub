@@ -11,8 +11,9 @@ follow-up. OPS-74 runtime waves are in progress: OPS-80 Home cache coverage,
 OPS-81, OPS-82, OPS-83, OPS-84, OPS-85, OPS-86, OPS-87, OPS-88, OPS-89,
 OPS-90, OPS-91, OPS-92, OPS-93, OPS-94, OPS-95 and OPS-96 are merged and
 staging-deployed. OPS-97 MAP Vietin sync scheduler/coordinator extraction is
-the current lifecycle slice. Comparable timing baseline, remaining runtime
-waves, toolchain bootstrap and production release remain open.
+merged and staging-deployed. OPS-98 Nest/Prisma toolchain bootstrap is the
+current lifecycle slice. Comparable timing baseline, remaining runtime waves,
+Flutter toolchain policy and production release remain open.
 
 ## Outcome
 
@@ -34,17 +35,25 @@ branch, and is not converted row-for-row into Markdown.
   `31770320592` and guarded lifecycle cleanup. `MapVietinProviderRuntime`
   owns bounded provider transport, MAP/eFAST session caching and provider
   backoff/retry-after state; the service facade and public contract are intact.
-- Current slice: `OPS-97` MAP Vietin sync scheduler/coordinator extraction, on
-  the fresh lifecycle worktree `../opshub-ops-97` and branch
-  `codex/ops-97-map-vietin-sync-coordinator`, created from exact live
-  `origin/staging@7a06f1272ae97f02d5fecc2c3a29e80a8db70f5a`. The coordinator
-  owns timer lifecycle, MAP/eFAST windows and cadence, backoff-aware scheduling,
+- Previous slice: `OPS-97` MAP Vietin sync scheduler/coordinator extraction,
+  created from exact live `origin/staging@7a06f1272ae97f02d5fecc2c3a29e80a8db70f5a`.
+  PR #208 merged into `staging` at
+  `73e1e2c77aa7e796e4cbd2ee614c4aa16ef5104a`; deploy `31773642512`, post-merge
+  CodeQL `31773642509`, and guarded lifecycle cleanup passed. Linear remains
+  `Ready for QA` until production deployment. The coordinator owns timer
+  lifecycle, MAP/eFAST windows and cadence, backoff-aware scheduling,
   deep-sweep state and single-flight leases; `MapVietinService` remains the
   stable facade and owns sync execution, persistence, statement policy and
-  response mapping. The intake checkpoint was clean and byte-identical across
-  two snapshots; source edits and focused proof are local to this worktree.
-  A repeated fresh-worktree toolchain failure was recorded as follow-up
-  `OPS-98`; it is not mixed into this runtime slice.
+  response mapping.
+- Current slice: `OPS-98` Nest/Prisma toolchain bootstrap, on the fresh
+  lifecycle worktree `../opshub-ops-98` and branch
+  `codex/ops-98-backend-nest-toolchain-bootstrap`, created from exact live
+  `origin/staging@73e1e2c77aa7e796e4cbd2ee614c4aa16ef5104a`. This slice adds an
+  idempotent `backend-nest` preflight (`npm ci --ignore-scripts` plus Prisma
+  generation), fingerprinted ignored state, and an optional lifecycle
+  `start --prepare` hook. Flutter dependency hydration is deliberately deferred
+  because `flutter pub get` can create tracked generated files; it needs a
+  separate reviewed gate.
   OPS-89 cache state, in-flight dedupe, refresh-ahead, daily-series extension,
   support caches, scope-option caching and projection invalidation remain in
   `home-summary-cache.runtime.ts`.
@@ -455,11 +464,14 @@ god-helper.
   checkpoint. PR #207 merged at `7a06f1272ae97f02d5fecc2c3a29e80a8db70f5a`;
   deploy `31770320592` and guarded lifecycle cleanup passed. Linear remains
   `Ready for QA` until production deployment.
-- [ ] Complete OPS-97 MAP Vietin sync scheduler/coordinator extraction from the
+- [x] Complete OPS-97 MAP Vietin sync scheduler/coordinator extraction from the
   exact `origin/staging@7a06f1272ae97f02d5fecc2c3a29e80a8db70f5a` checkpoint.
-- [ ] Start OPS-98 toolchain bootstrap only after OPS-97 publish and lifecycle
-  finish. It addresses fresh-worktree Nest/Prisma/Flutter preflight and must
-  remain a separate workflow slice.
+  PR #208 merged at `73e1e2c77aa7e796e4cbd2ee614c4aa16ef5104a`; deploy and
+  lifecycle finish passed; Linear remains `Ready for QA`.
+- [ ] Complete OPS-98 Nest/Prisma toolchain bootstrap from the exact
+  `origin/staging@73e1e2c77aa7e796e4cbd2ee614c4aa16ef5104a` checkpoint. Flutter
+  hydration remains a separate follow-up because generated tracked-file
+  changes need their own contract and cleanup gate.
 - [ ] Run Phase 7B CI shadow metrics, Phase 8 artifact cleanup, Phase 9 runtime
   waves and Phase 10 final consolidation.
 
@@ -952,6 +964,38 @@ Phase 9E runtime checkpoint (OPS-97, MAP Vietin scheduler/coordinator slice):
   l10n/plugin files are isolated in local stash `ops97-local-flutter-generated`
   and are not part of the product diff. Publication and lifecycle gates remain
   open.
+
+## Workflow checkpoint (OPS-98, Nest/Prisma toolchain bootstrap)
+
+- Slice branch/worktree: `codex/ops-98-backend-nest-toolchain-bootstrap` in
+  `../opshub-ops-98`, started from exact live
+  `origin/staging@73e1e2c77aa7e796e4cbd2ee614c4aa16ef5104a`. The canonical
+  `staging` worktree and protected OPS-68/OPS-72 worktrees remain untouched.
+- Root cause: fresh task worktrees omit ignored `backend-nest/node_modules`
+  and the generated Prisma client, so the first Nest build reports a late
+  environment failure. The preflight now checks the package/lockfile and
+  Prisma schema/config contract, fingerprints those inputs plus Node platform,
+  runs `npm ci --ignore-scripts` and `npx --no-install prisma generate`, and
+  records only repository-relative ignored state for idempotent cache hits.
+- Lifecycle `start --prepare --execute` runs the preflight only after the new
+  worktree is created; dry-run never executes it. A failed prepare rolls back
+  the new worktree/local branch, including reviewed ignored output. The NestJS
+  verification profile invokes the same preflight before `npm run build`.
+- The slice deliberately excludes Flutter dependency hydration. `flutter pub
+  get` can create tracked l10n/plugin files, so Flutter needs a separate
+  explicit generated-file contract and cleanup gate rather than being silently
+  run by task creation.
+- Preflight unit proof is `7/7`; lifecycle regression proof is `15/15`.
+- Actual worktree preflight with `--force` passed `npm ci --ignore-scripts` and
+  Prisma generation; the immediate repeat returned `cached` with the same
+  fingerprint `a245e03be67b0189c76f47f3b1b84bb4f9f2feeef1ec69d66acf45454e20e381`.
+- Exact runner against base checkpoint
+  `73e1e2c77aa7e796e4cbd2ee614c4aa16ef5104a` selected
+  `harness,docs,verification-runner,release,nestjs`, covered 8 paths, returned
+  code `0` with `stale=false`; the authoritative base/head and before/after
+  fingerprint are retained in the ignored `tmp/ops98-verify-final.json`
+  artifact. Publication and lifecycle cleanup remain open until the task is
+  published.
 
 ## Validation
 

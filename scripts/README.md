@@ -116,3 +116,35 @@ publish a fork or a replacement release workflow.
 The OpsHub task lifecycle remains in `scripts/task-lifecycle.mjs`; feature
 branches target `staging` and production promotion follows
 `docs/runbooks/git-release-playbook.md`.
+
+## Fresh task toolchain preflight
+
+Fresh task worktrees intentionally do not carry ignored dependency directories.
+For a NestJS task, prepare the local toolchain immediately after the lifecycle
+creates the branch:
+
+```text
+node scripts/task-lifecycle.mjs start \
+  --issue OPS-123 --slug short-description \
+  --worktree ..\opshub-ops-123 --prepare --execute
+```
+
+`--prepare` runs the NestJS preflight in the new worktree. The preflight uses
+`backend-nest/package-lock.json`, Prisma schema/config and the local Node
+platform as a fingerprint, then runs `npm ci --ignore-scripts` followed by
+`npx --no-install prisma generate` when the fingerprint is not ready. A
+repository-relative ignored state file at `tmp/opshub-toolchain-state.json`
+allows a matching ready worktree to return `cached`; `--force` reruns both
+steps and `--dry-run` reports them without writing dependencies or state:
+
+```text
+node scripts/prepare-task-toolchain.mjs --profile nestjs --dry-run
+node scripts/prepare-task-toolchain.mjs --profile nestjs --json tmp/prepare.json
+node scripts/prepare-task-toolchain.mjs --profile nestjs --force
+```
+
+The preflight owns only NestJS/Prisma. Flutter dependency hydration remains a
+separate gate because `flutter pub get` may generate tracked localization or
+plugin files that require an explicit review and cleanup decision. A failed
+prepare is an environment failure and the lifecycle removes the newly-created
+task worktree/branch, including reviewed ignored output.

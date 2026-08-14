@@ -161,6 +161,108 @@ test('start fast-forwards staging and creates the task at the exact remote head'
   assert.equal(git(worktree, 'branch', '--show-current'), 'codex/ops-19-fresh-task');
 });
 
+test('start --prepare invokes the hook and permits reviewed ignored toolchain artifacts', (t) => {
+  const fixture = createFixture();
+  const worktree = path.join(fixture.root, 'ops-19');
+  t.after(() => {
+    if (fs.existsSync(worktree)) git(fixture.canonical, 'worktree', 'remove', '--force', worktree);
+    cleanupFixture(fixture);
+  });
+  const calls = [];
+
+  const result = lifecycle(
+    [
+      'start',
+      '--issue',
+      'OPS-19',
+      '--slug',
+      'prepare-hook',
+      '--worktree',
+      worktree,
+      '--prepare',
+      '--execute',
+    ],
+    fixture,
+    {
+      prepareTaskWorktree: ({ worktree: preparedWorktree, profile }) => {
+        calls.push({ preparedWorktree, profile });
+        fs.mkdirSync(path.join(preparedWorktree, 'generated'), { recursive: true });
+        write(path.join(preparedWorktree, 'generated', 'node_modules-marker.txt'), 'ready\n');
+      },
+    },
+  );
+
+  assert.equal(result.prepared, true);
+  assert.deepEqual(calls, [{ preparedWorktree: worktree, profile: 'nestjs' }]);
+  assert.equal(fs.existsSync(path.join(worktree, 'generated', 'node_modules-marker.txt')), true);
+  assert.equal(git(worktree, 'rev-parse', 'HEAD'), fixture.baseSha);
+  assert.equal(git(worktree, 'branch', '--show-current'), 'codex/ops-19-prepare-hook');
+});
+
+test('start --prepare dry-run does not invoke the prepare hook or create a task', (t) => {
+  const fixture = createFixture();
+  t.after(() => cleanupFixture(fixture));
+  const worktree = path.join(fixture.root, 'ops-19');
+
+  const result = lifecycle(
+    [
+      'start',
+      '--issue',
+      'OPS-19',
+      '--slug',
+      'prepare-dry-run',
+      '--worktree',
+      worktree,
+      '--prepare',
+    ],
+    fixture,
+    {
+      prepareTaskWorktree: () => {
+        throw new Error('dry-run must not invoke prepare');
+      },
+    },
+  );
+
+  assert.equal(result.dryRun, true);
+  assert.equal(fs.existsSync(worktree), false);
+  assert.equal(gitRefExists(fixture.canonical, 'refs/heads/codex/ops-19-prepare-dry-run'), false);
+});
+
+test('start --prepare rolls back a new task when preparation fails after ignored output', (t) => {
+  const fixture = createFixture();
+  t.after(() => cleanupFixture(fixture));
+  const worktree = path.join(fixture.root, 'ops-19');
+  const branch = 'codex/ops-19-prepare-failure';
+
+  assert.throws(
+    () =>
+      lifecycle(
+        [
+          'start',
+          '--issue',
+          'OPS-19',
+          '--slug',
+          'prepare-failure',
+          '--worktree',
+          worktree,
+          '--prepare',
+          '--execute',
+        ],
+        fixture,
+        {
+          prepareTaskWorktree: ({ worktree: preparedWorktree }) => {
+            fs.mkdirSync(path.join(preparedWorktree, 'generated'), { recursive: true });
+            write(path.join(preparedWorktree, 'generated', 'partial-output.txt'), 'partial\n');
+            throw new Error('simulated toolchain failure');
+          },
+        },
+      ),
+    /simulated toolchain failure/,
+  );
+  assert.equal(fs.existsSync(worktree), false);
+  assert.equal(gitRefExists(fixture.canonical, `refs/heads/${branch}`), false);
+});
+
 test('start blocks a dirty canonical staging worktree', (t) => {
   const fixture = createFixture();
   t.after(() => cleanupFixture(fixture));
