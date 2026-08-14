@@ -7,6 +7,7 @@ import { MapVietinBigQueryModule } from '../map-vietin-bigquery/map-vietin-bigqu
 import { SalesReportsModule } from '../sales-reports/sales-reports.module';
 import { MapVietinController } from './map-vietin.controller';
 import { MapVietinService } from './map-vietin.service';
+import { MapVietinProviderRuntime } from './map-vietin-provider.runtime';
 
 @Module({
   imports: [
@@ -18,7 +19,7 @@ import { MapVietinService } from './map-vietin.service';
     SalesReportsModule,
   ],
   controllers: [MapVietinController],
-  providers: [MapVietinService],
+  providers: [MapVietinProviderRuntime, MapVietinService],
   exports: [MapVietinService],
 })
 export class MapVietinModule {}

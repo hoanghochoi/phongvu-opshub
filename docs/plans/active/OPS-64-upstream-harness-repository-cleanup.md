@@ -9,10 +9,10 @@ cleanup are merged in staging. Five live shadow observations pass; one
 historical contract gap (#182) was explicitly captured and fixed in the OPS-72
 follow-up. OPS-74 runtime waves are in progress: OPS-80 Home cache coverage,
 OPS-81, OPS-82, OPS-83, OPS-84, OPS-85, OPS-86, OPS-87, OPS-88, OPS-89,
-OPS-90, OPS-91, OPS-92, OPS-93 and OPS-94 are merged and staging-deployed.
-OPS-95 Sales Reports export orchestration is active on its lifecycle worktree.
-Comparable timing baseline, remaining runtime waves and production release
-remain open.
+OPS-90, OPS-91, OPS-92, OPS-93, OPS-94 and OPS-95 are merged and
+staging-deployed. OPS-96 MAP Vietin HTTP/session/backoff extraction is the
+current lifecycle slice. Comparable timing baseline, remaining runtime waves
+and production release remain open.
 
 ## Outcome
 
@@ -29,16 +29,16 @@ branch, and is not converted row-for-row into Markdown.
 ## Authority and checkpoint
 
 - Linear parent: `OPS-64`.
-- Current slice: `OPS-95` Sales Reports admin export orchestration, on the fresh
-  lifecycle worktree `../opshub-ops-95` and branch
-  `codex/ops-95-sales-reports-export-orchestration`, created from exact live
-  `origin/staging@8c9793545c98b97336b0753f1d7a60ff60e72ac3`. The planned
-  constructor-injected `SalesReportsExportRuntime` owns export orchestration,
-  canonical-revenue quality warning flow and HVTC/revenue/installment XLSX
-  rendering; `SalesReportsService` remains the stable facade and retains
-  scope/query, Prisma loading, imports, ERP, follow-up, BigQuery and revenue
-  aggregation owners. The intake checkpoint is clean and byte-identical across
-  two snapshots; source edits and focused proof are in progress.
+- Current slice: `OPS-96` MAP Vietin HTTP/session/backoff extraction, on the
+  fresh lifecycle worktree `../opshub-ops-96` and branch
+  `codex/ops-96-map-vietin-http-session-backoff`, created from exact live
+  `origin/staging@e6a0085d1d40bdded5c019e72451ec42a5e496e9`. The planned
+  `MapVietinProviderRuntime` owns bounded provider transport, MAP/eFAST session
+  caching and provider backoff/retry-after state; `MapVietinService` remains
+  the stable facade and retains request builders, credential crypto, scheduler,
+  persistence, statement policy and response mapping. The intake checkpoint is
+  clean and byte-identical across two snapshots; source edits and focused proof
+  are committed on the task branch; publication gates remain open.
   OPS-89 cache state, in-flight dedupe, refresh-ahead, daily-series extension,
   support caches, scope-option caching and projection invalidation remain in
   `home-summary-cache.runtime.ts`.
@@ -439,8 +439,13 @@ god-helper.
   `staging` at `8c9793545c98b97336b0753f1d7a60ff60e72ac3`; staging deploy
   `31764343895` and the post-merge lifecycle finish gate passed. Linear remains
   `Ready for QA` until production deployment.
-- [ ] Publish OPS-95 Sales Reports export orchestration through the guarded
-  feature-PR flow and complete its staging/lifecycle gates.
+- [x] Publish OPS-95 Sales Reports export orchestration through the guarded
+  feature-PR flow. PR #206 merged into `staging` at
+  `e6a0085d1d40bdded5c019e72451ec42a5e496e9`; staging deploy `31767383719`
+  passed and the post-merge lifecycle cleanup removed its worktree and local
+  branch. Linear is `Ready for QA`; production deployment remains outstanding.
+- [ ] Complete OPS-96 MAP Vietin HTTP/session/backoff extraction from the exact
+  `origin/staging@e6a0085d1d40bdded5c019e72451ec42a5e496e9` checkpoint.
 - [ ] Run Phase 7B CI shadow metrics, Phase 8 artifact cleanup, Phase 9 runtime
   waves and Phase 10 final consolidation.
 
@@ -882,6 +887,30 @@ Phase 9D runtime checkpoint (OPS-95, Sales Reports export orchestration slice):
   Home/sales-report/follow-up matrix `128/128` pass. The initial combined
   Flutter batch timed out with a closed reporter pipe; per-file serial runs
   are the accepted proof. Exact commit runner and publication gates remain.
+
+Phase 9E runtime checkpoint (OPS-96, MAP Vietin provider slice):
+
+- Slice branch/worktree: `codex/ops-96-map-vietin-http-session-backoff` in
+  `../opshub-ops-96`, started from exact live
+  `origin/staging@e6a0085d1d40bdded5c019e72451ec42a5e496e9`; canonical staging
+  and the OPS-68/OPS-72 worktrees were preserved.
+- Planned extraction: move bounded MAP/eFAST HTTP transport, MAP/global and
+  eFAST session caching, provider backoff and Retry-After parsing into
+  `MapVietinProviderRuntime`. `MapVietinService` keeps request construction,
+  credential crypto, scheduler, persistence, statement policy and response
+  mapping. No route, DTO, DI, permission, API/data, UI or Vietnamese-copy
+  change is intended.
+- Intake checkpoint: branch/head, status/untracked, tracked-index and binary
+  diff hashes were captured twice with identical results before source edits;
+  checkpoint hash is `985c34b4d3661f0669ced1b74738b3e38b80eb816a146d9d69aee51f8bc39a7e`.
+- Pre-publication characterization passes: MAP provider runtime and
+  MapVietinService `156/156`; affected Flutter Payment Monitor, Bank Statement,
+  VietQR and API rate-limit matrix `164/164` across 18 files with
+  `--concurrency=1`; `flutter analyze --no-pub`, Prisma validate, Nest build,
+  Prettier and `git diff --check` pass. Exact runner with additive `flutter`
+  profile passes `harness,docs,nestjs,flutter`, `stale=false`, exit `0` and five
+  changed paths; final publication, staging deploy and lifecycle cleanup remain
+  open.
 
 ## Validation
 
