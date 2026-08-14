@@ -8,6 +8,7 @@ import { SalesReportsModule } from '../sales-reports/sales-reports.module';
 import { MapVietinController } from './map-vietin.controller';
 import { MapVietinService } from './map-vietin.service';
 import { MapVietinProviderRuntime } from './map-vietin-provider.runtime';
+import { MapVietinSyncCoordinator } from './map-vietin-sync.runtime';
 
 @Module({
   imports: [
@@ -19,7 +20,11 @@ import { MapVietinProviderRuntime } from './map-vietin-provider.runtime';
     SalesReportsModule,
   ],
   controllers: [MapVietinController],
-  providers: [MapVietinProviderRuntime, MapVietinService],
+  providers: [
+    MapVietinProviderRuntime,
+    MapVietinSyncCoordinator,
+    MapVietinService,
+  ],
   exports: [MapVietinService],
 })
 export class MapVietinModule {}
