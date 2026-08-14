@@ -5,6 +5,7 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
   rmSync,
   writeFileSync,
@@ -18,6 +19,7 @@ import {
   EXIT_CODES,
   parseArgs,
   prepareTaskToolchain,
+  toolchainFingerprint,
 } from '../../scripts/prepare-task-toolchain.mjs';
 
 function git(cwd, args) {
@@ -358,6 +360,114 @@ test('first prepare hydrates Nest/Prisma and second prepare is cached', (t) => {
   });
   assert.equal(second.exitCode, EXIT_CODES.PASS);
   assert.equal(second.result.status, 'cached');
+});
+
+test('Nest hydration fingerprint ignores workflow scripts but tracks dependency state', (t) => {
+  const root = fixture(t);
+  const packagePath = path.join(root, 'backend-nest', 'package.json');
+  const before = toolchainFingerprint(root, 'nestjs');
+
+  writeFileSync(
+    packagePath,
+    JSON.stringify({
+      name: 'fixture',
+      scripts: { prebuild: 'node scripts/run-with-toolchain.mjs' },
+    }),
+  );
+  assert.equal(
+    toolchainFingerprint(root, 'nestjs'),
+    before,
+    'adding a lifecycle gate must not rerun npm ci',
+  );
+
+  writeFileSync(
+    packagePath,
+    JSON.stringify({
+      name: 'fixture',
+      scripts: { prebuild: 'node scripts/run-with-toolchain.mjs' },
+      dependencies: { 'dependency-change': '1.0.0' },
+    }),
+  );
+  assert.notEqual(
+    toolchainFingerprint(root, 'nestjs'),
+    before,
+    'a dependency graph change must invalidate hydration',
+  );
+});
+
+test('ENOTEMPTY npm ci failure quarantines stale node_modules and retries once', (t) => {
+  const root = fixture(t);
+  mkdirSync(
+    path.join(root, 'backend-nest', 'node_modules', 'apache-arrow', 'builder'),
+    { recursive: true },
+  );
+  writeFileSync(
+    path.join(root, 'backend-nest', 'node_modules', 'apache-arrow', 'builder', 'locked.txt'),
+    'stale dependency tree\n',
+  );
+
+  const calls = [];
+  let npmAttempts = 0;
+  const success = successfulStepFactory([]);
+  const result = prepareTaskToolchain({
+    root,
+    profile: 'nestjs',
+    runStepFn: (currentRoot, step) => {
+      calls.push(step.id);
+      if (step.id === 'nestjs-npm-ci' && npmAttempts++ === 0) {
+        return {
+          id: step.id,
+          status: 'environment-failure',
+          exitCode: 1,
+          executable: step.executable,
+          argv: step.argv,
+          error: 'npm ERR! code ENOTEMPTY: directory not empty, rmdir node_modules/apache-arrow/builder',
+        };
+      }
+      return success(currentRoot, step);
+    },
+  });
+
+  assert.equal(result.exitCode, EXIT_CODES.PASS);
+  assert.equal(result.result.status, 'prepared');
+  assert.deepEqual(calls, [
+    'nestjs-npm-ci',
+    'nestjs-npm-ci',
+    'nestjs-prisma-generate',
+  ]);
+  assert.equal(result.result.recoveries.length, 1);
+  assert.equal(result.result.recoveries[0].status, 'quarantined');
+  assert.equal(
+    readdirSync(path.join(root, 'backend-nest')).some((name) =>
+      name.startsWith('.opshub-node_modules-recovery-'),
+    ),
+    false,
+    'successful hydration removes the quarantine copy',
+  );
+});
+
+test('ENOTEMPTY recovery fails closed when node_modules is not a physical directory', (t) => {
+  const root = fixture(t);
+  writeFileSync(path.join(root, 'backend-nest', 'node_modules'), 'not a directory\n');
+
+  const result = prepareTaskToolchain({
+    root,
+    profile: 'nestjs',
+    runStepFn: (_currentRoot, step) => ({
+      id: step.id,
+      status: 'environment-failure',
+      exitCode: 1,
+      executable: step.executable,
+      argv: step.argv,
+      error: 'npm ERR! code ENOTEMPTY: directory not empty, rmdir node_modules',
+    }),
+  });
+
+  assert.equal(result.exitCode, EXIT_CODES.ENVIRONMENT);
+  assert.equal(result.result.status, 'environment-failure');
+  assert.equal(result.result.recoveries[0].status, 'failed');
+  assert.match(result.result.recoveries[0].error, /không phải thư mục vật lý/i);
+  assert.equal(existsSync(path.join(root, 'backend-nest', 'node_modules')), true);
 });
 
 test('partial Nest dependency loss invalidates the cached readiness', (t) => {

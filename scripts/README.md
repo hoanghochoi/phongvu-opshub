@@ -117,6 +117,35 @@ The OpsHub task lifecycle remains in `scripts/task-lifecycle.mjs`; feature
 branches target `staging` and production promotion follows
 `docs/runbooks/git-release-playbook.md`.
 
+## Toolchain execution gate
+
+Repository-owned build and test commands should use the structured gate so a
+resumed or manually-created worktree repairs dependencies before the command
+starts:
+
+```text
+node scripts/run-with-toolchain.mjs --profile flutter -- flutter analyze
+node scripts/run-with-toolchain.mjs --profile flutter -- flutter test
+node scripts/run-with-toolchain.mjs --profile flutter -- flutter build web --release
+node scripts/run-with-toolchain.mjs --profile nestjs --cwd backend-nest -- npm run build
+node scripts/run-with-toolchain.mjs --profile nestjs --cwd backend-nest -- npm test -- --runInBand
+node scripts/run-with-toolchain.mjs --profile nestjs --cwd backend-nest -- npx --no-install prisma migrate deploy
+node scripts/run-with-toolchain.mjs --profile all --preflight-only
+```
+
+The command after `--` is passed as structured `cwd + executable + argv`; no
+shell command string is stored. Flutter `analyze`, `test` and `build` commands
+automatically receive `--no-pub` after the shared preflight, preventing an
+implicit second Pub-cache writer. Exit codes are `0` pass, `2` contract,
+`3` product/test failure and `5` environment/preflight failure. Use `--json`
+for a sanitized schema-v1 result containing the readiness result, command
+fingerprint and duration.
+
+Nest package lifecycle hooks call the gate in prebuild/pretest/prestart and
+related development commands, so direct `npm run build`/`npm test` cannot skip
+the readiness check. The hook never runs a second npm script recursively; it
+only hydrates/checks the selected profile.
+
 ## Fresh task toolchain preflight
 
 Fresh task worktrees intentionally do not carry ignored dependency directories.
@@ -129,10 +158,14 @@ node scripts/task-lifecycle.mjs start \
   --worktree ..\opshub-ops-123 --execute
 ```
 
-`--prepare-profile nestjs` uses `backend-nest/package-lock.json`, Prisma
-schema/config and the local Node platform as a fingerprint, then runs `npm ci
---include=dev --ignore-scripts` followed by `npx --no-install prisma generate` when the
-fingerprint is not ready. A cached Nest result is accepted only when the hidden
+`--prepare-profile nestjs` uses the dependency-relevant fields from
+`backend-nest/package.json` (dependencies, devDependencies, optional/peer
+dependencies, overrides, engines and packageManager), `package-lock.json`,
+Prisma schema/config and the local Node platform as a fingerprint. Workflow
+scripts such as `prebuild` do not invalidate dependency readiness, so adding a
+gate cannot trigger a needless second `npm ci`. When the fingerprint is not
+ready, the preparer runs `npm ci --include=dev --ignore-scripts` followed by
+`npx --no-install prisma generate`. A cached Nest result is accepted only when the hidden
 install lock is valid, every locked package has its `package.json`, direct
 dependencies are present, and the generated Prisma entrypoints exist.
 `--prepare-profile flutter` fingerprints `pubspec.yaml`/`pubspec.lock` plus the
@@ -163,6 +196,16 @@ hydrates the selected worktree, rechecks its actual package graph and rewrites
 only its ignored readiness state. Standalone validation scripts must run the
 same preflight before any Flutter or Nest command; Flutter test commands then
 use `--no-pub` so an implicit second dependency writer cannot bypass the gate.
+
+If Windows `npm ci` reports `ENOTEMPTY`, `directory not empty` or an `rmdir`
+failure while replacing `backend-nest/node_modules`, the preparer quarantines
+that ignored dependency directory under
+`backend-nest/.opshub-node_modules-recovery-<pid>-<timestamp>/`, retries
+`npm ci` once, and removes the quarantine after Prisma readiness is confirmed.
+A symlink, locked directory or failed rename is reported as an environment
+failure with the recovery path; the gate never deletes tracked files or
+silently accepts a partial install. Close the process holding the directory
+and rerun the same preflight/doctor command.
 
 The default lifecycle profile is `all`; `--prepare-profile nestjs|flutter` is
 reserved for an explicitly narrow task. Verification and affected-consumer

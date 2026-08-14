@@ -114,12 +114,9 @@ staging or production secret.
 Run the Nest API:
 
 ```bash
-cd backend-nest
-copy .env.example .env
-npm install
-npx prisma generate
-npx prisma migrate deploy
-npm run start:dev
+copy backend-nest/.env.example backend-nest/.env
+node scripts/run-with-toolchain.mjs --profile nestjs --cwd backend-nest -- npx --no-install prisma migrate deploy
+node scripts/run-with-toolchain.mjs --profile nestjs --cwd backend-nest -- npm run start:dev
 ```
 
 Run the realtime service in another terminal:
@@ -133,7 +130,7 @@ go run .
 Run the Flutter app against the local API:
 
 ```bash
-flutter run --dart-define=API_BASE_URL=http://localhost:3000
+node scripts/run-with-toolchain.mjs --profile flutter -- flutter run --dart-define=API_BASE_URL=http://localhost:3000
 ```
 
 ## Smoke Checks
@@ -359,15 +356,15 @@ Expected responses:
 From the repository root:
 
 ```bash
-flutter analyze
-flutter test
+node scripts/run-with-toolchain.mjs --profile flutter -- flutter analyze
+node scripts/run-with-toolchain.mjs --profile flutter -- flutter test
 ```
 
 From `backend-nest/`:
 
 ```bash
-npm run build
-npm test -- --runInBand
+node scripts/run-with-toolchain.mjs --profile nestjs --cwd backend-nest -- npm run build
+node scripts/run-with-toolchain.mjs --profile nestjs --cwd backend-nest -- npm test -- --runInBand
 ```
 
 From `backend-go/`:

@@ -5,9 +5,11 @@ import { spawnSync } from 'node:child_process';
 import {
   closeSync,
   existsSync,
+  lstatSync,
   mkdirSync,
   openSync,
   readFileSync,
+  rmSync,
   renameSync,
   statSync,
   unlinkSync,
@@ -25,7 +27,7 @@ export const EXIT_CODES = Object.freeze({
 
 // Bumped when hydration behavior/commands or readiness probes change so old
 // cached readiness is never trusted after a toolchain policy update.
-const SCHEMA_VERSION = 5;
+const SCHEMA_VERSION = 6;
 const PROFILE_ID = 'nestjs';
 const FLUTTER_PROFILE_ID = 'flutter';
 const ALL_PROFILE_ID = 'all';
@@ -35,6 +37,7 @@ const SUPPORTED_PROFILES = Object.freeze([
   ALL_PROFILE_ID,
 ]);
 const STATE_PATH = 'tmp/opshub-toolchain-state.json';
+const NODE_MODULES_RECOVERY_PREFIX = '.opshub-node_modules-recovery-';
 const NESTJS_REQUIRED_FILES = [
   'backend-nest/package.json',
   'backend-nest/package-lock.json',
@@ -151,6 +154,47 @@ function hashFile(root, relativePath) {
   return createHash('sha256').update(readFileSync(absolutePath)).digest('hex');
 }
 
+function sortJson(value) {
+  if (Array.isArray(value)) return value.map((entry) => sortJson(entry));
+  if (value && typeof value === 'object') {
+    return Object.fromEntries(
+      Object.keys(value)
+        .sort()
+        .map((key) => [key, sortJson(value[key])]),
+    );
+  }
+  return value;
+}
+
+function nestDependencyManifest(root) {
+  const relativePath = 'backend-nest/package.json';
+  const packagePath = path.resolve(root, relativePath);
+  const packageJson = readJsonFile(packagePath);
+  if (!packageJson || typeof packageJson !== 'object') {
+    fail(EXIT_CODES.CONTRACT, `Không đọc được JSON contract: ${relativePath}`);
+  }
+
+  // Scripts are workflow policy, not dependency state. Keeping them out of
+  // the hydration fingerprint prevents adding a lifecycle preflight from
+  // needlessly rerunning npm ci and touching Windows node_modules.
+  return sortJson({
+    dependencies: packageJson.dependencies || {},
+    devDependencies: packageJson.devDependencies || {},
+    optionalDependencies: packageJson.optionalDependencies || {},
+    peerDependencies: packageJson.peerDependencies || {},
+    bundledDependencies: packageJson.bundledDependencies || packageJson.bundleDependencies || [],
+    overrides: packageJson.overrides || {},
+    engines: packageJson.engines || {},
+    packageManager: packageJson.packageManager || null,
+  });
+}
+
+function hashDependencyManifest(root) {
+  return createHash('sha256')
+    .update(JSON.stringify(nestDependencyManifest(root)))
+    .digest('hex');
+}
+
 function requiredFilesForProfile(profile) {
   if (profile === PROFILE_ID) return NESTJS_REQUIRED_FILES;
   if (profile === FLUTTER_PROFILE_ID) return FLUTTER_REQUIRED_FILES;
@@ -209,7 +253,9 @@ export function toolchainFingerprint(root, profile = PROFILE_ID) {
   const files = Object.fromEntries(
     requiredFiles.map((relativePath) => [
       relativePath,
-      hashFile(root, relativePath),
+      relativePath === 'backend-nest/package.json'
+        ? hashDependencyManifest(root)
+        : hashFile(root, relativePath),
     ]),
   );
   return createHash('sha256')
@@ -363,14 +409,102 @@ function releaseFlutterPubCacheLock(lockPath) {
   }
 }
 
-function runHydrationStep(root, step, runStepFn) {
-  if (step.id !== 'flutter-pub-get') return runStepFn(root, step);
-  const lockPath = acquireFlutterPubCacheLock(root);
-  try {
-    return runStepFn(root, step);
-  } finally {
-    releaseFlutterPubCacheLock(lockPath);
+function runHydrationStep(root, step, runStepFn, recoveryPaths = []) {
+  if (step.id === 'flutter-pub-get') {
+    const lockPath = acquireFlutterPubCacheLock(root);
+    try {
+      return runStepFn(root, step);
+    } finally {
+      releaseFlutterPubCacheLock(lockPath);
+    }
   }
+
+  const firstResult = runStepFn(root, step);
+  if (!isNodeModulesDirectoryConflict(firstResult)) return firstResult;
+
+  const recovery = quarantineNestNodeModules(root);
+  if (recovery.status !== 'quarantined') {
+    return { ...firstResult, recovery };
+  }
+  recoveryPaths.push(recovery.path);
+  const retryResult = runStepFn(root, step);
+  return { ...retryResult, recovery };
+}
+
+function isNodeModulesDirectoryConflict(stepResult) {
+  return (
+    stepResult?.id === 'nestjs-npm-ci' &&
+    /(?:ENOTEMPTY|directory not empty|rmdir|rename .*node_modules)/i.test(
+      String(stepResult.error || ''),
+    )
+  );
+}
+
+function quarantineNestNodeModules(root) {
+  const nodeModules = path.resolve(root, 'backend-nest/node_modules');
+  if (!existsSync(nodeModules)) {
+    return { status: 'not-present' };
+  }
+
+  let metadata;
+  try {
+    metadata = lstatSync(nodeModules);
+  } catch (error) {
+    return {
+      status: 'failed',
+      error: sanitizeDiagnostic(error?.message || error, root),
+    };
+  }
+  if (!metadata.isDirectory() || metadata.isSymbolicLink()) {
+    return {
+      status: 'failed',
+      error:
+        'backend-nest/node_modules không phải thư mục vật lý; không quarantine tự động.',
+    };
+  }
+
+  const recoveryName = `${NODE_MODULES_RECOVERY_PREFIX}${process.pid}-${Date.now()}`;
+  const recoveryPath = path.resolve(root, 'backend-nest', recoveryName);
+  try {
+    renameSync(nodeModules, recoveryPath);
+    return {
+      status: 'quarantined',
+      path: path.relative(root, recoveryPath).replaceAll('\\', '/'),
+    };
+  } catch (error) {
+    return {
+      status: 'failed',
+      error: sanitizeDiagnostic(
+        `Không thể quarantine backend-nest/node_modules: ${error?.message || error}`,
+        root,
+      ),
+    };
+  }
+}
+
+function cleanupNodeModulesRecovery(root, recoveryPaths) {
+  const failures = [];
+  for (const relativePath of recoveryPaths) {
+    const recoveryPath = path.resolve(root, relativePath);
+    const relative = path.relative(root, recoveryPath);
+    if (
+      relative === '..' ||
+      relative.startsWith(`..${path.sep}`) ||
+      path.isAbsolute(relative) ||
+      !relative.startsWith(`backend-nest${path.sep}${NODE_MODULES_RECOVERY_PREFIX}`)
+    ) {
+      failures.push(`${relativePath}: đường dẫn recovery không hợp lệ`);
+      continue;
+    }
+    try {
+      rmSync(recoveryPath, { recursive: true, force: true });
+    } catch (error) {
+      failures.push(
+        `${relativePath}: ${sanitizeDiagnostic(error?.message || error, root)}`,
+      );
+    }
+  }
+  return failures;
 }
 
 function readJsonFile(filePath) {
@@ -823,6 +957,7 @@ function resultBase(root, profile, fingerprint, options) {
     forced: options.force,
     toolchain: toolchainVersions(profile),
     retries: [],
+    recoveries: [],
     readiness: readinessForProfile(root, profile),
     steps: [],
   };
@@ -838,11 +973,18 @@ function isRetryablePrismaFailure(stepResult) {
 }
 
 function isRetryableToolchainFailure(stepResult) {
+  if (stepResult?.recovery?.status === 'failed') return false;
+  if (
+    stepResult?.recovery?.status === 'quarantined' &&
+    isNodeModulesDirectoryConflict(stepResult)
+  ) {
+    return false;
+  }
   if (isRetryablePrismaFailure(stepResult)) return true;
   if (!['nestjs-npm-ci', 'flutter-pub-get'].includes(stepResult?.id)) {
     return false;
   }
-  return /(?:EINTEGRITY|ECONNRESET|ECONNREFUSED|ETIMEDOUT|EAI_AGAIN|ENOENT|EPERM|EBUSY|MODULE_NOT_FOUND|cannot find module|package .* not found|failed to materialize|failed to load)/i.test(
+  return /(?:EINTEGRITY|ECONNRESET|ECONNREFUSED|ETIMEDOUT|EAI_AGAIN|ENOENT|ENOTEMPTY|EPERM|EBUSY|MODULE_NOT_FOUND|cannot find module|directory not empty|package .* not found|failed to materialize|failed to load)/i.test(
     String(stepResult.error || ''),
   );
 }
@@ -885,12 +1027,25 @@ function prepareSingleProfile({
       ? snapshotGeneratedFiles(resolvedRoot, beforeEntries)
       : null;
   result.steps = [];
+  const recoveryPaths = [];
   let attempt = 0;
   while (attempt < 2) {
     attempt += 1;
     let retry = false;
     for (const step of steps) {
-      const rawStepResult = runHydrationStep(resolvedRoot, step, runStepFn);
+      const rawStepResult = runHydrationStep(
+        resolvedRoot,
+        step,
+        runStepFn,
+        recoveryPaths,
+      );
+      if (rawStepResult?.recovery) {
+        result.recoveries.push({
+          step: step.id,
+          attempt,
+          ...rawStepResult.recovery,
+        });
+      }
       const stepResult = {
         ...rawStepResult,
         ...(rawStepResult?.error
@@ -945,6 +1100,18 @@ function prepareSingleProfile({
   result.readiness = readinessForProfile(resolvedRoot, profile);
   if (!isReadyForProfile(result.readiness, profile)) {
     result.status = 'environment-failure';
+    return { exitCode: EXIT_CODES.ENVIRONMENT, result };
+  }
+  const recoveryCleanupFailures = cleanupNodeModulesRecovery(
+    resolvedRoot,
+    recoveryPaths,
+  );
+  if (recoveryCleanupFailures.length > 0) {
+    result.status = 'environment-failure';
+    result.error =
+      'Đã hydrate dependency nhưng không dọn được quarantine node_modules; ' +
+      'đóng process đang giữ file rồi chạy lại preflight:\n' +
+      recoveryCleanupFailures.join('\n');
     return { exitCode: EXIT_CODES.ENVIRONMENT, result };
   }
   state.schemaVersion = SCHEMA_VERSION;

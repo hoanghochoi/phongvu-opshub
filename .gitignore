@@ -89,6 +89,7 @@ data/*.json
 .agents/backups/
 backend-nest/dist/
 backend-nest/node_modules/
+backend-nest/.opshub-node_modules-recovery-*/
 backend-nest/coverage/
 backend-nest/check_user*
 backend-nest/query.sql

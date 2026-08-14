@@ -4,22 +4,20 @@ Date: 2026-08-13
 
 ## Status
 
-Active — the current workflow checkpoint is OPS-110 on
-`origin/staging@229603e23d1bf6d408e5de38465dec55ca71db8f`. OPS-109 dependency
-bootstrap closure is merged by PR #222 at this exact SHA; its toolchain and
-coverage proof passed and Linear remains `Ready for QA`. OPS-106 dependency
-integrity hardening is merged by PR #218 at `39d2918f`; OPS-103 UserService
-characterization is merged by PR #220 at `5d59ba51`; OPS-107 MAP
-characterization is merged by PR #219 at `100f2ad3`. Their guarded lifecycle
-cleanup has completed and production deployment is still pending. Five live
-shadow observations pass; one historical contract gap (#182) was explicitly
-captured and fixed in the OPS-72 follow-up. OPS-74 runtime waves through
-OPS-109, the Nest/Prisma bootstrap, User/Auth characterization and UserService
-profile/admin extraction are merged; OPS-68 remains protected with its
-authoritative OPS-69 correction and OPS-72 remains `Ready for QA` with live
-timing baseline pending. OPS-110 owns UserService import/welcome-email
-extraction; MAP persistence extraction, remaining runtime waves and production
-release remain open.
+Active — the current workflow checkpoint is OPS-111 on
+`origin/staging@ba6cba8ceba7f1b025d94d021f00071e411bd70a`. OPS-110 UserService
+import/welcome-email extraction is merged at this SHA; its focused proof,
+exact verification, staging deploy and guarded lifecycle cleanup passed, and
+Linear remains `Ready for QA` pending production. OPS-111 now closes the
+remaining dependency bootstrap loop: the shared execution gate, dependency
+only Nest fingerprint, Windows `ENOTEMPTY` quarantine/retry and raw build/test
+command coverage are implemented in the task worktree; publication and
+staging proof remain open. OPS-106 dependency integrity hardening, OPS-103
+UserService characterization, OPS-107 MAP characterization and the earlier
+runtime waves remain merged with production deployment still pending. Five
+live shadow observations pass; one historical contract gap (#182) was
+explicitly captured and fixed in the OPS-72 follow-up. MAP persistence
+extraction, remaining runtime waves and production release remain open.
 
 ## Outcome
 
@@ -1432,7 +1430,7 @@ Current live upstream retry evidence:
 - No product/runtime/API/UI behavior is changed. The remaining gate is exact
   final proof, PR/staging lifecycle and cleanup of this task worktree.
 
-## Workflow checkpoint (OPS-110 current; UserService import and welcome email)
+## Historical workflow checkpoint (OPS-110; UserService import and welcome email)
 
 - OPS-110 is the current runtime slice. Its branch/worktree is
   `codex/ops-110-extract-userservice-import-and-welcome-email` /
@@ -1440,18 +1438,43 @@ Current live upstream retry evidence:
   `origin/staging@229603e23d1bf6d408e5de38465dec55ca71db8f`. The intake
   checkpoint was captured twice with identical SHA-256
   `b12e1d8f4e0b41c00a2b3cc7fd133b48659cf8fb36a48dddaa23836d7193e1f1`.
-- The slice keeps `UserService` as the public facade and extracts import
+- The slice kept `UserService` as the public facade and extracted import
   preparation/persistence/access-change orchestration into
   `UserImportService`; welcome-email delivery is isolated in
   `UserWelcomeEmailService`. Routes, DTOs, DI tokens, permissions, response
   shapes, organization resolution and access-change reasons are unchanged.
-- Characterization proof currently passes the UserService suite `73/73` and
-  the collaborator suite `4/4`; Nest build and `git diff --check` pass. The
-  exact affected runner, final staged diff review, PR/CI, staging deploy and
-  guarded lifecycle cleanup remain required before the slice can advance.
+- Characterization proof passed the UserService suite `73/73` and the
+  collaborator suite `4/4`; the exact runner, Nest build, PR/CI, staging
+  deploy `31824663356`, CodeQL `31824663334` and guarded lifecycle cleanup all
+  passed. The merge commit is
+  `ba6cba8ceba7f1b025d94d021f00071e411bd70a`; Linear remains `Ready for QA`
+  pending production deployment.
 - Rollback is the single OPS-110 merge commit; removing the two collaborators
   and restoring the facade implementation returns the prior behavior. No
-  database or runtime data migration is required.
+  database or runtime data migration was required.
+
+## Workflow checkpoint (OPS-111 current; toolchain execution gate)
+
+- OPS-111 is the current tooling slice. Its branch/worktree is
+  `codex/ops-111-toolchain-execution-gate` / `../opshub-ops-111`, created from
+  exact live `origin/staging@ba6cba8ceba7f1b025d94d021f00071e411bd70a`.
+  The intake checkpoint was captured twice with identical SHA-256
+  `d6a585ee1b1d2dfa7b1b7e6cb423b5ee05153beae6a1607ea2ce2e003adca9a6`.
+- The slice adds `scripts/run-with-toolchain.mjs`, lifecycle preflight hooks
+  for direct Nest build/test/start commands, explicit Flutter `--no-pub`
+  release gates and coverage tests. Nest hydration fingerprints only
+  dependency-relevant package fields; workflow script edits therefore do not
+  rerun `npm ci`. A Windows `ENOTEMPTY`/`rmdir` conflict quarantines the
+  ignored `node_modules` directory, retries once and cleans it after Prisma
+  readiness; symlink/rename failures remain fail-closed.
+- Proof currently passes: toolchain suites `33/33`, exact preflight on the
+  real worktree (943 packages and Prisma generated), cached repeat preflight
+  in about 1.3s, Nest build, and the full Nest suite `111/111` with
+  `1,236` passed and `6` skipped. Publication, exact affected runner, PR/CI,
+  staging deploy and guarded lifecycle cleanup remain required.
+- Rollback is the single OPS-111 revert/merge commit. The change affects only
+  dependency preparation and command execution gates; no product/API/UI/data
+  behavior changes.
 
 ## Result
 
@@ -1464,8 +1487,9 @@ OPS-65 PR #175, OPS-68 PR #176, and OPS-69 PRs #177/#178 are merged into
 `staging`; each remains subject to its documented QA/production lifecycle
 gates. The current OPS-78 follow-up owns the Windows migration-EOL preflight,
 OPS-106 owns the merged dependency-integrity hardening, OPS-109 owns the
-merged dependency-bootstrap closure, and OPS-110 owns the in-progress
-UserService import/welcome-email extraction.
+merged dependency-bootstrap closure, OPS-110 owns the merged UserService
+import/welcome-email extraction, and OPS-111 owns the current toolchain
+execution gate and Windows dependency recovery.
 Move this plan to
 `docs/plans/completed/` only after the full initiative's final validation and
 production lifecycle are complete.
