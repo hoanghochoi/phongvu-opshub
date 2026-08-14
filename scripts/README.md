@@ -120,31 +120,38 @@ branches target `staging` and production promotion follows
 ## Fresh task toolchain preflight
 
 Fresh task worktrees intentionally do not carry ignored dependency directories.
-For a NestJS task, prepare the local toolchain immediately after the lifecycle
-creates the branch:
+Prepare the local toolchain immediately after the lifecycle creates a branch
+when the task touches runtime code:
 
 ```text
 node scripts/task-lifecycle.mjs start \
   --issue OPS-123 --slug short-description \
-  --worktree ..\opshub-ops-123 --prepare --execute
+  --worktree ..\opshub-ops-123 --prepare --prepare-profile all --execute
 ```
 
-`--prepare` runs the NestJS preflight in the new worktree. The preflight uses
-`backend-nest/package-lock.json`, Prisma schema/config and the local Node
-platform as a fingerprint, then runs `npm ci --ignore-scripts` followed by
-`npx --no-install prisma generate` when the fingerprint is not ready. A
-repository-relative ignored state file at `tmp/opshub-toolchain-state.json`
-allows a matching ready worktree to return `cached`; `--force` reruns both
-steps and `--dry-run` reports them without writing dependencies or state:
+`--prepare-profile nestjs` uses `backend-nest/package-lock.json`, Prisma
+schema/config and the local Node platform as a fingerprint, then runs `npm ci
+--include=dev --ignore-scripts` followed by `npx --no-install prisma generate` when the
+fingerprint is not ready. `--prepare-profile flutter` fingerprints
+`pubspec.yaml`/`pubspec.lock` plus the Flutter revision in `.metadata`, then
+runs `flutter pub get --enforce-lockfile`.
+Flutter's generated platform/l10n files are reconciled against a narrow
+allowlist and restored when they are created by hydration; unexpected tracked
+or non-ignored files fail closed. A repository-relative ignored state file at
+`tmp/opshub-toolchain-state.json` caches each profile independently:
 
 ```text
 node scripts/prepare-task-toolchain.mjs --profile nestjs --dry-run
 node scripts/prepare-task-toolchain.mjs --profile nestjs --json tmp/prepare.json
 node scripts/prepare-task-toolchain.mjs --profile nestjs --force
+node scripts/prepare-task-toolchain.mjs --profile flutter --dry-run
+node scripts/prepare-task-toolchain.mjs --profile all --force
 ```
 
-The preflight owns only NestJS/Prisma. Flutter dependency hydration remains a
-separate gate because `flutter pub get` may generate tracked localization or
-plugin files that require an explicit review and cleanup decision. A failed
-prepare is an environment failure and the lifecycle removes the newly-created
-task worktree/branch, including reviewed ignored output.
+The verification profile invokes the matching preflight before
+`flutter analyze --no-pub` or `npm run build`, so a fresh worktree cannot reach
+the analyzer/build with missing dependencies. Hydration is still fail-closed:
+a lockfile change, unexpected tracked mutation or non-ignored generated file is
+an environment failure. A failed prepare is an environment failure and the
+lifecycle removes the newly-created task worktree/branch, including reviewed
+ignored output.

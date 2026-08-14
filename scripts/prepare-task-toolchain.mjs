@@ -12,15 +12,40 @@ export const EXIT_CODES = Object.freeze({
   ENVIRONMENT: 5,
 });
 
-const SCHEMA_VERSION = 1;
+// Bumped when hydration behavior/commands change so old cached readiness is
+// never trusted after a toolchain policy update.
+const SCHEMA_VERSION = 2;
 const PROFILE_ID = 'nestjs';
+const FLUTTER_PROFILE_ID = 'flutter';
+const ALL_PROFILE_ID = 'all';
+const SUPPORTED_PROFILES = Object.freeze([
+  PROFILE_ID,
+  FLUTTER_PROFILE_ID,
+  ALL_PROFILE_ID,
+]);
 const STATE_PATH = 'tmp/opshub-toolchain-state.json';
-const REQUIRED_FILES = [
+const NESTJS_REQUIRED_FILES = [
   'backend-nest/package.json',
   'backend-nest/package-lock.json',
   'backend-nest/prisma/schema.prisma',
   'backend-nest/prisma.config.ts',
 ];
+const FLUTTER_REQUIRED_FILES = [
+  'pubspec.yaml',
+  'pubspec.lock',
+  '.metadata',
+];
+const COMMAND_MAX_BUFFER_BYTES = 16 * 1024 * 1024;
+
+const FLUTTER_GENERATED_TRACKED_PATHS = Object.freeze([
+  /^lib\/l10n\/.+\.dart$/,
+  /^ios\/Runner\/GeneratedPluginRegistrant\.(?:h|m)$/,
+  /^linux\/flutter\/generated_plugin_registrant\.(?:cc|h)$/,
+  /^linux\/flutter\/generated_plugins\.cmake$/,
+  /^macos\/Flutter\/GeneratedPluginRegistrant\.swift$/,
+  /^windows\/flutter\/generated_plugin_registrant\.(?:cc|h)$/,
+  /^windows\/flutter\/generated_plugins\.cmake$/,
+]);
 
 class PreparationError extends Error {
   constructor(code, message) {
@@ -76,10 +101,10 @@ export function parseArgs(argv) {
     fail(EXIT_CODES.CONTRACT, `Tham số không hỗ trợ: ${argument}`);
   }
 
-  if (options.profile !== PROFILE_ID) {
+  if (!SUPPORTED_PROFILES.includes(options.profile)) {
     fail(
       EXIT_CODES.CONTRACT,
-      `Profile không hỗ trợ: ${options.profile}. Slice này chỉ hỗ trợ ${PROFILE_ID}.`,
+      `Profile không hỗ trợ: ${options.profile}. Chọn một trong: ${SUPPORTED_PROFILES.join(', ')}.`,
     );
   }
   return options;
@@ -93,9 +118,16 @@ function hashFile(root, relativePath) {
   return createHash('sha256').update(readFileSync(absolutePath)).digest('hex');
 }
 
-export function toolchainFingerprint(root) {
+function requiredFilesForProfile(profile) {
+  if (profile === PROFILE_ID) return NESTJS_REQUIRED_FILES;
+  if (profile === FLUTTER_PROFILE_ID) return FLUTTER_REQUIRED_FILES;
+  fail(EXIT_CODES.CONTRACT, `Không có manifest cho profile: ${profile}.`);
+}
+
+export function toolchainFingerprint(root, profile = PROFILE_ID) {
+  const requiredFiles = requiredFilesForProfile(profile);
   const files = Object.fromEntries(
-    REQUIRED_FILES.map((relativePath) => [
+    requiredFiles.map((relativePath) => [
       relativePath,
       hashFile(root, relativePath),
     ]),
@@ -104,7 +136,7 @@ export function toolchainFingerprint(root) {
     .update(
       JSON.stringify({
         schemaVersion: SCHEMA_VERSION,
-        profile: PROFILE_ID,
+        profile,
         node: process.version,
         platform: process.platform,
         arch: process.arch,
@@ -146,7 +178,20 @@ function nestExecutable(name) {
   return process.platform === 'win32' ? `${name}.cmd` : name;
 }
 
-function readiness(root) {
+function flutterExecutable() {
+  return process.platform === 'win32' ? 'flutter.bat' : 'flutter';
+}
+
+function readinessForProfile(root, profile) {
+  if (profile === FLUTTER_PROFILE_ID) {
+    return {
+      pubspec: existsSync(path.resolve(root, 'pubspec.yaml')),
+      lockfile: existsSync(path.resolve(root, 'pubspec.lock')),
+      packageConfig: existsSync(
+        path.resolve(root, '.dart_tool', 'package_config.json'),
+      ),
+    };
+  }
   const nodeModules = path.resolve(root, 'backend-nest/node_modules');
   const nestBinary = path.join(nodeModules, '.bin', nestExecutable('nest'));
   const prismaPackage = path.join(
@@ -163,8 +208,122 @@ function readiness(root) {
   };
 }
 
-function isReady(value) {
+function isReadyForProfile(value, profile) {
+  if (profile === FLUTTER_PROFILE_ID) {
+    return value.pubspec && value.lockfile && value.packageConfig;
+  }
   return value.nestBinary && value.prismaPackage && value.prismaGenerated;
+}
+
+function normalizedStatusPath(value) {
+  return String(value).replaceAll('\\', '/');
+}
+
+function statusEntries(root) {
+  const result = spawnSync(
+    'git',
+    ['status', '--porcelain=v1', '--untracked-files=all'],
+    {
+      cwd: root,
+      encoding: 'utf8',
+      windowsHide: true,
+      maxBuffer: COMMAND_MAX_BUFFER_BYTES,
+    },
+  );
+  if (result.error || result.status !== 0) {
+    fail(
+      EXIT_CODES.ENVIRONMENT,
+      `Không đọc được trạng thái worktree trước/sau Flutter preflight: ${
+        result.error?.message || String(result.stderr || '').trim() || `exit ${result.status}`
+      }`,
+    );
+  }
+  return String(result.stdout || '')
+    .split(/\r?\n/)
+    .map((line) => line.trimEnd())
+    .filter(Boolean)
+    .map((line) => ({
+      raw: line,
+      path: normalizedStatusPath(line.slice(3)),
+      untracked: line.startsWith('?? '),
+    }));
+}
+
+function isFlutterGeneratedTrackedPath(relativePath) {
+  return FLUTTER_GENERATED_TRACKED_PATHS.some((pattern) => pattern.test(relativePath));
+}
+
+function restoreGeneratedPath(root, relativePath) {
+  const result = spawnSync(
+    'git',
+    ['restore', '--worktree', '--', relativePath],
+    {
+      cwd: root,
+      encoding: 'utf8',
+      windowsHide: true,
+      maxBuffer: COMMAND_MAX_BUFFER_BYTES,
+    },
+  );
+  if (result.error || result.status !== 0) {
+    fail(
+      EXIT_CODES.ENVIRONMENT,
+      `Không thể dọn generated Flutter path ${relativePath}: ${
+        result.error?.message || String(result.stderr || '').trim() || `exit ${result.status}`
+      }`,
+    );
+  }
+}
+
+function reconcileFlutterGeneratedChanges(root, beforeEntries) {
+  const beforeByPath = new Map(beforeEntries.map((entry) => [entry.path, entry]));
+  const afterEntries = statusEntries(root);
+  const introduced = [];
+
+  for (const entry of afterEntries) {
+    const before = beforeByPath.get(entry.path);
+    if (!before || before.raw !== entry.raw) introduced.push({ before, after: entry });
+  }
+
+  const unsafe = [];
+  for (const change of introduced) {
+    const { before, after } = change;
+    if (after.untracked) {
+      unsafe.push(`${after.path} (new non-ignored file)`);
+      continue;
+    }
+    if (!isFlutterGeneratedTrackedPath(after.path)) {
+      unsafe.push(`${after.path} (tracked file outside generated allowlist)`);
+      continue;
+    }
+    if (before) {
+      unsafe.push(`${after.path} (pre-existing user change was modified)`);
+      continue;
+    }
+    restoreGeneratedPath(root, after.path);
+  }
+
+  const remaining = statusEntries(root).filter((entry) => {
+    const before = beforeByPath.get(entry.path);
+    return !before || before.raw !== entry.raw;
+  });
+  if (remaining.length > 0) {
+    unsafe.push(...remaining.map((entry) => `${entry.path} (cleanup incomplete)`));
+  }
+  if (unsafe.length > 0) {
+    fail(
+      EXIT_CODES.ENVIRONMENT,
+      `Flutter pub get làm thay đổi worktree ngoài generated allowlist; review trước khi chạy tiếp:\n${[
+        ...new Set(unsafe),
+      ].join('\n')}`,
+    );
+  }
+  return {
+    introducedPaths: introduced.map(({ after }) => after.path),
+    restoredPaths: introduced
+      .filter(({ after }) => isFlutterGeneratedTrackedPath(after.path) && !after.untracked)
+      .map(({ after }) => after.path),
+    status: 'clean',
+  };
 }
 
 function sanitizedExecutable(executable) {
@@ -207,13 +366,23 @@ function runStep(root, step) {
   };
 }
 
-function stepsFor(root) {
+function stepsFor(root, profile) {
+  if (profile === FLUTTER_PROFILE_ID) {
+    return [
+      {
+        id: 'flutter-pub-get',
+        executable: flutterExecutable(),
+        argv: ['pub', 'get', '--enforce-lockfile'],
+        cwd: path.resolve(root),
+      },
+    ];
+  }
   const backendRoot = path.resolve(root, 'backend-nest');
   return [
-    {
-      id: 'nestjs-npm-ci',
-      executable: nestExecutable('npm'),
-      argv: ['ci', '--ignore-scripts'],
+      {
+        id: 'nestjs-npm-ci',
+        executable: nestExecutable('npm'),
+        argv: ['ci', '--include=dev', '--ignore-scripts'],
       cwd: backendRoot,
     },
     {
@@ -225,72 +394,80 @@ function stepsFor(root) {
   ];
 }
 
-function resultBase(root, fingerprint, options) {
+function resultBase(root, profile, fingerprint, options) {
   return {
     schemaVersion: SCHEMA_VERSION,
-    profile: PROFILE_ID,
+    profile,
     fingerprint,
     statePath: STATE_PATH,
     dryRun: options.dryRun,
     forced: options.force,
-    readiness: readiness(root),
+    readiness: readinessForProfile(root, profile),
     steps: [],
   };
 }
 
-export function prepareTaskToolchain({
-  root = process.cwd(),
-  profile = PROFILE_ID,
-  dryRun = false,
-  force = false,
-  runStepFn = runStep,
+function prepareSingleProfile({
+  resolvedRoot,
+  profile,
+  dryRun,
+  force,
+  runStepFn,
 } = {}) {
-  const resolvedRoot = path.resolve(root);
-  if (profile !== PROFILE_ID) {
-    fail(
-      EXIT_CODES.CONTRACT,
-      `Profile không hỗ trợ: ${profile}. Slice này chỉ hỗ trợ ${PROFILE_ID}.`,
-    );
-  }
-  const fingerprint = toolchainFingerprint(resolvedRoot);
+  const fingerprint = toolchainFingerprint(resolvedRoot, profile);
   const options = { dryRun, force };
-  const result = resultBase(resolvedRoot, fingerprint, options);
+  const result = resultBase(resolvedRoot, profile, fingerprint, options);
   const state = readState(resolvedRoot);
-  const previous = state.profiles?.[PROFILE_ID];
-  const readyBefore = isReady(result.readiness);
+  const previous = state.profiles?.[profile];
+  const readyBefore = isReadyForProfile(result.readiness, profile);
   if (!force && readyBefore && previous?.fingerprint === fingerprint) {
     result.status = 'cached';
     return { exitCode: EXIT_CODES.PASS, result };
   }
 
   result.status = dryRun ? 'planned' : 'preparing';
-  result.steps = stepsFor(resolvedRoot).map((step) => ({
+  const steps = stepsFor(resolvedRoot, profile);
+  result.steps = steps.map((step) => ({
     id: step.id,
     executable: sanitizedExecutable(step.executable),
     argv: step.argv,
   }));
   if (dryRun) return { exitCode: EXIT_CODES.PASS, result };
 
+  const beforeEntries = profile === FLUTTER_PROFILE_ID ? statusEntries(resolvedRoot) : null;
   result.steps = [];
-  for (const step of stepsFor(resolvedRoot)) {
+  for (const step of steps) {
     const stepResult = runStepFn(resolvedRoot, step);
     result.steps.push(stepResult);
+    if (profile === FLUTTER_PROFILE_ID) {
+      try {
+        result.worktree = reconcileFlutterGeneratedChanges(
+          resolvedRoot,
+          beforeEntries,
+        );
+      } catch (error) {
+        result.status = 'environment-failure';
+        result.error = String(error?.message || error).slice(0, 800);
+        result.readiness = readinessForProfile(resolvedRoot, profile);
+        return { exitCode: EXIT_CODES.ENVIRONMENT, result };
+      }
+    }
     if (stepResult.status !== 'passed') {
       result.status = 'environment-failure';
-      result.readiness = readiness(resolvedRoot);
+      result.readiness = readinessForProfile(resolvedRoot, profile);
       return { exitCode: EXIT_CODES.ENVIRONMENT, result };
     }
   }
 
-  result.readiness = readiness(resolvedRoot);
-  if (!isReady(result.readiness)) {
+  result.readiness = readinessForProfile(resolvedRoot, profile);
+  if (!isReadyForProfile(result.readiness, profile)) {
     result.status = 'environment-failure';
     return { exitCode: EXIT_CODES.ENVIRONMENT, result };
   }
   state.schemaVersion = SCHEMA_VERSION;
   state.profiles = {
     ...(state.profiles || {}),
-    [PROFILE_ID]: {
+    [profile]: {
       fingerprint,
       ready: true,
       preparedAtUtc: new Date().toISOString(),
@@ -301,12 +478,69 @@ export function prepareTaskToolchain({
   return { exitCode: EXIT_CODES.PASS, result };
 }
 
+export function prepareTaskToolchain({
+  root = process.cwd(),
+  profile = PROFILE_ID,
+  dryRun = false,
+  force = false,
+  runStepFn = runStep,
+} = {}) {
+  const resolvedRoot = path.resolve(root);
+  if (!SUPPORTED_PROFILES.includes(profile)) {
+    fail(
+      EXIT_CODES.CONTRACT,
+      `Profile không hỗ trợ: ${profile}. Chọn một trong: ${SUPPORTED_PROFILES.join(', ')}.`,
+    );
+  }
+  if (profile !== ALL_PROFILE_ID) {
+    return prepareSingleProfile({
+      resolvedRoot,
+      profile,
+      dryRun,
+      force,
+      runStepFn,
+    });
+  }
+
+  const profiles = [];
+  for (const profileId of [PROFILE_ID, FLUTTER_PROFILE_ID]) {
+    const prepared = prepareSingleProfile({
+      resolvedRoot,
+      profile: profileId,
+      dryRun,
+      force,
+      runStepFn,
+    });
+    profiles.push(prepared);
+    if (prepared.exitCode !== EXIT_CODES.PASS) break;
+  }
+  const failed = profiles.find((entry) => entry.exitCode !== EXIT_CODES.PASS);
+  return {
+    exitCode: failed?.exitCode ?? EXIT_CODES.PASS,
+    result: {
+      schemaVersion: SCHEMA_VERSION,
+      profile: ALL_PROFILE_ID,
+      statePath: STATE_PATH,
+      dryRun,
+      forced: force,
+      status: failed
+        ? 'environment-failure'
+        : profiles.every((entry) => entry.result.status === 'cached')
+          ? 'cached'
+          : dryRun
+            ? 'planned'
+            : 'prepared',
+      profiles: profiles.map((entry) => entry.result),
+    },
+  };
+}
+
 function help() {
   return (
     `Usage: node scripts/prepare-task-toolchain.mjs [options]\n\n` +
-    `  --profile nestjs       Prepare backend-nest dependencies and Prisma client (default)\n` +
-    `  --dry-run              Report required steps without executing them\n` +
-    `  --force                Re-run npm ci and Prisma generation\n` +
+    `  --profile nestjs|flutter|all  Prepare the selected local toolchain (default: nestjs)\n` +
+    `  --dry-run                    Report required steps without executing them\n` +
+    `  --force                      Re-run hydration even when the fingerprint is cached\n` +
     `  --json <path>          Write schema-v1 result JSON\n`
   );
 }

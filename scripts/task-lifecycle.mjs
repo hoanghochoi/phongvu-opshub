@@ -101,7 +101,8 @@ function parseArgs(argv) {
 function printHelp(log) {
   log(`Usage:
   node scripts/task-lifecycle.mjs start \\
-    --issue OPS-123 --slug short-description --worktree ..\\opshub-ops-123 [--prepare] [--execute]
+    --issue OPS-123 --slug short-description --worktree ..\\opshub-ops-123 \\
+    [--prepare [--prepare-profile nestjs|flutter|all]] [--execute]
 
   node scripts/task-lifecycle.mjs finish \\
     --pr 123 --branch codex/ops-123-short-description \\
@@ -236,8 +237,11 @@ function validateStartOptions(options, root) {
     blocked('--slug chỉ dùng chữ thường, số và dấu gạch nối.');
   }
   if (!options.worktree) blocked('Thiếu --worktree cho task mới.');
-  if (options.prepareProfile !== 'nestjs') {
-    blocked(`--prepare-profile không hỗ trợ: ${options.prepareProfile}.`);
+  if (!['nestjs', 'flutter', 'all'].includes(options.prepareProfile)) {
+    blocked(
+      `--prepare-profile không hỗ trợ: ${options.prepareProfile}; ` +
+        'chọn nestjs, flutter hoặc all.',
+    );
   }
 
   const branch = `codex/${issue.toLowerCase()}-${options.slug}`;

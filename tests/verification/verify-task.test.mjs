@@ -149,6 +149,27 @@ test('structured command runner invokes Windows cmd files through the supported 
   assert.equal(result.exitCode, 0);
 });
 
+test('structured command runner accepts bounded large diagnostics without ENOBUFS', (t) => {
+  const root = repo(t);
+  const originalStdoutWrite = process.stdout.write;
+  const originalStderrWrite = process.stderr.write;
+  t.after(() => {
+    process.stdout.write = originalStdoutWrite;
+    process.stderr.write = originalStderrWrite;
+  });
+  process.stdout.write = () => true;
+  process.stderr.write = () => true;
+  const result = runCommand(root, {
+    id: 'large-output-probe',
+    cwd: '.',
+    executable: process.execPath,
+    argv: ['-e', "process.stdout.write('x'.repeat(2 * 1024 * 1024))"],
+  });
+  assert.equal(result.status, 'passed');
+  assert.equal(result.exitCode, 0);
+  assert.ok(result.durationMs >= 0);
+});
+
 test('command-not-found output is classified as environment failure', () => {
   assert.equal(
     classifyCommandResult({
