@@ -9,9 +9,9 @@ cleanup are merged in staging. Five live shadow observations pass; one
 historical contract gap (#182) was explicitly captured and fixed in the OPS-72
 follow-up. OPS-74 runtime waves are in progress: OPS-80 Home cache coverage,
 OPS-81, OPS-82, OPS-83, OPS-84, OPS-85, OPS-86, OPS-87, OPS-88, OPS-89,
-OPS-90, OPS-91 and OPS-92 are merged and staging-deployed. OPS-93 Sales
-Reports revenue/order aggregation extraction is implemented on its lifecycle
-worktree and is in the final exact-proof/publication gate. Comparable timing baseline, remaining
+OPS-90, OPS-91, OPS-92 and OPS-93 are merged and staging-deployed. OPS-94
+import-history comparison/CSV overlay extraction is implemented on its
+lifecycle worktree and is in the baseline/extraction gate. Comparable timing baseline, remaining
 runtime waves and production release remain open.
 
 ## Outcome
@@ -29,20 +29,22 @@ branch, and is not converted row-for-row into Markdown.
 ## Authority and checkpoint
 
 - Linear parent: `OPS-64`.
-- Current slice: `OPS-93` Sales Reports revenue/order aggregation extraction,
-  on the fresh lifecycle worktree `../opshub-ops-93` and branch
-  `codex/ops-93-sales-reports-revenue-aggregation`, created from exact live
-  `origin/staging@c146b9cfca091136af8b046d8aa582b3c1f0e07e`. The extracted
-  constructor-injected `SalesReportsRevenueAggregationRuntime` owns canonical
-  revenue lookup, unique-order dedupe, customer-type revenue split,
-  installment/promotion counts, category quantities and assembled-PC
-  calculation; `SalesReportsService` remains the stable facade and
-  parser/import, ERP, follow-up, BigQuery and export owners remain outside the
-  slice. Baseline and post-extraction NestJS characterization both passed
-  `205/211` (six skipped); `npm run build`, the affected Flutter
-  sales-report/not-purchased/Home matrix (`72/72`), `flutter analyze --no-pub`,
-  Prettier and `git diff --check` passed. The final exact commit proof, PR and
-  staging deploy remain before cleanup.
+- Current slice: `OPS-94` import-history comparison and CSV overlay extraction,
+  on the fresh lifecycle worktree `../opshub-ops-94` and branch
+  `codex/ops-94-import-history-comparison-csv-overlay`, created from exact live
+  `origin/staging@8bdd24b4ddd653fa55479bb7b5c0e5bfd4bc59b9`. The extracted
+  constructor-injected `HomeSummaryCsvComparisonRuntime` will own active
+  historical-import grains, coverage completeness, hybrid CSV/projection
+  totals and supported/unavailable metric calculation; `HomeSummaryService`
+  remains the stable comparison facade and SalesHistory import/parser,
+  projection, routes, DTOs, DI tokens and permissions remain outside the slice.
+  Baseline and post-extraction Home Summary characterization both pass
+  `116/116` across six suites; `npm run build`, Prettier and `git diff --check`
+  pass. Deterministic affected Flutter Home/sales-report proof passes `124/124`
+  with `--concurrency=1`, and `flutter analyze --no-pub` passes. The first
+  default-concurrency batch had one isolation flake while every file passed
+  individually; it is not accepted as final proof. Exact runner, commit, PR,
+  staging deploy and lifecycle cleanup remain open.
   OPS-89 cache state, in-flight dedupe, refresh-ahead, daily-series extension,
   support caches, scope-option caching and projection invalidation remain in
   `home-summary-cache.runtime.ts`.
@@ -831,6 +833,33 @@ slice):
   Linear implementation/proof note, PR/CI, staging deploy, and guarded
   lifecycle cleanup. No API, data, permission, UI or platform behavior change
   is intended.
+
+Phase 9D runtime checkpoint (OPS-94, import-history comparison and CSV overlay
+slice):
+
+- Slice branch/worktree: `codex/ops-94-import-history-comparison-csv-overlay` in
+  `../opshub-ops-94`, started from exact live
+  `origin/staging@8bdd24b4ddd653fa55479bb7b5c0e5bfd4bc59b9`; canonical staging
+  and the unrelated OPS-68/OPS-72 worktrees remain untouched.
+- Planned extraction: move `HomeSummaryService.overlayActiveCsvHistory` and
+  its hybrid active-grain/coverage/CSV/projection aggregation into a
+  constructor-injected `HomeSummaryCsvComparisonRuntime`. Preserve source,
+  complete/unavailable semantics, personal coverage handling, store/user
+  dimensions, date boundaries and metric values. No route, DTO, DI, permission,
+  API/data, UI or Vietnamese-copy change is intended.
+- Baseline and post-extraction Home Summary characterization pass `116/116`
+  across six suites: service, controller, DTO, projection, backfill and
+  comparison. Deterministic affected Flutter Home/sales-report proof passes
+  `124/124` with `--concurrency=1`; individual files also pass. The first
+  default-concurrency batch had one isolation flake and is not accepted as
+  final proof. Dependency hydration (`npm ci`, `npx prisma generate`,
+  `flutter pub get`) is ignored worktree state only and generated Flutter
+  registrant/l10n changes are isolated in the local stash
+  `ops94-local-flutter-generated`.
+- Final gates: post-extraction characterization, affected Flutter Home/
+  sales-report consumers, `npm run build`, Prettier, exact
+  `verify-task --base origin/staging` with `stale=false`, PR/CI, staging deploy
+  and guarded lifecycle cleanup.
 
 ## Validation
 
