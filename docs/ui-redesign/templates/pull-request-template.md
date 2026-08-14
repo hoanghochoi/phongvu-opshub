@@ -54,8 +54,8 @@ Mô tả user-visible changes, shared foundation/components và changed screens.
 - [ ] Affected-consumer proof:
 - [ ] `dart format --output=none --set-exit-if-changed ...`
 - [ ] `git diff --check`
-- [ ] `flutter analyze --no-pub`
-- [ ] `flutter test --no-pub --reporter expanded`
+- [ ] `node scripts/run-with-toolchain.mjs --profile flutter -- flutter analyze`
+- [ ] `node scripts/run-with-toolchain.mjs --profile flutter -- flutter test --reporter expanded`
 - [ ] Android proof when affected
 - [ ] Windows proof when affected
 - [ ] Web/additional platform regression proof when affected

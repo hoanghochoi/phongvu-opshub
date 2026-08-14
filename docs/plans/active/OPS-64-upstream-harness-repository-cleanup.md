@@ -4,24 +4,37 @@ Date: 2026-08-13
 
 ## Status
 
-Active — the current workflow checkpoint is OPS-112 on
-`origin/staging@056e01b4230b7e6c2eeaf5059b9624e13e289694`. OPS-111 merged in
-PR #224 at `6ae638fa`, but its first staging deploy exposed a Docker-only
-path regression: the backend-only image context could not resolve the local
-worktree prebuild gate. OPS-113 repaired that boundary in PR #225, merged at
-the current SHA, and staging deploy `31832800738` passed client builds,
-backend Docker build/runtime switch, direct-origin routes and public
-health/version verification. Both merged task worktrees and local/remote
-feature branches were cleaned; Linear remains `Ready for QA` pending
-production. OPS-112 now records comparable schema-v2 shadow telemetry without
-promoting the affected matrix. Five accepted schema-v1 observations still
-validate selection/fingerprint safety, but do not establish the new comparable
-timing cohort; five fresh live schema-v2 observations are required before
-calculating optimization percentages. OPS-106 dependency integrity hardening,
-OPS-103 UserService characterization, OPS-107 MAP characterization and the
-earlier runtime waves remain merged with production deployment still pending.
-MAP persistence extraction, dependency-bootstrap enforcement, remaining
+Active — the current workflow checkpoint is OPS-114 on
+`origin/staging@b93ec7e4d15104a6afc428912324c72af4bbe9d0`. OPS-112 merged in
+PR #226 at that SHA and its guarded lifecycle finish removed the task
+worktree/local branch. OPS-111's Docker-only prebuild regression remains
+repaired by OPS-113 (PR #225, staging deploy `31832800738` passed); Docker
+continues to use its self-contained dependency boundary. OPS-114 closes the
+remaining local/CI bypass: an earlier standalone preflight must not authorize
+a raw Flutter/Nest command in a different worktree, job or shell block. The
+slice makes `run-with-toolchain` the execution boundary for repository-owned
+consumer commands, strengthens static coverage and adds cold-worktree proof;
+it does not share `node_modules` or `.dart_tool` between worktrees. OPS-112's
+schema-v2 shadow telemetry remains observational pending five comparable live
+observations. Dependency enforcement, MAP persistence extraction, remaining
 runtime waves and production release remain open.
+
+### OPS-114 checkpoint — dependency bootstrap enforcement
+
+- Branch/worktree: `codex/ops-114-enforce-dependency-bootstrap` in
+  `../opshub-ops-114`, created by the lifecycle gate from exact
+  `origin/staging@b93ec7e4d15104a6afc428912324c72af4bbe9d0`.
+- Before mutation the task had no tracked changes. Lifecycle hydration finished
+  independently for Nest/Prisma and Flutter; its ignored readiness state names
+  the task-local fingerprints and is not copied from another worktree.
+- Affected authority: `run-with-toolchain`, verification profiles, current
+  command/runbook templates, release workflow command blocks and toolchain
+  coverage tests. Product/runtime APIs, Docker context ownership and data/UI
+  behavior are explicitly out of scope.
+- Required proof: focused toolchain/verification/lifecycle tests, direct
+  wrapped Flutter analysis and Nest build, workflow syntax/static coverage, and
+  exact `verify-task --base origin/staging` with `stale=false` after the final
+  docs change. A squash revert of the OPS-114 merge is the rollback unit.
 
 ## Outcome
 

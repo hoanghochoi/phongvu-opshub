@@ -5,46 +5,80 @@ import test from 'node:test';
 
 const root = path.resolve(import.meta.dirname, '..', '..');
 
+// These are live execution entrypoints, rather than historical proof in docs.
+// The source command must be wrapped inline: a preflight in a different CI job,
+// shell block or manually resumed terminal is not sufficient proof of readiness.
 const dependencyConsumers = [
-  'scripts/validate-contract-appendix.sh',
-  'scripts/validate-ops-11-payment-audio.ps1',
-  '.github/workflows/build-windows-msix.yml',
-  '.github/workflows/deploy-opshub-staging.yml',
-  '.github/workflows/deploy-opshub.yml',
+  { relativePath: 'scripts/validate-contract-appendix.sh', pattern: /(?:flutter\s+(?:analyze|test|build)|npm\s+(?:test|run|ci|install)|npx\s+.*prisma)/i },
+  { relativePath: 'scripts/validate-ops-11-payment-audio.ps1', pattern: /(?:flutter\s+(?:analyze|test|build)|npm\s+(?:test|run|ci|install)|npx\s+.*prisma)/i },
+  { relativePath: '.github/workflows/build-windows-msix.yml', pattern: /flutter\s+(?:analyze|test|build)/i },
+  { relativePath: '.github/workflows/deploy-opshub-staging.yml', pattern: /flutter\s+(?:analyze|test|build)/i },
+  { relativePath: '.github/workflows/deploy-opshub.yml', pattern: /flutter\s+(?:analyze|test|build)/i },
 ];
+
+const localConsumerPattern = /(?:flutter\s+(?:analyze|test|build)|npm\s+(?:test|run|ci|install)|npx\s+.*prisma)/i;
 
 function source(relativePath) {
   return readFileSync(path.join(root, relativePath), 'utf8');
 }
 
-test('dependency-consuming scripts and release workflows preflight before raw commands', () => {
-  for (const relativePath of dependencyConsumers) {
-    const contents = source(relativePath);
-    const consumerPattern =
-      /(?:^\s*(?:run:\s*)?|\{\s*|--\s*)(?:flutter\s+(?:analyze|test|build)|npm\s+(?:test|run|ci|install)|npx\s+[^\n]*prisma)/gim;
-    const consumerIndexes = [...contents.matchAll(consumerPattern)].map(
-      (match) => match.index,
+function sourceLine(contents, index) {
+  const start = contents.lastIndexOf('\n', index) + 1;
+  const end = contents.indexOf('\n', index);
+  return contents.slice(start, end < 0 ? contents.length : end);
+}
+
+function consumerLines(contents, pattern) {
+  return contents.split(/\r?\n/).filter((line) => {
+    const trimmed = line.trimStart();
+    return (
+      pattern.test(trimmed) &&
+      (/^(?:flutter|npm|npx)\s/i.test(trimmed) ||
+        /(?:--|run:)\s+(?:flutter|npm|npx)\s/i.test(trimmed))
     );
-    assert.ok(consumerIndexes.length > 0, `${relativePath} must contain a dependency consumer`);
-    const preflight = Math.min(
-      ...['prepare-task-toolchain.mjs', 'run-with-toolchain.mjs']
-        .map((marker) => contents.indexOf(marker))
-        .filter((index) => index >= 0),
-    );
-    assert.notEqual(preflight, Infinity, `${relativePath} must invoke the shared toolchain gate`);
-    for (const consumerIndex of consumerIndexes) {
-      assert.ok(
-        preflight < consumerIndex,
-        `${relativePath} invokes a dependency consumer before the shared preflight`,
-      );
-    }
+  });
+}
+
+export function assertInlineToolchainBoundary(
+  contents,
+  relativePath = '<fixture>',
+  pattern = localConsumerPattern,
+) {
+  const lines = consumerLines(contents, pattern);
+  assert.ok(lines.length > 0, `${relativePath} must contain a dependency consumer`);
+  for (const line of lines) {
+    const failure = `${relativePath} runs a dependency consumer outside its own toolchain command block: ${line.trim()}`;
+    assert.match(line, /run-with-toolchain\.mjs\b/i, failure);
+    assert.match(line, /--profile\s+(?:flutter|nestjs)\b/i, failure);
+    assert.match(line, /\s--\s+(?:flutter|npm|npx)\b/i, failure);
   }
+}
+
+test('dependency-consuming scripts and release workflows use an inline shared boundary', () => {
+  for (const { relativePath, pattern } of dependencyConsumers) {
+    assertInlineToolchainBoundary(source(relativePath), relativePath, pattern);
+  }
+});
+
+test('a preflight in an earlier CI job or shell block cannot authorize a raw consumer', () => {
+  assert.throws(
+    () =>
+      assertInlineToolchainBoundary(`
+jobs:
+  prepare:
+    steps:
+      - run: node scripts/prepare-task-toolchain.mjs --profile flutter
+  build:
+    steps:
+      - run: flutter build web --no-pub
+`, 'separate-workflow-job.yml'),
+    /outside its own toolchain command block/,
+  );
 });
 
 test('standalone Flutter validation forbids an implicit second pub writer', () => {
   const contents = source('scripts/validate-contract-appendix.sh');
-  assert.match(contents, /node scripts\/run-with-toolchain\.mjs --profile flutter/);
-  assert.match(contents, /flutter test --no-pub/);
+  assert.match(contents, /node scripts\/run-with-toolchain\.mjs --profile flutter -- flutter test --no-pub/);
   assert.doesNotMatch(contents, /\nflutter test \\\n/);
 });
 
@@ -89,7 +123,7 @@ test('Docker Nest build is self-contained without weakening local lifecycle gate
   );
 });
 
-test('release Flutter builds disable the implicit Pub writer', () => {
+test('release Flutter builds use the inline boundary and disable the implicit Pub writer', () => {
   for (const relativePath of [
     '.github/workflows/build-windows-msix.yml',
     '.github/workflows/deploy-opshub-staging.yml',
@@ -97,7 +131,9 @@ test('release Flutter builds disable the implicit Pub writer', () => {
   ]) {
     const contents = source(relativePath);
     for (const match of contents.matchAll(/flutter build [^\r\n]+/g)) {
-      assert.match(match[0], /--no-pub/, `${relativePath} has an ungated Flutter build`);
+      const line = sourceLine(contents, match.index);
+      assert.match(line, /run-with-toolchain\.mjs --profile flutter -- flutter build/);
+      assert.match(match[0], /--no-pub/, `${relativePath} has an implicit Flutter Pub writer`);
     }
   }
 });

@@ -72,8 +72,8 @@ Implement approved redesign scope without changing unrelated behavior.
 ```powershell
 dart format --output=none --set-exit-if-changed <changed Dart files>
 git diff --check
-flutter analyze --no-pub
-flutter test --no-pub --reporter expanded
+node scripts/run-with-toolchain.mjs --profile flutter -- flutter analyze
+node scripts/run-with-toolchain.mjs --profile flutter -- flutter test --reporter expanded
 ```
 
 Add focused widget/unit/golden/visual and affected-consumer commands here.
