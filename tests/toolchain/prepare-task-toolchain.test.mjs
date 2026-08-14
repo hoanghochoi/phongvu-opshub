@@ -11,6 +11,7 @@ import {
 } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import test from 'node:test';
 
 import {
@@ -71,6 +72,24 @@ function flutterFixture(t) {
   return root;
 }
 
+function writeFlutterPackageConfig(root, packages = []) {
+  mkdirSync(path.join(root, '.dart_tool'), { recursive: true });
+  writeFileSync(
+    path.join(root, '.dart_tool', 'package_config.json'),
+    JSON.stringify({
+      configVersion: 2,
+      packages: [
+        {
+          name: 'fixture',
+          rootUri: '../',
+          packageUri: 'lib/',
+        },
+        ...packages,
+      ],
+    }),
+  );
+}
+
 function allFixture(t) {
   const root = flutterFixture(t);
   mkdirSync(path.join(root, 'backend-nest', 'prisma'), { recursive: true });
@@ -107,6 +126,10 @@ function successfulStepFactory(calls) {
         { recursive: true },
       );
       mkdirSync(
+        path.join(root, 'backend-nest', 'node_modules', '@nestjs', 'cli', 'bin'),
+        { recursive: true },
+      );
+      mkdirSync(
         path.join(root, 'backend-nest', 'node_modules', '.prisma', 'client'),
         { recursive: true },
       );
@@ -132,8 +155,39 @@ function successfulStepFactory(calls) {
         '{}\n',
       );
       writeFileSync(
+        path.join(
+          root,
+          'backend-nest',
+          'node_modules',
+          '@nestjs',
+          'cli',
+          'bin',
+          'nest.js',
+        ),
+        '',
+      );
+      writeFileSync(
+        path.join(
+          root,
+          'backend-nest',
+          'node_modules',
+          '@prisma',
+          'client',
+          'default.js',
+        ),
+        'module.exports = {};\n',
+      );
+      writeFileSync(
         path.join(root, 'backend-nest', 'node_modules', '.package-lock.json'),
-        '{}\n',
+        '{"lockfileVersion":3,"packages":{}}\n',
+      );
+      writeFileSync(
+        path.join(root, 'backend-nest', 'node_modules', '.prisma', 'client', 'index.js'),
+        'module.exports = {};\n',
+      );
+      writeFileSync(
+        path.join(root, 'backend-nest', 'node_modules', '.prisma', 'client', 'default.js'),
+        'module.exports = {};\n',
       );
     }
     return {
@@ -179,6 +233,10 @@ test('default prepare hydrates Nest and Flutter in one deterministic sequence', 
           { recursive: true },
         );
         mkdirSync(
+          path.join(currentRoot, 'backend-nest', 'node_modules', '@nestjs', 'cli', 'bin'),
+          { recursive: true },
+        );
+        mkdirSync(
           path.join(currentRoot, 'backend-nest', 'node_modules', '.prisma', 'client'),
           { recursive: true },
         );
@@ -204,16 +262,57 @@ test('default prepare hydrates Nest and Flutter in one deterministic sequence', 
           '{}\n',
         );
         writeFileSync(
+          path.join(
+            currentRoot,
+            'backend-nest',
+            'node_modules',
+            '@nestjs',
+            'cli',
+            'bin',
+            'nest.js',
+          ),
+          '',
+        );
+        writeFileSync(
+          path.join(
+            currentRoot,
+            'backend-nest',
+            'node_modules',
+            '@prisma',
+            'client',
+            'default.js',
+          ),
+          'module.exports = {};\n',
+        );
+        writeFileSync(
           path.join(currentRoot, 'backend-nest', 'node_modules', '.package-lock.json'),
-          '{}\n',
+          '{"lockfileVersion":3,"packages":{}}\n',
+        );
+        writeFileSync(
+          path.join(
+            currentRoot,
+            'backend-nest',
+            'node_modules',
+            '.prisma',
+            'client',
+            'index.js',
+          ),
+          'module.exports = {};\n',
+        );
+        writeFileSync(
+          path.join(
+            currentRoot,
+            'backend-nest',
+            'node_modules',
+            '.prisma',
+            'client',
+            'default.js',
+          ),
+          'module.exports = {};\n',
         );
       }
       if (step.id === 'flutter-pub-get') {
-        mkdirSync(path.join(currentRoot, '.dart_tool'), { recursive: true });
-        writeFileSync(
-          path.join(currentRoot, '.dart_tool', 'package_config.json'),
-          '{}\n',
-        );
+        writeFlutterPackageConfig(currentRoot);
       }
       return {
         id: step.id,
@@ -272,6 +371,42 @@ test('partial Nest dependency loss invalidates the cached readiness', (t) => {
   const result = prepareTaskToolchain({ root, profile: 'nestjs', runStepFn });
   assert.equal(result.exitCode, EXIT_CODES.PASS);
   assert.equal(result.result.status, 'prepared');
+  assert.deepEqual(calls, [
+    'nestjs-npm-ci',
+    'nestjs-prisma-generate',
+    'nestjs-npm-ci',
+    'nestjs-prisma-generate',
+  ]);
+});
+
+test('Nest cached readiness invalidates when a locked package disappears', (t) => {
+  const root = fixture(t);
+  const calls = [];
+  const runStepFn = successfulStepFactory(calls);
+  prepareTaskToolchain({ root, profile: 'nestjs', runStepFn });
+
+  const installedLockPath = path.join(
+    root,
+    'backend-nest',
+    'node_modules',
+    '.package-lock.json',
+  );
+  writeFileSync(
+    installedLockPath,
+    JSON.stringify({
+      lockfileVersion: 3,
+      packages: {
+        'node_modules/missing-after-cache': { version: '1.0.0' },
+      },
+    }),
+  );
+  const second = prepareTaskToolchain({
+    root,
+    profile: 'nestjs',
+    runStepFn,
+  });
+  assert.equal(second.exitCode, EXIT_CODES.PASS);
+  assert.equal(second.result.status, 'prepared');
   assert.deepEqual(calls, [
     'nestjs-npm-ci',
     'nestjs-prisma-generate',
@@ -417,6 +552,25 @@ test('command failure is classified as environment failure and does not write su
   );
 });
 
+test('failure diagnostics sanitize absolute worktree paths', (t) => {
+  const root = fixture(t);
+  const result = prepareTaskToolchain({
+    root,
+    profile: 'nestjs',
+    runStepFn: (currentRoot, step) => ({
+      id: step.id,
+      status: 'environment-failure',
+      exitCode: 1,
+      executable: step.executable,
+      argv: step.argv,
+      error: `Cannot load ${currentRoot}\\backend-nest\\node_modules\\missing.js`,
+    }),
+  });
+  assert.equal(result.exitCode, EXIT_CODES.ENVIRONMENT);
+  assert.equal(result.result.steps[0].error.includes(root), false);
+  assert.match(result.result.steps[0].error, /<worktree>|<path>/);
+});
+
 test('missing manifest is a contract failure', (t) => {
   const root = fixture(t);
   rmSync(path.join(root, 'backend-nest', 'prisma.config.ts'));
@@ -451,10 +605,7 @@ test('Flutter preflight hydrates package config and restores generated tracked f
     runStepFn: (currentRoot, step) => {
       calls.push(step.id);
       mkdirSync(path.join(currentRoot, '.dart_tool'), { recursive: true });
-      writeFileSync(
-        path.join(currentRoot, '.dart_tool', 'package_config.json'),
-        '{}\n',
-      );
+      writeFlutterPackageConfig(currentRoot);
       mkdirSync(path.join(currentRoot, 'lib', 'l10n'), { recursive: true });
       writeFileSync(
         path.join(currentRoot, 'lib', 'l10n', 'app_localizations.dart'),
@@ -491,10 +642,7 @@ test('Flutter preflight hydrates package config and restores generated tracked f
     profile: 'flutter',
     runStepFn: (currentRoot, step) => {
       mkdirSync(path.join(currentRoot, '.dart_tool'), { recursive: true });
-      writeFileSync(
-        path.join(currentRoot, '.dart_tool', 'package_config.json'),
-        '{}\n',
-      );
+      writeFlutterPackageConfig(currentRoot);
       return {
         id: step.id,
         status: 'passed',
@@ -515,10 +663,7 @@ test('Flutter preflight fails closed on unexpected tracked mutation', (t) => {
     profile: 'flutter',
     runStepFn: (currentRoot, step) => {
       mkdirSync(path.join(currentRoot, '.dart_tool'), { recursive: true });
-      writeFileSync(
-        path.join(currentRoot, '.dart_tool', 'package_config.json'),
-        '{}\n',
-      );
+      writeFlutterPackageConfig(currentRoot);
       appendFileSync(path.join(currentRoot, 'README.md'), 'unexpected\n');
       return {
         id: step.id,
@@ -533,4 +678,123 @@ test('Flutter preflight fails closed on unexpected tracked mutation', (t) => {
   assert.equal(result.result.status, 'environment-failure');
   assert.match(result.result.error, /outside generated allowlist|allowlist/);
   assert.equal(existsSync(path.join(root, 'tmp', 'opshub-toolchain-state.json')), false);
+});
+
+test('Flutter preflight preserves a pre-existing generated-file edit', (t) => {
+  const root = flutterFixture(t);
+  const generatedPath = path.join(root, 'lib', 'l10n', 'app_localizations.dart');
+  appendFileSync(generatedPath, '// user edit\n');
+  const before = readFileSync(generatedPath);
+  const result = prepareTaskToolchain({
+    root,
+    profile: 'flutter',
+    runStepFn: (currentRoot, step) => {
+      writeFlutterPackageConfig(currentRoot);
+      writeFileSync(generatedPath, '// generated overwrite\n');
+      return {
+        id: step.id,
+        status: 'passed',
+        exitCode: 0,
+        executable: step.executable,
+        argv: step.argv,
+      };
+    },
+  });
+  assert.equal(result.exitCode, EXIT_CODES.ENVIRONMENT);
+  assert.match(result.result.error, /pre-existing user change/i);
+  assert.deepEqual(readFileSync(generatedPath), before);
+  assert.equal(existsSync(path.join(root, 'tmp', 'opshub-toolchain-state.json')), false);
+});
+
+test('Flutter cached readiness invalidates when a package root disappears', (t) => {
+  const root = flutterFixture(t);
+  const externalPackage = mkdtempSync(path.join(os.tmpdir(), 'opshub-flutter-package-'));
+  t.after(() => rmSync(externalPackage, { recursive: true, force: true }));
+  writeFileSync(path.join(externalPackage, 'pubspec.yaml'), 'name: external_fixture\n');
+  const calls = [];
+  const runStepFn = (currentRoot, step) => {
+    calls.push(step.id);
+    writeFlutterPackageConfig(currentRoot, [
+      {
+        name: 'external_fixture',
+        rootUri: pathToFileURL(externalPackage).href,
+        packageUri: 'lib/',
+      },
+    ]);
+    return {
+      id: step.id,
+      status: 'passed',
+      exitCode: 0,
+      executable: step.executable,
+      argv: step.argv,
+    };
+  };
+
+  const first = prepareTaskToolchain({
+    root,
+    profile: 'flutter',
+    runStepFn,
+  });
+  assert.equal(first.exitCode, EXIT_CODES.PASS);
+  assert.equal(first.result.status, 'prepared');
+
+  rmSync(externalPackage, { recursive: true, force: true });
+  const repaired = prepareTaskToolchain({
+    root,
+    profile: 'flutter',
+    runStepFn: (currentRoot, step) => {
+      calls.push(step.id);
+      writeFlutterPackageConfig(currentRoot);
+      return {
+        id: step.id,
+        status: 'passed',
+        exitCode: 0,
+        executable: step.executable,
+        argv: step.argv,
+      };
+    },
+  });
+  assert.equal(repaired.exitCode, EXIT_CODES.PASS);
+  assert.equal(repaired.result.status, 'prepared');
+  assert.deepEqual(calls, ['flutter-pub-get', 'flutter-pub-get']);
+});
+
+test('Flutter transient package materialization failure retries once', (t) => {
+  const root = flutterFixture(t);
+  let attempts = 0;
+  const result = prepareTaskToolchain({
+    root,
+    profile: 'flutter',
+    runStepFn: (currentRoot, step) => {
+      attempts += 1;
+      if (attempts === 1) {
+        return {
+          id: step.id,
+          status: 'environment-failure',
+          exitCode: 1,
+          executable: step.executable,
+          argv: step.argv,
+          error: 'Package analyzer not found in the local cache',
+        };
+      }
+      writeFlutterPackageConfig(currentRoot);
+      return {
+        id: step.id,
+        status: 'passed',
+        exitCode: 0,
+        executable: step.executable,
+        argv: step.argv,
+      };
+    },
+  });
+  assert.equal(result.exitCode, EXIT_CODES.PASS);
+  assert.equal(result.result.status, 'prepared');
+  assert.deepEqual(result.result.retries, [
+    {
+      step: 'flutter-pub-get',
+      fromAttempt: 1,
+      toAttempt: 2,
+      reason: 'transient-dependency-materialization',
+    },
+  ]);
 });

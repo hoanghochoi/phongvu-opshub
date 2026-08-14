@@ -95,6 +95,7 @@ export const PROFILES = Object.freeze([
     id: 'release',
     pathPatterns: [
       /^\.github\/workflows\//,
+      /^\.github\/actions\/setup-flutter\//,
       /^docs\/runbooks\/git-release-playbook\.md$/,
       /^scripts\/(?:task-lifecycle|test-git-release-workflow|validate-premerge|validate-release|release-guard)/,
       /^tests\/release\//,
@@ -121,6 +122,7 @@ export const PROFILES = Object.freeze([
     pathPatterns: [
       /^lib\//,
       /^test\//,
+      /^\.github\/actions\/setup-flutter\//,
       /^pubspec(?:\.yaml|\.lock)$/,
       /^(?:android|ios|linux|macos|web|windows)\//,
     ],

@@ -83,6 +83,19 @@ test('cross-stack verification uses one deduplicated all-toolchain preflight', (
   );
 });
 
+test('Flutter setup action changes select release and Flutter ownership', (t) => {
+  const root = repo(t);
+  write(root, '.github/actions/setup-flutter/action.yml', 'name: setup-flutter\n');
+  const result = verifyTask({ root, options: { dryRun: true } });
+  assert.equal(result.exitCode, EXIT_CODES.PASS);
+  assert.deepEqual(result.result.selectedProfiles, ['release', 'flutter']);
+  assert.equal(
+    result.result.commandDefinitions.filter((command) => command.id === 'toolchain-preflight')
+      .length,
+    1,
+  );
+});
+
 test('harness profile owns legacy adapter, schema and CLI retirement paths', (t) => {
   const root = repo(t);
   for (const relative of [
