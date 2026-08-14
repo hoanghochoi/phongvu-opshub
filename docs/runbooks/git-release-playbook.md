@@ -71,12 +71,14 @@ tiện”; release mà tiện quá thường là lúc rollback bắt đầu tậ
    `--enforce-lockfile`, khôi phục generated tracked files trong allowlist và
    fail-closed với mọi thay đổi khác. Known transient materialization failure
    chỉ được retry một lần khi fingerprint không đổi; lỗi product/test không
-   retry. Profile verification cũng tự gọi preflight trước analyzer/build để
-   task quên hook vẫn dừng sớm với lỗi môi trường rõ ràng.
+   retry. Mọi command Flutter/Nest do repository sở hữu phải chạy qua
+   `run-with-toolchain`; không gọi raw `flutter`/`npm` sau một preflight rời
+   vì worktree hoặc CI job khác không được thừa hưởng dependency readiness.
 
-3. Chạy proof theo vùng thay đổi: Flutter (`flutter analyze`, `flutter test`),
-   NestJS (`npm run build`, `npm test -- --runInBand`), Go (`go test ./...`) và
-   `git diff --check`.
+3. Chạy proof theo vùng thay đổi: Flutter (`node scripts/run-with-toolchain.mjs
+   --profile flutter -- flutter analyze` và Flutter test tương ứng), NestJS
+   (`node scripts/run-with-toolchain.mjs --profile nestjs --cwd backend-nest --
+   npm run build` và Jest tương ứng), Go (`go test ./...`) và `git diff --check`.
 4. `.github/workflows/release-guard-pr.yml` phải chạy trên mọi PR vào `staging`
    hoặc `main`. Ruleset chỉ được require check `Release guard` sau khi check đã
    xuất hiện và pass ít nhất một lần trên GitHub.

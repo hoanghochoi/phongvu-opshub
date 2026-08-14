@@ -25,12 +25,10 @@ try {
     node scripts/run-with-toolchain.mjs --profile all --preflight-only
   }
   Invoke-NativeStep 'Analyze Flutter' {
-    node scripts/run-with-toolchain.mjs --profile flutter -- `
-      flutter analyze --no-pub
+    node scripts/run-with-toolchain.mjs --profile flutter -- flutter analyze --no-pub
   }
   Invoke-NativeStep 'Test payment and affected Flutter consumers' {
-    node scripts/run-with-toolchain.mjs --profile flutter -- `
-      flutter test --no-pub `
+    node scripts/run-with-toolchain.mjs --profile flutter -- flutter test --no-pub `
       test/payment_amount_audio_composer_test.dart `
       test/payment_wav_tools_test.dart `
       test/payment_monitor_provider_test.dart `
@@ -46,8 +44,7 @@ try {
       node ../scripts/run-with-toolchain.mjs --root .. --profile nestjs --cwd backend-nest -- npm run build
     }
     Invoke-NativeStep 'Test payment notification backend' {
-      node ../scripts/run-with-toolchain.mjs --root .. --profile nestjs --cwd backend-nest -- `
-        npm test -- --runInBand src/payment-notifications/payment-notifications.service.spec.ts
+      node ../scripts/run-with-toolchain.mjs --root .. --profile nestjs --cwd backend-nest -- npm test -- --runInBand src/payment-notifications/payment-notifications.service.spec.ts
     }
   } finally {
     Pop-Location
@@ -59,8 +56,7 @@ try {
     Pop-Location
   }
   Invoke-NativeStep 'Build Windows Release' {
-    node scripts/run-with-toolchain.mjs --profile flutter -- `
-      flutter build windows --release --no-pub
+    node scripts/run-with-toolchain.mjs --profile flutter -- flutter build windows --release --no-pub
   }
   Invoke-NativeStep 'Validate Windows Release payment audio pack' {
     python scripts/verify_payment_audio_assets.py `

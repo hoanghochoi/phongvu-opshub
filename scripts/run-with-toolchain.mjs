@@ -173,6 +173,10 @@ function preparationFingerprint(preparation) {
   return preparation.fingerprint || null;
 }
 
+function repairCommand(profile) {
+  return `node scripts/prepare-task-toolchain.mjs --profile ${profile} --force`;
+}
+
 function commandFingerprint({ root, profile, cwd, executable, argv, preparation }) {
   return createHash('sha256')
     .update(
@@ -277,6 +281,11 @@ export function runWithToolchain({
         prepared.exitCode === PREPARE_EXIT_CODES.CONTRACT
           ? EXIT_CODES.CONTRACT
           : EXIT_CODES.ENVIRONMENT;
+      result.error = sanitize(
+        preparation?.error || 'Toolchain preflight did not establish dependency readiness.',
+        resolvedRoot,
+      );
+      result.remediation = repairCommand(profile);
       result.durationMs = Date.now() - startedAt;
       writeResult(resolvedRoot, outputPath, result);
       return { exitCode: result.exitCode, result };
@@ -298,6 +307,7 @@ export function runWithToolchain({
     result.status = 'environment-failure';
     result.exitCode = code;
     result.error = sanitize(error?.message || error, resolvedRoot);
+    result.remediation = repairCommand(profile);
     result.durationMs = Date.now() - startedAt;
     writeResult(resolvedRoot, outputPath, result);
     return { exitCode: code, result };
@@ -310,6 +320,7 @@ export function runWithToolchain({
     result.status = 'environment-failure';
     result.exitCode = EXIT_CODES.ENVIRONMENT;
     result.error = sanitize(error?.message || error, resolvedRoot);
+    result.remediation = repairCommand(profile);
     result.durationMs = Date.now() - startedAt;
     writeResult(resolvedRoot, outputPath, result);
     return { exitCode: result.exitCode, result };
@@ -319,6 +330,7 @@ export function runWithToolchain({
     result.status = 'environment-failure';
     result.exitCode = EXIT_CODES.ENVIRONMENT;
     result.error = sanitize(commandResult.error.message || commandResult.error, resolvedRoot);
+    result.remediation = repairCommand(profile);
   } else if (commandResult?.status === 0) {
     result.status = 'passed';
     result.exitCode = EXIT_CODES.PASS;

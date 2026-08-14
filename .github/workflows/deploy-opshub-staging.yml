@@ -123,8 +123,7 @@ jobs:
               exit 1
             fi
           done
-          node scripts/prepare-task-toolchain.mjs --profile flutter --force
-          flutter build apk --release --no-pub \
+          node scripts/run-with-toolchain.mjs --profile flutter -- flutter build apk --release --no-pub \
             --flavor staging \
             --build-name "${{ needs.prepare.outputs.version_name }}" \
             --build-number "${{ needs.prepare.outputs.version_code }}" \
@@ -212,8 +211,7 @@ jobs:
       - name: Build Windows staging release
         shell: pwsh
         run: |
-          node scripts/prepare-task-toolchain.mjs --profile flutter --force
-          flutter build windows --release --no-pub `
+          node scripts/run-with-toolchain.mjs --profile flutter -- flutter build windows --release --no-pub `
             --build-name "${{ needs.prepare.outputs.windows_build_name }}" `
             --build-number "${{ needs.prepare.outputs.version_code }}" `
             --dart-define "API_BASE_URL=${env:OPSHUB_API_BASE_URL}" `
@@ -468,8 +466,7 @@ jobs:
         run: |
           set -euo pipefail
           pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/apply-staging-icons.ps1 -Platform web
-          node scripts/prepare-task-toolchain.mjs --profile flutter --force
-          flutter build web --release --no-pub \
+          node scripts/run-with-toolchain.mjs --profile flutter -- flutter build web --release --no-pub \
             --no-web-resources-cdn \
             --build-name "${{ needs.prepare.outputs.version_name }}" \
             --build-number "${{ needs.prepare.outputs.version_code }}" \

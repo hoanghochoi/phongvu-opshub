@@ -85,8 +85,8 @@ Checklist phải được thu gọn theo scope; item không áp dụng ghi `N/A`
 - [ ] Không còn unapproved visual difference; nếu có, đã sửa và audit lại.
 - [ ] Không claim complete, merge, forward status hay staging-QA pass khi còn
   visual drift chưa approved; drift được xử lý như failed verification.
-- [ ] `flutter analyze --no-pub` pass.
-- [ ] `flutter test --no-pub --reporter expanded` pass.
+- [ ] `node scripts/run-with-toolchain.mjs --profile flutter -- flutter analyze` pass.
+- [ ] `node scripts/run-with-toolchain.mjs --profile flutter -- flutter test --reporter expanded` pass.
 - [ ] Screenshot/smoke comparison ghi Figma revision, viewport và build SHA.
 - [ ] Performance/frame behavior chấp nhận được cho affected flow.
 

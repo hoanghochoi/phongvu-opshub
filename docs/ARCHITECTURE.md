@@ -42,8 +42,8 @@ Redis
 
 | Change area | Minimum proof |
 | --- | --- |
-| Flutter UI/state | `flutter analyze`, `flutter test` |
-| API service/rules | `npm run build`, focused Jest tests |
+| Flutter UI/state | `node scripts/run-with-toolchain.mjs --profile flutter -- flutter analyze`, then the relevant wrapped Flutter tests |
+| API service/rules | `node scripts/run-with-toolchain.mjs --profile nestjs --cwd backend-nest -- npm run build`, then relevant wrapped Jest tests |
 | Prisma schema | migration review plus API tests |
 | Redis/WebSocket | Nest publisher test plus `go test ./...` |
 | Deployment/env | documented smoke checks and health endpoints |

@@ -29,9 +29,8 @@ online retention window. Before enabling the feature on an isolated restored
 environment:
 
 ```powershell
-Set-Location backend-nest
-npm run build
-npm run support-chat:purge-expired
+node ..\scripts\run-with-toolchain.mjs --root .. --profile nestjs --cwd backend-nest -- npm run build
+node ..\scripts\run-with-toolchain.mjs --root .. --profile nestjs --cwd backend-nest -- npm run support-chat:purge-expired
 ```
 
 Keep the feature flag false while the command runs. It uses the same advisory-

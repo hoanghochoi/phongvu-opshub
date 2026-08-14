@@ -98,6 +98,34 @@ test('Flutter commands receive --no-pub and dry-run never executes the command',
   ]);
 });
 
+test('a cold worktree hydrates its own Flutter state before the consumer command', (t) => {
+  const root = fixture(t);
+  const packageConfig = path.join(root, '.dart_tool', 'package_config.json');
+  let commandRan = false;
+  const result = runWithToolchain({
+    root,
+    profile: 'flutter',
+    command: ['flutter', 'analyze'],
+    prepare: ({ root: preparedRoot, profile }) => {
+      assert.equal(preparedRoot, root);
+      assert.equal(profile, 'flutter');
+      mkdirSync(path.dirname(packageConfig), { recursive: true });
+      writeFileSync(packageConfig, '{"configVersion":2,"packages":[]}\n');
+      return successfulPrepare();
+    },
+    runCommand: (_executable, _argv, cwd) => {
+      commandRan = true;
+      assert.equal(cwd, root);
+      assert.equal(existsSync(packageConfig), true);
+      return { status: 0 };
+    },
+  });
+
+  assert.equal(result.exitCode, EXIT_CODES.PASS);
+  assert.equal(commandRan, true);
+  assert.equal(result.result.status, 'passed');
+});
+
 test('Windows command wrappers are represented as executable plus argv', (t) => {
   const root = fixture(t);
   const result = runWithToolchain({
@@ -137,6 +165,10 @@ test('preflight failure blocks the command and maps to environment exit code', (
   assert.equal(result.exitCode, EXIT_CODES.ENVIRONMENT);
   assert.equal(result.result.status, 'environment-failure');
   assert.equal(executions, 0);
+  assert.equal(
+    result.result.remediation,
+    'node scripts/prepare-task-toolchain.mjs --profile nestjs --force',
+  );
 });
 
 test('command failures distinguish product failure from environment failure', (t) => {

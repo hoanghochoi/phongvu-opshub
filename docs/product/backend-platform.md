@@ -153,7 +153,7 @@ curl http://localhost:3000/app-version
 
 ## Expected Proof
 
-- `npm run build` and Jest tests for NestJS.
+- `node scripts/run-with-toolchain.mjs --profile nestjs --cwd backend-nest -- npm run build` and wrapped Jest tests for NestJS.
 - `go test ./...` for realtime service.
 - Docker and health check smoke when deployment or env behavior changes.
 - Home projection changes additionally require migration up/down proof,

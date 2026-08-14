@@ -59,28 +59,33 @@ test('explicit profile is additive and unknown paths fail closed', (t) => {
   assert.equal(failed.exitCode, EXIT_CODES.CONTRACT);
 });
 
-test('cross-stack verification uses one deduplicated all-toolchain preflight', (t) => {
+test('cross-stack verification wraps each consumer with its matching toolchain boundary', (t) => {
   const root = repo(t);
   write(root, 'backend-nest/src/app.ts', 'export {}\n');
   write(root, 'lib/home.dart', 'void main() {}\n');
   const result = verifyTask({ root, options: { dryRun: true } });
   assert.equal(result.exitCode, EXIT_CODES.PASS);
   const definitions = result.result.commandDefinitions;
-  const preflights = definitions.filter((command) => command.id === 'toolchain-preflight');
-  assert.equal(preflights.length, 1);
-  assert.deepEqual(preflights[0].argv, [
-    'scripts/prepare-task-toolchain.mjs',
+  assert.equal(definitions.some((command) => command.id === 'toolchain-preflight'), false);
+  assert.deepEqual(definitions.find((command) => command.id === 'flutter-analyze').argv, [
+    'scripts/run-with-toolchain.mjs',
     '--profile',
-    'all',
+    'flutter',
+    '--',
+    'flutter',
+    'analyze',
   ]);
-  assert.ok(
-    definitions.findIndex((command) => command.id === 'toolchain-preflight') <
-      definitions.findIndex((command) => command.id === 'flutter-analyze'),
-  );
-  assert.ok(
-    definitions.findIndex((command) => command.id === 'toolchain-preflight') <
-      definitions.findIndex((command) => command.id === 'nestjs-build'),
-  );
+  assert.deepEqual(definitions.find((command) => command.id === 'nestjs-build').argv, [
+    'scripts/run-with-toolchain.mjs',
+    '--profile',
+    'nestjs',
+    '--cwd',
+    'backend-nest',
+    '--',
+    'npm',
+    'run',
+    'build',
+  ]);
 });
 
 test('Flutter setup action changes select release and Flutter ownership', (t) => {
@@ -89,11 +94,12 @@ test('Flutter setup action changes select release and Flutter ownership', (t) =>
   const result = verifyTask({ root, options: { dryRun: true } });
   assert.equal(result.exitCode, EXIT_CODES.PASS);
   assert.deepEqual(result.result.selectedProfiles, ['release', 'flutter']);
-  assert.equal(
-    result.result.commandDefinitions.filter((command) => command.id === 'toolchain-preflight')
-      .length,
-    1,
-  );
+  assert.deepEqual(result.result.commandDefinitions.find((command) => command.id === 'flutter-analyze').argv.slice(0, 4), [
+    'scripts/run-with-toolchain.mjs',
+    '--profile',
+    'flutter',
+    '--',
+  ]);
 });
 
 test('harness profile owns legacy adapter, schema and CLI retirement paths', (t) => {
