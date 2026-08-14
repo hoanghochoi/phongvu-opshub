@@ -228,3 +228,9 @@ GitHub Actions uses a versioned Pub cache key containing the runner, Flutter
 version/revision and the tracked `pubspec.yaml`, `pubspec.lock` and `.metadata`;
 changing the cache policy or Flutter SDK therefore cannot reuse an older cache
 silently.
+
+OPS-39/OPS-40 affected-consumer validators use
+`scripts/run-affected-consumer-suite.mjs`. Every Flutter/Nest suite carries its
+own profile and runs through `run-with-toolchain`; a detached preflight in an
+earlier shell block or job cannot authorize a later raw consumer. Go, Node-only,
+Git, Docker and remote-maintenance commands remain in their own boundaries.
