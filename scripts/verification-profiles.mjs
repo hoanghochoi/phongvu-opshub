@@ -18,7 +18,7 @@ export const PROFILES = Object.freeze([
       /^scripts\/README\.md$/,
       /^docs\/(?:contracts|decisions|migrations|plans|templates)\//,
       /^scripts\/(?:adapter|schema)\//,
-      /^scripts\/(?:validate-ops-11-payment-audio\.ps1|validate-ops(?:39|40)-affected-consumers\.mjs)$/,
+      /^scripts\/(?:validate-contract-appendix\.sh|validate-ops-11-payment-audio\.ps1|validate-ops(?:39|40)-affected-consumers\.mjs)$/,
       /^scripts\/prepare-task-toolchain\.mjs$/,
       /^\.gitattributes$/,
       /^scripts\/bootstrap-harness\.(?:ps1|sh)$/,

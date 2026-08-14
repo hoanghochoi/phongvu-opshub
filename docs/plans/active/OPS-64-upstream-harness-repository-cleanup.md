@@ -4,8 +4,8 @@ Date: 2026-08-13
 
 ## Status
 
-Active — the current workflow checkpoint is OPS-108 on live
-`origin/staging@100f2ad319e72bb0334c64c6a8de0ff85b3b8782`. OPS-106 dependency
+Active — the current workflow checkpoint is OPS-109 on live
+`origin/staging@fe936bdf8ff4d192fbb9e1248956fb0743353c19`. OPS-106 dependency
 integrity hardening is merged by PR #218 at `39d2918f` with staging deploy run
 `31811539631` passed and Linear `Ready for QA`. OPS-103 UserService
 characterization is merged by PR #220 at `5d59ba51` with staging deploy run
@@ -19,9 +19,9 @@ OPS-72 follow-up. OPS-74 runtime waves through OPS-97, the Nest/Prisma
 bootstrap, User/Auth characterization and UserService profile/admin extraction
 are merged and staging-deployed. OPS-68 remains protected with its
 authoritative OPS-69 correction; OPS-72 remains `Ready for QA` with live timing
-baseline pending. Dependency bootstrap closure, MAP persistence extraction,
-UserService import extraction, remaining runtime waves and production release
-remain open.
+baseline pending. OPS-109 now owns dependency-bootstrap closure; MAP
+persistence extraction, UserService import extraction, remaining runtime waves
+and production release remain open.
 
 ## Outcome
 
@@ -1375,9 +1375,9 @@ Current live upstream retry evidence:
   `../opshub-ops-104`, created from exact
   `origin/staging@628d79ef5c938f1c804c7c14e168737ba3755b7b`.
 
-## Workflow checkpoint (OPS-108 current; OPS-106/OPS-103/OPS-107 complete)
+## Historical workflow checkpoint (OPS-108 current at that time; OPS-106/OPS-103/OPS-107 complete)
 
-- OPS-108 is the current docs-only reconciliation slice. Its branch/worktree
+- OPS-108 was the docs-only reconciliation slice. Its branch/worktree
   is `codex/ops-108-reconcile-master-plan-after-ops-106-103-107` /
   `../opshub-ops-108`, created from exact live
   `origin/staging@100f2ad319e72bb0334c64c6a8de0ff85b3b8782`. The canonical
@@ -1412,6 +1412,27 @@ Current live upstream retry evidence:
 - The next implementation slices are dependency-bootstrap closure, then the
   named UserService and MAP extraction slices. No production completion is
   inferred from staging merge or QA readiness.
+
+## Workflow checkpoint (OPS-109 current; dependency bootstrap closure)
+
+- OPS-109 is the current tooling slice. Its branch/worktree is
+  `codex/ops-109-close-dependency-bootstrap-bypasses-and-materialization-races`
+  / `../opshub-ops-109`, created from exact live
+  `origin/staging@fe936bdf8ff4d192fbb9e1248956fb0743353c19`. The intake
+  checkpoint was captured twice with identical SHA-256
+  `733cde31831b3f724bfed0459da37521d22656edd069b2b384dd88f2c42b20e8`.
+- The slice closes the standalone validation bypass in
+  `scripts/validate-contract-appendix.sh`, adds `--root` repair/doctor mode,
+  strengthens Flutter readiness for materialized Dart package roots and
+  platform-only plugins, serializes shared Pub-cache hydration and atomically
+  publishes ignored state.
+- Focused proof currently passes: toolchain/coverage suite `23/23`, syntax and
+  shell parse checks pass, and the exact runner selects `harness` plus
+  `verification-runner` for six changed paths with `stale=false`. The final
+  publication proof must be rerun after any plan/docs edit and after the last
+  source change.
+- No product/runtime/API/UI behavior is changed. The remaining gate is exact
+  final proof, PR/staging lifecycle and cleanup of this task worktree.
 
 ## Result
 
