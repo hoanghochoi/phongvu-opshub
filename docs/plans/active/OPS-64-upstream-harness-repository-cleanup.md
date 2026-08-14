@@ -9,10 +9,10 @@ cleanup are merged in staging. Five live shadow observations pass; one
 historical contract gap (#182) was explicitly captured and fixed in the OPS-72
 follow-up. OPS-74 runtime waves are in progress: OPS-80 Home cache coverage,
 OPS-81, OPS-82, OPS-83, OPS-84, OPS-85, OPS-86, OPS-87, OPS-88, OPS-89,
-OPS-90, OPS-91, OPS-92 and OPS-93 are merged and staging-deployed. OPS-94
-import-history comparison/CSV overlay extraction is implemented on its
-lifecycle worktree and is in the baseline/extraction gate. Comparable timing baseline, remaining
-runtime waves and production release remain open.
+OPS-90, OPS-91, OPS-92, OPS-93 and OPS-94 are merged and staging-deployed.
+OPS-95 Sales Reports export orchestration is active on its lifecycle worktree.
+Comparable timing baseline, remaining runtime waves and production release
+remain open.
 
 ## Outcome
 
@@ -29,22 +29,16 @@ branch, and is not converted row-for-row into Markdown.
 ## Authority and checkpoint
 
 - Linear parent: `OPS-64`.
-- Current slice: `OPS-94` import-history comparison and CSV overlay extraction,
-  on the fresh lifecycle worktree `../opshub-ops-94` and branch
-  `codex/ops-94-import-history-comparison-csv-overlay`, created from exact live
-  `origin/staging@8bdd24b4ddd653fa55479bb7b5c0e5bfd4bc59b9`. The extracted
-  constructor-injected `HomeSummaryCsvComparisonRuntime` will own active
-  historical-import grains, coverage completeness, hybrid CSV/projection
-  totals and supported/unavailable metric calculation; `HomeSummaryService`
-  remains the stable comparison facade and SalesHistory import/parser,
-  projection, routes, DTOs, DI tokens and permissions remain outside the slice.
-  Baseline and post-extraction Home Summary characterization both pass
-  `116/116` across six suites; `npm run build`, Prettier and `git diff --check`
-  pass. Deterministic affected Flutter Home/sales-report proof passes `124/124`
-  with `--concurrency=1`, and `flutter analyze --no-pub` passes. The first
-  default-concurrency batch had one isolation flake while every file passed
-  individually; it is not accepted as final proof. Exact runner, commit, PR,
-  staging deploy and lifecycle cleanup remain open.
+- Current slice: `OPS-95` Sales Reports admin export orchestration, on the fresh
+  lifecycle worktree `../opshub-ops-95` and branch
+  `codex/ops-95-sales-reports-export-orchestration`, created from exact live
+  `origin/staging@8c9793545c98b97336b0753f1d7a60ff60e72ac3`. The planned
+  constructor-injected `SalesReportsExportRuntime` owns export orchestration,
+  canonical-revenue quality warning flow and HVTC/revenue/installment XLSX
+  rendering; `SalesReportsService` remains the stable facade and retains
+  scope/query, Prisma loading, imports, ERP, follow-up, BigQuery and revenue
+  aggregation owners. The intake checkpoint is clean and byte-identical across
+  two snapshots; source edits and focused proof are in progress.
   OPS-89 cache state, in-flight dedupe, refresh-ahead, daily-series extension,
   support caches, scope-option caching and projection invalidation remain in
   `home-summary-cache.runtime.ts`.
@@ -441,6 +435,12 @@ god-helper.
   ledger. Ten Linear-Done execution plans moved to `completed/`; OPS-44 and
   nine OPS-53 fragments were consolidated with history preserved.
 - [x] Finish the remaining Phase 6 link/authority review and publish OPS-71.
+- [x] Publish OPS-94 through the guarded feature-PR flow. PR #205 merged into
+  `staging` at `8c9793545c98b97336b0753f1d7a60ff60e72ac3`; staging deploy
+  `31764343895` and the post-merge lifecycle finish gate passed. Linear remains
+  `Ready for QA` until production deployment.
+- [ ] Publish OPS-95 Sales Reports export orchestration through the guarded
+  feature-PR flow and complete its staging/lifecycle gates.
 - [ ] Run Phase 7B CI shadow metrics, Phase 8 artifact cleanup, Phase 9 runtime
   waves and Phase 10 final consolidation.
 
@@ -856,10 +856,32 @@ slice):
   `flutter pub get`) is ignored worktree state only and generated Flutter
   registrant/l10n changes are isolated in the local stash
   `ops94-local-flutter-generated`.
-- Final gates: post-extraction characterization, affected Flutter Home/
+- Final gates passed: post-extraction characterization, affected Flutter Home/
   sales-report consumers, `npm run build`, Prettier, exact
-  `verify-task --base origin/staging` with `stale=false`, PR/CI, staging deploy
-  and guarded lifecycle cleanup.
+  `verify-task --base origin/staging` with `stale=false`, PR #205 checks,
+  staging deploy run `31764343895` and guarded lifecycle cleanup. The merge
+  SHA is `8c9793545c98b97336b0753f1d7a60ff60e72ac3`; canonical staging,
+  origin/staging and the post-finish checkpoint match. Linear OPS-94 is
+  `Ready for QA`; production deployment remains outstanding.
+
+Phase 9D runtime checkpoint (OPS-95, Sales Reports export orchestration slice):
+
+- Slice branch/worktree: `codex/ops-95-sales-reports-export-orchestration` in
+  `../opshub-ops-95`, started from exact live
+  `origin/staging@8c9793545c98b97336b0753f1d7a60ff60e72ac3`; canonical staging
+  remained clean and the OPS-68/OPS-72 worktrees were preserved.
+- Planned extraction: move `SalesReportsService.exportWorkbook`, its canonical
+  revenue quality-warning flow and HVTC/revenue/installment workbook rendering
+  into constructor-injected `SalesReportsExportRuntime`. Scope/query loading,
+  Prisma access, imports, ERP, follow-up, BigQuery and
+  `SalesReportsRevenueAggregationRuntime` remain in their existing owners.
+- Intake checkpoint: branch/head, status/untracked, tracked-index and binary
+  diff hashes were captured twice with identical results before source edits.
+- Current proof: `npx prisma generate`, `npm run build`, Sales Reports service
+  characterization `102/102`, DTO tests `4/4`, and serial affected Flutter
+  Home/sales-report/follow-up matrix `128/128` pass. The initial combined
+  Flutter batch timed out with a closed reporter pipe; per-file serial runs
+  are the accepted proof. Exact commit runner and publication gates remain.
 
 ## Validation
 
