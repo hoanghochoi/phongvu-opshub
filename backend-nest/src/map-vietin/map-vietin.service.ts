@@ -74,6 +74,7 @@ import {
   type MapTransactionRow,
 } from './map-vietin-persistence.runtime';
 import { MapVietinAccountRoutingRuntime } from './map-vietin-account-routing.runtime';
+import { MapVietinStatementPolicyRuntime } from './map-vietin-statement-policy.runtime';
 
 const MAP_CLIENT_ID = 'c4a59ac3630f6d8f1abe722eac7052b5';
 const MAP_SIGNATURE_KEY = '***REMOVED***';
@@ -188,6 +189,7 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
   private readonly syncCoordinator: MapVietinSyncCoordinator;
   private readonly persistenceRuntime: MapVietinPersistenceRuntime;
   private readonly accountRoutingRuntime: MapVietinAccountRoutingRuntime;
+  private readonly statementPolicyRuntime: MapVietinStatementPolicyRuntime;
   private readonly amountKeys = [
     'amount',
     'txnAmount',
@@ -349,6 +351,20 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
       maskAccount: (value) => this.maskAccount(value),
       persistTransactions: (storeCode, rows, stats) =>
         this.persistTransactions(storeCode, rows, stats),
+    });
+    this.statementPolicyRuntime = new MapVietinStatementPolicyRuntime({
+      canAccessStatements: (user) => this.canUseStatements(user),
+      hasNationalScope: (user) => this.hasNationalStatementScope(user),
+      resolveUserStores: (user) => this.resolveUserStores(user),
+      isPhongVuEmail: (email) => this.isPhongVuEmail(email),
+      userMatchesAccessCodes: (user, codes) =>
+        this.userMatchesStatementAccessCodes(user, codes),
+      userBelongsToAccessCodes: (user, codes) =>
+        this.userBelongsToStatementAccessCodes(user, codes),
+      finAccDepartmentCode: FIN_ACC_DEPARTMENT_CODE,
+      accDepartmentCode: ACC_DEPARTMENT_CODE,
+      vietnamDateToken: (value) => this.vietnamDateToken(value),
+      now: () => new Date(Date.now()),
     });
     this.syncCoordinator.configure({
       logger: this.logger,
@@ -2527,38 +2543,17 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
   }
 
   private async canReadStatementStore(user: any, storeCode?: string | null) {
-    await this.assertCanUseStatements(user);
-    if (!storeCode) return this.canReadUnassignedStatementTransactions(user);
-    if (await this.hasNationalStatementScope(user)) return true;
-    const stores = await this.resolveUserStores(user);
-    return stores.some((store) => store.storeId === storeCode);
+    return this.statementPolicyRuntime.canReadStatementStore(user, storeCode);
   }
 
   private async canReadUnassignedStatementTransactions(user: any) {
-    await this.assertCanUseStatements(user);
-    if (String(user?.role || '').toUpperCase() === 'SUPER_ADMIN') return true;
-    if (this.isPhongVuEmail(user?.email)) return true;
-    return this.userMatchesStatementAccessCodes(user, [
-      FIN_ACC_DEPARTMENT_CODE,
-    ]);
+    return this.statementPolicyRuntime.canReadUnassignedStatementTransactions(
+      user,
+    );
   }
 
   private async resolveStatementActionScope(user: any) {
-    await this.assertCanUseStatements(user);
-    if (await this.hasNationalStatementScope(user)) {
-      return {
-        allStores: true,
-        storeCodes: [] as string[],
-        includeUnassigned: true,
-      };
-    }
-    const stores = await this.resolveUserStores(user);
-    return {
-      allStores: false,
-      storeCodes: stores.map((store) => store.storeId),
-      includeUnassigned:
-        await this.canReadUnassignedStatementTransactions(user),
-    };
+    return this.statementPolicyRuntime.resolveStatementActionScope(user);
   }
 
   private statementActionScopeWhere(scope: {
@@ -2566,13 +2561,7 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
     storeCodes: string[];
     includeUnassigned: boolean;
   }): Prisma.MapVietinTransactionWhereInput {
-    if (scope.allStores) return {};
-    const storeWhere: Prisma.MapVietinTransactionWhereInput = {
-      storeCode: { in: scope.storeCodes },
-    };
-    return scope.includeUnassigned
-      ? { OR: [storeWhere, { storeCode: null }] }
-      : storeWhere;
+    return this.statementPolicyRuntime.statementActionScopeWhere(scope);
   }
 
   private async resolveUserStore(user: any) {
@@ -2662,10 +2651,7 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
   }
 
   private async assertCanUseStatements(user: any) {
-    if (await this.canUseStatements(user)) {
-      return;
-    }
-    throw new ForbiddenException('Không có quyền xem sao kê');
+    return this.statementPolicyRuntime.assertCanUseStatements(user);
   }
 
   private assertStatementOrderEditAllowed(
@@ -2740,37 +2726,29 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
   }
 
   private async canEditProtectedStatementOrders(user: any): Promise<boolean> {
-    return this.userMatchesStatementAccessCodes(user, [
-      FIN_ACC_DEPARTMENT_CODE,
-    ]);
+    return this.statementPolicyRuntime.canEditProtectedStatementOrders(user);
   }
 
   private async canEditStatementIncomeType(user: any): Promise<boolean> {
-    return this.userBelongsToStatementAccessCodes(user, [
-      FIN_ACC_DEPARTMENT_CODE,
-    ]);
+    return this.statementPolicyRuntime.canEditStatementIncomeType(user);
   }
 
   private async canReviewStatementOrderTransferRequests(
     user: any,
   ): Promise<boolean> {
-    return this.userMatchesStatementAccessCodes(user, [
-      FIN_ACC_DEPARTMENT_CODE,
-      ACC_DEPARTMENT_CODE,
-    ]);
+    return this.statementPolicyRuntime.canReviewStatementOrderTransferRequests(
+      user,
+    );
   }
 
   private async canManageStatementOrderTracking(user: any): Promise<boolean> {
-    return this.userMatchesStatementAccessCodes(user, [
-      FIN_ACC_DEPARTMENT_CODE,
-      ACC_DEPARTMENT_CODE,
-    ]);
+    return this.statementPolicyRuntime.canManageStatementOrderTracking(user);
   }
 
   private async assertCanReviewStatementOrderTransferRequests(user: any) {
-    await this.assertCanUseStatements(user);
-    if (await this.canReviewStatementOrderTransferRequests(user)) return;
-    throw new ForbiddenException('Bạn không có quyền xác nhận cấn trừ.');
+    return this.statementPolicyRuntime.assertCanReviewStatementOrderTransferRequests(
+      user,
+    );
   }
 
   private async reviewStatementOrderTransferRequest(
@@ -3069,8 +3047,7 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
     paidAt?: Date | null;
     firstSeenAt?: Date | null;
   }) {
-    if (this.isStatementOrderTransferWindowOpen(row)) return;
-    throw new BadRequestException(ORDER_TRANSFER_WINDOW_FORBIDDEN_MESSAGE);
+    return this.statementPolicyRuntime.assertStatementOrderTransferWindow(row);
   }
 
   private normalizeStatementAmount(value?: string) {
