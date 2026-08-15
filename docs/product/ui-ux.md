@@ -450,10 +450,10 @@ accepted product behavior or rewrite the application in one pass.
 - Log retention must preserve complete JSON lines. Malformed fragments may be
   discarded during compaction; retention must not cut a record in the middle.
 - Minimum UI validation for code changes:
-  - `dart format --output=none --set-exit-if-changed <changed Dart files>`
+  - `node scripts/run-with-toolchain.mjs --profile flutter -- dart format --output=none --set-exit-if-changed <changed Dart files>`
   - `git diff --check`
-  - `flutter analyze --no-pub`
-  - `flutter test --no-pub --reporter expanded`
+  - `node scripts/run-with-toolchain.mjs --profile flutter -- flutter analyze`
+  - `node scripts/run-with-toolchain.mjs --profile flutter -- flutter test --reporter expanded`
 - Build or visual proof should be added when layout, platform behavior, or
   assets change. Prefer Android mobile and Windows desktop screenshots or smoke
   notes for Home, target feature screens, and changed states.

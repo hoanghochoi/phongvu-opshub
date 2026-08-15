@@ -4,13 +4,14 @@ Date: 2026-08-13
 
 ## Status
 
-Active — the current workflow checkpoint is OPS-120 on
-`origin/staging@b3913e8d973d2fd35fef03f986cdf79c88c819b6`. OPS-119 closed the
-local operational Prisma verifier boundary: PR #232 merged at this SHA,
-staging deploy `31850797873` passed, Linear is `Ready for QA`, and its task
-worktree/local branch were cleaned by the guarded lifecycle finish. OPS-120
-closes the remaining raw `dart @msixArgs` release helper path. Docker,
-remote-maintenance and product/runtime behavior remain unchanged.
+Active — the current workflow checkpoint is OPS-121 on
+`origin/staging@d5b81d45ac9bd6a706e03dffa6b30028e5ef2dfb`. OPS-120 closed the
+remaining raw `dart @msixArgs` release helper path: PR #233 merged at this
+SHA, staging deploy `31852572385` passed, Linear is `Ready for QA`, and its
+task worktree/local branch were cleaned by the guarded lifecycle finish.
+OPS-121 closes the resume/operational entrypoint gap that could still expose a
+late missing Flutter or Nest dependency. Docker, remote-maintenance and
+product/runtime behavior remain unchanged.
 
 ### OPS-114 checkpoint — dependency bootstrap enforcement
 
@@ -525,8 +526,12 @@ god-helper.
   staging deploy `31850797873` passed, disposable PostgreSQL fresh/rollback/
   upgrade proof passed, exact runner returned `stale=false`, Linear is
   `Ready for QA`, and lifecycle cleanup removed the task worktree/local branch.
-- [ ] Complete OPS-120 Windows MSIX Flutter dependency-boundary closure and
-  publish its exact release-helper proof.
+- [x] Complete OPS-120 Windows MSIX Flutter dependency-boundary closure. PR
+  #233 merged into `staging` at `d5b81d45ac9bd6a706e03dffa6b30028e5ef2dfb`,
+  staging deploy `31852572385` passed, Linear is `Ready for QA`, and the
+  guarded lifecycle cleanup removed the task worktree/local branch.
+- [ ] Complete OPS-121 dependency bootstrap resume/entrypoint closure and
+  publish its exact doctor/cold-worktree proof.
 - [ ] Run Phase 7B CI shadow metrics, Phase 8 artifact cleanup, Phase 9 runtime
   waves and Phase 10 final consolidation.
 
@@ -1586,6 +1591,30 @@ Current live upstream retry evidence:
   certificate password. Exact runner, release workflow checks and staging
   deploy remain required before publication.
 
+## Workflow checkpoint (OPS-121 current; dependency bootstrap resume boundary)
+
+- OPS-121 branch/worktree is `codex/ops-121-dependency-bootstrap-resume-boundary` /
+  `../opshub-ops-121-dependency-bootstrap-resume-boundary`, created by the
+  guarded lifecycle start gate from exact live
+  `origin/staging@d5b81d45ac9bd6a706e03dffa6b30028e5ef2dfb`. Canonical staging
+  was clean before creation and remains the protected integration worktree.
+- The slice adds `scripts/toolchain-doctor.mjs` for existing/resumed worktrees,
+  makes the `all` preflight report NestJS and Flutter independently, adds
+  targeted cold/profile regression tests, closes local operational NestJS npm
+  script hooks, and rewrites current runbook/product examples through the
+  repository toolchain gate. Docker-only and remote-maintenance commands stay
+  explicit boundaries.
+- Local proof so far: toolchain/doctor/entrypoint tests `30/30`, Node syntax,
+  package JSON validation and `git diff --check` pass. The new worktree was
+  created cold with no ignored dependencies and lifecycle hydration passed for
+  both profiles. Doctor dry-run and cached repair returned sanitized JSON with
+  Nest `943` installed packages and Flutter package-config schema `2`, zero
+  missing package roots, and independent profile results.
+- Remaining gates: exact `verify-task --base origin/staging` with
+  `stale=false`, full affected consumer/toolchain proof, PR/CI, staging deploy,
+  Linear implementation/proof note, and guarded `finish --allow-ignored
+  --execute` cleanup.
+
 ## Result
 
 Historical Phase 0-1 artifacts, the generic verification foundation/canaries,
@@ -1599,7 +1628,8 @@ gates. The current OPS-78 follow-up owns the Windows migration-EOL preflight,
 OPS-106 owns the merged dependency-integrity hardening, OPS-109 owns the
 merged dependency-bootstrap closure, OPS-110 owns the merged UserService
 import/welcome-email extraction, OPS-111 owns the current toolchain execution
-gate and Windows dependency recovery, and OPS-118 owns the affected-consumer
+gate and Windows dependency recovery, OPS-118 owns the affected-consumer
+dependency boundary closure, and OPS-121 owns the resume/operational
 dependency boundary closure.
 Move this plan to
 `docs/plans/completed/` only after the full initiative's final validation and

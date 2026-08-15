@@ -21,8 +21,10 @@ không ghi token.
 Sau khi deploy bản loại bỏ startup bootstrap, vô hiệu tài khoản dùng chung cũ
 bằng CLI tham số hóa dưới đây. Không đưa email thật vào Git hoặc runbook:
 
+Chạy từ repository root qua toolchain gate để worktree cũ tự hydrate trước:
+
 ```powershell
-npm run security:disable-account-access -- `
+node scripts/run-with-toolchain.mjs --profile nestjs --cwd backend-nest -- npm run security:disable-account-access -- `
   --email "tai-khoan-can-vo-hieu@example.com" `
   --ticket "INC-YYYY-NNN" `
   --approved-by "ma-nhan-su-nguoi-duyet" `
@@ -35,10 +37,10 @@ liệu nghiệp vụ liên quan đến tài khoản.
 
 ## Phát hành token dùng một lần
 
-Từ thư mục `backend-nest/`:
+Từ repository root:
 
 ```powershell
-npm run security:issue-emergency-admin-reset -- `
+node scripts/run-with-toolchain.mjs --profile nestjs --cwd backend-nest -- npm run security:issue-emergency-admin-reset -- `
   --email "tai-khoan-admin-da-duyet@example.com" `
   --ticket "INC-YYYY-NNN" `
   --approved-by "ma-nhan-su-nguoi-duyet" `

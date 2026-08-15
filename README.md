@@ -23,6 +23,13 @@ node scripts/run-with-toolchain.mjs --profile flutter -- flutter test
 node scripts/run-with-toolchain.mjs --profile flutter -- flutter run --dart-define=API_BASE_URL=http://localhost:3000
 ```
 
+For an existing or resumed worktree, repair ignored dependencies before the
+first build/test command:
+
+```bash
+node scripts/toolchain-doctor.mjs --root ..\opshub-ops-123 --profile all
+```
+
 If `API_BASE_URL` is not provided, the app falls back to the LAN development URL in `ApiConstants`.
 
 ## Backend

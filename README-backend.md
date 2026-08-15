@@ -163,8 +163,9 @@ Expected responses:
   is only the fallback file path when the tree is unavailable.
 - Set all `BIGQUERY_*` values and place the service-account JSON outside git.
 - MAP Vietin BigQuery export (OPS-9) is disabled by default. Provision the
-  sanitized raw table and current-row view with
-  `npm run provision:map-vietin-bigquery`, then set `MAP_VIETIN_BIGQUERY_*`.
+  sanitized raw table and current-row view from repository root with
+  `node scripts/run-with-toolchain.mjs --profile nestjs --cwd backend-nest -- npm run provision:map-vietin-bigquery`,
+  then set `MAP_VIETIN_BIGQUERY_*`.
   PostgreSQL remains the source of truth; the leased outbox worker retries
   asynchronously and never blocks MAP transaction writes. Enable the
   checkpointed backfill only as an explicit operator action.
@@ -332,7 +333,7 @@ Expected responses:
   must include `Retry-After`. The accepted residual risk is that anonymous
   callers can rotate email and signed-in users can change IP to receive a new
   bucket; expensive routes keep their existing endpoint-specific quotas.
-- Run `npx prisma migrate deploy` before starting the Nest API.
+- Run `node scripts/run-with-toolchain.mjs --profile nestjs --cwd backend-nest -- npx --no-install prisma migrate deploy` before starting the Nest API.
 - Start the Go service with the same Redis connection as NestJS.
 - Home near-realtime is projection-first. Source-table triggers write a durable
   outbox plus a coalesced daily queue in the same PostgreSQL transaction;

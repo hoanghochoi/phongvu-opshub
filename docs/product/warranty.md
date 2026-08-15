@@ -15,10 +15,11 @@ receive status updates.
 - Warranty list, search, detail, and status update reads are scoped in the
   backend: `SUPER_ADMIN` can access every warranty; other signed-in users can
   access warranties created by users in the same showroom (`User.storeId`).
-- Legacy n8n warranty metadata can be reconciled with
-  `npm run migrate:n8n-warranty -- --store=CP62` from `backend-nest/` for a
-  dry-run, then `npm run migrate:n8n-warranty -- --store=CP62 --apply` to write
-  CP62 changes. Add `--reassign-existing-creators` when existing OpsHub rows
+- Legacy n8n warranty metadata can be reconciled from repository root through
+  the toolchain gate with
+  `node scripts/run-with-toolchain.mjs --profile nestjs --cwd backend-nest -- npm run migrate:n8n-warranty -- --store=CP62`
+  for a dry-run, then the same command with `--apply` to write CP62 changes.
+  Add `--reassign-existing-creators` when existing OpsHub rows
   must have `createdBy` reconciled back to the legacy n8n user, for example rows
   imported earlier under an admin account. Without `--store`, the script
   considers all legacy receipt prefixes. The script creates locked legacy users

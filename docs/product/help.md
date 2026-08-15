@@ -86,14 +86,12 @@ permission.
 
 ## Expected Proof
 
-- `cd backend-nest`
-- `npx prisma validate`
-- `npx prisma generate`
-- `npm run build`
-- `npm test -- --runInBand src/help-content/help-content.service.spec.ts src/help-content/help-content.controller.spec.ts`
-- `cd ..`
+- `node scripts/run-with-toolchain.mjs --profile nestjs --cwd backend-nest -- npx --no-install prisma validate`
+- `node scripts/run-with-toolchain.mjs --profile nestjs --cwd backend-nest -- npx --no-install prisma generate`
+- `node scripts/run-with-toolchain.mjs --profile nestjs --cwd backend-nest -- npm run build`
+- `node scripts/run-with-toolchain.mjs --profile nestjs --cwd backend-nest -- npm test -- --runInBand src/help-content/help-content.service.spec.ts src/help-content/help-content.controller.spec.ts`
 - `node scripts/build-help-site.mjs`
-- `flutter analyze --no-pub`
-- `flutter test --no-pub --reporter expanded test/admin_menu_screen_test.dart test/app_shell_route_viewport_test.dart test/auth_pre_shell_redesign_test.dart test/help_screen_test.dart`
-- `flutter build web --debug --no-pub`
+- `node scripts/run-with-toolchain.mjs --profile flutter -- flutter analyze`
+- `node scripts/run-with-toolchain.mjs --profile flutter -- flutter test --reporter expanded test/admin_menu_screen_test.dart test/app_shell_route_viewport_test.dart test/auth_pre_shell_redesign_test.dart test/help_screen_test.dart`
+- `node scripts/run-with-toolchain.mjs --profile flutter -- flutter build web --debug`
 - `git diff --check`

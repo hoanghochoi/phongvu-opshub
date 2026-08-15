@@ -16,8 +16,8 @@ and basic administration for privileged roles.
 ## Store Account Data
 
 - Store payment account data is stored in `data/store_account.csv`.
-- The backend import command is:
-  `npm run import:store-accounts -- ../data/store_account.csv`.
+- The backend import command, run from repository root, is:
+  `node scripts/run-with-toolchain.mjs --profile nestjs --cwd backend-nest -- npm run import:store-accounts -- ../data/store_account.csv`.
 - Imported rows upsert `Store` records with transfer account number, account
   name, and bank name.
 - VietQR generation prefers the selected store's transfer account when present.

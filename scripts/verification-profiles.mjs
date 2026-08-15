@@ -19,7 +19,7 @@ export const PROFILES = Object.freeze([
       /^docs\/(?:contracts|decisions|migrations|plans|templates)\//,
       /^scripts\/(?:adapter|schema)\//,
       /^scripts\/(?:validate-contract-appendix\.sh|validate-ops-11-payment-audio\.ps1|validate-ops(?:39|40)-affected-consumers\.mjs|run-affected-consumer-suite\.mjs)$/,
-      /^scripts\/(?:prepare-task-toolchain|run-with-toolchain)\.mjs$/,
+      /^scripts\/(?:prepare-task-toolchain|run-with-toolchain|toolchain-doctor)\.mjs$/,
       /^\.gitattributes$/,
       /^scripts\/bootstrap-harness\.(?:ps1|sh)$/,
       /^scripts\/bin\/harness(?:-cli)?\.exe\.sha256$/,
