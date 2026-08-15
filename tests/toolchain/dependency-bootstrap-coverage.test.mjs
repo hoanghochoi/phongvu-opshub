@@ -261,8 +261,13 @@ test("Docker Nest build is self-contained without weakening local lifecycle gate
   );
   assert.match(
     dockerfile,
-    /npm run verify:security-deps --ignore-scripts && npx --no-install prisma generate && npm run build --ignore-scripts/,
-    "the backend-only Docker context must execute Nest build without the local prebuild hook",
+    /node scripts\/verify-security-dependencies\.mjs && npx --no-install prisma generate && npm run build --ignore-scripts/,
+    "the backend-only Docker context must execute the security verifier without the repository-root helper",
+  );
+  assert.doesNotMatch(
+    dockerfile,
+    /npm run verify:security-deps --ignore-scripts/,
+    "the Docker-only verifier must not depend on a repository-root toolchain helper",
   );
   assert.match(
     dockerfile,
