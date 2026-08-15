@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { createHash } from 'node:crypto';
+import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -25,11 +26,51 @@ function isSafeRelativePath(value) {
   );
 }
 
-function sha256(filePath) {
-  return createHash('sha256').update(readFileSync(filePath)).digest('hex');
+function gitOutput(args, { binary = false } = {}) {
+  const result = spawnSync('git', args, {
+    cwd: ROOT,
+    encoding: binary ? null : 'utf8',
+    windowsHide: true,
+    maxBuffer: 16 * 1024 * 1024,
+  });
+  if (result.error || result.status !== 0) {
+    fail(`git ${args.join(' ')} failed: ${result.error?.message || String(result.stderr || '').trim()}`);
+  }
+  return result.stdout;
 }
 
-function validatePath(entry, seenPaths) {
+function normalizedCurrentFile(relativePath) {
+  const currentBlob = String(
+    gitOutput(['hash-object', `--path=${relativePath}`, '--', relativePath]),
+  ).trim();
+  if (!/^[0-9a-f]{40}$/.test(currentBlob)) {
+    fail(`current normalized blob is invalid: ${relativePath}`);
+  }
+  const bytes = gitOutput(['cat-file', 'blob', currentBlob], { binary: true });
+  return {
+    bytes,
+    sha256: createHash('sha256').update(bytes).digest('hex'),
+  };
+}
+
+function normalizedSourceFile(sourceRevision, relativePath) {
+  const sourceBlob = String(
+    gitOutput(['rev-parse', '--verify', `${sourceRevision}:${relativePath}`]),
+  ).trim();
+  if (!/^[0-9a-f]{40}$/.test(sourceBlob)) {
+    fail(`source blob is invalid: ${relativePath}`);
+  }
+  const current = normalizedCurrentFile(relativePath);
+  const currentBlob = String(
+    gitOutput(['hash-object', `--path=${relativePath}`, '--', relativePath]),
+  ).trim();
+  if (currentBlob !== sourceBlob) {
+    fail(`normalized file content mismatch: ${relativePath}`);
+  }
+  return current;
+}
+
+function validatePath(entry, seenPaths, sourceRevision) {
   if (!entry || typeof entry !== 'object') fail('path entry is not an object');
   if (!isSafeRelativePath(entry.path)) fail(`unsafe path: ${entry.path}`);
   if (!ALLOWED_KINDS.has(entry.kind)) fail(`invalid path kind: ${entry.path}`);
@@ -47,10 +88,13 @@ function validatePath(entry, seenPaths) {
     if (!/^[0-9a-f]{64}$/.test(entry.sha256 || '')) {
       fail(`file SHA-256 missing: ${entry.path}`);
     }
-    if (entry.sha256 !== sha256(absolutePath)) {
+    const normalized = normalizedSourceFile(sourceRevision, entry.path);
+    if (entry.sha256 !== normalized.sha256) {
       fail(`file SHA-256 mismatch: ${entry.path}`);
     }
-    if (entry.bytes !== stats.size) fail(`file byte count mismatch: ${entry.path}`);
+    if (entry.bytes !== normalized.bytes.length) {
+      fail(`file byte count mismatch: ${entry.path}`);
+    }
   }
 }
 
@@ -76,7 +120,8 @@ export function validateRetainedOwnerReview(document) {
   if (!/^[0-9a-f]{64}$/.test(document.sourceInventorySha256 || '')) {
     fail('sourceInventorySha256 is invalid');
   }
-  if (sha256(inventoryPath) !== document.sourceInventorySha256) {
+  const normalizedInventory = normalizedCurrentFile(document.sourceInventory);
+  if (normalizedInventory.sha256 !== document.sourceInventorySha256) {
     fail('source inventory SHA-256 mismatch');
   }
   if (!Array.isArray(document.candidates) || document.candidates.length < 4) {
@@ -96,7 +141,9 @@ export function validateRetainedOwnerReview(document) {
     if (!Array.isArray(candidate.paths) || candidate.paths.length === 0) {
       fail(`candidate paths missing: ${candidate.id}`);
     }
-    for (const entry of candidate.paths) validatePath(entry, seenPaths);
+    for (const entry of candidate.paths) {
+      validatePath(entry, seenPaths, document.sourceRevision);
+    }
     validateReferenceList(candidate.ownerReferences, `${candidate.id}.ownerReferences`);
     if (!candidate.rollback?.required || !candidate.rollback?.method || !candidate.rollback?.owner) {
       fail(`rollback metadata missing: ${candidate.id}`);

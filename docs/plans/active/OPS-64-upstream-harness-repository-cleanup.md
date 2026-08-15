@@ -4,9 +4,9 @@ Date: 2026-08-13
 
 ## Status
 
-Active — the current workflow checkpoint is OPS-137 Phase 8 evidence
-determinism/checklist reconciliation, created from
-`origin/staging@6814d4ba29d7dbd854590daea3c890f15174d3c7` after OPS-136.
+Active — the current workflow checkpoint is OPS-139 Phase 8 retained-owner
+evidence normalization, created from
+`origin/staging@c16638a9082be5519fa82bb58c25077d9e8b7d90` after OPS-137.
 OPS-134 is squash-merged at `46c8aa90d932f8cfadb25eddae80305180ca9d95`,
 staging-deployed by `31901021962`, and tracked `Ready for QA`. OPS-135 is
 squash-merged at the current checkpoint, staging-deployed by
@@ -615,6 +615,9 @@ Phase 8 inventory checkpoint (OPS-73):
   `no-safe-deletion-candidate`. The validator rejects only a `..` path segment,
   so valid generated filenames containing consecutive dots are accepted. No
   n8n/platform/release asset is authorized for deletion.
+- [x] Open OPS-139 after the clean-checkout gate exposed raw checkout-EOL drift
+  in the OPS-137 retained-owner hashes. The repair uses Git-normalized bytes
+  and retains `no-safe-deletion-candidate`; reviewed payloads remain untouched.
 
 Flutter batch checkpoint:
 
@@ -2163,6 +2166,32 @@ Current live upstream retry evidence:
   proof and Phase 10 production consolidation stay open. Rollback is one OPS-137
   squash revert.
 
+## Workflow checkpoint (OPS-139; retained-owner evidence normalization)
+
+- This evidence-only slice is branch/worktree
+  `codex/ops-139-retained-owner-hashes` /
+  `../opshub-ops-139-retained-owner-hashes`, created by the guarded lifecycle
+  start gate from exact live
+  `origin/staging@c16638a9082be5519fa82bb58c25077d9e8b7d90`.
+- The clean-checkout failure was caused by the manifest hashing raw Windows
+  CRLF checkout bytes while the Git-normalized blobs are LF. Eight reviewed
+  file entries had this representation drift (four n8n reference exports,
+  three VietQR authority files and the staging README); no payload content or
+  deletion decision changed.
+- The validator now compares each current file's Git-normalized blob with its
+  recorded source revision and hashes the normalized bytes. The manifest stores
+  normalized SHA-256/byte values, and `.gitattributes` pins n8n JSON to LF so
+  future clean worktrees converge. The source inventory remains current-file
+  evidence and `no-safe-deletion-candidate` is unchanged.
+- OPS-138 organization-tree/assignment extraction was paused before source
+  mutation because this authority gate was red; its task worktree and branch
+  were removed. Restart OPS-138 only after OPS-139 is merged, deployed and
+  cleaned.
+- Intake checkpoint hash: `a80312005c77b3e35580ae755fbe126622d094adfd1ea0053712d35fce6c2bcd`
+  (two identical captures). Rollback is one OPS-139 squash revert. Phase 8
+  deletion, remaining runtime proof, OPS-72 promotion and Phase 10 production
+  consolidation remain open.
+
 Historical Phase 0-1 artifacts, the generic verification foundation/canaries,
 the disposable upstream updater lifecycle gate, and the shared Flutter test
 environment remain implemented and verified. Save-file picker success/error
@@ -2174,8 +2203,9 @@ gates. OPS-131 is now merged/deployed at `e338e51b` and tracked as `Ready for
 QA` after exact deploy `31894609071` and guarded cleanup. OPS-73's retained-owner
 review is merged/deployed at `dd7d2ffb` and tracked as `Ready for QA` after
 exact deploy `31896414830` and guarded cleanup. OPS-73's prior dependency
-batches remain `Ready for QA`; OPS-136 is the last merged checkpoint at
-`6814d4ba`, and OPS-137 is the current Phase 8 evidence/checklist slice. OPS-113
+batches remain `Ready for QA`; OPS-137 is the last merged checkpoint at
+`c16638a9`, and OPS-139 is the current Phase 8 retained-owner evidence slice.
+OPS-138 is paused before source mutation until this authority repair passes. OPS-113
 is also staged and tracked as `Ready for
 QA` after exact deploy `31862881662` and guarded cleanup. OPS-122 and OPS-123's
 reconciliations are historical; OPS-124 is merged/deployed and tracked as
@@ -2185,8 +2215,8 @@ is the completed live-shadow evidence assembly checkpoint. OPS-131 and OPS-73
 are completed staging checkpoints. OPS-72 now has five valid post-OPS-130
 manifests (#247–#251), but remains `revise`/`do-not-promote` because the timing
 target is only `8.77%` and rerun reduction is unmeasurable. Phase 8 deletion
-work, remaining runtime proof and OPS-75 final consolidation remain downstream
-gates.
+work, retained-owner evidence normalization, remaining runtime proof and OPS-75
+final consolidation remain downstream gates.
 Move this plan to
 `docs/plans/completed/` only after the full initiative's final validation and
 production lifecycle are complete.
