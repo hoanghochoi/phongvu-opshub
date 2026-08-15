@@ -2,10 +2,10 @@
   "formatVersion": 1,
   "issue": "OPS-73",
   "phase": "retained-owner-review",
-  "sourceRevision": "46c8aa90d932f8cfadb25eddae80305180ca9d95",
-  "reviewedAtUtc": "2026-08-15T18:45:00Z",
+  "sourceRevision": "6814d4ba29d7dbd854590daea3c890f15174d3c7",
+  "reviewedAtUtc": "2026-08-15T20:14:30.000Z",
   "sourceInventory": "docs/migrations/ops-73-artifact-inventory.json",
-  "sourceInventorySha256": "2f49a3590e5304d6d454e16d8c10f7d16f14a82f08e56e4c9f6e35ef6dc4c6f6",
+  "sourceInventorySha256": "241e54629ffe9d2d12f33b5100a3854f0ed3f8c6daeacdc92195d064440cd713",
   "candidates": [
     {
       "id": "n8n-workflow-exports",
@@ -111,12 +111,30 @@
       "owner": "Flutter platform and release owners",
       "runtimeStatus": "release-build-input",
       "paths": [
-        { "path": "android", "kind": "directory" },
-        { "path": "ios", "kind": "directory" },
-        { "path": "linux", "kind": "directory" },
-        { "path": "macos", "kind": "directory" },
-        { "path": "web", "kind": "directory" },
-        { "path": "windows", "kind": "directory" }
+        {
+          "path": "android",
+          "kind": "directory"
+        },
+        {
+          "path": "ios",
+          "kind": "directory"
+        },
+        {
+          "path": "linux",
+          "kind": "directory"
+        },
+        {
+          "path": "macos",
+          "kind": "directory"
+        },
+        {
+          "path": "web",
+          "kind": "directory"
+        },
+        {
+          "path": "windows",
+          "kind": "directory"
+        }
       ],
       "ownerReferences": [
         ".github/actions/setup-flutter/action.yml",
@@ -126,7 +144,14 @@
         "scripts/build-windows-msix-internal.ps1"
       ],
       "referenceProof": {
-        "buildMatrix": ["android", "ios", "linux", "macos", "web", "windows"],
+        "buildMatrix": [
+          "android",
+          "ios",
+          "linux",
+          "macos",
+          "web",
+          "windows"
+        ],
         "deletionRule": "generated/platform copies require an allowlist owner and affected build proof"
       },
       "rollback": {
