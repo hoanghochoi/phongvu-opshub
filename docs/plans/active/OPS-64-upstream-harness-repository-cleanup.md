@@ -4,14 +4,15 @@ Date: 2026-08-13
 
 ## Status
 
-Active — the current workflow checkpoint is the OPS-123 reconciliation after
-OPS-72 timing-baseline v2 on
-`origin/staging@4dda2592de5d0691082756d0d6fb32d0b93e8607`. OPS-72 PR #239 was
-squash-merged and its exact staging deploy `31869668906` passed all Windows,
-Android, web, backend, direct-origin and public health/version checks;
-lifecycle cleanup removed its task worktree and branches. OPS-72 has five
-comparable post-telemetry observations, but the measured timing improvement is
-only 15.05% and the rerun target is not measurable, so the matrix remains
+Active — the current workflow checkpoint is the OPS-125 reconciliation after
+OPS-124 command-time dependency readiness on
+`origin/staging@5432a995fb1a68a70be96a95ba45592fb9e703c1`. OPS-124 PR #241 was
+squash-merged and its exact staging deploy `31875595813` passed Android,
+Windows, web, backend, direct-origin and public health/version checks;
+guarded lifecycle cleanup removed its task worktree/local branch and the
+remote task branch was deleted separately. OPS-72 still has five comparable
+post-telemetry observations, but the measured timing improvement is only
+15.05% and the rerun target is not measurable, so the matrix remains
 observational and the phase is explicitly `revise`. Product, API, permission
 and runtime behavior stay unchanged.
 
@@ -550,6 +551,18 @@ god-helper.
   source checkpoint is exact `origin/staging@4dda2592de5d0691082756d0d6fb32d0b93e8607`;
   the reconciliation is docs-only and preserves the explicit `revise`
   residual, deployment proof and cleanup evidence.
+- [x] Complete OPS-124 command-time dependency readiness closure. PR #241
+  squash-merged into `staging` at `5432a995fb1a68a70be96a95ba45592fb9e703c1`;
+  PR checks, CodeQL, Release Guard and Affected Verification Shadow passed.
+  Exact staging deploy `31875595813` passed Android, Windows, web, backend,
+  direct-origin and public health/version checks; Linear is `Ready for QA` and
+  guarded lifecycle cleanup removed the task worktree/local/remote branch.
+- [ ] Reconcile this master plan in OPS-125 from the exact
+  `origin/staging@5432a995fb1a68a70be96a95ba45592fb9e703c1` checkpoint, then
+  select one bounded follow-up. The next safe workflow lane is a revised
+  OPS-72 failure-injection/timing cohort; do not promote the affected matrix
+  or start overlapping runtime/auth work until its acceptance evidence is
+  measurable.
 - [ ] Run Phase 8 artifact cleanup, Phase 9 runtime waves and Phase 10 final
   consolidation.
 
@@ -1749,7 +1762,7 @@ Current live upstream retry evidence:
   baseline, or explicitly revise the acceptance metric before closing OPS-72.
   Rollback is one evidence/validator/docs revert.
 
-## Workflow checkpoint (OPS-123; current reconciliation)
+## Historical workflow checkpoint (OPS-123; reconciliation after OPS-72)
 
 - This docs-only slice is branch/worktree
   `codex/ops-123-reconcile-ops72-checkpoint` /
@@ -1763,7 +1776,7 @@ Current live upstream retry evidence:
   with `stale=false`, PR/CI, staging deploy and guarded lifecycle cleanup.
   Rollback is one docs-only squash revert.
 
-## Workflow checkpoint (OPS-124; command-time dependency readiness)
+## Historical workflow checkpoint (OPS-124; command-time dependency readiness)
 
 - This slice is branch/worktree
   `codex/ops-124-command-time-dependency-readiness` /
@@ -1786,13 +1799,39 @@ Current live upstream retry evidence:
   dependency-entrypoint coverage, focused readiness/retry/lease tests and the
   current scripts runbook. No product/runtime/API/UI/data/dependency-version or
   archive behavior changes are intended.
-- Local proof: all toolchain/boundary tests passed `67/67`; modified scripts
+- Local proof: all toolchain/boundary tests passed `73/73`; modified scripts
   pass `node --check`; Nest dry-run readiness passed with `943` installed
-  packages and `76` entrypoints checked; `git diff --check` passed. Remaining
-  gates are exact `verify-task --base origin/staging` with `stale=false`, PR/CI,
-  staging deploy, Linear proof note and guarded lifecycle cleanup.
+  packages and `76` entrypoints checked; exact `verify-task --base
+  origin/staging` passed with profiles `harness,docs,nestjs` and 10 affected
+  paths. PR #241 checks, CodeQL, Release Guard and Affected Verification
+  Shadow passed; exact staging deploy `31875595813` passed Android, Windows,
+  web, backend, direct-origin and public health/version checks. Linear proof
+  was recorded and OPS-124 is `Ready for QA`; guarded lifecycle cleanup
+  removed the task worktree/local branch and the remote task branch was
+  deleted separately.
 - Rollback: revert the OPS-124 PR as one unit. Ignored dependency directories,
   shared caches, source DB and Harness archive remain untouched.
+
+## Workflow checkpoint (OPS-125; master-plan reconciliation after OPS-124)
+
+- This docs-only slice is branch/worktree
+  `codex/ops-125-master-plan-checkpoint-after-ops-124` /
+  `../opshub-ops-125-master-plan-checkpoint-after-ops-124`, created by the
+  guarded lifecycle start gate from exact live
+  `origin/staging@5432a995fb1a68a70be96a95ba45592fb9e703c1`.
+- It updates the sole active plan's current checkpoint, records OPS-124's
+  merged/deployed/cleaned evidence, preserves OPS-72's explicit `revise`
+  residual, and keeps Phase 8's `n8n/`/legacy-route/platform/release-
+  allowlist ownership requirement open until independent owner and rollback
+  evidence exists. No product/runtime/API/UI/data/dependency/archive behavior
+  changes are in scope.
+- The next bounded lane is a revised OPS-72 failure-injection/timing cohort
+  touching the shadow runner/profile/evidence authority. Runtime User/Auth
+  residual waves remain serialized after that workflow evidence; no new
+  overlapping runtime branch is opened by this reconciliation.
+- Required proof is `git diff --check`, exact `verify-task --base
+  origin/staging` with `stale=false`, PR/CI and guarded lifecycle cleanup.
+  Rollback is one docs-only squash revert.
 
 ## Result
 
@@ -1804,11 +1843,12 @@ local-only and retained; the canonical source remains read-only evidence.
 OPS-65 PR #175, OPS-68 PR #176, and OPS-69 PRs #177/#178 are merged into
 `staging`; each remains subject to its documented QA/production lifecycle
 gates. OPS-73 and OPS-113 are now also staged and tracked as `Ready for QA`
-after exact deploy `31862881662` and guarded cleanup. OPS-122's reconciliation
-is historical; OPS-72 timing-baseline v2 is now the historical current slice
-and OPS-123 is the active checkpoint reconciliation. The five live
-observations are valid but remain `revise`; runtime waves and OPS-75 final
-consolidation remain downstream of the workflow/noise gate.
+after exact deploy `31862881662` and guarded cleanup. OPS-122 and OPS-123's
+reconciliations are historical; OPS-124 is merged/deployed and tracked as
+`Ready for QA`, and OPS-125 is the current docs-only checkpoint. OPS-72's
+five live observations are valid but remain `revise`; Phase 8 retained-owner
+evidence, runtime waves and OPS-75 final consolidation remain downstream
+gates.
 Move this plan to
 `docs/plans/completed/` only after the full initiative's final validation and
 production lifecycle are complete.
