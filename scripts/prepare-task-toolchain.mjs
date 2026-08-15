@@ -53,6 +53,12 @@ const COMMAND_MAX_BUFFER_BYTES = 16 * 1024 * 1024;
 const PUB_CACHE_LOCK_WAIT_MS = 5 * 60 * 1000;
 const PUB_CACHE_LOCK_STALE_MS = 15 * 60 * 1000;
 const PUB_CACHE_LOCK_POLL_MS = 250;
+const NEST_TOOLCHAIN_LOCK_RELATIVE_PATH = path.join(
+  'tmp',
+  '.opshub-nest-toolchain.lock',
+);
+const INHERITED_LEASE_ENV = 'OPSHUB_TOOLCHAIN_LEASE';
+const activeLockDepth = new Map();
 const FLUTTER_PLATFORM_PACKAGE_DIRS = Object.freeze([
   'android',
   'darwin',
@@ -322,6 +328,21 @@ function flutterPubCacheLockPath() {
   return path.join(flutterPubCacheRoot(), '.opshub-pub-cache.lock');
 }
 
+function nestToolchainLockPath(root) {
+  return path.resolve(root, NEST_TOOLCHAIN_LOCK_RELATIVE_PATH);
+}
+
+function toolchainLeasePath(root, profile) {
+  if (profile === FLUTTER_PROFILE_ID) return flutterPubCacheLockPath();
+  if (profile === PROFILE_ID) return nestToolchainLockPath(root);
+  return null;
+}
+
+function lockKey(lockPath) {
+  const normalized = path.normalize(lockPath);
+  return process.platform === 'win32' ? normalized.toLowerCase() : normalized;
+}
+
 function processIsAlive(pid) {
   if (!Number.isInteger(pid) || pid <= 0) return false;
   try {
@@ -340,12 +361,13 @@ function readLockMetadata(lockPath) {
   }
 }
 
-function stalePubCacheLock(lockPath) {
+function staleCoordinatedLock(lockPath) {
   try {
     const ageMs = Date.now() - statSync(lockPath).mtimeMs;
-    if (ageMs < PUB_CACHE_LOCK_STALE_MS) return false;
     const metadata = readLockMetadata(lockPath);
-    return !processIsAlive(Number(metadata?.pid));
+    const pid = Number(metadata?.pid);
+    if (Number.isInteger(pid) && pid > 0) return !processIsAlive(pid);
+    return ageMs >= PUB_CACHE_LOCK_STALE_MS;
   } catch {
     return false;
   }
@@ -356,8 +378,63 @@ function sleepSync(milliseconds) {
   Atomics.wait(signal, 0, 0, milliseconds);
 }
 
-function acquireFlutterPubCacheLock(root) {
-  const lockPath = flutterPubCacheLockPath();
+function releaseCoordinatedLock(lockPath) {
+  const key = lockKey(lockPath);
+  const current = activeLockDepth.get(key);
+  if (!current) return;
+  if (current.depth > 1) {
+    current.depth -= 1;
+    return;
+  }
+  activeLockDepth.delete(key);
+  try {
+    if (existsSync(lockPath)) unlinkSync(lockPath);
+  } catch {
+    // The lock is a best-effort coordination file; the next stale check can recover it.
+  }
+}
+
+function inheritedLeaseMetadata(root, profile) {
+  const raw = process.env[INHERITED_LEASE_ENV];
+  if (!raw) return null;
+  let metadata;
+  try {
+    metadata = JSON.parse(raw);
+  } catch {
+    return null;
+  }
+  const parentPid = Number(metadata?.pid);
+  if (
+    !Number.isInteger(parentPid) ||
+    parentPid <= 0 ||
+    metadata?.profile !== profile ||
+    path.resolve(String(metadata?.root || '')) !== path.resolve(root) ||
+    !processIsAlive(parentPid)
+  ) {
+    return null;
+  }
+  const lockPath = toolchainLeasePath(root, profile);
+  const lockMetadata = lockPath ? readLockMetadata(lockPath) : null;
+  return Number(lockMetadata?.pid) === parentPid ? metadata : null;
+}
+
+function inheritedLeaseMatches(root, profile) {
+  return inheritedLeaseMetadata(root, profile) !== null;
+}
+
+function acquireCoordinatedLock(lockPath, root, label) {
+  const key = lockKey(lockPath);
+  const current = activeLockDepth.get(key);
+  if (current) {
+    current.depth += 1;
+    let released = false;
+    return () => {
+      if (released) return;
+      released = true;
+      releaseCoordinatedLock(lockPath);
+    };
+  }
+
   mkdirSync(path.dirname(lockPath), { recursive: true });
   const startedAt = Date.now();
   while (Date.now() - startedAt < PUB_CACHE_LOCK_WAIT_MS) {
@@ -372,18 +449,24 @@ function acquireFlutterPubCacheLock(root) {
       } finally {
         closeSync(descriptor);
       }
-      return lockPath;
+      activeLockDepth.set(key, { depth: 1 });
+      let released = false;
+      return () => {
+        if (released) return;
+        released = true;
+        releaseCoordinatedLock(lockPath);
+      };
     } catch (error) {
       if (error?.code !== 'EEXIST') {
         fail(
           EXIT_CODES.ENVIRONMENT,
-          `Không tạo được Flutter Pub cache lock: ${sanitizeDiagnostic(
+          `Không tạo được ${label}: ${sanitizeDiagnostic(
             error?.message || error,
             root,
           )}`,
         );
       }
-      if (stalePubCacheLock(lockPath)) {
+      if (staleCoordinatedLock(lockPath)) {
         try {
           unlinkSync(lockPath);
         } catch {
@@ -396,26 +479,61 @@ function acquireFlutterPubCacheLock(root) {
   }
   fail(
     EXIT_CODES.ENVIRONMENT,
-    'Flutter Pub cache đang được hydrate bởi một tiến trình khác quá lâu; ' +
+    `${label} đang được giữ bởi một tiến trình khác quá lâu; ` +
       'xóa lock stale sau khi xác minh tiến trình rồi chạy lại preflight.',
   );
 }
 
-function releaseFlutterPubCacheLock(lockPath) {
-  try {
-    if (existsSync(lockPath)) unlinkSync(lockPath);
-  } catch {
-    // The lock is a best-effort coordination file; the next stale check can recover it.
+function acquireFlutterPubCacheLock(root) {
+  return acquireCoordinatedLock(
+    flutterPubCacheLockPath(),
+    root,
+    'Flutter Pub cache lock',
+  );
+}
+
+export function acquireToolchainLease({ root = process.cwd(), profile } = {}) {
+  const resolvedRoot = path.resolve(root);
+  if (inheritedLeaseMatches(resolvedRoot, profile)) return () => {};
+  if (profile === FLUTTER_PROFILE_ID)
+    return acquireFlutterPubCacheLock(resolvedRoot);
+  if (profile === PROFILE_ID) {
+    return acquireCoordinatedLock(
+      nestToolchainLockPath(resolvedRoot),
+      resolvedRoot,
+      'NestJS toolchain lock',
+    );
   }
+  fail(
+    EXIT_CODES.CONTRACT,
+    `Không có toolchain lease cho profile: ${profile}.`,
+  );
+}
+
+export function toolchainLeaseEnvironment({
+  root = process.cwd(),
+  profile,
+} = {}) {
+  const inherited = inheritedLeaseMetadata(path.resolve(root), profile);
+  return {
+    ...process.env,
+    [INHERITED_LEASE_ENV]: JSON.stringify(
+      inherited || {
+        pid: process.pid,
+        profile,
+        root: path.resolve(root),
+      },
+    ),
+  };
 }
 
 function runHydrationStep(root, step, runStepFn, recoveryPaths = []) {
   if (step.id === 'flutter-pub-get') {
-    const lockPath = acquireFlutterPubCacheLock(root);
+    const releaseLock = acquireFlutterPubCacheLock(root);
     try {
       return runStepFn(root, step);
     } finally {
-      releaseFlutterPubCacheLock(lockPath);
+      releaseLock();
     }
   }
 
@@ -524,6 +642,14 @@ function resolvePackageRoot(packageConfigPath, rootUri) {
   }
 }
 
+function isPhysicalDirectory(value) {
+  try {
+    return statSync(value).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
 function resolvePackageUri(packageRoot, packageUri) {
   if (typeof packageUri !== 'string' || packageUri.length === 0) return null;
   try {
@@ -567,7 +693,7 @@ function flutterPackageReadiness(root, packageConfigPath) {
     }
     packageNames.add(name);
     const packageRoot = resolvePackageRoot(packageConfigPath, entry?.rootUri);
-    if (!packageRoot || !existsSync(packageRoot)) {
+    if (!packageRoot || !isPhysicalDirectory(packageRoot)) {
       missingPackages.push(`${name}:root`);
       continue;
     }
@@ -576,7 +702,7 @@ function flutterPackageReadiness(root, packageConfigPath) {
     }
     const packageUri = resolvePackageUri(packageRoot, entry?.packageUri);
     if (
-      (!packageUri || !existsSync(packageUri)) &&
+      (!packageUri || !isPhysicalDirectory(packageUri)) &&
       !isMaterializedPlatformPackage(packageRoot)
     ) {
       packageUriRoots = false;
@@ -637,7 +763,7 @@ function flutterPluginReadiness(root, pluginMetadataPath, packageNames) {
             ? path.resolve(entry.path)
             : path.resolve(root, entry.path)
           : null;
-      if (!pluginPath || !existsSync(pluginPath)) {
+      if (!pluginPath || !isPhysicalDirectory(pluginPath)) {
         pluginRoots = false;
         missingPlugins.push(`${name}:path`);
         continue;
@@ -688,6 +814,68 @@ function sanitizeDiagnostic(value, root = process.cwd()) {
   text = text.replace(/\b[A-Za-z]:[\\/][^\s'"<>]+/g, '<path>');
   text = text.replace(/(^|[\s(])\/(?:Users|home|tmp|workspace|app)\/[^\s'"<>]+/g, '$1<path>');
   return text.slice(-800);
+}
+
+function packageEntrypointExists(packageRoot, entrypoint) {
+  if (typeof entrypoint !== 'string' || entrypoint.length === 0) return true;
+  const resolved = path.resolve(packageRoot, entrypoint);
+  const relative = path.relative(packageRoot, resolved);
+  if (
+    relative === '..' ||
+    relative.startsWith(`..${path.sep}`) ||
+    path.isAbsolute(relative)
+  ) {
+    return false;
+  }
+  const candidates = [
+    resolved,
+    `${resolved}.js`,
+    `${resolved}.cjs`,
+    `${resolved}.mjs`,
+    `${resolved}.json`,
+    path.join(resolved, 'package.json'),
+    path.join(resolved, 'index.js'),
+    path.join(resolved, 'index.cjs'),
+    path.join(resolved, 'index.mjs'),
+  ];
+  return candidates.some((candidate) => existsSync(candidate));
+}
+
+function packageEntrypoints(packageJson) {
+  const values = [];
+  for (const key of ['main', 'module', 'browser']) {
+    if (typeof packageJson?.[key] === 'string') values.push(packageJson[key]);
+  }
+  if (typeof packageJson?.bin === 'string') values.push(packageJson.bin);
+  if (packageJson?.bin && typeof packageJson.bin === 'object') {
+    values.push(...Object.values(packageJson.bin));
+  }
+  return [...new Set(values.filter((value) => typeof value === 'string'))];
+}
+
+function installedPackageEntrypointReadiness(nodeModules, directDependencies) {
+  const missingPackageEntrypoints = [];
+  let packageEntrypointsChecked = 0;
+  for (const name of directDependencies) {
+    const packageJsonPath = path.join(
+      nodeModules,
+      ...name.split('/'),
+      'package.json',
+    );
+    const installedPackageJson = readJsonFile(packageJsonPath);
+    if (!installedPackageJson) continue;
+    const packageRoot = path.dirname(packageJsonPath);
+    for (const entrypoint of packageEntrypoints(installedPackageJson)) {
+      packageEntrypointsChecked += 1;
+      if (!packageEntrypointExists(packageRoot, entrypoint)) {
+        missingPackageEntrypoints.push(`${name}:${entrypoint}`);
+      }
+    }
+  }
+  return {
+    packageEntrypointsChecked,
+    missingPackageEntrypoints: missingPackageEntrypoints.slice(0, 20),
+  };
 }
 
 function installedPackageReadiness(root) {
@@ -750,6 +938,10 @@ function installedPackageReadiness(root) {
     'package.json',
   );
   const prismaGeneratedRoot = path.join(nodeModules, '.prisma', 'client');
+  const entrypoints = installedPackageEntrypointReadiness(
+    nodeModules,
+    directDependencies,
+  );
   return {
     packageLockReadable: installedLock !== null,
     packageLockVersion:
@@ -762,6 +954,8 @@ function installedPackageReadiness(root) {
     missingLockPackages: missingLockPackages.slice(0, 20),
     lockMetadataMismatches: lockMetadataMismatches.slice(0, 20),
     lockMetadataMatches: lockMetadataMismatches.length === 0,
+    packageEntrypointsChecked: entrypoints.packageEntrypointsChecked,
+    missingPackageEntrypoints: entrypoints.missingPackageEntrypoints,
     nestCliEntry: existsSync(path.join(nodeModules, '@nestjs', 'cli', 'bin', 'nest.js')),
     prismaPackage: existsSync(prismaClientPackage),
     prismaClientEntry: existsSync(path.join(nodeModules, '@prisma', 'client', 'default.js')),
@@ -824,6 +1018,8 @@ function readinessForProfile(root, profile) {
     missingLockPackages: installed.missingLockPackages,
     lockMetadataMismatches: installed.lockMetadataMismatches,
     lockMetadataMatches: installed.lockMetadataMatches,
+    packageEntrypointsChecked: installed.packageEntrypointsChecked,
+    missingPackageEntrypoints: installed.missingPackageEntrypoints,
     nestCliEntry: installed.nestCliEntry,
     prismaPackage: installed.prismaPackage,
     prismaClientEntry: installed.prismaClientEntry,
@@ -858,6 +1054,7 @@ function isReadyForProfile(value, profile) {
     value.missingDirectDependencies.length === 0 &&
     value.missingLockPackages.length === 0 &&
     value.lockMetadataMatches &&
+    value.missingPackageEntrypoints.length === 0 &&
     value.nestCliEntry &&
     value.prismaPackage &&
     value.prismaClientEntry &&
@@ -865,6 +1062,50 @@ function isReadyForProfile(value, profile) {
     value.prismaDefault &&
     value.installLockfile
   );
+}
+
+/**
+ * Inspect dependency readiness without hydrating or mutating the worktree.
+ *
+ * This is intentionally separate from the cached state file: a command may
+ * start after a successful preflight while another process removes or
+ * partially materializes a shared dependency cache. Command gates use this
+ * read-only probe to decide whether one bounded environment repair is safe.
+ */
+export function inspectToolchainReadiness({
+  root = process.cwd(),
+  profile = ALL_PROFILE_ID,
+} = {}) {
+  const resolvedRoot = path.resolve(root);
+  if (!SUPPORTED_PROFILES.includes(profile)) {
+    fail(
+      EXIT_CODES.CONTRACT,
+      `Profile không hỗ trợ: ${profile}. Chọn một trong: ${SUPPORTED_PROFILES.join(', ')}.`,
+    );
+  }
+
+  if (profile === ALL_PROFILE_ID) {
+    const profiles = [PROFILE_ID, FLUTTER_PROFILE_ID].map((profileId) => {
+      const readiness = readinessForProfile(resolvedRoot, profileId);
+      return {
+        profile: profileId,
+        ready: isReadyForProfile(readiness, profileId),
+        readiness,
+      };
+    });
+    return {
+      profile: ALL_PROFILE_ID,
+      ready: profiles.every((entry) => entry.ready),
+      profiles,
+    };
+  }
+
+  const readiness = readinessForProfile(resolvedRoot, profile);
+  return {
+    profile,
+    ready: isReadyForProfile(readiness, profile),
+    readiness,
+  };
 }
 
 function normalizedStatusPath(value) {
@@ -1132,7 +1373,7 @@ function retryReason(stepResult) {
   return 'transient-dependency-materialization';
 }
 
-function prepareSingleProfile({
+function prepareSingleProfileUnlocked({
   resolvedRoot,
   profile,
   dryRun,
@@ -1268,6 +1509,19 @@ function prepareSingleProfile({
   writeState(resolvedRoot, state);
   result.status = 'prepared';
   return { exitCode: EXIT_CODES.PASS, result };
+}
+
+function prepareSingleProfile(options = {}) {
+  const { resolvedRoot, profile } = options;
+  const releaseLease =
+    profile === PROFILE_ID || profile === FLUTTER_PROFILE_ID
+      ? acquireToolchainLease({ root: resolvedRoot, profile })
+      : null;
+  try {
+    return prepareSingleProfileUnlocked(options);
+  } finally {
+    releaseLease?.();
+  }
 }
 
 export function prepareTaskToolchain({

@@ -1,21 +1,31 @@
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import {
+  closeSync,
   existsSync,
+  openSync,
   mkdtempSync,
   mkdirSync,
   readFileSync,
   rmSync,
   writeFileSync,
+  statSync,
 } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import test from 'node:test';
 
 import {
   EXIT_CODES,
+  defaultRunCommand,
   parseArgs,
   runWithToolchain,
 } from '../../scripts/run-with-toolchain.mjs';
+import {
+  acquireToolchainLease,
+  toolchainLeaseEnvironment,
+} from '../../scripts/prepare-task-toolchain.mjs';
 
 function fixture(t) {
   const root = mkdtempSync(path.join(os.tmpdir(), 'opshub-run-toolchain-'));
@@ -227,6 +237,399 @@ test('command failures distinguish product failure from environment failure', (t
   assert.match(environment.result.error, /<worktree>|<path>/);
 });
 
+test('Flutter command-time package loss repairs once and retries with a stable fingerprint', (t) => {
+  const root = fixture(t);
+  let ready = false;
+  let prepareCalls = 0;
+  let commandCalls = 0;
+  const result = runWithToolchain({
+    root,
+    profile: 'flutter',
+    command: ['flutter', 'analyze'],
+    prepare: ({ force }) => {
+      prepareCalls += 1;
+      if (force) ready = true;
+      return {
+        exitCode: 0,
+        result: {
+          schemaVersion: 7,
+          profile: 'flutter',
+          fingerprint: 'stable-fingerprint',
+          readiness: { ready },
+        },
+      };
+    },
+    readiness: () => ({ ready }),
+    runCommand: () => {
+      commandCalls += 1;
+      return commandCalls === 1
+        ? { status: 1, diagnostic: 'Could not find package http' }
+        : { status: 0 };
+    },
+  });
+
+  assert.equal(result.exitCode, EXIT_CODES.PASS);
+  assert.equal(result.result.status, 'passed');
+  assert.equal(prepareCalls, 2);
+  assert.equal(commandCalls, 2);
+  assert.equal(result.result.recovery.status, 'repaired-and-retried');
+  assert.equal(result.result.recovery.profile, 'flutter');
+});
+
+test('Nest command-time module loss repairs once and retries with a stable fingerprint', (t) => {
+  const root = fixture(t);
+  let ready = false;
+  let prepareCalls = 0;
+  let commandCalls = 0;
+  const result = runWithToolchain({
+    root,
+    profile: 'nestjs',
+    cwd: 'backend-nest',
+    command: ['npm', 'run', 'build'],
+    prepare: ({ force }) => {
+      prepareCalls += 1;
+      if (force) ready = true;
+      return {
+        exitCode: 0,
+        result: {
+          schemaVersion: 7,
+          profile: 'nestjs',
+          fingerprint: 'stable-fingerprint',
+          readiness: { ready },
+        },
+      };
+    },
+    readiness: () => ({ ready }),
+    runCommand: () => {
+      commandCalls += 1;
+      return commandCalls === 1
+        ? {
+            status: 1,
+            diagnostic: "Cannot find module 'node_modules/@nestjs/core'",
+          }
+        : { status: 0 };
+    },
+  });
+
+  assert.equal(result.exitCode, EXIT_CODES.PASS);
+  assert.equal(result.result.status, 'passed');
+  assert.equal(prepareCalls, 2);
+  assert.equal(commandCalls, 2);
+  assert.equal(result.result.recovery.profile, 'nestjs');
+});
+
+test('persistent dependency failure is environment failure after one repair', (t) => {
+  const root = fixture(t);
+  let prepareCalls = 0;
+  let commandCalls = 0;
+  const result = runWithToolchain({
+    root,
+    profile: 'nestjs',
+    cwd: 'backend-nest',
+    command: ['npm', 'run', 'build'],
+    prepare: ({ force }) => {
+      prepareCalls += 1;
+      return {
+        exitCode: 0,
+        result: {
+          profile: 'nestjs',
+          fingerprint: 'stable-fingerprint',
+          readiness: { ready: Boolean(force) },
+        },
+      };
+    },
+    readiness: ({ profile }) => {
+      assert.equal(profile, 'nestjs');
+      return { ready: prepareCalls > 1 };
+    },
+    runCommand: () => {
+      commandCalls += 1;
+      return {
+        status: 1,
+        diagnostic: "Error: Cannot find module 'node_modules/@nestjs/core'",
+      };
+    },
+  });
+
+  assert.equal(result.exitCode, EXIT_CODES.ENVIRONMENT);
+  assert.equal(result.result.status, 'environment-failure');
+  assert.equal(result.result.recovery.status, 'failed-after-repair');
+  assert.equal(result.result.recovery.profile, 'nestjs');
+  assert.equal(commandCalls, 2);
+  assert.equal(prepareCalls, 2);
+  assert.match(result.result.error, /Cannot find module/);
+  assert.equal(
+    existsSync(path.join(root, 'tmp', '.opshub-nest-toolchain.lock')),
+    false,
+  );
+});
+
+test('persistent dependency failure is fail-closed with the default streamed runner', (t) => {
+  const root = fixture(t);
+  const readinessState = { ready: false };
+  let prepareCalls = 0;
+  const result = runWithToolchain({
+    root,
+    profile: 'nestjs',
+    cwd: 'backend-nest',
+    command: [
+      process.execPath,
+      '-e',
+      "process.exit(1)",
+    ],
+    prepare: ({ force }) => {
+      prepareCalls += 1;
+      readinessState.ready = Boolean(force);
+      return {
+        exitCode: 0,
+        result: {
+          profile: 'nestjs',
+          fingerprint: 'stable-fingerprint',
+          readiness: { ready: readinessState.ready },
+        },
+      };
+    },
+    readiness: () => ({ ready: readinessState.ready }),
+  });
+
+  assert.equal(result.exitCode, EXIT_CODES.ENVIRONMENT);
+  assert.equal(result.result.status, 'environment-failure');
+  assert.equal(result.result.recovery.status, 'failed-after-repair');
+  assert.equal(
+    result.result.recovery.reason,
+    'diagnostic-unavailable-after-repair',
+  );
+  assert.equal(prepareCalls, 2);
+});
+
+test('all profile maps command-time repair to the executable and cwd profile', (t) => {
+  const root = fixture(t);
+  let repairProfile = null;
+  let commandCalls = 0;
+  const result = runWithToolchain({
+    root,
+    profile: 'all',
+    cwd: 'backend-nest',
+    command: ['npm', 'run', 'build'],
+    prepare: ({ profile, force }) => {
+      if (force) repairProfile = profile;
+      return {
+        exitCode: 0,
+        result: {
+          profile: 'all',
+          fingerprint: 'all-fingerprint',
+          profiles: [
+            { profile: 'nestjs', fingerprint: 'nest-fingerprint' },
+            { profile: 'flutter', fingerprint: 'flutter-fingerprint' },
+          ],
+        },
+      };
+    },
+    readiness: ({ profile }) => ({
+      ready: profile === 'nestjs' && repairProfile === 'nestjs',
+    }),
+    runCommand: () => {
+      commandCalls += 1;
+      return commandCalls === 1
+        ? { status: 1, diagnostic: 'MODULE_NOT_FOUND: @nestjs/core' }
+        : { status: 0 };
+    },
+  });
+
+  assert.equal(result.exitCode, EXIT_CODES.PASS);
+  assert.equal(repairProfile, 'nestjs');
+  assert.equal(commandCalls, 2);
+  assert.equal(result.result.recovery.profile, 'nestjs');
+});
+
+test('toolchain lease is re-entrant and releases the Nest worktree lock', (t) => {
+  const root = fixture(t);
+  const lockPath = path.join(root, 'tmp', '.opshub-nest-toolchain.lock');
+  const releaseOuter = acquireToolchainLease({ root, profile: 'nestjs' });
+  const releaseInner = acquireToolchainLease({ root, profile: 'nestjs' });
+  assert.equal(existsSync(lockPath), true);
+  releaseInner();
+  assert.equal(existsSync(lockPath), true);
+  releaseOuter();
+  assert.equal(existsSync(lockPath), false);
+});
+
+test('gated Nest commands pass the parent lease marker to child processes', (t) => {
+  const root = fixture(t);
+  let commandOptions;
+  const result = runWithToolchain({
+    root,
+    profile: 'nestjs',
+    cwd: 'backend-nest',
+    command: ['npm', 'run', 'build'],
+    prepare: successfulPrepare,
+    runCommand: (_executable, _argv, _cwd, options) => {
+      commandOptions = options;
+      return { status: 0 };
+    },
+  });
+
+  assert.equal(result.exitCode, EXIT_CODES.PASS);
+  const marker = JSON.parse(commandOptions.env.OPSHUB_TOOLCHAIN_LEASE);
+  assert.equal(marker.profile, 'nestjs');
+  assert.equal(marker.root, root);
+  assert.equal(Number.isInteger(marker.pid), true);
+});
+
+test('nested gated processes preserve the original lease owner marker', (t) => {
+  const root = fixture(t);
+  const leaseScript = path.join(root, 'nested-lease-check.mjs');
+  writeFileSync(
+    leaseScript,
+    `import { spawnSync } from 'node:child_process';
+import { acquireToolchainLease, toolchainLeaseEnvironment } from ${JSON.stringify(
+      pathToFileURL(
+        path.resolve(import.meta.dirname, '../../scripts/prepare-task-toolchain.mjs'),
+      ).href,
+    )};
+
+const root = process.env.OPSHUB_NESTED_ROOT;
+const level = Number(process.env.OPSHUB_NESTED_LEVEL || '1');
+const release = acquireToolchainLease({ root, profile: 'nestjs' });
+const commandEnv = toolchainLeaseEnvironment({ root, profile: 'nestjs' });
+if (level < 3) {
+  const child = spawnSync(process.execPath, [process.argv[1]], {
+    env: { ...commandEnv, OPSHUB_NESTED_ROOT: root, OPSHUB_NESTED_LEVEL: String(level + 1) },
+    encoding: 'utf8',
+    windowsHide: true,
+  });
+  if (child.stdout) process.stdout.write(child.stdout);
+  if (child.stderr) process.stderr.write(child.stderr);
+  release();
+  process.exit(child.status ?? 1);
+}
+const marker = JSON.parse(commandEnv.OPSHUB_TOOLCHAIN_LEASE);
+if (marker.pid !== Number(process.env.OPSHUB_NESTED_OWNER_PID)) process.exit(2);
+release();
+`,
+    'utf8',
+  );
+
+  const release = acquireToolchainLease({ root, profile: 'nestjs' });
+  const commandEnv = toolchainLeaseEnvironment({ root, profile: 'nestjs' });
+  const child = spawnSync(process.execPath, [leaseScript], {
+    env: {
+      ...commandEnv,
+      OPSHUB_NESTED_ROOT: root,
+      OPSHUB_NESTED_LEVEL: '1',
+      OPSHUB_NESTED_OWNER_PID: String(process.pid),
+    },
+    encoding: 'utf8',
+    windowsHide: true,
+  });
+  release();
+
+  assert.equal(child.status, 0, child.stderr || child.stdout);
+});
+
+test('command lease is already held while readiness preparation runs', (t) => {
+  const root = fixture(t);
+  const lockPath = path.join(root, 'tmp', '.opshub-nest-toolchain.lock');
+  let heldDuringPrepare = false;
+  const result = runWithToolchain({
+    root,
+    profile: 'nestjs',
+    cwd: 'backend-nest',
+    command: ['npm', 'run', 'build'],
+    prepare: () => {
+      heldDuringPrepare = existsSync(lockPath);
+      return successfulPrepare();
+    },
+    runCommand: () => ({ status: 0 }),
+  });
+
+  assert.equal(result.exitCode, EXIT_CODES.PASS);
+  assert.equal(heldDuringPrepare, true);
+  assert.equal(existsSync(lockPath), false);
+});
+
+test('dead Nest lease metadata is recovered without waiting for the stale timeout', (t) => {
+  const root = fixture(t);
+  const lockPath = path.join(root, 'tmp', '.opshub-nest-toolchain.lock');
+  mkdirSync(path.dirname(lockPath), { recursive: true });
+  writeFileSync(lockPath, '{"pid":999999,"worktree":"<worktree>"}\n');
+  const release = acquireToolchainLease({ root, profile: 'nestjs' });
+  assert.equal(existsSync(lockPath), true);
+  release();
+  assert.equal(existsSync(lockPath), false);
+});
+
+test('a product missing-package diagnostic is not retried while readiness is healthy', (t) => {
+  const root = fixture(t);
+  let prepareCalls = 0;
+  let commandCalls = 0;
+  const result = runWithToolchain({
+    root,
+    profile: 'flutter',
+    command: ['flutter', 'test'],
+    prepare: () => {
+      prepareCalls += 1;
+      return {
+        exitCode: 0,
+        result: {
+          profile: 'flutter',
+          fingerprint: 'stable-fingerprint',
+          readiness: { ready: true },
+        },
+      };
+    },
+    readiness: () => ({ ready: true }),
+    runCommand: () => {
+      commandCalls += 1;
+      return {
+        status: 1,
+        diagnostic: 'Could not find package typo_from_source',
+      };
+    },
+  });
+
+  assert.equal(result.exitCode, EXIT_CODES.PRODUCT_FAILURE);
+  assert.equal(result.result.status, 'product-failure');
+  assert.equal(prepareCalls, 1);
+  assert.equal(commandCalls, 1);
+  assert.equal(result.result.recovery, undefined);
+});
+
+test('command-time repair stops stale when the toolchain fingerprint changes', (t) => {
+  const root = fixture(t);
+  let ready = false;
+  let prepareCalls = 0;
+  let commandCalls = 0;
+  const result = runWithToolchain({
+    root,
+    profile: 'flutter',
+    command: ['flutter', 'analyze'],
+    prepare: ({ force }) => {
+      prepareCalls += 1;
+      if (force) ready = true;
+      return {
+        exitCode: 0,
+        result: {
+          profile: 'flutter',
+          fingerprint: force ? 'changed-fingerprint' : 'stable-fingerprint',
+          readiness: { ready },
+        },
+      };
+    },
+    readiness: () => ({ ready }),
+    runCommand: () => {
+      commandCalls += 1;
+      return { status: 1, diagnostic: 'Could not find package http' };
+    },
+  });
+
+  assert.equal(result.exitCode, EXIT_CODES.STALE);
+  assert.equal(result.result.status, 'environment-failure');
+  assert.equal(prepareCalls, 2);
+  assert.equal(commandCalls, 1);
+  assert.equal(result.result.recovery.status, 'stale');
+});
+
 test('JSON result is sanitized and repository-relative', (t) => {
   const root = fixture(t);
   const outputPath = 'tmp/toolchain-result.json';
@@ -245,4 +648,49 @@ test('JSON result is sanitized and repository-relative', (t) => {
   const parsed = JSON.parse(written);
   assert.equal(parsed.schemaVersion, 1);
   assert.equal(parsed.root, '<worktree>');
+});
+
+test('default command runner streams output without a fixed max-buffer ceiling', (t) => {
+  const root = fixture(t);
+  const outputPath = path.join(root, 'tmp', 'large-output.log');
+  mkdirSync(path.dirname(outputPath), { recursive: true });
+  const outputDescriptor = openSync(outputPath, 'w');
+  const moduleUrl = pathToFileURL(
+    path.resolve(import.meta.dirname, '../../scripts/run-with-toolchain.mjs'),
+  ).href;
+  const childCode = `
+    import { defaultRunCommand } from ${JSON.stringify(moduleUrl)};
+    const result = defaultRunCommand(
+      process.execPath,
+      ['-e', "process.stdout.write('x'.repeat(17 * 1024 * 1024))"],
+      ${JSON.stringify(root)},
+    );
+    process.exit(result.status === 0 ? 0 : 1);
+  `;
+  const child = spawnSync(
+    process.execPath,
+    ['--input-type=module', '-e', childCode],
+    {
+      cwd: root,
+      stdio: ['ignore', outputDescriptor, outputDescriptor],
+      windowsHide: true,
+    },
+  );
+  closeSync(outputDescriptor);
+
+  assert.equal(child.status, 0);
+  assert.ok(statSync(outputPath).size >= 17 * 1024 * 1024);
+});
+
+test('Windows Nest helper executes the local .cmd shim', { skip: process.platform !== 'win32' }, () => {
+  const repositoryRoot = path.resolve(import.meta.dirname, '../..');
+  const helper = path.join(repositoryRoot, 'backend-nest', 'scripts', 'run-nest-command.mjs');
+  const child = spawnSync(process.execPath, [helper, '--', 'nest', '--version'], {
+    cwd: repositoryRoot,
+    encoding: 'utf8',
+    windowsHide: true,
+  });
+
+  assert.equal(child.status, 0, child.stderr || child.stdout);
+  assert.match(`${child.stdout || ''}${child.stderr || ''}`, /\d+\.\d+/);
 });

@@ -39,6 +39,7 @@ const structuredAffectedConsumerValidators = [
 ];
 
 const localPrismaMigrationVerifiers = [
+  "backend-nest/scripts/recover-failed-prisma-migration.mjs",
   "backend-nest/scripts/verify-home-summary-migration.mjs",
   "backend-nest/scripts/verify-home-summary-deadlock-migration.mjs",
   "backend-nest/scripts/verify-map-vietin-bigquery-migration.mjs",
@@ -137,15 +138,24 @@ test("affected-consumer validators keep nested Flutter/Nest suites behind the sh
 test("local Prisma migration verifiers enter through the shared toolchain helper", () => {
   for (const relativePath of localPrismaMigrationVerifiers) {
     const contents = source(relativePath);
+    const boundaryPattern = relativePath.endsWith(
+      "recover-failed-prisma-migration.mjs",
+    )
+      ? /run-with-toolchain\.mjs/
+      : /run-prisma-migrate-deploy\.mjs/;
     assert.match(
       contents,
-      /run-prisma-migrate-deploy\.mjs/,
-      `${relativePath} must invoke the shared Prisma migration helper`,
+      boundaryPattern,
+      `${relativePath} must invoke the shared Nest toolchain boundary`,
     );
+    if (relativePath.endsWith("recover-failed-prisma-migration.mjs")) {
+      assert.match(contents, /existsSync\(toolchainRunner\)/);
+      assert.match(contents, /process\.platform === ['"]win32['"]/);
+    }
     assert.doesNotMatch(
       contents,
-      /node_modules[\\/]prisma[\\/]build[\\/]index\.js/,
-      `${relativePath} must not spawn Prisma directly from node_modules`,
+      /spawnSync\(\s*['"]npx['"]\s*,\s*\[['"]prisma['"]?/,
+      `${relativePath} must not spawn a raw Prisma command`,
     );
   }
 });
@@ -211,6 +221,11 @@ test("Nest package lifecycle commands keep the gate before build/test/start cons
       /run-with-toolchain\.mjs --root \.\. --profile nestjs --preflight-only/,
       `pre${command} must use the shared gate`,
     );
+    assert.match(
+      scripts[command],
+      /run:nest-command/,
+      `${command} must execute inside the retained Nest lease`,
+    );
   }
 });
 
@@ -227,6 +242,11 @@ test("Docker Nest build is self-contained without weakening local lifecycle gate
     packageJson.scripts["preverify:security-deps"],
     /run-with-toolchain\.mjs --root \.\. --profile nestjs --preflight-only/,
     "local npm run verify:security-deps must keep the shared Nest toolchain gate",
+  );
+  assert.match(
+    packageJson.scripts["verify:security-deps"],
+    /run:nest-command/,
+    "local security verification must retain the Nest lease through execution",
   );
   assert.match(
     dockerfile,
@@ -274,6 +294,13 @@ test("local OPS-40 PostgreSQL verifier keeps Prisma behind the Nest boundary", (
     /`npm run verify:ops40:postgres`/,
     "the runbook must not advertise the raw local npm command",
   );
+});
+
+test("Nest command helper supports the repository and Docker-contained boundaries", () => {
+  const helper = source("backend-nest/scripts/run-nest-command.mjs");
+  assert.match(helper, /existsSync\(toolchainRunner\)/);
+  assert.match(helper, /localExecutable\(command\[0\]\)/);
+  assert.match(helper, /stdio:\s*['"]inherit['"]/);
 });
 
 test("Docker and remote migration boundaries forbid implicit npx downloads", () => {
