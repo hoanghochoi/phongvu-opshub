@@ -224,8 +224,13 @@ test("Docker Nest build is self-contained without weakening local lifecycle gate
     "local npm run build must keep the shared Nest toolchain gate",
   );
   assert.match(
+    packageJson.scripts["preverify:security-deps"],
+    /run-with-toolchain\.mjs --root \.\. --profile nestjs --preflight-only/,
+    "local npm run verify:security-deps must keep the shared Nest toolchain gate",
+  );
+  assert.match(
     dockerfile,
-    /npx --no-install prisma generate && npm run build --ignore-scripts/,
+    /npm run verify:security-deps --ignore-scripts && npx --no-install prisma generate && npm run build --ignore-scripts/,
     "the backend-only Docker context must execute Nest build without the local prebuild hook",
   );
   assert.match(
