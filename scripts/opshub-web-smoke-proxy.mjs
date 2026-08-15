@@ -114,7 +114,7 @@ function proxyWebSocket(request, socket, head) {
 
 if (!fs.existsSync(webRoot)) {
   console.error(
-    `Missing ${webRoot}. Run flutter build web with API_BASE_URL=http://${host}:${port}/api first.`,
+    `Missing ${webRoot}. Run node scripts/run-with-toolchain.mjs --profile flutter -- flutter build web --no-pub --dart-define=API_BASE_URL=http://${host}:${port}/api first.`,
   );
   process.exit(1);
 }

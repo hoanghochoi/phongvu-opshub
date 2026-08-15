@@ -256,6 +256,12 @@ function toolchainVersions(profile) {
 
 export function toolchainFingerprint(root, profile = PROFILE_ID) {
   const requiredFiles = requiredFilesForProfile(profile);
+  const materializedFingerprint =
+    profile === FLUTTER_PROFILE_ID
+      ? flutterMaterializedFingerprint(
+          path.resolve(root, '.dart_tool', 'package_config.json'),
+        )
+      : null;
   const files = Object.fromEntries(
     requiredFiles.map((relativePath) => [
       relativePath,
@@ -271,6 +277,7 @@ export function toolchainFingerprint(root, profile = PROFILE_ID) {
         profile,
         toolchain: toolchainVersions(profile),
         files,
+        materializedFingerprint,
       }),
     )
     .digest('hex');
@@ -650,6 +657,49 @@ function isPhysicalDirectory(value) {
   }
 }
 
+function flutterMaterializedFingerprint(packageConfigPath) {
+  const packageConfig = readJsonFile(packageConfigPath);
+  const packages = Array.isArray(packageConfig?.packages)
+    ? packageConfig.packages
+    : null;
+  if (!packages) return null;
+
+  const descriptors = packages.map((entry) => {
+    const name = typeof entry?.name === 'string' ? entry.name : '<unnamed>';
+    const packageRoot = resolvePackageRoot(packageConfigPath, entry?.rootUri);
+    const pubspecPath = packageRoot
+      ? path.join(packageRoot, 'pubspec.yaml')
+      : null;
+    let pubspecSha256 = null;
+    if (pubspecPath) {
+      try {
+        pubspecSha256 = createHash('sha256')
+          .update(readFileSync(pubspecPath))
+          .digest('hex');
+      } catch {
+        pubspecSha256 = null;
+      }
+    }
+    const packageUri = packageRoot
+      ? resolvePackageUri(packageRoot, entry?.packageUri)
+      : null;
+    return {
+      name,
+      rootReady: Boolean(packageRoot && isPhysicalDirectory(packageRoot)),
+      pubspecSha256,
+      packageUriReady: Boolean(packageUri && isPhysicalDirectory(packageUri)),
+      platformMaterialized: Boolean(
+        packageRoot && isMaterializedPlatformPackage(packageRoot),
+      ),
+    };
+  });
+
+  descriptors.sort((left, right) => left.name.localeCompare(right.name));
+  return createHash('sha256')
+    .update(JSON.stringify(descriptors))
+    .digest('hex');
+}
+
 function resolvePackageUri(packageRoot, packageUri) {
   if (typeof packageUri !== 'string' || packageUri.length === 0) return null;
   try {
@@ -986,6 +1036,9 @@ function readinessForProfile(root, profile) {
       pluginMetadataPath,
       packageNames,
     );
+    const materializedFingerprint = flutterMaterializedFingerprint(
+      packageConfigPath,
+    );
     return {
       pubspec: existsSync(path.resolve(root, 'pubspec.yaml')),
       lockfile: existsSync(path.resolve(root, 'pubspec.lock')),
@@ -1003,6 +1056,7 @@ function readinessForProfile(root, profile) {
       pluginRoots: plugins.pluginRoots,
       pluginDependencies: plugins.pluginDependencies,
       missingPlugins: plugins.missingPlugins,
+      materializedFingerprint,
     };
   }
   const nodeModules = path.resolve(root, 'backend-nest/node_modules');
@@ -1044,7 +1098,9 @@ function isReadyForProfile(value, profile) {
       value.pluginMetadata &&
       value.pluginMetadataReadable &&
       value.pluginRoots &&
-      value.pluginDependencies
+      value.pluginDependencies &&
+      typeof value.materializedFingerprint === 'string' &&
+      value.materializedFingerprint.length > 0
     );
   }
   return (
@@ -1497,11 +1553,16 @@ function prepareSingleProfileUnlocked({
       recoveryCleanupFailures.join('\n');
     return { exitCode: EXIT_CODES.ENVIRONMENT, result };
   }
+  // Flutter materialization is part of the readiness fingerprint. The first
+  // fingerprint is captured before pub get, so persist a post-hydration value
+  // or the next cached preflight would always rerun once after a cold start.
+  const readyFingerprint = toolchainFingerprint(resolvedRoot, profile);
+  result.fingerprint = readyFingerprint;
   state.schemaVersion = SCHEMA_VERSION;
   state.profiles = {
     ...(state.profiles || {}),
     [profile]: {
-      fingerprint,
+      fingerprint: readyFingerprint,
       ready: true,
       preparedAtUtc: new Date().toISOString(),
     },

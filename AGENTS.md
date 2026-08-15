@@ -385,8 +385,8 @@ Use the smallest relevant proof, then broaden when risk requires it.
 
 | Area | Commands |
 | --- | --- |
-| Flutter | `flutter analyze`, `flutter test` |
-| NestJS | `npm run build`, `npm test -- --runInBand` from `backend-nest/` |
+| Flutter | `node scripts/run-with-toolchain.mjs --profile flutter -- flutter analyze`, `node scripts/run-with-toolchain.mjs --profile flutter -- flutter test` |
+| NestJS | `node scripts/run-with-toolchain.mjs --profile nestjs --cwd backend-nest -- npm run build`, `node scripts/run-with-toolchain.mjs --profile nestjs --cwd backend-nest -- npm test -- --runInBand` |
 | Go realtime | `go test ./...` from `backend-go/` |
 | Local runtime | `docker compose up -d`, health checks, app smoke test |
 | Docs only | `git diff --check`, inspect changed files |

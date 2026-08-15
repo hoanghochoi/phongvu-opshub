@@ -4,17 +4,14 @@ Date: 2026-08-13
 
 ## Status
 
-Active — the current workflow checkpoint is the OPS-125 reconciliation after
-OPS-124 command-time dependency readiness on
-`origin/staging@5432a995fb1a68a70be96a95ba45592fb9e703c1`. OPS-124 PR #241 was
-squash-merged and its exact staging deploy `31875595813` passed Android,
-Windows, web, backend, direct-origin and public health/version checks;
-guarded lifecycle cleanup removed its task worktree/local branch and the
-remote task branch was deleted separately. OPS-72 still has five comparable
-post-telemetry observations, but the measured timing improvement is only
-15.05% and the rerun target is not measurable, so the matrix remains
-observational and the phase is explicitly `revise`. Product, API, permission
-and runtime behavior stay unchanged.
+Active — the current workflow checkpoint is OPS-127 deterministic dependency
+bootstrap/resume guard on
+`origin/staging@10881fdff44f0357d251f777e3bac4d7fdd522c2`. OPS-126 PR #243 was
+squash-merged and guarded lifecycle cleanup left only the canonical staging
+worktree. OPS-72 still has five comparable post-telemetry observations, but the
+measured timing improvement is only 15.05% and the rerun target is not
+measurable, so the matrix remains observational and the phase is explicitly
+`revise`. Product, API, permission and runtime behavior stay unchanged.
 
 ### OPS-114 checkpoint — dependency bootstrap enforcement
 
@@ -1860,6 +1857,32 @@ Current live upstream retry evidence:
   `verify-task --base origin/staging` with `stale=false`, PR/CI and guarded
   lifecycle cleanup. Rollback is one OPS-126 squash revert.
 
+## Workflow checkpoint (OPS-127; deterministic dependency bootstrap/resume guard)
+
+- OPS-127 branch/worktree is
+  `codex/ops-127-deterministic-dependency-bootstrap-resume-guard` /
+  `../opshub-ops-127-deterministic-dependency-bootstrap-resume-guard`, created
+  by the guarded lifecycle start gate from exact
+  `origin/staging@10881fdff44f0357d251f777e3bac4d7fdd522c2`. The canonical
+  staging worktree was clean and remained protected.
+- The first slice closes current guidance/runbook bypasses: the validation
+  ladder and home-server Flutter build now use the repository toolchain gate;
+  the web smoke remediation points to the same gate. A fail-closed scanner
+  checks current agent guidance, READMEs, runbooks, workflows and dependency
+  scripts, with explicit Docker/remote/SDK allowlists.
+- The scanner is registered in the Harness verification profile and has fixture
+  coverage for raw Flutter/Nest commands, wrapper continuations, Docker
+  maintenance and the explicit remote Prisma exception. No product/runtime/API,
+  dependency-version or archive behavior changes are in scope.
+- Start proof: lifecycle created the task at the exact base and all-toolchain
+  hydration passed for Nest npm/Prisma and Flutter Pub. Focused scanner and
+  boundary coverage passed `21/21`; exact affected verification and cold/resume
+  canary proof remain required before publication.
+- Required publication proof is scanner/static/toolchain tests, cold/partial
+  dependency failure-injection coverage, `git diff --check`, exact
+  `verify-task --base origin/staging` with `stale=false`, PR/CI and guarded
+  lifecycle cleanup. Rollback is one OPS-127 squash revert.
+
 ## Result
 
 Historical Phase 0-1 artifacts, the generic verification foundation/canaries,
@@ -1872,8 +1895,8 @@ OPS-65 PR #175, OPS-68 PR #176, and OPS-69 PRs #177/#178 are merged into
 gates. OPS-73 and OPS-113 are now also staged and tracked as `Ready for QA`
 after exact deploy `31862881662` and guarded cleanup. OPS-122 and OPS-123's
 reconciliations are historical; OPS-124 is merged/deployed and tracked as
-`Ready for QA`, and OPS-125 is the current docs-only checkpoint. OPS-72's
-five live observations are valid but remain `revise`; Phase 8 retained-owner
+`Ready for QA`, and OPS-127 is the current dependency-boundary checkpoint.
+OPS-72's five live observations are valid but remain `revise`; Phase 8 retained-owner
 evidence, runtime waves and OPS-75 final consolidation remain downstream
 gates.
 Move this plan to
