@@ -4,12 +4,14 @@ Date: 2026-08-13
 
 ## Status
 
-Active — the current workflow checkpoint is OPS-135 cold-worktree dependency
-canary, based on `origin/staging@46c8aa90d932f8cfadb25eddae80305180ca9d95`.
-OPS-134's implementation is squash-merged at that SHA, but exact staging
-deployment run `31901021962` and its Linear lifecycle evidence remain open.
-OPS-132 remains the last merged master-plan reconciliation; OPS-72's
-five-observation gate is still open and its affected matrix remains
+Active — the current workflow checkpoint is OPS-136 reconciliation after the
+OPS-135 cold-worktree dependency canary, based on
+`origin/staging@98d7316648a60e415e154b114c6bb5ec87f52286`.
+OPS-134 is squash-merged at `46c8aa90d932f8cfadb25eddae80305180ca9d95`,
+staging-deployed by `31901021962`, and tracked `Ready for QA`. OPS-135 is
+squash-merged at the current checkpoint, staging-deployed by
+`31903246094`, and tracked `Ready for QA` after guarded lifecycle cleanup.
+OPS-72's five-observation gate is still open and its affected matrix remains
 observational. OPS-134 was opened after a real Windows preflight reproduced a
 Flutter hydration failure in a ReadOnly `lib/l10n` directory despite a complete
 package graph. Product, API, permission and runtime behavior stay unchanged.
@@ -2066,8 +2068,6 @@ Current live upstream retry evidence:
   cold/partial materialization canaries, exact runner, PR/CI, staging deploy and
   guarded cleanup remain required. Rollback is one OPS-134 squash revert.
 
-## Result
-
 ## Workflow checkpoint (OPS-135; cold-worktree dependency canary)
 
 - This bounded canary slice is branch/worktree
@@ -2091,10 +2091,37 @@ Current live upstream retry evidence:
   boundary scan passed (`files=66`), retained-owner review passed, and exact
   `verify-task --base origin/staging --profile harness` passed with
   `stale=false` before this plan edit.
-- Remaining gates are commit/PR CI (including the real Windows canary), exact
-  staging deploy, Linear implementation/deploy proof, and guarded lifecycle
-  cleanup. Rollback is one OPS-135 squash revert; no runtime/API/UI/permission
-  behavior or dependency versions changed.
+- PR #252 squash-merged into `staging` at
+  `98d7316648a60e415e154b114c6bb5ec87f52286`; Windows cold canary run
+  `31903049090`, exact staging deploy `31903246094`, and guarded lifecycle
+  `finish --execute` all passed. Linear OPS-135 is `Ready for QA`; production
+  completion is intentionally not inferred. Rollback is one OPS-135 squash
+  revert; no runtime/API/UI/permission behavior or dependency versions
+  changed.
+
+## Workflow checkpoint (OPS-136; reconciliation after OPS-135)
+
+- This docs-only slice is branch/worktree
+  `codex/ops-136-reconcile-dependency-bootstrap-checkpoint` /
+  `../opshub-ops-136-dependency-bootstrap-checkpoint`, created by the guarded
+  lifecycle start gate from exact live
+  `origin/staging@98d7316648a60e415e154b114c6bb5ec87f52286`. Canonical staging
+  was clean and the fresh task worktree hydrated Nest/Prisma and Flutter
+  profiles independently before edits.
+- The durable dependency contract is now explicit: every task worktree starts
+  with its own readiness hydration; every dependency-owning command proves the
+  current graph, fingerprint and generated-root writeability immediately before
+  execution; cache restore is acceleration only and never readiness proof.
+- A cold checkout with no `backend-nest/node_modules` or `.dart_tool` must pass
+  the shared doctor before the first gated build. A missing, stale, unwritable,
+  or partially materialized graph fails closed as an environment failure before
+  a product/test command can produce misleading noise. The path-filtered Windows
+  canary remains the regression guard while OPS-72 collects its required live
+  same-cohort observations.
+- This slice changes plan/authority documentation only. Required proof is
+  `git diff --check`, exact `verify-task --base origin/staging` with
+  `stale=false`, PR checks, staging deploy and guarded lifecycle cleanup.
+  Rollback is one OPS-136 squash revert.
 
 Historical Phase 0-1 artifacts, the generic verification foundation/canaries,
 the disposable upstream updater lifecycle gate, and the shared Flutter test
