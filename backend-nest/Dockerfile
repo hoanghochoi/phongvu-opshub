@@ -18,15 +18,11 @@ RUN npm ci && \
     test -f "node_modules/sharp/src/build/Release/sharp-linuxmusl-${SHARP_ARCH}-${SHARP_VERSION}.node"
 
 COPY . .
-# The local package prebuild hook intentionally runs the repository-owned
-# worktree toolchain gate. This Docker context contains backend-nest only, and
-# `npm ci`/Prisma generation above are its equivalent deterministic boundary.
-# Run the explicit build script while suppressing only pre/post lifecycle hooks.
-# The Docker context contains backend-nest only, so invoke this Docker-only
-# verifier directly instead of routing through the repository-root command
-# helper. Local/CI npm commands still run the repository-owned toolchain gate
-# through package.json.
-RUN npm run verify:dockerfile:sharp && node scripts/verify-security-dependencies.mjs && npx --no-install prisma generate && npm run build --ignore-scripts
+# The Docker context contains backend-nest only. `npm ci` above is its
+# deterministic dependency boundary, so Docker-only verification and build
+# commands invoke local binaries directly. Local/CI npm commands still run the
+# repository-owned toolchain gate through package.json.
+RUN npm run verify:dockerfile:sharp && node scripts/verify-security-dependencies.mjs && npx --no-install prisma generate && npx --no-install nest build
 RUN find dist -type f \( -name '*.map' -o -name '*.d.ts' -o -name '*.tsbuildinfo' \) -delete
 
 FROM build AS production-deps

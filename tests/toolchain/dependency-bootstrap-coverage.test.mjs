@@ -243,6 +243,24 @@ test("Nest package lifecycle commands keep the gate before build/test/start cons
 test("Docker Nest build is self-contained without weakening local lifecycle gates", () => {
   const packageJson = JSON.parse(source("backend-nest/package.json"));
   const dockerfile = source("backend-nest/Dockerfile");
+  const applicationSourceIndex = dockerfile.indexOf("COPY . .");
+  const distCleanupIndex = dockerfile.indexOf(
+    "RUN find dist",
+    applicationSourceIndex,
+  );
+
+  assert.ok(
+    applicationSourceIndex >= 0,
+    "Dockerfile must copy application source",
+  );
+  assert.ok(
+    distCleanupIndex > applicationSourceIndex,
+    "Dockerfile must clean build-only output after compiling the application",
+  );
+  const applicationBuildStep = dockerfile.slice(
+    applicationSourceIndex,
+    distCleanupIndex,
+  );
 
   assert.match(
     packageJson.scripts.prebuild,
@@ -260,14 +278,19 @@ test("Docker Nest build is self-contained without weakening local lifecycle gate
     "local security verification must retain the Nest lease through execution",
   );
   assert.match(
-    dockerfile,
-    /node scripts\/verify-security-dependencies\.mjs && npx --no-install prisma generate && npm run build --ignore-scripts/,
-    "the backend-only Docker context must execute the security verifier without the repository-root helper",
+    applicationBuildStep,
+    /node scripts\/verify-security-dependencies\.mjs && npx --no-install prisma generate && npx --no-install nest build/,
+    "the backend-only Docker context must verify and build through self-contained local commands",
   );
   assert.doesNotMatch(
-    dockerfile,
-    /npm run verify:security-deps --ignore-scripts/,
-    "the Docker-only verifier must not depend on a repository-root toolchain helper",
+    applicationBuildStep,
+    /npm run (?:verify:security-deps|build)(?:\s|$)/,
+    "Docker verification/build must not route through npm scripts that require the repository-root toolchain gate",
+  );
+  assert.doesNotMatch(
+    applicationBuildStep,
+    /(?:run-with-toolchain|run-nest-command)\.mjs/,
+    "the backend-only Docker context must not reference repository command helpers",
   );
   assert.match(
     dockerfile,
@@ -351,7 +374,9 @@ test("tracked VS Code Flutter launch uses the doctor and disables the second Pub
 test("boundary scanner covers tracked IDE and docs command surfaces", () => {
   assert.deepEqual(findBoundaryViolations(root), []);
   assert.ok(
-    matchProfiles([".vscode/launch.json"]).some((profile) => profile.id === "harness"),
+    matchProfiles([".vscode/launch.json"]).some(
+      (profile) => profile.id === "harness",
+    ),
     "IDE toolchain configuration must have an affected verification profile",
   );
   assert.match(
@@ -373,19 +398,18 @@ test("boundary scanner rejects an IDE launch without a preflight task", (t) => {
     '{"configurations":[{"type":"dart","request":"launch"}]}\n',
   );
   const violations = findBoundaryViolations(fixture);
-  assert.ok(
-    violations.some((entry) => entry.kind === "flutter-ide-prelaunch"),
-  );
-  assert.ok(
-    violations.some((entry) => entry.kind === "flutter-ide-no-pub"),
-  );
+  assert.ok(violations.some((entry) => entry.kind === "flutter-ide-prelaunch"));
+  assert.ok(violations.some((entry) => entry.kind === "flutter-ide-no-pub"));
   assert.equal(existsSync(path.join(fixture, ".vscode", "tasks.json")), false);
 });
 
 test("Docker and remote migration boundaries forbid implicit npx downloads", () => {
   const compose = source("deploy/home-server/docker-compose.home.yml");
   const stagingWorkflow = source(".github/workflows/deploy-opshub-staging.yml");
-  assert.match(compose, /\["npx", "--no-install", "prisma", "migrate", "deploy"\]/);
+  assert.match(
+    compose,
+    /\["npx", "--no-install", "prisma", "migrate", "deploy"\]/,
+  );
   assert.match(
     stagingWorkflow,
     /npx --no-install prisma migrate resolve --rolled-back/,
@@ -421,10 +445,7 @@ test("the shared Flutter setup action materializes the worktree before the first
     /node scripts\/run-with-toolchain\.mjs --profile flutter --preflight-only/,
     "setup-flutter must hydrate the checked-out worktree after restoring the Pub cache",
   );
-  assert.match(
-    action,
-    /name: Materialize repository Flutter dependencies/,
-  );
+  assert.match(action, /name: Materialize repository Flutter dependencies/);
 });
 
 test("Windows MSIX helpers use the inline Flutter boundary", () => {
