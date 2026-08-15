@@ -10,6 +10,10 @@ inputs:
     description: Full Flutter framework commit SHA to install.
     required: false
     default: "19074d12f7eaf6a8180cd4036a430c1d76de904e"
+  materialize-dependencies:
+    description: Run the repository Flutter dependency preflight after restoring the SDK/Pub cache.
+    required: false
+    default: "true"
 
 runs:
   using: composite
@@ -77,6 +81,7 @@ runs:
         flutter --version
 
     - name: Materialize repository Flutter dependencies
+      if: inputs.materialize-dependencies == 'true'
       shell: pwsh
       run: |
         $ErrorActionPreference = 'Stop'

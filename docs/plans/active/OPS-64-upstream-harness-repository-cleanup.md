@@ -4,9 +4,10 @@ Date: 2026-08-13
 
 ## Status
 
-Active — the current workflow checkpoint is OPS-134 generated-root
-writeability and cold dependency bootstrap, based on
-`origin/staging@8f3539dcc211d656924d4dc6f86fa63fffa6cfc0`.
+Active — the current workflow checkpoint is OPS-135 cold-worktree dependency
+canary, based on `origin/staging@46c8aa90d932f8cfadb25eddae80305180ca9d95`.
+OPS-134's implementation is squash-merged at that SHA, but exact staging
+deployment run `31901021962` and its Linear lifecycle evidence remain open.
 OPS-132 remains the last merged master-plan reconciliation; OPS-72's
 five-observation gate is still open and its affected matrix remains
 observational. OPS-134 was opened after a real Windows preflight reproduced a
@@ -571,10 +572,15 @@ god-helper.
   records exactly three same-cohort post-OPS-130 manifests (#247–#249), all
   passed with `stale=false`, zero unmatched paths and zero reruns. The live
   aggregate remains pending; no percentage or promotion claim is made.
-- [ ] Complete OPS-134 generated-root writeability and cold dependency bootstrap
-  canary from exact `origin/staging@8f3539dcc211d656924d4dc6f86fa63fffa6cfc0`.
-  The slice must repair only allowlisted Windows ReadOnly directory attributes,
-  fail closed on ACL/symlink denial, and keep product/runtime behavior unchanged.
+- [ ] Close OPS-134 generated-root writeability and cold dependency bootstrap
+  lifecycle. The implementation is merged at `46c8aa90`; exact staging deploy
+  `31901021962`, Linear proof/status and guarded remote-branch cleanup remain
+  required before the checkbox can close.
+- [ ] Complete OPS-135 cold-worktree dependency canary from exact
+  `origin/staging@46c8aa90d932f8cfadb25eddae80305180ca9d95`. The canary must
+  prove a clean Windows checkout hydrates both Nest/Prisma and Flutter through
+  the shared doctor/wrapper, including an allowlisted `lib/l10n` ReadOnly fault,
+  before any first build.
 - [ ] Complete OPS-130 live-shadow evidence assembly. Keep the affected matrix
   observational; do not promote profiles until the revised OPS-72 cohort has
   measurable 25% timing and 30% rerun reductions.
@@ -2061,6 +2067,34 @@ Current live upstream retry evidence:
   guarded cleanup remain required. Rollback is one OPS-134 squash revert.
 
 ## Result
+
+## Workflow checkpoint (OPS-135; cold-worktree dependency canary)
+
+- This bounded canary slice is branch/worktree
+  `codex/ops-135-cold-worktree-dependency-canary` /
+  `../opshub-ops-135-cold-worktree-dependency-canary`, created by the guarded
+  lifecycle start gate from exact
+  `origin/staging@46c8aa90d932f8cfadb25eddae80305180ca9d95`. Canonical staging
+  was clean; the task worktree hydrated profile `all` before edits.
+- The slice adds a path-filtered Windows workflow that restores the pinned
+  Flutter SDK/Pub cache without repository hydration, asserts a cold checkout,
+  seeds an allowlisted `lib/l10n` ReadOnly directory, and runs the shared
+  `toolchain-doctor --profile all --force` before wrapped Flutter analyze and
+  Nest build.
+- `setup-flutter` keeps materialization enabled by default; only the canary
+  opts out so cache presence cannot masquerade as worktree readiness. The
+  canary verifier checks both profile graphs, Prisma output, Flutter package and
+  plugin materialization, generated-root writeability and cleared ReadOnly state.
+- Local cold proof passed from absent `backend-nest/node_modules`/`.dart_tool`:
+  doctor prepared both profiles, normalized only `lib/l10n`, the verifier passed,
+  Flutter analyze passed and Nest build passed. Toolchain suite passed `94/94`,
+  boundary scan passed (`files=66`), retained-owner review passed, and exact
+  `verify-task --base origin/staging --profile harness` passed with
+  `stale=false` before this plan edit.
+- Remaining gates are commit/PR CI (including the real Windows canary), exact
+  staging deploy, Linear implementation/deploy proof, and guarded lifecycle
+  cleanup. Rollback is one OPS-135 squash revert; no runtime/API/UI/permission
+  behavior or dependency versions changed.
 
 Historical Phase 0-1 artifacts, the generic verification foundation/canaries,
 the disposable upstream updater lifecycle gate, and the shared Flutter test

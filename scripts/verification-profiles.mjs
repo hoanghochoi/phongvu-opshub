@@ -20,7 +20,7 @@ export const PROFILES = Object.freeze([
       /^deploy\/home-server\/README\.md$/,
       /^scripts\/(?:adapter|schema)\//,
       /^scripts\/(?:validate-contract-appendix|validate-ops-11-payment-audio|validate-ops(?:39|40)-affected-consumers|run-affected-consumer-suite|opshub-web-smoke-proxy)\.(?:mjs|ps1|sh)$/,
-      /^scripts\/(?:prepare-task-toolchain|run-toolchain-command|run-with-toolchain|toolchain-doctor|verify-toolchain-boundary)\.mjs$/,
+      /^scripts\/(?:prepare-task-toolchain|run-toolchain-command|run-with-toolchain|task-lifecycle|toolchain-doctor|verify-cold-dependency-canary|verify-toolchain-boundary)\.mjs$/,
       /^backend-nest\/scripts\/run-prisma-migrate-deploy\.mjs$/,
       /^\.gitattributes$/,
       /^scripts\/bootstrap-harness\.(?:ps1|sh)$/,
@@ -32,7 +32,7 @@ export const PROFILES = Object.freeze([
       /^tests\/migration\//,
       /^tests\/toolchain\//,
       /^tests\/(?:installer|maintenance|migration|verification)\//,
-      /^\.github\/workflows\/(?:build-windows-msix|deploy-opshub(?:-staging)?|post-merge-maintenance|release-guard-pr)\.yml$/,
+      /^\.github\/workflows\/(?:build-windows-msix|cold-dependency-canary|deploy-opshub(?:-staging)?|post-merge-maintenance|release-guard-pr)\.yml$/,
     ],
     consumers: [
       "repository-harness-adoption",

@@ -1,0 +1,93 @@
+name: Cold Dependency Canary
+
+on:
+  pull_request:
+    branches:
+      - staging
+    paths:
+      - '.github/actions/setup-flutter/action.yml'
+      - '.github/workflows/cold-dependency-canary.yml'
+      - '.gitattributes'
+      - '.metadata'
+      - 'backend-nest/package.json'
+      - 'backend-nest/package-lock.json'
+      - 'backend-nest/prisma/**'
+      - 'pubspec.yaml'
+      - 'pubspec.lock'
+      - 'scripts/prepare-task-toolchain.mjs'
+      - 'scripts/run-with-toolchain.mjs'
+      - 'scripts/task-lifecycle.mjs'
+      - 'scripts/toolchain-doctor.mjs'
+      - 'scripts/verification-profiles.mjs'
+      - 'scripts/verify-cold-dependency-canary.mjs'
+      - 'scripts/verify-toolchain-boundary.mjs'
+      - 'tests/toolchain/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cold-dependency-canary-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  cold-worktree:
+    name: Windows cold Nest + Flutter dependency canary
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - name: Check out pull request
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          fetch-depth: 0
+
+      - name: Set up pinned Flutter without repository hydration
+        uses: ./.github/actions/setup-flutter
+        with:
+          materialize-dependencies: 'false'
+
+      - name: Assert cold worktree dependency roots
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          foreach ($path in @('backend-nest/node_modules', '.dart_tool')) {
+            if (Test-Path -LiteralPath $path) {
+              throw "Cold canary expected $path to be absent before hydration."
+            }
+          }
+
+      - name: Hydrate both profiles through the shared doctor
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          New-Item -ItemType Directory -Path tmp -Force | Out-Null
+          attrib +R lib\l10n
+          try {
+            node scripts/toolchain-doctor.mjs --profile all --force --json tmp/cold-dependency-canary-doctor.json
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            node scripts/verify-cold-dependency-canary.mjs --input tmp/cold-dependency-canary-doctor.json --root .
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          } finally {
+            attrib -R lib\l10n
+          }
+
+      - name: Verify toolchain command boundary
+        shell: pwsh
+        run: node scripts/verify-toolchain-boundary.mjs
+
+      - name: Run wrapped Flutter analyze
+        shell: pwsh
+        run: node scripts/run-with-toolchain.mjs --profile flutter -- flutter analyze --no-pub
+
+      - name: Run wrapped Nest build
+        shell: pwsh
+        run: node scripts/run-with-toolchain.mjs --profile nestjs --cwd backend-nest -- npm run build
+
+      - name: Publish canary evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: cold-dependency-canary-${{ github.run_id }}
+          path: tmp/cold-dependency-canary-doctor.json
+          if-no-files-found: error
