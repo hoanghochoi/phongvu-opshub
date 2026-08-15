@@ -22,10 +22,11 @@ COPY . .
 # worktree toolchain gate. This Docker context contains backend-nest only, and
 # `npm ci`/Prisma generation above are its equivalent deterministic boundary.
 # Run the explicit build script while suppressing only pre/post lifecycle hooks.
-# The Docker context contains backend-nest only, so bypass the repository-root
-# preverify hook for this Docker-only security command. Local/CI npm commands
-# still run the repository-owned toolchain gate through package.json.
-RUN npm run verify:dockerfile:sharp && npm run verify:security-deps --ignore-scripts && npx --no-install prisma generate && npm run build --ignore-scripts
+# The Docker context contains backend-nest only, so invoke this Docker-only
+# verifier directly instead of routing through the repository-root command
+# helper. Local/CI npm commands still run the repository-owned toolchain gate
+# through package.json.
+RUN npm run verify:dockerfile:sharp && node scripts/verify-security-dependencies.mjs && npx --no-install prisma generate && npm run build --ignore-scripts
 RUN find dist -type f \( -name '*.map' -o -name '*.d.ts' -o -name '*.tsbuildinfo' \) -delete
 
 FROM build AS production-deps
