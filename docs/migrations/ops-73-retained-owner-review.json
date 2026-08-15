@@ -1,0 +1,201 @@
+{
+  "formatVersion": 1,
+  "issue": "OPS-73",
+  "phase": "retained-owner-review",
+  "sourceRevision": "e338e51bc212c050c9f70b95f0aca91d286b705d",
+  "reviewedAtUtc": "2026-08-15T16:30:00Z",
+  "sourceInventory": "docs/migrations/ops-73-artifact-inventory.json",
+  "sourceInventorySha256": "2f49a3590e5304d6d454e16d8c10f7d16f14a82f08e56e4c9f6e35ef6dc4c6f6",
+  "candidates": [
+    {
+      "id": "n8n-workflow-exports",
+      "disposition": "retain",
+      "reasonCode": "legacy-reference-external-workflow",
+      "owner": "repository authority / legacy workflow reference",
+      "runtimeStatus": "not-runtime",
+      "paths": [
+        {
+          "path": "n8n/auth.json",
+          "kind": "file",
+          "sha256": "814a0f6e6e529674601b203736ab39a8cdd3140243972c8671e390aaadc9ab6f",
+          "bytes": 18951
+        },
+        {
+          "path": "n8n/bhsc.json",
+          "kind": "file",
+          "sha256": "4b974661c9866a7efcd1b011d1e3f59ae8053cd3a4874752c60ab452f8b40671",
+          "bytes": 18448
+        },
+        {
+          "path": "n8n/chat.json",
+          "kind": "file",
+          "sha256": "8c5ac56cc3c48374b1b9dfca6bc405c51ceb1890b53f6b54e8c944b63bb0f520",
+          "bytes": 9849
+        },
+        {
+          "path": "n8n/sort-fifo.json",
+          "kind": "file",
+          "sha256": "faafd5e970786ff892fe2ca18c6a0bba7a3e42ba8c40c5556111a0d1bbd3f508",
+          "bytes": 8055
+        }
+      ],
+      "ownerReferences": [
+        "README.md",
+        "docs/product/overview.md",
+        "app-audit-21072026.md",
+        "app-improve-implement-plan-12072026.md"
+      ],
+      "referenceProof": {
+        "repositoryRole": "legacy reference only; excluded from runtime and release artifacts",
+        "payloadPolicy": "workflow payload is not copied into this manifest"
+      },
+      "rollback": {
+        "required": true,
+        "owner": "repository history and documentation owner",
+        "method": "retain files; revert any future reference-only cleanup as one Git commit"
+      }
+    },
+    {
+      "id": "legacy-vietqr-n8n-routes",
+      "disposition": "retain",
+      "reasonCode": "active-external-api-contract",
+      "owner": "NestJS VietQR integration / external n8n consumers",
+      "runtimeStatus": "active-compatibility-contract",
+      "paths": [
+        {
+          "path": "backend-nest/src/vietqr/vietqr.controller.ts",
+          "kind": "file",
+          "sha256": "298bd31c8a721d2c6dc0948617fe1fccf2e282ca3aa12f6e74e7e8062fd92248",
+          "bytes": 6780
+        },
+        {
+          "path": "backend-nest/src/vietqr/vietqr.service.ts",
+          "kind": "file",
+          "sha256": "0f072ff89884ebabcf1235e43711e7a9a8539ef0d909437d66fe3b6892185d48",
+          "bytes": 39898
+        },
+        {
+          "path": "docs/product/vietqr.md",
+          "kind": "file",
+          "sha256": "12d651624032885da6f06e8b644b04a21c4b48ea47e1fbd56ce9471c96fcefc0",
+          "bytes": 38458
+        }
+      ],
+      "ownerReferences": [
+        "backend-nest/src/vietqr/vietqr.controller.ts",
+        "backend-nest/src/vietqr/vietqr.service.ts",
+        "backend-nest/src/vietqr/vietqr.controller.spec.ts",
+        "docs/product/vietqr.md",
+        "deploy/staging/README.md"
+      ],
+      "contractProof": {
+        "routes": [
+          "GET /vietqr/n8n",
+          "POST /vietqr/n8n",
+          "GET /vietqr/n8n/image",
+          "GET /vietqr/n8n/status",
+          "POST /vietqr/n8n/status"
+        ],
+        "security": "external key/header contract remains documented and tested"
+      },
+      "rollback": {
+        "required": true,
+        "owner": "NestJS VietQR service owner and release operator",
+        "method": "preserve compatibility routes; restore the previous exact deployment SHA through the staging/production rollback transaction"
+      }
+    },
+    {
+      "id": "flutter-platform-assets",
+      "disposition": "retain",
+      "reasonCode": "platform-build-input",
+      "owner": "Flutter platform and release owners",
+      "runtimeStatus": "release-build-input",
+      "paths": [
+        { "path": "android", "kind": "directory" },
+        { "path": "ios", "kind": "directory" },
+        { "path": "linux", "kind": "directory" },
+        { "path": "macos", "kind": "directory" },
+        { "path": "web", "kind": "directory" },
+        { "path": "windows", "kind": "directory" }
+      ],
+      "ownerReferences": [
+        ".github/actions/setup-flutter/action.yml",
+        ".github/workflows/build-windows-msix.yml",
+        ".github/workflows/deploy-opshub-staging.yml",
+        ".github/workflows/deploy-opshub.yml",
+        "scripts/build-windows-msix-internal.ps1"
+      ],
+      "referenceProof": {
+        "buildMatrix": ["android", "ios", "linux", "macos", "web", "windows"],
+        "deletionRule": "generated/platform copies require an allowlist owner and affected build proof"
+      },
+      "rollback": {
+        "required": true,
+        "owner": "Flutter release owner",
+        "method": "restore the prior exact staging release SHA and platform artifact manifest"
+      }
+    },
+    {
+      "id": "release-and-shadow-allowlists",
+      "disposition": "retain",
+      "reasonCode": "release-and-verification-control-plane",
+      "owner": "CI/release automation and verification authority",
+      "runtimeStatus": "release-and-rollback-contract",
+      "paths": [
+        {
+          "path": ".github/actions/setup-flutter/action.yml",
+          "kind": "file",
+          "sha256": "b3ea5c4ab12c374745b86527985e14aa08bfd699db2d57008d2db45e2e26a3c4",
+          "bytes": 3904
+        },
+        {
+          "path": ".github/workflows/verify-task-shadow.yml",
+          "kind": "file",
+          "sha256": "2c441b9d0e1bad92f93189b78ff0c9ebed4f5d84a09d31867243074b07d7b303",
+          "bytes": 4776
+        },
+        {
+          "path": ".github/workflows/deploy-opshub-staging.yml",
+          "kind": "file",
+          "sha256": "63166fd90742536c42f657ecfc5ae5bcc3db4e65d8221fa115b501748f6bbfb3",
+          "bytes": 91572
+        },
+        {
+          "path": ".github/workflows/deploy-opshub.yml",
+          "kind": "file",
+          "sha256": "32f38f9a51551814b54532de4ddc29080663f2d1ebf98d1b267b7d78b1116c38",
+          "bytes": 65926
+        },
+        {
+          "path": "deploy/staging/README.md",
+          "kind": "file",
+          "sha256": "02174bc79e5c37d1b2450512747f3b8acb8da2c56ef52ab5d8febca076a79e8e",
+          "bytes": 10804
+        }
+      ],
+      "ownerReferences": [
+        ".github/workflows/verify-task-shadow.yml",
+        ".github/workflows/deploy-opshub-staging.yml",
+        ".github/workflows/deploy-opshub.yml",
+        "deploy/staging/README.md",
+        "docs/runbooks/git-release-playbook.md"
+      ],
+      "referenceProof": {
+        "policy": "shadow remains observational; release and rollback checks remain blocking",
+        "deletionRule": "allowlist entries require workflow, packaging, deployment and rollback owner proof"
+      },
+      "rollback": {
+        "required": true,
+        "owner": "release operator",
+        "method": "revert the single PR and restore the prior exact release workflow/deployment SHA"
+      }
+    }
+  ],
+  "summary": {
+    "candidateCount": 4,
+    "deletionDecision": "no-safe-deletion-candidate",
+    "secretScan": "not-committed-payloads",
+    "rawWorkflowPayloadsCommitted": false,
+    "rollbackRequiredForAllCandidates": true
+  }
+}

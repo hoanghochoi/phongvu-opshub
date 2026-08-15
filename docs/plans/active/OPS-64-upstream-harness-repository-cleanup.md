@@ -4,12 +4,13 @@ Date: 2026-08-13
 
 ## Status
 
-Active — the current workflow checkpoint is OPS-131 dependency-boundary
-hardening, based on `origin/staging@837df86c2a781b256c72fbe0eb6bdb37cbae26e0`.
-OPS-130 PR #247 was squash-merged at that SHA, staging deploy `31888018450`
+Active — the current workflow checkpoint is OPS-73 retained-owner review,
+based on `origin/staging@e338e51bc212c050c9f70b95f0aca91d286b705d`.
+OPS-131 PR #248 was squash-merged at that SHA, staging deploy `31894609071`
 passed, and guarded lifecycle cleanup left only the canonical staging
-worktree. OPS-72 still has five comparable post-telemetry observations, but the
-measured timing improvement is only 15.05% and the rerun target is not
+worktree. OPS-72 still has only two valid post-OPS-130 manifests, so its
+five-observation gate remains open; the previous cohort's timing improvement is
+only 15.05% and the rerun target is not
 measurable, so the matrix remains observational and the phase is explicitly
 `revise`. Product, API, permission and runtime behavior stay unchanged.
 
@@ -562,6 +563,11 @@ god-helper.
 - [x] Reconcile the plan after OPS-124/OPS-128 dependency slices in OPS-129.
   PR #246 merged at `5c457e6ec044894b4603fa2f4ecea6a928859c2c`; staging deploy
   `31885815185` passed and the guarded cleanup left only canonical staging.
+- [x] Complete OPS-131 dependency bootstrap hardening. PR #248 squash-merged
+  at `e338e51bc212c050c9f70b95f0aca91d286b705d`; PR checks and staging deploy
+  `31894609071` passed on the exact SHA, and guarded lifecycle cleanup removed
+  the task worktree/local/remote branch. Linear OPS-131 is `Ready for QA`;
+  production deployment remains the Done gate.
 - [ ] Complete OPS-130 live-shadow evidence assembly. Keep the affected matrix
   observational; do not promote profiles until the revised OPS-72 cohort has
   measurable 25% timing and 30% rerun reductions.
@@ -576,8 +582,10 @@ Phase 8 inventory checkpoint (OPS-73):
 - [x] Validate the inventory with `scripts/verify-artifact-inventory.mjs`;
   deletion batches must remain empty until an independent reference/build/
   package/migration/rollback review proves a candidate safe to remove.
-- [ ] Preserve `n8n/`, legacy runtime routes, platform assets and release
-  allowlist entries until their operational owner and rollback path are proven.
+- [x] Preserve `n8n/`, legacy runtime routes, platform assets and release
+  allowlist entries after the sanitized OPS-73 retained-owner review proves an
+  owner reference and rollback path for every candidate. No deletion batch is
+  authorized by this evidence.
 
 Flutter batch checkpoint:
 
@@ -1975,9 +1983,32 @@ Current live upstream retry evidence:
   16/16, and the wrapped Flutter analyze completed with no issues. The
   command-tee syntax check, migration EOL scan, boundary scan, `git diff
   --check`, and real Flutter analyze are included in that proof. PR/CI,
-  staging deploy and guarded finish cleanup remain required. Rollback is one
-  OPS-131 squash revert; temporary command logs and dependency caches remain
-  ignored.
+  staging deploy `31894609071` and guarded finish cleanup also passed on the
+  exact merged SHA. Linear OPS-131 is `Ready for QA`; production deployment
+  remains required. Rollback is one OPS-131 squash revert; temporary command
+  logs and dependency caches remain ignored.
+
+## Workflow checkpoint (OPS-73; retained-owner review)
+
+- This bounded Phase 8 evidence slice is branch/worktree
+  `codex/ops-73-retained-owner-review` /
+  `../opshub-ops-73-retained-owner-review`, created by the guarded lifecycle
+  start gate from exact `origin/staging@e338e51bc212c050c9f70b95f0aca91d286b705d`.
+  The canonical staging worktree remained clean and the worktree hydrated both
+  toolchain profiles before edits.
+- It adds the sanitized
+  `docs/migrations/ops-73-retained-owner-review.json` ledger and its
+  fail-closed validator/test. Four candidate groups are retained: n8n legacy
+  exports, active VietQR/n8n compatibility routes, Flutter platform
+  directories, and release/shadow allowlists. Each reviewed file has a
+  current SHA-256/byte count, each candidate has owner references and an exact
+  rollback method, and no workflow payload is copied into Git.
+- The evidence explicitly records `no-safe-deletion-candidate`; it authorizes
+  no deletion of n8n, legacy routes, platform assets or release controls. Any
+  later source/hash drift fails validation and requires a refreshed review.
+- Required proof is retained-owner validator/tests, exact `verify-task --base
+  origin/staging` with `stale=false`, PR checks, staging deploy and guarded
+  lifecycle cleanup. Rollback is one OPS-73 squash revert.
 
 ## Result
 
@@ -1988,16 +2019,19 @@ characterization is explicit across three export contexts. Archive copies are
 local-only and retained; the canonical source remains read-only evidence.
 OPS-65 PR #175, OPS-68 PR #176, and OPS-69 PRs #177/#178 are merged into
 `staging`; each remains subject to its documented QA/production lifecycle
-gates. OPS-73 and OPS-113 are now also staged and tracked as `Ready for QA`
-after exact deploy `31862881662` and guarded cleanup. OPS-122 and OPS-123's
+gates. OPS-131 is now merged/deployed at `e338e51b` and tracked as `Ready for
+QA` after exact deploy `31894609071` and guarded cleanup. OPS-73's prior
+dependency batches remain `Ready for QA`; this retained-owner review is the
+current Phase 8 checkpoint. OPS-113 is also staged and tracked as `Ready for
+QA` after exact deploy `31862881662` and guarded cleanup. OPS-122 and OPS-123's
 reconciliations are historical; OPS-124 is merged/deployed and tracked as
 `Ready for QA`, OPS-127 and OPS-128 are historical dependency-boundary
 checkpoints, OPS-129 is a historical master-plan reconciliation, and OPS-130
-is the completed live-shadow evidence assembly checkpoint. OPS-131 is the
-current dependency-boundary hardening checkpoint.
-OPS-72's five live observations are valid but remain `revise`; Phase 8 retained-owner
-evidence, runtime waves and OPS-75 final consolidation remain downstream
-gates.
+is the completed live-shadow evidence assembly checkpoint. OPS-131 is a
+completed dependency-boundary hardening checkpoint. OPS-72's live cohort is
+still incomplete (two valid post-OPS-130 manifests; prior five-observation
+cohort remains `revise`); Phase 8 deletion work, runtime waves and OPS-75 final
+consolidation remain downstream gates.
 Move this plan to
 `docs/plans/completed/` only after the full initiative's final validation and
 production lifecycle are complete.

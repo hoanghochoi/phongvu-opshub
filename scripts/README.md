@@ -126,6 +126,21 @@ or unmatched reports, retries, invalid SHA/URL metadata, and raw hash
 mismatches. It never promotes a profile; a target that is unmet or not
 measurable remains `revise`.
 
+Phase 8 retained-owner evidence is separate from the live shadow ledger. It
+records only sanitized path metadata, SHA-256 values and owner/rollback
+references for legacy `n8n/` exports, active `/vietqr/n8n*` compatibility
+routes, Flutter platform directories and release/shadow allowlists. It does
+not copy workflow payloads or authorize deletion:
+
+```text
+node scripts/verify-retained-owner-review.mjs \
+  --input docs/migrations/ops-73-retained-owner-review.json
+```
+
+Every candidate must remain `retain`, have an existing owner reference and a
+rollback method. A changed reviewed file or inventory hash fails validation so
+the owner review is refreshed before any deletion batch is proposed.
+
 ## Legacy boundary
 
 Protocol v1, the SQLite control plane, and `harness-cli` are end-of-life. The
