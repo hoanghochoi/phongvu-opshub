@@ -219,10 +219,38 @@ outside the generated allowlist. Standalone validation scripts must run the
 same preflight before any Flutter or Nest command; Flutter test commands then
 use `--no-pub` so an implicit second dependency writer cannot bypass the gate.
 
+The command gate also performs a bounded command-time repair check. If a
+Flutter command reports a missing package/package-config path, or a Nest
+command reports a missing `node_modules`/Prisma module, the gate re-checks the
+materialized readiness directly instead of trusting the earlier cache receipt.
+When readiness is actually broken, it forces that profile's hydration once and
+retries the same command once only if the dependency-manifest fingerprint is
+unchanged. A healthy readiness result is treated as a product failure (for
+example, a typo in an import) and is never retried. A manifest change during
+repair returns stale failure code `4`; the gate does not run a second command.
+If the retried command still reports a dependency diagnostic, the gate returns
+environment failure code `5` with `recovery.status=failed-after-repair` and the
+sanitized diagnostic, so a persistent broken environment cannot be mistaken
+for a product/test failure.
+
+During a gated command, Flutter holds the shared Pub-cache lease for the full
+command lifetime (not only during `pub get`), and NestJS holds a per-worktree
+toolchain lease while `node_modules` is being read or repaired. Hydration and
+command-time repair re-enter those leases within the same process, while other
+worktrees/processes wait or fail closed after the stale-lock timeout. This
+prevents a parallel `pub get`, `npm ci` or quarantine operation from changing
+dependencies between readiness and the command. The gate passes a sanitized
+lease marker to child processes; Nest npm lifecycle pre-hooks validate under
+the parent lease instead of waiting on themselves, so `npm run build/test`
+cannot deadlock while still retaining the parent command's lock ownership.
+
 Nest readiness also compares every required (non-optional) installed lock
 entry's version and integrity with the tracked `backend-nest/package-lock.json`;
 optional OS/CPU packages may be absent on the current platform. If that
-metadata drifts, the cached result is invalidated and `npm ci` runs again.
+metadata drifts, the cached result is invalidated and `npm ci` runs again. It
+also checks the materialized main/module/browser/bin entrypoints declared by
+direct dependencies, while allowing Node's normal extension and directory
+resolution; a missing entrypoint invalidates the cached result.
 
 If Windows `npm ci` reports `ENOTEMPTY`, `directory not empty` or an `rmdir`
 failure while replacing `backend-nest/node_modules`, the preparer quarantines

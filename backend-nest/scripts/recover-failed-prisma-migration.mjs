@@ -1,4 +1,7 @@
 import { spawnSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 import { Client } from 'pg';
 
@@ -18,6 +21,16 @@ if (!databaseUrl) {
 
 const client = new Client({ connectionString: databaseUrl });
 let clientClosed = false;
+const backendRoot = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  '..',
+);
+const repositoryRoot = path.resolve(backendRoot, '..');
+const toolchainRunner = path.join(
+  repositoryRoot,
+  'scripts',
+  'run-with-toolchain.mjs',
+);
 
 try {
   await client.connect();
@@ -44,11 +57,36 @@ try {
     await client.end();
     clientClosed = true;
 
-    const resolved = spawnSync(
-      'npx',
-      ['prisma', 'migrate', 'resolve', '--rolled-back', migrationName],
-      { stdio: 'inherit' },
-    );
+    const prismaArgs = [
+      '--no-install',
+      'prisma',
+      'migrate',
+      'resolve',
+      '--rolled-back',
+      migrationName,
+    ];
+    const resolved = existsSync(toolchainRunner)
+      ? spawnSync(
+          process.execPath,
+          [
+            toolchainRunner,
+            '--root',
+            repositoryRoot,
+            '--profile',
+            'nestjs',
+            '--cwd',
+            'backend-nest',
+            '--',
+            'npx',
+            ...prismaArgs,
+          ],
+          { cwd: repositoryRoot, env: process.env, stdio: 'inherit' },
+        )
+      : spawnSync(
+          process.platform === 'win32' ? 'npx.cmd' : 'npx',
+          prismaArgs,
+          { cwd: backendRoot, env: process.env, stdio: 'inherit' },
+        );
 
     if (resolved.error) {
       console.error(resolved.error.message);

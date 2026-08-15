@@ -59,9 +59,15 @@ function flutterFixture(t) {
   git(root, ['init', '--quiet']);
   git(root, ['config', 'user.name', 'flutter-toolchain-test']);
   git(root, ['config', 'user.email', 'flutter-toolchain@example.invalid']);
-  writeFileSync(path.join(root, 'pubspec.yaml'), 'name: fixture\nenvironment:\n  sdk: ">=3.0.0 <4.0.0"\n');
+  writeFileSync(
+    path.join(root, 'pubspec.yaml'),
+    'name: fixture\nenvironment:\n  sdk: ">=3.0.0 <4.0.0"\n',
+  );
   writeFileSync(path.join(root, 'pubspec.lock'), 'packages: {}\n');
-  writeFileSync(path.join(root, '.metadata'), 'version:\n  revision: fixture\n');
+  writeFileSync(
+    path.join(root, '.metadata'),
+    'version:\n  revision: fixture\n',
+  );
   writeFlutterPluginMetadata(root);
   writeFileSync(path.join(root, 'README.md'), '# fixture\n');
   writeFileSync(path.join(root, '.gitignore'), '.dart_tool/\ntmp/\n');
@@ -144,7 +150,14 @@ function successfulStepFactory(calls) {
         { recursive: true },
       );
       mkdirSync(
-        path.join(root, 'backend-nest', 'node_modules', '@nestjs', 'cli', 'bin'),
+        path.join(
+          root,
+          'backend-nest',
+          'node_modules',
+          '@nestjs',
+          'cli',
+          'bin',
+        ),
         { recursive: true },
       );
       mkdirSync(
@@ -200,11 +213,25 @@ function successfulStepFactory(calls) {
         '{"lockfileVersion":3,"packages":{}}\n',
       );
       writeFileSync(
-        path.join(root, 'backend-nest', 'node_modules', '.prisma', 'client', 'index.js'),
+        path.join(
+          root,
+          'backend-nest',
+          'node_modules',
+          '.prisma',
+          'client',
+          'index.js',
+        ),
         'module.exports = {};\n',
       );
       writeFileSync(
-        path.join(root, 'backend-nest', 'node_modules', '.prisma', 'client', 'default.js'),
+        path.join(
+          root,
+          'backend-nest',
+          'node_modules',
+          '.prisma',
+          'client',
+          'default.js',
+        ),
         'module.exports = {};\n',
       );
     }
@@ -233,8 +260,14 @@ test('parser defaults to all and accepts narrow toolchain profiles', () => {
   assert.equal(parseArgs([]).profile, 'all');
   assert.equal(parseArgs(['--profile', 'flutter']).profile, 'flutter');
   assert.equal(parseArgs(['--profile', 'all']).profile, 'all');
-  assert.equal(parseArgs(['--root', '..\\opshub-ops-123']).root, '..\\opshub-ops-123');
-  assert.throws(() => parseArgs(['--profile', 'unknown']), /Profile không hỗ trợ/);
+  assert.equal(
+    parseArgs(['--root', '..\\opshub-ops-123']).root,
+    '..\\opshub-ops-123',
+  );
+  assert.throws(
+    () => parseArgs(['--profile', 'unknown']),
+    /Profile không hỗ trợ/,
+  );
 });
 
 test('default prepare hydrates Nest and Flutter in one deterministic sequence', (t) => {
@@ -245,19 +278,41 @@ test('default prepare hydrates Nest and Flutter in one deterministic sequence', 
     runStepFn: (currentRoot, step) => {
       calls.push(step.id);
       if (step.id === 'nestjs-prisma-generate') {
-        mkdirSync(path.join(currentRoot, 'backend-nest', 'node_modules', '.bin'), {
-          recursive: true,
-        });
         mkdirSync(
-          path.join(currentRoot, 'backend-nest', 'node_modules', '@prisma', 'client'),
+          path.join(currentRoot, 'backend-nest', 'node_modules', '.bin'),
+          {
+            recursive: true,
+          },
+        );
+        mkdirSync(
+          path.join(
+            currentRoot,
+            'backend-nest',
+            'node_modules',
+            '@prisma',
+            'client',
+          ),
           { recursive: true },
         );
         mkdirSync(
-          path.join(currentRoot, 'backend-nest', 'node_modules', '@nestjs', 'cli', 'bin'),
+          path.join(
+            currentRoot,
+            'backend-nest',
+            'node_modules',
+            '@nestjs',
+            'cli',
+            'bin',
+          ),
           { recursive: true },
         );
         mkdirSync(
-          path.join(currentRoot, 'backend-nest', 'node_modules', '.prisma', 'client'),
+          path.join(
+            currentRoot,
+            'backend-nest',
+            'node_modules',
+            '.prisma',
+            'client',
+          ),
           { recursive: true },
         );
         writeFileSync(
@@ -305,7 +360,12 @@ test('default prepare hydrates Nest and Flutter in one deterministic sequence', 
           'module.exports = {};\n',
         );
         writeFileSync(
-          path.join(currentRoot, 'backend-nest', 'node_modules', '.package-lock.json'),
+          path.join(
+            currentRoot,
+            'backend-nest',
+            'node_modules',
+            '.package-lock.json',
+          ),
           '{"lockfileVersion":3,"packages":{}}\n',
         );
         writeFileSync(
@@ -461,7 +521,14 @@ test('ENOTEMPTY npm ci failure quarantines stale node_modules and retries once',
     { recursive: true },
   );
   writeFileSync(
-    path.join(root, 'backend-nest', 'node_modules', 'apache-arrow', 'builder', 'locked.txt'),
+    path.join(
+      root,
+      'backend-nest',
+      'node_modules',
+      'apache-arrow',
+      'builder',
+      'locked.txt',
+    ),
     'stale dependency tree\n',
   );
 
@@ -480,7 +547,8 @@ test('ENOTEMPTY npm ci failure quarantines stale node_modules and retries once',
           exitCode: 1,
           executable: step.executable,
           argv: step.argv,
-          error: 'npm ERR! code ENOTEMPTY: directory not empty, rmdir node_modules/apache-arrow/builder',
+          error:
+            'npm ERR! code ENOTEMPTY: directory not empty, rmdir node_modules/apache-arrow/builder',
         };
       }
       return success(currentRoot, step);
@@ -507,7 +575,10 @@ test('ENOTEMPTY npm ci failure quarantines stale node_modules and retries once',
 
 test('ENOTEMPTY recovery fails closed when node_modules is not a physical directory', (t) => {
   const root = fixture(t);
-  writeFileSync(path.join(root, 'backend-nest', 'node_modules'), 'not a directory\n');
+  writeFileSync(
+    path.join(root, 'backend-nest', 'node_modules'),
+    'not a directory\n',
+  );
 
   const result = prepareTaskToolchain({
     root,
@@ -526,7 +597,10 @@ test('ENOTEMPTY recovery fails closed when node_modules is not a physical direct
   assert.equal(result.result.status, 'environment-failure');
   assert.equal(result.result.recoveries[0].status, 'failed');
   assert.match(result.result.recoveries[0].error, /không phải thư mục vật lý/i);
-  assert.equal(existsSync(path.join(root, 'backend-nest', 'node_modules')), true);
+  assert.equal(
+    existsSync(path.join(root, 'backend-nest', 'node_modules')),
+    true,
+  );
 });
 
 test('partial Nest dependency loss invalidates the cached readiness', (t) => {
@@ -542,6 +616,81 @@ test('partial Nest dependency loss invalidates the cached readiness', (t) => {
   const result = prepareTaskToolchain({ root, profile: 'nestjs', runStepFn });
   assert.equal(result.exitCode, EXIT_CODES.PASS);
   assert.equal(result.result.status, 'prepared');
+  assert.deepEqual(calls, [
+    'nestjs-npm-ci',
+    'nestjs-prisma-generate',
+    'nestjs-npm-ci',
+    'nestjs-prisma-generate',
+  ]);
+});
+
+test('Nest readiness invalidates cached state when a package entrypoint disappears', (t) => {
+  const root = fixture(t);
+  const trackedLock = {
+    lockfileVersion: 3,
+    packages: {
+      '': {},
+      'node_modules/fixture-entry': { version: '1.0.0' },
+    },
+  };
+  writeFileSync(
+    path.join(root, 'backend-nest', 'package.json'),
+    '{"name":"fixture","dependencies":{"fixture-entry":"1.0.0"}}\n',
+  );
+  writeFileSync(
+    path.join(root, 'backend-nest', 'package-lock.json'),
+    JSON.stringify(trackedLock),
+  );
+  const calls = [];
+  const success = successfulStepFactory(calls);
+  const runStepFn = (currentRoot, step) => {
+    const result = success(currentRoot, step);
+    if (step.id === 'nestjs-prisma-generate') {
+      const packageRoot = path.join(
+        currentRoot,
+        'backend-nest',
+        'node_modules',
+        'fixture-entry',
+      );
+      mkdirSync(path.join(packageRoot, 'dist'), { recursive: true });
+      writeFileSync(
+        path.join(packageRoot, 'package.json'),
+        '{"name":"fixture-entry","main":"./dist/index.js"}\n',
+      );
+      writeFileSync(
+        path.join(packageRoot, 'dist', 'index.js'),
+        'module.exports = {};\n',
+      );
+      writeFileSync(
+        path.join(
+          currentRoot,
+          'backend-nest',
+          'node_modules',
+          '.package-lock.json',
+        ),
+        JSON.stringify(trackedLock),
+      );
+    }
+    return result;
+  };
+
+  const first = prepareTaskToolchain({ root, profile: 'nestjs', runStepFn });
+  assert.equal(first.exitCode, EXIT_CODES.PASS);
+  rmSync(
+    path.join(
+      root,
+      'backend-nest',
+      'node_modules',
+      'fixture-entry',
+      'dist',
+      'index.js',
+    ),
+    { force: true },
+  );
+
+  const second = prepareTaskToolchain({ root, profile: 'nestjs', runStepFn });
+  assert.equal(second.exitCode, EXIT_CODES.PASS);
+  assert.equal(second.result.status, 'prepared');
   assert.deepEqual(calls, [
     'nestjs-npm-ci',
     'nestjs-prisma-generate',
@@ -614,9 +763,17 @@ test('Nest cached readiness invalidates when installed lock metadata drifts', (t
         'fixture-lock',
       );
       mkdirSync(packageRoot, { recursive: true });
-      writeFileSync(path.join(packageRoot, 'package.json'), '{"version":"1.0.0"}\n');
       writeFileSync(
-        path.join(currentRoot, 'backend-nest', 'node_modules', '.package-lock.json'),
+        path.join(packageRoot, 'package.json'),
+        '{"version":"1.0.0"}\n',
+      );
+      writeFileSync(
+        path.join(
+          currentRoot,
+          'backend-nest',
+          'node_modules',
+          '.package-lock.json',
+        ),
         JSON.stringify(trackedLock),
       );
     }
@@ -755,7 +912,11 @@ test('lockfile changes invalidate the cached hydration fingerprint', (t) => {
 
 test('dry-run reports missing hydration without mutating state', (t) => {
   const root = fixture(t);
-  const result = prepareTaskToolchain({ root, profile: 'nestjs', dryRun: true });
+  const result = prepareTaskToolchain({
+    root,
+    profile: 'nestjs',
+    dryRun: true,
+  });
   assert.equal(result.exitCode, EXIT_CODES.PASS);
   assert.equal(result.result.status, 'planned');
   assert.equal(result.result.steps.length, 2);
@@ -858,8 +1019,15 @@ test('Flutter preflight hydrates package config and restores generated tracked f
   assert.equal(result.exitCode, EXIT_CODES.PASS);
   assert.equal(result.result.status, 'prepared');
   assert.deepEqual(calls, ['flutter-pub-get']);
-  assert.ok(result.result.worktree.restoredPaths.includes('lib/l10n/app_localizations.dart'));
-  assert.equal(git(root, ['status', '--porcelain=v1', '--untracked-files=all']), '');
+  assert.ok(
+    result.result.worktree.restoredPaths.includes(
+      'lib/l10n/app_localizations.dart',
+    ),
+  );
+  assert.equal(
+    git(root, ['status', '--porcelain=v1', '--untracked-files=all']),
+    '',
+  );
 
   const cached = prepareTaskToolchain({
     root,
@@ -912,12 +1080,20 @@ test('Flutter preflight fails closed on unexpected tracked mutation', (t) => {
   assert.equal(result.exitCode, EXIT_CODES.ENVIRONMENT);
   assert.equal(result.result.status, 'environment-failure');
   assert.match(result.result.error, /outside generated allowlist|allowlist/);
-  assert.equal(existsSync(path.join(root, 'tmp', 'opshub-toolchain-state.json')), false);
+  assert.equal(
+    existsSync(path.join(root, 'tmp', 'opshub-toolchain-state.json')),
+    false,
+  );
 });
 
 test('Flutter preflight preserves a pre-existing generated-file edit', (t) => {
   const root = flutterFixture(t);
-  const generatedPath = path.join(root, 'lib', 'l10n', 'app_localizations.dart');
+  const generatedPath = path.join(
+    root,
+    'lib',
+    'l10n',
+    'app_localizations.dart',
+  );
   appendFileSync(generatedPath, '// user edit\n');
   const before = readFileSync(generatedPath);
   const result = prepareTaskToolchain({
@@ -938,14 +1114,22 @@ test('Flutter preflight preserves a pre-existing generated-file edit', (t) => {
   assert.equal(result.exitCode, EXIT_CODES.ENVIRONMENT);
   assert.match(result.result.error, /pre-existing user change/i);
   assert.deepEqual(readFileSync(generatedPath), before);
-  assert.equal(existsSync(path.join(root, 'tmp', 'opshub-toolchain-state.json')), false);
+  assert.equal(
+    existsSync(path.join(root, 'tmp', 'opshub-toolchain-state.json')),
+    false,
+  );
 });
 
 test('Flutter cached readiness invalidates when a package root disappears', (t) => {
   const root = flutterFixture(t);
-  const externalPackage = mkdtempSync(path.join(os.tmpdir(), 'opshub-flutter-package-'));
+  const externalPackage = mkdtempSync(
+    path.join(os.tmpdir(), 'opshub-flutter-package-'),
+  );
   t.after(() => rmSync(externalPackage, { recursive: true, force: true }));
-  writeFileSync(path.join(externalPackage, 'pubspec.yaml'), 'name: external_fixture\n');
+  writeFileSync(
+    path.join(externalPackage, 'pubspec.yaml'),
+    'name: external_fixture\n',
+  );
   mkdirSync(path.join(externalPackage, 'lib'), { recursive: true });
   const calls = [];
   const runStepFn = (currentRoot, step) => {
@@ -997,9 +1181,14 @@ test('Flutter cached readiness invalidates when a package root disappears', (t) 
 
 test('Flutter cached readiness invalidates when a packageUri directory disappears', (t) => {
   const root = flutterFixture(t);
-  const externalPackage = mkdtempSync(path.join(os.tmpdir(), 'opshub-flutter-package-uri-'));
+  const externalPackage = mkdtempSync(
+    path.join(os.tmpdir(), 'opshub-flutter-package-uri-'),
+  );
   t.after(() => rmSync(externalPackage, { recursive: true, force: true }));
-  writeFileSync(path.join(externalPackage, 'pubspec.yaml'), 'name: external_fixture\n');
+  writeFileSync(
+    path.join(externalPackage, 'pubspec.yaml'),
+    'name: external_fixture\n',
+  );
   mkdirSync(path.join(externalPackage, 'lib'), { recursive: true });
   const calls = [];
   const runStepFn = (currentRoot, step) => {
@@ -1093,12 +1282,17 @@ test('Flutter preflight fails closed when plugin metadata is malformed', (t) => 
   assert.equal(result.exitCode, EXIT_CODES.ENVIRONMENT);
   assert.equal(result.result.readiness.pluginMetadataReadable, false);
   assert.match(result.result.error, /readiness|hydrate/i);
-  assert.equal(existsSync(path.join(root, 'tmp', 'opshub-toolchain-state.json')), false);
+  assert.equal(
+    existsSync(path.join(root, 'tmp', 'opshub-toolchain-state.json')),
+    false,
+  );
 });
 
 test('Flutter readiness accepts a materialized platform-only plugin without lib', (t) => {
   const root = flutterFixture(t);
-  const pluginRoot = mkdtempSync(path.join(os.tmpdir(), 'opshub-flutter-platform-plugin-'));
+  const pluginRoot = mkdtempSync(
+    path.join(os.tmpdir(), 'opshub-flutter-platform-plugin-'),
+  );
   t.after(() => rmSync(pluginRoot, { recursive: true, force: true }));
   writeFileSync(
     path.join(pluginRoot, 'pubspec.yaml'),

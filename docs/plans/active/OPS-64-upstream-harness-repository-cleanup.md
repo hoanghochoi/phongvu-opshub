@@ -1763,6 +1763,37 @@ Current live upstream retry evidence:
   with `stale=false`, PR/CI, staging deploy and guarded lifecycle cleanup.
   Rollback is one docs-only squash revert.
 
+## Workflow checkpoint (OPS-124; command-time dependency readiness)
+
+- This slice is branch/worktree
+  `codex/ops-124-command-time-dependency-readiness` /
+  `../opshub-ops-124-command-time-dependency-readiness`, created by the guarded
+  lifecycle start gate from exact live
+  `origin/staging@e25c5d5cf1040172e5d25d774db99dfc1c1b3f99`. The canonical
+  staging worktree was clean and remains protected.
+- It closes the remaining dependency-readiness race after OPS-73/OPS-121:
+  command-time repair now requires a non-zero command result, preserves a
+  sanitized dependency diagnostic, returns environment exit `5` with
+  `recovery.status=failed-after-repair` when the retry remains broken, and
+  maps `--profile all` repairs to the actual Flutter/Nest executable context.
+- Flutter holds a shared Pub-cache lease across the complete gated command;
+  Nest holds a per-worktree lease across dependency hydration, command reads,
+  quarantine and repair. Same-process repair is re-entrant; other writers wait
+  or fail closed after the stale-lock timeout. Readiness now requires physical
+  Flutter package/plugin directories and declared direct Nest package
+  main/module/browser/bin entrypoints.
+- Affected scope is toolchain scripts, the Prisma recovery boundary, static
+  dependency-entrypoint coverage, focused readiness/retry/lease tests and the
+  current scripts runbook. No product/runtime/API/UI/data/dependency-version or
+  archive behavior changes are intended.
+- Local proof: all toolchain/boundary tests passed `67/67`; modified scripts
+  pass `node --check`; Nest dry-run readiness passed with `943` installed
+  packages and `76` entrypoints checked; `git diff --check` passed. Remaining
+  gates are exact `verify-task --base origin/staging` with `stale=false`, PR/CI,
+  staging deploy, Linear proof note and guarded lifecycle cleanup.
+- Rollback: revert the OPS-124 PR as one unit. Ignored dependency directories,
+  shared caches, source DB and Harness archive remain untouched.
+
 ## Result
 
 Historical Phase 0-1 artifacts, the generic verification foundation/canaries,
