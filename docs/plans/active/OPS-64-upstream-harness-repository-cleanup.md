@@ -4,11 +4,11 @@ Date: 2026-08-13
 
 ## Status
 
-Active — the current workflow checkpoint is OPS-73 retained-owner review,
-based on `origin/staging@e338e51bc212c050c9f70b95f0aca91d286b705d`.
-OPS-131 PR #248 was squash-merged at that SHA, staging deploy `31894609071`
+Active — the current workflow checkpoint is OPS-132 OPS-72 live-cohort
+reconciliation, based on `origin/staging@dd7d2ffbb1d04c17d8058f2543b643669fb5fbd5`.
+OPS-73 PR #249 was squash-merged at that SHA, staging deploy `31896414830`
 passed, and guarded lifecycle cleanup left only the canonical staging
-worktree. OPS-72 still has only two valid post-OPS-130 manifests, so its
+worktree. OPS-72 now has three valid post-OPS-130 manifests, so its
 five-observation gate remains open; the previous cohort's timing improvement is
 only 15.05% and the rerun target is not
 measurable, so the matrix remains observational and the phase is explicitly
@@ -568,6 +568,10 @@ god-helper.
   `31894609071` passed on the exact SHA, and guarded lifecycle cleanup removed
   the task worktree/local/remote branch. Linear OPS-131 is `Ready for QA`;
   production deployment remains the Done gate.
+- [x] Reconcile OPS-72 after OPS-73 in OPS-132. The sanitized progress ledger
+  records exactly three same-cohort post-OPS-130 manifests (#247–#249), all
+  passed with `stale=false`, zero unmatched paths and zero reruns. The live
+  aggregate remains pending; no percentage or promotion claim is made.
 - [ ] Complete OPS-130 live-shadow evidence assembly. Keep the affected matrix
   observational; do not promote profiles until the revised OPS-72 cohort has
   measurable 25% timing and 30% rerun reductions.
@@ -2010,6 +2014,27 @@ Current live upstream retry evidence:
   origin/staging` with `stale=false`, PR checks, staging deploy and guarded
   lifecycle cleanup. Rollback is one OPS-73 squash revert.
 
+## Workflow checkpoint (OPS-132; OPS-72 live-cohort reconciliation)
+
+- This docs/evidence slice is branch/worktree
+  `codex/ops-132-reconcile-ops72-live-cohort` /
+  `../opshub-ops-132-reconcile-ops72-live-cohort`, created by the guarded
+  lifecycle start gate from exact
+  `origin/staging@dd7d2ffbb1d04c17d8058f2543b643669fb5fbd5`. The canonical
+  staging worktree remained clean and both toolchain profiles were hydrated.
+- `docs/migrations/ops-72-live-shadow-progress-v2.json` records the three
+  valid same-cohort manifests from PRs #247, #248 and #249. Each report has
+  exact run/PR/base/head metadata, a SHA-256 report digest, `passed` shadow
+  classification, zero unmatched paths and zero reruns. Raw artifacts remain
+  ignored and no payload is committed.
+- The progress aggregate is explicitly
+  `pending-two-more-observations` with `promotionDecision=do-not-promote`;
+  no timing or rerun percentage is calculated. The collector must still fail
+  closed until five same-cohort manifests exist.
+- Required proof is docs/progress validation, exact `verify-task --base
+  origin/staging` with `stale=false`, PR checks, staging deploy and guarded
+  lifecycle cleanup. Rollback is one OPS-132 squash revert.
+
 ## Result
 
 Historical Phase 0-1 artifacts, the generic verification foundation/canaries,
@@ -2020,18 +2045,20 @@ local-only and retained; the canonical source remains read-only evidence.
 OPS-65 PR #175, OPS-68 PR #176, and OPS-69 PRs #177/#178 are merged into
 `staging`; each remains subject to its documented QA/production lifecycle
 gates. OPS-131 is now merged/deployed at `e338e51b` and tracked as `Ready for
-QA` after exact deploy `31894609071` and guarded cleanup. OPS-73's prior
-dependency batches remain `Ready for QA`; this retained-owner review is the
-current Phase 8 checkpoint. OPS-113 is also staged and tracked as `Ready for
+QA` after exact deploy `31894609071` and guarded cleanup. OPS-73's retained-owner
+review is merged/deployed at `dd7d2ffb` and tracked as `Ready for QA` after
+exact deploy `31896414830` and guarded cleanup. OPS-73's prior dependency
+batches remain `Ready for QA`; this OPS-132 reconciliation is the current
+workflow checkpoint. OPS-113 is also staged and tracked as `Ready for
 QA` after exact deploy `31862881662` and guarded cleanup. OPS-122 and OPS-123's
 reconciliations are historical; OPS-124 is merged/deployed and tracked as
 `Ready for QA`, OPS-127 and OPS-128 are historical dependency-boundary
 checkpoints, OPS-129 is a historical master-plan reconciliation, and OPS-130
-is the completed live-shadow evidence assembly checkpoint. OPS-131 is a
-completed dependency-boundary hardening checkpoint. OPS-72's live cohort is
-still incomplete (two valid post-OPS-130 manifests; prior five-observation
-cohort remains `revise`); Phase 8 deletion work, runtime waves and OPS-75 final
-consolidation remain downstream gates.
+is the completed live-shadow evidence assembly checkpoint. OPS-131 and OPS-73
+are completed staging checkpoints. OPS-72's live cohort is still incomplete
+(three valid post-OPS-130 manifests; prior five-observation cohort remains
+`revise`); Phase 8 deletion work, runtime waves and OPS-75 final consolidation
+remain downstream gates.
 Move this plan to
 `docs/plans/completed/` only after the full initiative's final validation and
 production lifecycle are complete.
