@@ -4,17 +4,15 @@ Date: 2026-08-13
 
 ## Status
 
-Active — the current workflow checkpoint is OPS-122 on
-`origin/staging@ceb883d6c919962e5ba2cedfab56ce3802387435`. OPS-120 closed the
-remaining raw `dart @msixArgs` release helper path: PR #233 merged at this
-SHA, staging deploy `31852572385` passed, Linear is `Ready for QA`, and its
-task worktree/local branch were cleaned by the guarded lifecycle finish.
-OPS-121 closes the resume/operational entrypoint gap that could still expose a
-late missing Flutter or Nest dependency. Docker, remote-maintenance and
-product/runtime behavior remain unchanged. OPS-122 reconciles the master-plan
-checkpoint after that merge and records the remaining dependency no-repeat
-work: cache integrity, interrupted hydration recovery and exhaustive raw-command
-boundary coverage.
+Active — the current workflow checkpoint is OPS-113 on
+`origin/staging@be4b4a08b46886b9c150cd1db12ebf7bf7332027`. OPS-73 PR #236
+squash-merged the dependency-readiness closure, but its exact staging deploy
+`31861438999` rolled back after the Docker-only `verify:security-deps` path
+attempted to resolve repository-root `/scripts/run-with-toolchain.mjs` from a
+backend-only build context. Android, Windows and web artifacts passed and the
+previous release remained healthy. OPS-113 is the urgent, reversible Docker
+boundary hotfix; local/CI Nest lifecycle gates remain required and product,
+API, permission and runtime behavior stay unchanged.
 
 ### OPS-114 checkpoint — dependency bootstrap enforcement
 
@@ -1681,6 +1679,30 @@ Current live upstream retry evidence:
     canonical clean `staging` worktree after merge.
 - Rollback: revert the OPS-73 PR as one unit. Existing lockfiles, source DB,
   archive copies and ignored dependency caches are unchanged by this slice.
+
+## Workflow checkpoint (OPS-113 current; Docker preflight regression hotfix)
+
+- OPS-73 was squash-merged as PR #236 at
+  `be4b4a08b46886b9c150cd1db12ebf7bf7332027`, from base
+  `d10241c0eafab66bd34390e7dda8d58a96e54147`. PR checks passed and the remote
+  task branch was removed.
+- Exact staging deploy run `31861438999` passed Android, Windows and web
+  artifact publication, then failed in the backend Docker build at
+  `npm run verify:security-deps` because its new package pre-hook referenced
+  `/scripts/run-with-toolchain.mjs`, which is outside the backend-only Docker
+  context. The deploy rollback restored the previous release and all rollback
+  services were healthy.
+- OPS-113 branch/worktree is
+  `codex/ops-113-docker-preflight-regression` /
+  `../opshub-ops-113-docker-preflight-regression`, created by the guarded
+  lifecycle start from exact `origin/staging@be4b4a08`. The hotfix changes only
+  the Docker-only invocation to `npm run verify:security-deps --ignore-scripts`
+  and adds a static regression assertion; local/CI package lifecycle hooks keep
+  the repository-root toolchain preflight.
+- Rollback is the single OPS-113 hotfix commit. Do not finish the merged OPS-73
+  worktree or advance OPS-73 to `Ready for QA` until a new exact-SHA staging
+  deploy passes backend build, runtime switch, direct-origin and public
+  health/version checks.
 
 ## Result
 
