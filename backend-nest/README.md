@@ -48,30 +48,30 @@ On a VPS, keep `UPLOAD_BASE_DIR` on persistent storage and configure the image d
 
 ## Database
 
-Generate the Prisma client after install or schema changes:
+Generate the Prisma client after dependency hydration or schema changes:
 
 ```bash
-npx prisma generate
+node ../scripts/run-with-toolchain.mjs --root .. --profile nestjs --cwd backend-nest -- npx --no-install prisma generate
 ```
 
 Apply migrations in deployed environments:
 
 ```bash
-npx prisma migrate deploy
+node ../scripts/run-with-toolchain.mjs --root .. --profile nestjs --cwd backend-nest -- npx --no-install prisma migrate deploy
 ```
 
 For local development, create and apply a migration with:
 
 ```bash
-npx prisma migrate dev
+node ../scripts/run-with-toolchain.mjs --root .. --profile nestjs --cwd backend-nest -- npx --no-install prisma migrate dev
 ```
 
 ## Development
 
 ```bash
-npm install
-npm run build
-npm run start:dev
+node ../scripts/toolchain-doctor.mjs --root .. --profile nestjs
+node ../scripts/run-with-toolchain.mjs --root .. --profile nestjs --cwd backend-nest -- npm run build
+node ../scripts/run-with-toolchain.mjs --root .. --profile nestjs --cwd backend-nest -- npm run start:dev
 ```
 
 The service listens on `PORT` or `3000` by default.
@@ -91,8 +91,8 @@ Expected response:
 ## Verification
 
 ```bash
-npm run build
-npm test -- --runInBand
+node ../scripts/run-with-toolchain.mjs --root .. --profile nestjs --cwd backend-nest -- npm run build
+node ../scripts/run-with-toolchain.mjs --root .. --profile nestjs --cwd backend-nest -- npm test -- --runInBand
 ```
 
 Run these before committing backend changes.

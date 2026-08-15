@@ -337,6 +337,49 @@ test('default prepare hydrates Nest and Flutter in one deterministic sequence', 
   assert.equal(result.result.profiles.length, 2);
 });
 
+test('all profile continues Flutter hydration when Nest fails first', (t) => {
+  const root = allFixture(t);
+  const calls = [];
+  const result = prepareTaskToolchain({
+    root,
+    profile: 'all',
+    runStepFn: (currentRoot, step) => {
+      calls.push(step.id);
+      if (step.id === 'nestjs-npm-ci') {
+        return {
+          id: step.id,
+          status: 'environment-failure',
+          exitCode: 1,
+          executable: step.executable,
+          argv: step.argv,
+          error: 'npm network unavailable',
+        };
+      }
+      if (step.id === 'flutter-pub-get') writeFlutterPackageConfig(currentRoot);
+      return {
+        id: step.id,
+        status: 'passed',
+        exitCode: 0,
+        executable: step.executable,
+        argv: step.argv,
+      };
+    },
+  });
+
+  assert.equal(result.exitCode, EXIT_CODES.ENVIRONMENT);
+  assert.equal(result.result.status, 'environment-failure');
+  assert.deepEqual(calls, ['nestjs-npm-ci', 'flutter-pub-get']);
+  assert.deepEqual(result.result.failures, [
+    {
+      profile: 'nestjs',
+      code: EXIT_CODES.ENVIRONMENT,
+      error: 'npm network unavailable',
+    },
+  ]);
+  assert.equal(result.result.profiles.length, 2);
+  assert.equal(result.result.profiles[1].status, 'prepared');
+});
+
 test('first prepare hydrates Nest/Prisma and second prepare is cached', (t) => {
   const root = fixture(t);
   const calls = [];

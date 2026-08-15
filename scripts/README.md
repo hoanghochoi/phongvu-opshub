@@ -198,10 +198,21 @@ node scripts/prepare-task-toolchain.mjs --profile all --force
 node scripts/prepare-task-toolchain.mjs --root ..\opshub-ops-123 --profile all --force
 ```
 
-The `--root` form is the repair/doctor command for an existing task worktree;
-it can be run from the canonical repository without changing directory. It
-hydrates the selected worktree, rechecks its actual package graph and rewrites
-only its ignored readiness state. Standalone validation scripts must run the
+The `--root` form remains the repair/doctor command for an existing task
+worktree; it can be run from the canonical repository without changing
+directory. For an explicit resume/doctor boundary with structured output, use:
+
+```text
+node scripts/toolchain-doctor.mjs --root ..\opshub-ops-123 --profile all
+node scripts/toolchain-doctor.mjs --root ..\opshub-ops-123 --profile all --force
+```
+
+The doctor reports NestJS and Flutter readiness independently. If one profile
+cannot hydrate, the other profile still runs and its result is retained in the
+JSON output. This prevents a transient Nest/npm failure from hiding a usable
+Flutter package configuration (or the reverse). The doctor only writes ignored
+dependency state and fails closed if Flutter hydration changes tracked files
+outside the generated allowlist. Standalone validation scripts must run the
 same preflight before any Flutter or Nest command; Flutter test commands then
 use `--no-pub` so an implicit second dependency writer cannot bypass the gate.
 
@@ -226,6 +237,13 @@ one retry only when the manifest fingerprint is unchanged; product/test
 failures are never retried. A failed prepare is an environment failure and the
 lifecycle removes the newly-created task worktree/branch, including reviewed
 ignored output.
+
+Every tracked local NestJS operational script has an npm pre-hook that invokes
+the same gate. Docker-only verification commands and remote-maintenance
+commands remain explicit allowlisted boundaries because those contexts do not
+contain the repository-level `scripts/` directory. Do not run raw `flutter`,
+`dart`, `npm`, or `npx` commands from a worktree when a repository-owned gate
+exists.
 
 GitHub Actions uses a versioned Pub cache key containing the runner, Flutter
 version/revision and the tracked `pubspec.yaml`, `pubspec.lock` and `.metadata`;

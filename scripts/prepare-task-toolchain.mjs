@@ -1090,6 +1090,9 @@ function prepareSingleProfile({
           break;
         }
         result.status = 'environment-failure';
+        result.error =
+          stepResult.error ||
+          `${step.id} không hoàn tất với exit code ${stepResult.exitCode ?? 'unknown'}.`;
         result.readiness = readinessForProfile(resolvedRoot, profile);
         return { exitCode: EXIT_CODES.ENVIRONMENT, result };
       }
@@ -1100,6 +1103,7 @@ function prepareSingleProfile({
   result.readiness = readinessForProfile(resolvedRoot, profile);
   if (!isReadyForProfile(result.readiness, profile)) {
     result.status = 'environment-failure';
+    result.error = `Profile ${profile} chưa đạt readiness sau khi hydrate.`;
     return { exitCode: EXIT_CODES.ENVIRONMENT, result };
   }
   const recoveryCleanupFailures = cleanupNodeModulesRecovery(
@@ -1154,17 +1158,47 @@ export function prepareTaskToolchain({
 
   const profiles = [];
   for (const profileId of [PROFILE_ID, FLUTTER_PROFILE_ID]) {
-    const prepared = prepareSingleProfile({
-      resolvedRoot,
-      profile: profileId,
-      dryRun,
-      force,
-      runStepFn,
-    });
+    let prepared;
+    try {
+      prepared = prepareSingleProfile({
+        resolvedRoot,
+        profile: profileId,
+        dryRun,
+        force,
+        runStepFn,
+      });
+    } catch (error) {
+      const code =
+        error instanceof PreparationError ? error.code : EXIT_CODES.ENVIRONMENT;
+      prepared = {
+        exitCode: code,
+        result: {
+          schemaVersion: SCHEMA_VERSION,
+          profile: profileId,
+          statePath: STATE_PATH,
+          dryRun,
+          forced: force,
+          status: 'environment-failure',
+          error: sanitizeDiagnostic(error?.message || error, resolvedRoot),
+          readiness: null,
+          steps: [],
+          retries: [],
+          recoveries: [],
+        },
+      };
+    }
     profiles.push(prepared);
-    if (prepared.exitCode !== EXIT_CODES.PASS) break;
   }
   const failed = profiles.find((entry) => entry.exitCode !== EXIT_CODES.PASS);
+  const failures = profiles
+    .filter((entry) => entry.exitCode !== EXIT_CODES.PASS)
+    .map((entry) => ({
+      profile: entry.result.profile,
+      code: entry.exitCode,
+      error:
+        entry.result.error ||
+        `Profile ${entry.result.profile} không đạt readiness.`,
+    }));
   return {
     exitCode: failed?.exitCode ?? EXIT_CODES.PASS,
     result: {
@@ -1177,9 +1211,17 @@ export function prepareTaskToolchain({
         ? 'environment-failure'
         : profiles.every((entry) => entry.result.status === 'cached')
           ? 'cached'
-          : dryRun
-            ? 'planned'
-            : 'prepared',
+            : dryRun
+              ? 'planned'
+              : 'prepared',
+      ...(failures.length > 0
+        ? {
+            error: failures
+              .map((failure) => `${failure.profile}: ${failure.error}`)
+              .join('\n'),
+            failures,
+          }
+        : {}),
       profiles: profiles.map((entry) => entry.result),
     },
   };
