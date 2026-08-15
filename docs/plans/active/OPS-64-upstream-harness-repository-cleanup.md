@@ -4,14 +4,17 @@ Date: 2026-08-13
 
 ## Status
 
-Active — the current workflow checkpoint is OPS-121 on
-`origin/staging@d5b81d45ac9bd6a706e03dffa6b30028e5ef2dfb`. OPS-120 closed the
+Active — the current workflow checkpoint is OPS-122 on
+`origin/staging@ceb883d6c919962e5ba2cedfab56ce3802387435`. OPS-120 closed the
 remaining raw `dart @msixArgs` release helper path: PR #233 merged at this
 SHA, staging deploy `31852572385` passed, Linear is `Ready for QA`, and its
 task worktree/local branch were cleaned by the guarded lifecycle finish.
 OPS-121 closes the resume/operational entrypoint gap that could still expose a
 late missing Flutter or Nest dependency. Docker, remote-maintenance and
-product/runtime behavior remain unchanged.
+product/runtime behavior remain unchanged. OPS-122 reconciles the master-plan
+checkpoint after that merge and records the remaining dependency no-repeat
+work: cache integrity, interrupted hydration recovery and exhaustive raw-command
+boundary coverage.
 
 ### OPS-114 checkpoint — dependency bootstrap enforcement
 
@@ -530,8 +533,16 @@ god-helper.
   #233 merged into `staging` at `d5b81d45ac9bd6a706e03dffa6b30028e5ef2dfb`,
   staging deploy `31852572385` passed, Linear is `Ready for QA`, and the
   guarded lifecycle cleanup removed the task worktree/local branch.
-- [ ] Complete OPS-121 dependency bootstrap resume/entrypoint closure and
-  publish its exact doctor/cold-worktree proof.
+- [x] Complete OPS-121 dependency bootstrap resume/entrypoint closure. PR #234
+  merged into `staging` at `ceb883d6c919962e5ba2cedfab56ce3802387435`; staging
+  deploy run `31855893031` passed, toolchain/doctor/entrypoint proof passed
+  `30/30`, verification/lifecycle proof passed `50/50`, the full toolchain
+  suite passed `52/52`, wrapped Nest build and Flutter analyze passed, exact
+  `verify-task --base origin/staging` returned `stale=false`, and guarded
+  lifecycle cleanup removed the task worktree/local/remote branch. Linear is
+  `Ready for QA`; production deployment remains outstanding.
+- [ ] Complete OPS-122 master-plan reconciliation and select the next
+  dependency-integrity slice from this exact checkpoint.
 - [ ] Run Phase 7B CI shadow metrics, Phase 8 artifact cleanup, Phase 9 runtime
   waves and Phase 10 final consolidation.
 
@@ -1614,6 +1625,36 @@ Current live upstream retry evidence:
   `stale=false`, full affected consumer/toolchain proof, PR/CI, staging deploy,
   Linear implementation/proof note, and guarded `finish --allow-ignored
   --execute` cleanup.
+
+## Workflow checkpoint (OPS-122 current; master-plan reconciliation)
+
+- OPS-122 branch/worktree is
+  `codex/ops-122-reconcile-master-plan-after-ops-121` /
+  `../opshub-ops-122-reconcile-master-plan`, created from exact live
+  `origin/staging@ceb883d6c919962e5ba2cedfab56ce3802387435`. The canonical
+  staging worktree was clean and the lifecycle start gate confirmed that the
+  live remote SHA did not change during creation.
+- This slice is docs-only. It records the OPS-121 merge, staging proof and
+  residual QA/production gate without changing runtime, dependency manifests,
+  Harness state or validation behavior. Flutter-only hydration passed on the
+  fresh worktree before the plan edit.
+- A prior `start --prepare-profile all --execute` attempt failed during NestJS
+  hydration with a transient `ECONNRESET`; lifecycle rollback removed the new
+  worktree and branch as designed. A retry with the explicitly narrow Flutter
+  profile passed. This is a network hydration failure, not evidence that the
+  current Flutter package graph is missing a dependency. It does expose a
+  repeat-cost gap: successful profile hydration is discarded when an unrelated
+  profile fails.
+- The durable next slice is OPS-73's artifact/dependency/toolchain lane. It
+  must add cache-integrity and interrupted-hydration recovery proof, keep
+  `node_modules`/`.dart_tool` worktree-local, verify only shared npm/Pub
+  download caches, and expand the raw dependency-command boundary scan. It
+  must not weaken the fail-closed gate or retain a partial profile as ready.
+- Current canonical dry-run evidence after OPS-121 reports Nest `944` installed
+  packages with zero missing lock/direct packages and Flutter package-config
+  schema `2` with `175` package entries and zero missing package roots. The
+  dependency no-repeat follow-up therefore remains a workflow/cache reliability
+  slice, not a product dependency change.
 
 ## Result
 
