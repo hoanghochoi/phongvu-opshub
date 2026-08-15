@@ -35,7 +35,10 @@ export const EXIT_CODES = Object.freeze({
 
 const SCHEMA_VERSION = 1;
 const SUPPORTED_PROFILES = new Set(['nestjs', 'flutter', 'all']);
-const FLUTTER_GATED_COMMANDS = new Set(['analyze', 'test', 'build']);
+// `flutter run` also reads/materializes the package graph. Keep it on the
+// same no-second-Pub boundary as analyze/test/build so a resumed worktree
+// cannot start a second, uncoordinated Pub writer from the IDE or terminal.
+const FLUTTER_GATED_COMMANDS = new Set(['analyze', 'test', 'build', 'run']);
 const COMMAND_OUTPUT_TAIL_BYTES = 8192;
 const SENSITIVE_ARGUMENT_NAME = /^--(?:certificate-password|password|token|secret|api[-_]key|private[-_]key)$/i;
 const COMMAND_TIME_REPAIR_PATTERNS = Object.freeze({

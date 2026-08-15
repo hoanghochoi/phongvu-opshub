@@ -108,6 +108,25 @@ test('Flutter commands receive --no-pub and dry-run never executes the command',
   ]);
 });
 
+test('Flutter run receives --no-pub to keep IDE/terminal starts on the shared Pub boundary', (t) => {
+  const root = fixture(t);
+  const result = runWithToolchain({
+    root,
+    profile: 'flutter',
+    command: ['flutter', 'run', '-d', 'web-server'],
+    dryRun: true,
+    prepare: successfulPrepare,
+  });
+
+  assert.equal(result.exitCode, EXIT_CODES.PASS);
+  assert.deepEqual(result.result.command.argv, [
+    'run',
+    '-d',
+    'web-server',
+    '--no-pub',
+  ]);
+});
+
 test('a cold worktree hydrates its own Flutter state before the consumer command', (t) => {
   const root = fixture(t);
   const packageConfig = path.join(root, '.dart_tool', 'package_config.json');

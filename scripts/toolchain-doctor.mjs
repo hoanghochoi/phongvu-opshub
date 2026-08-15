@@ -7,6 +7,7 @@ import { pathToFileURL } from 'node:url';
 
 import {
   EXIT_CODES as PREPARE_EXIT_CODES,
+  inspectToolchainReadiness,
   prepareTaskToolchain,
 } from './prepare-task-toolchain.mjs';
 
@@ -36,6 +37,7 @@ export function parseArgs(argv) {
     root: '.',
     profile: 'all',
     dryRun: false,
+    check: false,
     force: false,
     json: null,
     help: false,
@@ -58,6 +60,10 @@ export function parseArgs(argv) {
       options.dryRun = true;
       continue;
     }
+    if (argument === '--check') {
+      options.check = true;
+      continue;
+    }
     if (argument === '--force') {
       options.force = true;
       continue;
@@ -74,6 +80,9 @@ export function parseArgs(argv) {
       EXIT_CODES.CONTRACT,
       `Unsupported profile: ${options.profile}; expected nestjs, flutter or all`,
     );
+  }
+  if (options.check && options.force) {
+    fail(EXIT_CODES.CONTRACT, '--check cannot be combined with --force');
   }
   return options;
 }
@@ -122,22 +131,35 @@ export function doctorToolchain({
   root = process.cwd(),
   profile = 'all',
   dryRun = false,
+  check = false,
   force = false,
   prepare = prepareTaskToolchain,
 } = {}) {
   const resolvedRoot = resolveRoot(root, process.cwd());
+  // `--check` is intentionally read-only. It must never turn a readiness
+  // assertion into an implicit dependency writer.
+  const effectiveDryRun = dryRun || check;
   const preparation = prepare({
     root: resolvedRoot,
     profile,
-    dryRun,
-    force,
+    dryRun: effectiveDryRun,
+    force: check ? false : force,
   });
-  const exitCode =
+  let exitCode =
     preparation.exitCode === PREPARE_EXIT_CODES.PASS
       ? EXIT_CODES.PASS
       : preparation.exitCode === PREPARE_EXIT_CODES.CONTRACT
         ? EXIT_CODES.CONTRACT
         : EXIT_CODES.ENVIRONMENT;
+  let readiness = null;
+  if (exitCode === EXIT_CODES.PASS && check) {
+    readiness = inspectToolchainReadiness({ root: resolvedRoot, profile });
+    if (!readiness.ready) exitCode = EXIT_CODES.ENVIRONMENT;
+  }
+  const readinessError =
+    readiness && !readiness.ready
+      ? `Toolchain readiness is incomplete for profile ${profile}; run the non-dry doctor to hydrate dependencies.`
+      : null;
   return {
     exitCode,
     result: {
@@ -145,10 +167,13 @@ export function doctorToolchain({
       operation: 'toolchain-doctor',
       root: '<worktree>',
       profile,
-      dryRun,
-      forced: force,
+      dryRun: effectiveDryRun,
+      check,
+      forced: check ? false : force,
       status: exitCode === EXIT_CODES.PASS ? 'passed' : 'failed',
       preparation: preparation.result,
+      ...(readiness ? { readiness } : {}),
+      ...(readinessError ? { error: readinessError } : {}),
       ...(exitCode === EXIT_CODES.PASS
         ? {}
         : {
@@ -165,6 +190,7 @@ function help() {
     `  --root <path>              Existing worktree to inspect/repair\n` +
     `  --profile nestjs|flutter|all\n` +
     `  --dry-run                  Report readiness without hydrating\n` +
+    `  --check                    Fail closed when current readiness is incomplete (read-only)\n` +
     `  --force                    Rehydrate even when readiness is cached\n` +
     `  --json <path>              Write sanitized schema-v1 result JSON\n`;
 }
@@ -183,6 +209,7 @@ export function main(argv = process.argv.slice(2), { cwd = process.cwd() } = {})
       root,
       profile: options.profile,
       dryRun: options.dryRun,
+      check: options.check,
       force: options.force,
     });
     writeResult(root, outputPath, result.result);
