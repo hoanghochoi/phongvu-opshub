@@ -4,15 +4,14 @@ Date: 2026-08-13
 
 ## Status
 
-Active — the current workflow checkpoint is OPS-132 OPS-72 live-cohort
-reconciliation, based on `origin/staging@dd7d2ffbb1d04c17d8058f2543b643669fb5fbd5`.
-OPS-73 PR #249 was squash-merged at that SHA, staging deploy `31896414830`
-passed, and guarded lifecycle cleanup left only the canonical staging
-worktree. OPS-72 now has three valid post-OPS-130 manifests, so its
-five-observation gate remains open; the previous cohort's timing improvement is
-only 15.05% and the rerun target is not
-measurable, so the matrix remains observational and the phase is explicitly
-`revise`. Product, API, permission and runtime behavior stay unchanged.
+Active — the current workflow checkpoint is OPS-134 generated-root
+writeability and cold dependency bootstrap, based on
+`origin/staging@8f3539dcc211d656924d4dc6f86fa63fffa6cfc0`.
+OPS-132 remains the last merged master-plan reconciliation; OPS-72's
+five-observation gate is still open and its affected matrix remains
+observational. OPS-134 was opened after a real Windows preflight reproduced a
+Flutter hydration failure in a ReadOnly `lib/l10n` directory despite a complete
+package graph. Product, API, permission and runtime behavior stay unchanged.
 
 ### OPS-114 checkpoint — dependency bootstrap enforcement
 
@@ -572,6 +571,10 @@ god-helper.
   records exactly three same-cohort post-OPS-130 manifests (#247–#249), all
   passed with `stale=false`, zero unmatched paths and zero reruns. The live
   aggregate remains pending; no percentage or promotion claim is made.
+- [ ] Complete OPS-134 generated-root writeability and cold dependency bootstrap
+  canary from exact `origin/staging@8f3539dcc211d656924d4dc6f86fa63fffa6cfc0`.
+  The slice must repair only allowlisted Windows ReadOnly directory attributes,
+  fail closed on ACL/symlink denial, and keep product/runtime behavior unchanged.
 - [ ] Complete OPS-130 live-shadow evidence assembly. Keep the affected matrix
   observational; do not promote profiles until the revised OPS-72 cohort has
   measurable 25% timing and 30% rerun reductions.
@@ -2034,6 +2037,28 @@ Current live upstream retry evidence:
 - Required proof is docs/progress validation, exact `verify-task --base
   origin/staging` with `stale=false`, PR checks, staging deploy and guarded
   lifecycle cleanup. Rollback is one OPS-132 squash revert.
+
+## Workflow checkpoint (OPS-134; generated-root writeability and cold bootstrap)
+
+- This bounded tooling slice is branch/worktree
+  `codex/ops-134-generated-root-writeability-cold-bootstrap` /
+  `../opshub-ops-134-generated-root-writeability`, created by the guarded
+  lifecycle start gate from exact
+  `origin/staging@8f3539dcc211d656924d4dc6f86fa63fffa6cfc0`. Canonical staging
+  was clean and the fresh task worktree hydrated both toolchain profiles before
+  edits.
+- The observed failure was environmental, not a missing package graph: the
+  canonical Windows `lib` and `lib/l10n` directories carried a ReadOnly
+  attribute, so Flutter's synthetic localization generation rejected the
+  `arb-dir` even though package-config and plugin roots were complete.
+- The slice adds a narrow generated-root writeability contract to readiness and
+  fingerprints. It clears only a Windows directory-level ReadOnly attribute on
+  allowlisted repository roots, rejects symlinks/ACL denial, and performs a real
+  write probe before dependency hydration. Dry-run remains non-mutating.
+- Focused proof covers ReadOnly normalization, ACL fail-closed behavior, dry-run
+  safety and missing Nest `node_modules` handling. The full toolchain suite,
+  cold/partial materialization canaries, exact runner, PR/CI, staging deploy and
+  guarded cleanup remain required. Rollback is one OPS-134 squash revert.
 
 ## Result
 
