@@ -22,7 +22,7 @@ COPY . .
 # worktree toolchain gate. This Docker context contains backend-nest only, and
 # `npm ci`/Prisma generation above are its equivalent deterministic boundary.
 # Run the explicit build script while suppressing only pre/post lifecycle hooks.
-RUN npm run verify:dockerfile:sharp && npm run verify:security-deps && npx prisma generate && npm run build --ignore-scripts
+RUN npm run verify:dockerfile:sharp && npm run verify:security-deps && npx --no-install prisma generate && npm run build --ignore-scripts
 RUN find dist -type f \( -name '*.map' -o -name '*.d.ts' -o -name '*.tsbuildinfo' \) -delete
 
 FROM build AS production-deps
@@ -55,7 +55,7 @@ COPY --from=build --chown=node:node /app/scripts ./scripts
 # This target is used only by one-shot migration/maintenance jobs. It keeps
 # Prisma CLI and operational scripts out of the long-running API container.
 USER node
-CMD ["npx", "prisma", "migrate", "deploy"]
+CMD ["npx", "--no-install", "prisma", "migrate", "deploy"]
 
 FROM node:22-alpine@sha256:16e22a550f3863206a3f701448c45f7912c6896a62de43add43bb9c86130c3e2 AS runtime
 

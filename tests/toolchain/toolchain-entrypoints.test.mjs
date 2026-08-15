@@ -6,7 +6,7 @@ import test from 'node:test';
 const ROOT = path.resolve(import.meta.dirname, '../..');
 const PREPARE_HOOK =
   'node ../scripts/run-with-toolchain.mjs --root .. --profile nestjs --preflight-only';
-const DOCKER_ONLY = new Set(['verify:dockerfile:sharp', 'verify:security-deps']);
+const DOCKER_ONLY = new Set(['verify:dockerfile:sharp']);
 
 function read(relativePath) {
   return readFileSync(path.join(ROOT, relativePath), 'utf8');

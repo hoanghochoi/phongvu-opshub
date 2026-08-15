@@ -67,7 +67,7 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-    command: ["npx", "prisma", "migrate", "deploy"]
+    command: ["npx", "--no-install", "prisma", "migrate", "deploy"]
     networks:
       - opshub
     read_only: true

@@ -65,9 +65,11 @@ tiện”; release mà tiện quá thường là lúc rollback bắt đầu tậ
    được fingerprint theo lockfile, Prisma schema/config, Flutter
    `pubspec`/`.metadata` và toolchain; task đã sẵn sàng chỉ dùng kết quả
    `cached` sau khi kiểm tra dependency graph thực tế. Nest phải có hidden
-   install lock hợp lệ, mọi package đã lock và Prisma entrypoints; Flutter
-   phải có package config đúng schema, root package đúng worktree và mọi
-   package root còn `pubspec.yaml`. Flutter hydration dùng
+   install lock hợp lệ, mọi required package đã lock, installed lock
+   version/integrity khớp tracked lock và Prisma entrypoints; Flutter
+   phải có package config đúng schema, root package đúng worktree, mọi
+   package root còn `pubspec.yaml` và `.flutter-plugins-dependencies` có
+   plugin roots/dependencies hợp lệ. Flutter hydration dùng
    `--enforce-lockfile`, khôi phục generated tracked files trong allowlist và
    fail-closed với mọi thay đổi khác. Known transient materialization failure
    chỉ được retry một lần khi fingerprint không đổi; lỗi product/test không

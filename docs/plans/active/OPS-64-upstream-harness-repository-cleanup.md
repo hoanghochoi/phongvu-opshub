@@ -1626,35 +1626,61 @@ Current live upstream retry evidence:
   Linear implementation/proof note, and guarded `finish --allow-ignored
   --execute` cleanup.
 
-## Workflow checkpoint (OPS-122 current; master-plan reconciliation)
+## Workflow checkpoint (OPS-122 complete; OPS-73 current dependency-readiness residual)
 
-- OPS-122 branch/worktree is
-  `codex/ops-122-reconcile-master-plan-after-ops-121` /
-  `../opshub-ops-122-reconcile-master-plan`, created from exact live
-  `origin/staging@ceb883d6c919962e5ba2cedfab56ce3802387435`. The canonical
-  staging worktree was clean and the lifecycle start gate confirmed that the
-  live remote SHA did not change during creation.
-- This slice is docs-only. It records the OPS-121 merge, staging proof and
-  residual QA/production gate without changing runtime, dependency manifests,
-  Harness state or validation behavior. Flutter-only hydration passed on the
-  fresh worktree before the plan edit.
-- A prior `start --prepare-profile all --execute` attempt failed during NestJS
-  hydration with a transient `ECONNRESET`; lifecycle rollback removed the new
-  worktree and branch as designed. A retry with the explicitly narrow Flutter
-  profile passed. This is a network hydration failure, not evidence that the
-  current Flutter package graph is missing a dependency. It does expose a
-  repeat-cost gap: successful profile hydration is discarded when an unrelated
-  profile fails.
-- The durable next slice is OPS-73's artifact/dependency/toolchain lane. It
-  must add cache-integrity and interrupted-hydration recovery proof, keep
-  `node_modules`/`.dart_tool` worktree-local, verify only shared npm/Pub
-  download caches, and expand the raw dependency-command boundary scan. It
-  must not weaken the fail-closed gate or retain a partial profile as ready.
-- Current canonical dry-run evidence after OPS-121 reports Nest `944` installed
-  packages with zero missing lock/direct packages and Flutter package-config
-  schema `2` with `175` package entries and zero missing package roots. The
-  dependency no-repeat follow-up therefore remains a workflow/cache reliability
-  slice, not a product dependency change.
+- OPS-122 was completed after PR #235 was squash-merged into `staging` at
+  `d10241c0eafab66bd34390e7dda8d58a96e54147`. Staging deploy run `31857551682`
+  passed its Windows, Android and deployment-health gates; its Linear proof
+  note was recorded and read back before moving OPS-122 to `Ready for QA`.
+- The canonical `staging` worktree was then verified clean and equal to
+  `origin/staging@d10241c0eafab66bd34390e7dda8d58a96e54147`. OPS-122's only
+  remaining lifecycle work is the normal QA/production gate; it no longer
+  owns the active repository checkpoint.
+- The next residual is OPS-73: prevent repeated missing Flutter/Nest
+  dependencies and direct tool-entrypoint failures across fresh worktrees,
+  local verification, Prisma migration checks, Docker and remote maintenance.
+  The slice remains workflow/toolchain-only and does not change product
+  dependency versions or runtime behavior.
+
+## Workflow checkpoint (OPS-73 current; dependency readiness closure)
+
+- Branch/worktree: `codex/ops-73-dependency-readiness-closure` /
+  `../opshub-ops-73-dependency-readiness`, created from the exact live
+  `origin/staging@d10241c0eafab66bd34390e7dda8d58a96e54147`. The canonical
+  staging worktree was clean at start and no reset/rebase is permitted.
+- Affected scope: `scripts/prepare-task-toolchain.mjs`, the tracked toolchain
+  and verification profile tests, Nest Prisma migration entrypoints,
+  `backend-nest/Dockerfile`, staging/home-server deployment commands, and the
+  associated runbooks. Worktree-local `node_modules`/`.dart_tool` remain
+  ignored; shared npm/Pub download caches are readiness inputs only.
+- Readiness contract: Flutter must have valid plugin metadata, plugin roots and
+  package-config roots; Nest must match required package versions/integrity
+  against the tracked lockfile. All dependency-consuming commands go through
+  the toolchain wrapper or `npx --no-install`; optional OS/CPU packages remain
+  non-blocking. A malformed, missing or drifting installation fails closed
+  before build/test/migration execution.
+- Exact proof: toolchain tests `57/57`, lifecycle tests `16/16`, migration-EOL,
+  Caddy/platform security contracts and the selected profiles
+  (`harness,docs,verification-runner,release,nestjs,deployment`) passed. Nest
+  build, security-dependency check, Flutter analyze, and the targeted Home
+  Summary projection test (`3 passed`, `6 skipped`) also passed; the final
+  runner reported `18` changed paths, `13` affected consumers and `stale=false`
+  with matching before/after fingerprint. The exact sanitized JSON result is
+  kept in the ignored task-local `tmp/ops-73-verify-final.json`; the plan does
+  not embed that self-referential hash because the plan itself is part of the
+  runner fingerprint.
+- Residual checklist for this slice:
+  - [x] Re-run the exact final `verify-task` after the plan edit; the final
+    result is pass with `stale=false`.
+  - [x] Inspect the final diff and `git diff --check`.
+  - [ ] Commit, push and open the feature PR against `staging`; wait for CI and
+    staging deploy gates.
+  - [ ] Record implementation/proof in Linear OPS-73 before moving it to
+    `Ready for QA` (not `Done`).
+  - [ ] Run guarded lifecycle `finish --allow-ignored --execute` from the
+    canonical clean `staging` worktree after merge.
+- Rollback: revert the OPS-73 PR as one unit. Existing lockfiles, source DB,
+  archive copies and ignored dependency caches are unchanged by this slice.
 
 ## Result
 

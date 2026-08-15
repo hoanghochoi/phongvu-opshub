@@ -179,11 +179,13 @@ dependencies are present, and the generated Prisma entrypoints exist.
 `--prepare-profile flutter` fingerprints `pubspec.yaml`/`pubspec.lock` plus the
 Flutter revision in `.metadata`, then runs `flutter pub get --enforce-lockfile`.
 A cached Flutter result is accepted only when the package config has a valid
-schema, a root package for this worktree, and every referenced package root has
-its own `pubspec.yaml` and materialized `packageUri` directory (or a declared
-platform-only plugin directory); a stale or partial package config therefore
-triggers hydration. Local Flutter hydration serializes writers to the shared
-Pub cache so parallel task worktrees cannot publish a partial cache hit.
+schema, a root package for this worktree, every referenced package root has its
+own `pubspec.yaml` and materialized `packageUri` directory (or a declared
+platform-only plugin directory), and `.flutter-plugins-dependencies` is readable
+with materialized plugin roots and package-config dependencies. A stale or
+partial package/plugin configuration therefore triggers hydration. Local
+Flutter hydration serializes writers to the shared Pub cache so parallel task
+worktrees cannot publish a partial cache hit.
 Flutter's generated platform/l10n files are reconciled against a narrow
 allowlist and restored when they are created by hydration; unexpected tracked
 or non-ignored files fail closed. A repository-relative ignored state file at
@@ -215,6 +217,11 @@ dependency state and fails closed if Flutter hydration changes tracked files
 outside the generated allowlist. Standalone validation scripts must run the
 same preflight before any Flutter or Nest command; Flutter test commands then
 use `--no-pub` so an implicit second dependency writer cannot bypass the gate.
+
+Nest readiness also compares every required (non-optional) installed lock
+entry's version and integrity with the tracked `backend-nest/package-lock.json`;
+optional OS/CPU packages may be absent on the current platform. If that
+metadata drifts, the cached result is invalidated and `npm ci` runs again.
 
 If Windows `npm ci` reports `ENOTEMPTY`, `directory not empty` or an `rmdir`
 failure while replacing `backend-nest/node_modules`, the preparer quarantines

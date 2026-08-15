@@ -62,6 +62,7 @@ function flutterFixture(t) {
   writeFileSync(path.join(root, 'pubspec.yaml'), 'name: fixture\nenvironment:\n  sdk: ">=3.0.0 <4.0.0"\n');
   writeFileSync(path.join(root, 'pubspec.lock'), 'packages: {}\n');
   writeFileSync(path.join(root, '.metadata'), 'version:\n  revision: fixture\n');
+  writeFlutterPluginMetadata(root);
   writeFileSync(path.join(root, 'README.md'), '# fixture\n');
   writeFileSync(path.join(root, '.gitignore'), '.dart_tool/\ntmp/\n');
   mkdirSync(path.join(root, 'lib', 'l10n'), { recursive: true });
@@ -88,6 +89,21 @@ function writeFlutterPackageConfig(root, packages = []) {
         },
         ...packages,
       ],
+    }),
+  );
+  writeFlutterPluginMetadata(root);
+}
+
+function writeFlutterPluginMetadata(
+  root,
+  { plugins = {}, dependencyGraph = [] } = {},
+) {
+  writeFileSync(
+    path.join(root, '.flutter-plugins-dependencies'),
+    JSON.stringify({
+      info: 'This is a generated file; do not edit or check into version control.',
+      plugins,
+      dependencyGraph,
     }),
   );
 }
@@ -570,6 +586,70 @@ test('Nest cached readiness invalidates when a locked package disappears', (t) =
   ]);
 });
 
+test('Nest cached readiness invalidates when installed lock metadata drifts', (t) => {
+  const root = fixture(t);
+  const trackedLock = {
+    lockfileVersion: 3,
+    packages: {
+      '': {},
+      'node_modules/fixture-lock': {
+        version: '1.0.0',
+        integrity: 'sha512-fixture',
+      },
+    },
+  };
+  writeFileSync(
+    path.join(root, 'backend-nest', 'package-lock.json'),
+    JSON.stringify(trackedLock),
+  );
+  const calls = [];
+  const success = successfulStepFactory(calls);
+  const runStepFn = (currentRoot, step) => {
+    const result = success(currentRoot, step);
+    if (step.id === 'nestjs-prisma-generate') {
+      const packageRoot = path.join(
+        currentRoot,
+        'backend-nest',
+        'node_modules',
+        'fixture-lock',
+      );
+      mkdirSync(packageRoot, { recursive: true });
+      writeFileSync(path.join(packageRoot, 'package.json'), '{"version":"1.0.0"}\n');
+      writeFileSync(
+        path.join(currentRoot, 'backend-nest', 'node_modules', '.package-lock.json'),
+        JSON.stringify(trackedLock),
+      );
+    }
+    return result;
+  };
+
+  const first = prepareTaskToolchain({ root, profile: 'nestjs', runStepFn });
+  assert.equal(first.exitCode, EXIT_CODES.PASS);
+  writeFileSync(
+    path.join(root, 'backend-nest', 'node_modules', '.package-lock.json'),
+    JSON.stringify({
+      ...trackedLock,
+      packages: {
+        ...trackedLock.packages,
+        'node_modules/fixture-lock': {
+          version: '9.9.9',
+          integrity: 'sha512-fixture',
+        },
+      },
+    }),
+  );
+
+  const repaired = prepareTaskToolchain({ root, profile: 'nestjs', runStepFn });
+  assert.equal(repaired.exitCode, EXIT_CODES.PASS);
+  assert.equal(repaired.result.status, 'prepared');
+  assert.deepEqual(calls, [
+    'nestjs-npm-ci',
+    'nestjs-prisma-generate',
+    'nestjs-npm-ci',
+    'nestjs-prisma-generate',
+  ]);
+});
+
 test('transient Prisma module-load failure retries once with a stable fingerprint', (t) => {
   const root = fixture(t);
   const calls = [];
@@ -955,6 +1035,65 @@ test('Flutter cached readiness invalidates when a packageUri directory disappear
   assert.equal(repaired.exitCode, EXIT_CODES.PASS);
   assert.equal(repaired.result.status, 'prepared');
   assert.deepEqual(calls, ['flutter-pub-get', 'flutter-pub-get']);
+});
+
+test('Flutter cached readiness invalidates when plugin metadata disappears', (t) => {
+  const root = flutterFixture(t);
+  const calls = [];
+  const runStepFn = (currentRoot, step) => {
+    calls.push(step.id);
+    writeFlutterPackageConfig(currentRoot);
+    return {
+      id: step.id,
+      status: 'passed',
+      exitCode: 0,
+      executable: step.executable,
+      argv: step.argv,
+    };
+  };
+
+  const first = prepareTaskToolchain({ root, profile: 'flutter', runStepFn });
+  assert.equal(first.exitCode, EXIT_CODES.PASS);
+  rmSync(path.join(root, '.flutter-plugins-dependencies'));
+
+  const repaired = prepareTaskToolchain({
+    root,
+    profile: 'flutter',
+    runStepFn,
+  });
+  assert.equal(repaired.exitCode, EXIT_CODES.PASS);
+  assert.equal(repaired.result.readiness.pluginMetadata, true);
+  assert.deepEqual(calls, ['flutter-pub-get', 'flutter-pub-get']);
+});
+
+test('Flutter preflight fails closed when plugin metadata is malformed', (t) => {
+  const root = flutterFixture(t);
+  writeFileSync(
+    path.join(root, '.flutter-plugins-dependencies'),
+    '{"plugins":[]\n',
+  );
+  const result = prepareTaskToolchain({
+    root,
+    profile: 'flutter',
+    runStepFn: (currentRoot, step) => {
+      writeFlutterPackageConfig(currentRoot);
+      writeFileSync(
+        path.join(currentRoot, '.flutter-plugins-dependencies'),
+        '{"plugins":[]\n',
+      );
+      return {
+        id: step.id,
+        status: 'passed',
+        exitCode: 0,
+        executable: step.executable,
+        argv: step.argv,
+      };
+    },
+  });
+  assert.equal(result.exitCode, EXIT_CODES.ENVIRONMENT);
+  assert.equal(result.result.readiness.pluginMetadataReadable, false);
+  assert.match(result.result.error, /readiness|hydrate/i);
+  assert.equal(existsSync(path.join(root, 'tmp', 'opshub-toolchain-state.json')), false);
 });
 
 test('Flutter readiness accepts a materialized platform-only plugin without lib', (t) => {

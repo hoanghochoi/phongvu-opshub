@@ -27,7 +27,7 @@ export const EXIT_CODES = Object.freeze({
 
 // Bumped when hydration behavior/commands or readiness probes change so old
 // cached readiness is never trusted after a toolchain policy update.
-const SCHEMA_VERSION = 6;
+const SCHEMA_VERSION = 7;
 const PROFILE_ID = 'nestjs';
 const FLUTTER_PROFILE_ID = 'flutter';
 const ALL_PROFILE_ID = 'all';
@@ -598,6 +598,88 @@ function flutterPackageReadiness(root, packageConfigPath) {
   };
 }
 
+function flutterPluginReadiness(root, pluginMetadataPath, packageNames) {
+  const metadata = readJsonFile(pluginMetadataPath);
+  const platforms = metadata?.plugins;
+  const dependencyGraph = metadata?.dependencyGraph;
+  const missingPlugins = [];
+  let pluginEntries = 0;
+  let pluginRoots = true;
+  let pluginDependencies = true;
+
+  if (!metadata || typeof platforms !== 'object' || platforms === null) {
+    return {
+      pluginMetadataReadable: false,
+      pluginEntries: 0,
+      pluginRoots: false,
+      pluginDependencies: false,
+      missingPlugins: ['metadata:plugins'],
+    };
+  }
+
+  for (const [platform, entries] of Object.entries(platforms)) {
+    if (!Array.isArray(entries)) {
+      pluginRoots = false;
+      missingPlugins.push(`${platform}:entries`);
+      continue;
+    }
+    const platformPluginNames = new Set();
+    for (const entry of entries) {
+      const name = typeof entry?.name === 'string' ? entry.name : '<unnamed>';
+      pluginEntries += 1;
+      if (platformPluginNames.has(name)) {
+        missingPlugins.push(`${name}:duplicate`);
+      }
+      platformPluginNames.add(name);
+      const pluginPath =
+        typeof entry?.path === 'string' && entry.path.length > 0
+          ? path.isAbsolute(entry.path)
+            ? path.resolve(entry.path)
+            : path.resolve(root, entry.path)
+          : null;
+      if (!pluginPath || !existsSync(pluginPath)) {
+        pluginRoots = false;
+        missingPlugins.push(`${name}:path`);
+        continue;
+      }
+      if (!existsSync(path.join(pluginPath, 'pubspec.yaml'))) {
+        pluginRoots = false;
+        missingPlugins.push(`${name}:pubspec`);
+      }
+    }
+  }
+
+  if (!Array.isArray(dependencyGraph)) {
+    pluginDependencies = false;
+    missingPlugins.push('metadata:dependencyGraph');
+  } else {
+    for (const entry of dependencyGraph) {
+      const name = typeof entry?.name === 'string' ? entry.name : '<unnamed>';
+      const dependencies = Array.isArray(entry?.dependencies)
+        ? entry.dependencies
+        : [];
+      if (name !== '<unnamed>' && !packageNames.has(name)) {
+        pluginDependencies = false;
+        missingPlugins.push(`${name}:package-config`);
+      }
+      for (const dependency of dependencies) {
+        if (typeof dependency !== 'string' || !packageNames.has(dependency)) {
+          pluginDependencies = false;
+          missingPlugins.push(`${name}:${String(dependency)}:package-config`);
+        }
+      }
+    }
+  }
+
+  return {
+    pluginMetadataReadable: true,
+    pluginEntries,
+    pluginRoots,
+    pluginDependencies,
+    missingPlugins: missingPlugins.slice(0, 20),
+  };
+}
+
 function sanitizeDiagnostic(value, root = process.cwd()) {
   let text = String(value || '');
   const normalizedRoot = path.resolve(root);
@@ -614,6 +696,9 @@ function installedPackageReadiness(root) {
   const packageLockPath = path.join(backendRoot, 'node_modules', '.package-lock.json');
   const packageJson = readJsonFile(packageJsonPath);
   const installedLock = readJsonFile(packageLockPath);
+  const trackedLock = readJsonFile(
+    path.join(backendRoot, 'package-lock.json'),
+  );
   const nodeModules = path.dirname(packageLockPath);
   const directDependencies = Object.keys({
     ...(packageJson?.dependencies || {}),
@@ -623,6 +708,7 @@ function installedPackageReadiness(root) {
     (name) => !existsSync(path.join(nodeModules, ...name.split('/'), 'package.json')),
   );
   const missingLockPackages = [];
+  const lockMetadataMismatches = [];
   for (const [packagePath, metadata] of Object.entries(installedLock?.packages || {})) {
     if (!packagePath.startsWith('node_modules/') || metadata?.link) continue;
     const relativePackagePath = packagePath.slice('node_modules/'.length);
@@ -632,6 +718,29 @@ function installedPackageReadiness(root) {
       'package.json',
     );
     if (!existsSync(packageJsonFile)) missingLockPackages.push(relativePackagePath);
+  }
+
+  for (const [packagePath, metadata] of Object.entries(
+    trackedLock?.packages || {},
+  )) {
+    if (!packagePath.startsWith('node_modules/') || metadata?.link) continue;
+    // npm intentionally omits optional packages that do not match the current
+    // OS/CPU. Required packages must still match the tracked lock metadata.
+    if (metadata?.optional) continue;
+    const installed = installedLock?.packages?.[packagePath];
+    if (!installed) {
+      lockMetadataMismatches.push(`${packagePath}:missing`);
+      continue;
+    }
+    if (metadata.version !== installed.version) {
+      lockMetadataMismatches.push(
+        `${packagePath}:version:${metadata.version}:${installed.version}`,
+      );
+      continue;
+    }
+    if (metadata.integrity && metadata.integrity !== installed.integrity) {
+      lockMetadataMismatches.push(`${packagePath}:integrity`);
+    }
   }
 
   const prismaClientPackage = path.join(
@@ -651,6 +760,8 @@ function installedPackageReadiness(root) {
     directDependencies: directDependencies.length,
     missingDirectDependencies: missingDirectDependencies.slice(0, 20),
     missingLockPackages: missingLockPackages.slice(0, 20),
+    lockMetadataMismatches: lockMetadataMismatches.slice(0, 20),
+    lockMetadataMatches: lockMetadataMismatches.length === 0,
     nestCliEntry: existsSync(path.join(nodeModules, '@nestjs', 'cli', 'bin', 'nest.js')),
     prismaPackage: existsSync(prismaClientPackage),
     prismaClientEntry: existsSync(path.join(nodeModules, '@prisma', 'client', 'default.js')),
@@ -667,6 +778,20 @@ function readinessForProfile(root, profile) {
       'package_config.json',
     );
     const packageConfig = flutterPackageReadiness(root, packageConfigPath);
+    const packageNames = new Set();
+    const parsedPackageConfig = readJsonFile(packageConfigPath);
+    for (const entry of parsedPackageConfig?.packages || []) {
+      if (typeof entry?.name === 'string') packageNames.add(entry.name);
+    }
+    const pluginMetadataPath = path.resolve(
+      root,
+      '.flutter-plugins-dependencies',
+    );
+    const plugins = flutterPluginReadiness(
+      root,
+      pluginMetadataPath,
+      packageNames,
+    );
     return {
       pubspec: existsSync(path.resolve(root, 'pubspec.yaml')),
       lockfile: existsSync(path.resolve(root, 'pubspec.lock')),
@@ -678,6 +803,12 @@ function readinessForProfile(root, profile) {
       packageUriRoots: packageConfig.packageUriRoots,
       rootPackage: packageConfig.rootPackage,
       missingPackages: packageConfig.missingPackages,
+      pluginMetadata: existsSync(pluginMetadataPath),
+      pluginMetadataReadable: plugins.pluginMetadataReadable,
+      pluginEntries: plugins.pluginEntries,
+      pluginRoots: plugins.pluginRoots,
+      pluginDependencies: plugins.pluginDependencies,
+      missingPlugins: plugins.missingPlugins,
     };
   }
   const nodeModules = path.resolve(root, 'backend-nest/node_modules');
@@ -691,6 +822,8 @@ function readinessForProfile(root, profile) {
     directDependencies: installed.directDependencies,
     missingDirectDependencies: installed.missingDirectDependencies,
     missingLockPackages: installed.missingLockPackages,
+    lockMetadataMismatches: installed.lockMetadataMismatches,
+    lockMetadataMatches: installed.lockMetadataMatches,
     nestCliEntry: installed.nestCliEntry,
     prismaPackage: installed.prismaPackage,
     prismaClientEntry: installed.prismaClientEntry,
@@ -711,7 +844,11 @@ function isReadyForProfile(value, profile) {
       value.packageCount > 0 &&
       value.packageRoots &&
       value.packageUriRoots &&
-      value.rootPackage
+      value.rootPackage &&
+      value.pluginMetadata &&
+      value.pluginMetadataReadable &&
+      value.pluginRoots &&
+      value.pluginDependencies
     );
   }
   return (
@@ -720,6 +857,7 @@ function isReadyForProfile(value, profile) {
     value.packageLockVersion >= 1 &&
     value.missingDirectDependencies.length === 0 &&
     value.missingLockPackages.length === 0 &&
+    value.lockMetadataMatches &&
     value.nestCliEntry &&
     value.prismaPackage &&
     value.prismaClientEntry &&
