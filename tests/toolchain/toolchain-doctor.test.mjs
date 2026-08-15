@@ -36,6 +36,7 @@ test('doctor parser defaults to all and supports an existing worktree', () => {
     root: '.',
     profile: 'all',
     dryRun: false,
+    check: false,
     force: false,
     json: null,
     help: false,
@@ -46,12 +47,26 @@ test('doctor parser defaults to all and supports an existing worktree', () => {
       root: '..\\opshub-ops-121',
       profile: 'flutter',
       dryRun: false,
+      check: false,
       force: true,
       json: null,
       help: false,
     },
   );
   assert.throws(() => parseArgs(['--profile', 'unknown']), /Unsupported profile/);
+  assert.deepEqual(parseArgs(['--check', '--profile', 'flutter']), {
+    root: '.',
+    profile: 'flutter',
+    dryRun: false,
+    check: true,
+    force: false,
+    json: null,
+    help: false,
+  });
+  assert.throws(
+    () => parseArgs(['--check', '--force']),
+    /cannot be combined/,
+  );
 });
 
 test('doctor uses the requested existing Git worktree and returns sanitized proof', (t) => {
@@ -101,4 +116,27 @@ test('doctor preserves an environment failure and gives a repair command', (t) =
   assert.equal(result.result.status, 'failed');
   assert.match(result.result.remediation, /toolchain-doctor\.mjs/);
   assert.match(result.result.preparation.error, /package config missing/);
+});
+
+test('doctor check fails closed when a non-mutating readiness probe is incomplete', (t) => {
+  const root = fixture(t);
+  const result = doctorToolchain({
+    root,
+    profile: 'flutter',
+    check: true,
+    prepare: (options) => {
+      assert.equal(options.dryRun, true);
+      assert.equal(options.force, false);
+      return {
+        exitCode: 0,
+        result: { profile: 'flutter', status: 'planned' },
+      };
+    },
+  });
+
+  assert.equal(result.exitCode, EXIT_CODES.ENVIRONMENT);
+  assert.equal(result.result.status, 'failed');
+  assert.equal(result.result.check, true);
+  assert.equal(result.result.readiness.ready, false);
+  assert.match(result.result.error, /readiness is incomplete/i);
 });

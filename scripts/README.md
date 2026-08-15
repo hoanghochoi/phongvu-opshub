@@ -291,6 +291,8 @@ directory. For an explicit resume/doctor boundary with structured output, use:
 ```text
 node scripts/toolchain-doctor.mjs --root ..\opshub-ops-123 --profile all
 node scripts/toolchain-doctor.mjs --root ..\opshub-ops-123 --profile all --force
+# Read-only gate: fail closed when the current worktree is not ready.
+node scripts/toolchain-doctor.mjs --root ..\opshub-ops-123 --profile all --check
 ```
 
 The shared GitHub Actions `setup-flutter` action runs the same Flutter
