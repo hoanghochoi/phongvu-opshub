@@ -17,8 +17,12 @@ import test from 'node:test';
 
 import {
   EXIT_CODES,
+  flutterPubCacheIdentity,
+  flutterToolchainEnvironment,
   parseArgs,
   prepareTaskToolchain,
+  resolveFlutterPubCacheLockPath,
+  resolveFlutterPubCacheRoot,
   toolchainFingerprint,
 } from '../../scripts/prepare-task-toolchain.mjs';
 
@@ -244,6 +248,118 @@ function successfulStepFactory(calls) {
     };
   };
 }
+
+test('Flutter Pub cache resolver follows platform defaults and explicit overrides', () => {
+  const windowsDefault = resolveFlutterPubCacheRoot({
+    platform: 'win32',
+    homeDir: 'C:\\Users\\Ada',
+    env: { LOCALAPPDATA: 'C:\\Users\\Ada\\AppData\\Local' },
+  });
+  assert.equal(
+    windowsDefault,
+    'C:\\Users\\Ada\\AppData\\Local\\Pub\\Cache',
+  );
+  assert.equal(
+    resolveFlutterPubCacheLockPath({
+      platform: 'win32',
+      homeDir: 'C:\\Users\\Ada',
+      env: { LOCALAPPDATA: 'C:\\Users\\Ada\\AppData\\Local' },
+    }),
+    'C:\\Users\\Ada\\AppData\\Local\\Pub\\Cache\\.opshub-pub-cache.lock',
+  );
+
+  const explicit = resolveFlutterPubCacheRoot({
+    platform: 'win32',
+    homeDir: 'C:\\Users\\Ada',
+    env: {
+      PUB_CACHE: 'D:\\shared\\pub-cache',
+      LOCALAPPDATA: 'C:\\Users\\Ada\\AppData\\Local',
+    },
+  });
+  assert.equal(explicit, 'D:\\shared\\pub-cache');
+
+  assert.equal(
+    resolveFlutterPubCacheRoot({
+      platform: 'linux',
+      homeDir: '/home/ada',
+      env: {},
+    }),
+    '/home/ada/.pub-cache',
+  );
+
+  const identity = flutterPubCacheIdentity({
+    platform: 'win32',
+    homeDir: 'C:\\Users\\Ada',
+    env: { LOCALAPPDATA: 'C:\\Users\\Ada\\AppData\\Local' },
+  });
+  assert.deepEqual(
+    {
+      source: identity.source,
+      root: identity.root,
+      lock: identity.lock,
+    },
+    {
+      source: 'LOCALAPPDATA',
+      root: '<pub-cache>',
+      lock: '<pub-cache>/.opshub-pub-cache.lock',
+    },
+  );
+  assert.match(identity.rootSha256, /^[0-9a-f]{64}$/);
+
+  const environment = flutterToolchainEnvironment({
+    platform: 'win32',
+    homeDir: 'C:\\Users\\Ada',
+    env: { PATH: 'fixture-path' },
+  });
+  assert.equal(
+    environment.PUB_CACHE,
+    'C:\\Users\\Ada\\AppData\\Local\\Pub\\Cache',
+  );
+  assert.equal(environment.PATH, 'fixture-path');
+});
+
+test('Flutter hydration pins PUB_CACHE on the hydration command and proof', (t) => {
+  const root = flutterFixture(t);
+  const cacheRoot = mkdtempSync(path.join(os.tmpdir(), 'opshub-pub-cache-'));
+  t.after(() => rmSync(cacheRoot, { recursive: true, force: true }));
+  const hadPubCache = Object.prototype.hasOwnProperty.call(
+    process.env,
+    'PUB_CACHE',
+  );
+  const previousPubCache = process.env.PUB_CACHE;
+  process.env.PUB_CACHE = cacheRoot;
+  try {
+    let observedStep;
+    const result = prepareTaskToolchain({
+      root,
+      profile: 'flutter',
+      runStepFn: (currentRoot, step) => {
+        observedStep = step;
+        writeFlutterPackageConfig(currentRoot);
+        return {
+          id: step.id,
+          status: 'passed',
+          exitCode: 0,
+          executable: step.executable,
+          argv: step.argv,
+        };
+      },
+    });
+
+    assert.equal(result.exitCode, EXIT_CODES.PASS);
+    assert.equal(observedStep.profile, 'flutter');
+    assert.equal(observedStep.env.PUB_CACHE, path.resolve(cacheRoot));
+    assert.equal(result.result.dependencyCache.source, 'PUB_CACHE');
+    assert.equal(result.result.dependencyCache.root, '<pub-cache>');
+    assert.equal(
+      result.result.dependencyCache.lock,
+      '<pub-cache>/.opshub-pub-cache.lock',
+    );
+  } finally {
+    if (hadPubCache) process.env.PUB_CACHE = previousPubCache;
+    else delete process.env.PUB_CACHE;
+  }
+});
 
 test('parser defaults to all and accepts narrow toolchain profiles', () => {
   assert.deepEqual(
