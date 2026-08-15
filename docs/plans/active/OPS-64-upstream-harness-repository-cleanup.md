@@ -4,9 +4,9 @@ Date: 2026-08-13
 
 ## Status
 
-Active — the current workflow checkpoint is OPS-130 live shadow evidence
-assembly, based on `origin/staging@5c457e6ec044894b4603fa2f4ecea6a928859c2c`.
-OPS-129 PR #246 was squash-merged at that SHA, staging deploy `31885815185`
+Active — the current workflow checkpoint is OPS-131 dependency-boundary
+hardening, based on `origin/staging@837df86c2a781b256c72fbe0eb6bdb37cbae26e0`.
+OPS-130 PR #247 was squash-merged at that SHA, staging deploy `31888018450`
 passed, and guarded lifecycle cleanup left only the canonical staging
 worktree. OPS-72 still has five comparable post-telemetry observations, but the
 measured timing improvement is only 15.05% and the rerun target is not
@@ -1949,6 +1949,36 @@ Current live upstream retry evidence:
   `stale=false`, PR checks, staging deploy and guarded lifecycle cleanup.
   Rollback is one tooling/docs squash revert.
 
+## Workflow checkpoint (OPS-131; recurring dependency bootstrap hardening)
+
+- This bounded tooling slice is branch/worktree
+  `codex/ops-131-eliminate-recurring-dependency-bootstrap` /
+  `../opshub-ops-131-eliminate-recurring-dependency-bootstrap`, created by the
+  guarded lifecycle start gate from exact
+  `origin/staging@837df86c2a781b256c72fbe0eb6bdb37cbae26e0`. The canonical
+  staging worktree remained clean and the fresh worktree hydrated both NestJS
+  and Flutter profiles before edits.
+- The slice makes the shared Flutter CI action run an explicit repository
+  preflight after SDK/Pub cache restore; adds a command-tee helper that keeps
+  stdout/stderr live while retaining a bounded diagnostic tail; and permits one
+  repair retry for a declared Flutter package/materialization path or Nest
+  `node_modules`/Prisma path even when the initial readiness receipt was
+  healthy. Source/product failures remain non-retryable and stale fingerprints
+  still stop before a second command.
+- Updated README and scripts runbook guidance makes the fresh/resume/IDE
+  boundary explicit. No product dependency version, runtime/API/UI/permission,
+  database or archive behavior changes are in scope.
+- Exact verification from this worktree against `origin/staging` passed with
+  `status=passed`, `code=0`, `stale=false`, selected profiles
+  `harness,docs,verification-runner,release,flutter`, and 9 affected paths.
+  The focused toolchain/boundary suites passed 85/85, lifecycle tests passed
+  16/16, and the wrapped Flutter analyze completed with no issues. The
+  command-tee syntax check, migration EOL scan, boundary scan, `git diff
+  --check`, and real Flutter analyze are included in that proof. PR/CI,
+  staging deploy and guarded finish cleanup remain required. Rollback is one
+  OPS-131 squash revert; temporary command logs and dependency caches remain
+  ignored.
+
 ## Result
 
 Historical Phase 0-1 artifacts, the generic verification foundation/canaries,
@@ -1962,8 +1992,9 @@ gates. OPS-73 and OPS-113 are now also staged and tracked as `Ready for QA`
 after exact deploy `31862881662` and guarded cleanup. OPS-122 and OPS-123's
 reconciliations are historical; OPS-124 is merged/deployed and tracked as
 `Ready for QA`, OPS-127 and OPS-128 are historical dependency-boundary
-checkpoints, OPS-129 is a historical master-plan reconciliation, and OPS-130 is
-the current live-shadow evidence assembly checkpoint.
+checkpoints, OPS-129 is a historical master-plan reconciliation, and OPS-130
+is the completed live-shadow evidence assembly checkpoint. OPS-131 is the
+current dependency-boundary hardening checkpoint.
 OPS-72's five live observations are valid but remain `revise`; Phase 8 retained-owner
 evidence, runtime waves and OPS-75 final consolidation remain downstream
 gates.

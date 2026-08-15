@@ -3,13 +3,20 @@
 import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import {
+  closeSync,
   existsSync,
+  mkdtempSync,
   mkdirSync,
+  openSync,
+  readFileSync,
+  readSync,
+  rmSync,
   statSync,
   writeFileSync,
 } from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import {
   EXIT_CODES as PREPARE_EXIT_CODES,
   acquireToolchainLease,
@@ -29,6 +36,7 @@ export const EXIT_CODES = Object.freeze({
 const SCHEMA_VERSION = 1;
 const SUPPORTED_PROFILES = new Set(['nestjs', 'flutter', 'all']);
 const FLUTTER_GATED_COMMANDS = new Set(['analyze', 'test', 'build']);
+const COMMAND_OUTPUT_TAIL_BYTES = 8192;
 const SENSITIVE_ARGUMENT_NAME = /^--(?:certificate-password|password|token|secret|api[-_]key|private[-_]key)$/i;
 const COMMAND_TIME_REPAIR_PATTERNS = Object.freeze({
   flutter: [
@@ -233,6 +241,52 @@ function dependencyFailurePattern(profile, diagnostic) {
   return patterns.find((pattern) => pattern.test(diagnostic)) || null;
 }
 
+function flutterPackageNameFromDiagnostic(diagnostic) {
+  const match = String(diagnostic || '').match(
+    /Target of URI doesn't exist[^\r\n]*package:([A-Za-z0-9_]+)\//i,
+  );
+  return match?.[1] || null;
+}
+
+function flutterPackageIsMaterialized(root, packageName) {
+  if (!packageName) return false;
+  try {
+    const packageConfig = JSON.parse(
+      readFileSync(path.resolve(root, '.dart_tool', 'package_config.json'), 'utf8'),
+    );
+    return Array.isArray(packageConfig?.packages)
+      ? packageConfig.packages.some(
+          (entry) => entry?.name === packageName && entry?.name !== 'phongvu_opshub',
+        )
+      : false;
+  } catch {
+    return false;
+  }
+}
+
+function materializationFailureReason(profile, diagnostic, root) {
+  if (profile === 'flutter') {
+    if (
+      /(?:\.dart_tool|pub[\\/ ]cache|package_config(?:\.json)?|flutter[- ]plugins)/i.test(
+        diagnostic,
+      )
+    ) {
+      return 'flutter-materialization-path';
+    }
+    const packageName = flutterPackageNameFromDiagnostic(diagnostic);
+    if (flutterPackageIsMaterialized(root, packageName)) {
+      return 'flutter-declared-package-entrypoint';
+    }
+  }
+  if (
+    profile === 'nestjs' &&
+    /(?:node_modules|\.prisma|@prisma[\\/]client)/i.test(diagnostic)
+  ) {
+    return 'nestjs-materialization-path';
+  }
+  return null;
+}
+
 function canRepairCommandFailure({
   profile,
   preparation,
@@ -245,7 +299,11 @@ function canRepairCommandFailure({
   if (!commandResult || !Number.isInteger(commandResult.status)) return null;
   const diagnostic = commandDiagnostic(commandResult);
   const pattern = dependencyFailurePattern(profile, diagnostic);
-  if (!pattern && !commandResult.diagnosticUnavailable) return null;
+  const materializationReason = materializationFailureReason(
+    profile,
+    diagnostic,
+    root,
+  );
   if (typeof readiness !== 'function') return null;
 
   let current;
@@ -254,11 +312,21 @@ function canRepairCommandFailure({
   } catch {
     return null;
   }
-  if (!current || current.ready !== false) return null;
+  if (!current) return null;
+  if (
+    current.ready !== false &&
+    (!materializationReason || (!pattern && !commandResult.diagnosticUnavailable))
+  ) {
+    return null;
+  }
+  if (!pattern && !materializationReason && !commandResult.diagnosticUnavailable) {
+    return null;
+  }
 
   const preparedProfile = profilePreparation(preparation, profile);
   return {
-    reason: pattern?.source || 'readiness-broken',
+    reason:
+      materializationReason || pattern?.source || 'readiness-broken',
     diagnostic: diagnostic.slice(-800),
     readiness: current,
     initialFingerprint: preparedProfile?.fingerprint || null,
@@ -317,16 +385,89 @@ function writeResult(root, outputPath, result) {
   writeFileSync(outputPath, `${JSON.stringify(result, null, 2)}\n`, 'utf8');
 }
 
+function readTail(filePath, maxBytes = COMMAND_OUTPUT_TAIL_BYTES) {
+  try {
+    const size = statSync(filePath).size;
+    const start = Math.max(0, size - maxBytes);
+    const length = size - start;
+    const descriptor = openSync(filePath, 'r');
+    const buffer = Buffer.alloc(length);
+    try {
+      readSync(descriptor, buffer, 0, length, start);
+    } finally {
+      closeSync(descriptor);
+    }
+    return buffer.toString('utf8');
+  } catch {
+    return '';
+  }
+}
+
 export function defaultRunCommand(executable, argv, cwd, options = {}) {
-  const result = spawnSync(executable, argv, {
-    cwd,
-    env: options.env || process.env,
-    encoding: 'utf8',
-    windowsHide: true,
-    shell: process.platform === 'win32' && /\.(?:cmd|bat)$/i.test(executable),
-    stdio: 'inherit',
-  });
-  return { ...result, diagnosticUnavailable: true };
+  const outputRoot = mkdtempSync(path.join(os.tmpdir(), 'opshub-command-output-'));
+  const stdoutPath = path.join(outputRoot, 'stdout.log');
+  const stderrPath = path.join(outputRoot, 'stderr.log');
+  const resultPath = path.join(outputRoot, 'result.json');
+  const commandTee = path.resolve(
+    path.dirname(fileURLToPath(import.meta.url)),
+    'run-toolchain-command.mjs',
+  );
+  let result;
+  try {
+    result = spawnSync(
+      process.execPath,
+      [
+        commandTee,
+        '--cwd',
+        cwd,
+        '--executable',
+        executable,
+        '--stdout-file',
+        stdoutPath,
+        '--stderr-file',
+        stderrPath,
+        '--result-file',
+        resultPath,
+        '--',
+        ...argv,
+      ],
+      {
+        cwd,
+        env: options.env || process.env,
+        encoding: 'utf8',
+        windowsHide: true,
+        stdio: 'inherit',
+      },
+    );
+  } catch (error) {
+    result = { error };
+  }
+
+  const stdout = readTail(stdoutPath);
+  const stderr = readTail(stderrPath);
+  const diagnostic = [stdout, stderr]
+    .filter(Boolean)
+    .join('\n')
+    .slice(-COMMAND_OUTPUT_TAIL_BYTES);
+  let metadata = null;
+  try {
+    metadata = JSON.parse(readFileSync(resultPath, 'utf8'));
+  } catch {
+    metadata = null;
+  }
+  try {
+    rmSync(outputRoot, { recursive: true, force: true });
+  } catch {
+    // A locked temporary log is harmless; the next command gets a fresh directory.
+  }
+  return {
+    ...result,
+    status: Number.isInteger(metadata?.status) ? metadata.status : result?.status,
+    signal: metadata?.signal || result?.signal || null,
+    error: metadata?.error ? new Error(metadata.error) : result?.error,
+    diagnostic,
+    diagnosticUnavailable: false,
+  };
 }
 
 export function runWithToolchain({
@@ -616,6 +757,9 @@ export function runWithToolchain({
     }
 
     const finalDiagnostic = commandDiagnostic(commandResult);
+    if (finalDiagnostic) {
+      result.diagnostic = sanitize(finalDiagnostic, resolvedRoot);
+    }
     let finalReadiness = null;
     if (
       result.recovery?.attempted &&

@@ -265,6 +265,16 @@ node scripts/toolchain-doctor.mjs --root ..\opshub-ops-123 --profile all
 node scripts/toolchain-doctor.mjs --root ..\opshub-ops-123 --profile all --force
 ```
 
+The shared GitHub Actions `setup-flutter` action runs the same Flutter
+preflight immediately after restoring the SDK/Pub caches. The first CI build
+therefore consumes a materialized `.dart_tool/package_config.json`; a cache
+hit alone is never treated as a worktree-ready dependency installation. For a
+manually resumed or IDE worktree, run the doctor command before opening the
+Flutter task, then launch the build/test through `run-with-toolchain` (or the
+repository's wrapper task). Raw `flutter`/`dart` commands cannot be intercepted
+globally by Git, so they remain unsupported and are rejected by the boundary
+scanner when they are committed into repository command surfaces.
+
 The doctor reports NestJS and Flutter readiness independently. If one profile
 cannot hydrate, the other profile still runs and its result is retained in the
 JSON output. This prevents a transient Nest/npm failure from hiding a usable
@@ -278,11 +288,16 @@ The command gate also performs a bounded command-time repair check. If a
 Flutter command reports a missing package/package-config path, or a Nest
 command reports a missing `node_modules`/Prisma module, the gate re-checks the
 materialized readiness directly instead of trusting the earlier cache receipt.
-When readiness is actually broken, it forces that profile's hydration once and
-retries the same command once only if the dependency-manifest fingerprint is
-unchanged. A healthy readiness result is treated as a product failure (for
-example, a typo in an import) and is never retried. A manifest change during
-repair returns stale failure code `4`; the gate does not run a second command.
+The default runner uses the repository command-tee helper: command output stays
+live on stdout/stderr while a temporary on-disk copy retains only what is
+needed for diagnostics; structured proof keeps a sanitized 8 KiB tail. When
+readiness is actually broken, or the diagnostic
+names a declared Flutter package/materialization path or a Nest `node_modules`
+path, it forces that profile's hydration once and retries the same command once
+only if the dependency-manifest fingerprint is unchanged. A healthy readiness
+result with a source typo or an unrelated product error is never retried. A
+manifest change during repair returns stale failure code `4`; the gate does
+not run a second command.
 If the retried command still reports a dependency diagnostic, the gate returns
 environment failure code `5` with `recovery.status=failed-after-repair` and the
 sanitized diagnostic, so a persistent broken environment cannot be mistaken

@@ -75,3 +75,9 @@ runs:
           throw "Flutter revision mismatch: expected ${{ inputs.flutter-revision }}, got $($version.frameworkRevision)"
         }
         flutter --version
+
+    - name: Materialize repository Flutter dependencies
+      shell: pwsh
+      run: |
+        $ErrorActionPreference = 'Stop'
+        node scripts/run-with-toolchain.mjs --profile flutter --preflight-only

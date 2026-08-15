@@ -30,6 +30,12 @@ first build/test command:
 node scripts/toolchain-doctor.mjs --root ..\opshub-ops-123 --profile all
 ```
 
+The GitHub Actions Flutter setup also runs the repository preflight after cache
+restore, so a cache hit is not mistaken for a ready worktree. Resumed or IDE
+worktrees must use the doctor command and the shared wrapper before the first
+build/test; direct raw Flutter commands are not a supported dependency
+boundary.
+
 If `API_BASE_URL` is not provided, the app falls back to the LAN development URL in `ApiConstants`.
 
 ## Backend
