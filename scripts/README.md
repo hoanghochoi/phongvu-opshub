@@ -218,7 +218,12 @@ platform-only plugin directory), and `.flutter-plugins-dependencies` is readable
 with materialized plugin roots and package-config dependencies. A stale or
 partial package/plugin configuration therefore triggers hydration. Local
 Flutter hydration serializes writers to the shared Pub cache so parallel task
-worktrees cannot publish a partial cache hit.
+worktrees cannot publish a partial cache hit. When `PUB_CACHE` is unset on
+Windows, the resolver uses Dart's platform default `%LOCALAPPDATA%\Pub\Cache`
+and injects that absolute directory into both `flutter pub get` and every
+gated Flutter command; the lock and the writer therefore always target the
+same cache. Doctor/toolchain JSON exposes only a sanitized cache identity and
+lock name, never the local absolute path.
 Flutter's generated platform/l10n files are reconciled against a narrow
 allowlist and restored when they are created by hydration; unexpected tracked
 or non-ignored files fail closed. A repository-relative ignored state file at

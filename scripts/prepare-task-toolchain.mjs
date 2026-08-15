@@ -27,7 +27,7 @@ export const EXIT_CODES = Object.freeze({
 
 // Bumped when hydration behavior/commands or readiness probes change so old
 // cached readiness is never trusted after a toolchain policy update.
-const SCHEMA_VERSION = 7;
+const SCHEMA_VERSION = 8;
 const PROFILE_ID = 'nestjs';
 const FLUTTER_PROFILE_ID = 'flutter';
 const ALL_PROFILE_ID = 'all';
@@ -262,6 +262,8 @@ export function toolchainFingerprint(root, profile = PROFILE_ID) {
           path.resolve(root, '.dart_tool', 'package_config.json'),
         )
       : null;
+  const dependencyCache =
+    profile === FLUTTER_PROFILE_ID ? flutterPubCacheIdentity() : null;
   const files = Object.fromEntries(
     requiredFiles.map((relativePath) => [
       relativePath,
@@ -278,6 +280,12 @@ export function toolchainFingerprint(root, profile = PROFILE_ID) {
         toolchain: toolchainVersions(profile),
         files,
         materializedFingerprint,
+        dependencyCache: dependencyCache
+          ? {
+              source: dependencyCache.source,
+              rootSha256: dependencyCache.rootSha256,
+            }
+          : null,
       }),
     )
     .digest('hex');
@@ -325,14 +333,76 @@ function flutterExecutable() {
   return process.platform === 'win32' ? 'flutter.bat' : 'flutter';
 }
 
-function flutterPubCacheRoot() {
-  return path.resolve(
-    process.env.PUB_CACHE || path.join(os.homedir(), '.pub-cache'),
+function platformPath(platform) {
+  return platform === 'win32' ? path.win32 : path.posix;
+}
+
+/**
+ * Resolve the same Pub cache directory that Flutter/Dart uses when PUB_CACHE
+ * is not explicitly configured. Keeping this resolver injectable makes the
+ * Windows default testable on every CI host.
+ */
+export function resolveFlutterPubCacheRoot({
+  env = process.env,
+  platform = process.platform,
+  homeDir = os.homedir(),
+} = {}) {
+  const pathApi = platformPath(platform);
+  const configured = String(env?.PUB_CACHE || '').trim();
+  if (configured) return pathApi.resolve(configured);
+
+  if (platform === 'win32') {
+    const localAppData = String(
+      env?.LOCALAPPDATA || pathApi.join(homeDir, 'AppData', 'Local'),
+    ).trim();
+    return pathApi.resolve(localAppData, 'Pub', 'Cache');
+  }
+
+  return pathApi.resolve(homeDir, '.pub-cache');
+}
+
+export function resolveFlutterPubCacheLockPath(options = {}) {
+  const platform = options.platform || process.platform;
+  return platformPath(platform).join(
+    resolveFlutterPubCacheRoot(options),
+    '.opshub-pub-cache.lock',
   );
 }
 
+export function flutterPubCacheIdentity(options = {}) {
+  const env = options.env || process.env;
+  const platform = options.platform || process.platform;
+  const resolvedRoot = resolveFlutterPubCacheRoot(options);
+  const configured = String(env?.PUB_CACHE || '').trim();
+  return {
+    source: configured
+      ? 'PUB_CACHE'
+      : platform === 'win32'
+        ? 'LOCALAPPDATA'
+        : 'HOME',
+    root: '<pub-cache>',
+    lock: '<pub-cache>/.opshub-pub-cache.lock',
+    rootSha256: createHash('sha256').update(resolvedRoot).digest('hex'),
+  };
+}
+
+export function flutterToolchainEnvironment({
+  env = process.env,
+  platform = process.platform,
+  homeDir = os.homedir(),
+} = {}) {
+  return {
+    ...env,
+    PUB_CACHE: resolveFlutterPubCacheRoot({ env, platform, homeDir }),
+  };
+}
+
+function flutterPubCacheRoot() {
+  return resolveFlutterPubCacheRoot();
+}
+
 function flutterPubCacheLockPath() {
-  return path.join(flutterPubCacheRoot(), '.opshub-pub-cache.lock');
+  return resolveFlutterPubCacheLockPath();
 }
 
 function nestToolchainLockPath(root) {
@@ -522,8 +592,12 @@ export function toolchainLeaseEnvironment({
   profile,
 } = {}) {
   const inherited = inheritedLeaseMetadata(path.resolve(root), profile);
+  const baseEnvironment =
+    profile === FLUTTER_PROFILE_ID
+      ? flutterToolchainEnvironment()
+      : { ...process.env };
   return {
-    ...process.env,
+    ...baseEnvironment,
     [INHERITED_LEASE_ENV]: JSON.stringify(
       inherited || {
         pid: process.pid,
@@ -1321,6 +1395,10 @@ function sanitizedExecutable(executable) {
 function runStep(root, step) {
   const result = spawnSync(step.executable, step.argv, {
     cwd: step.cwd,
+    env:
+      step.profile === FLUTTER_PROFILE_ID
+        ? step.env || flutterToolchainEnvironment()
+        : step.env || process.env,
     encoding: 'utf8',
     windowsHide: true,
     shell:
@@ -1359,9 +1437,11 @@ function stepsFor(root, profile) {
     return [
       {
         id: 'flutter-pub-get',
+        profile: FLUTTER_PROFILE_ID,
         executable: flutterExecutable(),
         argv: ['pub', 'get', '--enforce-lockfile'],
         cwd: path.resolve(root),
+        env: flutterToolchainEnvironment(),
       },
     ];
   }
@@ -1391,6 +1471,8 @@ function resultBase(root, profile, fingerprint, options) {
     dryRun: options.dryRun,
     forced: options.force,
     toolchain: toolchainVersions(profile),
+    dependencyCache:
+      profile === FLUTTER_PROFILE_ID ? flutterPubCacheIdentity() : null,
     retries: [],
     recoveries: [],
     readiness: readinessForProfile(root, profile),

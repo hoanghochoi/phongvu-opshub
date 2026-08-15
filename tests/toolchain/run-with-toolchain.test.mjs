@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import {
   closeSync,
   existsSync,
@@ -153,6 +153,114 @@ test('Windows command wrappers are represented as executable plus argv', (t) => 
   if (process.platform === 'win32') assert.equal(result.result.command.executable, 'npm.cmd');
   else assert.equal(result.result.command.executable, 'npm');
   assert.deepEqual(result.result.command.argv, ['test']);
+});
+
+test('gated Flutter commands inherit the resolved Pub cache environment', (t) => {
+  const root = fixture(t);
+  const cacheRoot = mkdtempSync(path.join(os.tmpdir(), 'opshub-run-pub-cache-'));
+  t.after(() => rmSync(cacheRoot, { recursive: true, force: true }));
+  const hadPubCache = Object.prototype.hasOwnProperty.call(
+    process.env,
+    'PUB_CACHE',
+  );
+  const previousPubCache = process.env.PUB_CACHE;
+  process.env.PUB_CACHE = cacheRoot;
+  try {
+    let commandOptions;
+    const result = runWithToolchain({
+      root,
+      profile: 'flutter',
+      command: ['flutter', 'analyze'],
+      prepare: successfulPrepare,
+      runCommand: (_executable, _argv, _cwd, options) => {
+        commandOptions = options;
+        return { status: 0 };
+      },
+    });
+
+    assert.equal(result.exitCode, EXIT_CODES.PASS);
+    assert.equal(commandOptions.env.PUB_CACHE, path.resolve(cacheRoot));
+    assert.equal(
+      JSON.parse(commandOptions.env.OPSHUB_TOOLCHAIN_LEASE).profile,
+      'flutter',
+    );
+  } finally {
+    if (hadPubCache) process.env.PUB_CACHE = previousPubCache;
+    else delete process.env.PUB_CACHE;
+  }
+});
+
+test('Flutter Pub cache lease serializes separate hydration processes', async (t) => {
+  const root = fixture(t);
+  const cacheRoot = mkdtempSync(
+    path.join(os.tmpdir(), 'opshub-concurrent-pub-cache-'),
+  );
+  t.after(() => rmSync(cacheRoot, { recursive: true, force: true }));
+
+  const prepareModule = pathToFileURL(
+    path.resolve(import.meta.dirname, '../../scripts/prepare-task-toolchain.mjs'),
+  ).href;
+  const childScript = `import { acquireToolchainLease } from ${JSON.stringify(
+    prepareModule,
+  )};
+const release = acquireToolchainLease({
+  root: ${JSON.stringify(root)},
+  profile: 'flutter',
+});
+console.log('acquired');
+setTimeout(() => {
+  release();
+  process.exit(0);
+}, 350);
+`;
+  const env = { ...process.env, PUB_CACHE: cacheRoot };
+  delete env.OPSHUB_TOOLCHAIN_LEASE;
+
+  const spawnLease = () =>
+    spawn(process.execPath, ['--input-type=module', '-e', childScript], {
+      cwd: root,
+      env,
+      stdio: ['ignore', 'pipe', 'pipe'],
+      windowsHide: true,
+    });
+  const waitForAcquired = (child) =>
+    new Promise((resolve, reject) => {
+      let output = '';
+      let settled = false;
+      child.stdout.on('data', (chunk) => {
+        output += String(chunk);
+        if (!settled && output.includes('acquired')) {
+          settled = true;
+          resolve(Date.now());
+        }
+      });
+      child.on('error', reject);
+      child.on('exit', (code) => {
+        if (!settled && code !== 0) {
+          reject(new Error(`lease child exited before acquiring: ${code}`));
+        }
+      });
+    });
+  const waitForExit = (child) =>
+    new Promise((resolve, reject) => {
+      child.on('error', reject);
+      child.on('exit', (code) => {
+        if (code === 0) resolve();
+        else reject(new Error(`lease child exited with ${code}`));
+      });
+    });
+
+  const first = spawnLease();
+  const firstExit = waitForExit(first);
+  const firstAcquiredAt = await waitForAcquired(first);
+  const second = spawnLease();
+  const secondExit = waitForExit(second);
+  const secondAcquiredAt = await waitForAcquired(second);
+  assert.ok(
+    secondAcquiredAt - firstAcquiredAt >= 200,
+    `second lease acquired too early: ${secondAcquiredAt - firstAcquiredAt}ms`,
+  );
+  await Promise.all([firstExit, secondExit]);
 });
 
 test('sensitive command arguments are redacted from proof output and fingerprint', (t) => {
