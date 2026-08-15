@@ -3,7 +3,9 @@
 import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import {
+  accessSync,
   closeSync,
+  constants as fsConstants,
   existsSync,
   lstatSync,
   mkdirSync,
@@ -27,7 +29,7 @@ export const EXIT_CODES = Object.freeze({
 
 // Bumped when hydration behavior/commands or readiness probes change so old
 // cached readiness is never trusted after a toolchain policy update.
-const SCHEMA_VERSION = 8;
+const SCHEMA_VERSION = 9;
 const PROFILE_ID = 'nestjs';
 const FLUTTER_PROFILE_ID = 'flutter';
 const ALL_PROFILE_ID = 'all';
@@ -79,6 +81,23 @@ const FLUTTER_GENERATED_TRACKED_PATHS = Object.freeze([
   /^windows\/flutter\/generated_plugin_registrant\.(?:cc|h)$/,
   /^windows\/flutter\/generated_plugins\.cmake$/,
 ]);
+
+// These directories are touched by dependency hydration or by the generated
+// outputs that immediately follow it.  They are intentionally narrow: the
+// preflight may repair a Windows ReadOnly directory attribute only here, never
+// across the whole checkout or arbitrary user-owned paths.
+const GENERATED_WRITE_PATHS = Object.freeze({
+  [PROFILE_ID]: Object.freeze([
+    'backend-nest',
+  ]),
+  [FLUTTER_PROFILE_ID]: Object.freeze([
+    'lib/l10n',
+    'ios/Runner',
+    'linux/flutter',
+    'macos/Flutter',
+    'windows/flutter',
+  ]),
+});
 
 class PreparationError extends Error {
   constructor(code, message) {
@@ -279,6 +298,11 @@ export function toolchainFingerprint(root, profile = PROFILE_ID) {
         profile,
         toolchain: toolchainVersions(profile),
         files,
+        writableRoots: inspectGeneratedRootWriteability({
+          root,
+          profile,
+          probe: false,
+        }),
         materializedFingerprint,
         dependencyCache: dependencyCache
           ? {
@@ -731,6 +755,195 @@ function isPhysicalDirectory(value) {
   }
 }
 
+function isPhysicalWritableDirectory(value) {
+  try {
+    const metadata = lstatSync(value);
+    return metadata.isDirectory() && !metadata.isSymbolicLink();
+  } catch {
+    return false;
+  }
+}
+
+function generatedWritePathsForProfile(profile) {
+  if (profile === ALL_PROFILE_ID) {
+    return [
+      ...new Set([
+        ...GENERATED_WRITE_PATHS[PROFILE_ID],
+        ...GENERATED_WRITE_PATHS[FLUTTER_PROFILE_ID],
+      ]),
+    ];
+  }
+  return GENERATED_WRITE_PATHS[profile] || [];
+}
+
+function readOnlyDirectoryAttribute(absolutePath, platform = process.platform) {
+  if (platform !== 'win32') return false;
+  const result = spawnSync('attrib', [absolutePath], {
+    encoding: 'utf8',
+    windowsHide: true,
+    maxBuffer: 1024 * 1024,
+  });
+  if (result.error || result.status !== 0) return null;
+  return String(result.stdout || '')
+    .split(/\r?\n/)
+    .some((line) => /^\s*R(?:\s|$)/i.test(line));
+}
+
+function clearReadOnlyDirectoryAttribute(
+  absolutePath,
+  platform = process.platform,
+) {
+  if (platform !== 'win32') return true;
+  const result = spawnSync('attrib', ['-R', absolutePath], {
+    encoding: 'utf8',
+    windowsHide: true,
+    maxBuffer: 1024 * 1024,
+  });
+  return !result.error && result.status === 0;
+}
+
+function probeDirectoryWrite(absolutePath) {
+  const probePath = path.join(
+    absolutePath,
+    `.opshub-write-probe-${process.pid}-${Date.now()}-${Math.random()
+      .toString(16)
+      .slice(2)}`,
+  );
+  try {
+    writeFileSync(probePath, '', { flag: 'wx' });
+    return true;
+  } catch {
+    return false;
+  } finally {
+    try {
+      if (existsSync(probePath)) unlinkSync(probePath);
+    } catch {
+      // The probe is best-effort cleanup.  The caller still fails closed if
+      // the directory could not be written.
+    }
+  }
+}
+
+export function inspectGeneratedRootWriteability({
+  root = process.cwd(),
+  profile = ALL_PROFILE_ID,
+  platform = process.platform,
+  access = accessSync,
+  readOnly = readOnlyDirectoryAttribute,
+  probe = false,
+  probeWrite = probeDirectoryWrite,
+} = {}) {
+  const paths = generatedWritePathsForProfile(profile).map((relativePath) => {
+    const absolutePath = path.resolve(root, relativePath);
+    if (!existsSync(absolutePath)) {
+      return {
+        path: relativePath,
+        exists: false,
+        writable: true,
+        readOnlyAttribute: false,
+      };
+    }
+    if (!isPhysicalWritableDirectory(absolutePath)) {
+      return {
+        path: relativePath,
+        exists: true,
+        writable: false,
+        readOnlyAttribute: null,
+        error: 'not-a-directory',
+      };
+    }
+
+    const readOnlyAttribute = readOnly(absolutePath, platform);
+    let accessWritable = true;
+    try {
+      access(absolutePath, fsConstants.W_OK);
+    } catch {
+      accessWritable = false;
+    }
+    const writable =
+      accessWritable && readOnlyAttribute !== true &&
+      (!probe || probeWrite(absolutePath));
+    return {
+      path: relativePath,
+      exists: true,
+      writable,
+      readOnlyAttribute,
+      ...(writable
+        ? {}
+        : {
+            error:
+              readOnlyAttribute === true
+                ? 'read-only-directory-attribute'
+                : 'directory-not-writable',
+          }),
+    };
+  });
+
+  return {
+    ready: paths.every((entry) => entry.writable),
+    paths,
+  };
+}
+
+export function ensureGeneratedRootWriteability({
+  root = process.cwd(),
+  profile = ALL_PROFILE_ID,
+  dryRun = false,
+  platform = process.platform,
+  access = accessSync,
+  readOnly = readOnlyDirectoryAttribute,
+  clearReadOnly = clearReadOnlyDirectoryAttribute,
+  probeWrite = probeDirectoryWrite,
+} = {}) {
+  const initial = inspectGeneratedRootWriteability({
+    root,
+    profile,
+    platform,
+    access,
+    readOnly,
+    probe: !dryRun,
+    probeWrite,
+  });
+  if (dryRun || initial.ready) return initial;
+
+  const normalizedPaths = [];
+  for (const entry of initial.paths) {
+    if (
+      !entry.exists ||
+      entry.writable ||
+      entry.readOnlyAttribute !== true ||
+      platform !== 'win32'
+    ) {
+      continue;
+    }
+    const absolutePath = path.resolve(root, entry.path);
+    if (clearReadOnly(absolutePath, platform)) normalizedPaths.push(entry.path);
+  }
+
+  const final = inspectGeneratedRootWriteability({
+    root,
+    profile,
+    platform,
+    access,
+    readOnly,
+    probe: !dryRun,
+    probeWrite,
+  });
+  return {
+    ...final,
+    normalizedPaths,
+    ...(final.ready
+      ? {}
+      : {
+          error:
+            `Generated dependency paths are not writable: ${final.paths
+              .filter((entry) => !entry.writable)
+              .map((entry) => `${entry.path} (${entry.error || 'unknown'})`)
+              .join(', ')}.`,
+        }),
+  };
+}
+
 function flutterMaterializedFingerprint(packageConfigPath) {
   const packageConfig = readJsonFile(packageConfigPath);
   const packages = Array.isArray(packageConfig?.packages)
@@ -1089,6 +1302,11 @@ function installedPackageReadiness(root) {
 }
 
 function readinessForProfile(root, profile) {
+  const writableGeneratedRoots = inspectGeneratedRootWriteability({
+    root,
+    profile,
+    probe: false,
+  });
   if (profile === FLUTTER_PROFILE_ID) {
     const packageConfigPath = path.resolve(
       root,
@@ -1131,6 +1349,7 @@ function readinessForProfile(root, profile) {
       pluginDependencies: plugins.pluginDependencies,
       missingPlugins: plugins.missingPlugins,
       materializedFingerprint,
+      writableGeneratedRoots,
     };
   }
   const nodeModules = path.resolve(root, 'backend-nest/node_modules');
@@ -1154,6 +1373,7 @@ function readinessForProfile(root, profile) {
     prismaGenerated: installed.prismaGenerated,
     prismaDefault: installed.prismaDefault,
     installLockfile: existsSync(path.join(nodeModules, '.package-lock.json')),
+    writableGeneratedRoots,
   };
 }
 
@@ -1174,7 +1394,8 @@ function isReadyForProfile(value, profile) {
       value.pluginRoots &&
       value.pluginDependencies &&
       typeof value.materializedFingerprint === 'string' &&
-      value.materializedFingerprint.length > 0
+      value.materializedFingerprint.length > 0 &&
+      value.writableGeneratedRoots?.ready === true
     );
   }
   return (
@@ -1190,7 +1411,8 @@ function isReadyForProfile(value, profile) {
     value.prismaClientEntry &&
     value.prismaGenerated &&
     value.prismaDefault &&
-    value.installLockfile
+    value.installLockfile &&
+    value.writableGeneratedRoots?.ready === true
   );
 }
 
@@ -1537,6 +1759,23 @@ function prepareSingleProfileUnlocked({
     argv: step.argv,
   }));
   if (dryRun) return { exitCode: EXIT_CODES.PASS, result };
+
+  const writableRoots = ensureGeneratedRootWriteability({
+    root: resolvedRoot,
+    profile,
+    dryRun: false,
+  });
+  result.writableGeneratedRoots = writableRoots;
+  if (!writableRoots.ready) {
+    result.status = 'environment-failure';
+    result.error = sanitizeDiagnostic(
+      writableRoots.error ||
+        'Generated dependency paths are not writable before hydration.',
+      resolvedRoot,
+    );
+    result.readiness = readinessForProfile(resolvedRoot, profile);
+    return { exitCode: EXIT_CODES.ENVIRONMENT, result };
+  }
 
   const beforeEntries = profile === FLUTTER_PROFILE_ID ? statusEntries(resolvedRoot) : null;
   const beforeGeneratedFiles =

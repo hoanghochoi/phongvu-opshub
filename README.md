@@ -36,6 +36,12 @@ worktrees must use the doctor command and the shared wrapper before the first
 build/test; direct raw Flutter commands are not a supported dependency
 boundary.
 
+The preflight also verifies that generated worktree roots are writable. On
+Windows it repairs only a ReadOnly directory attribute in the known generated
+roots; an ACL, symlink or other filesystem denial stops before hydration with a
+sanitized remediation instead of surfacing later as a misleading missing-
+dependency build error.
+
 If `API_BASE_URL` is not provided, the app falls back to the LAN development URL in `ApiConstants`.
 
 ## Backend
