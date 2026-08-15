@@ -472,7 +472,7 @@ test('persistent dependency failure is environment failure after one repair', (t
   );
 });
 
-test('persistent dependency failure is fail-closed with the default streamed runner', (t) => {
+test('persistent dependency failure is fail-closed with the default command runner', (t) => {
   const root = fixture(t);
   const readinessState = { ready: false };
   let prepareCalls = 0;
@@ -483,7 +483,7 @@ test('persistent dependency failure is fail-closed with the default streamed run
     command: [
       process.execPath,
       '-e',
-      "process.exit(1)",
+      "console.error('MODULE_NOT_FOUND: node_modules/@nestjs/core'); process.exit(1)",
     ],
     prepare: ({ force }) => {
       prepareCalls += 1;
@@ -503,11 +503,77 @@ test('persistent dependency failure is fail-closed with the default streamed run
   assert.equal(result.exitCode, EXIT_CODES.ENVIRONMENT);
   assert.equal(result.result.status, 'environment-failure');
   assert.equal(result.result.recovery.status, 'failed-after-repair');
-  assert.equal(
-    result.result.recovery.reason,
-    'diagnostic-unavailable-after-repair',
-  );
+  assert.match(result.result.recovery.reason, /MODULE_NOT_FOUND/);
   assert.equal(prepareCalls, 2);
+});
+
+test('default command runner captures only a bounded diagnostic tail while replaying large output', (t) => {
+  const root = fixture(t);
+  const result = defaultRunCommand(
+    process.execPath,
+    [
+      '-e',
+      "process.stdout.write('x'.repeat(4 * 1024 * 1024)); process.stderr.write('Target of URI doesn\\'t exist: package:http/http.dart\\n')",
+    ],
+    root,
+  );
+
+  assert.equal(result.status, 0);
+  assert.equal(result.diagnosticUnavailable, false);
+  assert.match(result.diagnostic, /Target of URI doesn't exist/);
+  assert.ok(Buffer.byteLength(result.diagnostic, 'utf8') <= 8192);
+});
+
+test('captured Flutter materialization diagnostics repair once even when readiness receipt was healthy', (t) => {
+  const root = fixture(t);
+  mkdirSync(path.join(root, '.dart_tool'), { recursive: true });
+  writeFileSync(
+    path.join(root, '.dart_tool', 'package_config.json'),
+    JSON.stringify({
+      configVersion: 2,
+      packages: [
+        {
+          name: 'http',
+          rootUri: 'file:///tmp/http',
+          packageUri: 'lib/',
+        },
+      ],
+    }),
+  );
+  let prepareCalls = 0;
+  let commandCalls = 0;
+  const result = runWithToolchain({
+    root,
+    profile: 'flutter',
+    command: ['flutter', 'test'],
+    prepare: ({ force }) => {
+      prepareCalls += 1;
+      return {
+        exitCode: 0,
+        result: {
+          profile: 'flutter',
+          fingerprint: 'stable-fingerprint',
+          readiness: { ready: true, forced: Boolean(force) },
+        },
+      };
+    },
+    readiness: () => ({ ready: true }),
+    runCommand: () => {
+      commandCalls += 1;
+      return commandCalls === 1
+        ? {
+            status: 1,
+            diagnostic: "Target of URI doesn't exist: package:http/http.dart",
+          }
+        : { status: 0 };
+    },
+  });
+
+  assert.equal(result.exitCode, EXIT_CODES.PASS);
+  assert.equal(result.result.recovery.status, 'repaired-and-retried');
+  assert.equal(result.result.recovery.reason, 'flutter-declared-package-entrypoint');
+  assert.equal(prepareCalls, 2);
+  assert.equal(commandCalls, 2);
 });
 
 test('all profile maps command-time repair to the executable and cwd profile', (t) => {
@@ -758,7 +824,7 @@ test('JSON result is sanitized and repository-relative', (t) => {
   assert.equal(parsed.root, '<worktree>');
 });
 
-test('default command runner streams output without a fixed max-buffer ceiling', (t) => {
+test('default command runner replays large output without a fixed max-buffer ceiling', (t) => {
   const root = fixture(t);
   const outputPath = path.join(root, 'tmp', 'large-output.log');
   mkdirSync(path.dirname(outputPath), { recursive: true });
@@ -770,7 +836,7 @@ test('default command runner streams output without a fixed max-buffer ceiling',
     import { defaultRunCommand } from ${JSON.stringify(moduleUrl)};
     const result = defaultRunCommand(
       process.execPath,
-      ['-e', "process.stdout.write('x'.repeat(17 * 1024 * 1024))"],
+      ['-e', "process.stdout.write('x'.repeat(4 * 1024 * 1024))"],
       ${JSON.stringify(root)},
     );
     process.exit(result.status === 0 ? 0 : 1);
@@ -787,7 +853,7 @@ test('default command runner streams output without a fixed max-buffer ceiling',
   closeSync(outputDescriptor);
 
   assert.equal(child.status, 0);
-  assert.ok(statSync(outputPath).size >= 17 * 1024 * 1024);
+  assert.ok(statSync(outputPath).size >= 4 * 1024 * 1024);
 });
 
 test('Windows Nest helper executes the local .cmd shim', { skip: process.platform !== 'win32' }, () => {

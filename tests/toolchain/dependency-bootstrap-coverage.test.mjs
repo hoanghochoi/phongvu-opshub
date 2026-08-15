@@ -335,6 +335,19 @@ test("release Flutter builds use the inline boundary and disable the implicit Pu
   }
 });
 
+test("the shared Flutter setup action materializes the worktree before the first build", () => {
+  const action = source(".github/actions/setup-flutter/action.yml");
+  assert.match(
+    action,
+    /node scripts\/run-with-toolchain\.mjs --profile flutter --preflight-only/,
+    "setup-flutter must hydrate the checked-out worktree after restoring the Pub cache",
+  );
+  assert.match(
+    action,
+    /name: Materialize repository Flutter dependencies/,
+  );
+});
+
 test("Windows MSIX helpers use the inline Flutter boundary", () => {
   for (const relativePath of [
     "scripts/build-windows-msix-internal.ps1",
