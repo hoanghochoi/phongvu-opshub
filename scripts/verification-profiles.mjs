@@ -14,6 +14,7 @@ export const PROFILES = Object.freeze([
       /^\.agents\//,
       /^\.harness\//,
       /^\.gitignore$/,
+      /^\.vscode\//,
       /^docs\/(?:WORKFLOW|README|FEATURE_INTAKE|TEST_MATRIX)\.md$/,
       /^scripts\/README\.md$/,
       /^docs\/(?:contracts|decisions|migrations|plans|templates)\//,

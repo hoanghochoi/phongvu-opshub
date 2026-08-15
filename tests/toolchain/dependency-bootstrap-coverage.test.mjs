@@ -1,7 +1,18 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import test from "node:test";
+
+import { findBoundaryViolations } from "../../scripts/verify-toolchain-boundary.mjs";
+import { matchProfiles } from "../../scripts/verification-profiles.mjs";
 
 const root = path.resolve(import.meta.dirname, "..", "..");
 
@@ -301,6 +312,69 @@ test("Nest command helper supports the repository and Docker-contained boundarie
   assert.match(helper, /existsSync\(toolchainRunner\)/);
   assert.match(helper, /localExecutable\(command\[0\]\)/);
   assert.match(helper, /stdio:\s*['"]inherit['"]/);
+  assert.match(helper, /Repository toolchain gate is missing/);
+  assert.match(helper, /process\.exit\(5\)/);
+  assert.doesNotMatch(
+    helper,
+    /spawnSync\(fallbackExecutable, command\.slice\(1\)/,
+    "the helper must not fall back to a raw Nest command",
+  );
+});
+
+test("tracked VS Code Flutter launch uses the doctor and disables the second Pub writer", () => {
+  const launch = JSON.parse(source(".vscode/launch.json"));
+  const configuration = launch.configurations.find(
+    (entry) => entry.type === "dart",
+  );
+  assert.ok(configuration, "the tracked Flutter launch profile is required");
+  assert.equal(
+    configuration.preLaunchTask,
+    "OpsHub: prepare Flutter toolchain",
+  );
+  assert.ok(configuration.toolArgs.includes("--no-pub"));
+
+  const tasks = JSON.parse(source(".vscode/tasks.json"));
+  const task = tasks.tasks.find(
+    (entry) => entry.label === configuration.preLaunchTask,
+  );
+  assert.ok(task, "the Flutter launch pre-task must exist");
+  assert.equal(task.command, "node");
+  assert.match(task.args.join(" "), /toolchain-doctor\.mjs/);
+  assert.match(task.args.join(" "), /--profile flutter/);
+});
+
+test("boundary scanner covers tracked IDE and docs command surfaces", () => {
+  assert.deepEqual(findBoundaryViolations(root), []);
+  assert.ok(
+    matchProfiles([".vscode/launch.json"]).some((profile) => profile.id === "harness"),
+    "IDE toolchain configuration must have an affected verification profile",
+  );
+  assert.match(
+    source("docs/help/README.md"),
+    /run-with-toolchain\.mjs --profile flutter -- flutter run --no-pub/,
+  );
+  assert.match(
+    source("docs/ui/date-range-picker.md"),
+    /run-with-toolchain\.mjs --profile flutter -- flutter run --no-pub/,
+  );
+});
+
+test("boundary scanner rejects an IDE launch without a preflight task", (t) => {
+  const fixture = mkdtempSync(path.join(os.tmpdir(), "opshub-ide-boundary-"));
+  t.after(() => rmSync(fixture, { recursive: true, force: true }));
+  mkdirSync(path.join(fixture, ".vscode"), { recursive: true });
+  writeFileSync(
+    path.join(fixture, ".vscode", "launch.json"),
+    '{"configurations":[{"type":"dart","request":"launch"}]}\n',
+  );
+  const violations = findBoundaryViolations(fixture);
+  assert.ok(
+    violations.some((entry) => entry.kind === "flutter-ide-prelaunch"),
+  );
+  assert.ok(
+    violations.some((entry) => entry.kind === "flutter-ide-no-pub"),
+  );
+  assert.equal(existsSync(path.join(fixture, ".vscode", "tasks.json")), false);
 });
 
 test("Docker and remote migration boundaries forbid implicit npx downloads", () => {

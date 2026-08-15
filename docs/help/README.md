@@ -295,7 +295,7 @@ route thật đang chạy trong app.
 ### 9.2. Kiểm tra public route Flutter
 
 ```powershell
-flutter run -d chrome --dart-define=API_BASE_URL=http://localhost:3000/api
+node scripts/run-with-toolchain.mjs --profile flutter -- flutter run --no-pub -d chrome --dart-define=API_BASE_URL=http://localhost:3000/api
 ```
 
 Sau đó mở `/help` trong app/web và xác nhận nội dung đọc được từ

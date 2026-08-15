@@ -25,7 +25,10 @@ const CURRENT_DOCUMENTS = Object.freeze([
 
 const COMMAND_SURFACE_DIRECTORIES = Object.freeze([
   ['docs/runbooks', new Set(['.md'])],
+  ['docs/help', new Set(['.md'])],
+  ['docs/ui', new Set(['.md'])],
   ['.github/workflows', new Set(['.yml', '.yaml'])],
+  ['.vscode', new Set(['.json'])],
   ['scripts', new Set(['.mjs', '.ps1', '.sh'])],
 ]);
 
@@ -131,10 +134,54 @@ function isExplicitlyAllowlisted(relativePath, line) {
   return false;
 }
 
+function structuredSurfaceViolations(root, relativePath, contents) {
+  const normalizedPath = normalize(relativePath);
+  const violations = [];
+  if (normalizedPath === '.vscode/launch.json' && /"type"\s*:\s*"dart"/i.test(contents)) {
+    if (!/"preLaunchTask"\s*:\s*"[^"]*toolchain/i.test(contents)) {
+      violations.push({
+        kind: 'flutter-ide-prelaunch',
+        path: normalizedPath,
+        line: 1,
+        text: 'Dart launch configuration must run the repository toolchain doctor before launch.',
+      });
+    }
+    if (!/"toolArgs"\s*:\s*\[[^\]]*"--no-pub"/is.test(contents)) {
+      violations.push({
+        kind: 'flutter-ide-no-pub',
+        path: normalizedPath,
+        line: 1,
+        text: 'Dart launch configuration must pass --no-pub after the shared preflight.',
+      });
+    }
+    const tasksPath = path.resolve(root, '.vscode/tasks.json');
+    if (!existsSync(tasksPath)) {
+      violations.push({
+        kind: 'flutter-ide-task-missing',
+        path: normalizedPath,
+        line: 1,
+        text: 'Dart launch configuration references a toolchain task but .vscode/tasks.json is missing.',
+      });
+    }
+  }
+  if (normalizedPath === '.vscode/tasks.json' && /toolchain-doctor/i.test(contents)) {
+    if (!/toolchain-doctor\.mjs[\s\S]*--profile[\s\S]*flutter/i.test(contents)) {
+      violations.push({
+        kind: 'flutter-ide-task-profile',
+        path: normalizedPath,
+        line: 1,
+        text: 'The VS Code toolchain task must prepare the Flutter profile.',
+      });
+    }
+  }
+  return violations;
+}
+
 export function findBoundaryViolations(root = process.cwd()) {
   const violations = [];
   for (const relativePath of readSurfaceFiles(path.resolve(root))) {
     const contents = readFileSync(path.resolve(root, relativePath), 'utf8');
+    violations.push(...structuredSurfaceViolations(root, relativePath, contents));
     const lines = contents.split(/\r?\n/);
     lines.forEach((line, index) => {
       if (isCommentOnly(line) || !isCommandLike(line)) return;
