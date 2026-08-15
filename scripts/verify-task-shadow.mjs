@@ -25,6 +25,14 @@ function classificationForExitCode(exitCode) {
   return 'shadow-observation';
 }
 
+function observedExitCode(command, fallbackExitCode) {
+  if (command?.status === 'environment-failure') return EXIT_CODES.ENVIRONMENT;
+  if (command?.status === 'product-failure' || command?.status === 'failed') {
+    return EXIT_CODES.PRODUCT_FAILURE;
+  }
+  return fallbackExitCode;
+}
+
 function queuedAt(nowMs) {
   const configured = process.env.OPSHUB_SHADOW_QUEUED_AT_UTC;
   const parsed = configured ? Date.parse(configured) : Number.NaN;
@@ -65,6 +73,32 @@ function firstActionableFailure(run, startedMs, elapsedBeforeMs = 0) {
   };
 }
 
+function firstObservedFailure(run, startedMs, elapsedBeforeMs = 0) {
+  if (!run) return null;
+  const commands = run.result?.result?.commands || [];
+  let elapsedMs = elapsedBeforeMs;
+  for (const command of commands) {
+    elapsedMs += Math.max(0, Number(command.durationMs || 0));
+    if (['passed', 'planned'].includes(command.status)) continue;
+    const exitCode = observedExitCode(command, run.exitCode);
+    return {
+      category: classificationForExitCode(exitCode),
+      exitCode,
+      commandId: command.id || null,
+      observedAtUtc: new Date(startedMs + elapsedMs).toISOString(),
+      elapsedMs,
+    };
+  }
+  if (run.exitCode === EXIT_CODES.PASS) return null;
+  return {
+    category: classificationForExitCode(run.exitCode),
+    exitCode: run.exitCode,
+    commandId: null,
+    observedAtUtc: new Date(startedMs + elapsedMs).toISOString(),
+    elapsedMs,
+  };
+}
+
 function durationMs(run) {
   return Number.isFinite(run?.result?.durationMs)
     ? Math.max(0, Math.round(run.result.durationMs))
@@ -76,6 +110,12 @@ function buildTelemetry({ queued, startedMs, completedMs, auto, full }) {
   const fullRetryCount = retryCount(full);
   const autoFailure = firstActionableFailure(auto, startedMs);
   const fullFailure = firstActionableFailure(full, startedMs, durationMs(auto));
+  const autoObservedFailure = firstObservedFailure(auto, startedMs);
+  const fullObservedFailure = firstObservedFailure(
+    full,
+    startedMs,
+    durationMs(auto),
+  );
   return {
     schemaVersion: SHADOW_SCHEMA_VERSION,
     cohortId: process.env.OPSHUB_SHADOW_COHORT_ID || DEFAULT_COHORT_ID,
@@ -89,6 +129,9 @@ function buildTelemetry({ queued, startedMs, completedMs, auto, full }) {
     autoRetryCount,
     fullRetryCount,
     firstActionableFailure: autoFailure || fullFailure,
+    autoFirstObservedFailure: autoObservedFailure,
+    fullFirstObservedFailure: fullObservedFailure,
+    firstObservedFailure: autoObservedFailure || fullObservedFailure,
   };
 }
 

@@ -1833,6 +1833,33 @@ Current live upstream retry evidence:
   origin/staging` with `stale=false`, PR/CI and guarded lifecycle cleanup.
   Rollback is one docs-only squash revert.
 
+## Workflow checkpoint (OPS-126; controlled failure-injection cohort)
+
+- OPS-126 branch/worktree is
+  `codex/ops-126-controlled-failure-injection-timing` /
+  `../opshub-ops-126-controlled-failure-injection-timing`, created by the
+  guarded lifecycle start gate from exact
+  `origin/staging@f0f080d78871b8e3112eab18c3c6f9e834ab36ea`. The canonical
+  staging worktree remained clean and protected.
+- The slice adds a real `verifyTask`/`buildShadowReport` controlled-command
+  seam, deterministic five-scenario evidence generation, fail-closed artifact
+  validation and additive `firstObservedFailure` telemetry. No product,
+  runtime, API, dependency-version or live shadow workflow behavior is changed.
+- Tracked evidence is
+  `docs/migrations/ops-72-failure-injection-cohort.json`. It records five
+  controlled scenarios, raw report hashes and repository-relative raw paths;
+  raw reports remain ignored under `tmp/ops-126-shadow/`. The aggregate is
+  explicitly `controlled-evidence-only` with `promotionDecision=do-not-promote`
+  and must not be used to claim the Phase 7B live targets.
+- Controlled calibration produced a 53.33% decision-latency reduction and
+  100% retry reduction across the five fixtures. These values are synthetic
+  calibration inputs, not representative live observations; OPS-72 remains
+  `revise` until the required live cohort meets its acceptance criteria.
+- Required publication proof is focused verification/runner/toolchain tests,
+  artifact validation with raw-hash recheck, `git diff --check`, exact
+  `verify-task --base origin/staging` with `stale=false`, PR/CI and guarded
+  lifecycle cleanup. Rollback is one OPS-126 squash revert.
+
 ## Result
 
 Historical Phase 0-1 artifacts, the generic verification foundation/canaries,

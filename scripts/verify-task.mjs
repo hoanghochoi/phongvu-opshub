@@ -420,7 +420,12 @@ function help() {
     `  --json <path>         Write schema-v1 result JSON\n`;
 }
 
-export function verifyTask({ root = ROOT, options = {}, runCommandFn = runCommand } = {}) {
+export function verifyTask({
+  root = ROOT,
+  options = {},
+  runCommandFn = runCommand,
+  toolVersionFn = toolVersion,
+} = {}) {
   const started = Date.now();
   const normalizedOptions = {
     base: options.base ?? null,
@@ -498,7 +503,7 @@ export function verifyTask({ root = ROOT, options = {}, runCommandFn = runComman
   for (const command of commands) {
     const key = displayExecutable(command.executable).replace(/[^A-Za-z0-9_.-]/g, '_');
     if (!(key in toolVersions)) {
-      toolVersions[key] = toolVersion(
+      toolVersions[key] = toolVersionFn(
         command.executable,
         root,
         resolveCommandCwd(root, command),

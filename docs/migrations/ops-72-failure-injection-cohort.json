@@ -1,0 +1,713 @@
+{
+  "formatVersion": 1,
+  "issue": "OPS-126",
+  "mode": "controlled-failure-injection",
+  "cohortId": "ops126-controlled-v1",
+  "generatedAtUtc": "2026-08-15T10:09:46.830Z",
+  "source": {
+    "repositoryRevision": "f0f080d78871b8e3112eab18c3c6f9e834ab36ea",
+    "scenarioDefinitionVersion": 1,
+    "scenarioDefinitionSha256": "903ca4c7c43335dcb58b09e28c7edd5565af31ef6f4bbb188a7660a85023994b"
+  },
+  "scenarios": [
+    {
+      "id": "environment-dependency-retry",
+      "faultClass": "environment/dependency-retry",
+      "fixture": {
+        "baseSha": "75dfb2e3e708ae22cf4488c144530ccdf28a2edf",
+        "headSha": "43d0828abafd541491fe1f8877ccfa71ae6502a0",
+        "changedPaths": [
+          "scripts/run-with-toolchain.mjs"
+        ]
+      },
+      "injection": {
+        "commandId": "toolchain-preflight",
+        "baseline": {
+          "delayMs": 1800,
+          "mode": "retry-pass"
+        },
+        "candidate": {
+          "delayMs": 900,
+          "mode": "pass"
+        }
+      },
+      "expected": {
+        "maxInfrastructureRetries": 1,
+        "productFailureRetries": 0
+      },
+      "observed": {
+        "baseline": {
+          "auto": {
+            "durationMs": 1800,
+            "decisionLatencyMs": 1800,
+            "firstObservedFailureMs": 1800,
+            "firstObservedFailure": {
+              "category": "environment-failure",
+              "exitCode": 5,
+              "commandId": "git-diff-check",
+              "elapsedMs": 1800
+            },
+            "retryCount": 1,
+            "exitCode": 0,
+            "classification": "shadow-observation",
+            "status": "passed",
+            "commandAttempts": 4,
+            "fingerprint": {
+              "before": "1e8ba8aeb09ce134b83b0793c53ffc683210b1c0e16b3f10f4691c7c0a1687b3",
+              "after": "1e8ba8aeb09ce134b83b0793c53ffc683210b1c0e16b3f10f4691c7c0a1687b3",
+              "stale": false
+            }
+          },
+          "full": {
+            "durationMs": 1800,
+            "decisionLatencyMs": 1800,
+            "firstObservedFailureMs": 1800,
+            "firstObservedFailure": {
+              "category": "environment-failure",
+              "exitCode": 5,
+              "commandId": "git-diff-check",
+              "elapsedMs": 1800
+            },
+            "retryCount": 1,
+            "exitCode": 0,
+            "classification": "shadow-observation",
+            "status": "passed",
+            "commandAttempts": 14,
+            "fingerprint": {
+              "before": "c47e50132614ace321478e2bde899ad5ddcd974613707e9d89866bc507bc837e",
+              "after": "c47e50132614ace321478e2bde899ad5ddcd974613707e9d89866bc507bc837e",
+              "stale": false
+            }
+          },
+          "autoExitCode": 0,
+          "fullExitCode": 0,
+          "autoRetryCount": 1,
+          "fullRetryCount": 1
+        },
+        "candidate": {
+          "auto": {
+            "durationMs": 900,
+            "decisionLatencyMs": 900,
+            "firstObservedFailureMs": null,
+            "firstObservedFailure": null,
+            "retryCount": 0,
+            "exitCode": 0,
+            "classification": "shadow-observation",
+            "status": "passed",
+            "commandAttempts": 3,
+            "fingerprint": {
+              "before": "1e8ba8aeb09ce134b83b0793c53ffc683210b1c0e16b3f10f4691c7c0a1687b3",
+              "after": "1e8ba8aeb09ce134b83b0793c53ffc683210b1c0e16b3f10f4691c7c0a1687b3",
+              "stale": false
+            }
+          },
+          "full": {
+            "durationMs": 900,
+            "decisionLatencyMs": 900,
+            "firstObservedFailureMs": null,
+            "firstObservedFailure": null,
+            "retryCount": 0,
+            "exitCode": 0,
+            "classification": "shadow-observation",
+            "status": "passed",
+            "commandAttempts": 13,
+            "fingerprint": {
+              "before": "c47e50132614ace321478e2bde899ad5ddcd974613707e9d89866bc507bc837e",
+              "after": "c47e50132614ace321478e2bde899ad5ddcd974613707e9d89866bc507bc837e",
+              "stale": false
+            }
+          },
+          "autoExitCode": 0,
+          "fullExitCode": 0,
+          "autoRetryCount": 0,
+          "fullRetryCount": 0
+        }
+      },
+      "invariants": {
+        "productFailureDidNotRetryToGreen": true,
+        "staleProofRejected": false,
+        "candidateRetryCountBounded": true
+      },
+      "rawArtifacts": [
+        {
+          "file": "tmp/ops-126-shadow/environment-dependency-retry/baseline.json",
+          "sha256": "274dbed096b6f97c59a891660249cd514834c6095145a3019bb31efb402e32a6"
+        },
+        {
+          "file": "tmp/ops-126-shadow/environment-dependency-retry/candidate.json",
+          "sha256": "49d3844d6cc29c1dc48612608e5c97a9329aa033ab8c0583833fff14b7cb6a94"
+        }
+      ],
+      "scenarioHash": "4ed9c62ad4811b71476e68db76179b9c701fa2c6efe9b68c17ceafd25e0a91fa"
+    },
+    {
+      "id": "missing-command-tool",
+      "faultClass": "environment/missing-command",
+      "fixture": {
+        "baseSha": "7a28332981545a741a1d308e2a9dba1b013b3f14",
+        "headSha": "cb15bf06cdf4d23b236c5233077d82fa346bda56",
+        "changedPaths": [
+          "scripts/verification-profiles.mjs"
+        ]
+      },
+      "injection": {
+        "commandId": "runner-command",
+        "baseline": {
+          "delayMs": 1500,
+          "mode": "retry-pass"
+        },
+        "candidate": {
+          "delayMs": 700,
+          "mode": "pass"
+        }
+      },
+      "expected": {
+        "maxInfrastructureRetries": 1,
+        "productFailureRetries": 0
+      },
+      "observed": {
+        "baseline": {
+          "auto": {
+            "durationMs": 1500,
+            "decisionLatencyMs": 1500,
+            "firstObservedFailureMs": 1500,
+            "firstObservedFailure": {
+              "category": "environment-failure",
+              "exitCode": 5,
+              "commandId": "runner-syntax",
+              "elapsedMs": 1500
+            },
+            "retryCount": 1,
+            "exitCode": 0,
+            "classification": "shadow-observation",
+            "status": "passed",
+            "commandAttempts": 2,
+            "fingerprint": {
+              "before": "262f054826ba3a41ebba619fcbe56f7fb28f5e68818b1f812e305c865fcbb352",
+              "after": "262f054826ba3a41ebba619fcbe56f7fb28f5e68818b1f812e305c865fcbb352",
+              "stale": false
+            }
+          },
+          "full": {
+            "durationMs": 1500,
+            "decisionLatencyMs": 1500,
+            "firstObservedFailureMs": 1500,
+            "firstObservedFailure": {
+              "category": "environment-failure",
+              "exitCode": 5,
+              "commandId": "git-diff-check",
+              "elapsedMs": 1500
+            },
+            "retryCount": 1,
+            "exitCode": 0,
+            "classification": "shadow-observation",
+            "status": "passed",
+            "commandAttempts": 14,
+            "fingerprint": {
+              "before": "f2af2bd08148cd5929d934de371a814763fdab3a2687b29fd4d71457e28c75c7",
+              "after": "f2af2bd08148cd5929d934de371a814763fdab3a2687b29fd4d71457e28c75c7",
+              "stale": false
+            }
+          },
+          "autoExitCode": 0,
+          "fullExitCode": 0,
+          "autoRetryCount": 1,
+          "fullRetryCount": 1
+        },
+        "candidate": {
+          "auto": {
+            "durationMs": 700,
+            "decisionLatencyMs": 700,
+            "firstObservedFailureMs": null,
+            "firstObservedFailure": null,
+            "retryCount": 0,
+            "exitCode": 0,
+            "classification": "shadow-observation",
+            "status": "passed",
+            "commandAttempts": 1,
+            "fingerprint": {
+              "before": "262f054826ba3a41ebba619fcbe56f7fb28f5e68818b1f812e305c865fcbb352",
+              "after": "262f054826ba3a41ebba619fcbe56f7fb28f5e68818b1f812e305c865fcbb352",
+              "stale": false
+            }
+          },
+          "full": {
+            "durationMs": 700,
+            "decisionLatencyMs": 700,
+            "firstObservedFailureMs": null,
+            "firstObservedFailure": null,
+            "retryCount": 0,
+            "exitCode": 0,
+            "classification": "shadow-observation",
+            "status": "passed",
+            "commandAttempts": 13,
+            "fingerprint": {
+              "before": "f2af2bd08148cd5929d934de371a814763fdab3a2687b29fd4d71457e28c75c7",
+              "after": "f2af2bd08148cd5929d934de371a814763fdab3a2687b29fd4d71457e28c75c7",
+              "stale": false
+            }
+          },
+          "autoExitCode": 0,
+          "fullExitCode": 0,
+          "autoRetryCount": 0,
+          "fullRetryCount": 0
+        }
+      },
+      "invariants": {
+        "productFailureDidNotRetryToGreen": true,
+        "staleProofRejected": false,
+        "candidateRetryCountBounded": true
+      },
+      "rawArtifacts": [
+        {
+          "file": "tmp/ops-126-shadow/missing-command-tool/baseline.json",
+          "sha256": "f40b9742260b0ca2e87c4b6af1ffa1eb26dddf0a9af027521108514c2c44d807"
+        },
+        {
+          "file": "tmp/ops-126-shadow/missing-command-tool/candidate.json",
+          "sha256": "93fa2062212a809e817037aa599a6286b7ea4d4cc3cf81534da4f2fc8614c94e"
+        }
+      ],
+      "scenarioHash": "56d6af3c7ab8c42018d7781f2c9824d1afe26892f06d5abf013d61e02e862001"
+    },
+    {
+      "id": "stale-proof",
+      "faultClass": "stale-proof",
+      "fixture": {
+        "baseSha": "6d2632c00d3a70108d1ed7664e16129461ac889f",
+        "headSha": "4173889d4120395ea1b5db6633e14158f9afa81e",
+        "changedPaths": [
+          "tests/verification/verify-task.test.mjs"
+        ]
+      },
+      "injection": {
+        "commandId": "fingerprint-recheck",
+        "baseline": {
+          "delayMs": 1600,
+          "mode": "stale"
+        },
+        "candidate": {
+          "delayMs": 800,
+          "mode": "stale"
+        }
+      },
+      "expected": {
+        "maxInfrastructureRetries": 1,
+        "productFailureRetries": 0
+      },
+      "observed": {
+        "baseline": {
+          "auto": {
+            "durationMs": 1600,
+            "decisionLatencyMs": 1600,
+            "firstObservedFailureMs": 1600,
+            "firstObservedFailure": {
+              "category": "environment-failure",
+              "exitCode": 5,
+              "commandId": "git-diff-check",
+              "elapsedMs": 1600
+            },
+            "retryCount": 0,
+            "exitCode": 4,
+            "classification": "stale-proof",
+            "status": "failed",
+            "commandAttempts": 1,
+            "fingerprint": {
+              "before": "e0230a46184691ee0ef8815386d0898782b29a6d59bb7b5ac73e7aecaf41262c",
+              "after": "19e1ddb3c2fe19cb73565737950adc20bc5d15fb8bc4df8927917663a94d844c",
+              "stale": true
+            }
+          },
+          "full": {
+            "durationMs": 1600,
+            "decisionLatencyMs": 1600,
+            "firstObservedFailureMs": 1600,
+            "firstObservedFailure": {
+              "category": "environment-failure",
+              "exitCode": 5,
+              "commandId": "git-diff-check",
+              "elapsedMs": 1600
+            },
+            "retryCount": 0,
+            "exitCode": 4,
+            "classification": "stale-proof",
+            "status": "failed",
+            "commandAttempts": 1,
+            "fingerprint": {
+              "before": "4abf4a77b138bfbc6b5ca3410a1104bb1035d6a281f32d2f442627e81cb86300",
+              "after": "6ac83e8b22a454c5030d3028aac1ec8fdc6b44240382da554e92a17232573012",
+              "stale": true
+            }
+          },
+          "autoExitCode": 4,
+          "fullExitCode": 4,
+          "autoRetryCount": 0,
+          "fullRetryCount": 0
+        },
+        "candidate": {
+          "auto": {
+            "durationMs": 800,
+            "decisionLatencyMs": 800,
+            "firstObservedFailureMs": 800,
+            "firstObservedFailure": {
+              "category": "environment-failure",
+              "exitCode": 5,
+              "commandId": "git-diff-check",
+              "elapsedMs": 800
+            },
+            "retryCount": 0,
+            "exitCode": 4,
+            "classification": "stale-proof",
+            "status": "failed",
+            "commandAttempts": 1,
+            "fingerprint": {
+              "before": "e0230a46184691ee0ef8815386d0898782b29a6d59bb7b5ac73e7aecaf41262c",
+              "after": "19e1ddb3c2fe19cb73565737950adc20bc5d15fb8bc4df8927917663a94d844c",
+              "stale": true
+            }
+          },
+          "full": {
+            "durationMs": 800,
+            "decisionLatencyMs": 800,
+            "firstObservedFailureMs": 800,
+            "firstObservedFailure": {
+              "category": "environment-failure",
+              "exitCode": 5,
+              "commandId": "git-diff-check",
+              "elapsedMs": 800
+            },
+            "retryCount": 0,
+            "exitCode": 4,
+            "classification": "stale-proof",
+            "status": "failed",
+            "commandAttempts": 1,
+            "fingerprint": {
+              "before": "4abf4a77b138bfbc6b5ca3410a1104bb1035d6a281f32d2f442627e81cb86300",
+              "after": "6ac83e8b22a454c5030d3028aac1ec8fdc6b44240382da554e92a17232573012",
+              "stale": true
+            }
+          },
+          "autoExitCode": 4,
+          "fullExitCode": 4,
+          "autoRetryCount": 0,
+          "fullRetryCount": 0
+        }
+      },
+      "invariants": {
+        "productFailureDidNotRetryToGreen": true,
+        "staleProofRejected": true,
+        "candidateRetryCountBounded": true
+      },
+      "rawArtifacts": [
+        {
+          "file": "tmp/ops-126-shadow/stale-proof/baseline.json",
+          "sha256": "13815ee264ebd2255341efb2963fc5380d73fa67593e13a2389df009cb089d07"
+        },
+        {
+          "file": "tmp/ops-126-shadow/stale-proof/candidate.json",
+          "sha256": "2a92fd1660148c9eb7f7263e39aa09567cc90f6ecc4a55067c7c13114754db0f"
+        }
+      ],
+      "scenarioHash": "1d939eb0d0887e930cd7dc5f1df695f0d852143b9cabb10450950b97feb6e454"
+    },
+    {
+      "id": "product-failure",
+      "faultClass": "product-failure",
+      "fixture": {
+        "baseSha": "9975aaf9028245284078d689d9dc2858a7d080dd",
+        "headSha": "055b595d3f63be1afae86d4cf2ca94a30952d26d",
+        "changedPaths": [
+          "lib/feature/example.dart"
+        ]
+      },
+      "injection": {
+        "commandId": "product-test",
+        "baseline": {
+          "delayMs": 1300,
+          "mode": "product-failure"
+        },
+        "candidate": {
+          "delayMs": 550,
+          "mode": "product-failure"
+        }
+      },
+      "expected": {
+        "maxInfrastructureRetries": 1,
+        "productFailureRetries": 0
+      },
+      "observed": {
+        "baseline": {
+          "auto": {
+            "durationMs": 1300,
+            "decisionLatencyMs": 1300,
+            "firstObservedFailureMs": 1300,
+            "firstObservedFailure": {
+              "category": "product-failure",
+              "exitCode": 3,
+              "commandId": "flutter-analyze",
+              "elapsedMs": 1300
+            },
+            "retryCount": 0,
+            "exitCode": 3,
+            "classification": "product-failure",
+            "status": "failed",
+            "commandAttempts": 1,
+            "fingerprint": {
+              "before": "964a8a121f582143b86c6a870dcf86ef8c313afd2c52029a78e3600059c6be29",
+              "after": "964a8a121f582143b86c6a870dcf86ef8c313afd2c52029a78e3600059c6be29",
+              "stale": false
+            }
+          },
+          "full": {
+            "durationMs": 1300,
+            "decisionLatencyMs": 1300,
+            "firstObservedFailureMs": 1300,
+            "firstObservedFailure": {
+              "category": "product-failure",
+              "exitCode": 3,
+              "commandId": "git-diff-check",
+              "elapsedMs": 1300
+            },
+            "retryCount": 0,
+            "exitCode": 3,
+            "classification": "product-failure",
+            "status": "failed",
+            "commandAttempts": 1,
+            "fingerprint": {
+              "before": "a1b157d7f46b74900262f7b58e7408d594f724cc4cd54ac850d4cb6e301586ac",
+              "after": "a1b157d7f46b74900262f7b58e7408d594f724cc4cd54ac850d4cb6e301586ac",
+              "stale": false
+            }
+          },
+          "autoExitCode": 3,
+          "fullExitCode": 3,
+          "autoRetryCount": 0,
+          "fullRetryCount": 0
+        },
+        "candidate": {
+          "auto": {
+            "durationMs": 550,
+            "decisionLatencyMs": 550,
+            "firstObservedFailureMs": 550,
+            "firstObservedFailure": {
+              "category": "product-failure",
+              "exitCode": 3,
+              "commandId": "flutter-analyze",
+              "elapsedMs": 550
+            },
+            "retryCount": 0,
+            "exitCode": 3,
+            "classification": "product-failure",
+            "status": "failed",
+            "commandAttempts": 1,
+            "fingerprint": {
+              "before": "964a8a121f582143b86c6a870dcf86ef8c313afd2c52029a78e3600059c6be29",
+              "after": "964a8a121f582143b86c6a870dcf86ef8c313afd2c52029a78e3600059c6be29",
+              "stale": false
+            }
+          },
+          "full": {
+            "durationMs": 550,
+            "decisionLatencyMs": 550,
+            "firstObservedFailureMs": 550,
+            "firstObservedFailure": {
+              "category": "product-failure",
+              "exitCode": 3,
+              "commandId": "git-diff-check",
+              "elapsedMs": 550
+            },
+            "retryCount": 0,
+            "exitCode": 3,
+            "classification": "product-failure",
+            "status": "failed",
+            "commandAttempts": 1,
+            "fingerprint": {
+              "before": "a1b157d7f46b74900262f7b58e7408d594f724cc4cd54ac850d4cb6e301586ac",
+              "after": "a1b157d7f46b74900262f7b58e7408d594f724cc4cd54ac850d4cb6e301586ac",
+              "stale": false
+            }
+          },
+          "autoExitCode": 3,
+          "fullExitCode": 3,
+          "autoRetryCount": 0,
+          "fullRetryCount": 0
+        }
+      },
+      "invariants": {
+        "productFailureDidNotRetryToGreen": true,
+        "staleProofRejected": false,
+        "candidateRetryCountBounded": true
+      },
+      "rawArtifacts": [
+        {
+          "file": "tmp/ops-126-shadow/product-failure/baseline.json",
+          "sha256": "f4c877ab64b2e7fe726b272ee21ac633f1c914dfd500992fe8ef44549f8a55b7"
+        },
+        {
+          "file": "tmp/ops-126-shadow/product-failure/candidate.json",
+          "sha256": "12adac3637134bf09036d05e0ab64f12661a18a8ea3ff911350509b0ff54a379"
+        }
+      ],
+      "scenarioHash": "8d3f1caf90ca36a2f66714e2abb6e5fe3286749fc73ae41e70982113503ecbe9"
+    },
+    {
+      "id": "contract-unknown-path",
+      "faultClass": "contract/unknown-path",
+      "fixture": {
+        "baseSha": "06c1a00165881f5595e3e2d7b258a4884344bd7d",
+        "headSha": "b7ec22069e5a6b8961748c2b642838609030102a",
+        "changedPaths": [
+          "unknown/unowned.path"
+        ]
+      },
+      "injection": {
+        "commandId": "path-contract",
+        "baseline": {
+          "delayMs": 900,
+          "mode": "contract-failure"
+        },
+        "candidate": {
+          "delayMs": 300,
+          "mode": "contract-failure"
+        }
+      },
+      "expected": {
+        "maxInfrastructureRetries": 1,
+        "productFailureRetries": 0
+      },
+      "observed": {
+        "baseline": {
+          "auto": {
+            "durationMs": 900,
+            "decisionLatencyMs": 900,
+            "firstObservedFailureMs": 900,
+            "firstObservedFailure": {
+              "category": "contract-failure",
+              "exitCode": 2,
+              "commandId": null,
+              "elapsedMs": 900
+            },
+            "retryCount": 0,
+            "exitCode": 2,
+            "classification": "contract-failure",
+            "status": "failed",
+            "commandAttempts": 0,
+            "fingerprint": {
+              "before": null,
+              "after": null,
+              "stale": false
+            }
+          },
+          "full": {
+            "durationMs": 900,
+            "decisionLatencyMs": 900,
+            "firstObservedFailureMs": 900,
+            "firstObservedFailure": {
+              "category": "contract-failure",
+              "exitCode": 2,
+              "commandId": null,
+              "elapsedMs": 900
+            },
+            "retryCount": 0,
+            "exitCode": 2,
+            "classification": "contract-failure",
+            "status": "failed",
+            "commandAttempts": 0,
+            "fingerprint": {
+              "before": null,
+              "after": null,
+              "stale": false
+            }
+          },
+          "autoExitCode": 2,
+          "fullExitCode": 2,
+          "autoRetryCount": 0,
+          "fullRetryCount": 0
+        },
+        "candidate": {
+          "auto": {
+            "durationMs": 300,
+            "decisionLatencyMs": 300,
+            "firstObservedFailureMs": 300,
+            "firstObservedFailure": {
+              "category": "contract-failure",
+              "exitCode": 2,
+              "commandId": null,
+              "elapsedMs": 300
+            },
+            "retryCount": 0,
+            "exitCode": 2,
+            "classification": "contract-failure",
+            "status": "failed",
+            "commandAttempts": 0,
+            "fingerprint": {
+              "before": null,
+              "after": null,
+              "stale": false
+            }
+          },
+          "full": {
+            "durationMs": 300,
+            "decisionLatencyMs": 300,
+            "firstObservedFailureMs": 300,
+            "firstObservedFailure": {
+              "category": "contract-failure",
+              "exitCode": 2,
+              "commandId": null,
+              "elapsedMs": 300
+            },
+            "retryCount": 0,
+            "exitCode": 2,
+            "classification": "contract-failure",
+            "status": "failed",
+            "commandAttempts": 0,
+            "fingerprint": {
+              "before": null,
+              "after": null,
+              "stale": false
+            }
+          },
+          "autoExitCode": 2,
+          "fullExitCode": 2,
+          "autoRetryCount": 0,
+          "fullRetryCount": 0
+        }
+      },
+      "invariants": {
+        "productFailureDidNotRetryToGreen": true,
+        "staleProofRejected": false,
+        "candidateRetryCountBounded": true
+      },
+      "rawArtifacts": [
+        {
+          "file": "tmp/ops-126-shadow/contract-unknown-path/baseline.json",
+          "sha256": "71ea1e4af6807fd9306044c7256bcefa045007f76d61592847bf67e177c0cbac"
+        },
+        {
+          "file": "tmp/ops-126-shadow/contract-unknown-path/candidate.json",
+          "sha256": "306ec80f5e8a57090f5191f1810a2db38576a183471f829960c7ea29f75dc2f0"
+        }
+      ],
+      "scenarioHash": "68c594cbdf06ec8adada78b5138c494dd36dadf54e8e925e103fe1823ccce42a"
+    }
+  ],
+  "aggregate": {
+    "scenarioCount": 5,
+    "baselineMedianDecisionLatencyMs": 1500,
+    "candidateMedianDecisionLatencyMs": 700,
+    "controlledDecisionLatencyReductionPercent": 53.33,
+    "baselineRetryCount": 2,
+    "candidateRetryCount": 0,
+    "rerunReductionPercent": 100,
+    "staleProofRejections": 1,
+    "productFailureRetries": 0,
+    "metricBasis": "controlled-decision-latency",
+    "targetStatus": "controlled-evidence-only",
+    "promotionDecision": "do-not-promote"
+  },
+  "interpretation": [
+    "This artifact uses the real verifyTask and buildShadowReport seams with controlled command results.",
+    "Delay values and candidate behavior are calibration fixtures, not representative live CI observations.",
+    "The aggregate must not be used to promote the affected matrix or claim Phase 7B targets."
+  ]
+}
