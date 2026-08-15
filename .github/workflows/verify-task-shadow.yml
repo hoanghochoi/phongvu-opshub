@@ -53,7 +53,8 @@ jobs:
           const reportPath = 'tmp/verify-task-shadow.json';
           const report = JSON.parse(fs.readFileSync(reportPath, 'utf8'));
           const completedAt = new Date().toISOString();
-          const startedAt = new Date(process.env.RUN_STARTED_AT).toISOString();
+          const startedCandidate = process.env.RUN_STARTED_AT || report.telemetry?.startedAtUtc || report.telemetry?.queuedAtUtc || completedAt;
+          const startedAt = new Date(startedCandidate).toISOString();
           const bytes = fs.readFileSync(reportPath);
           const manifest = {
             formatVersion: 1,
