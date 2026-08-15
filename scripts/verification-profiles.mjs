@@ -104,6 +104,7 @@ export const PROFILES = Object.freeze([
       /^\.github\/workflows\//,
       /^\.github\/actions\/setup-flutter\//,
       /^docs\/runbooks\/git-release-playbook\.md$/,
+      /^scripts\/build-windows-msix-(?:internal|store)\.ps1$/,
       /^scripts\/(?:task-lifecycle|test-git-release-workflow|validate-premerge|validate-release|release-guard)/,
       /^tests\/release\//,
     ],
