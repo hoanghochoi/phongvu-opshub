@@ -4,12 +4,12 @@ Date: 2026-08-13
 
 ## Status
 
-Active — the current workflow checkpoint is OPS-127 deterministic dependency
-bootstrap/resume guard on
-`origin/staging@10881fdff44f0357d251f777e3bac4d7fdd522c2`. OPS-126 PR #243 was
-squash-merged and guarded lifecycle cleanup left only the canonical staging
-worktree. OPS-72 still has five comparable post-telemetry observations, but the
-measured timing improvement is only 15.05% and the rerun target is not
+Active — the current workflow checkpoint is OPS-129 master-plan
+reconciliation on `origin/staging@8b1aed00af76796bafe74d3ecdf268a7fadf9330`.
+OPS-128 PR #245 was squash-merged at that SHA, staging deploy
+`31884524898` passed, and guarded lifecycle cleanup left only the canonical
+staging worktree. OPS-72 still has five comparable post-telemetry observations,
+but the measured timing improvement is only 15.05% and the rerun target is not
 measurable, so the matrix remains observational and the phase is explicitly
 `revise`. Product, API, permission and runtime behavior stay unchanged.
 
@@ -1857,14 +1857,14 @@ Current live upstream retry evidence:
   `verify-task --base origin/staging` with `stale=false`, PR/CI and guarded
   lifecycle cleanup. Rollback is one OPS-126 squash revert.
 
-## Workflow checkpoint (OPS-127; deterministic dependency bootstrap/resume guard)
+## Historical workflow checkpoint (OPS-127; deterministic dependency bootstrap/resume guard)
 
-- OPS-127 branch/worktree is
-  `codex/ops-127-deterministic-dependency-bootstrap-resume-guard` /
-  `../opshub-ops-127-deterministic-dependency-bootstrap-resume-guard`, created
-  by the guarded lifecycle start gate from exact
-  `origin/staging@10881fdff44f0357d251f777e3bac4d7fdd522c2`. The canonical
-  staging worktree was clean and remained protected.
+- OPS-127 was created by the guarded lifecycle start gate from exact
+  `origin/staging@10881fdff44f0357d251f777e3bac4d7fdd522c2`, published as PR
+  #244, and squash-merged into `staging` at
+  `00927eedb793d7c2b2c895a72b3b6fe1a7f4b205`. Staging deploy
+  `31882302133` passed and the task worktree/local/remote branch were removed;
+  no OPS-127 implementation worktree remains.
 - The first slice closes current guidance/runbook bypasses: the validation
   ladder and home-server Flutter build now use the repository toolchain gate;
   the web smoke remediation points to the same gate. A fail-closed scanner
@@ -1874,14 +1874,53 @@ Current live upstream retry evidence:
   coverage for raw Flutter/Nest commands, wrapper continuations, Docker
   maintenance and the explicit remote Prisma exception. No product/runtime/API,
   dependency-version or archive behavior changes are in scope.
-- Start proof: lifecycle created the task at the exact base and all-toolchain
-  hydration passed for Nest npm/Prisma and Flutter Pub. Focused scanner and
-  boundary coverage passed `21/21`; exact affected verification and cold/resume
-  canary proof remain required before publication.
-- Required publication proof is scanner/static/toolchain tests, cold/partial
-  dependency failure-injection coverage, `git diff --check`, exact
-  `verify-task --base origin/staging` with `stale=false`, PR/CI and guarded
-  lifecycle cleanup. Rollback is one OPS-127 squash revert.
+- Start and publication proof passed: lifecycle all-toolchain hydration,
+  scanner/boundary coverage, cold/resume canaries, exact affected verification
+  with `stale=false`, PR checks, staging deployment and guarded cleanup. OPS-127
+  remains `Ready for QA`; rollback is one squash revert.
+
+## Historical workflow checkpoint (OPS-128; Windows Flutter Pub cache lock)
+
+- OPS-128 started from exact `origin/staging@00927eedb793d7c2b2c895a72b3b6fe1a7f4b205`
+  through the guarded lifecycle. The observed Windows gap was that an unset
+  `PUB_CACHE` made the repository lock use `%USERPROFILE%/.pub-cache` while
+  Flutter materialized packages under `%LOCALAPPDATA%/Pub/Cache`; parallel
+  worktrees therefore were not serialized against the actual shared cache.
+- The slice added a platform-injectable resolver, pins the resolved absolute
+  `PUB_CACHE` for hydration and gated commands, fingerprints sanitized cache
+  identity, bumps the readiness schema, and records cache/lock identity without
+  exposing absolute paths. No product/runtime/API/permission/dependency-version
+  behavior changed.
+- Proof passed: real Flutter preflight (`schemaVersion=8`,
+  `dependencyCache.source=LOCALAPPDATA`), gated `flutter analyze --no-pub`
+  with no issues, toolchain tests `55/55`, lifecycle tests `16/16`,
+  verification/entrypoint tests `25/25`, cross-process Pub lease test,
+  boundary scan (`61 files`), and exact `verify-task --base origin/staging`
+  with profile `harness`, 4 paths and `stale=false`.
+- PR #245 squash-merged at
+  `8b1aed00af76796bafe74d3ecdf268a7fadf9330`; staging deploy
+  `31884524898` passed all client/backend/health gates. Linear OPS-128 is
+  `Ready for QA`. Guarded `finish --allow-ignored --execute` removed the task
+  worktree/local/remote branch; only canonical staging remains.
+- Residual risk is limited to independent clones/manual IDE launches that do
+  not enter the lifecycle; those must use `toolchain-doctor` or the shared
+  runner before Flutter commands.
+
+## Workflow checkpoint (OPS-129; master-plan reconciliation after OPS-128)
+
+- This docs-only slice is branch/worktree
+  `codex/ops-129-reconcile-ops128-cache-lock` /
+  `../opshub-ops-129-reconcile-ops128-cache-lock`, created by the guarded
+  lifecycle start gate from exact
+  `origin/staging@8b1aed00af76796bafe74d3ecdf268a7fadf9330`. Canonical staging
+  was clean and remains protected.
+- It reconciles this sole active plan's current checkpoint and historical
+  OPS-127/OPS-128 evidence. It does not modify runtime code, dependencies,
+  archive evidence or Linear production lifecycle.
+- Required proof is `git diff --check`, internal-link/plan disposition checks,
+  exact `verify-task --base origin/staging` with `stale=false`, PR/CI, staging
+  deploy and guarded lifecycle cleanup. Rollback is one docs-only squash
+  revert.
 
 ## Result
 
@@ -1895,7 +1934,8 @@ OPS-65 PR #175, OPS-68 PR #176, and OPS-69 PRs #177/#178 are merged into
 gates. OPS-73 and OPS-113 are now also staged and tracked as `Ready for QA`
 after exact deploy `31862881662` and guarded cleanup. OPS-122 and OPS-123's
 reconciliations are historical; OPS-124 is merged/deployed and tracked as
-`Ready for QA`, and OPS-127 is the current dependency-boundary checkpoint.
+`Ready for QA`, OPS-127 and OPS-128 are historical dependency-boundary
+checkpoints, and OPS-129 is the current master-plan reconciliation checkpoint.
 OPS-72's five live observations are valid but remain `revise`; Phase 8 retained-owner
 evidence, runtime waves and OPS-75 final consolidation remain downstream
 gates.
