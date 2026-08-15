@@ -4,15 +4,15 @@ Date: 2026-08-13
 
 ## Status
 
-Active — the current workflow checkpoint is OPS-113 on
-`origin/staging@be4b4a08b46886b9c150cd1db12ebf7bf7332027`. OPS-73 PR #236
-squash-merged the dependency-readiness closure, but its exact staging deploy
-`31861438999` rolled back after the Docker-only `verify:security-deps` path
-attempted to resolve repository-root `/scripts/run-with-toolchain.mjs` from a
-backend-only build context. Android, Windows and web artifacts passed and the
-previous release remained healthy. OPS-113 is the urgent, reversible Docker
-boundary hotfix; local/CI Nest lifecycle gates remain required and product,
-API, permission and runtime behavior stay unchanged.
+Active — the current workflow checkpoint is the docs-only OPS-122
+reconciliation on `origin/staging@4dffcf60494eda3934c52eb46c97fa82b9338a28`.
+OPS-73 PR #236 and OPS-113 PR #237 are both squash-merged, and the exact
+staging deploy `31862881662` passed Android, Windows, web, backend Docker,
+direct-origin and public health/version checks without rollback. Guarded
+lifecycle cleanup removed both task worktrees/local branches and the canonical
+staging worktree is clean at the same SHA. The next ordered work is OPS-72's
+timing baseline; runtime refactor and final production consolidation remain
+open. Product, API, permission and runtime behavior stay unchanged.
 
 ### OPS-114 checkpoint — dependency bootstrap enforcement
 
@@ -539,10 +539,14 @@ god-helper.
   `verify-task --base origin/staging` returned `stale=false`, and guarded
   lifecycle cleanup removed the task worktree/local/remote branch. Linear is
   `Ready for QA`; production deployment remains outstanding.
-- [ ] Complete OPS-122 master-plan reconciliation and select the next
-  dependency-integrity slice from this exact checkpoint.
-- [ ] Run Phase 7B CI shadow metrics, Phase 8 artifact cleanup, Phase 9 runtime
-  waves and Phase 10 final consolidation.
+- [x] Complete OPS-122 master-plan reconciliation after OPS-121. PR #235
+  merged at `d10241c0eafab66bd34390e7dda8d58a96e54147`; the current checkpoint
+  is subsequently reconciled to the exact post-OPS-113 `origin/staging` SHA.
+- [ ] Complete OPS-72 Phase 7B timing baseline and percentage-target evidence;
+  keep the affected matrix observational until its acceptance metrics are
+  proven.
+- [ ] Run Phase 8 artifact cleanup, Phase 9 runtime waves and Phase 10 final
+  consolidation.
 
 Phase 8 inventory checkpoint (OPS-73):
 
@@ -1034,7 +1038,7 @@ Phase 9E runtime checkpoint (OPS-97, MAP Vietin scheduler/coordinator slice):
   and are not part of the product diff. Publication and lifecycle gates remain
   open.
 
-## Workflow checkpoint (OPS-98 complete; OPS-99 current User/Auth characterization)
+## Historical workflow checkpoint (OPS-98 complete; OPS-99 User/Auth characterization)
 
 - OPS-98 slice branch/worktree was `codex/ops-98-backend-nest-toolchain-bootstrap`
   in `../opshub-ops-98`, started from exact live
@@ -1069,7 +1073,7 @@ Phase 9E runtime checkpoint (OPS-97, MAP Vietin scheduler/coordinator slice):
   artifact. Publication, staging deployment and lifecycle cleanup completed
   with the merged slice.
 
-## Workflow checkpoint (OPS-99 complete; OPS-100 current profile extraction)
+## Historical workflow checkpoint (OPS-99 complete; OPS-100 profile extraction)
 
 - OPS-99 slice branch/worktree was `codex/ops-99-user-auth-characterization` in
   `../opshub-ops-99`, started from exact live
@@ -1080,7 +1084,7 @@ Phase 9E runtime checkpoint (OPS-97, MAP Vietin scheduler/coordinator slice):
   affected Nest passed `177/177`, affected Flutter passed `48`, and the exact
   runner passed with `stale=false`.
 
-## Workflow checkpoint (OPS-100 complete; OPS-101 current)
+## Historical workflow checkpoint (OPS-100 complete; OPS-101)
 
 - Slice branch/worktree: `codex/ops-100-user-profile-collaborator` in
   `../opshub-ops-100`, started from exact live
@@ -1452,30 +1456,30 @@ Current live upstream retry evidence:
   named UserService and MAP extraction slices. No production completion is
   inferred from staging merge or QA readiness.
 
-## Workflow checkpoint (OPS-109 current; dependency bootstrap closure)
+## Historical workflow checkpoint (OPS-109; dependency bootstrap closure)
 
-- OPS-109 is the current tooling slice. Its branch/worktree is
+- At that time OPS-109 was the tooling slice. Its branch/worktree was
   `codex/ops-109-close-dependency-bootstrap-bypasses-and-materialization-races`
   / `../opshub-ops-109`, created from exact live
   `origin/staging@fe936bdf8ff4d192fbb9e1248956fb0743353c19`. The intake
   checkpoint was captured twice with identical SHA-256
   `733cde31831b3f724bfed0459da37521d22656edd069b2b384dd88f2c42b20e8`.
-- The slice closes the standalone validation bypass in
+- The slice closed the standalone validation bypass in
   `scripts/validate-contract-appendix.sh`, adds `--root` repair/doctor mode,
   strengthens Flutter readiness for materialized Dart package roots and
   platform-only plugins, serializes shared Pub-cache hydration and atomically
   publishes ignored state.
-- Focused proof currently passes: toolchain/coverage suite `23/23`, syntax and
+- Focused proof passed: toolchain/coverage suite `23/23`, syntax and
   shell parse checks pass, and the exact runner selects `harness` plus
   `verification-runner` for six changed paths with `stale=false`. The final
   publication proof must be rerun after any plan/docs edit and after the last
   source change.
-- No product/runtime/API/UI behavior is changed. The remaining gate is exact
+- No product/runtime/API/UI behavior changed. The remaining gate at that time was exact
   final proof, PR/staging lifecycle and cleanup of this task worktree.
 
 ## Historical workflow checkpoint (OPS-110; UserService import and welcome email)
 
-- OPS-110 is the current runtime slice. Its branch/worktree is
+- At that time OPS-110 was the runtime slice. Its branch/worktree was
   `codex/ops-110-extract-userservice-import-and-welcome-email` /
   `../opshub-ops-110`, created from exact live
   `origin/staging@229603e23d1bf6d408e5de38465dec55ca71db8f`. The intake
@@ -1496,7 +1500,7 @@ Current live upstream retry evidence:
   and restoring the facade implementation returns the prior behavior. No
   database or runtime data migration was required.
 
-## Workflow checkpoint (OPS-111 and OPS-113 complete; OPS-112 current)
+## Historical workflow checkpoint (OPS-111 and OPS-113 complete; OPS-112)
 
 - OPS-111 `codex/ops-111-toolchain-execution-gate` was created from exact
   `origin/staging@ba6cba8ceba7f1b025d94d021f00071e411bd70a`, with identical
@@ -1536,7 +1540,7 @@ Current live upstream retry evidence:
   optimization targets. The next gates are focused telemetry tests, exact-base
   verification, PR/CI, staging deploy and guarded lifecycle cleanup.
 
-## Workflow checkpoint (OPS-118 complete; OPS-119 current)
+## Historical workflow checkpoint (OPS-118 complete; OPS-119)
 
 - OPS-118 branch/worktree was `codex/ops-118-close-affected-consumer-dependency-boundary` /
   `../opshub-ops-118`, created from exact live
@@ -1563,7 +1567,7 @@ Current live upstream retry evidence:
   and the lifecycle finish gate passed. Authenticated QA and production
   promotion remain open as required by the release lifecycle.
 
-## Workflow checkpoint (OPS-119 complete; OPS-120 current)
+## Historical workflow checkpoint (OPS-119 complete; OPS-120)
 
 - OPS-119 branch/worktree was `codex/ops-119-close-operational-local-dependency-entrypoints` /
   `../opshub-ops-119`, created from exact live
@@ -1583,7 +1587,7 @@ Current live upstream retry evidence:
   PR/CI, staging deploy and lifecycle finish. Authenticated QA and production
   promotion remain open as required by the release lifecycle.
 
-## Workflow checkpoint (OPS-120 current; Windows MSIX Flutter boundary)
+## Historical workflow checkpoint (OPS-120; Windows MSIX Flutter boundary)
 
 - Branch/worktree: `codex/ops-120-gate-windows-msix-flutter-toolchain` /
   `../opshub-ops-120`, created by the guarded lifecycle start gate from exact
@@ -1600,7 +1604,7 @@ Current live upstream retry evidence:
   certificate password. Exact runner, release workflow checks and staging
   deploy remain required before publication.
 
-## Workflow checkpoint (OPS-121 current; dependency bootstrap resume boundary)
+## Historical workflow checkpoint (OPS-121; dependency bootstrap resume boundary)
 
 - OPS-121 branch/worktree is `codex/ops-121-dependency-bootstrap-resume-boundary` /
   `../opshub-ops-121-dependency-bootstrap-resume-boundary`, created by the
@@ -1624,7 +1628,7 @@ Current live upstream retry evidence:
   Linear implementation/proof note, and guarded `finish --allow-ignored
   --execute` cleanup.
 
-## Workflow checkpoint (OPS-122 complete; OPS-73 current dependency-readiness residual)
+## Historical workflow checkpoint (OPS-122 complete; OPS-73 dependency-readiness residual)
 
 - OPS-122 was completed after PR #235 was squash-merged into `staging` at
   `d10241c0eafab66bd34390e7dda8d58a96e54147`. Staging deploy run `31857551682`
@@ -1640,7 +1644,7 @@ Current live upstream retry evidence:
   The slice remains workflow/toolchain-only and does not change product
   dependency versions or runtime behavior.
 
-## Workflow checkpoint (OPS-73 current; dependency readiness closure)
+## Historical workflow checkpoint (OPS-73; dependency readiness closure)
 
 - Branch/worktree: `codex/ops-73-dependency-readiness-closure` /
   `../opshub-ops-73-dependency-readiness`, created from the exact live
@@ -1671,16 +1675,16 @@ Current live upstream retry evidence:
   - [x] Re-run the exact final `verify-task` after the plan edit; the final
     result is pass with `stale=false`.
   - [x] Inspect the final diff and `git diff --check`.
-  - [ ] Commit, push and open the feature PR against `staging`; wait for CI and
-    staging deploy gates.
-  - [ ] Record implementation/proof in Linear OPS-73 before moving it to
-    `Ready for QA` (not `Done`).
-  - [ ] Run guarded lifecycle `finish --allow-ignored --execute` from the
-    canonical clean `staging` worktree after merge.
+  - [x] PR #236 was squash-merged into `staging` at
+    `be4b4a08b46886b9c150cd1db12ebf7bf7332027`; PR checks passed.
+  - [x] Linear OPS-73 received the implementation/deployment proof and was
+    moved to `Ready for QA` (not `Done`).
+  - [x] Guarded lifecycle `finish --allow-ignored --execute` removed the task
+    worktree/local/remote branch after the follow-up staging deploy passed.
 - Rollback: revert the OPS-73 PR as one unit. Existing lockfiles, source DB,
   archive copies and ignored dependency caches are unchanged by this slice.
 
-## Workflow checkpoint (OPS-113 current; Docker preflight regression hotfix)
+## Workflow checkpoint (OPS-113 complete; Docker preflight regression hotfix)
 
 - OPS-73 was squash-merged as PR #236 at
   `be4b4a08b46886b9c150cd1db12ebf7bf7332027`, from base
@@ -1699,10 +1703,27 @@ Current live upstream retry evidence:
   the Docker-only invocation to `npm run verify:security-deps --ignore-scripts`
   and adds a static regression assertion; local/CI package lifecycle hooks keep
   the repository-root toolchain preflight.
-- Rollback is the single OPS-113 hotfix commit. Do not finish the merged OPS-73
-  worktree or advance OPS-73 to `Ready for QA` until a new exact-SHA staging
-  deploy passes backend build, runtime switch, direct-origin and public
-  health/version checks.
+- OPS-113 PR #237 squash-merged at
+  `4dffcf60494eda3934c52eb46c97fa82b9338a28`. Exact staging deploy
+  `31862881662` passed backend build, runtime switch, direct-origin and public
+  health/version checks without rollback. The guarded lifecycle finish gate
+  removed `../opshub-ops-113-docker-preflight-regression`, its local branch and
+  its remote branch. Linear OPS-113 is `Ready for QA`; production remains the
+  only completion gate. Rollback is the single OPS-113 hotfix commit.
+
+## Workflow checkpoint (OPS-122 reconciliation; current)
+
+- This docs-only slice is branch/worktree
+  `codex/ops-122-reconcile-current-checkpoint` /
+  `../opshub-ops-122-current-checkpoint`, created by the guarded lifecycle
+  start gate from exact live `origin/staging@4dffcf60494eda3934c52eb46c97fa82b9338a28`.
+  The canonical staging worktree was clean and remains untouched.
+- It reconciles the sole active plan after OPS-73/OPS-113 publication,
+  deployment and cleanup. It does not modify product/runtime code, dependency
+  versions, the read-only Harness archive, or Linear production lifecycle.
+- Required proof is docs diff check, exact `verify-task --base origin/staging`
+  with `stale=false`, PR/CI, staging deploy and guarded lifecycle cleanup.
+  Rollback is one docs-only squash revert.
 
 ## Result
 
@@ -1713,13 +1734,12 @@ characterization is explicit across three export contexts. Archive copies are
 local-only and retained; the canonical source remains read-only evidence.
 OPS-65 PR #175, OPS-68 PR #176, and OPS-69 PRs #177/#178 are merged into
 `staging`; each remains subject to its documented QA/production lifecycle
-gates. The current OPS-78 follow-up owns the Windows migration-EOL preflight,
-OPS-106 owns the merged dependency-integrity hardening, OPS-109 owns the
-merged dependency-bootstrap closure, OPS-110 owns the merged UserService
-import/welcome-email extraction, OPS-111 owns the current toolchain execution
-gate and Windows dependency recovery, OPS-118 owns the affected-consumer
-dependency boundary closure, and OPS-121 owns the resume/operational
-dependency boundary closure.
+gates. OPS-73 and OPS-113 are now also staged and tracked as `Ready for QA`
+after exact deploy `31862881662` and guarded cleanup. OPS-122's reconciliation
+is the current docs checkpoint. OPS-72 remains the next active workflow gate:
+its five live shadow observations are valid, but comparable timing/rerun
+targets are still pending. Runtime waves and OPS-75 final consolidation remain
+downstream of that gate.
 Move this plan to
 `docs/plans/completed/` only after the full initiative's final validation and
 production lifecycle are complete.
