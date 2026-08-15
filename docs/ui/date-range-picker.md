@@ -44,7 +44,7 @@ AppDateRangeDropdown(
 Advanced/demo code may call `DateRangePicker.show(...)` directly. Run the demo:
 
 ```powershell
-flutter run -t tool/date_range_picker_demo.dart
+node scripts/run-with-toolchain.mjs --profile flutter -- flutter run --no-pub -t tool/date_range_picker_demo.dart
 ```
 
 ## Date formatting and timezone

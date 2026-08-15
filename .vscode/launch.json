@@ -6,7 +6,9 @@
       "request": "launch",
       "type": "dart",
       "program": "lib/main.dart",
-      "deviceId": "web-server"
+      "deviceId": "web-server",
+      "preLaunchTask": "OpsHub: prepare Flutter toolchain",
+      "toolArgs": ["--no-pub"]
     }
   ]
 }

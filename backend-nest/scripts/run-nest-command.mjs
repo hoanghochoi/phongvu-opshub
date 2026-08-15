@@ -33,29 +33,28 @@ function localExecutable(executable) {
 
 const fallbackExecutable = localExecutable(command[0]);
 const resolvedCommand = [fallbackExecutable, ...command.slice(1)];
-const resolved = existsSync(toolchainRunner)
-  ? spawnSync(
-      process.execPath,
-      [
-        toolchainRunner,
-        '--root',
-        repositoryRoot,
-        '--profile',
-        'nestjs',
-        '--cwd',
-        'backend-nest',
-        '--',
-        ...resolvedCommand,
-      ],
-      { cwd: repositoryRoot, env: process.env, stdio: 'inherit' },
-    )
-  : spawnSync(fallbackExecutable, command.slice(1), {
-      cwd: backendRoot,
-      env: process.env,
-      shell:
-        process.platform === 'win32' && /\.(?:cmd|bat)$/i.test(fallbackExecutable),
-      stdio: 'inherit',
-    });
+if (!existsSync(toolchainRunner)) {
+  console.error(
+    'Repository toolchain gate is missing; refusing to run a raw Nest command.',
+  );
+  process.exit(5);
+}
+
+const resolved = spawnSync(
+  process.execPath,
+  [
+    toolchainRunner,
+    '--root',
+    repositoryRoot,
+    '--profile',
+    'nestjs',
+    '--cwd',
+    'backend-nest',
+    '--',
+    ...resolvedCommand,
+  ],
+  { cwd: repositoryRoot, env: process.env, stdio: 'inherit' },
+);
 
 if (resolved.error) {
   console.error(resolved.error.message);

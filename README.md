@@ -36,6 +36,11 @@ worktrees must use the doctor command and the shared wrapper before the first
 build/test; direct raw Flutter commands are not a supported dependency
 boundary.
 
+The tracked VS Code Flutter launch profile runs the same doctor automatically
+as a pre-launch task and passes `--no-pub`, so the IDE does not start a second
+Pub writer. If that task fails, fix the reported worktree/cache permission or
+lockfile issue before launching again.
+
 The preflight also verifies that generated worktree roots are writable. On
 Windows it repairs only a ReadOnly directory attribute in the known generated
 roots; an ACL, symlink or other filesystem denial stops before hydration with a
