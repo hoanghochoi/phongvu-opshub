@@ -38,6 +38,14 @@ const structuredAffectedConsumerValidators = [
   "scripts/validate-ops40-affected-consumers.mjs",
 ];
 
+const localPrismaMigrationVerifiers = [
+  "backend-nest/scripts/verify-home-summary-migration.mjs",
+  "backend-nest/scripts/verify-home-summary-deadlock-migration.mjs",
+  "backend-nest/scripts/verify-map-vietin-bigquery-migration.mjs",
+  "backend-nest/scripts/verify-ops41-postgres-concurrency.mjs",
+  "backend-nest/src/home-summary/home-summary-projection.postgres.spec.ts",
+];
+
 const localConsumerPattern =
   /(?:flutter\s+(?:analyze|test|build)|npm\s+(?:test|run|ci|install)|npx\s+.*prisma)/i;
 
@@ -126,6 +134,22 @@ test("affected-consumer validators keep nested Flutter/Nest suites behind the sh
   }
 });
 
+test("local Prisma migration verifiers enter through the shared toolchain helper", () => {
+  for (const relativePath of localPrismaMigrationVerifiers) {
+    const contents = source(relativePath);
+    assert.match(
+      contents,
+      /run-prisma-migrate-deploy\.mjs/,
+      `${relativePath} must invoke the shared Prisma migration helper`,
+    );
+    assert.doesNotMatch(
+      contents,
+      /node_modules[\\/]prisma[\\/]build[\\/]index\.js/,
+      `${relativePath} must not spawn Prisma directly from node_modules`,
+    );
+  }
+});
+
 test("a structured suite without an explicit profile is rejected", () => {
   assert.throws(
     () =>
@@ -201,8 +225,13 @@ test("Docker Nest build is self-contained without weakening local lifecycle gate
   );
   assert.match(
     dockerfile,
-    /npx prisma generate && npm run build --ignore-scripts/,
+    /npx --no-install prisma generate && npm run build --ignore-scripts/,
     "the backend-only Docker context must execute Nest build without the local prebuild hook",
+  );
+  assert.match(
+    dockerfile,
+    /CMD \["npx", "--no-install", "prisma", "migrate", "deploy"\]/,
+    "the API image must not let npx download Prisma at runtime",
   );
 });
 
@@ -239,6 +268,16 @@ test("local OPS-40 PostgreSQL verifier keeps Prisma behind the Nest boundary", (
     runbook,
     /`npm run verify:ops40:postgres`/,
     "the runbook must not advertise the raw local npm command",
+  );
+});
+
+test("Docker and remote migration boundaries forbid implicit npx downloads", () => {
+  const compose = source("deploy/home-server/docker-compose.home.yml");
+  const stagingWorkflow = source(".github/workflows/deploy-opshub-staging.yml");
+  assert.match(compose, /\["npx", "--no-install", "prisma", "migrate", "deploy"\]/);
+  assert.match(
+    stagingWorkflow,
+    /npx --no-install prisma migrate resolve --rolled-back/,
   );
 });
 

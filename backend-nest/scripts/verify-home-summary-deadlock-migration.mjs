@@ -90,16 +90,14 @@ try {
   await admin.query(`CREATE DATABASE "${databaseName}"`);
   created = true;
 
-  const prismaCli = path.join(
+  const prismaMigrationRunner = path.join(
     backendRoot,
-    'node_modules',
-    'prisma',
-    'build',
-    'index.js',
+    'scripts',
+    'run-prisma-migrate-deploy.mjs',
   );
   const migration = spawnSync(
     process.execPath,
-    [prismaCli, 'migrate', 'deploy'],
+    [prismaMigrationRunner],
     {
       cwd: backendRoot,
       env: { ...process.env, DATABASE_URL: scratchUrl.toString() },

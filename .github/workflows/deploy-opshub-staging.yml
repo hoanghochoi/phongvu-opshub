@@ -1212,7 +1212,7 @@ jobs:
             echo "Resolving stale failed migration state for $migration_name before rerun."
             compose_cmd \
               --profile migrate run --rm -T --build migrate \
-              npx prisma migrate resolve --rolled-back "$migration_name"
+              npx --no-install prisma migrate resolve --rolled-back "$migration_name"
           }
 
           resolve_failed_quick_actions_migration() {
@@ -1253,7 +1253,7 @@ jobs:
               'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c '\''DROP TABLE IF EXISTS "QuickActionLink";'\'''
             compose_cmd \
               --profile migrate run --rm -T --build migrate \
-              npx prisma migrate resolve --rolled-back "$migration_name"
+              npx --no-install prisma migrate resolve --rolled-back "$migration_name"
           }
 
           resolve_failed_node_feature_migration
