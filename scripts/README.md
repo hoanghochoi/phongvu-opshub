@@ -60,8 +60,9 @@ durations, retry counts and the first actionable failure when one exists.
 Infrastructure failures may retry once only while the fingerprint is unchanged.
 Product/test failures are never retried, and any change during a retry is a
 stale-proof failure. Legacy schema-v1 reports remain readable by the evidence
-validator, but five comparable live observations in one cohort are required
-before calculating or promoting optimization percentages.
+validator. Five comparable live observations in one cohort are required before
+calculating or promoting optimization percentages; an unmet target is recorded
+as `revise`, not as a successful optimization.
 
 For the OPS-72 evidence replay, run the collector from the repository root:
 
@@ -71,9 +72,8 @@ node scripts/collect-ops72-shadow-metrics.mjs --output docs/migrations/ops-72-sh
 
 It checks out the five pinned merged-PR heads in temporary sibling worktrees,
 records exact parent/head/profile/fingerprint evidence, and removes those
-worktrees. The resulting report intentionally keeps `targetStatus` at
-`pending-live-shadow-data` until five live PR observations provide comparable
-rerun and time-to-actionable-failure measurements.
+worktrees. That replay remains historical and cannot satisfy the live timing
+gate by itself.
 
 The five live observations are recorded in
 `docs/migrations/ops-72-live-shadow-evidence.json`. Validate the sanitized
@@ -85,8 +85,9 @@ node scripts/verify-ops72-live-shadow-evidence.mjs
 
 Use `--raw-root <path>` to independently re-hash downloaded CI artifacts at
 `<path>/<run-id>/verify-task-shadow.json`; raw artifacts remain ignored and are
-never committed. Timing and optimization targets remain pending until a
-comparable baseline exists.
+never committed. The current v2 ledger records the five live observations and
+their baseline comparison. If the 25% timing or 30% rerun target is unmet or
+unmeasurable, it must remain `revise` and the affected matrix stays observational.
 
 ## Legacy boundary
 

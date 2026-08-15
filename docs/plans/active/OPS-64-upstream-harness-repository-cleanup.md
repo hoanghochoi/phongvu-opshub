@@ -4,15 +4,15 @@ Date: 2026-08-13
 
 ## Status
 
-Active — the current workflow checkpoint is the docs-only OPS-122
-reconciliation on `origin/staging@4dffcf60494eda3934c52eb46c97fa82b9338a28`.
-OPS-73 PR #236 and OPS-113 PR #237 are both squash-merged, and the exact
-staging deploy `31862881662` passed Android, Windows, web, backend Docker,
-direct-origin and public health/version checks without rollback. Guarded
-lifecycle cleanup removed both task worktrees/local branches and the canonical
-staging worktree is clean at the same SHA. The next ordered work is OPS-72's
-timing baseline; runtime refactor and final production consolidation remain
-open. Product, API, permission and runtime behavior stay unchanged.
+Active — the current workflow checkpoint is OPS-72 timing-baseline v2 on
+`origin/staging@661e930a10e198edc84d0d192d5f2f766ff777a4`. OPS-122 PR #238 was
+squash-merged and its exact staging deploy `31864564075` passed all client,
+backend, direct-origin and public health/version checks; lifecycle cleanup
+removed its task worktree and branches. OPS-72 now has five comparable
+post-telemetry observations, but the measured timing improvement is only
+15.05% and the rerun target is not measurable, so the matrix remains
+observational and the phase is explicitly `revise`. Product, API, permission
+and runtime behavior stay unchanged.
 
 ### OPS-114 checkpoint — dependency bootstrap enforcement
 
@@ -632,7 +632,7 @@ Phase 7B implementation checkpoint (OPS-72):
   satisfy the five live PR observations or the rerun/time-to-actionable-failure
   percentage targets.
 
-Phase 7B live observation checkpoint (OPS-72):
+Historical Phase 7B live observation checkpoint (OPS-72 v1):
 
 - Five live PR observations are tracked in
   `docs/migrations/ops-72-live-shadow-evidence.json`: PRs #181, #183, #184,
@@ -645,9 +645,8 @@ Phase 7B live observation checkpoint (OPS-72):
 - `scripts/verification-profiles.mjs` now owns the collector and the new
   `scripts/verify-ops72-live-shadow-evidence.mjs` validator. The artifact
   verifier and focused tests are required before publication.
-- Aggregate target status is `pending-live-timing-baseline`: timing and rerun
-  reduction percentages are intentionally null until comparable baseline data
-  exists. No profile is promoted to blocking by this evidence alone.
+- The v1 aggregate status was `pending-live-timing-baseline`; it is retained as
+  historical evidence and is not the current promotion authority.
 
 Phase 9A runtime checkpoint (OPS-74):
 
@@ -1711,7 +1710,7 @@ Current live upstream retry evidence:
   its remote branch. Linear OPS-113 is `Ready for QA`; production remains the
   only completion gate. Rollback is the single OPS-113 hotfix commit.
 
-## Workflow checkpoint (OPS-122 reconciliation; current)
+## Historical workflow checkpoint (OPS-122 reconciliation)
 
 - This docs-only slice is branch/worktree
   `codex/ops-122-reconcile-current-checkpoint` /
@@ -1725,6 +1724,26 @@ Current live upstream retry evidence:
   with `stale=false`, PR/CI, staging deploy and guarded lifecycle cleanup.
   Rollback is one docs-only squash revert.
 
+## Workflow checkpoint (OPS-72 timing baseline v2; current)
+
+- This slice is branch/worktree `codex/ops-72-timing-baseline-v2` /
+  `../opshub-ops-72-timing-baseline-v2`, created by the guarded lifecycle start
+  gate from exact live `origin/staging@661e930a10e198edc84d0d192d5f2f766ff777a4`.
+  It changes only sanitized shadow evidence, its validator/tests and this plan;
+  no product/runtime/API/UI/data behavior is in scope.
+- The five comparable observations are PRs #228–#232, all cohort
+  `ops72-live-v2`, `stale=false`, zero unmatched paths and zero retries. The
+  pre-telemetry v1 baseline is PRs #181/#183/#184/#185/#186. Shadow-duration
+  median is `6496ms` versus `7647ms` (`15.05%` reduction); GitHub job-duration
+  median is `23000ms` versus `25000ms` (`8%` reduction).
+- Both cohorts have zero environment reruns, so the 30% rerun-reduction target
+  is unmeasurable. Every accepted observation passed, so no first-actionable-
+  failure median is claimed. The evidence target is therefore `revise` and no
+  profile is promoted to blocking.
+- Next step: run a revised failure-injection/timing cohort with a comparable
+  baseline, or explicitly revise the acceptance metric before closing OPS-72.
+  Rollback is one evidence/validator/docs revert.
+
 ## Result
 
 Historical Phase 0-1 artifacts, the generic verification foundation/canaries,
@@ -1736,10 +1755,9 @@ OPS-65 PR #175, OPS-68 PR #176, and OPS-69 PRs #177/#178 are merged into
 `staging`; each remains subject to its documented QA/production lifecycle
 gates. OPS-73 and OPS-113 are now also staged and tracked as `Ready for QA`
 after exact deploy `31862881662` and guarded cleanup. OPS-122's reconciliation
-is the current docs checkpoint. OPS-72 remains the next active workflow gate:
-its five live shadow observations are valid, but comparable timing/rerun
-targets are still pending. Runtime waves and OPS-75 final consolidation remain
-downstream of that gate.
+is historical; OPS-72 timing-baseline v2 is the current workflow checkpoint.
+Its five live observations are valid but remain `revise`; runtime waves and
+OPS-75 final consolidation remain downstream of the workflow/noise gate.
 Move this plan to
 `docs/plans/completed/` only after the full initiative's final validation and
 production lifecycle are complete.
