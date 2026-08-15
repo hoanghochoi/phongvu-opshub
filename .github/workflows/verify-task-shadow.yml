@@ -36,12 +36,57 @@ jobs:
             --base "$BASE_SHA" \
             --json tmp/verify-task-shadow.json
 
+      - name: Write shadow manifest
+        if: always()
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          RUN_ID: ${{ github.run_id }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          RUN_STARTED_AT: ${{ github.run_started_at }}
+          COHORT_ID: ops72-live-v2
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const crypto = require('crypto');
+          const reportPath = 'tmp/verify-task-shadow.json';
+          const report = JSON.parse(fs.readFileSync(reportPath, 'utf8'));
+          const completedAt = new Date().toISOString();
+          const startedAt = new Date(process.env.RUN_STARTED_AT).toISOString();
+          const bytes = fs.readFileSync(reportPath);
+          const manifest = {
+            formatVersion: 1,
+            issue: 'OPS-72',
+            targetBranch: 'staging',
+            cohortId: process.env.COHORT_ID,
+            pullRequest: Number(process.env.PR_NUMBER),
+            runId: Number(process.env.RUN_ID),
+            runUrl: process.env.RUN_URL,
+            prHeadSha: process.env.PR_HEAD_SHA,
+            baseSha: process.env.BASE_SHA,
+            reportedHeadSha: report.headSha || null,
+            reportFile: 'verify-task-shadow.json',
+            reportSha256: crypto.createHash('sha256').update(bytes).digest('hex'),
+            generatedAtUtc: completedAt,
+            run: {
+              createdAt: startedAt,
+              startedAt,
+              completedAt,
+              githubDurationMs: Math.max(0, Date.parse(completedAt) - Date.parse(startedAt)),
+            },
+          };
+          fs.writeFileSync('tmp/verify-task-shadow-manifest.json', `${JSON.stringify(manifest, null, 2)}\n`);
+          NODE
+
       - name: Publish shadow report
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: verify-task-shadow-${{ github.event.pull_request.number }}
-          path: tmp/verify-task-shadow.json
+          path: |
+            tmp/verify-task-shadow.json
+            tmp/verify-task-shadow-manifest.json
           if-no-files-found: error
 
       - name: Add shadow summary
@@ -64,6 +109,7 @@ jobs:
             `- Queue/start/end: ${report.telemetry?.queuedAtUtc || 'unknown'} / ${report.telemetry?.startedAtUtc || 'unknown'} / ${report.telemetry?.completedAtUtc || 'unknown'}`,
             `- Retry count: ${report.telemetry?.retryCount ?? 'unknown'}`,
             `- First actionable failure: ${report.telemetry?.firstActionableFailure?.category || 'none'}`,
+            `- First observed failure: ${report.telemetry?.firstObservedFailure?.category || 'none'}`,
           ];
           fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${lines.join('\n')}\n`);
           NODE
