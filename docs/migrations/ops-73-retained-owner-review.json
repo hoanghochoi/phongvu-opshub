@@ -2,8 +2,8 @@
   "formatVersion": 1,
   "issue": "OPS-73",
   "phase": "retained-owner-review",
-  "sourceRevision": "e338e51bc212c050c9f70b95f0aca91d286b705d",
-  "reviewedAtUtc": "2026-08-15T16:30:00Z",
+  "sourceRevision": "46c8aa90d932f8cfadb25eddae80305180ca9d95",
+  "reviewedAtUtc": "2026-08-15T18:45:00Z",
   "sourceInventory": "docs/migrations/ops-73-artifact-inventory.json",
   "sourceInventorySha256": "2f49a3590e5304d6d454e16d8c10f7d16f14a82f08e56e4c9f6e35ef6dc4c6f6",
   "candidates": [
@@ -145,8 +145,14 @@
         {
           "path": ".github/actions/setup-flutter/action.yml",
           "kind": "file",
-          "sha256": "b3ea5c4ab12c374745b86527985e14aa08bfd699db2d57008d2db45e2e26a3c4",
-          "bytes": 3904
+          "sha256": "84dfbb661a4c4cd56eff0615b4c7991a57a7b4c41eeb1cbfbf6bc8876ea7e12b",
+          "bytes": 4124
+        },
+        {
+          "path": ".github/workflows/cold-dependency-canary.yml",
+          "kind": "file",
+          "sha256": "5e34e0f319120c34e0d390a90941ce9fec1f0896c0528176273e344c359dafbb",
+          "bytes": 3145
         },
         {
           "path": ".github/workflows/verify-task-shadow.yml",
@@ -174,6 +180,7 @@
         }
       ],
       "ownerReferences": [
+        ".github/workflows/cold-dependency-canary.yml",
         ".github/workflows/verify-task-shadow.yml",
         ".github/workflows/deploy-opshub-staging.yml",
         ".github/workflows/deploy-opshub.yml",
