@@ -56,7 +56,8 @@ CI uses `scripts/verify-task-shadow.mjs` in additive shadow mode. It compares
 auto-selected profiles with the full ladder and uploads a sanitized schema-v2
 JSON report; the existing blocking release checks remain unchanged. The report
 records a cohort id, queue/start/end timestamps, derived queue/execution
-durations, retry counts and the first actionable failure when one exists.
+  durations, retry counts, first actionable failure and first observed command
+  failure when one exists (including retry-to-green runs).
 Infrastructure failures may retry once only while the fingerprint is unchanged.
 Product/test failures are never retried, and any change during a retry is a
 stale-proof failure. Legacy schema-v1 reports remain readable by the evidence
@@ -74,6 +75,24 @@ It checks out the five pinned merged-PR heads in temporary sibling worktrees,
 records exact parent/head/profile/fingerprint evidence, and removes those
 worktrees. That replay remains historical and cannot satisfy the live timing
 gate by itself.
+
+OPS-126 is a separate controlled calibration cohort. It uses the real
+`verifyTask`/`buildShadowReport` injection seam with command results supplied by
+deterministic fixtures; it never runs Flutter, NestJS or Go commands:
+
+```text
+node scripts/collect-ops72-failure-injection.mjs \
+  --output docs/migrations/ops-72-failure-injection-cohort.json
+node scripts/verify-ops72-failure-injection.mjs \
+  --input docs/migrations/ops-72-failure-injection-cohort.json \
+  --raw-root .
+```
+
+The artifact is explicitly `controlled-evidence-only` with
+`promotionDecision=do-not-promote`; its timing/retry percentages must never be
+used as the five-live-observation Phase 7B proof. Raw fixture reports stay under
+ignored `tmp/ops-126-shadow/` and are checked by SHA-256 when `--raw-root` is
+provided.
 
 The five live observations are recorded in
 `docs/migrations/ops-72-live-shadow-evidence.json`. Validate the sanitized

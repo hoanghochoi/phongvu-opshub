@@ -98,6 +98,8 @@ test('shadow telemetry derives retries and first failure from the runner result'
   assert.equal(report.telemetry.fullRetryCount, 0);
   assert.equal(report.telemetry.firstActionableFailure.category, 'environment-failure');
   assert.equal(report.telemetry.firstActionableFailure.commandId, 'auto-check');
+  assert.equal(report.telemetry.firstObservedFailure.category, 'environment-failure');
+  assert.equal(report.telemetry.firstObservedFailure.commandId, 'auto-check');
   assert.equal(report.metrics.reruns, 1);
 });
 
@@ -134,4 +136,6 @@ test('shadow telemetry includes full-ladder retries and elapsed time when auto s
   assert.equal(report.telemetry.firstActionableFailure.commandId, 'full-check');
   assert.equal(report.telemetry.firstActionableFailure.elapsedMs, 18);
   assert.ok(Date.parse(report.telemetry.firstActionableFailure.observedAtUtc));
+  assert.equal(report.telemetry.firstObservedFailure.category, 'product-failure');
+  assert.equal(report.telemetry.firstObservedFailure.commandId, 'full-check');
 });
