@@ -3,9 +3,9 @@
   "issue": "OPS-126",
   "mode": "controlled-failure-injection",
   "cohortId": "ops126-controlled-v1",
-  "generatedAtUtc": "2026-08-15T10:09:46.830Z",
+  "generatedAtUtc": "2026-08-15T10:25:36.871Z",
   "source": {
-    "repositoryRevision": "f0f080d78871b8e3112eab18c3c6f9e834ab36ea",
+    "repositoryRevision": "9dbc816c2c97bd8c1e899dff29ad3b765917e755",
     "scenarioDefinitionVersion": 1,
     "scenarioDefinitionSha256": "903ca4c7c43335dcb58b09e28c7edd5565af31ef6f4bbb188a7660a85023994b"
   },
@@ -14,8 +14,8 @@
       "id": "environment-dependency-retry",
       "faultClass": "environment/dependency-retry",
       "fixture": {
-        "baseSha": "75dfb2e3e708ae22cf4488c144530ccdf28a2edf",
-        "headSha": "43d0828abafd541491fe1f8877ccfa71ae6502a0",
+        "baseSha": "e4c6b5509c375450389cf052190b7d89d2984c99",
+        "headSha": "5cfebcce08b102d7ce83efa9625f99a2801867c9",
         "changedPaths": [
           "scripts/run-with-toolchain.mjs"
         ]
@@ -53,8 +53,8 @@
             "status": "passed",
             "commandAttempts": 4,
             "fingerprint": {
-              "before": "1e8ba8aeb09ce134b83b0793c53ffc683210b1c0e16b3f10f4691c7c0a1687b3",
-              "after": "1e8ba8aeb09ce134b83b0793c53ffc683210b1c0e16b3f10f4691c7c0a1687b3",
+              "before": "02caf90111b0f95cddff050d34f126d9069050ea24fa9b940df8563ed121dcb9",
+              "after": "02caf90111b0f95cddff050d34f126d9069050ea24fa9b940df8563ed121dcb9",
               "stale": false
             }
           },
@@ -72,10 +72,10 @@
             "exitCode": 0,
             "classification": "shadow-observation",
             "status": "passed",
-            "commandAttempts": 14,
+            "commandAttempts": 17,
             "fingerprint": {
-              "before": "c47e50132614ace321478e2bde899ad5ddcd974613707e9d89866bc507bc837e",
-              "after": "c47e50132614ace321478e2bde899ad5ddcd974613707e9d89866bc507bc837e",
+              "before": "ada01aba929e8d49649d82b67d470593d0ed3bfbd1290c9d35b148c3ffc296aa",
+              "after": "ada01aba929e8d49649d82b67d470593d0ed3bfbd1290c9d35b148c3ffc296aa",
               "stale": false
             }
           },
@@ -96,8 +96,8 @@
             "status": "passed",
             "commandAttempts": 3,
             "fingerprint": {
-              "before": "1e8ba8aeb09ce134b83b0793c53ffc683210b1c0e16b3f10f4691c7c0a1687b3",
-              "after": "1e8ba8aeb09ce134b83b0793c53ffc683210b1c0e16b3f10f4691c7c0a1687b3",
+              "before": "02caf90111b0f95cddff050d34f126d9069050ea24fa9b940df8563ed121dcb9",
+              "after": "02caf90111b0f95cddff050d34f126d9069050ea24fa9b940df8563ed121dcb9",
               "stale": false
             }
           },
@@ -110,10 +110,10 @@
             "exitCode": 0,
             "classification": "shadow-observation",
             "status": "passed",
-            "commandAttempts": 13,
+            "commandAttempts": 16,
             "fingerprint": {
-              "before": "c47e50132614ace321478e2bde899ad5ddcd974613707e9d89866bc507bc837e",
-              "after": "c47e50132614ace321478e2bde899ad5ddcd974613707e9d89866bc507bc837e",
+              "before": "ada01aba929e8d49649d82b67d470593d0ed3bfbd1290c9d35b148c3ffc296aa",
+              "after": "ada01aba929e8d49649d82b67d470593d0ed3bfbd1290c9d35b148c3ffc296aa",
               "stale": false
             }
           },
@@ -131,21 +131,21 @@
       "rawArtifacts": [
         {
           "file": "tmp/ops-126-shadow/environment-dependency-retry/baseline.json",
-          "sha256": "274dbed096b6f97c59a891660249cd514834c6095145a3019bb31efb402e32a6"
+          "sha256": "18022130802cd5c40d93696acf524fd0db5f66f893f193be2391bfb40899213c"
         },
         {
           "file": "tmp/ops-126-shadow/environment-dependency-retry/candidate.json",
-          "sha256": "49d3844d6cc29c1dc48612608e5c97a9329aa033ab8c0583833fff14b7cb6a94"
+          "sha256": "4a20d3cc7d1c102b71c1b8177a7d20a950fd97e886345e9d41c99e9074d4a80a"
         }
       ],
-      "scenarioHash": "4ed9c62ad4811b71476e68db76179b9c701fa2c6efe9b68c17ceafd25e0a91fa"
+      "scenarioHash": "135aa4f32a6b6364e1b73b7d422c595f54d28df53265141d5c8333e47cb78d1f"
     },
     {
       "id": "missing-command-tool",
       "faultClass": "environment/missing-command",
       "fixture": {
-        "baseSha": "7a28332981545a741a1d308e2a9dba1b013b3f14",
-        "headSha": "cb15bf06cdf4d23b236c5233077d82fa346bda56",
+        "baseSha": "ac557519e77a414d0827bbeb97173c8e219363d1",
+        "headSha": "8892e3dcefa724e70b8e40f8dde5591fcb515211",
         "changedPaths": [
           "scripts/verification-profiles.mjs"
         ]
@@ -181,10 +181,10 @@
             "exitCode": 0,
             "classification": "shadow-observation",
             "status": "passed",
-            "commandAttempts": 2,
+            "commandAttempts": 5,
             "fingerprint": {
-              "before": "262f054826ba3a41ebba619fcbe56f7fb28f5e68818b1f812e305c865fcbb352",
-              "after": "262f054826ba3a41ebba619fcbe56f7fb28f5e68818b1f812e305c865fcbb352",
+              "before": "df85c19667d9ebbb56fb09a08151a0c2d8b86bf74bfe0a07c54ff4ba9af6f081",
+              "after": "df85c19667d9ebbb56fb09a08151a0c2d8b86bf74bfe0a07c54ff4ba9af6f081",
               "stale": false
             }
           },
@@ -202,10 +202,10 @@
             "exitCode": 0,
             "classification": "shadow-observation",
             "status": "passed",
-            "commandAttempts": 14,
+            "commandAttempts": 17,
             "fingerprint": {
-              "before": "f2af2bd08148cd5929d934de371a814763fdab3a2687b29fd4d71457e28c75c7",
-              "after": "f2af2bd08148cd5929d934de371a814763fdab3a2687b29fd4d71457e28c75c7",
+              "before": "954ecab5a77b3627fc50c7a49fb45cad9165b9d5f70e521ac308535b7f66e12c",
+              "after": "954ecab5a77b3627fc50c7a49fb45cad9165b9d5f70e521ac308535b7f66e12c",
               "stale": false
             }
           },
@@ -224,10 +224,10 @@
             "exitCode": 0,
             "classification": "shadow-observation",
             "status": "passed",
-            "commandAttempts": 1,
+            "commandAttempts": 4,
             "fingerprint": {
-              "before": "262f054826ba3a41ebba619fcbe56f7fb28f5e68818b1f812e305c865fcbb352",
-              "after": "262f054826ba3a41ebba619fcbe56f7fb28f5e68818b1f812e305c865fcbb352",
+              "before": "df85c19667d9ebbb56fb09a08151a0c2d8b86bf74bfe0a07c54ff4ba9af6f081",
+              "after": "df85c19667d9ebbb56fb09a08151a0c2d8b86bf74bfe0a07c54ff4ba9af6f081",
               "stale": false
             }
           },
@@ -240,10 +240,10 @@
             "exitCode": 0,
             "classification": "shadow-observation",
             "status": "passed",
-            "commandAttempts": 13,
+            "commandAttempts": 16,
             "fingerprint": {
-              "before": "f2af2bd08148cd5929d934de371a814763fdab3a2687b29fd4d71457e28c75c7",
-              "after": "f2af2bd08148cd5929d934de371a814763fdab3a2687b29fd4d71457e28c75c7",
+              "before": "954ecab5a77b3627fc50c7a49fb45cad9165b9d5f70e521ac308535b7f66e12c",
+              "after": "954ecab5a77b3627fc50c7a49fb45cad9165b9d5f70e521ac308535b7f66e12c",
               "stale": false
             }
           },
@@ -261,21 +261,21 @@
       "rawArtifacts": [
         {
           "file": "tmp/ops-126-shadow/missing-command-tool/baseline.json",
-          "sha256": "f40b9742260b0ca2e87c4b6af1ffa1eb26dddf0a9af027521108514c2c44d807"
+          "sha256": "c83fb5cfa830e1efca4f165a8aa3b39df3d1458c8f4152b497f7af4598b651d1"
         },
         {
           "file": "tmp/ops-126-shadow/missing-command-tool/candidate.json",
-          "sha256": "93fa2062212a809e817037aa599a6286b7ea4d4cc3cf81534da4f2fc8614c94e"
+          "sha256": "6e18ddb1d0564ca7ad623ef8036b46e8c32eeee1ec8879c0ccba60dadc1f4fd6"
         }
       ],
-      "scenarioHash": "56d6af3c7ab8c42018d7781f2c9824d1afe26892f06d5abf013d61e02e862001"
+      "scenarioHash": "1d0448c009d67ff5e919c61dcdbbf697ce4eff328348ce3d73500bfac4e69db7"
     },
     {
       "id": "stale-proof",
       "faultClass": "stale-proof",
       "fixture": {
-        "baseSha": "6d2632c00d3a70108d1ed7664e16129461ac889f",
-        "headSha": "4173889d4120395ea1b5db6633e14158f9afa81e",
+        "baseSha": "337ade573ce8073a430d3c19130ced8d1e313183",
+        "headSha": "1d67281996c9dee368a185fc4101dd11b6fc0dfd",
         "changedPaths": [
           "tests/verification/verify-task.test.mjs"
         ]
@@ -313,8 +313,8 @@
             "status": "failed",
             "commandAttempts": 1,
             "fingerprint": {
-              "before": "e0230a46184691ee0ef8815386d0898782b29a6d59bb7b5ac73e7aecaf41262c",
-              "after": "19e1ddb3c2fe19cb73565737950adc20bc5d15fb8bc4df8927917663a94d844c",
+              "before": "047ac8b3b6ef04f08b690c3617aa0c604d1b72eb01ee4379f7faddd9e6f36b74",
+              "after": "94b967d0c9a99cc76ac1251b749f657d21e05c324c36a41734cac45b85affb2f",
               "stale": true
             }
           },
@@ -334,8 +334,8 @@
             "status": "failed",
             "commandAttempts": 1,
             "fingerprint": {
-              "before": "4abf4a77b138bfbc6b5ca3410a1104bb1035d6a281f32d2f442627e81cb86300",
-              "after": "6ac83e8b22a454c5030d3028aac1ec8fdc6b44240382da554e92a17232573012",
+              "before": "40fb1d2772aa279354a9d268168d124b02523119f637b713daaff15c0e071ac5",
+              "after": "e73d800af02ceeae941901572b2b3b280aa3a94572ea1f2fcb2efd1fb380613b",
               "stale": true
             }
           },
@@ -361,8 +361,8 @@
             "status": "failed",
             "commandAttempts": 1,
             "fingerprint": {
-              "before": "e0230a46184691ee0ef8815386d0898782b29a6d59bb7b5ac73e7aecaf41262c",
-              "after": "19e1ddb3c2fe19cb73565737950adc20bc5d15fb8bc4df8927917663a94d844c",
+              "before": "047ac8b3b6ef04f08b690c3617aa0c604d1b72eb01ee4379f7faddd9e6f36b74",
+              "after": "94b967d0c9a99cc76ac1251b749f657d21e05c324c36a41734cac45b85affb2f",
               "stale": true
             }
           },
@@ -382,8 +382,8 @@
             "status": "failed",
             "commandAttempts": 1,
             "fingerprint": {
-              "before": "4abf4a77b138bfbc6b5ca3410a1104bb1035d6a281f32d2f442627e81cb86300",
-              "after": "6ac83e8b22a454c5030d3028aac1ec8fdc6b44240382da554e92a17232573012",
+              "before": "40fb1d2772aa279354a9d268168d124b02523119f637b713daaff15c0e071ac5",
+              "after": "e73d800af02ceeae941901572b2b3b280aa3a94572ea1f2fcb2efd1fb380613b",
               "stale": true
             }
           },
@@ -401,11 +401,11 @@
       "rawArtifacts": [
         {
           "file": "tmp/ops-126-shadow/stale-proof/baseline.json",
-          "sha256": "13815ee264ebd2255341efb2963fc5380d73fa67593e13a2389df009cb089d07"
+          "sha256": "c7b1ae1b20d8db503e5bf9beb1717a6737c6bb81573e0900c498f80910d717b5"
         },
         {
           "file": "tmp/ops-126-shadow/stale-proof/candidate.json",
-          "sha256": "2a92fd1660148c9eb7f7263e39aa09567cc90f6ecc4a55067c7c13114754db0f"
+          "sha256": "21020d042be2b35e1aef2dd86529f3f2e72c35e35ad92a03625c895aed7b5875"
         }
       ],
       "scenarioHash": "1d939eb0d0887e930cd7dc5f1df695f0d852143b9cabb10450950b97feb6e454"
@@ -414,8 +414,8 @@
       "id": "product-failure",
       "faultClass": "product-failure",
       "fixture": {
-        "baseSha": "9975aaf9028245284078d689d9dc2858a7d080dd",
-        "headSha": "055b595d3f63be1afae86d4cf2ca94a30952d26d",
+        "baseSha": "cc8a216a7afad12620b349ecf45782d4d4680b3e",
+        "headSha": "5eb3e7ee2ef04a69a1e7e23087d43eee0301aa79",
         "changedPaths": [
           "lib/feature/example.dart"
         ]
@@ -453,8 +453,8 @@
             "status": "failed",
             "commandAttempts": 1,
             "fingerprint": {
-              "before": "964a8a121f582143b86c6a870dcf86ef8c313afd2c52029a78e3600059c6be29",
-              "after": "964a8a121f582143b86c6a870dcf86ef8c313afd2c52029a78e3600059c6be29",
+              "before": "163cd275c423b1980b3a84014359a7d8dc0eb713915d5c51d11ce1b89c00fe20",
+              "after": "163cd275c423b1980b3a84014359a7d8dc0eb713915d5c51d11ce1b89c00fe20",
               "stale": false
             }
           },
@@ -474,8 +474,8 @@
             "status": "failed",
             "commandAttempts": 1,
             "fingerprint": {
-              "before": "a1b157d7f46b74900262f7b58e7408d594f724cc4cd54ac850d4cb6e301586ac",
-              "after": "a1b157d7f46b74900262f7b58e7408d594f724cc4cd54ac850d4cb6e301586ac",
+              "before": "39646db2326929e22de963e4a218fee83e64aec4f7884765445b721e154f2d1b",
+              "after": "39646db2326929e22de963e4a218fee83e64aec4f7884765445b721e154f2d1b",
               "stale": false
             }
           },
@@ -501,8 +501,8 @@
             "status": "failed",
             "commandAttempts": 1,
             "fingerprint": {
-              "before": "964a8a121f582143b86c6a870dcf86ef8c313afd2c52029a78e3600059c6be29",
-              "after": "964a8a121f582143b86c6a870dcf86ef8c313afd2c52029a78e3600059c6be29",
+              "before": "163cd275c423b1980b3a84014359a7d8dc0eb713915d5c51d11ce1b89c00fe20",
+              "after": "163cd275c423b1980b3a84014359a7d8dc0eb713915d5c51d11ce1b89c00fe20",
               "stale": false
             }
           },
@@ -522,8 +522,8 @@
             "status": "failed",
             "commandAttempts": 1,
             "fingerprint": {
-              "before": "a1b157d7f46b74900262f7b58e7408d594f724cc4cd54ac850d4cb6e301586ac",
-              "after": "a1b157d7f46b74900262f7b58e7408d594f724cc4cd54ac850d4cb6e301586ac",
+              "before": "39646db2326929e22de963e4a218fee83e64aec4f7884765445b721e154f2d1b",
+              "after": "39646db2326929e22de963e4a218fee83e64aec4f7884765445b721e154f2d1b",
               "stale": false
             }
           },
@@ -541,11 +541,11 @@
       "rawArtifacts": [
         {
           "file": "tmp/ops-126-shadow/product-failure/baseline.json",
-          "sha256": "f4c877ab64b2e7fe726b272ee21ac633f1c914dfd500992fe8ef44549f8a55b7"
+          "sha256": "f75dbead7899ba1a35aa96a3ce0313c85670a48a83d595fa91c534f83d494ae7"
         },
         {
           "file": "tmp/ops-126-shadow/product-failure/candidate.json",
-          "sha256": "12adac3637134bf09036d05e0ab64f12661a18a8ea3ff911350509b0ff54a379"
+          "sha256": "12d082bd827bd90ab72d594d630ff8f73b7f565975f71bd2f749e03c7aedef0c"
         }
       ],
       "scenarioHash": "8d3f1caf90ca36a2f66714e2abb6e5fe3286749fc73ae41e70982113503ecbe9"
@@ -554,8 +554,8 @@
       "id": "contract-unknown-path",
       "faultClass": "contract/unknown-path",
       "fixture": {
-        "baseSha": "06c1a00165881f5595e3e2d7b258a4884344bd7d",
-        "headSha": "b7ec22069e5a6b8961748c2b642838609030102a",
+        "baseSha": "374019c88d39cd29c143feba4ca58dc9c8c8695d",
+        "headSha": "bdce41b120af034d47aa683280d09139bdb71800",
         "changedPaths": [
           "unknown/unowned.path"
         ]
@@ -681,11 +681,11 @@
       "rawArtifacts": [
         {
           "file": "tmp/ops-126-shadow/contract-unknown-path/baseline.json",
-          "sha256": "71ea1e4af6807fd9306044c7256bcefa045007f76d61592847bf67e177c0cbac"
+          "sha256": "de1fe5842f06c24792f2df6e1ffec09b7fa6e1e2208ac350f15645aa8f34a040"
         },
         {
           "file": "tmp/ops-126-shadow/contract-unknown-path/candidate.json",
-          "sha256": "306ec80f5e8a57090f5191f1810a2db38576a183471f829960c7ea29f75dc2f0"
+          "sha256": "f43577348f360ffe30baaecbdc46f6f97cc9d8dc35a36d54e5428af4837e4f63"
         }
       ],
       "scenarioHash": "68c594cbdf06ec8adada78b5138c494dd36dadf54e8e925e103fe1823ccce42a"
