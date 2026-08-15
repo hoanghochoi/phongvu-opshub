@@ -174,6 +174,19 @@ related development commands, so direct `npm run build`/`npm test` cannot skip
 the readiness check. The hook never runs a second npm script recursively; it
 only hydrates/checks the selected profile.
 
+The current command surfaces are checked by the fail-closed boundary scanner:
+
+```text
+node scripts/verify-toolchain-boundary.mjs
+```
+
+It scans the current agent guidance, READMEs, runbooks, release workflows and
+dependency-owning scripts for raw Flutter/Dart/Npm/Npx consumers. Docker,
+remote-maintenance and pinned SDK setup commands are explicit allowlist entries;
+all local build/test commands must retain `run-with-toolchain` or the scanner
+returns contract exit `2`. The scanner is part of the Harness verification
+profile, so a documentation-only bypass cannot merge silently.
+
 ## Fresh task toolchain preflight
 
 Fresh task worktrees intentionally do not carry ignored dependency directories.

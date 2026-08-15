@@ -994,7 +994,7 @@ const packageJson = JSON.parse(packageJsonText);
 const packageLock = JSON.parse(packageLockText);
 assert.equal(
   packageJson.scripts['security:audit-legacy-upload-access'],
-  'node scripts/audit-legacy-upload-access.mjs',
+  'npm run run:nest-command -- node scripts/audit-legacy-upload-access.mjs',
 );
 assert.equal(packageJson.dependencies['@nestjs/platform-express'], '^11.1.28');
 assert.equal(packageJson.dependencies.nodemailer, '^9.0.3');

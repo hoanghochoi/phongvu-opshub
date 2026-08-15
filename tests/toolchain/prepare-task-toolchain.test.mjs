@@ -1179,6 +1179,52 @@ test('Flutter cached readiness invalidates when a package root disappears', (t) 
   assert.deepEqual(calls, ['flutter-pub-get', 'flutter-pub-get']);
 });
 
+test('Flutter cached readiness invalidates when a materialized package changes', (t) => {
+  const root = flutterFixture(t);
+  const externalPackage = mkdtempSync(
+    path.join(os.tmpdir(), 'opshub-flutter-package-content-'),
+  );
+  t.after(() => rmSync(externalPackage, { recursive: true, force: true }));
+  writeFileSync(
+    path.join(externalPackage, 'pubspec.yaml'),
+    'name: external_fixture\nversion: 1.0.0\n',
+  );
+  mkdirSync(path.join(externalPackage, 'lib'), { recursive: true });
+  const calls = [];
+  const runStepFn = (currentRoot, step) => {
+    calls.push(step.id);
+    writeFlutterPackageConfig(currentRoot, [
+      {
+        name: 'external_fixture',
+        rootUri: pathToFileURL(externalPackage).href,
+        packageUri: 'lib/',
+      },
+    ]);
+    return {
+      id: step.id,
+      status: 'passed',
+      exitCode: 0,
+      executable: step.executable,
+      argv: step.argv,
+    };
+  };
+
+  const first = prepareTaskToolchain({ root, profile: 'flutter', runStepFn });
+  assert.equal(first.exitCode, EXIT_CODES.PASS);
+  appendFileSync(
+    path.join(externalPackage, 'pubspec.yaml'),
+    'description: changed materialized package\n',
+  );
+  const refreshed = prepareTaskToolchain({
+    root,
+    profile: 'flutter',
+    runStepFn,
+  });
+  assert.equal(refreshed.exitCode, EXIT_CODES.PASS);
+  assert.equal(refreshed.result.status, 'prepared');
+  assert.deepEqual(calls, ['flutter-pub-get', 'flutter-pub-get']);
+});
+
 test('Flutter cached readiness invalidates when a packageUri directory disappears', (t) => {
   const root = flutterFixture(t);
   const externalPackage = mkdtempSync(

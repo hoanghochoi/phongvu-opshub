@@ -72,9 +72,13 @@ rollback checklist in `SECURITY_HARDENING_RUNBOOK.md`.
 4. Build Flutter clients for production with the home-server API:
 
 ```bash
-flutter build apk --release --dart-define=API_BASE_URL=https://opshub.hoanghochoi.com/api
-flutter build web --release --no-web-resources-cdn --dart-define=API_BASE_URL=https://opshub.hoanghochoi.com/api
+node scripts/run-with-toolchain.mjs --profile flutter -- flutter build apk --release --no-pub --dart-define=API_BASE_URL=https://opshub.hoanghochoi.com/api
+node scripts/run-with-toolchain.mjs --profile flutter -- flutter build web --release --no-pub --no-web-resources-cdn --dart-define=API_BASE_URL=https://opshub.hoanghochoi.com/api
 ```
+
+Run these commands from the repository root. The toolchain boundary repairs and
+verifies the worktree-local `.dart_tool` state before the build; do not run an
+unguarded build after a detached dependency fetch.
 
 5. Publish the APK and app-version metadata:
 
