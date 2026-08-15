@@ -4,6 +4,7 @@
 *.mjs text eol=lf
 *.ps1 text eol=crlf
 *.jsonl text eol=lf
+n8n/**/*.json text eol=lf
 docs/migrations/*.json text eol=lf
 lib/l10n/*.dart text eol=lf
 ios/Runner/GeneratedPluginRegistrant.h text eol=lf

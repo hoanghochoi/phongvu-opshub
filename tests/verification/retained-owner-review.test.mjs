@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
+import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { validateRetainedOwnerReview } from '../../scripts/verify-retained-owner-review.mjs';
@@ -35,4 +37,22 @@ test('OPS-73 retained-owner review rejects path traversal', () => {
     () => validateRetainedOwnerReview(invalid),
     /unsafe path/,
   );
+});
+
+test('OPS-73 file evidence is hashed from Git-normalized bytes', () => {
+  for (const candidate of artifact.candidates) {
+    for (const entry of candidate.paths) {
+      if (entry.kind !== 'file') continue;
+      const normalized = execFileSync(
+        'git',
+        ['show', `${artifact.sourceRevision}:${entry.path}`],
+      );
+      assert.equal(entry.bytes, normalized.length, entry.path);
+      assert.equal(
+        entry.sha256,
+        createHash('sha256').update(normalized).digest('hex'),
+        entry.path,
+      );
+    }
+  }
 });
