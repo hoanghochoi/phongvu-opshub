@@ -1,0 +1,67 @@
+{
+  "formatVersion": 1,
+  "issue": "OPS-72",
+  "cohortId": "ops72-live-v2",
+  "sourceRevision": "dd7d2ffbb1d04c17d8058f2543b643669fb5fbd5",
+  "minimumRequiredObservations": 5,
+  "observations": [
+    {
+      "pullRequest": 247,
+      "runId": 31887979203,
+      "runUrl": "https://github.com/hoanghochoi/phongvu-opshub/actions/runs/31887979203",
+      "prHeadSha": "a7e6291e79e36d8090d0437d3b1b32a933e89b16",
+      "baseSha": "5c457e6ec044894b4603fa2f4ecea6a928859c2c",
+      "reportedHeadSha": "f106bd9c6123c165cef11adb92f6f33aa6b0542f",
+      "reportSha256": "4998a4407f754bf4d5890277173c38db41ad4054adb0968fef8e75a395785aa1",
+      "status": "passed",
+      "classification": "shadow-observation",
+      "selectedProfiles": ["harness", "docs", "verification-runner", "release"],
+      "changedPathCount": 6,
+      "unmatchedPaths": [],
+      "reruns": 0,
+      "shadowDurationMs": 6976,
+      "githubDurationMs": 7037
+    },
+    {
+      "pullRequest": 248,
+      "runId": 31894564331,
+      "runUrl": "https://github.com/hoanghochoi/phongvu-opshub/actions/runs/31894564331",
+      "prHeadSha": "beebe6e1a2d8e942b852a0bfba0fd5ec4779398e",
+      "baseSha": "837df86c2a781b256c72fbe0eb6bdb37cbae26e0",
+      "reportedHeadSha": "b3b66d20ca5d13420caacc299c1f06cfeb885bff",
+      "reportSha256": "138e86b49d442b140c373703cefd8ec15a9af4215e6cc54abbf603eef4f41793",
+      "status": "passed",
+      "classification": "shadow-observation",
+      "selectedProfiles": ["harness", "docs", "verification-runner", "release", "flutter"],
+      "changedPathCount": 9,
+      "unmatchedPaths": [],
+      "reruns": 0,
+      "shadowDurationMs": 7082,
+      "githubDurationMs": 7134
+    },
+    {
+      "pullRequest": 249,
+      "runId": 31896369773,
+      "runUrl": "https://github.com/hoanghochoi/phongvu-opshub/actions/runs/31896369773",
+      "prHeadSha": "d92f383c8d49f1c50ce998aad0b8d365ad11826d",
+      "baseSha": "e338e51bc212c050c9f70b95f0aca91d286b705d",
+      "reportedHeadSha": "cb798cd62ba6300fdd2456d49ed1d978011966bf",
+      "reportSha256": "841afb3b93b927328eac9207aa002816c305e9ade18a81344f2244de84f7d379",
+      "status": "passed",
+      "classification": "shadow-observation",
+      "selectedProfiles": ["harness", "docs", "verification-runner"],
+      "changedPathCount": 6,
+      "unmatchedPaths": [],
+      "reruns": 0,
+      "shadowDurationMs": 4341,
+      "githubDurationMs": 4384
+    }
+  ],
+  "aggregate": {
+    "status": "pending-two-more-observations",
+    "promotionDecision": "do-not-promote",
+    "timingPercentages": null,
+    "rerunReductionPercent": null,
+    "rawReportsCommitted": false
+  }
+}
