@@ -4,13 +4,12 @@ Date: 2026-08-13
 
 ## Status
 
-Active — the current workflow checkpoint is OPS-119 on
-`origin/staging@c46dff3ae9379f663fcac3d8c960ce7c17361933`. OPS-118 closed the
-OPS-39/OPS-40 affected-consumer bypass: PR #231 merged at this SHA, staging
-deploy `31848065825` passed, Linear is `Ready for QA`, and its task
-worktree/local branch were cleaned by the guarded lifecycle finish. OPS-119
-closes the remaining local operational verifier path that could still invoke
-Prisma outside the Nest toolchain boundary. Docker/self-contained image,
+Active — the current workflow checkpoint is OPS-120 on
+`origin/staging@b3913e8d973d2fd35fef03f986cdf79c88c819b6`. OPS-119 closed the
+local operational Prisma verifier boundary: PR #232 merged at this SHA,
+staging deploy `31850797873` passed, Linear is `Ready for QA`, and its task
+worktree/local branch were cleaned by the guarded lifecycle finish. OPS-120
+closes the remaining raw `dart @msixArgs` release helper path. Docker,
 remote-maintenance and product/runtime behavior remain unchanged.
 
 ### OPS-114 checkpoint — dependency bootstrap enforcement
@@ -521,8 +520,13 @@ god-helper.
   deploy `31848065825` passed, exact cold-worktree proof and `stale=false`
   runner evidence passed, Linear is `Ready for QA`, and lifecycle cleanup
   removed the task worktree/local branch.
-- [ ] Complete OPS-119 operational local dependency-entrypoint closure and
-  publish its exact boundary proof.
+- [x] Complete OPS-119 operational local dependency-entrypoint closure. PR #232
+  merged into `staging` at `b3913e8d973d2fd35fef03f986cdf79c88c819b6`;
+  staging deploy `31850797873` passed, disposable PostgreSQL fresh/rollback/
+  upgrade proof passed, exact runner returned `stale=false`, Linear is
+  `Ready for QA`, and lifecycle cleanup removed the task worktree/local branch.
+- [ ] Complete OPS-120 Windows MSIX Flutter dependency-boundary closure and
+  publish its exact release-helper proof.
 - [ ] Run Phase 7B CI shadow metrics, Phase 8 artifact cleanup, Phase 9 runtime
   waves and Phase 10 final consolidation.
 
@@ -1545,24 +1549,42 @@ Current live upstream retry evidence:
   and the lifecycle finish gate passed. Authenticated QA and production
   promotion remain open as required by the release lifecycle.
 
-## Workflow checkpoint (OPS-119 current; operational local dependency boundary)
+## Workflow checkpoint (OPS-119 complete; OPS-120 current)
 
-- Branch/worktree: `codex/ops-119-close-operational-local-dependency-entrypoints` /
-  `../opshub-ops-119`, created by the guarded lifecycle start gate from exact
-  live `origin/staging@c46dff3ae9379f663fcac3d8c960ce7c17361933` with the Nest
-  profile hydrated.
+- OPS-119 branch/worktree was `codex/ops-119-close-operational-local-dependency-entrypoints` /
+  `../opshub-ops-119`, created from exact live
+  `origin/staging@c46dff3ae9379f663fcac3d8c960ce7c17361933` with the Nest
+  profile hydrated. PR #232 merged at
+  `b3913e8d973d2fd35fef03f986cdf79c88c819b6`; staging deploy `31850797873`
+  passed and lifecycle cleanup removed the task worktree/local branch.
 - The remaining local `verify:ops40:postgres` verifier spawned raw `npx.cmd`
   after creating its disposable database. OPS-119 routes that Prisma migration
   through `run-with-toolchain` with `--no-install`, updates the support-chat
   runbook to the repository-root command, and adds static regression coverage.
   Docker/self-contained image commands and remote maintenance remain separate
   boundaries.
-- Current proof: PowerShell syntax, `git diff --check`, focused dependency
-  boundary coverage `10/10`, and exact `verify-task --base origin/staging`
-  pass with `stale=false` (profiles `harness,docs,nestjs`). The disposable
-  PostgreSQL rehearsal also passes fresh migration (`1:YES:n`), rollback
-  (`1:1:1:1`) and upgrade (`1:YES:n`); the temporary server/cluster were
-  cleaned after the run.
+- OPS-119 final gates passed: PowerShell syntax, `git diff --check`, focused
+  dependency boundary coverage `10/10`, exact `verify-task --base origin/staging`
+  with `stale=false`, disposable PostgreSQL fresh/rollback/upgrade proof,
+  PR/CI, staging deploy and lifecycle finish. Authenticated QA and production
+  promotion remain open as required by the release lifecycle.
+
+## Workflow checkpoint (OPS-120 current; Windows MSIX Flutter boundary)
+
+- Branch/worktree: `codex/ops-120-gate-windows-msix-flutter-toolchain` /
+  `../opshub-ops-120`, created by the guarded lifecycle start gate from exact
+  live `origin/staging@b3913e8d973d2fd35fef03f986cdf79c88c819b6` with the
+  Flutter profile hydrated.
+- The two Windows MSIX helpers currently invoke raw `dart @msixArgs`. OPS-120
+  routes both through the Flutter `run-with-toolchain` boundary while keeping
+  MSIX arguments, signing, output paths and certificate behavior unchanged.
+  Sensitive command values are redacted from structured proof output and
+  fingerprints; Docker/self-contained and remote-maintenance commands remain
+  separate boundaries.
+- Current proof: focused toolchain/boundary tests and both PowerShell syntax
+  checks pass; Flutter dry-run shows the profile/readiness gate and redacts the
+  certificate password. Exact runner, release workflow checks and staging
+  deploy remain required before publication.
 
 ## Result
 

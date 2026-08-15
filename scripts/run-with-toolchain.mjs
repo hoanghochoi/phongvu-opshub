@@ -26,6 +26,7 @@ export const EXIT_CODES = Object.freeze({
 const SCHEMA_VERSION = 1;
 const SUPPORTED_PROFILES = new Set(['nestjs', 'flutter', 'all']);
 const FLUTTER_GATED_COMMANDS = new Set(['analyze', 'test', 'build']);
+const SENSITIVE_ARGUMENT_NAME = /^--(?:certificate-password|password|token|secret|api[-_]key|private[-_]key)$/i;
 
 class GateError extends Error {
   constructor(code, message) {
@@ -153,6 +154,32 @@ function flutterCommandArgs(executable, argv) {
   return [...argv, '--no-pub'];
 }
 
+function redactCommandArgv(argv) {
+  const redacted = [];
+  let redactNext = false;
+  for (const argument of argv) {
+    const value = String(argument);
+    if (redactNext) {
+      redacted.push('<redacted>');
+      redactNext = false;
+      continue;
+    }
+    const separator = value.indexOf('=');
+    const name = separator >= 0 ? value.slice(0, separator) : value;
+    if (!SENSITIVE_ARGUMENT_NAME.test(name)) {
+      redacted.push(value);
+      continue;
+    }
+    if (separator >= 0) {
+      redacted.push(`${name}=<redacted>`);
+    } else {
+      redacted.push(value);
+      redactNext = true;
+    }
+  }
+  return redacted;
+}
+
 function sanitize(value, root) {
   let text = String(value || '');
   const normalizedRoot = path.resolve(root);
@@ -238,6 +265,7 @@ export function runWithToolchain({
   const startedAt = Date.now();
   const executable = command.length > 0 ? platformExecutable(command[0]) : null;
   const argv = executable ? flutterCommandArgs(executable, command.slice(1)) : [];
+  const displayArgv = redactCommandArgv(argv);
   const outputPath = resolveOutputPath(resolvedRoot, json);
   const result = {
     schemaVersion: SCHEMA_VERSION,
@@ -248,7 +276,7 @@ export function runWithToolchain({
       ? {
           cwd: path.relative(resolvedRoot, resolvedCwd).replaceAll('\\', '/') || '.',
           executable,
-          argv,
+          argv: displayArgv,
         }
       : null,
     preparation: null,
@@ -271,7 +299,7 @@ export function runWithToolchain({
       profile,
       cwd: resolvedCwd,
       executable,
-      argv,
+      argv: displayArgv,
       preparation,
     });
 

@@ -144,7 +144,10 @@ automatically receive `--no-pub` after the shared preflight, preventing an
 implicit second Pub-cache writer. Exit codes are `0` pass, `2` contract,
 `3` product/test failure and `5` environment/preflight failure. Use `--json`
 for a sanitized schema-v1 result containing the readiness result, command
-fingerprint and duration.
+fingerprint and duration. Values following sensitive flags such as
+`--certificate-password`, `--password`, `--token` and `--secret` are redacted
+from structured output and the command fingerprint; the execution process
+still receives the original argv.
 
 Nest package lifecycle hooks call the gate in prebuild/pretest/prestart and
 related development commands, so direct `npm run build`/`npm test` cannot skip
