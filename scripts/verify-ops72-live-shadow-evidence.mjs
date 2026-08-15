@@ -96,7 +96,7 @@ function validateExcluded(observation) {
 
 export function validateLiveEvidence(document, { rawRoot = null } = {}) {
   assert(document && typeof document === 'object', 'live evidence must be an object');
-  assert(document.formatVersion === 1, 'formatVersion must be 1');
+  assert(document.formatVersion === 1 || document.formatVersion === 2, 'formatVersion must be 1 or 2');
   assert(document.issue === 'OPS-72', 'issue must be OPS-72');
   assert(document.targetBranch === 'staging', 'targetBranch must be staging');
   assert(document.requiredObservationCount === 5, 'requiredObservationCount must be 5');
@@ -129,13 +129,26 @@ export function validateLiveEvidence(document, { rawRoot = null } = {}) {
   assert(aggregate.contractFailureCount === 0, 'aggregate.contractFailureCount must be zero for accepted observations');
   assert(aggregate.productFailureCount === 0 && aggregate.staleFailureCount === 0 && aggregate.environmentFailureCount === 0, 'aggregate failure counts must be zero');
   assert(aggregate.reruns === 0 && aggregate.acceptedStaleProofs === 0 && aggregate.productFailuresRetriedToGreen === 0, 'unsafe retry/stale metrics are not zero');
-  assert(aggregate.targetStatus === 'pending-live-timing-baseline', 'targetStatus must remain pending-live-timing-baseline');
-  assert(aggregate.timeToActionableFailureMedianMs === null, 'timing median must remain null without baseline');
-  assert(aggregate.baselineMedianTimeToActionableFailureMs === null, 'baseline timing must remain null without baseline');
-  assert(aggregate.rerunReductionPercent === null && aggregate.timeToActionableFailureReductionPercent === null, 'optimization percentages must remain null without baseline');
+  if (document.formatVersion === 1) {
+    assert(aggregate.targetStatus === 'pending-live-timing-baseline', 'legacy targetStatus must remain pending-live-timing-baseline');
+    assert(aggregate.timeToActionableFailureMedianMs === null, 'legacy timing median must remain null without baseline');
+    assert(aggregate.baselineMedianTimeToActionableFailureMs === null, 'legacy baseline timing must remain null without baseline');
+    assert(aggregate.rerunReductionPercent === null && aggregate.timeToActionableFailureReductionPercent === null, 'legacy optimization percentages must remain null without baseline');
+  } else {
+    assert(typeof document.cohortId === 'string' && /^[A-Za-z0-9._-]+$/.test(document.cohortId), 'cohortId is invalid');
+    assert(document.observations.every((observation) => observation.telemetry?.cohortId === document.cohortId), 'observations must use one comparable cohort');
+    assert(['pending-live-timing-baseline', 'revise', 'meets-target'].includes(aggregate.targetStatus), 'v2 targetStatus is invalid');
+    assert(Number.isInteger(aggregate.shadowDurationMedianMs) && aggregate.shadowDurationMedianMs >= 0, 'shadowDurationMedianMs is invalid');
+    assert(Number.isInteger(aggregate.baselineShadowDurationMedianMs) && aggregate.baselineShadowDurationMedianMs >= 0, 'baselineShadowDurationMedianMs is invalid');
+    assert(Number.isFinite(aggregate.shadowDurationReductionPercent), 'shadowDurationReductionPercent is invalid');
+    assert(aggregate.targetStatus !== 'meets-target' || aggregate.shadowDurationReductionPercent >= 25, 'meets-target requires the 25% timing target');
+    assert(aggregate.targetStatus !== 'revise' || aggregate.shadowDurationReductionPercent < 25 || aggregate.rerunReductionPercent === null, 'revise status must retain an unmet or unmeasurable target');
+    assert(aggregate.timeToActionableFailureMedianMs === null, 'no failure sample may claim a first-actionable-failure median');
+    assert(aggregate.baselineMedianTimeToActionableFailureMs === null, 'no failure sample may claim a baseline first-actionable-failure median');
+  }
   assert(typeof document.generatedAtUtc === 'string', 'generatedAtUtc is required');
   assert(!/[A-Za-z]:\\|\/Users\/|\/home\/|\\\\/.test(JSON.stringify(document)), 'artifact contains an absolute local path');
-  return { schemaVersion: 1, issue: document.issue, observations: 5, excludedObservations: 1, passCount: 5, targetStatus: aggregate.targetStatus, rawArtifactsChecked: Boolean(rawRoot) };
+  return { schemaVersion: document.formatVersion, issue: document.issue, observations: 5, excludedObservations: 1, passCount: 5, targetStatus: aggregate.targetStatus, rawArtifactsChecked: Boolean(rawRoot) };
 }
 
 function parseArgs(argv) {
