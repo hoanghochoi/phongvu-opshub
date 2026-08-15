@@ -4,9 +4,9 @@ Date: 2026-08-13
 
 ## Status
 
-Active — the current workflow checkpoint is OPS-136 reconciliation after the
-OPS-135 cold-worktree dependency canary, based on
-`origin/staging@98d7316648a60e415e154b114c6bb5ec87f52286`.
+Active — the current workflow checkpoint is OPS-137 Phase 8 evidence
+determinism/checklist reconciliation, created from
+`origin/staging@6814d4ba29d7dbd854590daea3c890f15174d3c7` after OPS-136.
 OPS-134 is squash-merged at `46c8aa90d932f8cfadb25eddae80305180ca9d95`,
 staging-deployed by `31901021962`, and tracked `Ready for QA`. OPS-135 is
 squash-merged at the current checkpoint, staging-deployed by
@@ -571,21 +571,26 @@ god-helper.
   the task worktree/local/remote branch. Linear OPS-131 is `Ready for QA`;
   production deployment remains the Done gate.
 - [x] Reconcile OPS-72 after OPS-73 in OPS-132. The sanitized progress ledger
-  records exactly three same-cohort post-OPS-130 manifests (#247–#249), all
-  passed with `stale=false`, zero unmatched paths and zero reruns. The live
-  aggregate remains pending; no percentage or promotion claim is made.
-- [ ] Close OPS-134 generated-root writeability and cold dependency bootstrap
-  lifecycle. The implementation is merged at `46c8aa90`; exact staging deploy
-  `31901021962`, Linear proof/status and guarded remote-branch cleanup remain
-  required before the checkbox can close.
-- [ ] Complete OPS-135 cold-worktree dependency canary from exact
-  `origin/staging@46c8aa90d932f8cfadb25eddae80305180ca9d95`. The canary must
-  prove a clean Windows checkout hydrates both Nest/Prisma and Flutter through
-  the shared doctor/wrapper, including an allowlisted `lib/l10n` ReadOnly fault,
-  before any first build.
-- [ ] Complete OPS-130 live-shadow evidence assembly. Keep the affected matrix
-  observational; do not promote profiles until the revised OPS-72 cohort has
-  measurable 25% timing and 30% rerun reductions.
+  now records five same-cohort post-OPS-130 manifests (#247–#251), all passed
+  with `stale=false`, zero unmatched paths and zero reruns. The current median
+  reduction is `8.77%` against the `25%` target and rerun reduction remains
+  unmeasurable, so the aggregate is `revise`/`do-not-promote`.
+- [x] Close OPS-134 generated-root writeability and cold dependency bootstrap
+  lifecycle. PR #251 merged at `46c8aa90`, exact staging deploy
+  `31901021962` passed, Linear proof/status is `Ready for QA`, and the guarded
+  worktree/local/remote branch cleanup passed. Production remains the only
+  completion gate.
+- [x] Complete OPS-135 cold-worktree dependency canary from exact
+  `origin/staging@46c8aa90d932f8cfadb25eddae80305180ca9d95`. PR #252 merged at
+  `98d7316648a60e415e154b114c6bb5ec87f52286`; Windows canary `31903049090`,
+  exact staging deploy `31903246094` and guarded cleanup passed. The canary
+  proves a clean checkout hydrates both Nest/Prisma and Flutter, including the
+  allowlisted `lib/l10n` ReadOnly fault; Linear is `Ready for QA`.
+- [x] Complete OPS-130 live-shadow evidence assembly. PR #247 merged at
+  `837df86c2a781b256c72fbe0eb6bdb37cbae26e0`, staging deploy `31888018450`
+  passed, and the shadow workflow/collector is implemented. The affected
+  matrix remains observational because OPS-72's revised cohort still does not
+  meet the 25% timing and 30% rerun-reduction targets.
 - [ ] Run Phase 8 artifact cleanup, Phase 9 runtime waves and Phase 10 final
   consolidation.
 
@@ -601,6 +606,15 @@ Phase 8 inventory checkpoint (OPS-73):
   allowlist entries after the sanitized OPS-73 retained-owner review proves an
   owner reference and rollback path for every candidate. No deletion batch is
   authorized by this evidence.
+- [x] Refresh the Phase 8 inventory/owner evidence at the exact
+  `origin/staging@6814d4ba29d7dbd854590daea3c890f15174d3c7` checkpoint. The
+  clean checkout inventory now records 6,046 tracked and zero ignored paths,
+  153 hashed assets and zero deletion batches; generated dependency/build
+  output is intentionally excluded from the committed snapshot. The
+  retained-owner review covers 19 paths and passes with
+  `no-safe-deletion-candidate`. The validator rejects only a `..` path segment,
+  so valid generated filenames containing consecutive dots are accepted. No
+  n8n/platform/release asset is authorized for deletion.
 
 Flutter batch checkpoint:
 
@@ -2064,9 +2078,11 @@ Current live upstream retry evidence:
   allowlisted repository roots, rejects symlinks/ACL denial, and performs a real
   write probe before dependency hydration. Dry-run remains non-mutating.
 - Focused proof covers ReadOnly normalization, ACL fail-closed behavior, dry-run
-  safety and missing Nest `node_modules` handling. The full toolchain suite,
-  cold/partial materialization canaries, exact runner, PR/CI, staging deploy and
-  guarded cleanup remain required. Rollback is one OPS-134 squash revert.
+  safety and missing Nest `node_modules` handling. PR #251, the full toolchain
+  suite, cold/partial materialization canaries, exact runner, staging deploy
+  `31901021962` and guarded cleanup all passed. Linear OPS-134 is `Ready for
+  QA`; production remains the completion gate. Rollback is one OPS-134 squash
+  revert.
 
 ## Workflow checkpoint (OPS-135; cold-worktree dependency canary)
 
@@ -2123,6 +2139,30 @@ Current live upstream retry evidence:
   `stale=false`, PR checks, staging deploy and guarded lifecycle cleanup.
   Rollback is one OPS-136 squash revert.
 
+## Workflow checkpoint (OPS-137; Phase 8 evidence determinism and checklist reconciliation)
+
+- This bounded Phase 8 slice is branch/worktree
+  `codex/ops-137-reconcile-master-plan-checklist-after-ops-136` /
+  `../opshub-ops-137-master-plan-checklist`, created by the guarded lifecycle
+  start gate from exact live
+  `origin/staging@6814d4ba29d7dbd854590daea3c890f15174d3c7`. Canonical staging
+  was clean and the task worktree hydrated Nest/Prisma and Flutter profiles
+  independently before edits.
+- The inventory verifier now treats only a path segment equal to `..` as
+  traversal; generated names such as `lifecycle-runtime-2.8.7..jar` no longer
+  create a false failure. The refreshed inventory and retained-owner review are
+  tied to the exact base SHA, pass their validators, and retain all candidates
+  because no independent deletion authority exists.
+- The five valid post-OPS-130 shadow observations are now represented in
+  `docs/migrations/ops-72-live-shadow-progress-v2.json` (#247–#251). The
+  comparable shadow median is `6976ms` versus `7647ms` (`8.77%` reduction),
+  rerun reduction remains unmeasurable because both cohorts have zero retries,
+  and the decision remains `revise`/`do-not-promote`.
+- This slice also reconciles the OPS-130/134/135 checklist and replaces the
+  stale OPS-132 current-checkpoint wording. Phase 8 deletion, remaining runtime
+  proof and Phase 10 production consolidation stay open. Rollback is one OPS-137
+  squash revert.
+
 Historical Phase 0-1 artifacts, the generic verification foundation/canaries,
 the disposable upstream updater lifecycle gate, and the shared Flutter test
 environment remain implemented and verified. Save-file picker success/error
@@ -2134,17 +2174,19 @@ gates. OPS-131 is now merged/deployed at `e338e51b` and tracked as `Ready for
 QA` after exact deploy `31894609071` and guarded cleanup. OPS-73's retained-owner
 review is merged/deployed at `dd7d2ffb` and tracked as `Ready for QA` after
 exact deploy `31896414830` and guarded cleanup. OPS-73's prior dependency
-batches remain `Ready for QA`; this OPS-132 reconciliation is the current
-workflow checkpoint. OPS-113 is also staged and tracked as `Ready for
+batches remain `Ready for QA`; OPS-136 is the last merged checkpoint at
+`6814d4ba`, and OPS-137 is the current Phase 8 evidence/checklist slice. OPS-113
+is also staged and tracked as `Ready for
 QA` after exact deploy `31862881662` and guarded cleanup. OPS-122 and OPS-123's
 reconciliations are historical; OPS-124 is merged/deployed and tracked as
 `Ready for QA`, OPS-127 and OPS-128 are historical dependency-boundary
 checkpoints, OPS-129 is a historical master-plan reconciliation, and OPS-130
 is the completed live-shadow evidence assembly checkpoint. OPS-131 and OPS-73
-are completed staging checkpoints. OPS-72's live cohort is still incomplete
-(three valid post-OPS-130 manifests; prior five-observation cohort remains
-`revise`); Phase 8 deletion work, runtime waves and OPS-75 final consolidation
-remain downstream gates.
+are completed staging checkpoints. OPS-72 now has five valid post-OPS-130
+manifests (#247–#251), but remains `revise`/`do-not-promote` because the timing
+target is only `8.77%` and rerun reduction is unmeasurable. Phase 8 deletion
+work, remaining runtime proof and OPS-75 final consolidation remain downstream
+gates.
 Move this plan to
 `docs/plans/completed/` only after the full initiative's final validation and
 production lifecycle are complete.

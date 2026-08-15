@@ -9,6 +9,15 @@ const AREAS = new Set(['flutter', 'nestjs', 'go', 'deployment', 'assets', 'docs'
 
 function fail(message) { throw new Error(`ARTIFACT_INVENTORY_INVALID: ${message}`); }
 function noAbsolute(value) { return typeof value === 'string' && !/^(?:[A-Za-z]:[\\/]|[\\/]{2}|file:)/.test(value); }
+function isSafeRelativePath(value) {
+  const normalized = typeof value === 'string' ? value.replaceAll('\\', '/') : '';
+  return (
+    typeof value === 'string' &&
+    value.length > 0 &&
+    noAbsolute(value) &&
+    !normalized.split('/').includes('..')
+  );
+}
 
 export function validateInventory(document) {
   if (document?.formatVersion !== 1 || document.issue !== 'OPS-73' || document.phase !== 'before') fail('invalid header');
@@ -20,11 +29,11 @@ export function validateInventory(document) {
   if (document.ignoredExisting.fileCount !== document.ignoredExisting.paths.length) fail('ignored count mismatch');
   const seen = new Set();
   for (const relative of document.tracked.paths) {
-    if (!noAbsolute(relative) || relative.includes('..') || seen.has(relative)) fail(`invalid/duplicate tracked path: ${relative}`);
+    if (!isSafeRelativePath(relative) || seen.has(relative)) fail(`invalid/duplicate tracked path: ${relative}`);
     seen.add(relative);
   }
   for (const entry of [...document.ignoredExisting.paths, ...document.dependencies, ...document.assets, ...document.runtimeHotspots]) {
-    if (!noAbsolute(entry.path) || entry.path.includes('..')) fail(`invalid path: ${entry.path}`);
+    if (!isSafeRelativePath(entry.path)) fail(`invalid path: ${entry.path}`);
     if (entry.area && !AREAS.has(entry.area)) fail(`unknown area for ${entry.path}`);
     if (!entry.owner) fail(`missing owner for ${entry.path}`);
   }

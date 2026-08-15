@@ -11,7 +11,7 @@ test('OPS-73 retained-owner review proves every candidate has an owner and rollb
   const result = validateRetainedOwnerReview(artifact);
   assert.equal(result.status, 'passed');
   assert.equal(result.candidateCount, 4);
-  assert.equal(result.retainedPathCount, 18);
+  assert.equal(result.retainedPathCount, 19);
   assert.equal(result.deletionDecision, 'no-safe-deletion-candidate');
   assert.deepEqual(
     artifact.candidates.map((candidate) => candidate.disposition),
