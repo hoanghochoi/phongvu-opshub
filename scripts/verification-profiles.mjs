@@ -26,7 +26,7 @@ export const PROFILES = Object.freeze([
       /^scripts\/bootstrap-harness\.(?:ps1|sh)$/,
       /^scripts\/bin\/harness(?:-cli)?\.exe\.sha256$/,
       /^tests\/(?:README\.md|(?:bootstrap|fixtures|workflow)\/)/,
-      /^scripts\/(?:agent-harness-block|archive-harness|build-harness|collect-(?:harness|artifact-inventory|ops72-shadow-metrics|ops72-failure-injection)|harness(?:-|$)|install-harness|materialize-core-state|promote-harness|review-harness-disposition|task-lifecycle|test-task-lifecycle|verify-(?:artifact-inventory|core|harness|materialized|migration-eol|ops72-live-shadow-evidence|ops72-shadow|ops72-failure-injection|plan-disposition|revision|task-shadow)|validate-changeset-rebuild)/,
+      /^scripts\/(?:agent-harness-block|archive-harness|build-harness|collect-(?:harness|artifact-inventory|ops72-shadow-metrics|ops72-failure-injection|ops72-live-shadow-evidence)|harness(?:-|$)|install-harness|materialize-core-state|promote-harness|review-harness-disposition|task-lifecycle|test-task-lifecycle|verify-(?:artifact-inventory|core|harness|materialized|migration-eol|ops72-live-shadow-evidence|ops72-shadow|ops72-failure-injection|plan-disposition|revision|task-shadow)|validate-changeset-rebuild)/,
       /^tests\/(?:adapter|boundary|changesets|ci|coherence|core|protocol|snapshot|worktrees)\//,
       /^tests\/docs\/test-doc-contracts\.sh$/,
       /^tests\/migration\//,
@@ -115,6 +115,12 @@ export const PROFILES = Object.freeze([
         cwd: ".",
         executable: process.execPath,
         argv: ["--check", "scripts/verify-ops72-failure-injection.mjs"],
+      },
+      {
+        id: "ops72-live-evidence-collector-syntax",
+        cwd: ".",
+        executable: process.execPath,
+        argv: ["--check", "scripts/collect-ops72-live-shadow-evidence.mjs"],
       },
       {
         id: "shadow-runner-syntax",

@@ -108,6 +108,24 @@ never committed. The current v2 ledger records the five live observations and
 their baseline comparison. If the 25% timing or 30% rerun target is unmet or
 unmeasurable, it must remain `revise` and the affected matrix stays observational.
 
+Each live shadow workflow also publishes a sanitized
+`verify-task-shadow-manifest.json` beside its raw report. Download five
+same-cohort artifacts into `<raw-root>/<run-id>/` and assemble the ledger with
+the repository collector; it verifies every report hash and run/PR identity
+before writing the evidence file:
+
+```text
+node scripts/collect-ops72-live-shadow-evidence.mjs \
+  --raw-root tmp/ops72-live-shadow \
+  --baseline docs/migrations/ops-72-live-shadow-evidence.json \
+  --output docs/migrations/ops-72-live-shadow-evidence.json
+```
+
+The collector fails closed on duplicate or missing runs, mixed cohorts, stale
+or unmatched reports, retries, invalid SHA/URL metadata, and raw hash
+mismatches. It never promotes a profile; a target that is unmet or not
+measurable remains `revise`.
+
 ## Legacy boundary
 
 Protocol v1, the SQLite control plane, and `harness-cli` are end-of-life. The

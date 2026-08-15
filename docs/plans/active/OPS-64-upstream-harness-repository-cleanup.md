@@ -4,12 +4,12 @@ Date: 2026-08-13
 
 ## Status
 
-Active — the current workflow checkpoint is OPS-129 master-plan
-reconciliation on `origin/staging@8b1aed00af76796bafe74d3ecdf268a7fadf9330`.
-OPS-128 PR #245 was squash-merged at that SHA, staging deploy
-`31884524898` passed, and guarded lifecycle cleanup left only the canonical
-staging worktree. OPS-72 still has five comparable post-telemetry observations,
-but the measured timing improvement is only 15.05% and the rerun target is not
+Active — the current workflow checkpoint is OPS-130 live shadow evidence
+assembly, based on `origin/staging@5c457e6ec044894b4603fa2f4ecea6a928859c2c`.
+OPS-129 PR #246 was squash-merged at that SHA, staging deploy `31885815185`
+passed, and guarded lifecycle cleanup left only the canonical staging
+worktree. OPS-72 still has five comparable post-telemetry observations, but the
+measured timing improvement is only 15.05% and the rerun target is not
 measurable, so the matrix remains observational and the phase is explicitly
 `revise`. Product, API, permission and runtime behavior stay unchanged.
 
@@ -554,12 +554,17 @@ god-helper.
   Exact staging deploy `31875595813` passed Android, Windows, web, backend,
   direct-origin and public health/version checks; Linear is `Ready for QA` and
   guarded lifecycle cleanup removed the task worktree/local/remote branch.
-- [ ] Reconcile this master plan in OPS-125 from the exact
-  `origin/staging@5432a995fb1a68a70be96a95ba45592fb9e703c1` checkpoint, then
-  select one bounded follow-up. The next safe workflow lane is a revised
-  OPS-72 failure-injection/timing cohort; do not promote the affected matrix
-  or start overlapping runtime/auth work until its acceptance evidence is
-  measurable.
+- [x] Reconcile this master plan in OPS-125 from the exact
+  `origin/staging@5432a995fb1a68a70be96a95ba45592fb9e703c1` checkpoint. PR #242
+  merged at `f0f080d78871b8e3112eab18c3c6f9e834ab36ea`, staging deploy
+  `31876813285` passed, and guarded cleanup removed the task worktree/local/
+  remote branch.
+- [x] Reconcile the plan after OPS-124/OPS-128 dependency slices in OPS-129.
+  PR #246 merged at `5c457e6ec044894b4603fa2f4ecea6a928859c2c`; staging deploy
+  `31885815185` passed and the guarded cleanup left only canonical staging.
+- [ ] Complete OPS-130 live-shadow evidence assembly. Keep the affected matrix
+  observational; do not promote profiles until the revised OPS-72 cohort has
+  measurable 25% timing and 30% rerun reductions.
 - [ ] Run Phase 8 artifact cleanup, Phase 9 runtime waves and Phase 10 final
   consolidation.
 
@@ -1922,6 +1927,28 @@ Current live upstream retry evidence:
   deploy and guarded lifecycle cleanup. Rollback is one docs-only squash
   revert.
 
+## Workflow checkpoint (OPS-130; automate OPS-72 live shadow evidence assembly)
+
+- This bounded tooling slice is branch/worktree
+  `codex/ops-130-automate-ops72-live-shadow-evidence` /
+  `../opshub-ops-130-automate-ops72-live-shadow-evidence`, created by the
+  guarded lifecycle start gate from exact
+  `origin/staging@5c457e6ec044894b4603fa2f4ecea6a928859c2c`. Canonical staging
+  remained clean and protected.
+- The PR adds a sanitized per-run manifest to the observational shadow
+  workflow and a fail-closed collector that assembles exactly five same-cohort
+  reports, re-hashes each raw artifact, verifies PR/run/SHA metadata and reuses
+  the live-evidence validator. It does not promote profiles or change blocking
+  checks, runtime behavior, dependency versions or production policy.
+- Current OPS-72 evidence remains `revise`: the existing live cohort is 15.05%
+  faster than baseline and has zero retries in both cohorts, so the 25% timing
+  and 30% rerun targets are not yet accepted. The collector must preserve this
+  disposition when the next five artifacts are assembled.
+- Required proof is collector/validator tests, workflow syntax/profile scan,
+  `git diff --check`, exact `verify-task --base origin/staging` with
+  `stale=false`, PR checks, staging deploy and guarded lifecycle cleanup.
+  Rollback is one tooling/docs squash revert.
+
 ## Result
 
 Historical Phase 0-1 artifacts, the generic verification foundation/canaries,
@@ -1935,7 +1962,8 @@ gates. OPS-73 and OPS-113 are now also staged and tracked as `Ready for QA`
 after exact deploy `31862881662` and guarded cleanup. OPS-122 and OPS-123's
 reconciliations are historical; OPS-124 is merged/deployed and tracked as
 `Ready for QA`, OPS-127 and OPS-128 are historical dependency-boundary
-checkpoints, and OPS-129 is the current master-plan reconciliation checkpoint.
+checkpoints, OPS-129 is a historical master-plan reconciliation, and OPS-130 is
+the current live-shadow evidence assembly checkpoint.
 OPS-72's five live observations are valid but remain `revise`; Phase 8 retained-owner
 evidence, runtime waves and OPS-75 final consolidation remain downstream
 gates.
