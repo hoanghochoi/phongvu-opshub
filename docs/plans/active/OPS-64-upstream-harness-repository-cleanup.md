@@ -4,13 +4,14 @@ Date: 2026-08-13
 
 ## Status
 
-Active — the current workflow checkpoint is OPS-72 timing-baseline v2 on
-`origin/staging@661e930a10e198edc84d0d192d5f2f766ff777a4`. OPS-122 PR #238 was
-squash-merged and its exact staging deploy `31864564075` passed all client,
-backend, direct-origin and public health/version checks; lifecycle cleanup
-removed its task worktree and branches. OPS-72 now has five comparable
-post-telemetry observations, but the measured timing improvement is only
-15.05% and the rerun target is not measurable, so the matrix remains
+Active — the current workflow checkpoint is the OPS-123 reconciliation after
+OPS-72 timing-baseline v2 on
+`origin/staging@4dda2592de5d0691082756d0d6fb32d0b93e8607`. OPS-72 PR #239 was
+squash-merged and its exact staging deploy `31869668906` passed all Windows,
+Android, web, backend, direct-origin and public health/version checks;
+lifecycle cleanup removed its task worktree and branches. OPS-72 has five
+comparable post-telemetry observations, but the measured timing improvement is
+only 15.05% and the rerun target is not measurable, so the matrix remains
 observational and the phase is explicitly `revise`. Product, API, permission
 and runtime behavior stay unchanged.
 
@@ -542,9 +543,13 @@ god-helper.
 - [x] Complete OPS-122 master-plan reconciliation after OPS-121. PR #235
   merged at `d10241c0eafab66bd34390e7dda8d58a96e54147`; the current checkpoint
   is subsequently reconciled to the exact post-OPS-113 `origin/staging` SHA.
-- [ ] Complete OPS-72 Phase 7B timing baseline and percentage-target evidence;
-  keep the affected matrix observational until its acceptance metrics are
-  proven.
+- [ ] Complete OPS-72 Phase 7B percentage-target evidence; the v2 live timing
+  baseline is recorded, but the 25% timing target is unmet and rerun reduction
+  is unmeasurable, so keep the affected matrix observational.
+- [x] Complete OPS-123 master-plan reconciliation after OPS-72 PR #239. The
+  source checkpoint is exact `origin/staging@4dda2592de5d0691082756d0d6fb32d0b93e8607`;
+  the reconciliation is docs-only and preserves the explicit `revise`
+  residual, deployment proof and cleanup evidence.
 - [ ] Run Phase 8 artifact cleanup, Phase 9 runtime waves and Phase 10 final
   consolidation.
 
@@ -1724,7 +1729,7 @@ Current live upstream retry evidence:
   with `stale=false`, PR/CI, staging deploy and guarded lifecycle cleanup.
   Rollback is one docs-only squash revert.
 
-## Workflow checkpoint (OPS-72 timing baseline v2; current)
+## Workflow checkpoint (OPS-72 timing baseline v2; historical current slice)
 
 - This slice is branch/worktree `codex/ops-72-timing-baseline-v2` /
   `../opshub-ops-72-timing-baseline-v2`, created by the guarded lifecycle start
@@ -1744,6 +1749,20 @@ Current live upstream retry evidence:
   baseline, or explicitly revise the acceptance metric before closing OPS-72.
   Rollback is one evidence/validator/docs revert.
 
+## Workflow checkpoint (OPS-123; current reconciliation)
+
+- This docs-only slice is branch/worktree
+  `codex/ops-123-reconcile-ops72-checkpoint` /
+  `../opshub-ops-123-reconcile-ops72-checkpoint`, created by the guarded
+  lifecycle start gate from exact live
+  `origin/staging@4dda2592de5d0691082756d0d6fb32d0b93e8607`.
+- It updates the master-plan authority to the post-OPS-72 merge checkpoint and
+  preserves the exact PR #239, deploy `31869668906`, validation and cleanup
+  proof. No product/runtime/API/UI/data/dependency/archive behavior changes.
+- Required proof is `git diff --check`, exact `verify-task --base origin/staging`
+  with `stale=false`, PR/CI, staging deploy and guarded lifecycle cleanup.
+  Rollback is one docs-only squash revert.
+
 ## Result
 
 Historical Phase 0-1 artifacts, the generic verification foundation/canaries,
@@ -1755,9 +1774,10 @@ OPS-65 PR #175, OPS-68 PR #176, and OPS-69 PRs #177/#178 are merged into
 `staging`; each remains subject to its documented QA/production lifecycle
 gates. OPS-73 and OPS-113 are now also staged and tracked as `Ready for QA`
 after exact deploy `31862881662` and guarded cleanup. OPS-122's reconciliation
-is historical; OPS-72 timing-baseline v2 is the current workflow checkpoint.
-Its five live observations are valid but remain `revise`; runtime waves and
-OPS-75 final consolidation remain downstream of the workflow/noise gate.
+is historical; OPS-72 timing-baseline v2 is now the historical current slice
+and OPS-123 is the active checkpoint reconciliation. The five live
+observations are valid but remain `revise`; runtime waves and OPS-75 final
+consolidation remain downstream of the workflow/noise gate.
 Move this plan to
 `docs/plans/completed/` only after the full initiative's final validation and
 production lifecycle are complete.
