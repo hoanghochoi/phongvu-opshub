@@ -4,9 +4,26 @@ Date: 2026-08-13
 
 ## Status
 
-Active — the current workflow checkpoint is OPS-161 master-plan
+Active — the current workflow checkpoint is OPS-163 master-plan
 reconciliation, created from exact live
-`origin/staging@155b5dec53b7a67677bbfdcbde04a0fb437b707d` after OPS-160.
+`origin/staging@9caa1135d2430d50256e1dea15fbf5665ca3d27f` after OPS-162.
+OPS-162 shared `prepareAdminUserMutation` characterization is squash-merged
+through PR #286 at
+`9caa1135d2430d50256e1dea15fbf5665ca3d27f`, staging-deployed by
+`31971498979`, and tracked `Ready for QA` after CI, exact-SHA deployment and
+guarded lifecycle cleanup. Direct characterization passed 4/4; affected Nest
+suites passed 97/97; full Nest passed with 121 suites, 1287 passed and 6
+skipped; Nest build, Prettier, `git diff --check` and exact runner proof passed
+with `stale=false`. The next safe Phase 9F boundary is extraction of a shared
+`prepareAdminUserMutation` collaborator for `UserAdminMutationService` and
+`UserImportService`; authorization and `userAccessFingerprint` ownership stay
+explicit, while atomic assignment transactions and generic admin-policy scope
+authorization remain separate full-fix/security follow-ups. Flutter/Go
+affected-consumer proof remains explicitly fail-closed under the approved
+dependency deferral; no profile was suppressed, no lockfile was changed and no
+product failure was retried to green. OPS-163 records this checkpoint and
+keeps the dependency gap as residual risk rather than weakening any gate.
+OPS-161 is the preceding master-plan reconciliation after OPS-160.
 OPS-160 UserAdminMutationService characterization is squash-merged through PR
 #284 at `155b5dec53b7a67677bbfdcbde04a0fb437b707d`, staging-deployed by
 `31968579616`, and tracked `Ready for QA` after proof and guarded lifecycle
