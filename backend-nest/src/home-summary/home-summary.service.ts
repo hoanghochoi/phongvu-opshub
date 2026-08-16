@@ -44,6 +44,7 @@ import { HomeSummaryProjectionRuntime } from './home-summary-projection.runtime'
 import { HomeSummaryCsvComparisonRuntime } from './home-summary-csv-comparison.runtime';
 import { HomeSummaryComparisonRuntime } from './home-summary-comparison.runtime';
 import { HomeSummarySalesProgressRuntime } from './home-summary-sales-progress.runtime';
+import { HomeSummaryMainKpiRuntime } from './home-summary-main-kpi.runtime';
 import type {
   HomeSummaryComparisonMetricResponse,
   HomeSummaryComparisonPeriodResponse,
@@ -341,23 +342,6 @@ type SalesBehaviorYesCounts = {
   appDownload: number;
 };
 
-type HomeSalesMainKpiSummary = {
-  businessCustomerRevenue: number;
-  personalCustomerRevenue: number;
-  examScorePromotionCount: number;
-  studentPromotionCount: number;
-  installmentNeedCount: number;
-  successfulInstallmentCount: number;
-  extendedInsuranceQuantity: number;
-  laptopQuantity: number;
-  pcQuantity: number;
-  assembledPcQuantity: number;
-  appleQuantity: number;
-  monitorQuantity: number;
-  printerQuantity: number;
-  accessoriesQuantity: number;
-};
-
 @Injectable()
 export class HomeSummaryService {
   private readonly logger = new Logger(HomeSummaryService.name);
@@ -367,6 +351,7 @@ export class HomeSummaryService {
   private readonly csvComparisonRuntime: HomeSummaryCsvComparisonRuntime;
   private readonly comparisonRuntime: HomeSummaryComparisonRuntime;
   private readonly salesProgressRuntime: HomeSummarySalesProgressRuntime;
+  private readonly mainKpiRuntime: HomeSummaryMainKpiRuntime;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -395,6 +380,14 @@ export class HomeSummaryService {
           this.loadCanonicalRevenueForRows(this.prisma, rows, source),
       },
     );
+    this.mainKpiRuntime = new HomeSummaryMainKpiRuntime(this.prisma, {
+      salesReportMainKpiWhere: (scope, range) =>
+        this.salesReportMainKpiWhere(scope, range),
+      loadCanonicalRevenueForRows: (rows, source) =>
+        this.loadCanonicalRevenueForRows(this.prisma, rows, source),
+      summarizeSalesRevenueRows: (rows, canonicalRevenue) =>
+        this.salesReports.summarizeSalesRevenueRows(rows, canonicalRevenue),
+    });
     this.csvComparisonRuntime = new HomeSummaryCsvComparisonRuntime(
       this.prisma,
       {
@@ -717,7 +710,7 @@ export class HomeSummaryService {
     let notPurchasedReports = 0;
     let completedRevenue = 0;
     let dailySeries: HomeSummaryDailyPoint[] | undefined;
-    let mainKpis = this.emptyMainKpis();
+    let mainKpis = this.mainKpiRuntime.empty();
     let behaviorYesCounts = this.emptyBehaviorYesCounts();
     let projectedSales: HomeProjectionLoadResult | null = null;
     let projectedFinance: HomeProjectionLoadResult | null = null;
@@ -816,7 +809,7 @@ export class HomeSummaryService {
             this.totalCacheRevenue(salesMetricsScope, range),
             this.completedRevenue(salesMetricsScope, range),
             this.countBehaviorYesReports(salesMetricsScope, range),
-            this.buildSalesMainKpis(salesMetricsScope, range),
+            this.mainKpiRuntime.build(salesMetricsScope, range),
           ]);
       }
     } else if (includeDailySeries) {
@@ -2423,82 +2416,6 @@ export class HomeSummaryService {
     return total ? Number(((count / total) * 100).toFixed(2)) : 0;
   }
 
-  private async buildSalesMainKpis(
-    scope: SalesReportSummaryScopeDescriptor,
-    range: DateRange,
-  ): Promise<HomeSalesMainKpiSummary> {
-    const rows = await this.prisma.salesReport.findMany({
-      where: this.salesReportMainKpiWhere(scope, range),
-      select: {
-        id: true,
-        reportType: true,
-        orderCode: true,
-        erpOrderId: true,
-        customerType: true,
-        promotionCodes: true,
-        installmentNeed: true,
-        installmentStatus: true,
-        installmentNoInstallmentReason: true,
-        items: {
-          orderBy: { createdAt: 'asc' },
-          select: {
-            name: true,
-            productTypeName: true,
-            productGroupName: true,
-            categoryType: true,
-            quantity: true,
-            finalSellPrice: true,
-            rowTotal: true,
-          },
-        },
-      },
-    });
-    const canonicalRevenue = await this.loadCanonicalRevenueForRows(
-      this.prisma,
-      rows,
-      'main_kpis',
-    );
-    const summary = this.salesReports.summarizeSalesRevenueRows(
-      rows,
-      canonicalRevenue,
-    );
-    return {
-      businessCustomerRevenue: summary.businessRevenue,
-      personalCustomerRevenue: summary.personalRevenue,
-      examScorePromotionCount: summary.examScorePromotionCount,
-      studentPromotionCount: summary.studentPromotionCount,
-      installmentNeedCount: summary.installmentNeedTotalCount,
-      successfulInstallmentCount: summary.successfulInstallmentOrderCount,
-      extendedInsuranceQuantity: summary.extendedInsuranceQuantity,
-      laptopQuantity: summary.laptopQuantity,
-      pcQuantity: summary.pcQuantity,
-      assembledPcQuantity: summary.assembledPcQuantity,
-      appleQuantity: summary.appleQuantity,
-      monitorQuantity: summary.monitorQuantity,
-      printerQuantity: summary.printerQuantity,
-      accessoriesQuantity: summary.accessoriesQuantity,
-    };
-  }
-
-  private emptyMainKpis(): HomeSalesMainKpiSummary {
-    return {
-      businessCustomerRevenue: 0,
-      personalCustomerRevenue: 0,
-      examScorePromotionCount: 0,
-      studentPromotionCount: 0,
-      installmentNeedCount: 0,
-      successfulInstallmentCount: 0,
-      extendedInsuranceQuantity: 0,
-      laptopQuantity: 0,
-      pcQuantity: 0,
-      assembledPcQuantity: 0,
-      appleQuantity: 0,
-      monitorQuantity: 0,
-      printerQuantity: 0,
-      accessoriesQuantity: 0,
-    };
-  }
-
   private async resolveSelectedSalesMetricsScope(
     user: any,
     scope: SalesReportSummaryScopeDescriptor,
@@ -2832,7 +2749,7 @@ export class HomeSummaryService {
       averageOrderValue: 0,
       completedRevenue: 0,
       pendingRevenue: 0,
-      ...this.emptyMainKpis(),
+      ...this.mainKpiRuntime.empty(),
       coverageRate: 0,
       conversionRate: 0,
       consultedSolutionRate: 0,

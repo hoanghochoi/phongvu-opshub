@@ -4,9 +4,15 @@ Date: 2026-08-13
 
 ## Status
 
-Active — the current workflow checkpoint is OPS-149 Phase 9C sales-progress
+Active — the current workflow checkpoint is OPS-150 Phase 9C main-KPI
 runtime extraction, created from exact live
-`origin/staging@324c87d264df3b96ee6409d939aaa5dcf0a97091` after OPS-148.
+`origin/staging@cef2b17071cbe11537e349a656d3baac72d008e9` after OPS-149.
+OPS-149 Home Summary sales-progress runtime extraction is squash-merged through
+PR #273 at `cef2b17071cbe11537e349a656d3baac72d008e9`, staging-deployed by
+`31938424395`, and tracked `Ready for QA` after proof. Its local Flutter
+affected-consumer proof remains an explicit environment residual because the
+dependency root is unavailable; no profile was suppressed and no product
+failure was retried to green.
 OPS-148 Home Summary comparison runtime extraction is squash-merged through PR
 #272 at `324c87d264df3b96ee6409d939aaa5dcf0a97091`, staging-deployed by
 `31936440130`, and tracked `Ready for QA` after proof. Its local Flutter
@@ -2503,3 +2509,25 @@ the current checkpoint above is the sole active execution authority.
 - Dependency decision: continue independent Harness/cleanup slices, but never
   convert missing Flutter dependencies into a pass or retry product failures
   to green. Rollback is one OPS-149 squash revert.
+
+## Workflow checkpoint (OPS-150; Home Summary main-KPI runtime)
+
+- This Phase 9C Nest-only slice is branch/worktree
+  `codex/ops-150-home-summary-main-kpi` /
+  `../opshub-ops-150-home-summary-main-kpi`, created from exact live
+  `origin/staging@cef2b17071cbe11537e349a656d3baac72d008e9`. Flutter hydration
+  is intentionally deferred for this backend-only slice; any Flutter affected
+  proof remains fail-closed and explicitly unverified while its dependency root
+  is unavailable.
+- The slice extracts main-KPI row loading, canonical-revenue lookup wiring,
+  Sales Reports aggregation mapping and the empty KPI summary into
+  `HomeSummaryMainKpiRuntime`. `HomeSummaryService` keeps the stable facade;
+  `salesReportMainKpiWhere` remains service-owned because installment-details
+  still uses it. Public API/DTO/DI/permission, Vietnamese copy, logging and
+  product behavior remain unchanged.
+- Focused proof passed: 2 suites / 62 tests and full Nest proof passed with
+  `113 suites / 1246 passed / 6 skipped`; Nest build, Prettier check and
+  `git diff --check` also passed. The final exact `verify-task --base
+  origin/staging` selected `harness,docs,nestjs` over 5 affected paths with
+  `stale=false`. The publication gate remains PR/staging deploy followed by
+  guarded lifecycle cleanup; rollback is one OPS-150 squash revert.
