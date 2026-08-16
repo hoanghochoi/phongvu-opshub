@@ -133,6 +133,340 @@ describe('SalesReportsService', () => {
     );
   });
 
+  it('normalizes order codes and backfills an existing cache row from authoritative ERP owner and store data', async () => {
+    const { service, prisma, erp } = createHarness();
+    const order = {
+      ...erpListOrderFixture(),
+      orderCode: ' 2607 010002 ',
+      consultantEmail: 'Current.Owner@phongvu.vn',
+      sellerEmail: 'fallback.owner@phongvu.vn',
+      sanitizedSnapshot: {
+        orderCode: '2607010002',
+        createdFromSiteDisplayName: '[cp01] Phong Vu CP01',
+      },
+    };
+    const existingRow = {
+      ...erpOrderCacheFixture('2607010002'),
+      sanitizedSnapshot: {
+        orderCode: '2607010002',
+        createdFromSiteDisplayName: '[CP62] Phong Vu CP62',
+      },
+      storeCode: 'CP62',
+      organizationNodeId: 'node-cp62',
+      sourceUserId: null,
+      sourceUserEmail: null,
+    };
+    erp.listRecentOrders.mockResolvedValueOnce([order]);
+    prisma.salesReportErpOrderCache.findMany.mockResolvedValueOnce([
+      existingRow,
+    ]);
+    prisma.user.findMany.mockResolvedValueOnce([
+      {
+        id: 'owner-current',
+        email: 'current.owner@phongvu.vn',
+        store: null,
+        organizationNode: null,
+        organizationAssignments: [],
+      },
+    ]);
+    prisma.store.findMany.mockResolvedValueOnce([
+      {
+        storeId: 'CP01',
+        storeName: 'Phong Vu CP01',
+        organizationNodeId: 'node-cp01',
+      },
+    ]);
+    const upsert = jest
+      .spyOn(service as any, 'upsertErpOrderCacheItem')
+      .mockResolvedValue({ excluded: false, exclusionReason: null });
+
+    const result = await service.syncErpOrderCachePage({
+      date: '2026-07-01',
+      limit: 50,
+      offset: 100,
+      source: 'characterization',
+    });
+
+    expect(erp.listRecentOrders).toHaveBeenCalledWith({
+      date: '2026-07-01',
+      limit: 50,
+      offset: 100,
+    });
+    expect(prisma.salesReportErpOrderCache.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { orderCode: { in: ['2607010002'] } },
+      }),
+    );
+    expect(prisma.user.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          email: {
+            in: [
+              'current.owner@phongvu.vn',
+              'fallback.owner@phongvu.vn',
+              'sale@phongvu.vn',
+            ],
+            mode: 'insensitive',
+          },
+        },
+      }),
+    );
+    expect(prisma.store.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { storeId: { in: ['CP01'] } } }),
+    );
+    expect(upsert).toHaveBeenCalledWith(
+      null,
+      expect.objectContaining({ createdByUserId: null }),
+      order,
+      expect.any(Map),
+      expect.objectContaining({
+        id: 'owner-current',
+        email: 'current.owner@phongvu.vn',
+      }),
+      {
+        existingCacheRow: existingRow,
+        preserveVerifiedLifecycle: true,
+        canonicalGrandTotalFromList: true,
+      },
+    );
+    expect((upsert.mock.calls[0][3] as Map<string, any>).get('CP01')).toEqual(
+      expect.objectContaining({ organizationNodeId: 'node-cp01' }),
+    );
+    expect(result).toEqual({
+      count: 1,
+      newOrderCount: 0,
+      mappedOrderCount: 1,
+      excludedOrderCount: 0,
+      orderCodes: ['2607010002'],
+      storeCodes: ['CP01'],
+      recipientUserIds: ['owner-current'],
+    });
+  });
+
+  it('deduplicates recipient and store aggregation across visible new cache rows', async () => {
+    const { service, prisma, erp } = createHarness();
+    const orders = ['2607011001', '2607011002'].map((orderCode) => ({
+      ...erpListOrderFixture(),
+      orderCode,
+      erpOrderId: orderCode,
+      consultantEmail: 'shared.owner@phongvu.vn',
+      sanitizedSnapshot: {
+        orderCode,
+        createdFromSiteDisplayName: '[CP01] Phong Vu CP01',
+      },
+    }));
+    erp.listRecentOrders.mockResolvedValueOnce(orders);
+    prisma.salesReportErpOrderCache.findMany.mockResolvedValueOnce([]);
+    prisma.user.findMany.mockResolvedValueOnce([
+      {
+        id: 'owner-shared',
+        email: 'shared.owner@phongvu.vn',
+        store: null,
+        organizationNode: null,
+        organizationAssignments: [],
+      },
+    ]);
+    prisma.store.findMany.mockResolvedValueOnce([
+      {
+        storeId: 'CP01',
+        storeName: 'Phong Vu CP01',
+        organizationNodeId: 'node-cp01',
+      },
+    ]);
+    jest
+      .spyOn(service as any, 'upsertErpOrderCacheItem')
+      .mockResolvedValue({ excluded: false, exclusionReason: null });
+
+    const result = await service.syncErpOrderCachePage({
+      date: '2026-07-01',
+      limit: 50,
+      source: 'characterization',
+    });
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        count: 2,
+        newOrderCount: 2,
+        mappedOrderCount: 0,
+        excludedOrderCount: 0,
+        storeCodes: ['CP01'],
+        recipientUserIds: ['owner-shared'],
+      }),
+    );
+    expect(prisma.store.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { storeId: { in: ['CP01'] } } }),
+    );
+  });
+
+  it('counts and targets only a newly excluded transition', async () => {
+    const { service, prisma, erp } = createHarness();
+    const orders = [
+      {
+        ...erpListOrderFixture(),
+        orderCode: '2607012001',
+        consultantEmail: 'owner.one@phongvu.vn',
+        sanitizedSnapshot: {
+          orderCode: '2607012001',
+          createdFromSiteDisplayName: '[CP01] Phong Vu CP01',
+        },
+      },
+      {
+        ...erpListOrderFixture(),
+        orderCode: '2607012002',
+        consultantEmail: 'owner.two@phongvu.vn',
+        sanitizedSnapshot: {
+          orderCode: '2607012002',
+          createdFromSiteDisplayName: '[CP02] Phong Vu CP02',
+        },
+      },
+    ];
+    erp.listRecentOrders.mockResolvedValueOnce(orders);
+    prisma.salesReportErpOrderCache.findMany.mockResolvedValueOnce([
+      {
+        ...erpOrderCacheFixture('2607012001'),
+        sanitizedSnapshot: orders[0].sanitizedSnapshot,
+        consultantEmail: 'owner.one@phongvu.vn',
+        sourceUserId: 'owner-one',
+        sourceUserEmail: 'owner.one@phongvu.vn',
+        storeCode: 'CP01',
+        organizationNodeId: 'node-cp01',
+        excludedAt: null,
+      },
+      {
+        ...erpOrderCacheFixture('2607012002'),
+        sanitizedSnapshot: orders[1].sanitizedSnapshot,
+        consultantEmail: 'owner.two@phongvu.vn',
+        sourceUserId: 'owner-two',
+        sourceUserEmail: 'owner.two@phongvu.vn',
+        storeCode: 'CP02',
+        organizationNodeId: 'node-cp02',
+        excludedAt: new Date('2026-07-01T02:00:00Z'),
+      },
+    ]);
+    prisma.user.findMany.mockResolvedValueOnce([
+      {
+        id: 'owner-one',
+        email: 'owner.one@phongvu.vn',
+        store: null,
+        organizationNode: null,
+        organizationAssignments: [],
+      },
+      {
+        id: 'owner-two',
+        email: 'owner.two@phongvu.vn',
+        store: null,
+        organizationNode: null,
+        organizationAssignments: [],
+      },
+    ]);
+    prisma.store.findMany.mockResolvedValueOnce([
+      {
+        storeId: 'CP01',
+        storeName: 'Phong Vu CP01',
+        organizationNodeId: 'node-cp01',
+      },
+      {
+        storeId: 'CP02',
+        storeName: 'Phong Vu CP02',
+        organizationNodeId: 'node-cp02',
+      },
+    ]);
+    jest.spyOn(service as any, 'upsertErpOrderCacheItem').mockResolvedValue({
+      excluded: true,
+      exclusionReason: 'ERP_ORDER_CANCELLED',
+    });
+
+    const result = await service.syncErpOrderCachePage({
+      date: '2026-07-01',
+      limit: 50,
+      source: 'characterization',
+    });
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        count: 2,
+        newOrderCount: 0,
+        mappedOrderCount: 0,
+        excludedOrderCount: 1,
+        storeCodes: ['CP01'],
+        recipientUserIds: ['owner-one'],
+      }),
+    );
+  });
+
+  it('does not report a mapping change for an unchanged existing cache row', async () => {
+    const { service, prisma, erp } = createHarness();
+    const order = {
+      ...erpListOrderFixture(),
+      consultantEmail: 'sale@phongvu.vn',
+      sanitizedSnapshot: {
+        orderCode: '2607010002',
+        createdFromSiteDisplayName: '[CP62] Phong Vu CP62',
+      },
+    };
+    erp.listRecentOrders.mockResolvedValueOnce([order]);
+    prisma.salesReportErpOrderCache.findMany.mockResolvedValueOnce([
+      {
+        ...erpOrderCacheFixture('2607010002'),
+        sanitizedSnapshot: order.sanitizedSnapshot,
+        excludedAt: null,
+      },
+    ]);
+    prisma.user.findMany.mockResolvedValueOnce([
+      {
+        ...userFixture(),
+        organizationAssignments: [],
+      },
+    ]);
+    jest
+      .spyOn(service as any, 'upsertErpOrderCacheItem')
+      .mockResolvedValue({ excluded: false, exclusionReason: null });
+
+    const result = await service.syncErpOrderCachePage({
+      date: '2026-07-01',
+      limit: 50,
+      source: 'characterization',
+    });
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        count: 1,
+        newOrderCount: 0,
+        mappedOrderCount: 0,
+        excludedOrderCount: 0,
+        storeCodes: [],
+        recipientUserIds: [],
+      }),
+    );
+  });
+
+  it('returns an empty page summary without mapping or persistence work', async () => {
+    const { service, prisma, erp } = createHarness();
+    erp.listRecentOrders.mockResolvedValueOnce([]);
+    const upsert = jest.spyOn(service as any, 'upsertErpOrderCacheItem');
+
+    await expect(
+      service.syncErpOrderCachePage({
+        date: '2026-07-01',
+        limit: 50,
+        source: 'characterization',
+      }),
+    ).resolves.toEqual({
+      count: 0,
+      newOrderCount: 0,
+      mappedOrderCount: 0,
+      excludedOrderCount: 0,
+      orderCodes: [],
+      storeCodes: [],
+      recipientUserIds: [],
+    });
+
+    expect(prisma.salesReportErpOrderCache.findMany).not.toHaveBeenCalled();
+    expect(prisma.user.findMany).not.toHaveBeenCalled();
+    expect(prisma.store.findMany).not.toHaveBeenCalled();
+    expect(upsert).not.toHaveBeenCalled();
+  });
+
   it('retries an idempotent ERP cache upsert only for 40P01', async () => {
     const { service, prisma } = createHarness();
     prisma.salesReportErpOrderCache.upsert
