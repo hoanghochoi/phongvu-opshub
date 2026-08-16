@@ -48,6 +48,7 @@ import {
   HomeSummaryLegacySalesMetricsRuntime,
   HomeSummaryLegacySalesBehaviorYesCounts,
 } from './home-summary-legacy-sales-metrics.runtime';
+import { HomeSummaryFinanceMetricsRuntime } from './home-summary-finance-metrics.runtime';
 import type {
   HomeSummaryComparisonMetricResponse,
   HomeSummaryComparisonPeriodResponse,
@@ -349,6 +350,7 @@ export class HomeSummaryService {
   private readonly salesProgressRuntime: HomeSummarySalesProgressRuntime;
   private readonly mainKpiRuntime: HomeSummaryMainKpiRuntime;
   private readonly legacySalesMetricsRuntime: HomeSummaryLegacySalesMetricsRuntime;
+  private readonly financeMetricsRuntime: HomeSummaryFinanceMetricsRuntime;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -399,6 +401,15 @@ export class HomeSummaryService {
         logger: {
           log: (message) => this.logger.log(message),
         },
+      },
+    );
+    this.financeMetricsRuntime = new HomeSummaryFinanceMetricsRuntime(
+      this.prisma,
+      {
+        financeScopeWhere: (scope, range, personalOrderCodes) =>
+          this.financeScopeWhere(scope, range, personalOrderCodes),
+        orderScopeWhere: (scope, range) => this.orderScopeWhere(scope, range),
+        normalizeOrderCode: (value) => this.normalizeOrderCode(value),
       },
     );
     this.csvComparisonRuntime = new HomeSummaryCsvComparisonRuntime(
@@ -857,69 +868,19 @@ export class HomeSummaryService {
         totalStatementsWithOrder = projected.totalStatementsWithOrder;
         totalStatementsWithoutOrder = projected.totalStatementsWithoutOrder;
       } else {
-        const financeOrderWhere = this.orderScopeWhere(scope, range);
-        const personalOrderCodes =
-          scope.scope === 'OWN'
-            ? (
-                await this.homeSummaryOrderFact.findMany({
-                  where: financeOrderWhere,
-                  select: { orderCode: true },
-                })
-              )
-                .map((row: { orderCode: string | null }) =>
-                  this.normalizeOrderCode(row.orderCode),
-                )
-                .filter((value: string | null): value is string =>
-                  Boolean(value),
-                )
-            : [];
-        const financeWhere = this.financeScopeWhere(
+        const legacyFinanceMetrics = await this.financeMetricsRuntime.calculate(
           scope,
           range,
-          personalOrderCodes,
         );
-        const [
-          statementCount,
-          statementTrackedCount,
-          statementUnfollowedCount,
-          transferredAmountSummary,
-          statementWithOrderCount,
-          statementWithoutOrderCount,
-        ] = await this.prisma.$transaction([
-          this.prisma.mapVietinTransaction.count({ where: financeWhere }),
-          this.prisma.mapVietinTransaction.count({
-            where: this.andMapTransactionWhere(financeWhere, {
-              orderTrackingStatus: 'FOLLOWING',
-            }),
-          }),
-          this.prisma.mapVietinTransaction.count({
-            where: this.andMapTransactionWhere(financeWhere, {
-              orderTrackingStatus: 'UNFOLLOWED',
-            }),
-          }),
-          this.prisma.mapVietinTransaction.aggregate({
-            where: financeWhere,
-            _sum: { amount: true },
-          }),
-          this.prisma.mapVietinTransaction.count({
-            where: this.andMapTransactionWhere(financeWhere, {
-              orderTrackingStatus: 'FOLLOWING',
-              orders: { isEmpty: false },
-            }),
-          }),
-          this.prisma.mapVietinTransaction.count({
-            where: this.andMapTransactionWhere(financeWhere, {
-              orderTrackingStatus: 'FOLLOWING',
-              orders: { isEmpty: true },
-            }),
-          }),
-        ]);
-        totalStatements = statementCount;
-        totalStatementsTracked = statementTrackedCount;
-        totalStatementsUnfollowed = statementUnfollowedCount;
-        totalTransferredAmount = transferredAmountSummary._sum.amount ?? 0;
-        totalStatementsWithOrder = statementWithOrderCount;
-        totalStatementsWithoutOrder = statementWithoutOrderCount;
+        totalStatements = legacyFinanceMetrics.totalStatements;
+        totalStatementsTracked = legacyFinanceMetrics.totalStatementsTracked;
+        totalStatementsUnfollowed =
+          legacyFinanceMetrics.totalStatementsUnfollowed;
+        totalTransferredAmount = legacyFinanceMetrics.totalTransferredAmount;
+        totalStatementsWithOrder =
+          legacyFinanceMetrics.totalStatementsWithOrder;
+        totalStatementsWithoutOrder =
+          legacyFinanceMetrics.totalStatementsWithoutOrder;
       }
     }
     const unreportedOrders = Math.max(totalOrders - reportedOrders, 0);
