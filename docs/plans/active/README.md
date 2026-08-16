@@ -18,10 +18,11 @@ Current active/release-pending authority:
 - [`OPS-53-redesign-chrome-audit-consolidation.md`](OPS-53-redesign-chrome-audit-consolidation.md)
   is the only current OPS-53 execution summary. Its nine fragments are history.
 - [`OPS-64-upstream-harness-repository-cleanup.md`](OPS-64-upstream-harness-repository-cleanup.md)
-  remains the initiative master plan; OPS-143 is the current reconciliation
-  slice after OPS-138, OPS-70 and OPS-71 staging deployments. OPS-71 remains
-  the completed plan-authority normalization slice; production-pending work
-  stays active until its release gates pass.
+  remains the initiative master plan; OPS-146 is the current reconciliation
+  slice after OPS-145's merge, staging deployment and guarded lifecycle finish.
+  OPS-145 is the latest runtime extraction checkpoint; OPS-71 remains the
+  completed plan-authority normalization slice. Production-pending work stays
+  active until its release gates pass.
 
 Use `docs/templates/exec-plan.md` for new durable work. Move a plan only after
 its requested outcome and validation are recorded; do not infer production

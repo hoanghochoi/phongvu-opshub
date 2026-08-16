@@ -4,9 +4,9 @@ Date: 2026-08-13
 
 ## Status
 
-Active — the current workflow checkpoint is OPS-145 MAP export and response
-mapping extraction, created from exact live
-`origin/staging@4074aa6977baf556c8bc24e9308ef896c8166519` after OPS-144.
+Active — the current workflow checkpoint is OPS-146 post-OPS-145 master-plan
+reconciliation, created from exact live
+`origin/staging@c46cf5d9c5e64e8e7e855e8c8fd5290941e9dafe` after OPS-145.
 OPS-138 organization-tree/assignment extraction is squash-merged through PR
 #264 at `db427f6d44d2dde5c219a982fc1d835e9378e536`, staging-deployed by
 `31923613626`, and tracked `Ready for QA` after proof. OPS-70 protocol-v1
@@ -114,15 +114,15 @@ branch, and is not converted row-for-row into Markdown.
 - Historical OPS-73 NestJS branch: `codex/ops-73-nestjs-artifact-dependency-audit`;
   its base was `b2a2df9cd47e7f1007ad92872c7b8547353656dc` and PR #185 merged
   into staging at `ccff928f703c3a5dc0969798e6d02905d7c164ce`.
-- Current OPS-73 Go/deployment branch: `codex/ops-73-go-deployment-artifact-audit`.
-- Current OPS-73 Go/deployment base/HEAD checkpoint:
+- Historical OPS-73 Go/deployment branch: `codex/ops-73-go-deployment-artifact-audit`.
+- Historical OPS-73 Go/deployment base/HEAD checkpoint:
   `ccff928f703c3a5dc0969798e6d02905d7c164ce`.
 - `origin/staging` matched `ccff928f703c3a5dc0969798e6d02905d7c164ce` when
-  the current lifecycle start gate passed.
+  that historical lifecycle start gate passed.
 - Canonical staging worktree was clean. Existing worktrees were preserved and
   were not reset, removed, or rewritten.
-- Current implementation worktree: `../opshub-ops-92`.
-- OPS-92 branch: `codex/ops-92-sales-reports-scope-query`.
+- Historical implementation worktree: `../opshub-ops-92`.
+- Historical OPS-92 branch: `codex/ops-92-sales-reports-scope-query`.
 - OPS-89 implementation worktree/branch was cleaned after its squash merge;
   canonical staging and `origin/staging` are at
   `77ec6ff3482b3ff689e10af77b6981c1a96293d`.
@@ -135,14 +135,14 @@ branch, and is not converted row-for-row into Markdown.
 - OPS-68 branch: `codex/ops-68-disposition-ledger-fresh`; PR #176 merged into
   `staging` at `ee74d0efb9b16cda0725d8940b0a1e544d0ba006`, and its post-merge
   lifecycle `finish --execute` gate passed.
-- Current OPS-69 implementation worktree:
+- Historical OPS-69 implementation worktree:
   `../opshub-ops-69-current-authority-promotion`.
-- Current OPS-69 branch:
+- Historical OPS-69 branch:
   `codex/ops-69-current-authority-promotion-and-linear-follow-ups`.
-- Current OPS-69 base SHA and live `origin/staging` checkpoint:
+- Historical OPS-69 base SHA and live `origin/staging` checkpoint:
   `ee74d0efb9b16cda0725d8940b0a1e544d0ba006`.
-- OPS-69 was created from that exact lifecycle checkpoint; it is not yet
-  published or merged.
+- OPS-69 was created from that exact lifecycle checkpoint; publication and
+  current-authority promotion were merged through PRs #177 and #178.
 - OPS-70 implementation worktree: `../opshub-ops-70-retire-protocol-v1`.
 - OPS-70 branch: `codex/ops-70-retire-protocol-v1-and-harness-producers`.
 - OPS-70 base SHA: `e83c24bb7ae6cd83af379ec003818ad74b6fcbe0`; canonical staging
@@ -151,11 +151,16 @@ branch, and is not converted row-for-row into Markdown.
   `finish --execute` passed.
 - OPS-71 base SHA: `ff8b9e9a1765d572a7ed5b72772f5c2b5ced4ea1`; canonical staging,
   `origin/staging` and the OPS-71 task worktree matched before cleanup.
-- Current reconciliation slice: `OPS-143`, branch
+- Historical reconciliation slice: `OPS-143`, branch
   `codex/ops-143-reconcile-master-plan-after-ops-138-ops-71`, started from
   exact `origin/staging@02045ba7c5c772e734040b1b6593faff98526293`. It updates
   only this master plan and the active-plan index after OPS-138/70/71; no
   runtime, dependency manifest, archive or Harness DB files are in scope.
+- Current reconciliation slice: `OPS-146`, branch
+  `codex/ops-146-master-plan-checkpoint-after-ops-145`, started from exact
+  `origin/staging@c46cf5d9c5e64e8e7e855e8c8fd5290941e9dafe`; it records the
+  post-OPS-145 merge, staging deploy and lifecycle evidence without changing
+  runtime, dependency, archive or Harness DB files.
 
 Before every later slice, repeat the lifecycle start gate and replace this
 checkpoint if the live `origin/staging` SHA changes. A proof run is stale when
@@ -2223,9 +2228,12 @@ batches remain `Ready for QA`; OPS-137 is the last merged checkpoint at
 OPS-141 is squash-merged through PR #260 at
 `31149394b5bcf62028be331e03f3d36b1d2d1dd4`, staging-deployed by
 `31917897049`, and tracked `Ready for QA` after exact proof and guarded
-cleanup. OPS-143 is the current master-plan reconciliation slice, created from
-exact `origin/staging@02045ba7c5c772e734040b1b6593faff98526293` after OPS-138,
-OPS-70 and OPS-71. OPS-138 is merged/deployed and tracked as `Ready for QA`;
+cleanup. OPS-143 is the historical master-plan reconciliation slice, created
+from exact `origin/staging@02045ba7c5c772e734040b1b6593faff98526293` after
+OPS-138, OPS-70 and OPS-71. OPS-145 is the latest runtime extraction slice,
+merged by PR #269 at `c46cf5d9` and staging-deployed by `31931982872`; it is
+tracked `Ready for QA` after guarded cleanup. OPS-146 is the current
+reconciliation slice. OPS-138 is merged/deployed and tracked as `Ready for QA`;
 OPS-70 and OPS-71 are merged/deployed and tracked `Ready for Release`. OPS-113
 is also staged and tracked as `Ready for
 QA` after exact deploy `31862881662` and guarded cleanup. OPS-122 and OPS-123's
@@ -2396,16 +2404,34 @@ the current checkpoint above is the sole active execution authority.
   `../opshub-ops-145-map-export-response`, created from exact live
   `origin/staging@4074aa6977baf556c8bc24e9308ef896c8166519`. The isolated task
   start hydrated both Nest/Prisma and Flutter profiles from task-local roots.
+- PR #269 squash-merged the slice at
+  `c46cf5d9c5e64e8e7e855e8c8fd5290941e9dafe`; staging deploy run `31931982872`
+  passed Android, Windows, web, backend, direct-origin route and health/version
+  checks. Guarded `finish --execute --allow-ignored` passed; canonical staging
+  is clean and the task worktree/local branch were removed. Linear OPS-145 is
+  `Ready for QA`; production deployment remains open.
 - `MapVietinService` remains the public facade. Stored statement response DTO
   mapping and XLSX row/header mapping now have one injected collaborator;
   service callbacks retain the existing canonical identifiers, income/order
   policy, Vietnamese copy, date/amount formatting and permission flags. Routes,
   DTOs, feature guards, API/data contracts and affected consumers are unchanged.
-- Characterization and affected proof: MAP service/controller `159/159`, Nest
+- Characterization and affected proof: MAP service suite `157/157`, Nest
   cross-stack MAP/VietQR/notification/payment suites `131/131`, and Flutter
   Payment Monitor/Bank Statement/VietQR suites `111/111`. Nest build passed;
   exact base-aware runner passed `104/104` with profiles `harness,docs,nestjs`
-  and `stale=false`; staging proof remains required before publication.
+  and `stale=false`.
 - Dependency hydration is visible and fail-closed through the shared boundary;
   no dependency version or lockfile change is in scope. Rollback is one OPS-145
   squash revert.
+
+## Workflow checkpoint (OPS-146; post-OPS-145 plan reconciliation)
+
+- This docs-only slice is branch/worktree
+  `codex/ops-146-master-plan-checkpoint-after-ops-145` /
+  `../opshub-ops-146-master-plan-checkpoint`, created from exact live
+  `origin/staging@c46cf5d9c5e64e8e7e855e8c8fd5290941e9dafe`. No runtime,
+  dependency, archive or product authority is in scope.
+- The slice reconciles the active-plan index, this master-plan checkpoint and
+  the OPS-64 `nextAction` in the OPS-71 disposition ledger. It preserves the
+  production-not-done rule, Phase 6/8/9/10 gates and dependency fail-closed
+  policy. Rollback is one OPS-146 squash revert.
