@@ -49,6 +49,7 @@ import {
   HomeSummaryLegacySalesBehaviorYesCounts,
 } from './home-summary-legacy-sales-metrics.runtime';
 import { HomeSummaryFinanceMetricsRuntime } from './home-summary-finance-metrics.runtime';
+import { HomeSummaryBehaviorDetailsV2Runtime } from './home-summary-behavior-details-v2.runtime';
 import type {
   HomeSummaryComparisonMetricResponse,
   HomeSummaryComparisonPeriodResponse,
@@ -351,6 +352,7 @@ export class HomeSummaryService {
   private readonly mainKpiRuntime: HomeSummaryMainKpiRuntime;
   private readonly legacySalesMetricsRuntime: HomeSummaryLegacySalesMetricsRuntime;
   private readonly financeMetricsRuntime: HomeSummaryFinanceMetricsRuntime;
+  private readonly behaviorDetailsV2Runtime: HomeSummaryBehaviorDetailsV2Runtime;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -410,6 +412,39 @@ export class HomeSummaryService {
           this.financeScopeWhere(scope, range, personalOrderCodes),
         orderScopeWhere: (scope, range) => this.orderScopeWhere(scope, range),
         normalizeOrderCode: (value) => this.normalizeOrderCode(value),
+      },
+    );
+    this.behaviorDetailsV2Runtime = new HomeSummaryBehaviorDetailsV2Runtime(
+      this.prisma,
+      {
+        parseSummaryRange: (query) => this.parseSummaryRange(query),
+        parseScopeParam: (value) => this.parseScopeParam(value),
+        optionalText: (value, maxLength) => this.optionalText(value, maxLength),
+        normalizeOrderCode: (value) => this.normalizeOrderCode(value),
+        safeUserLabel: (user) => this.safeUserLabel(user),
+        resolveSectionAccess: (user) => this.resolveSectionAccess(user),
+        describeHomeSummaryScope: (user, requestedScope, organizationNodeId) =>
+          this.salesReports.describeHomeSummaryScope(
+            user,
+            requestedScope,
+            organizationNodeId,
+            { allowOwnScope: true },
+          ),
+        resolveSelectedSalesMetricsScope: (user, scope, requestedUserId) =>
+          this.resolveSelectedSalesMetricsScope(user, scope, requestedUserId),
+        reportScopeWhere: (scope, range) => this.reportScopeWhere(scope, range),
+        orderScopeWhere: (scope, range) => this.orderScopeWhere(scope, range),
+        salesReportMainKpiWhere: (scope, range) =>
+          this.salesReportMainKpiWhere(scope, range),
+        mapNotPurchased: (row) => this.toHomeNotPurchasedDetail(row),
+        mapUnreportedOrder: (row, employeeNames) =>
+          this.toHomeUnreportedOrderDetail(row, employeeNames),
+        mapInstallmentNeed: (row) => this.toHomeInstallmentNeedDetail(row),
+        unreportedEmployeeNamesByEmail: (rows) =>
+          this.unreportedEmployeeNamesByEmail(rows),
+        logger: {
+          log: (message) => this.logger.log(message),
+        },
       },
     );
     this.csvComparisonRuntime = new HomeSummaryCsvComparisonRuntime(
@@ -1253,234 +1288,7 @@ export class HomeSummaryService {
     user: any,
     query: GetHomeSummaryDetailsV2QueryDto,
   ) {
-    const startedAt = Date.now();
-    const range = this.parseSummaryRange(query);
-    const requestedScope = this.parseScopeParam(query.scope);
-    const limit = Math.min(100, Math.max(1, Number(query.limit ?? 50)));
-    const cursorId = this.decodeDetailsV2Cursor(query.cursor, query.kind);
-    const requestedSalesProgressUserId = this.optionalText(
-      query.salesProgressUserId,
-      80,
-    );
-    this.logger.log(
-      `Home summary details v2 load started: user=${this.safeUserLabel(user)} kind=${query.kind} startDate=${range.startDate} endDate=${range.endDate} limit=${limit} hasCursor=${Boolean(cursorId)}`,
-    );
-    const { salesAvailable } = await this.resolveSectionAccess(user);
-    if (!salesAvailable) {
-      throw new ForbiddenException(
-        'Bạn chưa có quyền xem chi tiết bán hàng trên dashboard.',
-      );
-    }
-    const scope = await this.salesReports.describeHomeSummaryScope(
-      user,
-      requestedScope,
-      this.optionalText(query.organizationNodeId, 80),
-      { allowOwnScope: true },
-    );
-    if (!scope.available) {
-      throw new ForbiddenException(
-        scope.unavailableMessage ||
-          'Tài khoản hiện chưa có phạm vi dữ liệu để xem chi tiết.',
-      );
-    }
-    const selectedSalesScope = await this.resolveSelectedSalesMetricsScope(
-      user,
-      scope,
-      requestedSalesProgressUserId,
-    );
-    const salesMetricsScope = selectedSalesScope.scope;
-    const base = {
-      kind: query.kind,
-      startDate: range.startDate,
-      endDate: range.endDate,
-      scope: salesMetricsScope.scope,
-      scopeLabel: salesMetricsScope.scopeLabel,
-      selectedSalesProgressUserId: selectedSalesScope.selectedUserId,
-      limit,
-    };
-
-    if (query.kind === 'NOT_PURCHASED') {
-      const where = {
-        ...this.reportScopeWhere(salesMetricsScope, range),
-        reportType: REPORT_TYPE_NOT_PURCHASED,
-      };
-      const [total, facts] = await this.prisma.$transaction([
-        this.homeSummaryReportFact.count({ where }),
-        this.homeSummaryReportFact.findMany({
-          where,
-          orderBy: { salesReportId: 'asc' },
-          take: limit + 1,
-          ...(cursorId ? { cursor: { salesReportId: cursorId }, skip: 1 } : {}),
-          select: { salesReportId: true },
-        }),
-      ]);
-      const page = facts.slice(0, limit);
-      const ids = page.map(
-        (row: { salesReportId: string }) => row.salesReportId,
-      );
-      const reports = ids.length
-        ? await this.prisma.salesReport.findMany({
-            where: { id: { in: ids } },
-            select: {
-              id: true,
-              submittedAt: true,
-              storeCode: true,
-              createdByName: true,
-              createdByEmail: true,
-              customerName: true,
-              customerType: true,
-              categoryGroupName: true,
-              categoryGroupNameVi: true,
-              notPurchasedReason: true,
-              notPurchasedOtherReason: true,
-            },
-          })
-        : [];
-      const byId = new Map(reports.map((row) => [row.id, row]));
-      return this.detailsV2Response(
-        base,
-        page
-          .map((fact: { salesReportId: string }) =>
-            byId.get(fact.salesReportId),
-          )
-          .filter(Boolean)
-          .map((row: any) => this.toHomeNotPurchasedDetail(row)),
-        total,
-        facts.length > limit ? (ids.at(-1) ?? null) : null,
-        startedAt,
-      );
-    }
-
-    if (query.kind === 'UNREPORTED_ORDER') {
-      const salesOrderWhere = this.orderScopeWhere(salesMetricsScope, range);
-      const reportedCodeRows = await this.homeSummaryReportFact.findMany({
-        where: {
-          ...this.reportScopeWhere(salesMetricsScope, range),
-          reportType: REPORT_TYPE_PURCHASED,
-          orderCode: { not: null },
-        },
-        select: { orderCode: true },
-      });
-      const reportedCodes = reportedCodeRows
-        .map((row: { orderCode: string | null }) =>
-          this.normalizeOrderCode(row.orderCode),
-        )
-        .filter((value: string | null): value is string => Boolean(value));
-      const where = reportedCodes.length
-        ? { AND: [salesOrderWhere, { orderCode: { notIn: reportedCodes } }] }
-        : salesOrderWhere;
-      const [total, rows] = await this.prisma.$transaction([
-        this.homeSummaryOrderFact.count({ where }),
-        this.homeSummaryOrderFact.findMany({
-          where,
-          orderBy: { orderCode: 'asc' },
-          take: limit + 1,
-          ...(cursorId ? { cursor: { orderCode: cursorId }, skip: 1 } : {}),
-          select: {
-            orderCode: true,
-            grandTotal: true,
-            orderCreatedAt: true,
-            fetchedAt: true,
-            storeCode: true,
-            consultantName: true,
-            consultantEmail: true,
-            sellerName: true,
-            sellerEmail: true,
-            sourceUserEmail: true,
-          },
-        }),
-      ]);
-      const page = rows.slice(0, limit);
-      const employeeNames = await this.unreportedEmployeeNamesByEmail(page);
-      return this.detailsV2Response(
-        base,
-        page.map((row: any) =>
-          this.toHomeUnreportedOrderDetail(row, employeeNames),
-        ),
-        total,
-        rows.length > limit ? (page.at(-1)?.orderCode ?? null) : null,
-        startedAt,
-      );
-    }
-
-    const where: Prisma.SalesReportWhereInput = {
-      AND: [
-        this.salesReportMainKpiWhere(salesMetricsScope, range),
-        { installmentNeed: true },
-      ],
-    };
-    const [total, rows] = await this.prisma.$transaction([
-      this.prisma.salesReport.count({ where }),
-      this.prisma.salesReport.findMany({
-        where,
-        orderBy: { id: 'asc' },
-        take: limit + 1,
-        ...(cursorId ? { cursor: { id: cursorId }, skip: 1 } : {}),
-        select: {
-          id: true,
-          submittedAt: true,
-          storeCode: true,
-          createdByName: true,
-          createdByEmail: true,
-          orderCode: true,
-          erpOrderId: true,
-          installmentStatus: true,
-          installmentFailureReason: true,
-          installmentNoInstallmentReason: true,
-          installmentPartnerCodes: true,
-        },
-      }),
-    ]);
-    const page = rows.slice(0, limit);
-    return this.detailsV2Response(
-      base,
-      page.map((row) => this.toHomeInstallmentNeedDetail(row)),
-      total,
-      rows.length > limit ? (page.at(-1)?.id ?? null) : null,
-      startedAt,
-    );
-  }
-
-  private detailsV2Response(
-    base: Record<string, unknown>,
-    items: unknown[],
-    total: number,
-    nextId: string | null,
-    startedAt: number,
-  ) {
-    const kind = String(base.kind);
-    const response = {
-      ...base,
-      total,
-      items,
-      nextCursor: nextId ? this.encodeDetailsV2Cursor(kind, nextId) : null,
-    };
-    this.logger.log(
-      `Home summary details v2 load succeeded: kind=${kind} count=${items.length}/${total} hasNext=${Boolean(nextId)} durationMs=${Date.now() - startedAt}`,
-    );
-    return response;
-  }
-
-  private encodeDetailsV2Cursor(kind: string, id: string) {
-    return Buffer.from(JSON.stringify({ v: 1, kind, id }), 'utf8').toString(
-      'base64url',
-    );
-  }
-
-  private decodeDetailsV2Cursor(cursor: string | undefined, kind: string) {
-    if (!cursor) return null;
-    try {
-      const decoded = JSON.parse(
-        Buffer.from(cursor, 'base64url').toString('utf8'),
-      );
-      const id = this.optionalText(decoded?.id, 120);
-      if (decoded?.v !== 1 || decoded?.kind !== kind || !id) throw new Error();
-      return id;
-    } catch {
-      throw new BadRequestException(
-        'Vị trí tải tiếp không hợp lệ. Vui lòng tải lại danh sách.',
-      );
-    }
+    return this.behaviorDetailsV2Runtime.load(user, query);
   }
 
   async rebuildProjectionDate(date: string) {
