@@ -18,14 +18,18 @@ Current active/release-pending authority:
 - [`OPS-53-redesign-chrome-audit-consolidation.md`](OPS-53-redesign-chrome-audit-consolidation.md)
   is the only current OPS-53 execution summary. Its nine fragments are history.
 - [`OPS-64-upstream-harness-repository-cleanup.md`](OPS-64-upstream-harness-repository-cleanup.md)
-  remains the initiative master plan; OPS-161 is the current docs-only
-  reconciliation after the OPS-160 Phase 9F UserAdminMutationService
-  characterization slice. OPS-160 is squash-merged through PR #284 at
-  `155b5dec`, staging-deployed by `31968579616`, with guarded lifecycle
+  remains the initiative master plan; OPS-163 is the current docs-only
+  reconciliation after the OPS-162 Phase 9F shared admin mutation preparation
+  characterization slice. OPS-162 is squash-merged through PR #286 at
+  `9caa1135`, staging-deployed by `31971498979`, with guarded lifecycle
   cleanup and `Ready for QA` proof. Its Flutter/Go affected-consumer proof
   remains explicitly fail-closed under the approved local dependency
   deferral; no profile was suppressed and no product failure was retried to
-  green. OPS-159 is the preceding reconciliation after OPS-158. OPS-157 is
+  green. The next runtime boundary is extraction of the shared
+  `prepareAdminUserMutation` collaborator for `UserAdminMutationService` and
+  `UserImportService`, with authorization and `userAccessFingerprint` kept at
+  their existing owners. OPS-161 is the preceding reconciliation after
+  OPS-160; OPS-159 is the preceding reconciliation after OPS-158. OPS-157 is
   the earlier plan reconciliation at `98d48f5e`,
   staging-deployed by `31962662658`, with guarded lifecycle cleanup and
   `Ready for QA` proof. OPS-156 is the preceding completed Phase 9F UserService access/scope runtime
