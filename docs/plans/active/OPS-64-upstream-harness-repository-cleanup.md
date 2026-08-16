@@ -2292,3 +2292,23 @@ the current checkpoint above is the sole active execution authority.
   cohort is below the timing target and rerun reduction is not measurable.
   Phase 8 deletion, remaining Phase 9 runtime waves and Phase 10 production
   consolidation remain open; no status is promoted based on staging alone.
+
+## Workflow checkpoint (OPS-70; retire archive writer)
+
+- This bounded Harness cleanup slice is branch/worktree
+  `codex/ops-70-retire-archive-exporter` /
+  `../opshub-ops-70-retire-archive-exporter`, created by the guarded lifecycle
+  start gate from exact live `origin/staging@db427f6d44d2dde5c219a982fc1d835e9378e536`.
+- The two verified local archive copies and the sanitized 199-record
+  disposition ledger are immutable migration evidence. The repository no
+  longer needs a command that creates new SQLite archive copies, so the
+  archive writer and its writer-specific test are retired. The read-only
+  disposition/authority validators remain available.
+- No source database, raw archive, runtime/API/UI behavior, dependency
+  manifest or upstream Harness payload is changed. The dependency-hardening
+  follow-up remains intentionally paused; existing toolchain gates stay in
+  force.
+- Required proof before publication: retirement verifier, migration EOL and
+  remaining migration tests, docs contract checks, exact `verify-task` with
+  `stale=false`, PR/CI, staging deploy and guarded lifecycle cleanup. Rollback
+  is one OPS-70 squash revert.

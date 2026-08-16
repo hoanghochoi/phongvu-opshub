@@ -153,8 +153,10 @@ workflow. Do not run that binary from this checkout.
 
 The local `harness.db`, WAL/SHM files, downloaded legacy binaries, and raw
 archive copies are consumer-owned read-only migration inputs. This repository
-does not import, refresh, rewrite, or delete them. Sanitized manifests and
-disposition evidence live in `docs/migrations/`.
+does not import, refresh, rewrite, or delete them. The WAL-safe archive writer
+was retired after the two immutable archive copies and disposition ledger were
+verified; sanitized manifests and disposition evidence live in
+`docs/migrations/`.
 
 ## Migration readers
 
@@ -162,9 +164,12 @@ The following scripts are retained only to validate the sanitized archive and
 disposition evidence. They must not write the canonical DB or turn archived
 rows into current task authority:
 
-- `archive-harness-legacy.py`;
 - `review-harness-disposition.py`; and
 - `promote-harness-authority.py`.
+
+Archive creation is complete for this migration. Do not recreate or refresh
+archive copies from this checkout; use the already-verified local archive and
+sanitized evidence as read-only inputs.
 
 ## Pre-merge validation
 
