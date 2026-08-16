@@ -38,6 +38,7 @@ import {
   UserImportService,
   UserWelcomeEmailService,
 } from './user-import.service';
+import { UserOrganizationAssignmentService } from './user-organization-assignment.service';
 import { logFingerprint, safeLogError } from '../common/log-sanitizer';
 import { AccessChangeService } from '../auth/access-change.service';
 
@@ -352,6 +353,7 @@ export class UserService implements OnModuleInit {
   private readonly adminMutationService: UserAdminMutationService;
   private readonly welcomeEmailService: UserWelcomeEmailService;
   private readonly importService: UserImportService;
+  private readonly organizationAssignmentService: UserOrganizationAssignmentService;
 
   constructor(
     private prisma: PrismaService,
@@ -375,6 +377,44 @@ export class UserService implements OnModuleInit {
       userLogId: (user) => this.userLogId(user),
       logger: this.logger,
     });
+    this.organizationAssignmentService = new UserOrganizationAssignmentService(
+      this.prisma,
+      {
+        isScopedAdmin: (admin) => this.isScopedAdmin(admin),
+        storeWithinAdminScope: (admin, store) =>
+          this.storeWithinAdminScope(admin, store),
+        adminOrgRootId: (admin) => this.adminOrgRootId(admin),
+        organizationDescendantIds: (rootId) =>
+          this.organizationDescendantIds(rootId),
+        userLogId: (user) => this.userLogId(user),
+        normalizeOrganizationNodeType: (value) =>
+          this.normalizeOrganizationNodeType(value),
+        normalizeStoreCode: (value) => this.normalizeStoreCode(value),
+        legacyCodeFromOrganizationCode: (code) =>
+          this.legacyCodeFromOrganizationCode(code),
+        legacyPersonnelCodeFromOrganizationNode: (node, message) =>
+          this.legacyPersonnelCodeFromOrganizationNode(node, message),
+        defaultDepartmentCodeForJobRole: (jobRoleCode) =>
+          DEFAULT_STORE_POSITION_DEFINITIONS.find(
+            (position) => position.businessCode === jobRoleCode,
+          )?.departmentCode ?? null,
+        isLegacyPositionNodeType: (type) => this.isLegacyPositionNodeType(type),
+        syncLegacyCatalogFromOrganizationNode: (client, node) =>
+          this.syncLegacyCatalogFromOrganizationNode(client, node),
+        defaultStoreCashNodeIdForStore: (store) =>
+          this.defaultStoreCashNodeIdForStore(store),
+        resolveDepartmentCode: (input, current) =>
+          this.resolveDepartmentCode(input, current),
+        resolveJobRoleCode: (input, current) =>
+          this.resolveJobRoleCode(input, current),
+        normalizePersonnelCode: (input, message) =>
+          this.normalizePersonnelCode(input, message),
+        resolveWorkScopeType: (input, current, role) =>
+          this.resolveWorkScopeType(input, current, role),
+        defaultWorkScopeForRole: (role) => this.defaultWorkScopeForRole(role),
+        logger: this.logger,
+      },
+    );
     this.importService = new UserImportService(
       this.prisma,
       this.accessChangeService,
@@ -4893,35 +4933,11 @@ export class UserService implements OnModuleInit {
     body: any,
     options: { current?: any; workScopeType: string },
   ) {
-    if (options.workScopeType !== STORE_SCOPE) return null;
-    if (body.organizationNodeId === undefined) {
-      if (options.current && body.workScopeType === undefined) {
-        return options.current.storeId ?? null;
-      }
-      throw new BadRequestException('Vui lòng chọn showroom trên cây tổ chức');
-    }
-
-    const scopeLocation = await this.resolveScopeLocationFromOrganizationNode(
+    return this.organizationAssignmentService.resolveUserAssignmentStoreUuid(
       admin,
-      body.organizationNodeId,
-      STORE_SCOPE,
+      body,
+      options,
     );
-    const store = await this.prisma.store.findFirst({
-      where: { organizationNodeId: scopeLocation.storeNodeId },
-      include: { area: { include: { region: true } } },
-    });
-    if (!store) {
-      throw new BadRequestException('Showroom chưa được gắn SR');
-    }
-    if (
-      this.isScopedAdmin(admin) &&
-      !(await this.storeWithinAdminScope(admin, store))
-    ) {
-      throw new ForbiddenException(
-        'Bạn chỉ được gán người dùng trong phạm vi quản lý',
-      );
-    }
-    return store.id;
   }
 
   private async resolveUserOrganizationAssignmentNodeIds(
@@ -4929,71 +4945,24 @@ export class UserService implements OnModuleInit {
     body: any,
     current: any | null,
   ) {
-    const nodeIds = this.normalizedOrganizationNodeIdInput(body, current);
-    if (nodeIds.length === 0) return [];
-
-    const contexts = [];
-    for (const nodeId of nodeIds) {
-      const context = await this.organizationScopeContext(nodeId);
-      await this.assertOrganizationNodeAssignableByAdmin(
-        admin,
-        context.organizationNodeId,
-      );
-      contexts.push(context);
-    }
-
-    if (contexts.length > 1) {
-      const invalid = contexts.find((context) => !context.storeNodeId);
-      if (invalid) {
-        throw new BadRequestException(
-          'Khi gán nhiều SR, mỗi lựa chọn phải là showroom hoặc vị trí trong showroom',
-        );
-      }
-    }
-
-    return nodeIds;
+    return this.organizationAssignmentService.resolveUserOrganizationAssignmentNodeIds(
+      admin,
+      body,
+      current,
+    );
   }
 
   private normalizedOrganizationNodeIdInput(body: any, current: any | null) {
-    if (body.organizationNodeIds !== undefined) {
-      return this.normalizeOrganizationNodeIds(body.organizationNodeIds);
-    }
-    if (body.organizationNodeId !== undefined) {
-      return this.normalizeOrganizationNodeIds([body.organizationNodeId]);
-    }
-    const currentAssignments = Array.isArray(current?.organizationAssignments)
-      ? current.organizationAssignments
-      : [];
-    const activeAssignmentIds = currentAssignments
-      .filter((assignment: any) => assignment?.isActive !== false)
-      .map((assignment: any) => assignment.organizationNodeId)
-      .filter(Boolean);
-    if (activeAssignmentIds.length > 0) {
-      return this.normalizeOrganizationNodeIds(activeAssignmentIds);
-    }
-    return this.normalizeOrganizationNodeIds([
-      current?.organizationNodeId ?? current?.store?.organizationNodeId,
-    ]);
+    return this.organizationAssignmentService.normalizedOrganizationNodeIdInput(
+      body,
+      current,
+    );
   }
 
   private normalizeOrganizationNodeIds(value: unknown) {
-    const rawItems = Array.isArray(value)
-      ? value
-      : String(value ?? '')
-          .split(/[;,]/)
-          .map((item) => item.trim());
-    const seen = new Set<string>();
-    const result: string[] = [];
-    for (const item of rawItems) {
-      const nodeId = String(item ?? '').trim();
-      if (!nodeId || seen.has(nodeId)) continue;
-      if (nodeId.length > 80) {
-        throw new BadRequestException('Đơn vị tổ chức không hợp lệ');
-      }
-      seen.add(nodeId);
-      result.push(nodeId);
-    }
-    return result;
+    return this.organizationAssignmentService.normalizeOrganizationNodeIds(
+      value,
+    );
   }
 
   private async syncUserOrganizationAssignments(
@@ -5001,43 +4970,11 @@ export class UserService implements OnModuleInit {
     organizationNodeIds: string[],
     admin: any,
   ) {
-    const assignmentModel = (this.prisma as any).userOrganizationAssignment;
-    if (!assignmentModel?.upsert) return;
-    const selected = new Set(organizationNodeIds);
-    await assignmentModel.updateMany({
-      where: {
-        userId,
-        ...(organizationNodeIds.length > 0
-          ? { organizationNodeId: { notIn: organizationNodeIds } }
-          : {}),
-      },
-      data: { isActive: false, isPrimary: false },
-    });
-    for (const [index, organizationNodeId] of organizationNodeIds.entries()) {
-      await assignmentModel.upsert({
-        where: {
-          userId_organizationNodeId: { userId, organizationNodeId },
-        },
-        create: {
-          userId,
-          organizationNodeId,
-          isPrimary: index === 0,
-          isActive: true,
-          assignedById: admin?.id ?? null,
-          note: 'Admin user assignment',
-        },
-        update: {
-          isPrimary: index === 0,
-          isActive: true,
-          assignedById: admin?.id ?? null,
-        },
-      });
-    }
-    if (selected.size > 0) {
-      this.logger.log(
-        `User organization assignments synced: userId=${userId} count=${selected.size}`,
-      );
-    }
+    return this.organizationAssignmentService.syncUserOrganizationAssignments(
+      userId,
+      organizationNodeIds,
+      admin,
+    );
   }
 
   private async resolvePersonnelAssignment(
@@ -5050,37 +4987,11 @@ export class UserService implements OnModuleInit {
       workScopeType: string;
     },
   ) {
-    const treePersonnel =
-      body.organizationNodeId !== undefined
-        ? await this.resolvePersonnelCodesFromOrganizationNode(
-            body.organizationNodeId,
-          )
-        : null;
-    const departmentCode = treePersonnel
-      ? treePersonnel.departmentCode
-      : await this.resolveDepartmentCode(
-          body.departmentCode,
-          options.current?.departmentCode ?? null,
-        );
-    const jobRoleCode = treePersonnel
-      ? treePersonnel.jobRoleCode
-      : await this.resolveJobRoleCode(
-          body.jobRoleCode,
-          options.current?.jobRoleCode ?? null,
-        );
-    const scopeLocation = await this.resolveScopeLocation(admin, body, {
-      current: options.current,
-      storeUuid: options.storeUuid,
-      role: options.role,
-      workScopeType: options.workScopeType,
-    });
-
-    return {
-      departmentCode,
-      jobRoleCode,
-      workScopeType: options.workScopeType,
-      ...scopeLocation,
-    };
+    return this.organizationAssignmentService.resolvePersonnelAssignment(
+      admin,
+      body,
+      options,
+    );
   }
 
   private async resolveScopeLocation(
@@ -5093,98 +5004,10 @@ export class UserService implements OnModuleInit {
       workScopeType: string;
     },
   ) {
-    if (options.workScopeType === NATIONAL_SCOPE) {
-      if (body.organizationNodeId === undefined) {
-        if (options.current && body.workScopeType === undefined) {
-          return {
-            regionCode: null,
-            areaCode: null,
-            organizationNodeId: options.current.organizationNodeId ?? null,
-          };
-        }
-        if (options.role === SUPER_ADMIN_ROLE) {
-          return { regionCode: null, areaCode: null, organizationNodeId: null };
-        }
-        throw new BadRequestException('Vui lòng chọn domain gốc');
-      }
-
-      const nodeId = String(body.organizationNodeId || '').trim();
-      if (!nodeId) {
-        if (options.role === SUPER_ADMIN_ROLE) {
-          return { regionCode: null, areaCode: null, organizationNodeId: null };
-        }
-        throw new BadRequestException('Vui lòng chọn domain gốc');
-      }
-
-      return this.resolveScopeLocationFromOrganizationNode(
-        admin,
-        nodeId,
-        NATIONAL_SCOPE,
-      );
-    }
-
-    if (options.workScopeType === STORE_SCOPE) {
-      if (body.organizationNodeId !== undefined) {
-        const scopeLocation =
-          await this.resolveScopeLocationFromOrganizationNode(
-            admin,
-            body.organizationNodeId,
-            STORE_SCOPE,
-          );
-        const store = options.storeUuid
-          ? await this.prisma.store.findUnique({
-              where: { id: options.storeUuid },
-              include: { area: { include: { region: true } } },
-            })
-          : null;
-        return {
-          ...scopeLocation,
-          areaCode:
-            scopeLocation.areaCode ?? store?.areaCode ?? DEFAULT_REGION_CODE,
-          regionCode:
-            scopeLocation.regionCode ??
-            store?.area?.regionCode ??
-            DEFAULT_REGION_CODE,
-        };
-      }
-      const store = options.storeUuid
-        ? await this.prisma.store.findUnique({
-            where: { id: options.storeUuid },
-            include: {
-              area: { include: { region: true } },
-              organizationNode: true,
-            },
-          })
-        : null;
-      const areaCode = store?.areaCode ?? DEFAULT_REGION_CODE;
-      const regionCode = store?.area?.regionCode ?? DEFAULT_REGION_CODE;
-      const organizationNodeId =
-        (await this.defaultStoreCashNodeIdForStore(store)) ??
-        store?.organizationNodeId ??
-        null;
-      return {
-        regionCode,
-        areaCode,
-        organizationNodeId,
-        storeNodeId: store?.organizationNodeId ?? null,
-      };
-    }
-
-    if (body.organizationNodeId === undefined) {
-      if (options.current && body.workScopeType === undefined) {
-        return {
-          regionCode: options.current.regionCode ?? null,
-          areaCode: options.current.areaCode ?? null,
-          organizationNodeId: options.current.organizationNodeId ?? null,
-        };
-      }
-      throw new BadRequestException('Vui lòng chọn đơn vị tổ chức');
-    }
-
-    return this.resolveScopeLocationFromOrganizationNode(
+    return this.organizationAssignmentService.resolveScopeLocation(
       admin,
-      body.organizationNodeId,
-      options.workScopeType,
+      body,
+      options,
     );
   }
 
@@ -5193,172 +5016,33 @@ export class UserService implements OnModuleInit {
     nodeIdInput: unknown,
     workScopeType: string,
   ) {
-    const nodeId = String(nodeIdInput || '').trim();
-    if (!nodeId) throw new BadRequestException('Vui lòng chọn đơn vị tổ chức');
-    const context = await this.organizationScopeContext(nodeId);
-    if (workScopeType === STORE_SCOPE && !context.storeNodeId) {
-      throw new BadRequestException('Vui lòng chọn showroom');
-    }
-    await this.assertOrganizationNodeAssignableByAdmin(
+    return this.organizationAssignmentService.resolveScopeLocationFromOrganizationNode(
       admin,
-      context.organizationNodeId,
+      nodeIdInput,
+      workScopeType,
     );
-    if (
-      workScopeType === NATIONAL_SCOPE &&
-      !context.regionCode &&
-      !context.areaCode
-    ) {
-      return {
-        regionCode: null,
-        areaCode: null,
-        organizationNodeId: context.organizationNodeId,
-        storeNodeId: context.storeNodeId,
-      };
-    }
-    return {
-      regionCode: context.regionCode,
-      areaCode: context.areaCode,
-      organizationNodeId: context.organizationNodeId,
-      storeNodeId: context.storeNodeId,
-    };
   }
 
   private async resolvePersonnelCodesFromOrganizationNode(
     nodeIdInput: unknown,
   ) {
-    const nodeId = String(nodeIdInput || '').trim();
-    if (!nodeId) return { departmentCode: null, jobRoleCode: null };
-    const context = await this.organizationScopeContext(nodeId);
-    const departmentCode = context.departmentCode
-      ? await this.resolveDepartmentCode(context.departmentCode, null)
-      : null;
-    let jobRoleCode: string | null = null;
-    if (context.jobRoleCode) {
-      const normalizedJobRoleCode = this.normalizePersonnelCode(
-        context.jobRoleCode,
-        'Mã chức danh không hợp lệ',
-      );
-      const jobRole = normalizedJobRoleCode
-        ? await this.prisma.jobRoleDefinition.findUnique({
-            where: { code: normalizedJobRoleCode },
-          })
-        : null;
-      if (jobRole?.isActive) {
-        jobRoleCode = jobRole.code;
-      } else {
-        const selectedNode = await this.prisma.organizationNode.findUnique({
-          where: { id: context.organizationNodeId },
-        });
-        if (
-          !selectedNode ||
-          !this.isLegacyPositionNodeType(selectedNode.type) ||
-          selectedNode.isActive === false
-        ) {
-          throw new BadRequestException('Chức danh không tồn tại hoặc đã tắt');
-        }
-        await this.syncLegacyCatalogFromOrganizationNode(
-          this.prisma,
-          selectedNode,
-        );
-        jobRoleCode = normalizedJobRoleCode;
-        this.logger.log(
-          `Organization position catalog repaired for user assignment: nodeId=${selectedNode.id} jobRole=${jobRoleCode}`,
-        );
-      }
-    }
-    return { departmentCode, jobRoleCode };
+    return this.organizationAssignmentService.resolvePersonnelCodesFromOrganizationNode(
+      nodeIdInput,
+    );
   }
 
   private async assertOrganizationNodeAssignableByAdmin(
     admin: any,
     nodeId: string,
   ) {
-    const rootId = this.adminOrgRootId(admin);
-    if (!rootId) return;
-    const organizationNodeIds = await this.organizationDescendantIds(rootId);
-    if (organizationNodeIds.includes(nodeId)) return;
-    this.logger.warn(
-      'Admin user scope assignment blocked by domain: admin=' +
-        this.userLogId(admin) +
-        ' role=' +
-        admin?.role +
-        ' nodeId=' +
-        nodeId +
-        ' allowedRootId=' +
-        rootId,
-    );
-    throw new ForbiddenException(
-      'Bạn chỉ được gán người dùng trong phạm vi quản lý',
+    return this.organizationAssignmentService.assertOrganizationNodeAssignableByAdmin(
+      admin,
+      nodeId,
     );
   }
 
   private async organizationScopeContext(nodeId: string) {
-    const nodes: Array<{
-      id: string;
-      parentId: string | null;
-      type: string;
-      code: string;
-      businessCode: string | null;
-      isActive: boolean;
-    }> = await this.prisma.organizationNode.findMany({
-      select: {
-        id: true,
-        parentId: true,
-        type: true,
-        code: true,
-        businessCode: true,
-        isActive: true,
-      },
-    });
-    const byId = new Map(nodes.map((node) => [node.id, node]));
-    const node = byId.get(nodeId);
-    if (!node || !node.isActive) {
-      throw new BadRequestException('Đơn vị tổ chức không tồn tại hoặc đã tắt');
-    }
-    const ancestors: typeof nodes = [];
-    let cursor: (typeof nodes)[number] | null = node;
-    for (let guard = 0; cursor && guard < 50; guard += 1) {
-      ancestors.push(cursor);
-      cursor = cursor.parentId ? (byId.get(cursor.parentId) ?? null) : null;
-    }
-    const businessCodeFor = (type: string) => {
-      const item = ancestors.find(
-        (ancestor) =>
-          this.normalizeOrganizationNodeType(ancestor.type) === type,
-      );
-      if (!item) return null;
-      if (type === ORG_TYPE_LV4_STORE) {
-        return this.normalizeStoreCode(
-          item.businessCode ?? this.legacyCodeFromOrganizationCode(item.code),
-        );
-      }
-      return this.legacyPersonnelCodeFromOrganizationNode(
-        item,
-        'Mã nghiệp vụ không hợp lệ',
-      );
-    };
-    const storeNode = ancestors.find(
-      (ancestor) =>
-        this.normalizeOrganizationNodeType(ancestor.type) ===
-        ORG_TYPE_LV4_STORE,
-    );
-    const jobRoleCode = businessCodeFor(ORG_TYPE_LV5_POSITION);
-    const defaultPosition = DEFAULT_STORE_POSITION_DEFINITIONS.find(
-      (position) => position.businessCode === jobRoleCode,
-    );
-    return {
-      organizationNodeId: node.id,
-      nodeType: this.normalizeOrganizationNodeType(node.type),
-      departmentCode:
-        businessCodeFor(ORG_TYPE_LV2_DEPARTMENT) ??
-        defaultPosition?.departmentCode ??
-        null,
-      jobRoleCode,
-      regionCode: businessCodeFor(ORG_TYPE_LV2_REGION),
-      areaCode: businessCodeFor(ORG_TYPE_LV3_AREA),
-      storeCode: businessCodeFor(ORG_TYPE_LV4_STORE),
-      storeNodeId: storeNode?.id ?? null,
-    };
+    return this.organizationAssignmentService.organizationScopeContext(nodeId);
   }
 
   private async resolveDepartmentCode(input: unknown, current?: string | null) {
@@ -5524,45 +5208,11 @@ export class UserService implements OnModuleInit {
     current: any | null,
     role: string,
   ) {
-    if (body.workScopeType !== undefined) {
-      return this.resolveWorkScopeType(
-        body.workScopeType,
-        current?.workScopeType,
-        role,
-      );
-    }
-    if (body.organizationNodeId !== undefined) {
-      const nodeId = String(body.organizationNodeId || '').trim();
-      if (!nodeId) return this.defaultWorkScopeForRole(role);
-      const context = await this.organizationScopeContext(nodeId);
-      return this.workScopeTypeFromOrganizationContext(context);
-    }
-    return this.resolveWorkScopeType(undefined, current?.workScopeType, role);
-  }
-
-  private workScopeTypeFromOrganizationContext(context: {
-    nodeType: string;
-    regionCode?: string | null;
-    areaCode?: string | null;
-    storeNodeId?: string | null;
-  }) {
-    if (context.storeNodeId || context.nodeType === ORG_TYPE_LV4_STORE) {
-      return STORE_SCOPE;
-    }
-    if (context.nodeType === ORG_TYPE_LV5_POSITION && context.storeNodeId) {
-      return STORE_SCOPE;
-    }
-    if (context.nodeType === ORG_TYPE_LV3_AREA || context.areaCode) {
-      return AREA_SCOPE;
-    }
-    if (
-      context.nodeType === ORG_TYPE_LV2_REGION ||
-      context.nodeType === ORG_TYPE_LV2_DEPARTMENT ||
-      context.regionCode
-    ) {
-      return REGION_SCOPE;
-    }
-    return NATIONAL_SCOPE;
+    return this.organizationAssignmentService.resolveWorkScopeTypeForAssignment(
+      body,
+      current,
+      role,
+    );
   }
 
   private normalizePersonnelCode(input: unknown, message: string) {
