@@ -4,9 +4,9 @@ Date: 2026-08-13
 
 ## Status
 
-Active — the current workflow checkpoint is OPS-141 dependency-root readiness
-hardening, created from exact live
-`origin/staging@ca856d83d245e50e45418c28892326e892f195c7` after OPS-140.
+Active — the current workflow checkpoint is OPS-142 master-plan
+reconciliation, created from exact live
+`origin/staging@31149394b5bcf62028be331e03f3d36b1d2d1dd4` after OPS-141.
 OPS-140 is squash-merged through PRs #256–#259, with the final merge at
 `ca856d83d245e50e45418c28892326e892f195c7`, staging-deployed by
 `31915139037`, and tracked `Ready for QA` after Linear proof. OPS-134 is
@@ -590,6 +590,13 @@ god-helper.
   exact staging deploy `31903246094` and guarded cleanup passed. The canary
   proves a clean checkout hydrates both Nest/Prisma and Flutter, including the
   allowlisted `lib/l10n` ReadOnly fault; Linear is `Ready for QA`.
+- [x] Complete OPS-141 dependency-root readiness hardening. PR #260
+  squash-merged at `31149394b5bcf62028be331e03f3d36b1d2d1dd4`; PR checks,
+  Windows cold dependency canary `31917740541`, exact staging deploy
+  `31917897049` and guarded lifecycle cleanup passed. The readiness contract
+  now covers both `.dart_tool` and `backend-nest/node_modules`, repairs only
+  allowlisted directory-level Windows `ReadOnly` blockers, and invalidates
+  stale receipts. Linear is `Ready for QA`; production remains the Done gate.
 - [x] Complete OPS-130 live-shadow evidence assembly. PR #247 merged at
   `837df86c2a781b256c72fbe0eb6bdb37cbae26e0`, staging deploy `31888018450`
   passed, and the shadow workflow/collector is implemented. The affected
@@ -2209,7 +2216,10 @@ review is merged/deployed at `dd7d2ffb` and tracked as `Ready for QA` after
 exact deploy `31896414830` and guarded cleanup. OPS-73's prior dependency
 batches remain `Ready for QA`; OPS-137 is the last merged checkpoint at
 `c16638a9`, OPS-139 is the retained-owner evidence normalization slice, and
-OPS-141 is the current dependency-root readiness slice.
+OPS-141 is squash-merged through PR #260 at
+`31149394b5bcf62028be331e03f3d36b1d2d1dd4`, staging-deployed by
+`31917897049`, and tracked `Ready for QA` after exact proof and guarded
+cleanup. OPS-142 is the current master-plan reconciliation slice.
 OPS-138 is paused before source mutation until this authority repair passes. OPS-113
 is also staged and tracked as `Ready for
 QA` after exact deploy `31862881662` and guarded cleanup. OPS-122 and OPS-123's
@@ -2256,8 +2266,29 @@ the current checkpoint above is the sole active execution authority.
   regression coverage for ReadOnly normalization, cold missing roots and
   dry-run safety. No lockfile, dependency version, runtime/API/UI behavior or
   Docker boundary changes are in scope.
-- Current proof: focused writeability suite passes `6/6`; a fresh task
-  worktree `toolchain-doctor --profile all --check` passes with both dependency
-  roots explicitly reported ready. Full toolchain, cold canary, exact affected
-  verification, PR checks, staging deployment and guarded finish remain open
-  gates. Rollback is one OPS-141 squash revert.
+- Final proof: focused writeability/prepare tests pass; full toolchain suite
+  passes `102/102`; wrapped Flutter analyze and Nest build pass; the cold
+  canary `31917740541` hydrated 941 Nest packages and 174 Flutter packages
+  from absent roots before both commands passed; exact `verify-task` returned
+  `stale=false`; staging deploy `31917897049` passed for merge SHA
+  `31149394b5bcf62028be331e03f3d36b1d2d1dd4`; and guarded finish removed the
+  task worktree/local branch. Rollback is one OPS-141 squash revert.
+
+## Workflow checkpoint (OPS-142; reconcile after OPS-141)
+
+- This docs-only slice is branch/worktree
+  `codex/ops-142-reconcile-master-plan-after-ops-141` /
+  `../opshub-ops-142-master-plan`, created by the guarded lifecycle start gate
+  from exact live
+  `origin/staging@31149394b5bcf62028be331e03f3d36b1d2d1dd4`. It updates only
+  this master plan after OPS-141's merge/deploy proof; no runtime, dependency
+  manifest, archive or upstream Harness files are in scope.
+- The durable dependency direction is now explicit: every new task worktree
+  hydrates both toolchain profiles by default; every dependency-consuming
+  command rechecks readiness through the shared boundary; cold CI canary
+  verifies both roots from absence; and the readiness fingerprint includes
+  ignored dependency roots so stale receipts cannot bypass a first build.
+- Next gate: OPS-72 remains `revise`/`do-not-promote` because its measured
+  cohort is below the timing target and rerun reduction is not measurable.
+  Phase 8 deletion, remaining Phase 9 runtime waves and Phase 10 production
+  consolidation remain open; no status is promoted based on staging alone.
