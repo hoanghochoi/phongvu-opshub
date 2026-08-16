@@ -4,9 +4,15 @@ Date: 2026-08-13
 
 ## Status
 
-Active — the current workflow checkpoint is OPS-152 Phase 9C Home Summary
-finance-metrics runtime extraction, created from exact live
-`origin/staging@65c6cb58e8b71f6143822fd0e1cfa1489ee8a137` after OPS-151.
+Active — the current workflow checkpoint is OPS-153 post-OPS-152 plan
+reconciliation, created from exact live
+`origin/staging@d4a055ea8976956098b6b94001043ff73146d5c4` after OPS-152.
+OPS-152 Home Summary finance-metrics runtime extraction is squash-merged
+through PR #276 at `d4a055ea8976956098b6b94001043ff73146d5c4`,
+staging-deployed by `31944016299`, and tracked `Ready for QA` after proof and
+guarded lifecycle cleanup. Its local Flutter affected-consumer proof remains
+an explicit environment residual because the dependency root is unavailable;
+no profile was suppressed and no product failure was retried to green.
 OPS-151 Home Summary legacy sales-metrics runtime extraction is squash-merged
 through PR #275 at `65c6cb58e8b71f6143822fd0e1cfa1489ee8a137`, staging-deployed
 by `31942216545`, and tracked `Ready for QA` after proof. Its local Flutter
@@ -2258,9 +2264,12 @@ OPS-141 is squash-merged through PR #260 at
 `31917897049`, and tracked `Ready for QA` after exact proof and guarded
 cleanup. OPS-143 is the historical master-plan reconciliation slice, created
 from exact `origin/staging@02045ba7c5c772e734040b1b6593faff98526293` after
-OPS-138, OPS-70 and OPS-71. OPS-145 is the latest runtime extraction slice,
+OPS-138, OPS-70 and OPS-71. OPS-145 is a historical runtime extraction slice,
 merged by PR #269 at `c46cf5d9` and staging-deployed by `31931982872`; it is
-tracked `Ready for QA` after guarded cleanup. OPS-146 is the current
+tracked `Ready for QA` after guarded cleanup. OPS-146 is a historical
+reconciliation slice. OPS-152 is the latest runtime extraction slice, merged
+by PR #276 at `d4a055ea` and staging-deployed by `31944016299`; it is tracked
+`Ready for QA` after proof and guarded cleanup. OPS-153 is the current
 reconciliation slice. OPS-138 is merged/deployed and tracked as `Ready for QA`;
 OPS-70 and OPS-71 are merged/deployed and tracked `Ready for Release`. OPS-113
 is also staged and tracked as `Ready for
@@ -2592,9 +2601,33 @@ the current checkpoint above is the sole active execution authority.
   Nest proof before final formatting passed `115 suites / 1254 tests / 6 skipped`;
   the final focused proof, Nest build, Prettier check and `git diff --check` pass.
   Exact `verify-task --base origin/staging` selects `harness,docs,nestjs` over 5
-  changed paths with `stale=false`. Publication is pending PR/staging deploy
-  and guarded lifecycle cleanup; rollback is one OPS-152 squash revert.
+  changed paths with `stale=false`. At this checkpoint publication was pending;
+  it was later completed through PR #276, staging deploy `31944016299` and the
+  guarded lifecycle cleanup recorded by OPS-153. Rollback is one OPS-152 squash
+  revert.
 - Dependency decision: continue Harness/cleanup slices that are independent of
   Flutter hydration, but retain the Flutter dependency gap as an environment
   blocker. No affected profile is suppressed, no product failure is retried to
   green, and no dependency/version or lockfile change is included here.
+
+## Workflow checkpoint (OPS-153; post-OPS-152 plan reconciliation)
+
+- This docs-only slice uses branch/worktree
+  `codex/ops-153-reconcile-master-plan-after-ops-152` /
+  `../opshub-ops-153-plan-reconcile`, created from exact live
+  `origin/staging@d4a055ea8976956098b6b94001043ff73146d5c4`. It updates only
+  this master plan, the active-plan index and the OPS-71 disposition ledger.
+- OPS-152 is verified as squash-merged through PR #276 at
+  `d4a055ea8976956098b6b94001043ff73146d5c4`, staging-deployed by
+  `31944016299`, and tracked `Ready for QA` after implementation/proof
+  comment read-back. The canonical staging worktree is clean and no task
+  worktree or remote task branch remains after the guarded lifecycle cleanup.
+- The slice removes stale front-facing references to OPS-146 as current and
+  OPS-145 as latest, while preserving historical checkpoints. The ledger now
+  points the next action at the remaining Phase 9 facade waves, the OPS-72
+  revise/do-not-promote decision and OPS-75 Phase 10 consolidation.
+- Validation required before publication: `verify-plan-disposition`, exact
+  docs-profile `scripts/verify-task.mjs --base origin/staging`, `git diff
+  --check` and stale-reference scan. No runtime, dependency, archive, Harness
+  DB or production lifecycle behavior changes are in scope. Rollback is one
+  OPS-153 squash revert.
