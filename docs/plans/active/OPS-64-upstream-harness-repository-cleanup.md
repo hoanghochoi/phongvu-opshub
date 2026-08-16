@@ -4,9 +4,9 @@ Date: 2026-08-13
 
 ## Status
 
-Active — the current workflow checkpoint is OPS-146 post-OPS-145 master-plan
-reconciliation, created from exact live
-`origin/staging@c46cf5d9c5e64e8e7e855e8c8fd5290941e9dafe` after OPS-145.
+Active — the current workflow checkpoint is OPS-147 Phase 8 artifact-cleanup
+closure, created from exact live
+`origin/staging@4f6e09700af200e8d4dcbbaebd9395ce92c52b40` after OPS-146.
 OPS-138 organization-tree/assignment extraction is squash-merged through PR
 #264 at `db427f6d44d2dde5c219a982fc1d835e9378e536`, staging-deployed by
 `31923613626`, and tracked `Ready for QA` after proof. OPS-70 protocol-v1
@@ -611,8 +611,12 @@ god-helper.
   passed, and the shadow workflow/collector is implemented. The affected
   matrix remains observational because OPS-72's revised cohort still does not
   meet the 25% timing and 30% rerun-reduction targets.
-- [ ] Run Phase 8 artifact cleanup, Phase 9 runtime waves and Phase 10 final
-  consolidation.
+- [x] Complete the Phase 8 artifact/dependency/toolchain review and deletion
+  decision. The refreshed inventory, retained-owner review, Flutter/Nest
+  dependency batches and Go/deploy review all pass; zero deletion batches are
+  authorized. Dependency bootstrap hardening remains an explicit residual
+  risk and is not treated as a pass by this closure.
+- [ ] Run Phase 9 runtime waves and Phase 10 final consolidation.
 
 Phase 8 inventory checkpoint (OPS-73):
 
@@ -2435,3 +2439,21 @@ the current checkpoint above is the sole active execution authority.
   the OPS-64 `nextAction` in the OPS-71 disposition ledger. It preserves the
   production-not-done rule, Phase 6/8/9/10 gates and dependency fail-closed
   policy. Rollback is one OPS-146 squash revert.
+
+## Workflow checkpoint (OPS-147; close Phase 8 artifact cleanup)
+
+- This docs-only slice is branch/worktree
+  `codex/ops-147-phase-8-close-artifact-cleanup` /
+  `../opshub-ops-147-phase-8-cleanup`, created from exact live
+  `origin/staging@4f6e09700af200e8d4dcbbaebd9395ce92c52b40`. The task worktree
+  was clean before edits; only the Nest profile was prepared because no
+  dependency-consuming command is in scope.
+- It closes the Phase 8 evidence decision: inventory and retained-owner
+  validators report no safe deletion candidate, all reviewed dependency/artifact
+  batches have explicit proof, and the authorized deletion-batch count remains
+  zero. No retained path, lockfile, dependency version, runtime behavior,
+  Harness archive or raw local evidence is changed.
+- Missing Flutter/Nest dependencies remain an environment failure for any
+  later dependency-consuming proof; this docs closure neither suppresses that
+  gate nor retries product failures to green. Phase 9 runtime waves and Phase
+  10 production evidence remain open. Rollback is one OPS-147 squash revert.
