@@ -29,7 +29,8 @@ export const EXIT_CODES = Object.freeze({
 
 // Bumped when hydration behavior/commands or readiness probes change so old
 // cached readiness is never trusted after a toolchain policy update.
-const SCHEMA_VERSION = 9;
+const SCHEMA_VERSION = 10;
+export const VERSION_PROBE_TIMEOUT_MS = 15_000;
 const PROFILE_ID = 'nestjs';
 const FLUTTER_PROFILE_ID = 'flutter';
 const ALL_PROFILE_ID = 'all';
@@ -61,6 +62,7 @@ const NEST_TOOLCHAIN_LOCK_RELATIVE_PATH = path.join(
 );
 const INHERITED_LEASE_ENV = 'OPSHUB_TOOLCHAIN_LEASE';
 const activeLockDepth = new Map();
+const versionProbeCache = new Map();
 const FLUTTER_PLATFORM_PACKAGE_DIRS = Object.freeze([
   'android',
   'darwin',
@@ -231,47 +233,64 @@ function requiredFilesForProfile(profile) {
   fail(EXIT_CODES.CONTRACT, `Không có manifest cho profile: ${profile}.`);
 }
 
-function executableVersion(executable, argv = ['--version']) {
+export function executableVersion(
+  executable,
+  argv = ['--version'],
+  { cwd = process.cwd(), timeoutMs = VERSION_PROBE_TIMEOUT_MS } = {},
+) {
+  const cacheKey = JSON.stringify({ cwd, executable, argv, timeoutMs });
+  if (versionProbeCache.has(cacheKey)) {
+    return versionProbeCache.get(cacheKey);
+  }
+  const remember = (value) => {
+    versionProbeCache.set(cacheKey, value);
+    return value;
+  };
   const result = spawnSync(executable, argv, {
-    cwd: process.cwd(),
+    cwd,
     encoding: 'utf8',
     windowsHide: true,
     shell:
       process.platform === 'win32' && /\.(?:cmd|bat)$/i.test(executable),
     maxBuffer: 1024 * 1024,
+    timeout: timeoutMs,
   });
-  if (result.error || result.status !== 0) return 'unavailable';
+  if (result.error?.code === 'ETIMEDOUT' || result.signal) {
+    return remember('unavailable:timeout');
+  }
+  if (result.error || result.status !== 0) return remember('unavailable');
   const output = String(result.stdout || result.stderr || '').trim();
   if (argv.includes('--machine')) {
     try {
       const parsed = JSON.parse(output);
-      return JSON.stringify({
+      return remember(JSON.stringify({
         frameworkVersion: parsed.frameworkVersion || null,
         frameworkRevision: parsed.frameworkRevision || null,
         dartSdkVersion: parsed.dartSdkVersion || null,
-      });
+      }));
     } catch {
-      return output.slice(0, 240);
+      return remember(output.slice(0, 240));
     }
   }
-  return output.split(/\r?\n/).slice(0, 3).join('\n').slice(0, 240);
+  return remember(output.split(/\r?\n/).slice(0, 3).join('\n').slice(0, 240));
 }
 
-function toolchainVersions(profile) {
+export function toolchainVersions(profile, { probe = executableVersion } = {}) {
   const versions = {
     node: process.version,
     platform: process.platform,
     arch: process.arch,
+    versionProbeTimeoutMs: VERSION_PROBE_TIMEOUT_MS,
   };
   if (profile === PROFILE_ID) {
-    versions.npm = executableVersion(nestExecutable('npm'));
+    versions.npm = probe(nestExecutable('npm'));
   }
   if (profile === FLUTTER_PROFILE_ID) {
-    versions.flutter = executableVersion(flutterExecutable(), [
+    versions.flutter = probe(flutterExecutable(), [
       '--version',
       '--machine',
     ]);
-    versions.dart = executableVersion(
+    versions.dart = probe(
       process.platform === 'win32' ? 'dart.exe' : 'dart',
     );
   }

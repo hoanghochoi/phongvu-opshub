@@ -17,12 +17,14 @@ import test from 'node:test';
 
 import {
   EXIT_CODES,
+  executableVersion,
   flutterPubCacheIdentity,
   flutterToolchainEnvironment,
   parseArgs,
   prepareTaskToolchain,
   resolveFlutterPubCacheLockPath,
   resolveFlutterPubCacheRoot,
+  toolchainVersions,
   toolchainFingerprint,
 } from '../../scripts/prepare-task-toolchain.mjs';
 
@@ -248,6 +250,43 @@ function successfulStepFactory(calls) {
     };
   };
 }
+
+test('version probes return a bounded timeout sentinel for a hanging executable', () => {
+  const startedAt = Date.now();
+  const result = executableVersion(
+    process.execPath,
+    ['-e', 'setTimeout(() => {}, 1000)'],
+    { timeoutMs: 50 },
+  );
+
+  assert.equal(result, 'unavailable:timeout');
+  assert.ok(Date.now() - startedAt < 900, 'probe exceeded the bounded timeout');
+
+  const cachedStartedAt = Date.now();
+  assert.equal(
+    executableVersion(
+      process.execPath,
+      ['-e', 'setTimeout(() => {}, 1000)'],
+      { timeoutMs: 50 },
+    ),
+    'unavailable:timeout',
+  );
+  assert.ok(Date.now() - cachedStartedAt < 100, 'cached probe was not reused');
+});
+
+test('normal version probes and fingerprint policy remain observable', () => {
+  assert.equal(
+    executableVersion(process.execPath, ['-e', "process.stdout.write('probe-ok')"]),
+    'probe-ok',
+  );
+
+  const versions = toolchainVersions('flutter', {
+    probe: (executable, argv = []) => `${executable}:${argv.join(',')}`,
+  });
+  assert.equal(versions.versionProbeTimeoutMs, 15_000);
+  assert.match(String(versions.flutter), /--version,--machine/);
+  assert.match(String(versions.dart), /dart/);
+});
 
 test('Flutter Pub cache resolver follows platform defaults and explicit overrides', () => {
   const windowsDefault = resolveFlutterPubCacheRoot({
