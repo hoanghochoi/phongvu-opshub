@@ -2651,6 +2651,32 @@ the current checkpoint above is the sole active execution authority.
   permission or Vietnamese-copy behavior is intentionally changed.
 - Focused characterization proof passes `3 suites / 67 tests`; the full Nest
   proof passes `116 suites / 1258 tests / 6 skipped` and Nest build passes.
+  Prettier check, `git diff --check` and exact `verify-task --base origin/staging`
+  passed with `stale=false`; PR #278 squash-merged at
+  `0b21b9af811e909a4ff869ce07ab6879ca4eca9d`, staging deploy run
+  `31958942764` is the exact-SHA release gate, and guarded lifecycle cleanup
+  removed the task worktree/local branch. Flutter affected proof remains
+  explicitly unverified under the dependency deferral. Rollback is one OPS-154
+  squash revert.
+
+## Workflow checkpoint (OPS-155; UserService protected admin credential runtime)
+
+- This Phase 9F Nest-only slice uses branch/worktree
+  `codex/ops-155-userservice-protected-admin-credential` /
+  `../opshub-ops-155-user-credential`, created from exact live
+  `origin/staging@0b21b9af811e909a4ff869ce07ab6879ca4eca9d`. The guarded start
+  dry-run and execute passed; the worktree started clean and the Nest/Prisma
+  profile is hydrated. Flutter affected proof remains fail-closed and
+  explicitly unverified under the approved dependency deferral; no profile is
+  suppressed and no product failure is retried to green.
+- The slice extracts only `adminSetUserPassword()` into
+  `UserCredentialAdminService`. `UserService` remains the stable facade and
+  owns policy/scope helpers; route, DTO, `PasswordResetService` boundary,
+  `ADMIN_USERS` feature guard, Vietnamese errors, audit logging and credential
+  handling remain unchanged. Retired store routes, BigQuery sync,
+  organization/scope policy and Flutter UI are out of scope.
+- Baseline focused proof was `2 suites / 81 tests`; post-extraction focused
+  characterization proof is `3 suites / 86 tests`, and Nest build passes.
   Final publication still requires Prettier check, `git diff --check`, exact
   `verify-task --base origin/staging` with `stale=false`, PR/staging deploy and
-  guarded lifecycle cleanup. Rollback is one OPS-154 squash revert.
+  guarded lifecycle cleanup. Rollback is one OPS-155 squash revert.
