@@ -161,13 +161,22 @@
       ]
     },
     {
+      "id": "legacy-archive-writer",
+      "disposition": "deleted",
+      "owner": "opshub-cleanup",
+      "reasonCode": "immutable-archive-already-created-no-current-writer",
+      "paths": [
+        "scripts/archive-harness-legacy.py",
+        "tests/migration/test_archive_harness_legacy.py"
+      ]
+    },
+    {
       "id": "migration-and-history-evidence",
       "disposition": "retained",
       "owner": "opshub-migration-archive",
       "reasonCode": "sanitized-evidence-and-rollback-guidance",
       "paths": [
         "docs/decisions/0029-adopt-upstream-repository-protocol-and-retire-protocol-v1.md",
-        "scripts/archive-harness-legacy.py",
         "scripts/review-harness-disposition.py",
         "scripts/promote-harness-authority.py",
         "tests/migration"
