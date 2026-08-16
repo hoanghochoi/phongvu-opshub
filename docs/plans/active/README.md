@@ -18,14 +18,15 @@ Current active/release-pending authority:
 - [`OPS-53-redesign-chrome-audit-consolidation.md`](OPS-53-redesign-chrome-audit-consolidation.md)
   is the only current OPS-53 execution summary. Its nine fragments are history.
 - [`OPS-64-upstream-harness-repository-cleanup.md`](OPS-64-upstream-harness-repository-cleanup.md)
-  remains the initiative master plan; OPS-159 is the current docs-only
-  reconciliation after the OPS-158 Phase 9F legacy organization-catalog
-  compatibility slice. OPS-158 is squash-merged through PR #282 at
-  `302599de`, staging-deployed by `31964703711`, with guarded lifecycle
+  remains the initiative master plan; OPS-161 is the current docs-only
+  reconciliation after the OPS-160 Phase 9F UserAdminMutationService
+  characterization slice. OPS-160 is squash-merged through PR #284 at
+  `155b5dec`, staging-deployed by `31968579616`, with guarded lifecycle
   cleanup and `Ready for QA` proof. Its Flutter/Go affected-consumer proof
   remains explicitly fail-closed under the approved local dependency
   deferral; no profile was suppressed and no product failure was retried to
-  green. OPS-157 is the preceding plan reconciliation at `98d48f5e`,
+  green. OPS-159 is the preceding reconciliation after OPS-158. OPS-157 is
+  the earlier plan reconciliation at `98d48f5e`,
   staging-deployed by `31962662658`, with guarded lifecycle cleanup and
   `Ready for QA` proof. OPS-156 is the preceding completed Phase 9F UserService access/scope runtime
   checkpoint at merge `6849ddb0`, staging deploy `31961307152`, with guarded

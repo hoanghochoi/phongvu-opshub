@@ -4,9 +4,22 @@ Date: 2026-08-13
 
 ## Status
 
-Active — the current workflow checkpoint is OPS-159 master-plan
+Active — the current workflow checkpoint is OPS-161 master-plan
 reconciliation, created from exact live
-`origin/staging@302599dec6e98c57bb718e3e6e25ba94f9ee5d52` after OPS-158.
+`origin/staging@155b5dec53b7a67677bbfdcbde04a0fb437b707d` after OPS-160.
+OPS-160 UserAdminMutationService characterization is squash-merged through PR
+#284 at `155b5dec53b7a67677bbfdcbde04a0fb437b707d`, staging-deployed by
+`31968579616`, and tracked `Ready for QA` after proof and guarded lifecycle
+cleanup. The slice added only direct NestJS characterization coverage; its
+Flutter/Go affected-consumer proof remains an explicit environment residual
+under the approved dependency deferral. The next safe Phase 9F boundary is
+shared `prepareAdminUserMutation` characterization/extraction; authorization
+and `userAccessFingerprint` ownership stay explicit, while atomic assignment
+transactions and generic admin-policy scope authorization remain separate
+full-fix/security follow-ups. No dependency gate was suppressed, no lockfile
+was changed and no product failure was retried to green.
+OPS-159 is the preceding master-plan reconciliation, created from exact live
+`origin/staging@83c9f4f4a12da3ff891cede1b89cdf60387105ea` after OPS-158.
 OPS-158 legacy organization-catalog compatibility extraction is squash-merged
 through PR #282 at `302599dec6e98c57bb718e3e6e25ba94f9ee5d52`,
 staging-deployed by `31964703711`, and tracked `Ready for QA` after proof and
@@ -2283,8 +2296,10 @@ by PR #276 at `d4a055ea` and staging-deployed by `31944016299`; it is tracked
 reconciliation slice; OPS-154, OPS-155 and OPS-156 are the latest merged runtime
 checkpoints, with OPS-156 merged/deployed at `6849ddb0` and tracked `Ready for
 QA`. OPS-158 is merged/deployed and tracked `Ready for QA`; OPS-159 is the
-current docs-only reconciliation slice. OPS-138 is merged/deployed and
-tracked as `Ready for QA`; OPS-157 remains the preceding completed docs
+preceding docs-only reconciliation slice and OPS-160 is the latest merged
+runtime characterization checkpoint. OPS-161 is the current docs-only
+reconciliation slice. OPS-138 is merged/deployed and tracked as `Ready for QA`;
+OPS-157 remains the preceding completed docs
 reconciliation checkpoint.
 OPS-70 and OPS-71 are merged/deployed and tracked `Ready for Release`. OPS-113
 is also staged and tracked as `Ready for
@@ -2798,3 +2813,36 @@ the current checkpoint above is the sole active execution authority.
   mutation/import contract before further extraction. No runtime, dependency,
   archive, Harness DB or product behavior changes are in scope. Rollback is
   one OPS-159 squash revert.
+
+## Workflow checkpoint (OPS-160; UserAdminMutationService characterization)
+
+- This test-only Phase 9F slice used branch/worktree
+  `codex/ops-160-characterize-user-admin-mutation` /
+  `../opshub-ops-160-characterize-user-admin-mutation`, created from exact
+  live `origin/staging@83c9f4f4a12da3ff891cede1b89cdf60387105ea` through the
+  guarded lifecycle start gate. The source commit was `d191a1d9`; PR #284
+  squash-merged to `staging` at `155b5dec53b7a67677bbfdcbde04a0fb437b707d`.
+- The slice added only
+  `backend-nest/src/user/user-admin-mutation.service.spec.ts`, covering create,
+  update and delete authorization/order, Vietnamese errors, assignment sync,
+  welcome-email result handling, fingerprint-based access invalidation,
+  blockers, dependent-record transaction deletes and post-commit publication.
+  No production/API/DTO/DI/schema/dependency/Flutter/Go source changed.
+- Direct characterization passed `10/10`; affected UserService/UserImport/
+  credential-admin Nest suites passed `82/82`; full Nest passed `120/120`
+  suites with `1,283` tests passed and `6` skipped; Nest build and exact
+  `verify-task --base origin/staging --profile nestjs` passed after the final
+  commit with a fresh fingerprint. PR release guard, affected shadow and
+  CodeQL/Go checks passed.
+- Staging deploy `31968579616` passed Android, Windows, web, backend,
+  direct-origin and public health/version checks on the merge SHA. Guarded
+  lifecycle finish passed and task worktree/local/remote branches were
+  cleaned. Flutter/Go affected proof remains explicitly fail-closed/unverified
+  under the approved dependency deferral; no profile was suppressed, no
+  lockfile was changed and no product failure was retried to green.
+- The next bounded boundary is shared `prepareAdminUserMutation`
+  characterization/extraction. Authorization remains owned by the mutation
+  facade/import flow and `userAccessFingerprint` remains with mutation
+  orchestration. Atomic assignment transaction and generic admin-policy scope
+  authorization are separate full-fix/security follow-ups. Rollback is one
+  OPS-160 squash revert.
