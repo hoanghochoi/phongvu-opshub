@@ -4,9 +4,13 @@ Date: 2026-08-13
 
 ## Status
 
-Active — the current workflow checkpoint is OPS-157 master-plan reconciliation,
-created from exact live
-`origin/staging@6849ddb0ac6d6b46f1c40148c6257fda8b82b7ad` after OPS-156.
+Active — the current workflow checkpoint is OPS-158 legacy organization-catalog
+compatibility extraction, created from exact live
+`origin/staging@98d48f5e4bdb81aac9211f8627bded222ad599c7` after OPS-157.
+OPS-157 master-plan reconciliation is squash-merged through PR #281 at
+`98d48f5e4bdb81aac9211f8627bded222ad599c7`, staging-deployed by
+`31962662658`, and tracked `Ready for QA` after proof and guarded lifecycle
+cleanup.
 OPS-156 UserService access/scope extraction is squash-merged through PR #280 at
 `6849ddb0ac6d6b46f1c40148c6257fda8b82b7ad`, staging-deployed by
 `31961307152`, and tracked `Ready for QA` after proof and guarded lifecycle
@@ -2274,6 +2278,8 @@ reconciliation slice; OPS-154, OPS-155 and OPS-156 are the latest merged runtime
 checkpoints, with OPS-156 merged/deployed at `6849ddb0` and tracked `Ready for
 QA`. OPS-157 is the current docs-only reconciliation slice. OPS-138 is
 merged/deployed and tracked as `Ready for QA`;
+OPS-158 is now the current legacy organization-catalog compatibility runtime
+slice; OPS-157 remains the latest completed docs reconciliation checkpoint.
 OPS-70 and OPS-71 are merged/deployed and tracked `Ready for Release`. OPS-113
 is also staged and tracked as `Ready for
 QA` after exact deploy `31862881662` and guarded cleanup. OPS-122 and OPS-123's
@@ -2736,3 +2742,26 @@ the current checkpoint above is the sole active execution authority.
   scan, docs-profile exact `verify-task --base origin/staging`, `git diff --check`
   and a scope review confirming no runtime/dependency/archive paths changed.
   Rollback is one OPS-157 squash revert.
+
+## Workflow checkpoint (OPS-158; legacy organization-catalog compatibility bridge)
+
+- Intake checkpoint: branch `codex/ops-158-legacy-organization-catalog`, HEAD
+  `98d48f5e4bdb81aac9211f8627bded222ad599c7`, and clean tracked/index state
+  were captured twice independently with identical SHA-256
+  `845901983d9f20100aaf3bcd420785cf9f28609c2104ccad0801a97e58c1f19b`.
+  The task worktree was created by the guarded lifecycle from exact live
+  `origin/staging@98d48f5e4bdb81aac9211f8627bded222ad599c7`; the Nest profile
+  hydrated successfully. Ignored dependency/build state is task-local and is
+  not copied into Git.
+- Lane: high-risk shared runtime / existing behavior. Protected behavior is
+  the `UserService` public facade, organization-node catalog synchronization,
+  transaction client propagation, Vietnamese validation/log text and the
+  organization assignment consumers. Flutter/Go affected proof remains
+  fail-closed and explicitly unverified only where the approved dependency
+  gap prevents execution; no profile is suppressed and no product failure is
+  retried to green.
+- Scope boundary: extract only the legacy catalog bridge, recursive region
+  prerequisite and two legacy-code conversion helpers. Catalog CRUD, store
+  CRUD, policy redesign, startup seeding, public API/DTO/DI contracts,
+  dependencies, archive and Harness DB paths remain out of scope. Rollback is
+  one OPS-158 squash revert.
