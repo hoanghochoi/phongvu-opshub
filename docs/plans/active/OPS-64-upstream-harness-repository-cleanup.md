@@ -4,9 +4,9 @@ Date: 2026-08-13
 
 ## Status
 
-Active — the current workflow checkpoint is OPS-143 master-plan
-reconciliation, created from exact live
-`origin/staging@02045ba7c5c772e734040b1b6593faff98526293` after OPS-71.
+Active — the current workflow checkpoint is OPS-144 bounded toolchain version
+probes, created from exact live
+`origin/staging@8f9eaef9459709b585928f8879b9f255b76eb70f` after OPS-143.
 OPS-138 organization-tree/assignment extraction is squash-merged through PR
 #264 at `db427f6d44d2dde5c219a982fc1d835e9378e536`, staging-deployed by
 `31923613626`, and tracked `Ready for QA` after proof. OPS-70 protocol-v1
@@ -2366,3 +2366,25 @@ the current checkpoint above is the sole active execution authority.
   the WSL `bash` invocation produced a false `rg` permission failure. A
   separate workflow slice must add bounded toolchain command timeouts and keep
   this environment failure visible. Rollback is one OPS-143 squash revert.
+
+## Workflow checkpoint (OPS-144; bound toolchain version probes)
+
+- This bounded Harness/tooling slice is branch/worktree
+  `codex/ops-144-bound-toolchain-version-probes` /
+  `../opshub-ops-144-toolchain-timeout`, created from exact live
+  `origin/staging@8f9eaef9459709b585928f8879b9f255b76eb70f`. Changed paths are
+  limited to `scripts/prepare-task-toolchain.mjs` and its toolchain tests.
+- Version probes now have a 15-second child-process timeout, return a sanitized
+  `unavailable:timeout` sentinel, and cache by command context. The timeout
+  policy is included in toolchain fingerprint metadata so a policy change
+  invalidates stale readiness evidence. This prevents a missing/stale Flutter
+  or Nest installation from hanging Harness/verify-task indefinitely.
+- Focused and exact base-aware Harness validation passed: toolchain tests
+  `34/34`, exact runner tests `104/104`, migration EOL, toolchain boundary and
+  retained-owner checks all passed with `stale=false`. The runner output still
+  contains expected fixture diagnostics for missing modules/Flutter packages;
+  those remain visible environment evidence and are not treated as product
+  success. No runtime/API/UI/dependency-version/archive behavior changed.
+- Dependency hydration remains explicitly deferred for the next cleanup slices;
+  affected runtime profiles must still fail closed until their dependencies are
+  available. Rollback is one OPS-144 squash revert.
