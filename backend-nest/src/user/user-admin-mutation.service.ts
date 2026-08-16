@@ -2,22 +2,9 @@ import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { AccessChangeService } from '../auth/access-change.service';
 import { PrismaService } from '../prisma/prisma.service';
+import type { PreparedAdminUserMutation } from './user-admin-mutation-preparation.service';
 
-export type PreparedAdminUserMutation = {
-  email: string;
-  role: string;
-  workScopeType: string;
-  personnel: {
-    departmentCode?: string | null;
-    jobRoleCode?: string | null;
-    regionCode?: string | null;
-    areaCode?: string | null;
-    organizationNodeId?: string | null;
-  };
-  organizationNodeIds: string[];
-  createData: Record<string, unknown>;
-  updateData: Record<string, unknown>;
-};
+export type { PreparedAdminUserMutation } from './user-admin-mutation-preparation.service';
 
 export type UserAdminMutationRuntime = {
   assertAdmin: (admin: any) => Promise<void>;

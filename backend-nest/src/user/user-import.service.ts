@@ -7,7 +7,7 @@ import {
   AdminUserImportParseResult,
   AdminUserImportRow,
 } from './user-import-parser.service';
-import { PreparedAdminUserMutation } from './user-admin-mutation.service';
+import { PreparedAdminUserMutation } from './user-admin-mutation-preparation.service';
 import { logFingerprint, safeLogError } from '../common/log-sanitizer';
 
 type ImportOrganizationNode = {

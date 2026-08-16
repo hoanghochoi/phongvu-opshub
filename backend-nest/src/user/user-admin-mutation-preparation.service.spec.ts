@@ -1,16 +1,16 @@
 import { BadRequestException } from '@nestjs/common';
-import { UserService } from './user.service';
+import { UserAdminMutationPreparationService } from './user-admin-mutation-preparation.service';
 
-describe('UserService.prepareAdminUserMutation', () => {
-  let service: UserService;
+describe('UserAdminMutationPreparationService.prepareAdminUserMutation', () => {
+  let service: UserAdminMutationPreparationService;
   let resolutions: {
-    assertEmailCreatableByAdmin: jest.SpyInstance;
-    resolveAssignableRole: jest.SpyInstance;
-    assertRoleEditable: jest.SpyInstance;
-    resolveUserOrganizationAssignmentNodeIds: jest.SpyInstance;
-    resolveWorkScopeTypeForAssignment: jest.SpyInstance;
-    resolveUserAssignmentStoreUuid: jest.SpyInstance;
-    resolvePersonnelAssignment: jest.SpyInstance;
+    assertEmailCreatableByAdmin: jest.Mock;
+    resolveAssignableRole: jest.Mock;
+    assertRoleEditable: jest.Mock;
+    resolveUserOrganizationAssignmentNodeIds: jest.Mock;
+    resolveWorkScopeTypeForAssignment: jest.Mock;
+    resolveUserAssignmentStoreUuid: jest.Mock;
+    resolvePersonnelAssignment: jest.Mock;
   };
 
   const admin = {
@@ -20,55 +20,76 @@ describe('UserService.prepareAdminUserMutation', () => {
   };
 
   beforeEach(() => {
-    process.env.DATA_SYNC_SOURCE = 'local';
-    const prisma = {};
-    const policyService = {
-      canAccessPolicy: jest.fn().mockResolvedValue(true),
-      getAllowedEmailDomains: jest.fn().mockResolvedValue(['phongvu.vn']),
-    };
-    service = new UserService(
-      prisma as any,
-      {} as any,
-      {} as any,
-      policyService as any,
-      {} as any,
-      undefined,
-    );
-
     resolutions = {
-      assertEmailCreatableByAdmin: jest
-        .spyOn(service as any, 'assertEmailCreatableByAdmin')
-        .mockResolvedValue(undefined),
+      assertEmailCreatableByAdmin: jest.fn().mockResolvedValue(undefined),
       resolveAssignableRole: jest
-        .spyOn(service as any, 'resolveAssignableRole')
+        .fn()
         .mockImplementation(async (value: string) => value),
-      assertRoleEditable: jest
-        .spyOn(service as any, 'assertRoleEditable')
-        .mockResolvedValue(undefined),
+      assertRoleEditable: jest.fn().mockResolvedValue(undefined),
       resolveUserOrganizationAssignmentNodeIds: jest
-        .spyOn(service as any, 'resolveUserOrganizationAssignmentNodeIds')
+        .fn()
         .mockResolvedValue(['node-1', 'node-2']),
-      resolveWorkScopeTypeForAssignment: jest
-        .spyOn(service as any, 'resolveWorkScopeTypeForAssignment')
-        .mockResolvedValue('STORE'),
-      resolveUserAssignmentStoreUuid: jest
-        .spyOn(service as any, 'resolveUserAssignmentStoreUuid')
-        .mockResolvedValue('store-1'),
-      resolvePersonnelAssignment: jest
-        .spyOn(service as any, 'resolvePersonnelAssignment')
-        .mockResolvedValue({
-          departmentCode: 'SALES',
-          jobRoleCode: 'SELLER',
-          regionCode: 'MIEN_NAM',
-          areaCode: 'HCM',
-          organizationNodeId: 'node-1',
-          workScopeType: 'STORE',
-        }),
+      resolveWorkScopeTypeForAssignment: jest.fn().mockResolvedValue('STORE'),
+      resolveUserAssignmentStoreUuid: jest.fn().mockResolvedValue('store-1'),
+      resolvePersonnelAssignment: jest.fn().mockResolvedValue({
+        departmentCode: 'SALES',
+        jobRoleCode: 'SELLER',
+        regionCode: 'MIEN_NAM',
+        areaCode: 'HCM',
+        organizationNodeId: 'node-1',
+        workScopeType: 'STORE',
+      }),
     };
+
+    service = new UserAdminMutationPreparationService({
+      normalizeAccountEmail: (value: unknown) => {
+        const email = String(value || '')
+          .trim()
+          .toLowerCase();
+        if (
+          !email ||
+          email.length > 255 ||
+          !/^[^\s@]+@[a-z0-9][a-z0-9.-]*\.[a-z]{2,}$/.test(email)
+        ) {
+          throw new BadRequestException('Email không hợp lệ');
+        }
+        return email;
+      },
+      normalizeRoleCode: (role: string) => (role === 'STAFF' ? 'USER' : role),
+      assertEmailCreatableByAdmin: (...args: any[]) =>
+        resolutions.assertEmailCreatableByAdmin(...args),
+      resolveAssignableRole: (...args: any[]) =>
+        resolutions.resolveAssignableRole(...args),
+      assertRoleEditable: (...args: any[]) =>
+        resolutions.assertRoleEditable(...args),
+      resolveUserOrganizationAssignmentNodeIds: (...args: any[]) =>
+        resolutions.resolveUserOrganizationAssignmentNodeIds(...args),
+      resolveWorkScopeTypeForAssignment: (...args: any[]) =>
+        resolutions.resolveWorkScopeTypeForAssignment(...args),
+      resolveUserAssignmentStoreUuid: (...args: any[]) =>
+        resolutions.resolveUserAssignmentStoreUuid(...args),
+      resolvePersonnelAssignment: (...args: any[]) =>
+        resolutions.resolvePersonnelAssignment(...args),
+      userRelationMutationData: (input, options = {}) => {
+        const data: Record<string, unknown> = {};
+        for (const [name, value, key] of [
+          ['store', input.storeUuid, 'id'],
+          ['department', input.departmentCode, 'code'],
+          ['jobRole', input.jobRoleCode, 'code'],
+          ['region', input.regionCode, 'code'],
+          ['area', input.areaCode, 'code'],
+          ['organizationNode', input.organizationNodeId, 'id'],
+        ] as const) {
+          if (value) data[name] = { connect: { [key]: value } };
+          else if (options.disconnectNulls) data[name] = { disconnect: true };
+        }
+        return data;
+      },
+    });
   });
 
   async function prepare(body: any, current: any | null = null) {
-    return (service as any).prepareAdminUserMutation(admin, body, current);
+    return service.prepareAdminUserMutation(admin, body, current);
   }
 
   it('normalizes a create, resolves the primary organization node and builds both payload shapes', async () => {

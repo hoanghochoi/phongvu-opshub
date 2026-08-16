@@ -2434,15 +2434,20 @@ describe('UserService admin store management', () => {
     jest
       .spyOn(service as any, 'assertAdminCanUpdateUser')
       .mockResolvedValue(undefined);
-    jest.spyOn(service as any, 'prepareAdminUserMutation').mockResolvedValue({
-      updateData: {
+    jest
+      .spyOn(
+        (service as any).adminMutationPreparationService,
+        'prepareAdminUserMutation',
+      )
+      .mockResolvedValue({
+        updateData: {
+          workScopeType: 'NATIONAL',
+          organizationNode: { disconnect: true },
+        },
+        organizationNodeIds: [],
+        role: 'USER',
         workScopeType: 'NATIONAL',
-        organizationNode: { disconnect: true },
-      },
-      organizationNodeIds: [],
-      role: 'USER',
-      workScopeType: 'NATIONAL',
-    });
+      });
     jest
       .spyOn(service as any, 'syncUserOrganizationAssignments')
       .mockResolvedValue(undefined);
@@ -3157,7 +3162,9 @@ describe('UserService admin store management', () => {
     });
     prisma.store.findMany.mockResolvedValue([]);
     prisma.user.findMany.mockResolvedValueOnce([]);
-    prisma.$transaction.mockRejectedValueOnce(new Error('database unavailable'));
+    prisma.$transaction.mockRejectedValueOnce(
+      new Error('database unavailable'),
+    );
 
     await expect(
       service.adminImportUsers(superAdmin, {
