@@ -116,7 +116,7 @@ function observationFromManifest(manifestPath, rawRoot) {
   assert(reportSha256 === manifest.reportSha256.toLowerCase(), `${label}.reportSha256 does not match ${REPORT_NAME}`);
   const report = JSON.parse(reportBytes.toString('utf8'));
 
-  assert(report.schemaVersion === 2 && report.mode === 'shadow', `${label} report must be schema-v2 shadow output`);
+  assert(report.schemaVersion === 3 && report.mode === 'shadow', `${label} report must be schema-v3 shadow output`);
   assert(report.status === 'passed' && report.classification === 'shadow-observation', `${label} report is not an accepted pass`);
   assert(report.autoExitCode === 0 && report.fullExitCode === 0, `${label} report exit codes must be zero`);
   assert(report.blockingChecksUnchanged === true, `${label} blocking checks changed`);
@@ -124,8 +124,12 @@ function observationFromManifest(manifestPath, rawRoot) {
   assert(Array.isArray(report.unmatchedPaths) && report.unmatchedPaths.length === 0, `${label} has unmatched paths`);
   assert(Array.isArray(report.autoSelectedProfiles) && Array.isArray(report.fullProfiles), `${label} profile data is missing`);
   assert(report.autoSelectedProfiles.every((id) => report.fullProfiles.includes(id)), `${label} auto profile is absent from full profile list`);
-  assert(report.telemetry?.schemaVersion === 2, `${label} telemetry schema must be 2`);
+  assert(report.telemetry?.schemaVersion === 3, `${label} telemetry schema must be 3`);
   assert(report.telemetry.cohortId === manifest.cohortId, `${label} telemetry cohort does not match manifest`);
+  assert(report.telemetry.executionMode === 'plan-only', `${label} execution mode must be plan-only`);
+  assert(report.telemetry.measurementEligibility?.retryReduction === false, `${label} retry reduction must remain ineligible`);
+  assert(report.telemetry.measurementEligibility?.timeToActionableFailure === false, `${label} TTAF must remain ineligible`);
+  assert(report.telemetry.measurementEligibility?.reasonCode === 'plan-only-shadow', `${label} measurement eligibility reason is invalid`);
   assert(report.headSha === manifest.reportedHeadSha, `${label} reported head SHA does not match manifest`);
   assert(report.baseSha === manifest.baseSha, `${label} reported base SHA does not match manifest`);
   assert(Number(report.telemetry.retryCount || 0) === 0, `${label} contains a retry and is not comparable live evidence`);
@@ -160,6 +164,12 @@ function observationFromManifest(manifestPath, rawRoot) {
     falsePositive: report.metrics?.falsePositive ?? null,
     falseNegative: report.metrics?.falseNegative ?? null,
     shadowDurationMs: Number(report.telemetry.executionDurationMs),
+    executionMode: report.telemetry.executionMode,
+    autoDurationMs: Number(report.telemetry.autoDurationMs),
+    fullDurationMs: Number(report.telemetry.fullDurationMs),
+    decisionDurationMs: Number(report.telemetry.decisionDurationMs),
+    firstObservedFailure: report.telemetry.firstObservedFailure ?? null,
+    measurementEligibility: report.telemetry.measurementEligibility,
     run: manifest.run,
     telemetry: report.telemetry,
   };
@@ -198,6 +208,7 @@ function buildInterpretation({ cohortId, shadowMedian, baselineShadowMedian, sha
     `Five post-telemetry observations share cohort ${cohortId}, pass with stale=false, zero unmatched paths and zero retries.`,
     timing,
     reruns,
+    'The cohort is plan-only shadow evidence; retry reduction and time-to-actionable-failure are explicitly ineligible until an execution canary is collected.',
     `Target status is ${targetStatus}; the affected matrix remains observational until both acceptance targets are measurable and met.`,
   ];
 }
@@ -227,6 +238,7 @@ export function collectLiveEvidence({
   }
 
   const shadowMedian = median(observations.map((observation) => observation.shadowDurationMs));
+  const decisionDurationMedian = median(observations.map((observation) => observation.decisionDurationMs));
   const githubMedian = median(observations.map((observation) => observation.run.githubDurationMs));
   const baselineShadowMedian = baselineDocument.baseline.shadowDurationMedianMs;
   const baselineGithubMedian = baselineDocument.baseline.githubDurationMedianMs;
@@ -241,12 +253,18 @@ export function collectLiveEvidence({
     : 'revise';
 
   const document = {
-    formatVersion: 2,
+    formatVersion: 3,
     issue: 'OPS-72',
     targetBranch: 'staging',
     generatedAtUtc: new Date().toISOString(),
     requiredObservationCount: REQUIRED_OBSERVATIONS,
     cohortId,
+    measurementEligibility: {
+      executionMode: 'plan-only',
+      retryReduction: false,
+      timeToActionableFailure: false,
+      reasonCode: 'plan-only-shadow',
+    },
     observations,
     excludedObservations: baselineDocument.excludedObservations,
     baseline: baselineDocument.baseline,
@@ -263,6 +281,9 @@ export function collectLiveEvidence({
       baselineMedianTimeToActionableFailureMs: null,
       rerunReductionPercent: rerunReduction,
       timeToActionableFailureReductionPercent: null,
+      decisionDurationMedianMs: decisionDurationMedian,
+      baselineDecisionDurationMedianMs: null,
+      decisionDurationReductionPercent: null,
       shadowDurationMedianMs: shadowMedian,
       baselineShadowDurationMedianMs: baselineShadowMedian,
       shadowDurationReductionPercent: shadowReduction,
