@@ -2312,3 +2312,18 @@ the current checkpoint above is the sole active execution authority.
   remaining migration tests, docs contract checks, exact `verify-task` with
   `stale=false`, PR/CI, staging deploy and guarded lifecycle cleanup. Rollback
   is one OPS-70 squash revert.
+
+## Workflow checkpoint (OPS-71; current-plan authority normalization)
+
+- This docs-only Phase 6 slice is branch/worktree
+  `codex/ops-71-normalize-active-plan-authority` /
+  `../opshub-ops-71-normalize-active-plan-authority`, created by the guarded
+  lifecycle start gate from exact live
+  `origin/staging@5685b5e6b5714924a716a5b4dd77f0a4b9925514`.
+- It aligns the active index with the current OPS-64 checkpoint, corrects the
+  OPS-34 classification to active/blocked on Figma authority, adds concise
+  owner/next-action/release-gap/proof blocks to OPS-45 and OPS-62, and makes
+  the two OPS-39 plans' authority boundary explicit. Production-pending work
+  remains open; no plan is moved to completed by this slice.
+- No runtime, API, UI, dependency, archive, upstream Harness or Linear status
+  behavior changes are in scope. Rollback is one OPS-71 squash revert.

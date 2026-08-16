@@ -1,5 +1,17 @@
 # OPS-45: Staging public artifact verification
 
+## Current authority
+
+- Status: `release-pending` / Linear `Ready for QA`.
+- Owner: Release verification owner.
+- Next action: publish the guarded helper, deploy the exact SHA, and record
+  public artifact evidence before production release.
+- Release gap: exact staging deploy and authenticated/public QA evidence remain
+  open; a merge alone does not close this plan.
+- Current proof: the historical `/health` checks passed, but the public
+  package/manifest verification path previously exited without diagnostics;
+  the guarded-helper proof described below remains the acceptance gate.
+
 ## Objective
 
 Restore reliable public staging deployment verification without weakening

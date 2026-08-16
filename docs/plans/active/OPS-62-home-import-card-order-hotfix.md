@@ -1,5 +1,17 @@
 # OPS-62 Home import and card-order hotfix
 
+## Current authority
+
+- Status: `active` / Linear `In Review`.
+- Owner: Home import owner.
+- Next action: finish independent review, READY reconciliation, exact-SHA
+  staging deploy, and the Home activation/spot-check proof.
+- Release gap: review and exact-file staging activation evidence remain open;
+  production-pending status must not be inferred from the merged hotfix PRs.
+- Current proof: PRs #156–#160 and their focused/full local regressions are
+  recorded below; the fifth staging regression still needs the final
+  immutable-file reconciliation and activation evidence.
+
 ## Outcome
 
 Restore historical CSV import on staging without weakening transaction locks,
