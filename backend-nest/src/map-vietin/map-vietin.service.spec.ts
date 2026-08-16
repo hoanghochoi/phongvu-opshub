@@ -2501,6 +2501,44 @@ describe('MapVietinService', () => {
     });
   });
 
+  it('keeps blocked and pending statement response flags stable', () => {
+    const dto = (service as any).toStoredTransactionDto(
+      statementTransactionRow({
+        orders: ['26072212345678'],
+        orderTrackingStatus: 'UNFOLLOWED',
+        orderTransferRequests: [
+          {
+            id: 'transfer-request-1',
+            requestedOrders: ['26072312345678'],
+            status: 'PENDING',
+            requestedByUserId: 'user-1',
+            requestedByEmail: 'user@example.com',
+            reviewNote: 'Đang chờ xử lý',
+            createdAt: new Date('2026-07-23T03:00:00.000Z'),
+          },
+        ],
+      }),
+      {
+        canUseStatements: false,
+        canEditIncomeType: true,
+        canManageTracking: true,
+      },
+    );
+
+    expect(dto).toMatchObject({
+      canManageOrderTracking: false,
+      canEditOrders: false,
+      orderEditBlockedReason: 'Bạn cần quyền Sao kê để cập nhật mã đơn hàng.',
+      canRequestOrderTransfer: false,
+      orderTransferRequestBlockedReason:
+        'Bạn cần quyền Sao kê để cập nhật mã đơn hàng.',
+      hasPendingOrderTransferRequest: true,
+      orderTransferRequestId: 'transfer-request-1',
+      orderTransferRequestedOrders: ['26072312345678'],
+      canEditIncomeType: false,
+    });
+  });
+
   it('lists stored transactions across a Vietnam-local date range', async () => {
     prisma.store.findUnique.mockResolvedValue({
       id: 'store-uuid-1',

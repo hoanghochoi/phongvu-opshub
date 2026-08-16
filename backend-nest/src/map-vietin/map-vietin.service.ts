@@ -38,7 +38,6 @@ import {
   SalesReportErpService,
   type SalesReportErpLifecycleStatus,
 } from '../sales-reports/sales-report-erp.service';
-import * as XLSX from 'xlsx';
 import {
   BatchUpdateMapVietinStatementOrderTrackingDto,
   CreateMapVietinStatementOrderTransferRequestDto,
@@ -75,6 +74,10 @@ import {
 } from './map-vietin-persistence.runtime';
 import { MapVietinAccountRoutingRuntime } from './map-vietin-account-routing.runtime';
 import { MapVietinStatementPolicyRuntime } from './map-vietin-statement-policy.runtime';
+import {
+  MapVietinStatementResponseRuntime,
+  type MapVietinStoredTransactionRow,
+} from './map-vietin-response.runtime';
 
 const MAP_CLIENT_ID = 'c4a59ac3630f6d8f1abe722eac7052b5';
 const MAP_SIGNATURE_KEY = '***REMOVED***';
@@ -190,6 +193,7 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
   private readonly persistenceRuntime: MapVietinPersistenceRuntime;
   private readonly accountRoutingRuntime: MapVietinAccountRoutingRuntime;
   private readonly statementPolicyRuntime: MapVietinStatementPolicyRuntime;
+  private readonly statementResponseRuntime: MapVietinStatementResponseRuntime;
   private readonly amountKeys = [
     'amount',
     'txnAmount',
@@ -365,6 +369,31 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
       accDepartmentCode: ACC_DEPARTMENT_CODE,
       vietnamDateToken: (value) => this.vietnamDateToken(value),
       now: () => new Date(Date.now()),
+    });
+    this.statementResponseRuntime = new MapVietinStatementResponseRuntime({
+      resolveStoredPayer: (row) => this.resolveStoredPayer(row),
+      resolveStoredTransactionReference: (row) =>
+        this.resolveStoredTransactionReference(row),
+      resolveStoredReceivingAccount: (row) =>
+        this.resolveStoredReceivingAccount(row),
+      storedIncomeType: (row) => this.storedIncomeType(row),
+      storedOrderTrackingStatus: (row) => this.storedOrderTrackingStatus(row),
+      isStatementOrderTransferWindowOpen: (row) =>
+        this.isStatementOrderTransferWindowOpen(row),
+      mapIncomeTypeLabel: (incomeType) => mapVietinIncomeTypeLabel(incomeType),
+      orderTrackingFollowing: ORDER_TRACKING_STATUS_FOLLOWING,
+      orderTrackingUnfollowed: ORDER_TRACKING_STATUS_UNFOLLOWED,
+      orderSourceOffset: ORDER_SOURCE_OFFSET,
+      statementOrderTransferPendingStatus:
+        STATEMENT_ORDER_TRANSFER_REQUEST_STATUS_PENDING,
+      statementOrderTransferApprovedStatus:
+        STATEMENT_ORDER_TRANSFER_REQUEST_STATUS_APPROVED,
+      orderActionRequiresStatementPermissionMessage:
+        ORDER_ACTION_REQUIRES_STATEMENT_PERMISSION_MESSAGE,
+      orderTransferWindowForbiddenMessage:
+        ORDER_TRANSFER_WINDOW_FORBIDDEN_MESSAGE,
+      incomeTypeSourceAuto: INCOME_TYPE_SOURCE_AUTO,
+      vietnamUtcOffsetHours: VIETNAM_UTC_OFFSET_HOURS,
     });
     this.syncCoordinator.configure({
       logger: this.logger,
@@ -3390,43 +3419,7 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
   }
 
   private toStoredTransactionDto(
-    row: {
-      id: string;
-      storeCode: string | null;
-      transactionKey: string;
-      transactionNumber: string | null;
-      amount: number;
-      content: string;
-      orders?: string[] | null;
-      orderSource?: string | null;
-      orderUpdatedAt?: Date | null;
-      orderUpdatedByUserId?: string | null;
-      orderUpdatedByEmail?: string | null;
-      orderTrackingStatus?: string | null;
-      orderTrackingUpdatedAt?: Date | null;
-      orderTrackingUpdatedByUserId?: string | null;
-      orderTrackingUpdatedByEmail?: string | null;
-      status: string | null;
-      paidAt: Date | null;
-      payerName: string | null;
-      payerAccount: string | null;
-      incomeType?: string | null;
-      incomeTypeSource?: string | null;
-      incomeTypeUpdatedAt?: Date | null;
-      incomeTypeUpdatedByUserId?: string | null;
-      incomeTypeUpdatedByEmail?: string | null;
-      rawData?: Prisma.JsonValue | null;
-      firstSeenAt: Date;
-      orderTransferRequests?: Array<{
-        id: string;
-        requestedOrders: string[];
-        status: string;
-        requestedByUserId?: string | null;
-        requestedByEmail?: string | null;
-        reviewNote?: string | null;
-        createdAt: Date;
-      }>;
-    },
+    row: MapVietinStoredTransactionRow,
     options: {
       canEditProtectedOrders?: boolean;
       canUseStatements?: boolean;
@@ -3434,95 +3427,7 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
       canManageTracking?: boolean;
     } = {},
   ) {
-    const payer = this.resolveStoredPayer(row);
-    const incomeType = this.storedIncomeType(row);
-    const orders = row.orders || [];
-    const pendingTransferRequest = row.orderTransferRequests?.[0] || null;
-    const canUseStatements = options.canUseStatements !== false;
-    const transferWindowOpen = this.isStatementOrderTransferWindowOpen(row);
-    const orderTrackingStatus = this.storedOrderTrackingStatus(row);
-    const isFollowing = orderTrackingStatus === ORDER_TRACKING_STATUS_FOLLOWING;
-    const hasStoreCode = Boolean(row.storeCode);
-    const canEditOrders =
-      canUseStatements &&
-      isFollowing &&
-      !pendingTransferRequest &&
-      (orders.length === 0 || transferWindowOpen);
-    let orderEditBlockedReason: string | null = null;
-    if (!canEditOrders) {
-      orderEditBlockedReason = !canUseStatements
-        ? ORDER_ACTION_REQUIRES_STATEMENT_PERMISSION_MESSAGE
-        : !isFollowing
-          ? 'Giao dịch đang Bỏ theo dõi. Vui lòng Theo dõi lại trước khi cập nhật mã đơn.'
-          : pendingTransferRequest
-            ? 'Giao dịch đang chờ Kế toán xác nhận.'
-            : ORDER_TRANSFER_WINDOW_FORBIDDEN_MESSAGE;
-    }
-    const canRequestOrderTransfer = canEditOrders && hasStoreCode;
-    let orderTransferBlockedReason: string | null = null;
-    if (!canRequestOrderTransfer) {
-      orderTransferBlockedReason = orderEditBlockedReason;
-    }
-    return {
-      id: row.id,
-      storeId: row.storeCode,
-      transactionKey: row.transactionKey,
-      transactionNumber: row.transactionNumber,
-      transactionReference: this.resolveStoredTransactionReference(row),
-      amount: row.amount,
-      content: row.content,
-      orders,
-      orderSource: row.orderSource || null,
-      orderUpdatedAt: row.orderUpdatedAt || null,
-      orderUpdatedByUserId: row.orderUpdatedByUserId || null,
-      orderUpdatedByEmail: row.orderUpdatedByEmail || null,
-      orderTrackingStatus,
-      orderTrackingUpdatedAt: row.orderTrackingUpdatedAt || null,
-      orderTrackingUpdatedByUserId: row.orderTrackingUpdatedByUserId || null,
-      orderTrackingUpdatedByEmail: row.orderTrackingUpdatedByEmail || null,
-      canManageOrderTracking:
-        canUseStatements &&
-        !pendingTransferRequest &&
-        options.canManageTracking === true,
-      orderTrackingActionBlockedReason: pendingTransferRequest
-        ? 'Giao dịch đang có yêu cầu chờ xử lý.'
-        : options.canManageTracking === true
-          ? null
-          : 'Bạn không có quyền thay đổi trạng thái theo dõi giao dịch.',
-      canEditOrders,
-      orderEditBlockedReason,
-      canRequestOrderTransfer,
-      orderTransferRequestBlockedReason: orderTransferBlockedReason,
-      hasPendingOrderTransferRequest: Boolean(pendingTransferRequest),
-      orderTransferRequestId: pendingTransferRequest?.id || null,
-      orderTransferRequestedOrders:
-        pendingTransferRequest?.requestedOrders || [],
-      orderTransferRequestedByUserId:
-        pendingTransferRequest?.requestedByUserId || null,
-      orderTransferRequestedByEmail:
-        pendingTransferRequest?.requestedByEmail || null,
-      orderTransferRequestedAt: pendingTransferRequest?.createdAt || null,
-      orderTransferReviewNote: pendingTransferRequest?.reviewNote || null,
-      orderTransferStatus: pendingTransferRequest
-        ? STATEMENT_ORDER_TRANSFER_REQUEST_STATUS_PENDING
-        : row.orderSource === ORDER_SOURCE_OFFSET
-          ? STATEMENT_ORDER_TRANSFER_REQUEST_STATUS_APPROVED
-          : null,
-      isOrderOffsetConfirmed: row.orderSource === ORDER_SOURCE_OFFSET,
-      status: row.status,
-      paidAt: row.paidAt,
-      payerName: payer.name,
-      payerAccount: payer.account,
-      receivingAccount: this.resolveStoredReceivingAccount(row),
-      incomeType,
-      incomeTypeLabel: mapVietinIncomeTypeLabel(incomeType),
-      incomeTypeSource: row.incomeTypeSource || INCOME_TYPE_SOURCE_AUTO,
-      incomeTypeUpdatedAt: row.incomeTypeUpdatedAt || null,
-      incomeTypeUpdatedByUserId: row.incomeTypeUpdatedByUserId || null,
-      incomeTypeUpdatedByEmail: row.incomeTypeUpdatedByEmail || null,
-      canEditIncomeType: canUseStatements && options.canEditIncomeType === true,
-      firstSeenAt: row.firstSeenAt,
-    };
+    return this.statementResponseRuntime.toStoredTransactionDto(row, options);
   }
 
   private toStatementOrderTransferRequestDto(
@@ -4254,97 +4159,8 @@ export class MapVietinService implements OnModuleInit, OnModuleDestroy {
       : DEFAULT_GLOBAL_SESSION_TTL_SECONDS;
   }
 
-  private toStatementsXlsx(rows: Array<Record<string, any>>) {
-    const headers = [
-      'Mã showroom',
-      'Loại giao dịch',
-      'Mã sao kê',
-      'Số tiền',
-      'Nội dung chuyển khoản',
-      'Mã đơn hàng',
-      'Trạng thái theo dõi',
-      'Trạng thái',
-      'Ngày giao dịch',
-      'Người chuyển',
-      'Tài khoản chuyển',
-      'Tài khoản nhận',
-      'Lần đầu thấy',
-      'Nguồn đơn hàng',
-      'Người sửa đơn hàng',
-      'Thời gian sửa đơn hàng',
-    ];
-    const values: unknown[][] = [headers];
-    for (const row of rows) {
-      const payer = this.resolveStoredPayer(row);
-      const transactionReference = this.resolveStoredTransactionReference(row);
-      const statementNumber = transactionReference || row.transactionNumber;
-      const incomeType = this.storedIncomeType(row);
-      values.push([
-        this.csvText(row.storeCode),
-        mapVietinIncomeTypeLabel(incomeType),
-        this.csvText(statementNumber),
-        this.csvAmountValue(row.amount),
-        this.csvText(row.content),
-        this.csvText((row.orders || []).join('\n')),
-        this.storedOrderTrackingStatus(row) === ORDER_TRACKING_STATUS_UNFOLLOWED
-          ? 'Bỏ theo dõi'
-          : 'Đang theo dõi',
-        this.csvText(row.status),
-        this.csvVietnamDate(row.paidAt),
-        this.csvText(payer.name),
-        this.csvText(payer.account),
-        this.csvText(this.resolveStoredReceivingAccount(row)),
-        this.csvVietnamDate(row.firstSeenAt),
-        this.csvText(row.orderSource),
-        this.csvText(row.orderUpdatedByEmail),
-        this.csvVietnamDate(row.orderUpdatedAt),
-      ]);
-    }
-    const worksheet = XLSX.utils.aoa_to_sheet(values);
-    worksheet['!cols'] = [
-      { wch: 14 },
-      { wch: 18 },
-      { wch: 24 },
-      { wch: 16 },
-      { wch: 52 },
-      { wch: 30 },
-      { wch: 20 },
-      { wch: 16 },
-      { wch: 22 },
-      { wch: 28 },
-      { wch: 24 },
-      { wch: 24 },
-      { wch: 22 },
-      { wch: 18 },
-      { wch: 28 },
-      { wch: 22 },
-    ];
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Sao kê');
-    return XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' });
-  }
-
-  private csvAmountValue(value: unknown) {
-    const amount = Number(value);
-    return Number.isFinite(amount) ? Math.trunc(amount) : null;
-  }
-
-  private csvVietnamDate(value: unknown) {
-    if (!value) return '';
-    const date = value instanceof Date ? value : new Date(String(value));
-    if (Number.isNaN(date.getTime())) return '';
-    const vietnamTime = new Date(
-      date.getTime() + VIETNAM_UTC_OFFSET_HOURS * 60 * 60 * 1000,
-    );
-    const two = (part: number) => String(part).padStart(2, '0');
-    return [
-      `${two(vietnamTime.getUTCDate())}/${two(vietnamTime.getUTCMonth() + 1)}/${vietnamTime.getUTCFullYear()}`,
-      `${two(vietnamTime.getUTCHours())}:${two(vietnamTime.getUTCMinutes())}:${two(vietnamTime.getUTCSeconds())}`,
-    ].join(' ');
-  }
-
-  private csvText(value: unknown) {
-    return value === null || value === undefined ? '' : String(value);
+  private toStatementsXlsx(rows: MapVietinStoredTransactionRow[]) {
+    return this.statementResponseRuntime.toStatementsXlsx(rows);
   }
 
   private safeUserLabel(user: any) {
