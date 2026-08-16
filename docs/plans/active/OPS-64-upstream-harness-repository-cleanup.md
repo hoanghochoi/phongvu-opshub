@@ -4,9 +4,9 @@ Date: 2026-08-13
 
 ## Status
 
-Active — the current workflow checkpoint is OPS-144 bounded toolchain version
-probes, created from exact live
-`origin/staging@8f9eaef9459709b585928f8879b9f255b76eb70f` after OPS-143.
+Active — the current workflow checkpoint is OPS-145 MAP export and response
+mapping extraction, created from exact live
+`origin/staging@4074aa6977baf556c8bc24e9308ef896c8166519` after OPS-144.
 OPS-138 organization-tree/assignment extraction is squash-merged through PR
 #264 at `db427f6d44d2dde5c219a982fc1d835e9378e536`, staging-deployed by
 `31923613626`, and tracked `Ready for QA` after proof. OPS-70 protocol-v1
@@ -2388,3 +2388,24 @@ the current checkpoint above is the sole active execution authority.
 - Dependency hydration remains explicitly deferred for the next cleanup slices;
   affected runtime profiles must still fail closed until their dependencies are
   available. Rollback is one OPS-144 squash revert.
+
+## Workflow checkpoint (OPS-145; MAP export and response mapping)
+
+- This bounded Phase 9E slice is branch/worktree
+  `codex/ops-145-map-export-response-mapping` /
+  `../opshub-ops-145-map-export-response`, created from exact live
+  `origin/staging@4074aa6977baf556c8bc24e9308ef896c8166519`. The isolated task
+  start hydrated both Nest/Prisma and Flutter profiles from task-local roots.
+- `MapVietinService` remains the public facade. Stored statement response DTO
+  mapping and XLSX row/header mapping now have one injected collaborator;
+  service callbacks retain the existing canonical identifiers, income/order
+  policy, Vietnamese copy, date/amount formatting and permission flags. Routes,
+  DTOs, feature guards, API/data contracts and affected consumers are unchanged.
+- Characterization and affected proof: MAP service/controller `159/159`, Nest
+  cross-stack MAP/VietQR/notification/payment suites `131/131`, and Flutter
+  Payment Monitor/Bank Statement/VietQR suites `111/111`. Nest build passed;
+  exact base-aware runner passed `104/104` with profiles `harness,docs,nestjs`
+  and `stale=false`; staging proof remains required before publication.
+- Dependency hydration is visible and fail-closed through the shared boundary;
+  no dependency version or lockfile change is in scope. Rollback is one OPS-145
+  squash revert.
