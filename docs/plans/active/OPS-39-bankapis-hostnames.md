@@ -6,6 +6,14 @@ Date: 2026-08-01
 
 Active
 
+## Authority boundary
+
+This plan owns only the external dedicated-host handoff: DNS, TLS, tunnel
+routing and default-deny route smoke. The sibling
+`OPS-39-bidv-h2h-api.md` is the canonical authority for the BIDV runtime/API,
+security, data contract, migration and affected-consumer behavior; this file
+must not duplicate or override that contract.
+
 ## Outcome
 
 The BIDV H2H boundary uses `https://bankapis-staging.hoanghochoi.com` for UAT
