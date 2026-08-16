@@ -4,21 +4,20 @@ Date: 2026-08-13
 
 ## Status
 
-Active — the current workflow checkpoint is OPS-142 master-plan
+Active — the current workflow checkpoint is OPS-143 master-plan
 reconciliation, created from exact live
-`origin/staging@31149394b5bcf62028be331e03f3d36b1d2d1dd4` after OPS-141.
-OPS-140 is squash-merged through PRs #256–#259, with the final merge at
-`ca856d83d245e50e45418c28892326e892f195c7`, staging-deployed by
-`31915139037`, and tracked `Ready for QA` after Linear proof. OPS-134 is
-squash-merged at `46c8aa90d932f8cfadb25eddae80305180ca9d95`,
-staging-deployed by `31901021962`, and tracked `Ready for QA`. OPS-135 is
-squash-merged at `98d7316648a60e415e154b114c6bb5ec87f52286`,
-staging-deployed by `31903246094`, and tracked `Ready for QA` after guarded
-lifecycle cleanup.
-OPS-72's five-observation gate is still open and its affected matrix remains
-observational. OPS-134 was opened after a real Windows preflight reproduced a
-Flutter hydration failure in a ReadOnly `lib/l10n` directory despite a complete
-package graph. Product, API, permission and runtime behavior stay unchanged.
+`origin/staging@02045ba7c5c772e734040b1b6593faff98526293` after OPS-71.
+OPS-138 organization-tree/assignment extraction is squash-merged through PR
+#264 at `db427f6d44d2dde5c219a982fc1d835e9378e536`, staging-deployed by
+`31923613626`, and tracked `Ready for QA` after proof. OPS-70 protocol-v1
+retirement is merged at `5685b5e6b5714924a716a5b4dd77f0a4b9925514` and
+OPS-71 docs/plan authority normalization is merged at `02045ba7`; both have
+passed guarded lifecycle cleanup and remain production-pending.
+OPS-72 has five valid shadow observations but remains `revise` /
+`do-not-promote` because the measured timing reduction is 8.77% and rerun
+reduction is unmeasurable. The dependency-hardening work is deliberately
+deferred as residual risk; no dependency gate is weakened or treated as a
+pass. Product, API, permission and runtime behavior stay unchanged.
 
 ### OPS-114 checkpoint — dependency bootstrap enforcement
 
@@ -152,6 +151,11 @@ branch, and is not converted row-for-row into Markdown.
   `finish --execute` passed.
 - OPS-71 base SHA: `ff8b9e9a1765d572a7ed5b72772f5c2b5ced4ea1`; canonical staging,
   `origin/staging` and the OPS-71 task worktree matched before cleanup.
+- Current reconciliation slice: `OPS-143`, branch
+  `codex/ops-143-reconcile-master-plan-after-ops-138-ops-71`, started from
+  exact `origin/staging@02045ba7c5c772e734040b1b6593faff98526293`. It updates
+  only this master plan and the active-plan index after OPS-138/70/71; no
+  runtime, dependency manifest, archive or Harness DB files are in scope.
 
 Before every later slice, repeat the lifecycle start gate and replace this
 checkpoint if the live `origin/staging` SHA changes. A proof run is stale when
@@ -2194,10 +2198,10 @@ Current live upstream retry evidence:
   normalized SHA-256/byte values, and `.gitattributes` pins n8n JSON to LF so
   future clean worktrees converge. The source inventory remains current-file
   evidence and `no-safe-deletion-candidate` is unchanged.
-- OPS-138 organization-tree/assignment extraction was paused before source
-  mutation because this authority gate was red; its task worktree and branch
-  were removed. Restart OPS-138 only after OPS-139 is merged, deployed and
-  cleaned.
+- OPS-138 organization-tree/assignment extraction resumed after OPS-139's
+  retained-owner evidence passed. PR #264 restored the extracted collaborator
+  on staging at `db427f6d`, deploy `31923613626` passed, and Linear is now
+  `Ready for QA`; production completion is intentionally not inferred.
 - Intake checkpoint hash: `a80312005c77b3e35580ae755fbe126622d094adfd1ea0053712d35fce6c2bcd`
   (two identical captures). Rollback is one OPS-139 squash revert. Phase 8
   deletion, remaining runtime proof, OPS-72 promotion and Phase 10 production
@@ -2219,8 +2223,10 @@ batches remain `Ready for QA`; OPS-137 is the last merged checkpoint at
 OPS-141 is squash-merged through PR #260 at
 `31149394b5bcf62028be331e03f3d36b1d2d1dd4`, staging-deployed by
 `31917897049`, and tracked `Ready for QA` after exact proof and guarded
-cleanup. OPS-142 is the current master-plan reconciliation slice.
-OPS-138 is paused before source mutation until this authority repair passes. OPS-113
+cleanup. OPS-143 is the current master-plan reconciliation slice, created from
+exact `origin/staging@02045ba7c5c772e734040b1b6593faff98526293` after OPS-138,
+OPS-70 and OPS-71. OPS-138 is merged/deployed and tracked as `Ready for QA`;
+OPS-70 and OPS-71 are merged/deployed and tracked `Ready for Release`. OPS-113
 is also staged and tracked as `Ready for
 QA` after exact deploy `31862881662` and guarded cleanup. OPS-122 and OPS-123's
 reconciliations are historical; OPS-124 is merged/deployed and tracked as
@@ -2327,3 +2333,36 @@ the current checkpoint above is the sole active execution authority.
   remains open; no plan is moved to completed by this slice.
 - No runtime, API, UI, dependency, archive, upstream Harness or Linear status
   behavior changes are in scope. Rollback is one OPS-71 squash revert.
+
+## Workflow checkpoint (OPS-143; reconcile after OPS-138/OPS-71)
+
+- This docs-only slice is branch/worktree
+  `codex/ops-143-reconcile-master-plan-after-ops-138-ops-71` /
+  `../opshub-ops-143-master-plan`, created by the guarded lifecycle start gate
+  from exact live
+  `origin/staging@02045ba7c5c772e734040b1b6593faff98526293`. Canonical staging
+  was clean and unchanged; the task worktree hydrated only the Nest profile
+  because this slice has no dependency-owning runtime command and Flutter
+  hydration is explicitly deferred.
+- The current authority is now explicit: OPS-138's collaborator extraction is
+  present on staging after PR #264/merge `db427f6d`, OPS-70 archive-writer
+  retirement is present after `5685b5e6`, and OPS-71 plan normalization is
+  present after `02045ba7`. OPS-72 remains observational with a
+  `revise`/`do-not-promote` decision; Phase 8 deletion, remaining runtime QA,
+  and Phase 10 production evidence remain open.
+- Local upstream Harness proof is recorded separately in Linear/OPS-64:
+  exact `harness-v0.1.8` status/doctor are healthy and the installer wrapper
+  update dry-run preserves managed files. A bare no-candidate
+  `harness update --dry-run` still returns the upstream `git merge-file failed`
+  gap without mutation; it is not counted as update proof. The legacy binary,
+  `harness.db`, WAL/SHM and raw archive remain ignored read-only local evidence.
+- Dependency hardening is a deferred residual-risk follow-up. Missing or stale
+  Flutter/Nest dependencies remain an environment failure/unverified proof,
+  never a reason to suppress an affected profile or retry a product failure.
+  The exact base-aware runner was attempted for this docs change, but its
+  auto-selected Harness profile hung in `flutter.bat --version --machine` while
+  running `tests/toolchain`; the run was stopped without a result file or
+  tracked mutation. The Windows-native Git Bash docs contract passed, while
+  the WSL `bash` invocation produced a false `rg` permission failure. A
+  separate workflow slice must add bounded toolchain command timeouts and keep
+  this environment failure visible. Rollback is one OPS-143 squash revert.
