@@ -41,6 +41,7 @@ import {
 import { UserOrganizationAssignmentService } from './user-organization-assignment.service';
 import { UserCredentialAdminService } from './user-credential-admin.service';
 import { UserAccessScopeService } from './user-access-scope.service';
+import { UserLegacyCatalogService } from './user-legacy-catalog.service';
 import { logFingerprint, safeLogError } from '../common/log-sanitizer';
 import { AccessChangeService } from '../auth/access-change.service';
 
@@ -358,6 +359,7 @@ export class UserService implements OnModuleInit {
   private readonly organizationAssignmentService: UserOrganizationAssignmentService;
   private readonly credentialAdminService: UserCredentialAdminService;
   private readonly accessScopeService: UserAccessScopeService;
+  private readonly legacyCatalogService: UserLegacyCatalogService;
 
   constructor(
     private prisma: PrismaService,
@@ -394,6 +396,24 @@ export class UserService implements OnModuleInit {
         toDto: (user) => this.toUserDto(user),
       },
     );
+    this.legacyCatalogService = new UserLegacyCatalogService({
+      isLegacyDepartmentNodeType: (type) =>
+        this.isLegacyDepartmentNodeType(type),
+      isLegacyPositionNodeType: (type) => this.isLegacyPositionNodeType(type),
+      isLegacyRegionNodeType: (type) => this.isLegacyRegionNodeType(type),
+      isLegacyAreaNodeType: (type) => this.isLegacyAreaNodeType(type),
+      normalizePersonnelCode: (input, message) =>
+        this.normalizePersonnelCode(input, message),
+      normalizeRequiredText: (value, message, maxLength) =>
+        this.normalizeRequiredText(value, message, maxLength),
+      normalizeCatalogAbbreviation: (value) =>
+        this.normalizeCatalogAbbreviation(value),
+      defaultDepartmentCodeForPosition: (businessCode) =>
+        DEFAULT_STORE_POSITION_DEFINITIONS.find(
+          (position) => position.businessCode === businessCode,
+        )?.departmentCode ?? null,
+      logger: this.logger,
+    });
     this.welcomeEmailService = new UserWelcomeEmailService(mailService, {
       normalizeAccountEmail: (value) => this.normalizeAccountEmail(value),
       userLogId: (user) => this.userLogId(user),
@@ -413,16 +433,22 @@ export class UserService implements OnModuleInit {
           this.normalizeOrganizationNodeType(value),
         normalizeStoreCode: (value) => this.normalizeStoreCode(value),
         legacyCodeFromOrganizationCode: (code) =>
-          this.legacyCodeFromOrganizationCode(code),
+          this.legacyCatalogService.legacyCodeFromOrganizationCode(code),
         legacyPersonnelCodeFromOrganizationNode: (node, message) =>
-          this.legacyPersonnelCodeFromOrganizationNode(node, message),
+          this.legacyCatalogService.legacyPersonnelCodeFromOrganizationNode(
+            node,
+            message,
+          ),
         defaultDepartmentCodeForJobRole: (jobRoleCode) =>
           DEFAULT_STORE_POSITION_DEFINITIONS.find(
             (position) => position.businessCode === jobRoleCode,
           )?.departmentCode ?? null,
         isLegacyPositionNodeType: (type) => this.isLegacyPositionNodeType(type),
         syncLegacyCatalogFromOrganizationNode: (client, node) =>
-          this.syncLegacyCatalogFromOrganizationNode(client, node),
+          this.legacyCatalogService.syncLegacyCatalogFromOrganizationNode(
+            client,
+            node,
+          ),
         defaultStoreCashNodeIdForStore: (store) =>
           this.defaultStoreCashNodeIdForStore(store),
         resolveDepartmentCode: (input, current) =>
@@ -1235,7 +1261,10 @@ export class UserService implements OnModuleInit {
       if (this.isStoreNodeType(created.type)) {
         await this.syncShowroomStoreFromNode(tx, created, body, null);
       } else if (this.isLegacyPositionNodeType(created.type)) {
-        await this.syncLegacyCatalogFromOrganizationNode(tx, created);
+        await this.legacyCatalogService.syncLegacyCatalogFromOrganizationNode(
+          tx,
+          created,
+        );
       }
       return this.findOrganizationNodeForDto(tx, created.id);
     });
@@ -1285,7 +1314,10 @@ export class UserService implements OnModuleInit {
       if (this.isStoreNodeType(updated.type)) {
         await this.syncShowroomStoreFromNode(tx, updated, body, current);
       } else if (this.isLegacyCatalogNodeType(updated.type)) {
-        await this.syncLegacyCatalogFromOrganizationNode(tx, updated);
+        await this.legacyCatalogService.syncLegacyCatalogFromOrganizationNode(
+          tx,
+          updated,
+        );
       }
       if (cascade.deactivatedCount > 0) {
         this.logger.log(
@@ -1716,7 +1748,8 @@ export class UserService implements OnModuleInit {
       }),
     ]);
     const code =
-      node.businessCode ?? this.legacyCodeFromOrganizationCode(node.code);
+      node.businessCode ??
+      this.legacyCatalogService.legacyCodeFromOrganizationCode(node.code);
     return {
       id: node.id,
       code,
@@ -1742,10 +1775,11 @@ export class UserService implements OnModuleInit {
         })
       : null;
     const code =
-      node.businessCode ?? this.legacyCodeFromOrganizationCode(node.code);
+      node.businessCode ??
+      this.legacyCatalogService.legacyCodeFromOrganizationCode(node.code);
     const regionCode = parent
       ? (parent.businessCode ??
-        this.legacyCodeFromOrganizationCode(parent.code))
+        this.legacyCatalogService.legacyCodeFromOrganizationCode(parent.code))
       : '';
     const [storeCount, userCount, featureRules] = await Promise.all([
       this.prisma.store.count({ where: { organizationNodeId: node.id } }),
@@ -1840,7 +1874,10 @@ export class UserService implements OnModuleInit {
     for (const node of descendants) {
       const inactiveNode = { ...node, isActive: false };
       if (this.isLegacyCatalogNodeType(inactiveNode.type)) {
-        await this.syncLegacyCatalogFromOrganizationNode(client, inactiveNode);
+        await this.legacyCatalogService.syncLegacyCatalogFromOrganizationNode(
+          client,
+          inactiveNode,
+        );
       }
     }
 
@@ -1947,138 +1984,14 @@ export class UserService implements OnModuleInit {
     return store;
   }
 
-  private async syncLegacyCatalogFromOrganizationNode(client: any, node: any) {
-    const businessCode = this.normalizePersonnelCode(
-      node.businessCode || this.legacyCodeFromOrganizationCode(node.code),
-      'Mã nghiệp vụ không hợp lệ',
-    );
-    if (!businessCode)
-      throw new BadRequestException('Mã nghiệp vụ không hợp lệ');
-    const rawDisplayName = String(node.displayName || '').trim();
-    const displayName = this.normalizeRequiredText(
-      rawDisplayName || node.name || businessCode,
-      'Tên đơn vị không được để trống',
-      120,
-    );
-    if (!rawDisplayName) {
-      this.logger.warn(
-        `Legacy catalog sync used fallback displayName for organizationNode=${node.id} type=${node.type} code=${businessCode}`,
-      );
-    }
-    const abbreviation = this.normalizeCatalogAbbreviation(
-      node.abbreviation || businessCode,
-    );
-    if (this.isLegacyDepartmentNodeType(node.type)) {
-      await client.departmentDefinition.upsert({
-        where: { code: businessCode },
-        update: {
-          displayName,
-          description: node.description ?? null,
-          organizationNodeId: node.id,
-          isActive: node.isActive !== false,
-        },
-        create: {
-          code: businessCode,
-          displayName,
-          description: node.description ?? null,
-          organizationNodeId: node.id,
-          isSystem: node.isSystem === true,
-          isActive: node.isActive !== false,
-        },
-      });
-      return;
-    }
-    if (this.isLegacyPositionNodeType(node.type)) {
-      const departmentCode = await this.departmentCodeForPositionNode(
-        client,
-        node,
-      );
-      await client.jobRoleDefinition.upsert({
-        where: { code: businessCode },
-        update: {
-          displayName,
-          description: node.description ?? null,
-          departmentCode,
-          isActive: node.isActive !== false,
-        },
-        create: {
-          code: businessCode,
-          displayName,
-          description: node.description ?? null,
-          departmentCode,
-          organizationNodeId: null,
-          isSystem: node.isSystem === true,
-          isActive: node.isActive !== false,
-        },
-      });
-      return;
-    }
-    if (this.isLegacyRegionNodeType(node.type)) {
-      await client.regionDefinition.upsert({
-        where: { code: businessCode },
-        update: {
-          displayName,
-          abbreviation,
-          description: node.description ?? null,
-          organizationNodeId: node.id,
-          isActive: node.isActive !== false,
-        },
-        create: {
-          code: businessCode,
-          displayName,
-          abbreviation,
-          description: node.description ?? null,
-          organizationNodeId: node.id,
-          isSystem: node.isSystem === true,
-          isActive: node.isActive !== false,
-        },
-      });
-      return;
-    }
-    if (!this.isLegacyAreaNodeType(node.type)) return;
-    const parent = node.parentId
-      ? await client.organizationNode.findUnique({
-          where: { id: node.parentId },
-        })
-      : null;
-    if (!parent || !this.isLegacyRegionNodeType(parent.type)) {
-      throw new BadRequestException('Vùng phải nằm dưới Miền');
-    }
-    await this.syncLegacyCatalogFromOrganizationNode(client, parent);
-    const regionCode = this.normalizePersonnelCode(
-      parent.businessCode || this.legacyCodeFromOrganizationCode(parent.code),
-      'Mã Miền không hợp lệ',
-    );
-    if (!regionCode) throw new BadRequestException('Mã Miền không hợp lệ');
-    await client.areaDefinition.upsert({
-      where: { code: businessCode },
-      update: {
-        displayName,
-        abbreviation,
-        description: node.description ?? null,
-        regionCode,
-        organizationNodeId: node.id,
-        isActive: node.isActive !== false,
-      },
-      create: {
-        code: businessCode,
-        displayName,
-        abbreviation,
-        description: node.description ?? null,
-        regionCode,
-        organizationNodeId: node.id,
-        isSystem: node.isSystem === true,
-        isActive: node.isActive !== false,
-      },
-    });
-  }
-
   private async ensureDefaultStorePositionNodes(client: any, storeNode: any) {
     const organizationNode = client.organizationNode;
     if (!organizationNode?.upsert) return false;
     const storeCode = this.normalizeStoreCode(
       storeNode.businessCode ||
-        this.legacyCodeFromOrganizationCode(storeNode.code),
+        this.legacyCatalogService.legacyCodeFromOrganizationCode(
+          storeNode.code,
+        ),
     );
     let topologyChanged = false;
     for (const position of DEFAULT_STORE_POSITION_DEFINITIONS) {
@@ -2132,7 +2045,10 @@ export class UserService implements OnModuleInit {
             update: data,
             create: data,
           });
-      await this.syncLegacyCatalogFromOrganizationNode(client, node);
+      await this.legacyCatalogService.syncLegacyCatalogFromOrganizationNode(
+        client,
+        node,
+      );
     }
     return topologyChanged;
   }
@@ -2189,49 +2105,6 @@ export class UserService implements OnModuleInit {
       queue.push(...(children.get(current) ?? []));
     }
     return result;
-  }
-
-  private async departmentCodeForPositionNode(client: any, node: any) {
-    const defaultPosition = DEFAULT_STORE_POSITION_DEFINITIONS.find(
-      (position) => position.businessCode === node.businessCode,
-    );
-    const ancestorDepartment = await this.nearestAncestorNodeOfType(
-      client,
-      node,
-      ORG_TYPE_LV2_DEPARTMENT,
-    );
-    if (ancestorDepartment) {
-      await this.syncLegacyCatalogFromOrganizationNode(
-        client,
-        ancestorDepartment,
-      );
-      return this.legacyPersonnelCodeFromOrganizationNode(
-        ancestorDepartment,
-        'Mã phòng ban không hợp lệ',
-      );
-    }
-    return defaultPosition?.departmentCode ?? null;
-  }
-
-  private async nearestAncestorNodeOfType(
-    client: any,
-    node: any,
-    type: string,
-  ) {
-    const organizationNode = client.organizationNode;
-    if (!organizationNode?.findUnique) return null;
-    let parentId = node.parentId;
-    for (let guard = 0; parentId && guard < 50; guard += 1) {
-      const parent = await organizationNode.findUnique({
-        where: { id: parentId },
-      });
-      if (!parent) return null;
-      if (this.normalizeOrganizationNodeType(parent.type) === type) {
-        return parent;
-      }
-      parentId = parent.parentId;
-    }
-    return null;
   }
 
   private async updateShowroomMapCredentialFromTree(
@@ -2367,45 +2240,28 @@ export class UserService implements OnModuleInit {
       this.isLegacyRegionNodeType(item.type),
     );
     if (areaNode) {
-      await this.syncLegacyCatalogFromOrganizationNode(client, areaNode);
+      await this.legacyCatalogService.syncLegacyCatalogFromOrganizationNode(
+        client,
+        areaNode,
+      );
     } else if (regionNode) {
-      await this.syncLegacyCatalogFromOrganizationNode(client, regionNode);
+      await this.legacyCatalogService.syncLegacyCatalogFromOrganizationNode(
+        client,
+        regionNode,
+      );
     }
     return {
-      areaCode: this.legacyPersonnelCodeFromOrganizationNode(
-        areaNode,
-        'Mã Vùng không hợp lệ',
-      ),
-      regionCode: this.legacyPersonnelCodeFromOrganizationNode(
-        regionNode,
-        'Mã Miền không hợp lệ',
-      ),
+      areaCode:
+        this.legacyCatalogService.legacyPersonnelCodeFromOrganizationNode(
+          areaNode,
+          'Mã Vùng không hợp lệ',
+        ),
+      regionCode:
+        this.legacyCatalogService.legacyPersonnelCodeFromOrganizationNode(
+          regionNode,
+          'Mã Miền không hợp lệ',
+        ),
     };
-  }
-
-  private legacyPersonnelCodeFromOrganizationNode(
-    node:
-      | {
-          businessCode?: string | null;
-          code: string;
-        }
-      | null
-      | undefined,
-    message: string,
-  ) {
-    if (!node) return null;
-    return this.normalizePersonnelCode(
-      node.businessCode || this.legacyCodeFromOrganizationCode(node.code),
-      message,
-    );
-  }
-
-  private legacyCodeFromOrganizationCode(code: string) {
-    return String(code || '')
-      .replace(/^(LV2_REGION|LV3_AREA|REGION|AREA)_(PHONGVU|ACARE)_/i, '')
-      .replace(/^STORE_/i, '')
-      .trim()
-      .toUpperCase();
   }
 
   private normalizeSortOrder(value: unknown) {

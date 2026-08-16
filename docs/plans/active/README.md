@@ -18,11 +18,14 @@ Current active/release-pending authority:
 - [`OPS-53-redesign-chrome-audit-consolidation.md`](OPS-53-redesign-chrome-audit-consolidation.md)
   is the only current OPS-53 execution summary. Its nine fragments are history.
 - [`OPS-64-upstream-harness-repository-cleanup.md`](OPS-64-upstream-harness-repository-cleanup.md)
-  remains the initiative master plan; OPS-157 is the current docs-only
-  reconciliation slice after OPS-156. OPS-156 is the latest completed Phase 9F
-  UserService access/scope runtime checkpoint at merge `6849ddb0`, staging
-  deploy `31961307152`, with guarded lifecycle cleanup and `Ready for QA` proof.
-  OPS-155 is the preceding protected-credential runtime slice, and OPS-154 is
+  remains the initiative master plan; OPS-158 is the current Phase 9F
+  legacy organization-catalog compatibility slice after the OPS-157
+  reconciliation. OPS-157 is merged at `98d48f5e`, staging-deployed by
+  `31962662658`, with guarded lifecycle cleanup and `Ready for QA` proof.
+  OPS-156 is the preceding completed Phase 9F UserService access/scope runtime
+  checkpoint at merge `6849ddb0`, staging deploy `31961307152`, with guarded
+  lifecycle cleanup and `Ready for QA` proof. OPS-155 is the preceding
+  protected-credential runtime slice, and OPS-154 is
   the preceding completed Phase 9C runtime checkpoint after its PR merge,
   staging deployment and guarded lifecycle cleanup. OPS-153 reconciled the plan
   after the finance-metrics extraction merged, staging-deployed and passed
