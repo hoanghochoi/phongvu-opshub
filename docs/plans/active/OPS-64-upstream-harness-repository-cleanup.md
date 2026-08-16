@@ -4,15 +4,15 @@ Date: 2026-08-13
 
 ## Status
 
-Active — the current workflow checkpoint is OPS-153 post-OPS-152 plan
-reconciliation, created from exact live
-`origin/staging@d4a055ea8976956098b6b94001043ff73146d5c4` after OPS-152.
-OPS-152 Home Summary finance-metrics runtime extraction is squash-merged
-through PR #276 at `d4a055ea8976956098b6b94001043ff73146d5c4`,
-staging-deployed by `31944016299`, and tracked `Ready for QA` after proof and
-guarded lifecycle cleanup. Its local Flutter affected-consumer proof remains
-an explicit environment residual because the dependency root is unavailable;
-no profile was suppressed and no product failure was retried to green.
+Active — the current workflow checkpoint is OPS-157 master-plan reconciliation,
+created from exact live
+`origin/staging@6849ddb0ac6d6b46f1c40148c6257fda8b82b7ad` after OPS-156.
+OPS-156 UserService access/scope extraction is squash-merged through PR #280 at
+`6849ddb0ac6d6b46f1c40148c6257fda8b82b7ad`, staging-deployed by
+`31961307152`, and tracked `Ready for QA` after proof and guarded lifecycle
+cleanup. Its local Flutter affected-consumer proof remains an explicit
+environment residual because the dependency root is unavailable; no profile was
+suppressed and no product failure was retried to green.
 OPS-151 Home Summary legacy sales-metrics runtime extraction is squash-merged
 through PR #275 at `65c6cb58e8b71f6143822fd0e1cfa1489ee8a137`, staging-deployed
 by `31942216545`, and tracked `Ready for QA` after proof. Its local Flutter
@@ -2269,8 +2269,11 @@ merged by PR #269 at `c46cf5d9` and staging-deployed by `31931982872`; it is
 tracked `Ready for QA` after guarded cleanup. OPS-146 is a historical
 reconciliation slice. OPS-152 is the latest runtime extraction slice, merged
 by PR #276 at `d4a055ea` and staging-deployed by `31944016299`; it is tracked
-`Ready for QA` after proof and guarded cleanup. OPS-153 is the current
-reconciliation slice. OPS-138 is merged/deployed and tracked as `Ready for QA`;
+`Ready for QA` after proof and guarded cleanup. OPS-153 is a historical
+reconciliation slice; OPS-154, OPS-155 and OPS-156 are the latest merged runtime
+checkpoints, with OPS-156 merged/deployed at `6849ddb0` and tracked `Ready for
+QA`. OPS-157 is the current docs-only reconciliation slice. OPS-138 is
+merged/deployed and tracked as `Ready for QA`;
 OPS-70 and OPS-71 are merged/deployed and tracked `Ready for Release`. OPS-113
 is also staged and tracked as `Ready for
 QA` after exact deploy `31862881662` and guarded cleanup. OPS-122 and OPS-123's
@@ -2713,3 +2716,23 @@ the current checkpoint above is the sole active execution authority.
   unbounded scope. This extraction does not silently change that product
   contract; direct API regression/authority decision is required in a later
   security slice. Rollback is one OPS-156 squash revert.
+
+## Workflow checkpoint (OPS-157; post-OPS-156 master-plan reconciliation)
+
+- This docs-only slice uses branch/worktree
+  `codex/ops-157-plan-reconcile-after-ops-156` /
+  `../opshub-ops-157-plan-reconcile`, created from exact live
+  `origin/staging@6849ddb0ac6d6b46f1c40148c6257fda8b82b7ad`. The guarded start
+  dry-run and execute passed; only the Nest profile was prepared because no
+  dependency-owning runtime command is in scope and the approved Flutter
+  dependency residual remains deferred.
+- It updates the master-plan front status, historical/current checkpoint
+  wording and active-plan README so OPS-156 is the latest merged runtime
+  checkpoint and OPS-157 is the current docs authority. It records the exact
+  OPS-156 merge/deploy/lifecycle evidence and points the next bounded runtime
+  boundary at the legacy organization-catalog compatibility bridge. No runtime,
+  dependency, archive, Harness DB or Linear product behavior is changed.
+- Required proof before publication: plan-disposition verifier, stale-reference
+  scan, docs-profile exact `verify-task --base origin/staging`, `git diff --check`
+  and a scope review confirming no runtime/dependency/archive paths changed.
+  Rollback is one OPS-157 squash revert.
