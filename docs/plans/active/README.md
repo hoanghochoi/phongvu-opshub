@@ -18,17 +18,18 @@ Current active/release-pending authority:
 - [`OPS-53-redesign-chrome-audit-consolidation.md`](OPS-53-redesign-chrome-audit-consolidation.md)
   is the only current OPS-53 execution summary. Its nine fragments are history.
 - [`OPS-64-upstream-harness-repository-cleanup.md`](OPS-64-upstream-harness-repository-cleanup.md)
-  remains the initiative master plan; OPS-163 is the current docs-only
-  reconciliation after the OPS-162 Phase 9F shared admin mutation preparation
-  characterization slice. OPS-162 is squash-merged through PR #286 at
-  `9caa1135`, staging-deployed by `31971498979`, with guarded lifecycle
-  cleanup and `Ready for QA` proof. Its Flutter/Go affected-consumer proof
-  remains explicitly fail-closed under the approved local dependency
-  deferral; no profile was suppressed and no product failure was retried to
-  green. The next runtime boundary is extraction of the shared
-  `prepareAdminUserMutation` collaborator for `UserAdminMutationService` and
-  `UserImportService`, with authorization and `userAccessFingerprint` kept at
-  their existing owners. OPS-161 is the preceding reconciliation after
+  remains the initiative master plan; OPS-165 is the current docs-only
+  reconciliation after the OPS-164 Phase 9F shared admin mutation preparation
+  extraction. OPS-164 is squash-merged through PR #288 at `21c4a69c`,
+  staging-deployed by `31974309219`, post-merge CodeQL-verified by
+  `31974309294`, with guarded lifecycle cleanup and `Ready for QA` proof. Its
+  Flutter/Go affected-consumer proof remains explicitly fail-closed under the
+  approved local dependency deferral; no profile was suppressed and no
+  product failure was retried to green. The next runtime boundary is a
+  separate characterization slice for remaining User/Import orchestration;
+  atomic assignment transactions and generic admin-policy scope authorization
+  remain separate full-fix/security follow-ups. OPS-163 is the preceding
+  reconciliation after OPS-162; OPS-161 is the preceding reconciliation after
   OPS-160; OPS-159 is the preceding reconciliation after OPS-158. OPS-157 is
   the earlier plan reconciliation at `98d48f5e`,
   staging-deployed by `31962662658`, with guarded lifecycle cleanup and
