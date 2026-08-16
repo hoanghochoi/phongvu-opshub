@@ -689,7 +689,7 @@ test('ENOTEMPTY npm ci failure quarantines stale node_modules and retries once',
   );
 });
 
-test('ENOTEMPTY recovery fails closed when node_modules is not a physical directory', (t) => {
+test('dependency readiness fails closed when node_modules is not a physical directory', (t) => {
   const root = fixture(t);
   writeFileSync(
     path.join(root, 'backend-nest', 'node_modules'),
@@ -711,12 +711,50 @@ test('ENOTEMPTY recovery fails closed when node_modules is not a physical direct
 
   assert.equal(result.exitCode, EXIT_CODES.ENVIRONMENT);
   assert.equal(result.result.status, 'environment-failure');
-  assert.equal(result.result.recoveries[0].status, 'failed');
-  assert.match(result.result.recoveries[0].error, /không phải thư mục vật lý/i);
+  assert.deepEqual(result.result.recoveries, []);
+  assert.match(result.result.error, /backend-nest\/node_modules/i);
+  assert.match(result.result.error, /not-a-directory|không phải thư mục vật lý/i);
   assert.equal(
     existsSync(path.join(root, 'backend-nest', 'node_modules')),
     true,
   );
+});
+
+test('cached readiness is invalidated when an ignored dependency root becomes non-physical', (t) => {
+  const root = fixture(t);
+  const calls = [];
+  const runStepFn = successfulStepFactory(calls);
+  const first = prepareTaskToolchain({
+    root,
+    profile: 'nestjs',
+    runStepFn,
+  });
+
+  assert.equal(first.exitCode, EXIT_CODES.PASS);
+  assert.equal(first.result.status, 'prepared');
+  const callsBeforeCorruption = [...calls];
+
+  rmSync(path.join(root, 'backend-nest', 'node_modules'), {
+    recursive: true,
+    force: true,
+  });
+  writeFileSync(
+    path.join(root, 'backend-nest', 'node_modules'),
+    'not a physical dependency directory\n',
+  );
+
+  const second = prepareTaskToolchain({
+    root,
+    profile: 'nestjs',
+    runStepFn: () => {
+      throw new Error('cached readiness must not run hydration steps');
+    },
+  });
+
+  assert.equal(second.exitCode, EXIT_CODES.ENVIRONMENT);
+  assert.equal(second.result.status, 'environment-failure');
+  assert.match(second.result.error, /backend-nest\/node_modules/i);
+  assert.deepEqual(calls, callsBeforeCorruption);
 });
 
 test('partial Nest dependency loss invalidates the cached readiness', (t) => {

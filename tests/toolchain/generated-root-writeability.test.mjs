@@ -19,6 +19,8 @@ function fixture(t) {
     'macos/Flutter',
     'windows/flutter',
     'backend-nest',
+    'backend-nest/node_modules',
+    '.dart_tool',
   ]) {
     mkdirSync(path.join(root, relativePath), { recursive: true });
   }
@@ -133,5 +135,70 @@ test('a missing Nest node_modules directory is not mistaken for an unwritable pa
 
   assert.equal(result.ready, true);
   assert.equal(result.paths.some((entry) => entry.path === 'backend-nest'), true);
-  assert.equal(result.paths.some((entry) => entry.path === 'backend-nest/node_modules'), false);
+  assert.equal(result.paths.some((entry) => entry.path === 'backend-nest/node_modules'), true);
+});
+
+test('existing ignored dependency roots are normalized before hydration', (t) => {
+  const root = fixture(t);
+  const readOnlyPaths = new Set(['.dart_tool', 'backend-nest/node_modules']);
+  const cleared = [];
+
+  const result = ensureGeneratedRootWriteability({
+    root,
+    profile: 'all',
+    platform: 'win32',
+    access: () => {},
+    readOnly: (absolutePath) => readOnlyPaths.has(relative(root, absolutePath)),
+    clearReadOnly: (absolutePath) => {
+      const current = relative(root, absolutePath);
+      cleared.push(current);
+      readOnlyPaths.delete(current);
+      return true;
+    },
+    probeWrite: (absolutePath) => !readOnlyPaths.has(relative(root, absolutePath)),
+  });
+
+  assert.equal(result.ready, true);
+  assert.deepEqual(cleared, ['backend-nest/node_modules', '.dart_tool']);
+  assert.deepEqual(result.normalizedPaths, cleared);
+  assert.equal(
+    result.paths.find((entry) => entry.path === '.dart_tool')?.readOnlyAttribute,
+    false,
+  );
+  assert.equal(
+    result.paths.find((entry) => entry.path === 'backend-nest/node_modules')?.readOnlyAttribute,
+    false,
+  );
+});
+
+test('dry-run reports ignored dependency roots without changing their attributes', (t) => {
+  const root = fixture(t);
+  const readOnlyPaths = new Set(['.dart_tool', 'backend-nest/node_modules']);
+  let clearCount = 0;
+
+  const result = ensureGeneratedRootWriteability({
+    root,
+    profile: 'all',
+    dryRun: true,
+    platform: 'win32',
+    access: () => {},
+    readOnly: (absolutePath) => readOnlyPaths.has(relative(root, absolutePath)),
+    clearReadOnly: () => {
+      clearCount += 1;
+      return true;
+    },
+    probeWrite: () => false,
+  });
+
+  assert.equal(result.ready, false);
+  assert.equal(clearCount, 0);
+  assert.equal(result.normalizedPaths, undefined);
+  assert.equal(
+    result.paths.find((entry) => entry.path === '.dart_tool')?.error,
+    'read-only-directory-attribute',
+  );
+  assert.equal(
+    result.paths.find((entry) => entry.path === 'backend-nest/node_modules')?.error,
+    'read-only-directory-attribute',
+  );
 });
