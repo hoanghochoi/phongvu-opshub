@@ -4,23 +4,27 @@ Date: 2026-08-13
 
 ## Status
 
-Active — the current workflow checkpoint is OPS-165 master-plan
+Active — the current workflow checkpoint is OPS-167 master-plan
 reconciliation, created from exact live
-`origin/staging@21c4a69cf587052186143ea78ead18081cc4e826` after OPS-164.
-OPS-164 shared `prepareAdminUserMutation` extraction is squash-merged through
-PR #288 at `21c4a69cf587052186143ea78ead18081cc4e826`, staging-deployed by
-`31974309219`, post-merge CodeQL-verified by `31974309294`, and tracked
+`origin/staging@a6c8342f682699b5564bd3ee79ee3f992e38f2f6` after OPS-166.
+OPS-166 User/Import orchestration characterization is squash-merged through
+PR #290 at `a6c8342f682699b5564bd3ee79ee3f992e38f2f6`, staging-deployed by
+`31977096035`, post-merge CodeQL-verified by `31977096088`, and tracked
 `Ready for QA` after exact-SHA deployment and guarded lifecycle cleanup.
-Focused affected suites passed 4 suites/91 tests; full Nest passed with 121
-suites, 1287 passed and 6 skipped; Nest build, Prettier, `git diff --check` and
-exact runner proof passed with `stale=false`. The next safe Phase 9F boundary
-is a separate characterization slice for remaining User/Import orchestration;
-atomic user/organization-assignment transactions and generic admin-policy scope
+Focused import proof passed 9/9; affected Nest suites passed 3 suites/92
+tests; full Nest passed with 121 suites, 1,292 passed and 6 skipped; Nest
+build, Prettier, `git diff --check` and exact runner proof passed with
+`stale=false`. The characterization changed only
+`backend-nest/src/user/user-import.service.spec.ts`; no production/API/DTO/DI,
+dependency, Flutter, Go, archive or Harness DB path changed. The next Phase 9F
+runtime slice must be selected after this reconciliation; atomic
+user/organization-assignment transactions and generic admin-policy scope
 authorization remain separate full-fix/security follow-ups. Flutter/Go
 affected-consumer proof remains explicitly fail-closed under the approved
 dependency deferral; no profile was suppressed, no lockfile was changed and no
-product failure was retried to green. OPS-165 records this checkpoint and
+product failure was retried to green. OPS-167 records this checkpoint and
 keeps the dependency gap as residual risk rather than weakening any gate.
+OPS-165 is the preceding master-plan reconciliation after OPS-164.
 OPS-163 is the preceding master-plan reconciliation after OPS-162.
 OPS-160 UserAdminMutationService characterization is squash-merged through PR
 #284 at `155b5dec53b7a67677bbfdcbde04a0fb437b707d`, staging-deployed by
@@ -2861,3 +2865,39 @@ the current checkpoint above is the sole active execution authority.
   orchestration. Atomic assignment transaction and generic admin-policy scope
   authorization are separate full-fix/security follow-ups. Rollback is one
   OPS-160 squash revert.
+
+## Workflow checkpoint (OPS-167; post-OPS-166 master-plan reconciliation)
+
+- This docs-only slice uses branch/worktree
+  `codex/ops-167-reconcile-master-plan-after-ops-166` /
+  `../opshub-ops-167-plan-reconcile`, created from exact live
+  `origin/staging@a6c8342f682699b5564bd3ee79ee3f992e38f2f6` through the guarded
+  lifecycle start gate. The worktree started clean. Only the Nest profile was
+  prepared because no dependency-owning runtime command is in scope; the
+  approved Flutter/Go dependency residual remains fail-closed and explicitly
+  unverified.
+- OPS-166 is verified as squash-merged through PR #290 at
+  `a6c8342f682699b5564bd3ee79ee3f992e38f2f6`, staging-deployed by
+  `31977096035`, post-merge CodeQL-verified by `31977096088`, and tracked
+  `Ready for QA` after implementation/proof comment read-back. Its task
+  worktree, local branch and remote branch were removed by the guarded cleanup
+  plus explicit remote-branch deletion; canonical staging is clean at the
+  merge SHA.
+- The slice updates only the master-plan front status, this checkpoint and the
+  active-plan index. It preserves the dependency deferral, makes OPS-166 the
+  current authority and keeps atomic user/organization-assignment transactions
+  and generic admin-policy scope authorization as separate full-fix/security
+  follow-ups. No runtime, dependency, archive, Harness DB or Linear product
+  behavior changes are in scope. Rollback is one OPS-167 squash revert.
+- Required proof before publication: plan-disposition validation, stale
+  OPS-165/current-checkpoint reference scan, exact docs-profile
+  `scripts/verify-task.mjs --base origin/staging` with `stale=false`, changed
+  path scope review and `git diff --check`.
+- Final proof passed: `node scripts/verify-plan-disposition.mjs`; stale-current
+  reference scan; changed-path scope (`2` docs files); `git diff --check`; and
+  exact `node scripts/verify-task.mjs --base origin/staging --profile docs
+  --json tmp/ops-167-verify-final.json`. The runner selected `harness,docs`,
+  covered the repository documentation and Harness-adoption consumers,
+  returned code `0` with `stale=false`, and kept matching before/after
+  fingerprints. The authoritative base/head and fingerprint are retained in
+  the ignored JSON artifact rather than duplicated in this fingerprinted plan.
