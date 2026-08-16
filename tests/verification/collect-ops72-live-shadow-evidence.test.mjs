@@ -46,7 +46,7 @@ function writeRun(fixture, index, durationMs = 6000 + index * 100) {
   const started = `2026-08-15T10:0${index}:00.000Z`;
   const completed = new Date(Date.parse(started) + durationMs).toISOString();
   const report = {
-    schemaVersion: 2,
+    schemaVersion: 3,
     mode: 'shadow',
     baseSha: sha('a'),
     headSha: sha('bcdef'[Math.min(index, 5) - 1] || 'b'),
@@ -67,19 +67,28 @@ function writeRun(fixture, index, durationMs = 6000 + index * 100) {
     blockingChecksUnchanged: true,
     retryPolicy: { maxInfrastructureRetries: 1 },
     telemetry: {
-      schemaVersion: 2,
+      schemaVersion: 3,
       cohortId: COHORT,
       queuedAtUtc: started,
       startedAtUtc: started,
       completedAtUtc: completed,
       queueDurationMs: 0,
       executionDurationMs: durationMs,
+      executionMode: 'plan-only',
+      autoDurationMs: Math.max(0, durationMs - 100),
+      fullDurationMs: 100,
+      decisionDurationMs: Math.max(0, durationMs - 100),
       queueTimestampSource: 'workflow-run-started-at',
       retryCount: 0,
       autoRetryCount: 0,
       fullRetryCount: 0,
       firstActionableFailure: null,
       firstObservedFailure: null,
+      measurementEligibility: {
+        retryReduction: false,
+        timeToActionableFailure: false,
+        reasonCode: 'plan-only-shadow',
+      },
     },
     metrics: {
       firstActionableFailure: null,

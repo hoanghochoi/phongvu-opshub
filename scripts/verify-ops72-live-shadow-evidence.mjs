@@ -27,9 +27,18 @@ function assertStringArray(value, label) {
   assert(Array.isArray(value) && value.every((item) => typeof item === 'string'), `${label} must be a string array`);
 }
 
+function validateFailure(failure, label) {
+  if (failure === null || failure === undefined) return;
+  assert(failure && typeof failure === 'object', `${label} is invalid`);
+  assert(typeof failure.category === 'string' && failure.category.length > 0, `${label}.category is invalid`);
+  assert(Number.isInteger(failure.exitCode), `${label}.exitCode is invalid`);
+  assertIso(failure.observedAtUtc, `${label}.observedAtUtc`);
+  assert(Number.isInteger(failure.elapsedMs) && failure.elapsedMs >= 0, `${label}.elapsedMs is invalid`);
+}
+
 function validateTelemetry(telemetry, label) {
   assert(telemetry && typeof telemetry === 'object', `${label} must be an object`);
-  assert(telemetry.schemaVersion === 2, `${label}.schemaVersion must be 2`);
+  assert([2, 3].includes(telemetry.schemaVersion), `${label}.schemaVersion must be 2 or 3`);
   assert(typeof telemetry.cohortId === 'string' && /^[A-Za-z0-9._-]+$/.test(telemetry.cohortId), `${label}.cohortId is invalid`);
   assertIso(telemetry.queuedAtUtc, `${label}.queuedAtUtc`);
   assertIso(telemetry.startedAtUtc, `${label}.startedAtUtc`);
@@ -37,13 +46,19 @@ function validateTelemetry(telemetry, label) {
   for (const key of ['queueDurationMs', 'executionDurationMs', 'retryCount', 'autoRetryCount', 'fullRetryCount']) {
     assert(Number.isInteger(telemetry[key]) && telemetry[key] >= 0, `${label}.${key} is invalid`);
   }
-  if (telemetry.firstActionableFailure !== null) {
-    const failure = telemetry.firstActionableFailure;
-    assert(failure && typeof failure === 'object', `${label}.firstActionableFailure is invalid`);
-    assert(typeof failure.category === 'string' && failure.category.length > 0, `${label}.firstActionableFailure.category is invalid`);
-    assert(Number.isInteger(failure.exitCode), `${label}.firstActionableFailure.exitCode is invalid`);
-    assertIso(failure.observedAtUtc, `${label}.firstActionableFailure.observedAtUtc`);
-    assert(Number.isInteger(failure.elapsedMs) && failure.elapsedMs >= 0, `${label}.firstActionableFailure.elapsedMs is invalid`);
+  validateFailure(telemetry.firstActionableFailure, `${label}.firstActionableFailure`);
+  validateFailure(telemetry.firstObservedFailure, `${label}.firstObservedFailure`);
+  if (telemetry.schemaVersion === 3) {
+    assert(telemetry.executionMode === 'plan-only', `${label}.executionMode must be plan-only`);
+    for (const key of ['autoDurationMs', 'fullDurationMs', 'decisionDurationMs']) {
+      assert(Number.isInteger(telemetry[key]) && telemetry[key] >= 0, `${label}.${key} is invalid`);
+    }
+    assert(telemetry.decisionDurationMs <= telemetry.executionDurationMs, `${label}.decisionDurationMs cannot exceed executionDurationMs`);
+    const eligibility = telemetry.measurementEligibility;
+    assert(eligibility && typeof eligibility === 'object', `${label}.measurementEligibility is required`);
+    assert(eligibility.retryReduction === false, `${label}.retryReduction must remain ineligible for plan-only evidence`);
+    assert(eligibility.timeToActionableFailure === false, `${label}.timeToActionableFailure must remain ineligible for plan-only evidence`);
+    assert(eligibility.reasonCode === 'plan-only-shadow', `${label}.measurementEligibility.reasonCode is invalid`);
   }
 }
 
@@ -96,7 +111,7 @@ function validateExcluded(observation) {
 
 export function validateLiveEvidence(document, { rawRoot = null } = {}) {
   assert(document && typeof document === 'object', 'live evidence must be an object');
-  assert(document.formatVersion === 1 || document.formatVersion === 2, 'formatVersion must be 1 or 2');
+  assert([1, 2, 3].includes(document.formatVersion), 'formatVersion must be 1, 2 or 3');
   assert(document.issue === 'OPS-72', 'issue must be OPS-72');
   assert(document.targetBranch === 'staging', 'targetBranch must be staging');
   assert(document.requiredObservationCount === 5, 'requiredObservationCount must be 5');
@@ -145,6 +160,15 @@ export function validateLiveEvidence(document, { rawRoot = null } = {}) {
     assert(aggregate.targetStatus !== 'revise' || aggregate.shadowDurationReductionPercent < 25 || aggregate.rerunReductionPercent === null, 'revise status must retain an unmet or unmeasurable target');
     assert(aggregate.timeToActionableFailureMedianMs === null, 'no failure sample may claim a first-actionable-failure median');
     assert(aggregate.baselineMedianTimeToActionableFailureMs === null, 'no failure sample may claim a baseline first-actionable-failure median');
+    if (document.formatVersion === 3) {
+      assert(document.observations.every((observation) => observation.telemetry?.schemaVersion === 3), 'v3 observations must use telemetry schema 3');
+      assert(document.observations.every((observation) => observation.telemetry?.executionMode === 'plan-only'), 'v3 observations must remain plan-only');
+      assert(document.measurementEligibility?.retryReduction === false, 'v3 retry reduction must be ineligible');
+      assert(document.measurementEligibility?.timeToActionableFailure === false, 'v3 TTAF must be ineligible');
+      assert(document.measurementEligibility?.reasonCode === 'plan-only-shadow', 'v3 measurement eligibility reason is invalid');
+      assert(Number.isInteger(aggregate.decisionDurationMedianMs) && aggregate.decisionDurationMedianMs >= 0, 'decisionDurationMedianMs is invalid');
+      assert(aggregate.decisionDurationReductionPercent === null, 'plan-only decision reduction must remain unmeasurable');
+    }
   }
   assert(typeof document.generatedAtUtc === 'string', 'generatedAtUtc is required');
   assert(!/[A-Za-z]:\\|\/Users\/|\/home\/|\\\\/.test(JSON.stringify(document)), 'artifact contains an absolute local path');

@@ -35,15 +35,24 @@ test('shadow report compares auto profiles with the full ladder without running 
   writeFileSync(path.join(root, 'docs', 'README.md'), '# change\n');
   const report = buildShadowReport({ root, options: { base: 'HEAD' } });
   assert.equal(report.status, 'passed');
-  assert.equal(report.schemaVersion, 2);
+  assert.equal(report.schemaVersion, 3);
   assert.deepEqual(report.autoSelectedProfiles, ['harness', 'docs']);
   assert.equal(report.fullProfiles.length, 8);
   assert.ok(report.omittedProfiles.includes('flutter'));
   assert.equal(report.blockingChecksUnchanged, true);
   assert.equal(report.metrics.requiresCanaryReview, true);
   assert.equal(report.metrics.reruns, 0);
-  assert.equal(report.telemetry.schemaVersion, 2);
+  assert.equal(report.telemetry.schemaVersion, 3);
   assert.equal(report.telemetry.cohortId, 'ops72-shadow-v2');
+  assert.equal(report.telemetry.executionMode, 'plan-only');
+  assert.ok(report.telemetry.autoDurationMs >= 0);
+  assert.ok(report.telemetry.fullDurationMs >= 0);
+  assert.equal(report.telemetry.decisionDurationMs, report.telemetry.autoDurationMs);
+  assert.deepEqual(report.telemetry.measurementEligibility, {
+    retryReduction: false,
+    timeToActionableFailure: false,
+    reasonCode: 'plan-only-shadow',
+  });
   assert.ok(Date.parse(report.telemetry.queuedAtUtc));
   assert.ok(Date.parse(report.telemetry.startedAtUtc));
   assert.ok(Date.parse(report.telemetry.completedAtUtc));
@@ -58,7 +67,7 @@ test('shadow report preserves fail-closed contract failures for unknown paths', 
   writeFileSync(path.join(root, 'unknown.bin'), 'unknown\n');
   const report = buildShadowReport({ root, options: { base: 'HEAD' } });
   assert.equal(report.status, 'failed');
-  assert.equal(report.schemaVersion, 2);
+  assert.equal(report.schemaVersion, 3);
   assert.equal(report.classification, 'contract-failure');
   assert.equal(report.autoExitCode, 2);
   assert.ok(report.unmatchedPaths.includes('unknown.bin'));

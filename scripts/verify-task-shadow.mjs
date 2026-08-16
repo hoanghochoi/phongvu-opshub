@@ -5,8 +5,9 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { EXIT_CODES, parseArgs, verifyTask } from './verify-task.mjs';
 
-const SHADOW_SCHEMA_VERSION = 2;
+const SHADOW_SCHEMA_VERSION = 3;
 const DEFAULT_COHORT_ID = 'ops72-shadow-v2';
+const EXECUTION_MODE = 'plan-only';
 
 function shadowOptions(options) {
   return {
@@ -108,13 +109,15 @@ function durationMs(run) {
 function buildTelemetry({ queued, startedMs, completedMs, auto, full }) {
   const autoRetryCount = retryCount(auto);
   const fullRetryCount = retryCount(full);
+  const autoDurationMs = durationMs(auto);
+  const fullDurationMs = durationMs(full);
   const autoFailure = firstActionableFailure(auto, startedMs);
-  const fullFailure = firstActionableFailure(full, startedMs, durationMs(auto));
+  const fullFailure = firstActionableFailure(full, startedMs, autoDurationMs);
   const autoObservedFailure = firstObservedFailure(auto, startedMs);
   const fullObservedFailure = firstObservedFailure(
     full,
     startedMs,
-    durationMs(auto),
+    autoDurationMs,
   );
   return {
     schemaVersion: SHADOW_SCHEMA_VERSION,
@@ -124,6 +127,13 @@ function buildTelemetry({ queued, startedMs, completedMs, auto, full }) {
     completedAtUtc: new Date(completedMs).toISOString(),
     queueDurationMs: Math.max(0, startedMs - Date.parse(queued.value)),
     executionDurationMs: Math.max(0, completedMs - startedMs),
+    executionMode: EXECUTION_MODE,
+    autoDurationMs,
+    fullDurationMs,
+    // The selected-profile result is the first actionable decision. The full
+    // ladder is an observational comparator and must not inflate decision
+    // latency or be mistaken for the user's blocking path.
+    decisionDurationMs: autoDurationMs,
     queueTimestampSource: queued.source,
     retryCount: autoRetryCount + fullRetryCount,
     autoRetryCount,
@@ -132,6 +142,11 @@ function buildTelemetry({ queued, startedMs, completedMs, auto, full }) {
     autoFirstObservedFailure: autoObservedFailure,
     fullFirstObservedFailure: fullObservedFailure,
     firstObservedFailure: autoObservedFailure || fullObservedFailure,
+    measurementEligibility: {
+      retryReduction: false,
+      timeToActionableFailure: false,
+      reasonCode: 'plan-only-shadow',
+    },
   };
 }
 
@@ -204,11 +219,13 @@ export function buildShadowReport({
     telemetry,
     metrics: {
       firstActionableFailure: telemetry.firstActionableFailure,
+      firstObservedFailure: telemetry.firstObservedFailure,
       reruns: telemetry.retryCount,
       humanIntervention: false,
       falsePositive: null,
       falseNegative: null,
       requiresCanaryReview: true,
+      measurementEligibility: telemetry.measurementEligibility,
     },
   };
 }

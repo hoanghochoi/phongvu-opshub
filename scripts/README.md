@@ -53,9 +53,10 @@ and command definitions. Exit codes are `0` pass, `2` contract, `3`
 product/test, `4` stale and `5` environment/infrastructure.
 
 CI uses `scripts/verify-task-shadow.mjs` in additive shadow mode. It compares
-auto-selected profiles with the full ladder and uploads a sanitized schema-v2
+auto-selected profiles with the full ladder and uploads a sanitized schema-v3
 JSON report; the existing blocking release checks remain unchanged. The report
-records a cohort id, queue/start/end timestamps, derived queue/execution
+records a cohort id, plan-only execution mode, queue/start/end timestamps,
+separate auto/full/decision durations and derived queue/execution
   durations, retry counts, first actionable failure and first observed command
   failure when one exists (including retry-to-green runs).
 Infrastructure failures may retry once only while the fingerprint is unchanged.
