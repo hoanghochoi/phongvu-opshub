@@ -4,9 +4,15 @@ Date: 2026-08-13
 
 ## Status
 
-Active — the current workflow checkpoint is OPS-147 Phase 8 artifact-cleanup
-closure, created from exact live
-`origin/staging@4f6e09700af200e8d4dcbbaebd9395ce92c52b40` after OPS-146.
+Active — the current workflow checkpoint is OPS-149 Phase 9C sales-progress
+runtime extraction, created from exact live
+`origin/staging@324c87d264df3b96ee6409d939aaa5dcf0a97091` after OPS-148.
+OPS-148 Home Summary comparison runtime extraction is squash-merged through PR
+#272 at `324c87d264df3b96ee6409d939aaa5dcf0a97091`, staging-deployed by
+`31936440130`, and tracked `Ready for QA` after proof. Its local Flutter
+affected-consumer proof remains an explicit environment residual because the
+task worktree lacked `.dart_tool/package_config.json` and plugin metadata; no
+profile was suppressed and no product failure was retried to green.
 OPS-138 organization-tree/assignment extraction is squash-merged through PR
 #264 at `db427f6d44d2dde5c219a982fc1d835e9378e536`, staging-deployed by
 `31923613626`, and tracked `Ready for QA` after proof. OPS-70 protocol-v1
@@ -2457,3 +2463,43 @@ the current checkpoint above is the sole active execution authority.
   later dependency-consuming proof; this docs closure neither suppresses that
   gate nor retries product failures to green. Phase 9 runtime waves and Phase
   10 production evidence remain open. Rollback is one OPS-147 squash revert.
+
+## Workflow checkpoint (OPS-148; Home Summary comparison runtime)
+
+- This Phase 9C Nest-only slice used branch/worktree
+  `codex/ops-148-home-summary-comparison-runtime` /
+  `../opshub-ops-148-home-summary-comparison-runtime`, created from exact live
+  `origin/staging@154a34c10b5c6ff2f97b8473a6dc281fdab05ae5`. PR #272 squash-
+  merged at `324c87d264df3b96ee6409d939aaa5dcf0a97091`; staging deploy
+  `31936440130` passed Windows, Android, web, backend, direct-origin routes
+  and public health/version checks; guarded finish cleanup passed.
+- `HomeSummaryService` remains the stable facade. Comparison-period
+  orchestration is owned by `HomeSummaryComparisonRuntime`; characterization
+  remained 6 suites / 116 tests before and after, Nest build and exact runner
+  passed with `stale=false`.
+- The local Flutter Home affected proof could not run because the task
+  worktree lacked `.dart_tool/package_config.json` and plugin metadata. This
+  is environment failure/unverified evidence, not a suppressed profile or a
+  product pass. Authenticated QA and production deployment remain open.
+
+## Workflow checkpoint (OPS-149; Home Summary sales-progress runtime)
+
+- This Phase 9C Nest-only slice is branch/worktree
+  `codex/ops-149-home-summary-sales-progress` /
+  `../opshub-ops-149-home-summary-sales-progress`, created from exact live
+  `origin/staging@324c87d264df3b96ee6409d939aaa5dcf0a97091`. Flutter hydration
+  is intentionally deferred for this backend-only slice; any Flutter affected
+  proof remains fail-closed and explicitly unverified when its dependency root
+  is unavailable.
+- The slice extracts sales-progress range composition, report filters, actual
+  aggregation, target allocation, active-SA counting and unavailable-state
+  shaping into `HomeSummarySalesProgressRuntime`. Private facade wrappers keep
+  `HomeSummaryService` compatibility while public API/DTO/DI/permission,
+  Vietnamese copy, logging and product behavior remain unchanged.
+- Focused Home Summary proof is `8 suites / 129 tests` with 6 skips, including
+  a new 4-case runtime characterization matrix; Nest build passed. The
+  publication gate is exact `verify-task --base origin/staging` with
+  `stale=false`, followed by PR/staging deploy and guarded lifecycle cleanup.
+- Dependency decision: continue independent Harness/cleanup slices, but never
+  convert missing Flutter dependencies into a pass or retry product failures
+  to green. Rollback is one OPS-149 squash revert.

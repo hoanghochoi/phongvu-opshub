@@ -18,12 +18,11 @@ Current active/release-pending authority:
 - [`OPS-53-redesign-chrome-audit-consolidation.md`](OPS-53-redesign-chrome-audit-consolidation.md)
   is the only current OPS-53 execution summary. Its nine fragments are history.
 - [`OPS-64-upstream-harness-repository-cleanup.md`](OPS-64-upstream-harness-repository-cleanup.md)
-  remains the initiative master plan; OPS-147 is the current Phase 8
-  artifact-cleanup closure after OPS-146's merge and guarded lifecycle start.
-  OPS-146 remains the preceding post-OPS-145 reconciliation and OPS-145 the
-  latest runtime extraction checkpoint. Phase 8 has an evidence-backed
-  no-deletion disposition; Phase 9/10 and production-pending work stay active
-  until their release gates pass.
+  remains the initiative master plan; OPS-149 is the current Phase 9C
+  sales-progress extraction after OPS-148's merge and guarded lifecycle
+  cleanup. OPS-148 remains the preceding Home Summary comparison checkpoint;
+  Phase 8 has an evidence-backed no-deletion disposition; Phase 9/10 and
+  production-pending work stay active until their release gates pass.
 
 Use `docs/templates/exec-plan.md` for new durable work. Move a plan only after
 its requested outcome and validation are recorded; do not infer production
