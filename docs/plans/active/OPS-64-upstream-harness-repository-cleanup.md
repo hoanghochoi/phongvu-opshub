@@ -4,9 +4,15 @@ Date: 2026-08-13
 
 ## Status
 
-Active — the current workflow checkpoint is OPS-150 Phase 9C main-KPI
-runtime extraction, created from exact live
-`origin/staging@cef2b17071cbe11537e349a656d3baac72d008e9` after OPS-149.
+Active — the current workflow checkpoint is OPS-151 Phase 9C legacy
+sales-metrics runtime extraction, created from exact live
+`origin/staging@302541951226ec508e6b67b2aad93377118e4636` after OPS-150.
+OPS-150 Home Summary main-KPI runtime extraction is squash-merged through PR
+#274 at `302541951226ec508e6b67b2aad93377118e4636`, staging-deployed by
+`31940281772`, and tracked `Ready for QA` after proof. Its local Flutter
+affected-consumer proof remains an explicit environment residual because the
+dependency root is unavailable; no profile was suppressed and no product
+failure was retried to green.
 OPS-149 Home Summary sales-progress runtime extraction is squash-merged through
 PR #273 at `cef2b17071cbe11537e349a656d3baac72d008e9`, staging-deployed by
 `31938424395`, and tracked `Ready for QA` after proof. Its local Flutter
@@ -2512,13 +2518,16 @@ the current checkpoint above is the sole active execution authority.
 
 ## Workflow checkpoint (OPS-150; Home Summary main-KPI runtime)
 
-- This Phase 9C Nest-only slice is branch/worktree
+- This Phase 9C Nest-only slice used branch/worktree
   `codex/ops-150-home-summary-main-kpi` /
   `../opshub-ops-150-home-summary-main-kpi`, created from exact live
-  `origin/staging@cef2b17071cbe11537e349a656d3baac72d008e9`. Flutter hydration
-  is intentionally deferred for this backend-only slice; any Flutter affected
-  proof remains fail-closed and explicitly unverified while its dependency root
-  is unavailable.
+  `origin/staging@cef2b17071cbe11537e349a656d3baac72d008e9`. It squash-merged
+  through PR #274 at `302541951226ec508e6b67b2aad93377118e4636`; staging deploy
+  `31940281772` passed Android, Windows, web, backend, direct-origin routes and
+  public health/version checks; guarded finish cleanup passed. Flutter hydration
+  was intentionally deferred for this backend-only slice; its affected proof
+  remains fail-closed and explicitly unverified while the dependency root is
+  unavailable.
 - The slice extracts main-KPI row loading, canonical-revenue lookup wiring,
   Sales Reports aggregation mapping and the empty KPI summary into
   `HomeSummaryMainKpiRuntime`. `HomeSummaryService` keeps the stable facade;
@@ -2529,5 +2538,31 @@ the current checkpoint above is the sole active execution authority.
   `113 suites / 1246 passed / 6 skipped`; Nest build, Prettier check and
   `git diff --check` also passed. The final exact `verify-task --base
   origin/staging` selected `harness,docs,nestjs` over 5 affected paths with
-  `stale=false`. The publication gate remains PR/staging deploy followed by
-  guarded lifecycle cleanup; rollback is one OPS-150 squash revert.
+  `stale=false`. Production deployment remains open; rollback is one OPS-150
+  squash revert.
+
+## Workflow checkpoint (OPS-151; Home Summary legacy sales metrics runtime)
+
+- This Phase 9C Nest-only slice uses branch/worktree
+  `codex/ops-151-home-summary-legacy-sales-metrics` /
+  `../opshub-ops-151`, created from exact live
+  `origin/staging@302541951226ec508e6b67b2aad93377118e4636`. The task start gate
+  prepared only the Nest/Prisma profile under the approved temporary dependency
+  deferral; Flutter affected proof remains fail-closed and explicitly
+  unverified, and its profile is not suppressed.
+- The slice extracts `completedRevenue`, `totalCacheRevenue`,
+  `countBehaviorYesReports` and the stable empty behavior-count value into
+  `HomeSummaryLegacySalesMetricsRuntime`. Query/scope builders remain owned by
+  the facade, while the compatibility `netCacheRevenue` wrapper preserves the
+  projection aggregation and characterization inspection point. Public API,
+  DTO/DI, permission, Vietnamese copy, logger context, canonical VAT/pending/
+  cancelled/full-return semantics and response shape remain unchanged.
+- Final focused characterization proof passes `2 suites / 64 tests`; full Nest
+  proof passes `114 suites / 1250 tests / 6 skipped`, and Nest build, Prettier
+  check and `git diff --check` pass. Exact `verify-task --base origin/staging`
+  selects `harness,docs,nestjs` over 5 changed paths with `stale=false`; the
+  final sanitized JSON result is retained in the task-local ignored proof
+  output. The Flutter affected profile remains explicitly
+  deferred/unverified; no profile was suppressed. Publication gate remains PR,
+  staging deploy and guarded lifecycle cleanup; rollback is one OPS-151 squash
+  revert.

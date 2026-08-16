@@ -27,7 +27,6 @@ import { isSalesReportErpPendingPaymentStatus } from '../sales-reports/sales-rep
 import {
   buildCanonicalRevenueLookup,
   canonicalRevenueForOrder,
-  canonicalVatIncludedRevenue,
   CanonicalRevenueLookup,
   normalizeRevenueOrderCode,
   SALES_PRICE_CONTRACT_VERSION,
@@ -45,6 +44,10 @@ import { HomeSummaryCsvComparisonRuntime } from './home-summary-csv-comparison.r
 import { HomeSummaryComparisonRuntime } from './home-summary-comparison.runtime';
 import { HomeSummarySalesProgressRuntime } from './home-summary-sales-progress.runtime';
 import { HomeSummaryMainKpiRuntime } from './home-summary-main-kpi.runtime';
+import {
+  HomeSummaryLegacySalesMetricsRuntime,
+  HomeSummaryLegacySalesBehaviorYesCounts,
+} from './home-summary-legacy-sales-metrics.runtime';
 import type {
   HomeSummaryComparisonMetricResponse,
   HomeSummaryComparisonPeriodResponse,
@@ -335,13 +338,6 @@ type HomeSummaryBehaviorDetailsResponse = {
   installmentNeedReports: HomeSummaryInstallmentNeedDetail[];
 };
 
-type SalesBehaviorYesCounts = {
-  consultedSolution: number;
-  experienced: number;
-  zalo: number;
-  appDownload: number;
-};
-
 @Injectable()
 export class HomeSummaryService {
   private readonly logger = new Logger(HomeSummaryService.name);
@@ -352,6 +348,7 @@ export class HomeSummaryService {
   private readonly comparisonRuntime: HomeSummaryComparisonRuntime;
   private readonly salesProgressRuntime: HomeSummarySalesProgressRuntime;
   private readonly mainKpiRuntime: HomeSummaryMainKpiRuntime;
+  private readonly legacySalesMetricsRuntime: HomeSummaryLegacySalesMetricsRuntime;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -388,6 +385,22 @@ export class HomeSummaryService {
       summarizeSalesRevenueRows: (rows, canonicalRevenue) =>
         this.salesReports.summarizeSalesRevenueRows(rows, canonicalRevenue),
     });
+    this.legacySalesMetricsRuntime = new HomeSummaryLegacySalesMetricsRuntime(
+      this.prisma,
+      {
+        salesProgressReportWhere: (scope, range) =>
+          this.salesProgressReportWhere(scope, range),
+        orderCacheRevenueWhere: (scope, range) =>
+          this.orderCacheRevenueWhere(scope, range),
+        salesReportBehaviorWhere: (scope, range) =>
+          this.salesReportBehaviorWhere(scope, range),
+        loadCanonicalRevenueForRows: (rows, source) =>
+          this.loadCanonicalRevenueForRows(this.prisma, rows, source),
+        logger: {
+          log: (message) => this.logger.log(message),
+        },
+      },
+    );
     this.csvComparisonRuntime = new HomeSummaryCsvComparisonRuntime(
       this.prisma,
       {
@@ -711,7 +724,8 @@ export class HomeSummaryService {
     let completedRevenue = 0;
     let dailySeries: HomeSummaryDailyPoint[] | undefined;
     let mainKpis = this.mainKpiRuntime.empty();
-    let behaviorYesCounts = this.emptyBehaviorYesCounts();
+    let behaviorYesCounts: HomeSummaryLegacySalesBehaviorYesCounts =
+      this.legacySalesMetricsRuntime.empty();
     let projectedSales: HomeProjectionLoadResult | null = null;
     let projectedFinance: HomeProjectionLoadResult | null = null;
     const projectionMetricsStartedAt = Date.now();
@@ -806,9 +820,18 @@ export class HomeSummaryService {
           : 0;
         [totalRevenue, completedRevenue, behaviorYesCounts, mainKpis] =
           await Promise.all([
-            this.totalCacheRevenue(salesMetricsScope, range),
-            this.completedRevenue(salesMetricsScope, range),
-            this.countBehaviorYesReports(salesMetricsScope, range),
+            this.legacySalesMetricsRuntime.totalCacheRevenue(
+              salesMetricsScope,
+              range,
+            ),
+            this.legacySalesMetricsRuntime.completedRevenue(
+              salesMetricsScope,
+              range,
+            ),
+            this.legacySalesMetricsRuntime.countBehaviorYesReports(
+              salesMetricsScope,
+              range,
+            ),
             this.mainKpiRuntime.build(salesMetricsScope, range),
           ]);
       }
@@ -2307,113 +2330,18 @@ export class HomeSummaryService {
     );
   }
 
-  private async completedRevenue(
-    scope: SalesReportSummaryScopeDescriptor,
-    range: DateRange,
-  ) {
-    const rows = await this.prisma.salesReport.findMany({
-      where: this.salesProgressReportWhere(scope, range),
-      select: {
-        orderCode: true,
-      },
-    });
-    const canonicalRevenue = await this.loadCanonicalRevenueForRows(
-      this.prisma,
-      rows,
-      'completed_revenue',
-    );
-    return rows.reduce(
-      (sum, row) =>
-        sum + canonicalRevenueForOrder(canonicalRevenue, row.orderCode),
-      0,
-    );
+  private percentOf(count: number, total: number) {
+    return total ? Number(((count / total) * 100).toFixed(2)) : 0;
   }
 
-  private async totalCacheRevenue(
-    scope: SalesReportSummaryScopeDescriptor,
-    range: DateRange,
-  ) {
-    const rows = await this.prisma.salesReportErpOrderCache.findMany({
-      where: this.orderCacheRevenueWhere(scope, range),
-      select: {
-        grandTotal: true,
-        paymentStatus: true,
-        lifecycleStatus: true,
-        hasReturnedFullItems: true,
-      },
-    });
-    let skippedPendingPayment = 0;
-    let invalidCanonicalTotal = 0;
-    const revenue = rows.reduce((sum, row) => {
-      if (isSalesReportErpPendingPaymentStatus(row.paymentStatus)) {
-        skippedPendingPayment += 1;
-        return sum;
-      }
-      if (canonicalVatIncludedRevenue(row.grandTotal) === null) {
-        invalidCanonicalTotal += 1;
-      }
-      return sum + this.netCacheRevenue(row);
-    }, 0);
-    this.logger.log(
-      `Home summary cache revenue calculated: source=cache scope=${scope.scope} rows=${rows.length} skippedPendingPayment=${skippedPendingPayment} invalidCanonicalTotals=${invalidCanonicalTotal} revenue=${revenue}`,
-    );
-    return revenue;
-  }
-
+  /** Compatibility view for projection aggregation and characterization tests. */
   private netCacheRevenue(row: {
     grandTotal: number | null;
     paymentStatus?: string | null;
     lifecycleStatus: string;
     hasReturnedFullItems: boolean;
   }) {
-    if (isSalesReportErpPendingPaymentStatus(row.paymentStatus)) return 0;
-    const status = String(row.lifecycleStatus || '')
-      .trim()
-      .toUpperCase();
-    if (
-      status === 'CANCELLED' ||
-      status === 'RETURNED_FULL' ||
-      row.hasReturnedFullItems === true
-    ) {
-      return 0;
-    }
-    return canonicalVatIncludedRevenue(row.grandTotal) ?? 0;
-  }
-
-  private async countBehaviorYesReports(
-    scope: SalesReportSummaryScopeDescriptor,
-    range: DateRange,
-  ): Promise<SalesBehaviorYesCounts> {
-    const where = this.salesReportBehaviorWhere(scope, range);
-    const [consultedSolution, experienced, zalo, appDownload] =
-      await this.prisma.$transaction([
-        this.prisma.salesReport.count({
-          where: { ...where, consultedSolutionAnswer: 'YES' },
-        }),
-        this.prisma.salesReport.count({
-          where: { ...where, experiencedAnswer: 'YES' },
-        }),
-        this.prisma.salesReport.count({
-          where: { ...where, zaloAnswer: 'YES' },
-        }),
-        this.prisma.salesReport.count({
-          where: { ...where, appDownloadAnswer: 'YES' },
-        }),
-      ]);
-    return { consultedSolution, experienced, zalo, appDownload };
-  }
-
-  private emptyBehaviorYesCounts(): SalesBehaviorYesCounts {
-    return {
-      consultedSolution: 0,
-      experienced: 0,
-      zalo: 0,
-      appDownload: 0,
-    };
-  }
-
-  private percentOf(count: number, total: number) {
-    return total ? Number(((count / total) * 100).toFixed(2)) : 0;
+    return this.legacySalesMetricsRuntime.netCacheRevenue(row);
   }
 
   private async resolveSelectedSalesMetricsScope(
