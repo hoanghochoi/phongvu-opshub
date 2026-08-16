@@ -4,9 +4,15 @@ Date: 2026-08-13
 
 ## Status
 
-Active — the current workflow checkpoint is OPS-158 legacy organization-catalog
-compatibility extraction, created from exact live
-`origin/staging@98d48f5e4bdb81aac9211f8627bded222ad599c7` after OPS-157.
+Active — the current workflow checkpoint is OPS-159 master-plan
+reconciliation, created from exact live
+`origin/staging@302599dec6e98c57bb718e3e6e25ba94f9ee5d52` after OPS-158.
+OPS-158 legacy organization-catalog compatibility extraction is squash-merged
+through PR #282 at `302599dec6e98c57bb718e3e6e25ba94f9ee5d52`,
+staging-deployed by `31964703711`, and tracked `Ready for QA` after proof and
+guarded lifecycle cleanup. Its Flutter/Go affected-consumer proof remains an
+explicit environment residual under the approved dependency deferral; no
+profile was suppressed and no product failure was retried to green.
 OPS-157 master-plan reconciliation is squash-merged through PR #281 at
 `98d48f5e4bdb81aac9211f8627bded222ad599c7`, staging-deployed by
 `31962662658`, and tracked `Ready for QA` after proof and guarded lifecycle
@@ -2276,10 +2282,10 @@ by PR #276 at `d4a055ea` and staging-deployed by `31944016299`; it is tracked
 `Ready for QA` after proof and guarded cleanup. OPS-153 is a historical
 reconciliation slice; OPS-154, OPS-155 and OPS-156 are the latest merged runtime
 checkpoints, with OPS-156 merged/deployed at `6849ddb0` and tracked `Ready for
-QA`. OPS-157 is the current docs-only reconciliation slice. OPS-138 is
-merged/deployed and tracked as `Ready for QA`;
-OPS-158 is now the current legacy organization-catalog compatibility runtime
-slice; OPS-157 remains the latest completed docs reconciliation checkpoint.
+QA`. OPS-158 is merged/deployed and tracked `Ready for QA`; OPS-159 is the
+current docs-only reconciliation slice. OPS-138 is merged/deployed and
+tracked as `Ready for QA`; OPS-157 remains the preceding completed docs
+reconciliation checkpoint.
 OPS-70 and OPS-71 are merged/deployed and tracked `Ready for Release`. OPS-113
 is also staged and tracked as `Ready for
 QA` after exact deploy `31862881662` and guarded cleanup. OPS-122 and OPS-123's
@@ -2732,11 +2738,13 @@ the current checkpoint above is the sole active execution authority.
   dry-run and execute passed; only the Nest profile was prepared because no
   dependency-owning runtime command is in scope and the approved Flutter
   dependency residual remains deferred.
-- It updates the master-plan front status, historical/current checkpoint
-  wording and active-plan README so OPS-156 is the latest merged runtime
-  checkpoint and OPS-157 is the current docs authority. It records the exact
-  OPS-156 merge/deploy/lifecycle evidence and points the next bounded runtime
-  boundary at the legacy organization-catalog compatibility bridge. No runtime,
+- It updated the master-plan front status, historical/current checkpoint
+  wording and active-plan README so OPS-156 was the latest merged runtime
+  checkpoint and OPS-157 became the docs authority for that checkpoint. It
+  recorded the exact OPS-156 merge/deploy/lifecycle evidence and pointed the
+  next bounded runtime boundary at the legacy organization-catalog
+  compatibility bridge; OPS-158 and OPS-159 supersede that front-facing
+  authority. No runtime,
   dependency, archive, Harness DB or Linear product behavior is changed.
 - Required proof before publication: plan-disposition verifier, stale-reference
   scan, docs-profile exact `verify-task --base origin/staging`, `git diff --check`
@@ -2765,3 +2773,28 @@ the current checkpoint above is the sole active execution authority.
   CRUD, policy redesign, startup seeding, public API/DTO/DI contracts,
   dependencies, archive and Harness DB paths remain out of scope. Rollback is
   one OPS-158 squash revert.
+
+- PR #282 squash-merged at `302599dec6e98c57bb718e3e6e25ba94f9ee5d52` and exact
+  staging deploy `31964703711` passed Windows, Android, web, backend,
+  direct-origin routes and public health/version checks. Guarded lifecycle
+  finish removed the task worktree/local branch; OPS-158 has an implementation
+  and proof comment read back in Linear and is `Ready for QA`. The remote task
+  branch remains separate cleanup because lifecycle never deletes remote
+  branches.
+
+## Workflow checkpoint (OPS-159; post-OPS-158 master-plan reconciliation)
+
+- This docs-only slice uses branch/worktree
+  `codex/ops-159-plan-reconcile-after-ops-158` /
+  `../opshub-ops-159-plan-reconcile`, created from exact live
+  `origin/staging@302599dec6e98c57bb718e3e6e25ba94f9ee5d52`. The guarded start
+  dry-run and execute passed with only the Nest profile prepared; Flutter
+  hydration remains intentionally deferred and no dependency-owning runtime
+  command is in scope.
+- It reconciles the master-plan front status, active-plan README and OPS-71
+  ledger with OPS-158's merge/deploy/lifecycle evidence, preserves the
+  dependency residual as fail-closed/unverified, and records the next bounded
+  Phase 9F boundary as characterization-first coverage for the existing admin
+  mutation/import contract before further extraction. No runtime, dependency,
+  archive, Harness DB or product behavior changes are in scope. Rollback is
+  one OPS-159 squash revert.
