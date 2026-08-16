@@ -258,13 +258,14 @@ gated Flutter command; the lock and the writer therefore always target the
 same cache. Doctor/toolchain JSON exposes only a sanitized cache identity and
 lock name, never the local absolute path.
 
-The same preflight checks the narrow generated-write roots before accepting or
-reusing a readiness receipt. On Windows it removes only the directory-level
-`ReadOnly` attribute from repository-owned generated roots (`lib/l10n`,
-platform generated folders and the Nest worktree parent) when that attribute is
-the blocker; it never changes arbitrary source paths, follows a symlink, or
-broadens ACLs. A real write probe then confirms the directory can be used. ACL
-failures, non-physical directories and incomplete repair fail closed before
+The same preflight checks the narrow generated/dependency write roots before
+accepting or reusing a readiness receipt. On Windows it removes only the
+directory-level `ReadOnly` attribute from repository-owned roots (`.dart_tool`,
+`lib/l10n`, platform generated folders, `backend-nest` and
+`backend-nest/node_modules`) when that attribute is the blocker; it never
+changes arbitrary source paths, follows a symlink, or broadens ACLs. A real
+write probe then confirms the directory can be used. ACL failures,
+non-physical directories and incomplete repair fail closed before
 `flutter pub get`/`npm ci`, with relative sanitized paths in the result.
 `--dry-run` reports the blocker without changing attributes. Writable-root state
 is included in readiness/fingerprint, so a receipt created before a later

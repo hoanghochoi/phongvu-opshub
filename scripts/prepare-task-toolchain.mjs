@@ -83,14 +83,19 @@ const FLUTTER_GENERATED_TRACKED_PATHS = Object.freeze([
 ]);
 
 // These directories are touched by dependency hydration or by the generated
-// outputs that immediately follow it.  They are intentionally narrow: the
+// outputs that immediately follow it. They are intentionally narrow: the
 // preflight may repair a Windows ReadOnly directory attribute only here, never
-// across the whole checkout or arbitrary user-owned paths.
+// across the whole checkout or arbitrary user-owned paths. The ignored
+// dependency roots are included explicitly because a stale ReadOnly attribute
+// there can make a complete package graph fail on the first command while a
+// cached readiness receipt still appears healthy.
 const GENERATED_WRITE_PATHS = Object.freeze({
   [PROFILE_ID]: Object.freeze([
     'backend-nest',
+    'backend-nest/node_modules',
   ]),
   [FLUTTER_PROFILE_ID]: Object.freeze([
+    '.dart_tool',
     'lib/l10n',
     'ios/Runner',
     'linux/flutter',

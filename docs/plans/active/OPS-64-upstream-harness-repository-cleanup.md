@@ -4,13 +4,17 @@ Date: 2026-08-13
 
 ## Status
 
-Active — the current workflow checkpoint is OPS-139 Phase 8 retained-owner
-evidence normalization, created from
-`origin/staging@c16638a9082be5519fa82bb58c25077d9e8b7d90` after OPS-137.
-OPS-134 is squash-merged at `46c8aa90d932f8cfadb25eddae80305180ca9d95`,
+Active — the current workflow checkpoint is OPS-141 dependency-root readiness
+hardening, created from exact live
+`origin/staging@ca856d83d245e50e45418c28892326e892f195c7` after OPS-140.
+OPS-140 is squash-merged through PRs #256–#259, with the final merge at
+`ca856d83d245e50e45418c28892326e892f195c7`, staging-deployed by
+`31915139037`, and tracked `Ready for QA` after Linear proof. OPS-134 is
+squash-merged at `46c8aa90d932f8cfadb25eddae80305180ca9d95`,
 staging-deployed by `31901021962`, and tracked `Ready for QA`. OPS-135 is
-squash-merged at the current checkpoint, staging-deployed by
-`31903246094`, and tracked `Ready for QA` after guarded lifecycle cleanup.
+squash-merged at `98d7316648a60e415e154b114c6bb5ec87f52286`,
+staging-deployed by `31903246094`, and tracked `Ready for QA` after guarded
+lifecycle cleanup.
 OPS-72's five-observation gate is still open and its affected matrix remains
 observational. OPS-134 was opened after a real Windows preflight reproduced a
 Flutter hydration failure in a ReadOnly `lib/l10n` directory despite a complete
@@ -2204,7 +2208,8 @@ QA` after exact deploy `31894609071` and guarded cleanup. OPS-73's retained-owne
 review is merged/deployed at `dd7d2ffb` and tracked as `Ready for QA` after
 exact deploy `31896414830` and guarded cleanup. OPS-73's prior dependency
 batches remain `Ready for QA`; OPS-137 is the last merged checkpoint at
-`c16638a9`, and OPS-139 is the current Phase 8 retained-owner evidence slice.
+`c16638a9`, OPS-139 is the retained-owner evidence normalization slice, and
+OPS-141 is the current dependency-root readiness slice.
 OPS-138 is paused before source mutation until this authority repair passes. OPS-113
 is also staged and tracked as `Ready for
 QA` after exact deploy `31862881662` and guarded cleanup. OPS-122 and OPS-123's
@@ -2229,3 +2234,30 @@ consolidation summary; neither Linear issue was closed by this cleanup.
 The master plan must be moved to `docs/plans/completed/` only after all runtime,
 toolchain, docs and production-release gates in the initiative pass. Until then
 the current checkpoint above is the sole active execution authority.
+
+## Workflow checkpoint (OPS-141; dependency-root readiness hardening)
+
+- This bounded tooling slice is branch/worktree
+  `codex/ops-141-harden-dependency-root-readiness` /
+  `../opshub-ops-141-root-readiness`, created by the guarded lifecycle start
+  gate from exact live
+  `origin/staging@ca856d83d245e50e45418c28892326e892f195c7`. Canonical staging
+  was clean and unchanged; the fresh task worktree hydrated NestJS/Prisma and
+  Flutter independently before mutation.
+- The observed gap is readiness under-reporting: the canonical worktree had
+  complete Nest/Flutter graphs, but `.dart_tool`, `backend-nest/node_modules`
+  and several generated roots carried Windows `ReadOnly` attributes. The
+  existing contract checked the graph and generated peers but not both ignored
+  dependency roots directly, so a cached receipt could still precede a first
+  build failure.
+- The slice adds those two ignored dependency roots to the same narrow
+  writeability/repair allowlist and fingerprint used by preflight. It keeps
+  dry-run read-only, fails closed for ACL/symlink/non-physical paths, and adds
+  regression coverage for ReadOnly normalization, cold missing roots and
+  dry-run safety. No lockfile, dependency version, runtime/API/UI behavior or
+  Docker boundary changes are in scope.
+- Current proof: focused writeability suite passes `6/6`; a fresh task
+  worktree `toolchain-doctor --profile all --check` passes with both dependency
+  roots explicitly reported ready. Full toolchain, cold canary, exact affected
+  verification, PR checks, staging deployment and guarded finish remain open
+  gates. Rollback is one OPS-141 squash revert.
