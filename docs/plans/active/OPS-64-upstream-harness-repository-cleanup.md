@@ -2631,3 +2631,26 @@ the current checkpoint above is the sole active execution authority.
   --check` and stale-reference scan. No runtime, dependency, archive, Harness
   DB or production lifecycle behavior changes are in scope. Rollback is one
   OPS-153 squash revert.
+
+## Workflow checkpoint (OPS-154; Home Summary behavior details V2 runtime)
+
+- This Phase 9C Nest-only slice uses branch/worktree
+  `codex/ops-154-home-summary-behavior-details-v2` /
+  `../opshub-ops-154-home-summary-details-v2`, created from exact live
+  `origin/staging@f0f6c7629dafa8c1ba819df688cd5c4b835d5110`. The task worktree
+  started clean; only the Nest/Prisma profile is prepared under the approved
+  temporary dependency deferral. Flutter affected proof remains fail-closed
+  and explicitly unverified while its dependency root is unavailable; no
+  profile is suppressed and no product failure is retried to green.
+- The slice extracts the three behavior-details V2 query branches
+  (`NOT_PURCHASED`, `UNREPORTED_ORDER`, `INSTALLMENT_NEED`), cursor
+  encode/decode, pagination response shaping and branch logging into
+  `HomeSummaryBehaviorDetailsV2Runtime`. `HomeSummaryService` remains the
+  stable facade and owns the existing collaborators, query/scope builders,
+  mappers and public API/DTO/DI/permission/copy contracts. No API, data,
+  permission or Vietnamese-copy behavior is intentionally changed.
+- Focused characterization proof passes `3 suites / 67 tests`; the full Nest
+  proof passes `116 suites / 1258 tests / 6 skipped` and Nest build passes.
+  Final publication still requires Prettier check, `git diff --check`, exact
+  `verify-task --base origin/staging` with `stale=false`, PR/staging deploy and
+  guarded lifecycle cleanup. Rollback is one OPS-154 squash revert.

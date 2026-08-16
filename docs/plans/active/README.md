@@ -18,10 +18,11 @@ Current active/release-pending authority:
 - [`OPS-53-redesign-chrome-audit-consolidation.md`](OPS-53-redesign-chrome-audit-consolidation.md)
   is the only current OPS-53 execution summary. Its nine fragments are history.
 - [`OPS-64-upstream-harness-repository-cleanup.md`](OPS-64-upstream-harness-repository-cleanup.md)
-  remains the initiative master plan; OPS-153 is the current post-OPS-152
-  reconciliation after the Phase 9C Home Summary finance-metrics extraction
-  merged, staging-deployed and passed guarded lifecycle cleanup. OPS-152 is the
-  latest runtime checkpoint; OPS-151 is the preceding legacy sales-metrics
+  remains the initiative master plan; OPS-154 is the current Phase 9C Home
+  Summary details-v2 runtime slice from the post-OPS-153 staging checkpoint.
+  OPS-153 reconciled the plan after the finance-metrics extraction merged,
+  staging-deployed and passed guarded lifecycle cleanup. OPS-152 is the latest
+  completed runtime checkpoint; OPS-151 is the preceding legacy sales-metrics
   checkpoint, OPS-150 the main-KPI checkpoint, OPS-149 the sales-progress
   checkpoint and OPS-148 the comparison checkpoint;
   Phase 8 has an evidence-backed no-deletion disposition; Phase 9/10 and
