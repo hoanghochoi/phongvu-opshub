@@ -30,10 +30,8 @@ import {
 } from '../common/organization-store-scope';
 import { AdminUserImportParseResult } from './user-import-parser.service';
 import { UserProfileService } from './user-profile.service';
-import {
-  PreparedAdminUserMutation,
-  UserAdminMutationService,
-} from './user-admin-mutation.service';
+import { UserAdminMutationService } from './user-admin-mutation.service';
+import { UserAdminMutationPreparationService } from './user-admin-mutation-preparation.service';
 import {
   UserImportService,
   UserWelcomeEmailService,
@@ -354,6 +352,7 @@ export class UserService implements OnModuleInit {
   private storeOrganizationSyncInFlight: Promise<void> | null = null;
   private readonly profileService: UserProfileService;
   private readonly adminMutationService: UserAdminMutationService;
+  private readonly adminMutationPreparationService: UserAdminMutationPreparationService;
   private readonly welcomeEmailService: UserWelcomeEmailService;
   private readonly importService: UserImportService;
   private readonly organizationAssignmentService: UserOrganizationAssignmentService;
@@ -419,6 +418,28 @@ export class UserService implements OnModuleInit {
       userLogId: (user) => this.userLogId(user),
       logger: this.logger,
     });
+    this.adminMutationPreparationService =
+      new UserAdminMutationPreparationService({
+        normalizeAccountEmail: (value) => this.normalizeAccountEmail(value),
+        normalizeRoleCode: (role, preserve) =>
+          this.normalizeRoleCode(role, preserve),
+        assertEmailCreatableByAdmin: (admin, email) =>
+          this.assertEmailCreatableByAdmin(admin, email),
+        resolveAssignableRole: (roleInput) =>
+          this.resolveAssignableRole(roleInput),
+        assertRoleEditable: (admin, role, currentRole) =>
+          this.assertRoleEditable(admin, role, currentRole),
+        resolveUserOrganizationAssignmentNodeIds: (admin, body, current) =>
+          this.resolveUserOrganizationAssignmentNodeIds(admin, body, current),
+        resolveWorkScopeTypeForAssignment: (body, current, role) =>
+          this.resolveWorkScopeTypeForAssignment(body, current, role),
+        resolveUserAssignmentStoreUuid: (admin, body, options) =>
+          this.resolveUserAssignmentStoreUuid(admin, body, options),
+        resolvePersonnelAssignment: (admin, body, options) =>
+          this.resolvePersonnelAssignment(admin, body, options),
+        userRelationMutationData: (input, options) =>
+          this.userRelationMutationData(input, options),
+      });
     this.organizationAssignmentService = new UserOrganizationAssignmentService(
       this.prisma,
       {
@@ -475,7 +496,11 @@ export class UserService implements OnModuleInit {
         syncStoreOrganizationNodes: (source) =>
           this.syncStoreOrganizationNodes(source),
         prepareAdminUserMutation: (admin, body, current) =>
-          this.prepareAdminUserMutation(admin, body, current),
+          this.adminMutationPreparationService.prepareAdminUserMutation(
+            admin,
+            body,
+            current,
+          ),
         assertAccountEmailAllowed: (email) =>
           this.assertAccountEmailAllowed(email),
         assertAdminCanUpdateUser: (admin, userId, current) =>
@@ -508,7 +533,11 @@ export class UserService implements OnModuleInit {
         assertAdminCanUpdateUser: (admin, userId, current) =>
           this.assertAdminCanUpdateUser(admin, userId, current),
         prepareAdminUserMutation: (admin, body, current) =>
-          this.prepareAdminUserMutation(admin, body, current),
+          this.adminMutationPreparationService.prepareAdminUserMutation(
+            admin,
+            body,
+            current,
+          ),
         syncUserOrganizationAssignments: (userId, organizationNodeIds, admin) =>
           this.syncUserOrganizationAssignments(
             userId,
@@ -872,111 +901,6 @@ export class UserService implements OnModuleInit {
 
   async adminImportUsers(admin: any, parsed: AdminUserImportParseResult) {
     return this.importService.adminImportUsers(admin, parsed);
-  }
-
-  private async prepareAdminUserMutation(
-    admin: any,
-    body: any,
-    current: any | null,
-  ): Promise<PreparedAdminUserMutation> {
-    const email = current
-      ? String(current.email || '')
-          .trim()
-          .toLowerCase()
-      : this.normalizeAccountEmail(body.email);
-    if (!email) throw new BadRequestException('Email không được để trống');
-    if (!current) await this.assertEmailCreatableByAdmin(admin, email);
-
-    const role = body.role
-      ? await this.resolveAssignableRole(body.role)
-      : current
-        ? this.normalizeRoleCode(current.role, true)
-        : await this.resolveAssignableRole(USER_ROLE);
-    await this.assertRoleEditable(admin, role, current?.role);
-    const organizationNodeIds =
-      await this.resolveUserOrganizationAssignmentNodeIds(admin, body, current);
-    const primaryOrganizationNodeId = organizationNodeIds[0] ?? null;
-    const assignmentBody =
-      body.organizationNodeIds !== undefined
-        ? { ...body, organizationNodeId: primaryOrganizationNodeId ?? '' }
-        : body;
-    const workScopeType = await this.resolveWorkScopeTypeForAssignment(
-      assignmentBody,
-      current,
-      role,
-    );
-    const storeUuid = await this.resolveUserAssignmentStoreUuid(
-      admin,
-      assignmentBody,
-      {
-        current,
-        workScopeType,
-      },
-    );
-    const personnel = await this.resolvePersonnelAssignment(
-      admin,
-      assignmentBody,
-      {
-        current,
-        role,
-        storeUuid,
-        workScopeType,
-      },
-    );
-    const relationInput = {
-      storeUuid,
-      departmentCode: personnel.departmentCode,
-      jobRoleCode: personnel.jobRoleCode,
-      regionCode: personnel.regionCode,
-      areaCode: personnel.areaCode,
-      organizationNodeId: personnel.organizationNodeId,
-    };
-    const createData = {
-      email,
-      password: '',
-      firstName: String(body.firstName || email.split('@')[0]).trim(),
-      lastName: String(body.lastName || '').trim() || null,
-      role,
-      status:
-        String(body.status || 'yes').toLowerCase() === 'no' ? 'no' : 'yes',
-      workScopeType: personnel.workScopeType,
-      ...this.userRelationMutationData(relationInput),
-      branchLockedAt: storeUuid ? new Date() : null,
-      profileCompletedAt: storeUuid ? new Date() : null,
-    };
-    const updateData = {
-      firstName: body.firstName?.trim() || current?.firstName,
-      lastName:
-        body.lastName === undefined
-          ? current?.lastName
-          : String(body.lastName || '').trim() || null,
-      role,
-      status:
-        body.status === undefined
-          ? current?.status
-          : String(body.status).toLowerCase() === 'no'
-            ? 'no'
-            : 'yes',
-      workScopeType: personnel.workScopeType,
-      ...this.userRelationMutationData(relationInput, {
-        disconnectNulls: true,
-      }),
-      branchLockedAt: storeUuid
-        ? (current?.branchLockedAt ?? new Date())
-        : null,
-      profileCompletedAt: storeUuid
-        ? (current?.profileCompletedAt ?? new Date())
-        : current?.profileCompletedAt,
-    };
-    return {
-      email,
-      role,
-      workScopeType: personnel.workScopeType,
-      personnel,
-      organizationNodeIds,
-      createData,
-      updateData,
-    };
   }
 
   private userAccessFingerprint(user: any) {
