@@ -39,6 +39,7 @@ import {
   UserWelcomeEmailService,
 } from './user-import.service';
 import { UserOrganizationAssignmentService } from './user-organization-assignment.service';
+import { UserCredentialAdminService } from './user-credential-admin.service';
 import { logFingerprint, safeLogError } from '../common/log-sanitizer';
 import { AccessChangeService } from '../auth/access-change.service';
 
@@ -354,6 +355,7 @@ export class UserService implements OnModuleInit {
   private readonly welcomeEmailService: UserWelcomeEmailService;
   private readonly importService: UserImportService;
   private readonly organizationAssignmentService: UserOrganizationAssignmentService;
+  private readonly credentialAdminService: UserCredentialAdminService;
 
   constructor(
     private prisma: PrismaService,
@@ -478,6 +480,20 @@ export class UserService implements OnModuleInit {
         normalizeRoleCode: (role, preserve) =>
           this.normalizeRoleCode(role, preserve),
         emailHash: (email) => logFingerprint(email),
+        logger: this.logger,
+      },
+    );
+    this.credentialAdminService = new UserCredentialAdminService(
+      this.prisma,
+      this.passwordResetService,
+      {
+        assertAdmin: (admin) => this.assertAdmin(admin),
+        userDtoInclude: () => this.userDtoInclude(),
+        normalizeRoleCode: (role) => this.normalizeRoleCode(role),
+        isDomainAdmin: (admin) => this.isDomainAdmin(admin),
+        userWithinAdminScope: (admin, user) =>
+          this.userWithinAdminScope(admin, user),
+        userLogId: (user) => this.userLogId(user),
         logger: this.logger,
       },
     );
@@ -1110,58 +1126,11 @@ export class UserService implements OnModuleInit {
   }
 
   async adminSetUserPassword(admin: any, userId: string, newPassword: string) {
-    await this.assertAdmin(admin);
-    const target = await this.prisma.user.findUnique({
-      where: { id: userId },
-      include: this.userDtoInclude(),
-    });
-    if (!target) throw new NotFoundException('Không tìm thấy người dùng');
-
-    if (
-      this.normalizeRoleCode(target.role) === SUPER_ADMIN_ROLE &&
-      this.normalizeRoleCode(admin.role) !== SUPER_ADMIN_ROLE
-    ) {
-      throw new ForbiddenException(
-        'Bạn không có quyền reset mật khẩu tài khoản quản trị toàn hệ thống',
-      );
-    }
-    if (this.normalizeRoleCode(admin.role) !== SUPER_ADMIN_ROLE) {
-      if (!this.isDomainAdmin(admin)) {
-        throw new ForbiddenException(
-          'Bạn không có quyền reset mật khẩu người dùng',
-        );
-      }
-      if (!(await this.userWithinAdminScope(admin, target))) {
-        throw new ForbiddenException(
-          'Bạn không có quyền reset mật khẩu người dùng ngoài phạm vi quản lý',
-        );
-      }
-    }
-
-    this.logger.log(
-      'Admin password reset started: admin=' +
-        this.userLogId(admin) +
-        ' role=' +
-        admin.role +
-        ' targetUserId=' +
-        userId +
-        ' targetRole=' +
-        target.role,
-    );
-    const result = await this.passwordResetService.setPasswordForUserId(
+    return this.credentialAdminService.adminSetUserPassword(
+      admin,
       userId,
       newPassword,
-      { id: admin.id, email: admin.email },
     );
-    this.logger.log(
-      'Admin password reset completed: admin=' +
-        this.userLogId(admin) +
-        ' role=' +
-        admin.role +
-        ' targetUserId=' +
-        userId,
-    );
-    return result;
   }
 
   async adminListOrganizationTree(admin: any) {
