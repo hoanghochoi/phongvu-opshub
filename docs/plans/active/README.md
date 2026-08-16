@@ -18,11 +18,11 @@ Current active/release-pending authority:
 - [`OPS-53-redesign-chrome-audit-consolidation.md`](OPS-53-redesign-chrome-audit-consolidation.md)
   is the only current OPS-53 execution summary. Its nine fragments are history.
 - [`OPS-64-upstream-harness-repository-cleanup.md`](OPS-64-upstream-harness-repository-cleanup.md)
-  remains the initiative master plan; OPS-151 is the current Phase 9C
-  legacy sales-metrics extraction after OPS-150's merge, staging deployment
-  and guarded lifecycle cleanup.
-  OPS-149 is the preceding Home Summary sales-progress checkpoint and OPS-148
-  the comparison checkpoint;
+  remains the initiative master plan; OPS-152 is the current Phase 9C
+  Home Summary finance-metrics extraction after OPS-151's merge, staging
+  deployment and guarded lifecycle cleanup. OPS-151 is the preceding legacy
+  sales-metrics checkpoint, OPS-150 the main-KPI checkpoint, OPS-149 the
+  sales-progress checkpoint and OPS-148 the comparison checkpoint;
   Phase 8 has an evidence-backed no-deletion disposition; Phase 9/10 and
   production-pending work stay active until their release gates pass.
 

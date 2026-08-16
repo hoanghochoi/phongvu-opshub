@@ -4,9 +4,15 @@ Date: 2026-08-13
 
 ## Status
 
-Active — the current workflow checkpoint is OPS-151 Phase 9C legacy
-sales-metrics runtime extraction, created from exact live
-`origin/staging@302541951226ec508e6b67b2aad93377118e4636` after OPS-150.
+Active — the current workflow checkpoint is OPS-152 Phase 9C Home Summary
+finance-metrics runtime extraction, created from exact live
+`origin/staging@65c6cb58e8b71f6143822fd0e1cfa1489ee8a137` after OPS-151.
+OPS-151 Home Summary legacy sales-metrics runtime extraction is squash-merged
+through PR #275 at `65c6cb58e8b71f6143822fd0e1cfa1489ee8a137`, staging-deployed
+by `31942216545`, and tracked `Ready for QA` after proof. Its local Flutter
+affected-consumer proof remains an explicit environment residual because the
+dependency root is unavailable; no profile was suppressed and no product
+failure was retried to green.
 OPS-150 Home Summary main-KPI runtime extraction is squash-merged through PR
 #274 at `302541951226ec508e6b67b2aad93377118e4636`, staging-deployed by
 `31940281772`, and tracked `Ready for QA` after proof. Its local Flutter
@@ -2566,3 +2572,29 @@ the current checkpoint above is the sole active execution authority.
   deferred/unverified; no profile was suppressed. Publication gate remains PR,
   staging deploy and guarded lifecycle cleanup; rollback is one OPS-151 squash
   revert.
+
+## Workflow checkpoint (OPS-152; Home Summary finance metrics runtime)
+
+- This Phase 9C Nest-only slice uses branch/worktree
+  `codex/ops-152-home-summary-finance-metrics` /
+  `../opshub-ops-152`, created from exact live
+  `origin/staging@65c6cb58e8b71f6143822fd0e1cfa1489ee8a137`. The task start gate
+  prepared only the Nest/Prisma profile under the approved temporary dependency
+  deferral; Flutter affected proof remains fail-closed and explicitly
+  unverified, and its profile is not suppressed.
+- The slice extracts the legacy finance branch from `HomeSummaryService` into
+  `HomeSummaryFinanceMetricsRuntime`: personal order-code loading, finance
+  scope composition, statement counts, following/unfollowed counts, aggregate
+  amount and with/without-order metrics. The stable facade retains projection
+  handling, public API/DTO/DI, permission, logging, Vietnamese copy and response
+  semantics; `financeScopeWhere` and order-scope builders remain facade-owned.
+- Final focused characterization proof passes `2 suites / 64 tests`; the full
+  Nest proof before final formatting passed `115 suites / 1254 tests / 6 skipped`;
+  the final focused proof, Nest build, Prettier check and `git diff --check` pass.
+  Exact `verify-task --base origin/staging` selects `harness,docs,nestjs` over 5
+  changed paths with `stale=false`. Publication is pending PR/staging deploy
+  and guarded lifecycle cleanup; rollback is one OPS-152 squash revert.
+- Dependency decision: continue Harness/cleanup slices that are independent of
+  Flutter hydration, but retain the Flutter dependency gap as an environment
+  blocker. No affected profile is suppressed, no product failure is retried to
+  green, and no dependency/version or lockfile change is included here.
