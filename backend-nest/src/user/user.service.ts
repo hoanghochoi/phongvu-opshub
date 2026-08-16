@@ -40,6 +40,7 @@ import {
 } from './user-import.service';
 import { UserOrganizationAssignmentService } from './user-organization-assignment.service';
 import { UserCredentialAdminService } from './user-credential-admin.service';
+import { UserAccessScopeService } from './user-access-scope.service';
 import { logFingerprint, safeLogError } from '../common/log-sanitizer';
 import { AccessChangeService } from '../auth/access-change.service';
 
@@ -356,6 +357,7 @@ export class UserService implements OnModuleInit {
   private readonly importService: UserImportService;
   private readonly organizationAssignmentService: UserOrganizationAssignmentService;
   private readonly credentialAdminService: UserCredentialAdminService;
+  private readonly accessScopeService: UserAccessScopeService;
 
   constructor(
     private prisma: PrismaService,
@@ -366,6 +368,24 @@ export class UserService implements OnModuleInit {
     @Optional()
     mailService?: OpshubMailService,
   ) {
+    this.accessScopeService = new UserAccessScopeService(this.prisma, {
+      isScopedAdmin: (admin) => this.isScopedAdmin(admin),
+      effectiveWorkScope: (admin) => this.effectiveWorkScope(admin),
+      adminDomainScope: (admin) => this.adminDomainScope(admin),
+      adminManagementScopeRootId: (admin) =>
+        this.adminManagementScopeRootId(admin),
+      userOrganizationNodeWhere: (organizationNodeId) =>
+        this.userOrganizationNodeWhere(organizationNodeId),
+      combineUserScope: (domainScope, locationScope) =>
+        this.combineUserScope(domainScope, locationScope),
+      adminOrgRootId: (admin) => this.adminOrgRootId(admin),
+      adminStoreOrganizationScope: (admin) =>
+        this.adminStoreOrganizationScope(admin),
+      organizationDescendantIds: (rootId) =>
+        this.organizationDescendantIds(rootId),
+      combineStoreScope: (organizationScope, locationScope) =>
+        this.combineStoreScope(organizationScope, locationScope),
+    });
     this.profileService = new UserProfileService(
       this.prisma,
       this.uploadService,
@@ -384,7 +404,7 @@ export class UserService implements OnModuleInit {
       {
         isScopedAdmin: (admin) => this.isScopedAdmin(admin),
         storeWithinAdminScope: (admin, store) =>
-          this.storeWithinAdminScope(admin, store),
+          this.accessScopeService.storeWithinAdminScope(admin, store),
         adminOrgRootId: (admin) => this.adminOrgRootId(admin),
         organizationDescendantIds: (rootId) =>
           this.organizationDescendantIds(rootId),
@@ -492,7 +512,7 @@ export class UserService implements OnModuleInit {
         normalizeRoleCode: (role) => this.normalizeRoleCode(role),
         isDomainAdmin: (admin) => this.isDomainAdmin(admin),
         userWithinAdminScope: (admin, user) =>
-          this.userWithinAdminScope(admin, user),
+          this.accessScopeService.userWithinAdminScope(admin, user),
         userLogId: (user) => this.userLogId(user),
         logger: this.logger,
       },
@@ -758,7 +778,7 @@ export class UserService implements OnModuleInit {
     const limit = Number.isInteger(requestedLimit)
       ? Math.min(200, Math.max(1, requestedLimit))
       : 200;
-    const scope = await this.adminScope(admin);
+    const scope = await this.accessScopeService.adminScope(admin);
     const where = await this.adminUserWhere(scope, filters, query);
     this.logger.log(
       'Admin user list started: admin=' +
@@ -1012,7 +1032,7 @@ export class UserService implements OnModuleInit {
 
     if (
       this.isScopedAdmin(admin) &&
-      !(await this.userWithinAdminScope(admin, current))
+      !(await this.accessScopeService.userWithinAdminScope(admin, current))
     ) {
       this.logger.warn(
         'Admin user update blocked by scope: admin=' +
@@ -1159,7 +1179,8 @@ export class UserService implements OnModuleInit {
 
   private async listOrganizationTreeForAdmin(admin: any, source: string) {
     const startedAt = Date.now();
-    const where = await this.adminOrganizationNodeScopeWhere(admin);
+    const where =
+      await this.accessScopeService.adminOrganizationNodeScopeWhere(admin);
     const nodes = await this.prisma.organizationNode.findMany({
       where: {
         AND: [
@@ -2220,7 +2241,7 @@ export class UserService implements OnModuleInit {
   ) {
     const store = Array.isArray(node.stores) ? node.stores[0] : null;
     if (!store) throw new BadRequestException('Showroom chưa được gắn SR');
-    if (!(await this.storeWithinAdminScope(admin, store))) {
+    if (!(await this.accessScopeService.storeWithinAdminScope(admin, store))) {
       throw new ForbiddenException('Không có quyền sửa showroom khác');
     }
     const protectedChanges = this.scopedShowroomProtectedChanges(
@@ -2403,7 +2424,7 @@ export class UserService implements OnModuleInit {
     if (!store) throw new BadRequestException('Chi nhánh không hợp lệ');
     if (
       this.isScopedAdmin(admin) &&
-      !(await this.storeWithinAdminScope(admin, store))
+      !(await this.accessScopeService.storeWithinAdminScope(admin, store))
     ) {
       throw new ForbiddenException(
         'Bạn chỉ được gán người dùng trong phạm vi quản lý',
@@ -2462,50 +2483,6 @@ export class UserService implements OnModuleInit {
       ADMIN_POLICY_CODES.ADMIN_USER_ROLE_EDIT,
       'Bạn không có quyền sửa vai trò',
     );
-  }
-
-  private async adminScope(admin: any) {
-    if (this.isScopedAdmin(admin)) {
-      const scope = this.effectiveWorkScope(admin);
-      const domainScope = await this.adminDomainScope(admin);
-      if (scope === NATIONAL_SCOPE) return domainScope;
-      if (admin.organizationNodeId) {
-        const scopeRootId = await this.adminManagementScopeRootId(admin);
-        const organizationScope = await this.userOrganizationNodeWhere(
-          scopeRootId ?? admin.organizationNodeId,
-        );
-        if (organizationScope) {
-          return this.combineUserScope(domainScope, organizationScope);
-        }
-      }
-      if (scope === REGION_SCOPE) {
-        const locationScope = admin.regionCode
-          ? {
-              OR: [
-                { regionCode: admin.regionCode },
-                { store: { area: { regionCode: admin.regionCode } } },
-              ],
-            }
-          : { id: '__NO_REGION__' };
-        return this.combineUserScope(domainScope, locationScope);
-      }
-      if (scope === AREA_SCOPE) {
-        const locationScope = admin.areaCode
-          ? {
-              OR: [
-                { areaCode: admin.areaCode },
-                { store: { areaCode: admin.areaCode } },
-              ],
-            }
-          : { id: '__NO_AREA__' };
-        return this.combineUserScope(domainScope, locationScope);
-      }
-      const locationScope = admin.storeId
-        ? { storeId: admin.storeId }
-        : { id: '__NO_STORE__' };
-      return this.combineUserScope(domainScope, locationScope);
-    }
-    return {};
   }
 
   private isScopedAdmin(user: any) {
@@ -2620,15 +2597,6 @@ export class UserService implements OnModuleInit {
     return { organizationNodeId: { in: organizationNodeIds } };
   }
 
-  private async adminOrganizationNodeScopeWhere(
-    admin: any,
-  ): Promise<Prisma.OrganizationNodeWhereInput | undefined> {
-    const rootId = this.adminOrgRootId(admin);
-    if (!rootId) return undefined;
-    const organizationNodeIds = await this.organizationDescendantIds(rootId);
-    return { id: { in: organizationNodeIds } };
-  }
-
   private combineStoreScope(
     organizationScope: Prisma.StoreWhereInput | undefined,
     locationScope: Prisma.StoreWhereInput | undefined,
@@ -2637,48 +2605,6 @@ export class UserService implements OnModuleInit {
       return { AND: [organizationScope, locationScope] };
     }
     return organizationScope || locationScope;
-  }
-
-  private async storeWithinAdminScope(admin: any, store: any) {
-    const organizationScope = await this.adminStoreOrganizationScope(admin);
-    if (organizationScope) {
-      const organizationNodeIds = (organizationScope.organizationNodeId as any)
-        ?.in as string[] | undefined;
-      if (
-        !store?.organizationNodeId ||
-        !organizationNodeIds?.includes(store.organizationNodeId)
-      ) {
-        return false;
-      }
-    }
-
-    const scope = this.effectiveWorkScope(admin);
-    if (scope === NATIONAL_SCOPE) return true;
-    if (admin.organizationNodeId && store?.organizationNodeId) {
-      const scopeRootId = await this.adminManagementScopeRootId(admin);
-      const organizationNodeIds = await this.organizationDescendantIds(
-        scopeRootId ?? admin.organizationNodeId,
-      );
-      return organizationNodeIds.includes(store.organizationNodeId);
-    }
-    if (scope === REGION_SCOPE) {
-      return Boolean(
-        admin.regionCode && store.area?.regionCode === admin.regionCode,
-      );
-    }
-    if (scope === AREA_SCOPE) {
-      return Boolean(admin.areaCode && store.areaCode === admin.areaCode);
-    }
-    return Boolean(admin.storeId && admin.storeId === store.id);
-  }
-
-  private async userWithinAdminScope(admin: any, user: any) {
-    const scope = await this.adminScope(admin);
-    if (Object.keys(scope).length === 0) return true;
-    const count = await this.prisma.user.count({
-      where: { AND: [{ id: user.id }, scope] },
-    });
-    return count > 0;
   }
 
   private userDtoInclude() {
@@ -3412,7 +3338,8 @@ export class UserService implements OnModuleInit {
       'Deprecated admin regions route used: deprecatedRoute=true admin=' +
         this.userLogId(admin),
     );
-    const scopeWhere = await this.adminOrganizationNodeScopeWhere(admin);
+    const scopeWhere =
+      await this.accessScopeService.adminOrganizationNodeScopeWhere(admin);
     const nodes = await this.prisma.organizationNode.findMany({
       where: { AND: [{ type: 'REGION' }, ...(scopeWhere ? [scopeWhere] : [])] },
       orderBy: [{ isSystem: 'desc' }, { businessCode: 'asc' }],
@@ -3433,7 +3360,8 @@ export class UserService implements OnModuleInit {
     const regionCode = regionCodeInput
       ? this.normalizePersonnelCode(regionCodeInput, 'Mã Miền không hợp lệ')
       : null;
-    const scopeWhere = await this.adminOrganizationNodeScopeWhere(admin);
+    const scopeWhere =
+      await this.accessScopeService.adminOrganizationNodeScopeWhere(admin);
     const regionNode = regionCode
       ? await this.prisma.organizationNode.findFirst({
           where: {
@@ -4082,7 +4010,7 @@ export class UserService implements OnModuleInit {
     );
     const query = q?.trim();
     const stores = await this.prisma.store.findMany({
-      where: await this.adminStoreScope(admin, query),
+      where: await this.accessScopeService.adminStoreScope(admin, query),
       orderBy: { storeId: 'asc' },
       include: {
         area: { include: { region: true } },
@@ -4186,7 +4114,7 @@ export class UserService implements OnModuleInit {
 
     if (
       this.isScopedAdmin(admin) &&
-      !(await this.storeWithinAdminScope(admin, current))
+      !(await this.accessScopeService.storeWithinAdminScope(admin, current))
     ) {
       throw new ForbiddenException('Không có quyền sửa showroom khác');
     }
@@ -5616,69 +5544,6 @@ export class UserService implements OnModuleInit {
     optionalTextChanged('transferBankName', 'ngân hàng nhận tiền', 80);
     optionalTextChanged('transferBankBin', 'BIN ngân hàng', 20);
     return changes;
-  }
-
-  private async adminStoreScope(
-    admin: any,
-    query?: string,
-  ): Promise<Prisma.StoreWhereInput | undefined> {
-    const insensitive = Prisma.QueryMode.insensitive;
-    const queryWhere = query
-      ? {
-          OR: [
-            { storeId: { contains: query, mode: insensitive } },
-            { storeName: { contains: query, mode: insensitive } },
-            {
-              transferAccountNumber: {
-                contains: query,
-                mode: insensitive,
-              },
-            },
-            { transferAccountName: { contains: query, mode: insensitive } },
-            { transferBankName: { contains: query, mode: insensitive } },
-            { mapVietinUsername: { contains: query, mode: insensitive } },
-          ],
-        }
-      : undefined;
-    const scopeWhere = await this.adminStoreScopeWhere(admin);
-
-    if (queryWhere && scopeWhere) return { AND: [scopeWhere, queryWhere] };
-    return queryWhere || scopeWhere;
-  }
-
-  private async adminStoreScopeWhere(
-    admin: any,
-  ): Promise<Prisma.StoreWhereInput | undefined> {
-    if (!this.isScopedAdmin(admin)) return undefined;
-    const organizationScope = await this.adminStoreOrganizationScope(admin);
-    const scope = this.effectiveWorkScope(admin);
-    if (scope === NATIONAL_SCOPE) {
-      return this.combineStoreScope(organizationScope, undefined);
-    }
-    if (admin.organizationNodeId) {
-      const scopeRootId = await this.adminManagementScopeRootId(admin);
-      const organizationNodeIds = await this.organizationDescendantIds(
-        scopeRootId ?? admin.organizationNodeId,
-      );
-      return this.combineStoreScope(organizationScope, {
-        organizationNodeId: { in: organizationNodeIds },
-      });
-    }
-    if (scope === REGION_SCOPE) {
-      const locationScope = admin.regionCode
-        ? { area: { regionCode: admin.regionCode } }
-        : { id: '__NO_REGION__' };
-      return this.combineStoreScope(organizationScope, locationScope);
-    }
-    if (scope === AREA_SCOPE) {
-      const locationScope = admin.areaCode
-        ? { areaCode: admin.areaCode }
-        : { id: '__NO_AREA__' };
-      return this.combineStoreScope(organizationScope, locationScope);
-    }
-    return this.combineStoreScope(organizationScope, {
-      id: admin.storeId || '__NO_STORE__',
-    });
   }
 
   private toStoreDto(store: any) {
