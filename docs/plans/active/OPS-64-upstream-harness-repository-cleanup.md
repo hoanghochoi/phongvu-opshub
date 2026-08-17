@@ -4,13 +4,13 @@ Date: 2026-08-13
 
 ## Status
 
-Active — the current workflow checkpoint is the OPS-186 post-merge
-reconciliation after OPS-75, created from exact live
-`origin/staging@2d00c1befeb4aa124571dbdc15b6446c97932e80` after PR #311.
-OPS-75 PR #311 is squash-merged at
-`2d00c1befeb4aa124571dbdc15b6446c97932e80`; its guarded finish passed,
-canonical `staging` and `origin/staging` are aligned, and the task worktree,
-local branch and remote branch are gone. The schema-v4 execution-canary
+Active — the last reconciled workflow checkpoint is OPS-187, created from
+exact live `origin/staging@97c04c982aaf7415893ccd6f63de3c767e3e2c43` after
+OPS-186/PR #312. OPS-186 PR #312 is squash-merged at
+`97c04c982aaf7415893ccd6f63de3c767e3e2c43`; its guarded finish passed and
+the task worktree/local/remote branch are gone. This recorded SHA is audit
+evidence, not a permanent current pointer: every new slice must re-read live
+`origin/staging` through `scripts/task-lifecycle.mjs start`. The schema-v4 execution-canary
 evidence remains independently validated at 5/5 with `stale=false`, zero
 unmatched paths and zero reruns; the progress ledger remains
 `promotionEligible=false`. The selected Harness/docs/verification-runner lane
@@ -65,8 +65,9 @@ hardening and generic admin-policy scope authorization. OPS-182 records the
 preceding authority guard and keeps the approved dependency gap fail-closed.
 OPS-184 records the preceding post-merge reconciliation after OPS-183.
 OPS-185 records the preceding exact-SHA reconciliation after OPS-184.
-OPS-75 records the preceding final-consolidation rehearsal; OPS-186 carries
-the current exact-SHA reconciliation. The next bounded actions are final consolidation gates: resolve
+OPS-75 records the preceding final-consolidation rehearsal; OPS-186 records
+the preceding post-merge reconciliation; OPS-187 hardens the checkpoint
+authority semantics. The next bounded actions are final consolidation gates: resolve
 the upstream updater exit-code defect, close dependency/affected-consumer proof,
 assign the two User/Auth authority follow-ups and complete authenticated QA plus
 production deployment. None of these open gates is weakened by this
@@ -3399,6 +3400,32 @@ the current checkpoint above is the sole active execution authority.
 - This slice updates only current-plan authority text and the OPS-71
   disposition evidence. No runtime/API/UI/data/dependency-version/Harness
   DB/archive/raw artifact path is changed. Rollback is one squash revert.
+- Required proof before publication: OPS-72 live/progress validators, plan
+  disposition, Harness retirement, migration EOL, docs/link/secret/mojibake
+  checks, exact Harness/docs/verification `verify-task` with `stale=false`,
+  changed-path scope review and `git diff --check`.
+
+## Workflow checkpoint (OPS-187; non-stale checkpoint authority)
+
+- This docs-only slice uses branch/worktree
+  `codex/ops-187-make-checkpoint-authority-non-stale-after-merges` /
+  `../opshub-ops-187-checkpoint-authority`, created from exact live
+  `origin/staging@97c04c982aaf7415893ccd6f63de3c767e3e2c43` through the guarded
+  lifecycle start gate. No dependency-owning runtime command is in scope;
+  Flutter/Nest/Go affected-consumer proof remains explicitly deferred/fail-closed.
+- The checkpoint records OPS-186/PR #312's merge SHA as historical evidence and
+  labels it `lastReconciledCheckpoint`. The active plan and index no longer
+  claim that a recorded SHA remains the current integration tip after a later
+  merge. `scripts/task-lifecycle.mjs start` is the sole authority for fetching
+  and validating the live `origin/staging` SHA before each new slice.
+- This rule prevents merge-only reconciliation churn: a future merge does not
+  require another docs PR unless the authority policy, scope or evidence itself
+  changes. OPS-72 remains 5/5, `promotionEligible=false` and
+  `revise`/`do-not-promote`; the upstream updater blocker and dependency/QA/
+  production gates remain open.
+- This slice updates only checkpoint-authority wording and OPS-71 evidence.
+  No runtime/API/UI/data/dependency-version/Harness DB/archive/raw artifact
+  path is changed. Rollback is one squash revert.
 - Required proof before publication: OPS-72 live/progress validators, plan
   disposition, Harness retirement, migration EOL, docs/link/secret/mojibake
   checks, exact Harness/docs/verification `verify-task` with `stale=false`,
