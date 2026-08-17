@@ -18,10 +18,11 @@ Current active/release-pending authority:
 - [`OPS-53-redesign-chrome-audit-consolidation.md`](OPS-53-redesign-chrome-audit-consolidation.md)
   is the only current OPS-53 execution summary. Its nine fragments are history.
 - [`OPS-64-upstream-harness-repository-cleanup.md`](OPS-64-upstream-harness-repository-cleanup.md)
-  remains the initiative master plan; OPS-186 is the current
-  post-merge reconciliation after OPS-75/PR #311. Canonical `staging` and
-  `origin/staging` are aligned at `2d00c1be`; the OPS-75 task worktree, local
-  branch and remote branch are cleaned. The execution-canary ledger is
+  remains the initiative master plan; OPS-187 is the last-reconciled
+  checkpoint-authority hardening after OPS-186/PR #312. The recorded merge
+  SHA `97c04c98` is historical evidence; each new task must resolve live
+  `origin/staging` through the lifecycle start gate. The OPS-186 task worktree,
+  local branch and remote branch are cleaned. The execution-canary ledger is
   complete at 5/5 but remains `promotionEligible=false`; the selected
   Harness/docs/verification-runner lane is observational, and Flutter, NestJS
   and Go dependency-heavy profiles remain fail-closed/deferred. OPS-72 stays
@@ -32,9 +33,10 @@ Current active/release-pending authority:
   remains blocked by its conflict-exit-code defect. The 78/80 (~97.5%) checklist
   audit leaves only OPS-72 target decision and Phase 9/10 release gates open;
   User/Auth authority, dependency-ready proof, authenticated QA and production
-  deployment remain outstanding. OPS-186 is the current reconciliation after
-  PR #311 at `2d00c1be`; OPS-185 is the preceding reconciliation through PR
-  #310 at `8c6c9ecc`; OPS-184 is the preceding reconciliation
+  deployment remain outstanding. OPS-187 is the last-reconciled checkpoint;
+  OPS-186 is the preceding reconciliation after PR #311 at `2d00c1be`;
+  OPS-185 is the preceding reconciliation through PR #310 at `8c6c9ecc`;
+  OPS-184 is the preceding reconciliation
   through PR #309 at `c2d0af35`; OPS-183 is the preceding execution-canary
   reconciliation through PR #308 at `c0ced63a`; OPS-182 is the preceding
   authority guard through PR #307 at `7c7e2240`; OPS-181 is the preceding
