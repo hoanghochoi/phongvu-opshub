@@ -1,0 +1,77 @@
+{
+  "formatVersion": 1,
+  "issue": "OPS-191",
+  "generatedAtUtc": "2026-08-17T16:54:10.8458826Z",
+  "sourceRevision": "33d1cd935cd6b6584c46dd36ffad832247aee912",
+  "rawArtifactsCommitted": false,
+  "authority": {
+    "historicalAudit": "docs/migrations/ops-173-phase9-ownership-audit.json",
+    "atomicAssignment": {
+      "status": "resolved",
+      "issue": "OPS-175",
+      "pullRequest": 301,
+      "implementationCommit": "2e5dc7b29beb90a9ab059d2b0ba5a8e1c8c3b95a",
+      "proof": "admin create/update/import assignment writes use one explicit transaction client; post-commit access publication and welcome email are deferred until commit"
+    },
+    "adminPolicyScope": {
+      "status": "resolved",
+      "issue": "OPS-188",
+      "pullRequest": 314,
+      "implementationCommit": "4c1c55f081eab1470b1f45c810c874b937a4f0ea",
+      "proof": "scoped policy-rule create, batch-create and update targets are checked before out-of-scope writes reach Prisma"
+    },
+    "bigQueryBatchAtomicity": {
+      "status": "unapproved-follow-up",
+      "reason": "syncUsersFromBigQuery is a separate background/external-system contract; no accepted authority requires whole-batch atomicity"
+    }
+  },
+  "dependencyReadiness": {
+    "status": "passed",
+    "doctor": {
+      "status": "passed",
+      "profile": "all",
+      "artifactSha256": "e39afda6220566ce0d7a1828d206848b3321c10c09d653b457361770f0eec2b0",
+      "nestInstalledPackageCount": 941,
+      "nestMissingDependencies": 0,
+      "flutterPackageCount": 174,
+      "flutterMissingPackages": 0,
+      "flutterMissingPlugins": 0,
+      "generatedRootsWritable": true
+    },
+    "coldCanary": {
+      "status": "passed",
+      "profiles": ["nestjs", "flutter"],
+      "generatedRootsWritable": true
+    }
+  },
+  "proof": {
+    "baseRevision": "33d1cd935cd6b6584c46dd36ffad832247aee912",
+    "flutter": {
+      "analyze": {"status": "passed", "issues": 0, "durationMs": 276801},
+      "test": {"status": "passed", "passed": 864, "skipped": 3, "durationMs": 486254, "retries": 0, "missingPluginException": false}
+    },
+    "nestjs": {
+      "build": {"status": "passed", "durationMs": 94896},
+      "test": {"status": "passed", "suites": 124, "passedSuites": 124, "passed": 1315, "skipped": 6, "retries": 0}
+    },
+    "go": {
+      "test": {"status": "passed", "command": "go test ./...", "cached": true, "retries": 0}
+    },
+    "affectedConsumers": [
+      "HomeSummary dashboard/cache/details/realtime",
+      "PaymentMonitor provider/audio/realtime/ack/retry and Bank Statement/VietQR",
+      "Sales Reports and follow-up filters/permission/state",
+      "MAP Vietin and VietQR/realtime consumers",
+      "User/Admin/Auth/profile/session/realtime lifecycle",
+      "Shared AppShell/router/realtime consumers"
+    ],
+    "profilesSuppressed": [],
+    "productFailuresRetriedToGreen": 0,
+    "stale": false
+  },
+  "remainingGates": {
+    "upstreamHarnessUpdater": "blocked-upstream",
+    "authenticatedStagingQa": "open",
+    "productionDeployment": "open"
+  }
+}

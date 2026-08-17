@@ -4,10 +4,11 @@ Date: 2026-08-13
 
 ## Status
 
-Active — the current decision checkpoint is OPS-190, created from exact live
-`origin/staging@1f7d4c3c9cd6d7161cb289b6962e05628121478f` after OPS-189/PR #315.
-The branch/worktree is bounded to docs/evidence and is pending its own
-PR/lifecycle cleanup. The prior last-reconciled workflow checkpoint was
+Active — the current Phase 9 closure checkpoint is OPS-191, created from exact
+live `origin/staging@33d1cd935cd6b6584c46dd36ffad832247aee912` after
+OPS-190/PR #316. The branch/worktree is bounded to sanitized authority and
+dependency-ready proof; no runtime source or dependency contract is changed.
+The prior last-reconciled workflow checkpoint was
 OPS-187, created from
 exact live `origin/staging@97c04c982aaf7415893ccd6f63de3c767e3e2c43` after
 OPS-186/PR #312. OPS-186 PR #312 is squash-merged at
@@ -17,10 +18,11 @@ evidence, not a permanent current pointer: every new slice must re-read live
 `origin/staging` through `scripts/task-lifecycle.mjs start`. The schema-v4 execution-canary
 evidence remains independently validated at 5/5 with `stale=false`, zero
 unmatched paths and zero reruns; the progress ledger remains
-`promotionEligible=false`. The selected Harness/docs/verification-runner lane
-is observational and dependency-heavy Flutter/NestJS/Go proof remains
-fail-closed/deferred. No profile was suppressed and no product failure was
-retried to green. OPS-72 is explicitly decided as `revise`/`do-not-promote`:
+`promotionEligible=false`. The OPS-72 affected matrix remains observational and
+dependency-heavy promotion proof stays fail-closed; no profile was suppressed
+and no product failure was retried to green. Separate OPS-191 runtime proof
+now passes with hydrated dependencies across Flutter/NestJS/Go. OPS-72 is
+explicitly decided as `revise`/`do-not-promote`:
 the comparable v2 cohort measured 8.77% timing reduction against the 25%
 target, rerun reduction is unmeasurable (0-vs-0), and no first-actionable-
 failure sample exists. The affected matrix remains observational and the
@@ -30,7 +32,10 @@ OPS-177 PR #302 is squash-merged at
 `31998307023`; its docs-only reconciliation and guarded lifecycle cleanup
 passed. OPS-175 PR #301 is squash-merged at
 `2e5dc7b29beb90a9ab059d2b0ba5a8e1c8c3b95a` and staging-deployed by
-`31997427099`; its User/Auth, Nest build and exact runner proof passed. OPS-176
+`31997427099`; its User/Auth atomic-assignment proof passed. OPS-188 PR #314
+resolved the generic admin-policy scope candidate. OPS-191 now binds the
+current authority to both fixes and records dependency-ready full-stack proof.
+OPS-176
 PR #300 is squash-merged at `c2ec9c3100a39753d65f87da75ef3ce4610083e5`,
 staging-deployed by `31996291315`, and passed the focused read-only-output,
 Release Guard, affected shadow, Windows cold canary and deployment gates. Its
@@ -44,8 +49,8 @@ task worktree/local/remote branch. The checkpoint remains intentionally
 partial: the fresh Harness installer fallback is verified, while the upstream
 `update --dry-run` gate is blocked by a multi-hunk `git merge-file` exit-code
 defect and Flutter/Go proof remains deferred fail-closed. OPS-173 Phase 9
-ownership audit is the preceding runtime checkpoint; its two User/Auth
-authority follow-ups remain open.
+ownership audit is retained as historical evidence; OPS-175 and OPS-188 now
+resolve its two User/Auth authority candidates.
 OPS-171 ERP cache-page mapping extraction is squash-merged through PR #295 at
 `1809b49f5713e96d5aa83c79f86e1351d8221df8`, staging-deployed by
 `31986109215`, and tracked `Ready for QA` after exact-SHA deployment,
@@ -58,26 +63,21 @@ passed 123 suites / 1,307 tests with 6 skips, and Nest build plus the exact
 verification runner passed with `stale=false`.
 OPS-168 MAP persistence and OPS-169 ERP cache-page characterization remain the
 preceding Phase 9D/9E checkpoints; both are already collaborator-owned or
-characterized and are not extracted a second time. Atomic
-user/organization-assignment transactions and generic admin-policy scope
-authorization remain separate full-fix/security follow-ups. Flutter/Go
-affected-consumer proof remains explicitly fail-closed and unverified under
-the approved dependency deferral; no profile was suppressed, no lockfile was
-changed and no product failure was retried to green. OPS-172 records this
-checkpoint and keeps the dependency gap as residual risk rather than weakening
-any gate. The Phase 9 ownership audit now records two explicit User/Auth
-security follow-ups with no current owner: atomic assignment transaction
-hardening and generic admin-policy scope authorization. OPS-182 records the
-preceding authority guard and keeps the approved dependency gap fail-closed.
+characterized and are not extracted a second time. OPS-175 resolved atomic
+user/organization-assignment transactions and OPS-188 resolved generic
+admin-policy scope authorization; OPS-173 remains the historical audit and
+OPS-191 owns the current exact-SHA closure. Dependency-ready Flutter/Nest/Go
+proof is now recorded for the fresh OPS-191 worktree without suppressing a
+profile or retrying a product failure. OPS-182 records the preceding
+authority guard and remains historical evidence.
 OPS-184 records the preceding post-merge reconciliation after OPS-183.
 OPS-185 records the preceding exact-SHA reconciliation after OPS-184.
 OPS-75 records the preceding final-consolidation rehearsal; OPS-186 records
 the preceding post-merge reconciliation; OPS-187 hardens the checkpoint
-authority semantics. The next bounded actions are final consolidation gates: resolve
-the upstream updater exit-code defect, close dependency/affected-consumer proof,
-assign the two User/Auth authority follow-ups and complete authenticated QA plus
-production deployment. None of these open gates is weakened by this
-reconciliation.
+authority semantics. OPS-191 closes the current User/Auth authority and
+dependency-ready affected-proof gate. The remaining final gates are the
+upstream updater exit-code defect, authenticated staging QA and production
+deployment. None of these open gates is weakened by this reconciliation.
 OPS-165 is the preceding master-plan reconciliation after OPS-164.
 OPS-163 is the preceding master-plan reconciliation after OPS-162.
 OPS-160 UserAdminMutationService characterization is squash-merged through PR
@@ -3526,3 +3526,33 @@ the current checkpoint above is the sole active execution authority.
   OPS-72 source validators, plan disposition, exact Harness/docs/verification
   runner with `stale=false`, changed-path scope review and `git diff --check`.
   Rollback is one squash revert.
+
+## Workflow checkpoint (OPS-191; Phase 9 authority and dependency-ready proof)
+
+- This bounded Phase 9 closure slice starts from exact live
+  `origin/staging@33d1cd935cd6b6584c46dd36ffad832247aee912` on branch
+  `codex/ops-191-phase9-runtime-proof` and worktree
+  `../opshub-ops-191-phase9-proof`. Canonical staging remained clean and
+  aligned; the task worktree hydrated both toolchain profiles successfully.
+- The historical OPS-173 ownership audit is not rewritten. Current authority
+  is recorded in `docs/migrations/ops-191-phase9-closure.json`: OPS-175/PR
+  #301 resolves atomic assignment transactions, OPS-188/PR #314 resolves
+  generic admin-policy scope authorization, and BigQuery batch atomicity
+  remains an unapproved separate follow-up.
+- Fresh all-profile dependency doctor and cold canary pass with 941 Nest
+  packages, 174 Flutter packages, zero missing packages/plugins and writable
+  generated roots. Full proof at the exact source revision passes Flutter
+  analyze (0 issues), Flutter tests (864 passed, 3 platform skips), Nest build,
+  Nest tests (124/124 suites, 1,315 passed, 6 skipped) and Go tests. No
+  MissingPluginException, profile suppression or product retry-to-green is
+  accepted.
+- This slice changes only sanitized migration evidence, its validator/test and
+  current plan authority. It does not claim authenticated staging QA,
+  production deployment or resolution of the upstream Harness updater defect.
+  The checklist remains 79/80 (~98.75%); the remaining umbrella is Phase 10
+  final consolidation and release.
+- Required proof before publication: closure validator/test, plan disposition,
+  exact Harness/docs/verification runner with `stale=false`, full validation
+  ladder, changed-path scope review, docs/link/secret/mojibake scans and
+  `git diff --check`. Rollback is one squash revert; raw dependency state is
+  ignored and removed with the task worktree.
