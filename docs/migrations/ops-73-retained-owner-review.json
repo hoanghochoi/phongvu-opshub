@@ -2,8 +2,8 @@
   "formatVersion": 1,
   "issue": "OPS-73",
   "phase": "retained-owner-review",
-  "sourceRevision": "6814d4ba29d7dbd854590daea3c890f15174d3c7",
-  "reviewedAtUtc": "2026-08-15T20:14:30.000Z",
+  "sourceRevision": "d1c73a26ffae55d045cdae0c707240134a0ac528",
+  "reviewedAtUtc": "2026-08-17T05:58:46.224Z",
   "sourceInventory": "docs/migrations/ops-73-artifact-inventory.json",
   "sourceInventorySha256": "241e54629ffe9d2d12f33b5100a3854f0ed3f8c6daeacdc92195d064440cd713",
   "candidates": [
@@ -182,8 +182,8 @@
         {
           "path": ".github/workflows/verify-task-shadow.yml",
           "kind": "file",
-          "sha256": "2c441b9d0e1bad92f93189b78ff0c9ebed4f5d84a09d31867243074b07d7b303",
-          "bytes": 4776
+          "sha256": "f106bd5700556c5cdd52a83219dfefde8b5fa58e480e3d1b18ac28043a70e8f9",
+          "bytes": 9454
         },
         {
           "path": ".github/workflows/deploy-opshub-staging.yml",

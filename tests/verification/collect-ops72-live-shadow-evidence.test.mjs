@@ -125,6 +125,102 @@ function writeRun(fixture, index, durationMs = 6000 + index * 100) {
   writeFileSync(path.join(directory, 'verify-task-shadow-manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`);
 }
 
+function writeExecutionCanaryRun(fixture, index, durationMs = 900 + index * 25) {
+  const pullRequest = 950 + index;
+  const runId = 41000 + index;
+  const directory = path.join(fixture.rawRoot, String(runId));
+  mkdirSync(directory, { recursive: true });
+  const started = `2026-08-16T11:0${index}:00.000Z`;
+  const completed = new Date(Date.parse(started) + durationMs).toISOString();
+  const report = {
+    schemaVersion: 4,
+    mode: 'shadow',
+    executionMode: 'execution-canary',
+    baseSha: sha('a'),
+    headSha: sha('bcdef'[Math.min(index, 5) - 1] || 'b'),
+    changedPaths: ['scripts/verify-task-shadow.mjs'],
+    autoSelectedProfiles: ['verification-runner'],
+    autoAffectedConsumers: ['task-lifecycle-and-affected-consumer-proof'],
+    fullProfiles: ['harness', 'verification-runner'],
+    fullAffectedConsumers: ['task-lifecycle-and-affected-consumer-proof'],
+    omittedProfiles: ['harness'],
+    omittedConsumers: [],
+    unmatchedPaths: [],
+    autoExitCode: 0,
+    fullExitCode: 0,
+    status: 'passed',
+    classification: 'shadow-observation',
+    fingerprint: { before: 'c'.repeat(64), after: 'c'.repeat(64), stale: false },
+    commandDefinitions: [],
+    blockingChecksUnchanged: true,
+    retryPolicy: { maxInfrastructureRetries: 1 },
+    telemetry: {
+      schemaVersion: 4,
+      cohortId: 'ops72-execution-canary-v1',
+      queuedAtUtc: started,
+      startedAtUtc: started,
+      completedAtUtc: completed,
+      queueDurationMs: 0,
+      executionDurationMs: durationMs,
+      executionMode: 'execution-canary',
+      autoDurationMs: durationMs,
+      fullDurationMs: 1,
+      decisionDurationMs: durationMs,
+      queueTimestampSource: 'workflow-run-started-at',
+      retryCount: 1,
+      commandRetryCount: 1,
+      externalRerunCount: 0,
+      autoRetryCount: 1,
+      fullRetryCount: 0,
+      firstActionableFailure: null,
+      firstObservedFailure: null,
+      measurementEligibility: {
+        retryReduction: true,
+        timeToActionableFailure: true,
+        reasonCode: 'execution-canary-auto-only',
+      },
+    },
+    metrics: {
+      firstActionableFailure: null,
+      reruns: 0,
+      humanIntervention: false,
+      falsePositive: null,
+      falseNegative: null,
+      requiresCanaryReview: true,
+      measurementEligibility: {
+        retryReduction: true,
+        timeToActionableFailure: true,
+        reasonCode: 'execution-canary-auto-only',
+      },
+    },
+  };
+  const reportBytes = Buffer.from(`${JSON.stringify(report, null, 2)}\n`);
+  writeFileSync(path.join(directory, 'verify-task-shadow.json'), reportBytes);
+  const manifest = {
+    formatVersion: 2,
+    issue: 'OPS-72',
+    targetBranch: 'staging',
+    executionMode: 'execution-canary',
+    cohortId: 'ops72-execution-canary-v1',
+    pullRequest,
+    runId,
+    runUrl: `https://github.com/hoanghochoi/phongvu-opshub/actions/runs/${runId}`,
+    prHeadSha: sha('fedcba'[Math.min(index, 5) - 1] || 'a'),
+    baseSha: sha('a'),
+    reportedHeadSha: report.headSha,
+    reportFile: 'verify-task-shadow.json',
+    reportSha256: digest(reportBytes),
+    generatedAtUtc: completed,
+    run: {
+      createdAt: started,
+      startedAt: started,
+      completedAt: completed,
+      githubDurationMs: durationMs + 500,
+    },
+  };
+  writeFileSync(path.join(directory, 'verify-task-shadow-manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`);
+}
+
 test('collects five workflow manifests into validator-compatible evidence', (t) => {
   const fixture = createFixture(t);
   for (let index = 1; index <= 5; index += 1) writeRun(fixture, index);
@@ -152,6 +248,21 @@ test('fails closed on report hash mismatch and duplicate/missing manifests', (t)
   writeRun(secondFixture, 5);
   writeRun(secondFixture, 6);
   assert.throws(() => collectLiveEvidence(secondFixture), /expected exactly 5 manifests/);
+});
+
+test('collects an execution-canary cohort without making plan-only evidence eligible', (t) => {
+  const fixture = createFixture(t);
+  for (let index = 1; index <= 5; index += 1) writeExecutionCanaryRun(fixture, index);
+
+  const document = collectLiveEvidence({ ...fixture, mode: 'execution-canary' });
+  assert.equal(document.formatVersion, 4);
+  assert.equal(document.measurementEligibility.executionMode, 'execution-canary');
+  assert.equal(document.measurementEligibility.retryReduction, true);
+  assert.equal(document.measurementEligibility.timeToActionableFailure, true);
+  assert.equal(document.aggregate.commandRetries, 5);
+  assert.equal(document.aggregate.externalReruns, 0);
+  assert.equal(document.aggregate.targetStatus, 'pending-live-timing-baseline');
+  assert.equal(validateLiveEvidence(document, { rawRoot: fixture.rawRoot }).schemaVersion, 4);
 });
 
 test('CLI accepts repository-relative raw-root, baseline and output paths', (t) => {

@@ -22,6 +22,8 @@ const DEFAULT_BASELINE = DEFAULT_OUTPUT;
 const MANIFEST_NAME = 'verify-task-shadow-manifest.json';
 const REPORT_NAME = 'verify-task-shadow.json';
 const REQUIRED_OBSERVATIONS = 5;
+const PLAN_ONLY_MODE = 'plan-only';
+const EXECUTION_CANARY_MODE = 'execution-canary';
 
 export class LiveEvidenceCollectionError extends Error {}
 
@@ -89,13 +91,16 @@ function validateRun(run, label) {
   assert(Number.isInteger(run.githubDurationMs) && run.githubDurationMs >= 0, `${label}.githubDurationMs is invalid`);
 }
 
-function observationFromManifest(manifestPath, rawRoot) {
+function observationFromManifest(manifestPath, rawRoot, expectedMode = PLAN_ONLY_MODE) {
   const manifestDirectory = path.dirname(manifestPath);
   const runDirectory = path.basename(manifestDirectory);
   const manifest = readJson(manifestPath, manifestPath);
   const label = `manifest ${manifestPath}`;
 
-  assert(manifest.formatVersion === 1, `${label}.formatVersion must be 1`);
+  assert([PLAN_ONLY_MODE, EXECUTION_CANARY_MODE].includes(expectedMode), `unsupported evidence mode: ${expectedMode}`);
+  const manifestMode = manifest.executionMode || PLAN_ONLY_MODE;
+  assert(manifestMode === expectedMode, `${label}.executionMode does not match requested mode`);
+  assert(manifest.formatVersion === (expectedMode === EXECUTION_CANARY_MODE ? 2 : 1), `${label}.formatVersion is invalid for ${expectedMode}`);
   assert(manifest.issue === 'OPS-72', `${label}.issue must be OPS-72`);
   assert(manifest.targetBranch === 'staging', `${label}.targetBranch must be staging`);
   assert(COHORT_RE.test(manifest.cohortId || ''), `${label}.cohortId is invalid`);
@@ -116,7 +121,9 @@ function observationFromManifest(manifestPath, rawRoot) {
   assert(reportSha256 === manifest.reportSha256.toLowerCase(), `${label}.reportSha256 does not match ${REPORT_NAME}`);
   const report = JSON.parse(reportBytes.toString('utf8'));
 
-  assert(report.schemaVersion === 3 && report.mode === 'shadow', `${label} report must be schema-v3 shadow output`);
+  const expectedReportSchema = expectedMode === EXECUTION_CANARY_MODE ? 4 : 3;
+  assert(report.schemaVersion === expectedReportSchema && report.mode === 'shadow', `${label} report must be schema-v${expectedReportSchema} shadow output`);
+  assert((report.executionMode || PLAN_ONLY_MODE) === expectedMode, `${label} report execution mode does not match manifest`);
   assert(report.status === 'passed' && report.classification === 'shadow-observation', `${label} report is not an accepted pass`);
   assert(report.autoExitCode === 0 && report.fullExitCode === 0, `${label} report exit codes must be zero`);
   assert(report.blockingChecksUnchanged === true, `${label} blocking checks changed`);
@@ -124,16 +131,22 @@ function observationFromManifest(manifestPath, rawRoot) {
   assert(Array.isArray(report.unmatchedPaths) && report.unmatchedPaths.length === 0, `${label} has unmatched paths`);
   assert(Array.isArray(report.autoSelectedProfiles) && Array.isArray(report.fullProfiles), `${label} profile data is missing`);
   assert(report.autoSelectedProfiles.every((id) => report.fullProfiles.includes(id)), `${label} auto profile is absent from full profile list`);
-  assert(report.telemetry?.schemaVersion === 3, `${label} telemetry schema must be 3`);
+  assert(report.telemetry?.schemaVersion === expectedReportSchema, `${label} telemetry schema must be ${expectedReportSchema}`);
   assert(report.telemetry.cohortId === manifest.cohortId, `${label} telemetry cohort does not match manifest`);
-  assert(report.telemetry.executionMode === 'plan-only', `${label} execution mode must be plan-only`);
-  assert(report.telemetry.measurementEligibility?.retryReduction === false, `${label} retry reduction must remain ineligible`);
-  assert(report.telemetry.measurementEligibility?.timeToActionableFailure === false, `${label} TTAF must remain ineligible`);
-  assert(report.telemetry.measurementEligibility?.reasonCode === 'plan-only-shadow', `${label} measurement eligibility reason is invalid`);
+  assert(report.telemetry.executionMode === expectedMode, `${label} execution mode is invalid`);
+  assert(report.telemetry.measurementEligibility?.retryReduction === (expectedMode === EXECUTION_CANARY_MODE), `${label} retry reduction eligibility is invalid`);
+  assert(report.telemetry.measurementEligibility?.timeToActionableFailure === (expectedMode === EXECUTION_CANARY_MODE), `${label} TTAF eligibility is invalid`);
+  assert(report.telemetry.measurementEligibility?.reasonCode === (expectedMode === EXECUTION_CANARY_MODE ? 'execution-canary-auto-only' : 'plan-only-shadow'), `${label} measurement eligibility reason is invalid`);
   assert(report.headSha === manifest.reportedHeadSha, `${label} reported head SHA does not match manifest`);
   assert(report.baseSha === manifest.baseSha, `${label} reported base SHA does not match manifest`);
-  assert(Number(report.telemetry.retryCount || 0) === 0, `${label} contains a retry and is not comparable live evidence`);
-  assert(Number(report.metrics?.reruns || 0) === 0, `${label} metrics contain a rerun and are not comparable live evidence`);
+  if (expectedMode === PLAN_ONLY_MODE) {
+    assert(Number(report.telemetry.retryCount || 0) === 0, `${label} contains a retry and is not comparable live evidence`);
+    assert(Number(report.metrics?.reruns || 0) === 0, `${label} metrics contain a rerun and are not comparable live evidence`);
+  } else {
+    assert(Number.isInteger(report.telemetry.commandRetryCount) && report.telemetry.commandRetryCount >= 0, `${label} commandRetryCount is invalid`);
+    assert(Number.isInteger(report.telemetry.externalRerunCount) && report.telemetry.externalRerunCount >= 0, `${label} externalRerunCount is invalid`);
+    assert(Number(report.metrics?.reruns || 0) === report.telemetry.externalRerunCount, `${label} metrics reruns must be external workflow reruns`);
+  }
   assert(typeof report.headSha === 'string' && SHA1_RE.test(report.headSha), `${label} reported head SHA is invalid`);
   assertIso(report.telemetry.queuedAtUtc, `${label}.telemetry.queuedAtUtc`);
   assertIso(report.telemetry.startedAtUtc, `${label}.telemetry.startedAtUtc`);
@@ -160,6 +173,9 @@ function observationFromManifest(manifestPath, rawRoot) {
     stale: report.fingerprint.stale,
     unmatchedPaths: report.unmatchedPaths,
     reruns: report.metrics?.reruns || 0,
+    commandRetries: expectedMode === EXECUTION_CANARY_MODE
+      ? report.telemetry.commandRetryCount
+      : report.telemetry.retryCount,
     humanIntervention: report.metrics?.humanIntervention || false,
     falsePositive: report.metrics?.falsePositive ?? null,
     falseNegative: report.metrics?.falseNegative ?? null,
@@ -199,11 +215,19 @@ function loadBaseline(file) {
   return document;
 }
 
-function buildInterpretation({ cohortId, shadowMedian, baselineShadowMedian, shadowReduction, rerunReduction, targetStatus }) {
+function buildInterpretation({ cohortId, mode, shadowMedian, baselineShadowMedian, shadowReduction, rerunReduction, targetStatus }) {
   const timing = `The comparable shadow-duration median is ${shadowMedian}ms versus the pre-telemetry baseline median of ${baselineShadowMedian}ms, a ${shadowReduction ?? 'unmeasurable'}% reduction.`;
   const reruns = rerunReduction === null
     ? 'The baseline has zero environment retries, so the 30% rerun-reduction target is not measurable from this cohort.'
     : `The comparable rerun reduction is ${rerunReduction}%.`;
+  if (mode === EXECUTION_CANARY_MODE) {
+    return [
+      `Five execution-canary observations share cohort ${cohortId}, pass with stale=false and zero unmatched paths.`,
+      'The auto-selected lane executed with the full ladder retained as a dry-run comparator; command retries and external workflow reruns are recorded separately.',
+      'The execution-canary lane is eligible for timing/retry measurement, but no target is promoted until a reviewed baseline and five comparable observations exist.',
+      `Target status is ${targetStatus}; the affected matrix remains observational until both acceptance targets are measurable and met.`,
+    ];
+  }
   return [
     `Five post-telemetry observations share cohort ${cohortId}, pass with stale=false, zero unmatched paths and zero retries.`,
     timing,
@@ -217,14 +241,16 @@ export function collectLiveEvidence({
   rawRoot = DEFAULT_RAW_ROOT,
   output = DEFAULT_OUTPUT,
   baseline = DEFAULT_BASELINE,
+  mode = PLAN_ONLY_MODE,
 } = {}) {
+  assert([PLAN_ONLY_MODE, EXECUTION_CANARY_MODE].includes(mode), `unsupported evidence mode: ${mode}`);
   const resolvedRawRoot = path.resolve(rawRoot);
   assert(statSync(resolvedRawRoot).isDirectory(), `raw root is not a directory: ${resolvedRawRoot}`);
   const manifestPaths = walkManifests(resolvedRawRoot);
   assert(manifestPaths.length === REQUIRED_OBSERVATIONS, `expected exactly ${REQUIRED_OBSERVATIONS} manifests, found ${manifestPaths.length}`);
 
   const baselineDocument = loadBaseline(path.resolve(baseline));
-  const observations = manifestPaths.map((file) => observationFromManifest(file, resolvedRawRoot));
+  const observations = manifestPaths.map((file) => observationFromManifest(file, resolvedRawRoot, mode));
   const cohortIds = new Set(observations.map((observation) => observation.telemetry.cohortId));
   assert(cohortIds.size === 1, 'all observations must use one comparable cohort');
   const cohortId = [...cohortIds][0];
@@ -245,26 +271,36 @@ export function collectLiveEvidence({
   const shadowReduction = reductionPercent(baselineShadowMedian, shadowMedian);
   const githubReduction = reductionPercent(baselineGithubMedian, githubMedian);
   const reruns = observations.reduce((sum, observation) => sum + observation.reruns, 0);
+  const commandRetries = observations.reduce((sum, observation) => sum + observation.commandRetries, 0);
   const rerunReduction = baselineDocument.baseline.reruns > 0
     ? reductionPercent(baselineDocument.baseline.reruns, reruns)
     : null;
-  const targetStatus = shadowReduction !== null && shadowReduction >= 25 && rerunReduction !== null && rerunReduction >= 30
-    ? 'meets-target'
-    : 'revise';
+  const targetStatus = mode === EXECUTION_CANARY_MODE
+    ? 'pending-live-timing-baseline'
+    : shadowReduction !== null && shadowReduction >= 25 && rerunReduction !== null && rerunReduction >= 30
+      ? 'meets-target'
+      : 'revise';
 
   const document = {
-    formatVersion: 3,
+    formatVersion: mode === EXECUTION_CANARY_MODE ? 4 : 3,
     issue: 'OPS-72',
     targetBranch: 'staging',
     generatedAtUtc: new Date().toISOString(),
     requiredObservationCount: REQUIRED_OBSERVATIONS,
     cohortId,
-    measurementEligibility: {
-      executionMode: 'plan-only',
-      retryReduction: false,
-      timeToActionableFailure: false,
-      reasonCode: 'plan-only-shadow',
-    },
+    measurementEligibility: mode === EXECUTION_CANARY_MODE
+      ? {
+        executionMode: EXECUTION_CANARY_MODE,
+        retryReduction: true,
+        timeToActionableFailure: true,
+        reasonCode: 'execution-canary-auto-only',
+      }
+      : {
+        executionMode: PLAN_ONLY_MODE,
+        retryReduction: false,
+        timeToActionableFailure: false,
+        reasonCode: 'plan-only-shadow',
+      },
     observations,
     excludedObservations: baselineDocument.excludedObservations,
     baseline: baselineDocument.baseline,
@@ -275,6 +311,8 @@ export function collectLiveEvidence({
       staleFailureCount: 0,
       environmentFailureCount: 0,
       reruns,
+      commandRetries,
+      externalReruns: reruns,
       acceptedStaleProofs: 0,
       productFailuresRetriedToGreen: 0,
       timeToActionableFailureMedianMs: null,
@@ -286,15 +324,20 @@ export function collectLiveEvidence({
       decisionDurationReductionPercent: null,
       shadowDurationMedianMs: shadowMedian,
       baselineShadowDurationMedianMs: baselineShadowMedian,
-      shadowDurationReductionPercent: shadowReduction,
+      shadowDurationReductionPercent: mode === EXECUTION_CANARY_MODE ? null : shadowReduction,
       githubDurationMedianMs: githubMedian,
       baselineGithubDurationMedianMs: baselineGithubMedian,
       githubDurationReductionPercent: githubReduction,
       targetStatus,
-      targetDecision: targetStatus === 'meets-target' ? 'promote-after-approval' : 'do-not-promote',
+      targetDecision: mode === EXECUTION_CANARY_MODE
+        ? 'do-not-promote'
+        : targetStatus === 'meets-target'
+          ? 'promote-after-approval'
+          : 'do-not-promote',
     },
     interpretation: buildInterpretation({
       cohortId,
+      mode,
       shadowMedian,
       baselineShadowMedian,
       shadowReduction,
@@ -313,10 +356,10 @@ export function collectLiveEvidence({
 }
 
 function parseArgs(argv) {
-  const options = { rawRoot: DEFAULT_RAW_ROOT, output: DEFAULT_OUTPUT, baseline: DEFAULT_BASELINE };
+  const options = { rawRoot: DEFAULT_RAW_ROOT, output: DEFAULT_OUTPUT, baseline: DEFAULT_BASELINE, mode: PLAN_ONLY_MODE };
   for (let index = 0; index < argv.length; index += 1) {
     const argument = argv[index];
-    if (argument === '--raw-root' || argument === '--output' || argument === '--baseline') {
+    if (argument === '--raw-root' || argument === '--output' || argument === '--baseline' || argument === '--mode') {
       const value = argv[index + 1];
       if (!value || value.startsWith('--')) fail(`${argument} requires a value`);
       const key = argument === '--raw-root' ? 'rawRoot' : argument.slice(2);
@@ -335,7 +378,7 @@ export function main(argv = process.argv.slice(2)) {
   try {
     const options = parseArgs(argv);
     if (options.help) {
-      console.log('Usage: node scripts/collect-ops72-live-shadow-evidence.mjs [--raw-root <path>] [--baseline <path>] [--output <path>]');
+      console.log('Usage: node scripts/collect-ops72-live-shadow-evidence.mjs [--mode plan-only|execution-canary] [--raw-root <path>] [--baseline <path>] [--output <path>]');
       return 0;
     }
     const document = collectLiveEvidence(options);

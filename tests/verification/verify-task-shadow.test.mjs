@@ -148,3 +148,50 @@ test('shadow telemetry includes full-ladder retries and elapsed time when auto s
   assert.equal(report.telemetry.firstObservedFailure.category, 'product-failure');
   assert.equal(report.telemetry.firstObservedFailure.commandId, 'full-check');
 });
+
+test('execution canary runs only the auto lane and keeps full comparison dry-run', (t) => {
+  const root = fixture(t);
+  const calls = [];
+  const report = buildShadowReport({
+    root,
+    options: { base: 'HEAD', executionMode: 'execution-canary', externalRerunCount: 2 },
+    verifyTaskFn: ({ options }) => {
+      calls.push(options);
+      return {
+        exitCode: 0,
+        result: {
+          schemaVersion: 1,
+          baseSha: 'a'.repeat(40),
+          headSha: 'b'.repeat(40),
+          selectedProfiles: ['harness'],
+          affectedConsumers: ['fixture'],
+          changedPaths: [],
+          fingerprint: { before: 'c'.repeat(64), after: 'c'.repeat(64), stale: false },
+          durationMs: options.full ? 3 : 12,
+          result: {
+            status: 'passed',
+            retryPolicy: { maxInfrastructureRetries: 1 },
+            commands: [{ id: options.full ? 'full-check' : 'auto-check', status: 'passed', attempt: 1 }],
+          },
+        },
+      };
+    },
+  });
+
+  assert.equal(report.schemaVersion, 4);
+  assert.equal(report.executionMode, 'execution-canary');
+  assert.equal(report.telemetry.executionMode, 'execution-canary');
+  assert.equal(report.telemetry.externalRerunCount, 2);
+  assert.equal(report.telemetry.commandRetryCount, 0);
+  assert.deepEqual(report.telemetry.measurementEligibility, {
+    retryReduction: true,
+    timeToActionableFailure: true,
+    reasonCode: 'execution-canary-auto-only',
+  });
+  assert.equal(calls.length, 2);
+  assert.equal(calls[0].full, false);
+  assert.equal(calls[0].dryRun, false);
+  assert.equal(calls[1].full, true);
+  assert.equal(calls[1].dryRun, true);
+  assert.equal(report.metrics.reruns, 2);
+});

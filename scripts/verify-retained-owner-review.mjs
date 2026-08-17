@@ -41,7 +41,10 @@ function gitOutput(args, { binary = false } = {}) {
 
 function normalizedCurrentFile(relativePath) {
   const currentBlob = String(
-    gitOutput(['hash-object', `--path=${relativePath}`, '--', relativePath]),
+    // Write the normalized blob to the local object store before reading it
+    // back. `git hash-object` without `-w` only computes the id, so cat-file
+    // would fail for an intentionally dirty file during an affected proof.
+    gitOutput(['hash-object', '-w', `--path=${relativePath}`, '--', relativePath]),
   ).trim();
   if (!/^[0-9a-f]{40}$/.test(currentBlob)) {
     fail(`current normalized blob is invalid: ${relativePath}`);

@@ -73,6 +73,37 @@ validator. Five comparable live observations in one cohort are required before
 calculating or promoting optimization percentages; an unmet target is recorded
 as `revise`, not as a successful optimization.
 
+The separate OPS-72 execution-canary lane is opt-in and non-blocking. Invoke
+it with `--execution-canary` to execute only the auto-selected profiles while
+keeping the full ladder as a dry-run comparator:
+
+```text
+node scripts/verify-task-shadow.mjs \
+  --base <git-ref> \
+  --execution-canary \
+  --json tmp/verify-task-shadow.json
+```
+
+Execution-canary reports use schema-v4 and cohort `ops72-execution-canary-v1`.
+They record `commandRetryCount` separately from workflow
+`externalRerunCount`, and are eligible for timing/retry measurement only after
+a reviewed baseline and five real, comparable CI observations. The existing
+plan-only schema-v3 lane remains historical/observational and cannot be
+upgraded by relabeling its artifacts. Download five execution-canary artifacts
+into the same raw-root layout, then collect them explicitly with:
+
+```text
+node scripts/collect-ops72-live-shadow-evidence.mjs \
+  --mode execution-canary \
+  --raw-root tmp/ops72-execution-canary \
+  --baseline docs/migrations/ops-72-live-shadow-evidence.json \
+  --output docs/migrations/ops-72-execution-canary-evidence.json
+```
+
+The execution-canary collector returns `pending-live-timing-baseline` and
+`do-not-promote` until a separate baseline decision authorizes measurement;
+the lane never changes blocking release or affected-consumer checks.
+
 For the OPS-72 evidence replay, run the collector from the repository root:
 
 ```text
