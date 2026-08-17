@@ -1,0 +1,562 @@
+{
+  "formatVersion": 4,
+  "issue": "OPS-72",
+  "targetBranch": "staging",
+  "generatedAtUtc": "2026-08-17T08:04:50.626Z",
+  "requiredObservationCount": 5,
+  "cohortId": "ops72-execution-canary-v1",
+  "measurementEligibility": {
+    "executionMode": "execution-canary",
+    "retryReduction": true,
+    "timeToActionableFailure": true,
+    "reasonCode": "execution-canary-auto-only"
+  },
+  "observations": [
+    {
+      "pullRequest": 303,
+      "runId": 32000339588,
+      "runUrl": "https://github.com/hoanghochoi/phongvu-opshub/actions/runs/32000339588",
+      "prHeadSha": "6b5d94e9eb52eeaaf04ba3e1d8865c7d11221994",
+      "baseSha": "df20b4e7c6544243a7ad689ef27bb3e3163d3a35",
+      "reportedHeadSha": "9a1bfba5b25977c891672ab4d97a2818cc55e513",
+      "artifactSha256": "7dee9fbbd3353359e3be19eb7f4b4ef3517e4b83073b7cfce50e68ef851bf2eb",
+      "rawArtifactFile": "verify-task-shadow.json",
+      "status": "passed",
+      "classification": "shadow-observation",
+      "selectedProfiles": [
+        "harness",
+        "docs",
+        "verification-runner",
+        "release"
+      ],
+      "fullProfiles": [
+        "harness",
+        "docs",
+        "verification-runner",
+        "release",
+        "flutter",
+        "nestjs",
+        "go-realtime",
+        "deployment"
+      ],
+      "omittedProfiles": [
+        "flutter",
+        "nestjs",
+        "go-realtime",
+        "deployment"
+      ],
+      "changedPathCount": 10,
+      "autoExitCode": 0,
+      "fullExitCode": 0,
+      "blockingChecksUnchanged": true,
+      "stale": false,
+      "unmatchedPaths": [],
+      "reruns": 0,
+      "commandRetries": 0,
+      "humanIntervention": false,
+      "falsePositive": null,
+      "falseNegative": null,
+      "shadowDurationMs": 13250,
+      "executionMode": "execution-canary",
+      "autoDurationMs": 7790,
+      "fullDurationMs": 5460,
+      "decisionDurationMs": 7790,
+      "firstObservedFailure": null,
+      "measurementEligibility": {
+        "retryReduction": true,
+        "timeToActionableFailure": true,
+        "reasonCode": "execution-canary-auto-only"
+      },
+      "run": {
+        "createdAt": "2026-08-17T06:07:16.829Z",
+        "startedAt": "2026-08-17T06:07:16.829Z",
+        "completedAt": "2026-08-17T06:15:37.636Z",
+        "githubDurationMs": 500807
+      },
+      "telemetry": {
+        "schemaVersion": 4,
+        "cohortId": "ops72-execution-canary-v1",
+        "queuedAtUtc": "2026-08-17T06:07:16.829Z",
+        "startedAtUtc": "2026-08-17T06:07:16.829Z",
+        "completedAtUtc": "2026-08-17T06:07:30.079Z",
+        "queueDurationMs": 0,
+        "executionDurationMs": 13250,
+        "executionMode": "execution-canary",
+        "autoDurationMs": 7790,
+        "fullDurationMs": 5460,
+        "decisionDurationMs": 7790,
+        "queueTimestampSource": "local-invocation",
+        "retryCount": 0,
+        "commandRetryCount": 0,
+        "externalRerunCount": 0,
+        "autoRetryCount": 0,
+        "fullRetryCount": 0,
+        "firstActionableFailure": null,
+        "autoFirstObservedFailure": null,
+        "fullFirstObservedFailure": null,
+        "firstObservedFailure": null,
+        "measurementEligibility": {
+          "retryReduction": true,
+          "timeToActionableFailure": true,
+          "reasonCode": "execution-canary-auto-only"
+        }
+      }
+    },
+    {
+      "pullRequest": 304,
+      "runId": 32002286949,
+      "runUrl": "https://github.com/hoanghochoi/phongvu-opshub/actions/runs/32002286949",
+      "prHeadSha": "693501acce188f1b7526b2bbdb4fd78a9d035d1a",
+      "baseSha": "14224af1dfefadc707ca0baed3af0f0cb323845f",
+      "reportedHeadSha": "36a082e6edd11ddb7d15f364621e1f9b118eb9d0",
+      "artifactSha256": "1963859dbc06f750556ad0b7b72fd48671f538663bb94b72e3c2af95d925ba3b",
+      "rawArtifactFile": "verify-task-shadow.json",
+      "status": "passed",
+      "classification": "shadow-observation",
+      "selectedProfiles": [
+        "harness",
+        "docs"
+      ],
+      "fullProfiles": [
+        "harness",
+        "docs",
+        "verification-runner",
+        "release",
+        "flutter",
+        "nestjs",
+        "go-realtime",
+        "deployment"
+      ],
+      "omittedProfiles": [
+        "verification-runner",
+        "release",
+        "flutter",
+        "nestjs",
+        "go-realtime",
+        "deployment"
+      ],
+      "changedPathCount": 3,
+      "autoExitCode": 0,
+      "fullExitCode": 0,
+      "blockingChecksUnchanged": true,
+      "stale": false,
+      "unmatchedPaths": [],
+      "reruns": 0,
+      "commandRetries": 0,
+      "humanIntervention": false,
+      "falsePositive": null,
+      "falseNegative": null,
+      "shadowDurationMs": 8917,
+      "executionMode": "execution-canary",
+      "autoDurationMs": 3924,
+      "fullDurationMs": 4993,
+      "decisionDurationMs": 3924,
+      "firstObservedFailure": null,
+      "measurementEligibility": {
+        "retryReduction": true,
+        "timeToActionableFailure": true,
+        "reasonCode": "execution-canary-auto-only"
+      },
+      "run": {
+        "createdAt": "2026-08-17T06:35:46.840Z",
+        "startedAt": "2026-08-17T06:35:46.840Z",
+        "completedAt": "2026-08-17T06:41:12.130Z",
+        "githubDurationMs": 325290
+      },
+      "telemetry": {
+        "schemaVersion": 4,
+        "cohortId": "ops72-execution-canary-v1",
+        "queuedAtUtc": "2026-08-17T06:35:46.840Z",
+        "startedAtUtc": "2026-08-17T06:35:46.840Z",
+        "completedAtUtc": "2026-08-17T06:35:55.757Z",
+        "queueDurationMs": 0,
+        "executionDurationMs": 8917,
+        "executionMode": "execution-canary",
+        "autoDurationMs": 3924,
+        "fullDurationMs": 4993,
+        "decisionDurationMs": 3924,
+        "queueTimestampSource": "local-invocation",
+        "retryCount": 0,
+        "commandRetryCount": 0,
+        "externalRerunCount": 0,
+        "autoRetryCount": 0,
+        "fullRetryCount": 0,
+        "firstActionableFailure": null,
+        "autoFirstObservedFailure": null,
+        "fullFirstObservedFailure": null,
+        "firstObservedFailure": null,
+        "measurementEligibility": {
+          "retryReduction": true,
+          "timeToActionableFailure": true,
+          "reasonCode": "execution-canary-auto-only"
+        }
+      }
+    },
+    {
+      "pullRequest": 305,
+      "runId": 32003556708,
+      "runUrl": "https://github.com/hoanghochoi/phongvu-opshub/actions/runs/32003556708",
+      "prHeadSha": "451be17111c29f0604925d9e7146da90bd667785",
+      "baseSha": "e4968c3fc675380b795b6071dbdbf9d11999d914",
+      "reportedHeadSha": "4337e558896b42e47c6a17df4a2953c783e53212",
+      "artifactSha256": "244e10245c3d10e8b08fdef4bd2bc24829b1bfb1a252a00614df2160d599d20a",
+      "rawArtifactFile": "verify-task-shadow.json",
+      "status": "passed",
+      "classification": "shadow-observation",
+      "selectedProfiles": [
+        "harness",
+        "docs",
+        "verification-runner"
+      ],
+      "fullProfiles": [
+        "harness",
+        "docs",
+        "verification-runner",
+        "release",
+        "flutter",
+        "nestjs",
+        "go-realtime",
+        "deployment"
+      ],
+      "omittedProfiles": [
+        "release",
+        "flutter",
+        "nestjs",
+        "go-realtime",
+        "deployment"
+      ],
+      "changedPathCount": 5,
+      "autoExitCode": 0,
+      "fullExitCode": 0,
+      "blockingChecksUnchanged": true,
+      "stale": false,
+      "unmatchedPaths": [],
+      "reruns": 0,
+      "commandRetries": 0,
+      "humanIntervention": false,
+      "falsePositive": null,
+      "falseNegative": null,
+      "shadowDurationMs": 8307,
+      "executionMode": "execution-canary",
+      "autoDurationMs": 4700,
+      "fullDurationMs": 3607,
+      "decisionDurationMs": 4700,
+      "firstObservedFailure": null,
+      "measurementEligibility": {
+        "retryReduction": true,
+        "timeToActionableFailure": true,
+        "reasonCode": "execution-canary-auto-only"
+      },
+      "run": {
+        "createdAt": "2026-08-17T06:55:12.496Z",
+        "startedAt": "2026-08-17T06:55:12.496Z",
+        "completedAt": "2026-08-17T07:01:26.189Z",
+        "githubDurationMs": 373693
+      },
+      "telemetry": {
+        "schemaVersion": 4,
+        "cohortId": "ops72-execution-canary-v1",
+        "queuedAtUtc": "2026-08-17T06:55:12.496Z",
+        "startedAtUtc": "2026-08-17T06:55:12.496Z",
+        "completedAtUtc": "2026-08-17T06:55:20.803Z",
+        "queueDurationMs": 0,
+        "executionDurationMs": 8307,
+        "executionMode": "execution-canary",
+        "autoDurationMs": 4700,
+        "fullDurationMs": 3607,
+        "decisionDurationMs": 4700,
+        "queueTimestampSource": "local-invocation",
+        "retryCount": 0,
+        "commandRetryCount": 0,
+        "externalRerunCount": 0,
+        "autoRetryCount": 0,
+        "fullRetryCount": 0,
+        "firstActionableFailure": null,
+        "autoFirstObservedFailure": null,
+        "fullFirstObservedFailure": null,
+        "firstObservedFailure": null,
+        "measurementEligibility": {
+          "retryReduction": true,
+          "timeToActionableFailure": true,
+          "reasonCode": "execution-canary-auto-only"
+        }
+      }
+    },
+    {
+      "pullRequest": 306,
+      "runId": 32005263742,
+      "runUrl": "https://github.com/hoanghochoi/phongvu-opshub/actions/runs/32005263742",
+      "prHeadSha": "1b5a5088359361eefce6a3c560ebfcc9c4414a55",
+      "baseSha": "d2be1f445102e99fd3e9fd20a301f40d83be8656",
+      "reportedHeadSha": "3615ef2bda8da1ca1f7202ef78ad744c01927dbb",
+      "artifactSha256": "214ba6423412e75c8a24785aa15c7008e6e1662394b05b71eff4ae56fc409ae4",
+      "rawArtifactFile": "verify-task-shadow.json",
+      "status": "passed",
+      "classification": "shadow-observation",
+      "selectedProfiles": [
+        "harness",
+        "docs",
+        "verification-runner"
+      ],
+      "fullProfiles": [
+        "harness",
+        "docs",
+        "verification-runner",
+        "release",
+        "flutter",
+        "nestjs",
+        "go-realtime",
+        "deployment"
+      ],
+      "omittedProfiles": [
+        "release",
+        "flutter",
+        "nestjs",
+        "go-realtime",
+        "deployment"
+      ],
+      "changedPathCount": 5,
+      "autoExitCode": 0,
+      "fullExitCode": 0,
+      "blockingChecksUnchanged": true,
+      "stale": false,
+      "unmatchedPaths": [],
+      "reruns": 0,
+      "commandRetries": 0,
+      "humanIntervention": false,
+      "falsePositive": null,
+      "falseNegative": null,
+      "shadowDurationMs": 6987,
+      "executionMode": "execution-canary",
+      "autoDurationMs": 2889,
+      "fullDurationMs": 4098,
+      "decisionDurationMs": 2889,
+      "firstObservedFailure": null,
+      "measurementEligibility": {
+        "retryReduction": true,
+        "timeToActionableFailure": true,
+        "reasonCode": "execution-canary-auto-only"
+      },
+      "run": {
+        "createdAt": "2026-08-17T07:19:01.558Z",
+        "startedAt": "2026-08-17T07:19:01.558Z",
+        "completedAt": "2026-08-17T07:25:53.910Z",
+        "githubDurationMs": 412352
+      },
+      "telemetry": {
+        "schemaVersion": 4,
+        "cohortId": "ops72-execution-canary-v1",
+        "queuedAtUtc": "2026-08-17T07:19:01.558Z",
+        "startedAtUtc": "2026-08-17T07:19:01.558Z",
+        "completedAtUtc": "2026-08-17T07:19:08.545Z",
+        "queueDurationMs": 0,
+        "executionDurationMs": 6987,
+        "executionMode": "execution-canary",
+        "autoDurationMs": 2889,
+        "fullDurationMs": 4098,
+        "decisionDurationMs": 2889,
+        "queueTimestampSource": "local-invocation",
+        "retryCount": 0,
+        "commandRetryCount": 0,
+        "externalRerunCount": 0,
+        "autoRetryCount": 0,
+        "fullRetryCount": 0,
+        "firstActionableFailure": null,
+        "autoFirstObservedFailure": null,
+        "fullFirstObservedFailure": null,
+        "firstObservedFailure": null,
+        "measurementEligibility": {
+          "retryReduction": true,
+          "timeToActionableFailure": true,
+          "reasonCode": "execution-canary-auto-only"
+        }
+      }
+    },
+    {
+      "pullRequest": 307,
+      "runId": 32007203966,
+      "runUrl": "https://github.com/hoanghochoi/phongvu-opshub/actions/runs/32007203966",
+      "prHeadSha": "ef194694ea0f65cb04e8172b1c8d1b89d93cdd55",
+      "baseSha": "dfe0961822f788a4f2233490e1907afd5f991958",
+      "reportedHeadSha": "35d4b1579078a88979cd622f82f73c432b7f23be",
+      "artifactSha256": "4abc8326697f5dba572a01e79a378cffd17b954bf31d9a66bacaf92991c491c3",
+      "rawArtifactFile": "verify-task-shadow.json",
+      "status": "passed",
+      "classification": "shadow-observation",
+      "selectedProfiles": [
+        "harness",
+        "docs",
+        "verification-runner"
+      ],
+      "fullProfiles": [
+        "harness",
+        "docs",
+        "verification-runner",
+        "release",
+        "flutter",
+        "nestjs",
+        "go-realtime",
+        "deployment"
+      ],
+      "omittedProfiles": [
+        "release",
+        "flutter",
+        "nestjs",
+        "go-realtime",
+        "deployment"
+      ],
+      "changedPathCount": 6,
+      "autoExitCode": 0,
+      "fullExitCode": 0,
+      "blockingChecksUnchanged": true,
+      "stale": false,
+      "unmatchedPaths": [],
+      "reruns": 0,
+      "commandRetries": 0,
+      "humanIntervention": false,
+      "falsePositive": null,
+      "falseNegative": null,
+      "shadowDurationMs": 11893,
+      "executionMode": "execution-canary",
+      "autoDurationMs": 5613,
+      "fullDurationMs": 6279,
+      "decisionDurationMs": 5613,
+      "firstObservedFailure": null,
+      "measurementEligibility": {
+        "retryReduction": true,
+        "timeToActionableFailure": true,
+        "reasonCode": "execution-canary-auto-only"
+      },
+      "run": {
+        "createdAt": "2026-08-17T07:46:30.181Z",
+        "startedAt": "2026-08-17T07:46:30.181Z",
+        "completedAt": "2026-08-17T07:53:34.677Z",
+        "githubDurationMs": 424496
+      },
+      "telemetry": {
+        "schemaVersion": 4,
+        "cohortId": "ops72-execution-canary-v1",
+        "queuedAtUtc": "2026-08-17T07:46:30.181Z",
+        "startedAtUtc": "2026-08-17T07:46:30.181Z",
+        "completedAtUtc": "2026-08-17T07:46:42.074Z",
+        "queueDurationMs": 0,
+        "executionDurationMs": 11893,
+        "executionMode": "execution-canary",
+        "autoDurationMs": 5613,
+        "fullDurationMs": 6279,
+        "decisionDurationMs": 5613,
+        "queueTimestampSource": "local-invocation",
+        "retryCount": 0,
+        "commandRetryCount": 0,
+        "externalRerunCount": 0,
+        "autoRetryCount": 0,
+        "fullRetryCount": 0,
+        "firstActionableFailure": null,
+        "autoFirstObservedFailure": null,
+        "fullFirstObservedFailure": null,
+        "firstObservedFailure": null,
+        "measurementEligibility": {
+          "retryReduction": true,
+          "timeToActionableFailure": true,
+          "reasonCode": "execution-canary-auto-only"
+        }
+      }
+    }
+  ],
+  "excludedObservations": [
+    {
+      "pullRequest": 182,
+      "runId": 31682119252,
+      "runUrl": "https://github.com/hoanghochoi/phongvu-opshub/actions/runs/31682119252",
+      "prHeadSha": "b8ecdbb412a4b2ed36cbd60306ad0f45f8add0c8",
+      "baseSha": "737812769d92490e954cccece0fe0cc4c26a4323",
+      "reportedHeadSha": "d55dbde898a469cbe597a2c73be031660df26455",
+      "artifactSha256": "affcda1852c5f59d6a5bb91a6178ab5f45e613a202534979cfddd830b9216aeb",
+      "rawArtifactFile": "verify-task-shadow.json",
+      "status": "failed",
+      "classification": "contract-failure",
+      "reasonCode": "unmatched-path-profile",
+      "unmatchedPaths": [
+        "scripts/collect-ops72-shadow-metrics.mjs"
+      ],
+      "rootCause": "The collector script was added without a matching tracked verification profile; the profile and verifier were added before any promotion decision."
+    }
+  ],
+  "baseline": {
+    "cohortId": "ops72-live-v1",
+    "source": "sanitized pre-telemetry shadow observations from PRs #181, #183, #184, #185 and #186",
+    "observations": [
+      {
+        "pullRequest": 181,
+        "runId": 31680282181,
+        "shadowDurationMs": 6694,
+        "githubDurationMs": 28000,
+        "reruns": 0
+      },
+      {
+        "pullRequest": 183,
+        "runId": 31683041243,
+        "shadowDurationMs": 7702,
+        "githubDurationMs": 25000,
+        "reruns": 0
+      },
+      {
+        "pullRequest": 184,
+        "runId": 31687321596,
+        "shadowDurationMs": 7647,
+        "githubDurationMs": 27000,
+        "reruns": 0
+      },
+      {
+        "pullRequest": 185,
+        "runId": 31690753737,
+        "shadowDurationMs": 8933,
+        "githubDurationMs": 21000,
+        "reruns": 0
+      },
+      {
+        "pullRequest": 186,
+        "runId": 31692230500,
+        "shadowDurationMs": 3825,
+        "githubDurationMs": 17000,
+        "reruns": 0
+      }
+    ],
+    "shadowDurationMedianMs": 7647,
+    "githubDurationMedianMs": 25000,
+    "reruns": 0
+  },
+  "aggregate": {
+    "passCount": 5,
+    "contractFailureCount": 0,
+    "productFailureCount": 0,
+    "staleFailureCount": 0,
+    "environmentFailureCount": 0,
+    "reruns": 0,
+    "commandRetries": 0,
+    "externalReruns": 0,
+    "acceptedStaleProofs": 0,
+    "productFailuresRetriedToGreen": 0,
+    "timeToActionableFailureMedianMs": null,
+    "baselineMedianTimeToActionableFailureMs": null,
+    "rerunReductionPercent": null,
+    "timeToActionableFailureReductionPercent": null,
+    "decisionDurationMedianMs": 4700,
+    "baselineDecisionDurationMedianMs": null,
+    "decisionDurationReductionPercent": null,
+    "shadowDurationMedianMs": 8917,
+    "baselineShadowDurationMedianMs": 7647,
+    "shadowDurationReductionPercent": null,
+    "githubDurationMedianMs": 412352,
+    "baselineGithubDurationMedianMs": 25000,
+    "githubDurationReductionPercent": -1549.41,
+    "targetStatus": "pending-live-timing-baseline",
+    "targetDecision": "do-not-promote"
+  },
+  "interpretation": [
+    "Five execution-canary observations share cohort ops72-execution-canary-v1, pass with stale=false and zero unmatched paths.",
+    "The auto-selected lane executed with the full ladder retained as a dry-run comparator; command retries and external workflow reruns are recorded separately.",
+    "The execution-canary lane is eligible for timing/retry measurement, but no target is promoted until a reviewed baseline and five comparable observations exist.",
+    "Target status is pending-live-timing-baseline; the affected matrix remains observational until both acceptance targets are measurable and met."
+  ]
+}

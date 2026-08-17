@@ -6,16 +6,24 @@ import { validateProgress } from '../../scripts/verify-ops72-execution-canary-pr
 
 const fixture = JSON.parse(readFileSync('docs/migrations/ops-72-execution-canary-progress.json', 'utf8'));
 
-test('accepts the current partial execution-canary progress ledger', () => {
+test('accepts the completed execution-canary progress ledger without promotion authority', () => {
   const result = validateProgress(fixture);
   assert.deepEqual(result, {
-    status: 'collecting',
+    status: 'complete',
     issue: 'OPS-72',
     cohortId: 'ops72-execution-canary-v1',
-    collectedObservationCount: 4,
+    collectedObservationCount: 5,
     requiredObservationCount: 5,
     promotionEligible: false,
   });
+});
+
+test('requires collecting status while the cohort is still partial', () => {
+  const partial = structuredClone(fixture);
+  partial.observations.pop();
+  partial.collectedObservationCount = 4;
+  partial.status = 'complete';
+  assert.throws(() => validateProgress(partial), /partial progress must remain collecting/);
 });
 
 test('rejects duplicate PR/run identities', () => {
@@ -34,7 +42,7 @@ test('rejects stale or unmatched proof', () => {
   assert.throws(() => validateProgress(unmatched), /unmatchedPaths must be empty/);
 });
 
-test('rejects promotion or local-path claims for a partial ledger', () => {
+test('rejects promotion or local-path claims for a completed ledger', () => {
   const promoted = structuredClone(fixture);
   promoted.promotionEligible = true;
   assert.throws(() => validateProgress(promoted), /promotion eligible/);

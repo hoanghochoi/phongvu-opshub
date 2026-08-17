@@ -18,25 +18,24 @@ Current active/release-pending authority:
 - [`OPS-53-redesign-chrome-audit-consolidation.md`](OPS-53-redesign-chrome-audit-consolidation.md)
   is the only current OPS-53 execution summary. Its nine fragments are history.
 - [`OPS-64-upstream-harness-repository-cleanup.md`](OPS-64-upstream-harness-repository-cleanup.md)
-  remains the initiative master plan; OPS-182 is the current canary-progress
-  guard after the OPS-181 reconciliation. OPS-181 is squash-merged through PR
-  #306 at `dfe09618`, with Release Guard, Affected Shadow and execution-canary
-  passed. Its schema-v4 artifact has `stale=false`, zero unmatched paths and
-  zero reruns; the progress ledger now records 4/5 real observations and
-  remains `promotionEligible=false`. OPS-182 adds docs-contract guards for
-  the final-evidence authority and non-promotable partial ledger. The selected
-  Harness/docs/verification-runner lane remains observational; no profile is
-  suppressed and no product failure is retried to green. Runtime affected-
-  consumer proof and the remaining observation stay fail-closed. OPS-180 is
-  the preceding execution-canary progress slice, squash-merged through PR
-  #305 at `d2be1f44`; OPS-179 is the preceding reconciliation, squash-merged
-  through PR #304 at `e4968c3f`; OPS-178 is the preceding execution-canary
-  lane, squash-merged through PR #303 at `14224af1`. The final OPS-72 evidence
-  remains `revise`/`do-not-promote`; the next bounded action is collect one
-  more real execution-canary observation, then decide whether OPS-72 can leave
-  revise/do-not-promote. The upstream updater blocker,
-  dependency/affected-consumer proof closure, User/Auth authority follow-ups
-  and the remaining Phase 10 production gates stay open. OPS-177 is the
+  remains the initiative master plan; OPS-183 is the current canary-cohort
+  reconciliation after the OPS-182 authority guard. PR #307 is the fifth
+  real schema-v4 execution-canary observation (run `32007203966`), with
+  `stale=false`, zero unmatched paths and zero reruns. The progress ledger is
+  now `complete` at 5/5 but remains `promotionEligible=false`; the selected
+  Harness/docs/verification-runner lane is observational, and the Flutter,
+  NestJS and Go dependency-heavy profiles remain fail-closed/deferred. OPS-72
+  stays `revise`/`do-not-promote`: execution-canary timing has no comparable
+  baseline, TTAF has no failure sample and rerun reduction is unmeasurable.
+  No profile is suppressed and no product failure is retried to green. OPS-182
+  is the preceding authority guard, squash-merged through PR #307 at
+  `7c7e2240`; OPS-181 is the preceding execution-canary slice through PR #306
+  at `dfe09618`; OPS-180 is the preceding progress slice through PR #305 at
+  `d2be1f44`; OPS-179 is the preceding reconciliation through PR #304 at
+  `e4968c3f`; OPS-178 is the preceding execution-canary lane through PR #303
+  at `14224af1`. The upstream updater blocker, dependency/affected-consumer
+  proof closure, User/Auth authority follow-ups and remaining Phase 10
+  production gates stay open. OPS-177 is the
   preceding reconciliation, squash-merged through PR #302 at `df20b4e7` and
   staging-deployed by `31998307023`; OPS-175 is squash-merged through PR #301
   at `2e5dc7b2` and staging-deployed by `31997427099`; OPS-176 is squash-
