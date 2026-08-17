@@ -3483,6 +3483,13 @@ the current checkpoint above is the sole active execution authority.
 - Dependency-heavy Flutter/Go affected-consumer proof, OPS-72 percentage
   promotion decision, authenticated QA and production deployment remain open;
   no profile is suppressed and no product failure is retried to green.
+- Local proof for this slice passes the updater validator, five contract tests,
+  syntax checks, migration-EOL and toolchain-boundary scans. Base-aware
+  `verify-task --dry-run` passes with `harness`, `docs` and
+  `verification-runner` selected, `stale=false`; the non-dry runner was also
+  attempted and failed closed only on the known environment dependency lane
+  (`105/106` toolchain tests, one Windows Nest `.cmd` hydration test exit `5`),
+  with no product assertion failure. CI remains the dependency-ready gate.
 - Required proof before publication: updater evidence/contract tests, Harness
   migration/boundary checks, docs/link/mojibake/secret scans, exact
   `verify-task` with `stale=false`, and `git diff --check`. Rollback is one
