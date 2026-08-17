@@ -4,7 +4,26 @@ Date: 2026-08-13
 
 ## Status
 
-Active — the current workflow checkpoint is OPS-174 reconciliation after the
+Active — the current workflow checkpoint is OPS-177 reconciliation after the
+OPS-175/OPS-176 slices, created from exact live
+`origin/staging@2e5dc7b29beb90a9ab059d2b0ba5a8e1c8c3b95a` after OPS-175.
+OPS-175 PR #301 is squash-merged at
+`2e5dc7b29beb90a9ab059d2b0ba5a8e1c8c3b95a`; focused User/Auth proof passed
+3 suites / 23 tests, the full Nest proof passed 124 suites / 1,311 tests with
+6 skips, Nest build and the exact `verify-task --base origin/staging
+--profile nestjs` passed with `stale=false`. Guarded lifecycle finish
+fast-forwarded canonical staging; the task worktree/local branch cleanup was
+completed after Windows removed its ignored generated outputs. The staging
+deploy run for this merge is not yet observed, so the issue remains release
+pending and is not treated as production-complete.
+OPS-176 PR #300 is squash-merged at
+`c2ec9c3100a39753d65f87da75ef3ce4610083e5`, staging-deployed by
+`31996291315`, and passed the read-only Flutter-output repair proof, release
+guard, affected shadow, Windows cold canary and deployment health/version
+gates. Its full Flutter suite remains unverified because the run later stopped
+without progress after reaching 521 tests; no dependency profile was
+suppressed and no product failure was retried to green.
+The previous reconciliation was OPS-174 after the
 OPS-75 Phase 10 installer slice, created from exact live
 `origin/staging@75abf3d9d114a0d1e351fe84aa76f1f96dd98acf` after OPS-75.
 OPS-75 PR #298 is squash-merged, staging deploy `31991597879` passed the
@@ -3051,3 +3070,39 @@ the current checkpoint above is the sole active execution authority.
   dry-run/install, JSON/plan/artifact/retirement validators and exact
   `verify-task` with `stale=false`. Rollback is one squash revert; ignored
   disposable Harness state is not repository authority.
+
+## Workflow checkpoint (OPS-177; post-OPS-175/OPS-176 reconciliation)
+
+- This docs-only slice uses branch/worktree
+  `codex/ops-177-reconcile-master-plan-after-ops-175-176` /
+  `../opshub-ops-177-plan-reconcile`, created from exact live
+  `origin/staging@2e5dc7b29beb90a9ab059d2b0ba5a8e1c8c3b95a` through the
+  guarded lifecycle start gate. Only the Nest profile was prepared because
+  this slice changes no dependency-owning runtime path; Flutter hydration and
+  affected-consumer proof remain intentionally deferred, fail-closed and
+  explicitly unverified.
+- OPS-175 is squash-merged through PR #301 at
+  `2e5dc7b29beb90a9ab059d2b0ba5a8e1c8c3b95a`. Direct User/Auth proof passed
+  3 suites / 23 tests; full Nest passed 124 suites / 1,311 tests with 6
+  skips; Nest build, Prettier, `git diff --check` and exact Nest-profile
+  `verify-task` passed with `stale=false`. Guarded finish fast-forwarded
+  canonical staging and removed the task worktree/local branch after its
+  ignored generated outputs were released. The merge SHA's staging deploy is
+  still pending observation, so OPS-175 remains release-pending.
+- OPS-176 is squash-merged through PR #300 at
+  `c2ec9c3100a39753d65f87da75ef3ce4610083e5`, staging-deployed by
+  `31996291315`, and passed the focused toolchain tests (8/8), Release Guard,
+  affected shadow, Windows cold canary and deployment artifact/direct-origin/
+  health/version gates. The later full Flutter run reached 521 tests but did
+  not complete; this is recorded as an environment/unverified result, not a
+  pass or suppressed profile.
+- The slice updates only this master plan, the active-plan README and the
+  OPS-71 disposition ledger. It preserves the upstream updater
+  `git merge-file` exit-code blocker, the OPS-72 revise/do-not-promote
+  decision, the two User/Auth follow-ups and the dependency residual. No
+  runtime, dependency, lockfile, archive, Harness DB or product behavior
+  changes are in scope. Rollback is one squash revert.
+- Required proof before publication: `node scripts/verify-plan-disposition.mjs`,
+  stale-current-reference scan, JSON/link/mojibake checks, exact docs-profile
+  `scripts/verify-task.mjs --base origin/staging` with `stale=false`, changed
+  path scope review and `git diff --check`.
