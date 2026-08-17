@@ -4,20 +4,20 @@ Date: 2026-08-13
 
 ## Status
 
-Active — the current workflow checkpoint is OPS-181 reconciliation after the
-OPS-180 execution-canary progress slice, created from exact live
-`origin/staging@d2be1f445102e99fd3e9fd20a301f40d83be8656` after OPS-180.
-OPS-180 PR #305 is squash-merged at
-`d2be1f445102e99fd3e9fd20a301f40d83be8656`; Release Guard, Affected Shadow,
-execution-canary and Windows cold dependency canary passed. The artifact
-reported `executionMode=execution-canary`, `stale=false`, `autoExitCode=0`,
-zero unmatched paths and zero reruns; the progress ledger now records 3/5
-real observations and remains `promotionEligible=false`. The selected
+Active — the current workflow checkpoint is OPS-182 canary-progress guard
+after the OPS-181 reconciliation, created from exact live
+`origin/staging@dfe0961822f788a4f2233490e1907afd5f991958` after OPS-181.
+OPS-181 PR #306 is squash-merged at
+`dfe0961822f788a4f2233490e1907afd5f991958`; its execution-canary artifact is
+schema-v4 with `stale=false`, zero unmatched paths and zero reruns. The
+progress ledger now records 4/5 real observations and remains
+`promotionEligible=false`; OPS-182 also adds docs-contract guards that keep
+the partial ledger non-authoritative. The selected
 Harness/docs/verification-runner lane is observational; runtime affected-
-consumer proof and the remaining two observations stay fail-closed. No
-profile was suppressed and no product failure was retried to green. OPS-72
-remains `revise`/`do-not-promote` until the five-observation gate and metric
-decision are complete.
+consumer proof and the remaining observation stay fail-closed. No profile was
+suppressed and no product failure was retried to green. OPS-72 remains
+`revise`/`do-not-promote` until the five-observation gate and metric decision
+are complete.
 OPS-177 PR #302 is squash-merged at
 `df20b4e7c6544243a7ad689ef27bb3e3163d3a35` and staging-deployed by
 `31998307023`; its docs-only reconciliation and guarded lifecycle cleanup
@@ -60,13 +60,13 @@ changed and no product failure was retried to green. OPS-172 records this
 checkpoint and keeps the dependency gap as residual risk rather than weakening
 any gate. The Phase 9 ownership audit now records two explicit User/Auth
 security follow-ups with no current owner: atomic assignment transaction
-hardening and generic admin-policy scope authorization. OPS-181 records this
+hardening and generic admin-policy scope authorization. OPS-182 records this
 checkpoint and keeps the approved dependency gap fail-closed. The next bounded
-action is to collect two more real execution-canary observations from
-independent merged PRs, then decide whether OPS-72 can leave
+action is to collect one more real execution-canary observation from an
+independent merged PR, then decide whether OPS-72 can leave
 revise/do-not-promote; the
 upstream updater blocker, dependency/affected-consumer proof, User/Auth
-authority and remaining Phase 10 production gates stay open.
+  authority and remaining Phase 10 production gates stay open.
 OPS-165 is the preceding master-plan reconciliation after OPS-164.
 OPS-163 is the preceding master-plan reconciliation after OPS-162.
 OPS-160 UserAdminMutationService characterization is squash-merged through PR
@@ -744,6 +744,10 @@ god-helper.
   active-plan index and OPS-71 ledger now record observation 3/5; collect two
   more real observations before deciding whether OPS-72 can leave
   revise/do-not-promote.
+- [ ] Complete OPS-182 canary-progress authority guard. This slice records the
+  verified OPS-181/PR #306 artifact as observation 4/5 and adds docs-contract
+  guards for the non-authoritative partial ledger; collect one more real
+  observation before deciding whether OPS-72 can leave revise/do-not-promote.
 - [x] Complete the Phase 8 artifact/dependency/toolchain review and deletion
   decision. The refreshed inventory, retained-owner review, Flutter/Nest
   dependency batches and Go/deploy review all pass; zero deletion batches are
@@ -3196,3 +3200,33 @@ the current checkpoint above is the sole active execution authority.
   two consecutive plan-disposition checks, stale-current-reference scan,
   JSON/link/mojibake/secret checks, exact docs/verification `verify-task` with
   `stale=false`, changed-path scope review and `git diff --check`.
+
+## Workflow checkpoint (OPS-182; execution-canary observation 4 and authority guard)
+
+- This Harness/docs slice uses branch/worktree
+  `codex/ops-182-canary-progress-doc-guard` /
+  `../opshub-ops-182-canary-guard`, created from exact live
+  `origin/staging@dfe0961822f788a4f2233490e1907afd5f991958` through the guarded
+  lifecycle start gate. Toolchain preparation completed; no runtime,
+  dependency, API, UI or data path is changed.
+- PR #306 / OPS-181 is the fourth real schema-v4 execution-canary observation:
+  run `32005263742`, PR head `1b5a5088359361eefce6a3c560ebfcc9c4414a55`,
+  base `d2be1f445102e99fd3e9fd20a301f40d83be8656`, reported head
+  `3615ef2bda8da1ca1f7202ef78ad744c01927dbb`, report SHA-256
+  `214ba6423412e75c8a24785aa15c7008e6e1662394b05b71eff4ae56fc409ae4`.
+  It uses cohort `ops72-execution-canary-v1`, selected profiles
+  `harness,docs,verification-runner`, `stale=false`, zero unmatched paths and
+  zero reruns. The progress ledger records 4/5 and remains non-promotable.
+- The docs-contract test now rejects a missing final-evidence authority or a
+  partial ledger with `promotionEligible=true`. These guards supplement the
+  canonical Node verifier; raw CI artifacts remain outside Git and the final
+  five-observation evidence file remains authoritative.
+- PR #307's execution-canary artifact is expected to be the fifth observation;
+  this slice must not claim Phase 7 closure until that artifact is downloaded,
+  independently re-hashed, validated in the same cohort and reconciled in a
+  follow-up checkpoint. OPS-72 remains `revise`/`do-not-promote`.
+- Required proof before publication: docs contract and Bash syntax, progress
+  and final-evidence validators, two consecutive plan-disposition checks,
+  exact Harness-profile `verify-task` with `stale=false`, CI Release Guard /
+  Affected Shadow / execution-canary, changed-path scope review and
+  `git diff --check`.
