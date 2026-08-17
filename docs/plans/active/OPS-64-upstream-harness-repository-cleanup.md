@@ -4,26 +4,33 @@ Date: 2026-08-13
 
 ## Status
 
-Active — the current workflow checkpoint is OPS-167 master-plan
+Active — the current workflow checkpoint is OPS-170 master-plan
 reconciliation, created from exact live
-`origin/staging@a6c8342f682699b5564bd3ee79ee3f992e38f2f6` after OPS-166.
-OPS-166 User/Import orchestration characterization is squash-merged through
-PR #290 at `a6c8342f682699b5564bd3ee79ee3f992e38f2f6`, staging-deployed by
-`31977096035`, post-merge CodeQL-verified by `31977096088`, and tracked
-`Ready for QA` after exact-SHA deployment and guarded lifecycle cleanup.
-Focused import proof passed 9/9; affected Nest suites passed 3 suites/92
-tests; full Nest passed with 121 suites, 1,292 passed and 6 skipped; Nest
-build, Prettier, `git diff --check` and exact runner proof passed with
-`stale=false`. The characterization changed only
-`backend-nest/src/user/user-import.service.spec.ts`; no production/API/DTO/DI,
-dependency, Flutter, Go, archive or Harness DB path changed. The next Phase 9F
-runtime slice must be selected after this reconciliation; atomic
-user/organization-assignment transactions and generic admin-policy scope
-authorization remain separate full-fix/security follow-ups. Flutter/Go
-affected-consumer proof remains explicitly fail-closed under the approved
-dependency deferral; no profile was suppressed, no lockfile was changed and no
-product failure was retried to green. OPS-167 records this checkpoint and
-keeps the dependency gap as residual risk rather than weakening any gate.
+`origin/staging@490a5ce5c6da5ef10336f90b08f736b24ebbd73a` after OPS-169.
+OPS-168 MAP persistence characterization is squash-merged through PR #292 at
+`a1ef59222de646e07ca02f7c22707898aeffa852`, staging-deployed by
+`31980348208`, and tracked `Ready for QA` after exact-SHA deployment,
+affected proof and guarded lifecycle cleanup. Its direct MAP runtime proof
+passed 7 suites / 210 tests; the slice changed only
+`backend-nest/src/map-vietin/map-vietin-persistence.runtime.spec.ts`.
+OPS-169 ERP cache-page mapping characterization is squash-merged through PR
+#293 at `490a5ce5c6da5ef10336f90b08f736b24ebbd73a`, staging-deployed by
+`31981556234`, and tracked `Ready for QA` after exact-SHA deployment,
+affected proof and guarded lifecycle cleanup. Its proof passed 6 suites / 131
+tests with 6 skips; the slice changed only
+`backend-nest/src/sales-reports/sales-reports.service.spec.ts`.
+Both slices changed no production/API/DTO/DI, dependency, archive or Harness
+DB path. The next bounded Phase 9D runtime boundary is extracting the already
+characterized ERP cache-page mapping from `SalesReportsService`; MAP
+persistence remains owned by its existing collaborator and is not extracted a
+second time. Atomic user/organization-assignment transactions and generic
+admin-policy scope authorization remain separate full-fix/security follow-ups.
+Flutter/Go affected-consumer proof remains explicitly fail-closed and
+unverified under the approved dependency deferral; no profile was suppressed,
+no lockfile was changed and no product failure was retried to green. OPS-170
+records this checkpoint and keeps the dependency gap as residual risk rather
+than weakening any gate. OPS-167 is the preceding master-plan reconciliation
+after OPS-166.
 OPS-165 is the preceding master-plan reconciliation after OPS-164.
 OPS-163 is the preceding master-plan reconciliation after OPS-162.
 OPS-160 UserAdminMutationService characterization is squash-merged through PR
@@ -2316,7 +2323,7 @@ reconciliation slice; OPS-154, OPS-155 and OPS-156 are the latest merged runtime
 checkpoints, with OPS-156 merged/deployed at `6849ddb0` and tracked `Ready for
 QA`. OPS-158 is merged/deployed and tracked `Ready for QA`; OPS-159 is the
 preceding docs-only reconciliation slice and OPS-160 is the latest merged
-runtime characterization checkpoint. OPS-161 is the current docs-only
+runtime characterization checkpoint at that historical point. OPS-161 was a
 reconciliation slice. OPS-138 is merged/deployed and tracked as `Ready for QA`;
 OPS-157 remains the preceding completed docs
 reconciliation checkpoint.
@@ -2901,3 +2908,32 @@ the current checkpoint above is the sole active execution authority.
   returned code `0` with `stale=false`, and kept matching before/after
   fingerprints. The authoritative base/head and fingerprint are retained in
   the ignored JSON artifact rather than duplicated in this fingerprinted plan.
+
+## Workflow checkpoint (OPS-170; post-OPS-168/OPS-169 master-plan reconciliation)
+
+- This docs-only slice uses branch/worktree
+  `codex/ops-170-reconcile-master-plan-after-ops-169` /
+  `../opshub-ops-170-plan-reconcile`, created from exact live
+  `origin/staging@490a5ce5c6da5ef10336f90b08f736b24ebbd73a` through the guarded
+  lifecycle start gate. The worktree started clean; only the Nest profile was
+  prepared. Flutter/Go hydration and affected-consumer proof remain deferred,
+  fail-closed and explicitly unverified under the approved dependency gap.
+- OPS-168 is verified as squash-merged through PR #292 at
+  `a1ef59222de646e07ca02f7c22707898aeffa852`, staging-deployed by
+  `31980348208`, and tracked `Ready for QA` after direct MAP proof, exact-SHA
+  deployment and guarded lifecycle cleanup. OPS-169 is verified as
+  squash-merged through PR #293 at `490a5ce5c6da5ef10336f90b08f736b24ebbd73a`,
+  staging-deployed by `31981556234`, and tracked `Ready for QA` after ERP
+  cache-page proof, exact-SHA deployment and guarded lifecycle cleanup.
+- The slice updates only this master plan, the active-plan index and the
+  OPS-71 disposition ledger. It records the next bounded runtime boundary as
+  extracting the already-characterized ERP cache-page mapping from
+  `SalesReportsService`; `MapVietinPersistenceRuntime` remains the existing
+  MAP persistence owner. No runtime, dependency, lockfile, archive, Harness DB
+  or product behavior changes are in scope. Rollback is one OPS-170 squash
+  revert.
+- Required proof before publication: plan-disposition validation, stale
+  OPS-167/current-checkpoint reference scan, exact docs-profile
+  `scripts/verify-task.mjs --base origin/staging` with `stale=false`, changed
+  path scope review and `git diff --check`. The dependency deferral is a
+  documented residual, not a suppressed profile or a greened product failure.
