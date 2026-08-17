@@ -1,0 +1,65 @@
+{
+  "formatVersion": 1,
+  "issue": "OPS-189",
+  "sourceRevision": "6027db5db7de0338ca50fdb129bb3a65af31bf45",
+  "generatedAtUtc": "2026-08-17T11:45:00Z",
+  "provenance": {
+    "releaseTag": "harness-v0.1.8",
+    "installedVersion": "0.1.8",
+    "candidateVersion": "0.1.10",
+    "binarySha256": "e15ad887d028d27844e326fa76bb43931660a7452a9ef474f8a8eeb7610ff9c0"
+  },
+  "readOnlyProbes": {
+    "statusJson": {
+      "status": "passed",
+      "exitCode": 0,
+      "sourceMutation": false
+    },
+    "doctorJson": {
+      "status": "passed",
+      "exitCode": 0,
+      "healthy": true,
+      "sourceMutation": false
+    }
+  },
+  "updateDryRun": {
+    "status": "blocked-upstream",
+    "disposition": "blocked-upstream",
+    "outerExitCode": 1,
+    "innerExitCode": 5,
+    "failure": "git merge-file returned exit code 5 while merging customized AGENTS.md",
+    "cause": "The upstream merge adapter treats only exit code 1 as a conflict; Git returns the conflict-hunk count, so five overlapping hunks are reported as a hard error.",
+    "evidenceSource": "docs/migrations/ops-75-harness-install-evidence.json",
+    "sourceRevisionBefore": "6027db5db7de0338ca50fdb129bb3a65af31bf45",
+    "sourceRevisionAfter": "6027db5db7de0338ca50fdb129bb3a65af31bf45",
+    "sourceMutation": false,
+    "requiresTaggedUpstreamFix": true
+  },
+  "currentProbe": {
+    "status": "blocked-upstream",
+    "disposition": "blocked-upstream",
+    "classification": "environment-failure",
+    "outerExitCode": 1,
+    "innerExitCode": null,
+    "failure": "release lookup returned HTTP 429 before the merge-file phase",
+    "sourceRevisionBefore": "6027db5db7de0338ca50fdb129bb3a65af31bf45",
+    "sourceRevisionAfter": "6027db5db7de0338ca50fdb129bb3a65af31bf45",
+    "sourceMutation": false,
+    "observedAtUtc": "2026-08-17T11:40:00Z"
+  },
+  "adoptionPolicy": {
+    "currentPin": "harness-v0.1.8",
+    "adoptionAllowed": false,
+    "requiredBeforeAdoption": [
+      "tagged upstream release containing the merge-file exit-range fix",
+      "fresh disposable status/doctor/update/conflict/continue/abort/recovery proof",
+      "source hash unchanged after dry-run and recovery checks"
+    ],
+    "patchOrForkAllowed": false
+  },
+  "dependencyProof": {
+    "status": "deferred-fail-closed",
+    "profiles": ["flutter", "go"],
+    "reason": "temporary user-approved deferral; no profile was suppressed and no product failure was retried to green"
+  }
+}
