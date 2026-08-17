@@ -1,0 +1,35 @@
+{
+  "formatVersion": 1,
+  "issue": "OPS-75",
+  "sourceRevision": "04e88aad951254e7a940d21a10dfdc1116edab42",
+  "generatedAtUtc": "2026-08-17T03:25:28.0265382Z",
+  "scope": "fresh-consumer-Harness-install-and-update-preflight",
+  "installer": {
+    "releaseTag": "harness-v0.1.8",
+    "platform": "windows-x64",
+    "fallback": "when the consumer checkout has no Cargo.toml, keep local payload files and download the pinned upstream core with checksum and release-identity verification",
+    "powershellDryRun": "pass",
+    "powershellInstall": "pass",
+    "binarySha256": "e15ad887d028d27844e326fa76bb43931660a7452a9ef474f8a8eeb7610ff9c0"
+  },
+  "freshTarget": {
+    "statusJson": "pass",
+    "doctorJson": "pass",
+    "trackedMutation": false,
+    "ignoredStateOnly": true
+  },
+  "updateDryRun": {
+    "status": "blocked-upstream",
+    "exitCode": 1,
+    "candidateVersion": "0.1.10",
+    "failure": "git merge-file returned exit code 5 while merging customized AGENTS.md",
+    "cause": "upstream merge adapter treats only exit code 1 as a conflict; Git returns the conflict-hunk count, so five overlapping hunks are reported as a hard error",
+    "sourceMutation": false,
+    "requiresUpstreamFix": true
+  },
+  "dependencyProof": {
+    "status": "deferred-fail-closed",
+    "profiles": ["flutter", "go"],
+    "reason": "temporary user-approved deferral; no profile was suppressed and no product failure was retried to green"
+  }
+}

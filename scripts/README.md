@@ -35,6 +35,13 @@ They verify an immutable candidate and delegate core semantics to it. They do
 not discover schemas, initialize SQLite, download `harness-cli`, or write a
 control-plane database.
 
+The wrappers may run from a consumer checkout that contains the tracked
+Harness payload but not the upstream Rust source. In that case they keep the
+local payload and download the pinned core release with checksum and release
+identity verification; a local Cargo build is used only when `Cargo.toml` is
+present. `HARNESS_CORE_BINARY` remains an explicit local-artifact override for
+offline or release-test workflows.
+
 ## Generic verification runner
 
 Use `scripts/verify-task.mjs` as the repository-owned changed-path entrypoint:

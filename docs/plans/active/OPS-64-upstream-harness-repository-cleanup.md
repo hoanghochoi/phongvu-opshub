@@ -4,9 +4,14 @@ Date: 2026-08-13
 
 ## Status
 
-Active — the current workflow checkpoint is OPS-173 Phase 9 ownership audit,
-created from exact live
-`origin/staging@64ea802a81f5378fea4239e6a5ab904cb537c349` after OPS-172.
+Active — the current workflow checkpoint is OPS-75 Phase 10 pre-release
+consolidation, created from exact live
+`origin/staging@04e88aad951254e7a940d21a10dfdc1116edab42` after OPS-173.
+This checkpoint is intentionally partial: the fresh Harness installer fallback
+is verified, while the upstream `update --dry-run` gate is blocked by a
+multi-hunk `git merge-file` exit-code defect and Flutter/Go proof remains
+deferred fail-closed. OPS-173 Phase 9 ownership audit is the preceding
+checkpoint; its two User/Auth authority follow-ups remain open.
 OPS-171 ERP cache-page mapping extraction is squash-merged through PR #295 at
 `1809b49f5713e96d5aa83c79f86e1351d8221df8`, staging-deployed by
 `31986109215`, and tracked `Ready for QA` after exact-SHA deployment,
@@ -28,9 +33,10 @@ changed and no product failure was retried to green. OPS-172 records this
 checkpoint and keeps the dependency gap as residual risk rather than weakening
 any gate. The Phase 9 ownership audit now records two explicit User/Auth
 security follow-ups with no current owner: atomic assignment transaction
-hardening and generic admin-policy scope authorization. The next bounded
-action is to obtain authority for those follow-ups, then resolve the OPS-72
-revise/do-not-promote decision and OPS-75 Phase 10 final consolidation.
+hardening and generic admin-policy scope authorization. The next bounded action
+is to finish the unblocked OPS-75 Harness/docs evidence and obtain authority
+for the two User/Auth follow-ups; OPS-72 remains revise/do-not-promote and full
+Phase 10 release evidence remains open.
 OPS-165 is the preceding master-plan reconciliation after OPS-164.
 OPS-163 is the preceding master-plan reconciliation after OPS-162.
 OPS-160 UserAdminMutationService characterization is squash-merged through PR
@@ -3007,3 +3013,31 @@ the current checkpoint above is the sole active execution authority.
   `stale=false`, changed-path scope review and `git diff --check`. The
   dependency deferral remains a documented residual, not a suppressed profile
   or a greened product failure.
+
+## Workflow checkpoint (OPS-75; Harness installer fallback and updater blocker)
+
+- This Phase 10 pre-release slice uses branch/worktree
+  `codex/ops-75-final-consolidation-dependency-deferred` /
+  `../opshub-ops-75-final-consolidation`, created from exact live
+  `origin/staging@04e88aad951254e7a940d21a10dfdc1116edab42` through the guarded
+  lifecycle start gate. Only the Nest profile was prepared; Flutter/Go remain
+  explicitly deferred and unverified.
+- The tracked installer wrappers now build a local Rust core only when the
+  source checkout contains `Cargo.toml`; a consumer checkout without that
+  source falls back to the pinned upstream release download, checksum and
+  release-identity verification. This closes the repeated fresh-worktree
+  failure where the wrapper tried to build a nonexistent local Cargo project.
+- Fresh disposable Windows proof passed: installer dry-run, actual install,
+  `status --json`, and `doctor --json`; the target had only ignored Harness
+  state and no tracked mutation. Evidence is sanitized in
+  `docs/migrations/ops-75-harness-install-evidence.json`.
+- The official `harness-v0.1.8` updater resolves the current upstream pointer
+  `0.1.10`, then fails `update --dry-run` on customized `AGENTS.md` because Git
+  returns exit code `5` for five conflict hunks while the upstream adapter only
+  maps exit code `1` to a conflict. The command is no-write, but the upstream
+  update gate is not passable from this consumer until upstream fixes that
+  adapter; OpsHub does not fork or silently patch the core binary.
+- Required proof for this slice: PowerShell parse, Bash syntax, fresh installer
+  dry-run/install, JSON/plan/artifact/retirement validators and exact
+  `verify-task` with `stale=false`. Rollback is one squash revert; ignored
+  disposable Harness state is not repository authority.
