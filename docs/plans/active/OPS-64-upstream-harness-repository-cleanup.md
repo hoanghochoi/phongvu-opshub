@@ -4,14 +4,17 @@ Date: 2026-08-13
 
 ## Status
 
-Active — the current workflow checkpoint is OPS-75 Phase 10 pre-release
-consolidation, created from exact live
-`origin/staging@04e88aad951254e7a940d21a10dfdc1116edab42` after OPS-173.
-This checkpoint is intentionally partial: the fresh Harness installer fallback
-is verified, while the upstream `update --dry-run` gate is blocked by a
-multi-hunk `git merge-file` exit-code defect and Flutter/Go proof remains
-deferred fail-closed. OPS-173 Phase 9 ownership audit is the preceding
-checkpoint; its two User/Auth authority follow-ups remain open.
+Active — the current workflow checkpoint is OPS-174 reconciliation after the
+OPS-75 Phase 10 installer slice, created from exact live
+`origin/staging@75abf3d9d114a0d1e351fe84aa76f1f96dd98acf` after OPS-75.
+OPS-75 PR #298 is squash-merged, staging deploy `31991597879` passed the
+artifact/direct-origin/health/version gates, and guarded finish removed its
+task worktree/local/remote branch. The checkpoint remains intentionally
+partial: the fresh Harness installer fallback is verified, while the upstream
+`update --dry-run` gate is blocked by a multi-hunk `git merge-file` exit-code
+defect and Flutter/Go proof remains deferred fail-closed. OPS-173 Phase 9
+ownership audit is the preceding runtime checkpoint; its two User/Auth
+authority follow-ups remain open.
 OPS-171 ERP cache-page mapping extraction is squash-merged through PR #295 at
 `1809b49f5713e96d5aa83c79f86e1351d8221df8`, staging-deployed by
 `31986109215`, and tracked `Ready for QA` after exact-SHA deployment,
@@ -34,9 +37,9 @@ checkpoint and keeps the dependency gap as residual risk rather than weakening
 any gate. The Phase 9 ownership audit now records two explicit User/Auth
 security follow-ups with no current owner: atomic assignment transaction
 hardening and generic admin-policy scope authorization. The next bounded action
-is to finish the unblocked OPS-75 Harness/docs evidence and obtain authority
-for the two User/Auth follow-ups; OPS-72 remains revise/do-not-promote and full
-Phase 10 release evidence remains open.
+is QA of the merged installer slice, followed by an upstream updater fix or
+approved resolution path, dependency/affected-consumer proof closure and the
+remaining Phase 10 production gates; OPS-72 remains revise/do-not-promote.
 OPS-165 is the preceding master-plan reconciliation after OPS-164.
 OPS-163 is the preceding master-plan reconciliation after OPS-162.
 OPS-160 UserAdminMutationService characterization is squash-merged through PR
@@ -3031,6 +3034,13 @@ the current checkpoint above is the sole active execution authority.
   `status --json`, and `doctor --json`; the target had only ignored Harness
   state and no tracked mutation. Evidence is sanitized in
   `docs/migrations/ops-75-harness-install-evidence.json`.
+- Publication proof: PR #298 squash-merged at
+  `75abf3d9d114a0d1e351fe84aa76f1f96dd98acf`; staging deploy run
+  `31991597879` passed Android, Windows, web, backend, direct-origin and
+  public health/version checks. Guarded finish passed with reviewed ignored
+  state, removed the task worktree/local branch, and the remote branch was
+  deleted separately. Rollback baseline/rehearsal steps were skipped by the
+  deployment condition; the final successful rollback checkpoint passed.
 - The official `harness-v0.1.8` updater resolves the current upstream pointer
   `0.1.10`, then fails `update --dry-run` on customized `AGENTS.md` because Git
   returns exit code `5` for five conflict hunks while the upstream adapter only
