@@ -4,33 +4,31 @@ Date: 2026-08-13
 
 ## Status
 
-Active — the current workflow checkpoint is OPS-170 master-plan
+Active — the current workflow checkpoint is OPS-172 master-plan
 reconciliation, created from exact live
-`origin/staging@490a5ce5c6da5ef10336f90b08f736b24ebbd73a` after OPS-169.
-OPS-168 MAP persistence characterization is squash-merged through PR #292 at
-`a1ef59222de646e07ca02f7c22707898aeffa852`, staging-deployed by
-`31980348208`, and tracked `Ready for QA` after exact-SHA deployment,
-affected proof and guarded lifecycle cleanup. Its direct MAP runtime proof
-passed 7 suites / 210 tests; the slice changed only
-`backend-nest/src/map-vietin/map-vietin-persistence.runtime.spec.ts`.
-OPS-169 ERP cache-page mapping characterization is squash-merged through PR
-#293 at `490a5ce5c6da5ef10336f90b08f736b24ebbd73a`, staging-deployed by
-`31981556234`, and tracked `Ready for QA` after exact-SHA deployment,
-affected proof and guarded lifecycle cleanup. Its proof passed 6 suites / 131
-tests with 6 skips; the slice changed only
-`backend-nest/src/sales-reports/sales-reports.service.spec.ts`.
-Both slices changed no production/API/DTO/DI, dependency, archive or Harness
-DB path. The next bounded Phase 9D runtime boundary is extracting the already
-characterized ERP cache-page mapping from `SalesReportsService`; MAP
-persistence remains owned by its existing collaborator and is not extracted a
-second time. Atomic user/organization-assignment transactions and generic
-admin-policy scope authorization remain separate full-fix/security follow-ups.
-Flutter/Go affected-consumer proof remains explicitly fail-closed and
-unverified under the approved dependency deferral; no profile was suppressed,
-no lockfile was changed and no product failure was retried to green. OPS-170
-records this checkpoint and keeps the dependency gap as residual risk rather
-than weakening any gate. OPS-167 is the preceding master-plan reconciliation
-after OPS-166.
+`origin/staging@1809b49f5713e96d5aa83c79f86e1351d8221df8` after OPS-171.
+OPS-171 ERP cache-page mapping extraction is squash-merged through PR #295 at
+`1809b49f5713e96d5aa83c79f86e1351d8221df8`, staging-deployed by
+`31986109215`, and tracked `Ready for QA` after exact-SHA deployment,
+affected proof and guarded lifecycle cleanup. The slice adds
+`SalesReportsErpCachePageRuntime` plus direct characterization coverage and
+keeps `SalesReportsService.syncErpOrderCachePage` as the public facade. Direct
+runtime/facade proof passed 2 suites / 112 tests, affected Home Summary,
+BigQuery and follow-up proof passed 4 suites / 50 tests, the full Nest proof
+passed 123 suites / 1,307 tests with 6 skips, and Nest build plus the exact
+verification runner passed with `stale=false`.
+OPS-168 MAP persistence and OPS-169 ERP cache-page characterization remain the
+preceding Phase 9D/9E checkpoints; both are already collaborator-owned or
+characterized and are not extracted a second time. Atomic
+user/organization-assignment transactions and generic admin-policy scope
+authorization remain separate full-fix/security follow-ups. Flutter/Go
+affected-consumer proof remains explicitly fail-closed and unverified under
+the approved dependency deferral; no profile was suppressed, no lockfile was
+changed and no product failure was retried to green. OPS-172 records this
+checkpoint and keeps the dependency gap as residual risk rather than weakening
+any gate. The next bounded action is the remaining Phase 9 ownership audit,
+then the OPS-72 revise/do-not-promote decision and OPS-75 Phase 10 final
+consolidation.
 OPS-165 is the preceding master-plan reconciliation after OPS-164.
 OPS-163 is the preceding master-plan reconciliation after OPS-162.
 OPS-160 UserAdminMutationService characterization is squash-merged through PR
@@ -2937,3 +2935,40 @@ the current checkpoint above is the sole active execution authority.
   `scripts/verify-task.mjs --base origin/staging` with `stale=false`, changed
   path scope review and `git diff --check`. The dependency deferral is a
   documented residual, not a suppressed profile or a greened product failure.
+
+## Workflow checkpoint (OPS-172; post-OPS-171 master-plan reconciliation)
+
+- This docs-only slice uses branch/worktree
+  `codex/ops-172-reconcile-master-plan-after-ops-171` /
+  `../opshub-ops-172-plan-reconcile`, created from exact live
+  `origin/staging@1809b49f5713e96d5aa83c79f86e1351d8221df8` through the guarded
+  lifecycle start gate. The worktree started clean and only the Nest profile
+  was prepared; Flutter/Go hydration remains intentionally deferred,
+  fail-closed and explicitly unverified.
+- OPS-171 is verified as squash-merged through PR #295 at
+  `1809b49f5713e96d5aa83c79f86e1351d8221df8`, staging-deployed by
+  `31986109215`, and tracked `Ready for QA` after implementation/proof
+  read-back. Its task worktree, local branch and remote branch were removed by
+  the guarded lifecycle cleanup and explicit remote-branch deletion; canonical
+  staging is clean at the merge SHA.
+- OPS-171 extracted only the ERP cache-page mapping algorithm into
+  `SalesReportsErpCachePageRuntime`; `SalesReportsService` remains the public
+  facade and owns the existing ERP, Prisma, persistence, scheduler, realtime,
+  logging and API contracts. Direct/facade proof passed 2 suites / 112 tests,
+  affected Home Summary/BigQuery/follow-up proof passed 4 suites / 50 tests,
+  full Nest passed 123 suites / 1,307 tests with 6 skips, and Nest build plus
+  exact `verify-task --base origin/staging --profile nestjs` passed with
+  `stale=false`. No Flutter/Go profile was suppressed and no product failure
+  was retried to green.
+- This slice updates only the master-plan front status, this checkpoint, the
+  active-plan index and the OPS-71 disposition ledger. The next bounded action
+  is the remaining Phase 9 ownership audit, followed by the OPS-72
+  revise/do-not-promote decision and OPS-75 Phase 10 final consolidation. No
+  runtime, dependency, archive, Harness DB, lockfile or product behavior is in
+  scope. Rollback is one OPS-172 squash revert.
+- Required proof before publication: `node
+  scripts/verify-plan-disposition.mjs`, stale-current-reference scan, exact
+  docs-profile `scripts/verify-task.mjs --base origin/staging` with
+  `stale=false`, changed-path scope review, internal-link validation and
+  `git diff --check`. The dependency deferral remains a documented residual,
+  not a suppressed profile or a greened product failure.
