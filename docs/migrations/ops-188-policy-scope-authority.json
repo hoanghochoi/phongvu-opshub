@@ -42,7 +42,6 @@
         "repository-harness-adoption",
         "task-lifecycle-and-affected-consumer-proof"
       ],
-      "fingerprint": "3a811848d8e9d59345d114a288ba0fabc43b356cebc5000335c547d4da93125a",
       "stale": false
     },
     "diffCheck": "passed"
