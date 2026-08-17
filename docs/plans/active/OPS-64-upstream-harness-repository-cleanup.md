@@ -4,10 +4,11 @@ Date: 2026-08-13
 
 ## Status
 
-Active — the current Phase 9 closure checkpoint is OPS-191, created from exact
-live `origin/staging@33d1cd935cd6b6584c46dd36ffad832247aee912` after
-OPS-190/PR #316. The branch/worktree is bounded to sanitized authority and
-dependency-ready proof; no runtime source or dependency contract is changed.
+Active — the current post-merge/staging-QA checkpoint is OPS-192, created from
+exact live `origin/staging@0fda171d47548b3afe533d2a678b29a13bec8590` after
+OPS-191/PR #317. The branch/worktree is bounded to sanitized reconciliation,
+Chrome QA evidence and Linear release tracking; no runtime source or
+dependency contract is changed.
 The prior last-reconciled workflow checkpoint was
 OPS-187, created from
 exact live `origin/staging@97c04c982aaf7415893ccd6f63de3c767e3e2c43` after
@@ -34,7 +35,10 @@ passed. OPS-175 PR #301 is squash-merged at
 `2e5dc7b29beb90a9ab059d2b0ba5a8e1c8c3b95a` and staging-deployed by
 `31997427099`; its User/Auth atomic-assignment proof passed. OPS-188 PR #314
 resolved the generic admin-policy scope candidate. OPS-191 now binds the
-current authority to both fixes and records dependency-ready full-stack proof.
+current authority to both fixes and records dependency-ready full-stack proof;
+PR #317 is squash-merged at `0fda171d47548b3afe533d2a678b29a13bec8590` and
+staging deploy `32052248245` passed the web/backend, Android, Windows,
+direct-origin and public health/version gates.
 OPS-176
 PR #300 is squash-merged at `c2ec9c3100a39753d65f87da75ef3ce4610083e5`,
 staging-deployed by `31996291315`, and passed the focused read-only-output,
@@ -75,8 +79,9 @@ OPS-185 records the preceding exact-SHA reconciliation after OPS-184.
 OPS-75 records the preceding final-consolidation rehearsal; OPS-186 records
 the preceding post-merge reconciliation; OPS-187 hardens the checkpoint
 authority semantics. OPS-191 closes the current User/Auth authority and
-dependency-ready affected-proof gate. The remaining final gates are the
-upstream updater exit-code defect, authenticated staging QA and production
+dependency-ready affected-proof gate. OPS-192 records authenticated staging
+Chrome QA and advances eligible child issues to `Ready for Release`; the
+remaining final gates are the upstream updater exit-code defect and production
 deployment. None of these open gates is weakened by this reconciliation.
 OPS-165 is the preceding master-plan reconciliation after OPS-164.
 OPS-163 is the preceding master-plan reconciliation after OPS-162.
@@ -3556,3 +3561,32 @@ the current checkpoint above is the sole active execution authority.
   ladder, changed-path scope review, docs/link/secret/mojibake scans and
   `git diff --check`. Rollback is one squash revert; raw dependency state is
   ignored and removed with the task worktree.
+
+## Workflow checkpoint (OPS-192; post-OPS-191 staging QA and release tracking)
+
+- This docs-only reconciliation starts from exact live
+  `origin/staging@0fda171d47548b3afe533d2a678b29a13bec8590` on branch
+  `codex/ops-192-reconcile-master-plan-after-ops191-staging-qa`; the guarded
+  lifecycle start hydrated both toolchain profiles and the canonical staging
+  worktree remained clean and aligned.
+- OPS-191 PR #317 squash-merged at
+  `0fda171d47548b3afe533d2a678b29a13bec8590`. The exact staging deploy is
+  run `32052248245`; Android, Windows, web, backend, direct-origin and public
+  health/version checks passed. The OPS-191 task worktree/local branch and
+  remote branch were removed after the guarded finish gate.
+- Authenticated Chrome QA on the staging release passed read-only smoke for
+  `#/home`, `#/sales-reports`, `#/payment-monitor`, `#/bank-statement`,
+  `#/vietqr` and the Admin/Policy/User Management surfaces. Empty states,
+  filters and refresh controls rendered as expected; no console error was
+  observed and no data-mutating form was submitted. The evidence is a smoke
+  gate, while behavior-specific proof remains the exact full Flutter/Nest/Go
+  and affected-consumer ladder recorded in OPS-191.
+- 104 eligible child issues across OPS-64/OPS-74 now have a QA note and were
+  read back in Linear as `Ready for Release`. OPS-72, OPS-75, OPS-78 and
+  OPS-190 remain `Ready for QA`: OPS-72/190 retain the explicit
+  `revise`/`do-not-promote` decision, while OPS-75/78 retain the upstream
+  updater, release and production evidence gates.
+- The checklist remains 79/80 (~98.75%): the open umbrella is final Phase 10
+  consolidation, upstream updater resolution and production deployment. No
+  runtime/API/DTO/DI/UI/data/dependency/Harness archive path changed in this
+  slice. Rollback is one squash revert.
