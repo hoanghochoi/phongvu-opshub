@@ -152,6 +152,7 @@ export type UserImportRuntime = {
   organizationNodeLevel: (type: string) => number;
   normalizeStoreCode: (value: string) => string;
   syncUserOrganizationAssignments: (
+    client: Prisma.TransactionClient,
     userId: string,
     organizationNodeIds: string[],
     admin: any,
@@ -197,14 +198,25 @@ export class UserImportService {
 
       await this.prisma.$transaction(async (tx) => {
         for (const item of prepared) {
+          let userId = item.userId;
           if (item.action === 'created') {
-            await tx.user.create({ data: item.createData as any });
+            const created = await tx.user.create({
+              data: item.createData as any,
+            });
+            userId = created.id;
           } else if (item.userId) {
             await tx.user.update({
               where: { id: item.userId },
               data: item.updateData as any,
             });
           }
+          if (!userId) continue;
+          await this.runtime.syncUserOrganizationAssignments(
+            tx,
+            userId,
+            item.organizationNodeIds,
+            admin,
+          );
         }
       });
 
@@ -216,15 +228,6 @@ export class UserImportService {
       const savedByEmail = new Map(
         savedUsers.map((user) => [String(user.email).toLowerCase(), user]),
       );
-      for (const item of prepared) {
-        const saved = savedByEmail.get(item.email);
-        if (!saved?.id) continue;
-        await this.runtime.syncUserOrganizationAssignments(
-          saved.id,
-          item.organizationNodeIds,
-          admin,
-        );
-      }
       await this.accessChangeService.publishForUserIds(
         prepared
           .filter((item) => item.action === 'updated')

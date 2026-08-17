@@ -3,6 +3,7 @@ import {
   ForbiddenException,
   Logger,
 } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 
 const STORE_SCOPE = 'STORE';
@@ -190,11 +191,12 @@ export class UserOrganizationAssignmentService {
   }
 
   async syncUserOrganizationAssignments(
+    client: Prisma.TransactionClient,
     userId: string,
     organizationNodeIds: string[],
     admin: any,
   ) {
-    const assignmentModel = (this.prisma as any).userOrganizationAssignment;
+    const assignmentModel = (client as any).userOrganizationAssignment;
     if (!assignmentModel?.upsert) return;
     const selected = new Set(organizationNodeIds);
     await assignmentModel.updateMany({

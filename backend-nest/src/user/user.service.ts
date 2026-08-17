@@ -509,8 +509,14 @@ export class UserService implements OnModuleInit {
           this.assertOrganizationNodeAssignableByAdmin(admin, nodeId),
         organizationNodeLevel: (type) => this.organizationNodeLevel(type),
         normalizeStoreCode: (value) => this.normalizeStoreCode(value),
-        syncUserOrganizationAssignments: (userId, organizationNodeIds, admin) =>
+        syncUserOrganizationAssignments: (
+          client,
+          userId,
+          organizationNodeIds,
+          admin,
+        ) =>
           this.syncUserOrganizationAssignments(
+            client,
             userId,
             organizationNodeIds,
             admin,
@@ -538,8 +544,14 @@ export class UserService implements OnModuleInit {
             body,
             current,
           ),
-        syncUserOrganizationAssignments: (userId, organizationNodeIds, admin) =>
+        syncUserOrganizationAssignments: (
+          client,
+          userId,
+          organizationNodeIds,
+          admin,
+        ) =>
           this.syncUserOrganizationAssignments(
+            client,
             userId,
             organizationNodeIds,
             admin,
@@ -4643,11 +4655,13 @@ export class UserService implements OnModuleInit {
   }
 
   private async syncUserOrganizationAssignments(
+    client: Prisma.TransactionClient,
     userId: string,
     organizationNodeIds: string[],
     admin: any,
   ) {
     return this.organizationAssignmentService.syncUserOrganizationAssignments(
+      client,
       userId,
       organizationNodeIds,
       admin,
