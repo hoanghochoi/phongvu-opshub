@@ -12,7 +12,7 @@ test('accepts the current partial execution-canary progress ledger', () => {
     status: 'collecting',
     issue: 'OPS-72',
     cohortId: 'ops72-execution-canary-v1',
-    collectedObservationCount: 2,
+    collectedObservationCount: 3,
     requiredObservationCount: 5,
     promotionEligible: false,
   });

@@ -4,19 +4,20 @@ Date: 2026-08-13
 
 ## Status
 
-Active — the current workflow checkpoint is OPS-179 reconciliation after the
-OPS-178 execution-canary lane, created from exact live
-`origin/staging@14224af1dfefadc707ca0baed3af0f0cb323845f` after OPS-178.
-OPS-178 PR #303 is squash-merged at
-`14224af1dfefadc707ca0baed3af0f0cb323845f`; Release Guard, Affected Shadow
-and the execution-canary workflow passed. Focused verification coverage passed
-11/11 tests, the artifact reported `executionMode=execution-canary`,
-`stale=false`, `autoExitCode=0` and no unmatched paths, and guarded lifecycle
-finish fast-forwarded canonical staging and removed the task worktree/local
-branch. The canary intentionally omitted Flutter/Nest/Go/deployment profiles
-because dependency hydration remains deferred; no profile was suppressed and
-no product failure was retried to green. Five real execution-canary observations
-and OPS-72 percentage targets are not yet promotable.
+Active — the current workflow checkpoint is OPS-181 reconciliation after the
+OPS-180 execution-canary progress slice, created from exact live
+`origin/staging@d2be1f445102e99fd3e9fd20a301f40d83be8656` after OPS-180.
+OPS-180 PR #305 is squash-merged at
+`d2be1f445102e99fd3e9fd20a301f40d83be8656`; Release Guard, Affected Shadow,
+execution-canary and Windows cold dependency canary passed. The artifact
+reported `executionMode=execution-canary`, `stale=false`, `autoExitCode=0`,
+zero unmatched paths and zero reruns; the progress ledger now records 3/5
+real observations and remains `promotionEligible=false`. The selected
+Harness/docs/verification-runner lane is observational; runtime affected-
+consumer proof and the remaining two observations stay fail-closed. No
+profile was suppressed and no product failure was retried to green. OPS-72
+remains `revise`/`do-not-promote` until the five-observation gate and metric
+decision are complete.
 OPS-177 PR #302 is squash-merged at
 `df20b4e7c6544243a7ad689ef27bb3e3163d3a35` and staging-deployed by
 `31998307023`; its docs-only reconciliation and guarded lifecycle cleanup
@@ -59,10 +60,11 @@ changed and no product failure was retried to green. OPS-172 records this
 checkpoint and keeps the dependency gap as residual risk rather than weakening
 any gate. The Phase 9 ownership audit now records two explicit User/Auth
 security follow-ups with no current owner: atomic assignment transaction
-hardening and generic admin-policy scope authorization. OPS-179 records this
+hardening and generic admin-policy scope authorization. OPS-181 records this
 checkpoint and keeps the approved dependency gap fail-closed. The next bounded
-action is to collect five real execution-canary observations from independent
-merged PRs, then decide whether OPS-72 can leave revise/do-not-promote; the
+action is to collect two more real execution-canary observations from
+independent merged PRs, then decide whether OPS-72 can leave
+revise/do-not-promote; the
 upstream updater blocker, dependency/affected-consumer proof, User/Auth
 authority and remaining Phase 10 production gates stay open.
 OPS-165 is the preceding master-plan reconciliation after OPS-164.
@@ -729,10 +731,19 @@ god-helper.
   Affected Shadow, execution-canary and focused verification proof passed, and
   guarded lifecycle cleanup removed the task worktree/local branch. The lane
   remains observational until five real cohort observations are collected.
-- [ ] Complete OPS-179 master-plan reconciliation after OPS-178. This
-  docs-only slice updates the current checkpoint, active-plan index and OPS-71
-  ledger; dependency-heavy profiles remain deliberately deferred and fail
-  closed.
+- [x] Complete OPS-179 master-plan reconciliation after OPS-178. PR #304 is
+  squash-merged at `e4968c3fc675380b795b6071dbdbf9d11999d914`; the current
+  checkpoint, active-plan index and OPS-71 ledger were reconciled with
+  dependency-heavy profiles remaining fail-closed.
+- [x] Complete OPS-180 execution-canary progress tracking. PR #305 is
+  squash-merged at `d2be1f445102e99fd3e9fd20a301f40d83be8656`; the sanitized
+  progress ledger has three real schema-v4 observations and remains
+  non-promotable, with Release Guard, Affected Shadow, execution-canary and
+  Windows cold dependency canary proof passed.
+- [x] Complete OPS-181 reconciliation after OPS-180. The current checkpoint,
+  active-plan index and OPS-71 ledger now record observation 3/5; collect two
+  more real observations before deciding whether OPS-72 can leave
+  revise/do-not-promote.
 - [x] Complete the Phase 8 artifact/dependency/toolchain review and deletion
   decision. The refreshed inventory, retained-owner review, Flutter/Nest
   dependency batches and Go/deploy review all pass; zero deletion batches are
@@ -3153,4 +3164,35 @@ the current checkpoint above is the sole active execution authority.
 - Required proof before publication: two consecutive plan-disposition checks,
   stale-current-reference scan, JSON/link/mojibake/secret checks, exact
   docs-profile `scripts/verify-task.mjs --base origin/staging` with
+  `stale=false`, changed-path scope review and `git diff --check`.
+
+## Workflow checkpoint (OPS-181; post-OPS-180 execution-canary reconciliation)
+
+- This docs-only slice uses branch/worktree
+  `codex/ops-181-reconcile-execution-canary-progress` /
+  `../opshub-ops-181-reconcile`, created from exact live
+  `origin/staging@d2be1f445102e99fd3e9fd20a301f40d83be8656` through the
+  guarded lifecycle start gate. Toolchain preparation completed, but this
+  slice changes no dependency-owning runtime path and does not claim full
+  Flutter/Nest/Go affected-consumer proof.
+- OPS-180 is squash-merged through PR #305 at
+  `d2be1f445102e99fd3e9fd20a301f40d83be8656`. Release Guard, Affected Shadow,
+  execution-canary and Windows cold dependency canary passed. The downloaded
+  schema-v4 report has `executionMode=execution-canary`, `stale=false`,
+  `autoExitCode=0`, no unmatched paths and zero reruns; its selected profiles
+  are `harness`, `docs` and `verification-runner`. The progress ledger now
+  records this artifact as observation 3/5 and remains collecting with
+  `promotionEligible=false`.
+- The final v2 evidence remains authoritative and unchanged at five historical
+  observations with target `revise`/`do-not-promote`; two additional real,
+  comparable schema-v4 observations are required before any promotion review.
+  Dependency-heavy runtime proof remains an explicit environment residual and
+  is not converted into a pass by this reconciliation.
+- This slice updates only the progress ledger, master-plan checkpoint,
+  active-plan index and OPS-71 disposition ledger. No runtime/API/UI/data,
+  Harness DB, archive or lockfile changes are in scope. Rollback is one squash
+  revert.
+- Required proof before publication: progress and final-evidence validators,
+  two consecutive plan-disposition checks, stale-current-reference scan,
+  JSON/link/mojibake/secret checks, exact docs/verification `verify-task` with
   `stale=false`, changed-path scope review and `git diff --check`.
