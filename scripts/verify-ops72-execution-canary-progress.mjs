@@ -53,12 +53,16 @@ export function validateProgress(document) {
   assert(document.targetBranch === 'staging', 'targetBranch must be staging');
   assert(document.requiredObservationCount === 5, 'requiredObservationCount must be 5');
   assert(typeof document.cohortId === 'string' && /^[A-Za-z0-9._-]+$/.test(document.cohortId), 'cohortId is invalid');
-  assert(document.status === 'collecting', 'partial progress must remain collecting');
-  assert(document.promotionEligible === false, 'partial progress cannot be promotion eligible');
+  const isComplete = document.collectedObservationCount === document.requiredObservationCount;
+  assert(
+    document.status === (isComplete ? 'complete' : 'collecting'),
+    isComplete ? 'complete progress must use status complete' : 'partial progress must remain collecting',
+  );
+  assert(document.promotionEligible === false, 'execution-canary progress cannot be promotion eligible');
   assert(Array.isArray(document.observations), 'observations must be an array');
   assert(Number.isInteger(document.collectedObservationCount), 'collectedObservationCount is invalid');
   assert(document.collectedObservationCount === document.observations.length, 'collectedObservationCount does not match observations');
-  assert(document.collectedObservationCount > 0 && document.collectedObservationCount < document.requiredObservationCount, 'progress ledger must be partial');
+  assert(document.collectedObservationCount > 0 && document.collectedObservationCount <= document.requiredObservationCount, 'progress ledger count is invalid');
 
   const pullRequests = new Set();
   const runIds = new Set();

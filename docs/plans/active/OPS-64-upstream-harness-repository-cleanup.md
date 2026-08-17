@@ -4,20 +4,19 @@ Date: 2026-08-13
 
 ## Status
 
-Active — the current workflow checkpoint is OPS-182 canary-progress guard
-after the OPS-181 reconciliation, created from exact live
-`origin/staging@dfe0961822f788a4f2233490e1907afd5f991958` after OPS-181.
-OPS-181 PR #306 is squash-merged at
-`dfe0961822f788a4f2233490e1907afd5f991958`; its execution-canary artifact is
-schema-v4 with `stale=false`, zero unmatched paths and zero reruns. The
-progress ledger now records 4/5 real observations and remains
-`promotionEligible=false`; OPS-182 also adds docs-contract guards that keep
-the partial ledger non-authoritative. The selected
-Harness/docs/verification-runner lane is observational; runtime affected-
-consumer proof and the remaining observation stay fail-closed. No profile was
-suppressed and no product failure was retried to green. OPS-72 remains
-`revise`/`do-not-promote` until the five-observation gate and metric decision
-are complete.
+Active — the current workflow checkpoint is OPS-183 execution-canary cohort
+reconciliation, created from exact live
+`origin/staging@7c7e2240fbf69c1f2fd4db58a5e45f26185921c4` after OPS-182.
+PR #307 is squash-merged at `7c7e2240fbf69c1f2fd4db58a5e45f26185921c4`;
+its schema-v4 execution-canary artifact (run `32007203966`) is independently
+hashed and validated with `stale=false`, zero unmatched paths and zero
+reruns. The progress ledger is complete at 5/5 but remains
+`promotionEligible=false`; the selected Harness/docs/verification-runner lane
+is observational and dependency-heavy Flutter/NestJS/Go proof remains
+fail-closed/deferred. No profile was suppressed and no product failure was
+retried to green. OPS-72 remains `revise`/`do-not-promote`: the canary cohort
+has no comparable execution baseline, no first-actionable-failure sample and
+zero-vs-zero reruns, so timing and retry targets are not accepted.
 OPS-177 PR #302 is squash-merged at
 `df20b4e7c6544243a7ad689ef27bb3e3163d3a35` and staging-deployed by
 `31998307023`; its docs-only reconciliation and guarded lifecycle cleanup
@@ -60,13 +59,13 @@ changed and no product failure was retried to green. OPS-172 records this
 checkpoint and keeps the dependency gap as residual risk rather than weakening
 any gate. The Phase 9 ownership audit now records two explicit User/Auth
 security follow-ups with no current owner: atomic assignment transaction
-hardening and generic admin-policy scope authorization. OPS-182 records this
-checkpoint and keeps the approved dependency gap fail-closed. The next bounded
-action is to collect one more real execution-canary observation from an
-independent merged PR, then decide whether OPS-72 can leave
-revise/do-not-promote; the
-upstream updater blocker, dependency/affected-consumer proof, User/Auth
-  authority and remaining Phase 10 production gates stay open.
+hardening and generic admin-policy scope authorization. OPS-182 records the
+preceding authority guard and keeps the approved dependency gap fail-closed.
+The next bounded actions are final consolidation gates: resolve the upstream
+updater exit-code defect, close dependency/affected-consumer proof, assign the
+two User/Auth authority follow-ups and complete authenticated QA plus
+production deployment. None of these open gates is weakened by this canary
+reconciliation.
 OPS-165 is the preceding master-plan reconciliation after OPS-164.
 OPS-163 is the preceding master-plan reconciliation after OPS-162.
 OPS-160 UserAdminMutationService characterization is squash-merged through PR
@@ -744,10 +743,19 @@ god-helper.
   active-plan index and OPS-71 ledger now record observation 3/5; collect two
   more real observations before deciding whether OPS-72 can leave
   revise/do-not-promote.
-- [ ] Complete OPS-182 canary-progress authority guard. This slice records the
-  verified OPS-181/PR #306 artifact as observation 4/5 and adds docs-contract
-  guards for the non-authoritative partial ledger; collect one more real
-  observation before deciding whether OPS-72 can leave revise/do-not-promote.
+- [x] Complete OPS-182 canary-progress authority guard. PR #307 is
+  squash-merged at `7c7e2240fbf69c1f2fd4db58a5e45f26185921c4`; its
+  docs-contract guards keep the progress ledger non-promotable while the
+  fifth observation is reconciled in OPS-183.
+- [x] Complete OPS-183 five-observation execution-canary reconciliation. The
+  sanitized ledger now contains exactly 5/5 independent PR/run records and
+  uses `status=complete` with `promotionEligible=false`; run
+  `32007203966` was independently re-hashed and validated against the
+  schema-v4 artifact. OPS-72 remains `revise`/`do-not-promote`: no comparable
+  execution baseline, no first-actionable-failure sample and zero-vs-zero
+  reruns leave timing/retry targets unmeasured. Dependency-heavy profiles
+  remain explicitly deferred/fail-closed and the affected matrix remains
+  observational.
 - [x] Complete the Phase 8 artifact/dependency/toolchain review and deletion
   decision. The refreshed inventory, retained-owner review, Flutter/Nest
   dependency batches and Go/deploy review all pass; zero deletion batches are
@@ -3230,3 +3238,35 @@ the current checkpoint above is the sole active execution authority.
   exact Harness-profile `verify-task` with `stale=false`, CI Release Guard /
   Affected Shadow / execution-canary, changed-path scope review and
   `git diff --check`.
+
+## Workflow checkpoint (OPS-183; complete execution-canary cohort and dependency deferral)
+
+- This Harness/docs reconciliation uses branch/worktree
+  `codex/ops-183-reconcile-five-canary-cohort` /
+  `../opshub-ops-183-canary-cohort`, created from exact live
+  `origin/staging@7c7e2240fbf69c1f2fd4db58a5e45f26185921c4` through the
+  guarded lifecycle start gate. The canonical staging worktree remained
+  clean. Raw CI artifacts were kept in ignored local storage and normalized
+  to `<raw-root>/<run-id>/` before collection; no raw payload is committed.
+- The five independent execution-canary records are PRs #303, #304, #305,
+  #306 and #307 in cohort `ops72-execution-canary-v1`. The sanitized evidence
+  file is `docs/migrations/ops-72-execution-canary-evidence.json`; every
+  report hash matches its manifest, `stale=false`, unmatched paths are empty,
+  command/workflow reruns are zero and both auto/full exit codes are zero.
+- `docs/migrations/ops-72-execution-canary-progress.json` is now complete at
+  5/5 with `promotionEligible=false`. This is a collection-complete state,
+  not a promotion decision. The execution-canary collector reports
+  `pending-live-timing-baseline`; the initiative decision remains
+  `revise`/`do-not-promote` because no comparable canary baseline or failure
+  sample exists and the zero-vs-zero rerun comparison is unmeasurable.
+- The missing Flutter/NestJS dependency issue is intentionally deferred for
+  this cleanup lane. It remains an explicit environment residual: no
+  dependency profile is suppressed, no failed product check is retried to
+  green, and affected-consumer proof stays fail-closed until a fresh
+  dependency-ready worktree can run it.
+- Required proof before publication: progress and schema-v4 evidence
+  validators, focused collector/progress tests, docs contract and Bash
+  syntax, two consecutive plan-disposition checks, exact Harness/docs/
+  verification `verify-task` with `stale=false`, changed-path scope review
+  and `git diff --check`. Rollback is one squash revert; local raw artifacts
+  remain outside Git and the source database/archive is untouched.
