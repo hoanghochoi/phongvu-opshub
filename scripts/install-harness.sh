@@ -566,7 +566,7 @@ stage_harness_core_cli() {
   if [ -n "${HARNESS_CORE_BINARY:-}" ]; then
     [ -x "$HARNESS_CORE_BINARY" ] || fail "HARNESS_CORE_BINARY is not executable: $HARNESS_CORE_BINARY"
     cp "$HARNESS_CORE_BINARY" "$CORE_STAGED_BINARY"
-  elif [ "$SOURCE_MODE" = "local" ]; then
+  elif [ "$SOURCE_MODE" = "local" ] && [ -f "$SOURCE_ROOT/Cargo.toml" ]; then
     command -v cargo >/dev/null 2>&1 || fail "cargo is required for a local Harness source install"
     cargo build --quiet --manifest-path "$SOURCE_ROOT/Cargo.toml" -p harness --locked
     cp "$SOURCE_ROOT/target/debug/harness" "$CORE_STAGED_BINARY"

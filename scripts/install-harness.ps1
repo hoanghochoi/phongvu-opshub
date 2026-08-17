@@ -261,7 +261,7 @@ function Install-HarnessCore {
         if ($env:HARNESS_CORE_BINARY) {
             if (!(Test-Path $env:HARNESS_CORE_BINARY)) { Fail "HARNESS_CORE_BINARY does not exist: $env:HARNESS_CORE_BINARY" }
             Copy-Item -LiteralPath $env:HARNESS_CORE_BINARY -Destination $staged
-        } elseif ($script:Source.Mode -eq "local") {
+        } elseif ($script:Source.Mode -eq "local" -and (Test-Path (Join-Path $script:Source.Root "Cargo.toml"))) {
             & cargo build --quiet --manifest-path (Join-Path $script:Source.Root "Cargo.toml") -p harness --locked
             if ($LASTEXITCODE -ne 0) { Fail "could not build the local Rust harness CLI" }
             Copy-Item -LiteralPath (Join-Path $script:Source.Root "target/debug/harness.exe") -Destination $staged
