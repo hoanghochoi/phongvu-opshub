@@ -4,7 +4,11 @@ Date: 2026-08-13
 
 ## Status
 
-Active — the last reconciled workflow checkpoint is OPS-187, created from
+Active — the current decision checkpoint is OPS-190, created from exact live
+`origin/staging@1f7d4c3c9cd6d7161cb289b6962e05628121478f` after OPS-189/PR #315.
+The branch/worktree is bounded to docs/evidence and is pending its own
+PR/lifecycle cleanup. The prior last-reconciled workflow checkpoint was
+OPS-187, created from
 exact live `origin/staging@97c04c982aaf7415893ccd6f63de3c767e3e2c43` after
 OPS-186/PR #312. OPS-186 PR #312 is squash-merged at
 `97c04c982aaf7415893ccd6f63de3c767e3e2c43`; its guarded finish passed and
@@ -16,9 +20,11 @@ unmatched paths and zero reruns; the progress ledger remains
 `promotionEligible=false`. The selected Harness/docs/verification-runner lane
 is observational and dependency-heavy Flutter/NestJS/Go proof remains
 fail-closed/deferred. No profile was suppressed and no product failure was
-retried to green. OPS-72 remains `revise`/`do-not-promote`: the canary cohort
-has no comparable execution baseline, no first-actionable-failure sample and
-zero-vs-zero reruns, so timing and retry targets are not accepted.
+retried to green. OPS-72 is explicitly decided as `revise`/`do-not-promote`:
+the comparable v2 cohort measured 8.77% timing reduction against the 25%
+target, rerun reduction is unmeasurable (0-vs-0), and no first-actionable-
+failure sample exists. The affected matrix remains observational and the
+execution-canary ledger remains promotion-ineligible.
 OPS-177 PR #302 is squash-merged at
 `df20b4e7c6544243a7ad689ef27bb3e3163d3a35` and staging-deployed by
 `31998307023`; its docs-only reconciliation and guarded lifecycle cleanup
@@ -677,9 +683,13 @@ god-helper.
 - [x] Complete OPS-122 master-plan reconciliation after OPS-121. PR #235
   merged at `d10241c0eafab66bd34390e7dda8d58a96e54147`; the current checkpoint
   is subsequently reconciled to the exact post-OPS-113 `origin/staging` SHA.
-- [ ] Complete OPS-72 Phase 7B percentage-target evidence; the v2 live timing
-  baseline is recorded, but the 25% timing target is unmet and rerun reduction
-  is unmeasurable, so keep the affected matrix observational.
+- [x] Complete OPS-72 Phase 7B percentage-target evidence and record the final
+  decision. The five-observation v2 cohort measured 8.77% timing reduction
+  against the 25% target; rerun reduction is unmeasurable (0-vs-0), no
+  first-actionable-failure sample exists, and the final decision is
+  `revise`/`do-not-promote` with the affected matrix remaining observational.
+  The execution-canary ledger is independently collection-complete at 5/5
+  with `promotionEligible=false`.
 - [x] Complete OPS-123 master-plan reconciliation after OPS-72 PR #239. The
   source checkpoint is exact `origin/staging@4dda2592de5d0691082756d0d6fb32d0b93e8607`;
   the reconciliation is docs-only and preserves the explicit `revise`
@@ -3495,3 +3505,24 @@ the current checkpoint above is the sole active execution authority.
   `verify-task` with `stale=false`, and `git diff --check`. Rollback is one
   squash revert; no Harness DB, archive, runtime or dependency-version path is
   in scope.
+
+## Workflow checkpoint (OPS-190; final OPS-72 decision)
+
+- This bounded docs/evidence slice starts from exact live
+  `origin/staging@1f7d4c3c9cd6d7161cb289b6962e05628121478f` on branch
+  `codex/ops-190-ops72-final-decision`. It changes no runtime, dependency,
+  archive, Harness DB or product behavior path.
+- `docs/migrations/ops-72-final-decision.json` binds the final decision to
+  the exact hashes of the comparable v2 progress ledger and the complete
+  execution-canary ledger. The measured timing reduction is 8.77% against a
+  25% target; rerun reduction is unmeasurable (0-vs-0); no first-actionable-
+  failure sample exists. The authority is `revise`/`do-not-promote`, with the
+  affected matrix observational and `promotionEligible=false`.
+- The corresponding OPS-64 checklist item is now decision-complete; the plan
+  audit is 79/80 (~98.75%). Phase 9 affected-consumer proof, remaining
+  User/Auth authority, authenticated QA, upstream updater resolution and Phase
+  10 production release gates remain open and are not weakened by this slice.
+- Required proof before publication: final-decision validator/tests, both
+  OPS-72 source validators, plan disposition, exact Harness/docs/verification
+  runner with `stale=false`, changed-path scope review and `git diff --check`.
+  Rollback is one squash revert.

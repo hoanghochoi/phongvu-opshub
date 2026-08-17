@@ -1,0 +1,44 @@
+{
+  "formatVersion": 1,
+  "issue": "OPS-190",
+  "subjectIssue": "OPS-72",
+  "sourceRevision": "1f7d4c3c9cd6d7161cb289b6962e05628121478f",
+  "decision": "revise",
+  "promotionDecision": "do-not-promote",
+  "matrixMode": "observational",
+  "evidence": [
+    {
+      "path": "docs/migrations/ops-72-live-shadow-progress-v2.json",
+      "sha256": "8c498ba47ee3a39655a748348f4bd7d38eef1875d9e4866fc54b2751fe1c5eda",
+      "purpose": "comparable timing and rerun decision"
+    },
+    {
+      "path": "docs/migrations/ops-72-execution-canary-progress.json",
+      "sha256": "ac32aaed8fc16ed7e7421c695e1fbd94d0a17383f8297dc4337b396d09400fe5",
+      "purpose": "five-observation collection and fail-closed promotion guard"
+    }
+  ],
+  "observed": {
+    "requiredObservations": 5,
+    "completedObservations": 5,
+    "timingTargetPercent": 25,
+    "timingReductionPercent": 8.77,
+    "timingTargetMet": false,
+    "rerunTargetPercent": 30,
+    "rerunReductionPercent": null,
+    "rerunComparable": false,
+    "firstActionableFailureSampleCount": 0,
+    "promotionEligible": false
+  },
+  "rationale": [
+    "The comparable v2 cohort is complete at five observations with a measured 8.77% timing reduction, below the 25% target.",
+    "Rerun reduction is unmeasurable because the comparable baseline and cohort both contain zero reruns.",
+    "No first-actionable-failure sample exists, so TTAF improvement cannot be accepted as measured.",
+    "The execution-canary ledger is collection-complete but remains promotion-ineligible and dependency-heavy profiles remain fail-closed."
+  ],
+  "constraints": [
+    "Do not promote affected profiles to blocking on this evidence.",
+    "Do not suppress dependency profiles or retry product failures to green.",
+    "Revisit the decision only with a comparable baseline and an actionable-failure cohort."
+  ]
+}
