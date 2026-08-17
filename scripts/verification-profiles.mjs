@@ -106,6 +106,7 @@ export const PROFILES = Object.freeze([
     id: "verification-runner",
     pathPatterns: [
       /^scripts\/verify-task(?:-(?:canary|shadow))?\.mjs$/,
+      /^scripts\/verify-ops72-execution-canary-progress\.mjs$/,
       /^scripts\/verification-profiles\.mjs$/,
       /^tests\/verification\//,
     ],
@@ -144,6 +145,12 @@ export const PROFILES = Object.freeze([
         cwd: ".",
         executable: process.execPath,
         argv: ["--check", "scripts/verify-task-shadow.mjs"],
+      },
+      {
+        id: "ops72-execution-canary-progress-syntax",
+        cwd: ".",
+        executable: process.execPath,
+        argv: ["--check", "scripts/verify-ops72-execution-canary-progress.mjs"],
       },
     ],
   },

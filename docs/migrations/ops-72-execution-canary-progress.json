@@ -1,0 +1,62 @@
+{
+  "formatVersion": 1,
+  "issue": "OPS-72",
+  "targetBranch": "staging",
+  "cohortId": "ops72-execution-canary-v1",
+  "requiredObservationCount": 5,
+  "collectedObservationCount": 2,
+  "status": "collecting",
+  "promotionEligible": false,
+  "observations": [
+    {
+      "pullRequest": 303,
+      "runId": 32000339588,
+      "runUrl": "https://github.com/hoanghochoi/phongvu-opshub/actions/runs/32000339588",
+      "prHeadSha": "6b5d94e9eb52eeaaf04ba3e1d8865c7d11221994",
+      "baseSha": "df20b4e7c6544243a7ad689ef27bb3e3163d3a35",
+      "reportedHeadSha": "9a1bfba5b25977c891672ab4d97a2818cc55e513",
+      "artifactSha256": "7dee9fbbd3353359e3be19eb7f4b4ef3517e4b83073b7cfce50e68ef851bf2eb",
+      "status": "passed",
+      "classification": "shadow-observation",
+      "executionMode": "execution-canary",
+      "cohortId": "ops72-execution-canary-v1",
+      "selectedProfiles": ["harness", "docs", "verification-runner", "release"],
+      "fullProfiles": ["harness", "docs", "verification-runner", "release", "flutter", "nestjs", "go-realtime", "deployment"],
+      "changedPathCount": 10,
+      "autoExitCode": 0,
+      "fullExitCode": 0,
+      "stale": false,
+      "unmatchedPaths": [],
+      "reruns": 0,
+      "humanIntervention": false
+    },
+    {
+      "pullRequest": 304,
+      "runId": 32002286949,
+      "runUrl": "https://github.com/hoanghochoi/phongvu-opshub/actions/runs/32002286949",
+      "prHeadSha": "693501acce188f1b7526b2bbdb4fd78a9d035d1a",
+      "baseSha": "14224af1dfefadc707ca0baed3af0f0cb323845f",
+      "reportedHeadSha": "36a082e6edd11ddb7d15f364621e1f9b118eb9d0",
+      "artifactSha256": "1963859dbc06f750556ad0b7b72fd48671f538663bb94b72e3c2af95d925ba3b",
+      "status": "passed",
+      "classification": "shadow-observation",
+      "executionMode": "execution-canary",
+      "cohortId": "ops72-execution-canary-v1",
+      "selectedProfiles": ["harness", "docs"],
+      "fullProfiles": ["harness", "docs", "verification-runner", "release", "flutter", "nestjs", "go-realtime", "deployment"],
+      "changedPathCount": 3,
+      "autoExitCode": 0,
+      "fullExitCode": 0,
+      "stale": false,
+      "unmatchedPaths": [],
+      "reruns": 0,
+      "humanIntervention": false
+    }
+  ],
+  "authority": {
+    "kind": "progress-only",
+    "finalEvidencePath": "docs/migrations/ops-72-live-shadow-evidence.json",
+    "syntheticEvidenceAccepted": false,
+    "rawArtifactsCommitted": false
+  }
+}
