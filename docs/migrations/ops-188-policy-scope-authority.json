@@ -1,0 +1,54 @@
+{
+  "formatVersion": 1,
+  "issue": "OPS-188",
+  "sourceRevision": "47820253ae77551be0b5f9baf2406080f3433581",
+  "implementationCommit": "4c1c55f081eab1470b1f45c810c874b937a4f0ea",
+  "branch": "codex/ops-188-enforce-policy-scope",
+  "authority": {
+    "previousAudit": "docs/migrations/ops-173-phase9-ownership-audit.json",
+    "resolvedCandidate": "generic admin-policy scope authorization",
+    "owner": "backend-nest/src/policy/policy.service.ts",
+    "status": "implemented-local-branch",
+    "remainingCandidates": ["atomic assignment transaction hardening"]
+  },
+  "contract": {
+    "publicRoutesUnchanged": true,
+    "dtoAndDiContractsUnchanged": true,
+    "policyEvaluationUnchanged": true,
+    "superAdminRemainsUnrestricted": true,
+    "outOfScopeWritesReachPrisma": false
+  },
+  "proof": {
+    "targetedTests": {
+      "command": "npm test -- --runInBand policy.service.spec.ts user-access-scope.service.spec.ts",
+      "status": "passed",
+      "suites": 2,
+      "tests": 25
+    },
+    "build": {
+      "command": "npm run build",
+      "status": "passed"
+    },
+    "verifyTask": {
+      "command": "node scripts/verify-task.mjs --base 47820253",
+      "status": "passed",
+      "profiles": ["harness", "docs", "nestjs"],
+      "changedPaths": 4,
+      "affectedConsumers": [
+        "Flutter API repositories",
+        "NestJS API",
+        "product and release authority",
+        "repository documentation",
+        "repository-harness-adoption",
+        "task-lifecycle-and-affected-consumer-proof"
+      ],
+      "stale": false
+    },
+    "diffCheck": "passed"
+  },
+  "deferredGates": {
+    "flutterAffectedConsumers": "deferred-fail-closed-missing-dependency-root",
+    "goAffectedConsumers": "deferred-fail-closed-unavailable-toolchain",
+    "fullInitiativeValidation": "not-claimed-by-this-slice"
+  }
+}

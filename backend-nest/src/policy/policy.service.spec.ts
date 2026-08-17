@@ -23,6 +23,44 @@ describe('PolicyService', () => {
     storeName: 'SR CP62',
   };
 
+  const policyScopeTree = [
+    {
+      id: 'org-domain-phongvu-vn',
+      parentId: null,
+      type: 'LV0_DOMAIN',
+      emailDomain: 'phongvu.vn',
+      isActive: true,
+    },
+    {
+      id: 'org-area-hcm',
+      parentId: 'org-domain-phongvu-vn',
+      type: 'LV3_AREA',
+      emailDomain: null,
+      isActive: true,
+    },
+    {
+      id: 'org-store-cp62',
+      parentId: 'org-area-hcm',
+      type: 'LV4_STORE',
+      emailDomain: null,
+      isActive: true,
+    },
+    {
+      id: 'org-area-other',
+      parentId: 'org-domain-phongvu-vn',
+      type: 'LV3_AREA',
+      emailDomain: null,
+      isActive: true,
+    },
+    {
+      id: 'org-store-outside',
+      parentId: 'org-area-other',
+      type: 'LV4_STORE',
+      emailDomain: null,
+      isActive: true,
+    },
+  ];
+
   beforeEach(() => {
     policies = {
       [ADMIN_POLICY_CODES.FIFO]: {
@@ -371,6 +409,119 @@ describe('PolicyService', () => {
         storeCode: null,
       }),
     });
+  });
+
+  it('allows a scoped admin to create a rule inside the management subtree', async () => {
+    rules = [
+      {
+        policyCode: ADMIN_POLICY_CODES.ADMIN_POLICIES,
+        allowed: true,
+        systemRole: 'ADMIN',
+      },
+    ];
+    prisma.organizationNode.findMany.mockResolvedValue(policyScopeTree);
+
+    await expect(
+      service.adminCreateRule(
+        { role: 'ADMIN', organizationNodeId: 'org-area-hcm' },
+        {
+          policyCode: ADMIN_POLICY_CODES.FIFO,
+          allowed: true,
+          organizationNodeId: 'org-store-cp62',
+        },
+      ),
+    ).resolves.toMatchObject({ organizationNodeId: 'org-store-cp62' });
+    expect(prisma.adminPolicyRule.create).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejects a scoped admin rule outside the management subtree before writing', async () => {
+    rules = [
+      {
+        policyCode: ADMIN_POLICY_CODES.ADMIN_POLICIES,
+        allowed: true,
+        systemRole: 'ADMIN',
+      },
+    ];
+    prisma.organizationNode.findMany.mockResolvedValue(policyScopeTree);
+    prisma.organizationNode.findUnique.mockResolvedValue({
+      id: 'org-store-outside',
+      isActive: true,
+    });
+
+    await expect(
+      service.adminCreateRule(
+        { role: 'ADMIN', organizationNodeId: 'org-area-hcm' },
+        {
+          policyCode: ADMIN_POLICY_CODES.FIFO,
+          allowed: true,
+          organizationNodeId: 'org-store-outside',
+        },
+      ),
+    ).rejects.toThrow('Bạn chỉ được quản lý policy trong phạm vi tổ chức');
+    expect(prisma.adminPolicyRule.create).not.toHaveBeenCalled();
+  });
+
+  it('rejects an out-of-scope batch before any policy rule is created', async () => {
+    rules = [
+      {
+        policyCode: ADMIN_POLICY_CODES.ADMIN_POLICIES,
+        allowed: true,
+        systemRole: 'ADMIN',
+      },
+    ];
+    prisma.organizationNode.findMany.mockResolvedValue(policyScopeTree);
+    prisma.organizationNode.findUnique.mockImplementation(
+      async ({ where }) => ({
+        id: where.id,
+        isActive: true,
+      }),
+    );
+
+    await expect(
+      service.adminCreateRules(
+        { role: 'ADMIN', organizationNodeId: 'org-area-hcm' },
+        {
+          policyCode: ADMIN_POLICY_CODES.FIFO,
+          allowed: true,
+          organizationNodeIds: ['org-store-cp62', 'org-store-outside'],
+        },
+      ),
+    ).rejects.toThrow('Bạn chỉ được quản lý policy trong phạm vi tổ chức');
+    expect(prisma.adminPolicyRule.create).not.toHaveBeenCalled();
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it('validates the resulting organization node when a policy rule is updated', async () => {
+    rules = [
+      {
+        policyCode: ADMIN_POLICY_CODES.ADMIN_POLICIES,
+        allowed: true,
+        systemRole: 'ADMIN',
+      },
+    ];
+    prisma.organizationNode.findMany.mockResolvedValue(policyScopeTree);
+    prisma.organizationNode.findUnique.mockResolvedValue({
+      id: 'org-store-outside',
+      isActive: true,
+    });
+    prisma.adminPolicyRule.findUnique.mockResolvedValue({
+      id: 'rule-1',
+      policyCode: ADMIN_POLICY_CODES.FIFO,
+      allowed: true,
+      organizationNodeId: 'org-store-cp62',
+      emailDomain: null,
+      systemRole: null,
+      note: null,
+    });
+
+    await expect(
+      service.adminUpdateRule(
+        { role: 'ADMIN', organizationNodeId: 'org-area-hcm' },
+        'rule-1',
+        { organizationNodeId: 'org-store-outside' },
+      ),
+    ).rejects.toThrow('Bạn chỉ được quản lý policy trong phạm vi tổ chức');
+    expect(prisma.adminPolicyRule.update).not.toHaveBeenCalled();
   });
 
   it('matches policy rules against the assigned Lv5 node before showroom fallback', async () => {

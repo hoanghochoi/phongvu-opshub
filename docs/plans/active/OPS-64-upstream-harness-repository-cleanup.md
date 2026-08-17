@@ -3430,3 +3430,29 @@ the current checkpoint above is the sole active execution authority.
   disposition, Harness retirement, migration EOL, docs/link/secret/mojibake
   checks, exact Harness/docs/verification `verify-task` with `stale=false`,
   changed-path scope review and `git diff --check`.
+
+## Workflow checkpoint (OPS-188; policy-scope authority while dependencies are deferred)
+
+- This bounded Phase 9F security slice uses branch/worktree
+  `codex/ops-188-enforce-policy-scope` created from exact
+  `origin/staging@47820253ae77551be0b5f9baf2406080f3433581` through the guarded
+  lifecycle start gate. Commit `4c1c55f081eab1470b1f45c810c874b937a4f0ea`
+  adds organization-subtree authorization to policy-rule create, batch-create
+  and update mutations. SUPER_ADMIN remains unrestricted; routes, DTOs, DI,
+  policy evaluation and access-change publication contracts are unchanged.
+- The previous Phase 9 ownership audit's generic admin-policy scope candidate is
+  now repository-owned by `PolicyService`; the atomic assignment transaction
+  candidate remains a separate follow-up. Sanitized authority and proof are in
+  `docs/migrations/ops-188-policy-scope-authority.json`.
+- Targeted policy/access-scope tests (25/25), Nest build and exact
+  `node scripts/verify-task.mjs --base 47820253` passed with auto-profile
+  `nestjs`, two changed paths and `stale=false`; `git diff --check` passed.
+- Dependency-heavy Flutter/Go affected-consumer proof and the full initiative
+  validation remain explicitly deferred/fail-closed under the approved
+  temporary dependency deferral. No profile was suppressed, no product failure
+  was retried to green, and this slice does not claim OPS-72, authenticated QA,
+  production deployment or final Phase 10 completion.
+- Required proof before publication: re-run the exact checks after any docs or
+  source edit, then record the Linear implementation/proof note before moving
+  OPS-188 forward. Rollback is one squash revert; no Harness DB, archive,
+  dependency version or lockfile path is in scope.

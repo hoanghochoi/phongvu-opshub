@@ -383,6 +383,9 @@ export class PolicyService implements OnModuleInit {
     await this.assertCanManagePolicies(admin);
     this.assertNoLegacyRuleSelectors(body);
     const data = await this.normalizeRuleInput(body);
+    await this.assertPolicyRuleOrganizationScope(admin, [
+      data.organizationNodeId,
+    ]);
     const created = await this.prisma.adminPolicyRule.create({ data });
     await this.accessChangeService.publishForOrganizationNodeIds(
       [data.organizationNodeId],
@@ -395,6 +398,10 @@ export class PolicyService implements OnModuleInit {
     await this.assertCanManagePolicies(admin);
     this.assertNoLegacyRuleSelectors(body);
     const dataList = await this.normalizeRuleBatchInput(body);
+    await this.assertPolicyRuleOrganizationScope(
+      admin,
+      dataList.map((data) => data.organizationNodeId),
+    );
     const created = await this.prisma.$transaction(
       dataList.map((data) => this.prisma.adminPolicyRule.create({ data })),
     );
@@ -416,6 +423,9 @@ export class PolicyService implements OnModuleInit {
       { ...current, ...body },
       current,
     );
+    await this.assertPolicyRuleOrganizationScope(admin, [
+      data.organizationNodeId,
+    ]);
     const updated = await this.prisma.adminPolicyRule.update({
       where: { id },
       data,
@@ -554,6 +564,118 @@ export class PolicyService implements OnModuleInit {
     if (await this.canAccessPolicy(admin, ADMIN_POLICY_CODES.ADMIN_POLICIES))
       return;
     throw new ForbiddenException('Khong co quyen quan ly policy');
+  }
+
+  private async assertPolicyRuleOrganizationScope(
+    admin: any,
+    organizationNodeIds: readonly (string | null)[],
+  ) {
+    if (isSuperAdminRole(admin?.role)) return;
+
+    const requested = Array.from(
+      new Set(
+        organizationNodeIds
+          .map((value) => String(value || '').trim())
+          .filter(Boolean),
+      ),
+    );
+    const allowed = new Set(await this.policyManagementScopeNodeIds(admin));
+    const denied = requested.find((nodeId) => !allowed.has(nodeId));
+    if (!denied) return;
+
+    this.logger.warn(
+      'Policy rule mutation blocked by organization scope: admin=' +
+        String(admin?.id || 'unknown') +
+        ' role=' +
+        String(admin?.role || 'unknown') +
+        ' nodeId=' +
+        denied,
+    );
+    throw new ForbiddenException(
+      'Bạn chỉ được quản lý policy trong phạm vi tổ chức được phân quyền',
+    );
+  }
+
+  private async policyManagementScopeNodeIds(admin: any) {
+    const organizationNode = (this.prisma as any).organizationNode;
+    if (!organizationNode?.findMany) return [];
+
+    const nodes: Array<{
+      id: string;
+      parentId: string | null;
+      type: string;
+      emailDomain: string | null;
+      isActive: boolean;
+    }> = await organizationNode.findMany({
+      select: {
+        id: true,
+        parentId: true,
+        type: true,
+        emailDomain: true,
+        isActive: true,
+      },
+    });
+    const activeNodes = nodes.filter((node) => node.isActive !== false);
+    const byId = new Map(activeNodes.map((node) => [node.id, node]));
+    const requestedRootId = String(admin?.organizationNodeId || '').trim();
+    if (requestedRootId) {
+      const root = byId.get(requestedRootId);
+      const rootId =
+        root && this.isPositionOrganizationNode(root.type)
+          ? root.parentId || root.id
+          : requestedRootId;
+      return this.descendantOrganizationNodeIds(rootId, activeNodes);
+    }
+
+    const emailDomain = this.emailDomainFromEmail(admin?.email);
+    if (!emailDomain) return [];
+    const domainRoots = activeNodes
+      .filter(
+        (node) =>
+          String(node.emailDomain || '')
+            .trim()
+            .toLowerCase() === emailDomain,
+      )
+      .map((node) => node.id);
+    const scopedIds = new Set<string>();
+    for (const rootId of domainRoots) {
+      for (const id of this.descendantOrganizationNodeIds(
+        rootId,
+        activeNodes,
+      )) {
+        scopedIds.add(id);
+      }
+    }
+    return Array.from(scopedIds);
+  }
+
+  private descendantOrganizationNodeIds(
+    rootId: string,
+    nodes: Array<{ id: string; parentId: string | null }>,
+  ) {
+    const ids = new Set<string>([rootId]);
+    let changed = true;
+    while (changed) {
+      changed = false;
+      for (const node of nodes) {
+        if (node.parentId && ids.has(node.parentId) && !ids.has(node.id)) {
+          ids.add(node.id);
+          changed = true;
+        }
+      }
+    }
+    return Array.from(ids);
+  }
+
+  private isPositionOrganizationNode(type: unknown) {
+    const normalized = String(type || '')
+      .trim()
+      .toUpperCase();
+    return (
+      normalized === 'POSITION' ||
+      normalized === 'LV5_POSITION' ||
+      normalized.endsWith('_POSITION')
+    );
   }
 
   private assertNoLegacyRuleSelectors(input: any) {
