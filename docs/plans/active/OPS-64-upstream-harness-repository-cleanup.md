@@ -4,11 +4,11 @@ Date: 2026-08-13
 
 ## Status
 
-Active — the current workflow checkpoint is OPS-185 post-merge
-reconciliation after OPS-184, created from exact live
-`origin/staging@c2d0af358b9cba0e79c0b509d860239107589bbb` after PR #309.
-OPS-184 PR #309 is squash-merged at
-`c2d0af358b9cba0e79c0b509d860239107589bbb`; its guarded finish passed,
+Active — the current workflow checkpoint is the OPS-75 final-consolidation
+rehearsal, created from exact live
+`origin/staging@8c6c9eccbf850243ec1c4ea18151880ae90db786` after OPS-185/PR #310.
+OPS-185 PR #310 is squash-merged at
+`8c6c9eccbf850243ec1c4ea18151880ae90db786`; its guarded finish passed,
 canonical `staging` and `origin/staging` are aligned, and the task worktree,
 local branch and remote branch are gone. The schema-v4 execution-canary
 evidence remains independently validated at 5/5 with `stale=false`, zero
@@ -64,8 +64,8 @@ security follow-ups with no current owner: atomic assignment transaction
 hardening and generic admin-policy scope authorization. OPS-182 records the
 preceding authority guard and keeps the approved dependency gap fail-closed.
 OPS-184 records the preceding post-merge reconciliation after OPS-183.
-OPS-185 records the current exact SHA and carries the final-consolidation
-rehearsal lane. The next bounded actions are final consolidation gates: resolve
+OPS-185 records the preceding exact-SHA reconciliation after OPS-184.
+OPS-75 carries the current final-consolidation rehearsal lane. The next bounded actions are final consolidation gates: resolve
 the upstream updater exit-code defect, close dependency/affected-consumer proof,
 assign the two User/Auth authority follow-ups and complete authenticated QA plus
 production deployment. None of these open gates is weakened by this
@@ -3341,3 +3341,36 @@ the current checkpoint above is the sole active execution authority.
   `verify-task` with `stale=false`, changed-path scope review and
   `git diff --check`. Rollback is one squash revert; no runtime/API/UI/data/
   dependency-version/Harness DB change is in scope.
+
+## Workflow checkpoint (OPS-75; final-consolidation rehearsal after OPS-185)
+
+- This docs-only slice uses branch/worktree
+  `codex/ops-75-final-consolidation-after-ops-185` /
+  `../opshub-ops-75-final-consolidation`, created from exact live
+  `origin/staging@8c6c9eccbf850243ec1c4ea18151880ae90db786` through the guarded
+  lifecycle start gate. Nest preparation completed for the lifecycle receipt;
+  no dependency-owning runtime command is in scope, and Flutter/Nest/Go
+  affected-consumer proof remains explicitly deferred/fail-closed under the
+  approved temporary dependency deferral.
+- OPS-185 PR #310 is squash-merged at
+  `8c6c9eccbf850243ec1c4ea18151880ae90db786`. Its execution-canary artifact
+  `run=32015021129` was independently re-hashed: report/manifest SHA-256 is
+  `32579b4a0a62de8798989e2a0c98618b550d1a40ffe84fc3770a9f86e7df9dfb`;
+  schema-v4, `executionMode=execution-canary`, `status=passed`, auto/full exit
+  codes `0`, `stale=false`, no unmatched paths, zero command retries and zero
+  external reruns. The report head
+  `1626064f5e0a6541ff3d798c74827171c7603d16` is the GitHub merge-test SHA and
+  intentionally differs from PR head `2b7a424c71a2e2923bd9387c662503e84bfe9bb4`.
+- The progress ledger remains collection-complete at 5/5 but
+  `promotionEligible=false`; OPS-72 remains `revise`/`do-not-promote` because
+  the reviewed cohort still has no comparable baseline or first-actionable-
+  failure sample and zero-vs-zero reruns are unmeasurable. The installed
+  Harness `status --json`/`doctor --json` audit passes; `update --dry-run`
+  remains the no-write upstream conflict-exit-code blocker.
+- This slice updates only the master-plan checkpoint and active-plan authority
+  text. No runtime/API/UI/data/dependency-version/Harness DB/archive path is
+  changed. Rollback is one squash revert; raw CI payload remains outside Git.
+- Required proof before publication: OPS-72 live/progress validators, plan
+  disposition, Harness retirement, migration EOL, docs/link/secret/mojibake
+  checks, exact Harness/docs/verification `verify-task` with `stale=false`,
+  changed-path scope review and `git diff --check`.
