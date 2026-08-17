@@ -114,3 +114,109 @@ jobs:
           ];
           fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${lines.join('\n')}\n`);
           NODE
+
+  execution-canary:
+    name: OPS-72 execution canary
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # This lane produces telemetry only. It never replaces or weakens the
+    # blocking checks above and is intentionally non-blocking while the
+    # five-observation cohort is being established.
+    continue-on-error: true
+    steps:
+      - name: Check out pull request
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
+        with:
+          fetch-depth: 0
+
+      - name: Run auto-selected execution canary
+        id: canary
+        continue-on-error: true
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          OPSHUB_SHADOW_QUEUED_AT_UTC: ${{ github.run_started_at }}
+          OPSHUB_SHADOW_RUN_ATTEMPT: ${{ github.run_attempt }}
+          OPSHUB_SHADOW_COHORT_ID: ops72-execution-canary-v1
+        run: |
+          mkdir -p tmp
+          node scripts/verify-task-shadow.mjs \
+            --base "$BASE_SHA" \
+            --execution-canary \
+            --json tmp/verify-task-shadow.json
+
+      - name: Write execution-canary manifest
+        if: always()
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          RUN_ID: ${{ github.run_id }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          RUN_STARTED_AT: ${{ github.run_started_at }}
+          COHORT_ID: ops72-execution-canary-v1
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const crypto = require('crypto');
+          const reportPath = 'tmp/verify-task-shadow.json';
+          const report = JSON.parse(fs.readFileSync(reportPath, 'utf8'));
+          const completedAt = new Date().toISOString();
+          const startedCandidate = process.env.RUN_STARTED_AT || report.telemetry?.startedAtUtc || report.telemetry?.queuedAtUtc || completedAt;
+          const startedAt = new Date(startedCandidate).toISOString();
+          const bytes = fs.readFileSync(reportPath);
+          const manifest = {
+            formatVersion: 2,
+            issue: 'OPS-72',
+            targetBranch: 'staging',
+            executionMode: 'execution-canary',
+            cohortId: process.env.COHORT_ID,
+            pullRequest: Number(process.env.PR_NUMBER),
+            runId: Number(process.env.RUN_ID),
+            runUrl: process.env.RUN_URL,
+            prHeadSha: process.env.PR_HEAD_SHA,
+            baseSha: process.env.BASE_SHA,
+            reportedHeadSha: report.headSha || null,
+            reportFile: 'verify-task-shadow.json',
+            reportSha256: crypto.createHash('sha256').update(bytes).digest('hex'),
+            generatedAtUtc: completedAt,
+            run: {
+              createdAt: startedAt,
+              startedAt,
+              completedAt,
+              githubDurationMs: Math.max(0, Date.parse(completedAt) - Date.parse(startedAt)),
+            },
+          };
+          fs.writeFileSync('tmp/verify-task-shadow-manifest.json', `${JSON.stringify(manifest, null, 2)}\n`);
+          NODE
+
+      - name: Publish execution-canary artifact
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: verify-task-execution-canary-${{ github.event.pull_request.number }}
+          path: |
+            tmp/verify-task-shadow.json
+            tmp/verify-task-shadow-manifest.json
+          if-no-files-found: error
+
+      - name: Add execution-canary summary
+        if: always()
+        shell: bash
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const report = JSON.parse(fs.readFileSync('tmp/verify-task-shadow.json', 'utf8'));
+          const lines = [
+            '## OPS-72 execution canary',
+            '',
+            `- Status: ${report.status}`,
+            `- Execution mode: ${report.executionMode || report.telemetry?.executionMode || 'unknown'}`,
+            `- Auto profiles: ${(report.autoSelectedProfiles || []).join(', ') || 'none'}`,
+            `- Command retries: ${report.telemetry?.commandRetryCount ?? 'unknown'}`,
+            `- External reruns: ${report.telemetry?.externalRerunCount ?? 'unknown'}`,
+            `- First actionable failure: ${report.telemetry?.firstActionableFailure?.category || 'none'}`,
+            '- Full ladder: dry-run comparator only',
+            '- Promotion: disabled until five reviewed comparable observations',
+          ];
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `${lines.join('\n')}\n`);
+          NODE

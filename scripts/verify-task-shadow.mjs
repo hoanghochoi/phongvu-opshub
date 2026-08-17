@@ -5,17 +5,39 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { EXIT_CODES, parseArgs, verifyTask } from './verify-task.mjs';
 
-const SHADOW_SCHEMA_VERSION = 3;
+const PLAN_ONLY_SCHEMA_VERSION = 3;
+const EXECUTION_CANARY_SCHEMA_VERSION = 4;
 const DEFAULT_COHORT_ID = 'ops72-shadow-v2';
-const EXECUTION_MODE = 'plan-only';
+const EXECUTION_CANARY_COHORT_ID = 'ops72-execution-canary-v1';
+const PLAN_ONLY_MODE = 'plan-only';
+const EXECUTION_CANARY_MODE = 'execution-canary';
 
-function shadowOptions(options) {
+function shadowOptions(options, { executionMode, full }) {
   return {
     base: options.base ?? null,
     profiles: options.profiles ?? [],
-    full: Boolean(options.full),
-    dryRun: true,
+    full: Boolean(full),
+    // The canary executes only the affected/auto-selected lane. The full
+    // ladder remains a dry-run comparator so this workflow cannot replace or
+    // weaken existing blocking checks.
+    dryRun: Boolean(options.dryRun) || executionMode !== EXECUTION_CANARY_MODE || Boolean(full),
   };
+}
+
+function externalRerunCount(options = {}) {
+  if (Number.isInteger(options.externalRerunCount) && options.externalRerunCount >= 0) {
+    return options.externalRerunCount;
+  }
+  const raw = process.env.OPSHUB_SHADOW_EXTERNAL_RERUN_COUNT;
+  const attemptRaw = process.env.OPSHUB_SHADOW_RUN_ATTEMPT;
+  if (attemptRaw) {
+    const attempt = Number.parseInt(attemptRaw, 10);
+    if (Number.isInteger(attempt) && attempt >= 1) return attempt - 1;
+  }
+  if (!raw) return 0;
+  const parsed = Number.parseInt(raw, 10);
+  if (!Number.isInteger(parsed) || parsed < 0) return 0;
+  return parsed;
 }
 
 function classificationForExitCode(exitCode) {
@@ -106,11 +128,14 @@ function durationMs(run) {
     : 0;
 }
 
-function buildTelemetry({ queued, startedMs, completedMs, auto, full }) {
+function buildTelemetry({ queued, startedMs, completedMs, auto, full, executionMode, options }) {
   const autoRetryCount = retryCount(auto);
   const fullRetryCount = retryCount(full);
   const autoDurationMs = durationMs(auto);
   const fullDurationMs = durationMs(full);
+  const commandRetryCount = autoRetryCount + fullRetryCount;
+  const reruns = externalRerunCount(options);
+  const isExecutionCanary = executionMode === EXECUTION_CANARY_MODE;
   const autoFailure = firstActionableFailure(auto, startedMs);
   const fullFailure = firstActionableFailure(full, startedMs, autoDurationMs);
   const autoObservedFailure = firstObservedFailure(auto, startedMs);
@@ -120,14 +145,18 @@ function buildTelemetry({ queued, startedMs, completedMs, auto, full }) {
     autoDurationMs,
   );
   return {
-    schemaVersion: SHADOW_SCHEMA_VERSION,
-    cohortId: process.env.OPSHUB_SHADOW_COHORT_ID || DEFAULT_COHORT_ID,
+    schemaVersion: isExecutionCanary
+      ? EXECUTION_CANARY_SCHEMA_VERSION
+      : PLAN_ONLY_SCHEMA_VERSION,
+    cohortId: process.env.OPSHUB_SHADOW_COHORT_ID || (isExecutionCanary
+      ? EXECUTION_CANARY_COHORT_ID
+      : DEFAULT_COHORT_ID),
     queuedAtUtc: queued.value,
     startedAtUtc: new Date(startedMs).toISOString(),
     completedAtUtc: new Date(completedMs).toISOString(),
     queueDurationMs: Math.max(0, startedMs - Date.parse(queued.value)),
     executionDurationMs: Math.max(0, completedMs - startedMs),
-    executionMode: EXECUTION_MODE,
+    executionMode,
     autoDurationMs,
     fullDurationMs,
     // The selected-profile result is the first actionable decision. The full
@@ -135,18 +164,28 @@ function buildTelemetry({ queued, startedMs, completedMs, auto, full }) {
     // latency or be mistaken for the user's blocking path.
     decisionDurationMs: autoDurationMs,
     queueTimestampSource: queued.source,
-    retryCount: autoRetryCount + fullRetryCount,
+    // retryCount is retained for schema-v3 compatibility. New canary
+    // consumers must use the explicitly named fields below.
+    retryCount: commandRetryCount,
+    commandRetryCount,
+    externalRerunCount: reruns,
     autoRetryCount,
     fullRetryCount,
     firstActionableFailure: autoFailure || fullFailure,
     autoFirstObservedFailure: autoObservedFailure,
     fullFirstObservedFailure: fullObservedFailure,
     firstObservedFailure: autoObservedFailure || fullObservedFailure,
-    measurementEligibility: {
-      retryReduction: false,
-      timeToActionableFailure: false,
-      reasonCode: 'plan-only-shadow',
-    },
+    measurementEligibility: isExecutionCanary
+      ? {
+        retryReduction: true,
+        timeToActionableFailure: true,
+        reasonCode: 'execution-canary-auto-only',
+      }
+      : {
+        retryReduction: false,
+        timeToActionableFailure: false,
+        reasonCode: 'plan-only-shadow',
+      },
   };
 }
 
@@ -157,10 +196,21 @@ export function buildShadowReport({
 } = {}) {
   const started = Date.now();
   const queued = queuedAt(started);
-  const auto = verifyTaskFn({ root, options: shadowOptions(options) });
+  const executionMode = options.executionMode || PLAN_ONLY_MODE;
+  if (![PLAN_ONLY_MODE, EXECUTION_CANARY_MODE].includes(executionMode)) {
+    throw new Error(`Unsupported shadow execution mode: ${executionMode}`);
+  }
+  const auto = verifyTaskFn({
+    root,
+    options: shadowOptions(options, { executionMode, full: false }),
+  });
   const full = verifyTaskFn({
     root,
-    options: { ...shadowOptions(options), profiles: [], full: true },
+    options: {
+      ...shadowOptions(options, { executionMode, full: true }),
+      profiles: [],
+      full: true,
+    },
   });
   const autoResult = auto.result || {};
   const fullResult = full.result || {};
@@ -182,11 +232,17 @@ export function buildShadowReport({
     completedMs: completed,
     auto,
     full,
+    executionMode,
+    options,
   });
+  const schemaVersion = executionMode === EXECUTION_CANARY_MODE
+    ? EXECUTION_CANARY_SCHEMA_VERSION
+    : PLAN_ONLY_SCHEMA_VERSION;
 
   return {
-    schemaVersion: SHADOW_SCHEMA_VERSION,
+    schemaVersion,
     mode: 'shadow',
+    executionMode,
     baseSha: autoResult.baseSha ?? null,
     headSha: autoResult.headSha ?? null,
     changedPaths: autoResult.changedPaths || fullResult.changedPaths || [],
@@ -220,7 +276,11 @@ export function buildShadowReport({
     metrics: {
       firstActionableFailure: telemetry.firstActionableFailure,
       firstObservedFailure: telemetry.firstObservedFailure,
-      reruns: telemetry.retryCount,
+      // Existing plan-only artifacts retain the historical internal-retry
+      // field. Execution-canary artifacts expose workflow reruns separately.
+      reruns: executionMode === EXECUTION_CANARY_MODE
+        ? telemetry.externalRerunCount
+        : telemetry.retryCount,
       humanIntervention: false,
       falsePositive: null,
       falseNegative: null,
@@ -232,12 +292,21 @@ export function buildShadowReport({
 
 function help() {
   return [
-    'Usage: node scripts/verify-task-shadow.mjs --base <git-ref> [--json <path>]',
+    'Usage: node scripts/verify-task-shadow.mjs --base <git-ref> [--execution-canary] [--json <path>]',
     '',
     'Runs the additive changed-path profile selection in dry-run shadow mode and',
-    'compares it with the full profile ladder. Existing blocking checks are not',
-    'replaced or weakened.',
+    'compares it with the full profile ladder. --execution-canary executes only',
+    'the auto-selected lane; it never replaces or weakens blocking checks.',
   ].join('\n');
+}
+
+function parseShadowArgs(argv) {
+  const executionCanary = argv.includes('--execution-canary');
+  const filtered = argv.filter((argument) => argument !== '--execution-canary');
+  return {
+    ...parseArgs(filtered),
+    executionMode: executionCanary ? EXECUTION_CANARY_MODE : PLAN_ONLY_MODE,
+  };
 }
 
 export function main(argv = process.argv.slice(2), { root = process.cwd() } = {}) {
@@ -245,7 +314,7 @@ export function main(argv = process.argv.slice(2), { root = process.cwd() } = {}
   const queued = queuedAt(started);
   let options;
   try {
-    options = parseArgs(argv);
+    options = parseShadowArgs(argv);
     if (options.help) {
       console.log(help());
       return EXIT_CODES.PASS;
@@ -262,8 +331,9 @@ export function main(argv = process.argv.slice(2), { root = process.cwd() } = {}
     const code = Number.isInteger(error?.code) ? error.code : EXIT_CODES.ENVIRONMENT;
     const completed = Date.now();
     const report = {
-      schemaVersion: SHADOW_SCHEMA_VERSION,
+      schemaVersion: PLAN_ONLY_SCHEMA_VERSION,
       mode: 'shadow',
+      executionMode: PLAN_ONLY_MODE,
       status: 'failed',
       classification: code === EXIT_CODES.CONTRACT ? 'contract-failure' : 'environment-failure',
       autoExitCode: code,
@@ -275,6 +345,8 @@ export function main(argv = process.argv.slice(2), { root = process.cwd() } = {}
         completedMs: completed,
         auto: { exitCode: code, result: {} },
         full: null,
+        executionMode: PLAN_ONLY_MODE,
+        options: {},
       }),
     };
     if (options?.json) {

@@ -38,7 +38,7 @@ function validateFailure(failure, label) {
 
 function validateTelemetry(telemetry, label) {
   assert(telemetry && typeof telemetry === 'object', `${label} must be an object`);
-  assert([2, 3].includes(telemetry.schemaVersion), `${label}.schemaVersion must be 2 or 3`);
+  assert([2, 3, 4].includes(telemetry.schemaVersion), `${label}.schemaVersion must be 2 or 3 (or 4 for execution canary)`);
   assert(typeof telemetry.cohortId === 'string' && /^[A-Za-z0-9._-]+$/.test(telemetry.cohortId), `${label}.cohortId is invalid`);
   assertIso(telemetry.queuedAtUtc, `${label}.queuedAtUtc`);
   assertIso(telemetry.startedAtUtc, `${label}.startedAtUtc`);
@@ -48,17 +48,39 @@ function validateTelemetry(telemetry, label) {
   }
   validateFailure(telemetry.firstActionableFailure, `${label}.firstActionableFailure`);
   validateFailure(telemetry.firstObservedFailure, `${label}.firstObservedFailure`);
-  if (telemetry.schemaVersion === 3) {
-    assert(telemetry.executionMode === 'plan-only', `${label}.executionMode must be plan-only`);
+  if (telemetry.schemaVersion === 3 || telemetry.schemaVersion === 4) {
+    const executionCanary = telemetry.schemaVersion === 4;
+    assert(
+      telemetry.executionMode === (executionCanary ? 'execution-canary' : 'plan-only'),
+      `${label}.executionMode is invalid for schema ${telemetry.schemaVersion}`,
+    );
     for (const key of ['autoDurationMs', 'fullDurationMs', 'decisionDurationMs']) {
       assert(Number.isInteger(telemetry[key]) && telemetry[key] >= 0, `${label}.${key} is invalid`);
     }
     assert(telemetry.decisionDurationMs <= telemetry.executionDurationMs, `${label}.decisionDurationMs cannot exceed executionDurationMs`);
     const eligibility = telemetry.measurementEligibility;
     assert(eligibility && typeof eligibility === 'object', `${label}.measurementEligibility is required`);
-    assert(eligibility.retryReduction === false, `${label}.retryReduction must remain ineligible for plan-only evidence`);
-    assert(eligibility.timeToActionableFailure === false, `${label}.timeToActionableFailure must remain ineligible for plan-only evidence`);
-    assert(eligibility.reasonCode === 'plan-only-shadow', `${label}.measurementEligibility.reasonCode is invalid`);
+    assert(
+      eligibility.retryReduction === executionCanary,
+      executionCanary
+        ? `${label}.retryReduction eligibility is invalid`
+        : `${label}.retryReduction must remain ineligible for plan-only evidence`,
+    );
+    assert(
+      eligibility.timeToActionableFailure === executionCanary,
+      executionCanary
+        ? `${label}.timeToActionableFailure eligibility is invalid`
+        : `${label}.timeToActionableFailure must remain ineligible for plan-only evidence`,
+    );
+    assert(
+      eligibility.reasonCode === (executionCanary ? 'execution-canary-auto-only' : 'plan-only-shadow'),
+      `${label}.measurementEligibility.reasonCode is invalid`,
+    );
+    if (executionCanary) {
+      for (const key of ['commandRetryCount', 'externalRerunCount']) {
+        assert(Number.isInteger(telemetry[key]) && telemetry[key] >= 0, `${label}.${key} is invalid`);
+      }
+    }
   }
 }
 
@@ -111,7 +133,7 @@ function validateExcluded(observation) {
 
 export function validateLiveEvidence(document, { rawRoot = null } = {}) {
   assert(document && typeof document === 'object', 'live evidence must be an object');
-  assert([1, 2, 3].includes(document.formatVersion), 'formatVersion must be 1, 2 or 3');
+  assert([1, 2, 3, 4].includes(document.formatVersion), 'formatVersion must be 1, 2, 3 or 4');
   assert(document.issue === 'OPS-72', 'issue must be OPS-72');
   assert(document.targetBranch === 'staging', 'targetBranch must be staging');
   assert(document.requiredObservationCount === 5, 'requiredObservationCount must be 5');
@@ -143,7 +165,10 @@ export function validateLiveEvidence(document, { rawRoot = null } = {}) {
   assert(aggregate.passCount === 5, 'aggregate.passCount must be 5');
   assert(aggregate.contractFailureCount === 0, 'aggregate.contractFailureCount must be zero for accepted observations');
   assert(aggregate.productFailureCount === 0 && aggregate.staleFailureCount === 0 && aggregate.environmentFailureCount === 0, 'aggregate failure counts must be zero');
-  assert(aggregate.reruns === 0 && aggregate.acceptedStaleProofs === 0 && aggregate.productFailuresRetriedToGreen === 0, 'unsafe retry/stale metrics are not zero');
+  assert(aggregate.acceptedStaleProofs === 0 && aggregate.productFailuresRetriedToGreen === 0, 'unsafe retry/stale metrics are not zero');
+  if (document.formatVersion !== 4) {
+    assert(aggregate.reruns === 0, 'plan-only evidence cannot contain workflow reruns');
+  }
   if (document.formatVersion === 1) {
     assert(aggregate.targetStatus === 'pending-live-timing-baseline', 'legacy targetStatus must remain pending-live-timing-baseline');
     assert(aggregate.timeToActionableFailureMedianMs === null, 'legacy timing median must remain null without baseline');
@@ -155,11 +180,29 @@ export function validateLiveEvidence(document, { rawRoot = null } = {}) {
     assert(['pending-live-timing-baseline', 'revise', 'meets-target'].includes(aggregate.targetStatus), 'v2 targetStatus is invalid');
     assert(Number.isInteger(aggregate.shadowDurationMedianMs) && aggregate.shadowDurationMedianMs >= 0, 'shadowDurationMedianMs is invalid');
     assert(Number.isInteger(aggregate.baselineShadowDurationMedianMs) && aggregate.baselineShadowDurationMedianMs >= 0, 'baselineShadowDurationMedianMs is invalid');
-    assert(Number.isFinite(aggregate.shadowDurationReductionPercent), 'shadowDurationReductionPercent is invalid');
-    assert(aggregate.targetStatus !== 'meets-target' || aggregate.shadowDurationReductionPercent >= 25, 'meets-target requires the 25% timing target');
-    assert(aggregate.targetStatus !== 'revise' || aggregate.shadowDurationReductionPercent < 25 || aggregate.rerunReductionPercent === null, 'revise status must retain an unmet or unmeasurable target');
-    assert(aggregate.timeToActionableFailureMedianMs === null, 'no failure sample may claim a first-actionable-failure median');
-    assert(aggregate.baselineMedianTimeToActionableFailureMs === null, 'no failure sample may claim a baseline first-actionable-failure median');
+    if (document.formatVersion === 4) {
+      assert(aggregate.shadowDurationReductionPercent === null || Number.isFinite(aggregate.shadowDurationReductionPercent), 'v4 shadowDurationReductionPercent is invalid');
+      assert(aggregate.targetStatus === 'pending-live-timing-baseline', 'v4 target status must remain pending until a canary baseline exists');
+    } else {
+      assert(Number.isFinite(aggregate.shadowDurationReductionPercent), 'shadowDurationReductionPercent is invalid');
+      assert(aggregate.targetStatus !== 'meets-target' || aggregate.shadowDurationReductionPercent >= 25, 'meets-target requires the 25% timing target');
+      assert(aggregate.targetStatus !== 'revise' || aggregate.shadowDurationReductionPercent < 25 || aggregate.rerunReductionPercent === null, 'revise status must retain an unmet or unmeasurable target');
+    }
+    if (document.formatVersion !== 4) {
+      assert(aggregate.timeToActionableFailureMedianMs === null, 'no failure sample may claim a first-actionable-failure median');
+      assert(aggregate.baselineMedianTimeToActionableFailureMs === null, 'no failure sample may claim a baseline first-actionable-failure median');
+    } else {
+      assert(
+        aggregate.timeToActionableFailureMedianMs === null
+          || (Number.isInteger(aggregate.timeToActionableFailureMedianMs) && aggregate.timeToActionableFailureMedianMs >= 0),
+        'execution-canary first-actionable-failure median is invalid',
+      );
+      assert(
+        aggregate.baselineMedianTimeToActionableFailureMs === null
+          || (Number.isInteger(aggregate.baselineMedianTimeToActionableFailureMs) && aggregate.baselineMedianTimeToActionableFailureMs >= 0),
+        'execution-canary baseline first-actionable-failure median is invalid',
+      );
+    }
     if (document.formatVersion === 3) {
       assert(document.observations.every((observation) => observation.telemetry?.schemaVersion === 3), 'v3 observations must use telemetry schema 3');
       assert(document.observations.every((observation) => observation.telemetry?.executionMode === 'plan-only'), 'v3 observations must remain plan-only');
@@ -168,6 +211,18 @@ export function validateLiveEvidence(document, { rawRoot = null } = {}) {
       assert(document.measurementEligibility?.reasonCode === 'plan-only-shadow', 'v3 measurement eligibility reason is invalid');
       assert(Number.isInteger(aggregate.decisionDurationMedianMs) && aggregate.decisionDurationMedianMs >= 0, 'decisionDurationMedianMs is invalid');
       assert(aggregate.decisionDurationReductionPercent === null, 'plan-only decision reduction must remain unmeasurable');
+    }
+    if (document.formatVersion === 4) {
+      assert(document.observations.every((observation) => observation.telemetry?.schemaVersion === 4), 'v4 observations must use telemetry schema 4');
+      assert(document.observations.every((observation) => observation.telemetry?.executionMode === 'execution-canary'), 'v4 observations must use execution-canary mode');
+      assert(document.measurementEligibility?.executionMode === 'execution-canary', 'v4 execution mode is invalid');
+      assert(document.measurementEligibility?.retryReduction === true, 'v4 retry reduction must be eligible');
+      assert(document.measurementEligibility?.timeToActionableFailure === true, 'v4 TTAF must be eligible');
+      assert(document.measurementEligibility?.reasonCode === 'execution-canary-auto-only', 'v4 measurement eligibility reason is invalid');
+      assert(Number.isInteger(aggregate.commandRetries) && aggregate.commandRetries >= 0, 'v4 commandRetries is invalid');
+      assert(Number.isInteger(aggregate.externalReruns) && aggregate.externalReruns >= 0, 'v4 externalReruns is invalid');
+      assert(aggregate.reruns === aggregate.externalReruns, 'v4 reruns must represent external workflow reruns');
+      assert(aggregate.decisionDurationReductionPercent === null, 'v4 decision reduction requires an execution-canary baseline');
     }
   }
   assert(typeof document.generatedAtUtc === 'string', 'generatedAtUtc is required');
