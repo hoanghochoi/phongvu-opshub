@@ -1,0 +1,75 @@
+{
+  "formatVersion": 1,
+  "issue": "OPS-193",
+  "sourceRevision": "6716d89c658e179b1082b84a537e59f721922b54",
+  "generatedAtUtc": "2026-08-17T19:18:50.7079171Z",
+  "upstream": {
+    "repository": "https://github.com/hoangnb24/repository-harness",
+    "latestTaggedCore": "harness-v0.1.10",
+    "tagsChecked": [
+      {
+        "tag": "harness-v0.1.9",
+        "tagCommit": "ddb959f75f9d3e4c4935556bbc18fc3fb69caf9d",
+        "releaseUrl": "https://github.com/hoangnb24/repository-harness/releases/tag/harness-v0.1.9",
+        "publishedAt": "2026-08-13",
+        "gitMergeSourceSha256": "6ce3a657350cc4584dedf2b3dcf1ff7b56603eff3d43f00987c7c8e3ae9e6db1",
+        "mapsExit1ToConflict": true,
+        "handlesConflictCountExitRange": false
+      },
+      {
+        "tag": "harness-v0.1.10",
+        "tagCommit": "5a631a26f16b1d38c32b266cafb66694b0af08e4",
+        "releaseUrl": "https://github.com/hoangnb24/repository-harness/releases/tag/harness-v0.1.10",
+        "publishedAt": "2026-08-13",
+        "gitMergeSourceSha256": "6ce3a657350cc4584dedf2b3dcf1ff7b56603eff3d43f00987c7c8e3ae9e6db1",
+        "mapsExit1ToConflict": true,
+        "handlesConflictCountExitRange": false
+      }
+    ],
+    "conclusion": "Neither checked release contains the required conflict-exit-range fix; v0.1.10 keeps the same git_merge source digest as v0.1.9."
+  },
+  "consumerPin": {
+    "releaseTag": "harness-v0.1.8",
+    "installedVersion": "0.1.8",
+    "binarySha256": "e15ad887d028d27844e326fa76bb43931660a7452a9ef474f8a8eeb7610ff9c0"
+  },
+  "disposableProbe": {
+    "statusJson": {
+      "status": "passed",
+      "exitCode": 0
+    },
+    "doctorJson": {
+      "status": "passed",
+      "exitCode": 0,
+      "healthy": true
+    },
+    "updateDryRun": {
+      "status": "blocked-upstream",
+      "outerExitCode": 1,
+      "candidateVersion": "0.1.10",
+      "failure": "upstream harness update --dry-run returned git merge-file failed",
+      "sourceMutation": false,
+      "sourceRevisionBefore": "6716d89c658e179b1082b84a537e59f721922b54",
+      "sourceRevisionAfter": "6716d89c658e179b1082b84a537e59f721922b54",
+      "trackedMutation": false
+    }
+  },
+  "adoptionPolicy": {
+    "currentPin": "harness-v0.1.8",
+    "adoptionAllowed": false,
+    "patchOrForkAllowed": false,
+    "requiredBeforeAdoption": [
+      "tagged upstream release containing the merge-file conflict-exit-range fix",
+      "fresh disposable status/doctor/update/conflict/continue/abort/recovery proof",
+      "source hash unchanged after dry-run and recovery checks"
+    ]
+  },
+  "scope": {
+    "runtimeChanged": false,
+    "dependencyChanged": false,
+    "harnessDbChanged": false,
+    "archiveChanged": false,
+    "productionPromotion": false
+  },
+  "rollback": "One squash revert; no runtime, dependency, Harness DB/archive or production mutation."
+}

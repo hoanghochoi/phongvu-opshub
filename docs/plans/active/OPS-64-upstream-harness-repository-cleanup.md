@@ -4,11 +4,11 @@ Date: 2026-08-13
 
 ## Status
 
-Active — the current post-merge/staging-QA checkpoint is OPS-192, created from
-exact live `origin/staging@0fda171d47548b3afe533d2a678b29a13bec8590` after
-OPS-191/PR #317. The branch/worktree is bounded to sanitized reconciliation,
-Chrome QA evidence and Linear release tracking; no runtime source or
-dependency contract is changed.
+Active — the current upstream-release recheck checkpoint is OPS-193, created
+from exact live `origin/staging@6716d89c658e179b1082b84a537e59f721922b54`
+after OPS-192. The branch/worktree is bounded to sanitized upstream release
+evidence and Linear release tracking; no runtime source or dependency contract
+is changed.
 The prior last-reconciled workflow checkpoint was
 OPS-187, created from
 exact live `origin/staging@97c04c982aaf7415893ccd6f63de3c767e3e2c43` after
@@ -80,7 +80,9 @@ OPS-75 records the preceding final-consolidation rehearsal; OPS-186 records
 the preceding post-merge reconciliation; OPS-187 hardens the checkpoint
 authority semantics. OPS-191 closes the current User/Auth authority and
 dependency-ready affected-proof gate. OPS-192 records authenticated staging
-Chrome QA and advances eligible child issues to `Ready for Release`; the
+Chrome QA and advances eligible child issues to `Ready for Release`; OPS-193
+rechecks the upstream core tags and confirms that the updater fix is still
+absent. The
 remaining final gates are the upstream updater exit-code defect and production
 deployment. None of these open gates is weakened by this reconciliation.
 OPS-165 is the preceding master-plan reconciliation after OPS-164.
@@ -3590,3 +3592,30 @@ the current checkpoint above is the sole active execution authority.
   consolidation, upstream updater resolution and production deployment. No
   runtime/API/DTO/DI/UI/data/dependency/Harness archive path changed in this
   slice. Rollback is one squash revert.
+
+## Workflow checkpoint (OPS-193; upstream release recheck)
+
+- This bounded Phase 10 evidence slice starts from exact live
+  `origin/staging@6716d89c658e179b1082b84a537e59f721922b54` on branch
+  `codex/ops-193-upstream-release-recheck` and worktree
+  `../opshub-ops-193`. The guarded start gate passed and hydrated both
+  toolchain profiles; canonical staging stayed clean and aligned.
+- `docs/migrations/ops-193-upstream-release-recheck.json` records the checked
+  tags `harness-v0.1.9` and `harness-v0.1.10`. Both contain the same
+  `git_merge.rs` source digest and map only exit `1` to a conflict; neither
+  handles Git's conflict-count exit range. The consumer pin remains
+  `harness-v0.1.8` and no patch or fork is permitted.
+- In the disposable task worktree, upstream `status --json` and
+  `doctor --json` passed. After a read-only tracked-state comparison,
+  `update --dry-run --json` remained `blocked-upstream` with outer exit `1`
+  while targeting candidate `0.1.10`; no tracked source mutation occurred.
+  The ignored Harness state is task-local and is removed with the worktree.
+- This slice changes only sanitized release evidence, its validator/test,
+  verification-profile commands and current plan authority. It does not claim
+  updater resolution, OPS-72 promotion, production deployment or final Phase
+  10 completion. The checklist remains 79/80 (~98.75%).
+- Required proof before publication: OPS-193 validator/tests, exact
+  Harness/docs/verification runner with `stale=false`, migration-EOL and
+  toolchain-boundary scans, link/secret/mojibake checks and `git diff --check`.
+  Rollback is one squash revert; no runtime, dependency, Harness DB/archive or
+  production mutation.
