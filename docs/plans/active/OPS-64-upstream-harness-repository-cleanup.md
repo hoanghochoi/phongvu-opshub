@@ -4,27 +4,31 @@ Date: 2026-08-13
 
 ## Status
 
-Active — the current workflow checkpoint is OPS-177 reconciliation after the
-OPS-175/OPS-176 slices, created from exact live
-`origin/staging@2e5dc7b29beb90a9ab059d2b0ba5a8e1c8c3b95a` after OPS-175.
-OPS-175 PR #301 is squash-merged at
-`2e5dc7b29beb90a9ab059d2b0ba5a8e1c8c3b95a`; focused User/Auth proof passed
-3 suites / 23 tests, the full Nest proof passed 124 suites / 1,311 tests with
-6 skips, Nest build and the exact `verify-task --base origin/staging
---profile nestjs` passed with `stale=false`. Guarded lifecycle finish
-fast-forwarded canonical staging; the task worktree/local branch cleanup was
-completed after Windows removed its ignored generated outputs. The staging
-deploy run for this merge is not yet observed, so the issue remains release
-pending and is not treated as production-complete.
-OPS-176 PR #300 is squash-merged at
-`c2ec9c3100a39753d65f87da75ef3ce4610083e5`, staging-deployed by
-`31996291315`, and passed the read-only Flutter-output repair proof, release
-guard, affected shadow, Windows cold canary and deployment health/version
-gates. Its full Flutter suite remains unverified because the run later stopped
-without progress after reaching 521 tests; no dependency profile was
-suppressed and no product failure was retried to green.
-The previous reconciliation was OPS-174 after the
-OPS-75 Phase 10 installer slice, created from exact live
+Active — the current workflow checkpoint is OPS-179 reconciliation after the
+OPS-178 execution-canary lane, created from exact live
+`origin/staging@14224af1dfefadc707ca0baed3af0f0cb323845f` after OPS-178.
+OPS-178 PR #303 is squash-merged at
+`14224af1dfefadc707ca0baed3af0f0cb323845f`; Release Guard, Affected Shadow
+and the execution-canary workflow passed. Focused verification coverage passed
+11/11 tests, the artifact reported `executionMode=execution-canary`,
+`stale=false`, `autoExitCode=0` and no unmatched paths, and guarded lifecycle
+finish fast-forwarded canonical staging and removed the task worktree/local
+branch. The canary intentionally omitted Flutter/Nest/Go/deployment profiles
+because dependency hydration remains deferred; no profile was suppressed and
+no product failure was retried to green. Five real execution-canary observations
+and OPS-72 percentage targets are not yet promotable.
+OPS-177 PR #302 is squash-merged at
+`df20b4e7c6544243a7ad689ef27bb3e3163d3a35` and staging-deployed by
+`31998307023`; its docs-only reconciliation and guarded lifecycle cleanup
+passed. OPS-175 PR #301 is squash-merged at
+`2e5dc7b29beb90a9ab059d2b0ba5a8e1c8c3b95a` and staging-deployed by
+`31997427099`; its User/Auth, Nest build and exact runner proof passed. OPS-176
+PR #300 is squash-merged at `c2ec9c3100a39753d65f87da75ef3ce4610083e5`,
+staging-deployed by `31996291315`, and passed the focused read-only-output,
+Release Guard, affected shadow, Windows cold canary and deployment gates. Its
+full Flutter suite remains unverified after stopping at 521 tests.
+OPS-174 was the earlier reconciliation after the OPS-75 Phase 10 installer
+slice, created from exact live
 `origin/staging@75abf3d9d114a0d1e351fe84aa76f1f96dd98acf` after OPS-75.
 OPS-75 PR #298 is squash-merged, staging deploy `31991597879` passed the
 artifact/direct-origin/health/version gates, and guarded finish removed its
@@ -55,10 +59,12 @@ changed and no product failure was retried to green. OPS-172 records this
 checkpoint and keeps the dependency gap as residual risk rather than weakening
 any gate. The Phase 9 ownership audit now records two explicit User/Auth
 security follow-ups with no current owner: atomic assignment transaction
-hardening and generic admin-policy scope authorization. The next bounded action
-is QA of the merged installer slice, followed by an upstream updater fix or
-approved resolution path, dependency/affected-consumer proof closure and the
-remaining Phase 10 production gates; OPS-72 remains revise/do-not-promote.
+hardening and generic admin-policy scope authorization. OPS-179 records this
+checkpoint and keeps the approved dependency gap fail-closed. The next bounded
+action is to collect five real execution-canary observations from independent
+merged PRs, then decide whether OPS-72 can leave revise/do-not-promote; the
+upstream updater blocker, dependency/affected-consumer proof, User/Auth
+authority and remaining Phase 10 production gates stay open.
 OPS-165 is the preceding master-plan reconciliation after OPS-164.
 OPS-163 is the preceding master-plan reconciliation after OPS-162.
 OPS-160 UserAdminMutationService characterization is squash-merged through PR
@@ -718,6 +724,15 @@ god-helper.
   passed, and the shadow workflow/collector is implemented. The affected
   matrix remains observational because OPS-72's revised cohort still does not
   meet the 25% timing and 30% rerun-reduction targets.
+- [x] Complete OPS-178 execution-canary evidence contract. PR #303 is
+  squash-merged at `14224af1dfefadc707ca0baed3af0f0cb323845f`; Release Guard,
+  Affected Shadow, execution-canary and focused verification proof passed, and
+  guarded lifecycle cleanup removed the task worktree/local branch. The lane
+  remains observational until five real cohort observations are collected.
+- [ ] Complete OPS-179 master-plan reconciliation after OPS-178. This
+  docs-only slice updates the current checkpoint, active-plan index and OPS-71
+  ledger; dependency-heavy profiles remain deliberately deferred and fail
+  closed.
 - [x] Complete the Phase 8 artifact/dependency/toolchain review and deletion
   decision. The refreshed inventory, retained-owner review, Flutter/Nest
   dependency batches and Go/deploy review all pass; zero deletion batches are
@@ -3106,3 +3121,36 @@ the current checkpoint above is the sole active execution authority.
   stale-current-reference scan, JSON/link/mojibake checks, exact docs-profile
   `scripts/verify-task.mjs --base origin/staging` with `stale=false`, changed
   path scope review and `git diff --check`.
+
+## Workflow checkpoint (OPS-179; post-OPS-178 execution-canary reconciliation)
+
+- This docs-only slice uses branch/worktree
+  `codex/ops-179-master-reconciliation-after-execution-canary` /
+  `../opshub-ops-179-master-reconciliation`, created from exact live
+  `origin/staging@14224af1dfefadc707ca0baed3af0f0cb323845f` through the
+  guarded lifecycle start gate. The worktree started clean; no dependency-
+  owning runtime command is in scope, so the approved Flutter/Nest/Go
+  dependency residual remains fail-closed and explicitly unverified.
+- OPS-178 is squash-merged through PR #303 at
+  `14224af1dfefadc707ca0baed3af0f0cb323845f`. Release Guard, Affected Shadow
+  and the execution-canary workflow passed; focused verification coverage was
+  11/11 tests. The downloaded artifact reported schema-v4,
+  `executionMode=execution-canary`, `stale=false`, `autoExitCode=0`, zero
+  unmatched paths and zero reruns. Guarded lifecycle finish fast-forwarded
+  canonical staging and removed the task worktree/local branch.
+- The canary lane is now operational but observational: the auto-selected
+  Harness/docs/verification-runner/release profiles ran, while Flutter, Nest,
+  Go and deployment profiles were omitted only because dependency hydration is
+  deferred. Five real execution-canary observations and the OPS-72 percentage
+  targets are still required before any promotion decision; plan-only evidence
+  remains historical and `revise`/`do-not-promote`.
+- This slice updates only the master plan, active-plan README and OPS-71
+  disposition ledger. It removes stale current-checkpoint claims for OPS-175/
+  OPS-176, records the exact OPS-177/OPS-178 staging proofs, and preserves the
+  upstream updater blocker, User/Auth authority follow-ups, dependency residual
+  and production gates. Rollback is one squash revert; no runtime, dependency,
+  archive, Harness DB or product behavior changes are in scope.
+- Required proof before publication: two consecutive plan-disposition checks,
+  stale-current-reference scan, JSON/link/mojibake/secret checks, exact
+  docs-profile `scripts/verify-task.mjs --base origin/staging` with
+  `stale=false`, changed-path scope review and `git diff --check`.

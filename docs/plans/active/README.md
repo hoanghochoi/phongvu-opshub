@@ -18,17 +18,24 @@ Current active/release-pending authority:
 - [`OPS-53-redesign-chrome-audit-consolidation.md`](OPS-53-redesign-chrome-audit-consolidation.md)
   is the only current OPS-53 execution summary. Its nine fragments are history.
 - [`OPS-64-upstream-harness-repository-cleanup.md`](OPS-64-upstream-harness-repository-cleanup.md)
-  remains the initiative master plan; OPS-177 is the current reconciliation
-  after the OPS-175 atomic-assignment and OPS-176 read-only-output slices.
-  OPS-175 is squash-merged through PR #301 at `2e5dc7b2`; its focused/full
-  Nest proof, build and exact runner passed, while the merge-SHA staging
-  deploy is still pending observation. OPS-176 is squash-merged through PR
-  #300 at `c2ec9c31`, staging-deployed by `31996291315`, with focused toolchain
-  proof, guarded lifecycle cleanup and deployment gates passed. Its later full
-  Flutter run remains unverified after stopping at 521 tests. The approved
-  Flutter/Go dependency deferral remains fail-closed: no profile is suppressed
-  and no product failure is retried to green. OPS-174 is the preceding
-  reconciliation after the OPS-75 installer fallback slice. OPS-75 is
+  remains the initiative master plan; OPS-179 is the current reconciliation
+  after the OPS-178 execution-canary lane. OPS-178 is squash-merged through PR
+  #303 at `14224af1`, with Release Guard, Affected Shadow, execution-canary
+  workflow and focused 11/11 verification tests passed. The artifact is
+  schema-v4 with `executionMode=execution-canary`, `stale=false`, zero
+  unmatched paths and zero reruns; lifecycle cleanup removed its task
+  worktree/local branch. The auto-selected Harness/docs/verification-runner/
+  release profiles ran, while Flutter/Nest/Go/deployment remain deliberately
+  deferred because dependency hydration is unavailable. No profile is
+  suppressed and no product failure is retried to green. OPS-177 is the
+  preceding reconciliation, squash-merged through PR #302 at `df20b4e7` and
+  staging-deployed by `31998307023`; OPS-175 is squash-merged through PR #301
+  at `2e5dc7b2` and staging-deployed by `31997427099`; OPS-176 is squash-
+  merged through PR #300 at `c2ec9c31`, staging-deployed by `31996291315`,
+  with focused toolchain proof, guarded lifecycle cleanup and deployment gates
+  passed. Its later full Flutter run remains unverified after stopping at 521
+  tests. OPS-174 is the preceding reconciliation after the OPS-75 installer
+  fallback slice. OPS-75 is
   squash-merged through PR #298 at `75abf3d9`, staging-deployed by
   `31991597879`, with guarded lifecycle cleanup and `Ready for QA` proof. The
   installer fallback is verified, while the upstream updater exit-code blocker
@@ -43,9 +50,10 @@ Current active/release-pending authority:
   was retried to green. The Phase 9 ownership audit records two explicit
   User/Auth security follow-ups with no current owner: atomic assignment
   transaction hardening and generic admin-policy scope authorization. The next
-  bounded action is QA/upstream resolution for OPS-75, dependency and
-  affected-consumer proof closure, and the remaining Phase 10 production gates;
-  OPS-72 remains revise/do-not-promote. OPS-170 is the preceding reconciliation
+  bounded action is collect five real execution-canary observations, then
+  decide whether OPS-72 can leave revise/do-not-promote; the upstream updater
+  blocker, dependency/affected-consumer proof closure and the remaining Phase
+  10 production gates stay open. OPS-170 is the preceding reconciliation
   after OPS-168/OPS-169;
   OPS-167 is the preceding reconciliation after OPS-166; OPS-165
   is the preceding reconciliation after OPS-164; OPS-163 is the preceding
