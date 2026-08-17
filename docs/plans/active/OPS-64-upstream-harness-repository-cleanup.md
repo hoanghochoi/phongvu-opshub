@@ -3456,3 +3456,42 @@ the current checkpoint above is the sole active execution authority.
   source edit, then record the Linear implementation/proof note before moving
   OPS-188 forward. Rollback is one squash revert; no Harness DB, archive,
   dependency version or lockfile path is in scope.
+
+## Workflow checkpoint (OPS-189; upstream updater blocked-upstream contract)
+
+- This bounded Harness/docs slice started from exact live
+  `origin/staging@6027db5db7de0338ca50fdb129bb3a65af31bf45` on branch
+  `codex/ops-189-classify-updater-conflict-exit-as-blocked-upstream`. The
+  lifecycle worktree was created cleanly; optional Nest hydration then exited
+  with Windows code `0x40010004` and left only a task-local lock, which was
+  verified stale and removed. No dependency profile is being used as proof for
+  this Harness-only slice.
+- The canonical upstream binary is still `harness-v0.1.8`, SHA-256
+  `e15ad887d028d27844e326fa76bb43931660a7452a9ef474f8a8eeb7610ff9c0`, and
+  `status --json`/`doctor --json` pass. The current read-only update probe was
+  blocked before merge-file by release lookup HTTP `429`; the prior sanitized
+  `ops-75-harness-install-evidence.json` remains the authoritative multi-hunk
+  conflict observation (`git merge-file` inner exit `5`, outer exit `1`, no
+  source mutation). Neither observation is a pass or permission to update the
+  release pin.
+- This slice adds the sanitized
+  `docs/migrations/ops-189-updater-blocked-upstream.json` evidence, the
+  `verify-harness-updater-blocked.mjs` validator/tests and the
+  `docs/HARNESS.md` stop/abort/escalate runbook. The contract keeps adoption,
+  patching and forking disabled until a tagged upstream fix plus disposable
+  conflict/continue/abort/recovery proof exists.
+- Dependency-heavy Flutter/Go affected-consumer proof, OPS-72 percentage
+  promotion decision, authenticated QA and production deployment remain open;
+  no profile is suppressed and no product failure is retried to green.
+- Local proof for this slice passes the updater validator, five contract tests,
+  syntax checks, migration-EOL and toolchain-boundary scans. Base-aware
+  `verify-task --dry-run` passes with `harness`, `docs` and
+  `verification-runner` selected, `stale=false`; the non-dry runner was also
+  attempted and failed closed only on the known environment dependency lane
+  (`105/106` toolchain tests, one Windows Nest `.cmd` hydration test exit `5`),
+  with no product assertion failure. CI remains the dependency-ready gate.
+- Required proof before publication: updater evidence/contract tests, Harness
+  migration/boundary checks, docs/link/mojibake/secret scans, exact
+  `verify-task` with `stale=false`, and `git diff --check`. Rollback is one
+  squash revert; no Harness DB, archive, runtime or dependency-version path is
+  in scope.

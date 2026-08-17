@@ -171,6 +171,29 @@ scripts/bin/harness update --abort
 OpsHub. It is separate from the upstream repository updater and does not write
 Harness state.
 
+### Upstream updater blocked-upstream runbook
+
+If `status --json` and `doctor --json` pass but `update --dry-run` stops while
+merging customized repository guidance, classify the result as
+`blocked-upstream` and preserve the no-write boundary. Git's `merge-file`
+conflict exit is a hunk count in the range `1..=127`; an upstream adapter that
+accepts only exit `1` can therefore misclassify a conflict as a hard updater
+failure. The sanitized evidence for this boundary is
+`docs/migrations/ops-189-updater-blocked-upstream.json` and its contract is
+checked with:
+
+```text
+node scripts/verify-harness-updater-blocked.mjs
+```
+
+Until a tagged upstream release contains the exit-range fix, do not bump the
+release pin, patch the downloaded binary, fork the upstream core, or run an
+update against the source archive. Reproduce the lifecycle only in a
+disposable consumer copy, retain source/binary hashes before and after a
+dry-run, and use `update --abort` when a transaction has actually started.
+Network failures such as a release lookup `429` are also recorded as
+fail-closed observations; they are not evidence that the updater is healthy.
+
 ## Consumer Boundary
 
 Installing Harness does not select a consumer application's stack, create fake

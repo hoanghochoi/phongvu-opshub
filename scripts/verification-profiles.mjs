@@ -81,6 +81,21 @@ export const PROFILES = Object.freeze([
           "docs/migrations/ops-73-retained-owner-review.json",
         ],
       },
+      {
+        id: "upstream-updater-contract",
+        cwd: ".",
+        executable: process.execPath,
+        argv: ["scripts/verify-harness-updater-blocked.mjs"],
+      },
+      {
+        id: "upstream-updater-contract-tests",
+        cwd: ".",
+        executable: process.execPath,
+        argv: [
+          "--test",
+          "tests/migration/verify-harness-updater-blocked.test.mjs",
+        ],
+      },
     ],
   },
   {
