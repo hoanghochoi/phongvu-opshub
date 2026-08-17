@@ -36,6 +36,8 @@ require docs/decisions/0029-adopt-upstream-repository-protocol-and-retire-protoc
 require docs/migrations/harness-v1-retirement-manifest.json '"issue": "OPS-70"'
 require docs/migrations/harness-v1-retirement-manifest.json '"databaseWritten": false'
 require docs/migrations/ops-71-plan-disposition.json '"issue": "OPS-71"'
+require docs/migrations/ops-72-execution-canary-progress.json '"finalEvidencePath": "docs/migrations/ops-72-live-shadow-evidence.json"'
+require docs/migrations/ops-72-execution-canary-progress.json '"promotionEligible": false'
 require scripts/verify-harness-retirement.mjs 'HARNESS_RETIREMENT_FAILED'
 require scripts/verify-plan-disposition.mjs 'PLAN_DISPOSITION_FAILED'
 

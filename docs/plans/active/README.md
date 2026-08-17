@@ -18,22 +18,23 @@ Current active/release-pending authority:
 - [`OPS-53-redesign-chrome-audit-consolidation.md`](OPS-53-redesign-chrome-audit-consolidation.md)
   is the only current OPS-53 execution summary. Its nine fragments are history.
 - [`OPS-64-upstream-harness-repository-cleanup.md`](OPS-64-upstream-harness-repository-cleanup.md)
-  remains the initiative master plan; OPS-181 is the current reconciliation
-  after the OPS-180 execution-canary progress slice. OPS-180 is squash-merged
-  through PR #305 at `d2be1f44`, with Release Guard, Affected Shadow,
-  execution-canary and Windows cold dependency canary passed. Its schema-v4
-  artifact has `executionMode=execution-canary`, `stale=false`, zero unmatched
-  paths and zero reruns; the progress ledger now records 3/5 real observations
-  and remains `promotionEligible=false`. Lifecycle cleanup removed the task
-  worktree/local branch. The selected Harness/docs/verification-runner lane
-  remains observational; no profile is suppressed and no product failure is
-  retried to green. Runtime affected-consumer proof and the remaining two
-  comparable observations stay fail-closed. OPS-179 is the preceding
-  reconciliation, squash-merged through PR #304 at `e4968c3f`; OPS-178 is the
-  preceding execution-canary lane, squash-merged through PR #303 at `14224af1`.
-  The final OPS-72 evidence remains `revise`/`do-not-promote`; the next bounded
-  action is collect two more real execution-canary observations, then decide
-  whether OPS-72 can leave revise/do-not-promote. The upstream updater blocker,
+  remains the initiative master plan; OPS-182 is the current canary-progress
+  guard after the OPS-181 reconciliation. OPS-181 is squash-merged through PR
+  #306 at `dfe09618`, with Release Guard, Affected Shadow and execution-canary
+  passed. Its schema-v4 artifact has `stale=false`, zero unmatched paths and
+  zero reruns; the progress ledger now records 4/5 real observations and
+  remains `promotionEligible=false`. OPS-182 adds docs-contract guards for
+  the final-evidence authority and non-promotable partial ledger. The selected
+  Harness/docs/verification-runner lane remains observational; no profile is
+  suppressed and no product failure is retried to green. Runtime affected-
+  consumer proof and the remaining observation stay fail-closed. OPS-180 is
+  the preceding execution-canary progress slice, squash-merged through PR
+  #305 at `d2be1f44`; OPS-179 is the preceding reconciliation, squash-merged
+  through PR #304 at `e4968c3f`; OPS-178 is the preceding execution-canary
+  lane, squash-merged through PR #303 at `14224af1`. The final OPS-72 evidence
+  remains `revise`/`do-not-promote`; the next bounded action is collect one
+  more real execution-canary observation, then decide whether OPS-72 can leave
+  revise/do-not-promote. The upstream updater blocker,
   dependency/affected-consumer proof closure, User/Auth authority follow-ups
   and the remaining Phase 10 production gates stay open. OPS-177 is the
   preceding reconciliation, squash-merged through PR #302 at `df20b4e7` and
@@ -58,7 +59,7 @@ Current active/release-pending authority:
   was retried to green. The Phase 9 ownership audit records two explicit
   User/Auth security follow-ups with no current owner: atomic assignment
   transaction hardening and generic admin-policy scope authorization. The next
-  bounded action is collect two more real execution-canary observations, then
+  bounded action is collect one more real execution-canary observation, then
   decide whether OPS-72 can leave revise/do-not-promote; the upstream updater
   blocker, dependency/affected-consumer proof closure and the remaining Phase
   10 production gates stay open. OPS-170 is the preceding reconciliation
