@@ -18,14 +18,22 @@ Current active/release-pending authority:
 - [`OPS-53-redesign-chrome-audit-consolidation.md`](OPS-53-redesign-chrome-audit-consolidation.md)
   is the only current OPS-53 execution summary. Its nine fragments are history.
 - [`OPS-64-upstream-harness-repository-cleanup.md`](OPS-64-upstream-harness-repository-cleanup.md)
-  remains the initiative master plan; OPS-174 is the current reconciliation
-  after the OPS-75 installer fallback slice. OPS-75 is squash-merged through
-  PR #298 at `75abf3d9`, staging-deployed by `31991597879`, with guarded
-  lifecycle cleanup and `Ready for QA` proof. The installer fallback is
-  verified, while the upstream updater exit-code blocker and Flutter/Go
-  affected-consumer deferral remain explicit residuals. OPS-173 is the
-  preceding Phase 9 ownership audit after the OPS-172 reconciliation and
-  OPS-171 ERP cache-page extraction. OPS-171 is
+  remains the initiative master plan; OPS-177 is the current reconciliation
+  after the OPS-175 atomic-assignment and OPS-176 read-only-output slices.
+  OPS-175 is squash-merged through PR #301 at `2e5dc7b2`; its focused/full
+  Nest proof, build and exact runner passed, while the merge-SHA staging
+  deploy is still pending observation. OPS-176 is squash-merged through PR
+  #300 at `c2ec9c31`, staging-deployed by `31996291315`, with focused toolchain
+  proof, guarded lifecycle cleanup and deployment gates passed. Its later full
+  Flutter run remains unverified after stopping at 521 tests. The approved
+  Flutter/Go dependency deferral remains fail-closed: no profile is suppressed
+  and no product failure is retried to green. OPS-174 is the preceding
+  reconciliation after the OPS-75 installer fallback slice. OPS-75 is
+  squash-merged through PR #298 at `75abf3d9`, staging-deployed by
+  `31991597879`, with guarded lifecycle cleanup and `Ready for QA` proof. The
+  installer fallback is verified, while the upstream updater exit-code blocker
+  remains explicit. OPS-173 is the preceding Phase 9 ownership audit after
+  the OPS-172 reconciliation and OPS-171 ERP cache-page extraction. OPS-171 is
   squash-merged through PR #295 at `1809b49f`, staging-deployed by
   `31986109215`, with guarded lifecycle cleanup and `Ready for QA` proof.
   OPS-168 MAP persistence and OPS-169 ERP cache-page characterization remain
