@@ -127,6 +127,7 @@ export const PROFILES = Object.freeze([
     id: "verification-runner",
     pathPatterns: [
       /^scripts\/verify-task(?:-(?:canary|shadow))?\.mjs$/,
+      /^scripts\/verify-ops191-phase9-closure\.mjs$/,
       /^scripts\/verify-ops72-(?:execution-canary-progress|final-decision)\.mjs$/,
       /^scripts\/verification-profiles\.mjs$/,
       /^tests\/verification\//,
@@ -178,6 +179,24 @@ export const PROFILES = Object.freeze([
         cwd: ".",
         executable: process.execPath,
         argv: ["--check", "scripts/verify-ops72-final-decision.mjs"],
+      },
+      {
+        id: "ops191-phase9-closure-contract",
+        cwd: ".",
+        executable: process.execPath,
+        argv: ["scripts/verify-ops191-phase9-closure.mjs"],
+      },
+      {
+        id: "ops191-phase9-closure-syntax",
+        cwd: ".",
+        executable: process.execPath,
+        argv: ["--check", "scripts/verify-ops191-phase9-closure.mjs"],
+      },
+      {
+        id: "ops191-phase9-closure-tests",
+        cwd: ".",
+        executable: process.execPath,
+        argv: ["--test", "tests/verification/verify-ops191-phase9-closure.test.mjs"],
       },
       {
         id: "ops72-final-decision-tests",
