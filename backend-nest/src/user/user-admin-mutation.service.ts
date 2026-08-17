@@ -21,6 +21,7 @@ export type UserAdminMutationRuntime = {
     current: any | null,
   ) => Promise<PreparedAdminUserMutation>;
   syncUserOrganizationAssignments: (
+    client: Prisma.TransactionClient,
     userId: string,
     organizationNodeIds: string[],
     admin: any,
@@ -63,18 +64,22 @@ export class UserAdminMutationService {
       null,
     );
 
-    const user = await this.prisma.user.create({
-      data: prepared.createData as any,
-      include: this.runtime.userDtoInclude(),
-    });
-    await this.runtime.syncUserOrganizationAssignments(
-      user.id,
-      prepared.organizationNodeIds,
-      admin,
-    );
-    const saved = await this.prisma.user.findUnique({
-      where: { id: user.id },
-      include: this.runtime.userDtoInclude(),
+    const { user, saved } = await this.prisma.$transaction(async (tx) => {
+      const user = await tx.user.create({
+        data: prepared.createData as any,
+        include: this.runtime.userDtoInclude(),
+      });
+      await this.runtime.syncUserOrganizationAssignments(
+        tx,
+        user.id,
+        prepared.organizationNodeIds,
+        admin,
+      );
+      const saved = await tx.user.findUnique({
+        where: { id: user.id },
+        include: this.runtime.userDtoInclude(),
+      });
+      return { user, saved };
     });
     this.runtime.logger.log(
       `Admin user created: emailHash=${this.runtime.emailHash(prepared.email)} role=${prepared.role} scope=${prepared.workScopeType} personnelCode=${this.runtime.personnelCodeFor(user) ?? 'none'}`,
@@ -105,19 +110,23 @@ export class UserAdminMutationService {
       current,
     );
 
-    const updated = await this.prisma.user.update({
-      where: { id: userId },
-      data: prepared.updateData as any,
-      include: this.runtime.userDtoInclude(),
-    });
-    await this.runtime.syncUserOrganizationAssignments(
-      userId,
-      prepared.organizationNodeIds,
-      admin,
-    );
-    const saved = await this.prisma.user.findUnique({
-      where: { id: userId },
-      include: this.runtime.userDtoInclude(),
+    const { updated, saved } = await this.prisma.$transaction(async (tx) => {
+      const updated = await tx.user.update({
+        where: { id: userId },
+        data: prepared.updateData as any,
+        include: this.runtime.userDtoInclude(),
+      });
+      await this.runtime.syncUserOrganizationAssignments(
+        tx,
+        userId,
+        prepared.organizationNodeIds,
+        admin,
+      );
+      const saved = await tx.user.findUnique({
+        where: { id: userId },
+        include: this.runtime.userDtoInclude(),
+      });
+      return { updated, saved };
     });
     this.runtime.logger.log(
       `Admin user updated: id=${userId} role=${prepared.role} scope=${prepared.workScopeType} personnelCode=${this.runtime.personnelCodeFor(updated) ?? 'none'}`,

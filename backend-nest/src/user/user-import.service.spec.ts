@@ -110,6 +110,8 @@ describe('UserImportService', () => {
     };
     const create = jest.fn().mockResolvedValue(savedUser);
     const update = jest.fn();
+    const tx = { user: { create, update } };
+    let committed = false;
     const prisma = {
       user: {
         findMany: jest
@@ -131,19 +133,26 @@ describe('UserImportService', () => {
         ]),
       },
       store: { findMany: jest.fn().mockResolvedValue([]) },
-      $transaction: jest.fn(async (callback) =>
-        callback({ user: { create, update } }),
-      ),
+      $transaction: jest.fn(async (callback) => {
+        const result = await callback(tx);
+        committed = true;
+        return result;
+      }),
     };
     const accessChangeService = {
-      publishForUserIds: jest.fn().mockResolvedValue(undefined),
+      publishForUserIds: jest.fn(async () => {
+        expect(committed).toBe(true);
+      }),
     };
     const welcomeEmailService = {
-      sendWelcomeEmailsForImport: jest.fn().mockResolvedValue({
-        sentEmails: new Set(['new@phongvu.vn']),
-        failedByEmail: new Map(),
-        sentRows: 1,
-        failedRows: 0,
+      sendWelcomeEmailsForImport: jest.fn(async () => {
+        expect(committed).toBe(true);
+        return {
+          sentEmails: new Set(['new@phongvu.vn']),
+          failedByEmail: new Map(),
+          sentRows: 1,
+          failedRows: 0,
+        };
       }),
     };
 
@@ -182,6 +191,7 @@ describe('UserImportService', () => {
     expect(create).toHaveBeenCalledTimes(1);
     expect(update).not.toHaveBeenCalled();
     expect(runtime.syncUserOrganizationAssignments).toHaveBeenCalledWith(
+      tx,
       'user-1',
       ['node-1'],
       { id: 'admin', role: 'SUPER_ADMIN' },
@@ -248,6 +258,7 @@ describe('UserImportService', () => {
       updateData: { firstName: 'Updated Name' },
     });
     const update = jest.fn().mockResolvedValue(savedUser);
+    const tx = { user: { create: jest.fn(), update } };
     const prisma = {
       user: {
         findMany: jest
@@ -269,9 +280,7 @@ describe('UserImportService', () => {
         ]),
       },
       store: { findMany: jest.fn().mockResolvedValue([]) },
-      $transaction: jest.fn(async (callback) =>
-        callback({ user: { create: jest.fn(), update } }),
-      ),
+      $transaction: jest.fn(async (callback) => callback(tx)),
     };
     const accessChangeService = {
       publishForUserIds: jest.fn().mockResolvedValue(undefined),
@@ -330,6 +339,7 @@ describe('UserImportService', () => {
       where: { id: currentUser.id },
     });
     expect(runtime.syncUserOrganizationAssignments).toHaveBeenCalledWith(
+      tx,
       currentUser.id,
       ['node-2'],
       { id: 'admin', role: 'SUPER_ADMIN' },
@@ -389,6 +399,7 @@ describe('UserImportService', () => {
       updateData: undefined,
     });
     const create = jest.fn().mockResolvedValue(createdUser);
+    const tx = { user: { create, update: jest.fn() } };
     const prisma = {
       user: {
         findMany: jest
@@ -411,9 +422,7 @@ describe('UserImportService', () => {
           },
         ]),
       },
-      $transaction: jest.fn(async (callback) =>
-        callback({ user: { create, update: jest.fn() } }),
-      ),
+      $transaction: jest.fn(async (callback) => callback(tx)),
     };
     const service = new UserImportService(
       prisma as any,
@@ -460,10 +469,122 @@ describe('UserImportService', () => {
       null,
     );
     expect(runtime.syncUserOrganizationAssignments).toHaveBeenCalledWith(
+      tx,
       createdUser.id,
       ['node-store-1', 'node-store-2'],
       { id: 'admin', role: 'SUPER_ADMIN' },
     );
+  });
+
+  it('keeps every imported user and assignment write in one rollback boundary', async () => {
+    const runtime = createRuntime();
+    const failure = new Error('second assignment write failed');
+    const order: string[] = [];
+    (runtime.prepareAdminUserMutation as jest.Mock).mockImplementation(
+      async (_admin, body) => ({
+        email: body.email,
+        role: body.role,
+        workScopeType: 'STORE',
+        personnel: { organizationNodeId: 'node-1' },
+        organizationNodeIds: ['node-1'],
+        createData: { email: body.email, password: '' },
+        updateData: undefined,
+      }),
+    );
+    const create = jest.fn(async ({ data }) => ({
+      id: data.email.startsWith('first') ? 'user-1' : 'user-2',
+      email: data.email,
+    }));
+    const tx = { user: { create, update: jest.fn() } };
+    const prisma = {
+      user: { findMany: jest.fn().mockResolvedValue([]) },
+      organizationNode: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            id: 'node-1',
+            parentId: null,
+            type: 'LV0_DOMAIN',
+            code: 'ROOT',
+            businessCode: null,
+            displayName: 'Root',
+            isActive: true,
+          },
+        ]),
+      },
+      store: { findMany: jest.fn().mockResolvedValue([]) },
+      $transaction: jest.fn(async (callback) => {
+        order.push('tx-start');
+        const result = await callback(tx);
+        order.push('tx-commit');
+        return result;
+      }),
+    };
+    (runtime.syncUserOrganizationAssignments as jest.Mock).mockImplementation(
+      async (_client, userId) => {
+        order.push(`sync:${userId}`);
+        if (userId === 'user-2') throw failure;
+      },
+    );
+    const accessChangeService = {
+      publishForUserIds: jest.fn().mockResolvedValue(undefined),
+    };
+    const welcomeEmailService = {
+      sendWelcomeEmailsForImport: jest.fn(),
+    };
+    const service = new UserImportService(
+      prisma as any,
+      accessChangeService as any,
+      welcomeEmailService as any,
+      runtime,
+    );
+
+    await expect(
+      service.adminImportUsers(
+        { id: 'admin', role: 'SUPER_ADMIN' },
+        {
+          totalRows: 2,
+          skippedRows: 0,
+          rows: [
+            {
+              rowNumber: 2,
+              email: 'first@phongvu.vn',
+              fullName: 'First',
+              role: 'USER',
+              levelCodes: ['ROOT', '', '', '', '', ''],
+              storeIds: [],
+            },
+            {
+              rowNumber: 3,
+              email: 'second@phongvu.vn',
+              fullName: 'Second',
+              role: 'USER',
+              levelCodes: ['ROOT', '', '', '', '', ''],
+              storeIds: [],
+            },
+          ],
+        },
+      ),
+    ).rejects.toBe(failure);
+
+    expect(runtime.syncUserOrganizationAssignments).toHaveBeenNthCalledWith(
+      1,
+      tx,
+      'user-1',
+      ['node-1'],
+      { id: 'admin', role: 'SUPER_ADMIN' },
+    );
+    expect(runtime.syncUserOrganizationAssignments).toHaveBeenNthCalledWith(
+      2,
+      tx,
+      'user-2',
+      ['node-1'],
+      { id: 'admin', role: 'SUPER_ADMIN' },
+    );
+    expect(order).toEqual(['tx-start', 'sync:user-1', 'sync:user-2']);
+    expect(accessChangeService.publishForUserIds).not.toHaveBeenCalled();
+    expect(
+      welcomeEmailService.sendWelcomeEmailsForImport,
+    ).not.toHaveBeenCalled();
   });
 
   it('aggregates row validation errors before opening the persistence transaction', async () => {

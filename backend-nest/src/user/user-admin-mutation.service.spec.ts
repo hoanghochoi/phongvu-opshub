@@ -7,13 +7,15 @@ import {
 
 describe('UserAdminMutationService', () => {
   function createHarness() {
+    const user = {
+      create: jest.fn(),
+      findUnique: jest.fn(),
+      update: jest.fn(),
+    };
+    const tx = { user };
     const prisma = {
-      user: {
-        create: jest.fn(),
-        findUnique: jest.fn(),
-        update: jest.fn(),
-      },
-      $transaction: jest.fn(),
+      user,
+      $transaction: jest.fn(async (callback) => callback(tx)),
     };
     const accessChangeService = {
       publishForUserIds: jest.fn().mockResolvedValue(undefined),
@@ -48,7 +50,7 @@ describe('UserAdminMutationService', () => {
       accessChangeService as any,
       runtime,
     );
-    return { prisma, accessChangeService, runtime, service };
+    return { prisma, tx, accessChangeService, runtime, service };
   }
 
   function preparedMutation(): PreparedAdminUserMutation {
@@ -68,7 +70,7 @@ describe('UserAdminMutationService', () => {
   }
 
   it('authorizes before persistence and keeps create/welcome orchestration intact', async () => {
-    const { service, runtime, prisma } = createHarness();
+    const { service, runtime, prisma, tx } = createHarness();
     const admin = { id: 'admin-1', role: 'SUPER_ADMIN' };
     const prepared = preparedMutation();
     const created = {
@@ -80,9 +82,18 @@ describe('UserAdminMutationService', () => {
     (runtime.prepareAdminUserMutation as jest.Mock).mockResolvedValue(prepared);
     prisma.user.create.mockResolvedValue(created);
     prisma.user.findUnique.mockResolvedValue(saved);
-    (runtime.sendWelcomeEmail as jest.Mock).mockResolvedValue({
-      sent: false,
-      error: 'Mail service unavailable',
+    let committed = false;
+    prisma.$transaction.mockImplementation(async (callback) => {
+      const result = await callback(tx);
+      committed = true;
+      return result;
+    });
+    (runtime.sendWelcomeEmail as jest.Mock).mockImplementation(async () => {
+      expect(committed).toBe(true);
+      return {
+        sent: false,
+        error: 'Mail service unavailable',
+      };
     });
 
     const result = await service.adminCreateUser(admin, {
@@ -101,6 +112,7 @@ describe('UserAdminMutationService', () => {
       include: { organizationNode: true },
     });
     expect(runtime.syncUserOrganizationAssignments).toHaveBeenCalledWith(
+      tx,
       'user-1',
       ['node-1'],
       admin,
@@ -118,6 +130,40 @@ describe('UserAdminMutationService', () => {
     expect(
       (runtime.assertAdmin as jest.Mock).mock.invocationCallOrder[0],
     ).toBeLessThan(prisma.user.create.mock.invocationCallOrder[0]);
+  });
+
+  it('keeps create and assignment synchronization in one rollback boundary', async () => {
+    const { service, runtime, prisma, tx, accessChangeService } =
+      createHarness();
+    const failure = new Error('assignment write failed');
+    const prepared = preparedMutation();
+    const created = {
+      id: 'user-1',
+      email: prepared.email,
+      role: prepared.role,
+    };
+    (runtime.prepareAdminUserMutation as jest.Mock).mockResolvedValue(prepared);
+    prisma.user.create.mockResolvedValue(created);
+    (runtime.syncUserOrganizationAssignments as jest.Mock).mockRejectedValue(
+      failure,
+    );
+
+    await expect(
+      service.adminCreateUser(
+        { id: 'admin-1', role: 'SUPER_ADMIN' },
+        { email: prepared.email },
+      ),
+    ).rejects.toBe(failure);
+
+    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+    expect(runtime.syncUserOrganizationAssignments).toHaveBeenCalledWith(
+      tx,
+      'user-1',
+      ['node-1'],
+      { id: 'admin-1', role: 'SUPER_ADMIN' },
+    );
+    expect(runtime.sendWelcomeEmail).not.toHaveBeenCalled();
+    expect(accessChangeService.publishForUserIds).not.toHaveBeenCalled();
   });
 
   it('stops create before mutation when admin authorization fails', async () => {
@@ -155,7 +201,8 @@ describe('UserAdminMutationService', () => {
   });
 
   it('updates the prepared data and publishes access invalidation only after a fingerprint change', async () => {
-    const { service, runtime, prisma, accessChangeService } = createHarness();
+    const { service, runtime, prisma, tx, accessChangeService } =
+      createHarness();
     const admin = { id: 'admin-1', role: 'ADMIN' };
     const current = {
       id: 'user-1',
@@ -171,6 +218,15 @@ describe('UserAdminMutationService', () => {
       .mockResolvedValueOnce(current)
       .mockResolvedValueOnce(saved);
     prisma.user.update.mockResolvedValue(updated);
+    let committed = false;
+    prisma.$transaction.mockImplementation(async (callback) => {
+      const result = await callback(tx);
+      committed = true;
+      return result;
+    });
+    accessChangeService.publishForUserIds.mockImplementation(async () => {
+      expect(committed).toBe(true);
+    });
 
     await expect(
       service.adminUpdateUser(admin, 'user-1', { firstName: 'B' }),
@@ -192,6 +248,7 @@ describe('UserAdminMutationService', () => {
       include: { organizationNode: true },
     });
     expect(runtime.syncUserOrganizationAssignments).toHaveBeenCalledWith(
+      tx,
       'user-1',
       ['node-1'],
       admin,
@@ -203,6 +260,43 @@ describe('UserAdminMutationService', () => {
     expect(
       accessChangeService.publishForUserIds.mock.invocationCallOrder[0],
     ).toBeGreaterThan(prisma.user.findUnique.mock.invocationCallOrder[1]);
+  });
+
+  it('rolls back update assignment failures without publishing access changes', async () => {
+    const { service, runtime, prisma, tx, accessChangeService } =
+      createHarness();
+    const failure = new Error('assignment write failed');
+    const current = {
+      id: 'user-1',
+      email: 'staff@phongvu.vn',
+      accessFingerprint: 'before',
+    };
+    const prepared = preparedMutation();
+    prepared.updateData = { firstName: 'B' };
+    prisma.user.findUnique.mockResolvedValueOnce(current);
+    prisma.user.update.mockResolvedValue({
+      ...current,
+      accessFingerprint: 'after',
+    });
+    (runtime.prepareAdminUserMutation as jest.Mock).mockResolvedValue(prepared);
+    (runtime.syncUserOrganizationAssignments as jest.Mock).mockRejectedValue(
+      failure,
+    );
+
+    await expect(
+      service.adminUpdateUser({ id: 'admin-1', role: 'ADMIN' }, 'user-1', {
+        firstName: 'B',
+      }),
+    ).rejects.toBe(failure);
+
+    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+    expect(runtime.syncUserOrganizationAssignments).toHaveBeenCalledWith(
+      tx,
+      'user-1',
+      ['node-1'],
+      { id: 'admin-1', role: 'ADMIN' },
+    );
+    expect(accessChangeService.publishForUserIds).not.toHaveBeenCalled();
   });
 
   it('does not publish access invalidation when update keeps the same fingerprint', async () => {
