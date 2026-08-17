@@ -4,9 +4,9 @@ Date: 2026-08-13
 
 ## Status
 
-Active — the current workflow checkpoint is OPS-172 master-plan
-reconciliation, created from exact live
-`origin/staging@1809b49f5713e96d5aa83c79f86e1351d8221df8` after OPS-171.
+Active — the current workflow checkpoint is OPS-173 Phase 9 ownership audit,
+created from exact live
+`origin/staging@64ea802a81f5378fea4239e6a5ab904cb537c349` after OPS-172.
 OPS-171 ERP cache-page mapping extraction is squash-merged through PR #295 at
 `1809b49f5713e96d5aa83c79f86e1351d8221df8`, staging-deployed by
 `31986109215`, and tracked `Ready for QA` after exact-SHA deployment,
@@ -26,9 +26,11 @@ affected-consumer proof remains explicitly fail-closed and unverified under
 the approved dependency deferral; no profile was suppressed, no lockfile was
 changed and no product failure was retried to green. OPS-172 records this
 checkpoint and keeps the dependency gap as residual risk rather than weakening
-any gate. The next bounded action is the remaining Phase 9 ownership audit,
-then the OPS-72 revise/do-not-promote decision and OPS-75 Phase 10 final
-consolidation.
+any gate. The Phase 9 ownership audit now records two explicit User/Auth
+security follow-ups with no current owner: atomic assignment transaction
+hardening and generic admin-policy scope authorization. The next bounded
+action is to obtain authority for those follow-ups, then resolve the OPS-72
+revise/do-not-promote decision and OPS-75 Phase 10 final consolidation.
 OPS-165 is the preceding master-plan reconciliation after OPS-164.
 OPS-163 is the preceding master-plan reconciliation after OPS-162.
 OPS-160 UserAdminMutationService characterization is squash-merged through PR
@@ -2972,3 +2974,36 @@ the current checkpoint above is the sole active execution authority.
   `stale=false`, changed-path scope review, internal-link validation and
   `git diff --check`. The dependency deferral remains a documented residual,
   not a suppressed profile or a greened product failure.
+
+## Workflow checkpoint (OPS-173; Phase 9 facade ownership audit)
+
+- This docs-only audit uses branch/worktree
+  `codex/ops-173-phase9-ownership-audit` /
+  `../opshub-ops-173-ownership-audit`, created from exact live
+  `origin/staging@64ea802a81f5378fea4239e6a5ab904cb537c349` through the
+  guarded lifecycle start gate. The worktree started clean and only the Nest
+  profile was prepared; Flutter/Go hydration remains intentionally deferred,
+  fail-closed and explicitly unverified.
+- The sanitized machine-readable audit is
+  `docs/migrations/ops-173-phase9-ownership-audit.json`. It covers all six
+  Phase 9 facades, their tracked line counts and named collaborators, public
+  contract owners, remaining facade-owned domains and follow-ups. No secrets,
+  absolute paths, raw dependency state or runtime source changes are included.
+- The audit found no unowned duplicated orchestration candidate in the reviewed
+  facade boundaries. It does record two explicit User/Auth follow-ups with no
+  current owner: atomic assignment transaction hardening and generic
+  admin-policy scope authorization. These require separate security/product
+  authority before implementation; line count alone authorizes no mechanical
+  split.
+- This slice updates only the ownership artifact, master-plan front status,
+  active-plan index and OPS-71 disposition ledger. Public API/DTO/DI,
+  permission, logging, UI geometry, platform behavior and affected consumers
+  are unchanged. The next bounded action is authority for the two User/Auth
+  follow-ups, then the OPS-72 revise/do-not-promote decision and OPS-75 Phase
+  10 final consolidation. Rollback is one OPS-173 squash revert.
+- Required proof before publication: JSON/path validation, plan-disposition
+  validation, stale-current-reference scan, internal-link/mojibake scan,
+  exact docs-profile `scripts/verify-task.mjs --base origin/staging` with
+  `stale=false`, changed-path scope review and `git diff --check`. The
+  dependency deferral remains a documented residual, not a suppressed profile
+  or a greened product failure.
