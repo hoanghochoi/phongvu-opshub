@@ -18,16 +18,20 @@ Current active/release-pending authority:
 - [`OPS-53-redesign-chrome-audit-consolidation.md`](OPS-53-redesign-chrome-audit-consolidation.md)
   is the only current OPS-53 execution summary. Its nine fragments are history.
 - [`OPS-64-upstream-harness-repository-cleanup.md`](OPS-64-upstream-harness-repository-cleanup.md)
-  remains the initiative master plan; OPS-167 is the current docs-only
-  reconciliation after the OPS-166 Phase 9F User/Import characterization.
-  OPS-166 is squash-merged through PR #290 at `a6c8342f`, staging-deployed by
-  `31977096035`, post-merge CodeQL-verified by `31977096088`, with guarded
-  lifecycle cleanup and `Ready for QA` proof. Its Flutter/Go
-  affected-consumer proof remains explicitly fail-closed under the approved
-  local dependency deferral; no profile was suppressed and no product failure
-  was retried to green. The next Phase 9F runtime slice is selected only after
-  this reconciliation; atomic assignment transactions and generic admin-policy
-  scope authorization remain separate full-fix/security follow-ups. OPS-165
+  remains the initiative master plan; OPS-170 is the current docs-only
+  reconciliation after the OPS-168/OPS-169 Phase 9 MAP persistence and ERP
+  cache-page characterization slices. OPS-168 is squash-merged through PR
+  #292 at `a1ef5922`, staging-deployed by `31980348208`, with guarded
+  lifecycle cleanup and `Ready for QA` proof. OPS-169 is squash-merged through
+  PR #293 at `490a5ce5`, staging-deployed by `31981556234`, with guarded
+  lifecycle cleanup and `Ready for QA` proof. Their Flutter/Go
+  affected-consumer proof remains explicitly fail-closed and unverified under
+  the approved local dependency deferral; no profile was suppressed and no
+  product failure was retried to green. The next bounded Phase 9D runtime
+  boundary is ERP cache-page mapping extraction from `SalesReportsService`;
+  MAP persistence is already collaborator-owned. Atomic assignment transactions
+  and generic admin-policy scope authorization remain separate full-fix/security
+  follow-ups. OPS-167 is the preceding reconciliation after OPS-166; OPS-165
   is the preceding reconciliation after OPS-164; OPS-163 is the preceding
   reconciliation after OPS-162; OPS-161 is the preceding reconciliation after
   OPS-160; OPS-159 is the preceding reconciliation after OPS-158. OPS-157 is
