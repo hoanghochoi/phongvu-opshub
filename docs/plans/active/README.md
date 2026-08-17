@@ -18,24 +18,27 @@ Current active/release-pending authority:
 - [`OPS-53-redesign-chrome-audit-consolidation.md`](OPS-53-redesign-chrome-audit-consolidation.md)
   is the only current OPS-53 execution summary. Its nine fragments are history.
 - [`OPS-64-upstream-harness-repository-cleanup.md`](OPS-64-upstream-harness-repository-cleanup.md)
-  remains the initiative master plan; OPS-183 is the current canary-cohort
-  reconciliation after the OPS-182 authority guard. PR #307 is the fifth
-  real schema-v4 execution-canary observation (run `32007203966`), with
-  `stale=false`, zero unmatched paths and zero reruns. The progress ledger is
-  now `complete` at 5/5 but remains `promotionEligible=false`; the selected
-  Harness/docs/verification-runner lane is observational, and the Flutter,
-  NestJS and Go dependency-heavy profiles remain fail-closed/deferred. OPS-72
-  stays `revise`/`do-not-promote`: execution-canary timing has no comparable
+  remains the initiative master plan; OPS-184 is the current post-merge
+  reconciliation after OPS-183/PR #308. Canonical `staging` and
+  `origin/staging` are aligned at `c0ced63a`; the OPS-183 task worktree,
+  local branch and remote branch are cleaned. The execution-canary ledger is
+  complete at 5/5 but remains `promotionEligible=false`; the selected
+  Harness/docs/verification-runner lane is observational, and Flutter, NestJS
+  and Go dependency-heavy profiles remain fail-closed/deferred. OPS-72 stays
+  `revise`/`do-not-promote`: execution-canary timing has no comparable
   baseline, TTAF has no failure sample and rerun reduction is unmeasurable.
-  No profile is suppressed and no product failure is retried to green. OPS-182
-  is the preceding authority guard, squash-merged through PR #307 at
-  `7c7e2240`; OPS-181 is the preceding execution-canary slice through PR #306
-  at `dfe09618`; OPS-180 is the preceding progress slice through PR #305 at
-  `d2be1f44`; OPS-179 is the preceding reconciliation through PR #304 at
-  `e4968c3f`; OPS-178 is the preceding execution-canary lane through PR #303
-  at `14224af1`. The upstream updater blocker, dependency/affected-consumer
-  proof closure, User/Auth authority follow-ups and remaining Phase 10
-  production gates stay open. OPS-177 is the
+  No profile is suppressed and no product failure is retried to green. The
+  Harness status/doctor audit passes, while the upstream updater dry-run
+  remains blocked by its conflict-exit-code defect. The 78/80 (~97.5%) checklist
+  audit leaves only OPS-72 target decision and Phase 9/10 release gates open;
+  User/Auth authority, dependency-ready proof, authenticated QA and production
+  deployment remain outstanding. OPS-183 is the preceding execution-canary
+  reconciliation through PR #308 at `c0ced63a`; OPS-182 is the preceding
+  authority guard through PR #307 at `7c7e2240`; OPS-181 is the preceding
+  execution-canary slice through PR #306 at `dfe09618`; OPS-180 is the
+  preceding progress slice through PR #305 at `d2be1f44`; OPS-179 is the
+  preceding reconciliation through PR #304 at `e4968c3f`; OPS-178 is the
+  preceding execution-canary lane through PR #303 at `14224af1`. OPS-177 is the
   preceding reconciliation, squash-merged through PR #302 at `df20b4e7` and
   staging-deployed by `31998307023`; OPS-175 is squash-merged through PR #301
   at `2e5dc7b2` and staging-deployed by `31997427099`; OPS-176 is squash-
@@ -58,10 +61,10 @@ Current active/release-pending authority:
   was retried to green. The Phase 9 ownership audit records two explicit
   User/Auth security follow-ups with no current owner: atomic assignment
   transaction hardening and generic admin-policy scope authorization. The next
-  bounded action is collect one more real execution-canary observation, then
-  decide whether OPS-72 can leave revise/do-not-promote; the upstream updater
-  blocker, dependency/affected-consumer proof closure and the remaining Phase
-  10 production gates stay open. OPS-170 is the preceding reconciliation
+  bounded action is final consolidation and release-evidence rehearsal; OPS-72
+  remains revise/do-not-promote, while the upstream updater blocker,
+  dependency/affected-consumer proof closure and the remaining Phase 10
+  production gates stay open. OPS-170 is the preceding reconciliation
   after OPS-168/OPS-169;
   OPS-167 is the preceding reconciliation after OPS-166; OPS-165
   is the preceding reconciliation after OPS-164; OPS-163 is the preceding

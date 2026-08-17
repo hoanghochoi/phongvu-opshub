@@ -4,14 +4,16 @@ Date: 2026-08-13
 
 ## Status
 
-Active — the current workflow checkpoint is OPS-183 execution-canary cohort
-reconciliation, created from exact live
-`origin/staging@7c7e2240fbf69c1f2fd4db58a5e45f26185921c4` after OPS-182.
-PR #307 is squash-merged at `7c7e2240fbf69c1f2fd4db58a5e45f26185921c4`;
-its schema-v4 execution-canary artifact (run `32007203966`) is independently
-hashed and validated with `stale=false`, zero unmatched paths and zero
-reruns. The progress ledger is complete at 5/5 but remains
-`promotionEligible=false`; the selected Harness/docs/verification-runner lane
+Active — the current workflow checkpoint is OPS-184 master-plan
+reconciliation after OPS-183, created from exact live
+`origin/staging@c0ced63ab91f1ea11653bc0ed43bf4bd0536c37c` after PR #308.
+OPS-183 PR #308 is squash-merged at
+`c0ced63ab91f1ea11653bc0ed43bf4bd0536c37c`; its guarded finish passed,
+canonical `staging` and `origin/staging` are aligned, and the task worktree,
+local branch and remote branch are gone. The schema-v4 execution-canary
+evidence remains independently validated at 5/5 with `stale=false`, zero
+unmatched paths and zero reruns; the progress ledger remains
+`promotionEligible=false`. The selected Harness/docs/verification-runner lane
 is observational and dependency-heavy Flutter/NestJS/Go proof remains
 fail-closed/deferred. No profile was suppressed and no product failure was
 retried to green. OPS-72 remains `revise`/`do-not-promote`: the canary cohort
@@ -61,11 +63,11 @@ any gate. The Phase 9 ownership audit now records two explicit User/Auth
 security follow-ups with no current owner: atomic assignment transaction
 hardening and generic admin-policy scope authorization. OPS-182 records the
 preceding authority guard and keeps the approved dependency gap fail-closed.
-The next bounded actions are final consolidation gates: resolve the upstream
-updater exit-code defect, close dependency/affected-consumer proof, assign the
-two User/Auth authority follow-ups and complete authenticated QA plus
-production deployment. None of these open gates is weakened by this canary
-reconciliation.
+OPS-184 records the post-merge checkpoint and current exact SHA. The next
+bounded actions are final consolidation gates: resolve the upstream updater
+exit-code defect, close dependency/affected-consumer proof, assign the two
+User/Auth authority follow-ups and complete authenticated QA plus production
+deployment. None of these open gates is weakened by this reconciliation.
 OPS-165 is the preceding master-plan reconciliation after OPS-164.
 OPS-163 is the preceding master-plan reconciliation after OPS-162.
 OPS-160 UserAdminMutationService characterization is squash-merged through PR
@@ -756,6 +758,13 @@ god-helper.
   reruns leave timing/retry targets unmeasured. Dependency-heavy profiles
   remain explicitly deferred/fail-closed and the affected matrix remains
   observational.
+- [x] Complete OPS-184 post-merge master-plan reconciliation. OPS-183 PR
+  #308 is squash-merged at `c0ced63ab91f1ea11653bc0ed43bf4bd0536c37c`,
+  canonical `staging` and `origin/staging` are aligned, and the task
+  worktree/local/remote branch cleanup passed. The exact Harness status and
+  doctor audit passes; the upstream updater dry-run remains blocked by the
+  upstream `git merge-file` conflict-exit-code defect. The checklist audit is
+  78/80 (~97.5%); OPS-72 and Phase 9/10 release gates remain explicitly open.
 - [x] Complete the Phase 8 artifact/dependency/toolchain review and deletion
   decision. The refreshed inventory, retained-owner review, Flutter/Nest
   dependency batches and Go/deploy review all pass; zero deletion batches are
@@ -3270,3 +3279,34 @@ the current checkpoint above is the sole active execution authority.
   verification `verify-task` with `stale=false`, changed-path scope review
   and `git diff --check`. Rollback is one squash revert; local raw artifacts
   remain outside Git and the source database/archive is untouched.
+
+## Workflow checkpoint (OPS-184; post-merge exact-SHA reconciliation)
+
+- This docs-only slice uses branch/worktree
+  `codex/ops-184-reconcile-master-plan-after-ops-183` /
+  `../opshub-ops-184-reconcile-master-plan`, created from exact live
+  `origin/staging@c0ced63ab91f1ea11653bc0ed43bf4bd0536c37c` through the
+  guarded lifecycle start gate. Only the Nest profile was prepared for the
+  lifecycle receipt; no dependency-owning command or runtime path is in
+  scope.
+- OPS-183 PR #308 is squash-merged at
+  `c0ced63ab91f1ea11653bc0ed43bf4bd0536c37c`; canonical `staging` and
+  `origin/staging` are aligned at that exact SHA. The guarded finish removed
+  the OPS-183 task worktree/local branch and the remote feature branch, so
+  only the canonical staging worktree remains.
+- The current Harness audit on this SHA reports `status --json` installed
+  `0.1.8` and current, and `doctor --json` healthy. `update --dry-run` remains
+  a no-write upstream blocker: Git returns exit code 5 for five conflict hunks
+  while the upstream adapter only maps exit code 1. OpsHub does not fork or
+  silently patch the upstream core.
+- The plan checklist is 78/80 complete (~97.5%). The two open items are the
+  OPS-72 percentage-target decision (`revise`/`do-not-promote`) and Phase 9/
+  Phase 10 final release gates. Flutter/NestJS/Go affected-consumer proof is
+  still deferred/fail-closed; the two User/Auth security follow-ups still
+  require explicit authority; authenticated QA and production deployment are
+  not claimed.
+- Required proof before publication: plan disposition, Harness retirement,
+  docs/link/secret/mojibake checks, exact docs/Harness `verify-task` with
+  `stale=false`, changed-path scope review and `git diff --check`. Rollback
+  is one squash revert; no runtime/API/UI/data/dependency-version/Harness DB
+  change is in scope.
