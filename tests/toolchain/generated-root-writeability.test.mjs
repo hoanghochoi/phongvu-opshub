@@ -1,10 +1,11 @@
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 
 import {
+  clearReadOnlyDirectoryAttribute,
   ensureGeneratedRootWriteability,
   inspectGeneratedRootWriteability,
 } from '../../scripts/prepare-task-toolchain.mjs';
@@ -18,6 +19,7 @@ function fixture(t) {
     'linux/flutter',
     'macos/Flutter',
     'windows/flutter',
+    'build/unit_test_assets/kernel',
     'backend-nest',
     'backend-nest/node_modules',
     '.dart_tool',
@@ -65,6 +67,58 @@ test('Windows ReadOnly generated roots are normalized before hydration', (t) => 
     }).ready,
     true,
   );
+});
+
+test('Windows normalizes the nested Flutter unit-test output and its descendants only', (t) => {
+  const root = fixture(t);
+  const readOnlyPaths = new Set(['build/unit_test_assets']);
+  const clearCalls = [];
+
+  const result = ensureGeneratedRootWriteability({
+    root,
+    profile: 'flutter',
+    platform: 'win32',
+    access: () => {},
+    readOnly: (absolutePath) => readOnlyPaths.has(relative(root, absolutePath)),
+    clearReadOnly: (absolutePath, _platform, options) => {
+      const current = relative(root, absolutePath);
+      clearCalls.push({ current, ...options });
+      if (options?.recursive) readOnlyPaths.delete(current);
+      return true;
+    },
+    probeWrite: (absolutePath) => !readOnlyPaths.has(relative(root, absolutePath)),
+  });
+
+  assert.equal(result.ready, true);
+  assert.deepEqual(result.normalizedPaths, ['build/unit_test_assets']);
+  assert.deepEqual(clearCalls, [
+    { current: 'build/unit_test_assets', recursive: true },
+  ]);
+  assert.equal(
+    existsSync(path.join(root, 'build', 'unit_test_assets', 'kernel')),
+    true,
+  );
+});
+
+test('Windows recursive read-only repair clears only the unit-test output root and descendants', () => {
+  const calls = [];
+  const absolutePath = path.join('C:', 'fixture', 'build', 'unit_test_assets');
+  const result = clearReadOnlyDirectoryAttribute(absolutePath, 'win32', {
+    recursive: true,
+    spawn: (executable, argv) => {
+      calls.push({ executable, argv });
+      return { status: 0 };
+    },
+  });
+
+  assert.equal(result, true);
+  assert.deepEqual(calls, [
+    { executable: 'attrib', argv: ['-R', absolutePath] },
+    {
+      executable: 'attrib',
+      argv: ['-R', path.join(absolutePath, '*'), '/S', '/D'],
+    },
+  ]);
 });
 
 test('ACL or filesystem denial fails closed without broad attribute repair', (t) => {

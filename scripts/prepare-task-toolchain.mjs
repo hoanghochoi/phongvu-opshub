@@ -98,6 +98,10 @@ const GENERATED_WRITE_PATHS = Object.freeze({
   ]),
   [FLUTTER_PROFILE_ID]: Object.freeze([
     '.dart_tool',
+    // `flutter test` materializes kernel/assets under this nested build
+    // directory.  Keep the repair target specific instead of normalizing the
+    // entire generated build tree.
+    'build/unit_test_assets',
     'lib/l10n',
     'ios/Runner',
     'linux/flutter',
@@ -105,6 +109,13 @@ const GENERATED_WRITE_PATHS = Object.freeze({
     'windows/flutter',
   ]),
 });
+
+// Only this Flutter test-output root needs descendant normalization. Other
+// generated roots remain non-recursive so the preflight never broadens its
+// repair scope beyond the known output that Flutter rewrites during a test.
+const RECURSIVE_READ_ONLY_GENERATED_PATHS = new Set([
+  'build/unit_test_assets',
+]);
 
 class PreparationError extends Error {
   constructor(code, message) {
@@ -813,17 +824,27 @@ function readOnlyDirectoryAttribute(absolutePath, platform = process.platform) {
     .some((line) => /^\s*R(?:\s|$)/i.test(line));
 }
 
-function clearReadOnlyDirectoryAttribute(
+export function clearReadOnlyDirectoryAttribute(
   absolutePath,
   platform = process.platform,
+  { recursive = false, spawn = spawnSync } = {},
 ) {
   if (platform !== 'win32') return true;
-  const result = spawnSync('attrib', ['-R', absolutePath], {
+  const options = {
     encoding: 'utf8',
     windowsHide: true,
     maxBuffer: 1024 * 1024,
-  });
-  return !result.error && result.status === 0;
+  };
+  const root = spawn('attrib', ['-R', absolutePath], options);
+  if (root.error || root.status !== 0 || !recursive) {
+    return !root.error && root.status === 0;
+  }
+  const descendants = spawn(
+    'attrib',
+    ['-R', path.join(absolutePath, '*'), '/S', '/D'],
+    options,
+  );
+  return !descendants.error && descendants.status === 0;
 }
 
 function probeDirectoryWrite(absolutePath) {
@@ -941,7 +962,13 @@ export function ensureGeneratedRootWriteability({
       continue;
     }
     const absolutePath = path.resolve(root, entry.path);
-    if (clearReadOnly(absolutePath, platform)) normalizedPaths.push(entry.path);
+    if (
+      clearReadOnly(absolutePath, platform, {
+        recursive: RECURSIVE_READ_ONLY_GENERATED_PATHS.has(entry.path),
+      })
+    ) {
+      normalizedPaths.push(entry.path);
+    }
   }
 
   const final = inspectGeneratedRootWriteability({
