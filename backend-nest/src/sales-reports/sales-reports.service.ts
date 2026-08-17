@@ -65,6 +65,10 @@ import {
   SalesReportsRevenueAggregationRuntime,
   SalesReportsRevenueAggregationSummary,
 } from './sales-reports-revenue-aggregation.runtime';
+import {
+  SalesReportsErpCachePageRuntime,
+  SalesReportsErpCachePageInput,
+} from './sales-reports-erp-cache-page.runtime';
 
 const REPORT_TYPE_PURCHASED = 'PURCHASED';
 const REPORT_TYPE_NOT_PURCHASED = 'NOT_PURCHASED';
@@ -336,6 +340,7 @@ export class SalesReportsService implements OnApplicationBootstrap {
   private readonly scopeQueryRuntime: SalesReportsScopeQueryRuntime;
   private readonly revenueAggregationRuntime: SalesReportsRevenueAggregationRuntime;
   private readonly exportRuntime: SalesReportsExportRuntime;
+  private readonly erpCachePageRuntime: SalesReportsErpCachePageRuntime;
   private orderCacheSyncRunning = false;
   private erpStatusSyncRunning = false;
 
@@ -395,6 +400,32 @@ export class SalesReportsService implements OnApplicationBootstrap {
       log: (message) => this.logger.log(message),
       warn: (message) => this.logger.warn(message),
       error: (message) => this.logger.error(message),
+    });
+    this.erpCachePageRuntime = new SalesReportsErpCachePageRuntime({
+      listRecentOrders: (input) => this.erp.listRecentOrders(input),
+      loadExistingRows: (orderCodes) => this.loadErpOrderCacheRows(orderCodes),
+      loadOwners: (orders, extraEmailValues) =>
+        this.syncOrderOwnersByEmail(orders, extraEmailValues),
+      loadStores: (storeCodes) => this.storesByCode(storeCodes),
+      systemContext: () => this.systemOrderSyncContext(),
+      normalizeOrderCode: (value) => this.normalizeOrderCode(value),
+      normalizeStoreCode: (value) => this.normalizeStoreCode(value),
+      authoritativeStoreCodeForCache: (snapshot, existingSnapshot) =>
+        this.authoritativeStoreCodeForCache(snapshot, existingSnapshot),
+      syncOrderOwner: (order, ownerByEmail) =>
+        this.syncOrderOwner(order, ownerByEmail),
+      syncOrderOwnerFromEmails: (emailValues, ownerByEmail) =>
+        this.syncOrderOwnerFromEmails(emailValues, ownerByEmail),
+      persist: (user, context, order, storeByCode, owner, options) =>
+        this.upsertErpOrderCacheItem(
+          user,
+          context,
+          order,
+          storeByCode,
+          owner,
+          options,
+        ),
+      log: (message) => this.logger.log(message),
     });
   }
 
@@ -2518,172 +2549,41 @@ export class SalesReportsService implements OnApplicationBootstrap {
       .sort((left, right) => left.label.localeCompare(right.label));
   }
 
-  async syncErpOrderCachePage(input: {
-    date: string;
-    limit: number;
-    source: string;
-    offset?: number;
-  }) {
-    const orders: SalesReportErpOrderListItem[] =
-      await this.erp.listRecentOrders({
-        date: input.date,
-        limit: input.limit,
-        offset: input.offset,
-      });
-    const orderCodes = orders
-      .map((order) => this.normalizeOrderCode(order.orderCode))
-      .filter(Boolean);
-    const existingRows = orderCodes.length
-      ? ((await this.prisma.salesReportErpOrderCache.findMany({
-          where: { orderCode: { in: orderCodes } },
-          select: {
-            orderCode: true,
-            sanitizedSnapshot: true,
-            paymentStatus: true,
-            confirmationStatus: true,
-            fulfillmentStatus: true,
-            lifecycleStatus: true,
-            hasReturnedFullItems: true,
-            returnedAfterTaxAmount: true,
-            orderCreatedAt: true,
-            statusCheckedAt: true,
-            statusCheckAttemptedAt: true,
-            statusCheckAttemptDate: true,
-            statusCheckAttemptCount: true,
-            statusCheckFailureCount: true,
-            excludedAt: true,
-            exclusionReason: true,
-            consultantEmail: true,
-            sellerEmail: true,
-            storeCode: true,
-            organizationNodeId: true,
-            sourceUserId: true,
-            sourceUserEmail: true,
-            grandTotal: true,
-          },
-        })) ?? [])
-      : [];
-    const existingByCode = new Map(
-      existingRows
-        .map((row: any) => [this.normalizeOrderCode(row.orderCode), row])
-        .filter((entry): entry is [string, any] => Boolean(entry[0])),
-    );
-    const existingCodes = new Set(
-      existingRows.map((row: any) => this.normalizeOrderCode(row.orderCode)),
-    );
-    const context = this.systemOrderSyncContext();
-    const ownerByEmail = await this.syncOrderOwnersByEmail(
-      orders,
-      existingRows.flatMap((row: any) => [
-        row.sourceUserEmail,
-        row.consultantEmail,
-        row.sellerEmail,
-      ]),
-    );
-    const storeByCode = await this.storesByCode(
-      [
-        ...orders.flatMap((order: SalesReportErpOrderListItem) => {
-          const orderCode = this.normalizeOrderCode(order.orderCode);
-          const existingRow = orderCode ? existingByCode.get(orderCode) : null;
-          return [
-            this.authoritativeStoreCodeForCache(
-              order.sanitizedSnapshot,
-              existingRow?.sanitizedSnapshot,
-            ),
-          ];
-        }),
-      ].filter((code: string | null): code is string => Boolean(code)),
-    );
-    let ownerMappedCount = 0;
-    let storeMappedCount = 0;
-    let newOrderCount = 0;
-    let mappedOrderCount = 0;
-    let excludedOrderCount = 0;
-    const storeCodes = new Set<string>();
-    const recipientUserIds = new Set<string>();
-    for (const order of orders) {
-      const orderCode = this.normalizeOrderCode(order.orderCode);
-      const existingRow = orderCode ? existingByCode.get(orderCode) : null;
-      const owner =
-        this.syncOrderOwner(order, ownerByEmail) ??
-        this.syncOrderOwnerFromEmails(
-          [
-            existingRow?.sourceUserEmail,
-            existingRow?.consultantEmail,
-            existingRow?.sellerEmail,
-          ],
-          ownerByEmail,
-        );
-      const isNew = orderCode ? !existingCodes.has(orderCode) : false;
-      if (owner) ownerMappedCount += 1;
-      const mappedStoreCode = this.normalizeStoreCode(
-        this.authoritativeStoreCodeForCache(
-          order.sanitizedSnapshot,
-          existingRow?.sanitizedSnapshot,
-        ),
-      );
-      if (mappedStoreCode) storeMappedCount += 1;
-      const mappedStore = mappedStoreCode
-        ? storeByCode.get(mappedStoreCode)
-        : null;
-      const mappedOrganizationNodeId = mappedStore?.organizationNodeId ?? null;
-      const storeMappingChanged =
-        existingRow &&
-        (this.normalizeStoreCode(existingRow.storeCode) !== mappedStoreCode ||
-          (existingRow.organizationNodeId ?? null) !==
-            mappedOrganizationNodeId);
-      const mappingBackfilled =
-        !isNew &&
-        Boolean(
-          storeMappingChanged ||
-          (!existingRow?.sourceUserId && owner?.id) ||
-          (!existingRow?.sourceUserEmail && owner?.email),
-        );
-      const cacheResult = await this.upsertErpOrderCacheItem(
-        null,
-        context,
-        order,
-        storeByCode,
-        owner,
-        {
-          existingCacheRow: existingRow,
-          preserveVerifiedLifecycle: true,
-          canonicalGrandTotalFromList: true,
+  async syncErpOrderCachePage(input: SalesReportsErpCachePageInput) {
+    return this.erpCachePageRuntime.sync(input);
+  }
+
+  private async loadErpOrderCacheRows(orderCodes: string[]) {
+    return (
+      (await this.prisma.salesReportErpOrderCache.findMany({
+        where: { orderCode: { in: orderCodes } },
+        select: {
+          orderCode: true,
+          sanitizedSnapshot: true,
+          paymentStatus: true,
+          confirmationStatus: true,
+          fulfillmentStatus: true,
+          lifecycleStatus: true,
+          hasReturnedFullItems: true,
+          returnedAfterTaxAmount: true,
+          orderCreatedAt: true,
+          statusCheckedAt: true,
+          statusCheckAttemptedAt: true,
+          statusCheckAttemptDate: true,
+          statusCheckAttemptCount: true,
+          statusCheckFailureCount: true,
+          excludedAt: true,
+          exclusionReason: true,
+          consultantEmail: true,
+          sellerEmail: true,
+          storeCode: true,
+          organizationNodeId: true,
+          sourceUserId: true,
+          sourceUserEmail: true,
+          grandTotal: true,
         },
-      );
-      const becameExcluded =
-        cacheResult.excluded && !Boolean(existingRow?.excludedAt);
-      const visibleNew = isNew && !cacheResult.excluded;
-      const visibleMappingBackfilled =
-        mappingBackfilled && !cacheResult.excluded;
-      if (visibleNew) newOrderCount += 1;
-      if (visibleMappingBackfilled) mappedOrderCount += 1;
-      if (becameExcluded) excludedOrderCount += 1;
-      if (
-        (visibleNew || visibleMappingBackfilled || becameExcluded) &&
-        owner?.id
-      ) {
-        recipientUserIds.add(owner.id);
-      }
-      if (
-        (visibleNew || visibleMappingBackfilled || becameExcluded) &&
-        mappedStoreCode
-      ) {
-        storeCodes.add(mappedStoreCode);
-      }
-    }
-    this.logger.log(
-      `Sales report ERP order cache mapping completed: source=${input.source} orders=${orders.length} newOrderCount=${newOrderCount} mappedOrderCount=${mappedOrderCount} excludedOrderCount=${excludedOrderCount} ownerMapped=${ownerMappedCount} storeMapped=${storeMappedCount} missingStore=${orders.length - storeMappedCount}`,
+      })) ?? []
     );
-    return {
-      count: orders.length,
-      newOrderCount,
-      mappedOrderCount,
-      excludedOrderCount,
-      orderCodes,
-      storeCodes: Array.from(storeCodes),
-      recipientUserIds: Array.from(recipientUserIds),
-    };
   }
 
   private async publishOrderCacheUpdated(payload: {
