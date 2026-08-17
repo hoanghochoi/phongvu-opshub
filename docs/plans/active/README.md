@@ -18,19 +18,21 @@ Current active/release-pending authority:
 - [`OPS-53-redesign-chrome-audit-consolidation.md`](OPS-53-redesign-chrome-audit-consolidation.md)
   is the only current OPS-53 execution summary. Its nine fragments are history.
 - [`OPS-64-upstream-harness-repository-cleanup.md`](OPS-64-upstream-harness-repository-cleanup.md)
-  remains the initiative master plan; OPS-172 is the current docs-only
-  reconciliation after the OPS-171 ERP cache-page extraction. OPS-171 is
+  remains the initiative master plan; OPS-173 is the current Phase 9 ownership
+  audit after the OPS-172 reconciliation and OPS-171 ERP cache-page
+  extraction. OPS-171 is
   squash-merged through PR #295 at `1809b49f`, staging-deployed by
   `31986109215`, with guarded lifecycle cleanup and `Ready for QA` proof.
   OPS-168 MAP persistence and OPS-169 ERP cache-page characterization remain
   the preceding checkpoints. Their Flutter/Go affected-consumer proof, like
   OPS-171's, remains explicitly fail-closed and unverified under the approved
   local dependency deferral; no profile was suppressed and no product failure
-  was retried to green. The next bounded action is the remaining Phase 9
-  ownership audit, then the OPS-72 revise/do-not-promote decision and OPS-75
-  Phase 10 final consolidation. Atomic assignment transactions and generic
-  admin-policy scope authorization remain separate full-fix/security
-  follow-ups. OPS-170 is the preceding reconciliation after OPS-168/OPS-169;
+  was retried to green. The Phase 9 ownership audit records two explicit
+  User/Auth security follow-ups with no current owner: atomic assignment
+  transaction hardening and generic admin-policy scope authorization. The next
+  bounded action is to obtain authority for those follow-ups, then resolve the
+  OPS-72 revise/do-not-promote decision and OPS-75 Phase 10 final
+  consolidation. OPS-170 is the preceding reconciliation after OPS-168/OPS-169;
   OPS-167 is the preceding reconciliation after OPS-166; OPS-165
   is the preceding reconciliation after OPS-164; OPS-163 is the preceding
   reconciliation after OPS-162; OPS-161 is the preceding reconciliation after

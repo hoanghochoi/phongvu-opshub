@@ -1,0 +1,155 @@
+{
+  "formatVersion": 1,
+  "sourceRevision": "64ea802a81f5378fea4239e6a5ab904cb537c349",
+  "generatedAtUtc": "2026-08-17T02:42:00Z",
+  "scope": {
+    "facades": [
+      "HomeSummaryPage",
+      "PaymentMonitorProvider",
+      "HomeSummaryService",
+      "SalesReportsService",
+      "MapVietinService",
+      "UserService"
+    ],
+    "lineCountBasis": "tracked source at sourceRevision; line count is a review signal, not an extraction trigger",
+    "behaviorBoundary": "public API, DTO, DI, permission, logging, Vietnamese copy, UI geometry, platform behavior and affected consumers remain unchanged"
+  },
+  "facades": [
+    {
+      "id": "home-summary-page",
+      "path": "lib/features/home/presentation/widgets/home_summary_page.dart",
+      "lineCount": 2443,
+      "publicContract": ["HomeSummaryPage", "exported child widgets and current navigation/refresh callbacks"],
+      "currentOwner": "HomeSummaryPage owns composition, scope/date interaction state and page-level refresh/error/loading behavior.",
+      "extractedCollaborators": [
+        "lib/features/home/presentation/widgets/home_summary_header_layout.dart",
+        "lib/features/home/presentation/widgets/home_summary_metric_sections.dart",
+        "lib/features/home/presentation/widgets/home_summary_detail_sections.dart",
+        "lib/features/home/presentation/widgets/home_summary_progress_sections.dart"
+      ],
+      "remainingDomains": [
+        {"domain": "page composition and interaction state", "owner": "HomeSummaryPage", "disposition": "facade-owned", "reasonCode": "public-widget-and-geometry-contract"},
+        {"domain": "section rendering", "owner": "section widgets", "disposition": "collaborator-owned", "reasonCode": "bounded-presentation-responsibility"}
+      ],
+      "unownedCandidates": [],
+      "nextAction": "No mechanical split; any visual change requires the approved Figma/node and geometry gate."
+    },
+    {
+      "id": "payment-monitor-provider",
+      "path": "lib/features/payment_monitor/presentation/providers/payment_monitor_provider.dart",
+      "lineCount": 2109,
+      "publicContract": ["PaymentMonitorProvider", "provider state and public actions consumed by payment-monitor screens"],
+      "currentOwner": "PaymentMonitorProvider owns provider lifecycle, public state composition and coordination between injected runtimes.",
+      "extractedCollaborators": [
+        "lib/features/payment_monitor/presentation/providers/payment_monitor_query_state.dart",
+        "lib/features/payment_monitor/presentation/providers/payment_monitor_realtime_runtime.dart",
+        "lib/features/payment_monitor/presentation/providers/payment_monitor_speaker_queue.dart",
+        "lib/features/payment_monitor/presentation/providers/payment_monitor_audio_runtime.dart",
+        "lib/features/payment_monitor/presentation/providers/payment_monitor_action_runtime.dart"
+      ],
+      "remainingDomains": [
+        {"domain": "provider lifecycle and public state", "owner": "PaymentMonitorProvider", "disposition": "facade-owned", "reasonCode": "provider-contract-and-dispose-races"},
+        {"domain": "query/realtime/audio/action execution", "owner": "named runtime collaborators", "disposition": "collaborator-owned", "reasonCode": "characterized-phase-9b-boundaries"}
+      ],
+      "unownedCandidates": [],
+      "nextAction": "Keep coordinator ownership explicit; only extract after a new characterization slice covers foreground/background, auth generation and dispose races."
+    },
+    {
+      "id": "home-summary-service",
+      "path": "backend-nest/src/home-summary/home-summary.service.ts",
+      "lineCount": 3159,
+      "publicContract": ["HomeSummaryService public methods, DTO mapping and projection callbacks"],
+      "currentOwner": "HomeSummaryService remains the stable API facade and owns transaction-sensitive fact synchronization, response shaping and collaborator composition.",
+      "extractedCollaborators": [
+        "backend-nest/src/home-summary/home-summary-cache.runtime.ts",
+        "backend-nest/src/home-summary/home-summary-scope.runtime.ts",
+        "backend-nest/src/home-summary/home-summary-projection.runtime.ts",
+        "backend-nest/src/home-summary/home-summary-csv-comparison.runtime.ts",
+        "backend-nest/src/home-summary/home-summary-comparison.runtime.ts",
+        "backend-nest/src/home-summary/home-summary-sales-progress.runtime.ts",
+        "backend-nest/src/home-summary/home-summary-main-kpi.runtime.ts",
+        "backend-nest/src/home-summary/home-summary-legacy-sales-metrics.runtime.ts",
+        "backend-nest/src/home-summary/home-summary-finance-metrics.runtime.ts",
+        "backend-nest/src/home-summary/home-summary-behavior-details-v2.runtime.ts"
+      ],
+      "remainingDomains": [
+        {"domain": "fact synchronization and transaction batching", "owner": "HomeSummaryService", "disposition": "facade-owned", "reasonCode": "shared-transaction-context"},
+        {"domain": "scope predicates and DTO compatibility", "owner": "HomeSummaryService", "disposition": "facade-owned", "reasonCode": "cross-consumer-contract"},
+        {"domain": "projection worker lifecycle", "owner": "HomeSummaryProjectionService", "disposition": "separate-service-owned", "reasonCode": "background-worker-boundary"}
+      ],
+      "unownedCandidates": [],
+      "nextAction": "No further split is authorized by line count; revisit only with a characterization-first transaction or scope boundary."
+    },
+    {
+      "id": "sales-reports-service",
+      "path": "backend-nest/src/sales-reports/sales-reports.service.ts",
+      "lineCount": 4920,
+      "publicContract": ["SalesReportsService routes, DTO mapping, ERP cache sync and public orchestration methods"],
+      "currentOwner": "SalesReportsService remains the stable facade for report writes/checks, API orchestration, persistence callbacks and public logging.",
+      "extractedCollaborators": [
+        "backend-nest/src/sales-reports/sales-reports-scope-query.runtime.ts",
+        "backend-nest/src/sales-reports/sales-reports-revenue-aggregation.runtime.ts",
+        "backend-nest/src/sales-reports/sales-reports-export.runtime.ts",
+        "backend-nest/src/sales-reports/sales-reports-erp-cache-page.runtime.ts"
+      ],
+      "remainingDomains": [
+        {"domain": "report list/write/check and persistence orchestration", "owner": "SalesReportsService", "disposition": "facade-owned", "reasonCode": "shared-API-and-transaction-contract"},
+        {"domain": "import parser, follow-up and BigQuery workflows", "owner": "dedicated import/follow-up/BigQuery services", "disposition": "separate-service-owned", "reasonCode": "existing-consumer-owner"}
+      ],
+      "unownedCandidates": [],
+      "nextAction": "No additional extraction is currently justified; protect the four named runtimes and avoid re-homing domain logic owned by import/follow-up services."
+    },
+    {
+      "id": "map-vietin-service",
+      "path": "backend-nest/src/map-vietin/map-vietin.service.ts",
+      "lineCount": 4211,
+      "publicContract": ["MapVietinService public sync, statement, review, transfer and export methods"],
+      "currentOwner": "MapVietinService remains the public facade and owns policy composition, persistence callbacks, notifications and response compatibility.",
+      "extractedCollaborators": [
+        "backend-nest/src/map-vietin/map-vietin-account-routing.runtime.ts",
+        "backend-nest/src/map-vietin/map-vietin-persistence.runtime.ts",
+        "backend-nest/src/map-vietin/map-vietin-provider.runtime.ts",
+        "backend-nest/src/map-vietin/map-vietin-response.runtime.ts",
+        "backend-nest/src/map-vietin/map-vietin-statement-policy.runtime.ts",
+        "backend-nest/src/map-vietin/map-vietin-sync.runtime.ts"
+      ],
+      "remainingDomains": [
+        {"domain": "public policy composition and notification side effects", "owner": "MapVietinService", "disposition": "facade-owned", "reasonCode": "cross-consumer-policy-contract"},
+        {"domain": "transport, sync, persistence and response mapping", "owner": "named MAP runtimes", "disposition": "collaborator-owned", "reasonCode": "phase-9e-boundaries"}
+      ],
+      "unownedCandidates": [],
+      "nextAction": "Keep statement/transfer policy and persistence ownership stable; any new split requires MAP/VietQR/realtime affected proof."
+    },
+    {
+      "id": "user-service",
+      "path": "backend-nest/src/user/user.service.ts",
+      "lineCount": 5352,
+      "publicContract": ["UserService public profile, admin, catalog, organization and assignment methods"],
+      "currentOwner": "UserService remains the high-blast-radius facade for public API orchestration, policy composition and compatibility across auth/admin consumers.",
+      "extractedCollaborators": [
+        "backend-nest/src/user/user-profile.service.ts",
+        "backend-nest/src/user/user-admin-mutation.service.ts",
+        "backend-nest/src/user/user-admin-mutation-preparation.service.ts",
+        "backend-nest/src/user/user-import.service.ts",
+        "backend-nest/src/user/user-organization-assignment.service.ts",
+        "backend-nest/src/user/user-credential-admin.service.ts",
+        "backend-nest/src/user/user-access-scope.service.ts",
+        "backend-nest/src/user/user-legacy-catalog.service.ts"
+      ],
+      "remainingDomains": [
+        {"domain": "organization/store catalog and seeding compatibility", "owner": "UserService plus UserLegacyCatalogService", "disposition": "facade-owned-with-compatibility-bridge", "reasonCode": "legacy-catalog-and-migration-contract"},
+        {"domain": "assignment/access policy composition", "owner": "UserService plus UserAccessScopeService", "disposition": "facade-owned-with-collaborator", "reasonCode": "auth-scope-blast-radius"},
+        {"domain": "atomic assignment transactions and generic admin-policy scope authorization", "owner": "none yet", "disposition": "explicit-follow-up", "reasonCode": "separate-full-fix-security-authority-required"}
+      ],
+      "unownedCandidates": ["atomic assignment transaction hardening", "generic admin-policy scope authorization"],
+      "nextAction": "Do not extract another UserService slice until the two explicit security/full-fix authorities are resolved and affected auth/Flutter/Go proof is available."
+    }
+  ],
+  "auditConclusion": {
+    "unownedDuplicatedOrchestrationFound": false,
+    "unownedCandidatesRequireSeparateAuthority": true,
+    "mechanicalLineCountSplitsAuthorized": false,
+    "dependencyProof": "Flutter/Go hydration and affected-consumer proof remain deferred and fail-closed; Nest profile was prepared for the read-only audit.",
+    "nextBoundedAction": "Resolve or explicitly defer the two User/Auth security follow-ups, then decide whether OPS-72 revise/do-not-promote and OPS-75 final consolidation can close the initiative gates."
+  }
+}
