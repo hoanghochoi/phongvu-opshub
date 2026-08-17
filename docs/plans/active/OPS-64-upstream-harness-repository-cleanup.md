@@ -4,11 +4,11 @@ Date: 2026-08-13
 
 ## Status
 
-Active — the current workflow checkpoint is the OPS-75 final-consolidation
-rehearsal, created from exact live
-`origin/staging@8c6c9eccbf850243ec1c4ea18151880ae90db786` after OPS-185/PR #310.
-OPS-185 PR #310 is squash-merged at
-`8c6c9eccbf850243ec1c4ea18151880ae90db786`; its guarded finish passed,
+Active — the current workflow checkpoint is the OPS-186 post-merge
+reconciliation after OPS-75, created from exact live
+`origin/staging@2d00c1befeb4aa124571dbdc15b6446c97932e80` after PR #311.
+OPS-75 PR #311 is squash-merged at
+`2d00c1befeb4aa124571dbdc15b6446c97932e80`; its guarded finish passed,
 canonical `staging` and `origin/staging` are aligned, and the task worktree,
 local branch and remote branch are gone. The schema-v4 execution-canary
 evidence remains independently validated at 5/5 with `stale=false`, zero
@@ -65,7 +65,8 @@ hardening and generic admin-policy scope authorization. OPS-182 records the
 preceding authority guard and keeps the approved dependency gap fail-closed.
 OPS-184 records the preceding post-merge reconciliation after OPS-183.
 OPS-185 records the preceding exact-SHA reconciliation after OPS-184.
-OPS-75 carries the current final-consolidation rehearsal lane. The next bounded actions are final consolidation gates: resolve
+OPS-75 records the preceding final-consolidation rehearsal; OPS-186 carries
+the current exact-SHA reconciliation. The next bounded actions are final consolidation gates: resolve
 the upstream updater exit-code defect, close dependency/affected-consumer proof,
 assign the two User/Auth authority follow-ups and complete authenticated QA plus
 production deployment. None of these open gates is weakened by this
@@ -3370,6 +3371,34 @@ the current checkpoint above is the sole active execution authority.
 - This slice updates only the master-plan checkpoint and active-plan authority
   text. No runtime/API/UI/data/dependency-version/Harness DB/archive path is
   changed. Rollback is one squash revert; raw CI payload remains outside Git.
+- Required proof before publication: OPS-72 live/progress validators, plan
+  disposition, Harness retirement, migration EOL, docs/link/secret/mojibake
+  checks, exact Harness/docs/verification `verify-task` with `stale=false`,
+  changed-path scope review and `git diff --check`.
+
+## Workflow checkpoint (OPS-186; post-OPS-75 merge exact-SHA reconciliation)
+
+- This docs-only slice uses branch/worktree
+  `codex/ops-186-reconcile-master-plan-after-ops-75-merge` /
+  `../opshub-ops-186-reconcile`, created from exact live
+  `origin/staging@2d00c1befeb4aa124571dbdc15b6446c97932e80` through the guarded
+  lifecycle start gate. Nest preparation completed for the lifecycle receipt;
+  no dependency-owning runtime command is in scope, and Flutter/Nest/Go
+  affected-consumer proof remains explicitly deferred/fail-closed.
+- OPS-75 PR #311 is squash-merged at
+  `2d00c1befeb4aa124571dbdc15b6446c97932e80`; Release Guard, Affected Shadow
+  and the OPS-72 execution-canary check passed. The guarded finish fast-forwarded
+  canonical staging, removed the task worktree/local branch, and the remote
+  feature branch was deleted separately.
+- The post-merge audit confirms Harness `status --json` and `doctor --json`
+  pass, while `update --dry-run` remains the no-write upstream
+  conflict-exit-code blocker. OPS-72 stays collection-complete at 5/5 but
+  `promotionEligible=false` and `revise`/`do-not-promote`; no comparable timing
+  baseline or first-actionable-failure sample exists, and zero-vs-zero reruns
+  remain unmeasurable.
+- This slice updates only current-plan authority text and the OPS-71
+  disposition evidence. No runtime/API/UI/data/dependency-version/Harness
+  DB/archive/raw artifact path is changed. Rollback is one squash revert.
 - Required proof before publication: OPS-72 live/progress validators, plan
   disposition, Harness retirement, migration EOL, docs/link/secret/mojibake
   checks, exact Harness/docs/verification `verify-task` with `stale=false`,
