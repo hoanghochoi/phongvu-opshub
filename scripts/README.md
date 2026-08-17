@@ -104,6 +104,18 @@ The execution-canary collector returns `pending-live-timing-baseline` and
 `do-not-promote` until a separate baseline decision authorizes measurement;
 the lane never changes blocking release or affected-consumer checks.
 
+The first real execution-canary artifacts are tracked separately while the
+five-observation gate is incomplete. This progress ledger is non-authoritative
+and cannot replace the final five-observation evidence file:
+
+```text
+node scripts/verify-ops72-execution-canary-progress.mjs
+```
+
+It records only sanitized PR/run/report identities, hashes, profiles and
+fail-closed proof flags. Raw artifacts remain outside Git, duplicate or stale
+observations are rejected, and a partial ledger is never promotion-eligible.
+
 For the OPS-72 evidence replay, run the collector from the repository root:
 
 ```text
