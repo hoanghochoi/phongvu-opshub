@@ -18,10 +18,10 @@ Current active/release-pending authority:
 - [`OPS-53-redesign-chrome-audit-consolidation.md`](OPS-53-redesign-chrome-audit-consolidation.md)
   is the only current OPS-53 execution summary. Its nine fragments are history.
 - [`OPS-64-upstream-harness-repository-cleanup.md`](OPS-64-upstream-harness-repository-cleanup.md)
-  remains the initiative master plan; OPS-192 is the current post-merge and
-  staging-QA checkpoint after OPS-191/PR #317, while OPS-187 is the last-
-  reconciled checkpoint-authority hardening before that closure. The recorded
-  merge SHA `0fda171d` is the current staging evidence; each new task must
+  remains the initiative master plan; OPS-193 is the current upstream-release
+  recheck after OPS-192's post-merge and staging-QA checkpoint, while OPS-187
+  is the last-reconciled checkpoint-authority hardening before that closure.
+  The recorded staging SHA `6716d89c` is the current evidence; each new task must
   resolve live `origin/staging` through the lifecycle start gate. The OPS-186
   task worktree,
   local branch and remote branch are cleaned. The execution-canary ledger is
@@ -39,7 +39,7 @@ Current active/release-pending authority:
   checklist audit leaves only Phase 10 release gates open. User/Auth authority,
   dependency-ready proof and authenticated Chrome QA now pass on the exact
   staging release; eligible children are `Ready for Release` and production
-  deployment remains outstanding. OPS-192 is the last-reconciled checkpoint;
+  deployment remains outstanding. OPS-193 is the last-reconciled checkpoint;
   OPS-186 is the preceding reconciliation after PR #311 at `2d00c1be`;
   OPS-185 is the preceding reconciliation through PR #310 at `8c6c9ecc`;
   OPS-184 is the preceding reconciliation
