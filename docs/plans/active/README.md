@@ -18,12 +18,15 @@ Current active/release-pending authority:
 - [`OPS-53-redesign-chrome-audit-consolidation.md`](OPS-53-redesign-chrome-audit-consolidation.md)
   is the only current OPS-53 execution summary. Its nine fragments are history.
 - [`OPS-64-upstream-harness-repository-cleanup.md`](OPS-64-upstream-harness-repository-cleanup.md)
-  remains the initiative master plan; OPS-197 is the current residual-QA
-  reconciliation after OPS-196, while OPS-196 is the preceding production
-  reconciliation and OPS-194 is the preceding checkpoint-authority hardening.
+  remains the initiative master plan; OPS-198 is the current residual-gate
+  reconciliation after OPS-197, while OPS-197 is the preceding residual-QA
+  reconciliation, OPS-196 is the preceding production reconciliation and
+  OPS-194 is the preceding checkpoint-authority hardening. The machine-readable
+  residual ownership is recorded in
+  [`ops-198-residual-gate-reconciliation.json`](../../migrations/ops-198-residual-gate-reconciliation.json).
   The prior `6716d89c` SHA is retained as OPS-193 historical evidence; the
   previous production release is `784e7f88`, live `origin/staging` is now
-  `9f634a82`, and no new promotion has been performed. Each new task must
+  `0a075fb1`, and no new promotion has been performed. Each new task must
   resolve live `origin/staging` through the lifecycle start gate. The OPS-186
   task worktree,
   local branch and remote branch are cleaned. The execution-canary ledger is
@@ -39,13 +42,16 @@ Current active/release-pending authority:
   Harness status/doctor audit passes, while the upstream updater dry-run
   remains blocked by its conflict-exit-code defect. The current checklist is
   `80/81` (~98.77%): Phase 9 runtime waves are execution-complete, while
-  Phase 10 release evidence remains open. User/Auth authority, dependency-ready
+  Phase 10 release evidence remains open. OPS-72/OPS-190 retain the
+  `revise`/`do-not-promote` decision and OPS-199 owns the measurable follow-up;
+  OPS-75 remains blocked-upstream and OPS-200 owns the OPS-78 authority
+  contract. User/Auth authority, dependency-ready
   proof and authenticated Chrome QA now pass on the exact staging release;
   Payment Monitor children OPS-85..OPS-88 have exact-SHA smoke proof and are
   `Ready for Release`, as are OPS-126, OPS-176 and OPS-196. The previous
   production deployment passed on exact SHA `784e7f88` with workflow
   `32099976438`; current remote `main` is intentionally behind live
-  `staging` until residual gates are resolved. OPS-197 is the current
+  `staging` until residual gates are resolved. OPS-198 is the current
   last-reconciled checkpoint; OPS-196 is the preceding reconciliation;
   OPS-194 is the preceding production reconciliation;
   OPS-186 is the preceding reconciliation after PR #311 at `2d00c1be`;

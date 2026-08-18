@@ -1,0 +1,93 @@
+{
+  "formatVersion": 1,
+  "issue": "OPS-198",
+  "sourceRevision": "0a075fb10bde961978a79a8c7735fbcb235e592a",
+  "generatedAtUtc": "2026-08-18T07:15:36.6690635Z",
+  "initiative": "OPS-64",
+  "checkpoint": {
+    "originStaging": "0a075fb10bde961978a79a8c7735fbcb235e592a",
+    "originMain": "784e7f88e5647b5a25ff24528bb829b30d7052db",
+    "promotionPerformed": false,
+    "worktreeCleanAtStart": true
+  },
+  "residuals": [
+    {
+      "issue": "OPS-72",
+      "status": "revise",
+      "promotionDecision": "do-not-promote",
+      "evidence": "docs/migrations/ops-72-final-decision.json",
+      "owner": "OPS-199",
+      "targetRef": "OPS-199",
+      "nextAction": "Collect a comparable pre/post cohort with non-zero rerun denominators and a first-actionable-failure sample.",
+      "stopCondition": "Keep affected profiles observational until the follow-up passes or records a new evidence-backed revise decision."
+    },
+    {
+      "issue": "OPS-190",
+      "status": "decision-closure",
+      "promotionDecision": "do-not-promote",
+      "evidence": "docs/migrations/ops-72-final-decision.json",
+      "owner": "OPS-199",
+      "targetRef": "OPS-199",
+      "nextAction": "Track the measurable follow-up without treating the decision as a KPI pass.",
+      "stopCondition": "Do not mark the original optimization target passed while the comparable cohort is missing."
+    },
+    {
+      "issue": "OPS-75",
+      "status": "blocked-upstream",
+      "promotionDecision": "hold",
+      "evidence": "docs/migrations/ops-193-upstream-release-recheck.json",
+      "owner": "OPS-193",
+      "targetRef": "OPS-193",
+      "nextAction": "Re-audit the first tagged upstream release that fixes merge-file conflict-count exits.",
+      "stopCondition": "Keep harness-v0.1.8 pinned; no fork or local patch; rerun disposable lifecycle proof after a tagged fix."
+    },
+    {
+      "issue": "OPS-78",
+      "status": "authority-required",
+      "promotionDecision": "hold",
+      "evidence": "docs/plans/active/OPS-64-upstream-harness-repository-cleanup.md",
+      "owner": "OPS-200",
+      "targetRef": "OPS-200",
+      "nextAction": "Approve the cutover topology, HTTP/WebSocket drain, migration compatibility, rollback, and Home SLO/parity contract before staging mutation.",
+      "stopCondition": "No zero-downtime or load claim without approved authority, observability, cleanup, and rollback evidence."
+    },
+    {
+      "issue": "OPS-76",
+      "status": "backlog-follow-up",
+      "promotionDecision": "out-of-scope",
+      "evidence": "docs/migrations/harness-v1-authority-promotion.json",
+      "owner": "OPS-76",
+      "targetRef": "OPS-76",
+      "nextAction": "Keep product/design route and media decisions in a separately scoped initiative.",
+      "stopCondition": "Do not expand the Phase 0–10 checklist without new product authority."
+    },
+    {
+      "issue": "OPS-77",
+      "status": "backlog-follow-up",
+      "promotionDecision": "out-of-scope",
+      "evidence": "docs/migrations/harness-v1-authority-promotion.json",
+      "owner": "OPS-77",
+      "targetRef": "OPS-77",
+      "nextAction": "Keep realtime/collaboration architecture runway separately scoped.",
+      "stopCondition": "Preserve current API/session/realtime behavior until a bounded contract exists."
+    },
+    {
+      "issue": "OPS-79",
+      "status": "backlog-follow-up",
+      "promotionDecision": "out-of-scope",
+      "evidence": "docs/migrations/harness-v1-authority-promotion.json",
+      "owner": "OPS-79",
+      "targetRef": "OPS-79",
+      "nextAction": "Keep additional verification guardrails as a separate backlog bundle.",
+      "stopCondition": "Do not weaken the current fail-closed runner contract to absorb backlog scope."
+    }
+  ],
+  "scope": {
+    "runtimeChanged": false,
+    "dependencyChanged": false,
+    "archiveChanged": false,
+    "harnessDbChanged": false,
+    "productionPromotion": false
+  },
+  "rollback": "One squash revert; no runtime, dependency, archive, Harness DB or production mutation."
+}
