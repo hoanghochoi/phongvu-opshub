@@ -83,7 +83,7 @@ export function validateEvidence(evidence, root = process.cwd()) {
   assert(Array.isArray(verification.profiles) && verification.profiles.length === 8, "verification profiles are incomplete");
   assert(verification.status === "passed", "verification must pass");
   assert(verification.stale === false, "verification must not be stale");
-  assert(verification.commandCount === 41, "verification command count is invalid");
+  assert(verification.commandCount === 42, "verification command count is invalid");
   assert(/^[a-f0-9]{64}$/i.test(String(verification.fingerprint || "")), "verification fingerprint is invalid");
   assert(typeof verification.evidenceSource === "string" && verification.evidenceSource.trim(), "verification evidence source is required");
 

@@ -33,7 +33,7 @@ Current active/release-pending authority:
   and [`ops-207-master-plan-reconciliation.json`](../../migrations/ops-207-master-plan-reconciliation.json)
   and [`ops-75-final-release-proof.json`](../../migrations/ops-75-final-release-proof.json);
   OPS-75 records the latest exact-SHA checkpoint and release exception. The prior
-  production release is `784e7f88`, live `origin/staging` is now `41fe711c`,
+  production release is `784e7f88`, live `origin/staging` is now `62fc701b`,
   and no new production promotion has been performed. The current child may
   proceed only through the release ladder and explicit promotion gate. The OPS-200
   task worktree,
@@ -54,7 +54,7 @@ Current active/release-pending authority:
   complete; only explicit production promotion remains. OPS-72/OPS-190 retain the
   `revise`/`do-not-promote` decision and OPS-199 owns the measurable follow-up;
   OPS-75's upstream updater sub-scope is deferred-by-owner while its release
-  proof is complete; OPS-200 has completed the OPS-78 authority
+  proof is complete at staging deploy `32158377597`; OPS-200 has completed the OPS-78 authority
   contract and OPS-201 owns the merged opt-in topology harness. User/Auth authority, dependency-ready
   proof and authenticated Chrome QA now pass on the exact staging release;
   Payment Monitor children OPS-85..OPS-88 have exact-SHA smoke proof and are
