@@ -1,0 +1,72 @@
+{
+  "formatVersion": 1,
+  "issue": "OPS-75",
+  "initiative": "OPS-64",
+  "sourceRevision": "44382ae79c81aa40607ce60317b9148fe01d7ad4",
+  "previousRevision": "98c3add52f95acbc803eff0ee8713284d53c3f5d",
+  "generatedAtUtc": "2026-08-18T14:54:32Z",
+  "checkpoint": {
+    "originStaging": "44382ae79c81aa40607ce60317b9148fe01d7ad4",
+    "originMain": "784e7f88e5647b5a25ff24528bb829b30d7052db",
+    "worktreeCleanAtStart": true,
+    "productionPromotion": false
+  },
+  "staging": {
+    "mergeSha": "44382ae79c81aa40607ce60317b9148fe01d7ad4",
+    "deployRun": "32143135811",
+    "deployConclusion": "success",
+    "exactShaVerified": true,
+    "checks": [
+      "release guard",
+      "affected verification shadow",
+      "OPS-72 execution canary",
+      "Android build",
+      "Windows build/sign/upload",
+      "web/backend deploy",
+      "direct-origin routes",
+      "health/version metadata",
+      "final staging checkpoint"
+    ]
+  },
+  "phase10": {
+    "status": "complete",
+    "promotionEligible": true,
+    "productionPromotion": false,
+    "nextAction": "Run the promotion dry-run and execute only after explicit owner authorization; verify origin/main equals origin/staging afterward."
+  },
+  "verification": {
+    "runner": "node scripts/verify-task.mjs",
+    "base": "44382ae79c81aa40607ce60317b9148fe01d7ad4",
+    "head": "44382ae79c81aa40607ce60317b9148fe01d7ad4",
+    "profiles": [
+      "harness",
+      "docs",
+      "verification-runner",
+      "release",
+      "flutter",
+      "nestjs",
+      "go-realtime",
+      "deployment"
+    ],
+    "status": "passed",
+    "stale": false,
+    "commandCount": 41,
+    "fingerprint": "1130fbb974d6f2439f7538326e4ac0a34d9cb0c280ab6ac1bd8d2f7fc26b7866",
+    "evidenceSource": "Full ladder executed against origin/staging with the final OPS-75 working-tree diff; base and HEAD are the unchanged product merge SHA, stale=false"
+  },
+  "upstreamException": {
+    "decision": "defer-and-do-not-pursue-in-this-initiative",
+    "releasePin": "harness-v0.1.8",
+    "updateInvocation": false,
+    "forkOrPatch": false,
+    "reason": "No tagged upstream release contains the merge-file conflict-exit-range fix; status and doctor are healthy, and the updater remains blocked without source mutation."
+  },
+  "scope": {
+    "runtimeChanged": false,
+    "dependencyChanged": false,
+    "archiveChanged": false,
+    "harnessDbChanged": false,
+    "productionPromotion": false
+  },
+  "rollback": "One squash revert; no runtime, dependency, archive, Harness DB or production mutation."
+}
