@@ -4,23 +4,25 @@ Date: 2026-08-13
 
 ## Status
 
-Active — the current reconciliation checkpoint is OPS-202, created through the
+Active — the current reconciliation checkpoint is OPS-203, created through the
 guarded lifecycle from exact live
-`origin/staging@071b7a20afd69bbd9ceeb506fc10e3de6b531424` after OPS-200.
-This docs/evidence-only slice binds the merged OPS-200 authority and the next
-owned OPS-201 implementation without changing runtime source, dependency
-contracts, archive or Harness DB paths. `origin/main` remains
-`784e7f88e5647b5a25ff24528bb829b30d7052db`; no production promotion is
-performed by this slice. The live staging branch is ahead of main only by
-staging-approved residual work and remains production-gated.
+`origin/staging@2b0a4987f1d0a5f1334decf973af5518911e6c2a` after OPS-201.
+This docs/evidence-only slice binds the merged OPS-201 topology harness and
+refreshes its exact implementation/merge evidence without changing runtime
+source, dependency contracts, archive or Harness DB paths. `origin/main`
+remains `784e7f88e5647b5a25ff24528bb829b30d7052db`; no production promotion is
+performed by this slice. The live staging branch remains production-gated.
 OPS-200 PR #325 is squash-merged at `071b7a20afd69bbd9ceeb506fc10e3de6b531424`
 and staging deploy `32113834922` passes prepare, Android, Windows, web/backend
 publication, direct-origin routes, health/version and final checkpoint. Its
 exact Harness/docs/verification proof is 106/106 with `stale=false`; the task
 worktree, local branch and remote branch were cleaned after the guarded finish.
 OPS-200 is `Ready for Release` because it is an authority contract, not a
-production deployment. OPS-201 is the next `Backlog` child under OPS-78 for an
-opt-in, no-traffic-mutation blue/green topology harness. OPS-72 remains the
+production deployment. OPS-201 PR #327 is squash-merged at
+`2b0a4987f1d0a5f1334decf973af5518911e6c2a`, staging deploy `32120938182`
+passed, and guarded lifecycle cleanup removed its worktree and branches. The
+merged OPS-201 slice remains opt-in and no-traffic/no-migration; its exact
+evidence is refreshed by OPS-203. OPS-72 remains the
 terminal `revise`/`do-not-promote` decision with OPS-199 as a separate measurable
 follow-up; OPS-75 remains blocked by the upstream updater defect; and
 OPS-76/OPS-77/OPS-79 remain long-term backlog bundles outside the Phase 0–10
@@ -3803,3 +3805,36 @@ the current checkpoint above is the sole active execution authority.
   migration EOL, blocked-upstream and OPS-72 validators, exact
   `verify-task` with `stale=false`, docs/link/secret/mojibake scans and
   `git diff --check`. Rollback is one squash revert.
+
+## Workflow checkpoint (OPS-203; post-OPS-201 staging reconciliation)
+
+- This docs/evidence-only slice starts from exact live
+  `origin/staging@2b0a4987f1d0a5f1334decf973af5518911e6c2a` through the guarded
+  lifecycle. Canonical staging is clean and aligned; no runtime, dependency,
+  archive or Harness DB path is changed.
+- OPS-201 PR #327 is squash-merged at
+  `2b0a4987f1d0a5f1334decf973af5518911e6c2a`; staging deploy `32120938182`
+  passed prepare, Android, Windows, web/backend publication, direct-origin,
+  health/version and final checkpoint. Its task worktree, local branch and
+  remote branch were removed after guarded finish.
+- OPS-201 evidence now binds implementation head
+  `69639208c5556c6b1a14fb116edbe1326684b977` and merge commit
+  `2b0a4987f1d0a5f1334decf973af5518911e6c2a`; no old short commit pointer
+  remains. The topology remains opt-in, no-traffic/no-migration, and the
+  single-plane deployment remains the default/recovery path.
+- OPS-78 still requires later bounded slices for candidate health/parity,
+  expand/contract migration compatibility, WebSocket drain, rollback and
+  staging Home load/SLO proof. No live migration, traffic switch or load run is
+  authorized by OPS-203.
+- OPS-72 remains terminal `revise`/`do-not-promote` with OPS-199 separate;
+  OPS-75 remains blocked-upstream on `harness-v0.1.8` with no fork/patch;
+  OPS-76/OPS-77/OPS-79 remain backlog follow-ups outside Phase 0–10.
+- Phase 9 remains execution-complete and Phase 10 remains open at `80/81`
+  (~98.77%); production promotion remains false. The next bounded action is an
+  OPS-78 child for offline migration-compatibility and Home-proof preflight,
+  created only after this reconciliation is merged and cleaned.
+- Required proof before publication: evidence/schema and plan disposition,
+  Harness retirement/migration EOL, blocked-upstream and OPS-72 validators,
+  exact `verify-task` with `stale=false`, docs/link/secret/mojibake scans and
+  `git diff --check`. Rollback is one squash revert; no runtime or release
+  mutation.
