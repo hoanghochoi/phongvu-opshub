@@ -9,6 +9,9 @@ Use `docs/templates/decision.md` for new decisions.
 
 - `0029-adopt-upstream-repository-protocol-and-retire-protocol-v1.md` records
   the staged upstream Harness cutover and legacy retirement boundary.
+- `0030-zero-downtime-staging-cutover-and-home-slo-proof.md` records the
+  blue/green staging cutover, WebSocket drain, migration compatibility and Home
+  SLO/parity proof contract for OPS-78.
 
 The local `harness.db` is a read-only migration/archive input, not a current
 decision authority. Record accepted decisions in Git under this directory and
