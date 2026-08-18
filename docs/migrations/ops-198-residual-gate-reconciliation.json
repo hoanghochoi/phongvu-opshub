@@ -1,14 +1,40 @@
 {
   "formatVersion": 1,
   "issue": "OPS-198",
-  "sourceRevision": "0a075fb10bde961978a79a8c7735fbcb235e592a",
-  "generatedAtUtc": "2026-08-18T07:15:36.6690635Z",
   "initiative": "OPS-64",
+  "sourceRevision": "98c3add52f95acbc803eff0ee8713284d53c3f5d",
+  "previousRevision": "d036994da22327ebdcbcfd5e05928f67dbc03e94",
+  "generatedAtUtc": "2026-08-18T12:56:09.1856542Z",
+  "scopeDescription": "docs-only residual-gate and master-plan reconciliation after OPS-207 staging merge",
   "checkpoint": {
-    "originStaging": "0a075fb10bde961978a79a8c7735fbcb235e592a",
+    "originStaging": "98c3add52f95acbc803eff0ee8713284d53c3f5d",
     "originMain": "784e7f88e5647b5a25ff24528bb829b30d7052db",
     "promotionPerformed": false,
     "worktreeCleanAtStart": true
+  },
+  "ops207": {
+    "issue": "OPS-207",
+    "pullRequest": 332,
+    "implementationRevision": "1741eb90289c86252e92db05f12bb08bf53eb36f",
+    "mergeSha": "98c3add52f95acbc803eff0ee8713284d53c3f5d",
+    "stagingDeployRun": "32137502184",
+    "stagingDeployResult": "pass",
+    "lifecycleFinish": "pass",
+    "worktreeCleanup": "pass",
+    "remoteBranchCleanup": "pass",
+    "evidence": "docs/migrations/ops-207-master-plan-reconciliation.json",
+    "productionPromotion": false,
+    "verification": {
+      "runner": "node scripts/verify-task.mjs",
+      "base": "d036994da22327ebdcbcfd5e05928f67dbc03e94",
+      "head": "1741eb90289c86252e92db05f12bb08bf53eb36f",
+      "profiles": ["harness", "docs", "verification-runner"],
+      "status": "passed",
+      "stale": false,
+      "commandCount": 30,
+      "pullRequestChecks": 4,
+      "stagingRun": "32137502184"
+    }
   },
   "residuals": [
     {
@@ -33,19 +59,19 @@
     },
     {
       "issue": "OPS-75",
-      "status": "blocked-upstream",
-      "promotionDecision": "hold",
+      "status": "deferred-by-owner",
+      "promotionDecision": "exception-approved",
       "evidence": "docs/migrations/ops-193-upstream-release-recheck.json",
-      "owner": "OPS-193",
-      "targetRef": "OPS-193",
-      "nextAction": "Re-audit the first tagged upstream release that fixes merge-file conflict-count exits.",
-      "stopCondition": "Keep harness-v0.1.8 pinned; no fork or local patch; rerun disposable lifecycle proof after a tagged fix."
+      "owner": "OPS-64",
+      "targetRef": "OPS-64",
+      "nextAction": "Do not pursue the upstream updater in this initiative; keep the consumer pinned to harness-v0.1.8 and run only the product/release proof.",
+      "stopCondition": "No fork or local patch; any future updater adoption requires a separately authorized initiative and a tagged upstream fix."
     },
     {
       "issue": "OPS-78",
       "status": "authority-required",
       "promotionDecision": "hold",
-      "evidence": "docs/plans/active/OPS-64-upstream-harness-repository-cleanup.md",
+      "evidence": "docs/migrations/ops-206-candidate-health-parity.json",
       "owner": "OPS-200",
       "targetRef": "OPS-200",
       "nextAction": "Approve the cutover topology, HTTP/WebSocket drain, migration compatibility, rollback, and Home SLO/parity contract before staging mutation.",
@@ -89,5 +115,20 @@
     "harnessDbChanged": false,
     "productionPromotion": false
   },
-  "rollback": "One squash revert; no runtime, dependency, archive, Harness DB or production mutation."
+  "checklist": {
+    "completed": 80,
+    "total": 81,
+    "percentage": 98.77,
+    "phase9": "execution-complete",
+    "phase10": "release-proof-pending"
+  },
+  "nextAction": "Run the exact final Phase 10 product/release ladder and authenticated staging smoke; the upstream updater is an explicit owner-approved exception and is not a release prerequisite.",
+  "upstreamException": {
+    "decision": "defer-and-do-not-pursue-in-this-initiative",
+    "approvedBy": "repository owner",
+    "reason": "No tagged upstream conflict-exit-range fix exists; the consumer remains pinned to harness-v0.1.8, and status/doctor are healthy while update --dry-run is blocked without source mutation.",
+    "productionUse": "The release workflow does not invoke the Harness updater; no fork or local patch is introduced.",
+    "followUp": "None in OPS-64; any future updater adoption requires a separately authorized initiative."
+  },
+  "rollback": "One squash revert; docs/evidence only; no runtime, dependency, archive, Harness DB, staging mutation or production promotion."
 }

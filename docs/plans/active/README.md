@@ -18,8 +18,9 @@ Current active/release-pending authority:
 - [`OPS-53-redesign-chrome-audit-consolidation.md`](OPS-53-redesign-chrome-audit-consolidation.md)
   is the only current OPS-53 execution summary. Its nine fragments are history.
 - [`OPS-64-upstream-harness-repository-cleanup.md`](OPS-64-upstream-harness-repository-cleanup.md)
-  remains the initiative master plan; OPS-207 is the current reconciliation
-  after OPS-206, while OPS-200 is the merged OPS-78 authority contract,
+  remains the active OPS-64 master plan; OPS-198 is the current final-release
+  reconciliation with an owner-approved upstream exception. OPS-200 is the
+  merged OPS-78 authority contract,
   OPS-201 is the merged opt-in blue/green topology harness slice, OPS-204
   is the merged offline migration/Home preflight and OPS-206 is the merged
   offline candidate-health/Home-parity preflight. The
@@ -29,10 +30,10 @@ Current active/release-pending authority:
   and [`ops-203-master-plan-reconciliation.json`](../../migrations/ops-203-master-plan-reconciliation.json)
   and [`ops-205-master-plan-reconciliation.json`](../../migrations/ops-205-master-plan-reconciliation.json)
   and [`ops-207-master-plan-reconciliation.json`](../../migrations/ops-207-master-plan-reconciliation.json);
-  OPS-207 records the newer exact-SHA checkpoint in the master plan. The prior
-  production release is `784e7f88`, live `origin/staging` is now `d036994d`,
-  and no new production promotion has been performed. Each new task must
-  resolve live `origin/staging` through the lifecycle start gate. The OPS-200
+  OPS-198 records the latest exact-SHA checkpoint and release exception. The prior
+  production release is `784e7f88`, live `origin/staging` is now `98c3add5`,
+  and no new production promotion has been performed. The current child may
+  proceed only through the release ladder and explicit promotion gate. The OPS-200
   task worktree,
   local branch and remote branch are cleaned. The execution-canary ledger is
   complete at 5/5 but remains `promotionEligible=false`; the selected
@@ -45,19 +46,20 @@ Current active/release-pending authority:
   observational.
   No profile is suppressed and no product failure is retried to green. The
   Harness status/doctor audit passes, while the upstream updater dry-run
-  remains blocked by its conflict-exit-code defect. The current checklist is
+  remains blocked by its conflict-exit-code defect; this is an explicit owner
+  exception and not a release prerequisite. The current checklist is
   `80/81` (~98.77%): Phase 9 runtime waves are execution-complete, while
   Phase 10 release evidence remains open. OPS-72/OPS-190 retain the
   `revise`/`do-not-promote` decision and OPS-199 owns the measurable follow-up;
-  OPS-75 remains blocked-upstream; OPS-200 has completed the OPS-78 authority
+  OPS-75 is deferred-by-owner; OPS-200 has completed the OPS-78 authority
   contract and OPS-201 owns the merged opt-in topology harness. User/Auth authority, dependency-ready
   proof and authenticated Chrome QA now pass on the exact staging release;
   Payment Monitor children OPS-85..OPS-88 have exact-SHA smoke proof and are
   `Ready for Release`, as are OPS-126, OPS-176 and OPS-196. The previous
   production deployment passed on exact SHA `784e7f88` with workflow
   `32099976438`; current remote `main` is intentionally behind live
-  `staging` until residual gates are resolved. OPS-207 is the current
-  last-reconciled checkpoint after OPS-206; OPS-206 is the preceding
+  `staging` until the final release decision. OPS-198 is the latest
+  last-reconciled checkpoint after OPS-207; OPS-207 is the preceding
   candidate-health/Home-parity preflight, OPS-205 is the prior reconciliation
   after OPS-204; OPS-204 is the preceding
   staging-deployed offline migration/Home preflight and OPS-203 is the

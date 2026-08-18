@@ -29,3 +29,12 @@ test("rejects production promotion or absolute identity leakage", () => {
   invalid.residuals[0].nextAction = "C:\\Users\\someone\\private";
   assert.throws(() => validateEvidence(invalid), /absolute local path/);
 });
+
+test("requires an explicit owner-approved upstream exception", () => {
+  const invalid = structuredClone(fixture);
+  delete invalid.upstreamException;
+  assert.throws(() => validateEvidence(invalid), /upstream exception decision is invalid/);
+  invalid.upstreamException = structuredClone(fixture.upstreamException);
+  invalid.residuals.find((item) => item.issue === "OPS-75").promotionDecision = "hold";
+  assert.throws(() => validateEvidence(invalid), /OPS-75 exception approval is missing/);
+});

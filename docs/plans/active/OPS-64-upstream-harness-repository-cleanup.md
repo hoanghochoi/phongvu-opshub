@@ -4,16 +4,17 @@ Date: 2026-08-13
 
 ## Status
 
-Active — the current reconciliation checkpoint is OPS-207, created through the
-guarded lifecycle from exact live
-`origin/staging@d036994da22327ebdcbcfd5e05928f67dbc03e94` after OPS-206.
-This docs/evidence-only slice binds the merged OPS-201 topology harness,
-OPS-204 offline migration/Home preflight and OPS-206 candidate-health/Home
-parity preflight, refreshing exact implementation,
-merge and staging-deploy evidence without changing runtime
-source, dependency contracts, archive or Harness DB paths. `origin/main`
-remains `784e7f88e5647b5a25ff24528bb829b30d7052db`; no production promotion is
-performed by this slice. The live staging branch remains production-gated.
+Active — final Phase 10 release evidence is in progress. The current
+reconciliation checkpoint is OPS-198, created through the guarded lifecycle from exact live
+`origin/staging@98c3add52f95acbc803eff0ee8713284d53c3f5d` after OPS-207.
+This release slice preserves all merged staging work and sanitized migration
+evidence. The upstream updater defect is an explicit owner-approved exception:
+the consumer remains pinned to `harness-v0.1.8`, with no fork or local patch;
+the product/release ladder still must pass before promotion. `origin/main`
+remains `784e7f88e5647b5a25ff24528bb829b30d7052db` until an explicit promotion.
+OPS-207 PR #332 is squash-merged at
+`98c3add52f95acbc803eff0ee8713284d53c3f5d` and staging deploy
+`32137502184` passed; its guarded lifecycle cleanup also passed.
 OPS-200 PR #325 is squash-merged at `071b7a20afd69bbd9ceeb506fc10e3de6b531424`
 and staging deploy `32113834922` passes prepare, Android, Windows, web/backend
 publication, direct-origin routes, health/version and final checkpoint. Its
@@ -34,9 +35,11 @@ passed the exact-SHA release gates, and its guarded lifecycle cleanup passed.
 OPS-206 remains offline candidate-health/Home-parity evidence only; candidate
 start, drain, load/SLO and production gates remain open. OPS-72 remains the
 terminal `revise`/`do-not-promote` decision with OPS-199 as a separate measurable
-follow-up; OPS-75 remains blocked by the upstream updater defect; and
+follow-up; OPS-75 is explicitly deferred by owner as a release exception; and
 OPS-76/OPS-77/OPS-79 remain long-term backlog bundles outside the Phase 0–10
-checklist. OPS-64 remains `In Progress`.
+  checklist. OPS-64 remains `In Progress` until exact final-SHA release proof
+  and production deployment are recorded. The upstream exception is not a
+  claim that its updater defect was fixed.
 The prior last-reconciled workflow checkpoint was
 OPS-187, created from
 exact live `origin/staging@97c04c982aaf7415893ccd6f63de3c767e3e2c43` after
@@ -826,11 +829,13 @@ god-helper.
   extraction, dependency-ready affected-consumer proof and authenticated
   staging smoke. Remaining child release states are recorded in OPS-197.
 - [ ] Complete Phase 10 final consolidation and release evidence. The upstream
-  updater must first ship a tagged fix for multi-hunk `git merge-file` conflict
-  exits, then disposable status/doctor/update/conflict/continue/abort/recovery
-  proof must pass. OPS-72 remains `revise`/`do-not-promote`; OPS-200 has closed
-  the OPS-78 authority contract, while OPS-201 owns the opt-in topology harness
-  before cutover, drain, load/SLO and release-window rehearsal.
+  updater defect is an explicit owner-approved exception and is not a
+  prerequisite for this release: keep `harness-v0.1.8` pinned, with no
+  fork/patch, and do not invoke the updater in the release workflow. The
+  product/release ladder, staging smoke and production promotion proof remain
+  mandatory. OPS-72 remains `revise`/`do-not-promote`; OPS-200 has closed the
+  OPS-78 authority contract, while OPS-201 owns the opt-in topology harness
+  before any operational cutover, drain, load/SLO or release-window rehearsal.
 
 Phase 8 inventory checkpoint (OPS-73):
 
@@ -3956,3 +3961,25 @@ the current checkpoint above is the sole active execution authority.
   validators, exact `verify-task` with `stale=false`, docs/link/secret/mojibake
   scans and `git diff --check`. Rollback is one squash revert; no runtime or
   release mutation.
+
+## Phase 10 release exception (OPS-198; owner-approved upstream deferment)
+
+- The repository owner explicitly permits Phase 10 product/release completion
+  without waiting for a tagged upstream updater conflict-exit fix. This is a
+  documented exception, not a forged Harness pass: `harness-v0.1.8` stays
+  pinned, no fork/local patch is introduced, and the updater is not invoked by
+  the release workflow.
+- OPS-72/190 remain `revise`/`do-not-promote` as a workflow KPI decision; the
+  upstream updater is no longer a release blocker for this initiative. OPS-78
+  remains limited to the already merged authority/preflight slices unless a
+  separately approved operational cutover is required by the release owner.
+- The remaining Phase 10 work is the exact final-SHA product/release ladder:
+  full validation, staging smoke and release-guard evidence, archive/
+  disposition/fingerprint checks, and explicit production promotion. No
+  candidate start, migration, traffic switch or load/SLO claim is inferred
+  from this exception.
+- Until the exact promotion and production deploy are recorded, OPS-64 stays
+  active and the plan stays under `docs/plans/active/`. After production
+  proof, move it to `docs/plans/completed/` and preserve this exception in the
+  final result. Rollback remains one exact-SHA release revert; no Harness DB or
+  archive mutation is permitted.

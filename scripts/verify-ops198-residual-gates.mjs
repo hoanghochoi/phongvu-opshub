@@ -69,6 +69,15 @@ export function validateEvidence(evidence, root = process.cwd()) {
     assert(scope?.[field] === false, `scope.${field} must remain false`);
   }
   assert(typeof evidence.rollback === "string" && evidence.rollback.includes("squash revert"), "rollback must be recorded");
+  const upstreamException = evidence.upstreamException;
+  assert(upstreamException?.decision === "defer-and-do-not-pursue-in-this-initiative", "upstream exception decision is invalid");
+  assert(upstreamException?.approvedBy === "repository owner", "upstream exception authority is missing");
+  assert(typeof upstreamException.reason === "string" && upstreamException.reason.trim(), "upstream exception reason is required");
+  assert(typeof upstreamException.productionUse === "string" && upstreamException.productionUse.trim(), "upstream exception production boundary is required");
+  assert(typeof upstreamException.followUp === "string" && upstreamException.followUp.trim(), "upstream exception follow-up is required");
+  const upstreamResidual = residuals.find((residual) => residual.issue === "OPS-75");
+  assert(upstreamResidual?.status === "deferred-by-owner", "OPS-75 must be explicitly deferred by owner");
+  assert(upstreamResidual?.promotionDecision === "exception-approved", "OPS-75 exception approval is missing");
   assertNoLocalPathOrIdentity(evidence);
   return { status: "passed", issue: evidence.issue, residualCount: residuals.length };
 }
