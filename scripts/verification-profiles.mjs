@@ -391,6 +391,18 @@ export const PROFILES = Object.freeze([
         executable: process.execPath,
         argv: ["--test", "deploy/staging/blue-green-topology.test.mjs"],
       },
+      {
+        id: "ops206-candidate-health-parity-contract",
+        cwd: ".",
+        executable: process.execPath,
+        argv: ["deploy/staging/candidate-health-parity.mjs"],
+      },
+      {
+        id: "ops206-candidate-health-parity-tests",
+        cwd: ".",
+        executable: process.execPath,
+        argv: ["--test", "deploy/staging/candidate-health-parity.test.mjs"],
+      },
     ],
   },
 ]);

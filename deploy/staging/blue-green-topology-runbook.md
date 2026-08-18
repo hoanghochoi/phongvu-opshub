@@ -51,6 +51,28 @@ The plan must keep `trafficSwitch.allowed=false`,
 `migration.performed=false`. The rollback target is always the active release.
 The generated files and any raw runtime output stay outside Git.
 
+## Candidate health and Home parity preflight
+
+OPS-206 adds a repository-owned, offline validator for the gates that must be
+reviewed before an operational candidate start. It consumes only sanitized
+evidence and hash-binds the source contracts, active/candidate release
+identities, old-color and candidate health, direct-origin health,
+authenticated `/auth/bootstrap` and `/auth/me`, app-version identity, and Home
+1/7/30/90 paired parity.
+
+Validate the committed fixture with:
+
+```text
+node deploy/staging/candidate-health-parity.mjs --json
+```
+
+The validator proves contract readiness only. `candidateStartPerformed`,
+traffic switching, Caddy reload, migration, WebSocket drain, load/SLO and
+production promotion must all remain false. It does not start Docker, call a
+staging endpoint, handle credentials, or authorize a release. A later child
+under OPS-78 needs an operationally approved release window before it can
+replace the offline fixture with live candidate evidence.
+
 ## Required later gates
 
 Before any live candidate start, the next slice must prove the external shared

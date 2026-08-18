@@ -3878,3 +3878,30 @@ the current checkpoint above is the sole active execution authority.
   validators, exact `verify-task` with `stale=false`, docs/link/secret/mojibake
   scans and `git diff --check`. Rollback is one squash revert; no runtime or
   release mutation.
+
+## Workflow checkpoint (OPS-206; candidate health/Home parity preflight)
+
+- This bounded OPS-78 child starts from exact live
+  `origin/staging@0bf7648f7816a201ba6ac142b8354b5e4e7afd43` through the guarded
+  lifecycle on `codex/ops-206-candidate-health-home-parity-preflight`.
+- The slice is repository-only: it adds a hash-bound offline candidate
+  health/Home parity validator and updates the blue-green runbook and
+  deployment verification profile. It does not start a candidate, call a
+  staging endpoint, reload Caddy, switch traffic, observe WebSocket drain,
+  execute Prisma migration, run load/SLO, or promote production.
+- Required gates are active and candidate color health, direct-origin health,
+  authenticated bootstrap/me, app-version identity and paired Home 1/7/30/90
+  parity. Evidence must be sanitized, source-hash bound and promotion
+  ineligible; live candidate execution requires a separately approved release
+  window and a later child.
+- OPS-72 remains terminal `revise`/`do-not-promote`; OPS-75 remains
+  `blocked-upstream` with the `harness-v0.1.8` pin and no-fork/no-patch policy;
+  OPS-76/OPS-77/OPS-79 remain backlog follow-ups outside Phase 0–10.
+- Phase 9 remains execution-complete and Phase 10 remains open at `80/81`
+  (~98.77%); production promotion remains false. The post-merge exact SHA and
+  deployment evidence will be recorded by the follow-up reconciliation after
+  this child merges.
+- Required proof before publication: candidate preflight validator/tests,
+  blue-green topology tests, deployment/profile checks, exact `verify-task`
+  with `stale=false`, docs/link/secret/mojibake scans and `git diff --check`.
+  Rollback is one squash revert; no runtime or release mutation.
