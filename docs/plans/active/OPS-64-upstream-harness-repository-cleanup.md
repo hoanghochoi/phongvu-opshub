@@ -4,11 +4,21 @@ Date: 2026-08-13
 
 ## Status
 
-Active — the current production-reconciliation checkpoint is OPS-194, created
-from exact live `origin/staging@310da2cfd01fe55e2c00ac211bb40a9f6135a69e`
-after OPS-193 and the explicit production promotion. The branch/worktree is
-bounded to release evidence and plan/Linear reconciliation; no runtime source
-or dependency contract is changed.
+Active — the current production-reconciliation checkpoint is OPS-196, created
+from exact live `origin/staging@784e7f88e5647b5a25ff24528bb829b30d7052db`
+after OPS-195, the explicit promotion and the successful production deploy.
+The branch/worktree is bounded to release evidence and plan/Linear
+reconciliation; no runtime source or dependency contract is changed.
+OPS-195 PR #321 is squash-merged at `784e7f88e5647b5a25ff24528bb829b30d7052db`;
+promotion workflow `32099232716` and production deploy `32099976438` both pass,
+including Android, Windows, web/backend publication, public health/version
+verification and the final successful checkpoint. A fresh fetch proves
+`origin/main == origin/staging == 784e7f88e5647b5a25ff24528bb829b30d7052db`.
+OPS-195 is `Done` in Linear after exact harness/docs verification and lifecycle
+cleanup. The bounded Ready-for-Release children were reconciled to `Done`, but
+OPS-74/OPS-84 remain `Ready for Release` because nested OPS-85..OPS-88 still
+require QA; OPS-72/OPS-75/OPS-78/OPS-190 and the OPS-64 parent retain their
+explicit residual gates.
 The prior last-reconciled workflow checkpoint was
 OPS-187, created from
 exact live `origin/staging@97c04c982aaf7415893ccd6f63de3c767e3e2c43` after
@@ -3649,6 +3659,34 @@ the current checkpoint above is the sole active execution authority.
   no-fork/no-patch policy until a tagged upstream fix and fresh lifecycle proof
   pass. Residual/revise issues such as OPS-72 remain open.
 - Required proof before publication: docs/plan disposition, internal links,
-  secret/mojibake scans and `git diff --check`; the final Linear proof note is
-  recorded before OPS-194 advances. Rollback is one squash revert; production
+  secret/mojibake scans and `git diff --check`; the final Linear proof note was
+  recorded before OPS-194 advanced. Rollback is one squash revert; production
   rollback is owned by the release workflow if a later release check fails.
+
+## Workflow checkpoint (OPS-196; post-OPS-195 production reconciliation)
+
+- This docs-only reconciliation starts from exact live
+  `origin/staging@784e7f88e5647b5a25ff24528bb829b30d7052db` on branch
+  `codex/ops-196-reconcile-master-plan-after-ops-195-production`; the guarded
+  lifecycle start hydrated the task-local toolchain and canonical staging
+  remained clean and aligned.
+- OPS-195 PR #321 is squash-merged at the exact SHA. Promotion workflow
+  `32099232716` passed, production deploy `32099976438` passed all prepare,
+  Android, Windows, web/backend, health/version and final-checkpoint jobs, and
+  a fresh fetch proves `origin/main == origin/staging == 784e7f88`.
+- Exact OPS-195 verification from base `6a5c987cd46bfb498f3824318f04aa3451e5221f`
+  passed the harness/docs profiles with 106/106 toolchain tests and
+  `fingerprint.stale=false`; plan disposition, migration EOL, Harness
+  retirement and blocked-upstream validators also pass.
+- Linear lifecycle reconciliation recorded completion comments and `Done` for
+  the bounded release children. OPS-74 and OPS-84 are intentionally back at
+  `Ready for Release` because nested OPS-85..OPS-88 remain `Ready for QA`.
+  OPS-72, OPS-75, OPS-78 and OPS-190 remain open with their documented
+  acceptance/residual gates; OPS-64 remains active at 79/80 (~98.75%).
+- The upstream updater remains blocked: the consumer pin is `harness-v0.1.8`,
+  adoption and patch/fork are forbidden, and no new tagged fix is available.
+  No runtime/API/DTO/DI/UI/data/dependency/Harness DB/archive path changed.
+- Required proof before publication: plan/migration/retirement/upstream
+  validators, exact Harness/docs/verification runner with `stale=false`,
+  internal-link/secret/mojibake scans and `git diff --check`. Rollback is one
+  squash revert; task-local ignored dependency state is removed at finish.

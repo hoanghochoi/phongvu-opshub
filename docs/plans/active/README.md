@@ -18,12 +18,12 @@ Current active/release-pending authority:
 - [`OPS-53-redesign-chrome-audit-consolidation.md`](OPS-53-redesign-chrome-audit-consolidation.md)
   is the only current OPS-53 execution summary. Its nine fragments are history.
 - [`OPS-64-upstream-harness-repository-cleanup.md`](OPS-64-upstream-harness-repository-cleanup.md)
-  remains the initiative master plan; OPS-194 is the current production
-  reconciliation after OPS-193's upstream-release recheck and explicit
-  promotion, while OPS-187
+  remains the initiative master plan; OPS-196 is the current production
+  reconciliation after OPS-195's disposition refresh and explicit
+  promotion, while OPS-194
   is the last-reconciled checkpoint-authority hardening before that closure.
   The prior `6716d89c` SHA is retained as OPS-193 historical evidence; the
-  current promoted release is `310da2c`, and each new task must resolve live
+  current promoted release is `784e7f88`, and each new task must resolve live
   `origin/staging` through the lifecycle start gate. The OPS-186
   task worktree,
   local branch and remote branch are cleaned. The execution-canary ledger is
@@ -40,10 +40,13 @@ Current active/release-pending authority:
   remains blocked by its conflict-exit-code defect. The 79/80 (~98.75%)
   checklist audit leaves only Phase 10 release gates open. User/Auth authority,
   dependency-ready proof and authenticated Chrome QA now pass on the exact
-  staging release; eligible children are `Ready for Release` and production
-  deployment now passes on exact SHA `310da2c`, with production workflow
-  `32092751844` and remote `main == staging`; the upstream updater defect is
-  still the remaining initiative gate. OPS-194 is the last-reconciled checkpoint;
+  staging release; bounded eligible children have production proof and were
+  reconciled to `Done` with per-issue comments, while nested Payment Monitor
+  children OPS-85..OPS-88 remain `Ready for QA`; production deployment now
+  passes on exact SHA `784e7f88`, with production workflow `32099976438` and
+  remote `main == staging`; the upstream updater defect is
+  still the remaining initiative gate. OPS-196 is the last-reconciled checkpoint;
+  OPS-194 is the preceding production reconciliation;
   OPS-186 is the preceding reconciliation after PR #311 at `2d00c1be`;
   OPS-185 is the preceding reconciliation through PR #310 at `8c6c9ecc`;
   OPS-184 is the preceding reconciliation
