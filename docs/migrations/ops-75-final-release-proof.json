@@ -2,18 +2,18 @@
   "formatVersion": 1,
   "issue": "OPS-75",
   "initiative": "OPS-64",
-  "sourceRevision": "44382ae79c81aa40607ce60317b9148fe01d7ad4",
-  "previousRevision": "98c3add52f95acbc803eff0ee8713284d53c3f5d",
-  "generatedAtUtc": "2026-08-18T14:54:32Z",
+  "sourceRevision": "41fe711c37aaa88376fa77e05aa9590408daa986",
+  "previousRevision": "44382ae79c81aa40607ce60317b9148fe01d7ad4",
+  "generatedAtUtc": "2026-08-18T15:47:52Z",
   "checkpoint": {
-    "originStaging": "44382ae79c81aa40607ce60317b9148fe01d7ad4",
+    "originStaging": "41fe711c37aaa88376fa77e05aa9590408daa986",
     "originMain": "784e7f88e5647b5a25ff24528bb829b30d7052db",
     "worktreeCleanAtStart": true,
     "productionPromotion": false
   },
   "staging": {
-    "mergeSha": "44382ae79c81aa40607ce60317b9148fe01d7ad4",
-    "deployRun": "32143135811",
+    "mergeSha": "41fe711c37aaa88376fa77e05aa9590408daa986",
+    "deployRun": "32152280116",
     "deployConclusion": "success",
     "exactShaVerified": true,
     "checks": [
@@ -28,6 +28,16 @@
       "final staging checkpoint"
     ]
   },
+  "integrityReconciliation": {
+    "status": "complete",
+    "reason": "The existing OPS-204 migration inventory carried checkout-EOL-sensitive digests; normalized source bytes and all dependent sanitized evidence are now reconciled without executing a migration.",
+    "changedEvidence": [
+      "docs/migrations/ops-204-migration-home-preflight.json",
+      "docs/migrations/ops-206-candidate-health-parity.json"
+    ],
+    "runtimeMutation": false,
+    "migrationExecution": false
+  },
   "phase10": {
     "status": "complete",
     "promotionEligible": true,
@@ -37,7 +47,7 @@
   "verification": {
     "runner": "node scripts/verify-task.mjs",
     "base": "44382ae79c81aa40607ce60317b9148fe01d7ad4",
-    "head": "44382ae79c81aa40607ce60317b9148fe01d7ad4",
+    "head": "41fe711c37aaa88376fa77e05aa9590408daa986",
     "profiles": [
       "harness",
       "docs",
@@ -51,8 +61,11 @@
     "status": "passed",
     "stale": false,
     "commandCount": 41,
-    "fingerprint": "1130fbb974d6f2439f7538326e4ac0a34d9cb0c280ab6ac1bd8d2f7fc26b7866",
-    "evidenceSource": "Full ladder executed against origin/staging with the final OPS-75 working-tree diff; base and HEAD are the unchanged product merge SHA, stale=false"
+    "fingerprint": "72330704b252e5eefc627c611ac0627f21537c0b6614b7727e574d4650807eb0",
+    "durationMs": 196116,
+    "changedPathCount": 13,
+    "toolVersionNote": "Runner reported Go unavailable; direct go test ./... passed on go1.26.0.",
+    "evidenceSource": "Post-merge exact-SHA full ladder from 44382ae79c81aa40607ce60317b9148fe01d7ad4 to 41fe711c37aaa88376fa77e05aa9590408daa986; pass, stale=false"
   },
   "upstreamException": {
     "decision": "defer-and-do-not-pursue-in-this-initiative",

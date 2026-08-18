@@ -58,6 +58,14 @@ function sha256(bytes) {
   return createHash("sha256").update(bytes).digest("hex");
 }
 
+// Migration SQL is tracked text. Git may materialize it with CRLF on Windows
+// or LF in CI/Linux; bind the evidence to the normalized repository bytes so
+// the same proof does not flap across worktrees solely because of checkout EOL.
+export function textSha256(bytes) {
+  const normalized = Buffer.from(bytes.toString("utf8").replace(/\r\n/g, "\n").replace(/\r/g, "\n"));
+  return sha256(normalized);
+}
+
 function canonicalJson(value) {
   return JSON.stringify(value);
 }
@@ -146,8 +154,8 @@ function validateMigration(migration, repositoryRoot) {
     requireCondition(existsSync(rollbackPath), `migration rollback SQL is missing: ${item.rollbackPath}`);
     assertSha(item.sqlSha256, `${item.id}.sqlSha256`);
     assertSha(item.rollbackSha256, `${item.id}.rollbackSha256`);
-    requireCondition(sha256(readFileSync(migrationPath)) === item.sqlSha256, `migration SQL digest mismatch: ${item.id}`);
-    requireCondition(sha256(readFileSync(rollbackPath)) === item.rollbackSha256, `migration rollback digest mismatch: ${item.id}`);
+    requireCondition(textSha256(readFileSync(migrationPath)) === item.sqlSha256, `migration SQL digest mismatch: ${item.id}`);
+    requireCondition(textSha256(readFileSync(rollbackPath)) === item.rollbackSha256, `migration rollback digest mismatch: ${item.id}`);
     const sql = readFileSync(migrationPath, "utf8");
     requireCondition(!/\b(?:DROP\s+(?:TABLE|COLUMN|DATABASE|SCHEMA)|TRUNCATE\b)/i.test(sql), `destructive SQL is not compatible: ${item.id}`);
   }

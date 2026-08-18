@@ -61,6 +61,17 @@ export function validateEvidence(evidence, root = process.cwd()) {
   ];
   for (const check of requiredChecks) assert(staging.checks?.includes(check), `missing staging check: ${check}`);
 
+  const integrity = evidence.integrityReconciliation;
+  assert(integrity?.status === "complete", "integrity reconciliation must be complete");
+  assert(integrity?.runtimeMutation === false, "integrity reconciliation must not mutate runtime");
+  assert(integrity?.migrationExecution === false, "integrity reconciliation must not execute migration");
+  for (const pathName of [
+    "docs/migrations/ops-204-migration-home-preflight.json",
+    "docs/migrations/ops-206-candidate-health-parity.json",
+  ]) {
+    assert(integrity.changedEvidence?.includes(pathName), `missing integrity evidence: ${pathName}`);
+  }
+
   assert(evidence.phase10?.status === "complete", "Phase 10 must be complete");
   assert(evidence.phase10?.promotionEligible === true, "Phase 10 must be promotion eligible");
   assert(evidence.phase10?.productionPromotion === false, "Phase 10 proof cannot claim production promotion");

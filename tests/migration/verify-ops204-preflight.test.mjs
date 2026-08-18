@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
-import { validateEvidence } from "../../scripts/verify-ops204-preflight.mjs";
+import { textSha256, validateEvidence } from "../../scripts/verify-ops204-preflight.mjs";
 
 const fixture = JSON.parse(
   readFileSync("docs/migrations/ops-204-migration-home-preflight.json", "utf8"),
@@ -19,6 +19,20 @@ test("accepts the hash-bound offline migration/Home preflight", () => {
     migrationCount: 4,
     promotionEligible: false,
   });
+});
+
+test("normalizes migration SQL EOL before hashing", () => {
+  const migration = readFileSync(
+    "backend-nest/prisma/migrations/20260720143000_home_projection_phase1_closure/migration.sql",
+  );
+  const crlf = Buffer.from(
+    migration.toString("utf8").replace(/\r\n/g, "\n").replace(/\n/g, "\r\n"),
+  );
+  const expected = fixture.migration.inventory.find(
+    (item) => item.id === "20260720143000_home_projection_phase1_closure",
+  ).sqlSha256;
+  assert.equal(textSha256(migration), expected);
+  assert.equal(textSha256(crlf), expected);
 });
 
 test("rejects missing or ambiguous release identity", () => {
