@@ -1,0 +1,219 @@
+# Opt-in OPS-78 topology overlay. This file is never loaded by the default
+# single-plane deployment. It starts only color-specific app services; the
+# active Caddy edge and its traffic selection remain untouched until a later,
+# explicitly approved rehearsal slice.
+
+services:
+  # Attach shared dependencies to the external network only when this overlay
+  # is explicitly selected. The base opshub network remains available for the
+  # recovery/default compose project.
+  postgres:
+    networks:
+      - opshub
+      - opshub_bluegreen_shared
+
+  redis:
+    networks:
+      - opshub
+      - opshub_bluegreen_shared
+
+  api_blue:
+    profiles: [bluegreen-candidate]
+    build:
+      context: ../../backend-nest
+      target: runtime
+    restart: unless-stopped
+    env_file:
+      - ${OPSHUB_ENV_FILE:?Set OPSHUB_ENV_FILE to the runtime env file path}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ${OPSHUB_SSD_ROOT:-/srv/opshub}/uploads:/data/app_images
+      - ${OPSHUB_SSD_ROOT:-/srv/opshub}/private-media:/data/private-media
+      - ${OPSHUB_SSD_ROOT:-/srv/opshub}/payment-audio:/data/payment-audio
+      - ${OPSHUB_SSD_ROOT:-/srv/opshub}/import:/data/import:ro
+      - ../../docs/help:/app/docs/help:ro
+      - ../../data:/app/data:ro
+      - ../../assets/icon/source:/app/assets/icon/source:ro
+      - ../../assets/icon/acare_logo.png:/app/assets/icon/acare_logo.png:ro
+      - ../../fonts:/app/fonts:ro
+    networks:
+      opshub_bluegreen_shared: {}
+      opshub_blue:
+        aliases: [api-blue]
+    init: true
+    user: "${OPSHUB_RUNTIME_UID:?Set OPSHUB_RUNTIME_UID}:${OPSHUB_RUNTIME_GID:?Set OPSHUB_RUNTIME_GID}"
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=256m,mode=1777
+      - /home/node/.cache:rw,noexec,nosuid,size=64m,mode=1777
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "node -e \"fetch('http://127.0.0.1:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\"",
+        ]
+      start_period: 60s
+      interval: 15s
+      timeout: 5s
+      retries: 8
+    logging:
+      driver: json-file
+      options:
+        max-size: "${DOCKER_LOG_MAX_SIZE:-10m}"
+        max-file: "${DOCKER_LOG_MAX_FILE:-5}"
+
+  api_green:
+    profiles: [bluegreen-candidate]
+    build:
+      context: ../../backend-nest
+      target: runtime
+    restart: unless-stopped
+    env_file:
+      - ${OPSHUB_ENV_FILE:?Set OPSHUB_ENV_FILE to the runtime env file path}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ${OPSHUB_SSD_ROOT:-/srv/opshub}/uploads:/data/app_images
+      - ${OPSHUB_SSD_ROOT:-/srv/opshub}/private-media:/data/private-media
+      - ${OPSHUB_SSD_ROOT:-/srv/opshub}/payment-audio:/data/payment-audio
+      - ${OPSHUB_SSD_ROOT:-/srv/opshub}/import:/data/import:ro
+      - ../../docs/help:/app/docs/help:ro
+      - ../../data:/app/data:ro
+      - ../../assets/icon/source:/app/assets/icon/source:ro
+      - ../../assets/icon/acare_logo.png:/app/assets/icon/acare_logo.png:ro
+      - ../../fonts:/app/fonts:ro
+    networks:
+      opshub_bluegreen_shared: {}
+      opshub_green:
+        aliases: [api-green]
+    init: true
+    user: "${OPSHUB_RUNTIME_UID:?Set OPSHUB_RUNTIME_UID}:${OPSHUB_RUNTIME_GID:?Set OPSHUB_RUNTIME_GID}"
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=256m,mode=1777
+      - /home/node/.cache:rw,noexec,nosuid,size=64m,mode=1777
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "node -e \"fetch('http://127.0.0.1:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\"",
+        ]
+      start_period: 60s
+      interval: 15s
+      timeout: 5s
+      retries: 8
+    logging:
+      driver: json-file
+      options:
+        max-size: "${DOCKER_LOG_MAX_SIZE:-10m}"
+        max-file: "${DOCKER_LOG_MAX_FILE:-5}"
+
+  realtime_blue:
+    profiles: [bluegreen-candidate]
+    build:
+      context: ../../backend-go
+    restart: unless-stopped
+    environment:
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-}
+      WS_ALLOW_LEGACY_JWT: ${WS_ALLOW_LEGACY_JWT:-false}
+      WS_MAX_CONNECTIONS_PER_USER: ${WS_MAX_CONNECTIONS_PER_USER:-12}
+      JWT_SECRET: ${REALTIME_LEGACY_JWT_SECRET:-}
+      PORT: 8080
+      REDIS_HOST: ${REDIS_HOST:-redis}
+      REDIS_PORT: ${REDIS_PORT:-6379}
+      REDIS_USERNAME: ${REDIS_USERNAME:-}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?Set REDIS_PASSWORD in the runtime env file}
+      REDIS_DB: ${REDIS_DB:-0}
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      opshub_bluegreen_shared: {}
+      opshub_blue:
+        aliases: [realtime-blue]
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=32m,mode=1777
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "wget -qO- http://127.0.0.1:8080/health >/dev/null || exit 1",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+    logging:
+      driver: json-file
+      options:
+        max-size: "${DOCKER_LOG_MAX_SIZE:-10m}"
+        max-file: "${DOCKER_LOG_MAX_FILE:-5}"
+
+  realtime_green:
+    profiles: [bluegreen-candidate]
+    build:
+      context: ../../backend-go
+    restart: unless-stopped
+    environment:
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-}
+      WS_ALLOW_LEGACY_JWT: ${WS_ALLOW_LEGACY_JWT:-false}
+      WS_MAX_CONNECTIONS_PER_USER: ${WS_MAX_CONNECTIONS_PER_USER:-12}
+      JWT_SECRET: ${REALTIME_LEGACY_JWT_SECRET:-}
+      PORT: 8080
+      REDIS_HOST: ${REDIS_HOST:-redis}
+      REDIS_PORT: ${REDIS_PORT:-6379}
+      REDIS_USERNAME: ${REDIS_USERNAME:-}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?Set REDIS_PASSWORD in the runtime env file}
+      REDIS_DB: ${REDIS_DB:-0}
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      opshub_bluegreen_shared: {}
+      opshub_green:
+        aliases: [realtime-green]
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=32m,mode=1777
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "wget -qO- http://127.0.0.1:8080/health >/dev/null || exit 1",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+    logging:
+      driver: json-file
+      options:
+        max-size: "${DOCKER_LOG_MAX_SIZE:-10m}"
+        max-file: "${DOCKER_LOG_MAX_FILE:-5}"
+
+networks:
+  opshub_bluegreen_shared:
+    name: ${OPSHUB_BLUEGREEN_SHARED_NETWORK:-opshub-bluegreen-shared}
+    external: true
+  opshub_blue:
+    name: ${OPSHUB_BLUEGREEN_BLUE_NETWORK:-opshub-bluegreen-blue}
+    driver: bridge
+  opshub_green:
+    name: ${OPSHUB_BLUEGREEN_GREEN_NETWORK:-opshub-bluegreen-green}
+    driver: bridge
