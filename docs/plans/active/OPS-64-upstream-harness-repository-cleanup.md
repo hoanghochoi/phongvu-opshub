@@ -7,7 +7,8 @@ Date: 2026-08-13
 Active — Phase 10 release proof is complete and production promotion is
 explicitly pending. The current reconciliation checkpoint is OPS-75, created
 through the guarded lifecycle from exact live
-`origin/staging@41fe711c37aaa88376fa77e05aa9590408daa986` after OPS-75.
+`origin/staging@62fc701b5e917f168fb95ee3da4b7769e7eb2a55` after the post-merge
+release reconciliation.
 This release slice preserves all merged staging work and sanitized migration
 evidence. The upstream updater defect is an explicit owner-approved exception:
 the consumer remains pinned to `harness-v0.1.8`, with no fork or local patch and
@@ -18,8 +19,10 @@ OPS-198 PR #333 is squash-merged at
 `44382ae79c81aa40607ce60317b9148fe01d7ad4` and staging deploy
 `32143135811` passed; OPS-75 PR #334 is squash-merged at
 `41fe711c37aaa88376fa77e05aa9590408daa986` and staging deploy
-`32152280116` passed. Both guarded lifecycle cleanups passed. The final Phase
-10 artifact is `docs/migrations/ops-75-final-release-proof.json`.
+`32152280116` passed. The post-merge reconciliation is now bound to
+`62fc701b5e917f168fb95ee3da4b7769e7eb2a55`; staging deploy `32158377597`
+passed all exact-SHA build, publication, direct-origin and health/version gates.
+The final Phase 10 artifact is `docs/migrations/ops-75-final-release-proof.json`.
 OPS-200 PR #325 is squash-merged at `071b7a20afd69bbd9ceeb506fc10e3de6b531424`
 and staging deploy `32113834922` passes prepare, Android, Windows, web/backend
 publication, direct-origin routes, health/version and final checkpoint. Its
@@ -4000,3 +4003,34 @@ the current checkpoint above is the sole active execution authority.
   proof, move it to `docs/plans/completed/` and preserve this exception in the
   final result. Rollback remains one exact-SHA release revert; no Harness DB or
   archive mutation is permitted.
+
+## Workflow checkpoint (OPS-75; post-merge exact-SHA release reconciliation)
+
+- This docs/evidence-only reconciliation starts from exact live
+  `origin/staging@62fc701b5e917f168fb95ee3da4b7769e7eb2a55` through the guarded
+  lifecycle on `codex/ops-75-final-release-proof-after-ops-207`. The canonical
+  staging worktree was clean and no runtime, dependency, archive or Harness DB
+  path was changed.
+- The exact-SHA staging deploy is run `32158377597` and completed successfully:
+  prepare, Android build, Windows build/sign/upload, web/backend publication,
+  direct-origin routes, public health/version metadata and the final staging
+  checkpoint all passed. The canceled duplicate run `32158660386` is not proof.
+- The post-merge full verifier used base
+  `41fe711c37aaa88376fa77e05aa9590408daa986` and head
+  `62fc701b5e917f168fb95ee3da4b7769e7eb2a55`, selected all eight profiles,
+  ran 42 structured commands across 11 changed paths, returned `0` with
+  `stale=false`, and recorded fingerprint
+  `f0642737a8ec28114268dcf1bfe9ab999f5290f07aaa1ce47d0118be6c46518c`.
+  Flutter analyze, Nest build, Go test, lifecycle, Harness, migration EOL,
+  OPS-72/OPS-198/OPS-204/OPS-205/OPS-207 contracts and deployment contracts
+  all passed.
+- Phase 10 remains `complete` and `promotionEligible=true`, while
+  `productionPromotion=false`; `origin/main` remains
+  `784e7f88e5647b5a25ff24528bb829b30d7052db`. The upstream updater exception
+  remains unchanged: pin `harness-v0.1.8`, no updater invocation, no fork and no
+  local patch. Production promotion is still a separate explicit owner gate.
+- Required proof before publication is the updated OPS-75 evidence, this
+  checkpoint, `node scripts/verify-ops75-final-release-proof.mjs`, the exact
+  full verifier with `stale=false`, docs/link/secret/mojibake scans and
+  `git diff --check`. Rollback is one squash revert; no runtime or release
+  mutation is introduced by this reconciliation.

@@ -2,18 +2,18 @@
   "formatVersion": 1,
   "issue": "OPS-75",
   "initiative": "OPS-64",
-  "sourceRevision": "41fe711c37aaa88376fa77e05aa9590408daa986",
-  "previousRevision": "44382ae79c81aa40607ce60317b9148fe01d7ad4",
-  "generatedAtUtc": "2026-08-18T15:47:52Z",
+  "sourceRevision": "62fc701b5e917f168fb95ee3da4b7769e7eb2a55",
+  "previousRevision": "41fe711c37aaa88376fa77e05aa9590408daa986",
+  "generatedAtUtc": "2026-08-18T16:35:15Z",
   "checkpoint": {
-    "originStaging": "41fe711c37aaa88376fa77e05aa9590408daa986",
+    "originStaging": "62fc701b5e917f168fb95ee3da4b7769e7eb2a55",
     "originMain": "784e7f88e5647b5a25ff24528bb829b30d7052db",
     "worktreeCleanAtStart": true,
     "productionPromotion": false
   },
   "staging": {
-    "mergeSha": "41fe711c37aaa88376fa77e05aa9590408daa986",
-    "deployRun": "32152280116",
+    "mergeSha": "62fc701b5e917f168fb95ee3da4b7769e7eb2a55",
+    "deployRun": "32158377597",
     "deployConclusion": "success",
     "exactShaVerified": true,
     "checks": [
@@ -46,8 +46,8 @@
   },
   "verification": {
     "runner": "node scripts/verify-task.mjs",
-    "base": "44382ae79c81aa40607ce60317b9148fe01d7ad4",
-    "head": "41fe711c37aaa88376fa77e05aa9590408daa986",
+    "base": "41fe711c37aaa88376fa77e05aa9590408daa986",
+    "head": "62fc701b5e917f168fb95ee3da4b7769e7eb2a55",
     "profiles": [
       "harness",
       "docs",
@@ -60,12 +60,12 @@
     ],
     "status": "passed",
     "stale": false,
-    "commandCount": 41,
-    "fingerprint": "72330704b252e5eefc627c611ac0627f21537c0b6614b7727e574d4650807eb0",
-    "durationMs": 196116,
-    "changedPathCount": 13,
+    "commandCount": 42,
+    "fingerprint": "f0642737a8ec28114268dcf1bfe9ab999f5290f07aaa1ce47d0118be6c46518c",
+    "durationMs": 196906,
+    "changedPathCount": 11,
     "toolVersionNote": "Runner reported Go unavailable; direct go test ./... passed on go1.26.0.",
-    "evidenceSource": "Post-merge exact-SHA full ladder from 44382ae79c81aa40607ce60317b9148fe01d7ad4 to 41fe711c37aaa88376fa77e05aa9590408daa986; pass, stale=false"
+    "evidenceSource": "Post-edit exact-SHA full ladder from 41fe711c37aaa88376fa77e05aa9590408daa986 to 62fc701b5e917f168fb95ee3da4b7769e7eb2a55; 42 structured commands across 8 profiles, pass, stale=false"
   },
   "upstreamException": {
     "decision": "defer-and-do-not-pursue-in-this-initiative",
