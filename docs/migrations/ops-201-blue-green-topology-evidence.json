@@ -1,0 +1,57 @@
+{
+  "formatVersion": 1,
+  "issue": "OPS-201",
+  "baseRevision": "e6842944e5425222b45a344b79e389a0b8db3492",
+  "implementationCommit": "f341d2b6",
+  "scope": "opt-in no-traffic-mutation blue-green topology harness",
+  "changedPaths": [
+    "deploy/home-server/Caddyfile.bluegreen.template",
+    "deploy/home-server/docker-compose.blue-green.yml",
+    "deploy/staging/blue-green-topology.mjs",
+    "deploy/staging/blue-green-topology.test.mjs",
+    "deploy/staging/blue-green-topology-runbook.md",
+    "scripts/build-runtime-release.mjs",
+    "scripts/verification-profiles.mjs",
+    "scripts/verify-platform-security.mjs"
+  ],
+  "topology": {
+    "candidateProfile": "bluegreen-candidate",
+    "colors": ["blue", "green"],
+    "sharedDependencyNetwork": "external-precreated",
+    "candidateHostPorts": 0,
+    "defaultSinglePlanePreserved": true,
+    "caddyRestarted": false
+  },
+  "safety": {
+    "trafficSwitchAllowed": false,
+    "trafficSwitchPerformed": false,
+    "migrationAllowed": false,
+    "migrationPerformed": false,
+    "rollbackTarget": "active-release-only"
+  },
+  "verification": {
+    "helperTests": "5/5",
+    "composeConfig": "passed",
+    "caddyContract": "passed",
+    "platformSecurityContract": "passed",
+    "releaseFingerprintContract": "passed",
+    "gitReleaseWorkflowTests": "9/9",
+    "runtimeReleaseArtifacts": [
+      "deploy/home-server/Caddyfile.bluegreen.template",
+      "deploy/home-server/docker-compose.blue-green.yml",
+      "deploy/staging/blue-green-topology.mjs"
+    ]
+  },
+  "outOfScope": [
+    "live traffic switch",
+    "Caddy reload",
+    "WebSocket drain observation",
+    "database migration execution",
+    "synthetic load/SLO run",
+    "production promotion"
+  ],
+  "nextAction": {
+    "ownerIssue": "OPS-78",
+    "scope": "approved cutover, migration compatibility, drain and staging load rehearsal"
+  }
+}

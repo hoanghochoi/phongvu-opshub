@@ -330,7 +330,7 @@ export const PROFILES = Object.freeze([
     pathPatterns: [
       /^deploy\//,
       /^docker-compose\.yml$/,
-      /^scripts\/(?:validate-ops39-caddy|verify-platform-security)\.mjs$/,
+      /^scripts\/(?:build-runtime-release|validate-ops39-caddy|verify-platform-security)\.mjs$/,
     ],
     consumers: ["deployment manifests", "runtime configuration"],
     prerequisites: ["deployment tooling"],
@@ -352,6 +352,12 @@ export const PROFILES = Object.freeze([
         cwd: ".",
         executable: process.execPath,
         argv: ["scripts/verify-platform-security.mjs"],
+      },
+      {
+        id: "blue-green-topology-contract-tests",
+        cwd: ".",
+        executable: process.execPath,
+        argv: ["--test", "deploy/staging/blue-green-topology.test.mjs"],
       },
     ],
   },

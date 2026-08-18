@@ -87,6 +87,8 @@ function assertWorkflowRunExpressionLengths(source, label) {
 const [
   caddy,
   productionCompose,
+  blueGreenCaddyTemplate,
+  blueGreenCompose,
   localCompose,
   backup,
   stagingRefresh,
@@ -123,6 +125,8 @@ const [
 ] = await Promise.all([
   text('deploy/home-server/Caddyfile'),
   text('deploy/home-server/docker-compose.home.yml'),
+  text('deploy/home-server/Caddyfile.bluegreen.template'),
+  text('deploy/home-server/docker-compose.blue-green.yml'),
   text('docker-compose.yml'),
   text('deploy/home-server/backup.sh'),
   text('deploy/staging/refresh-sanitized-db.sh'),
@@ -260,6 +264,37 @@ contains(productionCompose, 'REALTIME_LEGACY_JWT_SECRET', 'isolated realtime rol
 contains(productionCompose, 'explicit loopback binding', 'origin loopback gate');
 contains(productionCompose, '/private-media:/data/private-media', 'private media API volume');
 excludes(productionCompose, '/private-media:/srv/', 'private media Caddy exposure');
+
+contains(
+  blueGreenCompose,
+  'profiles: [bluegreen-candidate]',
+  'blue-green candidate profile is opt-in',
+);
+contains(
+  blueGreenCompose,
+  'opshub_bluegreen_shared:',
+  'blue-green shared network declaration',
+);
+contains(blueGreenCompose, 'external: true', 'blue-green shared network is pre-created');
+contains(blueGreenCompose, 'cap_drop: [ALL]', 'blue-green candidate capability drop');
+contains(blueGreenCompose, 'read_only: true', 'blue-green candidate read-only root');
+contains(
+  blueGreenCompose,
+  'no-new-privileges:true',
+  'blue-green candidate no-new-privileges',
+);
+excludes(blueGreenCompose, "  caddy:", 'blue-green overlay does not restart Caddy');
+excludes(blueGreenCompose, "    ports:", 'blue-green candidates do not publish ports');
+contains(
+  blueGreenCaddyTemplate,
+  '{{API_UPSTREAM}}',
+  'blue-green Caddy API placeholder',
+);
+contains(
+  blueGreenCaddyTemplate,
+  '{{WS_UPSTREAM}}',
+  'blue-green Caddy WebSocket placeholder',
+);
 
 contains(
   privateMediaHeaders,

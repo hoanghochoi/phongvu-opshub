@@ -1,0 +1,30 @@
+# Opt-in OPS-78 edge-selection fixture. This template is rendered by
+# blue-green-topology.mjs and is not mounted by the default Caddy service.
+# A later traffic-switch slice must validate, atomically reload and drain the
+# selected upstreams; this slice only renders and fingerprints the candidate.
+
+http://{$OPSHUB_DOMAIN} {
+  encode gzip zstd
+
+  handle_path /api/* {
+    reverse_proxy {{API_UPSTREAM}} {
+      header_up X-Forwarded-For {client_ip}
+      header_up X-Real-IP {client_ip}
+    }
+  }
+
+  handle /ws* {
+    reverse_proxy {{WS_UPSTREAM}} {
+      header_up X-Forwarded-For {client_ip}
+      header_up X-Real-IP {client_ip}
+    }
+  }
+
+  handle /health {
+    respond "ok" 200
+  }
+
+  handle {
+    respond "blue-green fixture" 404
+  }
+}
