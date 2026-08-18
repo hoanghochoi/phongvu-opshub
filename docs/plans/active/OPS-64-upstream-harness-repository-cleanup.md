@@ -4,21 +4,22 @@ Date: 2026-08-13
 
 ## Status
 
-Active — the current production-reconciliation checkpoint is OPS-196, created
-from exact live `origin/staging@784e7f88e5647b5a25ff24528bb829b30d7052db`
-after OPS-195, the explicit promotion and the successful production deploy.
-The branch/worktree is bounded to release evidence and plan/Linear
-reconciliation; no runtime source or dependency contract is changed.
-OPS-195 PR #321 is squash-merged at `784e7f88e5647b5a25ff24528bb829b30d7052db`;
-promotion workflow `32099232716` and production deploy `32099976438` both pass,
-including Android, Windows, web/backend publication, public health/version
-verification and the final successful checkpoint. A fresh fetch proves
-`origin/main == origin/staging == 784e7f88e5647b5a25ff24528bb829b30d7052db`.
-OPS-195 is `Done` in Linear after exact harness/docs verification and lifecycle
-cleanup. The bounded Ready-for-Release children were reconciled to `Done`, but
-OPS-74/OPS-84 remain `Ready for Release` because nested OPS-85..OPS-88 still
-require QA; OPS-72/OPS-75/OPS-78/OPS-190 and the OPS-64 parent retain their
-explicit residual gates.
+Active — the current reconciliation checkpoint is OPS-197, created from exact
+live `origin/staging@9f634a8221d625759be4b60726fa0ff7ecaa867c` after OPS-196.
+This docs-only slice records the final QA/status reconciliation before any new
+promotion; no runtime source, dependency contract, archive or Harness DB path
+is changed. `origin/main` remains `784e7f88e5647b5a25ff24528bb829b30d7052db`,
+so the requested promotion is intentionally still pending.
+OPS-196 PR #322 is squash-merged at `9f634a8221d625759be4b60726fa0ff7ecaa867c`
+and staging deploy `32104986808` passes prepare, Android, Windows, web/backend
+publication, direct-origin routes, health/version and final checkpoint. Its
+exact Harness/docs/verification proof is 106/106 with `stale=false`.
+OPS-85..OPS-88, OPS-126, OPS-176 and OPS-196 now have exact-SHA QA/proof notes
+and are `Ready for Release`; OPS-74 and OPS-84 remain `Ready for Release` as
+their parent release state. OPS-72/OPS-190 remain the explicit
+`revise`/`do-not-promote` decision, OPS-75 remains blocked by the upstream
+updater defect, OPS-78 remains open for cutover/SLO/release-window evidence,
+and OPS-64 remains `In Progress`.
 The prior last-reconciled workflow checkpoint was
 OPS-187, created from
 exact live `origin/staging@97c04c982aaf7415893ccd6f63de3c767e3e2c43` after
@@ -53,7 +54,8 @@ OPS-176
 PR #300 is squash-merged at `c2ec9c3100a39753d65f87da75ef3ce4610083e5`,
 staging-deployed by `31996291315`, and passed the focused read-only-output,
 Release Guard, affected shadow, Windows cold canary and deployment gates. Its
-full Flutter suite remains unverified after stopping at 521 tests.
+later dependency-ready full Flutter proof is closed by OPS-191 (864 passed,
+3 platform skips, no benign plugin noise).
 OPS-174 was the earlier reconciliation after the OPS-75 Phase 10 installer
 slice, created from exact live
 `origin/staging@75abf3d9d114a0d1e351fe84aa76f1f96dd98acf` after OPS-75.
@@ -803,7 +805,14 @@ god-helper.
   dependency batches and Go/deploy review all pass; zero deletion batches are
   authorized. Dependency bootstrap hardening remains an explicit residual
   risk and is not treated as a pass by this closure.
-- [ ] Run Phase 9 runtime waves and Phase 10 final consolidation.
+- [x] Run Phase 9 runtime waves and complete the approved characterization,
+  extraction, dependency-ready affected-consumer proof and authenticated
+  staging smoke. Remaining child release states are recorded in OPS-197.
+- [ ] Complete Phase 10 final consolidation and release evidence. The upstream
+  updater must first ship a tagged fix for multi-hunk `git merge-file` conflict
+  exits, then disposable status/doctor/update/conflict/continue/abort/recovery
+  proof must pass; OPS-72 remains `revise`/`do-not-promote` and OPS-78 retains
+  its cutover/SLO/release-window follow-up.
 
 Phase 8 inventory checkpoint (OPS-73):
 
@@ -3690,3 +3699,33 @@ the current checkpoint above is the sole active execution authority.
   validators, exact Harness/docs/verification runner with `stale=false`,
   internal-link/secret/mojibake scans and `git diff --check`. Rollback is one
   squash revert; task-local ignored dependency state is removed at finish.
+
+## Workflow checkpoint (OPS-197; residual QA reconciliation before promotion)
+
+- This docs-only slice starts from exact live
+  `origin/staging@9f634a8221d625759be4b60726fa0ff7ecaa867c` through the guarded
+  lifecycle start gate. The task worktree is isolated; canonical `staging`
+  remains clean and no runtime, dependency, archive or Harness DB path is in
+  scope.
+- Staging deploy `32104986808` passed prepare, Android, Windows, web/backend
+  publication, direct-origin routes, public health/version and final
+  checkpoint. Read-only authenticated Chrome smoke on `#/home`,
+  `#/sales-reports`, `#/payment-monitor`, `#/bank-statement` and `#/vietqr`
+  rendered the expected surfaces with zero console errors; no mutating form or
+  order/transfer/audio action was submitted. Behavior-specific proof remains
+  the exact Flutter/Nest/Go and affected-consumer test ladder.
+- Linear reconciliation recorded implementation/proof before status updates:
+  OPS-85..OPS-88, OPS-126, OPS-176 and OPS-196 are now `Ready for Release`;
+  OPS-74 and OPS-84 remain `Ready for Release`; OPS-72 and OPS-190 retain
+  `revise`/`do-not-promote`; OPS-75 retains the blocked-upstream updater gate;
+  OPS-78 retains cutover/SLO/release-window gaps; OPS-64 remains `In Progress`.
+- Phase 9 is execution-complete for the approved runtime waves. Phase 10 is
+  not complete: the consumer remains pinned to `harness-v0.1.8`,
+  `adoptionAllowed=false` and `patchOrForkAllowed=false`, and no promotion was
+  performed. `origin/main` is still `784e7f88e5647b5a25ff24528bb829b30d7052db`;
+  `origin/staging` is `9f634a8221d625759be4b60726fa0ff7ecaa867c`.
+- Required proof before publication: plan disposition, Harness retirement,
+  migration EOL, blocked-upstream and OPS-72 validators, exact
+  `verify-task` with `stale=false`, docs/link/secret/mojibake scans and
+  `git diff --check`. Rollback is one squash revert; no production promotion
+  is authorized by this slice.

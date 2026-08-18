@@ -18,13 +18,13 @@ Current active/release-pending authority:
 - [`OPS-53-redesign-chrome-audit-consolidation.md`](OPS-53-redesign-chrome-audit-consolidation.md)
   is the only current OPS-53 execution summary. Its nine fragments are history.
 - [`OPS-64-upstream-harness-repository-cleanup.md`](OPS-64-upstream-harness-repository-cleanup.md)
-  remains the initiative master plan; OPS-196 is the current production
-  reconciliation after OPS-195's disposition refresh and explicit
-  promotion, while OPS-194
-  is the last-reconciled checkpoint-authority hardening before that closure.
+  remains the initiative master plan; OPS-197 is the current residual-QA
+  reconciliation after OPS-196, while OPS-196 is the preceding production
+  reconciliation and OPS-194 is the preceding checkpoint-authority hardening.
   The prior `6716d89c` SHA is retained as OPS-193 historical evidence; the
-  current promoted release is `784e7f88`, and each new task must resolve live
-  `origin/staging` through the lifecycle start gate. The OPS-186
+  previous production release is `784e7f88`, live `origin/staging` is now
+  `9f634a82`, and no new promotion has been performed. Each new task must
+  resolve live `origin/staging` through the lifecycle start gate. The OPS-186
   task worktree,
   local branch and remote branch are cleaned. The execution-canary ledger is
   complete at 5/5 but remains `promotionEligible=false`; the selected
@@ -37,15 +37,16 @@ Current active/release-pending authority:
   observational.
   No profile is suppressed and no product failure is retried to green. The
   Harness status/doctor audit passes, while the upstream updater dry-run
-  remains blocked by its conflict-exit-code defect. The 79/80 (~98.75%)
-  checklist audit leaves only Phase 10 release gates open. User/Auth authority,
-  dependency-ready proof and authenticated Chrome QA now pass on the exact
-  staging release; bounded eligible children have production proof and were
-  reconciled to `Done` with per-issue comments, while nested Payment Monitor
-  children OPS-85..OPS-88 remain `Ready for QA`; production deployment now
-  passes on exact SHA `784e7f88`, with production workflow `32099976438` and
-  remote `main == staging`; the upstream updater defect is
-  still the remaining initiative gate. OPS-196 is the last-reconciled checkpoint;
+  remains blocked by its conflict-exit-code defect. The current checklist is
+  `80/81` (~98.77%): Phase 9 runtime waves are execution-complete, while
+  Phase 10 release evidence remains open. User/Auth authority, dependency-ready
+  proof and authenticated Chrome QA now pass on the exact staging release;
+  Payment Monitor children OPS-85..OPS-88 have exact-SHA smoke proof and are
+  `Ready for Release`, as are OPS-126, OPS-176 and OPS-196. The previous
+  production deployment passed on exact SHA `784e7f88` with workflow
+  `32099976438`; current remote `main` is intentionally behind live
+  `staging` until residual gates are resolved. OPS-197 is the current
+  last-reconciled checkpoint; OPS-196 is the preceding reconciliation;
   OPS-194 is the preceding production reconciliation;
   OPS-186 is the preceding reconciliation after PR #311 at `2d00c1be`;
   OPS-185 is the preceding reconciliation through PR #310 at `8c6c9ecc`;
