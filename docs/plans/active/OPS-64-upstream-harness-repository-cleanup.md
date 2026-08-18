@@ -4,17 +4,20 @@ Date: 2026-08-13
 
 ## Status
 
-Active — final Phase 10 release evidence is in progress. The current
-reconciliation checkpoint is OPS-198, created through the guarded lifecycle from exact live
-`origin/staging@98c3add52f95acbc803eff0ee8713284d53c3f5d` after OPS-207.
+Active — Phase 10 release proof is complete and production promotion is
+explicitly pending. The current reconciliation checkpoint is OPS-75, created
+through the guarded lifecycle from exact live
+`origin/staging@44382ae79c81aa40607ce60317b9148fe01d7ad4` after OPS-198.
 This release slice preserves all merged staging work and sanitized migration
 evidence. The upstream updater defect is an explicit owner-approved exception:
-the consumer remains pinned to `harness-v0.1.8`, with no fork or local patch;
-the product/release ladder still must pass before promotion. `origin/main`
+the consumer remains pinned to `harness-v0.1.8`, with no fork or local patch and
+no updater invocation in the release workflow. The product/release ladder and
+staging deploy passed; `origin/main`
 remains `784e7f88e5647b5a25ff24528bb829b30d7052db` until an explicit promotion.
-OPS-207 PR #332 is squash-merged at
-`98c3add52f95acbc803eff0ee8713284d53c3f5d` and staging deploy
-`32137502184` passed; its guarded lifecycle cleanup also passed.
+OPS-198 PR #333 is squash-merged at
+`44382ae79c81aa40607ce60317b9148fe01d7ad4` and staging deploy
+`32143135811` passed; its guarded lifecycle cleanup also passed. The final
+Phase 10 artifact is `docs/migrations/ops-75-final-release-proof.json`.
 OPS-200 PR #325 is squash-merged at `071b7a20afd69bbd9ceeb506fc10e3de6b531424`
 and staging deploy `32113834922` passes prepare, Android, Windows, web/backend
 publication, direct-origin routes, health/version and final checkpoint. Its
@@ -35,11 +38,12 @@ passed the exact-SHA release gates, and its guarded lifecycle cleanup passed.
 OPS-206 remains offline candidate-health/Home-parity evidence only; candidate
 start, drain, load/SLO and production gates remain open. OPS-72 remains the
 terminal `revise`/`do-not-promote` decision with OPS-199 as a separate measurable
-follow-up; OPS-75 is explicitly deferred by owner as a release exception; and
+follow-up; the upstream part of OPS-75 is explicitly deferred by owner as a
+release exception, while its product/release proof is complete; and
 OPS-76/OPS-77/OPS-79 remain long-term backlog bundles outside the Phase 0–10
-  checklist. OPS-64 remains `In Progress` until exact final-SHA release proof
-  and production deployment are recorded. The upstream exception is not a
-  claim that its updater defect was fixed.
+  checklist. OPS-64 remains `In Progress` until the explicit production
+  promotion and deployment are recorded. The upstream exception is not a claim
+  that its updater defect was fixed.
 The prior last-reconciled workflow checkpoint was
 OPS-187, created from
 exact live `origin/staging@97c04c982aaf7415893ccd6f63de3c767e3e2c43` after
@@ -828,14 +832,16 @@ god-helper.
 - [x] Run Phase 9 runtime waves and complete the approved characterization,
   extraction, dependency-ready affected-consumer proof and authenticated
   staging smoke. Remaining child release states are recorded in OPS-197.
-- [ ] Complete Phase 10 final consolidation and release evidence. The upstream
+- [x] Complete Phase 10 final consolidation and release evidence. The upstream
   updater defect is an explicit owner-approved exception and is not a
-  prerequisite for this release: keep `harness-v0.1.8` pinned, with no
-  fork/patch, and do not invoke the updater in the release workflow. The
-  product/release ladder, staging smoke and production promotion proof remain
-  mandatory. OPS-72 remains `revise`/`do-not-promote`; OPS-200 has closed the
-  OPS-78 authority contract, while OPS-201 owns the opt-in topology harness
-  before any operational cutover, drain, load/SLO or release-window rehearsal.
+  prerequisite for this release: `harness-v0.1.8` remains pinned, with no
+  fork/patch and no updater invocation in the release workflow. The exact
+  product/release ladder and staging deploy passed in
+  `docs/migrations/ops-75-final-release-proof.json`. Production promotion is
+  still a separate explicit operator action and has not occurred. OPS-72
+  remains `revise`/`do-not-promote`; OPS-200 has closed the OPS-78 authority
+  contract, while OPS-201 owns the opt-in topology harness before any
+  operational cutover, drain, load/SLO or release-window rehearsal.
 
 Phase 8 inventory checkpoint (OPS-73):
 
