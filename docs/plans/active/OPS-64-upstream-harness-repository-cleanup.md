@@ -3978,6 +3978,13 @@ the current checkpoint above is the sole active execution authority.
   disposition/fingerprint checks, and explicit production promotion. No
   candidate start, migration, traffic switch or load/SLO claim is inferred
   from this exception.
+- Pre-merge exact proof at implementation head
+  `66f0aede0d2d5a14912ac94b816109d835c08e0e` uses base
+  `98c3add52f95acbc803eff0ee8713284d53c3f5d`, all eight profiles, 41 commands,
+  fingerprint `025539f54edd2a4e45799765f0065df8ce7608ebf519a4d0145de3c42b86ac1b`
+  and `stale=false`; Flutter analyze, Nest build, Go test, platform security,
+  topology/candidate contracts and lifecycle tests pass. The post-merge
+  staging deploy and production promotion are still separate gates.
 - Until the exact promotion and production deploy are recorded, OPS-64 stays
   active and the plan stays under `docs/plans/active/`. After production
   proof, move it to `docs/plans/completed/` and preserve this exception in the

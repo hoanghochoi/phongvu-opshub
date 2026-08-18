@@ -69,6 +69,18 @@ export function validateEvidence(evidence, root = process.cwd()) {
     assert(scope?.[field] === false, `scope.${field} must remain false`);
   }
   assert(typeof evidence.rollback === "string" && evidence.rollback.includes("squash revert"), "rollback must be recorded");
+  const verification = evidence.verification;
+  assert(verification?.runner === "node scripts/verify-task.mjs", "verification runner is invalid");
+  assertRevision(verification?.base, "verification.base");
+  assertRevision(verification?.head, "verification.head");
+  assert(Array.isArray(verification?.profiles) && verification.profiles.length === 8, "verification profiles are incomplete");
+  assert(verification?.status === "passed", "final verification must pass");
+  assert(verification?.stale === false, "final verification must not be stale");
+  assert(verification?.commandCount === 41, "final verification command count is invalid");
+  assert(/^[a-f0-9]{64}$/i.test(String(verification?.fingerprint || "")), "final verification fingerprint is invalid");
+  assert(evidence.focusedProof?.flutterAnalyze === "passed", "Flutter proof is missing");
+  assert(evidence.focusedProof?.nestjsBuild === "passed", "Nest proof is missing");
+  assert(evidence.focusedProof?.goTest === "passed", "Go proof is missing");
   const upstreamException = evidence.upstreamException;
   assert(upstreamException?.decision === "defer-and-do-not-pursue-in-this-initiative", "upstream exception decision is invalid");
   assert(upstreamException?.approvedBy === "repository owner", "upstream exception authority is missing");

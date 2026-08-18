@@ -122,7 +122,27 @@
     "phase9": "execution-complete",
     "phase10": "release-proof-pending"
   },
-  "nextAction": "Run the exact final Phase 10 product/release ladder and authenticated staging smoke; the upstream updater is an explicit owner-approved exception and is not a release prerequisite.",
+  "verification": {
+    "runner": "node scripts/verify-task.mjs",
+    "base": "98c3add52f95acbc803eff0ee8713284d53c3f5d",
+    "head": "66f0aede0d2d5a14912ac94b816109d835c08e0e",
+    "profiles": ["harness", "docs", "verification-runner", "release", "flutter", "nestjs", "go-realtime", "deployment"],
+    "status": "passed",
+    "stale": false,
+    "commandCount": 41,
+    "durationMs": 210429,
+    "fingerprint": "025539f54edd2a4e45799765f0065df8ce7608ebf519a4d0145de3c42b86ac1b"
+  },
+  "focusedProof": {
+    "flutterAnalyze": "passed",
+    "nestjsBuild": "passed",
+    "goTest": "passed",
+    "platformSecurity": "passed",
+    "blueGreenTopology": "5/5",
+    "candidateHealthParity": "5/5",
+    "taskLifecycleTests": "16/16"
+  },
+  "nextAction": "Open the OPS-198 PR, squash-merge to staging, capture the exact staging deploy, then use the existing OPS-75 issue for final production release reconciliation; the upstream updater remains an explicit exception.",
   "upstreamException": {
     "decision": "defer-and-do-not-pursue-in-this-initiative",
     "approvedBy": "repository owner",
