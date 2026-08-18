@@ -18,17 +18,19 @@ Current active/release-pending authority:
 - [`OPS-53-redesign-chrome-audit-consolidation.md`](OPS-53-redesign-chrome-audit-consolidation.md)
   is the only current OPS-53 execution summary. Its nine fragments are history.
 - [`OPS-64-upstream-harness-repository-cleanup.md`](OPS-64-upstream-harness-repository-cleanup.md)
-  remains the initiative master plan; OPS-205 is the current reconciliation
-  after OPS-204, while OPS-200 is the merged OPS-78 authority contract,
-  OPS-201 is the merged opt-in blue/green topology harness slice, and OPS-204
-  is the merged offline migration/Home preflight. The
+  remains the initiative master plan; OPS-207 is the current reconciliation
+  after OPS-206, while OPS-200 is the merged OPS-78 authority contract,
+  OPS-201 is the merged opt-in blue/green topology harness slice, OPS-204
+  is the merged offline migration/Home preflight and OPS-206 is the merged
+  offline candidate-health/Home-parity preflight. The
   machine-readable residual ownership is recorded in
   [`ops-198-residual-gate-reconciliation.json`](../../migrations/ops-198-residual-gate-reconciliation.json)
   and [`ops-202-master-plan-reconciliation.json`](../../migrations/ops-202-master-plan-reconciliation.json)
   and [`ops-203-master-plan-reconciliation.json`](../../migrations/ops-203-master-plan-reconciliation.json)
-  and [`ops-205-master-plan-reconciliation.json`](../../migrations/ops-205-master-plan-reconciliation.json);
-  OPS-205 records the newer exact-SHA checkpoint in the master plan. The prior
-  production release is `784e7f88`, live `origin/staging` is now `516e246a`,
+  and [`ops-205-master-plan-reconciliation.json`](../../migrations/ops-205-master-plan-reconciliation.json)
+  and [`ops-207-master-plan-reconciliation.json`](../../migrations/ops-207-master-plan-reconciliation.json);
+  OPS-207 records the newer exact-SHA checkpoint in the master plan. The prior
+  production release is `784e7f88`, live `origin/staging` is now `d036994d`,
   and no new production promotion has been performed. Each new task must
   resolve live `origin/staging` through the lifecycle start gate. The OPS-200
   task worktree,
@@ -54,8 +56,10 @@ Current active/release-pending authority:
   `Ready for Release`, as are OPS-126, OPS-176 and OPS-196. The previous
   production deployment passed on exact SHA `784e7f88` with workflow
   `32099976438`; current remote `main` is intentionally behind live
-  `staging` until residual gates are resolved. OPS-205 is the current
-  last-reconciled checkpoint after OPS-204; OPS-204 is the preceding
+  `staging` until residual gates are resolved. OPS-207 is the current
+  last-reconciled checkpoint after OPS-206; OPS-206 is the preceding
+  candidate-health/Home-parity preflight, OPS-205 is the prior reconciliation
+  after OPS-204; OPS-204 is the preceding
   staging-deployed offline migration/Home preflight and OPS-203 is the
   preceding checkpoint after OPS-201; OPS-202 is the preceding
   residual-gate reconciliation; OPS-196 is the earlier production
