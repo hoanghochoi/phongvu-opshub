@@ -1,0 +1,69 @@
+{
+  "formatVersion": 1,
+  "issue": "OPS-202",
+  "sourceRevision": "071b7a20afd69bbd9ceeb506fc10e3de6b531424",
+  "previousRevision": "6fb2edda1070759d0c1a454ab57873d98d761723",
+  "originMain": "784e7f88e5647b5a25ff24528bb829b30d7052db",
+  "promotionPerformed": false,
+  "scope": "docs-only master-plan reconciliation after OPS-200",
+  "ops200": {
+    "pullRequest": 325,
+    "mergeSha": "071b7a20afd69bbd9ceeb506fc10e3de6b531424",
+    "stagingDeployRun": "32113834922",
+    "stagingDeployResult": "pass",
+    "linearState": "Ready for Release",
+    "lifecycleFinish": "pass",
+    "worktreeCleanup": "pass",
+    "remoteBranchCleanup": "pass"
+  },
+  "verification": {
+    "runner": "node scripts/verify-task.mjs",
+    "base": "6fb2edda1070759d0c1a454ab57873d98d761723",
+    "profiles": ["harness", "docs"],
+    "status": "passed",
+    "stale": false,
+    "toolchainTests": 106,
+    "diffCheck": "passed"
+  },
+  "nextAction": {
+    "issue": "OPS-201",
+    "parent": "OPS-78",
+    "state": "Backlog",
+    "scope": "opt-in blue-green topology harness with no traffic mutation",
+    "stopCondition": "do not switch traffic, run migrations or execute load until implementation and operational approval gates pass"
+  },
+  "residuals": [
+    {
+      "issue": "OPS-72",
+      "decision": "revise/do-not-promote",
+      "owner": "OPS-199",
+      "promotionEligible": false
+    },
+    {
+      "issue": "OPS-75",
+      "decision": "blocked-upstream",
+      "owner": "upstream tagged conflict-exit fix",
+      "pin": "harness-v0.1.8",
+      "patchOrForkAllowed": false
+    },
+    {
+      "issue": "OPS-76",
+      "decision": "backlog-follow-up"
+    },
+    {
+      "issue": "OPS-77",
+      "decision": "backlog-follow-up"
+    },
+    {
+      "issue": "OPS-79",
+      "decision": "backlog-follow-up"
+    }
+  ],
+  "checklist": {
+    "completed": 80,
+    "total": 81,
+    "percentage": 98.77,
+    "phase9": "execution-complete",
+    "phase10": "open"
+  }
+}
