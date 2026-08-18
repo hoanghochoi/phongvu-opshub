@@ -59,6 +59,20 @@ profiles are additive; fingerprints include Git state, runner/config hashes
 and command definitions. Exit codes are `0` pass, `2` contract, `3`
 product/test, `4` stale and `5` environment/infrastructure.
 
+The OPS-78 migration/Home preflight is intentionally offline and fail-closed:
+
+```text
+node scripts/verify-ops204-preflight.mjs
+node scripts/verify-ops204-preflight.mjs --json
+```
+
+It hash-binds the previous/active/candidate identity fixture, the repository
+Home migration SQL/rollback inventory, OPS-201 topology evidence and the
+existing Home 1/7/30/90 parity/SLO contract. It rejects destructive or
+one-way SQL, stale source bytes, unsafe rollback metadata and any traffic,
+migration, load, Caddy, WebSocket or production claim. A pass is readiness
+evidence only: it never authorizes staging mutation or promotion.
+
 CI uses `scripts/verify-task-shadow.mjs` in additive shadow mode. It compares
 auto-selected profiles with the full ladder and uploads a sanitized schema-v3
 JSON report; the existing blocking release checks remain unchanged. The report

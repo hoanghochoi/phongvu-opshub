@@ -1,0 +1,183 @@
+{
+  "formatVersion": 1,
+  "issue": "OPS-204",
+  "parentIssue": "OPS-78",
+  "mode": "offline-preflight",
+  "status": "passed",
+  "generatedAtUtc": "2026-08-18T00:00:00.000Z",
+  "baseRevision": "28e834aefff4623ac9d6772d3f4306f9a6aa7e17",
+  "releaseIdentities": [
+    {
+      "role": "previous",
+      "releaseId": "release-previous-fixture",
+      "commitSha": "1111111111111111111111111111111111111111",
+      "imageDigests": [
+        "sha256:1111111111111111111111111111111111111111111111111111111111111111"
+      ],
+      "configDigest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "artifactManifestSha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "source": "offline-fixture"
+    },
+    {
+      "role": "active",
+      "releaseId": "release-active-fixture",
+      "commitSha": "2222222222222222222222222222222222222222",
+      "imageDigests": [
+        "sha256:2222222222222222222222222222222222222222222222222222222222222222"
+      ],
+      "configDigest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "artifactManifestSha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "source": "offline-fixture"
+    },
+    {
+      "role": "candidate",
+      "releaseId": "release-candidate-fixture",
+      "commitSha": "3333333333333333333333333333333333333333",
+      "imageDigests": [
+        "sha256:3333333333333333333333333333333333333333333333333333333333333333"
+      ],
+      "configDigest": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "artifactManifestSha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "source": "offline-fixture"
+    }
+  ],
+  "migration": {
+    "mode": "expand-contract",
+    "executionPerformed": false,
+    "databaseDowngradeAllowed": false,
+    "inventoryRoot": "backend-nest/prisma/migrations",
+    "inventorySha256": "b38687e1106317565e57de1fa71fbac6e6de251c9627d5677b45eb34329630f0",
+    "inventory": [
+      {
+        "id": "20260714200000_home_summary_near_realtime",
+        "path": "backend-nest/prisma/migrations/20260714200000_home_summary_near_realtime/migration.sql",
+        "rollbackPath": "backend-nest/prisma/migrations/20260714200000_home_summary_near_realtime/rollback.sql",
+        "sqlSha256": "fa792bed79df728c1ec21def8789c9f3340709096068b6489d044cb2da6bb496",
+        "rollbackSha256": "8c4cc2890fcea58251ceb92d84215885c22e87bd21b059b9857fef062d3603ac",
+        "phase": "expand",
+        "destructive": false,
+        "oneWay": false,
+        "previousColorReadable": true,
+        "candidateColorReadable": true,
+        "rollbackSafe": true
+      },
+      {
+        "id": "20260715113000_home_projection_map_load_shedding",
+        "path": "backend-nest/prisma/migrations/20260715113000_home_projection_map_load_shedding/migration.sql",
+        "rollbackPath": "backend-nest/prisma/migrations/20260715113000_home_projection_map_load_shedding/rollback.sql",
+        "sqlSha256": "f8b3be762012f1306c5f38be1cb83205cd53cbff5ef91d900df858f012057ae6",
+        "rollbackSha256": "3e21a5d1c358561db0c18e5d3e07df28c7b962607a7b2b10fd1724d072e8da0f",
+        "phase": "expand",
+        "destructive": false,
+        "oneWay": false,
+        "previousColorReadable": true,
+        "candidateColorReadable": true,
+        "rollbackSafe": true
+      },
+      {
+        "id": "20260720143000_home_projection_phase1_closure",
+        "path": "backend-nest/prisma/migrations/20260720143000_home_projection_phase1_closure/migration.sql",
+        "rollbackPath": "backend-nest/prisma/migrations/20260720143000_home_projection_phase1_closure/rollback.sql",
+        "sqlSha256": "606e967b6fd049a7d93ca381e04704bdef3463920d1c51acefb42d7a2c47d7df",
+        "rollbackSha256": "d6ba011a5d7781caacdd506ceda980b39891b188b70fac0186aa51d21c817ccf",
+        "phase": "expand",
+        "destructive": false,
+        "oneWay": false,
+        "previousColorReadable": true,
+        "candidateColorReadable": true,
+        "rollbackSafe": true
+      },
+      {
+        "id": "20260725011500_home_projection_deadlock_lock_order",
+        "path": "backend-nest/prisma/migrations/20260725011500_home_projection_deadlock_lock_order/migration.sql",
+        "rollbackPath": "backend-nest/prisma/migrations/20260725011500_home_projection_deadlock_lock_order/rollback.sql",
+        "sqlSha256": "42e1c2c865afa9fb1ce6f8f68cfb11e14f8cfabd62370ff776b9dcdd29217295",
+        "rollbackSha256": "5befc12f57b6d699ecdbc21e5e67a1666f9b75615ca857e339c74e4b97b3a1b0",
+        "phase": "expand",
+        "destructive": false,
+        "oneWay": false,
+        "previousColorReadable": true,
+        "candidateColorReadable": true,
+        "rollbackSafe": true
+      }
+    ],
+    "contractPlan": {
+      "status": "deferred",
+      "requiresInactiveColor": true,
+      "executionPerformed": false
+    }
+  },
+  "rollback": {
+    "targetReleaseId": "release-previous-fixture",
+    "releasePointerRestorable": true,
+    "oldArtifactsRetained": true,
+    "databaseDowngradeAttempted": false,
+    "observationWindowSeconds": 120
+  },
+  "homeProof": {
+    "contractSha256": "0c4dbfdcaff8457195e4e98161e06da00f8aaba69f868699e05d68054efe9384",
+    "httpProofSha256": "3a25e01b11a28e58f08948011e53b979df4f003b6c0ddc2122daa3ed4db9ae7a",
+    "profileSha256": "da49beff1272cddcde60d627a541ac2bfb92d825b61f9623b5f8a13c8a58ce3d",
+    "runbookSha256": "2f734ae0e97285d8581e6d37b21ee900a31317941c5b4f30c5f16dc834742e12",
+    "routeDays": [1, 7, 30, 90],
+    "pairedVariants": true,
+    "syntheticUsers": 60,
+    "httpVus": 250,
+    "httpRequests": 2000,
+    "targetRps": 100,
+    "targetSockets": 60,
+    "latencyMs": {
+      "p50": 250,
+      "p95": 500,
+      "p99": 1000,
+      "max": 3000
+    },
+    "unexpected429": 0,
+    "transportOr5xx": 0,
+    "cleanup": "verify-empty",
+    "runPerformed": false
+  },
+  "safety": {
+    "stagingMutationPerformed": false,
+    "trafficSwitchAllowed": false,
+    "trafficSwitchPerformed": false,
+    "migrationPerformed": false,
+    "loadRunPerformed": false,
+    "productionPromotion": false,
+    "databaseTouched": false,
+    "caddyReloadPerformed": false,
+    "websocketDrainObserved": false,
+    "promotionEligible": false,
+    "topologyOwner": "OPS-201"
+  },
+  "sourceFiles": [
+    {
+      "path": "docs/decisions/0030-zero-downtime-staging-cutover-and-home-slo-proof.md",
+      "sha256": "53347cb58e3abc22a7fea9174840819abca0c29f51a28ae806a248fe071c40a1"
+    },
+    {
+      "path": "deploy/staging/load-proof-runbook.md",
+      "sha256": "2f734ae0e97285d8581e6d37b21ee900a31317941c5b4f30c5f16dc834742e12"
+    },
+    {
+      "path": "scripts/load/opshub-home-phase1-contract.mjs",
+      "sha256": "0c4dbfdcaff8457195e4e98161e06da00f8aaba69f868699e05d68054efe9384"
+    },
+    {
+      "path": "scripts/load/opshub-home-phase1-http-proof.js",
+      "sha256": "3a25e01b11a28e58f08948011e53b979df4f003b6c0ddc2122daa3ed4db9ae7a"
+    },
+    {
+      "path": "scripts/load/opshub-staging-home-profile.json",
+      "sha256": "da49beff1272cddcde60d627a541ac2bfb92d825b61f9623b5f8a13c8a58ce3d"
+    },
+    {
+      "path": "deploy/staging/blue-green-topology.mjs",
+      "sha256": "bced048bd58c31189987efb9546d18b59d7d5612f29d1990ccb7ece05e1d2013"
+    },
+    {
+      "path": "docs/migrations/ops-201-blue-green-topology-evidence.json",
+      "sha256": "8a13a3cc1c879e126fb0ba09f2809c568f7918d352fe2f395a3065d544a45e20"
+    }
+  ]
+}

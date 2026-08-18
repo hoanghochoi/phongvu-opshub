@@ -28,6 +28,7 @@ export const PROFILES = Object.freeze([
       /^scripts\/bin\/harness(?:-cli)?\.exe\.sha256$/,
       /^scripts\/verify-ops193-upstream-release\.mjs$/,
       /^scripts\/verify-ops198-residual-gates\.mjs$/,
+      /^scripts\/verify-ops204-preflight\.mjs$/,
       /^tests\/(?:README\.md|(?:bootstrap|fixtures|workflow)\/)/,
       /^scripts\/(?:agent-harness-block|archive-harness|build-harness|collect-(?:harness|artifact-inventory|ops72-shadow-metrics|ops72-failure-injection|ops72-live-shadow-evidence)|harness(?:-|$)|install-harness|materialize-core-state|promote-harness|review-harness-disposition|task-lifecycle|test-task-lifecycle|verify-(?:artifact-inventory|core|harness|materialized|migration-eol|ops72-final-decision|ops72-live-shadow-evidence|ops72-shadow|ops72-failure-injection|plan-disposition|retained-owner-review|revision|task-shadow)|validate-changeset-rebuild)/,
       /^tests\/(?:adapter|boundary|changesets|ci|coherence|core|protocol|snapshot|worktrees)\//,
@@ -111,6 +112,21 @@ export const PROFILES = Object.freeze([
         argv: [
           "--test",
           "tests/migration/verify-ops193-upstream-release.test.mjs",
+        ],
+      },
+      {
+        id: "ops204-migration-home-preflight-contract",
+        cwd: ".",
+        executable: process.execPath,
+        argv: ["scripts/verify-ops204-preflight.mjs"],
+      },
+      {
+        id: "ops204-migration-home-preflight-contract-tests",
+        cwd: ".",
+        executable: process.execPath,
+        argv: [
+          "--test",
+          "tests/migration/verify-ops204-preflight.test.mjs",
         ],
       },
       {
