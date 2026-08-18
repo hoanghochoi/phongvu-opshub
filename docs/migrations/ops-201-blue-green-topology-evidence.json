@@ -2,7 +2,9 @@
   "formatVersion": 1,
   "issue": "OPS-201",
   "baseRevision": "e6842944e5425222b45a344b79e389a0b8db3492",
-  "implementationCommit": "f341d2b6",
+  "implementationCommit": "69639208c5556c6b1a14fb116edbe1326684b977",
+  "mergeCommit": "2b0a4987f1d0a5f1334decf973af5518911e6c2a",
+  "stagingDeployRun": "32120938182",
   "scope": "opt-in no-traffic-mutation blue-green topology harness",
   "changedPaths": [
     "deploy/home-server/Caddyfile.bluegreen.template",

@@ -1,0 +1,89 @@
+{
+  "formatVersion": 1,
+  "issue": "OPS-203",
+  "sourceRevision": "2b0a4987f1d0a5f1334decf973af5518911e6c2a",
+  "previousRevision": "e6842944e5425222b45a344b79e389a0b8db3492",
+  "originMain": "784e7f88e5647b5a25ff24528bb829b30d7052db",
+  "promotionPerformed": false,
+  "scope": "docs-only Master Plan and OPS-201 evidence reconciliation after staging merge",
+  "ops201": {
+    "pullRequest": 327,
+    "implementationRevision": "69639208c5556c6b1a14fb116edbe1326684b977",
+    "mergeSha": "2b0a4987f1d0a5f1334decf973af5518911e6c2a",
+    "stagingDeployRun": "32120938182",
+    "stagingDeployResult": "pass",
+    "lifecycleFinish": "pass",
+    "worktreeCleanup": "pass",
+    "remoteBranchCleanup": "pass",
+    "evidence": "docs/migrations/ops-201-blue-green-topology-evidence.json"
+  },
+  "verification": {
+    "runner": "node scripts/verify-task.mjs",
+    "base": "e6842944e5425222b45a344b79e389a0b8db3492",
+    "profiles": [
+      "harness",
+      "docs",
+      "verification-runner",
+      "deployment",
+      "release"
+    ],
+    "status": "passed",
+    "stale": false,
+    "resultFile": "tmp/ops-203-verify.json",
+    "durationMs": 52705,
+    "toolchainTests": 106,
+    "topologyTests": "5/5",
+    "composeConfig": "passed",
+    "platformSecurity": "passed",
+    "runtimeRelease": "passed",
+    "pullRequestChecks": 4
+  },
+  "residuals": [
+    {
+      "issue": "OPS-72",
+      "decision": "revise/do-not-promote",
+      "owner": "OPS-199",
+      "promotionEligible": false
+    },
+    {
+      "issue": "OPS-75",
+      "decision": "blocked-upstream",
+      "owner": "tagged upstream conflict-exit fix",
+      "pin": "harness-v0.1.8",
+      "patchOrForkAllowed": false
+    },
+    {
+      "issue": "OPS-78",
+      "decision": "gated-follow-up",
+      "owner": "next bounded child",
+      "nextAction": "offline migration-compatibility and Home-proof preflight before any staging mutation"
+    },
+    {
+      "issue": "OPS-76",
+      "decision": "backlog-follow-up"
+    },
+    {
+      "issue": "OPS-77",
+      "decision": "backlog-follow-up"
+    },
+    {
+      "issue": "OPS-79",
+      "decision": "backlog-follow-up"
+    }
+  ],
+  "checklist": {
+    "completed": 80,
+    "total": 81,
+    "percentage": 98.77,
+    "phase9": "execution-complete",
+    "phase10": "open"
+  },
+  "scopeGuard": {
+    "runtimeChanged": false,
+    "dependencyChanged": false,
+    "archiveChanged": false,
+    "harnessDbChanged": false,
+    "productionPromotion": false
+  },
+  "rollback": "One squash revert; no runtime, dependency, archive, Harness DB or production mutation."
+}
