@@ -4,11 +4,11 @@ Date: 2026-08-13
 
 ## Status
 
-Active — the current upstream-release recheck checkpoint is OPS-193, created
-from exact live `origin/staging@6716d89c658e179b1082b84a537e59f721922b54`
-after OPS-192. The branch/worktree is bounded to sanitized upstream release
-evidence and Linear release tracking; no runtime source or dependency contract
-is changed.
+Active — the current production-reconciliation checkpoint is OPS-194, created
+from exact live `origin/staging@310da2cfd01fe55e2c00ac211bb40a9f6135a69e`
+after OPS-193 and the explicit production promotion. The branch/worktree is
+bounded to release evidence and plan/Linear reconciliation; no runtime source
+or dependency contract is changed.
 The prior last-reconciled workflow checkpoint was
 OPS-187, created from
 exact live `origin/staging@97c04c982aaf7415893ccd6f63de3c767e3e2c43` after
@@ -82,9 +82,11 @@ authority semantics. OPS-191 closes the current User/Auth authority and
 dependency-ready affected-proof gate. OPS-192 records authenticated staging
 Chrome QA and advances eligible child issues to `Ready for Release`; OPS-193
 rechecks the upstream core tags and confirms that the updater fix is still
-absent. The
-remaining final gates are the upstream updater exit-code defect and production
-deployment. None of these open gates is weakened by this reconciliation.
+absent. Production promotion and deployment are now recorded by OPS-194, but
+the upstream updater exit-code defect remains an open final gate. The consumer
+pin stays at `harness-v0.1.8`, adoption remains fail-closed, and no fork or
+local patch is permitted. None of these open gates is weakened by this
+reconciliation.
 OPS-165 is the preceding master-plan reconciliation after OPS-164.
 OPS-163 is the preceding master-plan reconciliation after OPS-162.
 OPS-160 UserAdminMutationService characterization is squash-merged through PR
@@ -3619,3 +3621,34 @@ the current checkpoint above is the sole active execution authority.
   toolchain-boundary scans, link/secret/mojibake checks and `git diff --check`.
   Rollback is one squash revert; no runtime, dependency, Harness DB/archive or
   production mutation.
+
+## Workflow checkpoint (OPS-194; production promotion and release reconciliation)
+
+- This docs-only reconciliation starts from exact live
+  `origin/staging@310da2cfd01fe55e2c00ac211bb40a9f6135a69e` on branch
+  `codex/ops-194-phase10-production-reconcile`; the guarded lifecycle start
+  hydrated the task-local Nest/Prisma and Flutter roots, while canonical
+  staging stayed clean and unchanged.
+- The pre-push production gate passed with a clean worktree, fast-forward
+  ancestry, explicit QA/release confirmation and GitHub CI verification
+  (`checks=4`, `ignoredPromotionChecks=0`). Promotion workflow run
+  `32092645023` ran from `main` and fast-forwarded only the QA-approved
+  staging SHA. A fresh fetch proves `origin/main` and `origin/staging` both
+  equal `310da2cfd01fe55e2c00ac211bb40a9f6135a69e`.
+- Production deploy run `32092751844` passed end-to-end: Android job
+  `95578092677`, Windows job `95578092684`, and deploy job `95580015598` all
+  passed; web build, artifact upload, backend/version publication, public
+  health/version verification and the final production checkpoint passed.
+- Staging authenticated Chrome QA remains the approved visual smoke evidence
+  recorded by OPS-192; this slice does not invent a production visual target
+  or submit mutating forms. No runtime/API/DTO/DI/UI/data/dependency/Harness
+  archive path changed.
+- The checklist remains `79/80` (~98.75%) rather than being declared complete:
+  the upstream updater multi-hunk conflict-exit defect is still unresolved.
+  Keep the `harness-v0.1.8` consumer pin, `adoptionAllowed=false`, and the
+  no-fork/no-patch policy until a tagged upstream fix and fresh lifecycle proof
+  pass. Residual/revise issues such as OPS-72 remain open.
+- Required proof before publication: docs/plan disposition, internal links,
+  secret/mojibake scans and `git diff --check`; the final Linear proof note is
+  recorded before OPS-194 advances. Rollback is one squash revert; production
+  rollback is owned by the release workflow if a later release check fails.
