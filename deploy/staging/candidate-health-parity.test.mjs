@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
-import { validateEvidence } from "./candidate-health-parity.mjs";
+import { textSha256, validateEvidence } from "./candidate-health-parity.mjs";
 
 const fixture = JSON.parse(
   readFileSync("docs/migrations/ops-206-candidate-health-parity.json", "utf8"),
@@ -18,6 +18,18 @@ test("accepts the hash-bound offline candidate health/Home parity preflight", ()
     homeRanges: 4,
     promotionEligible: false,
   });
+});
+
+test("normalizes tracked source EOL before hashing", () => {
+  const source = readFileSync("docs/migrations/ops-204-migration-home-preflight.json");
+  const crlf = Buffer.from(
+    source.toString("utf8").replace(/\r\n/g, "\n").replace(/\n/g, "\r\n"),
+  );
+  const expected = fixture.sourceFiles.find(
+    (entry) => entry.path === "docs/migrations/ops-204-migration-home-preflight.json",
+  ).sha256;
+  assert.equal(textSha256(source), expected);
+  assert.equal(textSha256(crlf), expected);
 });
 
 test("rejects release identity drift and same-color candidates", () => {

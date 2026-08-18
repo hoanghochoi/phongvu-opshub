@@ -96,13 +96,13 @@
     "promotionEligible": false
   },
   "sourceFiles": [
-    { "path": "docs/decisions/0030-zero-downtime-staging-cutover-and-home-slo-proof.md", "sha256": "53347cb58e3abc22a7fea9174840819abca0c29f51a28ae806a248fe071c40a1" },
+    { "path": "docs/decisions/0030-zero-downtime-staging-cutover-and-home-slo-proof.md", "sha256": "cf1c76fa8118f8e8e84c27335d605927077d402eb1b2857f3158c72218301456" },
     { "path": "deploy/staging/blue-green-topology.mjs", "sha256": "bced048bd58c31189987efb9546d18b59d7d5612f29d1990ccb7ece05e1d2013" },
-    { "path": "deploy/home-server/Caddyfile.bluegreen.template", "sha256": "2f73bd2968bb4d2128876e0cec9f73bde2204218077ff7e4d2a8178ef6477574" },
+    { "path": "deploy/home-server/Caddyfile.bluegreen.template", "sha256": "38dc97d202b2b7fc1bcc22e763d909b2e66a24813b19cd330fd7ec25adc341e9" },
     { "path": "scripts/load/opshub-home-phase1-contract.mjs", "sha256": "0c4dbfdcaff8457195e4e98161e06da00f8aaba69f868699e05d68054efe9384" },
-    { "path": "scripts/load/opshub-home-phase1-http-proof.js", "sha256": "3a25e01b11a28e58f08948011e53b979df4f003b6c0ddc2122daa3ed4db9ae7a" },
+    { "path": "scripts/load/opshub-home-phase1-http-proof.js", "sha256": "c32825346111b9b3eb8334340de03b96215652b63a40f2e80a547800927bfbab" },
     { "path": "scripts/load/opshub-staging-targets.mjs", "sha256": "96861e1a61223c1c2580fd03d2e90f5f81cb2bf447023e0e0fd0efea7b56449f" },
-    { "path": "docs/migrations/ops-204-migration-home-preflight.json", "sha256": "f0b61b33e97382a849714ca00488888454cd5b10b121c81b3165986b1016f00f" }
+    { "path": "docs/migrations/ops-204-migration-home-preflight.json", "sha256": "b8db659783f59f6edea635bd5fefe17aabb8041accb6dba0681c97e91ed4c7ab" }
   ],
   "nextAction": "OPS-78 requires an operationally approved candidate-start slice before any live staging mutation; keep this offline preflight promotion-ineligible.",
   "rollback": "One squash revert; no runtime, traffic, migration, load or production rollback is required."

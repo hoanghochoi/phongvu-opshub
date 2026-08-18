@@ -66,6 +66,13 @@ function sha256(bytes) {
   return createHash("sha256").update(bytes).digest("hex");
 }
 
+// Hash tracked text after normalizing checkout EOL so evidence is portable
+// between Windows worktrees and LF-based CI checkouts.
+export function textSha256(bytes) {
+  const normalized = Buffer.from(bytes.toString("utf8").replace(/\r\n/g, "\n").replace(/\r/g, "\n"));
+  return sha256(normalized);
+}
+
 function resolveInsideRoot(repositoryRoot, relativePath, label) {
   requireCondition(
     typeof relativePath === "string" &&
@@ -224,7 +231,7 @@ function validateSourceFiles(sourceFiles, repositoryRoot) {
     assertSha(entry.sha256, `sourceFiles.${entry.path}.sha256`);
     requireCondition(!entries.has(entry.path), `duplicate source file: ${entry.path}`);
     requireCondition(existsSync(absolute), `source file is missing: ${entry.path}`);
-    requireCondition(sha256(readFileSync(absolute)) === entry.sha256, `source file digest mismatch: ${entry.path}`);
+    requireCondition(textSha256(readFileSync(absolute)) === entry.sha256, `source file digest mismatch: ${entry.path}`);
     entries.set(entry.path, entry.sha256);
   }
   for (const required of REQUIRED_SOURCE_PATHS) {

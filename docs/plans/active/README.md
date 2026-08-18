@@ -33,7 +33,7 @@ Current active/release-pending authority:
   and [`ops-207-master-plan-reconciliation.json`](../../migrations/ops-207-master-plan-reconciliation.json)
   and [`ops-75-final-release-proof.json`](../../migrations/ops-75-final-release-proof.json);
   OPS-75 records the latest exact-SHA checkpoint and release exception. The prior
-  production release is `784e7f88`, live `origin/staging` is now `44382ae7`,
+  production release is `784e7f88`, live `origin/staging` is now `41fe711c`,
   and no new production promotion has been performed. The current child may
   proceed only through the release ladder and explicit promotion gate. The OPS-200
   task worktree,
@@ -62,7 +62,8 @@ Current active/release-pending authority:
   production deployment passed on exact SHA `784e7f88` with workflow
   `32099976438`; current remote `main` is intentionally behind live
   `staging` until the final release decision. OPS-75 is the latest
-  last-reconciled checkpoint after OPS-198; OPS-198 is the preceding
+  last-reconciled checkpoint after OPS-198; its post-merge proof normalized a
+  sanitized migration digest drift without executing migration. OPS-198 is the preceding
   residual-gate reconciliation and OPS-207 is the preceding
   candidate-health/Home-parity preflight, OPS-205 is the prior reconciliation
   after OPS-204; OPS-204 is the preceding
