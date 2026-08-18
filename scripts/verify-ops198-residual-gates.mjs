@@ -69,6 +69,27 @@ export function validateEvidence(evidence, root = process.cwd()) {
     assert(scope?.[field] === false, `scope.${field} must remain false`);
   }
   assert(typeof evidence.rollback === "string" && evidence.rollback.includes("squash revert"), "rollback must be recorded");
+  const verification = evidence.verification;
+  assert(verification?.runner === "node scripts/verify-task.mjs", "verification runner is invalid");
+  assertRevision(verification?.base, "verification.base");
+  assertRevision(verification?.head, "verification.head");
+  assert(Array.isArray(verification?.profiles) && verification.profiles.length === 8, "verification profiles are incomplete");
+  assert(verification?.status === "passed", "final verification must pass");
+  assert(verification?.stale === false, "final verification must not be stale");
+  assert(verification?.commandCount === 41, "final verification command count is invalid");
+  assert(/^[a-f0-9]{64}$/i.test(String(verification?.fingerprint || "")), "final verification fingerprint is invalid");
+  assert(evidence.focusedProof?.flutterAnalyze === "passed", "Flutter proof is missing");
+  assert(evidence.focusedProof?.nestjsBuild === "passed", "Nest proof is missing");
+  assert(evidence.focusedProof?.goTest === "passed", "Go proof is missing");
+  const upstreamException = evidence.upstreamException;
+  assert(upstreamException?.decision === "defer-and-do-not-pursue-in-this-initiative", "upstream exception decision is invalid");
+  assert(upstreamException?.approvedBy === "repository owner", "upstream exception authority is missing");
+  assert(typeof upstreamException.reason === "string" && upstreamException.reason.trim(), "upstream exception reason is required");
+  assert(typeof upstreamException.productionUse === "string" && upstreamException.productionUse.trim(), "upstream exception production boundary is required");
+  assert(typeof upstreamException.followUp === "string" && upstreamException.followUp.trim(), "upstream exception follow-up is required");
+  const upstreamResidual = residuals.find((residual) => residual.issue === "OPS-75");
+  assert(upstreamResidual?.status === "deferred-by-owner", "OPS-75 must be explicitly deferred by owner");
+  assert(upstreamResidual?.promotionDecision === "exception-approved", "OPS-75 exception approval is missing");
   assertNoLocalPathOrIdentity(evidence);
   return { status: "passed", issue: evidence.issue, residualCount: residuals.length };
 }
