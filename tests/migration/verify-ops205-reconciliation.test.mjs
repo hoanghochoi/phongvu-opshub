@@ -1,0 +1,38 @@
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import test from "node:test";
+
+import { validateEvidence } from "../../scripts/verify-ops205-reconciliation.mjs";
+
+const fixture = JSON.parse(
+  readFileSync("docs/migrations/ops-205-master-plan-reconciliation.json", "utf8"),
+);
+
+test("accepts exact OPS-204 merge/deploy proof and residual ownership", () => {
+  assert.deepEqual(validateEvidence(fixture), {
+    status: "passed",
+    issue: "OPS-205",
+    residualCount: 7,
+    sourceRevision: "516e246ad10694286094a73c436b76c59b1f0011",
+  });
+});
+
+test("rejects stale merge/deploy identity or a promoted checkpoint", () => {
+  const invalid = structuredClone(fixture);
+  invalid.ops204.mergeSha = "0".repeat(40);
+  assert.throws(() => validateEvidence(invalid), /ops204\.mergeSha/);
+
+  const promoted = structuredClone(fixture);
+  promoted.promotionPerformed = true;
+  assert.throws(() => validateEvidence(promoted), /promotion/);
+});
+
+test("rejects missing residual ownership or absolute path leakage", () => {
+  const invalid = structuredClone(fixture);
+  invalid.residuals[1].issue = "OPS-72";
+  assert.throws(() => validateEvidence(invalid), /duplicate residual/);
+
+  const leaked = structuredClone(fixture);
+  leaked.residuals[0].nextAction = "C:\\Users\\someone\\private";
+  assert.throws(() => validateEvidence(leaked), /absolute local path/);
+});

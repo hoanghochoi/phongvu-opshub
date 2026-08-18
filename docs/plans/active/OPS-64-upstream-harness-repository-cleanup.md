@@ -4,11 +4,12 @@ Date: 2026-08-13
 
 ## Status
 
-Active — the current reconciliation checkpoint is OPS-203, created through the
+Active — the current reconciliation checkpoint is OPS-205, created through the
 guarded lifecycle from exact live
-`origin/staging@2b0a4987f1d0a5f1334decf973af5518911e6c2a` after OPS-201.
+`origin/staging@516e246ad10694286094a73c436b76c59b1f0011` after OPS-204.
 This docs/evidence-only slice binds the merged OPS-201 topology harness and
-refreshes its exact implementation/merge evidence without changing runtime
+OPS-204 offline migration/Home preflight, refreshing exact implementation,
+merge and staging-deploy evidence without changing runtime
 source, dependency contracts, archive or Harness DB paths. `origin/main`
 remains `784e7f88e5647b5a25ff24528bb829b30d7052db`; no production promotion is
 performed by this slice. The live staging branch remains production-gated.
@@ -22,7 +23,12 @@ production deployment. OPS-201 PR #327 is squash-merged at
 `2b0a4987f1d0a5f1334decf973af5518911e6c2a`, staging deploy `32120938182`
 passed, and guarded lifecycle cleanup removed its worktree and branches. The
 merged OPS-201 slice remains opt-in and no-traffic/no-migration; its exact
-evidence is refreshed by OPS-203. OPS-72 remains the
+evidence is refreshed by OPS-203. OPS-204 PR #329 is squash-merged at
+`516e246ad10694286094a73c436b76c59b1f0011`, staging deploy `32127936496`
+passed exact-SHA publication and health checkpoints, and its task worktree,
+local branch and remote branch are cleaned. OPS-204 remains `Ready for QA`
+because it is offline readiness evidence only; candidate health, drain,
+load/SLO and production gates remain open. OPS-72 remains the
 terminal `revise`/`do-not-promote` decision with OPS-199 as a separate measurable
 follow-up; OPS-75 remains blocked by the upstream updater defect; and
 OPS-76/OPS-77/OPS-79 remain long-term backlog bundles outside the Phase 0–10
@@ -3838,3 +3844,37 @@ the current checkpoint above is the sole active execution authority.
   exact `verify-task` with `stale=false`, docs/link/secret/mojibake scans and
   `git diff --check`. Rollback is one squash revert; no runtime or release
   mutation.
+
+## Workflow checkpoint (OPS-205; post-OPS-204 staging reconciliation)
+
+- This docs/evidence-only slice starts from exact live
+  `origin/staging@516e246ad10694286094a73c436b76c59b1f0011` through the guarded
+  lifecycle. Canonical staging is clean and aligned; the OPS-204 worktree,
+  local branch and remote branch are removed after finish cleanup.
+- OPS-204 PR #329 is squash-merged at
+  `516e246ad10694286094a73c436b76c59b1f0011`; implementation head was
+  `a2585f3b1477e72268af1eba93a7f4cbd31fe5ff`; staging deploy `32127936496`
+  passed Android, Windows, web/backend publication, direct-origin,
+  health/version and final checkpoint. The offline preflight evidence binds
+  four real Home migration SQL/rollback pairs and keeps `promotionEligible=false`.
+- Exact pre-merge verification used base `28e834aefff4623ac9d6772d3f4306f9a6aa7e17`,
+  head `a2585f3b1477e72268af1eba93a7f4cbd31fe5ff`, profiles
+  `harness`, `docs`, `verification-runner`, 26 commands and `stale=false`.
+  PR checks were all pass, including cold Nest/Flutter dependency canary and
+  the OPS-72 execution canary; no affected path was unmatched.
+- OPS-78 may now open the next bounded candidate health/parity preflight. It
+  must preserve the OPS-204 and OPS-201 no-mutation boundaries: no staging
+  migration execution, Caddy reload, traffic switch, WebSocket drain
+  observation or load/SLO run in this reconciliation slice.
+- OPS-72 remains terminal `revise`/`do-not-promote` with OPS-199 separate;
+  OPS-75 remains blocked-upstream on `harness-v0.1.8` with no fork/patch;
+  OPS-76/OPS-77/OPS-79 remain backlog follow-ups outside Phase 0–10.
+- Phase 9 remains execution-complete and Phase 10 remains open at `80/81`
+  (~98.77%); production promotion remains false. The next bounded action is
+  candidate health/parity under OPS-78 after this reconciliation is merged and
+  cleaned.
+- Required proof before publication: OPS-205 evidence/schema and plan
+  disposition, Harness retirement/migration EOL, blocked-upstream and OPS-72
+  validators, exact `verify-task` with `stale=false`, docs/link/secret/mojibake
+  scans and `git diff --check`. Rollback is one squash revert; no runtime or
+  release mutation.
