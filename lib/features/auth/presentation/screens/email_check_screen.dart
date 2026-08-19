@@ -163,35 +163,43 @@ class _EmailCheckScreenState extends State<EmailCheckScreen> {
     if (!_formKey.currentState!.validate()) return;
 
     final authProvider = context.read<AuthProvider>();
+    final email = _emailController.text.trim();
+    final password = _passwordController.text;
+    final rememberPassword = _rememberPassword;
     final success = await authProvider.login(
-      email: _emailController.text.trim(),
-      password: _passwordController.text,
+      email: email,
+      password: password,
     );
+
+    // AuthProvider notifies GoRouter as soon as the session is hydrated. On
+    // native shells that can dispose this screen before login() completes, so
+    // persist the opt-in pair from the captured values before checking
+    // whether the widget is still mounted.
+    if (success && rememberPassword) {
+      final saved = await authProvider.saveRememberedLogin(
+        email: email,
+        password: password,
+      );
+      if (!saved) {
+        if (!context.mounted) return;
+        setState(() {
+          _rememberPassword = false;
+          _rememberedLoginError =
+              'Đăng nhập thành công nhưng chưa lưu được mật khẩu. Bạn có thể thử lại sau.';
+        });
+        AppToast.show(
+          context,
+          SnackBar(
+            content: Text(_rememberedLoginError!),
+            backgroundColor: AppColors.warningOf(context),
+          ),
+        );
+      }
+    }
 
     if (!context.mounted) return;
 
     if (success) {
-      if (_rememberPassword) {
-        final saved = await authProvider.saveRememberedLogin(
-          email: _emailController.text.trim(),
-          password: _passwordController.text,
-        );
-        if (!saved && context.mounted) {
-          setState(() {
-            _rememberPassword = false;
-            _rememberedLoginError =
-                'Đăng nhập thành công nhưng chưa lưu được mật khẩu. Bạn có thể thử lại sau.';
-          });
-          AppToast.show(
-            context,
-            SnackBar(
-              content: Text(_rememberedLoginError!),
-              backgroundColor: AppColors.warningOf(context),
-            ),
-          );
-        }
-      }
-      if (!context.mounted) return;
       final route = authProvider.user?.needsOrganizationAssignment == true
           ? '/assignment-pending'
           : '/home';
